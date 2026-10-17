@@ -2137,3 +2137,33 @@ html.con-profile-tv {
     68% { transform: scale(0.97); }
     100% { transform: scale(1); }
 }
+
+/* ═══ THE FINALE AND ITS OVERVIEW ON THE COUCH (TR69 «ФИНАЛ — ЭТО ЦЕРЕМОНИЯ», decision 10a) ═══
+   The podium itself is authored at the floor (its type is rem ≥ 0.85, the faces are what scale — console_endgame.less);
+   the overview's six tabs kept their 1080 desk sizes for their badges, units, ticks and table heads — 16 to 20 texts
+   per tab under the couch floor at 4K (the TR69 probe). Every one of them is raised to the floor here; nothing else
+   about the tabs changes on the TV. */
+html.con-profile-tv {
+    .con-ovchart__xtick,
+    .con-ovd__rcorp,
+    .con-ovd__runit,
+    .con-ovd__fact-badge,
+    .con-ovd__fact-gen,
+    .con-ovd__chip,
+    .con-ovd__obs-badge,
+    .con-ovs__dcell--head,
+    .con-ovt__ro-range,
+    .con-ovt__ro-delta,
+    .con-ovt__ro-badge,
+    .con-ovt__dcap,
+    .con-ovc__filter-unit,
+    .con-ovc__botsrc-kind,
+    .con-ovc__botsrc-note,
+    .con-ovc__impact-kind,
+    .con-ovp__pdone,
+    .con-ovp__ro-pct,
+    .con-ovp__push-head,
+    .con-ovpl__cmp-cell--head {
+        font-size: 0.85rem;
+    }
+}

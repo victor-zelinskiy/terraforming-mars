@@ -1,63 +1,70 @@
 <template>
   <!--
-    СЧЁТ — the calm score analysis. Not a replay of the ceremony: a category
-    COMPARISON MATRIX (one row per category, every player's bar on ONE shared
-    scale), the d-pad walks categories, the always-mounted context zone
-    explains the focused one (two-level РТ/Карты breakdown, leader, the
-    winner's edge). A opens the full per-player breakdown detail.
+    СЧЁТ — the score BOARD (TR69 «ОБЗОР В МАСШТАБЕ»): the places are COLUMNS, each led by the corporation's face, its
+    place medal, the name and the total in the score cell's language; the categories are ROWS led by their medallion
+    (the dossier's disc and name); every cell is the value with a bar on ONE shared scale, the category's leader
+    marked gold. The board fills the opening (the rows share its height — never a 40 % matrix over a dead half). The
+    d-pad walks the category rows; the BREAKDOWN of the focused one (РТ / Карты) stands in the same plate, under the
+    board, at a fixed height (no layout jump on focus travel). A opens the full per-player breakdown detail.
   -->
   <div class="con-ovs" :style="{'--ov-n': vm.score.ranking.length}">
-    <!-- Compact standing header: place · name · total (+tie-break note). -->
-    <div class="con-ovs__top">
-      <div class="con-ovs__standing">
-        <span v-for="row in vm.score.ranking" :key="row.color"
-              class="con-ovs__st" :class="{'con-ovs__st--winner': row.isWinner}">
-          <b class="con-ovs__st-place">{{ row.place }}</b>
-          <span class="con-ovs__rdot" :class="'player_bg_color_' + row.color" aria-hidden="true"></span>
-          <span class="con-ovs__st-name">{{ row.name }}</span>
-          <b class="con-ovs__st-total">{{ row.total }}</b>
-        </span>
-      </div>
-      <div class="con-ovs__notes">
-        <span v-if="vm.score.tieBreak !== undefined" class="con-ovs__note con-ovs__note--tb">{{ $t('Tie on VP — decided on M€') }}</span>
-        <span v-if="vm.score.decisive !== undefined" class="con-ovs__note">
-          {{ $t('Biggest edge') }}: <b :class="'con-eg-ink--' + vm.score.decisive.accent">{{ $t(vm.score.decisive.label) }}</b> +{{ vm.score.decisive.delta }} {{ $t('VP') }}
-        </span>
-      </div>
-    </div>
-
-    <!-- The category matrix — shared scale across every row and player. -->
-    <div class="con-ovs__matrix">
-      <div v-for="(cat, ci) in vm.score.categories" :key="cat.key"
-           class="con-ovs__cat" :class="[{'con-ovs__cat--focused': ui.scoreCat === ci}, 'con-eg-cat--' + cat.accent]">
-        <div class="con-ovs__cat-head">
-          <span class="con-ovs__cat-dot" aria-hidden="true"></span>
-          <span class="con-ovs__cat-name">{{ $t(cat.label) }}</span>
-          <span v-if="leaderOf(cat) !== undefined" class="con-ovs__cat-lead">
-            <span class="con-ovs__rdot" :class="'player_bg_color_' + leaderOf(cat)" aria-hidden="true"></span>
+    <div class="con-ovs__board">
+      <!-- THE HEAD ROW — the notes in the corner, the places as faces. -->
+      <div class="con-ovs__line con-ovs__line--head">
+        <div class="con-ovs__corner">
+          <span v-if="vm.score.decisive !== undefined" class="con-ovs__note">
+            <span class="con-ovs__note-label">{{ $t('Biggest edge') }}</span>
+            <b :class="'con-eg-ink--' + vm.score.decisive.accent">{{ $t(vm.score.decisive.label) }}</b>
+            <b class="con-ovs__note-delta">+{{ vm.score.decisive.delta }} {{ $t('VP') }}</b>
           </span>
+          <span v-if="vm.score.tieBreak !== undefined" class="con-ovs__note con-ovs__note--tb">{{ $t('Tie on VP — decided on M€') }}</span>
         </div>
-        <div class="con-ovs__cat-bars">
-          <div v-for="row in vm.score.ranking" :key="row.color" class="con-ovs__pbar">
-            <span class="con-ovs__pbar-track">
-              <span class="con-ovs__pbar-fill"
-                    :class="{'con-ovs__pbar-fill--neg': (cat.values[row.color] ?? 0) < 0}"
-                    :style="barStyle(cat, row.color)"></span>
-            </span>
-            <span class="con-ovs__pbar-val" :class="{'con-ovs__pbar-val--zero': (cat.values[row.color] ?? 0) === 0}">
-              {{ fmt(cat.values[row.color] ?? 0) }}
-            </span>
+        <div v-for="row in vm.score.ranking" :key="row.color"
+             class="con-ovs__seat" :class="{'con-ovs__seat--winner': row.isWinner}" :data-ovs-seat="row.color">
+          <div class="con-ovs__face">
+            <div v-if="row.face !== undefined" class="con-ovs__face-zoom">
+              <ConsoleCardFaceLite v-if="row.face.kind === 'card'" :name="row.face.name" />
+              <MarsBotCorpFace v-else :id="row.face.id" :resources="0" />
+            </div>
+            <div v-else class="con-ovs__face-empty" :class="'player_bg_color_' + row.color" aria-hidden="true"></div>
+          </div>
+          <div class="con-ovs__seat-id">
+            <b class="con-ovs__seat-place">{{ row.place }}</b>
+            <span class="con-ovs__rdot" :class="'player_bg_color_' + row.color" aria-hidden="true"></span>
+            <span class="con-ovs__seat-name">{{ row.name }}</span>
+          </div>
+          <div class="con-ovs__seat-total">
+            <ConsoleVpBadge class="con-ovs__shield" :label="$t('VP')" />
+            <b class="con-ovs__seat-vp">{{ row.total }}</b>
           </div>
         </div>
       </div>
+
+      <!-- THE CATEGORY ROWS — one shared scale across every row and player. -->
+      <div v-for="(cat, ci) in vm.score.categories" :key="cat.key"
+           class="con-ovs__line con-ovs__cat" :class="[{'con-ovs__cat--focused': ui.scoreCat === ci}, 'con-eg-cat--' + cat.accent]"
+           :data-ovs-cat="cat.key">
+        <div class="con-ovs__cat-head">
+          <ConsoleScoreDisc class="con-ovs__disc" :glyph="glyphOf(cat.key)" />
+          <span class="con-ovs__cat-name">{{ $t(cat.label) }}</span>
+        </div>
+        <div v-for="row in vm.score.ranking" :key="row.color" class="con-ovs__cell"
+             :class="{'con-ovs__cell--lead': isLeader(cat, row.color), 'con-ovs__cell--zero': (cat.values[row.color] ?? 0) === 0}">
+          <b class="con-ovs__cell-val" :class="{'con-ovs__cell-val--neg': (cat.values[row.color] ?? 0) < 0}">{{ fmt(cat.values[row.color] ?? 0) }}</b>
+          <span class="con-ovs__pbar-track">
+            <span class="con-ovs__pbar-fill"
+                  :class="{'con-ovs__pbar-fill--neg': (cat.values[row.color] ?? 0) < 0}"
+                  :style="barStyle(cat, row.color)"></span>
+          </span>
+        </div>
+      </div>
     </div>
 
-    <!-- The context zone — ALWAYS mounted (fixed height, no layout jump):
-         the focused category's two-level breakdown or its quiet summary. -->
+    <!-- THE BREAKDOWN — the focused category's sources, in the same plate (fixed height: no jump on focus travel). -->
     <div class="con-ovs__context">
       <template v-if="focusedCat !== undefined">
         <div class="con-ovs__ctx-head">
-          <span class="con-ovs__cat-dot" :class="'con-eg-cat--' + focusedCat.accent" aria-hidden="true"></span>
+          <ConsoleScoreDisc class="con-ovs__disc con-ovs__disc--sm" :class="'con-eg-cat--' + focusedCat.accent" :glyph="glyphOf(focusedCat.key)" />
           <span class="con-ovs__ctx-title">{{ $t(focusedCat.label) }}</span>
           <span v-if="focusedCat.subs.length > 0" class="con-ovs__ctx-hint">{{ $t('Breakdown') }}</span>
         </div>
@@ -77,7 +84,7 @@
     <!-- NESTED DETAIL — the full per-player breakdown of one category. -->
     <div v-if="detailCat !== undefined" class="con-egov-detail">
       <div class="con-egov-detail__head">
-        <span class="con-ovs__cat-dot" :class="'con-eg-cat--' + detailCat.accent" aria-hidden="true"></span>
+        <ConsoleScoreDisc class="con-ovs__disc con-ovs__disc--sm" :class="'con-eg-cat--' + detailCat.accent" :glyph="glyphOf(detailCat.key)" />
         <span class="con-egov-detail__title">{{ $t(detailCat.label) }}</span>
       </div>
       <div class="con-egov-detail__body con-ovs__dgrid" :style="{'--ov-cols': vm.score.ranking.length}">
@@ -107,9 +114,16 @@ import {Color} from '@/common/Color';
 import {NavDirection} from '@/client/gamepad/gamepadPollModel';
 import type {ConsoleOverviewVm, OvScoreCategory, OvScoreSub} from '@/client/console/endgame/consoleOverviewModel';
 import {consoleOverviewUi} from '@/client/console/endgame/consoleOverviewState';
+import type {ConsoleEndgameCategoryKey} from '@/client/console/endgame/consoleEndgameModel';
+import {DossierGlyph, scoreCategoryGlyph} from '@/client/console/infoDossierModel';
+import ConsoleScoreDisc from '@/client/components/console/info/ConsoleScoreDisc.vue';
+import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
+import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
+import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
 
 export default defineComponent({
   name: 'ConsoleOvTabScore',
+  components: {ConsoleScoreDisc, ConsoleVpBadge, ConsoleCardFaceLite, MarsBotCorpFace},
   props: {
     vm: {type: Object as PropType<ConsoleOverviewVm>, required: true},
   },
@@ -140,8 +154,12 @@ export default defineComponent({
     fmt(v: number): string {
       return v < 0 ? '−' + Math.abs(v) : String(v);
     },
-    leaderOf(cat: OvScoreCategory): Color | undefined {
-      return cat.leaders.length === 1 ? cat.leaders[0] : undefined;
+    /** The category's leader (gold) — every holder of a shared lead, never a zero. */
+    isLeader(cat: OvScoreCategory, color: Color): boolean {
+      return cat.leaders.includes(color) && (cat.values[color] ?? 0) > 0;
+    },
+    glyphOf(key: ConsoleEndgameCategoryKey): DossierGlyph {
+      return scoreCategoryGlyph(key);
     },
     barStyle(cat: OvScoreCategory, color: Color): Record<string, string> {
       const v = Math.abs(cat.values[color] ?? 0);

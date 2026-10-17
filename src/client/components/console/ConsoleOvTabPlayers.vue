@@ -20,17 +20,30 @@
     </div>
 
     <div v-if="player !== undefined" class="con-ovpl__sheet" :style="{'--ov-pc': hex(player.color)}">
-      <!-- Identity line: every participant wears its corporation; the bot adds
-           its difficulty (alone on legacy corpless saves). -->
-      <div class="con-ovpl__id">
-        <span class="con-ovpl__place">{{ player.place }}</span>
-        <span class="con-ovpl__name">{{ player.name }}</span>
-        <!-- The bot's corporation is its primary identity; the difficulty
-             stays as the secondary voice. Corpless bot: difficulty alone. -->
+      <!-- THE PARTICIPANT (TR69 «ОБЗОР В МАСШТАБЕ») — the corporation's FACE as the sheet's hero, the identity (every
+           participant wears its corporation; the bot adds its difficulty — alone on legacy corpless saves) and the
+           total in the score cell's language. -->
+      <aside class="con-ovpl__hero" :class="{'con-ovpl__hero--winner': player.isWinner}" :data-ovpl-hero="player.color">
+        <span v-if="player.isWinner" class="con-ovpl__crown">{{ $t('Winner') }}</span>
+        <div class="con-ovpl__face">
+          <div v-if="player.face !== undefined" class="con-ovpl__face-zoom">
+            <ConsoleCardFaceLite v-if="player.face.kind === 'card'" :name="player.face.name" />
+            <MarsBotCorpFace v-else :id="player.face.id" :resources="0" />
+          </div>
+          <div v-else class="con-ovpl__face-empty" :class="'player_bg_color_' + player.color" aria-hidden="true"></div>
+        </div>
+        <div class="con-ovpl__id">
+          <span class="con-ovpl__place">{{ player.place }}</span>
+          <span class="con-egov-legend__dot" :class="'player_bg_color_' + player.color" aria-hidden="true"></span>
+          <span class="con-ovpl__name">{{ player.name }}</span>
+        </div>
         <span v-if="player.corporation !== ''" class="con-ovpl__corp">{{ $t(player.corporation) }}<template v-if="player.difficulty !== undefined"> · <span class="con-ovpl__diff">{{ $t(player.difficulty) }}</span></template></span>
         <span v-else-if="player.difficulty !== undefined" class="con-ovpl__corp con-ovpl__diff">{{ $t(player.difficulty) }}</span>
-        <span v-if="player.isWinner" class="con-ovpl__crown">{{ $t('Winner') }}</span>
-      </div>
+        <div class="con-ovpl__total">
+          <ConsoleVpBadge class="con-ovpl__shield" :label="$t('VP')" />
+          <b class="con-ovpl__total-vp">{{ player.total }}</b>
+        </div>
+      </aside>
 
       <!-- The metric groups — ↑/↓ walks THIS participant's own list. -->
       <div class="con-ovpl__groups">
@@ -60,17 +73,24 @@
             </div>
           </div>
 
+          <!-- Milestones & awards as MEDALLIONS (TR69): the emblem's own art, the name, the VP it brought — the
+               server's breakdown rows, never a re-told sentence. -->
           <div v-else-if="g.key === 'ma'" class="con-ovpl__ma">
-            <span v-for="(d, di) in player.milestones" :key="'m' + di" class="con-ovpl__ma-chip con-ovpl__ma-chip--milestone">{{ maText(d) }}</span>
-            <span v-for="(d, di) in player.awards" :key="'a' + di" class="con-ovpl__ma-chip con-ovpl__ma-chip--award">{{ maText(d) }}</span>
-            <span v-if="player.milestones.length === 0 && player.awards.length === 0" class="con-ovpl__quiet">{{ $t('No milestones or awards') }}</span>
+            <span v-for="(m, mi) in player.maMedals" :key="m.kind + mi" class="con-ovpl__medal" :class="'con-ovpl__medal--' + m.kind"
+                  :data-ovpl-ma="m.kind">
+              <img class="con-ovpl__medal-art" :src="'assets/ma/' + m.slug + '.png'" alt="" draggable="false" />
+              <span class="con-ovpl__medal-name">{{ $t(m.name) }}</span>
+              <b class="con-ovpl__medal-vp">+{{ m.vp }}</b>
+            </span>
+            <span v-if="player.maMedals.length === 0" class="con-ovpl__quiet">{{ $t('No milestones or awards') }}</span>
           </div>
 
+          <!-- The score sources as the ceremony's own MEDALLIONS (the dossier's disc · the value · the short name). -->
           <div v-else-if="g.key === 'categories'" class="con-ovpl__cats">
             <span v-for="c in player.categories" :key="c.key" class="con-ovpl__cat" :class="'con-eg-cat--' + c.accent">
-              <span class="con-ovpl__cat-dot" aria-hidden="true"></span>
-              <span class="con-ovpl__cat-name">{{ $t(c.label) }}</span>
+              <ConsoleScoreDisc class="con-ovpl__cat-disc" :glyph="glyphOf(c.key)" />
               <b class="con-ovpl__cat-val">{{ c.value < 0 ? '−' + Math.abs(c.value) : c.value }}</b>
+              <span class="con-ovpl__cat-name">{{ $t(legendOf(c.key)) }}</span>
             </span>
           </div>
 
@@ -122,17 +142,19 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
-import {MADetail} from '@/common/game/VictoryPointsBreakdown';
-import {Message} from '@/common/logs/Message';
-import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
-import {AwardName} from '@/common/ma/AwardName';
 import {NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
-import {$t, translateTextWithParams, translateMessage} from '@/client/directives/i18n';
+import {$t} from '@/client/directives/i18n';
 import {
   ConsoleOverviewVm, OvMetric, OvPlayerCard, PlayerMetricGroup,
 } from '@/client/console/endgame/consoleOverviewModel';
 import {consoleOverviewUi} from '@/client/console/endgame/consoleOverviewState';
+import {ConsoleEndgameCategoryKey, SCORE_CATEGORY_TABLE} from '@/client/console/endgame/consoleEndgameModel';
+import {DossierGlyph, scoreCategoryGlyph} from '@/client/console/infoDossierModel';
+import ConsoleScoreDisc from '@/client/components/console/info/ConsoleScoreDisc.vue';
+import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
+import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
+import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
 
 const RES_ICON: Record<string, string> = {
   'megacredits': 'resource_icon--megacredits',
@@ -145,6 +167,7 @@ const RES_ICON: Record<string, string> = {
 
 export default defineComponent({
   name: 'ConsoleOvTabPlayers',
+  components: {ConsoleScoreDisc, ConsoleVpBadge, ConsoleCardFaceLite, MarsBotCorpFace},
   props: {
     vm: {type: Object as PropType<ConsoleOverviewVm>, required: true},
   },
@@ -249,27 +272,12 @@ export default defineComponent({
       const max = this.vm.players.maxima[mkey] ?? 1;
       return max > 0 ? Math.min(100, (Math.max(0, this.cmpValue(p, mkey)) / max) * 100) : 0;
     },
-    /**
-     * Milestone/award chips. The award template's third argument is the
-     * FUNDER'S RAW server name (`fundedAward.player.name`) — remapped to the
-     * canonical display name FIRST, so a localized UI can never print
-     * «MarsBot». The rest of the award grammar keeps the shared
-     * translateMessage path (place/award tokens).
-     */
-    maText(d: MADetail): string {
-      if (d.messageArgs !== undefined && d.messageArgs.length >= 3) {
-        const funder = this.vm.players.displayNames[d.messageArgs[2]] ?? d.messageArgs[2];
-        const message: Message = {
-          message: d.message,
-          data: [
-            {type: LogMessageDataType.STRING, value: d.messageArgs[0]},
-            {type: LogMessageDataType.AWARD, value: d.messageArgs[1] as AwardName},
-            {type: LogMessageDataType.PLAYER, value: funder as Color},
-          ],
-        };
-        return translateMessage(message);
-      }
-      return translateTextWithParams(d.message, (d.messageArgs ?? []).map($t));
+    glyphOf(key: ConsoleEndgameCategoryKey): DossierGlyph {
+      return scoreCategoryGlyph(key);
+    },
+    /** The ceremony's SHORT name of a category (its rail legend — «РТ», «Награды») — what a medallion prints. */
+    legendOf(key: ConsoleEndgameCategoryKey): string {
+      return SCORE_CATEGORY_TABLE.find((m) => m.key === key)?.legend ?? key;
     },
     // ── pane API ──────────────────────────────────────────────────────────
     nav(dir: NavDirection): void {

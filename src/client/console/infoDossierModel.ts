@@ -51,13 +51,22 @@ const CATEGORY_GLYPH: Partial<Record<ConsoleEndgameCategoryKey, DossierGlyph>> =
   greenery: {kind: 'tile', tile: 'greenery'},
 };
 
+/**
+ * A category's own symbol — the ONE glyph table the dossier's medallions and the finale's podium share (TR69: the
+ * seats' medallions and the ceremony's flying tokens speak the dossier's language). A category with no printed symbol
+ * wears its accent disc.
+ */
+export function scoreCategoryGlyph(key: ConsoleEndgameCategoryKey): DossierGlyph {
+  return CATEGORY_GLYPH[key] ?? {kind: 'mark'};
+}
+
 /** At most this many earned emblems stand inside one medallion (the rest are the explorer's). */
 export const MEDALLION_EMBLEMS_MAX = 3;
 
 /** The score's medallions — one per category of the overview, in its (the ceremony's) order. */
 export function dossierMedallions(overview: ScoreOverviewModel): ReadonlyArray<DossierMedallion> {
   return overview.tiles.map((tile) => {
-    let glyph: DossierGlyph = CATEGORY_GLYPH[tile.key] ?? {kind: 'mark'};
+    let glyph: DossierGlyph = scoreCategoryGlyph(tile.key);
     if ((tile.key === 'milestones' || tile.key === 'awards') && tile.ledger.kind === 'medallions' && tile.ledger.entries.length > 0) {
       glyph = {kind: 'emblems', slugs: tile.ledger.entries.slice(0, MEDALLION_EMBLEMS_MAX).map((e) => e.slug)};
     }

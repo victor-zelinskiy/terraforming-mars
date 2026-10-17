@@ -30,7 +30,8 @@ import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
 import type {EndgameModel, EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
 import type {InsightParam, EvidenceChip} from '@/client/components/endgame/insightEngine';
 import type {KeyEpisode, EpisodeRole, EpisodePhase} from '@/client/components/endgame/keyEpisodeEngine';
-import type {ConsoleEndgameVm, ConsoleEndgameCategoryKey} from '@/client/console/endgame/consoleEndgameModel';
+import type {ConsoleEndgameVm, ConsoleEndgameCategoryKey, ConsoleEndgameFace} from '@/client/console/endgame/consoleEndgameModel';
+import {maArtSlug} from '@/client/console/maArt';
 import type {RevealTieBreak} from '@/client/components/endgame/finalScoringRevealModel';
 
 // ── Tabs ────────────────────────────────────────────────────────────────────
@@ -81,6 +82,8 @@ export type OvRankRow = {
   name: string;
   /** Corporation name (the bot's own corp when the save carries one). '' when unknown. */
   corporation: string;
+  /** The corporation FACE the participant stands behind (TR69 — the ceremony's own: a card name, the bot's id). */
+  face: ConsoleEndgameFace | undefined;
   /** The bot's difficulty LABEL (i18n key) — SECONDARY beside the corporation
    *  when the bot has one; the whole identity line on corpless saves. */
   difficulty?: string;
@@ -278,11 +281,25 @@ export type OvParams = {
 
 export type OvMetric = {key: string; label: string; value: number};
 
+/** A claimed milestone / a funded award's result as a MEDALLION (TR69): the emblem's art, the name, the VP it brought. */
+export type OvMaMedal = {
+  kind: 'milestone' | 'award',
+  /** The raw milestone / award name (an i18n key). */
+  name: string,
+  /** `assets/ma/<slug>.png`. */
+  slug: string,
+  vp: number,
+};
+
 export type OvPlayerCard = {
   color: Color;
   name: string;
   /** Corporation name (the bot's own corp when the save carries one). */
   corporation: string;
+  /** The corporation FACE (TR69 — a card name / the bot's id, never the display string). */
+  face: ConsoleEndgameFace | undefined;
+  /** The milestones claimed and the awards placed in, as medallions — the server's own breakdown rows. */
+  maMedals: ReadonlyArray<OvMaMedal>;
   /** The bot's difficulty LABEL (i18n key) — part of its identity line
    *  (secondary beside the corporation when the bot has one). */
   difficulty?: string;
@@ -787,6 +804,7 @@ const PRODUCTION_META: ReadonlyArray<{key: string; label: string}> = [
 
 function buildPlayers(model: EndgameModel, egVm: ConsoleEndgameVm, extras: ConsoleOverviewExtras): OvPlayers {
   const bots = new Set(egVm.rows.filter((r) => r.isBot).map((r) => r.color));
+  const egRowBy = new Map(egVm.rows.map((r) => [r.color, r]));
   const rawBy = new Map(extras.playersRaw.map((p) => [p.color, p]));
   const maxima: Record<string, number> = {};
   const comparable: Record<string, number> = {};
@@ -860,6 +878,8 @@ function buildPlayers(model: EndgameModel, egVm: ConsoleEndgameVm, extras: Conso
       // The bot's corp identity rides `botCorporation` (its `corporations`
       // array stays empty — that one feeds the human impact engine).
       corporation: p.corporations.length > 0 ? p.corporations.join(' / ') : (p.botCorporation?.name ?? ''),
+      face: egRowBy.get(p.color)?.face,
+      maMedals: maMedalsOf(p.breakdown),
       ...(p.botDifficulty !== undefined ? {difficulty: DIFFICULTY_LABEL[p.botDifficulty]} : {}),
       place: p.place,
       total: p.total,
@@ -888,6 +908,28 @@ function buildPlayers(model: EndgameModel, egVm: ConsoleEndgameVm, extras: Conso
   return {players, maxima, comparable, displayNames};
 }
 
+/**
+ * The milestone / award medallions of one breakdown — the server's own rows, never a recount: a claimed milestone is
+ * `detailsMilestones[].messageArgs[0]`, an award's place row `detailsAwards[].messageArgs = [place, award, funder]`.
+ * A row with no name (an older save's free-text row) is skipped — it cannot carry an emblem.
+ */
+export function maMedalsOf(breakdown: {detailsMilestones: ReadonlyArray<MADetail>, detailsAwards: ReadonlyArray<MADetail>}): ReadonlyArray<OvMaMedal> {
+  const out: Array<OvMaMedal> = [];
+  for (const d of breakdown.detailsMilestones) {
+    const name = d.messageArgs?.[0];
+    if (name !== undefined && name !== '') {
+      out.push({kind: 'milestone', name, slug: maArtSlug(name), vp: d.victoryPoint});
+    }
+  }
+  for (const d of breakdown.detailsAwards) {
+    const name = d.messageArgs?.[1];
+    if (name !== undefined && name !== '') {
+      out.push({kind: 'award', name, slug: maArtSlug(name), vp: d.victoryPoint});
+    }
+  }
+  return out;
+}
+
 // ── The builder ─────────────────────────────────────────────────────────────
 
 export function buildConsoleOverviewVm(
@@ -901,6 +943,7 @@ export function buildConsoleOverviewVm(
     color: p.color,
     name: p.name,
     corporation: rowBy.get(p.color)?.corporation ?? (p.corporations.length > 0 ? p.corporations.join(' / ') : (p.botCorporation?.name ?? '')),
+    face: rowBy.get(p.color)?.face,
     ...(p.botDifficulty !== undefined ? {difficulty: DIFFICULTY_LABEL[p.botDifficulty]} : {}),
     place: p.place,
     total: p.total,

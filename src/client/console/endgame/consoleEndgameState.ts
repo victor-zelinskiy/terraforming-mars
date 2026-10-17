@@ -57,10 +57,8 @@ export type CeremonyPhase =
  *  result holds still; each step is a MEANING — see consoleEndgameScript). */
 export type ChampionStage = 0 | 1 | 2 | 3 | 4;
 
-/** The inner stage of the active category's four-part phrase. */
-export type CeremonyBeatStage = '' | 'focus' | 'grow' | 'settle';
-
-type ChipState = {value: number, seq: number};
+/** The inner stage of the active category's phrase (TR69: `fly` — its tokens are in the air, nothing landed yet). */
+export type CeremonyBeatStage = '' | 'focus' | 'fly' | 'grow' | 'settle';
 
 export const consoleEndgameUi = reactive({
   phase: 'idle' as CeremonyPhase,
@@ -84,8 +82,6 @@ export const consoleEndgameUi = reactive({
    * DOM sink (`onCount`), so a reactive write can't re-lay the row 60×/s.
    */
   displayTotals: {} as Record<string, number>,
-  /** color → the floating «+N» chip at the bar's growth edge. */
-  chips: {} as Record<string, ChipState | undefined>,
 
   /** Rows are displayed in FINAL RANKED order (the FLIP has happened). */
   ranked: false,
@@ -141,7 +137,6 @@ export function resetCeremonyProgress(): void {
   s.subsOn = {};
   s.merged = {};
   s.displayTotals = {};
-  s.chips = {};
   s.ranked = false;
   s.placesShown = false;
   s.tieStage = 0;
@@ -191,7 +186,6 @@ export function finalizeCeremony(vm: ConsoleEndgameVm): void {
     totals[row.color] = row.finalTotal;
   }
   s.displayTotals = totals;
-  s.chips = {};
   s.ranked = true;
   s.placesShown = true;
   s.tieStage = vm.tieBreak !== undefined ? 2 : 0;

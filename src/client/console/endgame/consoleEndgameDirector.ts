@@ -22,10 +22,13 @@
  *    and RE-ARMS while the ceremony is deliberately paused/collapsed).
  *
  * The component contributes the DOM moments the director cannot know:
- * `onRankFlip` (measure → reorder → invert → play), `onWinnerFx` (the
- * ceremonyFx burst on the winner row) and `onCount` (the total sink) — the
- * first two register their teardown via `addCleanup`, so a skip can never
- * leave a half-played FLIP transform.
+ * `onRankFlip` (measure → reorder → invert → play), `onCrown` (the podium's
+ * own FLIP — the winner rises, the places step down), `onWinnerFx` (the
+ * ceremonyFx burst on the winner seat), `onTokens` (TR69: the category's
+ * tokens flying from the rail's medallion into every seat's score) and
+ * `onCount` (the total sink) — every flight and FLIP is put under the
+ * director's clock (`attach`) or its teardown (`addCleanup`), so a pause
+ * freezes it and a skip can never leave a half-played transform.
  */
 import {gsap} from 'gsap';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
@@ -33,9 +36,26 @@ import type {ConsoleEndgameVm} from '@/client/console/endgame/consoleEndgameMode
 import {ceremonyBeats, ceremonyTotalMs} from '@/client/console/endgame/consoleEndgameScript';
 import {consoleEndgameUi, finalizeCeremony} from '@/client/console/endgame/consoleEndgameState';
 
+/** One category's (or one sub-step's) token beat — what the host flies, and for how long. */
+export type CeremonyTokenBeat = {
+  catIdx: number,
+  /** The sub-step inside a multi-sub category, −1 for a whole category. */
+  subIdx: number,
+  /** color → the signed points this beat brings (a zero brings no token). */
+  values: Record<string, number>,
+  /** The flight's length, ms (already through `consoleMotionMs`). */
+  flyMs: number,
+};
+
 export type CeremonyHooks = {
   /** Measure current row rects, flip `ranked` on, invert+play — the FLIP. */
   onRankFlip: () => void,
+  /** TR69: the podium FORMS — the crowned seats rise, the rest step down (a FLIP of the seats' boxes). Fired with
+   *  the winner beat, before the burst. */
+  onCrown?: () => void,
+  /** TR69: the beat's TOKENS — born on the rail's medallion, flying into every seat's score; each tween is handed to
+   *  `attach` so the ceremony's pause / resume / kill reach it. Absent → no tokens (the count still runs). */
+  onTokens?: (beat: CeremonyTokenBeat, attach: (tween: gsap.core.Animation) => void) => void,
   /** The winner burst (ceremonyFx) — fired once at the winner beat. */
   onWinnerFx: () => void,
   /** The live count-up sink — a DIRECT DOM write, one integer per frame. */
@@ -65,7 +85,6 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
 
   const cleanups: Array<() => void> = [];
   let done = false;
-  let chipSeq = 0;
 
   // One proxy per player for the eased count-up. Targets are ABSOLUTE running
   // sums, precomputed while laying the beats (a relative `+=` on a negative
@@ -80,6 +99,20 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
   }
 
   const tl = gsap.timeline({paused: true});
+
+  // The host's own tweens (the token flights) — under the SAME clock as the timeline: paused, resumed and killed with it.
+  const attached = new Set<gsap.core.Animation>();
+  const attach = (tween: gsap.core.Animation) => {
+    if (done) {
+      tween.kill();
+      return;
+    }
+    attached.add(tween);
+    if (tl.paused()) {
+      tween.pause();
+    }
+    tween.eventCallback('onComplete', () => attached.delete(tween));
+  };
 
   const countUp = (at: number, color: string, add: number, ms: number) => {
     if (add === 0) {
@@ -112,22 +145,10 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
     }, [], at);
   };
 
-  const popChips = (at: number, values: Record<string, number>) => {
+  /** The beat's tokens leave the rail at `at` (the host flies them; a zero brings none — no fake celebration). */
+  const flyTokens = (at: number, catIdx: number, subIdx: number, values: Record<string, number>, flyMs: number) => {
     tl.call(() => {
-      const next: Record<string, {value: number, seq: number} | undefined> = {};
-      for (const row of vm.rows) {
-        const v = values[row.color] ?? 0;
-        // A zero is not an award — no chip, no fake celebration. The value
-        // rail still states the honest 0 at the category settle.
-        next[row.color] = v !== 0 ? {value: v, seq: ++chipSeq} : undefined;
-      }
-      s.chips = next;
-    }, [], at);
-  };
-
-  const clearChips = (at: number) => {
-    tl.call(() => {
-      s.chips = {};
+      hooks.onTokens?.({catIdx, subIdx, values, flyMs: consoleMotionMs(flyMs)}, attach);
     }, [], at);
   };
 
@@ -154,24 +175,28 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
         s.beatStage = 'focus';
       }, [], at);
       at += sec(beat.focusMs);
-      // GROW — bars and counts move together, the «+N» chip rides the edge.
+      // FLY — the category's tokens leave the rail's medallion for every seat's score; nothing on the seats moves yet.
+      tl.call(() => {
+        s.beatStage = 'fly';
+      }, [], at);
+      flyTokens(at, beat.idx, -1, cat.values, beat.flyMs);
+      at += sec(beat.flyMs);
+      // GROW — the touchdown: the bar, the count and the seat's medallion move together.
       tl.call(() => {
         s.beatStage = 'grow';
       }, [], at);
-      popChips(at, cat.values);
       for (const row of vm.rows) {
-        countUp(at + sec(60), row.color, cat.values[row.color] ?? 0, beat.growMs * 0.85);
+        countUp(at, row.color, cat.values[row.color] ?? 0, beat.growMs * 0.8);
       }
       at += sec(beat.growMs);
-      // SETTLE — the segment locks, the exact value lands under it.
+      // SETTLE — the segment locks, the value stands in the medallion.
       tl.call(() => {
         s.beatStage = 'settle';
         s.catsSettled = beat.idx + 1;
       }, [], at);
       settleTotals(at);
       at += sec(beat.settleMs);
-      // PAUSE — a breath; the chip lets go mid-way.
-      clearChips(at + sec(beat.pauseMs * 0.45));
+      // PAUSE — a breath.
       at += sec(beat.pauseMs);
       break;
     }
@@ -189,15 +214,20 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
     case 'sub': {
       const cat = vm.categories[beat.idx];
       const sub = cat.subs[beat.sub];
+      // The caption names the source first; its tokens fly; the touchdown grows the sub-segment and the count.
       tl.call(() => {
         s.catIdx = beat.idx;
         s.subIdx = beat.sub;
+        s.beatStage = 'fly';
+      }, [], at);
+      flyTokens(at, beat.idx, beat.sub, sub.values, beat.flyMs);
+      const land = at + sec(beat.flyMs);
+      tl.call(() => {
         s.beatStage = 'grow';
         s.subsOn = {...s.subsOn, [cat.key]: beat.sub + 1};
-      }, [], at);
-      popChips(at + sec(30), sub.values);
+      }, [], land);
       for (const row of vm.rows) {
-        countUp(at + sec(60), row.color, sub.values[row.color] ?? 0, beat.ms * 0.8);
+        countUp(land, row.color, sub.values[row.color] ?? 0, (beat.ms - beat.flyMs) * 0.85);
       }
       at += sec(beat.ms);
       break;
@@ -212,7 +242,6 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
         s.catsSettled = beat.idx + 1;
       }, [], at);
       settleTotals(at);
-      clearChips(at + sec(beat.ms * 0.5));
       at += sec(beat.ms);
       break;
     }
@@ -222,7 +251,6 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
         s.phase = 'settling';
         s.catIdx = -1;
         s.beatStage = '';
-        s.chips = {};
       }, [], at);
       at += sec(beat.ms);
       break;
@@ -264,6 +292,8 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
     case 'winner':
       tl.call(() => {
         s.phase = 'winner';
+        // The podium FORMS with the crowning (the seats measured before the class lands, played after it).
+        hooks.onCrown?.();
         s.winnerShown = true;
         hooks.onWinnerFx();
       }, [], at);
@@ -348,6 +378,10 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
     done = true;
     window.clearTimeout(safety);
     tl.kill();
+    for (const tween of attached) {
+      tween.kill();
+    }
+    attached.clear();
     for (const fn of cleanups.splice(0)) {
       try {
         fn();
@@ -371,11 +405,17 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
     pause: () => {
       if (!done) {
         tl.pause();
+        for (const tween of attached) {
+          tween.pause();
+        }
       }
     },
     resume: () => {
       if (!done && consoleEndgameUi.phase !== 'actions') {
         tl.resume();
+        for (const tween of attached) {
+          tween.resume();
+        }
       }
     },
     addCleanup: (fn) => {

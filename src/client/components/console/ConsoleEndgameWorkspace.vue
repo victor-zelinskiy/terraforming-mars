@@ -34,7 +34,9 @@
     rises in console mode.
   -->
   <div class="con-endgame" role="region" :aria-label="$t('Final scoring')"
-       :class="{'con-endgame--noanim': noanim, 'con-endgame--ovopen': overviewParked || campaignScene !== undefined, ['con-endgame--' + ui.phase]: true}">
+       :class="{'con-endgame--noanim': noanim, 'con-endgame--ovopen': overviewParked || campaignScene !== undefined, ['con-endgame--' + ui.phase]: true}"
+       :style="{'--eg-horizon-y': horizonY + 'px', '--eg-arc-r': arcRadius + 'px'}"
+       :data-eg-beat="ui.beatStage" :data-eg-cat="ui.catIdx">
     <div class="con-eg" :class="'con-eg--n' + densityN">
       <header class="con-eg__head">
         <!-- A fixed-height slot + layered crossfade: the title swap
@@ -55,14 +57,13 @@
            the legend reads as the scoreboard's own header, never a distant
            strip with dead space under it. -->
       <div class="con-eg__stage">
-        <!-- CATEGORY RAIL — one stable strip; the ACTIVE category is the
-             spotlight (bright, lifted, accent-lit), settled ones stay
-             readable, future ones wait dim. Identity = colour + position +
-             name (never colour alone). -->
+        <!-- CATEGORY RAIL — one stable strip of MEDALLIONS (the dossier's own discs, TR69); the ACTIVE category is the
+             spotlight (bright, lifted, accent-lit) and its disc is where the category's TOKENS are born; settled ones
+             stay readable, future ones wait dim. Identity = symbol + colour + position + name (never colour alone). -->
         <div class="con-eg__rail">
           <div v-for="(cat, i) in vm.categories" :key="cat.key"
-               class="con-eg__lchip" :class="lchipClass(cat, i)" :style="{'--eg-ci': i}">
-            <span class="con-eg__ldot" aria-hidden="true"></span>
+               class="con-eg__lchip" :class="lchipClass(cat, i)" :style="{'--eg-ci': i}" :data-eg-rail="cat.key">
+            <ConsoleScoreDisc class="con-eg__ldisc" :glyph="glyphOf(cat.key)" />
             <span class="con-eg__lname">{{ $t(cat.legend) }}</span>
           </div>
         </div>
@@ -76,13 +77,18 @@
           </transition>
         </div>
 
-        <!-- THE ROWS — all players, one comparable composition. -->
-        <div ref="rowsEl" class="con-eg__rows">
+        <!-- THE PODIUM (TR69 «ФИНАЛ — ЭТО ЦЕРЕМОНИЯ») — every player is a SEAT standing on the horizon: the corporation's
+             face, the name, the score in the score cell's language, the counting bar under it, the category medallions.
+             While the count runs the seats are EQUAL (the ranking is untold); the ranking FLIPs them into order, and the
+             crowning RAISES the winner into the hero — the tallest seat, the largest face — while the rest step down.
+             The geometry is the pure planner's (`consoleEndgamePodium`), solved from the measured box. -->
+        <div ref="rowsEl" class="con-eg__rows" :class="'con-eg__rows--' + podium.mode"
+             :style="{'--eg-seat-gap': podium.gap + 'px'}">
           <div v-for="(color, i) in rowOrder" :key="color"
                class="con-eg__row" :class="rowClass(color)"
-               :data-eg-row="color" :style="{'--eg-i': i}">
+               :data-eg-row="color" :style="seatStyle(color, i)">
             <!-- The «ПОБЕДИТЕЛЬ» ribbon and the «ЧЕМПИОН КАМПАНИИ» plate are
-                 ONE anchor (the row's top-left shoulder): on the campaign's
+                 ONE anchor (the seat's top-left shoulder): on the campaign's
                  final mission the ribbon RELEASES (fade) while the plate
                  unfolds in its place — a transformation, never a swap. Both
                  absolute: zero layout impact at any density, ever. -->
@@ -97,21 +103,21 @@
               <span class="con-eg__champline-swatch" :class="'player_bg_color_' + color" aria-hidden="true"></span>
               <span class="con-eg__champline-label">{{ $t('Campaign champion') }}</span>
               <!-- The four-mission motif: one pip per mission, lighting in
-                   sequence — the arc that this row just closed. Fixed
+                   sequence — the arc that this seat just closed. Fixed
                    geometry inside the plate; the full route story stays on
                    the campaign map. -->
               <span class="con-eg__champline-pips" aria-hidden="true">
                 <span v-for="p in missionPipCount" :key="p" class="con-eg__champline-pip" :style="{'--pip-i': p - 1}"></span>
               </span>
             </div>
-            <!-- The RIM SWEEP — a transient light running the champion row's
+            <!-- The RIM SWEEP — a transient light running the champion seat's
                  own frame (live ceremony only; it ends invisible, so its
                  unmount at settle can never pop). -->
             <div v-if="championSweepFor(color)" class="con-eg__champ-rim" aria-hidden="true">
               <span class="con-eg__champ-rim-bar"></span>
             </div>
-            <!-- CAMPAIGN TITLE — a compact mark ON the holder's own row (the
-                 ribbon's idiom, the row's other shoulder). The row is where a
+            <!-- CAMPAIGN TITLE — a compact mark ON the holder's own seat (the
+                 ribbon's idiom, the seat's other shoulder). The seat is where a
                  player reads their result, so the title marks it there; the
                  full story (TP ledger, comeback M€, per-mission provenance)
                  stays on the campaign map. Data is the SERVER'S committed
@@ -125,75 +131,78 @@
               <span class="con-eg__title-label">{{ $t(rowTitleBadge(color)!.label) }}</span>
               <span v-if="rowTitleBadge(color)!.tp > 0" class="con-eg__title-tp">+{{ rowTitleBadge(color)!.tp }} <span v-i18n>TP</span></span>
             </div>
-            <div class="con-eg__place" aria-hidden="true">
-              <span v-if="ui.placesShown" class="con-eg__place-num">{{ rowBy(color).place }}</span>
-              <span v-else class="con-eg__place-dot"></span>
-            </div>
-            <div class="con-eg__ident">
-              <span class="con-eg__swatch" :class="'player_bg_color_' + color" aria-hidden="true"></span>
-              <div class="con-eg__who">
-                <span class="con-eg__name">{{ rowBy(color).name }}</span>
-                <!-- The bot's corporation is its PRIMARY identity (like a human's);
-                     the difficulty stays as the secondary voice on the same line. -->
-                <span v-if="rowBy(color).corporation !== ''" class="con-eg__corp">{{ $t(rowBy(color).corporation) }}<template v-if="rowBy(color).difficulty !== undefined"> · <span class="con-eg__diff">{{ $t(rowBy(color).difficulty!) }}</span></template></span>
-                <!-- Corpless bot (legacy save): WHICH bot was beaten (or won) —
-                     its difficulty, where a human shows the corporation. -->
-                <span v-else-if="rowBy(color).difficulty !== undefined" class="con-eg__corp con-eg__diff">{{ $t(rowBy(color).difficulty!) }}</span>
+            <!-- THE FACE — the corporation the seat stands behind, the premium face at the planner's size (a human's
+                 card, the MarsBot corporation's own face); a corpless seat shows its prepared place in its colour. -->
+            <div class="con-eg__face">
+              <div v-if="rowBy(color).face !== undefined" class="con-eg__face-zoom" :style="{zoom: faceZoomOf(color)}">
+                <ConsoleCardFaceLite v-if="rowBy(color).face!.kind === 'card'"
+                                     :name="faceCardName(color)" :card="corporationModel(color)" />
+                <MarsBotCorpFace v-else :id="faceBotId(color)" :resources="botCorpResources" />
+              </div>
+              <div v-else class="con-eg__face-empty" :class="'player_bg_color_' + color" aria-hidden="true"></div>
+              <!-- The PLACE — a medal on the face's foot, after the ranking. -->
+              <div class="con-eg__place" aria-hidden="true">
+                <span v-if="ui.placesShown" class="con-eg__place-num">{{ rowBy(color).place }}</span>
+                <span v-else class="con-eg__place-dot"></span>
               </div>
             </div>
-            <div class="con-eg__track">
-              <div class="con-eg__bar">
-                <div v-for="seg in rowGeo[color].segs" :key="seg.key"
-                     class="con-eg__seg" :class="segClass(seg)"
-                     :style="{left: seg.leftPct + '%', width: seg.widthPct + '%'}">
-                  <div v-for="sub in seg.subs" :key="sub.key"
-                       class="con-eg__subseg" :class="subClass(seg, sub)"
-                       :style="{left: sub.leftPct + '%', width: sub.widthPct + '%'}"></div>
+            <div class="con-eg__read">
+              <div class="con-eg__ident">
+                <span class="con-eg__swatch" :class="'player_bg_color_' + color" aria-hidden="true"></span>
+                <div class="con-eg__who">
+                  <span class="con-eg__name">{{ rowBy(color).name }}</span>
+                  <!-- The bot's corporation is its PRIMARY identity (like a human's);
+                       the difficulty stays as the secondary voice on the same line. -->
+                  <span v-if="rowBy(color).corporation !== ''" class="con-eg__corp">{{ $t(rowBy(color).corporation) }}<template v-if="rowBy(color).difficulty !== undefined"> · <span class="con-eg__diff">{{ $t(rowBy(color).difficulty!) }}</span></template></span>
+                  <!-- Corpless bot (legacy save): WHICH bot was beaten (or won) —
+                       its difficulty, where a human shows the corporation. -->
+                  <span v-else-if="rowBy(color).difficulty !== undefined" class="con-eg__corp con-eg__diff">{{ $t(rowBy(color).difficulty!) }}</span>
                 </div>
-                <!-- The subtractive SCAR — the bar's tip retreats over it when
-                     the penalty lands; it stays as the deduction's witness. -->
-                <div v-if="rowGeo[color].reclaim !== undefined" class="con-eg__reclaim"
-                     :class="{'con-eg__reclaim--on': reclaimOn(color)}"
-                     :style="{left: rowGeo[color].reclaim!.leftPct + '%', width: rowGeo[color].reclaim!.widthPct + '%'}"></div>
-                <!-- Values INSIDE wide segments (clipped by the bar). -->
-                <span v-for="lab in insideLabels(color)" :key="lab.key"
-                      class="con-eg__inlab" :class="labelStateClass(lab)"
-                      :style="{left: lab.xPct + '%'}">{{ fmtLabel(lab.value) }}</span>
               </div>
-              <!-- The «+N» chip lives OUTSIDE the bar (its clip would eat it),
-                   riding the same growth edge over the track. -->
-              <transition name="con-eg-chip">
-                <span v-if="chipFor(color) !== undefined" :key="chipFor(color)!.seq"
-                      class="con-eg__chip" :class="{'con-eg__chip--minus': chipFor(color)!.value < 0}"
-                      :style="{left: chipEdgePct(color) + '%'}">
-                  {{ chipFor(color)!.value > 0 ? '+' + chipFor(color)!.value : chipFor(color)!.value }}
+              <!-- THE SCORE in the score cell's language (TR55): the award shield and the running total — where every
+                   category's token lands. No binding on the number: the count-up writes textContent directly. -->
+              <div class="con-eg__total">
+                <ConsoleVpBadge class="con-eg__shield" :label="$t('VP')" />
+                <span class="con-eg__total-num" :data-eg-total="color">0</span>
+                <!-- The champion KEEL — the fixation's persistent witness: a
+                     thin gold bar under the final total, mounted at the FIX
+                     window and kept by the settled screen (absolute — zero
+                     layout impact; reduced motion still gets its appearance). -->
+                <span v-if="championFixFor(color)" class="con-eg__champ-keel"
+                      :class="{'con-eg__champ-keel--animate': campaignCodaAnimated}" aria-hidden="true"></span>
+              </div>
+              <!-- THE COUNTING INSTRUMENT — the shared-scale bar under the score: one hue per category, the penalty a scar. -->
+              <div class="con-eg__track">
+                <div class="con-eg__bar">
+                  <div v-for="seg in rowGeo[color].segs" :key="seg.key"
+                       class="con-eg__seg" :class="segClass(seg)"
+                       :style="{left: seg.leftPct + '%', width: seg.widthPct + '%'}">
+                    <div v-for="sub in seg.subs" :key="sub.key"
+                         class="con-eg__subseg" :class="subClass(seg, sub)"
+                         :style="{left: sub.leftPct + '%', width: sub.widthPct + '%'}"></div>
+                  </div>
+                  <!-- The subtractive SCAR — the bar's tip retreats over it when
+                       the penalty lands; it stays as the deduction's witness. -->
+                  <div v-if="rowGeo[color].reclaim !== undefined" class="con-eg__reclaim"
+                       :class="{'con-eg__reclaim--on': reclaimOn(color)}"
+                       :style="{left: rowGeo[color].reclaim!.leftPct + '%', width: rowGeo[color].reclaim!.widthPct + '%'}"></div>
+                </div>
+                <!-- Tie-break M€ — absolute over the track's tail: appearing
+                     evidence may never re-flow the bar it explains. -->
+                <div v-if="tieChipVisible(color)" class="con-eg__tiechip">
+                  <i class="resource_icon resource_icon--megacredits con-eg__mc-icon" aria-hidden="true"></i>
+                  <b>{{ rowBy(color).megacredits }}</b>
+                </div>
+              </div>
+              <!-- THE MEDALLIONS — one per category, the dossier's discs: lit on the token's touchdown with the
+                   category's value (a zero stays a quiet «0»); before it, a dim disc keeping its place. -->
+              <div class="con-eg__medals">
+                <span v-for="(cat, ci) in vm.categories" :key="cat.key"
+                      class="con-eg__medal" :class="medalClass(cat, ci, color)" :data-eg-medal="cat.key">
+                  <ConsoleScoreDisc :glyph="glyphOf(cat.key)" />
+                  <b class="con-eg__medal-val">{{ medalText(cat, ci, color) }}</b>
                 </span>
-              </transition>
-              <!-- Tie-break M€ — absolute over the track's tail: appearing
-                   evidence may never re-flow the bar it explains. -->
-              <div v-if="tieChipVisible(color)" class="con-eg__tiechip">
-                <i class="resource_icon resource_icon--megacredits con-eg__mc-icon" aria-hidden="true"></i>
-                <b>{{ rowBy(color).megacredits }}</b>
               </div>
-              <!-- Values BELOW the bar for narrow segments — anchored at
-                   their segment's centre, collision-nudged, never re-flowed. -->
-              <div class="con-eg__labels">
-                <span v-for="lab in belowLabels(color)" :key="lab.key"
-                      class="con-eg__blab" :class="labelStateClass(lab)"
-                      :style="{left: lab.xPct + '%', '--eg-nudge': lab.nudgePx + 'px'}">{{ fmtLabel(lab.value) }}</span>
-              </div>
-            </div>
-            <div class="con-eg__total">
-              <!-- No binding on the number: the count-up writes textContent
-                   directly (a reactive write per frame re-lays the row). -->
-              <span class="con-eg__total-num" :data-eg-total="color">0</span>
-              <span class="con-eg__total-cap">{{ $t('VP') }}</span>
-              <!-- The champion KEEL — the fixation's persistent witness: a
-                   thin gold bar under the final total, mounted at the FIX
-                   window and kept by the settled screen (absolute — zero
-                   layout impact; reduced motion still gets its appearance). -->
-              <span v-if="championFixFor(color)" class="con-eg__champ-keel"
-                    :class="{'con-eg__champ-keel--animate': campaignCodaAnimated}" aria-hidden="true"></span>
             </div>
           </div>
         </div>
@@ -252,6 +261,10 @@
       </div>
     </div>
 
+    <!-- THE TOKEN LAYER (TR69) — the category tokens fly here, from the rail's medallion into every seat's score;
+         absolute over the stage, inert, emptied by every skip / replay / teardown. -->
+    <div ref="tokensEl" class="con-eg__tokens" aria-hidden="true"></div>
+
     <!-- «ОБЗОР ПАРТИИ» — the analytics scene, one level deeper INSIDE this
          workspace. Mounted only while its scene lives; the shared backdrop,
          frame and command bar never move — the scoring stage above parks via
@@ -276,11 +289,12 @@
 <script lang="ts">
 /**
  * The scoring WORKSPACE component. Rendering + input + the DOM moments the
- * director cannot know (the ranking FLIP, the winner burst, the direct
- * count-up sink); the numbers live in the pure VM, the bar geometry and the
- * anchored-label plan in the pure layout module, the choreography in the
- * script/director, the observable stages in the module state — all
- * unit-tested without this file.
+ * director cannot know (the ranking FLIP, the crowning FLIP, the category
+ * tokens' flights, the winner burst, the direct count-up sink); the numbers
+ * live in the pure VM, the bar geometry in the pure layout module, the seats'
+ * geometry in the pure podium planner, the choreography in the script /
+ * director, the observable stages in the module state — all unit-tested
+ * without this file.
  */
 import {defineComponent, PropType} from 'vue';
 import {gsap} from 'gsap';
@@ -299,14 +313,25 @@ import {requestEndgameFacts, cachedEndgameFacts} from '@/client/components/endga
 import {rematchState, submitRematch, rematchJoinHref} from '@/client/components/rematch/rematchState';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {
-  buildConsoleEndgameVm, ConsoleEndgameVm, ConsoleEndgameCategory, ConsoleEndgameRow,
+  buildConsoleEndgameVm, ConsoleEndgameVm, ConsoleEndgameCategory, ConsoleEndgameCategoryKey, ConsoleEndgameRow,
 } from '@/client/console/endgame/consoleEndgameModel';
 import {
-  buildRowGeometry, planValueLabels, progressEdgePct,
-  EndgameRowGeo, EndgameSegGeo, EndgameSubGeo, EndgameValueLabel,
+  buildRowGeometry, EndgameRowGeo, EndgameSegGeo, EndgameSubGeo,
 } from '@/client/console/endgame/consoleEndgameLayout';
+import {
+  faceZoom, horizonDrop, horizonRadius, planPodium, podiumOrder, PodiumPlan, SeatGeo, slotOffset,
+} from '@/client/console/endgame/consoleEndgamePodium';
 import {CEREMONY_MS} from '@/client/console/endgame/consoleEndgameScript';
-import {runEndgameCeremony, CeremonyHandle} from '@/client/console/endgame/consoleEndgameDirector';
+import {runEndgameCeremony, CeremonyHandle, CeremonyTokenBeat} from '@/client/console/endgame/consoleEndgameDirector';
+import {DossierGlyph, scoreCategoryGlyph} from '@/client/console/infoDossierModel';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {CardName} from '@/common/cards/CardName';
+import {CardModel} from '@/common/models/CardModel';
+import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
+import ConsoleScoreDisc from '@/client/components/console/info/ConsoleScoreDisc.vue';
+import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
+import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
+import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
 import {
   consoleEndgameUi, ceremonyShouldPlay, resetCeremonyProgress, finalizeCeremony,
 } from '@/client/console/endgame/consoleEndgameState';
@@ -360,7 +385,7 @@ type PostGameAction = {
 
 export default defineComponent({
   name: 'ConsoleEndgameWorkspace',
-  components: {ConsoleEndgameOverview, ConsoleCampaignMap},
+  components: {ConsoleEndgameOverview, ConsoleCampaignMap, ConsoleScoreDisc, ConsoleVpBadge, ConsoleCardFaceLite, MarsBotCorpFace},
   props: {
     playerView: {type: Object as PropType<ViewModel>, required: true},
   },
@@ -380,10 +405,16 @@ export default defineComponent({
        *  (never animations — a re-enabled keyframe animation restarts). */
       noanim: false,
       noanimRaf: 0,
-      /** Measured track width, px — the label plan's one DOM input. */
-      trackPx: 0,
-      /** Resolved label font size, px (the plan's glyph-width estimate). */
-      labelFontPx: 14,
+      /** The podium's MEASURED box (the seats' stage), px — the planner's one DOM input; 0 while hidden. */
+      stageW: 0,
+      stageH: 0,
+      /** The live rem, px (the TV profile's 40 at 4K). */
+      remPx: 20,
+      /** The podium's foot, px from the scene's top — where the horizon arc crests (the seats stand ON it). */
+      horizonY: 0,
+      /** The scene's width, px — the horizon's radius is a share of it. */
+      sceneW: 0,
+      stageObserver: undefined as ResizeObserver | undefined,
       totalEls: {} as Record<string, HTMLElement | undefined>,
       /** The campaign scene — internal, the overview pattern (park + return).
        *  ONE scene: the map hosts the whole interlude flow itself. */
@@ -546,7 +577,16 @@ export default defineComponent({
       return this.ui.phase === 'actions' || this.ui.phase === 'champion' ? 'Game results' : 'Final scoring';
     },
     rowOrder(): ReadonlyArray<Color> {
-      return this.ui.ranked ? this.vm.rankedColors : this.vm.rows.map((r) => r.color);
+      if (!this.ui.ranked) {
+        return this.vm.rows.map((r) => r.color);
+      }
+      // TR69: ranked, the seats stand as a PODIUM — the winner on the horizon's crest, the runner-up at its left, the
+      // third at its right, outwards; a duel reads left to right (the winner first).
+      return this.vm.rows.length <= 2 ? this.vm.rankedColors : podiumOrder(this.vm.rankedColors);
+    },
+    /** The horizon's radius, px — the arc the seats stand on (CSS draws it with the same number). */
+    arcRadius(): number {
+      return horizonRadius(this.sceneW);
     },
     /** Per-row track geometry — solved from the VM alone, cached by Vue. */
     rowGeo(): Record<string, EndgameRowGeo> {
@@ -556,23 +596,17 @@ export default defineComponent({
       }
       return out;
     },
-    /** Per-row anchored value labels — recomputed only when the measured
-     *  track width (or the VM) changes, never during the count. */
-    labelPlan(): Record<string, ReadonlyArray<EndgameValueLabel>> {
-      const out: Record<string, ReadonlyArray<EndgameValueLabel>> = {};
-      if (this.trackPx <= 0) {
-        return out;
-      }
-      const charPx = this.labelFontPx * 0.62;
-      for (const row of this.vm.rows) {
-        out[row.color] = planValueLabels(this.vm, row.color, this.rowGeo[row.color], {
-          trackPx: this.trackPx,
-          charPx,
-          insidePadPx: this.labelFontPx * 1.15,
-          minGapPx: this.labelFontPx * 0.6,
-        });
-      }
-      return out;
+    /** THE PODIUM — the seats' geometry from the measured box (TR69); recomputed only on a box / profile change. */
+    podium(): PodiumPlan {
+      return planPodium({seats: this.vm.rows.length, boxW: this.stageW, boxH: this.stageH, rem: this.remPx});
+    },
+    /** The podium FORMED: the crowning has happened (a solo game crowns its one seat, won or lost). */
+    podiumFormed(): boolean {
+      return this.ui.winnerShown;
+    },
+    /** The bot corporation's live stock (its face's capsule) — the one MarsBot seat of a bot game. */
+    botCorpResources(): number {
+      return this.playerView.game.automa?.corporation?.resources ?? 0;
     },
     activeCategory(): ConsoleEndgameCategory | undefined {
       return this.ui.catIdx >= 0 ? this.vm.categories[this.ui.catIdx] : undefined;
@@ -797,6 +831,8 @@ export default defineComponent({
     // board (the audit's measured final flash).
     'ui.skipSeq': function(): void {
       this.noanim = true;
+      // The skip lands on the canonical final state — no token may still be flying over it.
+      this.clearTokens();
       this.writeAllTotals();
       cancelAnimationFrame(this.noanimRaf);
       this.noanimRaf = requestAnimationFrame(() => {
@@ -813,10 +849,9 @@ export default defineComponent({
         this.writeAllTotals();
       },
     },
-    // Viewport change (profile flip / window resize): re-measure the track
-    // and let the label plan re-solve against the new width.
+    // Viewport change (profile flip / window resize): re-measure the podium's box and let the planner re-solve.
     vpWidth(): void {
-      void this.$nextTick(() => this.measureTrack());
+      void this.$nextTick(() => this.measureStage());
     },
   },
   mounted() {
@@ -842,11 +877,20 @@ export default defineComponent({
       finalizeCeremony(this.vm);
     }
     void this.$nextTick(() => {
-      this.measureTrack();
+      this.measureStage();
       this.writeAllTotals();
     });
+    // The podium's box is the free space between the rail and the bottom zone — it changes with the profile, the
+    // fonts' arrival and the scene's own reveal (a hidden scene measures nothing and keeps the last box).
+    const rows = this.$refs.rowsEl as HTMLElement | undefined;
+    if (rows !== undefined && typeof ResizeObserver !== 'undefined') {
+      this.stageObserver = new ResizeObserver(() => this.measureStage());
+      this.stageObserver.observe(rows);
+    }
   },
   beforeUnmount() {
+    this.stageObserver?.disconnect();
+    this.stageObserver = undefined;
     this.teardown();
     clearPanelCommands('endgame');
     if (this.campaignContract !== undefined) {
@@ -865,9 +909,6 @@ export default defineComponent({
     },
     fmtLabel(v: number): string {
       return v < 0 ? '−' + Math.abs(v) : String(v);
-    },
-    chipFor(color: Color): {value: number, seq: number} | undefined {
-      return this.ui.chips[color];
     },
     // ── the count-up sink (direct DOM writes — never reactive) ───────────
     totalEl(color: string): HTMLElement | undefined {
@@ -891,44 +932,124 @@ export default defineComponent({
         this.writeTotal(row.color, this.ui.displayTotals[row.color] ?? 0);
       }
     },
-    measureTrack(): void {
-      // A hidden scene (collapse / overview round trip) measures 0 — keep
-      // the last honest width instead of collapsing the label plan.
-      const bar = (this.$el as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-eg__bar');
-      const w = bar?.clientWidth ?? 0;
-      if (w > 0) {
-        this.trackPx = w;
+    /**
+     * The podium's box: the seats' stage measured from the layout (its height is the free space between the rail and
+     * the bottom zone — never the seats' own content), the live rem, and the foot the horizon crests at. A hidden
+     * scene (collapse / overview round trip) measures 0 — the last honest box is kept.
+     */
+    measureStage(): void {
+      const root = this.$el as HTMLElement | undefined;
+      const rows = this.$refs.rowsEl as HTMLElement | undefined;
+      if (root === undefined || rows === undefined) {
+        return;
       }
-      const labels = (this.$el as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-eg__labels');
-      if (labels !== null && labels !== undefined) {
-        const fs = parseFloat(getComputedStyle(labels).fontSize);
-        if (Number.isFinite(fs) && fs > 0) {
-          this.labelFontPx = fs;
-        }
+      const box = rows.getBoundingClientRect();
+      if (box.width <= 0 || box.height <= 0) {
+        return;
       }
+      this.stageW = Math.round(box.width);
+      this.stageH = Math.round(box.height);
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      if (Number.isFinite(rem) && rem > 0) {
+        this.remPx = rem;
+      }
+      const scene = root.getBoundingClientRect();
+      this.horizonY = Math.round(box.bottom - scene.top);
+      this.sceneW = Math.round(scene.width);
     },
-    // ── layout state ─────────────────────────────────────────────────────
-    insideLabels(color: Color): Array<EndgameValueLabel> {
-      return (this.labelPlan[color] ?? []).filter((l) => l.mode === 'inside');
+    // ── the podium ───────────────────────────────────────────────────────
+    glyphOf(key: ConsoleEndgameCategoryKey): DossierGlyph {
+      return scoreCategoryGlyph(key);
     },
-    belowLabels(color: Color): Array<EndgameValueLabel> {
-      return (this.labelPlan[color] ?? []).filter((l) => l.mode === 'below');
+    /** A seat's geometry NOW: equal while the count runs; the hero or a place once the podium has formed. */
+    seatGeoOf(color: Color): SeatGeo {
+      if (!this.podiumFormed) {
+        return this.podium.equal;
+      }
+      const crowned = this.vm.rows.length === 1 || this.vm.winners.includes(color);
+      return crowned ? this.podium.hero : this.podium.place;
     },
-    labelStateClass(lab: EndgameValueLabel): Record<string, boolean> {
+    seatStyle(color: Color, i: number): Record<string, string | number> {
+      const geo = this.seatGeoOf(color);
+      const hero = this.podiumFormed && geo === this.podium.hero;
+      // Once RANKED the seat stands ON the planet's curve — the winner on the crest, the outer places lower. While the
+      // count runs the seats stand level: a curve under an untold ranking would crown the middle seat by geometry.
+      const drop = this.ui.ranked ? horizonDrop(slotOffset(i, this.rowOrder.length, geo.seatW, this.podium.gap), this.arcRadius) : 0;
       return {
-        ['con-eg-ink--' + lab.accent]: lab.mode === 'below',
-        'con-eg__vlab--on': lab.catIdx < this.ui.catsSettled,
-        'con-eg__vlab--zero': lab.zero,
-        'con-eg__vlab--minus': lab.value < 0,
+        '--eg-i': i,
+        '--eg-seat-drop': Math.round(drop) + 'px',
+        '--eg-seat-w': geo.seatW + 'px',
+        '--eg-seat-h': geo.seatH + 'px',
+        '--eg-face-h': geo.faceH + 'px',
+        '--eg-read-h': (hero ? this.podium.heroReadH : this.podium.readH) + 'px',
       };
     },
+    faceZoomOf(color: Color): number {
+      return faceZoom(this.seatGeoOf(color).faceH);
+    },
+    faceCardName(color: Color): CardName {
+      const face = this.rowBy(color).face;
+      return face?.kind === 'card' ? face.name : CardName.BEGINNER_CORPORATION;
+    },
+    faceBotId(color: Color): MarsBotCorpId {
+      const face = this.rowBy(color).face;
+      return face?.kind === 'bot' ? face.id : MarsBotCorpId.C01_CREDICOR;
+    },
+    /** The seat's corporation card as it stands on the table (its stored resources honest on the face's capsule). */
+    corporationModel(color: Color): CardModel | undefined {
+      const face = this.rowBy(color).face;
+      if (face?.kind !== 'card') {
+        return undefined;
+      }
+      return this.playerView.players.find((p) => p.color === color)?.tableau.find((c) => c.name === face.name);
+    },
+    /** Has this category's token LANDED on the seats (its medallion lit, its segment grown)? */
+    landed(idx: number): boolean {
+      if (idx < this.ui.catsSettled) {
+        return true;
+      }
+      if (idx !== this.ui.catIdx) {
+        return false;
+      }
+      const cat = this.vm.categories[idx];
+      if (cat.subs.length > 1) {
+        return (this.ui.subsOn[cat.key] ?? 0) > 0;
+      }
+      return this.ui.beatStage === 'grow' || this.ui.beatStage === 'settle';
+    },
+    /** The medallion's value: the category's (a multi-sub category sums the sources landed so far); none before. */
+    medalValue(cat: ConsoleEndgameCategory, idx: number, color: Color): number | undefined {
+      if (!this.landed(idx)) {
+        return undefined;
+      }
+      if (idx >= this.ui.catsSettled && cat.subs.length > 1) {
+        const on = this.ui.subsOn[cat.key] ?? 0;
+        return cat.subs.slice(0, on).reduce((sum, sub) => sum + (sub.values[color] ?? 0), 0);
+      }
+      return cat.values[color] ?? 0;
+    },
+    medalText(cat: ConsoleEndgameCategory, idx: number, color: Color): string {
+      const v = this.medalValue(cat, idx, color);
+      return v === undefined ? '' : this.fmtLabel(v);
+    },
+    medalClass(cat: ConsoleEndgameCategory, idx: number, color: Color): Record<string, boolean> {
+      const v = this.medalValue(cat, idx, color);
+      return {
+        ['con-eg-cat--' + cat.accent]: true,
+        'con-eg__medal--on': v !== undefined,
+        'con-eg__medal--zero': v === 0,
+        'con-eg__medal--minus': v !== undefined && v < 0,
+        'con-eg__medal--active': idx === this.ui.catIdx && this.ui.phase === 'scoring',
+      };
+    },
+    // ── layout state ─────────────────────────────────────────────────────
     segOn(idx: number): boolean {
       if (idx < this.ui.catsSettled) {
         return true;
       }
-      // The active category's own segment lights during grow/settle — never
-      // during its focus beat (the spotlight prepares, the grow delivers).
-      return idx === this.ui.catIdx && this.ui.beatStage !== 'focus';
+      // The active category's own segment grows on its tokens' TOUCHDOWN — never during the focus beat (the
+      // spotlight prepares) nor while its tokens are in the air (TR69: the bar answers the token, never ahead of it).
+      return idx === this.ui.catIdx && this.ui.beatStage !== 'focus' && this.ui.beatStage !== 'fly';
     },
     subOn(idx: number, cat: ConsoleEndgameCategory, sidx: number): boolean {
       if (idx < this.ui.catsSettled) {
@@ -947,12 +1068,7 @@ export default defineComponent({
       if (reclaim.catIdx < this.ui.catsSettled) {
         return true;
       }
-      return reclaim.catIdx === this.ui.catIdx && this.ui.beatStage !== 'focus';
-    },
-    chipEdgePct(color: Color): number {
-      const cat = this.activeCategory;
-      const subsOn = cat !== undefined ? (this.ui.subsOn[cat.key] ?? 0) : 0;
-      return progressEdgePct(this.vm, color, this.ui.catsSettled, this.ui.catIdx, subsOn);
+      return reclaim.catIdx === this.ui.catIdx && this.ui.beatStage !== 'focus' && this.ui.beatStage !== 'fly';
     },
     // ── classes ───────────────────────────────────────────────────────────
     lchipClass(cat: ConsoleEndgameCategory, i: number): Record<string, boolean> {
@@ -995,6 +1111,9 @@ export default defineComponent({
         'con-eg__row--rest': this.ui.winnerShown && !winner && this.vm.winners.length > 0,
         'con-eg__row--contender': contender,
         'con-eg__row--bot': this.rowBy(color).isBot,
+        // THE HERO (TR69): a crowned seat of the formed podium — the larger reading block, the gold stage.
+        'con-eg__row--hero': this.podiumFormed && (this.vm.rows.length === 1 || this.vm.winners.includes(color)),
+        'con-eg__row--place': this.podiumFormed && this.vm.rows.length > 1 && !this.vm.winners.includes(color),
       };
     },
     rowRibbon(color: Color): string | undefined {
@@ -1061,6 +1180,8 @@ export default defineComponent({
       this.campaignCodaAnimated = true;
       this.handle = runEndgameCeremony(this.vm, {
         onRankFlip: () => this.performRankFlip(),
+        onCrown: () => this.performCrown(),
+        onTokens: (beat, attach) => this.flyTokens(beat, attach),
         onWinnerFx: () => this.fireWinnerFx(),
         onCount: (color, value) => this.writeTotal(color, value),
         onChampionFx: () => this.fireChampionFx(),
@@ -1093,6 +1214,7 @@ export default defineComponent({
     teardown(): void {
       this.handle?.kill();
       this.handle = undefined;
+      this.clearTokens();
       this.commitCall?.kill();
       this.commitCall = undefined;
       for (const b of this.bursts.splice(0)) {
@@ -1126,9 +1248,9 @@ export default defineComponent({
         consoleEndgameUi.ranked = true;
         return;
       }
-      const first = new Map<string, number>();
+      const first = new Map<string, DOMRect>();
       rowsEl.querySelectorAll<HTMLElement>('[data-eg-row]').forEach((el) => {
-        first.set(el.dataset.egRow ?? '', el.getBoundingClientRect().top);
+        first.set(el.dataset.egRow ?? '', el.getBoundingClientRect());
       });
       consoleEndgameUi.ranked = true;
       void this.$nextTick(() => {
@@ -1139,13 +1261,16 @@ export default defineComponent({
           if (from === undefined) {
             continue;
           }
-          const dy = from - el.getBoundingClientRect().top;
-          if (Math.abs(dy) < 1) {
+          // The seats change PLACES on the horizon (TR69: side by side) — the move is along both axes.
+          const now = el.getBoundingClientRect();
+          const dx = from.left - now.left;
+          const dy = from.top - now.top;
+          if (Math.abs(dx) < 1 && Math.abs(dy) < 1) {
             continue;
           }
           tweens.push(gsap.fromTo(el,
-            {y: dy},
-            {y: 0, duration: consoleMotionMs(CEREMONY_MS.rankFlip) / 1000, ease: 'power3.inOut', clearProps: 'transform'}));
+            {x: dx, y: dy},
+            {x: 0, y: 0, duration: consoleMotionMs(CEREMONY_MS.rankFlip) / 1000, ease: 'power3.inOut', clearProps: 'transform'}));
         }
         this.handle?.addCleanup(() => {
           for (const t of tweens) {
@@ -1154,6 +1279,118 @@ export default defineComponent({
           gsap.set(els, {clearProps: 'transform'});
         });
       });
+    },
+    /**
+     * THE CROWNING FLIP (TR69) — the podium FORMS: the crowned seats rise to the hero's height, the rest step down.
+     * Measure every seat before the crowning class lands, then invert each new box to the old one (translate + a
+     * uniform scale from the seat's FOOT — the seats stand on the horizon) and play it home. Transform-only; the
+     * tweens register with the director so a skip or an unmount clears them atomically.
+     */
+    performCrown(): void {
+      const rowsEl = this.$refs.rowsEl as HTMLElement | undefined;
+      if (rowsEl === undefined || this.reduced) {
+        return;
+      }
+      const first = new Map<string, DOMRect>();
+      rowsEl.querySelectorAll<HTMLElement>('[data-eg-row]').forEach((el) => {
+        first.set(el.dataset.egRow ?? '', el.getBoundingClientRect());
+      });
+      void this.$nextTick(() => {
+        const els = [...rowsEl.querySelectorAll<HTMLElement>('[data-eg-row]')];
+        const tweens: Array<gsap.core.Tween> = [];
+        for (const el of els) {
+          const from = first.get(el.dataset.egRow ?? '');
+          if (from === undefined) {
+            continue;
+          }
+          const now = el.getBoundingClientRect();
+          if (now.height <= 0 || Math.abs(now.height - from.height) < 1) {
+            continue;
+          }
+          const scale = from.height / now.height;
+          const dx = (from.left + from.width / 2) - (now.left + now.width / 2);
+          const dy = from.bottom - now.bottom;
+          tweens.push(gsap.fromTo(el,
+            {x: dx, y: dy, scale, transformOrigin: '50% 100%'},
+            {x: 0, y: 0, scale: 1, duration: consoleMotionMs(CEREMONY_MS.crown) / 1000, ease: 'power3.out', clearProps: 'transform,transformOrigin'}));
+        }
+        this.handle?.addCleanup(() => {
+          for (const t of tweens) {
+            t.kill();
+          }
+          gsap.set(els, {clearProps: 'transform,transformOrigin'});
+        });
+      });
+    },
+    /**
+     * THE CATEGORY'S TOKENS (TR69 — the score cell's language): one per seat that scores in this beat, born on the
+     * rail's medallion of the category, flying in an arc into the seat's score shield and absorbed there — the count
+     * ticks on the touchdown (the director starts it at the flight's end). A zero brings none. Each flight is handed
+     * to the director's clock (`attach`): the ceremony's pause freezes it, a skip kills it and the layer is emptied.
+     * Reduced motion flies nothing (the medallion and the count still answer at the touchdown's moment).
+     */
+    flyTokens(beat: CeremonyTokenBeat, attach: (tween: gsap.core.Animation) => void): void {
+      const root = this.$el as HTMLElement | undefined;
+      const layer = this.$refs.tokensEl as HTMLElement | undefined;
+      const cat = this.vm.categories[beat.catIdx];
+      if (root === undefined || layer === undefined || cat === undefined || this.reduced || beat.flyMs <= 0) {
+        return;
+      }
+      const origin = root.getBoundingClientRect();
+      const disc = root.querySelector<HTMLElement>(`[data-eg-rail="${cat.key}"] .con-dscore__disc`)?.getBoundingClientRect();
+      if (disc === undefined || disc.width <= 0) {
+        return;
+      }
+      const sec = beat.flyMs / 1000;
+      const fromX = disc.left + disc.width / 2 - origin.left;
+      const fromY = disc.top + disc.height / 2 - origin.top;
+      for (const row of this.vm.rows) {
+        const value = beat.values[row.color] ?? 0;
+        if (value === 0) {
+          continue;
+        }
+        const shield = root.querySelector<HTMLElement>(`[data-eg-row="${row.color}"] .con-eg__shield`)?.getBoundingClientRect();
+        if (shield === undefined || shield.width <= 0) {
+          continue;
+        }
+        const token = this.makeToken(cat, value);
+        layer.appendChild(token);
+        const toX = shield.left + shield.width / 2 - origin.left;
+        const toY = shield.top + shield.height / 2 - origin.top;
+        gsap.set(token, {x: fromX, y: fromY, xPercent: -50, yPercent: -50, scale: 0.55, opacity: 0});
+        const flight = gsap.timeline({onComplete: () => token.remove(), onInterrupt: () => token.remove()});
+        // Born on the medallion (a pop), carried in an arc (x eased evenly, y falling INTO the seat), absorbed by the shield.
+        flight.to(token, {opacity: 1, scale: 1, duration: sec * 0.18, ease: 'power2.out'}, 0);
+        flight.to(token, {x: toX, duration: sec * 0.72, ease: 'power1.inOut'}, sec * 0.14);
+        flight.to(token, {y: toY, duration: sec * 0.72, ease: 'power2.in'}, sec * 0.14);
+        flight.to(token, {scale: 0.45, opacity: 0, duration: sec * 0.16, ease: 'power2.in'}, sec * 0.84);
+        attach(flight);
+      }
+    },
+    /** One token: the category's disc (its own symbol, ringed in its hue) and the signed points it carries. */
+    makeToken(cat: ConsoleEndgameCategory, value: number): HTMLElement {
+      const token = document.createElement('div');
+      token.className = `con-eg-token con-eg-cat--${cat.accent}` + (value < 0 ? ' con-eg-token--minus' : '');
+      token.dataset.egToken = cat.key;
+      const disc = document.createElement('span');
+      disc.className = 'con-dscore__disc con-eg-token__disc';
+      const glyph = document.createElement('i');
+      const g = scoreCategoryGlyph(cat.key);
+      glyph.className = g.kind === 'icon' ? `con-dscore__glyph ${iconClassFor(g.icon)}` :
+        g.kind === 'tile' ? `con-dscore__glyph con-dscore__glyph--tile con-dscore__glyph--${g.tile}` :
+          'con-dscore__glyph con-dscore__glyph--mark';
+      disc.appendChild(glyph);
+      const label = document.createElement('b');
+      label.className = 'con-eg-token__val';
+      label.textContent = value > 0 ? `+${value}` : this.fmtLabel(value);
+      token.append(disc, label);
+      return token;
+    },
+    clearTokens(): void {
+      const layer = this.$refs.tokensEl as HTMLElement | undefined;
+      if (layer !== undefined) {
+        layer.replaceChildren();
+      }
     },
     /** The champion FIX accent — one strong, restrained beat on every champion
      *  total, EQUAL across a shared championship (no «main» champion): a gold

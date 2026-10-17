@@ -171,17 +171,34 @@ describe('consoleEndgameScript', () => {
     expect(ceremonyTotalMs(beats)).to.be.lessThan(30_000);
   });
 
-  it('a MAIN category is a readable four-part phrase (the brief\'s windows)', () => {
-    // preparation/focus ~160–260 · movement ~550–850 · settle ~180–300 ·
+  it('a MAIN category is a readable five-part phrase (the brief\'s windows + TR69\'s token flight)', () => {
+    // preparation/focus ~160–260 · the tokens' flight ~240–380 · movement ~550–850 · settle ~180–300 ·
     // pause ~220–380 — the whole phrase stays a compact, readable event.
     expect(CEREMONY_MS.categoryFocus).to.be.within(160, 260);
+    expect(CEREMONY_MS.categoryFly).to.be.within(240, 380);
     expect(CEREMONY_MS.categoryGrow).to.be.within(550, 850);
     expect(CEREMONY_MS.categorySettle).to.be.within(180, 300);
     expect(CEREMONY_MS.categoryPause).to.be.within(220, 380);
-    const phrase = CEREMONY_MS.categoryFocus + CEREMONY_MS.categoryGrow +
+    const phrase = CEREMONY_MS.categoryFocus + CEREMONY_MS.categoryFly + CEREMONY_MS.categoryGrow +
       CEREMONY_MS.categorySettle + CEREMONY_MS.categoryPause;
     expect(phrase).to.be.within(1100, 1800);
     expect(CEREMONY_MS.sub).to.be.within(300, 500); // inner steps read faster
+    // A sub-step's token lands inside its own window, leaving time for the count to answer it.
+    expect(CEREMONY_MS.subFly).to.be.lessThan(CEREMONY_MS.sub * 0.6);
+  });
+
+  it('TR69: every category beat carries its token flight, every sub-step its own', () => {
+    const vm = richVm();
+    for (const beat of ceremonyBeats(vm)) {
+      if (beat.kind === 'category') {
+        expect(beat.flyMs).to.eq(CEREMONY_MS.categoryFly);
+        expect(beatLengthMs(beat)).to.eq(beat.focusMs + beat.flyMs + beat.growMs + beat.settleMs + beat.pauseMs);
+      }
+      if (beat.kind === 'sub') {
+        expect(beat.flyMs).to.eq(CEREMONY_MS.subFly);
+        expect(beat.flyMs).to.be.lessThan(beat.ms);
+      }
+    }
   });
 });
 
@@ -218,7 +235,7 @@ describe('consoleEndgameState', () => {
     expect(consoleEndgameUi.placesShown).to.eq(true);
     expect(consoleEndgameUi.winnerShown).to.eq(true);
     expect(consoleEndgameUi.actionsOn).to.eq(true);
-    expect(consoleEndgameUi.chips).to.deep.eq({});
+    expect(consoleEndgameUi.beatStage).to.eq('');
     for (const row of vm.rows) {
       expect(consoleEndgameUi.displayTotals[row.color]).to.eq(row.finalTotal);
     }

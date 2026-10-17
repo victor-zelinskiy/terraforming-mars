@@ -24,6 +24,7 @@
  * play composer's VP projection — and a formula must be phrased once.
  */
 import {Tag} from '@/common/cards/Tag';
+import {maArtSlug, maShortName} from '@/client/console/maArt';
 import {tagCountKey} from '@/common/cards/tagNames';
 import {
   CardVictoryPointsDetail,
@@ -85,16 +86,8 @@ export type ScoreTile = {
   ledger: ScoreLedger;
 };
 
-/** The MA art slug — the same formula the MA workspace binds
- *  (`assets/ma/<slug>.png`, transparent 512×512). */
-export function maArtSlug(name: string): string {
-  return name.toLowerCase().replaceAll(' ', '-').replaceAll('.', '');
-}
-
-/** Strip the numeric variant suffix (Terraformer26 → Terraformer). */
-export function maShortName(name: string): string {
-  return name.replace(/[0-9]+$/, '');
-}
+// The MA art identity lives in ONE module (`maArt.ts`) — re-exported for the explorer's existing readers.
+export {maArtSlug, maShortName} from '@/client/console/maArt';
 
 export type ScoreOverviewModel = {
   total: number;

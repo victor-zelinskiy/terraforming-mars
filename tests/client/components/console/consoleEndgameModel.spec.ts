@@ -3,6 +3,7 @@ import {buildEndgameModel, EndgamePlayerInput} from '@/client/components/endgame
 import {buildConsoleEndgameVm, runningTotal} from '@/client/console/endgame/consoleEndgameModel';
 import {VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
 import {Color} from '@/common/Color';
+import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
 
 function breakdown(partial: Partial<VictoryPointsBreakdown>): VictoryPointsBreakdown {
   const base: VictoryPointsBreakdown = {
@@ -312,6 +313,18 @@ describe('consoleEndgameModel', () => {
     expect(won.winners).to.deep.eq(['red']);
     const lost = vmOf([player('red', 'A', {terraformRating: 40})], {soloWin: false});
     expect(lost.winners).to.deep.eq([]);
+  });
+
+  it('TR69: every seat stands behind its corporation FACE — a human\'s first card, the bot\'s own corporation, nothing invented for a corpless seat', () => {
+    const vm = vmOf([
+      player('red', 'A', {terraformRating: 30}, {corporations: ['Teractor', 'Ecoline']}),
+      player('blue', 'Bot', {terraformRating: 25}, {botCorporation: {id: MarsBotCorpId.C02_ECOLINE, name: 'Ecoline'}}),
+      player('green', 'C', {terraformRating: 20}),
+    ], {}, ['blue']);
+    const face = (c: Color) => vm.rows.find((r) => r.color === c)?.face;
+    expect(face('red')).to.deep.eq({kind: 'card', name: 'Teractor'});
+    expect(face('blue')).to.deep.eq({kind: 'bot', id: MarsBotCorpId.C02_ECOLINE});
+    expect(face('green')).to.eq(undefined);
   });
 
   it('runningTotal walks the category prefix (the count-up contract)', () => {

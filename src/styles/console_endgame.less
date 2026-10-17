@@ -79,20 +79,30 @@
         radial-gradient(90% 70% at 50% -22%, rgba(52, 88, 128, 0.22) 0%, rgba(6, 10, 17, 0) 58%),
         linear-gradient(180deg, #05080f 0%, #071019 55%, #0a1017 100%);
 }
-/* The horizon line itself — one hairline arc of dusted light, painted as
- * a ring segment INSIDE the box (an oversized circle hanging below the
- * frame would count into the scene's scroll overflow — the fits guard). */
+/* THE HORIZON IS THE STAGE (TR69, decision 11a) — the planet's limb, its
+ * crest exactly under the seats' feet (`--eg-horizon-y`, the podium's
+ * measured foot) on the radius the seats are placed on (`--eg-arc-r`, the
+ * same number the planner drops the outer seats by): the winner stands ON
+ * the crest, the places follow the curve. A rim of dusted light, the lit
+ * ground fading under it. Painted INSIDE the box (an oversized circle
+ * hanging below the frame would count into the scene's scroll overflow). */
 .con-endgame::before {
+    --eg-arc-c: calc(var(--eg-horizon-y, 78vh) + var(--eg-arc-r, 240vw));
     content: '';
     position: absolute;
     inset: 0;
     pointer-events: none;
     background:
-        radial-gradient(130% 96% at 50% 142%,
-            rgba(6, 10, 17, 0) 59.2%,
-            rgba(255, 195, 150, 0.26) 59.75%,
-            rgba(235, 150, 96, 0.14) 60.3%,
-            rgba(6, 10, 17, 0) 61.8%);
+        radial-gradient(circle at 50% var(--eg-arc-c),
+            rgba(6, 10, 17, 0) calc(var(--eg-arc-r, 240vw) - 0.15rem),
+            rgba(255, 206, 160, 0.46) var(--eg-arc-r, 240vw),
+            rgba(235, 150, 96, 0.18) calc(var(--eg-arc-r, 240vw) + 0.45rem),
+            rgba(235, 150, 96, 0.05) calc(var(--eg-arc-r, 240vw) + 3rem),
+            rgba(6, 10, 17, 0) calc(var(--eg-arc-r, 240vw) + 8rem)),
+        radial-gradient(circle at 50% var(--eg-arc-c),
+            rgba(150, 70, 42, 0) calc(var(--eg-arc-r, 240vw) - 24rem),
+            rgba(150, 70, 42, 0.22) calc(var(--eg-arc-r, 240vw) - 0.25rem),
+            rgba(6, 10, 17, 0) var(--eg-arc-r, 240vw));
 }
 
 /* The frozen game HUD leaves — nothing on the frame may pre-reveal a
@@ -122,93 +132,26 @@
 }
 
 /* ── Frame + density tokens ──────────────────────────────────────── */
+/* The seats' own geometry is the podium planner's (px vars on each seat);
+ * what stays here is the frame's furniture: the rail, the caption, the
+ * bottom zone. One set for every table size — the podium scales its faces,
+ * the TYPE stays at its rem size (the TV floor is a floor of type). */
 .con-eg {
-    /* Density defaults = the 4-player table; 2/3/5 override below. */
-    --eg-rail-fs: 0.9rem;
-    --eg-cap-fs: 0.95rem;
-    --eg-cap-h: 1.7rem;
-    --eg-row-h: 4.9rem;
-    --eg-row-gap: 0.8rem;
-    --eg-bar-h: 1.7rem;
-    --eg-name-fs: 1.15rem;
-    --eg-corp-fs: 0.78rem;
-    --eg-place-fs: 1.25rem;
-    --eg-place-w: 2.6rem;
-    --eg-ident-w: 14rem;
-    --eg-total-fs: 2.4rem;
-    --eg-total-w: 8rem;
-    --eg-val-fs: 0.85rem;
-    --eg-inval-fs: 0.85rem;
-    --eg-labels-h: 1.15rem;
-    --eg-chip-fs: 0.9rem;
+    --eg-rail-fs: 0.95rem;
+    --eg-rail-disc: 2.2rem;
+    --eg-cap-fs: 1.05rem;
+    --eg-cap-h: 1.9rem;
     --eg-zone-h: 6.2rem;
-    --eg-act-fs: 1rem;
+    --eg-act-fs: 1.05rem;
 
     display: flex;
     flex-direction: column;
     width: 100%;
-    max-width: 88rem;
+    max-width: 92rem;
     margin: 0 auto;
     padding: 1rem var(--con-stage-x, 1.6rem) 0.5rem;
     box-sizing: border-box;
     min-height: 0;
-}
-.con-eg--n2 {
-    --eg-rail-fs: 1rem;
-    --eg-cap-fs: 1.05rem;
-    --eg-cap-h: 1.9rem;
-    --eg-row-h: 8.4rem;
-    --eg-row-gap: 1.7rem;
-    --eg-bar-h: 2.6rem;
-    --eg-name-fs: 1.6rem;
-    --eg-corp-fs: 0.95rem;
-    --eg-place-fs: 1.7rem;
-    --eg-place-w: 3.4rem;
-    --eg-ident-w: 17rem;
-    --eg-total-fs: 3.3rem;
-    --eg-total-w: 10rem;
-    --eg-val-fs: 1.05rem;
-    --eg-inval-fs: 1.05rem;
-    --eg-labels-h: 1.5rem;
-    --eg-chip-fs: 1.05rem;
-    --eg-zone-h: 6.6rem;
-    --eg-act-fs: 1.05rem;
-}
-.con-eg--n3 {
-    --eg-rail-fs: 0.95rem;
-    --eg-cap-fs: 1rem;
-    --eg-cap-h: 1.8rem;
-    --eg-row-h: 6.4rem;
-    --eg-row-gap: 1.2rem;
-    --eg-bar-h: 2.2rem;
-    --eg-name-fs: 1.35rem;
-    --eg-corp-fs: 0.85rem;
-    --eg-place-fs: 1.5rem;
-    --eg-place-w: 3rem;
-    --eg-ident-w: 15.5rem;
-    --eg-total-fs: 2.8rem;
-    --eg-total-w: 9rem;
-    --eg-val-fs: 0.95rem;
-    --eg-inval-fs: 0.95rem;
-    --eg-labels-h: 1.3rem;
-    --eg-chip-fs: 0.95rem;
-    --eg-zone-h: 6.4rem;
-}
-.con-eg--n5 {
-    --eg-row-h: 4.2rem;
-    --eg-row-gap: 0.6rem;
-    --eg-bar-h: 1.5rem;
-    --eg-name-fs: 1.05rem;
-    --eg-corp-fs: 0.72rem;
-    --eg-place-fs: 1.15rem;
-    --eg-place-w: 2.4rem;
-    --eg-ident-w: 13rem;
-    --eg-total-fs: 2.15rem;
-    --eg-total-w: 7.4rem;
-    --eg-val-fs: 0.78rem;
-    --eg-inval-fs: 0.78rem;
-    --eg-labels-h: 1.05rem;
-    --eg-zone-h: 5.6rem;
 }
 
 /* ── Header — the ceremony's title card (centred composition) ────── */
@@ -271,9 +214,9 @@
 .con-eg__lchip {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
-    padding: 0.26rem 0.7rem;
-    border-radius: 1.1rem;
+    gap: 0.45rem;
+    padding: 0.2rem 0.85rem 0.2rem 0.25rem;
+    border-radius: 1.6rem;
     border: 0.05rem solid rgba(150, 175, 205, 0.16);
     background: rgba(10, 17, 26, 0.55);
     font-family: @con-font;
@@ -291,17 +234,27 @@
     animation: con-eg-fadein calc(360ms * var(--motion-scale, 1)) ease backwards;
     animation-delay: calc(120ms + var(--eg-ci, 0) * 45ms * var(--motion-scale, 1));
 }
-.con-eg__ldot {
-    width: 0.46rem;
-    height: 0.46rem;
-    border-radius: 50%;
-    background: var(--eg-c, #8aa4c0);
-    opacity: 0.5;
+/* The rail's MEDALLION — the dossier's disc (TR69): the category's own symbol ringed in its hue, where its tokens
+ * are born. Dim while the category waits, full once settled, lit while it speaks. */
+.con-eg__ldisc.con-dscore__disc {
+    width: var(--eg-rail-disc);
+    height: var(--eg-rail-disc);
+    opacity: 0.55;
+    box-shadow: inset 0 0 0 0.1rem var(--eg-c, @con-cyan), 0 0.15rem 0.5rem rgba(0, 0, 0, 0.5);
     transition: opacity calc(260ms * var(--motion-scale, 1)) ease;
+}
+.con-eg__ldisc.con-dscore__disc > .con-dscore__glyph {
+    width: calc(var(--eg-rail-disc) * 0.66);
+    height: calc(var(--eg-rail-disc) * 0.66);
+}
+.con-eg__ldisc.con-dscore__disc > .con-dscore__glyph--mark {
+    width: calc(var(--eg-rail-disc) * 0.3);
+    height: calc(var(--eg-rail-disc) * 0.3);
+    box-shadow: none;
 }
 .con-eg__lchip--done {
     color: rgba(222, 234, 246, 0.82);
-    .con-eg__ldot { opacity: 0.95; }
+    .con-eg__ldisc { opacity: 0.95; }
 }
 /* THE SPOTLIGHT — the active category is the one bright thing on the
  * rail: lifted, accent-lit, white ink. It is what "prepares" the eye
@@ -312,7 +265,7 @@
     background: color-mix(in srgb, var(--eg-c, #8aa4c0) 17%, rgba(10, 17, 26, 0.72));
     box-shadow: 0 0 0 0.09rem color-mix(in srgb, var(--eg-c, #8aa4c0) 28%, transparent);
     transform: translateY(-0.12rem) scale(1.07);
-    .con-eg__ldot { opacity: 1; }
+    .con-eg__ldisc { opacity: 1; }
 }
 
 /* ── Stage caption (the micro-reveal voice) ──────────────────────── */
@@ -344,29 +297,63 @@
 .con-eg-xfade-enter-from { opacity: 0; transform: scale(.965); }
 .con-eg-xfade-leave-to { opacity: 0; }
 
-/* ── Rows ────────────────────────────────────────────────────────── */
+/* ── THE PODIUM (TR69 «ФИНАЛ — ЭТО ЦЕРЕМОНИЯ») ───────────────────────
+ * Every player is a SEAT standing on the horizon: the corporation's face,
+ * the name, the score in the score cell's language (the award shield and
+ * the running total — where every category's token lands), the counting
+ * bar under it, the category medallions. The geometry is the pure
+ * planner's (`consoleEndgamePodium.ts`) — the seat's width / height / face
+ * height / reading block arrive as px vars on the seat; the TYPE is rem
+ * (the TV floor is a floor of type, the face is the object that scales).
+ *
+ * Two layouts of one seat: `--stack` (3–5 players — the face over the
+ * reading block) and `--side` (the duel and the solo game — the face
+ * beside it). The crowned winner is `--hero` (the larger reading voice,
+ * the gold stage), the rest `--place`. The seats' sizes NEVER transition —
+ * the ranking and the crowning are FLIPs (transform only), and the skip
+ * jumps atomically.
+ * ─────────────────────────────────────────────────────────────────── */
 .con-eg__rows {
+    /* The box the planner measures: the FREE space between the rail and the
+     * bottom zone, never the seats' own content (they are sized FROM it). */
+    flex: 1 1 0;
+    min-height: 0;
     display: flex;
-    flex-direction: column;
-    gap: var(--eg-row-gap);
-    margin-top: 0.55rem;
+    justify-content: center;
+    align-items: flex-end;
+    gap: var(--eg-seat-gap, 1.4rem);
+    margin-top: 0.7rem;
 }
 
 .con-eg__row {
+    /* The place's reading voice (a crowned hero re-states it below). */
+    --eg-name-fs: 1.3rem;
+    --eg-corp-fs: 0.85rem;
+    --eg-total-fs: 2.8rem;
+    --eg-shield-h: 2.5rem;
+    --eg-bar-h: 1rem;
+    --eg-medal-d: 1.5rem;
+    --eg-medal-fs: 1rem;
+    --eg-medals-h: 3.4rem;
+    --eg-read-gap: 0.45rem;
+
     position: relative;
-    display: grid;
-    /* One child per column, ALWAYS (total in its own fixed column; the
-     * tie-break M€ chip is absolute inside the track) — the audit traced
-     * the bar judder to auto-placement re-solving this grid mid-count. */
-    grid-template-columns: var(--eg-place-w) var(--eg-ident-w) minmax(0, 1fr) var(--eg-total-w);
-    align-items: center;
-    gap: 1rem;
-    height: var(--eg-row-h);
+    flex: none;
+    width: var(--eg-seat-w, 16rem);
+    height: var(--eg-seat-h, 24rem);
+    /* The outer seats stand on the planet's curve, a little lower than the crest. */
+    margin-bottom: calc(-1 * var(--eg-seat-drop, 0px));
     box-sizing: border-box;
-    padding: 0 1.2rem;
-    border-radius: 0.55rem;
-    border: 0.05rem solid rgba(150, 175, 205, 0.13);
-    background: linear-gradient(180deg, rgba(14, 22, 33, 0.72) 0%, rgba(9, 15, 23, 0.66) 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.7rem 0.8rem;
+    border-radius: 0.9rem;
+    border: 0.05rem solid rgba(150, 175, 205, 0.15);
+    background:
+        radial-gradient(120% 60% at 50% 0%, rgba(120, 160, 205, 0.08) 0%, rgba(120, 160, 205, 0) 70%),
+        linear-gradient(180deg, rgba(16, 25, 38, 0.66) 0%, rgba(9, 15, 23, 0.9) 100%);
+    box-shadow: 0 0.6rem 2rem rgba(0, 0, 0, 0.45);
     transition:
         border-color calc(340ms * var(--motion-scale, 1)) ease,
         background-color calc(340ms * var(--motion-scale, 1)) ease,
@@ -378,7 +365,7 @@
     animation-delay: calc(var(--eg-i, 0) * 80ms * var(--motion-scale, 1));
 }
 @keyframes con-eg-row-in {
-    from { opacity: 0; transform: translateY(0.6rem); }
+    from { opacity: 0; transform: translateY(0.8rem); }
     to { opacity: 1; transform: translateY(0); }
 }
 @keyframes con-eg-fadein {
@@ -386,55 +373,67 @@
     to { opacity: 1; }
 }
 
-/* Winner / the rest / tie-break contenders — state is box-shadow + tone.
- * The WINNER ROW IS the winner presentation (a hero, never a duplicate
- * plate below): gold light, ribbon, gold numerals — same geometry. */
+/* THE HERO — the crowned winner: the larger reading voice and the gold stage.
+ * The seat IS the winner presentation (never a duplicate plate). */
+.con-eg__row--hero {
+    --eg-name-fs: 1.7rem;
+    --eg-corp-fs: 1rem;
+    --eg-total-fs: 3.9rem;
+    --eg-shield-h: 3.3rem;
+    --eg-bar-h: 1.3rem;
+    --eg-medal-d: 1.9rem;
+    --eg-medal-fs: 1.25rem;
+    --eg-medals-h: 4.2rem;
+    --eg-read-gap: 0.5rem;
+}
 .con-eg__row--winner {
-    border-color: rgba(255, 216, 122, 0.5);
+    border-color: rgba(255, 216, 122, 0.55);
     background:
-        linear-gradient(90deg, rgba(255, 216, 122, 0.12) 0%, rgba(255, 216, 122, 0.03) 30%, rgba(255, 216, 122, 0) 55%),
-        linear-gradient(180deg, rgba(24, 26, 24, 0.78) 0%, rgba(12, 15, 18, 0.72) 100%);
+        radial-gradient(120% 70% at 50% 0%, rgba(255, 216, 122, 0.16) 0%, rgba(255, 216, 122, 0) 70%),
+        linear-gradient(180deg, rgba(30, 30, 26, 0.78) 0%, rgba(12, 15, 18, 0.9) 100%);
     box-shadow:
-        0 0 0 0.1rem rgba(255, 216, 122, 0.26),
-        0 0.5rem 1.8rem rgba(0, 0, 0, 0.5),
-        0 0 2.2rem rgba(255, 200, 110, 0.10);
+        0 0 0 0.1rem rgba(255, 216, 122, 0.3),
+        0 0.8rem 2.6rem rgba(0, 0, 0, 0.55),
+        0 0 3.2rem rgba(255, 200, 110, 0.14);
 }
 .con-eg__row--solo-defeat {
     border-color: rgba(150, 175, 205, 0.22);
-    box-shadow: none;
+    box-shadow: 0 0.6rem 2rem rgba(0, 0, 0, 0.45);
 }
+/* The rest of the table steps back HALF a tone — readable, never grey noise. */
 .con-eg__row--rest {
-    opacity: 0.8;
+    opacity: 0.86;
 }
 .con-eg__row--contender {
     border-color: rgba(89, 199, 240, 0.45);
-    box-shadow: 0 0 0 0.1rem rgba(89, 199, 240, 0.22);
+    box-shadow: 0 0 0 0.1rem rgba(89, 199, 240, 0.22), 0 0.6rem 2rem rgba(0, 0, 0, 0.45);
 }
 
-/* The winner RIBBON — a small gold tab standing on the row's top edge.
- * Absolute: zero layout impact at any density. Mounts at the winner
- * beat, so its entrance animation can never replay later. */
+/* The winner RIBBON — a gold tab standing on the seat's top edge (centred).
+ * Absolute: zero layout impact at any size. Mounts at the winner beat, so
+ * its entrance animation can never replay later. */
 .con-eg__ribbon {
     position: absolute;
     top: 0;
-    left: calc(var(--eg-place-w) + 1.4rem);
-    transform: translateY(-52%);
-    padding: 0.14rem 0.7rem;
-    border-radius: 0.3rem;
-    border: 0.05rem solid rgba(255, 216, 122, 0.55);
+    left: 50%;
+    transform: translate(-50%, -55%);
+    padding: 0.2rem 1rem;
+    border-radius: 0.35rem;
+    border: 0.05rem solid rgba(255, 216, 122, 0.6);
     background: linear-gradient(180deg, #2a2214 0%, #191307 100%);
     font-family: @con-font;
-    font-size: 0.74rem;
-    letter-spacing: 0.22em;
+    font-size: 0.95rem;
+    letter-spacing: 0.24em;
     text-transform: uppercase;
+    white-space: nowrap;
     color: @sem-prestige;
-    box-shadow: 0 0.15rem 0.6rem rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0.15rem 0.7rem rgba(0, 0, 0, 0.55);
     animation: con-eg-ribbon-in calc(420ms * var(--motion-scale, 1)) @con-ease-enter backwards;
     z-index: 3;
 }
 @keyframes con-eg-ribbon-in {
-    from { opacity: 0; transform: translateY(-20%); }
-    to { opacity: 1; transform: translateY(-52%); }
+    from { opacity: 0; transform: translate(-50%, -20%); }
+    to { opacity: 1; transform: translate(-50%, -55%); }
 }
 .con-eg__ribbon--defeat {
     border-color: rgba(150, 175, 205, 0.4);
@@ -442,16 +441,14 @@
     color: rgba(196, 216, 236, 0.85);
 }
 
-/* The CAMPAIGN TITLE badge — the ribbon's idiom on the row's other shoulder:
- * a small tab standing on the top edge, right side, absolute (zero layout
- * impact — the row grid keeps one child per column, always). Weight ascends
- * with the title (Prefect bronze → Governor/champion gold); the emblem PNGs
- * are complete material renders and are never tinted. Details (TP ledger,
- * comeback M€, provenance) live on the campaign map, not here. */
+/* The CAMPAIGN TITLE badge — the ribbon's idiom on the seat's top-right
+ * shoulder: absolute (zero layout impact). Weight ascends with the title
+ * (Prefect bronze → Governor/champion gold); the emblem PNGs are complete
+ * material renders and are never tinted. */
 .con-eg__title {
     position: absolute;
     top: 0;
-    right: calc(var(--eg-total-w) + 1.4rem);
+    right: 0.8rem;
     transform: translateY(-52%);
     display: flex;
     align-items: center;
@@ -479,7 +476,7 @@
 }
 .con-eg__title-label {
     font-family: @con-font;
-    font-size: 0.72rem;
+    font-size: 0.85rem;
     letter-spacing: 0.18em;
     text-transform: uppercase;
     color: #cdd8e4;
@@ -490,7 +487,7 @@
     color: @sem-prestige;
 }
 .con-eg__title-tp {
-    font-size: 0.72rem;
+    font-size: 0.85rem;
     color: #ecd39a;
     letter-spacing: 0.06em;
     white-space: nowrap;
@@ -513,82 +510,170 @@
     }
 }
 
-.con-eg__place {
+/* ── The FACE — the corporation's premium face at the planner's height ── */
+.con-eg__face {
+    position: relative;
+    flex: none;
+    height: var(--eg-face-h, 12rem);
+    width: calc(var(--eg-face-h, 12rem) * 0.6957);
     display: flex;
-    align-items: center;
     justify-content: center;
+    align-items: flex-start;
+}
+.con-eg__face-zoom {
+    line-height: 0;
+    /* The premium face's own margin (the legacy card container) never offsets the seat. */
+    > * { margin: 0; }
+    .pcard { box-shadow: 0 0.8rem 2.2rem rgba(0, 0, 0, 0.55); }
+}
+/* A corpless seat (a legacy bot save, a test table): its prepared place in its own colour — never an invented face. */
+.con-eg__face-empty {
+    width: 100%;
+    height: 100%;
+    border-radius: 0.8rem;
+    opacity: 0.22;
+    box-shadow: inset 0 0 0 0.12rem rgba(255, 255, 255, 0.5);
+}
+
+/* The PLACE — a medal standing on the face's foot once the ranking is told. */
+.con-eg__place {
+    position: absolute;
+    left: 50%;
+    bottom: 0;
+    transform: translate(-50%, 45%);
+    display: grid;
+    place-items: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, rgba(44, 60, 82, 0.98), rgba(9, 14, 23, 0.98));
+    box-shadow: inset 0 0 0 0.12rem rgba(200, 215, 235, 0.55), 0 0.25rem 0.8rem rgba(0, 0, 0, 0.6);
+    z-index: 2;
 }
 .con-eg__place-num {
     font-family: @con-font;
-    font-size: var(--eg-place-fs);
+    font-size: 1.35rem;
+    font-weight: 800;
     font-variant-numeric: tabular-nums;
-    color: rgba(220, 233, 246, 0.9);
+    color: rgba(230, 240, 250, 0.95);
     animation: con-eg-fadein calc(300ms * var(--motion-scale, 1)) ease backwards;
+}
+.con-eg__row--winner .con-eg__place {
+    background: radial-gradient(circle at 35% 30%, #4a3a16, #1c1505);
+    box-shadow: inset 0 0 0 0.14rem rgba(255, 216, 122, 0.85), 0 0.25rem 0.9rem rgba(0, 0, 0, 0.6), 0 0 1.2rem rgba(255, 200, 110, 0.3);
 }
 .con-eg__row--winner .con-eg__place-num { color: @sem-prestige; }
 .con-eg__place-dot {
-    width: 0.3rem;
-    height: 0.3rem;
+    width: 0.4rem;
+    height: 0.4rem;
     border-radius: 50%;
-    background: rgba(150, 175, 205, 0.3);
+    background: rgba(150, 175, 205, 0.4);
 }
 
+/* ── The READING block — name · score · bar · medallions (fixed height) ── */
+.con-eg__read {
+    flex: none;
+    width: 100%;
+    height: var(--eg-read-h, 12rem);
+    box-sizing: border-box;
+    padding-top: 1.6rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: var(--eg-read-gap);
+    min-width: 0;
+}
 .con-eg__ident {
     display: flex;
     align-items: center;
-    gap: 0.65rem;
+    justify-content: center;
+    gap: 0.55rem;
     min-width: 0;
 }
 .con-eg__swatch {
     flex: 0 0 auto;
-    width: 0.9rem;
-    height: 0.9rem;
+    width: 0.95rem;
+    height: 0.95rem;
     border-radius: 50%;
     box-shadow: inset 0 0 0 0.05rem rgba(255, 255, 255, 0.35);
 }
 .con-eg__who {
     display: flex;
     flex-direction: column;
+    align-items: flex-start;
     gap: 0.1rem;
     min-width: 0;
 }
 .con-eg__name {
+    max-width: 100%;
     font-family: @con-font;
     font-size: var(--eg-name-fs);
-    line-height: 1.1;
+    line-height: 1.12;
     color: @con-text;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 .con-eg__corp {
+    max-width: 100%;
     font-family: @con-font;
     font-size: var(--eg-corp-fs);
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: rgba(170, 195, 220, 0.75);
+    color: rgba(170, 195, 220, 0.8);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
-.con-eg__row--winner .con-eg__corp { color: rgba(232, 214, 160, 0.85); }
+.con-eg__row--winner .con-eg__corp { color: rgba(232, 214, 160, 0.9); }
 /* The bot's difficulty rides the corp line's slot — same geometry, its own
  * quiet accent so «какой бот» reads at a glance and never as a corp name. */
-.con-eg__diff { color: rgba(124, 214, 226, 0.8); }
+.con-eg__diff { color: rgba(124, 214, 226, 0.85); }
 
-/* ── The shared-scale track ──────────────────────────────────────── */
+/* ── The SCORE — the award shield + the running total (the token's landing) ── */
+.con-eg__total {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+}
+.con-eg__shield {
+    flex: none;
+    height: var(--eg-shield-h);
+    width: calc(var(--eg-shield-h) * 0.91);
+}
+.con-eg__total-num {
+    font-family: @con-font;
+    font-size: var(--eg-total-fs);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: #f2f8ff;
+    line-height: 1;
+    transition: color calc(400ms * var(--motion-scale, 1)) ease;
+}
+.con-eg__row--winner .con-eg__total-num {
+    color: @sem-prestige;
+    /* One-shot crowning pulse — plays when the winner class lands
+     * (transform-only; the class persists, so it can never replay). */
+    animation: con-eg-total-crown calc(700ms * var(--motion-scale, 1)) @con-ease-standard;
+}
+@keyframes con-eg-total-crown {
+    0% { transform: scale(1); }
+    38% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+}
+
+/* ── The shared-scale track — the counting INSTRUMENT under the score ── */
 .con-eg__track {
     position: relative;
     min-width: 0;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
 }
 .con-eg__bar {
     position: relative;
     height: var(--eg-bar-h);
     border-radius: 0.4rem;
-    background: rgba(255, 255, 255, 0.045);
+    background: rgba(255, 255, 255, 0.05);
     box-shadow: inset 0 0.05rem 0.3rem rgba(0, 0, 0, 0.55);
     overflow: hidden;
 }
@@ -598,8 +683,7 @@
     bottom: 0;
 }
 /* The seam between TOP-LEVEL categories — a dark hairline that appears
- * with the segment (so the settled bar reads as N blocks = N legend
- * entries, and an empty track shows nothing). */
+ * with the segment (the settled bar reads as N blocks = N medallions). */
 .con-eg__seg::after {
     content: '';
     position: absolute;
@@ -609,8 +693,6 @@
     width: 0.08rem;
     background: rgba(4, 8, 14, 0.85);
     opacity: 0;
-    /* The seam stands at the segment's FINAL right edge — delayed so it
-     * lands with the arriving fill, never a lone tick ahead of it. */
     transition: opacity calc(260ms * var(--motion-scale, 1)) ease calc(380ms * var(--motion-scale, 1));
 }
 .con-eg__seg--on::after { opacity: 1; }
@@ -657,71 +739,12 @@
 }
 .con-eg__reclaim--on { transform: scaleX(1); }
 
-/* Values INSIDE wide segments — dark ink on the segment's own hue,
- * clipped by the bar, landing at the category's settle. */
-.con-eg__inlab {
-    position: absolute;
-    top: 50%;
-    transform: translate(-50%, -46%);
-    font-family: @con-font;
-    font-size: var(--eg-inval-fs);
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-    color: rgba(10, 19, 34, 0.92);
-    opacity: 0;
-    transition:
-        opacity calc(280ms * var(--motion-scale, 1)) ease,
-        transform calc(280ms * var(--motion-scale, 1)) @con-ease-enter;
-    pointer-events: none;
-    z-index: 3;
-}
-.con-eg__inlab.con-eg__vlab--on {
-    opacity: 1;
-    transform: translate(-50%, -50%);
-}
-
-/* The floating «+N» chip riding the bar's growth edge (a TRACK child —
- * the bar's overflow clip must never eat it). */
-.con-eg__chip {
-    position: absolute;
-    /* Anchored from the track centre UP past the bar's top edge — the chip
-     * is always fully ABOVE the bar at every density (a `top` offset put
-     * its box over the bar's upper half on shallow tracks). */
-    bottom: calc(50% + var(--eg-bar-h) / 2 + 0.3rem);
-    transform: translateX(-50%);
-    padding: 0.1rem 0.48rem;
-    border-radius: 0.32rem;
-    border: 0.05rem solid rgba(255, 255, 255, 0.24);
-    background: rgba(8, 14, 22, 0.94);
-    font-family: @con-font;
-    font-size: var(--eg-chip-fs);
-    font-variant-numeric: tabular-nums;
-    color: #eaf4ff;
-    pointer-events: none;
-    white-space: nowrap;
-    z-index: 4;
-    /* left rides the (transitioned) edge — keep it in step with the bar. */
-    transition: left calc(600ms * var(--motion-scale, 1)) @con-ease-standard;
-}
-.con-eg__chip--minus {
-    color: #ffb3b3;
-    border-color: rgba(224, 106, 106, 0.5);
-}
-/* The entry nudge rides TRANSFORM (composed with the base translateX(-50%)),
- * not margin — same visual, no layout write; `left` stays in the transition
- * list so a chip appearing while the bar is still growing keeps riding the
- * edge through its own entry. */
-.con-eg-chip-enter-active { transition: opacity calc(220ms * var(--motion-scale, 1)) ease, transform calc(220ms * var(--motion-scale, 1)) @con-ease-enter, left calc(600ms * var(--motion-scale, 1)) @con-ease-standard; }
-.con-eg-chip-leave-active { transition: opacity calc(200ms * var(--motion-scale, 1)) ease; }
-.con-eg-chip-enter-from { opacity: 0; transform: translate(-50%, 0.25rem); }
-.con-eg-chip-leave-to { opacity: 0; }
-
 /* Tie-break M€ — absolute over the track's tail (appearing evidence may
  * never re-flow the bar it explains). Stays through the settled state. */
 .con-eg__tiechip {
     position: absolute;
     right: 0;
-    bottom: calc(50% + var(--eg-bar-h) / 2 + 0.3rem);
+    bottom: calc(100% + 0.3rem);
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
@@ -730,7 +753,7 @@
     border: 0.05rem solid rgba(255, 216, 122, 0.35);
     background: rgba(10, 16, 24, 0.92);
     font-family: @con-font;
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     font-variant-numeric: tabular-nums;
     color: #eee6c8;
     animation: con-eg-fadein calc(280ms * var(--motion-scale, 1)) ease backwards;
@@ -742,71 +765,134 @@
     background-size: contain;
 }
 
-/* ── The anchored value rail (below the bar) ─────────────────────── */
-.con-eg__labels {
-    position: relative;
-    height: var(--eg-labels-h);
-    margin-top: 0.28rem;
-    font-size: var(--eg-val-fs);
-}
-.con-eg__blab {
-    position: absolute;
-    top: 0;
-    transform: translateX(calc(-50% + var(--eg-nudge, 0px))) translateY(-0.15rem);
-    font-family: @con-font;
-    font-size: var(--eg-val-fs);
-    font-variant-numeric: tabular-nums;
-    opacity: 0;
-    transition:
-        opacity calc(280ms * var(--motion-scale, 1)) ease,
-        transform calc(280ms * var(--motion-scale, 1)) @con-ease-enter;
-    pointer-events: none;
-    white-space: nowrap;
-}
-.con-eg__blab.con-eg__vlab--on {
-    opacity: 1;
-    transform: translateX(calc(-50% + var(--eg-nudge, 0px))) translateY(0);
-}
-.con-eg__vlab--zero {
-    font-size: 0.85em;
-    color: rgba(150, 175, 205, 0.45) !important;
-}
-.con-eg__vlab--minus {
-    font-weight: 600;
-}
-
-/* ── The running total ───────────────────────────────────────────── */
-.con-eg__total {
+/* ── The MEDALLIONS — one disc per category (the dossier's own), the value
+ *    beside it: dim while the category waits, lit on its token's touchdown. ── */
+.con-eg__medals {
     display: flex;
-    align-items: baseline;
-    justify-content: flex-end;
-    gap: 0.32rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-content: flex-start;
+    gap: 0.35rem 0.75rem;
+    height: var(--eg-medals-h);
+    overflow: hidden;
 }
-.con-eg__total-num {
+.con-eg__medal {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    opacity: 0.3;
+    transition:
+        opacity calc(260ms * var(--motion-scale, 1)) ease,
+        transform calc(260ms * var(--motion-scale, 1)) @con-ease-enter;
+}
+.con-eg__medal--on { opacity: 1; }
+/* The active category's medallion is lifted while its tokens are coming. */
+.con-eg__medal--active { opacity: 0.7; transform: translateY(-0.1rem); }
+.con-eg__medal--active.con-eg__medal--on { opacity: 1; transform: none; }
+.con-eg__medal .con-dscore__disc {
+    width: var(--eg-medal-d);
+    height: var(--eg-medal-d);
+    box-shadow: inset 0 0 0 0.1rem var(--eg-c, @con-cyan), 0 0.1rem 0.4rem rgba(0, 0, 0, 0.5);
+}
+.con-eg__medal .con-dscore__disc > .con-dscore__glyph {
+    width: calc(var(--eg-medal-d) * 0.66);
+    height: calc(var(--eg-medal-d) * 0.66);
+}
+.con-eg__medal .con-dscore__disc > .con-dscore__glyph--mark {
+    width: calc(var(--eg-medal-d) * 0.3);
+    height: calc(var(--eg-medal-d) * 0.3);
+    box-shadow: none;
+}
+.con-eg__medal-val {
+    min-width: 1.2em;
     font-family: @con-font;
-    font-size: var(--eg-total-fs);
+    font-size: var(--eg-medal-fs);
+    font-weight: 800;
     font-variant-numeric: tabular-nums;
-    color: #f2f8ff;
     line-height: 1;
-    transition: color calc(400ms * var(--motion-scale, 1)) ease;
+    color: @con-text;
 }
-.con-eg__row--winner .con-eg__total-num {
-    color: @sem-prestige;
-    /* One-shot crowning pulse — plays when the winner class lands
-     * (transform-only; the class persists, so it can never replay). */
-    animation: con-eg-total-crown calc(700ms * var(--motion-scale, 1)) @con-ease-standard;
+.con-eg__medal--zero .con-eg__medal-val { color: rgba(150, 175, 205, 0.55); }
+.con-eg__medal--minus .con-eg__medal-val { color: #eb8f8f; }
+
+/* ── The DUEL (and the solo game) — the face BESIDE the reading block ── */
+.con-eg__rows--side .con-eg__row {
+    --eg-name-fs: 2rem;
+    --eg-corp-fs: 1.05rem;
+    --eg-total-fs: 5rem;
+    --eg-shield-h: 4.2rem;
+    --eg-bar-h: 1.5rem;
+    --eg-medal-d: 2.4rem;
+    --eg-medal-fs: 1.5rem;
+    --eg-medals-h: auto;
+    --eg-read-gap: 1rem;
+
+    flex-direction: row;
+    align-items: center;
+    gap: 1.6rem;
+    padding: 0.8rem 1.6rem;
 }
-@keyframes con-eg-total-crown {
-    0% { transform: scale(1); }
-    38% { transform: scale(1.08); }
-    100% { transform: scale(1); }
+.con-eg__rows--side .con-eg__row--hero {
+    --eg-name-fs: 2.3rem;
+    --eg-total-fs: 6rem;
+    --eg-shield-h: 5rem;
 }
-.con-eg__total-cap {
+.con-eg__rows--side .con-eg__read {
+    flex: 1 1 0;
+    height: auto;
+    padding-top: 0;
+    justify-content: center;
+}
+.con-eg__rows--side .con-eg__ident,
+.con-eg__rows--side .con-eg__total { justify-content: flex-start; }
+.con-eg__rows--side .con-eg__medals { justify-content: flex-start; gap: 0.6rem 1.1rem; }
+.con-eg__rows--side .con-eg__place { left: auto; right: 0; transform: translate(40%, 40%); }
+
+/* ── THE TOKENS — a category's disc + its points, flying from the rail's
+ *    medallion into a seat's shield (the director's clock; transform/opacity). ── */
+.con-eg__tokens {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 6;
+}
+.con-eg-token {
+    position: absolute;
+    left: 0;
+    top: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    will-change: transform, opacity;
+}
+.con-eg-token__disc.con-dscore__disc {
+    width: 2.6rem;
+    height: 2.6rem;
+    box-shadow: inset 0 0 0 0.14rem var(--eg-c, @con-cyan), 0 0.3rem 1rem rgba(0, 0, 0, 0.6), 0 0 1.1rem color-mix(in srgb, var(--eg-c, @con-cyan) 40%, transparent);
+}
+.con-eg-token__disc.con-dscore__disc > .con-dscore__glyph {
+    width: 1.7rem;
+    height: 1.7rem;
+}
+.con-eg-token__disc.con-dscore__disc > .con-dscore__glyph--mark {
+    width: 0.8rem;
+    height: 0.8rem;
+}
+.con-eg-token__val {
+    padding: 0.12rem 0.55rem;
+    border-radius: 0.45rem;
+    border: 0.05rem solid rgba(255, 216, 122, 0.55);
+    background: rgba(8, 14, 22, 0.95);
     font-family: @con-font;
-    font-size: var(--con-t-floor, 0.7rem);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: @con-text-dim;
+    font-size: 1.15rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: #ffe7a8;
+    box-shadow: 0 0.2rem 0.7rem rgba(0, 0, 0, 0.55);
+}
+.con-eg-token--minus .con-eg-token__val {
+    color: #ffb3b3;
+    border-color: rgba(224, 106, 106, 0.6);
 }
 
 /* ── The bottom zone: tie-break → note → actions (LAYERED, no gap) ── */
@@ -1012,15 +1098,16 @@
 }
 
 /* The CHAMPION PLATE — «ЧЕМПИОН КАМПАНИИ» on the ribbon's own anchor
- * (the row's top-left shoulder): the ribbon fades, the plate unfolds in
- * its place. Absolute — zero layout impact at any density. The player's
+ * (the seat's top edge, centred): the ribbon fades, the plate unfolds in
+ * its place. Absolute — zero layout impact at any size. The player's
  * own color lives INSIDE the fixed geometry (the swatch), tying the
  * ceremonial gold to the champion's identity. */
 .con-eg__champline {
     position: absolute;
     top: 0;
-    left: calc(var(--eg-place-w) + 1.4rem);
-    transform: translateY(-52%);
+    left: 50%;
+    transform: translate(-50%, -55%);
+    white-space: nowrap;
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -1029,7 +1116,7 @@
     border: 0.05rem solid rgba(255, 222, 138, 0.75);
     background: linear-gradient(180deg, #332a12 0%, #1c1505 100%);
     font-family: @con-font;
-    font-size: 0.74rem;
+    font-size: 0.85rem;
     letter-spacing: 0.24em;
     text-transform: uppercase;
     color: @sem-prestige;
@@ -1074,8 +1161,8 @@
     animation-delay: calc((320ms + var(--pip-i, 0) * 170ms) * var(--motion-scale, 1));
 }
 @keyframes con-eg-champline-in {
-    from { opacity: 0; transform: translateY(-20%) scale(0.96); }
-    to { opacity: 1; transform: translateY(-52%) scale(1); }
+    from { opacity: 0; transform: translate(-50%, -20%) scale(0.96); }
+    to { opacity: 1; transform: translate(-50%, -55%) scale(1); }
 }
 @keyframes con-eg-champ-pip-in {
     from { opacity: 0; transform: scale(0.4); }
@@ -1129,33 +1216,38 @@
 /* ── Density ladders (profiles) ──────────────────────────────────── */
 html.con-profile-handheld {
     .con-eg { max-width: 100%; padding: 0.6rem 0.8rem 0.4rem; }
-    .con-eg,
-    .con-eg.con-eg--n2,
-    .con-eg.con-eg--n3 {
-        --eg-row-h: 3.6rem;
-        --eg-row-gap: 0.55rem;
-        --eg-bar-h: 1.4rem;
-        --eg-name-fs: 1rem;
-        --eg-corp-fs: 0.7rem;
-        --eg-place-fs: 1.05rem;
-        --eg-place-w: 2rem;
-        --eg-ident-w: 10.5rem;
-        --eg-total-fs: 1.9rem;
-        --eg-total-w: 6.2rem;
-        --eg-val-fs: 0.74rem;
-        --eg-inval-fs: 0.74rem;
-        --eg-labels-h: 0.95rem;
+    .con-eg {
+        --eg-rail-fs: 0.8rem;
+        --eg-rail-disc: 1.7rem;
         --eg-zone-h: 5.4rem;
         --eg-act-fs: 0.9rem;
     }
-    .con-eg__row { padding: 0 0.7rem; gap: 0.6rem; }
     .con-eg__tb-name { max-width: 7rem; }
     .con-eg__action { padding: 0.4rem 0.7rem; }
+    /* The DUEL on the short stage (PL-646): the reading column's voice steps down so the seat holds it inside the
+     * box — the hero's name once met the «ПОБЕДИТЕЛЬ» ribbon; four medallions to a row, two rows instead of three. */
+    .con-eg__rows--side .con-eg__row {
+        --eg-name-fs: 1.5rem;
+        --eg-total-fs: 3.6rem;
+        --eg-shield-h: 3rem;
+        --eg-medal-d: 1.9rem;
+        --eg-medal-fs: 1.2rem;
+        --eg-read-gap: 0.6rem;
+        gap: 1.1rem;
+        padding: 0.6rem 1.1rem;
+    }
+    .con-eg__rows--side .con-eg__row--hero {
+        --eg-name-fs: 1.7rem;
+        --eg-total-fs: 4.4rem;
+        --eg-shield-h: 3.6rem;
+    }
+    .con-eg__rows--side .con-eg__medals { gap: 0.4rem 0.7rem; }
 }
 
 /* Reduced motion: entrances collapse to plain fades; the segments keep a
  * SHORT transition (the growth is information — order of reveal — but no
- * long travel), chips arrive without the rise. */
+ * long travel); no token flies (the medallion lights at the touchdown's
+ * moment) and the crowning snaps (the component skips its FLIP). */
 @media (prefers-reduced-motion: reduce) {
     .con-endgame--entering .con-eg__row,
     .con-endgame--entering .con-eg__lchip,
@@ -1168,7 +1260,7 @@ html.con-profile-handheld {
     .con-eg__row--winner .con-eg__total-num { animation: none; }
     .con-eg__subseg { transition-duration: 120ms; }
     .con-eg__reclaim { transition-duration: 120ms; }
-    .con-eg__chip { transition-duration: 120ms; }
+    .con-eg__medal { transition-duration: 90ms; }
     /* The champion ceremony's SEMANTIC version: the header still turns, the
      * plate and its pips still appear (instantly), the keel still fixes the
      * result — only the travel is gone (no sweep, no unfold). */

@@ -34,6 +34,8 @@
  * NO Vue / DOM / i18n here — labels are English i18n KEYS.
  */
 import {Color} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
+import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
 import {EndgameMode, EndgameModel} from '@/client/components/endgame/endgameModel';
 import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
 import {
@@ -72,6 +74,16 @@ export type ConsoleEndgameCategory = {
   penalty: boolean;
 };
 
+/**
+ * THE FACE A SEAT STANDS BEHIND on the podium (TR69 «ФИНАЛ — ЭТО ЦЕРЕМОНИЯ») — the corporation's own premium face:
+ * a human's first corporation card, or the MarsBot corporation's own face (its `MarsBotCorpId` — the bot's
+ * corporations are their own entities, never the human card behind them). Absent for a corpless seat (a legacy bot
+ * save, a corporation-less test table) — the seat then shows its prepared place, never an invented face.
+ */
+export type ConsoleEndgameFace =
+  | {kind: 'card', name: CardName}
+  | {kind: 'bot', id: MarsBotCorpId};
+
 export type ConsoleEndgameRow = {
   color: Color;
   /** DISPLAY name (the MarsBot seat is already localized by the adapter). */
@@ -84,6 +96,8 @@ export type ConsoleEndgameRow = {
    *  line where a corpless bot shows nothing else; SECONDARY next to the
    *  corporation once the bot has one. Absent for humans. */
   difficulty?: string;
+  /** The corporation face the seat stands behind (see {@link ConsoleEndgameFace}). */
+  face: ConsoleEndgameFace | undefined;
   finalTotal: number;
   megacredits: number;
   /** 1-based place; ties share the lower number (from the ranked model). */
@@ -271,6 +285,7 @@ export function buildConsoleEndgameVm(
       corporation: p.corporation,
       isBot: botColors.has(p.color),
       ...(difficulty !== undefined ? {difficulty: DIFFICULTY_LABEL[difficulty]} : {}),
+      face: faceOf(ranked),
       finalTotal: p.finalTotal,
       megacredits: ranked?.megacredits ?? 0,
       place: ranked?.place ?? reveal.players.length,
@@ -354,6 +369,18 @@ export function buildConsoleEndgameVm(
     generation: reveal.generation,
     campaignFinale: options?.campaignFinale,
   };
+}
+
+/** The seat's face: the bot's own corporation, else the first corporation card the seat played. */
+function faceOf(player: EndgameModel['players'][number] | undefined): ConsoleEndgameFace | undefined {
+  if (player === undefined) {
+    return undefined;
+  }
+  if (player.botCorporation !== undefined) {
+    return {kind: 'bot', id: player.botCorporation.id};
+  }
+  const name = player.corporations[0];
+  return name === undefined ? undefined : {kind: 'card', name: name as CardName};
 }
 
 /** Running total after the first `n` categories — what the count-up shows. */
