@@ -248,6 +248,17 @@ branch — supported by the server since pay-on-commit shipped — was
 **unreachable**. It now rides the input's own `toModel` (nesting-safe), exactly
 as `SelectSpace` carries it.
 
+## «Свернуть» a PROMPT's screen is a park (2026-10-18)
+
+«Проверенные методы» (Established Methods) asks for a standard project INSIDE the opening, so the screen stands OVER
+the start root (`[start, standard-projects]`). Its B used to `deferShellTask()` + `leaveWorkspace()`: the screen popped
+alone, the start stayed under a prompt it does not serve, the restore found no park and its non-park branch was gated on
+`!startSceneServes`, the scene — nothing of its own left to wait for — let go, and the player stood on the board with
+the stranded guard. Now a prompt's minimize (`stdBackLabel === 'Minimize'`) parks the WHOLE stack (`collapseWorkspace`,
+the hosted awards step's rule) and comes back at full depth through `restoreWorkspaceStack`; a visit the player opened
+is still a plain close. The restore's non-park branch opens an owed shell task whatever the start is doing (the second
+door to the same dead end). e2e: `established-methods-stdproj.spec.ts` § B → A (twice) + a reload.
+
 ## Guards
 
 - `tests/models/standardProjectPreview.spec.ts` — the chips, the clamps, the

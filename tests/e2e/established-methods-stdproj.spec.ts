@@ -5,6 +5,8 @@ import {
   pickCards,
   playQueueCard,
   press,
+  pressUntil,
+  reloadConsole,
   submitSummary,
   walkToSummary,
 } from './consoleStart';
@@ -164,4 +166,65 @@ test('EstablishedMethods: both std-project prompts served by .con-stdp, never st
     .toBeTruthy();
 
   await openStandardProjectPrompt(page, 'second');
+});
+
+/** The Standard Projects workspace is the screen the player SEES — mounted,
+ *  visible, and on top at its focused row (a hit test, never a computed style:
+ *  the «Корпоративные архивы» blocker was a surface that was mounted, owned the
+ *  pad and was painted over). */
+async function stdpStands(page: Page): Promise<{ok: boolean, state: string}> {
+  const s = await page.evaluate(() => {
+    const root = document.querySelector('.con-stdp');
+    const card = document.querySelector('.con-stdp__card--focused');
+    const r = card?.getBoundingClientRect();
+    const hit = r === undefined ? null : document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    const start = document.querySelector('.con-start');
+    return {
+      stdp: root !== null,
+      stdpVisible: root !== null && (root as HTMLElement).getClientRects().length > 0 &&
+        getComputedStyle(root).visibility !== 'hidden' && Number(getComputedStyle(root).opacity) > 0.5,
+      focused: card !== null,
+      onTop: hit !== null && root !== null && root.contains(hit),
+      hitClass: hit === null ? '' : String((hit as HTMLElement).className).slice(0, 80),
+      start: start !== null,
+      startVisible: start !== null && getComputedStyle(start).visibility !== 'hidden',
+      mandatory: document.querySelector('.con-mandatory') !== null,
+      stranded: document.querySelector('.con-stranded') !== null,
+      crumb: (document.querySelector('.con-wshead')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 120),
+    };
+  });
+  return {ok: s.stdp && s.stdpVisible && s.focused && s.onTop && !s.stranded, state: JSON.stringify(s)};
+}
+
+test('EstablishedMethods: B → A brings the Standard Projects workspace back on top; a reload too', async ({page, request}) => {
+  test.setTimeout(360_000);
+  await prepareEstablishedMethods(page, request);
+  await openStandardProjectPrompt(page, 'first');
+  expect((await stdpStands(page)).ok, `before the round trip — ${(await stdpStands(page)).state}`).toBeTruthy();
+
+  for (let round = 1; round <= 2; round++) {
+    // B — «свернуть»: the decision is set aside, the board home carries the way back.
+    const parked = await pressUntil(page, 'Escape', async () => !(await page.locator('.con-stdp').isVisible().catch(() => false)),
+      {tries: 3, settleMs: 1200});
+    await page.screenshot({path: `test-results/em-collapse-${round}-board.png`});
+    expect(parked, `B minimized the Standard Projects (round ${round}) — ${(await stdpStands(page)).state}`).toBeTruthy();
+    // A — back to the decision.
+    await pressUntil(page, 'Enter', async () => (await stdpStands(page)).ok, {tries: 3, settleMs: 1800});
+    await expect.poll(async () => (await stdpStands(page)).ok, {timeout: 15_000, intervals: [250]}).toBe(true)
+      .catch(() => undefined);
+    const back = await stdpStands(page);
+    await page.screenshot({path: `test-results/em-collapse-${round}-restored.png`});
+    expect(back.ok, `B → A (round ${round}): the Standard Projects stand on top — ${back.state}`).toBeTruthy();
+  }
+
+  await reloadConsole(page);
+  if (!(await page.locator('.con-stdp').isVisible().catch(() => false)) &&
+      await page.locator('.con-mandatory').isVisible().catch(() => false)) {
+    await pressUntil(page, 'Enter', async () => (await stdpStands(page)).ok, {tries: 3, settleMs: 1800});
+  }
+  await expect.poll(async () => (await stdpStands(page)).ok, {timeout: 30_000, intervals: [250]}).toBe(true)
+    .catch(() => undefined);
+  const reloaded = await stdpStands(page);
+  await page.screenshot({path: 'test-results/em-collapse-reloaded.png'});
+  expect(reloaded.ok, `after a reload the Standard Projects stand on top — ${reloaded.state}`).toBeTruthy();
 });

@@ -15443,6 +15443,18 @@ export default defineComponent({
               this.rollbackStdProjectFlow();
               return;
             }
+            // A PROMPT'S standard project («Свернуть» — «Проверенные методы»
+            // raises it INSIDE the opening, the screen standing OVER the start
+            // root) PARKS THE WHOLE STACK, the awards step's rule: popping the
+            // screen alone left the start standing under a still-owed prompt it
+            // does not serve, the restore had no park to bring back, the scene
+            // found nothing of its own to wait for and let go — the board home
+            // with the stranded guard and no way back (the field report of
+            // 2026-10-18). A visit the player opened is still a plain close.
+            if (this.stdBackLabel === 'Minimize') {
+              this.collapseWorkspace();
+              return;
+            }
             this.deferShellTask();
             leaveWorkspace();
           }
@@ -20694,7 +20706,15 @@ export default defineComponent({
         }
         return;
       }
-      if (this.hostTask === undefined && !this.startSceneServes && this.shellTask !== undefined) {
+      // NO PARK, A SHELL TASK STILL OWED: open its surface — the start
+      // workspace serving or not. `shellTask` never names a start-own prompt
+      // (the first action in the start flow is excluded at its source) and
+      // `openShellTaskSurface` already stands a step INSIDE the start where one
+      // belongs (the hand, the awards, the colonies) and a sheet OVER its root.
+      // Gated on `!startSceneServes`, a deferral that took no park (a lateral
+      // visit, an older minimize) came back to a start that serves nothing of
+      // its own: the scene let go, and the prompt was stranded on the board.
+      if (this.hostTask === undefined && this.shellTask !== undefined) {
         this.openShellTaskSurface(this.shellTask);
       }
     },
