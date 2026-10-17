@@ -23,6 +23,7 @@
          'con-played-cat--framed': state.frameOn,
          'con-played-cat--held': state.holdCards,
        }"
+       :style="boxInset"
        role="dialog"
        :aria-label="$t(title)">
     <div class="con-played-cat__backdrop" aria-hidden="true" @click="requestClose"></div>
@@ -208,6 +209,10 @@ export default defineComponent({
      * back out to it. Undefined → such a card simply appears in the grid (the hold still covers it).
      */
     offPageRect: {type: Function as PropType<(name: string) => FlightRect | undefined>, default: undefined},
+    /** The table's shelf face (APPLIED zoom, PL-619): the grid never lays a lifted card out smaller than its shelf. */
+    faceFloorZoom: {type: Number, default: undefined},
+    /** The host table BODY's insets inside the table root (PL-626) — the view never covers the crumb or the satellite lane. */
+    boxInset: {type: Object as PropType<Record<string, string>>, default: undefined},
   },
   emits: {
     /** The episode fully settled CLOSED — the overlay drops the mount. */
@@ -253,7 +258,7 @@ export default defineComponent({
       // works the inner content box. The single stage keeps its raw box
       // (its width/height SHARES already reserve the air).
       const inset = this.cards.length > 1 ? this.insetPx * 2 : 0;
-      return planCategoryView({availW: w - inset, availH: h - inset, count: this.cards.length, uiScale: conUiScale()});
+      return planCategoryView({availW: w - inset, availH: h - inset, count: this.cards.length, uiScale: conUiScale(), faceFloorZoom: this.faceFloorZoom});
     },
     /** The grid plan (grid layouts only — a convenience narrow). */
     gridPlan(): HandGridPlan {

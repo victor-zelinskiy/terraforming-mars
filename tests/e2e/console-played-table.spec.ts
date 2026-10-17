@@ -23,9 +23,9 @@ const PRESETS = [
   {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto', faceFloor: 250, bottomFloor: 0.85},
   // The hand album's standard face at 4K measures ≈ 520 px (TR58's diagnosis); the table's shelf face may not fall under it.
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv', faceFloor: 520, bottomFloor: 0.85},
-  // The handheld's album profile is ONE row (the hand's own density; a second row would cost 22 % of the face), so its
-  // table fills the width and the identity column's events stack sets the content's bottom — not the album's rows.
-  {id: 'deck', viewport: {width: 1280, height: 800}, query: '&consoleProfile=handheld', faceFloor: 150, bottomFloor: 0.6},
+  // The handheld's ALBUM is one row (the hand's own density); its TABLE stands on two (the owner, 2026-10-17 — PL-622:
+  // ≈ 191 px faces, 20 cards in 4 pages), so the content reaches the bottom like on the other profiles.
+  {id: 'deck', viewport: {width: 1280, height: 800}, query: '&consoleProfile=handheld', faceFloor: 150, bottomFloor: 0.85},
 ] as const;
 
 const TABLE = '.con-played:not(.con-played--embedded)';
@@ -218,6 +218,51 @@ for (const preset of PRESETS.filter((p) => p.id !== 'deck')) {
       const slotDuring = await page.locator('[data-played-run="active"] .con-played__slot').first().boundingBox();
       expect(slotDuring?.width ?? 0, 'the slot keeps its geometry').toBeCloseTo(slotBefore?.width ?? 0, 0);
       expect(await page.locator('.con-played-cat__slot').count(), 'every card of the zone in the grid').toBe(14);
+      // A LIFT NEVER SHRINKS A FACE (PL-619) — unless that is what keeps the whole zone on ONE screen (the project's
+      // first goal): either the grid's face is the shelf's at least, or every card of the zone stands in view, no scroll.
+      const catW = (await page.locator('.con-played-cat__slot').first().boundingBox())?.width ?? 0;
+      const grid = await page.evaluate(() => {
+        const el = document.querySelector<HTMLElement>('.con-played-cat__grid');
+        if (el === null) {
+          return {scrolls: false, inView: 0};
+        }
+        const box = el.getBoundingClientRect();
+        const inView = Array.from(document.querySelectorAll<HTMLElement>('.con-played-cat__slot')).filter((slot) => {
+          const r = slot.getBoundingClientRect();
+          return r.top >= box.top - 1 && r.bottom <= box.bottom + 1;
+        }).length;
+        return {scrolls: el.scrollHeight > el.clientHeight + 2, inView};
+      });
+      const shelfW = slotBefore?.width ?? 0;
+      if (catW < shelfW - 1) {
+        expect(grid.scrolls, `a face under the shelf's (${Math.round(catW)} < ${Math.round(shelfW)} px) only to keep the zone on one screen`).toBe(false);
+        expect(grid.inView, 'the whole zone stands in view').toBe(14);
+      }
+      // THE VIEW STANDS OVER THE TABLE'S BODY (PL-626): the crumb is painted — nothing of the view over it — and the
+      // view's box is the body's (the ДОП. РЕСУРСЫ lane and the head stay clear).
+      const room = await page.evaluate(() => {
+        const head = document.querySelector<HTMLElement>('.con-played__head');
+        const body = document.querySelector<HTMLElement>('.con-played__body');
+        const view = document.querySelector<HTMLElement>('.con-played-cat');
+        if (head === null || body === null || view === null) {
+          return undefined;
+        }
+        const h = head.getBoundingClientRect();
+        const b = body.getBoundingClientRect();
+        const v = view.getBoundingClientRect();
+        const atHead = document.elementFromPoint(h.left + 24, h.top + h.height / 2);
+        return {
+          headCovered: atHead !== null && view.contains(atHead),
+          dTop: v.top - b.top, dLeft: v.left - b.left, dRight: b.right - v.right, dBottom: b.bottom - v.bottom,
+          viewTop: v.top, headBottom: h.bottom,
+        };
+      });
+      expect(room, 'the head, the body and the view are on the page').toBeDefined();
+      expect(room?.headCovered, 'the crumb is not under the category view').toBe(false);
+      expect(room?.viewTop ?? 0, 'the view starts below the head').toBeGreaterThanOrEqual((room?.headBottom ?? 0) - 1);
+      for (const [edge, d] of Object.entries({top: room?.dTop, left: room?.dLeft, right: room?.dRight, bottom: room?.dBottom})) {
+        expect(Math.abs(d ?? 99), `the view's ${edge} edge is the body's`).toBeLessThanOrEqual(2);
+      }
       // THE CRUMB names the stage — the view never titles itself.
       expect(await crumb(page)).toMatch(/Активные/i);
       await expect(page.locator('.con-played .con-wshead'), 'ONE head (the table’s) — the category view draws none').toHaveCount(1);
@@ -260,6 +305,17 @@ for (const preset of PRESETS.filter((p) => p.id !== 'deck')) {
       expect(await page.evaluate(() => (window as unknown as {__tableGaps: number}).__tableGaps), 'no frame without the table').toBe(0);
       const s = await shapeOf(page);
       expect(s.shelfFaceW, 'the rival\'s faces at the same scale').toBeGreaterThanOrEqual(preset.faceFloor);
+      // NO EVENT YET (PL-620): the stack's place is an outline that names what is missing — never a card-sized plate.
+      const place = page.locator('.con-played__family--event .con-played__seat-place--events');
+      await expect(place).toHaveCount(1);
+      await expect(place.locator('.con-played__seat-note')).toHaveText('Событий пока нет');
+      const paint = await place.evaluate((el) => {
+        const cs = getComputedStyle(el);
+        return {image: cs.backgroundImage, color: cs.backgroundColor, border: cs.borderTopStyle};
+      });
+      expect(paint.image, 'no fill').toBe('none');
+      expect(paint.color, 'no fill').toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
+      expect(paint.border, 'the place is drawn by its outline').toBe('dashed');
       await key(page, 'KeyQ', 1000); // LB — back to the own seat
       expect(await crumb(page)).toBe(own);
       await key(page, 'Escape', 1000);

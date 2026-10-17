@@ -57,6 +57,12 @@
       <div v-if="viewedIsBot" class="con-played__provenance" v-i18n>Everything MarsBot flipped from its action deck this game</div>
 
       <div class="con-played__body" ref="body">
+        <!-- THE CONTENT RENDERS ONCE, against the MEASURED body (PL-625): the body is a flex box whose size never depends
+             on what it holds, so the first render lays the chassis out, `mounted()` measures it (a forced layout, no
+             paint yet), and the table renders its faces a single time with the real plan before the first paint — a
+             fallback plan rendered first re-laid every face and re-picked every art tier on the landing's first frames,
+             one frame the arc's target was still moving. -->
+        <template v-if="measured">
         <!-- Truly empty tableau — a PREPARED table, never a bare panel: the identity column's empty card place and
              one calm line where the shelves will be. The bot's corporation slot counts as table content. -->
         <div v-if="emptyTable" class="con-played__table con-played__table--void" :style="tableStyle">
@@ -140,9 +146,13 @@
                                        :out="eventsOut"
                                        :slotW="plan.events.slotW" :cardH="plan.events.slotH" />
             </div>
+            <!-- No event yet: the stack's PLACE on the table (PL-620) — a dashed outline that names what is missing, never
+                 a dark card-sized plate that reads as a blank card. Its box stays reserved: the first event lands here. -->
             <div v-else class="con-played__family con-played__family--event con-played__family--empty" aria-hidden="true">
               <span class="con-played__caption"><span v-i18n>Events</span></span>
-              <div class="con-played__seat-place con-played__seat-place--events" :style="{width: plan.events.slotW + 'px', height: plan.events.slotH + 'px'}"></div>
+              <div class="con-played__seat-place con-played__seat-place--events" :style="{width: plan.events.slotW + 'px', height: plan.events.slotH + 'px'}">
+                <span class="con-played__seat-note" v-i18n>No events played yet</span>
+              </div>
             </div>
           </aside>
 
@@ -191,6 +201,7 @@
             </button>
           </div>
         </div>
+        </template>
       </div>
     </div>
 
@@ -202,6 +213,8 @@
                                :cards="categoryViewCards"
                                :provenanceByName="provenanceByName"
                                :offPageRect="offPageRect"
+                               :faceFloorZoom="plan.album.zoom"
+                               :boxInset="catInset"
                                @settled-closed="onCategorySettled" />
   </div>
 </template>
@@ -306,6 +319,9 @@ export default defineComponent({
     return {
       /** The measured table body (offset box — transform-independent, so a materializing panel never mis-sizes it). */
       box: {w: 0, h: 0},
+      /** The CATEGORY VIEW stands over the table's BODY, never over its head (PL-626): the crumb reads the open zone
+       *  («РАЗЫГРАНО › PLAYER1 › АКТИВНЫЕ») and the ДОП. РЕСУРСЫ lane stays clear. Insets from the root, px. */
+      catInset: undefined as Record<string, string> | undefined,
       ro: undefined as ResizeObserver | undefined,
       /** WHOSE tableau is on the table (LB/RB cycles; defaults to the viewer). */
       viewColor: this.thisPlayerColor as Color,
@@ -461,6 +477,10 @@ export default defineComponent({
       return playedProvenanceByName(this.viewedPlayer, this.viewedTableau);
     },
     /** Nothing on the table at all (the bot's corporation slot counts as content). */
+    /** The body has been measured — the content renders against the real box only (PL-625). */
+    measured(): boolean {
+      return this.box.w > 4 && this.box.h > 4;
+    },
     emptyTable(): boolean {
       return this.categories.length === 0 && this.botCorp === undefined;
     },
@@ -498,6 +518,11 @@ export default defineComponent({
     },
     /** The mounted pages: the active one and its neighbours (a slide never lands on an unmounted page). */
     renderPages(): Array<number> {
+      // The HERO scene never slides (the strip is pinned while the card lands), so it mounts the landing card's page
+      // alone — the neighbours exist for the slide, and on the landing's first frames they were faces nobody sees.
+      if (this.heroActive) {
+        return this.pageCount > 0 ? [this.activePage] : [];
+      }
       const out: Array<number> = [];
       for (let p = this.activePage - 1; p <= this.activePage + 1; p++) {
         if (p >= 0 && p < this.pageCount) {
@@ -626,6 +651,13 @@ export default defineComponent({
         }
       },
     },
+    /** The view takes the BODY's box on its opening edge (pre-flush: the inset is set before the view mounts and
+     *  measures itself, so its grid is planned for the room it really stands in). */
+    'categoryUp'(up: boolean) {
+      if (up) {
+        this.measureCatInset();
+      }
+    },
     /** Touchdown committed: the cursor confirms the landing family. */
     'heroRevealed'(revealed: boolean) {
       if (revealed && this.heroIncoming !== undefined) {
@@ -672,9 +704,34 @@ export default defineComponent({
       }
       const w = body.offsetWidth;
       const h = body.offsetHeight;
-      if (w !== this.box.w || h !== this.box.h) {
-        this.box = {w, h};
+      if (this.categoryUp) {
+        this.measureCatInset();
       }
+      if (w !== this.box.w || h !== this.box.h) {
+        const first = !this.measured;
+        this.box = {w, h};
+        // The landing card's page is a fact of the REAL plan: a page derived from the fallback box is re-derived here,
+        // in the same tick, so the arc's target never changes page under the flight.
+        if (first && this.heroIncoming !== undefined) {
+          this.ensurePageOfCard(this.heroIncoming.name);
+        }
+      }
+    },
+    /** The body's box inside the root (rests: no transform runs while a category opens) — the category view's room. */
+    measureCatInset(): void {
+      const root = this.$el as HTMLElement | undefined;
+      const body = this.$refs.body as HTMLElement | undefined;
+      if (root === undefined || body === undefined || typeof root.getBoundingClientRect !== 'function') {
+        return;
+      }
+      const r = root.getBoundingClientRect();
+      const b = body.getBoundingClientRect();
+      if (b.width <= 4 || b.height <= 4) {
+        this.catInset = undefined;
+        return;
+      }
+      const px = (v: number) => `${Math.max(0, Math.round(v))}px`;
+      this.catInset = {top: px(b.top - r.top), left: px(b.left - r.left), right: px(r.right - b.right), bottom: px(r.bottom - b.bottom)};
     },
     // ── the shelves ─────────────────────────────────────────────────────
     zoneLabel(zone: PlayedShelfZone): string {

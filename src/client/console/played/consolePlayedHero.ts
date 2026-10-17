@@ -168,6 +168,12 @@ export const playedHeroState = reactive({
   /** The flying proxy geometry (undefined → no-flight fallback path). */
   proxy: undefined as PlayedHeroProxy | undefined,
   /**
+   * TRUE only while the lifted card WAITS for its landing place — the lift is over and the target is not measured yet.
+   * The scene's own «I am waiting» (the dead hover a probe budgets), apart from a frame the GPU did not paint during the
+   * lift or the arc (PL-625). Published on the hero layer as `data-hero-wait`.
+   */
+  awaitingTarget: false,
+  /**
    * THE SHIPMENT BEAT's outcome, named ('' — the play takes nothing off the
    * rail): `flying` → `flown`, or why it was not shown as promised (`reduced`,
    * `mismatch: …`, `no-source`, `degraded: …`) — the rows ticked with the
@@ -632,6 +638,7 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   playedHeroState.isEvent = isEvent;
   playedHeroState.host = opts.host ?? 'overlay';
   playedHeroState.revealed = false;
+  playedHeroState.awaitingTarget = false;
   playedHeroState.tableOpen = false;
   playedHeroState.autoClose = !opts.manualTableOpen;
   playedHeroState.proxy = undefined;
@@ -914,13 +921,23 @@ async function executeFlight(): Promise<void> {
   const hasProxy = playedHeroState.proxy !== undefined && els !== undefined;
   const prewarmed = prewarmedTarget;
   prewarmedTarget = undefined;
-  const targetPromise = hasProxy ?
+  let targetSettled = false;
+  const targetPromise = (hasProxy ?
     (prewarmed !== undefined ? prewarmed.then((r) => r ?? awaitTargetRect()) : awaitTargetRect()) :
-    Promise.resolve(undefined);
+    Promise.resolve(undefined)).then((r) => {
+    targetSettled = true;
+    return r;
+  });
   if (hasProxy && els !== undefined && !reduced) {
     await playHeroLift(els, motionMs(HERO_LIFT_MS));
   }
+  if (!targetSettled && mine()) {
+    playedHeroState.awaitingTarget = true;
+  }
   const target = await targetPromise;
+  if (mine()) {
+    playedHeroState.awaitingTarget = false;
+  }
 
   if (!mine()) {
     return; // aborted mid-scene — abort already cleaned up
@@ -1538,6 +1555,7 @@ export function abortPlayedHero(): void {
   landingView = undefined;
   playedHeroState.proxy = undefined;
   playedHeroState.revealed = false;
+  playedHeroState.awaitingTarget = false;
   playedHeroState.tableOpen = false;
   playedHeroState.active = false;
   playedHeroState.phase = 'failed';
@@ -1582,6 +1600,7 @@ function finish(): void {
   playedHeroState.isEvent = false;
   playedHeroState.host = 'overlay';
   playedHeroState.revealed = false;
+  playedHeroState.awaitingTarget = false;
   playedHeroState.tableOpen = false;
   playedHeroState.proxy = undefined;
 }

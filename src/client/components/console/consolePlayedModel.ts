@@ -244,14 +244,17 @@ export const TABLE_HERO_GAIN = 1.35;
 export const TABLE_EVENTS_GAIN = 0.8;
 /** A one-row table may grow this much past the standard face (bounded — a face larger reads as an inspect). */
 export const TABLE_SHOWCASE_GAIN = 1.5;
-/** A page takes one more row while the face it costs stays within this share of the face it had (the Deck's one-row
- *  album profile left the lower half of the table empty and dealt twenty cards over seven pages; a second row of 92 %
- *  faces halves them). */
-export const TABLE_ROW_ADD_TOLERANCE = 0.9;
+
+/**
+ * The table's page is never one row (the owner's decision 2026-10-17, PL-622): the handheld album keeps the hand's
+ * one-row density, the TABLE stands on two — on the Deck 191 px faces, 20 cards in 4 pages (one row: 208 px, 7 pages,
+ * the lower half of the body empty).
+ */
+export const TABLE_MIN_ROWS = 2;
 
 /** The album composition of the TABLE: the profile's page minus the column the identity takes. */
 export function tableAlbumSpec(spec: AlbumSpec): AlbumSpec {
-  return {cols: Math.max(2, spec.cols - 1), rows: Math.max(1, spec.rows)};
+  return {cols: Math.max(2, spec.cols - 1), rows: Math.max(TABLE_MIN_ROWS, spec.rows)};
 }
 
 export interface PlayedTableInput {
@@ -324,18 +327,10 @@ export function planPlayedTable(input: PlayedTableInput): PlayedTablePlan {
   // THE STANDARD FACE — the box and the composition, never the count.
   const widthZoom = (albumW - 2 * padX - (cols - 1) * gapX) / (cols * PLAYED_CARD_NATURAL_W);
   const heightZoomFor = (r: number) => (albumH - padTop - padBottom - r * captionH - (r - 1) * rowGap) / (r * PLAYED_CARD_NATURAL_H);
-  // THE ROWS FOLLOW THE BOX: the profile's row count is a FLOOR, never the answer — a page takes one more row while the
-  // table has rows to fill it and the face it costs stays within TABLE_ROW_ADD_TOLERANCE of the face it had (the
-  // Deck's one-row album profile left the lower half of the table empty and dealt twenty cards over seven pages).
-  let rowsPerPage = spec.rows;
-  while (rows.length > rowsPerPage) {
-    const have = Math.min(widthZoom, heightZoomFor(rowsPerPage));
-    const next = Math.min(widthZoom, heightZoomFor(rowsPerPage + 1));
-    if (next < have * TABLE_ROW_ADD_TOLERANCE) {
-      break;
-    }
-    rowsPerPage += 1;
-  }
+  // THE ROWS ARE THE PROFILE'S (PL-622): a page has exactly the album's rows. A rule that added a row whenever it cost
+  // under a tenth of the face sat on a knife's edge on the Deck (its body measures 1000–1045 px wide — one row there,
+  // two rows here), so a provenance line or a satellite lane re-laid every face between two seats of one table.
+  const rowsPerPage = spec.rows;
   const pages = pageShelves(rows, rowsPerPage);
   const heightZoom = heightZoomFor(rowsPerPage);
   const standard = clamp(ALBUM_MIN_ZOOM * s, ALBUM_MAX_ZOOM * s, Math.min(widthZoom, heightZoom));

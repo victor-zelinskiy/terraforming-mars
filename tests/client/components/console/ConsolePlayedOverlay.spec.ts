@@ -28,7 +28,15 @@ const RED_TABLEAU = [
   CardName.BIG_ASTEROID, // event
 ];
 
-function make(players: Array<PublicPlayerModel>): VueWrapper<InstanceType<typeof ConsolePlayedOverlay>> {
+/** Mount the table and let its body be measured: the content renders on the tick after `mounted()` (PL-625 — in a
+ *  browser that is still before the first paint). */
+async function make(players: Array<PublicPlayerModel>): Promise<VueWrapper<InstanceType<typeof ConsolePlayedOverlay>>> {
+  const wrapper = mountTable(players);
+  await wrapper.vm.$nextTick();
+  return wrapper;
+}
+
+function mountTable(players: Array<PublicPlayerModel>): VueWrapper<InstanceType<typeof ConsolePlayedOverlay>> {
   return mount(ConsolePlayedOverlay, {
     props: {players, thisPlayerColor: 'red' as Color},
     global: {
@@ -41,14 +49,45 @@ function make(players: Array<PublicPlayerModel>): VueWrapper<InstanceType<typeof
   });
 }
 
+/** JSDOM has no layout: the table's BODY reports the overlay's old fallback box (1400 × 620) — the table renders its
+ *  content only once the body is measured (PL-625), exactly as a browser does after `mounted()`. */
+const BODY_BOX = {w: 1400, h: 620};
+type OffsetKey = 'offsetWidth' | 'offsetHeight';
+const offsetDescriptors = new Map<OffsetKey, PropertyDescriptor | undefined>();
+function stubBodyBox(): void {
+  for (const key of ['offsetWidth', 'offsetHeight'] as Array<OffsetKey>) {
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, key);
+    offsetDescriptors.set(key, original);
+    Object.defineProperty(HTMLElement.prototype, key, {
+      configurable: true,
+      get(this: HTMLElement) {
+        if (this.classList.contains('con-played__body')) {
+          return key === 'offsetWidth' ? BODY_BOX.w : BODY_BOX.h;
+        }
+        return original?.get?.call(this) ?? 0;
+      },
+    });
+  }
+}
+function restoreBodyBox(): void {
+  for (const [key, original] of offsetDescriptors) {
+    if (original !== undefined) {
+      Object.defineProperty(HTMLElement.prototype, key, original);
+    }
+  }
+  offsetDescriptors.clear();
+}
+
 describe('ConsolePlayedOverlay (category navigation)', () => {
+  before(stubBodyBox);
+  after(restoreBodyBox);
   afterEach(() => {
     resetConsolePlayedUi();
     resetPlayedCategoryView();
   });
 
-  it('renders the tableau zones + the face-down events pile with its count', () => {
-    const wrapper = make([player('red' as Color, 'Вы', RED_TABLEAU)]);
+  it('renders the tableau zones + the face-down events pile with its count', async () => {
+    const wrapper = await make([player('red' as Color, 'Вы', RED_TABLEAU)]);
     expect(wrapper.find('.con-played__family--corporation').exists()).to.be.true;
     expect(wrapper.find('.con-played__family--prelude').exists()).to.be.true;
     expect(wrapper.find('.con-played__family--active').exists()).to.be.true;
@@ -59,8 +98,8 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
     wrapper.unmount();
   });
 
-  it('the focusable objects are CATEGORY blocks only — no per-card cursor exists', () => {
-    const wrapper = make([player('red' as Color, 'Вы', RED_TABLEAU)]);
+  it('the focusable objects are CATEGORY blocks only — no per-card cursor exists', async () => {
+    const wrapper = await make([player('red' as Color, 'Вы', RED_TABLEAU)]);
     expect(wrapper.vm.focusCategory).to.eq('corporation');
     expect(consolePlayedUi.focusCategory).to.eq('corporation');
     // The retired per-card focus API is gone from the component surface.
@@ -71,15 +110,15 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
     wrapper.unmount();
   });
 
-  it('B closes (emit) — the shell owns the actual open flag', () => {
-    const wrapper = make([player('red' as Color, 'Вы', RED_TABLEAU)]);
+  it('B closes (emit) — the shell owns the actual open flag', async () => {
+    const wrapper = await make([player('red' as Color, 'Вы', RED_TABLEAU)]);
     wrapper.vm.handleIntent(press('back'));
     expect(wrapper.emitted('close')).to.have.length(1);
     wrapper.unmount();
   });
 
   it('A on a focused category ARMS the physical episode (opening state + names)', async () => {
-    const wrapper = make([player('red' as Color, 'Вы', RED_TABLEAU)]);
+    const wrapper = await make([player('red' as Color, 'Вы', RED_TABLEAU)]);
     wrapper.vm.focusCategory = 'events';
     await wrapper.vm.$nextTick();
     wrapper.vm.handleIntent(press('confirm'));
@@ -105,7 +144,7 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
   it('face-up categories hold their slots while lifted (one physical copy)', async () => {
     // TWO active cards: a one-card zone takes the smart fullscreen shortcut
     // (no category episode at all) — the hold contract needs a real grid.
-    const wrapper = make([player('red' as Color, 'Вы', [...RED_TABLEAU, CardName.BIRDS])]);
+    const wrapper = await make([player('red' as Color, 'Вы', [...RED_TABLEAU, CardName.BIRDS])]);
     wrapper.vm.openCategory('active');
     // The proxy-paint turn (view stubbed): the director spawns the FLIGHTS
     // and flips the hold in the same synchronous turn. With bounded flights
@@ -128,7 +167,7 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
   });
 
   it('a GROUNDED card (beyond the flight budget) dissolves in place, never a visibility hold', async () => {
-    const wrapper = make([player('red' as Color, 'Вы', [...RED_TABLEAU, CardName.BIRDS])]);
+    const wrapper = await make([player('red' as Color, 'Вы', [...RED_TABLEAU, CardName.BIRDS])]);
     wrapper.vm.openCategory('active');
     // The bounded spawn: PREDATORS flies, BIRDS is grounded.
     playedCategoryState.flights = [{id: 1, name: CardName.PREDATORS, index: 0, faceDown: false}];
@@ -150,7 +189,7 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
 
   it('LB/RB cycles the viewed player; focus reseeds and any open category folds', async () => {
     const bot = player('green' as Color, 'MarsBot', [CardName.CREDICOR, CardName.BIRDS]);
-    const wrapper = make([player('red' as Color, 'Вы', RED_TABLEAU), bot]);
+    const wrapper = await make([player('red' as Color, 'Вы', RED_TABLEAU), bot]);
     expect(consolePlayedUi.canCyclePlayer).to.be.true;
     wrapper.vm.openCategory('active');
     await wrapper.vm.$nextTick();
@@ -168,20 +207,20 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
     wrapper.unmount();
   });
 
-  it('an empty tableau shows the calm void state, not a bare panel', () => {
-    const wrapper = make([player('red' as Color, 'Вы', [])]);
+  it('an empty tableau shows the calm void state, not a bare panel', async () => {
+    const wrapper = await make([player('red' as Color, 'Вы', [])]);
     expect(wrapper.find('.con-played__void').exists()).to.be.true;
     expect(consolePlayedUi.focusCategory).to.eq('');
     wrapper.unmount();
   });
 
-  it('a corporation-only tableau shows the quiet "no projects" shelf; the events seat is a prepared place, not a zone', () => {
-    const wrapper = make([player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC])]);
+  it('a corporation-only tableau shows the quiet "no projects" shelf; the events seat is a prepared place, not a zone', async () => {
+    const wrapper = await make([player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC])]);
     expect(wrapper.find('.con-played__none').exists()).to.be.true;
     expect(wrapper.find('[data-played-cat="events"]').exists()).to.be.false;
     expect(wrapper.find('.con-played__seat-place--events').exists()).to.be.true;
     // A prelude is a SHELF card (the identity column is the corporation and the events).
-    const withPrelude = make([player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC, CardName.ALLIED_BANK])]);
+    const withPrelude = await make([player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC, CardName.ALLIED_BANK])]);
     expect(withPrelude.find('.con-played__none').exists()).to.be.false;
     expect(withPrelude.find('[data-played-run="prelude"]').exists()).to.be.true;
     withPrelude.unmount();
@@ -189,7 +228,7 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
   });
 
   it('a data update that removes the focused category reseeds focus (undo / reconnect)', async () => {
-    const wrapper = make([player('red' as Color, 'Вы', RED_TABLEAU)]);
+    const wrapper = await make([player('red' as Color, 'Вы', RED_TABLEAU)]);
     wrapper.vm.focusCategory = 'automated';
     await wrapper.vm.$nextTick();
     await wrapper.setProps({players: [player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC])]});
@@ -198,7 +237,7 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
   });
 
   it('the open category emptying out entirely folds the view (undo safety)', async () => {
-    const wrapper = make([player('red' as Color, 'Вы', RED_TABLEAU)]);
+    const wrapper = await make([player('red' as Color, 'Вы', RED_TABLEAU)]);
     wrapper.vm.openCategory('events');
     await wrapper.vm.$nextTick();
     await wrapper.setProps({players: [player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC])]});
@@ -213,8 +252,8 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
     const AUTOMATED = getCards(byType(CardType.AUTOMATED)).slice(0, 3).map((c) => c.name);
     const TABLEAU = [CardName.THARSIS_REPUBLIC, ...ACTIVE, ...AUTOMATED];
 
-    it('mounts the active page and its neighbours only; the identity column stands on every page', () => {
-      const wrapper = make([player('red' as Color, 'Вы', TABLEAU)]);
+    it('mounts the active page and its neighbours only; the identity column stands on every page', async () => {
+      const wrapper = await make([player('red' as Color, 'Вы', TABLEAU)]);
       expect(wrapper.vm.pageCount).to.eq(2);
       expect(wrapper.vm.activePage).to.eq(0);
       expect(wrapper.findAll('.con-played__page').length).to.eq(2);
@@ -224,8 +263,8 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
       wrapper.unmount();
     });
 
-    it('a zone\'s first run carries its TOTAL, a continuation its RANGE; one navigation target per zone per page', () => {
-      const wrapper = make([player('red' as Color, 'Вы', TABLEAU)]);
+    it('a zone\'s first run carries its TOTAL, a continuation its RANGE; one navigation target per zone per page', async () => {
+      const wrapper = await make([player('red' as Color, 'Вы', TABLEAU)]);
       const page0 = wrapper.find('[data-played-page-index="0"]');
       const runs0 = page0.findAll('.con-played__run');
       expect(runs0.length).to.eq(2);
@@ -239,7 +278,7 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
     });
 
     it('focusing a zone on another page TURNS the album to it; LT/RT turn explicitly and hand the cursor on', async () => {
-      const wrapper = make([player('red' as Color, 'Вы', TABLEAU)]);
+      const wrapper = await make([player('red' as Color, 'Вы', TABLEAU)]);
       wrapper.vm.focusCategory = 'automated';
       await wrapper.vm.$nextTick();
       expect(wrapper.vm.activePage, 'automated lies on page 2').to.eq(1);
@@ -257,17 +296,31 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
     });
 
     it('the landing card\'s page: an incoming shelf card turns the album to the page it lands on', async () => {
-      const wrapper = make([player('red' as Color, 'Вы', TABLEAU)]);
+      const wrapper = await make([player('red' as Color, 'Вы', TABLEAU)]);
       const incoming = getCards(byType(CardType.AUTOMATED))[3].name;
       await wrapper.setProps({heroIncoming: {name: incoming}, heroActive: true});
       expect(wrapper.vm.activePage).to.eq(1);
       expect(wrapper.find(`[data-played-page-index="1"] [data-played-key="${incoming}"]`).classes()).to.include('con-played__slot--incoming');
+      // The landing never slides — the hero scene mounts the landing card's page ALONE (PL-625).
+      expect(wrapper.findAll('[data-played-page-index]').map((w) => w.attributes('data-played-page-index'))).to.deep.eq(['1']);
       wrapper.unmount();
     });
 
-    it('a card on an unmounted page flies from its PACKET place beyond the album\'s edge (never from nowhere)', () => {
+    it('the table renders its content only against a MEASURED body — never a fallback plan first (PL-625)', async () => {
+      restoreBodyBox();
+      try {
+        const wrapper = await make([player('red' as Color, 'Вы', TABLEAU)]);
+        expect(wrapper.find('.con-played__body').exists()).to.be.true;
+        expect(wrapper.find('.con-played__table').exists(), 'no faces before the body has a size').to.be.false;
+        wrapper.unmount();
+      } finally {
+        stubBodyBox();
+      }
+    });
+
+    it('a card on an unmounted page flies from its PACKET place beyond the album\'s edge (never from nowhere)', async () => {
       const BIG = [CardName.THARSIS_REPUBLIC, ...getCards(byType(CardType.ACTIVE)).slice(0, 30).map((c) => c.name)];
-      const wrapper = make([player('red' as Color, 'Вы', BIG)]);
+      const wrapper = await make([player('red' as Color, 'Вы', BIG)]);
       expect(wrapper.vm.pageCount).to.be.greaterThan(3);
       const far = getCards(byType(CardType.ACTIVE))[29].name;
       // JSDOM has no layout: the album box reads 0 → the table honestly answers undefined (the view then lets the
@@ -281,7 +334,7 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
   // ── the hero scene (play-animation mode) ──────────────────────────────
   describe('hero mode (the played-card landing scene)', () => {
     it('reserves a HIDDEN slot for a face-up incoming card; reveal turns it real + focuses its family', async () => {
-      const wrapper = make([player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC, CardName.PREDATORS])]);
+      const wrapper = await make([player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC, CardName.PREDATORS])]);
       await wrapper.setProps({heroIncoming: {name: CardName.TREES}, heroActive: true});
       // The +1 layout is already FINAL: the synthetic slot exists, hidden.
       const slot = wrapper.find(`[data-played-key="${CardName.TREES}"]`);
@@ -297,7 +350,7 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
     });
 
     it('an incoming EVENT reserves the pile: counter ticks only after the reveal', async () => {
-      const wrapper = make([player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC])]);
+      const wrapper = await make([player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC])]);
       await wrapper.setProps({heroIncoming: {name: CardName.ASTEROID}, heroActive: true});
       // First-ever event: the pile is real geometry, but reserved-hidden.
       expect(wrapper.find('.con-played__family--event').exists()).to.be.true;
@@ -311,7 +364,7 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
     });
 
     it('the synthetic +1 never duplicates once the commit carries the card', async () => {
-      const wrapper = make([player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC])]);
+      const wrapper = await make([player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC])]);
       await wrapper.setProps({heroIncoming: {name: CardName.TREES}, heroActive: true, heroRevealed: true});
       await wrapper.setProps({players: [player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC, CardName.TREES])]});
       expect(wrapper.findAll(`[data-played-key="${CardName.TREES}"]`).length).to.eq(1);
@@ -320,7 +373,7 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
 
     it('the hero scene forces the viewer seat, folds a category and inerts clicks', async () => {
       const bot = player('green' as Color, 'MarsBot', [CardName.CREDICOR]);
-      const wrapper = make([player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC, CardName.PREDATORS]), bot]);
+      const wrapper = await make([player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC, CardName.PREDATORS]), bot]);
       wrapper.vm.cycleViewedPlayer(1);
       await wrapper.vm.$nextTick();
       expect(wrapper.vm.viewedPlayer.name).to.eq('MarsBot');
@@ -338,8 +391,8 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
   describe('smart category open (a lone card goes straight to fullscreen)', () => {
     afterEach(() => closeConsoleCardZoom());
 
-    it('a ONE-card zone opens the fullscreen directly — no category episode', () => {
-      const wrapper = make([player('red' as Color, 'Вы', RED_TABLEAU)]);
+    it('a ONE-card zone opens the fullscreen directly — no category episode', async () => {
+      const wrapper = await make([player('red' as Color, 'Вы', RED_TABLEAU)]);
       // Corporation holds exactly one card in this tableau.
       wrapper.vm.openCategory('corporation');
       expect(playedCategoryState.phase).to.eq('closed'); // the grid never opened
@@ -352,16 +405,16 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
       wrapper.unmount();
     });
 
-    it('a MULTI-card zone still opens the category grid (never the shortcut)', () => {
-      const wrapper = make([player('red' as Color, 'Вы', RED_TABLEAU)]);
+    it('a MULTI-card zone still opens the category grid (never the shortcut)', async () => {
+      const wrapper = await make([player('red' as Color, 'Вы', RED_TABLEAU)]);
       wrapper.vm.openCategory('events'); // two events
       expect(playedCategoryState.phase).to.eq('opening');
       expect(consoleCardZoom.card).to.be.undefined;
       wrapper.unmount();
     });
 
-    it('the plate follows the browsed card: seat · zone · N of M', () => {
-      const wrapper = make([player('red' as Color, 'Вы', RED_TABLEAU)]);
+    it('the plate follows the browsed card: seat · zone · N of M', async () => {
+      const wrapper = await make([player('red' as Color, 'Вы', RED_TABLEAU)]);
       // The category view is stubbed here, so exercise the resolver the
       // overlay hands it (the same one both hosts use).
       const byName = wrapper.vm.provenanceByName;
@@ -375,7 +428,7 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
   // ── honest caption counts through the standalone hero scene ───────────
   describe('honest family caption counts (hero scene)', () => {
     it('captions read the PRE-play truth until the reveal, then tick at the dock', async () => {
-      const wrapper = make([player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC, CardName.PREDATORS, CardName.TREES])]);
+      const wrapper = await make([player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC, CardName.PREDATORS, CardName.TREES])]);
       await wrapper.setProps({heroIncoming: {name: CardName.BIRDS}, heroActive: true});
       const active = wrapper.find('.con-played__family--active');
       // One active card lies there; the reserved slot already exists.
@@ -410,8 +463,9 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
       });
     }
 
-    it('the bot seat reads its PUBLIC played pile (its tableau is empty)', () => {
+    it('the bot seat reads its PUBLIC played pile (its tableau is empty)', async () => {
       const wrapper = makeEmbedded('green' as Color);
+      await wrapper.vm.$nextTick();
       // TREES → automated, PREDATORS → active, ASTEROID → the events pile.
       expect(wrapper.find('.con-played__family--automated').exists()).to.be.true;
       expect(wrapper.find('.con-played__family--active').exists()).to.be.true;

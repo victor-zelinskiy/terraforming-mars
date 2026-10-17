@@ -39,6 +39,7 @@
  *     npx playwright test tests/e2e/console-played-perf-probe.spec.ts --workers=1
  */
 import {expect, test, Page, CDPSession} from './consoleTest';
+import {focusInfoZone} from './consoleStart';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -140,9 +141,19 @@ function snapshotOf(m: CdpMetrics): CdpMetrics {
 
 /** Headless Chromium starves rAF on a static frame — force BeginFrames so
  *  GSAP/vue-transition driven flows actually advance. */
+/**
+ * THE OLD HEADLESS SHELL renders only when asked (its rAF starves on a quiet compositor), so the probe pumped frames
+ * with an 8 × 8 screenshot. ON THE GPU (`TM_E2E_GPU=1` — the new headless, the road the TV build takes) the compositor
+ * runs by itself, and a screenshot there is a synchronous capture that stalled the renderer's main thread for 1–3 s at
+ * 4K — INSIDE the very windows the probe measures (PL-623: «long tasks» of 1.6–3.5 s that a Chromium trace of the same
+ * open never shows). There the pump is the pause alone.
+ */
+const PUMP_BY_CAPTURE = process.env.TM_E2E_GPU !== '1';
 async function pumpFrames(page: Page, times: number, gapMs: number): Promise<void> {
   for (let i = 0; i < times; i++) {
-    await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
+    if (PUMP_BY_CAPTURE) {
+      await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
+    }
     await page.waitForTimeout(gapMs);
   }
 }
@@ -185,11 +196,17 @@ async function armOpenProbe(page: Page, keyCode: string, rootSel: string): Promi
       }
     };
     window.addEventListener('keydown', onKey, true);
-    const mo = new MutationObserver(() => {
-      const root = document.querySelector(rootSel);
-      if (root !== null && t.rootAt === 0) {
-        t.rootAt = performance.now();
+    // THE WITNESS MAY NOT BE THE LOAD (PL-623): the mutation callback only stamps the root's arrival and marks the
+    // DOM dirty; the face census runs on a 40 ms sampler. Counting every `.pcard` inside the callback ran once per
+    // mutation batch — inside the very task it measured — and at 4K it inflated the open's long task from ≈ 0.25 s to
+    // 0.8–2 s and the category's to 1.6–3.1 s (a Chromium trace of the same open, `screenshots/tr65/perf.stand.spec.ts`).
+    let dirty = true;
+    const census = () => {
+      if (!dirty) {
+        return;
       }
+      dirty = false;
+      const root = document.querySelector(rootSel);
       if (root !== null) {
         const n = root.querySelectorAll('.pcard').length;
         if (n !== t.faceCount) {
@@ -197,11 +214,19 @@ async function armOpenProbe(page: Page, keyCode: string, rootSel: string): Promi
           t.lastGrowthAt = performance.now();
         }
       }
-      const proxies = document.querySelectorAll('.con-played-cat__proxy').length;
-      t.proxyMax = Math.max(t.proxyMax, proxies);
+      t.proxyMax = Math.max(t.proxyMax, document.querySelectorAll('.con-played-cat__proxy').length);
+    };
+    const mo = new MutationObserver(() => {
+      dirty = true;
+      if (t.rootAt === 0 && document.querySelector(rootSel) !== null) {
+        t.rootAt = performance.now();
+      }
     });
     mo.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['class']});
+    const iv = window.setInterval(census, 40);
     w.__openStop = () => {
+      census();
+      window.clearInterval(iv);
       window.removeEventListener('keydown', onKey, true);
       mo.disconnect();
     };
@@ -220,7 +245,12 @@ async function readOpenProbe(page: Page): Promise<OpenProbe> {
 
 /** Click-based open of a category (focus click + open click). */
 async function openCategory(page: Page, key: string): Promise<void> {
-  const zone = page.locator(`[data-played-cat="${key}"]`).first();
+  const active = await page.locator('.con-played').first().getAttribute('data-played-page') ?? '0';
+  const onPage = page.locator(`[data-played-page-index="${active}"] [data-played-cat="${key}"]`);
+  const inIdentity = page.locator(`.con-played__identity [data-played-cat="${key}"]`);
+  // A table without pages (the drawer before TR65 — a baseline label) has one copy of every zone.
+  const zone = (await onPage.count()) > 0 ? onPage.first() :
+    ((await inIdentity.count()) > 0 ? inIdentity.first() : page.locator(`[data-played-cat="${key}"]`).first());
   await zone.click();
   await page.waitForTimeout(80);
   await zone.click();
@@ -345,10 +375,19 @@ test.describe('console played-tableau performance probe', () => {
         await shoot(page, `${profile.id}-n${seeded.n}-1-table`);
 
         // ── 2. CATEGORY OPEN (the biggest family) ────────────────────────
+        // The biggest family ON SCREEN — the album's neighbour pages are mounted beyond its clipped edge (the slide's
+        // landing), and a click there waits for an element no player can reach (the one-row Deck put «Активные» on
+        // page 2: the click stood for 22 s – 7 min). The identity column stands on every page.
         const biggest = await page.evaluate(() => {
           let best = '';
           let bestN = -1;
+          const root = document.querySelector<HTMLElement>('.con-played');
+          const active = root?.dataset.playedPage ?? '0';
           document.querySelectorAll('.con-played [data-played-cat]').forEach((el) => {
+            const onPage = el.closest('[data-played-page-index]');
+            if (onPage !== null && (onPage as HTMLElement).dataset.playedPageIndex !== active) {
+              return;
+            }
             const n = el.querySelectorAll('.con-played__slot').length;
             if (n > bestN) {
               bestN = n;
@@ -456,14 +495,17 @@ test.describe('console played-tableau performance probe', () => {
         report.closedDelta = metricsDelta(closedBefore, closedAfter);
 
         // ── 7. THE INFOPANEL DOOR ────────────────────────────────────────
-        await armOpenProbe(page, 'KeyX', '.con-info .con-played');
+        // The Information Workspace is a DOSSIER since TR60: «Разыграно» is a zone of its ring, opened with A from its
+        // tile (X no longer reaches it — the probe's old door). Walk the ring with the shared driver, then press.
         await page.keyboard.press('KeyY');
         await page.locator('.con-info').waitFor({state: 'visible', timeout: 30_000});
         await pumpFrames(page, 2, 150);
         await page.waitForTimeout(400);
+        expect(await focusInfoZone(page, 'played'), 'the ring reaches «Разыграно»').toBe(true);
+        await armOpenProbe(page, 'Enter', '.con-info .con-played');
         await armPerfWindow(page);
         const mInfo0 = await cdpMetrics(cdp);
-        await page.keyboard.press('KeyX');
+        await page.keyboard.press('Enter');
         await page.locator('.con-info .con-played').waitFor({state: 'visible', timeout: 30_000});
         await pumpFrames(page, 4, 120);
         await page.waitForTimeout(500);

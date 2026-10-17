@@ -57,6 +57,10 @@ type Frame = {
   hand: boolean,
   composer: boolean,
   pulse: boolean,
+  /** The hero scene's phase (`data-hero-phase`) — written in the director's own task, no frame needed. */
+  heroPhase: string,
+  /** `target` while the lifted card WAITS for its landing place (`data-hero-wait`) — the scene's own wait. */
+  heroWait: string,
 };
 
 const PROFILES = [
@@ -192,6 +196,8 @@ async function armRecorder(page: Page, mode: 'hand' | 'start'): Promise<void> {
         hand: document.querySelector('.con-hand') !== null,
         composer: document.querySelector('.con-composer--play') !== null,
         pulse: document.querySelector('.con-recv__front--pulse') !== null,
+        heroPhase: document.querySelector('.con-played-hero')?.getAttribute('data-hero-phase') ?? '',
+        heroWait: document.querySelector('.con-played-hero')?.getAttribute('data-hero-wait') ?? '',
       });
     };
     sample();
@@ -228,6 +234,14 @@ type Report = {
   tProxyFirst: number,
   /** Dead time between the lift and the flight (the proxy stands still). */
   hoverMs: number,
+  /**
+   * The part of that still run the scene was NOT waiting in (no `data-hero-wait="target"`: the lift or the arc was
+   * running and no frame was painted — the card waited for nothing). Measured (PL-625, a Chromium trace on the GPU):
+   * the GPU process compiling Skia / D3D11 shaders for content it draws for the first time in a FRESH browser
+   * profile (ANGLE worker tasks + `GrShaderCache::store` inside one 100 ms raster flush) — every e2e run starts
+   * with an empty shader cache, the app keeps its cache on disk. Reported, never counted as a hover.
+   */
+  stallMs: number,
   tFlightStart: number,
   tLanded: number,
   tReveal: number,
@@ -294,6 +308,7 @@ function analyse(frames: ReadonlyArray<Frame>, profile: string, card: string, ki
   // HOVER: the first stationary run that starts ≥ 80 ms after the proxy appeared
   // and ends before the reveal — the card waits for its target.
   let hoverMs = 0;
+  let stallMs = 0;
   let iFlightStart = -1;
   if (iProxyFirst >= 0) {
     let i = iProxyFirst;
@@ -313,14 +328,27 @@ function analyse(frames: ReadonlyArray<Frame>, profile: string, card: string, ki
           // Only the time the PAGE WAS RUNNING counts: a sample gap over 50 ms
           // is a main-thread stall (a loaded 4K runner), during which nothing
           // could have flown — it is neither a wait nor a hover.
+          // …and only the time the scene itself WAITED for its target counts
+          // (`data-hero-wait="target"`: the lift is over, the landing place not
+          // measured yet). A still proxy while the lift or the arc runs is a
+          // frame the GPU did not paint (see `Report.stallMs`). A build without
+          // the witness (no `data-hero-phase`) counts every still frame.
           let live = 0;
+          let stall = 0;
           for (let j = hoverFrom + 1; j <= i; j++) {
             const gap = frames[j].t - frames[j - 1].t;
-            if (gap <= 50) {
+            if (gap > 50) {
+              continue;
+            }
+            const f = frames[j - 1];
+            if (f.heroPhase === '' || f.heroWait === 'target') {
               live += gap;
+            } else {
+              stall += gap;
             }
           }
           hoverMs = Math.round(live);
+          stallMs = Math.round(stall);
           iFlightStart = i;
           break;
         }
@@ -338,6 +366,12 @@ function analyse(frames: ReadonlyArray<Frame>, profile: string, card: string, ki
     } else if (iLanded >= 0) {
       break;
     }
+  }
+  // …and a run the proxy LEAVES again before the reveal is no landing: it is a render stall in mid-air (the GPU
+  // compiling shaders for a fresh profile — `Report.stallMs`; measured 62 / 208 px short of the slot while the
+  // handoff itself was exact). The card's landing is then where it stood when the real card was revealed.
+  if (iLanded >= 0 && frames.slice(iLanded, landedLimit).some((f) => f.proxy !== null && magnitude(frames[iLanded].proxy, f.proxy) > 1)) {
+    iLanded = landedLimit - 1;
   }
   // THE PAINT CLOCK (see `Report.paintMs`): every change of the proxy's
   // position over the arc is one painted frame, so the median interval
@@ -438,7 +472,7 @@ function analyse(frames: ReadonlyArray<Frame>, profile: string, card: string, ki
   const medianGapMs = gaps.length > 0 ? gaps[Math.floor(gaps.length / 2)] : 8;
   return {
     profile, card, kind, samples: frames.length, pressWall: 0,
-    tPress: at(iPress), tProxyFirst: at(iProxyFirst), hoverMs, tFlightStart: at(iFlightStart), tLanded: at(iLanded),
+    tPress: at(iPress), tProxyFirst: at(iProxyFirst), hoverMs, stallMs, tFlightStart: at(iFlightStart), tLanded: at(iLanded),
     tReveal: at(iReveal), tProxyGone: at(iProxyGone), tFold: at(iFold), tReady: at(iReady),
     boundary, landingError,
     glideAfterReveal: Math.round(glideAfterReveal * 10) / 10,
@@ -453,7 +487,7 @@ function analyse(frames: ReadonlyArray<Frame>, profile: string, card: string, ki
 
 function printReport(r: Report, frames: ReadonlyArray<Frame>, revealKey: string): void {
   const fmt = (d: Report['boundary']) => (d === undefined ? '-' : `dx=${d.dx.toFixed(1)} dy=${d.dy.toFixed(1)} dw=${d.dw.toFixed(1)} dh=${d.dh.toFixed(1)}`);
-  console.log(`[landing:${r.profile}:${r.card}] samples=${r.samples} press=${r.tPress} proxy=${r.tProxyFirst} hover=${r.hoverMs}ms flight=${r.tFlightStart}→${r.tLanded} ` +
+  console.log(`[landing:${r.profile}:${r.card}] samples=${r.samples} press=${r.tPress} proxy=${r.tProxyFirst} hover=${r.hoverMs}ms stall=${r.stallMs}ms flight=${r.tFlightStart}→${r.tLanded} ` +
     `reveal=${r.tReveal} proxyGone=${r.tProxyGone} fold=${r.tFold} ready=${r.tReady}`);
   console.log(`[landing:${r.profile}:${r.card}] landingError ${fmt(r.landingError)} | boundary ${fmt(r.boundary)} | glideAfterReveal=${r.glideAfterReveal}px ` +
     `targetMoveInFlight=${r.targetMoveInFlight}px gap=${r.gapFrames} twin=${r.twinFrames}(${r.twinMs}ms) pulse=${r.pulseFrames} classMismatch=${r.classMismatch} cadence=${r.medianGapMs}ms paint=${r.paintMs}ms`);
@@ -462,12 +496,13 @@ function printReport(r: Report, frames: ReadonlyArray<Frame>, revealKey: string)
   }
   const t0 = frames[0]?.t ?? 0;
   const iReveal = frames.findIndex((f) => f.frontKey === revealKey && f.faceCard !== null);
-  const from = Math.max(0, iReveal - 10);
-  const to = Math.min(frames.length, iReveal + 18);
+  // No proxy in the window: the TAIL is the evidence (where the scene stood when the recording ended).
+  const from = r.tProxyFirst < 0 ? Math.max(0, frames.length - 16) : Math.max(0, iReveal - 10);
+  const to = r.tProxyFirst < 0 ? frames.length : Math.min(frames.length, iReveal + 18);
   for (let i = from; i < to; i++) {
     const f = frames[i];
     console.log(`  ${String(Math.round(f.t - t0)).padStart(5)} prx=${f.proxy === null ? '-' : rectStr(f.proxyCard)} op=${f.proxyOp.toFixed(2)} ` +
-      `| front=${rectStr(f.front)} key=${f.frontKey === '' ? '-' : '✓'} face=${rectStr(f.faceCard)} | holds=${f.holds}`);
+      `| front=${rectStr(f.front)} key=${f.frontKey === '' ? '-' : '✓'} face=${rectStr(f.faceCard)} | ph=${f.heroPhase || '-'}${f.heroWait === '' ? '' : '·' + f.heroWait} | holds=${f.holds}`);
   }
 }
 
@@ -642,6 +677,13 @@ test.describe('play landing geometry · start queue (fhd)', () => {
       }
       const before = await readiness(page);
       const seq0 = before?.input.seq ?? 0;
+      // What stands on screen before the press — `playStartQueue` spends its one play on a reveal or a purchase first.
+      console.log(`[queue ${i}] ` + await page.evaluate(() => JSON.stringify({
+        reveal: Array.from(document.querySelectorAll('.con-reveal')).map((el) => el.className).join(' / '),
+        focused: document.querySelector('.con-start__queue [data-queue-slot].con-start__qcard--focused, .con-start__queue [data-queue-slot][data-focused]')?.getAttribute('data-queue-slot') ?? '',
+        queue: Array.from(document.querySelectorAll('.con-start__queue [data-queue-slot]')).map((el) => el.getAttribute('data-queue-slot')),
+        holds: (window as unknown as {__conReady?: () => {holds: Array<string>}}).__conReady?.().holds ?? [],
+      })));
       await armRecorder(page, 'start');
       const pressWall = Date.now();
       await playStartQueue(page, {plays: 1});

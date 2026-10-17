@@ -9,8 +9,14 @@
     The proxy is the SAME lite face pipeline every console flight uses
     (ConsoleCardFaceLite + the shared flip chassis classes), spawned from the
     real card's measured rect — one physical object, never a lookalike.
+    `data-hero-phase` / `data-hero-wait` are the scene's witnesses: written in
+    the director's own task (a Vue patch, no frame needed), so a probe tells
+    «the lifted card waits for its target» (`data-hero-wait="target"`) from
+    «no frame was painted» during the lift or the arc (PL-625).
   -->
-  <div v-if="playedHeroState.active || playedReturnState.active" class="con-played-hero" aria-hidden="true">
+  <div v-if="playedHeroState.active || playedReturnState.active" class="con-played-hero" aria-hidden="true"
+       :data-hero-phase="playedHeroState.phase"
+       :data-hero-wait="playedHeroState.awaitingTarget ? 'target' : undefined">
     <div v-if="playedHeroState.proxy !== undefined" ref="proxy" class="con-played-hero__proxy">
       <div ref="shade" class="con-played-hero__shade"></div>
       <div ref="flip" class="con-deal-proxy__flip">

@@ -29,7 +29,7 @@
  */
 
 import {CardModel} from '@/common/models/CardModel';
-import {planHandGrid, HandGridPlan} from '@/client/components/console/consoleHandGrid';
+import {planHandGrid, HandGridPlan, MAX_COLS, ROW_SLACK} from '@/client/components/console/consoleHandGrid';
 import {PlayedZones, PLAYED_CARD_NATURAL_W, PLAYED_CARD_NATURAL_H} from '@/client/components/console/consolePlayedModel';
 
 /** The tableau families, in the fixed visual order of the table. */
@@ -116,8 +116,16 @@ export type CategoryViewLayout =
 /**
  * Plan the category view for `count` cards in the modal's `availW × availH`
  * body box. ONE card → the near-fullscreen stage; else the adaptive grid.
+ *
+ * `faceFloorZoom` (APPLIED zoom — the table's shelf face, PL-619): a category
+ * LIFTS its cards off the shelf, so the grid never lays a face out SMALLER
+ * than the shelf it came from while the zone can stand on one screen at that
+ * face — the generous AIR of a small set yields first (on the Deck it alone
+ * shrank four cards under the shelf). A zone that cannot stand on one screen
+ * at the shelf's face shrinks just enough to (single-screen, no scroll — the
+ * project's first goal); only a zone too big even for that scrolls.
  */
-export function planCategoryView(input: {availW: number, availH: number, count: number, uiScale?: number}): CategoryViewLayout {
+export function planCategoryView(input: {availW: number, availH: number, count: number, uiScale?: number, faceFloorZoom?: number}): CategoryViewLayout {
   const s = input.uiScale !== undefined && input.uiScale > 0 ? input.uiScale : 1;
   if (input.count <= 1) {
     const w = Math.max(1, input.availW);
@@ -129,20 +137,70 @@ export function planCategoryView(input: {availW: number, availH: number, count: 
     ));
     return {kind: 'single', zoom, slotW: PLAYED_CARD_NATURAL_W * zoom, slotH: PLAYED_CARD_NATURAL_H * zoom};
   }
-  const {air, gap} = categoryAir(input.count);
-  const plan = planHandGrid({
-    availW: input.availW * (1 - air * 2),
-    availH: input.availH * (1 - air * 2),
+  // The engine works in 1080-logical zoom (× uiScale inside): the applied floor divides back.
+  const floor = input.faceFloorZoom !== undefined && input.faceFloorZoom > 0 ? input.faceFloorZoom / s : 0;
+  const planWith = (room: {air: number, gap: number}, minZoom: number, maxZoom?: number): HandGridPlan => planHandGrid({
+    availW: input.availW * (1 - room.air * 2),
+    availH: input.availH * (1 - room.air * 2),
     count: input.count,
     uiScale: s,
-    minZoom: CAT_GRID_MIN_ZOOM,
-    maxZoom: CAT_GRID_MAX_ZOOM,
-    gapX: gap,
-    gapY: gap,
+    minZoom,
+    maxZoom: maxZoom ?? Math.max(CAT_GRID_MAX_ZOOM, minZoom),
+    gapX: room.gap,
+    gapY: room.gap,
     fillToBox: true,
     fillMaxZoom: CAT_GRID_FILL_MAX,
   });
-  return {kind: 'grid', plan};
+  if (floor <= CAT_GRID_MIN_ZOOM) {
+    return {kind: 'grid', plan: planWith(categoryAir(input.count), CAT_GRID_MIN_ZOOM)};
+  }
+  // The largest face at which the WHOLE zone stands on one screen (1080-logical) — every balanced column count the
+  // engine allows, the engine's own arithmetic. Computed here rather than read off the engine: its search keeps a
+  // SCROLLING base plan whose face is larger than every fitting one (fourteen cards at 1080 — 5 × 3 scrolled at 0.58
+  // while 5 × 3 fitted at 0.55), and «one screen» is this view's whole point.
+  const oneScreenZoom = (room: {air: number, gap: number}): number => {
+    const w = input.availW * (1 - room.air * 2);
+    const h = input.availH * (1 - room.air * 2);
+    const gap = room.gap * s;
+    const maxCols = Math.max(1, Math.min(Math.round(MAX_COLS * s), input.count));
+    let best = 0;
+    for (let c = 1; c <= maxCols; c++) {
+      const r = Math.ceil(input.count / c);
+      if (Math.ceil(input.count / r) !== c) {
+        continue; // the balanced counts only (the engine's anti-orphan rule)
+      }
+      const z = Math.min(
+        (w - ROW_SLACK * s - (c - 1) * gap) / (c * PLAYED_CARD_NATURAL_W),
+        (h - (r - 1) * gap) / (r * PLAYED_CARD_NATURAL_H),
+        CAT_GRID_FILL_MAX * s,
+      );
+      best = Math.max(best, z);
+    }
+    return best / s;
+  };
+  // (Handed to the engine as [z − ε, z]: its own column cap divides the room by a slot of exactly that face, and on
+  // the exact value the floor of the quotient sits on a knife's edge — c or c − 1 by the last bit.)
+  const own = categoryAir(input.count);
+  const tight = categoryAir(Number.POSITIVE_INFINITY);
+  // A LIFT NEVER SHRINKS A FACE (PL-619) — the shelf's face is the floor, and the AIR yields before the face does: a
+  // set that stands on one screen at the shelf's face keeps its generous air if it can, else packs tight; it still
+  // GROWS into the box past the floor.
+  for (const room of [own, tight]) {
+    const z = oneScreenZoom(room);
+    if (z >= floor) {
+      return {kind: 'grid', plan: planWith(room, z * (1 - 1e-6), z)};
+    }
+  }
+  // …UNLESS the face is what keeps the zone on ONE screen (the project's first goal — single screen, no scroll): the
+  // whole zone shrinks just enough to stand together, packed tight. Only a zone too big even for that scrolls.
+  const fit = oneScreenZoom(tight);
+  if (fit >= CAT_GRID_MIN_ZOOM) {
+    return {kind: 'grid', plan: planWith(tight, fit * (1 - 1e-6), fit)};
+  }
+  // A zone that scrolls anyway keeps the shelf's face — never both a smaller face AND a scroll (the Deck's fourteen
+  // active cards: one screen would need 132 px faces, under the readable floor; the engine's own scrolling pick
+  // shrank them to 182 px under the 191 px shelf all the same).
+  return {kind: 'grid', plan: planWith(own, Math.max(CAT_GRID_MIN_ZOOM, floor))};
 }
 
 // ── the flight budget (bounded proxies) ────────────────────────────────────

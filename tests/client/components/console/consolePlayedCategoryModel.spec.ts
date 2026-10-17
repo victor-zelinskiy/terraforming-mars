@@ -88,6 +88,57 @@ describe('consolePlayedCategoryModel', () => {
       }
     });
 
+    it('a LIFT never shrinks a face while the zone can stand on one screen — the air yields first (PL-619)', () => {
+      // The Deck's body (≈ 990 × 600), its shelf face 208 px (applied zoom 0.65): four cards with their generous air
+      // fell to 186 px under the shelf — packed tight they stand in one row at the shelf's face or larger.
+      const shelf = 208 / 320;
+      const free = planCategoryView({availW: 990, availH: 600, count: 4});
+      const floored = planCategoryView({availW: 990, availH: 600, count: 4, faceFloorZoom: shelf});
+      expect(free.kind).to.eq('grid');
+      expect(floored.kind).to.eq('grid');
+      if (free.kind === 'grid' && floored.kind === 'grid') {
+        expect(free.plan.cardZoom, 'unfloored, the air shrank them under the shelf').to.be.lessThan(shelf);
+        expect(floored.plan.cardZoom).to.be.at.least(shelf - 1e-9);
+        expect(floored.plan.scrolls, 'one screen').to.be.false;
+      }
+      // A small set still GROWS past the floor into the box (4K, three cards).
+      const few = planCategoryView({availW: 3300, availH: 1780, count: 3, uiScale: 2, faceFloorZoom: 551 / 320});
+      if (few.kind === 'grid') {
+        expect(few.plan.cardZoom).to.be.greaterThan(551 / 320);
+      }
+      // A floor under the grid's own minimum changes nothing.
+      const low = planCategoryView({availW: 1500, availH: 640, count: 9, faceFloorZoom: 0.2});
+      const none = planCategoryView({availW: 1500, availH: 640, count: 9});
+      expect(low).to.deep.eq(none);
+    });
+
+    it('…UNLESS the face is what keeps the zone on ONE screen: it shrinks just enough, never scrolls (PL-619 × goal 1)', () => {
+      // 4K: fourteen active cards cannot stand on one screen at the 528 px shelf face — the whole zone stays together.
+      const shelf = 528 / 320;
+      const plan = planCategoryView({availW: 3300, availH: 1780, count: 14, uiScale: 2, faceFloorZoom: shelf});
+      expect(plan.kind).to.eq('grid');
+      if (plan.kind === 'grid') {
+        expect(plan.plan.scrolls, 'the whole zone on one screen').to.be.false;
+        expect(plan.plan.cardZoom).to.be.lessThan(shelf);
+        expect(plan.plan.cols * plan.plan.rows).to.be.at.least(14);
+      }
+      // A zone too big even for that scrolls — and then keeps the SHELF's face: never a smaller face AND a scroll.
+      const huge = planCategoryView({availW: 1500, availH: 640, count: 48, faceFloorZoom: 0.85});
+      if (huge.kind === 'grid') {
+        expect(huge.plan.scrolls).to.be.true;
+        expect(huge.plan.cardZoom).to.be.at.least(0.85 - 1e-9);
+      }
+      // The Deck's body (993 × 638, its two-row shelf 191 px): fourteen active cards would need ≈ 132 px faces on one
+      // screen, under the readable floor — they scroll at the shelf's face (the engine's own pick read 182 px).
+      const deckShelf = 191 / 320;
+      const deck = planCategoryView({availW: 993, availH: 638, count: 14, faceFloorZoom: deckShelf});
+      expect(deck.kind).to.eq('grid');
+      if (deck.kind === 'grid') {
+        expect(deck.plan.scrolls).to.be.true;
+        expect(deck.plan.cardZoom).to.be.at.least(deckShelf - 1e-9);
+      }
+    });
+
     it('the TV uiScale scales the whole plan in lockstep', () => {
       const base = planCategoryView({availW: 1500, availH: 640, count: 9});
       const tv = planCategoryView({availW: 3000, availH: 1280, count: 9, uiScale: 2});

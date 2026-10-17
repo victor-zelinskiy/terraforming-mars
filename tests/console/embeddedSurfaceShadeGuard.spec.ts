@@ -77,9 +77,13 @@ function motionAttributes(template: string): Array<string> {
   return template.match(/:?data-motion-surface\s*=\s*"[^"]*"/g) ?? [];
 }
 
-/** `:data-motion-surface="embedded ? undefined : 'x'"` (or the negated form). */
+/**
+ * `:data-motion-surface="embedded ? undefined : 'x'"` (or the negated form) — and `embedded || cond ? undefined : 'x'`,
+ * which strips it when embedded AND in one more pose of the surface's own (the played table drops its entrance in the
+ * HERO scene too — a materialize would move the landing target under the flight; TR65, PL-626's pass).
+ */
 function strippedWhenEmbedded(attribute: string): boolean {
-  return /^:data-motion-surface\s*=\s*"\s*embedded\s*\?\s*undefined\s*:\s*'[^']+'\s*"$/.test(attribute) ||
+  return /^:data-motion-surface\s*=\s*"\s*embedded\s*(\|\|\s*!?[A-Za-z_$][\w$.]*\s*)*\?\s*undefined\s*:\s*'[^']+'\s*"$/.test(attribute) ||
     /^:data-motion-surface\s*=\s*"\s*!embedded\s*\?\s*'[^']+'\s*:\s*undefined\s*"$/.test(attribute);
 }
 

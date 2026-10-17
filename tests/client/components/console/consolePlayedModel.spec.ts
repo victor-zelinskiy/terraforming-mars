@@ -17,7 +17,6 @@ import {
   PLAYED_CARD_NATURAL_H,
   TABLE_HERO_GAIN,
   TABLE_EVENTS_GAIN,
-  TABLE_ROW_ADD_TOLERANCE,
   NavRect,
   PlayedShelfZone,
 } from '@/client/components/console/consolePlayedModel';
@@ -126,7 +125,8 @@ describe('consolePlayedModel', () => {
 
     it('the album composes `cols − 1` of the profile page beside the identity column', () => {
       expect(tableAlbumSpec({cols: 5, rows: 2})).to.deep.eq({cols: 4, rows: 2});
-      expect(tableAlbumSpec({cols: 4, rows: 1})).to.deep.eq({cols: 3, rows: 1});
+      // The handheld album is one row (the hand's density); the TABLE never is (the owner, 2026-10-17 — PL-622).
+      expect(tableAlbumSpec({cols: 4, rows: 1})).to.deep.eq({cols: 3, rows: 2});
       const plan = box();
       expect(plan.album.cols).to.eq(4);
       expect(plan.album.rowsPerPage).to.eq(2);
@@ -183,22 +183,25 @@ describe('consolePlayedModel', () => {
       expect(box()).to.deep.eq(box());
     });
 
-    it('the rows FOLLOW the box: a one-row profile takes a second row when the box is tall enough to pay for it', () => {
-      // A tall embedded zone with the handheld's one-row profile: the width-bound face is the same on two rows.
-      const tall = planPlayedTable({availW: 1120, availH: 1000, counts: {prelude: 0, ceo: 0, active: 20, automated: 0}, corporations: 1, spec: {cols: 4, rows: 1}});
-      expect(tall.album.cols).to.eq(3);
-      expect(tall.album.rowsPerPage, 'a second row').to.eq(2);
-      expect(tall.pageCount).to.eq(4);
-      const widthZoom = (tall.album.w - 2 * tall.album.padX - 2 * tall.album.gapX) / (3 * PLAYED_CARD_NATURAL_W);
-      expect(tall.album.zoom, 'the face it had').to.be.at.least(widthZoom * TABLE_ROW_ADD_TOLERANCE - 1e-9);
-      // Nothing to fill a second row with → the profile's one row.
-      const one = planPlayedTable({availW: 1120, availH: 1000, counts: {prelude: 0, ceo: 0, active: 3, automated: 0}, corporations: 1, spec: {cols: 4, rows: 1}});
-      expect(one.album.rowsPerPage).to.eq(1);
-      // The Deck's own opening (≈ 1120 × 650): a second row would cost 22 % of the face — the hand's density wins, one row stays.
-      const deck = planPlayedTable({availW: 1120, availH: 650, counts: {prelude: 0, ceo: 0, active: 20, automated: 0}, corporations: 1, spec: {cols: 4, rows: 1}});
-      expect(deck.album.rowsPerPage).to.eq(1);
-      expect(deck.pageCount).to.eq(7);
-      // The TV / FHD two-row profile is untouched (a third row would cost a third of the face).
+    it('the rows are the PROFILE\'s — a taller box never adds a row, so two seats of one table share one face (PL-622)', () => {
+      const counts = {prelude: 2, ceo: 0, active: 14, automated: 3};
+      // The Deck's body (1000–1060 × 640–660): the table's page is TWO rows of three whatever the box (the handheld
+      // album's one row is the hand's density — the owner chose two for the table, 2026-10-17).
+      for (const [w, h] of [[1000, 640], [1045, 660], [1060, 1000]]) {
+        const p = planPlayedTable({availW: w, availH: h, counts, corporations: 1, spec: {cols: 4, rows: 1}});
+        expect(p.album.cols).to.eq(3);
+        expect(p.album.rowsPerPage, `${w}×${h}`).to.eq(2);
+      }
+      // Measured: the Deck's own body reads ≈ 191 px faces and nineteen cards in 4 pages (one row read 208 px · 7).
+      const deck = planPlayedTable({availW: 1000, availH: 640, counts, corporations: 1, spec: {cols: 4, rows: 1}});
+      expect(deck.album.slotW).to.be.within(185, 197);
+      expect(deck.pageCount).to.eq(4);
+      // A bot's provenance line shortens the body by a line: the same composition (the face follows the box, as
+      // on every two-row profile), never a different row count between two seats.
+      const bot = planPlayedTable({availW: 1000, availH: 610, counts, corporations: 1, spec: {cols: 4, rows: 1}});
+      expect(bot.album.rowsPerPage).to.eq(deck.album.rowsPerPage);
+      expect(bot.album.cols).to.eq(deck.album.cols);
+      // The TV / FHD two-row profile is untouched.
       expect(box().album.rowsPerPage).to.eq(2);
     });
   });
