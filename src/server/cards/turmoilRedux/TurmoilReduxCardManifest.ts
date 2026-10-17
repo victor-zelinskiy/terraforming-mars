@@ -62,6 +62,7 @@ import {ReprocessingPlant} from './ReprocessingPlant';
 import {SponsoredPowerPlant} from './SponsoredPowerPlant';
 import {CivilianSpacefighters} from './CivilianSpacefighters';
 import {EnceladeanIncubator} from './EnceladeanIncubator';
+import {CargoMechs} from './CargoMechs';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -303,5 +304,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // Only the module's icon at the bottom left, an EMPTY MIN plate (no requirement): an ocean + 4 microbes onto ANY
     // own card as ONE declaration, Jovian + Space tags, a fixed 2 VP.
     [CardName.ENCELADEAN_INCUBATOR]: {Factory: EnceladeanIncubator},
+    // Only the module's icon at the bottom left: the Industrialists' plate; the NINTH mech holder and the FIFTH consumer of
+    // the repeat-action mechanism — 1 energy → a mech onto ANY card, OR 1 mech here → perform a used action again (Viron's
+    // road, `IHasCheckLoops` against the Viron ↔ Cargo Mechs recursion).
+    [CardName.CARGO_MECHS]: {Factory: CargoMechs},
   },
 });

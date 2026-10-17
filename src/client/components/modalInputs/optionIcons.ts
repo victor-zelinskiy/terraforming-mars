@@ -61,9 +61,22 @@ const GLOBAL_PARAMETER_ALIASES: Readonly<Record<string, string>> = {oceans: 'oce
  */
 const NO_SPRITE_ICONS: ReadonlySet<string> = new Set(['vp', 'track']);
 
+/**
+ * Printed PLATES that are neither a resource nor a parameter — the ACTION-REPLAY plate
+ * (`assets/misc/action-replay.svg`: Project Inspection's block, TR61 Cargo Mechs' repeat
+ * good). Their class is `.con-plate-icon` (console.less): the card renderer's own
+ * `.card-action-replay-icon` is scoped under `.card-container` and paints nowhere else.
+ */
+const MISC_ICON_CLASSES: Readonly<Record<string, string>> = {
+  'action-replay': 'con-plate-icon con-plate-icon--action-replay',
+};
+
 export function iconClassFor(icon: string | undefined): string {
   if (icon === undefined || icon === '' || NO_SPRITE_ICONS.has(icon)) {
     return '';
+  }
+  if (icon in MISC_ICON_CLASSES) {
+    return MISC_ICON_CLASSES[icon];
   }
   if (STANDARD_RESOURCE_ICONS.has(icon)) {
     return 'resource_icon resource_icon--' + icon;

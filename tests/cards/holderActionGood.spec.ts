@@ -48,6 +48,8 @@ describe('holderActionGoodOf — the good a stored resource buys through the car
     [CardName.THERMOPHILES, {spend: 2, good: {kind: 'global', parameter: 'venus', steps: 1}}],
     // К-R1 (TR46): a BESPOKE action's good, declared once in the card file — ALL the data → as many cards, keep 1.
     [CardName.RESEARCH_STARTUPS, {spend: 'all', good: {kind: 'look', keep: 1}}],
+    // TR61: a BESPOKE action's good, declared once — 1 mech here buys the REPEAT of an already-used action.
+    [CardName.CARGO_MECHS, {spend: 1, good: {kind: 'repeat'}}],
     // PL-484 (K-§6.1): ONE PRICE, A CHOICE OF GOODS — every good in the printed order, the first as `good`.
     [CardName.MINING_MECHS, {spend: 2, good: {kind: 'production', resource: 'steel' as never, amount: 1}, or: [{kind: 'production', resource: 'titanium' as never, amount: 1}]}],
     [CardName.ATMO_COLLECTORS, {spend: 1, good: {kind: 'stock', resource: 'titanium' as never, amount: 2}, or: [
@@ -155,7 +157,8 @@ describe('holderActionGoodOf — the good a stored resource buys through the car
         }
         // Every good of a CHOICE (PL-484) and of a SET (TR60) too — one empty good would promise nothing on its plate.
         for (const g of roleGoodsOf(good)) {
-          const amount = g.kind === 'global' ? g.steps : g.kind === 'look' ? g.keep : g.amount;
+          // A REPEAT (TR61) is one action performed again — a verb with no magnitude; every other good carries one.
+          const amount = g.kind === 'global' ? g.steps : g.kind === 'look' ? g.keep : g.kind === 'repeat' ? 1 : g.amount;
           expect(amount, name).is.greaterThan(0);
         }
       }

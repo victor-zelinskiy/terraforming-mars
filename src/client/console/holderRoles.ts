@@ -171,6 +171,8 @@ export const ACTION_GOOD_CAPTION: Readonly<Record<ActionGood['kind'], string>> =
   tr: 'TR',
   global: 'terraforming',
   look: 'cards',
+  // TR61: the mech buys a REPEAT of a used action — the family word is the repeat family's own (the bridge's kicker).
+  repeat: 'Repeat action',
 };
 
 /** The caption of a role — `undefined` for plain storage. */
@@ -209,6 +211,9 @@ export function actionGoodIcon(good: ActionGood): string {
     return 'tr';
   case 'global':
     return good.parameter;
+  case 'repeat':
+    // The printed ACTION plate (`action-replay`) — the icon Project Inspection's block and TR61's row carry.
+    return 'action-replay';
   }
 }
 
@@ -260,7 +265,8 @@ export function holderRoleIconSpread(role: HolderRole): {join?: 'and', plates?: 
 
 /** The amount an action's good moves — the label's second number. */
 export function actionGoodAmount(good: ActionGood): number {
-  return good.kind === 'global' ? good.steps : good.kind === 'look' ? good.keep : good.amount;
+  // A repeat has no count — ONE action performed again.
+  return good.kind === 'global' ? good.steps : good.kind === 'look' ? good.keep : good.kind === 'repeat' ? 1 : good.amount;
 }
 
 /** The tail phrase after an action good's amount (an i18n key) — what the «+N» is of. */
@@ -278,6 +284,8 @@ export function actionGoodTail(good: ActionGood): string | undefined {
     return good.parameter;
   case 'look':
     return undefined;
+  case 'repeat':
+    return 'repeat of a used action';
   }
 }
 
@@ -318,6 +326,10 @@ export function holderRoleReading(role: HolderRole): HolderRoleReading | undefin
     if (role.good.kind === 'look') {
       // TR46: every unit here is one more card turned over; the action keeps `keep` of them.
       return {label: 'All from here: as many cards off the deck, ${0} to the hand', params: [String(role.good.keep)]};
+    }
+    if (role.good.kind === 'repeat') {
+      // TR61: the spend buys ONE repeat of an already-used action — no «+N», the good is a verb.
+      return {label: 'Spend ${0} from here: repeat a used action', params: [String(role.spend)]};
     }
     if (isActionGoodSet(role)) {
       // A SET at one price (TR60): «Spend 1 from here: +1 and +3 at once» beside the goods' icons in the same order —

@@ -416,8 +416,7 @@
     "Action: Spend any amount of energy to move that number of steps on the Hydronetwork track. Each step requires having all the matching tags in play up to that level; wild tags can replace missing ones. Gain resources next to your position.": "Действие: потратьте любое количество энергии, чтобы продвинуться на столько же делений по треку Гидросети. Для каждого деления нужны все соответствующие метки в игре вплоть до этого уровня; универсальные метки заменяют недостающие. Получите ресурсы рядом со своей позицией.",
     "Spend energy to advance on the Hydronetwork": "Потратьте энергию для продвижения по Гидросети",
     "Gain 1 energy per ocean-side tile of yours": "1 энергия за каждый приморский тайл",
-    "Advance 1 step on the Hydronetwork for 1 energy": "Продвинуться на 1 деление за 1 энергию"
-,
+    "Advance 1 step on the Hydronetwork for 1 energy": "Продвинуться на 1 деление за 1 энергию",
     "Steal 3 M€ from a player that REMOVED YOUR RESOURCES OR DECREASED YOUR PRODUCTION this generation.": "Заберите себе 3 М€ у игрока, который в этом поколении УДАЛЯЛ ВАШИ РЕСУРСЫ ИЛИ СНИЖАЛ ВАШЕ ПРОИЗВОДСТВО.",
     "Place this card face down in THAT PLAYER'S EVENT PILE.": "Положите эту карту рубашкой вверх в СТОПКУ СОБЫТИЙ ТОГО ИГРОКА.",
     "Animals may not be removed from this card.": "Животных с этой карты удалять нельзя.",
@@ -559,5 +558,6 @@
     "Requires Industrialists to be ruling or that you have 2 delegates on its resolution.": "Требуется: «Индустриалисты» правят или 2 ваших делегата на их резолюции.",
     "Gain 9 energy.": "Получите 9 энергии.",
     "Pay 3 energy. Gain a standard resource of your choice — as many as your production of it.": "Заплатите 3 энергии. Получите стандартный ресурс на выбор — столько, сколько у вас его производства.",
-    "Pay 3 plants or 5 heat for 3 floaters on ANY card": "3 растения или 5 тепла: 3 аэростата на любую карту"
+    "Pay 3 plants or 5 heat for 3 floaters on ANY card": "3 растения или 5 тепла: 3 аэростата на любую карту",
+    "Spend 1 mech to repeat a used action": "Потратьте 1 мех: повтор использованного действия"
 }

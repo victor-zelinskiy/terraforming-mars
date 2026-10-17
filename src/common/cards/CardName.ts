@@ -1133,6 +1133,7 @@ export enum CardName {
   SPONSORED_POWER_PLANT = 'Sponsored Power Plant',
   CIVILIAN_SPACEFIGHTERS = 'Civilian Spacefighters',
   ENCELADEAN_INCUBATOR = 'Enceladean Incubator',
+  CARGO_MECHS = 'Cargo Mechs',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

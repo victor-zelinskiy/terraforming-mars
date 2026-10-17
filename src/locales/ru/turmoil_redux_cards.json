@@ -2,157 +2,117 @@
     "EVA Mechs": "Мехи ВКД",
     "Action: Pay 1 energy to add a mech resource to this card.": "Действие: потратьте 1 энергию, чтобы добавить 1 мех на эту карту.",
     "Effect: When playing a Space tag, mechs here may be used as payment, and are worth 5 M€ each.": "Эффект: разыгрывая карту с меткой Космоса, вы можете платить мехами с этой карты по 5 M€ за каждый.",
-
     "Formula Zero": "Формула-0",
     "Action: Pay 1 M€ to add a fighter resource to this card.": "Действие: заплатите 1 M€, чтобы положить 1 истребитель на эту карту.",
-
     "Automated Convoys": "Беспилотные конвои",
     "Action: Pay 2 energy to add 2 mech resources to this card.": "Действие: заплатите 2 энергии, чтобы положить 2 меха на эту карту.",
     "Action: Spend 1 mech from here to trade for free.": "Действие: потратьте 1 мех с этой карты, чтобы бесплатно поторговать.",
-
     "Political Science": "Политология",
     "Effect: Whenever your delegates get discarded from unenacted resolutions, add 1 data resource here per delegate discarded.": "Эффект: когда ваши делегаты сбрасываются с непринятых резолюций, положите на эту карту 1 единицу данных за каждого сброшенного делегата.",
     "Action: Spend 3 data from here to draw a card.": "Действие: потратьте 3 единицы данных с этой карты, чтобы взять карту.",
-
     "Supreme Expertise": "Высшая экспертиза",
     "Requires that you have at least 10 of any one type of tag. Add 4 data to ANY card.": "Требуется не менее 10 меток одного вида. Добавьте 4 единицы данных на ЛЮБУЮ карту.",
-
     "Vector Computations": "Векторные вычисления",
     "Effect: Whenever you play a Science tag (including this), add 2 data resources to this card.": "Эффект: когда вы играете метку науки (включая эту карту), положите на эту карту 2 единицы данных.",
     "Action: Spend 4 data from here to draw a Space card.": "Действие: потратьте 4 единицы данных с этой карты, чтобы взять карту с меткой космоса.",
-
     "Political Donation": "Политическое пожертвование",
     "Add a delegate to a resolution. Then add up to 3 neutral delegates to the Popular Support Area of that resolution's party.": "Добавьте делегата на резолюцию. Затем добавьте до 3 нейтральных делегатов в Народную поддержку партии этой резолюции.",
-
     "Minority Representation": "Представительство меньшинств",
     "Requires that you have no more than 1 Influence. Advance your Agenda marker 2 steps. (And collect bonuses from each step.)": "Требуется не больше 1 влияния. Продвиньте маркер Карьеры на 2 шага (и получите бонус каждого шага).",
-
     "Water Hauling": "Перевозка воды",
     "Effect: Once per generation, when you trade, you can send the trade fleet to this card to place an ocean tile.": "Эффект: раз в поколение, торгуя, вы можете отправить торговый флот на эту карту и разместить тайл океана.",
     "Gain an extra trade fleet.": "Получите дополнительный торговый флот.",
-
     "Colony Sponsors": "Спонсоры колоний",
     "Requires that you have a colony in play. Choose 1 colony track. Move its marker to the highest (right-most) position.": "Требует, чтобы у вас была колония. Выберите 1 трек колонии и передвиньте его маркер на высшую (крайнюю правую) позицию.",
     "SET": "ВЫСТАВИТЬ",
     "TO MAX": "НА МАКСИМУМ",
-
     "Mech Sports": "Мех-спорт",
     "1 VP for each mech resource on this card.": "1 ПО за каждый мех на этой карте.",
-
     "Political Think Tank": "Политический аналитический центр",
     "Action: Reveal the top card of the projects deck. If it has a party requirement, take it into hand and gain 5 M€. Otherwise discard it.": "Действие: вскройте верхнюю карту колоды проектов. Если у неё есть требование партии, возьмите её в руку и получите 5 M€. Иначе сбросьте её.",
-
     "Martian Census": "Марсианская перепись",
     "Effect: Whenever ANY player places a city on Mars, add a data resource to this card.": "Эффект: каждый раз, когда ЛЮБОЙ игрок размещает город на Марсе, положите на эту карту 1 единицу данных.",
     "Action: Add 1 data resource here.": "Действие: положите на эту карту 1 единицу данных.",
     "Action: Spend 3 data from here to add a delegate to a resolution.": "Действие: потратьте 3 единицы данных с этой карты, чтобы добавить делегата на резолюцию.",
-
     "Construction Mechs": "Строительные мехи",
     "Effect: When playing a Building or City tag, mechs here may be used as payment, and are worth 5 M€ each.": "Эффект: разыгрывая карту с меткой Строительства или Города, вы можете платить мехами с этой карты по 5 M€ за каждый.",
-
     "Party Sanctions": "Партийные санкции",
     "Requires you to be Chairman. Discard all neutral delegates from ONE Popular Support Area of your choice. Advance your Agenda marker 1 step.": "Требует, чтобы вы были председателем. Сбросьте всех нейтральных делегатов из ОДНОЙ области народной поддержки по вашему выбору. Продвиньте маркер Карьеры на 1 шаг.",
-
     "Administration District": "Административный район",
     "Effect: After you play a Building card that has a NON-NEGATIVE VP icon, draw a card.": "Эффект: каждый раз после того, как вы разыгрываете карту Строительства с НЕОТРИЦАТЕЛЬНЫМ значком ПО, возьмите карту.",
     "Requires Mars First to be ruling or that you have 2 delegates there. Place a city tile ON A NON-RESERVED SPACE ADJACENT TO ONE OF YOUR CITIES, IGNORING OTHER PLACEMENT RESTRICTIONS.": "Требует, чтобы «Марс вперёд» правила или у вас было 2 делегата на её резолюции. Разместите тайл города НА НЕЗАРЕЗЕРВИРОВАННОЙ КЛЕТКЕ РЯДОМ С ОДНИМ ИЗ ВАШИХ ГОРОДОВ, ИГНОРИРУЯ ПРОЧИЕ ОГРАНИЧЕНИЯ РАЗМЕЩЕНИЯ.",
-
     "Martian Fiber": "Марсианское оптоволокно",
     "Effect: Whenever you add a data resource to ANY card, also gain 1 M€.": "Эффект: каждый раз, когда вы кладёте единицу данных на ЛЮБУЮ карту, получайте также 1 M€.",
     "Action: Add 1 data resource to this card.": "Действие: положите на эту карту 1 единицу данных.",
     "1 VP per 2 data resources here.": "1 ПО за каждые 2 единицы данных на этой карте.",
-
     "Sponsored Settlement": "Спонсируемое поселение",
     "Requires Mars First to be ruling or that you have 2 delegates there. Increase your M€ production 2 steps. Place a city tile ON A NON-RESERVED SPACE, IGNORING OTHER PLACEMENT RESTRICTIONS.": "Требует, чтобы «Марс вперёд» правила или у вас было 2 делегата на её резолюции. Увеличьте производство M€ на 2. Разместите тайл города НА НЕЗАРЕЗЕРВИРОВАННОЙ КЛЕТКЕ, ИГНОРИРУЯ ПРОЧИЕ ОГРАНИЧЕНИЯ РАЗМЕЩЕНИЯ.",
-
     "Fringe Colony": "Окраинная колония",
     "This can only be played during generation 4 or later. Remove from play a colony tile that has NO COLONIES, TILES, OR TRADE FLEETS ON IT. Replace it with a new colony tile of your choice, and place a colony on it, if possible.": "Можно разыграть только в поколении 4 или позже. Уберите из игры плитку колонии, на которой НЕТ КОЛОНИЙ, ТАЙЛОВ И ТОРГОВЫХ ФЛОТОВ. Замените её новой плиткой колонии по вашему выбору и поставьте на неё колонию, если возможно.",
-
     "Martian Roads": "Марсианские дороги",
     "Requires Mars First to be ruling or that you have 2 delegates there. 1 VP for every 3 Building tags you have.": "Требует, чтобы «Марс вперёд» правила или у вас было 2 делегата на её резолюции. 1 ПО за каждые 3 метки Строительства.",
-
     "Re-settlement": "Переселение",
     "Requires Mars First to be ruling or that you have 2 delegates there. Remove a city tile you own on Mars and place it in an ADJACENT, NON-RESERVED, unoccupied space, ignoring other placement restrictions. (You gain the placement bonus of that space, including adjacency bonuses.)": "Требует, чтобы «Марс вперёд» правила или у вас было 2 делегата на её резолюции. Снимите свой тайл города на Марсе и разместите его на СОСЕДНЕЙ, НЕЗАРЕЗЕРВИРОВАННОЙ свободной клетке, игнорируя прочие ограничения размещения. (Вы получаете бонус размещения этой клетки, включая бонусы соседства.)",
     "Arboretum": "Дендрарий",
     "Requires Mars First to be ruling or that you have 2 delegates there. Place a greenery tile and raise oxygen 1 step. Add 1 data resource to ANY card for each city adjacent to this tile.": "Требует, чтобы «Марс вперёд» правила или у вас было 2 делегата на её резолюции. Разместите тайл озеленения и поднимите кислород на 1 шаг. Добавьте 1 единицу данных на ЛЮБУЮ карту за каждый город рядом с этим тайлом.",
     "Select the card for the data — 1 for each adjacent city": "Выберите карту для данных — по 1 за каждый соседний город",
     "No card can hold data — the data for adjacent cities will have nowhere to go": "Нет карты, которая держит данные, — данные за соседние города будет некуда положить",
-
     "Nova City": "Нова-Сити",
     "Requires Unity to be ruling or that you have 2 delegates there. Place a city ON A COLONY TILE in play. 2 VP per space city you own. (Any city that's not on Mars.)": "Требует, чтобы «Союз» правил или у вас было 2 делегата на его резолюции. Разместите город НА ПЛИТКЕ КОЛОНИИ в игре. 2 ПО за каждый ваш космический город. (Любой город не на Марсе.)",
-
     "Habitat Science": "Наука обитаемости",
     "Action: Spend 2 data from here to gain all your Colony Bonuses.": "Действие: потратьте 2 единицы данных с этой карты, чтобы получить бонусы всех ваших колоний.",
     "Requires Unity to be ruling or that you have 2 delegates there. Add 1 data resource to this card for each colony in play, owned by ANY player.": "Требует, чтобы «Союз» правил или у вас было 2 делегата на его резолюции. Положите на эту карту 1 единицу данных за каждую колонию в игре — ЛЮБОГО игрока.",
-
     "Venusian Census": "Венерианская перепись",
     "Effect: After each time Venus is terraformed 1 step, add 2 data resources to this card.": "Эффект: каждый раз после того, как Венера терраформирована на 1 шаг, положите на эту карту 2 единицы данных.",
-
     "Exclusive Colony": "Эксклюзивная колония",
     "Requires Unity to be ruling or that you have 2 delegates there. Place a colony on any colony tile, EVEN IF YOU ALREADY HAVE A COLONY THERE, OR IT HAS 3 COLONIES. THIS IGNORES THE 3-COLONY LIMIT. (You gain the colony tile's placement bonus.)": "Требует, чтобы «Союз» правил или у вас было 2 делегата на его резолюции. Постройте колонию на любой плитке колоний, ДАЖЕ ЕСЛИ У ВАС УЖЕ ЕСТЬ ТАМ КОЛОНИЯ ИЛИ НА НЕЙ 3 КОЛОНИИ. ЛИМИТ В 3 КОЛОНИИ ИГНОРИРУЕТСЯ. (Вы получаете бонус постройки этой плитки.)",
     "Select where to build the colony — a tile with 3 colonies or with your own colony is allowed": "Выберите плитку для колонии — можно и с 3 колониями, и со своей",
-
     "UNMI Liner": "Лайнер UNMI",
     "Effect: Once per generation, when you trade, you can send the trade fleet to this card to gain 1 TR.": "Эффект: раз в поколение, торгуя, вы можете отправить торговый флот на эту карту и получить 1 РТ.",
     "Requires Unity to be ruling or that you have 2 delegates there. Gain an extra trade fleet.": "Требует, чтобы «Союз» правил или у вас было 2 делегата на его резолюции. Получите дополнительный торговый флот.",
-
     "Aurora Station": "Станция Аврора",
     "Effect: Once per generation, when you trade, you can send the trade fleet to this card to add 2 floaters to ANY VENUS CARD and increase your M€ production 1 step.": "Эффект: раз в поколение, торгуя, вы можете отправить торговый флот на эту карту, добавить 2 аэростата на любую карту Венеры и увеличить своё производство M€ на 1.",
     "Requires Unity to be ruling or that you have 2 delegates there. Place a city tile NEXT TO THE VENUS TRACK.": "Требует, чтобы «Союз» правил или у вас было 2 делегата на его резолюции. Выложите тайл города РЯДОМ С ТРЕКОМ ВЕНЕРЫ.",
-
     "Earth Army Contract": "Контракт с армией Земли",
     "Action: Add 1 fighter to this card. If there are at least 2 fighters here, discard 2 of them to gain 1 TR.": "Действие: положите 1 истребитель на эту карту. Если здесь не меньше 2 истребителей, сбросьте 2 из них и получите 1 РТ.",
-
     "Spaceship Recycling": "Утилизация космолётов",
     "Action: Spend 1 fighter from ANY of your cards to gain 2 titanium OR to add 1 mech resource to ANY card.": "Действие: потратьте 1 истребитель с ЛЮБОЙ своей карты, чтобы получить 2 титана ИЛИ положить 1 мех на ЛЮБУЮ карту.",
     "Requires Unity to be ruling or that you have 2 delegates there. Add 2 fighter resources to this card.": "Требует, чтобы «Союз» правил или у вас было 2 делегата на его резолюции. Положите на эту карту 2 истребителя.",
     "Select card to spend 1 fighter from": "Выберите карту, с которой потратить 1 истребитель",
     "Add 1 mech to any card": "Положите 1 мех на любую карту",
     "No card of yours can hold mechs": "Нет вашей карты, которая примет мех",
-
     "Red Museum": "Красный музей",
     "Effect: After you place a city or special tile on Mars ADJACENT TO NO GREENERIES OR OCEANS, add 2 data resources to this card.": "Эффект: после того как вы разместили на Марсе город или особый тайл НЕ РЯДОМ С ОЗЕЛЕНЕНИЕМ ИЛИ ОКЕАНОМ, положите на эту карту 2 единицы данных.",
-
     "Nationalist Movement": "Националистическое движение",
     "Requires the Reds to be ruling or that you have 2 delegates there. Add 1 neutral delegate to each Reds and Mars First resolution up for voting, and to each of their Popular Support Areas as well. Then gain M€ equal to the total number of neutral delegates in use. (Not in the reserve)": "Требует, чтобы «Красные» были у власти или у вас было 2 делегата на их резолюции. Добавьте 1 нейтрального делегата на каждую резолюцию «Красных» и «Марс вперёд» на голосовании и в области Народной поддержки обеих партий. Затем получите M€ по числу нейтральных делегатов в игре (не в резерве).",
-
     "Red Tech Convention": "Техноконвент Красных",
     "Requires the Reds to be ruling or that you have 2 delegates there. Reveal cards from the project deck until you reveal 3 cards WITHOUT A PLANT, MICROBE, OR ANIMAL TAG. Add them into hand, and discard the rest.": "Требует, чтобы «Красные» были у власти или у вас было 2 делегата на их резолюции. Вскрывайте карты из колоды проектов, пока не вскроете 3 карты БЕЗ МЕТОК РАСТЕНИЙ, БАКТЕРИЙ И ЖИВОТНЫХ. Возьмите их в руку, остальные сбросьте.",
-
     "Reds News Outlet": "Новостной канал Красных",
     "Requires the Reds to be ruling or that you have 2 delegates there. 1 VP per Mars tag you have.": "Требует, чтобы «Красные» были у власти или у вас было 2 делегата на их резолюции. 1 ПО за каждую вашу метку Марса.",
-
     "Mars Army Mechs": "Мехи армии Марса",
     "Action: Spend 1 mech from here to add a delegate to a resolution.": "Действие: потратьте 1 мех с этой карты, чтобы добавить делегата на резолюцию.",
     "Requires the Reds to be ruling or that you have 2 delegates there. Add 1 mech resource to this card.": "Требует, чтобы «Красные» были у власти или у вас было 2 делегата на их резолюции. Положите на эту карту 1 мех.",
-
     "Mars Army Ships": "Корабли армии Марса",
     "Action: Pay 1 titanium to add a fighter resource to this card.": "Действие: заплатите 1 титан, чтобы положить 1 истребитель на эту карту.",
     "Action: Spend 1 fighter from here to add a delegate to a resolution.": "Действие: потратьте 1 истребитель с этой карты, чтобы добавить делегата на резолюцию.",
     "Requires the Reds to be ruling or that you have 2 delegates there. Add 1 fighter resource to this card.": "Требует, чтобы «Красные» были у власти или у вас было 2 делегата на их резолюции. Положите на эту карту 1 истребитель.",
-
     "Council Seat": "Место в совете",
     "Effect: You only need 1 delegate on a resolution to gain its party's effect.": "Эффект: вам достаточно 1 делегата на резолюции, чтобы получить эффект её партии.",
     "Requires the Reds to be ruling or that you have 2 delegates there.": "Требует, чтобы «Красные» были у власти или у вас было 2 делегата на их резолюции.",
     "Opens the ${0} party effect now: your delegate stands on ${1}": "Откроет эффект партии «${0}» сейчас: ваш делегат на «${1}»",
     "No party opens now — the effect starts with your first delegate on a resolution": "Сейчас ни одной партии: эффект начнётся с первого вашего делегата на резолюции",
     "${0} holds the ${1} party effect: 1 delegate on ${2} (${3})": "${0} получает эффект партии «${1}»: 1 делегат на «${2}» («${3}»)",
-
     "Red Lawyers": "Юристы Красных",
     "Requires the Reds to be ruling or that you have 2 delegates there. Advance your Agenda marker 2 steps. (And collect bonuses from each step.)": "Требует, чтобы «Красные» были у власти или у вас было 2 делегата на их резолюции. Продвиньте маркер Карьеры на 2 шага (и получите бонус каждого шага).",
-
     "Biological Simulations": "Биологические симуляции",
     "Effect: After you play a microbe or animal tag, add 1 data resource to this card.": "Эффект: после того как вы разыграли метку бактерий или животных, положите на эту карту 1 единицу данных.",
     "Action: Spend 2 data from here to increase your plant production 1 step.": "Действие: потратьте 2 единицы данных с этой карты, чтобы повысить своё производство растений на 1.",
     "Requires the Greens to be ruling or that you have 2 delegates there. Add 2 data resources to this card.": "Требует, чтобы «Зелёные» были у власти или у вас было 2 делегата на их резолюции. Положите на эту карту 2 единицы данных.",
-
     "Canyon Carving": "Прорезание каньона",
     "Requires the Greens to be ruling or that you have 2 delegates there. Remove any 1 ocean tile from the board and place it in an adjacent space that's reserved for ocean or not reserved at all. (You gain TR for this, and the placement bonus of that space, including adjacency bonuses.)": "Требует, чтобы «Зелёные» были у власти или у вас было 2 делегата на их резолюции. Снимите любой 1 тайл океана с поля и положите его на соседнюю клетку, отведённую под океан или не отведённую ни подо что. (Вы получаете за это РТ и бонус размещения той клетки, включая бонусы соседства.)",
-
     "Forestry Mechs": "Лесозаготовительные мехи",
     "Action: Spend 1 mech from here to increase your plant production 1 step.": "Действие: потратьте 1 мех с этой карты, чтобы повысить своё производство растений на 1.",
     "Requires the Greens to be ruling or that you have 2 delegates there. Add 1 mech resource to this card.": "Требует, чтобы «Зелёные» были у власти или у вас было 2 делегата на их резолюции. Положите на эту карту 1 мех.",
-
     "Plasma Fans": "Плазменные вентиляторы",
     "Action: Pay 8 heat to terraform Venus 1 step.": "Действие: заплатите 8 тепла, чтобы повысить показатель Венеры на 1 шаг.",
     "Requires the Greens to be ruling or that you have 2 delegates there. Increase your heat production 3 steps.": "Требует, чтобы «Зелёные» были у власти или у вас было 2 делегата на их резолюции. Увеличьте своё производство тепла на 3.",
@@ -232,5 +192,8 @@
     "Action: Pay 1 titanium to add 2 fighter resources to this card.": "Действие: заплатите 1 титан, чтобы положить 2 истребителя на эту карту.",
     "Action: Spend 1 fighter from here to gain 3 M€ and increase your M€ production 1 step.": "Действие: потратьте 1 истребитель с этой карты, чтобы получить 3 M€ и повысить своё производство M€ на 1.",
     "Enceladean Incubator": "Инкубатор Энцелада",
-    "Place an ocean tile. Add 4 microbes to ANY card.": "Разместите океан. Добавьте 4 микроба на ЛЮБУЮ свою карту."
+    "Place an ocean tile. Add 4 microbes to ANY card.": "Разместите океан. Добавьте 4 микроба на ЛЮБУЮ свою карту.",
+    "Cargo Mechs": "Грузовые мехи",
+    "Action: Pay 1 energy to add a mech resource to ANY card.": "Действие: заплатите 1 энергию, чтобы добавить 1 мех на ЛЮБУЮ карту.",
+    "Action: Spend 1 mech from here to use an action on one of your cards a second time this generation.": "Действие: потратьте 1 мех с этой карты, чтобы использовать действие одной из своих карт второй раз в этом поколении."
 }

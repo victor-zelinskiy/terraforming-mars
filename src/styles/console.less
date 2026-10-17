@@ -38147,3 +38147,14 @@ dialog.con-zoom {
         height: .95rem;
     }
 }
+
+/* A printed PLATE as a chip icon (`optionIcons.ts` MISC_ICON_CLASSES): the ACTION-REPLAY plate of Project Inspection
+   and TR61 Cargo Mechs — the SAME SVG the card face prints, sized like a resource sprite wherever a resource icon class
+   would stand (the host's own size rules override the base as they do for `.resource_icon`). */
+.con-plate-icon {
+    display: inline-block;
+    width: 36px;
+    height: 36px;
+    background: center / contain no-repeat;
+}
+.con-plate-icon--action-replay { background-image: url(./assets/misc/action-replay.svg); }

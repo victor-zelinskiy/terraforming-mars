@@ -55,7 +55,13 @@ export type ActionGood =
   | {kind: 'tr', amount: number}
   | {kind: 'global', parameter: 'temperature' | 'oxygen' | 'venus', steps: number}
   /** Every unit spent turns ONE card of the deck over; `keep` of them go to the hand, the rest to the discard (TR46). */
-  | {kind: 'look', keep: number};
+  | {kind: 'look', keep: number}
+  /**
+   * The spend buys a REPEAT — one of the player's already-used card actions performed again this generation (TR61
+   * Cargo Mechs: «1 mech from here → use an action a second time»). A bespoke good declared by the card (К-R1): the
+   * satellite's chip and the TR56 target step name the repeat, never a bare store.
+   */
+  | {kind: 'repeat'};
 
 /**
  * `spend` units off this card → `good` — the holder's action role, as exported to the client card. `'all'`:

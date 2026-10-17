@@ -1175,5 +1175,7 @@
     "Ocean under the city": "Под городом — океан",
     "Stack of ${0}": "Стопка из ${0}",
     "No source card": "Без карты-источника",
-    "No card placed this tile": "Здесь нет тайла, поставленного картой"
+    "No card placed this tile": "Здесь нет тайла, поставленного картой",
+    "Spend ${0} from here: repeat a used action": "Потратьте ${0} отсюда: повтор использованного действия",
+    "repeat of a used action": "повтор использованного действия"
 }

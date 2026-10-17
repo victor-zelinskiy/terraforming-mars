@@ -183,6 +183,17 @@ describe('holderRoles — what a stored resource is for', () => {
     expect(holderRolePlate(startups)).to.eq(undefined);
   });
 
+  it('TR61 (К-R1): a BESPOKE action\'s declared good — 1 mech buys a REPEAT of a used action: the verb line, the ACTION plate as its icon, the repeat family\'s caption, the gain outcome within reach', () => {
+    const cargo = holderRoleOf(CardName.CARGO_MECHS);
+    expect(cargo).to.deep.eq({kind: 'action', spend: 1, good: {kind: 'repeat'}});
+    expect(holderRoleReading(cargo)).to.deep.eq({label: 'Spend ${0} from here: repeat a used action', params: ['1']});
+    expect(holderRoleIcon(cargo)).to.eq('action-replay');
+    expect(holderRoleCaption(cargo)).to.eq('Repeat action');
+    expect(holderRolePlate(cargo)).to.eq(undefined);
+    expect(actionGoodKey({kind: 'repeat'}), 'its own lane beside every other mech good').to.eq('repeat');
+    expect(holderGainOutcome(cargo, 0, 1)).to.deep.eq({kind: 'reach', good: 'action', role: cargo, have: 1, need: 1, state: 'opens'});
+  });
+
   it('a role CLAIMS (tender, a delegate, a trade, an action\'s good) or it does not (a VP rule, storage) — only a claiming role of a split type gets a key of its own; a payment keyed by its UNIT when two tender pools stand', () => {
     expect(['payment', 'delegate', 'trade', 'action'].map((k) => holderRoleClaims(k as never))).to.deep.eq([true, true, true, true]);
     expect(['vp', 'store'].map((k) => holderRoleClaims(k as never))).to.deep.eq([false, false]);
