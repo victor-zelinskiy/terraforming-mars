@@ -1097,7 +1097,7 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction, ConsoleActionOverrides} from '@/client/console/composables/consoleActionModel';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {gateCursorUntilAnimationsEnd} from '@/client/console/cursorArrival';
-import {ConsoleTask} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, taskFor} from '@/client/console/consoleTaskRouter';
 import {
   buildInitialCardsResponse, campaignWizardExtra, clearDockDrift, committedStartJourneyItems, consoleStartState, deploymentCrumb, deploymentJourneyItems,
   driftDockPile, ensureStartWizard, holdStartScene, initialCardsInputOf, initialCardsSignature,
@@ -1146,10 +1146,10 @@ import {
 import ConsoleStartPlayedDock from '@/client/components/console/ConsoleStartPlayedDock.vue';
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
 import {
-  markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome,
-  workspaceOutcomeState,
+  claimWorkspaceOutcome, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting,
+  releaseWorkspaceOutcome, setWorkspaceOutcomeSlot, workspaceOutcomeState,
 } from '@/client/console/consoleWorkspaceOutcome';
-import {claimPlayOutcome} from '@/client/console/played/consolePlayOutcomeClaim';
+import {claimPlayOutcome, playOutcomeZone} from '@/client/console/played/consolePlayOutcomeClaim';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {deckDrawHolds} from '@/client/console/deckDraw/consoleDeckDraw';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
@@ -2132,6 +2132,27 @@ export default defineComponent({
      */
     embedPresenting(): boolean {
       return this.embedActive && this.outcome.stage === 'presenting';
+    },
+    /**
+     * A «ПОСМОТРИ N, ОСТАВЬ K» PICK STANDS IN THIS WORKSPACE AND NOBODY OWNS IT —
+     * the card it belongs to, or undefined.
+     *
+     * The claim that makes the pick a step of this workspace is MODULE state
+     * armed at the press, so a reload (or any path that lost it) leaves the
+     * server's question with no host: the shell renders the pick as its own
+     * band, and this full-bleed scene, mounted over it, hides it — the cards are
+     * pickable, the pad is theirs, and the player sees the deployment with no
+     * cards (the field blocker of 2026-10-18). The server asks one thing at a
+     * time, so a deck pick standing while this scene is up IS this workspace's
+     * step. Read off the RAW prompt; any live claim — even another host's — is
+     * left alone.
+     */
+    orphanStepSource(): CardName | undefined {
+      if (this.outcome.sourceCard !== '' || this.mode !== 'ceremony' ||
+          taskFor(this.playerView)?.kind !== 'deckSelect') {
+        return undefined;
+      }
+      return this.wf?.deckPickPrompt?.source?.card;
     },
     /**
      * THE START EFFECT FLOW — one derived beat for the whole draw-effect
@@ -4501,6 +4522,16 @@ export default defineComponent({
         }
       },
     },
+    /** An unowned pick stands in this workspace — adopt it (see the computed).
+     *  POST: the zone it is teleported into must already be rendered. */
+    'orphanStepSource': {
+      flush: 'post',
+      handler(source: CardName | undefined) {
+        if (source !== undefined) {
+          this.adoptOrphanStep();
+        }
+      },
+    },
     /** The claim released (any exit — the take finished, the backstop, the
      *  unmount): the main scene RETURNS first, then the source card carries
      *  on into «Разыграно» (the second half of its interrupted journey). */
@@ -4641,6 +4672,14 @@ export default defineComponent({
     // nothing to fire on — and the zone would stand unannounced, leaving the
     // hosted step teleport-less in `.con-main`.
     setWorkspaceFrameSlot('start', this.stepSlot);
+    // …and the OUTCOME zone the same way: an embedded step (the deck pick, the
+    // reveal) whose claim survived the park comes back INTO this zone, and a
+    // pick nobody owns (a reload) is adopted here — the zone exists from now.
+    if (this.orphanStepSource !== undefined) {
+      this.adoptOrphanStep();
+    } else {
+      this.restoreOutcomeStep();
+    }
     // A FIRST-ACTION STAGE THAT WAS ALREADY STANDING comes back exactly as it
     // was: the corporation is in its seat and the room is away. The stage
     // machine survives in module state, so nothing re-enters — this only
@@ -4713,6 +4752,20 @@ export default defineComponent({
     this.disposeMaterializationFreeze(true);
     if (this.outcome.host === 'start') {
       releaseWorkspaceOutcome(); // an orphaned claim suppresses presenters
+    }
+    // A claim the funnel REFUSED to release (it serves a live prompt and the
+    // frame is only PARKED — «свернуть») outlives this mount, and its zone
+    // selector describes a node that dies HERE. Left published, the restore
+    // patches the shell's `<Teleport>` (it stands BEFORE this scene in the
+    // shell's template) against a zone not rendered yet: the target does not
+    // resolve, the pick mounts in the shell's own flow UNDER this full-bleed
+    // scene, and since the selector never changes again the teleport never
+    // looks again — the deployment with no cards (the field blocker of
+    // 2026-10-18). Retracted, the pick waits NOWHERE for the gap frame and
+    // `mounted` republishes the same selector, which is the change that makes
+    // the teleport resolve it.
+    if (this.outcome.host === 'start') {
+      setWorkspaceOutcomeSlot('');
     }
     // Retract our zone HERE, never from the flow side: a stale selector
     // teleports the next surface into a detached node, and the unmount watcher
@@ -7546,6 +7599,85 @@ export default defineComponent({
         .then(() => {
           this.roomSettling = false;
         });
+    },
+    /**
+     * AN EMBEDDED STEP COMES BACK EXACTLY AS IT WAS — the restore half of
+     * «свернуть» for a step standing in this workspace's outcome zone (the deck
+     * pick, the reveal), the twin of the first-action stage's restore above.
+     *
+     * The claim survived the park in module state; everything this component
+     * kept beside it did not. So, without replaying a beat the player already
+     * watched: the zone is published again (retracted at the unmount — the
+     * selector named a node that died), the SOURCE is back in its seat, and the
+     * room is already away. The step's own `embedPresenting` edge cannot do it:
+     * the claim is presenting on both sides of the park, and a watcher does not
+     * fire on `true → true`.
+     */
+    restoreOutcomeStep(): void {
+      if (!this.embedActive) {
+        return;
+      }
+      const zone = playOutcomeZone('start');
+      if (this.outcome.embedSlot === '' && zone !== undefined) {
+        setWorkspaceOutcomeSlot(zone);
+      }
+      if (!this.embedPresenting) {
+        return;
+      }
+      const source = this.outcome.sourceCard as CardName;
+      if (this.embedSourceShown === undefined && this.seatOwner === undefined &&
+          this.playerView.thisPlayer.tableau.some((c) => c.name === source)) {
+        this.seatOwner = 'effect';
+        this.embedSourceShown = source;
+        this.embedSourceIncoming = undefined;
+        this.embedSourceArriving = false;
+        this.embedSourceLanded = true;
+        this.embedSourceDeparting = false;
+      }
+      this.poseStepRoomReceded();
+    },
+    /** The room an embedded step owns, already away — no animation (a restore;
+     *  the release phrase played when the step first rose). Waits a tick for a
+     *  queue that is not rendered yet rather than latching an undone pose. */
+    poseStepRoomReceded(): void {
+      const queue = this.$refs.queueEl as HTMLElement | undefined;
+      if (queue === undefined || queue === null || !queue.isConnected) {
+        void this.$nextTick(() => {
+          const late = this.$refs.queueEl as HTMLElement | undefined;
+          if (this.embedPresenting && !this.queueReleased && late !== undefined && late !== null && late.isConnected) {
+            this.queueReleased = true;
+            gsap.set(late, {autoAlpha: 0});
+          }
+        });
+      } else if (!this.queueReleased) {
+        this.queueReleased = true;
+        gsap.set(queue, {autoAlpha: 0});
+      }
+      const dock = this.playedDockRoot();
+      if (dock !== null && !this.playedDockReleased) {
+        this.playedDockReleased = true;
+        gsap.set(dock, {autoAlpha: 0});
+      }
+    },
+    /**
+     * ADOPT the unowned pick (`orphanStepSource`): the same claim the press
+     * would have armed, with what it would hold by now — the beat long played,
+     * the answer in, the step on stage — and the zone published. The pick then
+     * teleports here, owns the pad, and the flow ends through the ordinary
+     * release (the source card flies home, the deployment comes back).
+     */
+    adoptOrphanStep(): void {
+      const source = this.orphanStepSource;
+      const zone = playOutcomeZone('start');
+      if (source === undefined || zone === undefined) {
+        return;
+      }
+      claimWorkspaceOutcome('start', source, ['draw', 'pick', 'effect'], 0, 0, 'chain');
+      markWorkspaceOutcomeAnswerIn();
+      markWorkspaceOutcomeBeatDone();
+      markWorkspaceOutcomePresenting();
+      setWorkspaceOutcomeSlot(zone);
+      this.restoreOutcomeStep();
     },
     /** The receded pose applied with NO animation (a restore, or reduced
      *  motion): the room is simply already away.

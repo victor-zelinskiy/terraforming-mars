@@ -99,6 +99,15 @@ const PLAY_OUTCOME_HOSTS: ReadonlyArray<PlayOutcomeHostSpec> = [
 ];
 
 /**
+ * The zone a play host publishes for what a play produces — read off the ONE
+ * table, so a host that has to republish its own zone (the start workspace
+ * coming back from «свернуть») names the very selector the claim was made with.
+ */
+export function playOutcomeZone(host: WorkspaceOutcomeHost): string | undefined {
+  return PLAY_OUTCOME_HOSTS.find((spec) => spec.host === host)?.zone;
+}
+
+/**
  * WHICH WORKSPACE HOSTS THE PLAY THE PLAYER IS MAKING RIGHT NOW — or undefined
  * when they are not inside one (the standalone band, where a full-bleed result
  * is the honest presentation because there is no parent surface to be inside).
