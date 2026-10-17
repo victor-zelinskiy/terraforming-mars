@@ -1,10 +1,18 @@
 <template>
   <div class="cm-overlay cm-overlay--launch" role="dialog" :aria-label="$t(campaign ? 'Assemble the campaign' : 'Launch the party')">
     <div class="cm-overlay__card cm-overlay__card--launch">
+      <span class="cm-launch__corner cm-launch__corner--tl" aria-hidden="true"></span>
+      <span class="cm-launch__corner cm-launch__corner--tr" aria-hidden="true"></span>
       <div class="cm-launchc__kicker">{{ $t('Mission control') }}</div>
       <div class="cm-launchc__title">{{ $t(campaign ? 'Assemble the campaign' : 'Launch the party') }}</div>
       <div v-if="campaign" class="cm-launchc__note" v-i18n>The roster, rules and expansions freeze for all four missions; the route of four unique boards is generated once.</div>
 
+      <!-- THE MISSION (TR68): the board the party will be played on is the plate's hero — the same miniature a
+           campaign's mission card draws — with the crew and the expansions beside it. -->
+      <div class="cm-launchc__mission">
+        <span class="cm-launchc__board" :style="{'--map-accent': mapAccent}" aria-hidden="true">
+          <premium-map-fingerprint :map-id="campaign ? undefined : mapBoardId" :random="campaign || mapRandom" :accent="mapAccent" variant="card" />
+        </span>
       <div class="cm-launchc__grid">
         <div class="cm-launchc__block">
           <div class="cm-launch__label">{{ $t('Crew') }}</div>
@@ -21,10 +29,8 @@
         </div>
         <div class="cm-launchc__block">
           <div class="cm-launch__label">{{ $t(campaign ? 'Mission route' : 'Map') }}</div>
+          <!-- The board itself is the plate's hero (left); here it is named. -->
           <div class="cm-launch__map">
-            <span class="cm-launch__map-thumb" aria-hidden="true">
-              <premium-map-fingerprint :map-id="campaign ? undefined : mapBoardId" :random="campaign || mapRandom" :accent="mapAccent" variant="card" />
-            </span>
             <span class="cm-launch__map-name">{{ $t(campaign ? '4 unique boards, generated at assembly' : mapLabel) }}</span>
           </div>
         </div>
@@ -35,6 +41,7 @@
           </div>
           <div v-else class="cm-launch__none">{{ $t('Base game only') }}</div>
         </div>
+      </div>
       </div>
 
       <div v-if="error !== ''" class="cm-launch__error">{{ $t(error) }}</div>

@@ -171,9 +171,9 @@ describe('ConsoleCampaignsList', () => {
     const wrapper = await mountList();
     const rows = wrapper.findAll('.cm-camp');
     expect(rows[0].find('.cm-game__name').text()).eq(fresh.name);
-    expect(rows[0].find('.cm-game__turn').exists()).is.false;
+    expect(rows[0].find('.cm-lcard__state--turn').exists()).is.false;
     expect(rows[1].find('.cm-game__name').text()).eq(turn.name);
-    expect(rows[1].find('.cm-game__turn').exists()).is.true;
+    expect(rows[1].find('.cm-lcard__state--turn').exists()).is.true;
   });
 
   it('the age on a row is how long ago the campaign was CREATED — the key the order follows', async () => {
@@ -199,7 +199,7 @@ describe('ConsoleCampaignsList', () => {
     const archived = wrapper.findAll('.cm-camp');
     expect(archived).has.length(1);
     // Abandoned is visually distinct from an ordinary completion.
-    expect(archived[0].find('.cm-camp__state--abandoned').exists()).is.true;
+    expect(archived[0].find('.cm-lcard__state--abandoned').exists()).is.true;
   });
 
   it('X opens the cascade confirm for the creator; B cancels back to the SAME row', async () => {
@@ -307,7 +307,7 @@ describe('ConsoleCampaignsList', () => {
     await flushPromises();
     const row = wrapper.find('.cm-camp');
     expect(row.classes()).contains('cm-game--disabled');
-    expect(row.find('.cm-game__note').exists()).is.true;
+    expect(row.find('.cm-lcard__state--stale').exists()).is.true;
     const vm = wrapper.vm as unknown as {handleIntent(i: GamepadIntent): boolean};
     vm.handleIntent(press('secondary'));
     await flushPromises();

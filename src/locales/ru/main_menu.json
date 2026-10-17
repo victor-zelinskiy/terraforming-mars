@@ -62,5 +62,11 @@
     "Active profile": "Текущий",
     "This name is already used by another profile": "Это имя уже занято другим профилем",
     "You have reached the maximum number of profiles": "Достигнут максимум профилей",
-    "Can't delete your only profile": "Нельзя удалить единственный профиль"
+    "Can't delete your only profile": "Нельзя удалить единственный профиль",
+    "Game finished": "Партия завершена",
+    "Turn: ${0}": "Ход: ${0}",
+    "Game in progress": "Партия идёт",
+    "Refreshing": "Обновление",
+    "Your games are found by your player name — set it in the player profile": "Партии ищутся по имени игрока — укажите его в профиле игрока",
+    "Start one with «New game» in the main menu": "Начните её через «Новая игра» в главном меню"
 }

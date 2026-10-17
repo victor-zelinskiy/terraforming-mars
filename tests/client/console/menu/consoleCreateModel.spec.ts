@@ -74,6 +74,21 @@ describe('consoleCreateModel', () => {
       expect(deckNavStep('expansions', 6, 'up', 7)).to.eq(4);
     });
 
+    it('the WIDE creator (TR68): the crew is a ROW (◀ ▶ walk it, felt edges, ▲ ▼ stay), the rules a two-column grid', () => {
+      const wide = {wide: true};
+      expect(deckNavStep('crew', 0, 'right', 3, wide)).to.eq(1);
+      expect(deckNavStep('crew', 2, 'right', 3, wide)).to.eq(2);
+      expect(deckNavStep('crew', 0, 'left', 3, wide), 'the edge is felt — the deck ring is LB / RB').to.eq(0);
+      expect(deckNavStep('crew', 1, 'down', 3, wide)).to.eq(1);
+      expect(deckNavStep('rules', 0, 'right', 7, wide)).to.eq(1);
+      expect(deckNavStep('rules', 1, 'down', 7, wide)).to.eq(3);
+      expect(deckNavStep('rules', 5, 'down', 7, wide), 'would exit the grid').to.eq(5);
+      expect(deckNavStep('rules', 6, 'up', 7, wide)).to.eq(4);
+      // The Deck keeps its vertical lists.
+      expect(deckNavStep('rules', 0, 'down', 7, {wide: false})).to.eq(1);
+      expect(deckNavStep('crew', 0, 'left', 3, {wide: false})).to.eq(undefined);
+    });
+
     it('steps the map carousel horizontally only', () => {
       expect(deckNavStep('map', 0, 'right', 5)).to.eq(1);
       expect(deckNavStep('map', 4, 'right', 5)).to.eq(4);

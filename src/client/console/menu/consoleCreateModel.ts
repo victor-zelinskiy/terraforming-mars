@@ -120,29 +120,60 @@ export function cycleCreateDeck(current: CreateDeckId, step: 1 | -1): CreateDeck
   return CREATE_DECKS[next].id;
 }
 
-/** Columns of the expansions grid — the only 2D deck. */
+/** Columns of the expansions grid. */
 export const EXPANSIONS_GRID_COLS = 2;
+/** Columns of the rules grid on a WIDE creator (TR68 — the rules stand in two columns of full-height rows). */
+export const RULES_WIDE_GRID_COLS = 2;
+/**
+ * THE WIDE CREATOR (TR68 «СОЗДАТЕЛЬ — БРИФИНГ МИССИИ»): from this viewport width (the logical 1920 layout — FHD and
+ * the 4K TV alike) the crew stands as a ROW of seat cards and the rules in two columns; the Deck (1280×800) keeps its
+ * vertical lists. ONE threshold for the stylesheet (`@media (min-width: 1900px)`) and the cursor's walk.
+ */
+export const CREATE_WIDE_MIN_WIDTH = 1900;
+
+export type DeckNavLayout = {
+  /** The wide creator's layout (`CREATE_WIDE_MIN_WIDTH`): the crew is a row, the rules a two-column grid. */
+  wide?: boolean;
+};
+
+/** A row-major grid of `cols` with felt edges (no wrap): ◀ ▶ within a row, ▲ ▼ a whole row. */
+function gridStep(cursor: number, dir: NavDirection, count: number, cols: number): number {
+  const clamp = (v: number) => Math.min(count - 1, Math.max(0, v));
+  if (dir === 'left') {
+    return cursor % cols === 0 ? cursor : clamp(cursor - 1);
+  }
+  if (dir === 'right') {
+    return cursor % cols === cols - 1 || cursor + 1 >= count ? cursor : clamp(cursor + 1);
+  }
+  const delta = dir === 'up' ? -cols : cols;
+  const next = cursor + delta;
+  return next < 0 || next >= count ? cursor : next;
+}
 
 /**
  * PURE deck-local cursor stepping. Returns the new cursor, or undefined when
  * the direction is not meaningful for this deck (the edge is felt — no wrap).
  */
-export function deckNavStep(deck: CreateDeckId, cursor: number, dir: NavDirection, count: number): number | undefined {
+export function deckNavStep(deck: CreateDeckId, cursor: number, dir: NavDirection, count: number, layout: DeckNavLayout = {}): number | undefined {
   if (count <= 0) {
     return undefined;
   }
   const clamp = (v: number) => Math.min(count - 1, Math.max(0, v));
   if (deck === 'expansions') {
-    const cols = EXPANSIONS_GRID_COLS;
+    return gridStep(cursor, dir, count, EXPANSIONS_GRID_COLS);
+  }
+  if (deck === 'rules' && layout.wide === true) {
+    return gridStep(cursor, dir, count, RULES_WIDE_GRID_COLS);
+  }
+  if (deck === 'crew' && layout.wide === true) {
+    // The seats stand in a ROW: ◀ ▶ walk it (felt edges); ▲ ▼ go nowhere.
     if (dir === 'left') {
-      return cursor % cols === 0 ? cursor : clamp(cursor - 1);
+      return clamp(cursor - 1);
     }
     if (dir === 'right') {
-      return cursor % cols === cols - 1 || cursor + 1 >= count ? cursor : clamp(cursor + 1);
+      return clamp(cursor + 1);
     }
-    const delta = dir === 'up' ? -cols : cols;
-    const next = cursor + delta;
-    return next < 0 || next >= count ? cursor : next;
+    return cursor;
   }
   if (deck === 'map') {
     if (dir === 'left') {

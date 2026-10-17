@@ -1,100 +1,32 @@
 <template>
   <div>
-    <!-- ── My campaigns — one row per campaign (never per mission) ───────── -->
-    <div class="cm-overlay" role="dialog" :aria-label="$t('My campaigns')">
-      <div class="cm-overlay__card cm-overlay__card--wide">
-        <div class="cm-overlay__head">
-          <div class="cm-overlay__title">{{ $t('My campaigns') }}</div>
-          <div class="cm-gametabs" role="tablist" :aria-label="$t('My campaigns')">
-            <button
-              v-for="tab in tabs"
-              :key="tab.id"
-              type="button"
-              class="cm-gametab"
-              :class="{'cm-gametab--on': tab.id === ui.tab}"
-              role="tab"
-              :aria-selected="tab.id === ui.tab"
-              @click="setTab(tab.id)"
-            >
-              <span>{{ $t(tab.label) }}</span>
-              <span v-if="tab.count !== undefined" class="cm-gametab__count">{{ tab.count }}</span>
-            </button>
-            <span class="cm-gametabs__hint" aria-hidden="true"><GamepadGlyph control="stickL" /></span>
-          </div>
-        </div>
-        <!-- The lobby's four answers, never one sentence for all of them:
-             no name yet · still asking · asked and failed · asked and none. -->
-        <div v-if="needName" class="cm-gamelist__empty">{{ $t('Set your player name to see your games') }}</div>
-        <div v-else-if="firstLoad" class="cm-gamelist__empty">{{ $t('Loading') }}…</div>
-        <div v-else-if="loadError" class="cm-gamelist__empty cm-gamelist__empty--error">{{ $t('Could not load your campaigns') }}</div>
-        <div v-else-if="rows.length === 0" class="cm-gamelist__empty">{{ $t(emptyKey) }}</div>
-        <ConsoleScrollArea v-else ref="scroll" class="cm-gamelist-scroll">
-          <div class="cm-gamelist">
-            <button
-              v-for="(r, i) in rows"
-              :key="r.summary.id"
-              type="button"
-              class="cm-game cm-camp"
-              :class="{
-                'cm-game--cursor': i === ui.cursor,
-                'cm-camp--archived': isArchived(r.summary),
-                'cm-game--disabled': r.stale,
-                'cm-game--lan': r.hostLabel !== '',
-              }"
-              @click="openAt(i)"
-              @mousemove="ui.cursor = i"
-            >
-              <div class="cm-game__head">
-                <span class="cm-camp__fp" aria-hidden="true"><PremiumMapFingerprint :mapId="r.summary.currentBoard" variant="thumb" /></span>
-                <span class="cm-game__name">{{ r.summary.name }}</span>
-                <span class="cm-game__campaign">{{ $t('Campaign') }} · {{ progressLabel(r.summary) }}</span>
-                <!-- A LAN campaign names its couch — the same language as game rows. -->
-                <span v-if="r.hostLabel !== ''" class="cm-game__lanhost">{{ r.hostLabel }}</span>
-                <span v-if="r.stale" class="cm-game__note">{{ $t('not responding') }}</span>
-                <span v-else-if="actionRequired(r.summary)" class="cm-game__turn">{{ $t(stateLabel(r.summary)) }}</span>
-                <span
-                  v-else
-                  class="cm-camp__state"
-                  :class="{'cm-camp__state--abandoned': r.summary.state === 'abandoned', 'cm-camp__state--blocked': r.summary.state === 'blocked', 'cm-camp__state--ready': r.summary.state === 'launchReady'}"
-                >{{ $t(stateLabel(r.summary)) }}</span>
-              </div>
-
-              <!-- The route rail: 1/4 → 4/4, done / current / future. -->
-              <div class="cm-camp__rail" aria-hidden="true">
-                <span v-for="(m, k) in slotMarks(r.summary)" :key="k" class="cm-camp__seg" :class="'cm-camp__seg--' + m"></span>
-              </div>
-              <div v-if="r.summary.state === 'blocked' && r.summary.blockedReason !== undefined" class="cm-camp__reason">{{ $t(r.summary.blockedReason) }}</div>
-
-              <div class="cm-game__crew">
-                <span
-                  v-for="s in r.summary.seats"
-                  :key="s.seat"
-                  class="cm-game__player"
-                  :class="{'cm-game__player--you': s.seat === r.summary.you.seat}"
-                >
-                  <span class="cm-game__pcube" :class="'player_bg_color_' + s.color" aria-hidden="true"></span>
-                  <span class="cm-game__pname">{{ s.name }}</span>
-                  <span v-if="isChampion(r.summary, s.seat)" class="cm-camp__crown" aria-hidden="true">♛</span>
-                  <span v-if="s.seat === r.summary.you.seat" class="cm-game__ptag">{{ $t('You') }}</span>
-                </span>
-              </div>
-
-              <div class="cm-game__foot">
-                <span class="cm-game__meta">
-                  <span class="cm-game__age">{{ createdAgo(r.summary) }}</span>
-                  <span class="cm-game__dot" aria-hidden="true">·</span>
-                  <span>{{ boardLabel(r.summary) }}</span>
-                  <template v-if="r.summary.yourTitlePoints > 0">
-                    <span class="cm-game__dot" aria-hidden="true">·</span>
-                    <span class="cm-camp__tp">{{ titlePointsLabel(r.summary) }}</span>
-                  </template>
-                </span>
-              </div>
-            </button>
-          </div>
-        </ConsoleScrollArea>
-      </div>
-    </div>
+    <!-- ── My campaigns — one CARD per campaign (never per mission), on the pregame screen chassis (TR68) ── -->
+    <ConsoleLobbyScreen
+      ref="screen"
+      kind="campaigns"
+      title-key="My campaigns"
+      :tabs="tabs"
+      :tab="ui.tab"
+      :state="screenState"
+      :state-key="stateKey"
+      :state-hint-key="stateHintKey"
+      :refreshing="ui.refreshing"
+      :items="rows.length"
+      @tab="setTab($event)"
+      @grid="cols = $event"
+    >
+      <ConsoleLobbyCard
+        v-for="(r, i) in rows"
+        :key="r.summary.id"
+        :view="cardView(r)"
+        :cursor="i === ui.cursor"
+        :age="createdAgo(r.summary)"
+        :reveal="true"
+        :reveal-delay-ms="140 + i * 60"
+        @activate="openAt(i)"
+        @hover="ui.cursor = i"
+      />
+    </ConsoleLobbyScreen>
 
     <!-- ── Cascade-delete confirm (creator only; stacked over the list) ──── -->
     <div v-if="confirmRow !== undefined" class="cm-overlay cm-overlay--nested" role="alertdialog" :aria-label="$t('Delete this campaign?')">
@@ -126,11 +58,12 @@
 
 <script lang="ts">
 /**
- * «МОИ КАМПАНИИ» — the console-native campaign list (a main-menu overlay
- * panel, the ConsoleProfilesEditor pattern: own markup, `handleIntent` driven
- * by the menu, `@close` back out).
+ * «МОИ КАМПАНИИ» — the console-native campaign list: a pregame SCREEN on the
+ * showcase chassis (`ConsoleLobbyScreen` + `ConsoleLobbyCard`, TR68 —
+ * docs/claude/console/pregame-showcase.md), never a dialog; `handleIntent`
+ * driven by the menu, `@close` back out (the menu plays the fold).
  *
- * One row = ONE campaign (missions never appear as rows here — «Мои партии»
+ * One card = ONE campaign (missions never appear as rows here — «Мои партии»
  * is the per-mission door), across EVERY source: the app's own server plus
  * the LAN hosts the lobby model has verified (a guest sees the campaign they
  * were seated into on another couch, marked with its host's name). A opens
@@ -151,14 +84,13 @@ import {paths} from '@/common/app/paths';
 import {CampaignSummaryModel} from '@/common/campaign/CampaignSummary';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
-import {stepIndex} from '@/client/console/consoleRouter';
-import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
+import ConsoleLobbyScreen, {LobbyScreenState} from '@/client/components/console/menu/ConsoleLobbyScreen.vue';
+import ConsoleLobbyCard from '@/client/components/console/menu/ConsoleLobbyCard.vue';
+import {LobbyCardView, campaignCardView, showcaseStep} from '@/client/console/menu/lobbyCardModel';
 import {identityState} from '@/client/components/mainMenu/identity/identityState';
 import {lobbyState, refreshLobby, setLobbyAgeRows} from '@/client/components/mainMenu/lobbyState';
 import {lobbyAge, lobbyAgeLabel} from '@/client/components/mainMenu/lobbyAge';
-import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {
   campaignsState, refreshCampaigns, startCampaignsWatch, stopCampaignsWatch,
@@ -167,8 +99,7 @@ import {
 import {
   CampaignsTab, CampaignSourceRow, visibleCampaignSourceRows,
   activeCampaignRowCount, completedCampaignRowCount,
-  campaignActionRequired, campaignStateLabelKey, campaignProgress, campaignSlotMarks,
-  isArchivedCampaign, CampaignSlotMark,
+  campaignStateLabelKey, campaignProgress, isArchivedCampaign,
 } from '@/client/console/campaign/campaignListModel';
 import {$t, translateTextWithParams} from '@/client/directives/i18n';
 
@@ -177,13 +108,15 @@ const AGE_CLOCK_CONSUMER = 'campaigns';
 
 export default defineComponent({
   name: 'ConsoleCampaignsList',
-  components: {ConsoleScrollArea, GamepadGlyph, PremiumMapFingerprint},
+  components: {GamepadGlyph, ConsoleLobbyScreen, ConsoleLobbyCard},
   emits: ['close'],
   data() {
     return {
       ui: campaignsState,
       identityState,
       lobbyState,
+      /** The showcase grid's column count (the screen measures it). */
+      cols: 3,
     };
   },
   computed: {
@@ -209,6 +142,35 @@ export default defineComponent({
         {id: 'active', label: 'Active campaigns', count: loaded ? activeCampaignRowCount(this.ui.rows) : undefined},
         {id: 'completed', label: 'Completed campaigns', count: loaded ? completedCampaignRowCount(this.ui.rows) : undefined},
       ];
+    },
+    /** The lobby's four honest answers on the stage (no name · still asking · failed · none). */
+    screenState(): LobbyScreenState {
+      if (this.needName) {
+        return 'need-name';
+      }
+      if (this.firstLoad) {
+        return 'loading';
+      }
+      if (this.loadError) {
+        return 'error';
+      }
+      return this.rows.length === 0 ? 'empty' : 'list';
+    },
+    stateKey(): string {
+      switch (this.screenState) {
+      case 'need-name': return 'Set your player name to see your games';
+      case 'loading': return 'Loading';
+      case 'error': return 'Could not load your campaigns';
+      case 'empty': return this.emptyKey;
+      default: return '';
+      }
+    },
+    stateHintKey(): string {
+      switch (this.screenState) {
+      case 'need-name': return 'Your games are found by your player name — set it in the player profile';
+      case 'error': return 'Refresh';
+      default: return '';
+      }
     },
     emptyKey(): string {
       return this.ui.tab === 'completed' ?
@@ -289,8 +251,9 @@ export default defineComponent({
         }
         return true;
       }
-      if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
-        this.ui.cursor = stepIndex(this.ui.cursor, intent.dir === 'down' ? 1 : -1, Math.max(1, this.rows.length));
+      if (intent.kind === 'nav') {
+        // The showcase is a GRID: ◀ ▶ walk the ring, ▲ ▼ a row (`showcaseStep`).
+        this.ui.cursor = showcaseStep(this.ui.cursor, intent.dir, Math.max(1, this.rows.length), this.cols);
         this.keepCursorVisible();
         return true;
       }
@@ -324,9 +287,13 @@ export default defineComponent({
     },
     keepCursorVisible(): void {
       void this.$nextTick(() => {
-        const scroll = this.$refs.scroll as {ensureVisible?: (el: Element | null) => void} | undefined;
-        scroll?.ensureVisible?.(this.$el.querySelector('.cm-game--cursor'));
+        const screen = this.$refs.screen as {ensureVisible?: (el: Element | null) => void} | undefined;
+        screen?.ensureVisible?.(this.$el.querySelector('.cm-game--cursor'));
       });
+    },
+    /** One campaign as a card (the pure model). */
+    cardView(r: CampaignSourceRow): LobbyCardView {
+      return campaignCardView(r);
     },
     setTab(tab: CampaignsTab): void {
       if (this.ui.tab === tab) {
@@ -380,12 +347,9 @@ export default defineComponent({
         this.keepCursorVisible();
       });
     },
-    // ---- row presentation --------------------------------------------------
+    // ---- the confirm's presentation (the card reads `lobbyCardModel`) -------
     isArchived(c: CampaignSummaryModel): boolean {
       return isArchivedCampaign(c);
-    },
-    actionRequired(c: CampaignSummaryModel): boolean {
-      return campaignActionRequired(c);
     },
     stateLabel(c: CampaignSummaryModel): string {
       return campaignStateLabelKey(c);
@@ -394,22 +358,10 @@ export default defineComponent({
       const p = campaignProgress(c);
       return p.params.length > 0 ? translateTextWithParams(p.key, p.params) : $t(p.key);
     },
-    slotMarks(c: CampaignSummaryModel): ReadonlyArray<CampaignSlotMark> {
-      return campaignSlotMarks(c);
-    },
-    isChampion(c: CampaignSummaryModel, seat: number): boolean {
-      return c.championSeats?.includes(seat) === true;
-    },
-    boardLabel(c: CampaignSummaryModel): string {
-      return $t(mapLabelKey(c.currentBoard));
-    },
     /** How long ago the campaign was CREATED — the very key the rows are sorted
      *  by, so the order reads off the labels. The lobby's ONE shared clock. */
     createdAgo(c: CampaignSummaryModel): string {
       return lobbyAgeLabel(lobbyAge(c.createdTimeMs, this.lobbyState.nowMs));
-    },
-    titlePointsLabel(c: CampaignSummaryModel): string {
-      return translateTextWithParams('Title Points: ${0}', [String(c.yourTitlePoints)]);
     },
     missionGamesLine(c: CampaignSummaryModel): string {
       return translateTextWithParams('Mission games to delete: ${0}.', [String(c.missionGamesCount)]);

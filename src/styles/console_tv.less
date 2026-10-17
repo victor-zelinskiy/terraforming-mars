@@ -2003,15 +2003,97 @@ html.con-profile-tv {
     .con-played__caption-count { font-size: var(--con-t-caption); }
 }
 
-/* ═══ 23 · PRE-GAME (console-native .cm-* menu / create) ══════════ */
+/* ═══ 23 · PRE-GAME (console-native .cm-* menu / lobby / create) ══════
+   TR68 «ПРЕДИГРОВОЕ — ЭТО ВИТРИНА»: the WHOLE pregame family stands on the
+   couch floor — every text ≥ --con-t-floor (.8rem = 32 px at 4K), the
+   secondary voice --con-t-secondary, the titles the TV ladder. The showcase
+   (lobby / campaigns) and the wide creator are authored ≥ .8rem already;
+   this block lifts the remaining service text (the menu's chrome, the field
+   editors, the keyboard, the dossier's small print, the profiles / friends /
+   rollback / dev surfaces — only their floor, no relayout). The Deck stays
+   the base contract; the e2e walk `console-pregame-showcase` (F) holds
+   «below the floor = 0» on every pregame screen. */
 html.con-profile-tv {
     .cm-item { min-height: var(--con-hit-min); }
     .cm-item__label { font-size: 1.35rem; }
     .cm-item__sub { font-size: 0.95rem; }
+    .cm-item__badge { font-size: var(--con-t-secondary); min-width: 1.8rem; }
     .cm-row__name { font-size: 1.15rem; }
     .cm-row__value { font-size: 1.15rem; }
     .cm-menu__items { width: min(36rem, 44vw); }
     .cm-hint, .cm-menu__hint { font-size: var(--con-t-secondary); }
+    /* The menu's chrome. */
+    .cm-menu__brand-badge,
+    .cm-identity__kicker,
+    .cm-menu__foot,
+    .cm-lang__current-tag { font-size: var(--con-t-floor); }
+    .cm-identity__name { font-size: var(--con-t-secondary); }
+    /* The dialogs and the field editors (participant · profile · friends · profiles). */
+    .cm-overlay__body,
+    .cm-overlay__foot-hint,
+    .cm-field__label,
+    .cm-field__hint,
+    .cm-field__issue,
+    .cm-profile__active,
+    .cm-editor__note { font-size: var(--con-t-floor); }
+    .cm-field { min-height: var(--con-hit-min); }
+    .cm-gametab,
+    .cm-gametab__count { font-size: var(--con-t-floor); }
+    /* The creator's service text (the wide block sets the reading sizes; these are its floor). */
+    .cm-create__kicker,
+    .cm-row__sub,
+    .cm-row__tag,
+    .cm-toggle__state,
+    .cm-exp__issue,
+    .cm-exp__state,
+    .cm-map__current,
+    .cm-maps__detail-desc,
+    .cm-launch__label,
+    .cm-launch__rule,
+    .cm-launch__restored,
+    .cm-chip,
+    .cm-launch__none,
+    .cm-launch__status,
+    .cm-launch__status-glyph,
+    .cm-issues__row,
+    .cm-launch__error,
+    .cm-launchc__kicker,
+    .cm-type__desc,
+    .cm-type__note,
+    .cm-type__warn,
+    .cm-type__blocked { font-size: var(--con-t-floor); }
+    .cm-launch__rule::before { font-size: var(--con-t-floor); }
+    /* The on-screen keyboard's own lines (the keys themselves are 2.8rem caps). */
+    .cm-vk-panel__lang,
+    .cm-vk-field__count,
+    .cm-vk-field__issue,
+    .cm-vk-panel__hints,
+    .cm-vk-panel__hint { font-size: var(--con-t-floor); }
+    /* The campaign map (the showcase's reference — its small print only). */
+    .cmap__blocked,
+    .cmap__seat-you,
+    .cmap__seat-corp-ord,
+    .cmap__rail-note,
+    .cmap__seat-status,
+    .con-carry__unavail { font-size: var(--con-t-floor); }
+    /* Profiles / friends / rollback / the dev surfaces — the floor only, no relayout. */
+    .cm-admin__scope,
+    .cm-admin__gen-pill,
+    .cm-admin__phase,
+    .cm-admin__detailnow,
+    .cm-admin__section-label,
+    .cm-admin__saveinfo,
+    .cm-devcards__devtag,
+    .cm-rule__devtag,
+    .cm-devcards__lede,
+    .cm-devcards__group,
+    .cm-drow__type,
+    .cm-drow__off,
+    .cm-drow__count,
+    .cm-pg__sub,
+    .cm-stand__kicker,
+    .cm-stand__foot,
+    .cm-stand__section { font-size: var(--con-t-floor); }
     /* The settings rows are NOT a menu overlay any more — they ride the shared
        system surface, calibrated once in §17 (`.con-set`). */
 }

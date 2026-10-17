@@ -220,8 +220,9 @@ test.describe('my campaigns list', () => {
     expect(model.ok()).toBeTruthy();
   });
 
-  // Fit sweep: FHD / TV 4K / Steam Deck — the list stays inside its card and
-  // the document never grows a horizontal overflow (a geometry claim asserted
+  // Fit sweep: FHD / TV 4K / Steam Deck — the card stays inside the showcase's
+  // stage (TR68: the list is a SCREEN, never a dialog) and the document never
+  // grows a horizontal overflow (a geometry claim asserted
   // at ONE resolution is a claim about one resolution).
   for (const vp of [
     {label: 'fhd', width: 1920, height: 1080},
@@ -238,7 +239,8 @@ test.describe('my campaigns list', () => {
         document.documentElement.scrollWidth - document.documentElement.clientWidth);
       expect(overflowX, `horizontal overflow at ${vp.label}`).toBeLessThanOrEqual(1);
       const rowBox = (await row.boundingBox())!;
-      const cardBox = (await page.locator('.cm-overlay__card').first().boundingBox())!;
+      expect(await page.locator('.cm-overlay').count(), 'the list is a screen, not a dialog').toBe(0);
+      const cardBox = (await page.locator('.cm-screen__stage').first().boundingBox())!;
       expect(rowBox.x).toBeGreaterThanOrEqual(cardBox.x - 1);
       expect(rowBox.x + rowBox.width).toBeLessThanOrEqual(cardBox.x + cardBox.width + 1);
     });

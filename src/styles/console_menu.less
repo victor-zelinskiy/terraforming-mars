@@ -404,7 +404,22 @@
     cursor: pointer;
 
     &--danger { box-shadow: inset 0 0 0 .05rem fade(@con-red, 70%); color: mix(#ffffff, @con-red, 55%); }
-    &--launch { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 70%); color: mix(#ffffff, @con-mint, 55%); }
+    &--launch {
+        position: relative;
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 70%);
+        color: mix(#ffffff, @con-mint, 55%);
+        /* THE BREATH — the one ambient loop of the plate: an opacity layer (compositor-only), stopped by reduced motion. */
+        &::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            box-shadow: inset 0 0 0 .08rem fade(@con-mint, 85%), 0 0 1.3rem fade(@con-mint, 40%);
+            opacity: 0;
+            pointer-events: none;
+            animation: cm-launch-breathe calc(2400ms * var(--motion-scale, 1)) ease-in-out infinite;
+        }
+    }
 }
 
 /* ── Game list (My games) ────────────────────────────────────────── */
@@ -652,6 +667,602 @@
     font-size: .6rem;
     color: @con-text-dim;
     letter-spacing: .02rem;
+}
+
+/* ═══ THE PREGAME SHOWCASE (TR68 «ПРЕДИГРОВОЕ — ЭТО ВИТРИНА») ═══════════
+   «Мои партии» / «Мои кампании» are SCREENS on the campaign map's grammar —
+   head (the stable context «Главное меню», the title, the slice segment, the
+   status) · the stage in the whole opening (a grid of CARDS) · the command
+   bar — never a confirm dialog. Contract: docs/claude/console/pregame-showcase.md.
+   Every text here is ≥ .8rem (the TV floor at 4K is .8rem of a 40px rem); the
+   Deck compacts in its own block. Motion: transform / opacity only (the
+   phrase itself is `console/menu/lobbyScreenMotion.ts`). */
+
+/* The menu's stage: the item column and the screens that unfold out of it. */
+.cm-menu__stage {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+/* THE RECEDE — the column steps back (opacity + a step left; the brand stays),
+   the foot with it; the opening deepens under the screen by an overlay's
+   opacity (a background swap would change in one frame). */
+.cm-menu__items,
+.cm-menu__foot {
+    transition:
+        opacity calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+        transform calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.cm-menu--screen .cm-menu__items {
+    opacity: 0;
+    transform: translateX(-2.4rem);
+    pointer-events: none;
+}
+.cm-menu--screen .cm-menu__foot { opacity: 0; }
+.cm-menu__vignette::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(130% 100% at 50% 42%, rgba(3, 6, 11, 0.42) 0%, rgba(3, 6, 11, 0.84) 100%);
+    opacity: 0;
+    transition: opacity calc(320ms * var(--motion-scale, 1)) ease;
+}
+.cm-menu--screen .cm-menu__vignette::after { opacity: 1; }
+
+/* ── The screen chassis ─────────────────────────────────────────────── */
+.cm-screen {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    gap: .9rem;
+    padding: 1rem 1.4rem 1.2rem;
+}
+/* THE PLATE — the one surface the screen unfolds out of the pressed item
+   (a FLIP of its transform; it carries no text, so the scale never touches a
+   letter). Opaque enough to be a surface, the menu's art still breathing
+   at its edges. */
+.cm-screen__plate {
+    position: absolute;
+    inset: 0;
+    border-radius: 1rem;
+    transform-origin: 0 0;
+    background:
+        radial-gradient(120% 70% at 50% 0%, rgba(120, 170, 220, 0.06), transparent 60%),
+        linear-gradient(180deg, rgba(12, 20, 31, 0.78) 0%, rgba(6, 11, 18, 0.88) 100%);
+    box-shadow:
+        inset 0 0 0 .05rem fade(@cm-gold, 24%),
+        inset 0 .1rem 0 rgba(255, 255, 255, 0.04),
+        0 1.4rem 3.4rem rgba(0, 0, 0, 0.5);
+    pointer-events: none;
+}
+.cm-screen__corner {
+    position: absolute;
+    width: 1.2rem;
+    height: 1.2rem;
+    border-color: fade(@cm-gold, 78%);
+    border-style: solid;
+    &--tl { top: -.05rem; left: -.05rem; border-width: .12rem 0 0 .12rem; border-top-left-radius: 1rem; }
+    &--tr { top: -.05rem; right: -.05rem; border-width: .12rem .12rem 0 0; border-top-right-radius: 1rem; }
+}
+.cm-screen__head {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 1.4rem;
+    min-height: 2.6rem;
+    padding: 0 .4rem;
+}
+.cm-screen__crumb {
+    display: flex;
+    align-items: baseline;
+    gap: .75rem;
+    min-width: 0;
+}
+.cm-screen__kicker {
+    font-size: .85rem;
+    letter-spacing: .3em;
+    text-transform: uppercase;
+    color: #8fa2b8;
+    white-space: nowrap;
+}
+.cm-screen__sep {
+    font-size: 1.1rem;
+    color: fade(@cm-gold, 65%);
+}
+.cm-screen__title {
+    font-size: 1.7rem;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #f2e9d8;
+    white-space: nowrap;
+}
+.cm-screen__tabs {
+    margin-left: auto;
+    gap: .5rem;
+}
+.cm-screen .cm-gametab {
+    gap: .5rem;
+    min-height: 2.1rem;
+    padding: .3rem 1rem;
+    font-size: .85rem;
+}
+.cm-screen .cm-gametab__count {
+    min-width: 1rem;
+    font-size: .85rem;
+    text-align: center;
+    &--pending { opacity: .55; }
+}
+/* The status names a refresh in flight; at rest it holds its place (no shift). */
+.cm-screen__status {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    min-width: 9rem;
+    font-size: .85rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: fade(@con-cyan, 85%);
+    opacity: 0;
+    transition: opacity calc(220ms * var(--motion-scale, 1)) ease;
+
+    &--busy { opacity: 1; }
+}
+.cm-screen__status-dot {
+    width: .5rem;
+    height: .5rem;
+    border-radius: 50%;
+    background: @con-cyan;
+    .cm-screen__status--busy & { animation: cm-pulse calc(1100ms * var(--motion-scale, 1)) ease-in-out infinite; }
+}
+.cm-screen__stage {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .7rem;
+}
+
+/* ── The band over the cards (LAN hosts · the archive's note) ──────── */
+.cm-lobby__band {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .55rem .8rem;
+    padding: 0 .5rem;
+    font-size: .9rem;
+    color: @con-text-dim;
+
+    &--note { color: #a8b8cc; }
+
+    .cm-gamelist__lanhead {
+        margin: 0;
+        font-size: .85rem;
+    }
+    .cm-gamelist__lanwho { font-size: .85rem; }
+    .cm-gamelist__lanstatus {
+        margin: 0;
+        padding: .3rem .8rem;
+        border-radius: 49.95rem;
+        font-size: .85rem;
+    }
+}
+
+/* ── The grid of cards ───────────────────────────────────────────────── */
+.cm-lobby__scroll {
+    flex: 1;
+    min-height: 0;
+    /* The grid IS the scroll content (content-class) and grows to at least the viewport, so a short list centres. */
+    .con-fill-scroll();
+}
+/* Solved from the MEASURED stage (`showcaseGrid` in lobbyCardModel.ts): the
+   screen writes the column count, the card's width and the row's height. Two
+   rows fill the stage; a short list stands centred (a showcase, not a column). */
+.cm-lobby__grid {
+    display: grid;
+    grid-template-columns: repeat(var(--cm-lobby-cols, 3), var(--cm-lobby-card-w, minmax(0, 1fr)));
+    grid-auto-rows: var(--cm-lobby-row-h, 17rem);
+    gap: 1.2rem;
+    justify-content: center;
+    align-content: center;
+    padding: .7rem .5rem;
+    box-sizing: border-box;
+}
+
+/* ── THE CARD ──────────────────────────────────────────────────────────
+   Scoped under `.cm-lobby` (two classes) — the card keeps the lobby's
+   `.cm-game*` hooks, whose old row rules are one class strong. */
+.cm-lobby .cm-lcard {
+    position: relative;
+    display: grid;
+    grid-template-columns: min(42%, calc(var(--cm-lobby-row-h, 17rem) - 1.8rem)) minmax(0, 1fr);
+    gap: 1.15rem;
+    align-items: stretch;
+    min-width: 0;
+    height: 100%;
+    box-sizing: border-box;
+    padding: .9rem 1.15rem .9rem .9rem;
+    border: 0;
+    border-radius: .9rem;
+    background: linear-gradient(162deg, rgba(22, 34, 50, 0.94) 0%, rgba(9, 15, 24, 0.95) 100%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 18%), 0 .5rem 1.6rem rgba(0, 0, 0, 0.42);
+    color: @con-text;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    opacity: 1;
+    isolation: isolate;
+    /* THE CURSOR — a lift and a ring LAYER on the cursor's clock (TR58 `.con-cursor()`), the language of the
+       campaign map's mission card: the card rises a hair and glows cold; nothing else on the stage moves. */
+    .con-cursor(
+        @shadow: inset 0 0 0 var(--con-focus-ring, .1rem) fade(@con-cyan, 90%), 0 0 var(--con-glow-r, 1.1rem) fade(@con-cyan, 34%), 0 .9rem 2.2rem rgba(0, 0, 0, 0.5);
+        @radius: .9rem;
+        @transform: ~"translateY(calc(-.3rem * var(--con-cursor-on))) scale(calc(1 + .022 * var(--con-cursor-on)))";
+        @z: 2;
+    );
+}
+.cm-lobby .cm-lcard--cursor { .con-cursor-on(); }
+
+.cm-lcard__map {
+    position: relative;
+    display: block;
+    min-width: 0;
+    min-height: 0;
+    padding: .55rem;
+    border-radius: .65rem;
+    background: radial-gradient(90% 90% at 50% 45%, rgba(var(--map-accent), 0.13) 0%, rgba(4, 8, 14, 0.6) 72%);
+    box-shadow: inset 0 0 0 .05rem rgba(var(--map-accent), 0.3);
+    overflow: hidden;
+    pointer-events: none;
+    transition: opacity calc(220ms * var(--motion-scale, 1)) ease;
+}
+.cm-lcard__body {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+.cm-lobby .cm-lcard__kicker {
+    padding: 0;
+    border: 0;
+    font-size: .8rem;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: fade(@cm-gold, 88%);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* THE HERO VOICE — the name wraps rather than cuts (two lines; the ellipsis is
+   the last resort of a name longer than both). */
+.cm-lobby .cm-lcard__name {
+    flex: 0 0 auto;
+    font-size: 1.45rem;
+    line-height: 1.14;
+    letter-spacing: .02em;
+    color: #f5eddf;
+    white-space: normal;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow-wrap: anywhere;
+}
+.cm-lcard__chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .4rem;
+}
+/* THE STATE CHIP — its words carry the state; the MARK's shape doubles it (a
+   diamond to act, a ring to wait, a triangle for a refusal…) — never colour alone. */
+.cm-lcard__state {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    max-width: 100%;
+    padding: .28rem .8rem .28rem .6rem;
+    border-radius: 49.95rem;
+    background: rgba(140, 170, 200, 0.1);
+    box-shadow: inset 0 0 0 .05rem rgba(170, 195, 220, 0.3);
+    color: #c9d7e6;
+    font-size: .85rem;
+    line-height: 1.2;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    /* The state's words are never cut while the card has room — a long state («Миссия готова к запуску») wraps. */
+    white-space: normal;
+    border-radius: .7rem;
+
+    &--turn {
+        background: fade(@con-mint, 16%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 65%), 0 0 .9rem fade(@con-mint, 22%);
+        color: mix(#ffffff, @con-mint, 42%);
+    }
+    &--ready {
+        background: fade(@cm-gold, 14%);
+        box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 60%);
+        color: mix(#ffffff, @cm-gold, 40%);
+    }
+    &--note,
+    &--stale {
+        background: fade(@con-amber, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 50%);
+        color: mix(#ffffff, @con-amber, 35%);
+    }
+    &--blocked {
+        background: fade(@con-red, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-red, 55%);
+        color: mix(#ffffff, @con-red, 50%);
+    }
+    &--done {
+        background: rgba(150, 160, 175, 0.1);
+        color: #a7b3c2;
+    }
+    &--abandoned {
+        background: rgba(170, 120, 120, 0.1);
+        box-shadow: inset 0 0 0 .05rem rgba(200, 150, 150, 0.32);
+        color: #c9a0a0;
+    }
+}
+.cm-lcard__state-mark {
+    flex: 0 0 auto;
+    width: .55rem;
+    height: .55rem;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 .12rem currentColor;
+
+    .cm-lcard__state--turn &,
+    .cm-lcard__state--ready & { border-radius: .08rem; transform: rotate(45deg); background: currentColor; }
+    .cm-lcard__state--note &,
+    .cm-lcard__state--stale &,
+    .cm-lcard__state--blocked & { border-radius: 0; box-shadow: none; background: currentColor; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
+    .cm-lcard__state--done & { border-radius: .1rem; background: currentColor; }
+    .cm-lcard__state--abandoned & { border-radius: 0; box-shadow: none; background: currentColor; height: .16rem; }
+}
+.cm-lobby .cm-lcard__new,
+.cm-lobby .cm-lcard__host {
+    font-size: .8rem;
+    padding: .24rem .7rem;
+}
+.cm-lobby .cm-lcard__host { max-width: 13rem; }
+.cm-lcard__note {
+    font-size: .85rem;
+    line-height: 1.3;
+    color: mix(#ffffff, @con-amber, 35%);
+}
+/* THE ROUTE — one node per mission (the campaign map's lane, in small). */
+.cm-lobby .cm-lcard__route {
+    display: flex;
+    gap: .35rem;
+    margin: 0;
+}
+.cm-lobby .cm-lcard__node {
+    flex: 1 1 0;
+    height: 1.55rem;
+    display: grid;
+    place-items: center;
+    border-radius: .35rem;
+    background: rgba(120, 140, 160, 0.12);
+    box-shadow: inset 0 0 0 .05rem rgba(150, 175, 200, 0.22);
+    color: #8fa2b8;
+
+    &--done {
+        background: fade(@cm-gold, 22%);
+        box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 70%);
+        color: mix(#ffffff, @cm-gold, 45%);
+    }
+    &--current {
+        background: fade(@con-cyan, 20%);
+        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 85%), 0 0 .8rem fade(@con-cyan, 30%);
+        color: #ffffff;
+    }
+}
+.cm-lcard__node-num {
+    font-size: .8rem;
+    letter-spacing: .04em;
+}
+.cm-lcard__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .2rem .5rem;
+    font-size: .9rem;
+    color: #a9b9cb;
+}
+.cm-lcard__gen { color: #d5e0ec; }
+.cm-lcard__dot { opacity: .6; }
+.cm-lcard__tp { color: #ecd39a; }
+.cm-lobby .cm-lcard__crew {
+    gap: .35rem;
+    min-height: 0;
+    overflow: hidden;
+}
+.cm-lobby .cm-lcard__member {
+    gap: .4rem;
+    padding: .22rem .65rem .22rem .45rem;
+    font-size: .85rem;
+}
+.cm-lobby .cm-lcard__cube {
+    width: .8rem;
+    height: .8rem;
+}
+.cm-lobby .cm-lcard__pname { max-width: 9.5rem; }
+.cm-lobby .cm-lcard__you { font-size: .8rem; }
+.cm-lcard__crown { color: #ecd39a; font-size: .85rem; line-height: 1; }
+.cm-lcard__foot {
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .6rem;
+}
+.cm-lobby .cm-lcard__age { font-size: .85rem; }
+.cm-lobby .cm-lcard__exp {
+    gap: .35rem;
+
+    img {
+        width: 1.45rem;
+        height: 1.45rem;
+    }
+}
+.cm-lobby .cm-lcard__exp-more { font-size: .8rem; }
+
+/* A card that refuses entry is DIMMED with its reason, never hidden — and never
+   by a whole-element opacity (the chip carries the reason at full voice). */
+.cm-lobby .cm-lcard--refused {
+    opacity: 1;
+    cursor: default;
+    .cm-lcard__map,
+    .cm-lcard__name,
+    .cm-lcard__meta,
+    .cm-lcard__crew { opacity: .55; }
+}
+.cm-lobby .cm-lcard--archived .cm-lcard__map { opacity: .72; }
+
+/* «＋ Добавить хост по адресу» — a TOOL, quieter than any real party: a dashed
+   outline, last in the cursor ring. */
+.cm-lobby .cm-lcard--add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.1rem;
+    background: rgba(10, 17, 26, 0.45);
+    box-shadow: inset 0 0 0 .08rem fade(@con-cyan, 26%);
+    border: .1rem dashed fade(@con-cyan, 30%);
+    padding: 1rem 1.4rem;
+}
+.cm-lcard__add-plus {
+    font-size: 2.4rem;
+    line-height: 1;
+    color: @cm-gold;
+}
+.cm-lcard__add-text {
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+    min-width: 0;
+}
+.cm-lcard__add-hint {
+    font-size: .85rem;
+    line-height: 1.3;
+    color: @con-text-dim;
+}
+/* A statement standing in a card's place (no rows, the tool beside it). */
+.cm-lobby .cm-lcard--statement {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .8rem;
+    padding: 1rem 1.4rem;
+    text-align: center;
+    font-size: 1rem;
+    color: @con-text-dim;
+    background: rgba(8, 13, 20, 0.4);
+    box-shadow: inset 0 0 0 .05rem rgba(170, 195, 220, 0.14);
+    cursor: default;
+}
+.cm-lcard__statement-glyph {
+    font-size: 2rem;
+    color: fade(@con-cyan, 70%);
+}
+
+/* ── THE FOUR HONEST STATES on the stage ─────────────────────────────── */
+.cm-lobby__state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.1rem;
+    padding: 2rem;
+    text-align: center;
+}
+.cm-lobby__state-glyph {
+    width: 5.6rem;
+    height: 5.6rem;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    font-size: 2.4rem;
+    color: fade(@con-cyan, 92%);
+    background: radial-gradient(circle, fade(@con-cyan, 14%) 0%, transparent 72%);
+    box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 42%);
+
+    .cm-lobby__state--error & {
+        color: mix(#ffffff, @con-amber, 30%);
+        background: radial-gradient(circle, fade(@con-amber, 16%) 0%, transparent 72%);
+        box-shadow: inset 0 0 0 .1rem fade(@con-amber, 50%);
+    }
+}
+.cm-lobby__state .cm-lobby__state-title {
+    padding: 0;
+    max-width: 40rem;
+    font-size: 1.4rem;
+    line-height: 1.3;
+    color: #e8eef5;
+}
+.cm-lobby__state-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    max-width: 40rem;
+    font-size: .95rem;
+    line-height: 1.4;
+    color: @con-text-dim;
+}
+.cm-lobby__spinner {
+    width: 2.4rem;
+    height: 2.4rem;
+    border-radius: 50%;
+    border: .22rem solid fade(@con-cyan, 22%);
+    border-top-color: @con-cyan;
+    animation: cm-spin calc(900ms * var(--motion-scale, 1)) linear infinite;
+}
+
+/* ── The Deck (1280×800, the handheld profile): the same composition, compact ── */
+html.con-profile-handheld {
+    .cm-screen { gap: .5rem; padding: .6rem .8rem .7rem; }
+    .cm-screen__head { gap: .8rem; min-height: 2rem; }
+    .cm-screen__kicker { font-size: .65rem; }
+    .cm-screen__title { font-size: 1.2rem; }
+    .cm-screen .cm-gametab { min-height: 1.6rem; padding: .2rem .7rem; font-size: .7rem; }
+    .cm-screen .cm-gametab__count { font-size: .7rem; }
+    .cm-screen__status { min-width: 6rem; font-size: .7rem; }
+    .cm-lobby__band { font-size: .75rem; }
+    .cm-lobby__grid { gap: .8rem; padding: .4rem .3rem; }
+    .cm-lobby .cm-lcard { gap: .7rem; padding: .6rem .75rem .6rem .6rem; }
+    .cm-lcard__body { gap: .3rem; }
+    .cm-lobby .cm-lcard__kicker { font-size: .62rem; }
+    .cm-lobby .cm-lcard__name { font-size: 1.05rem; }
+    .cm-lcard__state { padding: .16rem .6rem .16rem .45rem; font-size: .66rem; }
+    .cm-lobby .cm-lcard__new,
+    .cm-lobby .cm-lcard__host { font-size: .62rem; padding: .14rem .5rem; }
+    .cm-lcard__meta,
+    .cm-lcard__note { font-size: .7rem; }
+    .cm-lobby .cm-lcard__member { font-size: .68rem; padding: .14rem .5rem .14rem .35rem; }
+    .cm-lobby .cm-lcard__you { font-size: .58rem; }
+    .cm-lobby .cm-lcard__age { font-size: .68rem; }
+    .cm-lobby .cm-lcard__exp img { width: 1.1rem; height: 1.1rem; }
+    .cm-lobby .cm-lcard__node { height: 1.15rem; }
+    .cm-lcard__node-num { font-size: .62rem; }
+    .cm-lobby__state-glyph { width: 4rem; height: 4rem; font-size: 1.7rem; }
+    .cm-lobby__state .cm-lobby__state-title { font-size: 1.05rem; }
+    .cm-lobby__state-hint { font-size: .75rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cm-menu__items,
+    .cm-menu__foot { transition: opacity calc(140ms * var(--motion-scale, 1)) linear; }
+    .cm-menu--screen .cm-menu__items { transform: none; }
+    .cm-screen__status--busy .cm-screen__status-dot { animation: none; }
 }
 
 /* ── Field rows (profile / participant editors) ──────────────────── */
@@ -1164,6 +1775,8 @@
     white-space: normal;
     line-height: 1.2;
 }
+/* What the expansion adds (TR68): read on the wide creator, out of the Deck's one-line tile. */
+.cm-exp__desc { display: none; }
 .cm-exp__state {
     padding: .2rem .6rem;
     border-radius: 49.95rem;
@@ -1500,6 +2113,25 @@
     color: @cm-gold;
     text-shadow: 0 0 1.1rem fade(@cm-gold, 35%);
 }
+/* THE MISSION — the board the party will be played on, as the plate's hero (TR68). */
+.cm-launchc__mission {
+    display: grid;
+    grid-template-columns: 7rem minmax(0, 1fr);
+    gap: .9rem;
+    align-items: center;
+}
+.cm-launchc__board {
+    display: block;
+    aspect-ratio: 1;
+    padding: .5rem;
+    border-radius: .7rem;
+    background: radial-gradient(90% 90% at 50% 45%, rgba(var(--map-accent, 240, 168, 80), 0.16) 0%, rgba(4, 8, 14, 0.6) 72%);
+    box-shadow: inset 0 0 0 .05rem rgba(var(--map-accent, 240, 168, 80), 0.36), 0 .6rem 1.6rem rgba(0, 0, 0, 0.45);
+}
+.cm-overlay__card--launch {
+    position: relative;
+    box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 38%), 0 1.2rem 3rem rgba(0, 0, 0, 0.6);
+}
 .cm-launchc__grid {
     display: flex;
     flex-direction: column;
@@ -1598,23 +2230,216 @@
     0%, 100% { box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 85%), 0 0 .9rem fade(@cm-gold, 22%); }
     50% { box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 95%), 0 0 1.5rem fade(@cm-gold, 42%); }
 }
+@keyframes cm-launch-breathe {
+    0%, 100% { opacity: 0; }
+    50% { opacity: 1; }
+}
 @keyframes cm-spin {
     to { transform: rotate(360deg); }
 }
 
-/* ── Large screens (TV) — gentle boost only ──────────────────────── */
+/* ── THE WIDE CREATOR (TR68 «СОЗДАТЕЛЬ — БРИФИНГ МИССИИ») ─────────────
+   From the logical 1920 layout up (FHD and the 4K TV alike — ONE threshold
+   with the cursor's walk, `CREATE_WIDE_MIN_WIDTH`) the decks FILL the
+   opening instead of standing as a column of rows over the art: the crew is
+   a ROW of seat cards, the rules two columns of full-height rows, the
+   expansions tiles with their emblem and their description, the maps
+   board cards of a mission card's size, the briefing a dossier. The Deck
+   (1280×800, the base above) is untouched — every deck still fits it
+   without a scroll. */
 @media (min-width: 1900px) {
-    .cm-menu__items { width: 32rem; }
-    .cm-item__label { font-size: 1.35rem; }
-    .cm-launch { width: 20rem; }
-    .cm-row { min-height: 3.4rem; }
-    .cm-row__name { font-size: 1.1rem; }
+    .cm-create { padding: .9rem 1.2rem .7rem; gap: .8rem; }
+    .cm-create__head { gap: 1.4rem; padding: .2rem .4rem; }
+    .cm-create__kicker { font-size: .9rem; letter-spacing: .28em; }
+    .cm-tabs { gap: .6rem; }
+    .cm-tabs__tab { padding: .5rem 1.2rem; font-size: .95rem; }
+    .cm-create__identity-name { font-size: .95rem; }
+    .cm-create__main { gap: 1.2rem; }
+    .cm-deckbody { gap: 1rem; padding: .6rem .5rem; }
+
+    /* THE CREW — a row of seat cards (2–5 seats + the dashed «add» card) in the middle of the opening. */
+    .cm-crew {
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        gap: 1.4rem;
+    }
+    .cm-crew .cm-row {
+        position: relative;
+        flex: 0 1 15.5rem;
+        min-width: 10rem;
+        /* One height for every seat (a card's content never decides its size): about half the opening. */
+        height: 25rem;
+        max-height: 100%;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .9rem;
+        padding: 1.6rem 1rem 1.2rem;
+        border-radius: .9rem;
+        text-align: center;
+        background: linear-gradient(170deg, rgba(22, 34, 50, 0.9) 0%, rgba(9, 15, 24, 0.92) 100%);
+    }
+    .cm-crew .cm-row__num {
+        position: absolute;
+        top: .7rem;
+        left: .8rem;
+        width: auto;
+        font-size: .9rem;
+    }
+    .cm-crew .cm-row__cube {
+        width: 3.6rem;
+        height: 3.6rem;
+        border-radius: .7rem;
+        &--bot { font-size: 1.9rem; }
+    }
+    .cm-crew .cm-row__main { flex: 0 0 auto; align-items: center; gap: .45rem; width: 100%; }
+    .cm-crew .cm-row__name {
+        max-width: 100%;
+        font-size: 1.35rem;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        line-height: 1.15;
+        &--add { font-size: 1.05rem; letter-spacing: .14em; }
+    }
+    .cm-crew .cm-row__sub {
+        flex-direction: column;
+        gap: .35rem;
+        font-size: .9rem;
+        white-space: normal;
+        line-height: 1.3;
+    }
+    .cm-crew .cm-row__tag { font-size: .8rem; padding: .22rem .7rem; }
+    .cm-crew .cm-row--add {
+        border: .1rem dashed fade(@cm-gold, 38%);
+        background: rgba(10, 17, 26, 0.45);
+    }
+    .cm-crew .cm-row__num--add {
+        position: static;
+        font-size: 3rem;
+        line-height: 1;
+    }
+
+    /* THE RULES — two columns of full-height rows: the description reads, the switch is a real control. */
+    .cm-rules {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-auto-rows: minmax(7rem, auto);
+        align-content: center;
+        gap: 1.1rem 1.2rem;
+    }
+    .cm-rules .cm-row {
+        gap: 1.2rem;
+        padding: 1rem 1.3rem;
+        border-radius: .8rem;
+    }
+    .cm-rules .cm-row__main { gap: .4rem; }
+    .cm-rules .cm-row__name { font-size: 1.15rem; white-space: normal; }
+    .cm-rules .cm-row__sub { font-size: .9rem; line-height: 1.35; }
+    .cm-toggle__state { font-size: .85rem; }
+    .cm-toggle__track { width: 3.2rem; height: 1.6rem; }
+    .cm-toggle__knob { width: 1.3rem; height: 1.3rem; }
+    .cm-toggle--on .cm-toggle__knob { transform: translateX(1.6rem); }
+
+    /* THE EXPANSIONS — tiles: the emblem, the name, what it adds, the switch. */
+    .cm-expansions {
+        /* Rows of the tile's own height, the grid centred in the opening (a fraction row would grow past the stage). */
+        grid-auto-rows: minmax(6.6rem, auto);
+        align-content: center;
+        gap: 1rem 1.2rem;
+    }
+    .cm-exp {
+        align-items: center;
+        gap: 1.2rem;
+        padding: 1rem 1.3rem;
+        border-radius: .8rem;
+        overflow: hidden;
+    }
+    .cm-exp__icon { width: 3.5rem; height: 3.5rem; }
+    .cm-exp__main { gap: .35rem; }
+    .cm-exp__name { font-size: 1.2rem; white-space: normal; }
+    .cm-exp__desc {
+        display: block;
+        font-size: .9rem;
+        line-height: 1.35;
+        color: @con-text-dim;
+    }
+    .cm-exp__issue { font-size: .9rem; }
+    .cm-exp__state { font-size: .85rem; padding: .3rem .8rem; }
+
+    /* THE MAP — board cards of a campaign mission card's size, the carousel centred as before. */
+    .cm-maps { gap: 1.2rem; }
+    .cm-maps__viewport { height: 25rem; }
+    .cm-maps__strip { gap: 1.4rem; top: 1rem; }
+    .cm-map {
+        width: 16.5rem;
+        gap: .7rem;
+        padding: 1.1rem 1rem 1rem;
+        border-radius: .9rem;
+    }
+    .cm-map__thumb { width: 14rem; }
+    .cm-map__name { font-size: 1.05rem; }
+    .cm-map__current { font-size: .8rem; padding: .22rem .7rem; }
+    .cm-maps__detail { min-height: 5rem; gap: .45rem; }
+    .cm-maps__detail-name { font-size: 1.2rem; }
+    .cm-maps__detail-desc { font-size: .95rem; max-width: 52rem; }
+
+    /* THE BRIEFING — a mission DOSSIER: blocks of the party, the board as a miniature, every line readable. */
+    .cm-launch { width: 22rem; gap: .8rem; padding: 1rem 1.1rem 1rem; border-radius: .9rem; }
+    .cm-launch__title { font-size: 1.05rem; letter-spacing: .2em; }
+    .cm-launch__body { gap: 1rem; }
+    .cm-launch__block { gap: .45rem; }
+    .cm-launch__label { font-size: .8rem; letter-spacing: .16em; }
+    .cm-chip { font-size: .9rem; padding: .28rem .7rem; }
+    .cm-chip__cube { width: .85rem; height: .85rem; }
+    .cm-launch__map { flex-direction: column; align-items: flex-start; gap: .5rem; }
+    .cm-launch__map-thumb { width: 10rem; }
+    .cm-launch__map-name { font-size: 1rem; }
+    .cm-launch__icons { gap: .55rem; img { width: 2rem; height: 2rem; } }
+    .cm-launch__none { font-size: .9rem; }
+    .cm-launch__rule { font-size: .9rem; &::before { font-size: .8rem; } }
+    .cm-launch__status { font-size: .95rem; padding: .55rem .8rem; }
+    .cm-launch__status-glyph { width: 1.3rem; height: 1.3rem; font-size: .85rem; }
+    .cm-issues__row { font-size: .9rem; }
+    .cm-launch__error { font-size: .9rem; }
+    .cm-launch__restored { font-size: .85rem; }
+    .cm-launch__cta { min-height: 3.2rem; font-size: 1rem; }
+
+    /* THE OVERLAYS (editor · type pick · confirmations) — the couch's size. */
+    .cm-overlay__card { width: min(34rem, 92vw); gap: .9rem; padding: 1.3rem 1.5rem; border-radius: .9rem; }
+    .cm-overlay__card--launch { width: min(48rem, 94vw); }
+    .cm-overlay__title { font-size: 1.35rem; }
+    .cm-overlay__body { font-size: 1rem; &--dim { font-size: .9rem; } }
+    .cm-confirm__btn { font-size: 1rem; padding: .6rem 1.1rem; }
+    .cm-field { min-height: 3.4rem; padding: .5rem .9rem; }
+    .cm-field__label { font-size: .9rem; }
+    .cm-field__value { font-size: 1.1rem; }
+    .cm-field__hint { font-size: .85rem; }
+    .cm-field__issue { font-size: .85rem; }
+    .cm-cube { width: 1.9rem; height: 1.9rem; }
+    .cm-editor__note { font-size: .9rem; }
+    .cm-editor__cube { width: 1.6rem; height: 1.6rem; }
+    .cm-typepick { gap: 1.2rem; }
+    .cm-type { min-height: 14rem; gap: .6rem; padding: 1.3rem 1.1rem; }
+    .cm-type__glyph { font-size: 2.6rem; }
+    .cm-type__label { font-size: 1.2rem; }
+    .cm-type__desc,
+    .cm-type__note,
+    .cm-type__warn,
+    .cm-type__blocked { font-size: .9rem; }
+
+    /* THE LAUNCH PLATE — «MISSION CONTROL»: the board is the hero, the crew and the expansions beside it. */
+    .cm-launchc__kicker { font-size: .85rem; }
+    .cm-launchc__title { font-size: 1.9rem; }
+    .cm-launchc__mission { grid-template-columns: 15rem minmax(0, 1fr); gap: 1.6rem; }
+    .cm-launchc__creating { font-size: 1rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
     .cm-row--shake { animation: none; }
     .cm-launch__status-dot,
-    .cm-launch__cta--ready { animation: none; }
+    .cm-launch__cta--ready,
+    .cm-confirm__btn--launch::after { animation: none; }
     .cm-maps__strip,
     .cm-map,
     .cm-item { transition: none; }

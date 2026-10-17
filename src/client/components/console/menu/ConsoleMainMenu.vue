@@ -1,5 +1,5 @@
 <template>
-  <div class="cm-menu" :class="{'cm-menu--dimmed': overlay !== undefined}">
+  <div class="cm-menu" :class="{'cm-menu--dimmed': overlay !== undefined && !screenOpen, 'cm-menu--screen': screenOpen}">
     <div class="cm-menu__bg" aria-hidden="true"></div>
     <div class="cm-menu__vignette" aria-hidden="true"></div>
 
@@ -18,215 +18,122 @@
       </button>
     </header>
 
-    <nav class="cm-menu__items" :aria-label="$t('Main menu')">
-      <button
-        v-for="(item, i) in items"
-        :key="item.id"
-        type="button"
-        class="cm-item"
-        :class="{
-          'cm-item--cursor': i === cursor,
-          'cm-item--primary': item.id === 'continue' || (item.id === 'create' && continueItem === undefined),
-        }"
-        @click="activateAt(i)"
-        @mousemove="cursor = i"
-      >
-        <span class="cm-item__glyph" aria-hidden="true">{{ item.glyph }}</span>
-        <span class="cm-item__text">
-          <span class="cm-item__label">{{ $t(item.labelKey) }}</span>
-          <span v-if="item.subText !== ''" class="cm-item__sub">{{ item.subText }}</span>
-        </span>
-        <span v-if="item.badge > 0" class="cm-item__badge">{{ item.badge }}</span>
-        <span class="cm-item__hint" aria-hidden="true"><GamepadGlyph control="confirm" /></span>
-      </button>
-    </nav>
+    <!-- THE STAGE of the menu: the item column, and the pregame SCREENS that unfold out of it (TR68 «ПРЕДИГРОВОЕ —
+         ЭТО ВИТРИНА»). «Мои партии» / «Мои кампании» are screens on the campaign map's grammar, never a dialog: the
+         column recedes, the screen unfolds out of the pressed item, its cards surface in a wave; B plays it back. -->
+    <div class="cm-menu__stage">
+      <nav class="cm-menu__items" :aria-label="$t('Main menu')">
+        <button
+          v-for="(item, i) in items"
+          :key="item.id"
+          type="button"
+          class="cm-item"
+          :class="{
+            'cm-item--cursor': i === cursor,
+            'cm-item--primary': item.id === 'continue' || (item.id === 'create' && continueItem === undefined),
+          }"
+          :data-menu-item="item.id"
+          @click="activateAt(i)"
+          @mousemove="cursor = i"
+        >
+          <span class="cm-item__glyph" aria-hidden="true">{{ item.glyph }}</span>
+          <span class="cm-item__text">
+            <span class="cm-item__label">{{ $t(item.labelKey) }}</span>
+            <span v-if="item.subText !== ''" class="cm-item__sub">{{ item.subText }}</span>
+          </span>
+          <span v-if="item.badge > 0" class="cm-item__badge">{{ item.badge }}</span>
+          <span class="cm-item__hint" aria-hidden="true"><GamepadGlyph control="confirm" /></span>
+        </button>
+      </nav>
 
-    <!-- ── My games (continue / join) ──────────────────────────────────── -->
-    <div v-if="overlay === 'games'" class="cm-overlay" role="dialog" :aria-label="$t('My games')">
-      <div class="cm-overlay__card cm-overlay__card--wide">
-        <!-- The slice is a TAB, not another screen: «МОИ ПАРТИИ» is the stable
-             context and only the strip on its right changes (L3 toggles it; a
-             click works as the mouse fallback). The archive rows lead to the
-             settled final scoring, so the same list serves both. -->
-        <div class="cm-overlay__head">
-          <div class="cm-overlay__title">{{ $t('My games') }}</div>
-          <div class="cm-gametabs" role="tablist" :aria-label="$t('My games')">
-            <button
-              v-for="tab in gamesTabs"
-              :key="tab.id"
-              type="button"
-              class="cm-gametab"
-              :class="{'cm-gametab--on': tab.id === gamesTab}"
-              role="tab"
-              :aria-selected="tab.id === gamesTab"
-              @click="setGamesTab(tab.id)"
-            >
-              <span>{{ $t(tab.label) }}</span>
-              <span v-if="tab.count !== undefined" class="cm-gametab__count">{{ tab.count }}</span>
-            </button>
-            <span class="cm-gametabs__hint" aria-hidden="true"><GamepadGlyph control="stickL" /></span>
-          </div>
-        </div>
-        <div v-if="gamesTab === 'finished'" class="cm-overlay__body cm-overlay__body--dim">
-          {{ $t('Open a finished game to review the results or replay the final scoring.') }}
-        </div>
-        <!-- FOUR distinct answers, never one sentence for all of them: no name
-             yet · still asking · asked and failed · asked and there are none.
-             Collapsing them is what made a party that existed read as one that
-             did not. -->
-        <div v-if="gamesNeedName" class="cm-gamelist__empty">{{ $t('Set your player name to see your games') }}</div>
-        <div v-else-if="gamesFirstLoad" class="cm-gamelist__empty">{{ $t('Loading') }}…</div>
-        <div v-else-if="gamesLoadError" class="cm-gamelist__empty cm-gamelist__empty--error">{{ $t('Could not load your games') }}</div>
-        <div v-else-if="gamesRowCount === 0 && !lanEntryVisible" class="cm-gamelist__empty">{{ $t(gamesEmptyKey) }}</div>
-        <ConsoleScrollArea v-else ref="gamesScroll" class="cm-gamelist-scroll">
-          <div class="cm-gamelist">
-          <button
-            v-for="(g, i) in localRows"
-            :key="g.id"
-            type="button"
-            class="cm-game"
-            :class="{'cm-game--cursor': i === gamesCursor, 'cm-game--disabled': !joinable(g)}"
-            @click="enterGameAt(i)"
-            @mousemove="gamesCursor = i"
-          >
-            <div class="cm-game__head">
-              <span class="cm-game__name">{{ g.campaign !== undefined ? g.campaign.name : g.name }}</span>
-              <span v-if="g.campaign !== undefined" class="cm-game__campaign">{{ $t('Campaign') }} · {{ campaignMissionChip(g) }}</span>
-              <span v-if="isNewGame(g)" class="cm-game__new">{{ $t('New') }}</span>
-              <span v-if="yourTurn(g)" class="cm-game__turn">{{ $t('Your turn') }}</span>
-              <span v-else-if="!joinable(g)" class="cm-game__note">{{ $t(g.ambiguous ? 'Several players share your name here' : 'No seat with your name') }}</span>
+      <transition :css="false" @enter="screenEnter" @leave="screenLeave">
+        <!-- ── My games (continue / join / the archive) ──────────────────── -->
+        <ConsoleLobbyScreen
+          v-if="overlay === 'games'"
+          ref="gamesScreen"
+          key="games"
+          kind="games"
+          title-key="My games"
+          :tabs="gamesTabs"
+          :tab="gamesTab"
+          :state="gamesScreenState"
+          :state-key="gamesStateKey"
+          :state-hint-key="gamesStateHintKey"
+          :refreshing="lobbyState.refreshing"
+          :items="gamesCount + (gamesRowCount === 0 ? 1 : 0)"
+          @tab="setGamesTab($event)"
+          @grid="gamesCols = $event"
+        >
+          <template #band>
+            <div v-if="gamesTab === 'finished' && gamesScreenState === 'list'" class="cm-lobby__band cm-lobby__band--note">
+              {{ $t('Open a finished game to review the results or replay the final scoring.') }}
             </div>
-
-            <!-- Crew — who you're playing against (names visible, YOU + whose turn marked). -->
-            <div class="cm-game__crew">
-              <span
-                v-for="p in gameCrew(g)"
-                :key="p.color"
-                class="cm-game__player"
-                :class="{'cm-game__player--you': p.isYou, 'cm-game__player--active': p.isActive}"
-              >
-                <span v-if="p.isActive" class="cm-game__pturn" aria-hidden="true"></span>
-                <span class="cm-game__pcube" :class="'player_bg_color_' + p.color" aria-hidden="true"></span>
-                <span class="cm-game__pname">{{ p.name }}</span>
-                <span v-if="p.isYou" class="cm-game__ptag">{{ $t('You') }}</span>
+            <!-- LAN hosts (host-as-server mode): the listing is NAME-scoped, and that is invisible unless it is said;
+                 a host that stopped answering SAYS SO and WHY; a host with nothing for this name says that too. -->
+            <div v-else-if="lanSectionVisible && gamesScreenState === 'list'" class="cm-lobby__band">
+              <span class="cm-lobby__band-title cm-gamelist__lanhead">
+                {{ $t('On your local network') }}
+                <span v-if="identityName !== ''" class="cm-gamelist__lanwho">{{ $t('games with') }} «{{ identityName }}»</span>
+              </span>
+              <span v-for="host in lanTrouble" :key="host.id" class="cm-lobby__host cm-gamelist__lanstatus" data-lan-host="unreachable">
+                {{ host.label }} — {{ $t('not responding') }}<template v-if="host.reason !== ''"> · {{ host.reason }}</template>
+              </span>
+              <span v-for="host in lanEmptyHosts" :key="host.id" class="cm-lobby__host cm-gamelist__lanstatus cm-gamelist__lanstatus--calm" data-lan-host="empty">
+                {{ host.label }} — {{ $t('no games with your name') }}
               </span>
             </div>
-
-            <div class="cm-game__foot">
-              <span class="cm-game__meta">
-                <!-- The age leads: the list is sorted by it, so it is what
-                     explains the order rather than a rule taken on trust. -->
-                <span class="cm-game__age">{{ createdAgo(g) }}</span>
-                <span class="cm-game__dot" aria-hidden="true">·</span>
-                <span>{{ $t('Generation') }} {{ g.generation }}</span>
-                <span class="cm-game__dot" aria-hidden="true">·</span>
-                <span>{{ boardLabel(g) }}</span>
-              </span>
-              <span v-if="gameExpansions(g).length > 0" class="cm-game__exp">
-                <!-- No native title tooltip (banned): the pad has no hover, alt carries a11y. -->
-                <img
-                  v-for="e in gameExpansions(g).slice(0, 8)"
-                  :key="e.id"
-                  :src="e.url"
-                  :alt="$t(e.label)"
-                  draggable="false"
-                />
-                <span v-if="gameExpansions(g).length > 8" class="cm-game__exp-more">+{{ gameExpansions(g).length - 8 }}</span>
-              </span>
-            </div>
-          </button>
-
-          <!-- LAN hosts (host-as-server mode): games discovered over mDNS on other
-               couches. Joining pins the seat to that host's server and navigates —
-               the session then talks to the host directly (docs/EMBEDDED_SERVER.md §6). -->
-          <template v-if="lanSectionVisible">
-            <!-- The listing is NAME-scoped, and that is invisible unless it is
-                 said: a host with no row is usually a seat under another name,
-                 not a broken network. -->
-            <div class="cm-gamelist__lanhead">
-              {{ $t('On your local network') }}
-              <span v-if="identityName !== ''" class="cm-gamelist__lanwho">{{ $t('games with') }} «{{ identityName }}»</span>
-            </div>
-            <!-- A host that stopped answering SAYS SO, and says WHY. Silence
-                 here used to be indistinguishable from «that couch has no
-                 games», which is what made a LAN problem undiagnosable. -->
-            <div v-for="host in lanTrouble" :key="host.id" class="cm-gamelist__lanstatus">
-              {{ host.label }} — {{ $t('not responding') }}<template v-if="host.reason !== ''"> · {{ host.reason }}</template>
-            </div>
-            <div v-for="host in lanEmptyHosts" :key="host.id" class="cm-gamelist__lanstatus cm-gamelist__lanstatus--calm">
-              {{ host.label }} — {{ $t('no games with your name') }}
-            </div>
-            <button
-              v-for="(row, k) in visibleLanRows"
-              :key="row.key"
-              type="button"
-              class="cm-game cm-game--lan"
-              :class="{'cm-game--cursor': localRows.length + k === gamesCursor, 'cm-game--disabled': !joinable(row.game) || row.stale}"
-              @click="enterGameAt(localRows.length + k)"
-              @mousemove="gamesCursor = localRows.length + k"
-            >
-              <div class="cm-game__head">
-                <span class="cm-game__name">{{ row.game.campaign !== undefined ? row.game.campaign.name : row.game.name }}</span>
-                <span v-if="row.game.campaign !== undefined" class="cm-game__campaign">{{ $t('Campaign') }} · {{ campaignMissionChip(row.game) }}</span>
-                <span v-if="isNewGame(row.game)" class="cm-game__new">{{ $t('New') }}</span>
-                <span class="cm-game__lanhost">{{ row.hostName }}</span>
-                <span v-if="row.stale" class="cm-game__note">{{ $t('not responding') }}</span>
-                <span v-else-if="yourTurn(row.game)" class="cm-game__turn">{{ $t('Your turn') }}</span>
-                <span v-else-if="!joinable(row.game)" class="cm-game__note">{{ $t(row.game.ambiguous ? 'Several players share your name here' : 'No seat with your name') }}</span>
-                <span v-else-if="row.versionMismatch" class="cm-game__note">{{ $t('Host version differs from yours') }}</span>
-              </div>
-              <div class="cm-game__crew">
-                <span
-                  v-for="p in gameCrew(row.game)"
-                  :key="p.color"
-                  class="cm-game__player"
-                  :class="{'cm-game__player--you': p.isYou, 'cm-game__player--active': p.isActive}"
-                >
-                  <span v-if="p.isActive" class="cm-game__pturn" aria-hidden="true"></span>
-                  <span class="cm-game__pcube" :class="'player_bg_color_' + p.color" aria-hidden="true"></span>
-                  <span class="cm-game__pname">{{ p.name }}</span>
-                  <span v-if="p.isYou" class="cm-game__ptag">{{ $t('You') }}</span>
-                </span>
-              </div>
-              <div class="cm-game__foot">
-                <span class="cm-game__meta">
-                  <span class="cm-game__age">{{ createdAgo(row.game) }}</span>
-                  <span class="cm-game__dot" aria-hidden="true">·</span>
-                  <span>{{ $t('Generation') }} {{ row.game.generation }}</span>
-                  <span class="cm-game__dot" aria-hidden="true">·</span>
-                  <span>{{ boardLabel(row.game) }}</span>
-                </span>
-              </div>
-            </button>
           </template>
 
-          <!-- With the add-a-host tool present the list is never «empty», so the
-               answer to «сколько у меня партий» moves inside it. -->
-          <div v-if="gamesRowCount === 0" class="cm-gamelist__empty cm-gamelist__empty--inline">{{ $t(gamesEmptyKey) }}</div>
-
-          <!-- MANUAL HOST — the fallback that always works. Discovery is
-               multicast, and multicast is the first thing a router's client
-               isolation, a guest SSID or a firewall drops; without a typed
-               address such a network has no way into a LAN game at all. Last in
-               the cursor ring, so it never gets in the way of a real row. -->
+          <ConsoleLobbyCard
+            v-for="(g, i) in localRows"
+            :key="g.id"
+            :view="localCardView(g)"
+            :cursor="i === gamesCursor"
+            :age="createdAgo(g)"
+            :reveal="true"
+            :reveal-delay-ms="140 + i * 60"
+            @activate="enterGameAt(i)"
+            @hover="gamesCursor = i"
+          />
+          <!-- LAN rows: joining pins the seat to that host's server and navigates (docs/EMBEDDED_SERVER.md §6); a
+               row whose host has stopped answering stays LISTED (the game exists) but refuses entry. -->
+          <ConsoleLobbyCard
+            v-for="(row, k) in visibleLanRows"
+            :key="row.key"
+            :view="lanCardView(row)"
+            :cursor="localRows.length + k === gamesCursor"
+            :age="createdAgo(row.game)"
+            :reveal="true"
+            :reveal-delay-ms="140 + (localRows.length + k) * 60"
+            @activate="enterGameAt(localRows.length + k)"
+            @hover="gamesCursor = localRows.length + k"
+          />
+          <!-- With the add-a-host tool present the list is never «empty», so the answer to «сколько у меня партий»
+               stands on the stage as a statement beside the tool. -->
+          <div v-if="gamesRowCount === 0" class="cm-lcard cm-lcard--statement cm-gamelist__empty cm-gamelist__empty--inline">
+            <span class="cm-lcard__statement-glyph" aria-hidden="true">⧉</span>
+            <span>{{ $t(gamesEmptyKey) }}</span>
+          </div>
+          <!-- MANUAL HOST — the fallback that always works when the network drops multicast. Last in the cursor ring. -->
           <button
             v-if="lanEntryVisible"
             type="button"
-            class="cm-game cm-game--add"
-            :class="{'cm-game--cursor': gamesCursor === gamesCount - 1}"
+            class="cm-lcard cm-lcard--add cm-game cm-game--add"
+            :class="{'cm-lcard--cursor': gamesCursor === gamesCount - 1, 'cm-game--cursor': gamesCursor === gamesCount - 1}"
             @click="enterGameAt(gamesCount - 1)"
             @mousemove="gamesCursor = gamesCount - 1"
           >
-            <div class="cm-game__head">
-              <span class="cm-game__name">＋ {{ $t('Add a host by address') }}</span>
-            </div>
-            <div class="cm-game__foot">
-              <span class="cm-game__meta">{{ $t('When the network hides other players, type their address') }}</span>
-            </div>
+            <span class="cm-lcard__add-plus" aria-hidden="true">＋</span>
+            <span class="cm-lcard__add-text">
+              <span class="cm-lcard__name cm-game__name">{{ $t('Add a host by address') }}</span>
+              <span class="cm-lcard__add-hint">{{ $t('When the network hides other players, type their address') }}</span>
+            </span>
           </button>
-          </div>
-        </ConsoleScrollArea>
-      </div>
+        </ConsoleLobbyScreen>
+
+        <!-- ── My campaigns (one card per campaign; A = the Campaign Map) ──── -->
+        <ConsoleCampaignsList v-else-if="overlay === 'campaigns'" ref="campaigns" key="campaigns" @close="closeOverlay" />
+      </transition>
     </div>
 
     <!-- ── Local-game deletion confirm (host mode; stacked over the games list) ── -->
@@ -261,9 +168,6 @@
         </div>
       </div>
     </div>
-
-    <!-- ── My campaigns (one row per campaign; A = the Campaign Map) ────── -->
-    <ConsoleCampaignsList v-if="overlay === 'campaigns'" ref="campaigns" @close="closeOverlay" />
 
     <!-- Manual LAN host entry (the on-screen keyboard owns every intent). -->
     <ConsoleVirtualKeyboard
@@ -375,10 +279,13 @@ import {installMenuPad, menuPadState} from '@/client/console/menu/consoleMenuPad
 import {stepIndex} from '@/client/console/consoleRouter';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
-import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleCampaignsList from '@/client/components/console/menu/ConsoleCampaignsList.vue';
+import ConsoleLobbyScreen, {LobbyScreenState} from '@/client/components/console/menu/ConsoleLobbyScreen.vue';
+import ConsoleLobbyCard from '@/client/components/console/menu/ConsoleLobbyCard.vue';
+import {LobbyCardView, gameCardView, showcaseStep} from '@/client/console/menu/lobbyCardModel';
+import {LobbyRect, foldLobbyScreen, unfoldLobbyScreen} from '@/client/console/menu/lobbyScreenMotion';
 import ConsoleProfileEditor from '@/client/components/console/menu/ConsoleProfileEditor.vue';
 import ConsoleProfilesEditor from '@/client/components/console/menu/ConsoleProfilesEditor.vue';
 import ConsoleFriendsEditor from '@/client/components/console/menu/ConsoleFriendsEditor.vue';
@@ -422,7 +329,7 @@ type MenuOverlay = 'games' | 'campaigns' | 'profile' | 'profiles' | 'friends' | 
 
 export default defineComponent({
   name: 'ConsoleMainMenu',
-  components: {ConsoleCommandBar, ConsoleScrollArea, GamepadGlyph, ConsoleVirtualKeyboard, ConsoleCampaignsList, ConsoleProfileEditor, ConsoleProfilesEditor, ConsoleFriendsEditor, ConsoleLanguagePicker, ConsoleOptionsPanel, ConsoleAdminRollback, ConsolePlaygroundHub},
+  components: {ConsoleCommandBar, GamepadGlyph, ConsoleVirtualKeyboard, ConsoleCampaignsList, ConsoleLobbyScreen, ConsoleLobbyCard, ConsoleProfileEditor, ConsoleProfilesEditor, ConsoleFriendsEditor, ConsoleLanguagePicker, ConsoleOptionsPanel, ConsoleAdminRollback, ConsolePlaygroundHub},
   setup() {
     // Foundation: page-level overflow lock while this screen owns the viewport.
     useConsoleNativeSurface();
@@ -452,11 +359,53 @@ export default defineComponent({
       lanEntry: false,
       lanDraft: '',
       lanIssue: '',
+      /** The showcase grid's column count (the screen measures it) — the ◀ ▶ ▲ ▼ walk's row length. */
+      gamesCols: 3,
+      /** The rect of the menu item a screen unfolds OUT of (taken at the press, before the column recedes). */
+      lobbyOrigin: undefined as LobbyRect | undefined,
     };
   },
   computed: {
     identityName(): string {
       return this.identityState.identity?.displayName ?? '';
+    },
+    /** A pregame SCREEN stands (a list of the product), never a dialog — the column recedes for it. */
+    screenOpen(): boolean {
+      return this.overlay === 'games' || this.overlay === 'campaigns';
+    },
+    /**
+     * FOUR distinct answers, never one sentence for all of them: no name yet · still asking · asked and failed ·
+     * asked and there are none. Collapsing them is what made a party that existed read as one that did not. With the
+     * add-a-host tool present the list is never structurally empty (the statement stands beside the tool).
+     */
+    gamesScreenState(): LobbyScreenState {
+      if (this.gamesNeedName) {
+        return 'need-name';
+      }
+      if (this.gamesFirstLoad) {
+        return 'loading';
+      }
+      if (this.gamesLoadError) {
+        return 'error';
+      }
+      return this.gamesRowCount === 0 && !this.lanEntryVisible ? 'empty' : 'list';
+    },
+    gamesStateKey(): string {
+      switch (this.gamesScreenState) {
+      case 'need-name': return 'Set your player name to see your games';
+      case 'loading': return 'Loading';
+      case 'error': return 'Could not load your games';
+      case 'empty': return this.gamesEmptyKey;
+      default: return '';
+      }
+    },
+    gamesStateHintKey(): string {
+      switch (this.gamesScreenState) {
+      case 'need-name': return 'Your games are found by your player name — set it in the player profile';
+      case 'error': return 'Refresh';
+      case 'empty': return this.gamesTab === 'finished' ? '' : 'Start one with «New game» in the main menu';
+      default: return '';
+      }
     },
     identityCubeClass(): string {
       const color = this.identityState.identity?.cubeColor;
@@ -1083,8 +1032,9 @@ export default defineComponent({
           }
           return true;
         }
-        if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
-          this.gamesCursor = stepIndex(this.gamesCursor, intent.dir === 'down' ? 1 : -1, this.gamesCount);
+        if (intent.kind === 'nav') {
+          // The showcase is a GRID: ◀ ▶ walk the ring, ▲ ▼ a row (`showcaseStep`).
+          this.gamesCursor = showcaseStep(this.gamesCursor, intent.dir, this.gamesCount, this.gamesCols);
           this.keepGamesCursorVisible();
           return true;
         }
@@ -1154,12 +1104,66 @@ export default defineComponent({
       // Swallow the rest — nothing below this screen should react.
       return true;
     },
-    /** Keep the cursored games row inside the ConsoleScrollArea viewport. */
+    /** Keep the cursored card inside the showcase's scroll area (a third row is a page below). */
     keepGamesCursorVisible(): void {
       void this.$nextTick(() => {
-        const scroll = this.$refs.gamesScroll as {ensureVisible?: (el: Element | null) => void} | undefined;
-        scroll?.ensureVisible?.(this.$el.querySelector('.cm-game--cursor'));
+        const screen = this.$refs.gamesScreen as {ensureVisible?: (el: Element | null) => void} | undefined;
+        screen?.ensureVisible?.(this.$el.querySelector('.cm-game--cursor'));
       });
+    },
+    /** One local row as a card (the pure model — the same answers the command bar reads). */
+    localCardView(g: JoinableGameSummary): LobbyCardView {
+      return gameCardView(g, {isNew: this.isNewGame(g)});
+    },
+    /** One LAN row as a card: it names its couch, a quiet host's card is shown and refuses entry. */
+    lanCardView(row: LobbyRow): LobbyCardView {
+      return gameCardView(row.game, {isNew: this.isNewGame(row.game), hostLabel: row.hostName, stale: row.stale, versionMismatch: row.versionMismatch});
+    },
+    /** The rect of a menu item AT REST (the receding column's own transform taken out). */
+    menuItemRect(id: MenuItemId): LobbyRect | undefined {
+      const el = this.$el.querySelector(`.cm-item[data-menu-item="${id}"]`) as HTMLElement | null;
+      if (el === null) {
+        return undefined;
+      }
+      const r = el.getBoundingClientRect();
+      const column = el.parentElement;
+      let dx = 0;
+      if (column !== null) {
+        const t = getComputedStyle(column).transform;
+        if (t !== '' && t !== 'none' && typeof DOMMatrixReadOnly !== 'undefined') {
+          dx = new DOMMatrixReadOnly(t).m41;
+        }
+      }
+      return {left: r.left - dx, top: r.top, width: r.width, height: r.height};
+    },
+    /** The screen's root inside a transition's element (the campaigns list wraps its screen with its confirm). */
+    screenRootOf(el: Element): HTMLElement | undefined {
+      if (el.classList.contains('cm-screen')) {
+        return el as HTMLElement;
+      }
+      return el.querySelector<HTMLElement>('.cm-screen') ?? undefined;
+    },
+    /** UNFOLD — the screen arrives out of the pressed item, its cards in a wave (`lobbyScreenMotion`). */
+    screenEnter(el: Element, done: () => void): void {
+      const origin = this.lobbyOrigin ?? this.menuItemRect(this.overlay === 'campaigns' ? 'campaigns' : 'games');
+      this.lobbyOrigin = undefined;
+      void this.$nextTick()
+        .then(() => {
+          const root = this.screenRootOf(el);
+          return root === undefined ? undefined : unfoldLobbyScreen(root, origin);
+        })
+        .finally(done);
+    },
+    /** FOLD — B plays the phrase back: the cards let go, the plate folds into the item the cursor stands on. */
+    screenLeave(el: Element, done: () => void): void {
+      const root = this.screenRootOf(el);
+      const item = this.items[this.cursor]?.id;
+      const target = item === undefined ? undefined : this.menuItemRect(item);
+      if (root === undefined) {
+        done();
+        return;
+      }
+      void foldLobbyScreen(root, target).finally(done);
     },
     activateAt(i: number): void {
       this.cursor = i;
@@ -1182,6 +1186,7 @@ export default defineComponent({
         vueRoot(this).navigateInApp(paths.NEW_GAME_PREMIUM);
         break;
       case 'games':
+        this.lobbyOrigin = this.menuItemRect('games');
         this.overlay = 'games';
         this.gamesTab = 'active';
         this.gamesCursor = 0;
@@ -1197,6 +1202,7 @@ export default defineComponent({
         }
         break;
       case 'campaigns':
+        this.lobbyOrigin = this.menuItemRect('campaigns');
         this.overlay = 'campaigns';
         this.campaignsState.tab = 'active';
         this.campaignsState.cursor = 0;

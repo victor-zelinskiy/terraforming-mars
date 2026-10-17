@@ -20,6 +20,8 @@
       <span class="cm-exp__main">
         <span class="cm-exp__name">{{ $t(row.meta.labelKey) }}</span>
         <span v-if="row.conflictKey !== undefined" class="cm-exp__issue">{{ $t(blockerText(row.conflictKey)) }}</span>
+        <!-- What it adds — read on the wide creator (TR68), out of the Deck's one-line tile. -->
+        <span v-else class="cm-exp__desc">{{ $t(row.meta.descKey) }}</span>
       </span>
       <span class="cm-exp__state" :class="{'cm-exp__state--on': row.value}">
         {{ $t(row.value ? 'On' : 'Off') }}

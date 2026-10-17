@@ -19,13 +19,24 @@
           type="button"
           class="cm-mode__tile"
           :class="{'cm-mode__tile--cursor': ui.modeCursor === i, 'cm-mode__tile--campaign': opt.id === 'campaign'}"
+          :data-mode="opt.id"
           @click="pickMode(i)"
         >
+          <!-- THE ILLUSTRATION (TR68): the mode is SHOWN before it is read — one real board for a single party, the
+               route of four boards on one lane for a campaign (the campaign map's grammar, in small). -->
+          <span class="cm-mode__art" aria-hidden="true">
+            <template v-if="opt.id === 'campaign'">
+              <span class="cm-mode__lane"></span>
+              <span v-for="(board, n) in modeRouteBoards" :key="board" class="cm-mode__stop" :class="{'cm-mode__stop--final': n === modeRouteBoards.length - 1}">
+                <PremiumMapFingerprint :map-id="board" variant="thumb" />
+              </span>
+            </template>
+            <span v-else class="cm-mode__board">
+              <PremiumMapFingerprint :map-id="modeSingleBoard" variant="card" />
+            </span>
+          </span>
           <div class="cm-mode__label">{{ $t(opt.labelKey) }}</div>
           <div class="cm-mode__desc">{{ $t(opt.descKey) }}</div>
-          <div v-if="opt.id === 'campaign'" class="cm-mode__route" aria-hidden="true">
-            <span v-for="n in 4" :key="n" class="cm-mode__dot" :class="{'cm-mode__dot--final': n === 4}"></span>
-          </div>
         </button>
       </div>
     </template>
@@ -170,15 +181,17 @@
  * Data / validation / persistence / submit are the SHARED premium create
  * modules, so desktop and console can never drift.
  */
-import {defineComponent} from 'vue';
+import {computed, defineComponent} from 'vue';
 import {vueRoot} from '@/client/components/vueRoot';
 import {setDocumentTitle} from '@/client/utils/documentTitle';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {installMenuPad} from '@/client/console/menu/consoleMenuPad';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
+import {useConsoleViewport} from '@/client/console/composables/useConsoleViewport';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import {
+  CREATE_WIDE_MIN_WIDTH,
   CreateDeckId,
   SESSION_MODE_OPTIONS,
   SessionModeOption,
@@ -224,6 +237,7 @@ import {
 import {submitPremiumCreateGame} from '@/client/components/create/premium/submitCreateGame';
 import {submitPremiumCreateCampaign} from '@/client/components/create/premium/submitCampaign';
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
+import {BoardName} from '@/common/boards/BoardName';
 import {identityState, ensureIdentityLoaded, setIdentity} from '@/client/components/mainMenu/identity/identityState';
 import {ensureProfilesLoaded} from '@/client/components/mainMenu/profilesState';
 import {prefillIdentityFromSteam} from '@/client/components/mainMenu/identity/steamIdentity';
@@ -263,6 +277,10 @@ export default defineComponent({
   setup() {
     // Foundation: page-level overflow lock while this screen owns the viewport.
     useConsoleNativeSurface();
+    // THE WIDE CREATOR (TR68): the stylesheet's `@media (min-width: 1900px)` and the cursor's walk read ONE threshold.
+    const viewport = useConsoleViewport();
+    const creatorWide = computed(() => viewport.width.value >= CREATE_WIDE_MIN_WIDTH);
+    return {creatorWide};
   },
   data() {
     return {
@@ -277,6 +295,14 @@ export default defineComponent({
   computed: {
     decks() {
       return createDecks();
+    },
+    /** The single party's illustration — the base board every player knows. */
+    modeSingleBoard(): BoardName {
+      return BoardName.THARSIS;
+    },
+    /** The campaign's illustration — a route of four boards (the last one the finale). */
+    modeRouteBoards(): ReadonlyArray<BoardName> {
+      return [BoardName.TERRA_CIMMERIA, BoardName.THARSIS, BoardName.VASTITAS_BOREALIS, BoardName.HELLAS];
     },
     modeOptions(): ReadonlyArray<SessionModeOption> {
       return SESSION_MODE_OPTIONS;
@@ -561,7 +587,7 @@ export default defineComponent({
       // ── Deck level ──
       if (intent.kind === 'nav') {
         const deck = this.ui.deck;
-        const next = deckNavStep(deck, this.ui.cursor[deck], intent.dir, deckRowCount(deck));
+        const next = deckNavStep(deck, this.ui.cursor[deck], intent.dir, deckRowCount(deck), {wide: this.creatorWide});
         if (next !== undefined) {
           this.ui.cursor[deck] = next;
           this.keepDeckCursorVisible();
