@@ -4,7 +4,8 @@
 `.claude/rules/console-ui.md` § THE FINALE IS A CEREMONY; the finale's contracts: `docs/claude/console/endgame-workspace.md`,
 `docs/claude/console/endgame-overview.md`. Ledger: section BD (`docs/claude/gameplay-polish-ledger.md`). Decisions 1–6 and 10 were
 taken at their defaults; 7 (the podium), 8 (the tokens), 9 (the overview at scene scale) and 11 (the horizon as the stage) were
-built at the recommended option and go to the owner's batch. **Art imported** (`Mars Arts/TR69.png` appeared after the prompt was
+built at the recommended option — **the owner confirmed all four on 2026-10-17** (M1 podium over the mockups M2 ranked row / M3
+faces on the horizon; tokens; the board + the hero; the horizon as the stage). **Art imported** (`Mars Arts/TR69.png` appeared after the prompt was
 written → `assets/card-images/TR69.webp` + thumb).
 
 ## 1 · The card
