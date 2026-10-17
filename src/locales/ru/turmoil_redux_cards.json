@@ -195,5 +195,7 @@
     "Place an ocean tile. Add 4 microbes to ANY card.": "Разместите океан. Добавьте 4 микроба на ЛЮБУЮ свою карту.",
     "Cargo Mechs": "Грузовые мехи",
     "Action: Pay 1 energy to add a mech resource to ANY card.": "Действие: заплатите 1 энергию, чтобы добавить 1 мех на ЛЮБУЮ карту.",
-    "Action: Spend 1 mech from here to use an action on one of your cards a second time this generation.": "Действие: потратьте 1 мех с этой карты, чтобы использовать действие одной из своих карт второй раз в этом поколении."
+    "Action: Spend 1 mech from here to use an action on one of your cards a second time this generation.": "Действие: потратьте 1 мех с этой карты, чтобы использовать действие одной из своих карт второй раз в этом поколении.",
+    "Strategic Shift": "Смена стратегии",
+    "Discard as many cards with a requirement from your hand as you like. Then gain the same amount of M€ and draw that many cards.": "Сбросьте с руки любое число карт с требованием. Затем получите столько же M€ и возьмите столько же карт."
 }

@@ -33,6 +33,20 @@ export type DiscardCardsOptions = {
    * (see `DiscardPromptMeta.colonyRepeat`).
    */
   colonyRepeat?: ColonyBonusDiscardMeta,
+  /**
+   * The CANDIDATES, when the rule narrows the discard to a part of the hand
+   * (Strategic Shift — «cards with a requirement»): the prompt offers exactly
+   * these; the auto-discard shortcut counts these, not the whole hand.
+   * Omitted → the whole hand.
+   */
+  cards?: ReadonlyArray<IProjectCard>,
+  /**
+   * The REST of the hand, offered DISABLED with the reason the rule refuses
+   * each one — shown, never silently absent (invariant 3 / 4).
+   */
+  disabled?: ReadonlyArray<{card: IProjectCard, reason: string | Message}>,
+  /** Offer the console's «select all» (a multi discard the player may take whole — Strategic Shift). */
+  showSelectAll?: boolean,
 };
 
 export class DiscardCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
@@ -47,8 +61,9 @@ export class DiscardCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
   }
 
   public execute() {
-    if (this.player.cardsInHand.length <= this.min) {
-      const discards = [...this.player.cardsInHand];
+    const candidates = this.options.cards ?? this.player.cardsInHand;
+    if (candidates.length <= this.min) {
+      const discards = [...candidates];
       for (const card of discards) {
         this.player.discardCardFromHand(card);
       }
@@ -74,8 +89,8 @@ export class DiscardCards extends DeferredAction<ReadonlyArray<IProjectCard>> {
     const select = new SelectCard(
       title,
       'Discard',
-      this.player.cardsInHand,
-      {min: this.min, max: this.max});
+      candidates,
+      {min: this.min, max: this.max, disabled: this.options.disabled, showSelectAll: this.options.showSelectAll === true});
     // EVERY prompt this action builds is a discard — the client must never have
     // to tell it apart from a "reveal a card" / "keep a card" pick by its title.
     select.markDiscardPrompt({

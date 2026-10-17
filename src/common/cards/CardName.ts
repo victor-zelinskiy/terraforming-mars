@@ -1134,6 +1134,7 @@ export enum CardName {
   CIVILIAN_SPACEFIGHTERS = 'Civilian Spacefighters',
   ENCELADEAN_INCUBATOR = 'Enceladean Incubator',
   CARGO_MECHS = 'Cargo Mechs',
+  STRATEGIC_SHIFT = 'Strategic Shift',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

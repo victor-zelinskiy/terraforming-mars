@@ -63,6 +63,7 @@ import {SponsoredPowerPlant} from './SponsoredPowerPlant';
 import {CivilianSpacefighters} from './CivilianSpacefighters';
 import {EnceladeanIncubator} from './EnceladeanIncubator';
 import {CargoMechs} from './CargoMechs';
+import {StrategicShift} from './StrategicShift';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -308,5 +309,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // the repeat-action mechanism — 1 energy → a mech onto ANY card, OR 1 mech here → perform a used action again (Viron's
     // road, `IHasCheckLoops` against the Viron ↔ Cargo Mechs recursion).
     [CardName.CARGO_MECHS]: {Factory: CargoMechs},
+    // Only the module's icon at the bottom left: an EVENT for 2 with no requirement — «discard any number of cards WITH A
+    // REQUIREMENT, +1 M€ and +1 card each» (Public Plans' multi pick × the discard skin × the embedded draw).
+    [CardName.STRATEGIC_SHIFT]: {Factory: StrategicShift},
   },
 });

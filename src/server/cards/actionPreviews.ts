@@ -860,6 +860,9 @@ export const SKIPPED_LABEL = {
   reduceProduction: 'Reduce another player\'s production',
   removeAnimalsOrPlants: 'Remove animals or plants from another player',
   addToCard: 'Add resources to a card',
+  // A discard FOR something (Strategic Shift's «cards with a requirement for M€ and cards»): skipped when the hand
+  // holds no candidate — named before the press (the preview) and after it (the record).
+  discardCards: 'Discard cards from hand',
   // Named only AFTER the fact (their cause cannot be known before the commit):
   drawCards: 'Draw cards',
   repeatAction: 'Repeat a used action',
@@ -879,6 +882,7 @@ export const SKIP_REASON = {
   plantsProtected: 'Plants are protected',
   deckEmpty: 'The deck is empty',
   noActionToRepeat: 'No used action to repeat',
+  noRequirementCard: 'No card with a requirement in hand',
 } as const;
 
 /**
@@ -1068,7 +1072,7 @@ export function selectCardStep(
     min?: number,
     max?: number,
     showSelectAll?: boolean,
-    multiSelect?: {countLabel: string | Message, revealGain?: {resource: string, amount: number}},
+    multiSelect?: {countLabel: string | Message, revealGain?: {resource: string, amount: number}, drawPerCard?: number},
     /** The candidates are ACTIONS to perform again (ProjectInspection / Viron) —
      *  the modal renders them as premium action cards + opens the action confirm.
      *  See `ActionPreviewStep.repeatAction`. */

@@ -470,9 +470,12 @@ export type ActionPreviewStep =
      * for that count ("Cards to reveal"); `revealGain` (optional) folds a
      * per-selected-card stock gain into the live RESULT (`+1 M€` per revealed card)
      * so the player sees the M€ change BEFORE submit. The whole `{type:'card',
-     * cards:[...]}` set is captured as this step's single response.
+     * cards:[...]}` set is captured as this step's single response. `drawPerCard`
+     * is a SECOND payout in cards per picked card (Strategic Shift: «+1 M€ AND
+     * draw a card» per card thrown) — the album's running summary and the
+     * composer's answer read both.
      */
-    multiSelect?: {countLabel: string | Message, revealGain?: {resource: string, amount: number}},
+    multiSelect?: {countLabel: string | Message, revealGain?: {resource: string, amount: number}, drawPerCard?: number},
     /**
      * The candidates of this card pick are ACTIONS TO PERFORM AGAIN (already used
      * this generation) — NOT resource targets. ProjectInspection (play) and Viron
