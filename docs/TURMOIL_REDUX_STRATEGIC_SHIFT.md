@@ -3,8 +3,8 @@
 **Status.** Shipped 2026-10-17. The prompt: `docs/claude/prompts/project-tr65-strategic-shift.md`. The law: `.claude/rules/console-ui.md`
 § THE PLAYED TABLE IS A TABLE; the table's contract: `docs/claude/console/played-table.md`. Ledger: section BC
 (`docs/claude/gameplay-polish-ledger.md`, PL-610…625). Decisions 1–3, 5, 6, 10 were taken at their defaults; 4 (the discard
-skin), 7 (the chassis), 8 (shelves + pages, and whether the focus walks by CATEGORY or by CARD) and 9 (the physics) are the owner's
-batch, built at the recommended option. **Art imported** (`Mars Arts/TR65.png` existed → `assets/card-images/TR65.webp` + thumb).
+skin), 7 (the chassis), 8 (shelves + pages; the focus walks by ZONE) and 9 (the physics) were built at the recommended option and
+**confirmed by the owner on 2026-10-17** (the open rows PL-619…623 go to the backlog). **Art imported** (`Mars Arts/TR65.png` existed → `assets/card-images/TR65.webp` + thumb).
 
 ## 1 · The card
 
@@ -128,8 +128,8 @@ iteration's), the empty events plate on a rival who has played none is heavy, an
 | 5 | RT at zero | **a** — the refusal in words, no badge (PL-259 closed by class for every `min 0` multi pick) |
 | 6 | the draw's surface | **a** — embedded in the hand workspace (the play's claim sizes it by the picks) |
 | 7 | the table's chassis | **a** (recommended, built) — a workspace screen in the opening; (b) the drawer kept — refused by the diagnosis |
-| 8 | the table's composition | **a** (recommended, built) — shelves at the album's density + strict pages; the focus walks by ZONE (a d-pad step lands on the next zone's run; A / X open it) — the alternative «by card» is the owner's question |
-| 9 | the physics | **a** — kept: the lift off held slots, the landing on the planned slot, X out of the real slot |
+| 8 | the table's composition | **a** (recommended, built, confirmed) — shelves at the album's density + strict pages; the focus walks by ZONE (a d-pad step lands on the next zone's run; A / X open it); «by card», 5 columns and the Deck's second row were declined |
+| 9 | the physics | **a** (confirmed) — kept: the lift off held slots, the landing on the planned slot, X out of the real slot; PL-619…623 → the backlog |
 | 10 | the e2e translation | **a** — the 35 `con-played` specs re-pointed where their hook changed (`console-info-workspace` step 9: the subject reads «Бот»); the liveness guard green |
 
 ## 5 · Guards and regression
