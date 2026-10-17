@@ -56,7 +56,7 @@ type Sample = {
   /** The voting columns as SHOWN: every slot's instance and its delegate count (the held table under a held reward pose — registry R-25в). */
   slots: string;
   /** The card-bonus witnesses: the deck-draw scene (phase), the bonus cover lift, the reveal, the plate, the hand dock's total. */
-  deckdraw: string; cover: boolean; reveal: boolean; zoom: boolean; plate: boolean; hand: string;
+  deckdraw: string; cover: boolean; reveal: boolean; shown: boolean; plate: boolean; hand: string;
 };
 type Probe = {samples: Array<Sample>};
 
@@ -129,7 +129,10 @@ async function armProbe(page: Page): Promise<void> {
         deckdraw: document.querySelector('.con-deckdraw')?.getAttribute('data-dd-phase') ?? '',
         cover: ((el) => el !== null && el.getBoundingClientRect().width > 0 && getComputedStyle(el).visibility !== 'hidden' && getComputedStyle(el).opacity !== '0')(document.querySelector<HTMLElement>('.con-bonusfly-cover')),
         reveal: document.querySelector('.con-reveal, dialog.con-zoom[open]') !== null,
-        zoom: document.querySelector('dialog.con-zoom[open]') !== null,
+        // The card is SHOWN: the viewer, or the reveal scene with its veil lifted (TR57 — a lone reward card is the
+        // standalone SCENE, the fullscreen viewer is X's; before TR57 the viewer opened by itself).
+        shown: document.querySelector('dialog.con-zoom[open]') !== null ||
+          ((el) => el !== null && !el.classList.contains('con-reveal--bonus-veiled'))(document.querySelector('.con-reveal')),
         plate: document.querySelector('.con-mandatory') !== null,
         hand: document.querySelector('[data-hand-total]')?.getAttribute('data-hand-total') ?? '',
       });
@@ -654,21 +657,22 @@ test.describe('the Agenda step\'s TR bonus (standard-1080)', () => {
     const firstDeal = at((x) => x.deckdraw !== '');
     const firstCover = at((x) => x.cover);
     const firstReveal = at((x) => x.reveal);
-    const firstZoom = at((x) => x.zoom);
+    const firstShown = at((x) => x.shown);
     const firstPlate = at((x) => x.plate);
     const firstSitting = at((x) => x.parl);
     const firstEnact = at((x) => x.stage === 'enact');
     const handTick = at((x) => x.hand === String(handBefore + 1));
-    console.log(`[card-bonus] timeline: plate ${t(firstPlate)} · sitting ${t(firstSitting)} · enact ${t(firstEnact)} · deck deal ${t(firstDeal)} · cover lift ${t(firstCover)} · reveal mounted ${t(firstReveal)} · card open ${t(firstZoom)} · hand +1 ${t(handTick)}`);
+    console.log(`[card-bonus] timeline: plate ${t(firstPlate)} · sitting ${t(firstSitting)} · enact ${t(firstEnact)} · deck deal ${t(firstDeal)} · cover lift ${t(firstCover)} · reveal mounted ${t(firstReveal)} · card shown ${t(firstShown)} · hand +1 ${t(handTick)}`);
     const sceneDiag = await page.evaluate(() => JSON.stringify((window as unknown as {__conReady: () => {cardBonus: unknown, parliamentReward: unknown}}).__conReady().cardBonus));
     expect(firstDeal, 'the deck never dealt it — the card was dealt with the summary, its source is the step').toBe(-1);
     expect(firstCover, `the cover lifted off the step (scene ${sceneDiag})`).toBeGreaterThanOrEqual(0);
     expect(firstCover, 'the cover lifted only on the enactment page').toBeGreaterThan(firstEnact);
-    // The reveal overlay MOUNTS veiled under the scene; the CARD itself opens (the fullscreen viewer) only once the cover has lifted.
-    expect(firstZoom, 'the card opened after the lift').toBeGreaterThanOrEqual(firstCover);
+    // The reveal overlay MOUNTS veiled under the scene; the CARD itself is SHOWN (the scene unveiled — since TR57 the lone
+    // reward card is the standalone scene and the fullscreen viewer is X's) only once the cover has lifted.
+    expect(firstShown, 'the card is shown only after the lift (the viewer, or the scene unveiled)').toBeGreaterThanOrEqual(firstCover);
     expect(firstPlate, 'the plate came first — nothing presented the card over it').toBeLessThan(firstCover);
     expect(firstReveal, 'nothing presented the card before the enactment page').toBeGreaterThan(firstEnact);
-    expect(handTick, 'the dock ticked after the card was taken').toBeGreaterThan(firstZoom);
+    expect(handTick, 'the dock ticked after the card was taken').toBeGreaterThan(firstShown);
     expect(['enact', 'reward', 'results'], 'the walk went on by itself (v2)').toContain(await sittingStage(page));
     await shoot(page, 'standard-1080', 'RX05-card-bonus-landed');
     expect(await strandedReports(page)).toEqual([]);
