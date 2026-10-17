@@ -103,7 +103,7 @@ The podium is authored AT the floor (its type is rem ≥ 0.85; the faces are the
 their desk sizes for badges, units, ticks and table heads — `console_tv.less` § THE FINALE AND ITS OVERVIEW ON THE COUCH raises
 every one of them to the floor on the TV profile (the `consoleTvTypeFloor` guard covers the block).
 
-### Shares — before / after (4K GPU, the saturated fixtures; `screenshots/tr69/tv4k/{before,after4}/probe.jsonl`, the Deck in `screenshots/tr69/deck/after6/`)
+### Shares — before / after (4K GPU, the saturated fixtures; `screenshots/tr69/tv4k/{before,after7}/probe.jsonl`, FHD `screenshots/tr69/fhd/after7/`, the Deck `screenshots/tr69/deck/after6/`; the count's storyboards — JPEG frames named by their beat, `*/after7/{5p,2p,bot}-count-*.jpg`)
 
 | screen | before: ink · content foot · hero · under the floor | after: ink · content foot · hero · under the floor |
 | --- | --- | --- |
@@ -112,6 +112,7 @@ every one of them to the floor on the TV profile (the `consoleTvTypeFloor` guard
 | overview «Счёт» · 5 | 12 % · 66 % · — · 1 | 24 % · 97 % · — · 0 |
 | overview «Игроки» · 5 | 13 % · 59 % · — · 25 | 22 % · 92 % · — · 0 |
 | overview «Игроки» · 2 | 13 % · 62 % · — · 29 | 23 % · 97 % · — · 0 |
+| results · 2 humans + MarsBot | — (no fixture before) | 19 % · 97 % · 67 % · 0 (the bot's own Credicor face on the crest) |
 
 The Deck (1280 × 800): results 5 / 2 — the content's foot 97 % / 97 %, the hero 60 %; «Счёт» 98 %; «Игроки» 89 % / 92 % (the
 handheld density: the hero column 13.5rem, the score sources as «disc + value» four to a row — PL-648); the duel's reading column
