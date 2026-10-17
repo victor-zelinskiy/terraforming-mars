@@ -157,6 +157,11 @@
         </div>
       </div>
 
+      <!-- ── THE CELL'S FACE (TR67): the square under the reticle at scene scale and its six neighbours, lit by the SAME
+           relation tones the board draws from this preview. Constant geometry — a step swaps its data, nothing moves. -->
+      <console-cell-portrait v-if="portrait !== undefined && !portraitYield" :portrait="portrait" :ring="ring" :marks="marks"
+                             :aresTiles="aresTiles" class="con-context__portrait con-context__portrait--compact" />
+
       <!-- ── THE DOSSIER BODY — the same server facts, grouped by intent and
            COMPACTED into rows (placementDossier).
            ⚠️ NO transition group, and no height/enter/leave animation of any
@@ -172,32 +177,9 @@
              order is the decision order (toll → result → the tile's standing
              mechanic → progress → endgame). Still NO animation of any kind
              on a cell change: content reflows instantly; only values flick. -->
-        <section v-for="section in sections" :key="section.key"
-                 class="con-context__sec" :class="'con-context__sec--' + section.key">
-          <h3 class="con-context__sec-head">
-            <span>{{ $t(section.titleKey) }}</span>
-            <!-- THE CELL'S OWN FORECAST — the sum of the rows below, which is
-                 the number the player is actually after («сколько ПО стоит ЭТА
-                 клетка»); shown only when the block has more than one scoring
-                 row, so it can never just repeat it. -->
-            <span v-if="section.total !== undefined" :key="section.total" class="con-context__sec-total">
-              {{ section.total < 0 ? '−' : '+' }}{{ Math.abs(section.total) }} <i>{{ $t('VP') }}</i>
-            </span>
-          </h3>
-          <template v-if="section.groups !== undefined">
-            <div v-for="group in section.groups" :key="group.key" class="con-context__grp">
-              <div class="con-context__grp-head">
-                <span v-if="groupDot(group) !== undefined" class="con-context__grp-dot"
-                      :class="'player_bg_color_' + groupDot(group)"></span>
-                <span v-i18n>{{ groupLabel(group) }}</span>
-              </div>
-              <console-placement-fact-row v-for="row in group.rows" :key="row.key" :row="row" />
-            </div>
-          </template>
-          <template v-else>
-            <console-placement-fact-row v-for="row in section.rows" :key="row.key" :row="row" />
-          </template>
-        </section>
+        <!-- THE CELL'S OWN FORECAST rides the endgame head («сколько ПО стоит ЭТА клетка» — the sum of its rows, shown
+             only past one scoring row). The markup is the ONE sections renderer the inspection shares (TR67). -->
+        <console-dossier-sections :sections="sections" :viewerColor="viewerColor" :players="players" />
         <!-- «Ничего сверх размещения» — names WHAT lands (tile vs marker). -->
         <div v-if="emptyKey !== undefined" class="con-context__none">{{ $t(emptyKey) }}</div>
         <!-- An illegal cell has no preview — the hover facts still explain
@@ -212,54 +194,110 @@
       </template>
     </template>
 
-    <!-- ── TRACK MODE (P27b): a focused global-parameter track bonus ── -->
+    <!-- ── TRACK MODE (R3) — THE SAME CHASSIS (TR67): the head names the SCALE, the STEP has a portrait (the scale's own
+         glyph, where the parameter stands now, what the step gives — large), «КОГДА» is a section of rows (the rule and
+         who already took it), the scale's own description stands at the foot. The rows are the same pre-translated
+         ones the band's hover shows (`scaleTooltipState` — one source). -->
     <template v-else-if="mode === 'track'">
-      <div class="con-context__task-kicker">{{ $t('Track bonus') }}</div>
+      <header class="con-context__id">
+        <div class="con-context__eyebrow">
+          <div class="con-context__task-kicker con-context__task-kicker--track" :style="trackAccentStyle">{{ $t('Track bonus') }}</div>
+        </div>
+        <div v-if="trackScale !== null" class="con-context__head">
+          <h2 class="con-context__title" data-track-title>{{ $t(trackScale.titleKey) }}</h2>
+        </div>
+      </header>
       <template v-if="trackInfo !== null">
-        <div class="con-inspector__name">{{ trackInfo.kicker }}</div>
-        <div class="con-context__track-rows">
-          <div v-for="(row, i) in trackInfo.rows" :key="i"
-               class="con-context__track-row"
-               :class="'con-context__track-row--' + row.tone">
-            <span v-if="row.dot !== undefined" class="con-status__dot" :style="{background: row.dot}"></span>
-            <span>{{ row.text }}</span>
+        <div class="con-context__step" :style="trackAccentStyle" data-track-step>
+          <span v-if="trackGlyphClass !== ''" class="con-context__step-glyph" :class="trackGlyphClass" aria-hidden="true"></span>
+          <div v-if="trackScale !== null" class="con-context__step-now">
+            <span class="con-context__step-cap">{{ $t('Now') }}</span>
+            <b class="con-context__step-val" :key="trackScale.valueText">{{ trackScale.valueText }}</b>
           </div>
+          <div class="con-context__step-gives">
+            <span class="con-context__step-cap">{{ trackInfo.kicker }}</span>
+            <b v-for="(row, i) in trackGives" :key="i" class="con-context__step-reward" data-track-reward>{{ row.text }}</b>
+          </div>
+        </div>
+        <div class="con-context__body">
+          <section class="con-context__sec con-context__sec--tile" data-dossier-section="track-when">
+            <h3 class="con-context__sec-head"><span>{{ $t('When') }}</span></h3>
+            <div class="con-dossier-row con-dossier-row--info">
+              <div class="con-dossier-row__main">
+                <div class="con-dossier-row__title">{{ $t('Scale bonuses are granted when the parameter passes this step') }}</div>
+              </div>
+            </div>
+            <div v-for="(row, i) in trackClaims" :key="'c' + i" class="con-dossier-row con-dossier-row--warning" data-track-claim>
+              <div class="con-dossier-row__main">
+                <div class="con-dossier-row__title">
+                  <span v-if="row.dot !== undefined" class="con-context__grp-dot" :style="{background: row.dot}" aria-hidden="true"></span>
+                  {{ row.text }}
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
       </template>
       <div v-else class="con-inspector__loading">{{ $t('Loading') }}…</div>
-      <!-- P27c: the owning SCALE's own hover-overview (name + current
-           value + description) — the mouse would show it on the band. -->
-      <div v-if="trackScale !== null" class="con-context__scale">
-        <div class="con-context__scale-title">{{ $t(trackScale.titleKey) }}</div>
-        <div class="con-context__track-row con-context__track-row--value">
-          <span>{{ $t(trackScale.nounKey) }}: {{ trackScale.valueText }}</span>
-        </div>
-        <div class="con-context__track-row con-context__track-row--desc">
-          <span>{{ $t(trackScale.descriptionKey) }}</span>
+      <div v-if="trackScale !== null" class="con-context__foot">
+        <div class="con-context__lore con-context__lore--scale" :style="trackAccentStyle">
+          <div class="con-context__lore-title">{{ $t(trackScale.nounKey) }}</div>
+          <div class="con-context__lore-text">{{ $t(trackScale.descriptionKey) }}</div>
         </div>
       </div>
-      <div class="con-context__note">{{ $t('Scale bonuses are granted when the parameter passes this step') }}</div>
     </template>
 
     <!-- ── CELL MODE: inspection — a selected cell, no task ─────────── -->
+    <!-- ── CELL MODE (L3 inspection) — THE SAME DOSSIER (TR67 «КЛЕТКА — ОДНО ДОСЬЕ»): the placement's chassis, its
+         type system and its rows; the head is the OBJECT the cell holds, its owner and the card that put it there; the
+         portrait is the cell's face with its six neighbours (the board lights the same ones); the sections are the
+         hover's facts by intent; the field's rules and the cell's lore stand at the foot. The kicker speaks the
+         scanner's amber (the board's `con-cell-sel`), never the placement's cyan. -->
     <template v-else-if="mode === 'cell'">
-      <div class="con-inspector__kicker">{{ cellHeader !== '' ? cellHeader : $t('Board cell') }}</div>
-      <div v-if="tileLabel !== ''" class="con-inspector__name">{{ tileLabel }}</div>
-      <div v-if="ownerName !== ''" class="con-context__owner">
-        <span :class="'con-status__dot player_bg_color_' + ownerColor"></span>
-        <span>{{ ownerName }}</span>
-      </div>
-      <div v-if="cellDescription !== ''" class="con-inspector__desc">{{ cellDescription }}</div>
-      <!-- P27b: the curated special-cell LORE (Ganymede, volcanoes…) —
-           inspection is the right home for it (placement stays lean). -->
-      <div v-if="lore !== undefined" class="con-context__lore">
-        <div v-if="loreTitle !== ''" class="con-context__lore-title">{{ $t(lore.title) }}</div>
-        <div class="con-context__lore-text">{{ $t(lore.description) }}</div>
-      </div>
-      <div v-if="info !== undefined && info.facts.length > 0" class="con-inspector__facts">
-        <BoardFactGroups :facts="info.facts" :viewerColor="viewerColor" :players="players" />
-      </div>
+      <header class="con-context__id con-context__id--cell">
+        <div class="con-context__eyebrow">
+          <div class="con-context__task-kicker con-context__task-kicker--scan">{{ $t('Board inspection') }}</div>
+        </div>
+        <div class="con-context__head con-context__head--cell">
+          <h2 class="con-context__title" data-cell-title
+              :class="cellId.tier === 'base' ? undefined : 'con-context__title--' + cellId.tier">{{ cellId.title }}</h2>
+        </div>
+        <div v-if="cellId.special" class="con-context__qualifier">{{ $t('Special tile') }}</div>
+        <div v-if="cellId.line !== ''" class="con-context__action-line">{{ cellId.line }}</div>
+        <!-- WHOSE and FROM WHAT — the owner's cube + name, the card that put the tile here (X opens its face). -->
+        <div v-if="ownerName !== '' || placedBy !== undefined" class="con-context__who">
+          <span v-if="ownerName !== ''" class="con-context__owner" data-cell-owner>
+            <span class="con-context__owner-cube" :class="'player_bg_color_' + ownerColor" aria-hidden="true"></span>
+            <span>{{ ownerName }}</span>
+          </span>
+          <span v-if="placedBy !== undefined" class="con-src con-src--chip con-context__placed" data-cell-source :data-cell-source-card="placedBy">
+            <span class="con-src__plate">
+              <span class="con-src__plate-mark" aria-hidden="true">◈</span>
+              <span class="con-src__plate-kind">{{ $t('Placed by') }}</span>
+              <span class="con-src__plate-sep" aria-hidden="true">·</span>
+              <span class="con-src__plate-name">{{ $t(placedBy) }}</span>
+            </span>
+          </span>
+        </div>
+      </header>
+      <template v-if="info !== undefined">
+        <console-cell-portrait v-if="portrait !== undefined" :portrait="portrait" :ring="ring" :marks="marks"
+                               :ownVp="ownVp" :aresTiles="aresTiles" class="con-context__portrait"
+                               :class="{'con-context__portrait--compact': portraitTight}" />
+        <div class="con-context__body">
+          <console-dossier-sections :sections="cellBodySections" :viewerColor="viewerColor" :players="players" />
+        </div>
+      </template>
       <div v-else-if="loading" class="con-inspector__loading">{{ $t('Loading') }}…</div>
+      <!-- THE FOOT — what is true of the SQUARE whatever stands on it: the field's rules, the curated lore. -->
+      <div v-if="cellFootSections.length > 0 || lore !== undefined" class="con-context__foot">
+        <console-dossier-sections :sections="cellFootSections" :viewerColor="viewerColor" :players="players" />
+        <!-- P27b: the curated special-cell LORE (Ganymede, volcanoes…) — inspection is its home (placement stays lean). -->
+        <div v-if="lore !== undefined" class="con-context__lore">
+          <div v-if="loreTitle !== ''" class="con-context__lore-title">{{ $t(lore.title) }}</div>
+          <div class="con-context__lore-text">{{ $t(lore.description) }}</div>
+        </div>
+      </div>
     </template>
 
     <!-- (The former IDLE mode is gone: the strategic Milestones/Awards
@@ -295,11 +333,12 @@
  * the same sources the desktop buttons use.
  */
 import {defineComponent, PropType} from 'vue';
-import BoardFactGroups from '@/client/components/board/BoardFactGroups.vue';
+import ConsoleCellPortrait from '@/client/components/console/ConsoleCellPortrait.vue';
+import ConsoleDossierSections from '@/client/components/console/ConsoleDossierSections.vue';
 import ConsolePlacementFactRow from '@/client/components/console/ConsolePlacementFactRow.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import {BoardCellInfo, BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
-import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
+import {BoardCellInfo, BoardFact, BoardPlacementPreview, CellPortrait} from '@/common/boards/BoardInformationFacts';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
@@ -311,7 +350,6 @@ import {PromptSourceView} from '@/client/console/promptSource';
 import {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {
-  DossierRecipientGroup,
   DossierRow,
   DossierSection,
   PlacementConversion,
@@ -328,6 +366,10 @@ import {
   BANK_BURNS, BANK_CELLS, BANK_ENOUGH, BANK_LABEL as FINALE_BANK_LABEL, FinalePanelModel, FinaleSeatState, LANDING_LINE,
   QUEUE_LABEL, SEAT_DONE, SEAT_PLACING, SEAT_WAITING, SEAT_YOU, STAGE_LANDING, STAGE_PICK, STAGE_WAIT, WAITING_ON,
 } from '@/client/console/finalGreenery/finalGreeneryModel';
+import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
+import {ScaleTooltipRow} from '@/client/components/board/scaleTooltipState';
+import {CellIdentity, CellMark, CellRingSlot, cellDossierSections, cellIdentity, cellMarks, cellOwnVp, cellRing} from '@/client/console/cellDossier';
+import {previewFacts} from '@/client/console/placementRelations';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -338,13 +380,24 @@ function textOf(v: string | Message | undefined): string {
 
 export default defineComponent({
   name: 'ConsoleContextPanel',
-  components: {BoardFactGroups, ConsolePlacementFactRow, GamepadGlyph},
+  components: {ConsoleCellPortrait, ConsoleDossierSections, ConsolePlacementFactRow, GamepadGlyph},
   data() {
     return {
       /** Content continues below the fold — drives the fade + the stick hint. */
       moreBelow: false,
       /** Something is already scrolled past — drives the TOP fade. */
       scrolledDown: false,
+      /**
+       * TR67: the placement's portrait YIELDS to the decision text — a placement dossier that scrolls is a defect (the
+       * dossier law), so the first cell of a prompt whose dossier would overflow with the portrait drops it for the rest
+       * of THAT prompt (a one-time change, never a portrait flickering cell to cell). Reset by the next prompt.
+       */
+      portraitYield: false,
+      /**
+       * …and in the INSPECTION it steps down to the compact size instead (the portrait IS the inspection's head): the
+       * first cell whose dossier would overflow (a long lore at 4K) settles the size for the rest of the inspection.
+       */
+      portraitTight: false,
       resizeObserver: undefined as ResizeObserver | undefined,
       FINALE_BANK_LABEL,
       LANDING_LINE,
@@ -364,6 +417,12 @@ export default defineComponent({
     /** New facts arrive asynchronously (the preview is fetched per cell), so
      *  the overflow state has to be re-measured when they land. */
     preview() {
+      this.$nextTick(() => this.measureScroll());
+    },
+    /** A new prompt (or another mode) earns the portrait back. */
+    placementPromptKey() {
+      this.portraitYield = false;
+      this.portraitTight = false;
       this.$nextTick(() => this.measureScroll());
     },
   },
@@ -520,11 +579,74 @@ export default defineComponent({
     cellHeader(): string {
       return textOf(this.info?.status.header);
     },
+    /** The placement PROMPT's identity for the portrait's yield (the mode, the tile, the kind, the source, the title). */
+    placementPromptKey(): string {
+      const shape = this.placementShape;
+      return `${this.mode}|${shape?.tileType ?? ''}|${shape?.placementType ?? ''}|${shape?.placementEffect ?? ''}|${shape?.sourceCard ?? ''}|${this.placementTitle}`;
+    },
     tileLabel(): string {
       return textOf(this.info?.status.tileLabel);
     },
-    cellDescription(): string {
-      return textOf(this.info?.description);
+    // ── TR67 · THE STEP PORTRAIT (R3) ──────────────────────────────────
+    /** The scale's own accent — the step plate and the kicker wear it. */
+    trackAccentStyle(): Record<string, string> {
+      const accent = this.trackInfo?.accent;
+      return accent === undefined ? {} : {'--track-accent': ARC_SCALE_THEMES[accent].vars['--arc-accent'] ?? ''};
+    },
+    trackGlyphClass(): string {
+      const accent = this.trackInfo?.accent;
+      return accent === undefined ? '' : ARC_SCALE_THEMES[accent].glyphClass;
+    },
+    /** What the step GIVES (the band's reward / value / description rows). */
+    trackGives(): ReadonlyArray<ScaleTooltipRow> {
+      return (this.trackInfo?.rows ?? []).filter((r) => r.tone !== 'claim' && r.tone !== 'note');
+    },
+    /** Who already took it (a player's dot, the world government). */
+    trackClaims(): ReadonlyArray<ScaleTooltipRow> {
+      return (this.trackInfo?.rows ?? []).filter((r) => r.tone === 'claim' || r.tone === 'note');
+    },
+    // ── TR67 · THE CELL DOSSIER ─────────────────────────────────────────
+    /** The cell's OBJECT — the inspection's title (the tile, a special tile by name, a square by its kind). */
+    cellId(): CellIdentity {
+      if (this.info === undefined) {
+        return {title: translateText('Board cell'), tier: 'base', special: false, line: ''};
+      }
+      return cellIdentity(this.info, (key, params) =>
+        (params !== undefined ? translateTextWithParams(key, [...params]) : translateText(key)), translateMessage);
+    },
+    /** The server's portrait of the focused cell — the SAME payload in every mode (the hover info of that cell). */
+    portrait(): CellPortrait | undefined {
+      return this.info?.portrait;
+    },
+    /** The facts that light the ring: a placement's preview (what THIS placement touches), else the hover's own. */
+    ringFacts(): ReadonlyArray<BoardFact> {
+      if (this.mode === 'placement') {
+        return this.preview !== undefined ? previewFacts(this.preview) : [];
+      }
+      return this.info?.facts ?? [];
+    },
+    ring(): Array<CellRingSlot> {
+      return cellRing(this.portrait, this.ringFacts, this.viewerColor);
+    },
+    marks(): Array<CellMark> {
+      return this.info !== undefined ? cellMarks(this.info) : [];
+    },
+    /** The tile's OWN points at the end (the inspection only — a placement's VP lives in its endgame block). */
+    ownVp(): number | undefined {
+      return this.info !== undefined ? cellOwnVp(this.info) : undefined;
+    },
+    /** The CARD that put the tile here — the source chip; X opens its face. */
+    placedBy(): CardName | undefined {
+      return this.portrait?.sourceCard;
+    },
+    cellSections(): Array<DossierSection> {
+      return this.info !== undefined ? cellDossierSections(this.info, this.viewerColor, {lore: this.lore !== undefined}) : [];
+    },
+    cellBodySections(): Array<DossierSection> {
+      return this.cellSections.filter((s) => s.key !== 'rules');
+    },
+    cellFootSections(): Array<DossierSection> {
+      return this.cellSections.filter((s) => s.key === 'rules');
     },
     ownerColor(): Color | undefined {
       return this.info?.status.ownerColor;
@@ -552,31 +674,6 @@ export default defineComponent({
     seatStateKey(state: FinaleSeatState): string {
       return state === 'done' ? SEAT_DONE : state === 'placing' ? SEAT_PLACING : SEAT_WAITING;
     },
-    groupDot(group: DossierRecipientGroup): Color | undefined {
-      const r = group.recipient;
-      if (r.kind === 'current-player') {
-        return this.viewerColor;
-      }
-      if (r.kind === 'player' || r.kind === 'tile-owner') {
-        return r.color;
-      }
-      return undefined;
-    },
-    groupLabel(group: DossierRecipientGroup): string {
-      const r = group.recipient;
-      switch (r.kind) {
-      case 'current-player': return 'You';
-      case 'player':
-      case 'tile-owner': {
-        // A colour with no seat behind it must never leak raw («NEUTRAL» over
-        // a solo game's setup city) — name it through the i18n key.
-        const name = displayNameForColor(this.players, r.color);
-        return name === 'neutral' ? 'Neutral' : name;
-      }
-      case 'neutral': return 'Field rule';
-      case 'nobody': return 'Reserved';
-      }
-    },
     /**
      * Recompute the two overflow affordances. Kept cheap (three reads, no
      * layout write) and driven by the passive scroll event, a ResizeObserver and
@@ -588,6 +685,17 @@ export default defineComponent({
         return;
       }
       const remaining = root.scrollHeight - root.clientHeight - root.scrollTop;
+      if (remaining > 2 && this.mode === 'placement' && this.portrait !== undefined && !this.portraitYield) {
+        // The decision text outranks the cell's face: yield, then measure again (TR67).
+        this.portraitYield = true;
+        this.$nextTick(() => this.measureScroll());
+        return;
+      }
+      if (remaining > 2 && this.mode === 'cell' && this.portrait !== undefined && !this.portraitTight) {
+        this.portraitTight = true;
+        this.$nextTick(() => this.measureScroll());
+        return;
+      }
       this.moreBelow = remaining > 2;
       this.scrolledDown = root.scrollTop > 2;
     },

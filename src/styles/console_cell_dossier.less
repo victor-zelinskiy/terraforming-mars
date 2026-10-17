@@ -1,0 +1,467 @@
+/* ════════════════════════════════════════════════════════════════════
+   THE CELL DOSSIER — Turmoil Redux TR67 «КЛЕТКА — ОДНО ДОСЬЕ»
+   ────────────────────────────────────────────────────────────────────
+   The board column reads ONE cell in four modes (L3 inspection, R3 scale
+   step, a placement, an ocean removal) and speaks ONE language in all of
+   them: the placement dossier's chassis (`.con-context` — its four type
+   tokens, its sections, its rows), a PORTRAIT of the cell at scene scale
+   with its SIX NEIGHBOURS in the board's true geometry, and — in the
+   inspection — the square's standing rules and lore pinned to the foot so
+   the drawer is filled by hierarchy, never by a column of tiny lines at
+   the top. Contract: `docs/TURMOIL_REDUX_ENCELADEAN_INCUBATOR.md`.
+
+   ⚠️ NOTHING HERE MOVES WHILE THE PLAYER POINTS. The portrait's six slots
+   are fixed by CSS (a step swaps their data in the same frame); no
+   transition, no animation, no `filter` on state. The ring's tones are
+   the board's relation tones (`con-rel--*`) — one palette, one meaning.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* The five relation tones — the SAME hues the board's `con-rel--*` marks
+   paint (console.less § the RELATION layer), so a lit neighbour in the
+   column and on the field is one colour. */
+@cp-tone-ocean: #8cc8f2;
+@cp-tone-score: @sem-prestige;
+@cp-tone-reward: @con-mint;
+@cp-tone-penalty: #ff8a7e;
+@cp-tone-event: #e8f1fb;
+
+.con-context {
+    /* ── THE PORTRAIT'S GEOMETRY — unitless multiples of 1rem, so the board's
+       px tile art can be zoomed to the exact hex (46 px × zoom × ui-scale =
+       N rem). Profiles re-tune the NUMBERS, never the markup. ── */
+    --cp-c: 7.6;      /* the cell's own hex — width */
+    --cp-r: 4;        /* a neighbour's hex — width */
+    --cp-gap: .38;    /* the even gap between the cell's edge and each neighbour's */
+    --cp-rim: .09rem; /* the hex rim */
+}
+
+/* A placement keeps its decision text above the fold: the same portrait,
+   one step smaller (the dossier below it is the decision). */
+.con-context__portrait--compact {
+    --cp-c: 3.9;
+    --cp-r: 2.1;
+    --cp-gap: .22;
+}
+
+.con-cellp {
+    /* R — the distance between the two centres along an edge normal. */
+    --cp-R: calc((var(--cp-c) / 2 + var(--cp-gap) + var(--cp-r) / 2) * 1rem);
+    --cp-cw: calc(var(--cp-c) * 1rem);
+    --cp-ch: calc(var(--cp-c) * 1.1547rem);
+    --cp-rw: calc(var(--cp-r) * 1rem);
+    --cp-rh: calc(var(--cp-r) * 1.1547rem);
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .35rem;
+    padding: .2rem 0 .1rem;
+
+    &__stage {
+        position: relative;
+        /* The ring's own box: left/right neighbours reach R + rw/2, the four
+           diagonals R·sin60 + rh/2 — the box is exactly the ring, constant
+           from one cell to the next (an edge just draws no hex in its slot). */
+        width: calc(2 * var(--cp-R) + var(--cp-rw));
+        height: calc(2 * .866 * var(--cp-R) + var(--cp-rh));
+    }
+    /* Without neighbours (an off-Mars slot) the stage is the cell alone. */
+    &:not(.con-cellp--ring) &__stage {
+        width: var(--cp-cw);
+        height: var(--cp-ch);
+    }
+
+    /* ── the hexes ─────────────────────────────────────────────────── */
+    &__hex {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+        /* The rim — the ground sits one rim inside it (::before). */
+        background: linear-gradient(160deg, rgba(196, 220, 245, 0.42), rgba(70, 96, 124, 0.32));
+
+        &::before {
+            content: '';
+            position: absolute;
+            inset: var(--cp-rim);
+            clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+            background: var(--cp-ground);
+        }
+        /* The square's printed kind as its ground. */
+        &--land { --cp-ground: radial-gradient(70% 62% at 42% 34%, #b8693f, #7a3b22 62%, #4e2414); }
+        &--ocean { --cp-ground: radial-gradient(70% 62% at 42% 34%, #3f86b8, #1d4e79 60%, #0f2c49); }
+        &--cove { --cp-ground: radial-gradient(70% 62% at 42% 34%, #4f9c9a, #24605f 60%, #12393a); }
+        &--deflection { --cp-ground: radial-gradient(70% 62% at 42% 34%, #8a6fb0, #4b3a6d 62%, #281e3d); }
+        &--reserved {
+            --cp-ground: repeating-linear-gradient(135deg, #2a3442 0 .32rem, #222b37 .32rem .64rem);
+            background: linear-gradient(160deg, rgba(150, 165, 185, 0.38), rgba(60, 72, 90, 0.3));
+        }
+    }
+    /* The board's own tile art at its native 46×51 px box, zoomed to the hex. */
+    &__art {
+        position: relative;
+        z-index: 1;
+        display: block;
+        width: 46px;  /* keep-px: the board sprite's native hex box */
+        height: 51px; /* keep-px: the board sprite's native hex box */
+        &--c { zoom: calc(var(--cp-c) * 20 / 46 * var(--con-ui-scale, 1)); }
+        &--nb { zoom: calc(var(--cp-r) * 20 / 46 * var(--con-ui-scale, 1)); }
+        &--under { zoom: calc(var(--cp-c) * .34 * 20 / 46 * var(--con-ui-scale, 1)); }
+    }
+
+    /* ── the cell itself ───────────────────────────────────────────── */
+    &__centre {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: var(--cp-cw);
+        height: var(--cp-ch);
+        transform: translate(-50%, -50%);
+    }
+    &:not(.con-cellp--ring) &__centre {
+        left: 0;
+        top: 0;
+        transform: none;
+    }
+    /* The printed bonus as LARGE icons on the square's ground — the cell's face. */
+    &__bonus {
+        position: relative;
+        z-index: 1;
+        display: grid;
+        grid-auto-flow: column;
+        gap: calc(var(--cp-c) * .05rem);
+        &--n3,
+        &--n4 {
+            grid-auto-flow: row;
+            grid-template-columns: repeat(2, auto);
+        }
+    }
+    &__bonus-ico {
+        width: calc(var(--cp-c) * .3rem);
+        height: calc(var(--cp-c) * .3rem);
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+    &__bonus--n3 &__bonus-ico,
+    &__bonus--n4 &__bonus-ico {
+        width: calc(var(--cp-c) * .24rem);
+        height: calc(var(--cp-c) * .24rem);
+    }
+    /* TR44 — the water under the city: its miniature at the pile's foot. */
+    &__under {
+        position: absolute;
+        z-index: 2;
+        left: 50%;
+        bottom: -.15rem;
+        transform: translateX(-50%);
+        display: flex;
+    }
+    /* The owner's CUBE — the board's own token, at the cell's lower right. */
+    &__cube {
+        position: absolute;
+        z-index: 3;
+        border-radius: .14rem;
+        box-shadow: 0 0 0 .07rem rgba(6, 10, 16, 0.85), inset 0 .07rem 0 rgba(255, 255, 255, 0.35);
+        &--c {
+            right: 12%;
+            bottom: 14%;
+            width: calc(var(--cp-c) * .15rem);
+            height: calc(var(--cp-c) * .15rem);
+        }
+        &--nb {
+            right: 14%;
+            bottom: 16%;
+            width: calc(var(--cp-r) * .19rem);
+            height: calc(var(--cp-r) * .19rem);
+        }
+    }
+    /* The tile's OWN points at the end — the score cell's gold shield + the signed count. */
+    &__vp {
+        position: absolute;
+        z-index: 3;
+        top: 4%;
+        right: -6%;
+        display: inline-flex;
+        align-items: center;
+        gap: .12rem;
+        padding: .08rem .38rem .08rem .14rem;
+        border-radius: 999px;
+        background: rgba(10, 15, 23, 0.9);
+        box-shadow: inset 0 0 0 .05rem fade(@sem-prestige, 55%);
+        color: @sem-prestige;
+        font-family: @con-font;
+        font-variant-numeric: tabular-nums;
+        font-size: var(--ctx-t-value);
+        line-height: 1;
+        animation: con-dossier-val-in calc(100ms * var(--motion-scale, 1)) linear;
+
+        .con-vp-badge {
+            width: 1.15em;
+            height: 1.25em;
+        }
+    }
+
+    /* ── the six neighbours ────────────────────────────────────────── */
+    &__nb {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: var(--cp-rw);
+        height: var(--cp-rh);
+        margin-left: calc(var(--cp-rw) / -2);
+        margin-top: calc(var(--cp-rh) / -2);
+        /* Clockwise from the top-left, along the six edge normals of a pointy-top hex. */
+        &--d0 { transform: translate(calc(var(--cp-R) * -.5), calc(var(--cp-R) * -.866)); }
+        &--d1 { transform: translate(calc(var(--cp-R) * .5), calc(var(--cp-R) * -.866)); }
+        &--d2 { transform: translate(var(--cp-R), 0); }
+        &--d3 { transform: translate(calc(var(--cp-R) * .5), calc(var(--cp-R) * .866)); }
+        &--d4 { transform: translate(calc(var(--cp-R) * -.5), calc(var(--cp-R) * .866)); }
+        &--d5 { transform: translate(calc(var(--cp-R) * -1), 0); }
+
+        /* An unlit, EMPTY neighbour is a quiet outline — context, not content. */
+        &--quiet .con-cellp__hex {
+            opacity: .5;
+        }
+        /* The board's edge — no hex at all (never a stub). */
+        &--edge { visibility: hidden; }
+
+        /* A LIT neighbour wears its tone as the rim (paint only). */
+        &--lit .con-cellp__hex { background: var(--cp-tone); }
+        &--ocean { --cp-tone: linear-gradient(160deg, @cp-tone-ocean, fade(@cp-tone-ocean, 55%)); --cp-ink: @cp-tone-ocean; }
+        &--score { --cp-tone: linear-gradient(160deg, @cp-tone-score, fade(@cp-tone-score, 55%)); --cp-ink: @cp-tone-score; }
+        &--reward { --cp-tone: linear-gradient(160deg, @cp-tone-reward, fade(@cp-tone-reward, 55%)); --cp-ink: @cp-tone-reward; }
+        &--penalty { --cp-tone: repeating-linear-gradient(135deg, @cp-tone-penalty 0 .2rem, fade(@cp-tone-penalty, 40%) .2rem .34rem); --cp-ink: @cp-tone-penalty; }
+        &--event { --cp-tone: linear-gradient(160deg, fade(@cp-tone-event, 70%), fade(@cp-tone-event, 30%)); --cp-ink: @cp-tone-event; }
+        &--lit { --cp-rim: .16rem; }
+    }
+    /* What ONE neighbour means for this cell — a capsule on its lower half, in the tone's ink. */
+    &__chip {
+        position: absolute;
+        z-index: 4;
+        left: 50%;
+        bottom: 6%;
+        transform: translateX(-50%);
+        display: inline-flex;
+        align-items: center;
+        gap: .14rem;
+        padding: .06rem .32rem;
+        border-radius: 999px;
+        background: rgba(8, 13, 20, 0.92);
+        box-shadow: inset 0 0 0 .05rem var(--cp-ink, fade(@con-cyan, 60%));
+        color: var(--cp-ink, @con-text);
+        font-family: @con-font;
+        font-variant-numeric: tabular-nums;
+        font-size: var(--ctx-t-chrome);
+        line-height: 1.1;
+        white-space: nowrap;
+        animation: con-dossier-val-in calc(100ms * var(--motion-scale, 1)) linear;
+
+        b { font-weight: 600; }
+        i {
+            font-style: normal;
+            letter-spacing: .04rem;
+            opacity: .9;
+        }
+    }
+    &__chip-ico {
+        width: 1.05em;
+        height: 1.05em;
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+    &__chip-dot {
+        width: .55em;
+        height: .55em;
+        border-radius: 50%;
+        box-shadow: 0 0 0 .05rem rgba(0, 0, 0, 0.5);
+    }
+
+    /* ── the square's own marks — tracked words, never rows ────────── */
+    &__marks {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: .25rem .4rem;
+    }
+    &__mark {
+        padding: .06rem .5rem;
+        border-radius: .3rem;
+        background: rgba(20, 30, 44, 0.7);
+        box-shadow: inset 0 0 0 .05rem rgba(155, 190, 220, 0.24);
+        color: fade(@con-text-dim, 92%);
+        font-size: var(--ctx-t-chrome);
+        letter-spacing: var(--ctx-track-chrome);
+        text-transform: uppercase;
+    }
+}
+
+/* ── THE INSPECTION ON THE PLACEMENT'S CHASSIS ─────────────────────── */
+.con-context {
+    /* The scanner's amber (`con-cell-sel` on the board) names the mode. */
+    &__task-kicker--scan { color: fade(@con-amber, 92%); }
+    &__head--cell {
+        height: auto;
+        min-height: 2.6rem;
+    }
+    /* WHOSE and FROM WHAT — the owner's cube + name, the placing card's chip. */
+    &__who {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .35rem .6rem;
+    }
+    &__owner {
+        font-size: var(--ctx-t-label);
+        color: @con-text;
+    }
+    &__owner-cube {
+        flex: 0 0 auto;
+        width: .7rem;
+        height: .7rem;
+        border-radius: .12rem;
+        box-shadow: 0 0 0 .05rem rgba(6, 10, 16, 0.85), inset 0 .05rem 0 rgba(255, 255, 255, 0.35);
+    }
+    &__placed {
+        max-width: 100%;
+    }
+    &__portrait {
+        align-self: center;
+    }
+    /* THE FOOT — the square's standing rules and lore, pinned to the drawer's
+       bottom: the column is filled by hierarchy (face → facts → the field). */
+    &__foot {
+        margin-top: auto;
+        display: flex;
+        flex-direction: column;
+        gap: .6rem;
+        padding-top: .5rem;
+    }
+    &__lore {
+        padding: .45rem .6rem;
+        border-left: .12rem solid fade(@con-amber, 45%);
+        background: linear-gradient(90deg, fade(@con-amber, 7%), transparent 70%);
+    }
+    &__lore-title {
+        margin-bottom: .2rem;
+        font-size: var(--ctx-t-chrome);
+        letter-spacing: var(--ctx-track-chrome);
+        text-transform: uppercase;
+        color: fade(@con-amber, 88%);
+    }
+    /* The lore rides the dossier's own READING token (a row's voice), never the 1.3rem couch reading face — one type
+       system in the column (TR67: at 52 px the lore alone pushed a Tharsis Tholus greenery's dossier off the drawer). */
+    &__lore-text {
+        .con-read-text();
+        font-size: var(--ctx-t-label);
+        line-height: 1.4;
+        color: @con-text-dim;
+    }
+    /* The section accents speak the relation palette where a meaning is
+       shared: the toll is the penalty red, a gain «now» the reward mint, the
+       endgame the score gold, the cell's standing mechanic the event cyan. */
+    &__sec--uncovers { --dsec-accent: fade(@cp-tone-ocean, 88%); --dsec-line: fade(@cp-tone-ocean, 26%); }
+}
+/* ── R3 · THE STEP PORTRAIT — the scale's glyph, where the parameter stands
+   NOW, what the step GIVES — on one plate in the scale's own accent. ── */
+.con-context {
+    &__task-kicker--track { color: var(--track-accent, fade(@con-cyan, 88%)); }
+    &__step {
+        display: grid;
+        grid-template-columns: auto auto 1fr;
+        align-items: center;
+        gap: .4rem 1rem;
+        padding: .8rem 1rem;
+        border-radius: .55rem;
+        background:
+            radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--track-accent, @con-cyan) 16%, transparent), transparent 62%),
+            rgba(12, 19, 29, 0.72);
+        box-shadow: inset 0 0 0 .06rem color-mix(in srgb, var(--track-accent, @con-cyan) 42%, transparent);
+    }
+    &__step-glyph {
+        width: 3.2rem;
+        height: 3.2rem;
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+    &__step-now,
+    &__step-gives {
+        display: flex;
+        flex-direction: column;
+        gap: .15rem;
+        min-width: 0;
+    }
+    &__step-cap {
+        font-size: var(--ctx-t-chrome);
+        letter-spacing: var(--ctx-track-chrome);
+        text-transform: uppercase;
+        color: fade(@con-text-dim, 90%);
+    }
+    &__step-val {
+        font-family: @con-font;
+        font-variant-numeric: tabular-nums;
+        font-weight: 400;
+        font-size: 1.9rem;
+        line-height: 1;
+        color: var(--track-accent, @con-text);
+        animation: con-dossier-val-in calc(100ms * var(--motion-scale, 1)) linear;
+    }
+    &__step-reward {
+        font-weight: 400;
+        font-size: var(--ctx-t-value);
+        line-height: 1.25;
+        color: @con-text;
+        overflow-wrap: anywhere;
+    }
+    &__lore--scale {
+        border-left-color: color-mix(in srgb, var(--track-accent, @con-cyan) 55%, transparent);
+        background: linear-gradient(90deg, color-mix(in srgb, var(--track-accent, @con-cyan) 8%, transparent), transparent 70%);
+
+        .con-context__lore-title { color: var(--track-accent, @con-cyan); }
+    }
+}
+
+/* The source chip's caption rides the dossier's chrome token (it read 28 px at
+   4K — under the couch floor — when it kept the dock's own size). */
+.con-context .con-src--chip .con-src__plate-kind,
+.con-context .con-src--chip .con-src__plate-name {
+    font-size: var(--ctx-t-chrome);
+}
+
+/* (THE INSPECTION ON THE FIELD — the neighbours the dossier names wear the placement's relation marks with no entry
+   fade — lives beside the aim's own rules in console.less § PLACEMENT RELATION MARKS: one rule set, one palette.) */
+
+/* ── PROFILES — the numbers, never the markup ─────────────────────── */
+html.con-profile-tv {
+    /* The couch column is the widest measure (23rem): the portrait takes its third of the drawer's height. */
+    .con-context {
+        --cp-c: 8.6;
+        --cp-r: 4.5;
+        --cp-gap: .42;
+    }
+    /* The cell line's mark rode a sub-floor 0.68rem (27 px at 4K). */
+    .con-context__cell-mark { font-size: .8rem; }
+    .con-context__portrait--compact {
+        --cp-c: 4.4;
+        --cp-r: 2.35;
+        --cp-gap: .24;
+    }
+}
+html.con-profile-handheld {
+    .con-context {
+        --cp-c: 4.2;
+        --cp-r: 2.2;
+        --cp-gap: .2;
+        --cp-rim: .07rem;
+    }
+    .con-context__portrait--compact {
+        --cp-c: 2.8;
+        --cp-r: 1.5;
+        --cp-gap: .14;
+    }
+    .con-cellp__chip { padding: .03rem .2rem; }
+}

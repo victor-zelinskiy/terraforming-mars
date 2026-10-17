@@ -236,6 +236,7 @@ import {VenusianCensus} from '../../../src/server/cards/turmoilRedux/VenusianCen
 import {ReSettlement} from '../../../src/server/cards/turmoilRedux/ReSettlement';
 import {CanyonCarving} from '../../../src/server/cards/turmoilRedux/CanyonCarving';
 import {EcologicalExperiment} from '../../../src/server/cards/turmoilRedux/EcologicalExperiment';
+import {EnceladeanIncubator} from '../../../src/server/cards/turmoilRedux/EnceladeanIncubator';
 import {Capital} from '../../../src/server/cards/base/Capital';
 import {OceanCity} from '../../../src/server/cards/ares/OceanCity';
 import {AquaticResearchStation} from '../../../src/server/cards/turmoilRedux/AquaticResearchStation';
@@ -1903,6 +1904,79 @@ ecologicalFixture('ecological-experiment', 'plain');
 ecologicalFixture('ecological-experiment-max', 'max');
 ecologicalFixture('ecological-experiment-cascade', 'cascade');
 ecologicalFixture('ecological-experiment-under-city', 'under-city');
+// ── TR67 · ENCELADEAN INCUBATOR («Инкубатор Энцелада») + «КЛЕТКА — ОДНО ДОСЬЕ»: blue's action phase, «Инкубатор» in
+//    hand, 30 M€, the Industrialists ruling (a quiet passive — no money rides the ocean's rating). The board is ARRANGED
+//    on Tharsis around the centre, every KIND of cell the column reads within a few steps of each other:
+//      · blue's CITY on 40 between blue's two greeneries 39 · 41 — the city scores 2 (the ring lights both gold);
+//      · red's CITY on 48 and blue's GREENERY on 47 between the two cities — the greenery feeds blue's city AND red's;
+//      · an OCEAN on 32 (beside 31 · 40 · 41 · 33) — the empty land 31 [2 plants] pays +2 M€ beside it; the reserves 33 · 34
+//        are the incubator's ocean cells with the money;
+//      · a CAPITAL on 50 (placed BY ITS CARD — the source chip, X opens it) beside an ocean on 43 — +1 VP for it;
+//      · a Decomposers on the table (the microbes' one holder — still a question).
+//    Variants: `bare` — no microbe holder (the named skip); `max` — nine oceans (the warning before the press).
+const INCUBATOR_STAND = {city: '40', greenA: '39', greenB: '41', rivalCity: '48', between: '47', ocean: '32', capital: '50', capitalOcean: '43', land: '31'} as const;
+function incubatorFixture(name: string, stand: 'cells' | 'bare' | 'max'): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [30, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, p2, parliament}) => {
+      seatEnacted(parliament, quietResolutionOf(PartyName.INDUSTRIALISTS));
+      const cell = (id: string) => game.board.getSpaceOrThrow(id as SpaceId);
+      for (const id of [INCUBATOR_STAND.ocean, INCUBATOR_STAND.capitalOcean]) {
+        cell(id).tile = {tileType: TileType.OCEAN};
+        cell(id).player = undefined;
+      }
+      addCity(p2, INCUBATOR_STAND.rivalCity as SpaceId);
+      addCity(p1, INCUBATOR_STAND.city as SpaceId);
+      addGreenery(p1, INCUBATOR_STAND.greenA as SpaceId);
+      addGreenery(p1, INCUBATOR_STAND.greenB as SpaceId);
+      addGreenery(p1, INCUBATOR_STAND.between as SpaceId);
+      game.simpleAddTile(p1, cell(INCUBATOR_STAND.capital), {tileType: TileType.CAPITAL, card: CardName.CAPITAL});
+      p1.playedCards.push(new Capital());
+      if (stand === 'max') {
+        maxOutOceans(p1);
+      }
+      if (stand !== 'bare') {
+        p1.playedCards.push(new Decomposers());
+      }
+      p1.cardsInHand.push(new EnceladeanIncubator());
+      runAllActions(game);
+      p1.megaCredits = 30;
+      p1.titanium = 0;
+      p1.steel = 0;
+    },
+    expect: ({game, p1, parliament}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.ENCELADEAN_INCUBATOR);
+      const cell = (id: string) => game.board.getSpaceOrThrow(id as SpaceId);
+      const facts = {
+        playable: card !== undefined && p1.canPlay(card) !== false,
+        oceans: stand === 'max' ? 9 : game.board.getOceanSpaces().length,
+        city: [cell(INCUBATOR_STAND.city).tile?.tileType, cell(INCUBATOR_STAND.city).player?.id === p1.id],
+        rival: cell(INCUBATOR_STAND.rivalCity).player?.id !== p1.id && cell(INCUBATOR_STAND.rivalCity).tile?.tileType === TileType.CITY,
+        capital: [cell(INCUBATOR_STAND.capital).tile?.tileType, cell(INCUBATOR_STAND.capital).tile?.card],
+        holders: p1.playedCards.asArray().filter((c) => c.name === CardName.DECOMPOSERS).length,
+        money: p1.megaCredits,
+      };
+      const expected = {
+        playable: true,
+        oceans: stand === 'max' ? game.board.getOceanSpaces().length : 2,
+        city: [TileType.CITY, true],
+        rival: true,
+        capital: [TileType.CAPITAL, CardName.CAPITAL],
+        holders: stand === 'bare' ? 0 : 1,
+        money: 30,
+      };
+      if (JSON.stringify(facts) !== JSON.stringify(expected) || (stand === 'max' && game.board.getOceanSpaces().length !== 9)) {
+        throw new Error(`the ${name} fixture expected ${JSON.stringify(expected)} — got ${JSON.stringify(facts)}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+incubatorFixture('enceladean-incubator', 'cells');
+incubatorFixture('enceladean-incubator-bare', 'bare');
+incubatorFixture('enceladean-incubator-max', 'max');
 // ── TR39 · CANYON CARVING — AN OCEAN MOVES (docs/TURMOIL_REDUX_RE_SETTLEMENT.md §2.6: the contract of a move on a tile
 //    NOBODY owns): blue's action phase with «Прорезание каньона» in hand, 20 M€, the Greens ruling by the STARTING RULE
 //    (nothing enacted — generation 1). The board is ARRANGED on Tharsis, never dealt:

@@ -4,6 +4,11 @@ import {globalConfig} from '../getLocalVue';
 import ConsoleContextPanel from '@/client/components/console/ConsoleContextPanel.vue';
 import ConsolePlacementFactRow from '@/client/components/console/ConsolePlacementFactRow.vue';
 import BoardFactGroups from '@/client/components/board/BoardFactGroups.vue';
+import ConsoleCellPortrait from '@/client/components/console/ConsoleCellPortrait.vue';
+import {SpaceType} from '@/common/boards/SpaceType';
+import {SpaceBonus} from '@/common/boards/SpaceBonus';
+import {CardName} from '@/common/cards/CardName';
+import {SpaceId} from '@/common/Types';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {BoardCellInfo, BoardFact, BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 import {DossierRow} from '@/client/console/placementDossier';
@@ -60,7 +65,12 @@ function mountPanel(props: Record<string, unknown>) {
       // face, whose import chain zeroes a mochapack spec) — so it is stubbed
       // here rather than resolved. Its own contract lives in
       // `promptSource.spec.ts` + the placement e2e probe.
-      stubs: {'console-source-dock': {props: ['view', 'chip'], template: '<div class="con-src con-src--chip" />'}},
+      stubs: {
+        'console-source-dock': {props: ['view', 'chip'], template: '<div class="con-src con-src--chip" />'},
+        // THE ONE sections renderer both modes share (TR67) renders for real — its rows stay shallow stubs.
+        'console-dossier-sections': false,
+        'ConsoleDossierSections': false,
+      },
     },
     props: {mode: 'placement', viewerColor: 'red', players: [], ...props},
   });
@@ -91,10 +101,52 @@ describe('ConsoleContextPanel', () => {
     expect(wrapper.find('.con-context__sec--cellinfo').exists()).to.be.true;
   });
 
-  it('inspection mode keeps the hover facts (a preview is placement-only)', () => {
-    const wrapper = mountPanel({mode: 'cell', info, preview});
-    expect(wrapper.findAllComponents(ConsolePlacementFactRow)).to.have.lengthOf(0);
-    expect(wrapper.findComponent(BoardFactGroups).exists()).to.be.true;
+  /**
+   * TR67 «КЛЕТКА — ОДНО ДОСЬЕ»: the inspection is the placement's dossier — the hover's facts on the SAME rows, by
+   * intent, the cell's OBJECT as the title, the portrait as the head; never the desktop fact groups under a zoom.
+   */
+  describe('inspection — the same dossier (TR67)', () => {
+    it('renders the hover facts on the placement\'s rows, by intent (a preview is placement-only)', () => {
+      const wrapper = mountPanel({mode: 'cell', info, preview});
+      const rows = wrapper.findAllComponents(ConsolePlacementFactRow);
+      expect(rows.map((r) => (r.props('row') as DossierRow).key)).to.deep.eq(['f']);
+      expect(wrapper.find('.con-context__sec--gain').exists(), 'a printed bonus is «when placing here»').to.be.true;
+      expect(wrapper.findComponent(BoardFactGroups).exists(), 'never the desktop groups').to.be.false;
+      expect(wrapper.find('.con-inspector__facts').exists()).to.be.false;
+      expect(wrapper.find('[data-cell-title]').text()).to.eq('Land with a bonus');
+      expect(wrapper.findAllComponents(GamepadGlyph), 'no controller prompt in the panel').to.have.lengthOf(0);
+    });
+
+    it('the portrait heads the column; its ring is lit by the hover facts that name a neighbour; the placing card is a chip', () => {
+      const ocean = {space: '06' as SpaceId, spaceType: SpaceType.OCEAN, bonus: [], tileType: TileType.OCEAN};
+      const withPortrait: BoardCellInfo = {
+        ...info,
+        status: {content: 'city', header: 'City', ownerColor: 'blue', tileLabel: CardName.CAPITAL},
+        facts: [{
+          id: 'ocean-adjacency', category: 'ocean-adjacency-bonus', timing: 'immediate', severity: 'positive',
+          recipient: {kind: 'current-player'}, title: 'Adjacent to ocean',
+          delta: {icon: 'megacredits', amount: 2, direction: 'gain'}, spaces: ['06' as SpaceId],
+          each: {delta: {icon: 'megacredits', amount: 2, direction: 'gain'}},
+        }],
+        portrait: {
+          space: '05' as SpaceId, spaceType: SpaceType.LAND, bonus: [SpaceBonus.PLANT], tileType: TileType.CITY, ownerColor: 'blue',
+          sourceCard: CardName.CAPITAL, neighbours: [null, null, ocean, null, null, null],
+        },
+      };
+      const wrapper = mountPanel({mode: 'cell', info: withPortrait});
+      const portrait = wrapper.findComponent(ConsoleCellPortrait);
+      expect(portrait.exists()).to.be.true;
+      const ring = portrait.props('ring') as ReadonlyArray<{piece?: {space: string}, tone?: string}>;
+      expect(ring.filter((r) => r.tone !== undefined).map((r) => `${r.piece?.space}:${r.tone}`)).to.deep.eq(['06:ocean']);
+      expect(wrapper.find('[data-cell-source]').attributes('data-cell-source-card')).to.eq(CardName.CAPITAL);
+    });
+
+    it('a placement\'s ring is lit by the PREVIEW, never by the hover', () => {
+      const lit: BoardCellInfo = {...info, portrait: {space: '05' as SpaceId, spaceType: SpaceType.LAND, bonus: [], neighbours: [null, null, {space: '06' as SpaceId, spaceType: SpaceType.OCEAN, bonus: []}, null, null, null]}};
+      const wrapper = mountPanel({info: lit, preview, selectedLegal: true});
+      const ring = wrapper.findComponent(ConsoleCellPortrait).props('ring') as ReadonlyArray<{tone?: string}>;
+      expect(ring.every((r) => r.tone === undefined), 'nothing in this preview names a neighbour').to.be.true;
+    });
   });
 
   /**

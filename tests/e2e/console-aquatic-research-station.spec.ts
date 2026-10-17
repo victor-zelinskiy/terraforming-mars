@@ -768,7 +768,7 @@ for (const preset of PRESETS) {
       await waitForBoardHome(page, 30);
       await press(page, 'KeyC', 900); // L3 — board inspection
       await walkToSpace(page, LIFT.source);
-      await expect.poll(() => inspectorText(page), {timeout: 10_000}).toMatch(/Город/);
+      await expect.poll(() => inspectorText(page), {timeout: 10_000}).toMatch(/Город/i);
       expect(await inspectorText(page), 'no longer two tiles').not.toMatch(/Два тайла/);
       await shoot(page, preset.id, 'canyon-04-inspect');
     });

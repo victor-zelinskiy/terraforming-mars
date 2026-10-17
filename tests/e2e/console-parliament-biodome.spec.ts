@@ -342,7 +342,9 @@ for (const preset of PRESETS) {
       expect(mid.game.parliament.phase?.outcomes?.find((o) => o.step === 'greenery')).toMatchObject({kind: 'greenery', part: 'winner', space: target!.id, parameter: {id: 'oxygen', before: 7, after: 8}});
       // The cell's CARD lifts off the tile first («received card · source: cell bonus») — the shared board-bonus
       // reveal; the follow-up ocean waits for it (prompt admission), so the card is taken before the ocean lives.
-      await expect.poll(async () => await page.locator('dialog.con-zoom[open]').count(), {timeout: 30_000, message: 'the cell\'s card is presented'}).toBe(1);
+      // (Since TR57 a lone received card is the SCENE in the opening — `.con-reveal` — the viewer only on X: the
+      // sitting-reward precedent.)
+      await expect.poll(async () => await page.locator('.con-reveal, dialog.con-zoom[open]').count(), {timeout: 30_000, message: 'the cell\'s card is presented'}).toBe(1);
       await shoot(page, preset.id, '07a-cell-card-bonus');
       expect(await pressUntil(page, 'Enter', async () => await placementState(page) !== 'none', {tries: 6, settleMs: 1500}), 'take the card → the ocean placement').toBe(true);
       await expect.poll(async () => await placementState(page), {timeout: 45_000, message: 'the ocean placement stands'}).not.toBe('none');

@@ -30,7 +30,7 @@
  *    `con-rel--far`, so distance never shouts.)
  */
 import {SpaceId} from '@/common/Types';
-import {BoardFact, BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
+import {BoardCellInfo, BoardFact, BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 
 export type PlacementRelationTone = 'penalty' | 'ocean' | 'score' | 'reward' | 'event';
 
@@ -45,7 +45,7 @@ export type PlacementRelation = {
  * city beside the greenery both pays its data this turn and scores the greenery
  * at the game's end — the payment is the decision, the VP is the footnote).
  */
-const TONE_RANK: Record<PlacementRelationTone, number> = {
+export const TONE_RANK: Readonly<Record<PlacementRelationTone, number>> = {
   penalty: 0,
   ocean: 1,
   reward: 2,
@@ -100,31 +100,49 @@ export function relationsFromPreview(preview: BoardPlacementPreview | undefined)
   if (preview === undefined) {
     return [];
   }
-  const byId = new Map<SpaceId, PlacementRelationTone>();
-  const groups: ReadonlyArray<ReadonlyArray<BoardFact> | undefined> = [
-    preview.costFacts,
-    preview.immediateFacts,
-    preview.recipientFacts,
-    preview.warningFacts,
-    preview.futureScoringFacts,
-    preview.progressFacts,
-    preview.ruleFacts,
+  return relationsFromFacts(previewFacts(preview), preview.space);
+}
+
+/** A preview's facts in its own reading order (costs → immediate → recipients → warnings → endgame → progress → rules). */
+export function previewFacts(preview: BoardPlacementPreview): ReadonlyArray<BoardFact> {
+  return [
+    ...preview.costFacts,
+    ...preview.immediateFacts,
+    ...preview.recipientFacts,
+    ...preview.warningFacts,
+    ...preview.futureScoringFacts,
+    ...(preview.progressFacts ?? []),
+    ...preview.ruleFacts,
   ];
-  for (const facts of groups) {
-    for (const fact of facts ?? []) {
-      const spaces = fact.spaces;
-      if (spaces === undefined || spaces.length === 0) {
+}
+
+/**
+ * THE INSPECTION's relations (TR67 «КЛЕТКА — ОДНО ДОСЬЕ»): the SAME tones, lit
+ * from the hover's own facts — the paying oceans of an empty square, the
+ * greeneries a city scores, the cities a greenery feeds — so an inspected cell
+ * marks its neighbours on the field exactly as a placement does, and the
+ * dossier's neighbour ring reads the same marks.
+ */
+export function relationsFromInfo(info: BoardCellInfo | undefined): ReadonlyArray<PlacementRelation> {
+  return info === undefined ? [] : relationsFromFacts(info.facts, info.space);
+}
+
+/** One relation per cell named by the facts (strongest tone wins), the cell itself excluded. */
+export function relationsFromFacts(facts: ReadonlyArray<BoardFact>, self: SpaceId): ReadonlyArray<PlacementRelation> {
+  const byId = new Map<SpaceId, PlacementRelationTone>();
+  for (const fact of facts) {
+    const spaces = fact.spaces;
+    if (spaces === undefined || spaces.length === 0) {
+      continue;
+    }
+    const tone = relationToneOf(fact);
+    for (const spaceId of spaces) {
+      if (spaceId === self) {
         continue;
       }
-      const tone = relationToneOf(fact);
-      for (const spaceId of spaces) {
-        if (spaceId === preview.space) {
-          continue;
-        }
-        const standing = byId.get(spaceId);
-        if (standing === undefined || TONE_RANK[tone] < TONE_RANK[standing]) {
-          byId.set(spaceId, tone);
-        }
+      const standing = byId.get(spaceId);
+      if (standing === undefined || TONE_RANK[tone] < TONE_RANK[standing]) {
+        byId.set(spaceId, tone);
       }
     }
   }

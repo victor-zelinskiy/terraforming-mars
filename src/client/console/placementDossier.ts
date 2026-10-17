@@ -512,8 +512,10 @@ function aggregationKey(fact: BoardFact, labelKey: string): string | undefined {
   }
   if (fact.vp !== undefined) {
     // Several adjacent cities are ONE statement about this cell: «Соседние
-    // города ×2 · +2 ПО», never two identical lines.
-    return `v|${labelKey}`;
+    // города ×2 · +2 ПО», never two identical lines. A statement with other
+    // PARAMS is another statement (a stack's «Ярус 1 из 2» / «Ярус 2 из 2» —
+    // one row per tier, the rows the final score prints; TR67's inspection).
+    return `v|${labelKey}|${(fact.params ?? []).join(',')}`;
   }
   return undefined;
 }

@@ -6756,6 +6756,10 @@ export default defineComponent({
       const info = boardInfoState.info;
       return info !== undefined && info.space === this.consoleState.boardSpaceId ? info : undefined;
     },
+    /** TR67: the CARD that put the inspected cell's tile there (the server's portrait) — what X opens. */
+    inspectedCellSourceCard(): CardName | undefined {
+      return this.consoleState.inspecting ? this.selectedCellInfo?.portrait?.sourceCard : undefined;
+    },
     /**
      * The placement preview, shown only for a LEGAL cell — mirrors the desktop
      * hover popover (an illegal cell shows the server's reason instead of the
@@ -9967,9 +9971,13 @@ export default defineComponent({
           {control: 'stickR', label: 'Exit'},
         ];
       }
-      // P27: BOARD INSPECTION MODE — strict cell traversal, B/L3 exit.
+      // P27: BOARD INSPECTION MODE — strict cell traversal, B/L3 exit. TR67: X opens the face of the CARD that put the
+      // focused tile there (the grammar «X — the current object»: in the inspection the cell's object is its tile, and
+      // a tile's face is its card); a cell with no such card keeps X in the bar, refused, its reason as the label.
       if (this.consoleState.inspecting) {
+        const source = this.inspectedCellSourceCard;
         return [
+          {control: 'secondary', label: source !== undefined ? 'Source card' : 'No source card', enabled: source !== undefined},
           {control: 'inspect', label: 'Information'},
           {control: 'back', label: 'To the board'},
           {control: 'stickL', label: 'Exit'},
@@ -15585,6 +15593,9 @@ export default defineComponent({
           this.enterColonyFocus('inspect');
         } else if (this.padSection === 'hand') {
           this.zoomHandCard();
+        } else if (onBoard && !this.placementActive && this.consoleState.inspecting) {
+          // TR67: the inspected tile's own card, fullscreen (the dossier's «Поставлено» chip); none → the reason, said.
+          this.inspectCellSource();
         } else if (onBoard && !this.placementActive &&
             !this.consoleState.inspecting && !this.consoleState.scaleInspecting) {
           this.openPlayedOverlay();
@@ -22903,6 +22914,25 @@ export default defineComponent({
      * the highlighted cells and the panel's facts are exactly as they were
      * when it closes.
      */
+    /**
+     * TR67 «КЛЕТКА — ОДНО ДОСЬЕ»: X in the board inspection opens the face of the card that put the focused tile there
+     * — the dossier's own «Поставлено» chip is the origin; the inspection stands under the viewer untouched (cursor,
+     * dossier, marks). A cell with no such card refuses with its reason (the bar already says it).
+     */
+    inspectCellSource(): void {
+      const name = this.inspectedCellSourceCard;
+      if (name === undefined) {
+        this.showNotice('No card placed this tile');
+        return;
+      }
+      openConsoleCardZoom([{name}], 0, undefined, undefined, {
+        statusLabel: 'Placed by',
+        origin: {
+          kind: 'physical',
+          resolve: () => document.querySelector<HTMLElement>('.con-context [data-cell-source]') ?? null,
+        },
+      });
+    },
     inspectPlacementSource(): void {
       const name = this.placementSourceCard;
       const resolution = this.placementSourceResolution;

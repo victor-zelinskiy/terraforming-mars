@@ -55,6 +55,9 @@ export const boardInfoState: State = reactive({
 
 const infoCache = new Map<string, BoardCellInfo>();
 const previewCache = new Map<string, BoardPlacementPreview>();
+/** Bumped every time the caches are dropped, so an answer that left before the drop never lands after it. */
+let cacheEpoch = 0;
+const prefetchEpochOf = new Map<string, number>();
 let debounceTimer: ReturnType<typeof setTimeout> | undefined;
 let hoverToken = 0;
 
@@ -68,6 +71,7 @@ export function configureBoardInfo(cfg: Partial<Config>): void {
   // facts are cheap + the fetch is debounced, so re-fetching on hover is fine.
   infoCache.clear();
   previewCache.clear();
+  cacheEpoch++;
   if (cfg.participantId !== undefined) {
     c.participantId = cfg.participantId;
   }
@@ -186,6 +190,44 @@ function fetchInfo(spaceId: SpaceId, key: string, myToken: number): void {
         boardInfoState.loading = false;
       }
     });
+}
+
+/** Hover answers being warmed right now — never ask the same cell twice in flight. */
+const prefetching = new Set<string>();
+/** At most one ring of cells per call: a prefetch is a courtesy to the NEXT step, never a crawl of the board. */
+const PREFETCH_MAX = 6;
+
+/**
+ * WARM the hover answers of the given cells (TR67 «КЛЕТКА — ОДНО ДОСЬЕ»): the
+ * inspected cell names its six neighbours, a d-pad step always lands on one of
+ * them, and a cached answer swaps the dossier in the SAME frame — a miss blanks
+ * it for the debounce + the round trip. Silent: nothing is written to the
+ * visible state, a failure is simply a later miss. Cached / in-flight cells are
+ * skipped; under JSDOM / before configuration it does nothing.
+ */
+export function prefetchBoardCells(spaceIds: ReadonlyArray<SpaceId>): void {
+  if (typeof fetch === 'undefined') {
+    return;
+  }
+  for (const spaceId of spaceIds.slice(0, PREFETCH_MAX)) {
+    const key = cacheKey(spaceId);
+    if (infoCache.has(key) || prefetching.has(key)) {
+      continue;
+    }
+    const url = buildUrl(spaceId);
+    if (url === undefined) {
+      return;
+    }
+    prefetching.add(key);
+    fetchPreview<BoardCellInfo>(url).then((info) => {
+      prefetching.delete(key);
+      // A cache cleared meanwhile (a new view — `configureBoardInfo`) means this answer may be stale: drop it.
+      if (info !== undefined && key === cacheKey(spaceId) && cacheEpoch === prefetchEpochOf.get(key)) {
+        infoCache.set(key, info);
+      }
+    });
+    prefetchEpochOf.set(key, cacheEpoch);
+  }
 }
 
 export function clearBoardCellHover(spaceId: SpaceId): void {

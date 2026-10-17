@@ -5505,33 +5505,11 @@ each(@players, {
         .gp-glyph { min-width: 1.3rem; }
     }
 
-    &__kicker {
-        font-size: .85rem;
-        letter-spacing: .11rem;
-        text-transform: uppercase;
-        color: fade(@con-cyan, 85%);
-        margin-bottom: .3rem;
-    }
-    &__name {
-        font-size: 1.4rem;
-        font-weight: 700;
-        margin-bottom: .4rem;
-    }
-    &__desc {
-        font-size: 1rem;
-        line-height: 1.45;
-        color: @con-text-dim;
-        margin-bottom: .7rem;
-    }
     /* (The old `__placement` legal/illegal CTA block is gone: the panel
        renders NO controller prompts — «A Разместить здесь» lives in the ONE
-       command bar, and the cell's own state is the `.con-context__cellbar`.) */
-    &__facts {
-        /* TV-scale the reused BoardFactGroups rows (CELL-inspection mode —
-           the placement dossier renders its own rem-native rows). */
-        font-size: calc(.95rem / var(--con-ui-scale, 1));
-        zoom: calc(1.25 * var(--con-ui-scale, 1));
-    }
+       command bar, and the cell's own state is the `.con-context__cellbar`.
+       TR67: the inspection's kicker / name / desktop facts under a `zoom` are
+       gone too — the inspection is the placement's own dossier.) */
     &__loading {
         color: @con-text-dim;
         font-size: 1rem;
@@ -5926,8 +5904,16 @@ html.con-section-leaving .con-strat {
       no wash (context, not adjacency).
    One-shot entry fade only, no loops; washes rest at .85 while aiming and
    turn STANDING (full) past the lock — nothing replays on the lock edge
-   (the classes never change there). */
-.con-board--placing .board-space.con-rel::after {
+   (the classes never change there).
+   THE INSPECTION SPEAKS IT TOO (TR67 «КЛЕТКА — ОДНО ДОСЬЕ»): an inspected
+   cell lights its neighbours from the hover's own facts with the SAME five
+   marks the aim draws — and the walk animates NOTHING (no entry fade: the
+   d-pad is pointing, the marks are data). ONE PALETTE with the dossier:
+   the ocean's cyan, the endgame's gold (VP is gold everywhere — the score
+   cell, the badges, «В КОНЦЕ ИГРЫ»), a gain «now» the dossier's mint, the
+   toll's red, the event's pale rim — the column's ring wears the same. */
+.con-board--placing .board-space.con-rel::after,
+.con-board--inspecting .board-space.con-rel::after {
     content: '';
     position: absolute;
     inset: 0;
@@ -5936,33 +5922,42 @@ html.con-section-leaving .con-strat {
     opacity: 0.85;
     animation: con-rel-in calc(240ms * var(--motion-scale, 1)) ease-out backwards;
 }
-.con-board--placing .board-space.con-rel--ocean::after {
+.con-board--inspecting .board-space.con-rel::after {
+    animation: none;
+}
+.con-board--placing .board-space.con-rel--ocean::after,
+.con-board--inspecting .board-space.con-rel--ocean::after {
     background:
         url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,3.2 42.5,14.4 42.5,36.6 23,47.8 3.5,36.6 3.5,14.4' fill='none' stroke='%238CC8F2' stroke-opacity='0.72' stroke-width='1.5' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat,
         radial-gradient(64% 58% at var(--rel-x, 50%) var(--rel-y, 50%), fade(@con-cyan, 38%), fade(@con-cyan, 0%) 74%);
 }
-.con-board--placing .board-space.con-rel--score::after {
+.con-board--placing .board-space.con-rel--score::after,
+.con-board--inspecting .board-space.con-rel--score::after {
     background:
-        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,3.2 42.5,14.4 42.5,36.6 23,47.8 3.5,36.6 3.5,14.4' fill='none' stroke='%23A8E87C' stroke-opacity='0.72' stroke-width='1.5' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat,
-        radial-gradient(64% 58% at var(--rel-x, 50%) var(--rel-y, 50%), fade(@con-plants, 34%), fade(@con-plants, 0%) 74%);
+        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,3.2 42.5,14.4 42.5,36.6 23,47.8 3.5,36.6 3.5,14.4' fill='none' stroke='%23FFD87A' stroke-opacity='0.75' stroke-width='1.5' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat,
+        radial-gradient(64% 58% at var(--rel-x, 50%) var(--rel-y, 50%), fade(@sem-prestige, 32%), fade(@sem-prestige, 0%) 74%);
 }
-.con-board--placing .board-space.con-rel--reward::after {
+.con-board--placing .board-space.con-rel--reward::after,
+.con-board--inspecting .board-space.con-rel--reward::after {
     background:
-        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,3.2 42.5,14.4 42.5,36.6 23,47.8 3.5,36.6 3.5,14.4' fill='none' stroke='%23F5DCA0' stroke-opacity='0.7' stroke-width='1.5' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat,
-        radial-gradient(64% 58% at var(--rel-x, 50%) var(--rel-y, 50%), fade(@con-action-gold, 32%), fade(@con-action-gold, 0%) 74%);
+        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,3.2 42.5,14.4 42.5,36.6 23,47.8 3.5,36.6 3.5,14.4' fill='none' stroke='%2358D6A6' stroke-opacity='0.72' stroke-width='1.5' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat,
+        radial-gradient(64% 58% at var(--rel-x, 50%) var(--rel-y, 50%), fade(@con-mint, 30%), fade(@con-mint, 0%) 74%);
 }
-.con-board--placing .board-space.con-rel--penalty::after {
+.con-board--placing .board-space.con-rel--penalty::after,
+.con-board--inspecting .board-space.con-rel--penalty::after {
     background:
         url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,3.2 42.5,14.4 42.5,36.6 23,47.8 3.5,36.6 3.5,14.4' fill='none' stroke='%23FF8A7E' stroke-opacity='0.85' stroke-width='1.7' stroke-linejoin='round' stroke-dasharray='5 3'/></svg>") center/100% 100% no-repeat,
         radial-gradient(64% 58% at var(--rel-x, 50%) var(--rel-y, 50%), fade(@con-red, 34%), fade(@con-red, 0%) 76%);
 }
-.con-board--placing .board-space.con-rel--event::after {
+.con-board--placing .board-space.con-rel--event::after,
+.con-board--inspecting .board-space.con-rel--event::after {
     background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,3 42.7,14.3 42.7,36.7 23,48 3.3,36.7 3.3,14.3' fill='none' stroke='%23E8F1FB' stroke-opacity='0.4' stroke-width='0.9' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
     opacity: 0.7;
 }
 /* A far participant (a planetary event two thirds of the map away) keeps a
    centred, quieter voice — never louder than a true neighbour. */
-.con-board--placing .board-space.con-rel--far::after {
+.con-board--placing .board-space.con-rel--far::after,
+.con-board--inspecting .board-space.con-rel--far::after {
     opacity: 0.55;
 }
 /* Past the LOCK the ties are STANDING: the decision is fixed, so the
@@ -11389,11 +11384,6 @@ html.console-mode {
         color: fade(@con-text-dim, 75%);
     }
 
-    /* P21: secondary facts in CELL-INSPECTION mode go one notch down — the
-       primary identity keeps its full size. (Placement renders its own rows.) */
-    & .con-inspector__facts {
-        zoom: calc(0.86 * var(--con-ui-scale, 1));
-    }
     &__owner {
         display: inline-flex;
         align-items: center;
@@ -16205,70 +16195,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     right: calc(min(34rem, 36vw) + 1.7rem);
 }
 
-/* P27b: the curated special-cell LORE (inspection mode only). */
-.con-context__lore {
-    margin-top: .6rem;
-    padding: .5rem .6rem;
-    border-radius: .45rem;
-    background: rgba(20, 32, 46, 0.55);
-    box-shadow: inset 0 0 0 .05rem fade(@con-amber, 22%);
-}
-.con-context__lore-title {
-    font-size: .8rem;
-    font-weight: 700;
-    letter-spacing: .04rem;
-    text-transform: uppercase;
-    color: fade(@con-amber, 90%);
-    margin-bottom: .25rem;
-}
-.con-context__lore-text {
-    font-size: .775rem;
-    line-height: 1.4;
-    color: @con-text-dim;
-}
-
-/* P27: TRACK mode rows (the focused scale bonus, ScaleTooltip parity). */
-.con-context__track-rows { margin-top: .5rem; }
-.con-context__track-row {
-    display: flex;
-    align-items: center;
-    gap: .4rem;
-    margin-top: .35rem;
-    font-size: .85rem;
-    line-height: 1.3;
-
-    .con-status__dot { width: .6rem; height: .6rem; flex-shrink: 0; }
-
-    &--reward { color: @con-mint; }
-    &--claim { color: @con-text-dim; }
-    &--note { color: @con-text-dim; font-size: .775rem; }
-    &--value { color: @con-text; font-weight: 700; }
-    &--desc { color: @con-text-dim; }
-}
-.con-context__note {
-    margin-top: .7rem;
-    font-size: .725rem;
-    line-height: 1.35;
-    color: @con-text-dim;
-    opacity: 0.85;
-}
-/* P27c: the owning SCALE's own hover-overview, mirrored under the bonus
-   (name + current value + what the scale is — ArcScale.overviewContent). */
-.con-context__scale {
-    margin-top: .7rem;
-    padding: .5rem .6rem;
-    border-radius: .45rem;
-    background: rgba(14, 23, 34, 0.6);
-    box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.2);
-}
-.con-context__scale-title {
-    font-size: .75rem;
-    font-weight: 700;
-    letter-spacing: .05rem;
-    text-transform: uppercase;
-    color: @con-text;
-    margin-bottom: .2rem;
-}
+/* (The cell's LORE, the R3 step and its rows live in console_cell_dossier.less — TR67: one chassis for every mode.) */
 
 /* ── Confirm panel — the quick wheel's confirm is a plate of the PROMPT-MODAL FAMILY now (`ConsoleActionConfirm`,
    PL-385): its band, stage, operation, «Сработает» door and the pass's list live in `console_prompt.less`. ── */
@@ -36560,10 +36487,6 @@ html.con-profile-handheld {
         min-width: 12.4rem;
         max-width: 14.1rem;
         padding: .5rem .6rem;
-
-        &__kicker { font-size: .6rem; letter-spacing: .08rem; }
-        &__name { font-size: .95rem; }
-        &__desc { font-size: .7rem; }
     }
     .con-context {
         gap: .45rem;

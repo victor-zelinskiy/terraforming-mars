@@ -297,20 +297,8 @@ html.con-profile-tv {
            the disc still must not be touched — measured against the planet's
            right limb, not eyeballed. */
         max-width: 23rem;
-
-        &__name { font-size: 1.3rem; }
-        &__desc { font-size: 0.95rem; }
     }
-    /* The CELL-INSPECTION facts (hover dossier) are px-authored desktop
-       content — the base rule (console.less) rides them at 0.86× the
-       ui-scale for handheld density. From the couch that lands them at
-       ~half the panel's own rem body text (the "many letters too small"
-       read). Bump the multiplier so the facts land near the couch caption
-       size, still a notch below the panel's primary status/reason/bonus.
-       (The PLACEMENT dossier renders rem-native rows — no zoom involved.) */
-    .con-context .con-inspector__facts {
-        zoom: calc(1.35 * var(--con-ui-scale, 1));
-    }
+    /* (TR67: the cell inspection is the placement's rem-native dossier — no px desktop facts under a `zoom` any more.) */
     /* Placement dossier from the couch: EVERY chrome label steps up to the
        service floor (§3.4 — 0.8rem, guarded by `consoleTvTypeFloor`), which
        is exactly the «мелкие подписи» the couch read cannot afford; the

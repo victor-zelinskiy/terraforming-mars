@@ -68,7 +68,7 @@ import {GameModel} from '@/common/models/GameModel';
 import {SpaceId} from '@/common/Types';
 import {NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {NavRect, pickDirectional, pickNearest, pickStrictGrid, rectCenter} from '@/client/gamepad/spatialNav';
-import {hoverBoardCell} from '@/client/components/board/boardInfoState';
+import {boardInfoState, hoverBoardCell, prefetchBoardCells} from '@/client/components/board/boardInfoState';
 import {consoleState} from '@/client/console/consoleRouter';
 import {TileView, nextTileView} from '@/client/components/board/TileView';
 import {
@@ -82,7 +82,7 @@ import {cssLengthPx} from '@/client/console/cssUnits';
 import {placementFlowState} from '@/client/console/tilePlacement/placementFlow';
 import {tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {PlacementShape, swatchForKind} from '@/client/console/placementDossier';
-import {relationsFromPreview} from '@/client/console/placementRelations';
+import {PlacementRelation, relationsFromInfo, relationsFromPreview} from '@/client/console/placementRelations';
 import {BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 import {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
 import {TileType} from '@/common/TileType';
@@ -303,6 +303,8 @@ export default defineComponent({
       boardBeatParkState,
       placementFlowState,
       tilePlacementState,
+      /** The hover pipeline's answer — the INSPECTION's relation layer follows it (TR67). */
+      boardInfoState,
       /** The reticle's teleport target (`.board-cont`) — resolved once at
        *  mount; the board never remounts (the console update model). */
       cursorHost: undefined as HTMLElement | undefined,
@@ -727,6 +729,29 @@ export default defineComponent({
      */
     cellPreview() {
       this.applyRelationMarks();
+    },
+    /**
+     * THE INSPECTION's relation layer follows the hover's answer for the
+     * focused cell (TR67) — and that answer names the six neighbours, which are
+     * warmed into the info cache right away: a d-pad step lands on one of them,
+     * so the next dossier swaps in the same frame instead of blanking for a
+     * fetch (decode ≠ mount — the TR58 law, for data).
+     */
+    'boardInfoState.info'(): void {
+      const info = boardInfoState.info;
+      if (info !== undefined && info.space === this.cursorSpaceId) {
+        prefetchBoardCells((info.portrait?.neighbours ?? []).flatMap((n) => n === null ? [] : [n.space]));
+      }
+      if (this.inspecting && !this.placementActive) {
+        this.applyRelationMarks();
+      }
+    },
+    inspecting(now: boolean): void {
+      if (!now && !this.placementActive) {
+        this.clearRelationMarks();
+      } else {
+        this.applyRelationMarks();
+      }
     },
     /**
      * PLANET FOCUS phases (planetFocus.ts) → framing. Enter/active apply
@@ -1298,16 +1323,14 @@ export default defineComponent({
      */
     applyRelationMarks(): void {
       this.clearRelationMarks();
-      const preview = this.cellPreview;
       const id = this.cursorSpaceId;
-      // The stale-async guard: a preview is only ever applied to ITS OWN cell.
-      if (!this.placementActive || !this.selectedAvailable ||
-          preview === undefined || id === undefined || preview.space !== id) {
+      const relations = this.focusedRelations(id);
+      if (id === undefined || relations === undefined) {
         return;
       }
       const centre = this.cellIntrinsicCentre(id);
       const adjacentReach = 46 * 1.5; /* keep-px: board px-space — one hex pitch */
-      for (const rel of relationsFromPreview(preview)) {
+      for (const rel of relations) {
         // A move's ORIGIN already wears its own pose (the quiet tile, the
         // dashed contour, the vector's foot) — a second mark on the same hex
         // would be two voices about one cell.
@@ -1338,6 +1361,27 @@ export default defineComponent({
           }
         }
       }
+    },
+    /**
+     * WHICH relations the focused cell lights, or `undefined` for none. A
+     * placement reads its own preview (a legal cell only); an INSPECTION (TR67
+     * «КЛЕТКА — ОДНО ДОСЬЕ») reads the hover's own facts — the same tones, so
+     * the field and the dossier's neighbour ring light ONE set. The stale-async
+     * guard either way: an answer is only ever applied to ITS OWN cell.
+     */
+    focusedRelations(id: string | undefined): ReadonlyArray<PlacementRelation> | undefined {
+      if (id === undefined) {
+        return undefined;
+      }
+      if (this.placementActive) {
+        const preview = this.cellPreview;
+        return this.selectedAvailable && preview !== undefined && preview.space === id ? relationsFromPreview(preview) : undefined;
+      }
+      if (this.inspecting) {
+        const info = boardInfoState.info;
+        return info !== undefined && info.space === id ? relationsFromInfo(info) : undefined;
+      }
+      return undefined;
     },
     clearRelationMarks(): void {
       for (const [el, cls] of relationMarked) {

@@ -1170,5 +1170,10 @@
     "Already on the table": "Уже на столе",
     "No action cards on the table": "Карт с действием на столе нет",
     "Not available": "Недоступно",
-    "Not used yet": "Ещё не использовано"
+    "Not used yet": "Ещё не использовано",
+    "Placed by": "Поставлено",
+    "Ocean under the city": "Под городом — океан",
+    "Stack of ${0}": "Стопка из ${0}",
+    "No source card": "Без карты-источника",
+    "No card placed this tile": "Здесь нет тайла, поставленного картой"
 }
