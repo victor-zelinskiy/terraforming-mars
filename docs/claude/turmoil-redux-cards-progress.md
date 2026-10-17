@@ -43,6 +43,7 @@
 | TR53 Frontier Labs («Лаборатории фронтира») | СДАНА 2026-10-15 | «5 M€ → ресурс на карту, где уже есть ресурс; если не наука — карта»: маркер «что ещё даёт кандидат» (`extraByCard`), near-miss при `min`, claim добора по ответу; БОЛЬШАЯ ИТЕРАЦИЯ «ПРИЁМ РЕСУРСА КАРТОЙ»: один директор PRESENT · PAY · READ · RETURN в четырёх хостах, ответ живого пика — сцена, одна запись поля, своя сцена зрителя на чужом размещении | `docs/TURMOIL_REDUX_FRONTIER_LABS.md` |
 | TR54 Overclocked Equipment («Разогнанное оборудование») | СДАНА 2026-10-16 | цена-ресурс розыгрыша декларацией `spend`; «какой стандартный ресурс» — ПАЛИТРА грамматики вариантов в четырёх хостах; жетон с печатного «?» | `docs/TURMOIL_REDUX_OVERCLOCKED_EQUIPMENT.md` |
 | TR55 Nuclear Warhead Utilization («Утилизация ядерных боеголовок») | СДАНА 2026-10-15 | первая плашка ИНДУСТРИАЛИСТОВ, декларация целиком («+9 энергии», 2 ПО); БОЛЬШАЯ ИТЕРАЦИЯ «ЯЧЕЙКА ПО — КАЖДОЕ ОЧКО ИЗ СВОЕЙ ПРИЧИНЫ»: атрибуция разбора сервера (`vpAttribution`), один жетон ПО в общем языке переноса, реестр долей (засев последним в apply-блоке, претензии хостов по рангу), хосты — розыгрыш · staged · действие · свой и чужой тайл · веха / награда; доля без тела — ярлык причины | `docs/claude/console/score-cell.md` |
+| TR61 Cargo Mechs («Грузовые мехи») | СДАНА 2026-10-17 | синяя, 7, Строительство, плашка Индустриалистов, мехи: «1 энергия → мех на ЛЮБУЮ карту ИЛИ 1 мех → повтор использованного действия» — ПЯТЫЙ потребитель `repeatableActionCards` + `consoleRepeatPick`, гард петли `IHasCheckLoops` (Viron ↔ TR61), товар держателя `repeat`; главное — итерация «СМЕНА ПОКОЛЕНИЯ — ОДНА СЦЕНА» (доход — событие рекордера, сцена с записи сервера: флип → конверсия → доход построчно → подъём покупки; одна покупка между поколениями; полоса покупки на полу TV) | `docs/TURMOIL_REDUX_CARGO_MECHS.md`; законы в `console-ui.md` и `server.md`; строки чеклиста §4; реестр BB (PL-599…609) |
 | TR60 Civilian Spacefighters («Гражданские истребители») | СДАНА 2026-10-17 | синяя, плашка Индустриалистов, «1 титан → 2 истребителя ИЛИ 1 истребитель → 3 M€ и +1 пр. M€» ОДНОЙ декларацией TR40; третья форма роли держателя — КОМПЛЕКТ (`HolderActionGood.with`); главное — итерация «ИНФОРМАЦИЯ — ДОСЬЕ, А НЕ ТАБЛИЦА» (обзор двумя ярусами, «Действия» — те же плитки, запечатанный счёт, вход зоны из плитки) | `docs/TURMOIL_REDUX_CIVILIAN_SPACEFIGHTERS.md`; закон в `console-ui.md`; строка чеклиста §4 |
 
 ---
@@ -2862,6 +2863,38 @@ workspace; класс `con-root--ws-open` снимается только с у�
 и уход композера. **Гарды:** `playCardPrice.spec` (3), `transferFlightClock.spec` § DETACHED, `transferEndVisible.spec` § STRICT,
 `console-aerial-mappers` (B — `fixme` снят), `console-habitat-science` (Титан — рождён в ячейке, сел на ячейку НА ПОЛЕ, не под стеклом).
 **Регрессия № 2** (`.e2e-polish2`, `--workers=1`, 33 мин): aerial-mappers и habitat-science (fhd + 4K) зелёные; соседи класса — x87, eva-mechs, rail-landing, biological-simulations, plasma-fans, venusian-census, parliament-sitting-reward — зелёные (53); красные НЕ этой итерации: `console-spaceship-recycling` ×4 — спек ждёт старую форму POST (`"cards":[…]},{"type":"or"…`), а закон адреса pre-select TR43 (`54a9a30fb7`) шлёт адресованный предсбор в другом порядке — ротация спека TR43; `console-red-museum` «the tile pays» (красный и до итерации № 1); `console-colony-venus-trade` (PL-172 соседа, его правка в работе). Юниты: server — зелёный; client 6997 / 6998 — один красный `consolePlayedTargetModel.spec` § sizing от незакоммиченной правки соседа (PL-170) в его файлах; vue-tsc, `build:test`, `lint:i18n` — чисто.
+
+## TR61 · Cargo Mechs — «1 энергия → мех на ЛЮБУЮ карту ИЛИ 1 мех → повтор использованного действия»; ИТЕРАЦИЯ «СМЕНА ПОКОЛЕНИЯ — ОДНА СЦЕНА» — 2026-10-17
+
+**Арт импортирован** — `Mars Arts/TR61.png` (Ken Le Bras). Решения 1–9 — по умолчанию; одно отклонение вынесено владельцу батчем: такты сцены
+идут В ПОРЯДКЕ СЕРВЕРА (флип → конверсия → доход → подъём; промт писал «доход → конверсия»). Документ — `docs/TURMOIL_REDUX_CARGO_MECHS.md`;
+реестр — раздел BB (PL-599…609), footer PL-610.
+
+**Карта** (`CargoMechs.ts`, коммит `c947235a0e`): синяя, 7, Строительство, плашка Индустриалистов (класс TR15), держатель мехов, без ПО. A —
+«1 энергия → мех на ЛЮБУЮ карту» (цель спрашивается всегда, сама карта — тоже); B — ключ Viron «Perform again an action from a played card»
+= ПЯТЫЙ потребитель одного механизма (`repeatableActionCards(player, copier)` + `markRepeatActionPrompt` + `withCopiedAction`; на консоли —
+слот повтора ветки → `consoleRepeatPick` → «ДЕЙСТВИЯ КАРТ» в режиме повтора, один батч) — ни строки нового интерфейса. Гард петли
+`IHasCheckLoops` — load-bearing: Viron ↔ TR61 без него `RangeError` (близнец в `Viron.spec`). Товар держателя — новый вид `repeat` (К-R1,
+декларация картой). Спек (28). Лор «Too late! I'm forklift-certified!» / «Поздно! У меня есть права на погрузчик!».
+
+**Итерация.** А «ДОХОД — СОБЫТИЕ»: `events.beginProductionPhase` — корень `production-phase-income` (категория `production`), РТ → M€ первой
+под `{kind: 'production', part: 'rating'}`, шесть прибавок под `production`, конверсия своим событием (`convertEnergyToHeat`, `part:
+'conversion'`), хуки внутри скоупа; запись `productionIncome` на self-модели; группа журнала «Производство» строками по части; агрегат
+`productionIncomeByPlayerGeneration`; факт финала `productionIncome`; нотификаций НЕТ по политике (`announcedElsewhere`). Б «ОДНА СЦЕНА»:
+`console/generationScene/generationScene.ts` — детект в блоке применения с записи сервера, claim на поколение, холд `generation-scene`; флип
+«ПКЛ.» до коммита по сигналу `flip-end` полосы → конверсия тем же холдом → доход `seedGenerationIncomeHold` / `flyRailReward` (жетон РТ из
+ячейки РТ, жетоны дохода с бейджей производства, тик на касании) → подъём покупки из сцены (workspace входит сам под холдом). В «ОДНА ПОКУПКА»:
+`betweenGenResearchLive` без `draftVariant` — покупка между поколениями всегда в workspace («ИССЛЕДОВАНИЕ › ПОКУПКА», одна глава, прибытие по
+защёлке `sawResearchStart`); плита `cardSelect buy` — только внутри действия. Г: карта 45 → 57 % проёма 4K, финстрип .78rem (31,2 px) → пол
+TV 32 px одним TV-блоком. Полировка по пути: Гидросеть делегирует `repeatableActionCards` (PL-603), церемония вехи пинит `heldItem`
+(PL-604 — «два голоса» закрыты).
+
+**Тесты.** Сервер: `CargoMechs` (28), `Viron` (+ близнец), `holderActionGood`, `productionIncomeJournal` (9), `generationScene` (6),
+`IndustrialistBudget` (гейт броска по фазе Парламента), `crossPlayerCoverageGuard` (дверь `production`), delta-набор 448. Клиент:
+`holderRoles`, `consoleDraftFlow` (26). e2e `console-generation-scene` (A–E) + `console-cargo-mechs` (A, B) — fhd + tv4k, 12 / 12 на GPU. Регрессия затронутых: `npm run e2e:affected` + семьи драфта / повтора / церемонии / финала / смены поколения — 30 спеков, 187 / 189 при двух воркерах; оба красных — `console-parliament-sitting-reward`: RX05 tv4k — флейк нагрузки (зелёный на одном воркере); шаг карты Карьеры — спек ждал авто-вьюер, снятый TR57 (`LONE_REWARD_CARD_FULLSCREEN`), переведён на «карта ПОКАЗАНА» (сцена без вуали) — зелёный ×2; RX04 Deck — тик 420 мс против 260 под нагрузкой, зелёный ×2 на одном воркере. Юниты: сервер 16 895 (два спека Парламента с подменой `stock.add` гейтированы фазой заседания — доход фазы идёт тем же путём), клиент 7 340; `lint:server`, `lint:i18n`, vue-tsc, `build:test` — зелёные.
+
+**Не сделано / гэпы.** PL-606 (staged-ответ бота — без предкоммитного флипа), PL-607 (выплата хука `onProductionPhase` в том же ответе ломает
+обещание рельса — честный тик), PL-608 (факт `productionIncome` без читателя-рассказчика), PL-609 (чужой доход — только журнал).
 
 ## TR67 · Enceladean Incubator — «океан + 4 микроба на ЛЮБУЮ свою карту», 2 ПО; ИТЕРАЦИЯ «КЛЕТКА — ОДНО ДОСЬЕ» — 2026-10-17
 

@@ -1065,7 +1065,12 @@ the desktop-gamepad mode are untouched throughout.
   counts down / heat up in lock-step with the App-level overlay's arrow)
   + source/target row glow. WGT / hazard / placement holds already anchor
   to the real board. Gates: 76 pure specs, eslint, vue-tsc, make:json/css,
-  build:client — green.
+  build:client — green. **Since TR61 (2026-10-17) the conversion is BEAT 2 of
+  the GENERATION SCENE** — «ПКЛ.» flips first, the conversion plays, the
+  income flows from the production badges into the stock rows off the
+  server's own record (`productionIncome`), and the research purchase rises
+  in the ONE workspace (`generationScene/generationScene.ts`;
+  `.claude/rules/console-ui.md` § THE GENERATION CHANGE IS ONE SCENE).
 - **T7 — SHIPPED (the FEEDBACK-PARITY audit + gap closure).** T7 was
   re-scoped (user directive) to a systematic audit that EVERY desktop
   modern-premium feedback mechanism — delta chips, statuses, hints,

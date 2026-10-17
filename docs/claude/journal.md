@@ -49,3 +49,15 @@ pill, cluster or «+N» count ever sums a lost «+4» as a gain. Why a structure
 `JournalGroup` renders a chain's EVENT rows and hides its text children whenever any event row exists — a skip
 written only to `game.log` was invisible in exactly the chains that also moved something. Contract:
 `.claude/rules/game-logic.md` § No silent loss.
+
+## THE GENERATION'S INCOME IS ONE GROUP (TR61, 2026-10-17)
+
+The production phase used to write past the recorder, so the journal of a generation ended with «спасовал» and the
+next generation's first play. Now every seat's phase is ONE root `production-phase-income` (category `production`,
+`.journal-group--production` — an amber accent) with its rows by SOURCE PART (`journalEventChild.ts`): «Рейтинг
+терраформирования → [M€] +N» (`{kind: 'production', part: 'rating'}`, first), «Преобразование энергии → [⚡] −N [🔥] +N»
+(`part: 'conversion'`), «Доход → [M€] +3 [steel] +2 …» (the bare `production` source, one chip per value) and the
+`onProductionPhase` hooks' rows under their own card sources. The group's object is none (no card); the summary tab
+reads the same events through `productionIncomeByPlayerGeneration`. The notification layer shows nothing for the
+category by policy (the console's generation scene is the announcement — `notificationContentPolicy.announcedElsewhere`).
+Guards: `tests/events/productionIncomeJournal.spec.ts`; e2e `console-generation-scene` § E.

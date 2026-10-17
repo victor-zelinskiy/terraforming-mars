@@ -1229,3 +1229,17 @@ Per-source clean-steal + production-steal-vs-energy counter; board-closed bridge
 parameter LEVELS); bespoke per-family card layouts; a live candidate-scoring dev panel; an
 interactive (mouse-into) popover with a "open full detail" link to the debug panel; richer
 per-evidence-chip explanations for the most complex cards.
+
+## C. The production phase is an event (TR61, 2026-10-17)
+
+The one phase that wrote past the recorder. `Player.runProductionPhase` now opens `events.beginProductionPhase(player)`
+(the root `production-phase-income`, category `production`, a `correlationId`) and every move inside it has a source:
+the rating paid as M€ under `{kind: 'production', part: 'rating'}`, the six production values through `stock.add`
+under `{kind: 'production'}`, the energy → heat conversion as its own event under `part: 'conversion'`, the
+`onProductionPhase` hooks (Mons Insurance, the levy) inside the scope with their own sources. The structured layer:
+`aggregate.productionIncomeByPlayerGeneration(events)` → `ProductionIncomeStats {generation, stock, rating,
+conversion}` per seat and generation; the endgame fact `productionIncome` (`endgameFacts.productionIncomeFacts` —
+generations, firstGeneration, units, megacredits, rating, conversion, peakGeneration, peakUnits, averageUnits; tags
+economy + timeline; the roots as `relatedEventIds`). The seat's transient `productionIncome` record on the self model
+is what the console's generation scene plays. Open: no insight analyzer reads the fact yet (PL-608). Guard:
+`tests/events/productionIncomeJournal.spec.ts`.
