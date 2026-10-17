@@ -39,6 +39,22 @@ export type GlobalParameterRequirementBonus = {
 };
 
 /**
+ * The PARTY requirement is IGNORED (Backroom Deal TR70 — «ignore any party
+ * requirements on the next card you play this generation»): the one-play
+ * class's FOURTH kind, declared like the global waiver and read by the same
+ * readers (`armedPlayEffects`, `requirementEasing`), paid by
+ * `PartyRequirement.satisfies` through `IPlayer.partyRequirementWaiver`. A
+ * KIND, never a number — a party requirement has no scale to stretch. It
+ * never touches a global-parameter requirement (that is the other kind) and
+ * never grants the party's EFFECT (TR36's law: the effect's threshold is the
+ * Parliament's, a requirement is the card's).
+ */
+export type PartyRequirementWaiver = {
+  /** Only the next card played spends it (every declaration in the set today). */
+  nextCardOnly?: boolean,
+};
+
+/**
  * Describes which non-megacredit resources a standard project accepts as payment.
  */
 export type StandardProjectCanPayWith = {

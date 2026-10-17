@@ -17,6 +17,7 @@ import {normalizeRequirement} from '@/client/components/premiumCard/premiumCardV
 import PremiumModifierMarks from '@/client/components/premiumCard/PremiumModifierMarks.vue';
 import {easingIsQuiet, modifierSourcesOf, modifierSymbolOf} from '@/client/components/premiumCard/premiumModifierSources';
 import {PartyName} from '@/common/turmoil/PartyName';
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {globalConfig} from '../components/getLocalVue';
 
 /**
@@ -38,6 +39,12 @@ const waived: RequirementEasingModel = {
   sources: [{source: {kind: 'card', card: CED}, kind: 'waive', oneShot: true}],
 };
 const decisiveShift: RequirementEasingModel = {...shifted, printed: 2, effective: -2, current: -2, met: true, decisive: true};
+/** THE PARTY FAMILY (TR70 Backroom Deal): Martian Census's Mars First plate lifted — no scale, the party named. */
+const partyWaived: RequirementEasingModel = {
+  key: 'req:party', index: 0, type: RequirementType.PARTY, party: PartyName.MARS, max: false,
+  printed: 2, effective: 'waived', current: 0, met: true, decisive: true,
+  sources: [{source: {kind: 'card', card: CardName.BACKROOM_DEAL}, kind: 'waive', oneShot: true}],
+};
 /** SEVERAL modifiers at once — Inventrix + Adaptation Technology + an armed Special Design: ±6, Grass at −20 °C. */
 const several: RequirementEasingModel = {
   key: 'req:C', index: 0, type: RequirementType.TEMPERATURE, parameter: GlobalParameter.TEMPERATURE, max: false,
@@ -62,18 +69,29 @@ describe('the ONE-PLAY class on the client (TR49)', () => {
       expect(armedEffectsOf(undefined)).deep.eq([]);
     });
 
-    it('a waiver, a shift, a discount — badge and formula from the one formatter', () => {
+    it('a waiver, a shift, a discount, a PARTY waiver — badge and formula from the one formatter', () => {
       const views = armedEffectsOf({armedPlayEffects: [
         {source: CED, sourceType: CardType.EVENT, effect: {kind: 'requirementWaiver'}, expires: 'next-play'},
         {source: SD, sourceType: CardType.EVENT, effect: {kind: 'requirementShift', steps: 2}, expires: 'next-play'},
         {source: CardName.INDENTURED_WORKERS, sourceType: CardType.EVENT, effect: {kind: 'discount', amount: 8}, expires: 'next-play'},
+        {source: CardName.BACKROOM_DEAL, sourceType: CardType.EVENT, effect: {kind: 'partyWaiver'}, expires: 'next-play'},
       ]});
       expect(views.map((v) => [v.kind, v.badge, v.formula])).deep.eq([
         ['requirementWaiver', 'Ignored', 'Global requirements ignored'],
         ['requirementShift', '±2', 'Global requirements ±2'],
         ['discount', '−8', 'Next card −8 M€'],
+        ['partyWaiver', 'Ignored', 'Party requirement ignored'],
       ]);
       expect(views[0].expiry).eq('Until your next card play');
+    });
+
+    it('TWO effects of ONE source (Backroom Deal TR70) are two views in the server\'s order — both shown', () => {
+      const views = armedEffectsOf({armedPlayEffects: [
+        {source: CardName.BACKROOM_DEAL, sourceType: CardType.EVENT, effect: {kind: 'partyWaiver'}, expires: 'next-play'},
+        {source: CardName.BACKROOM_DEAL, sourceType: CardType.EVENT, effect: {kind: 'discount', amount: 10}, expires: 'next-play'},
+      ]});
+      expect(views.map((v) => [v.source, v.kind, v.badge])).deep.eq([[CardName.BACKROOM_DEAL, 'partyWaiver', 'Ignored'], [CardName.BACKROOM_DEAL, 'discount', '−10']]);
+      expect(new Set(views.map((v) => v.key)).size, 'distinct render keys').eq(2);
     });
 
     it('a prelude source is marked (it hosts its own next play)', () => {
@@ -120,6 +138,12 @@ describe('the ONE-PLAY class on the client (TR49)', () => {
     });
     it('met ANYWAY says nothing on the tile — a standing ±2 never marks the whole hand', () => {
       expect(handEasingPlate({name: CardName.ARCHAEBACTERIA, requirementEasing: [quiet]} as CardModel)).is.undefined;
+    });
+    it('a lifted PARTY requirement (TR70) wears the party\'s emblem, struck — no scale icon', () => {
+      const plate = handEasingPlate({name: CardName.MARTIAN_CENSUS, requirementEasing: [partyWaived]} as CardModel)!;
+      expect(plate.items[0]).deep.include({iconClass: '', emblem: 'assets/parties/redux/mars-first.png', kind: 'waive', steps: 0});
+      expect(plate.decisive).is.true;
+      expect(plate.oneShot).is.true;
     });
   });
 
@@ -199,6 +223,17 @@ describe('the ONE-PLAY class on the client (TR49)', () => {
       expect(easingCompact(shifted)).eq('Temperature ≥ -4°C ±2');
       expect(easingCompact(waived)).eq('Temperature Ignored');
       expect(easingSourcesText(waived)).eq(CED + ' · One play');
+    });
+
+    it('the PARTY family speaks the same formatter: the party\'s name, the delegates road as its bound', () => {
+      const mars = partyNameKey(PartyName.MARS); // the parliament's own key — the one name of the party on every surface
+      expect(easingLine(partyWaived)).eq(`${mars} ruling or 2 delegates — Requirement ignored`);
+      expect(easingCompact(partyWaived)).eq(`${mars} Ignored`);
+      expect(easingSourcesText(partyWaived)).eq(CardName.BACKROOM_DEAL + ' · One play');
+      const view = buildCardAvailability({reasons: undefined, easing: [partyWaived]}, 'play')!;
+      expect(view.severity).eq('eased');
+      expect(view.primary?.compact).eq('thanks to ' + CardName.BACKROOM_DEAL);
+      expect(view.reasons[0].text).eq(`${mars} ruling or 2 delegates — Requirement ignored`);
     });
   });
 

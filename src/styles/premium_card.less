@@ -790,6 +790,22 @@
   transform: translate(-50%, -50%);
   background: url(./assets/misc/wild-party.png) center / contain no-repeat;
 }
+/* «NEXT CARD: [party plate ×]» (TR70 Backroom Deal) — the party plate STRUCK by the one-play class's red diagonal: the
+   SAME stroke `.pcard-plate--waived` prints for «global requirements ignored» and the next card's cassette wears,
+   drawn OVER the pill (the clip keeps the plate's silhouette; the stroke is a child, so it is never clipped off). */
+.pprq--waived::after {
+  content: '';
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: calc(50% - var(--pprq-h) * 0.06);
+  height: calc(var(--pprq-h) * 0.12);
+  border-radius: calc(var(--pprq-h) * 0.06);
+  background: linear-gradient(180deg, #ff5a45 0%, #d8261c 100%);
+  box-shadow: 0 0 0 1px rgba(64, 6, 3, 0.55);
+  transform: rotate(-8deg);
+  pointer-events: none;
+}
 
 /* one requirement SEGMENT — a clear icon → operator → value group, centred,
    with controlled air; identical paddings/height for every segment */

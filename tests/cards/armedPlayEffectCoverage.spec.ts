@@ -117,8 +117,13 @@ describe('armed one-play effect coverage (TR49 class)', () => {
       const priced = () => player.getCardCostBreakdown(target).discounts.filter((d) => d.source.kind !== 'party' && d.source.kind !== 'resolution' && (d.source as {card?: CardName}).card === card.name).reduce((s, d) => s + d.amount, 0);
       const shiftOf = (p: GlobalParameter) => player.requirementBonusBreakdown(p).filter((e) => (e.source as {card?: CardName}).card === card.name).reduce((s, e) => s + e.steps, 0);
       const waived = (p: GlobalParameter) => player.globalRequirementWaiver(p) !== undefined;
+      const partyWaived = () => player.partyRequirementWaiver() !== undefined;
 
       player.lastCardPlayed = card.name;
+      // The PARTY family (TR70): a declared party waiver is paid exactly while armed, and only by its declaration.
+      if (partyWaived() !== effects.some((e) => e.kind === 'partyWaiver')) {
+        failures.push(`${card.name}: party waiver ${partyWaived()} ≠ promised ${effects.some((e) => e.kind === 'partyWaiver')}`);
+      }
       const armed = armedPlayEffectsOf(player).map((e) => e.effect);
       if (JSON.stringify(armed) !== JSON.stringify(effects)) {
         failures.push(`${card.name}: armed ${JSON.stringify(armed)} ≠ declared ${JSON.stringify(effects)}`);
@@ -139,7 +144,7 @@ describe('armed one-play effect coverage (TR49 class)', () => {
       }
 
       player.lastCardPlayed = CardName.ALGAE;
-      if (armedPlayEffectsOf(player).length !== 0 || priced() !== 0 || GLOBAL_PARAMETERS.some((p) => shiftOf(p) !== 0 || waived(p))) {
+      if (armedPlayEffectsOf(player).length !== 0 || priced() !== 0 || partyWaived() || GLOBAL_PARAMETERS.some((p) => shiftOf(p) !== 0 || waived(p))) {
         failures.push(`${card.name}: still pays after another card was played`);
       }
     });

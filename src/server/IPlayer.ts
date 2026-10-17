@@ -555,6 +555,13 @@ export interface IPlayer {
    */
   globalRequirementWaiver(parameter: GlobalParameter): EventSource | undefined;
   /**
+   * WHO lets this player IGNORE a PARTY requirement right now (Backroom Deal
+   * TR70 while armed — a `partyRequirementWaiver` declaration), or
+   * `undefined`. A waived party requirement is MET (`PartyRequirement.satisfies`,
+   * before the Parliament is asked) — never the party's EFFECT.
+   */
+  partyRequirementWaiver(): EventSource | undefined;
+  /**
    * When Ecology Experts evaluates whether it can be played, it needs
    * this temporary requirement bonus for global parameters.
    */

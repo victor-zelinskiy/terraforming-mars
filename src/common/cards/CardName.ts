@@ -1136,6 +1136,7 @@ export enum CardName {
   CARGO_MECHS = 'Cargo Mechs',
   STRATEGIC_SHIFT = 'Strategic Shift',
   FLOATING_BIODOMES = 'Floating Biodomes',
+  BACKROOM_DEAL = 'Backroom Deal',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

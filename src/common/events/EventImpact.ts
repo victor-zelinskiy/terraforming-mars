@@ -38,7 +38,8 @@ export type RequirementEasedFact = {
   kind: 'shift' | 'waive';
   steps?: number;
   oneShot: boolean;
-  requirements: ReadonlyArray<{type: RequirementType; parameter: GlobalParameter; max: boolean; printed: number; effective: number | 'waived'}>;
+  /** One entry per eased requirement: a global parameter's scale, or (TR70) the PARTY whose requirement was lifted. */
+  requirements: ReadonlyArray<{type: RequirementType; parameter?: GlobalParameter; party?: PartyName; max: boolean; printed: number; effective: number | 'waived'}>;
 };
 
 export type EventImpact = {

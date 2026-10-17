@@ -10,6 +10,11 @@ import {AdaptationTechnology} from '@/server/cards/base/AdaptationTechnology';
 import {Fish} from '@/server/cards/base/Fish';
 import {LakeMarineris} from '@/server/cards/base/LakeMarineris';
 import {EcologyExperts} from '@/server/cards/prelude/EcologyExperts';
+import {BackroomDeal} from '@/server/cards/turmoilRedux/BackroomDeal';
+import {MartianCensus} from '@/server/cards/turmoilRedux/MartianCensus';
+import {RequirementType} from '@/common/cards/RequirementType';
+import {PartyName} from '@/common/turmoil/PartyName';
+import {quietResolutionOf, seatEnacted} from '../parliament/parliamentArrange';
 import {GameEvent} from '@/common/events/GameEvent';
 import {IGame} from '@/server/IGame';
 import {Message} from '@/common/logs/Message';
@@ -90,6 +95,21 @@ describe('requirement-eased', () => {
     expect(event.impact.requirementEased?.kind).eq('waive');
     expect(event.impact.requirementEased?.requirements[0].effective).eq('waived');
     expect(logLines(game).some((m) => m.message === '${0} ignored the global requirements of ${1} thanks to ${2}')).is.true;
+  });
+
+  it('a PARTY waiver (Backroom Deal TR70) records the party, not a scale — and its line says «ignored the party requirement»', () => {
+    const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+    seatEnacted(game.parliament!, quietResolutionOf(PartyName.REDS));
+    player.playedCards.push(new BackroomDeal());
+    player.lastCardPlayed = CardName.BACKROOM_DEAL;
+    player.playCard(new MartianCensus()); // Mars First's plate, Mars First out of power
+    const [event] = eased(game);
+    expect(event.impact.requirementEased).deep.eq({kind: 'waive', oneShot: true, requirements: [{type: RequirementType.PARTY, party: PartyName.MARS, max: false, printed: 2, effective: 'waived'}]});
+    expect(logLines(game).some((m) => m.message === '${0} ignored the party requirement of ${1} thanks to ${2}')).is.true;
+    expect(logLines(game).some((m) => m.message === '${0} ignored the global requirements of ${1} thanks to ${2}'), 'never the global family\'s words').is.false;
+    const root = event.correlationId!;
+    const row = buildEventChildren(game.events.events.filter((e) => e.correlationId === root), root, player.color).find((r) => r.eased !== undefined);
+    expect(row?.eased?.requirements).deep.eq([{party: PartyName.MARS, printed: 2, effective: 'waived', max: false}]);
   });
 
   it('a PERMANENT modifier records the same class, not one-shot (Adaptation Technology)', () => {

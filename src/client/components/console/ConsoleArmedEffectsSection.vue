@@ -21,6 +21,8 @@
           <b class="con-armsec__name">{{ $t(e.source) }}</b>
           <span class="con-armsec__formula">
             <span v-if="e.kind === 'requirementWaiver'" class="con-armed__struck" aria-hidden="true">{{ $t('Global requirements') }}</span>
+            <!-- the PARTY family (TR70): the printed party plate, struck — the face's own glyph of the waiver -->
+            <PremiumPartyRequirementGlyph v-else-if="e.kind === 'partyWaiver'" class="pprq--waived con-armed__pprq" />
             <span v-else class="con-armed__badge">{{ e.badge }}</span>
             {{ e.formula }}
           </span>
@@ -36,10 +38,11 @@ import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {ArmedEffectView, armedEffectsOf} from '@/client/console/armedEffects';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
+import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
 
 export default defineComponent({
   name: 'ConsoleArmedEffectsSection',
-  components: {ConsoleCardFaceLite},
+  components: {ConsoleCardFaceLite, PremiumPartyRequirementGlyph},
   props: {
     /** The INSPECTED seat (its public model). */
     player: {type: Object as PropType<Pick<PublicPlayerModel, 'armedPlayEffects'>>, required: true},

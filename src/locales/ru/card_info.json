@@ -564,5 +564,8 @@
     "Spend 1 mech to repeat a used action": "Потратьте 1 мех: повтор использованного действия",
     "Add 2 floaters to this card.": "Добавьте 2 аэростата на эту карту.",
     "Pay 1 plant for a floater on a Venus card": "Заплатите 1 растение: аэростат на карту Венеры",
-    "Spend 3 floaters for a greenery": "Потратьте 3 аэростата: озеленение"
+    "Spend 3 floaters for a greenery": "Потратьте 3 аэростата: озеленение",
+    "Ignore any party requirements on the next card you play this generation.": "Игнорируйте требования партии при розыгрыше вашей следующей карты в этом поколении.",
+    "The next card you play this generation costs 10 M€ less.": "Следующая карта, которую вы разыграете в этом поколении, стоит на 10 M€ дешевле.",
+    "Lose 1 TR.": "Потеряйте 1 РТ."
 }

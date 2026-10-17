@@ -123,6 +123,13 @@
         }
         &--chip { font-size: .56rem; padding: .03rem .3rem; }
     }
+    /* the PARTY waiver's glyph (TR70): the printed party plate, struck — sized to the badge's line in rem (the glyph
+       takes `--pprq-size` as its plate HEIGHT; the strip, the chip and the flight token each set their own) */
+    &__pprq {
+        --pprq-size: 1.05rem;
+        flex: 0 0 auto;
+        &--chip { --pprq-size: .85rem; }
+    }
     /* The FIRST member to yield — strict order by flex-basis 0 (it takes only the line's FREE room, up to its own
        max-content), never a shrink weight; the expiry yields second, by an ellipsis in its own box. */
     &__formula {

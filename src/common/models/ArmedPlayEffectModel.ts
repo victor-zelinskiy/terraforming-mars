@@ -4,9 +4,10 @@ import {RequirementType} from '../cards/RequirementType';
 import {Tag} from '../cards/Tag';
 import {GlobalParameter} from '../GlobalParameter';
 import {EventSource} from '../events/EventSource';
+import {PartyName} from '../turmoil/PartyName';
 
 /**
- * WHAT A ONE-PLAY EFFECT DOES to the card that spends it — the three kinds the
+ * WHAT A ONE-PLAY EFFECT DOES to the card that spends it — the four kinds the
  * card set prints (TR49 class, `docs/TURMOIL_REDUX_CUTTING_EDGE_DESIGN.md`):
  *
  * - `requirementShift` — every global requirement of the next card is ±`steps`
@@ -15,12 +16,17 @@ import {EventSource} from '../events/EventSource';
  * - `requirementWaiver` — the next card IGNORES its global requirements
  *   (Cutting-Edge Design TR49, Ecology Experts). A KIND, never a number: an
  *   ignored requirement is MET, not «stretched by 50 steps».
+ * - `partyWaiver` — the next card IGNORES its PARTY requirement (Backroom Deal
+ *   TR70). The same kind of thing as the global waiver, for the other
+ *   requirement family: never a global parameter, never the party's EFFECT.
  * - `discount` — the next card costs `amount` M€ less (Indentured Workers 8,
- *   Conscription 16, Eccentric Sponsor 25).
+ *   Conscription 16, Eccentric Sponsor 25; Backroom Deal 10 beside its waiver —
+ *   the set's first card that arms TWO effects at once).
  */
 export type ArmedPlayEffectKind =
   | {kind: 'requirementShift'; steps: number; parameter?: GlobalParameter}
   | {kind: 'requirementWaiver'; parameter?: GlobalParameter}
+  | {kind: 'partyWaiver'}
   | {kind: 'discount'; amount: number; tag?: Tag};
 
 /**
@@ -85,7 +91,15 @@ export type RequirementEasingModel = {
   /** Position in the card's printed requirement list (the cassette's order). */
   index: number;
   type: RequirementType;
-  parameter: GlobalParameter;
+  /** The scale of a GLOBAL-PARAMETER requirement; absent for a PARTY requirement. */
+  parameter?: GlobalParameter;
+  /**
+   * The party of a PARTY requirement (Backroom Deal TR70 lifts it): such a
+   * requirement is only ever WAIVED — `printed` is the delegates the printed
+   * rule asks for (`PARTY_EFFECT_DELEGATES`), `current` the player's own on
+   * that party's resolution, `effective` always `'waived'`.
+   */
+  party?: PartyName;
   /** A MAX bound («or less»). */
   max: boolean;
   /** The printed bound, in the scale's own units. */

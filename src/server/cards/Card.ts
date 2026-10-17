@@ -1,7 +1,7 @@
 import {CardMetadata} from '../../common/cards/CardMetadata';
 import {CardName} from '../../common/cards/CardName';
 import {CardType} from '../../common/cards/CardType';
-import {CardDiscount, GlobalParameterRequirementBonus} from '../../common/cards/Types';
+import {CardDiscount, GlobalParameterRequirementBonus, PartyRequirementWaiver} from '../../common/cards/Types';
 import {AdjacencyBonus} from '../ares/AdjacencyBonus';
 import {CardResource} from '../../common/CardResource';
 import {Tag} from '../../common/cards/Tag';
@@ -55,6 +55,8 @@ type SharedProperties = {
   initialActionText?: string;
   firstAction?: Behavior & {text: string};
   globalParameterRequirementBonus?: GlobalParameterRequirementBonus;
+  /** The next card IGNORES its party requirement (Backroom Deal TR70) — the one-play class's fourth kind. */
+  partyRequirementWaiver?: PartyRequirementWaiver;
   metadata: CardMetadata;
   requirements?: CardRequirementsDescriptor;
   name: CardName;
@@ -248,6 +250,10 @@ export abstract class Card implements ICard {
   /** The declared requirement bonus / waiver (Adaptation Technology, Special Design, TR49), as printed. */
   public get globalParameterRequirementBonus(): GlobalParameterRequirementBonus | undefined {
     return this.properties.globalParameterRequirementBonus;
+  }
+  /** The declared party-requirement waiver (Backroom Deal TR70), as printed. */
+  public get partyRequirementWaiver(): PartyRequirementWaiver | undefined {
+    return this.properties.partyRequirementWaiver;
   }
   public get reserveUnits(): Units {
     return this.properties.reserveUnits || Units.EMPTY;
@@ -482,6 +488,15 @@ export abstract class Card implements ICard {
 
   public waivesGlobalRequirements(player: IPlayer, parameter: GlobalParameter): boolean {
     return this.activeRequirementBonus(player, parameter)?.waive === true;
+  }
+
+  /** The PARTY requirement is ignored right now — the declaration, armed (a one-play one only while this card was played last). */
+  public waivesPartyRequirements(player: IPlayer): boolean {
+    const declared = this.properties.partyRequirementWaiver;
+    if (declared === undefined) {
+      return false;
+    }
+    return declared.nextCardOnly !== true || player.lastCardPlayed === this.name;
   }
 
   /** The declaration, when it applies to `parameter` right now (a one-play one only while armed). */

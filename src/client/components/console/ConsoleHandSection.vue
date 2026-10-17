@@ -334,7 +334,8 @@
                 <template v-if="easingPlates.has(cell.e.card.name)">
                   <span v-for="(item, k) in easingPlates.get(cell.e.card.name)?.items ?? []" :key="'ease-' + k"
                         class="con-hand__plate-item con-hand__plate-item--ease" :class="'con-hand__plate-item--' + item.kind">
-                    <span class="con-hand__plate-icon" :class="item.iconClass"></span>
+                    <!-- a PARTY requirement (TR70) wears the party's emblem — the hand's own counter badge — in the scale icon's place -->
+                    <span class="con-hand__plate-icon" :class="item.iconClass" :style="item.emblem !== undefined ? {backgroundImage: `url(${item.emblem})`} : undefined"></span>
                     <!-- WHAT bends it — a card on the table / the one-play bolt / a policy, one mark per source -->
                     <PremiumModifierMarks class="con-hand__plate-marks" :sources="item.sources" />
                     <span v-if="item.kind === 'shift'" class="con-hand__plate-n">±{{ item.steps }}</span>

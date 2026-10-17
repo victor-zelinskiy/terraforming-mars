@@ -64,7 +64,8 @@
         <template v-else-if="chip.kind === 'modifier'">
           <!-- WHAT KIND — the source's mark (a card on the table / the one-play bolt / a policy), then what it does -->
           <PremiumModifierMarks :sources="[chip.mark]" />
-          <span v-if="chip.waive" class="con-armed__struck" aria-hidden="true">{{ $t('Global requirements') }}</span>
+          <PremiumPartyRequirementGlyph v-if="chip.partyWaive" class="pprq--waived con-armed__pprq con-armed__pprq--chip" />
+          <span v-else-if="chip.waive" class="con-armed__struck" aria-hidden="true">{{ $t('Global requirements') }}</span>
           <span v-else class="con-armed__badge" aria-hidden="true">{{ chip.badge }}</span>
         </template>
         <template v-else>
@@ -86,10 +87,11 @@ import {translateText} from '@/client/directives/i18n';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import PremiumModifierMarks from '@/client/components/premiumCard/PremiumModifierMarks.vue';
+import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
 
 export default defineComponent({
   name: 'ConsoleForecastRow',
-  components: {ActionEffectChip, GamepadGlyph, PremiumModifierMarks},
+  components: {ActionEffectChip, GamepadGlyph, PremiumModifierMarks, PremiumPartyRequirementGlyph},
   props: {
     forecast: {type: Object as PropType<EffectForecast | undefined>, default: undefined},
     /**

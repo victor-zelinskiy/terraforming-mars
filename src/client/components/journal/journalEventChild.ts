@@ -179,7 +179,8 @@ export type JournalEasedRow = {
   kind: 'shift' | 'waive';
   steps?: number;
   oneShot: boolean;
-  requirements: ReadonlyArray<{parameter: GlobalParameter; printed: number; effective: number | 'waived'; max: boolean}>;
+  /** A global parameter's scale — or (TR70) the PARTY whose requirement was lifted (its emblem is the row's icon). */
+  requirements: ReadonlyArray<{parameter?: GlobalParameter; party?: PartyName; printed: number; effective: number | 'waived'; max: boolean}>;
 };
 
 /** The colony TILE's own glyph as a chip icon (`iconClassFor` → the printed pill). */
@@ -591,7 +592,11 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
         kind: fact.kind,
         ...(fact.steps !== undefined ? {steps: fact.steps} : {}),
         oneShot: fact.oneShot,
-        requirements: fact.requirements.map((r) => ({parameter: r.parameter, printed: r.printed, effective: r.effective, max: r.max})),
+        requirements: fact.requirements.map((r) => ({
+          ...(r.parameter !== undefined ? {parameter: r.parameter} : {}),
+          ...(r.party !== undefined ? {party: r.party} : {}),
+          printed: r.printed, effective: r.effective, max: r.max,
+        })),
       }}, []);
       continue;
     }

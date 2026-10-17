@@ -23,6 +23,8 @@
       <template v-for="e in effects" :key="e.key">
         <span class="con-armed__effect" :class="['con-armed__effect--' + e.kind, {'con-armed__effect--held': e.held}]" :data-armed-kind="e.kind">
           <span v-if="e.kind === 'requirementWaiver'" class="con-armed__struck" aria-hidden="true">{{ $t('Global requirements') }}</span>
+          <!-- the PARTY family (TR70): the printed party plate, struck — the face's own glyph of the waiver -->
+          <PremiumPartyRequirementGlyph v-else-if="e.kind === 'partyWaiver'" class="pprq--waived con-armed__pprq" />
           <span v-else class="con-armed__badge">{{ e.badge }}</span>
         </span>
         <span class="con-armed__formula" :class="{'con-armed__formula--held': e.held}">{{ e.formula }}</span>
@@ -32,6 +34,7 @@
     <template v-else>
       <span v-for="e in effects" :key="e.key" class="con-armed__chip" :class="['con-armed__chip--' + e.kind, {'con-armed__chip--held': e.held}]" :data-armed-kind="e.kind">
         <span v-if="e.kind === 'requirementWaiver'" class="con-armed__struck con-armed__struck--chip" aria-hidden="true">{{ $t('Reqs') }}</span>
+        <PremiumPartyRequirementGlyph v-else-if="e.kind === 'partyWaiver'" class="pprq--waived con-armed__pprq con-armed__pprq--chip" />
         <span v-else class="con-armed__badge">{{ e.badge }}</span>
       </span>
     </template>
@@ -44,6 +47,7 @@ import {translateText} from '@/client/directives/i18n';
 import {cardArtUrlAtTier, premiumCardArt} from '@/client/cards/cardArt';
 import {armedSourceOf} from '@/client/console/armedEffects';
 import {PresentedArmedEffect} from '@/client/console/armedEffectFlight';
+import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
 
 /**
  * ConsoleArmedEffectsStrip — the armed one-play effects of the VIEWER, in two
@@ -55,6 +59,7 @@ import {PresentedArmedEffect} from '@/client/console/armedEffectFlight';
  */
 export default defineComponent({
   name: 'ConsoleArmedEffectsStrip',
+  components: {PremiumPartyRequirementGlyph},
   props: {
     effects: {type: Array as PropType<ReadonlyArray<PresentedArmedEffect>>, required: true},
     variant: {type: String as PropType<'strip' | 'chip'>, default: 'strip'},

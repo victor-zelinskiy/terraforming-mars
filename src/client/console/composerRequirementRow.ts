@@ -13,13 +13,20 @@ import {CardAnnotation, CardAnnotationRow} from '@/client/components/cardAnnotat
 import {ArmedPlayForecast, RequirementEasingModel} from '@/common/models/ArmedPlayEffectModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {armedEffectFormula, easingBound, easingParameterLabel, easingShareText, easingSourcesText, easingUnit, EASING_KEYS} from '@/client/console/requirementEasingText';
+import {armedEffectFormula, easingBound, easingShareText, easingSourcesText, easingSubjectLabel, easingUnit, EASING_KEYS} from '@/client/console/requirementEasingText';
 import {ModifierSourceVM, easingIsQuiet, modifierSourceOf} from '@/client/components/premiumCard/premiumModifierSources';
+import {requirementPartyEmblem} from '@/client/components/premiumCard/partyEmblems';
+
+/** The party reason's own «now» (`unplayableReasonFormat` — one wording for the hand's reason and the composer's row). */
+const PARTY_NOW_KEY = 'your delegates on the resolution of that party: ${0} of ${1}';
 
 export type ComposerRequirementView = {
   key: string;
+  /** The scale's icon class; '' for a PARTY requirement (TR70), whose `emblem` stands in its place. */
   iconClass: string;
-  /** «Температура». */
+  /** The PARTY's emblem — the badge the hand's counter and the face's plate already draw. */
+  emblem?: string;
+  /** «Температура» — or the party's name. */
   label: string;
   /** «≥ 0°C» — the printed bound, always stated. */
   printed: string;
@@ -50,12 +57,15 @@ export type ComposerRequirementView = {
 export function composerRequirementViews(easings: ReadonlyArray<RequirementEasingModel> | undefined): ReadonlyArray<ComposerRequirementView> {
   // A requirement met ANYWAY under a shift is no decision of this play — the row stays for the ones a modifier decides.
   return (easings ?? []).filter((e) => !easingIsQuiet(e)).map((e) => {
+    const emblem = e.party !== undefined ? requirementPartyEmblem(e.party) : undefined;
     const view: ComposerRequirementView = {
       key: e.key,
-      iconClass: iconClassFor(e.parameter),
-      label: easingParameterLabel(e.parameter),
+      iconClass: e.parameter !== undefined ? iconClassFor(e.parameter) : '',
+      ...(emblem !== undefined ? {emblem} : {}),
+      label: easingSubjectLabel(e),
       printed: easingBound(e, e.printed),
-      now: `${e.current}${easingUnit(e.parameter)}`,
+      // A PARTY requirement's «now» is the delegates road («your delegates …: 0 of 2») — the hand's reason, word for word.
+      now: e.party !== undefined ? translateTextWithParams(PARTY_NOW_KEY, [String(e.current), String(e.printed)]) : `${e.current}${easingUnit(e.parameter)}`,
       waived: e.effective === 'waived',
       met: e.met,
       decisive: e.decisive,

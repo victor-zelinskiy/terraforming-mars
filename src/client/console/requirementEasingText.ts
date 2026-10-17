@@ -26,6 +26,12 @@ export const EASING_KEYS = {
   untilNextPlay: 'Until your next card play',
   armedHeading: 'Armed for your next card',
   modifier: 'Modifier',
+  /** THE PARTY FAMILY (TR70 Backroom Deal): the next card's party requirement lifted. */
+  partyWaived: 'Party requirement ignored',
+  /** The party requirement's «bound» — «ruling or 2 delegates» (the printed rule's two roads, in the row's compact form). */
+  partyBound: 'ruling or ${0} delegates',
+  /** The struck plate's label in the strip / the section (the console's own key). */
+  partyRequirement: 'Party requirement',
 } as const;
 
 const PARAMETER_LABELS: Readonly<Partial<Record<GlobalParameter, string>>> = {
@@ -35,8 +41,8 @@ const PARAMETER_LABELS: Readonly<Partial<Record<GlobalParameter, string>>> = {
   [GlobalParameter.VENUS]: 'Venus',
 };
 
-/** The scale's own unit, as the face and the reasons print it. */
-export function easingUnit(parameter: GlobalParameter): string {
+/** The scale's own unit, as the face and the reasons print it (none for a party requirement). */
+export function easingUnit(parameter: GlobalParameter | undefined): string {
   switch (parameter) {
   case GlobalParameter.TEMPERATURE:
     return '°C';
@@ -49,9 +55,17 @@ export function easingUnit(parameter: GlobalParameter): string {
 }
 
 /** «Температура» — the scale's translated name. */
-export function easingParameterLabel(parameter: GlobalParameter): string {
+export function easingParameterLabel(parameter: GlobalParameter | undefined): string {
+  if (parameter === undefined) {
+    return '';
+  }
   const key = PARAMETER_LABELS[parameter];
   return key === undefined ? parameter : translateText(key);
+}
+
+/** WHAT the requirement is about — the scale's name, or (TR70) the PARTY's. */
+export function easingSubjectLabel(easing: Pick<RequirementEasingModel, 'parameter' | 'party'>): string {
+  return easing.party !== undefined ? translateText(partyNameKey(easing.party)) : easingParameterLabel(easing.parameter);
 }
 
 /** The modifier's own name — a card / corporation by its card name, a party by the parliament's name. */
@@ -67,8 +81,11 @@ export function easingSourceName(source: EventSource): string {
   }
 }
 
-/** «≥ 0°C» / «≤ −18°C» — a bound of this requirement in its unit. */
+/** «≥ 0°C» / «≤ −18°C» — a bound of this requirement in its unit; a PARTY requirement's reads its two roads («ruling or 2 delegates»). */
 export function easingBound(easing: RequirementEasingModel, value: number): string {
+  if (easing.party !== undefined) {
+    return translateTextWithParams(EASING_KEYS.partyBound, [String(value)]);
+  }
   return `${easing.max ? '≤' : '≥'} ${value}${easingUnit(easing.parameter)}`;
 }
 
@@ -99,7 +116,7 @@ export function easingSourceNames(easing: RequirementEasingModel): string {
  * требование игнорируется» (waived). The printed bound always stands first.
  */
 export function easingLine(easing: RequirementEasingModel): string {
-  const head = `${easingParameterLabel(easing.parameter)} ${easingBound(easing, easing.printed)}`;
+  const head = `${easingSubjectLabel(easing)} ${easingBound(easing, easing.printed)}`;
   if (easing.effective === 'waived') {
     return `${head} — ${translateText(EASING_KEYS.requirementIgnored)}`;
   }
@@ -108,7 +125,7 @@ export function easingLine(easing: RequirementEasingModel): string {
 
 /** The compact one-row form: «Температура ИГНОР.» / «Температура ≥ −4°C ±2». */
 export function easingCompact(easing: RequirementEasingModel): string {
-  const label = easingParameterLabel(easing.parameter);
+  const label = easingSubjectLabel(easing);
   if (easing.effective === 'waived') {
     return `${label} ${translateText(EASING_KEYS.ignored)}`;
   }
@@ -138,6 +155,8 @@ export function armedEffectFormula(effect: ArmedPlayEffectKind): string {
     return effect.parameter === undefined ?
       translateTextWithParams(EASING_KEYS.globalShift, [String(effect.steps)]) :
       `${easingParameterLabel(effect.parameter)} ±${effect.steps}`;
+  case 'partyWaiver':
+    return translateText(EASING_KEYS.partyWaived);
   case 'discount':
     return translateTextWithParams(EASING_KEYS.discountNext, [String(effect.amount)]);
   }
@@ -147,12 +166,18 @@ export function armedEffectFormula(effect: ArmedPlayEffectKind): string {
 export function armedEffectBadge(effect: ArmedPlayEffectKind): string {
   switch (effect.kind) {
   case 'requirementWaiver':
+  case 'partyWaiver':
     return translateText(EASING_KEYS.ignored);
   case 'requirementShift':
     return `±${effect.steps}`;
   case 'discount':
     return `−${effect.amount}`;
   }
+}
+
+/** The struck-plate kind of an armed effect (the strip / chip / flight token draw the plate, not a badge). */
+export function armedEffectStruckKind(kind: ArmedPlayEffectKind['kind']): 'global' | 'party' | undefined {
+  return kind === 'requirementWaiver' ? 'global' : kind === 'partyWaiver' ? 'party' : undefined;
 }
 
 /** Does this armed effect bend a REQUIREMENT (vs. a price)? */

@@ -31,7 +31,7 @@
     <!-- a card with a tag and a VP icon (Turmoil Redux) — the shared composed glyph -->
     <PremiumVpCardGlyph v-else-if="isVpCard" class="pcard-ic pcard-ic--vp-card" :tag="vpCardTag" />
     <!-- a card with a requirement of ANY party (TR13) — the plate with the wild-party pill -->
-    <PremiumPartyRequirementGlyph v-else-if="isPartyRequirement" class="pcard-ic pcard-ic--party-req" />
+    <PremiumPartyRequirementGlyph v-else-if="isPartyRequirement" class="pcard-ic pcard-ic--party-req" :class="{'pprq--waived': isPartyRequirementWaived}" :data-party-req-waived="isPartyRequirementWaived ? 'true' : undefined" />
     <!-- a card that HOLDS resources (TR53) — the white card with its three cubes -->
     <PremiumResourceCardGlyph v-else-if="isResourceCard" class="pcard-ic pcard-ic--resource-card" />
     <!-- image icons -->
@@ -285,6 +285,10 @@ export default defineComponent({
     isPartyRequirement(): boolean {
       return this.mechIcon?.kind === 'partyRequirement';
     },
+    /** The party plate STRUCK (TR70 — the next card ignores its party requirement): the class's own diagonal, not the generic ×. */
+    isPartyRequirementWaived(): boolean {
+      return this.mechIcon?.kind === 'partyRequirement' && this.mechIcon.waived === true;
+    },
     isResourceCard(): boolean {
       return this.mechIcon?.kind === 'resourceCard';
     },
@@ -371,7 +375,8 @@ export default defineComponent({
       return {
         'pcard-mi--mc': this.insideText !== undefined,
         'pcard-mi--any': item?.anyPlayer === true,
-        'pcard-mi--cancelled': item?.cancelled === true,
+        // The party plate draws the one-play class's own stroke (`pprq--waived`), never the generic × over it too.
+        'pcard-mi--cancelled': item?.cancelled === true && !this.isPartyRequirementWaived,
         'pcard-mi--bubbled': this.bubbleUrl !== undefined || this.isReqBubble,
         'pcard-mi--superscript': item?.isSuperscript === true,
       };

@@ -252,7 +252,7 @@
                    :class="{'con-composer__reqrow--waived': r.waived, 'con-composer__reqrow--decisive': r.decisive, 'con-composer__reqrow--short': !r.met, 'con-composer__reqrow--stacked': r.stacked}"
                    data-composer-req :data-req-state="r.waived ? 'waived' : (r.decisive ? 'decisive' : (r.met ? 'eased' : 'short'))">
                 <span class="con-composer__reqrow-kicker">{{ $t('Requirement') }}</span>
-                <i class="con-composer__reqrow-ico" :class="r.iconClass" aria-hidden="true"></i>
+                <i class="con-composer__reqrow-ico" :class="r.iconClass" :style="r.emblem !== undefined ? {backgroundImage: `url(${r.emblem})`} : undefined" aria-hidden="true"></i>
                 <span class="con-composer__reqrow-printed">{{ r.printed }}</span>
                 <template v-if="r.effective !== undefined">
                   <span class="con-composer__reqrow-arrow" aria-hidden="true">→</span>
@@ -322,6 +322,8 @@
                   <span v-if="sec.kind === 'armed' && sec.arms !== undefined" class="con-composer__rescat-arms" data-composer-arms>
                     <template v-for="(arm, ai) in sec.arms" :key="'arm' + ai">
                       <span v-if="arm.kind === 'requirementWaiver'" class="con-armed__struck" aria-hidden="true">{{ $t('Global requirements') }}</span>
+                      <!-- the PARTY family (TR70): the printed party plate, struck — the face's own glyph of the waiver -->
+                      <PremiumPartyRequirementGlyph v-else-if="arm.kind === 'partyWaiver'" class="pprq--waived con-armed__pprq" />
                       <span v-else class="con-armed__badge" aria-hidden="true">{{ armedEffectBadge(arm) }}</span>
                       <span class="con-composer__rescat-armtext" :data-armed-kind="arm.kind">{{ armedEffectFormula(arm) }}</span>
                     </template>
@@ -840,6 +842,7 @@ import {ScoreFormula, formulaGlyph, formulaOperandsText, formulaTagIcon, shortfa
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
 import ConsoleCountedWhy from '@/client/components/console/ConsoleCountedWhy.vue';
 import PremiumModifierMarks from '@/client/components/premiumCard/PremiumModifierMarks.vue';
+import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
 import {ComposerConsumeNote, ComposerRequirementView, composerConsumeNotes, composerRequirementViews, requirementStateText} from '@/client/console/composerRequirementRow';
 import {armedEffectBadge, armedEffectFormula} from '@/client/console/requirementEasingText';
 import {RequirementEasingModel} from '@/common/models/ArmedPlayEffectModel';
@@ -981,7 +984,7 @@ export default defineComponent({
   name: 'ConsolePlayCardConfirm',
   // ConsoleCardFaceLite — the answered target row's miniature (PL-269: it was used in the template and never
   // registered, so the row rendered an unknown <consolecardfacelite> tag — no miniature, ever).
-  components: {Card, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleVariantChoice, ConsoleDeclinePlate, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph, ConsoleCountedWhy, PremiumModifierMarks},
+  components: {Card, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleVariantChoice, ConsoleDeclinePlate, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, ConsoleForecastRow, ConsoleDrawSearchRule, ConsoleForecastReactions, ConsoleEffectsExplorer, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsolePlayedReceivingStage, ConsoleAmountOperation, HydroReward, PremiumCountGlyph, ConsoleCountedWhy, PremiumModifierMarks, PremiumPartyRequirementGlyph},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},

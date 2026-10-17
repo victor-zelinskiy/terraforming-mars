@@ -568,7 +568,10 @@ export class Executor implements BehaviorExecutor {
       if (count >= 0) {
         player.increaseTerraformRating(count, {log: log});
       } else {
-        player.decreaseTerraformRating(-count, {log: log});
+        // A LOSS of rating is always written («${player} lost N TR» — Backroom Deal TR70's price, Pristar's and
+        // Terralabs' opening): the plain-number form logs no gain because the play's own line and the rail say it,
+        // but a rating that silently DROPS is a loss the journal must name (invariant 4 — no silent loss).
+        player.decreaseTerraformRating(-count, {log: true});
       }
     }
     const addResources = behavior.addResources;

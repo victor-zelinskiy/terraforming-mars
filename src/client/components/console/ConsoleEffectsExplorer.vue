@@ -214,7 +214,8 @@
                       <!-- A REQUIREMENT MODIFIER of the play (TR49 class): its badge (the waiver's struck plate), and what this
                            play does with it — spends it (one play), spends it for NOTHING, or reads a standing ±2. -->
                       <template v-else-if="tile.item.kind === 'modifier'">
-                        <span v-if="tile.item.waive" class="con-armed__struck" aria-hidden="true">{{ $t('Global requirements') }}</span>
+                        <PremiumPartyRequirementGlyph v-if="tile.item.partyWaive" class="pprq--waived con-armed__pprq" />
+                        <span v-else-if="tile.item.waive" class="con-armed__struck" aria-hidden="true">{{ $t('Global requirements') }}</span>
                         <span v-else-if="tile.item.badge !== ''" class="con-armed__badge">{{ tile.item.badge }}</span>
                         <span class="con-efx__meta-text" :data-forecast-modifier="tile.item.used ? 'used' : 'unused'">{{ modifierMetaText(tile.item) }}</span>
                       </template>
@@ -475,6 +476,7 @@ import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEff
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
+import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
 
 type ExplorerTile = EffectsTileVm<EffectEntry>;
 type ScrollAreaRef = InstanceType<typeof ConsoleScrollArea> & {
@@ -514,7 +516,7 @@ type ForecastQuestion = {
 
 export default defineComponent({
   name: 'ConsoleEffectsExplorer',
-  components: {ConsoleScrollArea, ConsoleCardFaceLite, ConsoleEffectSummary, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph, ColonyFleetIcon},
+  components: {ConsoleScrollArea, ConsoleCardFaceLite, ConsoleEffectSummary, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph, ColonyFleetIcon, PremiumPartyRequirementGlyph},
   directives: {stripEffectPrefix},
   props: {
     /** The inspected seat's tableau (or any future host's card set). In the

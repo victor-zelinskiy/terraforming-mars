@@ -17,6 +17,7 @@ import {CardType} from '../../src/common/cards/CardType';
 import {armedPlayForecastOf} from '../../src/server/models/armedPlayForecast';
 import {Fish} from '../../src/server/cards/base/Fish';
 import {Comet} from '../../src/server/cards/base/Comet';
+import {BackroomDeal} from '../../src/server/cards/turmoilRedux/BackroomDeal';
 
 /**
  * THE ONE READER OF ARMED ONE-PLAY EFFECTS (TR49 class): what the next card
@@ -46,6 +47,18 @@ describe('armedPlayEffects', () => {
     expect(armedPlayEffectsOf(player).map((e) => e.effect)).deep.eq([{kind: 'discount', amount: 8}]);
     player.playCard(new Conscription());
     expect(armedPlayEffectsOf(player).map((e) => e.effect)).deep.eq([{kind: 'discount', amount: 16}]);
+  });
+
+  it('ARM: Backroom Deal (TR70) arms TWO effects at once — the PARTY waiver (the fourth kind), then the −10', () => {
+    const [/* game */, player] = testGame(2);
+    player.playCard(new BackroomDeal());
+    expect(armedPlayEffectsOf(player).map((e) => e.effect)).deep.eq([{kind: 'partyWaiver'}, {kind: 'discount', amount: 10}]);
+    expect(player.partyRequirementWaiver()).deep.eq({kind: 'card', card: CardName.BACKROOM_DEAL, owner: player.color});
+    // The party family never touches the global one.
+    expect(player.globalRequirementWaiver(GlobalParameter.TEMPERATURE)).is.undefined;
+    player.playCard(new Algae());
+    expect(armedPlayEffectsOf(player)).deep.eq([]);
+    expect(player.partyRequirementWaiver()).is.undefined;
   });
 
   it('REPLACE: one field, one armed card — a new play replaces what was armed', () => {

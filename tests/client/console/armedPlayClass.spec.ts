@@ -3,6 +3,8 @@ import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {GlobalParameter} from '@/common/GlobalParameter';
 import {RequirementType} from '@/common/cards/RequirementType';
+import {PartyName} from '@/common/turmoil/PartyName';
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {ArmedPlayEffectModel, RequirementEasingModel} from '@/common/models/ArmedPlayEffectModel';
 import {EffectForecast, emptyEffectForecast} from '@/common/models/EffectForecastModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -87,6 +89,26 @@ describe('the ONE-PLAY class in the play surfaces (TR49)', () => {
       expect(items[0]).to.include({kind: 'modifier', used: true, oneShot: true, waive: true, badge: ''});
       expect(items[0].easings.map((e) => e.key)).deep.eq(['req:temperature']);
       expect(forecastItemCard(items[0])).eq(CED);
+    });
+
+    it('an armed PARTY waiver (TR70) is a modifier item that names the party family — the struck plate is the party plate', () => {
+      const partyWaiver: ArmedPlayEffectModel = {source: CardName.BACKROOM_DEAL, sourceType: CardType.EVENT, effect: {kind: 'partyWaiver'}, expires: 'next-play'};
+      const partyWaived: RequirementEasingModel = {
+        key: 'req:party', index: 0, type: RequirementType.PARTY, party: PartyName.MARS, max: false,
+        printed: 2, effective: 'waived', current: 0, met: true, decisive: true,
+        sources: [{source: {kind: 'card', card: CardName.BACKROOM_DEAL}, kind: 'waive', oneShot: true}],
+      };
+      const items = modifierItemsOf(withModifiers({consumes: [{armed: partyWaiver, used: true}], easings: [partyWaived]}));
+      expect(items).has.length(1);
+      expect(items[0]).to.include({kind: 'modifier', used: true, oneShot: true, waive: true, partyWaive: true, badge: ''});
+      expect(items[0].easings.map((e) => e.party)).deep.eq([PartyName.MARS]);
+      const [chip] = compactForecastChips(withModifiers({consumes: [{armed: partyWaiver, used: true}], easings: [partyWaived]})).chips;
+      expect(chip).to.include({kind: 'modifier', waive: true, partyWaive: true});
+      // The composer's row: the party's name, its two roads as the bound, the delegates road as «now».
+      const [row] = composerRequirementViews([partyWaived]);
+      expect(row).to.include({waived: true, met: true, decisive: true, label: partyNameKey(PartyName.MARS), printed: 'ruling or 2 delegates', iconClass: '', emblem: 'assets/parties/redux/mars-first.png'});
+      expect(row.now).eq('your delegates on the resolution of that party: 0 of 2');
+      expect(requirementStateText(row)).eq('Requirement ignored');
     });
 
     it('an armed shift spent FOR NOTHING is still named — muted, never hidden', () => {

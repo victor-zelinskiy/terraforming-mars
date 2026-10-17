@@ -2,8 +2,10 @@ import {IPlayer} from '../IPlayer';
 import {IProjectCard} from '../cards/IProjectCard';
 import {CardRequirements} from '../cards/requirements/CardRequirements';
 import {GlobalParameterRequirement} from '../cards/requirements/GlobalParameterRequirement';
+import {PartyRequirement} from '../cards/requirements/PartyRequirement';
 import {EventSource} from '../../common/events/EventSource';
 import {RequirementEasingModel, RequirementEasingSourceModel} from '../../common/models/ArmedPlayEffectModel';
+import {PARTY_EFFECT_DELEGATES} from '../../common/parliament/ParliamentTypes';
 import {requirementBlockId} from './unplayableReasons';
 
 /**
@@ -33,6 +35,33 @@ export function requirementEasingOf(player: IPlayer, card: IProjectCard): Array<
   compiled.requirements.forEach((req, index) => {
     const ordinal = (seen.get(req.type) ?? 0) + 1;
     seen.set(req.type, ordinal);
+    if (req instanceof PartyRequirement) {
+      // THE PARTY FAMILY (Backroom Deal TR70): a party requirement is only ever LIFTED, never shifted — the reading
+      // exists exactly while a waiver stands. `printed` is the delegates the printed rule asks for, `current` the
+      // player's own on that party's resolution (the Parliament's count, never a second one), `decisive` whether the
+      // party itself would have refused the play.
+      const waiver = player.partyRequirementWaiver();
+      if (waiver === undefined) {
+        return;
+      }
+      const politics = player.game.politics;
+      const standing = politics?.partyRequirementStanding(player, req.party);
+      const metRaw = politics?.satisfiesPartyRequirement(player, req.party) === true;
+      out.push({
+        key: requirementBlockId(req, ordinal) ?? `req:${req.type}`,
+        index,
+        type: req.type,
+        party: standing?.party ?? req.party,
+        max: false,
+        printed: standing?.required ?? PARTY_EFFECT_DELEGATES,
+        effective: 'waived',
+        current: standing?.delegates ?? 0,
+        sources: [{source: waiver, kind: 'waive', oneShot: partyWaiverIsOneShot(player, waiver)}],
+        met: true,
+        decisive: !metRaw,
+      });
+      return;
+    }
     if (!(req instanceof GlobalParameterRequirement)) {
       return;
     }
@@ -64,6 +93,15 @@ export function requirementEasingOf(player: IPlayer, card: IProjectCard): Array<
     });
   });
   return out;
+}
+
+/** The party waiver's one-shot reading — the declaration's `nextCardOnly` (every one in the set). */
+function partyWaiverIsOneShot(player: IPlayer, source: EventSource): boolean {
+  if (source.kind !== 'card' && source.kind !== 'corporation') {
+    return false;
+  }
+  const card = player.tableau.get(source.card) ?? player.removedFromPlayCards.find((c) => c.name === source.card);
+  return card?.partyRequirementWaiver?.nextCardOnly === true;
 }
 
 /** A waiver is spent by the next play when its declaration says `nextCardOnly` (the probe's always is). */

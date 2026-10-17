@@ -68,6 +68,11 @@ describe('premiumCardIcons.mechItemIcon', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.IGNORE_GLOBAL_REQUIREMENTS))).to.deep.equal({kind: 'label', text: 'Global requirements', accent: 'waived'});
   });
 
+  it('the party-requirement plate (TR13) — and STRUCK when the item is cancelled (TR70 «NEXT CARD: [plate ×]»)', () => {
+    expect(mechItemIcon(itemNode(CardRenderItemType.PARTY_REQUIREMENT))).to.deep.equal({kind: 'partyRequirement'});
+    expect(mechItemIcon({...itemNode(CardRenderItemType.PARTY_REQUIREMENT), cancelled: true} as ICardRenderItem)).to.deep.equal({kind: 'partyRequirement', waived: true});
+  });
+
   it('trade discount is a value-bearing token', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.TRADE_DISCOUNT))).to.deep.equal({kind: 'token'});
   });

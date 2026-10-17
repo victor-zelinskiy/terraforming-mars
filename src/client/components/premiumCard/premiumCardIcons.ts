@@ -45,8 +45,8 @@ export type MechIconSpec =
   | {kind: 'opg'}
   /** A card that prints `tag` and a VP icon (Turmoil Redux) — `PremiumVpCardGlyph`. */
   | {kind: 'vpCard', tag?: Tag}
-  /** A card with a requirement of ANY party (Turmoil Redux TR13) — `PremiumPartyRequirementGlyph`. */
-  | {kind: 'partyRequirement'}
+  /** A card with a requirement of ANY party (Turmoil Redux TR13) — `PremiumPartyRequirementGlyph`; `waived` = the plate STRUCK (TR70: the next card ignores it). */
+  | {kind: 'partyRequirement', waived?: true}
   /** A card that HOLDS resources (Turmoil Redux TR53) — `PremiumResourceCardGlyph`. */
   | {kind: 'resourceCard'}
   | {kind: 'glyph', glyph: string};
@@ -623,7 +623,9 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
   case CardRenderItemType.PARTY_REQUIREMENT:
     // «A card with a requirement of ANY party» (TR13): the requirements plate
     // in miniature with the wild-party pill — drawn, never a party plate.
-    return {kind: 'partyRequirement'};
+    // STRUCK (`cancelled` — TR70 Backroom Deal: «NEXT CARD: [plate ×]»): the
+    // one-play class's red diagonal, the stroke the next card's cassette wears.
+    return item.cancelled === true ? {kind: 'partyRequirement', waived: true} : {kind: 'partyRequirement'};
   case CardRenderItemType.COLONY_TILE:
     // The printed COLONY TILE glyph (the pill of a tile: track bars + the
     // planet's limb — Turmoil Redux TR07 «SET [tile] TO MAX», Aridor, Early

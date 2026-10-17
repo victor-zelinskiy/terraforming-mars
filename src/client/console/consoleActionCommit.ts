@@ -627,7 +627,16 @@ export function spendLinkSpecs(
   let paymentSpent = false;
   for (const e of branch.effects ?? []) {
     if (e.direction !== 'cost' || e.amount <= 0 || e.unit !== undefined ||
-        e.icon === 'resources' || e.icon === 'tr' || e.icon === 'cards') {
+        e.icon === 'resources' || e.icon === 'cards') {
+      continue;
+    }
+    // A PRICE IN RATING (Backroom Deal TR70's «−1 TR»; Pristar's and Terralabs' opening) is a departure too: the
+    // token leaves the RATING CELL (the rail's own home of the rating — the generation scene's income flies out of
+    // it the same way) and is absorbed at the printed TR icon, the cell ticking on the departure (PL-104).
+    if (e.icon === 'tr') {
+      if (e.note === undefined) {
+        out.push({channel: 'stock', resource: RATING_RAIL_KEY, amount: e.amount, direction: 'loss'});
+      }
       continue;
     }
     if (isStandardResource(e.icon)) {
@@ -1000,6 +1009,11 @@ function withoutChainRows(known: Record<string, number>, chain: ReadonlyArray<Re
   for (const spec of chain) {
     if (spec.channel === 'stock' || spec.channel === 'production') {
       const row = railRowKey(spec);
+      // A row the known moves never counted (the RATING — the check reads it from the chain alone, TR70's price in
+      // rating included) has nothing to net: subtracting the chain's promise from nothing would INVENT a move.
+      if (!(row in out)) {
+        continue;
+      }
       const left = (out[row] ?? 0) - (spec.direction === 'loss' ? -spec.amount : spec.amount);
       if (left === 0) {
         delete out[row];

@@ -65,6 +65,7 @@ import {EnceladeanIncubator} from './EnceladeanIncubator';
 import {CargoMechs} from './CargoMechs';
 import {StrategicShift} from './StrategicShift';
 import {FloatingBiodomes} from './FloatingBiodomes';
+import {BackroomDeal} from './BackroomDeal';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -316,5 +317,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // The Venus «V» at the bottom left: the second floater holder (TR27's sibling) — 1 plant → a floater onto ANY Venus
     // card, OR 3 floaters here → a greenery tile, the set's first declared action TILE (staged from the composer, D5).
     [CardName.FLOATING_BIODOMES]: {Factory: FloatingBiodomes, compatibility: 'venus'},
+    // Only the module's icon at the bottom left: an EVENT for 2 with no requirement and no tag — the one-play class's
+    // first card arming TWO effects (the party-requirement WAIVER, the set's fourth kind, and a 10 M€ discount) for
+    // the price of 1 TR.
+    [CardName.BACKROOM_DEAL]: {Factory: BackroomDeal},
   },
 });

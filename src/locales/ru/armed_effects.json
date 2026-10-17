@@ -25,5 +25,7 @@
     "One play — this play spends it for nothing": "Один розыгрыш — этот розыгрыш израсходует его впустую",
     "${0} armed it for your next card": "Взведено картой «${0}» на вашу следующую карту",
     "${0} bends the printed requirement": "Напечатанное требование смягчает «${0}»",
-    "Arms your next card": "Взведёт на следующую карту"
+    "Arms your next card": "Взведёт на следующую карту",
+    "Party requirement ignored": "Требование партии игнорируется",
+    "ruling or ${0} delegates": "у власти или ${0} делегата"
 }

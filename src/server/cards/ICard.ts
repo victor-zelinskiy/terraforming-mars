@@ -9,7 +9,7 @@ import {CardName} from '../../common/cards/CardName';
 import {CardMetadata} from '../../common/cards/CardMetadata';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {BoardType} from '../boards/BoardType';
-import {CardDiscount, GlobalParameterRequirementBonus} from '../../common/cards/Types';
+import {CardDiscount, GlobalParameterRequirementBonus, PartyRequirementWaiver} from '../../common/cards/Types';
 import type {ArmedPlayEffectKind} from '../../common/models/ArmedPlayEffectModel';
 import {CountableVictoryPoints} from '../../common/cards/CountableVictoryPoints';
 import {VictoryPointsSign} from '../../common/cards/victoryPointsIcon';
@@ -267,6 +267,15 @@ export interface ICard {
   waivesGlobalRequirements?(player: IPlayer, parameter: GlobalParameter): boolean;
   /** The declared requirement bonus / waiver, as printed (Card exposes its own). */
   globalParameterRequirementBonus?: GlobalParameterRequirementBonus;
+  /**
+   * The PARTY requirement is IGNORED right now (Backroom Deal TR70 —
+   * `partyRequirementWaiver: {nextCardOnly: true}` while armed): the other
+   * requirement family's waiver, read by ONE function,
+   * `IPlayer.partyRequirementWaiver`, and paid by `PartyRequirement.satisfies`.
+   */
+  waivesPartyRequirements?(player: IPlayer): boolean;
+  /** The declared party-requirement waiver, as printed (Card exposes its own). */
+  partyRequirementWaiver?: PartyRequirementWaiver;
   /**
    * A ONE-PLAY EFFECT this card arms that NO declaration describes (a bespoke
    * «your next card …»): co-located with the bespoke code that grants it, read

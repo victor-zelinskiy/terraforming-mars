@@ -14,6 +14,7 @@
              a bare plate, which read as part of the card's own printed plate it was born on (the 4K storyboard). -->
         <span class="con-armfly__spark" aria-hidden="true">⚡</span>
         <span v-if="t.view.kind === 'requirementWaiver'" class="con-armed__struck">{{ $t('Reqs') }}</span>
+        <PremiumPartyRequirementGlyph v-else-if="t.view.kind === 'partyWaiver'" class="pprq--waived con-armed__pprq con-armed__pprq--chip" />
         <span v-else class="con-armed__badge">{{ t.view.badge }}</span>
       </div>
       <div class="con-armfly__beat" :ref="(el) => setBeatRef(t.id, el as HTMLElement | null)"></div>
@@ -24,9 +25,11 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {armedFlightState, registerArmedFlightStage} from '@/client/console/armedEffectFlight';
+import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
 
 export default defineComponent({
   name: 'ConsoleArmedFlightLayer',
+  components: {PremiumPartyRequirementGlyph},
   data() {
     return {
       state: armedFlightState,

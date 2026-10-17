@@ -176,7 +176,9 @@ function spendAbsorbOf(view: ArmedEffectView, card: HTMLElement): Element {
 /** Where an ARM is born: the card's own PRINTED glyph of the effect — never its body (the law of the real face glyph). */
 function armGlyphOf(view: ArmedEffectView, card: HTMLElement): Element | undefined {
   const selectors = view.kind === 'discount' ? ['.pcard-mi--mc'] :
-    view.kind === 'requirementWaiver' ? ['.pcard-plate--waived', '.pcard-plate'] : ['.pcard-plate'];
+    view.kind === 'requirementWaiver' ? ['.pcard-plate--waived', '.pcard-plate'] :
+      // The party family (TR70): the printed party plate, struck — the face's own glyph of the waiver.
+      view.kind === 'partyWaiver' ? ['.pprq--waived', '.pprq'] : ['.pcard-plate'];
   for (const s of selectors) {
     for (const el of card.querySelectorAll(s)) {
       if (el.closest('.pcard__reqs') === null && centreOf(el) !== undefined) {

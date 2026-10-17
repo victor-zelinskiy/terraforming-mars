@@ -16,6 +16,9 @@ import {Inventrix} from '../../src/server/cards/corporation/Inventrix';
 import {MorningStarInc} from '../../src/server/cards/venusNext/MorningStarInc';
 import {EcologyExperts} from '../../src/server/cards/prelude/EcologyExperts';
 import {ThinkTank} from '../../src/server/cards/pathfinders/ThinkTank';
+import {BackroomDeal} from '../../src/server/cards/turmoilRedux/BackroomDeal';
+import {MartianCensus} from '../../src/server/cards/turmoilRedux/MartianCensus';
+import {quietResolutionOf, seatEnacted} from '../parliament/parliamentArrange';
 import {PartyHooks} from '../../src/server/turmoil/parties/PartyHooks';
 import {Phase} from '../../src/common/Phase';
 import {Resource} from '../../src/common/Resource';
@@ -165,6 +168,21 @@ describe('requirementEasing', () => {
       player.lastCardPlayed = CardName.ECOLOGY_EXPERTS;
       const card = fakeCard({requirements: [{production: Resource.ENERGY, count: 3}]});
       expect(requirementEasingOf(player, card)).deep.eq([]);
+    });
+
+    it('THE PARTY FAMILY (TR70 Backroom Deal): a party requirement is lifted — named by its party, the delegates road as its numbers', () => {
+      const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+      seatEnacted(game.parliament!, quietResolutionOf(PartyName.REDS));
+      const census = new MartianCensus(); // Mars First's plate
+      expect(requirementEasingOf(player, census), 'nothing armed — nothing to say').deep.eq([]);
+      player.playedCards.push(new BackroomDeal());
+      player.lastCardPlayed = CardName.BACKROOM_DEAL;
+      const [easing] = requirementEasingOf(player, census);
+      expect(easing).deep.include({type: RequirementType.PARTY, party: PartyName.MARS, printed: 2, current: 0, effective: 'waived', met: true, decisive: true});
+      expect(easing.parameter).is.undefined;
+      expect(easing.sources).deep.eq([{source: {kind: 'card', card: CardName.BACKROOM_DEAL, owner: player.color}, kind: 'waive', oneShot: true}]);
+      // …and it never names a global requirement (the other family's kind).
+      expect(requirementEasingOf(player, new Fish())).deep.eq([]);
     });
   });
 

@@ -11,11 +11,14 @@ import {CardModel} from '@/common/models/CardModel';
 import {RequirementEasingModel} from '@/common/models/ArmedPlayEffectModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {ModifierSourceVM, easingIsQuiet, modifierSourcesOf} from '@/client/components/premiumCard/premiumModifierSources';
+import {requirementPartyEmblem} from '@/client/components/premiumCard/partyEmblems';
 
 /** One bent requirement on the plate: its scale's icon and the bend — «±2» or the strike of a waiver. */
 export type HandEasingItem = {
-  /** The scale's icon (the board's own art). */
+  /** The scale's icon (the board's own art); '' for a PARTY requirement, whose `emblem` stands in its place. */
   iconClass: string;
+  /** The PARTY's emblem (TR70 — a lifted party requirement wears the party's badge, struck), the hand's own counter badge. */
+  emblem?: string;
   /** `waived` draws the icon struck through (the scan's red diagonal); `shift` prints «±N». */
   kind: 'shift' | 'waive';
   /** The TOTAL bend (every source summed). */
@@ -37,8 +40,10 @@ const MAX_ITEMS = 2;
 
 function itemOf(easing: RequirementEasingModel): HandEasingItem {
   const steps = easing.sources.reduce((sum, s) => sum + (s.steps ?? 0), 0);
+  const emblem = easing.party !== undefined ? requirementPartyEmblem(easing.party) : undefined;
   return {
-    iconClass: iconClassFor(easing.parameter),
+    iconClass: easing.parameter !== undefined ? iconClassFor(easing.parameter) : '',
+    ...(emblem !== undefined ? {emblem} : {}),
     kind: easing.effective === 'waived' ? 'waive' : 'shift',
     steps,
     sources: modifierSourcesOf(easing),

@@ -833,6 +833,16 @@ export class Player implements IPlayer {
     return undefined;
   }
 
+  public partyRequirementWaiver(): EventSource | undefined {
+    // The same two places as the global waiver (Backroom Deal TR70 — the party family's waiver).
+    for (const card of [...this.tableau, ...this.removedFromPlayCards]) {
+      if (card.waivesPartyRequirements?.(this) === true) {
+        return {kind: card.type === CardType.CORPORATION ? 'corporation' : 'card', card: card.name, owner: this.color};
+      }
+    }
+    return undefined;
+  }
+
   /**
    * The play's own record of WHO let it through (TR49 class): one
    * `requirement-eased` event per modifier of a requirement met ONLY thanks to
@@ -851,7 +861,12 @@ export class Player implements IPlayer {
           }
           bySource.set(key, entry);
         }
-        entry.fact.requirements.push({type: easing.type, parameter: easing.parameter, max: easing.max, printed: easing.printed, effective: easing.effective});
+        entry.fact.requirements.push({
+          type: easing.type,
+          ...(easing.parameter !== undefined ? {parameter: easing.parameter} : {}),
+          ...(easing.party !== undefined ? {party: easing.party} : {}),
+          max: easing.max, printed: easing.printed, effective: easing.effective,
+        });
       }
     }
     for (const {source, fact} of bySource.values()) {
@@ -867,7 +882,11 @@ export class Player implements IPlayer {
         continue;
       }
       if (fact.kind === 'waive') {
-        this.game.log('${0} ignored the global requirements of ${1} thanks to ${2}', (b) => {
+        // A PARTY requirement lifted (TR70) is its own line — the global waiver's words would name the wrong family.
+        const party = fact.requirements.every((r) => r.party !== undefined);
+        this.game.log(party ?
+          '${0} ignored the party requirement of ${1} thanks to ${2}' :
+          '${0} ignored the global requirements of ${1} thanks to ${2}', (b) => {
           b.player(this).card(card);
           name(b);
         });
@@ -875,11 +894,12 @@ export class Player implements IPlayer {
       }
       for (const requirement of fact.requirements) {
         const effective = requirement.effective;
-        if (effective === 'waived') {
+        const parameter = requirement.parameter;
+        if (effective === 'waived' || parameter === undefined) {
           continue;
         }
         this.game.log('${0} met the ${1} requirement of ${2} thanks to ${3}: ${4} → ${5}', (b) => {
-          b.player(this).globalParameter(requirement.parameter).card(card);
+          b.player(this).globalParameter(parameter).card(card);
           name(b);
           b.number(requirement.printed).number(effective);
         });

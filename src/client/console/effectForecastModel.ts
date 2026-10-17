@@ -67,7 +67,7 @@ export type ForecastChip =
    * spent for nothing — or a standing modifier (Inventrix) bending one of the
    * card's printed requirements. `used: false` = spent for nothing (muted).
    */
-  | {kind: 'modifier', key: string, badge: string, waive: boolean, used: boolean, oneShot: boolean, mark: ModifierSourceVM, facts: number}
+  | {kind: 'modifier', key: string, badge: string, waive: boolean, partyWaive?: boolean, used: boolean, oneShot: boolean, mark: ModifierSourceVM, facts: number}
   | {kind: 'more', key: string, count: number, facts: number};
 
 /** Which operation the forecast describes — the WHEN vocabulary differs. */
@@ -183,7 +183,8 @@ export function compactForecastChips(forecast: EffectForecast | undefined): Fore
   }
   // THE PLAY'S MODIFIERS lead (TR49 class): they concern the card's own legality and price, before the table answers.
   const modifierChips: Array<ForecastChip> = modifierItemsOf(forecast).map((m) => ({
-    kind: 'modifier', key: m.key, badge: m.badge, waive: m.waive, used: m.used, oneShot: m.oneShot, mark: modifierMarkOf(m), facts: 1,
+    kind: 'modifier', key: m.key, badge: m.badge, waive: m.waive, ...(m.partyWaive === true ? {partyWaive: true} : {}),
+    used: m.used, oneShot: m.oneShot, mark: modifierMarkOf(m), facts: 1,
   }));
   const own = new Map<string, ChipSlot>();
   const asks = new Map<string, ChipSlot>();
@@ -477,6 +478,8 @@ export type ForecastModifierItem = {
   used: boolean,
   oneShot: boolean,
   waive: boolean,
+  /** The waiver is the PARTY family's (TR70 — the struck plate is the party plate, never «global requirements»). */
+  partyWaive?: boolean,
   badge: string,
   easings: ReadonlyArray<RequirementEasingModel>,
 };
@@ -508,7 +511,8 @@ export function modifierItemsOf(forecast: EffectForecast | undefined): Array<For
       kind: 'modifier', key: `mod-armed-${c.armed.source}`, group: 'modifiers',
       source: {kind: 'card', card: c.armed.source},
       armed: c.armed, used: c.used, oneShot: true,
-      waive: c.armed.effect.kind === 'requirementWaiver',
+      waive: c.armed.effect.kind === 'requirementWaiver' || c.armed.effect.kind === 'partyWaiver',
+      ...(c.armed.effect.kind === 'partyWaiver' ? {partyWaive: true} : {}),
       badge: c.armed.effect.kind === 'requirementShift' ? `±${c.armed.effect.steps}` :
         c.armed.effect.kind === 'discount' ? `−${c.armed.effect.amount}` : '',
       easings: modifiers.easings.filter((e) => e.sources.some((s) => sourceCardOf(s.source) === c.armed.source)),
@@ -529,6 +533,7 @@ export function modifierItemsOf(forecast: EffectForecast | undefined): Array<For
         item = {
           kind: 'modifier', key: `mod-${key}`, group: 'modifiers', source: share.source,
           used: true, oneShot: share.oneShot, waive: share.kind === 'waive',
+          ...(share.kind === 'waive' && easing.party !== undefined ? {partyWaive: true} : {}),
           badge: share.kind === 'shift' ? `±${share.steps ?? 0}` : '', easings: [],
         };
         standing.set(key, item);

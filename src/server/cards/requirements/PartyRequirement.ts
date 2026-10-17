@@ -23,6 +23,11 @@ export class PartyRequirement extends CardRequirement {
   }
 
   public satisfies(player: IPlayer): boolean {
+    // An IGNORED party requirement is met (Backroom Deal TR70 while armed) — before the Parliament is asked, exactly
+    // as a waived global requirement is met before the Think Tank bridge. The party's EFFECT is never granted by it.
+    if (player.partyRequirementWaiver() !== undefined) {
+      return true;
+    }
     return player.game.politics?.satisfiesPartyRequirement(player, this.party) === true;
   }
 }

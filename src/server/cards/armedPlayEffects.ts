@@ -57,6 +57,10 @@ export function oneShotEffectsOf(card: ICard, player?: IPlayer): Array<ArmedPlay
         {kind: 'requirementShift', steps: requirement.steps, parameter: requirement.parameter});
     }
   }
+  // The PARTY family's waiver (Backroom Deal TR70) — read in the card's printed order: the requirement first, the price after.
+  if (card.partyRequirementWaiver?.nextCardOnly === true) {
+    out.push({kind: 'partyWaiver'});
+  }
   for (const discount of asArray(card.cardDiscount ?? [])) {
     if (discount.nextCardOnly === true) {
       out.push(discount.tag === undefined ? {kind: 'discount', amount: discount.amount} : {kind: 'discount', amount: discount.amount, tag: discount.tag});

@@ -71,7 +71,8 @@
         <span v-for="(r, i) in vm.eased.requirements" :key="i"
               class="journal-child-row__chip journal-child-row__chip--eased"
               :class="{'journal-child-row__chip--waived': r.effective === 'waived'}">
-          <span class="journal-child-row__chip-icon" :class="iconClass(r.parameter)" aria-hidden="true"></span>
+          <!-- the scale's icon — or (TR70) the lifted PARTY's emblem, the badge its requirement plate prints -->
+          <span class="journal-child-row__chip-icon" :class="iconClass(r.parameter ?? '')" :style="easedEmblemStyle(r.party)" aria-hidden="true"></span>
           <span v-if="r.effective === 'waived'" class="journal-child-row__chip-amt">{{ $t('Ignored') }}</span>
           <span v-else class="journal-child-row__chip-amt">{{ r.printed }} → {{ r.effective }}</span>
         </span>
@@ -194,6 +195,7 @@ import ConsoleDrawSearchRule from '@/client/components/console/foundation/Consol
 import {readingText} from '@/client/console/readingText';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
+import {requirementPartyEmblem} from '@/client/components/premiumCard/partyEmblems';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ColonyRosterChange, colonyRosterChangeText} from '@/common/colonies/ColonyRoster';
@@ -237,6 +239,11 @@ export default defineComponent({
     },
     iconClass(icon: string): string {
       return iconClassFor(icon);
+    },
+    /** A lifted PARTY requirement's chip wears the party's emblem (TR70) — the hand's counter badge, in the icon's slot. */
+    easedEmblemStyle(party: PartyName | undefined): Record<string, string> | undefined {
+      const emblem = party === undefined ? undefined : requirementPartyEmblem(party);
+      return emblem === undefined ? undefined : {backgroundImage: `url(${emblem})`};
     },
     chipClass(chip: JournalImpactChip): Record<string, boolean> {
       return {

@@ -34,6 +34,7 @@ import {cardResourceIconUrl} from '@/client/components/premiumCard/premiumCardIc
 import type {ICardRenderEffect} from '@/common/cards/render/Types';
 import type {ActionCommitKind} from '@/client/console/consoleActionCommit';
 import {armCommitImpulse, landCommitImpulse} from '@/client/console/consoleActionCommit';
+import {RATING_RAIL_KEY} from '@/client/console/resourceTransfer/resourceTransferModel';
 import type {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ──────────────
@@ -296,7 +297,9 @@ function resolveIconPoints(scope: HTMLElement, specs: ReadonlyArray<ResourceTran
       const mc = mcTiles.find((el) => printsNegative(el) === wantNegative) ?? mcTiles[0];
       return centerOf(mc) ?? centerOf(icons.find((el) => iconMatches(el, 'megacredits'))) ?? (wildChosen(spec) ? fromWild() : undefined);
     }
-    const matching = icons.filter((el) => iconMatches(el, spec.resource));
+    // The RATING rides the stock channel under the rail's own key; its printed icon is the TR disc.
+    const needle = spec.resource === RATING_RAIL_KEY ? 'tr' : spec.resource;
+    const matching = icons.filter((el) => iconMatches(el, needle));
     if (matching.length === 0 && wildChosen(spec)) {
       return fromWild();
     }
