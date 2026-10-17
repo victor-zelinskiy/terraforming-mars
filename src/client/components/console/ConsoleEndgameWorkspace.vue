@@ -241,6 +241,8 @@
                      'con-eg__action--disabled': a.enabled === false,
                      'con-eg__action--committed': a.id === 'overview' && overviewCommitFx,
                    }">
+                <!-- The action's SIGN (PL-576): a stroke icon in the plate's ink — the row reads by shape before words. -->
+                <svg v-if="actionIcon(a.id) !== ''" class="con-eg__action-icon" viewBox="0 0 24 24" aria-hidden="true"><path :d="actionIcon(a.id)" /></svg>
                 <span class="con-eg__action-label">{{ $t(a.label) }}</span>
                 <span v-if="a.note !== undefined" class="con-eg__action-note">{{ a.note }}</span>
               </div>
@@ -329,6 +331,24 @@ import {pinServerEndpoint} from '@/client/utils/serverEndpoints';
 import {paths} from '@/common/app/paths';
 import ConsoleCampaignMap from '@/client/components/console/campaign/ConsoleCampaignMap.vue';
 import {$t} from '@/client/directives/i18n';
+
+/**
+ * The post-game actions' SIGNS (PL-576) — one stroke path per action family (24 × 24, drawn in the plate's ink), so
+ * the row reads by shape before words and never depends on a font's symbol coverage (the Deck's fonts have no ⟳).
+ */
+const ACTION_ICON: Readonly<Record<string, string>> = {
+  'overview': 'M4 5h16v14H4z M4 12h16 M12 5v14',
+  'campaign-map': 'M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z M9 4v14 M15 6v14',
+  'campaign-next': 'M5 12h14 M13 6l6 6-6 6',
+  'rematch-offer': 'M4 12a8 8 0 0 1 14-5.3 M18 3v4h-4 M20 12a8 8 0 0 1-14 5.3 M6 21v-4h4',
+  'rematch-join': 'M4 12a8 8 0 0 1 14-5.3 M18 3v4h-4 M20 12a8 8 0 0 1-14 5.3 M6 21v-4h4',
+  'rematch-wait': 'M12 7v5l3 3 M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0',
+  'rematch-accept': 'M5 12.5l4.5 4.5L19 7.5',
+  'rematch-decline': 'M6 6l12 12 M18 6L6 18',
+  'rematch-cancel': 'M6 6l12 12 M18 6L6 18',
+  'replay': 'M4 12a8 8 0 1 0 2.3-5.6 M4 4v5h5',
+  'menu': 'M4 11l8-7 8 7 M6 9.5V20h12V9.5',
+};
 
 type PostGameAction = {
   id: string,
@@ -835,6 +855,9 @@ export default defineComponent({
     }
   },
   methods: {
+    actionIcon(id: string): string {
+      return ACTION_ICON[id] ?? '';
+    },
     rowBy(color: Color): ConsoleEndgameRow {
       const row = this.vm.rows.find((r) => r.color === color);
       // Every color in rowOrder/winners comes from the VM itself.

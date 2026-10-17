@@ -233,6 +233,16 @@ ConsoleCommand); a satellite cell click selects the type AND opens the
 extras screen. No separate bot corp zone, no «Треки бота» panel, no bot
 deck tiles on the summary — all of it moved to «Экран бота».
 
+## The score OVERVIEW and a sparse «Разыграно» fill the opening (PL-574 / PL-575, 2026-10-17)
+
+- **«Победные очки» (level 1)**: the grid takes the WHOLE stage (`grid-auto-rows: minmax(0, 1fr)`, `align-content:
+  stretch`) and a tile is a category OBJECT — the medallion (`info/ConsoleScoreDisc.vue`, the ONE disc the dossier's
+  score wears; milestones / awards: the earned emblems, so the ledger keeps only their reading), the name over a value
+  at the scene's scale, the ledger at body size on the TV; a long name wraps. The handoff anchors are untouched.
+- **«Разыграно» embedded**: a sparse table grows into its ROOM (`ConsolePlayedOverlay.fitEmbeddedRoom` — the panel
+  below the scroll area, since the scroll area hugs its content, against the families' painted extent): `roomGain`
+  ≤ ×1.4, never below the ladder, settled within 3 %, `data-room-gain`; centred. Not on the handheld.
+
 ## The LIVE SCORE (`liveScoreModel.ts`) — one system with the finale
 
 `buildLiveScoreModel(breakdown, {isBot, hasMoon, hasPathfinders, hasDelta})`

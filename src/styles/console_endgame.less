@@ -332,11 +332,16 @@
     letter-spacing: 0.18em;
     text-transform: uppercase;
 }
-/* Layered crossfade (title slot + caption): enter and leave overlap in
- * the same box — no empty beat, no layout shift, ever. */
-.con-eg-xfade-enter-active { transition: opacity calc(220ms * var(--motion-scale, 1)) ease; }
-.con-eg-xfade-leave-active { transition: opacity calc(160ms * var(--motion-scale, 1)) ease; }
-.con-eg-xfade-enter-from,
+/* The title / caption HANDOFF (title slot + caption): one line gives way to the next as ONE phrase — the old line lets
+ * go ON THE SPOT (130 ms), the new one arrives 40 ms before the old is gone (300 ms, from a hair under its size) — the
+ * prompt family's handoff (PL-576). Layered in the same box (no empty slot, no layout shift), but never a
+ * cross-fade of two LEGIBLE lines: the simultaneous one read «ФИ◈ИТОГИ ПАРТИИЧЁТ» at mid-swap. */
+.con-eg-xfade-enter-active {
+    transition: opacity calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.2, 0.8, 0.2, 1) calc(90ms * var(--motion-scale, 1)),
+        transform calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.2, 0.8, 0.2, 1) calc(90ms * var(--motion-scale, 1));
+}
+.con-eg-xfade-leave-active { transition: opacity calc(130ms * var(--motion-scale, 1)) ease-out; }
+.con-eg-xfade-enter-from { opacity: 0; transform: scale(.965); }
 .con-eg-xfade-leave-to { opacity: 0; }
 
 /* ── Rows ────────────────────────────────────────────────────────── */
@@ -869,49 +874,56 @@
     color: rgba(222, 210, 170, 0.8);
 }
 
-/* The post-game action list — a horizontal command row. The focus is
- * the console's cyan navigation language (the winner's gold lives on
- * the ROW above — the two states must never read alike). */
+/* The post-game action list — a horizontal row of PLATES (PL-576: the flat outlined rectangles read as a settings
+ * row under a premium scoreboard). Each plate is the console's glass with its SIGN (`ACTION_ICON`) and its word; the
+ * cursor is the ONE grammar (TR58 — a ring layer + a lift on one clock, `.con-cursor()`), cyan navigation — the
+ * winner's gold lives on the ROW above, the two states must never read alike. */
 .con-eg__actions {
     display: flex;
     justify-content: center;
-    gap: 0.55rem;
+    gap: 0.9rem;
 }
 .con-eg__action {
     position: relative;
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
-    padding: 0.55rem 1.15rem;
-    border-radius: 0.4rem;
-    border: 0.05rem solid rgba(150, 175, 205, 0.2);
-    background: rgba(10, 17, 26, 0.72);
+    gap: 0.6rem;
+    padding: 0.75rem 1.5rem 0.75rem 1.05rem;
+    border-radius: 0.6rem;
+    border: none;
+    background: linear-gradient(180deg, rgba(28, 43, 62, 0.94), rgba(10, 17, 27, 0.96));
+    box-shadow: inset 0 0 0 0.06rem rgba(150, 175, 205, 0.26), inset 0 0.06rem 0 rgba(190, 225, 255, 0.08),
+        0 0.35rem 1.1rem rgba(0, 0, 0, 0.42);
     font-family: @con-font;
     font-size: var(--eg-act-fs);
-    color: rgba(220, 233, 246, 0.88);
-    transition:
-        border-color calc(200ms * var(--motion-scale, 1)) ease,
-        box-shadow calc(200ms * var(--motion-scale, 1)) ease,
-        background-color calc(200ms * var(--motion-scale, 1)) ease,
-        color calc(200ms * var(--motion-scale, 1)) ease,
-        transform calc(200ms * var(--motion-scale, 1)) @con-ease-standard;
+    letter-spacing: 0.02em;
+    color: rgba(220, 233, 246, 0.86);
+    .con-cursor(0 0 0 var(--con-focus-ring, 0.12rem) fade(@con-cyan, 88%), 0 0 var(--con-glow-r, 0.9rem) fade(@con-cyan, 34%);
+        @radius: 0.6rem; @transform: translateY(calc(var(--con-cursor-on) * -0.14rem)));
+    transition+: color var(--con-cursor-ms) var(--con-cursor-ease);
 }
 .con-eg__action--focused {
+    .con-cursor-on();
     color: #ffffff;
-    border-color: rgba(89, 199, 240, 0.75);
-    background: rgba(16, 30, 44, 0.9);
-    box-shadow: 0 0 0 var(--con-focus-ring, 0.12rem) rgba(89, 199, 240, 0.55);
-    transform: translateY(-0.1rem);
 }
-/* Disabled: muted ink + border — never whole-element opacity. */
+.con-eg__action-icon {
+    flex: none;
+    width: 1.35em;
+    height: 1.35em;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.85;
+}
+.con-eg__action--focused .con-eg__action-icon { opacity: 1; color: @con-cyan; }
+/* Disabled: muted ink — never whole-element opacity; its ring a neutral one (the cursor still stands on it). */
 .con-eg__action--disabled {
     color: rgba(220, 233, 246, 0.4);
-    border-color: rgba(150, 175, 205, 0.12);
+    .con-cursor-paint(0 0 0 var(--con-focus-ring, 0.12rem) rgba(150, 175, 205, 0.45));
 }
-.con-eg__action--disabled.con-eg__action--focused {
-    border-color: rgba(150, 175, 205, 0.4);
-    box-shadow: 0 0 0 var(--con-focus-ring, 0.12rem) rgba(150, 175, 205, 0.3);
-}
+.con-eg__action--disabled .con-eg__action-icon { opacity: 0.45; }
 .con-eg__action-note {
     font-size: var(--con-t-floor, 0.7rem);
     color: @con-text-dim;

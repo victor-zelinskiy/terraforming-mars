@@ -1106,3 +1106,47 @@
     background: #e5322a;
     transform: rotate(-20deg);
 }
+
+/* ── THE EVENT'S OBJECT (PL-577) ───────────────────────────────────────────────────────────────────────────────
+   A group leads with what it is ABOUT: the card's own art (a play, an action — the thumb tier, cropped to a tile) or a
+   standard project's pictogram on a dark disc. The column of sentences becomes a column of events with their objects;
+   the header text keeps its own line beside it. Console only (rem — the console scale). */
+.con-journal .journal-group__root--object { align-items: center; }
+.con-journal .journal-group__object {
+    flex: none;
+    order: -1;
+    position: relative;
+    width: 2.7rem;
+    height: 2.7rem;
+    border-radius: 0.4rem;
+    overflow: hidden;
+    display: grid;
+    place-items: center;
+    background: radial-gradient(circle at 35% 30%, rgba(44, 60, 82, 0.96), rgba(9, 14, 23, 0.98));
+    box-shadow: inset 0 0 0 0.06rem var(--jg-accent-soft, rgba(150, 175, 200, 0.3)), 0 0.15rem 0.5rem rgba(0, 0, 0, 0.45);
+}
+.con-journal .journal-group__art {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: 50% 30%;
+}
+.con-journal .journal-group__object--card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    box-shadow: inset 0 0 0 0.06rem var(--jg-accent, rgba(150, 175, 200, 0.6));
+    pointer-events: none;
+}
+.con-journal .journal-group__pict.std-icon {
+    width: 1.9rem;
+    height: 1.9rem;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+html.con-profile-tv .con-journal .journal-group__object { width: 3.3rem; height: 3.3rem; border-radius: 0.5rem; }
+html.con-profile-tv .con-journal .journal-group__pict.std-icon { width: 2.3rem; height: 2.3rem; }
+html.con-profile-handheld .con-journal .journal-group__object { width: 2.1rem; height: 2.1rem; }
+html.con-profile-handheld .con-journal .journal-group__pict.std-icon { width: 1.5rem; height: 1.5rem; }

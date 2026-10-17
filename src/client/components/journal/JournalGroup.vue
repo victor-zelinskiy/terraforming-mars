@@ -6,8 +6,15 @@
          root action to its consequences as ONE event. -->
     <span class="journal-group__spine" aria-hidden="true"></span>
 
-    <!-- Root action — the dominant header that owns the group. -->
-    <div class="journal-group__root" :class="{'journal-group__root--dim': filterActive && !headerMatched}">
+    <!-- Root action — the dominant header that owns the group. It leads with the event's OBJECT (PL-577): the card's
+         own art for a play / an action, the standard project's pictogram — the journal reads as events with their
+         objects, never as a column of sentences. A header naming no card has none. -->
+    <div class="journal-group__root" :class="{'journal-group__root--dim': filterActive && !headerMatched, 'journal-group__root--object': subject !== undefined}">
+      <span v-if="subject !== undefined" class="journal-group__object" :class="'journal-group__object--' + subject.kind"
+            :data-journal-object="subject.name" aria-hidden="true">
+        <img v-if="subject.kind === 'card'" class="journal-group__art" :src="subject.art" alt="" loading="lazy" />
+        <i v-else class="journal-group__pict" :class="subject.icon"></i>
+      </span>
       <span class="journal-group__time" :title="fullWhen">{{ when }}</span>
       <span class="journal-group__root-body">
         <JournalTokenRenderer
@@ -78,6 +85,16 @@ import {JournalActionCategory, GameEvent} from '@/common/events/GameEvent';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import JournalTokenRenderer from '@/client/components/journal/JournalTokenRenderer.vue';
 import JournalChildRow from '@/client/components/journal/JournalChildRow.vue';
+import {CardName} from '@/common/cards/CardName';
+import {CardType} from '@/common/cards/CardType';
+import {getCard} from '@/client/cards/ClientCardManifest';
+import {cardArtUrl, cardArtUrlAtTier} from '@/client/cards/cardArt';
+import {standardProjectVisual} from '@/client/components/overview/standardProjectVisuals';
+
+/** The event's OBJECT (PL-577): the card it names — its art, or a standard project's pictogram. */
+type JournalSubject =
+  | {kind: 'card', name: CardName, art: string}
+  | {kind: 'project', name: CardName, icon: string};
 import {buildEventChildren, JournalChildVM} from '@/client/components/journal/journalEventChild';
 import {botReplayAvailableFor} from '@/client/components/marsbot/marsBotTurnArchive';
 import {openBotTurnReviewByCorrelation} from '@/client/components/marsbot/marsBotPresentation';
@@ -157,6 +174,28 @@ export default defineComponent({
     },
     headerFresh(): boolean {
       return this.freshSet.has(this.header);
+    },
+    /**
+     * The FIRST card the header names — the event's object (a play, an action, a standard project). The Delta
+     * Project is the «Гидросеть» subsystem and never shows as a card; a card with no art shows nothing.
+     */
+    subject(): JournalSubject | undefined {
+      for (const tok of this.headerEntries) {
+        if (typeof tok === 'string' || tok.type !== LogMessageDataType.CARD) {
+          continue;
+        }
+        const name = tok.value as CardName;
+        if (name === CardName.DELTA_PROJECT) {
+          return undefined;
+        }
+        const type = getCard(name)?.type;
+        if (type === CardType.STANDARD_PROJECT || type === CardType.STANDARD_ACTION) {
+          return {kind: 'project', name, icon: standardProjectVisual(name).iconClass};
+        }
+        const url = cardArtUrl(name);
+        return url === undefined ? undefined : {kind: 'card', name, art: cardArtUrlAtTier(url, 'thumb')};
+      }
+      return undefined;
     },
     // The actor of the root action — used to drop redundant child player chips.
     rootPlayerColor(): Color | undefined {

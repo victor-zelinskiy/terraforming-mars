@@ -28,6 +28,15 @@ Component framework (`src/client/components/journal/`):
 Conventions: prefer transform/opacity animation, honour `prefers-reduced-motion` (handled in `journal.less`), no native `title` tooltips inside the journal (use `aria-label` + visible labels). When you add a new token type, add a `v-else-if` branch in `JournalTokenRenderer.vue` and a `.journal-token--*` style; don't render raw HTML.
 
 
+## THE EVENT'S OBJECT (PL-577, 2026-10-17)
+
+A journal group leads with what it is ABOUT: `JournalGroup.subject` = the FIRST card the header names — its own art
+(the thumb tier, cropped to a tile ringed in the category accent) for a play / an action / a corporation, a standard
+project's pictogram (`standardProjectVisual`) for a standard project or action; the Delta Project («Гидросеть») and a
+card with no art show nothing. Console only (`.con-journal .journal-group__object` in `journal.less`, rem; TV 3.3rem,
+handheld 2.1rem). The column of sentences reads as a column of events with their objects; the header keeps its own
+line beside the object.
+
 ## «ПРОПУЩЕНО» — a skipped effect is a ROW (2026-09-30)
 
 An effect the engine could NOT apply (no card can hold the resource, no opponent can be hit, the deck is empty)

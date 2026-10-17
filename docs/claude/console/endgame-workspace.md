@@ -303,6 +303,17 @@ nothing about the ceremony changed.
   `src/client/components/console/menu/ConsoleMainMenu.vue`. Specs:
   `tests/models/joinableGames.spec.ts`, `tests/routes/ApiGamesJoinable.spec.ts`.
 
+## The head's HANDOFF and the post-game PLATES (PL-576, 2026-10-17)
+
+- **The title / caption swap is the prompt family's handoff, never a cross-fade** (`con-eg-xfade`): the old line
+  lets go ON THE SPOT (130 ms), the new one arrives 40 ms before the old is gone (300 ms, from `scale(.965)`). The
+  simultaneous 160 / 220 ms fade read «ФИ◈ИТОГИ ПАРТИИЧЁТ» at mid-swap — two legible lines in one cell. Storyboard:
+  `screenshots/pl580/finale-after/title-handoff.jpg`.
+- **The post-game actions are PLATES with a SIGN**: the console glass, an inline-SVG stroke icon per action family
+  (`ACTION_ICON` — never a font symbol: the Deck's fonts have no ⟳), the word; the cursor is the ONE grammar
+  (`.con-cursor()` + `.con-cursor-on()`, TR58 — cyan, the winner's gold stays on the row); disabled = muted ink + a
+  neutral ring paint (`.con-cursor-paint`). `cursorGrammarGuard` lists the surface as MIGRATED.
+
 ## Input & the bottom bar
 
 The shell delegates the whole pad to the workspace while its SCENE IS ON
