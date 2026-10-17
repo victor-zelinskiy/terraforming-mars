@@ -62,5 +62,25 @@ This is what fixed the one real preview↔commit divergence. Mining Guild's live
 
 Tests: `tests/boards/placementCardPreview.spec.ts` (18 — card threading, magnitude equals commit, opponent recipients, id collision, the oxygen chain, milestone progress + restore, Capital VP).
 
+## Iteration — THE CELL IS ONE DOSSIER (TR67, 2026-10-17)
+
+The console no longer renders the hover through `BoardFactGroups` (px, scaled by `zoom`): the board column reads ONE cell in
+every mode on the placement dossier's chassis (`console/cellDossier.ts` + `ConsoleDossierSections` — contract in
+`.claude/rules/console-ui.md` § …AND THE INSPECTION IS THE SAME DOSSIER, card doc `docs/TURMOIL_REDUX_ENCELADEAN_INCUBATOR.md`).
+What the model gained, all read-only and pinned by `tests/boards/cellPortrait.spec.ts`:
+- **`BoardCellInfo.portrait`** (`cellPortrait(player, space)`) — the square as the dossier draws it: `spaceType`, the printed
+  `bonus` as data, the piece on top (`tileType`, `hazard`), `ownerColor`, `under` (TR44's water — the board's own reading),
+  `stackHeight`, `reserved`, `sourceCard` (`tile.card` — the dossier's «Поставлено» chip, X opens it) and the six
+  `neighbours` in `getAdjacentSpacesClockwise` order (`null` = the board's edge; `[]` off the Mars grid). Optional — an older
+  payload still renders.
+- **`BoardFact.each`** — what ONE of the fact's `spaces` contributes when the fact is a sum over them: the ocean money's rate
+  (`oceanAdjacencyFact`), a city's +1 VP per greenery (`cityScoringFact`, per tier), Capital's +1 per ocean
+  (`adjacencyVpFact(…, eachVp)`). The neighbour ring prints it; nothing is divided on the client.
+- **A greenery names the cities that score it** — `existingTileScoringFacts` emits `score-greenery-city-<id>` («Adjacent city
+  scores at game end», the CITY's owner as recipient, `vp 0 → tiers`, `spaces: [city]`, a neutral city for nobody) — the hover
+  twin of the placement's `place-greenery-city-*`, and under Turmoil Redux the only point a greenery is worth.
+- The preview's declarative ocean at NINE oceans now NAMES the lost ocean (`stepsForBehavior` → a warning note with the card's
+  own `maxoceans` sentence, `actionPreviews.OCEANS_MAXED_NOTE`) instead of silently dropping the board step.
+
 **To extend:** a new placement reason / bonus → add the `BoardFact` in the engine (reuse the real rule source); a CARD-specific consequence → the co-located hook (never a central table), and make sure its placement passes `sourceCard`; a new cancellable flow → `cancellablePlacement` + `onCancel`(→`pendingPlacementCancelled`); Ares facts → populate `aresAdjacencyFacts` from `space.adjacency`. i18n keys live in `src/locales/ru/board_info.json` (grep before adding — `make:json` throws on dupes). Tests: `tests/boards/BoardInformationEngine.spec.ts` / `marsSelectSpaceHelper.spec.ts` / `placementPreviewConsistency.spec.ts`, `tests/routes/ApiGameBoardCellPreview.spec.ts`, `tests/cards/base/standardProjects/StandardProjectPayOnCommit.spec.ts`, `tests/client/components/board/BoardFactGroups.spec.ts`.
 

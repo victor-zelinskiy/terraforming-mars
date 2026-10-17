@@ -138,7 +138,9 @@ dossier's title is the TILE («Город»), the cover's bill reads one line ea
   fact's numbers — `oceanAdjacencyBonus` returns them, the scoring/cost/Ares
   walks contribute theirs), so field and panel cannot diverge; there is no
   client-side re-derivation. Five tones, form + colour (never colour alone):
-  `ocean` (cool contour+wash) · `score` (green) · `reward` (soft gold) ·
+  `ocean` (cool contour+wash) · `score` (VP gold — was the plants' green until
+  TR67) · `reward` (the gain mint — was a soft gold until TR67: ONE palette
+  with the dossier's sections and the column's neighbour ring) ·
   `penalty` (dashed warm-red contour — wins every conflict; a cost may never
   be masked) · `event` (faint pale rim, the quietest voice). **One cell, one
   tone — precedence `penalty > ocean > reward > score > event`** (`TONE_RANK`):
@@ -158,6 +160,16 @@ dossier's title is the TILE («Город»), the cover's bill reads one line ea
   precedence), `boardFactSpaces.spec.ts` (server: facts name their cells),
   e2e `console-placement-relations.spec.ts` (field count == dossier count,
   no stale marks, lock keeps them, cancel strips all).
+  **The INSPECTION lights them too** (TR67 «КЛЕТКА — ОДНО ДОСЬЕ»): with no
+  placement, `focusedRelations` reads the HOVER's own facts for the focused cell
+  (`relationsFromInfo` — the paying oceans of an empty square, the greeneries a
+  city scores, the cities a greenery feeds), re-applied on `boardInfoState.info`;
+  `.con-board--inspecting` wears the same five marks with NO entry fade (the
+  d-pad is pointing — the marks are data). The column's neighbour ring
+  (`ConsoleCellPortrait`) lights exactly the same set (`cellDossier.cellRing`,
+  same classifier) — e2e `console-cell-dossier.spec.ts` asserts ring ≡ field.
+  The same watcher WARMS the six neighbours' hover answers
+  (`prefetchBoardCells`) so the next step's dossier is a cache hit.
 - **The ghost yields to the reward** — the visual-hierarchy contract inside
   one hex. While AIMING the projection is a quiet silhouette (opacity .34):
   the mint ring already owns «where», so the ghost only says «what», and a
