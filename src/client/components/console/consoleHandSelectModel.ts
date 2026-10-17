@@ -73,3 +73,29 @@ export function deriveHandSelect(
 export function handSelectPicksValid(bounds: {min: number, max: number}, pickedCount: number): boolean {
   return pickedCount >= bounds.min && pickedCount <= bounds.max;
 }
+
+/**
+ * THE REFUSAL OF AN OPTIONAL MULTI PICK (PL-259): with `min 0` and nothing picked, RT does not «Discard · 0» — it
+ * says what it does in the refusal's own words, keyed on the pick's VERB (the server's `buttonLabel`), so «Сбросить»
+ * with a badge of zero never reads as a command to throw something. One phrase per verb family; the rest is generic.
+ */
+export function zeroPickLabel(verb: string): string {
+  // The decline grammar's own words («Не сбрасывать» — the optional choice's refusal), short enough for the 4K bar
+  // beside R3 and L3: a longer phrase was the first verb the bar's fit dropped, RT and R3 with it.
+  switch (verb) {
+  case 'Discard': return 'Do not discard';
+  case 'Reveal': return 'Do not reveal';
+  case 'Keep': return 'Do not keep';
+  default: return 'Do not choose';
+  }
+}
+
+/** The RT command of a multi pick: the verb with its count — or, at zero on an optional pick, the refusal (PL-259). */
+export function multiPickConfirmCommand(verb: string, bounds: {min: number, max: number}, pickedCount: number): {label: string, badge?: number, highlight: boolean, enabled: boolean, priority?: number} {
+  if (pickedCount === 0 && bounds.min === 0) {
+    // A verb with no other home outranks the generic hints when the bar is crowded.
+    return {label: zeroPickLabel(verb), highlight: false, enabled: true, priority: 1};
+  }
+  // The verb with its count is the surface's COMMIT (A only marks): it drops after every hint, never before one.
+  return {label: verb, badge: pickedCount, highlight: pickedCount > 0, enabled: handSelectPicksValid(bounds, pickedCount), priority: 0};
+}

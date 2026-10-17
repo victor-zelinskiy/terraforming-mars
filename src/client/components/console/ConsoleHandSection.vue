@@ -143,6 +143,12 @@
           <span class="con-hand__discard-arrow" aria-hidden="true">→</span>
           <b class="con-hand__discard-in" :class="{'con-hand__discard-in--zero': discard.exchange.amount === 0}">+{{ discard.exchange.amount }}</b>
           <i :class="discardExchangeIconClass" class="con-hand__discard-icon" aria-hidden="true"></i>
+          <!-- The SECOND payout in cards (a card back per card thrown) — beside the first, its own icon. -->
+          <template v-if="discard.exchange.draw !== undefined">
+            <span class="con-hand__discard-sep" aria-hidden="true">·</span>
+            <b class="con-hand__discard-in" :class="{'con-hand__discard-in--zero': discard.exchange.draw === 0}" data-hand-discard-draw>+{{ discard.exchange.draw }}</b>
+            <i class="resource_icon resource_icon--cards con-hand__discard-icon" aria-hidden="true"></i>
+          </template>
         </span>
       </div>
       <!-- SELECT mode: the SOURCE-OPERATION chip — a composer's target pick
@@ -229,6 +235,12 @@
           <span class="con-hand__discard-arrow" aria-hidden="true">→</span>
           <b class="con-hand__discard-in" :class="{'con-hand__discard-in--zero': discard.exchange.amount === 0}">+{{ discard.exchange.amount }}</b>
           <i :class="discardExchangeIconClass" class="con-hand__discard-icon" aria-hidden="true"></i>
+          <!-- The SECOND payout in cards (a card back per card thrown) — beside the first, its own icon. -->
+          <template v-if="discard.exchange.draw !== undefined">
+            <span class="con-hand__discard-sep" aria-hidden="true">·</span>
+            <b class="con-hand__discard-in" :class="{'con-hand__discard-in--zero': discard.exchange.draw === 0}" data-hand-discard-draw>+{{ discard.exchange.draw }}</b>
+            <i class="resource_icon resource_icon--cards con-hand__discard-icon" aria-hidden="true"></i>
+          </template>
         </span>
       </div>
       <!-- The question line's BUTTONS, right-aligned together: «decide after the draw» (R3) of a question that may wait

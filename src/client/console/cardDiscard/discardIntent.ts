@@ -45,6 +45,8 @@ export type DiscardExchange = {
   amount: number,
   /** True when the payout scales with how many cards go. */
   perCard: boolean,
+  /** A SECOND payout in cards for the CURRENT pick (Open IP Trade, Strategic Shift: a card back per card thrown). */
+  draw?: number,
 };
 
 /**
@@ -125,6 +127,8 @@ export function discardExchangeFor(meta: DiscardPromptMeta, picked: number, pick
     icon: exchange.icon,
     amount: perTag ? exchange.amount * pickedTags : perCard ? exchange.amount * picked : exchange.amount,
     perCard: perCard || perTag,
+    // The draw is always per card thrown (the marker's own contract) — resolved against the same live count.
+    ...(exchange.draw !== undefined && exchange.draw > 0 ? {draw: exchange.draw * picked} : {}),
   };
 }
 

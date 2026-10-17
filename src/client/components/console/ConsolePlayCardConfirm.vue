@@ -543,6 +543,10 @@
                     <span v-if="chosenImpact(row.choice) !== ''" class="con-composer__row-impact">
                       <i v-if="chosenImpactIcon(row.choice)" class="con-composer__row-impact-icon" :class="iconClass(chosenImpactIcon(row.choice))" aria-hidden="true"></i>{{ chosenImpact(row.choice) }}
                     </span>
+                    <!-- The SECOND payout of a multi pick, in cards (Strategic Shift) — its own icon, the same arithmetic. -->
+                    <span v-if="chosenImpactDraw(row.choice) !== ''" class="con-composer__row-impact" data-impact-draw>
+                      <i class="con-composer__row-impact-icon" :class="iconClass('cards')" aria-hidden="true"></i>{{ chosenImpactDraw(row.choice) }}
+                    </span>
                   </div>
                 </template>
               </div>
@@ -1466,6 +1470,17 @@ export default defineComponent({
         out.push(b.reveal.reward);
       }
       return out;
+    },
+    /**
+     * The cards the player's OWN multi picks decide to draw (Strategic Shift: one per card thrown) — the part of the
+     * play's draw no fixed chip states; summed into the outcome claim so the embedded draw stage expects the real count.
+     */
+    multiPickDraws(): number {
+      return this.allChoices.reduce((n, c) => {
+        const draw = c.multiSelect?.drawPerCard;
+        const picked = this.multiPicks[c.id];
+        return draw !== undefined && draw > 0 && picked !== undefined ? n + picked.length * draw : n;
+      }, 0);
     },
     allChoices(): ReadonlyArray<ComposerChoice> {
       return [...preChoices(this.preview), ...branchChoices(this.selectedBranch), ...this.espOwnerChoices];
@@ -3396,7 +3411,10 @@ export default defineComponent({
       }
     },
     isMultiCardChoice(c: ComposerChoice): boolean {
-      return c.input.type === 'card' && ((c.input as SelectCardModel).max ?? 1) > 1;
+      // A step the server DECLARES as a multi pick (`multiSelect` — its count label, its per-card payouts) is one at any
+      // `max`: with a single candidate (Strategic Shift with one requirement card in hand, Public Plans with one other card)
+      // `max` is 1 and the answer is still «how many» — the album stays multi, the row reads the picks and both payouts.
+      return c.input.type === 'card' && (((c.input as SelectCardModel).max ?? 1) > 1 || c.multiSelect !== undefined);
     },
     chosenLabel(c: ComposerChoice): string {
       // A resolved MULTI-select (hand multi OR the merged tableau pick) shows
@@ -3463,6 +3481,18 @@ export default defineComponent({
       }
       const from = card.resources ?? 0;
       return `${from} → ${Math.max(0, from + c.amount)}`;
+    },
+    /**
+     * The multi-pick's SECOND payout, in cards («+N» beside the cards icon — Strategic Shift's draw per card thrown):
+     * the same live arithmetic as the M€, its own icon; '' when the pick pays no cards.
+     */
+    chosenImpactDraw(c: ComposerChoice): string {
+      const multi = this.multiPicks[c.id];
+      const draw = c.multiSelect?.drawPerCard;
+      if (multi === undefined || draw === undefined || draw <= 0 || !this.isMultiCardChoice(c)) {
+        return '';
+      }
+      return `+${multi.length * draw}`;
     },
     /** The icon beside the impact — the step's card resource, the multi
      *  payout's resource (M€ for Public Plans), or the merged pick's cards. */
@@ -4387,7 +4417,7 @@ export default defineComponent({
       if (c.reaction !== undefined) {
         this.offeredSeen[c.id] = true;
       }
-      const multi = model.max > 1;
+      const multi = this.isMultiCardChoice(c);
       const answered = orItem !== undefined && this.picks[c.id] === String(orItem.optionIndex) ?
         (this.picks[nestedPickKey(c.id)]?.split(NESTED_PICK_SEP) ?? []) : [];
       const prior = orItem !== undefined ?
@@ -4406,7 +4436,9 @@ export default defineComponent({
         min: model.min ?? 1,
         max: model.max ?? 1,
         selected: prior,
-        gainPerCard: gain !== undefined ? {icon: gain.resource, amount: gain.amount} : undefined,
+        // …and its SECOND payout in cards (Strategic Shift: «+1 M€ AND draw a card» per card thrown) — the album's
+        // running summary reads both.
+        gainPerCard: gain !== undefined ? {icon: gain.resource, amount: gain.amount, cards: c.multiSelect?.drawPerCard} : undefined,
         // The pick names WHY it is asked: the card whose question it answers — the reacting card for a table
         // question (L3 «Источник» lifts it), else the card being played.
         source: {kicker: 'Play card', card: c.reaction?.card ?? this.cardName},
@@ -4876,8 +4908,10 @@ export default defineComponent({
         // …and the price taken off a card THIS composer's own step chose (PL-268 — TR52's 2 data off a rival's census):
         // born on the answered target row, absorbed into the standing card's printed icons before the lift.
         targetSpends: playTargetSpendSpecs(this.cardName, b, this.captured),
+        // …plus the draw the player's OWN multi pick decides (Strategic Shift: a card per card thrown) — the fixed
+        // chips alone would claim nothing for it and the embedded draw stage would wait on the wrong count.
         draws: heroRewardEffectsOf(b).reduce((n, e) =>
-          (e.direction === 'gain' && e.icon === 'cards' ? n + Math.max(1, Math.round(e.amount)) : n), 0),
+          (e.direction === 'gain' && e.icon === 'cards' ? n + Math.max(1, Math.round(e.amount)) : n), 0) + this.multiPickDraws,
         // ProjectInspection: the chosen already-used action + its composed
         // responses (+ nodeIndex / reveal for the in-frame reveal handoff),
         // appended after the play as `[play, {card}, ...composed]`.

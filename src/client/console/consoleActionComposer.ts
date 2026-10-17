@@ -78,7 +78,7 @@ export type ComposerChoice = {
   deltaLanding?: DeltaAdvanceOffer;
   /** MULTI-select metadata (Public Plans "reveal any number") — the hand-pick
    *  surface shows the count label + the live per-card payout. */
-  multiSelect?: {countLabel: string | Message, revealGain?: {resource: string, amount: number}};
+  multiSelect?: {countLabel: string | Message, revealGain?: {resource: string, amount: number}, drawPerCard?: number};
   /**
    * A QUESTION OF THE TABLE (TR51 — `ActionPreviewStep.reaction`): a reaction the play wakes asks it, the composer
    * collects the answer before the press. The row names the asker («Сработает · <карта> · ваш выбор»).

@@ -48,7 +48,7 @@ describe('discardIntent', () => {
     const intent = deriveDiscardIntent(meta, 2);
     expect(intent.resolution).to.eq('RDX_SCIENTISTS_OPEN_IP_TRADE');
     expect(intent.sourceKey).to.eq('Resolution');
-    expect(intent.exchange).to.deep.eq({icon: 'megacredits', amount: 6, perCard: true});
+    expect(intent.exchange, 'the law\'s rate: 3 M€ AND a card per card thrown').to.deep.eq({icon: 'megacredits', amount: 6, perCard: true, draw: 2});
     expect(deriveDiscardIntent({min: 1, max: 1, source: {kind: 'card', card: CardName.MARS_UNIVERSITY}}, 0).resolution).to.eq(undefined);
   });
 
@@ -60,6 +60,13 @@ describe('discardIntent', () => {
     const flat = meta({exchange: {icon: 'cards', amount: 3}});
     expect(discardExchangeFor(flat, 1)?.amount).eq(3);
     expect(discardExchangeFor(meta(), 1)).is.undefined;
+  });
+
+  it('resolves the SECOND payout in cards (`exchange.draw`) per card thrown, against the same live count — absent when the marker has none', () => {
+    const both = meta({min: 0, max: 4, exchange: {icon: 'megacredits', amount: 1, perCard: true, draw: 1}});
+    expect(discardExchangeFor(both, 0)).to.deep.eq({icon: 'megacredits', amount: 0, perCard: true, draw: 0});
+    expect(discardExchangeFor(both, 3)).to.deep.eq({icon: 'megacredits', amount: 3, perCard: true, draw: 3});
+    expect(discardExchangeFor(meta({min: 0, max: 5, exchange: {icon: 'megacredits', amount: 2, perCard: true}}), 2)).to.not.have.property('draw');
   });
 
   it('resolves a per-TAG payout against the tags of the picked cards (the Reds recycle), never per card', () => {

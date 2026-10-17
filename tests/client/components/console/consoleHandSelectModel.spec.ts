@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {deriveHandSelect, handSelectPicksValid} from '@/client/components/console/consoleHandSelectModel';
+import {deriveHandSelect, handSelectPicksValid, multiPickConfirmCommand, zeroPickLabel} from '@/client/components/console/consoleHandSelectModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 
 /* Minimal synthetic SelectCard — only the fields the derivation reads. */
@@ -88,5 +88,22 @@ describe('consoleHandSelectModel.handSelectPicksValid', () => {
   });
   it('optional (min===0): zero picks are valid (reveal nothing)', () => {
     expect(handSelectPicksValid({min: 0, max: 3}, 0)).to.eq(true);
+  });
+});
+
+describe('consoleHandSelectModel.multiPickConfirmCommand — the refusal at zero (PL-259)', () => {
+  it('a `min 0` pick with nothing picked reads the refusal in the verb\'s own words — no badge, not lit, enabled', () => {
+    expect(multiPickConfirmCommand('Discard', {min: 0, max: 4}, 0)).to.deep.eq({label: 'Do not discard', highlight: false, enabled: true, priority: 1});
+    expect(multiPickConfirmCommand('Reveal', {min: 0, max: 5}, 0)).to.deep.eq({label: 'Do not reveal', highlight: false, enabled: true, priority: 1});
+    expect(multiPickConfirmCommand('Keep', {min: 0, max: 2}, 0).label).to.eq('Do not keep');
+    expect(multiPickConfirmCommand('Link card', {min: 0, max: 2}, 0).label).to.eq('Do not choose');
+    expect(zeroPickLabel('Discard')).to.eq('Do not discard');
+  });
+  it('from the first pick on it is the verb with its count, lit, valid within the bounds', () => {
+    expect(multiPickConfirmCommand('Discard', {min: 0, max: 4}, 2)).to.deep.eq({label: 'Discard', badge: 2, highlight: true, enabled: true, priority: 0});
+    expect(multiPickConfirmCommand('Discard', {min: 0, max: 1}, 2).enabled).to.eq(false);
+  });
+  it('a mandatory pick (min ≥ 1) at zero keeps the verb with its badge — disabled, never a refusal it cannot make', () => {
+    expect(multiPickConfirmCommand('Discard', {min: 1, max: 3}, 0)).to.deep.eq({label: 'Discard', badge: 0, highlight: false, enabled: false, priority: 0});
   });
 });

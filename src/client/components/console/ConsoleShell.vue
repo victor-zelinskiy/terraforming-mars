@@ -1734,7 +1734,7 @@ import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection
 import ConsoleHandSection, {ConsoleHandEntry, ConsoleHandSelectMode} from '@/client/components/console/ConsoleHandSection.vue';
 import {shortBlockerLabel} from '@/client/components/console/consoleHandGrid';
 import {unplayableReasonChip} from '@/client/components/handCards/unplayableReasonFormat';
-import {deriveHandSelect, handSelectPicksValid, HandSelectDerivation} from '@/client/components/console/consoleHandSelectModel';
+import {deriveHandSelect, handSelectPicksValid, multiPickConfirmCommand, HandSelectDerivation} from '@/client/components/console/consoleHandSelectModel';
 import {unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
 import {buildConsoleTagFilters, filterHandByTag, cycleTagFilter, ConsoleTagFilterOption} from '@/client/components/console/consoleHandFilter';
 import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePanel.vue';
@@ -9370,18 +9370,30 @@ export default defineComponent({
           cmds.push({control: 'confirm', label: 'Select / Deselect', enabled: canPick});
           // R3 = select all / unselect all (L3 is the SOURCE on every contextual surface — the two once shared L3,
           // and the source always won: 2026-10-14, the owner's Public Plans report).
-          cmds.push({control: 'stickR', label: this.pickAllSelected ? 'Unselect all' : 'Select all'});
+          // A multi pick's «select all» has no other home (no plate repeats it), so it outranks the generic hints the
+          // way the decline does: with the filter's LT beside it the fhd / 4K bar overflowed by a few rem and the fit
+          // dropped R3 FIRST (a stick hint) — the one verb a «discard every requirement card» play is for (TR65).
+          cmds.push({control: 'stickR', label: this.pickAllSelected ? 'Unselect all' : 'Select all', priority: 1});
           // With nothing picked an optional pick's RT is its DECLINE; from the first pick on it confirms the set.
+          // A `min 0` pick with no decline of its own says the refusal in words at zero («Ничего не сбрасывать» — never
+          // the verb with a badge of 0, PL-259); from the first pick on it is the verb with its count.
           const decline = this.handPickDeclineLive ? consoleHandPickState.request?.decline : undefined;
+          const bounds = consoleHandPickState.request ?? {min: 1, max: 1};
           cmds.push(decline !== undefined ?
             {control: 'triggerR', label: typeof decline.label === 'string' ? decline.label : translateMessage(decline.label), priority: 1} :
-            {control: 'triggerR', label: verb, enabled: this.handSelectPicksValid, badge: n, highlight: n > 0});
+            {control: 'triggerR', ...multiPickConfirmCommand(verb, bounds, n)});
         }
-        cmds.push({control: 'secondary', label: 'Inspect'});
+        // The universal verb (X inspects the current object on every surface) yields FIRST when the bar overflows:
+        // the pick's own verbs (A · R3 · RT · the filter's LT) have no other home, and at 4K with four picks the fit
+        // was dropping the filter's hint while «Осмотреть» stood (TR65, PL-618).
+        cmds.push({control: 'secondary', label: 'Inspect', priority: 3});
         // X inspects the card under the cursor, so the EFFECT that sent the
         // player here needs its own verb — never make them guess the context.
         if (this.contextualSourceCard !== undefined) {
-          cmds.push({control: 'stickL', label: 'Inspect the source', priority: 1});
+          // The SHORT form of the source verb («L3 Источник» — the console-wide inspection grammar's own word): the long
+          // «Осмотреть источник» was the widest verb of a bar that overflows by a few rem with the multi pick's R3, the
+          // refusal's words and the filter's LT beside it — and the fit drops the widest of a priority first (TR65, PL-618).
+          cmds.push({control: 'stickL', label: 'Source', priority: 1});
         }
         if (this.handSelectFiltered) {
           cmds.push({control: 'triggerL', label: this.handSelectSuitableOnly ? 'All cards' : 'Only suitable'});
@@ -9860,13 +9872,21 @@ export default defineComponent({
           cmds.push({control: 'confirm', label: 'Select / Deselect', enabled: canPick});
           // The server's own «select all» (`SelectCard.showSelectAll` — Public Plans' live play) rides R3, beside L3's source.
           if (this.handSelectModel?.showSelectAll === true) {
-            cmds.push({control: 'stickR', label: this.taskAllSelected ? 'Unselect all' : 'Select all'});
+            cmds.push({control: 'stickR', label: this.taskAllSelected ? 'Unselect all' : 'Select all', priority: 1});
           }
-          cmds.push({control: 'triggerR', label: verb, enabled: this.handSelectPicksValid, badge: n, highlight: n > 0});
+          // At zero on a `min 0` pick RT is the refusal in words (PL-259), never the verb with a badge of 0.
+          const bounds = {min: this.handSelectModel?.min ?? 1, max: this.handSelectModel?.max ?? 1};
+          cmds.push({control: 'triggerR', ...multiPickConfirmCommand(verb, bounds, n)});
         }
-        cmds.push({control: 'secondary', label: 'Inspect'});
+        // The universal verb (X inspects the current object on every surface) yields FIRST when the bar overflows:
+        // the pick's own verbs (A · R3 · RT · the filter's LT) have no other home, and at 4K with four picks the fit
+        // was dropping the filter's hint while «Осмотреть» stood (TR65, PL-618).
+        cmds.push({control: 'secondary', label: 'Inspect', priority: 3});
         if (this.contextualSourceCard !== undefined) {
-          cmds.push({control: 'stickL', label: 'Inspect the source', priority: 1});
+          // The SHORT form of the source verb («L3 Источник» — the console-wide inspection grammar's own word): the long
+          // «Осмотреть источник» was the widest verb of a bar that overflows by a few rem with the multi pick's R3, the
+          // refusal's words and the filter's LT beside it — and the fit drops the widest of a priority first (TR65, PL-618).
+          cmds.push({control: 'stickL', label: 'Source', priority: 1});
         }
         if (this.handSelectFiltered) {
           cmds.push({control: 'triggerL', label: this.consoleState.select.suitableOnly ? 'All cards' : 'Only suitable'});
