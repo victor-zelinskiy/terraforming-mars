@@ -125,7 +125,10 @@ type; the faces are what scale). Guard: `consoleEndgamePodium.spec` (every
 profile × table size: the seats fit, the hero ≥ a third of the box and the
 tallest, the count lower); e2e `console-finale-podium` (A — five seats at
 4K / FHD / Deck: the hero ≥ ⅓ of the opening, the content's foot ≥ 85 %, no
-empty band over ⅓, no scroll, nothing under the floor; B — the duel).
+empty band over ⅓, no scroll, nothing under the floor; B — the duel × 4K /
+FHD / Deck, every seat holding its reading column; E — MarsBot in the race,
+its OWN corporation face on a seat: `data-eg-face="bot"`, the fixture
+`finale-rich-bot`).
 
 ## Ceremony machine
 
