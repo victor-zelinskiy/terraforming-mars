@@ -28,7 +28,7 @@
          connector's origin diamond rises out of the ROOT GLYPH's slot
          (--con-wsflow-axis), and without an emblem that axis falls under
          the title's first letter — the trace drew straight through «Д». -->
-    <ConsoleWsHead root="Draft" emblem="cards" class="con-draftws__head"
+    <ConsoleWsHead :root="rootKey" emblem="cards" class="con-draftws__head"
                    :subject="crumb.subject" :stage="crumb.stage" :committed="crumb.committed">
       <template #flow>
         <ConsoleJourneyRail :phases="journeyPhases"
@@ -363,7 +363,7 @@ import {
   draftPacketKey, draftJourneyPhases, draftFlowPresentation, draftCompactContext,
   draftCrumb, draftNeighbor, draftCollectedNames,
   beginDraftCompletion, markDraftCompletionFlightsDone, finishDraftCompletion,
-  draftPicksKey, rememberDraftPicks, recallDraftPicks, draftPaymentPending,
+  draftPicksKey, rememberDraftPicks, recallDraftPicks, draftPaymentPending, draftVariantOn,
   DraftStage, DraftJourneyInput,
 } from '@/client/console/draft/consoleDraftFlow';
 import {draftCommands, setConsoleDraftCommands, resetConsoleDraftUi, DraftCommandState} from '@/client/console/draft/consoleDraftUi';
@@ -460,6 +460,14 @@ export default defineComponent({
   computed: {
     stage(): DraftStage {
       return draftStageOf(this.playerView);
+    },
+    /** The game drafts between generations — the picks chapter exists; else the buy is the whole flow (TR61). */
+    drafting(): boolean {
+      return draftVariantOn(this.playerView);
+    },
+    /** The crumb's ROOT: «ДРАФТ» for a drafting table, «ИССЛЕДОВАНИЕ» for the buy alone — one workspace, one name per game. */
+    rootKey(): string {
+      return this.drafting ? 'Draft' : 'Research';
     },
     inspecting(): boolean {
       return draftWorkspaceState.inspecting;
@@ -637,6 +645,7 @@ export default defineComponent({
         stage: this.stage,
         completion: draftWorkspaceState.completion,
         paying: this.paymentPending,
+        draft: this.drafting,
       };
     },
     journeyPhases() {
@@ -916,9 +925,16 @@ export default defineComponent({
       this.resetPickState();
       this.preparePacketArrival();
     } else if (this.stage === 'buy') {
-      // Reload straight into the buy: freeze + present instantly.
       this.buySnapshot = this.buyInput?.cards.map((card, i) => ({name: card.name, key: card.name + '#' + i, card}));
-      finishRiseScene();
+      if (draftWorkspaceState.sawResearchStart && !this.drafting) {
+        // THE BUY WITHOUT A DRAFT (TR61): the workspace stands up straight into the buy — the generation scene's
+        // conclusion, or the player's A on the announce — and the four cards were just dealt: they come off the HUD
+        // deck into the row (the deck deal; no shelf to rise from).
+        this.prepareBuyArrival();
+      } else {
+        // Reload straight into the buy: freeze + present instantly.
+        finishRiseScene();
+      }
     }
     // RESTORED FROM THE PARK (or re-mounted for any other reason): the marks
     // the player made are theirs, and «свернуть» promised to keep the

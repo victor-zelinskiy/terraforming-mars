@@ -99,16 +99,21 @@ export function draftBuyInput(view: PlayerViewModel): SelectCardModel | undefine
 }
 
 /**
- * Is the between-generations draft flow ALIVE for this player — the frame-
+ * Is the between-generations RESEARCH flow ALIVE for this player — the frame-
  * lifetime half the shell's watcher reads (the completion beats extend it
- * via `draftCompletionHolding`).
+ * via `draftCompletionHolding`). WITH the draft variant it is the draft's
+ * picks and the buy that follows them; WITHOUT it (solo, a table that plays
+ * without drafting) it is the buy alone — ONE workspace for one question of
+ * the player, whichever way the four cards came (TR61 — «ОДНА ПОКУПКА»; the
+ * standalone `cardSelect buy` plate stays only for a purchase INSIDE an
+ * action, Business Network and its kin, PL-294).
  *
  * `generation >= 2` is load-bearing: the initial-cards selection ALSO runs in
  * phase RESEARCH (generation 1) and must stay the start workspace's business.
  * The INITIALDRAFTING phase (pre-game packet draft) keeps its own flow too.
  */
-export function betweenGenDraftLive(view: PlayerViewModel): boolean {
-  if (view.game.gameOptions.draftVariant !== true || view.game.generation < 2) {
+export function betweenGenResearchLive(view: PlayerViewModel): boolean {
+  if (view.game.generation < 2) {
     return false;
   }
   if (view.game.phase === Phase.DRAFTING) {
@@ -133,6 +138,14 @@ export function betweenGenDraftLive(view: PlayerViewModel): boolean {
  * with `completion === 'none'` and must still enter the pay stage instead of
  * posing as «ожидание» beside an unhosted payment band.
  */
+/** The flow's older name — the research buy without a draft is the same flow now (TR61). */
+export const betweenGenDraftLive = betweenGenResearchLive;
+
+/** Does THIS game draft between generations (the picks chapter exists)? */
+export function draftVariantOn(view: PlayerViewModel): boolean {
+  return view.game.gameOptions.draftVariant === true;
+}
+
 export function draftPaymentPending(view: PlayerViewModel): boolean {
   return view.game.phase === Phase.RESEARCH && view.waitingFor?.type === 'payment';
 }
@@ -169,7 +182,7 @@ export const DRAFT_PAYMENT_SERVES: ReadonlyArray<TaskKind> = [...DRAFT_DEFAULT_S
  * consoleTaskSummary, so pick/wait/buy each name themselves).
  */
 export function draftMandatoryFlowBeat(view: PlayerViewModel): MandatoryFlowBeat | undefined {
-  if (!betweenGenDraftLive(view)) {
+  if (!betweenGenResearchLive(view)) {
     return undefined;
   }
   return {key: `draft:gen${view.game.generation}`, taskKind: 'cardSelect', flow: 'draft'};
@@ -261,6 +274,8 @@ export type DraftJourneyInput = {
    *  the flow rail may not check off a purchase the server has not been paid
    *  for, however far the client's own completion beats have run. */
   paying?: boolean,
+  /** The game DRAFTS between generations (the picks chapter exists); `false` — the buy is the whole flow (TR61). */
+  draft?: boolean,
 };
 
 /**
@@ -288,18 +303,23 @@ export function draftJourneyPhases(input: DraftJourneyInput): ReadonlyArray<Draf
   }
 
   const done = input.completion === 'done' && input.paying !== true;
+  const purchase: DraftJourneyPhase = {
+    id: 'purchase', ordinal: input.draft === false ? '01' : '02', label: 'Purchase', mode: 'progress',
+    state: done ? 'completed' : (buyLive ? 'current' : 'locked'),
+    // ONE terminal node: the endpoint ring the whole flow runs toward.
+    items: [{id: 'ready', label: 'Ready', state: done ? 'completed' : (input.completion !== 'none' ? 'current' : 'locked')}],
+  };
+  // No draft: the buy IS the flow — one chapter, nothing to pick before it (TR61).
+  if (input.draft === false) {
+    return [purchase];
+  }
   return [
     {
       id: 'picks', ordinal: '01', label: 'Card selection', mode: 'progress',
       state: picksDone ? 'completed' : (input.stage === 'wait' ? 'waiting' : 'current'),
       items,
     },
-    {
-      id: 'purchase', ordinal: '02', label: 'Purchase', mode: 'progress',
-      state: done ? 'completed' : (buyLive ? 'current' : 'locked'),
-      // ONE terminal node: the endpoint ring the whole flow runs toward.
-      items: [{id: 'ready', label: 'Ready', state: done ? 'completed' : (input.completion !== 'none' ? 'current' : 'locked')}],
-    },
+    purchase,
   ];
 }
 
@@ -371,6 +391,13 @@ export const draftWorkspaceState = reactive({
    * current packet then presents instantly, without replaying the entrance.
    */
   sawDraftStart: false,
+  /**
+   * The workspace OBSERVED the live entry into the between-generation
+   * RESEARCH of a game WITHOUT a draft (the buy arrives straight after the
+   * production phase). False after a reload into a standing buy — the set is
+   * then on the table already and presents instantly (TR61).
+   */
+  sawResearchStart: false,
   /** The LT sub-stage («ОТОБРАННЫЕ › ОСМОТР») owns the staging area. */
   inspecting: false,
   /** The purchase commit's completion beats (frame-lifetime extension). */
@@ -433,7 +460,7 @@ export function hasPresentedPacket(key: string): boolean {
  * whole through waits, round-trips and reloads.
  */
 export function observeDraftWorkspace(prev: PlayerViewModel | undefined, next: PlayerViewModel): void {
-  const live = betweenGenDraftLive(next);
+  const live = betweenGenResearchLive(next);
   if (!live && draftWorkspaceState.completion === 'none') {
     // Out of the flow entirely (and not holding a completion): reset the
     // per-generation latches so the NEXT draft starts clean.
@@ -457,6 +484,10 @@ export function observeDraftWorkspace(prev: PlayerViewModel | undefined, next: P
   const wasDrafting = prev !== undefined && prev.game.phase === Phase.DRAFTING;
   if (next.game.phase === Phase.DRAFTING && !wasDrafting && prev !== undefined) {
     draftWorkspaceState.sawDraftStart = true;
+  }
+  // …and the live transition INTO the research of a game without a draft (TR61): the buy's deal plays off the deck.
+  if (prev !== undefined && next.game.phase === Phase.RESEARCH && prev.game.phase !== Phase.RESEARCH && !draftVariantOn(next)) {
+    draftWorkspaceState.sawResearchStart = true;
   }
 
   const marker = draftMarkerOf(next);
@@ -497,6 +528,7 @@ export function resetDraftWorkspace(): void {
   draftWorkspaceState.meta = undefined;
   draftWorkspaceState.generation = 0;
   draftWorkspaceState.sawDraftStart = false;
+  draftWorkspaceState.sawResearchStart = false;
   draftWorkspaceState.inspecting = false;
   draftWorkspaceState.completion = 'none';
   draftWorkspaceState.picks = [];

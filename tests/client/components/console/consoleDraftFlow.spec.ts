@@ -4,7 +4,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
 import {
   DRAFT_DEFAULT_SERVES, DRAFT_PAYMENT_SERVES, draftPaymentPending,
-  betweenGenDraftLive, draftStageOf, draftPickInput, draftBuyInput, draftPacketKey,
+  betweenGenResearchLive, betweenGenDraftLive, draftVariantOn, draftStageOf, draftPickInput, draftBuyInput, draftPacketKey,
   draftJourneyPhases, draftCrumb, draftCompactContext, draftFlowPresentation,
   requirementHeadsUp, observeDraftWorkspace, draftWorkspaceState, resetDraftWorkspace,
   draftPicksKey, rememberDraftPicks, recallDraftPicks,
@@ -91,9 +91,15 @@ describe('consoleDraftFlow', () => {
     expect(draftBuyInput(view({phase: Phase.DRAFTING, waitingFor: buyPrompt([CardName.FISH])}))).is.undefined;
   });
 
-  it('the flow is alive only for the between-generations draft', () => {
-    expect(betweenGenDraftLive(view({}))).is.true;
-    expect(betweenGenDraftLive(view({draftVariant: false}))).is.false;
+  it('the flow is alive for the between-generations RESEARCH — the draft picks and buy, or the buy alone without a draft (TR61)', () => {
+    expect(betweenGenResearchLive(view({}))).is.true;
+    // WITHOUT the draft variant the DRAFTING phase never comes, but the buy of generation 2+ is the same flow.
+    expect(betweenGenResearchLive(view({draftVariant: false, phase: Phase.RESEARCH, needsToResearch: true}))).is.true;
+    expect(betweenGenResearchLive(view({draftVariant: false, phase: Phase.RESEARCH, needsToResearch: false}))).is.false;
+    expect(betweenGenResearchLive(view({draftVariant: false, phase: Phase.ACTION}))).is.false;
+    expect(draftVariantOn(view({}))).is.true;
+    expect(draftVariantOn(view({draftVariant: false}))).is.false;
+    expect(betweenGenDraftLive, 'the older name is the same predicate').eq(betweenGenResearchLive);
     // Generation 1 RESEARCH is the INITIAL CARDS selection — never this flow.
     expect(betweenGenDraftLive(view({phase: Phase.RESEARCH, generation: 1}))).is.false;
     expect(betweenGenDraftLive(view({phase: Phase.RESEARCH, needsToResearch: true}))).is.true;
@@ -116,7 +122,9 @@ describe('consoleDraftFlow', () => {
     expect(draftMandatoryFlowBeat(view({generation: 3}))?.key).eq('draft:gen3');
     // Not live → no pending action (never a stale plate).
     expect(draftMandatoryFlowBeat(view({phase: Phase.RESEARCH, needsToResearch: false}))).is.undefined;
-    expect(draftMandatoryFlowBeat(view({draftVariant: false}))).is.undefined;
+    // WITHOUT a draft the research buy of generation 2+ is the same pending action (TR61); the action phase is not.
+    expect(draftMandatoryFlowBeat(view({draftVariant: false, phase: Phase.RESEARCH, needsToResearch: true}))).deep.eq(beat);
+    expect(draftMandatoryFlowBeat(view({draftVariant: false, phase: Phase.ACTION}))).is.undefined;
     expect(draftMandatoryFlowBeat(view({phase: Phase.RESEARCH, generation: 1}))).is.undefined;
   });
 
@@ -196,6 +204,16 @@ describe('consoleDraftFlow', () => {
     const done = draftJourneyPhases({total: 4, picked: 4, stage: 'idle', completion: 'done'});
     expect(done[1].state).eq('completed');
     expect(done[1].items[0].state).eq('completed');
+  });
+
+  it('without a draft the rail is ONE chapter — the purchase, ordinal 01, no picks to walk (TR61)', () => {
+    const buy = draftJourneyPhases({total: 0, picked: 0, stage: 'buy', completion: 'none', draft: false});
+    expect(buy).has.length(1);
+    expect(buy[0]).to.deep.include({id: 'purchase', ordinal: '01', state: 'current'});
+    const done = draftJourneyPhases({total: 0, picked: 0, stage: 'idle', completion: 'done', draft: false});
+    expect(done[0].state).eq('completed');
+    // The drafting table keeps its two chapters, the purchase second.
+    expect(draftJourneyPhases({total: 4, picked: 4, stage: 'buy', completion: 'none', draft: true})[1].ordinal).eq('02');
   });
 
   it('the substep count follows the marker, never a hardcoded 4', () => {

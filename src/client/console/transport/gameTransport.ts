@@ -75,6 +75,9 @@ import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
 import {checkPostCommitChoice, checkPreselectReask, notePreselectBatch} from '@/client/console/preselectWitness';
 import {notePromptSubmit, notePromptView} from '@/client/console/promptSequence';
 import {
+  detectGenerationScene, markGenerationConversion, runGenerationFlip, runGenerationIncomeFlights, seedGenerationIncomeHold,
+} from '@/client/console/generationScene/generationScene';
+import {
   detectEnergyConversion,
   endEnergyConversion,
   runEnergyConversion,
@@ -287,6 +290,8 @@ export const transportHolds = reactive({
   resolutionPayout: false,
   /** The answer of a live «on which card» pick is played as a scene (TR53 iteration — `cardReceive/promptReceive.ts`). */
   promptReceive: false,
+  /** THE GENERATION SCENE's pre-commit beat — the counter's flip (TR61 — `generationScene/generationScene.ts`). */
+  generationScene: false,
 });
 
 /** Every transport cinematic gate — the disjunction the board binder (and any
@@ -295,7 +300,7 @@ export const transportHolds = reactive({
  *  transport hold). */
 export function transportHolding(): boolean {
   const h = transportHolds;
-  return h.marker || h.tilePlacement || h.conversion || h.hazardCleanup ||
+  return h.marker || h.tilePlacement || h.conversion || h.hazardCleanup || h.generationScene ||
     h.tradeFleet || h.hydroMarker || h.playedHero || h.patentSale ||
     h.stdProject || h.cardDiscard || h.tilePlacementHero || h.colonyBuild || h.colonyRoster || h.colonyCity ||
     h.nomadMove || h.resolutionPayout || h.promptReceive;
@@ -611,6 +616,9 @@ function applyGlobalParamPreview(newView: PlayerViewModel): void {
 function seedRewardHolds(newView?: PlayerViewModel): void {
   // The rating held BEFORE this block — what this response's own owners hold is measured against it (PL-330).
   const ratingHeldBefore = heldRailStock(RATING_RAIL_KEY);
+  // THE GENERATION SCENE's income (TR61): the rows the seat's own production record names keep their pre-income
+  // values until each token's touchdown — a no-op unless a scene is armed (the detect claimed the record).
+  seedGenerationIncomeHold(currentView(), newView);
   // The DECK COUNTER (PL-088): a new batch of cards off the project deck stays on the counter until the flight that
   // deals it — the same block as the commit, or the HUD paints the smaller count and the flight's hold flips it back up.
   seedDeckDrawHold(currentView(), newView);
@@ -941,6 +949,15 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
          */
         const colonyTradeEvent = detectColonyTrade(newView);
         /*
+         * THE GENERATION SCENE (TR61): the seat's OWN production record on the
+         * new view — detected and CLAIMED before either commit path, so a
+         * re-fetched view never replays it. The gated path below plays the whole
+         * phrase (flip → conversion → income → rise); a STAGED response (fresh
+         * bot turns) commits in the closure, so there the flip is the strip's
+         * own reaction to the committed view and the income flies after it.
+         */
+        const generationScene = detectGenerationScene(currentView(), newView);
+        /*
          * MarsBot turns (the MAIN path — ending your turn is what lets the
          * bot act, so its resolved turn(s) ride THIS response).
          * NOTIFICATION-FIRST with STAGED visual commits: when fresh bot
@@ -977,6 +994,12 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             }
             seedRewardHolds(newView);
             applyPlayerView(newView);
+            if (generationScene !== undefined) {
+              // The staged path has no pre-commit beat: the strip flips off the commit, the income flies after it.
+              void nextTick(() => {
+                void runGenerationIncomeFlights(() => currentView());
+              });
+            }
           },
         })) {
           // A staged bot response defers the commit to the bot pipeline —
@@ -1158,6 +1181,21 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             () => applyHazardTileSwap(currentView().game.spaces, newView.game.spaces, hazardCleanups),
           );
         }
+        /*
+         * THE GENERATION SCENE, beat 1 (TR61): the counter FLIPS first — the
+         * displayed view's generation is set ahead of the commit (the marker
+         * hold's own precedent) and the strip's completion signal releases the
+         * beat. The conversion gate below is the scene's second beat.
+         */
+        if (generationScene !== undefined) {
+          transportHolds.generationScene = true;
+          try {
+            await runGenerationFlip(generationScene, currentView());
+          } finally {
+            transportHolds.generationScene = false;
+          }
+          markGenerationConversion();
+        }
         if (conversionEvent !== undefined) {
           transportHolds.conversion = true;
           // The override seeds the change-feedback baselines on completion,
@@ -1262,6 +1300,13 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
           // panel reads the canonical final values and fires the seeded
           // production chips — so there's no value flash.
           void nextTick(() => endEnergyConversion());
+        }
+        if (generationScene !== undefined) {
+          // Beat 3 — the income FLIES after the commit (the real values stand under the held rows), then the scene
+          // concludes (beat 4: the research rises). After the conversion's own end, in the same tick order.
+          void nextTick(() => {
+            void runGenerationIncomeFlights(() => currentView());
+          });
         }
         if (tradeFleetEvent !== undefined) {
           transportHolds.tradeFleet = false;

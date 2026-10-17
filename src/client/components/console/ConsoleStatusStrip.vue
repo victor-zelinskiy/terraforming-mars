@@ -142,7 +142,7 @@
       <span class="con-status__gen" :class="{'con-status__gen--final': finalGeneration}">
         <span class="con-status__gen-label">{{ $t('GEN.') }}</span>
         <span class="con-status__value">
-          <ConsoleFlipValue :value="game.generation" :accent="finalGeneration ? 'gold' : 'cyan'" />
+          <ConsoleFlipValue :value="game.generation" :accent="finalGeneration ? 'gold' : 'cyan'" @flip-end="onGenerationFlipEnd" />
         </span>
       </span>
       <!-- GENERIC PENDING-EVENTS SIGNAL — a PERMANENT compact HUD instrument
@@ -213,6 +213,7 @@ import ConsoleProjectDeck from '@/client/components/console/ConsoleProjectDeck.v
 import {captureGlobalParams} from '@/client/console/planetFocus';
 import {boardBeatParkState, boardBeatDisplayParams} from '@/client/console/boardBeatPark';
 import {createChipConveyor} from '@/client/console/statusChipConveyor';
+import {noteGenerationFlipEnd} from '@/client/console/generationScene/generationScene';
 
 /** Glyph → the chip's compact text mark (mirrors the desktop PlayerStatusGlyph;
  *  CSS animates the active dot via the --active class). MarsBot's active turn
@@ -563,6 +564,10 @@ export default defineComponent({
     }
   },
   methods: {
+    /** The generation readout finished its flip — the generation scene's FIRST beat is over (TR61). */
+    onGenerationFlipEnd(generation: number): void {
+      noteGenerationFlipEnd(generation);
+    },
     /** The chips' identity sequence — the generation order as rendered. */
     chipOrder(): Array<string> {
       return this.players.map((p) => p.color as string);

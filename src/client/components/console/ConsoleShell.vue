@@ -1937,7 +1937,7 @@ import {
 import ConsoleDraftWorkspace from '@/client/components/console/draft/ConsoleDraftWorkspace.vue';
 import {
   DRAFT_DEFAULT_SERVES, DRAFT_PAYMENT_SERVES,
-  betweenGenDraftLive, draftCompletionHolding, draftMandatoryFlowBeat, draftPaymentPending,
+  betweenGenResearchLive, draftCompletionHolding, draftMandatoryFlowBeat, draftPaymentPending,
   observeDraftWorkspace, resetDraftWorkspace,
 } from '@/client/console/draft/consoleDraftFlow';
 import {consoleDraftUi} from '@/client/console/draft/consoleDraftUi';
@@ -2021,6 +2021,7 @@ import {currentRevealEvent, drawnCardsState, markRevealPresented, registerReveal
 import {revealKeptCardHeld} from '@/client/console/revealReading';
 import {resetRevealHandoff} from '@/client/console/revealHandoff';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
+import {resetGenerationScene} from '@/client/console/generationScene/generationScene';
 import {openRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, DELEGATE_GRANT_STEP_STAGE, AGENDA_WALK_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE, partyStepStageOf} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
@@ -4705,7 +4706,7 @@ export default defineComponent({
      *  frame-lifetime predicate (the completion beats extend it past the
      *  research answer). */
     draftFrameLive(): boolean {
-      return betweenGenDraftLive(this.playerView) || draftCompletionHolding();
+      return betweenGenResearchLive(this.playerView) || draftCompletionHolding();
     },
     /**
      * THE PARLIAMENT'S SITTING FRAME (Turmoil Redux) — the draft's lifecycle
@@ -5605,8 +5606,14 @@ export default defineComponent({
     /**
      * Pending FLOW-scoped mandatory actions, in the ONE deterministic order
      * (`mandatoryBeatFor` presents the first; a task beat outranks them all).
-     * Today: the between-generations draft. A new must-open workspace flow
+     * Today: the between-generations research (the draft's picks + the buy,
+     * or the buy alone without a draft — TR61). A new must-open workspace flow
      * contributes its own derivation here — never an auto-`enterWorkspace`.
+     * The ONE sanctioned conclusion that stands a flow up by itself is the
+     * GENERATION SCENE's last beat (`generationScene.ts`): the player has just
+     * watched their income arrive, the research rising from that scene IS the
+     * continuation (the owner's decision 6а), and the scene acknowledges this
+     * beat under its own hold so no plate can appear in the gap.
      */
     mandatoryFlowBeats(): ReadonlyArray<MandatoryFlowBeat> {
       const out: Array<MandatoryFlowBeat> = [];
@@ -23513,6 +23520,7 @@ export default defineComponent({
     resetHandStageMotion();
     resetHandPlayPrewarm(); // pending dwell timers + version-keyed previews
     resetConsoleRepeatPick(); // same for a repeat-action pick + its command store
+    resetGenerationScene(); // …and the generation scene (TR61): a dead shell's held rows tick, nothing stands up
     resetConsoleRepeatPickUi();
     resetDeltaRewardPick(); // …and the stage-reward pick bridge (Dutch Mountains)
     resetDeltaEspionagePick(); // …and the espionage target-pick bridge (DP10)

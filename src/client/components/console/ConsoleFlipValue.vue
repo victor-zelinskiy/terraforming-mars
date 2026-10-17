@@ -71,6 +71,9 @@ export default defineComponent({
      *  shrinking is the ordinary announced event, not a rollback). */
     flipOnDecrease: {type: Boolean, default: false},
   },
+  /** `flip-end` (the value shown): the one-shot swap finished — a scene that waits for the flip waits for THIS,
+   *  never for a timer of its own (the generation scene, TR61). A snap (a decrease, a silent mount) emits nothing. */
+  emits: ['flip-end'],
   data() {
     return {
       shown: this.value,
@@ -114,6 +117,7 @@ export default defineComponent({
       this.clearTimer = window.setTimeout(() => {
         this.flipping = false;
         this.clearTimer = undefined;
+        this.$emit('flip-end', this.shown);
       }, motionMs(FLIP_TOTAL_MS));
     },
   },

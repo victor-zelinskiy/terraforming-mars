@@ -646,6 +646,13 @@ html.con-profile-tv {
         &--panel .con-cardavail__list { padding: .6rem 1.1rem 0; }
     }
     /* (.con-draftws' status height rides the shared --con-cardstatus-h.) */
+    /* THE RESEARCH PURCHASE AT THE COUCH'S SCALE (TR61, part Г): the financial
+       strip's label and detail sat at .78rem — 31.2 px against the 32 px floor
+       on the 4K TV (the probe in `console-generation-scene` § A). The total
+       already speaks above it. */
+    .con-draftws {
+        &__fin-label, &__fin-detail { font-size: var(--con-t-floor); }
+    }
     /* Viewer chrome: the counter is a first-class HUD readout; the action
        strip speaks at command-bar size. */
     .card-zoom-counter {
