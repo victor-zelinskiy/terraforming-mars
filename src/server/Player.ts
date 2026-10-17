@@ -629,8 +629,10 @@ export class Player implements IPlayer {
 
   public decreaseTerraformRating(steps: number = 1, opts: {log?: boolean} = {}) {
     this.terraformRating -= steps;
+    // The loss is always written to the journal (TR70 — a price the player must see named); a bare corporation spec
+    // instantiates a player with no game, so the game is asked like the recorder below.
     if (opts.log === true) {
-      this.game.log('${0} lost ${1} TR', (b) => b.player(this).number(steps));
+      this.game?.log('${0} lost ${1} TR', (b) => b.player(this).number(steps));
     }
     this.game?.events?.recordTrDelta(this, -steps);
   }

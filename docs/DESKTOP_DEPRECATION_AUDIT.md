@@ -74,9 +74,9 @@ Format: `module` — console importer.
 | `hydronetwork/hydroNetworkState` | `ConsoleHydroSection`, `ConsoleShell` |
 | `startGameFlow/startSetupRevealState` | `ConsoleResourcePanel`, `ConsoleStartScene`, `ConsoleShell` |
 | `startGameFlow/startGameFlowState` | `ConsoleStartScene` |
-| `feedback/changeFeedbackManager` | `ConsoleMaCeremony`, `ConsoleTerraformingCeremony`, `consoleGovScaleFocus` |
+| `feedback/changeFeedbackManager` | `ConsoleMaCeremony`, `consoleGovScaleFocus` |
 | `feedback/energyConversionTransition` | `ConsoleResourcePanel` |
-| `gameProgress/terraformingCelebration` | `ConsoleTerraformingCeremony` |
+| `gameProgress/terraformingCelebration` | `ConsoleStatusStrip` (the persistent HUD state), `terraformedScene` (the honest claim) |
 | `desktop/desktopUpdateState`, `steamShortcutState` | `ConsoleMainMenu`, `consoleKeyBridge`, `consoleLayoutProfile`, `runtimeMode` |
 | `handCards/sellPatentsState`, `handSelectState`, `handPlayState`, `standardProjectPlayState` · `awards/awardFundingState` · `placementLockState` · `playedCards/playedCardsPickState` · `draftWaitState` · `initialDraft/initialDraftSharedState` | **transitively** via `ConsoleShell → WaitingFor.vue` |
 

@@ -3929,171 +3929,267 @@ html.con-reduced-motion {
     display: none;
 }
 
-/* ── Terraforming complete — console CEREMONY (ConsoleTerraformingCeremony) ──
-   The single biggest event of the game gets the MA-ceremony-grade
-   centre-stage cinematic (it replaced the small top banner): a soft veil,
-   a procedural terraformed-Mars hero, staged text rises and the shared
-   gsap ceremony burst (accent `terra`). pointer-events: none — the game
-   stays fully playable underneath; bounded lifetime; every animation is
-   ONE-SHOT. The persistent state (gold rail at 100% + «ФИНАЛЬНОЕ ПКЛ.»)
-   lives in the top HUD, which pulses off the SAME celebration nonce. */
-.con-terracere {
+/* ── «МАРС ТЕРРАФОРМИРОВАН» — THE PLANET SHOWS (TR70 · `terraformedScene.ts`) ──
+   The scene is played on the REAL planet in the central opening — never a
+   stand-in painted over the game. The interface RECEDES around the planet
+   by opacity (1), the Planet Focus camera comes in — its `ceremony` mode,
+   the arcs STAYING (3) — the board-beat park lets the scales' last step go on
+   the focused stage, the atmosphere BREATHES on the real disc (4), the shared
+   ceremony burst detonates over it, and a TITLE PLATE names it UNDER the disc
+   (5), in the bleed zone below the stage. No box moves at any point: opacity
+   on the surfaces, the camera's own transform on the planet, a plate in the
+   zone the receded dock and bar leave. The status strip STAYS — its chips
+   flipping to 100 % and gold are part of the show. */
+
+/* 1 · THE RECEDE — every surface above the field steps aside. The RETURN's
+   transition lives on `--terraformed-returning` (declared only on the receded
+   class it would be cancelled the frame that class drops — the planet-focus
+   trap); the receded class carries its own. `!important` on purpose: a band
+   surface's entry (GSAP, inline) and a toast's own fade must not outvote the
+   scene — it starts on a quiet world and ends on one. */
+.con-root--terraformed,
+.con-root--terraformed-returning {
+    .con-res-host,
+    .con-strat,
+    .con-cmdbar,
+    .con-banner,
+    .con-ws,
+    .con-info,
+    .con-played,
+    .con-reveal,
+    .con-journal,
+    .con-shade,
+    .con-mandatory,
+    .con-notif,
+    .con-handdock,
+    .con-handreveal-layer,
+    .con-draftws,
+    .con-hand,
+    .con-colonies,
+    .con-hydro,
+    .con-boardpeek {
+        transition: opacity calc(500ms * var(--motion-scale, 1)) ease !important;
+    }
+}
+.con-root--terraformed-returning {
+    .con-res-host,
+    .con-strat,
+    .con-cmdbar,
+    .con-banner,
+    .con-ws,
+    .con-info,
+    .con-played,
+    .con-reveal,
+    .con-journal,
+    .con-shade,
+    .con-mandatory,
+    .con-notif,
+    .con-handdock,
+    .con-handreveal-layer,
+    .con-draftws,
+    .con-hand,
+    .con-colonies,
+    .con-hydro,
+    .con-boardpeek {
+        transition-duration: calc(400ms * var(--motion-scale, 1)) !important;
+    }
+}
+.con-root--terraformed {
+    .con-res-host,
+    .con-strat,
+    .con-cmdbar,
+    .con-banner,
+    .con-ws,
+    .con-info,
+    .con-played,
+    .con-reveal,
+    .con-journal,
+    .con-shade,
+    .con-mandatory,
+    .con-notif,
+    .con-handdock,
+    .con-handreveal-layer,
+    .con-draftws,
+    .con-hand,
+    .con-colonies,
+    .con-hydro,
+    .con-boardpeek {
+        opacity: 0 !important;
+        pointer-events: none !important;
+    }
+}
+
+/* 2 · THE STAGE UNDER A SECTION — where a section (the hand, the colonies, the
+   hydro, the draft) stands on the board's slot, the board is v-shown away;
+   for the scene it STANDS IN for the section: displayed dark on the flip's
+   frame (the section is fully transparent by then), lit the frame after, and
+   dissolved again before the flip back. The box is the board-home box by
+   construction — the section leaves the row, the board takes its own place. */
+.con-root--terraformed-stage .con-main .con-board {
+    display: flex !important; /* the v-show inline display:none yields */
+    opacity: 0;
+    transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
+}
+.con-root--terraformed-stage .con-main > :is(.con-hand, .con-colonies, .con-hydro) {
+    display: none !important;
+}
+.con-root--terraformed-stage-lit .con-main .con-board {
+    opacity: 1;
+}
+
+/* 3 · THE CAMERA IN ITS CEREMONY MODE — the same Planet Focus, the arcs
+   STAYING: they are the story (the markers glide to their maximum on this
+   very stage). Only the off-Mars flanks recede, as in a placement. The
+   settled state keeps the band in the tree (the placement's display:none
+   is for a band that has faded — this one never fades). */
+/* ⚠ Declared BEFORE the placement's own focus rules (same specificity, later wins) — the compound keeps the arcs. */
+.con-board--pfocus-ceremony.con-board--pfocus .con-board__stage .global-numbers > *,
+.con-board--pfocus-ceremony.con-board--pfocus-anim .con-board__stage .global-numbers > * {
+    opacity: 1;
+    transform: none;
+    transition-delay: 0s;
+}
+.con-board--pfocus-ceremony.con-board--pfocus-settled .con-board__stage .global-numbers {
+    display: block;
+}
+
+/* 4 · THE BREATH — the atmosphere on the REAL disc: a layer in board px over
+   the alpha-measured circle (keep-px — it rides the planet's transform like
+   the reticle), the limb's light inside, the mint rim outside; one-shot
+   keyframes keyed on the scene's show, transform / opacity only. The shared
+   ceremony burst (`ceremonyFx`) is appended to this very element. */
+.con-terraformed-breath {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 4;
+    opacity: 0;
+    transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
+
+    &::before {
+        content: '';
+        position: absolute;
+        inset: -2%;
+        border-radius: 50%;
+        background: radial-gradient(circle, transparent 58%, fade(@con-mint, 34%) 76%, transparent 88%);
+        opacity: 0;
+    }
+    &::after {
+        content: '';
+        position: absolute;
+        inset: -1%;
+        border-radius: 50%;
+        box-shadow: 0 0 0 2px fade(@con-mint, 70%), 0 0 26px fade(@con-mint, 38%), inset 0 0 22px fade(@con-mint, 24%);
+        opacity: 0;
+    }
+    &--lit {
+        opacity: 1;
+    }
+    &--lit::before {
+        animation: con-terraformed-limb calc(1600ms * var(--motion-scale, 1)) ease-out both;
+    }
+    &--lit::after {
+        animation: con-terraformed-rim calc(1400ms * var(--motion-scale, 1)) @con-ease-standard both;
+    }
+}
+@keyframes con-terraformed-limb {
+    0% { opacity: 0; transform: scale(0.96); }
+    40% { opacity: 1; }
+    100% { opacity: 0.55; transform: scale(1.04); }
+}
+@keyframes con-terraformed-rim {
+    0% { opacity: 0; transform: scale(0.9); }
+    50% { opacity: 1; }
+    100% { opacity: 0.8; transform: scale(1); }
+}
+
+/* 5 · THE TITLE PLATE — UNDER the disc, in the bleed zone the receded dock and
+   command bar leave (the dock's clearance + the bar's row): the kicker, the
+   headline in the couch's hero size, the honest claim. It rises inside the
+   show (a beat after the markers start gliding) and leaves with the return.
+   Never over the planet. Reads from the couch: every line at or above the
+   service floor on the TV profile. */
+.con-terraformed {
     position: fixed;
-    inset: 0;
-    z-index: 11722; /* a nose above the MA ceremony (11720) — the bigger news wins a collision; under fallback (12000) */
+    left: var(--con-stage-l, var(--con-ws-left, 0));
+    right: var(--con-stage-r, 0);
+    bottom: 0;
+    /* the band: at least the dock's clearance (`.con-board` padding-bottom) + the command bar's row, but it GROWS with
+       its plate (a fixed height centred a 6.9rem plate in a 5.65rem band — 31 px of the claim under the 4K viewport's edge);
+       the plate stands on a safe inset above the bottom, in the bleed zone under the disc. */
+    height: auto;
+    min-height: calc(var(--con-bar-h, 2.6rem) + 3.05rem);
+    box-sizing: border-box;
+    padding-bottom: .75rem;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: center;
+    z-index: 11722; /* a nose above the MA ceremony (11720) — the bigger news wins a collision; under fallback (12000) */
     pointer-events: none;
     font-family: @con-font;
     color: @con-text;
 
-    &__veil {
-        position: absolute;
-        inset: 0;
-        background: radial-gradient(ellipse at center, rgba(4, 12, 10, 0.64), rgba(4, 8, 14, 0.22) 58%, transparent 80%);
-    }
-    &__scene {
-        position: relative;
+    &__plate {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: .4rem;
-        animation: con-terracere-rise calc(520ms * var(--motion-scale, 1)) @con-ease-enter;
-    }
-    &__stage {
-        position: relative;
-        width: 15rem;
-        height: 15rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-    /* The atmosphere halo breathes out once behind the planet — a TIGHT
-       mint rim (a broad soft band reads as a murky dark disc on the veil). */
-    &__atmo {
-        position: absolute;
-        inset: -10%;
-        border-radius: 50%;
-        background: radial-gradient(circle, transparent 58%, fade(@con-mint, 28%) 72%, transparent 81%);
-        animation: con-terracere-atmo calc(1600ms * var(--motion-scale, 1)) ease-out both;
-    }
-    /* Procedural terraformed Mars — rust globe, young seas and greenery,
-       a polar cap, a sunlit limb and a mint atmosphere rim. No asset. */
-    &__planet {
-        position: absolute;
-        inset: 13%;
-        border-radius: 50%;
-        background:
-            radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.2), transparent 42%),
-            radial-gradient(circle at 66% 64%, fade(@con-mint, 42%), transparent 44%),
-            radial-gradient(circle at 26% 60%, rgba(47, 143, 106, 0.55), transparent 36%),
-            radial-gradient(circle at 52% 16%, rgba(236, 244, 248, 0.55), transparent 15%),
-            radial-gradient(circle at 50% 50%, #c96b45 0%, #a34a2e 58%, #7c3320 100%);
-        box-shadow:
-            inset -1.1rem -1.4rem 2.6rem rgba(0, 0, 0, 0.55),
-            0 0 2.4rem fade(@con-mint, 32%),
-            0 0 0 .1rem fade(@con-mint, 22%);
-        animation: con-terracere-hero calc(720ms * var(--motion-scale, 1)) @con-ease-settle both;
-    }
-    &__ring {
-        position: absolute;
-        inset: 9%;
-        border-radius: 50%;
-        box-shadow: 0 0 0 .1rem fade(@con-mint, 55%), 0 0 1.7rem fade(@con-mint, 28%);
-        animation: con-terracere-ring calc(1300ms * var(--motion-scale, 1)) @con-ease-standard both;
+        gap: .22rem;
+        padding: .5rem 1.7rem .55rem;
+        border-radius: .7rem;
+        background: linear-gradient(180deg, rgba(10, 19, 27, 0.9), rgba(7, 13, 21, 0.94));
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 42%), 0 .4rem 1.4rem rgba(0, 0, 0, 0.55);
+        animation: con-terraformed-rise calc(520ms * var(--motion-scale, 1)) @con-ease-enter calc(400ms * var(--motion-scale, 1)) both;
     }
     &__kicker {
         font-size: .95rem;
         letter-spacing: .3rem;
         text-transform: uppercase;
         color: fade(@con-mint, 94%);
-        text-shadow: 0 0 .9rem fade(@con-mint, 45%);
-        animation: con-terracere-line calc(600ms * var(--motion-scale, 1)) ease-out calc(180ms * var(--motion-scale, 1)) both;
     }
     &__name {
-        font-size: 2.1rem;
+        font-size: var(--con-t-hero, 2.2rem);
         font-weight: 800;
-        line-height: 1.15;
+        line-height: 1.1;
         text-align: center;
-        max-width: 70vw;
         color: #eafff4;
-        text-shadow: 0 .2rem 1.3rem rgba(0, 0, 0, 0.8), 0 0 1.4rem fade(@con-mint, 30%);
-        animation: con-terracere-line calc(600ms * var(--motion-scale, 1)) ease-out calc(280ms * var(--motion-scale, 1)) both;
     }
-    /* The claim badge: neutral (three parameters complete) by default. */
-    &__sub {
-        display: inline-flex;
-        align-items: center;
-        margin-top: .2rem;
-        padding: .4rem 1.1rem;
-        border-radius: .6rem;
-        background: rgba(14, 22, 33, 0.6);
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%);
-        font-size: .95rem;
+    /* The claim: neutral (the three parameters) by default; the FINAL-GENERATION claim is gold, like the HUD marker. */
+    &__claim {
+        font-size: 1.05rem;
         letter-spacing: .06rem;
         text-transform: uppercase;
         text-align: center;
-        animation: con-terracere-pop calc(560ms * var(--motion-scale, 1)) @con-ease-settle calc(420ms * var(--motion-scale, 1)) both;
+        color: fade(@con-text, 82%);
     }
-    /* The FINAL-GENERATION claim is the headline — gold, like the HUD marker. */
-    &--final &__sub {
+    &--final &__claim {
         color: fade(@con-amber, 96%);
-        background: fade(@con-amber, 12%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 70%), 0 0 1.5rem fade(@con-amber, 25%);
-        text-shadow: 0 0 .5rem fade(@con-amber, 30%);
+    }
+    /* A skipped scene settles atomically — no rise to narrate. */
+    &--skipped &__plate {
+        animation: none;
     }
 }
-
-.con-terracere-enter-active { transition: opacity calc(240ms * var(--motion-scale, 1)) ease; }
-.con-terracere-leave-active { transition: opacity calc(600ms * var(--motion-scale, 1)) ease; }
-.con-terracere-enter-from,
-.con-terracere-leave-to { opacity: 0; }
-
-@keyframes con-terracere-rise {
-    from { transform: translateY(1.3rem); opacity: 0; }
+.con-terraformed-enter-active { transition: opacity calc(200ms * var(--motion-scale, 1)) ease; }
+.con-terraformed-leave-active { transition: opacity calc(260ms * var(--motion-scale, 1)) ease; }
+.con-terraformed-enter-from,
+.con-terraformed-leave-to { opacity: 0; }
+@keyframes con-terraformed-rise {
+    from { transform: translateY(.6rem); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
-}
-@keyframes con-terracere-atmo {
-    0% { transform: scale(0.6); opacity: 0; }
-    35% { opacity: 1; }
-    100% { transform: scale(1.12); opacity: 0.6; }
-}
-@keyframes con-terracere-hero {
-    from { transform: translateY(1.1rem) scale(0.82); opacity: 0; }
-    to { transform: translateY(0) scale(1); opacity: 1; }
-}
-@keyframes con-terracere-ring {
-    0% { transform: scale(0.55); opacity: 0; }
-    45% { opacity: 1; }
-    100% { transform: scale(1); opacity: 0.85; }
-}
-@keyframes con-terracere-line {
-    from { transform: translateY(.5rem); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-}
-@keyframes con-terracere-pop {
-    from { transform: scale(0.7); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .con-terracere__scene,
-    .con-terracere__atmo,
-    .con-terracere__planet,
-    .con-terracere__ring,
-    .con-terracere__kicker,
-    .con-terracere__name,
-    .con-terracere__sub { animation: none; }
-    .con-terracere-enter-active,
-    .con-terracere-leave-active { transition: opacity 120ms ease; }
+    .con-terraformed__plate { animation: none; }
+    .con-terraformed-breath--lit::before,
+    .con-terraformed-breath--lit::after { animation: none; opacity: .5; }
+    .con-terraformed-enter-active,
+    .con-terraformed-leave-active { transition: opacity 120ms ease; }
 }
 
-html.con-profile-handheld .con-terracere {
-    &__stage { width: 11rem; height: 11rem; }
+html.con-profile-handheld .con-terraformed {
     &__name { font-size: 1.6rem; }
     &__kicker { font-size: .8rem; letter-spacing: .225rem; }
-    &__sub { font-size: .8rem; }
+    &__claim { font-size: .8rem; }
 }
 
 /* (The old LB/RB section strip is gone — LB/RB are semantic buttons now,
@@ -8909,7 +9005,7 @@ html.con-profile-large .con-hydro {
 
 
 /* ── Ceremony FX layer (gsap-spawned, one-shot) ─────────────────────────
-   Shared by ConsoleMaCeremony + ConsoleTerraformingCeremony: ring
+   Shared by ConsoleMaCeremony + the terraformed scene's breath layer (TR70): ring
    shockwaves, radial sparks, a centre flash and one light sweep
    (ceremonyFx.ts). The layer is transient — created and removed by the
    director; colours/sizes ride inline from the accent palette; every
@@ -36420,7 +36516,7 @@ html.con-profile-handheld {
     .con-strat__ownseal-tick { font-size: .44rem; }
     .con-banner { font-size: .75rem; padding: .25rem .6rem; }
     /* (The terraforming ceremony's handheld sizes live next to its own
-       block — see `html.con-profile-handheld .con-terracere`.) */
+       block — see `html.con-profile-handheld .con-terraformed`.) */
 
     /* ── 3 · bottom command bar + hand dock ──────────────────────── */
     /* (height/padding here dress the MENUS' floating bars only — the shell's

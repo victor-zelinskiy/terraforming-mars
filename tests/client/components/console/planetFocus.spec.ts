@@ -101,6 +101,26 @@ describe('planetFocus — the main-grid placement stage', function() {
       expect(planetFocusState.phase).to.eq('active');
     });
 
+    it('the CEREMONY mode (TR70): the same machine, the mode on the state; it takes an engaged placement camera, a placement never takes it back; idle restores the default', async () => {
+      enterPlanetFocus();
+      expect(planetFocusState.mode).to.eq('placement');
+      enterPlanetFocus('ceremony');
+      expect(planetFocusState.mode, 'the ceremony arriving over a placement camera takes the mode').to.eq('ceremony');
+      expect(planetFocusState.phase).to.eq('entering');
+      enterPlanetFocus('placement');
+      expect(planetFocusState.mode, 'a placement never takes the mode back from a playing ceremony').to.eq('ceremony');
+      snapPlanetFocusSettled();
+      beginPlanetFocusExit();
+      await new Promise((resolve) => setTimeout(resolve, 1300));
+      expect(planetFocusState.phase).to.eq('idle');
+      expect(planetFocusState.arcsReturning).to.eq(false);
+      expect(planetFocusState.mode, 'idle is the placement\'s default').to.eq('placement');
+      resetPlanetFocus();
+      enterPlanetFocus('ceremony');
+      resetPlanetFocus();
+      expect(planetFocusState.mode).to.eq('placement');
+    });
+
     it('exit walks exit-prep → exiting → idle and plays the arcs return beat', async () => {
       enterPlanetFocus();
       snapPlanetFocusSettled();

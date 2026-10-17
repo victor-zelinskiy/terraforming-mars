@@ -99,6 +99,13 @@ export const boardBeatParkState = reactive({
   /** Bumped per drain — lets a spec (or a future scene) key on the run. */
   nonce: 0,
   /**
+   * A SCENE OWNS THE HELD VALUES (TR70 «Марс терраформирован» — `terraformedScene.ts`): the last step of the
+   * scales is held on an uncovered board too, until the scene's stage stands (the interface receded, the
+   * planet in focus) and the scene itself asks for the release (`releaseBoardScaleForScene`). The ordinary
+   * drain stands aside while it is set; the park's safety still bounds it.
+   */
+  sceneHeld: false,
+  /**
    * «ОБРАТНЫЙ ХОД» (TR47 — `scaleSwing/scaleSwingDirector.ts`): the values a PARAMETER SWING presents until each
    * leg's own turn — the peak the fall starts from, or the value a raise that arrived with its fall glides up
    * from. Written by the swing director ONLY (never by the drain), merged UNDER the park's held values: a raise
@@ -276,7 +283,7 @@ function armSafety(): void {
   }
   ledgerStory = owePresentation({
     id: 'board-beat-park',
-    ready: () => boardWatchable() && boardBeatParkPending() && !boardBeatParkState.draining,
+    ready: () => boardWatchable() && boardBeatParkPending() && !boardBeatParkState.draining && !boardBeatParkState.sceneHeld,
     redrive: () => (redriveHook ?? drainBoardBeatsIfDue)(),
     dueMs: BOARD_BEAT_PARK_SAFETY_MS,
     degrade: () => releaseBoardBeatPark(),
@@ -290,6 +297,7 @@ function armSafety(): void {
       watchable: boardWatchable(),
       pending: boardBeatParkPending(),
       draining: boardBeatParkState.draining,
+      sceneHeld: boardBeatParkState.sceneHeld,
       held: Object.keys(boardBeatParkState.heldParams ?? {}),
       claims: boardBeatParkState.heldClaims !== undefined,
       batch: parkedBatchPending(),
@@ -335,6 +343,64 @@ export function noteBoardScaleAdvance(oldGame: GameModel, newGame: GameModel): v
   if (seeded) {
     armSafety();
   }
+}
+
+/**
+ * A SCENE'S HOLD (TR70 — the terraformed scene): the parameters that moved between two views keep their
+ * PRESENTED pre-change values whether or not the board is covered — the scene's stage is what releases them.
+ * First write wins per parameter, like the shell's observer. Returns whether anything is held.
+ */
+export function holdBoardScaleForScene(oldGame: GameModel, newGame: GameModel): boolean {
+  let seeded = false;
+  for (const key of PARAM_KEYS) {
+    if (oldGame[key] !== newGame[key] && boardBeatParkState.heldParams?.[key] === undefined) {
+      boardBeatParkState.heldParams = {
+        ...(boardBeatParkState.heldParams ?? {}),
+        [key]: oldGame[key],
+      };
+      seeded = true;
+    }
+  }
+  if (boardBeatParkState.heldParams === undefined && boardBeatParkState.heldClaims === undefined) {
+    return false;
+  }
+  boardBeatParkState.sceneHeld = true;
+  if (seeded) {
+    armSafety();
+  }
+  return true;
+}
+
+/**
+ * THE SCENE'S OWN RELEASE (TR70): the scales' story played NOW, on the scene's stage — the camera standing, the
+ * arcs lit (the «watchable» verdict says «covered» for a Planet Focus, which is right for a placement and wrong
+ * for the ceremony). The same release the drain plays: the accents on the scales about to move, the values let
+ * go (the markers glide, the HUD flips, the chips fire), the blocking story window for the glide. A parked
+ * BATCH stays parked for the ordinary drain — the scene owns the values, never the reveal. Returns the story's
+ * window in ms (0 when nothing was held).
+ */
+export function releaseBoardScaleForScene(): number {
+  boardBeatParkState.sceneHeld = false;
+  const held = boardBeatParkState.heldParams;
+  if (held === undefined && boardBeatParkState.heldClaims === undefined) {
+    return 0;
+  }
+  clearDrainTimers();
+  if (held !== undefined) {
+    applyScaleAccents(changedGlobalParams(held, liveParamsSource?.()));
+  }
+  boardBeatParkState.heldParams = undefined;
+  boardBeatParkState.heldClaims = undefined;
+  boardBeatParkState.scaleStory = true;
+  const windowMs = consoleMotionMs(BOARD_BEAT_SCALE_MS);
+  schedule(() => {
+    clearScaleAccents();
+    boardBeatParkState.scaleStory = false;
+    if (!boardBeatParkPending()) {
+      clearSafety();
+    }
+  }, windowMs);
+  return windowMs;
 }
 
 /** The parameters the board + status strip should DISPLAY: the held
@@ -443,7 +509,8 @@ function scheduleSettle(run: () => void): void {
  * mid-drain simply re-parks what has not been released yet.
  */
 export function drainBoardBeatsIfDue(): void {
-  if (boardBeatParkState.draining || !boardBeatParkPending() || !boardWatchable()) {
+  // A SCENE owns the held values (the terraformed scene): its stage releases them, never the drain.
+  if (boardBeatParkState.draining || boardBeatParkState.sceneHeld || !boardBeatParkPending() || !boardWatchable()) {
     return;
   }
   clearDrainTimers();
@@ -555,6 +622,7 @@ export function releaseBoardBeatPark(): void {
   boardBeatParkState.batchHeldByDrain = false;
   boardBeatParkState.draining = false;
   boardBeatParkState.scaleStory = false;
+  boardBeatParkState.sceneHeld = false;
 }
 
 /**

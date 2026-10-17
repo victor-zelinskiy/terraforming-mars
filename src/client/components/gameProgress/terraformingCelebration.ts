@@ -3,8 +3,14 @@ import {terraformingProgress} from '@/client/components/gameProgress/terraformin
 
 /**
  * terraformingCelebration — the shared "Terraforming complete / final
- * generation" brain for BOTH modes (desktop notification + sidebar glow,
- * console ceremony cinematic + HUD rail pulse).
+ * generation" brain: the HUD's PERSISTENT state (the gold rail at 100 %, the
+ * final-generation marker) and the honest claim (`finalGenerationActive`).
+ * The console's CINEMATIC is not driven from here any more (TR70, 2026-10-17):
+ * the terraformed SCENE (`console/terraformedScene/terraformedScene.ts`) is
+ * armed in the transport's apply block off the server's own `isTerraformed`
+ * (variant-aware — a Venus-required game celebrates on the server's word, not
+ * on the three parameters), and the HUD's one-shot pulse rides the scene's
+ * show, so the pulse and the readouts' flip land in the same frame.
  *
  * Module-level reactive (mirrors `journalState` / `notificationState`) so it
  * survives the App-level lifecycles and both surfaces read ONE truth.

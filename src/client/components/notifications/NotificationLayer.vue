@@ -326,9 +326,10 @@ export default defineComponent({
     // isTerraformed), seeded silently on first load / reconnect (an
     // already-terraformed game shows only the persistent markers, never the
     // cinematic) and fired exactly once on the live transition. The shared
-    // celebration module also drives the desktop sidebar glow + the console
-    // HUD rail pulse; in CONSOLE mode the ceremony cinematic
-    // (ConsoleTerraformingCeremony in ConsoleShell) owns the presentation,
+    // celebration module drives the HUD's persistent state (the gold rail at
+    // 100 %, the final-generation marker); in CONSOLE mode the presentation is
+    // the terraformed SCENE on the real planet (TR70 — `terraformedScene.ts`,
+    // armed in the transport's apply block off the server's `isTerraformed`),
     // so the desktop card is not pushed there.
     handleTerraformingComplete(now: number): void {
       const fresh = observeTerraformingProgress(this.playerView);

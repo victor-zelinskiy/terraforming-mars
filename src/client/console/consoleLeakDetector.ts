@@ -114,11 +114,12 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   // stage (mounted for the whole transaction) is what serves it.
   '.con-discard',
   // ANIMATION HOLDS (animationHold.ts): the viewer's OWN milestone/award
-  // coronation and the terraforming-complete cinematic hold mandatory
-  // surfaces for their bounded beat — the ceremony IS the serving surface
-  // for a prompt committed alongside it (e.g. the claim's payment).
+  // coronation and the terraformed scene's title plate (TR70 — the scene
+  // holds mandatory surfaces for its bounded phrase, so the plate IS the
+  // serving surface for a prompt committed alongside it, e.g. the claim's
+  // payment or the finale's announce).
   '.con-macere',
-  '.con-terracere',
+  '.con-terraformed',
   // MANDATORY ANNOUNCEMENT (consoleMandatoryGate): while an interruptive prompt
   // is announced-not-opened, this card is its serving surface (B opens it). The
   // `isMandatoryGateHeld()` early-return above already covers the held state

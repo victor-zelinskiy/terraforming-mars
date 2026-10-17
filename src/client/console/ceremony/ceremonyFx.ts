@@ -1,7 +1,7 @@
 /*
  * CEREMONY FX — the shared GSAP burst for the console prestige beats
  * (milestone coronation / award seal in ConsoleMaCeremony, the
- * terraforming-complete cinematic in ConsoleTerraformingCeremony).
+ * terraformed scene's burst over the real disc — ConsoleBoardSection, TR70).
  *
  * One shot, layered over a positioned STAGE element:
  *   RINGS  — expanding shockwave rings from the stage centre;

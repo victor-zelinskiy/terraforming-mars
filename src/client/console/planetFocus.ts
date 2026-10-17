@@ -67,6 +67,17 @@ export const PLANET_ARCS_RETURN_MS = 260;
 
 export type PlanetFocusPhase = 'idle' | 'entering' | 'active' | 'exit-prep' | 'exiting';
 
+/**
+ * WHAT the camera is in for. `placement` — the main-grid tile pick (the arcs
+ * and the off-Mars flanks recede: they are not part of that decision, and the
+ * disc takes the whole stage edge-to-edge). `ceremony` — «Марс терраформирован»
+ * (TR70, `terraformedScene/terraformedScene.ts`): the SAME camera, the same box,
+ * the same deterministic fit discipline, but the INSTRUMENT frame — the disc
+ * WITH its three arcs — because the scales finishing their story IS the
+ * ceremony; only the off-Mars flanks recede. One phase machine, one hold.
+ */
+export type PlanetFocusMode = 'placement' | 'ceremony';
+
 /** The four value-driven global parameters the arcs + top HUD display. */
 export type HeldGlobalParams = {
   temperature: number,
@@ -77,6 +88,8 @@ export type HeldGlobalParams = {
 
 export const planetFocusState = reactive({
   phase: 'idle' as PlanetFocusPhase,
+  /** What the camera is in for (see `PlanetFocusMode`); `placement` whenever idle. */
+  mode: 'placement' as PlanetFocusMode,
   /**
    * The planet has landed and the INSTRUMENTS are fading back in. A short
    * beat of its own: the arcs are on screen but not yet solid, so no scale
@@ -166,11 +179,17 @@ export function planetFocusSettling(): boolean {
  * with its pre-change value (first write wins — one glide tells the whole
  * chain's change on exit).
  */
-export function enterPlanetFocus(): void {
+export function enterPlanetFocus(mode: PlanetFocusMode = 'placement'): void {
   if (planetFocusState.phase === 'entering' || planetFocusState.phase === 'active') {
+    // The ceremony arriving over an engaged placement camera takes the mode (the board section re-fits the
+    // instrument frame off the mode watcher); a placement never takes it back from a playing ceremony.
+    if (mode === 'ceremony') {
+      planetFocusState.mode = mode;
+    }
     return;
   }
   clearExitTimers();
+  planetFocusState.mode = mode;
   planetFocusState.nonce++;
   planetFocusState.phase = 'entering';
   clearTimer(settleTimer);
@@ -231,6 +250,8 @@ export function beginPlanetFocusExit(): void {
         arcsTimer = schedule(() => {
           arcsTimer = undefined;
           planetFocusState.arcsReturning = false;
+          // The mode belongs to an engagement; idle is the placement's default.
+          planetFocusState.mode = 'placement';
         }, consoleMotionMs(PLANET_ARCS_RETURN_MS));
       }
     }, consoleMotionMs(PLANET_FOCUS_EXIT_MS) + SETTLE_MARGIN_MS);
@@ -245,6 +266,7 @@ export function resetPlanetFocus(): void {
   settleTimer = undefined;
   planetFocusState.phase = 'idle';
   planetFocusState.arcsReturning = false;
+  planetFocusState.mode = 'placement';
 }
 
 // ── internals ───────────────────────────────────────────────────────────────

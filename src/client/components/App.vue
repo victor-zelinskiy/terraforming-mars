@@ -358,6 +358,7 @@ import {seedScaleStepRewardHolds} from '@/client/console/scaleStepReward/scaleSt
 import {seedParameterSwings} from '@/client/console/scaleSwing/scaleSwingDirector';
 import {seedDeckDrawHold} from '@/client/console/deckDraw/consoleDeckDraw';
 import {seedVpShares} from '@/client/console/scoreCell/vpShareLedger';
+import {seedTerraformedScene} from '@/client/console/terraformedScene/terraformedScene';
 import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairmanQuest';
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
 import {seedNeutralRallyHolds} from '@/client/console/parliament/neutralRally';
@@ -816,6 +817,10 @@ export default defineComponent({
             seedColonyRosterHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and a CITY somebody laid on a colony tile (TR22): landed on its seat — only when a seat of that tile stands.
             seedColonyCityHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+            // …and «МАРС ТЕРРАФОРМИРОВАН» (TR70): the SERVER's word arriving through a poll / WS frame — a rival's
+            // last step, a world move — arms the scene and holds the scales' last step in the park from this very
+            // block (the transport's `seedRewardHolds` does the same for the viewer's own submit).
+            seedTerraformedScene(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and what a SCALE STEP paid (TR24 — another seat's raise, a world move, the Solar Phase): the
             // viewer's counter waits for the tokens born at the marker (the same block as the apply).
             seedScaleStepRewardHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);

@@ -65,11 +65,13 @@
                         :waiting="draftWaitActive" />
     </transition>
 
-    <!-- Terraforming complete — the one-shot console-native CEREMONY (the
-         MA-coronation-grade centre stage: veil + procedural Mars hero +
-         gsap burst; pointer-events: none, bounded lifetime; the persistent
-         state lives in the top-HUD rail + generation marker). -->
-    <ConsoleTerraformingCeremony />
+    <!-- «МАРС ТЕРРАФОРМИРОВАН» — the terraformed SCENE's title plate (TR70,
+         `terraformedScene.ts`): the scene itself plays on the REAL planet —
+         the surfaces recede by the root classes, the board section's camera
+         comes in, the held scales let go on the stage — and this plate names
+         it under the disc. The persistent state (the gold rail at 100 %, the
+         final-generation marker) lives in the top HUD. -->
+    <ConsoleTerraformedTitle />
 
     <!-- MarsBot «Разбор хода» — the console-native FULLSCREEN turn review.
          Renders the SAME botTurnReviewState as the desktop overlay (suppressed
@@ -1668,7 +1670,8 @@ import ConsoleBoardInput from '@/client/components/console/ConsoleBoardInput.vue
 import {buildStandardProjectPaymentModel, hasUsableStandardProjectAlternativeResources, standardProjectPaymentTitle} from '@/client/components/payment/paymentModelUtils';
 
 import ConsoleStatusStrip from '@/client/components/console/ConsoleStatusStrip.vue';
-import ConsoleTerraformingCeremony from '@/client/components/console/ConsoleTerraformingCeremony.vue';
+import ConsoleTerraformedTitle from '@/client/components/console/ConsoleTerraformedTitle.vue';
+import {registerTerraformedSceneProbes, resetTerraformedScene, skipTerraformedScene, terraformedSceneState, terraformedSceneUp} from '@/client/console/terraformedScene/terraformedScene';
 import ConsoleBotTurnReview from '@/client/components/console/ConsoleBotTurnReview.vue';
 import {botTurnReviewState, closeBotTurnReview, setBotReviewPeek} from '@/client/components/marsbot/botTurnReviewState';
 import {openBotTurnReviewByKey, skipBotTurnPresentation, stepBotTurnReview} from '@/client/components/marsbot/marsBotPresentation';
@@ -2026,7 +2029,7 @@ import {currentRevealEvent, drawnCardsState, markRevealPresented, registerReveal
 import {revealKeptCardHeld} from '@/client/console/revealReading';
 import {resetRevealHandoff} from '@/client/console/revealHandoff';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
-import {resetGenerationScene} from '@/client/console/generationScene/generationScene';
+import {generationSceneState, resetGenerationScene} from '@/client/console/generationScene/generationScene';
 import {openRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, DELEGATE_GRANT_STEP_STAGE, AGENDA_WALK_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE, partyStepStageOf} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
@@ -2437,7 +2440,7 @@ export default defineComponent({
     ConsoleDrawSearchRule,
     ConsoleStatusStrip,
     ConsoleMandatoryAnnounce,
-    ConsoleTerraformingCeremony,
+    ConsoleTerraformedTitle,
     ConsoleBotTurnReview,
     ConsoleCommandBar,
     ConsoleHandDock,
@@ -2613,6 +2616,8 @@ export default defineComponent({
       nomadMoveState,
       /** Planet Focus (main-grid placement): phases + held global params. */
       planetFocusState,
+      /** «МАРС ТЕРРАФОРМИРОВАН» — the terraformed scene's phases (TR70): the root classes and the camera's hand-back read it. */
+      terraformedSceneState,
       /** Unregister fn of the planet-focus live-params source. */
       offPlanetFocusParams: undefined as (() => void) | undefined,
       /** The `.con-ws` DOM-presence flags (ex-`:has()`) + their observer's
@@ -8441,6 +8446,14 @@ export default defineComponent({
         'con-root--ws-open': this.wsPresence.wsOpen,
         'con-root--ws-dockcover': this.wsPresence.wsDockcover,
         'con-root--pfocus': this.wsPresence.planetFocus,
+        // «МАРС ТЕРРАФОРМИРОВАН» (TR70 — `terraformedScene.ts`): the interface RECEDES by opacity around the real
+        // planet (`--terraformed`), returns through a class that carries the fade's transition (`--terraformed-
+        // returning` — a transition declared only on the receded class would snap when it drops), and where a
+        // SECTION stood on the board's slot the board stands in for it (`--terraformed-stage`, lit a frame later).
+        'con-root--terraformed': this.terraformedSceneState.receded,
+        'con-root--terraformed-returning': this.terraformedSceneState.returning,
+        'con-root--terraformed-stage': this.terraformedSceneState.stage !== 'off',
+        'con-root--terraformed-stage-lit': this.terraformedSceneState.stage === 'lit',
         // The dock-cover exception for the BODIES layer (single-owner
         // rework): the docked pack lives on `.con-handreveal-layer`, whose
         // z must drop under a `--ws-dockcover` panel exactly like the old
@@ -12237,7 +12250,23 @@ export default defineComponent({
     planetFocusTarget(now: boolean): void {
       if (now) {
         enterPlanetFocus();
-      } else {
+      } else if (this.planetFocusState.mode !== 'ceremony') {
+        // The ceremony's camera (TR70) is the scene's to exit — a placement target falling mid-scene lets it be.
+        beginPlanetFocusExit();
+      }
+    },
+    /**
+     * The terraformed scene's END (TR70): a placement target that rose while the scene owned the camera (the mode
+     * never took the target's enter — `enterPlanetFocus` is a no-op on an engaged camera) gets its own focus now;
+     * a target that fell meanwhile gets the exit the ceremony's mode deferred.
+     */
+    'terraformedSceneState.phase'(now: string): void {
+      if (now !== 'idle') {
+        return;
+      }
+      if (this.planetFocusTarget && !isPlanetFocusEngaged()) {
+        enterPlanetFocus();
+      } else if (!this.planetFocusTarget && isPlanetFocusEngaged() && this.planetFocusState.mode !== 'ceremony') {
         beginPlanetFocusExit();
       }
     },
@@ -13879,6 +13908,15 @@ export default defineComponent({
       if (isColonyCityInputLocked()) {
         if (intent.kind === 'press' && action === 'primary') {
           hurryColonyCity();
+        }
+        return true;
+      }
+      // «МАРС ТЕРРАФОРМИРОВАН» (TR70): the planet shows — the pad is the scene's for its whole phrase. A press
+      // after the camera has come in SKIPS it (one atomic finish: the scales let go, the title leaves, the
+      // return plays once); every other intent is absorbed. Bounded by the scene's own named hold.
+      if (terraformedSceneUp()) {
+        if (intent.kind === 'press') {
+          skipTerraformedScene();
         }
         return true;
       }
@@ -23219,9 +23257,37 @@ export default defineComponent({
     // module drain is only the desktop/test default.
     registerBoardBeatRedrive(() => this.drainBoardBeats());
     void this.$nextTick(() => this.drainBoardBeats());
+    // «МАРС ТЕРРАФОРМИРОВАН» (TR70 — `terraformedScene.ts`): the scene is a BOARD BEAT and waits for a board the
+    // player can see — the field's story over (the tile hero, the payouts, a remote landing, the camera), no
+    // reveal standing or pending, no cards in flight, no discard settling, no generation scene mid-phrase; and
+    // whether a SECTION stands on the board's slot (the board is then faded in under it for the scene).
+    registerTerraformedSceneProbes({
+      quiet: () => {
+        const s = this.rawAdmissionSignals;
+        return !boardSceneSettling() && !s.revealOpen && !s.revealPending && !s.cardArrival && !s.cardDiscard &&
+          !s.playedHero && !s.tileHero && !s.boardBonus && !isPlanetFocusEngaged() && !this.planetFocusState.arcsReturning &&
+          generationSceneState.phase === 'idle';
+      },
+      sectionCovered: () => this.consoleState.section !== 'board',
+      playerOwned: () => this.rawAdmissionSignals.revealOpen || this.rawAdmissionSignals.revealPending,
+    });
     // READ-ONLY e2e/diagnostics probe: the nested-continuation state in one
     // snapshot (the e2e specs dump it on a failure instead of guessing from
     // pixels). Never used by product code.
+    // READ-ONLY e2e/diagnostics probe (same idiom): «МАРС ТЕРРАФОРМИРОВАН» (TR70) — the scene's phase (the ARMED wait
+    // has no DOM of its own), what it holds and the camera it rides; a storyboard reads the product's own tact off this.
+    (window as unknown as Record<string, unknown>).__conTerraformedDiag = () => ({
+      phase: terraformedSceneState.phase,
+      stage: terraformedSceneState.stage,
+      nonce: terraformedSceneState.nonce,
+      showNonce: terraformedSceneState.showNonce,
+      skipped: terraformedSceneState.skipped,
+      final: terraformedSceneState.final,
+      lastEnd: terraformedSceneState.lastEnd,
+      up: terraformedSceneUp(),
+      parkHeld: boardBeatParkState.sceneHeld,
+      camera: {phase: this.planetFocusState.phase, mode: this.planetFocusState.mode},
+    });
     // READ-ONLY e2e/diagnostics probe (same idiom): the Hydronetwork's commit
     // flow with its close gate BROKEN DOWN INTO ITS TERMS. The flow reaches
     // its result stage on the FALLING EDGE of `hydroResolutionBusy`, so a
@@ -23525,6 +23591,8 @@ export default defineComponent({
     this.offPlanetFocusParams?.();
     clearGameExitTarget(); // the exit funnel must not outlive the game it points from
     resetPlanetFocus(); // never carry a held HUD / mid-exit phase across games
+    registerTerraformedSceneProbes(undefined);
+    resetTerraformedScene(); // …and the terraformed scene (TR70): a dead shell's held scales let go, nothing recedes
     // The board-beat park dies with the shell (drops the probe too — a dead
     // shell's computeds must never decide the next game's parks; held values
     // and a parked batch release honestly, without the show).

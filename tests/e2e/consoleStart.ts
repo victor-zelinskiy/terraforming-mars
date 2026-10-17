@@ -2509,6 +2509,10 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   'cutting-edge-design' |
   'special-design-armed' |
   'indentured-workers-armed' |
+  // TR70 Backroom Deal — the party waiver + the discount: the journey (the arming play) and the armed table.
+  'backroom-deal' | 'backroom-deal-armed' |
+  // TR70's iteration «МАРС ТЕРРАФОРМИРОВАН»: one ocean from the finished planet — the viewer on the move / a rival.
+  'terraformed-brink' | 'terraformed-brink-rival' |
   'standing-modifiers' |
   // The pre-select law's regression stand: Sponsored Academies + three cards in hand — the discard picked in the composer
   // must land in the play's ONE POST and never be asked again.

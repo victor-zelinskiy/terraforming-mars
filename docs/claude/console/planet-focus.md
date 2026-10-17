@@ -280,6 +280,14 @@ placement) at ANY exit stage re-enters natively (CSS transitions reverse
 from current values) and keeps the ORIGINAL snapshot — the final beat tells
 the whole chain in one glide.
 
+## The CEREMONY mode (TR70 «МАРС ТЕРРАФОРМИРОВАН», 2026-10-17)
+
+The camera has a second MODE on the same machine — `enterPlanetFocus('ceremony')` (`planetFocusState.mode`; `placement` is the idle default, a ceremony arriving over a placement camera takes the mode, a placement never takes it back from a playing ceremony; idle restores the default). The same phases, the same exit hold, the same stage box — three things differ, all in `ConsoleBoardSection`:
+- **The frame is the INSTRUMENT, not the disc** — `ceremonyFrameOf(stage)` unites `PFOCUS_FRAME` with the arc BAND's own elements (`ARC_BAND_SELECTOR`: rails, edges, digits, identities, markers, event chips — never the off-Mars flanks), measured ONCE per engagement in board px while the board is at rest (the enter fit runs before the camera moves) and cached for the engagement; the fallback is the measured Tharsis band. The planet grows ≈ ×1.12 at 4K (the placement's disc-only fit grows ×1.28).
+- **The arcs STAY** — they are the story (the markers glide to their maximum on this very stage); `.con-board--pfocus-ceremony.con-board--pfocus … .global-numbers > *` keeps them at opacity 1 (a COMPOUND selector: the placement's own fade is declared later at the same specificity), the settled state keeps the band in the tree.
+- **The breath layer** (`[data-terraformed-breath]`, keep-px over the alpha disc) and the `ceremonyFx` burst mount on the stage for the scene's show.
+The scene itself (the recede, the park's hold, the title, the return) is `docs/claude/console/terraformed-scene.md`.
+
 ## Traps for future work
 
 - `armTilePlacement` calls `snapPlanetFocusSettled()` — keep that ordering

@@ -204,7 +204,8 @@ import {terraformingProgress, TerraformingProgress} from '@/client/components/ga
 import {notificationState} from '@/client/components/notifications/notificationState';
 import {statusEventCounterState} from '@/client/components/notifications/statusEventCounter';
 import {isNotificationDeliveryBlocked} from '@/client/components/presentation/presentationFlow';
-import {finalGenerationActive, terraformingCelebrationState} from '@/client/components/gameProgress/terraformingCelebration';
+import {finalGenerationActive} from '@/client/components/gameProgress/terraformingCelebration';
+import {terraformedSceneState} from '@/client/console/terraformedScene/terraformedScene';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {translateText} from '@/client/directives/i18n';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
@@ -390,8 +391,13 @@ export default defineComponent({
     finalGeneration(): boolean {
       return finalGenerationActive(this.playerView);
     },
-    celebrationNonce(): number {
-      return terraformingCelebrationState.celebrationNonce;
+    /**
+     * The terraformed SCENE's show (TR70 — `terraformedScene.ts`): the one-shot pulse of the trio rides the
+     * scene's tact 3 — the frame the held values let go and the chips flip — never the raw completion nonce,
+     * which fires at the apply while the readouts still hold the previous numbers.
+     */
+    sceneShowNonce(): number {
+      return terraformedSceneState.showNonce;
     },
     /**
      * RAW generic-signal state: prepared events wait in the FIFO, NO card is
@@ -518,10 +524,10 @@ export default defineComponent({
         }, this.pendingCoalesceMs);
       },
     },
-    // One-shot pulse on the Temp/O₂/Oceans group when terraforming completes
-    // LIVE (the shared nonce never re-fires on reload — the calm --complete
-    // state carries the persistent look).
-    celebrationNonce() {
+    // One-shot pulse on the Temp/O₂/Oceans group when the terraformed scene
+    // SHOWS (the scene plays once per live completion, never on a reload — the
+    // calm --complete state carries the persistent look).
+    sceneShowNonce() {
       this.celebrating = true;
       if (this.celebrateTimer !== undefined) {
         window.clearTimeout(this.celebrateTimer);

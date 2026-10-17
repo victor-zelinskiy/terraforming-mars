@@ -3129,6 +3129,106 @@ function cuttingEdgeFixture(name: string, variant: 'journey' | 'special-design' 
 cuttingEdgeFixture('cutting-edge-design', 'journey');
 cuttingEdgeFixture('special-design-armed', 'special-design');
 cuttingEdgeFixture('indentured-workers-armed', 'indentured');
+// ── TR70 BACKROOM DEAL — the one-play class's FOURTH kind (docs/claude/prompts/project-tr70-backroom-deal.md). Red's
+//    action phase, the REDS enacted (Mars First and the Scientists out of power, nobody's delegates anywhere):
+//      · `backroom-deal`        — −30 °C, 60 M€; the hand: TR70 (playable — no requirement), Martian Census (Mars
+//                                 First's plate — refused), Cutting-Edge Design (the Scientists' plate — refused), Lake
+//                                 Marineris (0 °C — refused by a GLOBAL requirement the party waiver must never touch),
+//                                 Comet (21 M€, no requirement — the discount's whole 10);
+//      · `backroom-deal-armed`  — TR70 on the table as `lastCardPlayed` (both effects armed): Martian Census playable at
+//                                 0 M€ (the party waiver + the discount floored), Cutting-Edge Design playable, Comet
+//                                 21 → 11, Lake Marineris still refused.
+//    A DRY RUN on a copy proves every verdict the e2e reads. ──
+function backroomDealFixture(name: string, variant: 'journey' | 'armed'): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [60, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1}) => {
+      seatEnacted(game.parliament!, quietResolutionOf(PartyName.REDS));
+      p1.megaCredits = 60;
+      setTemperature(game, -30);
+      setOxygenLevel(game, 2);
+      const take = (card: CardName): IProjectCard => {
+        moveToDeckTop(game, card);
+        return game.projectDeck.drawOrThrow(game);
+      };
+      const hand = variant === 'journey' ?
+        [CardName.BACKROOM_DEAL, CardName.MARTIAN_CENSUS, CardName.CUTTING_EDGE_DESIGN, CardName.LAKE_MARINERIS, CardName.COMET] :
+        [CardName.MARTIAN_CENSUS, CardName.CUTTING_EDGE_DESIGN, CardName.LAKE_MARINERIS, CardName.COMET];
+      p1.cardsInHand = hand.map(take);
+      if (variant === 'armed') {
+        const armer = take(CardName.BACKROOM_DEAL);
+        p1.playedCards.push(armer);
+        p1.lastCardPlayed = armer.name;
+      }
+    },
+    expect: ({p1}) => {
+      const card = (n: CardName) => p1.cardsInHand.find((c) => c.name === n);
+      const can = (n: CardName) => {
+        const c = card(n);
+        return c !== undefined && p1.canPlay(c);
+      };
+      const cost = (n: CardName) => {
+        const c = card(n);
+        return c === undefined ? -1 : p1.getCardCost(c);
+      };
+      const facts = {
+        deal: can(CardName.BACKROOM_DEAL), census: can(CardName.MARTIAN_CENSUS), ced: can(CardName.CUTTING_EDGE_DESIGN),
+        lake: can(CardName.LAKE_MARINERIS), comet: can(CardName.COMET),
+        censusCost: cost(CardName.MARTIAN_CENSUS), cometCost: cost(CardName.COMET),
+        armed: armedPlayEffectsOf(p1).map((e) => e.effect.kind).join(','),
+      };
+      const ok = variant === 'journey' ?
+        facts.deal && !facts.census && !facts.ced && !facts.lake && facts.comet && facts.cometCost === 21 && facts.armed === '' :
+        facts.census && facts.censusCost === 0 && facts.ced && !facts.lake && facts.comet && facts.cometCost === 11 && facts.armed === 'partyWaiver,discount';
+      if (!ok) {
+        throw new Error(`the ${name} fixture expected the ${variant} verdicts — got ${JSON.stringify(facts)}`);
+      }
+    },
+  });
+}
+backroomDealFixture('backroom-deal', 'journey');
+backroomDealFixture('backroom-deal-armed', 'armed');
+
+// ── «МАРС ТЕРРАФОРМИРОВАН» (TR70's iteration — the terraformed SCENE, `terraformedScene.ts`): a two-seat base table in
+//    the action phase ONE OCEAN from the finished planet — the temperature and the oxygen at their maximum, eight oceans
+//    on 04 · 06 · 28 · 32 · 33 · 34 · 43 · 44, so the LAST one lands on 07 (no bonus — the lowest free id, which is what an API
+//    drive answers: the scene over a clean board), on 13 (two cards — a reveal standing when the scene arms; the e2e walks the
+//    cursor there) or on 45 (a plant); the viewer rich enough for a standard aquifer.
+//      · `terraformed-brink`        — the viewer (the first seat) on the move: the e2e places the ninth ocean from the page, or an API
+//                                     drive answers the viewer's own prompt (the scene off a view the page did not press for);
+//      · `terraformed-brink-rival`  — the viewer passed, the second seat on the move: the API drives it — the viewer watches a RIVAL
+//                                     finish the planet. ──
+function terraformedBrinkFixture(name: string, viewerActs: boolean): void {
+  const [game, viewer, rival] = testGame(2, {skipInitialCardSelection: false}); // the first seat is BLUE, the second RED
+  if (!(viewer.getWaitingFor() instanceof SelectInitialCards)) {
+    throw new Error(`${name}: expected SelectInitialCards, got ${viewer.getWaitingFor()?.constructor.name}`);
+  }
+  answerStartFlow(game, [viewer, rival]);
+  setTemperature(game, MAX_TEMPERATURE);
+  setOxygenLevel(game, MAX_OXYGEN_LEVEL);
+  for (const id of ['04', '06', '28', '32', '33', '34', '43', '44']) {
+    addOcean(viewer, id as SpaceId);
+  }
+  viewer.megaCredits = 60;
+  rival.megaCredits = 60;
+  viewer.plants = 8; // a final greenery's worth — the finale's prompt stands after the passes (PL-290's measure)
+  rival.plants = 0;
+  runAllActions(game);
+  if (!viewerActs) {
+    viewer.pass();
+    game.playerIsFinishedTakingActions(); // the turn passes to the rival
+    runAllActions(game);
+  }
+  const m = {temp: game.getTemperature(), oxy: game.getOxygenLevel(), oceans: game.board.getOceanSpaces().length, terraformed: game.marsIsTerraformed(), active: game.activePlayer.color};
+  if (m.temp !== MAX_TEMPERATURE || m.oxy !== MAX_OXYGEN_LEVEL || m.oceans !== 8 || m.terraformed || m.active !== (viewerActs ? viewer.color : rival.color)) {
+    throw new Error(`the ${name} fixture expected the brink (two scales maxed, eight oceans, ${viewerActs ? 'the viewer' : 'the rival'} on the move) — got ${JSON.stringify(m)}`);
+  }
+  write(name, game);
+}
+terraformedBrinkFixture('terraformed-brink', true);
+terraformedBrinkFixture('terraformed-brink-rival', false);
 // The one-play class's STANDING half (the owner's question of 2026-10-15): SEVERAL modifiers at once — Inventrix (±2,
 // the corporation) + Adaptation Technology (±2, on the table) + Special Design ARMED (±2, one play) = ±6 at −20 °C. Grass
 // (≥ −16) is met ONLY thanks to them (≥ −28), Lake Marineris (≥ 0 → ≥ −12) is still short, Archaebacteria (≤ −18) is met

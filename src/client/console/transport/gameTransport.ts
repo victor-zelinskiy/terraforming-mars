@@ -77,6 +77,7 @@ import {notePromptSubmit, notePromptView} from '@/client/console/promptSequence'
 import {
   detectGenerationScene, markGenerationConversion, runGenerationFlip, runGenerationIncomeFlights, seedGenerationIncomeHold,
 } from '@/client/console/generationScene/generationScene';
+import {seedTerraformedScene} from '@/client/console/terraformedScene/terraformedScene';
 import {
   detectEnergyConversion,
   endEnergyConversion,
@@ -669,6 +670,10 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // have moved them. Seeded LAST — the reward ledger's own `enterSitting('')`
   // runs above and would flush an Agenda bonus seeded before it.
   seedChairmanQuestHolds(currentView(), newView);
+  // «МАРС ТЕРРАФОРМИРОВАН» (TR70 — `terraformedScene.ts`): the SERVER's word (`game.isTerraformed` flipping between
+  // the two views) arms the scene and holds the scales' last step in the park until the scene's stage stands —
+  // every road a view arrives by goes through this block, so an own move, a rival's and a staged bot turn alike.
+  seedTerraformedScene(currentView(), newView);
   // …and «КАРЬЕРА»'s (a card's walk of the Agenda track, TR04): the marker held on its old step and every
   // paying step's bonus owed — ONLY when the hand that played the card (or an open Parliament) is there to
   // play it; seeded after the quest's for the same reason as the quest's after the ledger's.

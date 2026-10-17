@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {BackroomDeal, DISCOUNT, TR_LOST} from '../../../src/server/cards/turmoilRedux/BackroomDeal';
+import {ICard} from '../../../src/server/cards/ICard';
 import {CuttingEdgeDesign} from '../../../src/server/cards/turmoilRedux/CuttingEdgeDesign';
 import {MartianCensus} from '../../../src/server/cards/turmoilRedux/MartianCensus';
 import {PartySanctions} from '../../../src/server/cards/turmoilRedux/PartySanctions';
@@ -205,7 +206,7 @@ describe('BackroomDeal', () => {
       setTemperature(t.game, -30);
       arm(t);
       expect(t.player.canPlay(new LakeMarineris())).is.false;
-      expect(unplayableReasons(t.player, new LakeMarineris()).some((r) => r.type === 'temperature' || r.requirement === true)).is.true;
+      expect(unplayableReasons(t.player, new LakeMarineris()).some((r) => r.type === 'globalParameter' || r.requirement === true)).is.true;
       expect(requirementEasingOf(t.player, new LakeMarineris()), 'no easing of the global kind').deep.eq([]);
       expect(t.player.canPlay(new GeneRepair())).is.false;
       expect(unplayableReasons(t.player, new GeneRepair()).some((r) => r.type === 'tag')).is.true;
@@ -318,7 +319,7 @@ describe('BackroomDeal', () => {
       const preview = cardPlayPreview(t.player, t.card);
       expect(preview).is.not.undefined;
       expect(JSON.stringify(t.game.serialize()), 'the preview mutates nothing').eq(before);
-      expect(preview.futile, 'the discount serves any next card — never futile').is.undefined;
+      expect((t.card as ICard).actionFutility, 'an EVENT has no action to be futile — the discount serves any next card').is.undefined;
     });
 
     it('both armed effects survive a reload', () => {

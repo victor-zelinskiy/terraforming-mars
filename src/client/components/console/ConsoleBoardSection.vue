@@ -11,6 +11,17 @@
          transform for free. One persistent element that GLIDES between
          hexes; the hero scene taking the cell is what retires it. -->
     <Teleport v-if="cursorHost !== undefined" :to="cursorHost">
+      <!-- «МАРС ТЕРРАФОРМИРОВАН» (TR70): the ATMOSPHERE BREATHES on the real disc — a layer in board px over
+           the alpha-measured circle (the placement frame), riding the planet's transform like the reticle; the
+           limb's light and the mint rim are one-shot keyframes keyed on the scene's show, and the shared
+           ceremony burst detonates over it. `mars.webp` itself is never touched. -->
+      <div v-if="terraformedBreathUp"
+           class="con-terraformed-breath"
+           :class="{'con-terraformed-breath--lit': terraformedSceneState.phase === 'show'}"
+           :style="terraformedBreathStyle"
+           ref="terraformedBreath"
+           data-terraformed-breath
+           aria-hidden="true"></div>
       <!-- A MOVE (Turmoil Redux TR14) — the reticle's own family, same board
            px-space, same travel glide. THE ORIGIN: a dashed «leaving from here»
            contour on the lifted city's cell (the real tile stays — nothing has
@@ -72,11 +83,13 @@ import {boardInfoState, hoverBoardCell, prefetchBoardCells} from '@/client/compo
 import {consoleState} from '@/client/console/consoleRouter';
 import {TileView, nextTileView} from '@/client/components/board/TileView';
 import {
-  planetFocusState, captureGlobalParams, PlanetFocusPhase,
+  planetFocusState, captureGlobalParams, PlanetFocusPhase, PlanetFocusMode,
 } from '@/client/console/planetFocus';
+import {terraformedSceneState} from '@/client/console/terraformedScene/terraformedScene';
+import {CeremonyBurstHandle, playCeremonyBurst} from '@/client/console/ceremony/ceremonyFx';
 import {boardBeatParkState, boardBeatDisplayParams, boardBeatDisplayClaims, boardBeatDisplayHeld} from '@/client/console/boardBeatPark';
 import {registerBoardGeometryProbe, boardSpaceEpoch, bumpBoardSpaceEpoch} from '@/client/console/boardSpaceGeometry';
-import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
+import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {deferSceneReveal, loadingScreenState} from '@/client/console/loadingScreenState';
 import {cssLengthPx} from '@/client/console/cssUnits';
 import {placementFlowState} from '@/client/console/tilePlacement/placementFlow';
@@ -168,6 +181,16 @@ const CONTENT_SELECTOR = [
   // Planetary-event chips (ocean/Ares thresholds) sit OUTSIDE the band.
   '.scale-event',
 ].join(', ');
+/** The arc BAND alone — the ceremony's instrument frame (TR70) unites it with the disc; the flanks stay out. */
+const ARC_BAND_SELECTOR = [
+  '.arc-scale__rail',
+  '.arc-scale__edge',
+  '.arc-scale__digit',
+  '.arc-scale__identity',
+  '.arc-marker',
+  '[data-arc-marker]',
+  '.scale-event',
+].join(', ');
 /**
  * The arc CURSOR's overhang past the band it rides, in BOARD px — the one
  * piece of visible board content the union above deliberately does not
@@ -234,6 +257,17 @@ const SCALE_BOOST = 1.0;
  * promise.
  */
 const PFOCUS_FRAME = {x: 92, y: 84, w: 451, h: 451}; /* keep-px: board-cont local space */
+/**
+ * THE INSTRUMENT FRAME — the ceremony's (TR70 «МАРС ТЕРРАФОРМИРОВАН»): the disc WITH its three arcs, because
+ * the scales finishing their story IS the show. Measured ONCE per engagement off the arcs' own geometry
+ * (`CONTENT_SELECTOR` minus the off-Mars flanks — the band's rails, edges, digits, identities, markers) in
+ * board px while the board is at rest (the camera has not moved yet when the enter fit runs), cached for the
+ * engagement so the ResizeObserver's later fits never re-measure a gliding board. The fallback is the
+ * measured Tharsis band (every scale at its maximum — the ceremony's only state).
+ */
+const CEREMONY_FRAME_FALLBACK = {x: 8, y: 44, w: 586, h: 512}; /* keep-px: board-cont local space */
+/** The burst detonates this long after the show starts — the markers are mid-glide, the rim is lit. */
+const TERRAFORMED_BURST_DELAY_MS = 700;
 /** `.board-cont`'s own box (the transform-origin is its centre). */
 const BOARD_CONT_W = 670;
 const BOARD_CONT_H = 600;
@@ -300,9 +334,15 @@ export default defineComponent({
     return {
       consoleState,
       planetFocusState,
+      terraformedSceneState,
       boardBeatParkState,
       placementFlowState,
       tilePlacementState,
+      /** The ceremony's instrument frame, measured once per camera engagement (`planetFocusState.nonce`). */
+      ceremonyFrame: undefined as {x: number, y: number, w: number, h: number} | undefined,
+      ceremonyFrameNonce: -1,
+      /** The terraformed scene's burst over the real disc (`ceremonyFx`) — stopped on the scene's end / unmount. */
+      terraformedFx: undefined as CeremonyBurstHandle | undefined,
       /** The hover pipeline's answer — the INSPECTION's relation layer follows it (TR67). */
       boardInfoState,
       /** The reticle's teleport target (`.board-cont`) — resolved once at
@@ -478,6 +518,9 @@ export default defineComponent({
         'con-board--pfocus': phase === 'entering' || phase === 'active' || phase === 'exit-prep',
         'con-board--pfocus-anim': phase === 'entering' || phase === 'exit-prep' || phase === 'exiting',
         'con-board--pfocus-settled': phase === 'active',
+        // The CEREMONY's camera (TR70): the same mode, the arcs STAYING — they are the story. Kept through the
+        // exit, so the return never re-materializes instruments that never left.
+        'con-board--pfocus-ceremony': phase !== 'idle' && this.planetFocusState.mode === 'ceremony',
         // The RETURN, as its own state: the reclaimed chrome stays out and
         // the arc band stays hidden for the whole shrink, so the stage's
         // clip box always covers the board that is still oversized. Giving
@@ -492,6 +535,15 @@ export default defineComponent({
     },
     selectedSpaceId(): string | undefined {
       return this.consoleState.boardSpaceId;
+    },
+    /** The breath layer stands from the camera's arrival to the scene's end (its keyframes play at the show). */
+    terraformedBreathUp(): boolean {
+      const phase = this.terraformedSceneState.phase;
+      return phase === 'focus' || phase === 'show' || phase === 'return';
+    },
+    /** The alpha disc in board px (keep-px — the layer rides the planet's transform). */
+    terraformedBreathStyle(): Record<string, string> {
+      return {left: `${PFOCUS_FRAME.x}px`, top: `${PFOCUS_FRAME.y}px`, width: `${PFOCUS_FRAME.w}px`, height: `${PFOCUS_FRAME.h}px`};
     },
     selectedAvailable(): boolean {
       const id = this.selectedSpaceId;
@@ -823,6 +875,24 @@ export default defineComponent({
         this.scheduleCalibrate();
       }
     },
+    /** The camera's MODE changed while engaged (the ceremony arriving over a placement camera): a re-fit to the mode's frame. */
+    'planetFocusState.mode'(now: PlanetFocusMode): void {
+      const phase = this.planetFocusState.phase;
+      if (now === 'ceremony' && (phase === 'entering' || phase === 'active')) {
+        void this.$nextTick(() => this.fitBoard());
+      }
+    },
+    /**
+     * «МАРС ТЕРРАФОРМИРОВАН» (TR70): the show detonates the shared ceremony burst over the REAL disc (the breath
+     * layer is its stage, in board px, riding the planet's transform); the scene's end tears it down.
+     */
+    'terraformedSceneState.phase'(now: string): void {
+      if (now === 'show') {
+        void this.$nextTick(() => this.playTerraformedBurst());
+      } else if (now === 'idle') {
+        this.stopTerraformedBurst();
+      }
+    },
     /** The coordinate space moved (either edge): version it, so an in-flight
      *  board-bound aim knows its measured rect is stale (boardSpaceGeometry).
      *  Both edges bump — a consumer re-measures on ANY move, and the settle
@@ -1003,9 +1073,11 @@ export default defineComponent({
       // the centring flex and teleported the planet by half the reclaim on
       // the way back, which is the jump this whole approach exists to kill.
       const bleed = this.pfocusBleedPx();
+      // THE FRAME by mode: the placement's alpha disc, or the ceremony's instrument frame (the disc with its arcs).
+      const frame = this.planetFocusState.mode === 'ceremony' ? this.ceremonyFrameOf(stage) : PFOCUS_FRAME;
       // No breathing pads on purpose: the disc's border IS meant to land on
       // the stage border («буквально на границе экрана по высоте»).
-      const scale = Math.min(r.width / PFOCUS_FRAME.w, (r.height + bleed) / PFOCUS_FRAME.h);
+      const scale = Math.min(r.width / frame.w, (r.height + bleed) / frame.h);
       const clamped = Math.min(PFOCUS_MAX_SCALE, Math.max(MIN_SCALE, scale));
       this.applyBoardScale(clamped);
       // Centre the FRAME in that virtual box: the flex centres the
@@ -1013,10 +1085,67 @@ export default defineComponent({
       // frame-centre ↔ box-centre offset and half the bleed (screen px —
       // the translate sits OUTSIDE the scale in the transform, and being a
       // transform it is transitioned like the scale).
-      const dx = (BOARD_CONT_W / 2 - (PFOCUS_FRAME.x + PFOCUS_FRAME.w / 2)) * clamped;
-      const dy = (BOARD_CONT_H / 2 - (PFOCUS_FRAME.y + PFOCUS_FRAME.h / 2)) * clamped + bleed / 2;
+      const dx = (BOARD_CONT_W / 2 - (frame.x + frame.w / 2)) * clamped;
+      const dy = (BOARD_CONT_H / 2 - (frame.y + frame.h / 2)) * clamped + bleed / 2;
       stage.style.setProperty('--con-board-dx', `${dx.toFixed(1)}px`);
       stage.style.setProperty('--con-board-dy', `${dy.toFixed(1)}px`);
+    },
+    /**
+     * The CEREMONY's instrument frame (TR70) in board px — the alpha disc UNITED with the arc band's own content
+     * (its rails, edges, digits, identities and markers — never the off-Mars flanks), measured off the DOM at the
+     * engagement's first fit (the board is at rest then) and cached for the engagement: a later fit (the
+     * ResizeObserver mid-glide) must never re-measure a travelling board. The fallback is the measured band.
+     */
+    ceremonyFrameOf(stage: HTMLElement): {x: number, y: number, w: number, h: number} {
+      if (this.ceremonyFrame !== undefined && this.ceremonyFrameNonce === this.planetFocusState.nonce) {
+        return this.ceremonyFrame;
+      }
+      const board = stage.querySelector<HTMLElement>(':scope > .board-cont');
+      const br = board?.getBoundingClientRect();
+      const scale = br !== undefined && br.width > 40 ? br.width / BOARD_CONT_W : 0;
+      let left = PFOCUS_FRAME.x;
+      let top = PFOCUS_FRAME.y;
+      let right = PFOCUS_FRAME.x + PFOCUS_FRAME.w;
+      let bottom = PFOCUS_FRAME.y + PFOCUS_FRAME.h;
+      let measured = 0;
+      if (br !== undefined && scale > 0) {
+        for (const el of stage.querySelectorAll<HTMLElement>(ARC_BAND_SELECTOR)) {
+          const r = el.getBoundingClientRect();
+          if (r.width <= 0 || r.height <= 0) {
+            continue;
+          }
+          measured++;
+          left = Math.min(left, (r.left - br.left) / scale);
+          top = Math.min(top, (r.top - br.top) / scale);
+          right = Math.max(right, (r.right - br.left) / scale);
+          bottom = Math.max(bottom, (r.bottom - br.top) / scale);
+        }
+      }
+      const frame = measured > 0 ?
+        {x: Math.floor(left), y: Math.floor(top), w: Math.ceil(right - left), h: Math.ceil(bottom - top)} :
+        {...CEREMONY_FRAME_FALLBACK};
+      this.ceremonyFrame = frame;
+      this.ceremonyFrameNonce = this.planetFocusState.nonce;
+      return frame;
+    },
+    /** The terraformed scene's burst (the shared `ceremonyFx`, accent `terra`) over the real disc — the breath layer hosts it. */
+    playTerraformedBurst(): void {
+      this.stopTerraformedBurst();
+      const host = this.$refs.terraformedBreath as HTMLElement | undefined;
+      if (host === undefined || host === null) {
+        return;
+      }
+      this.terraformedFx = playCeremonyBurst({
+        host,
+        accent: 'terra',
+        reduced: consoleReducedMotionActive(),
+        intensity: 'full',
+        delayMs: TERRAFORMED_BURST_DELAY_MS,
+      });
+    },
+    stopTerraformedBurst(): void {
+      this.terraformedFx?.stop();
+      this.terraformedFx = undefined;
     },
     /** `--pfocus-bleed` in px (a length-valued custom property must go
      *  through cssLengthPx — getPropertyValue returns "2.9rem"). */
@@ -1748,6 +1877,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.offGeometryProbe?.();
+    this.stopTerraformedBurst(); // a burst never outlives its stage
     this.releaseFitSettleHold(); // never strand the curtain on an unmounting stage
     this.clearRelationMarks();
     this.cellEl(this.moveFrom)?.classList.remove(MOVE_SOURCE_CLASS);

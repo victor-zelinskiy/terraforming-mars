@@ -11,7 +11,7 @@
       veil, compact art, the ACTOR named by colour chip — it never covers
       open overlays or interrupts an action, but WHO took WHAT is explicit.
 
-    Like ConsoleTerraformingCeremony: pointer-events none (the game stays
+    Like the old terraforming ceremony did (the MA ceremony keeps it): pointer-events none (the game stays
     fully playable underneath — intents are NOT trapped), bounded lifetime
     through motionMs, one-shot animations, reduced-motion honest. When a
     beat finishes the shell advances the queue (a poll can bring two).
