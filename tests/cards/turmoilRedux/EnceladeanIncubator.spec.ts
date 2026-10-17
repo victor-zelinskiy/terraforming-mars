@@ -27,7 +27,7 @@ import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
 import {playPreviewWithTableQuestions} from '../../../src/server/models/tableQuestions';
 import {effectForecastForPlay} from '../../../src/server/models/effectForecast';
 import {allForecastFacts} from '../../../src/common/models/EffectForecastModel';
-import {SKIP_REASON, skippedAddToCard} from '../../../src/server/cards/actionPreviews';
+import {OCEANS_MAXED_NOTE, SKIP_REASON, skippedAddToCard} from '../../../src/server/cards/actionPreviews';
 import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
@@ -198,6 +198,10 @@ describe('EnceladeanIncubator', () => {
       maxOutOceans(t.player, MAX_OCEAN_TILES);
       expect(t.player.canPlay(t.card)).is.not.false;
       expect(t.card.warnings).includes('maxoceans');
+      // …and the composer NAMES the lost ocean before the press — never a silently dropped board step.
+      const steps = cardPlayPreview(t.player, t.card).branches[0].steps;
+      expect(steps.some((st) => st.kind === 'boardPlacement'), 'no placement is promised').is.false;
+      expect(steps.some((st) => st.kind === 'note' && st.noteKind === 'warning' && st.text === OCEANS_MAXED_NOTE), 'the ocean\'s skip is named').is.true;
       const tr = t.player.terraformRating;
       play(t);
       answerMicrobes(t, CardName.TARDIGRADES);

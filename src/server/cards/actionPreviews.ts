@@ -833,6 +833,12 @@ export function warningNote(
   };
 }
 
+/**
+ * The card's own `maxoceans` warning, in its words (the client's WARNING_TEXT key — one i18n key): the preview's
+ * named note when a declared ocean cannot be placed at all (nine stand — TR67), never a silently dropped step.
+ */
+export const OCEANS_MAXED_NOTE = 'Note: all oceans are already on the board.';
+
 /** Identifies WHICH effect a `warning` note is about — see
  *  `ActionPreviewStep`'s `skipped`. */
 export type SkippedEffect = {label: string | Message, effect?: ActionEffect};

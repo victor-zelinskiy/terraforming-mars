@@ -2,6 +2,10 @@ import {Color} from '../Color';
 import {Message} from '../logs/Message';
 import {SpaceId} from '../Types';
 import {PlacementIllegalReason} from '../inputs/PlacementIllegalReason';
+import {SpaceType} from './SpaceType';
+import {SpaceBonus} from './SpaceBonus';
+import {TileType} from '../TileType';
+import {CardName} from '../cards/CardName';
 
 /**
  * BoardInformation — the shared, render-agnostic vocabulary for the premium
@@ -150,6 +154,15 @@ export type BoardFact = {
    * fact is about the placement cell itself / not spatial.
    */
   spaces?: ReadonlyArray<SpaceId>;
+  /**
+   * What ONE of the named `spaces` contributes when the fact is a SUM over
+   * them — the adjacent oceans' M€ (`oceans × rate`), a city's greeneries
+   * (+1 VP each). The cell dossier's neighbour ring prints it beside each
+   * neighbour (TR67): stated by the server from the same rule call, never
+   * divided on the client. Absent when the members contribute unequally (a
+   * fact naming ONE cell carries its own `delta` / `vp`).
+   */
+  each?: {delta?: BoardFactDelta, vp?: number};
   delta?: BoardFactDelta;
   /**
    * The delta lands on the CARD the player chose BEFORE the cell — a reward
@@ -243,10 +256,50 @@ export type ZoneProtection = {
   statuses: ReadonlyArray<ZonePlayerProtection>;
 };
 
+/**
+ * ONE CELL AS THE CONSOLE'S CELL DOSSIER DRAWS IT (Turmoil Redux TR67 «КЛЕТКА —
+ * ОДНО ДОСЬЕ»): the server's own model of the square — its printed kind and
+ * bonus as DATA, the piece standing on it, whose it is. The client draws it
+ * and decides nothing (no adjacency, no rule).
+ */
+export type CellPortraitPiece = {
+  space: SpaceId;
+  /** The printed kind of the square (land / ocean reserve / cove / …). */
+  spaceType: SpaceType;
+  /** The printed placement bonus — the cell's own face. */
+  bonus: ReadonlyArray<SpaceBonus>;
+  /** The piece on top (a pile's top, the city over its water) — absent on an empty square. */
+  tileType?: TileType;
+  ownerColor?: Color;
+  /** TR44: the plain ocean lying under the city (`cellPieces`). */
+  under?: TileType;
+  /** Skyscrapers: the stack's height, from 2 up. */
+  stackHeight?: number;
+  /** An Ares hazard stands here (`tileType` names which). */
+  hazard?: boolean;
+  /** A square that never takes an ordinary tile (Noctis / a colony slot / restricted / the nomads' camp). */
+  reserved?: BoardCellStatus['reserved'];
+};
+
+/** The inspected cell, its source card and its six neighbours. */
+export type CellPortrait = CellPortraitPiece & {
+  /** The CARD that put the tile here (`tile.card`) — the dossier's source chip; absent for a standard project / a conversion. */
+  sourceCard?: CardName;
+  /**
+   * The six neighbours in TRUE board geometry, clockwise from the top-left
+   * (the engine's own `getAdjacentSpacesClockwise`: top-left, top-right,
+   * right, bottom-right, bottom-left, left); `null` = the board's edge — no
+   * hex. Empty for an off-Mars slot (it has no neighbours at all).
+   */
+  neighbours: ReadonlyArray<CellPortraitPiece | null>;
+};
+
 /** Hover info for a cell — no placement context (what IS here + the standing rules). */
 export type BoardCellInfo = {
   space: SpaceId;
   status: BoardCellStatus;
+  /** TR67: the cell as the console dossier draws it (optional — an older cached payload still renders). */
+  portrait?: CellPortrait;
   /** One-line passive description under the header (e.g. "This cell is occupied
    *  by an ocean." / "A tile can be placed here when an action allows it."). */
   description?: string | Message;

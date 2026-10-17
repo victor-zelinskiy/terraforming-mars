@@ -30,6 +30,8 @@ import {GREENS_MEGACREDITS_PER_TR} from '../parliament/parties/PartyEffects';
 import {
   BoardCellInfo,
   BoardCellStatus,
+  CellPortrait,
+  CellPortraitPiece,
   BoardFact,
   BoardFactDelta,
   BoardFactRecipient,
@@ -116,7 +118,56 @@ export function boardCellInfo(player: IPlayer, space: Space): BoardCellInfo {
   }
   const zoneProtection = space.spaceType === SpaceType.DEFLECTION_ZONE ?
     buildZoneProtection(player) : undefined;
-  return {space: space.id, status, description: cellDescription(space, status), zoneProtection, facts};
+  return {space: space.id, status, description: cellDescription(space, status), zoneProtection, facts, portrait: cellPortrait(player, space)};
+}
+
+/**
+ * THE CELL'S PORTRAIT (Turmoil Redux TR67 «КЛЕТКА — ОДНО ДОСЬЕ») — the square
+ * as the console's cell dossier draws it: its printed kind and bonus, the
+ * piece on top (the same top the board's `SpaceModel` publishes), its owner,
+ * the card that put the tile there, and its six neighbours in the engine's own
+ * clockwise geometry (`getAdjacentSpacesClockwise` — the very call adjacency
+ * is computed from, so the ring can never draw a neighbour the rules do not
+ * know). Read-only: nothing is computed that the board model does not hold.
+ */
+export function cellPortrait(player: IPlayer, space: Space): CellPortrait {
+  const board = player.game.board;
+  const onGrid = board.onMarsGrid(space);
+  const neighbours = onGrid ? board.getAdjacentSpacesClockwise(space).map((n) => n === undefined ? null : portraitPiece(player, n)) : [];
+  const card = space.tile?.card;
+  return {
+    ...portraitPiece(player, space),
+    ...(card !== undefined && Board.hasRealTile(space) ? {sourceCard: card} : {}),
+    neighbours,
+  };
+}
+
+function portraitPiece(player: IPlayer, space: Space): CellPortraitPiece {
+  const piece: CellPortraitPiece = {space: space.id, spaceType: space.spaceType, bonus: [...space.bonus]};
+  const tileType = space.tile?.tileType;
+  if (tileType !== undefined) {
+    piece.tileType = tileType;
+    if (!Board.hasRealTile(space)) {
+      piece.hazard = true;
+    }
+  }
+  const owner = space.player?.color ?? space.coOwner?.color;
+  if (owner !== undefined) {
+    piece.ownerColor = owner;
+  }
+  // TR44 — the plain ocean under the city, read the way the board's SpaceModel reads it (the common pieces rule).
+  const under = buriedOceanOf(space)?.tileType;
+  if (under !== undefined) {
+    piece.under = under;
+  }
+  if (space.stackHeight !== undefined && space.stackHeight > 1) {
+    piece.stackHeight = space.stackHeight;
+  }
+  const reserved = baseCellStatus(player, space).reserved;
+  if (reserved !== undefined) {
+    piece.reserved = reserved;
+  }
+  return piece;
 }
 
 /**
@@ -595,8 +646,9 @@ function oceanAdjacencyFact(player: IPlayer, space: Space): BoardFact | undefine
       {description: 'Adjacent oceans: ${0} × ${1} M€', params: [String(oceans), String(player.oceanBonus)]} :
       {}),
     delta: {icon: 'megacredits', amount: megacredits, direction: 'gain'},
-    // The paying neighbours, from the SAME call that priced them.
+    // The paying neighbours, from the SAME call that priced them — and what ONE of them pays (TR67's ring).
     spaces: spaceIds,
+    each: {delta: {icon: 'megacredits', amount: player.oceanBonus, direction: 'gain'}},
   };
 }
 
@@ -1028,6 +1080,21 @@ function existingTileScoringFacts(player: IPlayer, space: Space): Array<BoardFac
   if (Board.isGreenerySpace(space) && ownerColor !== undefined && player.game.parliament === undefined) {
     out.push(vpFact('score-greenery', 'city-greenery-scoring', 'Greenery scores at game end', recipientFor(player, ownerColor), 0, 1, '+1 VP at game end for its owner.'));
   }
+  // …and what the greenery is worth to its NEIGHBOURS (TR67): every adjacent city scores it at the end for ITS owner
+  // — once per tier of a stack, a NEUTRAL city for nobody (`calculateVictoryPoints`; the placement preview's twin).
+  // Under Turmoil Redux this is the only point a greenery is worth at all.
+  if (Board.isGreenerySpace(space)) {
+    for (const adj of adjacentCitySpaces(board, space)) {
+      const cityOwner = adj.player?.color ?? adj.coOwner?.color;
+      if (cityOwner !== undefined && cityOwner !== 'neutral') {
+        out.push({
+          ...vpFact(`score-greenery-city-${adj.id}`, 'city-greenery-scoring', 'Adjacent city scores at game end',
+            recipientFor(player, cityOwner), 0, Board.cityTiersOf(adj)),
+          spaces: [adj.id],
+        });
+      }
+    }
+  }
   if (Board.isCitySpace(space) && ownerColor !== undefined) {
     const greeneries = board.getAdjacentSpaces(space).filter(Board.isGreenerySpace);
     const tiers = Board.cityTiersOf(space);
@@ -1087,7 +1154,7 @@ function specialTileAdjacencyVpFacts(
         'Scores +1 VP per adjacent ocean at game end (including oceans placed next to it later).' :
         'Scores +1 VP per adjacent ocean at game end.',
       'No adjacent oceans yet.',
-      oceans.map((s) => s.id))];
+      oceans.map((s) => s.id), 1)];
   }
   if (tileType === TileType.COMMERCIAL_DISTRICT) {
     // The QUANTITY its card scores (`Counter`: `cities` with `nextToThis`) —
@@ -1108,10 +1175,11 @@ function specialTileAdjacencyVpFacts(
 /** A generic "+N VP per adjacent X" endgame fact (no +0 badge when the count is 0).
  *  `spaces` — the qualifying neighbours (attached only with the badge, so a
  *  zero-count line never lights cells). */
-function adjacencyVpFact(id: string, recipient: BoardFactRecipient, count: number, title: string, descWith: string, descNone: string, spaces?: ReadonlyArray<SpaceId>): BoardFact {
+function adjacencyVpFact(id: string, recipient: BoardFactRecipient, count: number, title: string, descWith: string, descNone: string, spaces?: ReadonlyArray<SpaceId>, eachVp?: number): BoardFact {
   if (count > 0) {
     const fact = vpFact(id, 'future-scoring', title, recipient, 0, count, descWith);
-    return spaces !== undefined && spaces.length > 0 ? {...fact, spaces} : fact;
+    // `eachVp` — what ONE named neighbour is worth, when every one is worth the same (Capital's oceans; TR67's ring).
+    return spaces !== undefined && spaces.length > 0 ? {...fact, spaces, ...(eachVp !== undefined ? {each: {vp: eachVp}} : {})} : fact;
   }
   return {id, category: 'future-scoring', timing: 'endgame', severity: 'info', recipient, title, description: descNone};
 }
@@ -1128,7 +1196,7 @@ function cityScoringFact(id: string, recipient: BoardFactRecipient, greeneries: 
       future ?
         'Scores +1 VP per adjacent greenery at game end (and any placed next to it later).' :
         'Scores +1 VP per adjacent greenery at game end.');
-    return spaces !== undefined && spaces.length > 0 ? {...fact, spaces} : fact;
+    return spaces !== undefined && spaces.length > 0 ? {...fact, spaces, each: {vp: 1}} : fact;
   }
   return {
     id,
@@ -1152,7 +1220,7 @@ function cityTierScoringFact(id: string, recipient: BoardFactRecipient, greeneri
   if (greeneries > 0) {
     const fact = vpFact(id, 'city-greenery-scoring', 'Tier ${0} of ${1} scores for adjacent greeneries', recipient, 0, greeneries,
       'Each tier of the stack scores +1 VP per adjacent greenery at game end, separately.');
-    return {...fact, params, ...(spaces.length > 0 ? {spaces} : {})};
+    return {...fact, params, ...(spaces.length > 0 ? {spaces, each: {vp: 1}} : {})};
   }
   return {
     id,

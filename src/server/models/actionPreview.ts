@@ -968,6 +968,10 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
     const count = Math.min(behavior.ocean.count ?? 1, remaining);
     if (count > 0) {
       steps.push({kind: 'boardPlacement', placementType: 'ocean', tileType: TileType.OCEAN, count: count > 1 ? count : undefined});
+    } else {
+      // …and the skip is NAMED, never silent (TR67): nine oceans stand, the card plays without its ocean and without
+      // its rating — the card's own `maxoceans` warning, in its words, before the press.
+      steps.push(actionPreviews.warningNote(actionPreviews.OCEANS_MAXED_NOTE));
     }
   }
   if (behavior.city !== undefined && behavior.city.space === undefined) {
