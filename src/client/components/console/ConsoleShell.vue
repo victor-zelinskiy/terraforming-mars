@@ -717,7 +717,7 @@
              prompt) stays committed through the await, so without this term
              the band would stand over its own result. Safe: the transition is
              a registered animation hold, so the leak detector stays quiet. -->
-        <ConsoleTaskHost v-if="hostTask !== undefined && !taskHeldForWorkspace && !effectDecisionOwnsPrompt && !finalGreeneryActive && !finalePromptOwned && !govSupportActive && !productionLossActive && !govScaleFocusState.holding && !energyConversionState.active && !consoleState.task.deferred && taskSpacePending === undefined && !handPickActive"
+        <ConsoleTaskHost v-if="taskHostRendered"
                          ref="taskHost"
                          :playerView="playerView"
                          :task="hostTask"
@@ -746,7 +746,7 @@
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-        <ConsoleEffectDecision v-if="effectDecisionActive && effectDecisionVm !== undefined && effectDecisionVm.directPick === undefined"
+        <ConsoleEffectDecision v-if="effectDecisionRendered"
                                ref="effectDecision"
                                :playerView="playerView"
                                :vm="effectDecisionVm"
@@ -2066,7 +2066,7 @@ import {
 import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
 import {revealSourcePeekState} from '@/client/console/revealSourcePeek';
-import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceClaimsRevealSource, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceClaimsRevealSource, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState, workspaceOutcomeZone} from '@/client/console/consoleWorkspaceOutcome';
 import {boardBeatParkPending, boardBeatParkState, boardBeatParksReveal, drainBoardBeatsIfDue, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatSurfaceProbe, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
 import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
 import {
@@ -3713,7 +3713,7 @@ export default defineComponent({
      *  consequence is put on screen. */
     effectDecisionHeldForWorkspace(): boolean {
       return this.effectDecisionBelongsToWorkspace &&
-        (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeBeatPending());
+        (workspaceOutcomeZone() === '' || workspaceOutcomeBeatPending());
     },
     effectDecisionEmbedTarget(): string | undefined {
       // THE ADMITTED vm, not the raw one. Ownership is settled at submit time,
@@ -3727,7 +3727,7 @@ export default defineComponent({
           !this.effectDecisionBelongsToWorkspace || this.effectDecisionHeldForWorkspace) {
         return undefined;
       }
-      const slot = workspaceOutcomeState.embedSlot;
+      const slot = workspaceOutcomeZone();
       return slot === '' ? undefined : slot;
     },
     /**
@@ -4107,13 +4107,13 @@ export default defineComponent({
      *  band of our own for one frame and then somewhere else. */
     deckPickHeldForWorkspace(): boolean {
       return this.deckPickBelongsToWorkspace &&
-        (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeBeatPending());
+        (workspaceOutcomeZone() === '' || workspaceOutcomeBeatPending());
     },
     deckPickEmbedTarget(): string | undefined {
       if (!this.deckPickBelongsToWorkspace || this.deckPickHeldForWorkspace) {
         return undefined;
       }
-      const slot = workspaceOutcomeState.embedSlot;
+      const slot = workspaceOutcomeZone();
       return slot === '' ? undefined : slot;
     },
     /** ON STAGE and owning its screen — the ONE predicate the pad routing, the
@@ -4380,6 +4380,44 @@ export default defineComponent({
       return this.venusBonusActive || this.spendHeatActive ||
         this.aresGlobalsActive || this.deckPickActive || this.botAttackActive;
     },
+    /** The generic TASK HOST is on screen — its template condition, stated ONCE
+     *  (the start scene's yield below must ask exactly what renders). */
+    taskHostRendered(): boolean {
+      return this.hostTask !== undefined && !this.taskHeldForWorkspace && !this.effectDecisionOwnsPrompt &&
+        !this.finalGreeneryActive && !this.finalePromptOwned && !this.govSupportActive && !this.productionLossActive &&
+        !this.govScaleFocusState.holding && !this.energyConversionState.active && !this.consoleState.task.deferred &&
+        this.taskSpacePending === undefined && !this.handPickActive;
+    },
+    /** The EFFECT DECISION screen is on screen — its template condition, once. */
+    effectDecisionRendered(): boolean {
+      return this.effectDecisionActive && this.effectDecisionVm !== undefined &&
+        this.effectDecisionVm.directPick === undefined;
+    },
+    /**
+     * A PROMPT SURFACE STANDS ON ITS OWN — rendered for a LIVE question and NOT
+     * inside a workspace's outcome zone (its own band in the central opening).
+     *
+     * The full-bleed scenes (the start workspace) sit on the SAME layer as these
+     * bands (z 11480) and come LATER in this template, so a standalone band
+     * mounted while the scene is visible is painted over: pickable, owning the
+     * pad, invisible. Inside a live start flow every such prompt is claimed and
+     * embedded, so this is the case where the claim is GONE — a reload wipes the
+     * module claim, and a full-bleed scene that still serves (a corporation
+     * owing its first action, a bonus window) mounts over the claimless band.
+     * Read off what RENDERS, so the yield can never hide a scene for a surface
+     * that is not on screen; the post-submit hold of the deck pick is excluded —
+     * only a live question makes a scene step aside.
+     */
+    standalonePromptSurfaceStands(): boolean {
+      return (this.nativeCompositeTask?.kind === 'deckSelect' && this.deckPickActive &&
+          !this.deckPickHeldForWorkspace && this.deckPickEmbedTarget === undefined) ||
+        (this.taskHostRendered && this.taskEmbedTarget === undefined) ||
+        (this.effectDecisionRendered && this.effectDecisionEmbedTarget === undefined) ||
+        this.venusBonusActive || this.spendHeatActive || this.aresGlobalsActive ||
+        (this.botAttackActive && this.botAttackVm !== undefined) ||
+        (this.govSupportActive && !this.consoleState.task.deferred) ||
+        (this.productionLossActive && !this.consoleState.task.deferred);
+    },
     /** What the ConsoleTaskHost renders: a server task OR the client payment. */
     hostTask(): ConsoleTask | undefined {
       if (this.pendingClientPayment !== undefined) {
@@ -4584,9 +4622,15 @@ export default defineComponent({
       // step of Vitor's first action — `frameSteps: {awards: 'scene'}`): the
       // guest owns the pixels, the HEADER states the nesting, and the scene
       // comes back untouched when the step's frame pops.
+      // …and a PROMPT SURFACE standing on its own (`standalonePromptSurfaceStands`
+      // — a claimless band after a reload): the scene shares its layer and comes
+      // later in the shell, so it would paint over the very question the server
+      // is asking. A yield, never an unmount: the scene comes back untouched
+      // when the band has been answered.
       return this.startSceneMounted && !this.placementActive &&
         !this.startExcursionHolds && !workspaceHostYieldsScene('start') &&
-        !govScaleFocusState.holding && !this.consoleState.task.deferred;
+        !govScaleFocusState.holding && !this.consoleState.task.deferred &&
+        !this.standalonePromptSurfaceStands;
     },
     /** MOUNTED ≠ VISIBLE. The scene owns the start's lifetime (its hold, its
      *  claims, its release beat), so it stays mounted through a yield and
@@ -5019,8 +5063,8 @@ export default defineComponent({
       // — and with it `markWorkspaceOutcomePresenting` — while the hero still
       // owns the screen and nothing had been re-homed yet.
       if (this.revealOverlayMode === 'result') {
-        return this.resultRevealPresentation === 'embedded' && workspaceOutcomeState.embedSlot !== '' ?
-          workspaceOutcomeState.embedSlot : undefined;
+        return this.resultRevealPresentation === 'embedded' && workspaceOutcomeZone() !== '' ?
+          workspaceOutcomeZone() : undefined;
       }
       if (this.consoleRevealMode !== 'drawn') {
         return undefined;
@@ -5029,7 +5073,7 @@ export default defineComponent({
       if (!workspaceClaimsDrawReveal(source) && !workspaceClaimsColonyReveal(source)) {
         return undefined;
       }
-      const slot = workspaceOutcomeState.embedSlot;
+      const slot = workspaceOutcomeZone();
       return slot === '' ? undefined : slot;
     },
     /**
@@ -5096,7 +5140,7 @@ export default defineComponent({
         return true;
       }
       return this.taskBelongsToWorkspace &&
-        (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeBeatPending());
+        (workspaceOutcomeZone() === '' || workspaceOutcomeBeatPending());
     },
     /** The ACTION COMMIT's minimum readable beat is still owed (the
      *  deferred-dismiss gate — see `pendingCommitDismiss`). */
@@ -5198,7 +5242,7 @@ export default defineComponent({
       if (this.hostTask?.kind !== 'cardSelect' && this.hostTask?.kind !== 'payment') {
         return undefined;
       }
-      const slot = workspaceOutcomeState.embedSlot;
+      const slot = workspaceOutcomeZone();
       return slot === '' ? undefined : slot;
     },
     /** Something is (or is about to be) re-homed into the workspace's zone. */
@@ -5305,7 +5349,7 @@ export default defineComponent({
       if (this.hydroQueuedRevealForLaterStep) {
         return true;
       }
-      if (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeBeatPending()) {
+      if (workspaceOutcomeZone() === '' || workspaceOutcomeBeatPending()) {
         return true;
       }
       // THE DISCARD STEP OWNS THE ROOM — a next cycle's batch that rode the discard's own answer waits for the
@@ -5593,7 +5637,7 @@ export default defineComponent({
         // drawn batch: never our own band for a frame and somewhere else the
         // next one.
         return this.resultRevealPresentation === 'embedded' &&
-          workspaceOutcomeState.embedSlot === '' ? undefined : 'result';
+          workspaceOutcomeZone() === '' ? undefined : 'result';
       }
       if (revealViewerState.open) {
         return 'viewer';

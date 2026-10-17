@@ -449,7 +449,7 @@
            inside it (`consoleActionOutcomeMotion` — the same phrase the blue
            action flow speaks). The destination therefore exists, measured and
            on screen, before a single card moves. -->
-      <section v-if="outcomeZone" class="con-colfocus__outcome"
+      <section v-if="outcomeZone" v-embed-zone class="con-colfocus__outcome"
                data-outcome-zone data-embed-slot="colonies-focus-reveal"></section>
 
       <!-- ═══ THE TARGET STEP — «куда положить награду» as a DEEPER LEVEL of
@@ -768,6 +768,7 @@
 </template>
 
 <script lang="ts">
+import {vEmbedZone} from '@/client/console/embedZoneRegistry';
 /**
  * The COLONY FOCUS STAGE — the ONE detail surface behind every overview verb
  * (A = act, X = inspect; intents `trade` / `build` / `pick` / `inspect`), and
@@ -1009,6 +1010,7 @@ type HeldView = {
 
 export default defineComponent({
   name: 'ConsoleColonyFocusStage',
+  directives: {embedZone: vEmbedZone},
   components: {
     BenefitGlyph, ConsoleDeclinePlate, ColonyFleetIcon, PlayerCube, ConsoleScrollArea, ConsolePaymentPanel, ConsoleTradePayRows,
     ConsoleTradeTargetStep, ConsoleTradeTargetValue, ConsoleTradeReceivingCards, ConsoleColonyTrackInstrument, ConsolePlanetDisc, ConsoleFlipValue,

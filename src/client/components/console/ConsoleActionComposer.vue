@@ -126,6 +126,7 @@
            the cards land it shows the beat. -->
       <div v-if="drawOutcomeOn"
            ref="outcomeZone"
+           v-embed-zone
            class="con-composer__revealzone con-composer__revealzone--draw"
            data-outcome-zone
            data-embed-slot="workspace-reveal">
@@ -785,7 +786,7 @@
            its leave beside the returning ledger. Always rendered (empty and inert outside a step), so a step always
            has its zone before its teleport looks for it. ── -->
       <div class="con-composer__ledgerzone" :class="{'con-composer__ledgerzone--on': ledgerStepOn}" data-colony-ledger-zone>
-        <div v-if="ledgerPaying" class="con-composer__ledgerlayer con-composer__revealzone con-composer__revealzone--draw"
+        <div v-if="ledgerPaying" v-embed-zone class="con-composer__ledgerlayer con-composer__revealzone con-composer__revealzone--draw"
              data-outcome-zone data-embed-slot="workspace-reveal"></div>
         <div class="con-composer__ledgerlayer" data-embed-slot="action-hand"></div>
       </div>
@@ -843,6 +844,7 @@
 </template>
 
 <script lang="ts">
+import {vEmbedZone} from '@/client/console/embedZoneRegistry';
 /**
  * ConsoleActionComposer — the console-native PRE-SUBMIT composer for a
  * blue-card / corporation action (iteration 2b). Desktop-parity with
@@ -941,7 +943,7 @@ import {
 import {effectStatsFor, ensureEffectStats} from '@/client/console/effectStatsStore';
 import {descendRectOf} from '@/client/console/surfaceMotion/workspaceDescend';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
-import {markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeArrivalFlown, markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceClaimOwnsArrival, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeArrivalFlown, markWorkspaceOutcomeBeatDone, retractWorkspaceOutcomeSlot, setWorkspaceOutcomeSlot, workspaceClaimOwnsArrival, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {requestDiscardStream} from '@/client/console/deckDraw/consoleDeckDraw';
 import {setWorkspaceFrameSlot, setWorkspaceFrameSourceCard, workspaceFrameHost, workspaceFrameKnown, workspaceStackRootKind} from '@/client/console/consoleWorkspaceStack';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
@@ -1199,10 +1201,13 @@ function stagedVoteReceiptOf(branch: ActionPreviewBranch): StagedReceipt | undef
   return cost === undefined ? undefined : {amount: cost.amount, icon: cost.icon};
 }
 
+/** The draw / ledger outcome zone this composer publishes (the shell's reveal re-homes into it). */
+const WORKSPACE_REVEAL_ZONE = '[data-embed-slot="workspace-reveal"]';
+
 export default defineComponent({
   name: 'ConsoleActionComposer',
   components: {ConsoleVariantChoice, ConsoleDeclinePlate, ConsoleColonyLedger, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, PremiumPartyRequirementGlyph, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsoleAmountOperation},
-  directives: {stripActionPrefix},
+  directives: {embedZone: vEmbedZone, stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     entry: {type: Object as PropType<ActionEntry>, required: true},
@@ -2981,7 +2986,13 @@ export default defineComponent({
         if (!this.publishCommands) {
           return;
         }
-        setWorkspaceOutcomeSlot(on ? '[data-embed-slot="workspace-reveal"]' : '');
+        // …and «off» retracts only OUR selector: at mount `on` is false and a
+        // blind clear wiped a zone the hand (a play host) had just published.
+        if (on) {
+          setWorkspaceOutcomeSlot(WORKSPACE_REVEAL_ZONE);
+        } else {
+          retractWorkspaceOutcomeSlot(WORKSPACE_REVEAL_ZONE);
+        }
       },
     },
     // The COLONIES STEP zone — same discipline (embed rule 4: `flush:'post'`
@@ -3007,7 +3018,11 @@ export default defineComponent({
         if (!this.publishCommands || (!on && !was)) {
           return;
         }
-        setWorkspaceOutcomeSlot(on ? '[data-embed-slot="workspace-reveal"]' : '');
+        if (on) {
+          setWorkspaceOutcomeSlot(WORKSPACE_REVEAL_ZONE);
+        } else {
+          retractWorkspaceOutcomeSlot(WORKSPACE_REVEAL_ZONE);
+        }
       },
     },
     // …and every fact the walk moves on re-asks it (post-flush: a row's wave measures the ledger's own cells).
@@ -3304,7 +3319,7 @@ export default defineComponent({
         colonyBonusPayout.active = standing.colony;
       }
       if (this.ledgerDrawTurn) {
-        setWorkspaceOutcomeSlot('[data-embed-slot="workspace-reveal"]');
+        setWorkspaceOutcomeSlot(WORKSPACE_REVEAL_ZONE);
       }
       void this.$nextTick(() => this.advanceLedgerPayout());
     }
@@ -3351,7 +3366,7 @@ export default defineComponent({
     // ONLY, exactly as in the watcher above: the nested repeat-pick instance
     // leaving must not retract somebody else's live zone.
     if (this.publishCommands) {
-      setWorkspaceOutcomeSlot('');
+      retractWorkspaceOutcomeSlot(WORKSPACE_REVEAL_ZONE);
     }
     // Same for the colonies-step zone (embed rule 4, the retract half) — and the Parliament step's.
     if (this.colonyStepOn || this.parliamentStepOn) {

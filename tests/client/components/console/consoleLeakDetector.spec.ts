@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {runLeakDetection, leakDetectorState, stopConsoleLeakDetector, setConsoleTaskDeferred, setConsoleTaskSpacePlacement, strandedTitleOf} from '@/client/console/consoleLeakDetector';
+import {coveredPromptSurface, runLeakDetection, leakDetectorState, stopConsoleLeakDetector, setConsoleTaskDeferred, setConsoleTaskSpacePlacement, strandedTitleOf} from '@/client/console/consoleLeakDetector';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {Message} from '@/common/logs/Message';
 import {setMandatoryGateHeld, resetMandatoryGate} from '@/client/console/consoleMandatoryGate';
@@ -214,5 +214,98 @@ describe('consoleLeakDetector — the guard panel reads a prompt title as every 
     expect(strandedTitleOf('Select a card to discard')).to.eq('Select a card to discard');
     expect(strandedTitleOf('')).to.eq('');
     expect(strandedTitleOf(undefined)).to.eq('');
+  });
+});
+
+/*
+ * CHECK 3 — A COVERED PROMPT (the «Корпоративные архивы» blocker of
+ * 2026-10-18): the pick was MOUNTED, owned the pad and answered every press,
+ * while the start scene — same layer, later in the shell — was painted over it.
+ * The stranded check calls that served (`.con-start` is a serving surface), so
+ * only STACKING ORDER can tell. JSDOM has no layout: boxes are stubbed, the
+ * z-index and visibility come from inline styles (its computed style reads them).
+ */
+describe('consoleLeakDetector — a prompt surface painted over by a full-bleed scene', () => {
+  let root: HTMLElement;
+  const box = (el: HTMLElement) => {
+    el.getBoundingClientRect = () => ({left: 0, top: 0, right: 1920, bottom: 1080, width: 1920, height: 1080, x: 0, y: 0, toJSON: () => ({})}) as DOMRect;
+    el.getClientRects = () => [el.getBoundingClientRect()] as unknown as DOMRectList;
+  };
+  const layer = (cls: string, z = 11480): HTMLElement => {
+    const el = document.createElement('div');
+    el.className = cls;
+    el.style.position = 'fixed';
+    el.style.zIndex = String(z);
+    box(el);
+    return el;
+  };
+  const deckPickView = (): PlayerViewModel => ({
+    waitingFor: {type: 'card', title: 'Select 2 cards', buttonLabel: 'Keep', cards: [{name: 'Birds'}], min: 2, max: 2,
+      deckPickPrompt: {revealed: 7, min: 2, max: 2, origin: 'deck', mode: 'keep'}},
+    cardsInHand: [],
+    thisPlayer: {selfReplicatingRobotsCards: []},
+  } as unknown as PlayerViewModel);
+
+  beforeEach(() => {
+    idleForeground();
+    root = document.createElement('div');
+    root.className = 'con-root';
+    document.body.appendChild(root);
+  });
+  afterEach(() => {
+    root.remove();
+    clearForeground();
+  });
+
+  it('the scene LATER on the same layer covers a standalone band — named, and reported on the 2nd pass', () => {
+    root.appendChild(layer('con-deckpick'));
+    root.appendChild(layer('con-start'));
+    expect(coveredPromptSurface()).to.eq('.con-deckpick ← .con-start');
+    runLeakDetection(deckPickView());
+    expect(leakDetectorState.covered, 'pass 1 — a hand-off frame never reports').to.eq(undefined);
+    runLeakDetection(deckPickView());
+    expect(leakDetectorState.covered).to.eq('.con-deckpick ← .con-start');
+  });
+
+  it('a step EMBEDDED in the scene is its host, not its cover', () => {
+    const scene = layer('con-start');
+    const zone = document.createElement('div');
+    zone.className = 'con-start__embed';
+    const pick = document.createElement('div');
+    pick.className = 'con-deckpick';
+    box(pick);
+    zone.appendChild(pick);
+    scene.appendChild(zone);
+    root.appendChild(scene);
+    expect(coveredPromptSurface()).to.eq(undefined);
+  });
+
+  it('a YIELDED scene (visibility hidden) or one stacked below covers nothing', () => {
+    root.appendChild(layer('con-task-host'));
+    const scene = layer('con-start');
+    scene.style.visibility = 'hidden';
+    root.appendChild(scene);
+    expect(coveredPromptSurface(), 'yielded').to.eq(undefined);
+    scene.style.visibility = '';
+    root.insertBefore(scene, root.firstChild);
+    expect(coveredPromptSurface(), 'earlier in the document on the same layer').to.eq(undefined);
+    scene.style.zIndex = '11470';
+    root.appendChild(scene);
+    expect(coveredPromptSurface(), 'a lower layer').to.eq(undefined);
+  });
+
+  it('clears once the surface is uncovered, and with the prompt gone', () => {
+    root.appendChild(layer('con-decision'));
+    const scene = layer('con-start');
+    root.appendChild(scene);
+    runLeakDetection(deckPickView());
+    runLeakDetection(deckPickView());
+    expect(leakDetectorState.covered).to.not.eq(undefined);
+    scene.style.visibility = 'hidden';
+    runLeakDetection(deckPickView());
+    expect(leakDetectorState.covered).to.eq(undefined);
+    scene.style.visibility = '';
+    runLeakDetection(undefined);
+    expect(leakDetectorState.covered).to.eq(undefined);
   });
 });

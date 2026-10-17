@@ -694,6 +694,37 @@ Three supporting changes, each fixing something the same report was made of:
   ALREADY THERE, so the rest of the path felt like slack. Cheap at 700 ms,
   obvious once the cadence stretches the tail card past 800.
 
+## «Свернуть» and a reload inside the start workspace (the blocker of 2026-10-18)
+
+**The report.** «Корпоративные архивы» turns seven cards over; B («свернуть») to look at the board, A to come back —
+and only the deployment stood there, no cards; a reload did not help; the game could not go on.
+
+**Why.** The pick is the shell's ONE `ConsoleDeckPick`, teleported into the start scene's `.con-start__embed`. B parks the
+start frame and unmounts the scene; the claim survives (the release funnel refuses — it serves a live prompt and the frame
+is only parked). The scene left its zone selector published, and on A the shell's `<Teleport>` — it stands before the
+scene in the shell's template — was patched against a zone not rendered yet: nothing resolved, the pick mounted in the
+shell's own flow under the full-bleed scene (same z 11480, later in the DOM), and since the string never changed again
+the teleport never looked again. After a RELOAD the module claim is gone: a corporation that still owes its first action
+keeps the scene serving through the prelude phase, and the claimless pick's own band stood under it the same way.
+
+**The answer — three layers, each covering the whole class** (`.claude/rules/console-ui.md` § a selector is not a node):
+
+* **The zone declares itself.** `v-embed-zone` on every outcome zone; the gates and teleport targets read
+  `workspaceOutcomeZone()`, which names the selector only while a matching node is mounted. Parked, `v-if`-ed away or
+  not rendered yet ⇒ the pick waits NOWHERE, and the zone's own mount is the change the teleport resolves on. The scene
+  also retracts its own selector at the unmount and republishes it on mount (`restoreOutcomeStep` — the source back in
+  its seat, the room posed away with no replay: the claim is `presenting` on both sides of the park, so the
+  `embedPresenting` edge never fires again).
+* **A claimless pick is adopted.** `orphanStepSource` / `adoptOrphanStep`: a deck pick standing while the scene is
+  mounted with no claim is this workspace's step (the server asks one thing at a time) — the claim the press would have
+  armed, beat played, answer in, presenting.
+* **Nothing full-bleed paints over a standalone question.** `startSceneVisible` yields (paint-only) while
+  `standalonePromptSurfaceStands`; the leak detector reports `COVERED PROMPT` and the e2e harness fails on it.
+
+Probe: `tests/e2e/console-deck-pick-collapse.spec.ts` — B → A twice, the cards embedded, ON TOP (a hit test on every
+slot) and pickable, the pick answered; a reload mid-pick and a minimize → reload, for a table without and with a
+first-action corporation.
+
 ## The crumb
 
 `deploymentCrumb`'s embed subject is the **source card itself** now, not its

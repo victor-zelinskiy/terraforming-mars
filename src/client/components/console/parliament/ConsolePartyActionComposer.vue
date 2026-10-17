@@ -158,6 +158,7 @@
              rects. -->
         <div v-else-if="outcomeOn"
              ref="outcomeZone"
+             v-embed-zone
              class="con-pact__revealzone"
              data-outcome-zone
              data-embed-slot="workspace-reveal">
@@ -379,6 +380,7 @@
 </template>
 
 <script lang="ts">
+import {vEmbedZone} from '@/client/console/embedZoneRegistry';
 import {defineComponent, PropType} from 'vue';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {Color} from '@/common/Color';
@@ -422,7 +424,7 @@ import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
 import {
   markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeArrivalFlown, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting,
-  rearmWorkspaceOutcomeBeat, setWorkspaceOutcomeSlot, workspaceClaimsDrawReveal, workspaceOutcomeBeatPending, workspaceOutcomeState,
+  rearmWorkspaceOutcomeBeat, retractWorkspaceOutcomeSlot, setWorkspaceOutcomeSlot, workspaceClaimsDrawReveal, workspaceOutcomeBeatPending, workspaceOutcomeState,
 } from '@/client/console/consoleWorkspaceOutcome';
 import {ActionCommitKind, actionCommitState, armActionCommit, markActionCommitSettled} from '@/client/console/consoleActionCommit';
 import {
@@ -506,8 +508,12 @@ function asElements(ref: unknown): Array<HTMLElement> {
   return ref instanceof HTMLElement ? [ref] : [];
 }
 
+/** The outcome zone this composer publishes (the shell's reveal re-homes into it). */
+const WORKSPACE_REVEAL_ZONE = '[data-embed-slot="workspace-reveal"]';
+
 export default defineComponent({
   name: 'ConsolePartyActionComposer',
+  directives: {embedZone: vEmbedZone},
   components: {
     ConsoleVariantChoice,
     ActionEffectChip, GamepadGlyph, ConsoleCardFaceLite, ConsolePartyPlaque, ConsoleWsStageHead, ColonyFleetIcon,
@@ -1009,7 +1015,14 @@ export default defineComponent({
       immediate: true,
       flush: 'post' as const,
       handler(on: boolean, was: boolean): void {
-        setWorkspaceOutcomeSlot(on ? '[data-embed-slot="workspace-reveal"]' : '');
+        // «off» retracts only OUR selector — at mount `on` is false, and a blind
+        // clear wiped a zone another host had published (no edge left to
+        // republish it on).
+        if (on) {
+          setWorkspaceOutcomeSlot(WORKSPACE_REVEAL_ZONE);
+        } else {
+          retractWorkspaceOutcomeSlot(WORKSPACE_REVEAL_ZONE);
+        }
         if (on && was !== true && this.kind !== 'resolution') {
           // SETUP → OUTCOME as the same phrase one level deeper: the decision
           // content lets go on the spot, the zone unfolds from the rect the
@@ -1157,7 +1170,7 @@ export default defineComponent({
     // Retract OUR zone before it unmounts (a stale selector teleports the
     // next batch into a detached node — embed rule 4).
     if (this.outcomeOn) {
-      setWorkspaceOutcomeSlot('');
+      retractWorkspaceOutcomeSlot(WORKSPACE_REVEAL_ZONE);
     }
   },
   methods: {

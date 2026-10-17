@@ -320,7 +320,7 @@
              grid beneath. The covers then fly from the traded tile into the
              reveal's own slots (the deck-draw targeting is document-wide), so
              «взлёт карт с колонии» IS the opening of this deeper scene. -->
-        <div v-if="revealEmbedActive && !focusState.open" class="con-colonies__embed" data-embed-slot="colonies-reveal"></div>
+        <div v-if="revealEmbedActive && !focusState.open" v-embed-zone class="con-colonies__embed" data-embed-slot="colonies-reveal"></div>
 
         <!-- ── THE FULL-STAGE DISCARD (the resolution's mandatory pick). The
              whole central area belongs to the REAL hand — comparing every
@@ -449,6 +449,7 @@
 </template>
 
 <script lang="ts">
+import {vEmbedZone} from '@/client/console/embedZoneRegistry';
 /**
  * Console-native COLONY WORKSPACE (iteration 3 — the workspace-family
  * rework). The colony surface keeps its strongest ideas VERBATIM — separate
@@ -653,6 +654,7 @@ const COMPLETION_SETTLE_MS = 300;
 
 export default defineComponent({
   name: 'ConsoleColoniesSection',
+  directives: {embedZone: vEmbedZone},
   components: {ConsoleWsHead, ConsoleColonyFleetBar, ConsoleColonyTile, ConsoleColonyFocusStage, ConsoleColonyInspect, ConsoleFleetDockTile, ConsoleFleetDockStage, ActionEffectChip, ColonyFleetIcon, BenefitGlyph, PlayerCube, PremiumCountGlyph},
   props: {
     colonies: {type: Array as PropType<ReadonlyArray<ColonyModel>>, required: true},

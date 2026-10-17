@@ -37,6 +37,7 @@ import type {ZoomOrigin} from '@/client/console/consoleCardZoom';
 import type {WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
 import {partyTileKey, resolutionTileKey} from '@/client/console/parliament/partyActionKey';
+import {embedZoneMounted} from '@/client/console/embedZoneRegistry';
 
 /**
  * Which workspace holds the claim. A closed union on purpose: every host needs
@@ -392,6 +393,51 @@ export function workspaceOutcomeArrivalPending(): boolean {
 /** The workspace's outcome zone is mounted (or gone) — publish the target. */
 export function setWorkspaceOutcomeSlot(selector: string): void {
   workspaceOutcomeState.embedSlot = selector;
+}
+
+/**
+ * Retract OUR zone — and only ours. A host leaving (or its zone switching off)
+ * clears the slot only while the slot still names ITS selector: a blind
+ * `setWorkspaceOutcomeSlot('')` from an `immediate` watcher at mount, or from an
+ * unmount, wiped the live zone ANOTHER host had published, and that host has no
+ * edge left to republish on — the claimed artifact then renders nowhere.
+ */
+export function retractWorkspaceOutcomeSlot(selector: string): void {
+  if (selector !== '' && workspaceOutcomeState.embedSlot === selector) {
+    workspaceOutcomeState.embedSlot = '';
+  }
+}
+
+/** Each undeclared zone is reported once (see `workspaceOutcomeZone`). */
+const unregisteredWarned = new Set<string>();
+
+/**
+ * THE ZONE A SURFACE MAY BE TELEPORTED INTO RIGHT NOW — the published selector,
+ * but only while a node matching it is MOUNTED (`embedZoneRegistry`), else `''`.
+ *
+ * Every gate that decides «is the claimed surface's zone ready?» reads THIS,
+ * never `embedSlot` raw: a selector outlives its node (a parked host, a `v-if`
+ * inside it, a zone rendered after the shell's teleport was patched), and a
+ * teleport aimed at a node that is not there drops its content into the shell's
+ * own flow for good. Empty = «claimed but not ready» — render nowhere.
+ */
+export function workspaceOutcomeZone(): string {
+  const slot = workspaceOutcomeState.embedSlot;
+  if (slot === '' || embedZoneMounted(slot)) {
+    return slot;
+  }
+  // A zone that IS in the document but never declared itself (`v-embed-zone`
+  // missing on a new host): behave as before the registry — a held surface
+  // forever would be worse than the old race — and say so once. The static
+  // guard (`tests/console/embedZoneGuard.spec.ts`) keeps this branch dead.
+  if (typeof document !== 'undefined' && document.querySelector(slot) !== null) {
+    if (!unregisteredWarned.has(slot)) {
+      unregisteredWarned.add(slot);
+      console.warn(`[workspace-outcome] UNREGISTERED ZONE ${slot} — the element exists but carries no v-embed-zone`);
+    }
+    return slot;
+  }
+  return '';
 }
 
 /** The embedded surface names its stage for the workspace breadcrumb. */

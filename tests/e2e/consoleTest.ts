@@ -230,6 +230,12 @@ const REASKED_PRESELECT = 'RE-ASKED PRE-SELECT';
  * composer neither collected it nor handed it on with its reason.
  */
 const POST_COMMIT_CHOICE = 'POST-COMMIT CHOICE';
+/**
+ * The «covered prompt» witness's marker (`src/client/console/consoleLeakDetector.ts` check 3): a live question's
+ * surface is MOUNTED but a full-bleed scene of the same layer is painted over it — pickable, owning the pad, invisible
+ * (the «Корпоративные архивы» blocker of 2026-10-18). The stranded check calls that served; this one does not.
+ */
+const COVERED_PROMPT = 'COVERED PROMPT';
 
 /**
  * THE STALL HARVEST — every product warning a test's pages print, kept (2026-10-14, the field «залипания»).
@@ -245,7 +251,7 @@ const STALL_MARKERS: ReadonlyArray<string> = [
   '[animation-hold]', '[console-leak-detector]', '[deferred-refresh]',
 ];
 
-export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, stallHarvest: void}, {workerServer: WorkerServer, workerBuild: string}>({
+export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, stallHarvest: void}, {workerServer: WorkerServer, workerBuild: string}>({
   stallHarvest: [async ({context}, use, testInfo) => {
     const t0 = Date.now();
     const seen: Array<{at: number, text: string}> = [];
@@ -319,6 +325,29 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     await use();
     if (late.length > 0) {
       throw new Error(`POST-COMMIT CHOICE — a choice whose answer was known before the press was asked after it (strictly pre-select):\n  ${late.join('\n  ')}`);
+    }
+  }, {auto: true}],
+
+  /**
+   * EVERY TEST, EVERY PAGE OF ITS CONTEXT: no live question stands UNDER a full-bleed scene. A covered surface is
+   * mounted and owns the pad, so nothing else in the harness can see it — the console's leak detector reports it
+   * (stacking order, debounced past a hand-off frame) and the harness turns the report red.
+   */
+  coveredPromptGuard: [async ({context}, use) => {
+    const covered: Array<string> = [];
+    const watch = (page: Page) => {
+      page.on('console', (message) => {
+        const text = message.text();
+        if (text.includes(COVERED_PROMPT)) {
+          covered.push(text.slice(0, 300));
+        }
+      });
+    };
+    context.pages().forEach(watch);
+    context.on('page', watch);
+    await use();
+    if (covered.length > 0) {
+      throw new Error(`COVERED PROMPT — a live question's surface was mounted under a full-bleed scene (pickable, invisible):\n  ${covered.join('\n  ')}`);
     }
   }, {auto: true}],
 

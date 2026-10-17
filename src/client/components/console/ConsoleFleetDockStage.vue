@@ -184,13 +184,14 @@
       <!-- A QUESTION RE-ASKED LIVE (the pre-collected target went stale, or the tail was parked) is THIS card's —
            its source is the dock — and it is answered here, inside the colonies workspace, never as a band over it
            (the claim's zone — the colony stage's selector). -->
-      <section v-if="outcomeZone" class="con-fleetdock__outcome"
+      <section v-if="outcomeZone" v-embed-zone class="con-fleetdock__outcome"
                data-outcome-zone data-embed-slot="colonies-focus-reveal"></section>
     </div>
   </div>
 </template>
 
 <script lang="ts">
+import {vEmbedZone} from '@/client/console/embedZoneRegistry';
 import {defineComponent, PropType} from 'vue';
 import {gsap} from 'gsap';
 import {useResizeObserver} from '@vueuse/core';
@@ -301,6 +302,7 @@ export type FleetDockConfirmPayload = {
 
 export default defineComponent({
   name: 'ConsoleFleetDockStage',
+  directives: {embedZone: vEmbedZone},
   components: {
     ActionEffectChip, ConsoleScrollArea, ConsolePaymentPanel, ConsoleTradePayRows, ConsoleCardFaceLite, ConsoleForecastReactions,
     ConsoleTradeTargetStep, ConsoleTradeTargetValue, ConsoleTradeReceivingCards, ConsoleForecastDoor, ConsoleForecastLayer,

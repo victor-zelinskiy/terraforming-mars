@@ -182,6 +182,9 @@ export type StrandedPrompt = {
 export const leakDetectorState = reactive({
   /** A prompt with NO serving surface — drives the guard panel. */
   stranded: undefined as StrandedPrompt | undefined,
+  /** A prompt surface MOUNTED but painted over by a full-bleed scene
+   *  (`surface ← scene`) — dev evidence (check 3), never a mask. */
+  covered: undefined as string | undefined,
 });
 
 /**
@@ -285,6 +288,94 @@ function anyServingSurfaceRendered(task: ConsoleTask | undefined): boolean {
   return false;
 }
 
+/**
+ * 3. COVERED PROMPT — the surfaces that stand in for a live question, and the
+ * full-bleed scenes that can paint over them.
+ *
+ * «A surface is rendered» is what the stranded check asks, and it is not the
+ * player's question: a band can be mounted, own the pad and answer every press
+ * while a scene of the SAME layer, later in the shell, is painted over it. That
+ * was the field blocker of 2026-10-18 (the seven «Корпоративные архивы» cards
+ * after B → A, and after a reload), and the stranded check called it served —
+ * `.con-start` is itself a serving surface. The answer is stacking order, read
+ * deterministically (never a hit test: a pass-through wrapper would read as
+ * covered): two subtrees of `.con-root`, the scene's z-index higher, or equal
+ * and later in the document.
+ */
+const PROMPT_SURFACES: ReadonlyArray<string> = [
+  '.con-task-host', '.con-deckpick', '.con-decision', '.con-lanes', '.con-ares',
+  '.con-govsupport', '.con-prodloss', '.con-botattack',
+];
+const COVERING_SCENES: ReadonlyArray<string> = ['.con-start', '.con-endgame', '.con-draftws'];
+const COVERED_CONFIRM_TICKS = 2;
+let coveredKey = '';
+let coveredStreak = 0;
+
+/** The element's subtree root directly under `.con-root` (the stacking siblings), or undefined. */
+function rootChildOf(el: Element): HTMLElement | undefined {
+  let node: Element | null = el;
+  while (node !== null && node.parentElement !== null) {
+    if (node.parentElement.classList.contains('con-root')) {
+      return node as HTMLElement;
+    }
+    node = node.parentElement;
+  }
+  return undefined;
+}
+
+function zOf(el: HTMLElement): number {
+  const z = Number.parseInt(getComputedStyle(el).zIndex, 10);
+  return Number.isFinite(z) ? z : 0;
+}
+
+/** Is this scene PAINTED over the surface (visible, under its centre, above it in stacking order)? */
+function sceneCovers(scene: HTMLElement, surface: HTMLElement): boolean {
+  if (scene.contains(surface)) {
+    return false; // embedded — the scene is its host, not its cover
+  }
+  const st = getComputedStyle(scene);
+  if (st.display === 'none' || st.visibility === 'hidden' || Number(st.opacity) < 0.5) {
+    return false;
+  }
+  const r = surface.getBoundingClientRect();
+  const s = scene.getBoundingClientRect();
+  const cx = r.left + r.width / 2;
+  const cy = r.top + r.height / 2;
+  if (cx < s.left || cx > s.right || cy < s.top || cy > s.bottom) {
+    return false;
+  }
+  const a = rootChildOf(surface);
+  const b = rootChildOf(scene);
+  if (a === undefined || b === undefined || a === b) {
+    return false;
+  }
+  const za = zOf(a);
+  const zb = zOf(b);
+  if (zb !== za) {
+    return zb > za;
+  }
+  return (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+}
+
+/** The first prompt surface that is mounted but painted over, as `surface ← scene`, or undefined. */
+export function coveredPromptSurface(): string | undefined {
+  for (const surfaceSel of PROMPT_SURFACES) {
+    for (const surface of document.querySelectorAll<HTMLElement>(surfaceSel)) {
+      if (surface.getClientRects().length === 0) {
+        continue;
+      }
+      for (const sceneSel of COVERING_SCENES) {
+        for (const scene of document.querySelectorAll<HTMLElement>(sceneSel)) {
+          if (sceneCovers(scene, surface)) {
+            return `${surfaceSel} ← ${sceneSel}`;
+          }
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
 const warned = new Set<string>();
 
 function warnOnce(key: string, message: string): void {
@@ -327,6 +418,26 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
       pickCard.offsetParent !== null && revealCard.offsetParent !== null) {
     console.warn('[console-leak-detector] BATCH OVERLAP: a deck pick and a reveal are both showing cards',
       pickCard.getAttribute('data-deckpick-slot'), revealCard.getAttribute('data-zoom-slot'));
+  }
+
+  // 3. COVERED PROMPT — a live question whose surface is mounted UNDER a
+  // full-bleed scene. Evidence only (the shell's own yield is the cure —
+  // `standalonePromptSurfaceStands`); debounced like the stranded guard, so a
+  // hand-off frame never reports.
+  const covered = wf === undefined ? undefined : coveredPromptSurface();
+  if (covered === undefined) {
+    coveredKey = '';
+    coveredStreak = 0;
+    leakDetectorState.covered = undefined;
+  } else {
+    const key = `${wf?.type ?? ''}|${covered}`;
+    coveredStreak = key === coveredKey ? coveredStreak + 1 : 1;
+    coveredKey = key;
+    if (coveredStreak >= COVERED_CONFIRM_TICKS) {
+      leakDetectorState.covered = covered;
+      warnOnce(`covered:${key}`,
+        `COVERED PROMPT: waitingFor "${wf?.type ?? ''}" (task kind "${task?.kind ?? 'unknown'}") — its surface is mounted but painted over (${covered})`);
+    }
   }
 
   // 1. Stranded prompt.
@@ -457,6 +568,9 @@ export function stopConsoleLeakDetector(): void {
     timer = undefined;
   }
   clearStranded();
+  leakDetectorState.covered = undefined;
+  coveredKey = '';
+  coveredStreak = 0;
   consoleTaskDeferred = false;
   consoleTaskSpacePlacement = false;
   resetForegroundWatchdog();

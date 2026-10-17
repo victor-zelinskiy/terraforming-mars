@@ -525,6 +525,7 @@
          Rendered from the CLAIM (i.e. from submit time), so the teleport
          target always exists before anyone looks for it. -->
     <div v-if="outcomeZoneOn"
+         v-embed-zone
          class="con-hand__outcome"
          data-outcome-zone
          data-embed-slot="hand-outcome"></div>
@@ -534,6 +535,7 @@
 </template>
 
 <script lang="ts">
+import {vEmbedZone} from '@/client/console/embedZoneRegistry';
 /**
  * Console Hand section — the PREMIUM ALBUM (the rework of the vertically-
  * scrolling smart grid). The pure page/layout/navigation math lives in
@@ -737,6 +739,7 @@ type AlbumCell = {e: ConsoleHandEntry, gi: number};
 
 export default defineComponent({
   name: 'ConsoleHandSection',
+  directives: {embedZone: vEmbedZone},
   components: {Card, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleDeclinePlate, ConsoleDeferPlate, ConsoleArmedEffectsStrip, PremiumModifierMarks},
   props: {
     entries: {type: Array as PropType<ReadonlyArray<ConsoleHandEntry>>, required: true},

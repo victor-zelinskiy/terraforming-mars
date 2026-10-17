@@ -625,7 +625,7 @@
                  from its dock stack into the left column (its slot keeps
                  geometry, face away — one visual owner), presides over the
                  draw, and SETTLES back into the stack on release. -->
-            <div class="con-start__embed" data-embed-slot="start"
+            <div v-embed-zone class="con-start__embed" data-embed-slot="start"
                  :class="{
                    // ROOM classes ride `…OwnsRoom` (staging + standing), the
                    // PANELS mount at `standing` only: the seat then wears its
@@ -1048,6 +1048,7 @@
 </template>
 
 <script lang="ts">
+import {vEmbedZone} from '@/client/console/embedZoneRegistry';
 /**
  * CONSOLE START SCENE — CTS T5 (docs/CONSOLE_MODE_CONCEPT.md §CTS-1). The
  * console-native game-opening experience, replacing BOTH desktop start
@@ -1147,7 +1148,7 @@ import ConsoleStartPlayedDock from '@/client/components/console/ConsoleStartPlay
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
 import {
   claimWorkspaceOutcome, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting,
-  releaseWorkspaceOutcome, setWorkspaceOutcomeSlot, workspaceOutcomeState,
+  releaseWorkspaceOutcome, retractWorkspaceOutcomeSlot, setWorkspaceOutcomeSlot, workspaceOutcomeState,
 } from '@/client/console/consoleWorkspaceOutcome';
 import {claimPlayOutcome, playOutcomeZone} from '@/client/console/played/consolePlayOutcomeClaim';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
@@ -1329,6 +1330,7 @@ function gsapSettled(animation: gsap.core.Animation): Promise<void> {
 
 export default defineComponent({
   name: 'ConsoleStartScene',
+  directives: {embedZone: vEmbedZone},
   components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsoleStartPlayedDock, ConsolePlayedCardLite, ActionEffectChip},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -4765,7 +4767,7 @@ export default defineComponent({
     // `mounted` republishes the same selector, which is the change that makes
     // the teleport resolve it.
     if (this.outcome.host === 'start') {
-      setWorkspaceOutcomeSlot('');
+      retractWorkspaceOutcomeSlot(playOutcomeZone('start') ?? '');
     }
     // Retract our zone HERE, never from the flow side: a stale selector
     // teleports the next surface into a detached node, and the unmount watcher

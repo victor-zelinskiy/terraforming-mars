@@ -821,7 +821,7 @@
                It also STANDS THE SOURCE, exactly as the start workspace's zone
                does: a step's source card is a static child of the zone, and the
                teleported surface is appended beside it. -->
-          <div class="con-hydro__embed" data-embed-slot="hydro">
+          <div v-embed-zone class="con-hydro__embed" data-embed-slot="hydro">
             <!-- ── THE SOURCE SEAT — «почему эти карты у меня?» ───────────
                  A stage whose reward REPEATS a card action stands that card
                  beside the action's own prompt for the prompt's whole life, so
@@ -1192,6 +1192,7 @@
 </template>
 
 <script lang="ts">
+import {vEmbedZone} from '@/client/console/embedZoneRegistry';
 /**
  * CONSOLE HYDRONETWORK WORKSPACE — the console-NATIVE «Гидросеть Марса» as a
  * full North-Star workspace (the rework of the old section + confirm modal).
@@ -1409,7 +1410,7 @@ export default defineComponent({
     ConsoleHydroDecisionRail, ConsoleHydroPlanSteps, ConsoleHydroGains, ConsolePaymentPanel,
     CardRenderEffectBoxComponent, CardRenderData,
   },
-  directives: {stripActionPrefix},
+  directives: {embedZone: vEmbedZone, stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     actionAvailable: {type: Boolean, default: false},
