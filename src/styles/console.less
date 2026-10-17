@@ -4110,20 +4110,17 @@ html.con-reduced-motion {
    Never over the planet. Reads from the couch: every line at or above the
    service floor on the TV profile. */
 .con-terraformed {
+    /* THE CAPTION — the owner's M2 (2026-10-17): with the arcs on the stage a plate UNDER the disc covered the foot of the
+       ocean track (PL-655), so the title stands in the zone the PLAYER RAIL vacated — left, low, left-aligned, the width of
+       that zone plus a hand of the stage's margin — where it overlaps nothing: the disc, the three arcs and the markers
+       stay whole. Still a layer in the opening (nothing moves for it), still under the status strip. */
     position: fixed;
-    left: var(--con-stage-l, var(--con-ws-left, 0));
-    right: var(--con-stage-r, 0);
-    bottom: 0;
-    /* the band: at least the dock's clearance (`.con-board` padding-bottom) + the command bar's row, but it GROWS with
-       its plate (a fixed height centred a 6.9rem plate in a 5.65rem band — 31 px of the claim under the 4K viewport's edge);
-       the plate stands on a safe inset above the bottom, in the bleed zone under the disc. */
-    height: auto;
-    min-height: calc(var(--con-bar-h, 2.6rem) + 3.05rem);
-    box-sizing: border-box;
-    padding-bottom: .75rem;
+    left: 1.2rem;
+    width: calc(var(--con-stage-l, var(--con-ws-left, 12rem)) + 7rem);
+    bottom: 2.6rem;
     display: flex;
     align-items: flex-end;
-    justify-content: center;
+    justify-content: flex-start;
     z-index: 11722; /* a nose above the MA ceremony (11720) — the bigger news wins a collision; under fallback (12000) */
     pointer-events: none;
     font-family: @con-font;
@@ -4132,9 +4129,10 @@ html.con-reduced-motion {
     &__plate {
         display: flex;
         flex-direction: column;
-        align-items: center;
+        align-items: flex-start;
+        text-align: left;
         gap: .22rem;
-        padding: .5rem 1.7rem .55rem;
+        padding: .5rem 1.1rem .55rem;
         border-radius: .7rem;
         background: linear-gradient(180deg, rgba(10, 19, 27, 0.9), rgba(7, 13, 21, 0.94));
         box-shadow: inset 0 0 0 .05rem fade(@con-mint, 42%), 0 .4rem 1.4rem rgba(0, 0, 0, 0.55);
@@ -4147,10 +4145,10 @@ html.con-reduced-motion {
         color: fade(@con-mint, 94%);
     }
     &__name {
-        font-size: var(--con-t-hero, 2.2rem);
+        font-size: 1.9rem; /* a hero line that may wrap once inside the rail's zone («Марс / терраформирован») */
         font-weight: 800;
-        line-height: 1.1;
-        text-align: center;
+        line-height: 1.05;
+        text-align: left;
         color: #eafff4;
     }
     /* The claim: neutral (the three parameters) by default; the FINAL-GENERATION claim is gold, like the HUD marker. */
@@ -4158,7 +4156,7 @@ html.con-reduced-motion {
         font-size: 1.05rem;
         letter-spacing: .06rem;
         text-transform: uppercase;
-        text-align: center;
+        text-align: left;
         color: fade(@con-text, 82%);
     }
     &--final &__claim {

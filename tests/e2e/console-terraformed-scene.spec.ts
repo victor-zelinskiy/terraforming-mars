@@ -9,7 +9,7 @@
  *  (A) from the board home (fhd + tv4k): the rails / the bar / the dock RECEDE by opacity (through intermediate
  *      values — a transition, never a cut; never `display: none`), the camera enters in its `ceremony` mode and
  *      settles, the ARCS stay visible on the focused stage, the HUD keeps the player's last numbers until the SHOW and
- *      reads 100 % after, the title plate stands UNDER the disc, whole inside the viewport, every line ≥ the TV floor,
+ *      reads 100 % after, the title stands as a CAPTION in the zone the player rail vacated (left of the disc — nothing overlapped), whole inside the viewport, every line ≥ the TV floor,
  *      the burst detonates on the real disc, the surfaces return, the stage's box is ONE box in every state, and the
  *      whole phrase (recede → the surfaces back) is ≤ 4.5 s;
  *  (B) over the Information dossier (fhd): the dossier recedes and returns in the SAME snapshot — the crumb and the
@@ -277,7 +277,9 @@ function expectScenePlayed(summary: Summary, preset: Preset, rootFontPx: number)
   expect(plate!.l, 'the plate inside the viewport (left)').toBeGreaterThanOrEqual(0);
   expect(plate!.l + plate!.w, 'the plate inside the viewport (right)').toBeLessThanOrEqual(preset.viewport.width);
   if (breath !== undefined) {
-    expect(plate!.t, 'the plate stands UNDER the disc, never over it').toBeGreaterThanOrEqual(breath.t + breath.h - 8);
+    // The owner's M2: the caption in the zone the player rail vacated — LEFT of the disc, so the disc, the arcs and the
+    // markers stay whole (a plate under the disc covered the ocean track's foot, PL-655).
+    expect(plate!.l + plate!.w, 'the caption stands LEFT of the disc, overlapping nothing').toBeLessThanOrEqual(breath.l);
   }
   const floor = 0.8 * rootFontPx;
   expect(summary.texts.length, 'the three lines of the title').toBe(3);
