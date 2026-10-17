@@ -406,7 +406,7 @@ memory:
 | --- | --- | --- |
 | **A** | Confirm / primary verb on selection | Play card · Place here · Trade · Claim · Take all · Choose option |
 | **B** | Back one level; minimize a root mandatory task | Never destructive, never dismisses mandatory |
-| **X** | The context's secondary verb | Toggle pick (multi-select) · MAX (payment) · Grid glance (hand) · Cancel placement (only when server-cancellable) · View toggle (played table) |
+| **X** | The context's secondary verb | Toggle pick (multi-select) · MAX (payment) · Grid glance (hand) · Cancel placement (only when server-cancellable) · Open the category (played table — A / X on a shelf; X inside the category = the viewer) |
 | **Y** | Turn Menu (on your turn) | In read-only contexts: full-card compare view |
 | **LB / RB** | Section switching | Inside tasks/sheets/endgame: tab switching (the *container's* horizontal axis — consistent metaphor: bumpers always move between peer panes) |
 | **LT / RT** | Fast modifier | Hand: prev/next *playable* · Payment: ±5 · Journal: prev/next generation · Board: LT-hold = free-roam over illegal cells |

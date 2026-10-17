@@ -239,9 +239,10 @@ deck tiles on the summary — all of it moved to «Экран бота».
   stretch`) and a tile is a category OBJECT — the medallion (`info/ConsoleScoreDisc.vue`, the ONE disc the dossier's
   score wears; milestones / awards: the earned emblems, so the ledger keeps only their reading), the name over a value
   at the scene's scale, the ledger at body size on the TV; a long name wraps. The handoff anchors are untouched.
-- **«Разыграно» embedded**: a sparse table grows into its ROOM (`ConsolePlayedOverlay.fitEmbeddedRoom` — the panel
-  below the scroll area, since the scroll area hugs its content, against the families' painted extent): `roomGain`
-  ≤ ×1.4, never below the ladder, settled within 3 %, `data-room-gain`; centred. Not on the handheld.
+- **«Разыграно» embedded**: since TR65 (2026-10-17) the embedded table is the SAME shelf planner as the standalone screen
+  (`consolePlayedModel.planPlayedTable` against the host's zone — the identity column + shelves of full faces + strict pages;
+  `docs/claude/console/played-table.md`); the PL-575 `fitEmbeddedRoom` / `roomGain` fit is DELETED — the planner fills the room
+  by construction. The stage phrase appends the open category's label (`ConsoleInfoMode.stagePhrase`).
 
 ## The LIVE SCORE (`liveScoreModel.ts`) — one system with the finale
 

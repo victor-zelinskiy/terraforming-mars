@@ -44,7 +44,8 @@ x/y. Направленный толчок wheel-handoff'а и «подъём» 
   проём» и `absolute; inset: 0` для собственных `__backdrop`):
   `docs/claude/console/hud-frame.md` § THE CENTRAL OPENING.
   `.con-ws-sides()` — те же два боковых края для поверхностей со своим
-  top/bottom (`.con-cardactions`, `.con-info`, `.con-played`).
+  top/bottom (`.con-cardactions`, `.con-info`); `.con-played` с TR65 —
+  ЭКРАН на `.con-ws-stage-band()` целиком (`docs/claude/console/played-table.md`).
 - **Маркер `con-ws`** на корневом элементе поверхности (обязателен вместе с
   миксином): `.con-root--ws-open` (класс, который поддерживает
   `conWsPresenceBridge.ts` — ОДИН MutationObserver на корне шелла; семантика
@@ -99,8 +100,9 @@ read-only журнальный досье-путь), `.con-hydroconfirm`, hydro 
 `.con-finale`, `.con-prodloss`, `.con-confirm`, `.con-quick` (командные
 колёса LT/RT — на них ВЫБИРАЕТСЯ ход, значит ресурсы рядом обязаны гореть;
 слот-полёты меряются по живым ректам и следуют за сдвигом), `.con-played`
-(свой fixed: left = ws-left, right = pad-x; embedded-вариант маркер НЕ
-несёт — он живёт внутри Information Workspace).
+(с TR65 — экран workspace: `.con-ws-stage-band()` + маркер `con-ws` +
+`con-root--rail-replaced`, свой `__backdrop` в проёме, id моушена `played`;
+embedded-вариант маркер НЕ несёт — он живёт внутри Information Workspace).
 
 ## EMBEDDED OUTCOMES — «вошёл сам → всё остальное внутри» (NORTH STAR)
 

@@ -77,6 +77,10 @@ how many cards actually stand on that page:
   One card, four cards and ten cards are the same geometry; a growing hand
   only ever adds pages. Constants: `ALBUM_GAP_X/Y`, `ALBUM_GUTTER_*`,
   `ALBUM_MAX_ZOOM` (art ceiling, × uiScale), `PAGE_STRIDE_EXTRA`.
+  **The played table's planner shares these** (`consolePlayedModel.planPlayedTable`
+  — `albumSpecFor` minus one column, the same gap / zoom constants, the same
+  strict-page law; never `planHandAlbum` itself: the table has an identity
+  column and zone runs the hand does not) — `played-table.md`.
   **Every reserve is CONSTRAINT-DERIVED, not taste** (iteration 2): the TV
   page is height-bound, so each vertical px is card size — the gutters/gaps
   are the measured worst-case stack per boundary (focus pop ≈6px logical

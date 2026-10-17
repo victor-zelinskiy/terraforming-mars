@@ -132,9 +132,10 @@ gutters. The shell is now ONE cockpit hull:
 - **Right-edge overlays are welded drawers**: `.con-journal` and
   `.con-inspector` grow by `--con-pad-x` (chassis to the edge, content box
   unchanged), round only their inner corners, and carry the same
-  edge-accent + hull-darkening grammar. `.con-played` (fixed band) welds
-  via `right: 0` + `padding-right: var(--con-hud-pad-x)` (reset to 0 in its
-  `--embedded` seat).
+  edge-accent + hull-darkening grammar. `.con-played` is no drawer since
+  TR65 (2026-10-17): it is a workspace SCREEN on `.con-ws-stage-band()`
+  (`right: 0` by the screen's own declaration; the `--embedded` seat strips
+  the band) — `docs/claude/console/played-table.md`.
 - **TV width caps on filled panels are gone** (`.con-stdp__panel`,
   `.con-ma__panel` → `width: 100%`): a capped centred panel inside a welded
   band was the modal look reborn at 4K. Handheld/TV frame-padding ladders
