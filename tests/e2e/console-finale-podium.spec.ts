@@ -292,6 +292,29 @@ test.describe('console finale podium — the count flows (4K)', () => {
   });
 });
 
+test.describe('console finale podium — MarsBot in the race (FHD)', () => {
+  test.use({viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1});
+
+  test('E · the bot is a SEAT with its own corporation face; three seats stack; the server\'s totals', async ({page, request}) => {
+    test.setTimeout(600_000);
+    const ids = await fixtureTable(request, 'finale-rich-bot');
+    await journeyToEndgame(page, request, ids);
+    await page.keyboard.press('KeyX');
+    await settled(page);
+    await shoot(page, SHOT_DIR, 'fhd-bot-results');
+    const s = await shares(page, '.con-endgame', false);
+    expect(s.seats, 'two humans and the bot').toBe(3);
+    expect(s.faces, 'a face per seat — the bot\'s own included').toBe(3);
+    await expect(page.locator('[data-eg-face="bot"] .pcard'), 'the MarsBot corporation\'s own face').toHaveCount(1);
+    await expect(page.locator('[data-eg-face="card"] .pcard'), 'the humans\' corporation cards').toHaveCount(2);
+    await expect(page.locator('.con-eg__rows--side'), 'three seats stack').toHaveCount(0);
+    expect(s.scrolls).toBe(false);
+    expect(s.heroHeight, `the hero is a third of the opening (${s.heroHeight.toFixed(2)})`).toBeGreaterThanOrEqual(1 / 3);
+    expect(s.below).toEqual([]);
+    expect(await shownTotals(page)).toEqual(await serverTotals(request, ids[0]));
+  });
+});
+
 test.describe('console finale podium — reduced motion (FHD)', () => {
   test.use({viewport: {width: 1920, height: 1080}});
 

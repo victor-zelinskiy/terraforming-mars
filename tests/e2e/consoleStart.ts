@@ -2338,7 +2338,7 @@ export type BootOptions = {
  */
 export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   // TR69 «ФИНАЛ — ЭТО ЦЕРЕМОНИЯ»: saturated pre-endgame tables (every base score category, the winner not the viewer).
-  'finale-rich-5p' | 'finale-rich-2p' |
+  'finale-rich-5p' | 'finale-rich-2p' | 'finale-rich-bot' |
   // TR69 Floating Biodomes: both variants live (Dirigibles beside it) · both refused · the oxygen at its maximum.
   'floating-biodomes' | 'floating-biodomes-dead' | 'floating-biodomes-maxo2' |
   // TR55 Nuclear Warhead Utilization and the iteration «ЯЧЕЙКА ПО — КАЖДОЕ ОЧКО ИЗ СВОЕЙ ПРИЧИНЫ»: the card playable

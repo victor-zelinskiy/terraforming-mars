@@ -133,7 +133,7 @@
             </div>
             <!-- THE FACE — the corporation the seat stands behind, the premium face at the planner's size (a human's
                  card, the MarsBot corporation's own face); a corpless seat shows its prepared place in its colour. -->
-            <div class="con-eg__face">
+            <div class="con-eg__face" :data-eg-face="rowBy(color).face?.kind ?? 'none'">
               <div v-if="rowBy(color).face !== undefined" class="con-eg__face-zoom" :style="{zoom: faceZoomOf(color)}">
                 <ConsoleCardFaceLite v-if="rowBy(color).face!.kind === 'card'"
                                      :name="faceCardName(color)" :card="corporationModel(color)" />

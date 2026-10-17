@@ -5621,6 +5621,59 @@ function botTable(name: string, humans: 1 | 2): BotTable {
   return {game, humans: seats, bot, parliament, automa};
 }
 
+// ── finale-rich-bot: the finale's PODIUM with MarsBot in the race (TR69 «ФИНАЛ — ЭТО ЦЕРЕМОНИЯ»): two humans (Teractor,
+//    Thorgate) + the bot (Credicor), a saturated generation-10 table one greenery from the end — three seats (the stack
+//    podium), the bot a SEAT with its own corporation face. The bot leads the rating, so a corporation face of the bot's
+//    own stands on the crest. For console-finale-podium.spec.ts (E). ──
+{
+  const name = 'finale-rich-bot';
+  const pinned = BOT_TABLE_CORPORATIONS;
+  const [game, seats, bot] = testAutomaMultiplayerGame(2, {
+    startingCorporations: 1, keepInitialCardSelection: true, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, seats, pinned);
+  answerStartFlow(game, seats);
+  if (game.phase !== Phase.ACTION) {
+    throw new Error(`${name}: expected the action phase, got ${game.phase}`);
+  }
+  game.generation = 10;
+  const everyone: ReadonlyArray<IPlayer> = [...seats, bot];
+  const tiles: ReadonlyArray<[cities: number, greeneries: number]> = [[2, 3], [1, 2], [2, 2]];
+  everyone.forEach((p, i) => {
+    for (let c = 0; c < tiles[i][0]; c++) {
+      addCity(p);
+    }
+    for (let g = 0; g < tiles[i][1]; g++) {
+      addGreenery(p);
+    }
+  });
+  setTemperature(game, MAX_TEMPERATURE);
+  maxOutOceans(seats[0]);
+  setOxygenLevel(game, MAX_OXYGEN_LEVEL - 1);
+  const birds = new Birds();
+  birds.resourceCount = 4;
+  seats[0].playedCards.push(birds);
+  seats[1].playedCards.push(new Trees());
+  game.claimedMilestones.push({player: seats[1], milestone: game.milestones[0]});
+  game.fundedAwards.push({player: seats[0], award: game.awards[0]});
+  seats[0].setTerraformRating(38);
+  seats[1].setTerraformRating(35);
+  bot.setTerraformRating(44);
+  seats[0].megaCredits = 80;
+  // A plant reserve the bot's own turn cannot eat (its action deck may remove plants from the richest human) — the
+  // viewer must still own a final greenery when the finale opens.
+  seats[0].plants = 30;
+  seats[1].megaCredits = 30;
+  seats[1].plants = 0;
+  seats.forEach((p) => p.drawCard(2));
+  runAllActions(game);
+  if (game.automa === undefined || game.generation !== 10 || game.getOxygenLevel() !== MAX_OXYGEN_LEVEL - 1 ||
+      game.board.getOceanSpaces().length !== 9) {
+    throw new Error(`${name}: expected a saturated pre-endgame bot table — gen=${game.generation} oxygen=${game.getOxygenLevel()}`);
+  }
+  write(name, game);
+}
+
 /** Blue passes for the generation; red is on the move with ONE action behind it — its resumed menu offers «End Turn». */
 function redOnTheMove(t: BotTable, name: string): void {
   const [blue, red] = t.humans;
