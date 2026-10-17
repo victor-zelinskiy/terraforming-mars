@@ -165,22 +165,47 @@ export abstract class SurveyCard extends Card implements IProjectCard {
    * Optionally grants a unit of `resource` (which matches `bonus`) based on `cardOwner` having placed a tile on `space`.
    */
   protected maybeRewardStandardResource(cardOwner: IPlayer, space: Space, resource: Resource, bonus: SpaceBonus): void {
-    const board = cardOwner.game.board;
-    let grant = this.grantsBonusNow(space, bonus) || this.anyAdjacentSpaceGivesBonus(board, space, bonus);
-    if (!grant) {
-      switch (resource) {
-      case Resource.STEEL:
-        grant = space.spaceType !== SpaceType.COLONY &&
-            PartyHooks.shouldApplyPolicy(cardOwner, PartyName.MARS, 'mp01');
-        break;
-      case Resource.PLANTS:
-        grant = Board.isUncoveredOceanSpace(space) &&
-          cardOwner.tableau.has(CardName.ARCTIC_ALGAE);
-      }
-    }
-    if (grant) {
+    if (this.placementRewardsStandardResource(cardOwner, space, resource, bonus)) {
       cardOwner.stock.add(resource, 1);
       this.log(cardOwner, resource);
+    }
+  }
+
+  /** Does placing a tile on `space` reward `resource` — by its printed / adjacent `bonus`, or another effect? */
+  private placementRewardsStandardResource(cardOwner: IPlayer, space: Space, resource: Resource, bonus: SpaceBonus): boolean {
+    const board = cardOwner.game.board;
+    if (this.grantsBonusNow(space, bonus) || this.anyAdjacentSpaceGivesBonus(board, space, bonus)) {
+      return true;
+    }
+    switch (resource) {
+    case Resource.STEEL:
+      return space.spaceType !== SpaceType.COLONY &&
+          PartyHooks.shouldApplyPolicy(cardOwner, PartyName.MARS, 'mp01');
+    case Resource.PLANTS:
+      return Board.isUncoveredOceanSpace(space) &&
+        cardOwner.tableau.has(CardName.ARCTIC_ALGAE);
+    }
+    return false;
+  }
+
+  /**
+   * A PLACEMENT'S CHOSEN STANDARD RESOURCE (Amazonis Planitia's cell — upstream a3badd8c3d / 279d4eebb6): the survey
+   * hands one more of it, as it would for a printed bonus of that kind — unless the placement already rewarded that
+   * resource (then `onTilePlaced` gave the extra one). Claiming a space or moving Mars Nomads places no tile.
+   */
+  public onStandardResourcePlacementBonus(cardOwner: IPlayer, activePlayer: IPlayer, space: Space, chosen: Resource) {
+    if (cardOwner.game.phase === Phase.SOLAR || cardOwner.id !== activePlayer.id || space.id.startsWith('m')) {
+      return;
+    }
+    if (space.tile === undefined) {
+      return;
+    }
+    for (const entry of this.previewBonuses()) {
+      if (entry.kind === 'stock' && entry.resource === chosen &&
+          !this.placementRewardsStandardResource(cardOwner, space, entry.resource, entry.bonus)) {
+        cardOwner.stock.add(chosen, 1);
+        this.log(cardOwner, chosen);
+      }
     }
   }
 
