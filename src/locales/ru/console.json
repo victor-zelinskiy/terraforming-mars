@@ -1180,5 +1180,8 @@
     "No source card": "Без карты-источника",
     "No card placed this tile": "Здесь нет тайла, поставленного картой",
     "Spend ${0} from here: repeat a used action": "Потратьте ${0} отсюда: повтор использованного действия",
+    "Spend ${0} from here: a greenery tile": "Потратьте ${0} отсюда: озеленение",
+    "Spend ${0} from here: an ocean tile": "Потратьте ${0} отсюда: океан",
+    "Spend ${0} from here: a city tile": "Потратьте ${0} отсюда: город",
     "repeat of a used action": "повтор использованного действия"
 }

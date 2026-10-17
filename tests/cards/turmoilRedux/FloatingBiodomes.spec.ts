@@ -328,15 +328,14 @@ describe('FloatingBiodomes', () => {
       cast(t.player.popWaitingFor(), OrOptions).options[1].cb(undefined);
       runAllActions(t.game);
       const live = cast(t.player.popWaitingFor(), SelectSpace);
-      expect(found!.staged.spaces.map((s) => s.id ?? s).slice().sort(), 'the same legal cells')
+      expect(found!.staged.spaces.slice().sort(), 'the same legal cells')
         .deep.eq(live.spaces.map((s) => s.id).slice().sort());
     });
 
     it('a staged answer is ONE POST: [B, the cell] lands the greenery with nothing asked after', () => {
       owned(t, 3, 1);
       const found = stagedGreenery(t)!;
-      const cell = found.staged.spaces[0];
-      const cellId = typeof cell === 'string' ? cell : (cell as {id: string}).id;
+      const cellId = found.staged.spaces[0];
       t.card.action(t.player);
       runAllActions(t.game);
       cast(t.player.getWaitingFor(), OrOptions);
