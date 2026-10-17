@@ -18,7 +18,8 @@ import {DrawCards} from '../deferredActions/DrawCards';
 import {namedCardSource} from '../inputs/choiceContext';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {CardResource} from '../../common/CardResource';
-import {IActionCard, ICard, isIActionCard, isIHasCheckLoops} from '../cards/ICard';
+import {IActionCard, ICard} from '../cards/ICard';
+import {repeatableActionCards} from '../cards/repeatableActions';
 import {DeltaWorks} from '../cards/delta/DeltaWorks';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {notEnoughEnergy, ruleReason} from '../cards/actionReasons';
@@ -1512,20 +1513,15 @@ export class DeltaProjectExpansion {
   // Public: the projected-plan dry run (`deltaAdvancePlan.ts`) asks THIS very
   // filter under a stock overlay, so pre-select feasibility and the reward's
   // own candidate list can never use two different eligibility rules.
+  //
+  // The filter itself is the ONE repeatable list every copier reads
+  // (`repeatableActionCards` — Viron, Playwrights, Cargo Mechs, the resolution
+  // «Industrial Programme»): a used action of this generation that can act
+  // again, a copier mid-check excluded by its loop counter. The track is not
+  // a card, so it names no copier to leave out — until TR61 this method kept
+  // its own byte-identical copy of the four conditions (PL-603).
   public static getUsedActionCards(player: IPlayer): Array<IActionCard & ICard> {
-    const result: Array<IActionCard & ICard> = [];
-    for (const playedCard of player.tableau) {
-      if (!isIActionCard(playedCard)) {
-        continue;
-      }
-      if (isIHasCheckLoops(playedCard) && playedCard.getCheckLoops() >= 2) {
-        continue;
-      }
-      if (player.actionsThisGeneration.has(playedCard.name) && playedCard.canAct(player)) {
-        result.push(playedCard);
-      }
-    }
-    return result;
+    return repeatableActionCards(player);
   }
 
   public static calculateVictoryPoints(player: IPlayer, builder: VictoryPointsBreakdownBuilder): void {

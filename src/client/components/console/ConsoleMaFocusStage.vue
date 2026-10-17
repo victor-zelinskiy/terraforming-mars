@@ -213,6 +213,15 @@ export default defineComponent({
        */
       heldView: undefined as MaConfirmView | undefined,
       heldInspect: undefined as MaInspectView | undefined,
+      /**
+       * …AND THE ITEM IS PINNED WITH THEM (PL-604, the TR61 walk): the status
+       * rail reads the item for its first branch — «Получено игроком …» the
+       * instant the answer lands — so for the detail's fade-out under the
+       * ceremony two voices said one thing («ДОСТИЖЕНИЕ ПОЛУЧЕНО» on the scene,
+       * «Claimed by player1» on the rail under the hero). Past the press the
+       * rail states the transaction AS PRESSED, and nothing else.
+       */
+      heldItem: undefined as ConsoleMaItem | undefined,
     };
   },
   computed: {
@@ -308,7 +317,7 @@ export default defineComponent({
      */
     railView(): MaRailView {
       return buildMaRail({
-        item: this.item,
+        item: this.heldItem ?? this.item,
         kind: this.kind === 'milestone' ? 'milestones' : 'awards',
         cost: this.displayView.cost,
         free: this.displayView.free,
@@ -348,10 +357,12 @@ export default defineComponent({
         // Pin the presentation across the commit (see `heldView`).
         this.heldView = this.view;
         this.heldInspect = this.inspect;
+        this.heldItem = this.item;
       } else if (next === 'detail') {
         // A refusal restored the reversible detail — live values again.
         this.heldView = undefined;
         this.heldInspect = undefined;
+        this.heldItem = undefined;
       }
       if (next === 'ceremony' && prev === 'committing') {
         void this.$nextTick(() => {
