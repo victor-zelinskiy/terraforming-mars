@@ -86,7 +86,7 @@ the shape of it:
   the opening's own dim, an opaque stage surface, the surface-motion id `'played'`), ONE `ConsoleWsHead` («РАЗЫГРАНО › PLAYER1 ›
   АКТИВНЫЕ» — the category view titles nothing), the satellite lane.
 - **Б · the planner** — the identity column (the corporation HERO ×1.35 of the shelf face; the events stack ×0.8, its box reserved
-  always) + the shelf album at the hand album's density (`cols − 1` of the profile page: 4×2 TV / FHD, 3×1 handheld; the same
+  always) + the shelf album at the hand album's density (`cols − 1` of the profile page: 4×2 TV / FHD, 3×2 handheld — two rows since the tails pass, PL-622; the same
   constants; a box fact, never the count), zones as SHELF RUNS packed on rows, strict transform PAGES derived from the focus, LT / RT
   and the edge turn them, off-page cards have a packet HOME.
 - **В · the physics** — kept and re-anchored: the category lifts off held slots (one instance), X out of the real slot over the
@@ -112,10 +112,8 @@ rival, the events focus, close; T2 — page 0, the turn, page 1, the focus walk;
 `screenshots/tr65/sheet-before-*.jpg`, `sheet-after-t1-*.jpg`.
 
 **What the walk judged by eye.** A 20-card table reads from the couch without a descent — every face a card, the corporation the
-anchor, the events a stack with its count. Three things to put to the owner (ledger BC, open): the CATEGORY grid's faces are now
-SMALLER than the shelf's (the descent used to be the way to see a face; now it reads as a shrink — the grid's own fit is the older
-iteration's), the empty events plate on a rival who has played none is heavy, and 20 cards at 4 columns are 3 pages (5 columns would be
-2 at a face ≈ 440 px — the hand's density or fewer pages).
+anchor, the events a stack with its count. The open points it left (the category grid smaller than the shelf, the heavy empty
+events plate, 4 or 5 columns, the Deck's one row, the perf probe, the first landing's frame) were closed in the tails pass (§ 6).
 
 ## 4 · Decisions (1–10)
 
@@ -129,7 +127,7 @@ iteration's), the empty events plate on a rival who has played none is heavy, an
 | 6 | the draw's surface | **a** — embedded in the hand workspace (the play's claim sizes it by the picks) |
 | 7 | the table's chassis | **a** (recommended, built) — a workspace screen in the opening; (b) the drawer kept — refused by the diagnosis |
 | 8 | the table's composition | **a** (recommended, built, confirmed) — shelves at the album's density + strict pages; the focus walks by ZONE (a d-pad step lands on the next zone's run; A / X open it); «by card», 5 columns and the Deck's second row were declined |
-| 9 | the physics | **a** (confirmed) — kept: the lift off held slots, the landing on the planned slot, X out of the real slot; PL-619…623 → the backlog |
+| 9 | the physics | **a** (confirmed) — kept: the lift off held slots, the landing on the planned slot, X out of the real slot; PL-619…623 → the backlog, then taken into work by the owner and closed (§ 6) |
 | 10 | the e2e translation | **a** — the 35 `con-played` specs re-pointed where their hook changed (`console-info-workspace` step 9: the subject reads «Бот»); the liveness guard green |
 
 ## 5 · Guards and regression
@@ -144,9 +142,39 @@ the embedded draw, the event on the table; **C** zero candidates; **the single c
 the landing (`console-play-landing-geometry` / `-probe`, `console-played-zoom-return`). Static: `e2eLiveness`, `glyphLiteralGuard`,
 `consoleTvTypeFloor`, `universalSiblingSelectorGuard`, `cursorGrammarGuard`. The run tallies: ledger BC.
 
-## 6 · What not to break
+## 6 · The tails pass (2026-10-17, the owner's «возьми в работу PL-619…625»)
+
+| row | what was wrong | what changed |
+| --- | --- | --- |
+| PL-619 | the category grid laid faces out under the shelf's (4K 414 vs 528 px; Deck 186 vs 208 px) — the lift read as a shrink | the shelf's face is the grid's floor and the AIR yields first; a zone too big for one screen at that face shrinks just enough to stand on ONE screen (the project's first goal outranks the floor); the Deck's four cards now stand in one row at the shelf's face, the 4K fourteen stay 414 px on one screen — the owner confirmed (2026-10-17): one screen with smaller faces over the shelf's face with a scroll; a zone that cannot stand READABLY on one screen even so (the Deck's fourteen: ≈ 132 px needed) scrolls at the shelf's face, never smaller |
+| PL-620 | the rival's empty events place was a dark card-sized plate | a dashed outline with no fill and one quiet line «Событий пока нет»; the box keeps its size |
+| PL-621 | 4 or 5 columns | the owner's decision: 4. Re-measured: on the 20-card table 5 columns save no page (3 = 3) and shrink the face 563 → 443 px |
+| PL-622 | the Deck's one row | the batch had quoted 248 vs 195 px off a synthetic box; the real Deck body measures 208 px / 7 pages (one row) vs 191 px / 4 pages (two) — asked again on the true numbers, the owner chose TWO rows (`TABLE_MIN_ROWS` = 2: the hand album keeps one row, the table never). Also: the rule that added a row whenever it cost under a tenth of the face (`TABLE_ROW_ADD_TOLERANCE`) sat on a knife's edge there (the body is 1000–1045 px wide) and could re-lay every face between two seats — deleted; the rows are the profile's |
+| PL-623 | the perf probe was never run on the GPU | run for three builds back to back (§ the table below); the probe had rotted and inflated 4K by 1–3 s (PL-627) |
+| PL-625 | the first landing's dead hover read a frame longer (81 → 95 ms) — one sample each | NOT a TR65 regression: ×5 on three builds it is red 3 / 5 everywhere (the drawer 98 · 119 · 97 · 7 · 81 ms). The landing takes the hand workspace's receiving stage, not the table, and its aim is ready at the lift's end; a Chromium trace on the GPU shows the «hover» is the GPU process compiling Skia / D3D11 shaders for content drawn for the first time in a FRESH browser profile (one 64–103 ms raster flush, ANGLE worker tasks, `GrShaderCache::store`) — no frame painted while the recorder's `setInterval` kept sampling. The hero layer now publishes the scene's own wait (`data-hero-wait="target"` — the lift is over and the landing place not measured yet; beside `data-hero-phase`); the spec counts a still proxy only under that wait as the hover (budget unchanged) and reports every other still frame — during the lift or the arc — as a render stall (`stall=`); a still run the proxy leaves again is no landing either. 5 / 5 green: hover 0–16 ms, stall 0–115 ms. (The table's single render against the measured body stays — a perf gain, the table below.) |
+| PL-626 (new) | the open category covered the crumb (it ghosted through the 0.97-alpha panel at ≈ 3 %) and its grid reached under the ДОП. РЕСУРСЫ satellite | the view stands over the table's BODY (the overlay hands it the body's insets) and its panel is opaque |
+| PL-627 (new) | the perf probe: its Information step pressed X (A since TR60), it counted `.pcard` in every mutation batch and pumped frames with a SCREENSHOT inside its own windows (1–3 s stalls at 4K on the GPU), and it clicked a zone on a hidden neighbour page | the step walks the ring, the census is a 40 ms sampler, the GPU pump is a pause, the zone is chosen on the visible page; a Chromium trace stand cross-checks it |
+
+**The probe, capture-free, on the GPU** (the longest main-thread task, ms; 20 · 50 · 100 · 200 cards):
+
+| | before TR65 (the drawer) | TR65 | TR65 + tails |
+| --- | --- | --- | --- |
+| 4K · open the table | 83 · 141 · 171 · 131 | 168 · 206 · 249 · 284 | 115 · 144 · 144 · 146 |
+| 4K · open a category | 113 · 156 · 213 · 356 | 0 · 125 · 186 · 284 | 0 · 102 · 152 · 204 |
+| Deck ×4 CPU · open the table | 377 · 465 · 522 · 577 | 508 · 528 · 452 · 474 | 190 · 202 · 219 · 451 |
+| Deck ×4 CPU · open / close cycle, p50 | 398 · 654 · 1044 · 1277 | 435 · 418 · 550 · 510 | 300 · 327 · 272 · 254 |
+| Deck · the table's DOM nodes | 614 · 1316 · 2437 · 4663 | 489 · 677 · 677 · 677 | 321 · 360 · 360 · 360 |
+
+TR65 had made the 4K open about 100 ms heavier than the drawer; the single render brings it back to the drawer's range, and
+the Deck now opens in under half of what either build took. A Chromium trace of the 4K 50-card open agrees (`screenshots/tr65/perf.stand.spec.ts`):
+the drawer 191 + 137 + 78 + 69 ms of long tasks, TR65 187 + 140 + 94 ms. Also fixed on the way: `embeddedSurfaceShadeGuard`
+had been red since the TR65 commit (it knew only `embedded ? undefined : '<id>'`, the table binds `embedded || heroActive ? …`) — the guard
+now accepts any condition joined to `embedded`.
+
+## 7 · What not to break
 
 - The candidates and the reasons come from the SERVER's prompt — the album never decides «has a requirement».
 - The pick is a PRE-SELECT (nothing leaves the hand before the commit) and ONE POST; a second POST for the draw is the defect.
 - The draw is the hand workspace's own (embedded reveal); a standalone band over the workspace is the defect.
 - The table's shelf face is a BOX fact; one instance per card; pages are transforms; the category view never titles itself.
+- The rows are the profile's; a lift shrinks a face only to keep a zone on one screen; the view stands over the body.

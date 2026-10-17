@@ -43,13 +43,17 @@ box (`__body`, a `ResizeObserver` on `offsetWidth / offsetHeight`) and the profi
   (`ConsolePlayedEventsPile`, `events.zoom` = shelf × `TABLE_EVENTS_GAIN` 0.8) whose box is RESERVED always — the first event's
   landing never re-lays the hero out.
 - **The shelf album** right of it: `tableAlbumSpec(spec)` composes `cols − 1` of the profile page (`albumSpecFor` — 5×2 TV / FHD →
-  4×2; 4×1 handheld → 3×1), the same constants the hand album solves with (`ALBUM_GAP_X`, `ALBUM_MIN_ZOOM`, `ALBUM_MAX_ZOOM`,
+  4×2; 4×1 handheld → 3×2 — the table's page is never one row, `TABLE_MIN_ROWS`), the same constants the hand album solves with (`ALBUM_GAP_X`, `ALBUM_MIN_ZOOM`, `ALBUM_MAX_ZOOM`,
   `PAGE_STRIDE_EXTRA` — shared, never `planHandAlbum` itself). The STANDARD face = `min(widthZoom(cols), heightZoom(rowsPerPage))`
   clamped to the album's zoom bounds — a box fact: one card and fifty are the same face, a growing table only adds pages.
-  **The rows FOLLOW the box** (`TABLE_ROW_ADD_TOLERANCE` 0.9): the profile's row count is a FLOOR — a page takes one more row while
-  the table has rows to fill it and the face it costs stays within 90 % of the face it had (the Deck's one-row profile left the lower
-  half of the table empty and dealt twenty cards over seven pages; two rows of 92 % faces halve them; the TV's third row would cost
-  a third of the face, so TV / FHD stay 4×2).
+  **The rows are the PROFILE's, never the box's** (PL-622, the owner's decision 2026-10-17 on the measured numbers): 4×2 on TV / FHD,
+  TWO rows of three on the handheld (`TABLE_MIN_ROWS` = 2 — the hand album keeps its one-row density, the table does not: ≈ 191 px
+  faces, 20 cards in 4 pages, the body filled to its foot; one row read 208 px, 7 pages, the lower half empty). A first cut let the box ADD a row whenever it cost under a tenth of the
+  face (`TABLE_ROW_ADD_TOLERANCE`, deleted): on the Deck that sat on a knife's edge — the body measures 1000–1045 px wide, so the same
+  twenty cards laid out two rows of 191 px on one seat and one row of 208–223 px on another (a bot's provenance line is enough), and
+  LB / RB re-laid every face. Measured on the real Deck body: one row = 208 px / 7 pages, two rows = 191 px / 4 pages (the batch
+  question had quoted 248 vs 195 off a synthetic box — corrected in the ledger, PL-622). Two rows are height-bound on every
+  profile, so a bot's provenance line shortens that seat's face a little (the same composition, never a different row count).
   **The showcase**: a table that is ONE short row (`rows.length === 1 && count < cols`) grows into its room, bounded by the width its
   few slots get, the one-row height and `TABLE_SHOWCASE_GAIN` 1.5 (a face past it stops reading as a table).
 - **Shelves are zone RUNS packed on rows** (`packShelves(counts, cols)`, `PLAYED_SHELF_ORDER` = prelude · ceo · active ·
@@ -87,11 +91,27 @@ nowhere.
   `.con-played [data-played-key] .con-played__face :is(.pcard)` and the events' `.con-played__family--event .con-played__backstack`):
   the slots of the lifted zone keep their geometry and wear `--held-out` (ONE instance — the grid draws the copies, the shelf holds the
   places), X in the grid opens the viewer out of the grid's real slot (`slotZoomOrigin`), B flies every card home and releases every
-  hold. The category view is `position: absolute; inset: 0` over the panel, which is why it needs no head of its own.
+  hold. **The view stands over the table's BODY** (PL-626): the overlay hands it the body's insets inside the root (`catInset`,
+  measured on the opening edge and on every body resize; `boxInset` on the view's root), so the crumb above it stays LIT and reads
+  the open zone («РАЗЫГРАНО › PLAYER1 › АКТИВНЫЕ») and the ДОП. РЕСУРСЫ lane stays clear — at `inset: 0` over the whole root the
+  view's 0.97-alpha panel covered the head (the crumb ghosted through at ≈ 3 %) and its grid reached under the satellite; the panel
+  is OPAQUE now (PL-137's law). **A lift never shrinks a face — unless that is what keeps the zone on ONE screen** (PL-619):
+  the grid's floor is the shelf's own face (`faceFloorZoom` = `plan.album.zoom`), and the generous AIR of a small set yields
+  first (`planCategoryView` tries the count's air, then the tight one, at the floor); a zone that cannot stand on one screen at
+  the shelf's face shrinks just enough to (the project's first goal — single screen, no scroll); only a zone too big even for
+  that (one screen would push the face under the grid's readable floor) scrolls — and then AT the shelf's face, never a smaller
+  face and a scroll both (the Deck's fourteen active cards: one screen needs ≈ 132 px, they scroll at the 191 px shelf face; the
+  engine's own pick had read 182 px) (the owner's choice 2026-10-17: one screen with smaller faces over the shelf's face with a scroll). Measured: on
+  the Deck four cards fell to 186 px under a 208 px one-row shelf because of the air alone — now one row at the shelf's face; at 4K fourteen active cards still read 414 px under a 528 px shelf, all fourteen on one screen (a floor that held
+  the shelf's face there scrolled the zone, and on the Deck it scrolled even four cards — refused).
 - **A played card LANDS on its shelf** (`providePlayedHeroTarget`, `measureHeroTarget` / `peekHeroTarget`, `heroHiddenKey` → the
   slot's `--incoming` pose): the hero scene's proxy aims at the exact slot the planner gave the card (the page of that card is ensured
   first); an EVENT lands on the events stack (its count ticks after the reveal — TR65's e2e E). The chassis changed, the
-  landing's anchors are the same three functions.
+  landing's anchors are the same three functions. **The table renders its content ONCE, against the measured body** (the tails pass): the
+  body is a flex box whose size never depends on what it holds, so the first render lays the chassis out, `mounted()` measures it (a
+  forced layout, no paint yet) and the faces render a single time with the real plan; the landing card's page is re-derived on that
+  first measure, and the hero scene mounts the landing card's page ALONE (the neighbours exist for the slide, which a landing never
+  plays). A fallback plan rendered first re-laid every face and re-picked every art tier on the landing's first frames.
 - **The X viewer** rises out of the slot under the cursor and the table stays painted under it (`visibility: visible` — e2e C).
 
 ## 5 · Seats — the rival, the bot, the empty table, the embedded table
@@ -103,6 +123,9 @@ nowhere.
 - **MarsBot**: its corporation face at the hero zoom + its flipped pile; the provenance line under the head.
 - **An early table** (corporation alone, no cards): the identity column with the hero, an honest `__none` shelf line in the album
   (no fake slots), the events box reserved; **no corporation yet**: the prepared place (`__seat-place`). **No cards at all** → `__void`.
+- **A prepared place is an OUTLINE, never a plate** (PL-620): `__seat-place` is a dashed border with no fill (a filled card-sized
+  box read as a blank card standing on the rival's table), and the events' place names what is missing in one quiet line at the
+  floor — «Событий пока нет» (`__seat-note`). The box keeps its exact size: the first event lands there.
 - **Embedded in «Информация»** (the `embedded` prop — host-agnostic by the six-rule contract): the same component, no `con-ws`
   marker, no motion id, no backdrop, no satellite lane, the head's stage handed up to the host; the planner runs against the HOST's zone
   (the old `fitEmbeddedRoom` / `roomGain` fit is DELETED — the shelf planner fills the room by construction). The Information
@@ -110,32 +133,54 @@ nowhere.
 
 ## 6 · Perf budget
 
-The planner is O(cards) and allocates nothing per frame; the strip moves by one transform; a page turn mounts nothing (every
-page is in the DOM, only the active one is navigable — the probe skips inactive pages for its content reads). The 50-card table
-at 4K is 6 pages; the category lift of a 100-card zone is the category view's existing flight (the one `:has()`-free
-`con-root--ws-open` bridge, PL-? of the surface-motion iteration). **Not re-measured this iteration**: the old
-`console-played-perf-probe` numbers (50 / 100 / 200 cards, tv4k / Deck) — the probe spec runs on the new chassis, but no before /
-after timing was taken on the GPU (ledger BC, open row).
+The planner is O(cards) and allocates nothing per frame; the strip moves by one transform; a page turn mounts nothing (the active
+page and its neighbours are in the DOM; the HERO scene mounts the landing card's page alone). The content renders ONCE, against the
+measured body (§ 4). Measured with `console-played-perf-probe` on the GPU (`TM_E2E_GPU=1`, LocalFilesystem seeds 20 / 50 / 100 /
+200 cards, three builds back to back, 2026-10-17):
+
+| самая длинная задача главного потока, мс (20 · 50 · 100 · 200 карт) | до TR65 (ящик) | TR65 | TR65 + хвосты |
+| --- | --- | --- | --- |
+| 4K · открытие стола | 83 · 141 · 171 · 131 | 168 · 206 · 249 · 284 | 115 · 144 · 144 · 146 |
+| 4K · открытие категории | 113 · 156 · 213 · 356 | 0 · 125 · 186 · 284 | 0 · 102 · 152 · 204 |
+| Deck ×4 CPU · открытие стола | 377 · 465 · 522 · 577 | 508 · 528 · 452 · 474 | 190 · 202 · 219 · 451 |
+| Deck ×4 CPU · цикл открыть / закрыть, p50 | 398 · 654 · 1044 · 1277 | 435 · 418 · 550 · 510 | 300 · 327 · 272 · 254 |
+| Deck · узлов стола | 614 · 1316 · 2437 · 4663 | 489 · 677 · 677 · 677 | 321 · 360 · 360 · 360 |
+
+The Deck's category is not in the table: the one-row profile opens a different (smaller) zone first, so the row is not like for
+like (every build stays under 0.18 s there; the drawer's 30–40-card zones took 0.25–0.78 s). ⚠ **The probe itself had rotted and
+lied** (PL-627): its Information step pressed X (the dossier's ring opens a zone with A since TR60), its face census counted
+every `.pcard` inside each mutation batch, and its frame pump took an 8 × 8 SCREENSHOT inside the measured windows — on the GPU a
+synchronous capture that stalled the renderer 1–3 s at 4K («long tasks» of 1.6–3.5 s a Chromium trace of the same open never
+shows). On the GPU the pump is the pause alone; the census runs on a 40 ms sampler; the category is chosen and clicked on the
+VISIBLE page (a click into a neighbour page beyond the album's clip waited 22 s – 7 min). The cross-check is a Chromium trace of
+the same open (`screenshots/tr65/perf.stand.spec.ts`, long tasks broken down by timeline event).
 
 ## 7 · Guards
 
 Unit (`tests/client/components/console/`): `consolePlayedModel.spec` (zones · `packShelves` · `pageShelves` / the lookups ·
 `planPlayedTable` — the identity column + the album, the box fact, the showcase, the hero / events gains, the TV scale, the rows
-following the box, stability · `unionNavRects` · `pickSpatialTarget`), `ConsolePlayedShelf.spec` (full faces in a row, a dock's
-fleet on its face), `ConsolePlayedOverlay.spec` (category navigation, the shelf album's pages / focus-derived page / LT-RT, hero
-mode, the smart category open, honest caption counts, the bot seat + embedded mode). e2e `console-played-table.spec.ts`: **A**
+are the profile's (no knife edge between two seats), stability · `unionNavRects` · `pickSpatialTarget`), `consolePlayedCategoryModel.spec`
+(the lift's face floor — the air yields first, a zone too big for one screen at the shelf's face shrinks to one screen, a small one still grows), `ConsolePlayedShelf.spec` (full faces in a
+row, a dock's fleet on its face), `ConsolePlayedOverlay.spec` (category navigation, the shelf album's pages / focus-derived page /
+LT-RT, hero mode — the landing page mounted alone, the content only against a measured body, the smart category open, honest
+caption counts, the bot seat + embedded mode). e2e `console-played-table.spec.ts`: **A**
 (fhd · tv4k · deck) the 20-card table is one screen in the opening — the box against the stage tokens, `con-root--rail-replaced`,
 faces ≥ the profile's floor (250 / 520 / 150 px), the hero larger than a shelf face, the content reaches the right and the bottom
 (> 85 %), no chrome text under the TV floor; **B** (fhd · tv4k) 50 cards — strict pages, LT / RT, the focus walk turns them,
-neighbours stay mounted; **C** the category lift and return — slots held, one copy, X out of the real slot, the table painted under
-the viewer; **E** LB / RB on one chassis, the bot's pile; **F** the early table and the bot; **G** reduced motion. The landing on the
+neighbours stay mounted; **C** the category lift and return — slots held, one copy, the grid's face ≥ the shelf's or the whole
+zone on one screen with no scroll, the view's box = the body's and the crumb not under it, X out of the real slot, the table painted under the viewer; **E** LB / RB on one chassis, the rival's empty events place (an outline + «Событий пока нет», no fill), the bot's pile; **F** the early table and the bot; **G** reduced motion. The landing on the
 shelf keeps its own witnesses: `console-play-landing-geometry` (the proxy's geometry = the slot's), `console-play-landing-probe`,
 `console-played-zoom-return`. Static: `e2eLiveness` (35 specs wait on `con-played` hooks — every one still rendered),
 `consoleTvTypeFloor`, `glyphLiteralGuard`.
 
 ## 8 · What not to break
 
-- The shelf face comes from the BOX and the profile spec — never from the card count (the one bounded exception is the showcase).
+- The shelf face comes from the BOX and the profile spec — never from the card count (the one bounded exception is the showcase);
+  the rows are the profile's — a box rule that adds a row is a knife's edge between two seats of one table.
+- A lifted category never shows a face smaller than the shelf it came from unless the whole zone needs the room to stand on one
+  screen; the view stands over the BODY, never over the crumb.
+- The perf probe measures the product, not itself: no capture, no DOM census inside a measured window; a click only on what a
+  player can see.
 - One instance: the lift draws copies over HELD slots; the planner is append-only so a landing never moves a standing card.
 - Pages are transforms; a scroll container inside the album is a bug (the hand album's law).
 - The category view never draws a head; the embedded table never carries the marker / the motion id / a backdrop.
