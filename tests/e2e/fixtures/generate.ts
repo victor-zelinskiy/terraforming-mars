@@ -172,6 +172,7 @@ import {MarsArmyMechs} from '../../../src/server/cards/turmoilRedux/MarsArmyMech
 import {AutomatedConvoys} from '../../../src/server/cards/turmoilRedux/AutomatedConvoys';
 import {ForestryMechs} from '../../../src/server/cards/turmoilRedux/ForestryMechs';
 import {CargoMechs} from '../../../src/server/cards/turmoilRedux/CargoMechs';
+import {FloatingBiodomes} from '../../../src/server/cards/turmoilRedux/FloatingBiodomes';
 import {VectorComputations} from '../../../src/server/cards/turmoilRedux/VectorComputations';
 import {Mine} from '../../../src/server/cards/base/Mine';
 import {AdaptationTechnology} from '../../../src/server/cards/base/AdaptationTechnology';
@@ -620,6 +621,77 @@ futileFixture('futile-mixed', true);
   runAllActions(game);
   write('two-player-pre-endgame', game);
 }
+
+// ── finale-rich-5p / finale-rich-2p (TR69 «ФИНАЛ — ЭТО ЦЕРЕМОНИЯ»): the pre-endgame state of the two-player fixture
+//    on a SATURATED table — generation 10, every seat with its own corporation, a spread of ratings, cities and
+//    greeneries on Mars, claimed milestones and funded awards, VP cards with resources (animals, microbes), a printed
+//    VP card and a printed PENALTY (Nuclear Zone) — so the final scoring reveals EVERY base category (TR · milestones
+//    · awards · greenery · cities · cards · penalties) and the winner is NOT the viewed seat (the ranking moves).
+//    The first seat (the viewer) holds the plants: `journeyToEndgame` converges from here in a few raises. ──
+function finaleRichFixture(name: string, seats: 2 | 5): void {
+  const corps = [CardName.TERACTOR, CardName.SATURN_SYSTEMS, CardName.THARSIS_REPUBLIC, CardName.ECOLINE, CardName.MINING_GUILD]
+    .slice(0, seats);
+  const [game, ...players] = testGame(seats, {skipInitialCardSelection: false, customCorporationsList: corps, startingCorporations: 1});
+  answerStartFlow(game, players);
+  game.generation = 10;
+  // The board: cities and greeneries per seat (placed before the dials are set — a greenery raises the oxygen).
+  const tiles: ReadonlyArray<[cities: number, greeneries: number]> = seats === 2 ? [[2, 3], [3, 4]] : [[1, 2], [2, 3], [3, 4], [1, 3], [2, 1]];
+  players.forEach((p, i) => {
+    for (let c = 0; c < tiles[i][0]; c++) {
+      addCity(p);
+    }
+    for (let g = 0; g < tiles[i][1]; g++) {
+      addGreenery(p);
+    }
+  });
+  setTemperature(game, MAX_TEMPERATURE);
+  maxOutOceans(players[0]);
+  setOxygenLevel(game, MAX_OXYGEN_LEVEL - 1);
+  // VP cards: animals / microbes with their stores, a printed VP card, and the printed PENALTY.
+  const birds = new Birds();
+  birds.resourceCount = 4;
+  const fish = new Fish();
+  fish.resourceCount = 3;
+  const pets = new Pets();
+  pets.resourceCount = 6;
+  const ants = new Ants();
+  ants.resourceCount = 6;
+  const tardigrades = new Tardigrades();
+  tardigrades.resourceCount = 8;
+  const small = new SmallAnimals();
+  small.resourceCount = 4;
+  const tables: ReadonlyArray<ReadonlyArray<ICard>> = seats === 2 ?
+    [[birds, new Trees(), ants], [fish, pets, new NuclearZone(), tardigrades]] :
+    [[birds, new Trees()], [fish, ants], [pets, tardigrades, new NuclearZone()], [small], []];
+  players.forEach((p, i) => {
+    for (const card of tables[i]) {
+      p.playedCards.push(card as IProjectCard);
+    }
+  });
+  // Milestones and awards — spread across the table.
+  game.claimedMilestones.push({player: players[1], milestone: game.milestones[0]});
+  game.claimedMilestones.push({player: players[seats - 1], milestone: game.milestones[1]});
+  game.fundedAwards.push({player: players[0], award: game.awards[0]});
+  game.fundedAwards.push({player: players[1], award: game.awards[1]});
+  // Ratings last (the placements above moved them): the winner is a seat the viewer is NOT.
+  const ratings = seats === 2 ? [41, 44] : [36, 39, 42, 33, 30];
+  players.forEach((p, i) => p.setTerraformRating(ratings[i]));
+  players[0].megaCredits = 80;
+  players[0].plants = 16;
+  players.slice(1).forEach((p) => {
+    p.megaCredits = 30;
+    p.plants = 0;
+  });
+  players.forEach((p) => p.drawCard(2));
+  runAllActions(game);
+  if (game.claimedMilestones.length !== 2 || game.fundedAwards.length !== 2 || game.generation !== 10 ||
+      game.getOxygenLevel() !== MAX_OXYGEN_LEVEL - 1 || game.board.getOceanSpaces().length !== 9) {
+    throw new Error(`${name}: expected a saturated pre-endgame table — ms=${game.claimedMilestones.length} aw=${game.fundedAwards.length} gen=${game.generation} oxygen=${game.getOxygenLevel()}`);
+  }
+  write(name, game);
+}
+finaleRichFixture('finale-rich-5p', 5);
+finaleRichFixture('finale-rich-2p', 2);
 
 // ── solo-pre-endgame: every dial but oxygen maxed, oxygen ONE step short,
 //    plants in stock — one greenery ends the game. For the endgame family:
@@ -6652,3 +6724,39 @@ function cargoMechsFixture(name: string, mechs: number): void {
 }
 cargoMechsFixture('cargo-mechs', 1);
 cargoMechsFixture('cargo-mechs-empty', 0);
+
+// ── TR69 · FLOATING BIODOMES: the card on blue's table (its Venus plate is the play's — on the table it acts at any
+//    Venus), the Scientists ruling (a quiet government), Dirigibles beside it (a second Venus floater holder: A's
+//    target step asks «КУДА» over two cards, this one included).
+//      `floating-biodomes`       — 3 floaters here, 1 plant: both variants live (B — the greenery, staged);
+//      `floating-biodomes-dead`  — 2 floaters, no plant: both refused, the plant first, «2 of 3 floaters» second;
+//      `floating-biodomes-maxo2` — 3 floaters, no plant, the oxygen at its maximum: B alone — the tile still lands. ──
+function floatingBiodomesFixture(name: string, at: 'live' | 'dead' | 'maxo2'): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [20, 30],
+    options: {venusNextExtension: true, customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, parliament}) => {
+      seatEnacted(parliament, quietResolutionOf(PartyName.SCIENTISTS));
+      const card = new FloatingBiodomes();
+      card.resourceCount = at === 'dead' ? 2 : 3;
+      const dirigibles = new Dirigibles();
+      dirigibles.resourceCount = 1;
+      p1.playedCards.push(card, dirigibles);
+      p1.plants = at === 'live' ? 1 : 0;
+      if (at === 'maxo2') {
+        setOxygenLevel(game, MAX_OXYGEN_LEVEL);
+      }
+    },
+    expect: ({game, p1}) => {
+      const card = p1.playedCards.get(CardName.FLOATING_BIODOMES);
+      const live = card !== undefined && isIActionCard(card) && card.canAct(p1);
+      if (game.activePlayer.id !== p1.id || live !== (at !== 'dead')) {
+        throw new Error(`${name}: expected blue on the move with Floating Biodomes ${at === 'dead' ? 'refused' : 'live'} — got active=${game.activePlayer.color} live=${live}`);
+      }
+    },
+  });
+}
+floatingBiodomesFixture('floating-biodomes', 'live');
+floatingBiodomesFixture('floating-biodomes-dead', 'dead');
+floatingBiodomesFixture('floating-biodomes-maxo2', 'maxo2');

@@ -2337,6 +2337,10 @@ export type BootOptions = {
  * lives in the late game stops replaying the game to reach it.
  */
 export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
+  // TR69 «ФИНАЛ — ЭТО ЦЕРЕМОНИЯ»: saturated pre-endgame tables (every base score category, the winner not the viewer).
+  'finale-rich-5p' | 'finale-rich-2p' |
+  // TR69 Floating Biodomes: both variants live (Dirigibles beside it) · both refused · the oxygen at its maximum.
+  'floating-biodomes' | 'floating-biodomes-dead' | 'floating-biodomes-maxo2' |
   // TR55 Nuclear Warhead Utilization and the iteration «ЯЧЕЙКА ПО — КАЖДОЕ ОЧКО ИЗ СВОЕЙ ПРИЧИНЫ»: the card playable
   // (the Industrialists rule) / locked (the Reds rule); the score cell's other sources with blue on the move (a
   // milestone, an action's fighter); a foreign greenery beside blue's city (red on the move) — docs/claude/console/score-cell.md.

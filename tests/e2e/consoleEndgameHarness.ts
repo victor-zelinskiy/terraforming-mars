@@ -266,8 +266,8 @@ export async function drive(
  * here in a few raises; the specs' own subject (the finale through the page,
  * the ceremony, the overview) is untouched. Regenerate: `npm run e2e:fixtures`.
  */
-export async function fixtureTable(request: APIRequestContext): Promise<Array<string>> {
-  const file = path.resolve(__dirname, 'fixtures', 'two-player-pre-endgame.json');
+export async function fixtureTable(request: APIRequestContext, name = 'two-player-pre-endgame'): Promise<Array<string>> {
+  const file = path.resolve(__dirname, 'fixtures', `${name}.json`);
   const serialized = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
   const res = await request.post('/api/dev/load-game', {data: serialized});
   expect(res.ok(), `dev load-game accepted the endgame fixture (status ${res.status()})`).toBeTruthy();

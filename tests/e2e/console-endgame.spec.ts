@@ -7,16 +7,17 @@
  *  · the natural end plays the CEREMONY (the page saw the live game);
  *  · THE STABILITY PROBES — the audit's three regressions, asserted
  *    numerically: the scene never dips transparent between phases (the
- *    settled-scene flash), the bar's box never re-solves during the count
- *    (the grid judder), the settled bar carries no micro-reveal shades
- *    (the barcode);
+ *    settled-scene flash), no seat's bar or box re-solves during the COUNT
+ *    (the judder — TR69: the podium's deliberate moves are the ranking and
+ *    the crowning, after the count), the settled bar carries no micro-reveal
+ *    shades (the barcode);
  *  · B = «Свернуть» PAUSES the ceremony and opens the final board; B
  *    returns and RESUMES from the same beat (never a restart, never main
  *    menu) — and the WHOLE HUD follows the SCREEN, not the stack: the
  *    strategy rail is replaced while the scene is up and lit again the
  *    moment the player is looking at the board, in both directions and at
  *    both the mid-count and the settled collapse;
- *  · the winner is the ROW ITSELF (ribbon + gold), no duplicate plate;
+ *  · the winner is the SEAT ITSELF (ribbon + gold, the hero of the podium — TR69), no duplicate plate;
  *  · the default action focus is «Обзор партии» (never the replay);
  *  · a RELOAD into the ended game lands SETTLED — no uninvited replay;
  *  · «Обзор партии» descends into the CONSOLE-NATIVE overview scene of the
@@ -41,8 +42,9 @@ type StabilitySample = {
   opacity: string,
   display: string,
   transitioning: boolean,
-  barBox: string,
-  rowBox: string,
+  /** color → the seat's bar box `left|width|height` and the seat's own `width|height` (TR69: seats stand side by side). */
+  barBoxes: Record<string, string>,
+  rowBoxes: Record<string, string>,
 };
 
 declare global {
@@ -69,18 +71,20 @@ async function installStabilityProbe(page: Page): Promise<void> {
       // (the real flash bug) is a CSSAnimation and stays flagged.
       const fading = scene.getAnimations().some((a) =>
         (a as CSSTransition).transitionProperty === 'opacity');
-      const bar = document.querySelector('.con-eg__bar');
-      const row = document.querySelector('.con-eg__row');
-      const box = (el: Element | null) => {
-        if (el === null) {
-          return '-';
+      // Per SEAT (TR69 — the seats stand side by side): its bar's LEFT|WIDTH|HEIGHT and its own WIDTH|HEIGHT. During the
+      // count none of them may move; the ranking and the crowning are the podium's deliberate moves, after it.
+      const barBoxes: Record<string, string> = {};
+      const rowBoxes: Record<string, string> = {};
+      document.querySelectorAll<HTMLElement>('[data-eg-row]').forEach((row) => {
+        const color = row.dataset.egRow ?? '?';
+        const r = row.getBoundingClientRect();
+        rowBoxes[color] = `${r.width.toFixed(1)}|${r.height.toFixed(1)}`;
+        const bar = row.querySelector('.con-eg__bar');
+        if (bar !== null) {
+          const b = bar.getBoundingClientRect();
+          barBoxes[color] = `${b.left.toFixed(1)}|${b.width.toFixed(1)}|${b.height.toFixed(1)}`;
         }
-        const b = el.getBoundingClientRect();
-        // WIDTH and LEFT must be immovable; top legitimately moves at the
-        // FLIP (transform), height is density-fixed — record all four, the
-        // assertions pick their axes.
-        return `${b.left.toFixed(1)}|${b.width.toFixed(1)}|${b.height.toFixed(1)}`;
-      };
+      });
       samples.push({
         t: Math.round(performance.now() - t0),
         phase: [...scene.classList].filter((c) => c.startsWith('con-endgame--')).join(','),
@@ -89,8 +93,8 @@ async function installStabilityProbe(page: Page): Promise<void> {
         transitioning: fading ||
           scene.classList.contains('con-layer-enter-active') ||
           scene.classList.contains('con-layer-leave-active'),
-        barBox: box(bar),
-        rowBox: box(row),
+        barBoxes,
+        rowBoxes,
       });
     }, 45);
     globalThis.__egStability = {samples, stop: () => window.clearInterval(timer)};
@@ -175,22 +179,29 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     // transitions — the finalize moment included.
     const dips = visible.filter((s) => Number(s.opacity) < 0.99);
     expect(dips, `opacity dips: ${JSON.stringify(dips.slice(0, 4))}`).toHaveLength(0);
-    // The grid judder: the bar's LEFT|WIDTH|HEIGHT never re-solves — one
-    // distinct box across the whole ceremony (the audit measured 36).
-    const barBoxes = new Set(visible.filter((s) => s.barBox !== '-').map((s) => s.barBox));
-    expect([...barBoxes], `bar boxes: ${[...barBoxes].join(' ')}`).toHaveLength(1);
-    const rowBoxes = new Set(visible.filter((s) => s.rowBox !== '-').map((s) => s.rowBox));
-    expect([...rowBoxes], `row boxes: ${[...rowBoxes].join(' ')}`).toHaveLength(1);
+    // The judder: during the COUNT (the scoring phase — the entrance is a keyframe, the ranking and the crowning
+    // are the podium's deliberate moves after it) no seat's bar LEFT|WIDTH|HEIGHT and no seat's WIDTH|HEIGHT
+    // re-solves — one distinct box per seat (the audit measured 36 on the old rows).
+    const counting = visible.filter((s) => s.phase.includes('con-endgame--scoring'));
+    expect(counting.length, 'the probe saw the count').toBeGreaterThan(10);
+    for (const color of Object.keys(counting[0].barBoxes)) {
+      const bars = new Set(counting.map((s) => s.barBoxes[color]).filter((b) => b !== undefined));
+      expect([...bars], `${color}'s bar boxes during the count: ${[...bars].join(' ')}`).toHaveLength(1);
+      const rows = new Set(counting.map((s) => s.rowBoxes[color]).filter((b) => b !== undefined));
+      expect([...rows], `${color}'s seat boxes during the count: ${[...rows].join(' ')}`).toHaveLength(1);
+    }
     // The barcode: the settled bar is ONE hue per category — no micro shades.
     expect(await page.locator('.con-eg__subseg--seamed').count()).toBe(0);
-    expect(await page.locator('.con-eg__chip').count()).toBe(0);
+    // No category token is left in the air over the settled podium (TR69).
+    expect(await page.locator('.con-eg-token').count()).toBe(0);
 
-    // 5 · The winner is the ROW: ribbon + places; NO duplicate plate exists.
+    // 5 · The winner is the SEAT: ribbon + places + the hero; NO duplicate plate exists.
     expect(await page.locator('.con-eg__ribbon').count()).toBeGreaterThan(0);
     expect(await page.locator('.con-eg__row--winner').count()).toBeGreaterThan(0);
+    expect(await page.locator('.con-eg__row--hero').count()).toBeGreaterThan(0);
     expect(await page.locator('.con-eg__place-num').count()).toBe(2);
-    // Anchored values exist in both homes (wide → inside, narrow → below).
-    expect(await page.locator('.con-eg__vlab--on').count()).toBeGreaterThan(0);
+    // Every category's value stands in its medallion on every seat (TR69).
+    expect(await page.locator('.con-eg__medal--on').count()).toBeGreaterThan(0);
 
     // The displayed totals are the SERVER's own breakdown totals.
     const finalModel = await getModel(request, ids[0]);
@@ -325,9 +336,9 @@ test.describe('console endgame workspace — 4K TV, four players', () => {
     30_000, 'the first synchronized reveal');
     await shoot(page, SHOT_DIR, '4k-ceremony-tr');
 
-    // Let a few categories land, then the mid-count comparison shot.
+    // Let a few categories land (their medallions lit on every seat), then the mid-count comparison shot.
     await waitWithFrames(page, async () =>
-      (await page.locator('.con-eg__vlab--on').count()) >= 8,
+      (await page.locator('.con-eg__medal--on').count()) >= 8,
     60_000, 'a few settled categories');
     await shoot(page, SHOT_DIR, '4k-ceremony-mid');
 
@@ -345,11 +356,11 @@ test.describe('console endgame workspace — 4K TV, four players', () => {
     });
     expect(overflow).toBe('fits');
 
-    // Four rows, four totals, ranked places 1..4, the winner ribbon on the
-    // row — and the settled bar is category-clean (merged, no shades).
+    // Four seats, four totals, ranked places 1..4, the winner ribbon on the
+    // hero — and the settled bar is category-clean (merged, no shades).
     expect(await page.locator('.con-eg__place-num').count()).toBe(4);
     expect(await page.locator('.con-eg__row--winner').count()).toBeGreaterThan(0);
     expect(await page.locator('.con-eg__subseg--seamed').count()).toBe(0);
-    expect(await page.locator('.con-eg__vlab--on').count()).toBeGreaterThan(0);
+    expect(await page.locator('.con-eg__medal--on').count()).toBeGreaterThan(0);
   });
 });
