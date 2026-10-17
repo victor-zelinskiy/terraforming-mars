@@ -309,6 +309,10 @@ export class Server {
       // this player's production phase, for the premium paired transition
       // animation. Already a serialized EnergyHeatConversionModel (or undefined).
       energyHeatConversion: player.energyHeatConversion,
+      // Self-only + transient: the RECORD of the production phase that just paid
+      // this player (TR61 — the console's generation scene plays it). Already a
+      // serialized ProductionIncomeModel (or undefined).
+      productionIncome: player.productionIncome,
       // Self-only + transient: which adjacent oceans just paid this player's
       // placement bonus (and how much each), for the premium per-ocean coin
       // payout. Already a serialized OceanAdjacencyBonusModel (or undefined).

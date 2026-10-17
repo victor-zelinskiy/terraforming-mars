@@ -9,6 +9,7 @@ import {ACTION_MENU_TITLES} from '@/common/inputs/actionMenuTitles';
 import {buildJournalView} from '@/client/components/journal/journalView';
 import {buildEventChildren, impactChips, JournalChildVM, JournalImpactChip, skippedRowOf} from '@/client/components/journal/journalEventChild';
 import {affectedPlayersOfChain} from './notificationFeedPolicy';
+import {announcedElsewhere} from './notificationContentPolicy';
 import {importanceForRoot, lossCausesOf, viewerImpactOfChain, ViewerImpactMeta} from './notificationSemantics';
 import {NotificationKind, NotificationVariant, NotificationModel, NotificationPillGroup, NotificationSkippedLine, NotificationEasedLine, NegativeScope, NotificationEffectSource, NOTIFICATION_PRIORITY, NOTIFICATION_TTL, COALESCE_THRESHOLD} from './notificationTypes';
 import {LogMessageType} from '@/common/logs/LogMessageType';
@@ -58,6 +59,7 @@ function categoryTypeLabel(category: JournalActionCategory | undefined): string 
   case 'standard-project': return 'Standard project';
   case 'colony': return 'Colony';
   case 'copied-action': return 'Copied action';
+  case 'production': return 'Production phase';
   case 'solar-phase': return 'Solar phase';
   case 'parliament': return 'Parliament';
   case 'political-phase': return 'Mars Parliament';
@@ -569,6 +571,12 @@ function rootSourceCard(chain: ReadonlyArray<GameEvent>, correlationId: number):
  */
 function buildRootNotification(input: RootBuildInput): NotificationModel | undefined {
   const {header, chain, viewerColor} = input;
+  // A root the feed never carries (the content policy's list, with the surface that IS its telling): the
+  // production phase's income is the console's generation scene / the desktop's «new generation» toast — a toast per
+  // seat per generation would be the HUD's own numbers read back, and a rival's income is the journal's.
+  if (announcedElsewhere(header.category)) {
+    return undefined;
+  }
   const actor = rootActor(header, chain);
   const variant = rootVariant(header, chain);
   let kind = variantKind(variant);

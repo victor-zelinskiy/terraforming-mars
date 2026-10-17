@@ -88,6 +88,7 @@ import {CardDrawRevealSource} from '../common/models/CardDrawRevealModel';
 import {ColonyTradeManifestModel} from '../common/models/ColonyTradeManifestModel';
 import {RevealResultModel} from '../common/models/RevealResultModel';
 import {EnergyHeatConversionModel} from '../common/models/EnergyHeatConversionModel';
+import {ProductionIncomeModel} from '../common/models/ProductionIncomeModel';
 import {OceanAdjacencyBonusModel} from '../common/models/OceanAdjacencyBonusModel';
 import {PlacementLawPayoutModel} from '../common/models/PlacementLawPayoutModel';
 import {TileMoveRewardModel} from '../common/models/TileMoveRewardModel';
@@ -319,6 +320,10 @@ export class Player implements IPlayer {
   // player's production phase (self-only, cleared at the start of the next
   // input). See IPlayer.energyHeatConversion.
   public energyHeatConversion: EnergyHeatConversionModel | undefined = undefined;
+  // Transient RECORD of the production phase that just paid this player (TR61 —
+  // «ДОХОД — СОБЫТИЕ»): self-only, cleared at the start of the next input. See
+  // IPlayer.productionIncome.
+  public productionIncome: ProductionIncomeModel | undefined = undefined;
   // Transient snapshot of the ocean-adjacency M€ this player just earned by
   // placing next to oceans — names the paying neighbours (self-only, cleared at
   // the start of the next input). See IPlayer.lastOceanBonus.
@@ -1031,34 +1036,99 @@ export class Player implements IPlayer {
 
     this.turmoilPolicyActionUsed = false;
     this.politicalAgendasActionUsedCount = 0;
-    if (this.playedCards.has(CardName.SUPERCAPACITORS)) {
-      Supercapacitors.onProduction(this);
-    } else {
-      // Snapshot the energy→heat conversion for the premium paired transition
-      // animation BEFORE mutating the stocks. The client can't derive the
-      // amount itself — production income (added in finishProductionPhase right
-      // after) muddies both counters. Unset when there's nothing to convert.
-      if (this.energy > 0) {
-        this.energyHeatConversion = {
-          amount: this.energy,
-          energyBefore: this.energy,
-          heatBefore: this.heat,
-          generation: this.game.generation,
-        };
+    // THE INCOME IS AN EVENT (TR61 — «ДОХОД — СОБЫТИЕ»). The whole phase runs
+    // under ONE journal root (`production-phase-income`, category `production`)
+    // so the journal groups it, the aggregates read the income per generation
+    // and the console's generation scene plays the seat's own record — the
+    // conversion, the rating's M€ and every production value go through the
+    // stock chokepoints under that scope (the Logging law: a direct field
+    // mutation bypasses the event recorder). Supercapacitors DEFERS its half:
+    // the deferred action carries the captured scope, so its conversion and
+    // the income it then pays join the same chain.
+    const events = this.game?.events;
+    const rootId = events?.beginProductionPhase(this);
+    this.productionIncome = {
+      generation: this.game.generation, correlationId: rootId ?? 0, income: {...Units.EMPTY}, rating: 0, conversion: 0,
+    };
+    try {
+      this.game.log('${0} received the production income of generation ${1}', (b) => b.player(this).number(this.game.generation));
+      if (this.playedCards.has(CardName.SUPERCAPACITORS)) {
+        Supercapacitors.onProduction(this);
+      } else {
+        this.convertEnergyToHeat(this.energy);
+        this.finishProductionPhase();
       }
-      this.heat += this.energy;
-      this.energy = 0;
-      this.finishProductionPhase();
+    } finally {
+      events?.endScope();
+    }
+  }
+
+  public convertEnergyToHeat(amount: number): void {
+    if (amount <= 0) {
+      return;
+    }
+    // Snapshot the conversion for the premium paired transition animation
+    // BEFORE mutating the stocks. The client can't derive the amount itself —
+    // the production income (added in finishProductionPhase right after)
+    // muddies both counters. Unset when there's nothing to convert.
+    this.energyHeatConversion = {
+      amount,
+      energyBefore: this.energy,
+      heatBefore: this.heat,
+      generation: this.game.generation,
+    };
+    if (this.productionIncome !== undefined) {
+      this.productionIncome = {...this.productionIncome, conversion: amount};
+    }
+    this.game.log('${0} converted ${1} units of energy to heat', (b) => b.player(this).number(amount));
+    // Its own line of the phase's chain: the energy leaves, the heat arrives — recorded, never logged twice.
+    const move = () => {
+      this.stock.deduct(Resource.ENERGY, amount);
+      this.stock.add(Resource.HEAT, amount);
+    };
+    const events = this.game?.events;
+    if (events !== undefined) {
+      events.withSource({kind: 'production', part: 'conversion'}, move);
+    } else {
+      move();
     }
   }
 
   public finishProductionPhase() {
-    this.megaCredits += this.production.megacredits + this.terraformRating;
-    this.steel += this.production.steel;
-    this.titanium += this.production.titanium;
-    this.plants += this.production.plants;
-    this.energy += this.production.energy;
-    this.heat += this.production.heat;
+    const events = this.game?.events;
+    const production = this.production;
+    const rating = this.terraformRating;
+    // THE RATING'S OWN LINE, paid FIRST: a negative M€ production can then never
+    // deduct past what the rating has just paid (the one order under which the
+    // two lines are both honest and the stock never goes negative).
+    const payRating = () => this.stock.add(Resource.MEGACREDITS, rating);
+    if (events !== undefined) {
+      events.withSource({kind: 'production', part: 'rating'}, payRating);
+    } else {
+      payRating();
+    }
+    // The production VALUES, each its own delta under the phase's source (a zero adds nothing and records nothing).
+    this.stock.add(Resource.MEGACREDITS, production.megacredits);
+    this.stock.add(Resource.STEEL, production.steel);
+    this.stock.add(Resource.TITANIUM, production.titanium);
+    this.stock.add(Resource.PLANTS, production.plants);
+    this.stock.add(Resource.ENERGY, production.energy);
+    this.stock.add(Resource.HEAT, production.heat);
+    // THE RECORD — rebuilt here whatever stood before: Supercapacitors' half runs inside the player's OWN input,
+    // whose `process` has just consumed the record the phase opened with (the one-shot law), so the root and the
+    // conversion are re-read from the live scope and the conversion snapshot rather than carried.
+    const prior = this.productionIncome;
+    this.productionIncome = {
+      generation: this.game.generation,
+      correlationId: prior?.correlationId ?? events?.captureContext()?.rootId ?? 0,
+      conversion: prior?.conversion ??
+        (this.energyHeatConversion?.generation === this.game.generation ? this.energyHeatConversion.amount : 0),
+      rating,
+      income: {
+        megacredits: production.megacredits, steel: production.steel, titanium: production.titanium,
+        plants: production.plants, energy: production.energy, heat: production.heat,
+      },
+    };
 
     for (const card of this.tableau) {
       card.onProductionPhase?.(this);
@@ -3050,6 +3120,8 @@ export class Player implements IPlayer {
     // (For Supercapacitors the conversion is APPLIED inside this very input's
     // deferred callback, which runs after this line, so its snapshot survives.)
     this.energyHeatConversion = undefined;
+    // …and the production phase's record, consumed by the same one-shot scene.
+    this.productionIncome = undefined;
     // Likewise the ocean-adjacency breakdown: it exists only to let the premium
     // placement scene pay out one coin per ocean for the tile THIS input placed.
     // (The grant runs inside this very input, after this line, so its snapshot

@@ -1,4 +1,5 @@
 import {Color} from '@/common/Color';
+import {JournalActionCategory} from '@/common/events/GameEvent';
 import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import {NotificationContentMode} from './notificationContentMode';
 import {NotificationModel, NotificationPillGroup, NotificationSkippedLine, NotificationSummaryLine} from './notificationTypes';
@@ -32,6 +33,27 @@ import {NotificationModel, NotificationPillGroup, NotificationSkippedLine, Notif
  *     skipped line; a bot card with no band keeps ≤ 2 outcome lines (+ the honest «ещё N»);
  *   · `mine` — no actor line, no third player, no outcome line that is not an attack on the viewer.
  */
+
+/**
+ * ROOTS THE FEED NEVER CARRIES, by category — each with the surface that IS its telling (TR61). A row here is a
+ * decision of the content policy, never a text filter: the journal keeps the group, the named surface announces it.
+ */
+const ANNOUNCED_ELSEWHERE: Partial<Record<JournalActionCategory, string>> = {
+  // The production phase's income: the console's generation scene (the counter's flip, the income flowing into the
+  // rail row by row) and the desktop's «new generation» toast are its telling; a toast per seat per generation would
+  // read the HUD's own numbers back, and a rival's income is the journal's.
+  'production': 'the generation scene',
+};
+
+/** Is a root of this category told by another surface (never a toast)? The surface is `announcedBy`. */
+export function announcedElsewhere(category: JournalActionCategory | undefined): boolean {
+  return category !== undefined && ANNOUNCED_ELSEWHERE[category] !== undefined;
+}
+
+/** The surface that tells a category the feed never carries (the policy's own reason, for a spec and a doc). */
+export function announcedBy(category: JournalActionCategory): string | undefined {
+  return ANNOUNCED_ELSEWHERE[category];
+}
 
 /** How many chips the actor's quiet line keeps («● Rival · [M€ −25] [prod +1]»). */
 export const ACTOR_CHIPS_BRIEF = 2;

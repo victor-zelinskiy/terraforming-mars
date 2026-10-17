@@ -83,6 +83,9 @@ const ACTION_CATEGORY_LABEL: Partial<Record<JournalActionCategory, string>> = {
   // A share of a bot turn's GAIN the event join could not attribute (TR59): the turn is its honest name, the card
   // the bot acted with rides the via tail — never «the bot's card paid you».
   'automa-turn': 'MarsBot turn',
+  // The production phase's income (TR61) — never a toast of its own (the generation scene is its telling); named
+  // here for the one case a share of it reaches a rival's cause line (a card's `onProductionPhase` paying across).
+  'production': 'Production phase',
 };
 
 /** The trigger tail templates — exhaustive over `EventTrigger`, so a new
@@ -237,7 +240,7 @@ export function causeLineOf(cause: ViewerImpactCause): NotificationCauseLine | u
   case 'bonusCard':
     return line('Source', bonusCardInfo(origin.bonusCard).name);
   case 'production':
-    return line('Source', 'Production');
+    return line('Source', origin.part === 'rating' ? 'Terraform rating' : origin.part === 'conversion' ? 'Energy conversion' : 'Production');
   case 'spaceBonus':
     return line('Source', 'Cell bonus');
   case 'oceanBonus':

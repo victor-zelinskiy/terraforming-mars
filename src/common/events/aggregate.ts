@@ -368,6 +368,52 @@ export function aggregateByPlayerGeneration(events: ReadonlyArray<GameEvent>): M
 }
 
 /**
+ * ONE seat's PRODUCTION-PHASE INCOME in ONE generation (TR61 — «ДОХОД —
+ * СОБЫТИЕ»): what the production values added to the stock, the rating paid
+ * as M€, the energy turned into heat — read off the phase's own events
+ * (`resource-changed` under `{kind: 'production'}` and its two parts), never
+ * re-added from a production table.
+ */
+export type ProductionIncomeStats = {
+  generation: number;
+  /** The production VALUES that landed in the stock (a negative M€ production is negative here). */
+  stock: Units;
+  /** The terraform rating paid as M€. */
+  rating: number;
+  /** Energy turned into heat before the income. */
+  conversion: number;
+};
+
+/** Per-player, per-generation production income — the economy's TIMELINE by the phase's own record. Pure. */
+export function productionIncomeByPlayerGeneration(events: ReadonlyArray<GameEvent>): Map<Color, Map<number, ProductionIncomeStats>> {
+  const result = new Map<Color, Map<number, ProductionIncomeStats>>();
+  for (const e of events) {
+    if (e.type !== 'resource-changed' || e.source?.kind !== 'production' || e.player === undefined || e.impact.stock === undefined) {
+      continue;
+    }
+    let perGen = result.get(e.player);
+    if (perGen === undefined) {
+      perGen = new Map<number, ProductionIncomeStats>();
+      result.set(e.player, perGen);
+    }
+    let stats = perGen.get(e.generation);
+    if (stats === undefined) {
+      stats = {generation: e.generation, stock: emptyUnits(), rating: 0, conversion: 0};
+      perGen.set(e.generation, stats);
+    }
+    if (e.source.part === 'rating') {
+      stats.rating += e.impact.stock.megacredits ?? 0;
+    } else if (e.source.part === 'conversion') {
+      // The conversion is two deltas (−energy, +heat) of ONE amount — count the heat's arrival once.
+      stats.conversion += Math.max(0, e.impact.stock.heat ?? 0);
+    } else {
+      addUnits(stats.stock, e.impact.stock);
+    }
+  }
+  return result;
+}
+
+/**
  * One player's RESOURCE LOSSES to another player's action — the victim breakdown.
  * `totalLost` is the summed magnitude of every negative delta; `resources` is the
  * per-resource breakdown (standard resource / production / card-resource keys), in

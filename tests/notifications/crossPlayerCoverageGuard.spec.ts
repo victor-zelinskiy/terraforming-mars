@@ -278,6 +278,7 @@ describe('cross-player coverage guard (every in-scope effect source is classifie
       'automa-turn': {crossPlayer: 'possible', proof: 'S10 (deferred payout reaches the script) + bonusCardAttackEvents.spec (attack steps)'},
       'parliament': {crossPlayer: 'possible', proof: 'Turmoil Redux in-turn political action (vote / party action): scoped by ParliamentHandler.voteOption + PartyEffects.runPartyAction; a Mars First tile draw or an Industrialists shift can trigger reactive owners exactly like a card action (tests/parliament/PartyEffects.spec)'},
       'political-phase': {crossPlayer: 'possible', proof: 'Turmoil Redux end-of-generation resolution: every effect step runs under a per-player scope with a resolution source (ParliamentPhase.stepEffects); the Agenda bonus under the winner\'s parliament scope (tests/parliament/ParliamentPhase.spec)'},
+      'production': {crossPlayer: 'none', proof: 'TR61 — the production phase pays the seat its OWN production, rating and conversion under its own root (Player.runProductionPhase); a card\'s onProductionPhase hook runs inside it under the card\'s source and touches only its owner (tests/events/productionIncomeJournal.spec)'},
     };
     for (const [door, cls] of Object.entries(DOORS)) {
       expect(cls.proof, `door ${door} names its proof`).to.not.be.empty;

@@ -262,6 +262,26 @@ export class EventRecorder {
   }
 
   /**
+   * Begin a seat's PRODUCTION PHASE (TR61 — «ДОХОД — СОБЫТИЕ»): the ROOT of
+   * the phase's chain — one `production-phase-income` event per player per
+   * generation under the `production` category, with the phase itself as the
+   * source. Everything the phase pays (the conversion, the rating's M€, the
+   * production values, a card's `onProductionPhase`) is recorded under it, so
+   * the journal groups the income as ONE entry, the aggregates read it per
+   * generation and the console's scene plays the seat's own record. Returns
+   * the root's id (the chain's correlationId — the view's record carries it).
+   * Closed with `endScope()` like every action.
+   */
+  public beginProductionPhase(player: IPlayer): number {
+    const source: EventSource = {kind: 'production'};
+    const root = this.emit(
+      {type: 'production-phase-income', source, player: player.color, impact: {}, visibility: 'journal', category: 'production'},
+      this.current);
+    this.stack.push({rootId: root.id, parentId: root.id, source, playerColor: player.color, kind: 'action', trigger: undefined, triggerEmitted: true, rootLogEmitted: false, category: 'production'});
+    return root.id;
+  }
+
+  /**
    * A context that REJOINS a root recorded earlier — a resumable driver
    * continuing after an input boundary or a reload (the political phase: its
    * root is the convening, kept as `summary.correlationId`). Nothing is

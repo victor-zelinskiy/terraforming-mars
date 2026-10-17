@@ -324,7 +324,8 @@ function sourceToChild(source: EventSource | undefined): JournalChildSource {
   case 'payment':
     return {kind: 'label', label: 'Payment'};
   case 'production':
-    return {kind: 'label', label: 'Production'};
+    // The phase's three lines (TR61): the production values, the rating's M€, the energy turned into heat.
+    return {kind: 'label', label: source.part === 'rating' ? 'Terraform rating' : source.part === 'conversion' ? 'Energy conversion' : 'Production'};
   case 'globalParameter':
     return {kind: 'label', label: paramLabel(source.parameter)};
   case 'colony':

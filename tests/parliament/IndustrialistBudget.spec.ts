@@ -531,8 +531,9 @@ describe('IndustrialistBudget', () => {
       const realAdd = p2.stock.add.bind(p2.stock);
       let failures = 0;
       p2.stock.add = (resource, amount, options) => {
-        // The levy (negative) passes; the PAYOUT (positive) is what breaks — once.
-        if (resource === Resource.MEGACREDITS && amount > 0 && failures === 0) {
+        // The levy (negative) passes; the PAYOUT (positive) is what breaks — once. Only the SITTING's own add: the
+        // production phase before it pays the rating and the income through the same chokepoint (TR61).
+        if (resource === Resource.MEGACREDITS && amount > 0 && failures === 0 && game.phase === Phase.PARLIAMENT) {
           failures++;
           throw new Error('interrupted');
         }

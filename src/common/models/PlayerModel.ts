@@ -18,6 +18,7 @@ import {DeltaProjectPlayerModel} from './DeltaProjectPlayerModel';
 import {CardDrawRevealModel} from './CardDrawRevealModel';
 import {RevealResultModel} from './RevealResultModel';
 import {EnergyHeatConversionModel} from './EnergyHeatConversionModel';
+import {ProductionIncomeModel} from './ProductionIncomeModel';
 import {OceanAdjacencyBonusModel} from './OceanAdjacencyBonusModel';
 import {PlacementLawPayoutModel} from './PlacementLawPayoutModel';
 import {TileMoveRewardModel} from './TileMoveRewardModel';
@@ -281,6 +282,13 @@ export interface PlayerViewModel extends ViewModel {
   // amount). Drives the premium paired "Energy −X → Heat +X" transition
   // animation. Absent whenever no energy was converted. See EnergyHeatConversionModel.
   energyHeatConversion?: EnergyHeatConversionModel;
+  // Self-only, transient (cleared on the next input): the RECORD of the production
+  // phase that just paid this player — the income per resource, the rating's M€,
+  // the energy converted (TR61 — «ДОХОД — СОБЫТИЕ»). The console's generation
+  // scene plays it; nothing on the client derives income from a diff. Absent
+  // outside the window between the phase and the player's next input. See
+  // ProductionIncomeModel.
+  productionIncome?: ProductionIncomeModel;
   // Self-only, transient (cleared on the next input): the ocean-adjacency M€ the
   // player just earned by placing a tile next to oceans, broken down to the
   // PAYING neighbour spaces. The rule is applied server-side; this only names

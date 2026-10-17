@@ -195,6 +195,18 @@ export type GameEventType =
   // High-level game milestones:
   | 'milestone-claimed'
   | 'award-funded'
+  /**
+   * THE ROOT OF A SEAT'S PRODUCTION PHASE (TR61 — «ДОХОД — СОБЫТИЕ»): one per
+   * player per generation, written by `EventRecorder.beginProductionPhase`
+   * under the `production` category. Everything the phase pays is its chain —
+   * the production values landing in the stock (`resource-changed` under
+   * `{kind: 'production'}`), the terraform rating's M€ (`part: 'rating'`), the
+   * energy turned into heat (`part: 'conversion'`) and whatever a card's
+   * `onProductionPhase` adds under its own source. The journal groups the
+   * phase as one entry, the aggregates read the income per generation, the
+   * console's generation scene plays the seat's own record — nothing on the
+   * client counts income by itself.
+   */
   | 'production-phase-income';
 
 /**
@@ -255,7 +267,8 @@ export type JournalActionCategory =
   | 'solar-phase' // a World Government Terraforming action (the solar phase)
   | 'automa-turn' // one whole MarsBot (Automa) turn — groups the bot's turn in the journal
   | 'parliament' // an in-turn political action (Turmoil Redux): a vote, a party action
-  | 'political-phase'; // the Mars Parliament's end-of-generation resolution (Turmoil Redux)
+  | 'political-phase' // the Mars Parliament's end-of-generation resolution (Turmoil Redux)
+  | 'production'; // a seat's production-phase income — one group per player per generation (TR61)
 
 /**
  * `journal` — meaningful to the player / the game's story (may later be shown

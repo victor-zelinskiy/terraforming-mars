@@ -11,6 +11,7 @@ import {
   aggregateAttacks,
   aggregateAttacksBySource,
   aggregateByPlayerGeneration,
+  productionIncomeByPlayerGeneration,
 } from './aggregate';
 
 /**
@@ -34,7 +35,9 @@ export type FactType =
   'economy' | 'actionUsage' | 'passiveEffect' | 'globalParameter' |
   'colony' | 'negativeInteraction' | 'engineTiming' | 'notableEvent' | 'reveal' |
   'standardProject' | 'milestoneClaim' | 'awardFunding' | 'cardAttack' |
-  'corporationImpact';
+  'corporationImpact' |
+  /** A seat's production-phase income over the match — the economy's timeline by the phase's own record (TR61). */
+  'productionIncome';
 
 export type FactConfidence = 'exact' | 'partial' | 'approximate' | 'ruleOnly';
 
@@ -770,6 +773,69 @@ function corporationFacts(events: ReadonlyArray<GameEvent>, opts: BuildFactsOpti
   return facts;
 }
 
+// ── Production income (TR61 — «ДОХОД — СОБЫТИЕ») ───────────────────────────────
+
+/**
+ * ONE fact per seat: the production phase's income over the match, read off
+ * the phase's own events (`productionIncomeByPlayerGeneration`) — the sum of
+ * every production value that landed in the stock, the rating's M€ apart, the
+ * energy converted, the generations paid, and the PEAK generation (the one
+ * the storyteller names). EXACT: nothing is estimated.
+ */
+function productionIncomeFacts(events: ReadonlyArray<GameEvent>): Array<EndgameFact> {
+  const facts: Array<EndgameFact> = [];
+  const roots = new Map<string, Array<number>>();
+  for (const e of events) {
+    if (e.type === 'production-phase-income' && e.player !== undefined) {
+      const ids = roots.get(e.player) ?? [];
+      ids.push(e.id);
+      roots.set(e.player, ids);
+    }
+  }
+  for (const [color, perGen] of productionIncomeByPlayerGeneration(events)) {
+    let units = 0;
+    let megacredits = 0;
+    let rating = 0;
+    let conversion = 0;
+    let peakGeneration = 0;
+    let peakUnits = -1;
+    let firstGeneration = 0;
+    for (const [gen, stats] of [...perGen.entries()].sort((a, b) => a[0] - b[0])) {
+      const genUnits = sumPositiveUnits(stats.stock) + stats.rating;
+      units += genUnits;
+      megacredits += (stats.stock.megacredits > 0 ? stats.stock.megacredits : 0) + stats.rating;
+      rating += stats.rating;
+      conversion += stats.conversion;
+      if (genUnits > peakUnits) {
+        peakUnits = genUnits;
+        peakGeneration = gen;
+      }
+      if (firstGeneration === 0) {
+        firstGeneration = gen;
+      }
+    }
+    if (perGen.size === 0) {
+      continue;
+    }
+    facts.push({
+      id: `income:${color}`,
+      type: 'productionIncome',
+      player: color,
+      generation: peakGeneration,
+      // Rough importance: a 200-unit match income is a full-weight economy story.
+      severity: clamp01(units / 200),
+      confidence: 'exact',
+      metrics: {
+        generations: perGen.size, firstGeneration, units, megacredits, rating, conversion, peakGeneration, peakUnits: Math.max(0, peakUnits),
+        averageUnits: Math.round(units / perGen.size),
+      },
+      relatedEventIds: roots.get(color) ?? [],
+      tags: ['economy', 'timeline'],
+    });
+  }
+  return facts;
+}
+
 /**
  * Build every analysis-ready fact from the event stream. Pure + deterministic — the
  * SAME stream always yields the SAME facts (ids are content-derived, no Date/random),
@@ -778,6 +844,7 @@ function corporationFacts(events: ReadonlyArray<GameEvent>, opts: BuildFactsOpti
 export function buildEndgameFacts(events: ReadonlyArray<GameEvent>, opts: BuildFactsOptions = {}): Array<EndgameFact> {
   return [
     ...economyFacts(events),
+    ...productionIncomeFacts(events),
     ...actionUsageFacts(events),
     ...passiveEffectFacts(events),
     ...globalParameterFacts(events),

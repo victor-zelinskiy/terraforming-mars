@@ -35,6 +35,7 @@ import {ColonyTradeManifestModel} from '../common/models/ColonyTradeManifestMode
 import {ExternalDrawCause} from '../common/models/ExternalDrawPromptModel';
 import {RevealResultModel} from '../common/models/RevealResultModel';
 import {EnergyHeatConversionModel} from '../common/models/EnergyHeatConversionModel';
+import {ProductionIncomeModel} from '../common/models/ProductionIncomeModel';
 import {OceanAdjacencyBonusModel} from '../common/models/OceanAdjacencyBonusModel';
 import {PlacementLawPayoutModel} from '../common/models/PlacementLawPayoutModel';
 import {TileMoveRewardModel} from '../common/models/TileMoveRewardModel';
@@ -307,6 +308,16 @@ export interface IPlayer {
    * EnergyHeatConversionModel.
    */
   energyHeatConversion: EnergyHeatConversionModel | undefined;
+  /**
+   * Transient (NOT serialized) RECORD of the production phase that just paid
+   * this player (TR61 — «ДОХОД — СОБЫТИЕ»): the income per resource, the
+   * rating's M€, the energy converted, and the journal root it all stands
+   * under. Set in `runProductionPhase` (filled by `finishProductionPhase` /
+   * `convertEnergyToHeat`), serialized self-only in the player model, cleared
+   * at the start of the next input (Player.process). The console's generation
+   * scene plays it. See ProductionIncomeModel.
+   */
+  productionIncome: ProductionIncomeModel | undefined;
   /**
    * Transient (NOT serialized) snapshot of the OCEAN ADJACENCY bonus this player
    * just earned by placing next to oceans — set in `Game.grantPlacementBonuses`,
@@ -593,6 +604,13 @@ export interface IPlayer {
   getPlayableActionCards(): Array<ICard & IActionCard>;
   runProductionPhase(): void;
   finishProductionPhase(): void;
+  /**
+   * Turn `amount` of this player's energy into heat (the end-of-generation rule,
+   * or the Supercapacitors chosen amount) — through the stock chokepoints under
+   * the production phase's `conversion` source, with the one-shot snapshot the
+   * premium transition reads. A zero / negative amount does nothing.
+   */
+  convertEnergyToHeat(amount: number): void;
 
   runResearchPhase(): void;
   getCardCost(card: IProjectCard): number;

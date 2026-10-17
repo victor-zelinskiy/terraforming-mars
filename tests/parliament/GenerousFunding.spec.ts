@@ -383,7 +383,9 @@ describe('GenerousFunding', () => {
       const realAdd = p2.stock.add.bind(p2.stock);
       let failures = 0;
       p2.stock.add = (resource, amount, options) => {
-        if (resource === Resource.MEGACREDITS && failures === 0) {
+        // Only the SITTING's own add breaks: the production phase before it pays the rating and the income through
+        // the same chokepoint (TR61), and an interruption there is a different story than the one this test tells.
+        if (resource === Resource.MEGACREDITS && failures === 0 && game.phase === Phase.PARLIAMENT) {
           failures++;
           throw new Error('interrupted');
         }

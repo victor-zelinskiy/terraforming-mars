@@ -84,7 +84,16 @@ export type EventSource =
    * kind is then only the fallback a player can still be told about.
    */
   | {kind: 'tile'; tileType: TileType; owner?: Color}
-  | {kind: 'production'}
+  /**
+   * THE PRODUCTION PHASE'S INCOME (TR61 — «ДОХОД — СОБЫТИЕ»): what the phase
+   * paid a seat out of its own production. `part` names the two lines that are
+   * NOT the production values themselves — the TERRAFORM RATING paid as M€
+   * (`rating`) and the energy that turned into heat before the income
+   * (`conversion`) — so the journal's rows, the aggregates and the console's
+   * generation scene keep them apart from the production row; absent, the
+   * event is a production value landing in its stock.
+   */
+  | {kind: 'production'; part?: 'rating' | 'conversion'}
   | {kind: 'spaceBonus'} // a hex's printed placement bonus ("cell bonus")
   | {kind: 'oceanBonus'} // M€ for placing adjacent to oceans
   | {kind: 'payment'} // resources spent paying for a card / project
@@ -121,6 +130,9 @@ export function sourceKey(source: EventSource | undefined): string {
   // together); the bare institution stays one key.
   case 'parliament':
     return source.rule === undefined ? source.kind : `${source.kind}:${source.rule}`;
+  // The rating's M€ and the conversion are their own lines beside the production values (TR61).
+  case 'production':
+    return source.part === undefined ? source.kind : `${source.kind}:${source.part}`;
   default:
     return source.kind;
   }

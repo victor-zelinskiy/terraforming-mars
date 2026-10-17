@@ -54,20 +54,11 @@ export class Supercapacitors extends Card implements IProjectCard {
         {icon: 'energy', conversion: {from: 'energy', to: 'heat'}})
         .markChoiceContext(namedCardEffect(CardName.SUPERCAPACITORS, false))
         .andThen((amount) => {
-          // Snapshot the player-chosen conversion for the premium paired
-          // "Energy −X → Heat +X" transition animation, BEFORE mutating the
-          // stocks. Skipped when the player opts to convert nothing.
-          if (amount > 0) {
-            player.energyHeatConversion = {
-              amount,
-              energyBefore: player.energy,
-              heatBefore: player.heat,
-              generation: player.game.generation,
-            };
-          }
-          player.energy -= amount;
-          player.heat += amount;
-          player.game.log('${0} converted ${1} units of energy to heat', (b) => b.player(player).number(amount));
+          // The chosen amount goes through the ONE conversion of the production
+          // phase (the snapshot for the paired transition, the stock
+          // chokepoints under the phase's `conversion` source — TR61); a zero
+          // converts nothing and leaves no snapshot (no empty ceremony).
+          player.convertEnergyToHeat(amount);
           player.finishProductionPhase();
           return undefined;
         },
