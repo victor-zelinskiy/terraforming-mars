@@ -33,6 +33,7 @@ import {DelegatesOnResolutionsRequirement} from './DelegatesOnResolutionsRequire
 import {InfluenceRequirement} from './InfluenceRequirement';
 import {GenerationRequirement} from './GenerationRequirement';
 import {TagsOfOneTypeRequirement} from './TagsOfOneTypeRequirement';
+import {CardsWithRequirementsRequirement} from './CardsWithRequirementsRequirement';
 
 export class CardRequirements {
   constructor(public requirements: Array<CardRequirement>) {}
@@ -128,6 +129,8 @@ export class CardRequirements {
       return new GenerationRequirement({...descriptor, count: descriptor.generation});
     } else if (descriptor.tagsOfOneType !== undefined) {
       return new TagsOfOneTypeRequirement({...descriptor, count: descriptor.tagsOfOneType});
+    } else if (descriptor.cardsWithRequirements !== undefined) {
+      return new CardsWithRequirementsRequirement({...descriptor, count: descriptor.cardsWithRequirements});
     } else {
       throw new Error('Unknown requirement: ' + JSON.stringify(descriptor));
     }

@@ -65,14 +65,28 @@ function chairmanNowText(now: NonNullable<UnplayableReason['chairmanNow']>): str
 const CHAIRMAN_EMBLEM = 'assets/misc/chairman.png';
 
 /**
+ * A COUNTED reason whose subject has a GLYPH of its own on the card's plate (Turmoil Redux TR68 — «a card with a
+ * requirement», the small card carrying its own gold MIN plate). Its rail form is the glyph and the counter alone
+ * («[card] 4/5»), the same badge the plate prints (`premiumCardViewModel` → `card-requirement.svg`).
+ */
+const COUNT_MESSAGE_EMBLEMS: Readonly<Record<string, string>> = {
+  'Requires ${0} played cards with requirements': 'assets/misc/card-requirement.svg',
+  'Requires ${0} or less played cards with requirements': 'assets/misc/card-requirement.svg',
+};
+
+/**
  * The EMBLEM a reason is drawn with on a one-row rail — a named PARTY reason
  * (the compact counter «[emblem] 1/2» reads the party by its badge, the same
- * badge the card's plate prints) or the named CHAIRMAN reason («[chairman]
- * Синий» — the badge, then who holds the seat). `undefined` for every other.
+ * badge the card's plate prints), the named CHAIRMAN reason («[chairman]
+ * Синий» — the badge, then who holds the seat) or a counted reason whose
+ * subject is a glyph of its own («[card] 4/5»). `undefined` for every other.
  */
 export function unplayableReasonEmblem(r: UnplayableReason): string | undefined {
   if (r.chairmanNow !== undefined) {
     return CHAIRMAN_EMBLEM;
+  }
+  if (r.type === 'count' && COUNT_MESSAGE_EMBLEMS[r.message] !== undefined) {
+    return COUNT_MESSAGE_EMBLEMS[r.message];
   }
   return r.party === undefined ? undefined : requirementPartyEmblem(r.party);
 }
@@ -160,6 +174,10 @@ const COUNT_MESSAGE_LABELS: Readonly<Record<string, string>> = {
   // Turmoil Redux (TR10) — «Пок. 2/4»: the game's clock against the printed floor (the endgame's own «Gen» key).
   'Requires generation ${0} or later': 'Gen',
   'Requires generation ${0} or less': 'Gen',
+  // Turmoil Redux (TR68) — «Карты с требованиями 4/5»: the played cards that print a requirement, the card
+  // asking excluded (the server's `playedCardsWithRequirements`).
+  'Requires ${0} played cards with requirements': 'Cards with requirements',
+  'Requires ${0} or less played cards with requirements': 'Cards with requirements',
 };
 
 /** The compact counter's label (an English i18n key), or undefined when the
@@ -202,5 +220,7 @@ export function unplayableReasonCompact(r: UnplayableReason): string {
     return unplayableReasonLine(r);
   }
   const max = MAX_REQUIREMENT_MARKERS.some((m) => r.message.includes(m));
-  return `${translateText(label)} ${r.current}/${max ? '≤' : ''}${bound}${reasonUnit(r)}`;
+  const counter = `${r.current}/${max ? '≤' : ''}${bound}${reasonUnit(r)}`;
+  // A glyph names the subject on the rail («[card] 4/5») — the label would say it twice.
+  return r.type === 'count' && COUNT_MESSAGE_EMBLEMS[r.message] !== undefined ? counter : `${translateText(label)} ${counter}`;
 }

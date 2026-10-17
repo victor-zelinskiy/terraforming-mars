@@ -297,6 +297,9 @@ const REQUIREMENT_RENDER: Partial<Record<RequirementType, RequirementRender>> = 
   // Turmoil Redux (TR10): the game's clock has no icon — the scan prints the plate as TEXT, «GEN 4+», and so
   // does the face: the label (the endgame's own «Gen» key) and the number with a «+» for the floor.
   [RequirementType.GENERATION]: {value: (d) => d.generation ?? d.count ?? 1, label: 'Gen', plain: true},
+  // Turmoil Redux (TR68): as printed — a small card carrying its own gold MIN plate (`card-requirement.svg`),
+  // and the number. The same glyph the hand's counter, the reason and «Информация» read.
+  [RequirementType.CARDS_WITH_REQUIREMENTS]: {value: (d) => d.cardsWithRequirements ?? d.count ?? 1, iconUrl: `${MISC}/card-requirement.svg`},
 };
 
 export function normalizeRequirement(descriptor: CardRequirementDescriptor): NormalizedRequirement {

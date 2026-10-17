@@ -548,6 +548,17 @@ describe('normalizeRequirement', () => {
     expect(normalizeRequirement({influence: 2}).comparator, 'the floor form').to.eq('min');
   });
 
+  it('«cards with requirements played» (Turmoil Redux, TR68) draws its own glyph — a small card with its gold MIN plate — and the number', () => {
+    const played = normalizeRequirement({cardsWithRequirements: 5});
+    expect(played.type).to.eq(RequirementType.CARDS_WITH_REQUIREMENTS);
+    expect(played.value).to.eq(5);
+    expect(played.comparator).to.eq('min');
+    expect(played.iconUrl).to.eq('assets/misc/card-requirement.svg');
+    expect(played.label, 'the glyph names the subject').to.eq(undefined);
+    expect(played.plain).to.eq(false);
+    expect(played.isBinary).to.eq(false);
+  });
+
   it('«generation» (Turmoil Redux, TR10) is printed as TEXT, the way the scan prints it — «GEN 4+»: a label, the number, a «+» for the floor', () => {
     const generation = normalizeRequirement({generation: 4});
     expect(generation.type).to.eq(RequirementType.GENERATION);

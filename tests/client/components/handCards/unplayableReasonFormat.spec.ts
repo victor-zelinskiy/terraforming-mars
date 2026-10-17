@@ -39,6 +39,16 @@ describe('unplayableReasonFormat — the compact counter form', () => {
     expect(unplayableReasonCompact(ceiling)).eq('Gen 3/≤2');
   });
 
+  it('«cards with requirements played» (Turmoil Redux, TR68) reads as the GLYPH and the counter — «[card] 4/5»: the plate\'s own badge names the subject, the label never doubles it', () => {
+    const floor: UnplayableReason = {type: 'count', message: 'Requires ${0} played cards with requirements', params: ['5'], current: 4, requirement: true};
+    expect(unplayableReasonEmblem(floor)).eq('assets/misc/card-requirement.svg');
+    expect(unplayableReasonCompact(floor)).eq('4/5');
+    expect(unplayableReasonChip([floor])).deep.eq({emblem: 'assets/misc/card-requirement.svg', text: '4/5'});
+    expect(unplayableReasonLine(floor)).eq('Requires 5 played cards with requirements · Now: 4');
+    const ceiling: UnplayableReason = {type: 'count', message: 'Requires ${0} or less played cards with requirements', params: ['2'], current: 3, requirement: true};
+    expect(unplayableReasonCompact(ceiling)).eq('3/≤2');
+  });
+
   /*
    * A NAMED PARTY REQUIREMENT (Turmoil Redux — TR15 the set's first): the party is read by its parliament name
    * (never the raw English param) and its EMBLEM on a rail; the line states both roads with their «now», and

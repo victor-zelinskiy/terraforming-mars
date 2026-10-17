@@ -67,6 +67,12 @@ export type CardRequirementDescriptor = {
    *  earlier). The table's clock, nobody's stock: TR10 Fringe Colony prints
    *  «GEN 4+» — «this can only be played during generation 4 or later». */
   generation?: number,
+  /** Requires that the player has PLAYED at least N OTHER cards that carry a
+   *  requirement (TR68 Political Recognition prints «5 other cards with
+   *  requirements»): every card of `playedCards` with a non-empty
+   *  `requirements` — events included («played», never «in play») — minus the
+   *  card asking. Preludes and corporations print none, so they never count. */
+  cardsWithRequirements?: number,
 
   // The Moon
   habitatTiles?: number,
@@ -152,6 +158,8 @@ export function requirementType(descriptor: CardRequirementDescriptor): Requirem
     return RequirementType.INFLUENCE;
   } else if (descriptor.generation !== undefined) {
     return RequirementType.GENERATION;
+  } else if (descriptor.cardsWithRequirements !== undefined) {
+    return RequirementType.CARDS_WITH_REQUIREMENTS;
   } else {
     throw new Error('Unknown requirement: ' + JSON.stringify(descriptor));
   }

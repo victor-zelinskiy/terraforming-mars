@@ -66,6 +66,7 @@ import {CargoMechs} from './CargoMechs';
 import {StrategicShift} from './StrategicShift';
 import {FloatingBiodomes} from './FloatingBiodomes';
 import {BackroomDeal} from './BackroomDeal';
+import {PoliticalRecognition} from './PoliticalRecognition';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -321,5 +322,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // first card arming TWO effects (the party-requirement WAIVER, the set's fourth kind, and a 10 M€ discount) for
     // the price of 1 TR.
     [CardName.BACKROOM_DEAL]: {Factory: BackroomDeal},
+    // Only the module's icon at the bottom left: the WILD tag, the set's NEW requirement kind («5 other cards with
+    // requirements PLAYED» — `cardsWithRequirements`), and TR04's walk at three steps.
+    [CardName.POLITICAL_RECOGNITION]: {Factory: PoliticalRecognition},
   },
 });

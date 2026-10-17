@@ -29,6 +29,8 @@ export enum RequirementType {
     INFLUENCE = 'Influence',
     /** The game's GENERATION number — «can only be played during generation N or later» (TR10 prints «GEN 4+»). */
     GENERATION = 'Generation',
+    /** The player's PLAYED cards that carry a requirement — events included, the card asking excluded (TR68 prints «5 other»). */
+    CARDS_WITH_REQUIREMENTS = 'Cards with requirements',
 
     // The Moon
     HABITAT_RATE = 'Habitat rate',

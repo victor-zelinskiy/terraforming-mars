@@ -287,6 +287,15 @@ function requirementBlock(descriptor: CardRequirementDescriptor, dup: number, no
       `Can only be played during generation ${n} or later.`;
     break;
   }
+  case RequirementType.CARDS_WITH_REQUIREMENTS: {
+    // Turmoil Redux (TR68): the scan's own sentence — «played» (events count),
+    // «other» (the card asking never counts itself).
+    const n = descriptor.cardsWithRequirements ?? descriptor.count ?? 1;
+    en = max ?
+      `Requires that you have played no more than ${n} other cards with requirements.` :
+      `Requires that you have played ${n} other cards with requirements.`;
+    break;
+  }
   case RequirementType.PARTY: {
     // Turmoil Redux (TR15 — the set's first party requirement; TR14–TR27 follow): the scan's
     // own sentence, its «there» named — the delegates stand on the PARTY'S RESOLUTION in the

@@ -127,6 +127,7 @@ const EN_SUBJECT: Readonly<Record<string, RegExp>> = {
   [RequirementType.TAGS_OF_ONE_TYPE]: /tags? of any one type/i,
   [RequirementType.INFLUENCE]: /influence/i,
   [RequirementType.GENERATION]: /generation/i,
+  [RequirementType.CARDS_WITH_REQUIREMENTS]: /cards? with requirements/i,
   [RequirementType.PARTY_LEADERS]: /party leader/i,
   [RequirementType.CHAIRMAN]: /chairman/i,
   [RequirementType.PARTY]: /party/i,
