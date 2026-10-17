@@ -61,7 +61,16 @@ export type ActionGood =
    * Cargo Mechs: «1 mech from here → use an action a second time»). A bespoke good declared by the card (К-R1): the
    * satellite's chip and the TR56 target step name the repeat, never a bare store.
    */
-  | {kind: 'repeat'};
+  | {kind: 'repeat'}
+  /**
+   * The spend buys a TILE on Mars (TR69 Floating Biodomes: «3 floaters from here → a greenery tile», the tile raising
+   * its own parameter). A declared `greenery` / `ocean` / `city` payload — the satellite's chip and the target step
+   * name the tile three floaters here are for, never a bare store.
+   */
+  | {kind: 'tile', tile: ActionGoodTile};
+
+/** The tiles a declared action pays (`Behavior.greenery` / `.ocean` / `.city`). */
+export type ActionGoodTile = 'greenery' | 'ocean' | 'city';
 
 /**
  * `spend` units off this card → `good` — the holder's action role, as exported to the client card. `'all'`:

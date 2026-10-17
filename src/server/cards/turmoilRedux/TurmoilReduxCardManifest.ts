@@ -64,6 +64,7 @@ import {CivilianSpacefighters} from './CivilianSpacefighters';
 import {EnceladeanIncubator} from './EnceladeanIncubator';
 import {CargoMechs} from './CargoMechs';
 import {StrategicShift} from './StrategicShift';
+import {FloatingBiodomes} from './FloatingBiodomes';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -312,5 +313,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // Only the module's icon at the bottom left: an EVENT for 2 with no requirement — «discard any number of cards WITH A
     // REQUIREMENT, +1 M€ and +1 card each» (Public Plans' multi pick × the discard skin × the embedded draw).
     [CardName.STRATEGIC_SHIFT]: {Factory: StrategicShift},
+    // The Venus «V» at the bottom left: the second floater holder (TR27's sibling) — 1 plant → a floater onto ANY Venus
+    // card, OR 3 floaters here → a greenery tile, the set's first declared action TILE (staged from the composer, D5).
+    [CardName.FLOATING_BIODOMES]: {Factory: FloatingBiodomes, compatibility: 'venus'},
   },
 });

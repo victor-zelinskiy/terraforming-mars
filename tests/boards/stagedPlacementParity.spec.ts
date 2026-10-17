@@ -37,6 +37,7 @@ import {SubterraneanReservoir} from '../../src/server/cards/base/SubterraneanRes
 import {AquiferPumping} from '../../src/server/cards/base/AquiferPumping';
 import {WaterImportFromEuropa} from '../../src/server/cards/base/WaterImportFromEuropa';
 import {CometAiming} from '../../src/server/cards/promo/CometAiming';
+import {FloatingBiodomes} from '../../src/server/cards/turmoilRedux/FloatingBiodomes';
 import {MarsNomads} from '../../src/server/cards/promo/MarsNomads';
 import {StJosephOfCupertinoMission} from '../../src/server/cards/promo/StJosephOfCupertinoMission';
 import {IcyImpactors} from '../../src/server/cards/promo/IcyImpactors';
@@ -630,6 +631,25 @@ describe('staged ACTION placement parity (blue-card actions, D5)', () => {
       'the add-asteroid branch carries no placement at all').is.false;
     const or = cast(card.action(player), OrOptions);
     cast(or.options[found!.branchIndex], SelectOption).cb(undefined);
+    runAllActions(game);
+    assertActionParity(card.name, found!.staged, cast(player.popWaitingFor(), SelectSpace));
+  });
+
+  it('Floating Biodomes (TR69): a DECLARED action tile stages by itself — the greenery on B only, mirroring the live PlaceGreeneryTile', () => {
+    const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true, venusNextExtension: true});
+    const card = new FloatingBiodomes();
+    player.playedCards.push(card);
+    card.resourceCount = 3;
+    player.plants = 1; // both branches live → the declaration raises its OrOptions
+    const preview = actionPreview(player, card);
+    expect(preview.kind, 'no hook — the declarative builder stages the tile').to.eq('declarative');
+    const found = findStaged(preview);
+    expect(found, 'the greenery branch stages').to.not.be.undefined;
+    expect(found!.branchIndex, 'B is the SECOND runtime option').to.eq(1);
+    expect(preview.branches[0].steps.some((s) => s.kind === 'boardPlacement'), 'A places nothing').is.false;
+    expect(card.action(player), 'the declaration defers its question').to.be.undefined;
+    runAllActions(game);
+    cast(player.popWaitingFor(), OrOptions).options[found!.branchIndex].cb(undefined);
     runAllActions(game);
     assertActionParity(card.name, found!.staged, cast(player.popWaitingFor(), SelectSpace));
   });

@@ -15,9 +15,11 @@ import {Resource} from '../../common/Resource';
  *  · the variant must SPEND `resourcesHere` (a number) and pay PLAIN goods:
  *    production steps, stock gains, a draw (with its tag filter at most), a TR
  *    step or a global-parameter step — each one of a single resource /
- *    parameter;
+ *    parameter — or a declared TILE (a greenery, one ocean, a city — TR69's
+ *    «3 floaters → a greenery»: the tile is the good, it raises its own
+ *    parameter);
  *  · a variant that spends this card's resource for anything the console
- *    cannot name as plain goods (a target to pick, a placement, a
+ *    cannot name as plain goods (a target to pick, a special tile, a
  *    draw-and-keep) makes the WHOLE card plain storage — half a truth on a
  *    chip is a lie;
  *  · ONE spending variant paying SEVERAL plain goods at once is a SET — «1
@@ -130,8 +132,25 @@ function goodsOf(variant: Behavior): ReadonlyArray<ActionGood> | undefined {
       goods.push({kind: 'global', parameter, steps});
       break;
     }
+    case 'greenery':
+      // A TILE (TR69): the declared greenery — the tile raises its own oxygen, so the tile IS the good.
+      goods.push({kind: 'tile', tile: 'greenery'});
+      break;
+    case 'ocean': {
+      // One ocean, wherever the declaration puts it — two oceans are no single plate.
+      const count = variant.ocean?.count ?? 1;
+      if (count !== 1) {
+        return undefined;
+      }
+      goods.push({kind: 'tile', tile: 'ocean'});
+      break;
+    }
+    case 'city':
+      // A city the player places (a reserved off-grid space is no choice of the player's — still a city).
+      goods.push({kind: 'tile', tile: 'city'});
+      break;
     default:
-      // Any other payload (a resource onto a card, a tile, a colony, a delegate, …) — not a plain good.
+      // Any other payload (a resource onto a card, a special tile, a colony, a delegate, …) — not a plain good.
       return undefined;
     }
   }

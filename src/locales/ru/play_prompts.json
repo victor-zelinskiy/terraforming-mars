@@ -288,5 +288,7 @@
     "Gain ${0} heat": "Получите ${0} тепла",
     "Pay 1 titanium to add 2 fighter resources to this card": "Заплатите 1 титан, чтобы положить 2 истребителя на эту карту",
     "Spend 1 fighter from here to gain 3 M€ and increase your M€ production 1 step": "Потратьте 1 истребитель с этой карты, чтобы получить 3 M€ и повысить своё производство M€ на 1",
-    "Pay 1 energy to add a mech resource to ANY card": "Потратьте 1 энергию, чтобы добавить 1 мех на ЛЮБУЮ карту"
+    "Pay 1 energy to add a mech resource to ANY card": "Потратьте 1 энергию, чтобы добавить 1 мех на ЛЮБУЮ карту",
+    "Pay 1 plant to add a floater to ANY Venus card": "Заплатите 1 растение, чтобы добавить 1 аэростат на ЛЮБУЮ карту Венеры",
+    "Spend 3 floaters from here to place a greenery tile": "Потратьте 3 аэростата с этой карты, чтобы провести озеленение"
 }

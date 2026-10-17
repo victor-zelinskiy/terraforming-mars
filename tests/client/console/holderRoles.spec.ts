@@ -194,6 +194,18 @@ describe('holderRoles — what a stored resource is for', () => {
     expect(holderGainOutcome(cargo, 0, 1)).to.deep.eq({kind: 'reach', good: 'action', role: cargo, have: 1, need: 1, state: 'opens'});
   });
 
+  it('TR69: a declared TILE good — 3 floaters buy a greenery: the tile named on the value line, the printed greenery as its icon, the tile family\'s caption, the action within reach at 3 / 3', () => {
+    const biodomes = holderRoleOf(CardName.FLOATING_BIODOMES);
+    expect(biodomes).to.deep.eq({kind: 'action', spend: 3, good: {kind: 'tile', tile: 'greenery'}});
+    expect(holderRoleReading(biodomes)).to.deep.eq({label: 'Spend ${0} from here: a greenery tile', params: ['3']});
+    expect(holderRoleIcon(biodomes)).to.eq('greenery');
+    expect(holderRoleCaption(biodomes)).to.eq('Tile');
+    expect(holderRolePlate(biodomes)).to.eq(undefined);
+    expect(actionGoodKey({kind: 'tile', tile: 'greenery'}), 'its own lane').to.eq('tile-greenery');
+    expect(holderGainOutcome(biodomes, 2, 3)).to.deep.eq({kind: 'reach', good: 'action', role: biodomes, have: 3, need: 3, state: 'opens'});
+    expect(holderGainOutcome(biodomes, 0, 1)).to.deep.include({state: 'short', have: 1, need: 3});
+  });
+
   it('a role CLAIMS (tender, a delegate, a trade, an action\'s good) or it does not (a VP rule, storage) — only a claiming role of a split type gets a key of its own; a payment keyed by its UNIT when two tender pools stand', () => {
     expect(['payment', 'delegate', 'trade', 'action'].map((k) => holderRoleClaims(k as never))).to.deep.eq([true, true, true, true]);
     expect(['vp', 'store'].map((k) => holderRoleClaims(k as never))).to.deep.eq([false, false]);

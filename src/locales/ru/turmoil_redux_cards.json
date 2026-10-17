@@ -197,5 +197,9 @@
     "Action: Pay 1 energy to add a mech resource to ANY card.": "Действие: заплатите 1 энергию, чтобы добавить 1 мех на ЛЮБУЮ карту.",
     "Action: Spend 1 mech from here to use an action on one of your cards a second time this generation.": "Действие: потратьте 1 мех с этой карты, чтобы использовать действие одной из своих карт второй раз в этом поколении.",
     "Strategic Shift": "Смена стратегии",
-    "Discard as many cards with a requirement from your hand as you like. Then gain the same amount of M€ and draw that many cards.": "Сбросьте с руки любое число карт с требованием. Затем получите столько же M€ и возьмите столько же карт."
+    "Discard as many cards with a requirement from your hand as you like. Then gain the same amount of M€ and draw that many cards.": "Сбросьте с руки любое число карт с требованием. Затем получите столько же M€ и возьмите столько же карт.",
+    "Floating Biodomes": "Парящие биокуполы",
+    "Action: Pay 1 plant to add a floater resource to ANY Venus card.": "Действие: заплатите 1 растение, чтобы добавить 1 аэростат на любую карту Венеры.",
+    "Action: Spend 3 floaters from here to place a greenery tile and increase oxygen 1 step.": "Действие: потратьте 3 аэростата с этой карты, чтобы провести озеленение и повысить уровень кислорода на 1.",
+    "Requires Venus 10%. Add 2 floater resources to this card.": "Требование: 10% на шкале Венеры или выше. Добавьте на эту карту 2 аэростата."
 }

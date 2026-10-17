@@ -19,7 +19,8 @@
  */
 
 const STANDARD_RESOURCE_ICONS: ReadonlySet<string> = new Set(['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat']);
-const GLOBAL_PARAMETER_ICONS: ReadonlySet<string> = new Set(['temperature', 'venus', 'oxygen', 'ocean']);
+// `greenery` / `city` (TR69 — a holder whose action buys a TILE): the printed tile's own art, the ocean's family.
+const GLOBAL_PARAMETER_ICONS: ReadonlySet<string> = new Set(['temperature', 'venus', 'oxygen', 'ocean', 'greenery', 'city']);
 // Pseudo-icons that map onto the global `resource_icon` sprite family (the same
 // art the card renderer uses, but its own classes are scoped under `.card-container`).
 // `rating` is the rail's own key for the terraform rating (the parliament's Agenda bonus rides it as a chip).

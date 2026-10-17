@@ -23,6 +23,7 @@ import {FLEET_LIMIT_REASON, skippedTradeFleet, tradeFleetGainChip, tradeFleetsLo
 import {drawSearchOf} from '../deferredActions/drawSearch';
 import {withPreselectAddresses} from './preselectAddresses';
 import {actionFutility} from './actionFutility';
+import {attachStagedPlacement, stagedPlacementForBehavior} from './stagedBehaviorPlacement';
 
 /**
  * READ-ONLY preview of an activatable action — the analog of
@@ -265,7 +266,7 @@ function branchHeatSteps(player: IPlayer, sub: Behavior): ReadonlyArray<ActionPr
 function deriveDeclarativeBranches(player: IPlayer, card: ICard & IActionCard, behavior: Behavior): ReadonlyArray<ActionPreviewBranch> {
   // Multi-branch `or` → the shared derivation (one per sub-behavior, runtime
   // indices among the executable ones, the optional choice's general branch).
-  const orBranches = deriveOrBranches(player, card, behavior, (b) => stepsForBehavior(player, card, b));
+  const orBranches = deriveOrBranches(player, card, behavior, (b) => declaredActionSteps(player, card, b));
   if (orBranches !== undefined) {
     return orBranches;
   }
@@ -288,8 +289,18 @@ function deriveDeclarativeBranches(player: IPlayer, card: ICard & IActionCard, b
     unavailableReasonParams: reason?.params,
     renderKeys: [],
     effects: effectsForBehavior(player, card, behavior),
-    steps: available ? stepsForBehavior(player, card, behavior) : [],
+    steps: available ? declaredActionSteps(player, card, behavior) : [],
   }];
+}
+
+/**
+ * A declared ACTION's steps with its TILE staged (D5 — docs/TILE_PLAY_STAGED_COMMIT.md § 9-ter): a declaration that
+ * places a tile (TR69's greenery) gets the cell as the action's LAST REVERSIBLE STEP for free — the composer parks the
+ * batch, the board picks the cell, ONE POST `[…, {type: 'space'}]` — the same derivation the play door stages with,
+ * minus the unpaid card's price (an action's cost is spent before its placement resolves). Never a hook in the card.
+ */
+function declaredActionSteps(player: IPlayer, card: ICard, behavior: Behavior): ReadonlyArray<ActionPreviewStep> {
+  return attachStagedPlacement(stepsForBehavior(player, card, behavior), stagedPlacementForBehavior(player, card, behavior));
 }
 
 // ── Effects: the at-a-glance cost/gain chips (icon + current → resulting) ────

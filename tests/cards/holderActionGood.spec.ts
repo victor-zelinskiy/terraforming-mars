@@ -57,6 +57,8 @@ describe('holderActionGoodOf — the good a stored resource buys through the car
     // TR60 (the owner's decision 4a): ONE PRICE, A SET OF GOODS — one press buys every good, in the printed order.
     [CardName.CIVILIAN_SPACEFIGHTERS, {spend: 1, good: {kind: 'production', resource: 'megacredits' as never, amount: 1}, with: [
       {kind: 'stock', resource: 'megacredits' as never, amount: 3}]}],
+    // TR69 (the owner's decision 5a): a declared TILE is a good — «3 floaters → a greenery», the plant variant ignored.
+    [CardName.FLOATING_BIODOMES, {spend: 3, good: {kind: 'tile', tile: 'greenery'}}],
     // …the same class in Underworld: «2 activists → 2 plants and +1 plant production» (storage until the set was read).
     [CardName.ARBORIST_COLLECTIVE, {spend: 2, good: {kind: 'stock', resource: 'plants' as never, amount: 2}, with: [
       {kind: 'production', resource: 'plants' as never, amount: 1}]}],
@@ -157,8 +159,8 @@ describe('holderActionGoodOf — the good a stored resource buys through the car
         }
         // Every good of a CHOICE (PL-484) and of a SET (TR60) too — one empty good would promise nothing on its plate.
         for (const g of roleGoodsOf(good)) {
-          // A REPEAT (TR61) is one action performed again — a verb with no magnitude; every other good carries one.
-          const amount = g.kind === 'global' ? g.steps : g.kind === 'look' ? g.keep : g.kind === 'repeat' ? 1 : g.amount;
+          // A REPEAT (TR61) is one action performed again, a TILE (TR69) one tile — no magnitude; every other good carries one.
+          const amount = g.kind === 'global' ? g.steps : g.kind === 'look' ? g.keep : g.kind === 'repeat' || g.kind === 'tile' ? 1 : g.amount;
           expect(amount, name).is.greaterThan(0);
         }
       }

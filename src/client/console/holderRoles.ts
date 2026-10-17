@@ -16,7 +16,7 @@
  */
 import {CardName} from '@/common/cards/CardName';
 import {CardResource} from '@/common/CardResource';
-import {ActionGood, actionGoodsOf, actionGoodSetOf, isActionGoodSet, roleGoodsOf} from '@/common/cards/holderRole';
+import {ActionGood, ActionGoodTile, actionGoodsOf, actionGoodSetOf, isActionGoodSet, roleGoodsOf} from '@/common/cards/holderRole';
 import {DEFAULT_PAYMENT_VALUES} from '@/common/inputs/Payment';
 import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES, SpendableCardResource} from '@/common/inputs/Spendable';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -122,6 +122,8 @@ export function actionGoodKey(good: ActionGood): string {
     return good.tag === undefined ? 'cards' : `cards-${good.tag}`;
   case 'global':
     return `global-${good.parameter}`;
+  case 'tile':
+    return `tile-${good.tile}`;
   default:
     return good.kind;
   }
@@ -173,6 +175,8 @@ export const ACTION_GOOD_CAPTION: Readonly<Record<ActionGood['kind'], string>> =
   look: 'cards',
   // TR61: the mech buys a REPEAT of a used action — the family word is the repeat family's own (the bridge's kicker).
   repeat: 'Repeat action',
+  // TR69: the floaters buy a TILE on Mars.
+  tile: 'Tile',
 };
 
 /** The caption of a role — `undefined` for plain storage. */
@@ -214,6 +218,9 @@ export function actionGoodIcon(good: ActionGood): string {
   case 'repeat':
     // The printed ACTION plate (`action-replay`) — the icon Project Inspection's block and TR61's row carry.
     return 'action-replay';
+  case 'tile':
+    // The printed TILE itself (TR69's greenery with its oxygen dot) — `wgt-icon--<tile>`.
+    return good.tile;
   }
 }
 
@@ -265,8 +272,8 @@ export function holderRoleIconSpread(role: HolderRole): {join?: 'and', plates?: 
 
 /** The amount an action's good moves — the label's second number. */
 export function actionGoodAmount(good: ActionGood): number {
-  // A repeat has no count — ONE action performed again.
-  return good.kind === 'global' ? good.steps : good.kind === 'look' ? good.keep : good.kind === 'repeat' ? 1 : good.amount;
+  // A repeat has no count — ONE action performed again; a tile is ONE tile.
+  return good.kind === 'global' ? good.steps : good.kind === 'look' ? good.keep : good.kind === 'repeat' || good.kind === 'tile' ? 1 : good.amount;
 }
 
 /** The tail phrase after an action good's amount (an i18n key) — what the «+N» is of. */
@@ -286,8 +293,24 @@ export function actionGoodTail(good: ActionGood): string | undefined {
     return undefined;
   case 'repeat':
     return 'repeat of a used action';
+  case 'tile':
+    return TILE_GOOD_TAIL[good.tile];
   }
 }
+
+/** The tail of a TILE good — the tile's own word (TR69). */
+const TILE_GOOD_TAIL: Readonly<Record<ActionGoodTile, string>> = {
+  greenery: 'greenery tile',
+  ocean: 'ocean tile',
+  city: 'city tile',
+};
+
+/** The value line of a TILE good — «Spend 3 from here: a greenery tile» (one tile, no «+N»; TR69). */
+const TILE_GOOD_READING: Readonly<Record<ActionGoodTile, string>> = {
+  greenery: 'Spend ${0} from here: a greenery tile',
+  ocean: 'Spend ${0} from here: an ocean tile',
+  city: 'Spend ${0} from here: a city tile',
+};
 
 /**
  * THE VALUE LINE of a role — what ONE unit of the resource is worth on this
@@ -330,6 +353,10 @@ export function holderRoleReading(role: HolderRole): HolderRoleReading | undefin
     if (role.good.kind === 'repeat') {
       // TR61: the spend buys ONE repeat of an already-used action — no «+N», the good is a verb.
       return {label: 'Spend ${0} from here: repeat a used action', params: [String(role.spend)]};
+    }
+    if (role.good.kind === 'tile' && actionGoodsOf(role).length === 1 && !isActionGoodSet(role)) {
+      // TR69: the spend buys ONE tile on Mars — the tile named, no «+1».
+      return {label: TILE_GOOD_READING[role.good.tile], params: [String(role.spend)]};
     }
     if (isActionGoodSet(role)) {
       // A SET at one price (TR60): «Spend 1 from here: +1 and +3 at once» beside the goods' icons in the same order —
