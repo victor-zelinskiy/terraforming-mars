@@ -441,7 +441,8 @@ for (const preset of PRESETS) {
       await key(page, 'KeyX', 1000);
       await expect(page.locator('.con-played')).toHaveCount(1);
       await key(page, 'KeyE', 800);
-      await expect(page.locator('.con-played__seat-name')).toHaveText('Бот');
+      // The seat is the table's crumb SUBJECT (РАЗЫГРАНО › Бот) since TR65 — the one place the name is said.
+      await expect(page.locator('.con-played .con-wshead__subject')).toHaveText('Бот');
       await expect(page.locator('.con-played__provenance')).toBeVisible();
       await key(page, 'Escape', 800);
       await expect(page.locator('.con-played')).toHaveCount(0);

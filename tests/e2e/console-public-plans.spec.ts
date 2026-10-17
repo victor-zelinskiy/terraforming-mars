@@ -87,7 +87,7 @@ for (const preset of PRESETS) {
       // ② ONE verb per button: R3 is «select all», L3 the source — never two L3s on the bar.
       const b = await bar(page);
       expect(b, 'R3 names the select-all').toMatch(/R3\s*Выбрать все/i);
-      expect(b, 'L3 names the source').toMatch(/L3\s*Осмотреть источник/i);
+      expect(b, 'L3 names the source').toMatch(/L3\s*Источник/i);
       expect((b.match(/L3/g) ?? []).length, 'one L3 on the bar').toBe(1);
       await press(page, 'KeyV', 600); // R3
       await expect(picked(page), 'R3 selects every candidate').toHaveCount(candidates);

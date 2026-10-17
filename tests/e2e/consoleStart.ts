@@ -2656,7 +2656,12 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   'notification-source-ares' | 'notification-source-ares-bot' |
   // TR60 — «ИНФОРМАЦИЯ — ДОСЬЕ»: a SATURATED table for the Information workspace — blue's 19 cards (eight actions in
   // three states, every effect family, events, automated), a milestone, an award, delegates; red's score hidden.
-  'info-dossier';
+  'info-dossier' |
+  // TR65 Strategic Shift: the card in blue's hand beside four cards WITH a requirement and three without (`-none`: none
+  // at all — the named skip before the press; `-one`: a single candidate — still the multi album).
+  'strategic-shift' | 'strategic-shift-none' | 'strategic-shift-one' |
+  // TR65 «СТОЛ — ЭТО СТОЛ»: blue's FIFTY-card table (the shelf album's pages), red with five cards.
+  'played-table-50';
 
 export async function bootFixture(
   page: Page,

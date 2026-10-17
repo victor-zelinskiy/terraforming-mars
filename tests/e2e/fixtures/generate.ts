@@ -207,6 +207,10 @@ import {NoctisFarming} from '../../../src/server/cards/base/NoctisFarming';
 import {PhysicsComplex} from '../../../src/server/cards/base/PhysicsComplex';
 import {BiomassCombustors} from '../../../src/server/cards/base/BiomassCombustors';
 import {PowerPlant} from '../../../src/server/cards/base/PowerPlant';
+import {StrategicShift} from '../../../src/server/cards/turmoilRedux/StrategicShift';
+import {newProjectCard} from '../../../src/server/createCard';
+import {ALL_MODULE_MANIFESTS} from '../../../src/server/cards/AllManifests';
+import {CardType} from '../../../src/common/cards/CardType';
 import {FusionPower} from '../../../src/server/cards/base/FusionPower';
 import {GeothermalPower} from '../../../src/server/cards/base/GeothermalPower';
 import {HE3FusionPlant} from '../../../src/server/cards/moon/HE3FusionPlant';
@@ -6494,6 +6498,87 @@ function infoDossierFixture(name: string): void {
   });
 }
 infoDossierFixture('info-dossier');
+
+// ── TR65 · STRATEGIC SHIFT («Смена стратегии»): the card in blue's hand beside FOUR cards with a requirement (a
+//    temperature, a parameter at 2 °C, an oxygen, a tag count — every kind reads alike) and THREE without — the multi
+//    DISCARD of the play: only the requirement cards are candidates, the rest are refused by name, +1 M€ and +1 card
+//    each on the play's ONE POST. `-none`: no candidate at all — the composer names the skip before the press and the
+//    play asks nothing. `-one`: a single candidate — the album stays the multi album (A marks, RT with the count).
+//    30 M€ on both seats; CALM corporations (Teractor / Thorgate — no trigger answers the play). ──
+function strategicShiftFixture(name: string, hand: () => Array<IProjectCard>): void {
+  const [game, p1, p2] = testGame(2, {skipInitialCardSelection: false, customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1});
+  answerStartFlow(game, [p1, p2]);
+  // The hand is DECLARED, never dealt: the start's bought cards leave (a dealt card with a requirement would be a
+  // candidate the spec never named — `-none` would stop being none).
+  p1.cardsInHand.splice(0, p1.cardsInHand.length, new StrategicShift(), ...hand());
+  p1.megaCredits = 30;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  write(name, game);
+}
+strategicShiftFixture('strategic-shift', () => [new Lichen(), new Fish(), new Birds(), new FusionPower(), new Research(), new Tardigrades(), new AcquiredCompany()]);
+strategicShiftFixture('strategic-shift-none', () => [new Research(), new Tardigrades(), new AcquiredCompany()]);
+strategicShiftFixture('strategic-shift-one', () => [new Lichen(), new Research(), new Tardigrades()]);
+
+// ── TR65 · «СТОЛ — ЭТО СТОЛ»: a FIFTY-card table for the shelf album's pages — blue's dossier table (the eight actions
+//    in three states, the events) topped up from the BASE module alone (unique names; every blue card's `canAct` runs
+//    on each /api/player, so no card may touch a missing expansion), red with five cards (the rival's table). ──
+function playedTable50Fixture(name: string): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [24, 18],
+    agenda: [4, 1],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, p2}) => {
+      game.generation = 7;
+      addCity(p2);
+      const fighters = new CivilianSpacefighters();
+      fighters.resourceCount = 2;
+      const mining = new MiningMechs();
+      mining.resourceCount = 3;
+      const decomposers = new Decomposers();
+      decomposers.resourceCount = 4;
+      p1.playedCards.push(
+        fighters, mining, new RegolithEaters(), new SearchForLife(), new SecurityFleet(), new Ironworks(), new DevelopmentCenter(),
+        new PhysicsComplex(), new EarthOffice(), new SpaceStation(), new AdvancedAlloys(), decomposers, new ArcticAlgae(),
+        new MarsUniversity(), new PowerPlant(), new Mine(), new SolarPower(), new Comet(), new BigAsteroid(),
+      );
+      const used = new Set<string>(p1.playedCards.asArray().map((c) => c.name));
+      const base = ALL_MODULE_MANIFESTS.find((m) => m.module === 'base');
+      for (const cardName of Object.keys(base?.projectCards ?? {}) as Array<CardName>) {
+        if (p1.playedCards.length >= 50) {
+          break;
+        }
+        const card = newProjectCard(cardName);
+        if (card === undefined || card.type === CardType.PRELUDE || used.has(card.name)) {
+          continue;
+        }
+        used.add(card.name);
+        p1.playedCards.push(card);
+      }
+      p1.actionsThisGeneration.add(CardName.SECURITY_FLEET);
+      p1.megaCredits = 24;
+      p1.steel = 3;
+      p1.titanium = 1;
+      p1.plants = 6;
+      p1.heat = 4;
+      p1.production.add(Resource.MEGACREDITS, 5);
+      p1.setTerraformRating(31);
+      addCity(p1);
+      addGreenery(p1);
+      const tardigrades = new Tardigrades();
+      tardigrades.resourceCount = 2;
+      p2.playedCards.push(new PowerPlant(), new Mine(), tardigrades, new RestrictedArea(), new Comet());
+      p2.setTerraformRating(24);
+    },
+    expect: ({game, p1, p2}) => {
+      if (game.activePlayer.id !== p1.id || p1.playedCards.length !== 50 || p2.playedCards.length < 5) {
+        throw new Error(`the ${name} fixture expected blue on the move with 50 cards and red with 5 — got active=${game.activePlayer.color} blue=${p1.playedCards.length} red=${p2.playedCards.length}`);
+      }
+    },
+  });
+}
+playedTable50Fixture('played-table-50');
 
 // ── TR61 · THE END OF A GENERATION (the iteration «СМЕНА ПОКОЛЕНИЯ — ОДНА СЦЕНА»): a table on the move whose pass
 //    ends the generation — every kind of production (so every rail row flows), energy in stock (the conversion beat),
