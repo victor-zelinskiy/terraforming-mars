@@ -55,6 +55,7 @@ export type SurfaceMotionId =
   | 'venus-bonus'
   | 'ares-globals'
   | 'info-mode'
+  | 'played'
   | 'section';
 
 export type SurfaceTransitionKind =

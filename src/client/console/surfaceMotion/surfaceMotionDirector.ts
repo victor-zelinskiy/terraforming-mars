@@ -120,7 +120,7 @@ function isPickBridgeHidden(): boolean {
  *  - a SECTION (colonies / hydro) is a workspace, not a modal — no dim.
  */
 const NON_SHADE_OWNERS: ReadonlySet<SurfaceMotionId> = new Set([
-  'action-composer', 'ma-screen', 'sheet', 'info-mode', 'section',
+  'action-composer', 'ma-screen', 'sheet', 'info-mode', 'played', 'section',
 ]);
 
 function surfaceIdOf(el: Element): SurfaceMotionId | undefined {
@@ -412,7 +412,7 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
         {autoAlpha: 1, scale: 1, duration: s(OPEN_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility'}, 0);
       // The surface's own dim (the info workspace opens over arbitrary band
       // surfaces and carries one) fades with the frame, never after it.
-      const backdrop = el.querySelector<HTMLElement>('.con-info__backdrop, .con-sheet__backdrop');
+      const backdrop = el.querySelector<HTMLElement>('.con-info__backdrop, .con-sheet__backdrop, .con-played__backdrop');
       if (backdrop !== null) {
         tl.fromTo(backdrop, {opacity: 0}, {opacity: 1, duration: s(200), ease: 'power1.out', clearProps: 'opacity'}, 0);
       }
@@ -1071,6 +1071,27 @@ export function surfaceLeaveHook(el: Element, done: () => void): void {
           }
         }
         tl.to(panel, {autoAlpha: 0, scale: 0.975, transformOrigin: '50% 58%', duration: s(WHEEL_OUT_MS), ease: 'power2.in'}, s(15));
+      }
+      return tl;
+    });
+    return;
+  }
+  // THE PLAYED TABLE dismiss: the workspace family's own leave, and its OWN dim (it stands in the opening over the
+  // board with no shade owner) fades with the frame — the board re-emerges gradually, never in a backdrop pop.
+  if (id === 'played') {
+    const backdrop = el.querySelector<HTMLElement>('.con-played__backdrop');
+    guarded(el, DISMISS_MS + 100, done, (finish) => {
+      const tl = gsap.timeline({onComplete: finish});
+      tl.to(panels, {
+        autoAlpha: 0,
+        y: 8 * conUiScale(),
+        scale: 0.992,
+        transformOrigin: '50% 60%',
+        duration: s(DISMISS_MS),
+        ease: 'power2.in',
+      }, 0);
+      if (backdrop !== null) {
+        tl.to(backdrop, {opacity: 0, duration: s(DISMISS_MS + 60), ease: 'power1.in'}, 0);
       }
       return tl;
     });

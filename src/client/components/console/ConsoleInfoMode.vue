@@ -449,6 +449,11 @@ export default defineComponent({
       const path = this.isVpRouteUp ?
         scoreStagePath(this.infoModeState.route, this.infoModeState.vpCategoryKey, this.infoModeState.vpCardsGroup) :
         infoRouteStagePath(this.infoModeState.route);
+      // The embedded table's open CATEGORY is the route's own tail («РАЗЫГРАНО · АКТИВНЫЕ») — the category view
+      // never titles itself (the host's crumb is the one place a stage is named).
+      if (this.infoModeState.route === 'played' && consolePlayedUi.categoryOpen && consolePlayedUi.categoryLabel !== '') {
+        return [...path, consolePlayedUi.categoryLabel].map((key) => translateText(key)).join(' · ');
+      }
       return path.map((key) => translateText(key)).join(' · ');
     },
     // ── the «КАМПАНИЯ» zone (campaign missions only) ────────────────────

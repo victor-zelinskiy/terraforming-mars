@@ -1993,16 +1993,15 @@ html.con-profile-tv {
        Couch typography only — the card geometry itself is planner-driven
        (consolePlayedModel multiplies its px knobs by --con-ui-scale). */
     .con-played {
-        &__title { font-size: var(--con-t-section); }
-        &__seat { font-size: var(--con-t-secondary); }
+        /* The satellite corridor at the TV metrics — the Information workspace's own calibration. */
+        --con-played-satellite-w: 4.8rem;
         &__caption { font-size: var(--con-t-caption); }
         &__total { font-size: var(--con-t-secondary); }
+        &__provenance { font-size: var(--con-t-floor); }
         &__void { font-size: var(--con-t-body); }
-    }
-    .con-played-cat {
-        &__kicker { font-size: var(--con-t-caption); }
-        &__title { font-size: var(--con-t-section); }
-        &__count { font-size: var(--con-t-secondary); }
+        &__none { font-size: var(--con-t-body); }
+        &__events-count { font-size: var(--con-t-secondary); min-width: 1.9rem; height: 1.9rem; }
+        &__pgedge-chev { font-size: 2.2rem; }
     }
     .con-played__caption-open { font-size: var(--con-t-caption); }
     .con-played__caption-count { font-size: var(--con-t-caption); }

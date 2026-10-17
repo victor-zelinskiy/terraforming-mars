@@ -27,12 +27,9 @@
        :aria-label="$t(title)">
     <div class="con-played-cat__backdrop" aria-hidden="true" @click="requestClose"></div>
 
+    <!-- No head of its own: an embedded surface never titles itself — the open category is the HOST's crumb stage
+         (РАЗЫГРАНО › ‹участник› › АКТИВНЫЕ, or the Information Workspace's РАЗЫГРАНО · АКТИВНЫЕ). -->
     <div class="con-played-cat__panel">
-      <div class="con-played-cat__head">
-        <span class="con-played-cat__kicker">{{ $t('Played') }}</span>
-        <span class="con-played-cat__title" :class="'con-played-cat__title--' + (state.category ?? '')">{{ titleText }}</span>
-        <span class="con-played-cat__count">{{ cards.length }}</span>
-      </div>
 
       <!-- SINGLE card — the near-fullscreen stage (no grid chrome). -->
       <div v-if="layout.kind === 'single'" class="con-played-cat__stage" ref="body">
@@ -205,6 +202,12 @@ export default defineComponent({
      * single-card shortcut. Undefined → no plate (defensive).
      */
     provenanceByName: {type: Function as PropType<(name: string | undefined) => ConsoleZoomProvenance | undefined>, default: undefined},
+    /**
+     * The table's PACKET place for a card whose page is not mounted (the album keeps the active page and its
+     * neighbours): just past the album's edge on the card's side — the card flies in from the next page and flies
+     * back out to it. Undefined → such a card simply appears in the grid (the hold still covers it).
+     */
+    offPageRect: {type: Function as PropType<(name: string) => FlightRect | undefined>, default: undefined},
   },
   emits: {
     /** The episode fully settled CLOSED — the overlay drops the mount. */
@@ -658,10 +661,11 @@ export default defineComponent({
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name.replace(/"/g, '\\"');
       const el = document.querySelector<HTMLElement>(`.con-played [data-played-key="${esc}"] .con-played__face :is(.card-container, .pcard)`);
       if (el === null) {
-        return undefined;
+        // A card on a page the album has not mounted: its packet place beyond the edge (the table says where).
+        return this.offPageRect?.(name);
       }
       const r = el.getBoundingClientRect();
-      return r.width > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
+      return r.width > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : this.offPageRect?.(name);
     },
     frame(): Promise<void> {
       return new Promise((resolve) => {

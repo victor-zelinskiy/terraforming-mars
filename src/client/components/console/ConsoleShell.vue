@@ -526,10 +526,15 @@
     </transition>
 
     <!-- «Разыграно» (X from the board home) — the console-native played-cards
-         TABLE overlay: view-only peek piles + the face-down events pile.
-         Bottom-anchored, height follows the content; closed automatically
-         when a mandatory surface arrives (the journal's hard-block rule). -->
-    <transition name="con-layer">
+         TABLE: a workspace SCREEN in the central opening (the identity column
+         + the shelf album, TR65). Surface-motion: the frame materializes in
+         place like every workspace and its own dim fades with it; the HERO
+         scene mounts without the entrance (its landing is measured). Closed
+         automatically when a mandatory surface arrives (the journal's
+         hard-block rule). -->
+    <transition :css="false"
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsolePlayedOverlay v-if="playedTableVisible"
                             ref="playedOverlay"
                             :players="playerView.players"
@@ -3117,8 +3122,9 @@ export default defineComponent({
      * hand dock instead (`dockParkedUnderScene`).
      */
     footerUnderScene(): boolean {
+      // (The «Разыграно» table left this list with TR65: it is a workspace SCREEN in the central opening now — the
+      // footer bar stays on top of it like on every workspace, and the dock stays the player's own hand.)
       return (
-        this.playedTableVisible ||
         this.botTurnReviewState.open ||
         this.leakDetectorState.stranded !== undefined
       );
@@ -8357,9 +8363,10 @@ export default defineComponent({
      * which replace that one member by design.
      */
     workspaceScreenUp(): boolean {
+      // The «РАЗЫГРАНО» table takes the opening in BOTH of its lives — the manual browse and the hero landing.
       return this.workspaceStackShown ||
         this.infoWorkspaceUp ||
-        this.playedOpen;
+        this.playedTableVisible;
     },
     /**
      * PRESENCE, not merely STANDING. A frame earns the stage only while the
@@ -9701,6 +9708,10 @@ export default defineComponent({
         cmds.push({control: 'confirm', label: 'Open', enabled: consolePlayedUi.focusCategory !== ''});
         if (consolePlayedUi.canCyclePlayer) {
           cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Player'});
+        }
+        // The shelf album's pages ride the TRIGGERS (LB/RB are the seat's) — advertised only when there is a second page.
+        if (consolePlayedUi.pageCount > 1) {
+          cmds.push({control: 'triggerL', control2: 'triggerR', label: 'Browse'});
         }
         cmds.push({control: 'back', label: 'Close'});
         return cmds;

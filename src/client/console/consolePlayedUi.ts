@@ -20,6 +20,9 @@ export const consolePlayedUi = reactive({
   categoryLabel: '',
   /** ≥2 participants — LB/RB cycles the viewed player. */
   canCyclePlayer: false,
+  /** The shelf album's page on screen and how many there are (LT/RT turn them when more than one). */
+  page: 0,
+  pageCount: 1,
 });
 
 export function resetConsolePlayedUi(): void {
@@ -28,4 +31,6 @@ export function resetConsolePlayedUi(): void {
   consolePlayedUi.categoryBusy = false;
   consolePlayedUi.categoryLabel = '';
   consolePlayedUi.canCyclePlayer = false;
+  consolePlayedUi.page = 0;
+  consolePlayedUi.pageCount = 1;
 }
