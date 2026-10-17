@@ -146,7 +146,8 @@ test('Supercapacitors: premium conversion prompt → rail handoff → next promp
     samples.push(await page.evaluate(() => ({
       convertUp: document.querySelector('.con-convert') !== null,
       overlayUp: document.querySelector('.resource-conversion-layer') !== null,
-      nextPrompt: document.querySelector('.con-task--wide, .con-deckpick') !== null,
+      // The research buy rises INSIDE the draft workspace now (TR61 — one purchase surface); a deck pick stays a host plate.
+      nextPrompt: document.querySelector('.con-draftws, .con-deckpick') !== null,
     })));
     await page.waitForTimeout(150);
   }
@@ -162,7 +163,8 @@ test('Supercapacitors: premium conversion prompt → rail handoff → next promp
   // The next prompt (the research buy) arrives, and the counters carry EXACTLY
   // one conversion + one production income (a double submit / double animation
   // would land −4/+4 or double the income).
-  await page.locator('.con-task--wide, .con-deckpick').first().waitFor({timeout: 30_000});
+  // The next prompt — the research buy — is the draft workspace's buy stage (TR61: one purchase surface, with or without a draft).
+  await page.locator('.con-draftws').first().waitFor({timeout: 30_000});
   await expect(page.locator('.con-res__row--energy .con-res__value'))
     .toHaveText(String(energyBefore - 2 + energyProd));
   await expect(page.locator('.con-res__row--heat .con-res__value'))

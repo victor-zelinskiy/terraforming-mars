@@ -171,6 +171,7 @@ import {ConstructionMechs} from '../../../src/server/cards/turmoilRedux/Construc
 import {MarsArmyMechs} from '../../../src/server/cards/turmoilRedux/MarsArmyMechs';
 import {AutomatedConvoys} from '../../../src/server/cards/turmoilRedux/AutomatedConvoys';
 import {ForestryMechs} from '../../../src/server/cards/turmoilRedux/ForestryMechs';
+import {CargoMechs} from '../../../src/server/cards/turmoilRedux/CargoMechs';
 import {VectorComputations} from '../../../src/server/cards/turmoilRedux/VectorComputations';
 import {Mine} from '../../../src/server/cards/base/Mine';
 import {AdaptationTechnology} from '../../../src/server/cards/base/AdaptationTechnology';
@@ -6493,3 +6494,76 @@ function infoDossierFixture(name: string): void {
   });
 }
 infoDossierFixture('info-dossier');
+
+// ── TR61 · THE END OF A GENERATION (the iteration «СМЕНА ПОКОЛЕНИЯ — ОДНА СЦЕНА»): a table on the move whose pass
+//    ends the generation — every kind of production (so every rail row flows), energy in stock (the conversion beat),
+//    a rating above the start (its own M€ line). `generation-end-solo`: solo, NO draft — the buy of the next
+//    generation is the whole research flow; `-no-energy`: nothing to convert, a two-beat scene; `generation-end-draft`:
+//    two seats WITH the draft, blue already passed so red's pass is the last — the same purchase surface after the
+//    picks (the parity probe). Stocks are plain numbers the probe reads back: the record must equal the diff. ──
+function generationEndStocks(player: TestPlayer, energy: number): void {
+  player.production.override({megacredits: 3, steel: 2, titanium: 1, plants: 2, energy: 2, heat: 1});
+  player.megaCredits = 20;
+  player.steel = 1;
+  player.titanium = 0;
+  player.plants = 3;
+  player.energy = energy;
+  player.heat = 2;
+  player.setTerraformRating(22);
+}
+{
+  const {game, player} = soloActionPhase();
+  generationEndStocks(player, 4);
+  runAllActions(game);
+  if (game.gameOptions.draftVariant || game.activePlayer.id !== player.id || !(player.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`generation-end-solo: expected a solo table without a draft on the move, got draft=${game.gameOptions.draftVariant} wf=${player.getWaitingFor()?.constructor.name}`);
+  }
+  write('generation-end-solo', game);
+}
+{
+  const {game, player} = soloActionPhase();
+  generationEndStocks(player, 0);
+  runAllActions(game);
+  write('generation-end-solo-no-energy', game);
+}
+{
+  const [game, p1, p2] = testGame(2, {skipInitialCardSelection: false, draftVariant: true});
+  answerStartFlow(game, [p1, p2]);
+  generationEndStocks(p1, 4);
+  p2.megaCredits = 20;
+  // Blue has passed: red's pass is the generation's last — the production phase and the draft follow it at once.
+  p2.pass();
+  runAllActions(game);
+  if (!game.gameOptions.draftVariant || game.activePlayer.id !== p1.id || !game.getPassedPlayers().includes(p2.color) || !(p1.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`generation-end-draft: expected red on the move with blue passed on a drafting table, got active=${game.activePlayer.color} passed=${game.getPassedPlayers().join(',')} wf=${p1.getWaitingFor()?.constructor.name}`);
+  }
+  write('generation-end-draft', game);
+}
+
+// ── TR61 · CARGO MECHS: the card on the table (its requirement is the play's — on the table it acts whoever rules),
+//    Viron as the seat's corporation (the loop guard's own table — both copiers at once), Restricted Area USED this
+//    generation and able to act again (10 M€ — B's one candidate), Forestry Mechs as a second mech holder (A's target
+//    step asks «КУДА» over two cards), 1 energy for A. `cargo-mechs`: one mech here (both variants live);
+//    `cargo-mechs-empty`: no mech here — B refused with «0 of 1 mech on this card», A the whole action. ──
+function cargoMechsFixture(name: string, mechs: number): void {
+  // The solo Redux opening leaves the colony trim and the corporation's play to the DRIVER (`waitForBoardHome` walks
+  // them on the real UI — the venus-trade / vesta-trade convention); the table is arranged under it.
+  const {game, p1} = reduxTable(name, {venusNextExtension: true, customCorporationsList: [CardName.VIRON]}, 1);
+  const cargo = new CargoMechs();
+  cargo.resourceCount = mechs;
+  const area = new RestrictedArea();
+  const forestry = new ForestryMechs();
+  p1.playedCards.push(cargo, area, forestry);
+  p1.actionsThisGeneration.add(area.name);
+  p1.megaCredits = 10;
+  p1.energy = 1;
+  runAllActions(game);
+  const dealt = p1.dealtCorporationCards.map(toName);
+  if (!dealt.includes(CardName.VIRON) || !cargo.canAct(p1) || !area.canAct(p1) || !p1.actionsThisGeneration.has(area.name) ||
+      cargo.resourceCount !== mechs || !(p1.getWaitingFor() instanceof SelectColony)) {
+    throw new Error(`${name}: expected Viron dealt, Cargo Mechs (${mechs} mechs) able to act beside a USED Restricted Area, the opening's colony trim pending — got dealt=${dealt.join(',')} cargo=${cargo.canAct(p1)} area=${area.canAct(p1)} wf=${p1.getWaitingFor()?.constructor.name}`);
+  }
+  write(name, game);
+}
+cargoMechsFixture('cargo-mechs', 1);
+cargoMechsFixture('cargo-mechs-empty', 0);

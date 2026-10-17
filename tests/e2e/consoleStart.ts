@@ -2540,6 +2540,17 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   'enceladean-incubator' |
   'enceladean-incubator-bare' |
   'enceladean-incubator-max' |
+  // TR61 and the iteration «СМЕНА ПОКОЛЕНИЯ — ОДНА СЦЕНА»: the end of a generation — a solo table without a draft on
+  // the move with every kind of production and energy in stock (`-no-energy`: nothing to convert — a two-beat scene);
+  // a two-seat drafting table with red on the move and blue already passed (the parity of the ONE purchase surface).
+  'generation-end-solo' |
+  'generation-end-solo-no-energy' |
+  'generation-end-draft' |
+  // TR61 Cargo Mechs: the card on the table with a mech and a used action beside it (Restricted Area), Viron as the
+  // corporation (the loop guard's own table), 1 energy for A, a second mech holder for A's «КУДА»; `-empty`: no mech
+  // here — B refused with its count, A alone live.
+  'cargo-mechs' |
+  'cargo-mechs-empty' |
   // The field lock of 2026-10-14: Research Colony in hand with Mars University on the table — draw 2, the colony step
   // inside the hand (Miranda's animal target asked on the stage, Luna's M€ asked nothing), then the university's album.
   'mu-research-colony' |
