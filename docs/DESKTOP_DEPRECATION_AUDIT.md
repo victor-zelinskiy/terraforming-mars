@@ -143,10 +143,10 @@ Format: `module` — console importer.
 | `gamepad/GamepadGlyph.vue` | **37 files** — the most-shared component |
 | `gamepad/gamepadPollModel` (27), `glyphSets` (11), `focusScopes`, `spatialNav`, `inputModeState`, `gamepadSettings` | console |
 | `cardAnnotations/*` | transitively via `CardZoomModal` |
-| `create/premium/PremiumMapFingerprint.vue` | `ConsoleMapDeck`, `ConsoleLaunchPanel`, `ConsoleLaunchConfirm` |
+| `create/premium/PremiumMapFingerprint.vue` | `ConsoleMapDeck`, `ConsoleLaunchPanel`, `ConsoleLaunchConfirm`, `ConsoleCreateGame` (the mode tiles), `ConsoleLobbyCard` (the lobby's cards — TR68), `CampaignMissionCard` |
 
 ### Pre-game (the console menu reuses desktop create-state)
-`create/premium/createGameState` (8 console files) · `createGameMeta` (8) · `submitCreateGame` (`ConsoleCreateGame`) · `mainMenu/identity/identityState` (3), `playerIdentity`, `joinGamesState`, `lastGameState`, `expansionMeta` (`ConsoleMainMenu`, `ConsoleProfileEditor`) · `vueRoot` (`ConsoleCreateGame`, `ConsoleMainMenu`)
+`create/premium/createGameState` (8 console files) · `createGameMeta` (8) · `submitCreateGame` (`ConsoleCreateGame`) · `mainMenu/identity/identityState` (3), `playerIdentity`, `lobbyState` (the old `joinGamesState` is gone — the lobby is ONE model, `docs/claude/my-games-lobby.md`), `lastGameState`, `expansionMeta` (`ConsoleMainMenu`, `ConsoleProfileEditor`, `ConsoleLobbyCard`) · `vueRoot` (`ConsoleCreateGame`, `ConsoleMainMenu`)
 
 ### Shared BY MOUNTING (console renders them; not imported by console code)
 `endgame/*` (incl. the whole `insightEngine` / `gameStoryDna` / `keyEpisodeEngine` storytelling stack) · `rematch/*` · `realtime/*` · `TurnHandoffLayer` · `EnergyConversionOverlay` · `HazardCleanupOverlay` · `AdditionalResourceDetailOverlay` · `EffectDetailOverlay` · `GameAtmosphere`

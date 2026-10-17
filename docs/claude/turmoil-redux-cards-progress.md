@@ -48,6 +48,7 @@
 | TR60 Civilian Spacefighters («Гражданские истребители») | СДАНА 2026-10-17 | синяя, плашка Индустриалистов, «1 титан → 2 истребителя ИЛИ 1 истребитель → 3 M€ и +1 пр. M€» ОДНОЙ декларацией TR40; третья форма роли держателя — КОМПЛЕКТ (`HolderActionGood.with`); главное — итерация «ИНФОРМАЦИЯ — ДОСЬЕ, А НЕ ТАБЛИЦА» (обзор двумя ярусами, «Действия» — те же плитки, запечатанный счёт, вход зоны из плитки) | `docs/TURMOIL_REDUX_CIVILIAN_SPACEFIGHTERS.md`; закон в `console-ui.md`; строка чеклиста §4 |
 | TR69 Floating Biodomes («Парящие биокуполы») | СДАНА 2026-10-17 | синяя, 10, Венера ≥ 10 %, Растения + Венера, второй держатель аэростатов: «2 аэростата сюда» + ОДНА декларация класса TR40 с веткой-ТАЙЛОМ («1 растение → аэростат на ЛЮБУЮ карту Венеры ИЛИ 3 аэростата → озеленение»); объявленный тайл действия STAGED даром (D5 классом — `models/stagedBehaviorPlacement.ts`, одна деривация для розыгрыша и действия), товар держателя `tile`; главное — итерация «ФИНАЛ — ЭТО ЦЕРЕМОНИЯ» (подиум: места с лицами корпораций на горизонте, герой на гребне, медальоны; подсчёт течёт жетонами; обзор «Счёт» / «Игроки» в масштабе проёма; профиль TV) | `docs/TURMOIL_REDUX_FLOATING_BIODOMES.md`; `endgame-workspace.md` § THE PODIUM; закон в `console-ui.md`; строка чеклиста §4; реестр BD |
 | TR70 Backroom Deal («Закулисная сделка») | СДАНА 2026-10-17 | красное событие, 2, без меток и требования: «следующая карта в этом поколении игнорирует требования ПАРТИИ и стоит на 10 M€ меньше; −1 РТ» — первая карта класса TR49, взводящая ДВА эффекта сразу; ЧЕТВЁРТЫЙ вид класса `partyWaiver` (снятие встречается в `PartyRequirement.satisfies` ДО Парламента — эффект партии не даруется, глобальное требование не трогается), плашка партии печатается перечёркнутой, потеря РТ — всегда в журнале и ЛЕТИТ ценой с ячейки рейтинга (правило 9); главное — итерация «ПЛАНЕТА ПОКАЗЫВАЕТ»: церемония «Марс терраформирован» играет на РЕАЛЬНОЙ планете (интерфейс отступает опасити, камера Planet Focus в режиме `ceremony` с дугами, такт шкал парка на фокусном кадре, дыхание + залп на диске, титул — подпись в зоне рельса слева (M2 владельца), возврат ровно туда же; триггер — слово сервера `isTerraformed` в применении ответа на обеих дорогах) вместо суррогатного глобуса | `docs/TURMOIL_REDUX_BACKROOM_DEAL.md`; контракт сцены `docs/claude/console/terraformed-scene.md`; закон в `console-ui.md`; строка чеклиста §4; реестр BE |
+| TR68 Political Recognition («Политическое признание») | СДАНА 2026-10-17 | зелёная, 8, метка WILD, «разыграно 5 ДРУГИХ карт с требованиями» — НОВЫЙ вид `CARDS_WITH_REQUIREMENTS` (тропа TR02, события считаются, глиф-эмблема «[карта] 4/5»), ходьба TR04 на 3 шага (шаг карты посреди); итерация «ПРЕДИГРОВОЕ — ЭТО ВИТРИНА» (лобби — экран карточек, переход одной фразой, создатель — брифинг миссии, пол TV) | `docs/TURMOIL_REDUX_POLITICAL_RECOGNITION.md` · `docs/claude/console/pregame-showcase.md` |
 
 ---
 
@@ -2866,6 +2867,34 @@ workspace; класс `con-root--ws-open` снимается только с у�
 и уход композера. **Гарды:** `playCardPrice.spec` (3), `transferFlightClock.spec` § DETACHED, `transferEndVisible.spec` § STRICT,
 `console-aerial-mappers` (B — `fixme` снят), `console-habitat-science` (Титан — рождён в ячейке, сел на ячейку НА ПОЛЕ, не под стеклом).
 **Регрессия № 2** (`.e2e-polish2`, `--workers=1`, 33 мин): aerial-mappers и habitat-science (fhd + 4K) зелёные; соседи класса — x87, eva-mechs, rail-landing, biological-simulations, plasma-fans, venusian-census, parliament-sitting-reward — зелёные (53); красные НЕ этой итерации: `console-spaceship-recycling` ×4 — спек ждёт старую форму POST (`"cards":[…]},{"type":"or"…`), а закон адреса pre-select TR43 (`54a9a30fb7`) шлёт адресованный предсбор в другом порядке — ротация спека TR43; `console-red-museum` «the tile pays» (красный и до итерации № 1); `console-colony-venus-trade` (PL-172 соседа, его правка в работе). Юниты: server — зелёный; client 6997 / 6998 — один красный `consolePlayedTargetModel.spec` § sizing от незакоммиченной правки соседа (PL-170) в его файлах; vue-tsc, `build:test`, `lint:i18n` — чисто.
+
+## TR68 · Political Recognition — «требуется 5 других разыгранных карт с требованиями; маркер Карьеры на 3 шага»; ИТЕРАЦИЯ «ПРЕДИГРОВОЕ — ЭТО ВИТРИНА» — 2026-10-17
+
+**Арт импортирован** (Igor Suka → `assets/card-images/TR68.webp` + thumb). Решения 1–6 — по умолчанию (имя, лор, арт, `Tag.WILD`, события
+в счёте, новый глиф); 7 (экран, не диалог), 8 (фраза перехода), 9 (колоды-брифинг), 10 (плитки режима с иллюстрацией), 12 (миниатюра у
+каждой партии) построены по рекомендованному варианту; 11 (фон 4K) — у владельца (PL-671).
+
+**Карта** (`PoliticalRecognition.ts`): зелёная, 8, `tags: [Tag.WILD]`, `requirements: {cardsWithRequirements: 5}`, `walkAgenda(…, 3)`
+синхронно в `bespokePlay`, `agendaWalkForecast` + `cardPlayPreview` TR04 слово в слово. НОВЫЙ вид `CARDS_WITH_REQUIREMENTS` по тропе TR02:
+ОДИН счёт `playedCardsWithRequirements(player, except?)` в файле требования (события считаются — «played»; спрашивающая карта
+исключена; Tactician / Forecaster не тронуты), строка правил «Requires that you have played N other cards with requirements.», причина
+«сейчас 4 из 5», глиф лица `assets/misc/card-requirement.svg` — он же ЭМБЛЕМА причины на рельсе (`COUNT_MESSAGE_EMBLEMS`: «[карта] 4/5»
+на чипе руки и полосе вердикта, подпись не дублирует). Конец трека назван строками композера (TR37); класс «действия без эффекта» к
+розыгрышам не относится — признак не заводился. Спек — 15 правил.
+
+**Итерация «ПРЕДИГРОВОЕ — ЭТО ВИТРИНА»** — контракт `docs/claude/console/pregame-showcase.md`, закон `console-ui.md` § THE PREGAME IS A
+SHOWCASE: шасси `ConsoleLobbyScreen` (голова · сцена · планка), карточка `ConsoleLobbyCard` над чистой `lobbyCardModel`
+(`gameCardView` / `campaignCardView` / `showcaseGrid` / `showcaseStep`), фраза `lobbyScreenMotion` (отступ колонки → раскрытие плиты из
+пункта → волна карточек; B назад на тот же пункт); широкий создатель от `CREATE_WIDE_MIN_WIDTH` (ряд карточек мест, две колонки правил,
+плитки дополнений с описанием, карты 16,5rem, досье 22rem, плитки режима с иллюстрацией, плита запуска с картой-доской); § 23 профиля TV —
+всё семейство `.cm-*`. 4K: лобби 11 → 76 % экрана, ниже пола 21 → 0; экипаж — ряд карточек (полоса 46 %), ниже пола 20 → 0.
+
+**Гарды и e2e.** Юниты: `PoliticalRecognition.spec` (15), близнецы вида (`unplayableReasonFormat`, `premiumCardViewModel`, прозаический гард),
+`lobbyCardModel.spec` (15), `consoleCampaignsList.spec`, `consoleCreateModel.spec` § wide; e2e `console-political-recognition` (A–C × fhd /
+tv4k, 6 / 6), `console-pregame-showcase` (A–F × fhd / tv4k / deck + H, 19 / 19), затронутые 30 / 30. Гочи: стенд соседа в
+`screenshots/tr70` роняет `build:client` (`SKIP_TS_CHECK=1`, PL-670); `make:json` после новых локалей (иначе имя карты на лице
+английское); сэмплер фразы — только задачи (`tick`), микрозадача MutationObserver видит непокрашенное; ряды `1fr` в незаданной высоте
+растут за сцену (PL-669).
 
 ## TR70 · Backroom Deal — «следующая карта игнорирует требования ПАРТИИ и стоит на 10 M€ меньше; −1 РТ»; ИТЕРАЦИЯ «ПЛАНЕТА ПОКАЗЫВАЕТ» — 2026-10-17
 

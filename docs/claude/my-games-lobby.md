@@ -271,7 +271,14 @@ cadence) and the `newest first` / `age clock` blocks in `lobbyState.spec.ts`; th
 list's order + creation-age label in `tests/campaign/campaignListModel.spec.ts` and
 `tests/client/components/consoleCampaignsList.spec.ts`.
 
-## 5. UI surface (`ConsoleMainMenu.vue`)
+## 5. UI surface (`ConsoleMainMenu.vue` → the showcase screen)
+
+⭐ **Since TR68 the surface is a SCREEN, not a dialog** — `ConsoleLobbyScreen` + `ConsoleLobbyCard` over the pure
+`console/menu/lobbyCardModel.ts`, unfolding out of the menu's item: the head (the stable context, the title, the
+slice segment, the status), the stage a GRID of game CARDS (the board miniature, the name in the hero voice, one
+state chip, the crew, the age), the menu's one command bar. The contract of the surface is
+`docs/claude/console/pregame-showcase.md`; what follows is what it must still SAY — every one of these lives on the
+stage (`[data-lobby-state]`, the band `.cm-lobby__band`, the cards), never as a line in an empty plate.
 
 - The four honest states above, instead of one sentence.
 - The LAN section speaks in all THREE of its states, never by omission: a host that could not
