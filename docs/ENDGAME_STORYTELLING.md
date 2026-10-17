@@ -37,3 +37,12 @@ M€, the rating's share, the conversion, the peak generation, the average), tag
 roots as `relatedEventIds`. **No analyzer reads it yet** (PL-608 — the iteration-10 frontier's «production PROFILE in
 ctx» now has its data): the obvious readers are the engine / underdog stories (an income curve instead of a
 production snapshot) and the momentum / turning-point cross-facts.
+
+**The podium (TR69 «ФИНАЛ — ЭТО ЦЕРЕМОНИЯ», 2026-10-17).** The SCENE that opens the overview changed, the stories
+did not: the results are a podium of seats (the corporation's face, the score cell's badge, the bar as the counting
+instrument, the category medallions), the winner the hero on the horizon's crest, the count arriving as tokens from
+the rail's medallions (`docs/claude/console/endgame-workspace.md` § THE PODIUM). The overview's «Счёт» is a board
+with a face per place and «Игроки» leads with the participant's face and the milestones / awards as medallions
+(`endgame-overview.md`). The story layer, the facts and the analyzers are untouched — PL-608 (`productionIncome`
+without a reader) stays OPEN and is carried in the ledger's section BD: an income curve on «Игроки» or the
+timeline is a reader of its own, outside the podium's scope.

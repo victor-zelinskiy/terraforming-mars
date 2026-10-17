@@ -18,7 +18,8 @@ mode (`EndgameExperience :console-native` — no auto-reveal, no pill;
 | Layer | File |
 | --- | --- |
 | pure VM | `src/client/console/endgame/consoleEndgameModel.ts` |
-| pure track geometry + anchored labels | `src/client/console/endgame/consoleEndgameLayout.ts` |
+| pure track geometry (the bar — the counting instrument) | `src/client/console/endgame/consoleEndgameLayout.ts` |
+| pure PODIUM planner (TR69 — the seats' geometry, the podium order, the horizon) | `src/client/console/endgame/consoleEndgamePodium.ts` |
 | beat script (pure) | `src/client/console/endgame/consoleEndgameScript.ts` |
 | reactive machine | `src/client/console/endgame/consoleEndgameState.ts` |
 | the END boundary seal | `src/client/console/endgame/consoleEndgameSeal.ts` |
@@ -26,7 +27,7 @@ mode (`EndgameExperience :console-native` — no auto-reveal, no pill;
 | surface | `src/client/components/console/ConsoleEndgameWorkspace.vue` |
 | view→model adapter | `src/client/components/endgame/endgameViewAdapter.ts` (shared with desktop) |
 | styles | `src/styles/console_endgame.less` |
-| specs | `tests/client/components/console/consoleEndgameModel.spec.ts`, `consoleEndgameCeremony.spec.ts`, `consoleEndgameLayout.spec.ts`, `consoleEndgameSeal.spec.ts`, `tests/e2e/console-endgame.spec.ts`, `tests/e2e/console-endgame-boundary.spec.ts` (+ shared journey `tests/e2e/consoleEndgameHarness.ts`) |
+| specs | `tests/client/components/console/consoleEndgameModel.spec.ts`, `consoleEndgameCeremony.spec.ts`, `consoleEndgameLayout.spec.ts`, `consoleEndgameSeal.spec.ts`, `tests/console/consoleEndgamePodium.spec.ts`, `tests/e2e/console-endgame.spec.ts`, `tests/e2e/console-endgame-boundary.spec.ts`, `tests/e2e/console-finale-podium.spec.ts` (+ shared journey `tests/e2e/consoleEndgameHarness.ts`; the saturated fixtures `finale-rich-5p` / `-2p` via `fixtureTable(request, name)`) |
 
 ## The VM is a RE-PROJECTION, never a second source of numbers
 
@@ -68,38 +69,86 @@ and each is pinned by an e2e probe (`console-endgame.spec.ts` § stability):
 2. **The bar JUDDER.** The row grid declared five columns but rendered four
    children while the tie-break M€ chip was absent — auto-placement put the
    running total into the `auto` column, so every count-up digit re-solved
-   the `1fr` track (36 distinct bar boxes measured). Now: four columns, four
-   children, ALWAYS — the total owns a fixed-width column, the M€ chip is
-   absolute inside the track, and the count-up writes `textContent` directly
+   the `1fr` track (36 distinct bar boxes measured). The structural answer
+   survives the podium (TR69): every part of a seat is a fixed box (the face
+   slot, the reading block, the bar, the medallions' reserved height), the
+   seat's size is the planner's px, never its content's; the M€ chip is
+   absolute over the track; and the count-up writes `textContent` directly
    (`hooks.onCount` → an unbound span), never a reactive per-frame write.
-   The reactive `displayTotals` is a per-BEAT settle record.
+   The reactive `displayTotals` is a per-BEAT settle record. The e2e probe
+   reads PER SEAT during the COUNT (one bar box, one seat box each) — the
+   ranking and the crowning are the podium's deliberate moves, after it.
 3. **The BARCODE.** Sub-segment shades/seams survived the merge, so the
    settled bar showed every TR source and card family as its own stripe.
    Now the shade/seam classes are gated on `!merged` and dissolve via a
    background-color transition — the settled bar is ONE hue per top-level
    category, with a dark hairline between categories (`.con-eg__seg::after`).
 
-## Track geometry + anchored values (`consoleEndgameLayout.ts`)
+## Track geometry (`consoleEndgameLayout.ts`) — the counting instrument
 
 Pure and spec'd: `buildRowGeometry` solves all segments once per VM on the
 SHARED `maxTotal` scale (fill = `scaleX`, paint-only); a penalty is a
 **reclaim scar** `[netPct … grossPct]` — a track-background curtain sweeping
-in from the right (origin right), leaving a red-hatched strip + the exact
-negative value below it. `planValueLabels` anchors every category's exact
-value to its segment: **inside** the box when the digits fit, on the **rail
-below** otherwise (deterministic L→R collision sweep + track clamp); zero
-categories keep a small dim honest «0». The component measures the track
-once (`measureTrack` — skipped while hidden: a v-show'd scene measures 0)
-and re-plans only on viewport change.
+in from the right (origin right), leaving a red-hatched strip. The bar is the
+seat's counting INSTRUMENT: every category's exact value stands in the seat's
+MEDALLION (TR69), so the anchored label plan (`planValueLabels`) and the «+N»
+edge chip retired with the rows.
+
+## THE PODIUM (TR69 «ФИНАЛ — ЭТО ЦЕРЕМОНИЯ», `consoleEndgamePodium.ts`)
+
+Every player is a SEAT standing on the horizon: the corporation's premium face
+(`ConsoleEndgameRow.face` — a human's first corporation card, the MarsBot
+corporation's own face; a corpless seat shows its prepared place in its
+colour), the place medal on the face's foot, the name, the score in the score
+cell's language (`ConsoleVpBadge` + the total — the tokens' landing), the bar,
+the medallions (the dossier's discs — `scoreCategoryGlyph`). The planner
+(`planPodium`) solves the seats from the MEASURED box (`.con-eg__rows` is
+`flex: 1 1 0` — the free space, never its content; a ResizeObserver re-plans
+it; a hidden scene keeps the last box) and the live rem:
+- `stack` (3–5) — the face over the reading block; `side` (the duel, a solo
+  game) — the face beside it, and the seat is the TALLER of the two (the
+  reading column's floor `readRem` / `heroReadRem` — a narrow box caps the
+  face by width and the column must still fit: PL-646, the Deck duel);
+- one equal width per seat for the whole act (the crowning moves nobody
+  sideways); the drama is height — equal at `EQUAL_HEADROOM` of the hero while
+  the count runs, the crowned winner(s) at the full height with the largest
+  face, the rest at `placeRatio`;
+- ranked, `podiumOrder` puts the winner on the crest, the runner-up at its
+  left, the third at its right; each ranked seat stands on the planet's curve
+  (`horizonDrop` on the radius `horizonRadius` — the same number the CSS
+  draws the limb with, `--eg-arc-r`); the count stands level;
+- the horizon (`.con-endgame::before`) crests at the podium's measured foot
+  (`--eg-horizon-y`) — the stage the winner stands on, the actions on the
+  ground below it.
+The type is rem ≥ 0.85 everywhere on the podium (the TV floor is a floor of
+type; the faces are what scale). Guard: `consoleEndgamePodium.spec` (every
+profile × table size: the seats fit, the hero ≥ a third of the box and the
+tallest, the count lower); e2e `console-finale-podium` (A — five seats at
+4K / FHD / Deck: the hero ≥ ⅓ of the opening, the content's foot ≥ 85 %, no
+empty band over ⅓, no scroll, nothing under the floor; B — the duel).
 
 ## Ceremony machine
 
 `CeremonyPhase`: `idle → entering → scoring → settling → ranking →
-[tiebreak] → winner → actions`; inside a category the four-part phrase is
-`beatStage: focus → grow → settle` (+ a scripted pause). The pure script
-(`ceremonyBeats`) emits the beat list — a MAIN category ≈ 220/640/240/270 ms,
-sub-steps 390 ms, merges 500 ms, `preRank` breath, FLIP, places, a
-**winnerHold** (the crowning never rides the FLIP), winner 1.5 s, actions.
+[tiebreak] → winner → actions`; inside a category the phrase is
+`beatStage: focus → fly → grow → settle` (+ a scripted pause). The pure script
+(`ceremonyBeats`) emits the beat list — a MAIN category ≈ 220/300/600/240/270 ms,
+sub-steps 440 ms (their own 200 ms flight inside), merges 500 ms, `preRank`
+breath, FLIP, places, a **winnerHold** (the crowning never rides the FLIP),
+winner 1.5 s (the crowning FLIP inside, `crown` 640 ms), actions.
+
+**THE COUNT FLOWS (TR69).** On `fly` the category's TOKENS — its disc and
+the signed points — are born on the rail's medallion (`[data-eg-rail]`) and
+arc into every scoring seat's shield (`hooks.onTokens` → `flyTokens`; a zero
+brings none); the director starts the count-up at the flight's END, so the
+score cell ticks on the touchdown and the segment / the medallion answer it
+(`segOn` / `landed` exclude `fly`). The flights are put under the director's
+clock (`attach` — paused with the timeline, killed by a skip / an unmount; the
+layer `.con-eg__tokens` is emptied with them). Reduced motion flies nothing.
+The ranking FLIP moves the seats along both axes; the crowning is its own
+FLIP (`hooks.onCrown` — measured before `winnerShown`, played after: translate
++ a uniform scale from the seat's foot). The root publishes the beat for the
+probes (`data-eg-beat` / `data-eg-cat`).
 Typical full act ≈ 12–15 s base (rich configs a little more); spec-guarded
 windows. The director lays it on ONE paused GSAP timeline through
 `consoleMotionMs`, advancing `consoleEndgameUi`; CSS transitions
@@ -165,10 +214,10 @@ scene stands, `footCommands` mirrors its overlay through `campaignMapUi`.
 Full contract: `docs/CAMPAIGN_MODE_ARCHITECTURE.md` (header, «Interlude
 ONE-FLOW»).
 
-**The WINNER IS THE ROW** — a hero treatment of the first row (gold rim +
-wash, the «ПОБЕДИТЕЛЬ» ribbon standing on the row's top edge, gold place
-numeral and total with a one-shot crown pulse), never a duplicate plate
-below. Solo defeat = a calm neutral ribbon, no burst. The tie-break strip is
+**THE WINNER IS THE SEAT — the hero of the podium** (TR69): the tallest seat
+with the largest face on the horizon's crest, the gold rim + wash, the
+«ПОБЕДИТЕЛЬ» ribbon standing on the seat's top edge, the gold place medal and
+total with a one-shot crown pulse — never a duplicate plate. Solo defeat = a calm neutral ribbon, no burst. The tie-break strip is
 transient zone annunciation; the deciding M€ chips stay on the contender
 rows through the settled state (absolute — zero layout impact). Winner gold
 ≠ focus cyan by hue, weight and placement.
@@ -344,11 +393,12 @@ the bar states the controller semantics.
 
 ## Presentation modes (player count)
 
-`.con-eg--n2 / --n3 / (base = n4) / --n5` set the density TOKENS (row
-height, bar height, name/total/corp/place sizes, label rail, zone) — a
-2-player finale is a large-format stage (8.4rem rows, 2.6rem bars, 1.6rem
-names), five players stay one screen with no scroll (e2e-guarded at 4K).
-The handheld profile overrides the same tokens.
+The podium planner IS the presentation mode (TR69): `side` for the duel and a
+solo game, `stack` for three to five; the seats are solved from the measured
+box, so five players stay one screen with no scroll (e2e-guarded at 4K / FHD /
+Deck — `console-finale-podium` A). `con-eg--n<N>` stays on the frame as a hook;
+the frame's own furniture (the rail, the caption, the bottom zone) has one set
+of tokens, which the handheld profile overrides.
 
 ## E2E harness law (cost a day)
 

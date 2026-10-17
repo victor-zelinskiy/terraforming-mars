@@ -77,11 +77,16 @@ without them (they only enrich episodes/insights).
   deduped on `dedupeKey ?? id`, ≤ 2 per role, `final_scoring`/`flavor_only`
   excluded (the verdict already owns the finish). Observations = the
   residual insight layer, capped 4, never repeating a headline id.
-- **Score**: a category COMPARISON MATRIX (one row per ceremony category,
-  every player's bar on ONE shared scale `maxCategoryValue`), the focused
-  category's two-level РТ/Карты breakdown in a fixed-height context zone,
-  the tie-break note, and «Наибольший отрыв» = the winner's biggest
-  category edge over the runner-up. A → the full per-player breakdown grid.
+- **Score** — a BOARD at scene scale (TR69 «ОБЗОР В МАСШТАБЕ»): the places are
+  COLUMNS led by the corporation's face (`OvRankRow.face`), the place, the name
+  and the total in the score cell's language; the categories are ROWS led by
+  their medallion (the dossier's disc — `scoreCategoryGlyph`); every cell is the
+  value + a bar on ONE shared scale `maxCategoryValue`, the category's leader
+  gold. The rows SHARE the opening's height (a row grows, never the page — the
+  board's foot reaches ≥ 85 % of the opening at 4K); the focused category's
+  two-level РТ/Карты breakdown stands in the same plate at a fixed height (no
+  jump on focus travel); «Наибольший отрыв» = the winner's biggest category edge
+  over the runner-up, in the head's corner. A → the full per-player breakdown grid.
 - **Chronology**: the VP chart (all players, legend + cursor readout — the
   fixed game palette fails strict CVD pairs, so identity is always swatch +
   NAME + the readout, never colour alone), an episode strip pinned to
@@ -98,10 +103,16 @@ without them (they only enrich episodes/insights).
   full ink over quiet same-hue context, ←/→ cursor readout with the RAW
   value + %, and «Кто двигал планету» per-player steps for the focused
   track. Old saves (no `globalsPerGeneration`) get the honest empty state.
-- **Players**: a player ring (←/→; the bot is an ordinary participant),
-  metric GROUPS on ↑/↓ (production / stock / stats / tags / MA / score
-  sources) — each value carries a quiet table-max comparison bar; A on a
-  comparable group → the cross-player grid at one shared scale.
+- **Players**: a player ring (←/→; the bot is an ordinary participant), the
+  participant as a HERO column (TR69 — its corporation's face `OvPlayerCard.face`,
+  the identity, the total in the score cell's language) beside the metric
+  GROUPS on ↑/↓ (production / stock / stats / tags / MA / score sources), which
+  fill the rest of the opening in two rows — each value carries a quiet
+  table-max comparison bar; the milestones / awards are MEDALLIONS
+  (`OvPlayerCard.maMedals` — the emblem's art, the name, the VP: the server's
+  breakdown rows, never a re-told sentence); the score sources are the
+  ceremony's medallions with the rail's short names; A on a comparable group →
+  the cross-player grid at one shared scale.
 
 ## Command bar
 
