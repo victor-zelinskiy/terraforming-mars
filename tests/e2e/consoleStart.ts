@@ -2462,6 +2462,12 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   'red-lawyers' |
   'red-lawyers-tr-first' |
   'red-lawyers-end' |
+  // TR68 Political Recognition: Red Lawyers' table (the Greens ruling by the starting rule, red on 3), the card in hand,
+  // 30 M€, blue's PLAYED cards with a requirement — four automated cards and one EVENT. The walk 6 → ⑦ CARD → ⑧ → ⑨ TR,
+  // `-short` four cards (the hand reads «[card] 4/5»), `-end` 11 → ⑫ (one of three, named before the press).
+  'political-recognition' |
+  'political-recognition-short' |
+  'political-recognition-end' |
   // TR38 Biological Simulations: the Greens ruling by the starting rule, TR38 on blue's table with 2 data, Tardigrades
   // in hand — the table's answer to a PLAY flies (К-S1) and a PRODUCTION answer follows the action's step.
   'biological-simulations' |

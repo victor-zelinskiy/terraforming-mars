@@ -1593,6 +1593,69 @@ redLawyersFixture('red-lawyers', 6, [{to: 7, bonus: 'card'}, {to: 8}]);
 redLawyersFixture('red-lawyers-tr-first', 5, [{to: 6, bonus: 'tr'}, {to: 7, bonus: 'card'}]);
 redLawyersFixture('red-lawyers-end', 11, [{to: 12}]);
 
+// ── TR68 · POLITICAL RECOGNITION — TR04's walk at THREE steps behind the NEW requirement «5 other cards with
+//    requirements PLAYED» (events included). Red Lawyers' table (blue's action phase, the Greens ruling by the starting
+//    rule — the walked TR is answered with their +2 M€; quiet resolutions; red's marker on 3; the corporations pinned
+//    to two without a first action), the card in hand off the real deck, 30 M€. Blue's PLAYED cards with a requirement
+//    are real cards moved off the deck onto the table — four automated plant cards and ONE EVENT (Ice Cap Melting:
+//    «played», never «in play»). Three tables: 6 → ⑦ CARD → ⑧ influence 4 → ⑨ TR (the card step in the middle);
+//    `-short` — the same table with four cards on it (the hand reads «[card] 4/5»); `-end` — 11 → ⑫ (one of three,
+//    named before the press). ──
+const POLITICAL_RECOGNITION_TABLE: ReadonlyArray<CardName> = [
+  CardName.ALGAE, CardName.KELP_FARMING, CardName.LICHEN, CardName.ARCTIC_ALGAE, CardName.ICE_CAP_MELTING,
+];
+function politicalRecognitionFixture(name: string, from: number, played: number, steps: ReadonlyArray<{to: number, bonus?: 'tr' | 'card'}>): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [30, 30],
+    agenda: [from, 3],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, p2, parliament}) => {
+      seatResolution(parliament, 0, quietResolutionOf(PartyName.REDS));
+      seatResolution(parliament, 1, quietResolutionOf(PartyName.SCIENTISTS));
+      seatResolution(parliament, 2, quietResolutionOf(PartyName.MARS));
+      parliament.placeVote(p2, parliament.slots[2], 'reserve');
+      // The event LAST, so the short table (four cards) is four automated cards and the full one has its event.
+      for (const card of POLITICAL_RECOGNITION_TABLE.slice(0, played)) {
+        moveToDeckTop(game, card);
+        p1.playedCards.push(game.projectDeck.drawPile.pop() as IProjectCard);
+      }
+      moveToDeckTop(game, CardName.POLITICAL_RECOGNITION);
+      p1.cardsInHand.push(game.projectDeck.drawPile.pop() as IProjectCard);
+    },
+    expect: ({game, parliament, p1, p2}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.POLITICAL_RECOGNITION);
+      const counted = [...p1.playedCards].filter((c) => c.requirements.length > 0);
+      const facts: Record<string, unknown> = {
+        playable: card !== undefined && p1.canPlay(card),
+        counted: counted.length,
+        events: counted.filter((c) => c.type === CardType.EVENT).length,
+        agenda: `${parliament.agendaOf(p1)}/${parliament.agendaOf(p2)}`,
+        ruling: parliament.rulingParty(),
+      };
+      const expected: Record<string, unknown> = {
+        playable: played >= 5, counted: played, events: played >= 5 ? 1 : 0, agenda: `${from}/3`, ruling: PartyName.GREENS,
+      };
+      if (played >= 5) {
+        // THE DRY RUN — the play for real, on a copy: the record the console will play, step by step.
+        const copy = Game.deserialize(structuredClone(game.serialize()));
+        const blue = copy.getPlayerById(p1.id);
+        blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.POLITICAL_RECOGNITION) as IProjectCard);
+        runAllActions(copy);
+        facts.steps = JSON.stringify(copy.parliament!.lastAdvance?.steps ?? []);
+        expected.steps = JSON.stringify(steps);
+      }
+      if (JSON.stringify(facts) !== JSON.stringify(expected)) {
+        throw new Error(`the ${name} fixture expected ${JSON.stringify(expected)} — got ${JSON.stringify(facts)}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+politicalRecognitionFixture('political-recognition', 6, 5, [{to: 7, bonus: 'card'}, {to: 8}, {to: 9, bonus: 'tr'}]);
+politicalRecognitionFixture('political-recognition-short', 6, 4, []);
+politicalRecognitionFixture('political-recognition-end', 11, 5, [{to: 12}]);
+
 // TR38 BIOLOGICAL SIMULATIONS — the set's first Greens' plate: a data holder with a TWO-TAG trigger and an action that
 // buys PLANT PRODUCTION. Blue's action phase, the Greens ruling by the STARTING RULE (nothing enacted — generation 1),
 // TR38 on blue's table with 2 data, Tardigrades (a microbe tag) in hand, 30 M€. Two classes the card carries first:
