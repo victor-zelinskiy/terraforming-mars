@@ -1468,7 +1468,7 @@ TR57 с 3 мехами рядом с TR40 Forestry Mechs с 2). Номера AX 
 ## BA. «КЛЕТКА — ОДНО ДОСЬЕ»: осмотр L3 / R3 на шасси размещения · портрет клетки · соседи одним языком в колонке и на поле · колонка по иерархии (TR67 Enceladean Incubator, 2026-10-17)
 
 Область выбрана при подготовке промта свежим обходом 4K (GPU): правая колонка поля открывается при каждой постановке тайла и
-каждом осмотре, и на 4K была худшей поверхностью. Док — `docs/TURMOIL_REDUX_ENCELADEAN_INCUBATOR.md`, закон —
+каждом осмотре, и на 4K была худшей поверхностью. Владелец подтвердил решения 4а · 6а · 7а · 8а (2026-10-17, батч с макетами). Док — `docs/TURMOIL_REDUX_ENCELADEAN_INCUBATOR.md`, закон —
 `.claude/rules/console-ui.md` § …AND THE INSPECTION IS THE SAME DOSSIER. Кадры: до — `screenshots/tr67/tv4k/`, после —
 `screenshots/tr67/after-{tv4k,fhd,deck}/`, `screenshots/cell-dossier/<профиль>/`.
 

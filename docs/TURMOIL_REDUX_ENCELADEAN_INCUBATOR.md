@@ -2,8 +2,8 @@
 
 **Status.** Shipped 2026-10-17. The prompt: `docs/claude/prompts/project-tr67-enceladean-incubator.md`. The law:
 `.claude/rules/console-ui.md` § THE PLACEMENT PANEL IS A DOSSIER — «…AND THE INSPECTION IS THE SAME DOSSIER». Ledger: section
-BA of `docs/claude/gameplay-polish-ledger.md` (PL-582…598). Decisions 1–9 were taken at their defaults (§ 7) and go to the owner
-in one batch with the mockups (`screenshots/tr67/after-tv4k/m*.png`).
+BA of `docs/claude/gameplay-polish-ledger.md` (PL-582…598). Decisions 1–9 were taken at their defaults (§ 7); **the owner confirmed 4a · 6a · 7a · 8a on
+2026-10-17** (one batch, with the mockups `screenshots/tr67/after-tv4k/m*.png`).
 
 ## 1 · The card
 
@@ -111,7 +111,7 @@ greenery's cities, purity), `tests/console/cellDossier.spec.ts` (sections by int
 relations in both modes), `tests/client/components/console/ConsoleContextPanel.spec.ts` (§ inspection — the same dossier),
 e2e `tests/e2e/console-cell-dossier.spec.ts` (fhd · tv4k · deck).
 
-## 7 · Decisions (defaults taken; the owner's batch)
+## 7 · Decisions (defaults taken; 4a · 6a · 7a · 8a confirmed by the owner 2026-10-17)
 
 1. RU name «Инкубатор Энцелада» — taken. 2. Lore with the pun — taken. 3. Art — the file arrived, imported.
 4. Height — (a) the drawer filled by hierarchy. 5. One language — (a) the inspection on the placement's rows.
