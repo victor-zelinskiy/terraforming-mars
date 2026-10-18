@@ -1,5 +1,7 @@
 <template>
-  <div class="con-parl-fx" data-parl-effects-step :data-parl-effects-cursor="cursor">
+  <div class="con-parl-fx"
+       :class="{'con-parl-fx--no-actions': model.actions.length === 0, 'con-parl-fx--sparse': model.actions.length + model.standing.length <= 2}"
+       data-parl-effects-step :data-parl-effects-cursor="cursor">
     <!-- ══ THE INNER STEP «ВАШИ ЭФФЕКТЫ» (Парламент v8 § 6, the mock `c1`): the FULL list of what the parliament gives the
          viewer, opened from the overview's block — ДЕЙСТВИЯ on the left, ПОСТОЯННЫЕ ЭФФЕКТЫ on the right. It stands on
          the CHAMBER's rect (the chamber and the table recede under it; the career stays), it titles nothing (the crumb

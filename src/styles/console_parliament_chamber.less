@@ -1016,17 +1016,24 @@ html:not(.con-profile-handheld) .con-parl--walk, html.con-profile-tv .con-parl--
     column-gap: 1.4rem;
     padding: .75rem 1.1rem 1rem;
     color: #e9eff7;
-    &::after {
-        content: '';
-        position: absolute;
-        left: 50%;
-        top: .9rem;
-        bottom: 1rem;
-        width: .05rem;
-        background: rgba(150, 180, 210, 0.16);
-        pointer-events: none;
-    }
     &__col { display: flex; flex-direction: column; gap: .55rem; min-width: 0; min-height: 0; }
+    /* The seam between the columns rides the ACTIONS column's edge (it moves with the proportions below). */
+    &__col--actions { padding-right: .7rem; margin-right: -.7rem; box-shadow: inset -.05rem 0 0 rgba(150, 180, 210, 0.16); }
+    /* NO ACTION of the viewer's: the column is a narrow strip with its one quiet line in the middle — the standing
+       effects take the step (half a plate of «нет» read as an empty screen). */
+    &--no-actions { grid-template-columns: minmax(12rem, .42fr) minmax(0, 1.58fr); }
+    &--no-actions &__list { flex: 1 1 auto; justify-content: center; }
+    &--no-actions &__empty { text-align: center; padding: 0 .6rem; }
+    /* FEW SOURCES (≤ 2): the tiles stand in the middle of their column at the scene's scale — never one small tile
+       pinned to the top-left of an empty plate. */
+    &--sparse &__grid { flex: 1 1 auto; align-content: center; justify-items: center; }
+    &--sparse &__grid > .con-parl-fx__tile { width: min(100%, 36rem); }
+    &--sparse &__list { flex: 1 1 auto; justify-content: center; }
+    &--sparse &__graphic { --con-pformula-zoom: calc(1.7 * var(--con-ui-scale, 1)); padding: .6rem 0; }
+    &--sparse &__tile { gap: .7rem; padding: .9rem 1.1rem .8rem; }
+    &--sparse &__seal { width: 2.4rem; height: 2.4rem; }
+    &--sparse &__name { font-size: .95rem; }
+    &--sparse &__rule { font-size: .78rem; }
     &__head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0 .1rem; flex-shrink: 0; }
     &__kicker {
         .con-parl-v8-kicker();
@@ -1081,6 +1088,8 @@ html:not(.con-profile-handheld) .con-parl--walk, html.con-profile-tv .con-parl--
     &__empty { margin: 0; font-family: @con-font-read; font-size: .66rem; color: rgba(205, 218, 232, 0.6); }
 }
 html.con-profile-handheld .con-parl-fx {
+    &--sparse .con-parl-fx__graphic { --con-pformula-zoom: calc(1 * var(--con-ui-scale, 1)); }
+    &--no-actions { grid-template-columns: minmax(9rem, .5fr) minmax(0, 1.5fr); }
     column-gap: .9rem;
     padding: .5rem .7rem .7rem;
     &__grid { grid-template-columns: minmax(0, 1fr); }
@@ -1088,6 +1097,8 @@ html.con-profile-handheld .con-parl-fx {
     &__rule { font-size: .6rem; }
 }
 html.con-profile-tv .con-parl-fx {
+    &--sparse .con-parl-fx__name { font-size: 1.1rem; }
+    &--sparse .con-parl-fx__rule { font-size: .95rem; }
     &__kicker { font-size: .8rem; }
     &__sum { font-size: .8rem; letter-spacing: .08em; }
     &__name { font-size: .9rem; }
