@@ -172,6 +172,10 @@
     <transition name="con-parl-qd">
       <ConsoleParliamentQuestDossier v-if="questDossierOpen && view.quest !== undefined" :view="view" :players="pv.players" :viewerColor="viewerColor" />
     </transition>
+    <!-- THE CAREER'S DOSSIER (Парламент v8 § 7): X on the career reads the track — places, rewards, the rules. -->
+    <transition name="con-parl-qd">
+      <ConsoleParliamentCareerDossier v-if="careerDossierOpen" :view="view" :viewerColor="viewerColor" />
+    </transition>
     <ConsoleParliamentVoteMode ref="voteMode"
                                :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor" :viewerParticipates="viewerParticipates"
                                :awaitingInput="awaitingInput" :bridge="bridge" :voteTile="voteTile" :winningSlot="winningSlot"
@@ -205,6 +209,7 @@ import ConsoleParliamentVoteMode from '@/client/components/console/parliament/Co
 import ConsoleParliamentEffects from '@/client/components/console/parliament/ConsoleParliamentEffects.vue';
 import ConsoleParliamentEffectsStep from '@/client/components/console/parliament/ConsoleParliamentEffectsStep.vue';
 import ConsoleParliamentQuestDossier from '@/client/components/console/parliament/ConsoleParliamentQuestDossier.vue';
+import ConsoleParliamentCareerDossier from '@/client/components/console/parliament/ConsoleParliamentCareerDossier.vue';
 import {EffectItemsInput, parliamentEffectItems} from '@/client/console/parliament/parliamentEffectsModel';
 import {effectsStepCursorMove, EffectsStepEntry, EffectsStepModel, isEffectsAction, parliamentEffectsStep} from '@/client/console/parliament/parliamentEffectsStepModel';
 import ConsoleParliamentSeatPick from '@/client/components/console/parliament/ConsoleParliamentSeatPick.vue';
@@ -302,7 +307,7 @@ export default defineComponent({
   name: 'ConsoleParliamentSection',
   components: {
     ConsoleWsHead, ConsoleParliamentSeats, ConsoleParliamentGovernment, ConsoleParliamentVotingArea, ConsoleParliamentBand,
-    ConsoleParliamentParties, ConsoleParliamentAgenda, ConsoleParliamentVoteMode, ConsoleParliamentSeatPick, ConsoleParliamentSitting, ConsoleParliamentEffects, ConsoleParliamentEffectsStep, ConsoleParliamentQuestDossier,
+    ConsoleParliamentParties, ConsoleParliamentAgenda, ConsoleParliamentVoteMode, ConsoleParliamentSeatPick, ConsoleParliamentSitting, ConsoleParliamentEffects, ConsoleParliamentEffectsStep, ConsoleParliamentQuestDossier, ConsoleParliamentCareerDossier,
     ConsoleParliamentSupportMode,
   },
   props: {
@@ -342,6 +347,8 @@ export default defineComponent({
     return {
       /** The chairman quest's DOSSIER stands over the hall (X on the quest — Парламент v8 § 7). */
       questDossierOpen: false,
+      /** …and the career's (X on the career). */
+      careerDossierOpen: false,
       /** The seat / sitting stage is folding back — its DOM stays for the leave beat. */
       stageLeaving: false,
       /**
@@ -913,7 +920,7 @@ export default defineComponent({
         sitting: {primary: this.sittingPrimary, inspect: this.sittingInspectable, back: this.sittingBack},
         quest: this.questCommands,
         voteSubjects: this.voteSubjectCount,
-        dossier: this.questDossierOpen,
+        dossier: this.questDossierOpen || this.careerDossierOpen,
         effects: {
           count: this.effectsCount,
           use: isEffectsAction(this.effectsFocused) ? this.effectsFocused.state === 'ready' : undefined,
@@ -960,6 +967,7 @@ export default defineComponent({
     'flow.stage'(stage: ParliamentStage): void {
       if (stage !== 'browse') {
         this.questDossierOpen = false;
+        this.careerDossierOpen = false;
       }
     },
     /**
@@ -1541,10 +1549,11 @@ export default defineComponent({
     handleIntent(intent: GamepadIntent): void {
       const f = parliamentFlow;
       // THE QUEST'S DOSSIER is a read-only layer: B or X closes it, nothing else reaches the hall under it.
-      if (this.questDossierOpen) {
+      if (this.questDossierOpen || this.careerDossierOpen) {
         const action = consoleActionOf(intent);
         if (action === 'back' || action === 'inspect') {
           this.questDossierOpen = false;
+          this.careerDossierOpen = false;
         }
         return;
       }
@@ -1572,6 +1581,11 @@ export default defineComponent({
         // X on the QUEST opens the quest's own dossier (Парламент v8 § 7 — the owner's point 5), never its law's.
         if (parliamentFlow.zone === 'engine' && this.view.quest !== undefined) {
           this.questDossierOpen = true;
+          return;
+        }
+        // …and X on the CAREER reads the track's own dossier.
+        if (parliamentFlow.zone === 'agenda') {
+          this.careerDossierOpen = true;
           return;
         }
         const request = parliamentBrowseInspectRequest(this.view, this.$refs.rootEl as HTMLElement | undefined);

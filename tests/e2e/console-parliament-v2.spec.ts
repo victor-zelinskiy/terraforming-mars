@@ -454,6 +454,12 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-parl__agenda--focus'), 'the career wears the cursor as ONE object').toHaveCount(1);
       await press(page, 'ArrowRight', 400);
       expect(await parliament(page).getAttribute('data-zone'), '▶ on the career moves nothing — no step is a stop').toBe('agenda');
+      // X on the CAREER reads the track's own dossier — every seat's place, the ladder of twelve, the rules in words.
+      expect(await pressUntil(page, 'KeyX', async () => await page.locator('[data-parl-career-dossier]').count() === 1, {tries: 3, settleMs: 700}), 'X opens the career dossier').toBe(true);
+      await expect(page.locator('[data-parl-career-dossier] [data-parl-cd-step]'), 'the twelve steps').toHaveCount(12);
+      await expect(page.locator('[data-parl-career-dossier] [data-parl-cd-seat]'), 'every seat\'s place').not.toHaveCount(0);
+      await shoot(page, preset.id, '01d-career-dossier');
+      expect(await pressUntil(page, 'Escape', async () => await page.locator('[data-parl-career-dossier]').count() === 0, {tries: 3, settleMs: 700}), 'B closes the dossier').toBe(true);
       await press(page, 'ArrowLeft', 400);
       expect(await parliament(page).getAttribute('data-zone'), '◀ from the career: the quest').toBe('engine');
       // X on the QUEST reads the QUEST (the owner's point 5) — its own dossier: the chair, the quest with its race, the
@@ -1069,8 +1075,9 @@ test.describe('parliament v4 · one execution point, two doors · the Reds in fu
     await expect(page.locator('.con-parl__party[data-party="Scientists"][data-action-state="used"]'), 'the plaque reads «used»').toHaveCount(1);
     await shoot(page, preset, '43-back-in-parliament-used');
     // A visible toast OVERRIDES B everywhere (the press closes the card and is consumed) — the action's own cards and the
-    // turn's hand-off queue four of them here, so let the feed drain before B is asked to leave the Parliament.
-    await settle(page, {timeoutMs: 30_000, notifications: true});
+    // turn's hand-off queue four of them here, so let the feed drain before B is asked to leave the Parliament. The feed
+    // is SERIALIZED (one card at a time, 5–13 s each), so four cards are up to ~52 s — measured draining right at 30 s.
+    await settle(page, {timeoutMs: 60_000, notifications: true});
     expect(await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 4, settleMs: 900})).toBeTruthy();
     await settle(page);
 

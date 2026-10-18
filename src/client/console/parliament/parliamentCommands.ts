@@ -140,8 +140,9 @@ function browseCommands(input: ParliamentCommandsInput, back: ConsoleCommand): A
   }
   case 'engine':
     return [{control: 'secondary', label: 'Inspect'}, back];
+  // The career is ONE stop (v8): X reads its dossier.
   case 'agenda':
-    return [back];
+    return [{control: 'secondary', label: 'Inspect'}, back];
   case 'effects':
     // «ВАШИ ЭФФЕКТЫ» (v8 § 6): A opens the inner step — the full list, the actions with their door.
     return (input.effects?.count ?? 0) > 0 ? [{control: 'confirm', label: 'Open', highlight: true}, back] : [back];
