@@ -215,3 +215,22 @@ v2, parliament.spec) и в `focusParliamentZone` драйвера — все ч�
 `sitting-v2` · `sitting-v2-remote` · `sitting-v3` · `sitting-v4` · `sitting` · `zone-v5` (43 красных из 72 в батче
 заседания; 29 зелёных в них же теряются до Ф5 вместе с файлом — Ф5 переписывает все девять на объектах «Зала»).
 Хуки этих спеков остаются в продукте (гард живости их читает и дальше) — умирать им нельзя и в Ф3/Ф4.
+
+### Галерея и просмотрщик (добивка Ф2)
+`console-parliament-gallery` — 125 кадров × 5 вариантов: красны только три sitting-варианта («the SITTING», «the REWARD
+variant», «the FAMILIES rehearsal» — их позы ИТОГОВ меряют старый средний ярус) — припаркованы ПО ЗАГОЛОВКУ
+(`test.beforeEach` + `test.skip(PARKED_UNTIL_F5.test(title))`), обзор · режим голосования · досье · выборы продолжают
+гоняться как приёмка каркаса. Единственный красный обзора — tv-4k «resolution-inspect: off-screen con-zoom-asidecol
+… −2» — оказался НЕ парламентским: у общего просмотрщика `dialog.card-zoom-dialog` стоял `overflow: hidden`, а
+`focus()` кнопки бара (висит на 34–48 px ниже коробки на 4K) прокручивал диалог на 12–26 px — колонки осмотра
+вставали на 2 px выше экрана. Починено в самом просмотрщике: `html.console-mode .card-zoom-dialog { overflow: clip }`
+(clip не умеет прокручиваться, краска та же). `console-smoothness` (A, tv4k, шаг цели композера розыгрыша — не
+парламент) на SwiftShader после 50 минут нагрузки дал «SNAPPED@234 · samples 3» — перепроверен на GPU
+(`TM_E2E_GPU=1`), см. итог ниже.
+Итог GPU-перепроверки `console-smoothness` (A, tv4k): 2 passed — красный на SwiftShader был нагрузочным, не продуктовым.
+После `overflow: clip` пробник просмотрщика показал ИСТИННЫЙ дефект под прежним скроллом: подвал осмотра
+(`.card-zoom-actions__panel`: `con-rstatus` · `con-rvote` · `con-iyield` · `con-preact` + кнопки) на 4K заворачивает бар
+в три ряда и выступает на 12–26 px ниже экрана (панель 512 px в слоте 368 px) — это и есть «перегруженный подвал» из
+жалобы QA, предмет Ф4 (плиты уходят в колонку «ДЛЯ ВАС», бар — только глаголы). 4K-вариант «the OVERVIEW» галереи
+припаркован до Ф4 (`PARKED_UNTIL_F4`), 1080 и Deck продолжают гоняться; 4K-обзор каркаса принимают `v2` ·
+`stability` · `vote-fit` · `chassis-parity` · `reds-plaque` · `info-budget` и кадры `screenshots/parliament-v7/f2/`.

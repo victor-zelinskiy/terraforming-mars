@@ -24228,6 +24228,11 @@ html.console-mode {
         backdrop-filter: none;
         -webkit-backdrop-filter: none;
     }
+    /* THE VIEWER NEVER SCROLLS. `overflow: hidden` still lets a focus() scroll the dialog: the bar's focused
+       button hung 34–48 px below the box at 4K, the dialog scrolled by 12–26 px and the inspector's side columns
+       stood 2 px above the viewport (the parliament gallery's off-screen probe, tv-4k, the vote mode's inspect).
+       `clip` cannot scroll — the paint is identical. */
+    .card-zoom-dialog { overflow: clip; }
     /* Small viewer chrome — no blur over the (now opaque) dim. */
     .card-zoom-counter,
     .card-zoom-actions__panel {
