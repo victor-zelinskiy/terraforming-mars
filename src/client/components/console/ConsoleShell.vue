@@ -717,7 +717,7 @@
              prompt) stays committed through the await, so without this term
              the band would stand over its own result. Safe: the transition is
              a registered animation hold, so the leak detector stays quiet. -->
-        <ConsoleTaskHost v-if="taskHostRendered"
+        <ConsoleTaskHost v-if="hostTask !== undefined && taskHostRendered"
                          ref="taskHost"
                          :playerView="playerView"
                          :task="hostTask"
@@ -746,7 +746,7 @@
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-        <ConsoleEffectDecision v-if="effectDecisionRendered"
+        <ConsoleEffectDecision v-if="effectDecisionVm !== undefined && effectDecisionRendered"
                                ref="effectDecision"
                                :playerView="playerView"
                                :vm="effectDecisionVm"
@@ -4381,7 +4381,9 @@ export default defineComponent({
         this.aresGlobalsActive || this.deckPickActive || this.botAttackActive;
     },
     /** The generic TASK HOST is on screen — its template condition, stated ONCE
-     *  (the start scene's yield below must ask exactly what renders). */
+     *  (the start scene's yield below must ask exactly what renders). The
+     *  template's `hostTask !== undefined &&` before it is narrowing only — a
+     *  computed does not narrow `:task` for vue-tsc (same for the decision). */
     taskHostRendered(): boolean {
       return this.hostTask !== undefined && !this.taskHeldForWorkspace && !this.effectDecisionOwnsPrompt &&
         !this.finalGreeneryActive && !this.finalePromptOwned && !this.govSupportActive && !this.productionLossActive &&
