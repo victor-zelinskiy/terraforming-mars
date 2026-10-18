@@ -5,6 +5,7 @@ import {
   bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openCardActions, openQuickWheel, openZoomViewer, press,
   pressUntil, reloadConsole, sendPlayerInput, settle, takeRevealCards, waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
+import {focusParliamentZone, focusParty} from './parliamentDrive';
 
 /**
  * THE PARLIAMENT v4 (Turmoil Redux) — the overview with ONE voting focus zone,
@@ -109,23 +110,9 @@ async function focusPartyTile(page: Page, party: string): Promise<void> {
   expect(await focused(), `never focused the «${party}» party tile`).toBe(party);
 }
 
-/** Walk the parties row onto `party` (positive witness on every step). */
-async function focusParty(page: Page, party: string): Promise<void> {
-  const zone = () => parliament(page).getAttribute('data-zone');
-  for (let i = 0; i < 3 && await zone() !== 'parties'; i++) {
-    await press(page, 'ArrowDown', 400);
-  }
-  expect(await walkFocusUntil(page, async () => await partyFocused(page) === party, () => partyFocused(page), 14),
-    `never focused the «${party}» plaque`).toBeTruthy();
-}
-
-/** Put the cursor on the voting area (one zone). */
+/** Put the cursor on the voting area (one zone) — the driver knows the v7 ring. */
 async function focusVoting(page: Page): Promise<void> {
-  const zone = () => parliament(page).getAttribute('data-zone');
-  for (let i = 0; i < 4 && await zone() !== 'voting'; i++) {
-    await press(page, (await zone()) === 'ruler' ? 'ArrowRight' : 'ArrowUp', 400);
-  }
-  expect(await zone(), 'the voting area is the focus zone').toBe('voting');
+  await focusParliamentZone(page, 'voting');
 }
 
 /** Nothing readable is cut, no block spills, nothing leaves the viewport. */
@@ -413,21 +400,25 @@ for (const preset of PRESETS) {
       const slot1 = before.slots[1];
 
       // ── THE OVERVIEW: objects and states, three focus zones.
-      await expect(page.locator('.con-parl__party .con-pseal'), 'six plaques').toHaveCount(6);
-      await expect(page.locator('.con-parl__party .con-pformula__mech'), 'every plaque prints its mechanic (every profile)').toHaveCount(6);
+      await expect(page.locator('.con-parl__party .con-pseal'), 'six medallions').toHaveCount(6);
+      // «Зал» v7: a medallion prints NO formula — the overview's only formulas stand in «ВАШИ ЭФФЕКТЫ» (the viewer's own).
+      await expect(page.locator('.con-parl__party .con-pformula__mech'), 'no medallion prints a mechanic').toHaveCount(0);
+      await expect(page.locator('[data-parl-effects] .con-pformula__mech'), 'the effects strip prints the viewer’s formulas').not.toHaveCount(0);
       await expect(page.locator('[data-parl-tally]')).toHaveCount(3);
       await expect(page.locator('[data-parl-gov-empty]'), 'an honest empty seat before the first political phase').toHaveCount(1);
       await expect(page.locator('[data-parl-ruler]'), 'the ruler\'s identity').toContainText(/Зелёные/);
-      await expect(page.locator('[data-parl-ruler] .con-pformula__mech'), 'the ruling effect is a GRAPHIC here').toHaveCount(1);
+      // «Зал» v7: the ruling party's formula is the first row of «ВАШИ ЭФФЕКТЫ» — the one place the overview prints one.
+      await expect(page.locator('[data-parl-effects] .con-pformula__mech'), 'the ruling effect is a GRAPHIC here').not.toHaveCount(0);
       expect((await crumbText(page)).toUpperCase(), 'the overview names itself on the head line').toContain('ОБЗОР');
       await expect(page.locator('[data-parl-seats] .con-parl__seat[data-parl-seat]'), 'the delegates zone: one group per player').toHaveCount(2);
       // PARITY (R-20): two seats keep the strip as it was — the waiting seat still says its word.
       await expect(page.locator('.con-status__player:not(.con-status__player--active) .con-status__pstatus-text'), 'two seats: the waiting word stays').not.toHaveCount(0);
       await expect(page.locator(`[data-parl-seat-lobby="${before.players[0].color}"] .player-cube, [data-parl-seat-lobby="${before.players[1].color}"] .player-cube`),
         'a free delegate stands in a lobby socket').not.toHaveCount(0);
-      await expect(page.locator('[data-parl-quest] .con-parl__quest-cond .pcard__mech'), 'the quest condition is a graphic').toHaveCount(1);
-      await expect(page.locator('[data-parl-quest-reward]')).toContainText(/Председательство/);
-      await expect(page.locator('[data-parl-reward-step]'), 'the reward names the viewer\'s next Agenda step').toHaveCount(1);
+      // «Зал» v7: the quest is the ENGINE at the head of the career edge — its condition is the printed graphic there.
+      await expect(page.locator('[data-parl-quest] .con-parl__quest-graphic.pcard__mech'), 'the quest condition is a graphic').toHaveCount(1);
+      // «Зал» v7: the quest pays a STEP of the track it stands on — «→ +1» at the engine, no words (the reading line names the office).
+      await expect(page.locator('[data-parl-quest-reward]'), 'the quest pays one step of the career').toContainText('+1');
       await expect(page.locator('.con-parl__slot.con-parl__slot--winning .con-parl__slot-win'), 'exactly one card reads «принимается»').toHaveCount(1);
       await expect(page.locator('.con-parl__voting--focus'), 'the voting area is ONE focus zone').toHaveCount(1);
       await expectNoRuleProse(page);
@@ -435,13 +426,14 @@ for (const preset of PRESETS) {
       await expectOneOfEach(page, before, `${preset.id} overview`);
       await shoot(page, preset.id, '01-browse');
 
-      // ── The Agenda is read-only: walking down from the parties never lands on it.
+      // ── «Зал» v7: the career edge IS a focus stop — ▼ from the table lands on the track (the reading line reads
+      //    it), ◀ from the track is the engine (the chair with its quest), ▲ from the engine is the ruler's medallion.
       await press(page, 'ArrowDown', 400);
-      expect(await parliament(page).getAttribute('data-zone')).toBe('parties');
-      for (let i = 0; i < 3; i++) {
-        await press(page, 'ArrowDown', 250);
-      }
-      expect(await parliament(page).getAttribute('data-zone'), 'the Agenda is never a focus stop').toBe('parties');
+      expect(await parliament(page).getAttribute('data-zone'), '▼ from the table: the career edge').toBe('agenda');
+      await press(page, 'ArrowLeft', 400);
+      expect(await parliament(page).getAttribute('data-zone'), '◀ from the track: the engine').toBe('engine');
+      await press(page, 'ArrowUp', 400);
+      expect(await parliament(page).getAttribute('data-zone'), '▲ from the engine: the ruler').toBe('ruler');
       await focusVoting(page);
 
       // ── THE DELEGATES ZONE on the head line: every player's lobby socket and
@@ -467,13 +459,13 @@ for (const preset of PRESETS) {
       const overviewCard = await page.locator('.con-parl__slot .pcard').first().boundingBox();
       expect(overviewCard, 'the overview card is measurable').not.toBeNull();
 
-      // ── X on the voting AREA does nothing: it is ONE zone with no card of its
-      //    own selected (the inspector belongs to the mode's selected card) —
-      //    the bar offers no X here and the press opens no viewer.
-      await expect(page.locator('.con-cmdbar'), 'no X verb on the voting area').not.toContainText(/ОСМОТРЕТЬ/i);
-      await page.keyboard.press('KeyX');
+      // ── «Зал» v7: the table is walked bill by bill (◀ ▶) and X inspects the ONE under the cursor — the bar offers
+      //    «Осмотреть», the viewer opens on that bill, B returns to the same stop.
+      await expect(page.locator('.con-cmdbar'), 'X on the table').toContainText(/ОСМОТРЕТЬ/i);
+      await openZoomViewer(page);
+      expect(await viewerCard(page), 'the viewer shows the bill under the cursor').toContain('pcard--rdx-');
+      await closeZoomViewer(page);
       await settle(page, {timeoutMs: 4_000});
-      await expect(page.locator('dialog.con-zoom[open]'), 'X on the area opens no viewer').toHaveCount(0);
       expect(await parliament(page).getAttribute('data-zone'), 'the focus is where it was').toBe('voting');
 
       // ── A: the VOTE MODE — three cards in a row, the zone above, the info below.
@@ -937,9 +929,9 @@ test.describe('parliament v4 · a crowded table · the vote that is not possible
     await settle(page, {timeoutMs: 8_000});
     // THE ENACTED CARD (the government): its own context — «enacted», the
     // party effect every player's, no vote verb and no paging.
-    // v3 В5: the enacted resolution left the focus ring and rides R3 «ОСМОТРЕТЬ ПРИНЯТУЮ» from any browse zone.
-    expect(await pressUntil(page, 'KeyV', async () => await page.locator('dialog.con-zoom[open]').count() > 0, {tries: 3, settleMs: 1100}),
-      'R3 inspects the enacted resolution').toBeTruthy();
+    // «Зал» v7: past the commit X belongs to the RESULT — X on the ruler's medallion inspects the ENACTED resolution (R3 is gone).
+    await focusParliamentZone(page, 'ruler');
+    await openZoomViewer(page);
     await expect(page.locator('.con-rstatus[data-lifecycle="enacted"]'), 'the enacted standing').toHaveCount(1);
     await expect(page.locator('.con-rstatus[data-access="everyone"]'), 'the party effect is every player\'s').toHaveCount(1);
     await expect(page.locator('dialog.con-zoom[open] .con-zoom__vote'), 'no vote verb over the enacted card').toHaveCount(0);
@@ -948,9 +940,8 @@ test.describe('parliament v4 · a crowded table · the vote that is not possible
     await shoot(page, preset, '22b-dense-enacted-in-inspector');
     await closeZoomViewer(page);
     await settle(page, {timeoutMs: 8_000});
-    await focusVoting(page);
     // The parties: several effects held at once; the used action stamped on its badge.
-    await press(page, 'ArrowDown', 500);
+    await focusParliamentZone(page, 'parties');
     expect(await page.locator('.con-parl__party--held').count(), 'several party effects at once').toBeGreaterThanOrEqual(3);
     await expect(page.locator('.con-parl__party[data-action-state="used"] .con-pseal__action-mark'), 'the used action is stamped').toHaveCount(1);
     await expectFits(page, preset);
@@ -1035,6 +1026,9 @@ test.describe('parliament v4 · one execution point, two doors · the Reds in fu
     await expect(parliament(page), 'a flow opened from the Parliament ends in the Parliament').toBeVisible();
     await expect(page.locator('.con-parl__party[data-party="Scientists"][data-action-state="used"]'), 'the plaque reads «used»').toHaveCount(1);
     await shoot(page, preset, '43-back-in-parliament-used');
+    // A visible toast OVERRIDES B everywhere (the press closes the card and is consumed) — the action's own cards and the
+    // turn's hand-off queue four of them here, so let the feed drain before B is asked to leave the Parliament.
+    await settle(page, {timeoutMs: 30_000, notifications: true});
     expect(await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 4, settleMs: 900})).toBeTruthy();
     await settle(page);
 

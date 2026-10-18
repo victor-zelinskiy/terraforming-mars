@@ -7,6 +7,10 @@ import {
   PARLIAMENT_PRESETS, sittingStage, waitSittingAtRest,
 } from './parliamentDrive';
 
+
+/* ⛔ PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5») */
+test.skip(() => true, 'PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5»)');
+
 /**
  * «ИТОГИ: ЧЕСТНОСТЬ» — the panel does not restate what stands beside it, and no surface promises what
  * cannot happen.

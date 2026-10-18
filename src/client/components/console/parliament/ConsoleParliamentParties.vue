@@ -24,13 +24,15 @@
              :data-action-state="partyActionStates[i].kind"
              :data-parl-ruler-tile="p.party === rulerShown ? '' : undefined"
              @animationend="onPulseEnd($event, p.party)">
+          <!-- «Зал» v7: the MEDALLION — the ruler's in the government (`ruler`), the five of the column as ROWS; no formula
+               on the overview (the dossier prints it, the reading line names the state). -->
           <ConsolePartyPlaque :party="p.party"
-                              size="tile"
+                              :size="p.party === rulerShown ? 'ruler' : 'row'"
                               :state="partyStates[i]"
                               :actionState="partyActionStates[i]"
                               :support="supportShown(p)"
                               :viewerColor="viewerColor"
-                              :formula="true"
+                              :formula="false"
                               :focused="focusedIndex === i"
                               :ruling="p.party === rulerSettled"
                               :rulesByCard="rulerSettledByCard"

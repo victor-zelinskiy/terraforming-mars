@@ -83,70 +83,74 @@
     <!-- THE FIELD — the overview's body and, over it, the vote mode's layer. -->
     <div class="con-parl__field" ref="fieldEl">
     <div class="con-parl__body">
-      <!-- ══ TOP TIER: the GOVERNMENT · the VOTING AREA ══ -->
-      <div class="con-parl__top">
+      <!-- ══ THE CHAMBER («Зал» v7): the GOVERNMENT's wing · the TABLE (the hero) · the OPPOSITION's wing.
+           Three columns of one tier; the reading line and the career edge stand under all three. ══ -->
+      <div class="con-parl__chamber" data-parl-chamber>
         <ConsoleParliamentGovernment :view="view" :model="model" :players="pv.players" :viewerColor="viewerColor"
                                      :agendaVm="agendaVm" :sittingStage="sittingUp ? sittingStage : ''" />
-        <ConsoleParliamentVotingArea :view="view" :model="model" :viewerColor="viewerColor" :viewerParticipates="viewerParticipates"
-                                     :benchWarn="benchWarn" :seatCandidates="seatCandidates" :sittingStage="sittingUp ? sittingStage : ''" />
-        <!-- «САНКЦИИ» (TR12): the support-area mode's reading stands in the VOTING AREA's own cell — the cards
-             recede under it (nothing flies to or from them in this flow); the plaques it is about stay in place. -->
-        <ConsoleParliamentSupportMode v-if="supportUp" ref="supportMode"
-                                      :view="view" :playerView="pv" :viewerColor="viewerColor" :bridge="bridge"
-                                      :cardReceipt="stagedVote !== undefined ? stagedReceipt : undefined" :stagedFlow="stagedFlow"
-                                      @notice="$emit('notice', $event)" @inspect="$emit('inspect', $event)" @inspect-source="$emit('inspect-source', $event)"
-                                      @send="send($event.response, $event.from)" @flow-complete="$emit('flow-complete', $event)"
-                                      @play-walk="playSupportWalk($event)" />
-      </div>
 
-      <!-- ══ MIDDLE ZONE — ЛЕНТА и ТЕЛО («Заседание v5»), and that is its only anatomy in every mode.
-           The BAND is a strip of FIXED height that exists always: it names WHY what is on the table is
-           happening and never repeats what an object says itself; only its content crossfades.
-           The BODY under it is the row of parties by default — the verdict, the Agenda, the support, the
-           enactment and the whole physical part of the results MOVE objects the player must watch, so
-           nothing may stand over them. It changes exactly twice in a sitting: for an EMBEDDED STEP the
-           player works in (a pick, a take — they need the площадь) and for the RESULTS panel. The chairman
-           SEAT pick is a body of its own too (a decision, nothing flying). ══ -->
-      <div class="con-parl__mid" data-parl-mid data-parl-recede ref="midEl">
-        <ConsoleParliamentBand :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor"
-                               :position="sitting" :sittingUp="sittingUp" :stage="sittingStage" :support="supportBand" :rally="rallyBand" />
+        <!-- ══ THE TABLE'S CELL — the BODY of the chamber: the voting area by default, and, over it, whatever a
+             stage puts in the player's hands — the chairman SEAT pick, the sitting's READING panel (a step, the
+             results). The bills are PUSHED SHUT under the panel (`parliamentStageMotion`, the one swap grammar);
+             the government and the opposition stand apart and never recede for a step — the objects the beats
+             fly to (the medallions' sockets, the ruler's slot) stay in view.
+             THE PANEL IS SHOWN, NOT MOUNTED, PER STAGE (`v-show`): three `<Teleport>`s point INTO it (the
+             enacted card onto its hero slot, the hosted step into `[data-embed-slot="parliament-stage"]`, a
+             step's own children), and a teleport re-resolves its target only when the `to` string CHANGES —
+             unmounting the panel between the table and the reading left Vue patching into detached nodes
+             («Cannot read properties of null (reading 'insertBefore')»). ══ -->
+        <div class="con-parl__mid" data-parl-mid ref="midEl">
+          <div class="con-parl__bodyzone" data-parl-body>
+            <div class="con-parl__table-tier" ref="tableTierEl"
+                 :class="{'con-parl__table-tier--parked': rowParked}"
+                 :data-parl-row-shown="rowParked ? undefined : ''"
+                 :aria-hidden="rowParked ? 'true' : undefined">
+              <ConsoleParliamentVotingArea :view="view" :model="model" :viewerColor="viewerColor" :viewerParticipates="viewerParticipates"
+                                           :benchWarn="benchWarn" :seatCandidates="seatCandidates" :sittingStage="sittingUp ? sittingStage : ''" />
+            </div>
+            <!-- «САНКЦИИ» (TR12): the support-area mode's reading stands over the TABLE — the bills recede under
+                 it (nothing flies to or from them in this flow); the medallions it is about stay in place. -->
+            <ConsoleParliamentSupportMode v-if="supportUp" ref="supportMode"
+                                          :view="view" :playerView="pv" :viewerColor="viewerColor" :bridge="bridge"
+                                          :cardReceipt="stagedVote !== undefined ? stagedReceipt : undefined" :stagedFlow="stagedFlow"
+                                          @notice="$emit('notice', $event)" @inspect="$emit('inspect', $event)" @inspect-source="$emit('inspect-source', $event)"
+                                          @send="send($event.response, $event.from)" @flow-complete="$emit('flow-complete', $event)"
+                                          @play-walk="playSupportWalk($event)" />
+            <transition :css="false" @enter="onStageEnter" @leave="onStageLeave" @enter-cancelled="onStageEnterCancelled" @leave-cancelled="onStageLeaveCancelled">
+              <div v-if="stageKind === 'seat' || stageKind === 'sitting'" v-show="stagePanelUp" class="con-parl__stage" :class="['con-parl__stage--' + stageKind, {'con-parl__stage--field': flow.sittingField}]" :data-parl-stage="stageKind" data-parl-reading>
+                <ConsoleParliamentSeatPick v-if="stageKind === 'seat' && focusedSlot !== undefined" ref="seatPick"
+                                           :view="view" :slot="focusedSlot" :viewerColor="viewerColor" :seatCandidates="seatCandidates"
+                                           @submit="submitSeat($event)" @inspect="$emit('inspect', $event)" />
+                <ConsoleParliamentSitting v-else-if="stageKind === 'sitting' && sitting !== undefined" ref="sitting"
+                                          :position="sitting" :stage="sittingStage" :summary="model?.phase?.summary"
+                                          :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor"
+                                          :field="flow.sittingField" :stepOpen="sittingStepOpen" :ledger="sittingLedger"
+                                          :resultsHidden="resultsHidden" mode="live" />
+                <div class="con-parl__embed" data-embed-slot="parliament"></div>
+              </div>
+            </transition>
+          </div>
+        </div>
 
-        <div class="con-parl__bodyzone" data-parl-body>
-        <div class="con-parl__parties-tier" ref="partiesTierEl"
-             :class="{'con-parl__parties-tier--parked': rowParked}"
-             :data-parl-row-shown="rowParked ? undefined : ''"
-             :aria-hidden="rowParked ? 'true' : undefined">
+        <!-- ══ THE OPPOSITION — the five parties without power, as MEDALLIONS in a column (the ruler's medallion is the
+             same DOM instance, teleported into the government's slot; a change of government FLIPs it across the
+             stage). It never recedes for a step: the support's cubes land in its sockets. ══ -->
+        <div class="con-parl__opposition con-parl__parties-tier" ref="partiesTierEl" data-parl-opposition data-parl-recede>
           <ConsoleParliamentParties :view="view" :partyStates="partyStates" :partyActionStates="partyActionStates" :viewerColor="viewerColor"
                                     :awaitingInput="awaitingInput" :supportMeta="supportUp ? supportMeta : undefined" />
         </div>
-
-        <!-- ── THE READING PANEL — the chairman SEAT pick and the sitting's READING stages unfold in place
-             of the parties row (one chassis, one rect).
-             IT IS SHOWN, NOT MOUNTED, PER STAGE (`v-show`): three `<Teleport>`s point INTO this panel (the
-             enacted card onto its hero slot, the hosted step into `[data-embed-slot="parliament-stage"]`, and
-             a step's own children), and a teleport re-resolves its target only when the `to` string CHANGES.
-             Unmounting the panel between the table and the reading therefore left Vue patching into detached
-             nodes — «Cannot read properties of null (reading 'insertBefore')», after which the whole section
-             stopped re-rendering and the walk froze at the enactment with the take standing in a zombie panel.
-             `v-show` fires the same enter/leave hooks, so the phrase is unchanged; the panel is `position:
-             absolute`, so hidden it costs the layout nothing. ── -->
-        <transition :css="false" @enter="onStageEnter" @leave="onStageLeave" @enter-cancelled="onStageEnterCancelled" @leave-cancelled="onStageLeaveCancelled">
-          <div v-if="stageKind === 'seat' || stageKind === 'sitting'" v-show="stagePanelUp" class="con-parl__stage" :class="['con-parl__stage--' + stageKind, {'con-parl__stage--field': flow.sittingField}]" :data-parl-stage="stageKind" data-parl-reading>
-            <ConsoleParliamentSeatPick v-if="stageKind === 'seat' && focusedSlot !== undefined" ref="seatPick"
-                                       :view="view" :slot="focusedSlot" :viewerColor="viewerColor" :seatCandidates="seatCandidates"
-                                       @submit="submitSeat($event)" @inspect="$emit('inspect', $event)" />
-            <ConsoleParliamentSitting v-else-if="stageKind === 'sitting' && sitting !== undefined" ref="sitting"
-                                      :position="sitting" :stage="sittingStage" :summary="model?.phase?.summary"
-                                      :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor"
-                                      :field="flow.sittingField" :stepOpen="sittingStepOpen" :ledger="sittingLedger"
-                                      :resultsHidden="resultsHidden" mode="live" />
-            <div class="con-parl__embed" data-embed-slot="parliament"></div>
-          </div>
-        </transition>
-        </div>
       </div>
 
+      <!-- ══ THE READING LINE — one strip of FIXED height under the chamber, in every mode: in the overview it reads
+           the OBJECT UNDER THE CURSOR; at the sitting its beats; behind the vote layer it stands. Only its content
+           crossfades (`ConsoleParliamentBand`). ══ -->
+      <ConsoleParliamentBand :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor"
+                             :position="sitting" :sittingUp="sittingUp" :stage="sittingStage" :support="supportBand" :rally="rallyBand" :focus="bandFocus" />
+
+      <!-- ══ THE CAREER EDGE — the track is the floor the whole chamber stands on; its head is the ENGINE (the chair
+           with its quest — completing it IS a step on this track). ══ -->
       <ConsoleParliamentAgenda ref="agenda" :view="view" :model="model" :agendaVm="agendaVm" :viewerParticipates="viewerParticipates"
+                               :players="pv.players" :viewerColor="viewerColor" :sittingStage="sittingUp ? sittingStage : ''"
                                :sittingStep="sittingStep" :handedOver="sceneHandedOver" />
     </div>
 
@@ -189,7 +193,7 @@ import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {backLabelForVerb, backVerbFor} from '@/client/console/consoleWorkspaceFlow';
 import {
   agendaViewOf, AgendaVm, buildParliamentView, emptyParliamentView, grantSupportOf, ParliamentPartyVm, ParliamentPromptBridge, ParliamentSlotVm, ParliamentTileVm,
-  ParliamentViewVm, parliamentPromptBridge, partyActionStateOf, PartyActionStateVm, partyStateOf, PartyStateVm, resolutionActionStateOf, seatResponse,
+  ParliamentViewVm, parliamentPromptBridge, PARTY_EFFECT_PLACES, partyActionStateOf, PartyActionStateVm, partyStateOf, PartyStateVm, resolutionActionStateOf, seatResponse,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {
   armGrantVoteFlow, armSupportPickFlow, consoleParliamentUi, notePlayedSittingStage, parliamentSupportUp, parliamentCrumbCommitted, parliamentCrumbStage, parliamentCrumbSubject, ParliamentStage,
@@ -232,7 +236,7 @@ import {plaquePlaceSelector} from '@/client/console/parliament/supportDiscardSce
 import {RALLY_COUNT_CHIP_ID} from '@/client/console/parliament/parliamentBand';
 import {registerSupportDiscardHost, supportDiscardFlow} from '@/client/console/parliament/supportDiscard';
 import {supportAreaOf, supportCursorOrder, supportStartParty, supportStepStageOf} from '@/client/console/parliament/supportPickModel';
-import {BandRally, BandSupport} from '@/client/console/parliament/parliamentBand';
+import {BandFocus, BandRally, BandSupport} from '@/client/console/parliament/parliamentBand';
 import {SupportPromptMeta} from '@/common/models/PlayerInputModel';
 import {
   AGENDA_WALK_READ_MS, AgendaWalkHooks, AgendaWalkLeg, AgendaWalkRecordLike, agendaWalkHoldMs, agendaWalkMotion, deliverAgendaStepReward,
@@ -244,8 +248,7 @@ import {fitParliamentCards, freezeParliamentFit} from '@/client/console/parliame
 import {parliamentCommandsOf} from '@/client/console/parliament/parliamentCommands';
 import {ParliamentInspectRequest} from '@/client/console/parliament/parliamentInspect';
 import {
-  armPartyActionDescent, armResolutionActionDescent, navigateParliamentZones, parliamentBrowseInspectRequest, parliamentEnactedInspectRequest, partyActionRefusal,
-  resolutionActionRefusal,
+  armPartyActionDescent, armResolutionActionDescent, navigateParliamentZones, parliamentBrowseInspectRequest, partyActionRefusal, resolutionActionRefusal,
 } from '@/client/console/parliament/parliamentNavigation';
 import {BenchSource, benchSourceOf, benchWarnOf} from '@/client/console/parliament/parliamentVoteView';
 import {
@@ -759,6 +762,65 @@ export default defineComponent({
     questCommands(): {done: boolean} | undefined {
       return chairmanQuestFlow.live ? {done: chairmanQuestFlow.beat === 'done'} : undefined;
     },
+    /**
+     * THE READING LINE'S SUBJECT («Зал» v7): the object under the browse cursor — a bill, the ruler, a row of the
+     * opposition, the engine, the track — as DATA for the band (`BandFocus`); undefined outside the browse layer.
+     */
+    bandFocus(): BandFocus | undefined {
+      if (parliamentFlow.stage !== 'browse') {
+        return undefined;
+      }
+      const view = this.view;
+      switch (parliamentFlow.zone) {
+      case 'voting': {
+        const slot = view.slots[parliamentFlow.slotIndex];
+        if (slot === undefined) {
+          return undefined;
+        }
+        return {
+          kind: 'slot', resolution: slot.resolutionId, party: slot.party, winning: slot.isWinning, votes: slot.totalVotes,
+          ...(slot.leader === undefined ? {} : {leader: slot.leader}),
+          ...(this.viewerParticipates ? {mine: slot.viewerVotes, threshold: slot.viewerEffectDelegates} : {}),
+        };
+      }
+      case 'government':
+      case 'ruler':
+        return {kind: 'ruler', party: view.rulingParty, ...(view.enacted === undefined ? {} : {resolution: view.enacted.resolutionId})};
+      case 'parties': {
+        const index = parliamentFlow.partyIndex;
+        const p = view.parties[index];
+        if (p === undefined) {
+          return undefined;
+        }
+        const state = this.partyStates[index];
+        const action = this.partyActionStates[index];
+        return {
+          kind: 'party', party: p.party, inArea: p.inArea, mine: state?.delegates ?? 0, threshold: state?.effectDelegates ?? PARTY_EFFECT_PLACES,
+          held: state?.held === true, support: p.support, action: action?.kind ?? 'none', participates: this.viewerParticipates,
+        };
+      }
+      case 'engine': {
+        const quest = view.quest;
+        const mine = quest?.progress.find((row) => row.color === this.viewerColor)?.value;
+        return {
+          kind: 'engine',
+          ...(quest === undefined ? {} : {text: quest.text, count: quest.definition.count, ...(quest.completedBy === undefined ? {} : {completedBy: quest.completedBy})}),
+          ...(mine === undefined ? {} : {mine}),
+          ...(view.chairman === undefined ? {} : {chairman: view.chairman}),
+        };
+      }
+      case 'agenda': {
+        const me = view.viewer;
+        const next = this.agendaVm.nextStep;
+        return {
+          kind: 'agenda', position: me?.agenda ?? 0, influence: me?.influence ?? 0, participates: this.viewerParticipates,
+          ...(next === undefined ? {} : {next: {kind: next.kind, ...(next.kind === 'influence' ? {influence: next.influence} : {})}}),
+        };
+      }
+      default:
+        return undefined;
+      }
+    },
     crumbSubject(): string {
       return parliamentCrumbSubject(chairmanQuestFlow.live);
     },
@@ -861,7 +923,7 @@ export default defineComponent({
       if (!up) {
         return;
       }
-      const tier = this.$refs.partiesTierEl as HTMLElement | undefined;
+      const tier = this.$refs.tableTierEl as HTMLElement | undefined;
       const rect = tier?.getBoundingClientRect();
       if (rect !== undefined && rect.width > 0) {
         this.stageFromRect = {left: rect.left, top: rect.top, width: rect.width, height: rect.height};
@@ -1418,21 +1480,6 @@ export default defineComponent({
         navigateParliamentZones(intent.dir, this.view);
         return;
       }
-      // R3 — the ENACTED resolution (v3 В5): it left the focus ring (nothing about it is a decision) and
-      // kept its own verb, read from wherever the player stands in the browse layer.
-      if (intent.kind === 'press' && intent.button === 'stickR') {
-        const enacted = parliamentEnactedInspectRequest(this.view, this.$refs.rootEl as HTMLElement | undefined);
-        if (enacted !== undefined) {
-          this.$emit('inspect', enacted);
-        }
-        return;
-      }
-      // Y — THE ENACTED RESOLUTION'S ACTION (Open IP Trade): the law's own door into the one execution point,
-      // from wherever the player stands in the browse layer (the law belongs to the whole table).
-      if (intent.kind === 'press' && consoleActionOf(intent) === 'fullscreen') {
-        this.openResolutionAction();
-        return;
-      }
       switch (consoleActionOf(intent)) {
       case 'primary':
         this.primary();
@@ -1458,17 +1505,26 @@ export default defineComponent({
         return;
       case 'parties':
       case 'ruler': {
-        // The ruling party's tile in the government is a party tile like the five below it: the same door.
+        // The ruling party's medallion in the government is a party's like the five of the column: the same door —
+        // and, when the party has no action of its own, the ENACTED LAW's action (Open IP Trade) is the ruler's A.
         const party = this.focusedParty;
         const index = party === undefined ? -1 : this.view.parties.findIndex((p) => p.party === party.party);
         const state = index === -1 ? undefined : this.partyActionStates[index];
         if (party?.actionId === undefined || state === undefined || state.kind === 'none') {
+          if (parliamentFlow.zone === 'ruler' && this.resolutionActionState.kind !== 'none') {
+            this.openResolutionAction();
+            return;
+          }
           this.$emit('notice', translateText('This party has no action'));
           return;
         }
         this.openAction(party.party, party.actionId, state);
         return;
       }
+      case 'engine':
+      case 'agenda':
+        // Nothing to decide on the edge: the quest is the player's play, the track moves by itself.
+        return;
       case 'government':
         this.$emit('notice', translateText(this.view.enacted === undefined ?
           'No resolution is enacted yet — the Greens rule by the starting rule' :
@@ -1911,7 +1967,7 @@ export default defineComponent({
     },
     // ── the seat / sitting stage phrase ─────────────────────────────────
     openStage(stage: ParliamentStage): void {
-      const tier = this.$refs.partiesTierEl as HTMLElement | undefined;
+      const tier = this.$refs.tableTierEl as HTMLElement | undefined;
       const rect = tier?.getBoundingClientRect();
       this.stageFromRect = rect !== undefined && rect.width > 0 ? {left: rect.left, top: rect.top, width: rect.width, height: rect.height} : undefined;
       parliamentFlow.stage = stage;
@@ -2230,7 +2286,7 @@ export default defineComponent({
       this.stageEntering = true;
       pulseCarrier(this.$refs.rootEl instanceof HTMLElement ?
         this.$refs.rootEl.querySelector<HTMLElement>('[data-parl-gov-carry] .con-parl__gov-card') ?? undefined : undefined);
-      playBodyUnfold(el as HTMLElement, this.$refs.partiesTierEl as HTMLElement | undefined, this.stageFromRect, () => {
+      playBodyUnfold(el as HTMLElement, this.$refs.tableTierEl as HTMLElement | undefined, this.stageFromRect, () => {
         this.stageEntering = false;
         done();
         if (parliamentFlow.stage === 'sitting') {
@@ -2240,7 +2296,7 @@ export default defineComponent({
     },
     onStageLeave(el: Element, done: () => void): void {
       this.stageLeaving = true;
-      playBodyFold(el as HTMLElement, this.$refs.partiesTierEl as HTMLElement | undefined, () => {
+      playBodyFold(el as HTMLElement, this.$refs.tableTierEl as HTMLElement | undefined, () => {
         this.stageLeaving = false;
         done();
         // The row is back: a beat whose objects live in it can play now.
@@ -2251,11 +2307,11 @@ export default defineComponent({
     },
     onStageEnterCancelled(el: Element): void {
       (el as HTMLElement).style.clipPath = '';
-      settleRow(this.$refs.partiesTierEl as HTMLElement | undefined, !this.stagePanelUp);
+      settleRow(this.$refs.tableTierEl as HTMLElement | undefined, !this.stagePanelUp);
     },
     onStageLeaveCancelled(): void {
       this.stageLeaving = false;
-      settleRow(this.$refs.partiesTierEl as HTMLElement | undefined, !this.stagePanelUp);
+      settleRow(this.$refs.tableTierEl as HTMLElement | undefined, !this.stagePanelUp);
     },
     // ── submits (byte-identical to the live prompt) ─────────────────────
     /** The seat pick's A — `from` is the rect of the cube that leaves the card (the flight's source after the answer). */

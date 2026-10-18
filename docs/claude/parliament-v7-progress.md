@@ -106,3 +106,112 @@
 `ConsolePartyMedallion` (размеры `row` для колонки оппозиции и `ruler` для правительства); размер `tile` плакетки
 уходит вместе с рядом плакеток. Ф1 сдана этим журналом; временные спеки макетов — `tmp/parl-v7/specs/` (в `tests/e2e/`
 им нельзя жить: гард живости видит их CSS-классы как мёртвые хуки).
+
+---
+
+## Ф2 — каркас сцены «Зал» (M3 «Палата»), 2026-10-18
+
+### Что стоит
+Обзор Парламента собран заново на ОДНОЙ сетке (`src/styles/console_parliament_chamber.less`, подключён в `common.less`
+сразу после `console_party_plaque.less` и внесён в `PARLIAMENT_FAMILY` гарда порядка листов): `.con-parl__chamber`
+= три колонки — ПРАВИТЕЛЬСТВО (`--con-parl-gov-w` 19 %) · СТОЛ (`.con-parl__mid > .con-parl__bodyzone >
+.con-parl__table-tier`, в нём `ConsoleParliamentVotingArea`, оверлей санкций и `.con-parl__stage` заседания/выбора
+кресла с зоной `[data-embed-slot="parliament"]`) · ОППОЗИЦИЯ (`.con-parl__opposition.con-parl__parties-tier`,
+`--con-parl-opp-w` 20 %, вертикальная колонка `ConsoleParliamentParties`); под ними во всю ширину — ЛЕНТА
+(`ConsoleParliamentBand`, теперь СТРОКА ЧТЕНИЯ: читает объект под курсором) и КРОМКА КАРЬЕРЫ
+(`ConsoleParliamentAgenda`, `--con-parl-agenda-h`).
+
+- **Правительство** (`ConsoleParliamentGovernment.vue` переписан): кикер → `.con-parl__ruling` (ResizeObserver →
+  `fitParliamentCards`) → медальон правителя в `[data-parl-ruler] > [data-parl-ruler-slot]` (тот же DOM-экземпляр
+  плакетки, телепорт из ряда; размер `ruler`) → принятая грамота `[data-parl-gov-carry] > .con-parl__gov-card` (зум
+  `--con-parl-gov-zoom` решается из высоты `.con-parl__ruling` минус остальные дети) или контур ◇ без слов
+  (`.con-parl__gov-empty`) → полоса `[data-parl-effects]` «ВАШИ ЭФФЕКТЫ»: эффект принятой (`[data-parl-enacted-effect]`)
+  и формулы партий, ДОСТУПНЫЕ зрителю (`view.viewer.access` × `hasEffect`; правитель первым), каждая с эмблемой и
+  подписью-причиной «у всех» / «Эффект ваш» / «Эффект ваш · по карте». Блок задания и кресла из правительства убран.
+- **Двигатель** (`ConsoleParliamentEngine.vue`, новый) — голова кромки карьеры: кресло `[data-parl-chair]` с кубом
+  председателя `[data-parl-seat-chair]` · печатная графика условия задания (`PremiumMechanicsPanel`, текстовый
+  фолбэк `.con-parl__engine-text`) · шаг награды `[data-parl-quest-reward]` «→ +1» · гонка пипсами по местам
+  `[data-parl-quest-progress]`. Держит холды `questBefore` / `questWalkBefore` / `chairAwaits` и оба пульса (задание,
+  кресло) — якоря `data-parl-quest` / `data-parl-chair` сохранили ИМЕНА, сменился только носитель. Узел 0 трека
+  (`.con-parl__step-node--engine`) — его хозяин; чип «следующая награда» из шапки трека убран (кромка показывает
+  следующую остановку сама).
+- **Оппозиция**: пять строк-медальонов (`ConsolePartyPlaque` размера `row`, правитель — `ruler`; `formula=false`),
+  в обёртке `.con-parl__party[data-party]` с `data-parl-body-item` — хуки стабильности и директоров живы.
+- **Строка чтения** (`parliamentBand.ts`): `BandFocus` = `slot | ruler | party | engine | agenda`, `focusLine(focus)`
+  даёт кикер + чипы; `BandChip` получил вид `text`. Секция публикует `bandFocus` из зоны/индекса курсора.
+- **Кольцо фокуса** (`parliamentNavigation.ts` переписан): `voting` (◀▶ по грамотам; ◀ за первой → `ruler`, ▶ за
+  последней → `parties`, ▼ → `agenda`) · `ruler` (▶ → грамота 0, ▼ → `engine`) · `engine` (▲ → `ruler`, ▶ → `agenda`)
+  · `agenda` (◀ → `engine`, ▲ → `voting`) · `parties` (▲▼ по строкам; ▼ за последней → `agenda`; ◀ → последняя
+  грамота). `ParliamentZone` += `engine | agenda`. Бар — ТОЛЬКО глаголы (`parliamentCommands.ts`): стол — A «Открыть
+  голосование» · X · B; правитель/партия — A «Действие партии» (у правителя без действия — действие принятой
+  резолюции) · X · B; двигатель — X · B; кромка — B. R3 «Осмотреть принятую» и Y ушли (принятая осматривается X с
+  правителя).
+- **Посадка грамот** (`parliamentCardFit.ts`): потолки `MAX_CARD_ZOOM` / `_TV` / `MAX_GOV_ZOOM` подняты до 1,0 — стол
+  = герой (4K: 587 × 844 px при зуме 1,834; 1080: 299 × 430 при 0,934 — упор в ширину слота); группа «подпись ·
+  грамота · лента · счёт» центрирована в ячейке (`align-content: center`, ряд грамоты `auto`).
+- **Локаль**: `Your effects` → «Ваши эффекты», `for everyone` → «у всех» (`parliament.json`, `make:json` прогнан).
+
+Кадры каркаса: `screenshots/parliament-v7/f2/{tv-4k,standard-1080}-{gen1,gen2}-NN-*.png` (стол · правитель ·
+двигатель · кромка · оппозиция); лог кольца: `ruler → engine → agenda → voting → parties`.
+
+### Что ждёт Ф3 (видно на кадрах)
+- строка оппозиции «МАРС ВПЕРЁД · 2/2 ЭФФЕКТ ВАШ» на 4K переносится на две строки — строке нужна одна
+  зарезервированная линия (пипсы · слово состояния) и размер имени по ширине колонки («ИНДУСТРИАЛИСТЫ»);
+- «принимается» — на 4K значок ★ в подписи слота, на 1080 текстовая плашка «ПРИНИМАЕТСЯ»: везде ОДИН знак (корона);
+- правительство в поколении 1 — контур ◇ занимает высоту принятой грамоты: решить пропорцию (контур меньше, полоса
+  эффектов выше) по раскадровке;
+- строка чтения на кромке дублирует её кикер («КАРЬЕРА · ШАГ КАРЬЕРЫ 0 · …») — копирайт Ф7;
+- шапка делегатов всё ещё со словами «ЛОББИ / РЕЗЕРВ»; плашка-чип «ПРИНИМАЕТСЯ» и крона; бар-гард «только глаголы»;
+  пороги пробника бюджета (`console-parliament-info-budget.spec.ts`: `ZONES` / `ICON_SELECTOR` под DOM «Зала»).
+
+### Гарды и сборка
+- `make:css` · `lint:client` (vue-tsc — чисто, КРОМЕ двух ошибок в `ConsoleShell.vue` 723 / 752, которые стоят в HEAD
+  `c00f09a71b` и не из этого диффа; клиент собирается `SKIP_TS_CHECK=1 npm run build:client`) · eslint чисто ·
+  e2e-tsc чисто.
+- Серверный раннер: `parliamentBand` / `parliamentGlossary` / `parliamentLessOrder` / `parliamentNoLocalStorage` /
+  `parliamentNoTimers` / `parliamentResults` / `parliamentThresholdGuard` / `e2eLiveness` / `e2eDriverGuard` /
+  `cursorGrammarGuard` / `readingParamsGuard` / `universalSiblingSelectorGuard` / `embedZoneGuard` /
+  `glyphLiteralGuard` — 108 passing; чистые клиентские модели (`parliamentResultsSeats` / `RewardBeat` /
+  `SittingSeed` / `WorldBeat`) — 37 passing.
+- Гард живости: один мёртвый хук после каркаса — `[data-parl-reward-step]` в `console-parliament-v2.spec.ts` →
+  спек переведён на `[data-parl-quest-reward]` и `[data-parl-effects] .con-pformula__mech` (чип «Председательство»
+  в шапке трека больше не существует — проверка удалена, тема ушла в двигатель).
+
+### e2e: кольцо живёт в ОДНОМ драйвере
+Старое кольцо (▼ со стола → ряд партий, ◀▶ по ряду) было зашито в четыре локальных `focusParty` (actions, council-seat,
+v2, parliament.spec) и в `focusParliamentZone` драйвера — все четыре умерли одной сменой кольца. Теперь кольцо v7 знает
+ТОЛЬКО `tests/e2e/parliamentDrive.ts`: `focusParliamentZone(page, zone)` ходит по таблице `RING_STEP` (один шаг к цели
+из каждой зоны, зеркало `parliamentNavigation.ts`, след в сообщении), `focusParty(page, party)` идёт по колонке
+оппозиции ▲▼ по индексу строки в DOM; `parliamentFocusedParty` — читатель курсора. Спеки перенацелены (один дифф с
+переменой хука — инвариант 14): `console-parliament-actions` / `console-council-seat` / `console-parliament-v2`
+(локальные `focusParty` удалены; `focusVoting` → драйвер; «кромка — не остановка» → «кромка — остановка: ▼ стол →
+трек, ◀ → двигатель, ▲ → правитель»; «каждая плакетка печатает формулу» → «ни один медальон не печатает формулу,
+формулы — в `[data-parl-effects]`»; R3 «осмотреть принятую» → X с правителя), `console-parliament-stability` (пять
+СТРОК делят один бокс, медальон правителя — своя колонка; ходьба ▲×4 ▼×4 ▲×2), `console-parliament.spec`
+(«Стартовое правило» читается на строке чтения под курсором на правителе; `con-parl__engine--done`; принятая грамота
+под медальоном без подписи), `console-parliament-reds-plaque` (графика Красных стоит в «ВАШИ ЭФФЕКТЫ» — `stripFit`
+меряет её против строки полосы; имена не режутся по-прежнему).
+
+**Закон 13 на строке медальона** (измерено пробником `zz-tmp-parl-v7-rows`): строка без значка действия (Зелёные)
+стояла на 2 px ниже соседок (64 / 66 на 1080) и двигалась при смене власти — шапка строки теперь РЕЗЕРВИРУЕТ высоту
+значка (`.con-pseal--row .con-pseal__head { height: 1.2rem }`, rem на всех профилях).
+
+**Хвост для Ф4 (замечен при переводе юнит-спека бара):** действие принятой резолюции сидит на A правителя ТОЛЬКО когда у
+правящей партии нет своего действия; у правителя с действием (Учёные, Индустриалисты, Красные, Союз) закон с действием
+(RX «Открытая торговля» и т. п.) с обзора не достать — он остаётся в «ДЕЙСТВИЯХ КАРТ». В Ф4 досье резолюции (X с
+правителя) получает глагол закона на своём баре — одна дверь на объекте, как у колоний.
+
+### e2e-итог Ф2 (свой снапшот `.e2e-parl-v7`)
+Зелёные после перенацеливания: `console-parliament-actions` · `council-seat` · `stability` (обзор + заседание) ·
+`chassis-parity` · `leave` · `info-budget` · `vote-geometry` · `vote-fit` · `create` · `resolution-face` ·
+`info-parliament` · `chairman-quest` · `vote-rivals` · `reds-plaque` · `parliament.spec` · `v2` (обзор 1080/4K; Deck —
+после сужения крыльев на handheld 19 / 21 % + плотнее ряд подписи слота: «ИНДУСТРИАЛИСТЫ» резалось рядом со значком
+победителя) · `zone-v5-regression` · `sitting-motion`.
+
+**Красные до Ф5 — отключены `test.skip(() => true, '…Ф2 chassis … returns in Ф5')` в голове файла (решение владельца:
+«спеки отключаются только с пометкой фазы возврата»)** — заседание всё ещё стоит на премиссах v5 (шесть плиток одной
+высоты, `.con-parl__gov-basis` со словами «Стартовое правило», блок задания в правительстве, раскладка стадии награды
+поверх старого среднего яруса): `console-parliament-renewal` · `results-honesty` · `sitting-reward` ·
+`sitting-v2` · `sitting-v2-remote` · `sitting-v3` · `sitting-v4` · `sitting` · `zone-v5` (43 красных из 72 в батче
+заседания; 29 зелёных в них же теряются до Ф5 вместе с файлом — Ф5 переписывает все девять на объектах «Зала»).
+Хуки этих спеков остаются в продукте (гард живости их читает и дальше) — умирать им нельзя и в Ф3/Ф4.

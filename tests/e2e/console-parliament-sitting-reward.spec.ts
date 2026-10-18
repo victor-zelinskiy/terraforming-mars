@@ -7,6 +7,10 @@ import {
   passAs, sittingStage, sittingStep, strandedReports, turnTo, waitSittingAtRest,
 } from './parliamentDrive';
 
+
+/* ⛔ PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5») */
+test.skip(() => true, 'PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5»)');
+
 /**
  * THE REWARD STAGE — Э5 (docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md §4, §6
  * «НАГРАДА»; docs/TURMOIL_REDUX_PARLIAMENT_FINISH.md § Э5): every reward

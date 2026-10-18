@@ -2,6 +2,10 @@ import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, openMandatoryAnnounce, press, settle} from './consoleStart';
 import {answerGateAs, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, waitSittingAtRest} from './parliamentDrive';
 
+
+/* ⛔ PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5») */
+test.skip(() => true, 'PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5»)');
+
 /**
  * «ЗАСЕДАНИЕ v3» — THE GOVERNMENT CHANGES AS ONE SET, AND THE SUPPORT IS ONE SCENE (В2 · В3).
  *

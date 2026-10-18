@@ -3,9 +3,9 @@ import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
   bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusCard, openCardActions, openConsole, openZoomViewer, press, pressUntil, reloadConsole, settle,
-  waitForBoardHome, walkFocusUntil,
+  waitForBoardHome,
 } from './consoleStart';
-import {armLeakWitness, focusParliamentZone, openParliament, parliament, strandedReports} from './parliamentDrive';
+import {armLeakWitness, focusParliamentZone, focusParty, openParliament, parliament, strandedReports} from './parliamentDrive';
 
 /**
  * TR36 «МЕСТО В СОВЕТЕ» — THE LAW OF ACCESS, lowered by a card
@@ -159,15 +159,6 @@ async function plaqueOf(page: Page, party: string): Promise<Plaque> {
       kind: plaque?.querySelector('.con-pseal__state')?.getAttribute('data-state-kind') ?? null,
     };
   }, party);
-}
-
-/** Down to the parties row, then along it to `party`. */
-async function focusParty(page: Page, party: string): Promise<void> {
-  const partyFocused = () => page.evaluate(() => document.querySelector('.con-parl__party--focus')?.getAttribute('data-party') ?? '');
-  if (await parliament(page).getAttribute('data-zone') !== 'parties') {
-    await press(page, 'ArrowDown', 400);
-  }
-  expect(await walkFocusUntil(page, async () => await partyFocused() === party, partyFocused, 14), `never focused the «${party}» plaque`).toBeTruthy();
 }
 
 /**

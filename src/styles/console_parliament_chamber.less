@@ -1,0 +1,383 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   «ЗАЛ» v7 — THE CHAMBER (2026-10-18, docs/TURMOIL_REDUX_PARLIAMENT_V7_PLAN.md).
+   The Parliament's overview as ONE SCENE of four objects and one reading line:
+
+     ПАРЛАМЕНТ › ОБЗОР                                 [the delegates ledger — the head line, unchanged]
+     ┌ GOVERNMENT ──┐ ┌ THE TABLE — the hero ───────────────────────┐ ┌ OPPOSITION ──┐
+     │ (◉) medallion │ │   bill        bill        bill               │ │ (◉) row      │
+     │ ПРАВИТ        │ │   ribbon      ribbon      ribbon             │ │ (◉) row      │
+     │ [enacted bill]│ │   tally       tally       tally              │ │ (◉) row      │
+     │ ВАШИ ЭФФЕКТЫ  │ │   (a stage panel stands OVER the table)      │ │ (◉) row      │
+     └──────────────┘ └──────────────────────────────────────────────┘ └ (◉) row ─────┘
+     ◆ the READING LINE — the object under the cursor (the band, one fixed strip)
+     [♄ ENGINE: the chair + the quest → +1] ═══ ① ═══ ○ ═══ ◆ ═══ … the CAREER EDGE ═══ ⑫
+
+   This sheet cascades AFTER `console_parliament.less` and `console_party_plaque.less` and OVERRIDES their tier
+   layout at equal specificity (the same BEM selectors): the v2–v6 tiers (the top grid, the middle band + body
+   zone, the plaque row, the Agenda tier) become the chamber's three columns, the band under them and the edge.
+   Everything the directors fly to keeps its NAME on a new carrier (the plan's rule of anchors): the slots, the
+   ruler's slot, the medallions' sockets, the chair, the quest, the track's steps.
+   Authored in rem (1rem = 20px logical; `--con-ui-scale` maps it); the TV and Deck ladders restate TOKENS.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@con-parl-gold: #e6c34a;
+@con-parl-mint: #5fe3b4;
+@con-parl-silver: #c9c6d6;
+
+.con-parl {
+    /* THE CHAMBER'S TOKENS — the wings' widths, the edge's height, the medallions' seals, the strip's zoom. */
+    --con-parl-gov-w: 19%;
+    --con-parl-opp-w: 20%;
+    --con-parl-agenda-h: 5.4rem;
+    --con-pseal-row-seal: 2.5rem;
+    --con-pseal-ruler-seal: 4.4rem;
+    --con-parl-effects-zoom: calc(0.6 * var(--con-ui-scale, 1));
+    --con-parl-engine-zoom: calc(0.78 * var(--con-ui-scale, 1));
+
+    /* ── THE FIELD: the chamber (1fr), the reading line (fixed), the edge (fixed) — a column, never a grid of tiers. ── */
+    &__body {
+        display: flex;
+        flex-direction: column;
+        gap: .45rem;
+        flex: 1;
+        min-height: 0;
+    }
+    &__chamber {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: var(--con-parl-gov-w) minmax(0, 1fr) var(--con-parl-opp-w);
+        column-gap: .55rem;
+    }
+    > .con-parl__field > .con-parl__body > .con-band { flex: 0 0 var(--con-parl-band-h); }
+
+    /* ── THE GOVERNMENT's wing: a column — the kicker, the ruler's medallion, the enacted bill, «ВАШИ ЭФФЕКТЫ». ── */
+    &__gov {
+        grid-column: 1;
+        display: flex;
+        flex-direction: column;
+        gap: .35rem;
+        min-height: 0;
+        min-width: 0;
+    }
+    &__ruling {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .45rem;
+        overflow: hidden;
+        padding: 0;
+    }
+    /* THE RULER's block is the medallion's seat alone: no plate of its own, no kicker (the medallion says «ПРАВИТ»). */
+    &__ruler {
+        flex: 0 0 auto;
+        width: 100%;
+        min-height: 0;
+        display: flex;
+        justify-content: center;
+        padding: .1rem 0 0;
+        background: none;
+        box-shadow: none;
+        overflow: visible;
+    }
+    &__ruler-slot { width: auto; height: auto; min-height: 0; display: flex; justify-content: center; > .con-parl__party { flex: 0 1 auto; } }
+    &__ruling > &__gov-carry { flex: 0 0 auto; width: auto; }
+    &__gov-carry { align-self: center; }
+    &__gov-empty {
+        flex: 0 0 auto;
+        align-self: center;
+        width: calc(320px * var(--con-parl-gov-zoom));
+        height: calc(460px * var(--con-parl-gov-zoom));
+    }
+    &__gov-empty-mark { font-size: 2rem; opacity: .38; }
+    /* «ВАШИ ЭФФЕКТЫ» — the one place the overview prints a party formula: the ones that are the viewer's now. */
+    &__effects {
+        flex: 0 0 auto;
+        width: 100%;
+        margin-top: auto;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+        padding: .38rem .5rem .35rem;
+        border-radius: .5rem;
+        background: rgba(0, 0, 0, 0.26);
+        box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 24%);
+        min-width: 0;
+        overflow: hidden;
+    }
+    &__effects-kicker { font-size: .58rem; letter-spacing: .14em; text-transform: uppercase; color: @con-parl-mint; white-space: nowrap; }
+    &__effects-row {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        column-gap: .4rem;
+        row-gap: .05rem;
+        align-items: center;
+        min-width: 0;
+    }
+    &__effects-emblem { grid-row: 1 / 3; width: 1.35rem; height: 1.35rem; object-fit: contain; }
+    &__effects-formula { --con-pformula-zoom: var(--con-parl-effects-zoom); justify-self: start; min-width: 0; max-width: 100%; }
+    &__effects-why { font-size: .5rem; letter-spacing: .1em; text-transform: uppercase; color: fade(#e9eef4, 60%); white-space: nowrap; }
+    &__ruler-own { margin-top: 0; padding-top: 0; border-top: none; align-items: flex-start; gap: .1rem; }
+    &__ruler-own-mech { zoom: var(--con-parl-effects-zoom); padding: 0; }
+
+    /* ── THE TABLE's cell: the body zone, with the stage panel over it. ── */
+    &__mid {
+        grid-column: 2;
+        display: block;
+        position: relative;
+        min-height: 0;
+        min-width: 0;
+    }
+    &__bodyzone { position: relative; height: 100%; min-height: 0; }
+    /* The table's tier: the bills' row, PUSHED SHUT under a stage panel (the swap is GSAP's on the slot homes, so
+       no CSS transition here); PARKED is the resting pose only. */
+    &__table-tier {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        min-height: 0;
+        &--parked { opacity: 0; pointer-events: none; }
+        > .con-parl__voting { flex: 1 1 auto; min-width: 0; min-height: 0; }
+    }
+    /* THE BILL UNDER THE CURSOR wears the cursor (the plate itself no longer rings: one cursor for one object). */
+    &__slot--focus { .con-cursor-on(); }
+    /* The plate keeps its hook class for the probes but no longer rings: its bills do (one cursor for one object). */
+    &__voting--focus { --con-cursor-on: 0; }
+    &__voting-head { display: none; }
+    /* THE BILL'S SLOT: its four rows stand as ONE GROUP centred in the cell (label · bill · ribbon · tally), the bill
+       right under its label and the ribbon right under the bill — the cell's air splits above and below the group,
+       never between the bill and its own ribbon. The fit engine budgets the bill from the cell minus the chrome. */
+    &__slot, &__slot-empty {
+        grid-template-rows: var(--con-parl-slot-label-h) auto var(--con-parl-slot-ribbon-h) var(--con-parl-slot-tally-h);
+        align-content: center;
+    }
+    &__slots { align-items: stretch; }
+    /* The stage panel takes the table's cell whole — never a growth over the edge below. */
+    &__stage { max-height: 100%; }
+    /* «САНКЦИИ» (TR12): the mode's reading stands over the table, the bills recede under it. */
+    &__support { position: absolute; inset: 0; grid-column: auto; grid-row: auto; }
+    &--support &__table-tier { opacity: 0; pointer-events: none; transition: opacity calc(200ms * var(--motion-scale, 1)) ease-out; }
+
+    /* ── THE OPPOSITION's wing: a column of five medallion rows. ── */
+    &__opposition {
+        grid-column: 3;
+        min-height: 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+    }
+    &__parties-tier {
+        position: static;
+        inset: auto;
+        display: flex;
+        flex: 1 1 auto;
+        min-height: 0;
+        grid-template-rows: none;
+        &--parked { opacity: 1; pointer-events: auto; }
+    }
+    &__parties {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-evenly;
+        gap: .3rem;
+        grid-template-columns: none;
+        grid-template-rows: none;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+    }
+    &__party {
+        flex: 0 1 auto;
+        display: flex;
+        min-width: 0;
+        min-height: 0;
+        > .con-pseal { flex: 1 1 auto; min-width: 0; > * { zoom: 1; } }
+    }
+
+    /* ── THE CAREER EDGE: the engine at its head, the twelve stops quiet, the viewer's next stop lit. ── */
+    &__agenda {
+        flex: 0 0 var(--con-parl-agenda-h);
+        height: var(--con-parl-agenda-h);
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: .1rem;
+        /* The edge's cursor on the ONE grammar (`.con-cursor-glow()` — GSAP tweens the track's nodes, so no lift): its
+           hairline and the ring are ONE list scaled by `--con-cursor-on`. */
+        .con-cursor-glow();
+        box-shadow:
+            inset 0 0 0 .05rem rgba(255, 255, 255, calc(.07 * (1 - var(--con-cursor-on)))),
+            inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(63, 214, 241, var(--con-cursor-on)),
+            0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(63, 214, 241, calc(.25 * var(--con-cursor-on)));
+        &--focus { .con-cursor-on(); }
+    }
+    &__track { grid-template-columns: minmax(11rem, 15rem) repeat(12, minmax(0, 1fr)); align-items: end; }
+    /* The stops are QUIET by default; a passed / current stop reads, the influence milestones a step brighter, the
+       viewer's NEXT stop is the lit one (an invitation to read: scale + the gold ring). */
+    &__step-node { opacity: .5; transition: opacity calc(160ms * var(--motion-scale, 1)) ease-out, transform calc(160ms * var(--motion-scale, 1)) ease-out; }
+    &__step--influence &__step-node { opacity: .78; }
+    &__step--passed &__step-node, &__step--here &__step-node { opacity: 1; }
+    &__step--next &__step-node { opacity: 1; transform: scale(1.18); }
+    &__step--start &__step-node {
+        opacity: 1;
+        transform: none;
+        width: 100%;
+        min-width: 0;
+        height: auto;
+        padding: 0;
+        justify-content: flex-start;
+        border-radius: .55rem;
+        background: none;
+        box-shadow: none;
+    }
+    &__step-node--engine { overflow: visible; }
+    /* THE ENGINE — the chair, the condition's graphic, «→ +1», the race as pips. */
+    &__engine {
+        position: relative;
+        display: grid;
+        grid-template-columns: auto auto auto;
+        grid-template-rows: auto auto;
+        column-gap: .4rem;
+        row-gap: .08rem;
+        align-items: center;
+        justify-items: start;
+        box-sizing: border-box;
+        max-width: 100%;
+        padding: .22rem .5rem .22rem .35rem;
+        border-radius: .55rem;
+        background: fade(@con-parl-gold, 8%);
+        .con-cursor-glow();
+        box-shadow:
+            inset 0 0 0 .05rem rgba(230, 195, 74, calc(.34 * (1 - var(--con-cursor-on)))),
+            inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(63, 214, 241, var(--con-cursor-on)),
+            0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(63, 214, 241, calc(.25 * var(--con-cursor-on)));
+        &--focus { .con-cursor-on(); }
+        &--done { background: fade(@con-parl-mint, 8%); }
+        &--closed { background: rgba(0, 0, 0, 0.26); }
+        &--closed .con-parl__quest-progress, &--done .con-parl__quest-progress { opacity: .6; }
+    }
+    &__chair {
+        grid-row: 1 / 3;
+        position: relative;
+        width: 2.1rem;
+        height: 2.1rem;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        border: .09rem solid fade(@con-parl-gold, 65%);
+        background: rgba(0, 0, 0, 0.36);
+        &--seated .con-parl__chair-glyph { opacity: .28; }
+        &--won { border-color: @con-parl-mint; }
+        &--pulse { animation: con-parl-land-flash calc(900ms * var(--motion-scale, 1)) ease-out both; }
+    }
+    &__chair-glyph { width: 1.2rem; height: 1.2rem; fill: @con-parl-gold; opacity: .92; }
+    &__chair-cube { position: absolute; inset: 0; display: grid; place-items: center; }
+    &__engine-cond { grid-column: 2; display: flex; align-items: center; min-width: 0; }
+    &__engine-cond .con-parl__quest-graphic { zoom: var(--con-parl-engine-zoom); }
+    &__engine-text { font-family: @con-font-read; font-size: .6rem; line-height: 1.15; max-width: 9rem; }
+    &__engine-step { grid-column: 3; display: inline-flex; align-items: center; gap: .2rem; color: @con-parl-gold; font-weight: 800; font-size: .78rem; white-space: nowrap; &--kept { color: @con-parl-mint; } }
+    &__engine-arrow { opacity: .7; }
+    &__quest-progress { grid-column: 2 / 4; display: flex; flex-wrap: nowrap; gap: .4rem; min-width: 0; }
+    &__quest-row { padding: .03rem .3rem .03rem .16rem; gap: .2rem; }
+    &__engine-pips { display: inline-flex; gap: .1rem; }
+    &__engine-pip { width: .46rem; height: .46rem; border-radius: 50%; box-shadow: inset 0 0 0 .06rem fade(@con-parl-gold, 70%); &--on { background: @con-parl-gold; } }
+    &__quest-unreachable { font-size: .58rem; opacity: .5; }
+    &__quest--pulse { animation: con-parl-quest-pulse calc(1200ms * var(--motion-scale, 1)) ease-out both; }
+}
+
+/* ══ THE MEDALLION — the party as the overview's object: the seal, the name, the viewer's places, the support. ══ */
+.con-pseal {
+    /* A ROW of the opposition column: the seal at the left across both lines, the name with the action badge, the
+       places and the support under the name. No formula (the dossier prints it). */
+    &--row {
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-rows: auto auto;
+        grid-template-areas: "seal head" "seal state";
+        align-items: center;
+        column-gap: .5rem;
+        row-gap: .14rem;
+        padding: .36rem .55rem .36rem .45rem;
+        .con-pseal__seal { align-self: center; width: var(--con-pseal-row-seal, 2.5rem); height: var(--con-pseal-row-seal, 2.5rem); }
+        /* RESERVED (invariant 13): the head is the action badge's height on EVERY row — a party with no action
+           (the Greens) once stood 2 px shorter than its neighbours (measured 64 / 66 at 1080), and the row's box
+           moved with the government's change. The badge is 1.2rem on every profile (rem-authored). */
+        .con-pseal__head { align-self: end; height: 1.2rem; }
+        .con-pseal__name { font-size: .8rem; letter-spacing: .05em; }
+        .con-pseal__state { align-self: start; height: 1.25rem; gap: .35rem; }
+        .con-pseal__support { margin-left: .55rem; }
+    }
+    /* THE RULER's medallion in the government: a column — the seal LARGE, the name, «ПРАВИТ» and the (void) support. */
+    &--ruler {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto auto auto;
+        grid-template-areas: "seal" "head" "state";
+        justify-items: center;
+        row-gap: .25rem;
+        padding: .45rem .5rem .4rem;
+        text-align: center;
+        .con-pseal__seal { align-self: center; width: var(--con-pseal-ruler-seal, 4.4rem); height: var(--con-pseal-ruler-seal, 4.4rem); }
+        .con-pseal__ring { inset: -.18rem; border-width: .15rem; }
+        .con-pseal__head { justify-content: center; }
+        .con-pseal__name { flex: 0 1 auto; font-size: 1rem; letter-spacing: .08em; white-space: nowrap; }
+        .con-pseal__state { justify-content: center; height: 1.35rem; gap: .5rem; }
+        .con-pseal__state-text { font-size: .64rem; letter-spacing: .14em; }
+        .con-pseal__support { margin-left: .4rem; }
+    }
+}
+
+/* ── the HANDHELD ladder (Steam Deck 64×40rem): narrower wings, smaller seals, the edge lower. ── */
+html.con-profile-handheld .con-parl {
+    /* The wings yield to the TABLE on the 7" screen: at 21 / 23 % the three bills' label rows cut «ИНДУСТРИАЛИСТЫ»
+       beside the winner glyph (v2's Deck fit probe); 19 / 21 % plus a tighter label row gives the name its room. */
+    --con-parl-gov-w: 19%;
+    --con-parl-opp-w: 21%;
+    &__slot-label { gap: .25rem; }
+    &__slot-emblem { width: .95rem; height: .95rem; }
+    --con-parl-agenda-h: 4.3rem;
+    --con-pseal-row-seal: 1.7rem;
+    --con-pseal-ruler-seal: 3rem;
+    --con-parl-effects-zoom: calc(0.5 * var(--con-ui-scale, 1));
+    --con-parl-engine-zoom: calc(0.62 * var(--con-ui-scale, 1));
+    &__chamber { column-gap: .4rem; }
+    &__track { grid-template-columns: minmax(9rem, 12rem) repeat(12, minmax(0, 1fr)); }
+    &__chair { width: 1.7rem; height: 1.7rem; }
+    &__chair-glyph { width: 1rem; height: 1rem; }
+    &__engine-step { font-size: .66rem; }
+    .con-pseal--row .con-pseal__seal { width: var(--con-pseal-row-seal); height: var(--con-pseal-row-seal); }
+    .con-pseal--row .con-pseal__name { font-size: .6rem; letter-spacing: .02em; }
+    .con-pseal--row .con-pseal__state { height: 1.1rem; }
+    .con-pseal--ruler .con-pseal__seal { width: var(--con-pseal-ruler-seal); height: var(--con-pseal-ruler-seal); }
+    .con-pseal--ruler .con-pseal__name { font-size: .78rem; }
+}
+
+/* ── the TV ladder (10-foot): the same composition, couch type — the seals read from three metres. ── */
+html.con-profile-tv .con-parl {
+    --con-parl-gov-w: 19%;
+    --con-parl-opp-w: 20%;
+    --con-parl-agenda-h: 6.6rem;
+    --con-pseal-row-seal: 3.2rem;
+    --con-pseal-ruler-seal: 6rem;
+    --con-parl-effects-zoom: calc(0.72 * var(--con-ui-scale, 1));
+    --con-parl-engine-zoom: calc(0.95 * var(--con-ui-scale, 1));
+    &__effects-kicker { font-size: .8rem; }
+    &__effects-why { font-size: .8rem; letter-spacing: .06em; }
+    &__effects-emblem { width: 1.9rem; height: 1.9rem; }
+    &__track { grid-template-columns: minmax(14rem, 19rem) repeat(12, minmax(0, 1fr)); }
+    &__chair { width: 2.7rem; height: 2.7rem; }
+    &__chair-glyph { width: 1.55rem; height: 1.55rem; }
+    &__engine { column-gap: .55rem; padding: .3rem .7rem .3rem .45rem; }
+    &__engine-step { font-size: 1rem; }
+    &__engine-text { font-size: .8rem; max-width: 12rem; }
+    &__engine-pip { width: .6rem; height: .6rem; }
+    .con-pseal--row .con-pseal__seal { width: var(--con-pseal-row-seal); height: var(--con-pseal-row-seal); }
+    .con-pseal--row .con-pseal__name { font-size: .95rem; letter-spacing: .04em; }
+    .con-pseal--row .con-pseal__state { height: 1.6rem; }
+    .con-pseal--ruler .con-pseal__seal { width: var(--con-pseal-ruler-seal); height: var(--con-pseal-ruler-seal); }
+    .con-pseal--ruler .con-pseal__name { font-size: 1.25rem; }
+    .con-pseal--ruler .con-pseal__state-text { font-size: .8rem; }
+}

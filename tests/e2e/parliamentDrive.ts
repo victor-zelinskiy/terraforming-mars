@@ -324,32 +324,70 @@ export async function openParliament(page: Page): Promise<void> {
   await settle(page, {timeoutMs: 15_000});
 }
 
-/** The browse layer's focus ZONE (`data-zone` on the root): government · voting · parties. */
+/** The browse layer's focus ZONE (`data-zone` on the root) — «Зал» v7: ruler · voting · parties · engine · agenda. */
 export async function parliamentZone(page: Page): Promise<string> {
   return (await parliament(page).getAttribute('data-zone')) ?? '';
 }
 
+export type ParliamentFocusZone = 'ruler' | 'voting' | 'parties' | 'engine' | 'agenda';
+
+/**
+ * ONE press that moves the cursor TOWARDS `zone` from `at` on the v7 ring (mirrors `parliamentNavigation.ts`):
+ * the ruler's medallion · the table's bills (◀ ▶ walk them; ◀ past the first → the ruler, ▶ past the last → the
+ * opposition, ▼ → the track) · the opposition column (▲ ▼ walk its rows; ▼ past the last → the track; ◀ → the
+ * last bill) · the engine (▲ → the ruler, ▶ → the track) · the track (◀ → the engine, ▲ → the table).
+ */
+const RING_STEP: Record<ParliamentFocusZone, Record<ParliamentFocusZone, string>> = {
+  voting: {voting: '', ruler: 'ArrowLeft', parties: 'ArrowRight', agenda: 'ArrowDown', engine: 'ArrowLeft'},
+  ruler: {ruler: '', voting: 'ArrowRight', parties: 'ArrowRight', engine: 'ArrowDown', agenda: 'ArrowDown'},
+  engine: {engine: '', ruler: 'ArrowUp', agenda: 'ArrowRight', voting: 'ArrowUp', parties: 'ArrowUp'},
+  agenda: {agenda: '', engine: 'ArrowLeft', voting: 'ArrowUp', ruler: 'ArrowUp', parties: 'ArrowUp'},
+  parties: {parties: '', voting: 'ArrowLeft', ruler: 'ArrowLeft', agenda: 'ArrowDown', engine: 'ArrowDown'},
+};
+
 /**
  * Walk the browse layer's zones until `zone` is the focus zone (a positive witness on the root's own
- * attribute). v2: four zones on the top row — government · ruler · voting (left to right) — and the
- * opposition row below.
+ * attribute, the trail in the message). Every press is one step of the ring above; a walk inside a zone
+ * (the bills, the opposition rows) is part of the road.
  */
-export async function focusParliamentZone(page: Page, zone: 'ruler' | 'voting' | 'parties'): Promise<void> {
-  // v3 В5: THREE zones — the ruler's tile is the government's only stop, the enacted resolution rides R3.
-  const order = ['ruler', 'voting'];
-  for (let i = 0; i < 8 && await parliamentZone(page) !== zone; i++) {
-    const at = await parliamentZone(page);
-    let key: string;
-    if (zone === 'parties') {
-      key = 'ArrowDown';
-    } else if (at === 'parties') {
-      key = 'ArrowUp';
-    } else {
-      key = order.indexOf(zone) > order.indexOf(at) ? 'ArrowRight' : 'ArrowLeft';
+export async function focusParliamentZone(page: Page, zone: ParliamentFocusZone): Promise<void> {
+  const trail: Array<string> = [];
+  for (let i = 0; i < 14 && await parliamentZone(page) !== zone; i++) {
+    const raw = await parliamentZone(page);
+    // A Parliament restored with the retired `government` zone lands on the medallion that replaced it.
+    const at = (raw === 'government' ? 'ruler' : raw) as ParliamentFocusZone;
+    const key = RING_STEP[at]?.[zone];
+    if (key === undefined || key === '') {
+      break;
     }
+    trail.push(`${at} —${key}→`);
     await press(page, key, 400);
   }
-  expect(await parliamentZone(page), `the ${zone} zone is the focus zone`).toBe(zone);
+  expect(await parliamentZone(page), `the ${zone} zone is the focus zone (${trail.join(' ') || 'no move'})`).toBe(zone);
+}
+
+/** The party under the cursor in the opposition column (its `data-party`), '' when the cursor stands elsewhere. */
+export async function parliamentFocusedParty(page: Page): Promise<string> {
+  return page.evaluate(() => document.querySelector('.con-parl__party--focus')?.getAttribute('data-party') ?? '');
+}
+
+/**
+ * Walk the opposition COLUMN (▲ ▼ — «Зал» v7) onto `party`, a positive witness on every step. The ruling party
+ * is not in the column (its medallion stands in the government — `focusParliamentZone(page, 'ruler')`).
+ */
+export async function focusParty(page: Page, party: string): Promise<void> {
+  await focusParliamentZone(page, 'parties');
+  for (let i = 0; i < 8 && await parliamentFocusedParty(page) !== party; i++) {
+    const dir = await page.evaluate((target) => {
+      const rows = Array.from(document.querySelectorAll('.con-parl__parties .con-parl__party[data-party]')).map((el) => el.getAttribute('data-party'));
+      const at = rows.indexOf(document.querySelector('.con-parl__party--focus')?.getAttribute('data-party') ?? '');
+      const to = rows.indexOf(target);
+      return to === -1 ? 'none' : (to > at ? 'ArrowDown' : 'ArrowUp');
+    }, party);
+    expect(dir, `the «${party}» row stands in the opposition column`).not.toBe('none');
+    await press(page, dir, 300);
+  }
+  expect(await parliamentFocusedParty(page), `never focused the «${party}» row`).toBe(party);
 }
 
 /**

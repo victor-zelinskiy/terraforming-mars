@@ -374,19 +374,26 @@ describe('consoleParliamentModel — the enacted resolution\'s ACTION (Turmoil R
     expect(parliamentPromptBridge(ours).resolutionAction).to.eq(undefined);
   });
 
-  it('the browse bar advertises the law\'s own verb (Y) from every zone — lit only when it can be taken now, absent when no enacted law has one', () => {
+  it('«Зал» v7: the law\'s own verb rides the RULER\'s A when the ruling party has no action of its own (Y is gone) — lit only when it can be taken now, absent when no enacted law has one, never on the table, the column, the engine or the track', () => {
     const view = emptyParliamentView();
     const base = {view, canVoteNow: true, partyActionStates: []};
     parliamentFlow.stage = 'browse';
-    for (const zone of ['ruler', 'parties', 'voting'] as const) {
+    parliamentFlow.zone = 'ruler';
+    const law = (cmds: Array<{label: string}>) => cmds.find((c) => c.label === 'Resolution action');
+    const lit = law(parliamentCommandsOf({...base, resolutionAction: resolutionActionStateOf(action(), true)}));
+    expect(lit, 'the ruler: the law\'s action on A').to.deep.include({control: 'confirm', label: 'Resolution action', enabled: true, highlight: true});
+    const dim = law(parliamentCommandsOf({...base, resolutionAction: resolutionActionStateOf(action({usesLeft: 0, available: false}), true)}));
+    expect(dim, 'the ruler: a spent law stays advertised, dimmed').to.deep.include({control: 'confirm', label: 'Resolution action', enabled: false});
+    expect(law(parliamentCommandsOf({...base, resolutionAction: resolutionActionStateOf(undefined, true)})), 'no enacted law with an action').to.eq(undefined);
+    expect(law(parliamentCommandsOf(base)), 'no state at all').to.eq(undefined);
+    for (const zone of ['parties', 'voting', 'engine', 'agenda'] as const) {
       parliamentFlow.zone = zone;
-      const lit = parliamentCommandsOf({...base, resolutionAction: resolutionActionStateOf(action(), true)}).find((c) => c.control === 'inspect');
-      expect(lit, zone).to.deep.include({label: 'Resolution action', enabled: true, highlight: true});
-      const dim = parliamentCommandsOf({...base, resolutionAction: resolutionActionStateOf(action({usesLeft: 0, available: false}), true)}).find((c) => c.control === 'inspect');
-      expect(dim, zone).to.deep.include({label: 'Resolution action', enabled: false});
-      expect(parliamentCommandsOf({...base, resolutionAction: resolutionActionStateOf(undefined, true)}).some((c) => c.control === 'inspect'), zone).to.eq(false);
-      expect(parliamentCommandsOf(base).some((c) => c.control === 'inspect'), zone).to.eq(false);
+      const cmds = parliamentCommandsOf({...base, resolutionAction: resolutionActionStateOf(action(), true)});
+      expect(law(cmds), `${zone}: the law's verb belongs to the ruler alone`).to.eq(undefined);
+      expect(cmds.some((c) => c.control === 'inspect'), `${zone}: no Y on the browse bar`).to.eq(false);
     }
+    parliamentFlow.zone = 'ruler';
+    expect(parliamentCommandsOf({...base, resolutionAction: resolutionActionStateOf(action(), true)}).some((c) => c.control === 'inspect'), 'the ruler: no Y either').to.eq(false);
   });
 });
 

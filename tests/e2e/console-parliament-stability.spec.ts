@@ -91,17 +91,22 @@ for (const preset of PARLIAMENT_PRESETS) {
       await expect(parliament(page).locator('.con-parl__parties .con-parl__party'), `${preset.id}: five opposition tiles in the row`).toHaveCount(5);
       await expect(parliament(page).locator('[data-parl-ruler] .con-parl__party'), `${preset.id}: the ruler's tile in the government`).toHaveCount(1);
 
-      // The chassis law first: every tile (the ruler's included) and every state row the same height, before anything moves.
+      // The chassis law first («Зал» v7): the FIVE opposition rows share one box and one state-row height, before
+      // anything moves; the ruler's medallion is a column of its own (its box is the government's), measured apart.
+      const rulerParty = await page.evaluate(() => document.querySelector('[data-parl-ruler] .con-parl__party')?.getAttribute('data-party') ?? '');
       const base = await layoutSnapshot(page);
-      const tileHeights = new Set(Object.keys(base).filter((k) => /^party:[^:]+$/.test(k)).map((k) => base[k].h));
-      const tileWidths = Object.keys(base).filter((k) => /^party:[^:]+$/.test(k)).map((k) => base[k].w);
-      const stateHeights = new Set(Object.keys(base).filter((k) => /:state$/.test(k)).map((k) => base[k].h));
-      expect(Array.from(tileHeights), `${preset.id}: the six tiles share one height (the ruler's in the government too)`).toHaveLength(1);
-      expect(Math.max(...tileWidths) - Math.min(...tileWidths), `${preset.id}: the six tiles share one width (${tileWidths.join(', ')})`).toBeLessThanOrEqual(2);
-      expect(Array.from(stateHeights), `${preset.id}: the six state rows share one height (a caption is reserved on every tile)`).toHaveLength(1);
+      const rowKeys = Object.keys(base).filter((k) => /^party:[^:]+$/.test(k) && k !== `party:${rulerParty}`);
+      const tileHeights = new Set(rowKeys.map((k) => base[k].h));
+      const tileWidths = rowKeys.map((k) => base[k].w);
+      const stateHeights = new Set(rowKeys.map((k) => base[`${k}:state`]?.h ?? 0));
+      expect(rowKeys, `${preset.id}: five opposition rows beside the ruler «${rulerParty}»`).toHaveLength(5);
+      expect(Array.from(tileHeights), `${preset.id}: the five rows share one height (${rowKeys.map((k) => base[k].h).join(', ')})`).toHaveLength(1);
+      expect(Math.max(...tileWidths) - Math.min(...tileWidths), `${preset.id}: the five rows share one width (${tileWidths.join(', ')})`).toBeLessThanOrEqual(2);
+      expect(Array.from(stateHeights), `${preset.id}: the five state rows share one height (a caption is reserved on every row)`).toHaveLength(1);
       expect(Math.min(...Array.from(stateHeights)), `${preset.id}: the state row is reserved, not collapsed`).toBeGreaterThan(0);
 
-      // Then the walk (v3 В5 — three zones): parties → across all five and back → voting → across the slots → the ruler's tile.
+      // Then the walk («Зал» v7): the opposition column → up to its head, down its five rows and back → the table →
+      // across the bills → the ruler's medallion → back to the column.
       const trail: Array<string> = [];
       const check = async (step: string) => {
         const now = await layoutSnapshot(page);
@@ -111,13 +116,17 @@ for (const preset of PARLIAMENT_PRESETS) {
       };
       await focusParliamentZone(page, 'parties');
       await check('focus parties');
-      for (let i = 0; i < 7; i++) {
-        await press(page, 'ArrowRight', 350);
-        await check(`parties → ${i + 1}`);
+      for (let i = 0; i < 4; i++) {
+        await press(page, 'ArrowUp', 350);
+        await check(`parties ↑ ${i + 1}`);
+      }
+      for (let i = 0; i < 4; i++) {
+        await press(page, 'ArrowDown', 350);
+        await check(`parties ↓ ${i + 1}`);
       }
       for (let i = 0; i < 2; i++) {
-        await press(page, 'ArrowLeft', 350);
-        await check(`parties ← ${i + 1}`);
+        await press(page, 'ArrowUp', 350);
+        await check(`parties ↑ back ${i + 1}`);
       }
       await focusParliamentZone(page, 'voting');
       await check('focus voting');

@@ -27,9 +27,17 @@ import type {Rect} from './consoleParliamentVoteMotion';
  * transform left behind would be measured as their resting place.
  */
 
-/** The tiles of the row, in their own left-to-right order (the ruling party's tile is in the government). */
+/**
+ * THE ITEMS OF THE BODY, in their own left-to-right order («Зал» v7: the body is the TABLE — its three slot homes,
+ * `[data-parl-body-item]` — the stage unfolds over the bills, which are pushed shut; the opposition column stands
+ * apart and never takes part). A host with no items marked falls back to the party tiles of the row (the playground).
+ */
 function rowTiles(root: HTMLElement | undefined): Array<HTMLElement> {
-  return root === undefined ? [] : Array.from(root.querySelectorAll<HTMLElement>('.con-parl__party[data-party]'));
+  if (root === undefined) {
+    return [];
+  }
+  const items = Array.from(root.querySelectorAll<HTMLElement>('[data-parl-body-item]'));
+  return items.length > 0 ? items : Array.from(root.querySelectorAll<HTMLElement>('.con-parl__party[data-party]'));
 }
 
 /** The travel of the drawer, in px of the row's own height (never a fixed number: the row is 101–442 px tall). */

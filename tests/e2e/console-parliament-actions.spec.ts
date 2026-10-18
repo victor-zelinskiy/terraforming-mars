@@ -5,6 +5,7 @@ import {
   bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openCardActions, openQuickWheel, openZoomViewer, press, pressUntil,
   sendPlayerInput, settle, takeRevealCards, waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
+import {focusParty} from './parliamentDrive';
 
 /**
  * THE PARTY ACTIONS ARE ACTIONS (Turmoil Redux) — they live in the standard
@@ -210,15 +211,6 @@ async function expectPartyTilesLegible(page: Page, label: string): Promise<void>
     return out;
   });
   expect(report, `${label}: the party tiles are legible and fit`).toEqual([]);
-}
-
-/** Walk the Parliament's parties row onto `party` (positive witness on every step). */
-async function focusParty(page: Page, party: string): Promise<void> {
-  const partyFocused = () => page.evaluate(() => document.querySelector('.con-parl__party--focus')?.getAttribute('data-party') ?? '');
-  if (await parliament(page).getAttribute('data-zone') !== 'parties') {
-    await press(page, 'ArrowDown', 400);
-  }
-  expect(await walkFocusUntil(page, async () => await partyFocused() === party, partyFocused, 14), `never focused the «${party}» plaque`).toBeTruthy();
 }
 
 for (const preset of [

@@ -38,6 +38,26 @@ type PlaqueFit = {
   nameCut: boolean;
 };
 
+type StripFit = {spill: {left: number, right: number, top: number, bottom: number}, cut: {x: number, y: number}};
+
+/** The party's formula in «ВАШИ ЭФФЕКТЫ» («Зал» v7) against its own strip row — undefined when the strip has no row for it. */
+async function stripFit(page: Page, party: string): Promise<StripFit | undefined> {
+  return page.evaluate((target) => {
+    const row = document.querySelector(`[data-parl-effects] .con-parl__effects-row[data-party="${target}"]`);
+    const formula = row?.querySelector<HTMLElement>('.con-parl__effects-formula') ?? null;
+    if (row === null || row === undefined || formula === null) {
+      return undefined;
+    }
+    const p = row.getBoundingClientRect();
+    const f = formula.getBoundingClientRect();
+    const r = (v: number) => Math.round(v * 10) / 10;
+    return {
+      spill: {left: r(p.left - f.left), right: r(f.right - p.right), top: r(p.top - f.top), bottom: r(f.bottom - p.bottom)},
+      cut: {x: formula.scrollWidth - formula.clientWidth, y: formula.scrollHeight - formula.clientHeight},
+    };
+  }, party);
+}
+
 async function plaqueFits(page: Page): Promise<Array<PlaqueFit>> {
   return page.evaluate(() => {
     const out: Array<PlaqueFit> = [];
@@ -89,26 +109,25 @@ for (const preset of PARLIAMENT_PRESETS) {
       const ruler = fits.find((f) => f.zone === 'ruler');
       expect(ruler, 'a party stands in the government\'s slot').toBeDefined();
       expect(ruler?.party, 'the Reds rule by the enacted Heat Capture').toBe('Reds');
-      expect(ruler?.formula, 'the ruler\'s plaque prints its action graphic').toBe(true);
-      expect(fits.filter((f) => f.zone === 'row').length, 'the five opposition tiles').toBe(5);
+      // «Зал» v7: a MEDALLION prints no formula; the Reds' graphic stands in «ВАШИ ЭФФЕКТЫ» (the ruler's effect is
+      // everyone's), inside the strip's own row — whole, never cut.
+      for (const fit of fits) {
+        expect(fit.formula, `${fit.zone} ${fit.party}: a medallion prints no formula`).toBe(false);
+      }
+      expect(fits.filter((f) => f.zone === 'row').length, 'the five opposition rows').toBe(5);
+      const strip = await stripFit(page, 'Reds');
+      expect(strip, 'the Reds\' formula stands in «ВАШИ ЭФФЕКТЫ»').toBeDefined();
+      for (const side of ['left', 'right', 'top', 'bottom'] as const) {
+        expect(strip!.spill[side], `the Reds' graphic reaches past its strip row's ${side} edge`).toBeLessThanOrEqual(1);
+      }
+      expect(strip!.cut.x, 'the Reds\' graphic is cut by its own box').toBeLessThanOrEqual(1);
+      expect(strip!.cut.y, 'the Reds\' graphic is cut by its own box (height)').toBeLessThanOrEqual(1);
       // THE PARTY'S NAME IS NEVER CUT. The tile's layout answers its own box width
       // (the foot joins the name's line only where both fit), and the 1080 box is
       // narrower than the TV's: side by side there it truncated every name.
       for (const fit of fits) {
         expect(fit.nameCut, `${fit.zone} ${fit.party}: the party's name is cut («${fit.name}»)`).toBe(false);
         expect(fit.name.length, `${fit.zone} ${fit.party}: the party names itself`).toBeGreaterThan(2);
-      }
-      for (const fit of fits) {
-        if (!fit.formula) {
-          continue;
-        }
-        const tol = 1;
-        expect(fit.spill.left, `${fit.zone} ${fit.party}: the graphic reaches past the plaque's left edge`).toBeLessThanOrEqual(tol);
-        expect(fit.spill.right, `${fit.zone} ${fit.party}: the graphic reaches past the plaque's right edge`).toBeLessThanOrEqual(tol);
-        expect(fit.spill.top, `${fit.zone} ${fit.party}: the graphic reaches past the plaque's top edge`).toBeLessThanOrEqual(tol);
-        expect(fit.spill.bottom, `${fit.zone} ${fit.party}: the graphic reaches past the plaque's bottom edge`).toBeLessThanOrEqual(tol);
-        expect(fit.cut.x, `${fit.zone} ${fit.party}: the graphic is cut by its own box`).toBeLessThanOrEqual(tol);
-        expect(fit.cut.y, `${fit.zone} ${fit.party}: the graphic is cut by its own box (height)`).toBeLessThanOrEqual(tol);
       }
     });
   });

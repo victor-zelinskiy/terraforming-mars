@@ -83,59 +83,57 @@ export function stagedDoorVerb(flow: 'play' | 'action' | undefined): string {
   return flow === 'action' ? 'Confirm' : 'Play card';
 }
 
-/** The law's verb: advertised whenever an enacted resolution has an action — lit only when it can be taken now. */
+/** The law's verb — the ruler's A when its party has no action of its own (Open IP Trade): lit only when it can be taken now. */
 function resolutionActionCommand(input: ParliamentCommandsInput): ConsoleCommand | undefined {
   const state = input.resolutionAction;
   if (state === undefined || state.kind === 'none') {
     return undefined;
   }
-  return {control: 'inspect', label: 'Resolution action', enabled: state.kind === 'available', highlight: state.kind === 'available'};
+  return {control: 'confirm', label: 'Resolution action', enabled: state.kind === 'available', highlight: state.kind === 'available'};
 }
 
-/** The browse layer's verbs depend on the focused ZONE (one bar, one contract). */
+/**
+ * THE BROWSE LAYER'S VERBS («Зал» v7) depend on the focused ZONE — one bar, one contract, VERBS ONLY (the plan's
+ * § 4): A on a bill opens the vote, A on a medallion is the party action's door (the ruler's: the law's action
+ * when the party has none), X inspects the object under the cursor, B leaves. The edge (the engine, the track) has
+ * no verb of its own but X.
+ */
 function browseCommands(input: ParliamentCommandsInput, back: ConsoleCommand): Array<ConsoleCommand> {
-  const law = resolutionActionCommand(input);
-  // The retired `government` zone reads as the ruler's tile (a restored stack may still name it).
+  // The retired `government` zone reads as the ruler's medallion (a restored stack may still name it).
   switch (parliamentFlow.zone === 'government' ? 'ruler' : parliamentFlow.zone) {
   case 'voting': {
     const cmds: Array<ConsoleCommand> = [];
     if (input.view.slots.length > 0) {
       cmds.push({control: 'confirm', label: 'Open the vote', enabled: true, highlight: input.canVoteNow});
+      // X is ONE verb across the parliament (glossary §5): «ОСМОТРЕТЬ», never the name of what it opens.
+      cmds.push({control: 'secondary', label: 'Inspect'});
     }
-    if (law !== undefined) {
-      cmds.push(law);
-    }
-    if (input.view.enacted !== undefined) {
-      cmds.push({control: 'stickR', label: 'Inspect the enacted resolution'});
-    }
-    // No X here: the voting area is ONE zone with no card of its own
-    // selected — the inspector belongs to the mode's selected card.
     cmds.push(back);
     return cmds;
   }
   case 'ruler':
   case 'parties': {
-    // The ruling party's tile stands in the government (v2) and answers as a party tile: the same verbs.
     const index = parliamentFlow.zone === 'ruler' ? input.view.parties.findIndex((p) => p.party === input.view.rulingParty) : parliamentFlow.partyIndex;
     const state = input.partyActionStates[index];
     const cmds: Array<ConsoleCommand> = [];
-    // A party WITH an action always advertises A — available (lit), used or without access (dimmed; the
-    // tile carries the reason and the press opens the action's surface, which states it). Only a party
-    // with no action at all offers nothing (final polish P-05: «no-access» hid the verb altogether).
+    // A party WITH an action always advertises A — available (lit), used or without access (dimmed; the press opens
+    // the action's surface, which states the reason). The ruler's medallion with no party action offers the LAW's.
     if (state !== undefined && state.kind !== 'none') {
       cmds.push({control: 'confirm', label: 'Party action', enabled: state.kind === 'available', highlight: state.kind === 'available'});
+    } else if (parliamentFlow.zone === 'ruler') {
+      const law = resolutionActionCommand(input);
+      if (law !== undefined) {
+        cmds.push(law);
+      }
     }
-    // X is ONE verb across the parliament (glossary §5): «ОСМОТРЕТЬ», never the name of what it opens.
     cmds.push({control: 'secondary', label: 'Inspect'});
-    if (law !== undefined) {
-      cmds.push(law);
-    }
-    if (input.view.enacted !== undefined) {
-      cmds.push({control: 'stickR', label: 'Inspect the enacted resolution'});
-    }
     cmds.push(back);
     return cmds;
   }
+  case 'engine':
+    return [{control: 'secondary', label: 'Inspect'}, back];
+  case 'agenda':
+    return [back];
   }
 }
 

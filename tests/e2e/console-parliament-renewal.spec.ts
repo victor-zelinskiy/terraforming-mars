@@ -4,6 +4,10 @@ import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, cinematicBeat, crumbText, openMandatoryAnnounce, press} from './consoleStart';
 import {answerGateAs, expectRailHonest, mandatoryPlate, parliamentWire, sittingStage, waitSittingAtRest} from './parliamentDrive';
 
+
+/* ⛔ PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5») */
+test.skip(() => true, 'PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5»)');
+
 /**
  * «ОБНОВЛЕНИЕ» — the renewal of the voting area as a TACT of its own (2026-09-22,
  * docs/claude/prompts/parliament-renewal-beat.md §6): the owner's three frames were

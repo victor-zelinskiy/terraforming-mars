@@ -4,7 +4,7 @@
        focus stop; it moves when a marker moves. During the sitting the
        marker STAYS on its old step until the enactment's first beat glides
        it (`holds.agendaAwaits`) — the influence reads the old level too. ══ -->
-  <div class="con-parl__agenda" data-parl-agenda data-parl-recede>
+  <div class="con-parl__agenda" :class="{'con-parl__agenda--focus': flow.zone === 'agenda' && flow.stage === 'browse'}" data-parl-agenda data-parl-recede>
     <div class="con-parl__agenda-head">
       <span class="con-parl__kicker">{{ $t('Agenda track') }}</span>
       <span v-if="view.viewer !== undefined" class="con-parl__agenda-me">
@@ -14,14 +14,6 @@
              in their formulas, so «влияние» reads as one symbol everywhere. -->
         <i class="con-parl__inf-icon" aria-hidden="true"></i>
         <b :key="'ai' + shown.viewerInfluence" class="con-parl__tick" data-parl-influence>{{ shown.viewerInfluence }}</b>
-        <span class="con-parl__agenda-next">
-          <span class="con-parl__chip-dim">{{ $t(shown.nextStep === undefined ? 'end of the track' : 'next reward') }}</span>
-          <span v-if="shown.nextStep !== undefined" class="con-parl__reward-step" :class="'con-parl__reward-step--' + shown.nextStep.kind">
-            <template v-if="shown.nextStep.kind === 'influence'"><i class="con-parl__step-res con-parl__step-res--inf" aria-hidden="true"></i><span class="con-parl__step-level">{{ shown.nextStep.influence }}</span></template>
-            <template v-else-if="shown.nextStep.kind === 'tr'"><i class="con-parl__step-res resource_icon resource_icon--rating" aria-hidden="true"></i></template>
-            <template v-else><i class="con-parl__step-res resource_icon resource_icon--cards" aria-hidden="true"></i></template>
-          </span>
-        </span>
       </span>
     </div>
     <!-- THE SCALE — every step is TWO fixed rows: the NODE (the symbol,
@@ -32,8 +24,14 @@
          their node; the CURRENT node reads by its marker and its reached
          fill, the NEXT one wears a light gold ring — never a focus ring. -->
     <div class="con-parl__track">
+      <!-- THE HEAD OF THE TRACK IS ITS ENGINE («Зал» v7): the chairman's chair with its quest — completing it IS a step
+           on this track — stands where «Старт карьеры» stood; the markers of the seats still at the start keep their row
+           under it (`data-agenda-markers="0"` — the glide's source for a first step). -->
       <div class="con-parl__step con-parl__step--start" :class="{'con-parl__step--here': viewerParticipates && shown.viewerPosition === 0, 'con-parl__step--passed': viewerParticipates && shown.viewerPosition > 0}" data-step="0">
-        <span class="con-parl__step-node"><span class="con-parl__step-label">{{ $t('Agenda start') }}</span></span>
+        <span class="con-parl__step-node con-parl__step-node--engine">
+          <ConsoleParliamentEngine :view="view" :players="players" :viewerColor="viewerColor" :sittingStage="sittingStage"
+                                   :focused="flow.zone === 'engine' && flow.stage === 'browse'" />
+        </span>
         <span class="con-parl__step-cubes" data-agenda-markers="0">
           <span v-for="color in shown.start" :key="color" class="con-parl__agenda-cube"
                 :class="{'con-parl__agenda-cube--hidden': cubeHidden(color, 0)}"
@@ -82,6 +80,8 @@ import {Color} from '@/common/Color';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {AGENDA_TRACK, influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import PlayerCube from '@/client/components/PlayerCube.vue';
+import ConsoleParliamentEngine from '@/client/components/console/parliament/ConsoleParliamentEngine.vue';
+import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
@@ -104,9 +104,14 @@ import {agendaWalkFlow, releaseAgendaWalkHolds} from '@/client/console/parliamen
  */
 export default defineComponent({
   name: 'ConsoleParliamentAgenda',
-  components: {PlayerCube},
+  components: {PlayerCube, ConsoleParliamentEngine},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
+    /** The seats (the engine's race names them) and the viewer — the engine's own props, threaded through. */
+    players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},
+    viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+    /** The SITTING's stage on screen ('' outside the sitting) — the engine reads its quest closed from the verdict. */
+    sittingStage: {type: String, default: ''},
     model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
     agendaVm: {type: Object as PropType<AgendaVm>, required: true},
     viewerParticipates: {type: Boolean, default: false},

@@ -23,6 +23,7 @@ const PARLIAMENT_FAMILY = [
   'console_parliament',
   'console_parliament_vote',
   'console_party_plaque',
+  'console_parliament_chamber',
   'console_resolution_face',
   'console_party_action',
   'console_resolution_inspect',

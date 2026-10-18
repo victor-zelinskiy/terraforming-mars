@@ -122,8 +122,13 @@ export function resetPlayedSittingStages(): void {
 
 // ── the section-internal flow ──────────────────────────────────────────────
 
-/** The browse layer's focus zones: the government's card · the RULING PARTY's tile in the government · the voting area · the five opposition tiles. */
-export type ParliamentZone = 'voting' | 'government' | 'ruler' | 'parties';
+/**
+ * The browse layer's focus zones («Зал» v7): the TABLE's bills (`voting`, one stop per bill — `slotIndex`) · the
+ * RULING PARTY's medallion in the government (`ruler`) · the five OPPOSITION rows (`parties`, `partyIndex`) · the
+ * ENGINE of the career (the chair with its quest, at the head of the track) · the TRACK itself (`agenda`, one stop).
+ * `government` is retired (a restored save may still name it — it reads as the ruler).
+ */
+export type ParliamentZone = 'voting' | 'government' | 'ruler' | 'parties' | 'engine' | 'agenda';
 /**
  * `vote` — the decision mode (a phase descent); `submitting` — sent;
  * `paying` — a paid vote's payment stands inside the mode; `landed` — the

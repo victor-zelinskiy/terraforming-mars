@@ -213,12 +213,18 @@ for (const preset of PRESETS) {
       // resolution nobody enacted) on their PLAQUE, their printed formula as a
       // GRAPHIC, the quest with its reward, and a tally under every card.
       const gov = page.locator('[data-parl-gov]');
-      await expect(gov).toContainText(/Стартовое правило/i);
-      await expect(gov.locator('.con-parl__ruler .con-pformula__mech')).toHaveCount(1);
+      // «Зал» v7: the government says nothing in WORDS — the ruler's medallion (no formula on it), the empty mark, the
+      // viewer's own formulas in «ВАШИ ЭФФЕКТЫ»; the starting rule is READ on the reading line under the cursor.
+      await expect(gov.locator('.con-parl__ruler .con-pformula__mech'), 'the medallion prints no formula').toHaveCount(0);
+      await expect(gov.locator('[data-parl-effects] .con-pformula__mech'), 'the viewer\'s formulas stand in «ВАШИ ЭФФЕКТЫ»').not.toHaveCount(0);
       await expect(gov.locator('[data-parl-gov-empty]'), 'no resolution enacted yet: an honest empty seat').toHaveCount(1);
+      await focusParliamentZone(page, 'ruler');
+      await expect(page.locator('.con-parl .con-band'), 'the reading line names the starting rule under the cursor').toContainText(/Стартовое правило/i);
+      await focusParliamentZone(page, 'voting');
       await expect(page.locator('.con-wshead [data-parl-seats] .con-parl__seat[data-parl-seat]'), 'the delegates zone on the head line — one group per player').toHaveCount(2);
       await expect(page.locator('.con-parl__body [data-parl-seats]'), 'no ledger row in the body').toHaveCount(0);
-      await expect(page.locator('[data-parl-quest] .con-parl__quest-reward')).toContainText(/Председательство/);
+      // «Зал» v7: the quest pays a STEP of the career it stands on — «→ +1» at the engine; the office is read on the line.
+      await expect(page.locator('[data-parl-quest] [data-parl-quest-reward]'), 'the quest pays one step').toContainText('+1');
       await expect(page.locator('[data-parl-tally]')).toHaveCount(3);
       await expect(page.locator('.con-parl__party')).toHaveCount(6);
       await shoot(page, preset, '01-browse');
@@ -295,8 +301,8 @@ for (const preset of PRESETS) {
       expect(await pressUntil(page, 'Escape', async () => await voteStep(page).count() === 0, {tries: 3, settleMs: 1100}), 'B folds the mode').toBeTruthy();
       await settle(page, {timeoutMs: 8_000});
 
-      // ── THE PARTY DOSSIER: down to the parties row, X over a party.
-      await press(page, 'ArrowDown', 500);
+      // ── THE PARTY DOSSIER: over to the opposition column («Зал» v7), X over a party.
+      await focusParliamentZone(page, 'parties');
       await openZoomViewer(page);
       await shoot(page, preset, '05-inspect-party');
       await closeZoomViewer(page);
@@ -400,7 +406,7 @@ for (const preset of PRESETS) {
       await shoot(page, preset, '21-dense-browse');
 
       // The parties: several effects held at once, the action used this generation.
-      await press(page, 'ArrowDown', 500);
+      await focusParliamentZone(page, 'parties');
       expect(await page.locator('.con-parl__party--held').count(), 'several party effects at once').toBeGreaterThanOrEqual(3);
       await expect(page.locator('.con-parl__party[data-action-state="used"]')).toHaveCount(1);
       await expectFits(page, preset);
@@ -408,7 +414,8 @@ for (const preset of PRESETS) {
       // Every party's detail fits, whatever its formula's width: walk all six.
       const partyFocused = () => page.evaluate(() => document.querySelector('.con-parl__party--focus')?.getAttribute('data-party') ?? '');
       const seen = new Set<string>();
-      for (const key of ['ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowRight']) {
+      // «Зал» v7: the column walks with ▲ ▼ — up to its head from wherever the entry row is, then down its five rows.
+      for (const key of ['ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown']) {
         await press(page, key, 300);
         seen.add(await partyFocused());
         await expectFits(page, preset);
@@ -438,8 +445,9 @@ for (const preset of PRESETS) {
       // On the viewer's own turn the pick takes the screen: the Parliament on its seat stage.
       await expect(stage(page)).toHaveAttribute('data-parl-stage', 'seat', {timeout: 20_000});
       expect((await crumbText(page)).toUpperCase()).toContain('КРЕСЛО');
-      // The quest reads as finished, with its winner, while the pick stands.
-      await expect(page.locator('[data-parl-quest]')).toHaveClass(/con-parl__quest--done/);
+      // The quest reads as finished, with its winner, while the pick stands («Зал» v7: the quest is the ENGINE at the
+      // head of the career edge — the anchor kept its name, the carrier's class is the engine's).
+      await expect(page.locator('[data-parl-quest]')).toHaveClass(/con-parl__engine--done/);
       await expect(page.locator('.con-parl__slot--candidate, .con-parl__slot--target')).not.toHaveCount(0);
       await expectFits(page, preset);
       await shoot(page, preset, '30-seat-stage');
@@ -484,7 +492,8 @@ for (const preset of PRESETS) {
         const dealt = (await parliamentModel(request, playerId)).game.parliament.slots.length;
         expect(dealt, 'the refresh dealt a fresh area').toBeGreaterThan(0);
         await expect(slots(page)).toHaveCount(dealt);
-        await expect(page.locator('[data-parl-gov]')).toContainText(/Принятая резолюция/i);
+        // «Зал» v7: the enacted card stands under the ruler's medallion with no caption — the object says what it is.
+        await expect(page.locator('[data-parl-gov] [data-parl-gov-carry] .pcard'), 'the enacted card under the medallion').toHaveCount(1);
         await expect(page.locator('.con-parl__flight'), 'nothing is in the air on a plain open').toHaveCount(0);
         await expectFits(page, preset);
         await shoot(page, preset, '10-after-phase');

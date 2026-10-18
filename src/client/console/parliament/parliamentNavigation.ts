@@ -8,14 +8,18 @@ import {ParliamentViewVm, PartyActionStateVm} from './consoleParliamentModel';
 import {ParliamentInspectRequest} from './parliamentInspect';
 
 /*
- * THE BROWSE LAYER'S CURSOR — four zones (the government's card · the RULING
- * PARTY's tile in the government · the voting area · the five OPPOSITION
- * tiles) and one d-pad grammar over them, plus what X inspects from each
- * zone. Pure over the flow record and the view.
+ * THE BROWSE LAYER'S CURSOR («Зал» v7) — the chamber's ring, one stop per object the player can read or act on:
  *
- * v2: the ruling party's tile stands in the government, the row below holds
- * the five parties WITHOUT power. `partyIndex` still indexes `view.parties`
- * (all six, in the board's order); the row's walk skips the ruler.
+ *   ┌ RULER ─┐  ┌ THE TABLE: slot · slot · slot ┐  ┌ OPPOSITION: five rows ┐
+ *   │medallion│  │   ◀ ▶ walk the bills          │  │   ▲ ▼ walk the rows    │
+ *   └────────┘  └───────────────────────────────┘  └───────────────────────┘
+ *   [ENGINE: the chair + the quest] ═══ [AGENDA: the career track ▶ one stop] ═══════════════════════
+ *
+ * The geometry is spatial: ◀ ▶ cross the chamber (ruler ◀ table ▶ opposition), ▼ from any wing lands on the
+ * edge below it (the engine under the ruler, the track under the table and the opposition), ▲ returns. The
+ * opposition column may stand LEFT of the table too (the Ф1 batch left it open) — only `OPPOSITION_SIDE` would
+ * change. `partyIndex` still indexes `view.parties` (all six, in the board's order); the column's walk skips
+ * the ruler. The retired `government` zone reads as the ruler (a restored save, a parked stack).
  */
 
 /** The opposition's indices into `view.parties` (the board's order minus the ruler). */
@@ -23,7 +27,7 @@ export function oppositionIndices(view: ParliamentViewVm): Array<number> {
   return view.parties.map((p, i) => ({p, i})).filter(({p}) => p.party !== view.rulingParty).map(({i}) => i);
 }
 
-/** Seat the row cursor on an OPPOSITION tile: the preferred index when it is one, else the nearest. */
+/** Seat the column cursor on an OPPOSITION row: the preferred index when it is one, else the nearest. */
 function seatOnOpposition(view: ParliamentViewVm, preferred: number): void {
   const row = oppositionIndices(view);
   if (row.length === 0) {
@@ -32,13 +36,15 @@ function seatOnOpposition(view: ParliamentViewVm, preferred: number): void {
   parliamentFlow.partyIndex = row.includes(preferred) ? preferred : row[Math.min(row.length - 1, Math.max(0, row.findIndex((i) => i >= preferred)))] ?? row[0];
 }
 
+/** The opposition's last cursor in the column — remembered across the ring, so ◀ ▶ return to the same row. */
+function seatOnTable(view: ParliamentViewVm, index: number): void {
+  parliamentFlow.zone = 'voting';
+  parliamentFlow.slotIndex = Math.max(0, Math.min(Math.max(0, view.slots.length - 1), index));
+}
+
 /**
- * THE BROWSE RING (v3 В5) — THREE zones, one per object the player can act on: the VOTING AREA's cards,
- * the five OPPOSITION tiles of the row, and the RULING party's tile in the government. The government
- * block itself is no longer a stop: its only decision-bearing object is that tile, and the enacted
- * resolution — already enacted, nothing to decide about it — is read with R3 from anywhere here.
- *
- *   ruler ─ right ─▶ voting        ruler / voting ─ down ─▶ the row        the row ─ up ─▶ ruler | voting
+ * THE BROWSE RING: the ruler · the table's bills (◀ ▶ walk them — one stop per bill, the reading line reads the
+ * one under the cursor) · the five opposition rows (▲ ▼) · the engine (the chair with its quest) · the track.
  */
 export function navigateParliamentZones(dir: 'up' | 'down' | 'left' | 'right', view: ParliamentViewVm): void {
   const f = parliamentFlow;
@@ -46,36 +52,62 @@ export function navigateParliamentZones(dir: 'up' | 'down' | 'left' | 'right', v
   switch (f.zone) {
   case 'voting':
     if (dir === 'left') {
-      f.zone = 'ruler';
+      if (f.slotIndex > 0) {
+        f.slotIndex -= 1;
+      } else {
+        f.zone = 'ruler';
+      }
+    } else if (dir === 'right') {
+      if (f.slotIndex < view.slots.length - 1) {
+        f.slotIndex += 1;
+      } else if (row.length > 0) {
+        f.zone = 'parties';
+        const focused = view.slots[f.slotIndex];
+        const idx = view.parties.findIndex((p) => p.party === focused?.party);
+        seatOnOpposition(view, idx >= 0 && row.includes(idx) ? idx : (row[0] ?? 0));
+      }
     } else if (dir === 'down') {
-      f.zone = 'parties';
-      const focused = view.slots[f.slotIndex];
-      const idx = view.parties.findIndex((p) => p.party === focused?.party);
-      seatOnOpposition(view, idx >= 0 && row.includes(idx) ? idx : (row[Math.min(row.length - 1, 2)] ?? 0));
+      f.zone = 'agenda';
     }
     return;
-  // A Parliament restored with the retired zone (a save, a parked stack) lands on the tile that replaced it.
+  // A Parliament restored with the retired zone (a save, a parked stack) lands on the medallion that replaced it.
   case 'government':
     f.zone = 'ruler';
     return;
   case 'ruler':
     if (dir === 'right') {
-      f.zone = 'voting';
+      seatOnTable(view, 0);
     } else if (dir === 'down') {
-      f.zone = 'parties';
-      seatOnOpposition(view, row[0] ?? 0);
+      f.zone = 'engine';
+    }
+    return;
+  case 'engine':
+    if (dir === 'up') {
+      f.zone = 'ruler';
+    } else if (dir === 'right') {
+      f.zone = 'agenda';
+    }
+    return;
+  case 'agenda':
+    if (dir === 'left') {
+      f.zone = 'engine';
+    } else if (dir === 'up') {
+      seatOnTable(view, f.slotIndex);
     }
     return;
   case 'parties': {
     const at = row.indexOf(f.partyIndex);
     const pos = at === -1 ? 0 : at;
-    if (dir === 'left') {
+    if (dir === 'up') {
       f.partyIndex = row[Math.max(0, pos - 1)] ?? f.partyIndex;
-    } else if (dir === 'right') {
-      f.partyIndex = row[Math.min(row.length - 1, pos + 1)] ?? f.partyIndex;
-    } else if (dir === 'up') {
-      // The column above: the ruler's tile over the first two tiles, the voting area over the rest.
-      f.zone = pos <= 1 ? 'ruler' : 'voting';
+    } else if (dir === 'down') {
+      if (pos < row.length - 1) {
+        f.partyIndex = row[pos + 1] ?? f.partyIndex;
+      } else {
+        f.zone = 'agenda';
+      }
+    } else if (dir === 'left') {
+      seatOnTable(view, view.slots.length - 1);
     }
     return;
   }
@@ -87,7 +119,7 @@ function reasonText(reason: string | Message): string {
 }
 
 /**
- * WHY a party action cannot be taken from its plaque right now — the one
+ * WHY a party action cannot be taken from its medallion right now — the one
  * reason the notice names (the server's own, else the state's word), or
  * undefined when the door opens. `offered`: the server's option is in the
  * live action menu (the Unity trade needs none — the colonies ask for it).
@@ -125,7 +157,7 @@ export function armResolutionActionDescent(root: HTMLElement | undefined): void 
   }
 }
 
-/** The pressed plaque is the descent's origin — the action workspace unfolds from its rect (the ruler's tile in the government included). */
+/** The pressed medallion is the descent's origin — the action workspace unfolds from its rect (the ruler's in the government included). */
 export function armPartyActionDescent(root: HTMLElement | undefined, party: ReduxParty): void {
   const plaque = root?.querySelector<HTMLElement>(`.con-parl__party[data-party="${party}"] .con-pseal`);
   const rect = plaque?.getBoundingClientRect();
@@ -137,18 +169,36 @@ export function armPartyActionDescent(root: HTMLElement | undefined, party: Redu
 }
 
 /**
- * THE INSPECTOR from the BROWSE layer — X on the object under the cursor.
- * The request names the PHYSICAL element the card lifts out of (and returns
- * into). The voting area is ONE zone with no card of its own selected, so
- * nothing is inspected from it (the vote mode's X inspects the card it
- * stands on); the government inspects the enacted resolution, else the ruling
- * party's effect; the ruler's tile and a party plaque inspect that party's effect.
+ * THE INSPECTOR from the BROWSE layer — X on the object under the cursor, the console's one grammar (X = the
+ * current object). A BILL on the table opens the resolution's dossier, paged over the three by LB/RB; the RULER
+ * opens the ENACTED LAW's dossier (its party column is the ruling party's) — or the party's, before any law; the
+ * ENGINE opens the law the quest is printed on (the starting rule has no card: the party's dossier then); a ROW
+ * of the opposition opens that party's dossier. The track has no dossier yet (Ф4). The request names the
+ * PHYSICAL element the card lifts out of (and returns into).
  */
 export function parliamentBrowseInspectRequest(view: ParliamentViewVm, root: HTMLElement | undefined): ParliamentInspectRequest | undefined {
+  const enacted = (origin: () => HTMLElement | null): ParliamentInspectRequest | undefined =>
+    view.enacted === undefined ? undefined : {kind: 'resolution', ids: [view.enacted.resolutionId], index: 0, origin};
+  const rulerParty = (): ParliamentInspectRequest =>
+    ({kind: 'party', party: view.rulingParty, origin: () => root?.querySelector<HTMLElement>('[data-parl-ruler] .con-pseal') ?? null});
+  const govCard = () => root?.querySelector<HTMLElement>('.con-parl__gov-card .pcard') ?? root?.querySelector<HTMLElement>('.con-parl__gov-card') ?? null;
   switch (parliamentFlow.zone) {
+  case 'voting': {
+    const slots = view.slots;
+    if (slots.length === 0) {
+      return undefined;
+    }
+    const index = Math.max(0, Math.min(slots.length - 1, parliamentFlow.slotIndex));
+    const instance = slots[index]?.instance;
+    return {
+      kind: 'resolution', ids: slots.map((s) => s.resolutionId), index,
+      origin: () => root?.querySelector<HTMLElement>(`.con-parl__slot[data-instance="${instance}"] .pcard`) ?? null,
+    };
+  }
   case 'government':
   case 'ruler':
-    return {kind: 'party', party: view.rulingParty, origin: () => root?.querySelector<HTMLElement>('[data-parl-ruler] .con-pseal') ?? null};
+  case 'engine':
+    return enacted(govCard) ?? rulerParty();
   case 'parties': {
     const party = view.parties[parliamentFlow.partyIndex]?.party;
     return party === undefined ? undefined :
@@ -160,9 +210,8 @@ export function parliamentBrowseInspectRequest(view: ParliamentViewVm, root: HTM
 }
 
 /**
- * R3 — THE ENACTED RESOLUTION (v3 В5). It is already enacted: nothing about it is a decision, so it left
- * the focus ring and kept a verb of its own, the way the source verb names a source elsewhere in this
- * console. Undefined until a resolution has ever been enacted.
+ * THE ENACTED RESOLUTION as a read of its own — the sitting's X (the object every stage is about). Undefined
+ * until a resolution has ever been enacted.
  */
 export function parliamentEnactedInspectRequest(view: ParliamentViewVm, root: HTMLElement | undefined): ParliamentInspectRequest | undefined {
   const enacted = view.enacted;

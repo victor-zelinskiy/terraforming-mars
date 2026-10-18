@@ -28,6 +28,10 @@
                   :class="{'con-band__chip--quiet': chip.tone === 'quiet'}" data-parl-band-chip="label">
               <span class="con-band__text">{{ $t(chip.key) }}</span>
             </span>
+            <span v-else-if="chip.kind === 'text'" class="con-band__chip con-band__chip--mark" :class="{'con-band__chip--quiet': chip.tone === 'dim'}" data-parl-band-chip="text">
+              <b v-if="chip.tone === 'strong'" class="con-band__num">{{ chip.text }}</b>
+              <span v-else class="con-band__text">{{ chip.text }}</span>
+            </span>
             <span v-else-if="chip.kind === 'resolution'" class="con-band__chip con-band__chip--res" data-parl-band-chip="resolution">
               <img class="con-band__emblem" :src="emblemUrl(chip.party)" alt="" />
               <b class="con-band__text con-band__text--strong">{{ $t(resolutionTitle(chip.resolution)) }}</b>
@@ -179,7 +183,7 @@ import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {
-  BandLine, BandQuest, BandRally, BandRewardReading, BandRewardState, bandRewardTakes, BandSitting, BandStanding, BandSupport, BandWalk, parliamentBandLine,
+  BandFocus, BandLine, BandQuest, BandRally, BandRewardReading, BandRewardState, bandRewardTakes, BandSitting, BandStanding, BandSupport, BandWalk, parliamentBandLine,
 } from '@/client/console/parliament/parliamentBand';
 import {chairmanQuestFlow} from '@/client/console/parliament/consoleChairmanQuest';
 import {agendaWalkFlow} from '@/client/console/parliament/agendaWalk';
@@ -216,6 +220,8 @@ export default defineComponent({
     support: {type: Object as PropType<BandSupport | undefined>, default: undefined},
     /** «ДЕЛЕГАТЫ»'s own context — a card's rally of neutral delegates, live in this section (undefined outside it). */
     rally: {type: Object as PropType<BandRally | undefined>, default: undefined},
+    /** «Зал» v7: the object under the browse cursor — the overview's line reads IT (undefined outside the browse layer). */
+    focus: {type: Object as PropType<BandFocus | undefined>, default: undefined},
   },
   computed: {
     line(): BandLine {
@@ -275,14 +281,16 @@ export default defineComponent({
     },
     /** The table AS IT STANDS: the resolution that would be enacted now and who would win it. */
     standing(): BandStanding {
+      const focus = this.focus === undefined ? {} : {focus: this.focus};
       const slot = this.view.slots.find((s) => s.isWinning);
       if (slot === undefined) {
-        return {votes: 0};
+        return {votes: 0, ...focus};
       }
       return {
         resolution: {resolution: slot.resolutionId, party: slot.party},
         ...(slot.leader === undefined ? {} : {player: slot.leader}),
         votes: slot.totalVotes,
+        ...focus,
       };
     },
     // ── the reward's reading (moved here from the sitting surface: the band is where it is read) ──

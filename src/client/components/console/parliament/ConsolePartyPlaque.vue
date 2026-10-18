@@ -163,7 +163,12 @@ import {PARTY_EFFECT_PLACES, PartyActionStateVm, PartyStateVm} from '@/client/co
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {translateText} from '@/client/directives/i18n';
 
-export type PartyPlaqueSize = 'tile' | 'hero' | 'full' | 'aside';
+/**
+ * `row` and `ruler` are the MEDALLION sizes of «Зал» v7 (the overview's party object: the seal, the name, the
+ * viewer's places, the support — no formula, the dossier prints it); `tile` was the plaque row of v2–v6 and
+ * stays for the playground; `hero` / `full` / `aside` are the composer's and the dossier's faces.
+ */
+export type PartyPlaqueSize = 'tile' | 'hero' | 'full' | 'aside' | 'row' | 'ruler';
 
 export default defineComponent({
   name: 'ConsolePartyPlaque',
@@ -250,10 +255,10 @@ export default defineComponent({
       return Math.max(1, Math.min(PARTY_EFFECT_PLACES, this.state?.effectDelegates ?? PARTY_EFFECT_PLACES));
     },
     placeCubePx(): number {
-      return Math.round((this.size === 'tile' ? 9 : 11) * conUiScale());
+      return Math.round((this.size === 'tile' || this.size === 'row' ? 9 : 11) * conUiScale());
     },
     supportCubePx(): number {
-      return Math.round((this.size === 'tile' ? 9 : 11) * conUiScale());
+      return Math.round((this.size === 'tile' || this.size === 'row' ? 9 : 11) * conUiScale());
     },
     /**
      * ONE short word where a word says more than the places: the ruling

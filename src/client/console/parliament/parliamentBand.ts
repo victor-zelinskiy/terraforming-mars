@@ -52,6 +52,7 @@ import {ParameterMoveId} from '@/common/parliament/parameterMove';
 import {ColonyTrackMoveChip} from './colonyTrackModel';
 import {SittingRewardStep, SittingStage} from './consoleSittingFlow';
 import {SupportStatus} from './supportScene';
+import {partyNameKey} from './partyNames';
 
 /** The beat of the enactment the director is playing ('' at rest) — `sittingMotion.beat`. */
 export type BandBeat = '' | 'agenda' | 'support' | 'enact';
@@ -60,6 +61,8 @@ export type BandBeat = '' | 'agenda' | 'support' | 'enact';
 export type BandChip =
   /** A short label — an i18n key, never a sentence. */
   | {kind: 'label', key: string, tone?: 'quiet' | 'accent'}
+  /** A PLAIN MARK, already text (a count with its ceiling, «1/2») — never a sentence, never a key. */
+  | {kind: 'text', text: string, tone?: 'strong' | 'dim'}
   /** A resolution: its party's emblem and its printed name. */
   | {kind: 'resolution', resolution: ResolutionId, party: ReduxParty}
   /** A party: its emblem and its name. */
@@ -173,8 +176,22 @@ export type BandRewardReading = {
   winnerElsewhere?: boolean;
 };
 
+/**
+ * THE OBJECT UNDER THE BROWSE CURSOR («Зал» v7) — the reading line's subject in the overview: a bill of the table,
+ * the ruler, a row of the opposition, the engine of the career (the chair with its quest), the track. Data only;
+ * the line names the object's live state in the fewest chips, and nothing the object does not say itself twice.
+ */
+export type BandFocus =
+  | {kind: 'slot', resolution: ResolutionId, party: ReduxParty, winning: boolean, votes: number, leader?: Color | 'neutral', mine?: number, threshold?: number}
+  | {kind: 'ruler', party: ReduxParty, resolution?: ResolutionId}
+  | {kind: 'party', party: ReduxParty, inArea: boolean, mine: number, threshold: number, held: boolean, support: number, action: string, participates: boolean}
+  | {kind: 'engine', text?: string, count?: number, mine?: number, chairman?: Color, completedBy?: Color}
+  | {kind: 'agenda', position: number, influence: number, participates: boolean, next?: {kind: 'tr' | 'card' | 'influence', influence?: number}};
+
 /** What the OVERVIEW's line reads off the table when no sitting stands. */
 export type BandStanding = {
+  /** The object under the browse cursor — read INSTEAD of the table's standing when the cursor is on something. */
+  focus?: BandFocus;
   /** The resolution that would be enacted as things stand. */
   resolution?: {resolution: ResolutionId, party: ReduxParty};
   /** …and who would be the winner of the vote on it. */
@@ -439,7 +456,100 @@ function questLine(quest: BandQuest): BandLine {
 }
 
 /** ОБЗОР — what is enacted as things stand, and who would win it. */
+/**
+ * THE READING LINE OF THE OBJECT UNDER THE CURSOR («Зал» v7, plan § 2): the party's name as the kicker, the bill's
+ * name, «принимается», the delegates and the leader, «ваши n/2» — one line, crossfaded when the cursor moves. A
+ * party row reads its places, the held word, its support stock and its action's state; the ruler its basis and
+ * «у всех»; the engine the condition, the viewer's count and the chairman; the track the viewer's step, influence
+ * and the next reward. The chips are the band's own vocabulary; no prose.
+ */
+function focusLine(focus: BandFocus): BandLine {
+  const chips: Array<BandChip> = [];
+  switch (focus.kind) {
+  case 'slot': {
+    chips.push({kind: 'resolution', resolution: focus.resolution, party: focus.party});
+    if (focus.winning) {
+      chips.push({kind: 'label', key: 'Winning', tone: 'accent'});
+    }
+    chips.push({kind: 'count', key: 'Delegates', amount: focus.votes});
+    if (focus.leader !== undefined) {
+      chips.push({kind: 'label', key: 'Leader', tone: 'quiet'});
+      chips.push({kind: 'player', player: focus.leader});
+    }
+    if (focus.mine !== undefined) {
+      chips.push({kind: 'label', key: 'Yours', tone: 'quiet'});
+      chips.push({kind: 'text', text: focus.mine + '/' + (focus.threshold ?? 2), tone: 'strong'});
+    }
+    const key = ['focus:slot', focus.resolution, focus.votes, focus.leader ?? '', focus.mine ?? '', focus.winning ? 'w' : ''].join(':');
+    return {kicker: partyNameKey(focus.party), key, chips, committed: false};
+  }
+  case 'ruler':
+    chips.push({kind: 'party', party: focus.party});
+    if (focus.resolution === undefined) {
+      chips.push({kind: 'label', key: 'Starting rule', tone: 'quiet'});
+    } else {
+      chips.push({kind: 'resolution', resolution: focus.resolution, party: focus.party});
+    }
+    chips.push({kind: 'label', key: 'Party effect', tone: 'quiet'});
+    chips.push({kind: 'label', key: 'for everyone', tone: 'accent'});
+    return {kicker: 'Ruling party', key: ['focus:ruler', focus.party, focus.resolution ?? ''].join(':'), chips, committed: false};
+  case 'party':
+    if (focus.inArea && focus.participates) {
+      chips.push({kind: 'label', key: 'Yours', tone: 'quiet'});
+      chips.push({kind: 'text', text: Math.min(focus.mine, focus.threshold) + '/' + focus.threshold, tone: 'strong'});
+    } else if (!focus.inArea) {
+      chips.push({kind: 'label', key: 'Not in the vote', tone: 'quiet'});
+    }
+    if (focus.held) {
+      chips.push({kind: 'label', key: 'Your effect', tone: 'accent'});
+    }
+    chips.push({kind: 'label', key: 'Popular support', tone: 'quiet'});
+    chips.push({kind: 'text', text: focus.support + '/3', tone: 'strong'});
+    if (focus.action === 'available') {
+      chips.push({kind: 'label', key: 'Action available this generation', tone: 'accent'});
+    } else if (focus.action === 'used') {
+      chips.push({kind: 'label', key: 'Action used this generation', tone: 'quiet'});
+    }
+    return {kicker: partyNameKey(focus.party), key: ['focus:party', focus.party, focus.mine, focus.held ? 'h' : '', focus.support, focus.action].join(':'), chips, committed: false};
+  case 'engine':
+    if (focus.text !== undefined) {
+      chips.push({kind: 'label', key: focus.text});
+    }
+    if (focus.completedBy !== undefined) {
+      chips.push({kind: 'label', key: 'Completed', tone: 'accent'});
+      chips.push({kind: 'player', player: focus.completedBy});
+    } else if (focus.mine !== undefined && focus.count !== undefined) {
+      chips.push({kind: 'label', key: 'Yours', tone: 'quiet'});
+      chips.push({kind: 'text', text: focus.mine + '/' + focus.count, tone: 'strong'});
+    }
+    chips.push({kind: 'label', key: 'Chairman', tone: 'quiet'});
+    if (focus.chairman !== undefined) {
+      chips.push({kind: 'player', player: focus.chairman});
+    } else {
+      chips.push({kind: 'text', text: '—', tone: 'dim'});
+    }
+    return {kicker: 'Chairman quest', key: ['focus:engine', focus.text ?? '', focus.mine ?? '', focus.chairman ?? '', focus.completedBy ?? ''].join(':'), chips, committed: false};
+  case 'agenda':
+    if (focus.participates) {
+      chips.push({kind: 'agenda', to: focus.position, level: focus.influence});
+      chips.push({kind: 'count', key: 'Influence', amount: focus.influence});
+      if (focus.next !== undefined) {
+        chips.push({kind: 'label', key: 'next reward', tone: 'quiet'});
+        chips.push(focus.next.kind === 'influence' ?
+          {kind: 'agenda', to: focus.position + 1, level: focus.next.influence ?? focus.influence + 1} :
+          {kind: 'agenda', to: focus.position + 1, bonus: focus.next.kind});
+      } else {
+        chips.push({kind: 'label', key: 'end of the track', tone: 'quiet'});
+      }
+    }
+    return {kicker: 'Agenda track', key: ['focus:agenda', focus.position, focus.influence, focus.next?.kind ?? ''].join(':'), chips, committed: false};
+  }
+}
+
 function overviewLine(standing: BandStanding): BandLine {
+  if (standing.focus !== undefined) {
+    return focusLine(standing.focus);
+  }
   const chips: Array<BandChip> = [];
   if (standing.resolution === undefined) {
     chips.push({kind: 'label', key: 'No resolution is up for a vote', tone: 'quiet'});

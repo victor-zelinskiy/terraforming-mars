@@ -16,7 +16,7 @@
       <span class="con-parl__kicker">{{ $t('Voting') }}</span>
     </div>
     <div class="con-parl__slots">
-      <div v-for="(slot, i) in shownSlots" :key="slot.instance" class="con-parl__slot-home" :class="{'con-parl__slot-home--vacated': homeEmptied(slot)}" :data-home="slot.instance" :data-parl-slot-vacated="homeEmptied(slot) ? '' : undefined">
+      <div v-for="(slot, i) in shownSlots" :key="slot.instance" class="con-parl__slot-home" :class="{'con-parl__slot-home--vacated': homeEmptied(slot)}" :data-home="slot.instance" :data-parl-slot-vacated="homeEmptied(slot) ? '' : undefined" data-parl-body-item>
         <!-- A HELD slot whose card has LEFT — for the government (v2), or for the discard at the renewal («departed»):
              an empty outline in its OWN place — the row never re-orders under the player. -->
         <div v-if="homeEmptied(slot)" class="con-parl__slot-empty" data-parl-slot-empty>
@@ -31,6 +31,7 @@
           <div class="con-parl__slot"
                :class="{
                  'con-parl__slot--selected': slotsCarried && flow.slotIndex === i,
+                 'con-parl__slot--focus': flow.stage === 'browse' && flow.zone === 'voting' && flow.slotIndex === i,
                  'con-parl__slot--winning': winningShownOf(slot),
                  'con-parl__slot--lit': motion.litSlot === slot.instance,
                  'con-parl__slot--awaiting': awaitingDeal(slot),
@@ -156,7 +157,7 @@
            director still parks that card over its former slot, the model already lists the slot as empty
            and «ПУСТОЙ СЛОТ» stood over a card the player could see. The head and the reason wait for
            the enactment beat; the outline stays. -->
-      <div v-for="n in emptySlotCount" :key="'empty-' + n" class="con-parl__slot-home con-parl__slot-home--empty" data-parl-slot-empty :data-parl-slot-empty-held="holds.parked !== undefined ? 'true' : undefined">
+      <div v-for="n in emptySlotCount" :key="'empty-' + n" class="con-parl__slot-home con-parl__slot-home--empty" data-parl-slot-empty :data-parl-slot-empty-held="holds.parked !== undefined ? 'true' : undefined" data-parl-body-item>
         <div class="con-parl__slot-empty">
           <div class="con-parl__slot-label">
             <span v-if="holds.parked === undefined" class="con-parl__slot-party">{{ $t('Empty slot') }}</span>
