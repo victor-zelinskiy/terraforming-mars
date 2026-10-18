@@ -72,6 +72,14 @@ export const consoleParliamentUi = reactive({
    * absence) closes it again.
    */
   boardDoorOpen: false,
+  /**
+   * THE PARLIAMENT STANDS AS THE HALL (Парламент v8, § 5 — the mock `b1`): the section is its own workspace screen,
+   * not a step hosted in another one's zone. In the hall the vote mode NEVER carries the bills: they stay on the
+   * table where the player chose them, the panel unfolds on the chamber's rect and the career dims under it. A
+   * hosted Parliament (TR03's hand, TR15's composer, the Redux Venus's colonies) keeps the row of carried cards —
+   * its zone is too narrow for a column beside the table. Published by the section from its `embedded` prop.
+   */
+  hall: false,
 });
 
 export function resetConsoleParliamentUi(): void {
@@ -479,8 +487,13 @@ export function parliamentVoteUp(): boolean {
   return f.stage === 'vote' || f.stage === 'paying' || f.stage === 'landed' || (f.stage === 'submitting' && f.stageBeforeSubmit === 'vote');
 }
 
-/** The three slots are in the vote row (up, or folding back — the leave animates them home first). */
+/** The three slots are in the vote row (up, or folding back — the leave animates them home first). The HALL never carries them (v8). */
 export function parliamentSlotsCarried(): boolean {
+  return parliamentVoteUp() && !consoleParliamentUi.hall;
+}
+
+/** The vote mode SELECTS a bill — in the row (a hosted door) or on the table itself (the hall, v8). */
+export function parliamentVoteSelecting(): boolean {
   return parliamentVoteUp();
 }
 

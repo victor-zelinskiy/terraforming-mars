@@ -175,7 +175,7 @@ for (const preset of PARLIAMENT_PRESETS) {
             out[s] = {x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height)};
           }
         }
-        document.querySelectorAll<HTMLElement>('.con-parl__vrow .con-parl__slot').forEach((el) => {
+        document.querySelectorAll<HTMLElement>('.con-parl__slot[data-instance]').forEach((el) => {
           const r = el.getBoundingClientRect();
           out[`slot:${el.getAttribute('data-instance')}`] = {x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height)};
         });

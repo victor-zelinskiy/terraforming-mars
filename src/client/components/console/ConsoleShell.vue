@@ -1042,6 +1042,11 @@
                                         variant="panel"
                                         :view="zoomAvailabilityView"
                                         :closing="side.closing" />
+          <ConsolePartyAccessPanel v-if="zoomPartyAccess !== undefined"
+                                   :party="zoomPartyAccess"
+                                   :parliament="game.parliament"
+                                   :viewer="thisPlayer.color"
+                                   :closing="side.closing" />
           <ConsoleInspectSide v-if="consoleCardZoom.inspect !== undefined && zoomRulesCardName !== undefined"
                               :cardName="zoomRulesCardName"
                               :history="consoleCardZoom.inspect.history"
@@ -1698,6 +1703,7 @@ import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} fro
 import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
 import {getResolution, resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import ConsoleResolutionAside from '@/client/components/console/parliament/ConsoleResolutionAside.vue';
+import ConsolePartyAccessPanel from '@/client/components/console/parliament/ConsolePartyAccessPanel.vue';
 import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
 import {tileRemovalTableOf} from '@/client/console/parliament/tileRemovalModel';
 import {TileGrantReading, tileGrantReadingOf} from '@/client/console/parliament/tileGrantModel';
@@ -2384,6 +2390,7 @@ export default defineComponent({
     ConsoleColoniesSection,
     ConsoleParliamentSection,
     ConsoleResolutionAside,
+    ConsolePartyAccessPanel,
     ConsoleInfoMode,
     ConsoleCardRulesPanel,
     ConsoleInspectSide,
@@ -10108,7 +10115,7 @@ export default defineComponent({
           .map((a) => (a.id === 'group:you' ? {...a, order: 9} : a));
       }
       if (isPartyEffectZoom(card)) {
-        return partyAnnotations(card.partyEffect, this.game.parliament, this.thisPlayer.color, this.myTurn && this.awaitingInput);
+        return partyAnnotations(card.partyEffect, this.game.parliament, this.thisPlayer.color, this.myTurn && this.awaitingInput, this.zoomPartyAccess !== undefined);
       }
       return undefined;
     },
@@ -10121,6 +10128,15 @@ export default defineComponent({
     zoomPartyOpen(): boolean {
       const card = this.consoleCardZoom.card;
       return card !== undefined && isPartyEffectZoom(card);
+    },
+    /** THE «ДОСТУП» OBJECT of a party's dossier (Парламент v8 § 7) — its party, only with a live table and a seat that takes part. */
+    zoomPartyAccess(): ReduxParty | undefined {
+      const card = this.consoleCardZoom.card;
+      if (card === undefined || !isPartyEffectZoom(card) || this.game.parliament === undefined) {
+        return undefined;
+      }
+      const me = this.game.parliament.players.find((p) => p.color === this.thisPlayer.color);
+      return me?.access.some((a) => a.party === card.partyEffect) === true ? card.partyEffect : undefined;
     },
     /** Its party — the left column's subject (the CATALOG's party, so it shows outside a live table too). */
     zoomResolutionParty(): ReduxParty | undefined {

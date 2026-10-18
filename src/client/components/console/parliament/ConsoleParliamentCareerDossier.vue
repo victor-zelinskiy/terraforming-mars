@@ -1,8 +1,8 @@
 <template>
-  <!-- ══ THE CAREER'S DOSSIER (Парламент v8 § 7, the mock `d2`): X on the career reads the TRACK — every seat's place
-       (its step and its influence) · the ladder of twelve tiles with their rewards and the markers on them · «§ ПРАВИЛА»
-       (influence, the steps' rewards, where influence works) in words. Read-only; B or X closes. ══ -->
   <div class="con-parl-qd con-parl-qd--career" data-parl-career-dossier role="dialog" :aria-label="$t('Agenda track')">
+    <!-- ══ THE CAREER'S DOSSIER (Парламент v8 § 7, the mock `d2`): X on the career reads the TRACK — every seat's place
+         (its step and its influence) · the ladder of twelve tiles with their rewards and the markers on them · «§ ПРАВИЛА»
+         (influence, the steps' rewards, where influence works) in words. Read-only; B or X closes. ══ -->
     <section class="con-parl-qd__side" data-parl-cd-seats>
       <span class="con-parl-qd__kicker">{{ $t('Standing') }}</span>
       <div class="con-parl-qd__race">

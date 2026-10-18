@@ -1270,3 +1270,164 @@ html.con-profile-tv .con-parl-qd {
     .con-parl-qd__ladder { grid-auto-rows: 6.2rem; }
     .con-parl-qd__coin b { font-size: .7rem; }
 }
+
+/* ══ THE HALL'S VOTE (Парламент v8 § 5, the mock `b1`): the bills STAY on the table (the slots are never carried — the
+   cursor's selection paints on the bill where the player chose it), the panel unfolds ON THE CHAMBER'S RECT (published
+   by the section as `--con-parl-pal-*`, layout offsets), the career DIMS under it. ONE column, read top-down: the bill's
+   head · «ДЛЯ ВАС ПРИ ПРИНЯТИИ» (with the ledger of the other seats on its line) · then the vote block and the confirm
+   in the column's foot, at the height the old band gave them (`--con-parl-info-h` — the vote block's own geometry is
+   unchanged). Written at (0,4,0): the profile ladders' own `&__info` rules are (0,3,1). A hosted Parliament (TR03,
+   TR15, the Redux Venus) keeps the row of carried cards — its zone is too narrow for a column beside the table. ══ */
+.con-parl.con-parl--hall {
+    .con-parl__vote { display: block; }
+    .con-parl__vote--up { pointer-events: none; }
+    .con-parl__vrow { display: none; }
+    .con-parl__vote .con-parl__info {
+        position: absolute;
+        left: var(--con-parl-pal-l, 0px);
+        top: var(--con-parl-pal-t, 0px);
+        width: var(--con-parl-pal-w, 45%);
+        height: var(--con-parl-pal-h, 70%);
+        grid-template-columns: minmax(0, 1fr);
+        /* The vote block's row is the old band's height PLUS the seam over it (its `padding-top`) — the block keeps its
+           own geometry to the pixel (the Deck's reserve vote: 95 px in a 93 px body without it). */
+        grid-template-rows: minmax(0, 1fr) calc(var(--con-parl-info-h) + .4rem);
+        row-gap: .9rem;
+        column-gap: 0;
+        padding: 1.1rem 1.2rem 1.1rem;
+        border-radius: 1rem;
+        pointer-events: auto;
+        transition: box-shadow calc(200ms * var(--motion-scale, 1)) @con-ease-standard;
+    }
+    .con-parl__vote--bill .con-parl__info { grid-template-columns: minmax(0, 1fr); }
+    /* The reading column: the head, then the reading — stacked, never side by side (the column is the chamber's). */
+    .con-parl__vote .con-parl__info-body { gap: .7rem; }
+    .con-parl__vote .con-parl__info-head { gap: .7rem; padding-bottom: .55rem; border-bottom: .05rem solid rgba(201, 198, 214, 0.16); }
+    .con-parl__vote .con-parl__info-emblem { width: 2.4rem; height: 2.4rem; }
+    .con-parl__vote .con-parl__info-name { font-size: 1.2rem; white-space: normal; line-height: 1.15; }
+    /* «ДЛЯ ВАС ПРИ ПРИНЯТИИ» IS THE PANEL'S BODY: one plate from under the head down to the vote block, the SAME box for
+       every bill (the stability law — a content-sized block re-centred 10–20 px on every ◀ ▶), its reading centred in it.
+       A law column / a party box (a door that pays the party) stands under it at its own height. */
+    .con-parl__vote .con-parl__info-main { flex: 1 1 auto; flex-direction: column; align-items: stretch; gap: .7rem; container: none; }
+    .con-parl__vote .con-parl__info-main > .con-parl__info-own { flex: 1 1 0; }
+    .con-parl__vote .con-parl__info-own { padding: .7rem .9rem .8rem; gap: .45rem; }
+    .con-parl__vote .con-parl__info-own-body { justify-content: center; }
+    .con-parl__vote .con-parl__info-vote { padding-top: .8rem; border-top: .05rem solid rgba(201, 198, 214, 0.16); }
+    /* The career stays where it is and DIMS (the cursor never reaches it while the mode stands). */
+    .con-parl__agenda { transition: opacity calc(220ms * var(--motion-scale, 1)) @con-ease-standard; }
+    &.con-parl--vote .con-parl__agenda { opacity: .32; }
+}
+html.con-profile-tv .con-parl.con-parl--hall {
+    .con-parl__vote .con-parl__info-emblem { width: 2.8rem; height: 2.8rem; }
+    .con-parl__vote .con-parl__info-name { font-size: 1.4rem; }
+}
+html.con-profile-handheld .con-parl.con-parl--hall {
+    .con-parl__vote .con-parl__info { padding: .6rem .7rem .7rem; row-gap: .5rem; }
+    .con-parl__vote .con-parl__info-emblem { width: 1.7rem; height: 1.7rem; }
+    .con-parl__vote .con-parl__info-name { font-size: .9rem; }
+}
+
+/* ══ «ДОСТУП» — the PARTY's dossier names the viewer's access as an OBJECT above «§ ПРАВИЛА» (Парламент v8 § 7): the
+   rules panel's material, the state's colour as the thin side edge (gold — rules · mint — yours · slate — not yours),
+   the party's seal in a ring, the viewer's places on its resolution with the count, the state in the glossary's words. ══ */
+.con-zoom-sidecol > .con-paccess { flex: 0 0 auto; }
+.con-paccess {
+    --paccess-accent: fade(#9fb3c8, 55%);
+    --paccess-tint: transparent;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: .55rem;
+    width: var(--con-rules-w, 20rem);
+    padding: .8rem 1rem .85rem 1.15rem;
+    border-radius: .8rem;
+    background: linear-gradient(180deg, rgba(15, 24, 36, 0.97) 0%, rgba(9, 15, 24, 0.965) 30%, rgba(6, 11, 19, 0.96) 100%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 24%), inset 0 .05rem 0 rgba(214, 236, 255, 0.09), 0 1.1rem 2.8rem rgba(0, 0, 0, 0.55),
+                inset 0 0 2.6rem var(--paccess-tint);
+    color: #e9eff7;
+    transition: opacity calc(90ms * var(--motion-scale, 1)) ease;
+    &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: .7rem;
+        bottom: .7rem;
+        width: .18rem;
+        border-radius: 0 .18rem .18rem 0;
+        background: var(--paccess-accent);
+    }
+    &--rules { --paccess-accent: fade(@con-parl-gold, 85%); --paccess-tint: fade(@con-parl-gold, 8%); }
+    &--holds { --paccess-accent: fade(@con-parl-mint, 85%); --paccess-tint: fade(@con-parl-mint, 8%); }
+    &--closing { opacity: 0; transition-duration: calc(60ms * var(--motion-scale, 1)); }
+    &__head { display: flex; align-items: center; gap: .75rem; min-width: 0; }
+    &__ring {
+        position: relative;
+        flex: 0 0 auto;
+        width: 3rem;
+        height: 3rem;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at 40% 35%, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.35));
+        box-shadow: inset 0 0 0 .12rem var(--paccess-accent), 0 0 1rem var(--paccess-tint);
+    }
+    &__seal { width: 74%; height: 74%; object-fit: contain; }
+    &--lacks &__seal { opacity: .7; }
+    &__ring-mark {
+        position: absolute;
+        right: -.25rem;
+        bottom: -.2rem;
+        min-width: 1.05rem;
+        height: 1.05rem;
+        padding: 0 .15rem;
+        border-radius: .55rem;
+        display: grid;
+        place-items: center;
+        font-size: .62rem;
+        line-height: 1;
+        color: #0b1018;
+        background: var(--paccess-accent);
+    }
+    &__crown { width: .75rem; height: .5rem; fill: #0b1018; }
+    &__headtext { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
+    &__kicker { font-size: .56rem; letter-spacing: .16em; text-transform: uppercase; color: rgba(140, 190, 235, 0.88); }
+    &__state { font-family: @con-font-read; font-weight: 400; font-size: .78rem; line-height: 1.3; color: #f2f5fa; }
+    &--rules &__state { color: @con-parl-gold-hi; }
+    &--holds &__state { color: @con-parl-mint; }
+    &__places {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        padding: .45rem .6rem;
+        border-radius: .55rem;
+        background: rgba(0, 0, 0, 0.28);
+        box-shadow: inset 0 0 0 .05rem rgba(150, 180, 210, 0.16);
+    }
+    &__places-label { flex: 1 1 auto; min-width: 0; font-size: .58rem; letter-spacing: .12em; text-transform: uppercase; color: rgba(205, 218, 232, 0.78); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    &__sockets { display: inline-flex; gap: .3rem; }
+    &__socket {
+        width: 1.25rem;
+        height: 1.25rem;
+        border-radius: .3rem;
+        display: grid;
+        place-items: center;
+        box-shadow: inset 0 0 0 .07rem rgba(170, 195, 220, 0.4);
+        &--on { box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 70%); }
+        &--void { visibility: hidden; }
+    }
+    &__count { font-size: .9rem; font-weight: 400; font-variant-numeric: tabular-nums; color: #f2f5fa; }
+    &__note { margin: 0; font-family: @con-font-read; font-size: .62rem; line-height: 1.35; color: rgba(205, 218, 232, 0.72); }
+}
+html.con-profile-tv .con-paccess {
+    .con-paccess__kicker, .con-paccess__places-label { font-size: .8rem; letter-spacing: .1em; }
+    .con-paccess__state { font-size: .9rem; }
+    .con-paccess__note { font-size: .82rem; }
+    .con-paccess__ring { width: 3.4rem; height: 3.4rem; }
+    .con-paccess__ring-mark { font-size: .8rem; min-width: 1.3rem; height: 1.3rem; }
+}
+html.con-profile-handheld .con-paccess {
+    gap: .35rem;
+    padding: .5rem .7rem .55rem .85rem;
+    .con-paccess__ring { width: 2.3rem; height: 2.3rem; }
+    .con-paccess__state { font-size: .66rem; }
+}

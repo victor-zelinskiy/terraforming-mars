@@ -1,9 +1,9 @@
 <template>
-  <!-- ══ THE CHAIRMAN QUEST'S DOSSIER (Парламент v8 § 7, the mock `d1`; the owner's point 5: X on the quest opens the
-       QUEST, never the ruling party). The viewer's three-zone grammar over the dimmed hall: the CHAIR (who sits in it,
-       what it gives) · the QUEST as an object (its printed condition large, the reward, the race of every seat, the
-       law it comes from) · § ПРАВИЛА (the condition, what counts, the reward) in words. Read-only; B or X closes. ══ -->
   <div class="con-parl-qd" data-parl-quest-dossier role="dialog" :aria-label="$t('Chairman quest')">
+    <!-- ══ THE CHAIRMAN QUEST'S DOSSIER (Парламент v8 § 7, the mock `d1`; the owner's point 5: X on the quest opens the
+         QUEST, never the ruling party). The viewer's three-zone grammar over the dimmed hall: the CHAIR (who sits in it,
+         what it gives) · the QUEST as an object (its printed condition large, the reward, the race of every seat, the
+         law it comes from) · § ПРАВИЛА (the condition, what counts, the reward) in words. Read-only; B or X closes. ══ -->
     <section class="con-parl-qd__side con-parl-qd__side--chair" data-parl-qd-chair>
       <span class="con-parl-qd__kicker con-parl-qd__kicker--gold">{{ $t('Chairman seat') }}</span>
       <span class="con-parl-qd__seat" :class="{'con-parl-qd__seat--held': chairman !== undefined}">

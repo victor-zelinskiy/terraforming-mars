@@ -41,6 +41,7 @@
  */
 
 import {gsap} from 'gsap';
+import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {
@@ -182,9 +183,14 @@ export function measureVoteRects(root: HTMLElement, opts: {press?: {x: number, y
 
 // ── element resolution ──────────────────────────────────────────────────────
 
-/** The overview's parts that RECEDE (everything but the voting plate and the carried slots — the head line is outside the field and never recedes). */
+/**
+ * The overview's parts that RECEDE (everything but the voting plate and the carried slots — the head line is outside
+ * the field and never recedes). In the HALL (v8) the CAREER stays: it DIMS under the panel (a CSS state of the
+ * section, `.con-parl--hall.con-parl--vote`) — the vote is read beside the track it pays on, never over an empty floor.
+ */
 function recedersOf(root: HTMLElement): Array<HTMLElement> {
-  return Array.from(root.querySelectorAll<HTMLElement>('[data-parl-recede]'));
+  const all = Array.from(root.querySelectorAll<HTMLElement>('[data-parl-recede]'));
+  return consoleParliamentUi.hall ? all.filter((el) => !el.hasAttribute('data-parl-agenda')) : all;
 }
 
 function plateOf(root: HTMLElement): HTMLElement | null {
@@ -529,7 +535,7 @@ export function parkParliamentBody(root: Element | null | undefined): void {
   if (root === null || root === undefined) {
     return;
   }
-  for (const el of Array.from(root.querySelectorAll<HTMLElement>('[data-parl-recede]'))) {
+  for (const el of recedersOf(root as HTMLElement)) {
     descendParkLayer(el);
   }
 }

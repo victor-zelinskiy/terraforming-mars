@@ -174,7 +174,8 @@ async function inspectText(page: Page, preset: string, name: string): Promise<st
   await settle(page, {timeoutMs: 8_000});
   await shoot(page, preset, name);
   const read = await page.evaluate(() => {
-    const text = Array.from(document.querySelectorAll('dialog.con-zoom[open] .con-zoom-rules'))
+    // Парламент v8 (§ 7): a party's access reads on the «ДОСТУП» object above the rules — the dossier's text is both.
+    const text = Array.from(document.querySelectorAll('dialog.con-zoom[open] [data-parl-access-panel], dialog.con-zoom[open] .con-zoom-rules'))
       .map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()).join(' | ');
     const overflow: Array<string> = [];
     for (const scroll of Array.from(document.querySelectorAll<HTMLElement>('dialog.con-zoom[open] .con-zoom-rules__scroll'))) {

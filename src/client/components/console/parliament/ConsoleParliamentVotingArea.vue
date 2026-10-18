@@ -8,7 +8,8 @@
   <div class="con-parl__voting"
        :class="{
          'con-parl__voting--focus': flow.zone === 'voting' && flow.stage === 'browse',
-         'con-parl__voting--carried': slotsCarried || flow.voteLeaving,
+         'con-parl__voting--carried': slotsCarried || (flow.voteLeaving && !hall),
+         'con-parl__voting--selecting': voteSelecting && hall,
          'con-parl__voting--lit': flow.stage === 'sitting' && (sittingStage === 'renewal' || sittingStage === 'results'),
        }"
        data-parl-voting>
@@ -31,7 +32,7 @@
         <Teleport v-else defer to="[data-parl-vrow]" :disabled="!slotsCarried">
           <div class="con-parl__slot"
                :class="{
-                 'con-parl__slot--selected': slotsCarried && flow.slotIndex === i,
+                 'con-parl__slot--selected': voteSelecting && flow.slotIndex === i,
                  'con-parl__slot--focus': flow.stage === 'browse' && flow.zone === 'voting' && flow.slotIndex === i,
                  'con-parl__slot--winning': winningShownOf(slot),
                  'con-parl__slot--lit': motion.litSlot === slot.instance,
@@ -50,8 +51,8 @@
             <div class="con-parl__card"
                  :class="{'con-parl__card--dealing': awaitingDeal(slot) || holds.liftedFaces.has(slot.instance)}"
                  :data-zoom-slot="'resolution:' + slot.resolutionId"
-                 :data-zoom-handoff="slotsCarried && flow.slotIndex === i ? 'parliament-vote' : undefined"
-                 :data-parl-vote-card="slotsCarried && flow.slotIndex === i ? '' : undefined">
+                 :data-zoom-handoff="voteSelecting && flow.slotIndex === i ? 'parliament-vote' : undefined"
+                 :data-parl-vote-card="voteSelecting && flow.slotIndex === i ? '' : undefined">
               <premium-card-face v-if="slotVms[i] !== undefined" :vmOverride="slotVms[i]" :lightweight="true" :artTier="artTier" :inert="true" />
               <!-- THE CROWN («Зал» v7): the table's ONE accent — the winner glyph on the bill's own corner, one form on
                    every profile, the word for assistive tech only. The VERDICT's mark (v4 §2.1) is the same object a
@@ -69,7 +70,7 @@
                  the vote mode, on the selected card — the PLACE the next
                  delegate takes (hollow until it lands: a forecast, never a
                  placement). -->
-            <div class="con-parl__ribbon" :class="{'con-parl__ribbon--dense': slot.votes.length > DENSE_RIBBON}" :data-votes="slot.totalVotes" :data-parl-vote-ribbon="slotsCarried && flow.slotIndex === i ? '' : undefined">
+            <div class="con-parl__ribbon" :class="{'con-parl__ribbon--dense': slot.votes.length > DENSE_RIBBON}" :data-votes="slot.totalVotes" :data-parl-vote-ribbon="voteSelecting && flow.slotIndex === i ? '' : undefined">
               <template v-if="slot.votes.length <= DENSE_RIBBON">
                 <span v-for="vote in slot.votes" :key="vote.seq" class="con-parl__vote-cube"
                       :class="{'con-parl__vote-cube--landed': vote.seq === flow.landedSeq || flow.landedSeqs.includes(vote.seq), 'con-parl__vote-cube--hidden': vote.seq === flow.flightSeq || flow.pendingSeqs.includes(vote.seq) || holds.hiddenCubes.has(slot.instance + '#' + vote.seq), 'con-parl__vote-cube--arrived': rival.arrived.has(slot.instance + '#' + vote.seq), 'con-parl__vote-cube--counted': countedOf(slot, vote.seq)}"
@@ -166,7 +167,7 @@ import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutio
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {translateTextWithParams} from '@/client/directives/i18n';
-import {parliamentFlow, parliamentSlotsCarried} from '@/client/console/parliament/consoleParliamentFlow';
+import {consoleParliamentUi, parliamentFlow, parliamentSlotsCarried, parliamentVoteSelecting} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {rivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {rallyMarked, rallyVoteKey, rallyWinnerShown} from '@/client/console/parliament/neutralRally';
@@ -254,6 +255,14 @@ export default defineComponent({
     /** The three slots are in the vote row (up, or folding back — the leave animates them home first). */
     slotsCarried(): boolean {
       return parliamentSlotsCarried();
+    },
+    /** The vote mode selects a bill — the selection paints on the slot wherever it stands (the hall keeps it on the table). */
+    voteSelecting(): boolean {
+      return parliamentVoteSelecting();
+    },
+    /** The Parliament is the hall (v8): the bills never leave the table for the vote. */
+    hall(): boolean {
+      return consoleParliamentUi.hall;
     },
     /**
      * THE SLOTS AS SHOWN: the live model — or, while the sitting HOLDS the

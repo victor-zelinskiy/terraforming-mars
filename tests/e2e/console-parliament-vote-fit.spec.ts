@@ -373,7 +373,8 @@ for (const preset of PRESETS) {
         expect(budget.words, `≤ ${WORD_LIMIT} words on the panel: «${budget.text}»`).toBeLessThanOrEqual(WORD_LIMIT);
         expect(budget.gone, 'what left the panel stays off it').toEqual([]);
         const metrics = await metricsOf(page);
-        expect((metrics.card?.h ?? 0) > (overviewCard?.height ?? 0) * 1.15, `the mode's card is larger than the overview's (${Math.round(overviewCard?.height ?? 0)} → ${metrics.card?.h})`).toBeTruthy();
+        // Парламент v8 (§ 5, the HALL): the bills do not move — the mode's card IS the overview's card.
+        expect(Math.abs((metrics.card?.h ?? 0) - Math.round(overviewCard?.height ?? 0)) <= 1, `the mode's card is the overview's (${Math.round(overviewCard?.height ?? 0)} → ${metrics.card?.h})`).toBeTruthy();
 
         // ── (д) the screenshot and the metrics
         const dir = path.join(OUT_ROOT, preset.id);

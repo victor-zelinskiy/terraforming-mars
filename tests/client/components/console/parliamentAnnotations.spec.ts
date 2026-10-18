@@ -103,6 +103,15 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     expect(new Set(all).size).to.eq(all.length);
   });
 
+  it('with the «ДОСТУП» object standing above the rules (v8 § 7) «for you» keeps ONLY the action\'s live state — the access rows are the object\'s', () => {
+    const blocks = partyAnnotations(PartyName.INDUSTRIALISTS, model(), 'blue', true, true);
+    expect(blocks.map((b) => b.labelKey)).to.deep.eq(['Party action', 'For you']);
+    expect(blocks[1].rows.map((r) => r.text)).to.deep.eq(['Action available this generation']);
+    const greens = partyAnnotations(PartyName.GREENS, model(), 'blue', undefined, true);
+    expect(greens.map((b) => b.labelKey), 'nothing left to say: no empty «for you», and no reference beside the object').to.not.include('For you');
+    expect(greens.map((b) => b.labelKey)).to.not.include('Access');
+  });
+
   it('the ONE reference line stands only for a reader with no «for you» (a spectator, no model) — never beside the state rows', () => {
     const spectator = partyAnnotations(PartyName.INDUSTRIALISTS, model(), 'yellow' as never, true);
     expect(spectator.map((b) => b.labelKey)).to.deep.eq(['Party action', 'Access']);

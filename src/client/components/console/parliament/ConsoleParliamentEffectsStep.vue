@@ -1,10 +1,10 @@
 <template>
-  <!-- ══ THE INNER STEP «ВАШИ ЭФФЕКТЫ» (Парламент v8 § 6, the mock `c1`): the FULL list of what the parliament gives the
-       viewer, opened from the overview's block — ДЕЙСТВИЯ on the left, ПОСТОЯННЫЕ ЭФФЕКТЫ on the right. It stands on
-       the CHAMBER's rect (the chamber and the table recede under it; the career stays), it titles nothing (the crumb
-       names it — «ПАРЛАМЕНТ › ВАШИ ЭФФЕКТЫ»), and it carries no verb (the bar's A uses the action under the cursor —
-       the same door the bench's A opens). ══ -->
   <div class="con-parl-fx" data-parl-effects-step :data-parl-effects-cursor="cursor">
+    <!-- ══ THE INNER STEP «ВАШИ ЭФФЕКТЫ» (Парламент v8 § 6, the mock `c1`): the FULL list of what the parliament gives the
+         viewer, opened from the overview's block — ДЕЙСТВИЯ on the left, ПОСТОЯННЫЕ ЭФФЕКТЫ on the right. It stands on
+         the CHAMBER's rect (the chamber and the table recede under it; the career stays), it titles nothing (the crumb
+         names it — «ПАРЛАМЕНТ › ВАШИ ЭФФЕКТЫ»), and it carries no verb (the bar's A uses the action under the cursor —
+         the same door the bench's A opens). ══ -->
     <section class="con-parl-fx__col con-parl-fx__col--actions" data-parl-effects-actions>
       <header class="con-parl-fx__head">
         <span class="con-parl-fx__kicker con-parl-fx__kicker--action">

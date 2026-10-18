@@ -482,7 +482,7 @@ export const SUPPORT_NUMBERS_KEY = '${0} → ${1} of ${2}';
 /** The rule of Popular Support a delegate grant's forecast stands on — the one sentence, printed by the inspector only. */
 export const SUPPORT_RULE_KEY = 'Neutral delegates in a party\'s Popular Support become votes on that party\'s next resolution. They do not vote on this one.';
 
-export function partyAnnotations(party: ReduxParty, model: ParliamentModel | undefined, viewer: Color | undefined, canActNow?: boolean): ReadonlyArray<CardAnnotation> {
+export function partyAnnotations(party: ReduxParty, model: ParliamentModel | undefined, viewer: Color | undefined, canActNow?: boolean, accessShown = false): ReadonlyArray<CardAnnotation> {
   const effect = getPartyEffect(party);
   if (effect === undefined) {
     return [];
@@ -497,7 +497,9 @@ export function partyAnnotations(party: ReduxParty, model: ParliamentModel | und
     const access = me?.access.find((a) => a.party === party);
     if (access !== undefined) {
       const enactedName = model.enacted === undefined ? undefined : translateText(getResolution(model.enacted.resolution)?.text.name ?? model.enacted.resolution);
-      const rows: Array<string | RowText> = accessReasonRows(access, {
+      // Парламент v8 (§ 7): where the dossier stands the «ДОСТУП» OBJECT above the rules (`ConsolePartyAccessPanel`), the
+      // access rows are ITS reading — «ДЛЯ ВАС» keeps only what the object does not say (the action's live state).
+      const rows: Array<string | RowText> = accessShown ? [] : accessReasonRows(access, {
         party,
         enactedEmpty: model.enacted === undefined,
         enactedName,
@@ -512,7 +514,9 @@ export function partyAnnotations(party: ReduxParty, model: ParliamentModel | und
       if (actionState !== undefined) {
         rows.push(actionState);
       }
-      out.push(block('group:you', 'note', 'For you', rows, 2));
+      if (rows.length > 0) {
+        out.push(block('group:you', 'note', 'For you', rows, 2));
+      }
       forYou = true;
     }
   }

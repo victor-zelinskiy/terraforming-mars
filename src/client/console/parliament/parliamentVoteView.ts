@@ -1,6 +1,6 @@
 import {Color} from '@/common/Color';
 import {PARLIAMENT_VOTE_COST} from '@/common/parliament/ParliamentTypes';
-import {parliamentFlow, parliamentSlotsCarried, parliamentVoteInFlight, VoteSnapshot} from './consoleParliamentFlow';
+import {parliamentFlow, parliamentVoteInFlight, parliamentVoteSelecting, VoteSnapshot} from './consoleParliamentFlow';
 import {parliamentHolds} from './parliamentDisplayHolds';
 import {rallyWinnerShown} from './neutralRally';
 import {ParliamentSlotVm, ParliamentTileVm, ParliamentViewVm} from './consoleParliamentModel';
@@ -107,13 +107,13 @@ export function winningShownOf(slot: ParliamentSlotVm, decided = false): boolean
 /** The hollow PLACE the next delegate takes: on the selected card, before the answer. */
 export function placeShownOn(index: number, benchWarn: boolean): boolean {
   const f = parliamentFlow;
-  return parliamentSlotsCarried() && f.slotIndex === index && !benchWarn &&
+  return parliamentVoteSelecting() && f.slotIndex === index && !benchWarn &&
     (f.stage === 'vote' || f.stage === 'submitting' || f.stage === 'paying');
 }
 
 /** WHICH of the viewer's places the next delegate leaves — marked on the zone while the mode stands, never on another player's group. */
 export function seatSourceOf(seatColor: Color, viewerColor: Color | undefined, benchSource: BenchSource, benchWarn: boolean): 'lobby' | 'reserve' | undefined {
-  if (!parliamentSlotsCarried() || seatColor !== viewerColor || benchWarn) {
+  if (!parliamentVoteSelecting() || seatColor !== viewerColor || benchWarn) {
     return undefined;
   }
   return benchSource === 'none' ? undefined : benchSource;

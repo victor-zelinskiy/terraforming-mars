@@ -53,7 +53,8 @@ async function shoot(page: Page, preset: string, name: string): Promise<void> {
 
 const parliament = (page: Page) => page.locator('.con-parl');
 const voteMode = (page: Page) => page.locator('.con-parl__vote.con-parl__vote--up');
-const rowSlots = (page: Page) => page.locator('.con-parl__vrow .con-parl__slot');
+/** Парламент v8 (§ 5, the HALL): the vote mode never carries the bills — they stay on the table, in their homes. */
+const rowSlots = (page: Page) => page.locator('.con-parl__slot-home .con-parl__slot');
 const pact = (page: Page, kind: string) => page.locator(`.con-pact[data-pact="${kind}"]`);
 
 /** Open the Parliament from the wheel (RT → down). */
@@ -68,7 +69,7 @@ async function openParliament(page: Page): Promise<void> {
 
 const partyFocused = (page: Page) => page.evaluate(() => document.querySelector('.con-parl__party--focus')?.getAttribute('data-party') ?? '');
 const selectedInstance = (page: Page) => page.evaluate(() => document.querySelector('.con-parl__slot--selected')?.getAttribute('data-instance') ?? '');
-const rowOrder = (page: Page) => page.evaluate(() => Array.from(document.querySelectorAll('.con-parl__vrow .con-parl__slot')).map((s) => s.getAttribute('data-instance')));
+const rowOrder = (page: Page) => page.evaluate(() => Array.from(document.querySelectorAll('.con-parl__slot-home .con-parl__slot')).map((s) => s.getAttribute('data-instance')));
 const infoName = (page: Page) => page.evaluate(() => (document.querySelector('.con-parl__info-res [data-parl-vote-body] .con-parl__info-name')?.textContent ?? '').trim());
 /** The footer at rest: the plate and each group's box (left + width) — a page turn may change their text, never these. */
 const footerGeometry = (page: Page) => page.evaluate(() => ['.card-zoom-actions__panel', '.con-rstatus', '.con-zoom__vote', '.con-zoom__cmd--flip', '.con-zoom__bar > .con-zoom__btn:last-child'].map((sel) => {
@@ -532,14 +533,38 @@ for (const preset of PRESETS) {
       const crumbInMode = (await crumbText(page)).toUpperCase();
       expect(crumbInMode, 'the crumb names the mode, not the card').toContain('ГОЛОСОВАНИЕ');
       expect(crumbInMode, 'the resolution\'s name is in its description, never in the crumb').not.toContain(slot0.resolution.toUpperCase());
-      // The SAME card reads a size up inside the mode — the cards are the event.
+      // Парламент v8 (§ 5, the HALL): THE BILLS DO NOT MOVE — the selected card is the overview's card, in its box;
+      // the panel unfolds on the chamber's rect beside the table.
       const modeCard = await page.locator('.con-parl__slot--selected .pcard').boundingBox();
       expect(modeCard, 'the selected card is measurable').not.toBeNull();
-      expect((modeCard?.height ?? 0) / (overviewCard?.height ?? 1), `the mode's card is visibly larger than the overview's (${Math.round(overviewCard?.height ?? 0)} → ${Math.round(modeCard?.height ?? 0)})`).toBeGreaterThan(1.15);
+      const moved = Math.max(Math.abs((modeCard?.x ?? 0) - (overviewCard?.x ?? 0)), Math.abs((modeCard?.y ?? 0) - (overviewCard?.y ?? 0)), Math.abs((modeCard?.height ?? 0) - (overviewCard?.height ?? 0)));
+      expect(moved, `the bill stands where it stood in the overview (${JSON.stringify(overviewCard)} → ${JSON.stringify(modeCard)})`).toBeLessThanOrEqual(1);
       await expectUniformGrid(page, `${preset.id} mode`);
-      await expect(rowSlots(page), 'the three slots stand in the row — the same instances').toHaveCount(3);
+      await expect(rowSlots(page), 'the three slots stay on the table — the same instances').toHaveCount(3);
       expect(await rowOrder(page), 'the tie order is kept').toEqual(before.slots.map((s) => s.instance));
-      await expect(page.locator('.con-parl__slot-home .con-parl__slot'), 'no slot is left in the overview').toHaveCount(0);
+      await expect(page.locator('.con-parl__vrow .con-parl__slot'), 'no slot is carried into a row').toHaveCount(0);
+      // The chamber RECEDES under the mode (a transform): its LAYOUT box is the panel's place, never its painted one.
+      const onChamber = await page.evaluate(() => {
+        const panel = document.querySelector<HTMLElement>('[data-parl-vote-surface]')?.getBoundingClientRect();
+        const pal = document.querySelector<HTMLElement>('[data-parl-palata]');
+        const field = pal?.closest<HTMLElement>('.con-parl__field');
+        if (panel === undefined || pal === null || pal === undefined || field === null || field === undefined) {
+          return 'unmeasurable';
+        }
+        let x = 0;
+        let y = 0;
+        let el: HTMLElement | null = pal;
+        while (el !== null && el !== field) {
+          x += el.offsetLeft;
+          y += el.offsetTop;
+          el = el.offsetParent as HTMLElement | null;
+        }
+        const f = field.getBoundingClientRect();
+        const want = {x: f.left + x, y: f.top + y, w: pal.offsetWidth, h: pal.offsetHeight};
+        const off = Math.max(Math.abs(panel.left - want.x), Math.abs(panel.top - want.y), Math.abs(panel.width - want.w), Math.abs(panel.height - want.h));
+        return off <= 2 ? 'ok' : `panel ${Math.round(panel.left)},${Math.round(panel.top)} ${Math.round(panel.width)}×${Math.round(panel.height)} · chamber ${Math.round(want.x)},${Math.round(want.y)} ${want.w}×${want.h}`;
+      });
+      expect(onChamber, 'the panel stands on the chamber layout rect').toBe('ok');
       await expect(page.locator('[data-parl-vote-card] .pcard'), 'the selected card').toHaveCount(1);
       await expectOneOfEach(page, before, `${preset.id} mode`);
       await expect(page.locator('.con-wshead [data-parl-zone]'), 'the zone stays on the head line inside the mode (one instance)').toHaveCount(1);
@@ -636,7 +661,6 @@ for (const preset of PRESETS) {
       expect(await pressUntil(page, 'Escape', async () => await voteMode(page).count() === 0, {tries: 3, settleMs: 1100}), 'B folds the vote mode').toBeTruthy();
       await settle(page, {timeoutMs: 8_000});
       await expect(page.locator('.con-parl__slot-home .con-parl__slot'), 'every slot is home').toHaveCount(3);
-      await expect(rowSlots(page)).toHaveCount(0);
       await expectOneOfEach(page, before, `${preset.id} after B`);
       expect(await parliament(page).getAttribute('data-zone'), 'the focus is where it was').toBe('voting');
       expect(await parliament(page).getAttribute('data-stage')).toBe('browse');
@@ -759,7 +783,7 @@ test.describe('parliament v4 · the paid vote · the bill inside the mode · the
     expect(await pressUntil(page, 'Enter', async () => await bill.count() > 0, {tries: 3, settleMs: 1500}), 'A restores the mode with its bill').toBeTruthy();
     await settle(page, {timeoutMs: 10_000});
     await expect(parliament(page)).toHaveAttribute('data-stage', 'paying');
-    await expect(rowSlots(page), 'the cards are still in the row').toHaveCount(3);
+    await expect(rowSlots(page), 'the bills still stand on the table').toHaveCount(3);
     await shoot(page, preset, '14-bill-restored');
 
     // ── RELOAD mid-bill: the server still owes the payment; the mode re-forms around it.
@@ -767,7 +791,7 @@ test.describe('parliament v4 · the paid vote · the bill inside the mode · the
     await expect(bill, 'the Parliament re-opens around the bill by itself; the vote mode resumed').toHaveCount(1, {timeout: 30_000});
     await expect(page.locator('.con-task-host:not(.con-task-host--embedded)'), 'never a standalone band after the reload').toHaveCount(0);
     await settle(page, {timeoutMs: 10_000});
-    await expect(page.locator('[data-parl-vote-card] .pcard'), 'the selected card is back in the row').toHaveCount(1);
+    await expect(page.locator('[data-parl-vote-card] .pcard'), 'the selected card is selected again on the table').toHaveCount(1);
     await expect(rowSlots(page)).toHaveCount(3);
     await shoot(page, preset, '15-bill-after-reload');
 

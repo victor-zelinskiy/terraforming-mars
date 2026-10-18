@@ -25,6 +25,7 @@
              'con-parl--stage': stagePanelUp,
              'con-parl--vote': voteUp,
              'con-parl--vote-leaving': flow.voteLeaving,
+             'con-parl--hall': hall,
              'con-parl--flying': flightsAirborne,
              'con-parl--swapping': motion.swapping,
              'con-parl--sitting': sittingUp,
@@ -474,6 +475,10 @@ export default defineComponent({
       const kind = parliamentStageKind();
       return kind === 'seat' || (kind === 'sitting' && this.sittingReading);
     },
+    /** THE HALL (Парламент v8 § 5): the section is its own workspace screen — not a step hosted in another's zone, not warming. */
+    hall(): boolean {
+      return !this.embedded && !this.warm;
+    },
     voteUp(): boolean {
       return parliamentVoteUp();
     },
@@ -824,6 +829,11 @@ export default defineComponent({
      * walk / rally, the sanctions. On the overview the objects speak for themselves and the head is the kicker.
      */
     bandShown(): boolean {
+      // The VOTE MODE is read on its own panel (v8 § 5): the table's head stays its calm kicker — the overview's
+      // reading line («ОБЗОР · принимается …») under a vote would name the browse layer the player has left.
+      if (this.voteUp) {
+        return false;
+      }
       return parliamentFlow.stage !== 'browse' || this.sittingUp || this.supportUp || this.rallyUp || this.walkUp;
     },
     /**
@@ -1019,6 +1029,13 @@ export default defineComponent({
       immediate: true,
       handler(cmds: ReadonlyArray<ConsoleCommand>): void {
         consoleParliamentUi.commands = [...cmds];
+      },
+    },
+    /** THE HALL (v8 § 5): a Parliament that is its own screen keeps the bills on the table for the vote. */
+    'hall': {
+      immediate: true,
+      handler(on: boolean): void {
+        consoleParliamentUi.hall = on;
       },
     },
     /** The vote mode's PAYMENT zone — published once the mode's DOM stands (post-flush: a teleport into a zone not yet rendered drops its content). */
@@ -1434,6 +1451,7 @@ export default defineComponent({
     killParliamentEnactMotion(this.$refs.rootEl as HTMLElement | undefined);
     freezeParliamentFit(false);
     consoleParliamentUi.commands = [];
+    consoleParliamentUi.hall = false;
     consoleParliamentUi.voteStanding = false;
     consoleParliamentUi.stageStanding = false;
     consoleParliamentUi.fieldStanding = false;
@@ -1544,6 +1562,26 @@ export default defineComponent({
       field.style.setProperty('--con-parl-mid-top', `${Math.max(0, Math.round(z.top - f.top))}px`);
       field.style.setProperty('--con-parl-mid-bottom', `${Math.max(0, Math.round(f.bottom - z.bottom))}px`);
       field.style.setProperty('--con-parl-mid-left', `${Math.max(0, Math.round(z.left - f.left))}px`);
+      // THE CHAMBER'S RECT (v8 § 5): the hall's vote panel unfolds exactly on it. LAYOUT offsets up the offsetParent
+      // chain, never a painted rect — the vote mode RECEDES this very plate (a transform), and a re-publish while it
+      // stands receded (a resize mid-vote) must still name the place it recedes FROM.
+      const pal = field.querySelector<HTMLElement>('[data-parl-palata]');
+      if (pal !== null) {
+        let x = 0;
+        let y = 0;
+        let el: HTMLElement | null = pal;
+        while (el !== null && el !== field) {
+          x += el.offsetLeft;
+          y += el.offsetTop;
+          el = el.offsetParent as HTMLElement | null;
+        }
+        if (el === field) {
+          field.style.setProperty('--con-parl-pal-l', `${Math.round(x)}px`);
+          field.style.setProperty('--con-parl-pal-t', `${Math.round(y)}px`);
+          field.style.setProperty('--con-parl-pal-w', `${Math.round(pal.offsetWidth)}px`);
+          field.style.setProperty('--con-parl-pal-h', `${Math.round(pal.offsetHeight)}px`);
+        }
+      }
     },
     // ── input ──────────────────────────────────────────────────────────
     handleIntent(intent: GamepadIntent): void {

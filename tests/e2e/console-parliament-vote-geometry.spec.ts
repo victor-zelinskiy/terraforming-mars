@@ -30,7 +30,7 @@ async function armGeometryProbe(page: Page): Promise<void> {
     };
     const sample = () => {
       const boxes: Record<string, Box> = {};
-      document.querySelectorAll<HTMLElement>('.con-parl__vrow .con-parl__slot').forEach((el) => {
+      document.querySelectorAll<HTMLElement>('.con-parl__slot[data-instance]').forEach((el) => {
         boxes[`slot:${el.getAttribute('data-instance')}`] = box(el);
         const card = el.querySelector('.con-parl__card');
         if (card !== null) {

@@ -97,14 +97,14 @@
                                            :note="voteInfo.reading.note"
                                            :levy="voteInfo.reading.levy"
                                            :person="voteInfo.reading.person"
-                                           size="compact"
+                                           :size="readingSize"
                                            data-parl-vote-yield
                                            data-parl-vote-reading />
                     <ConsolePartyReaction v-for="r in voteInfo.reading.reactions" :key="r.reaction.id"
                                           class="con-parl__info-reaction"
                                           :reading="r"
                                           :withCaption="false"
-                                          size="compact"
+                                          :size="readingSize"
                                           data-parl-vote-reaction />
                     <!-- THE COLONY TABLE (Unity Budget): the law's own line — it depends on nothing of the
                          seat's and never enters the net; the tiles read in the inspector. -->
@@ -119,7 +119,7 @@
                                          class="con-parl__info-ledger"
                                          :reading="voteInfo.reading.ledger"
                                          :person="voteInfo.reading.person"
-                                         size="compact"
+                                         :size="readingSize"
                                          data-parl-vote-ledger />
                     <!-- A TILE GRANTED BY THRESHOLD (Skyscrapers): the viewer's own standing — theirs at this
                          influence or only by winning — and the cities on Mars the tier may land on. -->
@@ -127,7 +127,7 @@
                                       class="con-parl__info-grant"
                                       :reading="voteInfo.reading.grant"
                                       :person="voteInfo.reading.person"
-                                      size="compact"
+                                      :size="readingSize"
                                       variant="inline"
                                       data-parl-vote-grant />
                   </div>
@@ -304,7 +304,7 @@ import {stagedDoorVerb} from '@/client/console/parliament/parliamentCommands';
 import {probeTick} from '@/client/console/probeTick';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {
-  parliamentFlow, parliamentRootEl, parliamentSupportInFlight, parliamentVoteInFlight, parliamentVoteSubject, parliamentVoteUp,
+  consoleParliamentUi, parliamentFlow, parliamentRootEl, parliamentSupportInFlight, parliamentVoteInFlight, parliamentVoteSubject, parliamentVoteUp,
 } from '@/client/console/parliament/consoleParliamentFlow';
 import {fitParliamentCards, freezeParliamentFit} from '@/client/console/parliament/parliamentCardFit';
 import {
@@ -391,6 +391,13 @@ export default defineComponent({
     };
   },
   computed: {
+    /**
+     * THE READING'S SIZE: the hall's panel is the chamber's whole rect (v8 § 5) — the one number reads at the
+     * panel's own scale; the band of a hosted door keeps its compact pieces.
+     */
+    readingSize(): 'compact' | 'normal' {
+      return consoleParliamentUi.hall ? 'normal' : 'compact';
+    },
     flow() {
       return parliamentFlow;
     },
