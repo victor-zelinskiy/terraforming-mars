@@ -53,7 +53,15 @@
         <div v-for="row in effectRows" :key="row.party" class="con-parl__effects-row" :class="'con-parl__effects-row--' + row.why" :data-party="row.party" :style="{'--parl-accent': partyAccent(row.party)}">
           <img class="con-parl__effects-emblem" :src="emblemUrl(row.party)" alt="" />
           <ConsolePartyFormula class="con-parl__effects-formula" :party="row.party" size="compact" />
-          <span class="con-parl__effects-why">{{ $t(whyKey(row.why)) }}</span>
+          <!-- WHY it is yours, by a MARK («Зал» v7, П2): the ruler's formula needs none (its place under the medallion
+               says it), your delegates' are their two filled places, a card's grant is the card glyph; the words stay
+               for assistive tech and the reading line. -->
+          <span class="con-parl__effects-why" :class="'con-parl__effects-why--' + row.why" :data-parl-effects-why="row.why" :aria-label="$t(whyKey(row.why))">
+            <template v-if="row.why === 'delegates'">
+              <span v-for="n in 2" :key="n" class="con-parl__effects-place" aria-hidden="true"><PlayerCube v-if="viewerColor !== undefined" :color="viewerColor" :size="cubePx(9)" :glow="false" /></span>
+            </template>
+            <i v-else-if="row.why === 'granted'" class="con-parl__card-mark resource_icon resource_icon--cards" aria-hidden="true"></i>
+          </span>
         </div>
       </div>
     </div>
@@ -65,6 +73,7 @@ import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
+import PlayerCube from '@/client/components/PlayerCube.vue';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
@@ -78,13 +87,14 @@ import {fitParliamentCards} from '@/client/console/parliament/parliamentCardFit'
 import {CardArtTier} from '@/client/cards/cardArt';
 import {AgendaVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {partyTileKey} from '@/client/console/parliament/partyActionKey';
+import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 
 /** WHY the viewer holds a party's effect — the strip's one word per row. */
 type EffectWhy = 'ruling' | 'delegates' | 'granted';
 
 export default defineComponent({
   name: 'ConsoleParliamentGovernment',
-  components: {ConsolePartyFormula, PremiumMechanicsPanel},
+  components: {ConsolePartyFormula, PlayerCube, PremiumMechanicsPanel},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
@@ -208,6 +218,9 @@ export default defineComponent({
     },
   },
   methods: {
+    cubePx(px: number): number {
+      return Math.round(conLogicalPx(px));
+    },
     whyKey(why: EffectWhy): string {
       switch (why) {
       case 'ruling': return 'for everyone';

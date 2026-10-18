@@ -23,9 +23,10 @@
           <!-- (v3 В6) It explains itself EXACTLY like the empty slot beside it — a place that says «пусто» next to
                a mute place of the same size was the emptier of the two. The label names the place, the plate says
                why it is empty: this card has just been enacted, or has just been discarded. -->
-          <div class="con-parl__slot-label"><span class="con-parl__slot-party">{{ $t('Empty slot') }}</span></div>
-          <div class="con-parl__slot-empty-card" data-parl-slot-empty-card aria-hidden="true"></div>
-          <span class="con-parl__slot-empty-reason">{{ $t(holds.departed.has(slot.instance) ? 'Discarded — it left the table' : 'Enacted — it left the table') }}</span>
+          <!-- «Зал» v7 (П2): the empty place is its OUTLINE — no label, no sentence; WHY it is empty rides the node
+               for the probes and the reading line. -->
+          <div class="con-parl__slot-empty-card" data-parl-slot-empty-card aria-hidden="true"
+               :data-parl-slot-empty-why="holds.departed.has(slot.instance) ? 'discarded' : 'enacted'"></div>
         </div>
         <Teleport v-else defer to="[data-parl-vrow]" :disabled="!slotsCarried">
           <div class="con-parl__slot"
@@ -46,31 +47,22 @@
                :data-order="slot.tiePriority"
                :data-votes="slot.totalVotes"
                :data-parl-slot-awaiting="awaitingDeal(slot) ? '' : undefined">
-            <div class="con-parl__slot-label">
-              <img class="con-parl__slot-emblem" :src="emblemUrl(slot.party)" alt="" />
-              <span class="con-parl__slot-party">{{ $t(partyNameKey(slot.party)) }}</span>
-              <!-- ONE form per profile (P-12): the word on the 1080/TV label row, the winner glyph with its hint on the Deck — never two forms of one fact on one screen. -->
-              <span v-if="winningShownOf(slot)" class="con-parl__slot-win" :class="{'con-parl__slot-win--glyph': glyphBadge}" :data-hint="glyphBadge ? $t('Winning') : undefined"><span class="con-parl__slot-win-text">{{ $t('Winning') }}</span></span>
-              <!-- THE VERDICT'S OWN MARK (v4 §2.1). The live «принимается» badge is deliberately OFF once the vote
-                   is decided (P-17: the server has already re-ranked the table for the NEXT vote, so the live
-                   badge would name a card the verdict does not), and in table mode there is no panel to read the
-                   verdict from — so the sitting brings its own mark, sourced from the SUMMARY: the card that won,
-                   and the seat that carried it, as a cube in the chip. It stands only while the verdict is the
-                   subject; past the enactment the table is refreshed and this chip would be two facts at once. -->
-              <span v-else-if="sittingWinnerInstance === slot.instance" class="con-parl__slot-win con-parl__slot-win--verdict"
-                    :class="{'con-parl__slot-win--glyph': glyphBadge}" :data-hint="glyphBadge ? $t('Winning') : undefined" data-parl-slot-verdict>
-                <span class="con-parl__slot-win-text">{{ $t('Winning') }}</span>
-                <PlayerCube v-if="sittingWinnerColor !== undefined" class="con-parl__slot-win-cube"
-                            :color="sittingWinnerColor === 'neutral' ? 'neutral' : sittingWinnerColor"
-                            :steel="sittingWinnerColor === 'neutral'" :size="cubePx(11)" :glow="false" />
-              </span>
-            </div>
             <div class="con-parl__card"
                  :class="{'con-parl__card--dealing': awaitingDeal(slot) || holds.liftedFaces.has(slot.instance)}"
                  :data-zoom-slot="'resolution:' + slot.resolutionId"
                  :data-zoom-handoff="slotsCarried && flow.slotIndex === i ? 'parliament-vote' : undefined"
                  :data-parl-vote-card="slotsCarried && flow.slotIndex === i ? '' : undefined">
               <premium-card-face v-if="slotVms[i] !== undefined" :vmOverride="slotVms[i]" :lightweight="true" :artTier="artTier" :inert="true" />
+              <!-- THE CROWN («Зал» v7): the table's ONE accent — the winner glyph on the bill's own corner, one form on
+                   every profile, the word for assistive tech only. The VERDICT's mark (v4 §2.1) is the same object a
+                   step brighter, carrying the seat that won as a cube; it stands only while the verdict is the subject. -->
+              <span v-if="winningShownOf(slot)" class="con-parl__slot-win con-parl__slot-win--glyph" :data-hint="$t('Winning')" :aria-label="$t('Winning')" role="img"></span>
+              <span v-else-if="sittingWinnerInstance === slot.instance" class="con-parl__slot-win con-parl__slot-win--verdict con-parl__slot-win--glyph"
+                    :data-hint="$t('Winning')" :aria-label="$t('Winning')" role="img" data-parl-slot-verdict>
+                <PlayerCube v-if="sittingWinnerColor !== undefined" class="con-parl__slot-win-cube"
+                            :color="sittingWinnerColor === 'neutral' ? 'neutral' : sittingWinnerColor"
+                            :steel="sittingWinnerColor === 'neutral'" :size="cubePx(11)" :glow="false" />
+              </span>
             </div>
             <!-- THE DELEGATE RIBBON — every delegate on the card, in placement
                  order (the order that breaks a tie among players), and — in
@@ -110,11 +102,11 @@
             <div class="con-parl__tally" data-parl-tally>
               <span class="con-parl__tally-line">
                 <span class="con-parl__tally-total">
-                  <b :key="'t' + tallyOf(slot, i).votes" class="con-parl__tally-num con-parl__tick">{{ tallyOf(slot, i).votes }}</b>
-                  <span class="con-parl__tally-unit">{{ delegatesWord(tallyOf(slot, i).votes) }}</span>
+                  <!-- «Зал» v7: the number alone — the ribbon above IS the delegates; the leader is its first cube, said
+                       once more here as the cube beside the count (a11y: the sentence). -->
+                  <b :key="'t' + tallyOf(slot, i).votes" class="con-parl__tally-num con-parl__tick" :aria-label="tallyOf(slot, i).votes + ' ' + delegatesWord(tallyOf(slot, i).votes)">{{ tallyOf(slot, i).votes }}</b>
                 </span>
-                <span v-if="tallyOf(slot, i).leader !== undefined" class="con-parl__tally-row con-parl__tally-row--leader" data-parl-leader>
-                  <span class="con-parl__tally-key">{{ $t('Leader') }}</span>
+                <span v-if="tallyOf(slot, i).leader !== undefined" class="con-parl__tally-row con-parl__tally-row--leader" data-parl-leader :aria-label="$t('Leader')">
                   <PlayerCube v-if="tallyOf(slot, i).leader !== 'neutral'" :color="tallyOf(slot, i).leader" :size="cubePx(12)" :glow="false" />
                   <PlayerCube v-else color="neutral" steel :size="cubePx(12)" :glow="false" />
                 </span>
@@ -128,18 +120,14 @@
                      same motion instead of jumping) — the moment the effect becomes the viewer's is read, never blinked. -->
                 <span v-if="viewerParticipates && viewerColor !== undefined" class="con-parl__tally-row con-parl__tally-row--mine"
                       :class="{'con-parl__tally-row--held': tallyOf(slot, i).mine >= slot.viewerEffectDelegates}" data-parl-mine
-                      :data-parl-mine-threshold="slot.viewerEffectDelegates">
-                  <span class="con-parl__tally-key">{{ $t('Yours') }}</span>
-                  <span class="con-parl__places" aria-hidden="true">
+                      :data-parl-mine-threshold="slot.viewerEffectDelegates" :data-parl-mine-count="tallyOf(slot, i).mine" :aria-label="$t('Yours') + ' ' + tallyOf(slot, i).mine + '/' + slot.viewerEffectDelegates">
+                  <!-- «Зал» v7: the two filled places ARE «effect is yours» — no phrase; the marker rides the places for the probes. -->
+                  <span class="con-parl__places" aria-hidden="true" :data-parl-held="tallyOf(slot, i).mine >= slot.viewerEffectDelegates ? '' : undefined">
                     <span v-for="n in PARTY_EFFECT_PLACES" :key="n" class="con-parl__place"
                           :class="{'con-parl__place--on': n <= tallyOf(slot, i).mine && n <= slot.viewerEffectDelegates, 'con-parl__place--void': n > slot.viewerEffectDelegates}"
                           :data-parl-place-void="n > slot.viewerEffectDelegates ? '' : undefined">
                       <PlayerCube v-if="n <= tallyOf(slot, i).mine && n <= slot.viewerEffectDelegates" :color="viewerColor" :size="cubePx(10)" :glow="false" />
                     </span>
-                  </span>
-                  <b :key="'m' + tallyOf(slot, i).mine" class="con-parl__tick">{{ tallyOf(slot, i).mine }}</b>
-                  <span class="con-parl__tally-heldwell" :class="{'con-parl__tally-heldwell--on': tallyOf(slot, i).mine >= slot.viewerEffectDelegates}" aria-hidden="true">
-                    <span class="con-parl__tally-held" :data-parl-held="tallyOf(slot, i).mine >= slot.viewerEffectDelegates ? '' : undefined">{{ $t('effect is yours') }}</span>
                   </span>
                 </span>
               </span>
@@ -159,11 +147,8 @@
            the enactment beat; the outline stays. -->
       <div v-for="n in emptySlotCount" :key="'empty-' + n" class="con-parl__slot-home con-parl__slot-home--empty" data-parl-slot-empty :data-parl-slot-empty-held="holds.parked !== undefined ? 'true' : undefined" data-parl-body-item>
         <div class="con-parl__slot-empty">
-          <div class="con-parl__slot-label">
-            <span v-if="holds.parked === undefined" class="con-parl__slot-party">{{ $t('Empty slot') }}</span>
-          </div>
-          <div class="con-parl__slot-empty-card" data-parl-slot-empty-card aria-hidden="true"></div>
-          <span v-if="holds.parked === undefined" class="con-parl__slot-empty-reason">{{ $t(emptySlotReason) }}</span>
+          <!-- «Зал» v7 (П2): the outline alone; WHY the deck could not fill it rides the node for the reading line. -->
+          <div class="con-parl__slot-empty-card" data-parl-slot-empty-card aria-hidden="true" :data-parl-slot-empty-why="holds.parked === undefined ? emptySlotReason : undefined"></div>
         </div>
       </div>
     </div>

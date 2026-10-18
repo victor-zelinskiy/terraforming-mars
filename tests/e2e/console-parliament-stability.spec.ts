@@ -136,6 +136,18 @@ for (const preset of PARLIAMENT_PRESETS) {
       }
       await focusParliamentZone(page, 'ruler');
       await check('focus the ruler\'s tile');
+      // «Зал» v7: the ENGINE under the ruler, then the edge's STOPS (◀ ▶ walk them inside the one ring stop) — the
+      // focused stop enlarges by a transform and nothing else moves.
+      await press(page, 'ArrowDown', 350);
+      await check('↓ the engine');
+      await press(page, 'ArrowRight', 350);
+      await check('→ the first stop');
+      for (let i = 0; i < 3; i++) {
+        await press(page, 'ArrowRight', 350);
+        await check(`stops → ${i + 2}`);
+      }
+      await press(page, 'ArrowUp', 350);
+      await check('↑ back to the table');
       await focusParliamentZone(page, 'parties');
       await check('back to parties');
     });

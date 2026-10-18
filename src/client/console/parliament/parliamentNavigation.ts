@@ -37,6 +37,15 @@ function seatOnOpposition(view: ParliamentViewVm, preferred: number): void {
 }
 
 /** The opposition's last cursor in the column — remembered across the ring, so ◀ ▶ return to the same row. */
+/** Enter the career edge ON the viewer's next stop (the one their next advance lands on), else the first. */
+function seatOnTrack(view: ParliamentViewVm, index?: number): void {
+  const f = parliamentFlow;
+  const stops = view.agenda.length;
+  const next = Math.min(stops, (view.viewer?.agenda ?? 0) + 1);
+  f.zone = 'agenda';
+  f.agendaIndex = Math.max(1, Math.min(stops, index ?? next));
+}
+
 function seatOnTable(view: ParliamentViewVm, index: number): void {
   parliamentFlow.zone = 'voting';
   parliamentFlow.slotIndex = Math.max(0, Math.min(Math.max(0, view.slots.length - 1), index));
@@ -67,7 +76,7 @@ export function navigateParliamentZones(dir: 'up' | 'down' | 'left' | 'right', v
         seatOnOpposition(view, idx >= 0 && row.includes(idx) ? idx : (row[0] ?? 0));
       }
     } else if (dir === 'down') {
-      f.zone = 'agenda';
+      seatOnTrack(view);
     }
     return;
   // A Parliament restored with the retired zone (a save, a parked stack) lands on the medallion that replaced it.
@@ -85,12 +94,21 @@ export function navigateParliamentZones(dir: 'up' | 'down' | 'left' | 'right', v
     if (dir === 'up') {
       f.zone = 'ruler';
     } else if (dir === 'right') {
-      f.zone = 'agenda';
+      // The engine is the track's head: ▶ steps onto the FIRST stop.
+      seatOnTrack(view, 1);
     }
     return;
   case 'agenda':
+    // «Зал» v7: ◀ ▶ walk the stops (one ring stop, twelve inner stops — the Hydronetwork rail's idiom);
+    // ◀ past the first is the engine, ▲ is the table.
     if (dir === 'left') {
-      f.zone = 'engine';
+      if (f.agendaIndex > 1) {
+        f.agendaIndex -= 1;
+      } else {
+        f.zone = 'engine';
+      }
+    } else if (dir === 'right') {
+      f.agendaIndex = Math.min(view.agenda.length, f.agendaIndex + 1);
     } else if (dir === 'up') {
       seatOnTable(view, f.slotIndex);
     }
@@ -104,7 +122,7 @@ export function navigateParliamentZones(dir: 'up' | 'down' | 'left' | 'right', v
       if (pos < row.length - 1) {
         f.partyIndex = row[pos + 1] ?? f.partyIndex;
       } else {
-        f.zone = 'agenda';
+        seatOnTrack(view);
       }
     } else if (dir === 'left') {
       seatOnTable(view, view.slots.length - 1);

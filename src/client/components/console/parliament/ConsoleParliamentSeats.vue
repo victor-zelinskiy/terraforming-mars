@@ -16,21 +16,20 @@
         <PlayerCube :color="seat.color" :size="cubePx(11)" :glow="false" />
         <span class="con-parl__seat-name">{{ seat.name }}</span>
       </span>
-      <span class="con-parl__seat-place" :class="{'con-parl__seat-place--source': seatSourceOf(seat) === 'lobby'}" data-parl-seat-place="lobby">
-        <span class="con-parl__seat-key">{{ $t('Lobby') }}</span>
+      <span class="con-parl__seat-place" :class="{'con-parl__seat-place--source': seatSourceOf(seat) === 'lobby'}" data-parl-seat-place="lobby" :aria-label="$t('Lobby')">
         <span class="con-parl__seat-obj">
           <span class="con-parl__socket con-parl__socket--seat" :class="{'con-parl__socket--empty': !seat.lobby}" :data-parl-seat-lobby="seat.color">
             <PlayerCube v-if="seat.lobby" :color="seat.color" :size="cubePx(RIBBON_CUBE)" :glow="false" />
           </span>
         </span>
       </span>
-      <span class="con-parl__seat-place" :class="{'con-parl__seat-place--source': seatSourceOf(seat) === 'reserve', 'con-parl__seat-place--incoming': seat.incoming > 0}" data-parl-seat-place="reserve">
+      <span class="con-parl__seat-place" :class="{'con-parl__seat-place--source': seatSourceOf(seat) === 'reserve', 'con-parl__seat-place--incoming': seat.incoming > 0}" data-parl-seat-place="reserve" :aria-label="$t('Reserve')">
         <!-- A delegate is on its way HOME (the sitting's enactment beat): the
              reserve's key says so with a quiet arrow — a mark that lives on
              the key's own line (absolute, opacity only: nothing shifts). -->
         <!-- The «→ reserve» mark exists ONLY while a cube is on its way back (absolute, zero layout — a
              standing invisible glyph read as cut text to the fit probes). -->
-        <span class="con-parl__seat-key">{{ $t('Reserve') }}<span v-if="seat.incoming > 0" class="con-parl__seat-incoming con-parl__seat-incoming--on" :data-parl-seat-incoming="seat.incoming" aria-hidden="true">←</span></span>
+        <span v-if="seat.incoming > 0" class="con-parl__seat-incoming con-parl__seat-incoming--on" :data-parl-seat-incoming="seat.incoming" aria-hidden="true">←</span>
         <span class="con-parl__seat-obj">
           <!-- THE LANDING FRAME: a returning delegate's touchdown re-keys the stack, whose one-shot ring plays
                on mount and ends on its own animationend — the reserve place answers the arrival where the eye
@@ -51,8 +50,7 @@
       </span>
       <!-- A SOURCE, marked like the viewer's own place, while the vote mode's door also pays the selected
            card's party out of this supply (`neutralSource`) — the second source of the press, named before it. -->
-      <span class="con-parl__seat-place" :class="{'con-parl__seat-place--source': neutralSource}" data-parl-seat-place="neutral" :data-parl-neutral-source="neutralSource ? '' : undefined">
-        <span class="con-parl__seat-key">{{ $t('Reserve') }}</span>
+      <span class="con-parl__seat-place" :class="{'con-parl__seat-place--source': neutralSource}" data-parl-seat-place="neutral" :data-parl-neutral-source="neutralSource ? '' : undefined" :aria-label="$t('Reserve')">
         <span class="con-parl__seat-obj">
           <span class="con-parl__stack con-parl__stack--seat" :class="{'con-parl__stack--empty': neutralSupplyShown === 0}" data-parl-neutral-cube :data-count="neutralSupplyShown">
             <span v-for="n in Math.min(neutralSupplyShown, 3)" :key="n" class="con-parl__stack-cube" :data-stack="n">
@@ -75,8 +73,7 @@
          СБРОС РЕЗОЛЮЦИЙ» was the 280 px (4K) that kept a two-seat table from standing beside the widest crumb
          («ПРЕДСЕДАТЕЛЬСТВО › КАРЬЕРА») — the zone folded under it and the tiers below lost a line. -->
     <div class="con-parl__seat con-parl__seat--deck" data-parl-deck>
-      <span class="con-parl__seat-place">
-        <span class="con-parl__seat-key">{{ $t('Deck') }}</span>
+      <span class="con-parl__seat-place" :aria-label="$t('Deck')">
         <span class="con-parl__seat-obj">
           <span class="con-parl__deck" :class="{'con-parl__deck--empty': deckShown === 0}" :data-count="deckShown" data-parl-deck-pile aria-hidden="true">
             <span v-if="deckLayers >= 2" class="con-parl__deck-layer con-parl__deck-layer--2"></span>
@@ -86,8 +83,7 @@
           <b :key="'d' + deckShown" class="con-parl__seat-count con-parl__tick">×{{ deckShown }}</b>
         </span>
       </span>
-      <span class="con-parl__seat-place con-parl__seat-place--discard" data-parl-discard>
-        <span class="con-parl__seat-key">{{ $t('Discard pile') }}</span>
+      <span class="con-parl__seat-place con-parl__seat-place--discard" data-parl-discard :aria-label="$t('Discard pile')">
         <span class="con-parl__seat-obj">
           <span class="con-parl__deck con-parl__deck--discard" :class="{'con-parl__deck--empty': discardShown === 0}" :data-count="discardShown" data-parl-discard-pile aria-hidden="true">
             <span v-if="discardLayers >= 2" class="con-parl__deck-layer con-parl__deck-layer--2"></span>

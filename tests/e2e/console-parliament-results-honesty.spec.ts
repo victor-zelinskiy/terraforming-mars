@@ -60,7 +60,8 @@ const ZONE_WORDS: ReadonlyArray<{zone: string, selector: string, why: string}> =
     why: 'the ruling party is the plaque standing in the government, with «ПРАВИТ» on it'},
   {zone: 'government/quest', selector: '.con-parl__quest-text',
     why: 'the chairman quest is its own block — with progress, reward and the chair'},
-  {zone: 'delegates-ledger', selector: '.con-parl__seats .con-parl__seat-key',
+  // «Зал» v7: the ledger has no captions any more (the socket and the stack speak) — its WORDS are the seats' names.
+  {zone: 'delegates-ledger', selector: '.con-parl__seats .con-parl__seat-name',
     why: 'the lobby socket and the reserve stack are stated per seat, permanently, at the top of the screen'},
   {zone: 'voting-area', selector: '.con-parl__slot .con-parl__card .pcard__title',
     why: 'the freshly dealt resolutions stand on the table the whole time the panel is up'},

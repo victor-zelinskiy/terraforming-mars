@@ -152,7 +152,7 @@ async function expectFits(page: Page, label: string): Promise<void> {
     const reading = '.con-pseal__name, .con-pseal__state-text, .con-parl__tally-row, .con-parl__seat, .con-parl__cta-cost, ' +
       '.con-parl__quest-text, .con-parl__quest-reward, .con-parl__slot-win, .con-parl__slot-party, .con-parl__kicker, ' +
       '.con-parl__txn-row, .con-parl__fact-key, .con-parl__fact-val, .con-parl__info-name, .con-parl__info-kicker, ' +
-      '.con-parl__seat-name, .con-parl__seat-key, .con-parl__info-src-text, .con-parl__cta-label, .con-parl__slot-empty-reason';
+      '.con-parl__seat-name, .con-parl__info-src-text, .con-parl__cta-label, .con-parl__slot-empty-reason';
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(reading))) {
       if (!visible(el)) {
         continue;
@@ -184,7 +184,8 @@ async function expectUniformGrid(page: Page, label: string): Promise<void> {
     const slots = Array.from(document.querySelectorAll<HTMLElement>('.con-parl__slot'));
     const tops = (sel: string) => slots.map((s) => Math.round(s.querySelector(sel)?.getBoundingClientRect().top ?? -1));
     const heights = (sel: string) => slots.map((s) => Math.round(s.querySelector(sel)?.getBoundingClientRect().height ?? -1));
-    return {label: tops('.con-parl__slot-label'), card: tops('.con-parl__card .pcard'), ribbon: tops('.con-parl__ribbon'), tally: tops('.con-parl__tally'), cardH: heights('.con-parl__card .pcard')};
+    // «Зал» v7: three rows — the bill, the ribbon, the tally (the label row is gone; the crown stands on the bill).
+    return {card: tops('.con-parl__card .pcard'), ribbon: tops('.con-parl__ribbon'), tally: tops('.con-parl__tally'), cardH: heights('.con-parl__card .pcard')};
   });
   for (const [row, tops] of Object.entries(rows)) {
     expect(new Set(tops).size, `${label}: the ${row} row stands at one y in every slot (${tops.join(', ')})`).toBe(1);

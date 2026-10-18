@@ -120,7 +120,10 @@
     }
     &__effects-emblem { grid-row: 1 / 3; width: 1.35rem; height: 1.35rem; object-fit: contain; }
     &__effects-formula { --con-pformula-zoom: var(--con-parl-effects-zoom); justify-self: start; min-width: 0; max-width: 100%; }
-    &__effects-why { font-size: .5rem; letter-spacing: .1em; text-transform: uppercase; color: fade(#e9eef4, 60%); white-space: nowrap; }
+    &__effects-why { display: inline-flex; align-items: center; gap: .14rem; min-height: .6rem; font-size: .5rem; letter-spacing: .1em; text-transform: uppercase; color: fade(#e9eef4, 60%); white-space: nowrap; }
+    /* The mark's two places — the party-effect threshold's own idiom (the tally's «ваши ▢▢»). */
+    &__effects-place { display: inline-flex; align-items: center; justify-content: center; width: .62rem; height: .62rem; border-radius: .14rem; box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.28); background: rgba(0, 0, 0, 0.3); }
+    &__effects-why--granted .con-parl__card-mark { width: .7rem; height: .7rem; }
     &__ruler-own { margin-top: 0; padding-top: 0; border-top: none; align-items: flex-start; gap: .1rem; }
     &__ruler-own-mech { zoom: var(--con-parl-effects-zoom); padding: 0; }
 
@@ -152,7 +155,7 @@
        right under its label and the ribbon right under the bill — the cell's air splits above and below the group,
        never between the bill and its own ribbon. The fit engine budgets the bill from the cell minus the chrome. */
     &__slot, &__slot-empty {
-        grid-template-rows: var(--con-parl-slot-label-h) auto var(--con-parl-slot-ribbon-h) var(--con-parl-slot-tally-h);
+        grid-template-rows: auto var(--con-parl-slot-ribbon-h) var(--con-parl-slot-tally-h);
         align-content: center;
     }
     &__slots { align-items: stretch; }
@@ -223,6 +226,14 @@
     &__step--influence &__step-node { opacity: .78; }
     &__step--passed &__step-node, &__step--here &__step-node { opacity: 1; }
     &__step--next &__step-node { opacity: 1; transform: scale(1.18); }
+    /* THE STOP UNDER THE CURSOR («Зал» v7): the edge is ONE ring stop whose twelve inner stops are walked with ◀ ▶ —
+       the focused stop enlarges and wears the cursor's ring on its node (`.con-cursor-glow()`: the glide tweens the
+       markers, never the nodes, so a lift would be safe — but the node's own `--next` scale is the same channel, so
+       the cursor's size is written here and the ring rides `--con-cursor-on`). The edge's plate keeps a faint tint. */
+    &__step-node { .con-cursor-glow(); border-radius: 50%; }
+    &__step--cursor &__step-node { .con-cursor-on(); opacity: 1; transform: scale(1.45); }
+    /* The edge's own ring stands down while a stop carries the cursor (the stop IS the cursor's host now). */
+    &__agenda--focus { --con-cursor-on: 0; }
     &__step--start &__step-node {
         opacity: 1;
         transform: none;

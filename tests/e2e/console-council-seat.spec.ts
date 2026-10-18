@@ -130,13 +130,13 @@ async function mineRowOf(page: Page, party: string): Promise<MineRow> {
   return page.evaluate((p) => {
     const slot = document.querySelector(`.con-parl__slot[data-party="${p}"]`);
     const row = slot?.querySelector('[data-parl-mine]');
-    const text = (el: Element | null) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     return {
       threshold: row?.getAttribute('data-parl-mine-threshold') ?? null,
       places: row?.querySelectorAll('.con-parl__place').length ?? -1,
       on: row?.querySelectorAll('.con-parl__place--on').length ?? -1,
       voids: row?.querySelectorAll('[data-parl-place-void]').length ?? -1,
-      count: text(row?.querySelector('b') ?? null),
+      // «Зал» v7: the slot prints the places alone — the count rides the row's data attribute.
+      count: row?.getAttribute('data-parl-mine-count') ?? '',
       held: row?.querySelector('[data-parl-held]') !== null && row?.querySelector('[data-parl-held]') !== undefined,
     };
   }, party);
@@ -151,10 +151,12 @@ async function plaqueOf(page: Page, party: string): Promise<Plaque> {
     const places = plaque?.querySelector('.con-pseal__places') ?? null;
     return {
       live: places?.getAttribute('data-pseal-places') ?? null,
-      count: text(plaque?.querySelector('.con-pseal__places-count') ?? null),
+      // «Зал» v7: the MEDALLION prints the places alone — the digits ride the places' data attribute, and the held
+      // WORD is the READING LINE's (the party under the cursor), never the row's.
+      count: places?.getAttribute('data-pseal-count') ?? '',
       on: places?.querySelectorAll('.con-pseal__place--on').length ?? -1,
       voids: places?.querySelectorAll('[data-pseal-place-void]').length ?? -1,
-      word: text(plaque?.querySelector('.con-pseal__state-text') ?? null),
+      word: Array.from(document.querySelectorAll('.con-parl .con-band [data-parl-band-chip="label"] .con-band__text')).map((el) => text(el)).find((t) => t === 'Эффект ваш') ?? '',
       action: plaque?.querySelector('.con-pseal__action')?.getAttribute('data-action-state') ?? null,
       kind: plaque?.querySelector('.con-pseal__state')?.getAttribute('data-state-kind') ?? null,
     };

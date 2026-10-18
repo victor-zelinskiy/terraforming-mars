@@ -100,13 +100,14 @@
            (a card lowered it — TR36 «Место в совете») is VOID: hidden, its room kept, so the law changing under a
            standing cube lights the place and moves nothing (the support sockets' own idiom). The count reads the
            viewer's threshold — «1/1», never «1/2» — beside a single live place. -->
-      <span v-if="roll === '' && pick === undefined && reason === '' && showPlaces && viewerColor !== undefined" class="con-pseal__places" :data-pseal-places="liveCount" aria-hidden="true">
+      <span v-if="roll === '' && pick === undefined && reason === '' && showPlaces && viewerColor !== undefined" class="con-pseal__places" :data-pseal-places="liveCount" :data-pseal-count="Math.min(state?.delegates ?? 0, liveCount) + '/' + liveCount" aria-hidden="true">
         <span v-for="n in placesCount" :key="n" class="con-pseal__place"
               :class="{'con-pseal__place--on': n <= (state?.delegates ?? 0) && n <= liveCount, 'con-pseal__place--void': n > liveCount}"
               :data-pseal-place="n" :data-pseal-place-void="n > liveCount ? '' : undefined">
           <PlayerCube v-if="n <= (state?.delegates ?? 0) && n <= liveCount" :color="viewerColor" :size="placeCubePx" :glow="false" />
         </span>
-        <span class="con-pseal__places-count">{{ Math.min(state?.delegates ?? 0, liveCount) }}/{{ liveCount }}</span>
+        <!-- «Зал» v7: the MEDALLION sizes read the places alone (the digits are the dossier's). -->
+        <span v-if="size !== 'row' && size !== 'ruler'" class="con-pseal__places-count">{{ Math.min(state?.delegates ?? 0, liveCount) }}/{{ liveCount }}</span>
       </span>
       <!-- The held WORD enters as a phrase when it ARRIVES on a standing tile (a one-shot on its own node — the node is keyed on
            its text; a tile mounted already holding plays nothing): the moment the effect becomes the viewer's is read, not blinked. -->
@@ -277,8 +278,10 @@ export default defineComponent({
       case 'ruling-default': return translateText('Ruling');
       case 'ruling': return translateText('Ruling');
       // The same word order as the voting columns' «ЭФФЕКТ ВАШ» (glossary §3, R-04) — the keys' RU line.
-      case 'delegates': return translateText('Your effect');
-      case 'granted': return translateText('Your effect · granted by a card');
+      // «Зал» v7: a MEDALLION row says «yours» by its mint ring, its plate and its filled places — the words stay
+      // for the plaque's larger sizes (the dossier, the composer) and for the reading line.
+      case 'delegates': return this.size === 'row' ? '' : translateText('Your effect');
+      case 'granted': return this.size === 'row' ? '' : translateText('Your effect · granted by a card');
       default: return '';
       }
     },

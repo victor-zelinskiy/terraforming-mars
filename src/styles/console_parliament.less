@@ -642,8 +642,9 @@
         flex: 1 1 auto;
         display: grid;
         grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: var(--con-parl-slot-label-h) minmax(0, 1fr) var(--con-parl-slot-ribbon-h) var(--con-parl-slot-tally-h);
-        grid-template-areas: "label" "card" "ribbon" "tally";
+        /* «Зал» v7: no label row — the bill prints its party, the crown stands on it. */
+        grid-template-rows: minmax(0, 1fr) var(--con-parl-slot-ribbon-h) var(--con-parl-slot-tally-h);
+        grid-template-areas: "card" "ribbon" "tally";
         row-gap: .25rem;
         padding: .4rem .45rem .35rem;
         border-radius: .55rem;
@@ -678,9 +679,10 @@
     &__slot {
         display: grid;
         grid-template-columns: minmax(0, 1fr);
-        /* FIXED chrome rows: the card row is the only one that flexes. */
-        grid-template-rows: var(--con-parl-slot-label-h) minmax(0, 1fr) var(--con-parl-slot-ribbon-h) var(--con-parl-slot-tally-h);
-        grid-template-areas: "label" "card" "ribbon" "tally";
+        /* FIXED chrome rows: the card row is the only one that flexes. «Зал» v7: no label row — the bill prints its
+           party's seal, the crown stands on the bill, the reading line names the party under the cursor. */
+        grid-template-rows: minmax(0, 1fr) var(--con-parl-slot-ribbon-h) var(--con-parl-slot-tally-h);
+        grid-template-areas: "card" "ribbon" "tally";
         row-gap: .25rem;
         padding: .4rem .45rem .35rem;
         border-radius: .55rem;
@@ -721,6 +723,11 @@
     &__slot-emblem { width: 1.15rem; height: 1.15rem; object-fit: contain; flex-shrink: 0; }
     &__slot-party { font-weight: 700; letter-spacing: .04em; text-transform: uppercase; font-size: .68rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #f3f0e8; }
     &__slot-win {
+        /* «Зал» v7: ON the bill's corner (the card box is the anchor), never a row of its own. */
+        position: absolute;
+        top: .3rem;
+        right: .3rem;
+        z-index: 2;
         margin-left: auto;
         display: inline-flex;
         align-items: center;
@@ -738,7 +745,7 @@
         /* Beside a LONG party name the same gold chip says it with the vote's
            winner glyph; the word stays for assistive tech (`partyNameLong`). */
         &--glyph {
-            position: relative;
+            position: absolute;
             display: inline-flex;
             align-items: center;
             padding: .08rem .32rem;
@@ -754,12 +761,18 @@
     &__slot-win--verdict { background: fade(@con-parl-gold, 24%); box-shadow: inset 0 0 0 .06rem fade(@con-parl-gold, 80%); }
     &__card {
         grid-area: card;
+        position: relative;
         zoom: var(--con-parl-card-zoom);
         display: flex;
         align-items: center;
         justify-content: center;
         min-height: 0;
         min-width: 0;
+        /* «Зал» v7: the box HUGS the face, so the crown's corner is the face's corner (not the cell's). */
+        width: max-content;
+        max-width: 100%;
+        justify-self: center;
+        align-self: center;
         .pcard { will-change: transform; }
     }
     /* THE DELEGATE RIBBON — cubes in placement order (the order the tie rule reads). */
@@ -939,6 +952,7 @@
     & &__seat--neutral .con-parl__seat-name { max-width: none; }
     /* A PLACE — its micro-key over the object it names: «lobby» over the socket, «reserve» over the stack. */
     &__seat-place {
+        position: relative;
         display: inline-flex;
         flex-direction: column;
         align-items: center;
@@ -950,6 +964,7 @@
         &--source { background: fade(@con-parl-mint, 10%); box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 70%), 0 0 .7rem fade(@con-parl-mint, 18%); }
     }
     &__seat-key { position: relative; font-size: .44rem; line-height: 1; letter-spacing: .1em; text-transform: uppercase; opacity: .55; }
+
     /* A DELEGATE ON ITS WAY HOME (the sitting's return flights): a quiet
        arrow beside the reserve's key — absolute, opacity only, so the mark
        never moves the socket or its neighbours; the key brightens with it. */

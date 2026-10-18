@@ -60,8 +60,9 @@ export function fitParliamentCards(): void {
   const heightOf = (host: Element, sel: string): number => host.querySelector<HTMLElement>(sel)?.offsetHeight ?? 0;
   const snap = (zoom: number, min: number): number => Math.max(min * scale, Math.floor(zoom * 1000) / 1000);
   const slots = Array.from(root.querySelectorAll<HTMLElement>('.con-parl__slot'));
+  // «Зал» v7: the slot is THREE rows (the bill · the ribbon · the tally) — the label row is gone, so two gaps.
   const chromeOf = (slot: HTMLElement): number =>
-    heightOf(slot, '.con-parl__slot-label') + heightOf(slot, '.con-parl__ribbon') + heightOf(slot, '.con-parl__tally');
+    heightOf(slot, '.con-parl__ribbon') + heightOf(slot, '.con-parl__tally');
 
   if (parliamentSlotsCarried()) {
     // THE VOTE ROW: each card takes its column's height minus the slot's
@@ -71,7 +72,7 @@ export function fitParliamentCards(): void {
       const slot = slots[0];
       const cs = getComputedStyle(slot);
       const chrome = Math.max(...slots.map(chromeOf));
-      const availH = slot.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom) - chrome - px(cs.rowGap) * 3;
+      const availH = slot.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom) - chrome - px(cs.rowGap) * 2;
       const availW = slot.clientWidth - px(cs.paddingLeft) - px(cs.paddingRight);
       const zoom = Math.min(availH / PCARD_H, availW / PCARD_W, MAX_VOTE_ZOOM * scale);
       root.style.setProperty('--con-parl-vote-zoom', String(snap(zoom, MIN_VOTE_ZOOM)));
@@ -80,7 +81,7 @@ export function fitParliamentCards(): void {
     const slot = slots[0];
     const cs = getComputedStyle(slot);
     const chrome = Math.max(...slots.map(chromeOf));
-    const availH = slot.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom) - chrome - px(cs.rowGap) * 3;
+    const availH = slot.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom) - chrome - px(cs.rowGap) * 2;
     const availW = slot.clientWidth - px(cs.paddingLeft) - px(cs.paddingRight);
     const cap = consoleLayoutState.profile === 'tv' ? MAX_CARD_ZOOM_TV : MAX_CARD_ZOOM;
     const zoom = Math.min(availH / PCARD_H, availW / PCARD_W, cap * scale);

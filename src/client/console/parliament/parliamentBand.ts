@@ -186,7 +186,9 @@ export type BandFocus =
   | {kind: 'ruler', party: ReduxParty, resolution?: ResolutionId}
   | {kind: 'party', party: ReduxParty, inArea: boolean, mine: number, threshold: number, held: boolean, support: number, action: string, participates: boolean}
   | {kind: 'engine', text?: string, count?: number, mine?: number, chairman?: Color, completedBy?: Color}
-  | {kind: 'agenda', position: number, influence: number, participates: boolean, next?: {kind: 'tr' | 'card' | 'influence', influence?: number}};
+  | {kind: 'agenda', position: number, influence: number, participates: boolean, next?: {kind: 'tr' | 'card' | 'influence', influence?: number},
+     /** The STOP under the cursor («Зал» v7 — the edge is walked): its index and its reward. */
+     stop?: {index: number, kind: 'tr' | 'card' | 'influence', influence?: number}};
 
 /** What the OVERVIEW's line reads off the table when no sitting stands. */
 export type BandStanding = {
@@ -530,10 +532,21 @@ function focusLine(focus: BandFocus): BandLine {
     }
     return {kicker: 'Chairman quest', key: ['focus:engine', focus.text ?? '', focus.mine ?? '', focus.chairman ?? '', focus.completedBy ?? ''].join(':'), chips, committed: false};
   case 'agenda':
+    // «Зал» v7: the stop under the cursor reads FIRST — its number and its reward — then the viewer's standing.
+    if (focus.stop !== undefined) {
+      chips.push(focus.stop.kind === 'influence' ?
+        {kind: 'agenda', to: focus.stop.index, level: focus.stop.influence ?? 0} :
+        {kind: 'agenda', to: focus.stop.index, bonus: focus.stop.kind});
+    }
     if (focus.participates) {
-      chips.push({kind: 'agenda', to: focus.position, level: focus.influence});
+      // The viewer's own stop — only once they have one (the start is no stop) and only when it is not the one read.
+      if (focus.position > 0 && (focus.stop === undefined || focus.stop.index !== focus.position)) {
+        chips.push({kind: 'agenda', to: focus.position, level: focus.influence});
+      }
       chips.push({kind: 'count', key: 'Influence', amount: focus.influence});
-      if (focus.next !== undefined) {
+      if (focus.stop !== undefined) {
+        // The reading is the stop's — the «next reward» tail belongs to the standing cursor-less line only.
+      } else if (focus.next !== undefined) {
         chips.push({kind: 'label', key: 'next reward', tone: 'quiet'});
         chips.push(focus.next.kind === 'influence' ?
           {kind: 'agenda', to: focus.position + 1, level: focus.next.influence ?? focus.influence + 1} :
@@ -542,7 +555,7 @@ function focusLine(focus: BandFocus): BandLine {
         chips.push({kind: 'label', key: 'end of the track', tone: 'quiet'});
       }
     }
-    return {kicker: 'Agenda track', key: ['focus:agenda', focus.position, focus.influence, focus.next?.kind ?? ''].join(':'), chips, committed: false};
+    return {kicker: 'Agenda track', key: ['focus:agenda', focus.position, focus.influence, focus.next?.kind ?? '', focus.stop?.index ?? ''].join(':'), chips, committed: false};
   }
 }
 

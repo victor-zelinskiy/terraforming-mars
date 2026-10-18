@@ -7,9 +7,9 @@
   <div class="con-parl__agenda" :class="{'con-parl__agenda--focus': flow.zone === 'agenda' && flow.stage === 'browse'}" data-parl-agenda data-parl-recede>
     <div class="con-parl__agenda-head">
       <span class="con-parl__kicker">{{ $t('Agenda track') }}</span>
-      <span v-if="view.viewer !== undefined" class="con-parl__agenda-me">
+      <!-- «Зал» v7: the symbol says «влияние» — the word is the reading line's (and the label's for assistive tech). -->
+      <span v-if="view.viewer !== undefined" class="con-parl__agenda-me" :aria-label="$t('Influence')">
         <PlayerCube :color="view.viewer.color" :size="cubePx(12)" :glow="false" />
-        <span class="con-parl__chip-dim">{{ $t('Influence') }}</span>
         <!-- The influence BADGE — the same asset the resolution faces print
              in their formulas, so «влияние» reads as one symbol everywhere. -->
         <i class="con-parl__inf-icon" aria-hidden="true"></i>
@@ -48,8 +48,10 @@
              'con-parl__step--here': step.viewerHere,
              'con-parl__step--passed': viewerParticipates && step.index < shown.viewerPosition,
              'con-parl__step--pulse': agendaPulseStep === step.index,
+             'con-parl__step--cursor': flow.zone === 'agenda' && flow.stage === 'browse' && flow.agendaIndex === step.index,
            }]"
            :data-step="step.index"
+           :data-parl-stop-cursor="flow.zone === 'agenda' && flow.stage === 'browse' && flow.agendaIndex === step.index ? '' : undefined"
            @animationend="onStepPulseEnd($event, step.index)">
           <span class="con-parl__step-node">
             <template v-if="step.step.kind === 'influence'"><i class="con-parl__step-res con-parl__step-res--inf" aria-hidden="true"></i><span class="con-parl__step-level">{{ step.step.influence }}</span></template>

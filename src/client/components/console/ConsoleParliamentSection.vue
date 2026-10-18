@@ -810,11 +810,13 @@ export default defineComponent({
         };
       }
       case 'agenda': {
+        const stop = this.view.agenda[parliamentFlow.agendaIndex - 1];
         const me = view.viewer;
         const next = this.agendaVm.nextStep;
         return {
           kind: 'agenda', position: me?.agenda ?? 0, influence: me?.influence ?? 0, participates: this.viewerParticipates,
           ...(next === undefined ? {} : {next: {kind: next.kind, ...(next.kind === 'influence' ? {influence: next.influence} : {})}}),
+          ...(stop === undefined ? {} : {stop: {index: stop.index, kind: stop.step.kind, ...(stop.step.kind === 'influence' ? {influence: stop.step.influence} : {})}}),
         };
       }
       default:
