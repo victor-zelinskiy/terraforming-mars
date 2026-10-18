@@ -28,7 +28,7 @@ import {openParliament, PARLIAMENT_PRESETS, parliament} from './parliamentDrive'
  */
 const OUT_DIR = path.resolve('screenshots', 'parliament-v7', 'budget');
 
-/** The overview's zones, by their root selector — v6 names today; the v7 names join this list in Ф2. */
+/** The overview's zones, by their root selector («Зал» v7: the head's ledger · the government · the table · the reading line · the opposition column · the career edge). */
 const ZONES: Array<[string, string]> = [
   ['seats', '.con-parl__seats'],
   ['government', '.con-parl__gov'],
@@ -167,6 +167,15 @@ for (const preset of PRESETS) {
         expect(budget.zones[zone]?.units ?? 0, `zone ${zone} counted`).toBeGreaterThan(0);
       }
       expect(budget.total.units).toBeGreaterThan(20);
+      // THE BUDGET (Ф3, «Зал» v7 — the plan's § 9.1 calibrated on the chamber): the overview stood at 129–130 units before
+      // the rework and at 76 (gen 2) / 85 (gen 1) after Ф3's slices; the ceiling is set a step above with no room for a
+      // caption to creep back. ZERO PROSE outside the reading line: the band is where sentences live by design (it reads
+      // the object under the cursor — a resolution's title is two words), every other zone speaks in objects, kickers
+      // and names. The guard reads the DOM, so a new «Резолюция ещё не принята» fails here, not on a photo of the TV.
+      expect(budget.total.units, `the overview's information budget (${budget.total.units} units)`).toBeLessThanOrEqual(90);
+      const proseOutsideTheLine = budget.prose.filter((p) => p.zone !== 'band');
+      expect(proseOutsideTheLine, 'no prose on the overview outside the reading line').toEqual([]);
+      expect(budget.total.kickers, `kickers (${budget.total.kickers})`).toBeLessThanOrEqual(20);
     });
   }
 }

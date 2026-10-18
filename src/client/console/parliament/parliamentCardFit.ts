@@ -22,6 +22,8 @@ export const MAX_CARD_ZOOM_TV = 1.0;
 export const MIN_CARD_ZOOM = 0.3;
 /** The enacted face — the government's second object, under the medallion. */
 export const MAX_GOV_ZOOM = 1.0;
+/** …and the EMPTY outline (no bill enacted yet) stops here — a prepared place, never a void the size of the column. */
+export const MAX_GOV_EMPTY_ZOOM = 0.62;
 export const MIN_GOV_ZOOM = 0.2;
 /** The payout stage's carried card — the scene's hero, beside the recipient zone. */
 export const MAX_ENACT_ZOOM = 1.05;
@@ -105,6 +107,9 @@ export function fitParliamentCards(): void {
         .reduce((sum, child) => sum + (child as HTMLElement).offsetHeight, 0);
       const taken = others + px(rcs.rowGap) * Math.max(0, ruling.children.length - 1);
       govZoom = Math.min(govZoom, (innerH - taken) / PCARD_H, (innerW * GOV_CARD_SHARE) / PCARD_W);
+      if (carry !== null && carry.hasAttribute('data-parl-gov-empty')) {
+        govZoom = Math.min(govZoom, MAX_GOV_EMPTY_ZOOM * scale);
+      }
     }
     root.style.setProperty('--con-parl-gov-zoom', String(snap(govZoom, MIN_GOV_ZOOM)));
   }
