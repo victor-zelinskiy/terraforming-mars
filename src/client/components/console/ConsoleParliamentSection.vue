@@ -88,7 +88,7 @@
            ЭФФЕКТЫ» across both under them — and the TABLE right of it (the hero); the CAREER under everything. A change
            of government is a short move inside the plate (a bench ↔ the dais), and slot 1 stands next to the dais (the
            tie goes to the bill nearest the enacted law). ══ -->
-      <div class="con-parl__chamber" data-parl-chamber>
+      <div class="con-parl__chamber" :class="{'con-parl__chamber--step': flow.stage === 'effects'}" data-parl-chamber>
         <!-- The vote mode and a hosted step let the WHOLE plate recede (one object — its kickers, benches, dais and
              effects together; the v8 vote panel takes this rect in П3). -->
         <div class="con-parl__palata" data-parl-palata data-parl-recede>
@@ -108,6 +108,13 @@
                                     :focused="flow.zone === 'effects' && flow.stage === 'browse'" />
         </div>
 
+        <!-- THE INNER STEP «ВАШИ ЭФФЕКТЫ» (Парламент v8 § 6): A on the block opens the full list ON the chamber's rect —
+             the chamber and the table recede under it, the career stays; B folds it back onto the block. -->
+        <transition name="con-parl-fxstep">
+          <div v-if="flow.stage === 'effects'" class="con-parl__fxstep" data-parl-fxstep>
+            <ConsoleParliamentEffectsStep :model="effectsStepModel" :cursor="flow.effectsCursor" />
+          </div>
+        </transition>
         <div class="con-parl__mid" data-parl-mid ref="midEl">
           <!-- THE TABLE'S HEAD (v8): ONE cell of fixed height over the bills — the kicker «ГОЛОСОВАНИЕ» on the overview
                (the objects speak for themselves: the crown, the count, the access rings), the reading line of a beat in
@@ -161,6 +168,10 @@
                                :sittingStep="sittingStep" :handedOver="sceneHandedOver" />
     </div>
 
+    <!-- THE CHAIRMAN QUEST'S DOSSIER (Парламент v8 § 7): X on the quest reads the QUEST (the owner's point 5). -->
+    <transition name="con-parl-qd">
+      <ConsoleParliamentQuestDossier v-if="questDossierOpen && view.quest !== undefined" :view="view" :players="pv.players" :viewerColor="viewerColor" />
+    </transition>
     <ConsoleParliamentVoteMode ref="voteMode"
                                :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor" :viewerParticipates="viewerParticipates"
                                :awaitingInput="awaitingInput" :bridge="bridge" :voteTile="voteTile" :winningSlot="winningSlot"
@@ -192,6 +203,10 @@ import ConsoleParliamentParties from '@/client/components/console/parliament/Con
 import ConsoleParliamentAgenda from '@/client/components/console/parliament/ConsoleParliamentAgenda.vue';
 import ConsoleParliamentVoteMode from '@/client/components/console/parliament/ConsoleParliamentVoteMode.vue';
 import ConsoleParliamentEffects from '@/client/components/console/parliament/ConsoleParliamentEffects.vue';
+import ConsoleParliamentEffectsStep from '@/client/components/console/parliament/ConsoleParliamentEffectsStep.vue';
+import ConsoleParliamentQuestDossier from '@/client/components/console/parliament/ConsoleParliamentQuestDossier.vue';
+import {EffectItemsInput, parliamentEffectItems} from '@/client/console/parliament/parliamentEffectsModel';
+import {effectsStepCursorMove, EffectsStepEntry, EffectsStepModel, isEffectsAction, parliamentEffectsStep} from '@/client/console/parliament/parliamentEffectsStepModel';
 import ConsoleParliamentSeatPick from '@/client/components/console/parliament/ConsoleParliamentSeatPick.vue';
 import ConsoleParliamentSitting from '@/client/components/console/parliament/ConsoleParliamentSitting.vue';
 import ConsoleParliamentSupportMode from '@/client/components/console/parliament/ConsoleParliamentSupportMode.vue';
@@ -252,6 +267,7 @@ import {
 import {ParliamentBeat} from '@/client/console/parliament/parliamentBeat';
 import {finishParliamentFlights, flyCube, flySeatDelegate, killParliamentFlights, parliamentFlightsAirborne, placeCubeRect, scheduleHurriedParliamentBeat, setParliamentFlightsHurried} from '@/client/console/parliament/parliamentFlights';
 import {rivalVotes, runRivalVotes, settleRivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
+import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {fitParliamentCards, freezeParliamentFit} from '@/client/console/parliament/parliamentCardFit';
 import {parliamentCommandsOf} from '@/client/console/parliament/parliamentCommands';
 import {ParliamentInspectRequest} from '@/client/console/parliament/parliamentInspect';
@@ -286,7 +302,7 @@ export default defineComponent({
   name: 'ConsoleParliamentSection',
   components: {
     ConsoleWsHead, ConsoleParliamentSeats, ConsoleParliamentGovernment, ConsoleParliamentVotingArea, ConsoleParliamentBand,
-    ConsoleParliamentParties, ConsoleParliamentAgenda, ConsoleParliamentVoteMode, ConsoleParliamentSeatPick, ConsoleParliamentSitting, ConsoleParliamentEffects,
+    ConsoleParliamentParties, ConsoleParliamentAgenda, ConsoleParliamentVoteMode, ConsoleParliamentSeatPick, ConsoleParliamentSitting, ConsoleParliamentEffects, ConsoleParliamentEffectsStep, ConsoleParliamentQuestDossier,
     ConsoleParliamentSupportMode,
   },
   props: {
@@ -324,6 +340,8 @@ export default defineComponent({
   emits: ['close', 'submit', 'notice', 'inspect', 'inspect-source', 'open-action', 'open-resolution-action', 'flow-complete', 'collapse', 'staged-back', 'to-board'],
   data() {
     return {
+      /** The chairman quest's DOSSIER stands over the hall (X on the quest — Парламент v8 § 7). */
+      questDossierOpen: false,
       /** The seat / sitting stage is folding back — its DOM stays for the leave beat. */
       stageLeaving: false,
       /**
@@ -605,6 +623,30 @@ export default defineComponent({
     focusedSlot(): ParliamentSlotVm | undefined {
       return this.view.slots[parliamentFlow.slotIndex];
     },
+    /** «ВАШИ ЭФФЕКТЫ»'s sources as SHOWN (the sitting's holds keep the previous government until its beat) — the block's and the step's one input. */
+    effectsInput(): EffectItemsInput {
+      return {
+        view: this.view,
+        ruler: parliamentHolds.rulerBefore ?? this.view.rulingParty,
+        enacted: parliamentHolds.govBefore !== undefined ? parliamentHolds.govBefore.enacted : this.view.enacted,
+        partyActionStates: this.partyActionStates,
+        resolutionActionState: this.resolutionActionState,
+      };
+    },
+    effectsCount(): number {
+      return parliamentEffectItems(this.effectsInput).length;
+    },
+    effectsStepModel(): EffectsStepModel {
+      return parliamentEffectsStep(this.effectsInput);
+    },
+    /** The step's entry under the cursor (undefined outside the step). */
+    effectsFocused(): EffectsStepEntry | undefined {
+      if (parliamentFlow.stage !== 'effects') {
+        return undefined;
+      }
+      const key = parliamentFlow.effectsCursor;
+      return [...this.effectsStepModel.actions, ...this.effectsStepModel.standing].find((e) => e.key === key);
+    },
     focusedParty(): ParliamentPartyVm | undefined {
       return parliamentFlow.zone === 'ruler' ?
         this.view.parties.find((p) => p.party === this.view.rulingParty) :
@@ -871,6 +913,11 @@ export default defineComponent({
         sitting: {primary: this.sittingPrimary, inspect: this.sittingInspectable, back: this.sittingBack},
         quest: this.questCommands,
         voteSubjects: this.voteSubjectCount,
+        dossier: this.questDossierOpen,
+        effects: {
+          count: this.effectsCount,
+          use: isEffectsAction(this.effectsFocused) ? this.effectsFocused.state === 'ready' : undefined,
+        },
         support: this.bridge.supportPick === undefined && !this.supportUp ? undefined : {
           staged: this.bridge.supportPick?.staged === true && !parliamentFlow.supportCommitted,
           stagedFlow: this.stagedFlow,
@@ -909,6 +956,12 @@ export default defineComponent({
     },
   },
   watch: {
+    /** A read-only dossier never outlives the browse layer it was opened from (a sitting, a vote, a step take the hall). */
+    'flow.stage'(stage: ParliamentStage): void {
+      if (stage !== 'browse') {
+        this.questDossierOpen = false;
+      }
+    },
     /**
      * ANOTHER SEAT'S DELEGATE ARRIVED (a rival's vote, MarsBot's Party Politics / Lobbying): the seed hid its
      * ribbon cube in the apply block; now that the table has rendered, its flight is flown from the seat's
@@ -1487,6 +1540,14 @@ export default defineComponent({
     // ── input ──────────────────────────────────────────────────────────
     handleIntent(intent: GamepadIntent): void {
       const f = parliamentFlow;
+      // THE QUEST'S DOSSIER is a read-only layer: B or X closes it, nothing else reaches the hall under it.
+      if (this.questDossierOpen) {
+        const action = consoleActionOf(intent);
+        if (action === 'back' || action === 'inspect') {
+          this.questDossierOpen = false;
+        }
+        return;
+      }
       // A beat in flight absorbs input by phase; a hosted step owns the pad
       // while it stands in the sitting's zone (the shell routes to it first).
       if (f.stage === 'submitting' || f.stage === 'landed' || f.stage === 'paying' || (f.stage === 'sitting' && this.sittingStepOpen)) {
@@ -1508,6 +1569,11 @@ export default defineComponent({
         this.primary();
         return;
       case 'inspect': {
+        // X on the QUEST opens the quest's own dossier (Парламент v8 § 7 — the owner's point 5), never its law's.
+        if (parliamentFlow.zone === 'engine' && this.view.quest !== undefined) {
+          this.questDossierOpen = true;
+          return;
+        }
         const request = parliamentBrowseInspectRequest(this.view, this.$refs.rootEl as HTMLElement | undefined);
         if (request !== undefined) {
           this.$emit('inspect', request);
@@ -1549,7 +1615,7 @@ export default defineComponent({
         // Nothing to decide on the edge: the quest is the player's play, the track moves by itself.
         return;
       case 'effects':
-        // «ВАШИ ЭФФЕКТЫ» opens its inner step (Парламент v8 § 6) — П3; until then the block reads on the overview.
+        this.openEffectsStep();
         return;
       case 'government':
         this.$emit('notice', translateText(this.view.enacted === undefined ?
@@ -1569,6 +1635,10 @@ export default defineComponent({
       }
       if (f.stage === 'quest') {
         this.handleQuestIntent(intent);
+        return;
+      }
+      if (f.stage === 'effects') {
+        this.handleEffectsIntent(intent);
         return;
       }
       if (consoleActionOf(intent) === 'back') {
@@ -1961,13 +2031,76 @@ export default defineComponent({
      * execution point (the action workspace, nested inside this screen). The
      * pressed plaque is the descent's origin; a closed door names its reason.
      */
-    openAction(party: ReduxParty, id: PartyActionId, state: PartyActionStateVm): void {
+    // ── «ВАШИ ЭФФЕКТЫ», the inner step (Парламент v8 § 6) ──────────────
+    openEffectsStep(): void {
+      const model = this.effectsStepModel;
+      const first = model.actions[0] ?? model.standing[0];
+      if (first === undefined) {
+        return;
+      }
+      parliamentFlow.effectsCursor = first.key;
+      parliamentFlow.stage = 'effects';
+    },
+    closeEffectsStep(): void {
+      parliamentFlow.stage = 'browse';
+      parliamentFlow.zone = 'effects';
+      parliamentFlow.effectsCursor = '';
+    },
+    /** The DOM tile of a step entry — the descent's origin and the inspector's lift. */
+    effectsTileOf(key: string): HTMLElement | undefined {
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      return root?.querySelector<HTMLElement>('[data-parl-fx-entry="' + key + '"]') ?? undefined;
+    },
+    handleEffectsIntent(intent: GamepadIntent): void {
+      if (intent.kind === 'nav') {
+        const columns = consoleLayoutState.profile === 'handheld' || this.effectsStepModel.standing.length <= 1 ? 1 : 2;
+        parliamentFlow.effectsCursor = effectsStepCursorMove(this.effectsStepModel, parliamentFlow.effectsCursor, intent.dir, columns);
+        return;
+      }
+      const entry = this.effectsFocused;
+      switch (consoleActionOf(intent)) {
+      case 'back':
+        this.closeEffectsStep();
+        return;
+      case 'primary': {
+        if (!isEffectsAction(entry)) {
+          return;
+        }
+        if (entry.kind === 'law') {
+          this.openResolutionAction();
+          return;
+        }
+        const index = this.view.parties.findIndex((p) => p.party === entry.party);
+        const state = this.partyActionStates[index];
+        if (entry.actionId === undefined || state === undefined) {
+          return;
+        }
+        this.openAction(entry.party, entry.actionId, state, this.effectsTileOf(entry.key));
+        return;
+      }
+      case 'inspect': {
+        if (entry === undefined) {
+          return;
+        }
+        const origin = () => this.effectsTileOf(entry.key)?.querySelector<HTMLElement>('.con-parl-fx__seal') ?? null;
+        const law = entry.kind === 'law' ? this.effectsInput.enacted : undefined;
+        const request: ParliamentInspectRequest = law !== undefined ?
+          {kind: 'resolution', ids: [law.resolutionId], index: 0, origin} :
+          {kind: 'party', party: entry.party, origin};
+        this.$emit('inspect', request);
+        return;
+      }
+      default:
+        return;
+      }
+    },
+    openAction(party: ReduxParty, id: PartyActionId, state: PartyActionStateVm, from?: HTMLElement): void {
       const refusal = partyActionRefusal(state, id === 'unity-trade' || this.bridge.actions[id] !== undefined, this.awaitingInput);
       if (refusal !== undefined) {
         this.$emit('notice', refusal);
         return;
       }
-      armPartyActionDescent(this.$refs.rootEl as HTMLElement | undefined, party);
+      armPartyActionDescent(this.$refs.rootEl as HTMLElement | undefined, party, from);
       this.$emit('open-action', party);
     },
     /**

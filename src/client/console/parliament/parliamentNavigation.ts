@@ -176,8 +176,9 @@ export function armResolutionActionDescent(root: HTMLElement | undefined): void 
 }
 
 /** The pressed medallion is the descent's origin — the action workspace unfolds from its rect (the ruler's in the government included). */
-export function armPartyActionDescent(root: HTMLElement | undefined, party: ReduxParty): void {
-  const plaque = root?.querySelector<HTMLElement>(`.con-parl__party[data-party="${party}"] .con-pseal`);
+export function armPartyActionDescent(root: HTMLElement | undefined, party: ReduxParty, from?: HTMLElement): void {
+  // The door rises out of the object the player pressed: the bench's medallion, or the inner step's tile («ВАШИ ЭФФЕКТЫ»).
+  const plaque = from ?? root?.querySelector<HTMLElement>(`.con-parl__party[data-party="${party}"] .con-pseal`);
   const rect = plaque?.getBoundingClientRect();
   if (rect !== undefined && rect.width > 0) {
     armDescendOrigin('action-browse', {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2});

@@ -72,6 +72,14 @@ export type ParliamentCommandsInput = {
     source: boolean,
     available: boolean,
   };
+  /**
+   * «ВАШИ ЭФФЕКТЫ» (Парламент v8 § 6): on the overview's block `count` sources stand (A opens the inner step when
+   * there is one); inside the step the entry under the cursor is an ACTION (`use` — whether it can be taken now) or a
+   * standing effect (`use` undefined: nothing to take, X reads its source).
+   */
+  effects?: {count: number, use?: boolean};
+  /** A read-only DOSSIER of the hall stands (the chairman quest's): B closes it, nothing else is offered. */
+  dossier?: boolean;
 };
 
 /**
@@ -135,13 +143,16 @@ function browseCommands(input: ParliamentCommandsInput, back: ConsoleCommand): A
   case 'agenda':
     return [back];
   case 'effects':
-    // «ВАШИ ЭФФЕКТЫ» (v8 § 6): the inner step is П3 — until then the block reads on the overview and B leaves.
-    return [back];
+    // «ВАШИ ЭФФЕКТЫ» (v8 § 6): A opens the inner step — the full list, the actions with their door.
+    return (input.effects?.count ?? 0) > 0 ? [{control: 'confirm', label: 'Open', highlight: true}, back] : [back];
   }
 }
 
 export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<ConsoleCommand> {
   const back: ConsoleCommand = {control: 'back', label: parliamentFlow.stage === 'browse' ? 'To the board' : 'Back'};
+  if (input.dossier === true) {
+    return [{control: 'back', label: 'Close'}];
+  }
   switch (parliamentFlow.stage) {
   case 'browse':
     return browseCommands(input, back);
@@ -186,6 +197,18 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
   }
   case 'quest':
     return input.quest?.done === true ? [{control: 'confirm', label: 'Close', highlight: true}] : [];
+  // THE INNER STEP «ВАШИ ЭФФЕКТЫ»: A takes the action under the cursor (the bench's own door), X reads its source, B is
+  // one level back to the overview (the cursor on the block).
+  case 'effects': {
+    const use = input.effects?.use;
+    const cmds: Array<ConsoleCommand> = [];
+    if (use !== undefined) {
+      cmds.push({control: 'confirm', label: 'Use', enabled: use, highlight: use});
+    }
+    cmds.push({control: 'secondary', label: 'Inspect'});
+    cmds.push({control: 'back', label: 'Back'});
+    return cmds;
+  }
   case 'support': {
     // Past the press the answer plays on this stage (the cubes, the Agenda step): a STATUS, never a verb — the bar
     // echoes the busy confirm (the landing's precedent) and offers nothing until the flow leaves by itself. An empty

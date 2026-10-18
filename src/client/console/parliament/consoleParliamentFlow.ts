@@ -151,7 +151,7 @@ export type ParliamentZone = 'voting' | 'government' | 'ruler' | 'parties' | 'ef
  * coin, then the surface leaves — `neutralRally`), past the commit and
  * absorbing input exactly as `walk`.
  */
-export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'quest' | 'submitting' | 'paying' | 'landed' | 'sitting' | 'walk' | 'support' | 'rally';
+export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'quest' | 'submitting' | 'paying' | 'landed' | 'sitting' | 'walk' | 'support' | 'rally' | 'effects';
 
 /** The SUPPORT-AREA mode's outcome beat ('' before A): the cubes leaving the area · the card's Agenda step · the read · over. */
 export type SupportBeat = '' | 'sent' | 'discard' | 'walk' | 'read' | 'done';
@@ -191,6 +191,8 @@ function freshFlow() {
     partyIndex: 0,
     /** The STOP under the cursor on the career edge (`agenda` zone, 1…12 — «Зал» v7: ◀ ▶ walk the stops). */
     agendaIndex: 1,
+    /** The entry under the cursor in the inner step «ВАШИ ЭФФЕКТЫ» (Парламент v8 § 6) — an entry's key, '' outside it. */
+    effectsCursor: '',
     /** The vote mode's entrance is playing — A is not a confirm yet. */
     voteEntering: false,
     /** The vote mode is folding back — its layer stays visible for the phrase. */
@@ -407,6 +409,8 @@ export function parliamentCrumbSubject(questLive = false): string {
   // The SUPPORT-AREA mode is a mode like the vote: its own name is the subject («ПАРЛАМЕНТ › САНКЦИИ»), and hosted
   // it is handed UP as the host's tail («КАРТЫ В РУКЕ › ПАРТИЙНЫЕ САНКЦИИ › САНКЦИИ»).
   case 'support': return parliamentFlow.supportStage;
+  // THE INNER STEP «ВАШИ ЭФФЕКТЫ» (Парламент v8 § 6): a place of its own inside the Parliament («ПАРЛАМЕНТ › ВАШИ ЭФФЕКТЫ»).
+  case 'effects': return 'Your effects';
   default: return 'Parliament overview';
   }
 }

@@ -456,10 +456,32 @@ for (const preset of PRESETS) {
       expect(await parliament(page).getAttribute('data-zone'), '▶ on the career moves nothing — no step is a stop').toBe('agenda');
       await press(page, 'ArrowLeft', 400);
       expect(await parliament(page).getAttribute('data-zone'), '◀ from the career: the quest').toBe('engine');
+      // X on the QUEST reads the QUEST (the owner's point 5) — its own dossier: the chair, the quest with its race, the
+      // rules in words; never the ruling party's inspector. B closes it onto the same stop.
+      expect(await pressUntil(page, 'KeyX', async () => await page.locator('[data-parl-quest-dossier]').count() === 1, {tries: 3, settleMs: 700}), 'X opens the quest dossier').toBe(true);
+      await expect(page.locator('dialog.con-zoom[open]'), 'not the card viewer of a party or a law').toHaveCount(0);
+      await expect(page.locator('[data-parl-quest-dossier] [data-parl-qd-race] [data-parl-qd-row]'), 'every seat\'s race').not.toHaveCount(0);
+      await expect(page.locator('[data-parl-quest-dossier] [data-parl-qd-rules]'), 'the rules in words').toContainText(/Условие|Condition/);
+      await shoot(page, preset.id, '01c-quest-dossier');
+      expect(await pressUntil(page, 'Escape', async () => await page.locator('[data-parl-quest-dossier]').count() === 0, {tries: 3, settleMs: 700}), 'B closes the dossier').toBe(true);
+      expect(await parliament(page).getAttribute('data-zone'), 'back on the quest').toBe('engine');
       await press(page, 'ArrowUp', 400);
       expect(await parliament(page).getAttribute('data-zone'), '▲ from the quest: your effects').toBe('effects');
       await press(page, 'ArrowUp', 400);
       expect(await parliament(page).getAttribute('data-zone'), '▲ from the effects: the ruler').toBe('ruler');
+      // ── «ВАШИ ЭФФЕКТЫ», the inner step (Парламент v8 § 6): A on the block opens the full list on the chamber's rect —
+      //    the crumb names it, the cursor stands on an entry, B folds it back onto the block.
+      await press(page, 'ArrowDown', 400);
+      expect(await parliament(page).getAttribute('data-zone'), '▼ from the ruler: your effects').toBe('effects');
+      expect(await pressUntil(page, 'Enter', async () => await page.locator('[data-parl-fxstep]').count() === 1, {tries: 3, settleMs: 700}), 'A opens the inner step').toBe(true);
+      expect((await crumbText(page)).toUpperCase(), 'the crumb names the step').toContain('ВАШИ ЭФФЕКТЫ');
+      await expect(page.locator('[data-parl-effects-step] [data-parl-fx-entry]'), 'every source the block shows').not.toHaveCount(0);
+      await expect(page.locator('[data-parl-effects-step] .con-parl-fx__tile--focus'), 'the cursor stands on ONE entry').toHaveCount(1);
+      await settle(page, {timeoutMs: 8_000});
+      await shoot(page, preset.id, '01b-effects-step');
+      expect(await pressUntil(page, 'Escape', async () => await page.locator('[data-parl-fxstep]').count() === 0, {tries: 3, settleMs: 700}), 'B folds the step').toBe(true);
+      expect(await parliament(page).getAttribute('data-zone'), 'back on the block').toBe('effects');
+      await press(page, 'ArrowUp', 400);
       await focusVoting(page);
 
       // ── THE DELEGATES ZONE on the head line: every player's lobby socket and
