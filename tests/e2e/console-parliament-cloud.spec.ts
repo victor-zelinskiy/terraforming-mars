@@ -5,7 +5,7 @@ import {
   bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle,
   waitForBoardHome,
 } from './consoleStart';
-import {answerAsksAs, answerGateAs, closeSitting, expectParliamentFits, openParliament, PARLIAMENT_PRESETS, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {answerAsksAs, answerGateAs, closeSitting, expectDossierIsRules, expectParliamentFits, openParliament, PARLIAMENT_PRESETS, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * CLOUD DEVELOPMENT (Turmoil Redux, RX06) — the first DISTRIBUTED payout, the
@@ -219,8 +219,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       await shoot(page, preset.id, '02-vote-reading');
 
       await openZoomViewer(page);
-      await expect(page.locator('dialog.con-zoom[open] [data-zoom-yield]'), 'the footer\'s yield chip').toHaveCount(1);
-      expect((await yieldReadings(page, 'dialog.con-zoom[open] [data-zoom-yield]')).map((r) => r.amount)).toEqual(['3', '4']);
+      await expectDossierIsRules(page, preset.id);
       await shoot(page, preset.id, '03-fullscreen');
       await closeZoomViewer(page);
       await press(page, 'Escape', 900);

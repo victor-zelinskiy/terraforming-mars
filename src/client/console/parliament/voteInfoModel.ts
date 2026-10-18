@@ -442,16 +442,6 @@ export function panelFactsOf(facts: VoteFactsVm): Array<VoteFactVm> {
   return out;
 }
 
-/**
- * THE FOOTER'S FACTS (the fullscreen inspector): the leader and the winning
- * state, in the panel's own `before → after` rows — never a sentence. The
- * party effect's edge is the status chip's own projection there
- * (`resolutionStatusOf` → `unlocksWithVote`), so the footer says it once.
- */
-export function footerFactsOf(facts: VoteFactsVm): Array<VoteFactVm> {
-  return [facts.lead, facts.win];
-}
-
 // ── THE PANEL ────────────────────────────────────────────────────────────────
 
 export type VoteInfoInput = {
@@ -668,9 +658,10 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
     readings: contexts.size + (grant !== undefined ? 1 : 0),
     facts: vm.vote.facts.length,
     words: countWords(strings.join(' ')),
-    // The party box beside the reading prints a GRAPHIC (the emblem in the printed formula) and one
-    // line of moment — counted apart from the decision text, against its own ceiling.
-    moment: countWords(text(PARTY_MOMENT)),
+    // «Зал» v7 (Ф4): the party box stands beside the reading ONLY under a door that pays the party (its
+    // support row is counted below) — the panel prints no line of moment any more (the formula is the
+    // government's / the dossier's), so the moment's budget is spent nowhere.
+    moment: 0,
     support: vm.support === undefined ? 0 : countWords(`${text(SUPPORT_KICKER)} ${supportTailText(vm.support, text)}`),
   };
 }

@@ -3,8 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle} from './consoleStart';
 import {
-  answerGateAs, armLeakWitness, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, passAs, sittingStage,
-  strandedReports, waitSittingAtRest,
+  answerGateAs, armLeakWitness, expectDossierIsRules, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, passAs, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 
 /**
@@ -179,7 +178,6 @@ const TICK_WINDOW_BEFORE_MS = 34;
 const TICK_WINDOW_AFTER_MS = 260;
 
 const estimateAtVote: Reading = {context: 'estimate', count: '1', metric: '24', influence: '2', amount: '6', uncapped: null, max: null, skipped: null};
-const forecastAtVote: Reading = {context: 'forecast', count: '1', metric: '24', influence: '3', amount: '8', uncapped: null, max: null, skipped: null};
 
 test.describe('Generous Funding · standard-1080', () => {
   test.use({viewport: {width: 1920, height: 1080}});
@@ -226,7 +224,7 @@ test.describe('Generous Funding · standard-1080', () => {
     await openZoomViewer(page);
     const zoom = page.locator('dialog.con-zoom[open]');
     await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(GENEROUS_CLASS);
-    await expect.poll(() => readingsIn(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).toEqual([estimateAtVote, forecastAtVote]);
+    await expectDossierIsRules(page, 'generous');
     const rules = zoom.locator('.con-zoom-sidecol');
     await expect(rules, 'the rule says what a set is').toContainText(/РТ 25 — два|TR 25 is 2/);
     await expect(rules, 'the breakdown behind the number').toContainText(/Учтены сейчас|Counted right now/);

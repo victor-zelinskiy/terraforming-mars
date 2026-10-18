@@ -5,7 +5,7 @@ import {
   bootFixture, bootFixtureSeats, closeZoomViewer, commitFocusedSpace, crumbText, fetchPlayerModel, openMandatoryAnnounce, openQuickWheel,
   openZoomViewer, placeTile, placementState, press, pressUntil, settle, waitForBoardHome, walkToSpace,
 } from './consoleStart';
-import {answerGateAs, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {answerGateAs, expectDossierIsRules, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * BIODOME CONTEST (Turmoil Redux, RX03) — «plants for everyone by influence +
@@ -96,25 +96,6 @@ const yieldReadings = (page: Page, scope: string) => page.evaluate((sel) => {
     influence: el.getAttribute('data-yield-influence'),
     amount: el.getAttribute('data-yield-amount'),
   }));
-}, scope);
-
-/** The winner block's reading — every attribute a surface states. */
-const winnerReading = (page: Page, scope: string) => page.evaluate((sel) => {
-  const el = document.querySelector<HTMLElement>(`${sel}`);
-  if (el === null) {
-    return undefined;
-  }
-  return {
-    context: el.getAttribute('data-winner-context'),
-    tile: el.getAttribute('data-winner-tile'),
-    recipient: el.getAttribute('data-winner-recipient'),
-    before: el.getAttribute('data-winner-before'),
-    after: el.getAttribute('data-winner-after'),
-    tr: el.getAttribute('data-winner-tr'),
-    skipped: el.getAttribute('data-winner-skipped'),
-    caption: (el.querySelector('[data-winner-caption]')?.textContent ?? '').trim(),
-    note: (el.querySelector('[data-winner-note]')?.textContent ?? '').trim(),
-  };
 }, scope);
 
 /** Nothing of the workspace sticks out of the viewport and no block spills. */
@@ -235,12 +216,12 @@ for (const preset of PRESETS) {
       await expectFits(page, `${preset.id} vote mode`);
       await shoot(page, preset.id, '02-vote-reading');
 
-      // ── THE FULLSCREEN INSPECTOR: the same readings in the footer; the rules in words.
+      // ── THE FULLSCREEN INSPECTOR (Парламент v8): the rules in words — the numbers are the panel's; the winner's
+      //    tile for the viewer reads in the rules' last group («ДЛЯ ВАС», words only).
       await openZoomViewer(page);
       const zoom = page.locator('dialog.con-zoom[open]');
       await expect(zoom.locator('.card-zoom-stage .pcard').first()).toHaveClass(BIODOME_CLASS);
-      expect((await yieldReadings(page, 'dialog.con-zoom[open] [data-zoom-yield]')).map((r) => r.amount)).toEqual(['2', '4']);
-      expect(await winnerReading(page, 'dialog.con-zoom[open] [data-zoom-winner]')).toMatchObject({context: 'conditional', before: '5', after: '6', tr: '2'});
+      await expectDossierIsRules(page, preset.id);
       const rules = zoom.locator('.con-zoom-sidecol');
       await expect(rules).toContainText(/Получите по 2 растения за каждое влияние|Gain 2 plants for every point of your influence/);
       await expect(rules).toContainText(/Бесплатно разместите тайл озеленения|Place a greenery tile for free/);
@@ -310,9 +291,12 @@ for (const preset of PRESETS) {
       await openZoomViewer(page, 'KeyC');
       await expect(page.locator('dialog.con-zoom.con-zoom--parliament[open]'), 'L3 opens the RESOLUTION inspector').toHaveCount(1);
       await expect(page.locator('dialog.con-zoom[open] .card-zoom-stage .pcard').first()).toHaveClass(BIODOME_CLASS);
-      const pending = await winnerReading(page, 'dialog.con-zoom[open] [data-zoom-winner]');
-      expect(pending).toMatchObject({context: 'pending', recipient: before.thisPlayer.color, before: '7', after: '8', tr: '3'});
-      expect(pending?.caption).toMatch(/Размещаете вы|You place it/);
+      // Парламент v8: the FIXED recipient reads in the rules' «ДЛЯ ВАС» words (the dossier carries no plate).
+      await expectDossierIsRules(page, `${preset.id} source`);
+      const sourceRules = page.locator('dialog.con-zoom[open] .con-zoom-sidecol');
+      await expect(sourceRules).toContainText(/Размещаете вы|You place it/);
+      await expect(sourceRules).toContainText(/7 → 8/);
+      await expect(sourceRules).toContainText(/РТ \+3|TR \+3/);
       await shoot(page, preset.id, '06-source-inspector');
       await closeZoomViewer(page);
       await expect.poll(async () => await placementState(page), {timeout: 10_000, message: 'inspection does not cancel the placement'}).not.toBe('none');
@@ -391,9 +375,11 @@ for (const preset of PRESETS) {
       expect(rows.some((r) => /РТ|TR/.test(r.label) && /Тайл озеленения|Greenery tile/.test(r.note + r.why.join(' ') + r.label)) ||
         rows.some((r) => /РТ|TR/.test(r.label)), `the tile's own TR stands (${JSON.stringify(rows)})`).toBe(true);
       await openZoomViewer(page, 'KeyC');
-      const maxed = await winnerReading(page, 'dialog.con-zoom[open] [data-zoom-winner]');
-      expect(maxed).toMatchObject({context: 'pending', before: '14', after: '14', tr: '1'});
-      expect(maxed?.note).toMatch(/Кислород на максимуме|Oxygen is at its maximum/);
+      // Парламент v8: the maxed oxygen and the tile's own TR read in the rules' «ДЛЯ ВАС» words.
+      await expectDossierIsRules(page, `${preset.id} maxed source`);
+      const maxedRules = page.locator('dialog.con-zoom[open] .con-zoom-sidecol');
+      await expect(maxedRules).toContainText(/кислород на максимуме|oxygen at its maximum/i);
+      await expect(maxedRules).toContainText(/РТ \+1|TR \+1/);
       await shoot(page, preset.id, '09-maxed-source');
       await closeZoomViewer(page);
       await expect.poll(async () => await placementState(page), {timeout: 10_000}).not.toBe('none');

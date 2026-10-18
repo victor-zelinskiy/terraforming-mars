@@ -324,25 +324,27 @@ export async function openParliament(page: Page): Promise<void> {
   await settle(page, {timeoutMs: 15_000});
 }
 
-/** The browse layer's focus ZONE (`data-zone` on the root) — «Зал» v7: ruler · voting · parties · engine · agenda. */
+/** The browse layer's focus ZONE (`data-zone` on the root) — Парламент v8: parties · ruler · effects · voting · engine · agenda. */
 export async function parliamentZone(page: Page): Promise<string> {
   return (await parliament(page).getAttribute('data-zone')) ?? '';
 }
 
-export type ParliamentFocusZone = 'ruler' | 'voting' | 'parties' | 'engine' | 'agenda';
+export type ParliamentFocusZone = 'ruler' | 'voting' | 'parties' | 'effects' | 'engine' | 'agenda';
 
 /**
- * ONE press that moves the cursor TOWARDS `zone` from `at` on the v7 ring (mirrors `parliamentNavigation.ts`):
- * the ruler's medallion · the table's bills (◀ ▶ walk them; ◀ past the first → the ruler, ▶ past the last → the
- * opposition, ▼ → the track) · the opposition column (▲ ▼ walk its rows; ▼ past the last → the track; ◀ → the
- * last bill) · the engine (▲ → the ruler, ▶ → the track) · the track (◀ → the engine, ▲ → the table).
+ * ONE press that moves the cursor TOWARDS `zone` from `at` on the v8 ring (mirrors `parliamentNavigation.ts`):
+ * the CHAMBER — the opposition's benches (▲ ▼ walk them; ▼ past the last → «ВАШИ ЭФФЕКТЫ»; ▶ → the ruler), the
+ * ruler on the dais (◀ → the benches, ▶ → the table, ▼ → the effects), «ВАШИ ЭФФЕКТЫ» (▲ → the ruler, ◀ → the
+ * benches, ▶ → the table, ▼ → the quest) — the TABLE's bills (◀ ▶ walk them; ◀ past the first → the ruler,
+ * ▼ → the career) — the QUEST (▲ → the effects, ▶ → the career) — the CAREER, one stop (◀ → the quest, ▲ → the table).
  */
 const RING_STEP: Record<ParliamentFocusZone, Record<ParliamentFocusZone, string>> = {
-  voting: {voting: '', ruler: 'ArrowLeft', parties: 'ArrowRight', agenda: 'ArrowDown', engine: 'ArrowLeft'},
-  ruler: {ruler: '', voting: 'ArrowRight', parties: 'ArrowRight', engine: 'ArrowDown', agenda: 'ArrowDown'},
-  engine: {engine: '', ruler: 'ArrowUp', agenda: 'ArrowRight', voting: 'ArrowUp', parties: 'ArrowUp'},
-  agenda: {agenda: '', engine: 'ArrowLeft', voting: 'ArrowUp', ruler: 'ArrowUp', parties: 'ArrowUp'},
-  parties: {parties: '', voting: 'ArrowLeft', ruler: 'ArrowLeft', agenda: 'ArrowDown', engine: 'ArrowDown'},
+  voting: {voting: '', ruler: 'ArrowLeft', parties: 'ArrowLeft', effects: 'ArrowLeft', agenda: 'ArrowDown', engine: 'ArrowDown'},
+  ruler: {ruler: '', voting: 'ArrowRight', parties: 'ArrowLeft', effects: 'ArrowDown', engine: 'ArrowDown', agenda: 'ArrowDown'},
+  effects: {effects: '', ruler: 'ArrowUp', parties: 'ArrowLeft', voting: 'ArrowRight', engine: 'ArrowDown', agenda: 'ArrowDown'},
+  engine: {engine: '', effects: 'ArrowUp', ruler: 'ArrowUp', parties: 'ArrowUp', agenda: 'ArrowRight', voting: 'ArrowRight'},
+  agenda: {agenda: '', engine: 'ArrowLeft', effects: 'ArrowLeft', voting: 'ArrowUp', ruler: 'ArrowUp', parties: 'ArrowUp'},
+  parties: {parties: '', ruler: 'ArrowRight', voting: 'ArrowRight', effects: 'ArrowDown', engine: 'ArrowDown', agenda: 'ArrowDown'},
 };
 
 /**
@@ -352,7 +354,7 @@ const RING_STEP: Record<ParliamentFocusZone, Record<ParliamentFocusZone, string>
  */
 export async function focusParliamentZone(page: Page, zone: ParliamentFocusZone): Promise<void> {
   const trail: Array<string> = [];
-  for (let i = 0; i < 14 && await parliamentZone(page) !== zone; i++) {
+  for (let i = 0; i < 16 && await parliamentZone(page) !== zone; i++) {
     const raw = await parliamentZone(page);
     // A Parliament restored with the retired `government` zone lands on the medallion that replaced it.
     const at = (raw === 'government' ? 'ruler' : raw) as ParliamentFocusZone;
@@ -466,4 +468,20 @@ export async function expectInspectorFooterWhole(page: Page, label: string): Pro
     return out.join('; ');
   });
   await expect.poll(read, {timeout: 8_000, message: `${label}: the inspector's footer stands whole — every member inside the bar, none squeezed, the plate inside its band and clear of the card`}).toBe('');
+}
+
+/**
+ * A RESOLUTION'S DOSSIER IS ITS RULES (Парламент v8, the owner's point 9): the fullscreen inspector of a resolution
+ * carries the card, its party and its RULES — none of the viewer's own PLATES (the standing chip, the vote's facts,
+ * the estimate, the ledger, the party's answer, the winner's tile, the grant: the vote panel's). The rules panel
+ * stands; «ДЛЯ ВАС» keeps only its words, as the panel's LAST group. Call with the viewer open on a resolution.
+ */
+export async function expectDossierIsRules(page: Page, label = ''): Promise<void> {
+  const dialog = page.locator('dialog.con-zoom[open]');
+  await expect(dialog.locator('.con-zoom-rules'), `${label} the rules panel stands`.trim()).not.toHaveCount(0);
+  await expect(dialog.locator('[data-zoom-yield], [data-zoom-winner], [data-zoom-reaction], [data-zoom-grant], .con-rstatus'),
+    `${label} no plate of the viewer's own stands in the dossier — the vote panel carries them`.trim()).toHaveCount(0);
+  const groups = await dialog.locator('.con-zoom-rules [data-rules-group]').evaluateAll((els) => els.map((el) => el.getAttribute('data-rules-group') ?? ''));
+  const you = groups.indexOf('group:you');
+  expect(you === -1 || you === groups.length - 1, `${label} «ДЛЯ ВАС» is the rules panel's LAST group (${groups.join(' · ')})`.trim()).toBe(true);
 }

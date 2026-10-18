@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import {
   bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, placeTile, placementState, pressUntil, settle,
 } from './consoleStart';
-import {answerGateAs, closeSitting, armLeakWitness, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {answerGateAs, closeSitting, armLeakWitness, expectDossierIsRules, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * MOHOLE CONTEST (Turmoil Redux, RX23) — the ONE e2e of the new mechanic: a
@@ -121,14 +121,8 @@ test.describe(`Mohole Contest · ${PRESET.id}`, () => {
     await expect(rules).toContainText(/Победителю голосования|For the winner of the vote/);
     await expect(rules).toContainText(/Повысьте температуру на 2|Raise the temperature 2 steps/);
     await expect(rules).toContainText(/Повышаете вы: температура -4 → 0 °C; РТ \+2; на 0 °C следует океан|You raise it: temperature -4 → 0 °C; TR \+2; an ocean follows at 0 °C/);
-    const winner = zoom.locator('[data-zoom-winner]');
-    await expect(winner, 'the winner block stands in the footer').toHaveCount(1);
-    await expect(winner).toHaveAttribute('data-winner-context', 'pending');
-    await expect(winner).toHaveAttribute('data-winner-recipient', before.thisPlayer.color);
-    await expect(winner).toHaveAttribute('data-winner-tile', 'temperature');
-    await expect(winner).toHaveAttribute('data-winner-before', '-4');
-    await expect(winner).toHaveAttribute('data-winner-after', '0');
-    await expect(winner).toHaveAttribute('data-winner-tr', '2');
+    // Парламент v8 (the owner's point 9): the winner's part reads in the rules' words above — the dossier has no plate.
+    await expectDossierIsRules(page, 'mohole');
     await shoot(page, '01b-inspect-winner');
     await closeZoomViewer(page);
     await settle(page, {timeoutMs: 15_000});

@@ -5,7 +5,7 @@ import {
   bootFixture, closeZoomViewer, crumbText, fetchPlayerModel, focusCard, openCardActions, openQuickWheel, openZoomViewer, press,
   pressUntil, reloadConsole, settle, visibleSurfaces, walkFocusUntil, focusInfoZone,
 } from './consoleStart';
-import {focusParliamentZone} from './parliamentDrive';
+import {expectDossierIsRules, focusParliamentZone} from './parliamentDrive';
 
 /**
  * THE MARS PARLIAMENT (Turmoil Redux) — the reworked workspace
@@ -216,10 +216,11 @@ for (const preset of PRESETS) {
       // «Зал» v7: the government says nothing in WORDS — the ruler's medallion (no formula on it), the empty mark, the
       // viewer's own formulas in «ВАШИ ЭФФЕКТЫ»; the starting rule is READ on the reading line under the cursor.
       await expect(gov.locator('.con-parl__ruler .con-pformula__mech'), 'the medallion prints no formula').toHaveCount(0);
-      await expect(gov.locator('[data-parl-effects] .con-pformula__mech'), 'the viewer\'s formulas stand in «ВАШИ ЭФФЕКТЫ»').not.toHaveCount(0);
+      await expect(page.locator('[data-parl-palata] [data-parl-effects] .con-pformula__mech'), 'the viewer\'s formulas stand in «ВАШИ ЭФФЕКТЫ» under the chamber').not.toHaveCount(0);
       await expect(gov.locator('[data-parl-gov-empty]'), 'no resolution enacted yet: an honest empty seat').toHaveCount(1);
       await focusParliamentZone(page, 'ruler');
-      await expect(page.locator('.con-parl .con-band'), 'the reading line names the starting rule under the cursor').toContainText(/Стартовое правило/i);
+      // Парламент v8: no reading line on the overview — the ruler's seal itself wears the starting rule's state.
+      await expect(page.locator('[data-parl-ruler] .con-pseal--ruling-default'), 'the ruler stands by the STARTING RULE').toHaveCount(1);
       await focusParliamentZone(page, 'voting');
       await expect(page.locator('.con-wshead [data-parl-seats] .con-parl__seat[data-parl-seat]'), 'the delegates zone on the head line — one group per player').toHaveCount(2);
       await expect(page.locator('.con-parl__body [data-parl-seats]'), 'no ledger row in the body').toHaveCount(0);
@@ -383,13 +384,11 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-parl__cta--blocked')).toHaveCount(1);
       await press(page, 'Enter', 800);
       await expect(page.locator('.con-notice')).toBeVisible();
-      // X on the selected card: the resolution scene — its party on the left,
-      // its own rules on the right, and the FOOTER states where the card
-      // stands (up for the vote) and the viewer's access to the party effect.
+      // X on the selected card: the resolution scene — its party on the left, its own rules on the right (Парламент
+      // v8, the owner's point 9: the standing and the access are the vote panel's, the footer carries verbs only).
       // No paragraph of political rules in the inspector any more.
       await openZoomViewer(page);
-      await expect(page.locator('.con-rstatus[data-lifecycle="vote"]'), 'the standing chip: up for the vote').toHaveCount(1);
-      await expect(page.locator('.con-rstatus')).toContainText(/НА ГОЛОСОВАНИИ/i);
+      await expectDossierIsRules(page, preset.id);
       await expect(page.locator('.card-zoom-aside .con-rinspect-aside'), 'the party column stands beside the card').toHaveCount(1);
       await expect(page.locator('.card-zoom-side .con-zoom-rules'), 'the resolution\'s own rules stand on the right').toHaveCount(1);
       await expect(page.locator('dialog.con-zoom'), 'no tie prose in the inspector').not.toContainText(/ближайш/i);

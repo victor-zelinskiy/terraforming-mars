@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import {
   bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, pressUntil, settle,
 } from './consoleStart';
-import {answerGateAs, armLeakWitness, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
+import {answerGateAs, armLeakWitness, expectDossierIsRules, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * INDUSTRIALIST BUDGET (Turmoil Redux, RX15) — the ONE e2e of the family's new
@@ -252,15 +252,12 @@ test.describe('Industrialist Budget · standard-1080', () => {
       await expectParliamentFits(page, 'vote mode');
       await shoot(page, '02-vote-net');
 
-      // ── THE FULLSCREEN: the levy row FIRST, then the breakdown by resource — never a list of cards.
+      // ── THE FULLSCREEN (Парламент v8): the RULES — the levy row FIRST, then the breakdown by resource in the rules'
+      //    «ДЛЯ ВАС» words; the numbers are the panel's.
       await openZoomViewer(page);
       const zoom = page.locator('dialog.con-zoom[open]');
       await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(BUDGET_CLASS);
-      await expect.poll(() => readingsIn(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).toEqual([
-        {effect: 'megacredits', context: 'estimate', count: '5', influence: '2', amount: '7', net: '-3', skipped: null},
-        {effect: 'megacredits', context: 'forecast', count: '5', influence: '3', amount: '8', net: '-2', skipped: null},
-        {effect: 'production', context: 'estimate', count: null, influence: '2', amount: '4', net: null, skipped: null},
-      ]);
+      await expectDossierIsRules(page, 'budget');
       const rules = zoom.locator('.con-zoom-sidecol');
       await expect(rules, 'the rule says what counts').toContainText(/Ресурсы в запасе не считаются|Resources in your supply do not count/);
       await expect(rules, 'the levy row').toContainText(/Плата: сначала 10 M€|Levy: 10 M€ first/);

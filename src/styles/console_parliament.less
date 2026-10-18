@@ -1865,19 +1865,6 @@ html.con-profile-tv .con-parl--walk {
     .con-parl__step-res--inf { width: 1.7rem; height: 1.7rem; }
 }
 
-/* THE DECK: a slot's «ПРИНИМАЕТСЯ» badge always takes the GLYPH form (the vote's winner mark; the word
-   stays for assistive tech) — the glossary's word is two letters longer than the retired «побеждает» and
-   beside «Марс вперед» it cut the party name in the slot head (Э9 fits: `cut con-parl__slot-party`).
-   One state, two forms by width — the same rule `--glyph` applies beside a long party name everywhere. */
-html.con-profile-handheld .con-parl__slot-win {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-    padding: .08rem .32rem;
-    &::before { content: ''; width: 1.15em; height: 1.15em; background: url(./assets/misc/vote-winner.svg) center / contain no-repeat; }
-    .con-parl__slot-win-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-}
-
 /* The reserve place's landing ring (A.3): a gold ring that swells and fades, once. */
 @keyframes con-parl-stack-land {
     0% { box-shadow: 0 0 0 0 fade(@con-parl-gold, 0%); }

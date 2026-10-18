@@ -5,8 +5,7 @@ import {
   bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, pressUntil, settle,
 } from './consoleStart';
 import {
-  answerGateAs, armLeakWitness, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, strandedReports,
-  waitSittingAtRest,
+  answerGateAs, armLeakWitness, expectDossierIsRules, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 
 /**
@@ -131,10 +130,7 @@ test.describe('Joint Research · standard-1080', () => {
       await openZoomViewer(page);
       const zoom = page.locator('dialog.con-zoom[open]');
       await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(RESEARCH_CLASS);
-      await expect.poll(() => readingsIn(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).toEqual([
-        {effect: 'draw', context: 'estimate', target: '8', level: '5', amount: '3', skipped: null, none: false},
-        {effect: 'draw', context: 'forecast', target: '9', level: '5', amount: '4', skipped: null, none: false},
-      ]);
+      await expectDossierIsRules(page, 'research');
       const rules = zoom.locator('.con-zoom-sidecol');
       await expect(rules, 'the rule says when the hand is counted').toContainText(/Рука считается на заседании|The hand is counted at the sitting/);
       await expect(rules, 'the «for you» row: the target').toContainText(/Цель сейчас: 8|Target right now: 8/);

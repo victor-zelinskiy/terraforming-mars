@@ -40,7 +40,7 @@
                    ref="cardZoom"
                    class="con-zoom"
                    :navCounter="!consoleCardZoom.counterInFooter"
-                   :class="{'con-zoom--flight': zoomFlight, 'con-zoom--closing': zoomClosing, 'con-zoom--parliament': zoomResolutionId !== undefined}"
+                   :class="{'con-zoom--flight': zoomFlight, 'con-zoom--closing': zoomClosing, 'con-zoom--parliament': zoomResolutionId !== undefined, 'con-zoom--plates': zoomResolutionId !== undefined}"
                    :card="consoleCardZoom.card"
                    :cards="consoleCardZoom.cards.length > 1 ? consoleCardZoom.cards : undefined"
                    :index="consoleCardZoom.index"

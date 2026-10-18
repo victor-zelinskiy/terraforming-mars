@@ -83,23 +83,43 @@
     <!-- THE FIELD — the overview's body and, over it, the vote mode's layer. -->
     <div class="con-parl__field" ref="fieldEl">
     <div class="con-parl__body">
-      <!-- ══ THE CHAMBER («Зал» v7): the GOVERNMENT's wing · the TABLE (the hero) · the OPPOSITION's wing.
-           Three columns of one tier; the reading line and the career edge stand under all three. ══ -->
+      <!-- ══ THE CHAMBER (Парламент v8 «Пленарный зал», docs/TURMOIL_REDUX_PARLIAMENT_V8_PLAN.md): the CHAMBER plate —
+           the OPPOSITION's benches beside the GOVERNMENT's dais, one plate, the two named on one head line; «ВАШИ
+           ЭФФЕКТЫ» across both under them — and the TABLE right of it (the hero); the CAREER under everything. A change
+           of government is a short move inside the plate (a bench ↔ the dais), and slot 1 stands next to the dais (the
+           tie goes to the bill nearest the enacted law). ══ -->
       <div class="con-parl__chamber" data-parl-chamber>
-        <ConsoleParliamentGovernment :view="view" :model="model" :players="pv.players" :viewerColor="viewerColor"
-                                     :agendaVm="agendaVm" :sittingStage="sittingUp ? sittingStage : ''" />
+        <!-- The vote mode and a hosted step let the WHOLE plate recede (one object — its kickers, benches, dais and
+             effects together; the v8 vote panel takes this rect in П3). -->
+        <div class="con-parl__palata" data-parl-palata data-parl-recede>
+          <span class="con-parl__palata-k con-parl__palata-k--opp">{{ $t('Opposition') }}</span>
+          <span class="con-parl__palata-k con-parl__palata-k--gov">{{ $t('Government') }}</span>
+          <!-- ══ THE OPPOSITION — the five parties without power, as BENCHES in a column (the ruler's medallion is the
+               same DOM instance, teleported into the dais's slot; a change of government FLIPs it the short way).
+               It never recedes for a step: the support's cubes land in its sockets. ══ -->
+          <div class="con-parl__opposition con-parl__parties-tier" ref="partiesTierEl" data-parl-opposition>
+            <ConsoleParliamentParties :view="view" :partyStates="partyStates" :partyActionStates="partyActionStates" :viewerColor="viewerColor"
+                                      :awaitingInput="awaitingInput" :supportMeta="supportUp ? supportMeta : undefined" />
+          </div>
+          <ConsoleParliamentGovernment :view="view" :model="model" :players="pv.players" :viewerColor="viewerColor"
+                                       :agendaVm="agendaVm" :sittingStage="sittingUp ? sittingStage : ''" />
+          <ConsoleParliamentEffects :view="view" :viewerColor="viewerColor" :partyActionStates="partyActionStates"
+                                    :resolutionActionState="resolutionActionState"
+                                    :focused="flow.zone === 'effects' && flow.stage === 'browse'" />
+        </div>
 
-        <!-- ══ THE TABLE'S CELL — the BODY of the chamber: the voting area by default, and, over it, whatever a
-             stage puts in the player's hands — the chairman SEAT pick, the sitting's READING panel (a step, the
-             results). The bills are PUSHED SHUT under the panel (`parliamentStageMotion`, the one swap grammar);
-             the government and the opposition stand apart and never recede for a step — the objects the beats
-             fly to (the medallions' sockets, the ruler's slot) stay in view.
-             THE PANEL IS SHOWN, NOT MOUNTED, PER STAGE (`v-show`): three `<Teleport>`s point INTO it (the
-             enacted card onto its hero slot, the hosted step into `[data-embed-slot="parliament-stage"]`, a
-             step's own children), and a teleport re-resolves its target only when the `to` string CHANGES —
-             unmounting the panel between the table and the reading left Vue patching into detached nodes
-             («Cannot read properties of null (reading 'insertBefore')»). ══ -->
         <div class="con-parl__mid" data-parl-mid ref="midEl">
+          <!-- THE TABLE'S HEAD (v8): ONE cell of fixed height over the bills — the kicker «ГОЛОСОВАНИЕ» on the overview
+               (the objects speak for themselves: the crown, the count, the access rings), the reading line of a beat in
+               every other pose (the sitting, a card's walk / rally, the sanctions). Both stay mounted in the one cell
+               and cross by opacity, so the head never changes height and the bills never move. -->
+          <div class="con-parl__mid-head" :class="{'con-parl__mid-head--band': bandShown}" data-parl-mid-head>
+            <span class="con-parl__mid-kicker con-parl__kicker" aria-hidden="true">{{ $t('Voting table') }}</span>
+            <div class="con-parl__mid-band">
+              <ConsoleParliamentBand :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor"
+                                     :position="sitting" :sittingUp="sittingUp" :stage="sittingStage" :support="supportBand" :rally="rallyBand" :focus="bandFocus" />
+            </div>
+          </div>
           <div class="con-parl__bodyzone" data-parl-body>
             <div class="con-parl__table-tier" ref="tableTierEl"
                  :class="{'con-parl__table-tier--parked': rowParked}"
@@ -132,20 +152,7 @@
           </div>
         </div>
 
-        <!-- ══ THE OPPOSITION — the five parties without power, as MEDALLIONS in a column (the ruler's medallion is the
-             same DOM instance, teleported into the government's slot; a change of government FLIPs it across the
-             stage). It never recedes for a step: the support's cubes land in its sockets. ══ -->
-        <div class="con-parl__opposition con-parl__parties-tier" ref="partiesTierEl" data-parl-opposition data-parl-recede>
-          <ConsoleParliamentParties :view="view" :partyStates="partyStates" :partyActionStates="partyActionStates" :viewerColor="viewerColor"
-                                    :awaitingInput="awaitingInput" :supportMeta="supportUp ? supportMeta : undefined" />
-        </div>
       </div>
-
-      <!-- ══ THE READING LINE — one strip of FIXED height under the chamber, in every mode: in the overview it reads
-           the OBJECT UNDER THE CURSOR; at the sitting its beats; behind the vote layer it stands. Only its content
-           crossfades (`ConsoleParliamentBand`). ══ -->
-      <ConsoleParliamentBand :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor"
-                             :position="sitting" :sittingUp="sittingUp" :stage="sittingStage" :support="supportBand" :rally="rallyBand" :focus="bandFocus" />
 
       <!-- ══ THE CAREER EDGE — the track is the floor the whole chamber stands on; its head is the ENGINE (the chair
            with its quest — completing it IS a step on this track). ══ -->
@@ -184,6 +191,7 @@ import ConsoleParliamentBand from '@/client/components/console/parliament/Consol
 import ConsoleParliamentParties from '@/client/components/console/parliament/ConsoleParliamentParties.vue';
 import ConsoleParliamentAgenda from '@/client/components/console/parliament/ConsoleParliamentAgenda.vue';
 import ConsoleParliamentVoteMode from '@/client/components/console/parliament/ConsoleParliamentVoteMode.vue';
+import ConsoleParliamentEffects from '@/client/components/console/parliament/ConsoleParliamentEffects.vue';
 import ConsoleParliamentSeatPick from '@/client/components/console/parliament/ConsoleParliamentSeatPick.vue';
 import ConsoleParliamentSitting from '@/client/components/console/parliament/ConsoleParliamentSitting.vue';
 import ConsoleParliamentSupportMode from '@/client/components/console/parliament/ConsoleParliamentSupportMode.vue';
@@ -278,7 +286,7 @@ export default defineComponent({
   name: 'ConsoleParliamentSection',
   components: {
     ConsoleWsHead, ConsoleParliamentSeats, ConsoleParliamentGovernment, ConsoleParliamentVotingArea, ConsoleParliamentBand,
-    ConsoleParliamentParties, ConsoleParliamentAgenda, ConsoleParliamentVoteMode, ConsoleParliamentSeatPick, ConsoleParliamentSitting,
+    ConsoleParliamentParties, ConsoleParliamentAgenda, ConsoleParliamentVoteMode, ConsoleParliamentSeatPick, ConsoleParliamentSitting, ConsoleParliamentEffects,
     ConsoleParliamentSupportMode,
   },
   props: {
@@ -761,6 +769,13 @@ export default defineComponent({
     /** Its A verb: nothing while a beat is in flight (A «дожать» is unadvertised), «Закрыть» once everything has landed. */
     questCommands(): {done: boolean} | undefined {
       return chairmanQuestFlow.live ? {done: chairmanQuestFlow.beat === 'done'} : undefined;
+    },
+    /**
+     * THE TABLE'S HEAD SHOWS THE READING LINE (v8) — every pose but the overview's browse: the sitting, a vote, a card's
+     * walk / rally, the sanctions. On the overview the objects speak for themselves and the head is the kicker.
+     */
+    bandShown(): boolean {
+      return parliamentFlow.stage !== 'browse' || this.sittingUp || this.supportUp || this.rallyUp || this.walkUp;
     },
     /**
      * THE READING LINE'S SUBJECT («Зал» v7): the object under the browse cursor — a bill, the ruler, a row of the
@@ -1455,13 +1470,19 @@ export default defineComponent({
     publishMidOffsets(): void {
       const field = this.$refs.fieldEl as HTMLElement | undefined;
       const mid = this.$refs.midEl as HTMLElement | undefined;
-      if (field === undefined || mid === undefined) {
+      const zone = mid?.querySelector<HTMLElement>('.con-parl__bodyzone') ?? undefined;
+      if (field === undefined || zone === undefined) {
         return;
       }
-      const top = mid.offsetTop;
-      const bottom = Math.max(0, field.clientHeight - (top + mid.offsetHeight));
-      field.style.setProperty('--con-parl-mid-top', `${top}px`);
-      field.style.setProperty('--con-parl-mid-bottom', `${bottom}px`);
+      // Парламент v8: the stage stands in the TABLE's body zone, and the field pose grows it over the whole floor —
+      // left over the (receded) chamber, down over the career — never up over the table's head (the reading line
+      // stands there). Rects, never `offsetTop`: the chamber row is a positioned box now, so an offset would be
+      // relative to it, not to the field. Layout boxes (no FLIP is on these elements).
+      const f = field.getBoundingClientRect();
+      const z = zone.getBoundingClientRect();
+      field.style.setProperty('--con-parl-mid-top', `${Math.max(0, Math.round(z.top - f.top))}px`);
+      field.style.setProperty('--con-parl-mid-bottom', `${Math.max(0, Math.round(f.bottom - z.bottom))}px`);
+      field.style.setProperty('--con-parl-mid-left', `${Math.max(0, Math.round(z.left - f.left))}px`);
     },
     // ── input ──────────────────────────────────────────────────────────
     handleIntent(intent: GamepadIntent): void {
@@ -1526,6 +1547,9 @@ export default defineComponent({
       case 'engine':
       case 'agenda':
         // Nothing to decide on the edge: the quest is the player's play, the track moves by itself.
+        return;
+      case 'effects':
+        // «ВАШИ ЭФФЕКТЫ» opens its inner step (Парламент v8 § 6) — П3; until then the block reads on the overview.
         return;
       case 'government':
         this.$emit('notice', translateText(this.view.enacted === undefined ?

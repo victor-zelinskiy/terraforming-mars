@@ -134,6 +134,9 @@ function browseCommands(input: ParliamentCommandsInput, back: ConsoleCommand): A
     return [{control: 'secondary', label: 'Inspect'}, back];
   case 'agenda':
     return [back];
+  case 'effects':
+    // «ВАШИ ЭФФЕКТЫ» (v8 § 6): the inner step is П3 — until then the block reads on the overview and B leaves.
+    return [back];
   }
 }
 

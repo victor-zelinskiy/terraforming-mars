@@ -5,8 +5,7 @@ import {
   bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle,
 } from './consoleStart';
 import {
-  answerGateAs, closeSitting, armLeakWitness, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, strandedReports,
-  waitSittingAtRest,
+  answerGateAs, armLeakWitness, closeSitting, expectDossierIsRules, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 
 /**
@@ -235,12 +234,7 @@ test.describe('Greens Budget · standard-1080', () => {
       await openZoomViewer(page);
       const zoom = page.locator('dialog.con-zoom[open]');
       await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(BUDGET_CLASS);
-      await expect.poll(() => readingsIn(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).toEqual([
-        {effect: 'megacredits', context: 'estimate', count: '5', influence: '1', amount: '6', net: '-4', skipped: null},
-        {effect: 'megacredits', context: 'forecast', count: '5', influence: '2', amount: '7', net: '-3', skipped: null},
-        {effect: 'animals', context: 'estimate', count: null, influence: '1', amount: '2', net: null, skipped: null},
-        {effect: 'microbes', context: 'estimate', count: null, influence: '1', amount: '3', net: null, skipped: null},
-      ]);
+      await expectDossierIsRules(page, 'greens');
       const rules = zoom.locator('.con-zoom-sidecol');
       await expect(rules, 'the levy row').toContainText(/Плата: сначала 10 M€|Levy: 10 M€ first/);
       await expect(rules, 'the rule says what counts').toContainText(/Универсальные метки не считаются|Wild tags do not count/);

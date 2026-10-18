@@ -5,7 +5,7 @@ import {
   bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openMandatoryAnnounce, openQuickWheel, openZoomViewer, placeTile,
   placementState, press, pressUntil, sendPlayerInput, settle, waitForBoardHome,
 } from './consoleStart';
-import {answerGateAs, closeSitting, hotVerb, sittingStep, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {answerGateAs, closeSitting, expectDossierIsRules, hotVerb, sittingStep, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * AQUIFER CONTEST (Turmoil Redux, RX01) — the first REAL resolution, end to
@@ -178,11 +178,9 @@ for (const preset of PRESETS) {
       await expectFits(page, `${preset.id} vote mode`);
       await shoot(page, preset.id, '02-vote-reading');
 
-      // ── THE FULLSCREEN INSPECTOR: the footer carries the same readings beside the standing chip.
+      // ── THE FULLSCREEN INSPECTOR (Парламент v8): the card and its RULES — the readings above are the panel's.
       await openZoomViewer(page);
-      await expect(page.locator('dialog.con-zoom[open] [data-zoom-yield]'), 'the footer\'s yield chip').toHaveCount(1);
-      const footer = await yieldReadings(page, 'dialog.con-zoom[open] [data-zoom-yield]');
-      expect(footer.map((r) => r.amount)).toEqual(['1', '2']);
+      await expectDossierIsRules(page, preset.id);
       await expect(page.locator('dialog.con-zoom[open] .card-zoom-stage .pcard .pcard__code')).toHaveText('RX01');
       await shoot(page, preset.id, '03-fullscreen');
       await closeZoomViewer(page);

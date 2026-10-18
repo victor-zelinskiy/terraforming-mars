@@ -454,8 +454,8 @@ export function resolutionAnnotations(
  *
  * The viewer's VOTE is never a block here (registry R-10): the columns are
  * rules, and a vote's state — the leader, the winning state, the party
- * effect's edge — is the footer's, in the vote panel's own fact rows
- * (`ConsoleZoomVoteFacts`, `ConsoleResolutionStatus`), never prose.
+ * effect's edge — is the VOTE PANEL's (Парламент v8, the owner's point 9: the
+ * dossier is the rules), never prose.
  */
 export function resolutionPartyAnnotations(party: ReduxParty, support?: SupportReadingVm): ReadonlyArray<CardAnnotation> {
   const effect = getPartyEffect(party);

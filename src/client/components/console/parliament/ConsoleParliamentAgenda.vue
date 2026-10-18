@@ -5,56 +5,53 @@
        marker STAYS on its old step until the enactment's first beat glides
        it (`holds.agendaAwaits`) — the influence reads the old level too. ══ -->
   <div class="con-parl__agenda" :class="{'con-parl__agenda--focus': flow.zone === 'agenda' && flow.stage === 'browse'}" data-parl-agenda data-parl-recede>
-    <div class="con-parl__agenda-head">
-      <span class="con-parl__kicker">{{ $t('Agenda track') }}</span>
-      <!-- «Зал» v7: the symbol says «влияние» — the word is the reading line's (and the label's for assistive tech). -->
-      <span v-if="view.viewer !== undefined" class="con-parl__agenda-me" :aria-label="$t('Influence')">
-        <PlayerCube :color="view.viewer.color" :size="cubePx(12)" :glow="false" />
-        <!-- The influence BADGE — the same asset the resolution faces print
-             in their formulas, so «влияние» reads as one symbol everywhere. -->
-        <i class="con-parl__inf-icon" aria-hidden="true"></i>
-        <b :key="'ai' + shown.viewerInfluence" class="con-parl__tick" data-parl-influence>{{ shown.viewerInfluence }}</b>
-      </span>
-    </div>
-    <!-- THE SCALE — every step is TWO fixed rows: the NODE (the symbol,
-         optically centred on the rail) and the MARKER row beneath it
-         (reserved whether or not a cube stands there, so a marker's
-         arrival moves no symbol). The rail is drawn by the steps' own
-         half-segments, so the viewer's PASSED part is tinted exactly up to
-         their node; the CURRENT node reads by its marker and its reached
-         fill, the NEXT one wears a light gold ring — never a focus ring. -->
-    <div class="con-parl__track">
-      <!-- THE HEAD OF THE TRACK IS ITS ENGINE («Зал» v7): the chairman's chair with its quest — completing it IS a step
-           on this track — stands where «Старт карьеры» stood; the markers of the seats still at the start keep their row
-           under it (`data-agenda-markers="0"` — the glide's source for a first step). -->
-      <div class="con-parl__step con-parl__step--start" :class="{'con-parl__step--here': viewerParticipates && shown.viewerPosition === 0, 'con-parl__step--passed': viewerParticipates && shown.viewerPosition > 0}" data-step="0">
-        <span class="con-parl__step-node con-parl__step-node--engine">
-          <ConsoleParliamentEngine :view="view" :players="players" :viewerColor="viewerColor" :sittingStage="sittingStage"
-                                   :focused="flow.zone === 'engine' && flow.stage === 'browse'" />
-        </span>
-        <span class="con-parl__step-cubes" data-agenda-markers="0">
-          <span v-for="color in shown.start" :key="color" class="con-parl__agenda-cube"
-                :class="{'con-parl__agenda-cube--hidden': cubeHidden(color, 0)}"
-                :data-agenda-cube="color">
-            <PlayerCube :color="color" :size="cubePx(12)" :glow="false" />
-          </span>
+    <!-- THE QUEST AT THE HEAD OF THE CAREER (Парламент v8): the chairman's chair with its quest is its own PLATE (its own
+         focus stop — X reads the quest's dossier); completing it IS a step on this track (`walkAgenda`). The seats still
+         at the start stand in the track's own START cell, never on the plate (the owner's point 2). -->
+    <ConsoleParliamentEngine :view="view" :players="players" :viewerColor="viewerColor" :sittingStage="sittingStage"
+                             :focused="flow.zone === 'engine' && flow.stage === 'browse'" />
+    <div class="con-parl__career" data-parl-career>
+      <div class="con-parl__agenda-head">
+        <span class="con-parl__kicker">{{ $t('Agenda track') }}</span>
+        <!-- «Зал» v7: the symbol says «влияние» — the word is the reading line's (and the label's for assistive tech). -->
+        <span v-if="view.viewer !== undefined" class="con-parl__agenda-me" :aria-label="$t('Influence')">
+          <PlayerCube :color="view.viewer.color" :size="cubePx(12)" :glow="false" />
+          <i class="con-parl__inf-icon" aria-hidden="true"></i>
+          <b :key="'ai' + shown.viewerInfluence" class="con-parl__tick" data-parl-influence>{{ shown.viewerInfluence }}</b>
         </span>
       </div>
-      <div v-for="step in shown.steps" :key="step.index" class="con-parl__step"
-           :class="['con-parl__step--' + step.step.kind, {
-             'con-parl__step--lit': flow.stage === 'sitting' && sittingStep === step.index,
-             'con-parl__step--segment': segmentLit(step.index),
-             'con-parl__step--next': step.viewerNext,
-             'con-parl__step--here': step.viewerHere,
-             'con-parl__step--passed': viewerParticipates && step.index < shown.viewerPosition,
-             'con-parl__step--pulse': agendaPulseStep === step.index,
-             'con-parl__step--cursor': flow.zone === 'agenda' && flow.stage === 'browse' && flow.agendaIndex === step.index,
-           }]"
-           :data-step="step.index"
-           :data-parl-stop-cursor="flow.zone === 'agenda' && flow.stage === 'browse' && flow.agendaIndex === step.index ? '' : undefined"
-           @animationend="onStepPulseEnd($event, step.index)">
+      <!-- THE INSTRUMENT (v8): a START cell + twelve TILES — the marker row ABOVE each tile (reserved whether or not a cube
+           stands there), the tile with its reward (+1 TR · a card · an influence COIN with its level struck inside it;
+           no ordinals — v3 В4: a bare numeral on this track reads as a count), and under the tiles the INFLUENCE BAND:
+           the spans 0 · 1–2 · 3–4 · 5–7 · 8–11 · 12 — the rule «your influence is the highest ★ you reached» drawn as
+           extents (the coin over a span's first tile says its level); only the viewer's span repeats its glyph and
+           level, inside its mint ring. -->
+      <div class="con-parl__track">
+        <div class="con-parl__step con-parl__step--start" :class="{'con-parl__step--here': viewerParticipates && shown.viewerPosition === 0, 'con-parl__step--passed': viewerParticipates && shown.viewerPosition > 0}" data-step="0">
+          <span class="con-parl__step-node con-parl__step-node--start">
+            <span class="con-parl__step-label">{{ $t('Career start') }}</span>
+          </span>
+          <span class="con-parl__step-cubes" data-agenda-markers="0">
+            <span v-for="color in shown.start" :key="color" class="con-parl__agenda-cube"
+                  :class="{'con-parl__agenda-cube--hidden': cubeHidden(color, 0)}"
+                  :data-agenda-cube="color">
+              <PlayerCube :color="color" :size="cubePx(15)" :glow="false" />
+            </span>
+          </span>
+        </div>
+        <div v-for="step in shown.steps" :key="step.index" class="con-parl__step"
+             :class="['con-parl__step--' + step.step.kind, {
+               'con-parl__step--lit': flow.stage === 'sitting' && sittingStep === step.index,
+               'con-parl__step--segment': segmentLit(step.index),
+               'con-parl__step--next': step.viewerNext,
+               'con-parl__step--here': step.viewerHere,
+               'con-parl__step--passed': viewerParticipates && step.index < shown.viewerPosition,
+               'con-parl__step--pulse': agendaPulseStep === step.index,
+             }]"
+             :data-step="step.index"
+             @animationend="onStepPulseEnd($event, step.index)">
           <span class="con-parl__step-node">
-            <template v-if="step.step.kind === 'influence'"><i class="con-parl__step-res con-parl__step-res--inf" aria-hidden="true"></i><span class="con-parl__step-level">{{ step.step.influence }}</span></template>
+            <template v-if="step.step.kind === 'influence'"><span class="con-parl__step-medal"><i class="con-parl__step-res con-parl__step-res--inf" aria-hidden="true"></i><span class="con-parl__step-level">{{ step.step.influence }}</span></span></template>
             <template v-else-if="step.step.kind === 'tr'"><i class="con-parl__step-res con-parl__step-res--tr resource_icon resource_icon--rating" aria-hidden="true"></i></template>
             <template v-else><i class="con-parl__step-res con-parl__step-res--card resource_icon resource_icon--cards" aria-hidden="true"></i></template>
           </span>
@@ -62,9 +59,16 @@
             <span v-for="color in step.cubes" :key="color" class="con-parl__agenda-cube"
                   :class="{'con-parl__agenda-cube--hidden': cubeHidden(color, step.index)}"
                   :data-agenda-cube="color">
-              <PlayerCube :color="color" :size="cubePx(12)" :glow="false" />
+              <PlayerCube :color="color" :size="cubePx(15)" :glow="false" />
             </span>
           </span>
+        </div>
+        <span v-for="band in influenceBands" :key="band.level" class="con-parl__inf-band"
+              :class="['con-parl__inf-band--l' + band.level, {'con-parl__inf-band--mine': band.mine}]"
+              :style="{gridColumn: band.from + 1 + ' / ' + (band.to + 2)}"
+              :data-parl-inf-band="band.level">
+          <template v-if="band.mine"><i class="con-parl__inf-band-glyph" aria-hidden="true"></i><b>{{ band.level }}</b></template>
+        </span>
       </div>
     </div>
   </div>
@@ -72,7 +76,7 @@
        Parliament's track: from the step it left to the step it reached. -->
   <Teleport to="body">
     <div v-if="agendaFlight !== undefined" class="con-parl__flight con-parl__flight--agenda" ref="agendaFlightEl" aria-hidden="true">
-      <PlayerCube :color="agendaFlight.color" :size="cubePx(12)" :glow="false" />
+      <PlayerCube :color="agendaFlight.color" :size="cubePx(15)" :glow="false" />
     </div>
   </Teleport>
 </template>
@@ -194,6 +198,27 @@ export default defineComponent({
         viewerLevel: mine ? influenceAtAgenda(hold.from) : vm.viewerLevel,
         nextStep: mine ? (next === undefined ? undefined : AGENDA_TRACK[next - 1]) : vm.nextStep,
       };
+    },
+    /**
+     * THE INFLUENCE BAND (Парламент v8): the track's influence steps cut it into five spans — a span runs from its
+     * ★ step to the step before the next ★ — and the span the viewer's marker stands in is ringed. Derived from
+     * `AGENDA_TRACK` alone, so a reworked track re-draws its band by itself.
+     */
+    influenceBands(): ReadonlyArray<{level: number, from: number, to: number, mine: boolean}> {
+      const marks: Array<{level: number, at: number}> = [];
+      AGENDA_TRACK.forEach((step, i) => {
+        if (step.kind === 'influence') {
+          marks.push({level: step.influence, at: i + 1});
+        }
+      });
+      const level = this.viewerParticipates ? this.shown.viewerLevel : -1;
+      // The START cell's span (level 0 — no ★ reached yet): the band covers the whole instrument.
+      return [{level: 0, from: 0, to: 0, mine: level === 0}, ...marks.map((mark, i) => ({
+        level: mark.level,
+        from: mark.at,
+        to: i + 1 < marks.length ? marks[i + 1].at - 1 : AGENDA_TRACK.length,
+        mine: level === mark.level,
+      }))];
     },
   },
   watch: {

@@ -3,8 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle} from './consoleStart';
 import {
-  answerGateAs, armLeakWitness, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, passAs, sittingStage,
-  strandedReports, waitSittingAtRest,
+  answerGateAs, armLeakWitness, expectDossierIsRules, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, passAs, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 
 /**
@@ -240,7 +239,7 @@ test.describe('Migration Funding · standard-1080', () => {
     await openZoomViewer(page);
     const zoom = page.locator('dialog.con-zoom[open]');
     await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(MIGRATION_CLASS);
-    await expect.poll(() => readingsIn(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).toEqual([estimateAtVote]);
+    await expectDossierIsRules(page, 'migration');
     const rules = zoom.locator('.con-zoom-sidecol');
     await expect(rules, 'the rule of the stack').toContainText(/стопка из двух даёт 2|a stack of two counts twice/i);
     await expect(rules, 'the counted cells behind the number').toContainText(/Учтены сейчас|Counted right now/);

@@ -5,7 +5,7 @@ import {
   bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusCard, openCardActions, openConsole, openZoomViewer, press, pressUntil, reloadConsole, settle,
   waitForBoardHome,
 } from './consoleStart';
-import {armLeakWitness, focusParliamentZone, focusParty, openParliament, parliament, strandedReports} from './parliamentDrive';
+import {armLeakWitness, expectDossierIsRules, focusParliamentZone, focusParty, openParliament, parliament, strandedReports} from './parliamentDrive';
 
 /**
  * TR36 «МЕСТО В СОВЕТЕ» — THE LAW OF ACCESS, lowered by a card
@@ -367,10 +367,9 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-fact="access"]')).toHaveAttribute('data-parl-fact-tone', 'gain');
       await expect(page.locator('[data-parl-fact="access"]'), '«0 из 1 → эффект ваш»').toContainText(/0 из 1.*эффект ваш/i);
       await shoot(page, preset.id, '05-vote-mars');
+      // Парламент v8 (the owner's point 9): the dossier is the rules — the edge «0 из 1 → эффект ваш» is the panel's (above).
       await openZoomViewer(page);
-      await expect(page.locator('dialog.con-zoom[open] .con-rstatus'), 'the footer: progress at threshold 1, this vote unlocks').toHaveAttribute('data-access', 'progress');
-      await expect(page.locator('dialog.con-zoom[open] .con-rstatus__count').first()).toHaveText('0/1');
-      await expect(page.locator('dialog.con-zoom[open] [data-zoom-vote-access]'), 'the footer projects «→ эффект ваш»').toHaveCount(1);
+      await expectDossierIsRules(page, preset.id);
       await closeZoomViewer(page);
       await selectVoteSlot(page, SCIENTISTS);
       await expect(page.locator('[data-parl-fact="access"]'), 'the Scientists: held already — no effect fact for the second cube').toHaveCount(0);

@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import {
   bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, pressUntil, settle,
 } from './consoleStart';
-import {answerGateAs, armLeakWitness, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
+import {answerGateAs, armLeakWitness, expectDossierIsRules, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * JOVIAN TAX RIGHTS (Turmoil Redux, RX17) — the ONE e2e of the card's new
@@ -246,17 +246,7 @@ test.describe('Jovian Tax Rights · standard-1080', () => {
       await openZoomViewer(page);
       const zoom = page.locator('dialog.con-zoom[open]');
       await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(RIGHTS_CLASS);
-      await expect.poll(() => readingsIn(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).toEqual([
-        {effect: 'titanium', context: 'estimate', count: null, influence: '3', amount: '3', max: null, skipped: null},
-        {effect: 'production', context: 'estimate', count: '4', influence: '3', amount: '4', max: null, skipped: null},
-      ]);
-      // The card beside the readings prints the formula (the block draws none here): the readings alone — the
-      // production's inputs are its colonies, never the influence; its horizon rides along.
-      const zoomYield = zoom.locator('[data-zoom-yield]');
-      await expect(zoomYield.locator('[data-yield-effect="production"] [data-yield-in="count"]')).toHaveText('4');
-      await expect(zoomYield.locator('[data-yield-effect="production"] [data-yield-in="influence"]'), 'influence is not a term of the production').toHaveCount(0);
-      await expect(zoomYield.locator('[data-yield-effect="titanium"] [data-yield-in="influence"]')).toHaveText('3');
-      await expect(zoomYield.locator('[data-yield-effect="production"] [data-yield-horizon]')).toHaveCount(1);
+      await expectDossierIsRules(page, 'jovian');
       const rules = zoom.locator('.con-zoom-sidecol');
       await expect(rules, 'the rule says what counts').toContainText(/две колонии на одном тайле дают 2|two colonies on one tile count twice/);
       await expect(rules, 'the list behind the number').toContainText(/Учтены сейчас|Counted right now/);

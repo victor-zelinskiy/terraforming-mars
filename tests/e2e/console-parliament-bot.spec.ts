@@ -229,10 +229,8 @@ for (const preset of PARLIAMENT_PRESETS) {
       await expect(slot.locator('.con-parl__slot-win'), 'the card reads «Принимается»').toHaveCount(1);
       const after = await wireOf(request, playerId);
       expect(after.game.parliament?.slots.find((s) => s.instance === vote.instance)?.leader, 'the server names the bot as the leader').toBe(bot.color);
-      // ── THE BAND reads the bot as the winning player — by the localized name, never a raw «MarsBot».
-      await expect(page.locator('.con-band'), 'the overview line names the winning player').toContainText(/Победитель голосования|Winning player/);
-      await expect(page.locator(`.con-band [data-parl-band-chip="player"] .player-cube[aria-label="${bot.color}"]`)).toHaveCount(1);
-      await expect(page.locator('.con-band [data-parl-band-chip="player"]'), 'the bot by its display name').toContainText(/Бот|MarsBot/);
+      // Парламент v8: the overview has no reading line — the table READS the winner on its objects (the leader's cube
+      // under the crown, the tab above the bill, both asserted above); the name stays localized everywhere.
       expect(await page.locator('.con-parl').evaluate((el) => (el.textContent ?? '').includes('MarsBot')), 'no raw «MarsBot» anywhere in the parliament (RU: «Бот»)').toBe(false);
       await expectParliamentFits(page, `${preset.id} overview after the vote`);
       await shoot(page, preset.id, '02-vote-after');
@@ -402,12 +400,11 @@ for (const preset of PARLIAMENT_PRESETS) {
       await settle(page, {timeoutMs: 30_000});
 
       await expect(page.locator('[data-parl-quest].con-parl__quest--done'), 'the quest reads completed').toHaveCount(1, {timeout: 30_000});
-      await expect(page.locator('[data-parl-quest] .con-parl__quest-state'), 'by its own word').toContainText(/Выполнено|Completed/);
       await expect(questRow, 'the bot\'s row reads 2/2').toContainText('2/2');
-      await expect(page.locator('[data-parl-quest-reward]'), 'won by the bot').toContainText(/Выполнил|Won by/);
-      await expect(page.locator('[data-parl-quest-reward]'), 'by its display name, never a raw «MarsBot»').toContainText(/Бот|MarsBot/);
+      // «Зал» v7 / Парламент v8: the quest plate states no winner in WORDS — the winner TAKES THE CHAIR (its cube in the
+      // seat, the chair's won ring); the name stays localized everywhere.
       expect(await page.locator('.con-parl').evaluate((el) => (el.textContent ?? '').includes('MarsBot')), 'no raw «MarsBot» anywhere in the parliament (RU: «Бот»)').toBe(false);
-      await expect(page.locator(`[data-parl-quest-reward] .player-cube[aria-label="${bot.color}"]`)).toHaveCount(1);
+      await expect(page.locator('[data-parl-chair].con-parl__chair--won'), 'the chair reads the quest won by its holder').toHaveCount(1, {timeout: 30_000});
       await expect(page.locator(`[data-parl-chair] [data-parl-seat-chair="${bot.color}"]`), 'the chair carries the bot\'s cube').toHaveCount(1, {timeout: 30_000});
       await expect(page.locator(`[data-agenda-markers="${bot.agenda + 1}"] [data-agenda-cube="${bot.color}"]`), 'its marker stands on the next step').toHaveCount(1, {timeout: 30_000});
       await expect(page.locator(`[data-parl-seat-reserve="${bot.color}"]`), 'its reserve stack dropped by one').toHaveAttribute('data-count', String(bot.reserve - 1));

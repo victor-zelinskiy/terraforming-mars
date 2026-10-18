@@ -84,7 +84,8 @@
                   <ConsoleVoteLedger class="con-parl__info-ledger-row" :chips="voteLedger" :subject="voteSubject" :cubeLogicalPx="11" />
                 </div>
                 <div class="con-parl__info-own-body">
-                  <PremiumMechanicsPanel v-if="ownMechanics !== undefined" class="con-parl__info-mech" :mechanics="ownMechanics" />
+                  <!-- («Зал» v7, Ф4: the card's PRINTED graphic is on the bill itself, a size up right above this
+                       plate — the reading no longer repeats it; the formula → number plate alone is the reading.) -->
                   <div v-if="voteInfo.reading.yields.length > 0 || voteInfo.reading.grant !== undefined || voteLedger.length > 0" class="con-parl__info-readings" data-parl-vote-late>
                     <ConsoleInfluenceYield v-if="voteInfo.reading.yields.length > 0"
                                            class="con-parl__info-yield"
@@ -151,10 +152,13 @@
                   <span class="con-parl__info-law-text">{{ $t(lawPassiveText) }}</span>
                 </div>
               </div>
-              <div class="con-parl__info-party" :class="{'con-parl__info-party--support': voteInfo.support !== undefined}"
+              <!-- THE PARTY BOX stands ONLY under a door that pays the party («Зал» v7, Ф4 — the plan's § 3.2): the
+                   party's printed formula is never repeated on the panel — it stands in the GOVERNMENT when the party
+                   rules and in the resolution's dossier (X) otherwise; the mode is ONE block, «ДЛЯ ВАС». Under TR03's
+                   door the box is where the neutral cubes LAND, so it stands for that door's whole life. -->
+              <div v-if="voteInfo.support !== undefined" class="con-parl__info-party con-parl__info-party--support"
                    data-parl-vote-item data-parl-info="party-effect" :data-party="voteInfo.party">
                 <ConsolePartyFormula class="con-parl__info-party-formula" :party="voteInfo.party" :emblem="true" size="compact" />
-                <span v-if="voteInfo.support === undefined" class="con-parl__info-party-when" data-parl-vote-late>{{ $t(partyMoment) }}</span>
                 <!-- «НАРОДНАЯ ПОДДЕРЖКА» — a door that ALSO pays the chosen resolution's PARTY (TR03 Political
                      Donation: «then up to 3 neutral delegates…»). The area in the plaque's own vocabulary — three
                      places: filled · arriving (hollow) · empty — then `current → resulting` and a tail that NAMES
@@ -163,7 +167,7 @@
                      included. It takes the box's line of moment (one caption, one place): the box keeps its
                      geometry from card to card and from the press to the leave. Nothing here is «yours» —
                      the support is the party's. -->
-                <div v-else class="con-parl__info-support" :class="'con-parl__info-support--' + voteInfo.support.tone"
+                <div class="con-parl__info-support" :class="'con-parl__info-support--' + voteInfo.support.tone"
                      data-parl-vote-support data-parl-vote-late
                      :data-support-party="voteInfo.support.party"
                      :data-support-current="voteInfo.support.current"
@@ -281,9 +285,6 @@ import ConsoleVoteFactRow from '@/client/components/console/parliament/ConsoleVo
 import ConsoleSupportPlaces from '@/client/components/console/parliament/ConsoleSupportPlaces.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
-import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mechanicsModel';
-import {PARLIAMENT_GRAPHIC} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
@@ -318,7 +319,7 @@ import {
   SUPPORT_CUBE_STAGGER_MS, VoteForecastVm, voteResponse, voteVerbOf, VoteVerbVm,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {
-  CARD_DOOR_RECEIPT, CARD_DOOR_SOURCE, PARTY_MOMENT, SUPPORT_KICKER, supportTailText, voteFactsOf, VoteFactsVm, voteInfoOf, VoteInfoVm,
+  CARD_DOOR_RECEIPT, CARD_DOOR_SOURCE, SUPPORT_KICKER, supportTailText, voteFactsOf, VoteFactsVm, voteInfoOf, VoteInfoVm,
 } from '@/client/console/parliament/voteInfoModel';
 import {VoteSupportProjection} from '@/common/models/PlayerInputModel';
 import {LedgerChipVm, voteLedgerOf} from '@/client/console/parliament/voteLedgerModel';
@@ -347,7 +348,7 @@ export default defineComponent({
   name: 'ConsoleParliamentVoteMode',
   components: {
     ConsoleInfluenceYield, ConsoleColonyLedger, ConsoleTileGrant, ConsoleVoteLedger, ConsolePartyFormula, ConsolePartyReaction, ConsoleVoteFactRow,
-    ConsoleSupportPlaces, PlayerCube, GamepadGlyph, PremiumMechanicsPanel,
+    ConsoleSupportPlaces, PlayerCube, GamepadGlyph,
   },
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
@@ -379,7 +380,6 @@ export default defineComponent({
   emits: ['notice', 'inspect', 'send', 'flow-complete'],
   data() {
     return {
-      partyMoment: PARTY_MOMENT,
       supportKicker: SUPPORT_KICKER,
       cardDoorSource: CARD_DOOR_SOURCE,
       cardDoorReceipt: CARD_DOOR_RECEIPT,
@@ -557,13 +557,6 @@ export default defineComponent({
         return {before: rendered, after: ''};
       }
       return {before: rendered.slice(0, at), after: rendered.slice(at + 4)};
-    },
-    /** The selected card's printed graphic — the reading's formula, beside the number. */
-    ownMechanics(): MechanicsVM | undefined {
-      const slot = this.voteSlot;
-      const resolution = slot === undefined ? undefined : (slot.resolution ?? getResolution(slot.resolutionId));
-      const own = resolution === undefined ? undefined : buildMechanics(resolution.renderData, PARLIAMENT_GRAPHIC);
-      return own === undefined || own.textOnly ? undefined : own;
     },
     /** The selected card's STANDING effect (its `text.passive`) — the law column's second row (undefined without one). */
     lawPassiveText(): string | undefined {

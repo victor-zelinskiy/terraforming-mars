@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import {
   bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openQuickWheel, openZoomViewer, press, pressUntil, settle,
 } from './consoleStart';
+import {expectDossierIsRules} from './parliamentDrive';
 
 /**
  * CENTRAL POWER GRID (Turmoil Redux, RX04) — the second card of the «counter +
@@ -187,10 +188,7 @@ for (const preset of PRESETS) {
       await openZoomViewer(page);
       const zoom = page.locator('dialog.con-zoom[open]');
       await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(GRID_CLASS);
-      await expect.poll(() => readingsIn(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).toEqual([
-        reading('estimate', 3, 1, 4, 4),
-        reading('forecast', 3, 2, 5, 5),
-      ]);
+      await expectDossierIsRules(page, preset.id);
       const rules = zoom.locator('.con-zoom-sidecol');
       await expect(rules, 'the rules state the tag qualification in words').toContainText(/энергетическ|power tag/i);
       await expect(rules, 'the counted cards behind the number').toContainText(/Учтены сейчас|Counted right now/);
@@ -203,10 +201,6 @@ for (const preset of PRESETS) {
       await expect(zoom.locator('.card-zoom-stage .pcard').first()).not.toHaveClass(GRID_CLASS, {timeout: 10_000});
       await press(page, 'BracketLeft', 900);
       await expect(zoom.locator('.card-zoom-stage .pcard').first()).toHaveClass(GRID_CLASS, {timeout: 10_000});
-      await expect.poll(() => readingsIn(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).toEqual([
-        reading('estimate', 3, 1, 4, 4),
-        reading('forecast', 3, 2, 5, 5),
-      ]);
       await closeZoomViewer(page);
       await press(page, 'Escape', 900);
     });

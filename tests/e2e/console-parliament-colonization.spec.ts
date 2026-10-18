@@ -3,8 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle} from './consoleStart';
 import {
-  answerGateAs, armLeakWitness, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, passAs, sittingStage,
-  strandedReports, waitSittingAtRest,
+  answerGateAs, armLeakWitness, expectDossierIsRules, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, passAs, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 
 /**
@@ -218,7 +217,7 @@ test.describe('Colonization Funding · standard-1080', () => {
     await openZoomViewer(page);
     const zoom = page.locator('dialog.con-zoom[open]');
     await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(FUNDING_CLASS);
-    await expect.poll(() => readingsIn(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).toEqual([readingAtMax]);
+    await expectDossierIsRules(page, 'colonization');
     const rules = zoom.locator('.con-zoom-sidecol');
     await expect(rules, 'the rule names what a space city is').toContainText(/вне Марса|off Mars/i);
     await expect(rules, 'the counted cells behind the number').toContainText(/Учтены сейчас|Counted right now/);

@@ -62,9 +62,17 @@ export function fitParliamentCards(): void {
   const heightOf = (host: Element, sel: string): number => host.querySelector<HTMLElement>(sel)?.offsetHeight ?? 0;
   const snap = (zoom: number, min: number): number => Math.max(min * scale, Math.floor(zoom * 1000) / 1000);
   const slots = Array.from(root.querySelectorAll<HTMLElement>('.con-parl__slot'));
-  // «Зал» v7: the slot is THREE rows (the bill · the ribbon · the tally) — the label row is gone, so two gaps.
-  const chromeOf = (slot: HTMLElement): number =>
-    heightOf(slot, '.con-parl__ribbon') + heightOf(slot, '.con-parl__tally');
+  // Парламент v8: the bill stands over its VOTE RAIL — the tally's medallion and the ribbon share ONE row (one gap);
+  // stacked (an older layout, the vote row) they are two rows and two gaps. Read off the layout, never assumed.
+  const railOf = (slot: HTMLElement): {h: number, gaps: number} => {
+    const ribbon = slot.querySelector<HTMLElement>('.con-parl__ribbon');
+    const tally = slot.querySelector<HTMLElement>('.con-parl__tally');
+    if (ribbon !== null && tally !== null && ribbon.offsetTop === tally.offsetTop) {
+      return {h: Math.max(ribbon.offsetHeight, tally.offsetHeight), gaps: 1};
+    }
+    return {h: heightOf(slot, '.con-parl__ribbon') + heightOf(slot, '.con-parl__tally'), gaps: 2};
+  };
+  const chromeOf = (slot: HTMLElement): number => railOf(slot).h;
 
   if (parliamentSlotsCarried()) {
     // THE VOTE ROW: each card takes its column's height minus the slot's
@@ -74,7 +82,7 @@ export function fitParliamentCards(): void {
       const slot = slots[0];
       const cs = getComputedStyle(slot);
       const chrome = Math.max(...slots.map(chromeOf));
-      const availH = slot.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom) - chrome - px(cs.rowGap) * 2;
+      const availH = slot.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom) - chrome - px(cs.rowGap) * railOf(slot).gaps;
       const availW = slot.clientWidth - px(cs.paddingLeft) - px(cs.paddingRight);
       const zoom = Math.min(availH / PCARD_H, availW / PCARD_W, MAX_VOTE_ZOOM * scale);
       root.style.setProperty('--con-parl-vote-zoom', String(snap(zoom, MIN_VOTE_ZOOM)));
@@ -83,8 +91,10 @@ export function fitParliamentCards(): void {
     const slot = slots[0];
     const cs = getComputedStyle(slot);
     const chrome = Math.max(...slots.map(chromeOf));
-    const availH = slot.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom) - chrome - px(cs.rowGap) * 2;
-    const availW = slot.clientWidth - px(cs.paddingLeft) - px(cs.paddingRight);
+    const availH = slot.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom) - chrome - px(cs.rowGap) * railOf(slot).gaps;
+    // Парламент v8: the stand HUGS its bill inside the home column — the room is the HOME's (a fit never reads its output).
+    const home = slot.closest<HTMLElement>('.con-parl__slot-home') ?? slot;
+    const availW = home.clientWidth - px(cs.paddingLeft) - px(cs.paddingRight);
     const cap = consoleLayoutState.profile === 'tv' ? MAX_CARD_ZOOM_TV : MAX_CARD_ZOOM;
     const zoom = Math.min(availH / PCARD_H, availW / PCARD_W, cap * scale);
     root.style.setProperty('--con-parl-card-zoom', String(snap(zoom, MIN_CARD_ZOOM)));
@@ -103,10 +113,15 @@ export function fitParliamentCards(): void {
       const innerH = ruling.clientHeight - px(rcs.paddingTop) - px(rcs.paddingBottom);
       const innerW = ruling.clientWidth - px(rcs.paddingLeft) - px(rcs.paddingRight);
       const carry = ruling.querySelector<HTMLElement>('[data-parl-gov-carry], .con-parl__gov-empty');
-      const others = Array.from(ruling.children).filter((child) => child !== carry)
-        .reduce((sum, child) => sum + (child as HTMLElement).offsetHeight, 0);
-      const taken = others + px(rcs.rowGap) * Math.max(0, ruling.children.length - 1);
-      govZoom = Math.min(govZoom, (innerH - taken) / PCARD_H, (innerW * GOV_CARD_SHARE) / PCARD_W);
+      const others = Array.from(ruling.children).filter((child) => child !== carry) as Array<HTMLElement>;
+      // Парламент v8: the dais is a ROW — the ruler's seal BESIDE the law, so the seal takes width, not height.
+      if (rcs.flexDirection.startsWith('row')) {
+        const taken = others.reduce((sum, child) => sum + child.offsetWidth, 0) + px(rcs.columnGap) * others.length;
+        govZoom = Math.min(govZoom, innerH / PCARD_H, (innerW - taken) / PCARD_W);
+      } else {
+        const taken = others.reduce((sum, child) => sum + child.offsetHeight, 0) + px(rcs.rowGap) * others.length;
+        govZoom = Math.min(govZoom, (innerH - taken) / PCARD_H, (innerW * GOV_CARD_SHARE) / PCARD_W);
+      }
       if (carry !== null && carry.hasAttribute('data-parl-gov-empty')) {
         govZoom = Math.min(govZoom, MAX_GOV_EMPTY_ZOOM * scale);
       }

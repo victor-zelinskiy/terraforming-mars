@@ -270,13 +270,8 @@ const inspectorOf = (page: Page) => page.evaluate(() => {
   }
   const q = (sel: string) => Array.from(zoom.querySelectorAll<HTMLElement>(sel));
   return {
-    estimates: q('[data-zoom-vote-reading] [data-yield-context="estimate"]').length,
-    forecasts: q('[data-zoom-vote-reading] [data-yield-context="forecast"]').length,
-    // The viewer's vote in the footer: the fact rows of the chip, the status chip's access projection, no winning tail beside a chip, no vote block in the columns.
-    voteFacts: q('[data-zoom-vote-facts] [data-zoom-vote-fact]').map((el) => el.getAttribute('data-zoom-vote-fact')),
-    voteFactTexts: q('[data-zoom-vote-facts] [data-zoom-vote-fact]').map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim()),
-    voteAccess: q('[data-zoom-vote-access]').length,
-    winningTails: q('.con-rstatus__life-tail').length,
+    // Парламент v8 (the owner's point 9): the dossier carries NO plate of the viewer's own — the panel does.
+    plates: q('[data-zoom-yield], [data-zoom-winner], [data-zoom-reaction], [data-zoom-grant], .con-rstatus').length,
     voteBlocks: q('[data-rules-group="group:vote"]').length,
     position: q('[data-zoom-position]').map((el) => (el.textContent ?? '').replace(/\s+/g, ' ').trim())[0] ?? null,
     parties: q('.con-rinspect-aside').length,
@@ -345,8 +340,11 @@ for (const preset of PRESETS) {
         expect(budget.forecastPlates, 'a forecast is never a plate on the panel').toBe(0);
         expect(budget.estimatePlates, 'the estimate plates — one per effect').toBeGreaterThan(0);
         expect(budget.captions, 'the kicker is the caption; the plates print none').toBe(0);
-        expect(budget.partyGraphic, 'the party\'s formula stands beside the reading').toBe(1);
-        expect(budget.partyMoment, 'with its one line of moment').toBe(1);
+        // «Зал» v7 (Ф4): the mode is ONE block — the party's formula is never repeated on the panel (it stands in the
+        // government when the party rules, and in the resolution's dossier otherwise); the box exists only under a
+        // door that pays the party (TR03 — `console-political-donation`).
+        expect(budget.partyGraphic, 'the party\'s formula is not repeated on the panel').toBe(0);
+        expect(budget.partyMoment, 'no line of moment either').toBe(0);
         // The panel's head repeats no «принимается» — the slot right above says it (P-03); the winning badge has ONE form on
         // EVERY profile («Зал» v7: the crown glyph on the bill's corner, with its hint — P-12's «one form» generalized); an
         // empty slot says «0 · —», once (P-02).
@@ -383,19 +381,15 @@ for (const preset of PRESETS) {
         await page.screenshot({path: path.join(dir, `${fixture.code}-${fixture.name}.png`)});
         fs.writeFileSync(path.join(dir, `${fixture.code}-${fixture.name}.json`), JSON.stringify({...metrics, budget: {...budget, text: undefined}, onEdge}, null, 2));
 
-        // ── (г) the inspector carries the whole forecast; the panel under it does not move
+        // ── (г) the inspector is the rules (Парламент v8); the panel under it does not move
         const panelBefore = await panelSignature(page);
         await openZoomViewer(page);
         const zoom = page.locator('dialog.con-zoom[open]');
         await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the selected resolution on the stage').toHaveClass(new RegExp(slug(fixture.id)));
         await expect.poll(() => inspectorOf(page), {timeout: 10_000}).not.toBeNull();
         const inspector = (await inspectorOf(page))!;
-        expect(inspector.estimates, 'every estimate the panel shows').toBe(budget.estimatePlates);
-        expect(inspector.forecasts, 'a forecast plate wherever the panel shows a suffix').toBe(fixture.suffix.length);
-        expect(inspector.voteFacts, `the vote's facts as the panel's rows in the footer: ${inspector.voteFactTexts.join(' | ')}`).toEqual(['lead', 'win']);
+        expect(inspector.plates, 'the dossier is the rules — no plate of the viewer’s own (the panel carries them)').toBe(0);
         expect(inspector.voteBlocks, 'no vote block in the columns (registry R-10)').toBe(0);
-        expect(inspector.winningTails, 'the status chip drops its winning tail beside the vote chip').toBe(0);
-        expect(inspector.voteAccess, onEdge ? 'on the edge the access line projects «→ эффект ваш»' : 'off the edge the access line projects nothing').toBe(onEdge ? 1 : 0);
         expect(inspector.parties, 'the party column').toBe(1);
         // LB/RB page the proposals (three on every fixture table).
         const position = inspector.position;

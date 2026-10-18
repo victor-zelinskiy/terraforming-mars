@@ -5,7 +5,7 @@ import {
   bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openCardActions, openQuickWheel, openZoomViewer, press,
   pressUntil, reloadConsole, sendPlayerInput, settle, takeRevealCards, waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
-import {focusParliamentZone, focusParty} from './parliamentDrive';
+import {expectDossierIsRules, focusParliamentZone, focusParty} from './parliamentDrive';
 
 /**
  * THE PARLIAMENT v4 (Turmoil Redux) — the overview with ONE voting focus zone,
@@ -192,7 +192,13 @@ async function expectUniformGrid(page: Page, label: string): Promise<void> {
   }
 }
 
-/** The inspector's reading bodies need no scroll (the panels' whole point) — the party column's text block included. */
+/**
+ * The inspector's reading bodies need no scroll (the panels' whole point) — the party column's text block included.
+ * Парламент v8 (the owner's point 9): a resolution's dossier is its RULES — the viewer's plates are the vote panel's,
+ * «ДЛЯ ВАС» keeps only its words as the panel's LAST group. On the TV and at 1080 the whole panel fits; the Deck is a
+ * starved host (a 420 px column under a levy card's rules), where the panel may scroll as the last rung of its own
+ * ladder — but only past the rules' own groups (what is cut is the tail) and with a readable area.
+ */
 async function expectRulesFit(page: Page, label: string): Promise<void> {
   const overflow = await page.evaluate(() => {
     const scrolls = Array.from(document.querySelectorAll<HTMLElement>('dialog.con-zoom[open] .con-zoom-rules__scroll'));
@@ -200,10 +206,23 @@ async function expectRulesFit(page: Page, label: string): Promise<void> {
       return 'no rules panel';
     }
     const out: Array<string> = [];
+    const starved = document.documentElement.classList.contains('con-profile-handheld');
     for (const scroll of scrolls) {
       const inner = scroll.querySelector<HTMLElement>('.con-zoom-rules__body') ?? scroll;
       if (inner.scrollHeight > scroll.clientHeight + 2) {
-        out.push(`${inner.scrollHeight} > ${scroll.clientHeight}`);
+        if (starved) {
+          const groups = Array.from(inner.querySelectorAll<HTMLElement>('[data-rules-group]'));
+          const you = groups.findIndex((g) => g.getAttribute('data-rules-group') === 'group:you');
+          if (you !== -1 && you !== groups.length - 1) {
+            out.push('the «ДЛЯ ВАС» words are not the panel\'s last group');
+          }
+          const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 20;
+          if (scroll.clientHeight < 8 * rem) {
+            out.push(`the resolution's panel is a sliver on the Deck: ${scroll.clientHeight} px`);
+          }
+        } else {
+          out.push(`${inner.scrollHeight} > ${scroll.clientHeight}`);
+        }
       }
     }
     // …and every column stands INSIDE the viewport: two columns beside the
@@ -429,12 +448,18 @@ for (const preset of PRESETS) {
 
       // ── «Зал» v7: the career edge IS a focus stop — ▼ from the table lands on the track (the reading line reads
       //    it), ◀ from the track is the engine (the chair with its quest), ▲ from the engine is the ruler's medallion.
+      // Парламент v8: the career is ONE stop (◀ ▶ walk no steps), ▲ from the quest is «ВАШИ ЭФФЕКТЫ», ▲ again the ruler.
       await press(page, 'ArrowDown', 400);
-      expect(await parliament(page).getAttribute('data-zone'), '▼ from the table: the career edge').toBe('agenda');
+      expect(await parliament(page).getAttribute('data-zone'), '▼ from the table: the career').toBe('agenda');
+      await expect(page.locator('.con-parl__agenda--focus'), 'the career wears the cursor as ONE object').toHaveCount(1);
+      await press(page, 'ArrowRight', 400);
+      expect(await parliament(page).getAttribute('data-zone'), '▶ on the career moves nothing — no step is a stop').toBe('agenda');
       await press(page, 'ArrowLeft', 400);
-      expect(await parliament(page).getAttribute('data-zone'), '◀ from the track: the engine').toBe('engine');
+      expect(await parliament(page).getAttribute('data-zone'), '◀ from the career: the quest').toBe('engine');
       await press(page, 'ArrowUp', 400);
-      expect(await parliament(page).getAttribute('data-zone'), '▲ from the engine: the ruler').toBe('ruler');
+      expect(await parliament(page).getAttribute('data-zone'), '▲ from the quest: your effects').toBe('effects');
+      await press(page, 'ArrowUp', 400);
+      expect(await parliament(page).getAttribute('data-zone'), '▲ from the effects: the ruler').toBe('ruler');
       await focusVoting(page);
 
       // ── THE DELEGATES ZONE on the head line: every player's lobby socket and
@@ -897,15 +922,10 @@ test.describe('parliament v4 · a crowded table · the vote that is not possible
       await press(page, at < winner ? 'ArrowRight' : 'ArrowLeft', 500);
     }
     expect(await selectedInstance(page), 'the winning card is selected').toBe(model.parl.slots[winner].instance);
-    // The inspector of the winning card: the footer says it stands in the vote
-    // AND wins right now; the party column and the own-rules column both fit.
+    // The inspector of the winning card (Парламент v8): the RULES — the standing and the vote's facts are the
+    // panel's; the party column and the own-rules column both fit.
     await openZoomViewer(page);
-    await expect(page.locator('.con-rstatus[data-lifecycle="vote"]'), 'the standing chip: up for the vote').toHaveCount(1);
-    // The winning state is the footer's own FACT ROW (final polish A.1): «ПРИНИМАЕТСЯ да» — one value,
-    // no arrow, since no delegate of the viewer can move it; the chip carries no second «принимается».
-    await expect(page.locator('[data-zoom-vote-facts] [data-zoom-vote-fact="win"]'), 'the fact row says it wins right now').toContainText(/принимается/i);
-    await expect(page.locator('[data-zoom-vote-facts] [data-zoom-vote-fact="win"] .con-parl__fact-arrow'), 'nothing to change: one value, no arrow').toHaveCount(0);
-    await expect(page.locator('dialog.con-zoom[open] .con-rstatus__life-tail'), 'the standing chip says it once — no winning tail beside the rows').toHaveCount(0);
+    await expectDossierIsRules(page, `${preset} tie`);
     await expect(page.locator('.card-zoom-aside .con-rinspect-aside')).toHaveCount(1);
     await expectInspectorScene(page, `${preset} tie`);
     // No vote possible: the verb stays in place, calm, with the server's
@@ -933,8 +953,7 @@ test.describe('parliament v4 · a crowded table · the vote that is not possible
     // «Зал» v7: past the commit X belongs to the RESULT — X on the ruler's medallion inspects the ENACTED resolution (R3 is gone).
     await focusParliamentZone(page, 'ruler');
     await openZoomViewer(page);
-    await expect(page.locator('.con-rstatus[data-lifecycle="enacted"]'), 'the enacted standing').toHaveCount(1);
-    await expect(page.locator('.con-rstatus[data-access="everyone"]'), 'the party effect is every player\'s').toHaveCount(1);
+    await expectDossierIsRules(page, `${preset} enacted`);
     await expect(page.locator('dialog.con-zoom[open] .con-zoom__vote'), 'no vote verb over the enacted card').toHaveCount(0);
     await expect(page.locator('[data-zoom-position]'), 'one card, no paging').toHaveCount(0);
     await expectInspectorScene(page, `${preset} enacted`);

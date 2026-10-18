@@ -99,11 +99,13 @@ dialog.con-zoom.con-zoom--parliament .card-zoom-actions__panel {
    rock-solid across LB/RB; the viewer's fit engine reads this very band (`CardZoomModal`: the console
    instance reserves the band it has). Measured: 1080 — rows 72 + 70, a 6 px step, 22 px of plate
    padding = 170 of 170; TV — 140 + 116 + 16 + 44 = 316 of 340; Deck — 70 + 60 + 4 + 22 = 156 of 168. */
-dialog.con-zoom.con-zoom--parliament .card-zoom-actions { height: 8.5rem; }
-html.con-profile-handheld dialog.con-zoom.con-zoom--parliament .card-zoom-actions { height: 8.4rem; }
-/* The couch: the reading's plates at the .8rem floor (P-08) make the two-part reading 167 px tall — the plate
-   measured 343 px in the 340 px band; 9.2rem (368 px) holds it with a margin. */
-html.con-profile-tv dialog.con-zoom.con-zoom--parliament .card-zoom-actions { height: 9.2rem; }
+/* Парламент v8 (the owner's point 9): a resolution's dossier is its RULES — the footer carries VERBS only and keeps
+   the viewer's ordinary height; the viewer's own readings are the vote panel's. */
+/* …the catalog's REFERENCE inspector (the main menu's «Резолюции», `ConsoleMenuZoomHost`) still reads a resolution's
+   standing and readings in its footer plates — its band keeps the plates' height (`con-zoom--plates`). */
+dialog.con-zoom.con-zoom--plates .card-zoom-actions { height: 8.5rem; }
+html.con-profile-handheld dialog.con-zoom.con-zoom--plates .card-zoom-actions { height: 8.4rem; }
+html.con-profile-tv dialog.con-zoom.con-zoom--plates .card-zoom-actions { height: 9.2rem; }
 /* Between groups a clear, moderate step; inside a group the glyph and its
    words keep their own tight gaps. (The class is doubled to outrank the
    profile ladders' `.con-zoom__bar` gap, which sit later in the cascade.) */
@@ -370,35 +372,6 @@ html.con-profile-handheld .con-pseal--aside {
     .con-pseal__action { width: 1.15rem; height: 1.15rem; font-size: .7rem; }
     .con-pseal__formula { margin-top: .2rem; padding: .15rem .3rem; }
 }
-/* THE VOTE CHIP — the viewer's vote as the panel's fact rows, on the status chip's chassis with the vote's
-   own mint accent (the confirm's colour). Rows are grid cells over their reserve (the other cards' rows), so
-   the chip keeps one size for the whole context. */
-.con-rvote {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: stretch;
-    justify-content: center;
-    gap: .12rem;
-    padding: .22rem .6rem .22rem .5rem;
-    border-radius: .4rem;
-    background: linear-gradient(90deg, fade(#0b1420, 92%), fade(#0b1420, 72%));
-    box-shadow:
-        inset .16rem 0 0 fade(@con-parl-mint, 75%),
-        inset 0 0 0 .05rem rgba(130, 165, 200, 0.22);
-    font-family: @con-font;
-    white-space: nowrap;
-    &__cell {
-        display: grid;
-        justify-items: stretch;
-        align-items: center;
-        > * { grid-area: 1 / 1; }
-    }
-    &__sizer { visibility: hidden; }
-    &__row { line-height: 1.1; }
-    /* A seat's NAME in the lead row is the one value without a ceiling: it ends with an ellipsis in
-       its OWN box (the rail law) — the row is never squeezed for it. */
-    .con-parl__fact-val > b { max-width: 8rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-}
 /* THIS VOTE's projection on the access line — the panel's arrow grammar, mint (the gain tone). */
 .con-rstatus__access-next {
     display: inline-flex;
@@ -420,14 +393,6 @@ html.con-profile-handheld .con-rstatus {
     &__access-basis { font-size: .62rem; }
     &__place { width: .85rem; height: .85rem; }
     &__count { font-size: .64rem; }
-}
-/* The fact rows at the vote panel's own handheld sizes (one grammar, two hosts). */
-html.con-profile-handheld .con-rvote {
-    gap: .08rem;
-    padding: .18rem .5rem .18rem .4rem;
-    .con-parl__fact { padding: .03rem .35rem; }
-    .con-parl__fact-key { font-size: .5rem; }
-    .con-parl__fact-val { font-size: .68rem; b { font-size: .82rem; } }
 }
 html.con-profile-handheld .con-zoom__bar.con-zoom__bar--scene { --con-zoom-bar-gap: 1rem; row-gap: .2rem; }
 html.con-profile-handheld .con-zoom__vote {
@@ -461,14 +426,6 @@ html.con-profile-tv .con-rstatus {
     &__access-basis { font-size: .8rem; }
     &__place { width: 1rem; height: 1rem; }
     &__count { font-size: .85rem; }
-}
-/* The fact rows at the vote panel's own couch sizes (the .8rem floor). */
-html.con-profile-tv .con-rvote {
-    gap: .16rem;
-    padding: .28rem .8rem .28rem .65rem;
-    .con-parl__fact { padding: .03rem .45rem; }
-    .con-parl__fact-key { font-size: .8rem; }
-    .con-parl__fact-val { font-size: .9rem; b { font-size: 1.05rem; } }
 }
 html.con-profile-tv .con-zoom__bar.con-zoom__bar--scene { --con-zoom-bar-gap: 1.4rem; row-gap: .4rem; }
 /* The reading's plates at the couch floor (P-08: the compact caption was .5rem — 20 px physical — on the TV). */

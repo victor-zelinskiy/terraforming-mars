@@ -13,6 +13,8 @@
   <div class="con-parl__engine"
        :class="{
          'con-parl__engine--done': questShown !== undefined && questShown.completedBy !== undefined,
+         // The QUEST's own state name (the plate IS the quest — `[data-parl-quest]`): the walk probes read «done» by it.
+         'con-parl__quest--done': questShown !== undefined && questShown.completedBy !== undefined,
          'con-parl__engine--closed': questClosed,
          'con-parl__engine--focus': focused,
          'con-parl__quest--pulse': questPulse || flow.questPulse,
@@ -21,6 +23,8 @@
        data-parl-quest
        data-parl-engine
        :data-parl-quest-closed="questClosed ? '' : undefined">
+    <!-- Парламент v8: the quest is a PLATE at the head of the career row — its kicker names it (X reads the dossier). -->
+    <span class="con-parl__engine-kicker">{{ $t('Chairman quest') }}</span>
     <!-- THE CHAIR — the office's seat: the chairman's cube stands in it; empty, its silhouette alone. -->
     <span class="con-parl__chair"
           :class="{'con-parl__chair--seated': chairmanShown !== undefined, 'con-parl__chair--won': questShown?.completedBy !== undefined && questShown.completedBy === chairmanShown, 'con-parl__chair--pulse': flow.chairPulse}"
@@ -41,6 +45,7 @@
     <span v-if="questShown !== undefined" class="con-parl__engine-step" :class="{'con-parl__engine-step--kept': viewerIsChairman}" data-parl-quest-reward aria-hidden="true">
       <span class="con-parl__engine-arrow">→</span>
       <span class="con-parl__engine-plus">+1</span>
+      <i class="con-parl__engine-star" aria-hidden="true"></i>
     </span>
     <!-- THE RACE — one row per seat, the count as pips (a long count as digits). CLOSED or WON it is the final
          score at the same size (the block's geometry never moves under the government's beats). -->
@@ -52,9 +57,12 @@
         <PlayerCube :color="row.color" :size="cubePx(11)" :glow="false" />
         <!-- MARSBOT'S ROW, on a quest its play cannot reach: a struck mark, never a race that cannot happen (the dossier says why). -->
         <span v-if="rowUnreachable(row)" class="con-parl__quest-unreachable" aria-hidden="true">✕</span>
-        <span v-else-if="questCount <= PIPS_MAX" class="con-parl__engine-pips" aria-hidden="true">
-          <span v-for="n in questCount" :key="n" class="con-parl__engine-pip" :class="{'con-parl__engine-pip--on': n <= row.value}"></span>
-        </span>
+        <template v-else-if="questCount <= PIPS_MAX">
+          <span class="con-parl__engine-pips" aria-hidden="true">
+            <span v-for="n in questCount" :key="n" class="con-parl__engine-pip" :class="{'con-parl__engine-pip--on': n <= row.value}"></span>
+          </span>
+          <b class="con-parl__quest-frac" aria-hidden="true">{{ row.value }}/{{ questCount }}</b>
+        </template>
         <template v-else>
           <b :key="row.value" class="con-parl__tick">{{ row.value }}</b><span class="con-parl__quest-of">/{{ questCount }}</span>
         </template>

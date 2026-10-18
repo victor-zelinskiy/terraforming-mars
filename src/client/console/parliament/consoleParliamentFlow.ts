@@ -128,7 +128,7 @@ export function resetPlayedSittingStages(): void {
  * ENGINE of the career (the chair with its quest, at the head of the track) · the TRACK itself (`agenda`, one stop).
  * `government` is retired (a restored save may still name it — it reads as the ruler).
  */
-export type ParliamentZone = 'voting' | 'government' | 'ruler' | 'parties' | 'engine' | 'agenda';
+export type ParliamentZone = 'voting' | 'government' | 'ruler' | 'parties' | 'effects' | 'engine' | 'agenda';
 /**
  * `vote` — the decision mode (a phase descent); `submitting` — sent;
  * `paying` — a paid vote's payment stands inside the mode; `landed` — the

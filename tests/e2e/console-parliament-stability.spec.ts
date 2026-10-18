@@ -165,7 +165,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       await focusParliamentZone(page, 'voting');
       expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-parl__vote.con-parl__vote--up').count() > 0, {tries: 4, settleMs: 1200}), 'the vote mode opens').toBe(true);
       await settle(page, {timeoutMs: 15_000});
-      const blocks = ['.con-parl__vote', '.con-parl__vrow', '.con-parl__info', '.con-parl__info-res', '.con-parl__info-vote', '.con-parl__info-main', '.con-parl__info-party', '.con-parl__cta'];
+      const blocks = ['.con-parl__vote', '.con-parl__vrow', '.con-parl__info', '.con-parl__info-res', '.con-parl__info-vote', '.con-parl__info-main', '.con-parl__info-own', '.con-parl__cta'];
       const snap = () => page.evaluate((sel) => {
         const out: Record<string, {x: number, y: number, w: number, h: number}> = {};
         for (const s of sel) {
@@ -182,7 +182,10 @@ for (const preset of PARLIAMENT_PRESETS) {
         return out;
       }, blocks);
       const base = await snap();
-      expect(base['.con-parl__info-party'], `${preset.id}: the party box stands beside the reading`).toBeDefined();
+      // «Зал» v7 (Ф4): the mode is ONE block — the reading stands, the party box does not (its formula is the
+      // government's / the dossier's; the box exists only under TR03's door, which pays the party).
+      expect(base['.con-parl__info-own'], `${preset.id}: the reading block stands`).toBeDefined();
+      expect(await page.locator('.con-parl__info-party').count(), `${preset.id}: no party box on the panel`).toBe(0);
       const trail: Array<string> = [];
       for (const [key, label] of [['ArrowRight', '→ 1'], ['ArrowRight', '→ 2'], ['ArrowLeft', '← 1'], ['ArrowLeft', '← 2']] as const) {
         await press(page, key, 700);

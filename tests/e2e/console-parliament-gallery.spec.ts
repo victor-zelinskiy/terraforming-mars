@@ -13,16 +13,17 @@ import {
    return there (docs/claude/parliament-v7-progress.md § Ф2 «e2e-итог»). The overview, the vote mode, the dossiers and
    the picks keep running — they are the chassis's own acceptance. */
 const PARKED_UNTIL_F5 = /the SITTING:|the REWARD variant:|the FAMILIES rehearsal:/;
-/* …and the 4K OVERVIEW variant is parked until Ф4: its resolution-inspect pose measures the inspector's FOOTER, whose four
-   status plates (`con-rstatus` · `con-rvote` · `con-iyield` · `con-preact`) wrap the bar into three rows at 4K and hang
-   it 12–26 px below the viewport (pre-existing; it only read green while the dialog scrolled under a focus()). Ф4 moves
-   the plates into the «ДЛЯ ВАС» column and leaves the bar verbs only — the pose returns then. */
-const PARKED_UNTIL_F4 = /the OVERVIEW:/;
+/* (The 4K OVERVIEW variant was parked between Ф2 and Ф4 for the inspector's footer — the plates left the dossier
+   (Парламент v8, the owner's point 9) and the bar is verbs only, so the pose runs again.) */
+/* Парламент v8 П1–П2: the sitting's REWARD pages on the DECK read their line in the TABLE's head (a 34rem column beside
+   the chamber) — the winner's tile ran past it. The sitting is recomposed on the hall's objects in П4 (its reading line
+   with it); the Deck's reward poses return then. */
+const PARKED_UNTIL_P4_DECK = /the REWARD variants:|the SKIP:/;
 test.beforeEach(() => {
   // The preset lives in the describe's title, so the whole path is read (the test's own title names only the pose).
   const title = test.info().titlePath.join(' › ');
   test.skip(PARKED_UNTIL_F5.test(title), 'PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: a sitting variant — returns in Ф5');
-  test.skip(PARKED_UNTIL_F4.test(title) && /tv-4k/.test(title), 'PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the 4K inspector footer — returns in Ф4');
+  test.skip(PARKED_UNTIL_P4_DECK.test(title) && /deck-handheld/.test(title), 'PARLIAMENT v8 П1–П2: the Deck reward line in the table head — returns in П4');
 });
 
 /*

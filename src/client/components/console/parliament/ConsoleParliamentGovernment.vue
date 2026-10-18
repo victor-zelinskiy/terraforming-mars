@@ -1,5 +1,8 @@
 <template>
-  <!-- ── THE GOVERNMENT («Зал» v7) — the left wing of the chamber: the RULING PARTY's MEDALLION (the same DOM
+  <!-- ── THE GOVERNMENT'S DAIS (Парламент v8 «Пленарный зал»): the right half of the CHAMBER plate, beside the opposition's
+       benches — the ruling party's seal (teleported here by the parties tier) and the enacted law. «ВАШИ ЭФФЕКТЫ»
+       moved under both halves (`ConsoleParliamentEffects`); the kicker «ПРАВИТЕЛЬСТВО» is the chamber's head line.
+       History of the block below («Зал» v7) — the left wing of the chamber: the RULING PARTY's MEDALLION (the same DOM
        instance as the party's row in the opposition column, teleported here by the parties tier — a change of
        government FLIPs it across the stage), under it the ENACTED RESOLUTION (carried onto the payout stage
        while it pays), and the strip «ВАШИ ЭФФЕКТЫ» — the only formulas the overview prints: the effects the
@@ -17,11 +20,7 @@
        }"
        :style="{'--parl-accent': partyAccent(rulerShown)}"
        :data-parl-gov-basis="govBasisKey"
-       data-parl-gov
-       data-parl-recede>
-    <div class="con-parl__gov-head">
-      <span class="con-parl__kicker">{{ $t('Government') }}</span>
-    </div>
+       data-parl-gov>
     <div class="con-parl__ruling" ref="rulingEl">
       <!-- THE RULER — the party's medallion lands here (teleported by the parties tier). A focus stop of its own
            (X inspects the enacted law — or the party, before any law — and A is the party action's door). -->
@@ -43,27 +42,6 @@
       <div v-else class="con-parl__gov-empty" data-parl-gov-empty>
         <span class="con-parl__gov-empty-mark" aria-hidden="true">◇</span>
       </div>
-      <!-- «ВАШИ ЭФФЕКТЫ» — the formulas that are the VIEWER'S now, and the law's own standing effect. -->
-      <div v-if="effectRows.length > 0 || enactedOwnMechanics !== undefined" class="con-parl__effects" data-parl-effects>
-        <span class="con-parl__effects-kicker">{{ $t('Your effects') }}</span>
-        <div v-if="enactedOwnMechanics !== undefined" class="con-parl__ruler-own" data-parl-enacted-effect>
-          <span class="con-parl__ruler-own-kicker" :data-parl-enacted-part="enactedOwnPart"><i class="con-parl__card-mark resource_icon resource_icon--cards" aria-hidden="true"></i>{{ $t(enactedOwnPart === 'action' ? 'Resolution action' : 'Resolution effect') }}</span>
-          <PremiumMechanicsPanel class="con-parl__ruler-own-mech" :mechanics="enactedOwnMechanics" />
-        </div>
-        <div v-for="row in effectRows" :key="row.party" class="con-parl__effects-row" :class="'con-parl__effects-row--' + row.why" :data-party="row.party" :style="{'--parl-accent': partyAccent(row.party)}">
-          <img class="con-parl__effects-emblem" :src="emblemUrl(row.party)" alt="" />
-          <ConsolePartyFormula class="con-parl__effects-formula" :party="row.party" size="compact" />
-          <!-- WHY it is yours, by a MARK («Зал» v7, П2): the ruler's formula needs none (its place under the medallion
-               says it), your delegates' are their two filled places, a card's grant is the card glyph; the words stay
-               for assistive tech and the reading line. -->
-          <span class="con-parl__effects-why" :class="'con-parl__effects-why--' + row.why" :data-parl-effects-why="row.why" :aria-label="$t(whyKey(row.why))">
-            <template v-if="row.why === 'delegates'">
-              <span v-for="n in 2" :key="n" class="con-parl__effects-place" aria-hidden="true"><PlayerCube v-if="viewerColor !== undefined" :color="viewerColor" :size="cubePx(9)" :glow="false" /></span>
-            </template>
-            <i v-else-if="row.why === 'granted'" class="con-parl__card-mark resource_icon resource_icon--cards" aria-hidden="true"></i>
-          </span>
-        </div>
-      </div>
     </div>
   </div>
 </template>
@@ -73,13 +51,9 @@ import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
-import PlayerCube from '@/client/components/PlayerCube.vue';
-import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
-import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
-import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mechanicsModel';
-import {PARLIAMENT_GRAPHIC, resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
-import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
+import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
+import {partyAccent} from '@/client/components/premiumCard/partyEmblems';
 import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {parliamentArtTier} from '@/client/console/parliament/parliamentArtTier';
@@ -87,14 +61,10 @@ import {fitParliamentCards} from '@/client/console/parliament/parliamentCardFit'
 import {CardArtTier} from '@/client/cards/cardArt';
 import {AgendaVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {partyTileKey} from '@/client/console/parliament/partyActionKey';
-import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
-
-/** WHY the viewer holds a party's effect — the strip's one word per row. */
-type EffectWhy = 'ruling' | 'delegates' | 'granted';
 
 export default defineComponent({
   name: 'ConsoleParliamentGovernment',
-  components: {ConsolePartyFormula, PlayerCube, PremiumMechanicsPanel},
+
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
@@ -176,58 +146,8 @@ export default defineComponent({
       const shown = this.enactedShown;
       return shown === undefined ? undefined : resolutionPremiumVmById(shown.resolutionId);
     },
-    /**
-     * The ENACTED resolution's OWN standing effect / action (its printed graphic) — a second source beside the
-     * parties', the first row of the strip. Undefined for a resolution whose only effect was the enactment itself.
-     */
-    enactedOwnMechanics(): MechanicsVM | undefined {
-      const resolution = this.enactedShown?.resolution;
-      if (resolution === undefined || !(resolution.hasPassive || resolution.hasAction)) {
-        return undefined;
-      }
-      const mechanics = buildMechanics(resolution.renderData, PARLIAMENT_GRAPHIC);
-      return mechanics.textOnly ? undefined : mechanics;
-    },
-    /** Which part of the enacted card the graphic IS — an action is not an effect. */
-    enactedOwnPart(): 'effect' | 'action' {
-      const resolution = this.enactedShown?.resolution;
-      return resolution !== undefined && resolution.hasAction && !resolution.hasPassive ? 'action' : 'effect';
-    },
-    /**
-     * THE PARTY EFFECTS THE VIEWER HOLDS, in the rules' own rank: the ruling party's (everyone's — printed first, with
-     * the ruler AS SHOWN during the swap, so the strip changes in the frame the medallion lands), then every party
-     * whose resolution carries the viewer's delegates, then a card's grant. A spectator holds nothing and sees nothing.
-     */
-    effectRows(): Array<{party: ReduxParty, why: EffectWhy}> {
-      const viewer = this.view.viewer;
-      if (viewer === undefined) {
-        return [];
-      }
-      const out: Array<{party: ReduxParty, why: EffectWhy}> = [];
-      const ruler = this.rulerShown;
-      if (this.view.parties.some((p) => p.party === ruler && p.effect !== undefined)) {
-        out.push({party: ruler, why: 'ruling'});
-      }
-      for (const access of viewer.access) {
-        if (!access.hasEffect || access.party === ruler) {
-          continue;
-        }
-        out.push({party: access.party, why: access.byDelegates ? 'delegates' : 'granted'});
-      }
-      return out;
-    },
   },
   methods: {
-    cubePx(px: number): number {
-      return Math.round(conLogicalPx(px));
-    },
-    whyKey(why: EffectWhy): string {
-      switch (why) {
-      case 'ruling': return 'for everyone';
-      case 'delegates': return 'Your effect';
-      default: return 'Your effect · granted by a card';
-      }
-    },
     /**
      * THE RULING COLUMN IS THE ROOM THE ENACTED CARD IS SOLVED INTO (`fitParliamentCards`: the column minus its other
      * blocks), and that room settles a beat AFTER the section's mount-time fit (the strip's zoomed graphics and the
@@ -249,9 +169,6 @@ export default defineComponent({
     },
     partyAccent(party: ReduxParty): string {
       return partyAccent(party);
-    },
-    emblemUrl(party: ReduxParty): string {
-      return partyEmblemUrl(party);
     },
   },
 });

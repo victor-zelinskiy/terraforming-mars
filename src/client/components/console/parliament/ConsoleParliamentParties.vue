@@ -40,8 +40,7 @@
                               :pick="pickOf(p.party)"
                               :supportOutgoing="outgoingOf(p.party, i)"
                               :supportCounted="rallyCountedPlaces(p.party)"
-                              :reason="focusedIndex === i ? partyLine : ''"
-                              :reasonTone="partyLineTone" />
+                              reason="" />
         </div>
       </Teleport>
     </template>
@@ -50,10 +49,9 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
-import {Message} from '@/common/logs/Message';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
-import {translateMessage, translateText} from '@/client/directives/i18n';
+import {translateText} from '@/client/directives/i18n';
 import {parliamentFlow, parliamentSupportUp} from '@/client/console/parliament/consoleParliamentFlow';
 import {SupportPromptMeta} from '@/common/models/PlayerInputModel';
 import {supportAreaOf} from '@/client/console/parliament/supportPickModel';
@@ -148,30 +146,6 @@ export default defineComponent({
       }
       return parliamentFlow.zone === 'parties' ? parliamentFlow.partyIndex : -1;
     },
-    partyLine(): string {
-      const index = this.focusedIndex;
-      // In the support-area mode the plaque's row reads the AREA (`pick`) — never the party action's state.
-      if (index === -1 || parliamentSupportUp()) {
-        return '';
-      }
-      const state = this.partyActionStates[index];
-      if (state === undefined) {
-        return '';
-      }
-      switch (state.kind) {
-      case 'used': return translateText('Action used this generation');
-      case 'blocked': return state.reason !== undefined ? this.reasonText(state.reason) : translateText('Unavailable right now');
-      case 'not-now': return translateText(this.awaitingInput ? 'Finish your current action first' : 'Not your turn — you can read the Parliament');
-      // No access: a party IN the vote says it by its places (0/2) — a party outside the vote has no places, so
-      // its foot says the server's reason.
-      case 'no-access': return this.partyStates[index]?.kind === 'absent' && state.reason !== undefined ? this.reasonText(state.reason) : '';
-      default: return '';
-      }
-    },
-    partyLineTone(): 'dim' | 'warn' {
-      const state = this.partyActionStates[this.focusedIndex];
-      return state?.kind === 'blocked' ? 'warn' : 'dim';
-    },
     accessKey(): string {
       return (this.view.viewer?.access ?? []).filter((a) => a.hasEffect).map((a) => a.party).join('|');
     },
@@ -247,9 +221,6 @@ export default defineComponent({
       }
       const area = supportAreaOf(this.supportMeta, party);
       return area?.available === true ? Math.max(0, area.current - area.resulting) : 0;
-    },
-    reasonText(reason: string | Message): string {
-      return typeof reason === 'string' ? translateText(reason) : translateMessage(reason);
     },
   },
 });

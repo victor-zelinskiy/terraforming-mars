@@ -1092,75 +1092,10 @@
             <span v-for="(r, i) in zoomReasons" :key="i" class="con-zoom__reason">{{ r }}</span>
           </div>
         </div>
-        <div class="con-zoom__bar" :class="{'con-zoom__bar--scene': zoomResolutionId !== undefined}">
-          <!-- A RESOLUTION's STANDING (Turmoil Redux): up for the vote or
-               enacted, and the viewer's access to its PARTY's effect — the
-               two facts the footer exists to answer, read-only, before the
-               verbs. Absent outside a live parliament (no invented votes). -->
-          <ConsoleResolutionStatus v-if="zoomResolutionStatus !== undefined"
-                                   class="con-zoom__bar-info"
-                                   :status="zoomResolutionStatus"
-                                   :reserve="zoomResolutionStatusReserve"
-                                   :winningTail="zoomVoteFacts === undefined"
-                                   :viewerColor="thisPlayer.color" />
-          <!-- THE VIEWER'S VOTE on the card (Turmoil Redux): what sending a
-               delegate would change — the leader and the winning state in the
-               vote panel's own fact rows, beside the standing (the party
-               effect's edge rides the status chip's access line). Only while
-               the card is up for the vote and the viewer has a seat. -->
-          <ConsoleZoomVoteFacts v-if="zoomVoteFacts !== undefined"
-                                class="con-zoom__bar-vote"
-                                :facts="zoomVoteFacts"
-                                :reserve="zoomVoteFactsReserve" />
-          <!-- THE VIEWER'S OWN NUMBER for an influence-scaled part of the
-               resolution on the stage: the estimate (and the «if you win»
-               forecast) while it is up for the vote, what was recorded once
-               it is enacted. The card beside it prints the formula, so the
-               chip draws the readings alone. -->
-          <ConsoleInfluenceYield v-if="zoomResolutionYields.length > 0"
-                                 class="con-zoom__bar-yield"
-                                 :yields="zoomResolutionYields"
-                                 :levy="zoomResolutionLevy"
-                                 :person="zoomResolutionPerson"
-                                 :formula="false"
-                                 size="compact"
-                                 data-zoom-yield
-                                 :data-zoom-vote-reading="zoomResolutionStatus?.lifecycle === 'vote' ? '' : undefined" />
-          <!-- THE COLONY LEDGER of a resolution paying «all your colony bonuses» (Colonial Affairs): the
-               viewer's tiles the number above multiplies — the same rows the vote panel and the sitting read. -->
-          <ConsoleColonyLedger v-if="zoomResolutionLedger !== undefined"
-                               class="con-zoom__bar-ledger"
-                               :reading="zoomResolutionLedger"
-                               :person="zoomResolutionPerson"
-                               size="compact"
-                               data-zoom-ledger />
-          <!-- …and what the party the resolution brings to power ANSWERS to
-               those numbers (Turmoil Redux): its own law, its own chip. -->
-          <ConsolePartyReaction v-for="r in zoomResolutionReactions" :key="r.reaction.id"
-                                class="con-zoom__bar-reaction"
-                                :reading="r"
-                                size="compact"
-                                data-zoom-reaction />
-          <!-- THE WINNER'S TILE of that resolution — «if you win» while it is up
-               for the vote, the fixed recipient while it resolves, the record
-               once it has (its own block, apart from everyone's numbers). -->
-          <ConsoleWinnerReward v-if="zoomResolutionWinner !== undefined && zoomResolutionWinner.context !== 'reference'"
-                               class="con-zoom__bar-winner"
-                               :reading="zoomResolutionWinner"
-                               :viewerColor="thisPlayer.color"
-                               :nameOf="parliamentSeatName"
-                               size="compact"
-                               variant="chip"
-                               data-zoom-winner />
-          <!-- A TILE GRANTED BY THRESHOLD (Skyscrapers) — the viewer's own standing while it is up for the
-               vote, the fixed answer while it resolves, the record once it is in (its own block, like the winner's). -->
-          <ConsoleTileGrant v-if="zoomResolutionGrant !== undefined && zoomResolutionGrant.context !== 'reference'"
-                            class="con-zoom__bar-grant"
-                            :reading="zoomResolutionGrant"
-                            :person="zoomResolutionPerson"
-                            size="compact"
-                            variant="chip"
-                            data-zoom-grant />
+        <div class="con-zoom__bar">
+          <!-- Парламент v8 (the owner's point 9): a RESOLUTION's dossier is its RULES — the viewer's own readings (the
+               standing, the vote's facts, the estimate, the ledger, the party's answers, the winner's tile, the grant)
+               are the VOTE's, read on the vote panel; the bar carries VERBS only. -->
           <!-- THE PROVENANCE PLATE (opened from «Разыграно»): the hero card
                would otherwise read like any other inspected card. The plate
                leads the bar and states WHOSE table it lies on, in WHICH
@@ -1763,24 +1698,15 @@ import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} fro
 import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
 import {getResolution, resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import ConsoleResolutionAside from '@/client/components/console/parliament/ConsoleResolutionAside.vue';
-import ConsoleResolutionStatus from '@/client/components/console/parliament/ConsoleResolutionStatus.vue';
-import ConsoleZoomVoteFacts from '@/client/components/console/parliament/ConsoleZoomVoteFacts.vue';
-import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
-import ConsoleColonyLedger from '@/client/components/console/parliament/ConsoleColonyLedger.vue';
-import {ColonyLedgerReading, colonyLedgerOf} from '@/client/console/parliament/colonyLedgerModel';
-import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
-import ConsoleTileGrant from '@/client/components/console/parliament/ConsoleTileGrant.vue';
 import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
 import {tileRemovalTableOf} from '@/client/console/parliament/tileRemovalModel';
 import {TileGrantReading, tileGrantReadingOf} from '@/client/console/parliament/tileGrantModel';
 import {WinnerRewardTable} from '@/common/parliament/winnerReward';
 import {ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
-import {enactedLevyOf, enactedYieldsOf, ReadingPerson, voteLevyOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
+import {enactedLevyOf, enactedYieldsOf, voteLevyOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
-import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/console/parliament/partyReactionModel';
-import {buildParliamentView, grantSupportOf, parliamentPromptBridge, resolutionBillOf, voteForecastOf} from '@/client/console/parliament/consoleParliamentModel';
-import {footerFactsOf, supportReadingOf, SupportReadingVm, voteFactsOf, VoteFactVm} from '@/client/console/parliament/voteInfoModel';
-import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
+import {grantSupportOf, parliamentPromptBridge, resolutionBillOf} from '@/client/console/parliament/consoleParliamentModel';
+import {supportReadingOf, SupportReadingVm} from '@/client/console/parliament/voteInfoModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
 import ConsoleStrandedPrompt from '@/client/components/console/ConsoleStrandedPrompt.vue';
@@ -2458,12 +2384,6 @@ export default defineComponent({
     ConsoleColoniesSection,
     ConsoleParliamentSection,
     ConsoleResolutionAside,
-    ConsoleResolutionStatus,
-    ConsoleZoomVoteFacts,
-    ConsoleInfluenceYield,
-    ConsoleColonyLedger,
-    ConsoleWinnerReward,
-    ConsoleTileGrant,
     ConsoleInfoMode,
     ConsoleCardRulesPanel,
     ConsoleInspectSide,
@@ -2493,7 +2413,6 @@ export default defineComponent({
     ConsoleDraftTray,
     ConsoleDraftWorkspace,
     ConsoleExternalDrawWorkspace,
-    ConsolePartyReaction,
     ConsoleHydroMarkerLayer,
     ConsoleBoardCardBonusLayer,
     ConsoleDeckDrawLayer,
@@ -10182,8 +10101,11 @@ export default defineComponent({
         return undefined;
       }
       if (isResolutionZoom(card)) {
-        // The viewer's own readings ride along: the rules name the counted cards behind their number.
-        return resolutionAnnotations(card.resolution, this.zoomResolutionYields, this.zoomResolutionWinnerWords, this.zoomResolutionWorld, this.zoomResolutionLevy, this.zoomResolutionGrantWords);
+        // Парламент v8 (the owner's point 9): the dossier is the RULES — the rules read FIRST; the viewer's «ДЛЯ ВАС»
+        // keeps only its words (what was counted, the winner's tile, the grant — the audit of the number) and stands
+        // LAST, after the chairman quest. The plates (the standing, the vote's facts, the estimate) are the vote panel's.
+        return resolutionAnnotations(card.resolution, this.zoomResolutionYields, this.zoomResolutionWinnerWords, this.zoomResolutionWorld, this.zoomResolutionLevy, this.zoomResolutionGrantWords)
+          .map((a) => (a.id === 'group:you' ? {...a, order: 9} : a));
       }
       if (isPartyEffectZoom(card)) {
         return partyAnnotations(card.partyEffect, this.game.parliament, this.thisPlayer.color, this.myTurn && this.awaitingInput);
@@ -10215,19 +10137,6 @@ export default defineComponent({
       const id = this.zoomResolutionId;
       return id === undefined ? undefined : resolutionStatusOf(id, this.game.parliament, this.thisPlayer.color);
     },
-    /**
-      * The RULING PARTY's answer to those readings (Turmoil Redux): a
-      * resolution that raises a production puts its own party in power, and
-      * that party then pays on top of it. The viewer's seat only.
-      */
-    zoomResolutionReactions(): Array<PartyReactionReading> {
-      const id = this.zoomResolutionId;
-      const model = this.game.parliament;
-      if (id === undefined || !viewerHasSeat(model, this.zoomResolutionSubject)) {
-        return [];
-      }
-      return partyReactionsOf(getResolution(id), this.zoomResolutionYields);
-    },
     /** The party column's one context line (a condition in the vote, a fact once enacted). */
     zoomResolutionContextKey(): string | undefined {
       return resolutionPartyContextKey(this.zoomResolutionStatus);
@@ -10258,10 +10167,6 @@ export default defineComponent({
     zoomResolutionSubject(): Color | undefined {
       return parliamentVoteSubject(this.thisPlayer.color);
     },
-    /** …and in which person its captions speak. */
-    zoomResolutionPerson(): ReadingPerson {
-      return this.zoomResolutionSubject === this.thisPlayer.color ? 'you' : 'they';
-    },
     /** The SUBJECT's own name — the footer's kicker when the reading is not the viewer's. */
     zoomResolutionSubjectName(): string | undefined {
       const subject = this.zoomResolutionSubject;
@@ -10277,16 +10182,6 @@ export default defineComponent({
       const model = this.game.parliament;
       const viewer = this.zoomResolutionSubject;
       return model?.enacted?.resolution === id ? enactedLevyOf(resolution, model, viewer) : voteLevyOf(resolution, model, viewer);
-    },
-    /** The colony ledger of the resolution on the stage (Colonial Affairs) — the vote's reading, or the enacted record. */
-    zoomResolutionLedger(): ColonyLedgerReading | undefined {
-      const id = this.zoomResolutionId;
-      const resolution = id === undefined ? undefined : getResolution(id);
-      if (resolution === undefined) {
-        return undefined;
-      }
-      const model = this.game.parliament;
-      return colonyLedgerOf(resolution, model, this.zoomResolutionSubject, {enacted: model?.enacted?.resolution === id});
     },
     /** A seat's display name for a parliament caption (the winner's recipient). */
     parliamentSeatName(): (color: Color) => string {
@@ -10361,33 +10256,8 @@ export default defineComponent({
       if (id === undefined || party === undefined) {
         return undefined;
       }
-      return denserRulesTier(rulesLengthTier(resolutionAnnotations(id, this.zoomResolutionYields, this.zoomResolutionWinnerWords, this.zoomResolutionWorld, this.zoomResolutionLevy, this.zoomResolutionGrantWords)),
-        rulesLengthTier(resolutionPartyAnnotations(party)));
-    },
-    /**
-     * THE VIEWER'S VOTE on the resolution on the stage — the footer's fact
-     * rows: what sending a delegate would change (the leader, the winning
-     * state), the SAME pure facts the vote panel reads (`voteFactsOf`) over
-     * the live model. Only while the card is up for the vote and the viewer
-     * has a seat.
-     */
-    zoomVoteFacts(): Array<VoteFactVm> | undefined {
-      return this.zoomVoteFactsFor(this.zoomResolutionId);
-    },
-    /** The same rows for every OTHER card of the context — the chip's invisible reserve (the footer's stability law). */
-    zoomVoteFactsReserve(): Array<Array<VoteFactVm>> {
-      const z = this.consoleCardZoom;
-      const out: Array<Array<VoteFactVm>> = [];
-      z.cards.forEach((card, i) => {
-        if (i === z.index || !isResolutionZoom(card)) {
-          return;
-        }
-        const facts = this.zoomVoteFactsFor(card.resolution);
-        if (facts !== undefined) {
-          out.push(facts);
-        }
-      });
-      return out;
+      const rules = resolutionAnnotations(id, this.zoomResolutionYields, this.zoomResolutionWinnerWords, this.zoomResolutionWorld, this.zoomResolutionLevy, this.zoomResolutionGrantWords);
+      return denserRulesTier(rulesLengthTier(rules), rulesLengthTier(resolutionPartyAnnotations(party)));
     },
     /**
      * «Send the delegate» for the card ON SCREEN — the vote mode's own
@@ -10397,29 +10267,6 @@ export default defineComponent({
     zoomVoteVerb(): ConsoleZoomVoteVerb | undefined {
       const z = this.consoleCardZoom;
       return z.card === undefined ? undefined : z.vote?.verbAt(z.index);
-    },
-    /**
-     * THE FOOTER'S RESERVE — the standing of every OTHER card the viewer pages
-     * through. The status chip lays it out invisibly under its live lines, so
-     * the chip is as wide as the widest REAL variant of this context and a
-     * page turn never resizes the plate or moves a control beside it.
-     */
-    zoomResolutionStatusReserve(): Array<ResolutionStatusVm> {
-      const z = this.consoleCardZoom;
-      if (z.cards.length < 2 || this.zoomResolutionId === undefined) {
-        return [];
-      }
-      const out: Array<ResolutionStatusVm> = [];
-      z.cards.forEach((card, i) => {
-        if (i === z.index || !isResolutionZoom(card)) {
-          return;
-        }
-        const status = resolutionStatusOf(card.resolution, this.game.parliament, this.thisPlayer.color);
-        if (status !== undefined) {
-          out.push(status);
-        }
-      });
-      return out;
     },
     /**
      * The vote verb's reading lines: the live one (keyed on the nudge, so a
@@ -22500,25 +22347,6 @@ export default defineComponent({
      * the close (`zoomClosing`), and the mode's submit refuses outside its
      * vote stage — a held or doubled A can never send twice.
      */
-    /** The footer's vote facts for one resolution of the zoom context (undefined: not up for the vote, or the viewer has no seat). */
-    zoomVoteFactsFor(id: string | undefined): Array<VoteFactVm> | undefined {
-      const model = this.game.parliament;
-      const viewer = this.thisPlayer.color;
-      if (id === undefined || model === undefined || resolutionStatusOf(id, model, viewer)?.lifecycle !== 'vote' || !viewerHasSeat(model, viewer)) {
-        return undefined;
-      }
-      const view = buildParliamentView(model, viewer, this.playerView.players);
-      const slot = view.slots.find((s) => s.resolutionId === id);
-      if (slot === undefined) {
-        return undefined;
-      }
-      const forecast = voteForecastOf(slot, viewer, model.viewer?.vote);
-      const mineBefore = slot.viewerVotes;
-      return footerFactsOf(voteFactsOf({
-        slot, party: view.parties.find((p) => p.party === slot.party), viewer, forecast,
-        snapshot: undefined, landed: false, mineBefore, mineAfter: mineBefore + 1, nameOf: this.parliamentSeatName,
-      }));
-    },
     zoomSendVote(): void {
       const z = this.consoleCardZoom;
       const vote = z.vote;

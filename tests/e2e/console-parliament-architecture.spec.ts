@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import {
   bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openQuickWheel, openZoomViewer, press, pressUntil, settle,
 } from './consoleStart';
+import {expectDossierIsRules} from './parliamentDrive';
 
 /**
  * ARCHITECTURE AWARD (Turmoil Redux, RX02) — the first resolution whose amount
@@ -176,14 +177,12 @@ for (const preset of PRESETS) {
       await expectFits(page, `${preset.id} vote mode`);
       await shoot(page, preset.id, '02-vote-reading');
 
-      // ── THE FULLSCREEN INSPECTOR: the footer reads the same numbers; the rules name the counted cards.
+      // ── THE FULLSCREEN INSPECTOR (Парламент v8): the RULES — the numbers are the panel's; the rules' last group
+      //    («ДЛЯ ВАС», words only) names the counted cards behind the number.
       await openZoomViewer(page);
       const zoom = page.locator('dialog.con-zoom[open]');
       await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(AWARD_CLASS);
-      await expect.poll(() => readingsIn(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).toEqual([
-        reading('estimate', 2, 2, 4, 4),
-        reading('forecast', 2, 3, 5, 5),
-      ]);
+      await expectDossierIsRules(page, preset.id);
       const rules = zoom.locator('.con-zoom-sidecol');
       await expect(rules, 'the rules state the qualification in words').toContainText(/значком ПО|VP icon/);
       await expect(rules, 'the counted cards behind the number').toContainText(/Учтены сейчас|Counted right now/);
@@ -191,20 +190,13 @@ for (const preset of PRESETS) {
       await expect(rules, 'Mine (no VP icon) is not counted').not.toContainText(/Шахта|\bMine\b/);
       await expect(page.locator('dialog.con-zoom.con-zoom--parliament[open]:not(.con-zoom--flight)')).toHaveCount(1, {timeout: 10_000});
       await shoot(page, preset.id, '03-fullscreen');
-      // Paging to another resolution re-reads at once — the neighbour is a REAL card with its own
-      // reading, so the award's numbers must simply be gone — and back again.
+      // Paging to another resolution re-reads its own rules at once — and back again.
       await press(page, 'BracketRight', 900);
       await expect(zoom.locator('.card-zoom-stage .pcard').first()).not.toHaveClass(AWARD_CLASS, {timeout: 10_000});
-      await expect.poll(() => readingsIn(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).not.toEqual([
-        reading('estimate', 2, 2, 4, 4),
-        reading('forecast', 2, 3, 5, 5),
-      ]);
+      await expect(rules, 'the neighbour rules count nothing of the award').not.toContainText(/Искусственное озеро|Artificial Lake/);
       await press(page, 'BracketLeft', 900);
       await expect(zoom.locator('.card-zoom-stage .pcard').first()).toHaveClass(AWARD_CLASS, {timeout: 10_000});
-      await expect.poll(() => readingsIn(page, 'dialog.con-zoom[open] [data-zoom-yield]'), {timeout: 10_000}).toEqual([
-        reading('estimate', 2, 2, 4, 4),
-        reading('forecast', 2, 3, 5, 5),
-      ]);
+      await expect(rules).toContainText(/Искусственное озеро|Artificial Lake/);
       await closeZoomViewer(page);
       await press(page, 'Escape', 900);
     });

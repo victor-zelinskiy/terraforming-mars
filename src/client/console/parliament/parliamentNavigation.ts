@@ -8,18 +8,19 @@ import {ParliamentViewVm, PartyActionStateVm} from './consoleParliamentModel';
 import {ParliamentInspectRequest} from './parliamentInspect';
 
 /*
- * THE BROWSE LAYER'S CURSOR («Зал» v7) — the chamber's ring, one stop per object the player can read or act on:
+ * THE BROWSE LAYER'S CURSOR (Парламент v8 «Пленарный зал») — one stop per object the player can read or act on:
  *
- *   ┌ RULER ─┐  ┌ THE TABLE: slot · slot · slot ┐  ┌ OPPOSITION: five rows ┐
- *   │medallion│  │   ◀ ▶ walk the bills          │  │   ▲ ▼ walk the rows    │
- *   └────────┘  └───────────────────────────────┘  └───────────────────────┘
- *   [ENGINE: the chair + the quest] ═══ [AGENDA: the career track ▶ one stop] ═══════════════════════
+ *   ┌ THE CHAMBER ─────────────────────┐  ┌ THE TABLE ─────────────────────┐
+ *   │ OPPOSITION ▲▼ │ RULER (the dais)  │  │  slot · slot · slot   ◀ ▶      │
+ *   │ «ВАШИ ЭФФЕКТЫ» — one stop, under both │                                │
+ *   └──────────────────────────────────┘  └────────────────────────────────┘
+ *   [QUEST: the chair + the condition] [CAREER: the whole track — one stop]
  *
- * The geometry is spatial: ◀ ▶ cross the chamber (ruler ◀ table ▶ opposition), ▼ from any wing lands on the
- * edge below it (the engine under the ruler, the track under the table and the opposition), ▲ returns. The
- * opposition column may stand LEFT of the table too (the Ф1 batch left it open) — only `OPPOSITION_SIDE` would
- * change. `partyIndex` still indexes `view.parties` (all six, in the board's order); the column's walk skips
- * the ruler. The retired `government` zone reads as the ruler (a restored save, a parked stack).
+ * The geometry is spatial: the benches stand LEFT of the dais, the dais LEFT of the table (slot 1 is the bill
+ * nearest the enacted law), «ВАШИ ЭФФЕКТЫ» under both halves of the chamber, the career row under everything with
+ * the quest at its head. The career is ONE stop (the owner's point 7: a focus on each of its twelve steps was
+ * noise) — X reads the whole track in its dossier. `partyIndex` still indexes `view.parties` (all six, in the
+ * board's order); the column's walk skips the ruler. The retired `government` zone reads as the ruler.
  */
 
 /** The opposition's indices into `view.parties` (the board's order minus the ruler). */
@@ -36,14 +37,12 @@ function seatOnOpposition(view: ParliamentViewVm, preferred: number): void {
   parliamentFlow.partyIndex = row.includes(preferred) ? preferred : row[Math.min(row.length - 1, Math.max(0, row.findIndex((i) => i >= preferred)))] ?? row[0];
 }
 
-/** The opposition's last cursor in the column — remembered across the ring, so ◀ ▶ return to the same row. */
-/** Enter the career edge ON the viewer's next stop (the one their next advance lands on), else the first. */
-function seatOnTrack(view: ParliamentViewVm, index?: number): void {
+/** Enter the career row — ONE stop (v8); the index stays the viewer's next step for the readers that still name it. */
+function seatOnTrack(view: ParliamentViewVm): void {
   const f = parliamentFlow;
   const stops = view.agenda.length;
-  const next = Math.min(stops, (view.viewer?.agenda ?? 0) + 1);
   f.zone = 'agenda';
-  f.agendaIndex = Math.max(1, Math.min(stops, index ?? next));
+  f.agendaIndex = Math.max(1, Math.min(stops, (view.viewer?.agenda ?? 0) + 1));
 }
 
 function seatOnTable(view: ParliamentViewVm, index: number): void {
@@ -52,13 +51,55 @@ function seatOnTable(view: ParliamentViewVm, index: number): void {
 }
 
 /**
- * THE BROWSE RING: the ruler · the table's bills (◀ ▶ walk them — one stop per bill, the reading line reads the
- * one under the cursor) · the five opposition rows (▲ ▼) · the engine (the chair with its quest) · the track.
+ * THE BROWSE RING (v8): the opposition's benches (▲ ▼) · the ruler on the dais · «ВАШИ ЭФФЕКТЫ» · the table's bills
+ * (◀ ▶ walk them) · the quest · the career.
  */
 export function navigateParliamentZones(dir: 'up' | 'down' | 'left' | 'right', view: ParliamentViewVm): void {
   const f = parliamentFlow;
   const row = oppositionIndices(view);
   switch (f.zone) {
+  case 'parties': {
+    const at = row.indexOf(f.partyIndex);
+    const pos = at === -1 ? 0 : at;
+    if (dir === 'up') {
+      f.partyIndex = row[Math.max(0, pos - 1)] ?? f.partyIndex;
+    } else if (dir === 'down') {
+      if (pos < row.length - 1) {
+        f.partyIndex = row[pos + 1] ?? f.partyIndex;
+      } else {
+        f.zone = 'effects';
+      }
+    } else if (dir === 'right') {
+      f.zone = 'ruler';
+    }
+    return;
+  }
+  // A Parliament restored with the retired zone (a save, a parked stack) lands on the medallion that replaced it.
+  case 'government':
+    f.zone = 'ruler';
+    return;
+  case 'ruler':
+    if (dir === 'left' && row.length > 0) {
+      f.zone = 'parties';
+      seatOnOpposition(view, f.partyIndex);
+    } else if (dir === 'right') {
+      seatOnTable(view, 0);
+    } else if (dir === 'down') {
+      f.zone = 'effects';
+    }
+    return;
+  case 'effects':
+    if (dir === 'up') {
+      f.zone = 'ruler';
+    } else if (dir === 'left' && row.length > 0) {
+      f.zone = 'parties';
+      seatOnOpposition(view, row[row.length - 1] ?? 0);
+    } else if (dir === 'right') {
+      seatOnTable(view, f.slotIndex);
+    } else if (dir === 'down') {
+      f.zone = 'engine';
+    }
+    return;
   case 'voting':
     if (dir === 'left') {
       if (f.slotIndex > 0) {
@@ -69,66 +110,25 @@ export function navigateParliamentZones(dir: 'up' | 'down' | 'left' | 'right', v
     } else if (dir === 'right') {
       if (f.slotIndex < view.slots.length - 1) {
         f.slotIndex += 1;
-      } else if (row.length > 0) {
-        f.zone = 'parties';
-        const focused = view.slots[f.slotIndex];
-        const idx = view.parties.findIndex((p) => p.party === focused?.party);
-        seatOnOpposition(view, idx >= 0 && row.includes(idx) ? idx : (row[0] ?? 0));
       }
     } else if (dir === 'down') {
       seatOnTrack(view);
     }
     return;
-  // A Parliament restored with the retired zone (a save, a parked stack) lands on the medallion that replaced it.
-  case 'government':
-    f.zone = 'ruler';
-    return;
-  case 'ruler':
-    if (dir === 'right') {
-      seatOnTable(view, 0);
-    } else if (dir === 'down') {
-      f.zone = 'engine';
-    }
-    return;
   case 'engine':
     if (dir === 'up') {
-      f.zone = 'ruler';
+      f.zone = 'effects';
     } else if (dir === 'right') {
-      // The engine is the track's head: ▶ steps onto the FIRST stop.
-      seatOnTrack(view, 1);
+      seatOnTrack(view);
     }
     return;
   case 'agenda':
-    // «Зал» v7: ◀ ▶ walk the stops (one ring stop, twelve inner stops — the Hydronetwork rail's idiom);
-    // ◀ past the first is the engine, ▲ is the table.
     if (dir === 'left') {
-      if (f.agendaIndex > 1) {
-        f.agendaIndex -= 1;
-      } else {
-        f.zone = 'engine';
-      }
-    } else if (dir === 'right') {
-      f.agendaIndex = Math.min(view.agenda.length, f.agendaIndex + 1);
+      f.zone = 'engine';
     } else if (dir === 'up') {
       seatOnTable(view, f.slotIndex);
     }
     return;
-  case 'parties': {
-    const at = row.indexOf(f.partyIndex);
-    const pos = at === -1 ? 0 : at;
-    if (dir === 'up') {
-      f.partyIndex = row[Math.max(0, pos - 1)] ?? f.partyIndex;
-    } else if (dir === 'down') {
-      if (pos < row.length - 1) {
-        f.partyIndex = row[pos + 1] ?? f.partyIndex;
-      } else {
-        seatOnTrack(view);
-      }
-    } else if (dir === 'left') {
-      seatOnTable(view, view.slots.length - 1);
-    }
-    return;
-  }
   }
 }
 
