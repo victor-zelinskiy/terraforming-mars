@@ -1,5 +1,6 @@
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {Message} from '@/common/logs/Message';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {RevealOrigin, RevealResult} from '@/common/logs/RevealLogMeta';
@@ -190,7 +191,7 @@ export type NotificationSkippedLine = {label: string; reason: string; chip?: Jou
  * One requirement a MODIFIER let a play through (`requirement-eased`, TR49 class) — see
  * `NotificationModel.eased`: the modifier card, and how — waived («требование снято») or shifted («±2»).
  */
-export type NotificationEasedLine = {source: CardName; kind: 'shift' | 'waive'; steps?: number; oneShot: boolean};
+export type NotificationEasedLine = {source: CardName; kind: 'shift' | 'waive' | 'ally'; steps?: number; oneShot: boolean; via?: PartyName};
 
 export type NotificationModel = {
   /** Stable de-dup key. Root events → `g<correlationId>`; turn → `turn:<kind>`. */

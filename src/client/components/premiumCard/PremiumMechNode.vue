@@ -32,6 +32,11 @@
     <PremiumVpCardGlyph v-else-if="isVpCard" class="pcard-ic pcard-ic--vp-card" :tag="vpCardTag" />
     <!-- a card with a requirement of ANY party (TR13) — the plate with the wild-party pill -->
     <PremiumPartyRequirementGlyph v-else-if="isPartyRequirement" class="pcard-ic pcard-ic--party-req" :class="{'pprq--waived': isPartyRequirementWaived}" :data-party-req-waived="isPartyRequirementWaived ? 'true' : undefined" />
+    <!-- ONE NAMED PARTY's seal (TR62) — its emblem; a STACKED seal overlaps the one before it, the caption under the pair -->
+    <span v-else-if="partySeal !== undefined" class="pcard-pseal" :class="{'pcard-pseal--stacked': partySeal.stacked === true}" :data-party-seal="partySeal.party">
+      <span class="pcard-pseal__disc" :style="{backgroundImage: `url(${partySeal.url})`}"></span>
+      <span v-if="partySeal.caption !== undefined" class="pcard-pseal__caption">{{ $t(partySeal.caption) }}</span>
+    </span>
     <!-- a card that HOLDS resources (TR53) — the white card with its three cubes -->
     <PremiumResourceCardGlyph v-else-if="isResourceCard" class="pcard-ic pcard-ic--resource-card" />
     <!-- image icons -->
@@ -288,6 +293,11 @@ export default defineComponent({
     /** The party plate STRUCK (TR70 — the next card ignores its party requirement): the class's own diagonal, not the generic ×. */
     isPartyRequirementWaived(): boolean {
       return this.mechIcon?.kind === 'partyRequirement' && this.mechIcon.waived === true;
+    },
+    /** One named party's seal (TR62 Tharsis Alliance) — its emblem from the one table, never a text plate. */
+    partySeal(): Extract<MechIconSpec, {kind: 'partySeal'}> | undefined {
+      const icon = this.mechIcon;
+      return icon?.kind === 'partySeal' ? icon : undefined;
     },
     isResourceCard(): boolean {
       return this.mechIcon?.kind === 'resourceCard';

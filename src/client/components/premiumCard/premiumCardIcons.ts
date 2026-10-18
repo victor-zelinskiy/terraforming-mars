@@ -23,6 +23,8 @@ import {Tag} from '@/common/cards/Tag';
 import {Resource} from '@/common/Resource';
 import {TileType} from '@/common/TileType';
 import {Color} from '@/common/Color';
+import {PartyName} from '@/common/turmoil/PartyName';
+import {requirementPartyEmblem} from './partyEmblems';
 import {BoardCountedTile, ResolutionCountMetric} from '@/common/parliament/resolutionCounts';
 
 export type MechIconSpec =
@@ -47,6 +49,12 @@ export type MechIconSpec =
   | {kind: 'vpCard', tag?: Tag}
   /** A card with a requirement of ANY party (Turmoil Redux TR13) — `PremiumPartyRequirementGlyph`; `waived` = the plate STRUCK (TR70: the next card ignores it). */
   | {kind: 'partyRequirement', waived?: true}
+  /**
+   * ONE NAMED PARTY's seal (Turmoil Redux TR62 — «[Mars First] = [Reds]»): the party's emblem from the ONE table
+   * (`partyEmblems.ts`); `stacked` overlaps the seal before it (the scan's pair), `caption` the English key printed
+   * under the pair («Ruling»).
+   */
+  | {kind: 'partySeal', party: PartyName, url: string, stacked?: true, caption?: string}
   /** A card that HOLDS resources (Turmoil Redux TR53) — `PremiumResourceCardGlyph`. */
   | {kind: 'resourceCard'}
   | {kind: 'glyph', glyph: string};
@@ -620,6 +628,15 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
   case CardRenderItemType.RESOURCE_CARD:
     // «A card that already holds a resource» (TR53): the white card with the three cubes — the HOLDER, never a cube.
     return {kind: 'resourceCard'};
+  case CardRenderItemType.PARTY_SEAL: {
+    // ONE NAMED PARTY (TR62): its emblem — the same table the requirement plate and the hand's counter draw by.
+    const party = item.party;
+    const url = party === undefined ? undefined : requirementPartyEmblem(party);
+    if (party === undefined || url === undefined) {
+      return undefined;
+    }
+    return {kind: 'partySeal', party, url, ...(item.stacked === true ? {stacked: true} : {}), ...(item.innerText === undefined ? {} : {caption: item.innerText})};
+  }
   case CardRenderItemType.PARTY_REQUIREMENT:
     // «A card with a requirement of ANY party» (TR13): the requirements plate
     // in miniature with the wild-party pill — drawn, never a party plate.

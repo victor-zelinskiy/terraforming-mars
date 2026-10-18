@@ -17,6 +17,7 @@ import {IPlayer} from '../IPlayer';
 import {PlayerId} from '../../common/Types';
 import {CardName} from '../../common/cards/CardName';
 import {PartyName} from '../../common/turmoil/PartyName';
+import type {EventImpact} from '../../common/events/EventImpact';
 import {
   AGENDA_TRACK, AgendaStep, BotParliamentMode, influenceAtAgenda, PARLIAMENT_AGENDA_STEPS, PARLIAMENT_DELEGATES_PER_PLAYER,
   PARLIAMENT_NEUTRAL_DELEGATES, PARLIAMENT_VOTE_COST, PARLIAMENT_VOTING_SLOTS, ParliamentAspect, PARTY_ACTION_OWNER,
@@ -96,6 +97,16 @@ export type PartyAccess = {
   /** The card that lowered the threshold (absent at the printed default). */
   effectDelegatesBy?: CardName;
   byDelegates: boolean;
+  /**
+   * THE ALLIANCE ROAD (TR62 Tharsis Alliance): every alliance of this party
+   * that HOLDS — its partner `via` stands for the seat by its PRINTED road
+   * (`road`), so this party's effect AND its requirement are the seat's too.
+   * Empty while none holds; never set off by a grant, a lowered threshold or
+   * another alliance (one pair, one hop).
+   */
+  allied: ReadonlyArray<{via: ReduxParty; source: CardName; road: 'ruling' | 'delegates'}>;
+  /** The pairs this party is in for the seat, holding or not (a dormant alliance still names itself). */
+  alliances: ReadonlyArray<{partner: ReduxParty; source: CardName}>;
   granted: ReadonlyArray<string>;
   hasEffect: boolean;
   satisfiesRequirement: boolean;
@@ -103,6 +114,9 @@ export type PartyAccess = {
 
 /** The one reading of a player's effect threshold: how many own delegates, and which card says so. */
 export type EffectDelegates = {count: number; source?: CardName};
+
+/** One alliance a seat's tableau declares — the two parties and the card (TR62). */
+export type PartyAlliance = {parties: Readonly<[ReduxParty, ReduxParty]>; source: CardName};
 
 export type VoteAvailability =
   | {ok: true; source: 'lobby' | 'reserve'; cost: number}
@@ -488,9 +502,7 @@ export class Parliament {
     // party's policy») holds no effect by any road — its delegates on the
     // card are votes, never access.
     const participates = this.participates(player, 'party-effects');
-    const ruling = participates && this.rulingParty() === party;
-    const slot = this.slotOf(party);
-    const delegates = participates && slot !== undefined ? this.votesOf(player, slot) : 0;
+    const {ruling, delegates, slot} = this.printedStanding(player, party, participates);
     // THE LAW OF ACCESS is the player's own: the printed two, or what a card of
     // theirs lowered it to (TR36) — read off the tableau right now, never stored.
     const effect = this.effectDelegatesOf(player);
@@ -498,6 +510,21 @@ export class Parliament {
     const granted = participates ?
       (this.grantedEffects.get(player.id) ?? []).filter((grant) => grant.party === party).map((grant) => grant.source) :
       [];
+    // THE ALLIANCE ROAD (TR62): a pair on the seat's table whose OTHER party
+    // stands by its PRINTED road — the requirement's own reading of that party,
+    // never its effect (a grant or a lowered threshold gives the effect alone,
+    // not «its full favor», so it cannot hand that favour on), never another
+    // alliance (one pair, one hop — by construction: the partner is read by
+    // `printedStanding`, which knows no alliance).
+    const alliances = participates ? this.alliancesOf(player).filter((a) => a.parties.includes(party)) : [];
+    const pairs = alliances.map((a) => ({partner: a.parties[0] === party ? a.parties[1] : a.parties[0], source: a.source}));
+    const allied: Array<{via: ReduxParty; source: CardName; road: 'ruling' | 'delegates'}> = [];
+    for (const pair of pairs) {
+      const partner = this.printedStanding(player, pair.partner, participates);
+      if (partner.ruling || partner.delegates >= PARTY_EFFECT_DELEGATES) {
+        allied.push({via: pair.partner, source: pair.source, road: partner.ruling ? 'ruling' : 'delegates'});
+      }
+    }
     return {
       party,
       ruling,
@@ -506,14 +533,48 @@ export class Parliament {
       effectDelegates: effect.count,
       ...(effect.source === undefined ? {} : {effectDelegatesBy: effect.source}),
       byDelegates,
+      allied,
+      alliances: pairs,
       granted,
-      hasEffect: ruling || byDelegates || granted.length > 0,
+      hasEffect: ruling || byDelegates || allied.length > 0 || granted.length > 0,
       // A card-granted effect never satisfies a card REQUIREMENT, and neither does
       // a card-LOWERED threshold: the requirement is the printed two, always
       // (rulebook FAQ p.19 — Septem Tribus and Council Seat «only grant you the
-      // effect of the party. Not its full favor»).
-      satisfiesRequirement: ruling || delegates >= PARTY_EFFECT_DELEGATES,
+      // effect of the party. Not its full favor»). An ALLIANCE does (TR62 — «you
+      // may also use the Reds' effect AND CARDS»): its partner stands by that
+      // very printed road.
+      satisfiesRequirement: ruling || delegates >= PARTY_EFFECT_DELEGATES || allied.length > 0,
     };
+  }
+
+  /** The two PRINTED roads of one party for a seat — it rules, own delegates on its resolution — and nothing else. */
+  private printedStanding(player: IPlayer, party: ReduxParty, participates: boolean): {ruling: boolean, delegates: number, slot: Slot | undefined} {
+    const ruling = participates && this.rulingParty() === party;
+    const slot = this.slotOf(party);
+    const delegates = participates && slot !== undefined ? this.votesOf(player, slot) : 0;
+    return {ruling, delegates, slot};
+  }
+
+  /**
+   * THE ALLIANCES a seat's tableau declares (`ICard.partyAlliance` — TR62
+   * Tharsis Alliance), read live like `effectDelegatesOf` reads its hook: the
+   * Parliament asks the card, it never knows the card's name. A seat outside
+   * the PARTY-EFFECTS aspect (MarsBot) has none. Two cards declaring the same
+   * pair are two entries (the access names both — neither is a second rule).
+   */
+  public alliancesOf(player: IPlayer): Array<PartyAlliance> {
+    if (!this.participates(player, 'party-effects')) {
+      return [];
+    }
+    const out: Array<PartyAlliance> = [];
+    for (const card of player.tableau) {
+      const pair = card.partyAlliance;
+      if (pair === undefined || pair[0] === pair[1]) {
+        continue;
+      }
+      out.push({parties: pair, source: card.name});
+    }
+    return out;
   }
 
   /**
@@ -548,8 +609,9 @@ export class Parliament {
 
   /**
    * THE ROAD a seat holds `party`'s effect by right now — the ruling party
-   * first (everyone's), then the seat's own delegates, then a card's grant —
-   * or `undefined` when it holds none.
+   * first (everyone's), then the seat's own delegates, then an alliance
+   * (TR62 — its partner's printed road), then a card's grant — or `undefined`
+   * when it holds none.
    */
   public accessBasis(player: IPlayer, party: ReduxParty): PartyEffectBasis | undefined {
     const a = this.access(player, party);
@@ -558,6 +620,9 @@ export class Parliament {
     }
     if (a.byDelegates) {
       return 'delegates';
+    }
+    if (a.allied.length > 0) {
+      return 'alliance';
     }
     return a.granted.length > 0 ? 'card' : undefined;
   }
@@ -628,17 +693,33 @@ export class Parliament {
     const events = game.events;
     const grant = (this.grantedEffects.get(player.id) ?? []).find((g) => g.party === party);
     const delegates = this.effectDelegatesOf(player).count;
-    const impact = basis === 'card' ?
-      {party, basis, ...(grant === undefined ? {} : {source: grant.source})} :
-      {party, basis, delegates};
+    // The alliance's pair: the one holding now (a gain), or the one the table still declares (a loss — the partner
+    // stopped standing). A pair whose CARD left the table has nothing to quote, and its line says so.
+    const access = this.access(player, party);
+    const pair = access.alliances[0];
+    const ally = access.allied[0] ?? (pair === undefined ? undefined : {via: pair.partner, source: pair.source});
+    let impact: NonNullable<EventImpact['partyEffect']>;
+    if (basis === 'card') {
+      impact = {party, basis, ...(grant === undefined ? {} : {source: grant.source})};
+    } else if (basis === 'alliance') {
+      impact = {party, basis, ...(ally === undefined ? {} : {via: ally.via, source: ally.source})};
+    } else {
+      impact = {party, basis, delegates};
+    }
     events.beginAction(player, {kind: 'parliament'}, {category: 'parliament'});
     try {
       if (gained && basis === 'delegates') {
         game.log('${0} gains the ${1} party effect: ${2} delegate(s) on its resolution', (b) => b.player(player).partyName(party).number(delegates));
+      } else if (gained && basis === 'alliance' && ally !== undefined) {
+        game.log('${0} gains the ${1} party effect — allied with ${2} (${3})', (b) => b.player(player).partyName(party).partyName(ally.via).cardName(ally.source));
       } else if (gained) {
         game.log('${0} gains the ${1} party effect — granted by ${2}', (b) => b.player(player).partyName(party).string(grant?.source ?? ''));
       } else if (basis === 'delegates') {
         game.log('${0} loses the ${1} party effect: fewer than ${2} delegate(s) on its resolution', (b) => b.player(player).partyName(party).number(delegates));
+      } else if (basis === 'alliance' && ally !== undefined) {
+        game.log('${0} loses the ${1} party effect — the alliance with ${2} no longer holds', (b) => b.player(player).partyName(party).partyName(ally.via));
+      } else if (basis === 'alliance') {
+        game.log('${0} loses the ${1} party effect — the alliance is gone', (b) => b.player(player).partyName(party));
       } else {
         game.log('${0} loses the ${1} party effect — the grant is gone', (b) => b.player(player).partyName(party));
       }

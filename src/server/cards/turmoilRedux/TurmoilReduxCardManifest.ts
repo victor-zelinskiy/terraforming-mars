@@ -67,6 +67,7 @@ import {StrategicShift} from './StrategicShift';
 import {FloatingBiodomes} from './FloatingBiodomes';
 import {BackroomDeal} from './BackroomDeal';
 import {PoliticalRecognition} from './PoliticalRecognition';
+import {TharsisAlliance} from './TharsisAlliance';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -325,5 +326,9 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // Only the module's icon at the bottom left: the WILD tag, the set's NEW requirement kind («5 other cards with
     // requirements PLAYED» — `cardsWithRequirements`), and TR04's walk at three steps.
     [CardName.POLITICAL_RECOGNITION]: {Factory: PoliticalRecognition},
+    // Only the module's icon at the bottom left, an EMPTY MIN plate: the law of access's FOURTH road — Mars First and the
+    // Reds ALLIED (each one's printed road gives the other's effect AND cards; `partyAlliance`), and the set's first hook on
+    // a change of power (`onRulingPartyChanged` — a card when either party becomes ruling).
+    [CardName.THARSIS_ALLIANCE]: {Factory: TharsisAlliance},
   },
 });

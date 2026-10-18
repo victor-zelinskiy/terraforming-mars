@@ -176,11 +176,13 @@ export type JournalChildVM = {
 
 /** One requirement a modifier let through, as the journal's row reads it. */
 export type JournalEasedRow = {
-  kind: 'shift' | 'waive';
+  kind: 'shift' | 'waive' | 'ally';
   steps?: number;
   oneShot: boolean;
+  /** `ally` (TR62): the partner party whose printed road met the requirement. */
+  via?: PartyName;
   /** A global parameter's scale — or (TR70) the PARTY whose requirement was lifted (its emblem is the row's icon). */
-  requirements: ReadonlyArray<{parameter?: GlobalParameter; party?: PartyName; printed: number; effective: number | 'waived'; max: boolean}>;
+  requirements: ReadonlyArray<{parameter?: GlobalParameter; party?: PartyName; printed: number; effective: number | 'waived' | 'allied'; max: boolean}>;
 };
 
 /** The colony TILE's own glyph as a chip icon (`iconClassFor` → the printed pill). */
@@ -591,6 +593,7 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
       push(`eased|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [], eased: {
         kind: fact.kind,
         ...(fact.steps !== undefined ? {steps: fact.steps} : {}),
+        ...(fact.via !== undefined ? {via: fact.via} : {}),
         oneShot: fact.oneShot,
         requirements: fact.requirements.map((r) => ({
           ...(r.parameter !== undefined ? {parameter: r.parameter} : {}),

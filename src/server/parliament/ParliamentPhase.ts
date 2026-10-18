@@ -435,6 +435,8 @@ export class ParliamentPhase {
     this.summary.returned = ownersOf(slot.votes);
     slot.votes = [];
     const previous = parliament.enacted;
+    // The party in power BEFORE this card — the starting rule's Greens when nothing was enacted yet.
+    const previousRuling = parliament.rulingParty();
     if (previous !== undefined) {
       parliament.discard.push(previous);
       this.summary.discardedEnacted = previous;
@@ -447,11 +449,34 @@ export class ParliamentPhase {
     const definition = parliament.resolutionOf(instance);
     this.game.log('Resolution ${0} is enacted', (b) => b.resolution(definition.id));
     this.game.log('${0} is now the ruling party — every player has its effect', (b) => b.partyName(definition.party));
+    this.fireRulingPartyChanged(definition.party, previousRuling);
     if (!p.final) {
       parliament.setQuestFromEnacted(p.generation + 1);
       this.game.log('Chairman quest for generation ${0}: ${1}', (b) => b.number(p.generation + 1).string(definition.text.quest));
     }
     this.markApplied(key);
+  }
+
+  /**
+   * THE CARDS ANSWER A CHANGE OF POWER (`ICard.onRulingPartyChanged` — TR62
+   * Tharsis Alliance): every participant of the party effects has every card
+   * of its tableau carrying the hook called ONCE, in generation order, under
+   * the card's own effect scope (the journal, the notifications and the stats
+   * read the card as the source). Inside the step's own `enact:` key, so a
+   * reload mid-sitting never calls it twice; MarsBot (outside the aspect) is
+   * never asked. The hook decides what a change means to it — the same party
+   * enacted twice in a row cannot happen (the refresh never deals the enacted
+   * party's card), but the hook is told both parties and judges for itself.
+   */
+  private fireRulingPartyChanged(next: ReduxParty, previous: ReduxParty): void {
+    for (const player of this.parliament.participants(this.game, 'party-effects')) {
+      for (const card of player.tableau) {
+        if (card.onRulingPartyChanged === undefined) {
+          continue;
+        }
+        this.game.events.withEffect(player, card, 'ruling-party-changed', () => card.onRulingPartyChanged?.(player, next, previous));
+      }
+    }
   }
 
   // ───────────────────────── the gates: assembly · adjourn ─────────────────────────

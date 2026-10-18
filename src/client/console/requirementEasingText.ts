@@ -32,7 +32,16 @@ export const EASING_KEYS = {
   partyBound: 'ruling or ${0} delegates',
   /** The struck plate's label in the strip / the section (the console's own key). */
   partyRequirement: 'Party requirement',
+  /** THE ALLIANCE (TR62 Tharsis Alliance): a party requirement met THROUGH the partner party — «через «Марс вперёд»». */
+  throughAlly: 'through ${0}',
+  /** The share's tail — «Альянс Тарсиса · альянс с «Марс вперёд»». */
+  allianceWith: 'alliance with ${0}',
 } as const;
+
+/** The partner's name an alliance stands on (TR62), in the parliament's words. */
+function partnerName(easing: Pick<RequirementEasingModel, 'via'>): string {
+  return easing.via !== undefined ? translateText(partyNameKey(easing.via)) : '';
+}
 
 const PARAMETER_LABELS: Readonly<Partial<Record<GlobalParameter, string>>> = {
   [GlobalParameter.TEMPERATURE]: 'Temperature',
@@ -94,6 +103,9 @@ export function easingShareText(share: RequirementEasingSourceModel): string {
   const parts: Array<string> = [];
   const name = easingSourceName(share.source);
   parts.push(share.kind === 'shift' && share.steps !== undefined ? `±${share.steps} ${name}` : name);
+  if (share.kind === 'ally' && share.via !== undefined) {
+    parts.push(translateTextWithParams(EASING_KEYS.allianceWith, [translateText(partyNameKey(share.via))]));
+  }
   if (share.oneShot) {
     parts.push(translateText(EASING_KEYS.oneShot));
   }
@@ -113,12 +125,16 @@ export function easingSourceNames(easing: RequirementEasingModel): string {
 /**
  * THE REQUIREMENT'S FULL STATEMENT under its modifiers — the panel's / the
  * inspector's line: «Температура ≥ 0°C → −4°C» (eased) · «Температура ≥ 0°C —
- * требование игнорируется» (waived). The printed bound always stands first.
+ * требование игнорируется» (waived) · «Красные правят или 2 делегата → через
+ * «Марс вперёд»» (allied, TR62). The printed bound always stands first.
  */
 export function easingLine(easing: RequirementEasingModel): string {
   const head = `${easingSubjectLabel(easing)} ${easingBound(easing, easing.printed)}`;
   if (easing.effective === 'waived') {
     return `${head} — ${translateText(EASING_KEYS.requirementIgnored)}`;
+  }
+  if (easing.effective === 'allied') {
+    return `${head} → ${translateTextWithParams(EASING_KEYS.throughAlly, [partnerName(easing)])}`;
   }
   return `${head} → ${easing.effective}${easingUnit(easing.parameter)}`;
 }
@@ -128,6 +144,9 @@ export function easingCompact(easing: RequirementEasingModel): string {
   const label = easingSubjectLabel(easing);
   if (easing.effective === 'waived') {
     return `${label} ${translateText(EASING_KEYS.ignored)}`;
+  }
+  if (easing.effective === 'allied') {
+    return `${label} ${translateTextWithParams(EASING_KEYS.throughAlly, [partnerName(easing)])}`;
   }
   const steps = easing.sources.reduce((sum, s) => sum + (s.steps ?? 0), 0);
   return `${label} ${easingBound(easing, easing.effective)} ±${steps}`;

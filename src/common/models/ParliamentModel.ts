@@ -88,11 +88,32 @@ export type PartyAccessModel = {
   /** The card that lowered the threshold — named by the surfaces that explain it (absent at the printed default). */
   effectDelegatesBy?: CardName;
   byDelegates: boolean;
+  /**
+   * THE ALLIANCE ROAD (TR62 Tharsis Alliance): this party's effect AND its card
+   * requirement are the seat's because the PARTNER party `via` stands by its
+   * printed road right now (`road`: it rules, or two of the seat's own
+   * delegates on its resolution) — the card that made the pair in `source`.
+   * Empty / absent while no alliance holds. Read on the client by ONE helper
+   * (`accessRoadOf` — guard `parliamentAccessRoadGuard`).
+   */
+  allied?: ReadonlyArray<PartyAllianceRoadModel>;
+  /**
+   * THE PAIRS this party is in for the seat (standing, holding or not): the
+   * partner and the card. What a dormant alliance still shows (the badge on
+   * the seal, the second line of a requirement's reason).
+   */
+  alliances?: ReadonlyArray<PartyAllianceModel>;
   /** Card-granted access (a future Septem Tribus) — effect only, never the requirement. */
   granted: ReadonlyArray<string>;
   hasEffect: boolean;
   satisfiesRequirement: boolean;
 };
+
+/** One alliance a seat's table declares for a party: the partner party and the card (TR62). */
+export type PartyAllianceModel = {partner: ReduxParty; source: CardName};
+
+/** One alliance that HOLDS: the partner stands by its printed road (`ruling` / `delegates`). */
+export type PartyAllianceRoadModel = {via: ReduxParty; source: CardName; road: 'ruling' | 'delegates'};
 
 /**
  * ONE row of a seat's colony ledger: the tile, its printed colony bonus and
@@ -204,6 +225,14 @@ export type VoteProjectionModel = {
   /** This delegate reaches the party-effect threshold. */
   unlocksEffect: boolean;
   unlocksRequirement: boolean;
+  /**
+   * THE ALLIANCE THIS DELEGATE OPENS (TR62): the delegate brings the card's
+   * party to its PRINTED road for the viewer, and the viewer's table allies
+   * that party with `party` — whose effect and cards become the viewer's with
+   * it. Absent when nothing allied opens (no pair, or the ally is the viewer's
+   * already by a road the requirement knows).
+   */
+  unlocksAlliance?: {party: ReduxParty; source: CardName};
   /** Ties resolved in the viewer's favour by an earlier delegate (rulebook p.8). */
   tieNote?: 'earlier-delegate' | 'slot-priority';
 };

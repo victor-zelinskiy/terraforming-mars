@@ -36,16 +36,39 @@ export function requirementEasingOf(player: IPlayer, card: IProjectCard): Array<
     const ordinal = (seen.get(req.type) ?? 0) + 1;
     seen.set(req.type, ordinal);
     if (req instanceof PartyRequirement) {
-      // THE PARTY FAMILY (Backroom Deal TR70): a party requirement is only ever LIFTED, never shifted — the reading
-      // exists exactly while a waiver stands. `printed` is the delegates the printed rule asks for, `current` the
+      // THE PARTY FAMILY (Backroom Deal TR70; Tharsis Alliance TR62): a party requirement is never SHIFTED — it is
+      // LIFTED while a waiver stands, or met THROUGH an alliance's partner (below); the waiver first, and under it the
+      // alliance is not named. `printed` is the delegates the printed rule asks for, `current` the
       // player's own on that party's resolution (the Parliament's count, never a second one), `decisive` whether the
       // party itself would have refused the play.
       const waiver = player.partyRequirementWaiver();
-      if (waiver === undefined) {
-        return;
-      }
       const politics = player.game.politics;
       const standing = politics?.partyRequirementStanding(player, req.party);
+      if (waiver === undefined) {
+        // THE ALLIANCE (TR62 Tharsis Alliance): the requirement is met THROUGH the partner party, whose printed road
+        // stands — the party's own bound stays printed (`effective: 'allied'`, `via` the partner). `decisive` iff the
+        // party's OWN printed road would have refused the play; met anyway, the reading is quiet on every surface.
+        const allied = standing?.allied;
+        if (standing === undefined || allied === undefined) {
+          return;
+        }
+        const ownRoad = standing.ruling || standing.delegates >= standing.required;
+        out.push({
+          key: requirementBlockId(req, ordinal) ?? `req:${req.type}`,
+          index,
+          type: req.type,
+          party: standing.party,
+          max: false,
+          printed: standing.required,
+          effective: 'allied',
+          via: allied.via,
+          current: standing.delegates,
+          sources: [{source: {kind: 'card', card: allied.source}, kind: 'ally', via: allied.via, road: allied.road, oneShot: false}],
+          met: true,
+          decisive: !ownRoad,
+        });
+        return;
+      }
       const metRaw = politics?.satisfiesPartyRequirement(player, req.party) === true;
       out.push({
         key: requirementBlockId(req, ordinal) ?? `req:${req.type}`,

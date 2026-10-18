@@ -861,6 +861,9 @@ export class Player implements IPlayer {
           if (share.steps !== undefined) {
             entry.fact.steps = share.steps;
           }
+          if (share.via !== undefined) {
+            entry.fact.via = share.via;
+          }
           bySource.set(key, entry);
         }
         entry.fact.requirements.push({
@@ -894,10 +897,25 @@ export class Player implements IPlayer {
         });
         continue;
       }
+      if (fact.kind === 'ally') {
+        // A PARTY requirement met THROUGH an alliance's partner (TR62) — the partner and the card that made the pair.
+        const via = fact.via;
+        for (const requirement of fact.requirements) {
+          const party = requirement.party;
+          if (party === undefined || via === undefined) {
+            continue;
+          }
+          this.game.log('${0} met the ${1} party requirement of ${2} through the alliance with ${3} (${4})', (b) => {
+            b.player(this).partyName(party).card(card).partyName(via);
+            name(b);
+          });
+        }
+        continue;
+      }
       for (const requirement of fact.requirements) {
         const effective = requirement.effective;
         const parameter = requirement.parameter;
-        if (effective === 'waived' || parameter === undefined) {
+        if (effective === 'waived' || effective === 'allied' || parameter === undefined) {
           continue;
         }
         this.game.log('${0} met the ${1} requirement of ${2} thanks to ${3}: ${4} → ${5}', (b) => {

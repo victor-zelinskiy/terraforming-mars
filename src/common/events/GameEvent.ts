@@ -235,6 +235,7 @@ export type EventTrigger =
   | 'insurance-claim'
   | 'delta-advance' // one committed advance on the Delta Project («Гидросеть») track
   | 'delegates-discarded' // Turmoil Redux: the sitting's refresh sent the player's delegates home off an UNENACTED resolution
+  | 'ruling-party-changed' // Turmoil Redux: the sitting's enactment put a NEW party in power (TR62 Tharsis Alliance draws a card)
   | 'automa-corporation'; // a MarsBot corporation's printed effect fired (Rule Book B)
 
 /**

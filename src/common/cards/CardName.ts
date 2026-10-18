@@ -1138,6 +1138,7 @@ export enum CardName {
   FLOATING_BIODOMES = 'Floating Biodomes',
   BACKROOM_DEAL = 'Backroom Deal',
   POLITICAL_RECOGNITION = 'Political Recognition',
+  THARSIS_ALLIANCE = 'Tharsis Alliance',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

@@ -223,6 +223,9 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
       effectDelegates: a.effectDelegates,
       ...(a.effectDelegatesBy === undefined ? {} : {effectDelegatesBy: a.effectDelegatesBy}),
       byDelegates: a.byDelegates,
+      // THE ALLIANCE ROAD (TR62) — on the wire only where a pair exists, so every older surface reads nothing new.
+      ...(a.alliances.length === 0 ? {} : {alliances: a.alliances.map((pair) => ({...pair}))}),
+      ...(a.allied.length === 0 ? {} : {allied: a.allied.map((road) => ({...road}))}),
       granted: a.granted,
       hasEffect: a.hasEffect,
       satisfiesRequirement: a.satisfiesRequirement,
@@ -355,6 +358,23 @@ function projectVote(game: IGame, parliament: Parliament, viewer: IPlayer, slot:
     unlocksEffect: !before.hasEffect && afterVotes >= before.effectDelegates,
     unlocksRequirement: !before.satisfiesRequirement && afterVotes >= PARTY_EFFECT_DELEGATES,
   };
+  // THE ALLIANCE THIS DELEGATE OPENS (TR62): the cube brings the card's party to its PRINTED road (the second own cube)
+  // and the viewer's table allies it with another party — whose effect and cards come with it, unless they are the
+  // viewer's already by a road the requirement knows (the ally rules / two cubes / another alliance).
+  const party = parliament.resolutionOf(slot.instance).party;
+  const printedBefore = before.ruling || before.delegates >= PARTY_EFFECT_DELEGATES;
+  if (!printedBefore && afterVotes >= PARTY_EFFECT_DELEGATES) {
+    for (const alliance of parliament.alliancesOf(viewer)) {
+      if (!alliance.parties.includes(party)) {
+        continue;
+      }
+      const ally = alliance.parties[0] === party ? alliance.parties[1] : alliance.parties[0];
+      if (!parliament.access(viewer, ally).satisfiesRequirement) {
+        projection.unlocksAlliance = {party: ally, source: alliance.source};
+        break;
+      }
+    }
+  }
   if (leader !== undefined) {
     projection.leaderAfter = colorOf(game, leader.owner);
     if (leader.tieBreak !== undefined && leader.owner === viewer.id) {

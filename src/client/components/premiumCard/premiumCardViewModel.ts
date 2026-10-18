@@ -72,7 +72,10 @@ export type NormalizedRequirement = {
 };
 
 export type RequirementEasingVM = {
-  effective: number | 'waived';
+  /** The bound under the modifiers; `'waived'` lifted; `'allied'` (TR62) met through the alliance's partner `via`. */
+  effective: number | 'waived' | 'allied';
+  /** For `'allied'`: the partner party (its emblem is the seal's mark). */
+  via?: PartyName;
   met: boolean;
   decisive: boolean;
   /** The TOTAL bend in steps — every source summed (the cassette's «±N» beside the marks). */
@@ -441,6 +444,7 @@ function withEasing(requirements: Array<NormalizedRequirement>, model: CardModel
       ...req,
       easing: {
         effective: easing.effective,
+        ...(easing.via !== undefined ? {via: easing.via} : {}),
         met: easing.met,
         decisive: easing.decisive,
         steps: easing.sources.reduce((sum, s) => sum + (s.steps ?? 0), 0),

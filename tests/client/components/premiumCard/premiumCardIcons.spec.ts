@@ -1,4 +1,5 @@
 import {expect} from 'chai';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {HEX_TILE_ITEMS, mechItemIcon, secondaryBubbleOf, tagIconStyle, tagIconUrl, tileIcon} from '@/client/components/premiumCard/premiumCardIcons';
 import {AltSecondaryTag} from '@/common/cards/render/AltSecondaryTag';
 import {Tag} from '@/common/cards/Tag';
@@ -71,6 +72,14 @@ describe('premiumCardIcons.mechItemIcon', () => {
   it('the party-requirement plate (TR13) — and STRUCK when the item is cancelled (TR70 «NEXT CARD: [plate ×]»)', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.PARTY_REQUIREMENT))).to.deep.equal({kind: 'partyRequirement'});
     expect(mechItemIcon({...itemNode(CardRenderItemType.PARTY_REQUIREMENT), cancelled: true} as ICardRenderItem)).to.deep.equal({kind: 'partyRequirement', waived: true});
+  });
+
+  it('ONE NAMED PARTY\'s seal (TR62) is its emblem from the one table — a stacked seal carries the caption under the pair', () => {
+    expect(mechItemIcon({...itemNode(CardRenderItemType.PARTY_SEAL), party: PartyName.MARS} as ICardRenderItem))
+      .to.deep.equal({kind: 'partySeal', party: PartyName.MARS, url: 'assets/parties/redux/mars-first.png'});
+    expect(mechItemIcon({...itemNode(CardRenderItemType.PARTY_SEAL), party: PartyName.REDS, stacked: true, innerText: 'Ruling'} as ICardRenderItem))
+      .to.deep.equal({kind: 'partySeal', party: PartyName.REDS, url: 'assets/parties/redux/reds.png', stacked: true, caption: 'Ruling'});
+    expect(mechItemIcon(itemNode(CardRenderItemType.PARTY_SEAL)), 'no party — no seal').is.undefined;
   });
 
   it('trade discount is a value-bearing token', () => {

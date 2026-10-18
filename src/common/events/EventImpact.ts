@@ -30,16 +30,24 @@ export type CardResourceBasis = {count: number; unitKey: string};
  *
  * All numeric deltas are SIGNED (a loss is negative). Empty fields are omitted.
  */
-/** THE ROAD a party's effect came or went by (`EventImpact.partyEffect`). */
-export type PartyEffectBasis = 'ruling' | 'delegates' | 'card';
+/**
+ * THE ROAD a party's effect came or went by (`EventImpact.partyEffect`). Four
+ * roads (`Parliament.access`): the party rules · the seat's own delegates ·
+ * an ALLIANCE (TR62 Tharsis Alliance — the partner party stands by its
+ * printed road, so this one does too: effect AND requirement) · a card's grant.
+ */
+export type PartyEffectBasis = 'ruling' | 'delegates' | 'alliance' | 'card';
 
 /** One modifier's share of a play's eased requirements — see `EventImpact.requirementEased`. */
 export type RequirementEasedFact = {
-  kind: 'shift' | 'waive';
+  /** `ally` — a party requirement met THROUGH the alliance's partner (TR62 Tharsis Alliance; `via` names the partner). */
+  kind: 'shift' | 'waive' | 'ally';
+  /** For `ally`: the partner party whose printed road stands for this one. */
+  via?: PartyName;
   steps?: number;
   oneShot: boolean;
   /** One entry per eased requirement: a global parameter's scale, or (TR70) the PARTY whose requirement was lifted. */
-  requirements: ReadonlyArray<{type: RequirementType; parameter?: GlobalParameter; party?: PartyName; max: boolean; printed: number; effective: number | 'waived'}>;
+  requirements: ReadonlyArray<{type: RequirementType; parameter?: GlobalParameter; party?: PartyName; max: boolean; printed: number; effective: number | 'waived' | 'allied'}>;
 };
 
 export type EventImpact = {
@@ -191,12 +199,13 @@ export type EventImpact = {
    * A PARTY'S EFFECT changed hands for the event's seat (`party-effect-gained`
    * / `party-effect-lost`, Turmoil Redux — PL-112): the party and the ROAD the
    * change took — `delegates` (the seat's own cubes on the party's resolution
-   * reached / fell under the law's number, `delegates` = that number), or
-   * `card` (a grant given / revoked, the card's name in `source`). A gain
-   * never names `ruling`: the enactment is told once, for everyone, by the
-   * sitting.
+   * reached / fell under the law's number, `delegates` = that number),
+   * `alliance` (TR62: the PARTNER party `via` came to stand / stopped standing
+   * by its printed road — the card that made the pair in `source`), or `card`
+   * (a grant given / revoked, the card's name in `source`). A gain never names
+   * `ruling`: the enactment is told once, for everyone, by the sitting.
    */
-  partyEffect?: {party: PartyName; basis: PartyEffectBasis; delegates?: number; source?: string};
+  partyEffect?: {party: PartyName; basis: PartyEffectBasis; delegates?: number; source?: string; via?: PartyName};
   /**
    * A WALK OF THE AGENDA TRACK (`agenda-advanced`, Turmoil Redux): where the
    * marker started and ended, EVERY step in order with the bonus that step

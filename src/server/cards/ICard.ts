@@ -30,7 +30,7 @@ import {Units} from '../../common/Units';
 import {SerializedCard} from '../SerializedCard';
 import {UndergroundResourceToken} from '../../common/underworld/UndergroundResourceToken';
 import {BoardFact} from '../../common/boards/BoardInformationFacts';
-import {ResolutionId, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
+import {ReduxParty, ResolutionId, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
 import {PlacementPreviewContext} from '../boards/PlacementPreviewContext';
 import {DeltaMovement, DeltaMovementBonus} from '../delta/deltaMovement';
 import {AdjacencyBonus} from '../ares/AdjacencyBonus';
@@ -322,6 +322,30 @@ export interface ICard {
    * First holder: TR02 Political Science (data per delegate).
    */
   onDelegatesDiscarded?(player: IPlayer, count: number, context: {instance: ResolutionInstanceId, resolution: ResolutionId}): void;
+  /**
+   * Turmoil Redux — THE LAW OF ACCESS, given a FOURTH road by a card: an
+   * ALLIANCE of two parties (TR62 Tharsis Alliance: Mars First and the Reds).
+   * While ONE party of the pair stands for this card's owner by its PRINTED
+   * road (it rules, or two of the owner's own delegates on its resolution —
+   * the requirement's reading), the OTHER is the owner's too: its effect AND
+   * its card requirement («effect and cards»). Read live off the tableau by
+   * `Parliament.alliancesOf` at every `access()` — no state, no save field,
+   * nothing to revoke; the Parliament never knows the card's name. A grant, a
+   * lowered threshold (TR36) or the alliance itself never sets an alliance
+   * off: one pair, one hop.
+   */
+  readonly partyAlliance?: Readonly<[ReduxParty, ReduxParty]>;
+  /**
+   * Turmoil Redux — a hook the SITTING calls at the ENACTMENT
+   * (`ParliamentPhase.stepEnact`): right after the winning resolution takes the
+   * ENACTED slot, every participant of the party effects has every card of
+   * its tableau carrying the hook called ONCE with the new ruling party and
+   * the one it replaced (generation 1's starting-rule Greens included), inside
+   * `events.withEffect(player, card, 'ruling-party-changed')` and under the
+   * step's own key (a reload mid-sitting never calls it twice). First holder:
+   * TR62 Tharsis Alliance (a card when either of its parties becomes ruling).
+   */
+  onRulingPartyChanged?(player: IPlayer, next: ReduxParty, previous: ReduxParty): void;
   /**
    * THIS CARD IS A FLEET DOCK (Turmoil Redux — TR06 Water Hauling, TR26 UNMI
    * Liner, TR27 Aurora Station: «once per generation, when you trade, you can

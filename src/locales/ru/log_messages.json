@@ -418,5 +418,6 @@
     "${0} paid ${1} ${2} for ${3}": "${0} платит ${1} ${2} за ${3}",
     "${0} gains ${1} more M€ from ${2}": "${0} получает ещё ${1} M€ за ${2}",
     "${0} received the production income of generation ${1}": "${0} получает доход фазы производства поколения ${1}",
-    "${0} ignored the party requirement of ${1} thanks to ${2}": "${0} разыграл ${1} без требования партии благодаря ${2}"
+    "${0} ignored the party requirement of ${1} thanks to ${2}": "${0} разыграл ${1} без требования партии благодаря ${2}",
+    "${0} met the ${1} party requirement of ${2} through the alliance with ${3} (${4})": "${0} разыграл ${2}: требование партии ${1} выполнено по альянсу через ${3} (${4})"
 }

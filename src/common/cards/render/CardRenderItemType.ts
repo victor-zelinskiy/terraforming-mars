@@ -35,6 +35,14 @@ export enum CardRenderItemType {
    */
   PARTY_REQUIREMENT = 'party-requirement',
   /**
+   * Turmoil Redux: ONE NAMED PARTY's seal (TR62 Tharsis Alliance prints «[Mars
+   * First] = [Reds]» and «[Mars First][Reds] RULING : [card]»): the party's own
+   * emblem plate, the party carried by `ICardRenderItem.party`. A `stacked`
+   * seal overlaps the one before it (the scan's pair), its `innerText` the
+   * caption printed under the pair («RULING»).
+   */
+  PARTY_SEAL = 'party-seal',
+  /**
    * A CARD THAT PRINTS A VP ICON (and, through `secondaryTag`, the tag it
    * prints): the card cover with the tag's bubble and the VP plate in its
    * corner — Turmoil Redux's «Building card with a VP icon» (Architecture

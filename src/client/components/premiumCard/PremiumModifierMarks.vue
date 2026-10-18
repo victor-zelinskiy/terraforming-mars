@@ -11,7 +11,8 @@
           :class="'pcard-modmark--' + s.symbol"
           :style="markStyle(s, i)"
           :data-req-mark="s.symbol"
-          :data-req-mark-source="s.card ?? s.party ?? s.key"></span>
+          :data-req-mark-source="s.card ?? s.party ?? s.key"
+          :data-req-mark-via="s.via"></span>
     <span v-if="more > 0" class="pcard-modmark pcard-modmark--more" :style="{zIndex: '0'}">+{{ more }}</span>
   </span>
 </template>
@@ -41,15 +42,21 @@ export default defineComponent({
       return this.sources.length - this.shown.length;
     },
     label(): string {
-      return this.sources.map((s) => (s.card !== undefined ? translateText(s.card) : s.party !== undefined ? translateText(partyNameKey(s.party)) : ''))
-        .filter((n) => n !== '').join(', ');
+      return this.sources.map((s) => {
+        // An ALLIANCE (TR62) is read as its partner and its card: «Марс вперёд · Альянс Тарсиса».
+        if (s.symbol === 'ally' && s.via !== undefined) {
+          return [translateText(partyNameKey(s.via)), s.card !== undefined ? translateText(s.card) : ''].filter((n) => n !== '').join(' · ');
+        }
+        return s.card !== undefined ? translateText(s.card) : s.party !== undefined ? translateText(partyNameKey(s.party)) : '';
+      }).filter((n) => n !== '').join(', ');
     },
   },
   methods: {
     markStyle(s: ModifierSourceVM, i: number): Record<string, string> {
       // A pile of cards: the first lies on top, each next one peeks from behind.
       const style: Record<string, string> = {zIndex: String(this.shown.length - i)};
-      const emblem = s.symbol === 'party' && s.party !== undefined ? requirementPartyEmblem(s.party) : undefined;
+      const party = s.symbol === 'party' ? s.party : s.symbol === 'ally' ? s.via : undefined;
+      const emblem = party !== undefined ? requirementPartyEmblem(party) : undefined;
       if (emblem !== undefined) {
         style.backgroundImage = `url(${emblem})`;
       }

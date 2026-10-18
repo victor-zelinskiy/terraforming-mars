@@ -16,6 +16,12 @@
               <span class="pcard-req__icon" :class="iconClass(req)" :style="iconStyle(req)"></span>
             </span>
             <span v-else class="pcard-req__label">{{ binaryLabel(req) }}</span>
+            <!-- MET THROUGH AN ALLIANCE (TR62): the printed party stays in its socket; the seal beside it is the
+                 PARTNER's emblem with the link sign — who stands for this party. -->
+            <span v-if="stateOf(req) === 'allied'" class="pcard-req__mod pcard-req__mod--marks pcard-req__mod--ally" data-req-mod
+                  :data-req-mod-via="req.easing?.via">
+              <PremiumModifierMarks :sources="req.easing?.sources ?? []" />
+            </span>
           </template>
           <!-- formula requirement: [icon] [≥/≤] [value][suffix] — one expression -->
           <template v-else>
@@ -112,6 +118,7 @@ export default defineComponent({
         'pcard__reqs--dense': n > 2,
         'pcard__reqs--eased': this.requirements.some((r) => r.easing !== undefined && !r.easing.quiet),
         'pcard__reqs--waived': this.requirements.some((r) => r.easing?.effective === 'waived'),
+        'pcard__reqs--allied': this.requirements.some((r) => r.easing?.effective === 'allied' && !r.easing.quiet),
         'pcard__reqs--decisive': this.requirements.some((r) => r.easing?.decisive === true),
       };
     },
@@ -122,14 +129,18 @@ export default defineComponent({
      * The requirement's state under the viewer's modifiers — printed / eased / waived (TR49 class), or QUIET: met anyway
      * under a shift, drawn exactly as printed (a standing ±2 would otherwise mark every card it does not decide).
      */
-    stateOf(req: NormalizedRequirement): 'printed' | 'eased' | 'waived' | 'quiet' {
+    stateOf(req: NormalizedRequirement): 'printed' | 'eased' | 'waived' | 'allied' | 'quiet' {
       if (req.easing === undefined) {
         return 'printed';
       }
       if (req.easing.effective === 'waived') {
         return 'waived';
       }
-      return req.easing.quiet ? 'quiet' : 'eased';
+      if (req.easing.quiet) {
+        return 'quiet';
+      }
+      // TR62: a party requirement met THROUGH the alliance's partner — the printed party stands, the seal names who.
+      return req.easing.effective === 'allied' ? 'allied' : 'eased';
     },
     isShifted(req: NormalizedRequirement): boolean {
       return this.stateOf(req) === 'eased';
@@ -140,6 +151,7 @@ export default defineComponent({
         'pcard-req--binary': req.isBinary,
         'pcard-req--eased': state === 'eased',
         'pcard-req--waived': state === 'waived',
+        'pcard-req--allied': state === 'allied',
         'pcard-req--decisive': req.easing?.decisive === true,
       };
     },

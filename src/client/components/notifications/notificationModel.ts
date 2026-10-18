@@ -518,7 +518,7 @@ export function easedLinesOf(chain: ReadonlyArray<GameEvent>): Array<Notificatio
     if (fact === undefined || (e.source?.kind !== 'card' && e.source?.kind !== 'corporation')) {
       continue;
     }
-    lines.push({source: e.source.card, kind: fact.kind, oneShot: fact.oneShot, ...(fact.steps !== undefined ? {steps: fact.steps} : {})});
+    lines.push({source: e.source.card, kind: fact.kind, oneShot: fact.oneShot, ...(fact.steps !== undefined ? {steps: fact.steps} : {}), ...(fact.via !== undefined ? {via: fact.via} : {})});
   }
   return lines;
 }

@@ -8,6 +8,7 @@ import {AltSecondaryTag} from '../../../common/cards/render/AltSecondaryTag';
 import {CardResource} from '../../../common/CardResource';
 import {Tag} from '../../../common/cards/Tag';
 import {liteBoolean, LiteBoolean} from '../../../common/LiteBoolean';
+import {PartyName} from '../../../common/turmoil/PartyName';
 
 /** Options for `Builder.text`. `size` may also be passed positionally (legacy). */
 export type TextOptions = {
@@ -247,6 +248,17 @@ abstract class Builder<T> {
    */
   public partyRequirement(options?: ItemOptions): this {
     return this._appendToRow(new CardRenderItem(CardRenderItemType.PARTY_REQUIREMENT, -1, options));
+  }
+
+  /**
+   * Turmoil Redux: ONE NAMED PARTY's seal — its emblem plate (TR62 Tharsis
+   * Alliance: «[Mars First] = [Reds]»). `stacked` overlaps the seal before it
+   * (the scan's pair); `text` is the caption printed under the pair («RULING»).
+   */
+  public partySeal(party: PartyName, options?: ItemOptions): this {
+    const item = new CardRenderItem(CardRenderItemType.PARTY_SEAL, -1, options);
+    item.party = party;
+    return this._appendToRow(item);
   }
 
   /**

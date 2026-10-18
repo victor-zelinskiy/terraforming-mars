@@ -45,6 +45,12 @@ const partyWaived: RequirementEasingModel = {
   printed: 2, effective: 'waived', current: 0, met: true, decisive: true,
   sources: [{source: {kind: 'card', card: CardName.BACKROOM_DEAL}, kind: 'waive', oneShot: true}],
 };
+/** THE ALLIANCE (TR62 Tharsis Alliance): a Reds plate met THROUGH Mars First, which rules — the partner named. */
+const allied: RequirementEasingModel = {
+  key: 'req:party', index: 0, type: RequirementType.PARTY, party: PartyName.REDS, max: false,
+  printed: 2, effective: 'allied', via: PartyName.MARS, current: 0, met: true, decisive: true,
+  sources: [{source: {kind: 'card', card: CardName.THARSIS_ALLIANCE}, kind: 'ally', via: PartyName.MARS, road: 'ruling', oneShot: false}],
+};
 /** SEVERAL modifiers at once — Inventrix + Adaptation Technology + an armed Special Design: ±6, Grass at −20 °C. */
 const several: RequirementEasingModel = {
   key: 'req:C', index: 0, type: RequirementType.TEMPERATURE, parameter: GlobalParameter.TEMPERATURE, max: false,
@@ -138,6 +144,14 @@ describe('the ONE-PLAY class on the client (TR49)', () => {
     });
     it('met ANYWAY says nothing on the tile — a standing ±2 never marks the whole hand', () => {
       expect(handEasingPlate({name: CardName.ARCHAEBACTERIA, requirementEasing: [quiet]} as CardModel)).is.undefined;
+    });
+    it('a party requirement met THROUGH AN ALLIANCE (TR62): the party\'s emblem whole, the PARTNER\'s as the seal, a check', () => {
+      const plate = handEasingPlate({name: CardName.REDS_NEWS_OUTLET, requirementEasing: [allied]} as CardModel)!;
+      expect(plate.items[0]).deep.include({iconClass: '', emblem: 'assets/parties/redux/reds.png', kind: 'ally', steps: 0});
+      expect(plate.items[0].sources).deep.eq([{key: 'card:' + CardName.THARSIS_ALLIANCE, symbol: 'ally', card: CardName.THARSIS_ALLIANCE, kind: 'ally', via: PartyName.MARS, oneShot: false}]);
+      expect(plate.decisive).is.true;
+      expect(plate.oneShot, 'a standing alliance — never the one-play mark').is.false;
+      expect(handEasingPlate({name: CardName.REDS_NEWS_OUTLET, requirementEasing: [{...allied, decisive: false}]} as CardModel), 'met anyway: quiet').is.undefined;
     });
     it('a lifted PARTY requirement (TR70) wears the party\'s emblem, struck — no scale icon', () => {
       const plate = handEasingPlate({name: CardName.MARTIAN_CENSUS, requirementEasing: [partyWaived]} as CardModel)!;
@@ -235,6 +249,18 @@ describe('the ONE-PLAY class on the client (TR49)', () => {
       expect(view.primary?.compact).eq('thanks to ' + CardName.BACKROOM_DEAL);
       expect(view.reasons[0].text).eq(`${mars} ruling or 2 delegates — Requirement ignored`);
     });
+
+    it('the ALLIANCE (TR62) speaks it too: the printed party and its roads, then «through» the partner; the card names the alliance', () => {
+      const reds = partyNameKey(PartyName.REDS);
+      const mars = partyNameKey(PartyName.MARS);
+      expect(easingLine(allied)).eq(`${reds} ruling or 2 delegates → through ${mars}`);
+      expect(easingCompact(allied)).eq(`${reds} through ${mars}`);
+      expect(easingSourcesText(allied)).eq(`${CardName.THARSIS_ALLIANCE} · alliance with ${mars}`);
+      const view = buildCardAvailability({reasons: undefined, easing: [allied]}, 'play')!;
+      expect(view.severity).eq('eased');
+      expect(view.primary?.compact, 'the verdict: playable thanks to the alliance card').eq('thanks to ' + CardName.THARSIS_ALLIANCE);
+      expect(view.reasons[0].text).eq(`${reds} ruling or 2 delegates → through ${mars}`);
+    });
   });
 
   describe('the cassette — three states on ONE plate, the printed value always stands', () => {
@@ -283,6 +309,25 @@ describe('the ONE-PLAY class on the client (TR49)', () => {
       expect(w.find('[data-req-mod]').exists()).is.false;
       expect(w.find('[data-req-effective]').exists()).is.false;
       expect(w.find('.pcard__reqs--eased').exists()).is.false;
+    });
+    it('allied (TR62): the printed party stays in its socket, the seal is the PARTNER\'s mark, the check a form', () => {
+      const req = {...normalizeRequirement({party: PartyName.REDS}), easing: {
+        effective: allied.effective, via: PartyName.MARS, met: true, decisive: true, steps: 0, oneShot: false,
+        sources: modifierSourcesOf(allied), quiet: easingIsQuiet(allied),
+      }};
+      const w = mount(PremiumRequirementsBar, {...globalConfig, props: {requirements: [req]}});
+      expect(w.find('[data-req-state]').attributes('data-req-state')).eq('allied');
+      expect(w.find('[data-req-party]').attributes('data-req-party'), 'the printed party keeps its socket').eq(PartyName.REDS);
+      expect(w.find('[data-req-mod]').attributes('data-req-mod-via')).eq(PartyName.MARS);
+      const mark = w.find('[data-req-mod] [data-req-mark]');
+      expect(mark.attributes('data-req-mark')).eq('ally');
+      expect(mark.attributes('data-req-mark-via')).eq(PartyName.MARS);
+      expect(mark.attributes('style'), 'the partner\'s emblem — who stands for this party').contains('mars-first.png');
+      expect(w.find('[data-req-decisive]').exists()).is.true;
+      expect(w.find('.pcard__reqs--allied').exists()).is.true;
+      const quietBar = mount(PremiumRequirementsBar, {...globalConfig, props: {requirements: [{...req, easing: {...req.easing, decisive: false, quiet: true}}]}});
+      expect(quietBar.find('[data-req-state]').attributes('data-req-state'), 'met anyway by its own road').eq('quiet');
+      expect(quietBar.find('[data-req-mod]').exists()).is.false;
     });
     it('waived + decisive: the segment is struck, the printed value stays, the check is a form', () => {
       const w = bar(waived);

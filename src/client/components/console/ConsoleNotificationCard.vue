@@ -299,6 +299,7 @@ import {ViewerImpactMeta} from '@/client/components/notifications/notificationSe
 import {causeLinesOf, NotificationCauseLine} from '@/client/components/notifications/notificationCauseView';
 import {LiveNotification, NotificationEasedLine, NotificationPillGroup, NotificationSkippedLine, NotificationVariant} from '@/client/components/notifications/notificationTypes';
 import {EASING_KEYS} from '@/client/console/requirementEasingText';
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 
 // The spoken UNIT of a band chip — the resource's NAME beside its icon, so the
 // hero statement reads «ТЕПЛО +1», not a lone glyph in a large frame. Standard
@@ -601,7 +602,9 @@ export default defineComponent({
   methods: {
     /** «Требования игнорируются · Новаторская разработка» / «±2 · Особая разработка» (+ «один розыгрыш»). */
     easedLineText(line: NotificationEasedLine): string {
-      const what = line.kind === 'waive' ? translateText(EASING_KEYS.requirementIgnored) : `±${line.steps ?? 0}`;
+      const what = line.kind === 'waive' ? translateText(EASING_KEYS.requirementIgnored) :
+        line.kind === 'ally' ? translateTextWithParams(EASING_KEYS.throughAlly, [line.via !== undefined ? translateText(partyNameKey(line.via)) : '']) :
+          `±${line.steps ?? 0}`;
       const parts = [what, translateText(line.source)];
       if (line.oneShot) {
         parts.push(translateText(EASING_KEYS.oneShot));

@@ -1249,5 +1249,11 @@
   "Party effect gained": "Эффект партии получен",
   "Party effect lost": "Эффект партии потерян",
   "The ${0} party effect is now everyone's": "Эффект партии ${0} — теперь у всех",
-  "The ${0} party effect is no longer everyone's": "Эффект партии ${0} — больше не у всех"
+  "The ${0} party effect is no longer everyone's": "Эффект партии ${0} — больше не у всех",
+  "${0} gains the ${1} party effect — allied with ${2} (${3})": "${0} получает эффект партии ${1} — по альянсу через ${2} (${3})",
+  "${0} loses the ${1} party effect — the alliance with ${2} no longer holds": "${0} теряет эффект партии ${1} — альянс через ${2} больше не действует",
+  "${0} loses the ${1} party effect — the alliance is gone": "${0} теряет эффект партии ${1} — альянса больше нет",
+  "${0} is ruling": "«${0}» у власти",
+  "${0}: two of your delegates on its resolution": "«${0}»: два ваших делегата на её резолюции",
+  "or the same with ${0} (${1})": "или то же у «${0}» («${1}»)"
 }

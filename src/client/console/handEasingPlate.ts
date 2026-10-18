@@ -19,8 +19,11 @@ export type HandEasingItem = {
   iconClass: string;
   /** The PARTY's emblem (TR70 — a lifted party requirement wears the party's badge, struck), the hand's own counter badge. */
   emblem?: string;
-  /** `waived` draws the icon struck through (the scan's red diagonal); `shift` prints «±N». */
-  kind: 'shift' | 'waive';
+  /**
+   * `waived` draws the icon struck through (the scan's red diagonal); `shift` prints «±N»; `ally` (TR62) keeps the
+   * party's emblem whole — the seal beside it is the PARTNER's emblem with the link sign: «[Красные]⟷[Марс вперёд] ✓».
+   */
+  kind: 'shift' | 'waive' | 'ally';
   /** The TOTAL bend (every source summed). */
   steps: number;
   /** WHAT bends it — one mark per source (a card on the table / the one-play bolt / a policy), before the player focuses it. */
@@ -44,7 +47,7 @@ function itemOf(easing: RequirementEasingModel): HandEasingItem {
   return {
     iconClass: easing.parameter !== undefined ? iconClassFor(easing.parameter) : '',
     ...(emblem !== undefined ? {emblem} : {}),
-    kind: easing.effective === 'waived' ? 'waive' : 'shift',
+    kind: easing.effective === 'waived' ? 'waive' : easing.effective === 'allied' ? 'ally' : 'shift',
     steps,
     sources: modifierSourcesOf(easing),
   };

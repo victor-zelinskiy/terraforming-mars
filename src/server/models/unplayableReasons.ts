@@ -349,6 +349,8 @@ function partyRequirementReason(player: IPlayer, req: PartyRequirement): Unplaya
     party: standing.party,
     current: standing.delegates,
     ...(standing.onVote ? {} : {partyOffVote: true}),
+    // THE ALLIANCE's second road (TR62): the table allies this party with another, so its printed road would do too.
+    ...(standing.alliance === undefined ? {} : {alliedVia: {party: standing.alliance.partner, card: standing.alliance.source}}),
   };
 }
 

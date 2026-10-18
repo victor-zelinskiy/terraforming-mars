@@ -1615,13 +1615,13 @@ export default defineComponent({
       const items = this.tenderPlates.get(name);
       return items === undefined ? undefined : items.map((t) => t.unit + ':' + t.count).join(' ');
     },
-    /** The e2e hook of the requirement plate (TR49 class): «temperature:waive ✓» / «temperature:±2». */
+    /** The e2e hook of the requirement plate (TR49 class): «waive ✓» / «±2» / «ally ✓» (TR62 — met through the alliance). */
     easingHook(name: CardName): string | undefined {
       const plate = this.easingPlates.get(name);
       if (plate === undefined) {
         return undefined;
       }
-      const items = plate.items.map((i) => i.kind === 'waive' ? 'waive' : '±' + i.steps).join(' ');
+      const items = plate.items.map((i) => i.kind === 'waive' ? 'waive' : i.kind === 'ally' ? 'ally' : '±' + i.steps).join(' ');
       return plate.decisive ? items + ' ✓' : items;
     },
     chipLabel(entry: ConsoleHandEntry): string | undefined {

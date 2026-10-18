@@ -27,5 +27,9 @@
     "${0} bends the printed requirement": "Напечатанное требование смягчает «${0}»",
     "Arms your next card": "Взведёт на следующую карту",
     "Party requirement ignored": "Требование партии игнорируется",
-    "ruling or ${0} delegates": "у власти или ${0} делегата"
+    "ruling or ${0} delegates": "у власти или ${0} делегата",
+    "through ${0}": "через «${0}»",
+    "alliance with ${0}": "альянс через «${0}»",
+    "Met through the alliance": "выполнено через альянс",
+    "Met through the alliance: ${0}": "Через альянс: ${0}"
 }

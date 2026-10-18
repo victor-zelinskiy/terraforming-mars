@@ -9,6 +9,7 @@ import {ICardRenderItem} from '../../../common/cards/render/Types';
 import {AltSecondaryTag} from '../../../common/cards/render/AltSecondaryTag';
 import {CardResource} from '../../../common/CardResource';
 import {liteBoolean} from '../../../common/LiteBoolean';
+import {PartyName} from '../../../common/turmoil/PartyName';
 
 export type ItemOptions = Partial<{
   size: Size;
@@ -27,6 +28,8 @@ export type ItemOptions = Partial<{
   superscript: boolean;
   resource: CardResource;
   tag: Tag;
+  /** A PARTY_SEAL that overlaps the seal before it (TR62's printed pair). */
+  stacked: true;
 }>
 
 export class CardRenderItem implements ICardRenderItem {
@@ -48,6 +51,9 @@ export class CardRenderItem implements ICardRenderItem {
   public over?: number;
   public resource?: CardResource | undefined;
   public tag?: Tag | undefined;
+  /** The party of a PARTY_SEAL (TR62). */
+  public party?: PartyName;
+  public stacked?: true;
   /** The unit's KIND is the reader's choice — the face prints «?» on it (TR53: «+1 resource of THAT card's kind»). */
   public questionMark?: true;
 
@@ -93,6 +99,9 @@ export class CardRenderItem implements ICardRenderItem {
     }
     if (options.questionMark === true) {
       this.questionMark = true;
+    }
+    if (options.stacked === true) {
+      this.stacked = true;
     }
 
     return this;

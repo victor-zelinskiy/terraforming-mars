@@ -16,9 +16,15 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {armedEffectFormula, easingBound, easingShareText, easingSourcesText, easingSubjectLabel, easingUnit, EASING_KEYS} from '@/client/console/requirementEasingText';
 import {ModifierSourceVM, easingIsQuiet, modifierSourceOf} from '@/client/components/premiumCard/premiumModifierSources';
 import {requirementPartyEmblem} from '@/client/components/premiumCard/partyEmblems';
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 
 /** The party reason's own «now» (`unplayableReasonFormat` — one wording for the hand's reason and the composer's row). */
 const PARTY_NOW_KEY = 'your delegates on the resolution of that party: ${0} of ${1}';
+/** …and the PARTNER's «now» under an alliance (TR62): the road it stands by — «Марс вперёд» у власти / два ваших делегата. */
+const PARTNER_NOW_KEYS = {
+  ruling: '${0} is ruling',
+  delegates: '${0}: two of your delegates on its resolution',
+} as const;
 
 export type ComposerRequirementView = {
   key: string;
@@ -35,6 +41,8 @@ export type ComposerRequirementView = {
   /** «≥ −4°C» — the bound with the modifiers (absent when ignored). */
   effective?: string;
   waived: boolean;
+  /** TR62: a party requirement met THROUGH the alliance's partner (`effective` names it — «через «Марс вперёд»»). */
+  allied: boolean;
   met: boolean;
   decisive: boolean;
   /** «±2 Особая разработка · один розыгрыш». */
@@ -65,8 +73,9 @@ export function composerRequirementViews(easings: ReadonlyArray<RequirementEasin
       label: easingSubjectLabel(e),
       printed: easingBound(e, e.printed),
       // A PARTY requirement's «now» is the delegates road («your delegates …: 0 of 2») — the hand's reason, word for word.
-      now: e.party !== undefined ? translateTextWithParams(PARTY_NOW_KEY, [String(e.current), String(e.printed)]) : `${e.current}${easingUnit(e.parameter)}`,
+      now: e.party !== undefined ? partyNow(e) : `${e.current}${easingUnit(e.parameter)}`,
       waived: e.effective === 'waived',
+      allied: e.effective === 'allied',
       met: e.met,
       decisive: e.decisive,
       sources: easingSourcesText(e),
@@ -76,11 +85,26 @@ export function composerRequirementViews(easings: ReadonlyArray<RequirementEasin
     if (view.stacked && e.sources.every((s) => s.kind === 'shift')) {
       view.total = `±${e.sources.reduce((sum, s) => sum + (s.steps ?? 0), 0)}`;
     }
-    if (e.effective !== 'waived') {
+    if (e.effective === 'allied') {
+      view.effective = translateTextWithParams(EASING_KEYS.throughAlly, [e.via !== undefined ? translateText(partyNameKey(e.via)) : '']);
+    } else if (e.effective !== 'waived') {
       view.effective = easingBound(e, e.effective);
     }
     return view;
   });
+}
+
+/**
+ * A PARTY requirement's «now»: the party's own delegates road — and, under an alliance (TR62), the road its PARTNER
+ * stands by, so the row reads BOTH parties («ваших делегатов на её резолюции: 0 из 2 · «Марс вперёд» у власти»).
+ */
+function partyNow(e: RequirementEasingModel): string {
+  const own = translateTextWithParams(PARTY_NOW_KEY, [String(e.current), String(e.printed)]);
+  const ally = e.effective === 'allied' ? e.sources.find((s) => s.kind === 'ally') : undefined;
+  if (ally?.via === undefined || ally.road === undefined) {
+    return own;
+  }
+  return `${own} · ${translateTextWithParams(PARTNER_NOW_KEYS[ally.road], [translateText(partyNameKey(ally.via))])}`;
 }
 
 export const CONSUME_KEYS = {
@@ -109,6 +133,9 @@ export function requirementStateText(view: ComposerRequirementView): string {
   if (view.waived) {
     return translateText(EASING_KEYS.requirementIgnored);
   }
+  if (view.allied && view.met && view.decisive) {
+    return translateText(REQUIREMENT_STATE_KEYS.metAlly);
+  }
   const thanks = view.stacked ? REQUIREMENT_STATE_KEYS.metThanksMany : REQUIREMENT_STATE_KEYS.metThanks;
   return view.met ? (view.decisive ? translateText(thanks) : translateText(REQUIREMENT_STATE_KEYS.met)) :
     translateText(REQUIREMENT_STATE_KEYS.short);
@@ -117,6 +144,8 @@ export function requirementStateText(view: ComposerRequirementView): string {
 export const REQUIREMENT_STATE_KEYS = {
   metThanks: 'Met thanks to the modifier',
   metThanksMany: 'Met thanks to the modifiers',
+  /** TR62 — met through the alliance's partner. */
+  metAlly: 'Met through the alliance',
   met: 'Met',
   short: 'Still short',
 } as const;
@@ -129,6 +158,8 @@ type RowTranslator = {text: (key: string) => string, params: (key: string, param
 export const RULE_EASING_KEYS = {
   shifted: 'Under an effect: ${0}',
   waived: 'Ignored: ${0}',
+  /** TR62 — the party requirement met through the alliance's partner: «Через альянс: через «Марс вперёд» · Альянс Тарсиса …». */
+  allied: 'Met through the alliance: ${0}',
 } as const;
 
 /**
@@ -140,6 +171,9 @@ export const RULE_EASING_KEYS = {
 export function ruleEasingLine(easing: RequirementEasingModel, t: RowTranslator): string {
   if (easing.effective === 'waived') {
     return t.params(RULE_EASING_KEYS.waived, [easingSourcesText(easing)]);
+  }
+  if (easing.effective === 'allied') {
+    return t.params(RULE_EASING_KEYS.allied, [easingSourcesText(easing)]);
   }
   return t.params(RULE_EASING_KEYS.shifted, [`${easingBound(easing, easing.effective)} · ${easingSourcesText(easing)}`]);
 }

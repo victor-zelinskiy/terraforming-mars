@@ -807,6 +807,43 @@
   pointer-events: none;
 }
 
+/* ONE NAMED PARTY's SEAL (Turmoil Redux TR62 — «[Mars First] = [Reds]», «[Mars First][Reds] RULING : [card]»): the
+   party's emblem from the one table (`partyEmblems.ts`), a round badge a step larger than a mechanics icon (the scan's
+   seals lead their rows). A STACKED seal overlaps the one before it by a third — the scan's pair — and carries the
+   caption printed UNDER the pair: absolute, so the row's height never depends on it, centred on the pair's seam. */
+.pcard-pseal {
+  --pcard-pseal-d: calc(var(--pcard-mech-icon, 24px) * 1.45);
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.pcard-pseal__disc {
+  display: block;
+  width: var(--pcard-pseal-d);
+  height: var(--pcard-pseal-d);
+  border-radius: 50%;
+  background: center / contain no-repeat;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+.pcard-pseal--stacked {
+  margin-left: calc(var(--pcard-pseal-d) * -0.34);
+}
+.pcard-pseal__caption {
+  position: absolute;
+  top: 100%;
+  left: calc(var(--pcard-pseal-d) * 0.17);
+  transform: translateX(-50%);
+  margin-top: 1px;
+  font-size: calc(var(--pcard-mech-font, 15px) * 0.78);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: #e7dfc9;
+}
+
 /* one requirement SEGMENT — a clear icon → operator → value group, centred,
    with controlled air; identical paddings/height for every segment */
 .pcard-req {
@@ -1015,8 +1052,9 @@
   border-bottom: 2.2px solid #f4fff9;
   transform: rotate(40deg);
 }
-/* the plate itself says «under a modifier» with a mint inner kant (structure, not a repaint) */
-.pcard__reqs--eased:not(.pcard__reqs--all) .pcard__reqs-field {
+/* the plate itself says «under a modifier» with a mint inner kant (structure, not a repaint) — an alliance (TR62) too */
+.pcard__reqs--eased:not(.pcard__reqs--all) .pcard__reqs-field,
+.pcard__reqs--allied:not(.pcard__reqs--all) .pcard__reqs-field {
   box-shadow:
     inset 0 1px 0 rgba(255, 236, 207, 0.38),
     inset 0 -2px 2px rgba(48, 24, 9, 0.52),
@@ -2699,6 +2737,26 @@
   /* a party's policy: its emblem (a dark badge with a gold rim of its own) */
   &--party {
     box-shadow: 0 0 0 .06em rgba(4, 18, 14, 0.9);
+  }
+  /* an ALLIANCE (TR62 Tharsis Alliance): the PARTNER's emblem — who stands for this party — and the LINK sign at its
+     foot, two interlocked gold links (the one shape in the seal that says «through another party», never a colour).
+     The links overhang the emblem's lower right like a seal's ribbon; no layout of their own. */
+  &--ally {
+    box-shadow: 0 0 0 .06em rgba(4, 18, 14, 0.9);
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      bottom: -.16em;
+      width: .36em;
+      height: .22em;
+      border: .065em solid #ffd27a;
+      border-radius: .12em;
+      box-shadow: 0 0 0 .035em rgba(4, 18, 14, 0.9), inset 0 0 0 .03em rgba(4, 18, 14, 0.6);
+      pointer-events: none;
+    }
+    &::before { right: .1em; }
+    &::after { right: -.16em; }
   }
   /* a rule with no card behind it */
   &--system::before {

@@ -485,6 +485,17 @@ describe('the requirement cassette under a modifier (TR49 class)', () => {
     expect(quiet.quiet, 'met anyway — the cassette stays printed').is.true;
   });
 
+  it('ALLIED (TR62): a party requirement met through the alliance\'s partner — the partner rides the reading, met anyway is quiet', () => {
+    const reading = (decisive: boolean) => vmOf(CardName.REDS_NEWS_OUTLET, {requirementEasing: [{
+      key: 'req:party', index: 0, type: RequirementType.PARTY, party: PartyName.REDS, max: false,
+      printed: 2, effective: 'allied', via: PartyName.MARS, current: 0, met: true, decisive,
+      sources: [{source: {kind: 'card', card: CardName.THARSIS_ALLIANCE}, kind: 'ally', via: PartyName.MARS, road: 'ruling', oneShot: false}],
+    }]}).requirements[0].easing!;
+    expect(reading(true)).deep.eq({effective: 'allied', via: PartyName.MARS, met: true, decisive: true, steps: 0, oneShot: false, quiet: false,
+      sources: [{key: 'card:' + CardName.THARSIS_ALLIANCE, symbol: 'ally', card: CardName.THARSIS_ALLIANCE, kind: 'ally', via: PartyName.MARS, oneShot: false}]});
+    expect(reading(false).quiet, 'the Reds\' own road holds — the cassette stays printed').is.true;
+  });
+
   it('a reading seats on ITS requirement only (by position and type) — the others stay printed', () => {
     // A card printing a global requirement BESIDE a tag one (the seat's own descriptor list).
     const card = {...getCardOrThrow(CardName.LIVESTOCK), requirements: [{oxygen: 9}, {tag: Tag.SCIENCE, count: 2}]};

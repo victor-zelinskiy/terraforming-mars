@@ -6,6 +6,7 @@ import {CardRenderItemType} from './CardRenderItemType';
 import {CardRenderSymbolType} from './CardRenderSymbolType';
 import {Size} from './Size';
 import {CardResource} from '../../CardResource';
+import {PartyName} from '../../turmoil/PartyName';
 
 export interface ICardRenderRoot extends CardComponent {
   readonly is: 'root';
@@ -136,6 +137,10 @@ export interface ICardRenderItem extends CardComponent {
   resource?: CardResource;
   /** Has a value when type is CardRenderItemType.TAG. Renders a tag */
   tag?: Tag;
+  /** Has a value when type is CardRenderItemType.PARTY_SEAL: the party whose seal is printed (TR62). */
+  party?: PartyName;
+  /** A PARTY_SEAL that overlaps the seal before it — the scan's pair (TR62). */
+  stacked?: true;
 }
 
 export function isICardRenderItem(item: ItemType): item is ICardRenderItem {

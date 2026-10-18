@@ -16,6 +16,7 @@
 import {IPlayer} from '../IPlayer';
 import {IGame} from '../IGame';
 import {PartyName} from '../../common/turmoil/PartyName';
+import {CardName} from '../../common/cards/CardName';
 import {Turmoil} from '../turmoil/Turmoil';
 import {normalizeReduxParty, PARTY_EFFECT_DELEGATES} from '../../common/parliament/ParliamentTypes';
 import {isReduxPartyName, Parliament} from '../parliament/Parliament';
@@ -39,6 +40,18 @@ export type PartyRequirementStanding = {
   required: number;
   /** The party's resolution stands in the voting area — without it road 2 is closed this generation, not «0 of 2». */
   onVote: boolean;
+  /**
+   * Road 3 (TR62 Tharsis Alliance) — the ALLIANCE that holds: its partner
+   * party stands by ITS printed road, so this requirement is met through it
+   * (`via` — the partner, `source` — the card). Absent while none holds.
+   */
+  allied?: {via: PartyName; source: CardName; road: 'ruling' | 'delegates'};
+  /**
+   * …and the alliance the player's table DECLARES for this party while it does
+   * not hold — the reason's second road («or the same with Mars First»).
+   * Absent when there is no pair, or when one holds (`allied`).
+   */
+  alliance?: {partner: PartyName; source: CardName};
 };
 
 export interface PoliticalOps {
@@ -136,7 +149,16 @@ export class ReduxPoliticalOps implements PoliticalOps {
     const access = this.parliament.access(player, normalized);
     // `required` is the REQUIREMENT's threshold — the printed two, never the seat's
     // `effectDelegates` (a card-lowered effect threshold does not help a card requirement, FAQ p.19).
-    return {party: normalized, ruling: access.ruling, delegates: access.delegates, required: PARTY_EFFECT_DELEGATES, onVote: access.onVote};
+    const standing: PartyRequirementStanding = {party: normalized, ruling: access.ruling, delegates: access.delegates, required: PARTY_EFFECT_DELEGATES, onVote: access.onVote};
+    // The ALLIANCE road (TR62) — the same `access()` that decided `satisfiesRequirement`, never a second count.
+    const allied = access.allied[0];
+    const pair = access.alliances[0];
+    if (allied !== undefined) {
+      standing.allied = {via: allied.via, source: allied.source, road: allied.road};
+    } else if (pair !== undefined) {
+      standing.alliance = {partner: pair.partner, source: pair.source};
+    }
+    return standing;
   }
   public hasPartyEffect(player: IPlayer, party: PartyName): boolean {
     return this.parliament.hasPartyEffect(player, this.normalizeParty(party));

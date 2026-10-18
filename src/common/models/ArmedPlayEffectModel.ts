@@ -62,9 +62,19 @@ export type ArmedPlayEffectModel = {
  */
 export type RequirementEasingSourceModel = {
   source: EventSource;
-  kind: 'shift' | 'waive';
+  /**
+   * `ally` (TR62 Tharsis Alliance) — a PARTY requirement met through the
+   * alliance's PARTNER: `via` stands by its printed road (rules, or two of the
+   * player's delegates on its resolution), so this party's requirement is met
+   * too. A standing modifier of the PARTY family, never one-shot.
+   */
+  kind: 'shift' | 'waive' | 'ally';
   /** For `shift`: the steps this source adds (always > 0 in the set). */
   steps?: number;
+  /** For `ally`: the partner party whose printed road stands for this one… */
+  via?: PartyName;
+  /** …and that road: it rules, or two of the player's own delegates on its resolution. */
+  road?: 'ruling' | 'delegates';
   oneShot: boolean;
 };
 
@@ -104,8 +114,14 @@ export type RequirementEasingModel = {
   max: boolean;
   /** The printed bound, in the scale's own units. */
   printed: number;
-  /** The bound after every modifier; `'waived'` = the requirement is ignored. */
-  effective: number | 'waived';
+  /**
+   * The bound after every modifier; `'waived'` = the requirement is ignored;
+   * `'allied'` (TR62) = a PARTY requirement met through the alliance's partner
+   * (`via`) — the printed bound stands, another party stands for it.
+   */
+  effective: number | 'waived' | 'allied';
+  /** For `'allied'`: the partner party whose printed road meets this requirement. */
+  via?: PartyName;
   /** The scale's value now (the HUD number). */
   current: number;
   /** The modifiers, named, in the order the engine sums them. */

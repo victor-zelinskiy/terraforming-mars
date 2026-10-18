@@ -106,6 +106,7 @@ const TRIGGER_LABEL: Readonly<Record<EventTrigger, string>> = {
   'insurance-claim': 'insurance payout',
   'delta-advance': 'for a Hydronetwork advance',
   'delegates-discarded': 'for delegates discarded off an unenacted resolution',
+  'ruling-party-changed': 'for a change of the ruling party',
   'automa-corporation': 'MarsBot corporation effect',
 };
 

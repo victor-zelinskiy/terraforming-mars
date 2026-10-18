@@ -111,6 +111,28 @@ describe('the ONE-PLAY class in the play surfaces (TR49)', () => {
       expect(requirementStateText(row)).eq('Requirement ignored');
     });
 
+    it('a party requirement met THROUGH AN ALLIANCE (TR62) is a standing modifier of the party family — the partner named', () => {
+      const allied: RequirementEasingModel = {
+        key: 'req:party', index: 0, type: RequirementType.PARTY, party: PartyName.REDS, max: false,
+        printed: 2, effective: 'allied', via: PartyName.MARS, current: 0, met: true, decisive: true,
+        sources: [{source: {kind: 'card', card: CardName.THARSIS_ALLIANCE}, kind: 'ally', via: PartyName.MARS, road: 'ruling', oneShot: false}],
+      };
+      const items = modifierItemsOf(withModifiers({consumes: [], easings: [allied]}));
+      expect(items).has.length(1);
+      expect(items[0]).to.include({kind: 'modifier', used: true, oneShot: false, waive: false, badge: ''});
+      expect(forecastItemCard(items[0])).eq(CardName.THARSIS_ALLIANCE);
+      // The composer's row: the printed party and its two roads stay; the bound is «through» the partner; «now» reads BOTH parties.
+      const [row] = composerRequirementViews([allied]);
+      expect(row).to.include({waived: false, allied: true, met: true, decisive: true, label: partyNameKey(PartyName.REDS), printed: 'ruling or 2 delegates', emblem: 'assets/parties/redux/reds.png'});
+      expect(row.effective).eq(`through ${partyNameKey(PartyName.MARS)}`);
+      expect(row.now).eq(`your delegates on the resolution of that party: 0 of 2 · ${partyNameKey(PartyName.MARS)} is ruling`);
+      expect(requirementStateText(row)).eq('Met through the alliance');
+      expect(row.shares[0].source).to.include({symbol: 'ally', via: PartyName.MARS, card: CardName.THARSIS_ALLIANCE});
+      // Met ANYWAY (the Reds' own road holds) — quiet: no row, no chip.
+      expect(composerRequirementViews([{...allied, decisive: false}])).deep.eq([]);
+      expect(modifierItemsOf(withModifiers({consumes: [], easings: [{...allied, decisive: false}]}))).deep.eq([]);
+    });
+
     it('an armed shift spent FOR NOTHING is still named — muted, never hidden', () => {
       const items = modifierItemsOf(withModifiers({consumes: [{armed: shift, used: false}], easings: []}));
       expect(items.map((i) => [i.badge, i.used, i.easings.length])).deep.eq([['±2', false, 0]]);

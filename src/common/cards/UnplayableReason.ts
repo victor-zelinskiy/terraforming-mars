@@ -2,6 +2,7 @@ import {Tag} from './Tag';
 import {Resource} from '../Resource';
 import {PartyName} from '../turmoil/PartyName';
 import {Color} from '../Color';
+import {CardName} from './CardName';
 
 /**
  * A single, structured reason a project card in hand can't be played right
@@ -85,6 +86,14 @@ export interface UnplayableReason {
    * «0 of 2» — a count nobody can chase.
    */
   partyOffVote?: boolean;
+  /**
+   * …and the player's table ALLIES that party with another (TR62 Tharsis
+   * Alliance) — the requirement would ALSO be met by the PARTNER's printed
+   * road, so the line gains its second road («or the same with Mars First
+   * («Tharsis Alliance»)»). Present only while the alliance does not hold
+   * (a holding one meets the requirement and there is no reason at all).
+   */
+  alliedVia?: {party: PartyName; card: CardName};
   /**
    * For the CHAIRMAN requirement, NAMED (Turmoil Redux — TR12 Party Sanctions
    * is the set's first): who holds the chairman's seat right now — a seat's

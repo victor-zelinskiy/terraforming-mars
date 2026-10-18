@@ -205,5 +205,16 @@
     "Backroom Deal": "Закулисная сделка",
     "Ignore any party requirements on the next card you play this generation. It will also cost you 10 less M€. Lose 1 TR.": "Следующая карта, которую вы разыграете в этом поколении, игнорирует требования партии и стоит на 10 M€ дешевле. Потеряйте 1 РТ.",
     "Political Recognition": "Политическое признание",
-    "Requires that you have played 5 other cards with requirements. Advance your Agenda marker 3 steps. (And collect bonuses from each step.)": "Требуется, чтобы вы разыграли 5 других карт с требованиями. Продвиньте маркер Карьеры на 3 шага (и получите бонус каждого шага)."
+    "Requires that you have played 5 other cards with requirements. Advance your Agenda marker 3 steps. (And collect bonuses from each step.)": "Требуется, чтобы вы разыграли 5 других карт с требованиями. Продвиньте маркер Карьеры на 3 шага (и получите бонус каждого шага).",
+    "Tharsis Alliance": "Альянс Тарсиса",
+    "Effect: While Mars First is ruling or you have 2 delegates there, you may also use the Reds' effect and cards. And vice versa.": "Эффект: пока «Марс вперёд» у власти или у вас 2 делегата на её резолюции, вы можете пользоваться также эффектом и картами «Красных». И наоборот.",
+    "Effect: Draw a card when either of those parties becomes ruling.": "Эффект: когда любая из этих партий приходит к власти, возьмите карту.",
+    "Opens now: the effect and cards of ${0} — ${1} is ruling": "Откроет сейчас: эффект и карты «${0}» — «${1}» у власти",
+    "Opens now: the effect and cards of ${0} — two of your delegates are on ${1}": "Откроет сейчас: эффект и карты «${0}» — два ваших делегата на «${1}»",
+    "Opens now: the cards of ${0} — ${1} is ruling": "Откроет сейчас: карты «${0}» (её эффект уже ваш) — «${1}» у власти",
+    "Opens now: the cards of ${0} — two of your delegates are on ${1}": "Откроет сейчас: карты «${0}» (её эффект уже ваш) — два ваших делегата на «${1}»",
+    "Opens nothing now: the alliance holds once Mars First or the Reds rule or get two of your delegates on their resolution": "Сейчас ничего не открывает: альянс сработает, когда «Марс вперёд» или «Красные» придут к власти или получат два ваших делегата на своей резолюции",
+    "Draw a card each time Mars First or the Reds become the ruling party": "Карта всякий раз, когда «Марс вперёд» или «Красные» приходят к власти",
+    "${0} holds the ${1} party effect and cards: allied with ${2} (${3})": "${0} получает эффект и карты партии «${1}»: по альянсу через «${2}» («${3}»)",
+    "${0} draws a card: ${1} is the new ruling party (${2})": "${0} берёт карту: к власти пришла партия «${1}» («${2}»)"
 }

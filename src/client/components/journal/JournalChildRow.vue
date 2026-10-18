@@ -74,6 +74,8 @@
           <!-- the scale's icon — or (TR70) the lifted PARTY's emblem, the badge its requirement plate prints -->
           <span class="journal-child-row__chip-icon" :class="iconClass(r.parameter ?? '')" :style="easedEmblemStyle(r.party)" aria-hidden="true"></span>
           <span v-if="r.effective === 'waived'" class="journal-child-row__chip-amt">{{ $t('Ignored') }}</span>
+          <!-- MET THROUGH AN ALLIANCE (TR62): the partner that stood for this party -->
+          <span v-else-if="r.effective === 'allied'" class="journal-child-row__chip-amt" :data-eased-via="vm.eased.via">{{ allyText(vm.eased.via) }}</span>
           <span v-else class="journal-child-row__chip-amt">{{ r.printed }} → {{ r.effective }}</span>
         </span>
         <span v-if="vm.eased.oneShot" class="journal-child-row__tile">· {{ $t('One play') }}</span>
@@ -241,6 +243,10 @@ export default defineComponent({
       return iconClassFor(icon);
     },
     /** A lifted PARTY requirement's chip wears the party's emblem (TR70) — the hand's counter badge, in the icon's slot. */
+    /** «через «Марс вперёд»» — the partner an alliance stood on (TR62), in the class's one wording. */
+    allyText(via: PartyName | undefined): string {
+      return translateTextWithParams('through ${0}', [via !== undefined ? translateText(partyNameKey(via)) : '']);
+    },
     easedEmblemStyle(party: PartyName | undefined): Record<string, string> | undefined {
       const emblem = party === undefined ? undefined : requirementPartyEmblem(party);
       return emblem === undefined ? undefined : {backgroundImage: `url(${emblem})`};
