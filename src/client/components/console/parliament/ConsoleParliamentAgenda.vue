@@ -22,10 +22,10 @@
       </div>
       <!-- THE INSTRUMENT (v8): a START cell + twelve TILES — the marker row ABOVE each tile (reserved whether or not a cube
            stands there), the tile with its reward (+1 TR · a card · an influence COIN with its level struck inside it;
-           no ordinals — v3 В4: a bare numeral on this track reads as a count), and under the tiles the INFLUENCE BAND:
-           the spans 0 · 1–2 · 3–4 · 5–7 · 8–11 · 12 — the rule «your influence is the highest ★ you reached» drawn as
-           extents (the coin over a span's first tile says its level); only the viewer's span repeats its glyph and
-           level, inside its mint ring. -->
+           no ordinals — v3 В4: a bare numeral on this track reads as a count), and under the tiles the INFLUENCE RULER
+           (П6): the spans 0 · 1–2 · 3–4 · 5–7 · 8–11 · 12 — the rule «your influence is the highest ★ you reached» drawn
+           as a dimension line per span, EVERY span naming its level on a chip in its middle (a gold bar that named only
+           the viewer's span was weight with no reading); the viewer's span is the mint one. -->
       <div class="con-parl__track">
         <div class="con-parl__step con-parl__step--start" :class="{'con-parl__step--here': viewerParticipates && shown.viewerPosition === 0, 'con-parl__step--passed': viewerParticipates && shown.viewerPosition > 0}" data-step="0">
           <span class="con-parl__step-node con-parl__step-node--start">
@@ -66,8 +66,8 @@
         <span v-for="band in influenceBands" :key="band.level" class="con-parl__inf-band"
               :class="['con-parl__inf-band--l' + band.level, {'con-parl__inf-band--mine': band.mine}]"
               :style="{gridColumn: band.from + 1 + ' / ' + (band.to + 2)}"
-              :data-parl-inf-band="band.level">
-          <template v-if="band.mine"><i class="con-parl__inf-band-glyph" aria-hidden="true"></i><b>{{ band.level }}</b></template>
+              :data-parl-inf-band="band.level" data-budget-scale="influence">
+          <span class="con-parl__inf-band-chip"><i class="con-parl__inf-band-glyph" aria-hidden="true"></i><b>{{ band.level }}</b></span>
         </span>
       </div>
     </div>

@@ -302,12 +302,20 @@ export default defineComponent({
       }
       this.impulseRunning = true;
       const started = Date.now();
+      // THE SEALS STAND STILL (П6): «at rest» is also the chamber's own ENTRY — on the first open after the play the
+      // seals are visible while the surface still rises, and a spark aimed then was born ~80 px off its seal. Two equal
+      // measurements in a row (the cursor's settle rule, TR58) cover the entry, a FLIP and a late re-fit alike.
+      let lastRects = '';
       const attempt = () => {
         if (!this.impulseAlive) {
           this.impulseRunning = false;
           return;
         }
-        if (!(this.chamberAtRest() && this.sealSeen(partner) && this.sealSeen(party))) {
+        const seen = this.chamberAtRest() && this.sealSeen(partner) && this.sealSeen(party);
+        const rects = seen ? [this.sealRect(partner), this.sealRect(party)].map((r) => r === undefined ? '-' : `${Math.round(r.left)},${Math.round(r.top)}`).join('|') : '';
+        const still = seen && rects === lastRects;
+        lastRects = rects;
+        if (!still) {
           if (Date.now() - started < ALLIANCE_IMPULSE_WAIT_MS) {
             probeTick(attempt);
           } else {

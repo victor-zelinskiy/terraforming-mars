@@ -389,26 +389,29 @@
     }
     /* The voting plate dissolves into the table plate (the table IS the plate now); its cursor is the bill's. */
     &__voting {
-        padding: .2rem 1.2rem 1rem;
+        padding: .2rem .6rem 1rem;
         background: radial-gradient(40% 55% at 50% 45%, fade(@con-parl-gold, 7%), transparent 70%);
         box-shadow: none;
         border-radius: 0 0 .9rem .9rem;
         &--focus { --con-cursor-on: 0; }
     }
     &__voting-head { display: none; }
-    &__slots { align-items: stretch; gap: 1rem; }
+    &__slots { align-items: stretch; gap: .8rem; }
     /* The stand is as wide as its bill (the rail under the card never runs past it): the HOME is the column, the
-       slot hugs the card inside it — the fit reads the HOME's width, never the slot's own. */
-    &__slot-home { justify-content: center; > .con-parl__slot { flex: 0 1 auto; min-width: 0; } }
+       slot hugs the card inside it — the fit reads the HOME's box, never the slot's own. П6 (the owner's 4K note: the
+       table's head stood empty over the bills): it hugs it in HEIGHT too — the stand (tab · bill · rail) is ONE group
+       centred in its column, its slack split above and below instead of a dead band under the kicker and a second
+       one between the bill and its rail. */
+    &__slot-home { justify-content: center; > .con-parl__slot { flex: 0 1 auto; min-width: 0; } > .con-parl__slot, > .con-parl__slot-empty { align-self: center; } }
     /* THE BILL ON ITS STAND: the TAB above the card (room reserved on every slot — the tab comes and goes, the card
        never moves), the card, then the VOTE RAIL — the count's medallion with the leader, the delegates beside it. */
     &__slot, &__slot-empty {
         grid-template-columns: auto minmax(0, 1fr);
-        grid-template-rows: minmax(0, 1fr) var(--con-parl-slot-rail-h);
+        grid-template-rows: auto var(--con-parl-slot-rail-h);
         grid-template-areas: "card card" "tally ribbon";
         column-gap: 0;
         row-gap: .45rem;
-        padding: 1.5rem .4rem .2rem;
+        padding: 1.5rem .2rem .2rem;
         align-content: center;
         background: none;
         --slot-seam: rgba(255, 255, 255, 0);
@@ -710,7 +713,9 @@
             pointer-events: none;
             z-index: 2;
         }
-        &:last-child::after { display: none; }
+        /* The track ENDS on its last tile (the walk is cut there) — no chevron past it. `last-of-type`, not `last-child`:
+           the influence ruler's spans follow the tiles in the grid's DOM, so the last tile is never the last child. */
+        &:last-of-type::after { display: none; }
     }
     &__step--passed::after, &__step--here::after { border-color: fade(@con-parl-mint, 70%); }
     &__step-cubes {
@@ -796,29 +801,70 @@
         line-height: 1;
         font-variant-numeric: tabular-nums;
     }
-    /* THE INFLUENCE BAND — a span per ★ level under the tiles it covers; the viewer's span ringed in mint. */
+    /* THE INFLUENCE RULER (П6 — the owner's note: the gold bar was heavy and named only the viewer's span) — a span per
+       ★ level under the tiles it covers, drawn as a DIMENSION LINE: a hairline with its two end ticks, and in its middle
+       the chip «[influence] N» that EVERY span carries (the chip's own plate cuts the line). Quiet gold; the START's
+       span (no ★ yet) steel; the viewer's span mint — line, ticks and the chip's ring. No fill, no glow but the mint. */
     &__inf-band {
         grid-row: 3;
+        position: relative;
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: .28rem;
         min-width: 0;
-        border-radius: .38rem;
         font-size: .6rem;
-        color: #1d1407;
-        b { font-weight: 400; font-variant-numeric: tabular-nums; }
-        &--l1 { background: fade(@con-parl-gold, 28%); color: #f6dd8c; }
-        &--l2 { background: fade(@con-parl-gold, 42%); color: #fbe6a6; }
-        &--l3 { background: fade(@con-parl-gold, 58%); }
-        &--l4 { background: fade(@con-parl-gold, 76%); }
-        &--l5 { background: linear-gradient(180deg, @con-parl-gold-hi, #c99a2e); }
-        &--mine { box-shadow: 0 0 0 .08rem @con-parl-mint, 0 0 .9rem fade(@con-parl-mint, 35%); }
+        color: #f2d98a;
+        --inf-line: fade(@con-parl-gold, 38%);
+        --inf-tick: fade(@con-parl-gold, 50%);
+        --inf-ring: fade(@con-parl-gold, 45%);
+        &::before {
+            content: '';
+            position: absolute;
+            left: .2rem;
+            right: .2rem;
+            top: 50%;
+            height: .08rem;
+            transform: translateY(-50%);
+            background: var(--inf-line);
+        }
+        &::after {
+            content: '';
+            position: absolute;
+            left: .2rem;
+            right: .2rem;
+            top: 28%;
+            bottom: 28%;
+            border-left: .08rem solid var(--inf-tick);
+            border-right: .08rem solid var(--inf-tick);
+        }
+        &--l0 {
+            color: rgba(205, 218, 232, 0.62);
+            --inf-line: rgba(170, 195, 220, 0.22);
+            --inf-tick: rgba(170, 195, 220, 0.3);
+            --inf-ring: rgba(170, 195, 220, 0.3);
+        }
+        &--mine {
+            color: #e9fff6;
+            --inf-line: fade(@con-parl-mint, 75%);
+            --inf-tick: fade(@con-parl-mint, 85%);
+        }
     }
-    &__inf-band--l0 { background: rgba(255, 255, 255, 0.05); color: rgba(205, 218, 232, 0.6); }
-    &__inf-band--l0 &__inf-band-glyph { opacity: .35; }
-    &__inf-band--l1 &__inf-band-glyph { opacity: .8; }
-    &__inf-band-glyph { display: inline-block; width: .85rem; height: .85rem; background: url(./assets/misc/influence.png) center / contain no-repeat; }
+    &__inf-band-chip {
+        position: relative;
+        z-index: 1;
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        padding: .05rem .45rem .05rem .35rem;
+        border-radius: 1rem;
+        background: #111a27;
+        box-shadow: inset 0 0 0 .06rem var(--inf-ring);
+        line-height: 1;
+        b { font-weight: 400; font-variant-numeric: tabular-nums; }
+    }
+    &__inf-band--mine &__inf-band-chip { background: #10261f; box-shadow: inset 0 0 0 .07rem @con-parl-mint, 0 0 .8rem fade(@con-parl-mint, 35%); }
+    &__inf-band-glyph { display: inline-block; width: .8rem; height: .8rem; background: url(./assets/misc/influence.png) center / contain no-repeat; }
+    &__inf-band--l0 &__inf-band-glyph { opacity: .4; }
 }
 
 /* ══ THE MEDALLION — the party as the hall's object ══ */
@@ -995,6 +1041,8 @@ html.con-profile-handheld .con-parl {
     &__track { column-gap: .22rem; row-gap: .2rem; }
     &__step { row-gap: .2rem; }
     &__inf-band { font-size: .52rem; }
+    &__inf-band-glyph { width: .6rem; height: .6rem; }
+    &__inf-band-chip { padding: 0 .3rem 0 .25rem; gap: .15rem; }
     &__slot, &__slot-empty { padding-top: 1.3rem; row-gap: .3rem; }
     &__vrow > .con-parl__slot { padding-top: 1.3rem; }
     &__chamber { column-gap: .7rem; }
@@ -1024,8 +1072,10 @@ html.con-profile-handheld .con-parl {
 
 /* ── the TV ladder (10-foot): the same hall at couch type — every WORD at or above the couch floor (.8rem). ── */
 html.con-profile-tv .con-parl {
-    --con-parl-palata-w: 35rem;
-    --con-parl-opp-col: 13.6rem;
+    /* П6: the palata gives the TABLE two rem (the opposition column one of them — the longest bench name still has
+       room) — the bills grow ≈ 12 % at 4K into the height their column left empty; the enacted face keeps its size. */
+    --con-parl-palata-w: 33rem;
+    --con-parl-opp-col: 12.6rem;
     --con-parl-career-h: 11.4rem;
     --con-parl-quest-w: 18.4rem;
     --con-parl-effects-h: 12.4rem;
@@ -1047,6 +1097,7 @@ html.con-profile-tv .con-parl {
     &__step-res { &--tr { width: 2rem; height: 1.5rem; } &--card { width: 1.35rem; height: 1.9rem; } &--inf { width: 78%; height: 78%; } }
     &__step--next .con-parl__step-node::after { inset: -.2rem; border-width: .06rem; }
     &__inf-band { font-size: .8rem; }
+    &__inf-band-glyph { width: .9rem; height: .9rem; }
     &__agenda-me { font-size: .9rem; b { font-size: 1.1rem; } }
     &__quest-row { font-size: .8rem; }
     &__engine-text { font-size: .8rem; max-width: 9.5rem; }

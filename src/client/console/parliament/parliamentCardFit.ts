@@ -91,9 +91,10 @@ export function fitParliamentCards(): void {
     const slot = slots[0];
     const cs = getComputedStyle(slot);
     const chrome = Math.max(...slots.map(chromeOf));
-    const availH = slot.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom) - chrome - px(cs.rowGap) * railOf(slot).gaps;
-    // Парламент v8: the stand HUGS its bill inside the home column — the room is the HOME's (a fit never reads its output).
+    // Парламент v8: the stand HUGS its bill inside the home column — in width and (П6) in height — so the room is the
+    // HOME's on both axes (a fit never reads its own output).
     const home = slot.closest<HTMLElement>('.con-parl__slot-home') ?? slot;
+    const availH = home.clientHeight - px(cs.paddingTop) - px(cs.paddingBottom) - chrome - px(cs.rowGap) * railOf(slot).gaps;
     const availW = home.clientWidth - px(cs.paddingLeft) - px(cs.paddingRight);
     const cap = consoleLayoutState.profile === 'tv' ? MAX_CARD_ZOOM_TV : MAX_CARD_ZOOM;
     const zoom = Math.min(availH / PCARD_H, availW / PCARD_W, cap * scale);

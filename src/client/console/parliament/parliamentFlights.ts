@@ -304,18 +304,37 @@ export function sendAllianceSpark(args: {from: Rect | undefined, to: Rect | unde
     const x1 = to.left + to.width / 2 - size / 2;
     const y1 = to.top + to.height / 2 - size / 2;
     const dur = consoleMotionMs(ALLIANCE_SPARK_MS) / 1000;
+    const lit = dur * 0.22;
     const tl = gsap.timeline();
     tl.set(proxy, {x: x0, y: y0, scale: 0.4, autoAlpha: 0}, 0);
-    tl.to(proxy, {autoAlpha: 1, scale: 1.15, duration: dur * 0.22, ease: 'power2.out'}, 0);
-    tl.to(proxy, {x: x1, y: y1, duration: dur, ease: 'power2.inOut'}, 0);
-    tl.to(proxy, {scale: 0.55, autoAlpha: 0, duration: dur * 0.22, ease: 'power2.in'}, dur * 0.82);
+    tl.to(proxy, {autoAlpha: 1, scale: 1.15, duration: lit, ease: 'power2.out'}, 0);
+    // BOTH ENDS OF THE SPARK ARE SEEN (П6 — the ends of a flight are visible): it waits at the lit pose on its seal for
+    // one PAINTED frame before it leaves, and it arrives WHOLE on the ally's seal — the touch painted, the ring answering
+    // — before it dissolves into it. Travelling from t = 0 and fading over the last fifth of the way, a main-thread stall
+    // let GSAP catch up and paint the spark's first or last frame half way between the seals — born or landed «nowhere»
+    // (TR62's probe, 60–160 px off a seal under load). `addPause` stops the playhead exactly at each end even across a
+    // jump; the next painted frame resumes it.
+    let landedOnce = false;
+    const landed = () => {
+      if (!landedOnce) {
+        landedOnce = true;
+        args.onLanded();
+      }
+    };
+    tl.addPause(lit, () => probeTick(() => tl.resume()));
+    tl.to(proxy, {x: x1, y: y1, scale: 0.95, duration: dur, ease: 'power2.inOut'}, lit);
+    tl.addPause(lit + dur, () => {
+      landed();
+      probeTick(() => tl.resume());
+    });
+    tl.to(proxy, {scale: 0.55, autoAlpha: 0, duration: dur * 0.22, ease: 'power2.in'}, lit + dur);
     let ended = false;
     const end = () => {
       if (ended) {
         return;
       }
       ended = true;
-      args.onLanded();
+      landed();
       probeTick(() => dropFlight(id));
     };
     tl.eventCallback('onComplete', end);

@@ -78,6 +78,10 @@ async function measure(page: Page, fixture: string, preset: string): Promise<Bud
       return 'other';
     };
     const runs: Array<Run> = [];
+    // A SCALE's graduations are ONE reading — the numbers of a ruler, not facts of their own (П6: the Career's influence
+    // ruler names the level of EVERY span at the owner's request). An element declares itself with `data-budget-scale`;
+    // every scale counts once, however many marks it prints.
+    const scales = new Map<string, string>();
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     for (let n = walker.nextNode(); n !== null; n = walker.nextNode()) {
       const text = (n.textContent ?? '').replace(/\s+/g, ' ').trim();
@@ -85,11 +89,17 @@ async function measure(page: Page, fixture: string, preset: string): Promise<Bud
       if (text.length === 0 || parent === null || !visible(parent)) {
         continue;
       }
+      const scale = parent.closest('[data-budget-scale]');
+      if (scale !== null) {
+        scales.set(scale.getAttribute('data-budget-scale') ?? '', zoneOf(scale));
+        continue;
+      }
       const cs = getComputedStyle(parent);
       const kind: Run['kind'] = cs.textTransform === 'uppercase' ? 'kicker' :
         /^[\s\d+\-−×x/→·%:,.()M€#]+$/u.test(text) ? 'value' : 'words';
       runs.push({zone: zoneOf(parent), kind, text, words: text.split(' ').length});
     }
+    scales.forEach((zone, name) => runs.push({zone, kind: 'value', text: `scale:${name}`, words: 1}));
     const icons: Array<{zone: string}> = [];
     const seen = new Set<Element>();
     for (const el of Array.from(root.querySelectorAll(iconSelector))) {
