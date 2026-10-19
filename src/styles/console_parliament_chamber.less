@@ -1430,6 +1430,14 @@ html.con-profile-handheld .con-parl.con-parl--hall {
     .con-parl__vote .con-parl__info { padding: .6rem .7rem .7rem; row-gap: .5rem; }
     .con-parl__vote .con-parl__info-emblem { width: 1.7rem; height: 1.7rem; }
     .con-parl__vote .con-parl__info-name { font-size: .9rem; }
+    /* П5 — under a door that pays the party the Deck's column holds THREE blocks; «ДЛЯ ВАС» is the one the player reads,
+       so the chrome around it pays: the gaps, its own padding and the party box's fixed height (still ONE box for
+       every bill) — the reading line sat on the plate's bottom edge. */
+    .con-parl__vote .con-parl__info-body { gap: .4rem; }
+    .con-parl__vote .con-parl__info-head { gap: .5rem; padding-bottom: .35rem; }
+    .con-parl__vote .con-parl__info-main { gap: .4rem; }
+    .con-parl__vote .con-parl__info-own { padding: .45rem .6rem .5rem; gap: .3rem; }
+    .con-parl__vote .con-parl__info-main > .con-parl__info-party { height: 4.3rem; padding: .35rem .6rem .4rem; gap: 1rem; }
 }
 
 /* ══ «ДОСТУП» — the PARTY's dossier names the viewer's access as an OBJECT above «§ ПРАВИЛА» (Парламент v8 § 7): the
@@ -1544,4 +1552,43 @@ html.con-profile-handheld .con-paccess {
     padding: .5rem .7rem .55rem .85rem;
     .con-paccess__ring { width: 2.3rem; height: 2.3rem; }
     .con-paccess__state { font-size: .66rem; }
+}
+
+/* THE SUPPORT SOCKET IS ONE SILHOUETTE IN EVERY HOST (Парламент v8 П5): the benches drew the delegate's dashed hex while the
+   ruler on the dais and the vote panel's «НАРОДНАЯ ПОДДЕРЖКА» kept the square «checkbox» the plan retired — one object,
+   one shape. An EMPTY place is the silhouette; a FILLED one is the cube with no frame around it; a forecast place
+   (`--incoming`, the dashed outline) and a recounted / leaving cube keep their own marks. */
+.con-pseal__support-place:not(.con-pseal__support-place--on):not(.con-pseal__support-place--incoming) {
+    border-radius: 0;
+    box-shadow: none;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M10 2 17 6v8l-7 4-7-4V6z' fill='rgba(0,0,0,0.35)' stroke='rgba(205,218,232,0.4)' stroke-width='1.2' stroke-dasharray='2 1.6'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.con-pseal__support-place--on:not(.con-pseal__support-place--counted):not(.con-pseal__support-place--outgoing) {
+    background: none;
+    box-shadow: none;
+}
+/* …and the FORECAST place (`--incoming`, a place the press being decided will fill) is the same silhouette drawn in the
+   cursor's cyan, its dash denser — the dash, not the colour alone, tells it from an empty socket. */
+.con-pseal__support-place--incoming:not(.con-pseal__support-place--on) {
+    border-radius: 0;
+    box-shadow: none;
+    outline: none;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M10 2 17 6v8l-7 4-7-4V6z' fill='rgba(106,176,230,0.14)' stroke='rgba(106,176,230,0.95)' stroke-width='1.4' stroke-dasharray='1.6 1.2'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+/* THE HALL VOTE's «НАРОДНАЯ ПОДДЕРЖКА» reads at the party box's scale (П5): the box is a fixed 5.4rem row, so the
+   places and the numbers take the room it has instead of a 0.72rem strip in its corner. */
+.con-parl.con-parl--hall .con-parl__vote {
+    .con-parl__info-support { gap: .2rem; }
+    .con-parl__info-support-row { height: 1.45rem; gap: .55rem; }
+    .con-parl__info-support-places { gap: .28rem; }
+    .con-parl__info-support-places .con-pseal__support-place { width: 1.15rem; height: 1.15rem; }
+    .con-parl__info-support-num { font-size: .95rem; b { font-size: 1.2rem; } }
+    .con-parl__info-support-tail { height: .95rem; line-height: .95rem; font-size: .7rem; }
+}
+html.con-profile-tv .con-parl.con-parl--hall .con-parl__vote .con-parl__info-support-tail { font-size: .8rem; }
+html.con-profile-handheld .con-parl.con-parl--hall .con-parl__vote {
+    .con-parl__info-support-row { height: 1.1rem; }
+    .con-parl__info-support-places .con-pseal__support-place { width: .85rem; height: .85rem; }
+    .con-parl__info-support-num { font-size: .78rem; b { font-size: .95rem; } }
+    .con-parl__info-support-tail { font-size: .6rem; }
 }
