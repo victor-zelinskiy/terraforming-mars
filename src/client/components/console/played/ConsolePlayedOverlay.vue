@@ -1,20 +1,23 @@
 <template>
   <!--
     CONSOLE «РАЗЫГРАНО» — the console-native played-cards TABLE (X from the
-    board home). THE TABLE IS A TABLE (TR65): it stands in the central opening
-    like every workspace screen, its faces are readable from the couch (the
-    hand album's density), its zones are SHELVES on album pages, the
-    corporation is the HERO of the identity column and the events lie face
-    down beneath it. Nothing is a peek pile any more.
+    board home). ONE PAGE OF TABLE STACKS (the owner, 2026-10-19; TR65's
+    chassis stays — the table stands in the central opening like every
+    workspace screen): every zone lies as the printed game lays it — the
+    corporation, the preludes, the CEO, the active and the automated cards as
+    CASCADES (each covered card shows its title band, the newest lies whole
+    in front, a long zone continues in a second lane), the events as ONE
+    face-down pile with its count. The whole table is ONE screen; how compact
+    it is (the face, the band, the lanes) is solved from the measured body
+    and the counts (`planPlayedStacks`). Nothing here is paged.
 
-    NAVIGATION IS BY ZONE (the per-card cursor is gone by design): the d-pad
-    moves between the zone blocks (corporation / events in the identity
-    column, the shelf runs of the active page), A opens the focused zone — its
-    cards physically LIFT off their real slots and fly into the category view
-    (ConsolePlayedCategoryView owns that whole transition; face-down events
-    flip open mid-flight; a card on another page flies in from beyond the
-    album's edge). Closing flies them back onto the table. LT/RT turn the
-    album's pages; a zone the cursor reaches on another page turns it too.
+    NAVIGATION IS BY STACK (the per-card cursor is gone by design): the d-pad
+    moves between the stacks, A opens the focused zone — its cards physically
+    LIFT off the stack and fly into the category view (ConsolePlayedCategoryView
+    owns that whole transition; face-down events flip open mid-flight), which
+    is where a zone is READ and where pages are allowed (LB/RB turn them
+    there). Closing flies them back onto the stack. LB/RB at the table walk
+    the seats.
 
     View-only: nothing here ever submits. Input is delegated by the shell
     (handleIntent); command-bar hints are mirrored through consolePlayedUi.
@@ -27,10 +30,9 @@
        scene mounts without the entrance (its landing is measured on the first
        frames — a materialize would move the target under the flight). -->
   <div class="con-played"
-       :class="{'con-played--hero': heroActive, 'con-played--catview': categoryUp, 'con-played--embedded': embedded, 'con-ws': !embedded, 'con-played--live': pageLive && !heroActive}"
+       :class="{'con-played--hero': heroActive, 'con-played--catview': categoryUp, 'con-played--embedded': embedded, 'con-ws': !embedded}"
        :data-motion-surface="embedded || heroActive ? undefined : 'played'"
-       :data-played-page="activePage"
-       :data-played-pages="pageCount">
+       :data-played-density="measured ? stacks.density : undefined">
     <div v-if="!embedded" class="con-played__backdrop" aria-hidden="true"></div>
     <div class="con-played__panel" :data-motion-panel="embedded ? undefined : ''">
       <!-- THE WORKSPACE HEADER (standalone): the ONE crumb grammar — РАЗЫГРАНО › ‹участник› › ‹зона›. The seat is
@@ -59,149 +61,69 @@
       <div class="con-played__body" ref="body">
         <!-- THE CONTENT RENDERS ONCE, against the MEASURED body (PL-625): the body is a flex box whose size never depends
              on what it holds, so the first render lays the chassis out, `mounted()` measures it (a forced layout, no
-             paint yet), and the table renders its faces a single time with the real plan before the first paint — a
-             fallback plan rendered first re-laid every face and re-picked every art tier on the landing's first frames,
-             one frame the arc's target was still moving. -->
-        <template v-if="measured">
-        <!-- Truly empty tableau — a PREPARED table, never a bare panel: the identity column's empty card place and
-             one calm line where the shelves will be. The bot's corporation slot counts as table content. -->
-        <div v-if="emptyTable" class="con-played__table con-played__table--void" :style="tableStyle">
-          <aside class="con-played__identity" :style="{width: plan.identityW + 'px'}">
-            <div class="con-played__family con-played__family--identity con-played__family--corporation con-played__family--empty">
-              <span class="con-played__caption"><span v-i18n>Corporation</span></span>
-              <div class="con-played__seat-place" :style="{width: plan.hero.slotW + 'px', height: plan.hero.slotH + 'px'}" aria-hidden="true"></div>
-            </div>
-          </aside>
-          <div class="con-played__album con-played__album--void">
-            <div class="con-played__void">
-              <span class="con-played__void-glyph" aria-hidden="true">◈</span>
-              <span v-i18n>No cards played yet</span>
-            </div>
-          </div>
-        </div>
+             paint yet), and the table renders its faces a single time with the real plan before the first paint. -->
+        <div v-if="measured" class="con-played__table" :class="`con-played__table--${stacks.density}`" :style="tableStyle">
+          <div v-for="st in stacks.stacks" :key="st.key"
+               class="con-played__family con-played__stack"
+               :class="stackClasses(st)"
+               :data-played-cat="stackFocusKey(st)"
+               :data-played-stack="st.key"
+               :data-played-lanes="st.lanes.length"
+               :style="{left: st.x + 'px', top: stacks.padTop + 'px', width: st.w + 'px'}"
+               @click="onStackPress(st)">
+            <!-- The caption lives inside the stack's width: the label ellipsizes in its OWN box, the count and the A badge
+                 (the focused stack's «open» — the bar names the verb) never shrink. -->
+            <span class="con-played__caption" :style="{maxWidth: captionRoom(st) + 'px'}">
+              <span class="con-played__caption-label">{{ $t(stackLabel(st)) }}</span>
+              <b v-if="stackShowsCount(st)" class="con-played__caption-count">{{ stackCount(st) }}</b>
+              <GamepadGlyph v-if="stackFocusKey(st) !== undefined" control="confirm" class="con-played__caption-open" />
+            </span>
 
-        <div v-else class="con-played__table" :style="tableStyle">
-          <!-- ── THE IDENTITY COLUMN — who the player is, and what they have spent (the events). On every page. ── -->
-          <aside class="con-played__identity" :style="{width: plan.identityW + 'px'}">
-            <!-- The BOT's corporation — its own entity (bot rules, original identity). Lives in the same hero place a
-                 human's corporation takes; A/X opens the fullscreen inspect (physical lift via data-zoom-slot). -->
-            <div v-if="botCorp !== undefined"
-                 class="con-played__family con-played__family--identity con-played__family--corporation"
-                 :class="familyClasses('botcorp')"
-                 data-played-cat="botcorp"
-                 @click="onBotCorpPress()">
-              <span class="con-played__caption">
-                <span v-i18n>Corporation</span>
-                <span class="con-played__caption-open" v-i18n>Open</span>
-              </span>
-              <div class="con-played__hero">
-                <div class="con-played__slot con-played__botcorp" :style="{width: plan.hero.slotW + 'px', height: plan.hero.slotH + 'px'}" :data-zoom-slot="botCorp.id">
+            <!-- The BOT's corporation — its own entity (bot rules, original identity) on the corporation's stack;
+                 A/X opens the fullscreen inspect (physical lift via data-zoom-slot). -->
+            <div v-if="st.key === 'corporation' && botCorp !== undefined" class="con-played__lanes">
+              <div class="con-played__lane" :style="{width: stacks.slotW + 'px', height: stacks.slotH + 'px'}">
+                <div class="con-played__slot con-played__slot--front con-played__botcorp" :style="{width: stacks.slotW + 'px', height: stacks.slotH + 'px'}" :data-zoom-slot="botCorp.id">
                   <div class="con-played__lift">
-                    <div class="con-played__face con-played__focusbox" :style="{zoom: String(plan.hero.zoom)}">
+                    <div class="con-played__face con-played__focusbox" :style="{zoom: String(stacks.zoom)}">
                       <MarsBotCorpFace :id="botCorp.id" :resources="botCorp.resources" :resource="botCorp.resource" />
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-            <!-- The corporation(s) — the HERO: larger than a shelf face, its stored resources live on its own face. -->
-            <div v-else-if="zones.corporations.length > 0"
-                 class="con-played__family con-played__family--identity con-played__family--corporation"
-                 :class="familyClasses('corporation')"
-                 data-played-cat="corporation"
-                 @click="onFamilyPress('corporation')">
-              <span class="con-played__caption">
-                <span v-i18n>Corporation</span>
-                <b v-if="zones.corporations.length > 1" class="con-played__caption-count">{{ familyCount(zones.corporations) }}</b>
-                <span class="con-played__caption-open" v-i18n>Open</span>
-              </span>
-              <div class="con-played__hero">
-                <ConsolePlayedShelf :cards="zones.corporations" :hiddenKey="heroHiddenKey" :outNames="outNames" :grounded="groundedNames"
-                                    :zoom="plan.hero.zoom" :slotW="plan.hero.slotW" :slotH="plan.hero.slotH" :gapX="plan.album.rowGap" column live />
-              </div>
-            </div>
-            <!-- A human seat before its corporation (never past the start) — the prepared place stays honest. -->
-            <div v-else class="con-played__family con-played__family--identity con-played__family--corporation con-played__family--empty">
-              <span class="con-played__caption"><span v-i18n>Corporation</span></span>
-              <div class="con-played__seat-place" :style="{width: plan.hero.slotW + 'px', height: plan.hero.slotH + 'px'}" aria-hidden="true"></div>
-            </div>
-
             <!-- Events — face down, one pile, per the printed rules. During the hero scene the pile shows the
                  PRE-play count (the counter ticks only after the landed card is committed), and a first-ever event
-                 reserves a HIDDEN pile so the arc has a real target. The box is reserved always: the first event's
-                 landing never moves the hero. -->
-            <div v-if="zones.events.length > 0"
-                 class="con-played__family con-played__family--event"
-                 :class="familyClasses('events')"
-                 data-played-cat="events"
-                 @click="onFamilyPress('events')">
-              <span class="con-played__caption">
-                <span v-i18n>Events</span>
-                <b class="con-played__caption-count">{{ familyCount(zones.events) }}</b>
-                <span class="con-played__caption-open" v-i18n>Open</span>
-              </span>
-              <ConsolePlayedEventsPile :count="displayedEventsCount"
-                                       :reserved="eventsPileReserved"
-                                       :focused="focusCategory === 'events'"
-                                       :out="eventsOut"
-                                       :slotW="plan.events.slotW" :cardH="plan.events.slotH" />
+                 reserves a HIDDEN pile so the arc has a real target. -->
+            <ConsolePlayedEventsPile v-else-if="st.key === 'events' && st.count > 0"
+                                     :count="displayedEventsCount"
+                                     :reserved="eventsPileReserved"
+                                     :focused="false"
+                                     :out="eventsOut"
+                                     :slotW="stacks.slotW" :cardH="stacks.slotH" />
+            <!-- A PREPARED PLACE (PL-620) — the corporation before the choice, the events before the first: a dashed
+                 outline that names what is missing, never a card-sized plate. Its box stays: the first card lands here. -->
+            <div v-else-if="st.count === 0"
+                 class="con-played__seat-place"
+                 :class="{'con-played__seat-place--events': st.key === 'events'}"
+                 :style="{width: stacks.slotW + 'px', height: stacks.slotH + 'px'}">
+              <span v-if="st.key === 'events'" class="con-played__seat-note" v-i18n>No events played yet</span>
             </div>
-            <!-- No event yet: the stack's PLACE on the table (PL-620) — a dashed outline that names what is missing, never
-                 a dark card-sized plate that reads as a blank card. Its box stays reserved: the first event lands here. -->
-            <div v-else class="con-played__family con-played__family--event con-played__family--empty" aria-hidden="true">
-              <span class="con-played__caption"><span v-i18n>Events</span></span>
-              <div class="con-played__seat-place con-played__seat-place--events" :style="{width: plan.events.slotW + 'px', height: plan.events.slotH + 'px'}">
-                <span class="con-played__seat-note" v-i18n>No events played yet</span>
-              </div>
-            </div>
-          </aside>
-
-          <!-- ── THE SHELF ALBUM — the project zones as runs of full faces on strict pages. ── -->
-          <div class="con-played__album" ref="album" @wheel.prevent="onWheel" @scroll.passive="pinScroll">
-            <!-- Identity-only tableau: the shelves' place stays honest — a quiet line, never a bare half. -->
-            <div v-if="projectsEmpty" class="con-played__none">
-              <span class="con-played__none-shelf" aria-hidden="true"></span>
-              <span v-i18n>No played projects yet</span>
-            </div>
-            <div v-else class="con-played__pagestrip" :class="{'con-played__pagestrip--turning': turning}" :style="stripStyle" @transitionend.self="onStripSettled">
-              <div v-for="p in renderPages" :key="'page' + p" class="con-played__page" :style="pageStyle(p)" :data-played-page-index="p">
-                <div v-for="(row, ri) in pages[p].rows" :key="ri" class="con-played__row" :style="{columnGap: plan.album.gapX + 'px'}">
-                  <!-- A RUN is the zone's block on this row: its caption lane + its shelf. The run carries the zone's
-                       focus (every run of the zone on the page rings together) and its `data-played-cat` on the
-                       zone's FIRST run of the page (one navigation target per zone). -->
-                  <div v-for="run in row.runs" :key="run.zone + ':' + run.start"
-                       class="con-played__family con-played__run"
-                       :class="[familyClass(run.zone), familyClasses(run.zone)]"
-                       :data-played-cat="isFirstRunOnPage(p, run) ? run.zone : undefined"
-                       :data-played-run="run.zone"
-                       @click="onFamilyPress(run.zone)">
-                    <span class="con-played__caption" :style="{height: plan.album.captionH + 'px'}">
-                      <span>{{ $t(zoneLabel(run.zone)) }}</span>
-                      <b class="con-played__caption-count" :class="{'con-played__caption-count--range': !run.first}">{{ runCount(run) }}</b>
-                      <span v-if="isFirstRunOnPage(p, run)" class="con-played__caption-open" v-i18n>Open</span>
-                    </span>
-                    <ConsolePlayedShelf :cards="runCards(run)" :hiddenKey="heroHiddenKey" :outNames="outNames" :grounded="groundedNames"
-                                        :zoom="plan.album.zoom" :slotW="plan.album.slotW" :slotH="plan.album.slotH" :gapX="plan.album.gapX" />
-                  </div>
-                </div>
-              </div>
-            </div>
-            <!-- THE PAGE EDGES — «there is a page that way»: both always render, an unavailable one is a ghost. -->
-            <button v-for="side in ['left', 'right']" :key="side" type="button"
-                    class="con-played__pgedge"
-                    :class="[
-                      `con-played__pgedge--${side}`,
-                      {'con-played__pgedge--off': side === 'left' ? activePage === 0 : activePage >= pageCount - 1},
-                      {'con-played__pgedge--pulse': edgePulse === side},
-                    ]"
-                    :aria-hidden="pageCount <= 1 ? 'true' : undefined"
-                    tabindex="-1"
-                    @click="turnPage(side === 'left' ? -1 : 1)">
-              <span class="con-played__pgedge-chev" aria-hidden="true">{{ side === 'left' ? '‹' : '›' }}</span>
-            </button>
+            <!-- A CASCADE — the zone's cards in their lanes. -->
+            <ConsolePlayedStack v-else
+                                :cards="stackCards(st.key)" :lanes="st.lanes"
+                                :hiddenKey="heroHiddenKey" :outNames="outNames" :grounded="groundedNames"
+                                :zoom="stacks.zoom" :slotW="stacks.slotW" :slotH="stacks.slotH" :peek="st.peek" :laneGap="stacks.laneGap"
+                                :live="st.key === 'corporation'" />
+          </div>
+          <!-- Nothing played yet / an identity-only table: one calm line where the project stacks will lie — never a
+               bare half (the stacks of the identity stand beside it). -->
+          <div v-if="emptyTable || projectsEmpty" class="con-played__none" :style="noneStyle">
+            <span class="con-played__none-shelf" aria-hidden="true"></span>
+            <span v-if="emptyTable" class="con-played__void"><span class="con-played__void-glyph" aria-hidden="true">◈</span><span v-i18n>No cards played yet</span></span>
+            <span v-else v-i18n>No played projects yet</span>
           </div>
         </div>
-        </template>
       </div>
     </div>
 
@@ -212,8 +134,7 @@
                                ref="catView"
                                :cards="categoryViewCards"
                                :provenanceByName="provenanceByName"
-                               :offPageRect="offPageRect"
-                               :faceFloorZoom="plan.album.zoom"
+                               :faceFloorZoom="stacks.zoom"
                                :boxInset="catInset"
                                @settled-closed="onCategorySettled" />
   </div>
@@ -231,16 +152,14 @@ import {marsBotCorpZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
-import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
-import {albumLayoutState} from '@/client/console/consoleAlbumLayout';
-import {albumSpecFor} from '@/client/components/console/consoleHandAlbum';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consolePlayedUi, resetConsolePlayedUi} from '@/client/console/consolePlayedUi';
 import {
-  buildPlayedZones, planPlayedTable, pickSpatialTarget, unionNavRects, pageOfShelfCard, zonePages, zonesOnPage,
-  NavRect, PlayedPage, PlayedRun, PlayedShelfZone, PlayedTablePlan, PlayedZones, PLAYED_SHELF_ORDER,
+  buildPlayedZones, planPlayedStacks, pickSpatialTarget, unionNavRects,
+  NavRect, PlayedStackKey, PlayedStackPlan, PlayedStacksPlan, PlayedZones,
 } from '@/client/components/console/consolePlayedModel';
 import {
-  playedCategories, categoryCards, PlayedCategory, PlayedCategoryKey, PLAYED_CATEGORY_LABEL, FlightRect,
+  playedCategories, categoryCards, PlayedCategory, PlayedCategoryKey, PLAYED_CATEGORY_LABEL,
 } from '@/client/components/console/consolePlayedCategoryModel';
 import {
   playedCategoryState, resetPlayedCategoryView, isCategoryViewUp, isCategoryViewBusy,
@@ -253,10 +172,11 @@ import {HeroRect} from '@/client/console/played/playedHeroModel';
 import {openConsoleCardZoom, slotZoomOrigin, ConsoleZoomProvenance} from '@/client/console/consoleCardZoom';
 import {playedProvenanceByName, zoomProvenanceOver} from '@/client/components/console/played/playedProvenance';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
-import ConsolePlayedShelf from '@/client/components/console/played/ConsolePlayedShelf.vue';
+import ConsolePlayedStack from '@/client/components/console/played/ConsolePlayedStack.vue';
 import ConsolePlayedEventsPile from '@/client/components/console/played/ConsolePlayedEventsPile.vue';
 import ConsolePlayedCategoryView from '@/client/components/console/played/ConsolePlayedCategoryView.vue';
 import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
+import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
 /** The table's focusable keys: the card categories + the bot's corporation slot. */
 type TableFocusKey = PlayedCategoryKey | 'botcorp' | '';
@@ -264,31 +184,19 @@ type TableFocusKey = PlayedCategoryKey | 'botcorp' | '';
 /** Fallback body box before the first measure / under JSDOM (1080-logical; the planner scales from it). */
 const FALLBACK_W = 1400;
 const FALLBACK_H = 620;
-/** Right-stick page flick: the axis magnitude that fires a turn, and the hold cadence. */
-const FLICK_THRESHOLD = 0.5;
-const FLICK_REPEAT_MS = 280;
-/** The page edge's press response (one shot). */
-const EDGE_PULSE_MS = 260;
-/** Mouse wheel: notches accumulate into one page turn. */
-const WHEEL_NOTCH = 120;
-const WHEEL_DECAY_MS = 260;
-/** The strip's slide arms only once a fresh mount has landed on its page (never a slide from x = 0). */
-const PAGE_LIVE_SETTLE_MS = 80;
-/** A card beyond the album's edge (another page) flies from a packet this far past it (1080-logical). */
-const OFF_PAGE_GAP = 46;
 
 export default defineComponent({
   name: 'ConsolePlayedOverlay',
-  components: {ConsoleWsHead, ConsolePlayedShelf, ConsolePlayedEventsPile, ConsolePlayedCategoryView, MarsBotCorpFace},
+  components: {ConsoleWsHead, ConsolePlayedStack, ConsolePlayedEventsPile, ConsolePlayedCategoryView, MarsBotCorpFace, GamepadGlyph},
   props: {
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
     thisPlayerColor: {type: String as PropType<Color>, required: true},
     /**
      * PLAY-ANIMATION mode (the hero scene): the just-played card. The table
      * renders the +1 layout IMMEDIATELY (appended to the viewer's tableau if
-     * the commit hasn't landed yet — append-only shelves make the synthetic
-     * and the committed layout IDENTICAL), with the card's slot reserved
-     * hidden until `heroRevealed`, on the page it lands on.
+     * the commit hasn't landed yet — the synthetic and the committed layout
+     * are IDENTICAL), with the card's slot reserved hidden until
+     * `heroRevealed` — the front of its stack's last lane.
      */
     heroIncoming: {type: Object as PropType<CardModel | undefined>, default: undefined},
     /** Landing committed — the reserved slot turns real (under the proxy). */
@@ -327,17 +235,6 @@ export default defineComponent({
       viewColor: this.thisPlayerColor as Color,
       /** The focused CATEGORY (the only focusable objects of the table). */
       focusCategory: '' as TableFocusKey,
-      /** The album's page. Derived from the focus when a zone lies elsewhere; explicit on LT/RT, a flick, an edge. */
-      page: 0,
-      /** The strip's slide is armed (a fresh mount LANDS on its page, never slides there from x = 0). */
-      pageLive: false,
-      liveTimer: undefined as number | undefined,
-      turning: false,
-      lastFlickAt: 0,
-      edgePulse: undefined as 'left' | 'right' | undefined,
-      pulseTimer: undefined as number | undefined,
-      wheelAcc: 0,
-      wheelAt: 0,
       /** Hero-scene target-measurer deregistration (play-animation mode). */
       unregisterHeroTarget: undefined as (() => void) | undefined,
       catState: playedCategoryState,
@@ -476,72 +373,57 @@ export default defineComponent({
     provenanceByName(): (name: string | undefined) => ConsoleZoomProvenance | undefined {
       return playedProvenanceByName(this.viewedPlayer, this.viewedTableau);
     },
-    /** Nothing on the table at all (the bot's corporation slot counts as content). */
     /** The body has been measured — the content renders against the real box only (PL-625). */
     measured(): boolean {
       return this.box.w > 4 && this.box.h > 4;
     },
+    /** Nothing on the table at all (the bot's corporation slot counts as content). */
     emptyTable(): boolean {
       return this.categories.length === 0 && this.botCorp === undefined;
     },
-    /** No project card lies on the shelves (an identity-only table). */
+    /** No project card lies on the table (an identity-only table). */
     projectsEmpty(): boolean {
       const z = this.zones;
       return z.preludes.length + z.ceos.length + z.active.length + z.automated.length === 0;
     },
-    shelfCounts(): Record<PlayedShelfZone, number> {
+    stackCounts(): Record<PlayedStackKey, number> {
       const z = this.zones;
-      return {prelude: z.preludes.length, ceo: z.ceos.length, active: z.active.length, automated: z.automated.length};
+      return {
+        corporation: this.botCorp !== undefined ? 1 : z.corporations.length,
+        prelude: z.preludes.length,
+        ceo: z.ceos.length,
+        active: z.active.length,
+        automated: z.automated.length,
+        events: z.events.length,
+      };
     },
-    /** THE PLAN — the measured body box, the profile's album page, the zones' counts. */
-    plan(): PlayedTablePlan {
+    /** THE PLAN — the measured body box and the stacks' counts: ONE page, the compactness solved. */
+    stacks(): PlayedStacksPlan {
       const s = conUiScale();
       const measured = this.box.w > 4 && this.box.h > 4;
-      return planPlayedTable({
+      return planPlayedStacks({
         availW: measured ? this.box.w : FALLBACK_W * s,
         availH: measured ? this.box.h : FALLBACK_H * s,
-        counts: this.shelfCounts,
-        corporations: this.botCorp !== undefined ? 1 : this.zones.corporations.length,
-        spec: albumSpecFor(consoleLayoutState.profile, albumLayoutState.layout),
+        counts: this.stackCounts,
         uiScale: s,
       });
     },
-    pages(): ReadonlyArray<PlayedPage> {
-      return this.plan.pages;
-    },
-    pageCount(): number {
-      return this.plan.pageCount;
-    },
-    /** The page on screen — the explicit page, clamped into the live count. */
-    activePage(): number {
-      return Math.max(0, Math.min(this.pageCount - 1, this.page));
-    },
-    /** The mounted pages: the active one and its neighbours (a slide never lands on an unmounted page). */
-    renderPages(): Array<number> {
-      // The HERO scene never slides (the strip is pinned while the card lands), so it mounts the landing card's page
-      // alone — the neighbours exist for the slide, and on the landing's first frames they were faces nobody sees.
-      if (this.heroActive) {
-        return this.pageCount > 0 ? [this.activePage] : [];
-      }
-      const out: Array<number> = [];
-      for (let p = this.activePage - 1; p <= this.activePage + 1; p++) {
-        if (p >= 0 && p < this.pageCount) {
-          out.push(p);
-        }
-      }
-      return out;
-    },
     /** The plan's px as CSS variables — the stylesheet lays the chassis out, the planner says how wide. */
     tableStyle(): Record<string, string> {
-      const a = this.plan.album;
       return {
-        '--con-played-caption-h': a.captionH + 'px',
-        '--con-played-col-gap': (a.x - this.plan.identityW) + 'px',
-        '--con-played-edge': a.padX + 'px',
+        '--con-played-caption-h': this.stacks.captionH + 'px',
       };
     },
-    stripStyle(): Record<string, string> {
-      return {transform: `translateX(${-this.activePage * this.plan.album.stride}px)`};
+    /** The «no projects yet» line takes the room right of the identity stacks (they stand at the left edge then). */
+    noneStyle(): Record<string, string> {
+      const last = this.stacks.stacks[this.stacks.stacks.length - 1];
+      const left = last === undefined ? 0 : last.x + last.w + this.stacks.gap;
+      return {
+        left: left + 'px',
+        top: this.stacks.padTop + 'px',
+        width: Math.max(0, this.box.w - left - this.stacks.gap) + 'px',
+        height: (this.stacks.captionH + this.stacks.slotH) + 'px',
+      };
     },
   },
   watch: {
@@ -571,8 +453,6 @@ export default defineComponent({
         // The mirror carries card categories only — the corp slot reads as
         // «nothing to open as a grid» for the command bar.
         consolePlayedUi.focusCategory = key === 'botcorp' ? '' : key;
-        // THE ACTIVE PAGE IS DERIVED FROM THE FOCUS: a shelf zone that lies on another page turns the album to it.
-        this.ensurePageForZone(key);
       },
     },
     /** EMBEDDED seat switch (the workspace's LB/RB changed the inspected
@@ -601,21 +481,6 @@ export default defineComponent({
         consolePlayedUi.canCyclePlayer = n > 1;
       },
     },
-    'activePage': {
-      immediate: true,
-      handler(p: number) {
-        consolePlayedUi.page = p;
-      },
-    },
-    'pageCount': {
-      immediate: true,
-      handler(n: number) {
-        consolePlayedUi.pageCount = n;
-        if (this.page > n - 1) {
-          this.page = Math.max(0, n - 1);
-        }
-      },
-    },
     // ── the hero scene (play-animation mode) ───────────────────────────
     /** The scene always lands on the VIEWER's own tableau — a manually
      *  open table viewing an opponent snaps to the viewer's seat, and any
@@ -630,15 +495,9 @@ export default defineComponent({
         }
       },
     },
-    /** A DIFFERENT tableau on the table (LB/RB cycle / the workspace's
-     *  inspected-player switch) opens on its first page. */
-    'effectiveViewColor'() {
-      this.page = 0;
-    },
     /** The reserved-slot measurer plugs into the transaction while an
      *  incoming card exists (registered fresh per scene). The category
-     *  cursor seeds onto the landing card's family and the album turns to
-     *  the landing card's PAGE — the slot the arc flies into is on screen. */
+     *  cursor seeds onto the landing card's family. */
     'heroIncoming': {
       immediate: true,
       handler(incoming: CardModel | undefined) {
@@ -647,7 +506,6 @@ export default defineComponent({
         if (incoming !== undefined) {
           this.unregisterHeroTarget = providePlayedHeroTarget(() => this.measureHeroTarget(), () => this.peekHeroTarget());
           this.focusCategory = this.familyOf(incoming.name);
-          this.ensurePageOfCard(incoming.name);
         }
       },
     },
@@ -672,23 +530,10 @@ export default defineComponent({
       this.ro.observe(body);
     }
     this.measure();
-    // The slide arms once the fresh mount has landed on its page.
-    this.liveTimer = window.setTimeout(() => {
-      this.liveTimer = undefined;
-      this.pageLive = true;
-    }, PAGE_LIVE_SETTLE_MS);
   },
   beforeUnmount() {
     this.ro?.disconnect();
     this.ro = undefined;
-    if (this.liveTimer !== undefined) {
-      window.clearTimeout(this.liveTimer);
-      this.liveTimer = undefined;
-    }
-    if (this.pulseTimer !== undefined) {
-      window.clearTimeout(this.pulseTimer);
-      this.pulseTimer = undefined;
-    }
     this.unregisterHeroTarget?.();
     this.unregisterHeroTarget = undefined;
     resetCategoryDirector();
@@ -708,13 +553,7 @@ export default defineComponent({
         this.measureCatInset();
       }
       if (w !== this.box.w || h !== this.box.h) {
-        const first = !this.measured;
         this.box = {w, h};
-        // The landing card's page is a fact of the REAL plan: a page derived from the fallback box is re-derived here,
-        // in the same tick, so the arc's target never changes page under the flight.
-        if (first && this.heroIncoming !== undefined) {
-          this.ensurePageOfCard(this.heroIncoming.name);
-        }
       }
     },
     /** The body's box inside the root (rests: no transform runs while a category opens) — the category view's room. */
@@ -733,67 +572,59 @@ export default defineComponent({
       const px = (v: number) => `${Math.max(0, Math.round(v))}px`;
       this.catInset = {top: px(b.top - r.top), left: px(b.left - r.left), right: px(r.right - b.right), bottom: px(r.bottom - b.bottom)};
     },
-    // ── the shelves ─────────────────────────────────────────────────────
-    zoneLabel(zone: PlayedShelfZone): string {
-      return PLAYED_CATEGORY_LABEL[zone];
+    // ── the stacks ──────────────────────────────────────────────────────
+    stackLabel(st: PlayedStackPlan): string {
+      return PLAYED_CATEGORY_LABEL[st.key];
     },
-    familyClass(zone: PlayedShelfZone): string {
-      return `con-played__family--${zone}`;
+    stackCards(key: PlayedStackKey): ReadonlyArray<CardModel> {
+      return categoryCards(this.zones, key);
     },
-    runCards(run: PlayedRun): ReadonlyArray<CardModel> {
-      return categoryCards(this.zones, run.zone).slice(run.start, run.start + run.count);
+    /** A caption may run on into the gap before the next stack (a one-lane stack is narrower than «АВТОМАТИЧЕСКИЕ 3» at
+     *  4K) — never under the next stack's own caption; past that the label ellipsizes in its own box. */
+    captionRoom(st: PlayedStackPlan): number {
+      const list = this.stacks.stacks;
+      const next = list[list.indexOf(st) + 1];
+      const edge = next === undefined ? this.box.w : next.x;
+      return Math.max(st.w, edge - st.x - 8 * conUiScale());
     },
-    /** The zone's first run carries its HONEST total; a continuation names its range («6–10»). */
-    runCount(run: PlayedRun): string {
-      if (run.first) {
-        return String(this.familyCount(categoryCards(this.zones, run.zone)));
+    /** The stack's focus target: its category (the bot's corporation slot is its own); an empty place is no target. */
+    stackFocusKey(st: PlayedStackPlan): TableFocusKey | undefined {
+      if (st.key === 'corporation' && this.botCorp !== undefined) {
+        return 'botcorp';
       }
-      return `${run.start + 1}–${run.start + run.count}`;
+      return st.count > 0 ? st.key : undefined;
     },
-    /** The zone's first run on the page — the one navigation target the zone has there. */
-    isFirstRunOnPage(p: number, run: PlayedRun): boolean {
-      const page = this.pages[p];
-      if (page === undefined) {
+    /** A stack's caption count: a cascade's honest total; a single corporation and an empty place carry none. */
+    stackShowsCount(st: PlayedStackPlan): boolean {
+      if (st.count === 0 || (st.key === 'corporation' && this.botCorp !== undefined)) {
         return false;
       }
-      for (const row of page.rows) {
-        for (const r of row.runs) {
-          if (r.zone === run.zone) {
-            return r === run;
-          }
-        }
-      }
-      return false;
+      return st.key !== 'corporation' || st.count > 1;
     },
-    pageStyle(p: number): Record<string, string> {
-      const a = this.plan.album;
+    stackCount(st: PlayedStackPlan): number {
+      return this.familyCount(categoryCards(this.zones, st.key));
+    },
+    stackClasses(st: PlayedStackPlan): Record<string, boolean> {
+      const focus = this.stackFocusKey(st);
       return {
-        left: p * a.stride + 'px',
-        width: a.w + 'px',
-        padding: `${a.padTop}px ${a.padX}px 0`,
-        rowGap: a.rowGap + 'px',
+        [st.key === 'events' ? 'con-played__family--event' : `con-played__family--${st.key}`]: true,
+        'con-played__family--empty': st.count === 0,
+        'con-played__family--focused': focus !== undefined && this.focusCategory === focus && !this.heroActive,
+        'con-played__family--out': focus !== undefined && this.categoryUp && this.catState.category === focus,
       };
     },
-    onStripSettled(): void {
-      this.turning = false;
-    },
-    /** A scroll on the album is always programmatic — pin it back so a stray `scrollIntoView` never shifts the strip. */
-    pinScroll(): void {
-      const album = this.$refs.album as HTMLElement | undefined;
-      if (album !== undefined && (album.scrollLeft !== 0 || album.scrollTop !== 0)) {
-        album.scrollLeft = 0;
-        album.scrollTop = 0;
+    /** Mouse: a stack is focused by one click and opened by the next (the pad's two-step feel). */
+    onStackPress(st: PlayedStackPlan): void {
+      const focus = this.stackFocusKey(st);
+      if (focus === 'botcorp') {
+        this.onBotCorpPress();
+      } else if (focus !== undefined && focus !== '') {
+        this.onFamilyPress(focus);
       }
-    },
-    familyClasses(key: TableFocusKey): Record<string, boolean> {
-      return {
-        'con-played__family--focused': this.focusCategory === key && !this.heroActive,
-        'con-played__family--out': this.categoryUp && this.catState.category === key,
-      };
     },
     /**
      * The HONEST caption count of a family: the synthetic incoming card joins
-     * it only when it has physically become the shelf's card (the reveal
+     * it only when it has physically become the stack's card (the reveal
      * commit) — until then the caption reads the pre-play truth, exactly like
      * the header total and the events pile already did.
      */
@@ -829,122 +660,12 @@ export default defineComponent({
       // back to a CARD category (or none) for the hero focus seed.
       return this.focusCategory === 'botcorp' ? '' : this.focusCategory;
     },
-    // ── pages ────────────────────────────────────────────────────────────
-    isShelfZone(key: TableFocusKey): key is PlayedShelfZone {
-      return (PLAYED_SHELF_ORDER as ReadonlyArray<string>).includes(key);
-    },
-    /** The page of a shelf card (identity cards lie on every page → the active one). */
-    pageOfCard(name: string): number {
-      const zone = this.familyOf(name);
-      if (!this.isShelfZone(zone)) {
-        return this.activePage;
-      }
-      const index = categoryCards(this.zones, zone).findIndex((c) => c.name === name);
-      return pageOfShelfCard(this.pages, zone, index) ?? this.activePage;
-    },
-    ensurePageOfCard(name: string): void {
-      this.page = this.pageOfCard(name);
-    },
-    /** A zone that lies on another page turns the album to its FIRST page (an identity zone is on every page). */
-    ensurePageForZone(key: TableFocusKey): void {
-      if (!this.isShelfZone(key)) {
-        return;
-      }
-      const on = zonePages(this.pages, key);
-      if (on.length > 0 && !on.includes(this.activePage)) {
-        this.page = on[0];
-      }
-    },
-    /** The explicit page turn (LT/RT, the edge, a flick, the wheel): the focus follows onto the new page. */
-    turnPage(dir: 1 | -1): void {
-      if (this.heroActive) {
-        return;
-      }
-      const next = Math.max(0, Math.min(this.pageCount - 1, this.activePage + dir));
-      if (next === this.activePage) {
-        return;
-      }
-      this.pulseEdge(dir === 1 ? 'right' : 'left');
-      this.turning = true;
-      this.page = next;
-      // A focused shelf zone with no run on the new page hands the cursor to the page's first (or last) zone.
-      if (this.isShelfZone(this.focusCategory) && !zonePages(this.pages, this.focusCategory).includes(next)) {
-        const zones = zonesOnPage(this.pages[next]);
-        const landing = dir === 1 ? zones[0] : zones[zones.length - 1];
-        if (landing !== undefined) {
-          this.focusCategory = landing;
-        }
-      }
-    },
-    pulseEdge(side: 'left' | 'right'): void {
-      this.edgePulse = side;
-      if (this.pulseTimer !== undefined) {
-        window.clearTimeout(this.pulseTimer);
-      }
-      this.pulseTimer = window.setTimeout(() => {
-        this.edgePulse = undefined;
-        this.pulseTimer = undefined;
-      }, EDGE_PULSE_MS);
-    },
-    /** Right stick — a firm push turns one page toward the push; holding it pages at a controlled cadence. */
+    /** Right stick (the shell's own route): inside the category view it turns the album's pages; the table itself is
+     *  one page — nothing to scroll there. */
     stickScroll(dy: number, dx = 0): void {
       if (this.categoryUp) {
-        (this.$refs.catView as {stickScroll?: (dy: number) => void} | undefined)?.stickScroll?.(dy);
-        return;
+        (this.$refs.catView as {handleIntent?: (i: GamepadIntent) => void} | undefined)?.handleIntent?.({kind: 'scroll', dx, dy});
       }
-      const v = Math.abs(dx) >= Math.abs(dy) ? dx : dy;
-      if (Math.abs(v) < FLICK_THRESHOLD) {
-        return;
-      }
-      const now = Date.now();
-      if (now - this.lastFlickAt < FLICK_REPEAT_MS) {
-        return;
-      }
-      this.lastFlickAt = now;
-      this.turnPage(v > 0 ? 1 : -1);
-    },
-    /** Mouse wheel over the album: notches accumulate into one page turn. */
-    onWheel(e: WheelEvent): void {
-      const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      const now = Date.now();
-      if (now - this.wheelAt > WHEEL_DECAY_MS) {
-        this.wheelAcc = 0;
-      }
-      this.wheelAt = now;
-      this.wheelAcc += d;
-      if (Math.abs(this.wheelAcc) >= WHEEL_NOTCH) {
-        this.turnPage(this.wheelAcc > 0 ? 1 : -1);
-        this.wheelAcc = 0;
-      }
-    },
-    /**
-     * A card on a page that is NOT mounted (beyond the neighbours) has no slot to fly from: the category view asks
-     * for its PACKET place — just past the album's edge on its side, the page's own packet language. Measured
-     * against the album box; the proxy is the only visible copy, so the card reads as coming in from the next page.
-     */
-    offPageRect(name: string): FlightRect | undefined {
-      const album = this.$refs.album as HTMLElement | undefined;
-      if (album === undefined || typeof album.getBoundingClientRect !== 'function') {
-        return undefined;
-      }
-      const r = album.getBoundingClientRect();
-      if (r.width < 4) {
-        return undefined;
-      }
-      const zone = this.familyOf(name);
-      if (!this.isShelfZone(zone)) {
-        return undefined;
-      }
-      const index = categoryCards(this.zones, zone).findIndex((c) => c.name === name);
-      const page = pageOfShelfCard(this.pages, zone, index);
-      if (page === undefined) {
-        return undefined;
-      }
-      const a = this.plan.album;
-      const gap = OFF_PAGE_GAP * conUiScale();
-      const x = page < this.activePage ? r.left - a.slotW - gap : r.right + gap;
-      const y = r.top + Math.max(0, (r.height - a.slotH) / 2);
-      return {x, y, w: a.slotW, h: a.slotH};
     },
     // ── the pad grammar (delegated by the shell) ────────────────────────
     handleIntent(intent: GamepadIntent): void {
@@ -955,8 +676,7 @@ export default defineComponent({
         return;
       }
       if (intent.kind === 'scroll') {
-        this.stickScroll(intent.dy, intent.dx);
-        return;
+        return; // one page — the stick has nothing to turn at the table
       }
       if (intent.kind === 'nav') {
         this.moveFocus(intent.dir);
@@ -981,12 +701,6 @@ export default defineComponent({
       case 'nextSection':
         this.cycleViewedPlayer(1);
         break;
-      case 'prevTab':
-        this.turnPage(-1);
-        break;
-      case 'nextTab':
-        this.turnPage(1);
-        break;
       case 'back':
         this.$emit('close');
         break;
@@ -994,22 +708,17 @@ export default defineComponent({
         break;
       }
     },
-    // ── category focus (spatial over the live zone-block rects) ─────────
-    /** One rect per zone: the identity blocks + the UNION of a zone's runs on the active page. */
+    // ── category focus (spatial over the live stack rects) ──────────────
+    /** One rect per focusable stack. */
     collectCategoryRects(): ReadonlyArray<NavRect> {
       const root = this.$el as HTMLElement | undefined;
       if (root === undefined || typeof root.querySelectorAll !== 'function') {
         return [];
       }
       const out: Array<NavRect> = [];
-      const active = `[data-played-page-index="${this.activePage}"]`;
-      root.querySelectorAll<HTMLElement>('[data-played-run], [data-played-cat]').forEach((el) => {
-        const key = el.dataset.playedRun ?? el.dataset.playedCat;
+      root.querySelectorAll<HTMLElement>('[data-played-cat]').forEach((el) => {
+        const key = el.dataset.playedCat;
         if (key === undefined || key === '') {
-          return;
-        }
-        // A run on a neighbour page is mounted (the slide needs it) but off screen — never a target.
-        if (el.dataset.playedRun !== undefined && el.closest(active) === null) {
           return;
         }
         const r = el.getBoundingClientRect();
@@ -1023,14 +732,6 @@ export default defineComponent({
       const next = pickSpatialTarget(this.focusCategory, this.collectCategoryRects(), dir);
       if (next !== undefined) {
         this.focusCategory = next as TableFocusKey;
-        return;
-      }
-      // The album's horizontal edge: a further page continues the walk onto it (the order continues — the album's
-      // own law); up/down and the identity column feel the edge.
-      if (dir === 'right' && this.activePage < this.pageCount - 1 && this.isShelfZone(this.focusCategory)) {
-        this.turnPage(1);
-      } else if (dir === 'left' && this.activePage > 0 && this.isShelfZone(this.focusCategory)) {
-        this.turnPage(-1);
       }
     },
     // ── opening a category (the physical lift is the view's job) ────────
@@ -1125,17 +826,15 @@ export default defineComponent({
     },
     /**
      * Measure the reserved landing geometry for the incoming card: the
-     * hidden face-up slot's card box (on the page it lies on — the album is
-     * turned there first), or the events backstack. Waits for the rect to
-     * hold still across frames (the strip may still be settling) — the arc
-     * always flies into REAL, settled geometry, never an estimate.
+     * hidden face-up slot's card box (the FRONT of its stack's last lane), or
+     * the events backstack. Waits for the rect to hold still across frames —
+     * the arc always flies into REAL, settled geometry, never an estimate.
      */
     async measureHeroTarget(): Promise<HeroRect | undefined> {
       const incoming = this.heroIncoming;
       if (incoming === undefined) {
         return undefined;
       }
-      this.ensurePageOfCard(incoming.name);
       await this.$nextTick();
       const el = this.heroTargetEl();
       if (el === null) {

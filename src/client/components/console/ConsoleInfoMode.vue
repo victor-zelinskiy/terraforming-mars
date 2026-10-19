@@ -699,6 +699,7 @@ export default defineComponent({
         if (consolePlayedUi.categoryOpen) {
           return [
             {control: 'secondary', label: 'Inspect'},
+            ...(consolePlayedUi.pageCount > 1 ? [{control: 'bumperL', control2: 'bumperR', label: 'Browse', priority: 1} as ConsoleCommand] : []),
             {control: 'back', label: 'Back'},
             {control: 'inspect', label: 'Close', priority: 0},
           ];

@@ -4,25 +4,32 @@ import {CardModel} from '@/common/models/CardModel';
 import {
   buildPlayedZones,
   flatFaceUp,
-  packShelves,
-  pageShelves,
-  pageOfShelfCard,
-  zonePages,
-  zonesOnPage,
-  planPlayedTable,
-  tableAlbumSpec,
+  drawnStacks,
+  splitLanes,
+  planPlayedStacks,
+  stackSlotOf,
   pickSpatialTarget,
   unionNavRects,
   PLAYED_CARD_NATURAL_W,
   PLAYED_CARD_NATURAL_H,
-  TABLE_HERO_GAIN,
-  TABLE_EVENTS_GAIN,
+  PLAYED_STACK_ORDER,
+  STACK_GAP,
+  STACK_MAX_ZOOM,
+  STACK_MIN_ZOOM,
+  STACK_PEEK_COMFORT,
+  STACK_PEEK_TIGHT,
+  STACK_SPREAD_GAP,
   NavRect,
-  PlayedShelfZone,
+  PlayedStackKey,
+  PlayedStacksPlan,
 } from '@/client/components/console/consolePlayedModel';
 
 function card(name: CardName): CardModel {
   return {name} as CardModel;
+}
+
+function counts(over: Partial<Record<PlayedStackKey, number>>): Record<PlayedStackKey, number> {
+  return {corporation: 0, prelude: 0, ceo: 0, active: 0, automated: 0, events: 0, ...over};
 }
 
 describe('consolePlayedModel', () => {
@@ -53,156 +60,121 @@ describe('consolePlayedModel', () => {
     });
   });
 
-  describe('packShelves — zone runs on rows of `cols`', () => {
-    const counts = (over: Partial<Record<PlayedShelfZone, number>>) =>
-      ({prelude: 0, ceo: 0, active: 0, automated: 0, ...over});
-
-    it('a zone starts a new row; a long zone splits into row-sized runs named as continuations', () => {
-      const rows = packShelves(counts({active: 9}), 4);
-      expect(rows.map((r) => r.count)).to.deep.eq([4, 4, 1]);
-      expect(rows[0].runs).to.deep.eq([{zone: 'active', start: 0, count: 4, col: 0, first: true}]);
-      expect(rows[1].runs).to.deep.eq([{zone: 'active', start: 4, count: 4, col: 0, first: false}]);
-      expect(rows[2].runs).to.deep.eq([{zone: 'active', start: 8, count: 1, col: 0, first: false}]);
+  describe('splitLanes / drawnStacks', () => {
+    it('a zone splits into BALANCED contiguous lanes — the earlier lanes take the remainder; the newest card closes the last lane', () => {
+      expect(splitLanes(15, 2)).to.deep.eq([{start: 0, count: 8}, {start: 8, count: 7}]);
+      expect(splitLanes(9, 3)).to.deep.eq([{start: 0, count: 3}, {start: 3, count: 3}, {start: 6, count: 3}]);
+      expect(splitLanes(1, 3), 'never more lanes than cards').to.deep.eq([{start: 0, count: 1}]);
+      expect(splitLanes(0, 2)).to.deep.eq([{start: 0, count: 0}]);
     });
 
-    it('a short zone tucks in after the tail of the one before it when it fits WHOLE — else it takes a new row', () => {
-      const tucked = packShelves(counts({active: 6, automated: 2}), 4);
-      expect(tucked.map((r) => r.count)).to.deep.eq([4, 4]);
-      expect(tucked[1].runs.map((r) => [r.zone, r.col, r.count])).to.deep.eq([['active', 0, 2], ['automated', 2, 2]]);
-      const own = packShelves(counts({active: 6, automated: 3}), 4);
-      expect(own.map((r) => r.count)).to.deep.eq([4, 2, 3]);
-      expect(own[2].runs[0]).to.deep.include({zone: 'automated', col: 0, first: true});
-    });
-
-    it('is APPEND-ONLY: one more card extends the zone\'s last run or opens the next — nothing before it moves', () => {
-      const before = packShelves(counts({prelude: 2, active: 5}), 4);
-      const after = packShelves(counts({prelude: 2, active: 6}), 4);
-      expect(after[0]).to.deep.eq(before[0]);
-      expect(after[1]).to.deep.eq(before[1]);
-      expect(after[2].runs[0]).to.deep.include({zone: 'active', start: 4, count: 2});
-    });
-
-    it('table order: preludes · CEO · active · automated; an empty zone is skipped; an empty table is no rows', () => {
-      const rows = packShelves(counts({prelude: 1, ceo: 1, automated: 1}), 4);
-      expect(rows).to.have.length(1);
-      expect(rows[0].runs.map((r) => r.zone)).to.deep.eq(['prelude', 'ceo', 'automated']);
-      expect(packShelves(counts({}), 4)).to.deep.eq([]);
+    it('the corporation and the events are always drawn (a prepared place when empty); a project zone only with a card', () => {
+      expect(drawnStacks(counts({}))).to.deep.eq(['corporation', 'events']);
+      expect(drawnStacks(counts({active: 2, ceo: 1}))).to.deep.eq(['corporation', 'ceo', 'active', 'events']);
+      expect(PLAYED_STACK_ORDER).to.deep.eq(['corporation', 'prelude', 'ceo', 'active', 'automated', 'events']);
     });
   });
 
-  describe('pageShelves / the page lookups', () => {
-    const counts = {prelude: 2, ceo: 0, active: 9, automated: 3};
+  describe('planPlayedStacks — the whole table on ONE page, the compactness solved', () => {
+    const box = (c: Partial<Record<PlayedStackKey, number>>, over: {availW?: number, availH?: number, uiScale?: number} = {}) =>
+      planPlayedStacks({availW: 1480, availH: 800, counts: counts(c), ...over});
+    /** The content stands inside the box (one page — never an overflow). */
+    const fits = (p: PlayedStacksPlan, w: number, h: number) => {
+      const right = Math.max(...p.stacks.map((st) => st.x + st.w));
+      expect(right, 'the stacks end inside the box').to.be.at.most(w + 0.5);
+      expect(Math.min(...p.stacks.map((st) => st.x)), 'and start inside it').to.be.at.least(0);
+      expect(p.padTop + p.contentH, 'the tallest stack ends inside the box').to.be.at.most(h + 0.5);
+    };
 
-    it('cuts the rows into strict pages; an empty table is one empty page', () => {
-      const pages = pageShelves(packShelves(counts, 4), 2);
-      // prelude ×2 | active 0–3 | active 4–7 | active 8 + automated ×3 (tucked in) → four rows, two pages
-      expect(pages.map((p) => p.rows.length)).to.deep.eq([2, 2]);
-      expect(pages.map((p) => p.index)).to.deep.eq([0, 1]);
-      expect(pageShelves([], 2)).to.deep.eq([{index: 0, rows: []}]);
+    it('a few cards: the largest face the WIDTH allows, one lane each — and a short stack the height holds is laid out WHOLE', () => {
+      const p = box({corporation: 1, prelude: 2, active: 1, automated: 2}, {availH: 900});
+      expect(p.density).to.eq('comfort');
+      expect(p.peek).to.be.closeTo(STACK_PEEK_COMFORT * p.zoom, 1e-9);
+      expect(p.stacks.every((st) => st.lanes.length === 1)).to.eq(true);
+      // Five one-lane stacks fill the width (the face is width-bound, under the cap).
+      expect(p.zoom).to.be.lessThan(STACK_MAX_ZOOM);
+      expect(p.contentW).to.be.closeTo(1480 - 2 * 14, 1);
+      // The two preludes fit the height whole: no band baring half a picture — both cards whole, a gap between.
+      const preludes = p.stacks.find((st) => st.key === 'prelude')!;
+      expect(preludes.spread).to.eq(true);
+      expect(preludes.peek).to.be.closeTo(p.slotH + STACK_SPREAD_GAP, 1e-9);
+      expect(preludes.h).to.be.closeTo(2 * p.slotH + STACK_SPREAD_GAP, 1e-9);
+      fits(p, 1480, 900);
+      // A table of two stacks (the corporation alone) reads at the cap.
+      expect(box({corporation: 1}).zoom).to.be.closeTo(STACK_MAX_ZOOM, 1e-9);
     });
 
-    it('a card\'s page, a zone\'s pages, the zones of a page', () => {
-      const pages = pageShelves(packShelves(counts, 4), 2);
-      // page 0: prelude ×2 (row 1) · active 0–3 (row 2); page 1: active 4–7 (row 3) · active 8 + automated ×3 (row 4)
-      expect(pageOfShelfCard(pages, 'prelude', 1)).to.eq(0);
-      expect(pageOfShelfCard(pages, 'active', 0)).to.eq(0);
-      expect(pageOfShelfCard(pages, 'active', 5)).to.eq(1);
-      expect(pageOfShelfCard(pages, 'automated', 2)).to.eq(1);
-      expect(pageOfShelfCard(pages, 'ceo', 0)).to.eq(undefined);
-      expect(zonePages(pages, 'active')).to.deep.eq([0, 1]);
-      expect(zonePages(pages, 'automated')).to.deep.eq([1]);
-      expect(zonesOnPage(pages[0])).to.deep.eq(['prelude', 'active']);
-      expect(zonesOnPage(pages[1])).to.deep.eq(['active', 'automated']);
-      expect(zonesOnPage(undefined)).to.deep.eq([]);
-    });
-  });
-
-  describe('planPlayedTable — the identity column + the shelf album', () => {
-    const SPEC = {cols: 5, rows: 2};
-    const box = (over: Partial<Parameters<typeof planPlayedTable>[0]> = {}) => planPlayedTable({
-      availW: 1600, availH: 800, counts: {prelude: 2, ceo: 0, active: 9, automated: 3}, corporations: 1, spec: SPEC, ...over,
+    it('a late table stays ONE page: a long zone takes a second lane, the band tightens — never under the name', () => {
+      const t50 = box({corporation: 1, prelude: 2, active: 20, automated: 20, events: 7});
+      fits(t50, 1480, 800);
+      expect(t50.stacks.find((st) => st.key === 'active')?.lanes.length).to.be.greaterThan(1);
+      expect(t50.peek / t50.zoom).to.be.at.least(STACK_PEEK_TIGHT - 0.01);
+      const t100 = box({corporation: 2, prelude: 4, ceo: 1, active: 40, automated: 40, events: 13});
+      fits(t100, 1480, 800);
+      expect(t100.zoom, 'more cards — a smaller face').to.be.lessThan(t50.zoom);
+      expect(t100.peek / t100.zoom).to.be.at.least(STACK_PEEK_TIGHT - 0.01);
     });
 
-    it('the album composes `cols − 1` of the profile page beside the identity column', () => {
-      expect(tableAlbumSpec({cols: 5, rows: 2})).to.deep.eq({cols: 4, rows: 2});
-      // The handheld album is one row (the hand's density); the TABLE never is (the owner, 2026-10-17 — PL-622).
-      expect(tableAlbumSpec({cols: 4, rows: 1})).to.deep.eq({cols: 3, rows: 2});
-      const plan = box();
-      expect(plan.album.cols).to.eq(4);
-      expect(plan.album.rowsPerPage).to.eq(2);
-      expect(plan.pageCount).to.eq(2);
+    it('past every readable band the floor face takes the band the height leaves (a pile\'s edges) — still one page', () => {
+      const p = planPlayedStacks({availW: 900, availH: 420, counts: counts({corporation: 1, active: 90, automated: 90, events: 20})});
+      expect(p.density).to.eq('pile');
+      expect(p.zoom).to.be.closeTo(STACK_MIN_ZOOM, 0.02);
+      fits(p, 900, 420);
     });
 
-    it('the shelf face is a BOX fact: one card and fifty are the same face; a growing table only adds pages', () => {
-      const few = box({counts: {prelude: 0, ceo: 0, active: 6, automated: 0}});
-      const many = box({counts: {prelude: 0, ceo: 0, active: 50, automated: 0}});
-      expect(few.album.zoom).to.be.closeTo(many.album.zoom, 1e-9);
-      expect(few.pageCount).to.eq(1);
-      expect(many.pageCount).to.eq(7);
-      expect(many.album.slotW).to.be.closeTo(PLAYED_CARD_NATURAL_W * many.album.zoom, 1e-9);
-      expect(many.album.slotH).to.be.closeTo(PLAYED_CARD_NATURAL_H * many.album.zoom, 1e-9);
+    it('the events are ONE face-down pile (one card box, one lane) and a lone corporation one face', () => {
+      const p = box({corporation: 1, active: 6, events: 9});
+      const events = p.stacks.find((st) => st.key === 'events')!;
+      expect(events.faceDown).to.eq(true);
+      expect(events.lanes).to.deep.eq([{start: 0, count: 9}]);
+      expect(events.h).to.be.closeTo(p.slotH, 1e-9);
+      expect(events.w).to.be.closeTo(p.slotW, 1e-9);
+      const corp = p.stacks.find((st) => st.key === 'corporation')!;
+      expect(corp.h).to.be.closeTo(p.slotH, 1e-9);
     });
 
-    it('a ONE short row grows into its room (the showcase), bounded by the gain cap — never a two-row table', () => {
-      const std = box({counts: {prelude: 0, ceo: 0, active: 6, automated: 0}});
-      const two = box({counts: {prelude: 0, ceo: 0, active: 2, automated: 0}});
-      expect(two.album.showcase).to.eq(true);
-      expect(two.album.zoom).to.be.greaterThan(std.album.zoom);
-      expect(two.album.zoom).to.be.at.most(std.album.zoom * 1.5 + 1e-9);
-      expect(std.album.showcase).to.eq(false);
-      const full = box({counts: {prelude: 0, ceo: 0, active: 4, automated: 0}});
-      expect(full.album.showcase, 'a full row is the standard').to.eq(false);
+    it('a stack\'s box is its lanes: the front face and the bands above it; the face is the planner\'s for every stack', () => {
+      const p = box({corporation: 1, active: 5, automated: 3});
+      const active = p.stacks.find((st) => st.key === 'active')!;
+      const k = Math.max(...active.lanes.map((l) => l.count));
+      expect(active.h).to.be.closeTo(p.slotH + (k - 1) * active.peek, 1e-9);
+      // A cascade the height cannot hold whole keeps the table's band.
+      const long = box({corporation: 1, active: 14}).stacks.find((st) => st.key === 'active')!;
+      expect(long.spread).to.eq(false);
+      expect(active.w).to.be.closeTo(active.lanes.length * p.slotW + (active.lanes.length - 1) * p.laneGap, 1e-9);
+      expect(p.slotW).to.be.closeTo(PLAYED_CARD_NATURAL_W * p.zoom, 1e-9);
+      expect(p.slotH).to.be.closeTo(PLAYED_CARD_NATURAL_H * p.zoom, 1e-9);
     });
 
-    it('the hero is larger than a shelf face (up to the gain) and the events stack smaller — both inside the column', () => {
-      const plan = box();
-      expect(plan.hero.zoom).to.be.greaterThan(plan.album.zoom);
-      expect(plan.hero.zoom).to.be.at.most(plan.album.zoom * TABLE_HERO_GAIN + 1e-9);
-      expect(plan.hero.slotW).to.be.at.most(plan.identityW);
-      expect(plan.events.zoom).to.be.closeTo(plan.album.zoom * TABLE_EVENTS_GAIN, 1e-9);
-      expect(plan.hero.count).to.eq(1);
-      // Two corporations (Merger) share the hero's room — each smaller, both in the column.
-      const two = box({corporations: 2});
-      expect(two.hero.count).to.eq(2);
-      expect(two.hero.zoom).to.be.lessThan(plan.hero.zoom);
-      expect(2 * two.hero.slotH).to.be.lessThan(800);
+    it('the NEWEST card of a zone is the FRONT of its last lane — the landing\'s target is always a whole face', () => {
+      const p = box({corporation: 1, active: 20, automated: 20});
+      const active = p.stacks.find((st) => st.key === 'active')!;
+      const last = active.lanes[active.lanes.length - 1];
+      expect(stackSlotOf(p, 'active', 19)).to.deep.eq({lane: active.lanes.length - 1, depth: last.count - 1});
+      expect(stackSlotOf(p, 'active', 0)).to.deep.eq({lane: 0, depth: 0});
+      expect(stackSlotOf(p, 'ceo', 0)).to.eq(undefined);
     });
 
-    it('the TV uiScale multiplies every px knob in lockstep', () => {
-      const base = box();
-      const tv = box({availW: 3200, availH: 1600, uiScale: 2});
-      expect(tv.album.zoom).to.be.closeTo(base.album.zoom * 2, 1e-9);
-      expect(tv.album.slotW).to.be.closeTo(base.album.slotW * 2, 1e-9);
-      expect(tv.album.captionH).to.be.closeTo(base.album.captionH * 2, 1e-9);
-      expect(tv.identityW).to.be.closeTo(base.identityW * 2, 1);
-      expect(tv.hero.zoom).to.be.closeTo(base.hero.zoom * 2, 1e-9);
-      expect(tv.pageCount).to.eq(base.pageCount);
+    it('an identity-only table keeps its stacks at the left edge — the room right of them is the projects\' place', () => {
+      const p = box({corporation: 1});
+      expect(p.stacks.map((st) => st.key)).to.deep.eq(['corporation', 'events']);
+      expect(p.stacks[0].x).to.be.closeTo(14, 1e-9);
+      expect(p.gap).to.be.closeTo(STACK_GAP, 1e-9);
+    });
+
+    it('the TV uiScale multiplies every px knob in lockstep — the same composition', () => {
+      const c = {corporation: 1, prelude: 2, active: 14, automated: 6, events: 3};
+      const base = box(c);
+      const tv = box(c, {availW: 2960, availH: 1600, uiScale: 2});
+      expect(tv.zoom).to.be.closeTo(base.zoom * 2, 1e-6);
+      expect(tv.peek).to.be.closeTo(base.peek * 2, 1e-6);
+      expect(tv.captionH).to.be.closeTo(base.captionH * 2, 1e-9);
+      expect(tv.stacks.map((st) => st.lanes.length)).to.deep.eq(base.stacks.map((st) => st.lanes.length));
     });
 
     it('identical input → identical plan (stability contract)', () => {
-      expect(box()).to.deep.eq(box());
-    });
-
-    it('the rows are the PROFILE\'s — a taller box never adds a row, so two seats of one table share one face (PL-622)', () => {
-      const counts = {prelude: 2, ceo: 0, active: 14, automated: 3};
-      // The Deck's body (1000–1060 × 640–660): the table's page is TWO rows of three whatever the box (the handheld
-      // album's one row is the hand's density — the owner chose two for the table, 2026-10-17).
-      for (const [w, h] of [[1000, 640], [1045, 660], [1060, 1000]]) {
-        const p = planPlayedTable({availW: w, availH: h, counts, corporations: 1, spec: {cols: 4, rows: 1}});
-        expect(p.album.cols).to.eq(3);
-        expect(p.album.rowsPerPage, `${w}×${h}`).to.eq(2);
-      }
-      // Measured: the Deck's own body reads ≈ 191 px faces and nineteen cards in 4 pages (one row read 208 px · 7).
-      const deck = planPlayedTable({availW: 1000, availH: 640, counts, corporations: 1, spec: {cols: 4, rows: 1}});
-      expect(deck.album.slotW).to.be.within(185, 197);
-      expect(deck.pageCount).to.eq(4);
-      // A bot's provenance line shortens the body by a line: the same composition (the face follows the box, as
-      // on every two-row profile), never a different row count between two seats.
-      const bot = planPlayedTable({availW: 1000, availH: 610, counts, corporations: 1, spec: {cols: 4, rows: 1}});
-      expect(bot.album.rowsPerPage).to.eq(deck.album.rowsPerPage);
-      expect(bot.album.cols).to.eq(deck.album.cols);
-      // The TV / FHD two-row profile is untouched.
-      expect(box().album.rowsPerPage).to.eq(2);
+      const c = {corporation: 1, prelude: 2, active: 9, automated: 3, events: 2};
+      expect(box(c)).to.deep.eq(box(c));
     });
   });
 
@@ -219,7 +191,7 @@ describe('consolePlayedModel', () => {
   });
 
   describe('unionNavRects', () => {
-    it('a zone split over two rows is ONE target — the union of its runs; other keys stay apart', () => {
+    it('one rect per key — the union of its parts; other keys stay apart', () => {
       const out = unionNavRects([
         {key: 'active', x: 0, y: 0, w: 100, h: 50},
         {key: 'active', x: 0, y: 60, w: 40, h: 50},

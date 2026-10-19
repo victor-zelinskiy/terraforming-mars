@@ -2,36 +2,28 @@
  * consolePlayedModel — PURE, DOM-free data + layout + navigation math for the
  * console-native «Разыграно» (played cards) TABLE.
  *
- * THE TABLE IS A TABLE (TR65, 2026-10-17 — «СТОЛ — ЭТО СТОЛ»): it stands in
- * the central opening like every workspace screen, its faces are readable from
- * the couch (the hand album's density), its zones are SHELVES, the corporation
- * is the HERO. Two regions:
- *
- *  - the IDENTITY column (left, on every page): the corporation(s) as the hero
- *    face(s), the face-down EVENTS stack with its count beneath (per the
- *    printed rules events lie face down in one pile);
- *  - the SHELF ALBUM (right, paged): the project zones — preludes · CEO · active
- *    · automated — as runs of full faces on album pages. A shelf begins at a
- *    row's left edge; a short zone may share a row with the tail of the one
- *    before it when it fits whole; a long zone spans rows (and pages) — its
- *    continuations are named with their range. The pages are STRICT: the
- *    strip slides by transform, the active page is derived from the focused
- *    zone (a zone off the page turns the page), LT/RT turn it explicitly.
+ * THE TABLE IS ONE PAGE OF STACKS (the owner, 2026-10-19 — «разыграно всегда
+ * одна страница»; TR65's chassis — the central opening, the workspace head —
+ * stays): every zone lies as a physical TABLE STACK of the printed game — the
+ * corporation, the preludes, the CEO, the active and the automated cards as
+ * CASCADES (each covered card shows its title band, the newest lies whole in
+ * front), the events as ONE face-down pile with its count. The whole table
+ * stands on one screen; how COMPACT it is (the face, the band, the lanes a
+ * long zone splits into) is solved from the measured body and the counts
+ * (`planPlayedStacks`). A zone is READ in its category view (A), which is
+ * where pages are allowed.
  *
  * Determinism / stability contract (load-bearing):
  *  - grouping is structural (manifest CardType), order inside a zone is the
  *    tableau order = PLAY ORDER (oldest → newest) — never a client re-sort;
- *  - the packing is APPEND-ONLY by construction: a card played appends to its
- *    zone's last run (or opens a new run / row / page) and never moves a card
- *    that already lies on a shelf — the landing's +1 layout is final before
- *    the card arrives (the hero scene measures it);
- *  - the card size is a BOX fact (the album box + the composition), never a
- *    fact of how many cards lie on the table — one card, ten and fifty are
- *    the same face; a growing table only ever adds pages. The ONE exception
- *    is a table that fits one short row (the showcase, bounded), which grows
- *    into its room instead of standing small over an empty stage.
+ *  - the newest card of a zone is the FRONT of its last lane (lanes hold
+ *    contiguous runs of the play order) — the landing's target is always a
+ *    whole face;
+ *  - the plan is a function of the box and the counts: the landing renders
+ *    the +1 table BEFORE the card arrives (the hero scene measures that
+ *    final layout), so nothing moves under the flight.
  *
- * Navigation is SPATIAL (`pickSpatialTarget`): the shell feeds the live zone
+ * Navigation is SPATIAL (`pickSpatialTarget`): the shell feeds the live stack
  * rects (viewport px) and the cursor moves to the geometrically nearest
  * target in the pressed direction — matching what the player SEES.
  *
@@ -43,7 +35,6 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {NavDirection} from '@/client/gamepad/gamepadPollModel';
-import {ALBUM_GAP_X, ALBUM_MAX_ZOOM, ALBUM_MIN_ZOOM, AlbumSpec, PAGE_STRIDE_EXTRA} from '@/client/components/console/consoleHandAlbum';
 
 /** Natural PREMIUM card-face box (`.pcard`, 320×460 @ zoom 1). */
 export const PLAYED_CARD_NATURAL_W = 320;
@@ -53,8 +44,9 @@ export const PLAYED_CARD_NATURAL_H = 460;
  * plate 46) plus the divider row (gap 6 + divider 2 + gap 6), so a peeked
  * card still reads cost + tags + name + type colour + the top of its
  * requirements cassette. Exactly 75 — the art row starts at 75, so no art
- * sliver ever peeks out of a strip. (The TABLE no longer stacks peeks — the
- * receiving stage's compact piles and the start deployment shelf still do.)
+ * sliver ever peeks out of a strip. The TABLE's stacks show it at their
+ * COMFORT density and tighten it as a zone grows (`STACK_PEEK_*`); the
+ * receiving stage's compact piles and the start deployment shelf peek too.
  */
 export const PLAYED_PEEK_NATURAL = 75;
 
@@ -104,282 +96,285 @@ export function flatFaceUp(zones: PlayedZones): ReadonlyArray<CardModel> {
   return [...zones.corporations, ...zones.preludes, ...zones.ceos, ...zones.active, ...zones.automated];
 }
 
-// ── THE SHELVES — zone runs packed onto album rows and pages ───────────────
+// ── THE STACKS — every zone a TABLE STACK, the whole table on ONE page ─────
+//
+// «РАЗЫГРАНО — ВСЕГДА ОДНА СТРАНИЦА» (the owner, 2026-10-19): the overview is never paged. Every zone lies as a
+// physical STACK of the printed game — the corporation, the preludes, the CEO, the active and the automated cards as
+// CASCADES (each card shows its title band, the newest lies whole in front), the events as one face-down pile — and
+// the whole table stands on one screen. The COMPACTNESS is the solver's: the face's size, how much of each title band
+// shows and how many LANES a long zone splits into are solved together from the measured body and the zones' counts
+// (a few cards — large faces with generous bands; a late-game table — smaller faces, tighter bands, a long zone in two
+// or three lanes; past the readable floor the bands become a pile's edges). Reading a zone in detail is the CATEGORY
+// VIEW's job (A on the stack) — that is where pages are allowed.
 
-/** The zones that lie on the SHELF ALBUM (the identity column holds the rest). */
-export type PlayedShelfZone = 'prelude' | 'ceo' | 'active' | 'automated';
-export const PLAYED_SHELF_ORDER: ReadonlyArray<PlayedShelfZone> = ['prelude', 'ceo', 'active', 'automated'];
+/** The table's stacks, in the fixed visual order of the printed tableau. */
+export type PlayedStackKey = 'corporation' | 'prelude' | 'ceo' | 'active' | 'automated' | 'events';
+export const PLAYED_STACK_ORDER: ReadonlyArray<PlayedStackKey> = ['corporation', 'prelude', 'ceo', 'active', 'automated', 'events'];
+/** The project stacks — drawn only when they hold a card. */
+export const PLAYED_PROJECT_STACKS: ReadonlyArray<PlayedStackKey> = ['prelude', 'ceo', 'active', 'automated'];
 
-/** One RUN of a zone on one row: `count` faces from the zone's `start`, at column `col`. */
-export type PlayedRun = {
-  zone: PlayedShelfZone,
-  /** The run's first card's index within its zone (the zone's own order = play order). */
-  start: number,
-  count: number,
-  /** The run's first column on its row. */
-  col: number,
-  /** The zone's FIRST run (its caption carries the zone's total); a continuation names its range. */
-  first: boolean,
+/* 1080-logical px — × uiScale inside the planner. */
+/** Between two stacks. */
+export const STACK_GAP = 28;
+/** …and the most a short table may spread them (the spare width is shared out up to this, the rest centres). */
+export const STACK_GAP_MAX = 64;
+/** Between two lanes of one stack (a lane is the zone's continuation, so it stands closer than the next zone). */
+export const STACK_LANE_GAP = 10;
+/** A stack's caption lane above its cards. */
+export const STACK_CAPTION_H = 30;
+/** The body's inner pad: the focused stack's ring and lift never meet the body's edge. */
+export const STACK_PAD_X = 14;
+export const STACK_PAD_TOP = 14;
+export const STACK_PAD_BOTTOM = 12;
+/** The title band a covered card shows (natural px): COMFORT = the whole plate and the divider (the natural peek);
+ *  TIGHT = the name still reads (the plate's lower kant goes); PILE = an edge per card, the last resort of one page. */
+export const STACK_PEEK_COMFORT = PLAYED_PEEK_NATURAL;
+export const STACK_PEEK_TIGHT = 52;
+export const STACK_PEEK_PILE = 12;
+/** The face's bounds (1080-logical zoom): a few cards read large (the 4K screen is not left dark), a starved box gets small honest faces. */
+export const STACK_MAX_ZOOM = 1.0;
+/** A short stack the height can hold WHOLE lays its cards out whole, this far apart — never a band that bares a sliver
+ *  of art (a band between the natural peek and the whole card shows half a picture). */
+export const STACK_SPREAD_GAP = 12;
+export const STACK_MIN_ZOOM = 0.3;
+/** The zoom search's step (multiplicative). */
+const STACK_ZOOM_STEP = 0.975;
+
+export type PlayedStackDensity = 'comfort' | 'tight' | 'pile';
+
+/** One lane of a stack: `count` cards of the zone from its `start` (the zone's own order = play order). */
+export type PlayedStackLane = {start: number, count: number};
+
+export type PlayedStackPlan = {
+  key: PlayedStackKey;
+  /** Cards in the zone (0 → a PREPARED place: the corporation before the choice, the events before the first). */
+  count: number;
+  /** The face-down pile (the events) — one card box, never a cascade. */
+  faceDown: boolean;
+  lanes: ReadonlyArray<PlayedStackLane>;
+  /** The stack's left edge inside the body, and its width (lanes × face + lane gaps). */
+  x: number;
+  w: number;
+  /** The tallest lane's card height (the caption lane not included). */
+  h: number;
+  /** This stack's step between two cards of a lane: the table's band, or — a short stack the height holds whole — the
+   *  whole face and a gap (`spread`). */
+  peek: number;
+  spread: boolean;
 };
-export type PlayedRow = {runs: ReadonlyArray<PlayedRun>, count: number};
-export type PlayedPage = {index: number, rows: ReadonlyArray<PlayedRow>};
 
-/**
- * PACK the zones onto rows of `cols` slots, in table order. A zone's first run
- * starts a NEW row — unless the whole zone fits in the free slots of the row
- * being filled (a short zone tucks in after the tail of the one before it,
- * which is how a table of 20 stays on two pages instead of three). A zone
- * longer than a row splits into row-sized runs, each named as a continuation.
- * APPEND-ONLY: adding a card to a zone's end extends its last run or opens the
- * next; nothing before it moves.
- */
-export function packShelves(counts: Readonly<Record<PlayedShelfZone, number>>, cols: number): Array<PlayedRow> {
-  const width = Math.max(1, Math.floor(cols));
-  const rows: Array<PlayedRow> = [];
-  let runs: Array<PlayedRun> = [];
-  let used = 0;
-  const flush = () => {
-    if (used > 0) {
-      rows.push({runs, count: used});
-    }
-    runs = [];
-    used = 0;
-  };
-  for (const zone of PLAYED_SHELF_ORDER) {
-    let remaining = Math.max(0, Math.floor(counts[zone] ?? 0));
-    if (remaining === 0) {
-      continue;
-    }
-    if (used > 0 && remaining > width - used) {
-      flush();
-    }
-    let start = 0;
-    let first = true;
-    while (remaining > 0) {
-      const take = Math.min(width - used, remaining);
-      runs.push({zone, start, count: take, col: used, first});
-      used += take;
-      remaining -= take;
-      start += take;
-      first = false;
-      if (remaining > 0) {
-        flush();
-      }
-    }
-  }
-  flush();
-  return rows;
-}
-
-/** Cut the rows into strict pages of `rowsPerPage`. An empty table is one empty page. */
-export function pageShelves(rows: ReadonlyArray<PlayedRow>, rowsPerPage: number): Array<PlayedPage> {
-  const per = Math.max(1, Math.floor(rowsPerPage));
-  const pages: Array<PlayedPage> = [];
-  for (let i = 0; i < rows.length; i += per) {
-    pages.push({index: pages.length, rows: rows.slice(i, i + per)});
-  }
-  return pages.length > 0 ? pages : [{index: 0, rows: []}];
-}
-
-/** The page a card of `zone` at `index` (within the zone) lies on. */
-export function pageOfShelfCard(pages: ReadonlyArray<PlayedPage>, zone: PlayedShelfZone, index: number): number | undefined {
-  for (const page of pages) {
-    for (const row of page.rows) {
-      for (const run of row.runs) {
-        if (run.zone === zone && index >= run.start && index < run.start + run.count) {
-          return page.index;
-        }
-      }
-    }
-  }
-  return undefined;
-}
-
-/** The pages a zone has a run on, ascending (empty for a zone with no cards). */
-export function zonePages(pages: ReadonlyArray<PlayedPage>, zone: PlayedShelfZone): Array<number> {
-  const out: Array<number> = [];
-  for (const page of pages) {
-    if (page.rows.some((row) => row.runs.some((run) => run.zone === zone))) {
-      out.push(page.index);
-    }
-  }
-  return out;
-}
-
-/** The zones with a run on the page, in reading order (first row first, left to right), each once. */
-export function zonesOnPage(page: PlayedPage | undefined): Array<PlayedShelfZone> {
-  const out: Array<PlayedShelfZone> = [];
-  for (const row of page?.rows ?? []) {
-    for (const run of row.runs) {
-      if (!out.includes(run.zone)) {
-        out.push(run.zone);
-      }
-    }
-  }
-  return out;
-}
-
-// ── THE TABLE PLAN — the identity column + the shelf album ─────────────────
-// (1080-logical px — × uiScale inside the planner)
-
-/** The identity column's share of the table width, and its floor. */
-export const TABLE_IDENTITY_SHARE = 0.2;
-export const TABLE_IDENTITY_MIN = 240;
-/** The seam between the identity column and the album. */
-export const TABLE_COL_GAP = 28;
-/** The identity column's inner pad (the hero's ring + the plate's edge). */
-export const TABLE_PAD = 10;
-/** A zone caption's lane above its shelf (the TV caption + its air). */
-export const TABLE_CAPTION_H = 30;
-/** The page-edge lane (the chevrons) and the ring clearance inside it. */
-export const TABLE_EDGE_GUTTER = 16;
-export const TABLE_GUTTER_X = 20;
-export const TABLE_GUTTER_TOP = 8;
-export const TABLE_GUTTER_BOTTOM = 12;
-/** Between two shelf rows. */
-export const TABLE_ROW_GAP = 10;
-/** The hero face relative to a shelf face (capped by the column's room). */
-export const TABLE_HERO_GAIN = 1.35;
-/** The events stack relative to a shelf face (a back with a count needs less). */
-export const TABLE_EVENTS_GAIN = 0.8;
-/** A one-row table may grow this much past the standard face (bounded — a face larger reads as an inspect). */
-export const TABLE_SHOWCASE_GAIN = 1.5;
-
-/**
- * The table's page is never one row (the owner's decision 2026-10-17, PL-622): the handheld album keeps the hand's
- * one-row density, the TABLE stands on two — on the Deck 191 px faces, 20 cards in 4 pages (one row: 208 px, 7 pages,
- * the lower half of the body empty).
- */
-export const TABLE_MIN_ROWS = 2;
-
-/** The album composition of the TABLE: the profile's page minus the column the identity takes. */
-export function tableAlbumSpec(spec: AlbumSpec): AlbumSpec {
-  return {cols: Math.max(2, spec.cols - 1), rows: Math.max(TABLE_MIN_ROWS, spec.rows)};
-}
-
-export interface PlayedTableInput {
+export interface PlayedStacksInput {
   /** The measured table body box (screen px). */
   availW: number;
   availH: number;
-  /** Cards per shelf zone. */
-  counts: Readonly<Record<PlayedShelfZone, number>>;
-  /** Corporations on the table (the bot's corporation counts as one; 0 → a prepared place). */
-  corporations: number;
-  /** The profile's album page (the table composes `cols − 1` of it beside the identity column). */
-  spec: AlbumSpec;
+  /** Cards per stack (the bot's corporation counts as one). */
+  counts: Readonly<Record<PlayedStackKey, number>>;
   /** conUiScale() — 1 on every non-tv profile. */
   uiScale?: number;
 }
 
-export interface PlayedTablePlan {
-  /** The identity column's width (screen px); it starts at x = 0 of the body. */
-  identityW: number;
-  /** The corporation hero face(s). */
-  hero: {zoom: number, slotW: number, slotH: number, count: number};
-  /** The face-down events stack (its box is reserved whether or not an event lies there). */
-  events: {zoom: number, slotW: number, slotH: number};
-  /** The shelf album box and its solved composition. */
-  album: {
-    x: number, w: number, h: number,
-    cols: number, rowsPerPage: number,
-    zoom: number, slotW: number, slotH: number,
-    gapX: number, rowGap: number, captionH: number,
-    padX: number, padTop: number, stride: number,
-    /** The one-row table grown into its room. */
-    showcase: boolean,
-  };
-  rows: ReadonlyArray<PlayedRow>;
-  pages: ReadonlyArray<PlayedPage>;
-  pageCount: number;
+export interface PlayedStacksPlan {
+  /** The face (css zoom) and its box — the same for every stack. */
+  zoom: number;
+  slotW: number;
+  slotH: number;
+  /** The title band a covered card shows (screen px), and what it reads as. */
+  peek: number;
+  density: PlayedStackDensity;
+  captionH: number;
+  laneGap: number;
+  gap: number;
+  padTop: number;
+  stacks: ReadonlyArray<PlayedStackPlan>;
+  /** The drawn content's box (the stacks' row, the caption lane included). */
+  contentW: number;
+  contentH: number;
 }
 
 function clamp(lo: number, hi: number, v: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
+/** The stacks the table draws: the corporation and the events always (a prepared place when empty), a project zone when it holds a card. */
+export function drawnStacks(counts: Readonly<Record<PlayedStackKey, number>>): Array<PlayedStackKey> {
+  return PLAYED_STACK_ORDER.filter((key) => key === 'corporation' || key === 'events' || (counts[key] ?? 0) > 0);
+}
+
+/** Split `count` cards into `lanes` BALANCED contiguous lanes (the earlier lanes take the remainder: 15 / 2 → 8 + 7). */
+export function splitLanes(count: number, lanes: number): Array<PlayedStackLane> {
+  const n = Math.max(0, Math.floor(count));
+  const l = Math.max(1, Math.min(Math.max(1, n), Math.floor(lanes)));
+  const base = Math.floor(n / l);
+  const extra = n % l;
+  const out: Array<PlayedStackLane> = [];
+  let start = 0;
+  for (let i = 0; i < l; i++) {
+    const c = base + (i < extra ? 1 : 0);
+    out.push({start, count: c});
+    start += c;
+  }
+  return out;
+}
+
+/** The tallest lane of a cascade of `count` cards in `lanes` lanes. */
+function cardsPerLane(count: number, lanes: number): number {
+  return Math.max(1, Math.ceil(Math.max(1, count) / Math.max(1, lanes)));
+}
+
+type StackSolve = {zoom: number, peek: number, lanes: Array<number>};
+
 /**
- * Solve the whole table for a body box. Pure: the shelf face comes from the
- * album box and the composition (never from the card count — the one bounded
- * exception being a one-row table), the hero and the events stack from the
- * identity column's room.
+ * One zoom's best composition: lanes are handed out one at a time to the stack whose tallest lane is the tallest
+ * (while the width allows), until every cascade fits at the COMFORT band; the band then is the largest every stack
+ * affords. Returns the band (screen px) the height leaves and the lanes, or undefined when not even one lane per
+ * stack fits the width.
  */
-export function planPlayedTable(input: PlayedTableInput): PlayedTablePlan {
+function solveAtZoom(
+  keys: ReadonlyArray<PlayedStackKey>, counts: Readonly<Record<PlayedStackKey, number>>,
+  zoom: number, availW: number, roomH: number, s: number,
+): StackSolve | undefined {
+  const w = PLAYED_CARD_NATURAL_W * zoom;
+  const h = PLAYED_CARD_NATURAL_H * zoom;
+  if (h > roomH) {
+    return undefined;
+  }
+  const laneGap = STACK_LANE_GAP * s;
+  const widthOf = (lanes: ReadonlyArray<number>) =>
+    2 * STACK_PAD_X * s + (keys.length - 1) * STACK_GAP * s + lanes.reduce((sum, l) => sum + l * w + (l - 1) * laneGap, 0);
+  const lanes = keys.map(() => 1);
+  if (widthOf(lanes) > availW) {
+    return undefined;
+  }
+  const comfort = STACK_PEEK_COMFORT * zoom;
+  const cascade = (i: number) => keys[i] !== 'events' && (counts[keys[i]] ?? 0) > 1;
+  const bandFor = (i: number) => {
+    const k = cardsPerLane(counts[keys[i]] ?? 0, lanes[i]);
+    return k <= 1 ? comfort : (roomH - h) / (k - 1);
+  };
+  for (;;) {
+    let worst = -1;
+    let worstBand = comfort;
+    for (let i = 0; i < keys.length; i++) {
+      if (!cascade(i)) {
+        continue;
+      }
+      const band = bandFor(i);
+      if (band < worstBand) {
+        worstBand = band;
+        worst = i;
+      }
+    }
+    if (worst < 0) {
+      break; // every cascade fits at the comfort band
+    }
+    // Another lane only where it shortens the tallest lane, and only while the width allows it.
+    const count = counts[keys[worst]] ?? 0;
+    if (cardsPerLane(count, lanes[worst] + 1) >= cardsPerLane(count, lanes[worst])) {
+      break;
+    }
+    lanes[worst]++;
+    if (widthOf(lanes) > availW) {
+      lanes[worst]--;
+      break;
+    }
+  }
+  let peek = comfort;
+  for (let i = 0; i < keys.length; i++) {
+    if (cascade(i)) {
+      peek = Math.min(peek, bandFor(i));
+    }
+  }
+  return {zoom, peek: Math.max(0, peek), lanes};
+}
+
+/**
+ * Solve the ONE-PAGE table for a body box. Pure: the largest face at which every stack fits with a readable title band
+ * (≥ TIGHT); when no face down to the floor affords it, the floor face with the band the height leaves (a pile's edges
+ * — the category view is where such a zone is read). The stacks share one face; the spare width spreads them (bounded)
+ * and the rest centres.
+ */
+export function planPlayedStacks(input: PlayedStacksInput): PlayedStacksPlan {
   const s = input.uiScale !== undefined && input.uiScale > 0 ? input.uiScale : 1;
   const availW = Math.max(1, input.availW);
   const availH = Math.max(1, input.availH);
-  const spec = tableAlbumSpec(input.spec);
-  const cols = spec.cols;
+  const counts = input.counts;
+  const keys = drawnStacks(counts);
+  const captionH = STACK_CAPTION_H * s;
+  const padTop = STACK_PAD_TOP * s;
+  const roomH = Math.max(1, availH - padTop - STACK_PAD_BOTTOM * s - captionH);
 
-  const captionH = TABLE_CAPTION_H * s;
-  const gapX = ALBUM_GAP_X * s;
-  const rowGap = TABLE_ROW_GAP * s;
-  const padX = (TABLE_EDGE_GUTTER + TABLE_GUTTER_X) * s;
-  const padTop = TABLE_GUTTER_TOP * s;
-  const padBottom = TABLE_GUTTER_BOTTOM * s;
-
-  const identityW = Math.round(Math.max(TABLE_IDENTITY_MIN * s, availW * TABLE_IDENTITY_SHARE));
-  const albumX = identityW + TABLE_COL_GAP * s;
-  const albumW = Math.max(1, availW - albumX);
-  const albumH = availH;
-
-  const rows = packShelves(input.counts, cols);
-
-  // THE STANDARD FACE — the box and the composition, never the count.
-  const widthZoom = (albumW - 2 * padX - (cols - 1) * gapX) / (cols * PLAYED_CARD_NATURAL_W);
-  const heightZoomFor = (r: number) => (albumH - padTop - padBottom - r * captionH - (r - 1) * rowGap) / (r * PLAYED_CARD_NATURAL_H);
-  // THE ROWS ARE THE PROFILE'S (PL-622): a page has exactly the album's rows. A rule that added a row whenever it cost
-  // under a tenth of the face sat on a knife's edge on the Deck (its body measures 1000–1045 px wide — one row there,
-  // two rows here), so a provenance line or a satellite lane re-laid every face between two seats of one table.
-  const rowsPerPage = spec.rows;
-  const pages = pageShelves(rows, rowsPerPage);
-  const heightZoom = heightZoomFor(rowsPerPage);
-  const standard = clamp(ALBUM_MIN_ZOOM * s, ALBUM_MAX_ZOOM * s, Math.min(widthZoom, heightZoom));
-  // THE SHOWCASE — a table that is ONE short row grows into its room, bounded: the width its few slots get, the
-  // one-row height, the gain cap (a face past it stops reading as a table).
-  let zoom = standard;
-  let showcase = false;
-  if (rows.length === 1 && rows[0].count < cols) {
-    const n = Math.max(1, rows[0].count);
-    const wZ = (albumW - 2 * padX - (n - 1) * gapX) / (n * PLAYED_CARD_NATURAL_W);
-    const hZ = (albumH - padTop - padBottom - captionH) / PLAYED_CARD_NATURAL_H;
-    const grown = clamp(ALBUM_MIN_ZOOM * s, ALBUM_MAX_ZOOM * s, Math.min(wZ, hZ, standard * TABLE_SHOWCASE_GAIN));
-    if (grown > standard) {
-      zoom = grown;
-      showcase = true;
+  const zMax = STACK_MAX_ZOOM * s;
+  const zMin = STACK_MIN_ZOOM * s;
+  let chosen: StackSolve | undefined;
+  let floorSolve: StackSolve | undefined;
+  for (let z = Math.min(zMax, roomH / PLAYED_CARD_NATURAL_H); z >= zMin * 0.999; z *= STACK_ZOOM_STEP) {
+    const solve = solveAtZoom(keys, counts, z, availW, roomH, s);
+    if (solve === undefined) {
+      continue;
+    }
+    floorSolve = solve;
+    if (solve.peek >= STACK_PEEK_TIGHT * z - 0.01) {
+      chosen = solve;
+      break;
     }
   }
+  if (chosen === undefined) {
+    // No readable band at any face: the smallest face that stands, its band whatever the height leaves (a pile).
+    chosen = floorSolve ?? {zoom: zMin, peek: STACK_PEEK_PILE * zMin, lanes: keys.map(() => 1)};
+  }
+  const solved: StackSolve = chosen;
+  const zoom = solved.zoom;
   const slotW = PLAYED_CARD_NATURAL_W * zoom;
   const slotH = PLAYED_CARD_NATURAL_H * zoom;
+  const peek = Math.min(STACK_PEEK_COMFORT * zoom, solved.peek);
+  const density: PlayedStackDensity = peek >= STACK_PEEK_COMFORT * zoom - 0.5 ? 'comfort' : peek >= STACK_PEEK_TIGHT * zoom - 0.5 ? 'tight' : 'pile';
+  const laneGap = STACK_LANE_GAP * s;
 
-  // THE IDENTITY COLUMN — the events stack reserves its box always (the first event's landing never re-lays the
-  // hero out); the hero takes what is left, larger than a shelf face when the column allows it.
-  const innerW = Math.max(1, identityW - 2 * TABLE_PAD * s);
-  const eventsZoom = clamp(ALBUM_MIN_ZOOM * s, innerW / PLAYED_CARD_NATURAL_W, standard * TABLE_EVENTS_GAIN);
-  const eventsH = PLAYED_CARD_NATURAL_H * eventsZoom;
-  const heroCount = Math.max(1, Math.floor(input.corporations));
-  const heroBudgetH = Math.max(1, availH - padTop - padBottom - 2 * captionH - eventsH - rowGap - (heroCount - 1) * rowGap);
-  const heroZoom = clamp(ALBUM_MIN_ZOOM * s, ALBUM_MAX_ZOOM * s, Math.min(
-    innerW / PLAYED_CARD_NATURAL_W,
-    heroBudgetH / (heroCount * PLAYED_CARD_NATURAL_H),
-    standard * TABLE_HERO_GAIN,
-  ));
+  const spreadStep = slotH + STACK_SPREAD_GAP * s;
+  const shapes = keys.map((key, i) => {
+    const count = Math.max(0, Math.floor(counts[key] ?? 0));
+    const faceDown = key === 'events';
+    const lanes = faceDown || count <= 1 ? [{start: 0, count}] : splitLanes(count, solved.lanes[i]);
+    const w = lanes.length * slotW + (lanes.length - 1) * laneGap;
+    const tallest = faceDown ? 1 : Math.max(1, ...lanes.map((l) => l.count));
+    // A short stack the height holds WHOLE shows every card whole (the space is the table's, never left dark).
+    const spread = tallest > 1 && slotH + (tallest - 1) * spreadStep <= roomH + 0.5;
+    const step = spread ? spreadStep : peek;
+    const h = slotH + (tallest - 1) * step;
+    return {key, count, faceDown, lanes, w, h, peek: step, spread};
+  });
+  const stacksW = shapes.reduce((sum, st) => sum + st.w, 0);
+  const inner = availW - 2 * STACK_PAD_X * s;
+  // An identity-only table (no project stack yet) keeps its stacks at the left edge: the room right of them is where
+  // the projects will lie, and it says so (the overlay's «no played projects yet» line) — never two stacks adrift.
+  const projects = keys.some((key) => PLAYED_PROJECT_STACKS.includes(key));
+  const gap = projects && shapes.length > 1 ?
+    clamp(STACK_GAP * s, STACK_GAP_MAX * s, (inner - stacksW) / (shapes.length - 1)) :
+    STACK_GAP * s;
+  const contentW = stacksW + (shapes.length - 1) * gap;
+  let x = STACK_PAD_X * s + (projects ? Math.max(0, (inner - contentW) / 2) : 0);
+  const stacks: Array<PlayedStackPlan> = shapes.map((st) => {
+    const plan = {...st, x};
+    x += st.w + gap;
+    return plan;
+  });
+  const contentH = captionH + Math.max(slotH, ...stacks.map((st) => st.h));
+  return {zoom, slotW, slotH, peek, density, captionH, laneGap, gap, padTop, stacks, contentW, contentH};
+}
 
-  return {
-    identityW,
-    hero: {zoom: heroZoom, slotW: PLAYED_CARD_NATURAL_W * heroZoom, slotH: PLAYED_CARD_NATURAL_H * heroZoom, count: heroCount},
-    events: {zoom: eventsZoom, slotW: PLAYED_CARD_NATURAL_W * eventsZoom, slotH: eventsH},
-    album: {
-      x: albumX, w: albumW, h: albumH,
-      cols, rowsPerPage,
-      zoom, slotW, slotH,
-      gapX, rowGap, captionH,
-      padX, padTop, stride: albumW + PAGE_STRIDE_EXTRA * s,
-      showcase,
-    },
-    rows,
-    pages,
-    pageCount: pages.length,
-  };
+/** Where a card of a stack lies: its lane and its position in the lane (undefined when the zone has no such card). */
+export function stackSlotOf(plan: PlayedStacksPlan, key: PlayedStackKey, index: number): {lane: number, depth: number} | undefined {
+  const stack = plan.stacks.find((st) => st.key === key);
+  if (stack === undefined) {
+    return undefined;
+  }
+  for (let lane = 0; lane < stack.lanes.length; lane++) {
+    const l = stack.lanes[lane];
+    if (index >= l.start && index < l.start + l.count) {
+      return {lane, depth: index - l.start};
+    }
+  }
+  return undefined;
 }
 
 // ── spatial navigation ──────────────────────────────────────────────────────

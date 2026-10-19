@@ -6,10 +6,14 @@
     the bottom (the ONLY visible copy of each card while airborne — the grid
     slots below render held geometry until the handoff).
 
-    Layout: ONE card → the near-fullscreen single stage; else the adaptive
-    grid planned by the hand's engine (planCategoryView), rows WINDOWED
-    (visible + overscan) so a 60-card category never mounts 60 premium faces
-    at once. Slots carry [data-zoom-slot] (the SHARED fullscreen-inspect
+    Layout: ONE card → the near-fullscreen single stage; a zone that stands
+    on one readable screen → the adaptive grid planned by the hand's engine
+    (planCategoryView); a zone too big for that → the PAGED ALBUM (the owner,
+    2026-10-19): strict pages of at least two rows on one transform strip,
+    LB/RB turn them, ◀/▶ off a page's edge continue onto the next, the page
+    count is STATED (the spine under the pages, the edge chevrons) — never a
+    scroll. Only the page on screen and its neighbours mount faces. Slots
+    carry [data-zoom-slot] (the SHARED fullscreen-inspect
     origin key — `slotZoomOrigin` resolves it, so X lifts the card OUT of its
     slot into fullscreen and returns it there, exactly like the hand overlay;
     it MUST be `data-zoom-slot`, not a bespoke attribute, or the premium
@@ -49,6 +53,51 @@
               <ConsolePlayedCardLite :name="cards[0].name" :card="publicFaceModel(cards[0])" />
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- THE PAGED ALBUM — strict pages on one transform strip (the hand album's law): the page on screen is DERIVED
+           from the focused card, LB/RB turn it, the spine states how many pages there are and which one stands. -->
+      <div v-else-if="layout.kind === 'album'" class="con-played-cat__albumbox" ref="body"
+           :data-cat-pages="album.pageCount" :data-cat-page="activePage" @wheel.prevent="onWheel">
+        <div class="con-played-cat__album" ref="album">
+          <div class="con-played-cat__strip" :class="{'con-played-cat__strip--live': stripLive}" :style="{transform: `translateX(${-activePage * album.stride}px)`}">
+            <div v-for="p in renderPages" :key="'catpage' + p" class="con-played-cat__page" :data-cat-page-index="p"
+                 :style="{left: p * album.stride + 'px', width: box.w + 'px', height: (box.h - album.spineH) + 'px'}">
+              <div v-for="i in pageIndices(p)" :key="cards[i].name"
+                   class="con-played-cat__slot con-played-cat__slot--album"
+                   :class="slotClasses(i, cards[i].name)"
+                   :style="albumSlotStyle(i)"
+                   :data-zoom-slot="cards[i].name"
+                   @click="onSlotClick(i)">
+                <div class="con-played-cat__lift">
+                  <div v-if="facesOn" class="con-played-cat__face" :style="{zoom: String(album.zoom)}">
+                    <ConsolePlayedCardLite :name="cards[i].name" :card="publicFaceModel(cards[i])" :art-tier="catArtTier" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- THE PAGE EDGES — «there is a page that way»: both always render, an unavailable one is a ghost. -->
+          <button v-for="side in ['left', 'right']" :key="side" type="button" tabindex="-1"
+                  class="con-played-cat__pgedge"
+                  :class="[`con-played-cat__pgedge--${side}`, {'con-played-cat__pgedge--off': side === 'left' ? activePage === 0 : activePage >= album.pageCount - 1}]"
+                  :style="{width: edgePx + 'px'}"
+                  aria-hidden="true"
+                  @click="turnPage(side === 'left' ? -1 : 1)">
+            <span class="con-played-cat__pgedge-chev">{{ side === 'left' ? '‹' : '›' }}</span>
+          </button>
+        </div>
+        <!-- THE SPINE — the page count stated where the eye already is: the bumpers that turn it, «N / M», a dot per page,
+             the range of the zone this page shows («1–10 из 24»). -->
+        <div class="con-played-cat__spine" :style="{height: album.spineH + 'px'}" data-cat-spine>
+          <GamepadGlyph control="bumperL" class="con-played-cat__spine-glyph" :class="{'con-played-cat__spine-glyph--off': activePage === 0}" />
+          <span class="con-played-cat__spine-page"><b>{{ activePage + 1 }}</b> / {{ album.pageCount }}</span>
+          <span class="con-played-cat__spine-dots" aria-hidden="true">
+            <span v-for="p in album.pageCount" :key="'dot' + p" class="con-played-cat__spine-dot" :class="{'con-played-cat__spine-dot--on': p - 1 === activePage}"></span>
+          </span>
+          <span class="con-played-cat__spine-range">{{ pageRangeText }}</span>
+          <GamepadGlyph control="bumperR" class="con-played-cat__spine-glyph" :class="{'con-played-cat__spine-glyph--off': activePage >= album.pageCount - 1}" />
         </div>
       </div>
 
@@ -150,7 +199,10 @@ import {defineComponent, PropType, markRaw} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
-import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
+import {albumLayoutState} from '@/client/console/consoleAlbumLayout';
+import {albumSpecFor} from '@/client/components/console/consoleHandAlbum';
+import {consolePlayedUi} from '@/client/console/consolePlayedUi';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {openConsoleCardZoom, slotZoomOrigin, ConsoleZoomProvenance} from '@/client/console/consoleCardZoom';
@@ -158,14 +210,14 @@ import {zoomProvenanceOver} from '@/client/components/console/played/playedProve
 import {stepHandGrid, HandGridPlan} from '@/client/components/console/consoleHandGrid';
 import {artTierForWidth, CardArtTier, preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {
-  planCategoryView, categoryTargetRect, plannedFlightIndices, CategoryViewLayout, FlightRect,
-  PLAYED_CATEGORY_LABEL,
+  planCategoryView, planCategoryAlbum, categoryTargetRect, plannedFlightIndices, CategoryViewLayout, CategoryAlbumPlan, FlightRect,
+  PLAYED_CATEGORY_LABEL, CAT_ALBUM_EDGE, albumPageOf, albumPageIndices, stepCategoryAlbum, turnCategoryAlbum,
 } from '@/client/components/console/consolePlayedCategoryModel';
 import {
   playedCategoryState, resetPlayedCategoryView, nextCategoryFlightId,
   registerCategoryFlightEl, CategoryFlight,
 } from '@/client/console/played/playedCategoryView';
-import {translateText} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {
   runCategoryOpen, runCategoryClose, reverseCategoryEpisode, finishCategoryInstant,
   dissolveCategoryProxies, resetCategoryDirector,
@@ -185,6 +237,12 @@ const CAT_EDGE_INSET = 22;
 /** Fallback body box before the first measure / under JSDOM. */
 const FALLBACK_W = 1280;
 const FALLBACK_H = 560;
+/** Right-stick page flick (the album): the axis magnitude that turns a page, and the hold cadence. */
+const FLICK_THRESHOLD = 0.5;
+const FLICK_REPEAT_MS = 280;
+/** Mouse wheel over the album: notches accumulate into one page turn. */
+const WHEEL_NOTCH = 120;
+const WHEEL_DECAY_MS = 260;
 
 function clampNum(lo: number, hi: number, v: number): number {
   return Math.max(lo, Math.min(hi, v));
@@ -234,6 +292,11 @@ export default defineComponent({
       facesOn: playedCategoryState.phase === 'open',
       /** Focused-card full-art prewarm debounce (thumb-tier grids only). */
       prewarmTimer: undefined as number | undefined,
+      /** The album's strip slides only once the view stands (a fresh mount lands on its page, never slides there). */
+      stripLive: false,
+      lastFlickAt: 0,
+      wheelAcc: 0,
+      wheelAt: 0,
     };
   },
   computed: {
@@ -258,7 +321,49 @@ export default defineComponent({
       // works the inner content box. The single stage keeps its raw box
       // (its width/height SHARES already reserve the air).
       const inset = this.cards.length > 1 ? this.insetPx * 2 : 0;
-      return planCategoryView({availW: w - inset, availH: h - inset, count: this.cards.length, uiScale: conUiScale(), faceFloorZoom: this.faceFloorZoom});
+      const spec = albumSpecFor(consoleLayoutState.profile, albumLayoutState.layout);
+      const layout = planCategoryView({
+        availW: w - inset, availH: h - inset, count: this.cards.length, uiScale: conUiScale(), faceFloorZoom: this.faceFloorZoom, albumSpec: spec,
+      });
+      // The album stands in the WHOLE body (its edge lanes are its own inset — the grid's clip padding is not).
+      return layout.kind === 'album' ?
+        {kind: 'album', album: planCategoryAlbum({availW: w, availH: h, count: this.cards.length, spec, uiScale: conUiScale()})} :
+        layout;
+    },
+    /** The album plan (album layouts only — a convenience narrow). */
+    album(): CategoryAlbumPlan {
+      return this.layout.kind === 'album' ? this.layout.album : {
+        cols: 1, rows: 1, perPage: Math.max(1, this.cards.length), pageCount: 1, zoom: 1, slotW: 320, slotH: 460,
+        gapX: 0, gapY: 0, pageW: 320, pageH: 460, padX: 0, padTop: 0, stride: 0, spineH: 0,
+      };
+    },
+    /** The album's page on screen — DERIVED from the focused card (no second page state exists). */
+    activePage(): number {
+      return this.layout.kind === 'album' ? albumPageOf(this.album, this.state.focusIndex) : 0;
+    },
+    pageCount(): number {
+      return this.layout.kind === 'album' ? this.album.pageCount : 1;
+    },
+    /** The mounted pages: the one on screen and its neighbours (a slide never lands on an unmounted page). */
+    renderPages(): Array<number> {
+      const out: Array<number> = [];
+      for (let p = this.activePage - 1; p <= this.activePage + 1; p++) {
+        if (p >= 0 && p < this.pageCount) {
+          out.push(p);
+        }
+      }
+      return out;
+    },
+    edgePx(): number {
+      return Math.round(CAT_ALBUM_EDGE * conUiScale());
+    },
+    /** «1–10 из 24» — the range of the zone the page on screen shows. */
+    pageRangeText(): string {
+      const indices = albumPageIndices(this.album, this.cards.length, this.activePage);
+      if (indices.length === 0) {
+        return '';
+      }
+      return translateTextWithParams('${0} of ${1}', [`${indices[0] + 1}–${indices[indices.length - 1] + 1}`, String(this.cards.length)]);
     },
     /** The grid plan (grid layouts only — a convenience narrow). */
     gridPlan(): HandGridPlan {
@@ -304,6 +409,9 @@ export default defineComponent({
      *  decoded file per card (see cardArt.ts ART TIERS). The single-card
      *  stage renders near-fullscreen and stays on 'full' in the template. */
     catArtTier(): CardArtTier {
+      if (this.layout.kind === 'album') {
+        return artTierForWidth(this.album.slotW);
+      }
       if (this.layout.kind !== 'grid') {
         return 'full';
       }
@@ -311,6 +419,20 @@ export default defineComponent({
     },
   },
   watch: {
+    /** The bar's mirror: the album's page and how many there are (LB/RB «Листать» only while there is a second). */
+    'activePage': {
+      immediate: true,
+      handler(p: number) {
+        consolePlayedUi.page = p;
+        this.warmNeighbourPages(p);
+      },
+    },
+    'pageCount': {
+      immediate: true,
+      handler(n: number) {
+        consolePlayedUi.pageCount = n;
+      },
+    },
     /** A shrinking category (undo / seat data refresh) clamps the focus. */
     'cards.length'(n: number) {
       if (this.state.focusIndex > n - 1) {
@@ -352,8 +474,14 @@ export default defineComponent({
     this.measure();
     // The OPEN flight starts once the grid has laid out (held-invisible).
     void this.beginOpenFlight();
+    // The album's strip arms its slide once the view stands on its page.
+    void this.$nextTick().then(() => this.frame()).then(() => {
+      this.stripLive = true;
+    });
   },
   beforeUnmount() {
+    consolePlayedUi.page = 0;
+    consolePlayedUi.pageCount = 1;
     this.ro?.disconnect();
     if (this.rafScroll !== undefined) {
       cancelAnimationFrame(this.rafScroll);
@@ -505,7 +633,7 @@ export default defineComponent({
       const closeIndices = plannedFlightIndices(
         this.layout, this.cards.length,
         this.box.h > 0 ? this.box.h : FALLBACK_H,
-        this.currentScrollTop());
+        this.currentScrollTop(), this.activePage);
       const closeFlown = new Set(closeIndices);
       this.state.flights = closeIndices.map((index): CategoryFlight => ({
         id: nextCategoryFlightId(),
@@ -597,7 +725,7 @@ export default defineComponent({
       const indices = plannedFlightIndices(
         this.layout, this.cards.length,
         this.box.h > 0 ? this.box.h : FALLBACK_H,
-        0 /* the view always opens at the top */);
+        0 /* the view always opens at the top */, this.activePage);
       const flown = new Set(indices);
       this.state.flights = indices.map((index): CategoryFlight => ({
         id: nextCategoryFlightId(),
@@ -612,7 +740,7 @@ export default defineComponent({
     },
     /** The grid content origin (proxy landings are derived off it purely). */
     contentOrigin(): {x: number, y: number, w: number, h?: number} | undefined {
-      const el = (this.layout.kind === 'single' ? this.$refs.body : this.$refs.pad) as HTMLElement | undefined;
+      const el = (this.layout.kind === 'single' ? this.$refs.body : this.layout.kind === 'album' ? this.$refs.album : this.$refs.pad) as HTMLElement | undefined;
       if (el === undefined || typeof el.getBoundingClientRect !== 'function') {
         return undefined;
       }
@@ -627,7 +755,7 @@ export default defineComponent({
       return {x: r.left, y: r.top + scrollBack, w: r.width, h: this.layout.kind === 'single' ? r.height : undefined};
     },
     clipRect(): {top: number, bottom: number} | undefined {
-      const el = this.$refs.body as HTMLElement | undefined;
+      const el = (this.layout.kind === 'album' ? this.$refs.album : this.$refs.body) as HTMLElement | undefined;
       if (el === undefined || typeof el.getBoundingClientRect !== 'function') {
         return undefined;
       }
@@ -684,6 +812,10 @@ export default defineComponent({
     // ── input (delegated by the overlay) ────────────────────────────────
     handleIntent(intent: GamepadIntent): void {
       if (intent.kind === 'scroll') {
+        if (this.layout.kind === 'album') {
+          this.stickFlick(intent.dy, intent.dx);
+          return;
+        }
         this.stickScroll(intent.dy);
         return;
       }
@@ -695,6 +827,10 @@ export default defineComponent({
         return;
       }
       if (intent.kind === 'nav') {
+        if (this.layout.kind === 'album') {
+          this.state.focusIndex = stepCategoryAlbum(this.album, this.state.focusIndex, intent.dir, this.cards.length);
+          return;
+        }
         if (this.layout.kind === 'grid') {
           this.state.focusIndex = stepHandGrid(this.state.focusIndex, intent.dir, this.cards.length, this.gridPlan.cols);
           void this.$nextTick(() => this.ensureFocusVisible());
@@ -713,9 +849,75 @@ export default defineComponent({
       case 'back':
         this.requestClose();
         break;
+      // LB / RB turn the album's pages — inside a category the seat is NOT switched (the owner, 2026-10-19: close the
+      // category to change the player); a zone of one page leaves them quiet.
+      case 'prevSection':
+        this.turnPage(-1);
+        break;
+      case 'nextSection':
+        this.turnPage(1);
+        break;
       default:
         break;
       }
+    },
+    /** One page toward `dir` (LB/RB, an edge, a flick, the wheel): the focus keeps its slot on the new page. */
+    turnPage(dir: 1 | -1): void {
+      if (this.busy || this.layout.kind !== 'album') {
+        return;
+      }
+      this.state.focusIndex = turnCategoryAlbum(this.album, this.state.focusIndex, dir, this.cards.length);
+    },
+    /** Right stick on the album — a firm push turns one page toward it; holding it pages at a controlled cadence. */
+    stickFlick(dy: number, dx = 0): void {
+      const v = Math.abs(dx) >= Math.abs(dy) ? dx : dy;
+      if (Math.abs(v) < FLICK_THRESHOLD) {
+        return;
+      }
+      const now = Date.now();
+      if (now - this.lastFlickAt < FLICK_REPEAT_MS) {
+        return;
+      }
+      this.lastFlickAt = now;
+      this.turnPage(v > 0 ? 1 : -1);
+    },
+    onWheel(e: WheelEvent): void {
+      const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      const now = Date.now();
+      if (now - this.wheelAt > WHEEL_DECAY_MS) {
+        this.wheelAcc = 0;
+      }
+      this.wheelAt = now;
+      this.wheelAcc += d;
+      if (Math.abs(this.wheelAcc) >= WHEEL_NOTCH) {
+        this.turnPage(this.wheelAcc > 0 ? 1 : -1);
+        this.wheelAcc = 0;
+      }
+    },
+    /**
+     * The neighbour pages' art, WARMED: their faces are mounted for the slide but stand beyond the album's clip, and
+     * the art `<img>` is `loading="lazy"` — un-warmed, a turned page showed its faces with empty art boxes for the
+     * first frames at 4K. The tier is the one the page paints.
+     */
+    warmNeighbourPages(page: number): void {
+      if (this.layout.kind !== 'album') {
+        return;
+      }
+      const names = [page - 1, page + 1]
+        .filter((p) => p >= 0 && p < this.album.pageCount)
+        .flatMap((p) => albumPageIndices(this.album, this.cards.length, p).map((i) => this.cards[i].name));
+      if (names.length > 0) {
+        preloadPremiumCardArt(names, [this.catArtTier]);
+      }
+    },
+    /** The card indices of one album page. */
+    pageIndices(page: number): Array<number> {
+      return albumPageIndices(this.album, this.cards.length, page);
+    },
+    /** An album slot's place on its page — the SAME arithmetic the flights land on (`categoryTargetRect`). */
+    albumSlotStyle(index: number): Record<string, string> {
+      const r = categoryTargetRect(this.layout, index, this.cards.length, {x: 0, y: 0, w: this.box.w});
+      return {left: r.x + 'px', top: r.y + 'px', width: r.w + 'px', height: r.h + 'px'};
     },
     slotClasses(index: number, _name: string): Record<string, boolean> {
       return {

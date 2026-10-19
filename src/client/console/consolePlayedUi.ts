@@ -20,7 +20,8 @@ export const consolePlayedUi = reactive({
   categoryLabel: '',
   /** ≥2 participants — LB/RB cycles the viewed player. */
   canCyclePlayer: false,
-  /** The shelf album's page on screen and how many there are (LT/RT turn them when more than one). */
+  /** The CATEGORY VIEW album's page on screen and how many there are (LB/RB turn them when more than one; the table
+   *  itself is one page). Written by the view, reset when it closes. */
   page: 0,
   pageCount: 1,
 });

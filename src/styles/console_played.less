@@ -2,22 +2,25 @@
  * CONSOLE «РАЗЫГРАНО» — the console-native played-cards TABLE
  * (ConsolePlayedOverlay + the shelves + the events stack + the category view).
  *
- * Design contract (TR65 — «СТОЛ — ЭТО СТОЛ»):
+ * Design contract (TR65's chassis + the owner's «одна страница» of 2026-10-19):
  *  - the table is a WORKSPACE SCREEN: it stands in the central opening
  *    (`.con-ws-stage-band()`, the `con-ws` marker, the stage surface, its own
  *    dim of the opening) — never a drawer over the board;
- *  - the IDENTITY column on the left (the corporation as the HERO face, the
- *    face-down EVENTS stack beneath) stands on every page; the SHELF ALBUM
- *    on the right turns strict pages by transform (the hand album's law);
- *  - every face is a FULL face at the album's scale — readable from the
- *    couch; a zone is a SHELF with its caption and count; a zone split over
- *    rows is one object (its runs ring together);
- *  - focus is transform/box-shadow only (no layout work), the lift of a
- *    category and the landing of a played card measure the real slots.
+ *  - the table is ONE PAGE OF TABLE STACKS: every zone a cascade of title
+ *    bands with the newest card whole in front (a long zone in lanes), the
+ *    events one face-down pile — the planner solves the face, the band and
+ *    the lanes from the body and the counts; nothing here pages;
+ *  - a STACK is the table's one focusable object, on the cursor grammar
+ *    (`.con-cursor()` — the ring a layer, the lift the host's transform); the
+ *    lift of a category and the landing of a played card measure the real
+ *    slots;
+ *  - the CATEGORY VIEW is where a zone is read: one screen when it fits a
+ *    readable face, else an ALBUM of strict pages (≥ 2 rows) with its page
+ *    count stated (the spine, the edges) — never a scroll.
  *
  * Authored in REM (1rem = 20px logical — the console rem model); the card
- * geometry (slot px sizes, zoom, the column widths) is planner-driven via
- * inline styles / CSS variables (consolePlayedModel.planPlayedTable).
+ * geometry (slot px sizes, zoom, the stacks' boxes) is planner-driven via
+ * inline styles / CSS variables (consolePlayedModel.planPlayedStacks).
  */
 
 .con-played {
@@ -136,25 +139,38 @@
     &__table {
         position: absolute;
         inset: 0;
-        display: flex;
-        align-items: stretch;
-        gap: var(--con-played-col-gap, 1.4rem);
     }
 
-    /* ── THE IDENTITY COLUMN — the hero and the events, on every page ── */
-    &__identity {
-        flex: 0 0 auto;
+    /* ── ONE TABLE STACK — the zone's caption over its lanes; the planner gives its box (left / top / width) ── */
+    &__stack {
+        position: absolute;
         display: flex;
         flex-direction: column;
-        gap: .55rem;
-        min-height: 0;
-        padding-top: .4rem;
+        /* THE CURSOR GRAMMAR (TR58): the ring + halo a LAYER of the stack (only its opacity moves), the lift the
+           stack's own transform — the whole stack rises as one object, its cards with it. */
+        .con-cursor(
+            0 0 0 var(--con-focus-ring, .1rem) fade(@con-cyan, 82%), 0 0 var(--con-glow-r, 1rem) fade(@con-cyan, 26%);
+            .55rem;
+            translateY(calc(var(--con-cursor-on) * -.35rem));
+            3; after; none; 60);
     }
-    &__hero {
+    &__stack&__family--focused {
+        .con-cursor-on();
+    }
+    &__lanes {
         display: flex;
-        flex-direction: column;
         align-items: flex-start;
-        padding: 0 .5rem .25rem;
+        /* column-gap inline from the plan — a lane is the zone's continuation, closer than the next zone. */
+    }
+    /* ONE LANE — a cascade: every slot absolutely at `top = depth × band`, the later card above the earlier
+       (z-index inline), so a covered card shows exactly its title band and the newest lies whole in front. */
+    &__lane {
+        position: relative;
+        flex: 0 0 auto;
+        > .con-played__slot {
+            position: absolute;
+            left: 0;
+        }
     }
     /* A PREPARED card place — the identity's empty seat (a bot before its
        corporation, the events before the first event): card-shaped room,
@@ -163,7 +179,6 @@
        standing there (the rival's empty events). The dash is the place's language; the box keeps its exact size. */
     &__seat-place {
         box-sizing: border-box;
-        margin: 0 .5rem;
         border-radius: .55rem;
         border: .1rem dashed rgba(120, 155, 190, 0.24);
         display: flex;
@@ -182,127 +197,19 @@
         color: rgba(214, 196, 178, 0.5);
     }
 
-    /* ── THE SHELF ALBUM — strict pages on one transform strip ────────── */
-    &__album {
-        position: relative;
-        flex: 1;
-        min-width: 0;
-        min-height: 0;
-        overflow: hidden;
-    }
-    &__pagestrip {
-        position: absolute;
-        inset: 0;
-        &--turning { will-change: transform; }
-    }
-    /* The slide arms only on a LIVE, settled table (`--live`): a fresh mount
-       (possibly opened straight onto page 3 — a landing card's page) lands on
-       its page, it never slides there from x = 0; the hero scene pins it (the
-       landing target was measured against the current layout). */
-    &--live:not(&--hero) &__pagestrip {
-        transition: transform calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.33, 0, 0.2, 1);
-    }
-    &__page {
-        position: absolute;
-        top: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        /* left / width / padding / row-gap come inline from the plan. */
-    }
-    &__row {
-        display: flex;
-        align-items: flex-start;
-        /* column-gap inline from the plan — the same gap between slots and between runs keeps the column grid. */
-    }
-    /* A RUN — one zone's block on one row: its caption lane over its shelf.
-       It is the zone's focusable object on the page (the ring), and it keeps
-       its caption's height FIXED so a long zone name never moves a shelf. */
-    &__run {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-start;
-        min-width: 0;
-    }
-    &__shelf {
-        display: flex;
-        align-items: flex-start;
-        /* gap inline from the plan. */
-        &--column { flex-direction: column; }
-    }
-    /* THE PAGE EDGES — «there is a page that way»: a compact chevron at the
-       vertical centre of each boundary, in the reserved edge lane. Both
-       always render (an unavailable one is a ghost), so nothing shifts when
-       the last page drops its next-edge; a press answers on its own side. */
-    &__pgedge {
-        position: absolute;
-        top: 50%;
-        width: var(--con-played-edge, 1.8rem);
-        height: 18%;
-        min-height: 4rem;
-        max-height: 7rem;
-        padding: 0;
-        border: 0;
-        background: none;
-        cursor: pointer;
-        z-index: 4;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transform: translateY(-50%);
-        transition: opacity calc(180ms * var(--motion-scale, 1)) ease;
-        pointer-events: auto;
-
-        &--left { left: 0; }
-        &--right { right: 0; }
-        &--off { opacity: .22; pointer-events: none; }
-    }
-    &__pgedge-chev {
-        font-size: 1.6rem;
-        line-height: 1;
-        font-weight: 300;
-        color: fade(@con-cyan, 70%);
-        text-shadow: 0 0 .6rem fade(@con-cyan, 30%);
-        transition: transform calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
-    }
-    &__pgedge--pulse &__pgedge-chev { transform: scale(1.25); }
-
-    /* Family blocks are the zones of a physical table. */
+    /* Family blocks are the zones of a physical table (a stack is one). */
     &__family {
-        display: flex;
-        flex-direction: column;
-        gap: .3rem;
         min-width: 0;
         border-radius: .55rem;
         cursor: pointer;
-        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease;
-    }
-    /* Identity zone (corporation / events) — an engraved plate separates "who
-       the player is" from the shelves. */
-    &__family--identity {
-        padding: .4rem .3rem .45rem;
-        background: rgba(255, 255, 255, 0.032);
-        box-shadow: inset 0 0 0 .05rem rgba(150, 185, 220, 0.12);
-        align-self: stretch;
-    }
-    &__family--event {
-        padding: .4rem .3rem .45rem;
-        align-self: stretch;
-        .con-played__pile { margin: 0 .5rem; }
     }
     &__family--empty { cursor: default; opacity: .8; }
     /* The bot's corporation slot — the ordinary premium corporation face
        (MarsBotCorpFace → .pcard) at the hero's zoom (inline on the face box). */
     &__botcorp { position: relative; }
 
-    /* CATEGORY FOCUS — the zone block is the focusable object of the table
-       (per-card focus is gone by design): a calm cyan rim + the «Открыть»
-       affordance in the caption row. Transform/box-shadow only. */
-    &__family--focused {
-        box-shadow:
-            inset 0 0 0 var(--con-focus-ring, .1rem) fade(@con-cyan, 82%),
-            0 0 1rem fade(@con-cyan, 22%);
-    }
+    /* CATEGORY FOCUS — the STACK is the focusable object of the table (per-card focus is gone by design): its cursor
+       layer (`&__stack` above) + the A badge in the caption row (it reads the stack's own `--con-cursor-on`). */
     /* The zone whose cards are AWAY in the category view — an engraved,
        quiet footprint (the cards physically left the table). */
     &__family--out {
@@ -327,8 +234,19 @@
         white-space: nowrap;
         color: fade(#9fb8cf, 78%);
         padding-left: .55rem;
+        /* A stack's caption has a bounded room (inline: the stack and the gap before the next one — a one-lane stack at 4K
+           was narrower than «АВТОМАТИЧЕСКИЕ 3»): the label ellipsizes in its own box, the count and the badge never shrink. */
+        max-width: 100%;
+        min-width: 0;
+        overflow: hidden;
+    }
+    &__caption-label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     &__caption-count {
+        flex-shrink: 0;
         min-width: 1.15rem;
         padding: 0 .28rem;
         border-radius: .6rem;
@@ -340,21 +258,14 @@
         box-shadow: inset 0 0 0 .05rem rgba(150, 185, 220, 0.22);
         font-variant-numeric: tabular-nums;
     }
-    /* A continuation's RANGE («6–10») — the same badge, quieter: the zone's total stands on its first run. */
-    &__caption-count--range {
-        color: fade(#eaf3fb, 70%);
-        background: rgba(255, 255, 255, 0.04);
-    }
-    /* The «Открыть» chip — hidden at rest, revealed by the category focus. */
+    /* The A badge — hidden at rest, revealed with the stack's cursor (the SAME `--con-cursor-on` its ring reads, on the
+       cursor's clock): the verb itself is the bar's. */
     &__caption-open {
+        flex-shrink: 0;
         margin-left: .1rem;
-        font-size: .62rem;
-        letter-spacing: .14em;
-        color: fade(@con-cyan, 0%);
-        transition: color calc(140ms * var(--motion-scale, 1)) ease;
-    }
-    &__family--focused .con-played__caption-open {
-        color: fade(@con-cyan, 92%);
+        letter-spacing: 0;
+        opacity: var(--con-cursor-on, 0);
+        transition: opacity var(--con-cursor-ring-ms, var(--con-cursor-ms, 140ms)) var(--con-cursor-ease, ease);
     }
     &__family--corporation .con-played__caption { color: fade(#d8c896, 85%); }
     &__family--prelude .con-played__caption { color: fade(#e8b8d8, 80%); }
@@ -385,16 +296,6 @@
             margin: 0;
             box-shadow: 0 .18rem .5rem rgba(0, 0, 0, 0.45);
         }
-    }
-    /* FOCUSED (the events stack keeps the slot focus as a subtle lift). */
-    &__slot--focused .con-played__lift {
-        transform: translateY(-.55rem);
-    }
-    &__slot--focused .con-played__face > :is(.card-container, .pcard) {
-        box-shadow:
-            0 0 0 .1rem fade(@con-cyan, 40%),
-            0 .45rem 1rem rgba(0, 0, 0, 0.6),
-            0 0 .8rem fade(@con-cyan, 26%);
     }
     /* A card LIFTED into the category view: its slot holds the geometry
        (layout untouched) while the flying proxy is the only visible copy. */
@@ -466,11 +367,6 @@
     }
 
     /* ── empty states — OBJECTS, never a bare panel ──────────────────── */
-    &__album--void {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
     &__void {
         display: flex;
         align-items: center;
@@ -484,11 +380,11 @@
         font-size: 1.3rem;
         color: fade(@con-cyan, 55%);
     }
-    /* An identity-only table: the shelves' room stays drawn — a quiet shelf
-       line with its one sentence, where the first project will lie. */
+    /* An identity-only table: the project stacks' room stays drawn — a quiet
+       line with its one sentence, right of the identity stacks, where the
+       first project will lie (its box is the planner's — inline). */
     &__none {
         position: absolute;
-        inset: 0;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -626,6 +522,114 @@
         right: 0;
         border-radius: .2rem;
         background: fade(@con-cyan, 55%);
+    }
+
+    /* ── THE PAGED ALBUM — a zone too big for one readable screen ───────
+       (the owner, 2026-10-19: «страницы, когда карт реально много», ≥ 2 rows a page, LB/RB turn them, the player SEES
+       that there are several). The album box is the measured body; the pages ride ONE transform strip (the hand
+       album's law — `--live` once the view stands, never a slide on mount); every slot is absolutely placed by the
+       SAME arithmetic the flights land on (`categoryTargetRect`). */
+    &__albumbox {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+    &__album {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+    }
+    &__strip {
+        position: absolute;
+        inset: 0;
+    }
+    &__strip--live {
+        transition: transform calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.33, 0, 0.2, 1);
+    }
+    &__page {
+        position: absolute;
+        top: 0;
+    }
+    /* (Compound — `&__slot` below declares `position: relative` at the same specificity and later in the file.) */
+    &__slot&__slot--album {
+        position: absolute;
+    }
+    /* THE PAGE EDGES — «there is a page that way»: a chevron at the vertical centre of each side, in the album's own
+       edge lane (the cards never reach under it). Both always render; an unavailable one is a ghost. */
+    &__pgedge {
+        position: absolute;
+        top: 50%;
+        height: 22%;
+        min-height: 4rem;
+        max-height: 8rem;
+        padding: 0;
+        border: 0;
+        background: none;
+        cursor: pointer;
+        z-index: 4;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transform: translateY(-50%);
+        transition: opacity calc(180ms * var(--motion-scale, 1)) ease;
+        &--left { left: 0; }
+        &--right { right: 0; }
+        &--off { opacity: .2; pointer-events: none; }
+    }
+    &__pgedge-chev {
+        font-size: 1.8rem;
+        line-height: 1;
+        font-weight: 300;
+        color: fade(@con-cyan, 75%);
+    }
+    /* THE SPINE — the page count stated: the bumpers that turn it, «N / M», a dot per page, the range. One line,
+       a fixed height (the planner reserved it), centred under the pages. */
+    &__spine {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: .7rem;
+        font-size: .8rem;
+        color: fade(#9fb8cf, 85%);
+        white-space: nowrap;
+        overflow: hidden;
+    }
+    &__spine-glyph {
+        transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+    }
+    &__spine-glyph--off {
+        opacity: .3;
+    }
+    &__spine-page {
+        font-variant-numeric: tabular-nums;
+        letter-spacing: .06em;
+        b {
+            color: #eaf3fb;
+            font-weight: 800;
+        }
+    }
+    &__spine-dots {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+    }
+    &__spine-dot {
+        width: .45rem;
+        height: .45rem;
+        border-radius: 50%;
+        background: rgba(150, 185, 220, 0.28);
+        transition: background-color calc(180ms * var(--motion-scale, 1)) ease;
+    }
+    &__spine-dot--on {
+        background: fade(@con-cyan, 92%);
+    }
+    &__spine-range {
+        color: @con-text-dim;
+        font-variant-numeric: tabular-nums;
     }
 
     /* ── slots (geometry mirrors the flight targets pixel-true) ────────── */

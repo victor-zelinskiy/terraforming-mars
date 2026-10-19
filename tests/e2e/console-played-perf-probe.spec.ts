@@ -243,14 +243,9 @@ async function readOpenProbe(page: Page): Promise<OpenProbe> {
   }) as OpenProbe;
 }
 
-/** Click-based open of a category (focus click + open click). */
+/** Click-based open of a category (focus click + open click) — the table is one page, every zone ONE stack. */
 async function openCategory(page: Page, key: string): Promise<void> {
-  const active = await page.locator('.con-played').first().getAttribute('data-played-page') ?? '0';
-  const onPage = page.locator(`[data-played-page-index="${active}"] [data-played-cat="${key}"]`);
-  const inIdentity = page.locator(`.con-played__identity [data-played-cat="${key}"]`);
-  // A table without pages (the drawer before TR65 — a baseline label) has one copy of every zone.
-  const zone = (await onPage.count()) > 0 ? onPage.first() :
-    ((await inIdentity.count()) > 0 ? inIdentity.first() : page.locator(`[data-played-cat="${key}"]`).first());
+  const zone = page.locator(`[data-played-cat="${key}"]`).first();
   await zone.click();
   await page.waitForTimeout(80);
   await zone.click();
@@ -375,19 +370,11 @@ test.describe('console played-tableau performance probe', () => {
         await shoot(page, `${profile.id}-n${seeded.n}-1-table`);
 
         // ── 2. CATEGORY OPEN (the biggest family) ────────────────────────
-        // The biggest family ON SCREEN — the album's neighbour pages are mounted beyond its clipped edge (the slide's
-        // landing), and a click there waits for an element no player can reach (the one-row Deck put «Активные» on
-        // page 2: the click stood for 22 s – 7 min). The identity column stands on every page.
+        // The table is ONE page of stacks (2026-10-19): every zone is on screen, the biggest is simply the fullest stack.
         const biggest = await page.evaluate(() => {
           let best = '';
           let bestN = -1;
-          const root = document.querySelector<HTMLElement>('.con-played');
-          const active = root?.dataset.playedPage ?? '0';
           document.querySelectorAll('.con-played [data-played-cat]').forEach((el) => {
-            const onPage = el.closest('[data-played-page-index]');
-            if (onPage !== null && (onPage as HTMLElement).dataset.playedPageIndex !== active) {
-              return;
-            }
             const n = el.querySelectorAll('.con-played__slot').length;
             if (n > bestN) {
               bestN = n;

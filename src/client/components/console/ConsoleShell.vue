@@ -9686,19 +9686,18 @@ export default defineComponent({
         if (consolePlayedUi.categoryOpen) {
           // X = inspect (the universal read verb); A stays free — it is the
           // reserved pick verb for the future tableau-pick mode of this view.
+          // An ALBUM's pages ride LB/RB — inside a category the seat is not switched (the owner, 2026-10-19).
           return [
             {control: 'secondary', label: 'Inspect'},
+            ...(consolePlayedUi.pageCount > 1 ? [{control: 'bumperL', control2: 'bumperR', label: 'Browse'} as ConsoleCommand] : []),
             {control: 'back', label: 'Back'},
           ];
         }
+        // The table is ONE page of stacks — no page verb at this level; LB/RB are the seat's.
         const cmds: Array<ConsoleCommand> = [];
         cmds.push({control: 'confirm', label: 'Open', enabled: consolePlayedUi.focusCategory !== ''});
         if (consolePlayedUi.canCyclePlayer) {
           cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Player'});
-        }
-        // The shelf album's pages ride the TRIGGERS (LB/RB are the seat's) — advertised only when there is a second page.
-        if (consolePlayedUi.pageCount > 1) {
-          cmds.push({control: 'triggerL', control2: 'triggerR', label: 'Browse'});
         }
         cmds.push({control: 'back', label: 'Close'});
         return cmds;
@@ -14626,8 +14625,8 @@ export default defineComponent({
       // A (open category), X (inspect), B (fold a category first; at table
       // level the overlay's close event returns to the summary). LB/RB
       // stay the GLOBAL seat switch at TABLE level only (matching the
-      // standalone grammar — inside a category view the bumpers are inert);
-      // Y keeps the global close.
+      // standalone grammar — inside a category view the bumpers turn the
+      // album's pages, the seat stays); Y keeps the global close.
       if (this.infoModeState.route === 'played') {
         if (intent.kind === 'press') {
           const action = consoleActionOf(intent);

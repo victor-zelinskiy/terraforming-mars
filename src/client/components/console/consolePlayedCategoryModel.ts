@@ -10,10 +10,12 @@
  *
  *  - the ordered category list (only non-empty ones are focusable);
  *  - the category view LAYOUT: a near-fullscreen single-card stage for one
- *    card, else an adaptive grid planned by the SAME engine as the hand
- *    (`planHandGrid` — the fork's card-grid quality bar: few cards large,
- *    many cards a balanced grid, scroll only when a readable layout can't
- *    fit; windowing fields for virtualization ride the same plan);
+ *    card; a zone that stands on ONE screen at a readable face → an adaptive
+ *    grid planned by the SAME engine as the hand (`planHandGrid` — few cards
+ *    large, many cards a balanced grid); a zone that does not → a PAGED ALBUM
+ *    (the owner, 2026-10-19: «страницы, когда карт реально много» — never a
+ *    scroll): at least TWO rows a page (`categoryAlbumSpec`), the hand album's
+ *    face, strict pages turned by LB/RB, the page count stated on screen;
  *  - the PRE-COMPUTED flight target geometry: every proxy's landing rect is
  *    derived from the plan (content origin + col/row strides), so opening a
  *    category costs ONE container measure — never a per-card DOM read.
@@ -30,6 +32,7 @@
 
 import {CardModel} from '@/common/models/CardModel';
 import {planHandGrid, HandGridPlan, MAX_COLS, ROW_SLACK} from '@/client/components/console/consoleHandGrid';
+import {ALBUM_GAP_X, ALBUM_GAP_Y, AlbumSpec, PAGE_STRIDE_EXTRA} from '@/client/components/console/consoleHandAlbum';
 import {PlayedZones, PLAYED_CARD_NATURAL_W, PLAYED_CARD_NATURAL_H} from '@/client/components/console/consolePlayedModel';
 
 /** The tableau families, in the fixed visual order of the table. */
@@ -109,23 +112,165 @@ export function categoryAir(count: number): {air: number, gap: number} {
   return {air: 0.01, gap: 16};
 }
 
+/* ── the PAGED ALBUM (a zone too big for one readable screen) ──────────────
+   1080-logical px — × uiScale inside the planner. */
+/** The page-edge lane on BOTH sides (the chevrons — «there is a page that way»); the cards never reach under it. */
+export const CAT_ALBUM_EDGE = 44;
+/** The page SPINE under the album — the page count stated on screen («LB 1 / 3 RB», the dots, the range). */
+export const CAT_ALBUM_SPINE_H = 40;
+/** The top headroom: the focused card's lift and ring. */
+export const CAT_ALBUM_PAD_TOP = 14;
+
+export type CategoryAlbumPlan = {
+  cols: number;
+  rows: number;
+  perPage: number;
+  pageCount: number;
+  zoom: number;
+  slotW: number;
+  slotH: number;
+  gapX: number;
+  gapY: number;
+  /** A FULL page's block (a partial last page keeps the same origin — its rows start at the top). */
+  pageW: number;
+  pageH: number;
+  /** The page block's offset inside the album box; the strip's stride between page origins. */
+  padX: number;
+  padTop: number;
+  stride: number;
+  /** The spine's lane under the pages (screen px). */
+  spineH: number;
+};
+
+/**
+ * The album's page grid: the profile's hand-album page with AT LEAST TWO rows (the owner, 2026-10-19 — «минимум
+ * альбом в 2 ряда»): 5 × 2 on TV / FHD, the handheld's (and «Крупные карты»'s) one row of four becomes 4 × 2.
+ */
+export function categoryAlbumSpec(spec: AlbumSpec): AlbumSpec {
+  return {cols: Math.max(2, spec.cols), rows: Math.max(2, spec.rows)};
+}
+
+/** Solve the paged album for the view's box: the face from the box and the page grid — never from the zone's count. */
+export function planCategoryAlbum(input: {availW: number, availH: number, count: number, spec: AlbumSpec, uiScale?: number}): CategoryAlbumPlan {
+  const s = input.uiScale !== undefined && input.uiScale > 0 ? input.uiScale : 1;
+  const {cols, rows} = categoryAlbumSpec(input.spec);
+  const perPage = cols * rows;
+  const count = Math.max(0, Math.floor(input.count));
+  const gapX = ALBUM_GAP_X * s;
+  const gapY = ALBUM_GAP_Y * s;
+  const edge = CAT_ALBUM_EDGE * s;
+  const spineH = CAT_ALBUM_SPINE_H * s;
+  const padTopMin = CAT_ALBUM_PAD_TOP * s;
+  const availW = Math.max(1, input.availW);
+  const availH = Math.max(1, input.availH);
+  const widthZoom = (availW - 2 * edge - (cols - 1) * gapX) / (cols * PLAYED_CARD_NATURAL_W);
+  const heightZoom = (availH - padTopMin - spineH - (rows - 1) * gapY) / (rows * PLAYED_CARD_NATURAL_H);
+  const zoom = Math.max(0.2 * s, Math.min(CAT_GRID_FILL_MAX * s, widthZoom, heightZoom));
+  const slotW = PLAYED_CARD_NATURAL_W * zoom;
+  const slotH = PLAYED_CARD_NATURAL_H * zoom;
+  const pageW = cols * slotW + (cols - 1) * gapX;
+  const pageH = rows * slotH + (rows - 1) * gapY;
+  return {
+    cols, rows, perPage,
+    pageCount: Math.max(1, Math.ceil(count / perPage)),
+    zoom, slotW, slotH, gapX, gapY, pageW, pageH,
+    padX: Math.max(edge, (availW - pageW) / 2),
+    padTop: padTopMin + Math.max(0, (availH - padTopMin - spineH - pageH) / 2),
+    stride: availW + PAGE_STRIDE_EXTRA * s,
+    spineH,
+  };
+}
+
+/** The album page a card of the zone lies on. */
+export function albumPageOf(album: CategoryAlbumPlan, index: number): number {
+  return Math.max(0, Math.min(album.pageCount - 1, Math.floor(Math.max(0, index) / album.perPage)));
+}
+
+/** The card indices on one album page. */
+export function albumPageIndices(album: CategoryAlbumPlan, count: number, page: number): Array<number> {
+  const out: Array<number> = [];
+  for (let i = page * album.perPage; i < Math.min(count, (page + 1) * album.perPage); i++) {
+    out.push(i);
+  }
+  return out;
+}
+
+/**
+ * A d-pad step inside the album: within the page the grid's own column-preserving walk; ◀ / ▶ off the page's edge
+ * continue onto the neighbouring page (the album's law — the order simply continues), keeping the row; ▲ / ▼ feel
+ * the page's edge. Returns the new FLAT index.
+ */
+export function stepCategoryAlbum(album: CategoryAlbumPlan, index: number, dir: 'left' | 'right' | 'up' | 'down', count: number): number {
+  const page = albumPageOf(album, index);
+  const first = page * album.perPage;
+  const onPage = Math.min(album.perPage, count - first);
+  const local = index - first;
+  const col = local % album.cols;
+  const row = Math.floor(local / album.cols);
+  const rowsOn = Math.ceil(onPage / album.cols);
+  const rowEnd = Math.min(onPage, (row + 1) * album.cols) - 1;
+  switch (dir) {
+  case 'left':
+    if (col > 0) {
+      return index - 1;
+    }
+    if (page > 0) {
+      // The previous page is full: the same row's last column.
+      return (page - 1) * album.perPage + row * album.cols + (album.cols - 1);
+    }
+    return index;
+  case 'right':
+    if (local < rowEnd) {
+      return index + 1;
+    }
+    if (page < album.pageCount - 1) {
+      const nextFirst = (page + 1) * album.perPage;
+      const nextOn = Math.min(album.perPage, count - nextFirst);
+      const nextRows = Math.ceil(nextOn / album.cols);
+      return nextFirst + Math.min(row, nextRows - 1) * album.cols;
+    }
+    return index;
+  case 'up':
+    return row > 0 ? index - album.cols : index;
+  case 'down':
+    return row >= rowsOn - 1 ? index : first + Math.min(onPage - 1, (row + 1) * album.cols + col);
+  default:
+    return index;
+  }
+}
+
+/** LB / RB: the same relative slot on the neighbouring page (clamped into a partial last page). */
+export function turnCategoryAlbum(album: CategoryAlbumPlan, index: number, dir: 1 | -1, count: number): number {
+  const page = albumPageOf(album, index);
+  const next = Math.max(0, Math.min(album.pageCount - 1, page + dir));
+  if (next === page) {
+    return index;
+  }
+  const local = index - page * album.perPage;
+  return Math.min(count - 1, next * album.perPage + local);
+}
+
 export type CategoryViewLayout =
   | {kind: 'single', zoom: number, slotW: number, slotH: number}
-  | {kind: 'grid', plan: HandGridPlan};
+  | {kind: 'grid', plan: HandGridPlan}
+  | {kind: 'album', album: CategoryAlbumPlan};
 
 /**
  * Plan the category view for `count` cards in the modal's `availW × availH`
- * body box. ONE card → the near-fullscreen stage; else the adaptive grid.
+ * body box. ONE card → the near-fullscreen stage; a zone that stands on ONE
+ * screen at a readable face → the adaptive grid; else the PAGED ALBUM. The
+ * view never scrolls.
  *
- * `faceFloorZoom` (APPLIED zoom — the table's shelf face, PL-619): a category
- * LIFTS its cards off the shelf, so the grid never lays a face out SMALLER
- * than the shelf it came from while the zone can stand on one screen at that
+ * `faceFloorZoom` (APPLIED zoom — the table's face, PL-619): a category
+ * LIFTS its cards off the table, so the grid never lays a face out SMALLER
+ * than the one it came from while the zone can stand on one screen at that
  * face — the generous AIR of a small set yields first (on the Deck it alone
- * shrank four cards under the shelf). A zone that cannot stand on one screen
- * at the shelf's face shrinks just enough to (single-screen, no scroll — the
- * project's first goal); only a zone too big even for that scrolls.
+ * shrank four cards). A zone that cannot stand on one screen at that face
+ * shrinks just enough to (single-screen — the project's first goal) while
+ * the face stays readable (`CAT_GRID_MIN_ZOOM`); past that the zone is an
+ * album of pages at the hand album's face.
  */
-export function planCategoryView(input: {availW: number, availH: number, count: number, uiScale?: number, faceFloorZoom?: number}): CategoryViewLayout {
+export function planCategoryView(input: {availW: number, availH: number, count: number, uiScale?: number, faceFloorZoom?: number, albumSpec?: AlbumSpec}): CategoryViewLayout {
   const s = input.uiScale !== undefined && input.uiScale > 0 ? input.uiScale : 1;
   if (input.count <= 1) {
     const w = Math.max(1, input.availW);
@@ -139,6 +284,9 @@ export function planCategoryView(input: {availW: number, availH: number, count: 
   }
   // The engine works in 1080-logical zoom (× uiScale inside): the applied floor divides back.
   const floor = input.faceFloorZoom !== undefined && input.faceFloorZoom > 0 ? input.faceFloorZoom / s : 0;
+  const album = (): CategoryViewLayout => ({kind: 'album', album: planCategoryAlbum({
+    availW: input.availW, availH: input.availH, count: input.count, spec: input.albumSpec ?? {cols: 5, rows: 2}, uiScale: s,
+  })});
   const planWith = (room: {air: number, gap: number}, minZoom: number, maxZoom?: number): HandGridPlan => planHandGrid({
     availW: input.availW * (1 - room.air * 2),
     availH: input.availH * (1 - room.air * 2),
@@ -152,7 +300,10 @@ export function planCategoryView(input: {availW: number, availH: number, count: 
     fillMaxZoom: CAT_GRID_FILL_MAX,
   });
   if (floor <= CAT_GRID_MIN_ZOOM) {
-    return {kind: 'grid', plan: planWith(categoryAir(input.count), CAT_GRID_MIN_ZOOM)};
+    const plan = planWith(categoryAir(input.count), CAT_GRID_MIN_ZOOM);
+    if (!plan.scrolls) {
+      return {kind: 'grid', plan};
+    }
   }
   // The largest face at which the WHOLE zone stands on one screen (1080-logical) — every balanced column count the
   // engine allows, the engine's own arithmetic. Computed here rather than read off the engine: its search keeps a
@@ -187,20 +338,18 @@ export function planCategoryView(input: {availW: number, availH: number, count: 
   // GROWS into the box past the floor.
   for (const room of [own, tight]) {
     const z = oneScreenZoom(room);
-    if (z >= floor) {
+    if (z >= Math.max(floor, CAT_GRID_MIN_ZOOM)) {
       return {kind: 'grid', plan: planWith(room, z * (1 - 1e-6), z)};
     }
   }
   // …UNLESS the face is what keeps the zone on ONE screen (the project's first goal — single screen, no scroll): the
-  // whole zone shrinks just enough to stand together, packed tight. Only a zone too big even for that scrolls.
+  // whole zone shrinks just enough to stand together, packed tight, while the face stays readable.
   const fit = oneScreenZoom(tight);
   if (fit >= CAT_GRID_MIN_ZOOM) {
     return {kind: 'grid', plan: planWith(tight, fit * (1 - 1e-6), fit)};
   }
-  // A zone that scrolls anyway keeps the shelf's face — never both a smaller face AND a scroll (the Deck's fourteen
-  // active cards: one screen would need 132 px faces, under the readable floor; the engine's own scrolling pick
-  // shrank them to 182 px under the 191 px shelf all the same).
-  return {kind: 'grid', plan: planWith(own, Math.max(CAT_GRID_MIN_ZOOM, floor))};
+  // A zone too big for one readable screen is an ALBUM of strict pages — never a scroll (the owner, 2026-10-19).
+  return album();
 }
 
 // ── the flight budget (bounded proxies) ────────────────────────────────────
@@ -228,10 +377,15 @@ export function plannedFlightIndices(
   count: number,
   viewH: number,
   scrollTop: number,
+  page = 0,
 ): Array<number> {
   const all = () => Array.from({length: count}, (_, i) => i);
   if (layout.kind === 'single' || count <= 1) {
     return all();
+  }
+  if (layout.kind === 'album') {
+    // The album flies the cards of the page on screen; the other pages' cards dissolve in place (grounded).
+    return albumPageIndices(layout.album, count, page);
   }
   const p = layout.plan;
   if (!p.scrolls || p.rowStride <= 0) {
@@ -280,6 +434,26 @@ export function categoryTargetRect(
   count: number,
   origin: {x: number, y: number, w: number, h?: number},
 ): FlightRect {
+  if (layout.kind === 'album') {
+    // The album's origin is its BOX at rest; a card is laid on its page's block, the page on screen standing at the
+    // box (the caller flies only the cards of the page on screen). A page's rows are full but its last; a partial
+    // last row centres like the grid's.
+    const a = layout.album;
+    const page = albumPageOf(a, index);
+    const local = index - page * a.perPage;
+    const onPage = Math.min(a.perPage, count - page * a.perPage);
+    const row = Math.floor(local / a.cols);
+    const col = local % a.cols;
+    const isLastRow = row === Math.ceil(onPage / a.cols) - 1;
+    const inRow = isLastRow ? Math.max(1, onPage - row * a.cols) : a.cols;
+    const rowW = inRow * a.slotW + (inRow - 1) * a.gapX;
+    return {
+      x: origin.x + a.padX + (a.pageW - rowW) / 2 + col * (a.slotW + a.gapX),
+      y: origin.y + a.padTop + row * (a.slotH + a.gapY),
+      w: a.slotW,
+      h: a.slotH,
+    };
+  }
   if (layout.kind === 'single') {
     // The lone card centres in BOTH axes of its stage (the flex box mirror).
     const boxH = origin.h ?? layout.slotH;

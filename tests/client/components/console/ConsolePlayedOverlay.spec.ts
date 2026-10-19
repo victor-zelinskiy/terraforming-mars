@@ -222,7 +222,7 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
     // A prelude is a SHELF card (the identity column is the corporation and the events).
     const withPrelude = await make([player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC, CardName.ALLIED_BANK])]);
     expect(withPrelude.find('.con-played__none').exists()).to.be.false;
-    expect(withPrelude.find('[data-played-run="prelude"]').exists()).to.be.true;
+    expect(withPrelude.find('[data-played-stack="prelude"]').exists()).to.be.true;
     withPrelude.unmount();
     wrapper.unmount();
   });
@@ -245,64 +245,44 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
     wrapper.unmount();
   });
 
-  // ── THE SHELF ALBUM's pages (TR65 — the table is a table) ─────────────
-  describe('the shelf album — strict pages, the focus derives the page, LT/RT turn it', () => {
-    // 1 corporation + 9 active + 3 automated → at the fallback box (4×2 shelves): [active 0–3][active 4–7] · [active 8 + automated ×3]
-    const ACTIVE = getCards(byType(CardType.ACTIVE)).slice(0, 9).map((c) => c.name);
-    const AUTOMATED = getCards(byType(CardType.AUTOMATED)).slice(0, 3).map((c) => c.name);
-    const TABLEAU = [CardName.THARSIS_REPUBLIC, ...ACTIVE, ...AUTOMATED];
+  // ── ONE PAGE OF STACKS (the owner, 2026-10-19 — «разыграно всегда одна страница») ──
+  describe('the table is ONE page of stacks — a long zone takes a lane, nothing pages', () => {
+    const ACTIVE = getCards(byType(CardType.ACTIVE)).slice(0, 30).map((c) => c.name);
+    const AUTOMATED = getCards(byType(CardType.AUTOMATED)).slice(0, 20).map((c) => c.name);
+    const TABLEAU = [CardName.THARSIS_REPUBLIC, ...ACTIVE, ...AUTOMATED, CardName.ASTEROID];
 
-    it('mounts the active page and its neighbours only; the identity column stands on every page', async () => {
+    it('every zone is ONE stack on the one page — no page strip, no page edges; the page mirror stays the view\'s', async () => {
       const wrapper = await make([player('red' as Color, 'Вы', TABLEAU)]);
-      expect(wrapper.vm.pageCount).to.eq(2);
-      expect(wrapper.vm.activePage).to.eq(0);
-      expect(wrapper.findAll('.con-played__page').length).to.eq(2);
-      expect(wrapper.find(`.con-played__identity [data-played-key="${CardName.THARSIS_REPUBLIC}"]`).exists()).to.be.true;
-      expect(wrapper.find('.con-played').attributes('data-played-pages')).to.eq('2');
-      expect(consolePlayedUi.pageCount).to.eq(2);
+      expect(wrapper.findAll('[data-played-stack]').map((w) => w.attributes('data-played-stack'))).to.deep.eq(['corporation', 'active', 'automated', 'events']);
+      expect(wrapper.find('.con-played__page').exists()).to.be.false;
+      expect(wrapper.find('.con-played__pgedge').exists()).to.be.false;
+      expect(wrapper.find('[data-played-page]').exists()).to.be.false;
+      expect(consolePlayedUi.pageCount, 'the table publishes no pages').to.eq(1);
+      // Every card of the table is on it — fifty-one faces, one page.
+      expect(wrapper.findAll('[data-played-key]').length).to.eq(1 + 30 + 20);
       wrapper.unmount();
     });
 
-    it('a zone\'s first run carries its TOTAL, a continuation its RANGE; one navigation target per zone per page', async () => {
+    it('a long zone continues in a second lane; the newest card is the FRONT of the last lane (the landing\'s face)', async () => {
       const wrapper = await make([player('red' as Color, 'Вы', TABLEAU)]);
-      const page0 = wrapper.find('[data-played-page-index="0"]');
-      const runs0 = page0.findAll('.con-played__run');
-      expect(runs0.length).to.eq(2);
-      expect(runs0[0].find('.con-played__caption-count').text()).to.eq('9');
-      expect(runs0[1].find('.con-played__caption-count').text()).to.eq('5–8');
-      expect(page0.findAll('[data-played-cat="active"]').length, 'one target for the zone on the page').to.eq(1);
-      const page1 = wrapper.find('[data-played-page-index="1"]');
-      expect(page1.findAll('.con-played__run').map((r) => r.attributes('data-played-run'))).to.deep.eq(['active', 'automated']);
-      expect(page1.find('[data-played-run="automated"] .con-played__caption-count').text()).to.eq('3');
+      const active = wrapper.find('[data-played-stack="active"]');
+      expect(Number(active.attributes('data-played-lanes'))).to.be.greaterThan(1);
+      const lanes = active.findAll('.con-played__lane');
+      const last = lanes[lanes.length - 1].findAll('.con-played__slot');
+      expect(last[last.length - 1].attributes('data-played-key')).to.eq(ACTIVE[ACTIVE.length - 1]);
+      expect(last[last.length - 1].classes()).to.include('con-played__slot--front');
+      // The caption carries the zone's honest total; the density is published on the root.
+      expect(active.find('.con-played__caption-count').text()).to.eq('30');
+      expect(['comfort', 'tight', 'pile']).to.include(wrapper.find('.con-played').attributes('data-played-density'));
       wrapper.unmount();
     });
 
-    it('focusing a zone on another page TURNS the album to it; LT/RT turn explicitly and hand the cursor on', async () => {
+    it('LT / RT and the right stick turn nothing at the table (one page); the d-pad walks the stacks', async () => {
       const wrapper = await make([player('red' as Color, 'Вы', TABLEAU)]);
-      wrapper.vm.focusCategory = 'automated';
-      await wrapper.vm.$nextTick();
-      expect(wrapper.vm.activePage, 'automated lies on page 2').to.eq(1);
-      wrapper.vm.handleIntent(press('triggerL'));
-      await wrapper.vm.$nextTick();
-      expect(wrapper.vm.activePage).to.eq(0);
-      expect(wrapper.vm.focusCategory, 'the cursor lands on the page\'s last zone').to.eq('active');
       wrapper.vm.handleIntent(press('triggerR'));
-      await wrapper.vm.$nextTick();
-      expect(wrapper.vm.activePage).to.eq(1);
-      expect(wrapper.vm.focusCategory, 'active continues on page 2 — the cursor keeps it').to.eq('active');
-      wrapper.vm.handleIntent(press('triggerR'));
-      expect(wrapper.vm.activePage, 'the last page is the edge').to.eq(1);
-      wrapper.unmount();
-    });
-
-    it('the landing card\'s page: an incoming shelf card turns the album to the page it lands on', async () => {
-      const wrapper = await make([player('red' as Color, 'Вы', TABLEAU)]);
-      const incoming = getCards(byType(CardType.AUTOMATED))[3].name;
-      await wrapper.setProps({heroIncoming: {name: incoming}, heroActive: true});
-      expect(wrapper.vm.activePage).to.eq(1);
-      expect(wrapper.find(`[data-played-page-index="1"] [data-played-key="${incoming}"]`).classes()).to.include('con-played__slot--incoming');
-      // The landing never slides — the hero scene mounts the landing card's page ALONE (PL-625).
-      expect(wrapper.findAll('[data-played-page-index]').map((w) => w.attributes('data-played-page-index'))).to.deep.eq(['1']);
+      wrapper.vm.handleIntent({kind: 'scroll', dx: 0, dy: 1});
+      expect(wrapper.vm.focusCategory).to.eq('corporation');
+      expect(playedCategoryState.phase).to.eq('closed');
       wrapper.unmount();
     });
 
@@ -316,18 +296,6 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
       } finally {
         stubBodyBox();
       }
-    });
-
-    it('a card on an unmounted page flies from its PACKET place beyond the album\'s edge (never from nowhere)', async () => {
-      const BIG = [CardName.THARSIS_REPUBLIC, ...getCards(byType(CardType.ACTIVE)).slice(0, 30).map((c) => c.name)];
-      const wrapper = await make([player('red' as Color, 'Вы', BIG)]);
-      expect(wrapper.vm.pageCount).to.be.greaterThan(3);
-      const far = getCards(byType(CardType.ACTIVE))[29].name;
-      // JSDOM has no layout: the album box reads 0 → the table honestly answers undefined (the view then lets the
-      // card simply appear); the derivation of WHICH side is pinned below through the page lookup.
-      expect(wrapper.vm.offPageRect(far)).to.eq(undefined);
-      expect(wrapper.vm.pageOfCard(far)).to.be.greaterThan(wrapper.vm.activePage + 1);
-      wrapper.unmount();
     });
   });
 
