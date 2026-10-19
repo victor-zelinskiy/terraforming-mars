@@ -506,6 +506,23 @@ export type ParliamentPhaseSummaryModel = {
    * refreshed table is then shown without a beat).
    */
   renewal?: ReadonlyArray<ParliamentRenewalEventModel>;
+  /**
+   * THE CARDS' ANSWERS TO THE CHANGE OF POWER (TR62 / TR63 — `ICard.onRulingPartyChanged`), as the enactment
+   * MEASURED them: the client presents them at the enactment's tail (a card off the deck, a rating token, the table's
+   * answer). Absent when no card answered.
+   */
+  rulingAnswers?: ReadonlyArray<ParliamentRulingAnswerModel>;
+};
+
+/** ONE card's answer to a change of power: whose, which card, the party that came to power, what it measured. */
+export type ParliamentRulingAnswerModel = {
+  player: Color;
+  card: CardName;
+  party: ReduxParty;
+  tr?: number;
+  cards?: number;
+  /** The standard stock the table paid back in the same call (the ruling Greens' M€ for the rating), by resource. */
+  stock?: Partial<Record<string, number>>;
 };
 
 /**

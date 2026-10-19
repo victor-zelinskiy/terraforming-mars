@@ -30,7 +30,7 @@
  * yielded sitting resumes its walk with them); a new sitting drops what the
  * old one still held. Reduced motion holds nothing: the poses are final.
  */
-import {resetRulingChangeDraw} from './rulingChangeDraw';
+import {resetRulingChangeDraw, seedRulingChangeAnswers} from './rulingChangeDraw';
 import {resetAllianceImpulse, seedAllianceSeen} from './allianceImpulse';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentModel, ParliamentPhaseModel} from '@/common/models/ParliamentModel';
@@ -194,6 +194,8 @@ export function seedParliamentSittingHolds(before: PlayerViewModel | undefined, 
   }
   // The alliance's activation (TR62): the first view of a game is the pose the player lands in — no impulse is owed.
   seedAllianceSeen(after);
+  // A card's RATING answer to the change of power (TR63) is held on the rail for the enactment's tail.
+  seedRulingChangeAnswers(before, after);
   const key = sittingKey(phaseOf(after));
   if (key !== heldSitting) {
     // A NEW sitting drops the old holds. The PHASE'S END does not (v3 В1): this very block carries the

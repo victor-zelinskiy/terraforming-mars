@@ -68,6 +68,7 @@ import {FloatingBiodomes} from './FloatingBiodomes';
 import {BackroomDeal} from './BackroomDeal';
 import {PoliticalRecognition} from './PoliticalRecognition';
 import {TharsisAlliance} from './TharsisAlliance';
+import {EdenAlliance} from './EdenAlliance';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -330,5 +331,8 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // Reds ALLIED (each one's printed road gives the other's effect AND cards; `partyAlliance`), and the set's first hook on
     // a change of power (`onRulingPartyChanged` — a card when either party becomes ruling).
     [CardName.THARSIS_ALLIANCE]: {Factory: TharsisAlliance},
+    // The same class over Unity and the Greens (TR62's fourth road, `partyAlliance`) — the answer to a change of
+    // power is the owner's rating (+1 TR when either party becomes ruling).
+    [CardName.EDEN_ALLIANCE]: {Factory: EdenAlliance},
   },
 });

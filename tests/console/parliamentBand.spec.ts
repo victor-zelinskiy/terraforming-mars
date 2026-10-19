@@ -196,6 +196,9 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
       expect(band.chips[0]).deep.eq({kind: 'label', key: CardName.THARSIS_ALLIANCE, tone: 'accent'});
       expect(band.chips[1]).deep.eq({kind: 'count', key: 'Cards', amount: 1});
       expect(band.key, 'its own line: the crossfade fires into it and out of it').not.eq(line({stage: 'enact'}).key);
+      // TR63: a RATING answer reads its own count («РТ 1»), never «Карты».
+      const rating = line({stage: 'enact', rulingDraw: {card: CardName.EDEN_ALLIANCE, party: PartyName.GREENS, tr: 1}});
+      expect(rating.chips[1]).deep.eq({kind: 'count', key: 'TR', amount: 1});
       // …and only at rest: a beat of the enactment still playing keeps its own line.
       expect(line({stage: 'enact', beat: 'support', supportWave: 'absent', rulingDraw: {card: CardName.THARSIS_ALLIANCE, party: PartyName.MARS, count: 1}}).kicker).eq('Popular support');
     });

@@ -5,76 +5,43 @@ import {Card} from '../Card';
 import {CardType} from '../../../common/cards/CardType';
 import {CardName} from '../../../common/cards/CardName';
 import {PartyName} from '../../../common/turmoil/PartyName';
-import {PARTY_EFFECT_DELEGATES, ReduxParty, ResolutionId} from '../../../common/parliament/ParliamentTypes';
+import {ReduxParty} from '../../../common/parliament/ParliamentTypes';
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import {CardRenderer} from '../render/CardRenderer';
 import {Parliament} from '../../parliament/Parliament';
-import {message} from '../../logs/MessageBuilder';
 import * as actionPreviews from '../actionPreviews';
+import {
+  ALLIANCE_HOLDS_LINE, ALLIANCE_OPENS_CARDS_DELEGATES_NOTE, ALLIANCE_OPENS_CARDS_RULING_NOTE, ALLIANCE_OPENS_DELEGATES_NOTE, ALLIANCE_OPENS_RULING_NOTE,
+  AllianceOpening, allianceOpeningSteps, allianceOpenings, journalAllianceOpenings,
+} from './partyAllianceCard';
 
 /** The two parties the card allies — «Mars First = the Reds», printed in this order. */
 export const THARSIS_ALLIANCE_PARTIES: Readonly<[ReduxParty, ReduxParty]> = [PartyName.MARS, PartyName.REDS];
 
-/** The composer's row for a party this play opens because its partner stands by its printed road. */
-export const THARSIS_ALLIANCE_OPENS_RULING_NOTE = 'Opens now: the effect and cards of ${0} — ${1} is ruling';
-export const THARSIS_ALLIANCE_OPENS_DELEGATES_NOTE = 'Opens now: the effect and cards of ${0} — two of your delegates are on ${1}';
-/** …the same, for a party whose EFFECT the player already holds by another road (a grant, one delegate under TR36). */
-export const THARSIS_ALLIANCE_OPENS_CARDS_RULING_NOTE = 'Opens now: the cards of ${0} — ${1} is ruling';
-export const THARSIS_ALLIANCE_OPENS_CARDS_DELEGATES_NOTE = 'Opens now: the cards of ${0} — two of your delegates are on ${1}';
+/** The composer's rows for a party this play opens — the alliance cards' shared wording (`partyAllianceCard.ts`). */
+export const THARSIS_ALLIANCE_OPENS_RULING_NOTE = ALLIANCE_OPENS_RULING_NOTE;
+export const THARSIS_ALLIANCE_OPENS_DELEGATES_NOTE = ALLIANCE_OPENS_DELEGATES_NOTE;
+export const THARSIS_ALLIANCE_OPENS_CARDS_RULING_NOTE = ALLIANCE_OPENS_CARDS_RULING_NOTE;
+export const THARSIS_ALLIANCE_OPENS_CARDS_DELEGATES_NOTE = ALLIANCE_OPENS_CARDS_DELEGATES_NOTE;
 /** …and for a play that opens nothing yet. */
 export const THARSIS_ALLIANCE_NOTHING_NOTE = 'Opens nothing now: the alliance holds once Mars First or the Reds rule or get two of your delegates on their resolution';
 /** The card's second effect, named before the press. */
 export const THARSIS_ALLIANCE_DRAW_NOTE = 'Draw a card each time Mars First or the Reds become the ruling party';
 /** The journal's line per party the play opened. */
-export const THARSIS_ALLIANCE_HOLDS_LINE = '${0} holds the ${1} party effect and cards: allied with ${2} (${3})';
+export const THARSIS_ALLIANCE_HOLDS_LINE = ALLIANCE_HOLDS_LINE;
 /** The journal's line of the draw at an enactment. */
 export const THARSIS_ALLIANCE_DRAW_LINE = '${0} draws a card: ${1} is the new ruling party (${2})';
 
-/**
- * A party this play opens: its partner stands by its PRINTED road for the
- * player (`road`), and the party's requirement is not the player's yet.
- * `effectHeld` — its EFFECT is already the player's by another road (a grant,
- * one delegate under Council Seat): the play opens its CARDS only.
- */
-export type TharsisAllianceOpening = {
-  party: ReduxParty,
-  via: ReduxParty,
-  road: 'ruling' | 'delegates',
-  resolution?: ResolutionId,
-  effectHeld: boolean,
-};
+/** A party this play opens (the alliance cards' shared shape — `partyAllianceCard.ts`). */
+export type TharsisAllianceOpening = AllianceOpening;
 
 /**
  * THE PARTIES THIS PLAY OPENS, read off the live table BEFORE the card lands
  * (the preview's rows and the journal's lines are the SAME list — one
- * predicate, read twice), through the Parliament's own readings: for each
- * side of the pair, its partner stands by its printed road (it rules, or two
- * of the player's own delegates on its resolution) and the side's card
- * requirement is not the player's yet. Pure — mutates nothing.
+ * predicate, read twice): the alliance cards' shared reading over this pair.
  */
 export function tharsisAllianceOpenings(player: IPlayer, parliament: Parliament): Array<TharsisAllianceOpening> {
-  const out: Array<TharsisAllianceOpening> = [];
-  for (const party of THARSIS_ALLIANCE_PARTIES) {
-    const via = party === THARSIS_ALLIANCE_PARTIES[0] ? THARSIS_ALLIANCE_PARTIES[1] : THARSIS_ALLIANCE_PARTIES[0];
-    const partner = parliament.access(player, via);
-    const printed = partner.ruling || partner.delegates >= PARTY_EFFECT_DELEGATES;
-    if (!printed) {
-      continue;
-    }
-    const side = parliament.access(player, party);
-    if (side.satisfiesRequirement) {
-      continue;
-    }
-    const slot = parliament.slotOf(via);
-    out.push({
-      party,
-      via,
-      road: partner.ruling ? 'ruling' : 'delegates',
-      ...(partner.ruling || slot === undefined ? {} : {resolution: parliament.resolutionOf(slot.instance).id}),
-      effectHeld: side.hasEffect,
-    });
-  }
-  return out;
+  return allianceOpenings(player, parliament, THARSIS_ALLIANCE_PARTIES);
 }
 
 /**
@@ -194,14 +161,7 @@ export class TharsisAlliance extends Card implements IProjectCard {
       // Never dealt outside the Mars Parliament (the manifest is the deck gate): nothing to open.
       return undefined;
     }
-    const openings = tharsisAllianceOpenings(player, parliament);
-    if (openings.length > 0) {
-      player.game.events.withEffect(player, this, 'card-played', () => {
-        for (const opening of openings) {
-          player.game.log(THARSIS_ALLIANCE_HOLDS_LINE, (b) => b.player(player).partyName(opening.party).partyName(opening.via).card(this));
-        }
-      });
-    }
+    journalAllianceOpenings(player, this, tharsisAllianceOpenings(player, parliament));
     return undefined;
   }
 
@@ -227,25 +187,7 @@ export class TharsisAlliance extends Card implements IProjectCard {
     if (parliament === undefined) {
       return actionPreviews.playPreview(this, player);
     }
-    const openings = tharsisAllianceOpenings(player, parliament);
-    const steps = openings.length === 0 ?
-      [actionPreviews.noteStep('generic', THARSIS_ALLIANCE_NOTHING_NOTE)] :
-      openings.map((opening) => {
-        if (opening.road === 'ruling') {
-          return actionPreviews.noteStep('generic', message(opening.effectHeld ? THARSIS_ALLIANCE_OPENS_CARDS_RULING_NOTE : THARSIS_ALLIANCE_OPENS_RULING_NOTE,
-            (b) => b.partyName(opening.party).partyName(opening.via)));
-        }
-        const resolution = opening.resolution;
-        return actionPreviews.noteStep('generic', message(opening.effectHeld ? THARSIS_ALLIANCE_OPENS_CARDS_DELEGATES_NOTE : THARSIS_ALLIANCE_OPENS_DELEGATES_NOTE,
-          (b) => {
-            b.partyName(opening.party);
-            if (resolution === undefined) {
-              b.partyName(opening.via);
-            } else {
-              b.resolution(resolution);
-            }
-          }));
-      });
+    const steps = allianceOpeningSteps(tharsisAllianceOpenings(player, parliament), THARSIS_ALLIANCE_NOTHING_NOTE);
     steps.push(actionPreviews.noteStep('generic', THARSIS_ALLIANCE_DRAW_NOTE));
     return actionPreviews.playPreview(this, player, [], steps);
   }

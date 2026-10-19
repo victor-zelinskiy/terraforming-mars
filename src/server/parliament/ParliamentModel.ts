@@ -503,6 +503,16 @@ function summaryModel(game: IGame, parliament: Parliament, summary: SerializedPh
   if (summary.agenda !== undefined) {
     model.agenda = {player: game.getPlayerById(summary.agenda.player).color, from: summary.agenda.from, to: summary.agenda.to, bonus: summary.agenda.bonus};
   }
+  if (summary.rulingAnswers !== undefined) {
+    model.rulingAnswers = summary.rulingAnswers.map((answer) => ({
+      player: game.getPlayerById(answer.player).color,
+      card: answer.card,
+      party: answer.party as ReduxParty,
+      ...(answer.tr === undefined ? {} : {tr: answer.tr}),
+      ...(answer.cards === undefined ? {} : {cards: answer.cards}),
+      ...(answer.stock === undefined ? {} : {stock: {...answer.stock}}),
+    }));
+  }
   if (summary.discarded !== undefined) {
     model.discarded = summary.discarded.map((instance) => {
       const definition = parliament.resolutionOf(instance);

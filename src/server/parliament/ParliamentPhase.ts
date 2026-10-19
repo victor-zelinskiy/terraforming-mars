@@ -64,7 +64,9 @@ import {Parliament, Slot, Vote} from './Parliament';
 import {EnactContext, EnactOutcome, EnactStep, hasImmediateSteps, immediateStepsOf, ResolutionDefinition} from './resolutions/IResolution';
 import {
   EnactOutcomePart, SerializedDelegateOwner, SerializedEnactOutcome, SerializedPhaseProgress, SerializedPhaseSummary, SerializedRenewalEvent,
+  SerializedRulingAnswer,
 } from './SerializedParliament';
+import {CardName} from '../../common/cards/CardName';
 import {ChairmanSeat} from './quests/ChairmanSeat';
 import {botWinnerRewardPlan, declaresWinnerPart, NO_BOT_EXECUTOR_REASON, payBotWinnerReward} from '../automa/BotWinnerReward';
 
@@ -474,7 +476,14 @@ export class ParliamentPhase {
         if (card.onRulingPartyChanged === undefined) {
           continue;
         }
+        // The answer is MEASURED around the hook (the rating, the hand, the standard stock) — the summary's record the
+        // client presents at the enactment's tail, never a client re-derivation of what the card did.
+        const before = rulingAnswerProbe(player);
         this.game.events.withEffect(player, card, 'ruling-party-changed', () => card.onRulingPartyChanged?.(player, next, previous));
+        const answer = rulingAnswerOf(player, card.name, next, before);
+        if (answer !== undefined) {
+          (this.summary.rulingAnswers ??= []).push(answer);
+        }
       }
     }
   }
@@ -1123,6 +1132,41 @@ export function isGatePrompt(input: PlayerInput, stage: ParliamentPhaseStage, ge
 
 /** Neutral or player — the shape the summary carries. */
 export type PhaseWinnerOwner = PartyName | 'NEUTRAL';
+
+/** What a seat stands at before a card answers a change of power — the rating, the hand, the standard stock. */
+type RulingAnswerProbe = {tr: number, hand: number, stock: Map<Resource, number>};
+
+const RULING_ANSWER_STOCK: ReadonlyArray<Resource> = [Resource.MEGACREDITS, Resource.STEEL, Resource.TITANIUM, Resource.PLANTS, Resource.ENERGY, Resource.HEAT];
+
+function rulingAnswerProbe(player: IPlayer): RulingAnswerProbe {
+  return {
+    tr: player.terraformRating,
+    hand: player.cardsInHand.length,
+    stock: new Map(RULING_ANSWER_STOCK.map((r) => [r, player.stock.get(r)])),
+  };
+}
+
+/** The card's answer as MEASURED around its hook — undefined when it changed nothing the record carries. */
+function rulingAnswerOf(player: IPlayer, card: CardName, party: ReduxParty, before: RulingAnswerProbe): SerializedRulingAnswer | undefined {
+  const tr = player.terraformRating - before.tr;
+  const cards = player.cardsInHand.length - before.hand;
+  const stock: Partial<Record<string, number>> = {};
+  for (const resource of RULING_ANSWER_STOCK) {
+    const delta = player.stock.get(resource) - (before.stock.get(resource) ?? 0);
+    if (delta !== 0) {
+      stock[resource] = delta;
+    }
+  }
+  if (tr === 0 && cards === 0 && Object.keys(stock).length === 0) {
+    return undefined;
+  }
+  return {
+    player: player.id, card, party,
+    ...(tr === 0 ? {} : {tr}),
+    ...(cards === 0 ? {} : {cards}),
+    ...(Object.keys(stock).length === 0 ? {} : {stock}),
+  };
+}
 
 /** Exposed for tests: the players a resolution's immediate effect visits, in order. */
 export function effectRecipients(game: IGame, parliament: Parliament): Array<IPlayer> {

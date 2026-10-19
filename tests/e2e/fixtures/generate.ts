@@ -7082,3 +7082,72 @@ tharsisAllianceFixture('tharsis-alliance', 'journey');
 tharsisAllianceFixture('tharsis-alliance-dormant', 'dormant');
 tharsisAllianceFixture('tharsis-alliance-council', 'council');
 tharsisAllianceFixture('tharsis-alliance-enact', 'enact');
+
+// ── TR63 · EDEN ALLIANCE — the same road for Unity = the Greens, and a RATING answer to a change of power
+//    (docs/TURMOIL_REDUX_EDEN_ALLIANCE.md). The Greens rule by the starting rule; the voting area is [Unity · the Reds ·
+//    the Scientists] (quiet cards); red keeps a cube on the Scientists; the corporations pinned (Teractor / ThorGate).
+//      `eden-alliance`       — blue's action phase, 24 M€, TR63 in hand: the play opens Unity by the alliance (the Greens
+//                              rule);
+//      `eden-alliance-enact` — TR63 on blue's table, the sitting at its first gate with Unity winning (red's three cubes):
+//                              the enactment raises blue's rating by one, and the Greens (blue's by the alliance now)
+//                              answer the rating with their M€.
+//    Every table is refused unless its DRY RUN (on a copy) reaches the state the name promises. ──
+function edenAllianceFixture(name: string, at: 'journey' | 'enact'): void {
+  parliamentFixture(name, {
+    stopAt: at === 'enact' ? 'assembly' : 'vote',
+    megacredits: [24, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, p2, parliament}) => {
+      seatResolution(parliament, 0, quietResolutionOf(PartyName.UNITY));
+      seatResolution(parliament, 1, quietResolutionOf(PartyName.REDS));
+      seatResolution(parliament, 2, quietResolutionOf(PartyName.SCIENTISTS));
+      parliament.placeVote(p2, parliament.slots[2], 'reserve');
+      moveToDeckTop(game, CardName.EDEN_ALLIANCE);
+      if (at === 'journey') {
+        p1.cardsInHand.push(game.projectDeck.drawPile.pop() as IProjectCard);
+      } else {
+        p1.playedCards.push(game.projectDeck.drawPile.pop() as IProjectCard);
+        // Unity wins the vote: red's three cubes on its card.
+        parliament.placeVote(p2, parliament.slots[0], 'reserve');
+        parliament.placeVote(p2, parliament.slots[0], 'reserve');
+        parliament.placeVote(p2, parliament.slots[0], 'reserve');
+      }
+    },
+    expect: ({game, parliament, p1}) => {
+      const U = PartyName.UNITY;
+      const G = PartyName.GREENS;
+      const facts: Record<string, unknown> = {
+        ruling: parliament.rulingParty(),
+        parties: parliament.slots.map((s) => parliament.resolutionOf(s.instance).party).join(','),
+        unityHeld: parliament.access(p1, U).hasEffect,
+      };
+      // In hand Unity is not blue's yet; on the table the card already opens it through the ruling Greens.
+      let ok = facts.ruling === G && facts.parties === [U, PartyName.REDS, PartyName.SCIENTISTS].join(',') && facts.unityHeld === (at === 'enact');
+      const copy = Game.deserialize(structuredClone(game.serialize()));
+      const blue = copy.getPlayerById(p1.id);
+      if (at === 'journey') {
+        // THE DRY RUN — the play for real, on a copy: Unity opens by the alliance (the Greens rule).
+        facts.playable = p1.canPlay(p1.cardsInHand.find((c) => c.name === CardName.EDEN_ALLIANCE) as IProjectCard);
+        blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.EDEN_ALLIANCE) as IProjectCard);
+        runAllActions(copy);
+        facts.after = copy.parliament!.accessBasis(blue, U);
+        ok = ok && facts.playable === true && facts.after === 'alliance';
+      } else {
+        // THE DRY RUN of the sitting: answer the gates — Unity enacted, blue's rating +1, the Greens blue's by the alliance.
+        const tr = blue.terraformRating;
+        answerStandingGates(copy, 'assembly');
+        runAllActions(copy);
+        facts.enacted = copy.parliament!.rulingParty();
+        facts.tr = blue.terraformRating - tr;
+        facts.after = copy.parliament!.accessBasis(blue, G);
+        ok = ok && facts.enacted === U && facts.tr === 1 && facts.after === 'alliance';
+      }
+      if (!ok) {
+        throw new Error(`${name}: the Eden Alliance table is not the one its name promises — got ${JSON.stringify(facts)}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+edenAllianceFixture('eden-alliance', 'journey');
+edenAllianceFixture('eden-alliance-enact', 'enact');

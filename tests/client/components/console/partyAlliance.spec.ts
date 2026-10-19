@@ -7,7 +7,8 @@ import ConsolePartyAccessPanel from '@/client/components/console/parliament/Cons
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {PartyName} from '@/common/turmoil/PartyName';
-import {ParliamentModel, ParliamentSlotModel, PartyAccessModel} from '@/common/models/ParliamentModel';
+import {ParliamentModel, ParliamentRulingAnswerModel, ParliamentSlotModel, PartyAccessModel} from '@/common/models/ParliamentModel';
+import {newViewerRulingAnswers, ratingAnswerSpecs} from '@/client/console/parliament/rulingChangeDraw';
 import {REDUX_PARTIES, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {
   accessReasonRows, accessRingOf, accessRoadOf, allianceBadgeOf, allianceOf, alliancePairOf, alliancePartnerOf, allianceSourceOf, emptyParliamentView,
@@ -265,5 +266,27 @@ describe('the alliance\'s activation is SEEN once (decision 5a — `allianceImpu
     const t0 = Date.now();
     await allianceImpulsesSettled(30, tick);
     expect(Date.now() - t0, 'bounded by its cap').to.be.greaterThanOrEqual(25);
+  });
+});
+
+describe('a card\'s RATING answer to a change of power (TR63 — `rulingChangeDraw.ts`)', () => {
+  const viewOf = (generation: number, answers: Array<ParliamentRulingAnswerModel> | undefined) => ({
+    thisPlayer: {color: BLUE},
+    game: {parliament: {phase: {generation, step: 'enact', summary: answers === undefined ? {} : {rulingAnswers: answers}}}},
+  } as unknown as PlayerViewModel);
+  const eden: ParliamentRulingAnswerModel = {player: BLUE, card: CardName.EDEN_ALLIANCE, party: PartyName.GREENS, tr: 1, stock: {megacredits: 2}};
+
+  it('the response\'s NEW answers of the viewer, keyed structurally; a first view or a rival\'s answer adds nothing', () => {
+    expect(newViewerRulingAnswers(viewOf(3, undefined), viewOf(3, [eden])).map((n) => n.answer)).deep.eq([eden]);
+    expect(newViewerRulingAnswers(viewOf(3, [eden]), viewOf(3, [eden])), 'already seen').deep.eq([]);
+    expect(newViewerRulingAnswers(undefined, viewOf(3, [eden])), 'a first view replays nothing').deep.eq([]);
+    expect(newViewerRulingAnswers(viewOf(3, undefined), viewOf(3, [{...eden, player: 'red'}])), 'a rival\'s').deep.eq([]);
+  });
+  it('the rows a rating answer holds: the rating token, then the table\'s stock answer; a draw holds nothing here', () => {
+    expect(ratingAnswerSpecs(eden)).deep.eq({
+      spec: {channel: 'stock', resource: 'rating', amount: 1},
+      reactions: [{channel: 'stock', resource: 'megacredits', amount: 2}],
+    });
+    expect(ratingAnswerSpecs({player: BLUE, card: ID, party: M, cards: 1})).is.undefined;
   });
 });

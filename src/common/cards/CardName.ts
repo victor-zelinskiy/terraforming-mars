@@ -1139,6 +1139,7 @@ export enum CardName {
   BACKROOM_DEAL = 'Backroom Deal',
   POLITICAL_RECOGNITION = 'Political Recognition',
   THARSIS_ALLIANCE = 'Tharsis Alliance',
+  EDEN_ALLIANCE = 'Eden Alliance',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

@@ -363,6 +363,27 @@ export type SerializedPhaseSummary = {
    * then shows the refreshed table without a beat).
    */
   renewal?: Array<SerializedRenewalEvent>;
+  /**
+   * THE CARDS' ANSWERS TO THE CHANGE OF POWER (`ICard.onRulingPartyChanged` —
+   * TR62's card, TR63's rating), as the enactment MEASURED them around each
+   * hook: whose card, the party that came to power, the rating it raised, the
+   * cards it drew, and the standard stock the table paid back inside the same
+   * call (the ruling Greens' M€ for that rating). A hook that changed nothing
+   * writes nothing. The client presents them at the enactment's tail. Absent
+   * when no card answered and on a save from before this field.
+   */
+  rulingAnswers?: Array<SerializedRulingAnswer>;
+};
+
+/** ONE card's measured answer to a change of power (see `SerializedPhaseSummary.rulingAnswers`). */
+export type SerializedRulingAnswer = {
+  player: PlayerId;
+  card: CardName;
+  party: PartyName;
+  tr?: number;
+  cards?: number;
+  /** The standard-stock moves inside the same call, by resource (`megacredits: 2`). */
+  stock?: Partial<Record<string, number>>;
 };
 
 /** The last WALK of an Agenda marker (see `ParliamentAdvanceModel`). */
