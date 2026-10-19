@@ -30,9 +30,35 @@ async function shoot(page: Page, preset: string, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT, `${preset}-${name}.png`)});
 }
 
+/**
+ * Names whose FULL text is wider than their box — measured on a hidden clone in the label's own font, because Chromium
+ * reports an ellipsized box's `scrollWidth` as its client width plus a pixel (a cut «Сброс бонусных ка…» read 424 / 423).
+ */
+const cutNames = (page: Page, selector: string) => page.evaluate((sel): Array<string> => {
+  const out: Array<string> = [];
+  for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
+    if (el.clientWidth === 0) {
+      continue;
+    }
+    const cs = getComputedStyle(el);
+    const probe = document.createElement('span');
+    probe.textContent = el.textContent ?? '';
+    probe.style.cssText = `position:fixed;left:-99999px;top:0;visibility:hidden;white-space:nowrap;font:${cs.font};` +
+      `letter-spacing:${cs.letterSpacing};text-transform:${cs.textTransform};font-variant-numeric:${cs.fontVariantNumeric}`;
+    document.body.appendChild(probe);
+    const full = probe.getBoundingClientRect().width;
+    probe.remove();
+    const room = el.getBoundingClientRect().width - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    if (full > room + 1) {
+      out.push(`${el.textContent ?? ''} (${Math.round(full)} > ${Math.round(room)})`);
+    }
+  }
+  return out;
+}, selector);
+
 type ZoneAudit = {zone: string, escapes: Array<string>};
 /** Every painted descendant of every dossier zone against the zone's own box (1 px of rounding). */
-const auditZones = (page: Page) => page.evaluate((): {zones: Array<ZoneAudit>, cutLabels: Array<string>, overlappingNames: Array<string>} => {
+const auditZones = (page: Page) => page.evaluate((): {zones: Array<ZoneAudit>, overlappingNames: Array<string>} => {
   const painted = (el: Element): boolean => {
     let node: Element | null = el;
     while (node !== null) {
@@ -60,8 +86,6 @@ const auditZones = (page: Page) => page.evaluate((): {zones: Array<ZoneAudit>, c
     }
     zones.push({zone: zone.dataset.zone ?? '?', escapes: escapes.slice(0, 6)});
   }
-  const cutLabels = Array.from(document.querySelectorAll<HTMLElement>('.con-info .con-dscore__label'))
-    .filter((l) => l.scrollWidth > l.clientWidth + 1).map((l) => l.textContent ?? '');
   const names = Array.from(document.querySelectorAll<HTMLElement>('.con-info .con-dcards__label')).map((l) => ({t: l.textContent ?? '', r: l.getBoundingClientRect()}));
   const overlappingNames: Array<string> = [];
   for (let i = 1; i < names.length; i++) {
@@ -69,7 +93,7 @@ const auditZones = (page: Page) => page.evaluate((): {zones: Array<ZoneAudit>, c
       overlappingNames.push(`${names[i - 1].t} / ${names[i].t}`);
     }
   }
-  return {zones, cutLabels, overlappingNames};
+  return {zones, overlappingNames};
 });
 
 /** The score's hierarchy: the total's type against every ledger value's. */
@@ -86,7 +110,9 @@ async function expectSeatClean(page: Page, preset: string, seat: string): Promis
   for (const z of audit.zones) {
     expect(z.escapes, `${preset} · ${seat} · zone «${z.zone}»: nothing stands outside the plate`).toEqual([]);
   }
-  expect(audit.cutLabels, `${preset} · ${seat}: no ledger name is cut`).toEqual([]);
+  expect(await cutNames(page, '.con-info .con-dscore__label'), `${preset} · ${seat}: no ledger name is cut`).toEqual([]);
+  expect(await cutNames(page, '.con-info .con-dcards__label'), `${preset} · ${seat}: no pile name is cut`).toEqual([]);
+  expect(await cutNames(page, '.con-info .con-deff__label'), `${preset} · ${seat}: no medallion name is cut`).toEqual([]);
   expect(audit.overlappingNames, `${preset} · ${seat}: no two pile names overlap`).toEqual([]);
   const hero = await heroRatio(page);
   if (hero.total > 0) {
@@ -129,6 +155,15 @@ for (const preset of PRESETS) {
         const door = page.locator('.con-info [data-zone="botdoor"]');
         await expect(door.locator('[data-dossier-door] .con-deff'), 'the door\'s four medallions (its decks)').toHaveCount(4);
         await expect(door.locator('.con-card-back, .mb-tracks'), 'no bot-only objects on the summary (no card backs, no mat)').toHaveCount(0);
+        if (preset.id === 'tv4k') {
+          // The owner's decision (2026-10-19, «крупнее на TV»): on the couch the door's one plate is filled by its medallions.
+          const fill = await door.evaluate((zone) => {
+            const z = zone.getBoundingClientRect();
+            const disc = zone.querySelector('.con-deff__disc')!.getBoundingClientRect();
+            return {disc: disc.height / z.height};
+          });
+          expect(fill.disc, `tv4k: the door's medallions stand at the tier's scale (disc ${Math.round(fill.disc * 100)} % of the plate)`).toBeGreaterThan(0.22);
+        }
 
         // ── (D) inside the door ──
         expect(await focusInfoZone(page, 'botdoor'), 'the ring reaches the bot door').toBe(true);

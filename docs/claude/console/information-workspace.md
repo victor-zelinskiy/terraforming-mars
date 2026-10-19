@@ -261,7 +261,9 @@ decisions, each guarded:
    стандартизация»). The bot's door speaks the EFFECTS PLATE's grammar — four `.con-deff` medallions (`con-deff--bot-action`
    ▤ · `-bonus` ◈ · `-discard` ↺ · `-destroyed` ✕) with their public counts and one `.con-deffs__note`, centred in its plate
    (`.con-deffs--bot`); no card backs, no mat, no glyph badge on the summary (the bar names the press). LB / RB across
-   the seats changes the content of the same plates, never the register.
+   the seats changes the content of the same plates, never the register. On the TV profile the door's one plate spans
+   the whole plates tier, so its medallions take the tier's scale (the owner's batch, 2026-10-19: «крупнее на TV» —
+   discs 5.2 rem, counts 2.9 rem, every name whole).
 4. **INSIDE THE DOOR, EVERY RULE STANDS WITH ITS OBJECT** (`ConsoleMarsBotSections`, `.con-botscr` — § «Экран бота» below).
 5. **NOTHING STANDS OUTSIDE ITS PLATE, ON ANY PROFILE** — the hub's prose steps down by MEASUREMENT (`fitHub`), the
    bonus faces wrap with a zoom by count, the handheld ledger values take `min-width: 0`, the handheld action art keeps
@@ -277,7 +279,9 @@ the anchors; the piles, the edges, the events face down, no badge; the route's n
 card penalties, generation 10, 40 blue cards) × tv4k / fhd / deck: (A) every painted descendant of every zone inside
 the zone for the own, a rival's and the bot's seat, no ledger name cut, no two pile names overlapping; (B) the total ≥
 2.5 × the largest category value; (C) the bot's door = four medallions, nothing bot-only; (D) every hub plate holds its
-content, the board ≥ 80 % of the opening with its three rules inside it, the discard pile shows its two faces.
+content, the board ≥ 80 % of the opening with its three rules inside it, the discard pile shows its two faces. ⚠ A cut
+name is measured on a hidden CLONE in the label's own font (`cutNames`), never by `scrollWidth`: Chromium reports an
+ellipsized box's `scrollWidth` as its client width + 1 px, so «Сброс бонусных ка…» passed a `scrollWidth` check.
 
 ## The score OVERVIEW and a sparse «Разыграно» fill the opening (PL-574 / PL-575, 2026-10-17)
 
