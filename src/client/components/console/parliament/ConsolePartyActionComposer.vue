@@ -45,6 +45,7 @@
          'con-pact--outcome': outcomeOn,
          'con-pact--result': result !== undefined,
          'con-pact--sale': saleStage,
+         'con-pact--play': playForm,
        }]"
        :data-party="party" :data-pact="kind" :data-pact-phase="phase" :data-resolution="resolution"
        role="region" :aria-label="$t(kind === 'resolution' ? 'Resolution action' : 'Party action')">
@@ -306,6 +307,62 @@
             </div>
           </template>
 
+          <!-- A LAW WHOSE ACTION PLAYS A CARD (Live Experiments RX36: «pay 6 M€ to
+               play a card ignoring all global requirements»): the decision is a
+               SLOT — «which card, and how» is a question this console already
+               answers with ONE surface, the hand album with the play composer one
+               level deeper, hosted here as a step (`consolePlayPick`). A on the
+               slot opens it; the card comes back composed (its payment, its own
+               answers) and stands in the slot with its price; the TOTAL reads the
+               law's 6 and the card's price; the commit is a second press on the
+               law's own CTA and sends ONE batch. -->
+          <template v-else-if="kind === 'resolution' && playForm">
+            <p class="con-pact__rule" data-unfold-item>{{ ruleText }}</p>
+            <div class="con-pact__price" data-unfold-item data-pact-price>
+              <span class="con-pact__row-kicker">{{ $t('Price') }}</span>
+              <ActionEffectChip v-for="(chip, k) in priceChips" :key="k" :effect="chip" />
+            </div>
+            <div class="con-pact__row" data-unfold-item data-pact-row="0"
+                 :class="{'con-pact__row--focus': cursorRow === 0, 'con-pact__row--answered': playResult !== undefined, 'con-pact__row--open': playResult === undefined}">
+              <span class="con-pact__row-head">
+                <span class="con-pact__row-mark" aria-hidden="true">{{ playResult !== undefined ? '✓' : '1' }}</span>
+                <span class="con-pact__row-kicker">{{ $t('Card') }}</span>
+              </span>
+              <button type="button" class="con-pact__playslot"
+                      :class="{'con-pact__playslot--filled': playResult !== undefined, 'con-pact__playslot--cursor': cursorRow === 0}"
+                      data-pact-play-slot
+                      :data-pact-play-card="playResult?.cardName"
+                      @click="openPlayPick()">
+                <template v-if="playResult !== undefined">
+                  <span class="con-pact__playslot-face" data-pact-play-face :data-zoom-slot="playResult.cardName">
+                    <ConsoleCardFaceLite :name="playResult.cardName" :card="playCardModel" :lightweight="true" />
+                  </span>
+                  <span class="con-pact__playslot-read">
+                    <b class="con-pact__playslot-name" data-pact-play-name>{{ $t(playResult.cardName) }}</b>
+                    <span class="con-pact__playslot-cost">
+                      <ActionEffectChip :effect="playCostChip" />
+                    </span>
+                    <span v-if="playOpenedByLaw" class="con-pact__playslot-eased" data-pact-play-eased>✓ {{ playThanksText }}</span>
+                  </span>
+                </template>
+                <!-- EMPTY: the card's PLACE is already there (a card-shaped socket at the face's own size), so filling the
+                     slot swaps what stands in it and moves nothing. -->
+                <template v-else>
+                  <span class="con-pact__playslot-socket" aria-hidden="true">
+                    <span class="con-pact__playslot-socket-icon resource_icon resource_icon--cards"></span>
+                  </span>
+                  <span class="con-pact__playslot-read">
+                    <span class="con-pact__repeatslot-empty">{{ $t('Choose a card from your hand to play') }}…</span>
+                  </span>
+                </template>
+              </button>
+            </div>
+            <div v-if="playResult !== undefined" class="con-pact__total" data-unfold-item data-pact-play-total>
+              <span class="con-pact__row-kicker">{{ $t('Total') }}</span>
+              <span class="con-pact__playtotal">{{ playTotalLine }}</span>
+            </div>
+          </template>
+
           <!-- A LAW WHOSE DECISION IS A CONFIRM WITH A PRICE (Trade Industries:
                «pay 12 M€ to gain an extra trade fleet»): nothing to pick — the
                stage states the PRICE FOR THIS SEAT in the server's own chips
@@ -353,7 +410,7 @@
             <GamepadGlyph control="confirm" class="con-pact__cta-glyph" />
             <span class="con-pact__cta-label">{{ $t(submitting ? 'Performing…' : ctaLabel) }}</span>
             <span v-if="decisionRows > 0" class="con-pact__cta-steps" aria-hidden="true">
-              <i v-for="r in decisionRows" :key="r" class="con-pact__cta-step" :class="{'con-pact__cta-step--on': picks[r - 1] !== undefined}"></i>
+              <i v-for="r in decisionRows" :key="r" class="con-pact__cta-step" :class="{'con-pact__cta-step--on': rowAnswered(r - 1)}"></i>
             </span>
           </div>
         </div>
@@ -388,6 +445,7 @@ import {Message} from '@/common/logs/Message';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {ResolutionActionModel} from '@/common/models/ParliamentModel';
 import {SelectCardModel, SelectOptionModel} from '@/common/models/PlayerInputModel';
 import {ActionBillPrice, actionBillPrice} from '@/common/parliament/actionBill';
 import {ActionEffect, VictoryPointsDelta} from '@/common/models/ActionPreviewModel';
@@ -440,6 +498,10 @@ import {armOutcomeOrigin, playConfigRelease, playOutcomeContent, playOutcomePhas
 import {mergeTransferSpecs, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
+import {ConsolePlayPickResult, enterConsolePlayPick} from '@/client/console/consolePlayPick';
+import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
+import {addressed} from '@/common/inputs/preselectAddress';
+import {EASING_KEYS, lawName} from '@/client/console/requirementEasingText';
 import {armPatentSale, patentSaleState} from '@/client/console/patentSale/consolePatentSale';
 
 export type PartyComposerKind = 'industrialists' | 'scientists' | 'reds' | 'unity' | 'resolution';
@@ -467,6 +529,12 @@ export type PartyActionResult = {
 export type PartyConfirmDetail = {
   expectedCards: number;
   fleet?: boolean;
+  /**
+   * The action PLAYS A CARD (Live Experiments RX36): the card, composed in the
+   * play pick, and the landing scene's promise — the host arms the card's
+   * landing on the law's commit (the card leaves from the slot it stands in).
+   */
+  play?: ConsolePlayPickResult;
 };
 
 export function partyComposerKind(party: ReduxParty): PartyComposerKind {
@@ -547,6 +615,8 @@ export default defineComponent({
       /** The law's repeat, as the SHARED pick bridge resolved it (the chosen
        *  action + its composed pre-selects). Undefined = the slot is empty. */
       repeatResult: undefined as ConsoleRepeatPickResult | undefined,
+      /** The law's PLAY (RX36), as the play pick resolved it — the card, its payment and its answers. Undefined = the slot is empty. */
+      playResult: undefined as ConsolePlayPickResult | undefined,
       commitHandle: undefined as ActionCommitMotionHandle | undefined,
       // ── the resolution's selection ──
       /** The cards the law's pick handed in (the sale's honest count; re-seeded on a refused submit). */
@@ -657,6 +727,44 @@ export default defineComponent({
         return undefined;
       }
       return entry.model as SelectOptionModel;
+    },
+    /**
+     * THE LAW PLAYS A CARD (Live Experiments RX36) — and the server PROMISED
+     * the pick (`ResolutionActionModel.play`), so the card and its answers are
+     * chosen here, before the one commit. A bill that ASKS a payment of its own
+     * (Helion's heat, Luna's titanium) promises nothing pre-collectable: the
+     * law takes the live road — the confirm, the bill stage, the live pick.
+     */
+    /** The LAW's own action model (the resolution's — never a party's). */
+    lawAction(): ResolutionActionModel | undefined {
+      const live = this.liveAction;
+      return this.kind === 'resolution' && live !== undefined && 'resolution' in live ? live : undefined;
+    },
+    playForm(): boolean {
+      const play = this.lawAction?.play;
+      return this.confirmPrompt !== undefined && play !== undefined && !play.billAsks;
+    },
+    /** The chosen card as the LAW reads it (the promised pick's model — its requirement under the law's waiver). */
+    playCardModel(): CardModel | undefined {
+      const name = this.playResult?.cardName;
+      return name === undefined ? undefined : this.lawAction?.play?.input.cards.find((c) => c.name === name);
+    },
+    /** The law is what lets the chosen card through (a global requirement met ONLY thanks to the waiver). */
+    playOpenedByLaw(): boolean {
+      return this.playCardModel?.requirementEasing?.some((e) => e.decisive) === true;
+    },
+    playThanksText(): string {
+      const id = this.resolution;
+      return id === undefined ? '' : translateTextWithParams(EASING_KEYS.thanksTo, [lawName(id)]);
+    },
+    playCostChip(): ActionEffect {
+      return {direction: 'cost', icon: 'megacredits', amount: this.playResult?.cost ?? 0};
+    },
+    /** «6 M€ for the law + 9 M€ for the card = 15 M€» — the whole price of the press, from its two numbers. */
+    playTotalLine(): string {
+      const law = this.billPrice?.price ?? 0;
+      const card = this.playResult?.cost ?? 0;
+      return translateTextWithParams('${0} M€ for the law + ${1} M€ for the card = ${2} M€', [String(law), String(card), String(law + card)]);
     },
     /**
      * THE LAW'S BILL STANDS — the payment the confirm deferred, for THIS law
@@ -874,7 +982,7 @@ export default defineComponent({
       switch (this.kind) {
       case 'industrialists': return 2;
       case 'scientists': return 2;
-      case 'resolution': return this.repeatPrompt !== undefined ? 1 : 0;
+      case 'resolution': return this.repeatPrompt !== undefined || this.playForm ? 1 : 0;
       default: return 0;
       }
     },
@@ -902,8 +1010,14 @@ export default defineComponent({
       case 'scientists': return this.picks[0] !== undefined && this.picks[1] !== undefined;
       case 'reds': return true;
       case 'resolution':
-        // A repeat needs its slot filled; a confirm is complete by standing.
-        return this.repeatPrompt !== undefined ? this.repeatResult !== undefined : this.confirmPrompt !== undefined;
+        // A repeat and a play need their slot filled; a confirm is complete by standing.
+        if (this.repeatPrompt !== undefined) {
+          return this.repeatResult !== undefined;
+        }
+        if (this.playForm) {
+          return this.playResult !== undefined;
+        }
+        return this.confirmPrompt !== undefined;
       default: return false;
       }
     },
@@ -1243,7 +1357,11 @@ export default defineComponent({
         if (this.cursorRow >= this.ctaRow) {
           this.commit();
         } else if (this.rowOpensPick(this.cursorRow)) {
-          this.openRepeatPick();
+          if (this.playForm) {
+            this.openPlayPick();
+          } else {
+            this.openRepeatPick();
+          }
         } else {
           this.pickAt(this.cursorRow, this.cursor[this.cursorRow]);
         }
@@ -1351,6 +1469,12 @@ export default defineComponent({
       }
       const plan = this.commitPlanFor();
       this.playCommitBeat(plan.kind, plan.specs, plan.kind === 'draw' ? pulseDeckPile : undefined);
+      if (this.kind === 'resolution' && this.playForm && this.playResult !== undefined) {
+        // THE PLAY RIDES THE LAW'S COMMIT: the host arms the card's landing off the slot it stands in.
+        const detail: PartyConfirmDetail = {expectedCards: 0, play: this.playResult};
+        this.$emit('confirm', response, detail);
+        return;
+      }
       if (this.kind === 'resolution' && this.confirmPrompt !== undefined) {
         const detail: PartyConfirmDetail = {expectedCards: 0, fleet: this.gainsFleet};
         this.$emit('confirm', response, detail);
@@ -1406,6 +1530,9 @@ export default defineComponent({
       case 'reds':
         return redsResponse(this.bridge);
       case 'resolution': {
+        if (this.playForm) {
+          return this.playBatch();
+        }
         if (this.confirmPrompt !== undefined) {
           return resolutionActionConfirmResponse(this.bridge);
         }
@@ -1427,9 +1554,63 @@ export default defineComponent({
         return undefined;
       }
     },
+    /** A decision row is answered: a pick made — or, for a law's SLOT (a repeat, a play), the slot filled. */
+    rowAnswered(row: number): boolean {
+      if (this.kind === 'resolution' && row === 0) {
+        return this.repeatResult !== undefined || this.playResult !== undefined;
+      }
+      return this.picks[row] !== undefined;
+    },
     /** A decision row that is a DOOR to a shared pick surface, not a list to walk. */
     rowOpensPick(row: number): boolean {
-      return this.kind === 'resolution' && row === 0 && this.repeatPrompt !== undefined;
+      return this.kind === 'resolution' && row === 0 && (this.repeatPrompt !== undefined || this.playForm);
+    },
+    /**
+     * THE LAW'S PLAY, as ONE batch (RX36): the menu option (its bill follows on
+     * the server and settles itself — the promise says it asks nothing), the
+     * card pick ADDRESSED to the law (the live pick's `choiceContext` names the
+     * law — `promptAddressOf`), then the card's own composed answers, built by
+     * the play door's own builder.
+     */
+    playBatch(): ReadonlyArray<InputResponse> | undefined {
+      const result = this.playResult;
+      const id = this.resolution;
+      const head = resolutionActionConfirmResponse(this.bridge);
+      if (result === undefined || id === undefined || head === undefined) {
+        return undefined;
+      }
+      const [card, ...tail] = buildPlayCardBatch({
+        playPath: [],
+        cardName: result.cardName,
+        payment: result.payment,
+        branchIndex: result.branchIndex,
+        branchFor: result.branchFor,
+        preResponses: result.preResponses,
+        optionResponse: result.optionResponse,
+        stepResponses: result.stepResponses,
+      });
+      return [
+        head,
+        addressed(card as InputResponse, {source: {kind: 'resolution', resolution: id}, role: 'projectCard'}) as InputResponse,
+        ...(tail as Array<InputResponse>),
+      ];
+    },
+    /**
+     * Hand «which card, and how» to the album + the play composer (`consolePlayPick`) — hosted as a STEP of this
+     * stage (`card-actions ⊃ hand`); the composed play lands back in the slot and rides THIS stage's own commit.
+     * This composer stays MOUNTED behind the step (its zone is the step's room), so the callback survives.
+     */
+    openPlayPick(): void {
+      const play = this.lawAction?.play;
+      const id = this.resolution;
+      if (play === undefined || id === undefined || this.submitting) {
+        return;
+      }
+      enterConsolePlayPick({input: play.input, reserve: play.reserve, resolution: id, stage: 'Selection'}, (result) => {
+        this.playResult = result;
+        // Land on the CTA — the slot is filled, the play is ready to commit.
+        this.cursorRow = this.ctaRow;
+      });
     },
     /**
      * Hand the law's repeat to the ДЕЙСТВИЯ КАРТ surface in repeat mode — the

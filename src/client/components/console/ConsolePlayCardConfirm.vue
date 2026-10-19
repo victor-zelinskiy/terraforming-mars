@@ -804,6 +804,7 @@ import type {PlayComposerDraft} from '@/client/console/stagedPlay';
 import {setWorkspaceFrameStage} from '@/client/console/consoleWorkspaceStack';
 import {handStageReveal} from '@/client/console/consoleHandStageMotion';
 import {takeHandPlayPreview, storeHandPlayPreview, playPreviewUrl} from '@/client/console/consoleHandPlayPrewarm';
+import {activePlayPickReserve} from '@/client/console/consolePlayPick';
 import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
 import ConsolePlayedTargetLink from '@/client/components/console/played/ConsolePlayedTargetLink.vue';
 import ConsoleComposerTargetRow from '@/client/components/console/played/ConsoleComposerTargetRow.vue';
@@ -1226,7 +1227,9 @@ export default defineComponent({
       return paymentLanes(this.paymentPrompt, this.thisPlayer);
     },
     megacreditsOnHand(): number {
-      return megacreditsAvailable(this.thisPlayer);
+      // A play THROUGH A LAW (RX36 — the play pick bridge): the law's bill is paid out of the same M€ FIRST, so the
+      // card's payment reads the rail less it (the bill asks no payment of its own here — the promise says so).
+      return Math.max(0, megacreditsAvailable(this.thisPlayer) - activePlayPickReserve());
     },
     /**
      * FREE — the server's price is ZERO (a printed zero, or discounts that ate

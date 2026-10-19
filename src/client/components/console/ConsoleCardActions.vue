@@ -473,7 +473,7 @@ import {
 import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim, setConsoleActionComposerExecuting, setConsoleActionStageKey} from '@/client/console/consoleActionComposerUi';
 import {addShadeOwner, captureSurfaceDeparture, removeShadeOwner, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {carryAnchorsHome} from '@/client/console/surfaceMotion/surfaceMotionDirector';
-import {closeWorkspaceRoot, leaveWorkspace, pushWorkspaceFrame, setWorkspaceFrameSlot, setWorkspaceFrameSubject, workspaceFrameEmblem, workspaceFrameHost, workspaceFrameIndex, workspaceFrameIsOverlay, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameRoot, workspaceFrameStage, workspaceFrameSubject, workspaceHostYieldsScene, workspaceKindSpec, workspaceStackCrumb, workspaceStackRootKind, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
+import {closeWorkspaceRoot, leaveWorkspace, pushWorkspaceFrame, setWorkspaceFrameSlot, setWorkspaceFrameSubject, workspaceFrameDescended, workspaceFrameEmblem, workspaceFrameHost, workspaceFrameIndex, workspaceFrameIsOverlay, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameRoot, workspaceFrameStage, workspaceFrameSubject, workspaceHostYieldsScene, workspaceKindSpec, workspaceStackCrumb, workspaceStackRootKind, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
 import {beginCardColonyTrade, clearCardColonyTrade, colonyStepCrumbParts} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {beginCardDeltaAdvance} from '@/client/console/hydroFlow/deltaAdvanceEntry';
 import type {DeltaAdvanceOffer} from '@/common/models/DeltaBonusPromptModel';
@@ -526,6 +526,7 @@ import {findPerformActionCard, findTradeColonyContext} from '@/client/console/tu
 import {consoleRepeatPickState, resolveConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {consoleRepeatPickUi, setConsoleRepeatPickCommands} from '@/client/console/consoleRepeatPickUi';
 import {translateText} from '@/client/directives/i18n';
+import {consolePlayPickState} from '@/client/console/consolePlayPick';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 
 /**
@@ -916,6 +917,7 @@ export default defineComponent({
           awaitingInput: this.playerView.waitingFor !== undefined,
           preview: law.preview,
           ...(resolution?.actionBill === undefined ? {} : {bill: resolution.actionBill}),
+          ...(law.futile === undefined ? {} : {futile: law.futile}),
         });
       }
       return out;
@@ -1016,6 +1018,12 @@ export default defineComponent({
       // name, handed up; the closing PAYOUT beat names itself «Результат».
       if (this.handStepHosted) {
         const stage = workspaceFrameStage('hand');
+        // A LAW'S PLAY PICK (RX36) one level deeper — the card being composed folds into the tail, the hosted colony
+        // step's own form: «ДЕЙСТВИЯ КАРТ › ЖИВЫЕ ЭКСПЕРИМЕНТЫ › ТРАВА · РОЗЫГРЫШ» (the law keeps its subject slot).
+        const card = this.playPickCard;
+        if (card !== '') {
+          return `${translateText(card)} · ${translateText(stage !== '' ? stage : 'Playing')}`;
+        }
         return stage !== '' ? stage : 'Card discard';
       }
       // THE LAW'S BILL (Trade Industries): the payment host stands in the
@@ -1175,7 +1183,12 @@ export default defineComponent({
      * missing; the raw flag is the same escape hatch `subjectRaw` already is.
      */
     focusKickerRaw(): boolean {
-      return this.colonyStepHosted || (this.outcomeFlow === undefined && effectForecastOpen('action'));
+      return this.colonyStepHosted || (this.handStepHosted && this.playPickCard !== '') ||
+        (this.outcomeFlow === undefined && effectForecastOpen('action'));
+    },
+    /** The card a law's play pick is composing (RX36) — the hosted hand descended onto it; '' otherwise. */
+    playPickCard(): string {
+      return consolePlayPickState.active && workspaceFrameDescended('hand') ? workspaceFrameSubject('hand') : '';
     },
     /** Total variants of the focused card (the header's «Вариант N/M» chip);
      *  1 hides the chip (single-action card / a Viron repeat with no node). */
@@ -3022,7 +3035,8 @@ export default defineComponent({
         const draw = source?.preview.find((e) => e.direction === 'gain' && e.icon === 'cards')?.amount ?? 2;
         claimWorkspaceOutcome('card-actions', comp.cardName, ['draw'], 0, draw);
       }
-      this.$emit('submit-party', response);
+      // The detail rides up with the response: a law that PLAYS A CARD (RX36) hands the shell the card's landing.
+      this.$emit('submit-party', response, detail);
     },
     /** A REFUSED / lost party submit gives the stage back (the shell calls it on a transport error too). */
     resetPartySubmit(): void {

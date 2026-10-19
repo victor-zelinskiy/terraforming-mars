@@ -99,6 +99,9 @@ import {CLOUD_DEVELOPMENT_ID} from '../../../src/server/parliament/resolutions/u
 import {GAS_EXPORT_ID} from '../../../src/server/parliament/resolutions/reds/GasExport';
 import {HEAT_CAPTURE_ID} from '../../../src/server/parliament/resolutions/reds/HeatCapture';
 import {DIVERTED_RESEARCH_ID} from '../../../src/server/parliament/resolutions/reds/DivertedResearch';
+import {LIVE_EXPERIMENTS_ID} from '../../../src/server/parliament/resolutions/scientists/LiveExperiments';
+import {Grass} from '../../../src/server/cards/base/Grass';
+import {MartianMediaCenter} from '../../../src/server/cards/turmoil/MartianMediaCenter';
 import {Supercomputer} from '../../../src/server/cards/turmoilRedux/Supercomputer';
 import {MOHOLE_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/MoholeContest';
 import {OPEN_IP_TRADE_ID} from '../../../src/server/parliament/resolutions/scientists/OpenIpTrade';
@@ -4633,6 +4636,52 @@ parliamentFixture('parliament-diverted-enacted', {
       throw new Error(`the parliament-diverted-enacted fixture expected oxygen 13 % / −20 °C, got ${game.getOxygenLevel()} / ${game.getTemperature()}`);
     }
     expectViewerOpensGeneration(table, p2, 'parliament-diverted-enacted');
+  },
+});
+
+// ── RX36 · LIVE EXPERIMENTS (the Scientists — «data by influence; ACTION: pay 6 M€ to play a card ignoring all global
+//    parameter requirements»). ENACTED: red (the winner — the seat the loader opens in generation 2) at −30 °C with
+//    20 M€ and three cards in hand, one per answer the law's pick gives:
+//      · Grass (11 M€, «−16 °C or warmer») — the card the law OPENS (its global requirement waived — «благодаря закону»);
+//      · Adapted Lichen (9 M€, no requirement) — playable anyway;
+//      · Martian Media Center (Mars First's plate) — a PARTY requirement the law never waives: refused, with its reason.
+//    20 − 6 = 14 left for the card, so every bill the stage can show is affordable; no data holder (the enactment's
+//    share is named and forfeited — the data step asks nothing).
+parliamentFixture('parliament-live-enacted', {
+  resolution: LIVE_EXPERIMENTS_ID,
+  votes: [1],
+  agenda: [1, 2],
+  stopAt: 'done',
+  arrange: ({game, p2}) => {
+    setTemperature(game, -30);
+    p2.cardsInHand.push(new Grass(), new AdaptedLichen(), new MartianMediaCenter());
+    // The spec spends red's action through the law: a corporation's pending first action standing at boot would be
+    // answered by the board-home driver and cost it (PL-715).
+    p2.pendingInitialActions = [];
+  },
+  after: ({p2}) => {
+    p2.megaCredits = 20;
+  },
+  expect: (table) => {
+    const {game, p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(LIVE_EXPERIMENTS_ID, 0)) {
+      throw new Error(`the parliament-live-enacted fixture expected Live Experiments enacted, got ${parliament.enacted}`);
+    }
+    if (p2.pendingInitialActions.length > 0 || p2.actionsTakenThisRound !== 0) {
+      throw new Error('the parliament-live-enacted fixture expected red to open generation 2 with both actions and no pending first action');
+    }
+    if (game.getTemperature() !== -30) {
+      throw new Error(`the parliament-live-enacted fixture expected −30 °C, got ${game.getTemperature()}`);
+    }
+    for (const name of [CardName.GRASS, CardName.ADAPTED_LICHEN, CardName.MARTIAN_MEDIA_CENTER]) {
+      if (!p2.cardsInHand.some((c) => c.name === name)) {
+        throw new Error(`the parliament-live-enacted fixture expected red to hold ${name}`);
+      }
+    }
+    if (p2.megaCredits !== 20) {
+      throw new Error(`the parliament-live-enacted fixture expected red with 20 M€, has ${p2.megaCredits}`);
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-live-enacted');
   },
 });
 

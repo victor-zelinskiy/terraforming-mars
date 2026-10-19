@@ -134,6 +134,54 @@
         &--cursor.con-composer__repeatpick { box-shadow: inset 0 0 0 .08rem @con-parl-mint, 0 0 0 .1rem @con-cyan; }
     }
     &__repeatslot-empty { font-size: .92rem; color: fade(@con-text, 62%); }
+    /* THE PLAY SLOT (RX36 Live Experiments) — the law's decision is a CARD: a door to the hand album + the play
+       composer (the play pick bridge). Empty it is the repeat slot's invitation; FILLED it stands the card's own face
+       (the album's density, px-authored under one zoom) beside its name, its price and — when the law is what lets it
+       through — the TR49 class's «✓ благодаря …» in the mint of a met requirement. One plate, one cursor ring. */
+    &__playslot {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: .65rem 1rem;
+        border: 0;
+        border-radius: .6rem;
+        background: rgba(255, 255, 255, .04);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, .12);
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+        /* The face at the hand ALBUM's density (TR65's card size, not a postage stamp): the slot's card is the object
+           the commit plays, and it is read at a glance across the room. */
+        --con-pact-play-zoom: calc(0.6 * var(--con-ui-scale, 1));
+        &--filled { padding: .5rem .9rem; background: fade(@con-parl-mint, 6%); box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 55%); }
+        &--cursor { box-shadow: inset 0 0 0 .1rem @con-cyan; }
+        &--filled&--cursor { box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 70%), 0 0 0 .1rem @con-cyan; }
+    }
+    &__playslot-face { flex: 0 0 auto; zoom: var(--con-pact-play-zoom); }
+    /* The EMPTY place: the face's own box (320 × 460 px under the same zoom), a dashed card outline with the hand's
+       glyph — the card that will stand here is announced by its shape, and the fill swaps it in place. */
+    &__playslot-socket {
+        flex: 0 0 auto;
+        box-sizing: border-box;
+        width: calc(320px * var(--con-pact-play-zoom)); /* keep-px: the px-authored premium face */
+        height: calc(460px * var(--con-pact-play-zoom)); /* keep-px */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: .55rem;
+        border: .1rem dashed fade(@con-cyan, 45%);
+        background: rgba(255, 255, 255, .025);
+    }
+    &__playslot-socket-icon { width: 2.4rem; height: 2.4rem; background-size: contain; background-repeat: no-repeat; background-position: center; opacity: .55; }
+    /* THE PLAY FORM's composition (RX36): the decision surface stands in the MIDDLE of its column, never pinned to the
+       top over two thirds of dark glass — the slot carries a full card, so the surface has the weight to hold it. */
+    &--play &__main > &__surface { margin-block: auto; }
+    &__playslot-read { display: flex; flex-direction: column; align-items: flex-start; gap: .35rem; min-width: 0; }
+    &__playslot-name { font-size: 1.05rem; font-weight: 800; letter-spacing: .01em; color: @con-text; }
+    &__playslot-cost { display: inline-flex; align-items: center; gap: .3rem; }
+    &__playslot-eased { font-size: .78rem; font-weight: 700; color: @con-parl-mint; }
+    &__playtotal { font-size: .92rem; font-weight: 700; font-variant-numeric: tabular-nums; color: @con-text; }
     &__card-face { zoom: var(--con-pact-card-zoom); }
     &__card-delta { display: inline-flex; align-items: center; gap: .3rem; font-size: .74rem; b { font-variant-numeric: tabular-nums; } em { font-style: normal; font-size: .62rem; color: @con-parl-gold; } }
     &__none { font-size: .74rem; opacity: .6; }

@@ -326,11 +326,15 @@ html.con-profile-tv .con-armsec {
 }
 .con-composer__reqrow {
     display: flex;
+    /* ONE source with a long name (a LAW — RX36 «Живые эксперименты», PL-717) wraps WHOLE onto a second line of its own
+       instead of being cut by the row's clip: the TR62 law («read whole, never cut») for the one-source form too. A row
+       that fits stays the one line it always was (the min-height holds it). */
+    flex-wrap: wrap;
     align-items: center;
-    gap: .45rem;
+    gap: .2rem .45rem;
     min-height: 1.9rem;
     margin-top: .35rem;
-    padding: 0 .65rem;
+    padding: .2rem .65rem;
     border-radius: .4rem;
     font-size: .8rem;
     white-space: nowrap;
@@ -403,6 +407,7 @@ html.con-profile-tv .con-armsec {
 .con-composer__reqrow-src {
     flex: 0 1 auto;
     min-width: 0;
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     color: fade(@con-text, 66%);

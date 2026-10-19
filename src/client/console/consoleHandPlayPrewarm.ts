@@ -35,6 +35,7 @@ import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {fetchPreview} from '@/client/utils/previewFetch';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
+import {activePlayPickLaw} from '@/client/console/consolePlayPick';
 
 /** Stable focus this long → the card is being CONSIDERED, not riffled past. */
 export const HAND_PLAY_DWELL_MS = 90;
@@ -57,10 +58,20 @@ export function handPlayVersionOf(view: Pick<PlayerViewModel, 'id' | 'game'>): s
 }
 
 /** The ONE preview URL builder — the composer and the prewarm share it, so
- *  the warmed request and the live request can never drift apart. */
+ *  the warmed request and the live request can never drift apart. A play
+ *  THROUGH A LAW (RX36 Live Experiments — the play pick bridge standing) names
+ *  the law: the server reads the card with the law's waiver standing. */
 export function playPreviewUrl(playerId: string, cardName: string): string {
+  const law = activePlayPickLaw();
   return apiUrl(paths.API_CARD_PLAY_PREVIEW) +
-    '?id=' + encodeURIComponent(playerId) + '&card=' + encodeURIComponent(cardName);
+    '?id=' + encodeURIComponent(playerId) + '&card=' + encodeURIComponent(cardName) +
+    (law === undefined ? '' : '&law=' + encodeURIComponent(law));
+}
+
+/** The cache key of a card's preview — the law it is played through is part of the question (RX36). */
+function keyOf(cardName: string): string {
+  const law = activePlayPickLaw();
+  return law === undefined ? cardName : cardName + '|law:' + law;
 }
 
 function defaultLoader(view: PlayerViewModel, cardName: string): Promise<ActionPreview | undefined> {
@@ -96,7 +107,8 @@ export function armHandPlayPrewarm(
 ): void {
   cancelHandPlayPrewarm();
   const version = handPlayVersionOf(view);
-  const fresh = cache.get(cardName);
+  const key = keyOf(cardName);
+  const fresh = cache.get(key);
   if (fresh !== undefined && fresh.version === version) {
     return; // already warm for THIS game state
   }
@@ -109,7 +121,7 @@ export function armHandPlayPrewarm(
     void loader(view, cardName).then((preview) => {
       // Version captured at REQUEST time: if the game state moved while the
       // request flew, the entry simply never matches a read.
-      store(cardName, {version, preview});
+      store(key, {version, preview});
     });
   }, dwellMs);
 }
@@ -134,7 +146,7 @@ export function takeHandPlayPreview(
   view: Pick<PlayerViewModel, 'id' | 'game'>,
   cardName: string,
 ): {hit: boolean, preview?: ActionPreview | undefined} {
-  const entry = cache.get(cardName);
+  const entry = cache.get(keyOf(cardName));
   if (entry === undefined || entry.version !== handPlayVersionOf(view)) {
     return {hit: false};
   }
@@ -148,7 +160,7 @@ export function storeHandPlayPreview(
   cardName: string,
   preview: ActionPreview | undefined,
 ): void {
-  store(cardName, {version: handPlayVersionOf(view), preview});
+  store(keyOf(cardName), {version: handPlayVersionOf(view), preview});
 }
 
 /** Game switch / shell unmount / test isolation. */

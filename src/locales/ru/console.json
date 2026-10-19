@@ -1185,5 +1185,7 @@
     "Spend ${0} from here: a greenery tile": "Потратьте ${0} отсюда: озеленение",
     "Spend ${0} from here: an ocean tile": "Потратьте ${0} отсюда: океан",
     "Spend ${0} from here: a city tile": "Потратьте ${0} отсюда: город",
-    "repeat of a used action": "повтор использованного действия"
+    "repeat of a used action": "повтор использованного действия",
+    "Choose a card from your hand to play": "Выберите карту из руки",
+    "${0} M€ for the law + ${1} M€ for the card = ${2} M€": "${0} M€ за закон + ${1} M€ за карту = ${2} M€"
 }

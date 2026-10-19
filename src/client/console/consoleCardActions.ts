@@ -1125,6 +1125,11 @@ export type ResolutionActionSource = ParliamentActionSourceBase & {
    * accepted) — the tile then names its continuation as a PAYMENT, never a card pick. Absent for a free action.
    */
   bill?: ResolutionActionBill;
+  /**
+   * The server's proven verdict that the action would change nothing right now (Live Experiments RX36: every card
+   * its waiver lets through is playable without it) — information, never a block: the tile stays live and sinks.
+   */
+  futile?: ActionFutilityVerdict;
 };
 
 /** ONE list of the Parliament's sources — a party's action or the enacted law's. */
@@ -1240,6 +1245,8 @@ export function buildResolutionTile(source: ResolutionActionSource): ConsoleActi
     rules: {lines: [{kind: 'rule', text: source.rule}], summary: source.rule, curated: false},
     resolutionAction: source.resolution,
     resolutionParty: source.party,
+    // Only a LIVE verb can be futile — a blocked or activated one already says why it is not offered.
+    ...(source.futile !== undefined && (status === 'available' || status === 'soft') ? {futile: source.futile} : {}),
   };
 }
 
@@ -1311,6 +1318,7 @@ export function buildConsoleActionsModel(
         ...(!resolution && source.allyVia !== undefined ? {allyVia: source.allyVia} : {}),
         resolutionAction: resolution ? source.resolution : undefined,
         resolutionParty: resolution ? source.party : undefined,
+        ...(tile.futile !== undefined ? {futile: tile.futile} : {}),
         status: tile.status,
         sortStatus: tile.status,
         usedThisGen: tile.usedThisGen,

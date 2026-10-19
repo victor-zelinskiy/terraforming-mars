@@ -1706,6 +1706,7 @@ import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from 
 import {getResolution, resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import ConsoleResolutionAside from '@/client/components/console/parliament/ConsoleResolutionAside.vue';
 import ConsolePartyAccessPanel from '@/client/components/console/parliament/ConsolePartyAccessPanel.vue';
+import type {PartyConfirmDetail} from '@/client/components/console/parliament/ConsolePartyActionComposer.vue';
 import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
 import {tileRemovalTableOf} from '@/client/console/parliament/tileRemovalModel';
 import {TileGrantReading, tileGrantReadingOf} from '@/client/console/parliament/tileGrantModel';
@@ -2118,6 +2119,7 @@ import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLe
 import {consoleHandPickState, cancelConsoleHandPick, declineConsoleHandPick, deferConsoleHandPick, enterConsoleHandPick, handPickArmsDiscardTray, handPickStageKey, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
 import {deferredDiscardKey, freshCardsForDeferredDiscard} from '@/client/console/deferredDiscardFresh';
 import {consoleRepeatPickState, cancelConsoleRepeatPick, enterConsoleRepeatPick, resetConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
+import {consolePlayPickState, cancelConsolePlayPick, resetConsolePlayPick, resolveConsolePlayPick} from '@/client/console/consolePlayPick';
 import {hydroAdvanceBatch, hydroAdvanceResponses, hydroAdvanceTail, HydroAdvancePayload} from '@/client/console/consoleHydroAdvance';
 import {cardDeltaAdvanceCard, cardDeltaAdvanceOffer, clearCardDeltaAdvance, deltaAdvanceEntryState, deltaAdvancePrefix} from '@/client/console/hydroFlow/deltaAdvanceEntry';
 import {
@@ -2840,6 +2842,13 @@ export default defineComponent({
       return findConvertHeatOption(this.playerView.waitingFor)?.option.metadata?.futile?.reason;
     },
     playAction() {
+      // A LAW'S PLAY PICK (RX36): the album and the composer play from the law's PROMISED pick (the live prompt's own
+      // shape, the law's waiver standing) — the live menu's «play a card» plays WITHOUT the law, so it is not the
+      // question while the bridge stands. Its answer never reaches the server from here (the bridge resolves it).
+      const pick = consolePlayPickState.request;
+      if (consolePlayPickState.active && pick !== undefined) {
+        return {path: [] as ReadonlyArray<number>, input: pick.input};
+      }
       return findPlayProjectCardAction(this.playerView.waitingFor);
     },
     // ── action intelligence: POTENTIAL availability, one meaning ────────
@@ -6814,10 +6823,15 @@ export default defineComponent({
         .filter((c) => c.isDisabled !== true)
         .map((c) => c.name));
       const robots = new Set((this.thisPlayer.selfReplicatingRobotsCards ?? []).map((c) => c.name));
+      // A LAW'S PLAY PICK (RX36): every card is read as the LAW reads it — the promised pick's own model (the
+      // requirement under the law's waiver, «благодаря закону»; a card the law does not open refused with its reason,
+      // the bill's reserve named) — and «could I» is «could I through the law, now» (nothing else is being asked).
+      const lawPick = consolePlayPickState.active ? consolePlayPickState.request : undefined;
+      const promised = new Map((lawPick?.input.cards ?? []).map((c) => [c.name, c]));
       const all: Array<CardModel> = [
         ...this.playerView.cardsInHand,
         ...(this.thisPlayer.selfReplicatingRobotsCards ?? []),
-      ];
+      ].map((card) => promised.get(card.name) ?? card);
       const entries = all.map((card) => ({
         card,
         playable: playable.has(card.name),
@@ -6832,7 +6846,7 @@ export default defineComponent({
         // thanks to that discount would otherwise be dimmed while its own
         // РАЗЫГРАТЬ button was live.
         potential: playable.has(card.name) ||
-          potentiallyAvailable(blockersForReasons(card.unplayableReasons ?? [])),
+          (lawPick === undefined && potentiallyAvailable(blockersForReasons(card.unplayableReasons ?? []))),
         robot: robots.has(card.name),
       }));
       // Playable-first, stable within groups (CONSOLE_MODE_CONCEPT §8) — by
@@ -7179,6 +7193,11 @@ export default defineComponent({
      *  hand section — the composer is hidden (v-show) and the hand owns input. */
     handPickActive(): boolean {
       return consoleHandPickState.active;
+    },
+    /** A LAW'S PLAY PICK (RX36 Live Experiments): the law's stage handed «which card, and how» to the album + the
+     *  play composer, hosted as a step of «Действия карт» (`consolePlayPick`). The asking stage stays mounted. */
+    playPickActive(): boolean {
+      return consolePlayPickState.active;
     },
     /** A repeat-action source (ProjectInspection / Viron) handed the "pick an
      *  action to repeat" to the ДЕЙСТВИЯ КАРТ surface — the source composer is
@@ -9952,7 +9971,8 @@ export default defineComponent({
           cmds.push({control: 'triggerL', control2: 'triggerR', label: 'Tag filter', spread: true});
           cmds.push({control: 'stickR', label: 'Reset filter', enabled: this.consoleState.handTagFilter !== 'all'});
         }
-        cmds.push({control: 'back', label: this.shellTaskActive ? 'Minimize' : 'To the board'});
+        // A LAW'S PLAY PICK (RX36): the album is a STEP of the law's stage — B is one level back to its slot.
+        cmds.push({control: 'back', label: this.playPickActive ? 'Back' : this.shellTaskActive ? 'Minimize' : 'To the board'});
         return cmds;
       }
       if (this.consoleState.section === 'colonies') {
@@ -12531,6 +12551,34 @@ export default defineComponent({
       }
     },
     /**
+     * A LAW'S PLAY PICK (RX36 Live Experiments — `consolePlayPick`): the album
+     * stands up as a STEP of the asking stage (`card-actions ⊃ hand`, the
+     * hosted hand's own road — RX24's), in its ordinary PLAY mode over the
+     * law's promised pick (`playAction`); A on a card descends into the play
+     * composer one level deeper. On the falling edge (the composer resolved, B
+     * in the album, a prompt that moved on) the step leaves — one level — and
+     * the law's stage stands again with its slot.
+     */
+    playPickActive(now: boolean): void {
+      if (now) {
+        this.consoleState.handIndex = Math.max(0, this.handEntries.findIndex((e) => e.playable));
+        if (!workspaceFrameMounted('hand')) {
+          void this.openHandWithReveal({overlay: false});
+          if (workspaceFrameHost('hand') !== undefined) {
+            setWorkspaceFrameStage('hand', consolePlayPickState.request?.stage ?? 'Selection');
+          }
+        }
+        return;
+      }
+      // The composer (if any) goes with the step — never a fly-back into the album that is leaving.
+      if (this.pendingPlayCard !== undefined && !isPlayedHeroActive()) {
+        this.pendingPlayCard = undefined;
+      }
+      if (workspaceFrameHost('hand') === 'card-actions' && workspaceStackTop()?.kind === 'hand') {
+        leaveWorkspace();
+      }
+    },
+    /**
      * THE EMBEDDED OUTCOME'S LIFECYCLE, in one place.
      *
      * Rising edge → the zone is filled: mark it presenting (the workspace
@@ -13118,6 +13166,8 @@ export default defineComponent({
           cancelConsoleHandPick();
           // Same for a repeat-action pick whose source composer's prompt moved on.
           cancelConsoleRepeatPick();
+          // …and a law's play pick (RX36): its promise was made for the prompt that just moved on.
+          cancelConsolePlayPick();
           // A NEW prompt resets the mandatory hand-SELECT picks + filter (they
           // survive a defer→resume of the SAME prompt, but never leak across
           // prompts). Cleared here rather than in closeConsoleLayers so the
@@ -16109,6 +16159,12 @@ export default defineComponent({
         cancelConsoleHandPick();
         return;
       }
+      // A LAW'S PLAY PICK (RX36): B in the ALBUM is one level — back to the law's stage, its slot as it was. (B in the
+      // composer above it is the composer's own: the card goes home into the album.)
+      if (this.playPickActive && this.pendingPlayCard === undefined) {
+        cancelConsolePlayPick();
+        return;
+      }
       if (this.consoleState.sale.active) {
         // The sale is ON THE WIRE / physically flying — the press is absorbed
         // (the move is committed; folding the hand mid-scene would tear the
@@ -16752,7 +16808,27 @@ export default defineComponent({
      * awaiting handoff, no claim: a party action never draws into its stage
      * (the Reds' draw presents as the ordinary reveal once the flow has left).
      */
-    onCardActionsSubmitParty(response: InputResponse | ReadonlyArray<InputResponse>): void {
+    onCardActionsSubmitParty(response: InputResponse | ReadonlyArray<InputResponse>, detail?: PartyConfirmDetail): void {
+      // A LAW THAT PLAYS A CARD (RX36 Live Experiments): the card LEAVES FROM THE SLOT it stands in on the law's stage
+      // and lands as any play does — the scene armed before the batch, on the composer's own promise (its gains, its
+      // rail half, the table's answer, its price paid with card resources). No visual success before the server's word.
+      const play = detail?.play;
+      if (play !== undefined && !isPlayedHeroActive()) {
+        const isEvent = getCard(play.cardName)?.type === CardType.EVENT;
+        armPlayedHero(play.cardName, isEvent, {
+          manualTableOpen: this.playedOpen,
+          sourceSelector: '[data-pact-play-face]',
+          rewards: play.scene.rewards,
+          reactions: play.scene.reactions,
+          rail: play.scene.rail,
+          spends: play.scene.spends,
+          targetSpends: play.scene.targetSpends,
+          price: playCardPriceReward(play.payment, [...(play.scene.rewards ?? []), ...(play.scene.reactions ?? []).map((r) => r.spec)]),
+          host: 'overlay',
+          sourceFace: {lightweight: true},
+          landingFace: {lightweight: true, model: 'tableau'},
+        });
+      }
       // A BATCH when the commit carries more than its own answer: an enacted
       // resolution's repeat takes the copied action's composed pre-selects
       // with it (`[<the menu branch's card pick>, ...the copy's own answers]`),
@@ -17032,6 +17108,27 @@ export default defineComponent({
       const pending = this.pendingPlayCard;
       if (pending === undefined || action === undefined) {
         this.pendingPlayCard = undefined;
+        return;
+      }
+      // A LAW'S PLAY PICK (RX36 Live Experiments): the composed play goes BACK to the law's stage — nothing is sent
+      // here. The law's own commit posts it in its one batch behind the menu option and the bill; the scene's promise
+      // rides along for the landing the law's commit arms.
+      if (consolePlayPickState.active) {
+        const card = pending.input.cards.find((c) => c.name === pending.cardName);
+        resolveConsolePlayPick({
+          cardName: pending.cardName,
+          payment: payload.payment,
+          branchIndex: payload.branchIndex,
+          branchFor: payload.branchFor,
+          preResponses: payload.preResponses,
+          optionResponse: payload.optionResponse,
+          stepResponses: payload.stepResponses,
+          cost: card?.calculatedCost ?? 0,
+          scene: {
+            rewards: payload.rewards, reactions: payload.reactions, rail: payload.rail, spends: payload.spends,
+            targetSpends: payload.targetSpends, draws: payload.draws,
+          },
+        });
         return;
       }
       // The HERO transaction (spec: no visual success before the server's
@@ -23711,6 +23808,7 @@ export default defineComponent({
     releaseBoardExcursion(); // a leaked barrier would hide the next game's start scene
     resetDockIntakeAccent(); // a leaked lease would disable the compact pose
     resetConsoleHandPick(); // never leak a client pick across games/sessions
+    resetConsolePlayPick(); // …nor a law's play pick (RX36)
     // The stack can never outlive the shell: an orphaned frame suppresses the
     // standalone band, so the next prompt would be presented NOWHERE.
     resetWorkspaceStack();
