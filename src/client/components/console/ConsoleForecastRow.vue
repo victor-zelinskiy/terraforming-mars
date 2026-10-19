@@ -66,6 +66,8 @@
           <PremiumModifierMarks :sources="[chip.mark]" />
           <PremiumPartyRequirementGlyph v-if="chip.partyWaive" class="pprq--waived con-armed__pprq con-armed__pprq--chip" />
           <span v-else-if="chip.waive" class="con-armed__struck" aria-hidden="true">{{ $t('Global requirements') }}</span>
+          <!-- an ALLIANCE (TR62) has no number: the party it opens stands where the badge would -->
+          <i v-else-if="chip.opens !== undefined" class="con-armed__opens" :style="{backgroundImage: `url(${chip.opens})`}" aria-hidden="true"></i>
           <span v-else class="con-armed__badge" aria-hidden="true">{{ chip.badge }}</span>
         </template>
         <template v-else>

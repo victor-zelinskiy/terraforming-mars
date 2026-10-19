@@ -282,6 +282,15 @@
         &--law, &--granted { color: fade(@con-parl-silver, 75%); }
         .con-parl__card-mark { width: .7rem; height: .98rem; }
     }
+    /* BY THE ALLIANCE (TR62): the partner's small emblem and the link — the seals' badge, read on the tile. */
+    &__effects-ally { display: inline-block; width: .95rem; height: .95rem; border-radius: 50%; background: center / contain no-repeat; box-shadow: 0 0 0 .05rem rgba(4, 4, 8, 0.9); }
+    &__effects-link {
+        position: relative;
+        display: inline-block;
+        width: .5rem;
+        height: .5rem;
+        .alliance-link-glyph(.5rem; 0rem; 0rem; #ffd27a; .065rem);
+    }
     &__effects-crown { display: block; width: .9rem; height: .62rem; fill: @con-parl-gold; }
     &__effects-place { display: inline-flex; align-items: center; justify-content: center; width: .7rem; height: .7rem; border-radius: .16rem; background: rgba(0, 0, 0, 0.3); box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 50%); }
     &__effects-formula {
@@ -830,9 +839,26 @@
             &:nth-child(1) { clip-path: polygon(0 0, 46% 0, 46% 100%, 0 100%); }
             &:nth-child(2) { clip-path: polygon(54% 0, 100% 0, 100% 100%, 54% 100%); }
             &--on { border-color: @con-parl-mint; box-shadow: none; }
+            /* THE BORROWED RING (TR62): both arcs in the alliance PARTNER's accent — the road is another party, never the
+               viewer's own cubes (mint) and never the crown (gold). */
+            &--ally { border-color: var(--pseal-ally-accent, @con-parl-mint); box-shadow: none; }
+        }
+        /* …and the LINK at the ring's top seam (the gap between the two arcs) — the shape that says «through another
+           party»; it lives in the places' own box, so the row's geometry never sees it. It is centred ON the ring's
+           stroke: the bench clips its own box, and a link standing above the ring was cut in half by the plaque's top
+           edge (the 4K frame read two dark dots). */
+        .con-pseal__ring-link {
+            position: absolute;
+            left: 50%;
+            top: -.1rem;
+            width: .4rem;
+            height: .4rem;
+            transform: translateX(-50%);
+            .alliance-link-glyph(.4rem; 0rem; 0rem; var(--pseal-ally-accent, @con-parl-mint); .06rem; rgba(8, 8, 14, 0.92));
         }
     }
     &--row&--absent .con-pseal__emblem { opacity: .62; }
+    &--row&--alliance .con-pseal__seal { border-radius: 50%; box-shadow: 0 0 1.1rem color-mix(in srgb, var(--pseal-ally-accent, @con-parl-mint) 45%, transparent); }
     &--row&--delegates .con-pseal__seal, &--row&--granted .con-pseal__seal { border-radius: 50%; box-shadow: 0 0 1.1rem fade(@con-parl-mint, 45%); }
     /* THE RULER on the dais: the seal LARGE in a gold ring under the crown, the name, the ribbon «ПРАВИТ». */
     &--ruler {
@@ -1369,6 +1395,8 @@ html.con-profile-handheld .con-parl.con-parl--hall {
     }
     &--rules { --paccess-accent: fade(@con-parl-gold, 85%); --paccess-tint: fade(@con-parl-gold, 8%); }
     &--holds { --paccess-accent: fade(@con-parl-mint, 85%); --paccess-tint: fade(@con-parl-mint, 8%); }
+    /* BY THE ALLIANCE (TR62): the ring borrows the PARTNER's accent (the seal's borrowed ring, one language). */
+    &--allied { --paccess-accent: var(--paccess-ally-accent, @con-parl-mint); --paccess-tint: color-mix(in srgb, var(--paccess-ally-accent, @con-parl-mint) 10%, transparent); }
     &--closing { opacity: 0; transition-duration: calc(60ms * var(--motion-scale, 1)); }
     &__head { display: flex; align-items: center; gap: .75rem; min-width: 0; }
     &__ring {
@@ -1400,11 +1428,17 @@ html.con-profile-handheld .con-parl.con-parl--hall {
         background: var(--paccess-accent);
     }
     &__crown { width: .75rem; height: .5rem; fill: #0b1018; }
+    /* …the PARTNER's emblem in the mark's place, ringed in gold with the link's colour (TR62). */
+    /* A FIXED box: an image at 100% of an auto-width absolute box resolves to its intrinsic size (the 4K dossier drew
+       the partner's emblem as large as the ring, over the note below). */
+    &__ring-mark--ally { padding: 0; width: 1.35rem; min-width: 0; height: 1.35rem; border-radius: 50%; background: #0d0b07; box-shadow: 0 0 0 .08rem #ffd27a; overflow: hidden; }
+    &__ally-seal { display: block; width: 100%; height: 100%; object-fit: contain; }
     &__headtext { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
     &__kicker { font-size: .56rem; letter-spacing: .16em; text-transform: uppercase; color: rgba(140, 190, 235, 0.88); }
     &__state { font-family: @con-font-read; font-weight: 400; font-size: .78rem; line-height: 1.3; color: #f2f5fa; }
     &--rules &__state { color: @con-parl-gold-hi; }
     &--holds &__state { color: @con-parl-mint; }
+    &--allied &__state { color: #f2f5fa; }
     &__places {
         display: flex;
         align-items: center;
@@ -1435,6 +1469,7 @@ html.con-profile-tv .con-paccess {
     .con-paccess__note { font-size: .82rem; }
     .con-paccess__ring { width: 3.4rem; height: 3.4rem; }
     .con-paccess__ring-mark { font-size: .8rem; min-width: 1.3rem; height: 1.3rem; }
+    .con-paccess__ring-mark--ally { width: 1.5rem; min-width: 0; height: 1.5rem; }
 }
 html.con-profile-handheld .con-paccess {
     gap: .35rem;

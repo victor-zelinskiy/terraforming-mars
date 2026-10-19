@@ -48,6 +48,13 @@ const CANON: Record<string, string> = {
   // THE LOWERED LAW (TR36 Council Seat — glossary § 5): one cube holds the effect, the card is QUOTED by name, the
   // requirement's note speaks the threshold's own words; the printed phrases stay (they are right at two).
   'Your effect · 1 delegate': 'Эффект ваш · 1 делегат',
+  // THE ALLIANCE (TR62 Tharsis Alliance — glossary § 3): the fourth road, named «по альянсу» and the PARTNER quoted after
+  // a colon / «через» (never a case-inflected «с «Красными»»: a party's name is one fixed form in every line).
+  'Your effect · by the alliance: ${0}': 'Эффект ваш · по альянсу: «${0}»',
+  'You have it by the alliance: ${0} rules (${1})': 'Доступен · по альянсу: «${0}» у власти («${1}»)',
+  'You have it by the alliance: two of your delegates on the resolution of ${0} (${1})': 'Доступен · по альянсу: два ваших делегата на резолюции партии «${0}» («${1}»)',
+  'Card requirement of this party: met by the alliance through ${0}': 'Требование этой партии на картах: выполнено по альянсу через «${0}»',
+  'Alliance': 'Альянс',
   'You have it: one of your delegates is on its resolution (${0}: one is enough)': 'Доступен · ваш делегат на её резолюции («${0}»: достаточно одного)',
   'You do not have it — one of your delegates on its resolution would grant it (${0})': 'Недоступен · один ваш делегат на её резолюции откроет его («${0}»)',
   'Card requirement of this party: not met — one delegate opens the effect, the requirement still asks for two': 'Требование этой партии на картах: не выполнено — один делегат открывает эффект, требованию по-прежнему нужны два',
@@ -200,6 +207,9 @@ const BANNED: ReadonlyArray<{pattern: RegExp, why: string}> = [
   // «КАРЬЕРА» (TR04, 2026-09-30): the track is never «Повестка» in a parliament line — the word reads as a
   // summons («повестка из военкомата»); the bare `Agenda` key belongs to the Pathfinders resource alone.
   {pattern: /повестк/i, why: 'the Agenda track is «Карьера» (glossary §4)'},
+  // THE ALLIANCE (TR62 Tharsis Alliance, glossary § 3): the mechanic is the «альянс» — «Союз» is the NAME of the Unity
+  // party in this fork (`party name: Unity`), so «союз с «Марс вперёд»» would read as a party.
+  {pattern: /по союзу|союз с «|союзн/i, why: 'the pair of parties is the «альянс» — «Союз» is the name of the Unity party (glossary § 3)'},
 ];
 
 /** Retired keys: not translated, not referenced. */

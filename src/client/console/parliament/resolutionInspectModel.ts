@@ -21,12 +21,12 @@
 import {Color} from '@/common/Color';
 import {ParliamentModel, ParliamentPlayerModel, PartyAccessModel, seatEnacts} from '@/common/models/ParliamentModel';
 import {ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
-import {effectDelegatesOf} from './consoleParliamentModel';
+import {accessRoadOf, effectDelegatesOf} from './consoleParliamentModel';
 
 export type ResolutionLifecycle = 'vote' | 'enacted';
 
 /** WHY the viewer holds the party effect — the live basis the footer names. */
-export type ResolutionAccessBasis = 'delegates' | 'ruling' | 'granted';
+export type ResolutionAccessBasis = 'delegates' | 'ruling' | 'alliance' | 'granted';
 
 export type ResolutionAccessVm = {
   /**
@@ -76,14 +76,15 @@ function viewerSeat(model: ParliamentModel, viewer: Color | undefined): Parliame
 function basisOf(access: PartyAccessModel): ResolutionAccessBasis {
   // The basis THIS CARD contributes to outranks the others in the footer's
   // wording: two delegates on it are why the effect is held; the ruling
-  // party and a card grant are the other two bases the rules know.
-  if (access.byDelegates) {
+  // party, an alliance (TR62) and a card grant are the other bases the rules know.
+  const road = accessRoadOf(access);
+  if (road === 'delegates') {
     return 'delegates';
   }
   if (access.ruling) {
     return 'ruling';
   }
-  return 'granted';
+  return road === 'alliance' ? 'alliance' : 'granted';
 }
 
 /**

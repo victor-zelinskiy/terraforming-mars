@@ -1,0 +1,52 @@
+# TR62 · Tharsis Alliance («Альянс Тарсиса») — the law of access's FOURTH road, and the first hook on a change of power
+
+Blue ACTIVE, cost 8, tags Mars + Building, no requirement, no VP (art: Mike Luard): **«Effect: While Mars First is ruling or you have 2 delegates there, you may also use the Reds' effect and cards. And vice versa. Draw a card when either of those parties becomes ruling.»** A NEW class — the law of access gains a road that runs THROUGH ANOTHER PARTY, and the Parliament's enactment gets its first card hook. Prompt: `docs/claude/prompts/project-tr62-tharsis-alliance.md`; ledger section BG (PL-672…682); e2e `console-tharsis-alliance` (A–H × fhd / tv4k / deck, 9 / 9 on the GPU).
+
+## 0. The owner's decisions (defaults built; 1, 4, 5, 6, 7, 9 in the batch)
+
+1. **RU name** — «Альянс Тарсиса» (never «Союз»: «Союз» is a party). 2. **Lore** — EN verbatim from the scan (key `TR62`), RU «Слоганом хотели взять «Рождены красными!», но от коренных американцев пришло требование прекратить и воздержаться.» 3. **Art** — imported. 4. **What sets the alliance off** — (а) the partner's PRINTED road only (it rules, or two own delegates on its resolution — `satisfiesRequirement`); never a grant, never TR36's lowered threshold, never another alliance. 5. **The object in the chamber** — (а) the BADGE on both seals + the ally's BORROWED ring + ONE activation impulse partner → ally (mockups b — a bracket, c — a line: `screenshots/tr62/tv4k/mock-5*.png`). 6. **The card at a change of power** — (а) at the tail of the ENACTMENT tact, off the project deck's pile into the dock through the shared intake; the band names it. 7. **The ally mark on a requirement** — (а) the PARTNER's emblem + the link. 8. **The reason's second road** — (а) a second line in the refusal («or the same with Mars First (Tharsis Alliance)»). 9. **The polish area** — (а) «ТРЕБОВАНИЕ ПОД ЭФФЕКТОМ» on 4K + the party action tile. 10. **Rivals** — (а) see nothing of it (the alliance is a property of the SEAT).
+
+## 1. Rules (`tests/cards/turmoilRedux/TharsisAlliance.spec.ts`, 33 passing)
+
+1. The pair is DECLARED on the card (`ICard.partyAlliance = [MARS, REDS]`) and read LIVE by `Parliament.alliancesOf` — the card on the table: the pair exists; gone: it does not. Nothing new is serialized (save / load reads the tableau again).
+2. **The trigger is the partner's PRINTED road** (`printedStanding`: it rules, or the seat's own delegates ≥ `PARTY_EFFECT_DELEGATES` on its resolution). One cube under Council Seat gives Mars First's EFFECT and never the Reds' (FAQ p.19); a grant does not set it off; no chain (one pair, one hop).
+3. **The road gives the effect AND the card requirement** — the Reds' action is offered (once a generation), a Reds card is playable with no delegate on the Reds anywhere, Mars First's passive pays under the Reds' rule. Vice versa.
+4. **One law function** — `Parliament.access()` ranks the roads ruling → delegates → alliance → card (`PartyEffectBasis` += `alliance`); `satisfiesRequirement` includes the alliance.
+5. **One diff announces it** — `announceAccessChanges` writes the alliance's own lines («… gains the Reds party effect — allied with Mars First (Tharsis Alliance)» / «… loses … — the alliance with Mars First no longer holds» / «… — the alliance is gone») with `impact.partyEffect {party, basis: 'alliance', via, source}`; an enacted ruler's change is told once by the sitting, its ally by the alliance road (it is not everyone's).
+6. **The hook on a change of power** — `ICard.onRulingPartyChanged(player, next, previous)`, called by `ParliamentPhase.stepEnact` under its own `enact:` key (`fireRulingPartyChanged`, `events.withEffect(…, 'ruling-party-changed')`): the card judges «becomes» itself (the same party is no change; playing the card while Mars First already rules draws nothing); a RELOAD mid-sitting never calls it twice; MarsBot is never asked.
+7. **The draw** names its source on the batch: `CardDrawRevealSource {type: 'ruling-change', cardName, party}` (the client's park reads the TYPE, never the card's name).
+8. **The requirement class** — `requirementEasingOf`'s party branch: a waiver first (TR70), else the allied reading `effective: 'allied'`, `via`, the source kind `ally` with its `road`, decisive iff the party's own road fails; the play records `requirement-eased` kind `ally` and the journal line «… met the Reds party requirement of … through the alliance with Mars First (Tharsis Alliance)».
+9. **The refusal's second road** — `UnplayableReason.alliedVia`: owned and nothing standing, ONE blocker with the partner's road as a second line.
+10. **The vote's projection** — `VoteProjectionModel.unlocksAlliance`: the cube that reaches the partner's printed edge names the ally it opens (absent when the ally is already held).
+11. **The face** — two effects: `[Mars First] = [Reds]` and `[Mars First][Reds] RULING : [card]` (a new DSL item `partySeal(party, {stacked, text})` → `CardRenderItemType.PARTY_SEAL` → `.pcard-pseal`; a captioned seal reserves its line on both sides, PL-673).
+
+## 2. The law of access — four roads, and a road is an OBJECT
+
+The client reads the roads through ONE helper (`console/parliament/consoleParliamentModel.ts` § roads: `accessRoadOf`, `allianceOf`, `alliancePairOf`, `alliancePartnerOf`, `allianceSourceOf`, `allianceBadgeOf`, `accessRingOf`); `.byDelegates` / `.granted` / `.allied` / `.alliances` are named nowhere else in `src/client` (guard `tests/console/parliamentAccessRoadGuard.spec.ts`). Every surface draws the road as an object, never a caption:
+
+| surface | the alliance |
+| --- | --- |
+| the seal (bench and dais) | the BADGE on both parties of the pair — two interlocked links on a dark bead, lower left of the seal (active gold · dormant outlined, dashed — form and colour); the ally's BORROWED ring — both arcs in the PARTNER's accent, the link at the top seam (PL-672) |
+| «ВАШИ ЭФФЕКТЫ» | the ally's tile, WHY = the partner's small emblem + the link («Ваш эффект · по альянсу») |
+| the party dossier's «ДОСТУП» | tone `allied`: the ring in the partner's accent, the partner's emblem in the ring's mark (a FIXED box — PL-674), «Доступен · по альянсу: …», the requirement line «выполнено по альянсу через «Марс вперёд»»; the partner's dossier names the pair |
+| the vote panel | the fact `ally` on the partner's printed edge («АЛЬЯНС · Красные → эффект и карты ваши»), budgeted (`VOTE_INFO_LIMITS.factsOnAllyEdge`) |
+| «Действия карт» | the party's plate wears the partner's emblem + the link (`data-action-ally-via`) |
+| the resolution footer | «по альянсу» |
+
+**The link is ONE shape** — the LESS mixin `.alliance-link-glyph` (two chain links on the diagonal): the seal's badge, the ring's seam, the why-mark, the action plate and the modifier mark all draw it. Two pills side by side read as «∞», the Parliament's sign of a standing effect, on the same screen (PL-677).
+
+**The activation impulse is OWED until it is SEEN** (`console/parliament/allianceImpulse.ts`): the road usually opens where the chamber is not on screen (the card from the hand, the second cube from the vote panel that covers the benches, the enactment mid-walk), so the first view of a game seeds what the viewer has been shown (the apply block, `seedParliamentSittingHolds` → `seedAllianceSeen` — a reload replays nothing), and the chamber plays an owed impulse the first time BOTH seals are seen (painted, ≥ half opaque, the topmost thing at their centres) with the chamber AT REST (no sitting beat, no old government standing in) — ONE bead in the partner's accent from its seal to the ally's (`sendAllianceSpark`), the ally's ring answering on the arrival (`allyPulse`), never over a panel (PL-678). A chamber that leaves first keeps it owed; a lost alliance is forgotten (the next activation plays again). Reduced motion: noted as seen, the pose stands.
+
+## 3. The enactment's tail — the card off the deck
+
+The batch arrives with the answer to the sitting's first gate, while the director still has the Agenda, the support and the enactment to play. `console/parliament/rulingChangeDraw.ts`: the section opens the PARK when its sitting stands at the verdict (`openRulingChangePark`); a `ruling-change` batch is presented nowhere meanwhile (the deck-draw scene waits, the reveal queue skips it — the fifth member of the reveal-park law); after the `enact` stage the walk awaits `deliverRulingChangeDraws`: the alliance's impulse first (bounded `IMPULSE_WAIT_MS` — two objects never move at once), then each card leaves `.con-deckstack__pile` face-down for the dock through `runHandIntake` (the counter ticks on the touchdown), the batch consumed and acknowledged; the BAND reads «ПРИНЯТИЕ · Альянс Тарсиса · КАРТЫ 1 · [Марс вперёд] теперь у власти» while it flies (`BandSitting.rulingDraw`, PL-679). A sitting the viewer never watches never opens the park (the ordinary road); the park's one wall clock is a bounded NET (`PARK_NET_MS`, allow-listed in `parliamentNoTimers.spec`).
+
+## 4. The requirement under the alliance (the TR49 class, kind `ally`)
+
+The cassette (`PremiumRequirementsBar` — state `allied`, the printed party stays, the seal = the partner's emblem + the link, `data-req-mod-via`), the hand plate (`handEasingPlate` kind `ally` — «[Reds][Mars ⛓] ✓»), the composer's «ТРЕБОВАНИЕ» row on TWO lines — «[Reds] у власти или 2 делегата → через «Марс вперёд» ✓ выполнено через альянс» · «[mark] Альянс Тарсиса · «Марс вперёд»: два ваших делегата на её резолюции» (PL-675), the «Сработает» modifier chip — the partner's mark, then the emblem of the party it OPENS (no number, PL-676), the availability verdict and the rules line («Выполнено по альянсу: …»), the journal's eased row, the notification's cause («за смену правящей партии»).
+
+## 5. Gaps, named
+
+- The 4K enactment storyboard is taken back-to-back as JPEG (`screenshots/tr62/tv4k/story-enact-*.jpg`): a full 4K frame costs about as much as the card's whole flight, so the card is witnessed by the probe (`bandWhileFlying`, `proxies`) rather than by a frame; the impulse IS caught in frames (`story-impulse-play-01` — the bead between the seals).
+- A notification card («ЭФФЕКТ ПАРТИИ») stands over the dossier's «ДОСТУП» block at 4K when the dossier is opened right after the play (PL-680, the notification family's corner over the fullscreen viewer — not this card's).
+- Parliament v8 П4 / П5 are not done — the sitting's probes of those stages are parked with the rework (the prompt was meant to follow v8's completion).

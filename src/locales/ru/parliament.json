@@ -1255,5 +1255,18 @@
   "${0} loses the ${1} party effect — the alliance is gone": "${0} теряет эффект партии ${1} — альянса больше нет",
   "${0} is ruling": "«${0}» у власти",
   "${0}: two of your delegates on its resolution": "«${0}»: два ваших делегата на её резолюции",
-  "or the same with ${0} (${1})": "или то же у «${0}» («${1}»)"
+  "or the same with ${0} (${1})": "или то же у «${0}» («${1}»)",
+  "Your effect · by the alliance: ${0}": "Эффект ваш · по альянсу: «${0}»",
+  "Your effect · by the alliance": "Эффект ваш · по альянсу",
+  "You have it by the alliance: ${0} rules (${1})": "Доступен · по альянсу: «${0}» у власти («${1}»)",
+  "You have it by the alliance: two of your delegates on the resolution of ${0} (${1})": "Доступен · по альянсу: два ваших делегата на резолюции партии «${0}» («${1}»)",
+  "The alliance would open it: ${0} ruling or two of your delegates on its resolution (${1})": "По альянсу откроется, когда партия «${0}» у власти или у вас два делегата на её резолюции («${1}»)",
+  "Alliance (${1}): your access to this party opens ${0} too": "Альянс («${1}»): ваш доступ к этой партии открывает и партию «${0}»",
+  "Card requirement of this party: met by the alliance through ${0}": "Требование этой партии на картах: выполнено по альянсу через «${0}»",
+  "already yours: by the alliance": "уже ваш: по альянсу",
+  "by the alliance: ${0} · «${1}»": "по альянсу через «${0}» · «${1}»",
+  "by the alliance": "по альянсу",
+  "Alliance": "Альянс",
+  "effect and cards are yours": "эффект и карты ваши",
+  "came to power": "теперь у власти"
 }

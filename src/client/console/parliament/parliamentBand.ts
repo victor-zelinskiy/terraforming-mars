@@ -234,6 +234,11 @@ export type BandSitting = {
   supportWave: '' | SupportStatus;
   /** The renewal event now playing (undefined between events / at rest). */
   renewal?: BandRenewalCue;
+  /**
+   * THE ENACTMENT'S TAIL (TR62): a card's answer to the change of power, delivered while the line still reads the
+   * enactment — the card that answered, the party that came to power and how many cards leave the deck.
+   */
+  rulingDraw?: {card: CardName, party: ReduxParty, count: number};
   generation: number;
   awaiting: ReadonlyArray<Color>;
   summary?: ParliamentPhaseSummaryModel;
@@ -632,6 +637,16 @@ function enactLine(sitting: BandSitting): BandLine {
     chips.push({kind: 'label', key: supportRuleKey(sitting.supportWave)});
     chips.push({kind: 'label', key: 'gain a neutral delegate', tone: 'quiet'});
     return {kicker: 'Popular support', key: `support:${sitting.supportWave}`, chips, committed: true};
+  }
+  // THE ENACTMENT'S TAIL (TR62): the seals have changed places and a card answers the change of power — the line says
+  // which card, what it hands over and why, while the card leaves the deck for the dock (the dock shows WHAT it is).
+  if (sitting.beat === '' && sitting.rulingDraw !== undefined) {
+    const draw = sitting.rulingDraw;
+    chips.push({kind: 'label', key: draw.card, tone: 'accent'});
+    chips.push({kind: 'count', key: 'Cards', amount: draw.count});
+    chips.push({kind: 'party', party: draw.party});
+    chips.push({kind: 'label', key: 'came to power', tone: 'quiet'});
+    return {kicker: 'Enactment', key: `enact:ruling-draw:${draw.card}:${draw.party}`, chips, committed: true};
   }
   chips.push({kind: 'resolution', resolution: summary.enacted.resolution, party: summary.enacted.party});
   chips.push({kind: 'label', key: 'Ruling party', tone: 'quiet'});

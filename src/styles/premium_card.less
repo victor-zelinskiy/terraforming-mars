@@ -810,9 +810,13 @@
 /* ONE NAMED PARTY's SEAL (Turmoil Redux TR62 — «[Mars First] = [Reds]», «[Mars First][Reds] RULING : [card]»): the
    party's emblem from the one table (`partyEmblems.ts`), a round badge a step larger than a mechanics icon (the scan's
    seals lead their rows). A STACKED seal overlaps the one before it by a third — the scan's pair — and carries the
-   caption printed UNDER the pair: absolute, so the row's height never depends on it, centred on the pair's seam. */
+   caption printed UNDER the pair, centred on the pair's seam. The caption is absolute (it may not widen the pair),
+   and a CAPTIONED seal reserves its line on BOTH sides as block margins — the disc stays on the row's centre line
+   beside its partner, and the row's plate holds the caption (laid under the disc with no reserve, the 4K face cut
+   «ПРАВИТ» across the plate's border). */
 .pcard-pseal {
   --pcard-pseal-d: calc(var(--pcard-mech-icon, 24px) * 1.45);
+  --pcard-pseal-cap: calc(var(--pcard-mech-font, 15px) * 0.78 + 3px);
   position: relative;
   display: inline-flex;
   flex-shrink: 0;
@@ -828,6 +832,9 @@
 }
 .pcard-pseal--stacked {
   margin-left: calc(var(--pcard-pseal-d) * -0.34);
+}
+.pcard-pseal--captioned {
+  margin-block: var(--pcard-pseal-cap);
 }
 .pcard-pseal__caption {
   position: absolute;
@@ -2680,6 +2687,27 @@
  * party's emblem for a policy, «±» for a rule. Every mark is a DARK object with a light rim, so it reads on the
  * seal's mint pill, on the copper plate and on a dark console line alike. Sized in em — the mark takes the type size
  * of the line it stands in. No filter, no animation: rims are box-shadows, the bolt a clip-path. */
+/* THE ALLIANCE'S LINK (TR62 Tharsis Alliance) — ONE shape for every alliance mark (the seals' badge, the borrowed
+   ring's seam, the «ВАШИ ЭФФЕКТЫ» why-mark, the modifier mark): two interlocked chain links on the DIAGONAL, drawn on
+   the host's ::before / ::after inside a square REGION (@size, at @left / @top of the host). Never two pills side by
+   side — that read as «∞», the Parliament's own sign of a standing effect, beside it on the same screen. */
+.alliance-link-glyph(@size; @left; @top; @color; @stroke; @fill: transparent) {
+  &::before,
+  &::after {
+    content: '';
+    position: absolute;
+    width: calc(@size * 0.62);
+    height: calc(@size * 0.34);
+    box-sizing: border-box;
+    border: @stroke solid @color;
+    border-radius: 999px;
+    background: @fill;
+    transform: rotate(-45deg);
+    pointer-events: none;
+  }
+  &::before { left: calc(@left + @size * 0.05); top: calc(@top + @size * 0.47); }
+  &::after { left: calc(@left + @size * 0.33); top: calc(@top + @size * 0.19); }
+}
 .pcard-modmarks {
   display: inline-flex;
   align-items: center;
@@ -2739,24 +2767,11 @@
     box-shadow: 0 0 0 .06em rgba(4, 18, 14, 0.9);
   }
   /* an ALLIANCE (TR62 Tharsis Alliance): the PARTNER's emblem — who stands for this party — and the LINK sign at its
-     foot, two interlocked gold links (the one shape in the seal that says «through another party», never a colour).
-     The links overhang the emblem's lower right like a seal's ribbon; no layout of their own. */
+     foot (the one shape in the seal that says «through another party», never a colour). The link overhangs the
+     emblem's lower right like a seal's ribbon; no layout of its own. */
   &--ally {
     box-shadow: 0 0 0 .06em rgba(4, 18, 14, 0.9);
-    &::before,
-    &::after {
-      content: '';
-      position: absolute;
-      bottom: -.16em;
-      width: .36em;
-      height: .22em;
-      border: .065em solid #ffd27a;
-      border-radius: .12em;
-      box-shadow: 0 0 0 .035em rgba(4, 18, 14, 0.9), inset 0 0 0 .03em rgba(4, 18, 14, 0.6);
-      pointer-events: none;
-    }
-    &::before { right: .1em; }
-    &::after { right: -.16em; }
+    .alliance-link-glyph(.56em; .6em; .58em; #ffd27a; .07em; rgba(4, 18, 14, 0.92));
   }
   /* a rule with no card behind it */
   &--system::before {

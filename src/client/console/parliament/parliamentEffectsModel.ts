@@ -1,7 +1,7 @@
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mechanicsModel';
 import {PARLIAMENT_GRAPHIC} from '@/client/components/premiumCard/resolutionPremiumVm';
-import {ParliamentViewVm, PartyActionStateVm} from './consoleParliamentModel';
+import {accessRoadOf, alliancePartnerOf, ParliamentViewVm, PartyActionStateVm} from './consoleParliamentModel';
 
 /*
  * «ВАШИ ЭФФЕКТЫ» (Парламент v8 «Пленарный зал», docs/TURMOIL_REDUX_PARLIAMENT_V8_PLAN.md § 6) — the pure half of the
@@ -11,8 +11,8 @@ import {ParliamentViewVm, PartyActionStateVm} from './consoleParliamentModel';
  * and the tile size the panel draws them at (one box, the tiles scale with their count).
  */
 
-/** WHY the viewer holds a source — the tile's one mark. */
-export type EffectWhy = 'ruling' | 'delegates' | 'granted' | 'law';
+/** WHY the viewer holds a source — the tile's one mark (`alliance` — TR62: through the partner party `via`). */
+export type EffectWhy = 'ruling' | 'delegates' | 'alliance' | 'granted' | 'law';
 /** An action's state on a tile: usable now, spent this generation, or held but not usable now. */
 export type EffectActionState = 'ready' | 'used' | 'locked';
 
@@ -21,6 +21,8 @@ export type EffectItem = {
   kind: 'party' | 'law';
   party: ReduxParty;
   why: EffectWhy;
+  /** For `alliance` (TR62): the partner party that stands for this one — its emblem is the tile's mark. */
+  via?: ReduxParty;
   /** The source has a STANDING effect (a passive). */
   effect: boolean;
   /** The source has an action — and its state for the viewer. */
@@ -80,9 +82,12 @@ export function parliamentEffectItems(input: EffectItemsInput): Array<EffectItem
     if (!access.hasEffect || access.party === input.ruler) {
       continue;
     }
-    const item = partyItem(access.party, access.byDelegates ? 'delegates' : 'granted');
+    const road = accessRoadOf(access);
+    const why: EffectWhy = road === 'delegates' ? 'delegates' : road === 'alliance' ? 'alliance' : 'granted';
+    const item = partyItem(access.party, why);
+    const via = road === 'alliance' ? alliancePartnerOf(access) : undefined;
     if (item !== undefined) {
-      out.push(item);
+      out.push(via === undefined ? item : {...item, via});
     }
   }
   const resolution = input.enacted?.resolution;

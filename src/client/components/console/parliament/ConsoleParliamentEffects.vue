@@ -45,6 +45,11 @@
             <template v-else-if="item.why === 'delegates'">
               <span v-for="n in 2" :key="n" class="con-parl__effects-place" aria-hidden="true"><PlayerCube v-if="viewerColor !== undefined" :color="viewerColor" :size="cubePx(9)" :glow="false" /></span>
             </template>
+            <!-- TR62: BY THE ALLIANCE — the PARTNER's small emblem with the link beside it (the badge of the seals). -->
+            <template v-else-if="item.why === 'alliance' && item.via !== undefined">
+              <span class="con-parl__effects-ally" :style="{backgroundImage: `url(${emblemUrl(item.via)})`}" :data-parl-effects-via="item.via" aria-hidden="true"></span>
+              <span class="con-parl__effects-link" aria-hidden="true"></span>
+            </template>
             <i v-else-if="item.why === 'granted'" class="con-parl__card-mark resource_icon resource_icon--cards" aria-hidden="true"></i>
             <i v-else class="con-parl__card-mark resource_icon resource_icon--cards" aria-hidden="true"></i>
           </span>
@@ -125,6 +130,7 @@ export default defineComponent({
       case 'ruling': return 'for everyone';
       case 'delegates': return 'Your effect';
       case 'granted': return 'Your effect · granted by a card';
+      case 'alliance': return 'Your effect · by the alliance';
       default: return 'Resolution effect';
       }
     },

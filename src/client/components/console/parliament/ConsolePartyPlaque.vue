@@ -45,13 +45,22 @@
            'con-pseal--focus': focused,
            'con-pseal--dim': state !== undefined && !state.held && state.kind === 'absent',
            'con-pseal--used': actionState?.kind === 'used',
+           'con-pseal--allied': state?.ring === 'allied',
          },
        ]"
-       :style="{'--parl-accent': accent}"
-       :data-party="party">
+       :style="sealStyle"
+       :data-party="party"
+       :data-pseal-ring="state?.ring"
+       :data-pseal-ally="state?.ally?.badge"
+       :data-pseal-ally-partner="state?.ally?.partner">
     <div class="con-pseal__seal">
       <span class="con-pseal__ring" aria-hidden="true"></span>
       <img class="con-pseal__emblem" :src="emblemUrl" alt="" />
+      <!-- THE ALLIANCE BADGE (TR62 Tharsis Alliance) — on the seals of BOTH parties of the pair: two interlocked links in
+           the seal's lower-left corner, the action badge's mirror. `dormant` (the pair stands, the partner does not) is
+           an outline; `active` (the alliance holds) is lit gold. Absolute in the seal's own box: it moves nothing, it
+           rides with the seal to the dais and into the vote, and it is never a focus stop. -->
+      <span v-if="state?.ally !== undefined" class="con-pseal__ally" :class="'con-pseal__ally--' + state.ally.badge" aria-hidden="true"></span>
     </div>
     <div class="con-pseal__head">
       <span class="con-pseal__name">{{ $t(partyNameKey(party)) }}</span>
@@ -102,10 +111,13 @@
            viewer's threshold — «1/1», never «1/2» — beside a single live place. -->
       <span v-if="roll === '' && pick === undefined && reason === '' && showPlaces && viewerColor !== undefined" class="con-pseal__places" :data-pseal-places="liveCount" :data-pseal-count="Math.min(state?.delegates ?? 0, liveCount) + '/' + liveCount" aria-hidden="true">
         <span v-for="n in placesCount" :key="n" class="con-pseal__place"
-              :class="{'con-pseal__place--on': n <= (state?.delegates ?? 0) && n <= liveCount, 'con-pseal__place--void': n > liveCount}"
+              :class="{'con-pseal__place--on': n <= (state?.delegates ?? 0) && n <= liveCount, 'con-pseal__place--void': n > liveCount, 'con-pseal__place--ally': state?.ring === 'allied' && n <= liveCount}"
               :data-pseal-place="n" :data-pseal-place-void="n > liveCount ? '' : undefined">
           <PlayerCube v-if="n <= (state?.delegates ?? 0) && n <= liveCount" :color="viewerColor" :size="placeCubePx" :glow="false" />
         </span>
+        <!-- THE BORROWED RING (TR62): both arcs lit in the PARTNER's accent, the link at the seam — the effect and the
+             cards are the viewer's through the other party, never by cubes of their own and never by the crown. -->
+        <span v-if="state?.ring === 'allied'" class="con-pseal__ring-link" data-pseal-ring-link aria-hidden="true"></span>
         <!-- «Зал» v7: the MEDALLION sizes read the places alone (the digits are the dossier's). -->
         <span v-if="size !== 'row' && size !== 'ruler'" class="con-pseal__places-count">{{ Math.min(state?.delegates ?? 0, liveCount) }}/{{ liveCount }}</span>
       </span>
@@ -162,7 +174,7 @@ import PlayerCube from '@/client/components/PlayerCube.vue';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {PARTY_EFFECT_PLACES, PartyActionStateVm, PartyStateVm} from '@/client/console/parliament/consoleParliamentModel';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import {translateText} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 /**
  * `row` and `ruler` are the MEDALLION sizes of «Зал» v7 (the overview's party object: the seal, the name, the
@@ -237,6 +249,11 @@ export default defineComponent({
     accent(): string {
       return partyAccent(this.party);
     },
+    /** The party's accent — and, under an alliance (TR62), the PARTNER's for the borrowed ring and the badge. */
+    sealStyle(): Record<string, string> {
+      const partner = this.state?.ally?.partner;
+      return partner === undefined ? {'--parl-accent': this.accent} : {'--parl-accent': this.accent, '--pseal-ally-accent': partyAccent(partner)};
+    },
     emblemUrl(): string {
       return partyEmblemUrl(this.party);
     },
@@ -245,7 +262,7 @@ export default defineComponent({
       const state = this.state;
       // A tile STANDING IN THE GOVERNMENT is the ruling party's: its state is «правит» and its support
       // sockets, never the access counter of an opposition tile (v4 §2.5 — «0/2» стояло на месте правителя).
-      return !this.ruling && state !== undefined && (state.kind === 'progress' || state.kind === 'in-area' || state.kind === 'delegates');
+      return !this.ruling && state !== undefined && (state.kind === 'progress' || state.kind === 'in-area' || state.kind === 'delegates' || state.kind === 'alliance');
     },
     /** The PRINTED places (always drawn, in the flow). */
     placesCount(): number {
@@ -282,6 +299,8 @@ export default defineComponent({
       // for the plaque's larger sizes (the dossier, the composer) and for the reading line.
       case 'delegates': return this.size === 'row' ? '' : translateText('Your effect');
       case 'granted': return this.size === 'row' ? '' : translateText('Your effect · granted by a card');
+      // TR62 — the BORROWED effect: the row says it by its ring (the partner's accent, the link); the larger faces name the partner.
+      case 'alliance': return this.size === 'row' ? '' : translateTextWithParams(state.label, [...state.params]);
       default: return '';
       }
     },

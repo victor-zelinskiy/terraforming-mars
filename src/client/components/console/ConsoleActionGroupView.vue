@@ -31,6 +31,12 @@
       <span v-else-if="group.resolutionAction !== undefined" class="con-cardactions__plate-kicker">{{ $t('Resolution action') }}</span>
       <!-- A party is named by the parliament's ONE glossary key («Учёные», never the upstream «Ученые» — PL-110). -->
       <span class="con-cardactions__plate-name">{{ $t(partyNameKeyOf(group.party) ?? resolutionNameOf(group.resolutionAction) ?? group.cardName) }}</span>
+      <!-- THE ROAD (TR62): a party held BY THE ALLIANCE wears its partner's emblem and the link — the «ВАШИ ЭФФЕКТЫ»
+           why-mark, one shape; the name stays the party's own. -->
+      <span v-if="group.allyVia !== undefined" class="con-cardactions__plate-ally" :data-action-ally-via="group.allyVia" aria-hidden="true">
+        <span class="con-cardactions__plate-ally-seal" :style="{backgroundImage: `url(${partyEmblemOf(group.allyVia)})`}"></span>
+        <span class="con-cardactions__plate-ally-link"></span>
+      </span>
       <span v-if="(group.party !== undefined || group.resolutionAction !== undefined) && group.tiles[0] !== undefined" class="con-cardactions__plate-chip con-cardactions__plate-chip--uses">
         <b>{{ usesText(group.tiles[0]) }}</b>
       </span>

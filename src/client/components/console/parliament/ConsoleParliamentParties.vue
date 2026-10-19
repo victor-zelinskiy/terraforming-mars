@@ -15,7 +15,7 @@
                  'con-parl__party--ruler': p.party === rulerShown,
                  'con-parl__party--focus': focusedIndex === i,
                  'con-parl__party--held': partyStates[i].held,
-                 'con-parl__party--pulse': accessPulse === p.party || usedPulse === p.party,
+                 'con-parl__party--pulse': accessPulse === p.party || usedPulse === p.party || allyPulse === p.party,
                  'con-parl__party--lost': accessLost === p.party,
                },
              ]"
@@ -60,7 +60,21 @@ import {rallyCountedPlaces, rallySupportIncoming, rallySupportReading} from '@/c
 import {rivalSupportIncoming} from '@/client/console/parliament/parliamentRivalVotes';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {supportStatusKey} from '@/client/console/parliament/supportScene';
-import {ParliamentPartyVm, PartyActionStateVm, PartyStateVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
+import {
+  accessRoadOf, alliancePartnerOf, ParliamentPartyVm, PartyActionStateVm, PartyStateVm, ParliamentViewVm,
+} from '@/client/console/parliament/consoleParliamentModel';
+import {rectOf, sendAllianceSpark} from '@/client/console/parliament/parliamentFlights';
+import {partyAccent} from '@/client/components/premiumCard/partyEmblems';
+import {
+  allianceImpulseState, alliedPartiesOf, noteAllianceImpulseSeen, owedAllianceImpulses,
+} from '@/client/console/parliament/allianceImpulse';
+import {sittingMotion} from '@/client/console/parliament/sittingDirector';
+import {transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
+import {probeTick} from '@/client/console/probeTick';
+import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+
+/** How long an owed impulse waits for its two seals to be seen before it stays owed for the next mount (named, bounded). */
+const ALLIANCE_IMPULSE_WAIT_MS = 6_000;
 
 /**
  * The PARTIES tier: six tiles whose centre is their printed mechanic (the
@@ -88,6 +102,12 @@ export default defineComponent({
       accessPulse: undefined as ReduxParty | undefined,
       accessLost: undefined as ReduxParty | undefined,
       usedPulse: undefined as ReduxParty | undefined,
+      /** THE ALLY's answer (TR62): raised on the ARRIVAL of the impulse from its partner's seal, never with the change. */
+      allyPulse: undefined as ReduxParty | undefined,
+      /** An owed impulse is waiting for its seals / in the air (one at a time). */
+      impulseRunning: false,
+      /** The tier is still mounted (a wait outliving it gives up — the impulse stays owed). */
+      impulseAlive: true,
     };
   },
   computed: {
@@ -157,12 +177,19 @@ export default defineComponent({
     accessKey(now: string, was: string): void {
       const before = new Set(was.split('|').filter((s) => s !== ''));
       const after = new Set(now.split('|').filter((s) => s !== ''));
-      const gained = [...after].find((p) => !before.has(p)) as ReduxParty | undefined;
+      const gainedAll = [...after].filter((p) => !before.has(p)) as Array<ReduxParty>;
+      // THE ALLIANCE (TR62): a party gained by the alliance road answers only when the impulse from its PARTNER's
+      // seal ARRIVES — «реагирует только то, чего коснулись»: the partner's change is the cause, the ally its effect.
+      const allied = gainedAll.find((p) => accessRoadOf(this.accessOf(p)) === 'alliance');
+      const gained = gainedAll.find((p) => p !== allied);
       const lost = [...before].find((p) => !after.has(p)) as ReduxParty | undefined;
       // CSS one-shots (`con-parl-access-gain` / `-lost`): each flag is cleared
       // by its own animation's end, never by a timer guessing its length.
       this.accessPulse = gained;
       this.accessLost = lost;
+      if (allied !== undefined) {
+        this.playOwedAllianceImpulses();
+      }
     },
     usedKey(now: string, was: string): void {
       const before = new Set(was.split('|').filter((s) => s !== ''));
@@ -173,12 +200,103 @@ export default defineComponent({
       this.usedPulse = used;
     },
   },
+  mounted() {
+    // An activation that happened where the chamber was not on screen (the card played from the hand, the vote panel
+    // over the benches) is OWED to the first time the seals are seen.
+    this.playOwedAllianceImpulses();
+  },
+  beforeUnmount() {
+    this.impulseAlive = false;
+  },
   methods: {
+    accessOf(party: ReduxParty) {
+      return this.view.viewer?.access.find((a) => a.party === party);
+    },
+    /** A party's seal on screen — on the bench, or on the dais (the ruler's tile is teleported there). */
+    sealRect(party: ReduxParty) {
+      return rectOf(document.querySelector(`.con-parl__party[data-party="${party}"] .con-pseal__seal`));
+    },
+    /**
+     * Is `party`'s seal SEEN — painted, at least half opaque, on screen, and the topmost thing at its centre (a vote
+     * panel over the benches is in the chamber's own band surface, so the shared verdict alone cannot tell)?
+     */
+    sealSeen(party: ReduxParty): boolean {
+      const tile = document.querySelector(`.con-parl__party[data-party="${party}"]`);
+      const seal = tile?.querySelector('.con-pseal__seal');
+      if (tile === null || tile === undefined || seal === null || seal === undefined || !transferEndVerdict(seal).visible) {
+        return false;
+      }
+      const r = seal.getBoundingClientRect();
+      const top = document.elementsFromPoint(r.left + r.width / 2, r.top + r.height / 2).find((e) => e.closest('.con-parl-flightlayer, .con-transfer') === null);
+      return top !== undefined && tile.contains(top);
+    },
+    /** The chamber at REST: no beat of a sitting playing, no old government still standing in for the new one. */
+    chamberAtRest(): boolean {
+      return sittingMotion.beat === '' && parliamentHolds.rulerBefore === undefined && parliamentHolds.rulerSettling === undefined &&
+        parliamentHolds.govBefore === undefined;
+    },
+    /**
+     * THE ALLIANCE'S ACTIVATION (TR62): ONE impulse of light leaves the PARTNER's seal for the ally's, and the ally's
+     * borrowed ring answers on its arrival (`allyPulse`, the same one-shot family as an access gained) — played the
+     * first time BOTH seals are seen with the chamber at rest (never over a panel, never before the beat that caused
+     * it), one party at a time; owed again on the next mount if the chamber leaves first (`allianceImpulse.ts`).
+     */
+    playOwedAllianceImpulses(): void {
+      if (this.impulseRunning) {
+        return;
+      }
+      const owed = owedAllianceImpulses(alliedPartiesOf(this.view.viewer?.access));
+      const party = owed[0];
+      if (party === undefined) {
+        return;
+      }
+      const partner = alliancePartnerOf(this.accessOf(party));
+      if (partner === undefined || consoleReducedMotionActive()) {
+        noteAllianceImpulseSeen(party);
+        return;
+      }
+      this.impulseRunning = true;
+      const started = Date.now();
+      const attempt = () => {
+        if (!this.impulseAlive) {
+          this.impulseRunning = false;
+          return;
+        }
+        if (!(this.chamberAtRest() && this.sealSeen(partner) && this.sealSeen(party))) {
+          if (Date.now() - started < ALLIANCE_IMPULSE_WAIT_MS) {
+            probeTick(attempt);
+          } else {
+            // Never seen in the window (the chamber stayed covered): still owed — the next mount or change plays it.
+            this.impulseRunning = false;
+          }
+          return;
+        }
+        allianceImpulseState.flying++;
+        noteAllianceImpulseSeen(party);
+        sendAllianceSpark({
+          from: this.sealRect(partner),
+          to: this.sealRect(party),
+          accent: partyAccent(partner),
+          onLanded: () => {
+            allianceImpulseState.flying = Math.max(0, allianceImpulseState.flying - 1);
+            this.impulseRunning = false;
+            if (this.impulseAlive) {
+              this.allyPulse = party;
+              this.playOwedAllianceImpulses();
+            }
+          },
+        });
+      };
+      attempt();
+    },
     /** A plaque's one-shot pulse played out — clear exactly the flag that raised it (one plaque may run two). */
     onPulseEnd(event: AnimationEvent, party: ReduxParty): void {
       if (event.animationName === 'con-parl-access-gain') {
         if (this.accessPulse === party) {
           this.accessPulse = undefined;
+        }
+        if (this.allyPulse === party) {
+          this.allyPulse = undefined;
         }
         if (this.usedPulse === party) {
           this.usedPulse = undefined;

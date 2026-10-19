@@ -30,7 +30,8 @@ import {ActionEffect, StagedVoteModel} from '@/common/models/ActionPreviewModel'
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {ICardRenderRoot} from '@/common/cards/render/Types';
 import {
-  ParliamentModel, ParliamentPlayerModel, PartyAccessModel, PartyActionModel, ResolutionActionModel, seatEnacts, VoteOptionModel, VoteProjectionModel,
+  ParliamentModel, ParliamentPlayerModel, PartyAccessModel, PartyActionModel, PartyAllianceModel, PartyAllianceRoadModel, ResolutionActionModel, seatEnacts,
+  VoteOptionModel, VoteProjectionModel,
 } from '@/common/models/ParliamentModel';
 import {IClientPartyEffect, IClientResolution} from '@/common/parliament/IClientResolution';
 import {
@@ -40,6 +41,7 @@ import {
 import {getPartyEffect, getResolution, getStarterQuest} from '@/client/parliament/ClientParliamentManifest';
 import {translateCardName, translateText} from '@/client/directives/i18n';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
+import {partyNameKey} from './partyNames';
 
 export type ParliamentSlotVm = {
   instance: ResolutionInstanceId;
@@ -308,6 +310,8 @@ export type PartyStateKind =
   | 'ruling'
   /** The viewer holds the effect through two own delegates on the party's resolution. */
   | 'delegates'
+  /** The viewer holds the effect through an ALLIANCE (TR62) — the partner party stands by its printed road. */
+  | 'alliance'
   /** The viewer holds the effect through a card grant. */
   | 'granted'
   /** The party is in the vote and the viewer has one delegate there (one more grants the effect). */
@@ -319,6 +323,13 @@ export type PartyStateKind =
 
 export type PartyStateVm = {
   kind: PartyStateKind;
+  /**
+   * THE RING on the seal (TR62): `ruling` gold · `own` the viewer's cubes · `allied` BORROWED from the alliance's
+   * partner · `none` — form and colour together (`data-pseal-ring`), never colour alone. Absent on an identity plaque.
+   */
+  ring?: AccessRing;
+  /** THE ALLIANCE BADGE on the seal (TR62): the pair stands on the viewer's table — `active` or `dormant`, and the partner. */
+  ally?: {partner: ReduxParty, badge: 'active' | 'dormant'};
   /** English i18n key (`${0}` = the viewer's delegates on the card, where the key has one). */
   label: string;
   params: ReadonlyArray<string>;
@@ -371,6 +382,102 @@ export function effectDelegatesSourceOf(access: PartyAccessModel | undefined): s
   return source === undefined ? '' : translateCardName(source);
 }
 
+// ── THE ROADS OF ACCESS, as the CLIENT reads them (TR62 Tharsis Alliance) ───
+/*
+ * A party's effect is the viewer's by one of FOUR roads (`Parliament.access`): the party rules · the viewer's own
+ * delegates on its resolution · an ALLIANCE (TR62 — the partner party stands by its printed road, which gives this
+ * party's effect AND its card requirement) · a card's grant. Every surface that says WHY reads the road HERE — the
+ * model's `byDelegates` / `allied` / `alliances` / `granted` are named in `src/client/**` by this file only (guard:
+ * `tests/console/parliamentAccessRoadGuard.spec.ts`), so a fifth reader cannot be born silently lying about the
+ * fourth road.
+ */
+
+/** THE ROAD the viewer holds a party's effect by — the server's own rank (`Parliament.accessBasis`). */
+export type AccessRoad = 'ruling' | 'delegates' | 'alliance' | 'card';
+
+/** The road of a held effect (ruling → delegates → alliance → card), or `undefined` when the effect is not held. */
+export function accessRoadOf(access: PartyAccessModel | undefined): AccessRoad | undefined {
+  if (access === undefined) {
+    return undefined;
+  }
+  if (access.ruling) {
+    return 'ruling';
+  }
+  if (access.byDelegates) {
+    return 'delegates';
+  }
+  if ((access.allied?.length ?? 0) > 0) {
+    return 'alliance';
+  }
+  return access.granted.length > 0 ? 'card' : undefined;
+}
+
+/** The effect is held by the viewer's OWN delegates (the printed two, or one under TR36). */
+export function heldByDelegates(access: PartyAccessModel | undefined): boolean {
+  return access?.byDelegates === true;
+}
+
+/** The cards that GRANT the effect (a future Septem Tribus) — named by the surfaces that explain it. */
+export function grantSourcesOf(access: PartyAccessModel | undefined): ReadonlyArray<string> {
+  return access?.granted ?? [];
+}
+
+/** THE ALLIANCE THAT HOLDS for this party (TR62): its partner stands by its printed road. */
+export function allianceOf(access: PartyAccessModel | undefined): PartyAllianceRoadModel | undefined {
+  return access?.allied?.[0];
+}
+
+/** The PAIR the viewer's table declares for this party — holding or not (the dormant badge, the reason's second road). */
+export function alliancePairOf(access: PartyAccessModel | undefined): PartyAllianceModel | undefined {
+  return access?.alliances?.[0];
+}
+
+/** The partner party — of the alliance that holds, else of the declared pair. */
+export function alliancePartnerOf(access: PartyAccessModel | undefined): ReduxParty | undefined {
+  return allianceOf(access)?.via ?? alliancePairOf(access)?.partner;
+}
+
+/** The card that made the pair, translated (the phrases quote it) — empty without a pair. */
+export function allianceSourceOf(access: PartyAccessModel | undefined): string {
+  const source = allianceOf(access)?.source ?? alliancePairOf(access)?.source;
+  return source === undefined ? '' : translateCardName(source);
+}
+
+/** The partner's name in the parliament's own words. */
+export function alliancePartnerName(access: PartyAccessModel | undefined): string {
+  const partner = alliancePartnerOf(access);
+  return partner === undefined ? '' : translateText(partyNameKey(partner));
+}
+
+/**
+ * THE BADGE on a party's seal (TR62): `active` — the alliance holds (the effect and the cards are the viewer's through
+ * the partner); `dormant` — the pair stands on the table, the partner does not stand yet. For a PARTNER that stands by
+ * its own printed road the badge is active too: it is what lends the other party. `undefined` — no pair.
+ */
+export function allianceBadgeOf(access: PartyAccessModel | undefined): 'active' | 'dormant' | undefined {
+  if (alliancePairOf(access) === undefined) {
+    return undefined;
+  }
+  if (allianceOf(access) !== undefined) {
+    return 'active';
+  }
+  const printed = access !== undefined && (access.ruling || access.delegates >= PARTY_EFFECT_PLACES);
+  return printed ? 'active' : 'dormant';
+}
+
+/** The ring's state on a party's seal — what the two arcs say (form + colour, never colour alone). */
+export type AccessRing = 'ruling' | 'own' | 'allied' | 'none';
+
+/** `ruling` gold · `own` the viewer's cubes (mint) · `allied` BORROWED from the partner (TR62) · `none`. */
+export function accessRingOf(access: PartyAccessModel | undefined): AccessRing {
+  switch (accessRoadOf(access)) {
+  case 'ruling': return 'ruling';
+  case 'delegates': return 'own';
+  case 'alliance': return 'allied';
+  default: return 'none';
+  }
+}
+
 /**
  * WHY a party stands where it stands for the viewer — the browse tile's one
  * line. The reasons are checked in the order the RULES rank them: ruling
@@ -378,6 +485,19 @@ export function effectDelegatesSourceOf(access: PartyAccessModel | undefined): s
  * ruling or absent.
  */
 export function partyStateOf(p: ParliamentPartyVm, enactedEmpty: boolean): PartyStateVm {
+  const state = partyStateCore(p, enactedEmpty);
+  // THE OBJECTS on the seal (TR62): the ring's road and the alliance badge — the same helpers every surface reads.
+  const access = p.access;
+  const partner = alliancePartnerOf(access);
+  const badge = allianceBadgeOf(access);
+  return {
+    ...state,
+    ring: access === undefined ? 'none' : accessRingOf(access),
+    ...(partner === undefined || badge === undefined ? {} : {ally: {partner, badge}}),
+  };
+}
+
+function partyStateCore(p: ParliamentPartyVm, enactedEmpty: boolean): PartyStateVm {
   const access = p.access;
   const delegates = access?.delegates ?? 0;
   const effectDelegates = effectDelegatesOf(access);
@@ -393,12 +513,17 @@ export function partyStateOf(p: ParliamentPartyVm, enactedEmpty: boolean): Party
       effectDelegates,
     };
   }
-  if (access?.byDelegates) {
+  const road = accessRoadOf(access);
+  if (road === 'delegates') {
     // The printed road when the printed number stands on the card; the lowered law's own line when ONE cube is what holds it (TR36).
     const label = delegates >= PARTY_EFFECT_PLACES ? 'Your effect · 2 delegates' : 'Your effect · 1 delegate';
     return {kind: 'delegates', label, params: [], tone: 'mint', held: true, delegates, effectDelegates};
   }
-  if (access !== undefined && access.granted.length > 0) {
+  if (road === 'alliance') {
+    // THE ALLIANCE (TR62): the effect and the cards are the viewer's through the partner party.
+    return {kind: 'alliance', label: 'Your effect · by the alliance: ${0}', params: [alliancePartnerName(access)], tone: 'mint', held: true, delegates, effectDelegates};
+  }
+  if (road === 'card') {
     return {kind: 'granted', label: 'Your effect · granted by a card', params: [], tone: 'mint', held: true, delegates, effectDelegates};
   }
   if (p.inArea) {
@@ -485,14 +610,23 @@ export function accessReasonRows(
   // THE LOWERED LAW (TR36): one cube is what holds the effect, and the phrase quotes the card that made it enough.
   const lowered = effectDelegatesLowered(access);
   const source = effectDelegatesSourceOf(access);
-  if (access.byDelegates) {
+  if (heldByDelegates(access)) {
     if (access.delegates >= PARTY_EFFECT_PLACES) {
       out.push({key: 'You have it: two of your delegates are on its resolution', params: [], tone: 'holds'});
     } else {
       out.push({key: 'You have it: one of your delegates is on its resolution (${0}: one is enough)', params: [source], tone: 'holds'});
     }
   }
-  for (const grant of access.granted) {
+  // THE ALLIANCE (TR62): held through the partner party — which road the partner stands by, and the card that made the pair.
+  const ally = allianceOf(access);
+  const partner = alliancePartnerName(access);
+  const allianceCard = allianceSourceOf(access);
+  if (ally !== undefined) {
+    out.push(ally.road === 'ruling' ?
+      {key: 'You have it by the alliance: ${0} rules (${1})', params: [partner, allianceCard], tone: 'holds'} :
+      {key: 'You have it by the alliance: two of your delegates on the resolution of ${0} (${1})', params: [partner, allianceCard], tone: 'holds'});
+  }
+  for (const grant of grantSourcesOf(access)) {
     out.push({key: 'You have it: granted by ${0}', params: [grant], tone: 'holds'});
   }
   if (out.length === 0) {
@@ -505,12 +639,23 @@ export function accessReasonRows(
     } else {
       out.push({key: 'You do not have it — the party has no resolution in the vote', params: [], tone: 'lacks'});
     }
+    // …and the alliance's second road: the PARTNER standing by its printed road would open this party too.
+    if (alliancePairOf(access) !== undefined) {
+      out.push({key: 'The alliance would open it: ${0} ruling or two of your delegates on its resolution (${1})', params: [partner, allianceCard], tone: 'lacks'});
+    }
+  } else if (ally === undefined && alliancePairOf(access) !== undefined && accessRoadOf(access) !== 'card') {
+    // THE PARTNER'S dossier knows the pair: this party standing by its printed road lends the other one its effect and cards.
+    out.push({key: 'Alliance (${1}): your access to this party opens ${0} too', params: [partner, allianceCard], tone: 'note'});
   }
   if (access.satisfiesRequirement) {
-    out.push({key: 'Card requirement of this party: met', params: [], tone: 'note'});
+    // Met only through the alliance — the requirement note names the partner; any printed road of its own is «met».
+    const ownRoad = access.ruling || access.delegates >= PARTY_EFFECT_PLACES;
+    out.push(!ownRoad && ally !== undefined ?
+      {key: 'Card requirement of this party: met by the alliance through ${0}', params: [partner], tone: 'note'} :
+      {key: 'Card requirement of this party: met', params: [], tone: 'note'});
   } else if (access.hasEffect) {
     // The effect is held by a road the REQUIREMENT does not know: a grant, or the lowered law's single cube (FAQ p.19) — each named in its own words.
-    out.push(access.byDelegates ?
+    out.push(heldByDelegates(access) ?
       {key: 'Card requirement of this party: not met — one delegate opens the effect, the requirement still asks for two', params: [], tone: 'note'} :
       {key: 'Card requirement of this party: not met — a granted effect does not count', params: [], tone: 'note'});
   }
@@ -537,6 +682,8 @@ export type VoteForecastVm = {
   tieNote: 'earlier-delegate' | 'slot-priority' | undefined;
   unlocksEffect: boolean;
   unlocksRequirement: boolean;
+  /** The ALLY whose effect and cards this delegate opens with the card's party (TR62) — the server's projection. */
+  unlocksAlliance?: ReduxParty;
 };
 
 /**
@@ -571,6 +718,7 @@ export function voteForecastOf(slot: ParliamentSlotVm, viewer: Color | undefined
     tieNote: projection.tieNote,
     unlocksEffect: projection.unlocksEffect,
     unlocksRequirement: projection.unlocksRequirement,
+    ...(projection.unlocksAlliance === undefined ? {} : {unlocksAlliance: projection.unlocksAlliance.party}),
   };
 }
 
@@ -601,10 +749,11 @@ export function voteAccessOf(slot: ParliamentSlotVm | undefined, party: Parliame
   const before = beforeMine ?? slot?.viewerVotes ?? 0;
   const after = Math.max(before, afterMine ?? before + 1);
   const access = party?.access;
-  if (access !== undefined && access.hasEffect && !access.byDelegates) {
+  const road = accessRoadOf(access);
+  if (road !== undefined && road !== 'delegates') {
     return {
       threshold, before, after, heldByOther: true,
-      reason: access.ruling ? 'already yours: the party rules' : 'already yours: granted by a card',
+      reason: road === 'ruling' ? 'already yours: the party rules' : road === 'alliance' ? 'already yours: by the alliance' : 'already yours: granted by a card',
     };
   }
   return {threshold, before, after, heldByOther: false, reason: undefined};

@@ -186,7 +186,7 @@ function offencesOf(resolution: IClientResolution, opts: {dealt: boolean}): Arra
           if (vm.reading.yields.some((y) => y.context === 'forecast')) {
             out.push(`${where}: a forecast PLATE on the panel — the win's difference is a suffix`);
           }
-          const factLimit = edge ? VOTE_INFO_LIMITS.factsOnEdge : VOTE_INFO_LIMITS.facts;
+          const factLimit = edge ? (vm.vote.facts.some((f) => f.id === 'ally') ? VOTE_INFO_LIMITS.factsOnAllyEdge : VOTE_INFO_LIMITS.factsOnEdge) : VOTE_INFO_LIMITS.facts;
           if (b.facts > factLimit) {
             out.push(`${where}: facts ${b.facts} (≤ ${factLimit})`);
           }

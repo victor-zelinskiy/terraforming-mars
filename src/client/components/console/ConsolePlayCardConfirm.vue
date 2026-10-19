@@ -249,8 +249,8 @@
                    printed bound (struck when ignored), the effective one, the scale now, the verdict and who bends it.
                    Every number is the server's reading (`ArmedPlayForecast.easings`); one fixed line per requirement. -->
               <div v-for="r in requirementViews" :key="'req' + r.key" class="con-composer__reqrow"
-                   :class="{'con-composer__reqrow--waived': r.waived, 'con-composer__reqrow--decisive': r.decisive, 'con-composer__reqrow--short': !r.met, 'con-composer__reqrow--stacked': r.stacked}"
-                   data-composer-req :data-req-state="r.waived ? 'waived' : (r.decisive ? 'decisive' : (r.met ? 'eased' : 'short'))">
+                   :class="{'con-composer__reqrow--waived': r.waived, 'con-composer__reqrow--allied': r.viaAlly, 'con-composer__reqrow--decisive': r.decisive, 'con-composer__reqrow--short': !r.met, 'con-composer__reqrow--stacked': r.stacked}"
+                   data-composer-req :data-req-state="r.waived ? 'waived' : (r.viaAlly ? 'allied' : (r.decisive ? 'decisive' : (r.met ? 'eased' : 'short')))">
                 <span class="con-composer__reqrow-kicker">{{ $t('Requirement') }}</span>
                 <i class="con-composer__reqrow-ico" :class="r.iconClass" :style="r.emblem !== undefined ? {backgroundImage: `url(${r.emblem})`} : undefined" aria-hidden="true"></i>
                 <span class="con-composer__reqrow-printed">{{ r.printed }}</span>
@@ -258,7 +258,7 @@
                   <span class="con-composer__reqrow-arrow" aria-hidden="true">→</span>
                   <b class="con-composer__reqrow-eff">{{ r.effective }}</b>
                 </template>
-                <span class="con-composer__reqrow-now">{{ $t('now') }} {{ r.now }}</span>
+                <span v-if="r.now !== ''" class="con-composer__reqrow-now">{{ $t('now') }} {{ r.now }}</span>
                 <span class="con-composer__reqrow-state">{{ requirementStateText(r) }}</span>
                 <!-- WHO bent it, each with its share. Several modifiers: the composition takes a line of its own and
                      reads as the SUM that moved the bound above («… + … = ±6»). -->

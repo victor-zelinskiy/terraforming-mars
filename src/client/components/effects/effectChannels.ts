@@ -44,6 +44,9 @@ const CURATED_EFFECT_CHANNELS: Partial<Record<CardName, ReadonlyArray<ReadonlyAr
   // #0 «animals may not be removed» is a pure RULE — the EMPTY set says «this
   // effect never tallies»; #1 gains an animal per city tile (onTilePlaced).
   [CardName.PETS]: [[], ['tile-placed']],
+  // #0 «Mars First = the Reds» is the LAW OF ACCESS (an alliance — nothing tallies); #1 draws a card when either party
+  // becomes ruling (onRulingPartyChanged → 'ruling-party-changed').
+  [CardName.THARSIS_ALLIANCE]: [[], ['ruling-party-changed']],
 };
 
 /**

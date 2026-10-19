@@ -108,6 +108,7 @@ export default defineComponent({
       switch (access.basis) {
       case 'ruling': return translateText('the party rules');
       case 'granted': return translateText('granted by a card');
+      case 'alliance': return translateText('by the alliance');
       default: return undefined;
       }
     },

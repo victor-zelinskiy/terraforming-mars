@@ -511,7 +511,8 @@ import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewMode
 import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
 import {actionRowsOf} from '@/client/console/parliament/actionRows';
-import {parliamentPromptBridge, resolutionBillOf} from '@/client/console/parliament/consoleParliamentModel';
+import {accessRoadOf, allianceOf, parliamentPromptBridge, resolutionBillOf} from '@/client/console/parliament/consoleParliamentModel';
+import {PartyAccessModel} from '@/common/models/ParliamentModel';
 import {beginPartyColonyTrade} from '@/client/console/colonyTrade/colonyTradeEntry';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
@@ -853,6 +854,11 @@ export default defineComponent({
      * printed graphic is the manifest's action rows. A party whose effect the
      * player lacks is not an action of theirs and is not listed.
      */
+    /** The viewer's own access per party (the roads of the law — TR62 reads the alliance off it). */
+    viewerPartyAccess(): ReadonlyArray<PartyAccessModel> {
+      const color = this.playerView.thisPlayer?.color;
+      return this.playerView.game.parliament?.players.find((p) => p.color === color)?.access ?? [];
+    },
     parliamentActionSources(): Array<ParliamentActionSource> {
       const viewer = this.playerView.game.parliament?.viewer;
       if (viewer === undefined || this.repeat) {
@@ -871,9 +877,13 @@ export default defineComponent({
         }
         const effect = getPartyEffect(action.party);
         const offered = action.id === 'unity-trade' ? unityOffered : bridge.actions[action.id] !== undefined;
+        // THE ROAD (TR62): an action held by the alliance names its partner on the plate (the one helper reads it).
+        const access = this.viewerPartyAccess.find((a) => a.party === action.party);
+        const allyVia = accessRoadOf(access) === 'alliance' ? allianceOf(access)?.via : undefined;
         out.push({
           party: action.party,
           actionId: action.id,
+          ...(allyVia !== undefined ? {allyVia} : {}),
           renderRoot: effect?.actionRenderData ?? effect?.passiveRenderData,
           rule: effect?.text.action ?? effect?.text.rule ?? '',
           usesLeft: action.usesLeft,

@@ -35,6 +35,7 @@ import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {PARLIAMENT_MAX_POPULAR_SUPPORT, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {VoteSupportProjection} from '@/common/models/PlayerInputModel';
 import {ParliamentPartyVm, ParliamentSlotVm, PARTY_EFFECT_PLACES, voteAccessOf, VoteForecastVm} from './consoleParliamentModel';
+import {partyNameKey} from './partyNames';
 import {
   levelLossNoteOf, levelPresentation, levelYieldIsNone, noRecipientCompactNoteOf, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY,
   productionHorizonOn, ReadingPerson, voteLevyOf, voteYieldsOf, WinSuffix, winSuffixesOf,
@@ -158,7 +159,7 @@ export type FactValue = {
   dash?: boolean;
 };
 
-export type VoteFactId = 'lead' | 'win' | 'access';
+export type VoteFactId = 'lead' | 'win' | 'access' | 'ally';
 
 export type VoteFactVm = {
   id: VoteFactId;
@@ -174,7 +175,12 @@ export type VoteFactVm = {
   note: string | undefined;
 };
 
-export type VoteFactsVm = {lead: VoteFactVm, win: VoteFactVm, access: VoteFactVm};
+/**
+ * `ally` (TR62 Tharsis Alliance) — the SECOND fact of the party's edge: the delegate brings the card's party to its
+ * printed road, and the viewer's table allies it with another party, whose effect AND cards come with it
+ * («АЛЬЯНС · Красные → эффект и карты ваши») — the server's projection (`unlocksAlliance`), shown BEFORE the press.
+ */
+export type VoteFactsVm = {lead: VoteFactVm, win: VoteFactVm, access: VoteFactVm, ally?: VoteFactVm};
 
 /** The vote's counts (the inspector's row; the panel leaves them to the ribbon under the card). */
 export type VoteNumbersVm = {votesBefore: number, votesAfter: number, mineBefore: number, mineAfter: number};
@@ -408,7 +414,15 @@ export function voteFactsOf(input: VoteFactsInput): VoteFactsVm {
   const unlocks = !access.heldByOther && access.after >= access.threshold && access.before < access.threshold;
   const accessTone: VoteFactVm['tone'] = access.heldByOther ? 'keep' :
     (access.after >= access.threshold ? (access.before >= access.threshold ? 'keep' : 'gain') : (access.after > access.before ? 'keep' : 'none'));
+  // THE ALLIANCE THIS DELEGATE OPENS (TR62) — only before the cube lands (landed, the dossier and the seals say it).
+  const ally = landed ? undefined : f?.unlocksAlliance;
+  const allyFact: VoteFactVm | undefined = ally === undefined ? undefined : {
+    id: 'ally', label: 'Alliance',
+    before: {key: partyNameKey(ally)}, after: {key: 'effect and cards are yours'},
+    unchanged: false, tone: 'gain', note: undefined,
+  };
   return {
+    ...(allyFact === undefined ? {} : {ally: allyFact}),
     lead: {
       id: 'lead', label: 'Leader',
       before: leaderValue(leaderBefore, 'before'), after: leaderValue(leaderAfter, 'after'),
@@ -438,6 +452,10 @@ export function panelFactsOf(facts: VoteFactsVm): Array<VoteFactVm> {
   const out = [facts.lead, facts.win];
   if (facts.access.tone === 'gain' && !facts.access.unchanged) {
     out.push(facts.access);
+  }
+  // …and the alliance the delegate opens with it (TR62) — the edge's second fact.
+  if (facts.ally !== undefined) {
+    out.push(facts.ally);
   }
   return out;
 }
@@ -541,7 +559,9 @@ export type VoteInfoBudget = {
 // on top of a full panel — at influence 0 on the edge that is 30. The ceiling moved rather than the
 // note, because the alternative was dropping «если победите · шаг» exactly where the win changes the number.
 // `supportWords` 7: «Народная поддержка» + the longest tail, «+2 из 3 · нейтральных в запасе: 2» (five words).
-export const VOTE_INFO_LIMITS = {kickers: 3, readings: 1, facts: 2, factsOnEdge: 3, words: 30, momentWords: 5, supportWords: 7} as const;
+// `factsOnAllyEdge` 4 since TR62 (Tharsis Alliance): the PRINTED edge of a party allied with another opens BOTH — the
+// party's own effect and the ally's effect and cards — and the panel names each before the press (invariant 3).
+export const VOTE_INFO_LIMITS = {kickers: 3, readings: 1, facts: 2, factsOnEdge: 3, factsOnAllyEdge: 4, words: 30, momentWords: 5, supportWords: 7} as const;
 
 const IDENTITY: TextFn = (key, params) => (params ?? []).reduce<string>((acc, p, i) => acc.split('${' + i + '}').join(p), key);
 

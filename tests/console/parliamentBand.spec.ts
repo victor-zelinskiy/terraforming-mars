@@ -185,6 +185,16 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
       expect(kinds(band.chips)).deep.eq(['resolution', 'label', 'party']);
       expect(band.committed, 'past the commit boundary the accent is amber').eq(true);
     });
+    it('the enactment\'s TAIL (TR62): a card answering the change of power — which card, how many cards, which party came to power', () => {
+      const band = line({stage: 'enact', rulingDraw: {card: CardName.THARSIS_ALLIANCE, party: PartyName.MARS, count: 1}});
+      expect(band.kicker, 'still the enactment\'s line — the tail of its tact').eq('Enactment');
+      expect(kinds(band.chips)).deep.eq(['label', 'count', 'party', 'label']);
+      expect(band.chips[0]).deep.eq({kind: 'label', key: CardName.THARSIS_ALLIANCE, tone: 'accent'});
+      expect(band.chips[1]).deep.eq({kind: 'count', key: 'Cards', amount: 1});
+      expect(band.key, 'its own line: the crossfade fires into it and out of it').not.eq(line({stage: 'enact'}).key);
+      // …and only at rest: a beat of the enactment still playing keeps its own line.
+      expect(line({stage: 'enact', beat: 'support', supportWave: 'absent', rulingDraw: {card: CardName.THARSIS_ALLIANCE, party: PartyName.MARS, count: 1}}).kicker).eq('Popular support');
+    });
   });
 
   describe('НАГРАДА — the payout formula whole, while the chips fly', () => {

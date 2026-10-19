@@ -3,6 +3,7 @@ import {ICardRenderRoot} from '@/common/cards/render/Types';
 import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mechanicsModel';
 import {PARLIAMENT_GRAPHIC} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {EffectActionState, EffectItemsInput, EffectWhy, parliamentEffectItems} from './parliamentEffectsModel';
+import {allianceSourceOf, alliancePartnerName, grantSourcesOf} from './consoleParliamentModel';
 
 /*
  * THE INNER STEP «ВАШИ ЭФФЕКТЫ» (Парламент v8, docs/TURMOIL_REDUX_PARLIAMENT_V8_PLAN.md § 6, the mock `c1`): A on the
@@ -55,8 +56,13 @@ function whyReadingOf(input: EffectItemsInput, party: ReduxParty, why: EffectWhy
     const name = slot?.resolution?.text.name;
     return name === undefined ? {key: 'your delegates', params: []} : {key: 'your delegates · «${0}»', params: [name]};
   }
+  case 'alliance': {
+    // TR62: the partner that stands for this party, and the card that made the pair.
+    const access = view.viewer?.access.find((a) => a.party === party);
+    return {key: 'by the alliance: ${0} · «${1}»', params: [alliancePartnerName(access), allianceSourceOf(access)]};
+  }
   case 'granted': {
-    const card = view.viewer?.access.find((a) => a.party === party)?.granted[0];
+    const card = grantSourcesOf(view.viewer?.access.find((a) => a.party === party))[0];
     return card === undefined ? {key: 'by a card', params: []} : {key: 'by the card «${0}»', params: [card]};
   }
   case 'law': return {key: 'the enacted law · «${0}»', params: [lawName ?? '']};

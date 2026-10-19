@@ -27,6 +27,8 @@ import {
 import {EventSource} from '@/common/events/EventSource';
 import {ArmedPlayEffectModel, RequirementEasingModel} from '@/common/models/ArmedPlayEffectModel';
 import {ModifierSourceVM, modifierSourceOf} from '@/client/components/premiumCard/premiumModifierSources';
+import {requirementPartyEmblem} from '@/client/components/premiumCard/partyEmblems';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {EventTrigger} from '@/common/events/GameEvent';
 import {EffectSignature} from '@/client/components/effects/effectSummary';
 import {expectedChannelsFor} from '@/client/components/effects/effectChannels';
@@ -65,9 +67,10 @@ export type ForecastChip =
    * A REQUIREMENT MODIFIER OF THIS PLAY (TR49 class): an armed one-play effect
    * the play spends — «±2» / the struck plate of a waiver / «−8» when it is
    * spent for nothing — or a standing modifier (Inventrix) bending one of the
-   * card's printed requirements. `used: false` = spent for nothing (muted).
+   * card's printed requirements. `used: false` = spent for nothing (muted). An ALLIANCE (TR62) has no number: its
+   * mark is the partner's, and the party it OPENS stands in the badge's place (`opens` — that party's emblem).
    */
-  | {kind: 'modifier', key: string, badge: string, waive: boolean, partyWaive?: boolean, used: boolean, oneShot: boolean, mark: ModifierSourceVM, facts: number}
+  | {kind: 'modifier', key: string, badge: string, waive: boolean, partyWaive?: boolean, used: boolean, oneShot: boolean, mark: ModifierSourceVM, opens?: string, facts: number}
   | {kind: 'more', key: string, count: number, facts: number};
 
 /** Which operation the forecast describes — the WHEN vocabulary differs. */
@@ -182,10 +185,13 @@ export function compactForecastChips(forecast: EffectForecast | undefined): Fore
     return {chips: [], represented: 0, total: 0};
   }
   // THE PLAY'S MODIFIERS lead (TR49 class): they concern the card's own legality and price, before the table answers.
-  const modifierChips: Array<ForecastChip> = modifierItemsOf(forecast).map((m) => ({
-    kind: 'modifier', key: m.key, badge: m.badge, waive: m.waive, ...(m.partyWaive === true ? {partyWaive: true} : {}),
-    used: m.used, oneShot: m.oneShot, mark: modifierMarkOf(m), facts: 1,
-  }));
+  const modifierChips: Array<ForecastChip> = modifierItemsOf(forecast).map((m) => {
+    const opens = m.opens !== undefined ? requirementPartyEmblem(m.opens) : undefined;
+    return {
+      kind: 'modifier', key: m.key, badge: m.badge, waive: m.waive, ...(m.partyWaive === true ? {partyWaive: true} : {}),
+      used: m.used, oneShot: m.oneShot, mark: modifierMarkOf(m), ...(opens !== undefined ? {opens} : {}), facts: 1,
+    };
+  });
   const own = new Map<string, ChipSlot>();
   const asks = new Map<string, ChipSlot>();
   const other = new Map<string, ChipSlot & {color: Color, bot: boolean}>();
@@ -481,6 +487,10 @@ export type ForecastModifierItem = {
   /** The waiver is the PARTY family's (TR70 — the struck plate is the party plate, never «global requirements»). */
   partyWaive?: boolean,
   badge: string,
+  /** An ALLIANCE (TR62): the partner the requirement is met through (the mark's emblem)… */
+  via?: PartyName,
+  /** …and the party whose requirement it opens (the chip's emblem in the badge's place). */
+  opens?: PartyName,
   easings: ReadonlyArray<RequirementEasingModel>,
 };
 
@@ -489,8 +499,10 @@ function sourceCardOf(source: EventSource): CardName | undefined {
 }
 
 /** The mark a modifier item wears — the KIND of its source (`PremiumModifierMarks`): a card on the table, a one-play bolt, a policy. */
-export function modifierMarkOf(item: Pick<ForecastModifierItem, 'key' | 'source' | 'waive' | 'oneShot'>): ModifierSourceVM {
-  const vm = modifierSourceOf({source: item.source, kind: item.waive ? 'waive' : 'shift', oneShot: item.oneShot});
+export function modifierMarkOf(item: Pick<ForecastModifierItem, 'key' | 'source' | 'waive' | 'oneShot' | 'via'>): ModifierSourceVM {
+  const vm = item.via !== undefined ?
+    modifierSourceOf({source: item.source, kind: 'ally', via: item.via, oneShot: item.oneShot}) :
+    modifierSourceOf({source: item.source, kind: item.waive ? 'waive' : 'shift', oneShot: item.oneShot});
   return {...vm, key: item.key};
 }
 
@@ -534,6 +546,8 @@ export function modifierItemsOf(forecast: EffectForecast | undefined): Array<For
           kind: 'modifier', key: `mod-${key}`, group: 'modifiers', source: share.source,
           used: true, oneShot: share.oneShot, waive: share.kind === 'waive',
           ...(share.kind === 'waive' && easing.party !== undefined ? {partyWaive: true} : {}),
+          ...(share.kind === 'ally' && share.via !== undefined ? {via: share.via} : {}),
+          ...(share.kind === 'ally' && easing.party !== undefined ? {opens: easing.party} : {}),
           badge: share.kind === 'shift' ? `±${share.steps ?? 0}` : '', easings: [],
         };
         standing.set(key, item);

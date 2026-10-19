@@ -83,6 +83,7 @@ import {tilePlacementHolding} from '@/client/console/tilePlacement/consoleTilePl
 import {nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
 import {agendaTrackOnScreen, isAgendaReveal, isBoardCardBonusActive, boardCardBonusClaimsReveal, isBonusRevealStaged} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
+import {rulingChangeParksReveal} from '@/client/console/parliament/rulingChangeDraw';
 import {colonyBonusPayoutParksReveal} from '@/client/console/colonyLedger/colonyBonusPayout';
 import {colonyTradeClaimsReveal, isColonyTradeRevealStaged, isPresentedTradeReveal} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {colonyResolutionUi, remoteColonyBonusHold} from '@/client/console/colonyTrade/colonyResolution';
@@ -296,6 +297,8 @@ export default defineComponent({
       const waiting = remoteColonyBonusHold(this.playerView.waitingFor, e.source) ||
         hydroStepQueuedFor(e.source) ||
         parliamentParksReveal(e.source) ||
+        // …and a card's answer to a change of power (TR62): the sitting deals it at its enactment's tail, off the same pile.
+        rulingChangeParksReveal(e.source) ||
         colonyBonusPayoutParksReveal(e.source) ||
         (colonyResolutionUi.discardStage && workspaceClaimsColonyReveal(e.source));
       const v = deckDrawVerdict({eventId: e.id, foreign, waiting});

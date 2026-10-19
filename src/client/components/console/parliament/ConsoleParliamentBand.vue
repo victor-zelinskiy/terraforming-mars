@@ -187,6 +187,7 @@ import {
 } from '@/client/console/parliament/parliamentBand';
 import {chairmanQuestFlow} from '@/client/console/parliament/consoleChairmanQuest';
 import {agendaWalkFlow} from '@/client/console/parliament/agendaWalk';
+import {rulingChangeDrawState} from '@/client/console/parliament/rulingChangeDraw';
 import {influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import {quietRewardPoseOf, SittingPosition, SittingStage} from '@/client/console/parliament/consoleSittingFlow';
 import {enactedLevyOf, enactedYieldsOf, resolvingLevyOf, resolvingYieldsOf} from '@/client/console/parliament/influenceYieldModel';
@@ -270,6 +271,7 @@ export default defineComponent({
         beat: sittingMotion.beat,
         supportWave: sittingMotion.supportWave,
         ...(sittingMotion.renewal === undefined ? {} : {renewal: sittingMotion.renewal}),
+        ...(rulingChangeDrawState.presenting === undefined ? {} : {rulingDraw: rulingChangeDrawState.presenting}),
         generation: position.generation,
         awaiting: position.awaiting,
         summary: this.summary,

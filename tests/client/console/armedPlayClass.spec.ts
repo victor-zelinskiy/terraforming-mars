@@ -121,11 +121,14 @@ describe('the ONE-PLAY class in the play surfaces (TR49)', () => {
       expect(items).has.length(1);
       expect(items[0]).to.include({kind: 'modifier', used: true, oneShot: false, waive: false, badge: ''});
       expect(forecastItemCard(items[0])).eq(CardName.THARSIS_ALLIANCE);
-      // The composer's row: the printed party and its two roads stay; the bound is «through» the partner; «now» reads BOTH parties.
+      // The composer's row: the printed party and its two roads stay; the bound is «through» the partner.
       const [row] = composerRequirementViews([allied]);
-      expect(row).to.include({waived: false, allied: true, met: true, decisive: true, label: partyNameKey(PartyName.REDS), printed: 'ruling or 2 delegates', emblem: 'assets/parties/redux/reds.png'});
+      expect(row).to.include({waived: false, viaAlly: true, met: true, decisive: true, label: partyNameKey(PartyName.REDS), printed: 'ruling or 2 delegates', emblem: 'assets/parties/redux/reds.png'});
       expect(row.effective).eq(`through ${partyNameKey(PartyName.MARS)}`);
-      expect(row.now).eq(`your delegates on the resolution of that party: 0 of 2 · ${partyNameKey(PartyName.MARS)} is ruling`);
+      // The alliance meets it: the source line names the card and the PARTNER's road now, on a line of its own.
+      expect(row.now).eq('');
+      expect(row.stacked).is.true;
+      expect(row.shares[0].text).eq(`${CardName.THARSIS_ALLIANCE} · ${partyNameKey(PartyName.MARS)} is ruling`);
       expect(requirementStateText(row)).eq('Met through the alliance');
       expect(row.shares[0].source).to.include({symbol: 'ally', via: PartyName.MARS, card: CardName.THARSIS_ALLIANCE});
       // Met ANYWAY (the Reds' own road holds) — quiet: no row, no chip.

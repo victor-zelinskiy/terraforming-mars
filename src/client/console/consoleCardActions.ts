@@ -192,6 +192,8 @@ export type ConsoleActionGroup = {
   isCorporation: boolean;
   /** The source is a PARTY (Turmoil Redux) — the plate draws its emblem, never a card name. */
   party?: ReduxParty;
+  /** …held BY THE ALLIANCE (TR62): the partner — the plate names the road by its mark (the partner's emblem + the link). */
+  allyVia?: ReduxParty;
   /** The source is the ENACTED RESOLUTION's action (Turmoil Redux) — the plate draws its party's seal and the law's name. */
   resolutionAction?: ResolutionId;
   resolutionParty?: ReduxParty;
@@ -1103,6 +1105,8 @@ export type ParliamentActionSourceBase = {
 export type PartyActionSource = ParliamentActionSourceBase & {
   party: ReduxParty;
   actionId: PartyActionId;
+  /** The action is the viewer's BY THE ALLIANCE (TR62): the partner whose road opened it — the plate's road mark. */
+  allyVia?: ReduxParty;
 };
 
 /**
@@ -1304,6 +1308,7 @@ export function buildConsoleActionsModel(
         cardName: tile.cardName,
         isCorporation: false,
         party: resolution ? undefined : source.party,
+        ...(!resolution && source.allyVia !== undefined ? {allyVia: source.allyVia} : {}),
         resolutionAction: resolution ? source.resolution : undefined,
         resolutionParty: resolution ? source.party : undefined,
         status: tile.status,

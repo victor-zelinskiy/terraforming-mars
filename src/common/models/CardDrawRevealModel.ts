@@ -84,6 +84,13 @@ export type CardDrawRevealSource =
   | {type: 'resolution', resolution: string}
   /** Turmoil Redux: the Agenda track's card step (the chairman quest / the political phase advanced a marker). */
   | {type: 'agenda'}
+  /**
+   * Turmoil Redux: a CARD answered a CHANGE OF POWER at the sitting's enactment (TR62 Tharsis Alliance — «draw a card
+   * when either of those parties becomes ruling»): `party` is the new ruling party. Its one honest presentation is the
+   * TAIL of the enactment tact — the card leaves the project deck for the hand dock once the seals have changed places
+   * (`console/parliament/rulingChangeDraw.ts`), never before the enactment and never as a reveal over the sitting.
+   */
+  | {type: 'ruling-change', cardName: CardName, party: PartyName}
   | {type: 'other'};
 
 /**

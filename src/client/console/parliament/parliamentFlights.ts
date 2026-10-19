@@ -77,6 +77,8 @@ export type CardFlightSpec = {id: string, width: number, height: number, face?: 
  * just landed on (the law of a visible stage).
  */
 export type TokenFlightSpec = {id: string, iconClass: string, amount: number, /** «+» (a yield) by default; «−» for a PRICE leaving. */ sign?: string};
+/** THE ALLIANCE'S IMPULSE (TR62): one bead of light in the PARTNER's accent. */
+export type SparkFlightSpec = {id: string, accent: string};
 
 /** A delegate cube's flight (the enactment's returns home, the seat pick's delegate to the chair). */
 export const CUBE_FLIGHT_MS = 480;
@@ -93,11 +95,14 @@ export const TOKEN_RISE_MS = 960;
 export const PRICE_FLIGHT_MS = 460;
 /** …and its absorption by the stack (the dissolve on touchdown) — the cube lifts only after it. */
 export const PRICE_ABSORB_MS = 160;
+/** The alliance's impulse from the partner's seal to the ally's (TR62) — one short travel, the ally answers on arrival. */
+export const ALLIANCE_SPARK_MS = 560;
 
 export const parliamentFlights = reactive({
   flights: [] as Array<FlightSpec>,
   cardFlights: [] as Array<CardFlightSpec>,
   tokenFlights: [] as Array<TokenFlightSpec>,
+  sparkFlights: [] as Array<SparkFlightSpec>,
 });
 
 /** The proxy elements and the running handles, by flight id (DOM handles — never reactive). */
@@ -220,6 +225,10 @@ export function pushTokenFlight(spec: TokenFlightSpec): void {
   parliamentFlights.tokenFlights.push(spec);
 }
 
+export function pushSparkFlight(spec: SparkFlightSpec): void {
+  parliamentFlights.sparkFlights.push(spec);
+}
+
 export function dropFlight(id: string): void {
   flightBeats[id]?.beat.kill();
   delete flightBeats[id];
@@ -229,6 +238,7 @@ export function dropFlight(id: string): void {
   parliamentFlights.flights = parliamentFlights.flights.filter((f) => f.id !== id);
   parliamentFlights.cardFlights = parliamentFlights.cardFlights.filter((f) => f.id !== id);
   parliamentFlights.tokenFlights = parliamentFlights.tokenFlights.filter((f) => f.id !== id);
+  parliamentFlights.sparkFlights = parliamentFlights.sparkFlights.filter((f) => f.id !== id);
 }
 
 /** Drop every flight whose id starts with `prefix` (the vote's landing clears its own delegate flights). */
@@ -254,11 +264,67 @@ export function killParliamentFlights(): void {
   parliamentFlights.flights = [];
   parliamentFlights.cardFlights = [];
   parliamentFlights.tokenFlights = [];
+  parliamentFlights.sparkFlights = [];
 }
 
 /** Whether any proxy is on screen (the section's `--flying` class). */
 export function parliamentFlightsAirborne(): boolean {
-  return parliamentFlights.flights.length > 0 || parliamentFlights.cardFlights.length > 0 || parliamentFlights.tokenFlights.length > 0;
+  return parliamentFlights.flights.length > 0 || parliamentFlights.cardFlights.length > 0 || parliamentFlights.tokenFlights.length > 0 ||
+    parliamentFlights.sparkFlights.length > 0;
+}
+
+/**
+ * THE ALLIANCE'S IMPULSE (TR62 Tharsis Alliance): when an alliance starts to
+ * HOLD for the viewer (the partner's second cube landed; the partner came to
+ * power), ONE bead of light in the partner's accent leaves the partner's seal
+ * and travels to the ally's seal, where the ally's borrowed ring lights on its
+ * arrival (`onLanded` — the caller raises the ally's one-shot answer there).
+ * Born invisible on the partner's seal, it swells as it leaves and shrinks into
+ * the ally — transform / opacity only, on the motion clock. Nothing measurable
+ * (a seal not laid out) or reduced motion: the ally answers at once.
+ */
+export function sendAllianceSpark(args: {from: Rect | undefined, to: Rect | undefined, accent: string, onLanded: () => void}): void {
+  const {from, to} = args;
+  if (from === undefined || to === undefined || typeof window === 'undefined' || consoleReducedMotionActive()) {
+    args.onLanded();
+    return;
+  }
+  const id = nextFlightId('ally-spark');
+  pushSparkFlight({id, accent: args.accent});
+  void nextTick(() => {
+    const proxy = flightEls[id];
+    if (proxy === null || proxy === undefined) {
+      dropFlight(id);
+      args.onLanded();
+      return;
+    }
+    const size = proxy.offsetWidth || conLogicalPx(18);
+    const x0 = from.left + from.width / 2 - size / 2;
+    const y0 = from.top + from.height / 2 - size / 2;
+    const x1 = to.left + to.width / 2 - size / 2;
+    const y1 = to.top + to.height / 2 - size / 2;
+    const dur = consoleMotionMs(ALLIANCE_SPARK_MS) / 1000;
+    const tl = gsap.timeline();
+    tl.set(proxy, {x: x0, y: y0, scale: 0.4, autoAlpha: 0}, 0);
+    tl.to(proxy, {autoAlpha: 1, scale: 1.15, duration: dur * 0.22, ease: 'power2.out'}, 0);
+    tl.to(proxy, {x: x1, y: y1, duration: dur, ease: 'power2.inOut'}, 0);
+    tl.to(proxy, {scale: 0.55, autoAlpha: 0, duration: dur * 0.22, ease: 'power2.in'}, dur * 0.82);
+    let ended = false;
+    const end = () => {
+      if (ended) {
+        return;
+      }
+      ended = true;
+      args.onLanded();
+      probeTick(() => dropFlight(id));
+    };
+    tl.eventCallback('onComplete', end);
+    runHandle(id, {tween: tl, kill: () => {
+      tl.kill();
+      gsap.set(proxy, {autoAlpha: 0});
+      end();
+    }});
+  });
 }
 
 /**

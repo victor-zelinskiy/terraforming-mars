@@ -1454,6 +1454,16 @@
     box-shadow: 0 .5rem 1.4rem rgba(0, 0, 0, 0.5);
     .con-parl__cardback { position: absolute; inset: 0; .pcard-bill-back(); }
 }
+/* THE ALLIANCE'S IMPULSE (TR62 Tharsis Alliance): one bead of light in the PARTNER's accent travelling from its seal
+   to the ally's — a lit core and a soft halo, both box-shadow (the console strips `filter`); GSAP owns its transform
+   and alpha from birth. */
+.con-parl__flight--spark {
+    width: .9rem;
+    height: .9rem;
+    border-radius: 50%;
+    background: radial-gradient(circle, #fffbea 0%, var(--spark-accent, @con-parl-mint) 55%, transparent 72%);
+    box-shadow: 0 0 .8rem .2rem color-mix(in srgb, var(--spark-accent, @con-parl-mint) 65%, transparent);
+}
 /* A RESOURCE TOKEN over the reserve (a card answered a loser's leave — TR02
    Political Science): the resource's icon and «+N» on a small glass plate,
    the rail's own chip language. Sized in rem (it is READ, not matched to a

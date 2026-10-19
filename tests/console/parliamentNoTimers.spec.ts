@@ -29,6 +29,11 @@ const ALLOWED: ReadonlyArray<{file: string, marker: string, why: string}> = [
     marker: 'SUBMIT_SAFETY_MS',
     why: 'the submit safety net — a bound over a silent server, not a beat',
   },
+  {
+    file: path.join('src', 'client', 'console', 'parliament', 'rulingChangeDraw.ts'),
+    marker: 'PARK_NET_MS',
+    why: 'TR62: the park of a card\'s answer to a change of power — a bound over a sitting that never tells its enactment, not a beat',
+  },
   // (v2: the reward ledger keeps NO net of its own — a counter's hold is released by its chip's touchdown, by an
   // explicit end of the stage, or by the hold registry's ceiling with a diagnosis; never by a wall clock.)
 ];

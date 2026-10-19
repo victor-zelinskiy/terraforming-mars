@@ -206,7 +206,7 @@ describe('voteInfoOf — a CARD\'s door (the staged vote) on the panel', () => {
             if (b.support === 0) {
               offences.push(`${where}: the support block costs no words — it is not being counted`);
             }
-            const factLimit = edge ? VOTE_INFO_LIMITS.factsOnEdge : VOTE_INFO_LIMITS.facts;
+            const factLimit = edge ? (vm.vote.facts.some((f) => f.id === 'ally') ? VOTE_INFO_LIMITS.factsOnAllyEdge : VOTE_INFO_LIMITS.factsOnEdge) : VOTE_INFO_LIMITS.facts;
             if (b.facts > factLimit) {
               offences.push(`${where}: facts ${b.facts} (≤ ${factLimit})`);
             }

@@ -2001,6 +2001,7 @@ import {revealSourcePeekState} from '@/client/console/revealSourcePeek';
 import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceClaimsRevealSource, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState, workspaceOutcomeZone} from '@/client/console/consoleWorkspaceOutcome';
 import {boardBeatParkPending, boardBeatParkState, boardBeatParksReveal, drainBoardBeatsIfDue, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatSurfaceProbe, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
 import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
+import {rulingChangeParksReveal} from '@/client/console/parliament/rulingChangeDraw';
 import {
   COLONY_LEDGER_STAGE,
   colonyBonusPayout, colonyBonusPayoutArmed, colonyBonusPayoutLive, colonyBonusPayoutOf, colonyBonusPayoutParksReveal,
@@ -4945,6 +4946,7 @@ export default defineComponent({
         !remoteColonyBonusParksReveal(this.remoteColonyBonusPending, ev.source) &&
         !boardBeatParksReveal(ev.source) &&
         !parliamentParksReveal(ev.source) &&
+        !rulingChangeParksReveal(ev.source) &&
         !colonyBonusPayoutParksReveal(ev.source);
     },
     /**
@@ -23161,7 +23163,9 @@ export default defineComponent({
     // wall the workspace's own batch behind it (drawnCardsState — the queue
     // park), the same verdict `rawDrawnRevealPending` subtracts.
     // …and a ledger row's batch whose turn has not come (`colonyBonusPayoutParksReveal` — TR23).
-    this.releaseRevealQueuePark = registerRevealQueuePark((source) => boardBeatParksReveal(source) || colonyBonusPayoutParksReveal(source));
+    this.releaseRevealQueuePark = registerRevealQueuePark((source) => boardBeatParksReveal(source) || colonyBonusPayoutParksReveal(source) ||
+      // …and a card's answer to a change of power (TR62) waits for the sitting's enactment tact — the queue skips it.
+      rulingChangeParksReveal(source));
     // …and the ledger's redrive rides the shell's GUARDED drain (the one
     // that folds board cinematics + the read admission in) — the bare
     // module drain is only the desktop/test default.
@@ -23441,7 +23445,9 @@ export default defineComponent({
       (source) => remoteColonyBonusParksReveal(this.remoteColonyBonusPending, source) ||
         boardBeatParksReveal(source) || parliamentParksReveal(source) ||
         // …and the ledger payout's (a row's batch waiting for its turn — the fourth member, same law).
-        colonyBonusPayoutParksReveal(source));
+        colonyBonusPayoutParksReveal(source) ||
+        // …and a card's answer to a change of power (TR62 — the fifth: it waits for the sitting's enactment tact).
+        rulingChangeParksReveal(source));
     // T6: the notification CTAs go through the typed notificationBus;
     // PlayerHome's listeners don't exist in console — the shell answers them.
     (this as unknown as {__notifOff: Array<() => void>}).__notifOff = [

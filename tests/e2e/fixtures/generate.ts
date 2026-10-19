@@ -6976,3 +6976,109 @@ function floatingBiodomesFixture(name: string, at: 'live' | 'dead' | 'maxo2'): v
 floatingBiodomesFixture('floating-biodomes', 'live');
 floatingBiodomesFixture('floating-biodomes-dead', 'dead');
 floatingBiodomesFixture('floating-biodomes-maxo2', 'maxo2');
+
+// ── TR62 · THARSIS ALLIANCE — the law of access's FOURTH road (docs/TURMOIL_REDUX_THARSIS_ALLIANCE.md). The Greens rule
+//    by the starting rule; the voting area is [Mars First · the Reds · the Scientists] (quiet cards); red keeps a cube on
+//    the Scientists; the corporations pinned (Teractor / ThorGate — no first action on red's page, the TR24 trap).
+//      `tharsis-alliance`         — blue's action phase, 24 M€, TR62 AND Reds News Outlet (the Reds' plate, no side effect)
+//                                   in hand, TWO of blue's cubes on Mars First: the play opens the Reds by the alliance;
+//      `tharsis-alliance-dormant` — TR62 on blue's table, no cube on either party: both badges dormant, the Outlet's reason
+//                                   with the alliance's second road;
+//      `tharsis-alliance-council` — TR62 AND Council Seat on blue's table, ONE cube on Mars First: Mars First's effect by the
+//                                   lowered threshold, the Reds NOT (FAQ p.19) — the vote's 1 → 2 edge names the ally;
+//      `tharsis-alliance-enact`   — TR62 on blue's table, the sitting at its first gate with Mars First winning (red's three
+//                                   cubes): the enactment draws blue a card and opens the Reds by the alliance.
+//    Every table is refused unless its DRY RUN (on a copy) reaches the state the name promises. ──
+type TharsisAllianceTable = 'journey' | 'dormant' | 'council' | 'enact';
+function tharsisAllianceFixture(name: string, at: TharsisAllianceTable): void {
+  parliamentFixture(name, {
+    stopAt: at === 'enact' ? 'assembly' : 'vote',
+    megacredits: [24, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, p2, parliament}) => {
+      seatResolution(parliament, 0, quietResolutionOf(PartyName.MARS));
+      seatResolution(parliament, 1, quietResolutionOf(PartyName.REDS));
+      seatResolution(parliament, 2, quietResolutionOf(PartyName.SCIENTISTS));
+      parliament.placeVote(p2, parliament.slots[2], 'reserve');
+      if (at === 'journey') {
+        parliament.placeVote(p1, parliament.slots[0], 'reserve');
+        parliament.placeVote(p1, parliament.slots[0], 'reserve');
+        moveToDeckTop(game, CardName.THARSIS_ALLIANCE);
+        p1.cardsInHand.push(game.projectDeck.drawPile.pop() as IProjectCard);
+      } else {
+        moveToDeckTop(game, CardName.THARSIS_ALLIANCE);
+        p1.playedCards.push(game.projectDeck.drawPile.pop() as IProjectCard);
+      }
+      if (at === 'council') {
+        moveToDeckTop(game, CardName.COUNCIL_SEAT);
+        p1.playedCards.push(game.projectDeck.drawPile.pop() as IProjectCard);
+        parliament.placeVote(p1, parliament.slots[0], 'reserve');
+      }
+      if (at === 'enact') {
+        // Mars First wins the vote: red's three cubes on its card (blue's lobby cube stays for the next generation).
+        parliament.placeVote(p2, parliament.slots[0], 'reserve');
+        parliament.placeVote(p2, parliament.slots[0], 'reserve');
+        parliament.placeVote(p2, parliament.slots[0], 'reserve');
+      } else {
+        moveToDeckTop(game, CardName.REDS_NEWS_OUTLET);
+        p1.cardsInHand.push(game.projectDeck.drawPile.pop() as IProjectCard);
+      }
+    },
+    expect: ({game, parliament, p1}) => {
+      const R = PartyName.REDS;
+      const M = PartyName.MARS;
+      const outlet = p1.cardsInHand.find((c) => c.name === CardName.REDS_NEWS_OUTLET);
+      const facts: Record<string, unknown> = {
+        ruling: parliament.rulingParty(),
+        parties: parliament.slots.map((s) => parliament.resolutionOf(s.instance).party).join(','),
+        blueOnMars: parliament.votesOf(p1, parliament.slots[0]),
+        redsHeld: parliament.access(p1, R).hasEffect,
+        redsRequirement: parliament.satisfiesPartyRequirement(p1, R),
+        marsHeld: parliament.access(p1, M).hasEffect,
+      };
+      let ok = facts.ruling === PartyName.GREENS && facts.parties === [M, R, PartyName.SCIENTISTS].join(',');
+      if (at === 'journey') {
+        // THE DRY RUN — the play for real, on a copy: the Reds open by the alliance (effect, cards, action), the Outlet plays.
+        const copy = Game.deserialize(structuredClone(game.serialize()));
+        const blue = copy.getPlayerById(p1.id);
+        blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.THARSIS_ALLIANCE) as IProjectCard);
+        runAllActions(copy);
+        const cp = copy.parliament!;
+        const outletCopy = blue.cardsInHand.find((c) => c.name === CardName.REDS_NEWS_OUTLET);
+        facts.playable = p1.canPlay(p1.cardsInHand.find((c) => c.name === CardName.THARSIS_ALLIANCE) as IProjectCard);
+        facts.outletBefore = outlet !== undefined && p1.canPlay(outlet);
+        facts.after = cp.accessBasis(blue, R);
+        facts.outletAfter = outletCopy !== undefined && blue.canPlay(outletCopy);
+        facts.redsAction = ParliamentHandler.partyActionOptions(blue).some((o) => (o as {partyActionPrompt?: {party: PartyName}}).partyActionPrompt?.party === R);
+        ok = ok && facts.blueOnMars === 2 && facts.playable === true && facts.outletBefore === false && facts.redsHeld === false &&
+          facts.after === 'alliance' && facts.outletAfter === true && facts.redsAction === true;
+      } else if (at === 'dormant') {
+        facts.outlet = outlet !== undefined && p1.canPlay(outlet);
+        facts.pair = parliament.access(p1, R).alliances.length;
+        ok = ok && facts.blueOnMars === 0 && facts.redsHeld === false && facts.outlet === false && facts.pair === 1;
+      } else if (at === 'council') {
+        ok = ok && facts.blueOnMars === 1 && facts.marsHeld === true && facts.redsHeld === false && facts.redsRequirement === false;
+      } else {
+        // THE DRY RUN of the sitting: answer the gates — Mars First enacted, blue drew ONE card, the Reds are blue's.
+        const copy = Game.deserialize(structuredClone(game.serialize()));
+        const blue = copy.getPlayerById(p1.id);
+        const hand = blue.cardsInHand.length;
+        answerStandingGates(copy, 'assembly');
+        runAllActions(copy);
+        facts.enacted = copy.parliament!.rulingParty();
+        facts.drawn = blue.cardsInHand.length - hand;
+        facts.after = copy.parliament!.accessBasis(blue, R);
+        facts.step = copy.parliament!.phase?.step;
+        ok = ok && facts.enacted === M && facts.drawn === 1 && facts.after === 'alliance';
+      }
+      if (!ok) {
+        throw new Error(`${name}: the Tharsis Alliance table is not the one its name promises — got ${JSON.stringify(facts)}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+tharsisAllianceFixture('tharsis-alliance', 'journey');
+tharsisAllianceFixture('tharsis-alliance-dormant', 'dormant');
+tharsisAllianceFixture('tharsis-alliance-council', 'council');
+tharsisAllianceFixture('tharsis-alliance-enact', 'enact');

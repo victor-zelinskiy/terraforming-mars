@@ -55,6 +55,13 @@
       <i class="con-parl__token-icon" :class="f.iconClass" aria-hidden="true"></i>
       <b class="con-parl__token-amount">{{ f.sign ?? '+' }}{{ f.amount }}</b>
     </div>
+    <!-- THE ALLIANCE'S IMPULSE (TR62): one bead of light in the partner's accent, from its seal to the ally's. -->
+    <div v-for="f in flights.sparkFlights" :key="f.id"
+         class="con-parl__flight con-parl__flight--spark"
+         :style="{'--spark-accent': f.accent}"
+         :ref="(el) => setFlightEl(f.id, el as HTMLElement | null)"
+         :data-parl-flight="f.id"
+         data-parl-flight-body="spark"></div>
   </div>
 </template>
 <script lang="ts">

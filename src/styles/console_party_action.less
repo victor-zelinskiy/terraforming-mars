@@ -256,6 +256,15 @@
     &__plate-emblem { width: 1.3rem; height: 1.3rem; object-fit: contain; flex-shrink: 0; }
     &__plate-kicker { font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; opacity: .6; flex-shrink: 0; }
     &__plate-chip--uses { b { font-size: .66rem; } }
+    /* THE ROAD of a party held BY THE ALLIANCE (TR62): the partner's emblem + the one link shape — «ВАШИ ЭФФЕКТЫ»'s why-mark */
+    &__plate-ally { display: inline-flex; align-items: center; gap: .14rem; flex-shrink: 0; }
+    &__plate-ally-seal { width: 1rem; height: 1rem; border-radius: 50%; background: center / contain no-repeat; box-shadow: 0 0 0 .05rem rgba(4, 4, 8, 0.9); }
+    &__plate-ally-link {
+        position: relative;
+        width: .56rem;
+        height: .56rem;
+        .alliance-link-glyph(.56rem; 0rem; 0rem; #ffd27a; .065rem);
+    }
     /* THE PARTY FORMULA IS PX ART LIKE EVERY FORMULA ON THIS STAGE: the
        graphic's own zoom (`ui-scale`, and the TV ladder's 1.32× couch
        enlargement over it — `console_tv.less`) is the ONE zoom law of the

@@ -95,6 +95,8 @@ save/load не трогает; плейсхолдер `'Council Seat'` у гра
 или вторая константа на клиенте; `v-if`-исчезновение места ▢; литерал имени карты в `src/client/**`; новое
 сериализуемое поле.
 
+**Четвёртая дорога (TR62 Tharsis Alliance, 2026-10-19).** Закон доступа получил дорогу `alliance` — доступ к партии ЧЕРЕЗ другую (`ICard.partyAlliance`, `Parliament.alliancesOf`): она спускается ТОЛЬКО печатной дорогой партнёра (правит / два своих делегата), и пониженный порог этой карты её НЕ спускает — один куб на «Марс вперёд» под Council Seat даёт эффект «Марс вперёд», но не «Красных» (FAQ стр. 19). Клиент читает дорогу тем же одним помощником, гард `parliamentAccessRoadGuard.spec.ts`. Контракт: `docs/TURMOIL_REDUX_THARSIS_ALLIANCE.md`.
+
 ## 3. Что встало само
 Плитки действий партий (`ParliamentHandler.partyActionOptions` по `hasPartyEffect`), wild-метка Учёных (`Tags.count`
 → `wildTags`), Unity-торговля (`TradeWithUnity.hasAccess`), прогноз эффектов (`effectForecast`), досье клетки

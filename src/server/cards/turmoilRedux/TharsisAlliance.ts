@@ -214,7 +214,7 @@ export class TharsisAlliance extends Card implements IProjectCard {
       return;
     }
     player.game.log(THARSIS_ALLIANCE_DRAW_LINE, (b) => b.player(player).partyName(next).card(this));
-    player.drawCard(1, {source: {type: 'card', cardName: this.name}});
+    player.drawCard(1, {source: {type: 'ruling-change', cardName: this.name, party: next}});
   }
 
   /**

@@ -232,6 +232,7 @@ import {
 import {
   parliamentRewardPending, parliamentRewardState, releaseParliamentRewards, takeTileReceipt,
 } from '@/client/console/parliament/parliamentRewardBeat';
+import {deliverRulingChangeDraws, openRulingChangePark} from '@/client/console/parliament/rulingChangeDraw';
 import {
   parliamentWorldBeatState, runTrackMoveBeat, runWorldMoveBeat, takeWorldReceipt, trackMoveOwed, worldMoveOwed, worldReceiptOwed,
 } from '@/client/console/parliament/parliamentWorldBeat';
@@ -2243,6 +2244,9 @@ export default defineComponent({
       const played = (stage: SittingStage) => sittingStagePlayed(key, stage);
       if (verdictStandsAt(position.step)) {
         parliamentFlow.sittingPage = 0;
+        // A CARD'S ANSWER TO THE CHANGE OF POWER (TR62) is owed to the enactment's tail: its batch arrives with the
+        // answer to this very gate and must wait for the seals to change places (`rulingChangeDraw.ts`).
+        openRulingChangePark(key);
         return;
       }
       if (!sittingSessionKnown(key)) {
@@ -2411,6 +2415,11 @@ export default defineComponent({
           if (!sittingStagePlayed(key, stage) || receipt || ledgerRead || worldRead || (stage === 'reward' && this.rewardPending)) {
             notePlayedSittingStage(key, stage);
             await playSittingStage(stage, this.sittingBeatList, ctx, {compact: false});
+            if (stage === 'enact') {
+              // THE ENACTMENT'S TAIL (TR62): the seals have changed places — a card that answered the change of power
+              // leaves the project deck for the hand dock now, and the walk goes on from its touchdown.
+              await deliverRulingChangeDraws(this.pv.id);
+            }
             if (receipt) {
               parliamentRewardState.receiptShowing = false;
             }

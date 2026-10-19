@@ -100,6 +100,9 @@ export function revealSourceReading(source: CardDrawRevealSource | undefined, ce
   switch (source.type) {
   case 'card':
     return {labelKey: 'Source', nameKey: source.cardName, icons: [], inspectable: true};
+  case 'ruling-change':
+    // A card's answer to a change of power (TR62) names that card, like any card draw (the reveal is its fallback only).
+    return {labelKey: 'Source', nameKey: source.cardName, icons: [], inspectable: true};
   case 'colony':
     return {labelKey: 'Source', nameKey: source.colonyName, icons: [], inspectable: false};
   case 'tile': {

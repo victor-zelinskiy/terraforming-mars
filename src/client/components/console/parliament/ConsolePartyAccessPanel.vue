@@ -1,5 +1,6 @@
 <template>
   <aside class="con-paccess" :class="['con-paccess--' + tone, {'con-paccess--closing': closing}]"
+         :style="partner === undefined ? undefined : {'--paccess-ally-accent': partnerAccent}"
          :aria-label="$t('Access')" data-parl-access-panel :data-access-tone="tone" :data-party="party">
     <!-- ══ «ДОСТУП» — the PARTY's dossier names the viewer's access to its effect as an OBJECT (Парламент v8 § 7): the
          party's seal in a ring (gold — it rules and its effect is everyone's · mint — the effect is yours · slate — not
@@ -11,6 +12,10 @@
       <span class="con-paccess__ring" aria-hidden="true">
         <img class="con-paccess__seal" :src="emblem" alt="" />
         <span v-if="tone === 'rules'" class="con-paccess__ring-mark"><svg class="con-paccess__crown" viewBox="0 0 24 16"><path d="M2 13 3.5 4l5 4.5L12 1.5l3.5 7L20.5 4 22 13z" /><rect x="2" y="13.6" width="20" height="2" rx="1" /></svg></span>
+        <!-- BY THE ALLIANCE (TR62): the ring borrows the PARTNER's accent and its emblem stands in the mark's place, linked. -->
+        <span v-else-if="tone === 'allied' && partner !== undefined" class="con-paccess__ring-mark con-paccess__ring-mark--ally" :data-parl-access-via="partner">
+          <img class="con-paccess__ally-seal" :src="partnerEmblem" alt="" />
+        </span>
         <span v-else-if="tone === 'holds'" class="con-paccess__ring-mark">✓</span>
       </span>
       <span class="con-paccess__headtext">
@@ -39,13 +44,13 @@ import {Color} from '@/common/Color';
 import {ParliamentModel, PartyAccessModel} from '@/common/models/ParliamentModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import PlayerCube from '@/client/components/PlayerCube.vue';
-import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
+import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
-import {AccessReasonRow, accessReasonRows, effectDelegatesOf, PARTY_EFFECT_PLACES} from '@/client/console/parliament/consoleParliamentModel';
+import {AccessReasonRow, accessReasonRows, accessRoadOf, allianceOf, effectDelegatesOf, PARTY_EFFECT_PLACES} from '@/client/console/parliament/consoleParliamentModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
-export type PartyAccessTone = 'rules' | 'holds' | 'lacks';
+export type PartyAccessTone = 'rules' | 'holds' | 'allied' | 'lacks';
 
 export default defineComponent({
   name: 'ConsolePartyAccessPanel',
@@ -65,11 +70,24 @@ export default defineComponent({
       return partyEmblemUrl(this.party);
     },
     tone(): PartyAccessTone {
-      const a = this.access;
-      if (a?.ruling === true) {
+      const road = accessRoadOf(this.access);
+      if (road === 'ruling') {
         return 'rules';
       }
-      return a?.hasEffect === true ? 'holds' : 'lacks';
+      if (road === 'alliance') {
+        return 'allied';
+      }
+      return road !== undefined ? 'holds' : 'lacks';
+    },
+    /** The alliance's PARTNER when the effect is held through it (TR62) — the ring's mark. */
+    partner(): ReduxParty | undefined {
+      return allianceOf(this.access)?.via;
+    },
+    partnerEmblem(): string {
+      return this.partner === undefined ? '' : partyEmblemUrl(this.partner);
+    },
+    partnerAccent(): string {
+      return this.partner === undefined ? '' : partyAccent(this.partner);
     },
     /** The glossary's rows (`accessReasonRows`): the FIRST is the state, the rest are notes (the card requirement). */
     rows(): ReadonlyArray<AccessReasonRow> {
@@ -102,8 +120,10 @@ export default defineComponent({
     mine(): number {
       return Math.min(this.access?.delegates ?? 0, this.threshold);
     },
+    /** The places stand where the viewer's OWN cubes are the road — or would be (never for the crown, a grant or an alliance). */
     placesShown(): boolean {
-      return this.access !== undefined && !this.access.ruling && this.access.granted.length === 0;
+      const road = accessRoadOf(this.access);
+      return this.access !== undefined && (road === undefined || road === 'delegates');
     },
   },
   methods: {
