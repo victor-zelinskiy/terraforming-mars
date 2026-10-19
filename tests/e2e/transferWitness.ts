@@ -141,6 +141,10 @@ export async function armTransferWitness(page: Page): Promise<void> {
       // …and a milestone's / an award's ceremony line — the +5's printed source (the MA workspace's stage, the global shell).
       ['ma-vp', '.con-mafocus__cere-vp, .con-macere__vp, [data-ma-cere-seat], .con-macere__stage'],
       ['forecast', '[data-forecast-rail], [data-forecast-row] .con-forecast__bolt'],
+      // A STRUCK printed icon (RX35 — a law replaced the unit): the data's token is born on it. `struck:<icon>`.
+      ['struck', '.action-effect-chip--diverted .action-effect-chip__icon:not(.action-effect-chip__diverted-icon)'],
+      // …or on the plate's LAW SEAL where no struck icon is on screen (an embedded pick's stand-in for the dock).
+      ['lawseal', '.con-task-host [data-task-law-seal]'],
       // A PRINTED icon on the landed card of the play's scene — the play's «+N» is born on the icon of its resource in
       // the on-play row (PL-190; TR56 — the chosen branch's own icon of a row of alternatives). `printed:<sprite>`.
       ['printed', '.con-recv [data-recv-front] .pcard-ic'],
@@ -180,6 +184,11 @@ export async function armTransferWitness(page: Page): Promise<void> {
       case 'aux': return `aux:${name(el, 'data-aux-resource')}`;
       case 'cell': return `cell:${name(el, 'data_space_id')}`;
       case 'seal': return `seal:${name(el.closest('[data-party]'), 'data-party')}`;
+      case 'struck': {
+        const cls = Array.from(el.classList).find((c) => c.includes('--') && !c.startsWith('action-effect-chip')) ?? 'icon';
+        return `struck:${cls.replace(/^.*--/, '')}`;
+      }
+      case 'lawseal': return 'lawseal';
       case 'printed': {
         const sprite = /([\w-]+)\.(?:png|webp|svg)/.exec((el as HTMLElement).style.backgroundImage ?? '')?.[1] ?? 'icon';
         return `printed:${sprite}`;

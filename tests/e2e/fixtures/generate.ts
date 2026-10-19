@@ -98,6 +98,8 @@ import {DEV_ACTION_RESOLUTION_ID, DEV_PASSIVE_RESOLUTION_ID} from '../../../src/
 import {CLOUD_DEVELOPMENT_ID} from '../../../src/server/parliament/resolutions/unity/CloudDevelopment';
 import {GAS_EXPORT_ID} from '../../../src/server/parliament/resolutions/reds/GasExport';
 import {HEAT_CAPTURE_ID} from '../../../src/server/parliament/resolutions/reds/HeatCapture';
+import {DIVERTED_RESEARCH_ID} from '../../../src/server/parliament/resolutions/reds/DivertedResearch';
+import {Supercomputer} from '../../../src/server/cards/turmoilRedux/Supercomputer';
 import {MOHOLE_CONTEST_ID} from '../../../src/server/parliament/resolutions/greens/MoholeContest';
 import {OPEN_IP_TRADE_ID} from '../../../src/server/parliament/resolutions/scientists/OpenIpTrade';
 import {RD_FUNDING_ID} from '../../../src/server/parliament/resolutions/scientists/RdFunding';
@@ -160,7 +162,6 @@ import {ReprocessingPlant} from '../../../src/server/cards/turmoilRedux/Reproces
 import {CompostingInitiative} from '../../../src/server/cards/turmoilRedux/CompostingInitiative';
 import {ResearchStartups} from '../../../src/server/cards/turmoilRedux/ResearchStartups';
 import {MartianFiber} from '../../../src/server/cards/turmoilRedux/MartianFiber';
-import {Supercomputer} from '../../../src/server/cards/turmoilRedux/Supercomputer';
 import {FrontierLabs} from '../../../src/server/cards/turmoilRedux/FrontierLabs';
 import {ExpeditionMechs} from '../../../src/server/cards/turmoilRedux/ExpeditionMechs';
 import {InfluentialDiscovery} from '../../../src/server/cards/turmoilRedux/InfluentialDiscovery';
@@ -4589,6 +4590,49 @@ parliamentFixture('parliament-heat-enacted', {
       throw new Error(`the parliament-heat-enacted fixture expected the law to price Nuclear Power at 7, got ${p2.getCardCost(new NuclearPower())}`);
     }
     expectViewerOpensGeneration(table, p2, 'parliament-heat-enacted');
+  },
+});
+
+// ── RX35 · DIVERTED RESEARCH (the Reds — «1 data per influence; while enacted, every step of oxygen / temperature and
+//    every greenery / ocean tile you would gain becomes 1 data») — ENACTED: the sitting is over, RED won it (the seat
+//    the loader opens in generation 2) with 30 M€ and 8 heat, «Supercomputer» (a data holder) on its table, oxygen at
+//    13 %: the heat conversion's mini-stage asks WHERE the data goes and the temperature never moves; the Asteroid
+//    project reads «→ 1 [data]» and asks no cell. ──
+parliamentFixture('parliament-diverted-enacted', {
+  resolution: DIVERTED_RESEARCH_ID,
+  votes: [1],
+  agenda: [1, 2],
+  stopAt: 'done',
+  arrange: ({game, p2}) => {
+    setOxygenLevel(game, 13);
+    setTemperature(game, -20);
+    p2.heat = 8;
+    p2.playedCards.push(new Supercomputer());
+    // The spec spends TWO of red's actions (the heat conversion, then the asteroid): a corporation's pending first
+    // action (Aridor's colony tile) standing at boot would be answered by the board-home driver and cost the first.
+    p2.pendingInitialActions = [];
+  },
+  expect: (table) => {
+    const {game, p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(DIVERTED_RESEARCH_ID, 0)) {
+      throw new Error(`the parliament-diverted-enacted fixture expected Diverted Research enacted, got ${parliament.enacted}`);
+    }
+    if (p2.pendingInitialActions.length > 0 || p2.actionsTakenThisRound !== 0) {
+      throw new Error('the parliament-diverted-enacted fixture expected red to open generation 2 with both actions and no pending first action');
+    }
+    if (p2.playedCards.get(CardName.SUPERCOMPUTER) === undefined) {
+      throw new Error('the parliament-diverted-enacted fixture expected red to hold Supercomputer on its table');
+    }
+    if (p2.heat < 8) {
+      throw new Error(`the parliament-diverted-enacted fixture expected red to afford a heat conversion, has ${p2.heat} heat`);
+    }
+    if (p2.megaCredits < 14) {
+      throw new Error(`the parliament-diverted-enacted fixture expected red to afford an asteroid, has ${p2.megaCredits} M€`);
+    }
+    if (game.getOxygenLevel() !== 13 || game.getTemperature() !== -20) {
+      throw new Error(`the parliament-diverted-enacted fixture expected oxygen 13 % / −20 °C, got ${game.getOxygenLevel()} / ${game.getTemperature()}`);
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-diverted-enacted');
   },
 });
 

@@ -601,6 +601,22 @@ html.con-profile-handheld {
         min-width: 0;
         padding: .8rem 1.05rem .8rem .85rem;
     }
+    /* THE «WHERE» ZONE of a replaced unit (RX35): empty it takes no room; with the picker teleported in it is the
+       plate's next row — the shared task host wearing `embedded` (no band geometry of its own). */
+    &__step {
+        display: contents;
+        &--up {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            min-height: 0;
+            margin-top: .6rem;
+            /* The plate stands in the opening and the hand dock's pack rides its foot: the hosted picker gets what the
+               opening leaves after the plate's own rows (1080: the status line under the card went under the dock). */
+            max-height: calc(100vh - 31rem);
+            overflow: hidden;
+        }
+    }
     &__hero {
         position: relative;
         flex: 0 0 auto;

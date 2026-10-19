@@ -22841,6 +22841,24 @@ html.console-mode {
         .con-scrollbars();
     }
     &__warnings { display: flex; flex-direction: column; gap: .3rem; }
+    /* THE LAW'S SEAL (RX35) — the embedded plate's stand-in for the dock: the party's emblem on its accent, the law's
+       name beside it; one compact row, the token's birthplace where the door shows no struck icon. */
+    &__lawseal {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        /* Under the question, with it — a zone wider than the plate (the standard project's step) left it stranded at the edge. */
+        align-self: center;
+        max-width: 100%;
+        padding: .35rem .7rem .35rem .45rem;
+        border-radius: .5rem;
+        background: rgba(8, 12, 20, .55);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, .14), inset .2rem 0 0 var(--parl-accent, rgba(255, 255, 255, .5));
+    }
+    &__lawseal-emblem { width: 2.2rem; height: 2.2rem; object-fit: contain; flex: 0 0 auto; }
+    &__lawseal-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+    &__lawseal-kind { font-size: .62rem; letter-spacing: .14em; text-transform: uppercase; opacity: .62; }
+    &__lawseal-name { font-size: .9rem; color: var(--parl-accent, inherit); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     &__warning {
         padding: .4rem .6rem;
         border-radius: .4rem;
@@ -35869,6 +35887,28 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
         0 0 0 .1rem fade(@con-cyan, 85%),
         0 0 .9rem fade(@con-cyan, 30%);
     pointer-events: none;
+}
+/* THE REDS' SEAL (Turmoil Redux RX35 — a unit a law REPLACED): the commit's ring in the party's own red, with a
+   diagonal strike the timeline draws across the printed icon — the step is struck, the data is born out of it.
+   The same box, the same phrase; only the colour and the bar are the law's. */
+.con-commit-seal {
+    box-shadow:
+        0 0 0 .12rem rgba(255, 96, 84, 0.92),
+        0 0 1rem rgba(255, 96, 84, 0.36);
+    overflow: visible;
+}
+.con-commit-seal__strike {
+    position: absolute;
+    left: -8%;
+    top: 50%;
+    width: 116%;
+    height: .14rem;
+    margin-top: -.07rem;
+    border-radius: .1rem;
+    background: rgba(255, 96, 84, 0.95);
+    box-shadow: 0 0 .4rem rgba(255, 96, 84, 0.6);
+    transform: rotate(-28deg) scaleX(0);
+    transform-origin: 0% 50%;
 }
 /* The COMMITTED accent — bound to the composer's submitting lock: a calm
    ring around the standing hero card. Geometry-free (paint only), clears

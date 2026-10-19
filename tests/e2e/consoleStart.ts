@@ -2629,6 +2629,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   'parliament-generous-vote' |
   // RX14 Heat Capture: the assembly (temperature −20 °C, blue's delegate) and the law ENACTED with red holding Nuclear Power (10 → 7).
   'parliament-heat-assembly' | 'parliament-heat-enacted' |
+  // RX35 Diverted Research ENACTED: red (30 M€ · 8 heat · Supercomputer) at 13 % / −20 °C — the law replaces its terraforming.
+  'parliament-diverted-enacted' |
   // RX33 Water Export: the assembly with ONE plain ocean on the board and blue (the first player) holding the delegate —
   // the first world step that ASKS; and the law ENACTED (the ocean gone) with red holding Miranda Resort (12 → 9).
   'parliament-water-assembly' | 'parliament-water-enacted' |
