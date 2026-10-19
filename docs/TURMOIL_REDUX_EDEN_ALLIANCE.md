@@ -2,7 +2,7 @@
 
 Blue ACTIVE, cost 8, tags Plant + Earth, no requirement, no VP (art: paco mkz): **«Effect: While Unity is ruling or you have 2 delegates there, you may also use the Greens' effect and cards. And vice versa. Gain 1 TR when either of those parties becomes ruling.»** The SAME class as TR62 (`docs/TURMOIL_REDUX_THARSIS_ALLIANCE.md` — the law of access's fourth road, the change-of-power hook); what is new is the answer's KIND: a rating, not a card. e2e `console-eden-alliance` (A–B × fhd / tv4k / deck, 6 / 6 on the GPU).
 
-## 0. Defaults (in the owner's batch)
+## 0. Defaults (the owner's batch, answered 2026-10-19: every one as built — 1, 2, 4, 5; and for «Разыграно» one row of stacks, the large face first)
 
 1. **RU name** — «Альянс Эдема» (never «Союз»: «Союз» is a party). 2. **Lore** — EN verbatim from the scan («UNMI got tired of being ignored.», key `TR63`), RU «UNMI надоело, что её не замечают.». 3. **Art** — imported (`assets/card-images/TR63.webp` + thumb). 4. **Where the rating token is born** — the seal of the party that came to power (the cause on screen; the card that answered stands in nobody's view at the enactment). 5. **The table's answer** (the Greens' M€ for the rating, the Greens now the seat's by the alliance) — ticks one beat after the token's touchdown, never with it.
 
