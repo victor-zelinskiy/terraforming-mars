@@ -58,14 +58,41 @@
          else's) · ② СТОЛ (what changed and is already out of sight). ── -->
     <section class="con-sit__panel con-sit__panel--results" :class="{'con-sit__panel--on': stage === 'results'}" data-sit-panel="results">
       <div v-if="results !== undefined" class="con-sit__results" :class="{'con-sit__results--hidden': resultsHidden}" data-sit-results :data-sit-results-hidden="resultsHidden ? '' : undefined">
+        <!-- ⓪ ПРИНЯТА (Парламент v8, the mock `e1`): the card stands over the CHAMBER ROW, so the government under it is out
+             of sight — the enacted resolution's face and the party that rules by it lead the card (the law «never what is
+             visible elsewhere» holds: the zone that shows them is the one this card covers). -->
+        <div v-if="enactedVm !== undefined && resolution !== undefined" class="con-sit__enacted" data-sit-section="enacted" :data-sit-enacted="resolution.id">
+          <span class="con-parl__chip-dim con-sit__section-kicker">{{ $t('Enacted') }}</span>
+          <div class="con-sit__enacted-card"><premium-card-face :vmOverride="enactedVm" :lightweight="true" :inert="true" /></div>
+          <!-- THE HANDOVER (PL-112, the owner's decision 2026-10-09 — the party effect CHANGED HANDS for everyone at this
+               sitting): told by the SEALS, old › new, under the law that did it — never a sentence in the table's column. -->
+          <span class="con-sit__enacted-ruler" :data-sit-row="results.table.rulingEffect !== undefined ? 'results-party-effect' : undefined">
+            <template v-if="results.table.rulingEffect?.lost !== undefined">
+              <img class="con-sit__emblem con-sit__emblem--lost" :src="emblemUrl(results.table.rulingEffect.lost)" alt=""
+                   data-sit-party-effect="lost" :data-sit-party-effect-party="results.table.rulingEffect.lost" />
+              <svg class="con-sit__handover" viewBox="0 0 10 14" aria-hidden="true"><path d="M2 2l5 5-5 5" /></svg>
+            </template>
+            <img class="con-sit__emblem" :src="emblemUrl(resolution.party)" alt=""
+                 :data-sit-party-effect="results.table.rulingEffect !== undefined ? 'gained' : undefined"
+                 :data-sit-party-effect-party="results.table.rulingEffect?.gained" />
+            <b>{{ $t(partyNameKey(resolution.party)) }}</b>
+            <span class="con-sit__enacted-rule">{{ $t('rules · everyone\'s') }}</span>
+          </span>
+        </div>
         <!-- ① ВЫПЛАТЫ — the panel's main content. A skip names itself with its reason, as on the reward beat. -->
         <div class="con-sit__payouts" data-sit-section="payouts">
           <span class="con-parl__chip-dim con-sit__section-kicker">{{ $t('Payouts') }}</span>
           <span v-if="results.quiet !== undefined" class="con-sit__payout-quiet" data-sit-payout-quiet>{{ $t(results.quiet.kicker) }}</span>
-          <div v-for="row in results.payouts" v-else :key="row.player" class="con-sit__payout" data-sit-payout :data-sit-payout-seat="row.player">
+          <div v-for="row in results.payouts" v-else :key="row.player" class="con-sit__payout"
+               :class="{'con-sit__payout--winner': shownSummary !== undefined && shownSummary.winner.player === row.player}"
+               data-sit-payout :data-sit-payout-seat="row.player">
             <span class="con-sit__payout-who">
               <PlayerCube :color="row.player" :size="cubePx(11)" :glow="false" />
               <b class="con-sit__payout-name">{{ nameOfColor(row.player) }}</b>
+              <!-- The seat that WON the vote wears the crown (the one fact of the row the chips cannot say). -->
+              <span v-if="shownSummary !== undefined && shownSummary.winner.player === row.player" class="con-sit__payout-winner" data-sit-payout-winner>
+                <svg class="con-sit__payout-crown" viewBox="0 0 24 16" aria-hidden="true"><path d="M2 13 3.5 4l5 4.5L12 1.5l3.5 7L20.5 4 22 13z" /><rect x="2" y="13.6" width="20" height="2" rx="1" /></svg>{{ $t('Winner of the vote') }}
+              </span>
             </span>
             <span class="con-sit__payout-parts">
               <span v-if="row.parts.length === 0" class="con-parl__chip-dim" data-sit-payout-none>{{ $t('No reward') }}</span>
@@ -190,17 +217,17 @@
           </span>
         </div>
 
-        <!-- ② СТОЛ — the new resolutions with their parties, the support STOCK after the deal, the lobby. -->
+        <!-- ② СЛЕДУЮЩЕЕ ГОЛОСОВАНИЕ (Парламент v8 Р2 «объект вместо подписи») — the table the next generation votes on, by
+             its OBJECTS: the fresh resolutions as small faces (the card covers the table, so they are nowhere else on
+             screen), the support STOCK as cube silhouettes at the seals, the one lobby exception. -->
         <div class="con-sit__table" data-sit-section="table">
-          <span class="con-parl__chip-dim con-sit__section-kicker">{{ $t('The table') }}</span>
-          <div class="con-sit__row" data-sit-row="results-fresh">
-            <span class="con-parl__chip-dim">{{ $t('New resolutions') }}</span>
-            <span v-if="results.table.fresh.length === 0" class="con-sit__chips"><b>—</b></span>
-            <span v-else class="con-sit__chips">
-              <span v-for="fresh in results.table.fresh" :key="fresh.instance" class="con-sit__chip" data-sit-fresh>
-                <img class="con-sit__emblem" :src="emblemUrl(fresh.party)" alt="" /><b>{{ $t(resolutionTitle(fresh.resolution)) }}</b>
-              </span>
-            </span>
+          <span class="con-parl__chip-dim con-sit__section-kicker">{{ $t('The next vote') }}</span>
+          <div class="con-sit__row con-sit__fresh-row" data-sit-row="results-fresh">
+            <span v-if="results.table.fresh.length === 0" class="con-parl__chip-dim">{{ $t('New resolutions') }} —</span>
+            <div v-for="fresh in results.table.fresh" v-else :key="fresh.instance" class="con-sit__fresh"
+                 data-sit-fresh :data-sit-fresh-party="fresh.party" :aria-label="$t(resolutionTitle(fresh.resolution))">
+              <div class="con-sit__fresh-card"><premium-card-face v-if="freshVm(fresh.resolution) !== undefined" :vmOverride="freshVm(fresh.resolution)" :lightweight="true" :inert="true" /></div>
+            </div>
           </div>
           <!-- НАРОДНАЯ ПОДДЕРЖКА — the STOCK after the deal, in the plaques' OWN vocabulary: filled and
                empty places out of three, so a zero reads as three empty sockets and the ceiling shows
@@ -208,7 +235,7 @@
                This sitting's arrivals keep the brighter socket — one row answers «how much now» and
                «what changed» at once. The ruling party is absent by construction (its stock is always
                zero) and is read in the government's zone. -->
-          <div class="con-sit__row" data-sit-row="results-support">
+          <div class="con-sit__row con-sit__support-row" data-sit-row="results-support">
             <span class="con-parl__chip-dim">{{ $t('Popular support') }}</span>
             <span class="con-sit__chips">
               <span v-for="entry in results.table.support" :key="entry.party" class="con-sit__chip con-sit__support"
@@ -235,20 +262,6 @@
                HAS a delegate). What the ledger never says out loud is the consequence: an empty socket
                over an empty reserve means this seat cannot vote at all next generation. Almost never
                true, so almost never on screen — and when it is, it is stated, never left silent. -->
-          <!-- ЭФФЕКТ ПАРТИИ — the one change of the enactment that is nowhere else: the government's zone shows WHO
-               rules, never that the effect just changed hands for everyone (PL-112). A seat's own gain or loss by its
-               cubes or a card is its own journal root and notification — never this row. -->
-          <div v-if="results.table.rulingEffect !== undefined && !handheld" class="con-sit__row" data-sit-row="results-party-effect">
-            <span class="con-parl__chip-dim">{{ $t('Party effect') }}</span>
-            <span class="con-sit__chips">
-              <span class="con-sit__chip" data-sit-party-effect="gained" :data-sit-party-effect-party="results.table.rulingEffect.gained">
-                <img class="con-sit__emblem" :src="emblemUrl(results.table.rulingEffect.gained)" alt="" /><b>{{ rulingEffectLabel(results.table.rulingEffect.gained, true) }}</b>
-              </span>
-              <span v-if="results.table.rulingEffect.lost !== undefined" class="con-sit__chip con-sit__chip--dim" data-sit-party-effect="lost" :data-sit-party-effect-party="results.table.rulingEffect.lost">
-                <img class="con-sit__emblem" :src="emblemUrl(results.table.rulingEffect.lost)" alt="" /><b>{{ rulingEffectLabel(results.table.rulingEffect.lost, false) }}</b>
-              </span>
-            </span>
-          </div>
           <div v-if="results.table.noDelegate.length > 0" class="con-sit__row con-sit__row--warn" data-sit-row="results-nodelegate">
             <span class="con-parl__chip-dim">{{ $t('Without a free delegate') }}</span>
             <span class="con-sit__chips">
@@ -273,7 +286,7 @@ import PlayerCube from '@/client/components/PlayerCube.vue';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import ConsoleYieldUnit from '@/client/components/console/parliament/ConsoleYieldUnit.vue';
-import {conLogicalPx, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
+import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
@@ -285,8 +298,10 @@ import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {playBodyFold, playZoneLayerEnter} from '@/client/console/parliament/parliamentStageMotion';
 import {ResultsPayoutPart, ResultsReading, resultsReadingOf} from '@/client/console/parliament/parliamentResultsModel';
 import {worldParameterUnit} from '@/client/console/parliament/worldMoveModel';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {translateTextWithParams} from '@/client/directives/i18n';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
+import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
+import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 
@@ -330,17 +345,14 @@ export default defineComponent({
     }
   },
   computed: {
-    /**
-     * The handheld profile (the Deck): the results panel's pose has no row of height to spare there (И6 — the
-     * panel spilled by one row), and Deck-only polish is not done (PL-105) — the ruling effect's change stays
-     * the sitting's own journal line on that profile.
-     */
-    handheld(): boolean {
-      return consoleLayoutState.profile === 'handheld';
-    },
     /** Any of the planet's moves was made with nobody credited — the line says so ONCE, not per move. */
     planetUnrewarded(): boolean {
       return (this.results?.planet ?? []).some((move) => move.unrewarded && move.skipped === undefined && move.steps !== 0);
+    },
+    /** The enacted resolution's FACE for the results card's first column (v8 `e1`) — the catalog's own view-model. */
+    enactedVm(): PremiumCardVM | undefined {
+      const id = this.shownSummary?.enacted.resolution;
+      return id === undefined ? undefined : resolutionPremiumVmById(id);
     },
     resolution(): IClientResolution | undefined {
       const id = this.shownSummary?.enacted.resolution;
@@ -399,6 +411,9 @@ export default defineComponent({
     },
   },
   methods: {
+    partyNameKey(party: ReduxParty): string {
+      return partyNameKey(party);
+    },
     cubePx(logical: number): number {
       return conLogicalPx(logical);
     },
@@ -423,10 +438,9 @@ export default defineComponent({
     nameOfColor(color: Color): string {
       return parliamentPlayerName(this.playerView.players, color);
     },
-    /** «Эффект партии Зелёные — теперь у всех» / «… — больше не у всех» (PL-112): the party by its ONE key (PL-109). */
-    rulingEffectLabel(party: ReduxParty, gained: boolean): string {
-      return translateTextWithParams(gained ? 'The ${0} party effect is now everyone\'s' : 'The ${0} party effect is no longer everyone\'s',
-        [translateText(partyNameKey(party))]);
+    /** A fresh resolution's FACE for «СЛЕДУЮЩЕЕ ГОЛОСОВАНИЕ» — the catalog's own view-model (the slot draws the same). */
+    freshVm(id: string): PremiumCardVM | undefined {
+      return resolutionPremiumVmById(id);
     },
     /** The first part of its tile among a seat's parts — the one that carries the tile's name (the panel groups by tile). */
     colonyLeads(parts: ReadonlyArray<ResultsPayoutPart>, part: ResultsPayoutPart): boolean {

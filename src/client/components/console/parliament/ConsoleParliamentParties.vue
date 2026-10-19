@@ -10,17 +10,17 @@
       <Teleport defer to="[data-parl-ruler-slot]" :disabled="p.party !== rulerShown">
         <div class="con-parl__party"
              :class="[
-               'con-parl__party--' + partyStates[i].kind,
+               'con-parl__party--' + shownStates[i].kind,
                {
                  'con-parl__party--ruler': p.party === rulerShown,
                  'con-parl__party--focus': focusedIndex === i,
-                 'con-parl__party--held': partyStates[i].held,
+                 'con-parl__party--held': shownStates[i].held,
                  'con-parl__party--pulse': accessPulse === p.party || usedPulse === p.party || allyPulse === p.party,
                  'con-parl__party--lost': accessLost === p.party,
                },
              ]"
              :data-party="p.party"
-             :data-party-state="partyStates[i].kind"
+             :data-party-state="shownStates[i].kind"
              :data-action-state="partyActionStates[i].kind"
              :data-parl-ruler-tile="p.party === rulerShown ? '' : undefined"
              @animationend="onPulseEnd($event, p.party)">
@@ -28,7 +28,7 @@
                on the overview (the dossier prints it, the reading line names the state). -->
           <ConsolePartyPlaque :party="p.party"
                               :size="p.party === rulerShown ? 'ruler' : 'row'"
-                              :state="partyStates[i]"
+                              :state="shownStates[i]"
                               :actionState="partyActionStates[i]"
                               :support="supportShown(p)"
                               :viewerColor="viewerColor"
@@ -36,7 +36,7 @@
                               :focused="focusedIndex === i"
                               :ruling="p.party === rulerSettled"
                               :rulesByCard="rulerSettledByCard"
-                              :roll="rollWord(p.party)"
+                              :roll="rollOf(p.party)"
                               :pick="pickOf(p.party)"
                               :supportOutgoing="outgoingOf(p.party, i)"
                               :supportCounted="rallyCountedPlaces(p.party)"
@@ -51,7 +51,6 @@ import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
-import {translateText} from '@/client/directives/i18n';
 import {parliamentFlow, parliamentSupportUp} from '@/client/console/parliament/consoleParliamentFlow';
 import {SupportPromptMeta} from '@/common/models/PlayerInputModel';
 import {supportAreaOf} from '@/client/console/parliament/supportPickModel';
@@ -59,7 +58,6 @@ import {supportDiscardStanding} from '@/client/console/parliament/supportDiscard
 import {rallyCountedPlaces, rallySupportIncoming, rallySupportReading} from '@/client/console/parliament/neutralRally';
 import {rivalSupportIncoming} from '@/client/console/parliament/parliamentRivalVotes';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
-import {supportStatusKey} from '@/client/console/parliament/supportScene';
 import {
   accessRoadOf, alliancePartnerOf, ParliamentPartyVm, PartyActionStateVm, PartyStateVm, ParliamentViewVm,
 } from '@/client/console/parliament/consoleParliamentModel';
@@ -108,6 +106,13 @@ export default defineComponent({
       impulseRunning: false,
       /** The tier is still mounted (a wait outliving it gives up — the impulse stays owed). */
       impulseAlive: true,
+      /**
+       * THE ACCESS AS SHOWN — the live key, FROZEN while the sitting holds the old government: the response that carries
+       * the new ruler arrives at the sitting's start, and the gain/loss pulses fired then (the 1080 storyboard: the new
+       * ruler's tile flashed mint and the old one's lost-pulse ran under the Agenda beat) — they belong to the moment the
+       * medallions have changed places.
+       */
+      accessKeyShown: '',
     };
   },
   computed: {
@@ -115,16 +120,39 @@ export default defineComponent({
       return parliamentFlow;
     },
     /**
-     * THE ROLL CALL's word for a party (v3 В3): while the support scene names the parties, each tile says
-     * WHY it stands where it stands, in its own reserved row — «принимается» / «не принята» /
-     * «не на голосовании» / «правит». Empty outside the scene: the tile keeps its live state.
+     * THE ROLL CALL's mark for a party (v3 В3 → Парламент v8 Р2 «объект вместо подписи»): while the support scene names
+     * the parties, each medallion WEARS why it stands where it stands — a mark on its seal, never a phrase (a word in the
+     * row's foot was cut to «НЕ ПРИНЯ…» beside the sockets on every profile but 4K, and the band already says the wave's
+     * rule in full). Empty outside the scene.
      */
-    rollWord(): (party: ReduxParty) => string {
+    rollOf(): (party: ReduxParty) => string {
       const roll = parliamentHolds.rollStatus;
-      return (party: ReduxParty) => {
-        const status = roll.get(party);
-        return status === undefined ? '' : translateText(supportStatusKey(status));
-      };
+      return (party: ReduxParty) => roll.get(party) ?? '';
+    },
+    /**
+     * THE STATE AS SHOWN — by the ruler the plaques STAND by, not by the live view. A sitting's response already carries
+     * the new government, while the walk shows the old one until the enactment's beat: the new ruler's tile still on the
+     * bench must not say «ПРАВИТ» beside the old ruler's crown (the 1080 storyboard read both for the whole Agenda beat),
+     * and the old ruler's keeps its ribbon until it has left the dais. At rest the two answers are one.
+     */
+    shownStates(): ReadonlyArray<PartyStateVm> {
+      const settled = this.rulerSettled;
+      if (settled === this.view.rulingParty) {
+        return this.partyStates;
+      }
+      const byCard = this.rulerSettledByCard;
+      return this.view.parties.map((p, i) => {
+        const state = this.partyStates[i];
+        const rules = state.kind === 'ruling' || state.kind === 'ruling-default';
+        if (p.party === settled && !rules) {
+          return {...state, kind: byCard ? 'ruling' : 'ruling-default', label: byCard ? 'Ruling' : 'Rules by the starting rule', params: [], tone: 'gold', ring: 'ruling'};
+        }
+        if (p.party !== settled && rules) {
+          // Its card is the one being enacted: until the plaques change places it is a party IN THE VOTE.
+          return {...state, kind: 'in-area', label: 'In the vote', params: [], tone: 'cyan', ring: state.delegates >= state.effectDelegates ? 'own' : 'none'};
+        }
+        return state;
+      });
     },
     /** THE RULER AS SHOWN: the previous ruling party until the enactment's beat has changed the plaques' places. */
     rulerShown(): ReduxParty {
@@ -169,12 +197,26 @@ export default defineComponent({
     accessKey(): string {
       return (this.view.viewer?.access ?? []).filter((a) => a.hasEffect).map((a) => a.party).join('|');
     },
+    /** The sitting still shows a government other than the live one (the swap has not settled). */
+    swapHeld(): boolean {
+      return this.rulerSettled !== this.view.rulingParty;
+    },
     usedKey(): string {
       return this.view.parties.filter((_, i) => this.partyActionStates[i]?.kind === 'used').map((p) => p.party).join('|');
     },
   },
   watch: {
-    accessKey(now: string, was: string): void {
+    accessKey(now: string): void {
+      if (!this.swapHeld) {
+        this.accessKeyShown = now;
+      }
+    },
+    swapHeld(held: boolean): void {
+      if (!held) {
+        this.accessKeyShown = this.accessKey;
+      }
+    },
+    accessKeyShown(now: string, was: string): void {
       const before = new Set(was.split('|').filter((s) => s !== ''));
       const after = new Set(now.split('|').filter((s) => s !== ''));
       const gainedAll = [...after].filter((p) => !before.has(p)) as Array<ReduxParty>;
@@ -199,6 +241,9 @@ export default defineComponent({
       }
       this.usedPulse = used;
     },
+  },
+  created() {
+    this.accessKeyShown = this.accessKey;
   },
   mounted() {
     // An activation that happened where the chamber was not on screen (the card played from the hand, the vote panel

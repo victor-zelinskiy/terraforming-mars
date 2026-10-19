@@ -25,6 +25,8 @@
    layout at equal specificity (the same BEM selectors); the profile ladders at the end restate what the base
    sheet's own ladders set with a profile prefix. Every anchor a director flies to keeps its NAME on its carrier
    (the plan's rule of anchors). Authored in rem (1rem = 20px logical; `--con-ui-scale` maps it).
+   Every cursor ring and halo here is the console's ONE cursor cyan (`@con-cyan` — the TR58 grammar; П1–П3 had
+   painted the chamber's rings a brighter off-palette cyan, and `console-smoothness` (B) could not find the ruler's).
    ══════════════════════════════════════════════════════════════════════════ */
 
 @con-parl-gold: #e6c34a;
@@ -233,8 +235,8 @@
         .con-cursor-glow();
         box-shadow:
             inset 0 0 0 .05rem fade(@con-parl-mint, 32%),
-            inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(63, 214, 241, var(--con-cursor-on)),
-            0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(63, 214, 241, calc(.25 * var(--con-cursor-on)));
+            inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), var(--con-cursor-on)),
+            0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), calc(.25 * var(--con-cursor-on)));
         &--focus { .con-cursor-on(); }
     }
     &__effects-head { display: flex; justify-content: space-between; align-items: center; padding: 0 .2rem; flex-shrink: 0; }
@@ -379,7 +381,10 @@
         inset: 0;
         display: flex;
         min-height: 0;
-        &--parked { opacity: 0; pointer-events: none; }
+        /* `visibility` with the opacity: the parked bills stand PUSHED SHUT below the body (GSAP on the slot homes) — a box
+           under the results card that the fit probes read as «off-screen» (П4: 497 → 1086 px at 1080) while nothing of it
+           is painted. No CSS transition here (above), so the hide is a pose, not a cut. */
+        &--parked { opacity: 0; visibility: hidden; pointer-events: none; }
         > .con-parl__voting { flex: 1 1 auto; min-width: 0; min-height: 0; }
     }
     /* The voting plate dissolves into the table plate (the table IS the plate now); its cursor is the bill's. */
@@ -421,9 +426,9 @@
         border-radius: 16px;
         .con-cursor-glow();
         box-shadow:
-            0 0 0 calc(3px * var(--con-cursor-on)) rgba(63, 214, 241, var(--con-cursor-on)),
+            0 0 0 calc(3px * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), var(--con-cursor-on)),
             0 0 0 calc(4px * var(--win-on, 0)) rgba(230, 195, 74, calc(.9 * var(--win-on, 0))),
-            0 0 calc(36px * var(--con-cursor-on)) rgba(63, 214, 241, calc(.4 * var(--con-cursor-on))),
+            0 0 calc(36px * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), calc(.4 * var(--con-cursor-on))),
             0 0 calc(52px * var(--win-on, 0)) rgba(230, 195, 74, calc(.32 * var(--win-on, 0)));
     }
     &__slot--focus &__card { .con-cursor-on(); }
@@ -576,8 +581,8 @@
         .con-cursor-glow();
         box-shadow:
             inset 0 0 0 .06rem rgba(230, 195, 74, calc(.4 * (1 - var(--con-cursor-on)))),
-            inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(63, 214, 241, var(--con-cursor-on)),
-            0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(63, 214, 241, calc(.25 * var(--con-cursor-on)));
+            inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), var(--con-cursor-on)),
+            0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), calc(.25 * var(--con-cursor-on)));
         &--focus { .con-cursor-on(); }
         &--done { background: linear-gradient(180deg, fade(@con-parl-mint, 9%), fade(@con-parl-mint, 2%)); }
         &--closed { background: rgba(0, 0, 0, 0.26); }
@@ -654,9 +659,9 @@
         .con-cursor-glow();
         box-shadow:
             inset 0 0 0 .05rem rgba(122, 160, 200, calc(.17 * (1 - var(--con-cursor-on)))),
-            inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(63, 214, 241, var(--con-cursor-on)),
+            inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), var(--con-cursor-on)),
             0 1.2rem 2.6rem rgba(0, 0, 0, calc(.5 * (1 - var(--con-cursor-on)))),
-            0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(63, 214, 241, calc(.25 * var(--con-cursor-on)));
+            0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), calc(.25 * var(--con-cursor-on)));
     }
     &__agenda--focus &__career { .con-cursor-on(); }
     &__agenda-head { gap: 1rem; .con-parl__kicker { .con-parl-v8-kicker(); } }
@@ -833,9 +838,9 @@
         background: linear-gradient(90deg, color-mix(in srgb, var(--pseal-accent) 13%, transparent), rgba(255, 255, 255, 0.015) 75%);
         box-shadow:
             inset 0 0 0 .05rem rgba(140, 170, 200, calc(.13 * (1 - var(--con-cursor-on)))),
-            inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(63, 214, 241, var(--con-cursor-on)),
+            inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), var(--con-cursor-on)),
             inset .14rem 0 0 var(--pseal-accent),
-            0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(63, 214, 241, calc(.25 * var(--con-cursor-on)));
+            0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), calc(.25 * var(--con-cursor-on)));
         .con-pseal__seal { align-self: center; width: var(--con-pseal-row-seal, 2.7rem); height: var(--con-pseal-row-seal, 2.7rem); }
         .con-pseal__ring { display: none; }
         /* RESERVED (invariant 13): the head is the action badge's height on EVERY bench. */
@@ -915,8 +920,8 @@
         overflow: visible;
         background: none;
         box-shadow:
-            inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(63, 214, 241, var(--con-cursor-on)),
-            0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(63, 214, 241, calc(.25 * var(--con-cursor-on)));
+            inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), var(--con-cursor-on)),
+            0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), calc(.25 * var(--con-cursor-on)));
         .con-pseal__seal {
             align-self: center;
             width: var(--con-pseal-ruler-seal, 5.2rem);
@@ -1132,8 +1137,8 @@ html:not(.con-profile-handheld) .con-parl--walk, html.con-profile-tv .con-parl--
         box-shadow:
             inset 0 .12rem 0 var(--parl-accent, @con-parl-mint),
             inset 0 0 0 .05rem rgba(150, 180, 210, calc(.18 * (1 - var(--con-cursor-on)))),
-            inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(63, 214, 241, var(--con-cursor-on)),
-            0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(63, 214, 241, calc(.25 * var(--con-cursor-on)));
+            inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), var(--con-cursor-on)),
+            0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), calc(.25 * var(--con-cursor-on)));
         &--focus { .con-cursor-on(); }
         &--used .con-parl-fx__graphic, &--locked .con-parl-fx__graphic { opacity: .72; }
     }

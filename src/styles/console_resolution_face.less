@@ -417,8 +417,11 @@
     background:
         /* the folded corner, mirrored: the page's face turned over (vellum), a crease where it bends */
         linear-gradient(to bottom right, transparent 50%, rgba(20, 14, 38, 0.7) 50%, #b9b1cd 53%, #f4f0fa 80%, #ddd7e9 100%) top left / 12.5% 8.7% no-repeat,
-        /* a blank seal on the band: the rosette's collar, a violet field, a silver pip — no party */
-        radial-gradient(ellipse 2.2% 1.53% at 78% 51.2%, #c9c6d6 0 90%, transparent 100%),
+        /* a PARTYLESS seal on the band: the rosette's collar, a violet field and the Parliament's own scales engraved in
+           silver — a back names no party, but a card the size of the slot read as a blank (Парламент v8 П4: the leave's
+           proxy at full size was «a white band and a circle»). The scales sit centred on 78% 51.2% (the position maths:
+           p = (centre − size/2) / (1 − size)). */
+        url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23d9d4e6' stroke-width='1.3' stroke-linecap='round' stroke-linejoin='round'><path d='M12 4.2v15.3M8 19.5h8M4.2 7.4h15.6'/><circle cx='12' cy='3.4' r='1' fill='%23d9d4e6' stroke='none'/><path d='M4.2 7.4 1.8 13.2M4.2 7.4l2.4 5.8M1.8 13.2a2.4 2 0 0 0 4.8 0zM19.8 7.4l-2.4 5.8M19.8 7.4l2.4 5.8M17.4 13.2a2.4 2 0 0 0 4.8 0z'/></svg>") 81.55% 51.3% / 11.25% 7.83% no-repeat,
         radial-gradient(ellipse 9.2% 6.4% at 78% 51.2%, #2b2248 0 94%, transparent 100%),
         radial-gradient(ellipse 12.4% 8.63% at 78% 51.2%, #f4f0fa 0 95%, transparent 100%),
         /* the band and its dyed edge (the Parliament's violet — a back names no party) */
@@ -428,6 +431,9 @@
         linear-gradient(rgba(201, 198, 214, 0.26), rgba(201, 198, 214, 0.26)) 50% 98.9% / 96.8% 0.22% no-repeat,
         linear-gradient(rgba(201, 198, 214, 0.26), rgba(201, 198, 214, 0.26)) 1.25% 50% / 0.32% 97.8% no-repeat,
         linear-gradient(rgba(201, 198, 214, 0.26), rgba(201, 198, 214, 0.26)) 98.75% 50% / 0.32% 97.8% no-repeat,
+        /* the engraving: fine concentric rings from the seal over the field (security print), faint enough to vanish at
+           the deck's top size and to read as paper, not pattern, at the slot's */
+        repeating-radial-gradient(circle farthest-corner at 78% 51.2%, rgba(201, 198, 214, 0.06) 0 .32%, transparent .32% 2.1%),
         radial-gradient(90% 46% at 50% 24%, rgba(139, 106, 216, 0.2), transparent 72%),
         radial-gradient(90% 40% at 50% 80%, rgba(139, 106, 216, 0.12), transparent 72%),
         linear-gradient(180deg, #1e1b2c 0%, #0e0d15 100%);

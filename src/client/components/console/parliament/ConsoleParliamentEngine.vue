@@ -22,8 +22,11 @@
        @animationend="onQuestPulseEnd"
        data-parl-quest
        data-parl-engine
+       :data-parl-quest-text="questShown?.text"
        :data-parl-quest-closed="questClosed ? '' : undefined">
-    <!-- Парламент v8: the quest is a PLATE at the head of the career row — its kicker names it (X reads the dossier). -->
+    <!-- Парламент v8: the quest is a PLATE at the head of the career row — its kicker names it (X reads the dossier). The
+         plate prints no sentence, so WHICH quest it shows is the attribute `data-parl-quest-text` (the printed text's
+         English key — the probes' identity of the quest, language-free). -->
     <span class="con-parl__engine-kicker">{{ $t('Chairman quest') }}</span>
     <!-- THE CHAIR — the office's seat: the chairman's cube stands in it; empty, its silhouette alone. -->
     <span class="con-parl__chair"

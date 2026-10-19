@@ -1,7 +1,7 @@
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mechanicsModel';
 import {PARLIAMENT_GRAPHIC} from '@/client/components/premiumCard/resolutionPremiumVm';
-import {accessRoadOf, alliancePartnerOf, ParliamentViewVm, PartyActionStateVm} from './consoleParliamentModel';
+import {accessRoadBesidesRuling, accessRoadOf, alliancePartnerOf, ParliamentViewVm, PartyActionStateVm} from './consoleParliamentModel';
 
 /*
  * «ВАШИ ЭФФЕКТЫ» (Парламент v8 «Пленарный зал», docs/TURMOIL_REDUX_PARLIAMENT_V8_PLAN.md § 6) — the pure half of the
@@ -83,9 +83,17 @@ export function parliamentEffectItems(input: EffectItemsInput): Array<EffectItem
       continue;
     }
     const road = accessRoadOf(access);
-    const why: EffectWhy = road === 'delegates' ? 'delegates' : road === 'alliance' ? 'alliance' : 'granted';
+    // THE LIVE RULER THE SITTING HAS NOT SEATED YET (Парламент v8 П4): the response carries the new government while the
+    // walk still shows the old one — its «everyone's» effect arrives with the medallions' swap. Held only by ruling, it
+    // is not the viewer's yet on screen (the strip read it as «granted by a card» under the Agenda beat); held by the
+    // viewer's own road as well, it shows by that road.
+    const shown = road === 'ruling' ? accessRoadBesidesRuling(access) : road;
+    if (shown === undefined) {
+      continue;
+    }
+    const why: EffectWhy = shown === 'delegates' ? 'delegates' : shown === 'alliance' ? 'alliance' : 'granted';
     const item = partyItem(access.party, why);
-    const via = road === 'alliance' ? alliancePartnerOf(access) : undefined;
+    const via = why === 'alliance' ? alliancePartnerOf(access) : undefined;
     if (item !== undefined) {
       out.push(via === undefined ? item : {...item, via});
     }

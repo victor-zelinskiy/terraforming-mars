@@ -5,9 +5,6 @@ import {bootFixtureSeats, openMandatoryAnnounce, press, settle} from './consoleS
 import {answerGateAs, mandatoryPlate, parliament, parliamentWire, PARLIAMENT_PRESETS, sittingStage, waitSittingAtRest} from './parliamentDrive';
 
 
-/* ⛔ PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5») */
-test.skip(() => true, 'PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5»)');
-
 /**
  * «ЗАСЕДАНИЕ v4» — СТОЛ и ЧТЕНИЕ, разделённые ВО ВРЕМЕНИ.
  *
@@ -36,6 +33,12 @@ test.skip(() => true, 'PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting play
  * reading panel a plain sitting ever raises is the RESULTS one, and Г-П5 measures that handoff. The zone
  * contract itself (band + body, the three body states, the one swap grammar) is
  * `console-parliament-zone-v5.spec.ts`.
+ *
+ * ПАРЛАМЕНТ v8 «ПЛЕНАРНЫЙ ЗАЛ» MOVED THE ROW, NOT THE LAWS: the parties are the chamber's BENCHES (the opposition column
+ * beside the dais), the middle tier is the TABLE, and the results card stands over the whole CHAMBER ROW (benches, dais
+ * and table). So «the row is shown» is read off the benches being PAINTED (the v5 marker `data-parl-row-shown` now
+ * belongs to the table's tier), the reading panel unfolds inside the chamber's rect, and the dais seats a medallion of
+ * its own size (the swap FLIPs between the two shapes, fitted and centred).
  */
 type Rect = {x: number, y: number, w: number, h: number};
 /** Visibility, the three facts: a box, ink, and nothing on top of its centre. */
@@ -51,7 +54,7 @@ type V4Sample = {
    */
   src: 'mo' | 'tick',
   t: number, motion: string, beat: string, stage: string, resultsHidden: boolean,
-  rowShown: boolean, rowVis: Vis, rowRect: Rect | undefined,
+  rowShown: boolean, rowVis: Vis, rowRect: Rect | undefined, chamberRect: Rect | undefined,
   reading: boolean, unfolding: boolean, readingRect: Rect | undefined, readingInk: number,
   tiles: Array<TileSample>, rulerSlotParty: string,
   flights: Array<FlightSample>,
@@ -177,9 +180,11 @@ async function armV4Probe(page: Page): Promise<void> {
         beat: root.getAttribute('data-sitting-beat') ?? '',
         stage: root.getAttribute('data-sitting-stage') ?? '',
         resultsHidden: root.querySelector('[data-sit-results-hidden]') !== null,
-        rowShown: tier !== null && tier.hasAttribute('data-parl-row-shown'),
+        // v8: the benches are SHOWN when they are painted (a box, full ink — the receded chamber is 0).
+        rowShown: tier !== null && rect(tier) !== undefined && vis(tier).ink > 0.9,
         rowVis: vis(tier),
         rowRect: rect(tier),
+        chamberRect: rect(root.querySelector('[data-parl-chamber]')),
         reading: panel !== null,
         unfolding: root.hasAttribute('data-parl-unfolding'),
         readingRect: rect(panel),
@@ -516,18 +521,19 @@ test.describe('«Заседание v4» — СТОЛ и ЧТЕНИЕ (standard-
     const leaked = physical.filter((x) => x.reading && x.readingInk > 0.02);
     expect(leaked.length, `no reading panel exists while anything is moving on the table (${leaked.length} frames; first at ${leaked[0]?.motion || leaked[0]?.stage})`).toBe(0);
 
-    // ② WHEN IT COMES, IT COMES FROM THE ROW'S OWN RECT and takes its place.
+    // ② WHEN IT COMES, IT COMES FROM THE CHAMBER'S OWN RECT and takes its place (v8 `e1`: the card stands over the
+    //    chamber row — the benches, the dais and the table, all read-only by then).
     const upAt = s.findIndex((x) => x.reading && x.readingRect !== undefined);
     expect(upAt, 'a reading panel did stand (the reward / the results card)').toBeGreaterThan(0);
-    const rowRect = s[Math.max(0, upAt - 1)].rowRect;
-    expect(rowRect, 'the row was measurable right before the handoff').not.toBeUndefined();
+    const rowRect = s[Math.max(0, upAt - 1)].chamberRect;
+    expect(rowRect, 'the chamber was measurable right before the handoff').not.toBeUndefined();
     const born = s[upAt].readingRect!;
     const overlapWith = (a: Rect, b: Rect): number => {
       const x = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
       const y = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
       return (x * y) / (a.w * a.h);
     };
-    expect(overlapWith(born, rowRect!), 'the panel unfolds INSIDE the rect the row occupied').toBeGreaterThan(0.6);
+    expect(overlapWith(born, rowRect!), 'the panel unfolds INSIDE the chamber\'s rect').toBeGreaterThan(0.6);
 
     // ③ AND THE HANDOFF IS A MOTION, not a swap: the panel's ink climbs over frames inside the budget.
     const inkWindow = s.slice(upAt).filter((x) => x.reading);
@@ -605,19 +611,19 @@ for (const preset of PARLIAMENT_PRESETS) {
       const cut = s.filter((f) => f.kicker !== undefined && f.kicker.sw > f.kicker.w + 1);
       expect(cut.length, `«${rest.kicker?.text ?? ''}» fits its block on ${preset.id} (${cut[0]?.kicker?.sw ?? 0} > ${cut[0]?.kicker?.w ?? 0})`).toBe(0);
 
-      // ④ THE RULER BLOCK'S HEIGHT IS PARTY-INDEPENDENT: the same box before and after the change of government,
-      //    and its slot is the row's own tile box (ONE measured token for all six).
+      // ④ THE RULER BLOCK'S HEIGHT IS PARTY-INDEPENDENT: the same box before and after the change of government.
+      //    (v4–v7 also held the dais' slot to the row's tile box; v8's dais seats the ruler-size MEDALLION.)
       expect(Math.abs(rest.rulerBox!.h - atVerdict.rulerBox!.h), `the ruler block keeps its height across the change (${atVerdict.rulerBox!.h.toFixed(1)} → ${rest.rulerBox!.h.toFixed(1)})`).toBeLessThan(2);
       // …compared on a TABLE frame: at rest the row is PARKED, and the park's own recede (`scale(.972)`) is a
       //    pose — measuring a tile through it would report the recede as a chassis difference (202.2 vs 208.0).
       const tableRest = s.filter((x) => x.rowShown).slice(-1)[0];
       expect(tableRest, 'a table frame was sampled').not.toBeUndefined();
-      const rowTile = tableRest.tiles.find((t) => t.where === 'row');
+      const rowTiles = tableRest.tiles.filter((t) => t.where === 'row');
       const rulerTile = tableRest.tiles.find((t) => t.where === 'ruler');
-      expect(rowTile, 'the row has tiles').not.toBeUndefined();
+      expect(rowTiles.length, 'the benches have their five tiles').toBe(5);
       expect(rulerTile, 'the ruler\'s slot has its tile').not.toBeUndefined();
-      expect(Math.abs(rulerTile!.rect.h - rowTile!.rect.h), `one tile box for the row and the government (${rowTile!.rect.h.toFixed(1)} vs ${rulerTile!.rect.h.toFixed(1)})`).toBeLessThan(2);
-      expect(Math.abs(rulerTile!.rect.w - rowTile!.rect.w), `…and one width (${rowTile!.rect.w.toFixed(1)} vs ${rulerTile!.rect.w.toFixed(1)})`).toBeLessThan(2);
+      const rowHs = rowTiles.map((t) => t.rect.h);
+      expect(Math.max(...rowHs) - Math.min(...rowHs), `the benches are ONE tile box (${rowHs.map((h) => h.toFixed(1)).join(', ')})`).toBeLessThan(2);
     });
   });
 }

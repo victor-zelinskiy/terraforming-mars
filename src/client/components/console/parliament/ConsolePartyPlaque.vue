@@ -47,12 +47,14 @@
            'con-pseal--used': actionState?.kind === 'used',
            'con-pseal--allied': state?.ring === 'allied',
          },
+         roll !== '' ? 'con-pseal--roll-' + roll : '',
        ]"
        :style="sealStyle"
        :data-party="party"
        :data-pseal-ring="state?.ring"
        :data-pseal-ally="state?.ally?.badge"
-       :data-pseal-ally-partner="state?.ally?.partner">
+       :data-pseal-ally-partner="state?.ally?.partner"
+       :data-pseal-roll="roll !== '' ? roll : undefined">
     <div class="con-pseal__seal">
       <span class="con-pseal__ring" aria-hidden="true"></span>
       <img class="con-pseal__emblem" :src="emblemUrl" alt="" />
@@ -93,23 +95,19 @@
          saying the state) — the reason stands where the eye already is, and
          the row never reserves an empty line for it. -->
     <div v-if="state !== undefined && size !== 'full'" class="con-pseal__state" :class="['con-pseal__state--' + state.tone, {'con-pseal__state--reason': reason !== ''}]" :data-state-kind="state.kind">
-      <!-- THE ROLL CALL's word (v3 В3): while the support scene names this party, its own state row says
-           WHY it stands where it stands — «принимается» / «не принята» / «не на голосовании» / «правит».
-           It takes the row in place of the live state: one line, written, never a flash. -->
-      <span v-if="roll !== ''" class="con-pseal__roll" data-pseal-roll>{{ roll }}</span>
       <!-- THE SUPPORT-AREA MODE (TR12 «САНКЦИИ») takes the same reserved row: a candidate reads what the press
            leaves in its area («3 → 0»), a refused one its ONE reason — the server's own row, nothing computed. -->
-      <span v-else-if="pick !== undefined" class="con-pseal__pick" :class="{'con-pseal__pick--refused': !pick.available}"
+      <span v-if="pick !== undefined" class="con-pseal__pick" :class="{'con-pseal__pick--refused': !pick.available}"
             data-pseal-pick :data-pick-available="pick.available ? '' : undefined">
         <template v-if="pick.available"><b>{{ pick.current }}</b><span class="con-pseal__pick-arrow" aria-hidden="true">→</span><b>{{ pick.resulting }}</b></template>
         <template v-else>{{ $t(pick.reason ?? 'The support area is empty') }}</template>
       </span>
-      <span v-if="roll === '' && pick === undefined && reason !== ''" class="con-pseal__reason" :class="'con-pseal__reason--' + reasonTone" data-pseal-reason>{{ reason }}</span>
+      <span v-if="pick === undefined && reason !== ''" class="con-pseal__reason" :class="'con-pseal__reason--' + reasonTone" data-pseal-reason>{{ reason }}</span>
       <!-- THE THRESHOLD PLACES are the PRINTED two, always in the flow; a place past the viewer's OWN threshold
            (a card lowered it — TR36 «Место в совете») is VOID: hidden, its room kept, so the law changing under a
            standing cube lights the place and moves nothing (the support sockets' own idiom). The count reads the
            viewer's threshold — «1/1», never «1/2» — beside a single live place. -->
-      <span v-if="roll === '' && pick === undefined && reason === '' && showPlaces && viewerColor !== undefined" class="con-pseal__places" :data-pseal-places="liveCount" :data-pseal-count="Math.min(state?.delegates ?? 0, liveCount) + '/' + liveCount" aria-hidden="true">
+      <span v-if="pick === undefined && reason === '' && showPlaces && viewerColor !== undefined" class="con-pseal__places" :data-pseal-places="liveCount" :data-pseal-count="Math.min(state?.delegates ?? 0, liveCount) + '/' + liveCount" aria-hidden="true">
         <span v-for="n in placesCount" :key="n" class="con-pseal__place"
               :class="{'con-pseal__place--on': n <= (state?.delegates ?? 0) && n <= liveCount, 'con-pseal__place--void': n > liveCount, 'con-pseal__place--ally': state?.ring === 'allied' && n <= liveCount}"
               :data-pseal-place="n" :data-pseal-place-void="n > liveCount ? '' : undefined">
@@ -123,7 +121,7 @@
       </span>
       <!-- The held WORD enters as a phrase when it ARRIVES on a standing tile (a one-shot on its own node — the node is keyed on
            its text; a tile mounted already holding plays nothing): the moment the effect becomes the viewer's is read, not blinked. -->
-      <span v-if="roll === '' && pick === undefined && reason === '' && stateText !== ''" :key="stateText" class="con-pseal__state-text" :class="{'con-pseal__state-text--held': state?.held === true && heldAtMount === false}">{{ stateText }}</span>
+      <span v-if="pick === undefined && reason === '' && stateText !== ''" :key="stateText" class="con-pseal__state-text" :class="{'con-pseal__state-text--held': state?.held === true && heldAtMount === false}">{{ stateText }}</span>
       <!-- POPULAR SUPPORT — three places, ALWAYS reserved (v3 В3): a socket that appears when the first
            cube lands would make the arrival its own layout jump. Empty sockets read as empty sockets; the
            landing socket answers ONCE, on contact (`--landed`, the director adds it at the touchdown).
@@ -219,7 +217,10 @@ export default defineComponent({
      * with `ruling`, lagging the swap the same way.
      */
     rulesByCard: {type: Boolean, default: true},
-    /** The roll call's word for this party while the support scene runs (v3 В3) — it takes the state row in place of the live state. */
+    /**
+     * THE ROLL CALL's status for this party while the support scene runs (v3 В3; `SupportStatus`, '' outside it) — Парламент
+     * v8 Р2: a MARK on the seal (`con-pseal--roll-*`), never a phrase in the foot; the foot keeps its live content.
+     */
     roll: {type: String, default: ''},
     /**
      * THE SUPPORT-AREA MODE's reading of this plaque (TR12): what the pick leaves in its area — or its ONE

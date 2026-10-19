@@ -40,6 +40,16 @@
               <img class="con-band__emblem" :src="emblemUrl(chip.party)" alt="" />
               <b class="con-band__text">{{ $t(partyNameKey(chip.party)) }}</b>
             </span>
+            <!-- THE SUPPORT WAVE (Парламент v8 Р2): the seals' roll-call mark leads the rule, the gain is the cube itself. -->
+            <span v-else-if="chip.kind === 'supportWave'" class="con-band__chip" data-parl-band-chip="supportWave" :data-parl-band-wave="chip.wave">
+              <span class="con-band__ring" :class="'con-band__ring--' + chip.wave" aria-hidden="true"></span>
+              <b class="con-band__text">{{ $t(chip.key) }}</b>
+            </span>
+            <span v-else-if="chip.kind === 'neutralGain'" class="con-band__chip con-band__chip--gain" data-parl-band-chip="neutralGain">
+              <span class="con-band__arrow" aria-hidden="true">→</span>
+              <PlayerCube color="neutral" steel :size="cubePx(11)" :glow="false" />
+              <b class="con-band__num">+{{ chip.amount }}</b>
+            </span>
             <span v-else-if="chip.kind === 'player'" class="con-band__chip" data-parl-band-chip="player">
               <PlayerCube v-if="chip.player !== 'neutral'" :color="chip.player" :size="cubePx(11)" :glow="false" />
               <PlayerCube v-else color="neutral" steel :size="cubePx(11)" :glow="false" />

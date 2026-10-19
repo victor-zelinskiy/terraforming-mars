@@ -62,13 +62,15 @@ async function armLeaveProbe(page: Page): Promise<void> {
       const blocks: Blocks = {
         gov: root.querySelector('.con-parl__gov .con-parl__gov-card .pcard, .con-parl__gov .con-parl__gov-empty') !== null,
         ruler: root.querySelector('[data-parl-ruler] .con-parl__party') !== null,
-        // In the vote mode the slots are CARRIED into the vote layer (their homes stand empty by design): the area's content is the layer's cards.
-        voting: vote !== null ? vote.querySelectorAll('.pcard').length > 0 : root.querySelectorAll('.con-parl__voting .con-parl__slot').length > 0,
+        // v5–v7 CARRIED the slots into the vote layer (their homes stood empty by design); Парламент v8's HALL vote leaves
+        // the bills ON THE TABLE and stands its panel on the chamber's rect — the area's content is the table's cards,
+        // the layer's is its panel (a carried card still counts where a door keeps one).
+        voting: (vote !== null && vote.querySelectorAll('.pcard').length > 0) || root.querySelectorAll('.con-parl__voting .con-parl__slot').length > 0,
         agenda: root.querySelectorAll('.con-parl__agenda .con-parl__step').length > 0,
         // The stage is a block only while it is SHOWN: since v5 the verdict, the Agenda, the support and the enactment are the
         // TABLE (the body is the row of parties, the reading panel stands hidden by `v-show`) — an empty hidden stage is the design.
         stage: !shown(stageEl) ? undefined : (stageEl!.querySelector('.con-sit__panel--on')?.textContent?.trim() ?? '') !== '' || stageEl!.querySelector('.con-parl__stage-head') !== null,
-        vote: vote === null ? undefined : vote.querySelectorAll('.pcard').length > 0,
+        vote: vote === null ? undefined : vote.querySelector('.pcard, .con-parl__info') !== null,
         parties: stageEl !== null || !shown(partiesTier) ? undefined : root.querySelectorAll('.con-parl__parties .con-parl__party').length === 5,
       };
       w.__leave.samples.push({

@@ -412,6 +412,24 @@ export function accessRoadOf(access: PartyAccessModel | undefined): AccessRoad |
   return access.granted.length > 0 ? 'card' : undefined;
 }
 
+/**
+ * The road the effect is held by BESIDES the party's rule (delegates → alliance → card), or `undefined` when ruling is
+ * the only one — Парламент v8 П4: the sitting shows the old government until the medallions change places, and a live
+ * ruler not yet seated is the viewer's only by a road of their own.
+ */
+export function accessRoadBesidesRuling(access: PartyAccessModel | undefined): Exclude<AccessRoad, 'ruling'> | undefined {
+  if (access === undefined) {
+    return undefined;
+  }
+  if (access.byDelegates) {
+    return 'delegates';
+  }
+  if ((access.allied?.length ?? 0) > 0) {
+    return 'alliance';
+  }
+  return access.granted.length > 0 ? 'card' : undefined;
+}
+
 /** The effect is held by the viewer's OWN delegates (the printed two, or one under TR36). */
 export function heldByDelegates(access: PartyAccessModel | undefined): boolean {
   return access?.byDelegates === true;

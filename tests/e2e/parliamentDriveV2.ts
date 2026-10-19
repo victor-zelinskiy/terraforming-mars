@@ -117,7 +117,8 @@ export async function armSittingProbe(page: Page): Promise<void> {
         govEmpty: document.querySelector('[data-parl-gov-empty]') !== null,
         ruler: document.querySelector('[data-parl-ruler] .con-parl__party[data-party]')?.getAttribute('data-party') ?? '',
         questClosed: quest?.hasAttribute('data-parl-quest-closed') === true,
-        questText: quest?.querySelector('.con-parl__quest-text')?.textContent?.trim() ?? '',
+        // v8: the plate prints no sentence — the quest's identity is its printed text's key.
+        questText: quest?.getAttribute('data-parl-quest-text') ?? '',
         slots: Array.from(document.querySelectorAll('.con-parl__slots .con-parl__slot-home')).map((el) => `${el.getAttribute('data-home')}${el.hasAttribute('data-parl-slot-vacated') ? '!' : ''}`).join('|'),
         litSlot: document.querySelector('.con-parl__slot--lit')?.getAttribute('data-instance') ?? '',
         tiles,

@@ -5,9 +5,6 @@ import {bootFixtureSeats, cinematicBeat, crumbText, openMandatoryAnnounce, press
 import {answerGateAs, expectRailHonest, mandatoryPlate, parliamentWire, sittingStage, waitSittingAtRest} from './parliamentDrive';
 
 
-/* ⛔ PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5») */
-test.skip(() => true, 'PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5»)');
-
 /**
  * «ОБНОВЛЕНИЕ» — the renewal of the voting area as a TACT of its own (2026-09-22,
  * docs/claude/prompts/parliament-renewal-beat.md §6): the owner's three frames were
@@ -308,7 +305,9 @@ test.describe('«ОБНОВЛЕНИЕ» — the renewal is a tact, and every obj
     expect(renewalStart, 'the renewal page was sampled').toBeGreaterThan(0);
     const tact = all.slice(renewalStart).filter((s) => s.motion === 'renewal');
     expect(tact.length, 'the tact was sampled').toBeGreaterThan(30);
-    const restSample = all[all.length - 1];
+    // AT REST = the renewal page's last frame: on the results page (v8) the card stands over the table, which is parked
+    // (hidden, its slots pushed shut) — a slot's face or rect read THERE is the parked pose, not the tact's rest.
+    const restSample = [...all].reverse().find((s) => s.stage === 'renewal') ?? all[all.length - 1];
 
     // ── 6. НИКАКИХ ПРИСВАИВАНИЙ: no hold of the tact folded without its flight.
     expect(all.filter((s) => s.degraded !== '').map((s) => s.degraded).slice(0, 3), 'no renewal event settled without a flight').toEqual([]);
@@ -451,7 +450,14 @@ test.describe('«ОБНОВЛЕНИЕ» — the renewal is a tact, and every obj
       expect(card?.rect, `${sup.instance} stands at rest`).toBeDefined();
       const cubes = ids(tact, 'f').filter((id) => {
         const tr = track(tact, id);
-        return tr.length > 0 && tr[0].p.body === 'cube' && tr[0].p.color.includes('neutral') && card?.rect !== undefined && dist(tr[tr.length - 1].p, center(card.rect)) < card.rect.h;
+        // ON this card: the landing stands inside the card's own COLUMN (v8's table seats its slots closer than a card's
+        // height apart — a radius of one height counted the neighbour's cubes too).
+        if (tr.length === 0 || tr[0].p.body !== 'cube' || !tr[0].p.color.includes('neutral') || card?.rect === undefined) {
+          return false;
+        }
+        const end = tr[tr.length - 1].p;
+        const c = center(card.rect);
+        return Math.abs(end.x - c.x) < card.rect.w / 2 && Math.abs(end.y - c.y) < card.rect.h;
       });
       expect(cubes.length, `${sup.count} neutral cube(s) landed on ${sup.instance}`).toBe(sup.count);
       for (const id of cubes) {

@@ -73,7 +73,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {probeTick} from '@/client/console/probeTick';
-import {descendCascade, descendFlipFrom} from '@/client/console/surfaceMotion/workspaceDescend';
+import {descendCascade} from '@/client/console/surfaceMotion/workspaceDescend';
 import {resolveActionCommitAnchors, resolveGainIconOrigins, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
 import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -134,8 +134,15 @@ const CARD_EFFECT_READ_MS = 520;
 const LEAVE_CARD_STAGGER_MS = 160;
 /** The dealer squares the new deck before the first card comes off it — and the stack's landing (a GSAP timeline plus its birth tick) trails the storyboard's arithmetic by a couple of frames. */
 const RESHUFFLE_SETTLE_MS = 160;
-/** A revealed card that does not fit is READ over its slot before it turns back. */
-const REJECT_DWELL_MS = 420;
+/**
+ * THE QUICK SEARCH (Парламент v8 § 8, the owner's point 10 — «перебор колоды затянут»): a revealed card that does not
+ * fit never travels to the slot and is never held up to be read — it turns face-up right over the deck and goes on an
+ * arc into the discard (`QUICK_REJECT_MS`), and the NEXT refusal starts while it is still in the air
+ * (`QUICK_REJECT_STEP_MS`): the series reads as one quick riffle, the whole search ≤ 0.6 s; the band names the refusal
+ * once for the run. Only the card that FITS makes the full path to its slot.
+ */
+const QUICK_REJECT_MS = 420;
+const QUICK_REJECT_STEP_MS = 90;
 /** An empty slot is named for a beat. */
 const EMPTY_READ_MS = 320;
 /** The support cubes onto a fresh card, one by one. */
@@ -630,6 +637,32 @@ function partyRects(root: HTMLElement): Map<string, Rect> {
   return out;
 }
 
+/**
+ * A PLAQUE'S FLIP ACROSS SIZES (Парламент v8): the dais seats a MEDALLION (tall) and a bench a ROW (wide) — one DOM
+ * instance in two shapes. The generic FLIP (top-left, scale by width) started the riser as a 1.5× medallion spilling
+ * over the benches and the effects panel, and the descender as a sliver in the dais' corner (the 1080 storyboard).
+ * Here the box is fitted INSIDE the place it left (`min` of the two ratios) and centred on it: the medallion lifts off
+ * the bench at the bench's height and grows into the dais; the row leaves the dais at the dais' width and widens onto
+ * its bench. A same-size tile of the re-laid row gets scale 1 — a pure move, as before.
+ */
+function plaqueFlipFrom(el: HTMLElement, from: Rect): {x: number, y: number, scale: number} | undefined {
+  const to = el.getBoundingClientRect();
+  if (to.width < 10 || to.height < 10) {
+    return undefined;
+  }
+  const scale = Math.min(from.width / to.width, from.height / to.height);
+  if (!isFinite(scale) || scale <= 0) {
+    return undefined;
+  }
+  // The section may be zoomed (TV): a transform is in the element's own px.
+  const effZoom = el.offsetWidth > 0 ? to.width / el.offsetWidth : 1;
+  return {
+    x: ((from.left + from.width / 2) - (to.left + to.width / 2)) / effZoom,
+    y: ((from.top + from.height / 2) - (to.top + to.height / 2)) / effZoom,
+    scale,
+  };
+}
+
 /** The government CHANGES: the new ruler's tile rises into the government, the old one descends into the row, the row re-lays out — one FLIP each. */
 function flipPlaques(runState: StageRun, root: HTMLElement, before: Map<string, Rect>, k: number): void {
   const tl = gsap.timeline();
@@ -648,11 +681,11 @@ function flipPlaques(runState: StageRun, root: HTMLElement, before: Map<string, 
     if (from === undefined) {
       continue;
     }
-    const delta = descendFlipFrom(el, from);
+    const delta = plaqueFlipFrom(el, from);
     if (delta === undefined || (Math.abs(delta.x) < 0.5 && Math.abs(delta.y) < 0.5 && Math.abs(delta.scale - 1) < 0.002)) {
       continue;
     }
-    gsap.set(el, {x: delta.x, y: delta.y, scale: delta.scale, transformOrigin: 'top left'});
+    gsap.set(el, {x: delta.x, y: delta.y, scale: delta.scale, transformOrigin: '50% 50%'});
     tl.to(el, {x: 0, y: 0, scale: 1, duration: s(PLAQUE_FLIP_MS) * k, ease: 'power3.inOut', clearProps: 'transform,transformOrigin', overwrite: 'auto'}, 0);
   }
   runState.kills.push(() => {
@@ -1132,15 +1165,6 @@ function liveFaceEl(root: HTMLElement, instance: string): HTMLElement | null {
     root.querySelector<HTMLElement>(`.con-parl__slot[data-instance="${instance}"] .con-parl__card`);
 }
 
-/** The place a revealed card comes to: the slot it was drawn for (a waiting card's box, or the empty outline). */
-function slotHomeRect(root: HTMLElement, slot: number): Rect | undefined {
-  const homes = itemsOf(root, '.con-parl__slots > .con-parl__slot-home');
-  const home = homes[slot];
-  if (home === undefined) {
-    return undefined;
-  }
-  return rectOf(home.querySelector('.con-parl__card .pcard') ?? home.querySelector('.con-parl__card') ?? home.querySelector('.con-parl__slot-empty-card'));
-}
 
 /**
  * A LOSER'S DELEGATES GO HOME — off the card's own ribbon (the held slot,
@@ -1301,13 +1325,10 @@ function launchReshuffle(runState: StageRun, ctx: SittingDirectorContext, event:
 }
 
 /**
- * A REVEALED CARD THAT DOES NOT FIT: it comes off the deck's top to the slot
- * it was drawn for, turning face-up on the way (the ONE turn this fork has),
- * is READ there for a beat while the band names why it cannot stay, then
- * turns back over and is carried onto the discard. The deck thins at the
- * launch, the discard grows at the landing.
+ * A REFUSED CARD IN THE QUICK SEARCH: off the deck's top, turned face-up over the deck, and on an arc into the discard —
+ * never to the slot. The deck thins at the launch, the discard grows (its counter ticks) at the landing.
  */
-function launchReject(runState: StageRun, ctx: SittingDirectorContext, event: Extract<ParliamentRenewalEventModel, {kind: 'reject'}>, k: number): void {
+function launchQuickReject(runState: StageRun, ctx: SittingDirectorContext, event: Extract<ParliamentRenewalEventModel, {kind: 'reject'}>, k: number): void {
   const root = ctx.root;
   const holds = parliamentHolds;
   const launched = () => {
@@ -1315,27 +1336,12 @@ function launchReject(runState: StageRun, ctx: SittingDirectorContext, event: Ex
       holds.pile.deck = Math.max(0, holds.pile.deck - 1);
     }
   };
-  // The proxy's id is read back inside its own landing callback (the second phrase takes it from there).
-  const id: string | undefined = dealResolutionCard({
-    from: deckRect(root), to: slotHomeRect(root, event.slot), delayMs: 0, durationMs: DEAL_FLIGHT_MS * k,
-    face: resolutionPremiumVmById(event.resolution), onLaunch: launched, keep: true, prefix: 'sit-reject',
+  const id = dealResolutionCard({
+    from: deckRect(root), to: discardRect(root), delayMs: 0, durationMs: QUICK_REJECT_MS * k,
+    face: resolutionPremiumVmById(event.resolution), onLaunch: launched, prefix: 'sit-reject',
     onLanded: () => {
-      // READ, then refused: the second phrase starts after the dwell (a beat on the motion clock, fired at once under «дожать»).
-      const back = () => {
-        const proxyId = id ?? '';
-        if (runState.finished) {
-          dropFlight(proxyId);
-          landOnDiscard();
-          return;
-        }
-        flyToDiscard(runState, ctx, proxyId, 0, {onGone: landOnDiscard, degrade: `reject of ${event.resolution}`});
-        settleIfHurried();
-      };
-      if (hurry) {
-        back();
-      } else {
-        scheduleParliamentBeat(REJECT_DWELL_MS * k, back);
-      }
+      landOnDiscard();
+      settleIfHurried();
     },
   });
   if (id === undefined) {
@@ -1509,6 +1515,8 @@ function beatRenewal(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
   }
   // ── THE DEAL, in the journal's order: the deck turning over, the cards revealed and refused, the cards dealt, the support, the lobby. ──
   let lastDealLanding = at;
+  /** The moment the current run of refusals has cleared the deck's top — the run's OWN tail, never the tact's. */
+  let rejectTail = at;
   journal.forEach((event, index) => {
     switch (event.kind) {
     case 'leave':
@@ -1523,12 +1531,23 @@ function beatRenewal(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
       at += s(RESHUFFLE_MS + RESHUFFLE_SETTLE_MS) * k;
       tail = Math.max(tail, at);
       return;
-    case 'reject':
-      cue(index, event, at);
-      tl.call(() => launchReject(runState, ctx, event, k), undefined, at);
-      at += s(DEAL_FLIGHT_MS + REJECT_DWELL_MS + LEAVE_TURN_LEAD_MS + LEAVE_CARRY_MS) * k;
-      tail = Math.max(tail, at);
+    case 'reject': {
+      // THE QUICK SEARCH: the band names the refusal ONCE for a run of refusals (a line per card in 90 ms would flicker).
+      if (journal[index - 1]?.kind !== 'reject') {
+        cue(index, event, at);
+      }
+      tl.call(() => launchQuickReject(runState, ctx, event, k), undefined, at);
+      rejectTail = at + s(QUICK_REJECT_MS) * k;
+      tail = Math.max(tail, rejectTail);
+      at += s(QUICK_REJECT_STEP_MS) * k;
+      // The card that FITS leaves the deck once the last refusal has cleared it (the deck's top is free again) — the
+      // RUN's tail: the tact's own tail also holds the earlier cards' support cubes still in the air, and waiting for
+      // them stretched one refusal to 0.7 s before the next deal (the storyboard's flight log).
+      if (journal[index + 1]?.kind !== 'reject') {
+        at = Math.max(at, rejectTail - s(QUICK_REJECT_MS * 0.45) * k);
+      }
       return;
+    }
     case 'deal':
       cue(index, event, at);
       tl.call(() => launchDeal(runState, ctx, event, k), undefined, at);

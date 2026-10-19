@@ -177,6 +177,10 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
       expect(absent.kicker).eq('Popular support');
       expect((absent.chips[0] as {key: string}).key).eq('Not in the vote');
       expect((lost.chips[0] as {key: string}).key).eq('Unenacted resolutions');
+      // v8 Р2: the rule wears the seals' own roll-call mark, and the gain is the cube itself — no sentence.
+      expect(kinds(lost.chips)).deep.eq(['supportWave', 'neutralGain']);
+      expect(lost.chips[0]).deep.include({wave: 'lost'});
+      expect(absent.chips[0]).deep.include({wave: 'absent'});
       expect(absent.key, 'the two waves are two lines: the crossfade fires between them').not.eq(lost.key);
     });
     it('at REST the enactment names the law that now stands and the party that rules by it', () => {

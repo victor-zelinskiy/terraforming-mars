@@ -343,14 +343,168 @@
     &__part-stack { font-size: .86rem; font-weight: 700; color: @con-parl-mint; }
 }
 
-/* THE RESULTS PANEL TAKES THE AGENDA TRACK WHOLE, ON EVERY PROFILE. The stage grows out of the body by
-   CONTENT, so a panel a little taller than the body covers exactly as much of the track as it needs — and
-   a half-covered track (its nodes peeking under the plate) is the one thing never to show. «Целиком или
-   никак» was the Deck's rule in v4 for the same reason; in v5 the body is shorter by the band's height on
-   every profile, so it is simply the rule. The Agenda's own beat has played by then and the track is
-   read-only until the next generation. */
-.con-parl[data-sitting-stage="results"] .con-parl__stage {
-    min-height: calc(100% + var(--con-parl-agenda-h) + .4rem);
+/* ══ THE RESULTS ARE ONE CARD OVER THE CHAMBER ROW (Парламент v8, the mock `e1`; the owner's point 8 — «итоги наезжают
+   на Карьеру»): the card takes the chamber AND the table — both read-only by now — and NEVER the career, which stands
+   whole and lit under it (the next generation's track). The band (the generation's number) spans the row above the
+   card; the chamber recedes under it (opacity — it keeps its box). The v5 rule «take the Agenda track whole» is gone. ══ */
+.con-parl[data-sitting-stage="results"] {
+    .con-parl__palata { opacity: 0; pointer-events: none; z-index: 0; transition: opacity calc(220ms * var(--motion-scale, 1)) ease-out; }
+    .con-parl__mid-head { position: relative; z-index: 6; margin-left: calc(-1 * var(--con-parl-mid-left, 0px)); }
+    /* The table's own plate lets go with the chamber: the band reads across the whole row, the card stands under it —
+       never a ghost of the table's frame beside the band. */
+    .con-parl__mid { background: none; box-shadow: none; transition: background-color calc(220ms * var(--motion-scale, 1)) ease-out; }
+    .con-parl__stage {
+        top: 0;
+        left: calc(-1 * var(--con-parl-mid-left, 0px));
+        bottom: 0;
+        min-height: 0;
+        max-height: none;
+    }
+}
+/* THE CARD: ПРИНЯТА · ВЫПЛАТЫ · СТОЛ — three columns read left to right (what was decided, what it paid, what the table
+   is now); the payouts are the card's main body. Written after the base `&__results` rules (the sheet's own order). */
+.con-parl[data-sitting-stage="results"] .con-sit {
+    &__results {
+        height: 100%;
+        box-sizing: border-box;
+        grid-template-columns: minmax(10rem, .62fr) minmax(0, 1.55fr) minmax(0, 1fr);
+        /* The payouts take the flexible row; the world's lines (ПЛАНЕТА, КОЛОНИИ) follow them in their column. */
+        grid-template-rows: minmax(0, 1fr) auto auto;
+        align-content: stretch;
+        gap: .8rem 1.4rem;
+        padding: .9rem 1.2rem 1rem;
+    }
+    &__enacted {
+        grid-column: 1;
+        grid-row: 1 / -1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .6rem;
+        min-width: 0;
+        padding-right: 1.2rem;
+        border-right: .05rem solid rgba(201, 198, 214, 0.14);
+    }
+    /* Each column's KICKER rides its top edge; the column's content stands in the middle of what is left. */
+    &__enacted, &__payouts, &__table { position: relative; padding-top: 1.9rem; }
+    &__enacted > .con-sit__section-kicker, &__payouts > .con-sit__section-kicker, &__table > .con-sit__section-kicker {
+        position: absolute; top: 0; left: 0; margin: 0;
+    }
+    &__table > .con-sit__section-kicker { left: 1.2rem; }
+    /* The law that was enacted is the column's HERO: the face at the size the column can carry, never a thumbnail
+       floating in a tall column. */
+    &__enacted-card { zoom: calc(.8 * var(--con-ui-scale, 1)); filter: none; }
+    /* THE HANDOVER: [old seal] › [new seal] NAME, and the rule on its own line under it. */
+    &__enacted-ruler {
+        display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; justify-content: center;
+        font-size: .78rem; text-align: center;
+        b { font-size: .9rem; letter-spacing: .05em; text-transform: uppercase; }
+        .con-sit__emblem { width: 1.6rem; height: 1.6rem; }
+    }
+    &__emblem--lost { opacity: .42; }
+    &__handover { width: .5rem; height: .7rem; fill: none; stroke: fade(@con-parl-silver, 70%); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+    &__enacted-rule { flex-basis: 100%; font-size: .66rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: fade(@con-parl-gold, 88%); }
+    /* The columns carry their content in their MIDDLE — two payout rows at the top of a tall card read as a card
+       half-built. */
+    /* THE SEATS' PLATES stand side by side (a row of equals; the winner's wears the rim) and wrap past three. */
+    &__payouts {
+        grid-column: 2; grid-row: 1; min-height: 0;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+        align-content: center;
+        gap: .9rem;
+    }
+    &__payout-quiet { grid-column: 1 / -1; }
+    &__planet, &__tracks { grid-column: 2; }
+    &__table { grid-column: 3; grid-row: 1 / -1; gap: .45rem; padding-left: 1.2rem; border-left: .05rem solid rgba(201, 198, 214, 0.14); justify-content: center; }
+    /* A SEAT'S PAYOUT is a plate of its own: who (and the winner's crown), the chips at the card's scale, the net. */
+    &__payout {
+        flex-direction: column;
+        align-items: stretch;
+        gap: .8rem;
+        min-height: 8.5rem;
+        padding: .75rem .9rem .9rem;
+        border-radius: .7rem;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(0, 0, 0, 0.3) 45%);
+        box-shadow: inset 0 0 0 .05rem rgba(201, 198, 214, 0.16);
+    }
+    /* The NAME never yields (a cut «play…» on the TV): the winner's line wraps under it when the plate is narrow. */
+    &__payout-who { max-width: none; gap: .15rem .45rem; flex-wrap: wrap; }
+    &__payout-name { font-size: .95rem; flex-shrink: 0; max-width: 100%; }
+    .con-sit__payout-winner { white-space: nowrap; }
+    /* The chips own the plate's body, centred: what the seat GOT is the plate's subject. */
+    &__payout-parts { flex: 1 1 auto; gap: .5rem .6rem; justify-content: center; align-content: center; }
+    /* «СЛЕДУЮЩЕЕ ГОЛОСОВАНИЕ»: the fresh resolutions as small FACES in a row, then the support stock at the seals. The
+       rows here are plain groups — no chip plate (the column is the plate). */
+    &__table { gap: 1.1rem; }
+    &__table > .con-sit__row { background: none; padding: 0; }
+    &__fresh-row { justify-content: center; gap: .7rem; flex-wrap: nowrap; }
+    &__fresh { display: flex; min-width: 0; }
+    &__fresh-card { zoom: calc(.4 * var(--con-ui-scale, 1)); }
+    /* `nowrap`: the base row WRAPS, and a column-direction wrapping flexbox sizes itself by the space it is offered
+       (the stock grew to 391px and pushed the faces over the kicker). */
+    &__support-row { flex-direction: column; flex-wrap: nowrap; justify-content: flex-start; align-items: stretch; gap: .55rem; }
+    &__support-row > .con-parl__chip-dim { text-align: center; font-size: .66rem; letter-spacing: .14em; text-transform: uppercase; }
+    /* ONE ROW of seals, always (the five parties out of power): a fifth seal wrapping alone under four read as a remainder. */
+    &__support-row .con-sit__chips { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: .5rem; }
+    &__support { flex-direction: column; justify-content: center; gap: .35rem; }
+    &__support .con-sit__emblem { width: 1.9rem; height: 1.9rem; }
+    /* The support SOCKETS speak the bench's own language — the delegate's silhouette (a dashed hex), never a square
+       box (the plan's «чекбоксы» — the cheap language v8 retired); a socket this sitting filled keeps the gold rim. */
+    &__support-place {
+        width: .95rem; height: .95rem; border-radius: 0; box-shadow: none;
+        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M10 2 17 6v8l-7 4-7-4V6z' fill='rgba(0,0,0,0.35)' stroke='rgba(205,218,232,0.4)' stroke-width='1.2' stroke-dasharray='2 1.6'/%3E%3C/svg%3E") center / contain no-repeat;
+        &--on { background: none; box-shadow: none; }
+        &--fresh { background: none; border-radius: 50%; box-shadow: 0 0 0 .08rem fade(@con-parl-gold, 80%); }
+    }
+    /* A PART is a chip at the card's scale: the number large beside its unit, on its own small plate. */
+    &__part {
+        font-size: 1.5rem;
+        gap: .35rem;
+        padding: .3rem .6rem .3rem .5rem;
+        border-radius: .5rem;
+        background: rgba(255, 255, 255, 0.04);
+        box-shadow: inset 0 0 0 .05rem rgba(201, 198, 214, 0.18);
+    }
+    &__part--skipped { font-size: .8rem; }
+    &__part-unit { width: 1.9rem; height: 1.9rem; }
+    &__net { font-size: 1.1rem; }
+}
+.con-sit__payout-winner {
+    display: inline-flex; align-items: center; gap: .3rem; margin-left: auto;
+    font-size: .56rem; letter-spacing: .14em; text-transform: uppercase; color: @con-parl-gold;
+}
+.con-sit__payout-crown { width: .9rem; height: .6rem; fill: @con-parl-gold; flex-shrink: 0; }
+/* A winner's row carries the gold rim (the crown says why). */
+.con-parl[data-sitting-stage="results"] .con-sit__payout--winner { box-shadow: inset 0 0 0 .07rem fade(@con-parl-gold, 60%); }
+html.con-profile-tv .con-parl[data-sitting-stage="results"] .con-sit {
+    &__payout-name { font-size: 1.05rem; }
+    &__enacted-ruler { font-size: .85rem; b { font-size: 1rem; } }
+    &__enacted-rule { font-size: .8rem; }
+    &__support-row > .con-parl__chip-dim { font-size: .8rem; }
+}
+html.con-profile-tv .con-sit__payout-winner { font-size: .8rem; letter-spacing: .08em; }
+html.con-profile-handheld .con-parl[data-sitting-stage="results"] .con-sit {
+    &__results { grid-template-columns: minmax(6.5rem, .5fr) minmax(0, 1.5fr) minmax(0, 1fr); gap: .4rem .7rem; padding: .5rem .6rem .5rem; }
+    &__enacted { padding-right: .6rem; gap: .3rem; }
+    &__enacted-card { zoom: calc(.5 * var(--con-ui-scale, 1)); }
+    &__enacted-ruler { font-size: .62rem; gap: .25rem; b { font-size: .66rem; } .con-sit__emblem { width: 1.1rem; height: 1.1rem; } }
+    &__enacted-rule { font-size: .56rem; }
+    &__table { padding-left: .6rem; gap: .5rem; }
+    &__payouts { grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: .5rem; }
+    &__payout { padding: .4rem .5rem; gap: .3rem; min-height: 0; }
+    /* The Deck's plate is too narrow for the name AND the winner's words on one line: the crown's line goes under the
+       name (a cut name was the defect — «play…»). */
+    .con-sit__payout-winner { flex-basis: 100%; margin-left: 0; font-size: .56rem; }
+    &__fresh-row { gap: .35rem; }
+    &__fresh-card { zoom: calc(.24 * var(--con-ui-scale, 1)); }
+    &__support .con-sit__emblem { width: 1.2rem; height: 1.2rem; }
+    &__support-place { width: .7rem; height: .7rem; }
+    &__support-row > .con-parl__chip-dim { font-size: .56rem; }
+    &__payout-name { font-size: .72rem; }
+    &__part { font-size: .8rem; }
+    &__part-unit { width: 1.05rem; height: 1.05rem; }
 }
 html.con-profile-handheld .con-sit {
     /* THE RESULTS PANEL PAYS ITS OWN WAY ON THE DECK. The stage already takes the Agenda track whole here

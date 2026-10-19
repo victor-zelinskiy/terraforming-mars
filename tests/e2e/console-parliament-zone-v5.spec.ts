@@ -8,9 +8,6 @@ import {
 } from './parliamentDrive';
 
 
-/* ⛔ PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5») */
-test.skip(() => true, 'PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5»)');
-
 /**
  * «ЗАСЕДАНИЕ v5» — КОНТРАКТ ЗОН: ЛЕНТА ЧТЕНИЯ и ТЕЛО.
  *
@@ -29,6 +26,11 @@ test.skip(() => true, 'PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting play
  * `mo` sample runs as a microtask and can observe a state between a Vue patch and the `nextTick` that
  * applies an inverse transform — a state the browser never paints. Claims about FRAMES are made on the
  * `tick` samples only.
+ *
+ * ПАРЛАМЕНТ v8 «ПЛЕНАРНЫЙ ЗАЛ» KEPT THE ZONE CONTRACT AND MOVED ITS BODY: the middle zone's body is the TABLE (the bills'
+ * tier — it carries the `data-parl-row-shown` marker now), the parties sit on the chamber's benches beside the dais,
+ * and the dais seats a medallion of its own size. The band, its one height and its crossfade are unchanged; the overview
+ * band reads the FOCUSED object (П1–П2) rather than a standing verdict.
  */
 type Rect = {x: number, y: number, w: number, h: number};
 type Vis = {box: boolean, ink: number, free: boolean, overlap: number};
@@ -38,7 +40,7 @@ type V5Sample = {
   t: number, stage: string, motion: string, beat: string, wave: string, swapping: boolean,
   bandRect: Rect | undefined, bandVis: Vis, bandKey: string, bandKicker: string, bandLines: number,
   bodyRect: Rect | undefined, agendaY: number, fieldY: number,
-  rowShown: boolean, rowVis: Vis, rowRect: Rect | undefined,
+  rowShown: boolean, rowVis: Vis, rowRect: Rect | undefined, slotY: number,
   panel: boolean, panelRect: Rect | undefined, panelInk: number,
   tiles: Array<TileSample>,
   sections: Array<string>, payouts: Array<string>,
@@ -113,7 +115,8 @@ async function armV5Probe(page: Page): Promise<void> {
         return;
       }
       const band = document.querySelector('.con-band');
-      const row = document.querySelector('.con-parl__parties-tier');
+      // v8: the BODY is the table's tier (its slots are what the step and the results push shut).
+      const row = document.querySelector('.con-parl__table-tier');
       const panel = document.querySelector<HTMLElement>('.con-parl__stage');
       const panelShown = panel !== null && getComputedStyle(panel).display !== 'none';
       w.__v5.samples.push({
@@ -135,6 +138,7 @@ async function armV5Probe(page: Page): Promise<void> {
         rowShown: row?.getAttribute('data-parl-row-shown') !== null,
         rowVis: vis(row),
         rowRect: rect(row),
+        slotY: document.querySelector('.con-parl__table-tier .con-parl__slot')?.getBoundingClientRect().top ?? -1,
         panel: panelShown,
         panelRect: panelShown ? rect(panel) : undefined,
         panelInk: panelShown ? Number(getComputedStyle(panel).opacity || '1') : 0,
@@ -227,7 +231,8 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
     });
     expect(overview, 'the band exists outside a sitting too').toBeDefined();
     expect(same(overview, first), `the overview's band stands where the sitting's did (${JSON.stringify(overview)} vs ${JSON.stringify(first)})`).toBe(true);
-    expect(overview!.key.startsWith('overview'), `the overview reads the standing verdict (${overview!.key})`).toBe(true);
+    // v8 (П1–П2): the overview's band reads the FOCUSED object — the cursor's slot, party or the government.
+    expect(/^(overview|focus:)/.test(overview!.key), `the overview reads its focus (${overview!.key})`).toBe(true);
     await shoot(page, 'p1-overview-band');
   });
 
@@ -285,20 +290,17 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
     expect(empty.map((s) => `${s.stage} row=${s.rowVis.ink.toFixed(2)} panel=${s.panel}/${s.panelInk.toFixed(2)}`).slice(0, 6),
       'no frame shows an empty body').toEqual([]);
 
-    // ③ THE TRANSITION IS PHYSICAL: while both are on screen the row is BELOW its resting place (the
+    // ③ THE TRANSITION IS PHYSICAL: while both are on screen the table's bills are BELOW their resting place (the
     //    drawer being pushed shut) and the arriving surface is not yet at full ink — never a cut.
-    const restingY = all.find((s) => s.rowShown && s.tiles.some((t) => t.where === 'row'))?.tiles.find((t) => t.where === 'row')?.y ?? 0;
+    const restingY = all.find((s) => s.rowShown && s.slotY >= 0)?.slotY ?? 0;
     const both = all.filter((s) => s.panel && s.panelInk > 0.05 && s.rowVis.ink > 0.05);
     expect(both.length, 'the two surfaces overlapped in time — a swap would show none').toBeGreaterThan(2);
-    const moving = both.filter((s) => {
-      const tile = s.tiles.find((t) => t.where === 'row');
-      return tile !== undefined && tile.y > restingY + 2;
-    });
-    expect(moving.length, `the row was travelling downward while the new body arrived (resting y=${Math.round(restingY)})`).toBeGreaterThan(0);
+    const moving = both.filter((s) => s.slotY > restingY + 2);
+    expect(moving.length, `the bills were travelling downward while the new body arrived (resting y=${Math.round(restingY)})`).toBeGreaterThan(0);
 
-    // ④ THE BAND KEPT ITS HEIGHT THROUGHOUT and took exactly ONE pose besides standing still: while the
-    //    step held the field the whole zone was the work surface and the band rode to its TOP — a slide, and
-    //    it comes back. So the claim is about where it SETTLES, never about the frames of the travel.
+    // ④ THE BAND KEPT ITS HEIGHT THROUGHOUT. (v5 also gave it ONE pose besides standing still — riding to the field's
+    //    top while a step held the field. Парламент v8's field grows LEFT over the receded chamber and DOWN, under the
+    //    band: the band never moves at all, the step included — the stronger law, asserted below.)
     const heights = [...new Set(all.map((s) => Math.round(s.bandRect?.h ?? -1)))];
     expect(heights, `the band's height never changes (${heights.join(',')})`).toHaveLength(1);
     const resting = Math.round(all[0].bandRect!.y);
@@ -319,11 +321,9 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
     }
     // …and a 3 px tolerance, because the slide's easing has a very flat tail.
     const places = [...new Set(settled)].sort((a, b) => a - b);
-    const strays = places.filter((y) => Math.abs(y - fieldTop) > 3 && Math.abs(y - resting) > 3);
-    expect(strays, `the band settles in exactly two places: the field's top ${fieldTop} for the step, its own ${resting} otherwise (saw ${places.join(',')})`)
+    const strays = places.filter((y) => Math.abs(y - resting) > 3);
+    expect(strays, `the band settles in ONE place — its own ${resting} — through the step and back (saw ${places.join(',')}; the field's top is ${fieldTop})`)
       .toEqual([]);
-    expect(places.some((y) => Math.abs(y - fieldTop) <= 3), 'it did ride to the top of the field for the step').toBe(true);
-    expect(places.some((y) => Math.abs(y - resting) <= 3), 'and it came back').toBe(true);
     const dark = all.filter((s) => !s.swapping && (s.bandVis.ink < 0.9 || !s.bandVis.free));
     expect(dark.map((s) => `${s.stage} ink=${s.bandVis.ink.toFixed(2)} free=${s.bandVis.free}`).slice(0, 4),
       'the band is never hidden and is on top of everything, the step included').toEqual([]);
@@ -351,10 +351,10 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
     expect(flips, `one transition, and it is the one onto the results (${flips.join(' · ')})`).toHaveLength(1);
     expect(flips[0]).toMatch(/@results$/);
 
-    // «Итоги: честность»: the LAW section is gone — it restated the government's zone, which stands on the
-    // same screen and says all three facts more fully. The payouts and the table, and nothing else.
+    // «Итоги: честность», v8 `e1`: the card stands over the chamber row (the government out of sight under it), so it
+    // leads with the enacted law and its ruler, then the payouts and the next vote — and nothing else.
     const sections = await page.locator('[data-sit-section]').evaluateAll((els) => els.map((el) => el.getAttribute('data-sit-section')));
-    expect(sections, 'the payouts and the table — and nothing else').toEqual(['payouts', 'table']);
+    expect(sections, 'the enacted law, the payouts and the next vote — and nothing else').toEqual(['enacted', 'payouts', 'table']);
 
     const wire = await parliamentWire(request, playerId);
     const seatCount = (wire.game.parliament as unknown as {players?: Array<{participates: boolean}>})?.players?.filter((p) => p.participates).length ?? seats.length;
@@ -393,6 +393,7 @@ for (const preset of PARLIAMENT_PRESETS) {
         const line = document.querySelector('.con-band__line');
         const rowTiles = Array.from(document.querySelectorAll('.con-parl__parties .con-parl__party[data-party]'));
         const ruler = document.querySelector('[data-parl-ruler-slot] .con-parl__party[data-party]');
+        const rulerSize = ruler?.querySelector('.con-pseal--ruler') !== null && ruler !== null;
         const nodes = Array.from(document.querySelectorAll('.con-parl__step-node'))
           .filter((el) => el.closest('.con-parl__step--start') === null);
         const h = (el: Element | null) => (el === null ? -1 : Math.round(el.getBoundingClientRect().height));
@@ -404,6 +405,7 @@ for (const preset of PARLIAMENT_PRESETS) {
           lineClientW: line === null ? 0 : (line as HTMLElement).clientWidth,
           rowH: rowTiles.map((el) => Math.round(el.getBoundingClientRect().height)),
           rulerH: h(ruler),
+          rulerSize,
           nodeSizes: [...new Set(nodes.map((el) => {
             const r = el.getBoundingClientRect();
             return `${Math.round(r.width)}x${Math.round(r.height)}`;
@@ -417,10 +419,11 @@ for (const preset of PARLIAMENT_PRESETS) {
       expect(geo.lineH, `the line is ONE line inside the band (${geo.lineH}px of ${geo.bandH}px)`).toBeLessThanOrEqual(geo.bandH);
       await expectRailHonest(page, `${preset.id} band`, '.con-band__line');
 
-      // THE RULER'S TILE IS THE ROW'S TILE — the condition of the physical swap.
+      // THE BENCHES ARE ONE BOX; the dais seats the ruler-size medallion (v8 — the swap FLIPs between the two shapes,
+      // fitted and centred; v5–v7 held the ruler to the row's box).
       expect(geo.rowH.length, 'the five opposition tiles').toBe(5);
       expect([...new Set(geo.rowH)], `the row's tiles are one box (${geo.rowH.join(',')})`).toHaveLength(1);
-      expect(Math.abs(geo.rulerH - geo.rowH[0]), `the ruler's tile is the row's height (${geo.rulerH} vs ${geo.rowH[0]})`).toBeLessThanOrEqual(1);
+      expect(geo.rulerSize, `the dais seats the ruler-size medallion (${geo.rulerH}px)`).toBe(true);
 
       // THE SHORTENED TRACK keeps its three node kinds one size between them.
       expect(geo.nodeSizes, `the Agenda's nodes are one size (${geo.nodeSizes.join(' · ')})`).toHaveLength(1);

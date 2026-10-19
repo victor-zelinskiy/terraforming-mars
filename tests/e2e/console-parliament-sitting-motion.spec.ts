@@ -78,6 +78,15 @@ async function armProbe(page: Page): Promise<void> {
         if (getComputedStyle(el).visibility === 'hidden' || r.width < 2 || r.height < 2) {
           continue;
         }
+        // …and PAINTED: v8's results card stands over the chamber (the government receded to opacity 0) and leads with
+        // the enacted face itself — the receded government's copy is in the DOM, not on screen.
+        let ink = 1;
+        for (let a: Element | null = el; a !== null && a !== document.documentElement; a = a.parentElement) {
+          ink *= Number(getComputedStyle(a).opacity || '1');
+        }
+        if (ink < 0.5) {
+          continue;
+        }
         const slug = Array.from(el.classList).find((c) => c.startsWith('pcard--rdx-')) ?? '';
         if (slug !== '') {
           faces[slug] = (faces[slug] ?? 0) + 1;
@@ -291,13 +300,23 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
     // THE DECK ticked per launch (a deal, a revealed card that does not fit) — down by one at a time; the ONE way it
     // ever grows is the discard turning over into a new deck, by exactly the journal's size, and only then.
     const reshuffles = (summary?.renewal ?? []).filter((e) => e.kind === 'reshuffle').map((e) => e.size ?? 0);
-    const decks = renewal.map((s) => s.deck).filter((d) => d >= 0);
+    const counted = renewal.filter((s) => s.deck >= 0);
+    const decks = counted.map((s) => s.deck);
     const ups: Array<number> = [];
+    // A card body born between two samples (Парламент v8: the QUICK SEARCH launches a refusal every 90 ms, so a slow
+    // frame can launch two in one task — each still leaves as its OWN body; what may never happen is a count that
+    // drops by more cards than left the deck).
+    const born = (a: Sample, b: Sample): number => {
+      const before = new Set(a.proxies.filter((x) => x.body === '3d').map((x) => x.id));
+      return b.proxies.filter((x) => x.body === '3d' && !before.has(x.id)).length;
+    };
     for (let i = 1; i < decks.length; i++) {
       if (decks[i] > decks[i - 1]) {
         ups.push(decks[i] - decks[i - 1]);
       } else {
-        expect(decks[i - 1] - decks[i], 'the pile thins one card at a time').toBeLessThanOrEqual(1);
+        const drop = decks[i - 1] - decks[i];
+        expect(drop <= 1 || drop <= born(counted[i - 1], counted[i]),
+          `the pile thins one card per body that leaves it (−${drop}, ${born(counted[i - 1], counted[i])} bodies born)`).toBe(true);
       }
     }
     expect(ups, `the deck grew exactly at the reshuffle(s), by the pile turned over (${decks.join(',')})`).toEqual(reshuffles);

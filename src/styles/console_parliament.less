@@ -1320,6 +1320,10 @@
         line-height: 1.1;
         /* The SECONDARY members give their width after the kicker and before anything printed on an object. */
         &--quiet, &--skip, &--await { flex: 1 1 0; min-width: 0; max-width: max-content; }
+        /* A RESOLUTION'S NAME yields with them, in its OWN box (an ellipsis on the name, never an ancestor's cut): the
+           Deck's focus line on a slot («Открытая торговля патентами · Принимается · Делегаты 0 · Ваши 0/2») ran 100 px
+           past the strip and lost the counts — the numbers are what the line is for. Its emblem stays. */
+        &--res { flex: 1 1 0; min-width: 2.6rem; max-width: max-content; }
         /* THE PLANET'S OWN MOVE. A RAISE nobody is credited for is a calm neutral statement — not a
            celebration, because nobody earned it; a LOWERING takes the console's own LOSS register (the
            amber of a struck amount), which is what tells the player at a glance that the world went
@@ -1358,6 +1362,13 @@
     }
     &__chip--quiet &__text { opacity: .68; font-size: .66rem; letter-spacing: .06em; text-transform: uppercase; }
     &__num { font-size: .92rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+    /* The roll call's ring, as the band's legend: the SAME form the seals of the wave wear (dashed · dotted). */
+    &__ring {
+        width: .78rem; height: .78rem; border-radius: 50%; flex-shrink: 0; box-sizing: border-box;
+        &--lost { border: .09rem dashed fade(@con-cyan, 88%); }
+        &--absent { border: .09rem dotted fade(@con-parl-silver, 85%); }
+    }
+    &__arrow { opacity: .6; font-weight: 600; }
     &__emblem { width: .95rem; height: .95rem; object-fit: contain; flex-shrink: 0; }
     &__unit { display: inline-block; width: 1rem; height: 1rem; background-size: contain; background-repeat: no-repeat; background-position: center; }
     /* An INFLUENCE step's chip (TR04's walk): the badge with its level in one disc — the track node's own asset. */
@@ -1381,22 +1392,46 @@
         .con-iyield__reading { display: inline-flex; align-items: center; flex-wrap: nowrap; column-gap: .24rem; padding: .14rem .45rem .12rem; }
     }
     &__reaction.con-preact { padding: .08rem .35rem; }
+    /* THE WINNER'S TILE in a rail is ONE line too (the Deck broke «Океан 0 → 1 + / РАЗМЕЩЕНО ВАМИ» onto a second row the
+       39 px strip cut, and the block ran off the screen's right edge). */
+    &__winner.con-wreward, &__winner .con-wreward__body { flex-wrap: nowrap; white-space: nowrap; }
+}
+/* On the Deck the inline caption («РАЗМЕЩЕНО ВАМИ») restates the band's own «ВАША НАГРАДА · ПОЛУЧЕНО» — the strip is too
+   narrow to say it twice, so the tile's body speaks alone. */
+html.con-profile-handheld .con-band__winner .con-wreward__caption--inline { display: none; }
+/* …and the tile's NAME too: its glyph says the tile, and the reading that matters is what the placement does (the
+   parameter's step, the TR) — «Озеленение» pushed the oxygen step past the strip's edge on the Deck's door. */
+html.con-profile-handheld .con-band__winner .con-wreward__name { display: none; }
+/* THE DECK'S REWARD LINE carries the RESULTS (Парламент v8 П4 — the gallery's «получено» pose ran 160 px past the strip):
+   the inputs that made them («[influence] 2 →», «4 → 6 →») are the vote panel's and the dossier's to read; the party's
+   reaction keeps its emblem and gives up its name. */
+html.con-profile-handheld .con-band {
+    .con-band__yield .con-iyield__in, .con-band__yield .con-iyield__in + .con-iyield__arrow { display: none; }
+    .con-band__reaction .con-preact__party { display: none; }
 }
 
 /* …the step's pose: the band travels exactly the middle zone's own offset inside the field
    (`--con-parl-mid-top`, the px the section measures), so it lands flush with the field's top edge. */
 .con-parl--sitting-field .con-band { transform: translateY(calc(-1 * var(--con-parl-mid-top, 0px))); z-index: 6; }
 
-/* The crossfade: ONE cell, both lines in it — `mode="out-in"` would empty the
-   cell for the length of the leave and the band would blink. */
+/* The change of line: ONE cell, both lines in it — `mode="out-in"` would empty the
+   cell for the length of the leave and the band would blink. But the two must never be READ
+   together (Парламент v8 П4: the 1080 storyboard caught «СДАНА … Вертикальная интеграция
+   …ановится голосами» — two lines superimposed at half opacity for 200 ms, on every beat): the
+   old line lets go FIRST, short and lifting; the new one enters only as the old is nearly gone,
+   rising into place. The cell stays occupied throughout (the band's height is its own). */
 @keyframes con-band-chip-in {
     from { transform: translateX(-.4rem); opacity: 0; }
     to { transform: none; opacity: 1; }
 }
-.con-band-fade-enter-active,
-.con-band-fade-leave-active { transition: opacity calc(200ms * var(--motion-scale, 1)) @con-ease-standard; }
-.con-band-fade-enter-from,
-.con-band-fade-leave-to { opacity: 0; }
+.con-band-fade-leave-active { transition: opacity calc(120ms * var(--motion-scale, 1)) ease-in, transform calc(120ms * var(--motion-scale, 1)) ease-in; }
+.con-band-fade-enter-active {
+    transition:
+        opacity calc(200ms * var(--motion-scale, 1)) @con-ease-standard calc(100ms * var(--motion-scale, 1)),
+        transform calc(240ms * var(--motion-scale, 1)) @con-ease-standard calc(100ms * var(--motion-scale, 1));
+}
+.con-band-fade-enter-from { opacity: 0; transform: translateY(.22em); }
+.con-band-fade-leave-to { opacity: 0; transform: translateY(-.22em); }
 
 /* THE FLIGHT LAYER ITSELF CARRIES NO BOX — and it MUST be out of flow.
    `.con-root` is a flex COLUMN with `gap: --con-hud-gap`, so an unstyled

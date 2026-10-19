@@ -8,20 +8,18 @@ import {
 } from './parliamentDrive';
 
 
-/* ⛔ PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5») */
-test.skip(() => true, 'PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5»)');
-
 /**
  * «ИТОГИ: ЧЕСТНОСТЬ» — the panel does not restate what stands beside it, and no surface promises what
  * cannot happen.
  *
- * ① the results panel is TWO sections, and the government's three facts (the enacted resolution, the
- *    ruling party, the chairman's quest) appear in the government's zone and NOWHERE inside the panel;
+ * ① the results card (Парламент v8 `e1`) is THREE sections — ПРИНЯТА · ВЫПЛАТЫ · СЛЕДУЮЩЕЕ ГОЛОСОВАНИЕ — standing over
+ *    the chamber row: the government and the table are OUT OF SIGHT under it, so the card names the enacted law and
+ *    the ruler itself, and restates nothing of what stays VISIBLE beside it (the delegates ledger, the quest plate);
  * ② НАРОДНАЯ ПОДДЕРЖКА is a STOCK in places that equals the server's own record, the ruling party is not
  *    in the row, this sitting's arrivals are told apart from the older ones, and nothing is cut;
  * ③ «В ЛОББИ» is GONE (the delegates ledger states it, permanently and by name) and its place is the
  *    EXCEPTION it never stated: the seats that enter the next vote with nothing to vote with;
- * ④ the RULER's plaque shows no support sockets and still has the row's exact height;
+ * ④ the RULER's medallion shows no support sockets and keeps their room (v8: the dais has its own size);
  * ⑤ the government's swap changes a plaque's state in the frame it ARRIVES, never in flight.
  *
  * EVERY PROBE ASSERTS VISIBILITY, not that an event fired — a rect, the element's own computed
@@ -58,30 +56,34 @@ const ZONE_WORDS: ReadonlyArray<{zone: string, selector: string, why: string}> =
     why: 'the enacted resolution names itself on its own card under «ПРИНЯТАЯ РЕЗОЛЮЦИЯ»'},
   {zone: 'government/ruler', selector: '[data-parl-ruler-slot] .con-pseal__name',
     why: 'the ruling party is the plaque standing in the government, with «ПРАВИТ» on it'},
-  {zone: 'government/quest', selector: '.con-parl__quest-text',
-    why: 'the chairman quest is its own block — with progress, reward and the chair'},
-  // «Зал» v7: the ledger has no captions any more (the socket and the stack speak) — its WORDS are the seats' names.
-  {zone: 'delegates-ledger', selector: '.con-parl__seats .con-parl__seat-name',
-    why: 'the lobby socket and the reserve stack are stated per seat, permanently, at the top of the screen'},
+  // v8: the quest is a FORMULA on its own plate in the career row — its one word is the plate's kicker.
+  {zone: 'career/quest', selector: '.con-parl__engine-kicker',
+    why: 'the chairman quest is its own plate beside the card — the chair, the condition, the reward'},
+  // (The delegates ledger left this table in v8: since «Зал» v7 its only WORDS are the seats' NAMES — the identity every
+  // payout plate must carry to say whose payout it is, never a restated fact. The ledger's facts — the lobby socket and
+  // the reserve stack — are objects and numbers, and the card prints neither: «В ЛОББИ» is gone, asserted below.)
   {zone: 'voting-area', selector: '.con-parl__slot .con-parl__card .pcard__title',
     why: 'the freshly dealt resolutions stand on the table the whole time the panel is up'},
 ];
 
 /*
- * THE ONE DECLARED EXCEPTION, and it is an OPEN QUESTION rather than a blessing: «НОВЫЕ РЕЗОЛЮЦИИ» names
+ * v8: THE CARD COVERS the chamber row — the government and the table are out of sight while it stands, so their words
+ * are never «beside» it (the sampler reads a zone only where it is PAINTED: visible, at half opacity or more). These two
+ * MUST be silent while the card is up (that is the design, asserted), the rest MUST speak (the law is not vacuous).
+ */
+const COVERED_ZONES: ReadonlyArray<string> = ['government/enacted', 'government/ruler', 'voting-area'];
+
+/*
+ * (v5–v7) THE ONE DECLARED EXCEPTION, and it was an OPEN QUESTION rather than a blessing: «НОВЫЕ РЕЗОЛЮЦИИ» names
  * the cards the deal put on the table — and those cards are standing in the VOTING AREA at that very
  * moment, so by the law above the row is a restatement too. Its one member that is genuinely nowhere else
  * is «остаётся · перетасована» (a loser dealt straight back never left the table). Removing the row was
  * not part of this task, so it is excluded HERE, by name, where the next reader can see the question —
  * never by weakening the rule.
  */
-const PANEL_EXCEPTIONS: ReadonlyArray<string> = [
-  '[data-sit-row="results-fresh"]',
-  // «ЭФФЕКТ ПАРТИИ» (PL-112, the owner's decision 2026-10-09): the plaque in the government says WHO rules; this row
-  // says the effect CHANGED HANDS for everyone at this sitting — a change the panel alone tells, printed through the
-  // ruler's own name because there is no other word for the party.
-  '[data-sit-row="results-party-effect"]',
-];
+// v8: no exception is left — the fresh resolutions and the handover (PL-112, the seals old › new) stand where the
+// table and the government are out of sight, so they restate nothing visible.
+const PANEL_EXCEPTIONS: ReadonlyArray<string> = [];
 
 const OUT_DIR = path.resolve(__dirname, '..', '..', 'artifacts', 'parliament-v5');
 
@@ -111,8 +113,28 @@ async function armHonestyProbe(page: Page): Promise<void> {
     // A zone's own words, normalized for comparison: case-folded (the panel's kickers are uppercased by
     // CSS, so `textContent` keeps whatever case the key was written in) and stripped of the marks a zone
     // paints into its own text (the reserve key carries a «←» while a delegate is on its way home).
+    // PAINTED: visible, with a box, at half opacity or more (the product of its ancestors' — the receded chamber is 0).
+    const painted = (el: Element | null): boolean => {
+      if (el === null) {
+        return false;
+      }
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) {
+        return false;
+      }
+      let o = 1;
+      for (let e: Element | null = el; e !== null && e !== document.documentElement; e = e.parentElement) {
+        const cs = getComputedStyle(e);
+        if (cs.visibility === 'hidden' || cs.display === 'none') {
+          return false;
+        }
+        o *= Number(cs.opacity);
+      }
+      return o >= 0.5;
+    };
     const words = (): Array<ZoneWord> => zones.flatMap(({zone, selector}) =>
       Array.from(document.querySelectorAll(selector))
+        .filter((el) => painted(el))
         .map((el) => ({zone, text: text(el).toLowerCase().replace(/[^\p{L}\p{N} ]+/gu, ' ').replace(/\s+/g, ' ').trim()}))
         .filter((wrd) => wrd.text.length >= 5));
     const strict = (): string => {
@@ -136,7 +158,8 @@ async function armHonestyProbe(page: Page): Promise<void> {
         t: performance.now(),
         stage: root.getAttribute('data-sitting-stage') ?? '',
         swapping: root.classList.contains('con-parl--swapping'),
-        sections: Array.from(document.querySelectorAll('[data-sit-section]')).map((el) => el.getAttribute('data-sit-section') ?? ''),
+        sections: painted(document.querySelector('[data-sit-results]')) ?
+          Array.from(document.querySelectorAll('[data-sit-section]')).map((el) => el.getAttribute('data-sit-section') ?? '') : [],
         panelText: text(document.querySelector('[data-sit-results]')),
         panelStrict: strict(),
         zoneWords: words(),
@@ -199,19 +222,26 @@ test.describe('«Итоги: честность» — панель, поддер
     await runWalk(page, request, seats[1]);
     await shoot(page, 'honesty-results');
 
-    // ① THE GOVERNMENT'S THREE FACTS STAND IN THE GOVERNMENT'S ZONE — the positive witness, without which
-    //    «they are not in the panel» would be satisfied by their not existing at all.
+    // ① THE CARD STANDS OVER THE CHAMBER (v8 `e1`) and carries the government's facts ITSELF — the same law the
+    //    government holds (its face) and the same ruler (the handover's name) — while the chamber is out of sight and
+    //    the quest's plate stands whole beside it.
     const zone = await page.evaluate(() => {
       const t = (sel: string) => (document.querySelector(sel)?.textContent ?? '').replace(/\s+/g, ' ').trim();
+      const palata = document.querySelector('.con-parl__palata');
       return {
         enacted: t('.con-parl__gov-card .pcard__title'),
+        enactedInCard: t('[data-sit-enacted] .pcard__title'),
         ruler: t('[data-parl-ruler-slot] .con-pseal__name'),
-        quest: t('.con-parl__quest-text'),
+        rulerInCard: t('[data-sit-results] .con-sit__enacted-ruler b'),
+        quest: t('.con-parl__engine-kicker'),
+        palataOpacity: palata === null ? -1 : Number(getComputedStyle(palata).opacity),
       };
     });
-    expect(zone.enacted.length, 'the enacted resolution names itself in the government').toBeGreaterThan(3);
-    expect(zone.ruler.length, 'the ruling party names itself on the ruler\'s plaque').toBeGreaterThan(2);
-    expect(zone.quest.length, 'the chairman\'s quest names itself in its own block').toBeGreaterThan(3);
+    expect(zone.enactedInCard.length, 'the card shows the enacted resolution\'s face').toBeGreaterThan(3);
+    expect(zone.enactedInCard, 'the card\'s law is the government\'s').toBe(zone.enacted);
+    expect(zone.rulerInCard.toLowerCase(), 'the card names the ruler the government seats').toBe(zone.ruler.toLowerCase());
+    expect(zone.palataOpacity, 'the chamber is out of sight under the card').toBe(0);
+    expect(zone.quest.length, 'the chairman\'s quest plate stands beside the card and names itself').toBeGreaterThan(3);
 
     const all = ticks((await readHonesty(page)).samples);
     expect(all.length, 'the sampler ran (a dead probe passes everything)').toBeGreaterThan(40);
@@ -219,9 +249,9 @@ test.describe('«Итоги: честность» — панель, поддер
     // ② TWO SECTIONS, in every beat the panel is mounted in.
     const withPanel = all.filter((s) => s.sections.length > 0);
     expect(withPanel.length, 'the results panel was sampled').toBeGreaterThan(5);
-    const wrongSections = withPanel.filter((s) => s.sections.join('|') !== 'payouts|table');
+    const wrongSections = withPanel.filter((s) => s.sections.join('|') !== 'enacted|payouts|table');
     expect(wrongSections.map((s) => `${s.stage}: ${s.sections.join('|')}`).slice(0, 4),
-      'the payouts and the table — and nothing else').toEqual([]);
+      'the enacted law, the payouts and the next vote — and nothing else').toEqual([]);
 
     // ③ …AND THE PANEL NEVER RESTATES ANY ZONE'S OWN WORDS, in any beat — the LAW, asserted mechanically
     //    over `ZONE_WORDS` rather than over the rows we happened to delete. Re-add ЗАКОН and the
@@ -238,12 +268,11 @@ test.describe('«Итоги: честность» — панель, поддер
       }
     }
     expect([...new Set(echoes)].slice(0, 5), 'the panel restates a zone that is standing beside it').toEqual([]);
-    // …and the guard is not vacuous: every zone in the table actually spoke while the panel was up.
-    expect(ZONE_WORDS.filter((z) => (zoneSeen.get(z.zone) ?? 0) === 0).map((z) => `${z.zone} (${z.selector}) — ${z.why}`),
+    // …and the guard is not vacuous: every zone BESIDE the card spoke while it was up — and the zones it covers never did.
+    expect(ZONE_WORDS.filter((z) => !COVERED_ZONES.includes(z.zone) && (zoneSeen.get(z.zone) ?? 0) === 0).map((z) => `${z.zone} (${z.selector}) — ${z.why}`),
       'a zone whose own words were never read: the law is unguarded there').toEqual([]);
-    // The three government facts are the ones the table's first three rows carry, and they are REAL.
-    expect(`${zone.enacted}|${zone.ruler}|${zone.quest}`.toLowerCase(), 'the government still states all three')
-      .not.toBe('||');
+    expect(COVERED_ZONES.filter((z) => (zoneSeen.get(z) ?? 0) > 0),
+      'a zone the card covers was painted beside it').toEqual([]);
 
     // ④ «В ЛОББИ» IS GONE, and what replaced it is an EXCEPTION. The delegates ledger states every seat's
     //    lobby socket and reserve by name, permanently — so «who got one back» was a restatement (and a
@@ -459,7 +488,7 @@ for (const preset of PARLIAMENT_PRESETS.filter((p) => p.id !== 'standard-1080'))
       await shoot(page, `honesty-results-${preset.id}`);
 
       const sections = await page.locator('[data-sit-section]').evaluateAll((els) => els.map((el) => el.getAttribute('data-sit-section')));
-      expect(sections, 'the payouts and the table — and nothing else').toEqual(['payouts', 'table']);
+      expect(sections, 'the enacted law, the payouts and the next vote — and nothing else').toEqual(['enacted', 'payouts', 'table']);
       const chips = await page.locator('[data-sit-support]').count();
       expect(chips, 'five parties state their stock').toBe(5);
       // Nothing of the parliament spills its box, scrolls, or runs past the stage's own tier.
@@ -471,8 +500,9 @@ for (const preset of PARLIAMENT_PRESETS.filter((p) => p.id !== 'standard-1080'))
 }
 
 /**
- * И4 · ПЛИТКА ПРАВИТЕЛЯ, on every profile: its support places are invisible and still occupy their room,
- * and its box is the row's box — the condition of the physical swap, so the delta is ZERO pixels.
+ * И4 · ПЛИТКА ПРАВИТЕЛЯ, on every profile: its support places are invisible and still occupy their room. (v5–v7 also
+ * held the ruler's box to the row's to the pixel — the condition of a swap without scale; v8's dais seats a MEDALLION
+ * of its own size and the swap FLIPs between the two sizes, so the row is one box and the ruler is the `ruler` size.)
  */
 for (const preset of PARLIAMENT_PRESETS) {
   test.describe(`«Итоги: честность» — плитка правителя (${preset.id})`, () => {
@@ -506,6 +536,7 @@ for (const preset of PARLIAMENT_PRESETS) {
           rulerParty: ruler?.getAttribute('data-party') ?? '',
           rulerBox: box(ruler),
           rulerSockets: sockets(ruler),
+          rulerSize: ruler?.querySelector('.con-pseal--ruler') !== null && ruler !== null,
           rowBoxes: rowTiles.map((el) => box(el)),
           rowSockets: rowTiles.map((el) => ({party: el.getAttribute('data-party') ?? '', ...sockets(el)})),
         };
@@ -523,13 +554,12 @@ for (const preset of PARLIAMENT_PRESETS) {
       expect(geo.rowSockets.filter((s) => s.visibility !== 'visible').map((s) => s.party),
         'every opposition tile shows its own places').toEqual([]);
 
-      // ONE BOX: the ruler's tile is the row's tile, to the pixel.
+      // THE ROW IS ONE BOX; the dais seats the ruler's own size.
       const rowH = [...new Set(geo.rowBoxes.map((b) => b?.h))];
       expect(rowH, `the row's tiles are one height (${geo.rowBoxes.map((b) => b?.h).join(',')})`).toHaveLength(1);
-      expect(geo.rulerBox?.h, `the ruler's tile is the row's height (${geo.rulerBox?.h} vs ${rowH[0]})`).toBe(rowH[0]);
       const rowW = [...new Set(geo.rowBoxes.map((b) => b?.w))];
       expect(rowW, `the row's tiles are one width (${geo.rowBoxes.map((b) => b?.w).join(',')})`).toHaveLength(1);
-      expect(geo.rulerBox?.w, `the ruler's tile is the row's width (${geo.rulerBox?.w} vs ${rowW[0]})`).toBe(rowW[0]);
+      expect(geo.rulerSize, 'the dais seats the ruler-size medallion').toBe(true);
     });
   });
 }

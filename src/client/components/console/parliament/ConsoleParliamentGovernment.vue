@@ -134,9 +134,14 @@ export default defineComponent({
       const h = this.holds;
       return h.govBefore === undefined && h.rulerBefore === undefined && h.govAwaits === undefined && h.questBefore === undefined;
     },
-    /** The SITTING lights the government — once its new set is in place, and for the rest of the sitting. */
+    /**
+     * The SITTING lights the government — once its new set is in place, while the government is the ACTING zone (the
+     * enactment's tail, the reward it pays). ONE lit zone at a time (Парламент v8 П4): through the renewal the table is
+     * the one at work and wears the seam; two gold rims together read as a traffic light, not as where to look.
+     */
     sittingLit(): boolean {
-      return parliamentFlow.stage === 'sitting' && this.sittingStage !== 'verdict' && this.govArrived;
+      const stage = this.sittingStage;
+      return parliamentFlow.stage === 'sitting' && stage !== 'verdict' && stage !== 'renewal' && stage !== 'results' && this.govArrived;
     },
     /** The surface's ONE art tier (`parliamentArtTier`) — the same in the government and on the payout's hero slot. */
     artTier(): CardArtTier {

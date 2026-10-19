@@ -8,9 +8,6 @@ import {
 import {armSittingProbe, beatOrder, beatStart, readSittingProbe} from './parliamentDriveV2';
 
 
-/* ⛔ PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5») */
-test.skip(() => true, 'PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5»)');
-
 /**
  * «ЗАСЕДАНИЕ v2» — ONE press, the whole sequence (docs/TURMOIL_REDUX_PARLIAMENT_SITTING_V2.md).
  * The fixture stands at the ASSEMBLY gate BEFORE anything changed (v2): the winner in its slot with its
@@ -70,12 +67,13 @@ for (const preset of PARLIAMENT_PRESETS) {
       await expect(page.locator(`.con-parl__slot--lit[data-instance="${winnerInstance}"]`), 'the winning card lights IN ITS SLOT').toHaveCount(1);
       await expect(page.locator(`.con-parl__slots .con-parl__slot[data-instance="${winnerInstance}"] .con-parl__ribbon [data-seq]`), 'its delegate is still on it').not.toHaveCount(0);
       await expect(page.locator('[data-parl-gov-empty]'), 'the government is the previous one (the empty seat)').toHaveCount(1);
-      await expect(page.locator('.con-parl__gov-basis')).toHaveText(/Стартовое правило|Starting rule/i);
+      // v8: the dais prints no basis line — the basis is the government's own attribute.
+      await expect(page.locator('[data-parl-gov]')).toHaveAttribute('data-parl-gov-basis', 'Starting rule');
       await expect(page.locator('[data-parl-ruler] .con-parl__party[data-party="Greens"]'), 'the ruling party\'s tile stands in the government').toHaveCount(1);
       await expect(page.locator('.con-parl__parties .con-parl__party'), 'five opposition tiles in the row').toHaveCount(5);
       const markerBefore = await page.locator(`[data-agenda-markers] [data-agenda-cube="${viewer}"]`).first().evaluate((el) => el.closest('[data-agenda-markers]')?.getAttribute('data-agenda-markers'));
       const influenceBefore = await page.locator('[data-parl-influence]').textContent();
-      const questBefore = await page.locator('[data-parl-quest] .con-parl__quest-text').textContent();
+      const questBefore = await page.locator('[data-parl-quest]').getAttribute('data-parl-quest-text');
       expect(await hotVerb(page)).toMatch(/Продолжить|Continue/i);
       await expectParliamentFits(page, `${preset.id} verdict`);
       await shoot(page, preset.id, '01-verdict');

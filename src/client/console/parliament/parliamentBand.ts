@@ -67,6 +67,13 @@ export type BandChip =
   | {kind: 'resolution', resolution: ResolutionId, party: ReduxParty}
   /** A party: its emblem and its name. */
   | {kind: 'party', party: ReduxParty}
+  /**
+   * THE SUPPORT WAVE's rule (Парламент v8 Р2): its words led by the SAME mark the seals of that wave wear in the roll
+   * call (a dashed ring for the unenacted, a dotted one for those outside the vote) — the band is the marks' legend.
+   */
+  | {kind: 'supportWave', key: string, wave: 'lost' | 'absent'}
+  /** …and what each of them gets, as an OBJECT: «→ [the neutral cube] +N» (never «получают нейтрального делегата»). */
+  | {kind: 'neutralGain', amount: number}
   /** A seat: its cube and its name. */
   | {kind: 'player', player: Color | 'neutral'}
   /** A count under its own word («Делегаты 5»); `id` names the chip for a scene that is born on it (the rally's coin). */
@@ -634,8 +641,8 @@ function enactLine(sitting: BandSitting): BandLine {
     return {kicker: 'Agenda track', key: `agenda:${move.player}:${move.to}`, chips, committed: true};
   }
   if (sitting.beat === 'support') {
-    chips.push({kind: 'label', key: supportRuleKey(sitting.supportWave)});
-    chips.push({kind: 'label', key: 'gain a neutral delegate', tone: 'quiet'});
+    chips.push({kind: 'supportWave', key: supportRuleKey(sitting.supportWave), wave: sitting.supportWave === 'lost' ? 'lost' : 'absent'});
+    chips.push({kind: 'neutralGain', amount: 1});
     return {kicker: 'Popular support', key: `support:${sitting.supportWave}`, chips, committed: true};
   }
   // THE ENACTMENT'S TAIL (TR62): the seals have changed places and a card answers the change of power — the line says

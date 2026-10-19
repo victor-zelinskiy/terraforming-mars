@@ -8,23 +8,8 @@ import {
 } from './parliamentDrive';
 
 
-/* ⛔ PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the SITTING still plays on the v5 objects, so its gallery variants (the sitting, the
-   reward distribution, the families rehearsal — their RESULTS poses measure the old middle tier) are red until Ф5 and
-   return there (docs/claude/parliament-v7-progress.md § Ф2 «e2e-итог»). The overview, the vote mode, the dossiers and
-   the picks keep running — they are the chassis's own acceptance. */
-const PARKED_UNTIL_F5 = /the SITTING:|the REWARD variant:|the FAMILIES rehearsal:/;
-/* (The 4K OVERVIEW variant was parked between Ф2 and Ф4 for the inspector's footer — the plates left the dossier
-   (Парламент v8, the owner's point 9) and the bar is verbs only, so the pose runs again.) */
-/* Парламент v8 П1–П2: the sitting's REWARD pages on the DECK read their line in the TABLE's head (a 34rem column beside
-   the chamber) — the winner's tile ran past it. The sitting is recomposed on the hall's objects in П4 (its reading line
-   with it); the Deck's reward poses return then. */
-const PARKED_UNTIL_P4_DECK = /the REWARD variants:|the SKIP:/;
-test.beforeEach(() => {
-  // The preset lives in the describe's title, so the whole path is read (the test's own title names only the pose).
-  const title = test.info().titlePath.join(' › ');
-  test.skip(PARKED_UNTIL_F5.test(title), 'PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: a sitting variant — returns in Ф5');
-  test.skip(PARKED_UNTIL_P4_DECK.test(title) && /deck-handheld/.test(title), 'PARLIAMENT v8 П1–П2: the Deck reward line in the table head — returns in П4');
-});
+/* (Парламент v8 П4: the sitting's poses — the sitting, the reward variants, the families rehearsal, the Deck's reward line —
+   were parked from v7 Ф2 to П4 and run again on the hall's objects.) */
 
 /*
  * THE PARLIAMENT GALLERY — Э8 (docs/TURMOIL_REDUX_PARLIAMENT_FINISH.md § Э8):

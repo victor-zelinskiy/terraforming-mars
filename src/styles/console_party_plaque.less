@@ -286,20 +286,20 @@
         &--refused { display: block; white-space: normal; line-height: 1.15; font-size: .56rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: fade(@con-text, 62%); }
     }
     &__pick-arrow { opacity: .55; font-weight: 600; }
-    /* THE ROLL CALL's word (v3 В3): the scene's own reading of this party, in the state row's place — a
-       compact tracked accent that carries by weight, never by colour alone. */
-    &__roll {
-        flex: 1 1 auto;
-        min-width: 0;
-        font-size: .6rem;
-        font-weight: 800;
-        letter-spacing: .1em;
-        text-transform: uppercase;
-        color: fade(@con-parl-silver, 92%);
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+    /* THE ROLL CALL's MARK (v3 В3 → Парламент v8 Р2 «объект вместо подписи»): while the support scene names the parties,
+       each seal WEARS why it stands where it stands — its card being ENACTED: a solid gold rim (the slot's «ПРИНИМАЕТСЯ»
+       ribbon's metal); its card NOT ENACTED: a dashed cyan rim (the table's «in the vote» dash); NOT IN THE VOTE: a dotted
+       steel rim (the supply's metal — the cube it will get comes from there). Form AND colour, so the three survive
+       desaturation; the ruler wears its crown already. The mark arrives with ONE breath of the seal (its own class's
+       one-shot) as the source on the table names it, and leaves with the scene. Nothing in the foot moves. */
+    &--roll-enacted &__seal, &--roll-lost &__seal, &--roll-absent &__seal {
+        border-radius: 50%;
+        outline-offset: .14rem;
+        animation: con-pseal-roll-mark calc(320ms * var(--motion-scale, 1)) @con-ease-standard 1;
     }
+    &--roll-enacted &__seal { outline: .1rem solid fade(@con-parl-gold, 92%); box-shadow: 0 0 .9rem fade(@con-parl-gold, 40%); }
+    &--roll-lost &__seal { outline: .09rem dashed fade(@con-cyan, 88%); }
+    &--roll-absent &__seal { outline: .09rem dotted fade(@con-parl-silver, 85%); }
 
     /* ── STATE RINGS — the console's state colours, never the player's. ── */
     &--ruling &__ring, &--ruling-default &__ring { border-color: @con-parl-gold; box-shadow: 0 0 .5rem fade(@con-parl-gold, 45%); }
@@ -374,6 +374,15 @@
     }
 }
 
+/* The roll call's mark arrives with one breath of the seal (Парламент v8 Р2). */
+@keyframes con-pseal-roll-mark {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.07); }
+    100% { transform: scale(1); }
+}
+html.con-fx-lite .con-pseal--roll-enacted .con-pseal__seal,
+html.con-fx-lite .con-pseal--roll-lost .con-pseal__seal,
+html.con-fx-lite .con-pseal--roll-absent .con-pseal__seal { animation: none; }
 /* The support socket's one-shot answer: the material densifies and settles (v3 В3). */
 @keyframes con-pseal-support-land {
     0% { box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.55); }

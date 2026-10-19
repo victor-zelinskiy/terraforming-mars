@@ -3,9 +3,6 @@ import {bootFixtureSeats, openMandatoryAnnounce, press, settle} from './consoleS
 import {answerGateAs, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, waitSittingAtRest} from './parliamentDrive';
 
 
-/* ⛔ PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5») */
-test.skip(() => true, 'PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5»)');
-
 /**
  * «ЗАСЕДАНИЕ v3» — THE GOVERNMENT CHANGES AS ONE SET, AND THE SUPPORT IS ONE SCENE (В2 · В3).
  *
@@ -85,7 +82,7 @@ async function armV3Probe(page: Page): Promise<void> {
         rulerTile: root.querySelector('[data-parl-ruler] .con-parl__party')?.getAttribute('data-party') ?? '',
         accentOf,
         card: Array.from(root.querySelector('.con-parl__gov-card .pcard')?.classList ?? []).find((c) => c.startsWith('pcard--rdx-')) ?? '',
-        quest: root.querySelector('.con-parl__quest-text')?.textContent?.trim() ?? '',
+        quest: root.querySelector('[data-parl-quest]')?.getAttribute('data-parl-quest-text') ?? '',
         row: Array.from(root.querySelectorAll<HTMLElement>('.con-parl__parties .con-parl__party')).map((el) => el.getAttribute('data-party') ?? ''),
         support,
         lit: root.querySelectorAll('.con-parl__party--lit').length,
@@ -255,7 +252,6 @@ test.describe('the sitting v3 (standard-1080)', () => {
           level: el.querySelector('.con-parl__step-level')?.textContent?.trim() ?? '',
         })),
         headText: head?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
-        headGlyph: head?.querySelector('.con-parl__step-res--inf, .con-parl__step-res--tr, .con-parl__step-res--card') !== null,
       };
     });
     // ① ONE DISC for the three rewards — an influence step is not a different shape.
@@ -267,9 +263,11 @@ test.describe('the sitting v3 (standard-1080)', () => {
     expect(read.influence.length, 'the track has influence steps').toBeGreaterThan(0);
     expect(read.influence.filter((i) => !i.glyph), 'every influence node carries the influence glyph').toEqual([]);
     expect(read.influence.every((i) => i.level !== ''), '…and its level').toBe(true);
-    // ③ THE PANEL says «ДАЛЕЕ» with the reward's own symbol — the retired «следующий шаг» printed a second number.
-    expect(read.headText, `the head reads «далее» (${read.headText})`).toMatch(/ДАЛЕЕ|далее/i);
-    expect(read.headText).not.toMatch(/СЛЕДУЮЩИЙ ШАГ|следующий шаг/i);
-    expect(read.headGlyph, 'the next reward is a symbol, not a number').toBe(true);
+    // ③ (v5–v7: the head's «ДАЛЕЕ» panel with the next reward's symbol.) Парламент v8 retired that panel — the career's
+    // next steps are its DOSSIER's (X), the head carries the viewer's cube and influence — so the check's subject is gone;
+    // what stays true is that no head on the row prints a step ORDINAL.
+    expect(read.headText, 'the retired «ДАЛЕЕ» head is not drawn').toBe('');
+    const ordinals = await page.locator('.con-parl__agenda').evaluate((el) => /СЛЕДУЮЩИЙ ШАГ|следующий шаг|ШАГ \d|step \d/i.test(el.textContent ?? ''));
+    expect(ordinals, 'the career row prints no step ordinal').toBe(false);
   });
 });

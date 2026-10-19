@@ -7,9 +7,6 @@ import {
 import {turnTo, waitSittingAtRest} from './parliamentDrive';
 
 
-/* ⛔ PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5») */
-test.skip(() => true, 'PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5»)');
-
 /**
  * THE PARLIAMENT'S SITTING — the STRUCTURAL half (Э3 of
  * docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md; docs/TURMOIL_REDUX_PARLIAMENT_SITTING.md):
@@ -171,7 +168,8 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-parl__slot-win:not(.con-parl__slot-win--verdict)'), 'no LIVE winning badge on the decided table').toHaveCount(0);
       await expect(page.locator('[data-parl-slot-verdict]'), 'the verdict names the winning card with its own sign (v4 Г7)').toHaveCount(1);
       // The government's basis while the card is still on its way: the PREVIOUS one, never «принятая резолюция» over an empty seat (P-16).
-      await expect(page.locator('.con-parl__gov-basis'), 'the seat keeps the starting rule until the card lands').toHaveText(/Стартовое правило|Starting rule/i);
+      // v8: the dais prints no basis line — the basis is the government's own attribute.
+      await expect(page.locator('[data-parl-gov]'), 'the seat keeps the starting rule until the card lands').toHaveAttribute('data-parl-gov-basis', 'Starting rule');
       // …and it is NOT lit yet: `sittingLit` is «once its new set is in place, and for the rest of the
       // sitting» (`ConsoleParliamentGovernment.sittingLit` — explicitly `sittingStage !== 'verdict'`).
       // The old line asserted the opposite of the contract the source states; same rot as the badge above.
@@ -203,7 +201,7 @@ for (const preset of PRESETS) {
       expect(await sittingStage(page), 'the verdict stands until the others answer').toBe('verdict');
       await expect(page.locator('.con-band [data-sit-awaiting]'), 'the wait pose names the seat still to answer').toHaveCount(1, {timeout: 15_000});
       await expect(parliament(page), 'the sitting stays open while the others read').toHaveCount(1);
-      await expect(page.locator('.con-parl__gov-basis'), 'the seat keeps the starting rule — nothing changed yet').toHaveText(/Стартовое правило|Starting rule/i);
+      await expect(page.locator('[data-parl-gov]'), 'the seat keeps the starting rule — nothing changed yet').toHaveAttribute('data-parl-gov-basis', 'Starting rule');
       crumb = (await crumbText(page)).toUpperCase();
       expect(crumb).toMatch(/ЗАСЕДАНИЕ|SITTING/);
       expect(crumb).toMatch(/ВЕРДИКТ|VERDICT/);
@@ -236,7 +234,7 @@ for (const preset of PRESETS) {
       expect(crumb, `the crumb keeps the sitting, got «${crumb}»`).toMatch(/ЗАСЕДАНИЕ|SITTING/);
       expect(crumb).toMatch(/ПОЛУЧЕНИЕ|INTAKE/);
       await expect(page.locator('.con-parl__slot--winning'), 'still no «принимается» on the decided table').toHaveCount(0);
-      await expect(page.locator('.con-parl__gov-basis'), 'the card has landed — the seat reads the enacted resolution').toHaveText(/Принятая резолюция|Enacted resolution/i);
+      await expect(page.locator('[data-parl-gov]'), 'the card has landed — the seat reads the enacted resolution').toHaveAttribute('data-parl-gov-basis', 'Enacted resolution');
       await expect(page.locator('.con-parl__gov-card .pcard'), 'exactly one enacted card on screen (carried onto the stage)').toHaveCount(1);
       await expect(page.locator('[data-parl-sit-hero] .con-parl__gov-card .pcard'), 'the card stands on the stage\'s hero slot').toHaveCount(1);
       await expect(page.locator('.con-extdraw .con-cards__slot'), 'two cards were drawn').toHaveCount(2);
@@ -282,11 +280,10 @@ for (const preset of PRESETS) {
       await expect(sitting(page).locator('[data-sit-row="results-lobby"]'), 'no lobby row survives').toHaveCount(0);
       await expect(sitting(page).locator('[data-sit-payout]'), 'a payout row per participating seat — the one thing seen nowhere else').toHaveCount(2);
       await expect(sitting(page).locator('[data-sit-results]'), 'no sentence on the results').not.toContainText(/возвращаются в лобби/);
-      // «Итоги: честность»: the LAW section is GONE — the enacted resolution, the party that rules by it
-      // and the chairman's new quest all stand in the government's own zone on this very screen, and the
-      // panel states only what is nowhere else (the payouts and the table).
+      // «Итоги: честность», v8 `e1`: the card stands OVER the chamber row — the government is out of sight under it — so
+      // the enacted law and its ruler lead the card (ПРИНЯТА), then the payouts and the next vote; nothing beside them.
       expect(await sitting(page).locator('[data-sit-section]').evaluateAll((els) => els.map((el) => el.getAttribute('data-sit-section'))),
-        'two sections, and nothing beside them').toEqual(['payouts', 'table']);
+        'three sections, and nothing beside them').toEqual(['enacted', 'payouts', 'table']);
       // …and the row that took its place is an EXCEPTION: with every seat holding a delegate it does not exist.
       await expect(sitting(page).locator('[data-sit-row="results-nodelegate"]'), 'nobody is voteless, so no row')
         .toHaveCount(0);

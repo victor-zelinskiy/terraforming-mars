@@ -8,9 +8,6 @@ import {
 import {armSittingProbe, beatOrder, beatStart, readSittingProbe} from './parliamentDriveV2';
 
 
-/* ⛔ PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5») */
-test.skip(() => true, 'PARLIAMENT v7 «ЗАЛ» · Ф2 chassis: the sitting plays on the chamber’s objects from Ф5 — this probe is red until then and returns in Ф5 (docs/claude/parliament-v7-progress.md § Ф2 «что ждёт Ф5»)');
-
 /**
  * «ЗАСЕДАНИЕ v2» — the SPECTATOR's path: the viewer answers the gate FIRST («Ожидание»), the other seat
  * answers later over the API, and the viewer's client learns the whole chain through the POLL / WS
@@ -84,16 +81,21 @@ test.describe('the sitting v2 · the spectator (standard-1080)', () => {
     // the probe's last sample: past the wave the walk goes on BY ITSELF (a quiet card's adjourn rode the record),
     // and the body swap's downward stagger is a legitimate mid-motion pose (measured: ys 807 → 767 in one frame).
     const chassis = () => page.evaluate(() => {
-      const heights = Array.from(document.querySelectorAll('.con-parl__party[data-party]')).map((el) => Math.round(el.getBoundingClientRect().height));
-      const rowYs = Array.from(document.querySelectorAll('.con-parl__parties .con-parl__party')).map((el) => Math.round(el.getBoundingClientRect().top));
-      return {heights: [...new Set(heights)], rowYs: [...new Set(rowYs)]};
+      // v8: the ROW is one chassis; the dais seats the ruler's own (larger) medallion — the swap FLIPs between the two sizes.
+      const heights = Array.from(document.querySelectorAll('.con-parl__parties .con-parl__party[data-party]')).map((el) => Math.round(el.getBoundingClientRect().height));
+      // v8: the benches are a COLUMN beside the dais — one left edge (v5's row was one line).
+      const rowXs = Array.from(document.querySelectorAll('.con-parl__parties .con-parl__party')).map((el) => Math.round(el.getBoundingClientRect().left));
+      return {heights: [...new Set(heights)], rowXs: [...new Set(rowXs)]};
     });
-    await expect.poll(async () => (await chassis()).heights.length, {timeout: 15_000, message: 'every party tile keeps one height'}).toBe(1);
-    await expect.poll(async () => (await chassis()).rowYs.length, {timeout: 15_000, message: 'the row\'s tiles stand on one line'}).toBe(1);
+    await expect.poll(async () => (await chassis()).heights.length, {timeout: 15_000, message: 'every tile of the row keeps one height'}).toBe(1);
+    await expect.poll(async () => (await chassis()).rowXs.length, {timeout: 15_000, message: 'the benches stand in one column'}).toBe(1);
     // The old law's seat: the government kept the EMPTY seat until the enactment beat, the winner's card stands there at rest.
     const earlyGov = s.slice(0, enactAt).filter((st) => st.govCard !== '');
     expect(earlyGov.length, 'no card in the government before the enactment beat').toBe(0);
-    expect(rest.govCard).toMatch(/rdx-/);
+    // v8: past the wave the walk goes on to the results, whose card stands OVER the chamber (the government is out of
+    // sight, so not «painted») — the winner's card is read on the last frame the chamber was in view.
+    const chamberRest = [...s].reverse().find((st) => st.stage !== 'results') ?? rest;
+    expect(chamberRest.govCard, 'the winner\'s card stands in the government').toMatch(/rdx-/);
     // The marker: red's, not the viewer's — it moved on the agenda beat and never before.
     const agendaAt = beatStart(s, 'agenda');
     const redTo = (await parliamentWire(request, playerId)).game.parliament?.phase?.summary?.agenda?.to;
