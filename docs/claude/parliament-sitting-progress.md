@@ -4109,3 +4109,61 @@ RX02), три аддитивные строки в `resolutionCounts.ts` (спи
 **Общий слой не тронут:** `levyStep`, `ResolutionLevy.ts`, `AddResourcesToCard`, `Tags.ts`, `ParliamentPhase.ts`,
 заседание, пикер — ни строки. Кадры приёмки — `screenshots/parliament-greens/standard-1080/` (02 панель
 голосования · 05/06 два пикера подряд · 07 итоги с четырьмя частями).
+
+## RX35 «Перенаправленные исследования» (Diverted Research, Красные) — 2026-10-19 — ПЕРВЫЙ ЗАМЕНЯЮЩИЙ ПАССИВ
+
+Док: `docs/TURMOIL_REDUX_DIVERTED_RESEARCH.md`. Печатное: «1 data за влияние на одну из ваших карт. Каждый шаг
+кислорода/температуры и каждое озеленение/океан, которые вы получили бы, становятся 1 data на одной из ваших карт —
+даже на максимуме параметра». Задание — 4 data на картах (первый живой потребитель вида `cardResource`). Промт
+владельца: `docs/claude/prompts/resolution-rx35-diverted-research.md`. Прогон автономный — решения Р1–Р7 приняты
+по умолчанию (батч владельцу не задавался).
+
+**Третий род хука.** `ResolutionPassive.divertTerraforming(player, unit, origin) → boolean` — не доплата после события
+(RX10/RX30) и не запрос (RX14/RX19/RX26), а ЗАМЕНА ДО МУТАЦИИ. Один диспетчер в лёгком модуле
+`parliament/divertedTerraformingGate.ts` (импорт `ParliamentHandler` из `Executor` / deferred actions дал цикл через
+`Card.ts`), область `withEffectSource(…, 'terraforming-diverted')`, гейт ENACTED + фаза + `participates` (бот отсечён).
+Восемь входов движка ДО мутации и ДО потолка (`Game.increase*`, `Executor` до `defer`, `Place{Greenery,Ocean}Tile`
+первой строкой, конвертации, стандартные проекты через `divertedTerraformingUnit()`, бонусы клеток Hellas/Vastitas,
+финал, бесподобные co-located), страховка-падение в `addGreenery/addOcean`, свип-гард по скоупу как ворклист.
+Накопитель по корню событий → один `AddResourcesToCard` на операцию (RX01-форма, `autoSelect: false`, без `spread`),
+посадка ИЗНУТРИ области закона — дитя `effect-triggered` (карточка «Сработал эффект» с чипом «+N [data]»). Без
+держателя — названная потеря, не ворота.
+
+**Честность — один выходной проход.** `models/divertedTerraforming.ts` ПЕРЕД `withImpliedRatings`: чипы `diverted`
+ПЕЧАТНЫМИ единицами (13 % + «+2» → 2 data), шаги `boardPlacement` сняты, подразумеваемый РТ снят, шаг «куда» с
+адресом роли **`'card'`** (своя роль `'diverted-data'` паркует ответ: `promptAddressOf(live).role`). `grantOfEffect`
+пропускает перечёркнутое (Зелёным нечего платить); `ctx.diverted/skipped/cardResourceGain` → факт канала
+`'terraforming-diverted'`; `placementFacts` для бонусов клеток. Гард контракта — новая проверка `checkReplacingPass`.
+Задание: `QuestTracker` — исключение по триггеру `'terraforming-diverted'` (своя перехваченная data считается, data
+принятия — нет).
+
+**Консоль.** Чип «перехвачено» (никогда «нет эффекта», даже на потолке); pre-select «куда» в композерах, конфирме
+колеса (`pendingClientPick {host: 'confirm'}` — пикер В ПЛИТЕ, ответ + опция одним батчем), стандартном проекте
+(хвост батча, «Далее: выберите карту для данных»), финале (`YIELD_DATA`); конвертация растений под законом —
+`SelectOption` с `metadata.card === CONVERT_PLANTS` (структурно). Живой промпт — семейство `'plate'` TR53 (не ворота
+заседания). **По дороге:** клиентский пик снимался на сабмите и data садилась голым тиком — теперь пик СТОИТ
+запечатанным, пока сцена играет (`armPromptReceive(…, {client: true})`, `answered`, вотчер `clientPickSceneLive`),
+жетон рождается на видимой перечёркнутой иконке (`struck:` у свидетеля) под печатью Красных (`pulseDivertedSeal`), а
+где строка запаркована (std project) — на ПЕЧАТИ ЗАКОНА встроенной плиты (`[data-task-law-seal]`, `lawseal`).
+
+**Общий слой не тронут:** заседание, `ParliamentPhase.ts`, `AddResourcesToCard` (только маркер `diverted` на
+`toModel`), `levyStep`, пикер TR53 (только `client`/`diverted` в арме). Кадры приёмки —
+`screenshots/parliament-diverted/{standard-1080,tv4k}/` (01 список эффектов · 02 конфирм с перечёркнутым чипом ·
+03 «куда» в плите с печатью закона · 04 поле после — шкала стоит, тепло −8, data +1 · 05 карточка закона · 06 инспектор ·
+07 строка «Астероид» · 08 «куда» в зоне шага · 09 поле после — M€ −14, шкала стоит).
+
+### Прогоны (2026-10-19)
+
+| Что | Итог |
+| --- | --- |
+| `tests/parliament/DivertedResearch.spec.ts` (новый, 40) · `DivertedResearchSweep.spec.ts` (новый, свип скоупа) | зелёные |
+| `ResolutionContract` (RX35: 6/6 + `checkReplacingPass`) · `HeatCapture` · `DevelopmentCraze` · `QuestTracker` · `GreeneryRevision` · стандартные действия/проекты · `Arboretum` · `PolderTech` · колонии/бесподобные | зелёные (150 в батче регрессий) |
+| `cardPlayReplayCoverage` (профиль закона, 3) · `actionPromptCoverage` (профиль `'diverting law'`, `only: actionTerraforms` — PL-704) | зелёные |
+| `e2eFixturesLoad` · `e2eLiveness` · `e2eDriverGuard` · `parliamentGlossary` · `glyphLiteralGuard` · `readingParamsGuard` · `embedZoneGuard` | 288 passing; повтор после фикстуры/спека — 270 passing |
+| mochapack `divertedTerraforming.spec` (новый, 7) | зелёный (после правок: `divertedStep` и `CardName` без импорта — vue-tsc их назвал; «computed с параметром» в чипе — PL-707) |
+| `npm run lint:client` (vue-tsc) · `lint:server` · `lint:i18n` · eslint по затронутым файлам | зелёные (⚠ `npx vue-tsc --noEmit` напрямую — heap OOM, PL-711) |
+| `build:test` (обе ступени) | первый прогон назвал `FixtureName` без новой фикстуры и дубль импорта `Supercomputer` в генераторе — исправлены; повтор зелёный |
+| `make:json` · `make:cards` (RX35 в каталоге, арт + тамб) · `make:css` · `build:server` · `build:client` | зелёные (⚠ `build:client`: чужой `tmp/parl-v7/specs/*.spec.ts` ронял fork-ts-checker — бандл не переписывался; собран с `SKIP_TS_CHECK=1` после зелёного vue-tsc, PL-712) |
+| фикстура `parliament-diverted-enacted` (красный 30 M€ · 8 тепла · Supercomputer · 13 % · −20 °C) | сгенерирована точечно; второй раз — с `pendingInitialActions = []` (PL-715: первое действие Aridor съедал драйвер при загрузке) |
+| e2e `console-parliament-diverted` (standard-1080 + tv4k, снапшот `.e2e-rx35`) | 1-й прогон: ①–③ зелёные на обоих, ④ красный на 1080 (PL-715), ③ hold X красный на 4K (PL-716); 2-й прогон после правок фикстуры/спека/плиты — **2 passed (1,7 мин)**, по 9 кадров на профиль; финальный прогон на итоговом стиле (печать закона по центру) — **2 passed (1,6 мин)** |
+| батч регрессий из `e2e:affected` (16 спеков: канарейка · конвертации · финал · бесполезные действия · std projects · конфирм · колесо · frontier-labs · arboretum · craze · прогноз · доступность · «Проверенные методы» · источник размещения · композитные · supercomputer), 2 воркера | **48 passed · 1 flaky** (`console-supercomputer` C на 4K под двумя воркерами: свидетель назвал посадку «+2» над стеклом — хост сложился под жетоном; зелёный на ретрае и в одиночном прогоне на 1 воркере — 6 passed, 3,1 мин; класс PL-149, не продукт) |
