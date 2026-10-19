@@ -10,6 +10,8 @@ import * as preview from '../../actionPreviews';
 import {UnplayableReason} from '../../../../common/cards/UnplayableReason';
 import {ActionEffect} from '../../../../common/models/ActionPreviewModel';
 import {REDUX_GREENERY_TILE_TR} from '../../../../common/parliament/winnerReward';
+import * as divertedGate from '../../../parliament/divertedTerraformingGate';
+import {TerraformingUnit} from '../../../parliament/resolutions/IResolution';
 
 export class GreeneryStandardProject extends StandardProjectCard {
   constructor() {
@@ -37,8 +39,10 @@ export class GreeneryStandardProject extends StandardProjectCard {
   }
 
   public override canAct(player: IPlayer): boolean {
-    // This is pricey because it forces calling canPlayOptions twice.
-    if (player.game.board.getAvailableSpacesForGreenery(player, this.canPlayOptions(player)).length === 0) {
+    // This is pricey because it forces calling canPlayOptions twice. Under a law that REPLACES the greenery (RX35)
+    // no cell is needed: the tile is never seated (decision Р5).
+    if (!divertedGate.divertsTerraforming(player) &&
+        player.game.board.getAvailableSpacesForGreenery(player, this.canPlayOptions(player)).length === 0) {
       return false;
     }
     return super.canAct(player);
@@ -46,10 +50,19 @@ export class GreeneryStandardProject extends StandardProjectCard {
 
   // Co-located with canAct so the reason can't drift when the gate changes.
   public actionUnavailableReason(player: IPlayer): UnplayableReason | undefined {
-    if (player.game.board.getAvailableSpacesForGreenery(player, this.canPlayOptions(player)).length === 0) {
+    if (!divertedGate.divertsTerraforming(player) &&
+        player.game.board.getAvailableSpacesForGreenery(player, this.canPlayOptions(player)).length === 0) {
       return actionReason.placementReason('No space left for a greenery tile');
     }
     return undefined;
+  }
+
+  /**
+   * THE UNIT this project's `tr` stands for under a replacing law (RX35): the GREENERY TILE — its oxygen is part of
+   * the tile (`Game.addGreenery` raises it), so the project is ONE unit, never an oxygen step beside a tile.
+   */
+  public divertedTerraformingUnit(): TerraformingUnit {
+    return {kind: 'tile', tile: 'greenery', count: 1};
   }
 
   // Legacy committed path.
@@ -63,17 +76,26 @@ export class GreeneryStandardProject extends StandardProjectCard {
   // oxygen chip, and with oxygen maxed read «no effect» while the project still
   // paid 1 TR. Co-located with `payAndExecute` below, like the city's production.
   public standardProjectPreviewEffects(player: IPlayer): ReadonlyArray<ActionEffect> {
+    // …and none under a law that REPLACES the tile (RX35): no tile, no tile's rating.
+    if (divertedGate.divertsTerraforming(player)) {
+      return [];
+    }
     return player.game.parliament !== undefined ? [preview.trGain(player, REDUX_GREENERY_TILE_TR)] : [];
   }
 
-  // Co-located with the pay-on-commit override below — the same fact, declared.
-  public standardProjectTarget(_player: IPlayer): 'space' {
-    return 'space';
+  // Co-located with the pay-on-commit override below — the same fact, declared: no cell under the replacing law.
+  public standardProjectTarget(player: IPlayer): 'space' | undefined {
+    return divertedGate.divertsTerraforming(player) ? undefined : 'space';
   }
 
   // Pay on commit: present a CANCELLABLE greenery placement FIRST; the cost +
-  // oxygen/TR apply only once a space is chosen.
+  // oxygen/TR apply only once a space is chosen. Under the replacing law the
+  // submit IS the commit: the price is paid and the tile step diverts itself.
   public override payAndExecute(player: IPlayer, payment: Payment): void {
+    if (divertedGate.divertsTerraforming(player)) {
+      super.payAndExecute(player, payment);
+      return;
+    }
     const spaces = player.game.board.getAvailableSpacesForType(player, 'greenery');
     player.game.defer(new StandardProjectPlacement(player, {
       placementType: 'greenery',

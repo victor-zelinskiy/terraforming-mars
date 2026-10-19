@@ -5,6 +5,7 @@ import {Payment} from '../../common/inputs/Payment';
 import {Units} from '../../common/Units';
 import {StandardProjectCanPayWith} from '../../common/cards/Types';
 import {ActionEffect} from '../../common/models/ActionPreviewModel';
+import type {TerraformingUnit} from '../parliament/resolutions/IResolution';
 
 export interface IStandardProjectCard extends ICard {
   type: CardType.STANDARD_PROJECT;
@@ -26,6 +27,13 @@ export interface IStandardProjectCard extends ICard {
    * mutates state; wording comes from the `cards/actionPreviews.ts` builders.
    */
   standardProjectPreviewEffects?(player: IPlayer): ReadonlyArray<ActionEffect>;
+  /**
+   * THE ONE TERRAFORMING UNIT this project's `tr` stands for when a law REPLACES terraforming (Turmoil Redux RX35),
+   * where the declaration alone misreads it: the Greenery project declares `tr: {oxygen: 1}` for its TILE — the tile
+   * is the unit, its oxygen part of it — so the struck chip is a greenery, 1 data, never an oxygen step. Absent: the
+   * `tr` reads as it prints (a temperature step, an ocean tile).
+   */
+  divertedTerraformingUnit?(player: IPlayer): TerraformingUnit;
   /** Whether the player meets all prerequisites to use this standard project. */
   canAct(player: IPlayer): boolean;
   /** Which non-megacredit resources (steel, titanium, seeds, etc.) are accepted as payment for this project. */

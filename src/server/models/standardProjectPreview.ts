@@ -25,6 +25,7 @@ import {StandardProjectPreviewModel} from '../../common/models/CardModel';
 import {Resource} from '../../common/Resource';
 import * as preview from '../cards/actionPreviews';
 import {standardProjectFutility} from './actionFutility';
+import {divertEffects, divertedUnitChip, divertingLaw} from './divertedTerraforming';
 
 /**
  * Build the guaranteed preview for one standard project.
@@ -55,9 +56,15 @@ export function buildStandardProjectPreview(
   }
   // The card's own `tr` bump — the SAME declaration `canAct` prices TR floods
   // against. Clamps come from the shared builders, so a maxed scale renders
-  // the chip's own «no effect» instead of a fake gain.
+  // the chip's own «no effect» instead of a fake gain. Under a law that
+  // REPLACES terraforming (RX35) a project naming its unit itself (the
+  // Greenery: a TILE, its oxygen part of it) prints that unit struck instead.
   const tr = card.tr;
-  if (tr !== undefined) {
+  const ownUnit = divertingLaw(player) !== undefined ? card.divertedTerraformingUnit?.(player) : undefined;
+  const ownUnitChip = ownUnit !== undefined ? divertedUnitChip(player, ownUnit) : undefined;
+  if (ownUnitChip !== undefined) {
+    effects.push(ownUnitChip);
+  } else if (tr !== undefined) {
     if (tr.temperature !== undefined && tr.temperature !== 0) {
       effects.push(preview.globalGain(player, 'temperature', tr.temperature));
     }
@@ -78,8 +85,13 @@ export function buildStandardProjectPreview(
   if (extras !== undefined) {
     effects.push(...extras);
   }
-  // The door's exit pass (PL-147): the step's own rating after the scale that pays it — the same formula the card doors print.
-  const model: StandardProjectPreviewModel = {effects: preview.withImpliedRating(effects)};
+  // The doors' exit passes (RX35, then PL-147): a replacing law strikes the printed units and pre-collects the
+  // «where»; the step's own rating after the scale that pays it — the same formula the card doors print.
+  const diverted = divertEffects(player, effects, []);
+  const model: StandardProjectPreviewModel = {effects: preview.withImpliedRating(diverted.effects)};
+  if (diverted.steps.length > 0) {
+    model.steps = diverted.steps;
+  }
   const target = card.standardProjectTarget?.(player);
   if (target !== undefined) {
     model.target = target;
@@ -87,7 +99,7 @@ export function buildStandardProjectPreview(
   // WHAT THE TABLE ANSWERS to the bump — the project IS a card, so its own
   // reactors (none today) join the seat's tableau's; a placement's answer is
   // the cell dossier's, where the cell is known (PL-066).
-  const forecast = rewardReactionForecast(player, card, effects);
+  const forecast = rewardReactionForecast(player, card, model.effects);
   if (forecast !== undefined) {
     model.forecast = forecast;
   }

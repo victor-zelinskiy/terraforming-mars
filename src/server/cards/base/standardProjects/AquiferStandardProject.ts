@@ -6,6 +6,7 @@ import {StandardProjectPlacement} from '../../../deferredActions/StandardProject
 import {Priority} from '../../../deferredActions/Priority';
 import {StandardProjectCard} from '../../StandardProjectCard';
 import {Payment} from '../../../../common/inputs/Payment';
+import * as divertedGate from '../../../parliament/divertedTerraformingGate';
 
 export class AquiferStandardProject extends StandardProjectCard {
   constructor() {
@@ -32,7 +33,8 @@ export class AquiferStandardProject extends StandardProjectCard {
   }
 
   public override canAct(player: IPlayer): boolean {
-    if (!player.game.canAddOcean()) {
+    // The ceiling wastes nothing under a law that REPLACES the ocean (RX35, decision Р5): no warning then.
+    if (!player.game.canAddOcean() && !divertedGate.divertsTerraforming(player)) {
       this.addWarning('maxoceans');
     }
     return super.canAct(player);
@@ -48,7 +50,7 @@ export class AquiferStandardProject extends StandardProjectCard {
   // «no target» here, so the client never promises a space pick that the
   // degenerate flow will not ask for.
   public standardProjectTarget(player: IPlayer): 'space' | undefined {
-    return player.game.canAddOcean() ? 'space' : undefined;
+    return player.game.canAddOcean() && !divertedGate.divertsTerraforming(player) ? 'space' : undefined;
   }
 
   // Pay on commit: present a CANCELLABLE ocean placement FIRST; the cost + TR
@@ -57,7 +59,9 @@ export class AquiferStandardProject extends StandardProjectCard {
   // fall back to the committed legacy path which pays up front and lets
   // PlaceOceanTile resolve the Whales / no-op.
   public override payAndExecute(player: IPlayer, payment: Payment): void {
-    if (!player.game.canAddOcean()) {
+    // …and under a law that REPLACES the ocean (RX35) the submit is the commit: the price paid, the ocean step
+    // diverting itself before any cell (`PlaceOceanTile`'s own first line).
+    if (!player.game.canAddOcean() || divertedGate.divertsTerraforming(player)) {
       super.payAndExecute(player, payment);
       return;
     }

@@ -123,6 +123,18 @@ export type ActionPreview = {
  * and the resulting value BEFORE confirming. Display-only (the interactive
  * choices live in `steps`).
  */
+/**
+ * The LAW's replacement of a terraforming unit on a chip (see `ActionEffect.diverted`): WHICH law (the catalog id —
+ * the reader names it through the parliament manifest) and HOW MUCH data the printed unit becomes — the PRINTED
+ * steps or tiles (Р3: «13 % + 2 steps» is 2 data, the ceiling cuts nothing). `lost` when no card of the seat's can
+ * take the data: the unit is still replaced (the planet does not move), and the data is named as lost.
+ */
+export type DivertedTerraformingMark = {
+  resolution: string;
+  data: number;
+  lost?: true;
+};
+
 export type ActionEffect = {
   /** 'cost' (spent / lost) or 'gain' (produced / raised) — drives the chip colour. */
   direction: 'cost' | 'gain';
@@ -177,6 +189,15 @@ export type ActionEffect = {
    * too would pay the Greens twice). Never set on a chip that adds something.
    */
   implied?: boolean;
+  /**
+   * THIS CHIP'S UNIT IS REPLACED BY A LAW (Turmoil Redux RX35 Diverted Research: «each step of oxygen or temperature
+   * and each greenery or ocean tile you would gain becomes 1 data»): the printed icon stays — the player must still
+   * see what the card DOES — and the reader draws it STRUCK with the data it becomes beside it. The chip's `current`
+   * / `resulting` are the printed reading; nothing of the planet moves, the engine pays no rating, no bonus step, no
+   * party reward for it (`grantOfEffect` makes no grant of a diverted chip). Stamped by the ONE exit pass
+   * (`server/models/divertedTerraforming.ts`) — never by a card.
+   */
+  diverted?: DivertedTerraformingMark;
   /**
    * For a VARIABLE amount computed from game state ("1 M€ per city on Mars"),
    * the live BASIS of that computation — so the player sees WHY the amount is

@@ -7,6 +7,8 @@ import {createMarsSelectSpace} from '../boards/marsSelectSpaceHelper';
 import {PlacementContext} from '../../common/models/PlayerInputModel';
 import {CardName} from '../../common/cards/CardName';
 import {TileType} from '../../common/TileType';
+import * as divertedGate from '../parliament/divertedTerraformingGate';
+import {TerraformingOrigin} from '../parliament/resolutions/IResolution';
 
 /**
  * THE CELLS A CARD'S GREENERY MAY GO TO — the engine's set for `on` with the
@@ -32,6 +34,12 @@ export class PlaceGreeneryTile extends DeferredAction<Space | undefined> {
   }
 
   public execute() {
+    // Turmoil Redux (RX35): a law may REPLACE the tile — asked FIRST, before any cell (the bespoke cards and the
+    // bonuses that queue this step themselves come through here; the chain continues as for «no cell»).
+    if (divertedGate.divertTerraforming(this.player, {kind: 'tile', tile: 'greenery', count: 1}, this.origin())) {
+      this.cb(undefined);
+      return undefined;
+    }
     const filtered = greeneryTargets(this.player, this.on);
     if (filtered.length === 0) {
       this.cb(undefined);
@@ -56,6 +64,12 @@ export class PlaceGreeneryTile extends DeferredAction<Space | undefined> {
         this.cb(space);
         return undefined;
       });
+  }
+
+  /** Who asks for the tile, as the prompt would name it (the card; else the placement's own source). */
+  private origin(): TerraformingOrigin | undefined {
+    const card = this.options?.sourceCard;
+    return card !== undefined ? {kind: 'card', card} : this.options?.placementContext?.source;
   }
 
   private getTitle() {

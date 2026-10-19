@@ -2259,7 +2259,26 @@ export class Player implements IPlayer {
       const action = new OrOptions()
         .setTitle('Place any final greenery from plants')
         .setButtonLabel('Confirm');
-      action.options.push(
+      // Turmoil Redux (RX35, decision Р2): a law that REPLACES the greenery stands through the final placement —
+      // the plants buy 1 data instead of a tile, so the placing branch is a plain OPTION (no cell) and the law's
+      // own «where» pick follows; the marker names the replacement for the session.
+      const diverting = ParliamentHandler.divertsTerraforming(this);
+      const divertingLaw = diverting ? this.game.parliament?.enactedDefinition() : undefined;
+      action.options.push(diverting ?
+        new SelectOption(message('Convert ${0} plants into greenery', (b) => b.number(this.plantsNeededForGreenery)), 'Convert plants')
+          .andThen(() => {
+            const events = this.game?.events;
+            events?.beginAction(this, {kind: 'standardProject', card: CardName.CONVERT_PLANTS}, {category: 'standard-project'});
+            try {
+              this.stock.deduct(Resource.PLANTS, this.plantsNeededForGreenery);
+              this.recordGreeneryDiscount();
+              ParliamentHandler.divertTerraforming(this, {kind: 'tile', tile: 'greenery', count: 1}, {kind: 'system', name: 'Final greenery placement'});
+            } finally {
+              events?.endScope();
+            }
+            resolveFinalGreeneryDeferredActions();
+            return undefined;
+          }) :
         createMarsSelectSpace(
           this,
           'Select space for greenery tile',
@@ -2302,6 +2321,7 @@ export class Player implements IPlayer {
       // client cannot derive (plants and their cost ride the player model).
       action.markFinalGreeneryPrompt({
         spaces: this.game.board.getAvailableSpacesForGreenery(this).length,
+        ...(divertingLaw !== undefined ? {diverted: {resolution: divertingLaw.id, data: 1}} : {}),
       });
       this.setWaitingForSafely(action);
       return;

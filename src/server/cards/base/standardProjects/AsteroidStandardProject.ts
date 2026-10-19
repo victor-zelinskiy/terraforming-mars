@@ -3,6 +3,7 @@ import {IPlayer} from '../../../IPlayer';
 import {CardName} from '../../../../common/cards/CardName';
 import {CardRenderer} from '../../render/CardRenderer';
 import {StandardProjectCard} from '../../StandardProjectCard';
+import * as divertedGate from '../../../parliament/divertedTerraformingGate';
 
 export class AsteroidStandardProject extends StandardProjectCard {
   constructor() {
@@ -30,7 +31,8 @@ export class AsteroidStandardProject extends StandardProjectCard {
   }
 
   public override canAct(player: IPlayer): boolean {
-    if (player.game.getTemperature() >= constants.MAX_TEMPERATURE) {
+    // The ceiling wastes nothing under a law that REPLACES the step (RX35, decision Р5): no warning then.
+    if (player.game.getTemperature() >= constants.MAX_TEMPERATURE && !divertedGate.divertsTerraforming(player)) {
       this.addWarning('maxtemp');
     }
     return super.canAct(player);

@@ -150,6 +150,16 @@ export type Options = {
    * the effect itself stays the caller's `andThen`.
    */
   extraByCard?(card: ICard): ReadonlyArray<ActionEffect> | undefined;
+  /**
+   * THE DATA IS A LAW'S REPLACEMENT of the seat's own terraforming (Turmoil
+   * Redux RX35 — `resolutions/DivertedTerraforming.ts`): the units of ONE
+   * operation, asked once. Published on the marker
+   * (`ResourceGainPromptMeta.diverted`) so a host can tell this pick from the
+   * ENACTMENT's payout of the same law (the same `cause`): no sitting is
+   * standing, no influence reading belongs under the dock, the token is born
+   * on the struck printed icon of the operation — never on the law's face.
+   */
+  diverted?: {resolution: string};
 }
 
 /** The near-miss reason of a holder SHORT of `min` («a card that already has a resource» — TR53). */
@@ -360,6 +370,8 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
         ...(this.options.min ? {holdsAtLeast: this.options.min} : {}),
         // What else each candidate gives (TR53's draw for a non-science card) — the card's own chips, read by every host.
         ...(extraByCard !== undefined ? {extraByCard} : {}),
+        // A law's replacement of the seat's own terraforming (RX35) — structural, so no host reads it as a sitting's ask.
+        ...(this.options.diverted !== undefined ? {diverted: this.options.diverted} : {}),
       });
     return this.options.cause === undefined ?
       select :

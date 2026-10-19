@@ -38,6 +38,9 @@ import {MarsUniversity} from '../../src/server/cards/base/MarsUniversity';
 import {ViralEnhancers} from '../../src/server/cards/base/ViralEnhancers';
 import {Recyclon} from '../../src/server/cards/promo/Recyclon';
 import {Splice} from '../../src/server/cards/promo/Splice';
+import {Supercomputer} from '../../src/server/cards/turmoilRedux/Supercomputer';
+import {DIVERTED_RESEARCH_ID} from '../../src/server/parliament/resolutions/reds/DivertedResearch';
+import {resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
 
 /*
  * THE PLAY'S PRE-SELECTS LAND — EVERY ONE, BY CONSTRUCTION.
@@ -132,6 +135,20 @@ const PROFILES: ReadonlyArray<Profile> = [
       const olympus = new OlympusConference();
       olympus.resourceCount = 1;
       player.playedCards.push(olympus, new MarsUniversity());
+    },
+  },
+  {
+    // Turmoil Redux RX35: a law that REPLACES every step of oxygen / temperature and every greenery / ocean tile with
+    // data stands enacted, and a data holder is on the table — the play's preview promises the «where» pick instead
+    // of a cell, and the batch's answer must land on the law's own prompt (its address), never park.
+    label: 'diverting law',
+    options: REDUX,
+    apply: (game, player) => {
+      game.parliament!.enacted = resolutionInstanceId(DIVERTED_RESEARCH_ID, 0);
+      // The holder — unless the card under test (in the hand) IS the holder (a tableau holds one of a name).
+      if (!player.cardsInHand.some((c) => c.name === CardName.SUPERCOMPUTER)) {
+        player.playedCards.push(new Supercomputer());
+      }
     },
   },
   {

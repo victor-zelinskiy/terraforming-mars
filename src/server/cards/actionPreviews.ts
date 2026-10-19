@@ -293,7 +293,8 @@ const RATING_STEP_UNIT: Readonly<Record<string, number>> = {oxygen: 1, temperatu
  */
 export function impliedRatingOf(effect: ActionEffect): ActionEffect | undefined {
   const unit = RATING_STEP_UNIT[effect.icon];
-  if (unit === undefined || effect.direction !== 'gain' || effect.implied === true) {
+  // A struck chip (a law's replacement, RX35) pays no rating: the scale never moves.
+  if (unit === undefined || effect.direction !== 'gain' || effect.implied === true || effect.diverted !== undefined) {
     return undefined;
   }
   const delta = effect.current !== undefined && effect.resulting !== undefined ? effect.resulting - effect.current : effect.amount;

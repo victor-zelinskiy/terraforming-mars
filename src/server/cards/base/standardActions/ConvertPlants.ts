@@ -7,7 +7,35 @@ import {Units} from '../../../../common/Units';
 import {message} from '../../../logs/MessageBuilder';
 import {createMarsSelectSpace} from '../../../boards/marsSelectSpaceHelper';
 import {cancellablePlacement} from '../../../inputs/placementContext';
+import {SelectOption} from '../../../inputs/SelectOption';
+import {Resource} from '../../../../common/Resource';
+import {TileType} from '../../../../common/TileType';
+import {OptionMetadata} from '../../../../common/models/PlayerInputModel';
+import * as actionPreviews from '../../actionPreviews';
+import {rewardReactionForecast} from '../../../models/effectForecast';
+import {divertEffects, divertedFutility} from '../../../models/divertedTerraforming';
+import * as divertedGate from '../../../parliament/divertedTerraformingGate';
 
+
+/**
+ * THE OPTION'S READING UNDER A REPLACING LAW (RX35) — the twin of `heatConversionMetadata`: the plants as the price,
+ * the greenery the player would gain STRUCK with the data it becomes, the table's answer, the «where» pre-collected.
+ * `card` names the standard action structurally (the console finds the plant conversion by it, never by its title,
+ * now that the option is no cell pick). Read-only.
+ */
+export function plantConversionMetadata(player: IPlayer): OptionMetadata {
+  const diverted = divertEffects(player, [actionPreviews.stockCost(player, Resource.PLANTS, player.plantsNeededForGreenery)],
+    [{kind: 'boardPlacement', placementType: 'greenery', tileType: TileType.GREENERY}]);
+  const effects = actionPreviews.withImpliedRating(diverted.effects);
+  const forecast = rewardReactionForecast(player, undefined, effects);
+  const futile = divertedFutility(player);
+  return {
+    kind: 'globalParameter', icon: 'greenery', amount: 1, card: CardName.CONVERT_PLANTS, effects,
+    ...(forecast !== undefined ? {forecast} : {}),
+    ...(futile !== undefined ? {futile} : {}),
+    ...(diverted.steps.length > 0 ? {steps: diverted.steps} : {}),
+  };
+}
 
 export class ConvertPlants extends StandardActionCard {
   constructor() {
@@ -28,6 +56,11 @@ export class ConvertPlants extends StandardActionCard {
     if (player.plants < player.plantsNeededForGreenery) {
       return false;
     }
+    // Turmoil Redux (RX35): under a law that REPLACES the greenery the plants buy data — no cell is needed and no
+    // rating is paid, so the price alone gates (decision Р5).
+    if (divertedGate.divertsTerraforming(player)) {
+      return true;
+    }
     if (player.game.board.getAvailableSpacesForGreenery(player).length === 0) {
       return false;
     }
@@ -44,6 +77,27 @@ export class ConvertPlants extends StandardActionCard {
   }
 
   public action(player: IPlayer) {
+    // Turmoil Redux (RX35): no cell — the option itself is the conversion; the plants are spent, the greenery the
+    // player would gain is handed to the law (one unit), and the law's ONE «where» follows at the back of the line.
+    // The console's one-press verb reads the option's metadata (the struck greenery, the pre-collected pick).
+    if (divertedGate.divertsTerraforming(player)) {
+      const option = new SelectOption(message('Convert ${0} plants into greenery', (b) => b.number(player.plantsNeededForGreenery)), 'Convert plants')
+        .andThen(() => {
+          const events = player.game?.events;
+          events?.beginAction(player, {kind: 'standardProject', card: this.name}, {category: 'standard-project'});
+          try {
+            this.actionUsed(player);
+            player.plants -= player.plantsNeededForGreenery;
+            player.recordGreeneryDiscount();
+            divertedGate.divertTerraforming(player, {kind: 'tile', tile: 'greenery', count: 1}, {kind: 'standardProject', card: this.name});
+          } finally {
+            events?.endScope();
+          }
+          return undefined;
+        });
+      option.metadata = plantConversionMetadata(player);
+      return option;
+    }
     return createMarsSelectSpace(
       player,
       message('Convert ${0} plants into greenery', (b) => b.number(player.plantsNeededForGreenery)),

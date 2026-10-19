@@ -1,4 +1,5 @@
 import {expect} from 'chai';
+import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
 import {EcoLine} from '../../../src/server/cards/corporation/EcoLine';
 import {ConvertPlants} from '../../../src/server/cards/base/standardActions/ConvertPlants';
 import {testGame} from '../../TestingUtils';
@@ -18,8 +19,7 @@ describe('EcoLine', () => {
     player.plants = 7;
     expect(convert.canAct(player)).eq(true);
 
-    const action2 = convert.action(player);
-    expect(action2).not.eq(undefined);
+    const action2 = cast(convert.action(player), SelectSpace);
     action2.cb(action2.spaces[0]);
     expect(player.plants).to.eq(0);
   });

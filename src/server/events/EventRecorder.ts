@@ -370,6 +370,11 @@ export class EventRecorder {
     return this.stack.some((ctx) => ctx.source?.kind === kind);
   }
 
+  /** True while a PASSIVE-EFFECT scope on the live stack fired on `trigger` (the channel the hook was asked on). */
+  public hasEffectTriggerOnStack(trigger: EventTrigger): boolean {
+    return this.stack.some((ctx) => ctx.kind === 'effect' && ctx.trigger === trigger);
+  }
+
   /**
    * Run `fn` with an explicit source OVERRIDE for nested mutations that carry no
    * `from` of their own — e.g. space-bonus or ocean-adjacency resource gains,

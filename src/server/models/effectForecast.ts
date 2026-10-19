@@ -35,7 +35,8 @@ import {
   emptyEffectForecast,
 } from '../../common/models/EffectForecastModel';
 import {EffectForecastContext, EffectForecastGrant, EffectForecastTile} from '../cards/EffectForecastContext';
-import {cardResourceIcon, drawGain, globalGain, globalParameterStepSize, oceanGain, productionChange, stockGain, trGain} from '../cards/actionPreviews';
+import {cardResourceGain, cardResourceIcon, drawGain, globalGain, globalParameterStepSize, oceanGain, productionChange, stockGain, trGain} from '../cards/actionPreviews';
+import {divertedDataOf} from './divertedTerraforming';
 import * as forecast from '../cards/effectForecastPreviews';
 import {GREENS_MEGACREDITS_PER_TR} from '../parliament/parties/PartyEffects';
 import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES, SpendableCardResource} from '../../common/inputs/Spendable';
@@ -240,7 +241,9 @@ function scaleStepsOf(effect: ActionEffect, parameter: GlobalParameter): number 
  *  that changes NOTHING — a parameter already at its cap reads `current ===
  *  resulting` — or nothing a hook reacts to). */
 export function grantOfEffect(effect: ActionEffect): EffectForecastGrant | undefined {
-  if (effect.direction !== 'gain' || effect.amount <= 0 || effect.implied === true) {
+  // A STRUCK chip (a law's replacement, RX35) grants nothing: the scale does not move, the tile is not seated — no
+  // rating for the Greens, no bonus step, no reactor of the raise.
+  if (effect.direction !== 'gain' || effect.amount <= 0 || effect.implied === true || effect.diverted !== undefined) {
     return undefined;
   }
   if (effect.current !== undefined && effect.resulting !== undefined && effect.resulting <= effect.current) {
@@ -333,7 +336,7 @@ function partyFacts(player: IPlayer, grants: ReadonlyArray<EffectForecastGrant>,
  * resolution (cardless — the client resolves it through the parliament
  * manifest). Nothing while no resolution with a passive stands enacted.
  */
-function resolutionFacts(player: IPlayer, grants: ReadonlyArray<EffectForecastGrant>, tiles: ReadonlyArray<EffectForecastTile>): Array<EffectForecastFact> {
+function resolutionFacts(player: IPlayer, grants: ReadonlyArray<EffectForecastGrant>, tiles: ReadonlyArray<EffectForecastTile>, effects: ReadonlyArray<ActionEffect> = []): Array<EffectForecastFact> {
   const parliament = player.game.parliament;
   const enacted = parliament?.enactedDefinition();
   const passive = enacted?.passive;
@@ -341,16 +344,21 @@ function resolutionFacts(player: IPlayer, grants: ReadonlyArray<EffectForecastGr
     return [];
   }
   const id = enacted.id;
+  // What the exit pass of a REPLACING law already struck on the operation's own chips (RX35) — the law reads its sum.
+  const diverted = {data: divertedDataOf(effects), holder: !effects.some((e) => e.diverted?.lost === true)};
   return passive.forecast({
     player,
     grants,
     tiles,
+    diverted,
     source: (channel) => ({kind: 'resolution', name: id, owner: player.color, channel}),
     exact: (source, effects, title, opts) => forecast.exact(source, effects, title, opts),
     deferred: (source, effects, title, opts) => forecast.deferred(source, effects, title, opts),
+    skipped: (source, effects, title, opts) => forecast.skipped(source, effects, title, opts),
     stockGain: (resource, amount) => stockGain(player, resource, amount),
     productionChange: (resource, delta) => productionChange(player, resource, delta),
     drawGain: (count) => drawGain(count),
+    cardResourceGain: (resource, amount) => cardResourceGain(resource, amount),
   });
 }
 
@@ -1148,7 +1156,7 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
   // tiles — the branch-independent ones in `facts`, an option's own inside it.
   facts.push(
     ...partyFacts(player, ownGrants, sharedTiles),
-    ...resolutionFacts(player, ownGrants, sharedTiles));
+    ...resolutionFacts(player, ownGrants, sharedTiles, single ? ownEffects : []));
   if (!single) {
     for (let pos = 0; pos < branches.length; pos++) {
       const branch = branches[pos];
@@ -1157,7 +1165,7 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
       }
       const own = [
         ...partyFacts(player, branchGrants[pos] ?? [], ownTilesOf(perBranchTiles[pos], sharedTiles)),
-        ...resolutionFacts(player, branchGrants[pos] ?? [], ownTilesOf(perBranchTiles[pos], sharedTiles)),
+        ...resolutionFacts(player, branchGrants[pos] ?? [], ownTilesOf(perBranchTiles[pos], sharedTiles), branch.effects),
       ];
       if (own.length > 0) {
         const list = byBranch[pos] ?? (byBranch[pos] = []);
@@ -1224,7 +1232,7 @@ export function rewardReactionFacts(
   const facts = [...bonuses.facts, ...grantFacts(player, player, card, grants, ctx)];
   facts.push(...cascadeFacts(player, card, facts, ctx));
   if (!world) {
-    facts.push(...partyFacts(player, grants, []), ...resolutionFacts(player, grants, []));
+    facts.push(...partyFacts(player, grants, []), ...resolutionFacts(player, grants, [], effects));
   }
   facts.push(...colonyBuiltFacts(player, card, opts.coloniesBuilt ?? 0, ctx));
   return stripTouchedPools(facts.map((fact) => stampHosts(fact, card)), effects, card);

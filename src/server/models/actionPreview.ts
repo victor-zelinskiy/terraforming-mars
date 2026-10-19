@@ -22,6 +22,8 @@ import * as actionPreviews from '../cards/actionPreviews';
 import {FLEET_LIMIT_REASON, skippedTradeFleet, tradeFleetGainChip, tradeFleetsLost} from '../colonies/tradeFleetGain';
 import {drawSearchOf} from '../deferredActions/drawSearch';
 import {withPreselectAddresses} from './preselectAddresses';
+import {withDivertedTerraforming} from './divertedTerraforming';
+import * as divertedGate from '../parliament/divertedTerraformingGate';
 import {actionFutility} from './actionFutility';
 import {attachStagedPlacement, stagedPlacementForBehavior} from './stagedBehaviorPlacement';
 
@@ -45,8 +47,10 @@ import {attachStagedPlacement, stagedPlacementForBehavior} from './stagedBehavio
  * (which add `card.warnings`) — only read-only checks + pure model construction.
  */
 export function actionPreview(player: IPlayer, card: ICard & IActionCard): ActionPreview {
-  // …and every step addressed to its own prompt (the pre-select law, `preselectAddresses.ts`).
-  return withActionFutility(player, card, withPreselectAddresses(withImpliedRatings(actionPreviewOf(player, card))));
+  // The door's exit passes, in order: a replacing law strikes the printed units and pre-collects the «where»
+  // (`divertedTerraforming.ts`, RX35), the rating pass states no rating for a struck chip, every step is addressed
+  // to its own prompt (the pre-select law, `preselectAddresses.ts`), the «no effect» verdicts last.
+  return withActionFutility(player, card, withPreselectAddresses(withImpliedRatings(withDivertedTerraforming(player, actionPreviewOf(player, card)))));
 }
 
 /**
@@ -975,8 +979,10 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
     // placement the runtime never asks for — and the effect forecast's tile
     // pass would claim the table's ocean reactions (Arctic Algae's plants, an
     // opponent's Neptunian question) for a tile that never lands.
+    // …except under a law that REPLACES the ocean (RX35): the PRINTED count is promised whole — the law takes every
+    // printed unit and the ceiling cuts nothing («even if the parameter is maxed»); the exit pass strikes it.
     const remaining = Math.max(0, MAX_OCEAN_TILES - player.game.board.getOceanSpaces().length);
-    const count = Math.min(behavior.ocean.count ?? 1, remaining);
+    const count = divertedGate.divertsTerraforming(player) ? (behavior.ocean.count ?? 1) : Math.min(behavior.ocean.count ?? 1, remaining);
     if (count > 0) {
       steps.push({kind: 'boardPlacement', placementType: 'ocean', tileType: TileType.OCEAN, count: count > 1 ? count : undefined});
     } else {

@@ -32,7 +32,8 @@ import {PARTY_EFFECTS, partySource, redsDiscardPrompt} from './parties/PartyEffe
 import {QuestTracker} from './quests/QuestTracker';
 import {ChairmanSeat} from './quests/ChairmanSeat';
 import {ParliamentPhase} from './ParliamentPhase';
-import {ResolutionPassive, TilePlacementBonusContext} from './resolutions/IResolution';
+import {ResolutionPassive, TerraformingOrigin, TerraformingUnit, TilePlacementBonusContext} from './resolutions/IResolution';
+import {divertsTerraforming, divertTerraforming} from './divertedTerraformingGate';
 
 export class ParliamentHandler {
   // ───────────────────────── the action menu ─────────────────────────
@@ -183,6 +184,43 @@ export class ParliamentHandler {
       return;
     }
     player.game.events.withEffectSource(player, {kind: 'resolution', id: enacted.id, owner: player.color}, channel, () => run(passive));
+  }
+
+  /**
+   * DOES A STANDING LAW REPLACE THIS SEAT'S TERRAFORMING? (Turmoil Redux RX35
+   * Diverted Research — `ResolutionPassive.divertTerraforming`.) A pure
+   * QUERY, like `cardDiscount`: the gates the ceiling and the cell impose on
+   * an action fall while it answers true (decision Р5 — the law seats nothing
+   * and needs no room), the previews' exit pass strikes the printed units,
+   * the futility reader judges by the holders instead of the ceiling. False
+   * for MarsBot and for a seat outside the parliament (the `enactment`
+   * aspect), and during the World Government's phase (nobody «gains» there).
+   * The body lives in `divertedTerraformingGate.ts` (light enough for the
+   * engine's lowest doors to import); this is its face in the hub.
+   */
+  public static divertsTerraforming(player: IPlayer): boolean {
+    return divertsTerraforming(player);
+  }
+
+  /**
+   * THE ONE DOOR A TERRAFORMING UNIT GOES THROUGH BEFORE THE ENGINE PERFORMS
+   * IT (RX35): every entry — a scale step ahead of its ceiling check, a tile
+   * ahead of its cell, a conversion, a standard project, a cell's pay-to-use
+   * bonus, the final greenery — asks this and performs NOTHING when it
+   * answers true: the law has already queued what stands instead, under its
+   * own effect scope on the channel `terraforming-diverted` (so the
+   * replacement's records are the law's own children, and the notification,
+   * the journal and the stats name the law). The entries keep out what the
+   * law never touches: a lowering, an `unrewarded` move (the entries check
+   * both before asking); this gate keeps out the World Government's phase,
+   * MarsBot and a seat outside the parliament.
+   *
+   * `origin` is who produced the unit (a card, a project, a cell, a colony,
+   * the final placement) — read off the live event scope when the entry
+   * hands none, so a hook that names it never guesses.
+   */
+  public static divertTerraforming(player: IPlayer, unit: TerraformingUnit, origin?: TerraformingOrigin): boolean {
+    return divertTerraforming(player, unit, origin);
   }
 
   /**

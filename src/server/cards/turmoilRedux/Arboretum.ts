@@ -18,6 +18,7 @@ import {PlaceGreeneryTile, greeneryTargets} from '../../deferredActions/PlaceGre
 import {adjacentCityPayoutFacts, adjacentCityPreviewSteps, adjacentCityTarget, payPerAdjacentCity} from '../adjacentCityPayout';
 import * as reason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import * as divertedGate from '../../parliament/divertedTerraformingGate';
 
 /** The live prompt's title — the staged twin mirrors it (the engine's own greenery title). */
 export const ARBORETUM_GREENERY_TITLE = 'Select space for greenery tile';
@@ -119,7 +120,7 @@ export class Arboretum extends Card implements IProjectCard {
 
   /** Rule 2 — the engine's own reason (the greenery standard project's words). */
   public unplayableReason(player: IPlayer): UnplayableReason | undefined {
-    if (greeneryTargets(player).length === 0) {
+    if (greeneryTargets(player).length === 0 && !divertedGate.divertsTerraforming(player)) {
       return reason.placementReason(NO_SPACE_FOR_GREENERY_REASON);
     }
     return undefined;
@@ -127,7 +128,10 @@ export class Arboretum extends Card implements IProjectCard {
 
   /** Rules 6, 2, 3–5, 7–10 — the target first (when some cell can pay), then the greenery; the data is paid around the tile it placed. */
   public override bespokePlay(player: IPlayer) {
-    const target = adjacentCityTarget(player, this, CardResource.DATA, greeneryTargets(player), ARBORETUM_TARGET_TITLE);
+    // Under a law that REPLACES the greenery (Turmoil Redux RX35) the tile never lands: no adjacent city pays, so the
+    // card's own target is not asked — the law's one «where» stands for the tile (1 data), and that is all.
+    const target = divertedGate.divertsTerraforming(player) ? undefined :
+      adjacentCityTarget(player, this, CardResource.DATA, greeneryTargets(player), ARBORETUM_TARGET_TITLE);
     if (target !== undefined) {
       player.game.defer(target);
     }
@@ -147,10 +151,13 @@ export class Arboretum extends Card implements IProjectCard {
    */
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const canAffordOptions = player.affordOptionsForCard(this);
-    const target = adjacentCityTarget(player, this, CardResource.DATA, greeneryTargets(player, 'greenery', canAffordOptions), ARBORETUM_TARGET_TITLE);
+    const diverting = divertedGate.divertsTerraforming(player);
+    const target = diverting ? undefined :
+      adjacentCityTarget(player, this, CardResource.DATA, greeneryTargets(player, 'greenery', canAffordOptions), ARBORETUM_TARGET_TITLE);
     return actionPreviews.placementPreview(this, player, {
       tile: TileType.GREENERY,
-      steps: adjacentCityPreviewSteps(target, ARBORETUM_NO_HOLDER_WARNING),
+      // The same reading as the play: under the replacing law neither the card's target nor its warning stands.
+      steps: diverting ? [] : adjacentCityPreviewSteps(target, ARBORETUM_NO_HOLDER_WARNING),
       staged: {
         title: ARBORETUM_GREENERY_TITLE,
         spaces: (options) => greeneryTargets(player, 'greenery', options),

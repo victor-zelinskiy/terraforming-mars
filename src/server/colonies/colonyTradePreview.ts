@@ -28,6 +28,8 @@ import {IColony} from './IColony';
 import {message} from '../logs/MessageBuilder';
 import {colonySource} from '../inputs/choiceContext';
 import {rewardReactionForecast} from '../models/effectForecast';
+import {divertEffects, divertingLaw} from '../models/divertedTerraforming';
+import {divertedDataPicker} from '../parliament/resolutions/DivertedTerraforming';
 
 /**
  * READ-ONLY preview of trading with `colony` for `player` — the shared brain
@@ -195,7 +197,9 @@ function tradeGrantEffects(
 /** A BUILD's bonus at the berth the cube would take — the ONE reading `Colony.addColony` pays by. */
 function buildGrantEffects(player: IPlayer, colony: IColony, metadata: ColonyMetadata, lost: boolean): Array<ActionEffect> {
   const build = buildBenefitAt(metadata, colony.colonies.length);
-  return benefitGrantEffects(player, metadata, build.type, build.quantity, build.resource, lost);
+  // The family's exit pass (RX35): a replacing law strikes the bonus's ocean — the forecast then grants nothing for it
+  // and states the law's own data instead.
+  return divertEffects(player, benefitGrantEffects(player, metadata, build.type, build.quantity, build.resource, lost), []).effects;
 }
 
 /** A card-resource follow-up whose target does not exist — the live income adds nothing and no reactor fires. */
@@ -355,8 +359,16 @@ function benefitFollowUp(
   case ColonyBenefit.COPY_TRADE:
     return note(role, 'copyTrade');
 
-  case ColonyBenefit.PLACE_OCEAN_TILE:
+  case ColonyBenefit.PLACE_OCEAN_TILE: {
+    // Turmoil Redux (RX35): under a law that REPLACES the ocean the benefit asks no cell — its ONE question is the
+    // law's «where» (the same picker the live landing presents, the law as its asker), pre-collected like any card
+    // target of the family.
+    const law = divertingLaw(player);
+    if (law !== undefined) {
+      return cardTargetFollowUpOf(divertedDataPicker(player, law.id, quantity), role);
+    }
     return note(role, 'placeOcean');
+  }
 
   case ColonyBenefit.PLACE_DELEGATES:
     return note(role, 'placeDelegates');

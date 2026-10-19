@@ -1,4 +1,6 @@
 import {expect} from 'chai';
+import {SelectSpace} from '../../../../src/server/inputs/SelectSpace';
+import {cast} from '../../../../src/common/utils/utils';
 import {ConvertPlants} from '../../../../src/server/cards/base/standardActions/ConvertPlants';
 import {Phase} from '../../../../src/common/Phase';
 import {setOxygenLevel} from '../../../TestingUtils';
@@ -41,8 +43,7 @@ describe('ConvertPlants', () => {
     player.plants = 8;
 
     expect(card.canAct(player)).eq(true);
-    const action = card.action(player);
-    expect(action).not.eq(undefined);
+    const action = cast(card.action(player), SelectSpace);
     action.cb(action.spaces[0]);
 
     expect(player.game.getOxygenLevel()).eq(1);

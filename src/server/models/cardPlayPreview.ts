@@ -11,6 +11,7 @@ import {Resource} from '../../common/Resource';
 import {ActionEffect, ActionPreview, ActionPreviewBranch, ActionPreviewStep} from '../../common/models/ActionPreviewModel';
 import {deriveOrBranches, effectsForBehavior, stepsForBehavior, withImpliedRatings} from './actionPreview';
 import {withPreselectAddresses} from './preselectAddresses';
+import {withDivertedTerraforming} from './divertedTerraforming';
 import {attachStagedPlacement, stagedPlacementForBehavior} from './stagedBehaviorPlacement';
 
 /**
@@ -106,9 +107,11 @@ function offeredCorporation(player: IPlayer, name: CardName): ICard | undefined 
 }
 
 export function cardPlayPreview(player: IPlayer, card: ICard): ActionPreview {
-  // The door's ONE exit pass (PL-147): a scale step's own rating stated after the scale, hook or declaration alike —
-  // and every step addressed to its own prompt (the pre-select law, `preselectAddresses.ts`).
-  return withPreselectAddresses(withImpliedRatings(cardPlayPreviewOf(player, card)));
+  // The door's exit passes, in order (hook or declaration alike): a replacing law strikes the printed units and
+  // pre-collects the «where» (`divertedTerraforming.ts`, RX35 — the played card is a holder of its own data), a scale
+  // step's own rating stated after the scale (PL-147; none for a struck chip), and every step addressed to its own
+  // prompt (the pre-select law, `preselectAddresses.ts`).
+  return withPreselectAddresses(withImpliedRatings(withDivertedTerraforming(player, cardPlayPreviewOf(player, card), card)));
 }
 
 function cardPlayPreviewOf(player: IPlayer, card: ICard): ActionPreview {

@@ -9,6 +9,8 @@ import {OptionMetadata} from '../../../../common/models/PlayerInputModel';
 import * as actionPreviews from '../../actionPreviews';
 import {rewardReactionForecast} from '../../../models/effectForecast';
 import {parameterMaxed} from '../../actionFutilities';
+import {divertEffects, divertedFutility} from '../../../models/divertedTerraforming';
+import * as divertedGate from '../../../parliament/divertedTerraformingGate';
 
 /**
  * THE OPTION'S READING (PL-067): the price and the step as chips — the step's
@@ -20,18 +22,23 @@ import {parameterMaxed} from '../../actionFutilities';
  * Kelvinists' 6-heat variant (the same formula at another price). Read-only.
  */
 export function heatConversionMetadata(player: IPlayer, heat: number): OptionMetadata {
-  const effects = actionPreviews.withImpliedRating([
+  // Turmoil Redux (RX35): the family's exit pass FIRST — a replacing law strikes the step and pre-collects the «where»
+  // — then the rating pass, which states no rating for a struck chip.
+  const diverted = divertEffects(player, [
     actionPreviews.stockCost(player, Resource.HEAT, heat),
     actionPreviews.globalGain(player, 'temperature', 1),
-  ]);
+  ], []);
+  const effects = actionPreviews.withImpliedRating(diverted.effects);
   const forecast = rewardReactionForecast(player, undefined, effects);
   // NO EFFECT at the temperature's maximum: the step moves nothing and the engine pays nothing for it (no TR, no party
   // reward, no reaction) — the console must not count or warn about the conversion as an opportunity (never a block).
-  const futile = parameterMaxed(player, 'temperature');
+  // Under the replacing law the step becomes data, and only a want of a holder makes it nothing.
+  const futile = diverted.data > 0 ? divertedFutility(player) : parameterMaxed(player, 'temperature');
   return {
     kind: 'globalParameter', icon: 'temperature', amount: 1, effects,
     ...(forecast !== undefined ? {forecast} : {}),
     ...(futile !== undefined ? {futile} : {}),
+    ...(diverted.steps.length > 0 ? {steps: diverted.steps} : {}),
   };
 }
 
@@ -52,7 +59,8 @@ export class ConvertHeat extends StandardActionCard {
   }
 
   public canAct(player: IPlayer): boolean {
-    if (player.game.getTemperature() === MAX_TEMPERATURE) {
+    // The ceiling wastes nothing under a law that REPLACES the step (RX35, decision Р5): no warning then.
+    if (player.game.getTemperature() === MAX_TEMPERATURE && !divertedGate.divertsTerraforming(player)) {
       this.addWarning('maxtemp');
     }
 

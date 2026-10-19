@@ -31,6 +31,7 @@ import {CardDrawRevealSource} from '../../common/models/CardDrawRevealModel';
 import {SelectResources} from '../inputs/SelectResources';
 import {TITLES} from '../inputs/titles';
 import {cardEffect, cardSource} from '../inputs/choiceContext';
+import * as divertedGate from '../parliament/divertedTerraformingGate';
 import {message} from '../logs/MessageBuilder';
 import {TileType} from '../../common/TileType';
 import {IdentifySpacesDeferred} from '../underworld/IdentifySpacesDeferred';
@@ -80,15 +81,18 @@ export class Executor implements BehaviorExecutor {
       }
     }
 
+    // Turmoil Redux (RX35): under a law that REPLACES the seat's terraforming the ceiling wastes nothing — the step
+    // or the tile becomes data whatever the scale reads — so the «at maximum» warnings do not apply (decision Р5).
+    const diverts = divertedGate.divertsTerraforming(player);
     if (behavior.global !== undefined) {
       const g = behavior.global;
-      if (g.temperature !== undefined && game.getTemperature() >= MAX_TEMPERATURE) {
+      if (g.temperature !== undefined && game.getTemperature() >= MAX_TEMPERATURE && !diverts) {
         card.addWarning('maxtemp');
       }
       if (g.oxygen !== undefined && game.getOxygenLevel() >= MAX_OXYGEN_LEVEL) {
         if (g.oxygen < 0) {
           card.addWarning('maxoxygen-reduce');
-        } else {
+        } else if (!diverts) {
           card.addWarning('maxoxygen');
         }
       }
@@ -97,7 +101,7 @@ export class Executor implements BehaviorExecutor {
       }
     }
 
-    if (behavior.ocean !== undefined && game.board.getOceanSpaces().length >= MAX_OCEAN_TILES) {
+    if (behavior.ocean !== undefined && game.board.getOceanSpaces().length >= MAX_OCEAN_TILES && !diverts) {
       card.addWarning('maxoceans');
     }
 
@@ -216,7 +220,8 @@ export class Executor implements BehaviorExecutor {
       }
     }
 
-    if (behavior.greenery !== undefined) {
+    // …and the greenery needs no cell under the replacing law (the tile is never seated).
+    if (behavior.greenery !== undefined && !divertedGate.divertsTerraforming(player)) {
       const spaces = game.board.getAvailableSpacesForType(player, behavior.greenery.on ?? 'greenery', canAffordOptions);
       const filtered = game.board.filterSpacesAroundRedCity(spaces);
       if (filtered.length === 0) {
@@ -689,7 +694,12 @@ export class Executor implements BehaviorExecutor {
       }
     }
 
-    if (behavior.ocean !== undefined) {
+    // Turmoil Redux (RX35): the replacing law takes the card's tiles at the BEHAVIOR level — one ask for the
+    // whole key (a two-ocean card is one unit of two), no placement queued at all.
+    if (behavior.ocean !== undefined &&
+        divertedGate.divertTerraforming(player, {kind: 'tile', tile: 'ocean', count: behavior.ocean.count ?? 1}, cardSource(card))) {
+      // Replaced — nothing to place.
+    } else if (behavior.ocean !== undefined) {
       if (behavior.ocean.count === 2) {
         // The FIRST prompt announces the second (SelectSpace.followUpPlacements)
         // so the dossier can show the plan while the first cell is chosen —
@@ -712,7 +722,8 @@ export class Executor implements BehaviorExecutor {
         player.game.defer(new PlaceCityTile(player, {on: behavior.city.on, sourceCard: card.name}));
       }
     }
-    if (behavior.greenery !== undefined) {
+    if (behavior.greenery !== undefined &&
+        !divertedGate.divertTerraforming(player, {kind: 'tile', tile: 'greenery', count: 1}, cardSource(card))) {
       player.game.defer(new PlaceGreeneryTile(player, behavior.greenery.on, {sourceCard: card.name}));
     }
     if (behavior.tile !== undefined) {

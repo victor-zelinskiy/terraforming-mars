@@ -11,7 +11,7 @@ import {Message} from '../logs/Message';
 // `import type`: `ActionPreviewModel` imports `PlayerInputModel`, which imports
 // THIS file — a value import would close that cycle at runtime (the same reason
 // `PlayerInputModel` type-imports `ActionEffect`).
-import type {ActionEffect, AgendaWalkModel} from './ActionPreviewModel';
+import type {ActionEffect, ActionPreviewStep, AgendaWalkModel} from './ActionPreviewModel';
 import type {EffectForecast} from './EffectForecastModel';
 import type {RequirementEasingModel} from './ArmedPlayEffectModel';
 import type {ActionFutility, ActionFutilityVerdict} from './ActionFutilityModel';
@@ -33,6 +33,13 @@ import type {ActionFutility, ActionFutilityVerdict} from './ActionFutilityModel'
 export interface StandardProjectPreviewModel {
     effects: ReadonlyArray<ActionEffect>;
     target?: 'space' | 'colony';
+    /**
+     * Pre-collected steps the project asks AFTER the submit, in live order (Turmoil Redux RX35: the «where» pick of
+     * the data a replacing law turns the project's step or tile into — one card pick, addressed to the law). The
+     * workspace hosts them like a composer's steps and posts the batch; absent for every project today's submit
+     * answers whole.
+     */
+    steps?: ReadonlyArray<ActionPreviewStep>;
     /**
      * WHAT THE TABLE ANSWERS to the project's own bump (the ruling Greens' 2 M€
      * on an asteroid's TR step, a card that reacts to the scale) — the forecast

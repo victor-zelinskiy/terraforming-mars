@@ -39,6 +39,7 @@ import {COLONIAL_AFFAIRS} from './unity/ColonialAffairs';
 import {COLONIZATION_FUNDING} from './unity/ColonizationFunding';
 import {COLONY_CONTEST} from './unity/ColonyContest';
 import {DEVELOPMENT_CRAZE} from './marsFirst/DevelopmentCraze';
+import {DIVERTED_RESEARCH} from './reds/DivertedResearch';
 import {FORESTRY_SUPPORT} from './greens/ForestrySupport';
 import {GAS_EXPORT} from './reds/GasExport';
 import {GENEROUS_FUNDING} from './greens/GenerousFunding';
@@ -492,6 +493,10 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   COLONY_CONTEST,
   // The first LIVE PASSIVE: a placement's bonuses paid a second time while the card stands enacted.
   DEVELOPMENT_CRAZE,
+  // The first REPLACING passive: every step of oxygen or temperature and every greenery or ocean tile a seat would
+  // gain becomes 1 data on one of its cards — asked ONCE per operation, the ceiling cutting nothing («even if the
+  // parameter is maxed»), the ceiling's and the cell's gates falling while the law stands; plus data by influence.
+  DIVERTED_RESEARCH,
   // …and the first law that INTRODUCES a bonus the engine has none of: greeneries pay their neighbours.
   FORESTRY_SUPPORT,
   // The first law that changes THE WORLD instead of paying the table (`worldSteps` / `worldMoves`):

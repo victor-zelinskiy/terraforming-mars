@@ -22,11 +22,14 @@ import type {Space} from '../../boards/Space';
 import type {ICard} from '../../cards/ICard';
 import type {IProjectCard} from '../../cards/IProjectCard';
 import type {Resource} from '../../../common/Resource';
+import type {CardResource} from '../../../common/CardResource';
 import type {Tag} from '../../../common/cards/Tag';
 import type {EffectForecastFact, EffectForecastSource} from '../../../common/models/EffectForecastModel';
 import type {EffectForecastGrant, EffectForecastTile} from '../../cards/EffectForecastContext';
 import type {BoardFact, BoardFactDelta} from '../../../common/boards/BoardInformationFacts';
 import type {SpaceId} from '../../../common/Types';
+import type {GlobalParameter} from '../../../common/GlobalParameter';
+import type {ChoiceContextSource} from '../../../common/models/PlayerInputModel';
 
 /**
  * The context an enacted resolution's effect step runs in. `influence` is
@@ -121,13 +124,45 @@ export type ResolutionForecastContext = {
   player: IPlayer;
   grants: ReadonlyArray<EffectForecastGrant>;
   tiles: ReadonlyArray<EffectForecastTile>;
+  /**
+   * THE TERRAFORMING THE OPERATION'S OWN CHIPS ALREADY GAVE UP (RX35): the data the preview's exit pass marked the
+   * printed units as becoming (`ActionEffect.diverted`, summed), and whether a card of the seat's can take it. A
+   * diverting law reads ITS OWN replacement here — the same pass that struck the chips — so the fact it states and the
+   * chips beside it can never disagree; every other law reads 0.
+   */
+  diverted: {data: number, holder: boolean};
   source(channel: EffectForecastSource['channel']): EffectForecastSource;
   exact(source: EffectForecastSource, effects: ReadonlyArray<ActionEffect>, title: string, opts?: {id?: string}): EffectForecastFact;
   deferred(source: EffectForecastSource, effects: ReadonlyArray<ActionEffect>, title: string, opts?: {id?: string}): EffectForecastFact;
+  /** A fact of the law that WILL NOT pay — the reason named (no holder for the diverted data). */
+  skipped(source: EffectForecastSource, effects: ReadonlyArray<ActionEffect>, title: string, opts?: {id?: string, note?: string}): EffectForecastFact;
   stockGain(resource: Resource, amount: number): ActionEffect;
   productionChange(resource: Resource, delta: number): ActionEffect;
   drawGain(count: number): ActionEffect;
+  cardResourceGain(resource: CardResource, amount: number): ActionEffect;
 };
+
+/**
+ * A TERRAFORMING UNIT the player is ABOUT TO GAIN — one scale step (oxygen or
+ * temperature: `steps` is the PRINTED count, never the count the ceiling
+ * leaves) or one tile kind with its count (a greenery; an ocean — two for a
+ * two-ocean card). Venus is not a unit of this family: no printed law names
+ * it. Handed to {@link ResolutionPassive.divertTerraforming} by the engine's
+ * entries BEFORE the mutation, so the law may put something else in its place.
+ */
+export type TerraformingUnit =
+  | {kind: 'parameter', parameter: GlobalParameter.OXYGEN | GlobalParameter.TEMPERATURE, steps: number}
+  | {kind: 'tile', tile: 'greenery' | 'ocean', count: number};
+
+/**
+ * WHERE the unit comes from — the same vocabulary every prompt names its asker
+ * with (`ChoiceContextSource`): a card, a standard project / action, a colony
+ * (Europa's build bonus), a cell (the Hellas pole's ocean, Vastitas' temperature),
+ * the system (the final greenery placement). Derived by the dispatcher from the
+ * live event scope when an entry hands none; a journal that names the origin
+ * reads this, never a guess from the stack.
+ */
+export type TerraformingOrigin = ChoiceContextSource;
 
 /**
  * What a CARD-PLAYED passive's forecast twin reads (`ResolutionPassive.
@@ -323,6 +358,37 @@ export type ResolutionPassive = {
    * no fact for it.
    */
   tagBonus?(player: IPlayer, tag: Tag, influence: number): number;
+  /**
+   * THE THIRD KIND OF HOOK — a REPLACEMENT (RX35 Diverted Research: «each step
+   * of oxygen or temperature and each greenery or ocean tile you would gain
+   * becomes 1 data»). Not reactive (`onTilePlaced` / `onCardPlayed` answer
+   * AFTER the event — the tile already lies, the rating already rose) and not
+   * a query (`cardDiscount` and its kin are READ, never fire): the engine asks
+   * it BEFORE the mutation, at every door a scale step or a greenery / ocean
+   * tile goes through (`Game.increaseOxygenLevel` / `increaseTemperature`
+   * ahead of the ceiling check, the behavior executor's tile keys, the
+   * `Place*Tile` steps, the conversions, the standard projects, a cell's
+   * pay-to-use bonus, the final greenery), and `true` means THE ENGINE DOES
+   * NOT PERFORM THE UNIT — the hook has already queued what stands instead.
+   * Nothing downstream of a performed unit happens then: no rating, no bonus
+   * step, no party reward, no cell bonus, no reactor, no event of the planet.
+   *
+   * The ONE dispatcher is `ParliamentHandler.divertTerraforming`: it gates
+   * (ENACTED · `participates(player, 'enactment')` · not the World
+   * Government's phase; the entries themselves keep an `unrewarded` move and
+   * a lowering out) and opens the resolution's effect scope on the channel
+   * `terraforming-diverted`, so whatever the hook queues lands as the law's
+   * own record. A hook accrues its units into the family's ONE accumulator
+   * (`resolutions/DivertedTerraforming.ts`) — every unit of one operation
+   * becomes ONE question «where», never one per unit (Р4).
+   *
+   * Its forecast twin is the family's ONE exit pass over every preview
+   * (`models/divertedTerraforming.ts`): the chips are STRUCK and read the
+   * data, the «where» step is pre-collected, and `forecast` states the
+   * replacement from `ctx.diverted` — the contract guard refuses the hook on a
+   * law the pass does not know (`divertsTerraforming` is the pass's gate).
+   */
+  divertTerraforming?(player: IPlayer, unit: TerraformingUnit, origin: TerraformingOrigin | undefined): boolean;
   forecast(ctx: ResolutionForecastContext): Array<EffectForecastFact>;
 };
 

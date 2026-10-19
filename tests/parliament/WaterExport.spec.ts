@@ -571,6 +571,13 @@ describe('WaterExport', () => {
       expect(WATER_EXPORT.passive?.forecast({
         player: p1, grants: [], tiles: [],
         source: (channel) => ({kind: 'resolution', name: WATER_EXPORT_ID, owner: p1.color, channel}),
+        diverted: {data: 0, holder: false},
+        skipped: () => {
+          throw new Error('not called');
+        },
+        cardResourceGain: () => {
+          throw new Error('not called');
+        },
         exact: () => {
           throw new Error('not called');
         },

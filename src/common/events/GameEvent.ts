@@ -236,6 +236,13 @@ export type EventTrigger =
   | 'delta-advance' // one committed advance on the Delta Project («Гидросеть») track
   | 'delegates-discarded' // Turmoil Redux: the sitting's refresh sent the player's delegates home off an UNENACTED resolution
   | 'ruling-party-changed' // Turmoil Redux: the sitting's enactment put a NEW party in power (TR62 Tharsis Alliance draws a card)
+  /**
+   * Turmoil Redux: the enacted law REPLACED a terraforming unit the seat was about to gain — a scale step or a
+   * greenery / ocean tile — with something else BEFORE the engine performed it (RX35 Diverted Research: 1 data
+   * apiece). The marker's children are the replacement's own records (the data landing on the chosen card, or the
+   * named loss); no `global-parameter-changed` / `tile-placed` stands beside them — nothing of the planet moved.
+   */
+  | 'terraforming-diverted'
   | 'automa-corporation'; // a MarsBot corporation's printed effect fired (Rule Book B)
 
 /**

@@ -28,6 +28,12 @@ import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {SelectColony} from '../../src/server/inputs/SelectColony';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 import {OrOptions} from '../../src/server/inputs/OrOptions';
+import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
+import {effectForecastForPlay} from '../../src/server/models/effectForecast';
+import {allForecastFacts} from '../../src/common/models/EffectForecastModel';
+import {resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
+import {Supercomputer} from '../../src/server/cards/turmoilRedux/Supercomputer';
+import {Asteroid} from '../../src/server/cards/base/Asteroid';
 import {AndOptions} from '../../src/server/inputs/AndOptions';
 import {IProjectCard} from '../../src/server/cards/IProjectCard';
 import {Dirigibles} from '../../src/server/cards/venusNext/Dirigibles';
@@ -308,6 +314,34 @@ function checkReporting(definition: ResolutionDefinition, run: Run, condition: {
  * immediate step and no passive / action would leave the sitting's REWARD stage empty (the stage reads the
  * passive or names the action's address — `quietRewardPoseOf` in `consoleSittingFlow.ts`).
  */
+function checkReplacingPass(definition: ResolutionDefinition): Array<string> {
+  const failures: Array<string> = [];
+  const name = label(definition);
+  const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+  game.phase = Phase.ACTION;
+  game.parliament!.enacted = resolutionInstanceId(definition.id, 0);
+  player.playedCards.push(new Supercomputer());
+  const card = new Asteroid();
+  const preview = cardPlayPreview(player, card);
+  const chips = preview.branches[0]?.effects ?? [];
+  const struck = chips.find((e) => e.icon === 'temperature');
+  if (struck?.diverted === undefined || struck.diverted.resolution !== definition.id) {
+    failures.push(`${name}: a replacing passive whose exit pass does not strike the printed temperature step in its name`);
+  }
+  if (chips.some((e) => e.icon === 'tr' && e.implied === true)) {
+    failures.push(`${name}: a struck scale step still states an implied rating`);
+  }
+  const where = (preview.branches[0]?.steps ?? []).find((s) => s.kind === 'input' && s.input.type === 'card');
+  if (where === undefined || where.kind !== 'input' || where.for?.source?.kind !== 'resolution' || where.for.source.resolution !== definition.id) {
+    failures.push(`${name}: the «where» of the replaced unit is not pre-collected under the law's own address`);
+  }
+  const facts = allForecastFacts(effectForecastForPlay(player, card, preview)).filter((f) => f.source.kind === 'resolution' && f.source.name === definition.id);
+  if (!facts.some((f) => f.source.channel === 'terraforming-diverted')) {
+    failures.push(`${name}: the law's forecast states no fact on the 'terraforming-diverted' channel for a struck step`);
+  }
+  return failures;
+}
+
 function checkSeam(definition: ResolutionDefinition): Array<string> {
   const failures: Array<string> = [];
   const name = label(definition);
@@ -324,6 +358,12 @@ function checkSeam(definition: ResolutionDefinition): Array<string> {
   }
   if (definition.action !== undefined && typeof definition.action.preview !== 'function') {
     failures.push(`${name}: an action without a preview`);
+  }
+  // …and a REPLACING passive (RX35) without the family's exit pass lets the composer promise the step the law takes:
+  // enacted, the pass must STRIKE a printed scale chip in its name, pre-collect the «where», and the law's own
+  // forecast must state the replacement off the pass (`ctx.diverted`) on the live channel.
+  if (definition.passive?.divertTerraforming !== undefined) {
+    failures.push(...checkReplacingPass(definition));
   }
   if (definition.passive !== undefined && (definition.text.passive ?? '') === '') {
     failures.push(`${name}: a passive without its declaration text (the REWARD stage reads it)`);

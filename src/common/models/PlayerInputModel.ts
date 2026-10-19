@@ -1,7 +1,7 @@
 import {CardModel} from './CardModel';
 import type {PatentSaleModel} from './PatentSaleModel';
 import {ColonyModel} from './ColonyModel';
-import type {ActionEffect, VictoryPointsDelta} from './ActionPreviewModel';
+import type {ActionEffect, ActionPreviewStep, VictoryPointsDelta} from './ActionPreviewModel';
 import type {EffectForecast} from './EffectForecastModel';
 import type {ActionFutilityVerdict} from './ActionFutilityModel';
 import type {BotAttackPromptMeta} from './BotAttackPromptModel';
@@ -469,6 +469,15 @@ export type DraftPromptMeta = {
 export type FinalGreeneryPromptMeta = {
   /** Legal spaces left for a greenery — a board rule the client cannot know. */
   spaces: number;
+  /**
+   * THE GREENERY IS REPLACED BY A LAW (Turmoil Redux RX35 Diverted Research,
+   * standing through the final placement — decision Р2): the plants buy
+   * `data` data on one of the seat's cards instead of a tile, so the
+   * placing branch is a plain OPTION (no cell), followed by the shared
+   * «where» pick. The session reads «8 [plants] → 1 [data]» off this, never a
+   * cell count.
+   */
+  diverted?: {resolution: string, data: number};
 }
 
 /**
@@ -845,6 +854,12 @@ export type OptionMetadata = {
    */
   forecast?: EffectForecast;
   /**
+   * Pre-collected steps a ONE-PRESS option asks AFTER the press, in live order (Turmoil Redux RX35: the «where» pick
+   * of the data a replacing law turns the conversion's step or tile into). The verb's mini-stage hosts them and posts
+   * the option's answer and theirs as one batch; absent for an option the press answers whole.
+   */
+  steps?: ReadonlyArray<ActionPreviewStep>;
+  /**
    * NO EFFECT (`ActionFutilityModel.ts`): the option is legal and changes nothing right now — the heat conversion at the
    * temperature's maximum. The console never counts, warns about or paints it as an opportunity, and never blocks it.
    */
@@ -892,6 +907,16 @@ export type SelectProjectCardToPlayModel = BaseInputModel & {
  * or accepts. Serialized on `SelectCard.toModel` (nesting-safe), not centrally.
  */
 export type ResourceGainPromptMeta = {
+  /**
+   * THE UNITS ARE A LAW'S REPLACEMENT of the seat's OWN terraforming (Turmoil
+   * Redux RX35 Diverted Research: the data the operation's steps and tiles
+   * became) — asked inside the seat's own action, never at a sitting. A host
+   * reads it to tell the pick from the same law's ENACTMENT payout (identical
+   * `choiceContext.source`): no sitting announce, no influence reading under
+   * the source dock, the receive scene of a card's own payout, the token born
+   * on the struck icon of the operation. `resolution` is the law's catalog id.
+   */
+  diverted?: {resolution: string};
   /**
    * How many land. ABSENT for a pick made BEFORE its amount exists — a card
    * whose reward depends on the cell chosen after the pick (Arboretum: «1 data

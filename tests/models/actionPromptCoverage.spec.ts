@@ -14,6 +14,10 @@ import {SelectPayment} from '../../src/server/inputs/SelectPayment';
 import {SelectPaymentDeferred} from '../../src/server/deferredActions/SelectPaymentDeferred';
 import {AndOptions} from '../../src/server/inputs/AndOptions';
 import {StormCraftIncorporated} from '../../src/server/cards/colonies/StormCraftIncorporated';
+import {Supercomputer} from '../../src/server/cards/turmoilRedux/Supercomputer';
+import {DIVERTED_RESEARCH_ID} from '../../src/server/parliament/resolutions/reds/DivertedResearch';
+import {resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
+import {Phase} from '../../src/common/Phase';
 import {AddressableInput, PreselectAddress, addressVerdict} from '../../src/common/inputs/preselectAddress';
 import {Payment} from '../../src/common/inputs/Payment';
 import {ActionPreviewBranch, ActionPreviewStep} from '../../src/common/models/ActionPreviewModel';
@@ -136,7 +140,30 @@ function forEachActionCard(fn: (Factory: new () => ICard, module: GameModule) =>
  * GLOBAL PARAMETER caps out (a raise becomes pointless and the card drops that
  * option) and when the player is broke.
  */
-type Profile = {label: string, apply: (game: IGame, player: TestPlayer, card: ICard & IActionCard) => void};
+type Profile = {
+  label: string,
+  options?: Record<string, unknown>,
+  /** The cards this profile is ABOUT — the rest are skipped under it (absent = every card). */
+  only?: (card: ICard & IActionCard) => boolean,
+  apply: (game: IGame, player: TestPlayer, card: ICard & IActionCard) => void,
+};
+
+/** An action that raises oxygen / temperature or places an ocean / greenery — declared, or a bespoke door in scope. */
+const BESPOKE_TERRAFORMING_ACTIONS: ReadonlySet<CardName> = new Set([
+  CardName.AQUIFER_PUMPING, CardName.WATER_IMPORT_FROM_EUROPA, CardName.COMET_AIMING, CardName.DIRECTED_IMPACTORS,
+  CardName.ICY_IMPACTORS, CardName.FLOATING_BIODOMES,
+]);
+function actionTerraforms(card: ICard & IActionCard): boolean {
+  const b = card.actionBehavior;
+  const sub = [b, ...(b?.or?.behaviors ?? [])];
+  return BESPOKE_TERRAFORMING_ACTIONS.has(card.name) || sub.some((x) => x !== undefined &&
+    ((x.global?.oxygen ?? 0) > 0 || (x.global?.temperature ?? 0) > 0 || x.ocean !== undefined || x.greenery !== undefined));
+}
+
+/** The profiles that walk this card. */
+function profilesFor(card: ICard & IActionCard): ReadonlyArray<Profile> {
+  return PROFILES.filter((p) => p.only === undefined || p.only(card));
+}
 
 const PROFILES: ReadonlyArray<Profile> = [
   {
@@ -175,6 +202,22 @@ const PROFILES: ReadonlyArray<Profile> = [
       }
     },
   },
+  {
+    // Turmoil Redux RX35: a law that REPLACES every step of oxygen / temperature and every greenery / ocean tile with
+    // data stands enacted, and a data holder is on the table — every terraforming action's preview now promises a
+    // «where» pick (the law's own prompt, at the back of the line) and NO cell; the live chain must ask exactly that.
+    label: 'diverting law',
+    options: {turmoilReduxExpansion: true, coloniesExtension: true},
+    only: actionTerraforms,
+    apply: (game, player, card) => {
+      game.phase = Phase.ACTION;
+      game.parliament!.enacted = resolutionInstanceId(DIVERTED_RESEARCH_ID, 0);
+      // The holder — unless the card under test IS the holder (a tableau holds one of a name).
+      if (card.name !== CardName.SUPERCOMPUTER) {
+        player.playedCards.push(new Supercomputer());
+      }
+    },
+  },
   /*
    * DELIBERATELY ABSENT — «Reds in power, nothing that can pay the tax»:
    *
@@ -198,7 +241,7 @@ const PROFILES: ReadonlyArray<Profile> = [
 ];
 
 function setup(Factory: new () => ICard, profile: Profile): {game: IGame, player: TestPlayer, card: ICard & IActionCard} {
-  const [game, player, opponent] = testGame(2);
+  const [game, player, opponent] = testGame(2, profile.options);
   const card = new Factory() as ICard & IActionCard;
   player.playedCards.push(card);
   player.megaCredits = 100;
@@ -335,7 +378,7 @@ describe('action prompt coverage (the pre-collect contract)', () => {
     const failures: Array<string> = [];
 
     forEachActionCard((Factory, module) => {
-      for (const profile of PROFILES) {
+      for (const profile of profilesFor(new Factory() as ICard & IActionCard)) {
         const a = setup(Factory, profile);
         if (!a.card.canAct(a.player)) {
           continue;
@@ -380,7 +423,7 @@ describe('action prompt coverage (the pre-collect contract)', () => {
     const failures: Array<string> = [];
 
     forEachActionCard((Factory, module) => {
-      for (const profile of PROFILES) {
+      for (const profile of profilesFor(new Factory() as ICard & IActionCard)) {
         const a = setup(Factory, profile);
         if (!a.card.canAct(a.player)) {
           continue;
@@ -446,7 +489,7 @@ describe('action prompt coverage (the pre-collect contract)', () => {
     const scanned = new Set<CardName>();
 
     forEachActionCard((Factory, module) => {
-      for (const profile of PROFILES) {
+      for (const profile of profilesFor(new Factory() as ICard & IActionCard)) {
         const a = setup(Factory, profile);
         scanned.add(a.card.name);
         if (!a.card.canAct(a.player)) {
@@ -519,7 +562,7 @@ describe('action prompt coverage (the pre-collect contract)', () => {
     const scanned = new Set<CardName>();
 
     forEachActionCard((Factory) => {
-      for (const profile of PROFILES) {
+      for (const profile of profilesFor(new Factory() as ICard & IActionCard)) {
         const a = setup(Factory, profile);
         scanned.add(a.card.name);
         if (!a.card.canAct(a.player)) {
@@ -620,7 +663,7 @@ describe('action prompt coverage (the pre-collect contract)', () => {
     const scanned = new Set<CardName>();
 
     forEachActionCard((Factory, module) => {
-      for (const profile of PROFILES) {
+      for (const profile of profilesFor(new Factory() as ICard & IActionCard)) {
         const a = setup(Factory, profile);
         scanned.add(a.card.name);
         if (!a.card.canAct(a.player)) {

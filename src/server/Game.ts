@@ -61,6 +61,7 @@ import {OCEAN_TILES, TileType} from '../common/TileType';
 import {Turmoil} from './turmoil/Turmoil';
 import {Parliament} from './parliament/Parliament';
 import {ParliamentHandler} from './parliament/ParliamentHandler';
+import {caughtAtNet} from './parliament/resolutions/DivertedTerraforming';
 import {ParliamentPhase} from './parliament/ParliamentPhase';
 import {ChairmanSeat} from './parliament/quests/ChairmanSeat';
 import {PoliticalOps, politicalOpsOf} from './politics/PoliticalOps';
@@ -1640,9 +1641,11 @@ export class Game implements IGame, Logger {
 
   // Part of final greenery placement.
   public canPlaceGreenery(player: IPlayer): boolean {
+    // Under a law that REPLACES the greenery (RX35, standing through the final placement — decision Р2) the plants
+    // buy data, so no cell is needed: the price alone gates.
     return !this.donePlayers.has(player.id) &&
             player.plants >= player.plantsNeededForGreenery &&
-            this.board.getAvailableSpacesForGreenery(player).length > 0;
+            (ParliamentHandler.divertsTerraforming(player) || this.board.getAvailableSpacesForGreenery(player).length > 0);
   }
 
   // Called when a player cannot or chose not to place any more greeneries.
@@ -1789,6 +1792,12 @@ export class Game implements IGame, Logger {
   }
 
   public increaseOxygenLevel(player: IPlayer, increments: -2 | -1 | 1 | 2, options?: ParameterMoveOptions): void {
+    // Turmoil Redux (RX35): a law may REPLACE the step the seat would gain — asked BEFORE the ceiling («even if the
+    // parameter is maxed»), for a raise somebody is credited for (a lowering and an unrewarded move are nobody's gain).
+    if (increments > 0 && options?.unrewarded !== true &&
+        ParliamentHandler.divertTerraforming(player, {kind: 'parameter', parameter: GlobalParameter.OXYGEN, steps: increments})) {
+      return undefined;
+    }
     if (this.oxygenLevel >= constants.MAX_OXYGEN_LEVEL) {
       return undefined;
     }
@@ -1974,6 +1983,11 @@ export class Game implements IGame, Logger {
   }
 
   public increaseTemperature(player: IPlayer, increments: -2 | -1 | 1 | 2 | 3, options?: ParameterMoveOptions): undefined {
+    // Turmoil Redux (RX35): the replacing law stands BEFORE the ceiling — see `increaseOxygenLevel`.
+    if (increments > 0 && options?.unrewarded !== true &&
+        ParliamentHandler.divertTerraforming(player, {kind: 'parameter', parameter: GlobalParameter.TEMPERATURE, steps: increments})) {
+      return undefined;
+    }
     if (this.temperature >= constants.MAX_TEMPERATURE) {
       return undefined;
     }
@@ -2790,8 +2804,9 @@ export class Game implements IGame, Logger {
       player.stock.add(Resource.HEAT, count, {log: true});
       return {kind: 'stock', resource: Resource.HEAT};
     case SpaceBonus.OCEAN:
-      // Hellas special requirements ocean tile
-      if (this.canAddOcean()) {
+      // Hellas special requirements ocean tile. Under a law that REPLACES the ocean (RX35) the purchase is offered
+      // at nine oceans too — it buys 1 data, and the cell's dossier said so before the placement.
+      if (this.canAddOcean() || ParliamentHandler.divertsTerraforming(player)) {
         this.defer(new SelectPaymentDeferred(player, constants.HELLAS_BONUS_OCEAN_COST, {
           title: 'Select how to pay for placement bonus ocean',
           skipIfUnaffordable: 'The ocean placement bonus is skipped — ${0} cannot pay ${1} M€',
@@ -2818,7 +2833,8 @@ export class Game implements IGame, Logger {
       this.defer(cardBonus(CardResource.SCIENCE));
       return {kind: 'other'};
     case SpaceBonus.TEMPERATURE_4MC:
-      if (this.getTemperature() < constants.MAX_TEMPERATURE) {
+      // …and the Vastitas step likewise: the replacing law takes the step the ceiling would refuse.
+      if (this.getTemperature() < constants.MAX_TEMPERATURE || ParliamentHandler.divertsTerraforming(player)) {
         this.defer(new SelectPaymentDeferred(
           player,
           constants.VASTITAS_BOREALIS_NOVA_BONUS_TEMPERATURE_COST,
@@ -2856,6 +2872,14 @@ export class Game implements IGame, Logger {
   public addGreenery(
     player: IPlayer, space: Space,
     shouldRaiseOxygen: boolean = true): undefined {
+    // THE NET (RX35): a seat under a law that REPLACES the greenery must never reach the seating door outside the
+    // World Government's phase — every entry diverts the tile before a cell is asked. If one still does, the rule
+    // holds here (the tile is diverted, nothing is seated) and the miss is counted and named (`caughtAtNet`).
+    if (this.phase !== Phase.SOLAR && ParliamentHandler.divertsTerraforming(player)) {
+      caughtAtNet(this, player, 'greenery');
+      ParliamentHandler.divertTerraforming(player, {kind: 'tile', tile: 'greenery', count: 1});
+      return undefined;
+    }
     this.addTile(player, space, {
       tileType: TileType.GREENERY,
     });
@@ -2890,6 +2914,12 @@ export class Game implements IGame, Logger {
   }
 
   public addOcean(player: IPlayer, space: Space): void {
+    // THE NET (RX35) — see `addGreenery`.
+    if (this.phase !== Phase.SOLAR && ParliamentHandler.divertsTerraforming(player)) {
+      caughtAtNet(this, player, 'ocean');
+      ParliamentHandler.divertTerraforming(player, {kind: 'tile', tile: 'ocean', count: 1});
+      return;
+    }
     if (this.canAddOcean() === false) {
       return;
     }

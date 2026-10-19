@@ -10,6 +10,8 @@ import {AutomaTilePlacer} from '../automa/AutomaTilePlacer';
 import {PlacementIllegalReason} from '../../common/inputs/PlacementIllegalReason';
 import {PlacementContext} from '../../common/models/PlayerInputModel';
 import {TileType} from '../../common/TileType';
+import * as divertedGate from '../parliament/divertedTerraformingGate';
+import {TerraformingOrigin} from '../parliament/resolutions/IResolution';
 
 type Options = {
   title?: string | Message,
@@ -45,6 +47,13 @@ export class PlaceOceanTile extends DeferredAction<Space | undefined> {
   }
 
   public execute() {
+    // Turmoil Redux (RX35): a law may REPLACE the ocean of the CREDITED player — asked FIRST, before the ceiling
+    // (so Whales takes no animal: the ocean never reaches its no-ocean branch) and before any cell; the chain
+    // continues as for «no ocean». A bot chooser (Icy Impactors) changes nothing: the credited seat is asked.
+    if (divertedGate.divertTerraforming(this.creditedPlayer, {kind: 'tile', tile: 'ocean', count: 1}, this.origin())) {
+      this.creditedPlayer.defer(this.cb(undefined));
+      return undefined;
+    }
     if (!this.player.game.canAddOcean()) {
       const whales = this.creditedPlayer.tableau.get(CardName.WHALES);
       if (whales !== undefined) {
@@ -106,6 +115,12 @@ export class PlaceOceanTile extends DeferredAction<Space | undefined> {
         this.creditedPlayer.defer(this.cb(space));
         return undefined;
       });
+  }
+
+  /** Who asks for the tile, as the prompt would name it (the card; else the placement's own source). */
+  private origin(): TerraformingOrigin | undefined {
+    const card = this.options.sourceCard;
+    return card !== undefined ? {kind: 'card', card} : this.options.placementContext?.source;
   }
 
   private getTitle(type: PlacementType) {

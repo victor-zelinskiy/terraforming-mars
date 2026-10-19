@@ -9,6 +9,7 @@ import {Resource} from '../../../common/Resource';
 import {PlaceOceanTile} from '../../deferredActions/PlaceOceanTile';
 import {intersection} from '../../../common/utils/utils';
 import {createMarsSelectSpace} from '../../boards/marsSelectSpaceHelper';
+import * as divertedGate from '../../parliament/divertedTerraformingGate';
 import {Size} from '../../../common/cards/render/Size';
 import {Tag} from '../../../common/cards/Tag';
 import {Phase} from '../../../common/Phase';
@@ -70,8 +71,10 @@ export class PolderTechDutch extends CorporationCard implements ICorporationCard
       },
     }))
       .andThen((space) => {
-        // Should not happen.
         if (space === undefined) {
+          // No ocean landed — because a law REPLACED it (Turmoil Redux RX35): the greenery beside it is then the
+          // law's too, a unit of its own (nothing to place beside nothing). Without the law this branch is unreachable.
+          divertedGate.divertTerraforming(player, {kind: 'tile', tile: 'greenery', count: 1}, {kind: 'corporation', card: this.name});
           return;
         }
         const greenerySpaces = board.getAvailableSpacesOnLand(player);

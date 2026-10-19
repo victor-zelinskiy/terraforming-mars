@@ -32,6 +32,7 @@ import {
   BranchFutilityClaim, futilityOfBranches, noTarget, parameterMaxed, zeroYield,
 } from '../cards/actionFutilities';
 import {subAvailability} from './actionPreview';
+import {divertedFutility, divertingLaw, trSourceNamesDivertedUnit} from './divertedTerraforming';
 import {milestoneThreshold} from '../milestones/IMilestone';
 import {QuestTracker} from '../parliament/quests/QuestTracker';
 import {asArray} from '../../common/utils/utils';
@@ -56,6 +57,10 @@ const NOT_A_YIELD: ReadonlySet<string> = new Set(['spend', 'log', 'title', 'or']
 function yieldOf(player: IPlayer, card: ICard, behavior: Behavior): BehaviorYield {
   const counter = new Counter(player, card);
   const empties: Array<ActionFutilityVerdict> = [];
+  // Under a law that REPLACES terraforming (RX35) a raise of oxygen / temperature, an ocean and a greenery are judged
+  // by the HOLDERS of the data they become, never by the ceiling: a step at its maximum is a yield then.
+  const diverted = divertedFutility(player);
+  const diverting = divertingLaw(player) !== undefined;
   for (const key of Object.keys(behavior) as Array<keyof Behavior>) {
     if (NOT_A_YIELD.has(key) || behavior[key] === undefined) {
       continue;
@@ -72,6 +77,13 @@ function yieldOf(player: IPlayer, card: ICard, behavior: Behavior): BehaviorYiel
         if (steps < 0) {
           return 'yields';
         }
+        if (diverting && parameter !== 'venus') {
+          if (diverted === undefined) {
+            return 'yields';
+          }
+          empties.push(diverted);
+          continue;
+        }
         const maxed = parameterMaxed(player, parameter);
         if (maxed === undefined) {
           return 'yields';
@@ -80,7 +92,19 @@ function yieldOf(player: IPlayer, card: ICard, behavior: Behavior): BehaviorYiel
       }
       break;
     }
-    case 'ocean': {
+    case 'ocean':
+    case 'greenery': {
+      if (diverting) {
+        if (diverted === undefined) {
+          return 'yields';
+        }
+        empties.push(diverted);
+        break;
+      }
+      if (key === 'greenery') {
+        // A tile is a yield at any oxygen (its own VP, its adjacency, the Redux revision's rating).
+        return 'yields';
+      }
       const maxed = parameterMaxed(player, 'oceans');
       if (maxed === undefined) {
         return 'yields';
@@ -278,6 +302,11 @@ export function standardProjectFutility(
   const tr = card.tr;
   if (hasExtras || hasTarget || tr === undefined) {
     return undefined;
+  }
+  // Under a law that REPLACES terraforming (RX35) the project's unit becomes data: only a want of a holder makes it
+  // nothing — and the holder is what the pre-collected «where» step already read.
+  if (trSourceNamesDivertedUnit(tr) && divertingLaw(player) !== undefined) {
+    return divertedFutility(player);
   }
   const verdicts: Array<ActionFutilityVerdict> = [];
   for (const [key, value] of Object.entries(tr)) {

@@ -86,8 +86,11 @@ export class QuestTracker {
       return false;
     }
     // An enacted resolution's effect — including the result of its action —
-    // never counts (decision Q5).
-    if (events.hasSourceOnStack('resolution')) {
+    // never counts (decision Q5). THE ONE NAMED EXCEPTION (RX35, decision Р6):
+    // a unit a law REPLACED inside the seat's own action — the data its own
+    // terraforming became — is still the seat's deed (it would have been a
+    // step or a tile of its own), read by the law's channel, never by its id.
+    if (events.hasSourceOnStack('resolution') && !events.hasEffectTriggerOnStack('terraforming-diverted')) {
       return false;
     }
     return true;
