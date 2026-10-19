@@ -209,7 +209,7 @@ import {PhysicsComplex} from '../../../src/server/cards/base/PhysicsComplex';
 import {BiomassCombustors} from '../../../src/server/cards/base/BiomassCombustors';
 import {PowerPlant} from '../../../src/server/cards/base/PowerPlant';
 import {StrategicShift} from '../../../src/server/cards/turmoilRedux/StrategicShift';
-import {newProjectCard} from '../../../src/server/createCard';
+import {newPrelude, newProjectCard} from '../../../src/server/createCard';
 import {ALL_MODULE_MANIFESTS} from '../../../src/server/cards/AllManifests';
 import {CardType} from '../../../src/common/cards/CardType';
 import {FusionPower} from '../../../src/server/cards/base/FusionPower';
@@ -6786,6 +6786,103 @@ function infoDossierFixture(name: string): void {
   });
 }
 infoDossierFixture('info-dossier');
+
+// ── «ИНФОРМАЦИЯ» POLISH (the owner's 4K report of 2026-10-19): the WORST honest case of every summary zone at once — a
+//    late campaign-shaped table of two humans and MarsBot, the Hydronetwork in play (a ninth score category), card
+//    PENALTIES (a negative card), generation 10. Blue (Teractor) holds 40 played cards over every zone — actives with
+//    actions, automated cards, events, two preludes; red (Thorgate) a smaller table with its own penalty; the bot a
+//    long played pile. Scores public (`showOtherPlayersVP`) so a rival's whole ledger is drawn, the bot's always is.
+//    For console-info-polish.spec.ts. ──
+{
+  const name = 'info-dossier-rich';
+  const pinned = BOT_TABLE_CORPORATIONS;
+  const [game, seats, bot] = testAutomaMultiplayerGame(2, {
+    startingCorporations: 1, keepInitialCardSelection: true, customCorporationsList: [...pinned],
+    deltaProjectExpansion: true, showOtherPlayersVP: true,
+  });
+  assignPinnedCorporations(name, seats, pinned);
+  answerStartFlow(game, seats);
+  if (game.phase !== Phase.ACTION) {
+    throw new Error(`${name}: expected the action phase, got ${game.phase}`);
+  }
+  game.generation = 10;
+  const [blue, red] = seats;
+  const cards = (names: ReadonlyArray<CardName>) => names.map((n) => {
+    const card = newProjectCard(n) ?? newPrelude(n);
+    if (card === undefined) {
+      throw new Error(`${name}: no card ${n}`);
+    }
+    return card;
+  });
+  blue.playedCards.push(...cards([
+    // actives (a dozen with actions, a few effects)
+    CardName.SEARCH_FOR_LIFE, CardName.REGOLITH_EATERS, CardName.SECURITY_FLEET, CardName.IRONWORKS, CardName.DEVELOPMENT_CENTER,
+    CardName.PHYSICS_COMPLEX, CardName.BIRDS, CardName.FISH, CardName.PETS, CardName.TARDIGRADES, CardName.DECOMPOSERS,
+    CardName.ARCTIC_ALGAE, CardName.MARS_UNIVERSITY, CardName.EARTH_OFFICE, CardName.SPACE_STATION, CardName.ADVANCED_ALLOYS,
+    CardName.OPTIMAL_AEROBRAKING, CardName.ROVER_CONSTRUCTION,
+    // automated
+    CardName.POWER_PLANT, CardName.MINE, CardName.SOLAR_POWER, CardName.TREES, CardName.HEATHER, CardName.GRASS,
+    CardName.LICHEN, CardName.MOSS, CardName.BUILDING_INDUSTRIES, CardName.GEOTHERMAL_POWER, CardName.TECTONIC_STRESS_POWER,
+    CardName.HACKERS,
+    // events
+    CardName.COMET, CardName.BIG_ASTEROID, CardName.ASTEROID, CardName.LAND_CLAIM, CardName.INVENTION_CONTEST,
+    CardName.LAGRANGE_OBSERVATORY, CardName.SABOTAGE,
+    // preludes
+    CardName.BIOFUELS, CardName.DONATION,
+  ]));
+  red.playedCards.push(...cards([
+    CardName.POWER_PLANT, CardName.MINE, CardName.RESTRICTED_AREA, CardName.ANTS, CardName.ROBOTIC_WORKFORCE,
+    CardName.COMET, CardName.HACKERS, CardName.ACQUIRED_COMPANY,
+  ]));
+  for (const card of blue.playedCards.asArray()) {
+    if (card.resourceType !== undefined) {
+      card.resourceCount = 3;
+    }
+  }
+  blue.actionsThisGeneration.add(CardName.SECURITY_FLEET);
+  blue.actionsThisGeneration.add(CardName.IRONWORKS);
+  const tiles: ReadonlyArray<[cities: number, greeneries: number]> = [[3, 4], [1, 2], [2, 2]];
+  [blue, red, bot].forEach((p, i) => {
+    for (let c = 0; c < tiles[i][0]; c++) {
+      addCity(p);
+    }
+    for (let g = 0; g < tiles[i][1]; g++) {
+      addGreenery(p);
+    }
+  });
+  blue.deltaProjectData!.position = 6;
+  red.deltaProjectData!.position = 3;
+  game.claimedMilestones.push({player: blue, milestone: game.milestones[0]});
+  game.claimedMilestones.push({player: red, milestone: game.milestones[1]});
+  game.fundedAwards.push({player: blue, award: game.awards[0]});
+  game.fundedAwards.push({player: red, award: game.awards[1]});
+  blue.setTerraformRating(39);
+  red.setTerraformRating(35);
+  bot.setTerraformRating(37);
+  blue.megaCredits = 54;
+  red.megaCredits = 66;
+  const automa = game.automa;
+  if (automa !== undefined) {
+    automa.playedPile.push(
+      CardName.POWER_PLANT, CardName.MINE, CardName.SOLAR_POWER, CardName.TREES, CardName.HEATHER, CardName.COMET,
+      CardName.BIG_ASTEROID, CardName.ASTEROID, CardName.GRASS, CardName.LICHEN, CardName.MOSS, CardName.SPACE_STATION,
+      CardName.EARTH_OFFICE, CardName.BUILDING_INDUSTRIES, CardName.GEOTHERMAL_POWER, CardName.LAND_CLAIM,
+    );
+    // Its bonus piles hold cards too: two resolved bonus cards in the open discard, one destroyed — the deck they
+    // left keeps the rest (the bonus route's three piles are all objects).
+    const resolved = automa.bonusDeck.filter((c): c is {kind: 'bonus', id: BonusCardId} => c.kind === 'bonus').slice(0, 3);
+    automa.bonusDeck = automa.bonusDeck.filter((c) => !resolved.includes(c as {kind: 'bonus', id: BonusCardId}));
+    automa.bonusDiscard.push(...resolved.slice(0, 2).map((c) => c.id));
+    automa.destroyedBonusCards.push(...resolved.slice(2).map((c) => c.id));
+  }
+  runAllActions(game);
+  const breakdown = blue.getVictoryPoints();
+  if (game.automa === undefined || game.generation !== 10 || blue.playedCards.length < 40 || breakdown.total <= 0 ||
+      game.activePlayer.id !== blue.id) {
+    throw new Error(`${name}: expected blue on the move at generation 10 with 40 cards — got gen=${game.generation} played=${blue.playedCards.length} active=${game.activePlayer.color}`);
+  }
+  write(name, game);
+}
 
 // ── TR65 · STRATEGIC SHIFT («Смена стратегии»): the card in blue's hand beside FOUR cards with a requirement (a
 //    temperature, a parameter at 2 °C, an oxygen, a tag count — every kind reads alike) and THREE without — the multi

@@ -185,7 +185,6 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-cmdbar')).toContainText(/Открыть: Животное/i);
       // No caption over the column — the chips are the label.
       await expect(satellite.filter({hasText: /Доп\. ресурсы/i})).toHaveCount(0);
-      await expect(page.locator('.con-info__hotkey')).toHaveCount(0);
       await shoot(page, preset, '02-summary-extras-focused');
 
       await key(page, 'Enter', 900); // A → the extras screen

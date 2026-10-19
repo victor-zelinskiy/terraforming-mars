@@ -171,10 +171,6 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-handdock__insp')).toHaveCount(0);
       await expect(page.locator('.con-handdock__status .con-handdock__sep')).toHaveCount(1);
 
-      // NO PER-BLOCK BUTTON BADGES: every section opens through the ring +
-      // A (the contextual hint lives in the ONE bottom bar) — a dedicated
-      // X/LT/RT/L3/R3 badge on a zone title is the retired model.
-      await expect(workspace.locator('.con-info__hotkey')).toHaveCount(0);
 
       // THE EXTRAS SATELLITE: the «Доп. ресурсы» zone IS the rail column —
       // it exists only WITH content (an empty seat keeps the lane calm: no

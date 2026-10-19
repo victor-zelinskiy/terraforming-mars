@@ -88,15 +88,19 @@
           <section v-if="viewedIsBot" class="con-info__zone con-info__zone--botdoor con-dossier__zone"
                    :class="zoneStateClass('botdoor')" data-zone="botdoor">
             <h3 class="con-info__block-title">{{ $t('MarsBot screen') }}</h3>
-            <!-- The door's PREVIEW: the decks the algorithm plays from, as the piles themselves with their public counts
-                 (the room behind the door explains their mechanics), and the one line of what else is inside. -->
-            <div class="con-dossier__door" data-dossier-door>
-              <span v-for="pile in botPiles" :key="pile.key" class="con-dossier__pile" :data-dossier-pile="pile.key">
-                <span class="con-dossier__doorpile" :class="{'con-dossier__doorpile--empty': pile.count === 0}" aria-hidden="true"><span></span><span></span><span></span></span>
-                <b class="con-dossier__pilecount">{{ pile.count }}</b>
-                <span class="con-dossier__pilelabel">{{ $t(pile.label) }}</span>
-              </span>
-              <span class="con-info__note con-info__note--door">{{ $t('Decks, tracks, storage rules and the printed board') }}</span>
+            <!-- The door's PREVIEW, in the SAME grammar as a player's plates (the effects plate's medallions: a ringed
+                 symbol, the count, the name) — flipping LB/RB between seats, the bot reads as one more player; its own
+                 presentation (the decks as piles, the printed board, the rules beside their objects) lives INSIDE the
+                 door. The decks the algorithm plays from, with their public counts, and the one line of what is inside. -->
+            <div class="con-deffs con-deffs--bot" data-dossier-door>
+              <div class="con-deffs__families">
+                <div v-for="pile in botPiles" :key="pile.key" class="con-deff" :class="'con-deff--bot-' + pile.key" :data-dossier-pile="pile.key">
+                  <span class="con-deff__disc" aria-hidden="true"><span class="con-deff__glyph">{{ pile.glyph }}</span></span>
+                  <b class="con-deff__count">{{ pile.count }}</b>
+                  <span class="con-deff__label">{{ $t(pile.label) }}</span>
+                </div>
+              </div>
+              <div class="con-deffs__note">{{ $t('Decks, tracks, storage rules and the printed board') }}</div>
             </div>
           </section>
 
@@ -125,19 +129,10 @@
           <section v-if="campaignContract !== undefined" class="con-info__zone con-info__zone--campaign con-dossier__zone"
                    :class="zoneStateClass('campaign')" data-zone="campaign">
             <h3 class="con-info__block-title">{{ $t('Campaign') }}</h3>
-            <div class="con-info__stat-lines">
-              <div class="con-info__stat-line"><span>{{ $t('Mission') }}</span><b class="con-info__mint">{{ campaignMissionText }}</b></div>
-            </div>
-            <div class="con-info__cmp-tprow">
-              <span v-if="campaignViewedTitles.length > 0" class="con-info__ctitles">
-                <img v-for="(t, i) in campaignViewedTitles" :key="i" class="con-info__ctitle" :src="titleArtUrl(t.title)" :alt="$t(titleLabel(t.title))">
-              </span>
-              <b class="con-info__cmp-tp">{{ campaignTpText }}</b>
-            </div>
-            <div class="con-info__note con-info__note--tp">{{ $t(campaignTpNote) }}</div>
-            <div class="con-info__stat-lines">
-              <div class="con-info__stat-line"><span>{{ $t('Corporations') }}</span><b>{{ campaignCorpCount }}</b></div>
-            </div>
+            <ConsoleDossierCampaign :missionSlot="campaignContract.missionSlot" :missionCount="campaignContract.missionCount"
+                                    :board="campaignBoard" :missionText="campaignMissionText"
+                                    :titles="campaignViewedTitles.map((t) => ({art: titleArtUrl(t.title), label: $t(titleLabel(t.title))}))"
+                                    :tpText="campaignTpText" :tpNote="campaignTpNote" :corpCount="campaignCorpCount" />
           </section>
         </div>
       </div>
@@ -346,6 +341,8 @@ import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
 import {MarsBotGuideContext} from '@/client/components/marsbot/marsBotGuide';
 import {marsBotCorpDisplayName, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleMarsBotSections from '@/client/components/console/ConsoleMarsBotSections.vue';
+import ConsoleDossierCampaign from '@/client/components/console/info/ConsoleDossierCampaign.vue';
+import {BoardName} from '@/common/boards/BoardName';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
@@ -358,8 +355,8 @@ import {TitleName} from '@/common/campaign/CampaignTypes';
 import {TITLE_LABEL, titleArtUrl} from '@/client/console/campaign/titleArt';
 import {tpStatusLabel} from '@/client/console/campaign/campaignOverviewModel';
 
-/** How many faces a dossier fan shows (the most recent on top; the rest are its «+K»). */
-const DOSSIER_FACES_PER_STACK = 3;
+/** How many faces a dossier pile shows — ONE, the newest, on top of the paper edges of the rest. */
+const DOSSIER_FACES_PER_STACK = 1;
 
 export default defineComponent({
   name: 'ConsoleInfoMode',
@@ -367,7 +364,7 @@ export default defineComponent({
     ConsoleCampaignOverview, ConsoleMarsBotSections, ConsolePlayedOverlay, ConsoleScoreExplorer, ConsoleExtrasExplorer, ConsoleEffectsExplorer,
     ConsoleInfoParliament, ConsolePartyEffectsStrip, ConsoleArmedEffectsSection, ConsoleWsHead, GamepadGlyph,
     ConsoleDossierScore, ConsoleDossierSealed, ConsoleDossierCards, ConsoleDossierActions, ConsoleDossierEffects, ConsoleDossierParliament,
-    ConsoleInfoActionGallery,
+    ConsoleInfoActionGallery, ConsoleDossierCampaign,
   },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -473,6 +470,11 @@ export default defineComponent({
       // The mission's BOARD belongs in the frame line — «2 из 4 · Элизий».
       const board = campaignState.model?.missions[contract.missionSlot]?.board;
       return board !== undefined ? `${frame} · ${translateText(mapLabelKey(board))}` : frame;
+    },
+    /** The mission's board — its miniature in the zone (absent while the campaign model loads). */
+    campaignBoard(): BoardName | undefined {
+      const contract = this.campaignContract;
+      return contract === undefined ? undefined : campaignState.model?.missions[contract.missionSlot]?.board;
     },
     campaignViewedTitles(): ReadonlyArray<{title: TitleName}> {
       const seat = this.campaignViewedSeat;
@@ -633,15 +635,17 @@ export default defineComponent({
       return dossierEffectFamilies(this.effectsZone, this.armedCount);
     },
     /** The bot door's piles — the public counts of the decks the algorithm plays from (its room explains them). */
-    botPiles(): ReadonlyArray<{key: string, label: string, count: number}> {
+    /** The bot door's medallions — the decks the algorithm plays from, each with a symbol that reads without colour. */
+    botPiles(): ReadonlyArray<{key: string, label: string, count: number, glyph: string}> {
       const automa = this.botAutoma;
       if (automa === undefined) {
         return [];
       }
       return [
-        {key: 'action', label: 'Action deck', count: automa.actionDeckSize},
-        {key: 'bonus', label: 'Bonus deck', count: automa.bonusDeckSize},
-        {key: 'discard', label: 'Bonus discard', count: automa.bonusDiscard.length},
+        {key: 'action', label: 'Action deck', count: automa.actionDeckSize, glyph: '▤'},
+        {key: 'bonus', label: 'Bonus deck', count: automa.bonusDeckSize, glyph: '◈'},
+        {key: 'discard', label: 'Bonus discard', count: automa.bonusDiscard.length, glyph: '↺'},
+        {key: 'destroyed', label: 'Destroyed cards', count: automa.destroyedBonusCards.length, glyph: '✕'},
       ];
     },
     /** The cards that carry the seat's passive effects (tableau order, each once) — the effects plate's coins. */

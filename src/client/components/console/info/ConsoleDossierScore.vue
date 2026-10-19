@@ -1,15 +1,17 @@
 <template>
   <!--
-    THE DOSSIER'S SCORE (TR60 — «ИНФОРМАЦИЯ — ДОСЬЕ, А НЕ ТАБЛИЦА»): the hero of the Information summary, in the score
-    cell's and the finale's ONE language — the award shield, the total as the screen's loudest number, the one
-    segmented bar (one hue per category, widths on the positive total — the ceremony's `.con-eg-cat--*`), and the
-    categories as MEDALLIONS: the category's own symbol in a disc ringed in its hue, the value, the name. A zero
-    stays in the grid as a quiet pose (an LB/RB switch morphs ink, never the layout).
+    THE DOSSIER'S SCORE (TR60 · the Information polish of 2026-10-19 — «сдержанно и дорого»): ONE hero, then a quiet
+    ledger. The TOTAL is the zone's protagonist — the award shield and the number at the scene's largest size, nothing
+    else at its weight; under it the ONE composition bar (a thin instrument: one hue per category, widths on the
+    positive total — the ceremony's `.con-eg-cat--*`), then the categories as a LEDGER in two columns read top-down: the
+    category's own symbol in a small disc ringed in its hue (the colour key the bar uses), the name, a hairline leader,
+    the value in tabular numerals. A zero stays a quiet row (an LB/RB switch morphs ink, never the layout); the hero
+    yields size to a long ledger, never the frame (`--dscore-rows`), so nothing ever stands outside the plate.
     The `data-vpx-*` anchors are the score explorer's SHARED ELEMENTS (`scoreExplorerMotion`): the total and the bar
-    fly between the zones on A / B, so `[data-vpx-total]` keeps the explorer's own structure (number + unit) — the
-    shield stands BESIDE it, never inside.
+    fly between the zones on A / B, and the explorer's grid unfolds out of the ledger — so `[data-vpx-total]` keeps the
+    explorer's own structure (number + unit) and the shield stands BESIDE it, never inside.
   -->
-  <div class="con-dscore" data-dossier-score>
+  <div class="con-dscore" data-dossier-score :style="{'--dscore-rows': rows}" :data-dscore-rows="rows">
     <div class="con-dscore__head">
       <ConsoleVpBadge class="con-dscore__shield" :label="$t('VP')" />
       <div class="con-infovp__totalrow con-dscore__totalrow" data-vpx-total>
@@ -22,14 +24,15 @@
             class="con-infovp__seg" :class="'con-eg-cat--' + seg.accent"
             :style="{width: seg.widthPct + '%'}"></span>
     </div>
-    <div class="con-infovp__legend con-dscore__medals" data-vpx-block :style="{'--dscore-cols': columns}">
+    <div class="con-infovp__legend con-dscore__ledger" data-vpx-block>
       <div v-for="m in medallions" :key="m.key"
-           class="con-infovp__cat con-dscore__medal"
-           :class="['con-eg-cat--' + m.accent, {'con-infovp__cat--zero': m.zero, 'con-dscore__medal--penalty': m.penalty}]"
+           class="con-infovp__cat con-dscore__row"
+           :class="['con-eg-cat--' + m.accent, {'con-infovp__cat--zero': m.zero, 'con-dscore__row--penalty': m.penalty}]"
            :data-dossier-medal="m.key" role="group" :aria-label="$t(m.label) + ': ' + m.value">
         <ConsoleScoreDisc :glyph="m.glyph" />
-        <b class="con-dscore__value">{{ m.value }}</b>
         <span class="con-dscore__label">{{ $t(m.short) }}</span>
+        <span class="con-dscore__leader" aria-hidden="true"></span>
+        <b class="con-dscore__value">{{ signed(m.value) }}</b>
       </div>
     </div>
   </div>
@@ -51,10 +54,15 @@ export default defineComponent({
     segments: {type: Array as PropType<ReadonlyArray<{key: string, accent: string, widthPct: number}>>, required: true},
   },
   computed: {
-    /** ONE row of medallions for the six core categories (the finale's podium line); a table with more splits evenly in two. */
-    columns(): number {
-      const n = this.medallions.length;
-      return n <= 6 ? Math.max(n, 1) : Math.ceil(n / 2);
+    /** The ledger reads in TWO columns, top-down: its rows are half the categories (a lone category keeps one row). */
+    rows(): number {
+      return Math.max(1, Math.ceil(this.medallions.length / 2));
+    },
+  },
+  methods: {
+    /** A penalty reads with a true minus (U+2212), never a hyphen. */
+    signed(value: number): string {
+      return value < 0 ? `−${Math.abs(value)}` : String(value);
     },
   },
 });

@@ -19130,24 +19130,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
 }
 
-/* ── «ЭКРАН БОТА» chrome — the hub's focusable deep entries. ────────── */
-.con-botscr {
-    &__difficulty {
-        margin-left: auto;
-        font-size: .85rem;
-        letter-spacing: .06rem;
-        color: @mb-accent;
-    }
-    &__entry {
-        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease,
-            background-color calc(160ms * var(--motion-scale, 1)) ease;
-    }
-    &__entry--focused {
-        background: rgba(18, 30, 44, 0.78);
-        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 80%),
-            0 .3rem 1.2rem rgba(0, 0, 0, 0.35);
-    }
-}
+/* «ЭКРАН БОТА» lives in `console_info_dossier.less` (the bot's internals as a dossier, 2026-10-19). */
 
 /* The ColonyFleetIcon primitive + `fleet-hue--<color>` palette are shared
    with the desktop surfaces now — defined in `colony_fleet.less`. The console

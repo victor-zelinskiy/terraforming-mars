@@ -124,13 +124,13 @@ SHARED zones at the same coordinates (e2e-guarded ±2px):
 | tier · zone (`data-zone` / body) | human | bot |
 | --- | --- | --- |
 | satellite — `extras` (**the RAIL SATELLITE**, not a panel block, left of everything) | card-resource cells | the bot's real pools (`marsBotExtraGroups`) |
-| HEROES — `vp` (`data-dossier-hero`, `ConsoleDossierScore`) | the score at the scene's scale: the shield + total (`[data-vpx-total]`), the share bar (`[data-vpx-bar]`), the categories as MEDALLIONS with their emblems (`[data-vpx-block]`) | the SAME zone — no bot variant |
-| HEROES — `played` (weight 1.4, `ConsoleDossierCards`) | the CARD HISTORY: the corporation's face + a bounded fan of mini faces per type (active / automated / events, preludes / CEO when present), the count a badge, «+K» past the fan | `playedPile` **+ the corporation** (parity) |
+| HEROES — `vp` (`data-dossier-hero`, `ConsoleDossierScore`) | ONE hero — the shield + the total (`[data-vpx-total]`) — over the share bar (`[data-vpx-bar]`) and a quiet two-column LEDGER of the categories (`[data-vpx-block]`: disc · name · leader · value; the rows solved from the count — § «СДЕРЖАННО И ДОРОГО») | the SAME zone — no bot variant |
+| HEROES — `played` (weight 1.4, `ConsoleDossierCards`) | the CARD HISTORY: the corporation's face + ONE neat PILE per printed type (active / automated / events, preludes / CEO when present) — the newest face upright (the events face DOWN), the paper edges of what lies under (three at most), the count and the name in the ledger's quiet type under the pile | `playedPile` **+ the corporation** (parity) |
 | PLATES — `actions` (`ConsoleDossierActions`) | mini tiles (art + name) with their state by SHAPE: ▶ ready · ✕ blocked · ✓ used — the viewer's own seat; another seat: ✓ used / ○ idle only (public) | HIDDEN — absence never shifts the shared zones |
 | PLATES — `effects` (`ConsoleDossierEffects`) | the explorer's families as medallions with a glyph that reads without colour (↻ ◆ − × ≡) + the cards as art coins | HIDDEN |
-| PLATES — `botdoor` | — | the bot's door: its three piles (action deck · bonus deck · bonus discard) with their public counts |
+| PLATES — `botdoor` | — | the bot's door in the PLAYERS' grammar — the effects plate's medallions (action deck · bonus deck · bonus discard · destroyed) with their public counts + one note; the bot's own presentation lives INSIDE the door |
 | PLATES — `parliament` (`ConsoleDossierParliament`) | influence (`[data-parl-zone-influence]`), the career ladder as pips (the next reward's icon), the delegates as TOKENS (lobby · reserve ×N · on resolutions) — ONE row by construction | the bot's honest line (`[data-parl-zone-absent]`) |
-| PLATES — `campaign` | the campaign frame (unchanged) | same |
+| PLATES — `campaign` (`ConsoleDossierCampaign`) | the campaign as OBJECTS: the mission's board miniature, the route as nodes (done · now · ahead), the title points as a token with the titles' emblems | same |
 
 The pure half is `infoDossierModel.ts` (`dossierMedallions`, `dossierSealedFacts`,
 `dossierCardHistory`, `dossierActionTiles` — the state is the SERVER's
@@ -232,6 +232,52 @@ bar names the press contextually («A Открыть: Разыграно», `lab
 ConsoleCommand); a satellite cell click selects the type AND opens the
 extras screen. No separate bot corp zone, no «Треки бота» panel, no bot
 deck tiles on the summary — all of it moved to «Экран бота».
+
+## «СДЕРЖАННО И ДОРОГО» — the Information polish (the owner's 4K report, 2026-10-19)
+
+TR60 made the summary a dossier; its first pass was louder than the room. The owner, on the 4K TV: the score zone
+pushed categories past its plate and its text past its boxes, its focus was overloaded («нужен total ПО первостепенным
+фокусом, а остальное более сдержано»); the card history was too bright and too busy; on the bot's seat text left its
+blocks outright. The plates (actions, effects) were the iteration's success and set the register for the rest. Six
+decisions, each guarded:
+
+1. **THE SCORE IS ONE HERO OVER A QUIET LEDGER** (`ConsoleDossierScore`, `.con-dscore`). The total (the shield + the
+   number, `[data-vpx-total]`) is the zone's ONE large type — ≥ 2.5 × every category value, e2e-measured; the share bar
+   under it; then the LEDGER — two columns of rows «disc · name · leader · value» in the body's quiet type (`.con-dscore__row`
+   over the old `.con-infovp__cat`, a zero row muted, a penalty with a TRUE minus U+2212). The rows are SOLVED from the
+   category count (`data-dscore-rows` = ⌈n / 2⌉): a long ledger (5–6 rows — the Hydronetwork, the Moon, card penalties)
+   takes the height the hero yields (`--dscore-total` 6 → 5.2 → 4.6 rem), never the frame's. A name that cannot fit
+   ellipsizes in its own box (`flex: 0 1 auto`), the leader takes what is left (`flex: 1 1 0; min-width: 0`). The dossier's
+   rules are scoped `.con-dossier .con-dscore__…` (0,3,0) so the TV / handheld profile rules for the overview's
+   `.con-infovp__*` (0,2,1) cannot re-inflate them. The explorer's handoff anchors (`[data-vpx-total]`, `[data-vpx-bar]`,
+   `[data-vpx-block]`) stand where `scoreExplorerMotion` looks for them.
+2. **THE CARD HISTORY IS ONE NEAT PILE PER TYPE** (`ConsoleDossierCards`, `.con-dcards`) — the table's own law, no fan, no
+   badge: the corporation's face, then per printed type ONE face (`DOSSIER_FACES_PER_STACK = 1` — the newest, upright;
+   the EVENTS face DOWN, `.con-card-back`), the paper edges of what lies under it (`edgesOf(count)` — none for a lone
+   card, three at most, the farthest first), and under the pile its count and its name in the ledger's quiet type. The
+   face size is solved by the number of piles (`data-stacks`).
+3. **THE BOT IS ONE MORE PLAYER ON THE SUMMARY** (the owner's correction of this iteration's first draft: «отличие и
+   уникальная для бота подача — когда игрок переходит ВНУТРЬ блока „экран бота“; на общей панели — максимальная
+   стандартизация»). The bot's door speaks the EFFECTS PLATE's grammar — four `.con-deff` medallions (`con-deff--bot-action`
+   ▤ · `-bonus` ◈ · `-discard` ↺ · `-destroyed` ✕) with their public counts and one `.con-deffs__note`, centred in its plate
+   (`.con-deffs--bot`); no card backs, no mat, no glyph badge on the summary (the bar names the press). LB / RB across
+   the seats changes the content of the same plates, never the register.
+4. **INSIDE THE DOOR, EVERY RULE STANDS WITH ITS OBJECT** (`ConsoleMarsBotSections`, `.con-botscr` — § «Экран бота» below).
+5. **NOTHING STANDS OUTSIDE ITS PLATE, ON ANY PROFILE** — the hub's prose steps down by MEASUREMENT (`fitHub`), the
+   bonus faces wrap with a zoom by count, the handheld ledger values take `min-width: 0`, the handheld action art keeps
+   a 2.3 / 1 aspect (its legend sat under the frame on the Deck — pre-existing, fixed here).
+6. **THE CAMPAIGN IS OBJECTS** (`ConsoleDossierCampaign`, `.con-dcmp`): the mission's board in miniature
+   (`PremiumMapFingerprint`, the mission card's own drawing; no frame while the campaign model loads), the route as
+   nodes (done ◆ · now ◆ ringed · ahead ◇), the title points as a gold token with the titles' emblems and their scoring
+   semantics, the composition count in the ledger's type.
+
+Guards: `tests/client/components/console/ConsoleDossierPolish.spec.ts` (the rows solved from the count, the true minus,
+the anchors; the piles, the edges, the events face down, no badge; the route's nodes); e2e
+`console-info-polish.spec.ts` on the worst honest table (`info-dossier-rich` — two humans + MarsBot, the Hydronetwork,
+card penalties, generation 10, 40 blue cards) × tv4k / fhd / deck: (A) every painted descendant of every zone inside
+the zone for the own, a rival's and the bot's seat, no ledger name cut, no two pile names overlapping; (B) the total ≥
+2.5 × the largest category value; (C) the bot's door = four medallions, nothing bot-only; (D) every hub plate holds its
+content, the board ≥ 80 % of the opening with its three rules inside it, the discard pile shows its two faces.
 
 ## The score OVERVIEW and a sparse «Разыграно» fill the opening (PL-574 / PL-575, 2026-10-17)
 
@@ -420,15 +466,21 @@ contract: `docs/claude/console/effects-explorer.md`.
 
 ## «Экран бота» — the internals hub (the botdoor zone)
 
-Everything explaining HOW the algorithm works: the corporation's RULES read
-(`.con-info__block--botcorp`, the ordinary premium face + difficulty), the
-decks + discard/reshuffle notes, the storage split + the 5→track rule, the
-M€→VP ladder (`mcPerVp` from the live breakdown) + the Hard/Brutal card-VP
-clause, and the two FOCUSABLE deep entries (`.con-botscr__entry`,
-`infoModeState.botScreenFocus`): «Планшет бота» (MarsBotTracks large + the
-teaching guide) and «Бонусные карты» (the open piles). A d-pad press at the
-ring's edge degrades to a plain scroll, so the sections below the entries
-stay reachable.
+Everything explaining HOW the algorithm works, as a DOSSIER of the bot's internals (the Information polish,
+2026-10-19): a grid of plates solved to the opening (`corp · decks · bonus / board · scoring`, a fourth column for the
+shipping storage / the Hydronetwork — `data-botscr-extras`), each rule standing WITH ITS OBJECT — the paragraph of the
+shared teaching layer (`marsBotGuide` sections) under the thing it explains, at the scene's scale: the corporation's
+premium face + difficulty + the clock (`.con-info__block--botcorp`), the decks as piles of backs with their counts, the
+bonus piles, the board's own mat in miniature, the M€ → VP ladder (`mcPerVp` from the live breakdown) + the Hard /
+Brutal card-VP clause. Nothing scrolls and nothing is clipped: the prose steps DOWN by measurement (`fitHub` — a
+`ResizeObserver` over the hub, `data-botscr-fit` 0 → 1 → 2, judged by every plate's `scrollHeight`), never past the
+plate; the handheld flows the plates in two columns inside the ordinary `.con-info__scroll`. The two FOCUSABLE deep
+entries (`.con-botscr__entry`, `[data-bot-entry="botBoard|botBonus"]`, `infoModeState.botScreenFocus`) wear the cursor
+grammar (`.con-cursor()` — the ring is the plate's own layer): «Планшет бота» (`.con-botboard` — `MarsBotTracks large`
+at the scene's scale, `zoom: var(--con-ui-scale)`, the legend, and the THREE rules that read it — turn · tracks ·
+failed — as plates beside it) and «Бонусные карты» (`.con-botbonus` — the open piles as columns, the faces wrapping
+with a zoom by count; an empty pile is its outline and one word). A d-pad press at the ring's edge degrades to a plain
+scroll on the handheld, so the plates below stay reachable.
 
 ## The MarsBot rail — the PARTICIPANT presentation (`marsBotRailModel.ts`)
 
@@ -569,6 +621,19 @@ verbatim). Y(0) and LB/RB(1) survive the Deck bar.
   opens from its tile, never an empty frame, B lands on the zone, LB/RB
   never blinks; (E) TR60 — its two variants in «Действия карт», its
   fighters' SET role on the satellite.
+- `tests/client/components/console/ConsoleDossierPolish.spec.ts` — «сдержанно
+  и дорого»: the score's rows solved from the count (four for eight, six
+  for eleven, one for one), the true minus, the handoff anchors; one pile
+  per type (three edges at most, none for a lone card, the events face
+  down, no badge); the campaign's route as nodes, no empty board frame.
+- `tests/e2e/console-info-polish.spec.ts` — tv4k / fhd / deck on the
+  worst honest table (`info-dossier-rich`): every painted object inside
+  its zone for the own, a rival's and the bot's seat, no ledger name cut,
+  no two pile names overlapping, the total ≥ 2.5 × every category value;
+  the bot's door = the effects plate's four medallions and nothing
+  bot-only; inside the door every plate holds its content, the board
+  ≥ 80 % of the opening with its three rules, the discard pile's two
+  faces (`screenshots/info-polish/final/`).
 - `tests/console/extrasExplorerModel.spec.ts` — the extras model: order +
   zeros, per-card flooring, conditional vs linear, no double count, the
   hidden-score rule fallback, payment attribution, navigation/paging.

@@ -51,99 +51,148 @@
         font-size: var(--con-t-secondary);
         letter-spacing: 0;
     }
-
-    /* The bot's door — its internals screen as a closed deck: three card backs and the one line of what is inside. */
-    &__door {
-        flex: 1;
-        min-height: 0;
-        display: flex;
-        align-items: center;
-        gap: 1.2rem;
-    }
-    &__doorpile {
-        position: relative;
-        flex: none;
-        width: 5rem;
-        height: 7rem;
-        span {
-            position: absolute;
-            inset: 0;
-            border-radius: .45rem;
-            background: url(./assets/resources/card.webp) center / cover no-repeat, #1b2533;
-            box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.18), 0 .2rem .6rem rgba(0, 0, 0, 0.55);
-        }
-        span:nth-child(1) { transform: translate(-.6rem, .3rem) rotate(-6deg); }
-        span:nth-child(2) { transform: translate(-.2rem, .1rem) rotate(-2deg); }
-        span:nth-child(3) { transform: translate(.3rem, 0) rotate(3deg); }
-    }
-    &__door .con-info__note--door { font-size: var(--con-t-body); max-width: 22rem; }
-    &__door { gap: 2.2rem; justify-content: flex-start; padding-left: 1rem; }
-    &__pile {
-        flex: none;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: .55rem;
-    }
-    &__doorpile--empty span {
-        background: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.025) 0 .5rem, transparent .5rem 1rem);
-        box-shadow: inset 0 0 0 .07rem rgba(150, 175, 205, 0.3);
-    }
-    &__pilecount {
-        font-size: 1.6rem;
-        font-weight: 800;
-        line-height: 1;
-        color: @con-text;
-    }
-    &__pilelabel {
-        font-size: var(--con-t-caption);
-        letter-spacing: .06rem;
-        text-transform: uppercase;
-        color: @con-text-dim;
-    }
 }
 
-/* ── THE SCORE — the shield, the total (the loudest number of the screen), the bar, the medallions ───────────── */
+/* ── THE SCORE — ONE hero (the shield and the total), a thin composition bar, the categories as a quiet ledger ──
+   The information polish of 2026-10-19 («сдержанно и дорого»): the total is the zone's only loud object; every other
+   value is a ledger row at the body's scale, so the eye lands on the total first and reads the rest as its account.
+   Rules are scoped under `.con-dossier` (0,3,0): the profile ladders state the OLD live-score classes at (0,2,1) —
+   `html.con-profile-tv .con-infovp__total` once shrank this hero to 2.9rem on the couch, a number no louder than its
+   own categories. The ledger's rows are SOLVED from the box (`--dscore-rows` → the hero yields size to a long ledger),
+   so no category, value or name ever stands outside the plate. */
 .con-dscore {
+    --dscore-total: 6rem;
+    --dscore-shield-w: 3.9rem;
+    --dscore-row-h: 2.6rem;
+    --dscore-disc: 2.1rem;
     flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: .75rem;
+    justify-content: center;
+    gap: .9rem;
+    padding: 0 .2rem;
+
+    &[data-dscore-rows="5"] { --dscore-total: 5.2rem; --dscore-shield-w: 3.4rem; --dscore-row-h: 2.35rem; gap: .7rem; }
+    &[data-dscore-rows="6"] { --dscore-total: 4.6rem; --dscore-shield-w: 3.1rem; --dscore-row-h: 2.15rem; --dscore-disc: 1.85rem; gap: .55rem; }
 
     &__head {
+        flex: none;
         display: flex;
         align-items: center;
-        gap: .9rem;
+        gap: 1rem;
     }
     &__shield {
         flex: none;
-        width: 4.2rem;
-        height: 4.6rem;
+        width: var(--dscore-shield-w);
+        height: calc(var(--dscore-shield-w) * 1.1);
     }
-    &__totalrow.con-infovp__totalrow { margin: 0; }
-    &__total.con-infovp__total { font-size: 5rem; line-height: .9; }
-    &__unit.con-infovp__total-label { font-size: var(--con-t-section, 1.3rem); }
-    &__bar.con-infovp__bar { height: 1.1rem; margin: 0; flex: none; }
+    .con-dossier &__totalrow.con-infovp__totalrow {
+        margin: 0;
+        gap: .55rem;
+    }
+    .con-dossier &__total.con-infovp__total {
+        font-size: var(--dscore-total);
+        font-weight: 800;
+        line-height: .86;
+        letter-spacing: -.02em;
+        color: #f4f1e8;
+    }
+    .con-dossier &__unit.con-infovp__total-label {
+        font-size: var(--con-t-secondary);
+        letter-spacing: .16rem;
+        color: fade(#e6c77a, 78%);
+    }
 
-    /* The medallions: ONE row across the hero (the finale's podium line) — each a disc ringed in the category's hue
-       with the category's own symbol, the value under it, the category's SHORT name (the ceremony's legend) under that. */
-    &__medals.con-infovp__legend {
-        flex: 1;
-        min-height: 0;
+    /* The composition bar: a thin INSTRUMENT, never a second hero — the segments a hair apart, the track barely there. */
+    .con-dossier &__bar.con-infovp__bar {
+        flex: none;
+        height: .42rem;
+        margin: 0;
+        gap: .12rem;
+        border-radius: .21rem;
+        background: rgba(120, 150, 180, 0.08);
+        box-shadow: none;
+        overflow: hidden;
+        > .con-infovp__seg {
+            border-radius: .21rem;
+            box-shadow: none;
+            opacity: .82;
+        }
+    }
+
+    /* The ledger: two columns read top-down (the penalty, appended last, closes the second), one row per category. */
+    .con-dossier &__ledger.con-infovp__legend {
+        flex: none;
         display: grid;
-        grid-template-columns: repeat(var(--dscore-cols, 6), minmax(0, 1fr));
-        align-content: center;
-        gap: 1rem .6rem;
+        grid-auto-flow: column;
+        grid-template-rows: repeat(var(--dscore-rows, 4), var(--dscore-row-h));
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: 2.2rem;
+        row-gap: 0;
     }
-    &__medal.con-infovp__cat {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: .35rem;
+    .con-dossier &__row.con-infovp__cat {
         min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: .7rem;
         font-size: inherit;
+        color: @con-text-dim;
+        border-bottom: .05rem solid rgba(140, 170, 200, 0.07);
     }
+    .con-dossier &__row.con-infovp__cat--zero { opacity: .42; }
+    &__row > &__disc {
+        flex: none;
+        width: var(--dscore-disc);
+        height: var(--dscore-disc);
+        background: rgba(10, 16, 25, 0.9);
+        box-shadow: inset 0 0 0 .1rem var(--eg-c, @con-cyan);
+    }
+    &__row > &__disc > &__glyph {
+        width: calc(var(--dscore-disc) * .66);
+        height: calc(var(--dscore-disc) * .66);
+    }
+    &__row > &__disc > &__glyph--mark {
+        width: .5rem;
+        height: .5rem;
+        box-shadow: none;
+    }
+    &__row &__emblem {
+        width: calc(var(--dscore-disc) * .7);
+        height: calc(var(--dscore-disc) * .7);
+        & + .con-dscore__emblem { display: none; }
+    }
+    &__label {
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: var(--con-t-secondary);
+        letter-spacing: .02rem;
+        color: @con-text-dim;
+    }
+    &__leader {
+        flex: 1 1 0;
+        min-width: 0;
+        align-self: center;
+        height: 0;
+        border-bottom: .1rem dotted rgba(150, 175, 205, 0.16);
+    }
+    &__value {
+        flex: none;
+        min-width: 2ch;
+        text-align: right;
+        font-size: calc(var(--con-t-body) * 1.35);
+        font-weight: 700;
+        line-height: 1;
+        color: #eef0f2;
+        font-variant-numeric: tabular-nums;
+    }
+    &__row--penalty &__value { color: #e79a92; }
+
+    /* The category's own symbol in a disc ringed in its hue — ONE object (`ConsoleScoreDisc`) shared with the score
+       explorer's tiles and the finale; the explorer and the finale size it themselves. */
     &__disc {
         position: relative;
         width: 4.6rem;
@@ -182,24 +231,6 @@
         object-fit: contain;
         & + & { margin-left: -1.3rem; }
     }
-    &__value {
-        margin-top: .15rem;
-        font-size: 2.5rem;
-        font-weight: 800;
-        line-height: 1;
-        color: @con-text;
-        font-variant-numeric: tabular-nums;
-    }
-    &__label {
-        max-width: 100%;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        font-size: var(--con-t-caption);
-        letter-spacing: .02rem;
-        color: @con-text-dim;
-    }
-    &__medal--penalty &__value { color: #eb8f8f; }
 }
 
 /* ── THE SEALED SCORE — a cell under its seal + what is public on the table (decision 7a) ───────────────────── */
@@ -327,52 +358,62 @@
     }
 }
 
-/* ── THE CARD HISTORY — the corporation's face and the fans by type ─────────────────────────────────────────── */
+/* ── THE CARD HISTORY — the corporation's face and one neat pile per printed type ─────────────────────────────
+   The information polish of 2026-10-19: no fans, no badges, no colour bars — a pile is one upright card (the newest
+   face; the events face DOWN, the table's law) over the paper edges of what lies under it; the count and the type's
+   name stand under it in the ledger's quiet type. The faces carry their type's frame, so nothing else needs a hue.
+   The face size is solved by the number of piles (`data-stacks`) so a pile, its count and its name always fit the
+   zone — never an ellipsis, never a card over its neighbour. */
 .con-dcards {
-    --dcards-corp-zoom: .76;
-    --dcards-mini-zoom: .4;
-    --dcards-mini-w: calc(320 / 20 * var(--dcards-mini-zoom) * 1rem);
-    --dcards-mini-h: calc(460 / 20 * var(--dcards-mini-zoom) * 1rem);
-    --dcards-fan-step: 1.1rem;
+    --dcards-corp-zoom: .7;
+    --dcards-mini-zoom: .42;
+    /* The measured step down (`ConsoleDossierCards.fit`) — a multiplier over the size the pile count chose. */
+    --dcards-fit: 1;
+    --dcards-mini-w: calc(320 / 20 * var(--dcards-mini-zoom) * var(--dcards-fit) * 1rem);
+    --dcards-mini-h: calc(460 / 20 * var(--dcards-mini-zoom) * var(--dcards-fit) * 1rem);
+    --dcards-edge: .26rem;
     flex: 1;
     min-height: 0;
     display: flex;
     align-items: center;
-    gap: 1.4rem;
+    gap: 2rem;
+    padding: 0 .4rem;
+
+    &[data-stacks="1"],
+    &[data-stacks="2"] { --dcards-mini-zoom: .5; }
+    &[data-stacks="4"] { --dcards-mini-zoom: .37; --dcards-corp-zoom: .66; gap: 1.6rem; }
+    &[data-stacks="5"] { --dcards-mini-zoom: .32; --dcards-corp-zoom: .62; gap: 1.3rem; }
+    &[data-dcards-fit="1"] { --dcards-fit: .9; }
+    &[data-dcards-fit="2"] { --dcards-fit: .8; }
+    &[data-dcards-fit="3"] { --dcards-fit: .7; }
 
     &__corp {
         flex: none;
         position: relative;
-        width: calc(320 / 20 * var(--dcards-corp-zoom) * 1rem);
-        height: calc(460 / 20 * var(--dcards-corp-zoom) * 1rem);
+        width: calc(320 / 20 * var(--dcards-corp-zoom) * var(--dcards-fit) * 1rem);
+        height: calc(460 / 20 * var(--dcards-corp-zoom) * var(--dcards-fit) * 1rem);
     }
     &__corpface {
         position: absolute;
         inset: 0;
         border-radius: .6rem;
-        box-shadow: 0 .5rem 1.6rem rgba(0, 0, 0, 0.55);
-        > * { zoom: calc(var(--dcards-corp-zoom) * var(--con-ui-scale, 1)); }
+        box-shadow: 0 .6rem 1.8rem rgba(0, 0, 0, 0.55);
+        > * { zoom: calc(var(--dcards-corp-zoom) * var(--dcards-fit) * var(--con-ui-scale, 1)); }
     }
     &__corpface--ghost {
         border-radius: .6rem;
-        box-shadow: inset 0 0 0 .08rem rgba(150, 175, 205, 0.28);
-        background: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.025) 0 .5rem, transparent .5rem 1rem);
+        box-shadow: inset 0 0 0 .08rem rgba(150, 175, 205, 0.24);
+        background: rgba(255, 255, 255, 0.015);
     }
+    /* A second corporation (a campaign lineage) is NAMED as a count, quietly — never a gold coin over the face. */
     &__corpmore {
         position: absolute;
-        right: -.7rem;
-        top: -.7rem;
-        min-width: 2.4rem;
-        height: 2.4rem;
-        padding: 0 .5rem;
-        border-radius: 1.2rem;
-        display: grid;
-        place-items: center;
-        font-size: 1.15rem;
-        font-weight: 800;
-        color: #1a1405;
-        background: linear-gradient(180deg, #f2d690, #c99a43);
-        box-shadow: 0 .2rem .6rem rgba(0, 0, 0, 0.5);
+        right: .5rem;
+        bottom: -1.9rem;
+        font-size: var(--con-t-caption);
+        font-weight: 700;
+        letter-spacing: .04rem;
+        color: @con-text-dim;
     }
     &__stacks {
         flex: 1;
@@ -384,92 +425,72 @@
         gap: 1rem;
     }
     &__stack {
-        flex: 0 1 auto;
-        min-width: 0;
+        flex: none;
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: .7rem;
     }
-    &__fan {
+    /* The pile's box reserves the three edges for every pile, so the piles of a row stand on one baseline whatever
+       their depth; the top card sits at the box's lower left, the edges rise up and right from under it. */
+    &__pile {
         position: relative;
-        width: calc(var(--dcards-mini-w) + 2 * var(--dcards-fan-step));
-        height: calc(var(--dcards-mini-h) + .8rem);
+        width: calc(var(--dcards-mini-w) + 3 * var(--dcards-edge));
+        height: calc(var(--dcards-mini-h) + 3 * var(--dcards-edge));
     }
-    /* One face of the fan — positioned and turned here, zoomed on its child (never both on one box). */
-    &__fanface {
+    &__edge {
         position: absolute;
-        top: .4rem;
-        left: calc(var(--fan-i) * var(--dcards-fan-step) + (2 - (var(--fan-n) - 1)) * var(--dcards-fan-step) / 2);
+        left: calc(var(--edge-i) * var(--dcards-edge));
+        bottom: calc(var(--edge-i) * var(--dcards-edge));
         width: var(--dcards-mini-w);
         height: var(--dcards-mini-h);
-        transform-origin: 50% 115%;
-        transform: rotate(calc((var(--fan-i) - (var(--fan-n) - 1) / 2) * 5deg));
         border-radius: .4rem;
-        box-shadow: 0 .3rem 1rem rgba(0, 0, 0, 0.55);
-        > * { zoom: calc(var(--dcards-mini-zoom) * var(--con-ui-scale, 1)); }
+        background: linear-gradient(180deg, #1b2431, #10161f);
+        box-shadow: inset 0 0 0 .05rem rgba(205, 220, 238, 0.2), 0 .15rem .4rem rgba(0, 0, 0, 0.45);
     }
-    &__badge {
+    &__top {
         position: absolute;
-        right: -.4rem;
-        top: -.5rem;
-        z-index: 2;
-        min-width: 2.5rem;
-        height: 2.5rem;
-        padding: 0 .55rem;
-        border-radius: 1.25rem;
-        display: grid;
-        place-items: center;
-        font-size: 1.35rem;
-        font-weight: 800;
-        color: @con-text;
-        background: linear-gradient(180deg, rgba(36, 52, 74, 0.98), rgba(12, 19, 30, 0.98));
-        box-shadow: inset 0 0 0 .1rem var(--dcards-c, fade(@con-cyan, 70%)), 0 .2rem .6rem rgba(0, 0, 0, 0.6);
+        left: 0;
+        bottom: 0;
+        width: var(--dcards-mini-w);
+        height: var(--dcards-mini-h);
+        border-radius: .4rem;
+        overflow: hidden;
+        box-shadow: 0 .4rem 1.1rem rgba(0, 0, 0, 0.55);
+        > * { zoom: calc(var(--dcards-mini-zoom) * var(--dcards-fit) * var(--con-ui-scale, 1)); }
+    }
+    &__top--back.con-card-back { background-size: cover; }
+    &__count {
+        margin-top: .7rem;
+        font-size: calc(var(--con-t-body) * 1.3);
+        font-weight: 700;
+        line-height: 1;
+        color: #eef0f2;
+        font-variant-numeric: tabular-nums;
     }
     &__label {
-        max-width: 100%;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        margin-top: .3rem;
         white-space: nowrap;
-        font-size: var(--con-t-secondary);
+        font-size: var(--con-t-caption);
+        letter-spacing: .03rem;
         color: @con-text-dim;
-        padding-bottom: .2rem;
-        box-shadow: inset 0 -.12rem 0 var(--dcards-c, fade(@con-cyan, 60%));
     }
-    &__more {
-        margin-left: .3rem;
-        font-style: normal;
-        color: @con-text;
-    }
-    /* Two fans or fewer take the room the third would have: bigger faces. */
-    &--few { --dcards-mini-zoom: .5; --dcards-fan-step: 1.3rem; }
-    /* Four fans or more (preludes, a CEO) share the same room: smaller faces, never an overlap. */
-    &--dense { --dcards-mini-zoom: .31; --dcards-fan-step: .85rem; }
-    &__stack--active { --dcards-c: #6fb6e8; }
-    &__stack--automated { --dcards-c: #74c27e; }
-    &__stack--events { --dcards-c: #e48c62; }
-    &__stack--prelude { --dcards-c: #d9a6cf; }
-    &__stack--ceo { --dcards-c: #b8a6e2; }
 
-    /* AN EMPTY STORY is a composed object: the fan that is not there, and the one line saying so. */
+    /* AN EMPTY STORY is a composed object: the outline of the pile that is not there, and the one line saying so. */
     &__void {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: .8rem;
+        gap: .9rem;
     }
-    &__fan--ghost { display: flex; justify-content: center; }
     &__ghostcard {
         position: absolute;
-        top: .4rem;
+        left: 0;
+        bottom: 0;
         width: var(--dcards-mini-w);
         height: var(--dcards-mini-h);
         border-radius: .4rem;
-        box-shadow: inset 0 0 0 .08rem rgba(150, 175, 205, 0.28);
-        background: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.025) 0 .5rem, transparent .5rem 1rem);
-        &:nth-child(1) { left: 0; transform: rotate(-5deg); }
-        &:nth-child(2) { left: var(--dcards-fan-step); }
-        &:nth-child(3) { left: calc(2 * var(--dcards-fan-step)); transform: rotate(5deg); }
+        box-shadow: inset 0 0 0 .08rem rgba(150, 175, 205, 0.24);
+        background: rgba(255, 255, 255, 0.015);
     }
     &__voidline {
         font-size: var(--con-t-body);
@@ -651,6 +672,9 @@
         color: fade(@con-mint, 85%);
         font-variant-numeric: tabular-nums;
     }
+    /* The bot's door stands where a player's two plates stand: its four medallions take the one row that width gives. */
+    &--bot { justify-content: center; gap: 1.1rem; }
+    &--bot &__families { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 .con-deff {
     --deff-c: fade(@con-mint, 90%);
@@ -665,6 +689,11 @@
     &--payValue { --deff-c: fade(@con-amber, 90%); }
     &--rules { --deff-c: rgba(160, 185, 215, 0.85); }
     &--armed { --deff-c: #ecd08a; }
+    /* The bot door's medallions (its decks) — the same object, the decks' own hues. */
+    &--bot-action { --deff-c: fade(@mb-accent, 92%); }
+    &--bot-bonus { --deff-c: fade(@con-amber, 90%); }
+    &--bot-discard { --deff-c: rgba(160, 185, 215, 0.85); }
+    &--bot-destroyed { --deff-c: #e79a92; }
 
     &__disc {
         grid-row: 1 / span 2;
@@ -945,9 +974,32 @@ html.con-profile-tv .con-dgal { .con-act-slot-tokens-tv(); }
 /* ── THE HANDHELD — the same dossier in a 7-inch frame: the history's faces and the parliament's tokens step down so
    every plate holds its objects whole (the overview never scrolls, on the Deck either). ──────────────────────────── */
 html.con-profile-handheld {
-    .con-dcards { --dcards-corp-zoom: .5; --dcards-mini-zoom: .28; --dcards-fan-step: .75rem; gap: .8rem; }
-    .con-dcards--few { --dcards-mini-zoom: .34; --dcards-fan-step: .9rem; }
-    .con-dcards--dense { --dcards-mini-zoom: .22; --dcards-fan-step: .6rem; }
+    .con-dcards { --dcards-corp-zoom: .5; --dcards-mini-zoom: .3; --dcards-edge: .13rem; gap: .8rem; padding: 0; }
+    .con-dcards[data-stacks="1"], .con-dcards[data-stacks="2"] { --dcards-mini-zoom: .34; }
+    .con-dcards[data-stacks="4"] { --dcards-corp-zoom: .37; --dcards-mini-zoom: .26; gap: .4rem; }
+    .con-dcards[data-stacks="5"] { --dcards-corp-zoom: .34; --dcards-mini-zoom: .22; gap: .35rem; }
+    .con-dcards__stacks { gap: .3rem; }
+    .con-dcards__count { margin-top: .45rem; }
+    .con-dcards__label { font-size: var(--con-t-floor); letter-spacing: 0; }
+    /* The effects plate shares its tier with the actions: its medallions and coins a size down, so the note stays in. */
+    .con-deffs { gap: .5rem; }
+    .con-deffs__families { gap: .45rem .7rem; }
+    .con-deff__disc { width: 2.4rem; height: 2.4rem; }
+    .con-deffs__coin { width: 2.6rem; height: 2.6rem; }
+    /* The actions plate yields height to its legend: a wider art strip, the legend on one line. */
+    .con-dact__art { aspect-ratio: 2.3 / 1; }
+    .con-dacts { gap: .4rem; }
+    .con-dacts__legend { gap: .2rem .8rem; }
+    /* The score on the handheld: the same hero and ledger, a size down (rows solved as on every profile). */
+    .con-dscore { --dscore-total: 3.8rem; --dscore-shield-w: 2.8rem; --dscore-row-h: 1.95rem; --dscore-disc: 1.55rem; gap: .5rem; }
+    .con-dscore[data-dscore-rows="5"] { --dscore-total: 3.3rem; --dscore-shield-w: 2.5rem; --dscore-row-h: 1.75rem; --dscore-disc: 1.4rem; gap: .4rem; }
+    .con-dscore[data-dscore-rows="6"] { --dscore-total: 2.9rem; --dscore-shield-w: 2.2rem; --dscore-row-h: 1.6rem; --dscore-disc: 1.3rem; gap: .35rem; }
+    .con-dscore__ledger.con-infovp__legend { column-gap: 1.2rem; }
+    .con-dscore__label { font-size: var(--con-t-caption); }
+    .con-dscore__row.con-infovp__cat { gap: .3rem; }
+    .con-dscore__ledger.con-infovp__legend { column-gap: .9rem; }
+    .con-dscore__value { min-width: 0; font-size: calc(var(--con-t-body) * 1.15); }
+    .con-dscore { --dscore-disc: 1.35rem; }
     .con-dparl { gap: .45rem; }
     .con-dparl__infval { font-size: 2rem; }
     .con-dparl__delegates { flex-wrap: nowrap; gap: .5rem .7rem; }
@@ -1147,3 +1199,382 @@ html.con-profile-handheld {
     .con-dsealed__value { font-size: 2.3rem; }
     .con-dsealed__label { font-size: var(--con-t-body); }
 }
+
+/* ══ «ЭКРАН БОТА» — THE BOT'S INTERNALS AS A DOSSIER (the Information polish of 2026-10-19) ══════════════════════
+   Every rule stands WITH ITS OBJECT: a plate per thing the algorithm plays with, its objects at the scene's scale, its
+   paragraph of the shared teaching layer under them. A grid solved to the opening (two rows, three columns — a fourth
+   for the shipping storage / the Hydronetwork): nothing scrolls, nothing stands outside its plate. The two doors (the
+   board, the bonus piles) wear the cursor grammar (`.con-cursor()` — the ring is the plate's own layer). The px-authored
+   MarsBot objects (the corporation face, the mat, the bonus faces) ride `zoom × --con-ui-scale`.
+   ══════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
+.con-botscr {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, .8fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "corp decks bonus" "corp board scoring";
+    gap: .8rem;
+
+    &[data-botscr-extras="1"] {
+        grid-template-columns: minmax(0, .74fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, .9fr);
+        grid-template-areas: "corp decks bonus x1" "corp board scoring x1";
+    }
+    &[data-botscr-extras="2"] {
+        grid-template-columns: minmax(0, .74fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, .9fr);
+        grid-template-areas: "corp decks bonus x1" "corp board scoring x2";
+    }
+
+    &__plate {
+        position: relative;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .65rem;
+        padding: .9rem 1.15rem 1rem;
+        border-radius: .75rem;
+        overflow: hidden;
+        background: linear-gradient(180deg, rgba(24, 37, 54, 0.82), rgba(10, 16, 26, 0.9));
+        box-shadow: inset 0 0 0 .05rem rgba(130, 165, 200, 0.2), inset 0 .06rem 0 rgba(190, 225, 255, 0.07), 0 .4rem 1.4rem rgba(0, 0, 0, 0.35);
+    }
+    &__plate--corp { grid-area: corp; align-items: center; }
+    &__plate--decks { grid-area: decks; }
+    &__plate--bonus { grid-area: bonus; }
+    &__plate--board { grid-area: board; }
+    &__plate--scoring { grid-area: scoring; }
+    &__plate--extra { grid-area: x1; }
+    &__plate--extra ~ &__plate--extra { grid-area: x2; }
+
+    &__kicker {
+        flex: none;
+        align-self: stretch;
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        margin: 0;
+        font-size: .85rem;
+        font-weight: 600;
+        letter-spacing: .11rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 90%);
+    }
+    &__corpface {
+        flex: none;
+        margin: .2rem 0 .1rem;
+        border-radius: .6rem;
+        box-shadow: 0 .6rem 1.8rem rgba(0, 0, 0, 0.55);
+    }
+    &__difficulty {
+        flex: none;
+        padding: .2rem .8rem;
+        border-radius: 49.95rem;
+        font-size: var(--con-t-caption);
+        font-weight: 700;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: @mb-accent;
+        box-shadow: inset 0 0 0 .06rem fade(@mb-accent, 45%);
+    }
+    &__prose {
+        margin: 0;
+        font-size: var(--con-t-secondary);
+        line-height: 1.45;
+        color: @con-text-dim;
+    }
+    &__plate--corp &__prose { text-align: center; }
+    &__prose--warn { color: fade(@con-amber, 88%); }
+    &__prose--door { margin-top: auto; }
+
+    /* The plate's objects: piles of backs (the decks), tokens (counts with their names). */
+    &__objects {
+        flex: none;
+        display: flex;
+        align-items: flex-end;
+        gap: 1.6rem;
+        padding: .2rem 0 .3rem;
+    }
+    &__pile,
+    &__token {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .3rem;
+        min-width: 0;
+    }
+    &__pile { align-items: center; }
+    &__backs {
+        position: relative;
+        width: 4rem;
+        height: 5.6rem;
+        margin-bottom: .2rem;
+        span {
+            position: absolute;
+            inset: 0;
+            border-radius: .4rem;
+            background: url(./assets/resources/card.webp) center / cover no-repeat, #1b2533;
+            box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.16), 0 .2rem .6rem rgba(0, 0, 0, 0.55);
+        }
+        span:nth-child(1) { transform: translate(.36rem, -.36rem); }
+        span:nth-child(2) { transform: translate(.18rem, -.18rem); }
+    }
+    &__backs--empty span {
+        background: rgba(255, 255, 255, 0.015);
+        box-shadow: inset 0 0 0 .07rem rgba(150, 175, 205, 0.26);
+    }
+    &__count {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        font-size: calc(var(--con-t-body) * 1.6);
+        font-weight: 700;
+        line-height: 1;
+        color: #eef0f2;
+        font-variant-numeric: tabular-nums;
+    }
+    &__count--accent { color: @mb-accent; }
+    &__count--loss { color: #e79a92; }
+    &__mc {
+        display: inline-block;
+        width: 1.4rem;
+        height: 1.4rem;
+        background-size: contain;
+    }
+    &__objlabel {
+        font-size: var(--con-t-caption);
+        letter-spacing: .02rem;
+        color: @con-text-dim;
+        white-space: nowrap;
+    }
+
+    /* The board's door carries the board itself, in miniature — the px-authored mat at a fraction of the scene's scale. */
+    &__minboard {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        overflow: hidden;
+        pointer-events: none;
+    }
+    &__minboard-scale {
+        width: 100%;
+        zoom: calc(.72 * var(--con-ui-scale, 1));
+    }
+
+    /* The doors are the hub's focus ring — the cursor grammar (the ring is the plate's own layer, only its opacity
+       moves, on the cursor's clock). */
+    &__entry {
+        .con-cursor(inset 0 0 0 .1rem fade(@con-cyan, 80%), 0 .3rem 1.2rem rgba(0, 0, 0, 0.35); @bg: rgba(40, 70, 100, 0.18));
+    }
+    &__entry--focused { .con-cursor-on(); }
+}
+
+/* «ПЛАНШЕТ БОТА» — the mat at the scene's scale, the legends, the three rules that read it. */
+.con-botboard {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1rem;
+    padding: .4rem 0;
+
+    &__stage {
+        flex: none;
+        zoom: var(--con-ui-scale, 1);
+    }
+    &__legend.con-bot__legend {
+        flex: none;
+        margin: 0;
+        font-size: var(--con-t-secondary);
+        font-style: italic;
+        color: @con-text-dim;
+    }
+    &__guide.mb-guide {
+        flex: none;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: .8rem;
+        margin: 0;
+    }
+    &__rule {
+        display: flex;
+        flex-direction: column;
+        gap: .55rem;
+        padding: .9rem 1.15rem 1rem;
+        border-radius: .75rem;
+        background: linear-gradient(180deg, rgba(24, 37, 54, 0.7), rgba(10, 16, 26, 0.85));
+        box-shadow: inset 0 0 0 .05rem rgba(130, 165, 200, 0.18);
+    }
+    &__glyph {
+        width: 1.5rem;
+        height: 1.5rem;
+        display: grid;
+        place-items: center;
+        border-radius: .35rem;
+        font-size: .9rem;
+        color: @mb-accent;
+        box-shadow: inset 0 0 0 .06rem fade(@mb-accent, 40%);
+    }
+}
+
+/* «БОНУСНЫЕ КАРТЫ» — the open piles as columns; an empty pile is its outline and one word. */
+.con-botbonus {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: .8rem;
+
+    &__pile {
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .65rem;
+        padding: .9rem 1.15rem 1rem;
+        border-radius: .75rem;
+        overflow: hidden;
+        background: linear-gradient(180deg, rgba(24, 37, 54, 0.82), rgba(10, 16, 26, 0.9));
+        box-shadow: inset 0 0 0 .05rem rgba(130, 165, 200, 0.2), 0 .4rem 1.4rem rgba(0, 0, 0, 0.35);
+    }
+    &__count {
+        margin-left: .3rem;
+        color: #eef0f2;
+        letter-spacing: 0;
+        font-variant-numeric: tabular-nums;
+    }
+    /* The faces lie side by side and WRAP; a long pile steps its faces down a size (never past the plate). */
+    &__faces {
+        --bonus-face-zoom: 1;
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-content: flex-start;
+        align-items: flex-start;
+        gap: 16px;
+        zoom: calc(var(--bonus-face-zoom) * var(--con-ui-scale, 1));
+        .mb-face--large { width: 340px; max-width: 340px; }
+    }
+    &__faces[data-faces="3"],
+    &__faces[data-faces="4"] { --bonus-face-zoom: .86; }
+    &__faces[data-faces="5"],
+    &__faces[data-faces="6"] { --bonus-face-zoom: .7; }
+    &__faces:not([data-faces="1"]):not([data-faces="2"]):not([data-faces="3"]):not([data-faces="4"]):not([data-faces="5"]):not([data-faces="6"]) { --bonus-face-zoom: .58; }
+    &__void {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .9rem;
+    }
+    &__outline {
+        width: 7.5rem;
+        height: 10rem;
+        border-radius: .6rem;
+        box-shadow: inset 0 0 0 .08rem rgba(150, 175, 205, 0.24);
+        background: rgba(255, 255, 255, 0.015);
+    }
+    &__voidline {
+        font-size: var(--con-t-body);
+        color: @con-text-dim;
+    }
+}
+
+/* The hub's measured fit (`fitHub`): the prose steps down the type ladder until every plate holds its content. */
+.con-botscr[data-botscr-fit="1"] {
+    .con-botscr__prose { font-size: var(--con-t-caption); line-height: 1.42; }
+    .con-botscr__plate { gap: .55rem; }
+}
+.con-botscr[data-botscr-fit="2"] {
+    .con-botscr__prose { font-size: var(--con-t-floor); line-height: 1.38; }
+    .con-botscr__plate { gap: .45rem; padding: .75rem 1rem .85rem; }
+    .con-botscr__objects { padding: 0; }
+}
+
+/* THE HANDHELD reads the hub as a flowing two-column dossier inside the info surface's own scroll (the plates never
+   clip there — a 1280×800 opening has no room for every rule beside its object at a readable size). */
+html.con-profile-handheld {
+    .con-botscr {
+        flex: none;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: none;
+        grid-auto-rows: auto;
+        grid-template-areas: none;
+        gap: .6rem;
+    }
+    .con-botscr__plate { grid-area: auto; overflow: visible; }
+    .con-botscr__plate--extra ~ .con-botscr__plate--extra { grid-area: auto; }
+    .con-botscr__minboard { flex: none; }
+    .con-botscr__objects { gap: 1rem; }
+    .con-botscr__backs { width: 3rem; height: 4.2rem; }
+    .con-info__block--botcorp .pcard { zoom: calc(var(--con-ui-scale, 1) * 0.5); }
+    .con-botboard__guide.mb-guide { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; }
+    .con-botboard__rule { padding: .6rem .7rem .7rem; }
+    .con-botboard { justify-content: flex-start; flex: none; }
+    .con-botbonus { flex: none; }
+    .con-botbonus__faces { --bonus-face-zoom: .7; }
+}
+
+/* ── «КАМПАНИЯ» — the mission's board in miniature, the route as nodes, the titles with their points ─────────── */
+.con-dcmp {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    gap: 1.4rem;
+
+    &__board {
+        flex: none;
+        width: 8.5rem;
+        border-radius: .6rem;
+        overflow: hidden;
+        box-shadow: inset 0 0 0 .05rem rgba(150, 175, 205, 0.2), 0 .4rem 1.2rem rgba(0, 0, 0, 0.45);
+        > * { display: block; width: 100%; }
+    }
+    &__read {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .45rem;
+    }
+    &__route {
+        display: flex;
+        align-items: center;
+        gap: .35rem;
+    }
+    /* A mission node: done = a filled gold diamond, now = a cyan ring, ahead = a hollow hairline. Shape first, hue second. */
+    &__node {
+        width: .7rem;
+        height: .7rem;
+        transform: rotate(45deg);
+        border-radius: .12rem;
+        box-shadow: inset 0 0 0 .08rem rgba(170, 190, 215, 0.45);
+    }
+    &__node + &__node { margin-left: .55rem; }
+    &__node--done { background: #e6c77a; box-shadow: none; }
+    &__node--now { box-shadow: inset 0 0 0 .14rem @con-cyan, 0 0 0 .2rem fade(@con-cyan, 18%); }
+    &__mission {
+        font-size: calc(var(--con-t-body) * 1.15);
+        font-weight: 700;
+        color: #eef0f2;
+    }
+    &__tp.con-info__cmp-tprow { padding: .3rem 0 0; }
+    &__tp .con-info__cmp-tp { font-size: calc(var(--con-t-body) * 1.25); }
+    &__tp .con-info__ctitle { width: 1.9rem; height: 1.9rem; }
+    &__tpnote.con-info__note--tp { margin: 0; font-size: var(--con-t-caption); font-style: italic; }
+    &__corps {
+        margin-top: .3rem;
+        font-size: var(--con-t-caption);
+        color: @con-text-dim;
+        b { color: #eef0f2; font-size: var(--con-t-secondary); margin-right: .2rem; font-variant-numeric: tabular-nums; }
+    }
+}
+html.con-profile-handheld .con-dcmp { gap: .8rem; }
+html.con-profile-handheld .con-dcmp__board { width: 5.5rem; }
