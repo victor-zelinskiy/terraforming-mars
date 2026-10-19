@@ -12,7 +12,7 @@
        :aria-label="ariaLabel"
        data-armed-strip
        :data-armed-variant="variant"
-       :data-armed-source="source">
+       :data-armed-source="source?.sourceKey">
     <span class="con-armed__spark" aria-hidden="true">⚡</span>
     <template v-if="variant === 'strip'">
       <span class="con-armed__kicker">{{ $t('Armed for your next card') }}</span>
@@ -44,8 +44,9 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {translateText} from '@/client/directives/i18n';
-import {cardArtUrlAtTier, premiumCardArt} from '@/client/cards/cardArt';
-import {armedSourceOf} from '@/client/console/armedEffects';
+import {cardArtUrlAtTier, premiumCardArt, premiumCardArtForKey} from '@/client/cards/cardArt';
+import {ArmedEffectView, armedSourceOf} from '@/client/console/armedEffects';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {PresentedArmedEffect} from '@/client/console/armedEffectFlight';
 import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
 
@@ -69,21 +70,24 @@ export default defineComponent({
     allHeld(): boolean {
       return this.effects.length > 0 && this.effects.every((e) => e.held === true);
     },
-    source(): string | undefined {
+    source(): ArmedEffectView | undefined {
       return armedSourceOf(this.effects);
     },
     sourceName(): string {
-      return this.source === undefined ? '' : translateText(this.source);
+      return this.source?.sourceName ?? '';
     },
     expiry(): string {
       return this.effects[0]?.expiry ?? '';
     },
     artStyle(): Record<string, string> {
-      if (this.source === undefined) {
+      const source = this.source;
+      if (source === undefined) {
         return {};
       }
-      // The THUMB tier: the strip paints the art at ~2 rem.
-      return {backgroundImage: `url(${cardArtUrlAtTier(premiumCardArt(this.effects[0].source).url, 'thumb')})`};
+      // The THUMB tier: the strip paints the art at ~2 rem. A LAW (RX36) wears its own art, keyed by its printed code.
+      const law = source.law === undefined ? undefined : getResolution(source.law);
+      const url = law !== undefined ? premiumCardArtForKey(law.code)?.url : source.source !== undefined ? premiumCardArt(source.source).url : undefined;
+      return url === undefined ? {} : {backgroundImage: `url(${cardArtUrlAtTier(url, 'thumb')})`};
     },
     ariaLabel(): string {
       const parts = [translateText('Armed for your next card'), this.sourceName, ...this.effects.map((e) => e.formula), this.expiry];

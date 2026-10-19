@@ -25,7 +25,7 @@ import {
   forecastSourceIsCardless,
 } from '@/common/models/EffectForecastModel';
 import {EventSource} from '@/common/events/EventSource';
-import {ArmedPlayEffectModel, RequirementEasingModel} from '@/common/models/ArmedPlayEffectModel';
+import {ArmedPlayEffectModel, armedSourceKey, isArmedLawSource, RequirementEasingModel} from '@/common/models/ArmedPlayEffectModel';
 import {ModifierSourceVM, modifierSourceOf} from '@/client/components/premiumCard/premiumModifierSources';
 import {requirementPartyEmblem} from '@/client/components/premiumCard/partyEmblems';
 import {PartyName} from '@/common/turmoil/PartyName';
@@ -498,6 +498,11 @@ function sourceCardOf(source: EventSource): CardName | undefined {
   return source.kind === 'card' || source.kind === 'corporation' ? source.card : undefined;
 }
 
+/** A modifier's source in the armed key's own spelling (a card's name, `law:<id>` — RX36), for matching the two. */
+function modifierSourceKey(source: EventSource): string {
+  return source.kind === 'resolution' ? 'law:' + source.id : (sourceCardOf(source) ?? source.kind);
+}
+
 /** The mark a modifier item wears — the KIND of its source (`PremiumModifierMarks`): a card on the table, a one-play bolt, a policy. */
 export function modifierMarkOf(item: Pick<ForecastModifierItem, 'key' | 'source' | 'waive' | 'oneShot' | 'via'>): ModifierSourceVM {
   const vm = item.via !== undefined ?
@@ -515,19 +520,22 @@ export function modifierItemsOf(forecast: EffectForecast | undefined): Array<For
   const out: Array<ForecastModifierItem> = [];
   const armedSources = new Set<string>();
   for (const c of modifiers.consumes) {
-    armedSources.add(c.armed.source);
+    const armedKey = armedSourceKey(c.armed.source);
+    armedSources.add(armedKey);
     if (c.armed.effect.kind === 'discount' && c.used) {
       continue; // the discounts group names it
     }
+    // A LAW's armed waiver (RX36) is named by the law — never a card it is not.
+    const source: EventSource = isArmedLawSource(c.armed.source) ? {kind: 'resolution', id: c.armed.source.resolution} : {kind: 'card', card: c.armed.source};
     out.push({
-      kind: 'modifier', key: `mod-armed-${c.armed.source}`, group: 'modifiers',
-      source: {kind: 'card', card: c.armed.source},
+      kind: 'modifier', key: `mod-armed-${armedKey}`, group: 'modifiers',
+      source,
       armed: c.armed, used: c.used, oneShot: true,
       waive: c.armed.effect.kind === 'requirementWaiver' || c.armed.effect.kind === 'partyWaiver',
       ...(c.armed.effect.kind === 'partyWaiver' ? {partyWaive: true} : {}),
       badge: c.armed.effect.kind === 'requirementShift' ? `±${c.armed.effect.steps}` :
         c.armed.effect.kind === 'discount' ? `−${c.armed.effect.amount}` : '',
-      easings: modifiers.easings.filter((e) => e.sources.some((s) => sourceCardOf(s.source) === c.armed.source)),
+      easings: modifiers.easings.filter((e) => e.sources.some((s) => modifierSourceKey(s.source) === armedKey)),
     });
   }
   const standing = new Map<string, ForecastModifierItem>();
@@ -536,8 +544,8 @@ export function modifierItemsOf(forecast: EffectForecast | undefined): Array<For
   for (const easing of modifiers.easings.filter((e) => e.decisive || e.effective === 'waived')) {
     for (const share of easing.sources) {
       const card = sourceCardOf(share.source);
-      const key = card ?? share.source.kind;
-      if (card !== undefined && armedSources.has(card)) {
+      const key = card ?? (share.source.kind === 'resolution' ? modifierSourceKey(share.source) : share.source.kind);
+      if (armedSources.has(modifierSourceKey(share.source))) {
         continue;
       }
       let item = standing.get(key);

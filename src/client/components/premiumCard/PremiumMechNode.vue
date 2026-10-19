@@ -32,6 +32,11 @@
     <PremiumVpCardGlyph v-else-if="isVpCard" class="pcard-ic pcard-ic--vp-card" :tag="vpCardTag" />
     <!-- a card with a requirement of ANY party (TR13) — the plate with the wild-party pill -->
     <PremiumPartyRequirementGlyph v-else-if="isPartyRequirement" class="pcard-ic pcard-ic--party-req" :class="{'pprq--waived': isPartyRequirementWaived}" :data-party-req-waived="isPartyRequirementWaived ? 'true' : undefined" />
+    <!-- a card with ANY requirement (RX36) — the same plate, bare; the count as a DIGIT beside one plate -->
+    <template v-else-if="isRequirementPlate">
+      <span v-if="digitText !== undefined" class="pcard-mi__digit">{{ digitText }}</span>
+      <PremiumPartyRequirementGlyph class="pcard-ic pcard-ic--party-req" :bare="true" data-requirement-plate="true" />
+    </template>
     <!-- ONE NAMED PARTY's seal (TR62) — its emblem; a STACKED seal overlaps the one before it, the caption under the pair -->
     <span v-else-if="partySeal !== undefined" class="pcard-pseal" :class="{'pcard-pseal--stacked': partySeal.stacked === true, 'pcard-pseal--captioned': partySeal.caption !== undefined}" :data-party-seal="partySeal.party">
       <span class="pcard-pseal__disc" :style="{backgroundImage: `url(${partySeal.url})`}"></span>
@@ -289,6 +294,10 @@ export default defineComponent({
     },
     isPartyRequirement(): boolean {
       return this.mechIcon?.kind === 'partyRequirement';
+    },
+    /** The requirement plate alone (RX36 — «a card with ANY requirement»). */
+    isRequirementPlate(): boolean {
+      return this.mechIcon?.kind === 'requirementPlate';
     },
     /** The party plate STRUCK (TR70 — the next card ignores its party requirement): the class's own diagonal, not the generic ×. */
     isPartyRequirementWaived(): boolean {

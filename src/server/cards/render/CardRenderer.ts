@@ -251,6 +251,16 @@ abstract class Builder<T> {
   }
 
   /**
+   * Turmoil Redux: «a card WITH A REQUIREMENT» — the requirement plate ALONE,
+   * no party pill (RX36 Live Experiments' quest footnote: «2 [MIN plate]» —
+   * `{amount: N, digit: true}` prints the digit beside ONE plate, as the
+   * delegates' and the trade's footnotes do).
+   */
+  public requirementPlate(options?: ItemOptions): this {
+    return this._appendToRow(new CardRenderItem(CardRenderItemType.REQUIREMENT_PLATE, -1, options));
+  }
+
+  /**
    * Turmoil Redux: ONE NAMED PARTY's seal — its emblem plate (TR62 Tharsis
    * Alliance: «[Mars First] = [Reds]»). `stacked` overlaps the seal before it
    * (the scan's pair); `text` is the caption printed under the pair («RULING»).

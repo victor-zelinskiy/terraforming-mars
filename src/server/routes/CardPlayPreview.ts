@@ -9,6 +9,7 @@ import {previewableCard} from '../models/cardPlayPreview';
 import {playPreviewWithTableQuestions} from '../models/tableQuestions';
 import {tilesOfPlay} from '../models/effectForecast';
 import {cardVictoryPointsAtPlay} from '../game/calculateVictoryPoints';
+import {ParliamentHandler} from '../parliament/ParliamentHandler';
 
 /**
  * READ-ONLY preview of PLAYING a project card, fetched by the client when the
@@ -49,6 +50,9 @@ export class CardPlayPreview extends Handler {
   public override async get(req: Request, res: Response, ctx: Context): Promise<void> {
     const playerId = ctx.url.searchParams.get('id');
     const cardName = ctx.url.searchParams.get('card');
+    // A play THROUGH an enacted law (RX36 Live Experiments — «play a card ignoring all global requirements»): the
+    // preview is read with the law's waiver standing, for the law named and only while its action is the seat's.
+    const law = ctx.url.searchParams.get('law');
     if (playerId === null || cardName === null) {
       responses.badRequest(req, res, 'missing id or card parameter');
       return;
@@ -68,8 +72,17 @@ export class CardPlayPreview extends Handler {
         responses.notAuthorized(req, res);
         return;
       }
-      const card = previewableCard(player, cardName as CardName);
-      if (card === undefined) {
+      const probe = law === null ? undefined : ParliamentHandler.resolutionPlayProbe(player, law);
+      const run = probe ?? (<T>(fn: () => T): T => fn());
+      const built = run(() => {
+        const card = previewableCard(player, cardName as CardName);
+        if (card === undefined) {
+          return undefined;
+        }
+        const preview = playPreviewWithTableQuestions(player, card);
+        return {...preview, cardVictoryPoints: cardVictoryPointsAtPlay(player, card, tilesOfPlay(player, card, preview))};
+      });
+      if (built === undefined) {
         // Expired subject, not an error — see `responses.noPreview`.
         responses.noPreview(res, 'playable card not found');
         return;
@@ -82,11 +95,7 @@ export class CardPlayPreview extends Handler {
       // down — the forecast's own list; see `cardVictoryPointsAtPlay`).
       // The table's QUESTIONS ride it too (TR51 — `models/tableQuestions.ts`): a reaction that asks the player is one
       // more step of the composer, answered before the press and posted in the play's one batch.
-      const preview = playPreviewWithTableQuestions(player, card);
-      responses.writeJson(res, ctx, {
-        ...preview,
-        cardVictoryPoints: cardVictoryPointsAtPlay(player, card, tilesOfPlay(player, card, preview)),
-      });
+      responses.writeJson(res, ctx, built);
     } catch (err) {
       console.warn(`unable to build card play preview for ${playerId}`, err);
       responses.notFound(req, res, 'player not found');

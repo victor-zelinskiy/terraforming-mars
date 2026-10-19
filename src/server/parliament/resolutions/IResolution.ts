@@ -11,6 +11,8 @@ import {TileRemovalDeclaration} from '../../../common/parliament/tileRemoval';
 import {ResolutionActionBill} from '../../../common/parliament/actionBill';
 import type {SerializedEnactOutcome} from '../SerializedParliament';
 import {ActionEffect} from '../../../common/models/ActionPreviewModel';
+import type {ActionFutilityVerdict} from '../../../common/models/ActionFutilityModel';
+import type {ResolutionPlayModel} from '../../../common/models/ParliamentModel';
 import {ResolutionActionPromptMeta} from '../../../common/models/PlayerInputModel';
 import {Message} from '../../../common/logs/Message';
 import {EventSource} from '../../../common/events/EventSource';
@@ -111,6 +113,27 @@ export type ResolutionAction = {
    * seat by the manifest exporter (the stand reads the RATE — Open IP Trade's «per card» — with a synthetic hand).
    */
   preview(player?: IPlayer): ReadonlyArray<ActionEffect>;
+  /**
+   * THE ACTION WOULD CHANGE NOTHING right now — the server's PROVEN verdict
+   * (`ActionFutilityModel`; Live Experiments RX36: every card its waiver lets
+   * through is playable without it). Information, never a block: an action
+   * with a verdict stays offered. Asked only while the action is available;
+   * absent = the action has value.
+   */
+  futility?(player: IPlayer): ActionFutilityVerdict | undefined;
+  /**
+   * AN ACTION THAT PLAYS A CARD (Live Experiments RX36): the card pick it asks
+   * after its bill, PROMISED in the live prompt's own shape — the console
+   * chooses the card and composes its play before the one commit. Asked only
+   * while the action is available. Read-only.
+   */
+  playModel?(player: IPlayer): ResolutionPlayModel;
+  /**
+   * …and the probe a candidate's play PREVIEW is computed under — the law's
+   * waiver standing for the length of `fn` (the `card-play-preview` route's
+   * `law` parameter). Read-only: everything the probe touches is restored.
+   */
+  withPlayProbe?<T>(player: IPlayer, fn: () => T): T;
 };
 
 /**

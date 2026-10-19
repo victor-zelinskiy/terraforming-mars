@@ -1285,5 +1285,18 @@
   "by the alliance": "по альянсу",
   "Alliance": "Альянс",
   "effect and cards are yours": "эффект и карты ваши",
-  "came to power": "теперь у власти"
+  "came to power": "теперь у власти",
+  "Live Experiments": "Живые эксперименты",
+  "Pay 6 M€ to play a card from your hand ignoring all its global parameter requirements.": "Заплатите 6 M€ и разыграйте карту с руки, игнорируя все её требования глобальных параметров.",
+  "Play 2 cards with a requirement": "Разыграйте 2 карты с требованиями",
+  "Need ${0} M€ for this action, you can pay ${1}": "Нужно ${0} M€ на это действие — вы можете заплатить ${1}",
+  "No card in hand this would let you play": "В руке нет карты, которую это позволит разыграть",
+  "Every playable card is playable without it": "Все доступные карты разыгрываются и без него",
+  "Not enough M€ left after the ${0} M€ of the action": "Не хватит M€ после ${0} M€ за действие",
+  "Pay ${0} M€ to play a card ignoring global requirements (Live Experiments)": "Заплатите ${0} M€ и разыграйте карту без требований глобальных параметров (Живые эксперименты)",
+  "Select how to pay ${0} M€ for Live Experiments": "Выберите, как заплатить ${0} M€ за «Живые эксперименты»",
+  "Play a card ignoring its global requirements (Live Experiments)": "Разыграйте карту, игнорируя её требования глобальных параметров (Живые эксперименты)",
+  "then play a card ignoring global requirements": "затем — карта без требований глобальных параметров",
+  "${0} paid ${1} M€ to ${2}: the next card played ignores its global requirements": "${0} платит ${1} M€ по резолюции ${2}: следующая разыгранная карта игнорирует требования глобальных параметров",
+  "${0} has no card to play with ${1} — the paid waiver stays armed for the next card": "${0}: по резолюции ${1} нечего разыграть — оплаченное снятие требований остаётся для следующей карты"
 }

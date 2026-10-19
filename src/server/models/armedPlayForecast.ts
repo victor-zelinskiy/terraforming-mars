@@ -2,7 +2,8 @@ import {IPlayer} from '../IPlayer';
 import {IProjectCard} from '../cards/IProjectCard';
 import {armedPlayEffectsOf} from '../cards/armedPlayEffects';
 import {requirementEasingOf} from './requirementEasing';
-import {ArmedPlayConsumption, ArmedPlayForecast} from '../../common/models/ArmedPlayEffectModel';
+import {ArmedPlayConsumption, ArmedPlayEffectModel, ArmedPlayForecast, isArmedLawSource} from '../../common/models/ArmedPlayEffectModel';
+import {EventSource} from '../../common/events/EventSource';
 
 /**
  * THE PLAY'S READING OF THE ONE-PLAY CLASS (TR49) — read before the press, by
@@ -22,11 +23,19 @@ export function armedPlayForecastOf(player: IPlayer, card: IProjectCard): ArmedP
   const breakdown = armed.some((a) => a.effect.kind === 'discount') ? player.getCardCostBreakdown(card) : undefined;
   const consumes: Array<ArmedPlayConsumption> = armed.map((a) => {
     if (a.effect.kind === 'discount') {
-      const lowered = breakdown?.discounts.some((d) => (d.source.kind === 'card' || d.source.kind === 'corporation') && d.source.card === a.source && d.amount > 0) ?? false;
+      const lowered = breakdown?.discounts.some((d) => armedSourceNamed(d.source, a) && d.amount > 0) ?? false;
       return {armed: a, used: lowered && card.cost > 0};
     }
-    const used = easings.some((e) => e.decisive && e.sources.some((s) => (s.source.kind === 'card' || s.source.kind === 'corporation') && s.source.card === a.source));
+    const used = easings.some((e) => e.decisive && e.sources.some((s) => armedSourceNamed(s.source, a)));
     return {armed: a, used};
   });
   return {consumes, easings};
+}
+
+/** Does a modifier's named source (a discount, an easing) name THIS armed effect's source — a card, or a law (RX36)? */
+function armedSourceNamed(source: EventSource, armed: ArmedPlayEffectModel): boolean {
+  if (isArmedLawSource(armed.source)) {
+    return source.kind === 'resolution' && source.id === armed.source.resolution;
+  }
+  return (source.kind === 'card' || source.kind === 'corporation') && source.card === armed.source;
 }

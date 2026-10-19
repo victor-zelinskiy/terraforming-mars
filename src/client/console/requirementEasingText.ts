@@ -11,8 +11,10 @@
 import {GlobalParameter} from '@/common/GlobalParameter';
 import {EventSource} from '@/common/events/EventSource';
 import {ArmedPlayEffectKind, ArmedPlayEffectModel, RequirementEasingModel, RequirementEasingSourceModel} from '@/common/models/ArmedPlayEffectModel';
+import {ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 
 /** The English i18n keys of the class (the text IS the key; RU in `armed_effects.json`). */
 export const EASING_KEYS = {
@@ -77,7 +79,13 @@ export function easingSubjectLabel(easing: Pick<RequirementEasingModel, 'paramet
   return easing.party !== undefined ? translateText(partyNameKey(easing.party)) : easingParameterLabel(easing.parameter);
 }
 
-/** The modifier's own name — a card / corporation by its card name, a party by the parliament's name. */
+/** A LAW's own name (RX36 Live Experiments — a resolution's waiver), from the Parliament's manifest. */
+export function lawName(id: ResolutionId): string {
+  const name = getResolution(id)?.text.name;
+  return name === undefined ? translateText(EASING_KEYS.modifier) : translateText(name);
+}
+
+/** The modifier's own name — a card / corporation by its card name, a party by the parliament's name, a LAW by its own (RX36). */
 export function easingSourceName(source: EventSource): string {
   switch (source.kind) {
   case 'card':
@@ -85,9 +93,16 @@ export function easingSourceName(source: EventSource): string {
     return translateText(source.card);
   case 'party':
     return translateText(partyNameKey(source.name));
+  case 'resolution':
+    return lawName(source.id);
   default:
     return translateText(EASING_KEYS.modifier);
   }
+}
+
+/** WHO armed an effect, named — the card played last, or a LAW (RX36): the one reading every surface prints. */
+export function armedSourceName(source: ArmedPlayEffectModel['source']): string {
+  return typeof source === 'string' ? translateText(source) : lawName(source.resolution);
 }
 
 /** «≥ 0°C» / «≤ −18°C» — a bound of this requirement in its unit; a PARTY requirement's reads its two roads («ruling or 2 delegates»). */

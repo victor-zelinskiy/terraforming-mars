@@ -298,7 +298,7 @@ import {NOTIF_HOLD_MS, notifHoldState} from '@/client/console/consoleNotifHold';
 import {ViewerImpactMeta} from '@/client/components/notifications/notificationSemantics';
 import {causeLinesOf, NotificationCauseLine} from '@/client/components/notifications/notificationCauseView';
 import {LiveNotification, NotificationEasedLine, NotificationPillGroup, NotificationSkippedLine, NotificationVariant} from '@/client/components/notifications/notificationTypes';
-import {EASING_KEYS} from '@/client/console/requirementEasingText';
+import {EASING_KEYS, lawName} from '@/client/console/requirementEasingText';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 
 // The spoken UNIT of a band chip — the resource's NAME beside its icon, so the
@@ -605,7 +605,8 @@ export default defineComponent({
       const what = line.kind === 'waive' ? translateText(EASING_KEYS.requirementIgnored) :
         line.kind === 'ally' ? translateTextWithParams(EASING_KEYS.throughAlly, [line.via !== undefined ? translateText(partyNameKey(line.via)) : '']) :
           `±${line.steps ?? 0}`;
-      const parts = [what, translateText(line.source)];
+      // A LAW's waiver (RX36) is named by the law — never a card it is not.
+      const parts = [what, line.law !== undefined ? lawName(line.law) : translateText(line.source ?? '')];
       if (line.oneShot) {
         parts.push(translateText(EASING_KEYS.oneShot));
       }

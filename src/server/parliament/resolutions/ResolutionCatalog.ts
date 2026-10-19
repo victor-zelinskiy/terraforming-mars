@@ -55,6 +55,7 @@ import {MINING_INCENTIVES} from './industrialists/MiningIncentives';
 import {MOHOLE_CONTEST} from './greens/MoholeContest';
 import {OPEN_IP_TRADE} from './scientists/OpenIpTrade';
 import {RD_FUNDING} from './scientists/RdFunding';
+import {LIVE_EXPERIMENTS} from './scientists/LiveExperiments';
 import {PLANT_BAN} from './reds/PlantBan';
 import {runResolutionAction} from './ResolutionAction';
 import {SCIENTISTS_BUDGET} from './scientists/ScientistsBudget';
@@ -520,6 +521,11 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // A count over the seat's COLONIES (the sixth count kind: cubes on the colony tiles, the engine's own list) beside
   // a plain titanium-by-influence part; the cap sits on the production part alone.
   JOVIAN_TAX_RIGHTS,
+  // The first action whose result is a whole CARD PLAY: «pay 6 M€ to play a card ignoring all global parameter
+  // requirements» — the paid funnel (RX28) arming the LAW's waiver slot (`IPlayer.armedLawWaiver`, the TR49 class's
+  // one-play semantics with a law as its source) before the pick; plus data by influence (Diverted Research's step)
+  // and the tenth quest kind — cards with a requirement.
+  LIVE_EXPERIMENTS,
   // The distributing family over TWO KINDS of unit: the recipients are the holders of data AND of microbes at once,
   // and each unit's kind is its card's — never a second question (`AddResourcesToCards` over a list of kinds).
   MEDICAL_DATABASE,

@@ -13,12 +13,14 @@
       <span class="con-armsec__sub">{{ $t('Spent by the next card played this generation, lost on the pass') }}</span>
     </header>
     <div class="con-armsec__row">
-      <div v-for="e in effects" :key="e.key" class="con-armsec__item" :data-armed-kind="e.kind" :data-armed-source="e.source">
+      <div v-for="e in effects" :key="e.key" class="con-armsec__item" :data-armed-kind="e.kind" :data-armed-source="e.sourceKey">
         <div class="con-armsec__face" aria-hidden="true">
-          <ConsoleCardFaceLite :name="e.source" lightweight />
+          <!-- A LAW (RX36 Live Experiments) shows its own face — the government's card, not a card of the table. -->
+          <premium-card-face v-if="e.law !== undefined && lawVm(e.law) !== undefined" :vmOverride="lawVm(e.law)" :lightweight="true" :inert="true" />
+          <ConsoleCardFaceLite v-else-if="e.source !== undefined" :name="e.source" lightweight />
         </div>
         <div class="con-armsec__why">
-          <b class="con-armsec__name">{{ $t(e.source) }}</b>
+          <b class="con-armsec__name">{{ e.sourceName }}</b>
           <span class="con-armsec__formula">
             <span v-if="e.kind === 'requirementWaiver'" class="con-armed__struck" aria-hidden="true">{{ $t('Global requirements') }}</span>
             <!-- the PARTY family (TR70): the printed party plate, struck — the face's own glyph of the waiver -->
@@ -37,6 +39,9 @@
 import {defineComponent, PropType} from 'vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {ArmedEffectView, armedEffectsOf} from '@/client/console/armedEffects';
+import {ResolutionId} from '@/common/parliament/ParliamentTypes';
+import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
+import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
 
@@ -50,6 +55,11 @@ export default defineComponent({
   computed: {
     effects(): ReadonlyArray<ArmedEffectView> {
       return armedEffectsOf(this.player);
+    },
+  },
+  methods: {
+    lawVm(id: ResolutionId): PremiumCardVM | undefined {
+      return resolutionPremiumVmById(id);
     },
   },
 });

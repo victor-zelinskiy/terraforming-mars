@@ -11,7 +11,9 @@
 import {CardName} from '@/common/cards/CardName';
 import {EventSource} from '@/common/events/EventSource';
 import {PartyName} from '@/common/turmoil/PartyName';
+import {ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {RequirementEasingModel, RequirementEasingSourceModel} from '@/common/models/ArmedPlayEffectModel';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 
 /**
  * The seal's vocabulary — the KIND of a modifier, which is what the player needs at a glance (will it still bend the
@@ -19,7 +21,9 @@ import {RequirementEasingModel, RequirementEasingSourceModel} from '@/common/mod
  * `party` a ruling party's policy, `system` a rule with no card behind it, `ally` (TR62 Tharsis Alliance) a PARTY
  * requirement met through the alliance's PARTNER — the partner's emblem with the link sign (WHO stands for this party).
  */
-export type ModifierSymbol = 'card' | 'once' | 'party' | 'system' | 'ally';
+export type ModifierSymbol = 'card' | 'once' | 'party' | 'system' | 'ally' | 'law';
+// `law` (RX36 Live Experiments): an ENACTED LAW's waiver — its party's emblem in the plaque's frame (the party
+// language, with the LAW named in words beside it: `resolution`). One play, like the bolt, but a law is no card.
 
 export type ModifierSourceVM = {
   /** Stable render key. */
@@ -27,8 +31,10 @@ export type ModifierSourceVM = {
   symbol: ModifierSymbol;
   /** The source card (its NAME — the hint, the composer's share). Absent for a non-card source. */
   card?: CardName;
-  /** The party behind a policy (its emblem). */
+  /** The party behind a policy (its emblem) — or behind a LAW (`law`: the law's own party). */
   party?: PartyName;
+  /** The LAW behind a `law` mark (RX36) — named in words by the surfaces around the seal. */
+  resolution?: ResolutionId;
   kind: 'shift' | 'waive' | 'ally';
   /** For `shift`: the steps this source adds. */
   steps?: number;
@@ -45,6 +51,10 @@ export function modifierSourceCard(source: EventSource): CardName | undefined {
 
 /** The symbol of one source: a one-play effect is a bolt whoever armed it; otherwise its kind. */
 export function modifierSymbolOf(source: EventSource, oneShot: boolean): ModifierSymbol {
+  // A LAW (RX36) is its own kind whatever its lifetime: the seal says «a law opened this», not «a card did».
+  if (source.kind === 'resolution') {
+    return 'law';
+  }
   if (oneShot) {
     return 'once';
   }
@@ -56,6 +66,9 @@ export function modifierSymbolOf(source: EventSource, oneShot: boolean): Modifie
 
 function keyOf(source: EventSource, index: number): string {
   const card = modifierSourceCard(source);
+  if (source.kind === 'resolution') {
+    return `law:${source.id}`;
+  }
   return card !== undefined ? `card:${card}` : `${source.kind}:${index}`;
 }
 
@@ -73,6 +86,13 @@ export function modifierSourceOf(share: RequirementEasingSourceModel, index = 0)
   if (share.source.kind === 'party') {
     vm.party = share.source.name;
   }
+  if (share.source.kind === 'resolution') {
+    vm.resolution = share.source.id;
+    const party = getResolution(share.source.id)?.party;
+    if (party !== undefined) {
+      vm.party = party;
+    }
+  }
   if (share.kind === 'shift' && share.steps !== undefined) {
     vm.steps = share.steps;
   }
@@ -84,7 +104,7 @@ export function modifierSourcesOf(easing: Pick<RequirementEasingModel, 'sources'
   return easing.sources.map((share, i) => modifierSourceOf(share, i));
 }
 
-const SYMBOL_ORDER: Readonly<Record<ModifierSymbol, number>> = {card: 0, party: 1, ally: 2, system: 3, once: 4};
+const SYMBOL_ORDER: Readonly<Record<ModifierSymbol, number>> = {card: 0, party: 1, ally: 2, system: 3, law: 4, once: 5};
 
 /** The seal's order: the standing cards first (they stack), the one-play bolt last — stable within a kind. */
 export function sealOrder(sources: ReadonlyArray<ModifierSourceVM>): ReadonlyArray<ModifierSourceVM> {

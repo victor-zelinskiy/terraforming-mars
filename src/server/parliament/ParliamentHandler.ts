@@ -158,6 +158,29 @@ export class ParliamentHandler {
     return [action.execute(player, parliament, meta)];
   }
 
+  /**
+   * THE PROBE a resolution action that PLAYS A CARD lends a candidate's play
+   * preview (Live Experiments RX36 — `ResolutionAction.withPlayProbe`): `fn`
+   * computed with the law's waiver standing, so the composer reads the card
+   * exactly as the play through the law will meet it. Only for the ENACTED law
+   * named, only while its action is available to this seat (participant, a
+   * use left, its gate open); anything else answers `undefined` and the
+   * preview reads the card as any play. Read-only.
+   */
+  public static resolutionPlayProbe(player: IPlayer, resolution: string): (<T>(fn: () => T) => T) | undefined {
+    const parliament = player.game?.parliament;
+    const enacted = parliament?.enactedDefinition();
+    const action = enacted?.action;
+    const probe = action?.withPlayProbe;
+    if (parliament === undefined || enacted === undefined || action === undefined || probe === undefined || enacted.id !== resolution) {
+      return undefined;
+    }
+    if (!parliament.participates(player, 'enactment') || parliament.resolutionActionUsesLeft(player) <= 0 || action.canAct(player).available === false) {
+      return undefined;
+    }
+    return <T>(fn: () => T): T => probe(player, fn);
+  }
+
   // ───────────────────────── passive hooks ─────────────────────────
 
   /** A tile landed on a space of `board` (any phase) — the quest sees the placement; the tracker judges the board. */
@@ -326,7 +349,7 @@ export class ParliamentHandler {
     }
     ParliamentHandler.enactedPassive(player, parliament, 'card-played', (passive) => passive.onCardPlayed?.(player, card));
     QuestTracker.report(player, {kind: 'tag', tags: card.tags});
-    QuestTracker.report(player, {kind: 'cardsPlayed', cardType: card.type});
+    QuestTracker.report(player, {kind: 'cardsPlayed', cardType: card.type, requirements: QuestTracker.requirementTypesOf(card)});
   }
 
   public static onCardResourceAdded(player: IPlayer, card: ICard, count: number): void {

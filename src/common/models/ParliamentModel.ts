@@ -16,6 +16,8 @@ import {Message} from '../logs/Message';
 import {PlayerInputType} from '../input/PlayerInputType';
 import type {EventTrigger} from '../events/GameEvent';
 import {ActionEffect} from './ActionPreviewModel';
+import type {ActionFutilityVerdict} from './ActionFutilityModel';
+import type {SelectProjectCardToPlayModel} from './PlayerInputModel';
 import {BotParliamentMode, ParliamentPhaseStep, PartyActionId, QuestDefinition, ReduxParty, ResolutionId, ResolutionInstanceId, AgendaAdvanceReason, AgendaAdvanceStep} from '../parliament/ParliamentTypes';
 
 /** One delegate on a resolution, in placement order (`seq` is global and monotonic). */
@@ -279,6 +281,41 @@ export type PartyActionModel = ParliamentActionModel & {
 export type ResolutionActionModel = ParliamentActionModel & {
   resolution: ResolutionId;
   party: ReduxParty;
+  /**
+   * THE ACTION WOULD CHANGE NOTHING right now — the server's proven verdict
+   * (Live Experiments RX36: every card its waiver lets through is playable
+   * without it). Information, never a block: the action stays available;
+   * present only while it is.
+   */
+  futile?: ActionFutilityVerdict;
+  /**
+   * AN ACTION THAT PLAYS A CARD (Live Experiments RX36): the card pick it asks
+   * after its bill, PROMISED — so the console can choose the card and compose
+   * its play before the one commit. Present only while the action is available.
+   */
+  play?: ResolutionPlayModel;
+};
+
+/**
+ * THE CARD PLAY A RESOLUTION ACTION PROMISES (Live Experiments RX36 — «pay
+ * 6 M€ to play a card ignoring all global parameter requirements»): the live
+ * `SelectProjectCardToPlay` the action raises after its bill, in its own shape
+ * (the precollect contract — a preview is a promise of the live prompt's form).
+ * Every hand card is listed: the ones the law lets through ENABLED, the rest
+ * DISABLED with their reason; each card's requirement is read with the waiver
+ * standing (`CardModel.requirementEasing` names the law, `decisive` where the
+ * law is what lets it through).
+ */
+export type ResolutionPlayModel = {
+  input: SelectProjectCardToPlayModel;
+  /** The M€ the bill takes BEFORE the card is paid — the card's payment reads the rail less this. */
+  reserve: number;
+  /**
+   * The bill raises a payment prompt of its own (Helion's heat, Luna's
+   * titanium can pay it) — nothing is pre-collected then: the console takes
+   * the live road (the bill stage, then the live pick).
+   */
+  billAsks: boolean;
 };
 
 export type ParliamentPhasePendingModel = {

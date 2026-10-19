@@ -5,6 +5,7 @@ import {Tag} from '../cards/Tag';
 import {GlobalParameter} from '../GlobalParameter';
 import {EventSource} from '../events/EventSource';
 import {PartyName} from '../turmoil/PartyName';
+import {ResolutionId} from '../parliament/ParliamentTypes';
 
 /**
  * WHAT A ONE-PLAY EFFECT DOES to the card that spends it — the four kinds the
@@ -29,6 +30,24 @@ export type ArmedPlayEffectKind =
   | {kind: 'partyWaiver'}
   | {kind: 'discount'; amount: number; tag?: Tag};
 
+/** A LAW as the source of an armed effect (RX36) — the resolution's catalog id. */
+export type ArmedLawSource = {resolution: ResolutionId};
+
+/** Is the armed effect's source a LAW (RX36), not a card? */
+export function isArmedLawSource(source: ArmedPlayEffectModel['source']): source is ArmedLawSource {
+  return typeof source === 'object';
+}
+
+/** The armed source as a CARD — `undefined` for a law. */
+export function armedSourceCard(source: ArmedPlayEffectModel['source']): CardName | undefined {
+  return typeof source === 'string' ? source : undefined;
+}
+
+/** A STABLE KEY of the armed source (a card's name, `law:<id>` for a law) — for keys, maps and comparisons. */
+export function armedSourceKey(source: ArmedPlayEffectModel['source']): string {
+  return typeof source === 'string' ? source : 'law:' + source.resolution;
+}
+
 /**
  * AN ARMED ONE-PLAY EFFECT — what the NEXT card this player plays this
  * generation will spend. Armed by the card that was played last
@@ -44,10 +63,15 @@ export type ArmedPlayEffectKind =
  * what this seat holds just as its own hand does.
  */
 export type ArmedPlayEffectModel = {
-  /** The card that armed it — the card played last. */
-  source: CardName;
-  /** The source's type — a PRELUDE hosts its own next play inside its effect. */
-  sourceType: CardType;
+  /**
+   * WHO armed it: the card played last — or a LAW (Turmoil Redux RX36 Live
+   * Experiments: its paid action arms «the next card ignores its global
+   * requirements»; `IPlayer.armedLawWaiver`). Every reader names the source
+   * through `armedSourceName` — a law is never a card name.
+   */
+  source: CardName | ArmedLawSource;
+  /** The source's type — a PRELUDE hosts its own next play inside its effect; `'resolution'` for a law. */
+  sourceType: CardType | 'resolution';
   effect: ArmedPlayEffectKind;
   /** It ends with the next card play (or the pass that ends the generation). */
   expires: 'next-play';

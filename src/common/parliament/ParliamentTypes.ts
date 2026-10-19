@@ -197,7 +197,17 @@ export type QuestGoal =
    * zero forever. Reported by `Colony.trade` (the one door every trade goes
    * through), judged by the tracker's usual eligibility.
    */
-  | {kind: 'trade'};
+  | {kind: 'trade'}
+  /**
+   * PROJECT CARDS WITH A REQUIREMENT the player plays (Live Experiments: «play
+   * 2 cards with a requirement» — the footnote's yellow MIN plate, decision
+   * Р2): a project card (automated, active, event) printing AT LEAST ONE
+   * requirement of any kind — global, tag, production, rating, party,
+   * chairman, cities / colonies / resources. A corporation or a prelude is no
+   * project card. Matched off the ONE play report (`QuestEvent.cardsPlayed`
+   * carries the card's printed requirement types), never a second report.
+   */
+  | {kind: 'cardsWithRequirement'};
 
 export type QuestDefinition = {
   goal: QuestGoal;

@@ -8,12 +8,11 @@
  *     card USES it or spends it for nothing (an `info` note, never a block).
  * Nothing is compared or derived here: the numbers and verdicts are the server's.
  */
-import {CardName} from '@/common/cards/CardName';
 import {CardAnnotation, CardAnnotationRow} from '@/client/components/cardAnnotations/annotationModel';
-import {ArmedPlayForecast, RequirementEasingModel, RequirementEasingSourceModel} from '@/common/models/ArmedPlayEffectModel';
+import {ArmedPlayForecast, armedSourceKey, RequirementEasingModel, RequirementEasingSourceModel} from '@/common/models/ArmedPlayEffectModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {armedEffectFormula, easingBound, easingShareText, easingSourcesText, easingSubjectLabel, easingUnit, EASING_KEYS} from '@/client/console/requirementEasingText';
+import {armedEffectFormula, armedSourceName, easingBound, easingShareText, easingSourcesText, easingSubjectLabel, easingUnit, EASING_KEYS} from '@/client/console/requirementEasingText';
 import {ModifierSourceVM, easingIsQuiet, modifierSourceOf} from '@/client/components/premiumCard/premiumModifierSources';
 import {requirementPartyEmblem} from '@/client/components/premiumCard/partyEmblems';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
@@ -121,14 +120,15 @@ export const CONSUME_KEYS = {
   unused: 'This play spends ${0} for nothing — this card does not need it',
 } as const;
 
-export type ComposerConsumeNote = {source: CardName, used: boolean, text: string};
+/** `source` is the armed source's stable key (a card's name, `law:<id>` for a law — RX36). */
+export type ComposerConsumeNote = {source: string, used: boolean, text: string};
 
 /** The armed effects this play spends — named, and said to be used or wasted. */
 export function composerConsumeNotes(forecast: ArmedPlayForecast | undefined): ReadonlyArray<ComposerConsumeNote> {
   return (forecast?.consumes ?? []).map((c) => {
-    const name = translateText(c.armed.source);
+    const name = armedSourceName(c.armed.source);
     return {
-      source: c.armed.source,
+      source: armedSourceKey(c.armed.source),
       used: c.used,
       text: c.used ?
         translateTextWithParams(CONSUME_KEYS.used, [name, armedEffectFormula(c.armed.effect)]) :

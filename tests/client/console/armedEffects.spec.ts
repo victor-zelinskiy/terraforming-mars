@@ -340,3 +340,61 @@ describe('the ONE-PLAY class on the client (TR49)', () => {
     });
   });
 });
+
+/**
+ * A LAW AS THE SOURCE (Turmoil Redux RX36 Live Experiments): the paid action of
+ * an enacted resolution arms «the next card ignores its global requirements».
+ * Every reader of the class names the LAW — never a card it is not: the
+ * «ВЗВЕДЕНО» view, the seal's symbol (its party's emblem in the plaque's
+ * frame, the law's name in words), the formatter, the play's consume note.
+ */
+describe('the ONE-PLAY class — a LAW as the source (RX36)', () => {
+  const LAW = 'RDX_SCIENTISTS_LIVE_EXPERIMENTS';
+  const lawWaived: RequirementEasingModel = {
+    key: 'req:C', index: 0, type: RequirementType.TEMPERATURE, parameter: GlobalParameter.TEMPERATURE, max: false,
+    printed: -16, effective: 'waived', current: -30, met: true, decisive: true,
+    sources: [{source: {kind: 'resolution', id: LAW}, kind: 'waive', oneShot: true}],
+  };
+
+  it('the «ВЗВЕДЕНО» view: no card, the law by id and by name, a stable key of its own', () => {
+    const [view] = armedEffectsOf({armedPlayEffects: [
+      {source: {resolution: LAW}, sourceType: 'resolution', effect: {kind: 'requirementWaiver'}, expires: 'next-play'},
+    ]});
+    expect(view.source, 'a law is no card').is.undefined;
+    expect(view.law).eq(LAW);
+    expect(view.sourceKey).eq('law:' + LAW);
+    expect(view.sourceName, 'named by the Parliament\'s manifest').eq('Live Experiments');
+    expect([view.kind, view.badge, view.formula]).deep.eq(['requirementWaiver', 'Ignored', 'Global requirements ignored']);
+    expect(view.prelude).is.false;
+  });
+
+  it('beside an armed card: two sources, two keys — the strip names the first and keys its hook by it', () => {
+    const effects = armedEffectsOf({armedPlayEffects: [
+      {source: CED, sourceType: CardType.EVENT, effect: {kind: 'requirementWaiver'}, expires: 'next-play'},
+      {source: {resolution: LAW}, sourceType: 'resolution', effect: {kind: 'requirementWaiver'}, expires: 'next-play'},
+    ]});
+    expect(effects.map((e) => e.sourceKey)).deep.eq([CED, 'law:' + LAW]);
+    expect(new Set(effects.map((e) => e.key)).size).eq(2);
+    const lawOnly = armedEffectsOf({armedPlayEffects: [{source: {resolution: LAW}, sourceType: 'resolution', effect: {kind: 'requirementWaiver'}, expires: 'next-play'}]});
+    const strip = mount(ConsoleArmedEffectsStrip, {...globalConfig, props: {effects: lawOnly, variant: 'strip'}});
+    expect(strip.find('[data-armed-strip]').attributes('data-armed-source')).eq('law:' + LAW);
+    expect(strip.find('.con-armed__source').text()).eq('Live Experiments');
+  });
+
+  it('the seal: the LAW symbol — its party\'s emblem in the plaque\'s frame, the law named in words', () => {
+    expect(modifierSymbolOf({kind: 'resolution', id: LAW}, true), 'a law is its own kind, never the bolt').eq('law');
+    const [mark] = modifierSourcesOf(lawWaived);
+    expect([mark.key, mark.symbol, mark.resolution, mark.party, mark.card]).deep.eq(['law:' + LAW, 'law', LAW, PartyName.SCIENTISTS, undefined]);
+    const w = mount(PremiumModifierMarks, {...globalConfig, props: {sources: [mark]}});
+    const el = w.find('.pcard-modmark--law');
+    expect(el.exists()).is.true;
+    expect((el.element as HTMLElement).style.backgroundImage, 'the party\'s emblem').contains('scientists');
+    expect(el.attributes('data-req-mark-source')).eq(LAW);
+    expect(w.find('[data-req-marks]').attributes('aria-label'), 'read by its own name').eq('Live Experiments');
+  });
+
+  it('the one formatter names the law: the line, the sources', () => {
+    expect(easingLine(lawWaived)).contains('Requirement ignored');
+    expect(easingSourcesText(lawWaived)).eq('Live Experiments · One play');
+  });
+});

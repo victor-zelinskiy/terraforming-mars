@@ -42,6 +42,8 @@ export const BOT_QUEST_PATHS: Readonly<Record<QuestGoal['kind'], BotQuestPath>> 
   delegates: 'engine',
   cardsPlayed: 'adapter',
   trade: 'adapter',
+  // The bot plays real project cards, and they print requirements: the same report as `cardsPlayed`.
+  cardsWithRequirement: 'adapter',
 };
 
 /** The tile kinds by their own path — a greenery / a city / a special tile is placed by the bot, a space city never. */
@@ -88,6 +90,7 @@ export function botQuestReachable(goal: QuestGoal, table: BotQuestTable): boolea
   case 'delegates':
   case 'cardsPlayed':
   case 'trade':
+  case 'cardsWithRequirement':
     return true;
   }
 }

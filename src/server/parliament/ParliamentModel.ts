@@ -428,7 +428,7 @@ function resolutionActionModel(parliament: Parliament, viewer: IPlayer): Resolut
       reason = verdict.reason;
     }
   }
-  return {
+  const model: ResolutionActionModel = {
     resolution: enacted.id,
     party: enacted.party,
     hasAccess,
@@ -438,6 +438,19 @@ function resolutionActionModel(parliament: Parliament, viewer: IPlayer): Resolut
     reason,
     preview: action.preview(viewer),
   };
+  if (available) {
+    // Information, never a block (Live Experiments' «without effect»).
+    const futile = action.futility?.(viewer);
+    if (futile !== undefined) {
+      model.futile = futile;
+    }
+    // The card play the action promises (RX36) — the console's pre-select reads it.
+    const play = action.playModel?.(viewer);
+    if (play !== undefined) {
+      model.play = play;
+    }
+  }
+  return model;
 }
 
 function partyActionModels(parliament: Parliament, viewer: IPlayer): Array<PartyActionModel> {

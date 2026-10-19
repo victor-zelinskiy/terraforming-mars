@@ -11,7 +11,7 @@
           :class="'pcard-modmark--' + s.symbol"
           :style="markStyle(s, i)"
           :data-req-mark="s.symbol"
-          :data-req-mark-source="s.card ?? s.party ?? s.key"
+          :data-req-mark-source="s.card ?? s.resolution ?? s.party ?? s.key"
           :data-req-mark-via="s.via"></span>
     <span v-if="more > 0" class="pcard-modmark pcard-modmark--more" :style="{zIndex: '0'}">+{{ more }}</span>
   </span>
@@ -23,6 +23,7 @@ import {translateText} from '@/client/directives/i18n';
 import {requirementPartyEmblem} from './partyEmblems';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {ModifierSourceVM, sealOrder} from './premiumModifierSources';
+import {lawName} from '@/client/console/requirementEasingText';
 
 export default defineComponent({
   name: 'PremiumModifierMarks',
@@ -47,6 +48,10 @@ export default defineComponent({
         if (s.symbol === 'ally' && s.via !== undefined) {
           return [translateText(partyNameKey(s.via)), s.card !== undefined ? translateText(s.card) : ''].filter((n) => n !== '').join(' · ');
         }
+        // A LAW (RX36) is read by its own name, never its party's.
+        if (s.symbol === 'law' && s.resolution !== undefined) {
+          return lawName(s.resolution);
+        }
         return s.card !== undefined ? translateText(s.card) : s.party !== undefined ? translateText(partyNameKey(s.party)) : '';
       }).filter((n) => n !== '').join(', ');
     },
@@ -55,7 +60,7 @@ export default defineComponent({
     markStyle(s: ModifierSourceVM, i: number): Record<string, string> {
       // A pile of cards: the first lies on top, each next one peeks from behind.
       const style: Record<string, string> = {zIndex: String(this.shown.length - i)};
-      const party = s.symbol === 'party' ? s.party : s.symbol === 'ally' ? s.via : undefined;
+      const party = s.symbol === 'party' || s.symbol === 'law' ? s.party : s.symbol === 'ally' ? s.via : undefined;
       const emblem = party !== undefined ? requirementPartyEmblem(party) : undefined;
       if (emblem !== undefined) {
         style.backgroundImage = `url(${emblem})`;

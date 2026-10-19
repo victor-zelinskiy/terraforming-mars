@@ -75,7 +75,7 @@ import {TRSourceEntry, TRSourceType, VictoryPointsBreakdown} from '../common/gam
 import {ParliamentHandler} from './parliament/ParliamentHandler';
 import {fromToEventSource} from './events/fromToEventSource';
 import {Supercapacitors} from './cards/promo/Supercapacitors';
-import {CanAffordOptions, CardAction, CardDrawReveal, IPlayer, PendingCardIntake, PlayabilityOptions, RevealedCard, CardDrawSearchOutcome, RequirementBonusEntry} from './IPlayer';
+import {CanAffordOptions, CardAction, CardDrawReveal, IPlayer, PendingCardIntake, PlayabilityOptions, RevealedCard, CardDrawSearchOutcome, RequirementBonusEntry, GlobalWaiverProbe} from './IPlayer';
 import {IPreludeCard} from './cards/prelude/IPreludeCard';
 import {copyAndClear, inplaceRemove, sum, toName} from '../common/utils/utils';
 import {PreludesExpansion} from './preludes/PreludesExpansion';
@@ -105,6 +105,7 @@ import {PlayedCards} from './cards/PlayedCards';
 import {From} from './logs/From';
 import type {CardResourceBasis} from '../common/events/EventImpact';
 import {SelectStandardProjectToPlay} from './inputs/SelectStandardProjectToPlay';
+import {ResolutionId} from '../common/parliament/ParliamentTypes';
 
 const THROW_STATE_ERRORS = Boolean(process.env.THROW_STATE_ERRORS);
 
@@ -297,6 +298,8 @@ export class Player implements IPlayer {
   public pendingPlacementCancelled: boolean = false;
   public actionsThisGeneration: Set<CardName> = new Set();
   public lastCardPlayed: CardName | undefined;
+  /** The LAW's armed waiver (RX36 Live Experiments) — see `IPlayer.armedLawWaiver`. */
+  public armedLawWaiver: ResolutionId | undefined = undefined;
   public pendingInitialActions: Array<ICorporationCard> = [];
 
   // Cards
@@ -385,7 +388,7 @@ export class Player implements IPlayer {
   public deltaProjectData?: DeltaProjectPlayerModel;
   public standardProjectsThisGeneration: Set<CardName> = new Set();
   public temporaryGlobalParameterRequirementBonus = 0;
-  public temporaryGlobalRequirementWaiver: CardName | undefined = undefined;
+  public temporaryGlobalRequirementWaiver: GlobalWaiverProbe | undefined = undefined;
 
   // The number of actions a player can take this round.
   // It's almost always 2, but certain cards can change this value (Mars Maths, Tool with the First Order)
@@ -822,8 +825,17 @@ export class Player implements IPlayer {
   }
 
   public globalRequirementWaiver(parameter: GlobalParameter): EventSource | undefined {
-    if (this.temporaryGlobalRequirementWaiver !== undefined) {
-      return {kind: 'card', card: this.temporaryGlobalRequirementWaiver, owner: this.color};
+    const probe = this.temporaryGlobalRequirementWaiver;
+    if (probe !== undefined) {
+      return typeof probe === 'string' ?
+        {kind: 'card', card: probe, owner: this.color} :
+        {kind: 'resolution', id: probe.resolution, owner: this.color};
+    }
+    // THE LAW'S PAID WAIVER (RX36 Live Experiments) — read before the table: it
+    // is the one the player bought for THIS play. Beside an armed card waiver
+    // (TR49) both are spent by the same play; the law is named.
+    if (this.armedLawWaiver !== undefined) {
+      return {kind: 'resolution', id: this.armedLawWaiver, owner: this.color};
     }
     // The table, and the replayed events beside it (Playwrights) — the same
     // two places the price breakdown asks for a one-play discount.
@@ -881,9 +893,12 @@ export class Player implements IPlayer {
           b.cardName(source.card);
         } else if (source.kind === 'party') {
           b.partyName(source.name);
+        } else if (source.kind === 'resolution') {
+          // A LAW's waiver (RX36 Live Experiments) — the resolution's own chip.
+          b.resolution(source.id);
         }
       };
-      if (source.kind !== 'card' && source.kind !== 'corporation' && source.kind !== 'party') {
+      if (source.kind !== 'card' && source.kind !== 'corporation' && source.kind !== 'party' && source.kind !== 'resolution') {
         continue;
       }
       if (fact.kind === 'waive') {
@@ -1604,6 +1619,9 @@ export class Player implements IPlayer {
       // card through is still armed here, and THIS assignment spends it.
       const eased = requirementEasingOf(this, selectedCard).filter((easing) => easing.decisive);
       this.lastCardPlayed = selectedCard.name;
+      // …and the LAW's armed waiver (RX36) is spent by the same play — needed or
+      // not, by any road: the TR49 class's one-play semantics, one place.
+      this.armedLawWaiver = undefined;
       this.game.log('${0} played ${1}', (b) => b.player(this).card(selectedCard));
       // Discount detail lines — grouped UNDER the play (role 'detail'), so the
       // previously-invisible M€ saving reads as a connected payment detail.
@@ -2229,6 +2247,8 @@ export class Player implements IPlayer {
   public pass(): void {
     this.game.playerHasPassed(this);
     this.lastCardPlayed = undefined;
+    // An armed law waiver never crosses into the next generation (RX36 — as TR49's).
+    this.armedLawWaiver = undefined;
     this.autopass = false;
     this.game.log('${0} passed', (b) => b.player(this));
   }
@@ -2378,7 +2398,7 @@ export class Player implements IPlayer {
     return {
       cost,
       ...paymentOptionsForCard,
-      reserveUnits: MoonExpansion.adjustedReserveCosts(this, card),
+      reserveUnits: withExtraReserve(MoonExpansion.adjustedReserveCosts(this, card), options?.reserve),
       tr: trSource,
     };
   }
@@ -3434,6 +3454,9 @@ export class Player implements IPlayer {
     if (this.lastCardPlayed !== undefined) {
       result.lastCardPlayed = this.lastCardPlayed;
     }
+    if (this.armedLawWaiver !== undefined) {
+      result.armedLawWaiver = this.armedLawWaiver;
+    }
     result.deltaProject = this.deltaProjectData;
     if (this.isMarsBot) {
       result.isMarsBot = true;
@@ -3468,6 +3491,8 @@ export class Player implements IPlayer {
     player.hasTurmoilScienceTagBonus = d.hasTurmoilScienceTagBonus;
     player.heat = d.heat;
     player.lastCardPlayed = d.lastCardPlayed;
+    // An older save carries no law waiver — nothing armed (RX36).
+    player.armedLawWaiver = d.armedLawWaiver;
     player.standardProjectsThisGeneration = new Set(d.standardProjectsThisGeneration);
     player.megaCredits = d.megaCredits;
     player.needsToDraft = d.needsToDraft;
@@ -3582,4 +3607,19 @@ export class Player implements IPlayer {
     };
     return f;
   }
+}
+
+/**
+ * The card's own reserve PLUS a bill paid first out of the same pockets
+ * (`PlayabilityOptions.reserve` — Live Experiments RX36). Read-only.
+ */
+function withExtraReserve(units: Units, extra: Partial<Units> | undefined): Units {
+  if (extra === undefined || Units.isEmpty(extra)) {
+    return units;
+  }
+  const sum: Partial<Units> = {};
+  for (const key of Units.keys) {
+    sum[key] = units[key] + (extra[key] ?? 0);
+  }
+  return Units.of(sum);
 }

@@ -49,6 +49,8 @@ export type MechIconSpec =
   | {kind: 'vpCard', tag?: Tag}
   /** A card with a requirement of ANY party (Turmoil Redux TR13) — `PremiumPartyRequirementGlyph`; `waived` = the plate STRUCK (TR70: the next card ignores it). */
   | {kind: 'partyRequirement', waived?: true}
+  /** «A card WITH A REQUIREMENT» (RX36 Live Experiments' quest) — the same plate, BARE: no party pill, the MIN mark. */
+  | {kind: 'requirementPlate'}
   /**
    * ONE NAMED PARTY's seal (Turmoil Redux TR62 — «[Mars First] = [Reds]»): the party's emblem from the ONE table
    * (`partyEmblems.ts`); `stacked` overlaps the seal before it (the scan's pair), `caption` the English key printed
@@ -643,6 +645,9 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
     // STRUCK (`cancelled` — TR70 Backroom Deal: «NEXT CARD: [plate ×]»): the
     // one-play class's red diagonal, the stroke the next card's cassette wears.
     return item.cancelled === true ? {kind: 'partyRequirement', waived: true} : {kind: 'partyRequirement'};
+  case CardRenderItemType.REQUIREMENT_PLATE:
+    // «A card with ANY requirement» (RX36): the SAME plate, bare — the MIN mark instead of the party pill.
+    return {kind: 'requirementPlate'};
   case CardRenderItemType.COLONY_TILE:
     // The printed COLONY TILE glyph (the pill of a tile: track bars + the
     // planet's limb — Turmoil Redux TR07 «SET [tile] TO MAX», Aridor, Early

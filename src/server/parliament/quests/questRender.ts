@@ -105,6 +105,13 @@ export function questRenderData(quest: QuestDefinition): ICardRenderRoot {
       // is about trading, not about owning ships — decision Q-4.
       b.trade({amount: count, digit: true});
       return;
+    case 'cardsWithRequirement':
+      // The REQUIREMENT PLATE alone — the yellow MIN banner the footnote
+      // prints («2 [plate]», Live Experiments, decision Р2: any requirement) —
+      // with a DIGIT beside ONE plate. Never the party plate (its pill names a
+      // PARTY requirement) and never a card glyph: the object is the plate.
+      b.requirementPlate({amount: count, digit: true});
+      return;
     }
   });
 }

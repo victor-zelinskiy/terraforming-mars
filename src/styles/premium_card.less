@@ -790,6 +790,23 @@
   transform: translate(-50%, -50%);
   background: url(./assets/misc/wild-party.png) center / contain no-repeat;
 }
+/* «A CARD WITH ANY REQUIREMENT» (RX36 Live Experiments' quest — `REQUIREMENT_PLATE`): the SAME plate, BARE — its MIN
+   mark where the pill sits, engraved in the plate's own dark ink (the printed footnote's banner). Sized off the one
+   plate height, so it scales with the silhouette; no `text-shadow` (the console strips it). */
+.pprq__min {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--pcard-font-title, inherit);
+  font-size: calc(var(--pprq-h) * 0.46);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  color: #3b200d;
+}
+
 /* «NEXT CARD: [party plate ×]» (TR70 Backroom Deal) — the party plate STRUCK by the one-play class's red diagonal: the
    SAME stroke `.pcard-plate--waived` prints for «global requirements ignored» and the next card's cassette wears,
    drawn OVER the pill (the clip keeps the plate's silhouette; the stroke is a child, so it is never clipped off). */
@@ -2772,6 +2789,16 @@
   &--ally {
     box-shadow: 0 0 0 .06em rgba(4, 18, 14, 0.9);
     .alliance-link-glyph(.56em; .6em; .58em; #ffd27a; .07em; rgba(4, 18, 14, 0.92));
+  }
+  /* an ENACTED LAW (RX36 Live Experiments): its party's emblem in the PLAQUE's frame — a rounded square with the law's
+     gold rim (the law seal's language), never a disc: the party policy is a disc, the law is a plaque. The emblem
+     rides `background-image` (the marks' one road). */
+  &--law {
+    border-radius: .2em;
+    background-size: 78%;
+    box-shadow:
+      inset 0 0 0 .08em rgba(255, 206, 92, 0.95),
+      0 0 0 .06em rgba(4, 18, 14, 0.9);
   }
   /* a rule with no card behind it */
   &--system::before {

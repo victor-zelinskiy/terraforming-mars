@@ -11,6 +11,7 @@ import {DiscordId} from './server/auth/discord';
 import {UnderworldPlayerData} from '../common/underworld/UnderworldPlayerData';
 import {DeltaProjectPlayerModel} from '../common/models/DeltaProjectPlayerModel';
 import {ExternalDrawCause} from '../common/models/ExternalDrawPromptModel';
+import {ResolutionId} from '../common/parliament/ParliamentTypes';
 
 interface DeprecatedFields {
 }
@@ -90,6 +91,8 @@ export interface SerializedPlayer extends DeprecatedFields{
   id: PlayerId;
   jovianTagCount: number;
   lastCardPlayed?: CardName;
+  /** The LAW's armed waiver (Turmoil Redux RX36 — `IPlayer.armedLawWaiver`); absent = nothing armed (and every older save). */
+  armedLawWaiver?: ResolutionId;
   megaCreditProduction: number;
   megaCredits: number;
   name: string;

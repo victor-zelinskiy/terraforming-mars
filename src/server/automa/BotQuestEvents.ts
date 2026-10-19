@@ -77,7 +77,7 @@ export class BotQuestEvents {
   /** A project card the bot resolves — its printed tags and its type, before any tag does anything. */
   public static cardPlayed(game: IGame, card: IProjectCard): void {
     BotQuestEvents.report(game, {kind: 'tag', tags: AutomaResolver.printedTags(card)});
-    BotQuestEvents.report(game, {kind: 'cardsPlayed', cardType: card.type});
+    BotQuestEvents.report(game, {kind: 'cardsPlayed', cardType: card.type, requirements: QuestTracker.requirementTypesOf(card)});
   }
 
   /** A track advanced one step — one step of every production it stands for. */

@@ -9,15 +9,23 @@
  */
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
-import {ArmedPlayEffectKind, ArmedPlayEffectModel} from '@/common/models/ArmedPlayEffectModel';
+import {ArmedPlayEffectKind, ArmedPlayEffectModel, armedSourceCard, armedSourceKey, isArmedLawSource} from '@/common/models/ArmedPlayEffectModel';
+import {ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {translateText} from '@/client/directives/i18n';
-import {armedEffectBadge, armedEffectFormula, EASING_KEYS} from '@/client/console/requirementEasingText';
+import {armedEffectBadge, armedEffectFormula, armedSourceName, EASING_KEYS} from '@/client/console/requirementEasingText';
 
 export type ArmedEffectView = {
   /** Stable render key. */
   key: string;
-  source: CardName;
+  /** The CARD that armed it — undefined when a LAW did (RX36 Live Experiments — `law`). */
+  source: CardName | undefined;
+  /** The LAW that armed it (RX36 — its paid action), when no card did. */
+  law?: ResolutionId;
+  /** The source's stable key (a card's name, `law:<id>`) — DOM hooks and comparisons. */
+  sourceKey: string;
+  /** The source's own name, translated — the card's, or the law's. */
+  sourceName: string;
   /** The source is a PRELUDE — it hosts its own next play inside its effect. */
   prelude: boolean;
   kind: ArmedPlayEffectKind['kind'];
@@ -30,9 +38,13 @@ export type ArmedEffectView = {
 };
 
 function viewOf(armed: ArmedPlayEffectModel, index: number): ArmedEffectView {
+  const sourceKey = armedSourceKey(armed.source);
   return {
-    key: `${armed.source}:${armed.effect.kind}:${index}`,
-    source: armed.source,
+    key: `${sourceKey}:${armed.effect.kind}:${index}`,
+    source: armedSourceCard(armed.source),
+    ...(isArmedLawSource(armed.source) ? {law: armed.source.resolution} : {}),
+    sourceKey,
+    sourceName: armedSourceName(armed.source),
     prelude: armed.sourceType === CardType.PRELUDE,
     kind: armed.effect.kind,
     formula: armedEffectFormula(armed.effect),
@@ -46,7 +58,7 @@ export function armedEffectsOf(player: Pick<PublicPlayerModel, 'armedPlayEffects
   return (player?.armedPlayEffects ?? []).map(viewOf);
 }
 
-/** The ONE source the strip names (the card played last — one field, one armed card). */
-export function armedSourceOf(views: ReadonlyArray<ArmedEffectView>): CardName | undefined {
-  return views[0]?.source;
+/** The ONE source the strip names first (the card played last, else the law — RX36). */
+export function armedSourceOf(views: ReadonlyArray<ArmedEffectView>): ArmedEffectView | undefined {
+  return views[0];
 }

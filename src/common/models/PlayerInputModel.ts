@@ -602,7 +602,12 @@ export type ResolutionActionPromptMeta = {
   /** The enacted resolution whose action this is (its catalog id). */
   resolution: string;
   party: PartyName;
-  stage: 'choose' | 'pay';
+  /**
+   * `choose` — the menu's own prompt; `pay` — the bill a PAID action defers
+   * (Trade Industries); `play` — the card the action plays (Live Experiments
+   * RX36: the `projectCard` pick after the bill).
+   */
+  stage: 'choose' | 'pay' | 'play';
   usesLeft: number;
   usesPerGeneration: number;
 }

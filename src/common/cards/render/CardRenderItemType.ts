@@ -35,6 +35,13 @@ export enum CardRenderItemType {
    */
   PARTY_REQUIREMENT = 'party-requirement',
   /**
+   * Turmoil Redux: «a card WITH A REQUIREMENT» — the requirement plate alone,
+   * the yellow MIN banner the printed footnote shows (RX36 Live Experiments'
+   * quest: «2 [plate]»). The same drawing as `PARTY_REQUIREMENT` without the
+   * party pill: the object is ANY printed requirement.
+   */
+  REQUIREMENT_PLATE = 'requirement-plate',
+  /**
    * Turmoil Redux: ONE NAMED PARTY's seal (TR62 Tharsis Alliance prints «[Mars
    * First] = [Reds]» and «[Mars First][Reds] RULING : [card]»): the party's own
    * emblem plate, the party carried by `ICardRenderItem.party`. A `stacked`

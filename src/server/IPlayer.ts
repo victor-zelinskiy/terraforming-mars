@@ -49,6 +49,7 @@ import {From} from './logs/From';
 import type {CardResourceBasis} from '../common/events/EventImpact';
 import {Tag} from '../common/cards/Tag';
 import {SelectStandardProjectToPlay} from './inputs/SelectStandardProjectToPlay';
+import {ResolutionId} from '../common/parliament/ParliamentTypes';
 
 /**
  * Represents additional costs a player must pay to execute an action.
@@ -82,7 +83,21 @@ export type CanAffordOptions = Partial<PaymentOptions> & {
  */
 export type PlayabilityOptions = {
   extraDiscount?: number,
+  /**
+   * Units held back BEFORE the card is priced — a bill paid FIRST out of the
+   * same pockets (Live Experiments RX36: «pay 6 M€ to play a card» — the card
+   * must still be affordable after the 6). Added to the card's own reserve
+   * (`reserveUnits`), so the engine's one affordability check answers.
+   */
+  reserve?: Partial<Units>,
 }
+
+/**
+ * WHO a probe names while it asks «could a card be played if this waiver were
+ * armed?» (`IPlayer.temporaryGlobalRequirementWaiver`) — a card (Ecology
+ * Experts) or a law (Live Experiments RX36).
+ */
+export type GlobalWaiverProbe = CardName | {resolution: ResolutionId};
 
 /**
  * One card a conditional search turned over, with the verdict that decided
@@ -269,6 +284,19 @@ export interface IPlayer {
   // so the action loop re-presents the menu without counting the action.
   pendingPlacementCancelled: boolean;
   lastCardPlayed: CardName | undefined;
+  /**
+   * THE LAW'S ARMED WAIVER (Turmoil Redux RX36 Live Experiments): the PAID action
+   * of an enacted resolution armed «the next card ignores its global
+   * requirements» — a one-play effect whose source is a LAW, not a card, so it
+   * cannot ride `lastCardPlayed` (one field, a card's name). Serialized: the
+   * 6 M€ are paid when it is armed, so a reload between the bill and the card
+   * loses nothing (paid = owed). Read FIRST by `globalRequirementWaiver` after
+   * the probe, published by `armedPlayEffectsOf` with the law as its source,
+   * SPENT by the next card played by any road (beside `lastCardPlayed`, in the
+   * one place that moves it) and lost on the pass — the TR49 class's one-play
+   * semantics. `undefined` = nothing armed.
+   */
+  armedLawWaiver: ResolutionId | undefined;
   pendingInitialActions: Array<ICorporationCard>;
 
   // Cards
@@ -567,11 +595,13 @@ export interface IPlayer {
    */
   temporaryGlobalParameterRequirementBonus: number;
   /**
-   * The PROBE's waiver: a card that asks «could a card be played if its own
-   * waiver were armed?» (Ecology Experts' `bespokeCanPlay`) names itself here
-   * for the length of the question (try / finally) — never serialized.
+   * The PROBE's waiver: a source that asks «could a card be played if its own
+   * waiver were armed?» names itself here for the length of the question
+   * (try / finally) — never serialized. A CARD (Ecology Experts'
+   * `bespokeCanPlay`) or a LAW (Live Experiments RX36: the action's gate, its
+   * futility verdict and the console's candidates ask with the law armed).
    */
-  temporaryGlobalRequirementWaiver: CardName | undefined;
+  temporaryGlobalRequirementWaiver: GlobalWaiverProbe | undefined;
   /**
    * Called when this player is responsible for increasing a global parameter.
    */

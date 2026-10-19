@@ -129,6 +129,10 @@ function partyWaiverIsOneShot(player: IPlayer, source: EventSource): boolean {
 
 /** A waiver is spent by the next play when its declaration says `nextCardOnly` (the probe's always is). */
 function waiverIsOneShot(player: IPlayer, source: EventSource): boolean {
+  if (source.kind === 'resolution') {
+    // A LAW's waiver (RX36 Live Experiments) — the armed slot, or the probe naming the law: one play, always.
+    return true;
+  }
   if (source.kind !== 'card' && source.kind !== 'corporation') {
     return false;
   }

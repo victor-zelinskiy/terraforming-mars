@@ -24,6 +24,9 @@ import {BoardType} from '../../boards/BoardType';
 import {JournalActionCategory} from '../../../common/events/GameEvent';
 import {QuestGoal} from '../../../common/parliament/ParliamentTypes';
 import {ChairmanSeat} from './ChairmanSeat';
+import {RequirementType} from '../../../common/cards/RequirementType';
+import {CardRequirementDescriptor} from '../../../common/cards/CardRequirementDescriptor';
+import {CardRequirements} from '../../cards/requirements/CardRequirements';
 
 export type QuestEvent =
   | {kind: 'production'; resource: Resource; amount: number}
@@ -42,7 +45,12 @@ export type QuestEvent =
   | {kind: 'tr'; steps: number}
   | {kind: 'cardResource'; resource: CardResource | undefined; amount: number}
   | {kind: 'delegates'; amount: number}
-  | {kind: 'cardsPlayed'; cardType: CardType}
+  /**
+   * A card played — its TYPE and its PRINTED requirement types (Live
+   * Experiments' quest: a project card with at least one requirement). One
+   * report, read by both card goals.
+   */
+  | {kind: 'cardsPlayed'; cardType: CardType; requirements?: ReadonlyArray<RequirementType>}
   /** A TRADE performed (`Colony.trade` — the one door every trade goes through, the Unity free trade included). */
   | {kind: 'trade'};
 
@@ -122,6 +130,13 @@ export class QuestTracker {
       return (goal.cardType === 'active' && event.cardType === CardType.ACTIVE) ||
         (goal.cardType === 'automated' && event.cardType === CardType.AUTOMATED) ||
         (goal.cardType === 'event' && event.cardType === CardType.EVENT) ? 1 : 0;
+    case 'cardsWithRequirement':
+      // A PROJECT card printing at least one requirement of ANY kind
+      // (decision Р2) — a corporation / a prelude is no project card. Whether
+      // the requirement was met, eased or waived does not matter: the card
+      // printed it. A card played THROUGH a law never reaches here
+      // (`eligible` — decision Q5).
+      return event.kind === 'cardsPlayed' && QuestTracker.isProjectType(event.cardType) && (event.requirements ?? []).length > 0 ? 1 : 0;
     case 'trade':
       // A trade is a DEED of the seat's turn (Trade Industries: «trade 2
       // times»): whoever paid for it — M€, energy, titanium, the Unity
@@ -130,6 +145,18 @@ export class QuestTracker {
       // resolution source, one outside the action phase.
       return event.kind === 'trade' ? 1 : 0;
     }
+  }
+
+  private static isProjectType(type: CardType): boolean {
+    return type === CardType.AUTOMATED || type === CardType.ACTIVE || type === CardType.EVENT;
+  }
+
+  /** The PRINTED requirement types of `card` — the one reading the play report carries (human and bot alike). */
+  public static requirementTypesOf(card: {requirements: ReadonlyArray<CardRequirementDescriptor>}): ReadonlyArray<RequirementType> {
+    if (card.requirements.length === 0) {
+      return [];
+    }
+    return CardRequirements.compile([...card.requirements]).requirements.map((requirement) => requirement.type);
   }
 
   private static tileMatches(kind: Extract<QuestGoal, {kind: 'tile'}>['tile'], event: Extract<QuestEvent, {kind: 'tile'}>): boolean {

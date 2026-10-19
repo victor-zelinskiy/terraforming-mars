@@ -508,17 +508,23 @@ export function skippedLinesOf(chain: ReadonlyArray<GameEvent>, actor: Color | u
 }
 
 /**
- * WHO LET THE PLAY THROUGH (TR49 class): every `requirement-eased` record of this chain whose modifier is a card,
- * in chain order — the rival's line «требование снято / ±2 ‹card›».
+ * WHO LET THE PLAY THROUGH (TR49 class): every `requirement-eased` record of this chain whose modifier is a card —
+ * or a LAW (RX36 Live Experiments: the paid waiver of an enacted resolution) — in chain order: the rival's line
+ * «требование снято / ±2 ‹card›» / «требование снято · ‹закон›».
  */
 export function easedLinesOf(chain: ReadonlyArray<GameEvent>): Array<NotificationEasedLine> {
   const lines: Array<NotificationEasedLine> = [];
   for (const e of chain) {
     const fact = e.type === 'requirement-eased' ? e.impact.requirementEased : undefined;
-    if (fact === undefined || (e.source?.kind !== 'card' && e.source?.kind !== 'corporation')) {
+    if (fact === undefined) {
       continue;
     }
-    lines.push({source: e.source.card, kind: fact.kind, oneShot: fact.oneShot, ...(fact.steps !== undefined ? {steps: fact.steps} : {}), ...(fact.via !== undefined ? {via: fact.via} : {})});
+    const how = {kind: fact.kind, oneShot: fact.oneShot, ...(fact.steps !== undefined ? {steps: fact.steps} : {}), ...(fact.via !== undefined ? {via: fact.via} : {})};
+    if (e.source?.kind === 'card' || e.source?.kind === 'corporation') {
+      lines.push({source: e.source.card, ...how});
+    } else if (e.source?.kind === 'resolution') {
+      lines.push({law: e.source.id, ...how});
+    }
   }
   return lines;
 }

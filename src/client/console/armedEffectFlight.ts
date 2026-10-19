@@ -71,7 +71,7 @@ export function registerArmedFlightStage(s: ArmedFlightStage): () => void {
 }
 
 function sameEffect(a: ArmedEffectView, b: ArmedEffectView): boolean {
-  return a.source === b.source && a.kind === b.kind;
+  return a.sourceKey === b.sourceKey && a.kind === b.kind;
 }
 
 function note(entry: string): void {
@@ -151,7 +151,7 @@ function standingChipOf(view: ArmedEffectView): Element | undefined {
   if (typeof document === 'undefined') {
     return undefined;
   }
-  const source = CSS.escape(view.source);
+  const source = CSS.escape(view.sourceKey);
   for (const variant of ['chip', 'strip']) {
     const el = document.querySelector(`[data-armed-strip][data-armed-variant="${variant}"][data-armed-source="${source}"] [data-armed-kind="${view.kind}"]`);
     if (el !== null) {

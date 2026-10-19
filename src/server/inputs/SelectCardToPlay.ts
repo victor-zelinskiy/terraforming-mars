@@ -55,7 +55,7 @@ export abstract class SelectCardToPlay<T extends IProjectCard | IStandardProject
   }
 
   public toModel(player: IPlayer): SelectProjectCardToPlayModel {
-    return {
+    const model: SelectProjectCardToPlayModel = {
       title: this.title,
       buttonLabel: this.buttonLabel,
       type: 'projectCard',
@@ -78,6 +78,12 @@ export abstract class SelectCardToPlay<T extends IProjectCard | IStandardProject
       constructionMechs: player.getSpendable('constructionMechs'),
       supercomputerData: player.getSpendable('supercomputerData'),
     };
+    // The asking RESOLUTION ACTION's marker (RX36 Live Experiments, stage
+    // `play`) rides the input's own model — nesting-safe, like every marker.
+    if (this.resolutionActionPrompt !== undefined) {
+      model.resolutionActionPrompt = this.resolutionActionPrompt;
+    }
+    return model;
   }
 
   public process(input: InputResponse) {
