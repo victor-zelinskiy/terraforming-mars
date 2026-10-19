@@ -28,7 +28,7 @@ import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES, SpendableCardReso
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {
   RATING_RAIL_KEY, ResourceTransferSpec, TransferPoint, TransferRect, cardResourceKey, extractPlayRewards, isStandardResource, mergeTransferSpecs,
-  pickedCardOf, railRewardSpecs, railRowKey,
+  divertedStep, pickedCardOf, railRewardSpecs, railRowKey,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import type {RailReward} from '@/client/console/resourceTransfer/railReward';
 
@@ -342,7 +342,13 @@ export function commitKindForBranch(
   if ((branch.steps ?? []).some((s) => s.kind === 'boardPlacement')) {
     return 'tile';
   }
-  if (effects.some((e) => e.direction === 'gain' && SCALE_ICONS.has(e.icon))) {
+  // A unit a LAW REPLACES (RX35): the scale never moves — the result is the data landing on the card the «where»
+  // step chose (the resource category: the token born on the struck icon, the capsule ticking on the touchdown).
+  if (effects.some((e) => e.diverted !== undefined) &&
+      (branch.steps ?? []).some((s, i) => divertedStep(s) && pickedCardOf(stepResponses[i]) !== undefined)) {
+    return 'resources';
+  }
+  if (effects.some((e) => e.direction === 'gain' && e.diverted === undefined && SCALE_ICONS.has(e.icon))) {
     return 'global';
   }
   // THE PRINTED ROW AS A TIMELINE: its FIRST beat is a resource landing on the card — the impulse lands there,

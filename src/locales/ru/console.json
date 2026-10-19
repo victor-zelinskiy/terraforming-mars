@@ -135,6 +135,7 @@
     "Plant stock": "Запас растений",
     "Free cells: ${0}": "Свободных клеток: ${0}",
     "+1 VP per greenery": "+1 ПО за озеленение",
+    "+1 data per greenery": "+1 данные за озеленение",
     "+1 TR per greenery": "+1 РТ за озеленение",
     "Finale order": "Очередь финала",
     "Placing greeneries": "Размещает",

@@ -255,7 +255,17 @@ const RESOLUTION_ASK_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>([
  * the player stood in the very stage it belongs to (Trade Industries).
  */
 export function isResolutionAsk(wf: PlayerInputModel | undefined): boolean {
-  return promptSourceResolution(wf) !== undefined && wf?.resolutionActionPrompt === undefined;
+  return promptSourceResolution(wf) !== undefined && wf?.resolutionActionPrompt === undefined && !isDivertedPick(wf);
+}
+
+/**
+ * A LAW'S «where» for the data a seat's OWN terraforming became (Turmoil Redux RX35 Diverted Research — the server's
+ * structural marker `resourceGainPrompt.diverted`): the law asks it, but inside the seat's own action, never at a
+ * sitting — no announce, no sitting stage, the plate's own scene. ONE reader for every surface that tells a law's
+ * enactment payout from this.
+ */
+export function isDivertedPick(wf: PlayerInputModel | undefined): boolean {
+  return wf?.type === 'card' && (wf as {resourceGainPrompt?: {diverted?: unknown}}).resourceGainPrompt?.diverted !== undefined;
 }
 
 /**

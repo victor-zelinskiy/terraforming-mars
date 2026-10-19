@@ -118,6 +118,19 @@
                recognisable but never the subject, and L3 opens it. A `choice`
                keeps the full dock and its X — there the card IS what is being
                decided about. -->
+          <!-- THE LAW'S SEAL (RX35): a pick asked by a law that REPLACED the seat's own terraforming, hosted inside
+               a door's plate (the heat confirm, a standard project's step) — the embedded plate has no dock, so the
+               law that pays stands here as its seal: the party's emblem on its accent and the resolution's name. The
+               data's token is born on it where no struck icon is on screen. Never beside the standalone dock, which
+               already shows the law's face. -->
+          <div v-if="divertedLawSeal !== undefined" class="con-task__lawseal" data-task-law-seal
+               :style="{'--parl-accent': divertedLawSeal.accent}">
+            <img class="con-task__lawseal-emblem" :src="divertedLawSeal.emblem" alt="" />
+            <span class="con-task__lawseal-text">
+              <span class="con-task__lawseal-kind">{{ $t('Enacted resolution') }}</span>
+              <b class="con-task__lawseal-name">{{ $t(divertedLawSeal.name) }}</b>
+            </span>
+          </div>
           <console-source-dock v-if="dockedSource !== undefined" :view="dockedSource"
                                :compact="sourceCompact" ref="sourceCard">
             <!-- A resolution's payout reads under its face: influence → the
@@ -701,6 +714,7 @@ import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {resolvingYieldOf, scaledEffectForCardResource} from '@/client/console/parliament/influenceYieldModel';
 import {payoutPickLandsInPlace, pickPayoutLandedOn} from '@/client/console/parliament/consoleResolutionPayout';
 import {armPromptReceive, promptReceiveLandedOn, promptReceiveState} from '@/client/console/cardReceive/promptReceive';
+import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import {availabilityContextFor} from '@/client/console/cardAvailability';
@@ -1113,6 +1127,18 @@ export default defineComponent({
     sourceInspectable(): boolean {
       return this.sourceCardName !== undefined || this.sourceResolutionId !== undefined;
     },
+    /** The LAW behind a replaced unit's pick (RX35, `resourceGainPrompt.diverted`) — shown as a seal where the plate has no dock. */
+    divertedLawSeal(): {emblem: string, accent: string, name: string} | undefined {
+      const id = this.cardModel?.resourceGainPrompt?.diverted?.resolution;
+      if (id === undefined || this.dockedSource !== undefined) {
+        return undefined;
+      }
+      const resolution = getResolution(id);
+      if (resolution === undefined) {
+        return undefined;
+      }
+      return {emblem: partyEmblemUrl(resolution.party), accent: partyAccent(resolution.party), name: resolution.text.name};
+    },
     /**
      * WHAT A RESOLUTION-SOURCED PICK PAYS — the influence → result reading
      * under the source face (Turmoil Redux, an enacted resolution's payout):
@@ -1125,8 +1151,9 @@ export default defineComponent({
     sourceYield(): InfluenceYield | undefined {
       const id = this.sourceView?.resolution;
       const meta = this.cardModel?.resourceGainPrompt;
-      // A pick made BEFORE its amount exists (`amountBasis`, no `amount`) has no yield to read yet.
-      if (id === undefined || meta?.amount === undefined || this.activeTask.kind !== 'cardSelect') {
+      // A pick made BEFORE its amount exists (`amountBasis`, no `amount`) has no yield to read yet. A law's
+      // REPLACEMENT of the seat's own terraforming (RX35, `diverted`) is no enactment payout: no influence reading.
+      if (id === undefined || meta?.amount === undefined || meta.diverted !== undefined || this.activeTask.kind !== 'cardSelect') {
         return undefined;
       }
       // The pick names its ONE kind, or the kinds it spans — either finds the effect whose unit lists any of them.
@@ -3258,7 +3285,7 @@ export default defineComponent({
       // card going home (`cardReceive/promptReceive.ts`). `runHeroPick` / `con-exit-reject` are for a card that goes
       // INTO THE HAND (a draft, a buy) — never for a target.
       if (this.cardModel?.resourceGainPrompt !== undefined) {
-        armPromptReceive(this.wf, name);
+        armPromptReceive(this.wf, name, {client: this.promptOverride !== undefined});
         commit();
         return;
       }

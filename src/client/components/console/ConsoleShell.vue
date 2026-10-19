@@ -643,6 +643,7 @@
       <ConsoleActionConfirm v-if="consoleState.confirm !== undefined"
                             ref="actionConfirm"
                             :kind="consoleState.confirm"
+                            :stepUp="pendingClientPick?.host === 'confirm'"
                             :effects="confirmEffects"
                             :forecast="confirmForecast"
                             :body="confirmBody"
@@ -722,8 +723,8 @@
                          :playerView="playerView"
                          :task="hostTask"
                          :embedded="taskEmbedTarget !== undefined"
-                         :prompt-override="pendingClientPayment !== undefined ? pendingClientPayment.input : undefined"
-                         :defer-label="pendingClientPayment !== undefined ? 'Cancel' : 'Minimize'"
+                         :prompt-override="pendingClientPayment !== undefined ? pendingClientPayment.input : pendingClientPick?.input"
+                         :defer-label="pendingClientPayment !== undefined || pendingClientPick !== undefined ? 'Cancel' : 'Minimize'"
                          @submit="onTaskSubmit"
                          @defer="onTaskDefer"
                          @result-detached="onWorkspaceResultDetached"
@@ -1552,6 +1553,7 @@
 import {cursorEnsureVisible, scrollContainerOf} from '@/client/console/cursorScroll';
 import {claimMaVp, dropMaVp, flyMaVp} from '@/client/console/scoreCell/maVp';
 import type {PreselectAddress} from '@/common/inputs/preselectAddress';
+import {addressed} from '@/common/inputs/preselectAddress';
 /**
  * ConsoleShell — the console-first TV shell (docs/CONSOLE_MODE_CONCEPT.md;
  * feedback iteration 2 = the console COMMAND MODEL):
@@ -1580,7 +1582,7 @@ import type {PreselectAddress} from '@/common/inputs/preselectAddress';
  */
 import {installCursorArrivalInput} from '@/client/console/cursorArrivalInput';
 import {defineComponent, nextTick as vueNextTick, PropType, ref, watch as vueWatch} from 'vue';
-import {promptReceiveState} from '@/client/console/cardReceive/promptReceive';
+import {promptReceiveArmed, promptReceiveState} from '@/client/console/cardReceive/promptReceive';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import type {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
@@ -1591,7 +1593,7 @@ import {CardName} from '@/common/cards/CardName';
 import {isReduxParty, REDUX_PARTIES, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {Message} from '@/common/logs/Message';
 import {Payment} from '@/common/inputs/Payment';
-import {ColonyBonusCollectMeta, ColonyBonusDiscardMeta, DiscardPromptMeta, PlacementEffect, SelectCardModel, SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel, SelectSpaceModel} from '@/common/models/PlayerInputModel';
+import {ColonyBonusCollectMeta, ColonyBonusDiscardMeta, DiscardPromptMeta, PlacementEffect, SelectCardModel, SelectColonyModel, SelectOptionModel, SelectPaymentModel, SelectProjectCardToPlayModel, SelectSpaceModel} from '@/common/models/PlayerInputModel';
 import ConsoleCardActions from '@/client/components/console/ConsoleCardActions.vue';
 import {consoleCardActionsUi, resetCardActionsFilter} from '@/client/console/consoleCardActions';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
@@ -2230,7 +2232,7 @@ import {
 import type {PlayComposerDraft, StagedPlayArm, StagedReceipt} from '@/client/console/stagedPlay';
 import type {ActionEffect, AgendaWalkModel, NeutralRallyModel, StagedColonyModel, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import type {EffectForecast} from '@/common/models/EffectForecastModel';
-import ConsoleActionConfirm from '@/client/components/console/ConsoleActionConfirm.vue';
+import ConsoleActionConfirm, {ActionConfirmKind} from '@/client/components/console/ConsoleActionConfirm.vue';
 import {
   clearColonyTrackMove, colonyTrackMoveAnswered, colonyTrackMoveFlow, playOwedColonyTrackMove, promiseColonyTrackMove,
   registerColonyTrackMoveHost,
@@ -2264,6 +2266,30 @@ type PendingClientPayment = {
 
 /** The synthetic host task for a client-built payment prompt. */
 const CLIENT_PAYMENT_TASK: ConsoleTask = {kind: 'payment'};
+
+/**
+ * A CLIENT-HOSTED PICK — a pre-collected step the server's preview promised for a one-press door (Turmoil Redux
+ * RX35: the «where» of the data a replacing law turns the heat / plant conversion's step or the standard project's
+ * unit into — `OptionMetadata.steps` / `StandardProjectPreviewModel.steps`). Hosted NATIVELY by the task host via
+ * `promptOverride` (the standard-project payment's precedent), teleported into the door's own zone; nothing is sent
+ * until its answer, which the door folds into ONE batch beside its own response. B = Cancel, one level back.
+ */
+type PendingClientPick = {
+  /** The door that owns the zone (and whose own B cancels it). */
+  host: 'confirm' | 'standard-projects' | 'finale';
+  input: SelectCardModel;
+  /** The pre-select address the answer carries (`addressed`). */
+  address: PreselectAddress | undefined;
+  zone: string;
+  onAnswer: (response: InputResponse) => void;
+  onCancel: () => void;
+  /** The door's own close, once the answer's scene has let go (`clientPickSceneLive`'s falling edge) — or at once when no scene was armed. */
+  onSettled?: () => void;
+  /** ANSWERED: the batch is on the wire and the receive scene is owed — the pick stands sealed, input absorbed, until the scene ends. */
+  answered?: true;
+};
+/** The synthetic host task of a client-hosted card pick. */
+const CLIENT_PICK_TASK: ConsoleTask = {kind: 'cardSelect', mode: 'target'};
 
 /* (The terminal std-project beat's length is the PHRASE's own now — press,
  * sweep and the post-chip read live in `consoleStdProjectCommit.ts`, so the
@@ -2701,6 +2727,10 @@ export default defineComponent({
        *  card's proxy dissolves) — OWED, not swallowed: it cancels the staged play the moment the scene is idle (PL-581). */
       stagedBackOwed: false,
       pendingClientPayment: undefined as PendingClientPayment | undefined,
+      /** A client-hosted PICK (RX35's «where» on a one-press door) — see `PendingClientPick`. */
+      pendingClientPick: undefined as PendingClientPick | undefined,
+      /** The standard project's captured «where» answer, waiting for the project's own submit. */
+      stdProjectPickResponse: undefined as InputResponse | undefined,
       /** The hydro workspace flow — module reactive, mirrored here for path
        *  watchers (vue-path-watcher rule). */
       hydroFlow: hydroFlowState,
@@ -3731,7 +3761,7 @@ export default defineComponent({
         cost: stock.cost,
         bank: finalGreeneryBank(stock),
         freeCells: spaces !== undefined && spaces < stock.affordable ? spaces : undefined,
-        yieldKey: finaleYieldKey(this.game.parliament !== undefined),
+        yieldKey: finaleYieldKey(this.game.parliament !== undefined, this.finalGreeneryRawVm?.diverted !== undefined),
         queue: finaleQueue(this.playerView.players, this.game.finalGreenery?.done ?? [], this.thisPlayer.color, true),
         waitingOn: stage === 'wait' ?
           finaleWaitingOn(this.playerView.players, this.thisPlayer.color, liveWaitingSignal(this.waitingOnPlayers)) :
@@ -4001,7 +4031,7 @@ export default defineComponent({
     /** …and the same classification, gated on the `host` admission so a reveal
      *  still owns the foreground while it plays. */
     nativeCompositeTask(): ConsoleTask | undefined {
-      if (this.pendingClientPayment !== undefined || !this.admits('host')) {
+      if (this.pendingClientPayment !== undefined || this.pendingClientPick !== undefined || !this.admits('host')) {
         return undefined;
       }
       const task = taskFor(this.playerView);
@@ -4352,7 +4382,14 @@ export default defineComponent({
       if (this.pendingClientPayment !== undefined) {
         return CLIENT_PAYMENT_TASK;
       }
+      if (this.pendingClientPick !== undefined) {
+        return CLIENT_PICK_TASK;
+      }
       return this.activeConsoleTask;
+    },
+    /** The receive scene of a CLIENT-HOSTED pick (RX35's «where») is still owed or playing — the door stands until it has let go. */
+    clientPickSceneLive(): boolean {
+      return promptReceiveState.card !== undefined;
     },
     /**
      * World Government Terraforming ("Government Support") — the ONE choice
@@ -5133,6 +5170,10 @@ export default defineComponent({
       // step zone («› ОПЛАТА») instead of replacing the screen it belongs to.
       if (this.pendingClientPayment !== undefined && workspaceFrameMounted('standard-projects')) {
         return '.con-stdp [data-embed-slot="stdp-step"]';
+      }
+      // A CLIENT-HOSTED PICK (RX35's «where» of a replaced unit): the door that promised it hosts it in its own zone.
+      if (this.pendingClientPick !== undefined) {
+        return this.pendingClientPick.zone;
       }
       // A PAID LAW'S BILL (Turmoil Redux — Trade Industries: «pay 12 M€ to
       // gain an extra trade fleet»): the confirm the player pressed in the
@@ -7539,22 +7580,20 @@ export default defineComponent({
         return '';
       }
       // The sentence is a WARNING's — only when the step is empty (PL-067: the reacting-table stage has none).
-      const found = findConvertHeatOption(this.playerView.waitingFor);
+      const found = this.confirmOption;
       return (found?.option.warnings ?? []).includes('maxtemp') ? 'The temperature is already at its maximum.' : '';
+    },
+    /** The standing conversion's option (heat / plants) — ONE reader for the plate's props and its A. */
+    confirmOption(): {path: ReadonlyArray<number>, option: SelectOptionModel} | undefined {
+      return this.confirmOptionOf(this.consoleState.confirm);
     },
     /** The conversion's formula chips — the server's reading of the option (PL-067); none for the pass. */
     confirmEffects(): ReadonlyArray<ActionEffect> {
-      if (this.consoleState.confirm !== 'convertHeat') {
-        return [];
-      }
-      return findConvertHeatOption(this.playerView.waitingFor)?.option.metadata?.effects ?? [];
+      return this.confirmOption?.option.metadata?.effects ?? [];
     },
     /** What the table answers to the conversion — the «Сработает» row (PL-067). */
     confirmForecast(): EffectForecast | undefined {
-      if (this.consoleState.confirm !== 'convertHeat') {
-        return undefined;
-      }
-      return findConvertHeatOption(this.playerView.waitingFor)?.option.metadata?.forecast;
+      return this.confirmOption?.option.metadata?.forecast;
     },
     /** T7 info parity: the desktop PassConfirmContent warning set. */
     /**
@@ -8551,7 +8590,7 @@ export default defineComponent({
         return false;
       }
       return workspaceFrameHasNested('standard-projects') ||
-        this.pendingClientPayment !== undefined;
+        this.pendingClientPayment !== undefined || this.pendingClientPick?.host === 'standard-projects';
     },
     /**
      * The SPATIAL PRE-SELECT hint (§9): while the player browses the std
@@ -9300,7 +9339,7 @@ export default defineComponent({
         return [...(panelCommands('taskHost') ?? [
           {control: 'confirm', label: 'Select'},
           {control: 'secondary', label: 'Confirm'},
-          {control: 'back', label: this.pendingClientPayment !== undefined ? 'Cancel' : 'Minimize'},
+          {control: 'back', label: this.pendingClientPayment !== undefined || this.pendingClientPick !== undefined ? 'Cancel' : 'Minimize'},
         ])];
       }
       // A NESTED target pick standing over the repeat browser (the same-kind
@@ -10464,6 +10503,9 @@ export default defineComponent({
           sourceCard: client.cardName as CardName,
         });
       }
+      if (this.pendingClientPick !== undefined) {
+        return consoleTaskSummary(CLIENT_PICK_TASK, this.playerView, {prompt: this.pendingClientPick.input});
+      }
       // The RAW classification — deliberately NOT `hostTask ?? shellTask ??
       // startTask`: a prompt no console surface serves (a `composite` Venus
       // bonus / spend-heat, an `unknown` guard) is EXACTLY the case that used
@@ -10521,6 +10563,19 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * A CLIENT-HOSTED PICK ANSWERED AS A SCENE (RX35): the pick stood, sealed, while the transport held the commit
+     * and played the data onto the chosen card inside the door's plate; the scene let go (its end a tick after the
+     * commit, or a disarm) — now the pick leaves and the door closes behind it. Never under the token.
+     */
+    clientPickSceneLive(live: boolean): void {
+      if (live || this.pendingClientPick?.answered !== true) {
+        return;
+      }
+      const pick = this.pendingClientPick;
+      this.pendingClientPick = undefined;
+      pick.onSettled?.();
+    },
     /**
      * A CARD'S HYDRONETWORK ENTRY DIES WITH ITS FRAME.
      *
@@ -13041,8 +13096,14 @@ export default defineComponent({
           }
           this.taskSpacePending = undefined;
           this.finalGreeneryPickPending = false;
-          // A client payment built for a prompt that moved on is stale.
+          // A client payment built for a prompt that moved on is stale — and so is a client-hosted pick.
           this.pendingClientPayment = undefined;
+          // …unless the pick was ANSWERED and its receive scene is still owed (RX35): the commit that moved the prompt
+          // on IS the answer the scene plays, and the scene's end — a tick after this commit — is what lets it leave.
+          if (!(this.pendingClientPick?.answered === true && promptReceiveState.card !== undefined)) {
+            this.pendingClientPick = undefined;
+          }
+          this.stdProjectPickResponse = undefined;
           // Same for the native play confirm (its playAction path moved on) —
           // EXCEPT mid workspace landing scene: the prompt change IS the
           // commit of the very play this composer hosts, and its embedded
@@ -15240,9 +15301,11 @@ export default defineComponent({
         }
         // THE MINI-STAGE (PL-067): a one-press verb stands a stage up exactly when the table ANSWERS it (the
         // server's own forecast on the option — the ruling Greens' 2 M€, a bonus step the raise crosses) or
-        // when the step is empty (the temperature's maximum). A quiet table keeps the one press.
+        // when the step is empty (the temperature's maximum) — or when the press has a STEP to collect (RX35: the
+        // «where» of a replaced unit). A quiet table keeps the one press.
         const reacts = (found.option.metadata?.forecast?.facts.length ?? 0) > 0;
-        if ((found.option.warnings ?? []).includes('maxtemp') || reacts) {
+        const collects = (found.option.metadata?.steps ?? []).length > 0;
+        if ((found.option.warnings ?? []).includes('maxtemp') || reacts || collects) {
           // The commit resolves into the confirm card, not a direct spend —
           // the ECHO follows the question instead of the reservoir.
           retargetWheelEcho(CONFIRM_HANDOFF.echo);
@@ -15259,6 +15322,13 @@ export default defineComponent({
         const found = findConvertPlantsOption(wf, this.thisPlayer.canConvertPlants === true);
         if (found === undefined) {
           return;
+        }
+        // Under a law that REPLACES the greenery (RX35) the conversion is a one-press OPTION with a «where» to
+        // collect: the plate, the heat conversion's twin — never the board.
+        if (found.option !== undefined) {
+          retargetWheelEcho(CONFIRM_HANDOFF.echo);
+          this.consoleState.confirm = 'convertPlants';
+          break;
         }
         this.convertPlantsPending = found;
         closeConsoleLayers();
@@ -15307,6 +15377,10 @@ export default defineComponent({
             if (this.pendingClientPayment !== undefined) {
               this.pendingClientPayment = undefined;
               this.rollbackStdProjectFlow();
+              return;
+            }
+            if (this.pendingClientPick?.host === 'standard-projects') {
+              this.cancelClientPick();
               return;
             }
             // A PROMPT'S standard project («Свернуть» — «Проверенные методы»
@@ -16768,18 +16842,64 @@ export default defineComponent({
     },
     acceptConfirm(): void {
       const kind = this.consoleState.confirm;
-      this.consoleState.confirm = undefined;
       if (kind === 'pass') {
+        this.consoleState.confirm = undefined;
         const path = findPassPath(this.playerView.waitingFor);
         if (path !== undefined) {
           this.submit(optionResponseForPath(path));
         }
-      } else if (kind === 'convertHeat') {
-        const found = findConvertHeatOption(this.playerView.waitingFor);
-        if (found !== undefined) {
-          this.submit(optionResponseForPath(found.path));
-        }
+        return;
       }
+      const found = this.confirmOption;
+      if (found === undefined) {
+        this.consoleState.confirm = undefined;
+        return;
+      }
+      // A REPLACED UNIT'S «WHERE» (RX35): the option's pre-collected step stands up in the plate's own zone — the
+      // shared picker, the law as its asker — and its answer rides ONE batch with the press; the plate stays until
+      // then, B folds the picker one level back to it.
+      const step = (found.option.metadata?.steps ?? []).find((s) => s.kind === 'input' && s.input.type === 'card');
+      if (step !== undefined && step.kind === 'input') {
+        const path = found.path;
+        this.pendingClientPick = {
+          host: 'confirm',
+          input: step.input as SelectCardModel,
+          address: step.for,
+          zone: '.con-confirm [data-embed-slot="confirm-step"]',
+          onAnswer: (response) => {
+            this.submitBatch([optionResponseForPath(path), response]);
+          },
+          // The plate closes once the data has landed on the chosen card (the answer's scene plays INSIDE it).
+          onSettled: () => {
+            this.consoleState.confirm = undefined;
+          },
+          onCancel: () => {},
+        };
+        return;
+      }
+      this.consoleState.confirm = undefined;
+      this.submit(optionResponseForPath(found.path));
+    },
+    /** The option behind the standing CONVERSION confirm (heat / plants), by its structural marker. */
+    confirmOptionOf(kind: ActionConfirmKind | undefined): {path: ReadonlyArray<number>, option: SelectOptionModel} | undefined {
+      if (kind === 'convertHeat') {
+        return findConvertHeatOption(this.playerView.waitingFor);
+      }
+      if (kind === 'convertPlants') {
+        const found = findConvertPlantsOption(this.playerView.waitingFor, this.thisPlayer.canConvertPlants === true);
+        return found?.option !== undefined ? {path: found.path, option: found.option} : undefined;
+      }
+      return undefined;
+    },
+    /** A client-hosted pick folds ONE level back to the door that promised it (nothing was sent). */
+    cancelClientPick(): void {
+      const pick = this.pendingClientPick;
+      // An ANSWERED pick is past its boundary: its batch is on the wire and its scene owed — B is absorbed.
+      if (pick === undefined || pick.answered === true) {
+        return;
+      }
+      this.pendingClientPick = undefined;
+      pick.onCancel();
     },
     // ── flows ────────────────────────────────────────────────────────────
     openPlayCard(cardName: CardName): void {
@@ -17197,6 +17317,33 @@ export default defineComponent({
         return;
       }
       const cost = card.calculatedCost ?? 0;
+      // A REPLACED UNIT'S «WHERE» (RX35): the project's preview promised a pick — the shared picker stands up in the
+      // workspace's own step zone («› ВЫБОР»), its answer waits for the project's submit and rides its batch.
+      const where = (card.standardProjectPreview?.steps ?? []).find((s) => s.kind === 'input' && s.input.type === 'card');
+      if (where !== undefined && where.kind === 'input' && this.stdProjectPickResponse === undefined) {
+        if (workspaceFrameMounted('standard-projects')) {
+          this.armStdpStepOrigin();
+          setWorkspaceFrameSubject('standard-projects', cardName);
+          setWorkspaceFrameStage('standard-projects', 'Choice');
+          setWorkspaceFramePhase('standard-projects', 'configure');
+        }
+        this.pendingClientPick = {
+          host: 'standard-projects',
+          input: where.input as SelectCardModel,
+          address: where.for,
+          zone: '.con-stdp [data-embed-slot="stdp-step"]',
+          onAnswer: (response) => {
+            this.stdProjectPickResponse = response;
+            this.useStandardProject(cardName);
+          },
+          onCancel: () => {
+            if (workspaceFrameMounted('standard-projects')) {
+              this.rollbackStdProjectFlow();
+            }
+          },
+        };
+        return;
+      }
       if (hasUsableStandardProjectAlternativeResources(this.thisPlayer, card, action.input.paymentOptions ?? {})) {
         // T3 → North Star: the alt-resource payment is a STEP of this flow —
         // the task host (promptOverride) teleports into the workspace's own
@@ -17249,7 +17396,15 @@ export default defineComponent({
         // Degenerate entry (no workspace standing) — the legacy close-first path.
         closeConsoleLayers();
       }
-      this.submit(wrapPath(action.path, {type: 'projectCard' as const, card: cardName, payment}));
+      // The project's own response — and, after it, the «where» its preview pre-collected (RX35): ONE batch.
+      const head = wrapPath(action.path, {type: 'projectCard' as const, card: cardName, payment});
+      const tail = this.stdProjectPickResponse;
+      this.stdProjectPickResponse = undefined;
+      if (tail !== undefined) {
+        this.submitBatch([head, tail]);
+      } else {
+        this.submit(head);
+      }
     },
     /**
      * A submit whose response never lands must not strand the player inside a
@@ -19068,6 +19223,23 @@ export default defineComponent({
     },
     // ── CTS task host (T1–T3) ────────────────────────────────────────────
     onTaskSubmit(response: unknown): void {
+      // A CLIENT-HOSTED PICK (RX35's «where») resolves into the door's own batch — the door's callback.
+      if (this.pendingClientPick !== undefined) {
+        const pick = this.pendingClientPick;
+        const answer = addressed(response as InputResponse, pick.address);
+        // THE ANSWER IS A SCENE (RX35 — the host ARMED the receive on its press): the pick STANDS, sealed, while the
+        // transport holds the commit and plays the data onto the chosen card inside the door's plate; the door closes
+        // only when the scene has let go (`clientPickSceneLive`'s falling edge) — never under the token.
+        if (promptReceiveArmed() && promptReceiveState.card !== undefined) {
+          pick.answered = true;
+          pick.onAnswer(answer);
+          return;
+        }
+        this.pendingClientPick = undefined;
+        pick.onAnswer(answer);
+        pick.onSettled?.();
+        return;
+      }
       // The CLIENT payment resolves into the std-project response (T3).
       if (this.pendingClientPayment !== undefined) {
         const cardName = this.pendingClientPayment.cardName;
@@ -19119,8 +19291,12 @@ export default defineComponent({
       this.consoleState.task.deferred = false;
       beginGovScaleClose(payload.param, () => this.submit(payload.response));
     },
-    /** B in the host: defer a SERVER task; CANCEL a client payment. */
+    /** B in the host: defer a SERVER task; CANCEL a client payment / a client-hosted pick. */
     onTaskDefer(): void {
+      if (this.pendingClientPick !== undefined) {
+        this.cancelClientPick();
+        return;
+      }
       if (this.pendingClientPayment !== undefined) {
         // Nothing committed — the payment step folds ONE level back to the
         // browse layer of the workspace that hosts it (the frame never
@@ -20803,6 +20979,13 @@ export default defineComponent({
       }
       const spacePrompt = (wf as {options: Array<PlayerInputModel>}).options[vm.placeIndex];
       if (spacePrompt === undefined) {
+        return;
+      }
+      // Under a law that REPLACES the greenery (RX35, decision Р2) the placing branch is a plain OPTION: the plants
+      // buy data, no cell is asked — the press answers the branch, and the law's own «where» follows as the next
+      // prompt (the shared picker, the plate's scene).
+      if (vm.diverted !== undefined) {
+        this.submit({type: 'or', index: vm.placeIndex, response: {type: 'option'}});
         return;
       }
       // THE SESSION RISES with the first pick (and returns from a minimize with the next): one context from here on.

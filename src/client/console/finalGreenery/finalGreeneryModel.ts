@@ -47,6 +47,11 @@ export type FinalGreeneryViewModel = {
   placeIndex: number;
   /** `OrOptions.options` index of «I am done» — what the finish hold submits. */
   stopIndex: number;
+  /**
+   * A LAW REPLACES THE GREENERY (Turmoil Redux RX35, decision Р2 — the server's marker): the placing branch is a
+   * plain OPTION (no cell), the plants buy `data` data on one of the seat's cards, and the law's own «where» follows.
+   */
+  diverted?: {resolution: string, data: number};
 };
 
 // ── copy keys (English text IS the i18n key) ────────────────────────────────
@@ -71,6 +76,8 @@ export const BANK_CELLS = 'Free cells: ${0}';
 /** The per-greenery yield tail of the exchange formula. */
 export const YIELD_VP = '+1 VP per greenery';
 export const YIELD_TR = '+1 TR per greenery';
+/** …and under a law that REPLACES the greenery (Turmoil Redux RX35): the plants buy data, no tile. */
+export const YIELD_DATA = '+1 data per greenery';
 /** The finale ORDER block: every seat's place in the phase. */
 export const QUEUE_LABEL = 'Finale order';
 export const SEAT_DONE = 'Finished';
@@ -105,11 +112,18 @@ export function buildFinalGreenery(
     return undefined;
   }
   // The branches are told apart by TYPE, never by title: the placement is a
-  // board pick, stopping is a leaf.
+  // board pick, stopping is a leaf. Under a REPLACING law (the marker's `diverted`) the placing branch is a leaf too
+  // — the FIRST one, the stop the second (the server's order, pinned by its own spec).
   let placeIndex = -1;
   let stopIndex = -1;
   input.options.forEach((option, index) => {
-    if (option.type === 'space' && placeIndex === -1) {
+    if (marker.diverted !== undefined) {
+      if (option.type === 'option' && placeIndex === -1) {
+        placeIndex = index;
+      } else if (option.type === 'option' && stopIndex === -1) {
+        stopIndex = index;
+      }
+    } else if (option.type === 'space' && placeIndex === -1) {
       placeIndex = index;
     } else if (option.type === 'option' && stopIndex === -1) {
       stopIndex = index;
@@ -128,6 +142,7 @@ export function buildFinalGreenery(
     spaces: marker.spaces,
     placeIndex,
     stopIndex,
+    ...(marker.diverted !== undefined ? {diverted: marker.diverted} : {}),
   };
 }
 
@@ -293,7 +308,10 @@ export type FinalePanelModel = {
 };
 
 /** What one final greenery is worth under the table's rules (classic: 1 VP for the tile; Turmoil Redux: +1 TR). */
-export function finaleYieldKey(parliament: boolean): string {
+export function finaleYieldKey(parliament: boolean, diverted = false): string {
+  if (diverted) {
+    return YIELD_DATA;
+  }
   return parliament ? YIELD_TR : YIELD_VP;
 }
 

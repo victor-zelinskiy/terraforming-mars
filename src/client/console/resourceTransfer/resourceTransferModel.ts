@@ -57,6 +57,15 @@ export type ResourceTransferSpec = {
    * departure (`heldStock` = gains held − losses held).
    */
   direction?: 'gain' | 'loss';
+  /**
+   * THE PRINTED ICON THE TOKEN IS BORN ON when it is not the resource's own
+   * (Turmoil Redux RX35 — a law REPLACES the card's step or tile with data):
+   * the struck scale / tile icon of the operation (`temperature` / `oxygen` /
+   * `oceans` / `greenery`), so the data visibly comes OUT of the step it
+   * replaced — never «out of nowhere» (a data icon most faces do not print).
+   * An icon key of `iconNeedlesFor`'s vocabulary. Absent: the resource's own icon.
+   */
+  bornOn?: string;
 };
 
 /** The signed amount a spec moves on its row: negative for a loss. */
@@ -446,6 +455,11 @@ export type ExtractPlayRewardsArgs = {
  * HONEST answer for it: Freyja Biodomes adds a microbe or an animal depending on
  * which card you chose, so no single icon could have been stated up front.
  */
+/** The step is a replacing law's «where» pick (RX35) — read off the server's own marker, never the title. */
+export function divertedStep(step: ActionPreviewStep): boolean {
+  return step.kind === 'input' && (step.input as {resourceGainPrompt?: {diverted?: unknown}}).resourceGainPrompt?.diverted !== undefined;
+}
+
 function stepCardResource(step: ActionPreviewStep, picked: CardName): string | undefined {
   if (step.kind !== 'input') {
     return undefined;
@@ -595,7 +609,10 @@ export function extractPlayRewards(args: ExtractPlayRewardsArgs): Array<Resource
       return;
     }
     claimedSteps.add(i);
-    out.push({channel: 'card-resource', resource, amount, targetCard: picked});
+    // A LAW'S «where» (RX35 — the step's marker `resourceGainPrompt.diverted`): the data's token is born on the
+    // struck printed unit it replaced — the branch's first struck chip — never on a data icon the face has none of.
+    const bornOn = divertedStep(step) ? args.effects.find((e) => e.diverted !== undefined)?.icon : undefined;
+    out.push({channel: 'card-resource', resource, amount, targetCard: picked, ...(bornOn !== undefined ? {bornOn} : {})});
   });
 
   /*

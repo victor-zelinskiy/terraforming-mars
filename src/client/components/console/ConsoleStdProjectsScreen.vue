@@ -304,6 +304,10 @@ export default defineComponent({
      *  step's own preview surfaces). Existing i18n keys, nothing coined. */
     nextStepKey(): string | undefined {
       const target = this.focused?.preview?.target;
+      // A REPLACED UNIT (RX35): the project's unit becomes data, and the preview pre-collects the card it lands on.
+      if ((this.focused?.preview?.steps ?? []).some((s) => s.kind === 'input' && s.input.type === 'card')) {
+        return 'Next: choose the card for the data.';
+      }
       if (target === 'space') {
         return 'Next: choose a location on the board.';
       }

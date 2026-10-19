@@ -14,6 +14,15 @@ import {ActionEffect} from '@/common/models/ActionPreviewModel';
 /** The icons of a parameter that HAS a maximum — the only pools «already at maximum» can be said of. */
 const LIMITED_PARAMETER_ICONS: ReadonlySet<string> = new Set(['temperature', 'oxygen', 'venus', 'oceans', 'ocean']);
 
+/**
+ * A chip whose unit a LAW REPLACES (Turmoil Redux RX35 Diverted Research — `ActionEffect.diverted`): the printed step
+ * or tile does not happen, data lands on a card instead. Never «no effect», never «at maximum»: the reader draws the
+ * printed icon STRUCK with the data it becomes — the one register of a replaced unit.
+ */
+export function divertedChip(effect: ActionEffect): boolean {
+  return effect.diverted !== undefined;
+}
+
 /** A gain whose pool does not move. */
 function steady(effect: ActionEffect): boolean {
   return effect.direction === 'gain' && effect.current !== undefined && effect.resulting !== undefined &&
@@ -27,7 +36,7 @@ export function victoryPointsSteady(effect: ActionEffect): boolean {
 
 /** A gain wasted on a parameter at its limit — the one «already at maximum» the composer may warn about. */
 export function gainAtParameterLimit(effect: ActionEffect): boolean {
-  return LIMITED_PARAMETER_ICONS.has(effect.icon) && steady(effect);
+  return !divertedChip(effect) && LIMITED_PARAMETER_ICONS.has(effect.icon) && steady(effect);
 }
 
 /**
@@ -35,7 +44,7 @@ export function gainAtParameterLimit(effect: ActionEffect): boolean {
  * zero. A VP reading is never «no effect» (see the module note).
  */
 export function gainHasNoEffect(effect: ActionEffect): boolean {
-  if (effect.direction !== 'gain' || effect.icon === 'vp') {
+  if (effect.direction !== 'gain' || effect.icon === 'vp' || divertedChip(effect)) {
     return false;
   }
   if (effect.current === undefined || effect.resulting === undefined) {

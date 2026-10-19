@@ -47,7 +47,8 @@ import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {cardResourceKey, ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
-import {resolveActionCommitAnchors, resolveGainIconOrigins} from '@/client/console/consoleActionCommitMotion';
+import {pulseDivertedSeal, resolveActionCommitAnchors, resolveGainIconOrigins} from '@/client/console/consoleActionCommitMotion';
+import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {runCardHome} from '@/client/console/cardDeal/cardExitDirector';
 import {auxCellRect, runCityPayoutBeat} from '@/client/console/tilePlacement/cityDataPayoutBeat';
 import {claimCityPayout} from '@/client/console/tilePlacement/cityDataPayoutModel';
@@ -71,12 +72,27 @@ type Armed = {
   before: number;
   /** The chosen card's live model (its face, flown in the scene). */
   model?: CardModel;
+  /**
+   * A CLIENT-HOSTED pick (RX35's «where» INSIDE a door's plate — the heat confirm, a standard project's row): the
+   * standing view is the DOOR's prompt (the action menu), the answer rides the door's batch — the count is the evidence.
+   */
+  client?: true;
+  /**
+   * The pick is a LAW's replacement of the seat's own terraforming (`resourceGainPrompt.diverted`): the token is born
+   * on the STRUCK printed icon the player can see (else the plate's law seal), under the law's seal.
+   */
+  diverted?: true;
 };
 
 /** The family of a live pick, read off the server's markers only. */
 export function promptReceiveFamily(wf: PlayerInputModel | undefined): PromptReceiveFamily | undefined {
   if (wf?.type !== 'card' || wf.resourceGainPrompt === undefined || wf.resourceGainPrompt.amount === undefined) {
     return undefined;
+  }
+  // A LAW'S REPLACEMENT of the seat's own terraforming (RX35 — the marker `diverted`): a card payout of the seat's
+  // own action, asked by the law — the plate's scene, never the sitting's gate.
+  if (wf.resourceGainPrompt.diverted !== undefined) {
+    return 'plate';
   }
   // A resolution's payout keeps its own gate (`consoleResolutionPayout` — the Parliament's stage owns that scene).
   if (wf.choiceContext?.source?.kind === 'resolution') {
@@ -121,7 +137,7 @@ export function promptReceiveLandedOn(card: string): number {
  * the submit. Returns whether the press is now the scene's (the host then
  * answers IN PLACE — no draft departure, no rejects tumbling).
  */
-export function armPromptReceive(wf: PlayerInputModel | undefined, card: CardName): boolean {
+export function armPromptReceive(wf: PlayerInputModel | undefined, card: CardName, opts: {client?: boolean} = {}): boolean {
   const family = promptReceiveFamily(wf);
   if (family === undefined || consoleReducedMotionActive()) {
     return false;
@@ -138,6 +154,8 @@ export function armPromptReceive(wf: PlayerInputModel | undefined, card: CardNam
     ...(pick.resourceGainPrompt?.fromSpace !== undefined ? {fromSpace: pick.resourceGainPrompt.fromSpace} : {}),
     before: model.resources ?? 0,
     model,
+    ...(opts.client === true ? {client: true as const} : {}),
+    ...(pick.resourceGainPrompt?.diverted !== undefined ? {diverted: true as const} : {}),
   };
   // The scene's faces are LITE (the field's receiving card, the carried home): warm the THUMB the field paints and
   // the full the plate already shows — at the PRESS, where the round trip pays for the decode (the field card rose
@@ -175,8 +193,10 @@ export function detectPromptReceive(before: PlayerViewModel | undefined, after: 
     return undefined;
   }
   const wf = before?.waitingFor;
-  const standing = wf?.type === 'card' && (wf as SelectCardModel).cards.some((c) => c.name === a.card) &&
-    promptReceiveFamily(wf) === a.family;
+  // A client-hosted pick stands INSIDE its door: the view's prompt is the door's (the action menu), the pick is the
+  // host's own model — the standing door and the count are the evidence.
+  const standing = a.client === true ? wf !== undefined :
+    wf?.type === 'card' && (wf as SelectCardModel).cards.some((c) => c.name === a.card) && promptReceiveFamily(wf) === a.family;
   const now = storedOn(after, a.card);
   if (!standing || now === undefined || now !== a.before + a.amount) {
     disarmPromptReceive('unverified');
@@ -228,11 +248,37 @@ function slotCardRect(card: CardName): Rect | undefined {
 const centre = (r: Rect): TransferPoint => ({x: r.x + r.w / 2, y: r.y + r.h / 2});
 
 /**
+ * Where a REPLACED unit's data is born (RX35): the STRUCK printed icon the player can see (the heat confirm's formula
+ * row stands above its hosted picker), else the plate's own LAW SEAL (an embedded pick has no dock, and a standard
+ * project's row is parked under its step) — read painted-first, never the first measurable.
+ */
+const DIVERTED_ORIGIN_SELECTORS: ReadonlyArray<string> = [
+  '.action-effect-chip--diverted .action-effect-chip__icon:not(.action-effect-chip__diverted-icon)',
+  '.con-task-host [data-task-law-seal] .con-task__lawseal-emblem',
+];
+function divertedOriginRect(): Rect | undefined {
+  for (const sel of DIVERTED_ORIGIN_SELECTORS) {
+    const el = firstVisibleEnd(sel);
+    const r = el?.getBoundingClientRect();
+    if (r !== undefined && r.width > 2 && r.height > 2) {
+      return {x: r.left, y: r.top, w: r.width, h: r.height};
+    }
+  }
+  return undefined;
+}
+
+/**
  * Where a token is BORN for the in-surface families: the colony's PLANET on
  * its stage (the colony pays), the source card's PRINTED icon of the resource
  * in the plate's dock (a card pays), else the dock's face / the plate itself.
  */
 function originsFor(a: Armed, specs: ReadonlyArray<ResourceTransferSpec>): Array<TransferPoint | undefined> {
+  if (a.diverted === true) {
+    const struck = divertedOriginRect();
+    if (struck !== undefined) {
+      return specs.map(() => centre(struck));
+    }
+  }
   if (a.family === 'colony') {
     // The colony's PLANET on its stage; a standalone plate names the colony on its dock plate — that plate is the
     // colony's stand-in on screen, so the token is born there.
@@ -259,10 +305,14 @@ function runInSurface(a: Armed): Promise<CardReceiveOutcome> {
     // only needs the slot to be there.
     present: () => Promise.resolve(slotCardRect(a.card) !== undefined),
     pay: async () => {
+      // THE LAW'S SEAL on the birthplace (RX35): the rim and its strike dwell on the struck icon while the token is born.
+      if (a.diverted === true) {
+        pulseDivertedSeal(divertedOriginRect());
+      }
       await runResourceTransfers({
         specs,
         origins: originsFor(a, specs),
-        source: {selectors: ['.con-task-host .con-src .pcard', '.con-colfocus .con-colfocus__planet', '.con-task-host .con-src', '.con-task-host .con-cards__verdictbar']},
+        source: {selectors: [...(a.diverted === true ? DIVERTED_ORIGIN_SELECTORS : []), '.con-task-host .con-src .pcard', '.con-colfocus .con-colfocus__planet', '.con-task-host .con-src', '.con-task-host .con-cards__verdictbar']},
         arrival: 'auto',
         // The chips land INSIDE the standing pick: the feed only (a blocking hold would retract the very surface).
         inSurface: true,

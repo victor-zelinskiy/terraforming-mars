@@ -5552,7 +5552,9 @@ export default defineComponent({
       const origins = anchors !== undefined ? resolveGainIconOrigins(anchors, specs) : specs.map(() => undefined);
       const srcRect = wrap?.getBoundingClientRect();
       // THE RESULT the impulse lands on: the wave's first gain, else the chain's (a spend's result rides the half).
-      const resultResource = specs[0]?.resource ?? railPlan?.reward.cause.find((spec) => spec.direction !== 'loss')?.resource;
+      // A replaced unit's data (RX35) lands on — and is born on — the STRUCK printed icon (`bornOn`), never a data icon.
+      const firstGain = specs[0] ?? railPlan?.reward.cause.find((spec) => spec.direction !== 'loss');
+      const resultResource = firstGain?.bornOn ?? firstGain?.resource;
       // A spend is ABSORBED at the selected variant's printed result icon — the icon its result is then born on.
       const absorbEl = railPlan?.spendLinks !== undefined && anchors !== undefined ? resolveResultIcon(anchors, kind, resultResource) : undefined;
       const absorbRect = absorbEl?.getBoundingClientRect();
@@ -5589,6 +5591,7 @@ export default defineComponent({
         actionNode: this.actionGraphicNode,
         kind,
         firstResource: resultResource,
+        divertedSeal: firstGain?.bornOn !== undefined,
         // The draw's causality: the impulse lands on the printed card-draw
         // icon and the HUD deck ANSWERS — right before the physical pull.
         onHandoff: kind === 'draw' || kind === 'deck-check' ? pulseDeckPile : undefined,

@@ -702,6 +702,7 @@
     "No colony available to trade with": "Нет колонии для торговли",
     "Configure payment": "Настроить оплату",
     "Next: choose a colony.": "Далее: выберите колонию.",
+    "Next: choose the card for the data.": "Далее: выберите карту для данных.",
     "Next: choose a location on the board.": "Далее: выберите место на поле.",
     "Next: choose where to place the ocean tile.": "Далее: выберите место для тайла океана.",
     "Next: choose where to place the city tile.": "Далее: выберите место для тайла города.",
@@ -719,6 +720,9 @@
     "limit": "предел",
     "to hand": "в руку",
     "your card": "ваша карта",
+    "no card can hold it": "нет карты, принимающей их",
+    "Replaced by ${0}: ${1} data on one of your cards": "Заменено законом «${0}»: ${1} {данные|данных|данных} на одну из ваших карт",
+    "Replaced by ${0}: ${1} data — no card of yours can hold it": "Заменено законом «${0}»: ${1} {данные|данных|данных} — нет вашей карты, принимающей их",
     "no effect": "без эффекта",
     "Result": "Результат",
     "VP progress": "Прогресс ПО",
@@ -1348,5 +1352,6 @@
     "Plant prod.": "пр. растений",
     "Energy prod.": "пр. энергии",
     "Heat prod.": "пр. тепла",
+    "for a replaced terraforming step": "за заменённое терраформирование",
     "for a change of the ruling party": "за смену правящей партии"
 }

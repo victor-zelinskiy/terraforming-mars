@@ -91,6 +91,8 @@ const ICON_NEEDLES: Readonly<Record<string, ReadonlyArray<string>>> = {
   // EVA Mechs (TR09): without this the impulse never finds its result icon
   // and silently degrades to the plate.
   'mech': ['mech'],
+  // The printed GREENERY tile (RX35: a replaced greenery's token is born on it; TR69's greenery) — the face's own art.
+  'greenery': ['greenery'],
   // Security Fleet / Formula Zero (TR08) and Carbon Nanosystems — the same hole.
   'fighter': ['fighter'],
   'graphene': ['graphene'],
@@ -297,8 +299,9 @@ function resolveIconPoints(scope: HTMLElement, specs: ReadonlyArray<ResourceTran
       const mc = mcTiles.find((el) => printsNegative(el) === wantNegative) ?? mcTiles[0];
       return centerOf(mc) ?? centerOf(icons.find((el) => iconMatches(el, 'megacredits'))) ?? (wildChosen(spec) ? fromWild() : undefined);
     }
-    // The RATING rides the stock channel under the rail's own key; its printed icon is the TR disc.
-    const needle = spec.resource === RATING_RAIL_KEY ? 'tr' : spec.resource;
+    // The RATING rides the stock channel under the rail's own key; its printed icon is the TR disc. A token BORN
+    // ELSEWHERE (`bornOn` — the struck scale / tile icon a law replaced, RX35) is born on that icon.
+    const needle = spec.bornOn ?? (spec.resource === RATING_RAIL_KEY ? 'tr' : spec.resource);
     const matching = icons.filter((el) => iconMatches(el, needle));
     if (matching.length === 0 && wildChosen(spec)) {
       return fromWild();
@@ -321,6 +324,12 @@ export type ActionCommitMotionArgs = {
   kind: ActionCommitKind;
   /** First reward resource (picks the landing icon for `resources`). */
   firstResource?: string;
+  /**
+   * The landing icon is a UNIT A LAW REPLACED (RX35): the impulse's one-shot ring becomes the Reds' SEAL — a red
+   * rim and a strike that settle on the printed icon (never one frame), dwell while the data's token is born on it,
+   * and let go with the episode.
+   */
+  divertedSeal?: boolean;
   /** Fired at the impulse's landing — the result handoff (overlapping). */
   onHandoff?: () => void;
   /** Fired when the mandatory beat has played out (the min-beat release). */
@@ -389,6 +398,34 @@ export function pulseCommitRing(rect: {x: number, y: number, w: number, h: numbe
     opacity: 0.9, scale: 1, duration: s(ICON_MS * 0.5), ease: 'sine.out', transformOrigin: '50% 50%',
   }, 0);
   tl.to(ring, {opacity: 0, scale: 1.1, duration: s(ICON_MS * 1.15), ease: 'sine.out'}, s(ICON_MS * 0.55));
+}
+
+/**
+ * THE LAW'S SEAL ALONE (RX35 — a replaced unit answered OUTSIDE the action
+ * commit: the heat confirm's «where», a standard project's): the seal's rim
+ * with its strike on the STRUCK icon (or the plate's law seal), dwelling while
+ * the data's token is born on it — the commit's own seal, for a door that has
+ * no impulse. Silent under reduced motion and off-DOM.
+ */
+export function pulseDivertedSeal(rect: {x: number, y: number, w: number, h: number} | undefined): void {
+  if (rect === undefined || typeof document === 'undefined' || consoleReducedMotionActive()) {
+    return;
+  }
+  const ring = document.createElement('div');
+  ring.className = 'con-commit-ring con-commit-seal';
+  ring.style.cssText = `left:${rect.x - 5}px;top:${rect.y - 5}px;width:${rect.w + 10}px;height:${rect.h + 10}px;`;
+  const strike = document.createElement('div');
+  strike.className = 'con-commit-seal__strike';
+  ring.appendChild(strike);
+  document.body.appendChild(ring);
+  const tl = gsap.timeline({onComplete: () => ring.remove(), onInterrupt: () => ring.remove()});
+  tl.fromTo(ring, {opacity: 0, scale: 0.78}, {
+    opacity: 0.9, scale: 1, duration: s(ICON_MS * 0.5), ease: 'sine.out', transformOrigin: '50% 50%',
+  }, 0);
+  tl.fromTo(strike, {scaleX: 0, opacity: 0}, {
+    scaleX: 1, opacity: 1, duration: s(ICON_MS * 0.6), ease: 'power2.out', transformOrigin: '0% 50%',
+  }, s(ICON_MS * 0.25));
+  tl.to(ring, {opacity: 0, scale: 1.1, duration: s(ICON_MS * 1.15), ease: 'sine.out'}, s(ICON_MS * 1.6));
 }
 
 /**
@@ -511,9 +548,17 @@ export function runActionCommitMotion(args: ActionCommitMotionArgs): ActionCommi
   if (landingEl !== undefined) {
     const r = landingEl.getBoundingClientRect();
     const ring = document.createElement('div');
-    ring.className = 'con-commit-ring';
+    ring.className = args.divertedSeal === true ? 'con-commit-ring con-commit-seal' : 'con-commit-ring';
     ring.style.cssText = `left:${r.left - 5}px;top:${r.top - 5}px;width:${r.width + 10}px;height:${r.height + 10}px;`;
     layer.appendChild(ring);
+    if (args.divertedSeal === true) {
+      // THE SEAL's strike — one diagonal bar across the icon, drawn in from nothing with the rim.
+      const strike = document.createElement('div');
+      strike.className = 'con-commit-seal__strike';
+      ring.appendChild(strike);
+      tl.fromTo(strike, {scaleX: 0, opacity: 0}, {scaleX: 1, opacity: 1, duration: s(ICON_MS * 0.6), ease: 'power2.out', transformOrigin: '0% 50%'},
+        s(COMMIT_HANDOFF_AT_MS - 40 + ICON_MS * 0.25));
+    }
     tl.fromTo(iconEl ?? landingEl, {scale: 1}, {
       scale: 1.16, duration: s(ICON_MS * 0.45), ease: 'sine.out', transformOrigin: '50% 50%',
     }, s(COMMIT_HANDOFF_AT_MS - 40));
@@ -525,8 +570,9 @@ export function runActionCommitMotion(args: ActionCommitMotionArgs): ActionCommi
       opacity: 0.9, scale: 1, duration: s(ICON_MS * 0.5), ease: 'sine.out', transformOrigin: '50% 50%',
     }, s(COMMIT_HANDOFF_AT_MS - 40));
     // The ring DWELLS a beat before letting go — the «executed» mark is the
-    // one thing the eye must be given time to read.
-    tl.to(ring, {opacity: 0, scale: 1.1, duration: s(ICON_MS * 1.15), ease: 'sine.out'}, s(COMMIT_HANDOFF_AT_MS + ICON_MS * 0.55));
+    // one thing the eye must be given time to read. The SEAL dwells longer: the data's token is born on it meanwhile.
+    const dwell = args.divertedSeal === true ? ICON_MS * 1.6 : ICON_MS * 0.55;
+    tl.to(ring, {opacity: 0, scale: 1.1, duration: s(ICON_MS * 1.15), ease: 'sine.out'}, s(COMMIT_HANDOFF_AT_MS + dwell));
   }
 
   tl.call(fireHandoff, undefined, s(COMMIT_HANDOFF_AT_MS));

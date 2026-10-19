@@ -13,6 +13,7 @@
  * (tests/client/components/console/turnIntents.spec.ts).
  */
 
+import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {FleetDockOfferModel, PlayerInputModel, OrOptionsModel, SelectOptionModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -227,9 +228,21 @@ export function findConvertHeatOption(
   return undefined;
 }
 
-export type ConvertPlantsMatch = {path: ReadonlyArray<number>, spacePrompt: PlayerInputModel};
+/**
+ * The plant conversion, found in one of its TWO shapes: the ordinary BOARD PICK (a SelectSpace nested in the menu),
+ * or — under a law that REPLACES the greenery (Turmoil Redux RX35) — a one-press OPTION the server names
+ * structurally by the standard action's own card (`OptionMetadata.card`); its reading and the pre-collected
+ * «where» ride that option's metadata, exactly like the heat conversion's.
+ */
+export type ConvertPlantsMatch =
+  | {path: ReadonlyArray<number>, spacePrompt: PlayerInputModel, option?: undefined}
+  | {path: ReadonlyArray<number>, option: SelectOptionModel, spacePrompt?: undefined};
 
-/** The first SelectSpace nested in the action menu (only or/and are walked). */
+function isPlantConversionOption(opt: PlayerInputModel): boolean {
+  return opt.type === 'option' && (opt as SelectOptionModel).metadata?.card === CardName.CONVERT_PLANTS;
+}
+
+/** The first SelectSpace nested in the action menu (only or/and are walked) — or the law's option (RX35). */
 function findConvertPlantsInner(
   wf: PlayerInputModel | undefined,
   pathSoFar: ReadonlyArray<number>,
@@ -243,6 +256,9 @@ function findConvertPlantsInner(
       const opt = options[i];
       if (opt.type === 'space') {
         return {path: [...pathSoFar, i], spacePrompt: opt};
+      }
+      if (isPlantConversionOption(opt)) {
+        return {path: [...pathSoFar, i], option: opt as SelectOptionModel};
       }
       const deeper = findConvertPlantsInner(opt, [...pathSoFar, i]);
       if (deeper) {

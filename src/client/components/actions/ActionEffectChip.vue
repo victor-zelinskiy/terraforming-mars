@@ -16,7 +16,10 @@
           'action-effect-chip--bare': iconClass === '' && !isVictoryPoints,
           'action-effect-chip--timeline': moves !== undefined,
           'action-effect-chip--implied': effect.implied === true,
-        }]">
+          'action-effect-chip--diverted': diverted,
+          'action-effect-chip--diverted-lost': diverted && effect.diverted?.lost === true,
+        }]"
+        :data-diverted="diverted ? effect.diverted?.data : undefined">
     <!-- The icon is ALWAYS a real sprite (including `tr` → tr.png and `cards` →
          card.png, via iconClassFor) — never a drawn glyph, so it matches the game art.
          A few effects have NO honest single sprite (the Ares penalty lets the player
@@ -62,6 +65,16 @@
          Agenda chip — why the walk is this long); a plain note is vocabulary («на эту карту»). -->
     <span v-if="effect.note" class="action-effect-chip__note" :class="{'action-effect-chip__note--sentence': effect.noteParams !== undefined}" v-i18n="effect.noteParams">{{ effect.note }}</span>
     <span v-if="noEffect" class="action-effect-chip__note action-effect-chip__note--noeffect" v-i18n>no effect</span>
+    <!-- A UNIT A LAW REPLACES (Turmoil Redux RX35 — `effect.diverted`): the printed value stays, STRUCK in the Reds'
+         own red (never a grey «disabled»), and the tail says what it becomes — «→ +N [data]» on one of the player's
+         cards, or the loss when none can take it. The law is named in the hint; the state reads by weight and the
+         strike, never by colour alone. -->
+    <span v-if="diverted" class="action-effect-chip__diverted premium-tooltip" :data-hint="divertedHint" data-chip-diverted>
+      <span class="action-effect-chip__diverted-arrow" aria-hidden="true">→</span>
+      <span class="action-effect-chip__diverted-amount">+{{ effect.diverted?.data }}</span>
+      <span class="action-effect-chip__icon action-effect-chip__diverted-icon" :class="divertedIconClass" aria-hidden="true"></span>
+      <span v-if="effect.diverted?.lost === true" class="action-effect-chip__note action-effect-chip__note--sentence action-effect-chip__diverted-lost" v-i18n>no card can hold it</span>
+    </span>
     <!-- A VP reading short of the next threshold: the resource still lands — a neutral fact, never «no effect». The
          server's note says how many more buy the point; a reading without one still names itself. -->
     <span v-else-if="vpSteady && !effect.note" class="action-effect-chip__note action-effect-chip__note--sentence" data-chip-vp-steady v-i18n>VP unchanged</span>
@@ -104,7 +117,9 @@
 import {defineComponent, PropType} from 'vue';
 import {ActionEffect, ActionEffectBasis} from '@/common/models/ActionPreviewModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {gainHasNoEffect, victoryPointsSteady} from '@/client/components/actions/actionEffectReading';
+import {divertedChip, gainHasNoEffect, victoryPointsSteady} from '@/client/components/actions/actionEffectReading';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
+import {translateTextWithParams} from '@/client/directives/i18n';
 import ConsoleDrawSearchRule from '@/client/components/console/foundation/ConsoleDrawSearchRule.vue';
 
 export default defineComponent({
@@ -144,6 +159,25 @@ export default defineComponent({
   computed: {
     iconClass(): string {
       return iconClassFor(this.effect.icon);
+    },
+    /** The unit is REPLACED by a standing law (RX35): struck, with the data it becomes beside it. */
+    diverted(): boolean {
+      return divertedChip(this.effect);
+    },
+    /** The hint names the LAW (the manifest's own name, never the catalog id) and the data. */
+    divertedHint(): string {
+      const mark = this.effect.diverted;
+      if (mark === undefined) {
+        return '';
+      }
+      const law = getResolution(mark.resolution)?.text.name ?? mark.resolution;
+      return translateTextWithParams(mark.lost === true ?
+        'Replaced by ${0}: ${1} data — no card of yours can hold it' :
+        'Replaced by ${0}: ${1} data on one of your cards', [translateTextWithParams(law, []), String(mark.data)]);
+    },
+    /** The data sprite of the struck chip's tail — what the replaced unit becomes. */
+    divertedIconClass(): string {
+      return iconClassFor('data');
     },
     /** A VP reading — rendered as a typographic badge, never a sprite. */
     isVictoryPoints(): boolean {
@@ -256,6 +290,27 @@ export default defineComponent({
     --chip-bg: rgba(26, 36, 48, 0.55);
     --chip-accent: #dfe7f0;
   }
+  // A UNIT A LAW REPLACES (RX35): the chip keeps its own gain glass — data still lands — but the printed VALUE is
+  // struck in the Reds' red (the party's own emblem language, never a grey «disabled»), and the tail carries the
+  // data. The state survives desaturation by the strike and the tail's weight, never by the red alone.
+  &--diverted {
+    --chip-rim: rgba(255, 128, 118, 0.55);
+    --chip-bg: rgba(52, 26, 30, 0.5);
+
+    .action-effect-chip__value {
+      text-decoration: line-through;
+      text-decoration-thickness: 2px;
+      text-decoration-color: rgba(255, 96, 84, 0.95);
+      opacity: 0.78;
+    }
+  }
+  // …and when no card can take the data: the tail reads the loss, the tail's data is struck too.
+  &--diverted-lost {
+    .action-effect-chip__diverted-amount {
+      text-decoration: line-through;
+      text-decoration-color: rgba(255, 96, 84, 0.95);
+    }
+  }
   // No-op gain (capped at max) — muted, so it reads as "this won't do anything".
   &--noeffect {
     opacity: 0.62;
@@ -288,6 +343,29 @@ export default defineComponent({
   /* Normalise the three sprite families to a single box (mirrors
      .modal-input__option-icon) so resource / param / card-resource icons align. */
   transform: scale(1);
+}
+
+// The REPLACEMENT tail («→ +N [data]») — the chip's brightest voice: the data is what the player gets.
+.action-effect-chip__diverted {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 2px;
+  padding-left: 6px;
+  border-left: 1px solid rgba(255, 128, 118, 0.35);
+  color: #ffd0c8;
+  font-weight: 700;
+}
+.action-effect-chip__diverted-arrow {
+  opacity: 0.75;
+}
+.action-effect-chip__diverted-icon {
+  width: 20px;
+  height: 20px;
+}
+.action-effect-chip__diverted-lost {
+  font-weight: 500;
+  color: #f4d3a6;
 }
 
 // The VP identity as type rather than art (see the template note). Sized to the

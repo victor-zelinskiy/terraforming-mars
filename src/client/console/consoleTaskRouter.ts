@@ -22,6 +22,7 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {inputTitleText} from '@/client/console/turnIntents';
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {ParliamentPhaseStage} from '@/common/parliament/ParliamentTypes';
+import {isDivertedPick} from '@/client/console/consoleMandatoryGate';
 import {promptSourceResolution} from '@/client/console/promptSource';
 import {supportStepStageOf} from '@/client/console/parliament/supportPickModel';
 
@@ -417,7 +418,8 @@ export function followUpStepStage(kind: TaskKind | undefined, wf?: PlayerInputMo
   if (kind === undefined) {
     return undefined;
   }
-  if (wf !== undefined && promptSourceResolution(wf) !== undefined) {
+  // A replaced unit's «where» (RX35) is the seat's own follow-up, not a sitting's step — no stage of the sitting.
+  if (wf !== undefined && promptSourceResolution(wf) !== undefined && !isDivertedPick(wf)) {
     // A DISTRIBUTION is the card pick's layout mode: its own one-word stage
     // (`consoleSittingFlow.sittingStageKey`, the same key there and here).
     if (wf.cardResourceDistributionPrompt !== undefined) {

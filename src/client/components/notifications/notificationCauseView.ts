@@ -107,6 +107,7 @@ const TRIGGER_LABEL: Readonly<Record<EventTrigger, string>> = {
   'delta-advance': 'for a Hydronetwork advance',
   'delegates-discarded': 'for delegates discarded off an unenacted resolution',
   'ruling-party-changed': 'for a change of the ruling party',
+  'terraforming-diverted': 'for a replaced terraforming step',
   'automa-corporation': 'MarsBot corporation effect',
 };
 

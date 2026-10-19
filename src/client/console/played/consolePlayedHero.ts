@@ -1878,7 +1878,8 @@ function heroGainOrigin(card: string, spec: ResourceTransferSpec): TransferPoint
   if (typeof document === 'undefined' || card === '' || spec.channel !== 'card-resource') {
     return undefined;
   }
-  const needles = iconNeedlesFor(spec.resource) ?? [];
+  // A replaced unit's data (RX35) is born on the STRUCK printed scale / tile icon (`bornOn`) — the step it replaced.
+  const needles = iconNeedlesFor(spec.bornOn ?? spec.resource) ?? [];
   if (needles.length === 0) {
     return undefined;
   }

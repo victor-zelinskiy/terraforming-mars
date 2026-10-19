@@ -36,6 +36,7 @@
           <span class="con-confirm__hero" :class="'con-confirm__hero--' + kind" aria-hidden="true">
             <span class="con-confirm__emblem" data-wheel-anchor="confirm">
               <BarButtonIcon v-if="kind === 'pass'" name="pass" />
+              <i v-else-if="kind === 'convertPlants'" class="resource_icon resource_icon--plants"></i>
               <i v-else class="resource_icon resource_icon--heat"></i>
             </span>
           </span>
@@ -50,6 +51,13 @@
           <ConsoleForecastRow class="con-confirm__forecast" :class="{'con-forecast--descend': forecastPulse}"
                               :forecast="forecast" @open="openForecastLayer()" />
         </div>
+
+        <!-- THE «WHERE» OF A REPLACED UNIT (Turmoil Redux RX35): a law turned the conversion's step / tile into data,
+             and the shared picker — the task host's own plate, teleported here — asks which card takes it. The zone
+             is always present (a `<Teleport>` whose target is missing at mount drops its content); the operation
+             row above stays, the picker stands under it, B folds back to the plate. -->
+        <div class="con-confirm__step" :class="{'con-confirm__step--up': stepUp}"
+             data-embed-slot="confirm-step" data-outcome-zone></div>
 
         <!-- The one WARNING sentence of the conversion (the temperature's maximum — the step is empty). -->
         <p v-if="body !== ''" class="con-confirm__body">
@@ -102,12 +110,15 @@ import {
 } from '@/client/console/consoleForecastHost';
 import {VersionedView} from '@/client/console/gameStateVersion';
 
-export type ActionConfirmKind = 'pass' | 'convertHeat';
+export type ActionConfirmKind = 'pass' | 'convertHeat' | 'convertPlants';
 
 /** The ask per verb — the operation's own words, never the shell's generic «Подтверждение». */
 const TITLE_KEY: Readonly<Record<ActionConfirmKind, string>> = {
   pass: 'Pass until the next generation',
   convertHeat: 'Raise the temperature with heat',
+  // The plant conversion stands up a plate only under a law that REPLACES the greenery (RX35) — the board pick is
+  // its ordinary door.
+  convertPlants: 'Place a greenery with plants',
 };
 
 export default defineComponent({
@@ -130,6 +141,8 @@ export default defineComponent({
     players: {type: Array as PropType<ReadonlyArray<ForecastSeat>>, default: () => []},
     /** The viewer's versioned view — the reacting seats' effect stats are asked with it. */
     statsView: {type: Object as PropType<VersionedView | undefined>, default: undefined},
+    /** The «where» picker of a replaced unit stands in the plate's zone (RX35): the operation row parks. */
+    stepUp: {type: Boolean, default: false},
   },
   data() {
     return {
