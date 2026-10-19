@@ -42,8 +42,8 @@
       <span v-else class="con-parl__engine-text">{{ $t(questShown.text) }}</span>
     </div>
     <!-- THE STEP it pays: into the first stop of the track beside it. -->
+    <svg v-if="questShown !== undefined" class="con-parl__engine-arrow" viewBox="0 0 30 14" aria-hidden="true"><path d="M2 7h24M20 2l6 5-6 5" /></svg>
     <span v-if="questShown !== undefined" class="con-parl__engine-step" :class="{'con-parl__engine-step--kept': viewerIsChairman}" data-parl-quest-reward aria-hidden="true">
-      <span class="con-parl__engine-arrow">→</span>
       <span class="con-parl__engine-plus">+1</span>
       <i class="con-parl__engine-star" aria-hidden="true"></i>
     </span>

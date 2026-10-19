@@ -73,11 +73,10 @@ export const consoleParliamentUi = reactive({
    */
   boardDoorOpen: false,
   /**
-   * THE PARLIAMENT STANDS AS THE HALL (Парламент v8, § 5 — the mock `b1`): the section is its own workspace screen,
-   * not a step hosted in another one's zone. In the hall the vote mode NEVER carries the bills: they stay on the
-   * table where the player chose them, the panel unfolds on the chamber's rect and the career dims under it. A
-   * hosted Parliament (TR03's hand, TR15's composer, the Redux Venus's colonies) keeps the row of carried cards —
-   * its zone is too narrow for a column beside the table. Published by the section from its `embedded` prop.
+   * THE PARLIAMENT STANDS AS THE HALL (Парламент v8, § 5 — the mock `b1`): a mounted, visible section — its own screen
+   * or a step hosted in another workspace's zone (TR03's hand, TR15's composer, the Redux Venus's colonies), ONE vote
+   * on every door. In the hall the vote mode NEVER carries the bills: they stay on the table where the player chose
+   * them and the panel unfolds on the chamber's rect. Published by the section (false while it warms or is gone).
    */
   hall: false,
 });

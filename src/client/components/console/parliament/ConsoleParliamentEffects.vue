@@ -31,7 +31,10 @@
         <div class="con-parl__effects-tilehead">
           <span class="con-parl__effects-seal">
             <img class="con-parl__effects-emblem" :src="emblemUrl(item.party)" alt="" />
-            <span v-if="size === 's' && item.action !== undefined" class="con-parl__effects-badge" :class="'con-parl__effects-badge--' + item.action" aria-hidden="true">
+            <!-- THE KIND IS A MARK, NEVER A WORD (the owner, 2026-10-19): an action rides the seal as a bolt in its state's
+                 colour (ready amber · used ✓ · not now dim); a standing effect needs no mark — the block's ∞ counts them. -->
+            <span v-if="item.action !== undefined" class="con-parl__effects-badge" :class="'con-parl__effects-badge--' + item.action"
+                  :data-parl-effects-action="item.action" aria-hidden="true">
               <svg v-if="item.action !== 'used'" viewBox="0 0 16 16"><path d="M9.6 1 3.4 9.1h3.9L6.2 15l6.4-8.4H8.6z" /></svg>
               <svg v-else viewBox="0 0 16 16"><path d="M3 8.4 6.5 12 13 4.6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" /></svg>
             </span>
@@ -56,16 +59,9 @@
         </div>
         <div class="con-parl__effects-formula">
           <ConsolePartyFormula v-if="item.kind === 'party'" :party="item.party" size="compact" />
-          <div v-else-if="item.lawMechanics !== undefined" class="con-parl__ruler-own" data-parl-enacted-effect>
-            <span class="con-parl__ruler-own-kicker" :data-parl-enacted-part="item.lawPart"><i class="con-parl__card-mark resource_icon resource_icon--cards" aria-hidden="true"></i>{{ $t(item.lawPart === 'action' ? 'Resolution action' : 'Resolution effect') }}</span>
-            <PremiumMechanicsPanel class="con-parl__ruler-own-mech" :mechanics="item.lawMechanics" />
-          </div>
-        </div>
-        <div class="con-parl__effects-chips">
-          <span v-if="item.effect" class="con-parl__effects-chip con-parl__effects-chip--effect">{{ $t('standing effect') }}</span>
-          <span v-if="item.action !== undefined" class="con-parl__effects-chip" :class="'con-parl__effects-chip--' + item.action" :data-parl-effects-action="item.action">
-            {{ $t(item.action === 'used' ? 'action used' : item.action === 'ready' ? 'action available' : 'action not now') }}
-          </span>
+          <PremiumMechanicsPanel v-else-if="item.lawMechanics !== undefined" class="con-parl__effects-law" :mechanics="item.lawMechanics"
+                                 data-parl-enacted-effect :data-parl-enacted-part="item.lawPart"
+                                 :aria-label="$t(item.lawPart === 'action' ? 'Resolution action' : 'Resolution effect')" />
         </div>
       </div>
     </div>

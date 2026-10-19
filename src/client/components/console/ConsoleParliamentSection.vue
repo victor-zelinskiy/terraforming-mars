@@ -476,9 +476,13 @@ export default defineComponent({
       const kind = parliamentStageKind();
       return kind === 'seat' || (kind === 'sitting' && this.sittingReading);
     },
-    /** THE HALL (Парламент v8 § 5): the section is its own workspace screen — not a step hosted in another's zone, not warming. */
+    /**
+     * THE HALL'S VOTE (Парламент v8 § 5) — on EVERY door (the owner, 2026-10-19: «голосование должно быть идентично
+     * независимо от того, откуда оно открыто»): the viewer's own Parliament, the staged card doors hosted in the hand /
+     * the action composer, the Redux Venus's grant in the colonies. Only a WARMING mount (invisible, no vote) is not.
+     */
     hall(): boolean {
-      return !this.embedded && !this.warm;
+      return !this.warm;
     },
     voteUp(): boolean {
       return parliamentVoteUp();

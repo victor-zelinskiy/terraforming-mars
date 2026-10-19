@@ -711,7 +711,8 @@ for (const preset of PARLIAMENT_PRESETS) {
                 text: '',
                 where: labels.length - 1,
                 contexts: band.querySelectorAll('.con-band__line:not(.con-band-fade-leave-active) [data-yield-context]').length,
-                part: document.querySelector('[data-parl-enacted-effect] .con-parl__ruler-own-kicker')?.textContent?.trim() ?? '',
+                // Парламент v8 (2026-10-19): the law's tile prints no kicker — its PART rides the graphic's own attribute.
+                part: document.querySelector('[data-parl-enacted-effect]')?.getAttribute('data-parl-enacted-part') ?? '',
               };
             };
             const mo = new MutationObserver(() => {
@@ -740,7 +741,7 @@ for (const preset of PARLIAMENT_PRESETS) {
           // wording itself; the line that carried it is gone).
           expect(q.text, 'the band prints no prose').toBe('');
           // The government plaque titles the enacted card's graphic by its PART — an action is not an effect (frame 33 of the first run).
-          expect(q.part, `${family.kind}: the government names the part`).toMatch(family.kind === 'action' ? /Действие резолюции|Resolution action/i : /Эффект резолюции|Resolution effect/i);
+          expect(q.part, `${family.kind}: «ВАШИ ЭФФЕКТЫ» names the law's part`).toBe(family.kind === 'action' ? 'action' : 'effect');
           await shoot(page, preset.id, mode, family.nn, `family-${family.kind}-walk`);
           // Nothing to pay: the adjourn arrives in the same response — the RESULTS card names the family again.
           await expect.poll(() => sittingStage(page), {timeout: 60_000}).toBe('results');
