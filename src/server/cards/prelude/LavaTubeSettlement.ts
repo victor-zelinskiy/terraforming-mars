@@ -13,6 +13,7 @@ import {PlacementIllegalReason} from '../../../common/inputs/PlacementIllegalRea
 import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as reason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import {intersection} from '../../../common/utils/utils';
 
 export class LavaTubeSettlement extends Card implements IProjectCard {
   constructor() {
@@ -54,9 +55,20 @@ export class LavaTubeSettlement extends Card implements IProjectCard {
   }
 
   private getSpacesForCity(player: IPlayer, canAffordOptions?: CanAffordOptions): ReadonlyArray<Space> {
+    const board = player.game.board;
     // https://boardgamegeek.com/thread/1953628/article/29627211#29627211
-    const spaceType = player.game.board.volcanicSpaceIds.length === 0 ? 'city' : 'volcanic';
-    return player.game.board.getAvailableSpacesForType(player, spaceType, canAffordOptions);
+    if (board.volcanicSpaceIds.length === 0) {
+      return board.getAvailableSpacesForType(player, 'city', canAffordOptions);
+    }
+    const volcanicSpaces = board.getAvailableSpacesForType(player, 'volcanic', canAffordOptions);
+    // Kingdom of Tauraro must place next to its own tiles or excavation markers, if possible (upstream 8e54247406).
+    if (player.tableau.has(CardName.KINGDOM_OF_TAURARO)) {
+      const spaces = intersection(board.getAvailableSpacesForType(player, 'city', canAffordOptions), volcanicSpaces);
+      if (spaces.length > 0) {
+        return spaces;
+      }
+    }
+    return volcanicSpaces;
   }
 
   public override bespokeCanPlay(player: IPlayer): boolean {
