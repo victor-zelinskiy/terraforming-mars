@@ -1133,8 +1133,8 @@ export function isGatePrompt(input: PlayerInput, stage: ParliamentPhaseStage, ge
 /** Neutral or player — the shape the summary carries. */
 export type PhaseWinnerOwner = PartyName | 'NEUTRAL';
 
-/** What a seat stands at before a card answers a change of power — the rating, the hand, the standard stock. */
-type RulingAnswerProbe = {tr: number, hand: number, stock: Map<Resource, number>};
+/** What a seat stands at before a card answers a change of power — the rating, the hand, the standard stock, the production. */
+type RulingAnswerProbe = {tr: number, hand: number, stock: Map<Resource, number>, production: Map<Resource, number>};
 
 const RULING_ANSWER_STOCK: ReadonlyArray<Resource> = [Resource.MEGACREDITS, Resource.STEEL, Resource.TITANIUM, Resource.PLANTS, Resource.ENERGY, Resource.HEAT];
 
@@ -1143,6 +1143,7 @@ function rulingAnswerProbe(player: IPlayer): RulingAnswerProbe {
     tr: player.terraformRating,
     hand: player.cardsInHand.length,
     stock: new Map(RULING_ANSWER_STOCK.map((r) => [r, player.stock.get(r)])),
+    production: new Map(RULING_ANSWER_STOCK.map((r) => [r, player.production.get(r)])),
   };
 }
 
@@ -1151,13 +1152,18 @@ function rulingAnswerOf(player: IPlayer, card: CardName, party: ReduxParty, befo
   const tr = player.terraformRating - before.tr;
   const cards = player.cardsInHand.length - before.hand;
   const stock: Partial<Record<string, number>> = {};
+  const production: Partial<Record<string, number>> = {};
   for (const resource of RULING_ANSWER_STOCK) {
     const delta = player.stock.get(resource) - (before.stock.get(resource) ?? 0);
     if (delta !== 0) {
       stock[resource] = delta;
     }
+    const step = player.production.get(resource) - (before.production.get(resource) ?? 0);
+    if (step !== 0) {
+      production[resource] = step;
+    }
   }
-  if (tr === 0 && cards === 0 && Object.keys(stock).length === 0) {
+  if (tr === 0 && cards === 0 && Object.keys(stock).length === 0 && Object.keys(production).length === 0) {
     return undefined;
   }
   return {
@@ -1165,6 +1171,7 @@ function rulingAnswerOf(player: IPlayer, card: CardName, party: ReduxParty, befo
     ...(tr === 0 ? {} : {tr}),
     ...(cards === 0 ? {} : {cards}),
     ...(Object.keys(stock).length === 0 ? {} : {stock}),
+    ...(Object.keys(production).length === 0 ? {} : {production}),
   };
 }
 

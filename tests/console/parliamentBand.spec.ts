@@ -199,6 +199,9 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
       // TR63: a RATING answer reads its own count («РТ 1»), never «Карты».
       const rating = line({stage: 'enact', rulingDraw: {card: CardName.EDEN_ALLIANCE, party: PartyName.GREENS, tr: 1}});
       expect(rating.chips[1]).deep.eq({kind: 'count', key: 'TR', amount: 1});
+      // TR64: a PRODUCTION answer reads its own count («Производство М€ 2»).
+      const production = line({stage: 'enact', rulingDraw: {card: CardName.PROMETHEAN_ALLIANCE, party: PartyName.SCIENTISTS, production: 2}});
+      expect(production.chips[1]).deep.eq({kind: 'count', key: 'M€ production', amount: 2});
       // …and only at rest: a beat of the enactment still playing keeps its own line.
       expect(line({stage: 'enact', beat: 'support', supportWave: 'absent', rulingDraw: {card: CardName.THARSIS_ALLIANCE, party: PartyName.MARS, count: 1}}).kicker).eq('Popular support');
     });

@@ -48,6 +48,7 @@ const CURATED_EFFECT_CHANNELS: Partial<Record<CardName, ReadonlyArray<ReadonlyAr
   // becomes ruling (onRulingPartyChanged → 'ruling-party-changed').
   [CardName.THARSIS_ALLIANCE]: [[], ['ruling-party-changed']],
   [CardName.EDEN_ALLIANCE]: [[], ['ruling-party-changed']],
+  [CardName.PROMETHEAN_ALLIANCE]: [[], ['ruling-party-changed']],
 };
 
 /**

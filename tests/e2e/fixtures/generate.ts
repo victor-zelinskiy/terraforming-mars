@@ -7151,3 +7151,74 @@ function edenAllianceFixture(name: string, at: 'journey' | 'enact'): void {
 }
 edenAllianceFixture('eden-alliance', 'journey');
 edenAllianceFixture('eden-alliance-enact', 'enact');
+
+// ── TR64 · PROMETHEAN ALLIANCE — the last pair, the Scientists = the Industrialists, and a PRODUCTION answer to a change
+//    of power (docs/TURMOIL_REDUX_PROMETHEAN_ALLIANCE.md). The Greens rule by the starting rule; the voting area is
+//    [the Scientists · the Reds · Unity] (quiet cards); red keeps a cube on Unity; the corporations pinned (Teractor /
+//    ThorGate).
+//      `promethean-alliance`       — blue's action phase, 24 M€, TR64 in hand, TWO of blue's cubes on the Scientists: the
+//                                    play opens the Industrialists by the DELEGATES road;
+//      `promethean-alliance-enact` — TR64 on blue's table, the sitting at its first gate with the Scientists winning
+//                                    (red's three cubes): the enactment raises blue's M€ production by two.
+//    Every table is refused unless its DRY RUN (on a copy) reaches the state the name promises. ──
+function prometheanAllianceFixture(name: string, at: 'journey' | 'enact'): void {
+  parliamentFixture(name, {
+    stopAt: at === 'enact' ? 'assembly' : 'vote',
+    megacredits: [24, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: ({game, p1, p2, parliament}) => {
+      seatResolution(parliament, 0, quietResolutionOf(PartyName.SCIENTISTS));
+      seatResolution(parliament, 1, quietResolutionOf(PartyName.REDS));
+      seatResolution(parliament, 2, quietResolutionOf(PartyName.UNITY));
+      parliament.placeVote(p2, parliament.slots[2], 'reserve');
+      moveToDeckTop(game, CardName.PROMETHEAN_ALLIANCE);
+      if (at === 'journey') {
+        p1.cardsInHand.push(game.projectDeck.drawPile.pop() as IProjectCard);
+        // Two of blue's cubes on the Scientists — the printed «2 delegates» road the alliance reads.
+        parliament.placeVote(p1, parliament.slots[0], 'reserve');
+        parliament.placeVote(p1, parliament.slots[0], 'reserve');
+      } else {
+        p1.playedCards.push(game.projectDeck.drawPile.pop() as IProjectCard);
+        // The Scientists win the vote: red's three cubes on their card.
+        parliament.placeVote(p2, parliament.slots[0], 'reserve');
+        parliament.placeVote(p2, parliament.slots[0], 'reserve');
+        parliament.placeVote(p2, parliament.slots[0], 'reserve');
+      }
+    },
+    expect: ({game, parliament, p1}) => {
+      const S = PartyName.SCIENTISTS;
+      const I = PartyName.INDUSTRIALISTS;
+      const facts: Record<string, unknown> = {
+        ruling: parliament.rulingParty(),
+        parties: parliament.slots.map((s) => parliament.resolutionOf(s.instance).party).join(','),
+        industrialistsHeld: parliament.access(p1, I).hasEffect,
+      };
+      let ok = facts.ruling === PartyName.GREENS && facts.parties === [S, PartyName.REDS, PartyName.UNITY].join(',') && facts.industrialistsHeld === false;
+      const copy = Game.deserialize(structuredClone(game.serialize()));
+      const blue = copy.getPlayerById(p1.id);
+      if (at === 'journey') {
+        // THE DRY RUN — the play for real, on a copy: the Industrialists open by the alliance (two cubes on the Scientists).
+        facts.playable = p1.canPlay(p1.cardsInHand.find((c) => c.name === CardName.PROMETHEAN_ALLIANCE) as IProjectCard);
+        blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.PROMETHEAN_ALLIANCE) as IProjectCard);
+        runAllActions(copy);
+        facts.after = copy.parliament!.accessBasis(blue, I);
+        ok = ok && facts.playable === true && facts.after === 'alliance';
+      } else {
+        // THE DRY RUN of the sitting: answer the gates — the Scientists enacted, blue's M€ production +2.
+        const prod = blue.production.megacredits;
+        answerStandingGates(copy, 'assembly');
+        runAllActions(copy);
+        facts.enacted = copy.parliament!.rulingParty();
+        facts.production = blue.production.megacredits - prod;
+        facts.after = copy.parliament!.accessBasis(blue, I);
+        ok = ok && facts.enacted === S && facts.production === 2 && facts.after === 'alliance';
+      }
+      if (!ok) {
+        throw new Error(`${name}: the Promethean Alliance table is not the one its name promises — got ${JSON.stringify(facts)}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+prometheanAllianceFixture('promethean-alliance', 'journey');
+prometheanAllianceFixture('promethean-alliance-enact', 'enact');

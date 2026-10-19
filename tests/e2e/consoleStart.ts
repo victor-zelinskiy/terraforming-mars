@@ -2465,6 +2465,11 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   // cards, red's cube on the Scientists). `eden-alliance` — TR63 in hand; `-enact` — TR63 on the table, the sitting's
   // first gate with Unity winning (red 3 cubes) (docs/TURMOIL_REDUX_EDEN_ALLIANCE.md).
   'eden-alliance' | 'eden-alliance-enact' |
+  // TR64 Promethean Alliance: the Greens ruling by the starting rule, the voting area [the Scientists · the Reds · Unity]
+  // (quiet cards, red's cube on Unity). `promethean-alliance` — TR64 in hand, TWO of blue's cubes on the Scientists;
+  // `-enact` — TR64 on the table, the sitting's first gate with the Scientists winning (red 3 cubes)
+  // (docs/TURMOIL_REDUX_PROMETHEAN_ALLIANCE.md).
+  'promethean-alliance' | 'promethean-alliance-enact' |
   // TR37 Red Lawyers: blue's action phase with the card in hand, 10 M€, two of blue's cubes on a quiet Reds card (the
   // requirement's «2 delegates» road), the Greens ruling by the starting rule, red on step 3. The walk 6 → ⑦ CARD → ⑧
   // (the card step in the MIDDLE), `-tr-first` 5 → ⑥ TR → ⑦ CARD (the card step LAST, the Greens answer the TR),

@@ -523,6 +523,8 @@ export type ParliamentRulingAnswerModel = {
   cards?: number;
   /** The standard stock the table paid back in the same call (the ruling Greens' M€ for the rating), by resource. */
   stock?: Partial<Record<string, number>>;
+  /** The production the card raised (TR64 Promethean Alliance — `megacredits: 2`), by resource. */
+  production?: Partial<Record<string, number>>;
 };
 
 /**

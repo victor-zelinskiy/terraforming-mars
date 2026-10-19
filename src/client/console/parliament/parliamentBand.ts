@@ -245,7 +245,7 @@ export type BandSitting = {
    * THE ENACTMENT'S TAIL (TR62): a card's answer to the change of power, delivered while the line still reads the
    * enactment — the card that answered, the party that came to power and how many cards leave the deck.
    */
-  rulingDraw?: {card: CardName, party: ReduxParty, count?: number, tr?: number};
+  rulingDraw?: {card: CardName, party: ReduxParty, count?: number, tr?: number, production?: number};
   generation: number;
   awaiting: ReadonlyArray<Color>;
   summary?: ParliamentPhaseSummaryModel;
@@ -655,6 +655,9 @@ function enactLine(sitting: BandSitting): BandLine {
     }
     if (draw.tr !== undefined) {
       chips.push({kind: 'count', key: 'TR', amount: draw.tr});
+    }
+    if (draw.production !== undefined) {
+      chips.push({kind: 'count', key: 'M€ production', amount: draw.production});
     }
     chips.push({kind: 'party', party: draw.party});
     chips.push({kind: 'label', key: 'came to power', tone: 'quiet'});

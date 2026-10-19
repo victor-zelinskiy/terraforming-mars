@@ -284,9 +284,17 @@ describe('a card\'s RATING answer to a change of power (TR63 — `rulingChangeDr
   });
   it('the rows a rating answer holds: the rating token, then the table\'s stock answer; a draw holds nothing here', () => {
     expect(ratingAnswerSpecs(eden)).deep.eq({
-      spec: {channel: 'stock', resource: 'rating', amount: 1},
+      specs: [{channel: 'stock', resource: 'rating', amount: 1}],
       reactions: [{channel: 'stock', resource: 'megacredits', amount: 2}],
     });
     expect(ratingAnswerSpecs({player: BLUE, card: ID, party: M, cards: 1})).is.undefined;
+  });
+  it('TR64: a PRODUCTION answer is a production token born on the same seal; a lowered production holds nothing', () => {
+    const promethean: ParliamentRulingAnswerModel = {player: BLUE, card: CardName.PROMETHEAN_ALLIANCE, party: PartyName.SCIENTISTS, production: {megacredits: 2}};
+    expect(ratingAnswerSpecs(promethean)).deep.eq({
+      specs: [{channel: 'production', resource: 'megacredits', amount: 2}],
+      reactions: [],
+    });
+    expect(ratingAnswerSpecs({...promethean, production: {megacredits: -1}})).is.undefined;
   });
 });

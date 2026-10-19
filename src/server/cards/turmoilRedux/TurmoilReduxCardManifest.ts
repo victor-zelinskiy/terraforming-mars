@@ -69,6 +69,7 @@ import {BackroomDeal} from './BackroomDeal';
 import {PoliticalRecognition} from './PoliticalRecognition';
 import {TharsisAlliance} from './TharsisAlliance';
 import {EdenAlliance} from './EdenAlliance';
+import {PrometheanAlliance} from './PrometheanAlliance';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -334,5 +335,6 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // The same class over Unity and the Greens (TR62's fourth road, `partyAlliance`) — the answer to a change of
     // power is the owner's rating (+1 TR when either party becomes ruling).
     [CardName.EDEN_ALLIANCE]: {Factory: EdenAlliance},
+    [CardName.PROMETHEAN_ALLIANCE]: {Factory: PrometheanAlliance},
   },
 });

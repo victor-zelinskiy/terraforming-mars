@@ -511,6 +511,7 @@ function summaryModel(game: IGame, parliament: Parliament, summary: SerializedPh
       ...(answer.tr === undefined ? {} : {tr: answer.tr}),
       ...(answer.cards === undefined ? {} : {cards: answer.cards}),
       ...(answer.stock === undefined ? {} : {stock: {...answer.stock}}),
+      ...(answer.production === undefined ? {} : {production: {...answer.production}}),
     }));
   }
   if (summary.discarded !== undefined) {

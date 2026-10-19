@@ -1140,6 +1140,7 @@ export enum CardName {
   POLITICAL_RECOGNITION = 'Political Recognition',
   THARSIS_ALLIANCE = 'Tharsis Alliance',
   EDEN_ALLIANCE = 'Eden Alliance',
+  PROMETHEAN_ALLIANCE = 'Promethean Alliance',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

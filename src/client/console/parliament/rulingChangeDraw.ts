@@ -41,6 +41,10 @@ import {probeTick} from '@/client/console/probeTick';
  * with the commit. DELIVER, at the enactment's tail: the token is born on the seal of the party that came to power —
  * the cause on the screen — flies to the rating cell and ticks it on the touchdown; the table's answer ticks one beat
  * after (a reaction never before its reason). The hold is named and bounded (`ruling-change-rating-owed`).
+ *
+ * A PRODUCTION answer (TR64 Promethean Alliance: «gain 2 M€ production when either of those parties becomes ruling») is
+ * the same tail with a production token: born on the same seal, landing on the row's PRODUCTION badge, the badge ticking
+ * on the touchdown. A card that answers with both rides one group (the rating first, then the production).
  */
 
 /** The park's safety: a sitting that never reaches its enactment tact lets the batch go to the ordinary road. */
@@ -57,18 +61,18 @@ export const rulingChangeDrawState = reactive({
    * WHAT the delivery in flight is (the band's line for the enactment's tail — «Альянс Тарсиса · карта ·
    * «Марс вперёд» у власти»): the card that answered, the party that came to power, the cards it drew.
    */
-  presenting: undefined as {card: CardName, party: ReduxParty, count?: number, tr?: number} | undefined,
+  presenting: undefined as {card: CardName, party: ReduxParty, count?: number, tr?: number, production?: number} | undefined,
   /** The viewer's RATING answers owed to the tail (seeded on screen, their rows held) — in the server's order. */
   ratings: [] as Array<RulingRatingOwed>,
 });
 
-/** ONE rating answer owed to the enactment's tail: its key, the card, the party come to power, the held rows. */
+/** ONE rating / production answer owed to the enactment's tail: its key, the card, the party come to power, the held rows. */
 export type RulingRatingOwed = {
   key: string;
   card: CardName;
   party: ReduxParty;
-  /** The rating token (`stock` · `rating`). */
-  spec: ResourceTransferSpec;
+  /** The tokens born on the seal — the rating (`stock` · `rating`), then the production the card raised (`production` · M€). */
+  specs: ReadonlyArray<ResourceTransferSpec>;
   /** The table's answer in the same call (the Greens' M€) — held with the rating, released one beat after its touchdown. */
   reactions: ReadonlyArray<ResourceTransferSpec>;
 };
@@ -93,15 +97,38 @@ export function newViewerRulingAnswers(before: PlayerViewModel | undefined, afte
     .filter(({key}) => !known.has(key));
 }
 
-/** The rail rows a rating answer holds: the rating token, then the table's stock answer (positive moves only). */
-export function ratingAnswerSpecs(answer: ParliamentRulingAnswerModel): {spec: ResourceTransferSpec, reactions: Array<ResourceTransferSpec>} | undefined {
-  if ((answer.tr ?? 0) <= 0 || !isReduxParty(answer.party)) {
+/**
+ * The rail rows an answer holds: the tokens born on the seal (the rating, then each production step the card raised —
+ * positive moves only) and the table's stock answer to the rating (positive moves only). A draw-only answer holds
+ * nothing here (its cards ride the intake).
+ */
+export function ratingAnswerSpecs(answer: ParliamentRulingAnswerModel): {specs: Array<ResourceTransferSpec>, reactions: Array<ResourceTransferSpec>} | undefined {
+  if (!isReduxParty(answer.party)) {
+    return undefined;
+  }
+  const specs: Array<ResourceTransferSpec> = [];
+  if ((answer.tr ?? 0) > 0) {
+    specs.push({channel: 'stock', resource: RATING_RAIL_KEY, amount: answer.tr ?? 0});
+  }
+  for (const [resource, amount] of Object.entries(answer.production ?? {})) {
+    if ((amount ?? 0) > 0) {
+      specs.push({channel: 'production', resource, amount: amount ?? 0});
+    }
+  }
+  if (specs.length === 0) {
     return undefined;
   }
   const reactions: Array<ResourceTransferSpec> = Object.entries(answer.stock ?? {})
     .filter(([, amount]) => (amount ?? 0) > 0)
     .map(([resource, amount]) => ({channel: 'stock', resource, amount: amount ?? 0}));
-  return {spec: {channel: 'stock', resource: RATING_RAIL_KEY, amount: answer.tr ?? 0}, reactions};
+  return {specs, reactions};
+}
+
+/** The band's numbers for an owed answer — the rating and the M€ production it carries. */
+function presentedAmounts(rating: RulingRatingOwed): {tr?: number, production?: number} {
+  const tr = rating.specs.find((s) => s.channel === 'stock' && s.resource === RATING_RAIL_KEY)?.amount;
+  const production = rating.specs.filter((s) => s.channel === 'production').reduce((sum, s) => sum + s.amount, 0);
+  return {...(tr === undefined ? {} : {tr}), ...(production > 0 ? {production} : {})};
 }
 
 /**
@@ -118,7 +145,7 @@ export function seedRulingChangeAnswers(before: PlayerViewModel | undefined, aft
     if (specs === undefined || rulingChangeDrawState.ratings.some((owed) => owed.key === key)) {
       continue;
     }
-    beginPanelRewardHold([specs.spec, ...specs.reactions]);
+    beginPanelRewardHold([...specs.specs, ...specs.reactions]);
     rulingChangeDrawState.ratings.push({key, card: answer.card, party: answer.party, ...specs});
   }
 }
@@ -127,7 +154,7 @@ export function seedRulingChangeAnswers(before: PlayerViewModel | undefined, aft
 export function releaseRulingRatings(why: string): void {
   const owed = rulingChangeDrawState.ratings.splice(0);
   for (const rating of owed) {
-    releasePanelRewardHold(rating.spec);
+    rating.specs.forEach((spec) => releasePanelRewardHold(spec));
     rating.reactions.forEach((spec) => releasePanelRewardHold(spec));
   }
   if (owed.length > 0 && process.env.NODE_ENV !== 'production') {
@@ -226,7 +253,7 @@ export async function deliverRulingChangeDraws(viewId: string): Promise<void> {
       acknowledgeDraw(viewId, batch.id);
     }
     for (const rating of rulingChangeDrawState.ratings.slice()) {
-      rulingChangeDrawState.presenting = {card: rating.card, party: rating.party, tr: rating.spec.amount};
+      rulingChangeDrawState.presenting = {card: rating.card, party: rating.party, ...presentedAmounts(rating)};
       await deliverRating(rating);
     }
   } finally {
@@ -236,9 +263,10 @@ export async function deliverRulingChangeDraws(viewId: string): Promise<void> {
 }
 
 /**
- * ONE rating answer: the token is born on the seal of the party that came to power (the cause on screen — the card
- * that answered stands in nobody's view here), flies to the rating cell and ticks it on the touchdown; the table's
- * answer ticks one beat after. A seal that cannot be measured degrades honestly: the rows tick at once.
+ * ONE rating / production answer: the tokens are born on the seal of the party that came to power (the cause on screen
+ * — the card that answered stands in nobody's view here), fly to the rating cell / the production badge and tick each
+ * on its own touchdown; the table's answer ticks one beat after. A seal that cannot be measured degrades honestly: the
+ * rows tick at once.
  */
 async function deliverRating(rating: RulingRatingOwed): Promise<void> {
   const seal = rectOf(document.querySelector(`.con-parl__party[data-party="${rating.party}"] .con-pseal__seal`));
@@ -247,15 +275,15 @@ async function deliverRating(rating: RulingRatingOwed): Promise<void> {
     rulingChangeDrawState.ratings = rulingChangeDrawState.ratings.filter((owed) => owed.key !== rating.key);
   };
   if (origin === undefined) {
-    releasePanelRewardHold(rating.spec);
+    rating.specs.forEach((spec) => releasePanelRewardHold(spec));
     rating.reactions.forEach((spec) => releasePanelRewardHold(spec));
     done();
     return;
   }
   await runResourceTransfers({
-    specs: [rating.spec],
+    specs: rating.specs,
     source: {},
-    origins: [origin],
+    origins: rating.specs.map(() => origin),
     arrival: 'auto',
     onArrive: (spec) => releasePanelRewardHold(spec),
   });

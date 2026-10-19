@@ -384,6 +384,8 @@ export type SerializedRulingAnswer = {
   cards?: number;
   /** The standard-stock moves inside the same call, by resource (`megacredits: 2`). */
   stock?: Partial<Record<string, number>>;
+  /** The production steps inside the same call, by resource (TR64 Promethean Alliance: `megacredits: 2`). */
+  production?: Partial<Record<string, number>>;
 };
 
 /** The last WALK of an Agenda marker (see `ParliamentAdvanceModel`). */
