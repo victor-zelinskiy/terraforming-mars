@@ -65,8 +65,9 @@ export const REPROCESSING_PLANT_HEAT_TITLE = 'Spend 5 heat to add 3 floaters to 
  *     (an action that took the price and lost the floaters would be a trap).
  *     Once per generation, as any blue card's action.
  *  4. «To ANY card» = any of the player's OWN floater holders
- *     (`AddResourcesToCard.getCards`: the own tableau + Self-replicating
- *     Robots' hosts; an opponent's card never), NEVER applied automatically —
+ *     (`AddResourcesToCard.getCards`: the own tableau — Self-replicating
+ *     Robots' hosts only for a declaration with `robotCards`, which this card
+ *     has not; an opponent's card never), NEVER applied automatically —
  *     a single holder included (the fork's invariant 3). Stormcraft is a
  *     holder too: its floaters may come back onto it.
  *  5. HEAT UNDER STORMCRAFT is paid by its floaters too (2 heat each —

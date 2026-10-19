@@ -1,14 +1,13 @@
 /*
  * TR70 «ЗАКУЛИСНАЯ СДЕЛКА» — the one-play class's first card arming TWO effects at once (the PARTY waiver + a 10 M€
- * discount) for the price of 1 TR (`docs/TURMOIL_REDUX_BACKROOM_DEAL.md`). The probe walks the class on every surface
+ * discount) for the price of 1 VP (`docs/TURMOIL_REDUX_BACKROOM_DEAL.md`). The probe walks the class on every surface
  * the player meets, with the server's numbers (fhd + tv4k):
- *  (A) the journey: TR70's composer names BOTH effects it arms and its rating price; the press — the −1 TR leaves the
- *      RATING CELL as a token (the transfer witness: born on `rail:tr`, no end over glass) and the rating ticks on the
- *      departure; the dock wears the chip with TWO kinds; the album reads the lifted PARTY requirement on Martian
- *      Census' cassette (`waived`) and its plate, while Lake Marineris (a GLOBAL requirement) stays refused; Comet's
+ *  (A) the journey: TR70's composer names BOTH effects it arms; the press — the rating stays where it was (the scan's
+ *      «−1» is the VP badge, never a rating) and no flight ends over glass; the dock wears the chip with TWO kinds;
+ *      the album reads the lifted PARTY requirement on Martian Census' cassette (`waived`) and its plate, while Lake Marineris (a GLOBAL requirement) stays refused; Comet's
  *      payment head names the one-play discount («⚡ 1× Закулисная сделка», 21 → 11); Martian Census' composer: the
  *      requirement row («требование игнорируется», the deal named), the «Сработает» modifier chip, the price 6 → 0;
- *      the press spends BOTH on the server; the journal carries the rating loss and the eased requirement.
+ *      the press spends BOTH on the server; the journal carries the eased requirement.
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -71,7 +70,7 @@ async function commit(page: Page): Promise<void> {
   await page.keyboard.press('Enter');
 }
 
-test.describe('TR70 — Backroom Deal: the party waiver + the discount, for a rating', () => {
+test.describe('TR70 — Backroom Deal: the party waiver + the discount, for a victory point', () => {
   test.setTimeout(300_000);
 
   for (const preset of PRESETS) {
@@ -82,7 +81,7 @@ test.describe('TR70 — Backroom Deal: the party waiver + the discount, for a ra
       const before = await wireOf(request, id);
       expect(before.thisPlayer.armedPlayEffects ?? []).toEqual([]);
 
-      // ── TR70's composer names BOTH effects it arms and its rating price.
+      // ── TR70's composer names BOTH effects it arms.
       await openHand(page, DEAL);
       await expect(page.locator(`.con-hand__slot[data-zoom-slot="${CENSUS}"] [data-req-state="printed"]`), 'nothing bends Martian Census yet — its party cassette is printed').toHaveCount(1);
       await openComposer(page, DEAL);
@@ -90,21 +89,19 @@ test.describe('TR70 — Backroom Deal: the party waiver + the discount, for a ra
       await expect(arms, 'the result names what the play arms').toHaveCount(1);
       await expect(arms.locator('[data-armed-kind="partyWaiver"]'), 'the party waiver').toHaveCount(1);
       await expect(arms.locator('[data-armed-kind="discount"]'), 'the discount').toHaveCount(1);
-      await expect(page.locator(`${COMPOSER}`), 'the rating price is read before the press').toContainText(/[−-]\s?1/);
       await shoot(page, preset.id, '01-deal-composer');
 
-      // ── The press: the −1 TR leaves the RATING CELL as a token; the rating ticks on the departure.
+      // ── The press: the two effects are armed; the rating does not move (the «−1» is the card's VP).
       await armTransferWitness(page);
       await commit(page);
       await expect(page.locator(`${dockChip(DEAL)}:not(.con-armed--arriving)`), 'the dock wears the deal\'s chip').toHaveCount(1, {timeout: 30_000});
       await waitForBoardHome(page, 25);
       const witness = await transferWitness(page);
       console.log(`[backroom-deal:${preset.id}] ${transferTrail(witness)}`);
-      const trBirths = witness.births.filter((b) => b.under === 'rail:tr');
-      expect(trBirths.length, `the −1 TR was born on the rating cell (${transferTrail(witness)})`).toBeGreaterThanOrEqual(1);
+      expect(witness.births.filter((b) => b.under === 'rail:tr'), `nothing leaves the rating cell (${transferTrail(witness)})`).toEqual([]);
       expect(endsOverGlass(witness), 'no end over glass').toEqual([]);
       const armed = await wireOf(request, id);
-      expect(armed.thisPlayer.terraformRating, 'the rating paid').toBe(before.thisPlayer.terraformRating - 1);
+      expect(armed.thisPlayer.terraformRating, 'the rating untouched').toBe(before.thisPlayer.terraformRating);
       expect(armed.thisPlayer.armedPlayEffects?.map((e) => `${e.source}:${e.effect.kind}`), 'the server armed both').toEqual([`${DEAL}:partyWaiver`, `${DEAL}:discount`]);
       await expect(page.locator(`${dockChip(DEAL)} [data-armed-kind]`), 'the chip carries two kinds').toHaveCount(2);
       await shoot(page, preset.id, '02-dock-armed-two');

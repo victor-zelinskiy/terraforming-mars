@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {BackroomDeal, DISCOUNT, TR_LOST} from '../../../src/server/cards/turmoilRedux/BackroomDeal';
+import {BackroomDeal, DISCOUNT, VICTORY_POINTS} from '../../../src/server/cards/turmoilRedux/BackroomDeal';
 import {ICard} from '../../../src/server/cards/ICard';
 import {CuttingEdgeDesign} from '../../../src/server/cards/turmoilRedux/CuttingEdgeDesign';
 import {MartianCensus} from '../../../src/server/cards/turmoilRedux/MartianCensus';
@@ -37,9 +37,9 @@ import {buildEventChildren} from '../../../src/client/components/journal/journal
 /**
  * TR70 — BACKROOM DEAL: the one-play class's first card arming TWO effects
  * (the PARTY-requirement waiver — the class's fourth kind — and a 10 M€
- * discount) for the price of 1 TR. Every rule reading of the card file's
- * header is pinned here on the real card: the price in rating (no tax, no
- * floor, the journal's line), both arms, what the party waiver lifts and what
+ * discount) for the price of 1 VP. Every rule reading of the card file's
+ * header is pinned here on the real card: the price in VP (the rating never
+ * touched), both arms, what the party waiver lifts and what
  * it never touches (a global requirement, a tag, the chairman, the party's
  * EFFECT), the discount's floor, the spend by any next card, the standard
  * project that spends nothing, the pass, the replacement either way against
@@ -83,16 +83,17 @@ describe('BackroomDeal', () => {
   });
 
   describe('the card as printed', () => {
-    it('is a red EVENT for 2, no tag, no requirement, no VP, TR70 — three declarations, in the Redux manifest without compatibility', () => {
+    it('is a red EVENT for 2, no tag, no requirement, −1 VP, TR70 — three declarations, in the Redux manifest without compatibility', () => {
       const c = t.card;
       expect(c.name).eq(ID);
       expect(c.type).eq(CardType.EVENT);
       expect(c.cost).eq(2);
       expect(c.tags).deep.eq([]);
       expect(c.requirements).deep.eq([]);
-      expect(c.victoryPoints, 'no VP badge').is.undefined;
+      expect(c.victoryPoints, 'the Mars disc «−1» is the VP badge').eq(VICTORY_POINTS);
+      expect(VICTORY_POINTS).eq(-1);
       expect(c.metadata.cardNumber).eq('TR70');
-      expect(c.behavior, 'the price in rating').deep.eq({tr: -TR_LOST});
+      expect(c.behavior, 'the play itself moves nothing').is.undefined;
       expect(c.partyRequirementWaiver, 'the party family\'s waiver').deep.eq({nextCardOnly: true});
       expect(c.cardDiscount, 'Indentured Workers\' own declaration').deep.eq({amount: DISCOUNT, nextCardOnly: true});
       expect(c.globalParameterRequirementBonus, 'never the global kind').is.undefined;
@@ -102,24 +103,23 @@ describe('BackroomDeal', () => {
       expect(entry.compatibility).is.undefined;
     });
 
-    it('the face reads the scan: «NEXT CARD : [party plate ×] [−10 M€]» … [TR −1]', () => {
+    it('the face reads the scan: «NEXT CARD : [party plate ×] [−10 M€]» — the −1 is the VP badge, not a row item', () => {
       type Node = {is?: string, type?: string, amount?: number, cancelled?: true};
       const rows = (t.card.metadata.renderData as unknown as {rows: Array<Array<Node | string>>}).rows;
-      expect(rows, 'one printed row — the rating lost stands at its right').has.length(1);
+      expect(rows, 'one printed row').has.length(1);
       const items = rows[0].filter((n): n is Node => typeof n === 'object' && n.is === 'item');
-      expect(items.map((n) => n.type)).deep.eq([CardRenderItemType.TEXT, CardRenderItemType.PARTY_REQUIREMENT, CardRenderItemType.MEGACREDITS, CardRenderItemType.TR]);
+      expect(items.map((n) => n.type), 'no TR item — the rating is never touched').deep.eq([CardRenderItemType.TEXT, CardRenderItemType.PARTY_REQUIREMENT, CardRenderItemType.MEGACREDITS]);
       expect(items[1].cancelled, 'the party plate is STRUCK — the one-play class\'s red diagonal').eq(true);
       expect(items[2].amount).eq(-DISCOUNT);
-      expect(items[3].amount).eq(-TR_LOST);
     });
 
-    it('the structured text: the waiver, the discount, the price — one block each, in the printed order', () => {
+    it('the structured text: the waiver, the discount — one block each, in the printed order; no rating line', () => {
       const info = buildCardInformation(t.card, 'turmoilRedux');
       const blocks = info?.groups.flatMap((g) => g.blocks.map((b) => b.text)) ?? [];
+      // A flat VP is the badge's own (no block — Indentured Workers / Bribed Committee alike).
       expect(blocks).deep.eq([
         'Ignore any party requirements on the next card you play this generation.',
         'The next card you play this generation costs 10 M€ less.',
-        'Lose 1 TR.',
       ]);
     });
   });
@@ -136,23 +136,29 @@ describe('BackroomDeal', () => {
     });
   });
 
-  describe('rule 3 — the price in rating', () => {
-    it('−1 TR at once, written to the journal, recorded as a rating delta; the Reds tax a RAISE only', () => {
+  describe('rule 3 — the price is −1 VP, the rating untouched', () => {
+    it('the play changes no rating and writes no rating line; the Reds have nothing to tax', () => {
       const tr = t.player.terraformRating;
       const mc = t.player.megaCredits;
       arm(t);
-      expect(t.player.terraformRating).eq(tr - TR_LOST);
-      expect(t.player.megaCredits, 'the Reds rule and nothing is taxed — a loss is not a raise').eq(mc - 2);
-      expect(t.game.gameLog.some((m) => m.message === '${0} lost ${1} TR'), 'the loss names itself').is.true;
-      const delta = t.game.events.events.find((e) => e.type === 'tr-changed' && e.player === t.player.color);
-      expect(delta?.impact.tr).eq(-TR_LOST);
+      expect(t.player.terraformRating, 'the Mars disc is a VP badge, never a rating').eq(tr);
+      expect(t.player.megaCredits, 'the price alone').eq(mc - 2);
+      expect(t.game.gameLog.some((m) => m.message === '${0} lost ${1} TR'), 'no rating loss').is.false;
+      expect(t.game.events.events.some((e) => e.type === 'tr-changed' && e.player === t.player.color), 'no rating delta').is.false;
     });
 
-    it('no floor and no gate: at 0 TR the card is playable and the rating goes below zero', () => {
+    it('−1 VP at the end of the game — the card\'s own row of the breakdown', () => {
+      arm(t);
+      expect(t.card.getVictoryPoints(t.player)).eq(VICTORY_POINTS);
+      const row = t.player.getVictoryPoints().detailsCards.find((d) => d.cardName === ID);
+      expect(row?.victoryPoint).eq(VICTORY_POINTS);
+    });
+
+    it('no gate: at 0 TR the card is playable and the rating stays where it was', () => {
       t.player.setTerraformRating(0);
       expect(t.player.canPlay(t.card)).is.true;
       arm(t);
-      expect(t.player.terraformRating).eq(-TR_LOST);
+      expect(t.player.terraformRating).eq(0);
     });
   });
 

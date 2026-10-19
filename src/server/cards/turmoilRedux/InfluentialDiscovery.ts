@@ -48,8 +48,9 @@ export const DATA_BRANCH = 'Add 6 data to ANY card';
  *     only; TR36 Council Seat lowers an EFFECT's threshold, never a
  *     REQUIREMENT's.
  *  2. «To ANY card» = any of the player's OWN cards that hold the resource
- *     (`AddResourcesToCard.getCards`: the own tableau + Self-replicating
- *     Robots' hosts; an opponent's card never). The target is NEVER applied
+ *     (`AddResourcesToCard.getCards`: the own tableau — Self-replicating
+ *     Robots' hosts only for a declaration with `robotCards`, which this card
+ *     has not; an opponent's card never). The target is NEVER applied
  *     automatically, a single holder included (the fork's invariant 3).
  *  3. ONE KIND DEAD (no holder of its resource): that branch stands greyed with
  *     its reason, the other is resolved WITHOUT an OrOptions (`autoSelect` —

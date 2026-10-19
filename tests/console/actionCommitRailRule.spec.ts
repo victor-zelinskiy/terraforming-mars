@@ -27,7 +27,7 @@ import {AquaticResearchStation} from '../../src/server/cards/turmoilRedux/Aquati
 import {MartianCensus} from '../../src/server/cards/turmoilRedux/MartianCensus';
 import {Supercomputer} from '../../src/server/cards/turmoilRedux/Supercomputer';
 import {Dirigibles} from '../../src/server/cards/venusNext/Dirigibles';
-import {BackroomDeal} from '../../src/server/cards/turmoilRedux/BackroomDeal';
+import {fakeCard} from '../TestingUtils';
 import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
 import {CardName} from '../../src/common/cards/CardName';
 import {Resource} from '../../src/common/Resource';
@@ -482,11 +482,13 @@ describe('the action commit\'s rail rule — a DIRECT TR of a branch flies to th
   describe('the PRICE on the rail — a departure from its row (PL-099)', () => {
     const loss = (resource: string, amount: number) => ({channel: 'stock', resource, amount, direction: 'loss'});
 
-    it('a price in RATING (Backroom Deal TR70\'s «−1 TR») leaves the rating cell — the play\'s shipment carries it, nothing else rides the rail', () => {
+    it('a price in RATING (a play\'s «−1 TR», Pristar\'s and Terralabs\' shape) leaves the rating cell — the play\'s shipment carries it, nothing else rides the rail', () => {
       const [game, p] = testGame(2, {coloniesExtension: true, turmoilReduxExpansion: true});
       game.phase = Phase.ACTION;
       p.megaCredits = 30;
-      const deal = new BackroomDeal();
+      // No project card in the pool pays in rating any more (TR70 Backroom Deal's «−1» is its VP badge), so the
+      // shape is pinned on a card that declares it.
+      const deal = fakeCard({cost: 2, behavior: {tr: -1}});
       p.cardsInHand.push(deal);
       const [branch] = cardPlayPreview(p, deal).branches;
       expect(branch.effects.map((e) => [e.direction, e.icon, e.amount])).deep.eq([['cost', 'tr', 1]]);

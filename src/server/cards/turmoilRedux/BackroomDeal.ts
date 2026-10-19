@@ -5,45 +5,47 @@ import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 
-/** The price in rating — the Mars disc with «−1» at the scan's right. */
-export const TR_LOST = 1;
+/** The price in VICTORY POINTS — the Mars disc with «−1» at the scan's right (the set's VP badge, TR01's «4»). */
+export const VICTORY_POINTS = -1;
 /** The one-play discount the next card spends («it will also cost you 10 less M€»). */
 export const DISCOUNT = 10;
 
 /**
  * TR70 — BACKROOM DEAL («Закулисная сделка»), a Turmoil Redux PROJECT card:
  * the set's last card, an EVENT of the ONE-PLAY class (TR49) that ARMS TWO
- * effects at once for the price of a rating step — the next card this player
+ * effects at once for the price of a victory point — the next card this player
  * plays this generation ignores its PARTY requirement (the class's FOURTH
  * kind, `partyWaiver` — declared here as `partyRequirementWaiver`, read by
  * the one reader and paid by `PartyRequirement.satisfies` through
  * `IPlayer.partyRequirementWaiver`) and costs 10 M€ less (Indentured Workers'
  * own declaration, `cardDiscount: {nextCardOnly: true}`). The whole card is
- * three declarations; nothing of it lives in code.
+ * three declarations; nothing of it lives in code — Indentured Workers (the
+ * base game's «next card −8 M€» for −1 VP) is its exact precedent.
  *
  * SCAN READING — a RED frame (EVENT), cost 2, the MIN plate EMPTY (no
  * requirement), the event's yellow disc in the corner and NO tag. One row:
  * «NEXT CARD : [the party-requirement plate — the wild-party pill on the
  * yellow MIN plate — STRUCK by a red diagonal] [−10 on the gold M€ token]»,
- * and at the right a large Mars disc with «−1» — a rating LOST. The rule in
- * words: «(Ignore any party requirements on the next card you play this
- * generation. It will also cost you 10 less M€.)». The quote is the scan's
+ * and at the right a large Mars disc with «−1» — the VP badge (the set prints
+ * every card's VP on that disc: TR01's «4», TR67's «2»), so −1 VP at the end
+ * of the game, exactly as Bribed Committee prints its −2. The rule in words
+ * says nothing of the rating: «(Ignore any party requirements on the next
+ * card you play this generation. It will also cost you 10 less M€.)». The
+ * first reading of the scan («−1 TR at once») was wrong and is gone: the
+ * disc is never a rating. The quote is the scan's
  * («"Collusion"? That's crass. We prefer to call it "Bipartisanship".»). Only
  * the module's icon at the bottom left: no `compatibility`.
  *
  * RULE READINGS (pinned by tests/cards/turmoilRedux/BackroomDeal.spec.ts):
  *  1. No requirement; an event — into the events pile face down, Media Group
  *     +3 M€; no tag, so nothing else on the table answers it.
- *  2. The play is THREE effects of one card: (a) −1 TR at once; (b) the ARMED
- *     waiver of the next card's PARTY requirement; (c) the ARMED discount of
- *     10 M€ on the next card.
- *  3. The rating LOSS is `behavior: {tr: -1}` → `decreaseTerraformRating`:
- *     the Reds' tax is a tax on a RAISE and never touches a loss; the rating
- *     has no floor and the card has no `canPlay` for it (Pristar, Terralabs
- *     Research and Midas lose rating the same way) — at 0 TR the card is
- *     playable and the rating goes negative; the journal writes «lost 1 TR»
- *     (the Executor writes every rating loss) and the rival's feed reads
- *     «−1 РТ».
+ *  2. The play is TWO armed effects of one card: (a) the waiver of the next
+ *     card's PARTY requirement; (b) the discount of 10 M€ on the next card.
+ *     The play itself moves nothing — no rating, no stock.
+ *  3. The price is −1 VP at the end of the game (`victoryPoints: -1`, the
+ *     shared `Card.getVictoryPoints` — Indentured Workers' and Bribed
+ *     Committee's road): the terraform rating is never touched, so nothing
+ *     gates the play and the Reds have nothing to tax.
  *  4. Both armed effects live as `lastCardPlayed` (the TR49 class): spent by
  *     the NEXT card played by any road, needed or not; a standard project, a
  *     card action, a conversion spend nothing; the pass loses them; a new
@@ -79,8 +81,8 @@ export class BackroomDeal extends Card implements IProjectCard {
       type: CardType.EVENT,
       tags: [],
       cost: 2,
-      // Rule 3 — the price in rating, at once.
-      behavior: {tr: -TR_LOST},
+      // Rule 3 — the price: −1 VP at the end of the game, the rating untouched.
+      victoryPoints: VICTORY_POINTS,
       // Rules 4–6 — what the NEXT card spends: its party requirement lifted, its price lowered.
       partyRequirementWaiver: {nextCardOnly: true},
       cardDiscount: {amount: DISCOUNT, nextCardOnly: true},
@@ -88,16 +90,14 @@ export class BackroomDeal extends Card implements IProjectCard {
       metadata: {
         cardNumber: 'TR70',
         renderData: CardRenderer.builder((b) => {
-          // «NEXT CARD : [party plate, struck] [−10 M€]» … and the rating lost, large, at the right.
+          // «NEXT CARD : [party plate, struck] [−10 M€]» — the −1 at the right is the VP badge, drawn from `victoryPoints`.
           b.text('next card', Size.SMALL, true).colon().partyRequirement({cancelled: true}).megacredits(-DISCOUNT);
-          b.nbsp.nbsp.nbsp.tr(-TR_LOST, {size: Size.LARGE});
         }),
         infoText: [
           {text: 'Ignore any party requirements on the next card you play this generation.', tokens: ['party-requirement']},
           {text: 'The next card you play this generation costs 10 M€ less.', tokens: ['megacredits']},
-          {text: 'Lose 1 TR.', tokens: ['tr']},
         ],
-        description: 'Ignore any party requirements on the next card you play this generation. It will also cost you 10 less M€. Lose 1 TR.',
+        description: 'Ignore any party requirements on the next card you play this generation. It will also cost you 10 less M€.',
       },
     });
   }

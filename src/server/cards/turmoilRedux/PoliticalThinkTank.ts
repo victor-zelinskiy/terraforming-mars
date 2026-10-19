@@ -55,14 +55,14 @@ export const POLITICAL_THINK_TANK_REWARD = 5;
  *     would be the same object twice.
  *  7. MarsBot never plays the card; the automa does not react to a reveal.
  *
- * THE FACT THE CARD SHIPS WITH (owner's decision, 2026-10-01): today the Redux
- * deck holds NO card with a party requirement — the 27 in the repository are
- * classic Turmoil / Prelude 2 / Moon / Pathfinders, none of which joins a Redux
- * game, and the set's own (TR14–TR27, «Requires Mars First / Unity to be
- * ruling…») are not shipped yet. Until the first of them the action always
- * misses. The composer says so honestly: the preview carries the COMPOSITION
- * (`pool.count` — open information about the game's set, never the number left
- * in the hidden deck) and the client warns at zero.
+ * THE POOL: the card shipped (2026-10-01) before any Redux card with a party
+ * requirement existed, and the action could only miss then. Today the set's
+ * own party cards are in the deck (Mars First's TR14–TR21, Unity's, the Reds',
+ * the Greens', the Scientists', the Industrialists' — every `{party: X}` card
+ * of this manifest), so a hit is a live outcome. The composer still says it
+ * honestly: the preview carries the COMPOSITION (`pool.count` — open
+ * information about the game's set, never the number left in the hidden deck)
+ * and the client warns at zero (a game whose deck holds none).
  */
 export class PoliticalThinkTank extends Card implements IActionCard, IProjectCard {
   constructor() {

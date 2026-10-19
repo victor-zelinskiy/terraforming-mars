@@ -57,8 +57,9 @@ export const FLOATERS_BRANCH = 'Add 6 floaters to ANY card';
  *     OrOptions (the preview gives it index −1, the batch sends the bare
  *     target answer).
  *  3. «To ANY card» = any of the player's OWN cards that can hold that
- *     resource (`AddResourcesToCard.getCards`: the own tableau + Self-
- *     replicating Robots' hosts; an opponent's card never). The target is
+ *     resource (`AddResourcesToCard.getCards`: the own tableau — Self-
+ *     replicating Robots' hosts only for a declaration with `robotCards`,
+ *     which this card has not; an opponent's card never). The target is
  *     NEVER applied automatically, a single holder included (the fork's
  *     invariant 3).
  *  4. NO HOLDER OF ANY KIND → THE CARD STAYS PLAYABLE (`optional`, the

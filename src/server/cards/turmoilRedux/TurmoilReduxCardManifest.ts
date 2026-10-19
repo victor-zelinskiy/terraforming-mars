@@ -126,7 +126,7 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // card needs nothing else.
     [CardName.MECH_SPORTS]: {Factory: MechSports},
     // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above); no ▲. Its check
-    // (a card with a PARTY REQUIREMENT) can succeed only once such cards join the Redux deck (TR14–TR27).
+    // (a card with a PARTY REQUIREMENT) hits the set's own party cards (TR14 on), all in the Redux deck now.
     [CardName.POLITICAL_THINK_TANK]: {Factory: PoliticalThinkTank},
     // The purple Turmoil symbol at the bottom left — the module is the gate (see TR02 above); no ▲. The set's
     // FIRST card with a PARTY REQUIREMENT (the Mars First emblem in the MIN plate) — TR13's check can now hit.
@@ -323,7 +323,7 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     [CardName.FLOATING_BIODOMES]: {Factory: FloatingBiodomes, compatibility: 'venus'},
     // Only the module's icon at the bottom left: an EVENT for 2 with no requirement and no tag — the one-play class's
     // first card arming TWO effects (the party-requirement WAIVER, the set's fourth kind, and a 10 M€ discount) for
-    // the price of 1 TR.
+    // the price of 1 VP (the scan's «−1» on the Mars disc is the VP badge — Indentured Workers' shape).
     [CardName.BACKROOM_DEAL]: {Factory: BackroomDeal},
     // Only the module's icon at the bottom left: the WILD tag, the set's NEW requirement kind («5 other cards with
     // requirements PLAYED» — `cardsWithRequirements`), and TR04's walk at three steps.

@@ -20,9 +20,9 @@ export const HEAT_PER_VENUS_STEP = 8;
  * 8}`, the rail row the console pays off first) and the REWARD is
  * Thermophiles' («raise Venus 1 step» — `global: {venus: 1}`); the play is a
  * plain production block. So nothing of the card lives in this file: no
- * `canAct`, no `action()`, no reason of its own — the Venus ceiling (30 %)
- * refuses the action in `Executor.canExecute`, the heat in the automatic
- * «Not enough heat».
+ * `canAct`, no `action()`, no reason of its own — the heat refuses the action
+ * in the automatic «Not enough heat»; the Venus ceiling (30 %) is only the
+ * engine's `maxvenus` WARNING (`Executor.canExecute`), never a refusal.
  *
  * «Requires the Greens to be ruling or that you have 2 delegates there.
  * Increase your heat production 3 steps. Action: Pay 8 heat to terraform
@@ -60,12 +60,12 @@ export const HEAT_PER_VENUS_STEP = 8;
  *     after the landing, never over it). A quest another player already
  *     completed moves nothing. The play in the action phase, the player's own
  *     action, counts (rulebook p.9).
- *  3. THE ACTION: 8 heat → Venus +1 step (+2 %). Available iff heat ≥ 8 AND
- *     Venus < 30 % (both of the declaration's own gates). The heat is NEVER
- *     taken at the ceiling — `canAct` is false before any spend. Both dead →
- *     the card-level reasons come from the declaration in its own order: the
- *     heat («Not enough heat», with the count) FIRST — the one blocker the
- *     player can act on — then the parameter ceiling.
+ *  3. THE ACTION: 8 heat → Venus +1 step (+2 %). Available iff heat ≥ 8 —
+ *     the one gate. At 30 % THE OFFICIAL RULE holds: the action stays legal,
+ *     the 8 heat is paid and the scale and the rating do not move (the card
+ *     wears the `maxvenus` warning; the composer reads «30 → 30» and names the
+ *     lost gain). With under 8 heat the one reason is the heat («Not enough
+ *     heat», with the count) — at the ceiling too, the warning beside it.
  *  4. The Venus step is an ORDINARY global-parameter step (`Game.
  *     increaseVenusScaleLevel`): +1 TR `{global: true}` (the «parameters»
  *     segment of the rating); crossing 8 % draws a card whose source is the
