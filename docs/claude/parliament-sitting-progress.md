@@ -4167,3 +4167,50 @@ RX02), три аддитивные строки в `resolutionCounts.ts` (спи
 | фикстура `parliament-diverted-enacted` (красный 30 M€ · 8 тепла · Supercomputer · 13 % · −20 °C) | сгенерирована точечно; второй раз — с `pendingInitialActions = []` (PL-715: первое действие Aridor съедал драйвер при загрузке) |
 | e2e `console-parliament-diverted` (standard-1080 + tv4k, снапшот `.e2e-rx35`) | 1-й прогон: ①–③ зелёные на обоих, ④ красный на 1080 (PL-715), ③ hold X красный на 4K (PL-716); 2-й прогон после правок фикстуры/спека/плиты — **2 passed (1,7 мин)**, по 9 кадров на профиль; финальный прогон на итоговом стиле (печать закона по центру) — **2 passed (1,6 мин)** |
 | батч регрессий из `e2e:affected` (16 спеков: канарейка · конвертации · финал · бесполезные действия · std projects · конфирм · колесо · frontier-labs · arboretum · craze · прогноз · доступность · «Проверенные методы» · источник размещения · композитные · supercomputer), 2 воркера | **48 passed · 1 flaky** (`console-supercomputer` C на 4K под двумя воркерами: свидетель назвал посадку «+2» над стеклом — хост сложился под жетоном; зелёный на ретрае и в одиночном прогоне на 1 воркере — 6 passed, 3,1 мин; класс PL-149, не продукт) |
+
+## RX36 «Живые эксперименты» (Live Experiments, Учёные) — 2026-10-20 — ДЕЙСТВИЕ, РЕЗУЛЬТАТ КОТОРОГО — РОЗЫГРЫШ КАРТЫ
+
+Док: `docs/TURMOIL_REDUX_LIVE_EXPERIMENTS.md`. Печатное: «data = влияние; ДЕЙСТВИЕ: заплатите 6 M€, чтобы сыграть
+карту, игнорируя все требования глобальных параметров». Задание — «разыграйте 2 карты с требованием» (десятый вид
+`cardsWithRequirement`, `Q-4` закрыт). Промт владельца: `docs/claude/prompts/resolution-rx36-live-experiments.md`.
+Решения Р1–Р5 — батчем AskUserQuestion, все рекомендованные (имя «Живые эксперименты» · любое печатное требование ·
+снятие = взведённый эффект закона · бесполезное доступно с пометкой · слот «КАРТА»).
+
+**Сервер (коммит A, `6d5063570f`).** Принятие — шаг data RX35 один в один. Действие — платный счёт RX28 `{6, 0, false}`
+через `runPaidResolutionAction`: учёт на оплате счёта → `armLiveExperimentsWaiver` взводит СЛОТ ЗАКОНА
+`IPlayer.armedLawWaiver` (сериализован; читается одной функцией класса TR49 `globalRequirementWaiver` после пробы и до
+стола; тратится в `playCardImpl` рядом с `lastCardPlayed`; сгорает на пасе) → `PlayProjectCard` с маркером стадии
+`play`. Проба расширена до `GlobalWaiverProbe = CardName | {resolution}`, счёт удержан резервом
+(`PlayabilityOptions.reserve`); её читают `canAct`, `futility` (Р4), `playModel` (обещанный пик) и превью кандидата
+(`card-play-preview?law=`). Класс TR49 научен закону в 13 читателях (журнал, `requirement-eased`, модель взвода с
+`armedSourceKey`, символ печати `law`, прогноз, заметка о трате, строка соперника). Q5 режет розыгрыш через закон из
+всех заданий, своё включительно; новый вид цели — через ТОТ ЖЕ репорт `onCardPlayed` (`requirements`, опционально),
+бот — тот же; сноска — голая табличка требования (`REQUIREMENT_PLATE`).
+
+**Консоль (коммит B).** Стадия закона показывает решение СЛОТОМ «КАРТА» (грамматика слота повтора RX26); A на слоте —
+мост `consolePlayPick` с обещанием, резервом и законом → рука ВНУТРИ «Действий карт» над обещанными моделями →
+обычный композер розыгрыша на уровень глубже (`onPlayCardConfirmNative` перехвачен, превью `&law=`) → слот заполнен
+(лицо, цена, «✓ благодаря закону» только при решающем снятии, ИТОГО «6 + цена») → ОДИН батч: опция меню, карта
+адресованная закону, ответы карты → классическая посадка с лица слота. Запасная дорога (`billAsks` — Helion / Luna):
+без слота, живой пик после оплаты. Кадры приёмки — `screenshots/parliament-live/{standard-1080,tv4k}/` (01 плитка
+закона · 02 пустой слот · 03 альбом над обещанием · 04 композер «снято» · 05 слот с ИТОГО · 06 после коммита · 07
+плитка «Активирована» под RT) + раскадровка `tv4k/story-commit/`. Полировка — раздел BK (PL-717…727).
+
+**Общий слой не тронут:** заседание, `ParliamentPhase.ts`, `runPaidResolutionAction` (только хуки `futility` /
+`playModel` / `withPlayProbe` рядом), композер розыгрыша (ни одной ветки «если закон» — мост подменяет вход и
+перехватывает подтверждение).
+
+### Прогоны (2026-10-20)
+
+| Что | Итог |
+| --- | --- |
+| `tests/parliament/LiveExperiments.spec.ts` (новый, 30) · `ResolutionContract` (6/6) · сьют парламента · `armedEffects.spec` § закон | зелёные |
+| полный `test:server` | зелёный, кроме 2 падений `tests/cards/effectCaption.spec.ts` (подписи Promethean Alliance — TR64; RX36 их не трогает, в рабочем дереве лежат чужие правки `card_info.json` / манифеста Redux) |
+| mochapack `ConsolePartyActionComposerPlay.spec` (новый, 7) | зелёный |
+| `lint:client` (vue-tsc) · eslint по затронутым · `lint:i18n` · `build:test` (обе ступени) | зелёные (vue-tsc сперва назвал `play` на объединении `PartyActionModel` — computed `lawAction`) |
+| гарды `e2eLiveness` · `e2eDriverGuard` · `e2eFixturesLoad` · `glyphLiteralGuard` · `readingParamsGuard` · `embedZoneGuard` · `cursorGrammarGuard` · `serverDerivedCacheGuard` · `parliamentGlossary` | 299 passing |
+| `build:client` | ⚠ снова «Build Finished» без записи бандла (чужой `tmp/` в fork-ts-checker — PL-712); собран `SKIP_TS_CHECK=1` после зелёного vue-tsc, бандл проверен grep'ом `console-shell.js` |
+| фикстура `parliament-live-enacted` | сгенерирована точечно (Fish не годился — без чужого производства растений неиграбелен; взята «Трава») |
+| e2e `console-parliament-live` (standard-1080 + tv4k, снапшот `.e2e-rx36`) | шаг ⑥ сперва ждал потраченную плитку в обычном виде (PL-724); после правки спека — **2 passed** |
+| батч соседей (12 спеков: канарейка · RX36 · R&D Funding · Open IP · Trade Industries · действия парламента · TR49 · рабочее место руки · staged play · посадка · pre-select в руке · repeat pick), 1 воркер | **34 passed · 1 failed** (18,7 мин): `console-parliament-actions` «Industrialists · Scientists · Unity · Reds» — B после действия Учёных съеден очередью тостов «Эффект партии … дан «Fixture»» (PL-728); A/B: клиент HEAD без консоли RX36 падает так же (1 из 4), с ней 2 из 4 — не RX36 |
+
