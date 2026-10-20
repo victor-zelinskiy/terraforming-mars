@@ -2636,6 +2636,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   'parliament-live-enacted' | 'parliament-live-helion' | 'parliament-live-staged' | 'parliament-live-helion-staged' |
   // RX37 Manufacturing Run ENACTED: red at influence 1 (two uses) holding Security Fleet, Construction Mechs and Titan Shuttles.
   'parliament-manufacturing-enacted' |
+  // RX39 Reds Budget with MarsBot: blue's vote, and the solo assembly gate with a NEUTRAL winner — blue's levy, payout and step of the Career, then the bot's step (D11).
+  'parliament-reds-budget-vote' | 'parliament-reds-budget-bot' |
   // RX33 Water Export: the assembly with ONE plain ocean on the board and blue (the first player) holding the delegate —
   // the first world step that ASKS; and the law ENACTED (the ocean gone) with red holding Miranda Resort (12 → 9).
   'parliament-water-assembly' | 'parliament-water-enacted' |

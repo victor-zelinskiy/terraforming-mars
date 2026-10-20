@@ -49,6 +49,7 @@ import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from './partyReac
 import {quietRewardPoseOf} from './quietRewardPose';
 import {ActionUsesReading, actionUsesReadingOf} from './actionUsesReading';
 import {TileGrantReading, tileGrantCaptionOf, tileGrantDetailOf, tileGrantLabelKey, tileGrantReadingOf} from './tileGrantModel';
+import {AgendaGrantReading, agendaGrantReadingOf} from './agendaGrantModel';
 
 /**
  * English i18n keys of the reading's kicker (the panel's ONLY heading over the reading): the seated
@@ -135,6 +136,12 @@ export type VoteReadingVm = {
    * influence or only by winning, and the cities on Mars it may land on. Undefined for every other resolution.
    */
   grant?: TileGrantReading;
+  /**
+   * A STEP OF THE CAREER FOR EVERY SEAT (Reds Budget): where the subject's marker stands, what the law's step gives
+   * from there, and the win's forecast (the winner's own step first — «+2 шага»). A line of its own, never added to
+   * the money. Undefined for every other resolution.
+   */
+  career?: AgendaGrantReading;
   /**
    * THE COLONY TABLE's part (Unity Budget): «every colony track +2» — a line that depends on nothing of the
    * seat's and never enters the net; the tiles themselves read in the inspector. Undefined for every other resolution.
@@ -327,10 +334,12 @@ export function voteReadingOf(
   const yields = oneNumberYieldsOf(all).filter((y) => y.context !== 'reference');
   const grantReading = tileGrantReadingOf(resolution, model, viewer);
   const grant = grantReading === undefined || grantReading.context === 'reference' ? undefined : grantReading;
+  const careerReading = agendaGrantReadingOf(resolution, model, viewer);
+  const career = careerReading === undefined || careerReading.context === 'reference' ? undefined : careerReading;
   if (yields.length === 0) {
-    // A tile granted by threshold pays no number, but it is the seat's OWN reading all the same.
-    if (grant !== undefined) {
-      return {...seated, grant};
+    // A tile granted by threshold — or a step of the Career — pays no number, but it is the seat's OWN reading all the same.
+    if (grant !== undefined || career !== undefined) {
+      return {...seated, ...(grant === undefined ? {} : {grant}), ...(career === undefined ? {} : {career})};
     }
     // Nothing to pay at the enactment: a passive / an action reads under the quiet reward's kicker
     // (what the card gives while enacted); a card with neither keeps the spectator's plain heading.
@@ -366,6 +375,7 @@ export function voteReadingOf(
     ...(ledger === undefined ? {} : {ledger}),
     ...(levy === undefined ? {} : {levy}),
     ...(grant === undefined ? {} : {grant}),
+    ...(career === undefined ? {} : {career}),
     ...(tracks === undefined ? {} : {tracks}),
     ...(removal === undefined ? {} : {removal}),
     ...(uses === undefined ? {} : {uses}),

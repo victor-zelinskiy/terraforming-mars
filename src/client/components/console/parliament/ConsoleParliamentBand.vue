@@ -12,6 +12,8 @@
        :data-parl-band="line.key"
        :data-parl-band-kicker="line.kicker"
        :data-parl-band-quiet="line.quiet"
+       :data-parl-career-seat="careerPhase === undefined ? undefined : career?.player"
+       :data-parl-career-phase="careerPhase"
        data-parl-band-zone>
     <transition name="con-band-fade">
       <div :key="line.key" class="con-band__line" data-parl-band-line>
@@ -65,7 +67,12 @@
                   :data-parl-band-step="chip.to" :data-parl-band-level="chip.level">
               <span class="con-band__text con-band__text--dim">{{ $t('Agenda step') }}</span>
               <b class="con-band__num">{{ chip.to }}</b>
-              <span v-if="chip.bonus !== undefined" class="con-band__bonus" :data-parl-band-bonus="chip.bonus">
+              <!-- A seat with no hand (MarsBot) takes a card step as M€ (the Automa FAQ): the step says what it PAID. -->
+              <span v-if="chip.megacredits !== undefined" class="con-band__bonus" data-parl-band-bonus="megacredits">
+                <b>+{{ chip.megacredits }}</b><i class="con-band__unit" :class="megacreditsClass" aria-hidden="true"></i>
+                <span class="con-band__text con-band__text--quiet">{{ $t('instead of a card') }}</span>
+              </span>
+              <span v-else-if="chip.bonus !== undefined" class="con-band__bonus" :data-parl-band-bonus="chip.bonus">
                 <b>+1</b><i class="con-band__unit" :class="bonusClass(chip.bonus)" aria-hidden="true"></i>
               </span>
               <!-- An INFLUENCE step: the glyph with the level in one disc (law 14 — a bare numeral reads as an ordinal). -->
@@ -200,6 +207,7 @@ import {
 } from '@/client/console/parliament/parliamentBand';
 import {chairmanQuestFlow} from '@/client/console/parliament/consoleChairmanQuest';
 import {agendaWalkFlow} from '@/client/console/parliament/agendaWalk';
+import {careerGrantState} from '@/client/console/parliament/careerGrantBeat';
 import {rulingChangeDrawState} from '@/client/console/parliament/rulingChangeDraw';
 import {influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import {quietRewardPoseOf, SittingPosition, SittingStage} from '@/client/console/parliament/consoleSittingFlow';
@@ -284,6 +292,7 @@ export default defineComponent({
         beat: sittingMotion.beat,
         supportWave: sittingMotion.supportWave,
         ...(sittingMotion.renewal === undefined ? {} : {renewal: sittingMotion.renewal}),
+        ...(this.career === undefined ? {} : {career: this.career}),
         ...(rulingChangeDrawState.presenting === undefined ? {} : {rulingDraw: rulingChangeDrawState.presenting}),
         generation: position.generation,
         awaiting: position.awaiting,
@@ -293,6 +302,45 @@ export default defineComponent({
     },
     summary(): ParliamentPhaseSummaryModel | undefined {
       return this.model?.phase?.summary;
+    },
+    /** КАРЬЕРА's own context — the law's walk playing now (Reds Budget): the seat, the step it reaches and its gift. */
+    career(): BandSitting['career'] {
+      const walk = careerGrantState.current;
+      if (walk === undefined) {
+        return undefined;
+      }
+      const last = walk.steps[walk.steps.length - 1];
+      return {
+        player: walk.player,
+        to: walk.to,
+        ...(last?.bonus === undefined ? {level: influenceAtAgenda(walk.to)} : {bonus: last.bonus}),
+        ...(walk.megacredits === undefined ? {} : {megacredits: walk.megacredits}),
+      };
+    },
+    /**
+     * THE VIEWER'S OWN STEP OF THE CAREER (Reds Budget), once recorded AND no longer owed to the track (the sitting's
+     * КАРЬЕРА beat has walked it): the step reached and what it paid. A skip reads as its own skip chip.
+     */
+    careerRecorded(): BandRewardReading['career'] {
+      const record = this.mine.find((o) => o.kind === 'agenda' && o.walk !== undefined && o.walk.steps.length > 0);
+      const walk = record?.walk;
+      if (record === undefined || walk === undefined || careerGrantState.owed.some((owed) => owed.player === this.viewerColor) ||
+          careerGrantState.current?.player === this.viewerColor) {
+        return undefined;
+      }
+      const last = walk.steps[walk.steps.length - 1];
+      return {
+        to: walk.to,
+        ...(last.bonus === undefined ? {level: influenceAtAgenda(walk.to)} : {bonus: last.bonus}),
+        ...(record.megacredits === undefined ? {} : {megacredits: record.megacredits}),
+      };
+    },
+    /** The law's walk now playing — its phase (`impulse` · `walk` · `landed`), the e2e probe's witness of «the marker leaves only after the impulse». */
+    careerPhase(): string | undefined {
+      return careerGrantState.current?.phase;
+    },
+    megacreditsClass(): string {
+      return iconClassFor('megacredits');
     },
     /** The table AS IT STANDS: the resolution that would be enacted now and who would win it. */
     standing(): BandStanding {
@@ -429,6 +477,10 @@ export default defineComponent({
       if (this.grantReading !== undefined && this.grantReading.skipped === undefined) {
         out.grant = this.grantReading.grant.tile;
       }
+      const career = this.careerRecorded;
+      if (career !== undefined) {
+        out.career = career;
+      }
       const world = this.worldMoves;
       if (world.length > 0) {
         out.world = world;
@@ -530,6 +582,11 @@ export default defineComponent({
     stateKey(): BandRewardState | undefined {
       const position = this.position;
       if (position === undefined || !this.sittingUp || this.stage !== 'reward') {
+        return undefined;
+      }
+      // КАРЬЕРА names its own walk (the seat, the step, its gift): the payout's «получено» beside it read as the STEP
+      // received while the marker was still on its old node — and of the bot's walk, as the bot's.
+      if (careerGrantState.current !== undefined) {
         return undefined;
       }
       if (this.yields.length === 0 && this.mine.length === 0 && this.winnerReading === undefined && this.grantReading === undefined) {

@@ -61,6 +61,7 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {consoleParliamentUi} from './consoleParliamentFlow';
 import {ParliamentBeat, scheduleParliamentBeat} from './parliamentBeat';
 import {enterWorldBeatSitting, seedWorldMoveBeat} from './parliamentWorldBeat';
+import {releaseCareerGrantWalks, resetCareerGrantBeat, seedCareerGrantWalks} from './careerGrantBeat';
 
 /** The rail's key for the terraform rating (the score cell) — the transfer model's own (`resourceTransferModel.ts`), re-exported for the parliament's seeders. */
 export {RATING_RAIL_KEY};
@@ -97,6 +98,13 @@ export type AgendaBonusOwed = {
    * seeder before it is queued.
    */
   reactions?: ReadonlyArray<ResourceTransferSpec>;
+  /**
+   * The entry belongs to a LAW's step of the Career (Reds Budget — the sitting's КАРЬЕРА beat), never to the winner's
+   * step of the enactment: the enactment's own takes and flushes (`takeAgendaBonus` / `markAgendaBonusLanded` without
+   * a step, `flushAgendaBonus(…, 'phase')`) pass it by — a neutral winner's «no glide» once swept the law's TR off the
+   * rail before its walk had even started.
+   */
+  career?: true;
   /**
    * A CARD step's cover has LIFTED off its node (TR37 — a card step in the
    * MIDDLE of a walk): the cover scene owns the batch from here, so the park
@@ -373,6 +381,8 @@ function noteLanded(key: RewardBeatKey): void {
 export function releaseParliamentRewards(why: RewardReleaseReason): void {
   flushParliamentRewards(why);
   flushAgendaBonus(why);
+  // …and the steps of the Career a law granted the seats: every held marker stands on its server step now.
+  releaseCareerGrantWalks();
 }
 
 /** Release every owed / flying record's hold at once (a stage's end, the ceiling, a new sitting) — the counters tick, honestly late. `why` is for the trail. */
@@ -389,9 +399,17 @@ export function flushParliamentRewards(why: RewardReleaseReason | string = 'flus
   }
 }
 
-/** Release EVERY Agenda bonus's hold at once (a stage's end, the ceiling, a glide that never came) — the table's answers with them. `why` is for the trail. */
-export function flushAgendaBonus(why: RewardReleaseReason | string = 'flush'): void {
-  const bonuses = parliamentRewardState.agendaBonuses.splice(0);
+/**
+ * Release EVERY Agenda bonus's hold at once (a stage's end, the ceiling, a glide that never came) — the table's answers
+ * with them. `why` is for the trail. `scope: 'phase'` releases the ENACTMENT's own entries only (the winner's step) and
+ * keeps a law's steps of the Career owed to the reward stage's КАРЬЕРА beat.
+ */
+export function flushAgendaBonus(why: RewardReleaseReason | string = 'flush', scope: 'all' | 'phase' = 'all'): void {
+  const all = parliamentRewardState.agendaBonuses;
+  const bonuses = scope === 'all' ? all.splice(0) : all.filter((bonus) => bonus.career !== true);
+  if (scope === 'phase') {
+    parliamentRewardState.agendaBonuses = all.filter((bonus) => bonus.career === true);
+  }
   for (const bonus of bonuses) {
     trail('flush-agenda', {why, kind: bonus.kind, step: bonus.step, generation: bonus.generation});
     if (bonus.spec !== undefined) {
@@ -475,10 +493,18 @@ export function seedParliamentRewardHold(before: PlayerViewModel | undefined, af
   const bonus = detectAgendaBonus(before, after);
   if (bonus !== undefined && !consoleReducedMotionActive()) {
     trail('seed-agenda', {key, kind: bonus.kind, step: bonus.step, generation: bonus.generation, onScreen});
-    flushAgendaBonus('re-seed');
+    flushAgendaBonus('re-seed', 'phase');
     if (onScreen) {
       queueAgendaBonuses([bonus]);
     }
+  }
+  // THE STEPS OF THE CAREER A LAW GRANTED THE SEATS (Reds Budget): every walked seat's marker held on its old step —
+  // the reward stage's КАРЬЕРА beat walks them in turn — and the viewer's own paying steps owed BEHIND the winner's
+  // (queued after it: the enactment's beat takes the queue's head). Read off the phase's records, never `lastAdvance`.
+  const career = seedCareerGrantWalks(key, before, after, onScreen);
+  if (career.length > 0) {
+    trail('seed-career', {key, steps: career.map((bonus) => `${bonus.kind}:${bonus.step}`)});
+    queueAgendaBonuses(career);
   }
 }
 
@@ -501,8 +527,9 @@ export function takeOwedRewards(): Array<OwedReward> {
  * the sitting's key).
  */
 export function takeAgendaBonus(generation: number | undefined, step?: number): AgendaBonusOwed | undefined {
+  // Without a step the ENACTMENT's one-step callers ask — a law's step of the Career is never theirs.
   const bonus = step === undefined ?
-    parliamentRewardState.agendaBonuses[0] :
+    parliamentRewardState.agendaBonuses.find((entry) => entry.career !== true) :
     parliamentRewardState.agendaBonuses.find((entry) => entry.step === step);
   trail('take-agenda', {asked: generation, step, held: bonus?.generation, heldStep: bonus?.step});
   if (bonus === undefined || (generation !== undefined && bonus.generation !== generation)) {
@@ -521,7 +548,9 @@ export function markRewardLanded(reward: OwedReward): void {
 
 /** ONE step's chip touched the rail (or its cover may lift): that step's hold releases — the others keep standing. */
 export function markAgendaBonusLanded(step?: number): void {
-  const index = step === undefined ? 0 : parliamentRewardState.agendaBonuses.findIndex((entry) => entry.step === step);
+  const index = step === undefined ?
+    parliamentRewardState.agendaBonuses.findIndex((entry) => entry.career !== true) :
+    parliamentRewardState.agendaBonuses.findIndex((entry) => entry.step === step);
   if (index === -1 || parliamentRewardState.agendaBonuses.length === 0) {
     return;
   }
@@ -590,6 +619,7 @@ export function rewardLanded(outcome: ParliamentEnactOutcomeModel): boolean {
 export function resetParliamentRewards(): void {
   flushParliamentRewards('reset');
   flushAgendaBonus('reset');
+  resetCareerGrantBeat();
   parliamentRewardState.sitting = '';
   parliamentRewardState.landed = [];
   parliamentRewardState.tileReceipt = undefined;

@@ -106,10 +106,11 @@ export type SeatEnactedVm = {
 export const BOT_PARLIAMENT_NOTE = 'MarsBot takes no part in the parliament';
 /**
  * The POLITICAL bot (Turmoil Redux, decisions D3 + D11): what it does at the table, what it never receives — and
- * the one thing a law gives it, the TILE it grants the players (placed by the bot itself). ONE line for both hosts
- * (the Information zone and its dossier), in the cards' own language.
+ * what a law hands it to DO, the deed it grants every player (a tile placed by the bot itself, a step of the Career
+ * walked by it — RX38, RX39). ONE line for both hosts (the Information zone and its dossier), in the cards' own
+ * language; a NEW key (the RX38 line named the tile alone).
  */
-export const BOT_POLITICS_NOTE = 'MarsBot votes, completes chairman quests and takes the winner\'s reward. An enacted resolution never pays or charges it, but it places the tiles a resolution grants the players.';
+export const BOT_POLITICS_NOTE = 'MarsBot votes, completes chairman quests and takes the winner\'s reward. An enacted resolution never pays or charges it, but it carries out what a resolution grants every player: a tile, a step of the Career.';
 
 export type SeatParliamentReadingVm = {
   color: Color;

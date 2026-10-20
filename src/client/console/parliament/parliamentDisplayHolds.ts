@@ -91,6 +91,14 @@ export type ParliamentDisplayHolds = {
   /** The winner's Agenda move not yet made on screen: the marker stands on `from`, the influence reads the old level. */
   agendaAwaits: AgendaAwaits | undefined;
   /**
+   * THE STEPS OF THE CAREER A LAW GRANTED THE SEATS that have not been walked on screen yet (Reds Budget — every
+   * seat one step, the bot's too): seat → its walk, the marker standing on `from` until the sitting's КАРЬЕРА beat
+   * walks it (`careerGrantBeat.ts`). Several seats at once — `agendaAwaits` is ONE walk — and composed UNDER it:
+   * the winner's law step starts where its winner's step of the enactment ends, so the tier applies these first
+   * and the winner's own hold on top. The beat hands a seat's entry over to `agendaAwaits` the moment it walks it.
+   */
+  agendaGrantAwaits: Map<Color, AgendaAwaits>;
+  /**
    * THE CHAIRMAN'S SEAT HAS NOT CHANGED HANDS ON SCREEN YET («Председательство»):
    * the chair keeps showing `from` (undefined = the empty seat, which is also
    * what it reads the instant the outgoing delegate lifts off) until the new
@@ -139,7 +147,7 @@ export function emptyParliamentHolds(): ParliamentDisplayHolds {
     returns: new Map(), support: new Map(), supportIncoming: new Map(), rollStatus: new Map(), hiddenCubes: new Set(), lobby: new Set(), freshFaces: new Set(),
     pile: undefined, renewalReturns: new Map(), departed: new Set(), renewalSeeded: false,
     govAwaits: undefined, parked: undefined, heldSlots: undefined, vacated: new Set(), liftedFaces: new Set(), winnerSlot: undefined,
-    agendaAwaits: undefined, chairAwaits: undefined, govBefore: undefined, rulerBefore: undefined, rulerBeforeByCard: undefined, rulerSettling: undefined, questBefore: undefined,
+    agendaAwaits: undefined, agendaGrantAwaits: new Map(), chairAwaits: undefined, govBefore: undefined, rulerBefore: undefined, rulerBeforeByCard: undefined, rulerSettling: undefined, questBefore: undefined,
     questWalkBefore: undefined,
   };
 }

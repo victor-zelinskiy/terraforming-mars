@@ -96,7 +96,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {HydroMarkerDirectorHandle, runHydroMarkerGlide} from '@/client/console/hydroMarker/hydroMarkerDirector';
 import {consoleParliamentUi, parliamentFlow, parliamentRootEl, parliamentSupportUp} from '@/client/console/parliament/consoleParliamentFlow';
-import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
+import {AgendaAwaits, parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {AgendaVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {
@@ -161,46 +161,21 @@ export default defineComponent({
       return this.model?.lastAdvance?.seq ?? 0;
     },
     /**
-     * THE TRACK AS SHOWN: the live reading — or, while the sitting HOLDS the
-     * winner's move, the marker on its OLD step and (for the viewer) the OLD
-     * influence and level; the glide is what moves them.
+     * THE TRACK AS SHOWN: the live reading — or, while a hold stands, every held
+     * marker on its OLD step and (for the viewer) the OLD influence and level;
+     * the glide is what moves them. The holds COMPOSE, in the order the server
+     * walked them backwards: the steps of the Career a LAW granted the seats
+     * first (`agendaGrantAwaits` — several seats at once, Reds Budget), then the
+     * ONE walk in hand (`agendaAwaits` — the winner's step, a quest's, a card's,
+     * or the law's walk the sitting is playing now): the winner's law step starts
+     * where its winner's step ends, so the cube is carried back over both.
      */
     shown(): AgendaVm {
-      const vm = this.agendaVm;
-      const hold = parliamentHolds.agendaAwaits;
-      if (hold === undefined) {
-        return vm;
+      const holds = [...parliamentHolds.agendaGrantAwaits.values()];
+      if (parliamentHolds.agendaAwaits !== undefined) {
+        holds.push(parliamentHolds.agendaAwaits);
       }
-      const viewer = this.view.viewer;
-      const mine = viewer !== undefined && viewer.participates && viewer.color === hold.player;
-      const position = mine ? hold.from : vm.viewerPosition;
-      const next = mine ? (hold.from < AGENDA_TRACK.length ? hold.from + 1 : undefined) : undefined;
-      const levelDelta = mine ? influenceAtAgenda(hold.to) - influenceAtAgenda(hold.from) : 0;
-      const steps = vm.steps.map((step) => {
-        let cubes = step.cubes;
-        if (step.index === hold.to) {
-          cubes = cubes.filter((color) => color !== hold.player);
-        }
-        if (step.index === hold.from && !cubes.includes(hold.player)) {
-          cubes = [...cubes, hold.player];
-        }
-        return {
-          ...step,
-          cubes,
-          viewerHere: mine ? step.index === position : step.viewerHere,
-          viewerNext: mine ? step.index === next : step.viewerNext,
-        };
-      });
-      const start = hold.from === 0 && !vm.start.includes(hold.player) ? [...vm.start, hold.player] : vm.start;
-      return {
-        ...vm,
-        steps,
-        start,
-        viewerPosition: position,
-        viewerInfluence: mine ? Math.max(0, vm.viewerInfluence - levelDelta) : vm.viewerInfluence,
-        viewerLevel: mine ? influenceAtAgenda(hold.from) : vm.viewerLevel,
-        nextStep: mine ? (next === undefined ? undefined : AGENDA_TRACK[next - 1]) : vm.nextStep,
-      };
+      return holds.reduce((vm, hold) => this.heldAgendaVm(vm, hold), this.agendaVm);
     },
     /**
      * THE INFLUENCE BAND (Парламент v8): the track's influence steps cut it into five spans — a span runs from its
@@ -262,7 +237,9 @@ export default defineComponent({
       if (now <= was || advance === undefined || this.handedOver) {
         return;
       }
-      if (parliamentFlow.stage === 'sitting' || advance.reason === 'phase') {
+      // A LAW's walks (`resolution` — Reds Budget) are the sitting's records, seat by seat: `lastAdvance` is only the last
+      // of them, and playing it here would walk ONE marker a second time (the sitting's КАРЬЕРА beat plays them all).
+      if (parliamentFlow.stage === 'sitting' || advance.reason === 'phase' || advance.reason === 'resolution') {
         return;
       }
       // «САНКЦИИ» (TR12): the support-area mode plays the card's step ITSELF, after the area's cubes have left — the
@@ -301,6 +278,39 @@ export default defineComponent({
   methods: {
     cubePx(logical: number): number {
       return conLogicalPx(logical);
+    },
+    /** ONE held walk applied to a reading: the seat's cube carried back to `from`, the viewer's own influence and level with it. */
+    heldAgendaVm(vm: AgendaVm, hold: AgendaAwaits): AgendaVm {
+      const viewer = this.view.viewer;
+      const mine = viewer !== undefined && viewer.participates && viewer.color === hold.player;
+      const position = mine ? hold.from : vm.viewerPosition;
+      const next = mine ? (hold.from < AGENDA_TRACK.length ? hold.from + 1 : undefined) : undefined;
+      const levelDelta = mine ? influenceAtAgenda(hold.to) - influenceAtAgenda(hold.from) : 0;
+      const steps = vm.steps.map((step) => {
+        let cubes = step.cubes;
+        if (step.index === hold.to) {
+          cubes = cubes.filter((color) => color !== hold.player);
+        }
+        if (step.index === hold.from && !cubes.includes(hold.player)) {
+          cubes = [...cubes, hold.player];
+        }
+        return {
+          ...step,
+          cubes,
+          viewerHere: mine ? step.index === position : step.viewerHere,
+          viewerNext: mine ? step.index === next : step.viewerNext,
+        };
+      });
+      const start = hold.from === 0 && !vm.start.includes(hold.player) ? [...vm.start, hold.player] : vm.start;
+      return {
+        ...vm,
+        steps,
+        start,
+        viewerPosition: position,
+        viewerInfluence: mine ? Math.max(0, vm.viewerInfluence - levelDelta) : vm.viewerInfluence,
+        viewerLevel: mine ? influenceAtAgenda(hold.from) : vm.viewerLevel,
+        nextStep: mine ? (next === undefined ? undefined : AGENDA_TRACK[next - 1]) : vm.nextStep,
+      };
     },
     /** A real cube is hidden while a proxy stands for it — lifted off its old step, or not yet locked onto its new one. */
     cubeHidden(color: Color, step: number): boolean {

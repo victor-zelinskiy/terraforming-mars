@@ -308,6 +308,10 @@
        LOWERING takes the console's LOSS register (amber), which is what says «the world went backwards»
        at a glance. Nothing pulses and nothing celebrates: the scales themselves have already spoken. */
     &__world { gap: .28rem; }
+    /* «3 → 4»: the arrow is sized by the line it stands in, never by the chips' fixed caption — at 4K that caption was a
+       dot between two 1.9rem digits and a walk «6 → 7» read as the number «6.7». `.con-parl` ahead: the TV ladder's
+       `html.con-profile-tv .con-parl__chip-dim { .8rem }` out-specified the bare rule. */
+    .con-parl &__world > .con-parl__chip-dim { font-size: .82em; letter-spacing: 0; text-transform: none; }
     &__world-icon { display: inline-block; width: 1rem; height: 1rem; background-size: contain; background-repeat: no-repeat; background-position: center; flex-shrink: 0; }
     &__world--down b { color: @con-amber; }
     &__world--blocked { opacity: .78; }
@@ -341,6 +345,8 @@
         &--city { border-radius: 0; box-shadow: none; background: url(./assets/tiles/city.png) center / contain no-repeat; }
     }
     &__part-stack { font-size: .86rem; font-weight: 700; color: @con-parl-mint; }
+    /* A STEP OF THE CAREER (Reds Budget): the insignia leads the walk, at the unit's own size (em — it follows the row's ladder). */
+    &__part-career { width: 1.1em; height: 1.1em; flex-shrink: 0; }
 }
 
 /* ══ THE RESULTS ARE ONE CARD OVER THE CHAMBER ROW (Парламент v8, the mock `e1`; the owner's point 8 — «итоги наезжают

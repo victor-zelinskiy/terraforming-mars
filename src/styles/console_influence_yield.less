@@ -767,3 +767,113 @@ html.con-profile-tv .con-iyield__suffix-node { width: 1.22rem; height: 1.22rem; 
         .con-tgrant__answer-party { font-size: .66rem; }
     }
 }
+
+/* A STEP OF THE CAREER A LAW GRANTS THE SEATS (Turmoil Redux — Reds Budget): the tile grant's chassis with its own
+   body — the career INSIGNIA (the one picture of a step, glossary § 4a), then per step the track's numbered NODE
+   (the disc the vote suffix already speaks — a place, never a count) and what the step pays: «+1 [TR]», «+1 [card]»
+   (MarsBot: «+1 [M€] вместо карты»), or the influence glyph with its level (law 14). The win's forecast is its own
+   quiet segment. State — the end of the track, a skip — is colour + weight on the caption (no `filter`). */
+.con-agrant {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .22rem;
+    min-width: 0;
+    max-width: 100%;
+    padding: .3rem .6rem .32rem .5rem;
+    border-radius: .55rem;
+    font-family: @con-font-read;
+    color: fade(@con-text, 92%);
+    background: linear-gradient(160deg, rgba(52, 22, 22, 0.62), rgba(18, 10, 10, 0.74));
+    box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 42%), 0 .1rem .4rem rgba(0, 0, 0, 0.35);
+
+    &__head { display: inline-flex; align-items: center; gap: .3rem; flex-wrap: wrap; min-width: 0; line-height: 1.1; }
+    &__glyph { width: 1rem; height: 1rem; flex-shrink: 0; }
+    &__label { font-size: .54rem; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-parl-gold, 94%); font-weight: 700; }
+    &__name { font-size: .78rem; font-weight: 700; color: @con-text; white-space: nowrap; }
+    &__caption {
+        font-size: .54rem;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: fade(@con-text, 70%);
+        padding-left: .3rem;
+        border-left: .05rem solid rgba(255, 255, 255, 0.16);
+    }
+    &__caption--inline { padding-left: .3rem; }
+    &__body { display: inline-flex; align-items: center; gap: .32rem; flex-wrap: wrap; min-width: 0; line-height: 1; }
+    &__step, &__win-step { display: inline-flex; align-items: center; gap: .18rem; white-space: nowrap; }
+    &__arrow { font-size: .78rem; color: fade(@con-text, 58%); }
+    &__node {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1rem;
+        height: 1rem;
+        border-radius: 50%;
+        font-style: normal;
+        font-size: .58rem;
+        font-weight: 800;
+        letter-spacing: 0;
+        color: #1c1608;
+        background: fade(@con-parl-gold, 90%);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.35), 0 0 0 .08rem fade(@con-parl-gold, 32%);
+        &--win { background: fade(@con-parl-gold, 62%); }
+    }
+    &__amount { font-size: .86rem; font-weight: 700; color: @con-parl-mint; }
+    &__unit {
+        display: inline-block;
+        width: .95rem;
+        height: .95rem;
+        flex-shrink: 0;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__inf { display: inline-flex; align-items: center; gap: .1rem; b { font-size: .86rem; font-weight: 800; color: @con-parl-mint; } }
+    &__inf-icon { display: inline-block; width: .95rem; height: .95rem; background: url(./assets/misc/influence.png) center / contain no-repeat; }
+    &__instead { font-size: .54rem; color: fade(@con-text, 70%); }
+    &__win {
+        display: inline-flex;
+        align-items: center;
+        gap: .24rem;
+        padding-left: .34rem;
+        border-left: .05rem solid rgba(255, 255, 255, 0.14);
+        white-space: nowrap;
+        opacity: .86;
+    }
+    &__win-text { font-size: .54rem; letter-spacing: .06em; text-transform: uppercase; color: fade(@con-parl-gold, 90%); }
+
+    &--inline {
+        position: relative;
+        flex-direction: row;
+        padding: .08rem .42rem .08rem .3rem;
+        border-radius: .4rem;
+    }
+    &--pending { box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 58%), 0 0 .6rem fade(@con-parl-mint, 18%); }
+    &--applied { box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 38%); }
+    /* THE END OF THE TRACK / a skip: the caption carries the amber, the body steps back. */
+    &--end &__caption, &--skipped &__caption { color: fade(@con-amber, 92%); }
+    &--skipped { box-shadow: inset 0 0 0 .05rem fade(@con-amber, 50%); }
+
+    &--compact {
+        padding: .2rem .45rem .22rem .38rem;
+        gap: .16rem;
+        .con-agrant__label, .con-agrant__caption, .con-agrant__win-text, .con-agrant__instead { font-size: .48rem; }
+        .con-agrant__glyph { width: .82rem; height: .82rem; }
+        .con-agrant__name { font-size: .7rem; }
+        .con-agrant__node { width: .86rem; height: .86rem; font-size: .5rem; }
+        .con-agrant__amount, .con-agrant__inf b { font-size: .74rem; }
+        .con-agrant__unit, .con-agrant__inf-icon { width: .82rem; height: .82rem; }
+    }
+    &--hero {
+        padding: .45rem .9rem .5rem .75rem;
+        gap: .3rem;
+        .con-agrant__label, .con-agrant__caption, .con-agrant__win-text, .con-agrant__instead { font-size: .66rem; }
+        .con-agrant__glyph { width: 1.4rem; height: 1.4rem; }
+        .con-agrant__name { font-size: 1.05rem; }
+        .con-agrant__node { width: 1.35rem; height: 1.35rem; font-size: .78rem; }
+        .con-agrant__amount, .con-agrant__inf b { font-size: 1.1rem; }
+        .con-agrant__unit, .con-agrant__inf-icon { width: 1.25rem; height: 1.25rem; }
+    }
+}
+html.con-profile-tv .con-agrant__node { width: 1.22rem; height: 1.22rem; font-size: .8rem; }

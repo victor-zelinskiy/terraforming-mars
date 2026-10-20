@@ -153,6 +153,12 @@ export type AgendaWalkBeatScheduler = (delayMs: number, fire: () => void) => Par
 export type AgendaWalkHooks = {
   onLanded: () => void;
   beat?: AgendaWalkBeatScheduler;
+  /**
+   * The reward of an INTERMEDIATE step, when the caller owns it (the sitting's КАРЬЕРА beat: a seat other than the
+   * viewer's pays nothing onto the viewer's rail, so its steps land with no chip). Default: the ledger's own
+   * delivery off the step's node (`deliverAgendaStepReward`).
+   */
+  rewardStep?: (leg: AgendaWalkLeg, done: () => void) => void;
 };
 
 export type AgendaWalkHandle = {

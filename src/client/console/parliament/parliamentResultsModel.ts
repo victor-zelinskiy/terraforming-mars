@@ -118,6 +118,14 @@ export type ResultsPayoutPart = {
   parameter?: {id: ParameterMoveId, before: number, after: number};
   /** …and the terraform rating that step paid the seat (the record's own, measured by the engine). */
   tr?: number;
+  /**
+   * A STEP OF THE CAREER a law granted the seat (Reds Budget, `agenda`): the marker's walk — the row reads
+   * «[insignia] 3 → 4» with what it paid beside it: `tr` above, the cards the card step dealt (`drawn`), or the M€ a
+   * seat with no hand took instead (`megacredits` — MarsBot).
+   */
+  walk?: {from: number, to: number};
+  drawn?: number;
+  megacredits?: number;
   /** The card a card resource landed on (one recipient). */
   card?: string;
   /**
@@ -384,6 +392,19 @@ export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: n
     part.parameter = {id: outcome.parameter.id, before: outcome.parameter.before, after: outcome.parameter.after};
     if (outcome.tr !== undefined) {
       part.tr = outcome.tr;
+    }
+  }
+  // A STEP OF THE CAREER: the walk and what it paid — the record's own numbers (the row draws no amount for it).
+  if (outcome.kind === 'agenda' && outcome.walk !== undefined && outcome.walk.steps.length > 0) {
+    part.walk = {from: outcome.walk.from, to: outcome.walk.to};
+    if (outcome.tr !== undefined) {
+      part.tr = outcome.tr;
+    }
+    if (outcome.drawn !== undefined) {
+      part.drawn = outcome.drawn;
+    }
+    if (outcome.megacredits !== undefined) {
+      part.megacredits = outcome.megacredits;
     }
   }
   if (outcome.card !== undefined) {

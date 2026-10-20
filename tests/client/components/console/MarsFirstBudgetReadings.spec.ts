@@ -211,7 +211,7 @@ describe('Mars First Budget — the readings of the sixth budget and of the gran
     expect(tier.find('.con-tgrant__tile--base').exists()).is.true;
   });
 
-  it('the bot\'s one line in the Information zone says it places the tiles a law grants (a NEW key — the old «never pays it» is gone)', () => {
-    expect(BOT_POLITICS_NOTE).eq('MarsBot votes, completes chairman quests and takes the winner\'s reward. An enacted resolution never pays or charges it, but it places the tiles a resolution grants the players.');
+  it('the bot\'s one line in the Information zone says it carries out the deeds a law grants — a tile, a step of the Career (RX39\'s key)', () => {
+    expect(BOT_POLITICS_NOTE).eq('MarsBot votes, completes chairman quests and takes the winner\'s reward. An enacted resolution never pays or charges it, but it carries out what a resolution grants every player: a tile, a step of the Career.');
   });
 });

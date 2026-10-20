@@ -31,6 +31,7 @@
             :data-ledger-tone="part.tone">
         <b v-if="text(part) !== ''">{{ text(part) }}</b>
         <i v-if="part.kind === 'tile'" class="con-vledger__tile" aria-hidden="true"></i>
+        <i v-if="part.kind === 'career'" class="career-step-glyph con-vledger__career" aria-hidden="true"></i>
         <ConsoleYieldUnit v-if="part.icon !== undefined" :classes="iconClasses(part.icon)" />
       </span>
     </span>

@@ -50,6 +50,7 @@ import {
 } from './influenceYieldModel';
 import {WinnerRewardReading, winnerRewardRuleKey, winnerRewardSentenceOf} from './winnerRewardModel';
 import {TileGrantReading, tileGrantRuleKey, tileGrantSentenceOf} from './tileGrantModel';
+import {AGENDA_GRANT_RULE_KEY} from './agendaGrantModel';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {SUPPORT_KICKER, SupportReadingVm} from './voteInfoModel';
 
@@ -223,6 +224,11 @@ export function resolutionAnnotations(
     // the rules are the usual ones and the cell pays its bonus (Mars First Budget's grey hex).
     if (resolution.tileGrant !== undefined) {
       rows.push(tileGrantRuleKey(resolution.tileGrant));
+    }
+    // A STEP OF THE CAREER's qualification (Reds Budget): what a step PAYS on the spot — the track's own bonus — and
+    // MarsBot's card step, in one sentence under the effect.
+    if (resolution.agendaGrant !== undefined) {
+      rows.push(AGENDA_GRANT_RULE_KEY);
     }
     out.push(block('group:immediate', 'immediate', 'When enacted', rows, 0));
   }

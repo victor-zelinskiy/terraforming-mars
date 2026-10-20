@@ -228,6 +228,13 @@
                             size="normal"
                             variant="block"
                             data-rxpg-grant-block />
+          <!-- A STEP OF THE CAREER FOR EVERY SEAT (Reds Budget) — the viewer's next node and its gift, the win's two,
+               the record: the same model the vote block and the fullscreen read. -->
+          <ConsoleAgendaGrant v-if="careerReading !== undefined"
+                              :reading="careerReading"
+                              size="normal"
+                              variant="block"
+                              data-rxpg-career-block />
           <ConsoleResolutionStatus v-if="status !== undefined" class="con-rxpg__status" :status="status" :viewerColor="viewerColor" />
           <!-- EVERY SEAT by its OWN influence — the rule «each player gets
                their own number», read through the same model per seat; the
@@ -640,6 +647,9 @@ import ConsoleInfluenceYield from '@/client/components/console/parliament/Consol
 import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
 import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
 import ConsoleTileGrant from '@/client/components/console/parliament/ConsoleTileGrant.vue';
+import ConsoleAgendaGrant from '@/client/components/console/parliament/ConsoleAgendaGrant.vue';
+import {AgendaGrantReading, agendaGrantReadingOf} from '@/client/console/parliament/agendaGrantModel';
+import {AGENDA_GRANT_END_OF_TRACK_REASON, AGENDA_GRANT_STEP_KEY, agendaWalkAhead} from '@/common/parliament/agendaGrant';
 import {WinnerRewardReading, winnerRewardReadingOf} from '@/client/console/parliament/winnerRewardModel';
 import {TileGrantReading, tileGrantReadingOf} from '@/client/console/parliament/tileGrantModel';
 import {
@@ -888,6 +898,10 @@ const PETS = CardName.PETS; // earth + animal, holds animals (1 VP per 2)
 const TREES = CardName.TREES; // plant — counts, holds nothing
 const ECO_ZONE = CardName.ECOLOGICAL_ZONE; // animal + plant — ONE card, TWO of the three; holds animals
 const ROADS = CardName.MARTIAN_ROADS; // Mars + building — ONE card, BOTH of Mars First Budget's two tags
+const SATELLITES = CardName.SATELLITES; // space (an automated card — face up)
+const ARMY_SHIPS = CardName.MARS_ARMY_SHIPS; // Mars + space — ONE card, BOTH of Reds Budget's two tags
+const ASTEROID = CardName.ASTEROID; // an EVENT with a space tag — face down: Reds Budget's most common zero
+const COMET = CardName.COMET; // an EVENT with a space tag — face down
 /** Mars First Budget's city on the stand: a synthetic cell per seat (the board is not the stand's subject). */
 const GRANT_CITY_CELLS: Readonly<Record<SeatIndex, SpaceId>> = {0: '35', 1: '37'};
 
@@ -1179,6 +1193,43 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
       {agenda: 0, bonus: 0, cards: [MARTIAN_CULTURE], production: 0, megacredits: 12}], winner: 0, context: 'applied', noRecipient: false},
   {key: 'mars-budget-quest-done', family: 'counted-tags', counts: 'buildingMarsTags', label: 'Chairman quest completed', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [ROADS, MINE], production: 0, megacredits: 34},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
+  // ── REDS BUDGET (RX39): the same tag-counted family under a SEVENTH count (space + Mars, a card printing both worth
+  //    2, the asteroids' space tags FACE DOWN), a LEVY of 10, and a STEP OF THE CAREER for every seat — a row of its own
+  //    beside the money, never added to it: the seat's next node and its gift, the winner's two. Mars Army Ships (Mars +
+  //    space) + Satellites (space) = 3, Agenda 3 = influence 2, 15 M€ → −10 → +5 = −5; the step reaches 4 (+1 TR). ──
+  {key: 'reds-budget-net', family: 'counted-tags', counts: 'spaceMarsTags', label: 'Levy first, then the payout — net −5; and a Career step for every player', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [ARMY_SHIPS, SATELLITES], production: 0, megacredits: 15},
+      {agenda: 6, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'proposal', noRecipient: false},
+  // Only events with a space tag and no influence: the money's zero is NAMED — the asteroids lie face down; the step still comes.
+  {key: 'reds-budget-events', family: 'counted-tags', counts: 'spaceMarsTags', label: 'Space tags of played events lie face down — the zero is named', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [ASTEROID, COMET], production: 0, megacredits: 20},
+      {agenda: 3, bonus: 0, cards: [SATELLITES], production: 0, megacredits: 20}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'reds-budget-two-tags', family: 'counted-tags', counts: 'spaceMarsTags', label: 'One card with both tags counts twice', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [ARMY_SHIPS], production: 0, megacredits: 15},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'reds-budget-short', family: 'counted-tags', counts: 'spaceMarsTags', label: 'Short of the levy — 4 M€', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [SATELLITES], production: 0, megacredits: 4},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'proposal', noRecipient: false},
+  // THE STEP'S THREE GIFTS: a TR (above), a CARD (6 → 7), an influence LEVEL (4 → 5 = influence 3).
+  {key: 'reds-budget-card', family: 'counted-tags', counts: 'spaceMarsTags', label: 'The step reaches a card', viewer: 0,
+    seats: [{agenda: 6, bonus: 0, cards: [SATELLITES], production: 0, megacredits: 15},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'reds-budget-level', family: 'counted-tags', counts: 'spaceMarsTags', label: 'The step reaches an influence level', viewer: 0,
+    seats: [{agenda: 4, bonus: 0, cards: [SATELLITES], production: 0, megacredits: 15},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'reds-budget-end', family: 'counted-tags', counts: 'spaceMarsTags', label: 'Already at the end of the Career — the step is named and skipped', viewer: 0,
+    seats: [{agenda: 12, bonus: 0, cards: [ARMY_SHIPS], production: 0, megacredits: 15},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'applied', noRecipient: false},
+  // THE WINNER WALKS TWICE in one sitting — its winner's step, then the law's: «+2 шага: ⑤ · влияние 3, ⑥ · +1 РТ».
+  {key: 'reds-budget-winner', family: 'counted-tags', counts: 'spaceMarsTags', label: 'The winner walks two steps', viewer: 0,
+    seats: [{agenda: 4, bonus: 0, cards: [ARMY_SHIPS], production: 0, megacredits: 15},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 0, context: 'proposal', noRecipient: false},
+  {key: 'reds-budget-seats', family: 'counted-tags', counts: 'spaceMarsTags', label: 'Every player gets their own result', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, cards: [ARMY_SHIPS, SATELLITES], production: 0, megacredits: 30},
+      {agenda: 6, bonus: 0, cards: [ASTEROID], production: 0, megacredits: 12}], winner: 0, context: 'applied', noRecipient: false},
+  {key: 'reds-budget-quest-done', family: 'counted-tags', counts: 'spaceMarsTags', label: 'Chairman quest completed', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [ARMY_SHIPS, SATELLITES], production: 0, megacredits: 34},
       {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
   // ── URBAN RESEARCH (RX31): the same tag-counted family under a FOURTH count — the CITY TAGS of the tableau — and the
   //    first law whose DRAW is what the count sizes («1 card per city tag»), beside money that is influence alone.
@@ -1855,7 +1906,7 @@ export default defineComponent({
   name: 'ConsoleResolutionsPlayground',
   components: {
     PremiumCard, GamepadGlyph, PlayerCube, ConsoleInfluenceYield, ConsoleColonyLedger, ConsoleResolutionStatus, ConsoleResolutionAside, ConsoleCardRulesPanel,
-    ConsoleSourceDock, ConsolePlayedTargetStep, PremiumMechanicsPanel, PremiumCountGlyph, ConsoleWinnerReward, ConsoleTileGrant, ConsolePartyReaction, ActionEffectChip,
+    ConsoleSourceDock, ConsolePlayedTargetStep, PremiumMechanicsPanel, PremiumCountGlyph, ConsoleWinnerReward, ConsoleTileGrant, ConsoleAgendaGrant, ConsolePartyReaction, ActionEffectChip,
   },
   props: {
     /** Inside the playground stand (the stand owns the chrome and the scroll). */
@@ -1979,6 +2030,10 @@ export default defineComponent({
     /** A tile granted by threshold (Skyscrapers): the viewer's reading — the vote block's, the band's and the fullscreen's one model. */
     grantReading(): TileGrantReading | undefined {
       return this.selected?.tileGrant === undefined ? undefined : tileGrantReadingOf(this.selected, this.model, this.viewerColor);
+    },
+    /** A step of the Career for every seat (Reds Budget): the viewer's reading — the vote block's and the fullscreen's one model. */
+    careerReading(): AgendaGrantReading | undefined {
+      return this.selected?.agendaGrant === undefined ? undefined : agendaGrantReadingOf(this.selected, this.model, this.viewerColor);
     },
     /** The viewer's DESTINATIONS on the stand — their cities on Mars by the shared cell predicate («—» for a spectator). */
     viewerCities(): string {
@@ -2541,6 +2596,35 @@ export default defineComponent({
       }
       return out;
     },
+    /**
+     * THE CAREER's records (Reds Budget): every seat's walk of the law's step(s) from where the scenario stands (the
+     * winner's own step already taken), as the shared step records it — the walk with its gifts, or the named skip at
+     * the end of the track. The printed track decides each step's gift (`agendaWalkAhead`).
+     */
+    careerOutcomes(): Array<ParliamentEnactOutcomeModel> {
+      const grant = this.selected?.agendaGrant;
+      const out: Array<ParliamentEnactOutcomeModel> = [];
+      if (grant === undefined) {
+        return out;
+      }
+      for (const i of SEATS) {
+        const from = this.agendaAt(i);
+        const common = {player: TEST_PLAYERS[i].color, step: AGENDA_GRANT_STEP_KEY, part: 'effect' as const, influence: this.influenceAt(i)};
+        const ahead = agendaWalkAhead(from, grant.steps);
+        if (ahead.length === 0) {
+          out.push({...common, kind: 'skipped', amount: 0, walk: {from, to: from, steps: []}, reason: AGENDA_GRANT_END_OF_TRACK_REASON});
+          continue;
+        }
+        const steps = ahead.map((step) => (step.step.kind === 'influence' ? {to: step.to} : {to: step.to, bonus: step.step.kind}));
+        const tr = steps.filter((step) => step.bonus === 'tr').length;
+        const drawn = steps.filter((step) => step.bonus === 'card').length;
+        out.push({
+          ...common, kind: 'agenda', amount: steps.length, walk: {from, to: steps[steps.length - 1].to, steps},
+          ...(tr > 0 ? {tr} : {}), ...(drawn > 0 ? {drawn} : {}),
+        });
+      }
+      return out;
+    },
     /** The record the server would keep for this enactment's scaled part — every seat's payout, or its named skip. */
     appliedOutcomes(): Array<ParliamentEnactOutcomeModel> {
       const r = this.selected;
@@ -2556,6 +2640,7 @@ export default defineComponent({
         out.push(tile);
       }
       out.push(...this.grantOutcomes);
+      out.push(...this.careerOutcomes);
       for (const effect of r.scaled ?? []) {
         if (effect.sequel !== undefined) {
           // THE DRAW's record: the amount, the total it was divided from

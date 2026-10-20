@@ -99,7 +99,8 @@ import {Rect, runCardDealFlight} from './consoleParliamentVoteMotion';
 import {SittingBeat} from './sittingBeats';
 import {BandRenewalCue} from './parliamentBand';
 import {ParliamentRenewalEventModel} from '@/common/models/ParliamentModel';
-import {AgendaWalkHooks, AgendaWalkRecordLike} from './agendaWalkDirector';
+import {AGENDA_BEAT_GAP_MS, AgendaWalkHooks, AgendaWalkRecordLike, deliverAgendaStepReward} from './agendaWalkDirector';
+import {careerGrantState, careerWalksOwed, releaseCareerGrantWalks, takeCareerWalk} from './careerGrantBeat';
 
 // ── the storyboard's budget (base ms; §6, v2) ───────────────────────────────
 const VERDICT_LIGHT_MS = 220;
@@ -169,13 +170,23 @@ const QUIET_REWARD_DWELL_MS = 900;
 const COMPACT = 0.5;
 /** A beat's hold ceiling — above the longest beat (the renewal ≈ 2.4 s, the enactment's phrase ≈ 2.4 s) by a wide margin. */
 const STAGE_HOLD_CEILING_MS = 12_000;
+/**
+ * КАРЬЕРА (a law's step of the Career for every seat — Reds Budget): the law's printed insignia answers before each
+ * seat's marker leaves (the impulse — the cause before the effect), then the shared walk phrase (lead + glide ≈ 1.2 s),
+ * the step's bonus on its landing, a gap, the next seat. Five seats with a card step each stay well under the
+ * ceiling, which is a ceiling, never an expected length (a card step's take is the player's and stands the walk's own
+ * hold down — the take is never on this clock).
+ */
+const CAREER_IMPULSE_MS = 320;
+const CAREER_SEAT_BUDGET_MS = 1500;
+const CAREER_HOLD_CEILING_MS = 40_000;
 
 /** What the director is doing — read by the tiers (the poses) and the specs. */
 export const sittingMotion = reactive({
   /** The stage whose beats are playing ('' at rest). */
   stage: '' as SittingStage | '',
-  /** The beat of the stage that is playing ('' at rest / a one-beat stage). */
-  beat: '' as '' | 'agenda' | 'support' | 'enact',
+  /** The beat of the stage that is playing ('' at rest / a one-beat stage) — `career`: the reward stage's walks of the Career. */
+  beat: '' as '' | 'agenda' | 'support' | 'enact' | 'career',
   /**
    * …and WHICH WAVE of the support beat is in the air ('' between waves). The two waves obey two different
    * rules — the parties nobody spoke for take from the supply, the unenacted resolutions send their own —
@@ -398,11 +409,11 @@ function launchAgendaBonus(runState: StageRun, ctx: SittingDirectorContext): voi
   const node = step?.querySelector<HTMLElement>('.con-parl__step-res') ?? step?.querySelector<HTMLElement>('.con-parl__step-node') ?? step;
   const r = node?.getBoundingClientRect();
   if (node === null || node === undefined || r === undefined || r.width < 2) {
-    flushAgendaBonus('unmeasurable-step');
+    flushAgendaBonus('unmeasurable-step', 'phase');
     return;
   }
   if (runState.finished) {
-    flushAgendaBonus('stage-finished');
+    flushAgendaBonus('stage-finished', 'phase');
     return;
   }
   trackWave(runState, runResourceTransfers({
@@ -425,7 +436,8 @@ function beatAgenda(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
   if (move === undefined || ctx.playAgendaWalk === undefined) {
     tl.call(() => {
       parliamentHolds.agendaAwaits = undefined;
-      flushAgendaBonus('no-glide');
+      // The ENACTMENT's own bonus only: a law's steps of the Career stay owed to the reward stage's КАРЬЕРА beat.
+      flushAgendaBonus('no-glide', 'phase');
     }, undefined, 0.01);
     return 0;
   }
@@ -1126,6 +1138,120 @@ function ledgerRowGroups(rewards: ReadonlyArray<OwedReward>): Array<{colony: str
 /** WHERE the sitting's ledger stands — the scope its rows are looked up under (the reward stage's body). */
 const SITTING_LEDGER_SCOPE = '[data-parl-sitting]';
 
+// ── НАГРАДА · КАРЬЕРА ──────────────────────────────────────────────────────
+
+/**
+ * THE IMPULSE of a seat's walk: the law's printed CAREER INSIGNIA (the face's `b.agendaStep(n)`) answers on the
+ * carried card — a short swell and back — before the marker leaves: «why did the marker move» is answered by the
+ * law, on the law. Nothing measurable (the card folded, a face without the glyph) → no impulse, the walk still plays.
+ */
+function pulseCareerInsignia(runState: StageRun, k: number): void {
+  const icon = enactedCardEl()?.querySelector<HTMLElement>('.pcard-ic[style*="agenda-step"]');
+  if (icon === null || icon === undefined || runState.finished) {
+    return;
+  }
+  // The glow is a BOX-SHADOW ring (the console strips every `filter` — a drop-shadow here painted nothing and the
+  // impulse was a bare ×1.3 of a 40 px glyph on the government's small card at 4K); a one-shot, never a loop.
+  const clear = () => gsap.set(icon, {clearProps: 'transform,transformOrigin,boxShadow,borderRadius'});
+  const tw = gsap.fromTo(icon, {scale: 1, borderRadius: '50%', boxShadow: '0 0 0 0 rgba(255, 196, 92, 0)'}, {
+    scale: 1.5, boxShadow: '0 0 0 0.12em rgba(255, 196, 92, 0.9), 0 0 0.6em 0.2em rgba(255, 196, 92, 0.55)',
+    duration: s(CAREER_IMPULSE_MS / 2) * k, ease: 'sine.out',
+    yoyo: true, repeat: 1, transformOrigin: '50% 50%', onComplete: clear, onInterrupt: clear,
+  });
+  runState.kills.push(() => {
+    tw.kill();
+    clear();
+  });
+}
+
+/**
+ * КАРЬЕРА: the steps of the Career a LAW granted the seats (Reds Budget — every seat, the bot's too), walked IN TURN
+ * in the seat order after the seat's own wave has landed — one phrase per seat, never two markers at once: the
+ * insignia's impulse → the seat's hold handed to the tier's walk (the TR04 phrase: the lead lights ONE segment, the
+ * marker glides and locks) → the step's bonus on its landing (the viewer's TR chip off the step to the rail, a card
+ * lifted off the step into the dock; another seat's lands with no chip — its rail is not on this screen) → a gap →
+ * the next seat. The walks are the PHASE'S records (`careerGrantBeat.ts`), never `lastAdvance`. «Дожать» drives
+ * every wait at once (the hurried clock); an abort releases the walking seat's hold and every hold still owed.
+ */
+function beatCareer(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
+  const count = careerGrantState.owed.length;
+  const walkAgenda = ctx.playAgendaWalk;
+  if (count === 0 || walkAgenda === undefined) {
+    tl.call(() => {
+      releaseCareerGrantWalks();
+      flushAgendaBonus('no-glide');
+    }, undefined, 0.01);
+    return 0;
+  }
+  runState.pending++;
+  let finished = false;
+  const finish = (): void => {
+    if (finished) {
+      return;
+    }
+    finished = true;
+    careerGrantState.current = undefined;
+    runState.pending = Math.max(0, runState.pending - 1);
+  };
+  const abort = (): void => {
+    const walking = careerGrantState.current;
+    if (walking !== undefined && parliamentHolds.agendaAwaits?.player === walking.player) {
+      parliamentHolds.agendaAwaits = undefined;
+    }
+    releaseCareerGrantWalks();
+    flushAgendaBonus('stage-finished');
+    finish();
+  };
+  runState.kills.push(abort);
+  const next = (): void => {
+    if (runState.finished) {
+      abort();
+      return;
+    }
+    const walk = takeCareerWalk();
+    if (walk === undefined) {
+      finish();
+      return;
+    }
+    careerGrantState.current = {...walk, phase: 'impulse'};
+    pulseCareerInsignia(runState, k);
+    const lead = scheduleHurriedParliamentBeat(CAREER_IMPULSE_MS * k, () => {
+      if (runState.finished) {
+        abort();
+        return;
+      }
+      // The seat's marker leaves its hold for the tier's walk — the one-walk hold the phrase moves leg by leg.
+      parliamentHolds.agendaGrantAwaits.delete(walk.player);
+      parliamentHolds.agendaAwaits = {player: walk.player, from: walk.from, to: walk.to};
+      careerGrantState.current = {...walk, phase: 'walk'};
+      const toNext = (): void => {
+        if (runState.finished) {
+          abort();
+          return;
+        }
+        const gapBeat = scheduleHurriedParliamentBeat(AGENDA_BEAT_GAP_MS * k, next);
+        runState.kills.push(() => gapBeat.kill());
+      };
+      walkAgenda({player: walk.player, from: walk.from, to: walk.to, steps: walk.steps}, {
+        beat: scheduleHurriedParliamentBeat,
+        // An intermediate step pays the VIEWER's rail only; another seat's lands with no chip.
+        rewardStep: (leg, done) => (walk.viewer ? deliverAgendaStepReward(ctx.root, walk.generation, leg.to, done) : done()),
+        onLanded: () => {
+          careerGrantState.current = {...walk, phase: 'landed'};
+          if (walk.viewer) {
+            deliverAgendaStepReward(ctx.root, walk.generation, walk.to, toNext);
+          } else {
+            toNext();
+          }
+        },
+      });
+    });
+    runState.kills.push(() => lead.kill());
+  };
+  tl.call(next, undefined, 0);
+  return s(count * (CAREER_IMPULSE_MS + CAREER_SEAT_BUDGET_MS + AGENDA_BEAT_GAP_MS)) * k;
+}
+
 // ── ОБНОВЛЕНИЕ ─────────────────────────────────────────────────────────────
 
 /** The table is released to the LIVE model: the held slots, the vacated / departed outlines, the lifted faces — all let go. */
@@ -1634,11 +1760,16 @@ function settleStagePoses(stage: SittingStage): void {
   case 'enact':
     sittingMotion.litSlot = '';
     releaseEnactmentHolds();
-    flushAgendaBonus('stage-settled');
+    flushAgendaBonus('stage-settled', 'phase');
     break;
   case 'reward':
     // The rail's held counters tick now — a reward whose beat cannot play is announced by its delta chip, never withheld.
     flushParliamentRewards('stage-settled');
+    // …and the steps of the Career still owed: every marker stands on its server step, the viewer's bonus ticks.
+    if (careerWalksOwed()) {
+      releaseCareerGrantWalks();
+      flushAgendaBonus('stage-settled');
+    }
     break;
   case 'renewal':
     // The table reads the live state at once: the live places, the piles' counts, the seats, the lobby.
@@ -1656,7 +1787,7 @@ function settleStagePoses(stage: SittingStage): void {
  * (naturally, by «дожать», or by the ceiling). `build` adds the beat's calls
  * and returns the storyboard's arithmetic (seconds).
  */
-function runBeat(stage: SittingStage, beat: '' | 'agenda' | 'support' | 'enact', compact: boolean,
+function runBeat(stage: SittingStage, beat: '' | 'agenda' | 'support' | 'enact' | 'career', compact: boolean,
   build: (tl: gsap.core.Timeline, runState: StageRun) => number, bounds: {ceilingMs?: number} = {}): Promise<void> {
   const master = gsap.timeline({paused: true});
   const runState: StageRun = {stage, master, hold: {release: () => undefined}, flights: new Set(), pending: 0, kills: [], finished: false};
@@ -1785,6 +1916,13 @@ export async function playSittingStage(stage: SittingStage, beats: ReadonlyArray
       break;
     case 'reward':
       await runBeat(stage, '', opts.compact, (tl, r) => beatReward(tl, ctx, k, r));
+      // …THEN THE CAREER, seat by seat (Reds Budget): the seat's own money first, the steps of every seat after it.
+      if (stagePlaying === stage && careerWalksOwed()) {
+        await gap(BEAT_GAP_MS);
+        if (stagePlaying === stage) {
+          await runBeat(stage, 'career', opts.compact, (tl, r) => beatCareer(tl, ctx, k, r), {ceilingMs: CAREER_HOLD_CEILING_MS});
+        }
+      }
       break;
     case 'renewal':
       await runBeat(stage, '', opts.compact, (tl, r) => beatRenewal(tl, ctx, k, r), {ceilingMs: RENEWAL_HOLD_CEILING_MS});

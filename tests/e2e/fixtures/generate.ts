@@ -122,6 +122,10 @@ import {METAL_RESEARCH_ID} from '../../../src/server/parliament/resolutions/indu
 import {MIGRATION_FUNDING_ID} from '../../../src/server/parliament/resolutions/marsFirst/MigrationFunding';
 import {SKYSCRAPERS_ID} from '../../../src/server/parliament/resolutions/marsFirst/Skyscrapers';
 import {MARS_FIRST_BUDGET_ID} from '../../../src/server/parliament/resolutions/marsFirst/MarsFirstBudget';
+import {REDS_BUDGET_ID} from '../../../src/server/parliament/resolutions/reds/RedsBudget';
+import {MarsArmyShips} from '../../../src/server/cards/turmoilRedux/MarsArmyShips';
+import {Satellites} from '../../../src/server/cards/base/Satellites';
+import {Asteroid} from '../../../src/server/cards/base/Asteroid';
 import {MartianRoads} from '../../../src/server/cards/turmoilRedux/MartianRoads';
 import {Board} from '../../../src/server/boards/Board';
 import {GHGProducingBacteria} from '../../../src/server/cards/base/GHGProducingBacteria';
@@ -6241,6 +6245,57 @@ function marsFirstBudgetBotTable(name: string, stopAt: 'vote' | 'assembly' | 'as
 marsFirstBudgetBotTable('parliament-marsfirst-budget-vote', 'vote');
 marsFirstBudgetBotTable('parliament-marsfirst-budget-bot', 'assembly');
 marsFirstBudgetBotTable('parliament-marsfirst-budget-botfirst', 'assembly-bot-first');
+
+// ── RX39 · REDS BUDGET with MarsBot at the table (decisions D3 + D11) — a SOLO table (blue + the bot under `'politics'`)
+//    with a NEUTRAL winner (nobody takes the winner's step of the sitting, so each marker walks the LAW's step alone),
+//    blue FIRST in the order with space 2 + Mars 1 (Mars Army Ships · Satellites) and an Asteroid face down (the count's
+//    most common zero), Agenda 1 = influence 1: the law's step reaches 2, a TR step; the bot on Agenda 6: its step reaches
+//    7, a CARD step — 1 M€ for the bot (the Automa FAQ). The bot's deck is EMPTY (its one turn is a pass). Two moments of
+//    ONE journey, for console-parliament-reds-budget.spec.ts:
+//    · `-vote` — blue's action phase with 15 M€: the vote panel reads the net (−10 + 4), the two-tag breakdown, the
+//      Career row with blue's next node (② · +1 TR) and the win's two, and the bot's chip with the STEP alone;
+//    · `-bot` — the ASSEMBLY gate with 15 M€ at the sitting: −10 → 5, +4 → 9, then blue's step 1 → 2 (+1 TR), then the
+//      bot's 6 → 7 (+1 M€) — every beat in turn. ──
+function redsBudgetBotTable(name: string, stopAt: 'vote' | 'assembly'): void {
+  const t = botTable(name, 1);
+  const [human] = t.humans;
+  seatResolution(t.parliament, 0, REDS_BUDGET_ID);
+  // A NEUTRAL winner: no seat's delegate on any card, ONE neutral vote on the budget.
+  t.parliament.slots.forEach((slot) => (slot.votes = []));
+  t.parliament.addNeutralVote(t.parliament.slots[0]);
+  t.parliament.agenda.set(human.id, 1);
+  t.parliament.agenda.set(t.bot.id, 6);
+  human.playedCards.push(new MarsArmyShips(), new Satellites(), new Asteroid());
+  t.automa.actionDeck = [];
+  if (resolutionCount(human, 'spaceMarsTags').count !== 3) {
+    throw new Error(`${name}: expected space 2 + Mars 1 (the asteroid face down)`);
+  }
+  if (stopAt === 'vote') {
+    human.megaCredits = 15;
+    write(name, t.game);
+    return;
+  }
+  human.clearWaitingFor();
+  t.game.playerHasPassed(human);
+  t.game.playerIsFinishedTakingActions();
+  if (t.game.phase !== Phase.PARLIAMENT || t.parliament.phase?.step !== 'assembly') {
+    throw new Error(`${name}: expected the assembly gate, got ${t.game.phase} / ${t.parliament.phase?.step ?? 'no phase'}`);
+  }
+  if (t.parliament.phase.summary?.winner.player !== 'NEUTRAL' || t.parliament.resolutionOf(t.parliament.phase.summary.winner.instance).id !== REDS_BUDGET_ID) {
+    throw new Error(`${name}: the budget must win with a neutral winner (${t.parliament.phase.summary?.winner.player})`);
+  }
+  if (t.game.playersInGenerationOrder[0].id !== human.id) {
+    throw new Error(`${name}: blue must walk first (the order is ${t.game.playersInGenerationOrder.map((p) => p.color).join(' · ')})`);
+  }
+  if (t.parliament.influence(human) !== 1 || t.parliament.agendaOf(t.bot) !== 6) {
+    throw new Error(`${name}: expected blue at influence 1 and the bot on Agenda 6`);
+  }
+  // The money AT the sitting (the production phase has paid its income already): 15 M€ — −10 → 5, then +4 → 9.
+  human.megaCredits = 15;
+  write(name, t.game);
+}
+redsBudgetBotTable('parliament-reds-budget-vote', 'vote');
+redsBudgetBotTable('parliament-reds-budget-bot', 'assembly');
 
 // ── two-player-finale-trigger: the FINALE with a TRIGGERED HAND-OFF (PL-301 / PL-303 — the owner's field
 //    report 2026-10-14). A 2p table at the final greenery: the first seat holds the plants and is asked;

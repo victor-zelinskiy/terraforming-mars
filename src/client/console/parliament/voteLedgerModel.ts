@@ -30,6 +30,7 @@ import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {InfluenceScaledEffect, InfluenceYield} from '@/common/parliament/influenceScaling';
 import {noRecipientCompactNoteOf, oneNumberYieldsOf, voteLevyOf, voteYieldsOf, YieldIcon, yieldIconOf, yieldIsMultiplier} from './influenceYieldModel';
 import {tileGrantReadingOf} from './tileGrantModel';
+import {agendaGrantReadingOf} from './agendaGrantModel';
 
 /**
  * WHAT a part of a chip says about its number:
@@ -50,7 +51,7 @@ export type LedgerTone = 'gain' | 'loss' | 'lost' | 'quiet' | 'winner';
  * the seats (Skyscrapers' tier, Mars First Budget's city), which is no number
  * at all.
  */
-export type LedgerPartKind = 'amount' | 'multiplier' | 'tile';
+export type LedgerPartKind = 'amount' | 'multiplier' | 'tile' | 'career';
 
 export type LedgerPart = {
   /** The effect's id — `levy` for a budget's take that nets against nothing, `tile` for a granted tile. */
@@ -75,6 +76,8 @@ export type LedgerChipVm = {
 export const LEDGER_LEVY_KEY = 'levy';
 /** …and of a tile a law grants the seats. */
 export const LEDGER_TILE_KEY = 'tile';
+/** …and of a step of the Career a law grants the seats (Reds Budget). */
+export const LEDGER_CAREER_KEY = 'career';
 
 export type VoteLedgerInput = {
   resolution: IClientResolution | undefined;
@@ -116,9 +119,10 @@ function partsOf(
   paid: boolean,
 ): Array<LedgerPart> {
   const parts: Array<LedgerPart> = [];
-  // A seat the law does not PAY (MarsBot — D3) reads the TILE alone (D11): no yield, no levy is ever its.
+  // A seat the law does not PAY (MarsBot — D3) reads the DEEDS alone (D11 — a tile, a step of the Career): no yield,
+  // no levy is ever its.
   if (!paid) {
-    return tilePartsOf(resolution, model, color);
+    return [...tilePartsOf(resolution, model, color), ...careerPartsOf(resolution, model, color)];
   }
   const yields: ReadonlyArray<InfluenceYield> = oneNumberYieldsOf(voteYieldsOf(resolution, model, color)).filter((y) => y.context !== 'reference');
   // THE LEVY (a budget takes «10 M€» first): the chip prints the seat's NET in that currency — the
@@ -150,7 +154,22 @@ function partsOf(
     parts.unshift({key: LEDGER_LEVY_KEY, kind: 'amount', amount: levy.paid, icon: {family: 'resource', resource: levy.resource, production: false}, tone: 'loss'});
   }
   parts.push(...tilePartsOf(resolution, model, color));
+  parts.push(...careerPartsOf(resolution, model, color));
   return parts;
+}
+
+/**
+ * THE STEP OF THE CAREER a law grants every seat (Reds Budget), as the row compares it: «+1 [insignia]» for a seat
+ * whose marker has a step ahead, «✕» for one already at the end of the track (the step would not happen — said with
+ * the row's own mark, never dropped). What the step pays is the full reading's (the panel above, the inspector).
+ */
+function careerPartsOf(resolution: IClientResolution, model: ParliamentModel, color: Color): Array<LedgerPart> {
+  const reading = agendaGrantReadingOf(resolution, model, color);
+  if (reading === undefined || reading.context === 'reference' || reading.context === 'applied') {
+    return [];
+  }
+  const ahead = reading.ahead ?? [];
+  return [{key: LEDGER_CAREER_KEY, kind: 'career', amount: ahead.length, tone: ahead.length === 0 ? 'lost' : 'gain'}];
 }
 
 /**
@@ -185,7 +204,7 @@ export function voteLedgerOf(input: VoteLedgerInput): ReadonlyArray<LedgerChipVm
   if (resolution === undefined || model === undefined) {
     return [];
   }
-  const grants = resolution.tileGrant !== undefined;
+  const grants = resolution.tileGrant !== undefined || resolution.agendaGrant !== undefined;
   const seats = model.players.filter((p) => seatEnacts(p) || (grants && seatTakesSeatGrant(p)));
   const mine = viewer === undefined ? undefined : seats.find((p) => p.color === viewer);
   const ordered = [...(mine === undefined ? [] : [mine]), ...seats.filter((p) => p !== mine)];
@@ -208,6 +227,10 @@ export function ledgerPartText(part: LedgerPart): string {
   if (part.kind === 'tile') {
     // A tile is drawn, not counted — unless it would not land, and THAT is said with the same mark.
     return part.tone === 'lost' ? '✕' : '';
+  }
+  if (part.kind === 'career') {
+    // A step is counted in steps beside its insignia; a marker at the end of the track says so with the row's mark.
+    return part.tone === 'lost' ? '✕' : '+' + (part.amount ?? 0);
   }
   if (part.amount === undefined) {
     return '';

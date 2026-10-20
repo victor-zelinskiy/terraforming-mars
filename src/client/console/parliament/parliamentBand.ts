@@ -54,8 +54,8 @@ import {SittingRewardStep, SittingStage} from './consoleSittingFlow';
 import {SupportStatus} from './supportScene';
 import {partyNameKey} from './partyNames';
 
-/** The beat of the enactment the director is playing ('' at rest) — `sittingMotion.beat`. */
-export type BandBeat = '' | 'agenda' | 'support' | 'enact';
+/** The beat of the enactment the director is playing ('' at rest) — `sittingMotion.beat`; `career` the reward stage's walks of the Career. */
+export type BandBeat = '' | 'agenda' | 'support' | 'enact' | 'career';
 
 /** ONE member of the line. Everything is data: the component binds it, the model orders it. */
 export type BandChip =
@@ -82,7 +82,7 @@ export type BandChip =
    * The Agenda step's own gift: the influence level it sets (the GLYPH with the level in one disc — parliament
    * law 14, never a bare numeral), or the bonus it hands over.
    */
-  | {kind: 'agenda', to: number, level?: number, bonus?: 'tr' | 'card'}
+  | {kind: 'agenda', to: number, level?: number, bonus?: 'tr' | 'card', megacredits?: number}
   /** The payout formula — the reward's reading, printed whole (with the LEVY a budget takes first, when there is one). */
   | {kind: 'yield', yields: ReadonlyArray<InfluenceYield>, levy?: LevyReading}
   /** The ruling party's answer to a step of the payout. */
@@ -164,6 +164,11 @@ export type BandRewardReading = {
   tile?: WinnerRewardGlyph;
   /** A tile granted by threshold (Skyscrapers): the viewer's own tier — pending, or placed (never a skip: the skip chip says that). */
   grant?: 'city';
+  /**
+   * A STEP OF THE CAREER the law granted the viewer (Reds Budget), once its walk is RECORDED and played: the step it
+   * reached and what it paid (never a skip: the skip chip says that). Absent while the sitting still owes the walk.
+   */
+  career?: {to: number, bonus?: 'tr' | 'card', level?: number, megacredits?: number};
   /** The WORLD's own part of the enactment — the planet's moves, in the server's order. */
   world?: ReadonlyArray<{parameter: ParameterMoveId, before: number, after: number, steps: number, unrewarded: boolean, skipped?: string}>;
   /** The COLONY TABLE's own part of the enactment (Unity Budget) — every track's move, in the server's order. */
@@ -241,6 +246,11 @@ export type BandSitting = {
   supportWave: '' | SupportStatus;
   /** The renewal event now playing (undefined between events / at rest). */
   renewal?: BandRenewalCue;
+  /**
+   * КАРЬЕРА (Reds Budget): the seat whose step of the Career the law's walk is playing now, the step it reaches and
+   * what that step pays — MarsBot's card step reads as the M€ it took instead (`megacredits`). Undefined between walks.
+   */
+  career?: {player: Color, to: number, bonus?: 'tr' | 'card', level?: number, megacredits?: number};
   /**
    * THE ENACTMENT'S TAIL (TR62): a card's answer to the change of power, delivered while the line still reads the
    * enactment — the card that answered, the party that came to power and how many cards leave the deck.
@@ -669,8 +679,27 @@ function enactLine(sitting: BandSitting): BandLine {
   return {kicker: 'Enactment', key: `enact:${summary.enacted.instance}`, chips, committed: true};
 }
 
+/**
+ * КАРЬЕРА — a LAW's step of the Career, seat by seat (Reds Budget): whose marker walks, the step it reaches and what
+ * that step pays. Named for the whole walk BEFORE the marker leaves (the impulse is the cause, the line its reason) —
+ * keyed on the seat, so the next seat's walk crossfades the line once.
+ */
+function careerLine(career: NonNullable<BandSitting['career']>): BandLine {
+  const chips: Array<BandChip> = [{kind: 'player', player: career.player}];
+  chips.push({
+    kind: 'agenda', to: career.to,
+    ...(career.level === undefined ? {} : {level: career.level}),
+    ...(career.bonus === undefined ? {} : {bonus: career.bonus}),
+    ...(career.megacredits === undefined ? {} : {megacredits: career.megacredits}),
+  });
+  return {kicker: 'Agenda track', key: `career:${career.player}:${career.to}`, chips, committed: true};
+}
+
 /** НАГРАДА — the payout formula whole, while the chips fly to the rail. */
 function rewardLine(sitting: BandSitting): BandLine {
+  if (sitting.beat === 'career' && sitting.career !== undefined) {
+    return careerLine(sitting.career);
+  }
   const reward = sitting.reward;
   const chips: Array<BandChip> = [];
   if (reward.yields.length > 0) {
@@ -684,6 +713,10 @@ function rewardLine(sitting: BandSitting): BandLine {
   }
   if (reward.grant !== undefined) {
     chips.push({kind: 'grant', tile: reward.grant});
+  }
+  // THE CAREER STEP, after the seat's money — the card's own order («−10, +N; затем шаг Карьеры»).
+  if (reward.career !== undefined) {
+    chips.push({kind: 'agenda', ...reward.career});
   }
   // THE PLANET, after the seat's own part — the card's own order («каждому M€;
   // затем кислород и Венера»), which the journal keeps too.
@@ -727,7 +760,7 @@ function rewardLine(sitting: BandSitting): BandLine {
     // A CUT IS NOT A REWARD, and the line that carries it may not call itself one: the same slot
     // names what LEAVES («Что вы теряете»), decided by the DECLARATION the readings carry.
     kicker: winnersLine ? 'Reward for the winner of the vote' : bandRewardTakes(reward.yields) ? 'What you lose' : 'Your reward',
-    key: `reward:${sitting.rewardStep}:${reward.state ?? ''}:${reward.yields.length}:${reward.skips.length}:${(reward.world ?? []).length}:${reward.tracks?.tiles.length ?? ''}:${reward.grant ?? ''}:${winnersLine ? 'winner' : ''}`,
+    key: `reward:${sitting.rewardStep}:${reward.state ?? ''}:${reward.yields.length}:${reward.skips.length}:${(reward.world ?? []).length}:${reward.tracks?.tiles.length ?? ''}:${reward.grant ?? ''}:${reward.career?.to ?? ''}:${winnersLine ? 'winner' : ''}`,
     chips,
     committed: true,
     ...(reward.yields.length === 0 && reward.quiet !== undefined ? {quiet: reward.quiet.kind} : {}),

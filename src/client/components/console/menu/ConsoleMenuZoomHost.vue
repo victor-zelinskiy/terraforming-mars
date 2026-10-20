@@ -122,6 +122,12 @@
                             size="compact"
                             variant="chip"
                             data-zoom-grant />
+          <ConsoleAgendaGrant v-if="zoomResolutionCareer !== undefined && zoomResolutionCareer.context !== 'reference'"
+                              class="con-zoom__bar-grant"
+                              :reading="zoomResolutionCareer"
+                              size="compact"
+                              variant="inline"
+                              data-zoom-career />
           <span v-if="zoomSelected" class="con-zoom__state">✓ {{ $t('Card selected') }}</span>
           <button v-if="zoomSelectable" type="button" class="con-zoom__btn con-zoom__btn--select" @click="zoomToggleSelect">
             <GamepadGlyph control="confirm" />
@@ -167,6 +173,8 @@ import ConsoleResolutionStatus from '@/client/components/console/parliament/Cons
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
 import ConsoleTileGrant from '@/client/components/console/parliament/ConsoleTileGrant.vue';
+import ConsoleAgendaGrant from '@/client/components/console/parliament/ConsoleAgendaGrant.vue';
+import {AgendaGrantReading, agendaGrantReadingOf} from '@/client/console/parliament/agendaGrantModel';
 import {translateText} from '@/client/directives/i18n';
 import {WinnerRewardReading, winnerRewardReadingOf} from '@/client/console/parliament/winnerRewardModel';
 import {TileGrantReading, tileGrantReadingOf} from '@/client/console/parliament/tileGrantModel';
@@ -191,7 +199,7 @@ export default defineComponent({
   name: 'ConsoleMenuZoomHost',
   components: {
     CardZoomModal, CardZoomCard, GamepadGlyph, ConsoleCardRulesPanel, ConsoleResolutionAside, ConsoleResolutionStatus,
-    ConsoleInfluenceYield, ConsoleWinnerReward, ConsoleTileGrant, ConsolePartyReaction,
+    ConsoleInfluenceYield, ConsoleWinnerReward, ConsoleTileGrant, ConsoleAgendaGrant, ConsolePartyReaction,
   },
   data() {
     return {
@@ -287,6 +295,11 @@ export default defineComponent({
     zoomResolutionGrant(): TileGrantReading | undefined {
       const id = this.zoomResolutionId;
       return id === undefined ? undefined : tileGrantReadingOf(getResolution(id), this.zoomParliament, this.zoomViewer);
+    },
+    /** A STEP OF THE CAREER FOR EVERY SEAT on the stage (Reds Budget): the opener's own next node and the win's two. */
+    zoomResolutionCareer(): AgendaGrantReading | undefined {
+      const id = this.zoomResolutionId;
+      return id === undefined ? undefined : agendaGrantReadingOf(getResolution(id), this.zoomParliament, this.zoomViewer);
     },
     zoomResolutionAnnotations(): ReadonlyArray<CardAnnotation> {
       const id = this.zoomResolutionId;

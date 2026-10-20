@@ -650,6 +650,8 @@ html.con-profile-handheld .con-parl__info-own--yields {
         flex-shrink: 0;
         background: url(./assets/tiles/city.png) center / contain no-repeat;
     }
+    /* A STEP OF THE CAREER (Reds Budget): the career insignia beside its «+1» — the one picture of a step. */
+    &__career { width: .95rem; height: .95rem; flex-shrink: 0; }
 }
 
 /* ── the HANDHELD ladder: the row stands where the formula graphic did (see `&__info-own--ledger`),
@@ -663,7 +665,7 @@ html.con-profile-handheld .con-vledger {
         .con-iyield__unit { width: .66rem; height: .66rem; }
         &--winner::before { width: .5rem; height: .5rem; }
     }
-    &__tile { width: .72rem; height: .72rem; }
+    &__tile, &__career { width: .72rem; height: .72rem; }
 }
 
 /* ── the TV ladder: read from the couch — the numbers carry it, so they take the .8rem floor's step. ── */
@@ -680,7 +682,7 @@ html.con-profile-tv .con-vledger {
         .con-iyield__unit { width: .85rem; height: .85rem; }
         &--winner::before { width: .7rem; height: .7rem; }
     }
-    &__tile { width: .95rem; height: .95rem; }
+    &__tile, &__career { width: .95rem; height: .95rem; }
 }
 
 /* ── THE SUBJECT'S CHIP — whose reading stands in the block above. The row and the block can never say

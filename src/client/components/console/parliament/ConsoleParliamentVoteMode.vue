@@ -139,6 +139,15 @@
                                       :size="readingSize"
                                       variant="inline"
                                       data-parl-vote-grant />
+                    <!-- A STEP OF THE CAREER FOR EVERY SEAT (Reds Budget): a line of its own, never added to the money —
+                         the subject's next node and what it pays, and the win's two nodes (the winner's step first). -->
+                    <ConsoleAgendaGrant v-if="voteInfo.reading.career !== undefined"
+                                        class="con-parl__info-grant"
+                                        :reading="voteInfo.reading.career"
+                                        :person="voteInfo.reading.person"
+                                        :size="readingSize"
+                                        variant="inline"
+                                        data-parl-vote-career />
                   </div>
                 </div>
               </div>
@@ -287,6 +296,7 @@ import {PARLIAMENT_VOTE_COST, ReduxParty} from '@/common/parliament/ParliamentTy
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import ConsoleColonyLedger from '@/client/components/console/parliament/ConsoleColonyLedger.vue';
 import ConsoleTileGrant from '@/client/components/console/parliament/ConsoleTileGrant.vue';
+import ConsoleAgendaGrant from '@/client/components/console/parliament/ConsoleAgendaGrant.vue';
 import ConsoleVoteLedger from '@/client/components/console/parliament/ConsoleVoteLedger.vue';
 import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
@@ -357,7 +367,7 @@ type CtaCost = {kind: 'free' | 'cost' | 'none', amount: number};
 export default defineComponent({
   name: 'ConsoleParliamentVoteMode',
   components: {
-    ConsoleInfluenceYield, ConsoleColonyLedger, ConsoleTileGrant, ConsoleVoteLedger, ConsolePartyFormula, ConsolePartyReaction, ConsoleVoteFactRow,
+    ConsoleInfluenceYield, ConsoleColonyLedger, ConsoleTileGrant, ConsoleAgendaGrant, ConsoleVoteLedger, ConsolePartyFormula, ConsolePartyReaction, ConsoleVoteFactRow,
     ConsoleSupportPlaces, PlayerCube, GamepadGlyph,
   },
   props: {

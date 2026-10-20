@@ -132,6 +132,26 @@
                   <!-- A TILE that moved no parameter and became no stack (a colony built for free, a city tile): the tile's
                        own name — a tile has no amount, and the generic tail printed «0» for it. -->
                   <b v-else-if="part.tile !== undefined" class="con-sit__part-stack" data-sit-part-tile-name>{{ $t(tileLabel(part.tile)) }}</b>
+                  <!-- A STEP OF THE CAREER (Reds Budget): the insignia, the marker's walk «3 → 4», and what the step paid —
+                       the TR, the card it dealt, or the M€ a seat with no hand took instead (MarsBot). -->
+                  <template v-else-if="part.walk !== undefined">
+                    <i class="career-step-glyph con-sit__part-career" aria-hidden="true"></i>
+                    <span class="con-sit__world" data-sit-part-walk :data-sit-part-walk-from="part.walk.from" :data-sit-part-walk-to="part.walk.to">
+                      <b>{{ part.walk.from }}</b>
+                      <span class="con-parl__chip-dim">→</span>
+                      <b>{{ part.walk.to }}</b>
+                    </span>
+                    <b v-if="part.tr !== undefined && part.tr > 0" class="con-sit__part-stack" data-sit-part-tr>{{ trLabel(part.tr) }}</b>
+                    <template v-if="part.megacredits !== undefined && part.megacredits > 0">
+                      <b data-sit-part-megacredits>+{{ part.megacredits }}</b>
+                      <i class="con-sit__part-unit" :class="netUnitClass('megacredits')" aria-hidden="true"></i>
+                      <span class="con-sit__part-reason">{{ $t('instead of a card') }}</span>
+                    </template>
+                    <template v-else-if="part.drawn !== undefined && part.drawn > 0">
+                      <b data-sit-part-drawn>+{{ part.drawn }}</b>
+                      <i class="con-sit__part-unit" :class="netUnitClass('cards')" aria-hidden="true"></i>
+                    </template>
+                  </template>
                   <!-- A HUD-side colony bonus reads by its printed description, signed where it prints an amount (a loss is negative). -->
                   <template v-else-if="part.kind === 'colonyBonus'">
                     <b v-if="part.unit !== ''">{{ signedAmount(part.amount) }}</b>
