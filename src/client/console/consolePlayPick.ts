@@ -26,6 +26,13 @@
  * the asking stage stays MOUNTED for the pick's whole life, and a prompt that
  * moves on cancels the pick through the shell (`cancelConsolePlayPick` —
  * idempotent).
+ *
+ * THE LAW'S LANDING (PL-726): the card the law's commit plays lands INSIDE the
+ * law's stage — the played-hero scene's `workspace` host, its receiving stage
+ * mounted in the stage's decision column (`ConsolePartyActionComposer`), the
+ * workspace folding only once the scene has told its story. `landing` is the
+ * one fact every reader asks: the composer (mount the stage), the shell (owe
+ * the fold, end the scene's way), the conclusion policy (the flow still owes).
  */
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
@@ -56,6 +63,17 @@ export type ConsolePlayPickScene = {
   spends?: RailReward;
   targetSpends?: ReadonlyArray<ResourceTransferSpec>;
   draws?: number;
+  /**
+   * The play's OWN moves on the rail's rows (its price, its chips — `actionKnownRailMoves`): what the law's bill
+   * token is checked against beside itself (PL-725 — the bill departs first, the card's price ticks at the landing).
+   */
+  known?: Readonly<Record<string, number>>;
+};
+
+/** THE LAW'S LANDING (PL-726): which card the law's commit is playing, through which law. */
+export type ConsoleLawPlayLanding = {
+  card: CardName;
+  resolution: ResolutionId;
 };
 
 /** What the composer RESOLVED — the play, composed; the asking stage posts it at its own commit. */
@@ -75,6 +93,8 @@ export type ConsolePlayPickResult = {
 export const consolePlayPickState = reactive({
   active: false,
   request: undefined as ConsolePlayPickRequest | undefined,
+  /** The law's commit is landing its card INSIDE the stage (PL-726) — from the arm to the scene's end. */
+  landing: undefined as ConsoleLawPlayLanding | undefined,
 });
 
 let resolveCb: ((result: ConsolePlayPickResult) => void) | undefined;
@@ -132,4 +152,20 @@ export function resetConsolePlayPick(): void {
   consolePlayPickState.request = undefined;
   resolveCb = undefined;
   cancelCb = undefined;
+}
+
+/** The law's commit arms its card's landing INSIDE the stage (PL-726) — the shell, beside `armPlayedHero`. */
+export function beginLawPlayLanding(landing: ConsoleLawPlayLanding): void {
+  consolePlayPickState.landing = {...landing};
+}
+
+/** The scene told its story (or was refused) — the stage owes nothing more. Idempotent. */
+export function endLawPlayLanding(): void {
+  consolePlayPickState.landing = undefined;
+}
+
+/** The landing standing for this law (any law when omitted) — undefined outside one. */
+export function lawPlayLandingOf(resolution?: ResolutionId): ConsoleLawPlayLanding | undefined {
+  const landing = consolePlayPickState.landing;
+  return landing !== undefined && (resolution === undefined || landing.resolution === resolution) ? landing : undefined;
 }

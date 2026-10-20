@@ -177,6 +177,23 @@
     /* THE PLAY FORM's composition (RX36): the decision surface stands in the MIDDLE of its column, never pinned to the
        top over two thirds of dark glass — the slot carries a full card, so the surface has the weight to hold it. */
     &--play &__main > &__surface { margin-block: auto; }
+    /* THE LAW'S PLAY LANDS IN ITS STAGE (PL-726): the receiving stage is a LAYER over the decision column — mounted
+       hidden from the commit's arm (layout, stack geometry and arts ride the round trip), `--up` reveals it while the
+       setup releases in place underneath; the law's face beside it stays as the play's source. The hand composer's own
+       `__playstage` law, in this column. */
+    &--play &__main { position: relative; }
+    &__playstage {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: stretch;
+        min-width: 0;
+        min-height: 0;
+        z-index: 2;
+        visibility: hidden;
+        pointer-events: none;
+        &--up { visibility: visible; }
+    }
     &__playslot-read { display: flex; flex-direction: column; align-items: flex-start; gap: .35rem; min-width: 0; }
     &__playslot-name { font-size: 1.05rem; font-weight: 800; letter-spacing: .01em; color: @con-text; }
     &__playslot-cost { display: inline-flex; align-items: center; gap: .3rem; }
@@ -409,6 +426,37 @@ html.con-profile-tv .con-pact {
     &__cta-label { font-size: 1.05rem; }
     .con-pseal__name { font-size: 1.05rem; }
     .con-pseal__state { font-size: .8rem; }
+}
+/* ═══ THE LAW'S STAGE ON THE COUCH (PL-719 — the action composer's M3, for the law: RX36's 4K walk) ═══
+   Measured on 4K before: the law's face ≈ 290 × 400 px pinned to the top-left of a 3190 × 1780 zone, the decision
+   panel floating mid-right in HUD type, the band above and below it dark. The same three moves the action composer
+   took (`console_tv.less` § THE PREMIUM BAR ON THE COUCH): ① THE LAW IS THE HERO — its face at scene scale, level
+   with the decision column (never pinned to the ceiling); its size is ONE value for the whole flow (setup · the
+   album step · the bill · the landing), so nothing in the hero column re-scales between phases; ② THE DECISION
+   READS FROM THE SOFA — the price, the card in the slot, its total and the commit at scene scale, the rule's prose
+   a step quieter; ③ the composition holds the middle of the band. */
+html.con-profile-tv .con-pact--resolution {
+    grid-template-columns: minmax(13.5rem, 15rem) minmax(0, 1fr);
+    column-gap: 2.2rem;
+    --con-pact-bill-zoom: calc(0.8 * var(--con-ui-scale, 1));
+    .con-pact__source { align-self: center; gap: .6rem; }
+    .con-pact__uses { font-size: var(--con-t-secondary); }
+    .con-pact__rule { font-size: var(--con-t-body); }
+    .con-pact__price { zoom: 1.3; }
+    .con-pact__price-line { font-size: var(--con-t-secondary); }
+    .con-pact__cta { zoom: 1.15; }
+}
+html.con-profile-tv .con-pact--play {
+    .con-pact__surface { gap: .7rem; padding: .7rem .8rem; }
+    .con-pact__playslot { --con-pact-play-zoom: calc(0.72 * var(--con-ui-scale, 1)); gap: 1.4rem; padding: .8rem 1.2rem; }
+    .con-pact__playslot--filled { padding: .7rem 1.1rem; }
+    .con-pact__playslot-read { gap: .55rem; }
+    .con-pact__playslot-name { font-size: 1.6rem; }
+    .con-pact__playslot-cost { zoom: 1.35; }
+    .con-pact__playslot-eased { font-size: 1.05rem; }
+    .con-pact__repeatslot-empty { font-size: 1.15rem; }
+    .con-pact__total { display: flex; align-items: center; gap: .8rem; }
+    .con-pact__playtotal { font-size: 1.3rem; }
 }
 html.con-profile-tv .con-pfx {
     &__kicker, &__sub, &__uses { font-size: .85rem; }

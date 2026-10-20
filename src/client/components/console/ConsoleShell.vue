@@ -1714,7 +1714,7 @@ import {WinnerRewardTable} from '@/common/parliament/winnerReward';
 import {ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
 import {enactedLevyOf, enactedYieldsOf, voteLevyOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
-import {grantSupportOf, parliamentPromptBridge, resolutionBillOf} from '@/client/console/parliament/consoleParliamentModel';
+import {grantSupportOf, parliamentPromptBridge, resolutionBillOf, resolutionPlayOf} from '@/client/console/parliament/consoleParliamentModel';
 import {supportReadingOf, SupportReadingVm} from '@/client/console/parliament/voteInfoModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
@@ -2031,7 +2031,7 @@ import {abortPatentSale, armPatentSale, isPatentSaleActive, patentSaleState} fro
 import {patentSaleAnswers} from '@/client/console/patentSale/patentSaleAnswers';
 import {PatentSaleModel} from '@/common/models/PatentSaleModel';
 import ConsoleResourceTransferLayer from '@/client/components/console/resourceTransfer/ConsoleResourceTransferLayer.vue';
-import {ResourceTransferSpec, mergeTransferSpecs} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {ResourceTransferSpec, mergeTransferSpecs, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {PlayReaction} from '@/client/console/played/receivingStageModel';
 import type {RailReward} from '@/client/console/resourceTransfer/railReward';
 import type {DeltaMovementBonusProjection} from '@/common/models/DeltaTrackPreviewModel';
@@ -2119,7 +2119,7 @@ import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLe
 import {consoleHandPickState, cancelConsoleHandPick, declineConsoleHandPick, deferConsoleHandPick, enterConsoleHandPick, handPickArmsDiscardTray, handPickStageKey, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
 import {deferredDiscardKey, freshCardsForDeferredDiscard} from '@/client/console/deferredDiscardFresh';
 import {consoleRepeatPickState, cancelConsoleRepeatPick, enterConsoleRepeatPick, resetConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
-import {consolePlayPickState, cancelConsolePlayPick, resetConsolePlayPick, resolveConsolePlayPick} from '@/client/console/consolePlayPick';
+import {beginLawPlayLanding, consolePlayPickState, cancelConsolePlayPick, endLawPlayLanding, lawPlayLandingOf, resetConsolePlayPick, resolveConsolePlayPick} from '@/client/console/consolePlayPick';
 import {hydroAdvanceBatch, hydroAdvanceResponses, hydroAdvanceTail, HydroAdvancePayload} from '@/client/console/consoleHydroAdvance';
 import {cardDeltaAdvanceCard, cardDeltaAdvanceOffer, clearCardDeltaAdvance, deltaAdvanceEntryState, deltaAdvancePrefix} from '@/client/console/hydroFlow/deltaAdvanceEntry';
 import {
@@ -2794,6 +2794,12 @@ export default defineComponent({
        * resolving it a second time. Cleared by the fold itself.
        */
       commitFoldOwed: false,
+      /**
+       * THE LAW'S CARD LANDS IN ITS STAGE (PL-726 — RX36): the action commit's fold, OWED to the played-hero scene. The
+       * awaiting handoff resolved while the card was still landing; the scene's own `closing` runs this (the workspace
+       * dissolves with the landed tableau inside it). Cleared by whoever runs it, or by a refusal.
+       */
+      lawPlayFold: undefined as (() => void) | undefined,
       /** The console-native card-action center's UI state (filter + confirm-open). */
       consoleCardActionsUi,
       /** The MA workspace commit's safety backstop (a verdict may never hang). */
@@ -8127,6 +8133,11 @@ export default defineComponent({
      * module flow record, never a title.
      */
     partyFlowOwed(): boolean {
+      // THE LAW'S CARD IS LANDING IN THIS STAGE (RX36, PL-726): the flow owes the scene its story — the workspace folds
+      // on the scene's own `closing`, never on the answer. Read before the record: the record may already be gone.
+      if (lawPlayLandingOf() !== undefined && workspaceFrameMounted('card-actions')) {
+        return true;
+      }
       const flow = consoleCardActionsUi.partyFlow;
       if (flow === undefined) {
         return false;
@@ -8137,6 +8148,11 @@ export default defineComponent({
       // THE LAW'S SALE (Open IP Trade): the terminal is still working or the
       // chip still flying — the workspace stays for the draw that follows.
       if (flow.resolution !== undefined && flow.stage === 'committed' && isPatentSaleActive()) {
+        return true;
+      }
+      // THE LAW'S LIVE PLAY (RX36, PL-727): a bill that asked a payment of its own raised the card pick AFTER it — the
+      // flow's next step, hosted here (the hand album in the stage), never a standalone hand over the board.
+      if (flow.resolution !== undefined && flow.stage === 'committed' && resolutionPlayOf(this.playerView.waitingFor)?.resolution === flow.resolution) {
         return true;
       }
       // THE LAW'S BILL (Trade Industries): the payment the commit deferred
@@ -8172,6 +8188,17 @@ export default defineComponent({
       return flow !== undefined && flow.stage === 'committed' && marker !== undefined &&
         marker.stage === 'discard' && marker.party === flow.party &&
         workspaceFrameMounted('card-actions') && taskFor(this.playerView)?.kind === 'handSelect';
+    },
+    /**
+     * THE LAW'S LIVE PLAY IS A STEP OF THE ACTION WORKSPACE (RX36, PL-727): a bill with a payment of its own raised the
+     * card pick AFTER it — the server's marker at stage `play`, for the law this workspace committed. The hand opens INSIDE
+     * that frame, never as a screen of its own over the board.
+     */
+    lawLivePlayStepOwed(): boolean {
+      const flow = consoleCardActionsUi.partyFlow;
+      const play = resolutionPlayOf(this.playerView.waitingFor);
+      return flow !== undefined && flow.resolution !== undefined && play !== undefined && play.resolution === flow.resolution &&
+        workspaceFrameMounted('card-actions');
     },
     /** The crumb tail an OWED step already carries (see `followUpStepOwed`). */
     followUpStepStageKey(): string {
@@ -11323,6 +11350,30 @@ export default defineComponent({
      *    for a manually-open table (suppressed mid-scene above).
      */
     'playedHeroState.phase'(phase: string) {
+      // THE LAW'S CARD LANDED IN ITS STAGE (PL-726): the scene's ending is the LAW's flow ending — never the hand's
+      // (`endPlayCardFlow` is the hand's). `closing` runs the owed fold (the workspace dissolves with the tableau in it,
+      // the scene holding its close beat through it); a refusal drops the landing so the stage stands as it was.
+      if (lawPlayLandingOf() !== undefined && (phase === 'closing' || phase === 'failed' || phase === 'idle')) {
+        if (phase !== 'closing') {
+          endLawPlayLanding();
+        }
+        const fold = this.lawPlayFold;
+        this.lawPlayFold = undefined;
+        if (fold !== undefined && phase !== 'failed') {
+          fold();
+        } else if (phase === 'failed') {
+          this.commitFoldOwed = false;
+        }
+        if (phase !== 'idle') {
+          return;
+        }
+      }
+      if (phase === 'idle' && this.lawPlayFold !== undefined) {
+        // Belt-and-braces: a scene that ended without `closing` still lets the owed fold run.
+        const fold = this.lawPlayFold;
+        this.lawPlayFold = undefined;
+        fold();
+      }
       if (phase === 'idle' && this.stagedBackOwed) {
         // The owed B of the staged hand-off's tail (PL-581): the scene is over — the board's back verb runs now.
         this.stagedBackOwed = false;
@@ -12991,6 +13042,12 @@ export default defineComponent({
                   // mid-phrase must not resolve it a second time.
                   this.commitFoldOwed = true;
                   void rail.foldable.then(fold);
+                } else if (lawPlayLandingOf() !== undefined && isPlayedHeroActive()) {
+                  // THE LAW'S CARD IS LANDING IN THIS STAGE (PL-726): the fold waits for the scene to tell its story —
+                  // the scene's own `closing` runs it (`playedHeroState.phase` watcher), the workspace dissolving with
+                  // the landed tableau inside it. The pad stays inert meanwhile, as for any owed fold.
+                  this.commitFoldOwed = true;
+                  this.lawPlayFold = fold;
                 } else {
                   fold();
                 }
@@ -16815,16 +16872,45 @@ export default defineComponent({
       const play = detail?.play;
       if (play !== undefined && !isPlayedHeroActive()) {
         const isEvent = getCard(play.cardName)?.type === CardType.EVENT;
+        // THE LAW'S PRICE IS A DEPARTURE OF ITS OWN (PL-725): one answer charges the law's 6 M€ and the card's price,
+        // and one «−17» told neither. The law's token leaves the rail FIRST, into the printed cost on the law's face (the
+        // stage's hero); the card's price is then the commit's ordinary chip at the landing. Every other check of the
+        // scene that reads the M€ row counts the law's price as a known move of the same answer.
+        const billMc = detail?.lawBill?.megacredits ?? 0;
+        const mcRow = railRowKey({channel: 'stock', resource: 'megacredits'});
+        const withBill = (reward: RailReward | undefined): RailReward | undefined => reward === undefined || billMc <= 0 ? reward :
+          {...reward, known: {...(reward.known ?? {}), [mcRow]: (reward.known?.[mcRow] ?? 0) - billMc}};
+        const billKnown: Record<string, number> = {...(play.scene.known ?? {})};
+        // The table's answer on the rail (the ruling party's M€) rides the same response — a known move of the bill too.
+        for (const spec of play.scene.rail?.reactions ?? []) {
+          if (spec.channel === 'stock') {
+            const row = railRowKey(spec);
+            billKnown[row] = (billKnown[row] ?? 0) + (spec.direction === 'loss' ? -spec.amount : spec.amount);
+          }
+        }
+        // THE CARD LANDS IN THE LAW'S STAGE (PL-726): the scene's `workspace` host — the stage's decision column becomes
+        // the receiving stage, the workspace folds only once the scene has told its story (`lawPlayFoldOwed`). A table the
+        // player had open by hand keeps the classic scenery.
+        const inStage = workspaceFrameMounted('card-actions') && !this.playedOpen && detail?.lawBill !== undefined;
+        if (inStage && detail?.lawBill !== undefined) {
+          beginLawPlayLanding({card: play.cardName, resolution: detail.lawBill.resolution});
+        }
         armPlayedHero(play.cardName, isEvent, {
           manualTableOpen: this.playedOpen,
           sourceSelector: '[data-pact-play-face]',
           rewards: play.scene.rewards,
           reactions: play.scene.reactions,
-          rail: play.scene.rail,
-          spends: play.scene.spends,
+          rail: withBill(play.scene.rail),
+          spends: withBill(play.scene.spends),
           targetSpends: play.scene.targetSpends,
           price: playCardPriceReward(play.payment, [...(play.scene.rewards ?? []), ...(play.scene.reactions ?? []).map((r) => r.spec)]),
-          host: 'overlay',
+          ...(billMc > 0 ? {
+            bill: {
+              reward: {cause: [{channel: 'stock', resource: 'megacredits', amount: billMc, direction: 'loss'}], reactions: [], known: billKnown},
+              targetSelector: '.con-pact--resolution .con-pact__hero',
+            },
+          } : {}),
+          host: inStage ? 'workspace' : 'overlay',
           sourceFace: {lightweight: true},
           landingFace: {lightweight: true, model: 'tableau'},
         });
@@ -17103,7 +17189,7 @@ export default defineComponent({
         this.departingTimer = undefined;
       }
     },
-    onPlayCardConfirmNative(payload: {branchIndex: number, branchFor?: PreselectAddress, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, reactions?: ReadonlyArray<PlayReaction>, rail?: RailReward, spends?: RailReward, targetSpends?: ReadonlyArray<ResourceTransferSpec>, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, agendaWalkRail?: AgendaWalkRailPromise, neutralRally?: {rally: NeutralRallyModel, known: Readonly<Record<string, number>>}, stagedCardTarget?: CardName, armedSpends?: ReadonlyArray<ArmedPlayEffectModel>, composerDraft?: PlayComposerDraft}): void {
+    onPlayCardConfirmNative(payload: {branchIndex: number, branchFor?: PreselectAddress, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, reactions?: ReadonlyArray<PlayReaction>, rail?: RailReward, spends?: RailReward, known?: Readonly<Record<string, number>>, targetSpends?: ReadonlyArray<ResourceTransferSpec>, draws?: number, repeat?: ConsoleRepeatPickResult, espionage?: {projection: DeltaEspionageProjectionModel, target?: Color, ownerAnswer?: DeltaStageAnswer}, staged?: StagedPlacementModel, stagedVote?: StagedVoteModel, stagedColony?: StagedColonyModel, agendaWalk?: AgendaWalkModel, agendaWalkRail?: AgendaWalkRailPromise, neutralRally?: {rally: NeutralRallyModel, known: Readonly<Record<string, number>>}, stagedCardTarget?: CardName, armedSpends?: ReadonlyArray<ArmedPlayEffectModel>, composerDraft?: PlayComposerDraft}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       if (pending === undefined || action === undefined) {
@@ -17126,7 +17212,7 @@ export default defineComponent({
           cost: card?.calculatedCost ?? 0,
           scene: {
             rewards: payload.rewards, reactions: payload.reactions, rail: payload.rail, spends: payload.spends,
-            targetSpends: payload.targetSpends, draws: payload.draws,
+            targetSpends: payload.targetSpends, draws: payload.draws, known: payload.known,
           },
         });
         return;
@@ -19508,6 +19594,11 @@ export default defineComponent({
         this.openLedgerDiscardStep();
         return;
       }
+      // …and so is the law's LIVE PLAY (RX36, PL-727): the album stands up as a step of the stage that paid the bill.
+      if (task.kind === 'projectCard' && task.mode === 'playFromHand' && this.lawLivePlayStepOwed) {
+        this.openLawLivePlayStep();
+        return;
+      }
       closeConsoleLayers();
       if (task.kind === 'awardFunding') {
         // THE FIRST ACTION'S OWN FUNDING STAGE. Raised while the START
@@ -19805,6 +19896,24 @@ export default defineComponent({
       this.focusFirstSelectableHandCard();
     },
     /** The hand as a STEP of the live action workspace (idempotent). */
+    /**
+     * THE LAW'S LIVE PLAY (RX36, PL-727) opens as a step of the action workspace: the album over the live pick, in
+     * the stage's own zone, its crumb's tail the slot's pick's own word («… › ЖИВЫЕ ЭКСПЕРИМЕНТЫ › ВЫБОР»). The cards
+     * unfold from the dock they lie in (the hand's reveal) — never re-dealt.
+     */
+    openLawLivePlayStep(): void {
+      if (!this.lawLivePlayStepOwed) {
+        return;
+      }
+      if (!workspaceFrameKnown('hand')) {
+        void this.openHandWithReveal({keepTask: true});
+      }
+      if (workspaceFrameHost('hand') === 'card-actions') {
+        setWorkspaceFrameStage('hand', 'Selection');
+      }
+      const firstPlayable = this.handEntries.findIndex((e) => e.playable);
+      this.consoleState.handIndex = firstPlayable !== -1 ? firstPlayable : 0;
+    },
     openPartyDiscardStep(): void {
       if (!this.partyDiscardStepOwed) {
         return;
@@ -23809,6 +23918,7 @@ export default defineComponent({
     resetDockIntakeAccent(); // a leaked lease would disable the compact pose
     resetConsoleHandPick(); // never leak a client pick across games/sessions
     resetConsolePlayPick(); // …nor a law's play pick (RX36)
+    endLawPlayLanding(); // …nor its landing (PL-726)
     // The stack can never outlive the shell: an orphaned frame suppresses the
     // standalone band, so the next prompt would be presented NOWHERE.
     resetWorkspaceStack();

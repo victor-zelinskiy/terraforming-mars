@@ -12,8 +12,9 @@ import {GlobalParameter} from '@/common/GlobalParameter';
 import {RequirementType} from '@/common/cards/RequirementType';
 import {Payment} from '@/common/inputs/Payment';
 import {
-  cancelConsolePlayPick, consolePlayPickState, ConsolePlayPickResult, resetConsolePlayPick, resolveConsolePlayPick,
+  beginLawPlayLanding, cancelConsolePlayPick, consolePlayPickState, ConsolePlayPickResult, endLawPlayLanding, resetConsolePlayPick, resolveConsolePlayPick,
 } from '@/client/console/consolePlayPick';
+import {playedHeroState} from '@/client/console/played/consolePlayedHero';
 import {resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
 
 /**
@@ -86,7 +87,7 @@ function mountLaw(play: ResolutionPlayModel | undefined) {
   return mount(ConsolePartyActionComposer, {
     global: {
       ...globalConfig.global,
-      stubs: {'premium-card-face': true, 'ConsoleCardFaceLite': true},
+      stubs: {'premium-card-face': true, 'ConsoleCardFaceLite': true, 'ConsolePlayedReceivingStage': true},
       directives: {...globalConfig.global.directives, 'strip-action-prefix': {}},
     },
     props: {playerView: playerView(play), party: PartyName.SCIENTISTS, resolution: LAW},
@@ -111,7 +112,12 @@ function composed(): ConsolePlayPickResult {
 describe('ConsolePartyActionComposer — a law whose action PLAYS A CARD (RX36)', () => {
   afterEach(() => {
     resetConsolePlayPick();
+    endLawPlayLanding();
     resetWorkspaceStack();
+    playedHeroState.active = false;
+    playedHeroState.phase = 'idle';
+    playedHeroState.host = 'overlay';
+    playedHeroState.card = undefined;
   });
 
   it('shows the decision as a SLOT with the price above it — empty, it invites; the commit is not armed', () => {
@@ -179,9 +185,54 @@ describe('ConsolePartyActionComposer — a law whose action PLAYS A CARD (RX36)'
       {type: 'projectCard', card: CardName.GRASS, payment: Payment.of({megacredits: 11}), for: {source: {kind: 'resolution', resolution: LAW}, role: 'projectCard'}},
       {type: 'card', cards: [CardName.TARDIGRADES]},
     ]);
-    const detail = emitted![0][1] as {expectedCards: number, play?: ConsolePlayPickResult};
+    const detail = emitted![0][1] as {expectedCards: number, play?: ConsolePlayPickResult, lawBill?: {resolution: string, megacredits: number}};
     expect(detail.expectedCards).to.eq(0);
     expect(detail.play?.cardName, 'the host arms the landing off the slot').to.eq(CardName.GRASS);
+    expect(detail.lawBill, 'the law\'s own price rides along — its token departs first (PL-725)').to.deep.eq({resolution: LAW, megacredits: 6});
+  });
+
+  it('THE CARD LANDS IN THE STAGE (PL-726): the receiving stage mounts hidden at the arm, rises with the scene, and the setup lets go under it', async () => {
+    const w = mountLaw(PLAY);
+    await w.find('[data-pact-play-slot]').trigger('click');
+    resolveConsolePlayPick(composed());
+    await w.vm.$nextTick();
+    expect(w.find('[data-pact-landing]').exists(), 'nothing before the commit').to.be.false;
+    beginLawPlayLanding({card: CardName.GRASS, resolution: LAW});
+    playedHeroState.card = CardName.GRASS;
+    playedHeroState.host = 'workspace';
+    playedHeroState.active = true;
+    playedHeroState.phase = 'armed';
+    await w.vm.$nextTick();
+    const layer = w.find('[data-pact-landing]');
+    expect(layer.exists(), 'mounted from the arm (the prewarm window)').to.be.true;
+    expect(layer.classes(), 'hidden while the answer is on the wire').not.to.include('con-pact__playstage--up');
+    playedHeroState.phase = 'flying';
+    await w.vm.$nextTick();
+    expect(w.find('[data-pact-landing]').classes(), 'up with the scene').to.include('con-pact__playstage--up');
+    expect(w.find('.con-pact--play').exists(), 'the stage stays the play form under the scene').to.be.true;
+    // The answer takes the menu option away at the landing — the stage does not change what it is.
+    await w.setProps({playerView: {...playerView(PLAY), waitingFor: {type: 'or', title: 'Take an action', buttonLabel: 'Take action', options: []}} as unknown as PlayerViewModel});
+    await w.vm.$nextTick();
+    expect(w.find('[data-pact-landing]').classes(), 'latched once it rose').to.include('con-pact__playstage--up');
+  });
+
+  it('a REFUSED play (the scene failed before it rose) brings the setup back — no stage left behind', async () => {
+    const w = mountLaw(PLAY);
+    await w.find('[data-pact-play-slot]').trigger('click');
+    resolveConsolePlayPick(composed());
+    beginLawPlayLanding({card: CardName.GRASS, resolution: LAW});
+    playedHeroState.card = CardName.GRASS;
+    playedHeroState.host = 'workspace';
+    playedHeroState.active = true;
+    playedHeroState.phase = 'armed';
+    await w.vm.$nextTick();
+    expect(w.find('[data-pact-landing]').exists()).to.be.true;
+    playedHeroState.active = false;
+    playedHeroState.phase = 'failed';
+    endLawPlayLanding();
+    await w.vm.$nextTick();
+    expect(w.find('[data-pact-landing]').exists(), 'the stage is gone').to.be.false;
+    expect(w.find('[data-pact-play-name]').text(), 'the slot still holds the card').to.eq(CardName.GRASS);
   });
 
   it('a bill that ASKS a payment of its own promises nothing pre-collectable — no slot, the confirm road', () => {

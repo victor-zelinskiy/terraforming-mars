@@ -1388,6 +1388,7 @@ export function foldWorkspaceFrame(): void {
  * `stayInSection` special case — closing the pick simply uncovers the track.
  */
 export function closeWorkspaceSheet(): void {
+  traceVerb('closeWorkspaceSheet');
   let keep = workspaceStackState.frames.length;
   while (keep > 0 && WORKSPACE_KINDS[workspaceStackState.frames[keep - 1].kind].sheet !== undefined) {
     keep--;

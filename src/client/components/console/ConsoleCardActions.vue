@@ -511,7 +511,7 @@ import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewMode
 import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
 import {actionRowsOf} from '@/client/console/parliament/actionRows';
-import {accessRoadOf, allianceOf, parliamentPromptBridge, resolutionBillOf} from '@/client/console/parliament/consoleParliamentModel';
+import {accessRoadOf, allianceOf, parliamentPromptBridge, resolutionBillOf, resolutionPlayOf} from '@/client/console/parliament/consoleParliamentModel';
 import {PartyAccessModel} from '@/common/models/ParliamentModel';
 import {beginPartyColonyTrade} from '@/client/console/colonyTrade/colonyTradeEntry';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
@@ -526,7 +526,7 @@ import {findPerformActionCard, findTradeColonyContext} from '@/client/console/tu
 import {consoleRepeatPickState, resolveConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {consoleRepeatPickUi, setConsoleRepeatPickCommands} from '@/client/console/consoleRepeatPickUi';
 import {translateText} from '@/client/directives/i18n';
-import {consolePlayPickState} from '@/client/console/consolePlayPick';
+import {consolePlayPickState, lawPlayLandingOf} from '@/client/console/consolePlayPick';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 
 /**
@@ -1034,6 +1034,11 @@ export default defineComponent({
       if (this.partyResult !== undefined) {
         return 'Result';
       }
+      // THE LAW'S CARD LANDS IN THIS STAGE (RX36, PL-726): past the commit the stage is the receiving tableau — the hand
+      // composer's own word, «› РАЗЫГРАНО» — from the press to the workspace's leave.
+      if (lawPlayLandingOf(this.composer?.resolution) !== undefined && this.composer?.resolution !== undefined) {
+        return 'Played';
+      }
       // THE LAW's SALE (Open IP Trade): between the pick's answer and the chip's
       // landing the stage is the terminal's — «› ПРОДАЖА» — then the draw's.
       if (this.composer?.resolution !== undefined && this.partyCommitted && (this.partySubmitting || isPatentSaleActive())) {
@@ -1188,7 +1193,12 @@ export default defineComponent({
     },
     /** The card a law's play pick is composing (RX36) — the hosted hand descended onto it; '' otherwise. */
     playPickCard(): string {
-      return consolePlayPickState.active && workspaceFrameDescended('hand') ? workspaceFrameSubject('hand') : '';
+      return (consolePlayPickState.active || this.livePlayStanding) && workspaceFrameDescended('hand') ? workspaceFrameSubject('hand') : '';
+    },
+    /** THE LAW'S LIVE PLAY stands (RX36, PL-727): the card pick a bill with a payment of its own raised after it. */
+    livePlayStanding(): boolean {
+      const law = this.composer?.resolution;
+      return law !== undefined && !this.repeat && resolutionPlayOf(this.playerView.waitingFor)?.resolution === law;
     },
     /** Total variants of the focused card (the header's «Вариант N/M» chip);
      *  1 hides the chip (single-action card / a Viron repeat with no node). */
@@ -1566,6 +1576,12 @@ export default defineComponent({
           this.beginFleetResult();
           return;
         }
+        // THE LAW'S CARD IS LANDING IN THIS STAGE (RX36, PL-726): the answer is the commit applied at the card's
+        // touchdown — the scene still has its story to tell here, and its own `closing` folds the workspace (the shell's
+        // owed fold). Concluding now would tear the receiving stage out from under the card.
+        if (lawPlayLandingOf(this.composer?.resolution) !== undefined) {
+          return;
+        }
         void this.$nextTick(() => this.concludeFlow());
       }
     },
@@ -1585,6 +1601,15 @@ export default defineComponent({
         return;
       }
       if (was && !on && this.composer?.resolution !== undefined && this.partyFlow?.stage === 'committed') {
+        // THE LAW'S LIVE PLAY (RX36, PL-727): the settled bill raised the card pick — the flow's next step, hosted here
+        // as the hand album (the shell opens it into this stage's zone); its leave, the card played, ends the flow.
+        if (this.livePlayStanding) {
+          const flow = consoleCardActionsUi.partyFlow;
+          if (flow !== undefined) {
+            flow.livePlay = true;
+          }
+          return;
+        }
         this.awaitFleetResult();
       }
     },
@@ -1612,6 +1637,11 @@ export default defineComponent({
           setWorkspaceFrameSlot('card-actions', this.unityStepHosted ? '[data-embed-slot="action-colonies"]' : '');
           if (this.composer?.party !== undefined && this.composer.resolution === undefined && this.partyFlow?.stage === 'committed') {
             this.awaitPartyResult();
+          }
+          // THE LAW'S LIVE PLAY (PL-727) is played: the hand step left with its card on the table — the flow owes
+          // nothing more and LEAVES through the one guarded conclusion (a step still owed holds it there).
+          if (this.composer?.resolution !== undefined && this.partyFlow?.livePlay === true && !this.livePlayStanding) {
+            void this.$nextTick(() => this.concludeFlow());
           }
         }
       },
@@ -3142,6 +3172,12 @@ export default defineComponent({
       }
       const flow = consoleCardActionsUi.partyFlow;
       if (flow === undefined || this.partyResult !== undefined) {
+        return;
+      }
+      // THE LAW'S LIVE PLAY (RX36, PL-727): the settled bill's answer IS the card pick — the transport took the bill's
+      // prompt down at the submit, so the bill's leave could not see it yet; the answer in, the flow owes the play.
+      if (this.livePlayStanding) {
+        flow.livePlay = true;
         return;
       }
       const from = flow.fleetBefore ?? this.thisPlayer.fleetSize;

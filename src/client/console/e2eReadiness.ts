@@ -62,7 +62,7 @@ export type ConsoleReadinessSnapshot = {
   /** A card action's RAIL HALF (a direct TR, a capsule timeline — TR28): whose, its phase, the link in the air, why the last one ended early. */
   actionCommitRail: {card: string, phase: string, link: number, lastEnd: string, capsules: Array<string>, fallback: string};
   /** The card PLAY's landing scene: its phase and how its SHIPMENT BEAT (the price taken off the rail — PL-107) ended, by name. */
-  playedHero: {phase: string, shipment: string};
+  playedHero: {phase: string, shipment: string, bill: string, host: string};
   /** The workspace OUTCOME claim's gates — who holds it, how far the answer / the beat / the arrival are (an embedded stage swallows presses while `arrivalDone` is false). */
   outcome: {host: string, stage: string, answerIn: boolean, beatDone: boolean, arrivalDone: boolean, arrivalFlown: boolean};
   at: number;
@@ -81,7 +81,7 @@ export function consoleReadinessSnapshot(): ConsoleReadinessSnapshot {
     colonyTrackWave: colonyTrackWaveDiag(),
     railReward: railRewardDiag(),
     actionCommitRail: {card: actionCommitRailState.card, phase: actionCommitRailState.phase, link: actionCommitRailState.link, lastEnd: actionCommitRailState.lastEnd, capsules: [...actionCommitRailState.capsules], fallback: actionCommitRailState.fallback},
-    playedHero: {phase: playedHeroState.phase, shipment: playedHeroState.shipment},
+    playedHero: {phase: playedHeroState.phase, shipment: playedHeroState.shipment, bill: playedHeroState.bill, host: playedHeroState.host},
     outcome: {
       host: workspaceOutcomeState.host ?? '', stage: workspaceOutcomeState.stage, answerIn: workspaceOutcomeState.answerIn,
       beatDone: workspaceOutcomeState.beatDone, arrivalDone: workspaceOutcomeState.arrivalDone, arrivalFlown: workspaceOutcomeState.arrivalFlown,

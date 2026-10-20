@@ -2633,7 +2633,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   'parliament-diverted-enacted' |
   // RX36 Live Experiments ENACTED: red (20 M€) at −30 °C holding Grass (the law opens it), Adapted Lichen (playable
   // anyway) and Martian Media Center (a party requirement the law never waives).
-  'parliament-live-enacted' |
+  'parliament-live-enacted' | 'parliament-live-helion' |
   // RX33 Water Export: the assembly with ONE plain ocean on the board and blue (the first player) holding the delegate —
   // the first world step that ASKS; and the law ENACTED (the ocean gone) with red holding Miranda Resort (12 → 9).
   'parliament-water-assembly' | 'parliament-water-enacted' |

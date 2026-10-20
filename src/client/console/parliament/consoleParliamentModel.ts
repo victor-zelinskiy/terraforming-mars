@@ -24,7 +24,7 @@ import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {CardName} from '@/common/cards/CardName';
 import {PartyName} from '@/common/turmoil/PartyName';
-import {PlayerInputModel, SelectPartyModel, SelectPaymentModel, SupportPromptMeta, VoteSupportProjection} from '@/common/models/PlayerInputModel';
+import {PlayerInputModel, SelectPartyModel, SelectPaymentModel, SelectProjectCardToPlayModel, SupportPromptMeta, VoteSupportProjection} from '@/common/models/PlayerInputModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {ActionEffect, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -1143,6 +1143,20 @@ export function resolutionBillOf(wf: PlayerInputModel | undefined): {resolution:
   }
   const marker = wf.resolutionActionPrompt;
   return marker !== undefined && marker.stage === 'pay' ? {resolution: marker.resolution, model: wf as SelectPaymentModel} : undefined;
+}
+
+/**
+ * THE LAW'S LIVE PLAY (RX36 Live Experiments, PL-727): the top-level card pick the paid bill raised — the action's
+ * own marker at stage `play` on the server's `SelectProjectCardToPlay`. A bill that asked a payment of its own
+ * (Helion's heat, Luna's titanium) promises nothing pre-collectable, so the play is asked LIVE after it; the action
+ * workspace owes it as its next step and hosts the hand album there, never a standalone hand over the board.
+ */
+export function resolutionPlayOf(wf: PlayerInputModel | undefined): {resolution: ResolutionId, model: SelectProjectCardToPlayModel} | undefined {
+  if (wf === undefined || wf.type !== 'projectCard') {
+    return undefined;
+  }
+  const marker = wf.resolutionActionPrompt;
+  return marker !== undefined && marker.stage === 'play' ? {resolution: marker.resolution, model: wf as SelectProjectCardToPlayModel} : undefined;
 }
 
 /**

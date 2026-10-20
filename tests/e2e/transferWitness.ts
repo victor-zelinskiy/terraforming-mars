@@ -80,7 +80,8 @@ export type TransferEnd = {
   /**
    * The anchor under the chip's centre: `wild` (a card's printed «?» — TR54) · `vp-badge` (a card's printed VP badge — TR55) · `ma-vp` (a ceremony's «+5») ·
    * `printed:<sprite>` (a printed icon on the play scene's landed card — the play's «+N» is born there, TR56) ·
-   * `seal:<party>` (a party's seal in the chamber — a card's rating answer to a change of power is born there, TR63) · `hero` ·
+   * `seal:<party>` (a party's seal in the chamber — a card's rating answer to a change of power is born there, TR63) ·
+   * `law-face` (the law's face on a resolution action's stage — the law's own price lands there, PL-725) · `hero` ·
    * `composer-card:<name>` ·
    * `recv:<card|front>` · `played:<card>` ·
    * `slot:<card>` (a live pick's candidate) · `source` (a plate's source dock) ·
@@ -151,6 +152,9 @@ export async function armTransferWitness(page: Page): Promise<void> {
       // A party's SEAL in the chamber — a card's rating answer to a change of power is born on the seal of the party that
       // came to power (TR63). `seal:<party>`.
       ['seal', '.con-parl__party[data-party] .con-pseal__seal'],
+      // The LAW's face — the hero of a resolution action's stage: the law's own price is absorbed into its printed cost
+      // (PL-725 — RX36's bill). `law-face`.
+      ['law-face', '.con-pact--resolution .con-pact__hero'],
       ['hero', '.con-composer__actcardwrap'],
       ['play-card', '.con-composer__playcard'],
       ['composer-card', '[data-composer-card]'],

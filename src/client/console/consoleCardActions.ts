@@ -532,6 +532,12 @@ export type ConsolePartyFlow = {
    */
   fleetBefore?: number;
   titaniumBefore?: number;
+  /**
+   * THE LAW'S LIVE PLAY (RX36 Live Experiments, PL-727): the bill asked a payment of its own and the card pick came
+   * AFTER it — hosted in this stage as a hand step. Set when the bill leaves with the play standing; the step's leave
+   * (the card played) ends the flow.
+   */
+  livePlay?: boolean;
 };
 
 /** The composer's half of the staged return — taken exactly once, and only by

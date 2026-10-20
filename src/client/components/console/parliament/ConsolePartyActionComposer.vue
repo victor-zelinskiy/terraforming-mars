@@ -186,7 +186,7 @@
         <!-- THE RESOLUTION'S STAGE BETWEEN STEPS: the pick was refused or
              taken back and nothing is in flight — the rule stands, B returns.
              (A pick that is still to open sees this for one flush only.) -->
-        <div v-else-if="kind === 'resolution' && repeatPrompt === undefined && confirmPrompt === undefined" class="con-pact__surface" data-unfold-surface>
+        <div v-else-if="kind === 'resolution' && repeatPrompt === undefined && confirmPrompt === undefined && !playForm" class="con-pact__surface" data-unfold-surface>
           <p class="con-pact__rule" data-unfold-item>{{ ruleText }}</p>
           <p v-if="refusal !== ''" class="con-pact__warn" data-unfold-item>{{ refusal }}</p>
         </div>
@@ -414,6 +414,16 @@
             </span>
           </div>
         </div>
+
+        <!-- THE LAW'S PLAY LANDS HERE (PL-726): the card the commit plays is laid onto its pile INSIDE this stage — the
+             played-hero scene's `workspace` host, the same receiving stage the hand's play composer reveals. A LAYER
+             over the decision column (the setup releases in place under it; the law's face stays as the source of the
+             play): mounted hidden from the commit's arm (layout and arts ride the round trip), `--up` reveals it, and
+             the workspace folds only once the scene has told its story. -->
+        <div v-if="lawLandingMounted" ref="lawStage" class="con-pact__playstage"
+             :class="{'con-pact__playstage--up': lawLandingUp}" data-pact-landing>
+          <ConsolePlayedReceivingStage :playerView="playerView" />
+        </div>
       </div>
     </template>
 
@@ -463,7 +473,7 @@ import {translateMessage, translateText, translateTextWithParams} from '@/client
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {
   industrialistsResponse, parliamentPromptBridge, ParliamentPromptBridge, redsResponse, resolutionActionConfirmResponse, resolutionActionResponse,
-  resolutionBillOf, scientistsResponse,
+  resolutionBillOf, resolutionPlayOf, scientistsResponse,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {partyTileKey, resolutionTileKey} from '@/client/console/parliament/partyActionKey';
 import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
@@ -498,7 +508,11 @@ import {armOutcomeOrigin, playConfigRelease, playOutcomeContent, playOutcomePhas
 import {mergeTransferSpecs, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
-import {ConsolePlayPickResult, enterConsolePlayPick} from '@/client/console/consolePlayPick';
+import {ConsolePlayPickResult, enterConsolePlayPick, lawPlayLandingOf} from '@/client/console/consolePlayPick';
+import {playedHeroLandingPrewarm, playedHeroLandingUp, playedHeroState} from '@/client/console/played/consolePlayedHero';
+import ConsolePlayedReceivingStage from '@/client/components/console/played/ConsolePlayedReceivingStage.vue';
+import {gsap} from 'gsap';
+import {motionMs} from '@/client/components/motion/motionTokens';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
 import {addressed} from '@/common/inputs/preselectAddress';
 import {EASING_KEYS, lawName} from '@/client/console/requirementEasingText';
@@ -535,6 +549,11 @@ export type PartyConfirmDetail = {
    * landing on the law's commit (the card leaves from the slot it stands in).
    */
   play?: ConsolePlayPickResult;
+  /**
+   * THE LAW'S OWN PRICE for this play (PL-725): the law and the M€ its bill takes — the host flies that token off the
+   * rail into the law's printed cost BEFORE the card's own shipment, and counts it as a known move of every check.
+   */
+  lawBill?: {resolution: ResolutionId, megacredits: number};
 };
 
 export function partyComposerKind(party: ReduxParty): PartyComposerKind {
@@ -585,7 +604,7 @@ export default defineComponent({
   components: {
     ConsoleVariantChoice,
     ActionEffectChip, GamepadGlyph, ConsoleCardFaceLite, ConsolePartyPlaque, ConsoleWsStageHead, ColonyFleetIcon,
-    CardRenderEffectBoxComponent, CardRenderData,
+    CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedReceivingStage,
   },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -617,6 +636,9 @@ export default defineComponent({
       repeatResult: undefined as ConsoleRepeatPickResult | undefined,
       /** The law's PLAY (RX36), as the play pick resolved it — the card, its payment and its answers. Undefined = the slot is empty. */
       playResult: undefined as ConsolePlayPickResult | undefined,
+      /** The law's card has LANDED here (PL-726): the stage keeps its tableau until the workspace leaves. */
+      lawLandingLatched: false,
+      playedHeroState,
       commitHandle: undefined as ActionCommitMotionHandle | undefined,
       // ── the resolution's selection ──
       /** The cards the law's pick handed in (the sale's honest count; re-seeded on a refused submit). */
@@ -713,7 +735,11 @@ export default defineComponent({
     },
     /** The resolution's stage is its SALE: sent and not yet answered, or the scene still playing — never while its BILL stands. */
     saleStage(): boolean {
-      return this.kind === 'resolution' && !this.billStanding && (this.submitting || this.saleLive);
+      // A SALE is the pick's (Open IP Trade — the cards handed in feed the terminal): a law whose commit sells nothing
+      // (a confirm, a repeat, a PLAY — RX36, whose card must stay standing in its slot to lift from it) keeps its own
+      // surface through the submit.
+      return this.kind === 'resolution' && !this.billStanding && !this.playForm &&
+        (this.saleLive || (this.submitting && this.saleCards > 0));
     },
     /**
      * THE LAW'S CONFIRM (Trade Industries: «buy a fleet» — a bare option whose
@@ -741,8 +767,18 @@ export default defineComponent({
       return this.kind === 'resolution' && live !== undefined && 'resolution' in live ? live : undefined;
     },
     playForm(): boolean {
+      // …and it STAYS the play form while the card it committed lands here (PL-726): the commit's view takes the menu
+      // option (and the promise) away at the landing, and the stage must not change what it is under the scene.
+      if (this.lawLandingLatched || this.lawLanding) {
+        return true;
+      }
       const play = this.lawAction?.play;
       return this.confirmPrompt !== undefined && play !== undefined && !play.billAsks;
+    },
+    /** THE LAW'S LIVE PLAY stands (PL-727 — the bill asked its own payment, the card is asked after it, live). */
+    livePlayStanding(): boolean {
+      return this.kind === 'resolution' && this.resolution !== undefined &&
+        resolutionPlayOf(this.playerView.waitingFor)?.resolution === this.resolution;
     },
     /** The chosen card as the LAW reads it (the promised pick's model — its requirement under the law's waiver). */
     playCardModel(): CardModel | undefined {
@@ -761,6 +797,18 @@ export default defineComponent({
       return {direction: 'cost', icon: 'megacredits', amount: this.playResult?.cost ?? 0};
     },
     /** «6 M€ for the law + 9 M€ for the card = 15 M€» — the whole price of the press, from its two numbers. */
+    /** THE LAW'S LANDING is this stage's (PL-726): the shell armed the card's scene with the `workspace` host. */
+    lawLanding(): boolean {
+      return this.kind === 'resolution' && lawPlayLandingOf(this.resolution) !== undefined && playedHeroState.host === 'workspace';
+    },
+    /** The receiving stage is MOUNTED — the hidden prewarm window included (after A nothing heavy happens first). */
+    lawLandingMounted(): boolean {
+      return this.lawLandingLatched || (this.lawLanding && (playedHeroLandingPrewarm() || playedHeroLandingUp()));
+    },
+    /** The receiving stage is ON SCREEN — from the card's lift to the workspace's leave. */
+    lawLandingUp(): boolean {
+      return this.lawLandingLatched || (this.lawLanding && playedHeroLandingUp());
+    },
     playTotalLine(): string {
       const law = this.billPrice?.price ?? 0;
       const card = this.playResult?.cost ?? 0;
@@ -1234,9 +1282,36 @@ export default defineComponent({
      * pick re-opens on the hand with the previous selection, so nothing the
      * player decided is lost to a transport error.
      */
+    /**
+     * THE SETUP RELEASES IN PLACE when the landing takes the column (PL-726 — the hand composer's own law): the
+     * decision surface lets go under the receiving stage, the law's face stays as the source. Once on screen the stage
+     * is LATCHED (the tableau stands until the workspace leaves); a REFUSED play (the scene failed, the landing
+     * dropped before it rose) brings the setup back whole.
+     */
+    lawLandingUp(now: boolean): void {
+      const surface = (this.$refs.rootEl as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-pact__main > .con-pact__surface') ?? undefined;
+      if (now) {
+        this.lawLandingLatched = true;
+        if (surface !== undefined) {
+          gsap.killTweensOf(surface);
+          gsap.to(surface, {autoAlpha: 0, duration: motionMs(110) / 1000, ease: 'power1.in'});
+        }
+      }
+    },
+    lawLanding(now: boolean, was: boolean): void {
+      // The scene was refused before it ever rose (the shell drops the landing on `failed`): the setup stands again.
+      if (was && !now && playedHeroState.phase === 'failed') {
+        this.lawLandingLatched = false;
+        const surface = (this.$refs.rootEl as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-pact__main > .con-pact__surface') ?? undefined;
+        if (surface !== undefined) {
+          gsap.killTweensOf(surface);
+          gsap.set(surface, {clearProps: 'opacity,visibility'});
+        }
+      }
+    },
     submitting(now: boolean, was: boolean): void {
       if (was && !now && this.kind === 'resolution' && this.repeatPrompt === undefined && this.confirmPrompt === undefined &&
-          !this.billStanding && !this.outcomeOn && !this.saleLive && !this.pickOpen) {
+          !this.billStanding && !this.outcomeOn && !this.saleLive && !this.pickOpen && !this.playForm && !this.livePlayStanding) {
         void this.$nextTick(() => this.openResolutionPick(this.salePicked));
       }
     },
@@ -1266,7 +1341,7 @@ export default defineComponent({
     // THE LAW'S FIRST STEP IS THE PICK: the real hand stands up as a step of
     // this stage the moment the stage is on screen.
     if (this.kind === 'resolution' && this.repeatPrompt === undefined && this.confirmPrompt === undefined && !this.billStanding &&
-        !this.outcomeOn && !this.saleLive) {
+        !this.outcomeOn && !this.saleLive && !this.livePlayStanding && !this.playForm) {
       void this.$nextTick(() => this.openResolutionPick([]));
     }
   },
@@ -1471,7 +1546,11 @@ export default defineComponent({
       this.playCommitBeat(plan.kind, plan.specs, plan.kind === 'draw' ? pulseDeckPile : undefined);
       if (this.kind === 'resolution' && this.playForm && this.playResult !== undefined) {
         // THE PLAY RIDES THE LAW'S COMMIT: the host arms the card's landing off the slot it stands in.
-        const detail: PartyConfirmDetail = {expectedCards: 0, play: this.playResult};
+        const detail: PartyConfirmDetail = {
+          expectedCards: 0,
+          play: this.playResult,
+          ...(this.resolution !== undefined ? {lawBill: {resolution: this.resolution, megacredits: this.billPrice?.price ?? 0}} : {}),
+        };
         this.$emit('confirm', response, detail);
         return;
       }

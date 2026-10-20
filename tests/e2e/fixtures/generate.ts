@@ -4685,6 +4685,44 @@ parliamentFixture('parliament-live-enacted', {
   },
 });
 
+// ── …and THE BILL THAT ASKS (PL-727): the same table, but red pays like Helion (heat counts as M€, 5 heat in stock) —
+//    the law's bill is a PAYMENT of its own, so nothing is pre-collectable: the stage reads its price and confirms,
+//    the bill stands INSIDE the stage, and the card is asked LIVE after it — the hand album hosted in the same stage.
+parliamentFixture('parliament-live-helion', {
+  resolution: LIVE_EXPERIMENTS_ID,
+  votes: [1],
+  agenda: [1, 2],
+  stopAt: 'done',
+  arrange: ({game, p2}) => {
+    setTemperature(game, -30);
+    p2.cardsInHand.push(new Grass(), new AdaptedLichen(), new MartianMediaCenter());
+    p2.pendingInitialActions = [];
+  },
+  after: ({p2}) => {
+    p2.megaCredits = 20;
+    p2.heat = 5;
+    p2.canUseHeatAsMegaCredits = true;
+  },
+  expect: (table) => {
+    const {game, p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(LIVE_EXPERIMENTS_ID, 0)) {
+      throw new Error(`the parliament-live-helion fixture expected Live Experiments enacted, got ${parliament.enacted}`);
+    }
+    if (p2.pendingInitialActions.length > 0 || p2.actionsTakenThisRound !== 0) {
+      throw new Error('the parliament-live-helion fixture expected red to open generation 2 with both actions and no pending first action');
+    }
+    if (game.getTemperature() !== -30 || !p2.canUseHeatAsMegaCredits || p2.heat !== 5 || p2.megaCredits !== 20) {
+      throw new Error(`the parliament-live-helion fixture expected −30 °C, Helion's heat (5) and 20 M€ — got ${game.getTemperature()} °C, ${p2.heat} heat, ${p2.megaCredits} M€`);
+    }
+    for (const name of [CardName.GRASS, CardName.ADAPTED_LICHEN, CardName.MARTIAN_MEDIA_CENTER]) {
+      if (!p2.cardsInHand.some((c) => c.name === name)) {
+        throw new Error(`the parliament-live-helion fixture expected red to hold ${name}`);
+      }
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-live-helion');
+  },
+});
+
 // ── RX33 · WATER EXPORT (the Reds — «2 M€ per influence; the FIRST PLAYER removes 1 ocean tile from the board;
 //    3 M€ off an Earth / Venus / Jovian tag while enacted»). The first world step that ASKS. Two moments of ONE journey:
 //    · the ASSEMBLY — the card alone in the first voting slot with blue's free delegate on it (blue at Agenda step 2

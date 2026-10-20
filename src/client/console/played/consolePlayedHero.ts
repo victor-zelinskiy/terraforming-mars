@@ -42,6 +42,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
+import {changeFeedbackManager} from '@/client/components/feedback/changeFeedbackManager';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
@@ -182,6 +183,13 @@ export const playedHeroState = reactive({
    */
   shipment: '' as string,
   /**
+   * THE LAW'S BILL (PL-725 — RX36 Live Experiments: «pay 6 M€ to play a card…»), named: '' — no law paid for this
+   * play; `flying` → `flown`; or why its token did not fly (`reduced`, `mismatch: …`, `no-source` — the law's face
+   * was not on screen). It departs FIRST: the law's price leaves the rail INTO the law's printed cost, and only then
+   * does the card's own shipment and lift begin — the card's price ticks with its landing.
+   */
+  bill: '' as string,
+  /**
    * THE TABLE'S ANSWER ON THE CARDS (К-S1 — PL-124), named: '' — the play woke no holder; `held` — the promised
    * holders verified and held for the beat; `mismatch: …` — a counter that moved otherwise is not flown (it
    * ticked with the commit, honestly late). Read by the e2e probe through the readiness snapshot.
@@ -315,6 +323,15 @@ let pendingPrice: PlayCardPrice | undefined;
  * own step — any seat's card. Flown in the shipment beat beside the rail's and the pay rows' tokens.
  */
 let pendingTargetSpends: ReadonlyArray<ResourceTransferSpec> = [];
+/**
+ * THE LAW'S BILL (PL-725): a play made THROUGH a law that charges for it (RX36's 6 M€) pays two prices in one answer —
+ * the law's and the card's. One «−17» on the rail told neither: the law's price is a departure of its own, born on the
+ * M€ row's digits, leaving SIDEWAYS (PL-104) and absorbed at the PRINTED cost of the law's face (`targetSelector` —
+ * the stage's hero), the row ticking on the departure (a departure hold, the shipment's own law); the card's price is
+ * then the commit's ordinary «−11» at the landing. Checked against the two views first (`verifyRailReward` with the
+ * play's own moves as `known`) — a row that moved otherwise flies nothing and names itself in `playedHeroState.bill`.
+ */
+let pendingBill: {reward: RailReward, targetSelector: string} | undefined;
 /** The departure holds this transaction seeded (gain-shaped) — released by the commit's block, or by an abort. */
 const departureHolds: Array<ResourceTransferSpec> = [];
 /** The applied view the answer is checked against (handed in with the answer — `runPlayedHero`). */
@@ -589,6 +606,8 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   price?: PlayCardPrice,
   /** The price taken off a card the composer's own step chose — off the answered target row (PL-268). */
   targetSpends?: ReadonlyArray<ResourceTransferSpec>,
+  /** The LAW'S price for this play (PL-725 — RX36): off the rail into the law's printed cost, before anything else. */
+  bill?: {reward: RailReward, targetSelector: string},
   host?: PlayedHeroHost,
   /** The picture the card wears where it LIFTS from (default: the composer's
    *  stationary hero — `normal` tier, no live model). */
@@ -618,6 +637,8 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   pendingSpends = opts.spends;
   pendingPrice = opts.price;
   pendingTargetSpends = opts.targetSpends ?? [];
+  pendingBill = opts.bill;
+  playedHeroState.bill = '';
   playedHeroState.price = '';
   playedHeroState.targetSpend = '';
   beforeView = undefined;
@@ -746,6 +767,7 @@ export function runPlayedHero(view: PlayerViewModel, before?: PlayerViewModel): 
       freeRunGate();
     }, motionMs(HERO_LIFT_MS + HERO_FLIGHT_MS + HERO_LAND_MS) + 3000 +
       (pendingSpends !== undefined ? shipmentBudgetMs() + 1000 : 0) +
+      (pendingBill !== undefined ? shipmentBudgetMs() + 1000 : 0) +
       // The one-play class (TR49): a spend wave, then an arm wave.
       (armedEffectsChange(before, view) ? 2 * shipmentBudgetMs() + 1000 : 0));
     void executeFlight().finally(() => {
@@ -787,6 +809,10 @@ export function seedPlayedHeroRewardHold(before?: PlayerViewModel, after?: Playe
   // applied number, so the release is no transition at all (and never a chip). Before the early returns: a
   // play with nothing else to hold still shipped.
   if (playedHeroState.active) {
+    // A DEPARTURE'S CHIP IS ITS OWN EVENT (PL-725): the row ticked on its token's launch, and what the commit moves on
+    // the same row beside it (the card's price after the law's bill) is a NEW cause — a fresh chip, never the departure's
+    // still-visible «−6» swelling into «−17». A row the commit leaves where the departure put it (X87) reports nothing.
+    breakDepartureChipMerges(after);
     releaseDepartures();
     // The one-play class (TR49): the shipment presented what the answer arms / spends ahead of the view — the
     // applied view now draws exactly that, so its holds settle in this same block (an arm still in the air keeps the
@@ -1002,6 +1028,23 @@ async function executeFlight(): Promise<void> {
  * with the commit, honestly late. Never rejects.
  */
 async function shipPrice(mine: () => boolean): Promise<void> {
+  // THE LAW'S BILL GOES FIRST (PL-725): its token leaves the rail into the law's face and is absorbed there before the
+  // card's own shipment starts — two prices, two departures, in the order the server charged them.
+  const bill = shipLawBill(mine);
+  if (bill !== undefined) {
+    playedHeroState.phase = 'shipping';
+    await bill;
+    if (!mine()) {
+      return;
+    }
+    await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TRANSFER_BEAT_MS) / 1000, resolve));
+    if (!mine()) {
+      return;
+    }
+    if (playedHeroState.bill === 'flying') {
+      playedHeroState.bill = 'flown';
+    }
+  }
   const price = pendingPrice;
   pendingPrice = undefined;
   const stock = shipStockSpends(mine);
@@ -1166,6 +1209,71 @@ function shipCardPrice(price: PlayCardPrice | undefined, mine: () => boolean): P
   return flights.length === 0 ? undefined : Promise.all(flights).then(() => undefined);
 }
 
+/**
+ * THE LAW'S BILL (PL-725 — see `pendingBill`): one token per stock row of the law's price, born on its rail row's
+ * digits, absorbed at the law face's printed cost (the action commit's icon grammar — the cost part of the action
+ * row, then the row, then the face), the row ticking on the departure. Undefined — nothing to fly. Never rejects.
+ */
+function shipLawBill(mine: () => boolean): Promise<void> | undefined {
+  const bill = pendingBill;
+  pendingBill = undefined;
+  if (bill === undefined || !mine()) {
+    return undefined;
+  }
+  if (consoleReducedMotionActive()) {
+    playedHeroState.bill = 'reduced';
+    return undefined;
+  }
+  const verdict = verifyRailReward(bill.reward, beforeView, landingView);
+  if (verdict.cause.length === 0) {
+    playedHeroState.bill = `mismatch: ${verdict.mismatches.join('; ')}`;
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn(`[played-hero] ${playedHeroState.card}: the law's bill was not shown as promised — ${verdict.mismatches.join('; ')}`);
+    }
+    return undefined;
+  }
+  const el = firstMeasurable(bill.targetSelector);
+  if (el === undefined) {
+    playedHeroState.bill = 'no-source';
+    return undefined;
+  }
+  const anchors = resolveActionCommitAnchors(el, undefined);
+  const specs = verdict.cause;
+  const origins = resolveSpendIconOrigins(anchors, specs);
+  const body = anchors.cardEl.getBoundingClientRect();
+  playedHeroState.bill = 'flying';
+  return runResourceTransfers({
+    specs,
+    source: {point: {x: body.left + body.width / 2, y: body.top + body.height / 2}},
+    origins,
+    arrival: 'auto',
+    // A LOSS releases at its LAUNCH: the row ticks the moment the token leaves it (a departure hold — released by the
+    // commit's block against the applied view, which then shows only the card's own price moving).
+    onArrive: (spec) => {
+      if (mine()) {
+        seedDeparture(spec);
+      }
+    },
+    onDegrade: (spec, why) => {
+      playedHeroState.bill = `degraded: ${why} (${spec.resource})`;
+    },
+  });
+}
+
+/** The first MEASURABLE match of a selector (a parked layer may hold the same identity with a zero rect). */
+function firstMeasurable(selector: string): HTMLElement | undefined {
+  if (typeof document === 'undefined') {
+    return undefined;
+  }
+  for (const el of document.querySelectorAll<HTMLElement>(selector)) {
+    const r = el.getBoundingClientRect();
+    if (r.width >= 10 && r.height >= 10) {
+      return el;
+    }
+  }
+  return undefined;
+}
+
 /** The STOCK spends of the play's effect (PL-107 — X87's plants and steel off the rail). Undefined — nothing to fly. */
 function shipStockSpends(mine: () => boolean): Promise<void> | undefined {
   const reward = pendingSpends;
@@ -1218,6 +1326,20 @@ function shipStockSpends(mine: () => boolean): Promise<void> | undefined {
       playedHeroState.shipment = `degraded: ${why} (${spec.resource})`;
     },
   });
+}
+
+/** Each departed stock row's chip merge ends here (the rail's chip key: `runId|color` · `<resource>.stock`). */
+function breakDepartureChipMerges(view: PlayerViewModel | undefined): void {
+  const runId = view?.runId;
+  const color = view?.thisPlayer?.color;
+  if (runId === undefined || runId === '' || color === undefined) {
+    return;
+  }
+  for (const hold of departureHolds) {
+    if (hold.channel === 'stock') {
+      changeFeedbackManager.clearActive(`${runId}|${color}`, `${hold.resource}.stock`);
+    }
+  }
 }
 
 /** Seed ONE departure hold: from here the row reads `committed − amount` — the pre-commit value minus what just left. */
@@ -1547,6 +1669,7 @@ export function abortPlayedHero(): void {
   releaseDepartures();
   pendingSpends = undefined;
   pendingPrice = undefined;
+  pendingBill = undefined;
   beforeView = undefined;
   pendingRewards = [];
   rewardHoldSeeded = false;
@@ -1588,6 +1711,7 @@ function finish(): void {
   settleArmedEffectHolds(); // safety — the commit settled them; an ending that skipped the commit lets go (TR49 class)
   pendingSpends = undefined;
   pendingPrice = undefined;
+  pendingBill = undefined;
   beforeView = undefined;
   pendingRewards = [];
   rewardHoldSeeded = false;

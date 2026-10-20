@@ -4911,6 +4911,9 @@ export default defineComponent({
         // stock cost chips (X87's plants and steel), flown by the landing scene INTO the standing card before it
         // lifts, each row ticking on its token's departure. Never the card's own price (the payment panel's).
         spends: playSpendReward(this.cardName, b, this.captured, payment),
+        // …and THE PLAY'S OWN MOVES on the rail's rows (its price, its chips) — a law that plays this card for a price of
+        // its own (RX36's bill, PL-725) checks its token against them: the bill departs first, this price at the landing.
+        known: actionKnownRailMoves(b, this.captured, payment),
         // …and the price taken off a card THIS composer's own step chose (PL-268 — TR52's 2 data off a rival's census):
         // born on the answered target row, absorbed into the standing card's printed icons before the lift.
         targetSpends: playTargetSpendSpecs(this.cardName, b, this.captured),
