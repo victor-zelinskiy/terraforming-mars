@@ -4330,3 +4330,50 @@ C — доки. Не запушено. Р1–Р4 — все рекомендов
 брать на GPU (`TM_E2E_GPU=1`): на SwiftShader отрисовка отстаёт от DOM на ~180 мс, и кадр «город бота в воздухе» был пуст;
 пробник прокси по сэмплам (opacity / rect) показал и общую находку PL-769 — вершина дуги удалённого полёта уходит за
 верхний край экрана.
+
+## RX39 «Бюджет „Красных“» (Reds Budget, Красные) — 2026-10-20 — ШАГ КАРЬЕРЫ КАЖДОМУ, БОТУ ТОЖЕ
+
+Промт — `docs/claude/prompts/resolution-rx39-reds-budget.md`, контракт — `docs/TURMOIL_REDUX_REDS_BUDGET.md`, бот — D11 в
+`docs/TURMOIL_REDUX_MARSBOT.md` §10. Решения батча владельца: Р1 имя «Бюджет „Красных“» (против рекомендованного «Бюджет
+Красных»), Р3 своя сцена на треке (рекомендованное); Р2 (бот шагает) и Р4 (нашивка) решены заранее.
+
+- **Сборка**: плата `levy` + `levyStep` (RX15), счёт — новый id `spaceMarsTags` (три аддитивные строки + одна
+  `yieldCountPresentation`), выплата — как у бюджетов. Бюджетов в каталоге ШЕСТЬ (по одному на партию) — этот последний;
+  промт называл его «седьмым».
+- **`agendaGrant` — второе ДЕЯНИЕ местам**: КОМУ — общий `GrantRecipients` (`common/parliament/seatGrant.ts`, `tileGrant`
+  читает его же), общий шаг `agendaGrantStep` → `payAgendaGrant` на ОДНОЙ ходьбе `walkAgenda` с четвёртой причиной
+  `resolution`; запись `agenda` несёт ходьбу и измеренный бонус; вид адреса `agenda` — строка до карты.
+- **Записи фазы, не `lastAdvance`**: показ ходьб закона (`careerGrantBeat.ts`) читает исходы `agenda` по местам; детектор
+  ходьбы карты играет только `card`, живой наблюдатель трека пропускает `resolution`.
+- **Бот (D11)**: аспект RX38 `tile-grant` → `seat-grant`, `seatGrantsOf(definition)`, один цикл мест, `runBotSeatGrant`
+  (тайл — `payBotTileGrant`, шаг — `payAgendaGrant`, карта шага = 1 M€), модель места `seatGrant`.
+- **Сцена (Р3)**: такт КАРЬЕРА стадии НАГРАДА (`sittingDirector.beatCareer`) — по местам в порядке записей: импульс
+  печатной нашивки → фраза TR04 → бонус на посадке (РТ зрителя жетоном с узла на рельс) → следующее место; держатели всех
+  маркеров сеются в блоке применения (`agendaGrantAwaits`, композиция под держателем победителя).
+- **Чтения**: нетто-линия, строка шага (`ConsoleAgendaGrant` + `agendaGrantModel`: следующий узел и его награда, «если
+  победите: +2», конец трека), леджер «+1 [нашивка]» у каждого места (у бота — только шаг), итоги (у человека плата ·
+  выплата · шаг, у бота шаг «+1 M€ вместо карты»), инспектор, «Полигон» (10 сценариев), новый ключ примечания о боте.
+
+### Полировка (ledger BP, PL-780…786)
+
+PL-780 (бонус шага закона смахивался тактом ПОВЕСТКА при нейтральном победителе — РТ тикал до ходьбы), PL-781 (свечение
+импульса через `filter` в консоли мертво → кольцо `box-shadow`), PL-782 (стрелка «6 → 7» в итогах на 4K читалась «6.7»),
+PL-783 (лента «КАРЬЕРА · ПОЛУЧЕНО» до посадки) — исправлены; PL-784 (источник импульса мал на 4K), PL-785 (пустые полосы
+панели «ДЛЯ ВАС» на 4K), PL-786 (разрыв кадров GPU-скринкаста в раскадровке соседа) — открыты, предложения владельцу.
+
+### Прогоны
+
+| Что | Итог |
+| --- | --- |
+| Серверные юниты коммитов A / B: `RedsBudget` (25), `ResolutionContract` (+ гард `agendaGrant`), `rewardAddress`, `BotParliamentPolicy`, `ParliamentPhase`, `MarsFirstBudget` (+ чтения); весь `tests/parliament/**` + `tests/automa/**` | 3579 passing |
+| Гарды + RX39 перед коммитом C: `RedsBudget`, `ResolutionContract`, `e2eLiveness`, `parliamentGlossary`, `AgendaStepGlyph`, `cursorGrammarGuard`, `glyphLiteralGuard`, `readingParamsGuard` | 303 passing |
+| Клиент: `RedsBudgetReadings` (9) + чтения бюджетов, леджер, аннотации, `seatParliamentReading`, `agendaWalk`, итоги, `parliamentRewardBeat`, голоса соперников, сид заседания, мировой бит | 169 passing |
+| `vue-tsc`, `eslint src tests`, `lint:i18n`, `build:test`, `make:json`, `make:cards`, `make:css` | зелёные |
+| e2e `console-parliament-reds-budget` (standard-1080 + tv4k), рабочее дерево `tm-rx39` (HEAD + клиент RX39) | 1-й: РТ блю тикнул в стадии ПРИНЯТИЕ (PL-780) → фикс → 2 / 2; GPU-раскадровка 4K 2 / 2 (+ повтор tv4k после правки моментов кадров) |
+| Соседи по промту (GPU, 1 воркер): `console-parliament-marsfirst-budget`, `-skyscrapers`, `-bot`, `console-minority-representation` + RX39 | 20 passed, 1 failed — marsfirst tv4k: нет кадра скринкаста у «05d» при зелёном поведении; без GPU 2 / 2, повтор под GPU с клиентом RX39 2 / 2, A/B клиент HEAD под GPU 2 / 2, ещё один GPU-прогон — снова кадр («05c») → плавающая проверка кадра, PL-786 |
+| `aaa-driver-canary` (драйвер `consoleStart.ts` — строка `FixtureName`) | 1 passed |
+| `npm run e2e:affected` | прямой список — 14 спеков (селекторы `data-zoom-slot`, `data-embed-slot`, лента…); по промту прогнаны только соседи выше и canary, остальные НЕ прогонялись |
+
+Гочи прогона: кадр «маркер в воздухе» снимать на ПОЛПУТИ между рождением прокси и посадкой (у рождения лид ещё светит
+сегмент и прокси стоит на старом узле), импульс — по самой широкой нашивке (`insW` пробника); `html.con-profile-tv
+.con-parl__chip-dim` (0,2,1) перебивает правило блока `.con-sit__world > …` (0,2,0) — ставить `.con-parl` впереди.
