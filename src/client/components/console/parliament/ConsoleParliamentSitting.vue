@@ -45,6 +45,14 @@
               <ConsoleColonyLedger :reading="ledger" size="hero" :activeColony="activeColony" :landedColonies="landedColonies" />
             </div>
           </transition>
+          <!-- …AND THE RECEIPT OF THE TABLE (Sponsored Projects): a card payout that asked nobody — the seat's receiving
+               cards stand here once the draw's take has left the zone, the tokens land on them in turn, and the
+               receipt folds away (the zone's own layer phrase both ways). The director stands it and takes it down. -->
+          <transition :css="false" @enter="onReceiptEnter" @leave="onReceiptLeave" @enter-cancelled="onLedgerCancelled" @leave-cancelled="onLedgerCancelled">
+            <div v-if="receipt !== undefined" class="con-sit__receiptpane" data-sit-receipt :data-sit-receipt-key="receipt.key">
+              <ConsoleTableReceipt :receipt="receipt" :phase="receiptPhase" />
+            </div>
+          </transition>
         </div>
       </div>
     </section>
@@ -175,8 +183,14 @@
                     <!-- A payout SPREAD over several cards names each recipient with its share — the list is the
                          record's own (`cards`), never a recount; one recipient prints the sum alone. Where the kinds
                          differ per card, each share wears its card's own icon. -->
-                    <span v-if="part.cards !== undefined" class="con-sit__part-cards" data-sit-part-cards>
-                      <span v-for="entry in part.cards" :key="entry.card" class="con-sit__part-card" :data-sit-part-card="entry.card" :data-sit-part-card-resource="entry.resource">{{ $t(entry.card) }} +{{ entry.amount }}<i v-if="part.units !== undefined && entry.resource !== undefined" class="con-sit__part-unit con-sit__part-unit--card" :class="cardResourceClass(entry.resource)" aria-hidden="true"></i></span>
+                    <!-- A payout that ASKED NOBODY (Sponsored Projects) says on how many cards it landed, never cut — then
+                         the KINDS it paid, each once (a short list); the names were the receipt's, which showed every face. -->
+                    <span v-if="part.eachCard !== undefined" class="con-sit__part-reason con-sit__part-each" data-sit-part-each :data-sit-part-each-count="part.eachCard">{{ eachCardText(part.eachCard) }}</span>
+                    <span v-if="part.eachCard !== undefined && part.cards !== undefined" class="con-sit__part-cards con-sit__part-cards--kinds" data-sit-part-cards>
+                      <i v-for="kind in eachKinds(part)" :key="kind" class="con-sit__part-unit con-sit__part-unit--card" :class="cardResourceClass(kind)" :data-sit-part-kind="kind" aria-hidden="true"></i>
+                    </span>
+                    <span v-else-if="part.cards !== undefined" class="con-sit__part-cards" data-sit-part-cards>
+                      <span v-for="entry in part.cards" :key="entry.card" class="con-sit__part-card" :data-sit-part-card="entry.card" :data-sit-part-card-resource="entry.resource">{{ $t(entry.card) }} +{{ entry.amount }}<i v-if="(part.units !== undefined || part.eachCard !== undefined) && entry.resource !== undefined" class="con-sit__part-unit con-sit__part-unit--card" :class="cardResourceClass(entry.resource)" aria-hidden="true"></i></span>
                     </span>
                   </template>
                 </template>
@@ -312,11 +326,13 @@ import {consoleParliamentUi} from '@/client/console/parliament/consoleParliament
 import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
 import {quietRewardPoseOf, SittingPosition, SittingStage} from '@/client/console/parliament/consoleSittingFlow';
 import ConsoleColonyLedger from '@/client/components/console/parliament/ConsoleColonyLedger.vue';
+import ConsoleTableReceipt from '@/client/components/console/parliament/ConsoleTableReceipt.vue';
+import {TableReceipt, TableReceiptPhase, tableReceiptState} from '@/client/console/parliament/tableReceiptBeat';
 import {ColonyLedgerReading} from '@/client/console/parliament/colonyLedgerModel';
 import {parliamentRewardState, rewardLanded} from '@/client/console/parliament/parliamentRewardBeat';
 import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {playBodyFold, playZoneLayerEnter} from '@/client/console/parliament/parliamentStageMotion';
-import {ResultsPayoutPart, ResultsReading, resultsReadingOf} from '@/client/console/parliament/parliamentResultsModel';
+import {OWN_KIND_UNIT, ResultsPayoutPart, ResultsReading, resultsReadingOf} from '@/client/console/parliament/parliamentResultsModel';
 import {worldParameterUnit} from '@/client/console/parliament/worldMoveModel';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
@@ -327,7 +343,7 @@ import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransfe
 
 export default defineComponent({
   name: 'ConsoleParliamentSitting',
-  components: {PlayerCube, ConsoleColonyLedger, ConsoleYieldUnit},
+  components: {PlayerCube, ConsoleColonyLedger, ConsoleTableReceipt, ConsoleYieldUnit},
   props: {
     /** Where the sitting stands on the server (`consoleSittingFlow.sittingPositionOf`). */
     position: {type: Object as PropType<SittingPosition>, required: true},
@@ -345,6 +361,8 @@ export default defineComponent({
     stepOpen: {type: Boolean, default: false},
     /** THE COLONY LEDGER the enacted resolution pays (Colonial Affairs) — undefined for every other resolution. */
     ledger: {type: Object as PropType<ColonyLedgerReading | undefined>, default: undefined},
+    /** THE RECEIPT OF THE TABLE standing in the zone (Sponsored Projects) — the director stands it and takes it down. */
+    receipt: {type: Object as PropType<TableReceipt | undefined>, default: undefined},
     /** The results panel waits for the renewal's beats (the director reveals it). */
     resultsHidden: {type: Boolean, default: false},
     /** Hosted inside another surface's zone (nothing of the chassis to strip — the sitting never titles itself). */
@@ -408,6 +426,10 @@ export default defineComponent({
     supportPlaces(): number {
       return PARLIAMENT_MAX_POPULAR_SUPPORT;
     },
+    /** The receipt's phase (`tableReceiptBeat`) — the pose of its faces (the lift while they receive). */
+    receiptPhase(): TableReceiptPhase {
+      return tableReceiptState.phase;
+    },
     /** THE ROW NOW PAYING — the director marks the tile whose chips are in the air (one row, never a blink). */
     activeColony(): string | undefined {
       return sittingMotion.colonyRow === '' ? undefined : sittingMotion.colonyRow;
@@ -443,6 +465,17 @@ export default defineComponent({
     },
     /** …and yields to a step that is opening: pushed shut downward while the step's surface paints beside it. */
     onLedgerLeave(el: Element, done: () => void): void {
+      playBodyFold(el as HTMLElement, undefined, done);
+    },
+    /** The receipt unfolds in the zone — the same layer phrase; its end lets the wave measure the capsules. */
+    onReceiptEnter(el: Element, done: () => void): void {
+      playZoneLayerEnter(el as HTMLElement, () => {
+        tableReceiptState.paneIn = true;
+        done();
+      });
+    },
+    /** …and folds down when the director takes it away — the field folds back after it. */
+    onReceiptLeave(el: Element, done: () => void): void {
       playBodyFold(el as HTMLElement, undefined, done);
     },
     onLedgerCancelled(el: Element): void {
@@ -509,13 +542,22 @@ export default defineComponent({
         return '';
       }
       if (part.kind === 'cardResource') {
-        return iconClassFor(cardResourceKey(part.unit));
+        // «One of its own kind» (Sponsored Projects onto cards of several kinds): the face's «?» cube.
+        return part.unit === OWN_KIND_UNIT ? iconClassFor('cube') + ' con-iyield__unit--own-kind' : iconClassFor(cardResourceKey(part.unit));
       }
       return iconClassFor(part.unit) + (part.production ? ' con-iyield__unit--prod' : '');
     },
     /** The icons of a part of SEVERAL kinds — one per kind, in the declared order. */
     partUnitClasses(part: ResultsPayoutPart): Array<string> {
       return (part.units ?? []).map((unit) => iconClassFor(cardResourceKey(unit)));
+    },
+    /** «на 4 карты» — the count of cards a payout that asked nobody landed on. */
+    eachCardText(count: number): string {
+      return translateTextWithParams('on ${0} card(s)', [String(count)]);
+    },
+    /** The kinds a payout that asked nobody paid, each once, in the cards' order. */
+    eachKinds(part: ResultsPayoutPart): Array<string> {
+      return [...new Set((part.cards ?? []).flatMap((entry) => entry.resource === undefined ? [] : [entry.resource]))];
     },
     /** One recipient's own kind (a card-resource share). */
     cardResourceClass(resource: string): string {

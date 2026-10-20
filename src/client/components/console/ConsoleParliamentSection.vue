@@ -153,7 +153,7 @@
                                           :position="sitting" :stage="sittingStage" :summary="model?.phase?.summary"
                                           :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor"
                                           :field="flow.sittingField" :stepOpen="sittingStepOpen" :ledger="sittingLedger"
-                                          :resultsHidden="resultsHidden" mode="live" />
+                                          :receipt="tableReceiptShown" :resultsHidden="resultsHidden" mode="live" />
                 <div class="con-parl__embed" data-embed-slot="parliament"></div>
               </div>
             </transition>
@@ -232,6 +232,7 @@ import {
 import {
   parliamentRewardPending, parliamentRewardState, releaseParliamentRewards, takeTileReceipt,
 } from '@/client/console/parliament/parliamentRewardBeat';
+import {TableReceipt, tableReceiptState, tableReceiptsOwed} from '@/client/console/parliament/tableReceiptBeat';
 import {deliverRulingChangeDraws, openRulingChangePark} from '@/client/console/parliament/rulingChangeDraw';
 import {
   parliamentWorldBeatState, runTrackMoveBeat, runWorldMoveBeat, seatTileOwed, takeWorldReceipt, trackMoveOwed, worldMoveOwed, worldReceiptOwed,
@@ -544,7 +545,20 @@ export default defineComponent({
       if (!this.sittingUp || p === undefined) {
         return {pose: false, stepOpen: false};
       }
-      return sittingFieldOf(this.sittingStage, p.rewardStep, this.rewardPending, this.sittingLedger !== undefined, this.stepFrameNested);
+      return sittingFieldOf(this.sittingStage, p.rewardStep, this.rewardPending, this.sittingLedger !== undefined, this.stepFrameNested, this.tableReceiptOwed);
+    },
+    /**
+     * A RECEIPT OF THE TABLE is owed or standing (Sponsored Projects — a card payout that asked nobody): the reward
+     * stage holds its field and its page for it, and the walk plays its beat (`sittingDirector.beatReceipt`).
+     */
+    tableReceiptOwed(): boolean {
+      void tableReceiptState.owed.length;
+      void tableReceiptState.showing;
+      return tableReceiptsOwed();
+    },
+    /** The receipt standing in the zone now (the director stands it, the director takes it down). */
+    tableReceiptShown(): TableReceipt | undefined {
+      return tableReceiptState.showing;
     },
     /**
      * A hosted step that is a workspace FRAME still stands INSIDE the Parliament (the colonies of the winner's
@@ -1076,6 +1090,12 @@ export default defineComponent({
      */
     'rewardsOwed'(n: number, was: number): void {
       if (n > 0 && n > was && parliamentSittingUp()) {
+        this.queueWalk();
+      }
+    },
+    /** A receipt of the table became owed (the response to the seat's take, a poll): the walk plays it on the reward page. */
+    'tableReceiptOwed'(on: boolean, was: boolean): void {
+      if (on && !was && parliamentSittingUp()) {
         this.queueWalk();
       }
     },
@@ -2311,7 +2331,8 @@ export default defineComponent({
       // fly from» — measured on Mohole Contest (the same step change Gas Export / Heat Capture arrive by). An
       // unplayed enactment starts the walk anyway, and the reward page follows it by itself.
       const worldOwed = (worldMoveOwed(key) && sittingStagePlayed(key, 'enact')) || worldReceiptOwed(key) || parliamentWorldBeatState.receiptShowing;
-      parliamentFlow.sittingPage = sittingStartPage(position, (stage) => sittingStagePlayed(key, stage), ledgerRead || hostedFrameStands || worldOwed);
+      // …and a RECEIPT OF THE TABLE still owed (the seat's take answered as the last ask of the step): the reward page first.
+      parliamentFlow.sittingPage = sittingStartPage(position, (stage) => sittingStagePlayed(key, stage), ledgerRead || hostedFrameStands || worldOwed || tableReceiptsOwed());
       this.queueWalk();
     },
     // ── the director's walk ─────────────────────────────────────────────
@@ -2359,7 +2380,7 @@ export default defineComponent({
         // that tile land BEFORE this seat's own door is offered (the door stays shut while the frame is away).
         (position.rewardStep === 'placement' && seatTileOwed(this.sittingKey) && !consoleParliamentUi.boardDoorOpen);
       return settled && !this.rewardPending && !parliamentRewardState.receiptShowing &&
-        !this.ledgerReadOwed && !this.stepFrameNested && !this.sittingStepOpen;
+        !this.ledgerReadOwed && !this.stepFrameNested && !this.sittingStepOpen && !this.tableReceiptOwed;
     },
     /** May the walk leave `stage` by itself? The enactment always; the reward once nothing of this seat's is open there. */
     mayLeave(stage: SittingStage, position: SittingPosition): boolean {
@@ -2368,7 +2389,7 @@ export default defineComponent({
       }
       if (stage === 'reward') {
         // …and never while a hosted FRAME still stands in the zone (the colonies' build chain after the pick).
-        return sittingRewardSettled(position) && !this.rewardPending && !parliamentRewardState.receiptShowing && !this.ledgerReadOwed &&
+        return sittingRewardSettled(position) && !this.rewardPending && !parliamentRewardState.receiptShowing && !this.ledgerReadOwed && !this.tableReceiptOwed &&
           // …and never while the PLANET's own move is still owed to the board, or its read to the page.
           !worldMoveOwed(this.sittingKey) && !parliamentWorldBeatState.receiptShowing && !this.stepFrameNested;
       }
@@ -2425,7 +2446,7 @@ export default defineComponent({
           const ledgerRead = stage === 'reward' && this.ledgerReadOwed;
           // …and the PLANET's own read, once the frame is back from the board.
           const worldRead = stage === 'reward' && parliamentWorldBeatState.receiptShowing;
-          if (!sittingStagePlayed(key, stage) || receipt || ledgerRead || worldRead || (stage === 'reward' && this.rewardPending)) {
+          if (!sittingStagePlayed(key, stage) || receipt || ledgerRead || worldRead || (stage === 'reward' && (this.rewardPending || this.tableReceiptOwed))) {
             notePlayedSittingStage(key, stage);
             await playSittingStage(stage, this.sittingBeatList, ctx, {compact: false});
             if (stage === 'enact') {

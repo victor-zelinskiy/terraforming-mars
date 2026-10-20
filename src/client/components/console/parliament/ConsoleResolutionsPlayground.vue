@@ -3352,7 +3352,8 @@ export default defineComponent({
             fixedYield(effect, 'resolving', payout.amount, payout.influence,
               {
                 count: payout.count.count, counted: payout.count.cards, countedUnits: payout.count.units, countedSpaces: payout.count.spaces,
-                countedTiers: payout.count.tiers, countedMetric: payout.count.metric, countedByResource: payout.count.byResource, uncapped: payout.uncapped,
+                countedTiers: payout.count.tiers, countedMetric: payout.count.metric, countedByResource: payout.count.byResource,
+                countedByCard: payout.count.byCard, uncapped: payout.uncapped,
               }) :
             resolvingYieldOf(effect, payout.amount, this.model, TEST_PLAYERS[i].color);
       return payout.skipped === undefined ? reading : {...reading, skipped: payout.skipped};

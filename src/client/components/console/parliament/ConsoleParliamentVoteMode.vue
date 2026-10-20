@@ -113,6 +113,18 @@
                       <i class="con-parl__info-tracks-icon" aria-hidden="true"></i>
                       <span>{{ tracksLabel(voteInfo.reading.tracks.steps) }}</span>
                     </span>
+                    <!-- THE CARDS IT WOULD FEED (Sponsored Projects RX40): each counted holder with its own kind and
+                         «before → after», then the points the units bring — the server's count by card; one wrapping
+                         run, never a table (the faces stand in the receipt once the law is enacted). -->
+                    <span v-if="voteInfo.reading.holders !== undefined" class="con-parl__info-holders" data-parl-vote-holders
+                          :data-parl-vote-holders-count="voteInfo.reading.holders.rows.length" :data-parl-vote-holders-vp="voteInfo.reading.holders.vp">
+                      <span v-for="row in voteInfo.reading.holders.rows" :key="row.card" class="con-parl__info-holder" :data-parl-vote-holder="row.card">
+                        <i class="con-parl__info-holder-unit" :class="holderUnitClass(row.resource)" aria-hidden="true"></i>
+                        <span class="con-parl__info-holder-name">{{ $t(row.card) }}</span>
+                        <b>{{ row.before }}</b><span aria-hidden="true">→</span><b class="con-parl__info-holder-to">{{ row.after }}</b>
+                      </span>
+                      <b v-if="voteInfo.reading.holders.vp !== 0" class="con-parl__info-holders-vp" data-parl-vote-holders-points>{{ $t('VP') }} {{ signed(voteInfo.reading.holders.vp) }}</b>
+                    </span>
                     <!-- HOW MANY TIMES THE ACTION IS TAKEN (Manufacturing Run RX37): the printed count with its
                          threshold, then the seat's own count — on the line or how far below it — and the win's
                          forecast where the Agenda step lifts it over the line. One reading of the declaration. -->
@@ -318,6 +330,7 @@ import {TILE_REMOVAL_COST_NOTE_KEY, TILE_REMOVAL_SUMMARY_KEY} from '@/client/con
 import {offTurnReason} from '@/client/console/offTurnReason';
 import {Reading, readingText} from '@/client/console/readingText';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {StagedReceipt} from '@/client/console/stagedPlay';
 import {afterCommitImpulse} from '@/client/console/consoleActionCommit';
 import {stagedDoorVerb} from '@/client/console/parliament/parliamentCommands';
@@ -780,6 +793,13 @@ export default defineComponent({
     /** A reading line with its params — the ONE renderer (PL-160). */
     line(reading: Reading): string {
       return readingText(reading);
+    },
+    /** A counted holder's own kind — the icon its unit lands as. */
+    holderUnitClass(resource: string): string {
+      return iconClassFor(cardResourceKey(resource));
+    },
+    signed(n: number): string {
+      return n > 0 ? `+${n}` : String(n);
     },
     tracksLabel(steps: number): string {
       return translateTextWithParams(COLONY_TRACK_SUMMARY_KEY, [String(steps)]);

@@ -216,6 +216,13 @@ export default defineComponent({
       ro: undefined as ResizeObserver | undefined,
       /** Module reactive → data mirror (path watchers need it). */
       flow: externalDrawState,
+      /**
+       * THE SURFACE LEFT WITH ITS QUESTION (RX40): set in `beforeUnmount`. A take's beats outlive the surface (the
+       * cards fly in the app-level layer), but a watcher dies with its component — so «did the prompt move?» is
+       * answered by the unmount itself, and every waiter on it is released at once.
+       */
+      unmounting: false,
+      goneWaiters: [] as Array<() => void>,
     };
   },
   computed: {
@@ -417,6 +424,8 @@ export default defineComponent({
     }
   },
   beforeUnmount(): void {
+    this.unmounting = true;
+    this.goneWaiters.splice(0).forEach((release) => release());
     clearPanelCommands('externalDraw');
     this.handle?.kill();
     this.handle = undefined;
@@ -708,7 +717,10 @@ export default defineComponent({
         await this.flyToHand(names);
       } finally {
         await this.awaitPromptMoved(key);
-        if (this.meta !== undefined && this.promptKey === key) {
+        // An unmounted surface is a question the server has moved past (the last take answered) — never a refusal:
+        // waiting for a dead watcher read every final take as REFUSED after the grace, and held `committing` (every
+        // gate that asks it — the frame's close, the sitting's receipt) for the whole 1.5 s.
+        if (!this.unmounting && this.meta !== undefined && this.promptKey === key) {
           // The server is still asking the very same question: the take was
           // REFUSED. The cards come back into play — never a sealed beat.
           // `runHandIntake` held the SOURCE hidden (`con-deal-hold`) for the
@@ -723,7 +735,9 @@ export default defineComponent({
           // the rest FLIP to their new berths (the deck pick's own law — a
           // reflow under a flight the player is watching is the one thing the
           // stable row existed to prevent; a ghost seat was never needed).
-          this.settleTaken(names);
+          if (!this.unmounting) {
+            this.settleTaken(names);
+          }
           endExternalDrawSend();
         }
       }
@@ -799,7 +813,7 @@ export default defineComponent({
       });
     },
     awaitPromptMoved(key: string): Promise<void> {
-      if (this.meta === undefined || this.promptKey !== key || typeof window === 'undefined') {
+      if (this.unmounting || this.meta === undefined || this.promptKey !== key || typeof window === 'undefined') {
         return Promise.resolve();
       }
       return new Promise<void>((resolve) => {
@@ -820,6 +834,7 @@ export default defineComponent({
             }
           });
         const timer = window.setTimeout(finish, motionMs(REFUSAL_GRACE_MS));
+        this.goneWaiters.push(finish);
       });
     },
     async flyToHand(names: ReadonlyArray<CardName>): Promise<void> {

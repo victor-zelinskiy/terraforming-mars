@@ -877,3 +877,21 @@ html.con-profile-tv .con-iyield__suffix-node { width: 1.22rem; height: 1.22rem; 
     }
 }
 html.con-profile-tv .con-agrant__node { width: 1.22rem; height: 1.22rem; font-size: .8rem; }
+
+/* A CARD RESOURCE OF THE CARD'S OWN KIND (Sponsored Projects, the `'own-kind'` unit): the face's own «?» cube — the cube
+   sprite with the «?» the face prints on it. Never the list of every kind, never one kind standing in for all. */
+.con-iyield__unit--own-kind {
+    position: relative;
+    &::after {
+        content: '?';
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: .78em;
+        line-height: 1;
+        color: #2a1c08;
+    }
+}

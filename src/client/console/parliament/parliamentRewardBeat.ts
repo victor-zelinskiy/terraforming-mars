@@ -62,6 +62,7 @@ import {consoleParliamentUi} from './consoleParliamentFlow';
 import {ParliamentBeat, scheduleParliamentBeat} from './parliamentBeat';
 import {enterWorldBeatSitting, seedWorldMoveBeat} from './parliamentWorldBeat';
 import {releaseCareerGrantWalks, resetCareerGrantBeat, seedCareerGrantWalks} from './careerGrantBeat';
+import {releaseTableReceipts, resetTableReceiptBeat, seedTableReceipts} from './tableReceiptBeat';
 
 /** The rail's key for the terraform rating (the score cell) — the transfer model's own (`resourceTransferModel.ts`), re-exported for the parliament's seeders. */
 export {RATING_RAIL_KEY};
@@ -383,6 +384,8 @@ export function releaseParliamentRewards(why: RewardReleaseReason): void {
   flushAgendaBonus(why);
   // …and the steps of the Career a law granted the seats: every held marker stands on its server step now.
   releaseCareerGrantWalks();
+  // …and a receipt of the table still owed: its capsules, the satellite and the points tick now.
+  releaseTableReceipts();
 }
 
 /** Release every owed / flying record's hold at once (a stage's end, the ceiling, a new sitting) — the counters tick, honestly late. `why` is for the trail. */
@@ -506,6 +509,9 @@ export function seedParliamentRewardHold(before: PlayerViewModel | undefined, af
     trail('seed-career', {key, steps: career.map((bonus) => `${bonus.kind}:${bonus.step}`)});
     queueAgendaBonuses(career);
   }
+  // A CARD PAYOUT THAT ASKED NOBODY (Sponsored Projects): the receipt of the table — the seat's receiving cards in the
+  // zone, their capsules and points held until each token lands. Read off the phase's records, never a prompt.
+  seedTableReceipts(key, before, after, onScreen);
 }
 
 /** The director takes what is owed — the records are in the air from here (their holds still stand). */
@@ -620,6 +626,7 @@ export function resetParliamentRewards(): void {
   flushParliamentRewards('reset');
   flushAgendaBonus('reset');
   resetCareerGrantBeat();
+  resetTableReceiptBeat();
   parliamentRewardState.sitting = '';
   parliamentRewardState.landed = [];
   parliamentRewardState.tileReceipt = undefined;

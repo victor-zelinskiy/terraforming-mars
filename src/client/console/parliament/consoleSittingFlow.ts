@@ -105,12 +105,15 @@ export const SITTING_HOSTED_STEPS: ReadonlySet<SittingRewardStep> = new Set<Sitt
  * prompt is admitted — before the wave that arrived with it has flown — so `hosting` never opens the door on its
  * own: the wave still comes first (measured: the grid stood 2.4 s before the titanium touched the rail).
  */
-export function sittingFieldOf(stage: SittingStage, rewardStep: SittingRewardStep, rewardPending: boolean, ledger: boolean, hosting = false): {pose: boolean, stepOpen: boolean} {
+export function sittingFieldOf(stage: SittingStage, rewardStep: SittingRewardStep, rewardPending: boolean, ledger: boolean, hosting = false, receipt = false): {pose: boolean, stepOpen: boolean} {
   if (stage !== 'reward') {
     return {pose: false, stepOpen: false};
   }
   const stepOpen = (SITTING_HOSTED_STEPS.has(rewardStep) || hosting) && !rewardPending;
-  return {pose: stepOpen || ledger, stepOpen};
+  // A RECEIPT OF THE TABLE (Sponsored Projects — a card payout that asked nobody) holds the field from the record's
+  // arrival to the receipt's departure: the take leaves the zone and the receipt stands in it — one field, never a
+  // fold between the two.
+  return {pose: stepOpen || ledger || receipt, stepOpen};
 }
 
 /**

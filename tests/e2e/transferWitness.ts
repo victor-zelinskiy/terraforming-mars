@@ -108,7 +108,7 @@ export type TransferWitness = {births: Array<TransferEnd>, landings: Array<Trans
 export async function armTransferWitness(page: Page): Promise<void> {
   await page.evaluate(() => {
     type End = {id: number, value: string, t: number, x: number, y: number, under: string, touched?: number};
-    const w = window as unknown as {__transferWitness?: {births: Array<End>, landings: Array<End>, stop: () => void}};
+    const w = window as unknown as {__transferWitness?: {births: Array<End>, landings: Array<End>, t0: number, stop: () => void}};
     w.__transferWitness?.stop();
     const births: Array<End> = [];
     const landings: Array<End> = [];
@@ -137,6 +137,10 @@ export async function armTransferWitness(page: Page): Promise<void> {
     const ANCHORS: Array<[string, string]> = [
       // A card's PRINTED «?» — a standard resource chosen from it is born there (TR54); the most specific of all.
       ['wild', '.pcard-ic[style*="wild.png"]'],
+      // A LAW's printed «?» cube on the sitting's hero slot (RX40 — one of the card's own kind): the receipt's tokens are born there.
+      ['law-cube', '[data-parl-sit-hero] .pcard-ic[style*="cube.png"]'],
+      // A face of the RECEIPT OF THE TABLE (RX40) — a token of a payout that asked nobody lands on it. `receipt:<card>`.
+      ['receipt', '[data-sit-receipt] [data-receipt-card]'],
       // A card's PRINTED VP badge — the score cell's token is born there (TR55); more specific than the card it is on.
       ['vp-badge', '.pcard__vp'],
       // …and a milestone's / an award's ceremony line — the +5's printed source (the MA workspace's stage, the global shell).
@@ -193,6 +197,7 @@ export async function armTransferWitness(page: Page): Promise<void> {
         return `struck:${cls.replace(/^.*--/, '')}`;
       }
       case 'lawseal': return 'lawseal';
+      case 'receipt': return `receipt:${name(el, 'data-receipt-card')}`;
       case 'printed': {
         const sprite = /([\w-]+)\.(?:png|webp|svg)/.exec((el as HTMLElement).style.backgroundImage ?? '')?.[1] ?? 'icon';
         return `printed:${sprite}`;
@@ -275,7 +280,8 @@ export async function armTransferWitness(page: Page): Promise<void> {
     const timer = window.setInterval(sample, 16);
     const mo = new MutationObserver(sample);
     mo.observe(document.body, {subtree: true, childList: true});
-    w.__transferWitness = {births, landings, stop: () => {
+    // `t0` — the witness's own clock origin (`performance.now()`), so a spec can line a touchdown up with its own samples.
+    w.__transferWitness = {births, landings, t0, stop: () => {
       window.clearInterval(timer);
       mo.disconnect();
     }};

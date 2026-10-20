@@ -101,6 +101,10 @@ import {BandRenewalCue} from './parliamentBand';
 import {ParliamentRenewalEventModel} from '@/common/models/ParliamentModel';
 import {AGENDA_BEAT_GAP_MS, AgendaWalkHooks, AgendaWalkRecordLike, deliverAgendaStepReward} from './agendaWalkDirector';
 import {careerGrantState, careerWalksOwed, releaseCareerGrantWalks, takeCareerWalk} from './careerGrantBeat';
+import {endTableReceipt, markReceiptSpecLanded, releaseTableReceipts, TableReceipt, tableReceiptState, tableReceiptsOwed, takeTableReceipt} from './tableReceiptBeat';
+import {runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
+import {externalDrawState, isExternalDrawBusy} from '@/client/console/externalDraw/consoleExternalDraw';
+import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
 
 // ── the storyboard's budget (base ms; §6, v2) ───────────────────────────────
 const VERDICT_LIGHT_MS = 220;
@@ -180,13 +184,28 @@ const STAGE_HOLD_CEILING_MS = 12_000;
 const CAREER_IMPULSE_MS = 320;
 const CAREER_SEAT_BUDGET_MS = 1500;
 const CAREER_HOLD_CEILING_MS = 40_000;
+/**
+ * КВИТАНЦИЯ СТОЛА (Sponsored Projects): the receipt's own bounds. The take of the draw goes FIRST — the receipt
+ * stands only once its cards have left for the hand (`RECEIPT_READY_WAIT_MS`, a bound over a delivery that never
+ * reports, not a beat); the pane's entrance is the stage's zone phrase (`RECEIPT_PANE_WAIT_MS` bounds its report);
+ * the lift and the settle are the card-receive director's PRESENT / RETURN, the read its READ.
+ */
+const RECEIPT_HOLD_CEILING_MS = 24_000;
+const RECEIPT_READY_WAIT_MS = 9000;
+const RECEIPT_PANE_WAIT_MS = 1600;
+const RECEIPT_LIFT_MS = 200;
+const RECEIPT_READ_MS = 900;
+const RECEIPT_LEAVE_WAIT_MS = 1200;
 
 /** What the director is doing — read by the tiers (the poses) and the specs. */
 export const sittingMotion = reactive({
   /** The stage whose beats are playing ('' at rest). */
   stage: '' as SittingStage | '',
-  /** The beat of the stage that is playing ('' at rest / a one-beat stage) — `career`: the reward stage's walks of the Career. */
-  beat: '' as '' | 'agenda' | 'support' | 'enact' | 'career',
+  /**
+   * The beat of the stage that is playing ('' at rest / a one-beat stage) — `career`: the reward stage's walks of the Career;
+   * `receipt`: the receipt of the table (Sponsored Projects — a card payout that asked nobody).
+   */
+  beat: '' as '' | 'agenda' | 'support' | 'enact' | 'career' | 'receipt',
   /**
    * …and WHICH WAVE of the support beat is in the air ('' between waves). The two waves obey two different
    * rules — the parties nobody spoke for take from the supply, the unenacted resolutions send their own —
@@ -1252,6 +1271,198 @@ function beatCareer(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: numb
   return s(count * (CAREER_IMPULSE_MS + CAREER_SEAT_BUDGET_MS + AGENDA_BEAT_GAP_MS)) * k;
 }
 
+// ── НАГРАДА · КВИТАНЦИЯ СТОЛА ──────────────────────────────────────────────
+
+/**
+ * Wait (on the probe clock, never a wall-clock timer) until `ready()` — or the bound, on the motion clock: `true` the
+ * condition came, `false` the bound did. An abort of the run ends the wait at once (`false`).
+ */
+function waitUntil(runState: StageRun, ready: () => boolean, maxMs: number): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    let over = false;
+    const end = (ok: boolean): void => {
+      if (!over) {
+        over = true;
+        bound.kill();
+        resolve(ok);
+      }
+    };
+    const bound = scheduleParliamentBeat(maxMs, () => end(false));
+    runState.kills.push(() => end(false));
+    const probe = (): void => {
+      if (over) {
+        return;
+      }
+      if (runState.finished) {
+        end(false);
+        return;
+      }
+      if (ready()) {
+        end(true);
+        return;
+      }
+      probeTick(probe);
+    };
+    probe();
+  });
+}
+
+/** The draw's take has left the stage: no hosted step in the zone, no external draw in flight, no card flying to the hand. */
+function receiptStageClear(root: HTMLElement): boolean {
+  return root.querySelector('[data-sit-zone-step]') === null && !isExternalDrawBusy() && !externalDrawState.committing && !isHandDeliveryActive();
+}
+
+/** The law's printed «?» — the cube the face prints for «a resource of the card's own kind» (`resource(RESOURCE_CUBE, {questionMark})`). */
+function receiptSourceIcon(card: HTMLElement): HTMLElement | undefined {
+  const icons = Array.from(card.querySelectorAll<HTMLElement>('.pcard-ic')).filter((el) => (el.style.backgroundImage ?? '').includes('cube.png'));
+  return icons.find((el) => el.getBoundingClientRect().width > 4);
+}
+
+function centerOf(el: Element | null | undefined): TransferPoint | undefined {
+  if (el === null || el === undefined) {
+    return undefined;
+  }
+  const r = el.getBoundingClientRect();
+  return r.width > 4 && r.height > 4 ? {x: r.left + r.width / 2, y: r.top + r.height / 2} : undefined;
+}
+
+/** WHERE a receipt card's token lands: its face's own capsule (`.pcard__res`), else the face itself. */
+function receiptLandingOf(root: HTMLElement, card: string): TransferPoint | undefined {
+  const cell = root.querySelector<HTMLElement>(`[data-sit-receipt] [data-receipt-card="${card}"]`);
+  return centerOf(cell?.querySelector('.pcard__res')) ?? centerOf(cell?.querySelector('.pcard'));
+}
+
+/**
+ * КВИТАНЦИЯ СТОЛА: a card payout that ASKED NOBODY (Sponsored Projects — +1 of its own kind on every card that already
+ * holds a resource), shown where the seat's cards are not otherwise on screen. In turn, after the seat's wave and the
+ * Career: the draw's take leaves first (its cards fly to the hand) → the receipt stands in the zone (the seat's
+ * RECEIVING cards as one row of faces, each with its capsule and its points) → the law fixes (the ACTION COMMIT's
+ * impulse over its printed graphic, landing on the «?») → ONE scene of the card-receive director (the fifth host,
+ * `resolution`): PRESENT the row lifts as one object · PAY a token per card born on the «?» wearing ITS card's kind,
+ * landing on that card's capsule IN TURN (the wave's own ladder), each capsule, the satellite and the card's points
+ * ticking on its own touchdown · READ · RETURN → the receipt leaves (the zone's fold) and the walk goes on. A run
+ * driven to its end («дожать») or aborted releases every held counter at once.
+ */
+function beatReceipt(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
+  if (!tableReceiptsOwed()) {
+    return 0;
+  }
+  const root = ctx.root;
+  runState.pending++;
+  let over = false;
+  const finish = (): void => {
+    if (over) {
+      return;
+    }
+    over = true;
+    runState.pending = Math.max(0, runState.pending - 1);
+  };
+  const abort = (): void => {
+    releaseTableReceipts();
+    finish();
+  };
+  runState.kills.push(abort);
+  const leave = async (): Promise<void> => {
+    tableReceiptState.phase = 'leave';
+    // The pane folds down (the zone's own phrase); the field folds back once the receipt is no longer owed.
+    endTableReceipt();
+    await waitUntil(runState, () => root.querySelector('[data-sit-receipt]') === null, RECEIPT_LEAVE_WAIT_MS);
+  };
+  const play = async (receipt: TableReceipt): Promise<void> => {
+    // THE PANE STANDS (its entrance is the zone's layer phrase) — the wave measures capsules that have stopped moving.
+    if (!await waitUntil(runState, () => tableReceiptState.paneIn, RECEIPT_PANE_WAIT_MS) && runState.finished) {
+      return;
+    }
+    const card = enactedCardEl();
+    const sourceIcon = card === undefined ? undefined : receiptSourceIcon(card);
+    // THE LAW FIXES FIRST: the impulse over its printed graphic lands on the «?» — the cause before the effect.
+    tableReceiptState.phase = 'impulse';
+    await new Promise<void>((resolve) => {
+      let settled = false;
+      const done = (): void => {
+        if (!settled) {
+          settled = true;
+          resolve();
+        }
+      };
+      const handle = runActionCommitMotion({
+        cardWrapEl: card,
+        ctaEl: undefined,
+        actionNode: undefined,
+        kind: 'resources',
+        firstResource: 'resource-cube',
+        onHandoff: done,
+        onSettled: done,
+      });
+      runState.kills.push(() => {
+        handle.kill();
+        done();
+      });
+    });
+    if (runState.finished) {
+      return;
+    }
+    const origin = centerOf(sourceIcon);
+    await runCardReceive({
+      host: 'resolution',
+      card: receipt.key,
+      readMs: RECEIPT_READ_MS * k,
+      alive: () => !runState.finished && root.isConnected,
+      present: async () => {
+        tableReceiptState.phase = 'present';
+        await new Promise<void>((resolve) => scheduleHurriedParliamentBeat(RECEIPT_LIFT_MS * k, resolve));
+        return root.querySelector('[data-sit-receipt] [data-receipt-card]') !== null;
+      },
+      pay: async () => {
+        tableReceiptState.phase = 'pay';
+        const wave = runResourceTransfers({
+          specs: receipt.specs,
+          ...(origin === undefined ? {} : {origins: receipt.specs.map(() => origin)}),
+          source: {selectors: ['[data-parl-sit-hero] .con-parl__gov-card .pcard', '[data-parl-sit-hero]']},
+          arrival: 'auto',
+          destinationOf: (spec) => (spec.targetCard === undefined ? undefined : receiptLandingOf(root, spec.targetCard)),
+          onArrive: (spec) => markReceiptSpecLanded(spec),
+        });
+        trackWave(runState, wave);
+        await wave;
+        tableReceiptState.phase = 'read';
+        return true;
+      },
+      ret: async () => {
+        tableReceiptState.phase = 'return';
+        await new Promise<void>((resolve) => scheduleHurriedParliamentBeat(RECEIPT_LIFT_MS * k, resolve));
+      },
+      // Every way out (done, degraded, aborted, reduced): what is still held ticks now — never lost.
+      release: () => receipt.specs.forEach((spec) => markReceiptSpecLanded(spec)),
+    });
+  };
+  tl.call(() => {
+    void (async () => {
+      try {
+        // THE TAKE GOES FIRST: the draw's surface leaves the zone and its cards reach the hand before the receipt stands.
+        await waitUntil(runState, () => receiptStageClear(root), RECEIPT_READY_WAIT_MS);
+        while (!runState.finished && tableReceiptState.owed.length > 0) {
+          const receipt = takeTableReceipt();
+          if (receipt === undefined) {
+            break;
+          }
+          await play(receipt);
+          if (runState.finished) {
+            break;
+          }
+          await leave();
+        }
+      } finally {
+        if (runState.finished) {
+          releaseTableReceipts();
+        }
+        finish();
+      }
+    })();
+  }, undefined, 0);
+  return s(RECEIPT_LIFT_MS * 2 + RECEIPT_READ_MS) * k;
+}
+
 // ── ОБНОВЛЕНИЕ ─────────────────────────────────────────────────────────────
 
 /** The table is released to the LIVE model: the held slots, the vacated / departed outlines, the lifted faces — all let go. */
@@ -1770,6 +1981,10 @@ function settleStagePoses(stage: SittingStage): void {
       releaseCareerGrantWalks();
       flushAgendaBonus('stage-settled');
     }
+    // …and a receipt of the table still owed: every held capsule and the satellite tick now, the receipt never stands.
+    if (tableReceiptsOwed()) {
+      releaseTableReceipts();
+    }
     break;
   case 'renewal':
     // The table reads the live state at once: the live places, the piles' counts, the seats, the lobby.
@@ -1787,7 +2002,7 @@ function settleStagePoses(stage: SittingStage): void {
  * (naturally, by «дожать», or by the ceiling). `build` adds the beat's calls
  * and returns the storyboard's arithmetic (seconds).
  */
-function runBeat(stage: SittingStage, beat: '' | 'agenda' | 'support' | 'enact' | 'career', compact: boolean,
+function runBeat(stage: SittingStage, beat: '' | 'agenda' | 'support' | 'enact' | 'career' | 'receipt', compact: boolean,
   build: (tl: gsap.core.Timeline, runState: StageRun) => number, bounds: {ceilingMs?: number} = {}): Promise<void> {
   const master = gsap.timeline({paused: true});
   const runState: StageRun = {stage, master, hold: {release: () => undefined}, flights: new Set(), pending: 0, kills: [], finished: false};
@@ -1922,6 +2137,10 @@ export async function playSittingStage(stage: SittingStage, beats: ReadonlyArray
         if (stagePlaying === stage) {
           await runBeat(stage, 'career', opts.compact, (tl, r) => beatCareer(tl, ctx, k, r), {ceilingMs: CAREER_HOLD_CEILING_MS});
         }
+      }
+      // …THEN THE RECEIPT OF THE TABLE (Sponsored Projects): a payout that asked nobody, shown on the seat's own cards.
+      if (stagePlaying === stage && tableReceiptsOwed()) {
+        await runBeat(stage, 'receipt', opts.compact, (tl, r) => beatReceipt(tl, ctx, k, r), {ceilingMs: RECEIPT_HOLD_CEILING_MS});
       }
       break;
     case 'renewal':

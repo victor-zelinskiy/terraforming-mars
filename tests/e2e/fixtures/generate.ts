@@ -123,6 +123,7 @@ import {MIGRATION_FUNDING_ID} from '../../../src/server/parliament/resolutions/m
 import {SKYSCRAPERS_ID} from '../../../src/server/parliament/resolutions/marsFirst/Skyscrapers';
 import {MARS_FIRST_BUDGET_ID} from '../../../src/server/parliament/resolutions/marsFirst/MarsFirstBudget';
 import {REDS_BUDGET_ID} from '../../../src/server/parliament/resolutions/reds/RedsBudget';
+import {SPONSORED_PROJECTS_ID} from '../../../src/server/parliament/resolutions/scientists/SponsoredProjects';
 import {MarsArmyShips} from '../../../src/server/cards/turmoilRedux/MarsArmyShips';
 import {Satellites} from '../../../src/server/cards/base/Satellites';
 import {Asteroid} from '../../../src/server/cards/base/Asteroid';
@@ -6296,6 +6297,74 @@ function redsBudgetBotTable(name: string, stopAt: 'vote' | 'assembly'): void {
 }
 redsBudgetBotTable('parliament-reds-budget-vote', 'vote');
 redsBudgetBotTable('parliament-reds-budget-bot', 'assembly');
+
+// ── RX40 · SPONSORED PROJECTS (the Scientists — «draw cards equal to your Influence; add 1 resource to each of your cards
+//    that already has a resource»): the first card payout that ASKS NOBODY, shown by the RECEIPT OF THE TABLE. Blue
+//    (Arklight — 4 animals on the corporation) wins with its delegate: Agenda 2 → 3 = influence 2 → a take of 2 cards;
+//    then one of its own kind onto Arklight 4, Fish 2, Dirigibles 1 and Supercomputer 3 — Birds, a holder at 0, receives
+//    nothing. Red (Teractor) at Agenda 0 = influence 0: no cards (named), its Pets 1 → 2 by its own payout. Stops at the
+//    ASSEMBLY gate for console-parliament-sponsored.spec.ts (the verdict → the take → the receipt → the results). ──
+// The same table at the VOTE (`-vote`, blue's delegate still in the lobby): the panel reads both payouts before A.
+function sponsoredProjectsTable(name: string, stopAt: 'vote' | 'assembly'): void {
+  parliamentFixture(name, {
+    resolution: SPONSORED_PROJECTS_ID,
+    votes: stopAt === 'vote' ? [] : [0],
+    agenda: [2, 0],
+    stopAt,
+    options: {customCorporationsList: [CardName.ARKLIGHT, CardName.TERACTOR]},
+    arrange: ({p1, p2}) => {
+      const arklight = p1.playedCards.get(CardName.ARKLIGHT);
+      if (arklight === undefined) {
+        throw new Error(`${name}: blue is not Arklight`);
+      }
+      arklight.resourceCount = 4;
+      p1.playedCards.push(Object.assign(new Fish(), {resourceCount: 2}), Object.assign(new Dirigibles(), {resourceCount: 1}),
+        Object.assign(new Supercomputer(), {resourceCount: 3}), new Birds());
+      p2.playedCards.push(Object.assign(new Pets(), {resourceCount: 1}));
+      // A corporation's first action left pending would be answered by the board-home driver at load (PL-715).
+      p1.pendingInitialActions = [];
+      p2.pendingInitialActions = [];
+    },
+    expect: ({p1, p2, parliament}) => {
+      const blue = resolutionCount(p1, 'cardsWithResources').cards;
+      if (JSON.stringify(blue) !== JSON.stringify([CardName.ARKLIGHT, CardName.FISH, CardName.DIRIGIBLES, CardName.SUPERCOMPUTER])) {
+        throw new Error(`${name}: blue's cards with a resource are ${blue.join(', ')}`);
+      }
+      if (resolutionCount(p2, 'cardsWithResources').count !== 1 || parliament.influence(p2) !== 0) {
+        throw new Error(`${name}: red holds Pets 1 at influence 0`);
+      }
+    },
+  });
+}
+sponsoredProjectsTable('parliament-sponsored-assembly', 'assembly');
+sponsoredProjectsTable('parliament-sponsored-vote', 'vote');
+// …and the RECEIPT'S DENSITY: the same sitting with EIGHT receiving cards on blue's table (the corporation and seven
+// holders of four kinds) — the row must read in ONE line, the faces smaller and closer, nothing scrolled or cut.
+parliamentFixture('parliament-sponsored-eight', {
+  resolution: SPONSORED_PROJECTS_ID,
+  votes: [0],
+  agenda: [2, 0],
+  stopAt: 'assembly',
+  options: {customCorporationsList: [CardName.ARKLIGHT, CardName.TERACTOR]},
+  arrange: ({p1, p2}) => {
+    const arklight = p1.playedCards.get(CardName.ARKLIGHT);
+    if (arklight === undefined) {
+      throw new Error('parliament-sponsored-eight: blue is not Arklight');
+    }
+    arklight.resourceCount = 4;
+    p1.playedCards.push(Object.assign(new Fish(), {resourceCount: 2}), Object.assign(new Pets(), {resourceCount: 1}),
+      Object.assign(new Dirigibles(), {resourceCount: 1}), Object.assign(new AtmoCollectors(), {resourceCount: 2}),
+      Object.assign(new Tardigrades(), {resourceCount: 3}), Object.assign(new GHGProducingBacteria(), {resourceCount: 1}),
+      Object.assign(new Supercomputer(), {resourceCount: 2}));
+    p1.pendingInitialActions = [];
+    p2.pendingInitialActions = [];
+  },
+  expect: ({p1}) => {
+    if (resolutionCount(p1, 'cardsWithResources').count !== 8) {
+      throw new Error(`parliament-sponsored-eight: blue holds ${resolutionCount(p1, 'cardsWithResources').count} cards with a resource, not 8`);
+    }
+  },
+});
 
 // ── two-player-finale-trigger: the FINALE with a TRIGGERED HAND-OFF (PL-301 / PL-303 — the owner's field
 //    report 2026-10-14). A 2p table at the final greenery: the first seat holds the plants and is asked;

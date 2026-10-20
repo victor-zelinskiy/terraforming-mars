@@ -134,6 +134,12 @@ export type ResultsPayoutPart = {
    * its own share beside the sum; one recipient prints the sum alone.
    */
   cards?: ReadonlyArray<{card: string, amount: number, resource?: string}>;
+  /**
+   * A card payout that ASKED NOBODY (Sponsored Projects — one of its own kind onto every card that already held a
+   * resource): HOW MANY cards received — the row reads «+4 [?] · на 4 карты», then one icon of each card's kind
+   * below `EACH_CARD_LIST_MAX` cards, past it the number alone (the names were the receipt's — it showed every face).
+   */
+  eachCard?: number;
   /** The RULING PARTY's own answer — its emblem stands beside the amount. */
   party?: ReduxParty;
   /**
@@ -339,6 +345,12 @@ export function resultsPlanetMoves(summary: ParliamentPhaseSummaryModel): Array<
   return out;
 }
 
+/** A payout that asked nobody lists its cards' kinds below this many — past it the row reads the number alone. */
+export const EACH_CARD_LIST_MAX = 6;
+
+/** The unit of a card payout of NO declared kind whose cards took more than one kind — the face's «?» cube. */
+export const OWN_KIND_UNIT = 'own-kind';
+
 /** The unit a record's chip speaks, and whether it is a production step. */
 function unitOf(outcome: ParliamentEnactOutcomeModel): {unit: string, units?: ReadonlyArray<string>, production: boolean} {
   if (outcome.production !== undefined) {
@@ -349,6 +361,10 @@ function unitOf(outcome: ParliamentEnactOutcomeModel): {unit: string, units?: Re
   }
   if (outcome.resource !== undefined) {
     return {unit: String(outcome.resource), production: false};
+  }
+  // A payout that asked nobody, onto cards of several kinds: the unit is «one of its own kind» — the face's «?».
+  if (outcome.onto === 'each-counted') {
+    return {unit: OWN_KIND_UNIT, production: false};
   }
   // A card-resource record over SEVERAL kinds with no one kind to name: the kinds, joined by «or» when drawn.
   if (outcome.resources !== undefined && outcome.resources.length > 0) {
@@ -413,6 +429,14 @@ export function resultsPayoutPart(outcome: ParliamentEnactOutcomeModel, index: n
   if (delivery.payload.cards !== undefined && delivery.payload.cards.length > 1) {
     // Each recipient keeps the kind ITS card took — printed beside its share where the kinds differ.
     part.cards = delivery.payload.cards.map((entry) => ({card: entry.card, amount: entry.amount, ...(entry.resource === undefined ? {} : {resource: entry.resource})}));
+  }
+  // A PAYOUT THAT ASKED NOBODY names HOW MANY cards received; a long list stays in the receipt that showed it.
+  if (outcome.onto === 'each-counted' && delivery.skipped === undefined) {
+    const count = delivery.payload.cards?.length ?? 0;
+    part.eachCard = count;
+    if (count >= EACH_CARD_LIST_MAX) {
+      delete part.cards;
+    }
   }
   if (outcome.kind === 'reaction' && outcome.party !== undefined) {
     part.party = outcome.party as ReduxParty;

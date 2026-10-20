@@ -107,7 +107,7 @@ export function yieldIconClass(icon: YieldIcon): string {
     return iconClassFor(cardResourceIconKey(icon.resources[0]));
   case 'own-kind-resource':
     // The face's own «?» resource cube (`resource(RESOURCE_CUBE, {questionMark: true})`): the cube sprite, the «?» by the modifier.
-    return iconClassFor(cardResourceIconKey(CardResource.RESOURCE_CUBE)) + ' con-iyield__unit--own-kind';
+    return iconClassFor('cube') + ' con-iyield__unit--own-kind';
   case 'resource':
     return iconClassFor(icon.resource) + (icon.production ? ' con-iyield__unit--prod' : '');
   case 'cards':
@@ -389,6 +389,24 @@ export function countedCellEntries(y: Pick<InfluenceYield, 'countedSpaces' | 'co
 /** The name of a counted cell with its weight, the way a card («Fusion Power ×2») or a colony («Luna ×2») reads: «Noctis City ×2». */
 export function countedCellLabel(entry: CountedCellEntry & {name: string}): string {
   return entry.tiers > 1 ? `${entry.name} ×${entry.tiers}` : entry.name;
+}
+
+/**
+ * The counted HOLDERS of a HOLDERS count (Sponsored Projects), card by card, with what the payout does to each:
+ * «Fish 2 → 3» — the card's own number before and after `per` units of ITS kind (the record's / the model's count,
+ * the declaration's `per`; nothing is guessed). Names arrive translated.
+ */
+export function countedHolderChanges(y: Pick<InfluenceYield, 'countedByCard' | 'effect'>, nameOf: (card: CardName) => string): Array<string> {
+  const per = y.effect.count?.per ?? 1;
+  return (y.countedByCard ?? []).map((entry) => `${nameOf(entry.card)} ${entry.count} → ${entry.count + per}`);
+}
+
+/**
+ * What the payout does to the counted cards' VICTORY POINTS, summed — the SERVER's own reading per card (`vp`, the
+ * preview family's `targetVictoryPoints`), never a rule of the client's. 0 when no card's points move (or none read).
+ */
+export function countedHoldersVp(y: Pick<InfluenceYield, 'countedByCard'>): number {
+  return (y.countedByCard ?? []).reduce((sum, entry) => sum + (entry.vp === undefined ? 0 : entry.vp.to - entry.vp.from), 0);
 }
 
 /**
@@ -774,10 +792,11 @@ export function voteYieldsOf(resolution: IClientResolution, model: ParliamentMod
     // …and the BREAKDOWN of its metric, where the count is a threshold over one (Generous Funding's sets of TR).
     // …and its per-resource STEPS, where the count is over the production track (Industrialist Budget).
     // …and its TILES, where the count is over the seat's colonies (Jovian Tax Rights): the reading names each.
+    // …and its HOLDINGS, where the count is the cards that hold a resource (Sponsored Projects): each card's kind and number.
     const counted: YieldCount | undefined = count === undefined ? undefined :
       {
         count: count.count, cards: count.cards, units: count.units, byTag: count.byTag, spaces: count.spaces, tiers: count.tiers, metric: count.metric,
-        byResource: count.byResource, colonies: count.colonies,
+        byResource: count.byResource, colonies: count.colonies, byCard: count.byCard,
       };
     const estimate = influenceYield(effect, 'estimate', seat.influence, counted);
     out.push(estimate);
@@ -846,7 +865,8 @@ export function enactedYieldsOf(
       {
         count: applied.count, counted: applied.counted, countedUnits: applied.countedUnits, countedByTag: applied.countedByTag,
         countedSpaces: applied.countedSpaces, countedTiers: applied.countedTiers, countedMetric: applied.countedMetric,
-        countedByResource: applied.countedByResource, countedColonies: applied.countedColonies, uncapped: applied.uncapped,
+        countedByResource: applied.countedByResource, countedColonies: applied.countedColonies, countedByCard: applied.countedByCard,
+        uncapped: applied.uncapped,
       };
     // A MULTIPLIER effect (the colony ledger): every record of the plan pays its own unit and carries the
     // multiplier beside it — the reading is the multiplier, never the first row's amount.

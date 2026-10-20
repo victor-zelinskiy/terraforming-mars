@@ -1375,5 +1375,9 @@
   "A holder at 0 receives nothing": "Пустой держатель ничего не получает",
   "A corporation holding resources is a card too": "Корпорация с ресурсами — тоже карта",
   "Eight cards — the receipt in one row": "Восемь карт — квитанция в одну строку",
-  "The project deck is empty — the draw is named, the resources land": "Колода проектов пуста — добор назван, ресурсы ложатся"
+  "The project deck is empty — the draw is named, the resources land": "Колода проектов пуста — добор назван, ресурсы ложатся",
+  "on ${0} card(s)": "на ${0} {карту|карты|карт}",
+  "These resources brought ${0} VP": "Эти ресурсы принесли ${0} ПО",
+  "These resources would bring ${0} VP": "Эти ресурсы принесут ${0} ПО",
+  "No card had a resource at the enactment": "На момент принятия ни на одной карте не было ресурса"
 }

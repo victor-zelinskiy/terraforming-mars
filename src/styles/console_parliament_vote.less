@@ -353,6 +353,17 @@
         display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: .15rem .55rem; max-width: 100%; min-width: 0;
         font-family: @con-font-read; font-size: .74rem; letter-spacing: .02em;
     }
+    /* THE CARDS IT WOULD FEED (RX40): one wrapping run — each holder its kind, its name quiet, «2 → 3» the voice; the
+       points at the tail in the score cell's gold. */
+    &__info-holders {
+        display: inline-flex; flex-wrap: wrap; align-items: center; gap: .2rem .7rem; max-width: 100%; min-width: 0;
+        font-family: @con-font-read; font-size: .74rem; letter-spacing: .02em;
+    }
+    &__info-holder { display: inline-flex; align-items: center; gap: .22rem; white-space: nowrap; }
+    &__info-holder-unit { display: inline-block; width: .95rem; height: .95rem; flex-shrink: 0; background-size: contain; background-repeat: no-repeat; background-position: center; }
+    &__info-holder-name { opacity: .78; }
+    &__info-holder-to { color: #8ff0c6; }
+    &__info-holders-vp { color: #f2cf73; font-weight: 700; white-space: nowrap; }
     &__info-uses-rule { opacity: .78; }
     &__info-uses-seat { font-weight: 700; color: #e9f6ff; }
     &__info-uses-win { color: #8ff0c6; font-weight: 600; }

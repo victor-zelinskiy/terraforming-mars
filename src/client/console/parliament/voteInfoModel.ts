@@ -31,13 +31,14 @@ import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {ParliamentModel, seatEnacts} from '@/common/models/ParliamentModel';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
-import {InfluenceYield} from '@/common/parliament/influenceScaling';
+import {InfluenceYield, paysEachCountedCard} from '@/common/parliament/influenceScaling';
+import {CardResource} from '@/common/CardResource';
 import {PARLIAMENT_MAX_POPULAR_SUPPORT, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {VoteSupportProjection} from '@/common/models/PlayerInputModel';
 import {ParliamentPartyVm, ParliamentSlotVm, PARTY_EFFECT_PLACES, voteAccessOf, VoteForecastVm} from './consoleParliamentModel';
 import {partyNameKey} from './partyNames';
 import {
-  levelLossNoteOf, levelPresentation, levelYieldIsNone, noRecipientCompactNoteOf, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY,
+  countedHoldersVp, levelLossNoteOf, levelPresentation, levelYieldIsNone, noRecipientCompactNoteOf, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY,
   productionHorizonOn, ReadingPerson, voteLevyOf, voteYieldsOf, WinSuffix, winSuffixesOf,
 } from './influenceYieldModel';
 import {LevyReading, levyShortNoteKey} from '@/common/parliament/resolutionLevy';
@@ -159,7 +160,33 @@ export type VoteReadingVm = {
    * reading of the manifest's `actionUses` (`actionUsesReading.ts`). Undefined for a law taken once a generation.
    */
   uses?: ActionUsesReading;
+  /**
+   * THE CARDS A PAYOUT THAT ASKS NOBODY WOULD FEED (Sponsored Projects): each counted holder with its own kind and its
+   * number before → after, and what the units do to the cards' points summed. Undefined for every other resolution,
+   * and for a seat with no holder (the count's own zero names it).
+   */
+  holders?: HoldersReading;
 };
+
+/** One counted holder of a payout that asks nobody: «[kind] Fish 2 → 3». */
+export type HolderRow = {card: CardName, resource: CardResource, before: number, after: number};
+export type HoldersReading = {rows: ReadonlyArray<HolderRow>, vp: number};
+
+/**
+ * The holders a reading's each-counted payout lands on — the SERVER's count by card (`countedByCard`, the engine's
+ * `getCardsWithResources` with each card's own kind and its points' move), never a client search. Pure.
+ */
+export function holdersReadingOf(yields: ReadonlyArray<InfluenceYield>): HoldersReading | undefined {
+  const y = yields.find((candidate) => paysEachCountedCard(candidate.effect) && (candidate.countedByCard?.length ?? 0) > 0);
+  if (y === undefined) {
+    return undefined;
+  }
+  const per = y.effect.count?.per ?? 1;
+  return {
+    rows: (y.countedByCard ?? []).map((entry) => ({card: entry.card, resource: entry.resource, before: entry.count, after: entry.count + per})),
+    vp: countedHoldersVp(y),
+  };
+}
 
 /** One side of a fact: a translatable key with params, or a RAW display string (a player's name), optionally with the leader's cube. */
 export type FactValue = {
@@ -365,6 +392,7 @@ export function voteReadingOf(
   const tracks = resolution.trackAdvance;
   const removal = resolution.tileRemoval;
   const uses = usesReadingOf(resolution, model, subject, rival !== undefined);
+  const holders = holdersReadingOf(yields);
   return {
     ...seated,
     yields,
@@ -379,6 +407,7 @@ export function voteReadingOf(
     ...(tracks === undefined ? {} : {tracks}),
     ...(removal === undefined ? {} : {removal}),
     ...(uses === undefined ? {} : {uses}),
+    ...(holders === undefined ? {} : {holders}),
   };
 }
 
@@ -656,6 +685,13 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
   const tracks = vm.reading.tracks;
   if (tracks !== undefined) {
     strings.push(text(COLONY_TRACK_SUMMARY_KEY, [String(tracks.steps)]));
+  }
+  // THE HOLDERS' line (Sponsored Projects): every card's name — the numbers, the icons and the points are the line's own.
+  for (const row of vm.reading.holders?.rows ?? []) {
+    strings.push(text(row.card));
+  }
+  if ((vm.reading.holders?.vp ?? 0) !== 0) {
+    strings.push(text('VP'));
   }
   // THE COLONY LEDGER's words: the tiles' names (one each — the bonus, the multiplier and the total are
   // icons and numbers), the «no colonies» line, the sums' kicker.

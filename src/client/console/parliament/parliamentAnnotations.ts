@@ -45,7 +45,8 @@ import {tileRemovalReadingOf, tileRemovalSentenceOf} from './tileRemovalModel';
 import {colonyTrackReadingOf, colonyTrackTileSentenceOf} from './colonyTrackModel';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {
-  CountedCellEntry, countedCellEntries, countedCellLabel, countedColonyNames, countedContributions, countedMetricParts, countedProductionParts, levelPresentation,
+  CountedCellEntry, countedCellEntries, countedCellLabel, countedColonyNames, countedContributions, countedHolderChanges, countedHoldersVp, countedMetricParts,
+  countedProductionParts, levelPresentation,
   yieldCountPresentation,
 } from './influenceYieldModel';
 import {WinnerRewardReading, winnerRewardRuleKey, winnerRewardSentenceOf} from './winnerRewardModel';
@@ -412,6 +413,20 @@ export function resolutionAnnotations(
       forYou.push({text: key, params: [parts.join(' · ')]});
     } else if ((counted.count ?? 0) === 0) {
       forYou.push({text: applied ? 'No tile was counted at the enactment' : 'No tile counts right now'});
+    }
+  } else if (counted?.countedByCard !== undefined) {
+    // A HOLDERS count (Sponsored Projects): every card that already holds a resource, with what the payout makes of it
+    // («Fish 2 → 3 · Dirigibles 1 → 2») — and what that does to the cards' points, the server's own reading, summed.
+    const applied = counted.context === 'applied';
+    const changes = countedHolderChanges(counted, (name) => translateText(name));
+    if (changes.length > 0) {
+      forYou.push({text: applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}', params: [changes.join(' · ')]});
+      const vp = countedHoldersVp(counted);
+      if (vp !== 0) {
+        forYou.push({text: applied ? 'These resources brought ${0} VP' : 'These resources would bring ${0} VP', params: [vp > 0 ? `+${vp}` : String(vp)]});
+      }
+    } else {
+      forYou.push({text: applied ? 'No card had a resource at the enactment' : 'No card of yours has a resource yet'});
     }
   } else if (counted?.counted !== undefined) {
     // Each card with what IT contributed («Fusion Power ×2») — a TAG count can
