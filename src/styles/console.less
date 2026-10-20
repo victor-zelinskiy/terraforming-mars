@@ -4043,8 +4043,8 @@ html.con-reduced-motion {
    settled state keeps the band in the tree (the placement's display:none
    is for a band that has faded — this one never fades). */
 /* ⚠ Declared BEFORE the placement's own focus rules (same specificity, later wins) — the compound keeps the arcs. */
-.con-board--pfocus-ceremony.con-board--pfocus .con-board__stage .global-numbers > *,
-.con-board--pfocus-ceremony.con-board--pfocus-anim .con-board__stage .global-numbers > * {
+.con-board--pfocus-ceremony.con-board--pfocus .con-board__stage .global-numbers > :where(.global-numbers-shell),
+.con-board--pfocus-ceremony.con-board--pfocus-anim .con-board__stage .global-numbers > :where(.global-numbers-shell) {
     opacity: 1;
     transform: none;
     transition-delay: 0s;
@@ -5824,7 +5824,7 @@ html.con-section-leaving .con-strat {
    ending read as cheap. A resize, a calibration nudge and the focus
    handback now all glide through the same rule. */
 .con-board--fitted .con-board__stage > .board-cont {
-    transition: transform calc(var(--pfocus-ms, 300ms) * var(--motion-scale, 1)) var(--pfocus-ease, @con-ease-standard);
+    transition: transform calc(300ms * var(--motion-scale, 1)) @con-ease-standard;
 }
 .con-board--pfocus-anim .con-board__stage > .board-cont {
     /* The planet is a 2.6k-px box carrying a 100px drop-shadow: hint the
@@ -5835,14 +5835,20 @@ html.con-section-leaving .con-strat {
 /* Both directions ride the SAME expo-out curve — a long, soft tail is what
    makes the landing feel like weight settling instead of a stop. The
    opening is a touch quicker (the player pressed for it); the landing gets
-   the longer tail (nobody asked for it, so it must not feel abrupt). */
-.con-board--pfocus.con-board--pfocus-anim {
-    --pfocus-ms: 680ms;
-    --pfocus-ease: @con-ease-enter;
+   the longer tail (nobody asked for it, so it must not feel abrupt).
+   ⚠ THE CAMERA'S CLASSES RESTYLE NOTHING THEY DO NOT NAME (PL-777): the
+   duration and the curve are written ON THE PLANET'S OWN BOX — never as
+   custom properties on `.con-board`. An inherited custom property changed on
+   the board's root restyles its whole subtree (900–1 240 elements per flip
+   at 4K) in the very frame the camera starts to move (guard:
+   `planetFocusRestyleGuard`). */
+.con-board--pfocus.con-board--pfocus-anim .con-board__stage > .board-cont {
+    transition-duration: calc(680ms * var(--motion-scale, 1));
+    transition-timing-function: @con-ease-enter;
 }
-.con-board--pfocus-anim:not(.con-board--pfocus) {
-    --pfocus-ms: 760ms;
-    --pfocus-ease: @con-ease-enter;
+.con-board--pfocus-anim:not(.con-board--pfocus) .con-board__stage > .board-cont {
+    transition-duration: calc(760ms * var(--motion-scale, 1));
+    transition-timing-function: @con-ease-enter;
 }
 /* ── the INSTRUMENTS: dematerialize / materialize ────────────────────
    Not a flat fade — the band answers the planet's own motion. The growing
@@ -5864,11 +5870,19 @@ html.con-section-leaving .con-strat {
    classes dropping — a transition declared only on a transient class is
    cancelled (and the value SNAPS) the moment that class goes, which is
    what turned the whole return into a hard cut. */
-/* Each SHELL fades on its own curve — `> *` covers the three arc bands,
-   the three chip containers and the ocean band, and keeps covering a shell
-   added later (a flat fade on the shared parent is what read as "one
-   switch", however long you make it). */
-.con-board__stage .global-numbers > *,
+/* Each SHELL fades on its own curve — every direct child of `.global-numbers`
+   (the three arc bands, the three chip containers, the ocean band) wears
+   `global-numbers-shell` (Board.vue), and a shell added later wears it too
+   (a flat fade on the shared parent is what read as "one switch", however
+   long you make it).
+   ⚠ NEVER `> *` here (PL-777): a selector whose rightmost compound is
+   universal gives Blink no feature to invalidate by, so toggling the
+   camera's class (`con-board--pfocus` / `--pfocus-anim`) restyled the WHOLE
+   board (900–1 240 elements per flip at 4K, three subtree invalidations per
+   exit).
+   `:where(.global-numbers-shell)` names the shells and adds no specificity —
+   the cascade below reads exactly as it did with `*`. */
+.con-board__stage .global-numbers > :where(.global-numbers-shell),
 .con-board__stage .board-outer-spaces {
     transition: opacity calc(540ms * var(--motion-scale, 1)) @con-ease-enter,
                 transform calc(540ms * var(--motion-scale, 1)) @con-ease-enter;
@@ -5887,7 +5901,7 @@ html.con-section-leaving .con-strat {
 /* LEAVING (the planet opens): the instruments are pushed out of orbit and
    dissolve, nearest shell first — gone before the growth can carry them
    past the stage edge. */
-.con-board--pfocus .con-board__stage .global-numbers > *,
+.con-board--pfocus .con-board__stage .global-numbers > :where(.global-numbers-shell),
 .con-board--pfocus .con-board__stage .board-outer-spaces {
     opacity: 0;
     pointer-events: none;
@@ -5911,7 +5925,7 @@ html.con-section-leaving .con-strat {
    the disc is still settling and everything comes to rest together. The
    clip box is safe because the reclaimed chrome is still out (see
    `--pfocus-exit`) and by then the board is near its overview size. */
-.con-board--pfocus-anim:not(.con-board--pfocus) .con-board__stage .global-numbers > * {
+.con-board--pfocus-anim:not(.con-board--pfocus) .con-board__stage .global-numbers > :where(.global-numbers-shell) {
     transition-delay: calc(260ms * var(--motion-scale, 1));
 }
 .con-board--pfocus-anim:not(.con-board--pfocus) .con-board__stage .global-numbers .global-numbers-oceans {

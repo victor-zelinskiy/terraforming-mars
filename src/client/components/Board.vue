@@ -63,9 +63,15 @@
               now venus-agnostic; the Venus arc is purely dynamic). Ocean is
               fully code-rendered below (OceanArcScale).
             -->
-            <arc-scale :theme="arcThemes.temperature" :config="temperatureArc" :value="temperature" />
-            <arc-scale :theme="arcThemes.oxygen" :config="oxygenArc" :value="oxygen_level" />
-            <arc-scale v-if="expansions.venus" :theme="arcThemes.venus" :config="venusArc" :value="venusScaleLevel" />
+            <!--
+              Every DIRECT child here wears `global-numbers-shell` — the console's
+              Planet Focus fades the shells by that class (console.less), never by
+              a universal `> *`, which restyled the whole board on every camera
+              move (PL-777; guard `planetFocusRestyleGuard`). A new shell wears it too.
+            -->
+            <arc-scale class="global-numbers-shell" :theme="arcThemes.temperature" :config="temperatureArc" :value="temperature" />
+            <arc-scale class="global-numbers-shell" :theme="arcThemes.oxygen" :config="oxygenArc" :value="oxygen_level" />
+            <arc-scale v-if="expansions.venus" class="global-numbers-shell" :theme="arcThemes.venus" :config="venusArc" :value="venusScaleLevel" />
             <!--
               The 1–N digit anchors (`.global-numbers-value.val-N`) and the
               gliding <AnimatedScaleMarker> are rendered INSIDE each <arc-scale>
@@ -87,7 +93,7 @@
               These per-scale containers now host ONLY the bonus reward chips
               (BonusZone), which keep their existing scaleBonusZones positioning.
             -->
-            <div class="global-numbers-temperature">
+            <div class="global-numbers-temperature global-numbers-shell">
                 <bonus-zone v-for="zone in temperatureZones" :key="zone.key" v-bind="bonusZoneProps(zone)" :style="zone.style" />
                 <scale-event-marker
                   v-for="m in temperatureEventMarkers"
@@ -99,7 +105,7 @@
                   :reached="m.reached" :players="players" />
             </div>
 
-            <div class="global-numbers-oxygen">
+            <div class="global-numbers-oxygen global-numbers-shell">
                 <bonus-zone v-for="zone in oxygenZones" :key="zone.key" v-bind="bonusZoneProps(zone)" :style="zone.style" />
                 <scale-event-marker
                   v-for="m in oxygenEventMarkers"
@@ -111,7 +117,7 @@
                   :reached="m.reached" :players="players" />
             </div>
 
-            <div class="global-numbers-venus" v-if="expansions.venus">
+            <div class="global-numbers-venus global-numbers-shell" v-if="expansions.venus">
                 <bonus-zone v-for="zone in venusZones" :key="zone.key" v-bind="bonusZoneProps(zone)" :style="zone.style" />
             </div>
 
@@ -120,7 +126,7 @@
               A compact premium arc in the free bottom window, concentric with
               the scales above. See OceanArcScale.vue / arcScaleGeometry.ts.
             -->
-            <ocean-arc-scale :value="oceans_count" :aresMarkers="oceanAresMarkers" :players="players" />
+            <ocean-arc-scale class="global-numbers-shell" :value="oceans_count" :aresMarkers="oceanAresMarkers" :players="players" />
         </div>
 
         <div class="board" id="main_board">

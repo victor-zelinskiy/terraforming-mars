@@ -52,7 +52,8 @@ import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMot
 
 /** The board-growth transition (the planet expands / returns). The landing
  *  is deliberately the LONGER of the two — the opening was asked for, the
- *  return was not, so it must not feel abrupt. Mirrors `--pfocus-ms`. */
+ *  return was not, so it must not feel abrupt. Mirrors the planet box's own `transition-duration` (console.less
+ *  § PLANET FOCUS — written on `.board-cont`, never as a custom property on the board's root: PL-777). */
 export const PLANET_FOCUS_ENTER_MS = 680;
 export const PLANET_FOCUS_EXIT_MS = 760;
 /** Settle margin over the CSS transition before the settled state locks. */

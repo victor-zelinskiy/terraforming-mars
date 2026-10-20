@@ -241,14 +241,18 @@ export function settlePresentationDue(): void {
   stopHeartbeatIfIdle();
 }
 
-/** Snapshot for diagnostics surfaces / e2e. */
+/**
+ * Snapshot for diagnostics surfaces / e2e. Every owed story carries WHY it is still waiting — its own `diagnose`
+ * (PL-778: a scale-step token born 5 s late once, with nothing on record to tell «the screen produced no frame» from
+ * «the stage was not ready, and here is the term that held it»).
+ */
 export function presentationLedgerSnapshot(): {
-  stories: Array<{id: string, ageMs: number, dueMs: number}>,
+  stories: Array<{id: string, ageMs: number, dueMs: number, why: string}>,
   witnesses: Array<{id: string, lyingMs: number}>,
   } {
   const t = now();
   return {
-    stories: [...stories.values()].map((s) => ({id: s.id, ageMs: t - s.since, dueMs: s.dueMs})),
+    stories: [...stories.values()].map((s) => ({id: s.id, ageMs: t - s.since, dueMs: s.dueMs, why: storyDiagnose(s).replace(/^ — /, '')})),
     witnesses: [...witnesses.values()].map((w) => ({
       id: w.id,
       lyingMs: w.lyingSince === undefined ? 0 : t - w.lyingSince,

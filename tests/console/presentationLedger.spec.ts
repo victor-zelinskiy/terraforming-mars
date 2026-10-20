@@ -68,6 +68,16 @@ describe('presentationLedger', function() {
     expect(presentationLedgerSnapshot().stories.map((s) => s.id)).to.deep.equal(['story']);
   });
 
+  it('the snapshot says WHY each owed story still waits (PL-778)', () => {
+    owePresentation({id: 'told', ready: () => false, redrive: () => {}, dueMs: 60_000, diagnose: () => ({marker: false, held: 'oxygen'})});
+    owePresentation({id: 'silent', ready: () => false, redrive: () => {}, dueMs: 60_000});
+    owePresentation({id: 'broken', ready: () => false, redrive: () => {}, dueMs: 60_000, diagnose: () => {
+      throw new Error('gone');
+    }});
+    const why = Object.fromEntries(presentationLedgerSnapshot().stories.map((s) => [s.id, s.why]));
+    expect(why).to.deep.equal({told: '{"marker":false,"held":"oxygen"}', silent: '', broken: '(diagnose threw: Error: gone)'});
+  });
+
   it('degrades a past-due story exactly once and retires it', () => {
     let degraded = 0;
     owePresentation({

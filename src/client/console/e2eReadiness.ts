@@ -39,6 +39,10 @@ import {railRewardDiag} from '@/client/console/resourceTransfer/railReward';
 import {actionCommitRailState} from '@/client/console/consoleActionCommitRail';
 import {playedHeroState} from '@/client/console/played/consolePlayedHero';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {boardBeatParkState} from '@/client/console/boardBeatPark';
+import {scaleStepRatingState} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
+import {presentationLedgerSnapshot} from '@/client/console/presentationLedger';
+import {planetFocusState} from '@/client/console/planetFocus';
 
 export type ConsoleReadinessSnapshot = {
   input: InputEchoSnapshot;
@@ -65,6 +69,12 @@ export type ConsoleReadinessSnapshot = {
   playedHero: {phase: string, shipment: string, bill: string, host: string};
   /** The workspace OUTCOME claim's gates — who holds it, how far the answer / the beat / the arrival are (an embedded stage swallows presses while `arrivalDone` is false). */
   outcome: {host: string, stage: string, answerIn: boolean, beatDone: boolean, arrivalDone: boolean, arrivalFlown: boolean};
+  /**
+   * THE SCALES' STORY (PL-778): the camera's phase, the park (draining · the parameters it still holds), the step-rating
+   * beat's phase, and every owed presentation story with the reason it still waits — a late token names its cause.
+   */
+  scaleStory: {camera: string, storyReady: boolean, draining: boolean, held: string, rating: string,
+    owed: Array<{id: string, ageMs: number, why: string}>};
   at: number;
 };
 
@@ -85,6 +95,12 @@ export function consoleReadinessSnapshot(): ConsoleReadinessSnapshot {
     outcome: {
       host: workspaceOutcomeState.host ?? '', stage: workspaceOutcomeState.stage, answerIn: workspaceOutcomeState.answerIn,
       beatDone: workspaceOutcomeState.beatDone, arrivalDone: workspaceOutcomeState.arrivalDone, arrivalFlown: workspaceOutcomeState.arrivalFlown,
+    },
+    scaleStory: {
+      camera: planetFocusState.phase, storyReady: planetFocusState.storyReady,
+      draining: boardBeatParkState.draining, held: Object.keys(boardBeatParkState.heldParams ?? {}).join(','),
+      rating: scaleStepRatingState.phase,
+      owed: presentationLedgerSnapshot().stories.map((s) => ({id: s.id, ageMs: s.ageMs, why: s.why})),
     },
     partyFlow: consoleCardActionsUi.partyFlow === undefined ? undefined : {
       party: consoleCardActionsUi.partyFlow.party, resolution: consoleCardActionsUi.partyFlow.resolution,
