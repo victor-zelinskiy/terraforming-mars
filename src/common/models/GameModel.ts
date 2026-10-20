@@ -2,6 +2,7 @@ import {GameOptionsModel} from './GameOptionsModel';
 import {AresAdjacencyGrantModel} from './AresAdjacencyGrantModel';
 import {TileMoveRecordModel} from '../boards/TileMove';
 import {CardAdjacencyPayoutModel} from './CardAdjacencyPayoutModel';
+import {TilePlacementRecordModel} from './TilePlacementRecordModel';
 import {ScaleStepRewardModel} from './ScaleStepRewardModel';
 import {ParameterSwingModel} from './ParameterSwingModel';
 import {MarsBotModel} from './MarsBotModel';
@@ -47,6 +48,10 @@ export type GameModel = {
    *  scene's script for the paid seat and every other viewer alike.
    *  Presentation only; consumed once by `seq`. See `CardAdjacencyPayoutModel`. */
   cardAdjacencyPayouts?: ReadonlyArray<CardAdjacencyPayoutModel>;
+  /** Latest TILES PLACED ON MARS (the tile language, 2026-10-20): who placed each tile (an ocean's placer too) and
+   *  what its cell's printed bonus paid them — the remote landing's script on every other seat's screen.
+   *  Presentation only; consumed once by `seq`. See `TilePlacementRecordModel`. */
+  tilePlacements?: ReadonlyArray<TilePlacementRecordModel>;
   /** Latest SCALE-STEP PAYOUTS (Turmoil Redux TR24 Venusian Census, Aphrodite):
    *  a card that answers «each time the scale is terraformed» paid its owner —
    *  the board scene's script (tokens born at the scale's marker) for the paid

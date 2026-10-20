@@ -28,6 +28,7 @@ import {AresData} from '../common/ares/AresData';
 import {AresAdjacencyGrantModel} from '../common/models/AresAdjacencyGrantModel';
 import {TileMoveRecordModel} from '../common/boards/TileMove';
 import {CardAdjacencyPayoutModel} from '../common/models/CardAdjacencyPayoutModel';
+import {TilePlacementPaidResource, TilePlacementRecordModel} from '../common/models/TilePlacementRecordModel';
 import {ScaleStepRewardModel} from '../common/models/ScaleStepRewardModel';
 import {ParameterSwingDown, ParameterSwingModel} from '../common/models/ParameterSwingModel';
 import {MoonData} from './moon/MoonData';
@@ -57,6 +58,13 @@ export interface Score {
  * immediate non-stock effect). Presentation metadata only — the branches
  * report what they did, nothing reads it to decide game state.
  */
+/**
+ * What a cell's PRINTED bonus paid the seat that placed on it, as the tile language's record reads it
+ * (`TilePlacementRecordModel`): stock units in the printed order and the cards drawn. A deferred purchase, a card
+ * resource, a delegate are their own scenes and are not counted here.
+ */
+export type CellBonusPaid = {paid: Array<{resource: TilePlacementPaidResource, amount: number}>, cards: number};
+
 export type SpaceBonusGrant =
   | {kind: 'stock', resource: Resource}
   | {kind: 'draw'}
@@ -189,6 +197,11 @@ export interface IGame extends Logger {
   cardAdjacencyPayouts: Array<CardAdjacencyPayoutModel>;
   /** Publish one payout into `cardAdjacencyPayouts` (the ring's `seq` law) — called only by `cards/tilePayout.recordTilePayout`. */
   publishCardAdjacencyPayout(payout: Omit<CardAdjacencyPayoutModel, 'seq'>): void;
+  /**
+   * Bounded ring of the latest TILES PLACED ON MARS (the tile language): who placed each and what the cell's printed
+   * bonus paid them — see `TilePlacementRecordModel`. Written by `addTile` alone. Not serialized.
+   */
+  tilePlacements: Array<TilePlacementRecordModel>;
   /**
    * Bounded ring of the latest SCALE-STEP PAYOUTS (Turmoil Redux TR24 Venusian
    * Census, Aphrodite): what a card answering «each time the scale is
@@ -396,7 +409,7 @@ export interface IGame extends Logger {
    * @param coveringExistingTile when true, don't grant placement bonuses like when covering
    * a hazard tile, or overplacing one tile on top of another.
    */
-  grantPlacementBonuses(player: IPlayer, space: Space, coveringExistingTile?: boolean): void
+  grantPlacementBonuses(player: IPlayer, space: Space, coveringExistingTile?: boolean): CellBonusPaid
   /**
    * Calls f(cardOwner, card) for every card in every player's tableau,
    * in generation order.
@@ -406,7 +419,7 @@ export interface IGame extends Logger {
   /**
    * Gives all the bonuses from a space on the map.
    */
-  grantSpaceBonuses(player: IPlayer, space: Space): void;
+  grantSpaceBonuses(player: IPlayer, space: Space): CellBonusPaid;
   /**
    * The ocean adjacency M€ of a placement on `space`, paid and logged; the
    * paying neighbours returned as the presentation breakdown, `undefined` when

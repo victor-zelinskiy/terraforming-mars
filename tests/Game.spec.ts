@@ -894,6 +894,8 @@ describe('Game', () => {
       // The tile-move presentation ring (TR14 Re-settlement) — the same law as
       // `aresAdjacencyGrants`: a restart loses only the animation, never the rule.
       'tileMoves',
+      // …and the tile-placement ring (the tile language, W3 — who placed, what the cell paid): the same law.
+      'tilePlacements',
       'underworldDraftEnabled',
     ];
     const serializedValuesNotInGame: Array<keyof SerializedGame> = [

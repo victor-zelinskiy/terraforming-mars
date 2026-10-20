@@ -186,6 +186,7 @@ export class Server {
       aresAdjacencyGrants: game.aresAdjacencyGrants.length > 0 ? game.aresAdjacencyGrants : undefined,
       tileMoves: game.tileMoves.length > 0 ? game.tileMoves : undefined,
       cardAdjacencyPayouts: game.cardAdjacencyPayouts.length > 0 ? game.cardAdjacencyPayouts : undefined,
+      tilePlacements: game.tilePlacements.length > 0 ? game.tilePlacements : undefined,
       scaleStepRewards: game.scaleStepRewards.length > 0 ? game.scaleStepRewards : undefined,
       parameterSwings: game.parameterSwings.length > 0 ? game.parameterSwings : undefined,
       awards: this.getAwards(game),

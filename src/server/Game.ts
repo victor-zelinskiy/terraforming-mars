@@ -71,6 +71,7 @@ import {AresData} from '../common/ares/AresData';
 import {AresAdjacencyGrantModel} from '../common/models/AresAdjacencyGrantModel';
 import {AdjacencyVpChange, TileMoveFact, TileMoveRecordModel} from '../common/boards/TileMove';
 import {CardAdjacencyPayoutModel} from '../common/models/CardAdjacencyPayoutModel';
+import {TilePlacementPaidResource, TilePlacementRecordModel} from '../common/models/TilePlacementRecordModel';
 import {ScaleStepRewardModel} from '../common/models/ScaleStepRewardModel';
 import {ParameterSwingDown, ParameterSwingModel} from '../common/models/ParameterSwingModel';
 import {parameterRoom, ParameterTable} from '../common/parliament/parameterMove';
@@ -99,7 +100,7 @@ import {CorporationDeck, PreludeDeck, ProjectDeck, CeoDeck} from './cards/Deck';
 import {Logger} from './logs/Logger';
 import {addDays, stringToNumber} from './database/utils';
 import {Tag} from '../common/cards/Tag';
-import {AddTileOptions, IGame, ParameterMoveOptions, Score, SpaceBonusGrant, TileMoveOrigin} from './IGame';
+import {AddTileOptions, CellBonusPaid, IGame, ParameterMoveOptions, Score, SpaceBonusGrant, TileMoveOrigin} from './IGame';
 import {MarsBoard} from './boards/MarsBoard';
 import {liftTopCity} from './boards/cityStack';
 import {buriedOceanOf, liftOcean} from './boards/cellPieces';
@@ -226,6 +227,7 @@ export class Game implements IGame, Logger {
   public aresAdjacencyGrants: Array<AresAdjacencyGrantModel> = []; // Not serialized (presentation manifest ring)
   public tileMoves: Array<TileMoveRecordModel> = []; // Not serialized (presentation ring — see IGame.tileMoves)
   public cardAdjacencyPayouts: Array<CardAdjacencyPayoutModel> = []; // Not serialized (presentation ring — see IGame.cardAdjacencyPayouts)
+  public tilePlacements: Array<TilePlacementRecordModel> = []; // Not serialized (presentation ring — see IGame.tilePlacements)
   public scaleStepRewards: Array<ScaleStepRewardModel> = []; // Not serialized (presentation ring — see IGame.scaleStepRewards)
   public parameterSwings: Array<ParameterSwingModel> = []; // Not serialized (presentation ring — see IGame.parameterSwings)
   public moonData: MoonData | undefined;
@@ -2278,8 +2280,11 @@ export class Game implements IGame, Logger {
       // placed on Mars (the party passives; the enacted law, which is told
       // the placement is a TIER so it repeats no bonus that was not paid).
       ParliamentHandler.onTilePlaced(player, space, {coveringExistingTile: true, stacked: true});
+      this.publishTilePlacement(player, space, tile.tileType, {paid: [], cards: 0});
     } else if (this.phase !== Phase.SOLAR) {
-      this.grantPlacementBonuses(player, space, coveringExistingTile, arcadianCommunityBonus);
+      const cell = this.grantPlacementBonuses(player, space, coveringExistingTile, arcadianCommunityBonus);
+      // THE TILE LANGUAGE'S RECORD: who placed it (an ocean's placer too) and what the cell's printed bonus paid them.
+      this.publishTilePlacement(player, space, tile.tileType, cell);
 
       AresHandler.ifAres(this, (aresData) => {
         AresHandler.maybeIncrementMilestones(aresData, player, space, hazardSeverity(initialTileType));
@@ -2382,7 +2387,8 @@ export class Game implements IGame, Logger {
     }
   }
 
-  public grantPlacementBonuses(player: IPlayer, space: Space, coveringExistingTile: boolean = false, arcadianCommunityBonus: boolean = false) {
+  public grantPlacementBonuses(player: IPlayer, space: Space, coveringExistingTile: boolean = false, arcadianCommunityBonus: boolean = false): CellBonusPaid {
+    let cell: CellBonusPaid = {paid: [], cards: 0};
     if (!coveringExistingTile) {
       if (player.isMarsBot) {
         // "If MarsBot places a tile that covers placement bonus icons (plants,
@@ -2395,6 +2401,7 @@ export class Game implements IGame, Logger {
         // the one source the placement TIEBREAK reads too.
         const icons = botCoveredIconMegacredits(this, space);
         if (icons > 0) {
+          cell = {paid: [{resource: 'megacredits', amount: icons}], cards: 0};
           this.events.withSource({kind: 'spaceBonus'}, () => {
             player.stock.add(Resource.MEGACREDITS, icons);
             this.log('${0} gained ${1} ${2} for ${3} covered bonus icon(s)', (b) =>
@@ -2403,7 +2410,7 @@ export class Game implements IGame, Logger {
         }
       } else {
         // Attribute the hex's printed bonuses to "cell bonus" in the journal.
-        this.events.withSource({kind: 'spaceBonus'}, () => this.grantSpaceBonuses(player, space));
+        cell = this.events.withSource({kind: 'spaceBonus'}, () => this.grantSpaceBonuses(player, space));
       }
     }
 
@@ -2438,6 +2445,7 @@ export class Game implements IGame, Logger {
         this.defer(new GainResourcesDeferred(player, Resource.MEGACREDITS, {count: 6}));
       }
     }
+    return cell;
   }
 
   public simpleAddTile(player: IPlayer, space: Space, tile: Tile, moved?: TileMoveOrigin) {
@@ -2660,6 +2668,23 @@ export class Game implements IGame, Logger {
    * ring as `recordTileMove`, the same `seq` law. Written by ONE function,
    * `cards/tilePayout.recordTilePayout`, after the units landed.
    */
+  /**
+   * PUBLISH one tile placed on Mars (the tile language, 2026-10-20 — `TilePlacementRecordModel`): who placed it and what
+   * its cell's printed bonus paid them, for every other seat's remote landing. The same bounded ring and `seq` law as
+   * `publishCardAdjacencyPayout`; written by `addTile` alone.
+   */
+  public publishTilePlacement(player: IPlayer, space: Space, tileType: TileType, cell: CellBonusPaid): void {
+    const base = this.gameAge * 100;
+    const n = this.tilePlacements.filter((p) => p.seq >= base).length;
+    this.tilePlacements.push({
+      seq: base + Math.min(n, 99), spaceId: space.id, color: player.color, tileType,
+      paid: cell.paid.map((p) => ({...p})), cards: cell.cards,
+    });
+    while (this.tilePlacements.length > 8) {
+      this.tilePlacements.shift();
+    }
+  }
+
   public publishCardAdjacencyPayout(payout: Omit<CardAdjacencyPayoutModel, 'seq'>): void {
     const base = this.gameAge * 100;
     const n = this.cardAdjacencyPayouts.filter((p) => p.seq >= base).length;
@@ -2755,11 +2780,18 @@ export class Game implements IGame, Logger {
     return {spaceId: space.id, oceanSpaceIds: spaceIds, perOcean: player.oceanBonus, megacredits};
   }
 
-  public grantSpaceBonuses(player: IPlayer, space: Space) {
+  public grantSpaceBonuses(player: IPlayer, space: Space): CellBonusPaid {
+    const out: CellBonusPaid = {paid: [], cards: 0};
     const bonuses = MultiSet.from(space.bonus);
     bonuses.forEachMultiplicity((count: number, bonus: SpaceBonus) => {
-      this.grantSpaceBonus(player, bonus, count, {spaceId: space.id});
+      const grant = this.grantSpaceBonus(player, bonus, count, {spaceId: space.id});
+      if (grant.kind === 'stock') {
+        out.paid.push({resource: grant.resource as TilePlacementPaidResource, amount: count});
+      } else if (grant.kind === 'draw') {
+        out.cards += count;
+      }
     });
+    return out;
   }
 
   /**
