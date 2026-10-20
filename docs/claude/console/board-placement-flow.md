@@ -99,6 +99,9 @@ scale 1, shadow deepens; the amber lockring converges in one shot) ·
 the HERO SCENE the moment the transaction verifies (`tilePlacementState`
 phase past `armed`) — the flying tile is the object from there, and the
 commit's view-apply resets the flow, so proxy → real tile stays seamless.
+**…except the PLACE, which stays** (the landing marker — § THE TILE LANGUAGE
+below): an ordinary landing keeps the reticle on the cell as the tile's
+reserved place until the contact.
 
 Paint budget: transform/opacity/box-shadow only (the paint baseline strips
 `filter`); both infinite loops are compositor-only and registered in the
@@ -116,6 +119,54 @@ dossier's title is the TILE («Город»), the cover's bill reads one line ea
 («Без бонуса размещения · Бонус клетки уже получил океан.», «Океан остаётся под
 городом»), and a bare reserve's refusal names the kind («Размещается только на
 существующем океане»). Contract: `docs/TURMOIL_REDUX_AQUATIC_RESEARCH_STATION.md`.
+
+## THE TILE LANGUAGE (the owner's decisions of 2026-10-20 — W1 · W2/W3/W4 · W6 · W7)
+
+Every tile that lands on Mars speaks ONE language, whoever placed it and whatever paid for it. Seven words:
+
+1. **THE PLACE IS HELD (W1 — «полёт, но с маркером»).** Past the commit the tile still flies in from the table edge,
+   but the cell the player locked does not let go: `ConsoleBoardSection.cursorMarker` keeps the reticle on it
+   (`con-bcur--marker`: the amber lock contour steady, the projection a 0.2 trace, no cube, no shadow,
+   `[data-landing-marker]`) for an ORDINARY landing (`paying` / `approaching`; never a move, a tier or a
+   remove-and-replace — they keep their own scenes) and lets go IN THE FRAME OF CONTACT (`tilePlacementState.touched`,
+   set by the flight's / the sprout's `onContact`), under the landed tile, by a 140 ms leave (`con-bcur-out`).
+2. **THE CONTACT SPEAKS BY KIND (W7).** `tileContactKind(tileType)`: a city lands with the tier's dust
+   (`playStackDust`), an ocean with the water's ring (`playCoverSplash` on the full hex), a greenery GROWS
+   (`playTileSprout` — bought with plants, with M€ or given by a card: a greenery is planted, never fetched from the
+   table), the rest touch. Fired on the timeline (`TileFlightOpts.onContact` / `TileSproutOpts.onContact`), never
+   after the settle. Same on the remote stage (`remoteDust`, the remote splash).
+3. **ANOTHER SEAT'S TILE IS BORN WHOLE UNDER ITS CHIP AND DIVES (W2, PL-769).** `remoteBirthPoint(chip, hexH,
+   profile)` — the tile's top edge at the chip's centre, never cut by the strip; `tileDivePlan` — the path never
+   climbs above its start (the lob's apex `min(from.y, to.y) − lift` put the first third of the bot's city behind
+   the screen's top edge at 4K). The OWN tile keeps the lob from the table edge.
+4. **WHO PLACED IS THE SERVER'S RECORD (W2/W3).** `GameModel.tilePlacements` (`TilePlacementRecordModel` — `seq`,
+   `spaceId`, the placer's `color`, `tileType`, what the cell `paid`, `cards`; a presentation ring like
+   `tileMoves`, NOT serialized, bounded 8) — published by `Game.addTile` from `grantPlacementBonuses`' own return
+   (MarsBot: 1 M€ per covered icon, Automa rulebook p. 9). An ocean carries no owner on its tile, so its placer is
+   known only here. The remote stage claims a record per event (`claimPlacementRecordOf`, consumed once by `seq`).
+5. **A BEACON NAMES THE PLACER (W4).** `playLandingBeacon` — a ring in the placer's colour (`player_bg_color_*`,
+   masked to a ring) gathers on the cell `REMOTE_BEACON_LEAD_MS` before the touchdown and lets go after it.
+6. **THE CELL PAYS ITS PLACER IN SIGHT (W3).** After the touchdown one token per printed unit leaves the cell's own
+   icon (`bonusIconCentres`, measured before the tile covers them) for the placer's chip (`runPlacerBonusBeat`);
+   a rival's greenery bought with plants shows its «−8» leaving their chip into the cell first
+   (`provenPlantPrice` — the two views prove it; else no token).
+7. **WHAT A LANDING PAYS IS ONE WAVE, AND THE SCALES' STORY STARTS WITH THE PULLBACK (W6).** `endTilePlacement`
+   launches the printed bonus, the ocean adjacency, the Ares adjacency and the tile's VP shares together,
+   `REWARD_WAVE_STAGGER_MS` (80) apart (`runRewardWave`; the members' own breaths dropped); the law's wave and a
+   move's rating stay second statements after it (and then the VP keeps its place last). The camera pulls back at
+   the last touchdown, and the park's drain may tell the scales' story from `PLANET_STORY_READY_MS` (400) into the
+   exit (`planetFocusStoryReady` — read ONLY by the shell's watchable probe and the drain's scene gate
+   `scaleStorySceneSettling`; the drain's own settle is the camera's landing — `scheduleSettle` 0 while
+   `storyReady`). Every other automatic transition keeps `planetFocusSettling` — the whole tail. Measured on the
+   4K GPU stand (greenery beside two oceans, plants): commit → the last token 8.4 s → 5.3 s.
+
+Guards: `tilePlacementModel.spec` (the dive never above its start, the birth whole, the contact by kind, the
+beacon / wave constants), `planetFocus.spec` (the story-ready moment inside the exit, dropped by a reversal),
+`tests/models/TilePlacementRecord.spec.ts` (the ring: a city's steel, an ocean's placer, a draw counted as cards,
+MarsBot's M€ per icon, bounded + seq), `Game.spec` (the ring is not serialized); e2e `console-tile-language.spec.ts`
+(fhd + tv4k: A the marker holds until the contact + the dust · B the greenery born on its cell, ≥ 2 tokens in the
+air together, the oxygen glide starting inside `pfocus-exit` · C red's city whole below its chip, never above the
+screen's top, the red beacon before the touchdown, the bonus at red's chip · D the remote splash).
 
 ## Field grammar around it
 
