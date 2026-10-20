@@ -1134,6 +1134,11 @@
        influence digit (1.25rem) at the default 1.5 line-height made the head 75 px and the track spilled out of its
        fixed tier by 5 px (PL-580). */
     &__agenda-head { display: flex; align-items: center; gap: .8rem; flex-shrink: 0; min-width: 0; line-height: 1.2; .con-parl__kicker { white-space: nowrap; } }
+    /* The track's name wears its own unit — the career insignia (`.career-step-glyph`) — as an inline-flex row, so the
+       glyph never grows the head's line box: never smaller than the influence icon beside it, larger with a larger
+       kicker (the walk pose). */
+    &__agenda-head .con-parl__kicker { display: inline-flex; align-items: center; gap: .45rem; }
+    &__agenda-glyph { width: ~"max(1rem, 1.3em)"; height: ~"max(1rem, 1.3em)"; }
     &__agenda-me { display: inline-flex; align-items: center; gap: .35rem; font-size: .74rem; white-space: nowrap; b { font-size: .9rem; line-height: 1; font-variant-numeric: tabular-nums; } }
     &__agenda-next { display: inline-flex; align-items: center; gap: .3rem; &::before { content: '·'; margin: 0 .1rem; opacity: .6; } }
     &__track { display: grid; grid-template-columns: 2.2fr repeat(12, minmax(0, 1fr)); gap: 0; flex: 1; min-height: 0; }

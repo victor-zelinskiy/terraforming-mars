@@ -614,7 +614,8 @@
     /* The printed condition bare on the plate (no dark tile behind it) at the formula's scale. */
     &__engine-cond .con-parl__quest-graphic { zoom: var(--con-parl-engine-zoom); padding: 2px 4px; background: none; border: none; box-shadow: none; }
     &__engine-text { font-family: @con-font-read; font-size: .62rem; line-height: 1.15; max-width: 8.5rem; text-align: center; }
-    /* THE STEP IT PAYS — a reward chip in the career's own gold («+1 ★»), led by a drawn arrow (never a «→» glyph). */
+    /* THE STEP IT PAYS — a reward chip in the career's own gold («+1 [career insignia]» — the shared
+       `.career-step-glyph`, the very mark the track's head wears), led by a drawn arrow (never a «→» glyph). */
     &__engine-step {
         grid-area: step;
         display: inline-flex; align-items: center; gap: .2rem;
@@ -636,7 +637,6 @@
         stroke-linejoin: round;
     }
     &__engine-plus { font-variant-numeric: tabular-nums; }
-    &__engine-star { display: inline-block; width: 1.15rem; height: 1.15rem; background: url(./assets/misc/agenda-step.svg) center / contain no-repeat; }
     &__quest-progress {
         grid-area: race; justify-self: stretch; display: flex; flex-wrap: wrap; justify-content: center; gap: .3rem 1.1rem; min-width: 0;
         padding-top: .4rem; border-top: .05rem solid fade(@con-parl-gold, 18%);
@@ -1284,6 +1284,9 @@ html.con-profile-tv .con-parl-fx {
         &--gold { color: @con-parl-gold; }
     }
     &__kicker-glyph { width: .9rem; height: .9rem; fill: @con-parl-gold; }
+    /* The career insignia in the career's own dossier — its kicker and the legend «a step of the career is given by». */
+    &__kicker .career-step-glyph, &__label .career-step-glyph { width: 1rem; height: 1rem; }
+    &__label .career-step-glyph { vertical-align: middle; margin-right: .4rem; }
     &__section-mark { color: @con-cyan; font-size: 1.1em; }
     &__seat {
         position: relative; width: 4.6rem; height: 4.6rem; border-radius: 50%; display: grid; place-items: center;
@@ -1308,7 +1311,6 @@ html.con-profile-tv .con-parl-fx {
     }
     &__reward-arrow { opacity: .75; }
     &__reward-chair { width: 1rem; height: 1rem; fill: @con-parl-gold; }
-    &__reward-star { display: inline-block; width: 1.1rem; height: 1.1rem; background: url(./assets/misc/agenda-step.svg) center / contain no-repeat; }
     &__race { align-self: stretch; display: flex; flex-direction: column; gap: .35rem; padding-top: .6rem; border-top: .05rem solid fade(@con-parl-gold, 22%); }
     &__row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; column-gap: .5rem; font-size: .72rem; }
     &__row--won &__row-name { color: @con-parl-mint; }

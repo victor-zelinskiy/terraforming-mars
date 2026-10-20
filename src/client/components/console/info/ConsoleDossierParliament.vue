@@ -24,7 +24,7 @@
         </span>
       </div>
       <div class="con-dparl__career" data-parl-zone-career>
-        <span class="con-dparl__kicker">{{ $t('Agenda track') }} <b>{{ reading.agenda.position }}/{{ steps }}</b></span>
+        <span class="con-dparl__kicker"><i class="career-step-glyph" aria-hidden="true"></i>{{ $t('Agenda track') }} <b>{{ reading.agenda.position }}/{{ steps }}</b></span>
         <span class="con-dparl__ladder" aria-hidden="true">
           <span v-for="pip in ladder" :key="pip.step" class="con-dparl__pip" :class="'con-dparl__pip--' + pip.state">
             <i v-if="pip.state === 'next' && nextIcon !== ''" class="con-dparl__nexticon" :class="nextIcon"></i>

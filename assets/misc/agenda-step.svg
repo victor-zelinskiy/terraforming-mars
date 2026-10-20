@@ -1,37 +1,46 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <!-- Turmoil Redux — ONE STEP OF THE AGENDA TRACK, as the scans print the unit:
-       a square tile (a SQUARE is a unit of something in the set's icon language)
-       holding the track's red-rimmed gold star — the vote-winner star's own
-       geometry, in the premium face's lacquer language. The colour lives in the
+  <!-- Turmoil Redux — ONE STEP OF THE CAREER (Agenda) TRACK: the CAREER INSIGNIA.
+       The vote-winner star's own geometry and lacquer over two promotion chevrons
+       («лычки») in the star's red rim — a rank earned, the winner's star with its stripe.
+       Deliberately NOT the printed starred square (the owner's decision, 2026-10-20):
+       a star on a square plate IS titanium's silhouette at chip size (the rail and a
+       «[★] 2» plate stood side by side), so the step owns a silhouette no square
+       resource has. One picture on every surface: the card face, the chips, the
+       chairman quest's reward, the Career track's head. The colour lives in the
        file: the console strips every `filter`, so a tinted copy is never an option. -->
   <defs>
-    <linearGradient id="as-plate" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#fbf8f1"/>
-      <stop offset="1" stop-color="#e2ddd2"/>
-    </linearGradient>
-    <linearGradient id="as-body" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="ci-body" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#fff2a8"/>
       <stop offset="0.55" stop-color="#f2c54a"/>
       <stop offset="1" stop-color="#b8821a"/>
     </linearGradient>
-    <linearGradient id="as-rim" x1="0" y1="0" x2="0" y2="1">
+    <linearGradient id="ci-rim" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#d43b2a"/>
       <stop offset="1" stop-color="#7a1a10"/>
     </linearGradient>
-    <linearGradient id="as-sweep" x1="0" y1="0" x2="1" y2="1">
+    <linearGradient id="ci-stripe" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e24a35"/>
+      <stop offset="1" stop-color="#8a1f12"/>
+    </linearGradient>
+    <linearGradient id="ci-sweep" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0.3" stop-color="#ffffff" stop-opacity="0"/>
       <stop offset="0.5" stop-color="#ffffff" stop-opacity="0.55"/>
       <stop offset="0.7" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <rect x="3" y="3" width="58" height="58" rx="7" fill="url(#as-plate)" stroke="#2a2622" stroke-width="3"/>
-  <rect x="7" y="7" width="50" height="50" rx="4" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="1.5"/>
-  <g transform="translate(9 9.5) scale(0.72)">
+  <!-- The two chevrons: a dark keyline, the lacquered stripe, a specular top edge. -->
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 47 L32 36 L56 47 M8 57.5 L32 46.5 L56 57.5" stroke="#2a0a05" stroke-width="10"/>
+    <path d="M8 47 L32 36 L56 47 M8 57.5 L32 46.5 L56 57.5" stroke="url(#ci-stripe)" stroke-width="5.6"/>
+    <path d="M9.5 45.2 L32 34.9 L54.5 45.2 M9.5 55.7 L32 45.4 L54.5 55.7" stroke="#ffb59e" stroke-opacity="0.55" stroke-width="1.1"/>
+  </g>
+  <!-- The star — the vote-winner star, unchanged. -->
+  <g transform="translate(12.8 -0.3) scale(0.6)">
     <polygon points="32,3 40.4,22.2 61,24.3 45.6,38.3 50.2,59 32,48.4 13.8,59 18.4,38.3 3,24.3 23.6,22.2"
-             fill="url(#as-rim)" stroke="#3a0c06" stroke-width="1.5" stroke-linejoin="round"/>
+             fill="url(#ci-rim)" stroke="#3a0c06" stroke-width="1.5" stroke-linejoin="round"/>
     <polygon points="32,10 38.2,24.6 54,26.2 42.2,37 45.7,52.6 32,44.6 18.3,52.6 21.8,37 10,26.2 25.8,24.6"
-             fill="url(#as-body)" stroke="#8a5a12" stroke-width="0.8" stroke-linejoin="round"/>
+             fill="url(#ci-body)" stroke="#8a5a12" stroke-width="0.8" stroke-linejoin="round"/>
     <polygon points="32,10 38.2,24.6 54,26.2 42.2,37 45.7,52.6 32,44.6 18.3,52.6 21.8,37 10,26.2 25.8,24.6"
-             fill="url(#as-sweep)"/>
+             fill="url(#ci-sweep)"/>
   </g>
 </svg>

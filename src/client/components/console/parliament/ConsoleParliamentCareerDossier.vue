@@ -15,12 +15,13 @@
         </div>
       </div>
       <div class="con-parl-qd__note">
-        <span class="con-parl-qd__label">{{ $t('A step of the career is given by') }}</span>
+        <!-- The LEGEND of the career insignia: the one place that says what «+1 [insignia]» means wherever it is printed. -->
+        <span class="con-parl-qd__label"><i class="career-step-glyph" aria-hidden="true"></i>{{ $t('A step of the career is given by') }}</span>
         <p class="con-parl-qd__text">{{ $t('the vote won · the chairman quest · the effects of cards') }}</p>
       </div>
     </section>
     <section class="con-parl-qd__hero con-parl-qd__hero--ladder" data-parl-cd-ladder>
-      <span class="con-parl-qd__kicker con-parl-qd__kicker--gold">{{ $t('Agenda track') }}</span>
+      <span class="con-parl-qd__kicker con-parl-qd__kicker--gold"><i class="career-step-glyph" aria-hidden="true"></i>{{ $t('Agenda track') }}</span>
       <div class="con-parl-qd__ladder">
         <div class="con-parl-qd__rung con-parl-qd__rung--start">
           <span class="con-parl-qd__rung-cubes"><PlayerCube v-for="c in view.agendaStart" :key="c" :color="c" :size="cubePx(15)" :glow="false" /></span>
@@ -42,7 +43,7 @@
       <span class="con-parl-qd__kicker"><span class="con-parl-qd__section-mark" aria-hidden="true">§</span>{{ $t('Rules') }}</span>
       <div class="con-parl-qd__rule">
         <span class="con-parl-qd__tag">{{ $t('Influence') }}</span>
-        <p class="con-parl-qd__text">{{ $t('Your influence is the highest ★ mark you reached: steps 1–2 give 1, 3–4 give 2, 5–7 give 3, 8–11 give 4, step 12 gives 5. Some cards and colonies add to it.') }}</p>
+        <p class="con-parl-qd__text">{{ $t('Your influence is the highest influence level you reached on the track: steps 1–2 give 1, 3–4 give 2, 5–7 give 3, 8–11 give 4, step 12 gives 5. Some cards and colonies add to it.') }}</p>
       </div>
       <div class="con-parl-qd__rule">
         <span class="con-parl-qd__tag con-parl-qd__tag--reward">{{ $t('Step rewards') }}</span>

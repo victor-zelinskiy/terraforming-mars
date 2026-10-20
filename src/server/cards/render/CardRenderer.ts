@@ -272,9 +272,12 @@ abstract class Builder<T> {
   }
 
   /**
-   * Turmoil Redux: «advance your Agenda marker N steps» — N starred squares,
-   * the set's printed unit of one step of the track (TR04). A SQUARE is a unit
-   * in the scans' icon language; the star inside is the track's own mark.
+   * Turmoil Redux: «advance your Agenda marker N steps» — N units of one step
+   * of the Career track (TR04). The scans print a starred SQUARE; the face draws
+   * the CAREER INSIGNIA instead (`assets/misc/agenda-step.svg` — the winner's
+   * star over two chevrons): a star on a square is titanium's silhouette at
+   * chip size (the owner's decision, 2026-10-20 — `docs/claude/parliament-glossary.md`
+   * § 4a). The ONLY way to print a step: never `voteWinner()`, never a resource.
    */
   public agendaStep(amount: number, options?: ItemOptions): this {
     return this._appendToRow(new CardRenderItem(CardRenderItemType.AGENDA_STEP, amount, options));

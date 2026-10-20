@@ -612,10 +612,23 @@
     background: url(./assets/misc/neutral-delegate.png) center / contain no-repeat;
 }
 
-/* Turmoil Redux (TR04) — the Agenda track's printed UNIT (the starred square the card face draws) and the
+/* Turmoil Redux (TR04) — one step of the Career (Agenda) track (the CAREER INSIGNIA the card face draws) and the
  * INFLUENCE badge (the track node's own asset) as chip icons: a preview chip «1 → 3», a journal chip, the
  * composer's next-step row all wear the very picture the card and the track print. */
 .resource_icon--agenda-step {
+    background: url(./assets/misc/agenda-step.svg) center / contain no-repeat;
+}
+
+/* The same insignia INLINE in a line of type — the chairman quest's «+1 [insignia]», its dossier's reward, the
+ * head of the Career track itself and the dossiers that name the track. ONE class for every such site, sized in
+ * `em` so it takes the type size of the line it stands in (a host that pairs it with a rem-sized icon overrides
+ * the box). The track wears its own unit at its head: a «+1 [insignia]» anywhere leads the eye THERE. */
+.career-step-glyph {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 1.2em;
+    height: 1.2em;
+    vertical-align: -0.25em;
     background: url(./assets/misc/agenda-step.svg) center / contain no-repeat;
 }
 

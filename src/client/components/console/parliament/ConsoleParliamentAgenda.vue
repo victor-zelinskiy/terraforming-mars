@@ -12,7 +12,10 @@
                              :focused="flow.zone === 'engine' && flow.stage === 'browse'" />
     <div class="con-parl__career" data-parl-career>
       <div class="con-parl__agenda-head">
-        <span class="con-parl__kicker">{{ $t('Agenda track') }}</span>
+        <!-- THE TRACK WEARS ITS OWN UNIT (2026-10-20): the career insignia every «+1 [insignia]» prints — the quest's
+             reward beside this plate, a card's face, a composer chip, a hand plate — stands at the head of the track it
+             moves, so the symbol leads the eye HERE (the glyph alone named nothing on the screen it was printed on). -->
+        <span class="con-parl__kicker"><i class="career-step-glyph con-parl__agenda-glyph" aria-hidden="true"></i>{{ $t('Agenda track') }}</span>
         <!-- «Зал» v7: the symbol says «влияние» — the word is the reading line's (and the label's for assistive tech). -->
         <span v-if="view.viewer !== undefined" class="con-parl__agenda-me" :aria-label="$t('Influence')">
           <PlayerCube :color="view.viewer.color" :size="cubePx(12)" :glow="false" />
@@ -23,7 +26,7 @@
       <!-- THE INSTRUMENT (v8): a START cell + twelve TILES — the marker row ABOVE each tile (reserved whether or not a cube
            stands there), the tile with its reward (+1 TR · a card · an influence COIN with its level struck inside it;
            no ordinals — v3 В4: a bare numeral on this track reads as a count), and under the tiles the INFLUENCE RULER
-           (П6): the spans 0 · 1–2 · 3–4 · 5–7 · 8–11 · 12 — the rule «your influence is the highest ★ you reached» drawn
+           (П6): the spans 0 · 1–2 · 3–4 · 5–7 · 8–11 · 12 — the rule «your influence is the highest level you reached» drawn
            as a dimension line per span, EVERY span naming its level on a chip in its middle (a gold bar that named only
            the viewer's span was weight with no reading); the viewer's span is the mint one. -->
       <div class="con-parl__track">

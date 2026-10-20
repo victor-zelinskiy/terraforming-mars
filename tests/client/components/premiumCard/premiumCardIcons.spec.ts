@@ -50,7 +50,7 @@ describe('premiumCardIcons.mechItemIcon', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.SELF_REPLICATING))).to.deep.equal({kind: 'img', url: 'assets/resources/card.webp'});
   });
 
-  it('the Agenda-step unit (Turmoil Redux TR04) is its own asset — the starred square, never the vote-winner star bare', () => {
+  it('the Agenda-step unit (Turmoil Redux TR04) is its own asset — the career insignia, never the vote-winner star bare', () => {
     expect(mechItemIcon(itemNode(CardRenderItemType.AGENDA_STEP, 2))).to.deep.equal({kind: 'img', url: 'assets/misc/agenda-step.svg'});
     expect(mechItemIcon(itemNode(CardRenderItemType.VOTE_WINNER))).to.deep.equal({kind: 'img', url: 'assets/misc/vote-winner.svg'});
   });

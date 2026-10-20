@@ -29,7 +29,7 @@
         <span class="con-parl-qd__reward-arrow" aria-hidden="true">→</span>
         <PremiumChairGlyph class="con-parl-qd__reward-chair" />
         <span class="con-parl-qd__reward-plus" aria-hidden="true">+</span>
-        <i class="con-parl-qd__reward-star" aria-hidden="true"></i>
+        <i class="career-step-glyph" aria-hidden="true"></i>
         <b>+1</b>
       </div>
       <div v-if="rows.length > 0" class="con-parl-qd__race" data-parl-qd-race>

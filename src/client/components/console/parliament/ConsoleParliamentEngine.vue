@@ -48,7 +48,7 @@
     <svg v-if="questShown !== undefined" class="con-parl__engine-arrow" viewBox="0 0 30 14" aria-hidden="true"><path d="M2 7h24M20 2l6 5-6 5" /></svg>
     <span v-if="questShown !== undefined" class="con-parl__engine-step" :class="{'con-parl__engine-step--kept': viewerIsChairman}" data-parl-quest-reward aria-hidden="true">
       <span class="con-parl__engine-plus">+1</span>
-      <i class="con-parl__engine-star" aria-hidden="true"></i>
+      <i class="career-step-glyph" aria-hidden="true"></i>
     </span>
     <!-- THE RACE — one row per seat, the count as pips (a long count as digits). CLOSED or WON it is the final
          score at the same size (the block's geometry never moves under the government's beats). -->

@@ -26,7 +26,7 @@ const GLOBAL_PARAMETER_ICONS: ReadonlySet<string> = new Set(['temperature', 'ven
 // `rating` is the rail's own key for the terraform rating (the parliament's Agenda bonus rides it as a chip).
 // `delegate` / `neutral-delegate` (Turmoil Redux): a player's own delegate and the dark neutral one — the
 // REAL figures, as assets of their own (the console strips `filter`, so a dimmed copy would not paint).
-// `agenda` / `influence` (Turmoil Redux TR04): the Agenda track's printed unit (the starred square) and the
+// `agenda` / `influence` (Turmoil Redux TR04): one step of the Career (Agenda) track — the career insignia — and the
 // influence badge — the SAME assets the card face and the track's node draw, so a preview chip, a journal chip
 // and the track speak one symbol.
 const RESOURCE_ICON_ALIASES: Readonly<Record<string, string>> = {

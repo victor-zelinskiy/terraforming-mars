@@ -828,7 +828,9 @@ leak detector, `ConsoleStatusStrip`, сателлит, `infoRoute`, `cardAvailab
   (`premiumCardViewModel.ts:327-337`) — гейт расширить на тип резолюции. Эмблемы партий: таблицы нет
   (захардкожен только Reds — `premiumCardIcons.ts:143`), ассеты `assets/parties/*.png` есть для пяти
   классических партий; **эмблему Индустриалистов добавить** из `Assets/Industrialists.png`.
-  Иконка `agenda.png` уже существует (Pathfinders), `mech` — нет ни ресурса, ни иконки.
+  ~~Иконка `agenda.png` уже существует (Pathfinders)~~ — **НЕТ**: `assets/resources/agenda.png` — ресурс карт
+  Pathfinders («Mind Set Mars»), к треку Карьеры не относится и в Redux не используется; шаг Карьеры —
+  `agenda-step.svg` (нашивка, `parliament-glossary.md` § 4a). `mech` — нет ни ресурса, ни иконки.
 - **Образцы out-of-turn поверхностей**: WGT — отдельный компонент `ConsoleGovernmentSupport.vue`
   (смешанный набор «лист + `SelectSpace`», `consoleGovernmentSupport.ts:99-124`), роутинг по
   строковому заголовку (`consoleTaskRouter.ts:429,520`) и hold транспорта `WGT_MARKER_HOLD_MS`
