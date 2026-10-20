@@ -2077,7 +2077,7 @@ import {
   PlacementMoveLevel,
 } from '@/client/console/tilePlacement/placementMove';
 import {placementCommands} from '@/client/console/tilePlacement/placementCommands';
-import {abortRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
+import {abortRemotePlacements, remoteLandingOwed} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {abortOceanBeat} from '@/client/console/tilePlacement/adjacencyPayoutBeat';
 import {abortNomadMove, nomadMoveState, nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
 import ConsoleColonyBuildLayer from '@/client/components/console/colonyBuild/ConsoleColonyBuildLayer.vue';
@@ -20686,14 +20686,31 @@ export default defineComponent({
       // The park's drain runs in this very yield-gap (the stack is aside,
       // the board watchable), so the wait resolves on the story's own end;
       // the shared 8 s cap bounds a wedged story to seconds, never the flow.
-      if (!boardStorySettling()) {
+      //
+      // …AND ANOTHER SEAT'S TILE OWED TO THIS BOARD (RX38, D11): the seats go
+      // in turn, so the response to the viewer's own placement routinely
+      // carries the NEXT seat's tile too (the bot's city, placed by its own
+      // primitive the moment the viewer answered). Resumed over it, the sitting
+      // re-covered the board the landing was waiting for — the tile then hung
+      // on its 20 s board wait and appeared with no flight. The frame stays
+      // aside until it has landed (the viewer's own card first: the landing
+      // waits out the reveal standing over the board).
+      const settling = () => boardStorySettling() || remoteLandingOwed();
+      if (!settling()) {
         this.resumeStackFromBoardAndSettle();
         return;
       }
-      void waitBoardStoryQuiet({
+      void waitConsoleQuiet(settling, {
         alive: () => stackYieldedToBoard() && !this.placementActive,
       }).then(() => {
         if (!stackYieldedToBoard() || this.placementActive) {
+          return;
+        }
+        // A landing still OWED is not a wedged story (PL-489's law): it waits for the viewer's own story — the card the
+        // ruling party dealt, its take, its flight into the dock — and the frame waits for the landing, re-armed past
+        // the shared cap. Bounded all the same: the landing's own board wait ends it (`BOARD_WAIT_MAX_MS`).
+        if (remoteLandingOwed()) {
+          this.resumeYieldedStackOverQuietBoard();
           return;
         }
         this.resumeStackFromBoardAndSettle();

@@ -121,6 +121,8 @@ import {MEDICAL_DATABASE_ID} from '../../../src/server/parliament/resolutions/sc
 import {METAL_RESEARCH_ID} from '../../../src/server/parliament/resolutions/industrialists/MetalResearch';
 import {MIGRATION_FUNDING_ID} from '../../../src/server/parliament/resolutions/marsFirst/MigrationFunding';
 import {SKYSCRAPERS_ID} from '../../../src/server/parliament/resolutions/marsFirst/Skyscrapers';
+import {MARS_FIRST_BUDGET_ID} from '../../../src/server/parliament/resolutions/marsFirst/MarsFirstBudget';
+import {MartianRoads} from '../../../src/server/cards/turmoilRedux/MartianRoads';
 import {Board} from '../../../src/server/boards/Board';
 import {GHGProducingBacteria} from '../../../src/server/cards/base/GHGProducingBacteria';
 import {NobelPrize} from '../../../src/server/cards/prelude2/NobelPrize';
@@ -6174,6 +6176,63 @@ function botDeckOf(first: AutomaState['actionDeck'][number]): AutomaState['actio
   }
   write(name, t.game);
 }
+
+// ── RX38 · MARS FIRST BUDGET with MarsBot at the table (decision D11) — a SOLO table (blue + the bot under
+//    `'politics'`), blue's free delegate alone on the budget (blue wins), blue FIRST in the order with building 2 +
+//    Mars 1 (Martian Roads · Mine) and influence 1 after the Agenda step. The bot's site: three greeneries (nobody's)
+//    around ONE quiet cell, so its pick («next to as much greenery as possible») is a fact the probe can read. The
+//    bot's deck is EMPTY (its one turn is a pass). Two moments of ONE journey, for
+//    console-parliament-marsfirst-budget.spec.ts:
+//    · `-vote` — blue's action phase with 34 M€: the vote panel reads the net, the two-tag breakdown, the city row
+//      with Mars First's answer, and the bot's chip with the tile alone;
+//    · `-bot` — the ASSEMBLY gate with 20 M€ at the sitting: −12 → 8, +4 → 12, then blue's city (asked), then the
+//      bot's city by its own rule. ──
+function marsFirstBudgetBotTable(name: string, stopAt: 'vote' | 'assembly'): void {
+  const t = botTable(name, 1);
+  const [human] = t.humans;
+  seatResolution(t.parliament, 0, MARS_FIRST_BUDGET_ID);
+  t.parliament.placeVote(human, t.parliament.slots[0], 'lobby');
+  t.parliament.agenda.set(human.id, 0);
+  human.playedCards.push(new MartianRoads(), new Mine());
+  // THE BOT'S SITE: a quiet cell (no bonus, no ocean cell beside it, not Noctis) with three free land neighbours.
+  const board = t.game.board;
+  const centre = board.spaces.find((s) => s.spaceType === SpaceType.LAND && s.tile === undefined && s.bonus.length === 0 &&
+    s.id !== board.noctisCitySpaceId && !board.getAdjacentSpaces(s).some((a) => a.spaceType === SpaceType.OCEAN || a.tile !== undefined) &&
+    board.getAdjacentSpaces(s).filter((a) => a.spaceType === SpaceType.LAND && a.tile === undefined).length >= 4);
+  if (centre === undefined) {
+    throw new Error(`${name}: no quiet site for the bot's city`);
+  }
+  for (const grove of board.getAdjacentSpaces(centre).filter((a) => a.spaceType === SpaceType.LAND && a.tile === undefined).slice(0, 3)) {
+    grove.tile = {tileType: TileType.GREENERY};
+  }
+  t.automa.actionDeck = [];
+  if (resolutionCount(human, 'buildingMarsTags').count !== 3) {
+    throw new Error(`${name}: expected building 2 + Mars 1`);
+  }
+  if (stopAt === 'vote') {
+    // The vote's picture: 34 M€ — −12, then +(3 + influence 0 → 1 if blue wins) — the panel's net reads off it.
+    human.megaCredits = 34;
+    write(name, t.game);
+    return;
+  }
+  human.clearWaitingFor();
+  t.game.playerHasPassed(human);
+  t.game.playerIsFinishedTakingActions();
+  if (t.game.phase !== Phase.PARLIAMENT || t.parliament.phase?.step !== 'assembly') {
+    throw new Error(`${name}: expected the assembly gate, got ${t.game.phase} / ${t.parliament.phase?.step ?? 'no phase'}`);
+  }
+  if (t.parliament.phase.summary?.winner.player !== human.id) {
+    throw new Error(`${name}: blue is not the winning player (${t.parliament.phase.summary?.winner.player})`);
+  }
+  if (t.game.playersInGenerationOrder[0].id !== human.id) {
+    throw new Error(`${name}: blue must place first (the order is ${t.game.playersInGenerationOrder.map((p) => p.color).join(' · ')})`);
+  }
+  // The money AT the sitting (the production phase has paid its income already): 20 M€ — −12 → 8, then +4 → 12.
+  human.megaCredits = 20;
+  write(name, t.game);
+}
+marsFirstBudgetBotTable('parliament-marsfirst-budget-vote', 'vote');
+marsFirstBudgetBotTable('parliament-marsfirst-budget-bot', 'assembly');
 
 // ── two-player-finale-trigger: the FINALE with a TRIGGERED HAND-OFF (PL-301 / PL-303 — the owner's field
 //    report 2026-10-14). A 2p table at the final greenery: the first seat holds the plants and is asked;

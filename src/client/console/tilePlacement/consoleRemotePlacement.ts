@@ -76,6 +76,7 @@ import {stackRelease, clearStackRelease, stackDried} from '@/client/console/tile
 import {TileMoveRecordModel} from '@/common/boards/TileMove';
 import {SpaceId} from '@/common/Types';
 import {probeTick} from '@/client/console/probeTick';
+import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {
   AresAdjacencyFlight, ARES_WAVE_LEAD_MS,
   claimAresGrant, latestAresGrantFor, viewerAresAdjacencyFlights,
@@ -107,7 +108,7 @@ import {
   holdCubeForHeroPlacement, dropCubeForHeroPlacement, restCubeForHeroPlacement,
 } from '@/client/components/board/cubeDropState';
 import {
-  runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, beginPanelVpHold, releasePanelVpHold,
+  runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, beginPanelVpHold, releasePanelVpHold, isResourceTransferActive,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {TransferPoint, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {workspaceStackActive} from '@/client/console/consoleWorkspaceStack';
@@ -1177,6 +1178,17 @@ function wait(ms: number): Promise<void> {
  *  · the deck dealing — cards are physically crossing the screen;
  *  · a drawn batch still on the table.
  */
+/**
+ * Is a remote landing still OWED — queued, waiting for a board the player can see, or flying? The question a surface
+ * that STEPPED ASIDE for the board asks before it comes back (`ConsoleShell.resumeYieldedStackOverQuietBoard`): a
+ * sitting that yielded for the viewer's own city must not re-cover the board while the next seat's city (the bot's —
+ * the same response, RX38) still has to land on it. Not an animation hold: a queue parked for a covered board holds
+ * nothing (see `waitingForBoard`).
+ */
+export function remoteLandingOwed(): boolean {
+  return remotePlacementState.active || remotePlacementState.waitingForBoard || queue.length > 0 || draining;
+}
+
 export function boardCovered(): boolean {
   return workspaceStackActive() || playedHeroHolding() || isDeckDrawActive() ||
     currentRevealEvent() !== undefined;
@@ -1192,13 +1204,45 @@ export function boardCovered(): boolean {
  * it starts counting when the flight can actually run.
  */
 function awaitWatchableBoard(myEpoch: number): Promise<void> {
-  if (!boardCovered()) {
+  // ONE TICK BEFORE THE FIRST LOOK (RX38): this landing is staged INSIDE the apply block, while the SAME response's
+  // own presentations register only after it (the viewer's own tile hero ends on this very commit and starts its
+  // reward wave on the next tick). A tick is free; a race lost is a landing the player never sees.
+  return new Promise<void>((ticked) => probeTick(() => ticked())).then(() => watchableBoardAfterTick(myEpoch));
+}
+
+/**
+ * THE VIEWER'S OWN PLACEMENT STILL TELLS ITS STORY on this board — its landing, the cell's bonus wave, the ruling
+ * party's answer flying to the rail (RX38). Another seat's tile WAITS for it: the seats go in turn, and the response
+ * to the viewer's own answer routinely carries the next seat's tile too (the bot's city, placed by its own primitive
+ * the moment the viewer answered). Flown at once, it shared the screen with the viewer's own payout and with the card
+ * the ruling Mars First deals for the viewer's city — that deal arms half a second after the commit, so it is the
+ * story's END that hands over, not a clock: by then the deal stands (`boardCovered`) and the tile waits for its take
+ * and for the taken card's flight into the dock.
+ */
+function ownPlacementStoryLive(): boolean {
+  const phase = tilePlacementState.phase;
+  return (tilePlacementState.active && phase !== 'idle' && phase !== 'armed' && phase !== 'failed') || isResourceTransferActive() ||
+    // …and the card that story dealt, still on its way into the dock after the take (the eye follows it there).
+    handDeliveryState.flights.length > 0 || handDeliveryState.inFlight.length > 0;
+}
+
+/** The board is no stage for another seat's landing yet: covered, or still the viewer's own placement's. */
+function boardBusyForRemote(): boolean {
+  return boardCovered() || ownPlacementStoryLive();
+}
+
+function watchableBoardAfterTick(myEpoch: number): Promise<void> {
+  if (epoch !== myEpoch) {
     return Promise.resolve();
   }
+  if (!boardBusyForRemote()) {
+    return Promise.resolve();
+  }
+  remotePlacementState.waitingForBoard = true;
   const deadline = Date.now() + BOARD_WAIT_MAX_MS;
   return new Promise<void>((done) => {
     const poll = () => {
-      if (epoch !== myEpoch || !boardCovered() || Date.now() > deadline) {
+      if (epoch !== myEpoch || !boardBusyForRemote() || Date.now() > deadline) {
         // The board is back (or we gave up): let the workspace's own leave
         // finish before the tile flies into the space it just vacated.
         // The SETTLE is the scene's own lead-in on a board the player can see,
