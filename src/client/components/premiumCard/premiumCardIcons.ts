@@ -155,7 +155,14 @@ export type CountedObjectGlyph =
    * medallion would state a rule about tags; a bare cover would read «per
    * card you have»; the VP card would ask for an icon nobody asked for.
    */
-  | {kind: 'type-card', cardType: CardType.ACTIVE | CardType.AUTOMATED};
+  | {kind: 'type-card', cardType: CardType.ACTIVE | CardType.AUTOMATED}
+  /**
+   * A CARD THAT ALREADY HOLDS A RESOURCE («each of your cards that already has
+   * a resource» — Sponsored Projects): the white card with its three cubes the
+   * face prints for `b.resourceCard()` (TR53's holder) — what is counted is the
+   * card BY WHAT IT HOLDS, so neither a tag nor a bare cover states the rule.
+   */
+  | {kind: 'resource-card'};
 
 /**
  * THE COVER a card glyph is drawn on, and the BAND modifier its TYPE wears —

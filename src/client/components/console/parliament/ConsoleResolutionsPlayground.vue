@@ -602,14 +602,14 @@ import {colonyCardResources} from '@/common/colonies/ColonyMetadata';
 import {ColonyLedgerReading, colonyLedgerOf} from '@/client/console/parliament/colonyLedgerModel';
 import ConsoleColonyLedger from '@/client/components/console/parliament/ConsoleColonyLedger.vue';
 import {
-  fixedLevelYield, fixedSequelYield, fixedYield, InfluenceScaledEffect, InfluenceYield, levelAfter, levelAmount, referenceYield, scaledAmount, sequelAmount,
-  uncappedAmount,
+  declaredCardResourceKinds, fixedLevelYield, fixedSequelYield, fixedYield, InfluenceScaledEffect, InfluenceYield, levelAfter, levelAmount, referenceYield,
+  scaledAmount, sequelAmount, uncappedAmount,
 } from '@/common/parliament/influenceScaling';
 import {PartyReactionReading, partyReactionsOf} from '@/client/console/parliament/partyReactionModel';
 import {
-  BoardCountMeasure, cardCountUnits, cardCountVerdict, CardCountContext, countCardsToward, countColoniesToward, CountedSpaceFacts, countMetricToward,
-  countProductionToward, countSpacesToward, ResolutionCountByResource, ResolutionCountId, ResolutionCountKind, ResolutionCountMetricModel, ResolutionCountModel,
-  resolutionCountKind, spaceCountVerdict,
+  BoardCountMeasure, cardCountUnits, cardCountVerdict, CardCountContext, countCardsToward, countColoniesToward, CountedSpaceFacts, countHoldersToward,
+  countMetricToward, countProductionToward, countSpacesToward, ResolutionCountByResource, ResolutionCountId, ResolutionCountKind, ResolutionCountMetricModel,
+  ResolutionCountModel, resolutionCountKind, spaceCountVerdict,
 } from '@/common/parliament/resolutionCounts';
 import {cityTiersOf} from '@/common/boards/cityStack';
 import {LEVY_STEP_KEY, levyNothingReasonKey, levyPaid, LevyReading, levyShortReasonKey} from '@/common/parliament/resolutionLevy';
@@ -732,6 +732,12 @@ type PgSeat = {
   hand?: number,
   /** …and the seat's PLANTS (a synthetic supply) a CUT is read against (Plant Ban). */
   plants?: number,
+  /**
+   * The each-card family (Sponsored Projects): the seat's cards in play with the number of resources ON each — REAL
+   * cards (their storage rule is the manifest's), counted by the stand's restatement of the engine's predicate
+   * (`countHoldersToward` — a holder at 0 does not count, a card that holds nothing never does).
+   */
+  holdings?: ReadonlyArray<{card: CardName, count: number}>,
 };
 type PgWinner = SeatIndex | 'neutral';
 /**
@@ -742,7 +748,7 @@ type PgWinner = SeatIndex | 'neutral';
  * resource by influence + the WINNER's tile.
  */
 type PgFamily = 'influence' | 'counted' | 'counted-tags' | 'counted-board' | 'counted-metric' | 'counted-production' | 'counted-colonies' | 'distributed' |
-  'winner-tile' | 'sequel' | 'colony-bonuses' | 'world-move' | 'level' | 'tile-grant';
+  'each-card' | 'winner-tile' | 'sequel' | 'colony-bonuses' | 'world-move' | 'level' | 'tile-grant';
 /** The table's global parameters a winner tile reads (oxygen %, temperature °C, oceans placed). */
 type PgTable = {oxygen: number, temperature: number, oceans: number, venus: number};
 const DEFAULT_TABLE: PgTable = {oxygen: 5, temperature: -14, oceans: 3, venus: 10};
@@ -950,6 +956,23 @@ const MEDIA = CardName.MEDIA_GROUP; // ACTIVE — blue with no building tag at a
 const HYDROGEN = CardName.IMPORTED_HYDROGEN; // EVENT — a played event is never blue
 
 const DECK_EMPTY_REASON = 'The project deck is empty';
+
+/*
+ * THE EACH-CARD FAMILY (Sponsored Projects: a draw by influence, then 1 resource of ITS OWN kind onto EVERY card that
+ * already holds one — no question) — real cards chosen for the edges of «already has a resource»: holders of three
+ * kinds (an animal, a floater, a data), a holder at 0 (named, never paid), a card that holds nothing, a corporation
+ * holding animals (a card of the tableau like any other), and a full row of eight (the receipt's density).
+ */
+const SUPERCOMPUTER = CardName.SUPERCOMPUTER; // Turmoil Redux — holds DATA
+const ARKLIGHT = CardName.ARKLIGHT; // corporation — holds animals (1 VP per 2)
+const BIRDS_CARD = CardName.BIRDS; // holds animals — a holder that may stand at 0
+const EACH_THREE_KINDS: ReadonlyArray<{card: CardName, count: number}> = [
+  {card: FISH, count: 2}, {card: DIRIGIBLES, count: 1}, {card: SUPERCOMPUTER, count: 3},
+];
+const EACH_EIGHT: ReadonlyArray<{card: CardName, count: number}> = [
+  {card: ARKLIGHT, count: 4}, {card: FISH, count: 2}, {card: PETS, count: 1}, {card: DIRIGIBLES, count: 1},
+  {card: ATMO, count: 2}, {card: TARDIGRADES, count: 3}, {card: GHG, count: 1}, {card: SUPERCOMPUTER, count: 2},
+];
 
 const SCENARIOS: ReadonlyArray<PgScenario> = [
   // Step 0 of the Agenda: influence 0 — the step asks nothing and names the skip.
@@ -1523,6 +1546,28 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
   {key: 'medical-live-layout', family: 'distributed', holds: MEDICAL_HOLDERS, label: 'Live: the layout inside the sitting', viewer: 0,
     seats: [{agenda: 2, bonus: 0, cards: [GHG, REGOLITH]}, {agenda: 5, bonus: 0, cards: [TARDIGRADES]}], winner: 0, context: 'resolving', noRecipient: false,
     live: 'parliament-medical-enact', liveNote: 'Your layout stands inside the enactment stage: 4 units over two microbe holders, nothing placed until you confirm'},
+  // ── SPONSORED PROJECTS (RX40): the each-card family — every counted card receives one of its own kind, nobody is asked.
+  {key: 'each-three-kinds', family: 'each-card', label: 'Three kinds on three cards — one of its own kind each', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, holdings: EACH_THREE_KINDS}, {agenda: 1, bonus: 0, holdings: [{card: PETS, count: 1}]}], winner: 1, context: 'resolving', noRecipient: false},
+  {key: 'each-vote', family: 'each-card', label: 'The vote — your cards and what one more does', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, holdings: EACH_THREE_KINDS}, {agenda: 1, bonus: 0, holdings: [{card: PETS, count: 1}]}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'each-zero-influence', family: 'each-card', label: 'Influence 0 — no cards, the resources all the same', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, holdings: EACH_THREE_KINDS}, {agenda: 3, bonus: 0, holdings: [{card: PETS, count: 1}]}], winner: 1, context: 'resolving', noRecipient: false},
+  {key: 'each-none', family: 'each-card', label: 'No card with a resource yet — the resources are named and skipped', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, holdings: [{card: BIRDS_CARD, count: 0}, {card: MINE, count: 0}]}, {agenda: 1, bonus: 0, holdings: [{card: PETS, count: 1}]}],
+    winner: 1, context: 'resolving', noRecipient: false},
+  {key: 'each-empty-holder', family: 'each-card', label: 'A holder at 0 receives nothing', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, holdings: [{card: FISH, count: 2}, {card: BIRDS_CARD, count: 0}]}, {agenda: 1, bonus: 0, holdings: []}],
+    winner: 1, context: 'resolving', noRecipient: false},
+  {key: 'each-corporation', family: 'each-card', label: 'A corporation holding resources is a card too', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, holdings: [{card: ARKLIGHT, count: 4}, {card: FISH, count: 1}]}, {agenda: 1, bonus: 0, holdings: []}],
+    winner: 1, context: 'resolving', noRecipient: false},
+  {key: 'each-eight', family: 'each-card', label: 'Eight cards — the receipt in one row', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, holdings: EACH_EIGHT}, {agenda: 1, bonus: 0, holdings: [{card: PETS, count: 1}]}], winner: 1, context: 'resolving', noRecipient: false},
+  {key: 'each-empty-deck', family: 'each-card', label: 'The project deck is empty — the draw is named, the resources land', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, holdings: EACH_THREE_KINDS}, {agenda: 1, bonus: 0, holdings: []}], winner: 1, context: 'applied', noRecipient: false, emptyDeck: true},
+  {key: 'each-applied', family: 'each-card', label: 'Recorded result', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, holdings: EACH_THREE_KINDS}, {agenda: 1, bonus: 0, holdings: [{card: PETS, count: 1}]}], winner: 1, context: 'applied', noRecipient: false},
   /*
    * THE COLONY-BONUSES FAMILY (Colonial Affairs): each seat holds SYNTHETIC CUBES on real tiles of the
    * colony manifest — the server's registry shape — and the ledger multiplies them: a supply tile (Luna),
@@ -1801,6 +1846,7 @@ const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
   'counted-production': SCENARIOS.findIndex((s) => s.key === 'budget-net'),
   'counted-colonies': SCENARIOS.findIndex((s) => s.key === 'jovian-four'),
   'distributed': SCENARIOS.findIndex((s) => s.key === 'cloud-layout'),
+  'each-card': SCENARIOS.findIndex((s) => s.key === 'each-three-kinds'),
   'winner-tile': SCENARIOS.findIndex((s) => s.key === 'tile-influence-3'),
   'sequel': SCENARIOS.findIndex((s) => s.key === 'seq-4-to-6'),
   'colony-bonuses': SCENARIOS.findIndex((s) => s.key === 'colonial-vote'),
@@ -2099,6 +2145,7 @@ export default defineComponent({
       case 'counted-production': return 'Result by production steps and influence, after the levy';
       case 'counted-colonies': return 'Result by influence and by colonies';
       case 'distributed': return 'Result by tags and influence, laid out over your holders';
+      case 'each-card': return 'Result by your cards that already hold a resource';
       case 'sequel': return 'Result by influence, then by production';
       case 'level': return this.levelDirection === 'down' ? 'Result by influence, cut to a limit' : 'Result by influence, up to a hand size';
       case 'colony-bonuses': return 'Result by influence, over your colony bonuses';
@@ -2736,16 +2783,40 @@ export default defineComponent({
         if (effect.unit.kind !== 'cardResource') {
           continue;
         }
+        if (effect.unit.onto === 'each-counted') {
+          // EVERY COUNTED CARD RECEIVES, each of its own kind — the server's record: the counted cards with what
+          // each held, every landing with its kind and its count BEFORE, the ONE kind only when every card took it.
+          for (const i of SEATS) {
+            const payout = this.payoutAt(effect, i);
+            if (payout === undefined) {
+              continue;
+            }
+            const held = payout.count?.byCard ?? [];
+            const common = {
+              player: TEST_PLAYERS[i].color, step: effect.id, effect: effect.id, onto: 'each-counted' as const, amount: payout.amount,
+              influence: payout.influence, count: payout.count?.count, counted: payout.count?.cards, countedByCard: held,
+            };
+            if (payout.skipped !== undefined) {
+              out.push({...common, kind: 'skipped', reason: payout.skipped});
+              continue;
+            }
+            const per = effect.count?.per ?? 1;
+            const cards = held.map((entry) => ({card: entry.card, amount: per, resource: entry.resource, before: entry.count}));
+            const kinds = new Set(cards.map((entry) => entry.resource));
+            out.push({...common, kind: 'cardResource', cards, ...(kinds.size === 1 ? {resource: cards[0].resource} : {})});
+          }
+          continue;
+        }
         for (const i of SEATS) {
           const payout = this.payoutAt(effect, i);
           if (payout === undefined) {
             continue;
           }
           // ONE kind names itself on the record; SEVERAL ride `resources` (the skip's name, the mixed landing's).
-          const kinds = effect.unit.resources;
+          const declared = declaredCardResourceKinds(effect.unit) ?? [];
           const common = {
             player: TEST_PLAYERS[i].color, step: effect.id, effect: effect.id, amount: payout.amount, influence: payout.influence,
-            ...(kinds.length === 1 ? {resource: kinds[0]} : {resources: kinds}),
+            ...(declared.length === 1 ? {resource: declared[0]} : {resources: declared}),
           };
           if (payout.skipped !== undefined) {
             out.push({...common, kind: 'skipped', reason: payout.skipped});
@@ -2755,7 +2826,7 @@ export default defineComponent({
             // THE DISTRIBUTION's record: the whole list of recipients (the stand lays the payout out evenly), each
             // with the kind ITS card takes, the count's inputs beside it — a list of ONE names its card too, and the
             // ONE kind only when every landed unit is of it, exactly as the server records it.
-            const laid = spreadOver(this.holdersAt(effect.unit.resources, i), payout.amount).map((entry) => ({...entry, resource: holderKindOf(entry.card)}));
+            const laid = spreadOver(this.holdersAt(declared, i), payout.amount).map((entry) => ({...entry, resource: holderKindOf(entry.card)}));
             const kinds = new Set(laid.map((entry) => entry.resource));
             out.push({
               ...common, kind: 'cardResource', cards: laid, ...(laid.length === 1 ? {card: laid[0].card} : {}),
@@ -2786,7 +2857,7 @@ export default defineComponent({
     yieldNote(): string | undefined {
       const effect = this.pickerEffect;
       return effect !== undefined && effect.unit.kind === 'cardResource' && this.noRecipient && this.context === 'proposal' && this.viewerSeatIndex !== undefined ?
-        noRecipientForecastKey(effect.unit.resources) : undefined;
+        noRecipientForecastKey(declaredCardResourceKinds(effect.unit) ?? []) : undefined;
     },
     status(): ResolutionStatusVm | undefined {
       return this.selected === undefined ? undefined : resolutionStatusOf(this.selected.id, this.model, this.viewerColor);
@@ -2847,7 +2918,7 @@ export default defineComponent({
     /** THE KINDS of the picker effect's unit — one for the ordinary card, several for Medical Database («data or microbe»). */
     pickerKinds(): ReadonlyArray<CardResource> {
       const effect = this.pickerEffect;
-      return effect !== undefined && effect.unit.kind === 'cardResource' ? effect.unit.resources : [CardResource.ANIMAL];
+      return effect !== undefined && effect.unit.kind === 'cardResource' ? declaredCardResourceKinds(effect.unit) ?? [] : [CardResource.ANIMAL];
     },
     /** The ONE kind's icon key (the family's ordinary pick), undefined over several kinds — the marker then names each card's own. */
     resourceIcon(): string | undefined {
@@ -2857,7 +2928,7 @@ export default defineComponent({
     /** The KINDS a DISTRIBUTED payout lands on (the picker effect's, when it is laid out), else undefined. */
     spreadResources(): ReadonlyArray<CardResource> | undefined {
       const effect = this.pickerEffect;
-      return effect !== undefined && effect.unit.kind === 'cardResource' && effect.unit.spread === true ? effect.unit.resources : undefined;
+      return effect !== undefined && effect.unit.kind === 'cardResource' && effect.unit.spread === true ? declaredCardResourceKinds(effect.unit) : undefined;
     },
     /**
      * The picker's candidates: for a DISTRIBUTED payout the viewer's OWN holders from the scenario's tableau
@@ -2902,12 +2973,13 @@ export default defineComponent({
       }
       // The server's own ask (the family's pick title), numbered by the payout.
       const effect = this.pickerEffect;
-      const one = effect?.unit.kind === 'cardResource' && effect.unit.resources.length === 1 ? effect.unit.resources[0] : undefined;
+      const declared = effect?.unit.kind === 'cardResource' ? declaredCardResourceKinds(effect.unit) ?? [] : [];
+      const one = declared.length === 1 ? declared[0] : undefined;
       const title: Message | string = one === CardResource.ANIMAL ?
         {message: 'Add ${0} animal(s) to one of your cards', data: [{type: LogMessageDataType.RAW_STRING, value: String(amount)}]} :
         one === CardResource.FLOATER ?
           {message: 'Add ${0} floater(s) to one of your cards', data: [{type: LogMessageDataType.RAW_STRING, value: String(amount)}]} :
-          effect?.unit.kind === 'cardResource' && effect.unit.resources.length > 1 ?
+          declared.length > 1 ?
             {message: 'Add ${0} resource(s) to one of your cards', data: [{type: LogMessageDataType.RAW_STRING, value: String(amount)}]} :
             translateText('Add resource to this card');
       // The marker as the server would stamp it: ONE kind names itself; SEVERAL name the kinds and each holder's own.
@@ -3186,6 +3258,11 @@ export default defineComponent({
       if (kind === 'colonies') {
         return countColoniesToward(id, this.seats[i].colonies ?? []);
       }
+      // A HOLDERS count reads the seat's synthetic HOLDINGS (real cards, a number on each) through the stand's
+      // restatement of the engine's predicate — a holder at 0 and a card that holds nothing are named, never counted.
+      if (kind === 'holders') {
+        return countHoldersToward(id, (this.seats[i].holdings ?? []).map((h) => ({name: h.card, resourceType: getCard(h.card)?.resourceType, resourceCount: h.count})));
+      }
       const names = this.seats[i].cards ?? [];
       const cards = names.map((name) => getCard(name)).filter((card): card is NonNullable<typeof card> => card !== undefined);
       return countCardsToward(id, cards, this.countContextOf(names));
@@ -3245,8 +3322,10 @@ export default defineComponent({
           return {amount: 0, influence, count, uncapped, skipped: yieldCountPresentation(effect.count.id).skipReasonKey};
         }
         // A DISTRIBUTED payout with no holder is OWED and forfeited — named with its size (the server's own reason).
-        if (effect.unit.kind === 'cardResource' && ((this.noRecipient && this.viewerSeatIndex === i) || this.holdersAt(effect.unit.resources, i).length === 0)) {
-          return {amount, influence, count, uncapped, skipped: noRecipientReasonKey(effect.unit.resources)};
+        // (A payout onto EVERY counted card has no «no holder» of its own: its count IS its recipients — zero is the count's skip above.)
+        const kinds = effect.unit.kind === 'cardResource' ? declaredCardResourceKinds(effect.unit) : undefined;
+        if (kinds !== undefined && ((this.noRecipient && this.viewerSeatIndex === i) || this.holdersAt(kinds, i).length === 0)) {
+          return {amount, influence, count, uncapped, skipped: noRecipientReasonKey(kinds)};
         }
         return {amount, influence, count, uncapped};
       }
@@ -3255,7 +3334,7 @@ export default defineComponent({
         return {amount: 0, influence, skipped: 'No influence'};
       }
       if (effect.unit.kind === 'cardResource' && this.noRecipient && this.viewerSeatIndex === i) {
-        return {amount, influence, skipped: noRecipientReasonKey(effect.unit.resources)};
+        return {amount, influence, skipped: noRecipientReasonKey(declaredCardResourceKinds(effect.unit) ?? [])};
       }
       return {amount, influence};
     },

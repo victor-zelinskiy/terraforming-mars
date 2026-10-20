@@ -11,7 +11,8 @@ import {BotParliamentMode, ParliamentPhaseStep, QuestDefinition, ResolutionId, R
 import {ParameterMoveId} from '../../common/parliament/parameterMove';
 import {ColonyTrackMove} from '../../common/parliament/colonyTrackAdvance';
 import {TileType} from '../../common/TileType';
-import {ResolutionCountByResource, ResolutionCountMetricModel} from '../../common/parliament/resolutionCounts';
+import {ResolutionCountByCard, ResolutionCountByResource, ResolutionCountMetricModel} from '../../common/parliament/resolutionCounts';
+import {CardResourceDestination} from '../../common/parliament/influenceScaling';
 import type {EventTrigger} from '../../common/events/GameEvent';
 
 /** Bump when the shape changes incompatibly; older saves are refused explicitly. */
@@ -151,8 +152,17 @@ export type SerializedEnactOutcome = {
    * `cardResource`: WHERE the units landed, card by card — the whole list,
    * every consumer's reading (the stage, the results, the journal); a single
    * recipient is the list of one. Absent on older saves (then `card`).
+   * An `each-counted` payout (see `onto`) also freezes what each card held
+   * BEFORE (`before`) and what the unit did to its victory points (`vp`) —
+   * the receipt's «2 → 3» and «ПО 1 → 2», never re-read from a later tableau.
    */
-  cards?: Array<{card: CardName; amount: number; resource?: CardResource}>;
+  cards?: Array<{card: CardName; amount: number; resource?: CardResource; before?: number; vp?: {from: number; to: number}}>;
+  /**
+   * `cardResource` (and its skip): the payout ASKED NOBODY — `per` units onto
+   * EVERY card the count counted, each of its own kind (Sponsored Projects).
+   * The address reads it as a reward-stage receipt, never a pick's landing.
+   */
+  onto?: CardResourceDestination;
   space?: SpaceId;
   /** `city`: the cell's stack AFTER the tier landed («a stack of 2») — frozen with the record. */
   stackHeight?: number;
@@ -210,6 +220,12 @@ export type SerializedEnactOutcome = {
    * Frozen here, never re-read from a later colony table.
    */
   countedColonies?: Array<ColonyName>;
+  /**
+   * A HOLDERS count (Sponsored Projects' «each of your cards that already has
+   * a resource»): every counted card with the kind it held and how many, at
+   * the enactment, in play order (aligned with `counted`). Frozen here.
+   */
+  countedByCard?: Array<ResolutionCountByCard>;
   /** The formula's sum before the cap (above `amount` exactly when the cap bit). */
   uncapped?: number;
   /** `production` / `stock`: the value before and after the change. */

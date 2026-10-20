@@ -7,7 +7,8 @@ import {ColonyName} from '../colonies/ColonyName';
 import {ColonyLedgerEntryModel} from './ColonyBonusLedgerModel';
 import {Resource} from '../Resource';
 import type {EffectForecast} from './EffectForecastModel';
-import {ResolutionCountByResource, ResolutionCountMetricModel, ResolutionCountModel} from '../parliament/resolutionCounts';
+import {ResolutionCountByCard, ResolutionCountByResource, ResolutionCountMetricModel, ResolutionCountModel} from '../parliament/resolutionCounts';
+import type {CardResourceDestination} from '../parliament/influenceScaling';
 import {ParameterMoveId} from '../parliament/parameterMove';
 import {ColonyTrackMove} from '../parliament/colonyTrackAdvance';
 import {TileType} from '../TileType';
@@ -423,8 +424,11 @@ export type ParliamentEnactOutcomeModel = {
   /**
    * `cardResource`: WHERE the units landed, card by card — every reader's list; one recipient is a list of one.
    * `resource` is the kind THAT card took (its own storage rule) — the unit's kind where the effect spans several.
+   * An `each-counted` payout (see `onto`) freezes what the card held BEFORE and what the unit did to its points.
    */
-  cards?: ReadonlyArray<{card: CardName; amount: number; resource?: CardResource}>;
+  cards?: ReadonlyArray<{card: CardName; amount: number; resource?: CardResource; before?: number; vp?: {from: number; to: number}}>;
+  /** `cardResource` (and its skip): the payout asked NOBODY — one unit onto EVERY counted card, each of its own kind (Sponsored Projects). */
+  onto?: CardResourceDestination;
   space?: SpaceId;
   /** `city`: the cell's stack AFTER the tier landed («a stack of 2») — frozen, never re-read from a later board. */
   stackHeight?: number;
@@ -447,6 +451,8 @@ export type ParliamentEnactOutcomeModel = {
   countedByResource?: ReadonlyArray<ResolutionCountByResource>;
   /** A COLONIES count: the tiles the counted cubes stood on at the enactment (a name per cube) — frozen, never re-read from a later table. */
   countedColonies?: ReadonlyArray<ColonyName>;
+  /** A HOLDERS count: every counted card with the kind it held and how many at the enactment («Fish 2 · Dirigibles 1») — frozen, never re-read. */
+  countedByCard?: ReadonlyArray<ResolutionCountByCard>;
   /** The formula's sum before the cap (above `amount` exactly when the cap bit). */
   uncapped?: number;
   /** `production` / `stock`: the value before and after. */

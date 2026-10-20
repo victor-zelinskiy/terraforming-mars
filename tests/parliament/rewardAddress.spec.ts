@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import * as fs from 'fs';
 import * as path from 'path';
-import {OUTCOME_KINDS, REWARD_ADDRESS, rewardAddressOf, rewardFlightSourceOf} from '../../src/common/parliament/rewardAddress';
+import {CARD_RESOURCE_EACH_ADDRESS, OUTCOME_KINDS, REWARD_ADDRESS, rewardAddressOf, rewardFlightSourceOf} from '../../src/common/parliament/rewardAddress';
 import {ParliamentEnactOutcomeModel} from '../../src/common/models/ParliamentModel';
 import {Resource} from '../../src/common/Resource';
 import {CardResource} from '../../src/common/CardResource';
@@ -193,6 +193,23 @@ describe('rewardAddress — the delivery of a record', () => {
     expect(walked.payload.walk).deep.eq({from: 3, to: 4, steps: [{to: 4, bonus: 'tr'}]});
     expect(walked.mine).is.true;
     expect(rewardAddressOf(outcome({kind: 'agenda', amount: 0, walk: {from: 12, to: 12, steps: []}}), 'blue').skipped).eq(REWARD_ADDRESS.agenda.skipTitle);
+  });
+
+  it('a card payout that ASKED NOBODY (Sponsored Projects, `onto: \'each-counted\'`) keeps the kind and the surface, stands on the REWARD page, and carries each card\'s before and points', () => {
+    const each = rewardAddressOf(outcome({
+      kind: 'cardResource', onto: 'each-counted', amount: 2,
+      cards: [{card: CardName.FISH, amount: 1, resource: CardResource.ANIMAL, before: 2, vp: {from: 2, to: 3}}, {card: CardName.DIRIGIBLES, amount: 1, resource: CardResource.FLOATER, before: 1}],
+    }), 'blue');
+    expect(each.address).eq(CARD_RESOURCE_EACH_ADDRESS);
+    expect(each.address.stage).eq('reward');
+    expect(each.address.surface).eq(REWARD_ADDRESS.cardResource.surface);
+    expect(each.source).eq('card-icon');
+    expect(each.skipped).is.undefined;
+    expect(each.payload.onto).eq('each-counted');
+    expect(each.payload.cards?.map((c) => [c.card, c.resource, c.before, c.vp?.to])).deep.eq([[CardName.FISH, CardResource.ANIMAL, 2, 3], [CardName.DIRIGIBLES, CardResource.FLOATER, 1, undefined]]);
+    // …the ordinary pick keeps its own row, and a zero of the each-counted payout names the address's skip.
+    expect(rewardAddressOf(outcome({kind: 'cardResource', amount: 2, card: CardName.FISH, resource: CardResource.ANIMAL}), 'blue').address).eq(REWARD_ADDRESS.cardResource);
+    expect(rewardAddressOf(outcome({kind: 'cardResource', onto: 'each-counted', amount: 0}), 'blue').skipped).eq(REWARD_ADDRESS.cardResource.skipTitle);
   });
 
   it('a `skipped` record names its own reason; a paying kind that paid nothing is named by the address', () => {

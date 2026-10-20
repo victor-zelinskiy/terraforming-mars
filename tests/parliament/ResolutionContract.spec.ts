@@ -10,7 +10,8 @@ import {PlayerInput} from '../../src/server/PlayerInput';
 import {Phase} from '../../src/common/Phase';
 import {PlayerId} from '../../src/common/Types';
 import {AGENDA_TRACK, influenceAtAgenda} from '../../src/common/parliament/ParliamentTypes';
-import {levelAfter, levelAmount, levelTakesAway, scaledAmount, sequelAmount} from '../../src/common/parliament/influenceScaling';
+import {levelAfter, levelAmount, levelTakesAway, paysEachCountedCard, scaledAmount, sequelAmount} from '../../src/common/parliament/influenceScaling';
+import {resolutionCountKind} from '../../src/common/parliament/resolutionCounts';
 import {LEVY_STEP_KEY, levyDeclared, levyPaid} from '../../src/common/parliament/resolutionLevy';
 import {COLONY_TRACK_STEP_KEY, colonyTrackAdvanceDeclared} from '../../src/common/parliament/colonyTrackAdvance';
 import {TILE_REMOVAL_STEP_KEY, tileRemovalDeclared} from '../../src/common/parliament/tileRemoval';
@@ -109,9 +110,10 @@ const TABLEAUS: Readonly<Record<TableauName, () => Array<IProjectCard>>> = {
   // ONE fitting card for every family: an animal holder, a counted building, a power tag, a science tag,
   // a floater holder (with a Venus tag — the distributing family's ordinary pick: one holder takes all).
   one: () => [new Fish(), new ArtificialLake(), new PowerPlant(), new Research(), new Dirigibles()],
-  // …and TWO floater holders, so the distributing family asks its DISTRIBUTION (N ≥ 2 over ≥ 2 holders).
+  // …and TWO floater holders, so the distributing family asks its DISTRIBUTION (N ≥ 2 over ≥ 2 holders); two holders
+  // already HOLD something (Fish 2, Tardigrades 1), so a payout onto every card with a resource pays here, not only skips.
   saturated: () => [
-    new Fish(), new Pets(), new Birds(), new Tardigrades(), new Trees(),
+    Object.assign(new Fish(), {resourceCount: 2}), new Pets(), new Birds(), Object.assign(new Tardigrades(), {resourceCount: 1}), new Trees(),
     new ArtificialLake(), new DomedCrater(), new SpaceElevator(), new Mine(),
     new HE3FusionPlant(), new PowerPlant(), new FusionPower(), new Research(),
     new Dirigibles(), new AtmoCollectors(),
@@ -633,6 +635,54 @@ function checkNoSilentReward(definition: ResolutionDefinition, run: Run): Array<
   return failures;
 }
 
+/**
+ * A CARD PAYOUT THAT ASKS NOBODY (`onto: 'each-counted'` — Sponsored Projects): the declaration counts HOLDERS (the
+ * engine's cards with a resource — never another count standing in for it), the part is paid by a step under its
+ * own id, and every record says so: `onto` on the paying record and on its skip; the cards that RECEIVED are exactly
+ * the cards the count COUNTED, in its order, each `per` units of a kind it names; a zero is a skip with no cards.
+ */
+function checkEachCounted(definition: ResolutionDefinition, run: Run): Array<string> {
+  const failures: Array<string> = [];
+  for (const effect of definition.scaled ?? []) {
+    if (!paysEachCountedCard(effect)) {
+      continue;
+    }
+    if (effect.count === undefined || resolutionCountKind(effect.count.id).kind !== 'holders') {
+      failures.push(`${label(definition)}: часть '${effect.id}' платит каждой посчитанной карте, но её счёт — не счёт держателей`);
+      continue;
+    }
+    if (!(definition.immediateSteps ?? []).some((step) => step.key === effect.id)) {
+      failures.push(`${label(definition)}: у части '${effect.id}' нет шага с её ключом`);
+    }
+    const per = effect.count.per;
+    for (const seat of run.seats) {
+      const record = run.outcomes.find((o) => o.player === seat.id && o.effect === effect.id && o.kind !== 'reaction');
+      if (record === undefined) {
+        continue;
+      }
+      if (record.onto !== 'each-counted') {
+        failures.push(`${label(definition)}: запись части '${effect.id}' (${record.kind}) не несёт onto: 'each-counted'`);
+      }
+      if (record.kind === 'skipped') {
+        if ((record.cards ?? []).length > 0) {
+          failures.push(`${label(definition)}: пропуск части '${effect.id}' называет карты`);
+        }
+        continue;
+      }
+      const landed = (record.cards ?? []).map((c) => c.card);
+      if (JSON.stringify(landed) !== JSON.stringify(record.counted ?? [])) {
+        failures.push(`${label(definition)}: часть '${effect.id}' легла на [${landed.join(', ')}], посчитала [${(record.counted ?? []).join(', ')}]`);
+      }
+      for (const entry of record.cards ?? []) {
+        if (entry.amount !== per || entry.resource === undefined || entry.before === undefined) {
+          failures.push(`${label(definition)}: карта ${entry.card} части '${effect.id}' получила ${entry.amount} (не ${per}), вид ${entry.resource}, до ${entry.before}`);
+        }
+      }
+    }
+  }
+  return failures;
+}
+
 function checkFormula(definition: ResolutionDefinition, run: Run): Array<string> {
   const failures: Array<string> = [];
   for (const effect of definition.scaled ?? []) {
@@ -796,7 +846,7 @@ describe('ResolutionContract — the author\'s contract over the catalog', () =>
         for (const influence of INFLUENCES) {
           for (const tableau of Object.keys(TABLEAUS) as Array<TableauName>) {
             const run = enact(definition, {influence, tableau, winner: 'neutral'});
-            failures.push(...checkReporting(definition, run, {influence, tableau}), ...checkKinds(definition, run), ...checkFormula(definition, run), ...checkLevy(definition, run));
+            failures.push(...checkReporting(definition, run, {influence, tableau}), ...checkKinds(definition, run), ...checkFormula(definition, run), ...checkLevy(definition, run), ...checkEachCounted(definition, run));
           }
         }
         expect(failures, failures.join('\n')).deep.eq([]);
@@ -806,7 +856,7 @@ describe('ResolutionContract — the author\'s contract over the catalog', () =>
         const failures: Array<string> = [];
         for (const influence of [1, 3, 5]) {
           const run = enact(definition, {influence, tableau: 'saturated', winner: 'player'});
-          failures.push(...checkReporting(definition, run, {influence, tableau: 'saturated'}), ...checkKinds(definition, run), ...checkFormula(definition, run), ...checkLevy(definition, run));
+          failures.push(...checkReporting(definition, run, {influence, tableau: 'saturated'}), ...checkKinds(definition, run), ...checkFormula(definition, run), ...checkLevy(definition, run), ...checkEachCounted(definition, run));
         }
         expect(failures, failures.join('\n')).deep.eq([]);
       });

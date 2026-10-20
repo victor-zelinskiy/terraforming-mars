@@ -14,7 +14,7 @@
  * (or, off the table, this predicate), and every reading keeps the LIST of
  * counted cards so the number can always be explained.
  *
- * SIX KINDS OF COUNT, told apart by `resolutionCountKind` because the
+ * SEVEN KINDS OF COUNT, told apart by `resolutionCountKind` because the
  * objects answer them differently:
  *   · CARDS — «for every Building card with a VP icon»: one card is ONE unit,
  *     however many tags or victory points it prints (Architecture Award).
@@ -72,6 +72,17 @@
  *     order, a name repeated per cube) — the list that explains the number
  *     where no card and no cell can. The stand counts a synthetic list of
  *     tiles through the same function (`countColoniesToward`).
+ *   · HOLDERS — «each of your cards that already has a resource» (Sponsored
+ *     Projects): one card is ONE unit, and the only question is what the card
+ *     HOLDS right now — a storage rule (`resourceType`) and at least one
+ *     resource on it. Not a question of tags, type or VP, so it is not the
+ *     CARDS kind: the server asks THE ENGINE (`Player.getCardsWithResources`,
+ *     the classic Sponsored Projects global event's own reading — the ONE
+ *     function the count, the payout and every reading stand on) and the model
+ *     keeps every counted card WITH the kind it holds and how many
+ *     (`ResolutionCountModel.byCard`), so «Fish 2 → 3» explains itself. The
+ *     stand restates the engine's predicate for its synthetic cards
+ *     (`countHoldersToward`), pinned to the engine by spec.
  *
  * WHAT A CARD IS, for a count: its name, type, printed tags and VP
  * declaration — the facts `ICard` and `ClientCard` share. Played-event tags
@@ -84,6 +95,7 @@
  * it — the facts the server's `Space` and the stand's synthetic cells share.
  */
 import {CardName} from '../cards/CardName';
+import {CardResource} from '../CardResource';
 import {CardType} from '../cards/CardType';
 import {Tag} from '../cards/Tag';
 import {hasNonNegativeVictoryPointsIcon, VictoryPointsDeclaration, victoryPointsIconOf} from '../cards/victoryPointsIcon';
@@ -203,6 +215,15 @@ export const RESOLUTION_COUNT_IDS = [
    * A formula close enough to this one to break it in silence.
    */
   'blueCards',
+  /**
+   * Sponsored Projects: the player's cards in play that ALREADY HOLD a
+   * resource — a storage rule and at least one resource on the card at the
+   * moment of the count (`Player.getCardsWithResources`). A corporation is a
+   * card of the tableau like any other (Arklight's animals, Celestic's
+   * floaters); a holder with nothing on it yet is not counted («already
+   * has»), and another seat's cards never are. The seventh kind (`holders`).
+   */
+  'cardsWithResources',
 ] as const;
 export type ResolutionCountId = typeof RESOLUTION_COUNT_IDS[number];
 
@@ -281,6 +302,9 @@ export type ResolutionCountMetric = 'terraformRating';
  * unit per step, each resource's own total kept for the reading. `colonies`
  * — the player's CUBES on the colony tiles (Jovian Tax Rights's «each colony
  * you have»): one unit per cube, the tiles' names kept for the reading.
+ * `holders` — the player's cards that ALREADY HOLD a resource (Sponsored
+ * Projects): one unit per card, the kind and the number each holds kept for
+ * the reading (`byCard`).
  */
 export type ResolutionCountKind =
   | {kind: 'cards'}
@@ -288,7 +312,8 @@ export type ResolutionCountKind =
   | {kind: 'board', tiles: BoardCountedTile, measure: BoardCountMeasure}
   | {kind: 'threshold', metric: ResolutionCountMetric, over: number, step: number}
   | {kind: 'production', resources: ReadonlyArray<Resource>}
-  | {kind: 'colonies'};
+  | {kind: 'colonies'}
+  | {kind: 'holders'};
 
 /** Generous Funding's printed «5 TR over 15» — the threshold and the set. */
 export const TERRAFORM_RATING_SETS_OVER = 15;
@@ -321,6 +346,8 @@ export function resolutionCountKind(id: ResolutionCountId): ResolutionCountKind 
   // A count by the card's TYPE: the kind is CARDS (one card, one unit — a card has no «two bluenesses»),
   // exactly as Architecture Award's is; only the question differs.
   case 'blueCards': return {kind: 'cards'};
+  // A count by what the card HOLDS — not by its tags, its type or its VP: the engine's own reading of the tableau.
+  case 'cardsWithResources': return {kind: 'holders'};
   }
 }
 
@@ -388,6 +415,60 @@ export type ResolutionCountByTag = {tag: Tag; count: number};
 
 /** ONE resource's share of a production count («steel 2 · titanium 1 · energy 3») — the twin of `ResolutionCountByTag`. */
 export type ResolutionCountByResource = {resource: Resource; count: number};
+
+/**
+ * ONE counted card of a HOLDERS count («Fish 2»): the card, the kind it holds
+ * (its own storage rule) and how many are on it at the count. `vp` — what ONE
+ * more resource of its kind does to the card's victory points (`from → to`,
+ * the engine's own reading, `resourceVictoryPoints`), present only where the
+ * card's points read its resources; the server's, never derived on the client.
+ */
+export type ResolutionCountByCard = {card: CardName; resource: CardResource; count: number; vp?: {from: number; to: number}};
+
+/**
+ * The card facts a HOLDERS count reads — what the server's `ICard` and the
+ * stand's synthetic holder share: its name, its storage rule (absent = it
+ * holds nothing) and the number on it.
+ */
+export type HeldCardFacts = {name: CardName; resourceType?: CardResource; resourceCount: number};
+
+/**
+ * WHY a card does or does not count toward a HOLDERS count — the stand's
+ * restatement of the engine's predicate (`Player.getCardsWithResources`: a
+ * storage rule AND a resource on it), one sentence per failed condition.
+ * The server never asks it: the engine answers there, and
+ * `tests/parliament/SponsoredProjects.spec.ts` pins the two together.
+ */
+export function holderCountVerdict(card: HeldCardFacts): CardCountVerdict {
+  if (card.resourceType === undefined) {
+    return {counts: false, reason: 'This card holds no resources'};
+  }
+  if (card.resourceCount < 1) {
+    return {counts: false, reason: 'No resource on this card yet'};
+  }
+  return {counts: true};
+}
+
+/**
+ * Count `cards` (the owner's cards in play, in play order) toward a HOLDERS
+ * count `id` — the stand's reading of synthetic holders: one unit per card
+ * that holds a resource, each with its kind and number. A non-holders id
+ * counts nothing this way (a zero, never a guess).
+ */
+export function countHoldersToward(id: ResolutionCountId, cards: Iterable<HeldCardFacts>): ResolutionCountModel {
+  if (resolutionCountKind(id).kind !== 'holders') {
+    return {id, count: 0, cards: []};
+  }
+  const counted: Array<CardName> = [];
+  const byCard: Array<ResolutionCountByCard> = [];
+  for (const card of cards) {
+    if (holderCountVerdict(card).counts && card.resourceType !== undefined) {
+      counted.push(card.name);
+      byCard.push({card: card.name, resource: card.resourceType, count: card.resourceCount});
+    }
+  }
+  return {id, count: counted.length, cards: counted, byCard};
+}
 
 /**
  * Count the player's PRODUCTION STEPS toward a production count `id` — the
@@ -483,6 +564,13 @@ export type ResolutionCountModel = {
    * only (empty when the player has none); `cards` is empty on it.
    */
   colonies?: ReadonlyArray<ColonyName>;
+  /**
+   * A HOLDERS count: every counted card with the kind it holds and how many
+   * (aligned with `cards`) — what explains «4 cards» as «Fish 2 · Dirigibles
+   * 1 · …» and what the payout's «2 → 3» starts from. Present on a holders
+   * count only.
+   */
+  byCard?: ReadonlyArray<ResolutionCountByCard>;
 };
 
 /**
@@ -518,6 +606,9 @@ export function spaceCountVerdict(id: ResolutionCountId, space: CountedSpaceFact
   }
   if (kind.kind === 'colonies') {
     return {counts: false, reason: 'Counted by your colonies, not on the board'};
+  }
+  if (kind.kind === 'holders') {
+    return {counts: false, reason: 'Counted by the resources on your cards, not on the board'};
   }
   if (kind.kind !== 'board') {
     return {counts: false, reason: 'Counted among cards, not on the board'};
@@ -737,6 +828,9 @@ export function cardCountVerdict(id: ResolutionCountId, card: CountedCardFacts, 
     // is visible face down, and an event is already not `ACTIVE`). A
     // corporation, a prelude, a CEO and a green card fail here by type alone.
     return card.type === CardType.ACTIVE ? {counts: true} : {counts: false, reason: 'Not a blue card'};
+  case 'cardsWithResources':
+    // A HOLDERS count: the question is what the card HOLDS (`holderCountVerdict`), which these facts do not carry.
+    return {counts: false, reason: 'Counted by the resources on your cards'};
   }
 }
 

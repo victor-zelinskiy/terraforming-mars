@@ -35,7 +35,31 @@ import {Resource} from '../Resource';
 import {Tag} from '../cards/Tag';
 import {SpaceId} from '../Types';
 import {AGENDA_TRACK, influenceAtAgenda} from './ParliamentTypes';
-import {ResolutionCountByResource, ResolutionCountMetricModel, ResolutionCountTerm} from './resolutionCounts';
+import {ResolutionCountByCard, ResolutionCountByResource, ResolutionCountMetricModel, ResolutionCountTerm} from './resolutionCounts';
+
+/**
+ * WHAT KIND a card-resource unit is: a LIST of declared kinds (one kind is the
+ * list of one — Aquifer Contest's animals; several — Medical Database's «data
+ * or microbe»), or `'own-kind'` — the unit declares NO kind and every card it
+ * lands on takes ONE OF ITS OWN (Sponsored Projects: «add 1 resource to each of
+ * your cards that already has a resource» — an animal on Fish, a floater on
+ * Dirigibles, a data on Political Science). `'own-kind'` is the honest «any»,
+ * never the list of every kind in the game: a reading that needs the declared
+ * kinds asks `declaredCardResourceKinds` and gives the unit without them its
+ * own branch.
+ */
+export type CardResourceUnitKinds = ReadonlyArray<CardResource> | 'own-kind';
+
+/**
+ * WHERE a card-resource unit goes, beside the two older shapes (absent = ONE
+ * card the player picks; `spread` = a layout over the holders):
+ * `'each-counted'` — `count.per` units onto EVERY card the effect's COUNT
+ * counted, of that card's own kind, and NO QUESTION at all (Sponsored
+ * Projects: the count is the seat's cards that already hold a resource, and
+ * each of them receives one). The amount is the count × per; the record's
+ * `cards` are the counted cards themselves, in the count's order.
+ */
+export type CardResourceDestination = 'each-counted';
 
 /** WHAT one unit of the yield is. */
 export type InfluenceYieldUnit =
@@ -44,13 +68,16 @@ export type InfluenceYieldUnit =
    * unit, as a LIST — one kind is the list of one (Aquifer Contest's animals,
    * Cloud Development's floaters); several kinds (Medical Database's «data or
    * microbe») mean the recipients are the holders of EITHER and each unit's
-   * kind is its card's — never a second question to the player. `spread` is
-   * the printed «each resource can go on a different card» (Cloud
+   * kind is its card's — never a second question to the player; `'own-kind'`
+   * (see {@link CardResourceUnitKinds}) — no declared kind, each card's own.
+   * `spread` is the printed «each resource can go on a different card» (Cloud
    * Development): the amount is DISTRIBUTED over the holders through the
-   * shared distribution step, never paid onto one card. Absent = one payout
-   * onto ONE card (Aquifer Contest).
+   * shared distribution step, never paid onto one card. `onto:
+   * 'each-counted'` pays EVERY counted card and asks nothing (see
+   * {@link CardResourceDestination}). Absent both = one payout onto ONE card
+   * (Aquifer Contest).
    */
-  | {kind: 'cardResource', resources: ReadonlyArray<CardResource>, spread?: boolean}
+  | {kind: 'cardResource', resources: CardResourceUnitKinds, spread?: boolean, onto?: CardResourceDestination}
   | {kind: 'stock', resource: Resource}
   | {kind: 'production', resource: Resource}
   | {kind: 'cards'}
@@ -171,6 +198,24 @@ export type InfluenceScaledEffect = {
   recipient: 'each' | 'winner';
 };
 
+/** The card-resource member of the unit union. */
+export type CardResourceYieldUnit = Extract<InfluenceYieldUnit, {kind: 'cardResource'}>;
+
+/**
+ * The DECLARED kinds of a card-resource unit — `undefined` for `'own-kind'`,
+ * which declares none (each card takes its own). The one place a reading asks
+ * «which kinds can receive this»: a unit without declared kinds has no
+ * «no holder of that kind» to say, and gets its own branch.
+ */
+export function declaredCardResourceKinds(unit: CardResourceYieldUnit): ReadonlyArray<CardResource> | undefined {
+  return unit.resources === 'own-kind' ? undefined : unit.resources;
+}
+
+/** The effect pays EVERY card its count counted, one question asked of nobody (`onto: 'each-counted'`). */
+export function paysEachCountedCard(effect: InfluenceScaledEffect): boolean {
+  return effect.unit.kind === 'cardResource' && effect.unit.onto === 'each-counted';
+}
+
 /** The amount BEFORE the cap — what the formula adds up to. */
 export function uncappedAmount(effect: InfluenceScaledEffect, influence: number, counted: number = 0): number {
   const countPart = effect.count === undefined ? 0 : effect.count.per * Math.max(0, Math.floor(counted));
@@ -264,6 +309,8 @@ export type InfluenceYield = {
   countedByResource?: ReadonlyArray<ResolutionCountByResource>;
   /** A COLONIES count: WHICH tiles the counted cubes stand on (a name per cube — the list that explains the number where no card can). */
   countedColonies?: ReadonlyArray<ColonyName>;
+  /** A HOLDERS count: each counted card with the kind it holds and how many — «Fish 2 · Dirigibles 1» (aligned with `counted`). */
+  countedByCard?: ReadonlyArray<ResolutionCountByCard>;
   /** The formula's sum before the cap — above `amount` exactly when the cap bit. */
   uncapped?: number;
   /**
@@ -318,6 +365,8 @@ export type YieldCount = {
   byResource?: ReadonlyArray<ResolutionCountByResource>,
   /** A colonies count's tiles (a name per cube — the list that explains the number). */
   colonies?: ReadonlyArray<ColonyName>,
+  /** A holders count's cards with the kind and the number each holds (aligned with `cards`). */
+  byCard?: ReadonlyArray<ResolutionCountByCard>,
 };
 
 function withCount(y: InfluenceYield, effect: InfluenceScaledEffect, count: YieldCount | undefined): InfluenceYield {
@@ -337,6 +386,9 @@ function withCount(y: InfluenceYield, effect: InfluenceScaledEffect, count: Yiel
     }
     if (count.colonies !== undefined) {
       y.countedColonies = count.colonies;
+    }
+    if (count.byCard !== undefined) {
+      y.countedByCard = count.byCard;
     }
     if (count.spaces !== undefined) {
       y.countedSpaces = count.spaces;
@@ -498,6 +550,7 @@ export function fixedYield(
     countedByTag?: ReadonlyArray<{tag: Tag, count: number}>, countedSpaces?: ReadonlyArray<SpaceId>, countedTiers?: ReadonlyArray<number>,
     countedMetric?: ResolutionCountMetricModel,
     countedByResource?: ReadonlyArray<ResolutionCountByResource>, countedColonies?: ReadonlyArray<ColonyName>,
+    countedByCard?: ReadonlyArray<ResolutionCountByCard>,
     uncapped?: number, targets?: ReadonlyArray<{card: CardName, amount: number, resource?: CardResource}>,
   },
 ): InfluenceYield {
@@ -519,6 +572,9 @@ export function fixedYield(
   }
   if (recorded?.countedColonies !== undefined) {
     y.countedColonies = recorded.countedColonies;
+  }
+  if (recorded?.countedByCard !== undefined) {
+    y.countedByCard = recorded.countedByCard;
   }
   if (recorded?.countedSpaces !== undefined) {
     y.countedSpaces = recorded.countedSpaces;

@@ -20,9 +20,9 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {ParliamentModel, ParliamentPlayerModel, ParliamentEnactOutcomeModel, seatEnacts} from '@/common/models/ParliamentModel';
 import {
-  fixedLevelYield, fixedSequelYield, fixedYield, InfluenceLevelTerm, InfluenceScaledEffect, InfluenceSequelTerm, InfluenceYield, influenceYield,
-  InfluenceYieldContext, InfluenceYieldUnit, levelTakesAway, levelYield, referenceYield, scaledAmount, sequelYield, winnerForecastYield, yieldAtCap,
-  YieldCount,
+  CardResourceYieldUnit, declaredCardResourceKinds, fixedLevelYield, fixedSequelYield, fixedYield, InfluenceLevelTerm, InfluenceScaledEffect,
+  InfluenceSequelTerm, InfluenceYield, influenceYield, InfluenceYieldContext, InfluenceYieldUnit, levelTakesAway, levelYield, referenceYield,
+  scaledAmount, sequelYield, winnerForecastYield, yieldAtCap, YieldCount,
 } from '@/common/parliament/influenceScaling';
 import {AGENDA_TRACK, influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import {
@@ -53,14 +53,26 @@ export type YieldIcon =
    * ONE unit of several icons joined by «or», never as two lines.
    */
   | {family: 'card-resource', resources: ReadonlyArray<CardResource>}
+  /**
+   * A card resource of NO declared kind — each card takes one of ITS OWN
+   * (Sponsored Projects' `'own-kind'` unit): the face's own «?» resource cube,
+   * never the list of every kind and never one kind standing in for all.
+   */
+  | {family: 'own-kind-resource'}
   | {family: 'resource', resource: Resource, production: boolean}
   | {family: 'cards'}
   /** The COLONY tile — the unit of a «gain all your colony bonuses k times» effect is the multiplier over the ledger. */
   | {family: 'colony'};
 
+/** The icon of a card-resource unit — its declared kinds, or the «?» cube of a unit that declares none. */
+function cardResourceIconOf(unit: CardResourceYieldUnit): YieldIcon {
+  const kinds = declaredCardResourceKinds(unit);
+  return kinds === undefined ? {family: 'own-kind-resource'} : {family: 'card-resource', resources: kinds};
+}
+
 export function yieldIconOf(effect: InfluenceScaledEffect): YieldIcon {
   switch (effect.unit.kind) {
-  case 'cardResource': return {family: 'card-resource', resources: effect.unit.resources};
+  case 'cardResource': return cardResourceIconOf(effect.unit);
   case 'stock': return {family: 'resource', resource: effect.unit.resource, production: false};
   case 'production': return {family: 'resource', resource: effect.unit.resource, production: true};
   case 'cards': return {family: 'cards'};
@@ -93,6 +105,9 @@ export function yieldIconClass(icon: YieldIcon): string {
   case 'card-resource':
     // A total over several kinds is not a thing; the first kind names a list of one.
     return iconClassFor(cardResourceIconKey(icon.resources[0]));
+  case 'own-kind-resource':
+    // The face's own «?» resource cube (`resource(RESOURCE_CUBE, {questionMark: true})`): the cube sprite, the «?» by the modifier.
+    return iconClassFor(cardResourceIconKey(CardResource.RESOURCE_CUBE)) + ' con-iyield__unit--own-kind';
   case 'resource':
     return iconClassFor(icon.resource) + (icon.production ? ' con-iyield__unit--prod' : '');
   case 'cards':
@@ -303,6 +318,16 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
       ruleKey: 'Each city tag on your cards counts: a card with two city tags counts twice. Wild tags do not count, and a city on the board is not a tag.',
       skipReasonKey: 'No city tags',
     };
+  case 'cardsWithResources':
+    // A count by what the card HOLDS — the white card with its three cubes the face prints (`b.resourceCard()`,
+    // TR53's «a card that already has a resource»): a tag would state a rule about tags, a bare cover «per card».
+    // The rule says out loud the two edges a player asks about: the corporation counts, an empty holder does not.
+    return {
+      glyph: {kind: 'resource-card'},
+      pluralKey: '${0} card(s) with a resource',
+      ruleKey: 'Each of your cards that already holds a resource counts once, your corporation included. A card that can hold resources but has none yet does not count.',
+      skipReasonKey: 'No card of yours has a resource yet',
+    };
   case 'blueCards':
     // A count by the card's TYPE — the card cover wearing its BLUE band, the
     // very glyph the face prints and the chairman quest repeats. The rule
@@ -496,7 +521,7 @@ export function sequelTotalIcon(term: InfluenceSequelTerm): YieldIcon {
 /** The icon of a player TOTAL a term reads (a sequel's divisor, a level's current value) — the same families as the unit. */
 function totalIconOf(total: InfluenceYieldUnit): YieldIcon {
   switch (total.kind) {
-  case 'cardResource': return {family: 'card-resource', resources: total.resources};
+  case 'cardResource': return cardResourceIconOf(total);
   case 'stock': return {family: 'resource', resource: total.resource, production: false};
   case 'production': return {family: 'resource', resource: total.resource, production: true};
   case 'cards': return {family: 'cards'};
@@ -987,7 +1012,8 @@ export function scaledEffectForCardResource(resolution: IClientResolution | unde
   if (icons.length === 0) {
     return undefined;
   }
-  return resolution.scaled.find((e) => e.unit.kind === 'cardResource' && e.unit.resources.some((r) => icons.includes(cardResourceIconKey(r))));
+  // A unit of no declared kind is paid onto every counted card and ASKS nobody — no picker ever looks for it.
+  return resolution.scaled.find((e) => e.unit.kind === 'cardResource' && (declaredCardResourceKinds(e.unit) ?? []).some((r) => icons.includes(cardResourceIconKey(r))));
 }
 
 export const YIELD_CONTEXTS: ReadonlyArray<InfluenceYieldContext> = ['reference', 'estimate', 'forecast', 'resolving', 'applied'];
@@ -1069,7 +1095,12 @@ export function noRecipientNoteOf(effect: InfluenceScaledEffect, tableau: Readon
   if (effect.unit.kind !== 'cardResource') {
     return undefined;
   }
-  const resources = effect.unit.resources;
+  // A unit of no declared kind lands on the cards it COUNTED — none counted is a zero its count names
+  // («No card of yours has a resource yet»), never a payout owed and forfeited.
+  const resources = declaredCardResourceKinds(effect.unit);
+  if (resources === undefined) {
+    return undefined;
+  }
   return holdsAnyOf(tableau, resources) ? undefined : noRecipientForecastKey(resources);
 }
 
@@ -1094,7 +1125,7 @@ export function noRecipientCompactNoteOf(effect: InfluenceScaledEffect, tableau:
   if (effect.unit.kind !== 'cardResource' || noRecipientNoteOf(effect, tableau) === undefined) {
     return undefined;
   }
-  return noRecipientReasonKey(effect.unit.resources);
+  return noRecipientReasonKey(declaredCardResourceKinds(effect.unit) ?? []);
 }
 
 /** The ONE kind of a list of one (the ordinary card), undefined over several — the two-kind copy is its own. */

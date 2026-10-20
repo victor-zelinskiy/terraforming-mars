@@ -554,6 +554,8 @@ describe('ParliamentPhase', () => {
       game.automa!.actionDeck = [];
       game.playerIsFinishedWithResearchPhase(human);
       let botWins = 0;
+      // The steps of the Career a LAW granted the bot as a seat (Reds Budget, D11) — a deed, never a payout.
+      let botDeedSteps = 0;
       for (let generation = 1; generation <= 5; generation++) {
         expect(game.generation).eq(generation);
         expect(game.phase).eq(Phase.ACTION);
@@ -610,6 +612,7 @@ describe('ParliamentPhase', () => {
           expect(bot.terraformRating, `the sitting changed the bot's TR in generation ${generation}`).eq(botTr);
         }
         botWins += botWon ? 1 : 0;
+        botDeedSteps += botSeatRecords.filter((o) => o.kind === 'agenda' && deedKeys.includes(o.step)).reduce((sum, o) => sum + (o.walk?.steps.length ?? 0), 0);
         // The lobby refill reaches the bot too — its free delegate, still standing, is simply kept.
         expect(parliament.lobby.has(human.id)).is.true;
         expect(parliament.lobby.has(bot.id)).is.true;
@@ -627,7 +630,8 @@ describe('ParliamentPhase', () => {
         game.playerIsFinishedWithResearchPhase(human);
       }
       expect(game.generation).eq(6);
-      expect(parliament.agendaOf(bot), 'the Agenda moves by the bot\'s own wins alone — never by a payout').eq(botWins);
+      // (Which laws the seeded deal enacts moves with every card the fork ships — once RX40 joined it, Reds Budget was dealt here.)
+      expect(parliament.agendaOf(bot), 'the Agenda moves by the bot\'s own wins and a law\'s Career deeds alone — never by a payout').eq(botWins + botDeedSteps);
       expect(parliament.chairman, 'an empty deck plays no card: no quest, no office').not.eq(bot.id);
     });
 

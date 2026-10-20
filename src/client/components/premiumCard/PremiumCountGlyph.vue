@@ -37,6 +37,10 @@
         the mechanics print for `b.colonies()`, alone — a CUBE is what is
         counted and the tile is its only drawing. A card would state an
         eighth rule; a bare cube would read as a resource;
+      · `resource-card` — «each of your cards that already HAS A RESOURCE»
+        (Sponsored Projects): the white card with its three cubes the face
+        prints for `b.resourceCard()` — the very holder glyph of TR53. The
+        card is counted by what it HOLDS, never by a tag or a type;
       · `type-card` — «per BLUE PROJECT CARD you have in play» (Vertical
         Integration): the card cover wearing its TYPE's header band, the very
         item the mechanics print for `b.cards(n, {secondaryTag: BLUE})` and
@@ -48,6 +52,9 @@
     row, a reading and the Polygon keep one rhythm whichever object they count.
   -->
   <PremiumVpCardGlyph v-if="glyph.kind === 'vp-card'" :tag="glyph.tag" />
+  <span v-else-if="glyph.kind === 'resource-card'" class="pcglyph pcglyph--resource-card" data-count-resource-card aria-hidden="true">
+    <PremiumResourceCardGlyph class="pcglyph__holder" />
+  </span>
   <span v-else-if="glyph.kind === 'metric'" class="pcglyph pcglyph--metric" :data-count-metric="glyph.metric" aria-hidden="true">
     <span class="pcglyph__metric" :style="{backgroundImage: `url(${metricUrlOf(glyph.metric)})`}"></span>
   </span>
@@ -87,6 +94,7 @@ import {Resource} from '@/common/Resource';
 import {CardType} from '@/common/cards/CardType';
 import {BoardCountedTile, ResolutionCountMetric} from '@/common/parliament/resolutionCounts';
 import PremiumVpCardGlyph from './PremiumVpCardGlyph.vue';
+import PremiumResourceCardGlyph from './PremiumResourceCardGlyph.vue';
 import {
   cardTypeBandMod, CountedObjectGlyph, countedCardCoverUrl, countedColonyIconUrl, countedMetricIconUrl, countedTileIconUrl, countedTileSpark,
   standardResourceIconUrl, tagIconStyle,
@@ -94,7 +102,7 @@ import {
 
 export default defineComponent({
   name: 'PremiumCountGlyph',
-  components: {PremiumVpCardGlyph},
+  components: {PremiumVpCardGlyph, PremiumResourceCardGlyph},
   props: {
     glyph: {type: Object as PropType<CountedObjectGlyph>, required: true},
   },

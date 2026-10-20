@@ -63,6 +63,7 @@ import {REDS_BUDGET} from './reds/RedsBudget';
 import {runResolutionAction} from './ResolutionAction';
 import {SCIENTISTS_BUDGET} from './scientists/ScientistsBudget';
 import {SKYSCRAPERS} from './marsFirst/Skyscrapers';
+import {SPONSORED_PROJECTS} from './scientists/SponsoredProjects';
 import {TRADE_INDUSTRIES} from './unity/TradeIndustries';
 import {UNITY_BUDGET} from './unity/UnityBudget';
 import {URBAN_DEVELOPMENT} from './marsFirst/UrbanDevelopment';
@@ -573,6 +574,10 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // The first recipients decided by a THRESHOLD (the winner + everyone with influence ≥ 2), and the first CITY STACK:
   // one city tile each, placed as a TIER on the seat's own city on Mars — the cell pays nothing again, every tier scores.
   SKYSCRAPERS,
+  // The first law that pays the seats' cards WITHOUT A QUESTION: a draw by influence (Open IP Trade's intake), then
+  // 1 resource of its own kind onto EVERY card that already holds one — a card-resource unit `onto: 'each-counted'`
+  // over the seventh count kind (`holders`: the engine's `getCardsWithResources`), paid by ONE shared step.
+  SPONSORED_PROJECTS,
   // The first action that COSTS something («pay 12 M€ to gain an extra trade fleet — titanium accepted, 2 M€ off per
   // influence»): the bill declared as data and priced by ONE function, PAY-THEN-GAIN through the family's paid funnel
   // (the use and the fleet wait in the bill's andThen); and the ninth quest kind — TRADES performed (decision Q-4).

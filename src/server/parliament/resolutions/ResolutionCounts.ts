@@ -52,11 +52,18 @@
  * (`Counter`) and `Player.getColoniesCount` stand on — and hands the tiles'
  * names to the shared reader (`countColoniesToward`), so the number can be
  * explained tile by tile. Nothing here walks the colony table itself.
+ *
+ * A HOLDERS count (Sponsored Projects' «each of your cards that already has a
+ * resource») asks THE ENGINE for the cards — `Player.getCardsWithResources`,
+ * the classic global event's own reading — and keeps each with the kind it
+ * holds, how many, and what ONE more does to its victory points (the preview
+ * family's `targetVictoryPoints`, the reading every card pick shows). The
+ * payout pays exactly these cards; nothing here restates what «holds» means.
  */
 import {CardName} from '../../../common/cards/CardName';
 import {
   BoardCountedTile, BoardCountMeasure, cardCountUnits, countCardsToward, countColoniesToward, countMetricToward, countProductionToward,
-  ResolutionCountId, ResolutionCountMetric, ResolutionCountModel, resolutionCountKind, RESOLUTION_COUNT_IDS, RESOLUTION_TAG_COUNTING_MODE,
+  ResolutionCountByCard, ResolutionCountId, ResolutionCountMetric, ResolutionCountModel, resolutionCountKind, RESOLUTION_COUNT_IDS, RESOLUTION_TAG_COUNTING_MODE,
 } from '../../../common/parliament/resolutionCounts';
 import {Resource} from '../../../common/Resource';
 import {tileGrantCountId} from '../../../common/parliament/tileGrant';
@@ -65,6 +72,7 @@ import {ICard} from '../../cards/ICard';
 import {Board} from '../../boards/Board';
 import {Space} from '../../boards/Space';
 import {ColoniesHandler} from '../../colonies/ColoniesHandler';
+import {targetVictoryPoints} from '../../cards/actionPreviews';
 import type {ResolutionCatalog} from './ResolutionCatalog';
 
 function inPlay(card: ICard): boolean {
@@ -143,6 +151,9 @@ export function resolutionCount(player: IPlayer, id: ResolutionCountId): Resolut
     // the tiles' names kept for the reading. Nothing here walks the table.
     return countColoniesToward(id, ColoniesHandler.coloniesOf(player.game, player).map((colony) => colony.name));
   }
+  if (kind.kind === 'holders') {
+    return holdersCount(player, id);
+  }
   const tableau = player.tableau.filter(inPlay);
   const breakdown = countCardsToward(id, tableau, {eventTagsInPlay: player.tags.eventTagsInPlay()});
   if (kind.kind === 'cards') {
@@ -155,6 +166,29 @@ export function resolutionCount(player: IPlayer, id: ResolutionCountId): Resolut
   const byTag = kind.tags.map((tag) => ({tag, count: player.tags.count(tag, RESOLUTION_TAG_COUNTING_MODE)}));
   const count = byTag.reduce((sum, entry) => sum + entry.count, 0);
   return byTag.length > 1 ? {...breakdown, count, byTag} : {...breakdown, count};
+}
+
+/**
+ * THE ENGINE'S OWN LIST of the seat's cards that already hold a resource
+ * (`Player.getCardsWithResources`, in play order) — the cards a holders count
+ * counts and an `each-counted` payout pays, with the kind each holds, the
+ * number on it and its points after ONE more. One function for the count,
+ * the payout and every reading: a second walk would promise one set and pay
+ * another.
+ */
+export function holdersCount(player: IPlayer, id: ResolutionCountId): ResolutionCountModel {
+  const cards = player.getCardsWithResources();
+  const vp = targetVictoryPoints(player, cards, 1) ?? {};
+  const byCard: Array<ResolutionCountByCard> = [];
+  for (const card of cards) {
+    // `getCardsWithResources` keeps only cards with a storage rule — the guard below is the type's, never a filter.
+    if (card.resourceType === undefined) {
+      continue;
+    }
+    const points = vp[card.name];
+    byCard.push({card: card.name, resource: card.resourceType, count: card.resourceCount, ...(points === undefined ? {} : {vp: {from: points.from, to: points.to}})});
+  }
+  return {id, count: byCard.length, cards: byCard.map((entry) => entry.card), byCard};
 }
 
 /** What ONE card of `player`'s tableau contributes to `id` (0 = it does not count). */

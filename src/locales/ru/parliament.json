@@ -1358,5 +1358,22 @@
   "The step reaches a card": "Шаг приходит на карту",
   "The step reaches an influence level": "Шаг приходит на уровень влияния",
   "Already at the end of the Career — the step is named and skipped": "Уже в конце Карьеры — шаг назван и пропущен",
-  "The winner walks two steps": "Победитель голосования делает два шага"
+  "The winner walks two steps": "Победитель голосования делает два шага",
+  "Draw 1 card per point of your influence. Then add 1 resource to each of your cards that already holds a resource.": "Возьмите 1 карту за каждое очко влияния. Затем добавьте по 1 ресурсу на каждую свою карту, на которой уже есть ресурс.",
+  "No card of yours has a resource yet": "Ни на одной вашей карте ещё нет ресурса",
+  "${0} has no card with a resource on it — nothing from ${1}": "${0}: ни на одной карте нет ресурса — ${1} ничего не добавляет",
+  "${0} card(s) with a resource": "${0} {карта|карты|карт} с ресурсом",
+  "Each of your cards that already holds a resource counts once, your corporation included. A card that can hold resources but has none yet does not count.": "Каждая ваша карта, на которой уже есть ресурс, считается один раз — корпорация тоже. Карта, которая может хранить ресурсы, но пока пуста, не считается.",
+  "This card holds no resources": "Эта карта не хранит ресурсы",
+  "Counted by the resources on your cards, not on the board": "Считается по ресурсам на ваших картах, а не на поле",
+  "Counted by the resources on your cards": "Считается по ресурсам на ваших картах",
+  "Result by your cards that already hold a resource": "Результат по вашим картам, на которых уже есть ресурс",
+  "Three kinds on three cards — one of its own kind each": "Три вида на трёх картах — каждой по одному своего вида",
+  "The vote — your cards and what one more does": "Голосование — ваши карты и что даст ещё один",
+  "Influence 0 — no cards, the resources all the same": "Влияние 0 — без карт, но ресурсы всё равно",
+  "No card with a resource yet — the resources are named and skipped": "Ни на одной карте ещё нет ресурса — выплата названа и пропущена",
+  "A holder at 0 receives nothing": "Пустой держатель ничего не получает",
+  "A corporation holding resources is a card too": "Корпорация с ресурсами — тоже карта",
+  "Eight cards — the receipt in one row": "Восемь карт — квитанция в одну строку",
+  "The project deck is empty — the draw is named, the resources land": "Колода проектов пуста — добор назван, ресурсы ложатся"
 }

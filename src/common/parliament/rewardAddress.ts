@@ -227,6 +227,27 @@ export const REWARD_ADDRESS: Readonly<Record<OutcomeKind, RewardAddress>> = {
 
 export const OUTCOME_KINDS: ReadonlyArray<OutcomeKind> = Object.keys(REWARD_ADDRESS) as Array<OutcomeKind>;
 
+/**
+ * A CARD RESOURCE THAT ASKED NOBODY (Sponsored Projects, RX40: «add 1 resource
+ * to each of your cards that already has a resource») — the SAME kind and the
+ * same surface as the pick's payout (the resource lands on the seat's own
+ * tableau cards, off the law's printed graphic), but no `choice` stage: there
+ * is no question to stand the landing on. The record says so structurally
+ * (`onto: 'each-counted'`), and its stage is the REWARD page itself — the
+ * sitting shows the receiving cards as a RECEIPT OF THE TABLE in its own zone
+ * and the tokens land on them in turn. The kind stays `cardResource`, so every
+ * reader of a card payout (the results' card list, the skip plate, the journal)
+ * reads it unchanged; only the row differs.
+ */
+export const CARD_RESOURCE_EACH_ADDRESS: RewardAddress = {
+  ...REWARD_ADDRESS.cardResource, stage: 'reward',
+};
+
+/** THE ROW of one record: the kind's own, except a card payout that asked nobody (see {@link CARD_RESOURCE_EACH_ADDRESS}). */
+export function rewardAddressRowOf(outcome: Pick<ParliamentEnactOutcomeModel, 'kind' | 'onto'>): RewardAddress {
+  return outcome.kind === 'cardResource' && outcome.onto === 'each-counted' ? CARD_RESOURCE_EACH_ADDRESS : REWARD_ADDRESS[outcome.kind];
+}
+
 /** What the outcome DELIVERS at its address — the chip's payload, resolved from the record (never recomputed). */
 export type RewardPayload = {
   /** The standard resource (production / stock / a reaction) or the card resource (onto a card) — the ONE kind. */
@@ -235,8 +256,13 @@ export type RewardPayload = {
   resources?: ReadonlyArray<string>;
   /** The card the resource landed on (`cardResource`, one recipient). */
   card?: string;
-  /** WHERE a `cardResource` landed, card by card — the whole list (one recipient is a list of one); `resource` is the kind THAT card took. */
-  cards?: ReadonlyArray<{card: string; amount: number; resource?: string}>;
+  /**
+   * WHERE a `cardResource` landed, card by card — the whole list (one recipient is a list of one); `resource` is the kind
+   * THAT card took. A payout that asked nobody (`onto`) also names what each card held BEFORE and its points' move.
+   */
+  cards?: ReadonlyArray<{card: string; amount: number; resource?: string; before?: number; vp?: {from: number; to: number}}>;
+  /** The card payout ASKED NOBODY — every counted card received, each of its own kind (Sponsored Projects). */
+  onto?: 'each-counted';
   /** The amount actually paid — NEGATIVE for a LOSS (a levy: what left the seat); a skip carries the amount it would have paid, when the record knows it. */
   amount?: number;
   /** A LEVY: what was OWED beside the (negative) amount taken — above it exactly when the seat was short. */
@@ -290,7 +316,7 @@ export type RewardDelivery = {
  * amount in), every other record its address's source. Pure.
  */
 export function rewardFlightSourceOf(outcome: ParliamentEnactOutcomeModel): RewardFlightSource {
-  const address = REWARD_ADDRESS[outcome.kind];
+  const address = rewardAddressRowOf(outcome);
   return outcome.colony !== undefined && address.source === 'card-icon' ? 'colony-row' : address.source;
 }
 
@@ -299,7 +325,7 @@ export function rewardFlightSourceOf(outcome: ParliamentEnactOutcomeModel): Rewa
  * nothing about the game; the director turns it into motion.
  */
 export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Color | undefined): RewardDelivery {
-  const address = REWARD_ADDRESS[outcome.kind];
+  const address = rewardAddressRowOf(outcome);
   const payload: RewardPayload = {};
   const resource = outcome.production ?? outcome.stock ?? outcome.resource;
   if (resource !== undefined) {
@@ -318,10 +344,17 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
   if (outcome.cards !== undefined && outcome.cards.length > 0) {
     payload.cards = outcome.cards.map((entry) => {
       const kind = entry.resource ?? outcome.resource;
-      return {card: entry.card, amount: entry.amount, ...(kind === undefined ? {} : {resource: String(kind)})};
+      return {
+        card: entry.card, amount: entry.amount, ...(kind === undefined ? {} : {resource: String(kind)}),
+        ...(entry.before === undefined ? {} : {before: entry.before}),
+        ...(entry.vp === undefined ? {} : {vp: {from: entry.vp.from, to: entry.vp.to}}),
+      };
     });
   } else if (outcome.card !== undefined && (outcome.amount ?? 0) > 0) {
     payload.cards = [{card: outcome.card, amount: outcome.amount ?? 0, ...(outcome.resource === undefined ? {} : {resource: String(outcome.resource)})}];
+  }
+  if (outcome.onto !== undefined) {
+    payload.onto = outcome.onto;
   }
   if (outcome.amount !== undefined) {
     payload.amount = outcome.amount;

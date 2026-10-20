@@ -1,4 +1,4 @@
-import {InfluenceScaledEffect} from '@/common/parliament/influenceScaling';
+import {InfluenceScaledEffect, paysEachCountedCard} from '@/common/parliament/influenceScaling';
 import {resolutionCountKind} from '@/common/parliament/resolutionCounts';
 import {WinnerRewardDeclaration} from '@/common/parliament/winnerReward';
 import {TileGrantDeclaration} from '@/common/parliament/tileGrant';
@@ -32,6 +32,11 @@ import {TileRemovalDeclaration} from '@/common/parliament/tileRemoval';
  *   distributed   — a card-resource payout LAID OUT over the player's holders, 0..N per card
  *                   (Cloud Development: floaters by Venus + Jovian tags + influence) — the count
  *                   is a term of it, the SPREAD is what the player works with;
+ *   each-card     — a card-resource payout onto EVERY card the count counted, each of its own kind,
+ *                   asking nobody (Sponsored Projects: +1 on each card that already holds a resource)
+ *                   — the instrument is the seat's HOLDERS (what each holds, a holder at 0, a
+ *                   corporation among them), and the scenarios are their edges (none, one at 0, three
+ *                   kinds on three cards, a full row of eight — the receipt's density);
  *   winner-tile   — a supply payout by influence + the WINNER's tile (Biodome Contest);
  *   sequel        — a second half that reads what the first half left behind (Climate Research);
  *   colony-bonuses — the player's COLONY BONUSES paid a number of times (Colonial Affairs: 2 + 1 per 2
@@ -49,8 +54,8 @@ import {TileRemovalDeclaration} from '@/common/parliament/tileRemoval';
  *                   the rest of its declaration (a budget's `counted-tags`), and the city is one more row of it.
  */
 export const RESOLUTION_FAMILIES = [
-  'influence', 'counted', 'counted-tags', 'counted-board', 'counted-metric', 'counted-production', 'counted-colonies', 'distributed', 'winner-tile', 'sequel',
-  'colony-bonuses', 'world-move', 'level', 'tile-grant',
+  'influence', 'counted', 'counted-tags', 'counted-board', 'counted-metric', 'counted-production', 'counted-colonies', 'distributed', 'each-card', 'winner-tile',
+  'sequel', 'colony-bonuses', 'world-move', 'level', 'tile-grant',
 ] as const;
 export type ResolutionFamily = typeof RESOLUTION_FAMILIES[number];
 
@@ -84,6 +89,11 @@ export function pickerEffectOf(facts: ResolutionFamilyFacts): InfluenceScaledEff
 /** The card-resource part the player LAYS OUT over several holders (the shared distribution), if any. */
 export function spreadEffectOf(facts: ResolutionFamilyFacts): InfluenceScaledEffect | undefined {
   return facts.scaled?.find((effect) => effect.unit.kind === 'cardResource' && effect.unit.spread === true);
+}
+
+/** The card-resource part paid onto EVERY counted card, asking nobody (`onto: 'each-counted'`), if any. */
+export function eachCardEffectOf(facts: ResolutionFamilyFacts): InfluenceScaledEffect | undefined {
+  return facts.scaled?.find((effect) => paysEachCountedCard(effect));
 }
 
 /** The part paid as the player's COLONY BONUSES a number of times, if any. */
@@ -120,6 +130,11 @@ export function familyOf(facts: ResolutionFamilyFacts): ResolutionFamily {
   if (spreadEffectOf(facts) !== undefined) {
     return 'distributed';
   }
+  // EVERY HOLDER RECEIVES next: the instrument is what each of the seat's cards holds — a count, but one whose
+  // every counted card is also a destination, which no other counted family shows.
+  if (eachCardEffectOf(facts) !== undefined) {
+    return 'each-card';
+  }
   const count = countEffectOf(facts)?.count;
   if (count !== undefined) {
     switch (resolutionCountKind(count.id).kind) {
@@ -128,6 +143,7 @@ export function familyOf(facts: ResolutionFamilyFacts): ResolutionFamily {
     case 'threshold': return 'counted-metric';
     case 'production': return 'counted-production';
     case 'colonies': return 'counted-colonies';
+    case 'holders': return 'each-card';
     case 'cards': return 'counted';
     }
   }
