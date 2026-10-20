@@ -76,8 +76,8 @@ export class PrometheanAlliance extends Card implements IProjectCard {
       metadata: {
         cardNumber: 'TR64',
         infoText: [
-          {kind: 'effect-short', text: 'The Scientists = the Industrialists: effect and cards of both', tokens: ['(party-seal,party-seal)']},
-          {kind: 'effect-short', text: 'Two M€ production when the Scientists or the Industrialists come to power', tokens: ['production(']},
+          {kind: 'effect-short', text: 'Scientists = Industrialists: effect, cards of both', tokens: ['(party-seal,party-seal)']},
+          {kind: 'effect-short', text: '+2 M€ production when either party comes to power', tokens: ['production(']},
         ],
         renderData: CardRenderer.builder((b) => {
           // Row 1 — «[Scientists] = [Industrialists]»: standing with one party is standing with the other.
