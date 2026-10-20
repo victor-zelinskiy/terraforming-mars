@@ -284,12 +284,31 @@ the whole chain in one glide.
 
 The camera has a second MODE on the same machine — `enterPlanetFocus('ceremony')` (`planetFocusState.mode`; `placement` is the idle default, a ceremony arriving over a placement camera takes the mode, a placement never takes it back from a playing ceremony; idle restores the default). The same phases, the same exit hold, the same stage box — three things differ, all in `ConsoleBoardSection`:
 - **The frame is the INSTRUMENT, not the disc** — `ceremonyFrameOf(stage)` unites `PFOCUS_FRAME` with the arc BAND's own elements (`ARC_BAND_SELECTOR`: rails, edges, digits, identities, markers, event chips — never the off-Mars flanks), measured ONCE per engagement in board px while the board is at rest (the enter fit runs before the camera moves) and cached for the engagement; the fallback is the measured Tharsis band. The planet grows ≈ ×1.12 at 4K (the placement's disc-only fit grows ×1.28).
-- **The arcs STAY** — they are the story (the markers glide to their maximum on this very stage); `.con-board--pfocus-ceremony.con-board--pfocus … .global-numbers > *` keeps them at opacity 1 (a COMPOUND selector: the placement's own fade is declared later at the same specificity), the settled state keeps the band in the tree.
+- **The arcs STAY** — they are the story (the markers glide to their maximum on this very stage); `.con-board--pfocus-ceremony.con-board--pfocus … .global-numbers > :where(.global-numbers-shell)` keeps them at opacity 1 (a COMPOUND selector: the placement's own fade is declared later at the same specificity), the settled state keeps the band in the tree.
 - **The breath layer** (`[data-terraformed-breath]`, keep-px over the alpha disc) and the `ceremonyFx` burst mount on the stage for the scene's show.
 The scene itself (the recede, the park's hold, the title, the return) is `docs/claude/console/terraformed-scene.md`.
 
+## The camera's classes restyle nothing they do not name (PL-777 / PL-789)
+
+The camera moves by flipping classes on the board's ROOT, so a selector written under one of them is re-matched on
+every flip, four times per engagement. Two shapes turned each flip into a restyle of the WHOLE board (4K GPU, with
+invalidation tracking: three «invalidates subtree» on `.con-board` per exit, 900–1 240 elements per flip):
+- **a universal rightmost compound** (`.global-numbers > *`) — Blink has no feature to key the invalidation on and
+  invalidates the subtree of the element whose class changed. The shells are NAMED instead: every direct child of
+  `.global-numbers` in `Board.vue` carries `global-numbers-shell`, matched as `> :where(.global-numbers-shell)` (zero
+  specificity — the cascade reads exactly as it did with `*`);
+- **a custom property declared by a camera class on the root** (the old `--pfocus-ms` / `--pfocus-ease`) — inherited,
+  so every descendant recomputes. The planet's timing is written on `.con-board__stage > .board-cont` itself.
+After: none and 720–920 elements. Guard: `tests/console/planetFocusRestyleGuard.spec.ts`. The frame at the motion's
+start and at the landing (33–59 ms at 4K) is GPU RASTER of the re-scaled planet, not style — the main thread is free
+there (PL-787, open). And the «0.5 s long task on the first exit frame» of the first report was the probe's own
+artefact: a sampler that records only on CHANGE cannot see a stall (PL-788) — measure liveness with a heartbeat, rAF
+stamps and `PerformanceObserver('longtask')`.
+
 ## Traps for future work
 
+- A new rule under a camera class (`con-board--pfocus*`) names its element — never `> *` — and never declares a
+  custom property on the board's root (`planetFocusRestyleGuard`).
 - `armTilePlacement` calls `snapPlanetFocusSettled()` — keep that ordering
   if the arm ever moves.
 - The shell registers `registerPlanetFocusParamsSource` (the playerView
