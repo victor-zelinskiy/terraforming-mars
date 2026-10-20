@@ -43,6 +43,10 @@ import {ResolutionId} from '@/common/parliament/ParliamentTypes';
 import type {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import type {RailReward} from '@/client/console/resourceTransfer/railReward';
 import type {PlayReaction} from '@/client/console/played/receivingStageModel';
+import type {ArmedPlayEffectModel} from '@/common/models/ArmedPlayEffectModel';
+import type {StagedColonyModel, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
+import type {ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
+import type {PlayComposerDraft} from '@/client/console/stagedPlay';
 
 export type ConsolePlayPickRequest = {
   /** The PROMISED pick (the law's `ResolutionPlayModel.input`): every hand card, the law's candidates enabled. */
@@ -76,6 +80,24 @@ export type ConsoleLawPlayLanding = {
   resolution: ResolutionId;
 };
 
+/**
+ * EVERYTHING ELSE THE COMPOSER DECIDED (the design rule of 2026-10-20: a play made THROUGH the law keeps every
+ * pre-select and every reversible step an ordinary play has). The composer's own DOORS ride the result untouched — the
+ * staged cell (the board pick is the play's last reversible step), the staged vote and colony (a step that opens inside
+ * the stage), the cell's card target, the armed effects the play spends, a composed repeat (Project Inspection) — so the
+ * law's commit can stage them exactly where an ordinary play would: AT its commit, before anything is sent.
+ */
+export type ConsolePlayPickComposed = {
+  staged?: StagedPlacementModel;
+  stagedVote?: StagedVoteModel;
+  stagedColony?: StagedColonyModel;
+  stagedCardTarget?: CardName;
+  armedSpends?: ReadonlyArray<ArmedPlayEffectModel>;
+  repeat?: ConsoleRepeatPickResult;
+  /** The play composer's capture snapshot (its B-restore of a staged door). */
+  composerDraft?: PlayComposerDraft;
+};
+
 /** What the composer RESOLVED — the play, composed; the asking stage posts it at its own commit. */
 export type ConsolePlayPickResult = {
   cardName: CardName;
@@ -88,13 +110,38 @@ export type ConsolePlayPickResult = {
   /** The card's price as charged (the promised card model's `calculatedCost`) — the stage's ИТОГО. */
   cost: number;
   scene: ConsolePlayPickScene;
+  /** The composer's doors and its composed repeat — staged at the law's commit, never dropped (see the type). */
+  composed?: ConsolePlayPickComposed;
 };
+
+/** The law's composed play kept OUTSIDE the stage (a staged cell yields the stage away, a park remounts it). */
+export type ConsoleLawPlayDraft = {
+  resolution: ResolutionId;
+  result: ConsolePlayPickResult;
+};
+
+/** Does the composed play carry a REVERSIBLE door the law's commit must stage (a cell, a vote, a colony)? */
+export function lawPlayStagedDoor(result: ConsolePlayPickResult | undefined): 'cell' | 'resolution' | 'colony' | undefined {
+  const composed = result?.composed;
+  if (composed === undefined || composed.repeat !== undefined || composed.composerDraft === undefined) {
+    return undefined;
+  }
+  if (composed.staged !== undefined) {
+    return 'cell';
+  }
+  if (composed.stagedVote !== undefined) {
+    return 'resolution';
+  }
+  return composed.stagedColony !== undefined ? 'colony' : undefined;
+}
 
 export const consolePlayPickState = reactive({
   active: false,
   request: undefined as ConsolePlayPickRequest | undefined,
   /** The law's commit is landing its card INSIDE the stage (PL-726) — from the arm to the scene's end. */
   landing: undefined as ConsoleLawPlayLanding | undefined,
+  /** The law's composed play, kept for the stage that shows it (a remount re-seats the slot from here). */
+  draft: undefined as ConsoleLawPlayDraft | undefined,
 });
 
 let resolveCb: ((result: ConsolePlayPickResult) => void) | undefined;
@@ -168,4 +215,20 @@ export function endLawPlayLanding(): void {
 export function lawPlayLandingOf(resolution?: ResolutionId): ConsoleLawPlayLanding | undefined {
   const landing = consolePlayPickState.landing;
   return landing !== undefined && (resolution === undefined || landing.resolution === resolution) ? landing : undefined;
+}
+
+/** The slot filled (or re-filled) — the stage's composed play survives the stage's own unmount. */
+export function rememberLawPlay(resolution: ResolutionId, result: ConsolePlayPickResult): void {
+  consolePlayPickState.draft = {resolution, result};
+}
+
+/** The composed play kept for this law — undefined when there is none. */
+export function lawPlayDraftOf(resolution: ResolutionId | undefined): ConsolePlayPickResult | undefined {
+  const draft = consolePlayPickState.draft;
+  return draft !== undefined && resolution !== undefined && draft.resolution === resolution ? draft.result : undefined;
+}
+
+/** The law's flow is over (committed and done, cancelled out, a new game) — nothing is kept. Idempotent. */
+export function clearLawPlayDraft(): void {
+  consolePlayPickState.draft = undefined;
 }

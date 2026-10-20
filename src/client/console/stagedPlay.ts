@@ -46,6 +46,7 @@ import {CardName} from '@/common/cards/CardName';
 import {TileType} from '@/common/TileType';
 import {StagedColonyModel, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import {SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
+import {ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   beginPanelRewardHold,
@@ -112,8 +113,16 @@ export type StagedPlayArm = {
    * the flows differ in what B restores and how a world move reconciles
    * (an action's card is ALWAYS in the tableau, so tableau membership can
    * never witness «our commit landed» there).
+   *
+   * …and a card PLAYED THROUGH A LAW (Turmoil Redux RX36 Live Experiments — the
+   * design rule of 2026-10-20: such a play keeps every reversible door an
+   * ordinary play has). The batch's head is the LAW's (`[menu option, the card
+   * addressed to the law, …]`), the ritual lands the card in the law's stage
+   * («Действия карт»), a hosted step stands in that stage, and B restores the
+   * law's stage with its slot (`lawRestore`). Like a play, the card's tableau
+   * membership witnesses the commit.
    */
-  flow: 'play' | 'action';
+  flow: 'play' | 'action' | 'law';
   cardName: CardName;
   isEvent: boolean;
   /** The complete batch the composer assembled (`buildPlayCardBatch` /
@@ -147,6 +156,8 @@ export type StagedPlayArm = {
   /** ACTION flow restore: which action to re-seat + the action composer's own
    *  opaque capture snapshot (written and read only by ConsoleActionComposer). */
   actionRestore?: {cardName: CardName, nodeIndex: number, composer: unknown};
+  /** LAW flow restore: the law whose stage comes back on B (its slot re-seats from `consolePlayPick`'s draft). */
+  lawRestore?: {resolution: ResolutionId};
   /** Whether entering staged play moved a workspace stack aside (and so
    *  whether B must bring one back). */
   yieldedStack: boolean;
@@ -204,7 +215,7 @@ export function stagedStepHost(arm: StagedPlayArm | undefined = stagedPlayState.
   if (!stagedHostedTarget(arm)) {
     return undefined;
   }
-  return arm?.flow === 'action' ? 'card-actions' : 'hand';
+  return arm?.flow === 'play' ? 'hand' : 'card-actions';
 }
 
 /**

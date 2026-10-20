@@ -429,9 +429,20 @@
              play): mounted hidden from the commit's arm (layout and arts ride the round trip), `--up` reveals it, and
              the workspace folds only once the scene has told its story. -->
         <div v-if="lawLandingMounted" ref="lawStage" class="con-pact__playstage"
-             :class="{'con-pact__playstage--up': lawLandingUp}" data-pact-landing>
+             :class="{'con-pact__playstage--up': lawLandingUp && lawStepKind === undefined}" data-pact-landing>
           <ConsolePlayedReceivingStage :playerView="playerView" />
         </div>
+        <!-- THE LAW'S STAGED STEPS (the design rule of 2026-10-20 — a play made through the law keeps every reversible
+             door): the card's delegate (the Parliament's vote mode) or its colony (the grid) opens HERE, a LAYER of
+             the decision column out of the rect the landing let go of; its confirm is the play's one POST, B comes back
+             to the slot as it was. Always rendered in the play form (empty and inert outside the step), so a leaving
+             step always has its zone to dissolve in. -->
+        <template v-if="kind === 'resolution' && playForm">
+          <div class="con-pact__stepzone" :class="{'con-pact__stepzone--on': lawStepKind === 'parliament'}"
+               data-embed-slot="action-parliament"></div>
+          <div class="con-pact__stepzone" :class="{'con-pact__stepzone--on': lawStepKind === 'colonies'}"
+               data-embed-slot="action-colonies"></div>
+        </template>
       </div>
     </template>
 
@@ -517,7 +528,9 @@ import {mergeTransferSpecs, ResourceTransferSpec} from '@/client/console/resourc
 import {heldCardCapsule} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
-import {ConsolePlayPickResult, enterConsolePlayPick, lawPlayLandingOf} from '@/client/console/consolePlayPick';
+import {ConsolePlayPickResult, enterConsolePlayPick, lawPlayDraftOf, lawPlayLandingOf, lawPlayStagedDoor, rememberLawPlay} from '@/client/console/consolePlayPick';
+import {stagedPlayState} from '@/client/console/stagedPlay';
+import {setWorkspaceFrameSlot, workspaceFrameHost} from '@/client/console/consoleWorkspaceStack';
 import {playedHeroLandingPrewarm, playedHeroLandingUp, playedHeroState} from '@/client/console/played/consolePlayedHero';
 import ConsolePlayedReceivingStage from '@/client/components/console/played/ConsolePlayedReceivingStage.vue';
 import {gsap} from 'gsap';
@@ -630,7 +643,7 @@ export default defineComponent({
     /** The closing beat (the Reds' payout), or undefined. */
     result: {type: Object as PropType<PartyActionResult | undefined>, default: undefined},
   },
-  emits: ['confirm', 'cancel', 'inspect', 'commands', 'result-done'],
+  emits: ['confirm', 'staged-play', 'cancel', 'inspect', 'commands', 'result-done'],
   data() {
     return {
       // The module stores the string-path watchers below read through `this`.
@@ -787,7 +800,7 @@ export default defineComponent({
     playForm(): boolean {
       // …and it STAYS the play form while the card it committed lands here (PL-726): the commit's view takes the menu
       // option (and the promise) away at the landing, and the stage must not change what it is under the scene.
-      if (this.lawLandingLatched || this.lawLanding) {
+      if (this.lawLandingLatched || this.lawLanding || this.lawStagedFlow) {
         return true;
       }
       const play = this.lawAction?.play;
@@ -815,6 +828,21 @@ export default defineComponent({
       return {direction: 'cost', icon: 'megacredits', amount: this.playResult?.cost ?? 0};
     },
     /** «6 M€ for the law + 9 M€ for the card = 15 M€» — the whole price of the press, from its two numbers. */
+    /** A STAGED door of THIS law's play stands (the ritual played, the step / the board open, nothing sent yet — or sent). */
+    lawStagedFlow(): boolean {
+      const arm = stagedPlayState.arm;
+      return this.kind === 'resolution' && arm?.flow === 'law' && arm.lawRestore?.resolution === this.resolution;
+    },
+    /** The STEP a staged door stands as INSIDE this stage — the Parliament (a delegate) or the colonies (a colony). */
+    lawStepKind(): 'parliament' | 'colonies' | undefined {
+      if (!this.lawStagedFlow) {
+        return undefined;
+      }
+      if (workspaceFrameHost('parliament') === 'card-actions') {
+        return 'parliament';
+      }
+      return workspaceFrameHost('colonies') === 'card-actions' ? 'colonies' : undefined;
+    },
     /** THE LAW'S LANDING is this stage's (PL-726): the shell armed the card's scene with the `workspace` host. */
     lawLanding(): boolean {
       return this.kind === 'resolution' && lawPlayLandingOf(this.resolution) !== undefined && playedHeroState.host === 'workspace';
@@ -1364,15 +1392,30 @@ export default defineComponent({
         }
       }
     },
+    /**
+     * THE STAGED STEP'S ZONE is published by ITS OWNER, post-flush (embed rule 4): the Parliament / the colonies
+     * teleport into this stage's own layer. On the step the setup is already released (the ritual took it); B out of
+     * the step (nothing was sent) gives the slot back as it was — the card in it, the total, the commit armed.
+     */
+    lawStepKind: {
+      flush: 'post' as const,
+      handler(kind: 'parliament' | 'colonies' | undefined, was: 'parliament' | 'colonies' | undefined): void {
+        if (kind !== undefined) {
+          setWorkspaceFrameSlot('card-actions', `[data-embed-slot="action-${kind}"]`);
+          return;
+        }
+        if (was !== undefined) {
+          setWorkspaceFrameSlot('card-actions', '');
+          if (!stagedPlayState.committing && !this.lawStagedFlow) {
+            this.restoreLawSetup();
+          }
+        }
+      },
+    },
     lawLanding(now: boolean, was: boolean): void {
       // The scene was refused before it ever rose (the shell drops the landing on `failed`): the setup stands again.
       if (was && !now && playedHeroState.phase === 'failed') {
-        this.lawLandingLatched = false;
-        const surface = (this.$refs.rootEl as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-pact__main > .con-pact__surface') ?? undefined;
-        if (surface !== undefined) {
-          gsap.killTweensOf(surface);
-          gsap.set(surface, {clearProps: 'opacity,visibility'});
-        }
+        this.restoreLawSetup();
       }
     },
     submitting(now: boolean, was: boolean): void {
@@ -1401,9 +1444,17 @@ export default defineComponent({
     },
   },
   mounted() {
+    // THE LAW'S COMPOSED PLAY COMES BACK WITH ITS STAGE (a staged cell yielded the stage to the board and B brought it
+    // back; a park restored it): the slot is re-seated from the module copy, the card in it, the commit armed.
+    if (this.kind === 'resolution' && this.playResult === undefined) {
+      const kept = lawPlayDraftOf(this.resolution);
+      if (kept !== undefined && (this.playForm || this.lawStagedFlow)) {
+        this.playResult = kept;
+      }
+    }
     // A one-row action (the Reds' confirm) opens ON its commit row; a
     // configurable one opens on its first decision.
-    this.cursorRow = this.decisionRows === 0 ? this.ctaRow : 0;
+    this.cursorRow = this.decisionRows === 0 ? this.ctaRow : (this.playResult !== undefined ? this.ctaRow : 0);
     // THE LAW'S FIRST STEP IS THE PICK: the real hand stands up as a step of
     // this stage the moment the stage is on screen.
     this.seedSingleBranch();
@@ -1640,6 +1691,17 @@ export default defineComponent({
         this.$emit('cancel');
         return;
       }
+      if (this.kind === 'resolution' && this.playForm && this.playResult !== undefined && lawPlayStagedDoor(this.playResult) !== undefined) {
+        // A REVERSIBLE DOOR STILL STANDS AFTER THIS PRESS (the design rule of 2026-10-20): the card's cell on the
+        // board, its delegate, its colony. Exactly as an ordinary play's commit does, nothing is sent here — the host
+        // plays the landing ritual in this stage and opens the door; ITS confirm is the one POST, B comes back here.
+        this.$emit('staged-play', response, {
+          expectedCards: 0,
+          play: this.playResult,
+          ...(this.resolution !== undefined ? {lawBill: {resolution: this.resolution, megacredits: this.billPrice?.price ?? 0}} : {}),
+        } as PartyConfirmDetail);
+        return;
+      }
       const plan = this.commitPlanFor();
       this.playCommitBeat(plan.kind, plan.specs, plan.kind === 'draw' ? pulseDeckPile : undefined, plan.rail);
       if (this.resourceForm) {
@@ -1739,6 +1801,16 @@ export default defineComponent({
         return undefined;
       }
     },
+    /** The law's SETUP stands again (a refused scene, B out of a staged step): the slot as it was, nothing latched. */
+    restoreLawSetup(): void {
+      this.lawLandingLatched = false;
+      const surface = (this.$refs.rootEl as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-pact__main > .con-pact__surface') ?? undefined;
+      if (surface !== undefined) {
+        gsap.killTweensOf(surface);
+        gsap.set(surface, {clearProps: 'opacity,visibility'});
+      }
+      this.cursorRow = this.playResult !== undefined ? this.ctaRow : 0;
+    },
     /** A decision row is answered: a pick made — or, for a law's SLOT (a repeat, a play), the slot filled. */
     rowAnswered(row: number): boolean {
       if (this.kind === 'resolution' && row === 0) {
@@ -1773,6 +1845,8 @@ export default defineComponent({
         preResponses: result.preResponses,
         optionResponse: result.optionResponse,
         stepResponses: result.stepResponses,
+        // A composed REPEAT (Project Inspection played through the law): the copied action's answers ride behind the play.
+        repeat: result.composed?.repeat,
       });
       return [
         head,
@@ -1793,6 +1867,8 @@ export default defineComponent({
       }
       enterConsolePlayPick({input: play.input, reserve: play.reserve, resolution: id, stage: 'Selection'}, (result) => {
         this.playResult = result;
+        // Kept OUTSIDE the stage too: a staged cell yields the stage away and a park remounts it — the slot comes back.
+        rememberLawPlay(id, result);
         // Land on the CTA — the slot is filled, the play is ready to commit.
         this.cursorRow = this.ctaRow;
       });

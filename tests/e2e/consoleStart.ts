@@ -2633,7 +2633,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   'parliament-diverted-enacted' |
   // RX36 Live Experiments ENACTED: red (20 M€) at −30 °C holding Grass (the law opens it), Adapted Lichen (playable
   // anyway) and Martian Media Center (a party requirement the law never waives).
-  'parliament-live-enacted' | 'parliament-live-helion' |
+  'parliament-live-enacted' | 'parliament-live-helion' | 'parliament-live-staged' | 'parliament-live-helion-staged' |
   // RX37 Manufacturing Run ENACTED: red at influence 1 (two uses) holding Security Fleet, Construction Mechs and Titan Shuttles.
   'parliament-manufacturing-enacted' |
   // RX33 Water Export: the assembly with ONE plain ocean on the board and blue (the first player) holding the delegate —

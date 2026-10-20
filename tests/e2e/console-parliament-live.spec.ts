@@ -2,7 +2,7 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixtureSeats, crumbText, fetchPlayerModel, focusCard, openCardActions, press, pressUntil, settle, waitForBoardHome, walkFocusUntil,
+  bootFixtureSeats, crumbText, fetchPlayerModel, focusCard, openCardActions, placeTile, press, pressUntil, settle, waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
@@ -35,8 +35,18 @@ import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from 
  *   · THE BILL THAT ASKS (PL-727). With Helion's heat the bill is a payment of its
  *     own: no slot (nothing pre-collectable), the bill INSIDE the stage, then the
  *     card asked live — the album hosted IN the same stage, never over the board.
+ *   · EVERY REVERSIBLE DOOR STANDS (the design rule of 2026-10-20). A card whose
+ *     play keeps a step it can still take back keeps it through the law: the
+ *     law's commit SENDS NOTHING for Mangrove (its greenery's cell — the board
+ *     takes over, B gives the law's stage back with the slot as it was, the cell
+ *     confirm is the ONE POST) nor for Political Donation (its delegate — the
+ *     Parliament's vote mode opens INSIDE the law's stage, B the same, the vote
+ *     is the ONE POST, its tail addressed to the card). On the bill that asks
+ *     (Helion) the card's cell is the same door from the LIVE composer: B gives
+ *     the live composer back inside the law's stage, the cell confirm plays it.
  *
- * Fixtures `parliament-live-enacted`, `parliament-live-helion`. Screens under screenshots/parliament-live/.
+ * Fixtures `parliament-live-enacted`, `parliament-live-helion`, `parliament-live-staged`,
+ * `parliament-live-helion-staged`. Screens under screenshots/parliament-live/.
  */
 const OUT = path.resolve('screenshots', 'parliament-live');
 const LAW = 'RDX_SCIENTISTS_LIVE_EXPERIMENTS';
@@ -44,6 +54,9 @@ const OPENED = 'Grass';
 const ANYWAY = 'Adapted Lichen';
 const PARTY = 'Martian Media Center';
 const STAGE = '.con-pact--resolution';
+/** The staged cell's card (a greenery on an ocean area, «+4 °C» — opened by the law at −30 °C) and the staged vote's. */
+const CELL_CARD = 'Mangrove';
+const VOTE_CARD = 'Political Donation';
 
 const PRESETS = [
   {id: 'standard-1080', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
@@ -51,13 +64,18 @@ const PRESETS = [
 ] as const;
 
 type Wire = {
-  thisPlayer: {megacredits: number, heat: number, tableau: ReadonlyArray<{name: string}>},
+  thisPlayer: {color: string, megacredits: number, heat: number, tableau: ReadonlyArray<{name: string}>},
   waitingFor?: {type: string, resolutionActionPrompt?: {resolution: string, stage: string}},
   cardsInHand?: ReadonlyArray<{name: string}>,
-  game: {parliament?: {
-    enacted?: {resolution: string},
-    viewer?: {resolutionAction?: {resolution: string, usesLeft: number, available: boolean, play?: {reserve: number, billAsks: boolean}}},
-  }},
+  game: {
+    gameAge: number,
+    oxygenLevel: number,
+    parliament?: {
+      enacted?: {resolution: string},
+      viewer?: {resolutionAction?: {resolution: string, usesLeft: number, available: boolean, play?: {reserve: number, billAsks: boolean}}},
+      slots?: ReadonlyArray<{votes: ReadonlyArray<{owner: string}>}>,
+    },
+  },
 };
 const wireOf = async (request: APIRequestContext, id: string): Promise<Wire> => await fetchPlayerModel(request, id) as unknown as Wire;
 
@@ -124,6 +142,51 @@ async function focusLawTile(page: Page): Promise<void> {
     await walkFocusUntil(page, async () => await focused() === LAW, focused, 30);
   }
   expect(await focused(), 'never focused the law\'s tile').toBe(LAW);
+}
+
+/** Every input POST the page sends — the fact «nothing was sent» is the wire's, never a counter on screen. */
+function recordInputPosts(page: Page): Array<{path: string, body: string}> {
+  const posts: Array<{path: string, body: string}> = [];
+  page.on('request', (r) => {
+    if (r.method() === 'POST' && /\/player\/input/.test(r.url())) {
+      posts.push({path: new URL(r.url()).pathname, body: r.postData() ?? ''});
+    }
+  });
+  return posts;
+}
+
+/** The board's placement stage owns the context panel («Размещение тайла»). */
+const boardPlacing = (page: Page) => page.evaluate(() => /размещение тайла/i.test(document.querySelector('.con-context')?.textContent ?? ''));
+
+/**
+ * THE LAW'S COMMIT WAS TAKEN — the landing layer mounted in the stage or the hero is up (or the door already open).
+ * The witness of ONE press: a blind retry would land on the opened door (a cell lock, a vote).
+ */
+const lawCommitTaken = (page: Page, door?: string) => page.evaluate((sel) =>
+  (sel !== '' && document.querySelector(sel) !== null) || document.querySelector('.con-pact [data-pact-landing]') !== null ||
+  document.querySelector('.con-played-hero__proxy') !== null || /размещение тайла/i.test(document.querySelector('.con-context')?.textContent ?? ''), door ?? '');
+
+/** From the board home: «Действия карт» → the law's stage → the album → `card` → its composer → A: the play in the SLOT. */
+async function fillLawSlot(page: Page, card: string): Promise<void> {
+  await waitForBoardHome(page, 40);
+  await settle(page, {timeoutMs: 20_000});
+  await openCardActions(page);
+  await focusLawTile(page);
+  expect(await pressUntil(page, 'Enter', async () => await page.locator(STAGE).count() > 0, {tries: 3, settleMs: 1100}),
+    'A opens the law\'s stage').toBeTruthy();
+  await expect(page.locator(`${STAGE} [data-pact-play-slot]`), 'the decision is a SLOT').toHaveCount(1, {timeout: 20_000});
+  await settle(page, {timeoutMs: 15_000});
+  expect(await pressUntil(page, 'Enter', async () => await page.locator(`${STAGE} .con-hand`).count() > 0, {tries: 4, settleMs: 1200}),
+    'A on the slot stands the album up inside the stage').toBeTruthy();
+  await settle(page, {timeoutMs: 20_000});
+  expect(await focusCard(page, card, 24), `the cursor reaches ${card}`).toBe(true);
+  expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-composer--play').count() > 0, {tries: 3, settleMs: 1200}),
+    'A opens the play composer').toBeTruthy();
+  await settle(page, {timeoutMs: 20_000});
+  expect(await pressUntil(page, 'Enter', async () => await page.locator('[data-pact-play-name]').count() > 0, {tries: 5, settleMs: 1200}),
+    'the composer\'s confirm lands the play back in the slot').toBeTruthy();
+  await settle(page, {timeoutMs: 20_000});
+  await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'the commit is ready').toHaveCount(1);
 }
 
 type LiveSample = {t: number, mc: string, chip: string, up: boolean, recv: boolean, ws: boolean, table: boolean, hand: boolean, setup: boolean, bill: string, host: string, phase: string};
@@ -392,6 +455,207 @@ for (const preset of PRESETS) {
       expect(after.game.parliament?.viewer?.resolutionAction, 'the use is spent').toMatchObject({usesLeft: 0});
       expect(before.thisPlayer.megacredits + before.thisPlayer.heat - after.thisPlayer.megacredits - after.thisPlayer.heat,
         'the law\'s 6 and the card\'s 11, paid in M€ and heat').toBe(17);
+    });
+
+    test('a STAGED CELL through the law (Mangrove): the law\'s commit sends nothing → the board\'s cell → B → the law\'s stage, the slot as it was → the cell confirm is the ONE POST', async ({page, request}) => {
+      test.setTimeout(480_000);
+      const {playerId} = await bootFixtureSeats(page, request, 'parliament-live-staged', {query: preset.query});
+      const posts = recordInputPosts(page);
+      const before = await wireOf(request, playerId);
+      expect(before.thisPlayer.megacredits).toBe(40);
+      expect(before.game.parliament?.viewer?.resolutionAction).toMatchObject({resolution: LAW, usesLeft: 1, available: true});
+
+      // ── ① the play composed into the slot: the law's 6 + Mangrove's 12.
+      await fillLawSlot(page, CELL_CARD);
+      await expect(page.locator('[data-pact-play-name]'), 'the slot names the card').toHaveText(/Мангров|Mangrove/i);
+      await expect(page.locator('[data-pact-play-total]'), 'the TOTAL').toContainText(/6 M€.*12 M€.*18 M€/);
+      expect(posts, 'composing sends nothing').toEqual([]);
+      await shoot(page, preset.id, 's1-slot-mangrove');
+
+      // ── ② THE LAW'S CTA SENDS NOTHING: the ritual plays in the stage, the board takes the cell — a reversible door.
+      expect(await pressUntil(page, 'Enter', () => lawCommitTaken(page), {tries: 3, settleMs: 1500}),
+        'the law\'s commit is taken').toBeTruthy();
+      await expect.poll(() => boardPlacing(page), {timeout: 30_000, message: 'the law\'s commit hands the card\'s cell to the board'}).toBe(true);
+      await settle(page, {timeoutMs: 20_000});
+      await expect(page.locator('.con-cardactions'), 'the stage yielded to the board').toHaveCount(0);
+      expect(posts, 'the law\'s commit sent NOTHING — the cell is still ahead').toEqual([]);
+      const staged = await wireOf(request, playerId);
+      expect(staged.game.gameAge, 'the server\'s change counter stands still').toBe(before.game.gameAge);
+      expect(staged.thisPlayer.megacredits, 'nothing paid').toBe(40);
+      expect(staged.game.parliament?.viewer?.resolutionAction?.usesLeft, 'the use is not spent').toBe(1);
+      expect((staged.cardsInHand ?? []).some((c) => c.name === CELL_CARD), 'the card is still in the hand').toBe(true);
+      await shoot(page, preset.id, 's2-board-cell');
+
+      // ── ③ B: the law's stage comes back — the slot as it was, the total, the commit armed; nothing sent.
+      //    The press took when the placement let go or the stage is back — never «press until the stage shows»: a
+      //    second B on the restored stage is the stage's own back.
+      const backTaken = async () => !await boardPlacing(page) || await page.locator(STAGE).count() > 0;
+      for (let attempt = 0; attempt < 3 && !await backTaken(); attempt++) {
+        await press(page, 'Escape', 300);
+        await expect.poll(backTaken, {timeout: 3_000}).toBe(true).catch(() => undefined);
+      }
+      await expect(page.locator(`${STAGE} [data-pact-play-name]`), 'B gives the law\'s stage back with the card in the slot')
+        .toHaveText(/Мангров|Mangrove/i, {timeout: 20_000});
+      await settle(page, {timeoutMs: 20_000});
+      await expect(page.locator('[data-pact-play-total]'), 'the total survived the round trip').toContainText(/18 M€/);
+      await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'the commit is armed again').toHaveCount(1);
+      const backCrumb = (await crumbText(page)).toUpperCase();
+      expect(backCrumb, `the crumb is the law's again (${backCrumb})`).toMatch(/ДЕЙСТВИЯ КАРТ.*ЖИВЫЕ ЭКСПЕРИМЕНТЫ/);
+      expect(posts, 'the round trip sent nothing').toEqual([]);
+      expect((await wireOf(request, playerId)).game.gameAge, 'and left no trace').toBe(before.game.gameAge);
+      await shoot(page, preset.id, 's3-back-in-stage');
+
+      // ── ④ A again → the board → the cell confirm is the play's ONE POST.
+      expect(await pressUntil(page, 'Enter', () => lawCommitTaken(page), {tries: 3, settleMs: 1500}),
+        'the law\'s commit is taken again').toBeTruthy();
+      await expect.poll(() => boardPlacing(page), {timeout: 30_000, message: 'the law\'s commit hands the cell to the board again'}).toBe(true);
+      await settle(page, {timeoutMs: 20_000});
+      expect(posts, 'still nothing sent').toEqual([]);
+      expect(await placeTile(page), 'the cell confirm resolves').toBeTruthy();
+      const after = await untilServer(request, playerId, (m) => m.thisPlayer.tableau.some((c) => c.name === CELL_CARD), 'Mangrove on the table');
+      expect(after.thisPlayer.megacredits, '40 − 6 − 12').toBe(22);
+      expect(after.game.parliament?.viewer?.resolutionAction?.usesLeft, 'the use is spent').toBe(0);
+      expect(after.game.oxygenLevel, 'the greenery stands (oxygen +1)').toBe(before.game.oxygenLevel + 1);
+      expect(posts.map((x) => x.path), 'the play is ONE POST').toEqual(['/player/input-batch']);
+      await settle(page, {timeoutMs: 30_000});
+      await expect(page.locator('.con-cardactions'), 'the flow ends on the board').toHaveCount(0, {timeout: 30_000});
+      await expect(page.locator('.con-played'), 'no standalone table').toHaveCount(0);
+      await shoot(page, preset.id, 's4-after-cell');
+    });
+
+    test('a STAGED VOTE through the law (Political Donation): the Parliament opens INSIDE the law\'s stage → B → the slot as it was → the vote is the ONE POST', async ({page, request}) => {
+      test.setTimeout(480_000);
+      const {playerId} = await bootFixtureSeats(page, request, 'parliament-live-staged', {query: preset.query});
+      const posts = recordInputPosts(page);
+      const before = await wireOf(request, playerId);
+      const viewer = before.thisPlayer.color;
+
+      // ── ① the play composed into the slot: the law's 6 + the donation's 4.
+      await fillLawSlot(page, VOTE_CARD);
+      await expect(page.locator('[data-pact-play-total]'), 'the TOTAL').toContainText(/6 M€.*4 M€.*10 M€/);
+      await shoot(page, preset.id, 'v1-slot-donation');
+
+      // ── ② THE LAW'S CTA SENDS NOTHING: the Parliament's vote mode rises INSIDE the law's stage (one instance).
+      const voteMode = `${STAGE} [data-embed-slot="action-parliament"] .con-parl--embedded [data-parl-vote-door]`;
+      expect(await pressUntil(page, 'Enter', () => lawCommitTaken(page, voteMode), {tries: 3, settleMs: 1500}),
+        'the law\'s commit is taken').toBeTruthy();
+      await expect(page.locator(voteMode), 'the law\'s commit opens the vote inside its stage').toHaveCount(1, {timeout: 30_000});
+      await settle(page, {timeoutMs: 20_000});
+      expect(await page.locator('.con-parl').count(), 'ONE Parliament — the hosted one').toBe(1);
+      expect(posts, 'the law\'s commit sent NOTHING — the vote is still ahead').toEqual([]);
+      expect((await wireOf(request, playerId)).game.gameAge, 'the server\'s change counter stands still').toBe(before.game.gameAge);
+      const voteCrumb = (await crumbText(page)).toUpperCase();
+      expect(voteCrumb, `one crumb: the menu, the law (${voteCrumb})`).toMatch(/ДЕЙСТВИЯ КАРТ.*ЖИВЫЕ ЭКСПЕРИМЕНТЫ/);
+      await shoot(page, preset.id, 'v2-vote-in-stage');
+
+      // ── ③ B: the step leaves, the slot as it was, nothing sent.
+      const backTaken = () => page.evaluate(() =>
+        document.querySelector('.con-parl') === null || document.querySelector('.con-parl[data-parl-leaving]') !== null);
+      for (let attempt = 0; attempt < 3 && !await backTaken(); attempt++) {
+        await press(page, 'Escape', 300);
+        await expect.poll(backTaken, {timeout: 3_000}).toBe(true).catch(() => undefined);
+      }
+      await expect(page.locator('.con-parl'), 'the step left').toHaveCount(0, {timeout: 15_000});
+      await settle(page, {timeoutMs: 20_000});
+      await expect(page.locator(`${STAGE} [data-pact-play-name]`), 'the card stands in the slot').toHaveText(/Политическое пожертвование|Political Donation/i);
+      await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'the commit is armed again').toHaveCount(1);
+      expect(posts, 'the round trip sent nothing').toEqual([]);
+      await shoot(page, preset.id, 'v3-back-in-stage');
+
+      // ── ④ A → the vote mode again → A on the first resolution: the play's ONE POST, its tail addressed to the card.
+      expect(await pressUntil(page, 'Enter', () => lawCommitTaken(page, voteMode), {tries: 3, settleMs: 1500}),
+        'the law\'s commit is taken again').toBeTruthy();
+      await expect(page.locator(voteMode), 'the vote opens again').toHaveCount(1, {timeout: 30_000});
+      await settle(page, {timeoutMs: 20_000});
+      for (let attempt = 0; attempt < 3 && posts.length === 0; attempt++) {
+        await press(page, 'Enter', 300);
+        await expect.poll(() => posts.length, {timeout: 3_000}).toBeGreaterThan(0).catch(() => undefined);
+      }
+      expect(posts.map((x) => x.path), 'the play is ONE batch POST').toEqual(['/player/input-batch']);
+      const sent = JSON.parse(posts[0].body) as {responses?: Array<Record<string, unknown>>} | Array<Record<string, unknown>>;
+      const responses = Array.isArray(sent) ? sent : sent.responses ?? [];
+      expect(responses[responses.length - 1], 'the tail is the vote, ADDRESSED to the card').toMatchObject({type: 'party', stagedFor: VOTE_CARD});
+      const after = await untilServer(request, playerId, (m) => m.thisPlayer.tableau.some((c) => c.name === VOTE_CARD), 'Political Donation on the table');
+      expect(after.thisPlayer.megacredits, '40 − 6 − 4').toBe(30);
+      expect(after.game.parliament?.viewer?.resolutionAction?.usesLeft, 'the use is spent').toBe(0);
+      expect((after.game.parliament?.slots ?? []).some((slot) => slot.votes.some((v) => v.owner === viewer)), 'the viewer\'s delegate stands on a resolution').toBe(true);
+      await expect(page.locator('.con-cardactions'), 'the flow ends on the board').toHaveCount(0, {timeout: 30_000});
+      await settle(page, {timeoutMs: 30_000});
+      await expect(page.locator('.con-parl'), 'nothing stranded').toHaveCount(0);
+      expect(posts.length, 'and nothing else was sent').toBe(1);
+      await shoot(page, preset.id, 'v4-after-vote');
+    });
+
+    test('a STAGED CELL on the bill that asks (Helion): the bill paid, the card asked live IN the stage → the cell → B → the live composer in the stage → the cell confirm plays it', async ({page, request}) => {
+      test.setTimeout(480_000);
+      const {playerId} = await bootFixtureSeats(page, request, 'parliament-live-helion-staged', {query: preset.query});
+      const before = await wireOf(request, playerId);
+      expect(before.game.parliament?.viewer?.resolutionAction, 'the bill asks').toMatchObject({resolution: LAW, usesLeft: 1, play: {billAsks: true}});
+
+      // ── ① the law's stage → the bill inside it → settled: the card is asked LIVE, the album in the stage.
+      await waitForBoardHome(page, 40);
+      await settle(page, {timeoutMs: 20_000});
+      await openCardActions(page);
+      await focusLawTile(page);
+      expect(await pressUntil(page, 'Enter', async () => await page.locator(STAGE).count() > 0, {tries: 3, settleMs: 1100}),
+        'A opens the law\'s stage').toBeTruthy();
+      await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'a confirm is complete by standing').toHaveCount(1, {timeout: 20_000});
+      await settle(page, {timeoutMs: 15_000});
+      expect(await pressUntil(page, 'Enter', async () => await page.locator(`${STAGE} [data-pact-bill]`).count() > 0, {tries: 3, settleMs: 1200}),
+        'the confirm raises the bill in the stage').toBeTruthy();
+      await settle(page, {timeoutMs: 15_000});
+      await press(page, 'Enter', 300);
+      await untilServer(request, playerId, (m) => m.waitingFor?.type === 'projectCard' && m.waitingFor.resolutionActionPrompt?.stage === 'play',
+        'the law\'s live card pick');
+      await expect(page.locator('.con-cardactions .con-hand'), 'the album stands inside «Действия карт»').toHaveCount(1, {timeout: 30_000});
+      await settle(page, {timeoutMs: 20_000});
+      expect(await focusCard(page, CELL_CARD, 24), 'the cursor reaches Mangrove').toBe(true);
+      expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-composer--play').count() > 0, {tries: 3, settleMs: 1200}),
+        'A opens the play composer').toBeTruthy();
+      await settle(page, {timeoutMs: 20_000});
+      const paid = await wireOf(request, playerId);
+      const posts = recordInputPosts(page);
+      await shoot(page, preset.id, 'hs1-live-composer');
+
+      // ── ② «Разыграть»: the cell is still a door — the board takes it, nothing sent.
+      expect(await pressUntil(page, 'Enter', () => lawCommitTaken(page), {tries: 3, settleMs: 1500}),
+        'the composer\'s play is taken').toBeTruthy();
+      await expect.poll(() => boardPlacing(page), {timeout: 30_000, message: 'the card\'s cell goes to the board'}).toBe(true);
+      await settle(page, {timeoutMs: 20_000});
+      expect(posts, 'the play sent NOTHING — the cell is still ahead').toEqual([]);
+      expect((await wireOf(request, playerId)).game.gameAge, 'the server\'s change counter stands still').toBe(paid.game.gameAge);
+      await shoot(page, preset.id, 'hs2-board-cell');
+
+      // ── ③ B: the live composer comes back INSIDE the law's stage — the same card; nothing sent.
+      const backTaken = async () => !await boardPlacing(page) || await page.locator('.con-composer--play').count() > 0;
+      for (let attempt = 0; attempt < 3 && !await backTaken(); attempt++) {
+        await press(page, 'Escape', 300);
+        await expect.poll(backTaken, {timeout: 3_000}).toBe(true).catch(() => undefined);
+      }
+      await expect(page.locator('.con-cardactions .con-composer--play'), 'B gives the live composer back inside the law\'s stage')
+        .toHaveCount(1, {timeout: 20_000});
+      await expect(page.locator('.con-composer--play'), 'the same card').toContainText(/Мангров|Mangrove/i);
+      await settle(page, {timeoutMs: 20_000});
+      const backCrumb = (await crumbText(page)).toUpperCase();
+      expect(backCrumb, `the crumb keeps the law (${backCrumb})`).toContain('ЖИВЫЕ ЭКСПЕРИМЕНТЫ');
+      expect(posts, 'the round trip sent nothing').toEqual([]);
+      await shoot(page, preset.id, 'hs3-back-live-composer');
+
+      // ── ④ «Разыграть» again → the cell confirm plays the card.
+      expect(await pressUntil(page, 'Enter', () => lawCommitTaken(page), {tries: 3, settleMs: 1500}),
+        'the composer\'s play is taken again').toBeTruthy();
+      await expect.poll(() => boardPlacing(page), {timeout: 30_000, message: 'the cell again'}).toBe(true);
+      await settle(page, {timeoutMs: 20_000});
+      expect(await placeTile(page), 'the cell confirm resolves').toBeTruthy();
+      const after = await untilServer(request, playerId, (m) => m.thisPlayer.tableau.some((c) => c.name === CELL_CARD), 'Mangrove on the table');
+      expect(after.game.parliament?.viewer?.resolutionAction?.usesLeft, 'the use is spent').toBe(0);
+      expect(after.game.oxygenLevel, 'the greenery stands').toBe(before.game.oxygenLevel + 1);
+      expect(before.thisPlayer.megacredits + before.thisPlayer.heat - after.thisPlayer.megacredits - after.thisPlayer.heat,
+        'the law\'s 6 and Mangrove\'s 12, paid in M€ and heat').toBe(18);
+      expect(posts.length, 'the play is ONE POST').toBe(1);
+      await expect(page.locator('.con-cardactions'), 'the flow ends on the board').toHaveCount(0, {timeout: 30_000});
+      await settle(page, {timeoutMs: 30_000});
+      await shoot(page, preset.id, 'hs4-after');
     });
   });
 }

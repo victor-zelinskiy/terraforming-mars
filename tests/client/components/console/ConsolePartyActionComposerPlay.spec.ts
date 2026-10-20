@@ -12,7 +12,8 @@ import {GlobalParameter} from '@/common/GlobalParameter';
 import {RequirementType} from '@/common/cards/RequirementType';
 import {Payment} from '@/common/inputs/Payment';
 import {
-  beginLawPlayLanding, cancelConsolePlayPick, consolePlayPickState, ConsolePlayPickResult, endLawPlayLanding, resetConsolePlayPick, resolveConsolePlayPick,
+  beginLawPlayLanding, cancelConsolePlayPick, clearLawPlayDraft, consolePlayPickState, ConsolePlayPickResult, endLawPlayLanding, rememberLawPlay,
+  resetConsolePlayPick, resolveConsolePlayPick,
 } from '@/client/console/consolePlayPick';
 import {playedHeroState} from '@/client/console/played/consolePlayedHero';
 import {resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
@@ -113,6 +114,7 @@ describe('ConsolePartyActionComposer — a law whose action PLAYS A CARD (RX36)'
   afterEach(() => {
     resetConsolePlayPick();
     endLawPlayLanding();
+    clearLawPlayDraft();
     resetWorkspaceStack();
     playedHeroState.active = false;
     playedHeroState.phase = 'idle';
@@ -214,6 +216,46 @@ describe('ConsolePartyActionComposer — a law whose action PLAYS A CARD (RX36)'
     await w.setProps({playerView: {...playerView(PLAY), waitingFor: {type: 'or', title: 'Take an action', buttonLabel: 'Take action', options: []}} as unknown as PlayerViewModel});
     await w.vm.$nextTick();
     expect(w.find('[data-pact-landing]').classes(), 'latched once it rose').to.include('con-pact__playstage--up');
+  });
+
+  it('A PLAY WITH A REVERSIBLE DOOR (the staged cell) sends NOTHING at the law\'s commit — it hands the door up, the batch and the play with it', async () => {
+    const w = mountLaw(PLAY);
+    await w.find('[data-pact-play-slot]').trigger('click');
+    resolveConsolePlayPick({
+      ...composed(),
+      composed: {staged: {sourceCard: CardName.GRASS} as never, composerDraft: {} as never},
+    });
+    await w.vm.$nextTick();
+    await w.find('[data-pact-cta]').trigger('click');
+    expect(w.emitted('confirm'), 'nothing is confirmed — the door is still ahead').to.be.undefined;
+    const staged = w.emitted('staged-play');
+    expect(staged, 'the door goes up').to.have.length(1);
+    const batch = staged![0][0] as ReadonlyArray<{type: string}>;
+    expect(batch.map((r) => r.type), 'the law\'s ONE batch, ready for the door\'s tail').to.deep.eq(['or', 'projectCard']);
+    const detail = staged![0][1] as {play?: ConsolePlayPickResult, lawBill?: {megacredits: number}};
+    expect(detail.play?.cardName).to.eq(CardName.GRASS);
+    expect(detail.lawBill?.megacredits).to.eq(6);
+  });
+
+  it('a composed REPEAT rides the law\'s batch behind the play (Project Inspection through the law)', async () => {
+    const w = mountLaw(PLAY);
+    await w.find('[data-pact-play-slot]').trigger('click');
+    resolveConsolePlayPick({
+      ...composed(),
+      composed: {repeat: {chosenCard: CardName.TARDIGRADES, nodeIndex: 0, composed: {branchIndex: 0, preResponses: [], optionResponse: undefined, stepResponses: []}} as never},
+    });
+    await w.vm.$nextTick();
+    await w.find('[data-pact-cta]').trigger('click');
+    const batch = w.emitted('confirm')![0][0] as ReadonlyArray<{type: string, cards?: ReadonlyArray<string>}>;
+    expect(batch.some((r) => r.type === 'card' && r.cards?.[0] === CardName.TARDIGRADES), 'the repeat\'s pick rides the batch').to.be.true;
+  });
+
+  it('the slot COMES BACK with its stage — a remount (B out of a staged cell, a park) re-seats it from the kept play', async () => {
+    rememberLawPlay(LAW, composed());
+    const w = mountLaw(PLAY);
+    await w.vm.$nextTick();
+    expect(w.find('[data-pact-play-name]').text(), 'the card stands in the slot again').to.eq(CardName.GRASS);
+    expect(w.find('[data-pact-cta]').attributes('data-pact-ready'), 'and the commit is armed').to.eq('');
   });
 
   it('a REFUSED play (the scene failed before it rose) brings the setup back — no stage left behind', async () => {

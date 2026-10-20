@@ -365,6 +365,7 @@
                                     @cancel="onComposerCancel"
                                     @inspect="onInspectSource"
                                     @result-done="finishPartyResult"
+                                    @staged-play="onPartyStagedPlay"
                                     @commands="onPartyComposerCommands" />
       </transition>
       </div><!-- /__stagewrap -->
@@ -473,7 +474,7 @@ import {
 import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim, setConsoleActionComposerExecuting, setConsoleActionStageKey} from '@/client/console/consoleActionComposerUi';
 import {addShadeOwner, captureSurfaceDeparture, removeShadeOwner, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {carryAnchorsHome} from '@/client/console/surfaceMotion/surfaceMotionDirector';
-import {closeWorkspaceRoot, leaveWorkspace, pushWorkspaceFrame, setWorkspaceFrameSlot, setWorkspaceFrameSubject, workspaceFrameDescended, workspaceFrameEmblem, workspaceFrameHost, workspaceFrameIndex, workspaceFrameIsOverlay, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameRoot, workspaceFrameStage, workspaceFrameSubject, workspaceHostYieldsScene, workspaceKindSpec, workspaceStackCrumb, workspaceStackRootKind, workspaceStackTop} from '@/client/console/consoleWorkspaceStack';
+import {closeWorkspaceRoot, leaveWorkspace, pushWorkspaceFrame, setWorkspaceFrameSlot, setWorkspaceFrameSubject, workspaceFrameDescended, workspaceFrameEmblem, workspaceFrameHost, workspaceFrameIndex, workspaceFrameIsOverlay, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameRoot, workspaceFrameStage, workspaceFrameSubject, workspaceHostYieldsScene, workspaceKindSpec, workspaceStackCrumb, workspaceStackRootKind, workspaceStackTop, stackYieldedToBoard} from '@/client/console/consoleWorkspaceStack';
 import {beginCardColonyTrade, clearCardColonyTrade, colonyStepCrumbParts} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {beginCardDeltaAdvance} from '@/client/console/hydroFlow/deltaAdvanceEntry';
 import type {DeltaAdvanceOffer} from '@/common/models/DeltaBonusPromptModel';
@@ -589,7 +590,7 @@ export default defineComponent({
      *  answer, so this surface never invents a second one. */
     blockedReason: {type: String, default: ''},
   },
-  emits: ['close', 'submit-batch', 'submit-party', 'staged-placement', 'staged-vote', 'reveal-ack', 'collapse', 'blocked', 'colony-step', 'delta-step', 'flow-complete'],
+  emits: ['close', 'submit-batch', 'submit-party', 'staged-placement', 'staged-vote', 'staged-law-play', 'reveal-ack', 'collapse', 'blocked', 'colony-step', 'delta-step', 'flow-complete'],
   data() {
     return {
       consoleCardActionsUi,
@@ -1893,7 +1894,10 @@ export default defineComponent({
             this.parliamentActionSources.some((source) => isResolutionActionSource(source) && source.resolution === draftResolution) :
             this.entries.some((e) => e.cardName === draft.cardName))),
         stagedReturn,
-        stagedEntryExists: stagedReturn !== undefined && this.entries.some((e) => e.cardName === stagedReturn.cardName),
+        stagedEntryExists: stagedReturn !== undefined && (this.entries.some((e) => e.cardName === stagedReturn.cardName) ||
+          // …or a LAW's stage (RX36 — B out of its play's staged cell): its action still offered to this seat.
+          (resolutionOfTileKey(stagedReturn.cardName) !== undefined && this.parliamentActionSources.some((source) =>
+            isResolutionActionSource(source) && source.resolution === resolutionOfTileKey(stagedReturn.cardName)))),
         claimHost: workspaceOutcomeState.host,
         claimCard: workspaceOutcomeState.sourceCard,
         claimNodeIndex: workspaceOutcomeState.nodeIndex,
@@ -1916,7 +1920,7 @@ export default defineComponent({
         // coming back from a park) — its key names the party.
         this.composer = {
           cardName: plan.composer.cardName, nodeIndex: plan.composer.nodeIndex,
-          party: partyOfTileKey(plan.composer.cardName) ?? this.partyFlow?.party,
+          party: partyOfTileKey(plan.composer.cardName) ?? this.lawPartyOf(resolutionOfTileKey(plan.composer.cardName)) ?? this.partyFlow?.party,
           resolution: resolutionOfTileKey(plan.composer.cardName),
         };
       } else if (plan.kind === 'seat-outcome') {
@@ -2007,7 +2011,9 @@ export default defineComponent({
     // it survives a park (the frame is still known — live in a restored stack
     // or parked in the set-aside one) and dies only when the workspace is
     // genuinely closed. Same lifetime rule as the trade-entry lock above.
-    if (!this.repeat && !workspaceFrameKnown('card-actions')) {
+    // (Frames merely YIELDED to the board — a staged cell of a play made in this stage, RX36 — come back on B: their
+    // drafts stay; the staged success drops them with the stack.)
+    if (!this.repeat && !workspaceFrameKnown('card-actions') && !stackYieldedToBoard()) {
       consoleCardActionsUi.draft = undefined;
       consoleCardActionsUi.partyFlow = undefined;
     }
@@ -2954,6 +2960,14 @@ export default defineComponent({
     partyAccentOf(party: ReduxParty): string {
       return partyAccent(party);
     },
+    /** The party a LAW's action is offered under (its source in the menu) — a law key's composer re-seats with it. */
+    lawPartyOf(resolution: ResolutionId | undefined): ReduxParty | undefined {
+      if (resolution === undefined) {
+        return undefined;
+      }
+      const source = this.parliamentActionSources.find((s) => isResolutionActionSource(s) && s.resolution === resolution);
+      return source?.party;
+    },
     /** The law's printed name (an i18n key) for its plate — never the catalog id. */
     resolutionNameOf(id: ResolutionId | undefined): string | undefined {
       return id === undefined ? undefined : (getResolution(id)?.text.name ?? id);
@@ -3081,6 +3095,17 @@ export default defineComponent({
       }
       // The detail rides up with the response: a law that PLAYS A CARD (RX36) hands the shell the card's landing.
       this.$emit('submit-party', response, detail);
+    },
+    /**
+     * A LAW'S PLAY WITH A REVERSIBLE DOOR (RX36 — the design rule of 2026-10-20): nothing is sent and nothing is
+     * committed here — the shell plays the landing ritual in this stage and opens the door (the board's cell, the
+     * delegate, the colony); that door's confirm is the one POST, B comes back to this very stage.
+     */
+    onPartyStagedPlay(response: InputResponse | ReadonlyArray<InputResponse>, detail?: PartyConfirmDetail): void {
+      if (this.composer?.resolution === undefined || this.partySubmitting) {
+        return;
+      }
+      this.$emit('staged-law-play', response, detail);
     },
     /** A REFUSED / lost party submit gives the stage back (the shell calls it on a transport error too). */
     resetPartySubmit(): void {

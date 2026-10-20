@@ -224,6 +224,7 @@ import {HE3FusionPlant} from '../../../src/server/cards/moon/HE3FusionPlant';
 import {EvaMechs} from '../../../src/server/cards/turmoilRedux/EvaMechs';
 import {PoliticalScience} from '../../../src/server/cards/turmoilRedux/PoliticalScience';
 import {PoliticalDonation} from '../../../src/server/cards/turmoilRedux/PoliticalDonation';
+import {Mangrove} from '../../../src/server/cards/base/Mangrove';
 import {MinorityRepresentation} from '../../../src/server/cards/turmoilRedux/MinorityRepresentation';
 import {NATIONALIST_MOVEMENT_PARTIES, NATIONALIST_MOVEMENT_PRINT, NationalistMovement} from '../../../src/server/cards/turmoilRedux/NationalistMovement';
 import {RedTechConvention} from '../../../src/server/cards/turmoilRedux/RedTechConvention';
@@ -4722,6 +4723,78 @@ parliamentFixture('parliament-live-helion', {
       }
     }
     expectViewerOpensGeneration(table, p2, 'parliament-live-helion');
+  },
+});
+
+// ── …and THE LAW'S PLAY KEEPS EVERY REVERSIBLE DOOR (the design rule of 2026-10-20): the same table, red holding a card
+//    whose cell is the play's last reversible step (Mangrove — «+4 °C or warmer», opened by the law at −30 °C; its
+//    greenery on an ocean area is a STAGED cell) and one whose delegate is (Political Donation — the staged vote).
+//    40 M€: the law's 6 + either card, twice over (a B round trip sends nothing).
+parliamentFixture('parliament-live-staged', {
+  resolution: LIVE_EXPERIMENTS_ID,
+  votes: [1],
+  agenda: [1, 2],
+  stopAt: 'done',
+  arrange: ({game, p2}) => {
+    setTemperature(game, -30);
+    p2.cardsInHand.push(new Mangrove(), new PoliticalDonation());
+    p2.pendingInitialActions = [];
+  },
+  after: ({p2}) => {
+    p2.megaCredits = 40;
+  },
+  expect: (table) => {
+    const {game, p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(LIVE_EXPERIMENTS_ID, 0)) {
+      throw new Error(`the parliament-live-staged fixture expected Live Experiments enacted, got ${parliament.enacted}`);
+    }
+    if (p2.pendingInitialActions.length > 0 || p2.actionsTakenThisRound !== 0) {
+      throw new Error('the parliament-live-staged fixture expected red to open generation 2 with both actions and no pending first action');
+    }
+    if (game.getTemperature() !== -30 || p2.megaCredits !== 40) {
+      throw new Error(`the parliament-live-staged fixture expected −30 °C and 40 M€ — got ${game.getTemperature()} °C, ${p2.megaCredits} M€`);
+    }
+    for (const name of [CardName.MANGROVE, CardName.POLITICAL_DONATION]) {
+      if (!p2.cardsInHand.some((c) => c.name === name)) {
+        throw new Error(`the parliament-live-staged fixture expected red to hold ${name}`);
+      }
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-live-staged');
+  },
+});
+
+// ── …and the same door on THE BILL THAT ASKS (Helion's heat): the card is asked LIVE after the bill, in the hand
+//    hosted by the law's stage — Mangrove's cell still a reversible door there (B back to the live composer).
+parliamentFixture('parliament-live-helion-staged', {
+  resolution: LIVE_EXPERIMENTS_ID,
+  votes: [1],
+  agenda: [1, 2],
+  stopAt: 'done',
+  arrange: ({game, p2}) => {
+    setTemperature(game, -30);
+    p2.cardsInHand.push(new Mangrove(), new Grass());
+    p2.pendingInitialActions = [];
+  },
+  after: ({p2}) => {
+    p2.megaCredits = 20;
+    p2.heat = 5;
+    p2.canUseHeatAsMegaCredits = true;
+  },
+  expect: (table) => {
+    const {game, p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(LIVE_EXPERIMENTS_ID, 0)) {
+      throw new Error(`the parliament-live-helion-staged fixture expected Live Experiments enacted, got ${parliament.enacted}`);
+    }
+    if (p2.pendingInitialActions.length > 0 || p2.actionsTakenThisRound !== 0) {
+      throw new Error('the parliament-live-helion-staged fixture expected red to open generation 2 with both actions and no pending first action');
+    }
+    if (game.getTemperature() !== -30 || !p2.canUseHeatAsMegaCredits || p2.heat !== 5 || p2.megaCredits !== 20) {
+      throw new Error(`the parliament-live-helion-staged fixture expected −30 °C, Helion's heat (5) and 20 M€ — got ${game.getTemperature()} °C, ${p2.heat} heat, ${p2.megaCredits} M€`);
+    }
+    if (!p2.cardsInHand.some((c) => c.name === CardName.MANGROVE)) {
+      throw new Error('the parliament-live-helion-staged fixture expected red to hold Mangrove');
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-live-helion-staged');
   },
 });
 

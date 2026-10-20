@@ -445,6 +445,7 @@
                             @submit-party="onCardActionsSubmitParty"
                             @staged-placement="onCardActionsStagedPlacement"
                             @staged-vote="onCardActionsStagedVote"
+                            @staged-law-play="onCardActionsStagedLawPlay"
                             @reveal-ack="onCardActionsRevealAck"
                             @flow-complete="onCardActionsFlowComplete"
                             @collapse="onCardActionsCollapse"
@@ -2119,7 +2120,11 @@ import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLe
 import {consoleHandPickState, cancelConsoleHandPick, declineConsoleHandPick, deferConsoleHandPick, enterConsoleHandPick, handPickArmsDiscardTray, handPickStageKey, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
 import {deferredDiscardKey, freshCardsForDeferredDiscard} from '@/client/console/deferredDiscardFresh';
 import {consoleRepeatPickState, cancelConsoleRepeatPick, enterConsoleRepeatPick, resetConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
-import {beginLawPlayLanding, consolePlayPickState, cancelConsolePlayPick, endLawPlayLanding, lawPlayLandingOf, resetConsolePlayPick, resolveConsolePlayPick} from '@/client/console/consolePlayPick';
+import {
+  beginLawPlayLanding, clearLawPlayDraft, consolePlayPickState, cancelConsolePlayPick, endLawPlayLanding, lawPlayLandingOf, lawPlayStagedDoor,
+  resetConsolePlayPick, resolveConsolePlayPick,
+} from '@/client/console/consolePlayPick';
+import {resolutionTileKey} from '@/client/console/parliament/partyActionKey';
 import {hydroAdvanceBatch, hydroAdvanceResponses, hydroAdvanceTail, HydroAdvancePayload} from '@/client/console/consoleHydroAdvance';
 import {cardDeltaAdvanceCard, cardDeltaAdvanceOffer, clearCardDeltaAdvance, deltaAdvanceEntryState, deltaAdvancePrefix} from '@/client/console/hydroFlow/deltaAdvanceEntry';
 import {
@@ -2231,7 +2236,7 @@ import {
   markStagedPlayCommitting,
   clearStagedPlay,
 } from '@/client/console/stagedPlay';
-import type {PlayComposerDraft, StagedPlayArm, StagedReceipt} from '@/client/console/stagedPlay';
+import type {PlayComposerDraft, StagedPlayArm, StagedPlayTarget, StagedReceipt} from '@/client/console/stagedPlay';
 import type {ActionEffect, AgendaWalkModel, NeutralRallyModel, StagedColonyModel, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import type {EffectForecast} from '@/common/models/EffectForecastModel';
 import ConsoleActionConfirm, {ActionConfirmKind} from '@/client/components/console/ConsoleActionConfirm.vue';
@@ -4443,6 +4448,12 @@ export default defineComponent({
       if (task === undefined || !SHELL_SECTION_KINDS.has(task.kind)) {
         return undefined;
       }
+      // A STAGED CELL stands over the very pick its batch will answer (RX36 — the law's LIVE play: the card's cell on
+      // the board, the server's `projectCard` under it). That pick is no task of its own while the door is open: B
+      // belongs to the board's placement (one level back to the play), never to a collapse of a stack already yielded.
+      if (task.kind === 'projectCard' && stagedPlacementOf(stagedPlayState.arm) !== undefined) {
+        return undefined;
+      }
       // The corporation's MANDATORY FIRST ACTION belongs to the GAME START
       // WORKSPACE while the start flow is live (generation 1, zero actions
       // taken — `corpFirstActionInStartFlow`): the scene's own «ПЕРВОЕ
@@ -6315,7 +6326,8 @@ export default defineComponent({
     parliamentStagedFlow(): 'play' | 'action' {
       const flow = this.stagedVoteModel !== undefined ? stagedPlayState.arm?.flow :
         (this.parliamentLeaving ? this.stagedVoteLatch?.flow : undefined);
-      return flow ?? 'play';
+      // A card played THROUGH A LAW (RX36) is a PLAY at its door: A reads «Разыграть карту».
+      return flow === 'action' ? 'action' : 'play';
     },
     /**
      * THE STAGED VOTE'S COMMIT WAS REFUSED (the transport's abort battery
@@ -6516,7 +6528,8 @@ export default defineComponent({
      */
     placementStaged(): boolean {
       const raw = this.placementRawSpaceModel;
-      return raw !== undefined && raw === this.stagedPlayPrompt && stagedPlayState.arm?.flow === 'play';
+      // …and a card played THROUGH A LAW (RX36): its price is unpaid at the cell exactly as a play's is.
+      return raw !== undefined && raw === this.stagedPlayPrompt && stagedPlayState.arm !== undefined && stagedPlayState.arm.flow !== 'action';
     },
     /**
      * PLANET FOCUS target — should the enlarged placement stage be up?
@@ -6874,9 +6887,12 @@ export default defineComponent({
       // …and while a STAGED VOTE stands: the composer is gone (the Parliament
       // took its zone) but the card has not left the hand — it is «being played».
       // (A PLAY's arm only: an ACTION's card is on the table, never in the hand.)
+      // (…and a card played THROUGH A LAW (RX36) whatever its door: the card is «being played» from the hand until
+      // the commit lands — the slot in the law's stage carries it, never a second copy in the dock.)
+      const arm = stagedPlayState.arm;
       return this.pendingPlayCard?.cardName ?? this.returningPlayCard ?? this.departingPlayCard ??
-        ((this.stagedVoteModel !== undefined || this.stagedColonyModel !== undefined) && stagedPlayState.arm?.flow === 'play' ?
-          stagedPlayState.arm.cardName : undefined);
+        (arm !== undefined && (arm.flow === 'law' || ((this.stagedVoteModel !== undefined || this.stagedColonyModel !== undefined) && arm.flow === 'play')) ?
+          arm.cardName : undefined);
     },
     /**
      * TRUE exactly when the held departing-play slot can be released: the
@@ -9029,7 +9045,7 @@ export default defineComponent({
       }
       const stagedHost = stagedStepHost();
       if ((this.stagedVoteModel !== undefined && stagedHost !== undefined && workspaceFrameHost('parliament') === stagedHost) ||
-          (this.stagedColonyModel !== undefined && workspaceFrameHost('colonies') === 'hand')) {
+          (this.stagedColonyModel !== undefined && stagedHost !== undefined && workspaceFrameHost('colonies') === stagedHost)) {
         // A STAGED VOTE stands: the bar reads as it will for the step's whole
         // life (a hosted step's convention — its host's root), from the frame
         // the step is pushed. The handoff's few frames otherwise walked it
@@ -11685,7 +11701,7 @@ export default defineComponent({
       flush: 'sync',
       handler(vote: StagedVoteModel | undefined): void {
         if (vote !== undefined) {
-          this.stagedVoteLatch = {vote, receipt: stagedPlayState.arm?.receipt, flow: stagedPlayState.arm?.flow ?? 'play'};
+          this.stagedVoteLatch = {vote, receipt: stagedPlayState.arm?.receipt, flow: stagedPlayState.arm?.flow === 'action' ? 'action' : 'play'};
         }
       },
     },
@@ -12040,7 +12056,8 @@ export default defineComponent({
       }
       (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.releaseFocusStage();
       colonyFocusState.committing = false;
-      setWorkspaceFramePhase('hand', 'configure');
+      // The step's HOST takes its decision back — the hand's play, the law's stage (RX36).
+      setWorkspaceFramePhase(stagedStepHost() ?? 'hand', 'configure');
       setWorkspaceFramePhase('colonies', 'configure');
       if (workspaceOutcomeState.host === 'hand') {
         releaseWorkspaceOutcome('staged-colony-refused');
@@ -12242,6 +12259,16 @@ export default defineComponent({
             });
           }
           discardYieldedStack();
+          // A card played THROUGH A LAW (RX36): its stage was yielded and is dropped with the stack — nothing of it is
+          // kept (the composed play, the landing, the stage's own drafts it kept while it was only aside).
+          if (arm?.flow === 'law') {
+            endLawPlayLanding();
+            clearLawPlayDraft();
+          }
+          if (!workspaceFrameKnown('card-actions')) {
+            consoleCardActionsUi.draft = undefined;
+            consoleCardActionsUi.partyFlow = undefined;
+          }
           clearStagedPlay();
         } else {
           this.reconcileStagedPlayWorldMove();
@@ -17214,6 +17241,17 @@ export default defineComponent({
             rewards: payload.rewards, reactions: payload.reactions, rail: payload.rail, spends: payload.spends,
             targetSpends: payload.targetSpends, draws: payload.draws, known: payload.known,
           },
+          // …and EVERY DOOR the composer opened (the design rule of 2026-10-20): the staged cell / vote / colony and a
+          // composed repeat ride the result — the law's commit stages them where an ordinary play would, at its commit.
+          composed: {
+            ...(payload.staged !== undefined ? {staged: payload.staged} : {}),
+            ...(payload.stagedVote !== undefined ? {stagedVote: payload.stagedVote} : {}),
+            ...(payload.stagedColony !== undefined ? {stagedColony: payload.stagedColony} : {}),
+            ...(payload.stagedCardTarget !== undefined ? {stagedCardTarget: payload.stagedCardTarget} : {}),
+            ...(payload.armedSpends !== undefined && payload.armedSpends.length > 0 ? {armedSpends: payload.armedSpends} : {}),
+            ...(payload.repeat !== undefined ? {repeat: payload.repeat} : {}),
+            ...(payload.composerDraft !== undefined ? {composerDraft: payload.composerDraft} : {}),
+          },
         });
         return;
       }
@@ -17268,8 +17306,13 @@ export default defineComponent({
       // prelude) keeps today's flow: the staged success DISCARDS the yielded
       // frames, and a PHASE-anchored root must survive its inner flows.
       const stagedRoot = workspaceStackRootKind();
+      // …and the LAW'S LIVE PLAY (RX36, a bill with a payment of its own — Helion / Luna): the hand stands as a STEP of
+      // «Действия карт» (`card-actions ⊃ hand`), and the play it makes keeps every reversible door an ordinary play
+      // has (the design rule of 2026-10-20). Not phase-anchored: the staged success may drop the yielded stack.
+      const handRoot = stagedRoot === 'hand' ||
+        (stagedRoot === 'card-actions' && workspaceFrameHost('hand') === 'card-actions' && resolutionPlayOf(this.playerView.waitingFor) !== undefined);
       if (payload.staged !== undefined && payload.repeat === undefined && payload.composerDraft !== undefined &&
-          (stagedRoot === undefined || stagedRoot === 'hand')) {
+          (stagedRoot === undefined || handRoot)) {
         const arm: StagedPlayArm = {
           flow: 'play',
           cardName: pending.cardName,
@@ -17306,7 +17349,7 @@ export default defineComponent({
       // (start ⊃ hand, the standalone band) submits as usual and meets the
       // grant LIVE, hosted by whatever flow raised it.
       if (payload.stagedVote !== undefined && payload.repeat === undefined && payload.composerDraft !== undefined &&
-          stagedRoot === 'hand' && workspaceFrameDescended('hand') && !this.playedOpen) {
+          handRoot && workspaceFrameDescended('hand') && !this.playedOpen) {
         const arm: StagedPlayArm = {
           flow: 'play',
           cardName: pending.cardName,
@@ -17333,7 +17376,7 @@ export default defineComponent({
       // on a tile descends to its stage, A there is the play's one submit, B walks back one level. The SAME v1
       // boundary as the staged cell and the staged vote — everything else submits and meets the pick LIVE.
       if (payload.stagedColony !== undefined && payload.repeat === undefined && payload.composerDraft !== undefined &&
-          stagedRoot === 'hand' && workspaceFrameDescended('hand') && !this.playedOpen) {
+          handRoot && workspaceFrameDescended('hand') && !this.playedOpen) {
         const arm: StagedPlayArm = {
           flow: 'play',
           cardName: pending.cardName,
@@ -19570,6 +19613,13 @@ export default defineComponent({
       });
     },
     openShellTaskSurface(task: ConsoleTask): void {
+      // A STAGED DOOR OWNS THE SCREEN over the very pick its batch will answer (RX36 — the law's LIVE play: the card's
+      // cell / delegate / colony is still ahead while the server's `projectCard` stands under it). That pick opens
+      // nothing of its own — a standalone hand over the board would take B away from the door (B gives the play back
+      // where it was made, the door's confirm sends the answer).
+      if (task.kind === 'projectCard' && stagedPlayState.arm !== undefined) {
+        return;
+      }
       // Already standing where this is answered — nothing to open, and above
       // all no lateral move: the colonies teleported into a live flow must not
       // have their host's chrome swapped out from under them. Only the cursor
@@ -21646,6 +21696,22 @@ export default defineComponent({
      */
     async enterStagedHostedStep(arm: StagedPlayArm, frame: Parameters<typeof pushWorkspaceFrame>[0]): Promise<void> {
       armStagedPlay(arm);
+      if (arm.flow === 'law') {
+        // A CARD PLAYED THROUGH A LAW (RX36): the step stands INSIDE the law's stage — the party composer's own layer
+        // (`action-parliament` / `action-colonies`), published by the composer itself — and that stage never unmounts:
+        // B gives the slot back as it was. The receiving stage the ritual landed on lets go in place (the composer
+        // hides it while a step stands) and the landed card's proxy dissolves with it, while the step rises out of the
+        // same rect. The decision now standing is the step's — reversible again.
+        setWorkspaceFramePhase('card-actions', 'configure');
+        pushWorkspaceFrame(frame);
+        const proxy = typeof document === 'undefined' ? null : document.querySelector('.con-played-hero__proxy');
+        if (proxy instanceof HTMLElement && !consoleReducedMotionActive() && typeof proxy.animate === 'function') {
+          await proxy.animate([{opacity: 1}, {opacity: 0}], {duration: motionMs(STAGED_VOTE_RELEASE_MS), easing: 'ease-out', fill: 'forwards'})
+            .finished.catch(() => undefined);
+        }
+        void finishStagedPlayedLanding();
+        return;
+      }
       if (arm.flow === 'action') {
         // A CARD ACTION's step (TR15 — the staged action vote): the ACTION COMPOSER is the host's own step zone
         // (`[data-embed-slot="action-parliament"]`, a layer of its decision column). It stays MOUNTED under the
@@ -21812,10 +21878,12 @@ export default defineComponent({
       // `following` — the answers the staged step PRE-COLLECTED for what its own answer raises (a build bonus's
       // card target): they ride BEHIND the addressed tail, in order, and the server parks whatever has not met
       // its prompt yet with it.
-      if (arm.flow === 'action') {
+      if (arm.flow === 'action' || arm.flow === 'law') {
         // A CARD ACTION's commit (TR15): no play outcome to claim (the action draws nothing). The host crosses its
         // commit boundary — a second A and every B are absorbed — and the composer standing under the step plays
         // the card's ACTION COMMIT off this very edge (`stagedVoteCommitMine`).
+        // …and a card played THROUGH A LAW (RX36): the law's batch (`[menu option, the card addressed to the law, …]`)
+        // with the step's addressed tail — the stage it stands in is «Действия карт», never a play host.
         setWorkspaceFramePhase('card-actions', 'executing');
         this.submitBatch([...arm.batch, response, ...following]);
         return;
@@ -21879,7 +21947,7 @@ export default defineComponent({
         (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.releaseFocusStage();
         setWorkspaceFrameServes('colonies', ['colony']);
         setWorkspaceFramePhase('colonies', 'committed');
-        setWorkspaceFramePhase('hand', 'committed');
+        setWorkspaceFramePhase(stagedStepHost(arm) ?? 'hand', 'committed');
         const frame = workspaceStackTop();
         if (frame !== undefined && frame.kind === 'colonies') {
           frame.anchor = {type: 'prompt', promptType: 'colony'};
@@ -21931,6 +21999,7 @@ export default defineComponent({
       // The pick IS the staged store's (`colonyModel` falls back to it): read AFTER the clear it is gone, and the
       // section riding the hand's dissolve lost its pick mid-leave — the stage let go and the grid un-parked under it.
       const pick = this.colonyPick;
+      const flow = stagedPlayState.arm?.flow;
       clearStagedPlay();
       clearColonyTrackMove();
       clearColonyRoster();
@@ -21938,6 +22007,12 @@ export default defineComponent({
       clearColonyCity();
       // (…and a staged build's receipt: the step it belonged to is over.)
       clearColonyBuildReceipt();
+      if (flow === 'law') {
+        // A card played THROUGH A LAW (RX36): the colony step stood in the law's stage — the stage and the step end
+        // together through «Действия карт»'s one guarded conclusion.
+        this.endCardActionsWithHostedStep();
+        return;
+      }
       this.endHandWithHostedStep(pick);
     },
     /**
@@ -22015,7 +22090,8 @@ export default defineComponent({
       clearStagedPlay();
       // A support-area pick's own holds (TR12) end with the step that played them — idempotent.
       clearSupportDiscard();
-      if (flow === 'action') {
+      // (A card played THROUGH A LAW — RX36 — ends the same way: its step stood in «Действия карт».)
+      if (flow === 'action' || flow === 'law') {
         this.endCardActionsWithHostedStep();
         return;
       }
@@ -22034,9 +22110,13 @@ export default defineComponent({
       // The commit beat's plan belongs to this action; no awaiting handoff will consume it.
       releaseActionCommit();
       const top = workspaceStackTop();
-      if (top !== undefined && top.kind === 'parliament' && workspaceFrameHost('parliament') === 'card-actions') {
+      // (…or a COLONY step — a card played through a law, RX36, whose door was its colony.)
+      if (top !== undefined && (top.kind === 'parliament' || top.kind === 'colonies') && workspaceFrameHost(top.kind) === 'card-actions') {
         popWorkspaceFrame();
       }
+      // A law's play (RX36) keeps nothing past its end — the landing, the composed play. Idempotent for an action's.
+      endLawPlayLanding();
+      clearLawPlayDraft();
       this.concludeWorkspaceFlowOrOwe('card-actions');
       this.cardActionsDissolveArmed = !workspaceFrameKnown('card-actions');
       // The hook consumes the flag inside the flush that drops the workspace; a flush that never called it may not
@@ -22246,6 +22326,97 @@ export default defineComponent({
       });
     },
     /**
+     * A LAW'S PLAY WITH A REVERSIBLE DOOR (RX36 Live Experiments — the design rule of 2026-10-20: a play made
+     * THROUGH the law keeps every pre-select and every reversible step an ordinary play has). The law's commit sends
+     * NOTHING when the composed play carries a door: the landing ritual lands the card in the law's stage (the
+     * receiving stage the direct commit lands in), then the door opens exactly where an ordinary play's opens — the
+     * cell on the board (the stage steps aside), the delegate or the colony as a step INSIDE the law's stage. That
+     * door's confirm is the one POST of the law's batch; B walks back to the law's stage with its slot as it was.
+     */
+    onCardActionsStagedLawPlay(response: InputResponse | ReadonlyArray<InputResponse>, detail?: PartyConfirmDetail): void {
+      const play = detail?.play;
+      const law = detail?.lawBill;
+      const door = lawPlayStagedDoor(play);
+      if (play === undefined || law === undefined || door === undefined || stagedPlayActive() || isPlayedHeroActive()) {
+        return;
+      }
+      const composed = play.composed ?? {};
+      const target: StagedPlayTarget | undefined =
+        door === 'cell' && composed.staged !== undefined ? {kind: 'cell', placement: composed.staged} :
+          door === 'resolution' && composed.stagedVote !== undefined ? {kind: 'resolution', vote: composed.stagedVote} :
+            door === 'colony' && composed.stagedColony !== undefined ? {kind: 'colony', pick: composed.stagedColony} : undefined;
+      if (target === undefined) {
+        return;
+      }
+      const arm: StagedPlayArm = {
+        flow: 'law',
+        cardName: play.cardName,
+        isEvent: getCard(play.cardName)?.type === CardType.EVENT,
+        batch: Array.isArray(response) ? [...response] : [response],
+        target,
+        ...(composed.stagedCardTarget !== undefined ? {cardTarget: composed.stagedCardTarget} : {}),
+        ...(composed.armedSpends !== undefined && composed.armedSpends.length > 0 ? {armedSpends: composed.armedSpends} : {}),
+        rewards: play.scene.rewards,
+        draws: play.scene.draws ?? 0,
+        deckCheck: false,
+        // The step's LOCKED RECEIPT: what the one POST will charge — the law's price and the card's, together.
+        receipt: {amount: law.megacredits + play.cost, icon: 'megacredits'},
+        lawRestore: {resolution: law.resolution},
+        yieldedStack: false,
+      };
+      if (target.kind === 'resolution') {
+        preloadResolutionArt((this.playerView.game.parliament?.slots ?? []).map((slot) => slot.resolution));
+      }
+      void this.beginStagedLawLanding(arm);
+    },
+    /**
+     * THE LAW'S STAGED RITUAL (RX36): the card lifts off the slot it stands in and lands on its pile in the law's
+     * own receiving stage — presentational and reversible, nothing sent (`beginStagedPlayLanding`'s honesty rules:
+     * no counter ticks, no reward beat). Then the door opens: the cell (the stage steps aside for the board), or the
+     * vote / the colony as a step of the stage. A ritual that aborts gives the stage back as it was.
+     */
+    async beginStagedLawLanding(arm: StagedPlayArm): Promise<void> {
+      const law = arm.lawRestore?.resolution;
+      if (law === undefined) {
+        return;
+      }
+      // A transient beat: input absorbed by PHASE for its length — the commit is still ahead, behind the door.
+      setWorkspaceFramePhase('card-actions', 'executing');
+      stageArmedSpends(arm.armedSpends ?? []);
+      beginLawPlayLanding({card: arm.cardName, resolution: law});
+      armPlayedHero(arm.cardName, arm.isEvent, {
+        manualTableOpen: this.playedOpen,
+        host: 'workspace',
+        sourceSelector: '[data-pact-play-face]',
+        sourceFace: {lightweight: true},
+        // No reveal happens here (the proxy IS the landed card until the door takes over).
+        landingFace: {lightweight: true, model: 'none'},
+      });
+      const landed = await runStagedPlayedLanding();
+      if (!landed || !isPlayedHeroActive()) {
+        // Aborted mid-ceremony — the abort restored the source and dropped the landing (the composer's setup stands).
+        setWorkspaceFramePhase('card-actions', 'configure');
+        return;
+      }
+      // The read beat: the card rests on its pile before the door takes over.
+      await new Promise((resolve) => setTimeout(resolve, motionMs(320)));
+      if (!isPlayedHeroActive() || lawPlayLandingOf(law) === undefined) {
+        void finishStagedPlayedLanding();
+        setWorkspaceFramePhase('card-actions', 'configure');
+        return;
+      }
+      if (arm.target.kind === 'resolution') {
+        await this.enterStagedVote(arm);
+        return;
+      }
+      if (arm.target.kind === 'colony') {
+        await this.enterStagedColony(arm);
+        return;
+      }
+      this.enterStagedPlacement(arm);
+      void finishStagedPlayedLanding();
+    },
+    /**
      * B out of a staged placement: nothing was ever sent, so this is a pure
      * client restore — the workspace comes back at the same depth and the
      * composer re-seats every capture from the parked draft. The play is
@@ -22260,6 +22431,37 @@ export default defineComponent({
       colonyRosterDraft.outgoing = undefined;
       // …and so does a move's lifted city.
       resetPlacementMove();
+      if (arm.flow === 'law') {
+        // B OUT OF A LAW'S STAGED DOOR (RX36) — one level: back to the law's stage, its slot as it was (the card in
+        // it, the total, the commit armed). Nothing was sent, so there is nothing to undo. A hosted step (the vote,
+        // the colony) leaves the stage it stood in — that stage never unmounted, its composer gives the setup back;
+        // the CELL's yielded stage comes back from the board and re-seats the law's composer (the restore plan reads
+        // `stagedReturn`), whose slot re-seats from the kept composed play.
+        endLawPlayLanding();
+        if (arm.target.kind === 'resolution' || arm.target.kind === 'colony') {
+          const step = arm.target.kind === 'resolution' ? 'parliament' : 'colonies';
+          if (workspaceStackTop()?.kind === step && workspaceFrameHost(step) === 'card-actions') {
+            popWorkspaceFrame();
+          }
+          if (step === 'colonies') {
+            closeColonyFocus();
+            clearColonyTrackMove();
+          }
+          setWorkspaceFramePhase('card-actions', 'configure');
+          clearStagedPlay();
+          return;
+        }
+        const law = arm.lawRestore?.resolution;
+        if (law !== undefined) {
+          consoleCardActionsUi.stagedReturn = {cardName: resolutionTileKey(law) as CardName, nodeIndex: 0, composer: undefined};
+        }
+        if (arm.yieldedStack) {
+          resumeStackFromBoard();
+          setWorkspaceFramePhase('card-actions', 'configure');
+        }
+        clearStagedPlay();
+        return;
+      }
       if (arm.flow === 'action' && arm.target.kind === 'resolution') {
         // B OUT OF A STAGED ACTION VOTE (TR15) — one level: the Parliament's frame leaves (its hosted dissolve
         // in place) and the composer it stood in — never unmounted — lets its setup come back, the variant and
@@ -22328,10 +22530,18 @@ export default defineComponent({
       // card is in the tableau the whole time, so for the action flow ANY
       // out-of-band world move voids the staged preview and returns the
       // player to the composer (which re-fetches against the new state).
-      const played = arm.flow === 'play' &&
+      const played = arm.flow !== 'action' &&
         this.playerView.thisPlayer.tableau.some((c) => c.name === arm.cardName);
       if (played) {
         discardYieldedStack();
+        if (arm.flow === 'law') {
+          endLawPlayLanding();
+          clearLawPlayDraft();
+        }
+        if (!workspaceFrameKnown('card-actions')) {
+          consoleCardActionsUi.draft = undefined;
+          consoleCardActionsUi.partyFlow = undefined;
+        }
         clearStagedPlay();
         return;
       }
@@ -23919,6 +24129,7 @@ export default defineComponent({
     resetConsoleHandPick(); // never leak a client pick across games/sessions
     resetConsolePlayPick(); // …nor a law's play pick (RX36)
     endLawPlayLanding(); // …nor its landing (PL-726)
+    clearLawPlayDraft(); // …nor its composed play
     // The stack can never outlive the shell: an orphaned frame suppresses the
     // standalone band, so the next prompt would be presented NOWHERE.
     resetWorkspaceStack();
