@@ -126,9 +126,11 @@ async function composeUse(page: Page, variant: number, card: string): Promise<vo
   for (let i = 0; i < variant; i++) {
     await press(page, 'ArrowRight', 200);
   }
-  expect(await pressUntil(page, 'Enter', async () => await page.locator(`${STAGE} [data-pact-card="${card}"]`).count() > 0, {tries: 3, settleMs: 700}),
-    `A picks the variant whose holders include ${card}`).toBeTruthy();
-  await expect(page.locator(`${STAGE} [data-pact-row="0"].con-pact__row--answered`), 'the resource row is answered').toHaveCount(1);
+  // The witness is the ANSWERED row, never «the card is listed»: the target row previews the kind under the cursor
+  // before any press, so a press swallowed by the stage's entry would pass a weaker witness.
+  expect(await pressUntil(page, 'Enter', async () => await page.locator(`${STAGE} [data-pact-row="0"].con-pact__row--answered`).count() > 0,
+    {tries: 4, settleMs: 700}), 'A picks the variant').toBeTruthy();
+  await expect(page.locator(`${STAGE} [data-pact-card="${card}"]`), `the variant's holders include ${card}`).toHaveCount(1);
   expect(await pressUntil(page, 'Enter', async () => await page.locator(`${STAGE} [data-pact-cta][data-pact-ready]`).count() > 0, {tries: 3, settleMs: 700}),
     'A picks the card: the commit is ready').toBeTruthy();
 }
@@ -164,8 +166,9 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, '02-law-stage-three-variants');
       await press(page, 'ArrowRight', 200);
       await press(page, 'ArrowRight', 200);
-      expect(await pressUntil(page, 'Enter', async () => await page.locator(`${STAGE} [data-pact-card="${MECHS}"]`).count() > 0, {tries: 3, settleMs: 700}),
-        'A on the mech lists its holders').toBeTruthy();
+      expect(await pressUntil(page, 'Enter', async () => await page.locator(`${STAGE} [data-pact-row="0"].con-pact__row--answered`).count() > 0,
+        {tries: 4, settleMs: 700}), 'A picks the mech').toBeTruthy();
+      await expect(page.locator(`${STAGE} [data-pact-card="${MECHS}"]`), 'the mech\'s holders').toHaveCount(1);
       await expect(page.locator(`${STAGE} [data-pact-card="${MECHS}"] .con-pact__card-delta`), 'current → resulting').toContainText(/0\s*→\s*1/);
       await settle(page, {timeoutMs: 10_000});
       await shoot(page, preset.id, '03-mech-targets');
