@@ -11,7 +11,9 @@ import {
 } from '../../src/server/parliament/resolutions/reds/RedsBudget';
 import {GREENS_BUDGET} from '../../src/server/parliament/resolutions/greens/GreensBudget';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, answerStandingGates, endGenerationThroughParliament, gatePromptOf, passToParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {
+  answerGate, answerQuestGate, answerStandingGates, endGenerationThroughParliament, gatePromptOf, passToParliament, seatResolution, settleParliamentGates,
+} from './parliamentArrange';
 import {declaredCountIds, resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {botWinnerRewardKind, botWinsSomething, declaresWinnerPart} from '../../src/server/automa/BotWinnerReward';
@@ -28,6 +30,7 @@ import {LEVY_STEP_KEY, levyNothingReasonKey, levyShortReasonKey} from '../../src
 import {AGENDA_GRANT_END_OF_TRACK_REASON, AGENDA_GRANT_STEP_KEY, agendaGrantEligibility, agendaWalkAhead} from '../../src/common/parliament/agendaGrant';
 import {familyOf} from '../../src/client/console/parliament/resolutionFamily';
 import {runAllActions} from '../TestingUtils';
+import {testAutomaGame} from '../automa/AutomaTestGame';
 import {MarsArmyShips} from '../../src/server/cards/turmoilRedux/MarsArmyShips';
 import {MechSports} from '../../src/server/cards/turmoilRedux/MechSports';
 import {Satellites} from '../../src/server/cards/base/Satellites';
@@ -387,6 +390,141 @@ describe('RedsBudget', () => {
       const outcome = model.phase?.outcomes?.find((o) => o.player === p2.color && o.step === STEP);
       expect(outcome).deep.include({kind: 'agenda', walk: {from: 3, to: 4, steps: [{to: 4, bonus: 'tr'}]}, tr: 1});
       expect(model.lastAdvance).deep.include({player: p2.color, reason: 'resolution', resolution: REDS_BUDGET_ID});
+    });
+  });
+
+  describe('MarsBot — a seat of the step, never of the money (decisions D3 + D11)', () => {
+    type Table = {game: IGame; human: TestPlayer; bot: IPlayer; parliament: Parliament};
+
+    function seated(mode: 'politics' | 'none' = 'politics', arrange?: (t: Table) => void): Table {
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: mode});
+      const parliament = game.parliament!;
+      game.playerIsFinishedWithResearchPhase(human);
+      seatResolution(parliament, 0, BUDGET);
+      parliament.slots.forEach((slot) => (slot.votes = []));
+      parliament.placeVote(human, parliament.slots[0], 'lobby');
+      human.playedCards.push(new MarsArmyShips());
+      human.terraformRating = 0;
+      const table = {game, human, bot, parliament};
+      arrange?.(table);
+      return table;
+    }
+
+    /** The human passes, the bot (an empty deck) passes, the generation ends into the sitting; the assembly gate is answered. */
+    function intoTheSitting(t: Table): {cash: number, rating: number} {
+      t.game.automa!.actionDeck = [];
+      t.human.popWaitingFor();
+      t.game.playerHasPassed(t.human);
+      t.game.playerIsFinishedTakingActions();
+      expect(t.game.phase).eq(Phase.PARLIAMENT);
+      expect(t.bot.getWaitingFor(), 'the bot is never asked').is.undefined;
+      const before = {cash: t.bot.megaCredits, rating: t.bot.terraformRating};
+      answerGate(t.human, 'assembly');
+      runAllActions(t.game);
+      return before;
+    }
+
+    function botRecords(t: Table): Array<SerializedEnactOutcome> {
+      return allRecords(t.parliament).filter((o) => o.player === t.bot.id);
+    }
+
+    it('never levied, never paid — and it walks its own step IN ITS PLACE after the human: a card step is 1 M€ (the Automa FAQ)', () => {
+      const t = seated('politics', ({parliament, bot}) => parliament.agenda.set(bot.id, 6));
+      const before = intoTheSitting(t);
+      expect(botRecords(t), 'the step alone — no levy, no payout').deep.eq([{
+        player: t.bot.id, step: STEP, part: 'effect', kind: 'agenda', influence: 3, amount: 1, walk: {from: 6, to: 7, steps: [{to: 7, bonus: 'card'}]}, megacredits: 1,
+      }]);
+      expect(t.parliament.agendaOf(t.bot)).eq(7);
+      expect(t.bot.megaCredits, 'no levy, no payout — the card step\'s 1 M€ alone').eq(before.cash + 1);
+      expect(t.game.gameLog.filter((e) => e.message === '${0} gains 1 M€ from the Agenda track instead of a card')).has.length(1);
+      // The human's three parts first (generation order), then the bot's step.
+      expect(allRecords(t.parliament).filter((o) => o.kind !== 'reaction').map((o) => `${o.player === t.bot.id ? 'bot' : 'human'}:${o.step}`)).deep.eq([
+        `human:${LEVY_STEP_KEY}`, 'human:megacredits', `human:${STEP}`, `bot:${STEP}`,
+      ]);
+      expect(t.bot.getWaitingFor()).is.undefined;
+      settleParliamentGates(t.game);
+      expect(t.parliament.phase).is.undefined;
+    });
+
+    it('a TR step raises the bot\'s rating by 1, under the Agenda track', () => {
+      const t = seated('politics', ({parliament, bot}) => parliament.agenda.set(bot.id, 3));
+      const before = intoTheSitting(t);
+      expect(botRecords(t)[0]).deep.include({kind: 'agenda', walk: {from: 3, to: 4, steps: [{to: 4, bonus: 'tr'}]}, tr: 1});
+      expect(t.bot.terraformRating).eq(before.rating + 1);
+      expect(t.bot.megaCredits).eq(before.cash);
+      expect(t.bot.terraformRatingSources.some((s) => s.sourceName === 'Agenda track')).is.true;
+    });
+
+    it('a FIRST-PLAYER bot walks FIRST — before the human\'s levy', () => {
+      const t = seated('politics', ({game, parliament, bot}) => {
+        parliament.agenda.set(bot.id, 3);
+        game.overrideFirstPlayer(bot);
+      });
+      intoTheSitting(t);
+      expect(allRecords(t.parliament).filter((o) => o.kind !== 'reaction').map((o) => (o.player === t.bot.id ? 'bot' : 'human'))).deep.eq(['bot', 'human', 'human', 'human']);
+      const walks = t.game.events.events.filter((e) => e.type === 'agenda-advanced' && e.impact.agenda?.reason === 'resolution');
+      expect(walks.map((e) => e.player)).deep.eq([t.bot.color, t.human.color]);
+      expect(walks[0].source, 'the law is the source of the bot\'s walk too').deep.include({kind: 'resolution', id: REDS_BUDGET_ID, owner: t.bot.color});
+    });
+
+    it('the bot at the END of the track — the same named skip as a human\'s', () => {
+      const t = seated('politics', ({parliament, bot}) => parliament.agenda.set(bot.id, 12));
+      const before = intoTheSitting(t);
+      expect(botRecords(t)).deep.eq([{
+        player: t.bot.id, step: STEP, part: 'effect', kind: 'skipped', influence: 5, amount: 0, walk: {from: 12, to: 12, steps: []}, reason: AGENDA_GRANT_END_OF_TRACK_REASON,
+      }]);
+      expect(t.bot.megaCredits).eq(before.cash);
+    });
+
+    it('a bot WINNER walks TWICE — its winner\'s step (\'phase\') and the law\'s (\'resolution\'); the winner pass pays nothing more', () => {
+      const t = seated('politics', ({parliament, human, bot}) => {
+        parliament.slots[0].votes = [];
+        parliament.placeVote(bot, parliament.slots[0], 'lobby');
+        parliament.agenda.set(bot.id, 4);
+        expect(human.color).not.eq(bot.color);
+      });
+      intoTheSitting(t);
+      expect(t.parliament.phase?.summary?.winner.player).eq(t.bot.id);
+      expect(t.parliament.phase?.summary?.agenda).deep.include({player: t.bot.id, from: 4, to: 5});
+      expect(botRecords(t).map((o) => `${o.step}:${o.part}:${o.kind}`), 'one record — the law\'s step; no winner record').deep.eq([`${STEP}:effect:agenda`]);
+      expect(botRecords(t)[0].walk).deep.eq({from: 5, to: 6, steps: [{to: 6, bonus: 'tr'}]});
+      const walks = t.game.events.events.filter((e) => e.type === 'agenda-advanced' && e.player === t.bot.color);
+      expect(walks.map((e) => e.impact.agenda?.reason)).deep.eq(['phase', 'resolution']);
+    });
+
+    it('the bot\'s step is keyed under ITS seat — a reload at the adjourn gate walks nobody twice', () => {
+      const t = seated('politics', ({game, parliament, bot}) => {
+        parliament.agenda.set(bot.id, 6);
+        game.overrideFirstPlayer(bot);
+      });
+      intoTheSitting(t);
+      expect(t.parliament.phase?.appliedBySeat?.[t.bot.id]?.some((key) => key.endsWith(`:${STEP}`)), 'the idempotency key lives under the bot').is.true;
+      const live = reload(t.game);
+      const bot = live.getPlayerById(t.bot.id);
+      const human = live.getPlayerById(t.human.id);
+      const cash = bot.megaCredits;
+      settleParliamentGates(live);
+      expect(live.parliament!.agendaOf(bot)).eq(7);
+      expect(bot.megaCredits, 'the card step\'s 1 M€ is never paid twice').eq(cash);
+      expect(allRecords(live.parliament!).filter((o) => o.step === STEP).map((o) => o.player)).deep.eq([bot.id, human.id]);
+    });
+
+    it('mode \'none\' — the bot takes no seat of anything: no step, no record', () => {
+      const t = seated('none', ({parliament, bot}) => parliament.agenda.set(bot.id, 3));
+      intoTheSitting(t);
+      settleParliamentGates(t.game);
+      expect(botRecords(t)).deep.eq([]);
+      expect(t.parliament.agendaOf(t.bot)).eq(3);
+    });
+
+    it('the model: the bot\'s seat performs the grant and is paid nothing; under \'none\' it performs neither', () => {
+      const politics = seated('politics');
+      const seat = getParliamentModel(politics.game, politics.human)!.players.find((p) => p.color === politics.bot.color)!;
+      expect(seat).deep.include({participates: true, enactment: false, seatGrant: true});
+      expect(seat.counts, 'no payout count for a seat the law does not pay').is.undefined;
+      const none = seated('none');
+      const quiet = getParliamentModel(none.game, none.human)!.players.find((p) => p.color === none.bot.color);
+      expect(quiet === undefined || quiet.seatGrant === false).is.true;
     });
   });
 });

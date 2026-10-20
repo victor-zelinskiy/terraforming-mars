@@ -32,12 +32,12 @@
  * stack, a tier never prints «any legal cell».
  *
  * MarsBot reads here too (decision D11): a seat that TAKES the tile
- * (`seatTakesTileGrant`) has a reading even when the law pays it nothing.
+ * (`seatTakesSeatGrant`) has a reading even when the law pays it nothing.
  */
 import {Color} from '@/common/Color';
 import {SpaceId} from '@/common/Types';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
-import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPlayerModel, seatEnacts, seatTakesTileGrant} from '@/common/models/ParliamentModel';
+import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPlayerModel, seatEnacts, seatTakesSeatGrant} from '@/common/models/ParliamentModel';
 import {ReduxParty, resolutionIdOf} from '@/common/parliament/ParliamentTypes';
 import {Resource} from '@/common/Resource';
 import {getPartyEffect} from '@/client/parliament/ClientParliamentManifest';
@@ -109,7 +109,7 @@ function seatOf(model: ParliamentModel | undefined, viewer: Color | undefined): 
     return undefined;
   }
   const seat = model.players.find((p) => p.color === viewer);
-  return seat !== undefined && seatTakesTileGrant(seat) ? seat : undefined;
+  return seat !== undefined && seatTakesSeatGrant(seat) ? seat : undefined;
 }
 
 /**

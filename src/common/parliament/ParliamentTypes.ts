@@ -307,19 +307,21 @@ export const BOT_PARLIAMENT_MODES: ReadonlyArray<BotParliamentMode> = ['none', '
  *                    loop of the effects step, the passives, the discounts,
  *                    the value/tag bonuses, the law's action, every payout
  *                    reading of the model and the forecasts;
- *  - `tile-grant`    receives the TILE an enacted law grants the seats
- *                    (`tileGrant` — Skyscrapers' tier, Mars First Budget's
- *                    city) by the declaration's recipients rule, and places
- *                    it — a human through the prompt, MarsBot by its own
- *                    primitive (decision D11: a law never pays the bot, but
- *                    the tile it grants the seats is the bot's too);
+ *  - `seat-grant`    performs the DEED an enacted law grants the seats —
+ *                    the TILE (`tileGrant` — Skyscrapers' tier, Mars First
+ *                    Budget's city) and the STEP OF THE CAREER (`agendaGrant`
+ *                    — Reds Budget) — by the declaration's recipients rule: a
+ *                    human through the step (a prompt for a tile), MarsBot by
+ *                    its own primitive (decision D11: a law never pays the
+ *                    bot, but what it grants every seat and the bot has a
+ *                    primitive for, the bot does itself);
  *  - `party-effects` holds a party's effect (the ruling party's, two
  *                    delegates', a card's grant) and its actions;
  *  - `quest`         progresses the chairman quest by its own actions;
  *  - `prompts`       is ASKED: the sitting's gates, an asking step, the
  *                    quest gate, the seat pick.
  */
-export const PARLIAMENT_ASPECTS = ['delegates', 'winner-reward', 'enactment', 'tile-grant', 'party-effects', 'quest', 'prompts'] as const;
+export const PARLIAMENT_ASPECTS = ['delegates', 'winner-reward', 'enactment', 'seat-grant', 'party-effects', 'quest', 'prompts'] as const;
 export type ParliamentAspect = typeof PARLIAMENT_ASPECTS[number];
 
 export const PARTY_ACTION_IDS = ['unity-trade', 'scientists-lab', 'industrialists-shift', 'reds-recycle'] as const;

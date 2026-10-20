@@ -27,7 +27,7 @@
  * WHO INCLUDES MARSBOT (decision D11, 2026-10-20): a law never pays the bot
  * and never charges it, but the TILE it grants the seats the bot receives by
  * the same recipients rule and places by its own primitive (the aspect
- * `tile-grant`, `server/automa/BotTileGrant.ts`).
+ * `seat-grant`, `server/automa/BotTileGrant.ts`).
  *
  * Nothing here promises the CELL: which city, its greeneries, the stack it
  * becomes, the bonus it pays — that is the placement dossier's, once the seat

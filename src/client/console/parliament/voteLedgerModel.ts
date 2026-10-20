@@ -25,7 +25,7 @@
  */
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
-import {ParliamentModel, seatEnacts, seatTakesTileGrant} from '@/common/models/ParliamentModel';
+import {ParliamentModel, seatEnacts, seatTakesSeatGrant} from '@/common/models/ParliamentModel';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {InfluenceScaledEffect, InfluenceYield} from '@/common/parliament/influenceScaling';
 import {noRecipientCompactNoteOf, oneNumberYieldsOf, voteLevyOf, voteYieldsOf, YieldIcon, yieldIconOf, yieldIsMultiplier} from './influenceYieldModel';
@@ -174,7 +174,7 @@ function tilePartsOf(resolution: IClientResolution, model: ParliamentModel, colo
  * appears for a payout — not even as a zero: an enacted law never pays it,
  * and a zero would say it lost a contest it was never in. A law that grants
  * the seats a TILE is the one exception (decision D11): the bot under
- * `'politics'` takes that tile (`seatTakesTileGrant`), so its chip stands with
+ * `'politics'` takes that tile (`seatTakesSeatGrant`), so its chip stands with
  * the tile alone. Its DELEGATES are another matter (`participates`): under
  * `'politics'` they stand on the cards and in the seat zone. A card that pays NOBODY anything (a passive, an action)
  * yields no row at all: there is nothing to compare, and an row of empty cubes
@@ -186,7 +186,7 @@ export function voteLedgerOf(input: VoteLedgerInput): ReadonlyArray<LedgerChipVm
     return [];
   }
   const grants = resolution.tileGrant !== undefined;
-  const seats = model.players.filter((p) => seatEnacts(p) || (grants && seatTakesTileGrant(p)));
+  const seats = model.players.filter((p) => seatEnacts(p) || (grants && seatTakesSeatGrant(p)));
   const mine = viewer === undefined ? undefined : seats.find((p) => p.color === viewer);
   const ordered = [...(mine === undefined ? [] : [mine]), ...seats.filter((p) => p !== mine)];
   const chips = ordered.map((seat) => ({

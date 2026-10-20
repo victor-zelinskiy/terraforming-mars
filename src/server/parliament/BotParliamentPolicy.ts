@@ -14,9 +14,10 @@ import {IPlayer} from '../IPlayer';
  *    no aspect at all. A save written under it stays under it (decision D9);
  *  - `'politics'` (`PoliticsBot`) — the bot holds delegates and votes, may be
  *    the winning player, and progresses the chairman quest by its ordinary
- *    play; an enacted law never pays or charges it (decision D3), but a TILE
- *    the law grants the seats is the bot's too, by the same recipients rule,
- *    placed by its own primitive (decision D11 — `tile-grant`); it holds no
+ *    play; an enacted law never pays or charges it (decision D3), but the
+ *    DEED the law grants the seats — a TILE, a STEP OF THE CAREER — is the
+ *    bot's too, by the same recipients rule, performed by its own primitive
+ *    (decision D11 — `seat-grant`); it holds no
  *    party effect (RB-C p.6 «ignores the ruling party's policy») and it is
  *    never asked anything — a parliamentary prompt for the bot is a `throw`
  *    at the place that would build it.
@@ -36,7 +37,7 @@ export class NoBotPolitics implements BotParliamentPolicy {
 }
 
 /** The aspects a MarsBot seat is in under `'politics'` — the rest are a human's alone. */
-const POLITICS_BOT_ASPECTS: ReadonlySet<ParliamentAspect> = new Set<ParliamentAspect>(['delegates', 'winner-reward', 'tile-grant', 'quest']);
+const POLITICS_BOT_ASPECTS: ReadonlySet<ParliamentAspect> = new Set<ParliamentAspect>(['delegates', 'winner-reward', 'seat-grant', 'quest']);
 
 export class PoliticsBot implements BotParliamentPolicy {
   public readonly mode: BotParliamentMode = 'politics';

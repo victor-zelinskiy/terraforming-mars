@@ -143,13 +143,14 @@ export type ParliamentPlayerModel = {
    */
   enactment?: boolean;
   /**
-   * The seat RECEIVES THE TILE an enacted law grants the seats (aspect
-   * `tile-grant`, decision D11) — true for a human and for a MarsBot seat
-   * under `'politics'`: the bot's column then carries the ONE tile row of a
-   * `tileGrant` law and still no payout. Absent on a fixture written before
-   * the field — read it through {@link seatTakesTileGrant}, never bare.
+   * The seat PERFORMS THE DEED an enacted law grants the seats (aspect
+   * `seat-grant`, decision D11) — the tile (`tileGrant`) and the step of the
+   * Career (`agendaGrant`): true for a human and for a MarsBot seat under
+   * `'politics'`: the bot's column then carries the deed's row (a tile, a
+   * step) and still no payout. Absent on a fixture written before the field —
+   * read it through {@link seatTakesSeatGrant}, never bare.
    */
-  tileGrant?: boolean;
+  seatGrant?: boolean;
   lobby: boolean;
   reserve: number;
   onResolutions: number;
@@ -224,12 +225,13 @@ export function seatEnacts(seat: Pick<ParliamentPlayerModel, 'participates' | 'e
 }
 
 /**
- * DOES THE SEAT RECEIVE THE TILE A LAW GRANTS THE SEATS — the ONE reading of
- * `tileGrant` (decision D11). An older fixture's seat receives it exactly
- * when it is paid (what the field meant before the bot took a tile).
+ * DOES THE SEAT PERFORM THE DEED A LAW GRANTS THE SEATS — a tile, a step of
+ * the Career — the ONE reading of `seatGrant` (decision D11). An older
+ * fixture's seat performs it exactly when it is paid (what the field meant
+ * before the bot took a deed).
  */
-export function seatTakesTileGrant(seat: Pick<ParliamentPlayerModel, 'participates' | 'enactment' | 'tileGrant'>): boolean {
-  return seat.tileGrant ?? seatEnacts(seat);
+export function seatTakesSeatGrant(seat: Pick<ParliamentPlayerModel, 'participates' | 'enactment' | 'seatGrant'>): boolean {
+  return seat.seatGrant ?? seatEnacts(seat);
 }
 
 /** The viewer's own vote options — one projection per voting slot. */

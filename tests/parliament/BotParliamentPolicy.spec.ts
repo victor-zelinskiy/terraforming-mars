@@ -21,12 +21,12 @@ import {testGame} from '../TestGame';
  */
 const TABLE: Record<BotParliamentMode, Record<ParliamentAspect, boolean>> = {
   // Iteration 0's observer — byte for byte what shipped: the bot is in no aspect at all.
-  none: {'delegates': false, 'winner-reward': false, 'enactment': false, 'tile-grant': false, 'party-effects': false, 'quest': false, 'prompts': false},
+  none: {'delegates': false, 'winner-reward': false, 'enactment': false, 'seat-grant': false, 'party-effects': false, 'quest': false, 'prompts': false},
   // The political seat: it holds delegates, may win a vote, progresses the
   // chairman quest by its own play — and an enacted law never pays it
   // (decision D3), but the TILE a law grants the seats is its own too
   // (decision D11), it holds no party effect (RB-C p.6) and it is never asked.
-  politics: {'delegates': true, 'winner-reward': true, 'enactment': false, 'tile-grant': true, 'party-effects': false, 'quest': true, 'prompts': false},
+  politics: {'delegates': true, 'winner-reward': true, 'enactment': false, 'seat-grant': true, 'party-effects': false, 'quest': true, 'prompts': false},
 };
 
 describe('BotParliamentPolicy', () => {

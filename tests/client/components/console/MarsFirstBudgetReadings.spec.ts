@@ -57,7 +57,7 @@ const BY_TAG = [{tag: Tag.BUILDING, count: 2}, {tag: Tag.MARS, count: 1}];
 /** A human seat of the budget's table: Martian Roads (Mars + building) + Mine (building) = 3, and the supply the levy reads. */
 function seat(color: Color, agenda: number, influence: number, held: number): ParliamentPlayerModel {
   return {
-    color, participates: true, enactment: true, tileGrant: true, lobby: true, reserve: 6, onResolutions: 0, chairman: false, agenda, influence,
+    color, participates: true, enactment: true, seatGrant: true, lobby: true, reserve: 6, onResolutions: 0, chairman: false, agenda, influence,
     access: [], partyActionUses: {}, resolutionActionUses: 0,
     counts: [
       {id: 'buildingMarsTags', count: 3, cards: [CardName.MARTIAN_ROADS, CardName.MINE], units: [2, 1], byTag: BY_TAG},
@@ -70,7 +70,7 @@ function seat(color: Color, agenda: number, influence: number, held: number): Pa
 /** MarsBot under `'politics'`: delegates, no payout (D3), the tile (D11). */
 function botSeat(influence: number): ParliamentPlayerModel {
   return {
-    color: BOT, participates: true, enactment: false, tileGrant: true, lobby: true, reserve: 6, onResolutions: 0, chairman: false, agenda: 0, influence,
+    color: BOT, participates: true, enactment: false, seatGrant: true, lobby: true, reserve: 6, onResolutions: 0, chairman: false, agenda: 0, influence,
     access: [], partyActionUses: {}, resolutionActionUses: 0,
   };
 }

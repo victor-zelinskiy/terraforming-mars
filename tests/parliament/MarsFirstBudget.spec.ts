@@ -412,8 +412,8 @@ describe('MarsFirstBudget', () => {
       const one = model.players.find((p) => p.color === p1.color)!;
       expect(one.counts?.find((c) => c.id === 'buildingMarsTags')).deep.include({count: 2, cards: [CardName.MARTIAN_ROADS], units: [2],
         byTag: [{tag: Tag.BUILDING, count: 1}, {tag: Tag.MARS, count: 1}]});
-      expect(one.tileGrant).is.true;
-      expect(model.players.find((p) => p.color === p2.color)?.tileGrant).is.true;
+      expect(one.seatGrant).is.true;
+      expect(model.players.find((p) => p.color === p2.color)?.seatGrant).is.true;
     });
   });
 
@@ -556,11 +556,11 @@ describe('MarsFirstBudget', () => {
     it('the model: the bot\'s seat takes the tile and is paid nothing; under \'none\' it takes neither', () => {
       const politics = seated('politics');
       const seat = getParliamentModel(politics.game, politics.human)!.players.find((p) => p.color === politics.bot.color)!;
-      expect(seat).deep.include({participates: true, enactment: false, tileGrant: true});
+      expect(seat).deep.include({participates: true, enactment: false, seatGrant: true});
       expect(seat.counts, 'no payout count for a seat the law does not pay').is.undefined;
       const none = seated('none');
       const quiet = getParliamentModel(none.game, none.human)!.players.find((p) => p.color === none.bot.color);
-      expect(quiet === undefined || quiet.tileGrant === false).is.true;
+      expect(quiet === undefined || quiet.seatGrant === false).is.true;
     });
   });
 });
