@@ -4377,3 +4377,49 @@ PL-783 (лента «КАРЬЕРА · ПОЛУЧЕНО» до посадки) �
 Гочи прогона: кадр «маркер в воздухе» снимать на ПОЛПУТИ между рождением прокси и посадкой (у рождения лид ещё светит
 сегмент и прокси стоит на старом узле), импульс — по самой широкой нашивке (`insW` пробника); `html.con-profile-tv
 .con-parl__chip-dim` (0,2,1) перебивает правило блока `.con-sit__world > …` (0,2,0) — ставить `.con-parl` впереди.
+
+## RX40 «Спонсируемые проекты» (Sponsored Projects, Учёные) — 2026-10-21 — ВЫПЛАТА НА КАРТЫ БЕЗ ВОПРОСА, КВИТАНЦИЯ СТОЛА
+
+Промт — `docs/claude/prompts/resolution-rx40-sponsored-projects.md`, контракт — `docs/TURMOIL_REDUX_SPONSORED_PROJECTS.md`.
+Коммиты A `476acaee58` (сервер) · B `6b6d70d159` (клиент + e2e) · C (документы); не запушено. Батч владельца не задавался — приняты рекомендации: Р2 (корпорация с ресурсами считается), Р3 (бот — ничего), Р4
+(квитанция стола).
+
+- **Сборка**: добор = общий интейк (шаг Open IP Trade один в один); имя — ключ глобального события (`turmoil_events.json`),
+  задание «4 data» — ключ RX35; новые ключи не дублировались.
+- **Третья форма единицы** `onto: 'each-counted'` + `resources: 'own-kind'`; **седьмой вид счёта** `holders`
+  (`cardsWithResources` = движковый `getCardsWithResources`, `byCard` с ПО от `targetVictoryPoints`); **общий шаг**
+  `eachCountedCardStep` (список зафиксирован в `ctx.state` до посадки, единица СВОЕГО вида, запись с `before` / `vp`);
+  адрес `CARD_RESOURCE_EACH_ADDRESS` (стадия `reward`). Двенадцать читателей формы получили ветку.
+- **Квитанция стола** — пятый хост директора приёма TR53: `tableReceiptBeat.ts` (DETECT по записям фазы → SEED в блоке
+  применения → OWE → PLAY), `ConsoleTableReceipt.vue` (ряд лиц, решённый из панели; арт в тире решённой ширины, прогрет
+  при посеве), `sittingDirector.beatReceipt` (после взятия: импульс закона на печатный «?» → PRESENT · PAY · READ ·
+  RETURN, жетон на свою капсулу, тик на касании; ПО карт — `claimVpShares(releaseOnLanding)`).
+- **Чтения**: панель голосования — две строки + строка держателей с ПО; осмотр — «Учтены сейчас» + ПО; итоги — «+N [?] на
+  N карт» + виды; «Полигон» — `each-card`, девять сценариев.
+- **Общий дефект по пути** (PL-798): поверхность добора, размонтированная вместе с вопросом, держала `committing` до
+  таймера отказа (1,5 с) и читала последнее взятие как отказ — у всех законов с добором; размонтирование теперь = вопрос
+  ушёл.
+
+### Полировка (ledger BR, PL-790…798)
+
+Исправлены PL-790 (итоги без многоточий), PL-791 (лица квитанции с артом), PL-792 (строка держателей в панели),
+PL-793 (момент кадра волны), PL-798 (мёртвое время после взятия); открыты PL-794 (арт лица взятия на 4K), PL-795
+(разделитель в начале перенесённой строки чтений), PL-796 (обрезанная причина пропуска в итогах — прежняя); принята
+PL-797. PL-426 остаётся открытой (пикеры RX01 / RX18 / RX34 / RX35 не на директоре).
+
+### Прогоны
+
+| Что | Итог |
+| --- | --- |
+| Сервер (коммит A): `SponsoredProjects` (18), `ResolutionContract` (`checkEachCounted`), `rewardAddress`, `ParliamentPhase` | зелёные |
+| Клиент: `SponsoredProjectsReadings` (9) + `colonyLedgerModel`, `voteInfoBudget`, `voteInfoModel`, `voteSupportReading` | 9 + 52 passing |
+| Гарды: `cursorGrammarGuard`, `e2eDriverGuard`, `e2eFixturesLoad`, `e2eLiveness`, `embedZoneGuard`, `parliamentGlossary`, `parliamentNoLocalStorage`, `parliamentNoTimers`, `readingParamsGuard`, `serverDerivedCacheGuard`, `universalSiblingSelectorGuard`, `glyphLiteralGuard`, `SponsoredProjects` | 337 passing |
+| `npm run lint` (eslint · i18n · vue-tsc), `build:test`, `make:css`, `make:json`, `make:cards` | зелёные |
+| e2e `console-parliament-sponsored` (свой снапшот `.e2e-rx40`): standard-1080 · tv4k на GPU с раскадровкой | 3 / 3 + 3 / 3 |
+| Затронутые (`e2e:affected` — выборка по стадиям награды и поля): `aaa-driver-canary`, `console-parliament-sitting-reward`, `-reds-budget`, `-colonial`, `-medical` (2 воркера) | 24 / 24 |
+| Соседи общей поверхности добора (правка PL-798): `console-external-draw`, `console-parliament-openip`, `-research`, `-climate`, `-sitting-reward`, `-sponsored` (2 воркера, без GPU) | 41 / 41 |
+| `npm run e2e:affected` | прямой список — канарейка + 18 спеков Парламента (селекторы `data-zoom-slot` / `data-embed-slot` …); прогнаны выборка выше и соседи добора, остальные НЕ прогонялись |
+
+Гочи прогона: `$watch` внутри метода умирает вместе с компонентом — ожидание «вопрос ушёл» после размонтирования
+отвечает только таймер (PL-798); `build:client` с `SKIP_TS_CHECK=1` (мусорные tmp-спеки соседа валят чекер), полная
+типизация — `lint:client`; новые RU-ключи видны в e2e только после `make:json` + пересборки + нового снапшота.
