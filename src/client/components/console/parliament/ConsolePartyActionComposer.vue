@@ -46,6 +46,7 @@
          'con-pact--result': result !== undefined,
          'con-pact--sale': saleStage,
          'con-pact--play': playForm,
+         'con-pact--resource': resourceForm,
        }]"
        :data-party="party" :data-pact="kind" :data-pact-phase="phase" :data-resolution="resolution"
        role="region" :aria-label="$t(kind === 'resolution' ? 'Resolution action' : 'Party action')">

@@ -177,6 +177,14 @@
     /* THE PLAY FORM's composition (RX36): the decision surface stands in the MIDDLE of its column, never pinned to the
        top over two thirds of dark glass — the slot carries a full card, so the surface has the weight to hold it. */
     &--play &__main > &__surface { margin-block: auto; }
+    /* …and so does the «RESOURCE ONTO A CARD» form (the Scientists' action, Manufacturing Run RX37 — PL-737): measured at
+       4K and 1080 the decision panel hugged the ceiling with half the band dark under it and the source in the top-left
+       corner; the surface and the source stand level in the middle of the band. */
+    &--resource &__main > &__surface { margin-block: auto; }
+    &--resource &__source { align-self: center; }
+    /* The resource tiles are sized by their content: the answer's seal (absolute, in the tile's corner) covered the
+       chosen kind's «+N» at 1080 (PL-741) — the tile reserves the seal's lane at its end. */
+    &__opts--res:not(.con-vchoice--palette) .con-vchoice__opt { padding-inline-end: 2.2rem; }
     /* THE LAW'S PLAY LANDS IN ITS STAGE (PL-726): the receiving stage is a LAYER over the decision column — mounted
        hidden from the commit's arm (layout, stack geometry and arts ride the round trip), `--up` reveals it while the
        setup releases in place underneath; the law's face beside it stays as the play's source. The hand composer's own
@@ -471,6 +479,22 @@ html.con-profile-tv .con-pact--play {
     .con-pact__repeatslot-empty { font-size: 1.15rem; }
     .con-pact__total { display: flex; align-items: center; gap: .8rem; }
     .con-pact__playtotal { font-size: 1.3rem; }
+}
+/* THE «RESOURCE ONTO A CARD» FORM ON THE COUCH (PL-737 — RX37's 4K walk): the kinds read from the sofa (the variant's
+   resource glyph and its «+N» at scene scale, never a 20 px chip in a 500 px tile) and the target row's faces at the
+   size a card is READ at — a short row (≤ 3 holders) at a protagonist's scale, a longer one a step smaller so a full
+   row of holders still fits one line of the band. */
+html.con-profile-tv .con-pact--resource {
+    .con-pact__surface { gap: .8rem; padding: .8rem .9rem; }
+    .con-pact__opts--res .con-pact__res-icon { width: 2.3rem; height: 2.3rem; }
+    .con-pact__opts--res .con-pact__opt-amount { font-size: 1.55rem; }
+    .con-pact__opts--res .con-vchoice__opt { padding-inline-end: 2.7rem; }
+    .con-pact__card { --con-pact-card-zoom: calc(0.42 * var(--con-ui-scale, 1)); }
+    .con-pact__cards[data-pact-cards="1"] .con-pact__card,
+    .con-pact__cards[data-pact-cards="2"] .con-pact__card,
+    .con-pact__cards[data-pact-cards="3"] .con-pact__card { --con-pact-card-zoom: calc(0.64 * var(--con-ui-scale, 1)); }
+    .con-pact__card-delta { font-size: 1.2rem; em { font-size: 1.05rem; } }
+    .con-pact__res-icon--sm { width: 1.35rem; height: 1.35rem; }
 }
 html.con-profile-tv .con-pfx {
     &__kicker, &__sub, &__uses { font-size: .85rem; }
