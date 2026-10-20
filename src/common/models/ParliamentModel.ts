@@ -374,10 +374,11 @@ export type ParliamentEnactOutcomeModel = {
    * `space` and `stackHeight`) · `globalParameter` a WORLD move of a global
    * parameter (see `parameter`; `amount` = the steps actually made, negative
    * for a lowering) · `colonyTrack` a WORLD move of EVERY colony track (see
-   * `tracks`; `amount` = the steps declared) · `skipped` · `reaction` the
+   * `tracks`; `amount` = the steps declared) · `agenda` a seat's walk of the
+   * Career track a law granted (see `walk`) · `skipped` · `reaction` the
    * RULING PARTY's answer to this step's own change.
    */
-  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'city' | 'globalParameter' | 'colonyTrack' | 'tileRemoved' | 'skipped' | 'reaction';
+  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'city' | 'globalParameter' | 'colonyTrack' | 'tileRemoved' | 'agenda' | 'skipped' | 'reaction';
   /**
    * The COLONY whose printed bonus this record pays (Colonial Affairs) — the ledger row it belongs to;
    * for the `colony` kind, the tile the winner's cube landed on.
@@ -478,6 +479,15 @@ export type ParliamentEnactOutcomeModel = {
    * (which credits nobody) and on a skip.
    */
   tr?: number;
+  /**
+   * `agenda` (Reds Budget): the seat's own WALK of the Career track the law
+   * granted — from, to and every step with its bonus, in order. The sitting's
+   * scene plays these records seat by seat (never `lastAdvance`, one per game);
+   * `tr` the rating it paid, `drawn` the cards a card step dealt,
+   * `megacredits` what MarsBot took instead of a card (1 M€ each).
+   */
+  walk?: {from: number; to: number; steps: ReadonlyArray<AgendaAdvanceStep>};
+  megacredits?: number;
   /**
    * `tileRemoved` (Water Export): the tile that LEFT the cell `space` names —
    * frozen with the record (the cell may carry a new tile by the time it is read).
@@ -599,6 +609,13 @@ export type ParliamentAdvanceModel = {
   reason: AgendaAdvanceReason;
   /** The card that walked the marker (`reason: 'card'`). */
   card?: CardName;
+  /**
+   * The LAW that walked the marker (`reason: 'resolution'` — Reds Budget). A
+   * law walks SEVERAL seats in one response, so this record (the last walk) is
+   * never what the client plays — the sitting plays the phase's `agenda`
+   * outcomes, seat by seat.
+   */
+  resolution?: ResolutionId;
   generation: number;
 };
 

@@ -15,6 +15,7 @@ import {LEVY_STEP_KEY, levyDeclared, levyPaid} from '../../src/common/parliament
 import {COLONY_TRACK_STEP_KEY, colonyTrackAdvanceDeclared} from '../../src/common/parliament/colonyTrackAdvance';
 import {TILE_REMOVAL_STEP_KEY, tileRemovalDeclared} from '../../src/common/parliament/tileRemoval';
 import {tileGrantStepKey} from '../../src/common/parliament/tileGrant';
+import {AGENDA_GRANT_STEP_KEY} from '../../src/common/parliament/agendaGrant';
 import {actionUsesDeclared, actionUsesFor} from '../../src/common/parliament/actionUses';
 import {OUTCOME_KINDS, REWARD_ADDRESS, rewardAddressOf} from '../../src/common/parliament/rewardAddress';
 import {isWinnerParameterReward, winnerParameterStepKey} from '../../src/common/parliament/winnerReward';
@@ -474,6 +475,21 @@ function checkSeam(definition: ResolutionDefinition): Array<string> {
   }
   if (definition.tileGrant === undefined && steps.some((step) => step.key === 'city' || step.key === 'city-tier')) {
     failures.push(`${name}: a city step with no tileGrant declaration — every reading and the bot's seat read the declaration`);
+  }
+  // THE STEP OF THE CAREER (Reds Budget) — the second deed a law grants the seats — is declared on TWO layers or on
+  // none: the data (`agendaGrant` — how many steps, WHO) and the family's ONE shared step under
+  // `AGENDA_GRANT_STEP_KEY` among the seat's own steps. A walk by a step of its own would be a second walk of the
+  // track (the reading, the scene and the bot's seat read the declaration).
+  const agendaGrant = definition.agendaGrant;
+  const agendaGrantSteps = steps.filter((step) => step.key === AGENDA_GRANT_STEP_KEY).length;
+  if ((agendaGrant !== undefined) !== (agendaGrantSteps > 0)) {
+    failures.push(`${name}: agendaGrant and the shared Career step '${AGENDA_GRANT_STEP_KEY}' must be declared together (the reading and the walk are one declaration)`);
+  }
+  if (agendaGrantSteps > 1) {
+    failures.push(`${name}: the shared Career step is listed ${agendaGrantSteps} times — one walk per seat, the declaration says how far`);
+  }
+  if (agendaGrant !== undefined && (!Number.isInteger(agendaGrant.steps) || agendaGrant.steps < 1)) {
+    failures.push(`${name}: an agendaGrant must ask for a positive whole number of steps`);
   }
   const immediate = (hasImmediateSteps(definition) ? 1 : 0) + (definition.worldSteps ?? []).length + (definition.winnerSteps ?? []).length;
   if (immediate === 0 && definition.passive === undefined && definition.action === undefined) {

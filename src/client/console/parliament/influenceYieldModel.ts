@@ -227,6 +227,14 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
       ruleKey: 'Each building and Mars tag counts: a card with both counts twice. Wild tags do not count.',
       skipReasonKey: 'No building or Mars tags and no influence',
     };
+  case 'spaceMarsTags':
+    // ONE term over TWO tags (Reds Budget): the medallions joined by «+» in the face's order (space · Mars).
+    return {
+      glyph: {kind: 'tags', tags: [Tag.SPACE, Tag.MARS]},
+      pluralKey: '${0} space and Mars tag(s)',
+      ruleKey: 'Each space and Mars tag counts: a card with both counts twice. Wild tags and the space tags of played events do not count.',
+      skipReasonKey: 'No space or Mars tags and no influence',
+    };
   case 'spaceCities':
     // A count over the BOARD: the glyph is the city tile with the footnote spark — the face's own «space city».
     return {

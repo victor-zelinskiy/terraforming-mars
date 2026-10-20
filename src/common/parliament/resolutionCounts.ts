@@ -124,6 +124,13 @@ export const RESOLUTION_COUNT_IDS = [
    */
   'buildingMarsTags',
   /**
+   * Reds Budget: the SPACE and MARS tags the player has in play, added up —
+   * the two-tag form of Mars First Budget's (a card printing both is worth 2;
+   * the space tags of the played EVENTS — the asteroids, the comets — lie
+   * face down and count nothing), read with the per-tag breakdown.
+   */
+  'spaceMarsTags',
+  /**
    * Colonization Funding: the player's SPACE CITIES — city tiles on the
    * reserved areas off Mars (Ganymede Colony, Phobos Space Haven, Stanford
    * Torus, the Venus and Pathfinders areas). A count over the BOARD, not the
@@ -298,6 +305,7 @@ export function resolutionCountKind(id: ResolutionCountId): ResolutionCountKind 
   case 'earthVenusJovianTags': return {kind: 'tags', tags: [Tag.EARTH, Tag.VENUS, Tag.JOVIAN]};
   case 'plantMicrobeAnimalTags': return {kind: 'tags', tags: [Tag.PLANT, Tag.MICROBE, Tag.ANIMAL]};
   case 'buildingMarsTags': return {kind: 'tags', tags: [Tag.BUILDING, Tag.MARS]};
+  case 'spaceMarsTags': return {kind: 'tags', tags: [Tag.SPACE, Tag.MARS]};
   case 'spaceCities': return {kind: 'board', tiles: 'spaceCity', measure: 'cells'};
   case 'terraformRatingSets': return {kind: 'threshold', metric: 'terraformRating', over: TERRAFORM_RATING_SETS_OVER, step: TERRAFORM_RATING_SETS_STEP};
   case 'steelTitaniumEnergyProduction': return {kind: 'production', resources: INDUSTRIAL_PRODUCTION_RESOURCES};
@@ -669,6 +677,18 @@ export function cardCountVerdict(id: ResolutionCountId, card: CountedCardFacts, 
     }
     if (!card.tags.includes(Tag.BUILDING) && !card.tags.includes(Tag.MARS)) {
       return {counts: false, reason: 'No building or Mars tag'};
+    }
+    return {counts: true};
+  }
+  case 'spaceMarsTags': {
+    // The same one question over the two tags the Reds count: prints a space
+    // OR a Mars tag, face up. A card with both is two UNITS; an asteroid's
+    // space tag is an EVENT's, face down — the most common zero of this count.
+    if (!cardTagsInPlay(card, ctx)) {
+      return {counts: false, reason: 'A played event is face down'};
+    }
+    if (!card.tags.includes(Tag.SPACE) && !card.tags.includes(Tag.MARS)) {
+      return {counts: false, reason: 'No space or Mars tag'};
     }
     return {counts: true};
   }

@@ -14,9 +14,9 @@
  * catalog («−10 M€», «lose all plants but N», «Agenda +1 for everyone», «all
  * colony tracks +2») gets its row (and its kind) BEFORE the first resolution
  * that pays it (`docs/claude/parliament-resolution-checklist.md` § addresses).
- * The kinds expected then — `stockLoss` (the same wave BACK into the source),
- * `agenda`, `colonyTrack`, `tr`, `partyAccessGrant` — are deliberately NOT in
- * the union yet: an address without a payer is a promise nobody keeps.
+ * The kinds still expected — `tr`, `partyAccessGrant` — are deliberately NOT
+ * in the union yet: an address without a payer is a promise nobody keeps
+ * (`agenda` came with Reds Budget, `colonyTrack` with Unity Budget).
  *
  * Shared by the server (the guard) and the client (the director, the stage);
  * pure — no DOM, no Vue, no i18n calls (the keys are English text, as
@@ -46,6 +46,13 @@ export type RewardSurface =
    * in the stage's zone), and the cube is placed by that screen's build scene.
    */
   | 'colonies'
+  /**
+   * THE CAREER (Agenda) TRACK of the sitting — a seat's marker WALKS there, step
+   * by step, and each step's bonus lands on its own landing (a TR chip off the
+   * step's glyph to the rail, a card off the step into the hand dock, a level
+   * read by the track): Reds Budget's «each player advances their Agenda marker».
+   */
+  | 'career-track'
   | 'stage-plate'; // the sitting's own plate — a skip lives nowhere else
 
 /** WHERE the flight leaves from — the physical source the motion answers «where did this come from». */
@@ -64,7 +71,7 @@ export type RewardFlightSource =
   | 'none'; // nothing moves (a skip, a tile the board scene places itself)
 
 /** The unit the chip / counter speaks. */
-export type RewardUnit = 'production' | 'stock' | 'card-resource' | 'cards' | 'tile' | 'none';
+export type RewardUnit = 'production' | 'stock' | 'card-resource' | 'cards' | 'tile' | 'agenda-step' | 'none';
 
 /** The sitting's stage the outcome is presented on (the flow's stage names — Э3). */
 export type RewardStage = 'reward' | 'choice' | 'take' | 'discard' | 'board' | 'colonies';
@@ -93,7 +100,13 @@ export type RewardStage = 'reward' | 'choice' | 'take' | 'discard' | 'board' | '
  * cell — and the board where the tile actually lifts away. It belongs to no seat: every viewer plays and
  * reads the same departure.
  */
-export type RewardReading = 'influence-yield' | 'winner-reward' | 'party-reaction' | 'colony-ledger' | 'world-parameter' | 'world-tracks' | 'world-removal' | 'tile-grant' | 'skip-plate';
+/**
+ * `agenda-walk` — a seat's WALK of the Career track a law granted (Reds Budget: every seat one step): the
+ * step reached and what it paid («→ 4 · +1 TR», «→ 7 · a card», «→ 5 · influence 3»), or «already at the end
+ * of the Career». Several seats receive it, each its own walk — the viewer's and every other seat's (the bot's
+ * card step reads «1 M€ instead of a card»).
+ */
+export type RewardReading = 'influence-yield' | 'winner-reward' | 'party-reaction' | 'colony-ledger' | 'world-parameter' | 'world-tracks' | 'world-removal' | 'tile-grant' | 'agenda-walk' | 'skip-plate';
 
 export type RewardAddress = {
   kind: OutcomeKind;
@@ -191,6 +204,16 @@ export const REWARD_ADDRESS: Readonly<Record<OutcomeKind, RewardAddress>> = {
     kind: 'tileRemoved', surface: 'board', source: 'none', unit: 'tile', stage: 'board', reading: 'world-removal',
     skipTitle: 'Skipped: no ocean is removed',
   },
+  // A STEP OF THE CAREER a law granted the seats (Reds Budget, RX39): every seat's marker walks its own step(s) on
+  // the sitting's Career track, IN TURN in the seat order — the impulse leaves the law's printed INSIGNIA
+  // (`card-icon` — the face prints the career-step glyph), the marker glides one step at a time and each step's
+  // bonus lands on its own landing (the TR chip to the rail, the card into the hand dock, the level read). The
+  // record carries the WALK (`walk`), so several seats in one response each play their own — never the game's one
+  // `lastAdvance`. A seat at the end of the track is a NAMED skip («Already at the end of the Career track»).
+  agenda: {
+    kind: 'agenda', surface: 'career-track', source: 'card-icon', unit: 'agenda-step', stage: 'reward', reading: 'agenda-walk',
+    skipTitle: 'Skipped: the Career step',
+  },
   // The ruling party's answer speaks the unit its RECORD carries (a production step is answered with production); 'stock' is the nominal default.
   reaction: {
     kind: 'reaction', surface: 'rail', source: 'party-plaque', unit: 'stock', stage: 'reward', reading: 'party-reaction',
@@ -235,6 +258,8 @@ export type RewardPayload = {
   /** The CELL a record names (the board scene's own address): `tileRemoved` the one the tile left, a placement the one it took — and who chose it. */
   space?: string;
   actor?: string;
+  /** `agenda`: the seat's walk of the Career track — from, to and every step with the bonus it paid. */
+  walk?: {from: number; to: number; steps: ReadonlyArray<{to: number; bonus?: 'tr' | 'card'}>};
 };
 
 export type RewardDelivery = {
@@ -331,6 +356,9 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
   if (outcome.actor !== undefined) {
     payload.actor = String(outcome.actor);
   }
+  if (outcome.walk !== undefined) {
+    payload.walk = {from: outcome.walk.from, to: outcome.walk.to, steps: outcome.walk.steps.map((step) => ({...step}))};
+  }
   // A WORLD RECORD belongs to NO seat (`player` absent) and therefore to every
   // viewer: the planet moved for all of them, and the reading is the same one.
   const world = outcome.player === undefined;
@@ -362,6 +390,11 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
     if (outcome.space === undefined) {
       delivery.skipped = outcome.reason ?? address.skipTitle;
     }
+  } else if (outcome.kind === 'agenda') {
+    // A walk names the steps it took: a record with none walked nothing, and its own reason says why.
+    if ((outcome.walk?.steps.length ?? 0) === 0) {
+      delivery.skipped = outcome.reason ?? address.skipTitle;
+    }
   } else if (outcome.kind === 'colonyBonus') {
     // A HUD-side colony bonus pays its own counter: a LOSS (Titania) is a negative amount and still a payout —
     // only a bonus that came to nothing at all (0) is a skip.
@@ -389,9 +422,11 @@ export function rewardAddressOf(outcome: ParliamentEnactOutcomeModel, viewer: Co
  *   · (`globalParameter` SHIPPED — Gas Export, RX12: surface `board`, source `card-icon`, unit `none`,
  *     stage `board`, reading `world-parameter`; the frame yields to the board like a winner tile and the
  *     board-beat park plays the scale story. The record belongs to NO seat — every viewer reads it.)
- *   · `agendaStepAll` (every player advances one Agenda step) — surface `agenda`, source `carrier`, unit
- *     `none`, stage `reward`, reading a marker line per seat («Повестка 2 → 3»), never skipped (the track's
- *     end is «уже в конце трека», a line, not a plate); pose: every marker glides on the rail at once.
+ *   · (`agendaStepAll` SHIPPED as `agenda` — Reds Budget, RX39: surface `career-track`, source `card-icon` (the
+ *     printed career insignia), unit `agenda-step`, stage `reward`, reading `agenda-walk`. The sketch said «every
+ *     marker glides at once»; the owner's decision for the first card was the opposite — the seats walk IN TURN,
+ *     each its own walk with its own bonus, the bot too (D11). The record carries the WALK, so several seats in
+ *     one response each play their own; the track's end is a NAMED skip.)
  *   · (`colonyTrack` SHIPPED — Unity Budget, RX29: surface `colonies`, source `none`, unit `none`, stage
  *     `colonies`, reading `world-tracks`. The sketch said «the colonies screen is NOT opened»; the owner's
  *     order for the first card of the kind was the opposite — the sitting HOSTS the colonies screen as a SHOW

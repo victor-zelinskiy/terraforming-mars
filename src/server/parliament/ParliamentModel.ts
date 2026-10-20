@@ -186,6 +186,7 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
       steps: advance.steps ?? [advance.bonus === undefined ? {to: advance.to} : {to: advance.to, bonus: advance.bonus}],
       reason: advance.reason,
       ...(advance.card === undefined ? {} : {card: advance.card}),
+      ...(advance.resolution === undefined ? {} : {resolution: advance.resolution}),
       generation: advance.generation,
     };
   }

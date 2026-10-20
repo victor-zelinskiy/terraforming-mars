@@ -1331,5 +1331,16 @@
   "One card with both tags counts twice": "Одна карта с обеими метками даёт 2",
   "Short of the levy — 5 M€": "Не хватает на плату — 5 M€",
   "No legal space for a city — the city is named and skipped": "Нет законной клетки для города — город назван и пропущен",
-  "Every player places one": "каждый игрок ставит свой"
+  "Every player places one": "каждый игрок ставит свой",
+  "Reds Budget": "Бюджет „Красных“",
+  "Lose 10 M€. Then gain 1 M€ per space and Mars tag you have, plus 1 per influence. Then every player advances their Agenda marker 1 step.": "Потеряйте 10 M€. Затем получите 1 M€ за каждую свою метку космоса и Марса и 1 за каждое влияние. Затем каждый игрок продвигает свой маркер Карьеры на 1 шаг.",
+  "No space or Mars tags and no influence": "Нет меток космоса и Марса и нет влияния",
+  "No space or Mars tag": "Нет метки космоса или Марса",
+  "${0} space and Mars tag(s)": "${0} {метка|метки|меток} космоса и Марса",
+  "Each space and Mars tag counts: a card with both counts twice. Wild tags and the space tags of played events do not count.": "Считается каждая метка космоса и Марса: карта с обеими даёт 2. Универсальные метки и метки космоса на разыгранных событиях не считаются.",
+  "${0} has no space or Mars tags and no influence — no M€ from ${1}": "${0}: нет меток космоса и Марса и нет влияния — ${1} не даёт M€",
+  "${0} gained ${1} M€ from ${2}: ${3} space and Mars tag(s) + ${4} influence (${5} → ${6})": "${0} получает ${1} M€ — ${2}: ${3} {метка|метки|меток} космоса и Марса + влияние ${4} (${5} → ${6})",
+  "Already at the end of the Career track": "Уже в конце трека Карьеры",
+  "Skipped: the Career step": "Пропущено: шаг Карьеры",
+  "${0} is below 2 influence and did not win the vote — no Agenda step from ${1}": "${0}: влияние меньше 2 и голосование не выиграно — ${1} не даёт шага Карьеры"
 }

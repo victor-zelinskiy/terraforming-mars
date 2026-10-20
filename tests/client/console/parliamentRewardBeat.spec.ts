@@ -128,6 +128,8 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
       colonyTrack: {step: 'colonyTracks', part: 'world', kind: 'colonyTrack', amount: 2, tracks: [{colony: 'Luna' as never, before: 2, after: 4}]},
       // Water Export's WORLD removal: the tile lifts off the board (the shared departure scene), no seat, no rail chip.
       tileRemoved: {step: 'oceanRemoval', part: 'world', kind: 'tileRemoved', amount: -1, space: '10' as never, parameter: {id: 'oceans', before: 1, after: 0}},
+      // Reds Budget's Career step: the seat's marker walks on the sitting's track — its TR rides the walk, no rail wave.
+      agenda: outcome({kind: 'agenda', amount: 1, tr: 1, walk: {from: 3, to: 4, steps: [{to: 4, bonus: 'tr'}]}}),
     };
     for (const kind of OUTCOME_KINDS) {
       const spec = waveSpecOf(sample[kind]);

@@ -226,6 +226,7 @@ class ParliamentProcessor {
       ...(definition.levy === undefined ? {} : {levy: {...definition.levy}}),
       ...(definition.winnerReward === undefined ? {} : {winnerReward: {...definition.winnerReward}}),
       ...(definition.tileGrant === undefined ? {} : {tileGrant: {...definition.tileGrant, recipients: {...definition.tileGrant.recipients}}}),
+      ...(definition.agendaGrant === undefined ? {} : {agendaGrant: {...definition.agendaGrant, recipients: {...definition.agendaGrant.recipients}}}),
       ...(definition.worldMoves === undefined ? {} : {worldMoves: definition.worldMoves.map((move) => ({...move}))}),
       ...(definition.trackAdvance === undefined ? {} : {trackAdvance: {...definition.trackAdvance}}),
       ...(definition.tileRemoval === undefined ? {} : {tileRemoval: {...definition.tileRemoval}}),

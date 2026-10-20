@@ -25,7 +25,7 @@ function outcome(over: Partial<ParliamentEnactOutcomeModel> & {kind: ParliamentE
  */
 describe('rewardAddress — the table', () => {
   it('has a row for EVERY outcome kind — and only for kinds (the union and the table are one)', () => {
-    expect(OUTCOME_KINDS.slice().sort()).deep.eq(['cardResource', 'cards', 'city', 'colony', 'colonyBonus', 'colonyTrack', 'discard', 'globalParameter', 'greenery', 'ocean', 'production', 'reaction', 'skipped', 'stock', 'tileRemoved']);
+    expect(OUTCOME_KINDS.slice().sort()).deep.eq(['agenda', 'cardResource', 'cards', 'city', 'colony', 'colonyBonus', 'colonyTrack', 'discard', 'globalParameter', 'greenery', 'ocean', 'production', 'reaction', 'skipped', 'stock', 'tileRemoved']);
     for (const kind of OUTCOME_KINDS) {
       expect(REWARD_ADDRESS[kind].kind, kind).eq(kind);
     }
@@ -120,6 +120,15 @@ describe('rewardAddress — the table', () => {
     expect(REWARD_ADDRESS.colonyTrack.surface).eq('colonies');
     expect(REWARD_ADDRESS.colonyTrack.unit).eq('none');
     expect(REWARD_ADDRESS.colonyTrack.reading).eq('world-tracks');
+    // …and a STEP OF THE CAREER a law grants the seats (Reds Budget) is the REWARD page's own: every seat's marker
+    // walks on the sitting's Career track in turn, the impulse leaving the law's printed insignia — a seat's own walk
+    // (the record carries it), never a rail chip and never the board.
+    expect(REWARD_ADDRESS.agenda.stage).eq('reward');
+    expect(REWARD_ADDRESS.agenda.surface).eq('career-track');
+    expect(REWARD_ADDRESS.agenda.source).eq('card-icon');
+    expect(REWARD_ADDRESS.agenda.unit).eq('agenda-step');
+    expect(REWARD_ADDRESS.agenda.reading).eq('agenda-walk');
+    expect(REWARD_ADDRESS.agenda.skipTitle).eq('Skipped: the Career step');
     // A rail chip is BORN on a printed icon (the carrier's mechanic, the ruling party's formula) and rides a rail unit;
     // what the board or the stage plate presents has no flight source of its own.
     for (const kind of OUTCOME_KINDS) {
@@ -176,6 +185,14 @@ describe('rewardAddress — the delivery of a record', () => {
     expect(colony.source, 'a colony record names a tile, yet it is not a ledger row — nothing flies off the card').eq('none');
     expect(colony.payload).deep.eq({colony: 'Luna'});
     expect(colony.address.reading).eq('winner-reward');
+  });
+
+  it('a Career walk (Reds Budget) carries the WALK in its payload; a walk of no step is a skip of the address', () => {
+    const walked = rewardAddressOf(outcome({kind: 'agenda', amount: 1, influence: 1, tr: 1, walk: {from: 3, to: 4, steps: [{to: 4, bonus: 'tr'}]}}), 'blue');
+    expect(walked.skipped).is.undefined;
+    expect(walked.payload.walk).deep.eq({from: 3, to: 4, steps: [{to: 4, bonus: 'tr'}]});
+    expect(walked.mine).is.true;
+    expect(rewardAddressOf(outcome({kind: 'agenda', amount: 0, walk: {from: 12, to: 12, steps: []}}), 'blue').skipped).eq(REWARD_ADDRESS.agenda.skipTitle);
   });
 
   it('a `skipped` record names its own reason; a paying kind that paid nothing is named by the address', () => {

@@ -7,7 +7,7 @@ import {Tag} from '../../common/cards/Tag';
 import {CardResource} from '../../common/CardResource';
 import {ColonyName} from '../../common/colonies/ColonyName';
 import {Resource} from '../../common/Resource';
-import {BotParliamentMode, ParliamentPhaseStep, QuestDefinition, ResolutionInstanceId, AgendaAdvanceReason, AgendaAdvanceStep} from '../../common/parliament/ParliamentTypes';
+import {BotParliamentMode, ParliamentPhaseStep, QuestDefinition, ResolutionId, ResolutionInstanceId, AgendaAdvanceReason, AgendaAdvanceStep} from '../../common/parliament/ParliamentTypes';
 import {ParameterMoveId} from '../../common/parliament/parameterMove';
 import {ColonyTrackMove} from '../../common/parliament/colonyTrackAdvance';
 import {TileType} from '../../common/TileType';
@@ -86,11 +86,13 @@ export type SerializedEnactOutcome = {
    * EVERY colony track (Unity Budget — see `tracks`, and `amount` = the steps
    * declared) · `tileRemoved` a WORLD removal of a tile from the board (Water
    * Export — see `space`, `tile`, `actor`, and `parameter` = the ocean count
-   * before and after, `amount` = −1) · `skipped` nothing happened (see
+   * before and after, `amount` = −1) · `agenda` a seat's WALK of the Career
+   * track a law granted (Reds Budget — see `walk`, `amount` = the steps taken)
+   * · `skipped` nothing happened (see
    * `reason`) · `reaction` the RULING PARTY's answer to this step's own change
    * (see `party`).
    */
-  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'city' | 'globalParameter' | 'colonyTrack' | 'tileRemoved' | 'skipped' | 'reaction';
+  kind: 'cardResource' | 'production' | 'stock' | 'cards' | 'discard' | 'colonyBonus' | 'ocean' | 'greenery' | 'colony' | 'city' | 'globalParameter' | 'colonyTrack' | 'tileRemoved' | 'agenda' | 'skipped' | 'reaction';
   /**
    * THE COLONY whose printed bonus this record pays (Colonial Affairs: «gain
    * all your colony bonuses k times») — the ledger row the record belongs to
@@ -267,6 +269,19 @@ export type SerializedEnactOutcome = {
    */
   tr?: number;
   /**
+   * `agenda` (Reds Budget, RX39 — «each player advances their Agenda marker 1
+   * step»): the seat's OWN WALK of the Career track the law granted — where the
+   * marker stood, where it stopped and every step it took with the bonus that
+   * step paid, in order (`ChairmanSeat.walkAgenda`'s own record). Frozen with
+   * the record: the sitting's scene plays THESE walks seat by seat, never the
+   * one-per-game `lastAdvance` (a law walks several seats in one response).
+   * `tr` is the rating the walk paid (measured around it), `drawn` the cards
+   * a human's card step dealt, `megacredits` what a seat with no hand took
+   * instead (MarsBot — the Automa FAQ: a card is 1 M€).
+   */
+  walk?: {from: number; to: number; steps: Array<AgendaAdvanceStep>};
+  megacredits?: number;
+  /**
    * `tileRemoved`: the tile that LEFT the cell named by `space` (an ocean —
    * the only tile the family removes today), frozen with the record so the
    * reading never re-reads a cell that may carry a new tile by now.
@@ -406,6 +421,8 @@ export type SerializedAdvance = {
   reason: AgendaAdvanceReason;
   /** The card that walked the marker (`reason: 'card'`). */
   card?: CardName;
+  /** The law that walked the marker (`reason: 'resolution'` — Reds Budget). */
+  resolution?: ResolutionId;
   generation: number;
 };
 

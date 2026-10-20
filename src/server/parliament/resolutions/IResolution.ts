@@ -5,6 +5,7 @@ import {InfluenceScaledEffect} from '../../../common/parliament/influenceScaling
 import {ResolutionLevy} from '../../../common/parliament/resolutionLevy';
 import {WinnerRewardDeclaration} from '../../../common/parliament/winnerReward';
 import {TileGrantDeclaration} from '../../../common/parliament/tileGrant';
+import {AgendaGrantDeclaration} from '../../../common/parliament/agendaGrant';
 import {WorldParameterMove} from '../../../common/parliament/parameterMove';
 import {ColonyTrackAdvance} from '../../../common/parliament/colonyTrackAdvance';
 import {TileRemovalDeclaration} from '../../../common/parliament/tileRemoval';
@@ -491,6 +492,19 @@ export interface ResolutionDefinition {
    * the step decides by.
    */
   tileGrant?: TileGrantDeclaration;
+  /**
+   * A STEP OF THE CAREER GRANTED TO THE SEATS, as data (`agendaGrant.ts`) —
+   * Reds Budget: «each player advances their Agenda marker 1 step». Paid by
+   * the family's ONE shared step `agendaGrantStep(id, grant)`
+   * (`ResolutionAgendaGrant.ts` — the ONE walk of the track) listed where the
+   * printed order puts it in `immediateSteps`; the guard refuses the
+   * declaration without its step and the step without its declaration. A
+   * DEED the law hands the seats, like `tileGrant`: MarsBot walks it too
+   * (decision D11 — the aspect `seat-grant`), by the same walk. Exported to
+   * the manifest, so the vote reading, the sitting's scene, the results and
+   * the stand read the same declaration the step pays by.
+   */
+  agendaGrant?: AgendaGrantDeclaration;
   /**
    * WHAT THE ENACTMENT DOES TO THE TABLE, as data (`parameterMove.ts`) — the
    * global parameters a WORLD step moves and whether anybody is credited for

@@ -59,6 +59,7 @@ import {LIVE_EXPERIMENTS} from './scientists/LiveExperiments';
 import {MANUFACTURING_RUN} from './industrialists/ManufacturingRun';
 import {MARS_FIRST_BUDGET} from './marsFirst/MarsFirstBudget';
 import {PLANT_BAN} from './reds/PlantBan';
+import {REDS_BUDGET} from './reds/RedsBudget';
 import {runResolutionAction} from './ResolutionAction';
 import {SCIENTISTS_BUDGET} from './scientists/ScientistsBudget';
 import {SKYSCRAPERS} from './marsFirst/Skyscrapers';
@@ -562,6 +563,10 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // «when taking actions» — asked by the counting function, never written into the player), and an action that is
   // Viron's mechanism under the law's source (the ONE shared list of repeatable card actions).
   RD_FUNDING,
+  // The SEVENTH and last BUDGET, and the first law that walks EVERY seat's marker on the Career: the shared levy
+  // (−10 M€), a count over TWO tags (space + Mars) + influence, and «each player advances their Agenda marker 1 step»
+  // — the second DEED a law hands the seats (`agendaGrant`, the track's ONE walk), MarsBot's step included (D11).
+  REDS_BUDGET,
   // The SECOND BUDGET, and the proof the family is a DECLARATION: the shared levy (−10 M€), the science-tag count
   // Medical Database declared and 2 cards apiece through the shared intake — not one line of mechanism of its own.
   SCIENTISTS_BUDGET,

@@ -6,6 +6,7 @@ import {ResolutionLevy} from './resolutionLevy';
 import {PartyReaction, PartyTileAnswer} from './partyReactions';
 import {WinnerRewardDeclaration} from './winnerReward';
 import {TileGrantDeclaration} from './tileGrant';
+import {AgendaGrantDeclaration} from './agendaGrant';
 import {WorldParameterMove} from './parameterMove';
 import {ColonyTrackAdvance} from './colonyTrackAdvance';
 import {TileRemovalDeclaration} from './tileRemoval';
@@ -75,6 +76,13 @@ export type IClientResolution = {
    * step decides by. Absent = no such part.
    */
   tileGrant?: TileGrantDeclaration;
+  /**
+   * A STEP OF THE CAREER granted to the seats as data (`agendaGrant.ts`) — Reds
+   * Budget: every seat's marker walks one step (MarsBot's too). The same
+   * declaration the shared step walks by: the vote reading names what the
+   * viewer's next step pays, the sitting plays each seat's walk.
+   */
+  agendaGrant?: AgendaGrantDeclaration;
   /**
    * The WORLD's part as data (`parameterMove.ts`) — the global parameters the
    * enactment moves for the whole table, and whether anybody is credited for

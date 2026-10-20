@@ -56,13 +56,15 @@ import {AutomaTurnLog} from '../../automa/AutomaTurnLog';
 type SeatResult = 'seated' | 'asking';
 
 /**
- * WHY the marker walks — the THREE ENGINES of the Agenda track: the sitting's
- * winner step (`phase`), the chairman quest (`quest`) and a card that prints
- * «advance your Agenda marker N steps» (`card`, TR04 Minority Representation).
- * A card names itself: the journal, the score's provenance segment and the
- * other players' notification read the walk off the card's own play.
+ * WHY the marker walks — the ENGINES of the Agenda track: the sitting's winner
+ * step (`phase`), the chairman quest (`quest`), a card that prints «advance
+ * your Agenda marker N steps» (`card`, TR04 Minority Representation) and an
+ * enacted LAW that walks the seats' markers (`resolution`, Reds Budget RX39 —
+ * the shared `agendaGrantStep`). A card and a law name themselves: the
+ * journal, the score's provenance segment and the other players' notification
+ * read the walk off the card's own play / the law's own enactment.
  */
-export type AgendaWalkCause = {reason: 'quest'} | {reason: 'phase'} | {reason: 'card', card: CardName};
+export type AgendaWalkCause = {reason: 'quest'} | {reason: 'phase'} | {reason: 'card', card: CardName} | {reason: 'resolution', resolution: ResolutionId};
 
 /** What ONE walk did: where it started, where it ended, and EVERY step it took in order, each with the bonus that step paid. */
 export type AgendaWalk = {from: number; to: number; steps: ReadonlyArray<AgendaAdvanceStep>};
@@ -84,7 +86,13 @@ export class ChairmanSeat {
    * sitting and the quest are this walk with `steps = 1`, attributed to the
    * parliament (`withSource`); a card's walk runs INSIDE the card's own play
    * and keeps that source — the journal shows the card's chip, the rival's
-   * notification says «played a card». The TR's provenance segment is the
+   * notification says «played a card» — and so does a LAW's (the seat step's
+   * scope is the resolution's: the journal shows the law's chip).
+   *
+   * ONE RECORD PER GAME: `lastAdvance` is the LAST walk. A law walks several
+   * seats in one response (`resolution`), so its walks are recorded per seat
+   * by the step that called this (the phase's `agenda` outcomes) and the
+   * client plays THOSE — `lastAdvance` of a law is never a presentation key. The TR's provenance segment is the
    * TRACK's for all three engines, the way the greenery revision names its
    * segment after the rule and not after who laid the tile.
    */
@@ -119,12 +127,15 @@ export class ChairmanSeat {
         steps: taken,
         reason: cause.reason,
         ...(cause.reason === 'card' ? {card: cause.card} : {}),
+        ...(cause.reason === 'resolution' ? {resolution: cause.resolution} : {}),
         generation: game.generation,
       };
       game.events.recordAgendaAdvanced(player, {from, to: last.to, steps: taken}, cause.reason);
       return {from, to: last.to, steps: taken};
     };
-    return cause.reason === 'card' ? walk() : game.events.withSource({kind: 'parliament'}, walk);
+    // A card's and a law's walk keep the scope they run in (the card's play, the law's seat step); the sitting's
+    // winner step and the quest are the parliament's own.
+    return cause.reason === 'card' || cause.reason === 'resolution' ? walk() : game.events.withSource({kind: 'parliament'}, walk);
   }
 
   /** The step's own bonus, paid the moment the marker lands on it — before the next step is taken. */

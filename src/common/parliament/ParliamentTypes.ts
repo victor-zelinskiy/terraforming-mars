@@ -119,11 +119,13 @@ export const PARLIAMENT_AGENDA_STEPS = 12;
 export type AgendaAdvanceStep = {to: number; bonus?: 'tr' | 'card'};
 
 /**
- * The THREE ENGINES of the track — the sitting's winner step, the chairman
- * quest, and a card that prints «advance your Agenda marker N steps». One
- * walk function serves all three (`ChairmanSeat.walkAgenda`).
+ * The ENGINES of the track — the sitting's winner step, the chairman quest, a
+ * card that prints «advance your Agenda marker N steps», and an enacted LAW
+ * that walks the seats' markers («each player advances their Agenda marker 1
+ * step» — Reds Budget, RX39: `resolution`). One walk function serves all four
+ * (`ChairmanSeat.walkAgenda`).
  */
-export type AgendaAdvanceReason = 'quest' | 'phase' | 'card';
+export type AgendaAdvanceReason = 'quest' | 'phase' | 'card' | 'resolution';
 
 /** One step of the Agenda track: it either raises the base influence or pays an immediate bonus. */
 export type AgendaStep =

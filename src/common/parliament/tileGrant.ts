@@ -20,7 +20,9 @@
  * declaration and the same rule the engine pays by — never a per-card branch,
  * never a re-derived threshold. Every function below is an exhaustive
  * `switch`, so a third answer to either question fails the compile at every
- * reader at once.
+ * reader at once. WHO is the shared rule of EVERY grant (`seatGrant.ts` —
+ * Reds Budget's step of the Career asks the same predicate); WHERE is the
+ * tile's own question.
  *
  * WHO INCLUDES MARSBOT (decision D11, 2026-10-20): a law never pays the bot
  * and never charges it, but the TILE it grants the seats the bot receives by
@@ -33,15 +35,14 @@
  */
 
 import {ResolutionCountId} from './resolutionCounts';
+import {GRANT_NOT_ELIGIBLE_REASON, GrantEligibility, grantEligibility, grantInfluenceLine, GrantRecipients, grantRewardsWinner} from './seatGrant';
 
 /**
- * WHO receives the tile:
+ * WHO receives the tile — the shared recipients of every grant (`seatGrant.ts`):
  *  - `threshold` — the winner of the vote always, and every participant at or above the influence line;
  *  - `everyone`  — every participant, in generation order from the first player, whether they voted or not.
  */
-export type TileGrantRecipients =
-  | {kind: 'threshold'; winner: true; influenceAtLeast: number}
-  | {kind: 'everyone'};
+export type TileGrantRecipients = GrantRecipients;
 
 /**
  * WHERE it lands:
@@ -57,44 +58,21 @@ export type TileGrantDeclaration = {
   recipients: TileGrantRecipients;
 };
 
-/**
- * WHY a seat receives the tile — or does not. `winner` outranks `influence`
- * (a winner below the line still receives it: the star is unconditional);
- * `everyone` is the seat a law that grants every player reaches by being
- * seated; `none` is the seat the law passes over, and every reading names it
- * as a fact of the rule, never as «no influence».
- */
-export type TileGrantEligibility = 'winner' | 'influence' | 'everyone' | 'none';
+/** WHY a seat receives the tile — or does not: the shared grant's own answer (`GrantEligibility`). */
+export type TileGrantEligibility = GrantEligibility;
 
 export function tileGrantEligibility(grant: TileGrantDeclaration, seat: {winner: boolean, influence: number}): TileGrantEligibility {
-  const recipients = grant.recipients;
-  switch (recipients.kind) {
-  case 'everyone':
-    return 'everyone';
-  case 'threshold':
-    if (seat.winner) {
-      return 'winner';
-    }
-    return seat.influence >= recipients.influenceAtLeast ? 'influence' : 'none';
-  }
+  return grantEligibility(grant.recipients, seat);
 }
 
 /** The influence line of a threshold grant — `undefined` for a grant to everyone (no line to read). */
 export function tileGrantInfluenceLine(grant: TileGrantDeclaration): number | undefined {
-  const recipients = grant.recipients;
-  switch (recipients.kind) {
-  case 'threshold': return recipients.influenceAtLeast;
-  case 'everyone': return undefined;
-  }
+  return grantInfluenceLine(grant.recipients);
 }
 
 /** Does the grant reward the WINNER as such (the star of a threshold grant)? A grant to everyone has no winner's part. */
 export function tileGrantRewardsWinner(grant: TileGrantDeclaration): boolean {
-  const recipients = grant.recipients;
-  switch (recipients.kind) {
-  case 'threshold': return recipients.winner;
-  case 'everyone': return false;
-  }
+  return grantRewardsWinner(grant.recipients);
 }
 
 /**
@@ -127,7 +105,7 @@ export function tileGrantStepKey(grant: TileGrantDeclaration): string {
 }
 
 /** The skips' reasons — English keys the stage plate translates; the server records them, every reading prints them. */
-export const TILE_GRANT_NOT_ELIGIBLE_REASON = 'Below 2 influence and not the winner of the vote';
+export const TILE_GRANT_NOT_ELIGIBLE_REASON = GRANT_NOT_ELIGIBLE_REASON;
 export const TILE_GRANT_NO_DESTINATION_REASON = 'No city on Mars to build on';
 /** The ordinary city rules left no cell (the key the standard project already prints). */
 export const TILE_GRANT_NO_SPACE_REASON = 'No space left for a city tile';
