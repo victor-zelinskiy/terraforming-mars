@@ -4291,3 +4291,39 @@ C — доки. Не запушено. Р1–Р4 — все рекомендов
 | соседи: канарейка драйвера, staged-play, Political Donation, Manufacturing, Martian Census, X87, повтор-ревил, партийные действия, Colony Sponsors (26) | 24 зелёных; `console-parliament-actions` — PL-728 (флейк до RX36); `console-martian-census · fhd` — пробник тайминга (PL-757) |
 | A/B `console-martian-census · fhd` (снапшоты `.e2e-rx36` / `.e2e-rx36h`, один сервер) | подряд: BM 13 из 16, HEAD 16 из 16 → вперемешку по 4: **11 из 12 — оба**, HEAD падает тем же гэпом — существует до BM |
 | `lint:client` · eslint затронутых · `build:test` (чистое дерево HEAD + свои файлы — в общем дереве чужой RX38 ломает сервер) · гарды консоли (живость e2e, глифы, глоссарий, колонии) · фикстуры и драйвер · клиентские спеки стейджа и «Действий карт» · композер | зелёные: 76 · 268 · 75 · 35 |
+
+## RX38 «Бюджет „Марс вперёд“» (Mars First Budget, Марс вперёд) — 2026-10-20 — ГОРОД КАЖДОМУ, БОТУ ТОЖЕ
+
+Промт — `docs/claude/prompts/resolution-rx38-mars-first-budget.md` (ред. 2), контракт — `docs/TURMOIL_REDUX_MARS_FIRST_BUDGET.md`,
+бот — D11 в `docs/TURMOIL_REDUX_MARSBOT.md` §10. Решения батча владельца (все — рекомендованные): Р1 имя «Бюджет „Марс
+вперёд“» (партия в кавычках не склоняется — словарь), Р2 город обязателен, Р3 эффект «Марс вперёд» на город — у людей,
+Р5 бот в Skyscrapers получает ярус по порогу; Р4 (бот ставит город) решён владельцем заранее.
+
+- **Сборка**: плата `levy` + `levyStep` (RX15, без правок), счёт — новый id `buildingMarsTags` (три аддитивные строки +
+  одна запись `yieldCountPresentation`), выплата — как у бюджетов, город — второй вариант `tileGrant`.
+- **`tileGrant` развёл КОМУ и КУДА** (`recipients.kind` × `placement`), общий шаг `tileGrantStep`, Skyscrapers на нём
+  байт-в-байт для людей; гард контракта «объявление без шага / шаг без объявления»; семейство `tile-grant` — только порог.
+- **Бот (D11)**: аспект `tile-grant`, цикл мест по нему, `payBotTileGrant`, проход победителя — `declaresWinnerPass`,
+  ★ чузера — `botWinsSomething`, модель места `tileGrant`. Аудит RX01–RX37 на HEAD подтвердил таблицу промта: под
+  правило попал только Skyscrapers.
+- **Ответ партии (Р3) — данные**: `PartyTileAnswer` у «Марс вперёд» рядом с `onTilePlaced` (хук платит теми же числами),
+  чтение `TileGrantReading.answer` — строка рядом с городом на панели голосования.
+- **Город бота у зрителя — общий механизм удалённой посадки** (PL-758, PL-759): посадка ждёт конца собственной истории
+  зрителя (своя посадка, волна ресурсов, карта партии из колоды, взятие, полёт в док), заседание, отступившее к полю,
+  не возвращается, пока чужой тайл не сел. До правки город бота летел через 150 мс под сценой добора карты.
+- **Лента одной строкой** (PL-760, PL-761): чип гранта — вторичный член, без ответа партии и без подписи на шаге двери.
+
+### Прогоны
+
+| Что | Итог |
+| --- | --- |
+| Серверные юниты: `MarsFirstBudget` (20), `Skyscrapers`, `BotWinnerReward` (+3), `BotParliamentPolicy`, `ParliamentPhase`, `ResolutionContract` (+ гард гранта); весь `tests/parliament/**` | 1406 passing |
+| Серверные спеки вокруг Парламента (automa / models / routes / events / notifications / console / cards turmoilRedux) | 2398 passing |
+| Клиент: `MarsFirstBudgetReadings` (8) + 80 спеков Парламента / голосования / удалённых посадок | 1426 passing |
+| e2e `console-parliament-marsfirst-budget` (standard-1080 + tv4k), свой снапшот `.e2e-rx38` | 1-й: чипы платы читались до шествия (свидетель спека) → 2-й: зелёный, но лента показала город бота под колодой (PL-758) → тик + «своя история» → 4K в пакете красный: потолок 8 с у возврата заседания (PL-759, перевзвод пока посадка должна) → `--repeat-each=3`: 6 / 6 |
+| Соседи: `console-parliament-bot` (12 = 4 сценария × 3 профиля), `console-parliament-greens`, `console-parliament-skyscrapers` | 15 passed (пакет вместе с RX38) |
+| По риску общих правок (удалённая посадка, возврат отступившего заседания): `aaa-driver-canary`, `console-parliament-aquifer` / `-biodome` / `-mohole` / `-water`, `console-auto-tile-landing`, `console-resolutions-playground` | 28 passed, 6 failed — все шесть один тест «the enactment …» aquifer / biodome × 3 профиля, «board home never became live» в поколении 2 (исследование `.con-draftws` открыто, у драйвера нет ветки); A/B с клиентом HEAD — 2 из 2 красные той же ошибкой → PL-768, до RX38 |
+
+Гочи прогона: удержанная клетка удалённой посадки — класс `board-space-tile--placement-cleared` (арт подавлен), НЕ
+прозрачность: свидетель «клетка нарисована» обязан читать класс. `npm run build` при мусорных `tmp/**/*.spec.ts`
+печатает «Build Finished» с 48 ошибками чекера и не эмитит бандл — клиент собирать `SKIP_TS_CHECK=1`.
