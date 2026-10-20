@@ -142,6 +142,14 @@ export type ParliamentPlayerModel = {
    * {@link seatEnacts}, never bare.
    */
   enactment?: boolean;
+  /**
+   * The seat RECEIVES THE TILE an enacted law grants the seats (aspect
+   * `tile-grant`, decision D11) — true for a human and for a MarsBot seat
+   * under `'politics'`: the bot's column then carries the ONE tile row of a
+   * `tileGrant` law and still no payout. Absent on a fixture written before
+   * the field — read it through {@link seatTakesTileGrant}, never bare.
+   */
+  tileGrant?: boolean;
   lobby: boolean;
   reserve: number;
   onResolutions: number;
@@ -213,6 +221,15 @@ export type ParliamentPlayerModel = {
  */
 export function seatEnacts(seat: Pick<ParliamentPlayerModel, 'participates' | 'enactment'>): boolean {
   return seat.enactment ?? seat.participates;
+}
+
+/**
+ * DOES THE SEAT RECEIVE THE TILE A LAW GRANTS THE SEATS — the ONE reading of
+ * `tileGrant` (decision D11). An older fixture's seat receives it exactly
+ * when it is paid (what the field meant before the bot took a tile).
+ */
+export function seatTakesTileGrant(seat: Pick<ParliamentPlayerModel, 'participates' | 'enactment' | 'tileGrant'>): boolean {
+  return seat.tileGrant ?? seatEnacts(seat);
 }
 
 /** The viewer's own vote options — one projection per voting slot. */

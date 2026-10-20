@@ -56,3 +56,20 @@ export function productionReactionOf(
 export function terraformReactionOf(reactions: ReadonlyArray<PartyReaction> | undefined): PartyReaction | undefined {
   return reactions?.find((r) => r.trigger.kind === 'tr-gain');
 }
+
+/**
+ * WHAT a party pays for a TILE the seat places ON MARS — declared beside the
+ * `onTilePlaced` hook that pays it (Mars First: 1 steel for any tile; a city
+ * also draws 1 card), so a surface can state the answer BEFORE the tile lands:
+ * a law that grants the seats a city (Mars First Budget, Skyscrapers) reads it
+ * beside the city row (decision Р3 — the law takes the ENACTED slot before its
+ * steps run, so its own party answers the city it grants). Not a
+ * `PartyReaction`: its trigger is a placement, not a step of a track, and one
+ * of its gains is a card, not a resource.
+ */
+export type PartyTileAnswer = {
+  /** The stock paid for ANY tile placed on Mars. */
+  perTile: {resource: Resource; amount: number};
+  /** The cards drawn on top when the tile is a CITY. */
+  cityCards: number;
+};

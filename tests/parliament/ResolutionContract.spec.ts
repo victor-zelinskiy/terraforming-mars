@@ -14,6 +14,7 @@ import {levelAfter, levelAmount, levelTakesAway, scaledAmount, sequelAmount} fro
 import {LEVY_STEP_KEY, levyDeclared, levyPaid} from '../../src/common/parliament/resolutionLevy';
 import {COLONY_TRACK_STEP_KEY, colonyTrackAdvanceDeclared} from '../../src/common/parliament/colonyTrackAdvance';
 import {TILE_REMOVAL_STEP_KEY, tileRemovalDeclared} from '../../src/common/parliament/tileRemoval';
+import {tileGrantStepKey} from '../../src/common/parliament/tileGrant';
 import {actionUsesDeclared, actionUsesFor} from '../../src/common/parliament/actionUses';
 import {OUTCOME_KINDS, REWARD_ADDRESS, rewardAddressOf} from '../../src/common/parliament/rewardAddress';
 import {isWinnerParameterReward, winnerParameterStepKey} from '../../src/common/parliament/winnerReward';
@@ -462,6 +463,17 @@ function checkSeam(definition: ResolutionDefinition): Array<string> {
   }
   if (levyAt > 0) {
     failures.push(`${name}: the levy step must come FIRST — the printed order is the executed order`);
+  }
+  // THE TILE GRANT (Skyscrapers, Mars First Budget) is declared on TWO layers or on none: the data every surface
+  // reads (`tileGrant` — WHO and WHERE) and the family's ONE shared step under the key the declaration derives
+  // (`tileGrantStepKey`), among the seat's own steps — a card that places its tile by a step of its own would be
+  // the second executor the declaration exists to prevent, and the bot's seat (D11) would never find it.
+  const grantKey = definition.tileGrant === undefined ? undefined : tileGrantStepKey(definition.tileGrant);
+  if (grantKey !== undefined && !steps.some((step) => step.key === grantKey)) {
+    failures.push(`${name}: tileGrant without its shared step '${grantKey}' among the immediate steps (the reading and the tile are one declaration)`);
+  }
+  if (definition.tileGrant === undefined && steps.some((step) => step.key === 'city' || step.key === 'city-tier')) {
+    failures.push(`${name}: a city step with no tileGrant declaration — every reading and the bot's seat read the declaration`);
   }
   const immediate = (hasImmediateSteps(definition) ? 1 : 0) + (definition.worldSteps ?? []).length + (definition.winnerSteps ?? []).length;
   if (immediate === 0 && definition.passive === undefined && definition.action === undefined) {

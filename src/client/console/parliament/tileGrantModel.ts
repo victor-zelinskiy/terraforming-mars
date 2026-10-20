@@ -1,7 +1,9 @@
 /*
- * THE TILE GRANT's READING (Turmoil Redux — Skyscrapers, RX20): ONE model for
- * every surface that must say, of a tile granted BY THRESHOLD, «do I get it,
- * where does it go, and what happened» — the vote surface's own-effect block,
+ * THE TILE GRANT's READING (Turmoil Redux — Skyscrapers RX20, Mars First
+ * Budget RX38): ONE model for every surface that must say, of a tile a law
+ * grants the seats — BY THRESHOLD (Skyscrapers' tier) or TO EVERYONE (Mars
+ * First Budget's city), «do I get it, where does it go, and what happened» —
+ * the vote surface's own-effect block,
  * the fullscreen inspector's footer and its «for you» row, the sitting's band,
  * the playground. The twin of `winnerRewardModel.ts` (the winner's part), in
  * the same four moments:
@@ -9,9 +11,10 @@
  *   reference   — off the table, or no seat: the rule alone;
  *   conditional — the card is UP FOR THE VOTE and the viewer is seated: their
  *                 eligibility by their influence NOW («at influence 2 it is
- *                 yours, win or not» / «only if you win»), and the DESTINATIONS
- *                 the server counts for them (their cities on Mars — a zero is
- *                 the honest «nothing lands»);
+ *                 yours, win or not» / «only if you win» / «you place one»),
+ *                 and the DESTINATIONS the server counts for them (their
+ *                 cities on Mars — a zero is the honest «nothing lands»; a
+ *                 grant by the ordinary rules counts nothing);
  *   pending     — the phase is resolving THIS card and the viewer's record is
  *                 not in yet: the eligibility is FIXED (the recorded winner,
  *                 the influence after the Agenda step);
@@ -22,15 +25,23 @@
  * Nothing here decides a rule: eligibility is `tileGrantEligibility` (the
  * common predicate the step pays by), the destinations are the SERVER's count
  * (`marsCities`, by `tileGrantCountId`), the record is the server's own. The
- * cell's own worth (its greeneries, the stack's VP) is the placement dossier's
- * reading, never promised here.
+ * cell's own worth (its greeneries, the stack's VP, its printed bonus) is the
+ * placement dossier's reading, never promised here. Every text below is
+ * chosen by the declaration's TWO questions (`recipients.kind`, `placement`)
+ * through exhaustive switches — a grant to everyone never prints a line or a
+ * stack, a tier never prints «any legal cell».
+ *
+ * MarsBot reads here too (decision D11): a seat that TAKES the tile
+ * (`seatTakesTileGrant`) has a reading even when the law pays it nothing.
  */
 import {Color} from '@/common/Color';
 import {SpaceId} from '@/common/Types';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
-import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPlayerModel, seatEnacts} from '@/common/models/ParliamentModel';
-import {resolutionIdOf} from '@/common/parliament/ParliamentTypes';
-import {TileGrantDeclaration, TileGrantEligibility, tileGrantCountId, tileGrantEligibility, tileGrantStepKey} from '@/common/parliament/tileGrant';
+import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPlayerModel, seatEnacts, seatTakesTileGrant} from '@/common/models/ParliamentModel';
+import {ReduxParty, resolutionIdOf} from '@/common/parliament/ParliamentTypes';
+import {Resource} from '@/common/Resource';
+import {getPartyEffect} from '@/client/parliament/ClientParliamentManifest';
+import {TileGrantDeclaration, TileGrantEligibility, tileGrantCountId, tileGrantEligibility, tileGrantInfluenceLine, tileGrantStepKey} from '@/common/parliament/tileGrant';
 import {ReadingPerson} from './influenceYieldModel';
 
 export type TileGrantContext = 'reference' | 'conditional' | 'pending' | 'applied';
@@ -57,14 +68,48 @@ export type TileGrantReading = {
   skipped?: string;
   /** applied from a FINISHED phase: the generation whose phase it was. */
   generation?: number;
+  /**
+   * THE RULING PARTY'S ANSWER to the tile (decision Р3): the law takes the ENACTED slot before its steps run,
+   * so ITS party rules when the tile lands, and that party's DECLARED answer to a tile on Mars
+   * (`PartyTileAnswer` — Mars First: +1 steel, a city +1 card) is the seat's too. A fact of the law of access,
+   * never a promise about a cell. Absent for a seat the party never answers (MarsBot — it holds no party
+   * effect), a seat the grant passes over or skipped, and a party with no answer to tiles.
+   */
+  answer?: TileGrantAnswer;
 };
+
+/** The ruling party's answer to the granted tile — the party (its emblem and name) and what it pays. */
+export type TileGrantAnswer = {
+  party: ReduxParty;
+  /** The stock paid for the tile on Mars. */
+  perTile: {resource: Resource, amount: number};
+  /** The cards drawn on top for a city (0 when the tile is no city). */
+  cards: number;
+};
+
+/** The answer the resolution's own party makes to the granted tile, for a seat that holds party effects. */
+function answerFor(resolution: IClientResolution, grant: TileGrantDeclaration, seat: ParliamentPlayerModel, reading: TileGrantReading): TileGrantAnswer | undefined {
+  if (!seatEnacts(seat) || reading.context === 'reference' || reading.eligibility === 'none' || reading.skipped !== undefined) {
+    return undefined;
+  }
+  const declared = getPartyEffect(resolution.party)?.tileAnswer;
+  if (declared === undefined) {
+    return undefined;
+  }
+  return {party: resolution.party, perTile: {...declared.perTile}, cards: grant.tile === 'city' ? declared.cityCards : 0};
+}
+
+function withAnswer(resolution: IClientResolution, seat: ParliamentPlayerModel, reading: TileGrantReading): TileGrantReading {
+  const answer = answerFor(resolution, reading.grant, seat, reading);
+  return answer === undefined ? reading : {...reading, answer};
+}
 
 function seatOf(model: ParliamentModel | undefined, viewer: Color | undefined): ParliamentPlayerModel | undefined {
   if (model === undefined || viewer === undefined) {
     return undefined;
   }
   const seat = model.players.find((p) => p.color === viewer);
-  return seat !== undefined && seatEnacts(seat) ? seat : undefined;
+  return seat !== undefined && seatTakesTileGrant(seat) ? seat : undefined;
 }
 
 /**
@@ -119,7 +164,8 @@ export function tileGrantReadingOf(
   if (model === undefined || seat === undefined) {
     return {grant, context: 'reference'};
   }
-  const count = seat.counts?.find((c) => c.id === tileGrantCountId(grant));
+  const countId = tileGrantCountId(grant);
+  const count = countId === undefined ? undefined : seat.counts?.find((c) => c.id === countId);
   const head = {grant, ...(count === undefined ? {} : {cities: count.count})};
   // 1. The phase is resolving THIS card right now: the winner is fixed, the influence is the phase's.
   const phase = model.phase;
@@ -127,42 +173,51 @@ export function tileGrantReadingOf(
   if (phase !== undefined && phaseWinner !== undefined && resolutionIdOf(phaseWinner.instance) === resolution.id) {
     const record = tileGrantOutcomeOf(grant, phase.outcomes, seat.color);
     if (record !== undefined) {
-      return appliedReading(head, record, phaseWinner.player, seat.influence);
+      return withAnswer(resolution, seat, appliedReading(head, record, phaseWinner.player, seat.influence));
     }
-    return {
+    return withAnswer(resolution, seat, {
       ...head,
       context: 'pending',
       eligibility: tileGrantEligibility(grant, {winner: phaseWinner.player === seat.color, influence: seat.influence}),
       influence: seat.influence,
-    };
+    });
   }
   // 2. The last FINISHED phase enacted it: the viewer's record, as history.
   const last = model.lastPhase;
   if (last !== undefined && last.enacted.resolution === resolution.id) {
     const record = tileGrantOutcomeOf(grant, last.outcomes, seat.color);
     if (record !== undefined) {
-      return appliedReading(head, record, last.winner.player, seat.influence, last.generation);
+      return withAnswer(resolution, seat, appliedReading(head, record, last.winner.player, seat.influence, last.generation));
     }
   }
   // 3. Up for the vote: conditional — the viewer's standing as a NON-winner (the win itself is unconditional).
   if (model.slots.some((slot) => slot.resolution === resolution.id)) {
-    return {
+    return withAnswer(resolution, seat, {
       ...head,
       context: 'conditional',
       eligibility: tileGrantEligibility(grant, {winner: false, influence: seat.influence}),
       influence: seat.influence,
-    };
+    });
   }
   // 4. Enacted long ago, or off the table: the rule alone.
   return {grant, context: 'reference'};
 }
 
 /**
- * The ONE qualification sentence the inspector adds under the effect — the
- * detailed reading of the face's «STACK» row (an English key): what a tier
- * IS for the score, and that a seat with no city gains nothing.
+ * The ONE qualification sentence the inspector adds under the effect (an
+ * English key), by WHERE the tile lands: a tier — what it IS for the score,
+ * and that a seat with no city gains nothing; a city by the ordinary rules —
+ * that the rules are the usual ones and the cell pays its bonus.
  */
 export const TILE_GRANT_RULE_KEY = 'Each city in the stack scores its adjacent greeneries separately. The cell pays no placement bonus again. A player with no city on Mars gains nothing.';
+export const TILE_GRANT_ANY_LEGAL_RULE_KEY = 'A city tile placed by the usual rules; the cell pays its placement bonus.';
+
+export function tileGrantRuleKey(grant: TileGrantDeclaration): string {
+  switch (grant.placement) {
+  case 'own-city': return TILE_GRANT_RULE_KEY;
+  case 'any-legal': return TILE_GRANT_ANY_LEGAL_RULE_KEY;
+  }
+}
 
 /** The grant's own name (English key): the tile granted. */
 export function tileGrantLabelKey(grant: TileGrantDeclaration): string {
@@ -175,12 +230,17 @@ export function tileGrantLabelKey(grant: TileGrantDeclaration): string {
 export function tileGrantWhereKey(grant: TileGrantDeclaration): string {
   switch (grant.placement) {
   case 'own-city': return 'on top of your own city on Mars';
+  case 'any-legal': return 'on any legal space on Mars';
   }
 }
 
 /** WHO receives it (English key with its param — the influence line): the head's label. */
 export function tileGrantRecipientsKey(grant: TileGrantDeclaration): {key: string, params: ReadonlyArray<string>} {
-  return {key: 'For the winner of the vote and everyone at influence ${0} or more', params: [String(grant.recipients.influenceAtLeast)]};
+  const recipients = grant.recipients;
+  switch (recipients.kind) {
+  case 'threshold': return {key: 'For the winner of the vote and everyone at influence ${0} or more', params: [String(recipients.influenceAtLeast)]};
+  case 'everyone': return {key: 'Every player, clockwise from the first player', params: []};
+  }
 }
 
 /**
@@ -189,7 +249,10 @@ export function tileGrantRecipientsKey(grant: TileGrantDeclaration): {key: strin
  * phase resolves, the record once it is in. Undefined off the table.
  */
 export function tileGrantCaptionOf(reading: TileGrantReading, person: ReadingPerson = 'you'): {key: string, params?: ReadonlyArray<string>} | undefined {
-  const line = String(reading.grant.recipients.influenceAtLeast);
+  if (reading.grant.recipients.kind === 'everyone') {
+    return everyoneCaptionOf(reading, person);
+  }
+  const line = String(tileGrantInfluenceLine(reading.grant) ?? 0);
   const influence = String(reading.influence ?? 0);
   switch (reading.context) {
   case 'reference':
@@ -222,6 +285,27 @@ export function tileGrantCaptionOf(reading: TileGrantReading, person: ReadingPer
 }
 
 /**
+ * A GRANT TO EVERYONE has no line and no star: the seat simply places one —
+ * the vote changes nothing about it, so the caption says only that (and,
+ * once in, that it was placed or why not). The tile's NAME stands beside the
+ * caption on every host, so the caption never repeats it.
+ */
+function everyoneCaptionOf(reading: TileGrantReading, person: ReadingPerson): {key: string, params?: ReadonlyArray<string>} | undefined {
+  switch (reading.context) {
+  case 'reference':
+    return undefined;
+  case 'conditional':
+  case 'pending':
+    return {key: 'Every player places one'};
+  case 'applied':
+    if (reading.skipped !== undefined) {
+      return {key: reading.skipped};
+    }
+    return person === 'they' ? {key: 'Placed'} : {key: 'You placed it'};
+  }
+}
+
+/**
  * THE DETAIL beside the caption — the destinations while the tile is still to
  * come («your cities on Mars: 2», or the honest «no city on Mars to build on»),
  * the stack once it landed («a stack of 2»). English key + params; undefined
@@ -229,8 +313,9 @@ export function tileGrantCaptionOf(reading: TileGrantReading, person: ReadingPer
  */
 export function tileGrantDetailOf(reading: TileGrantReading, person: ReadingPerson = 'you'): {key: string, params?: ReadonlyArray<string>} | undefined {
   if (reading.context === 'applied') {
+    // A tier names the stack it became; a new city has no stack to name — its cell is the board's to show.
     const stack = reading.placed?.stackHeight;
-    return reading.skipped !== undefined || stack === undefined ? undefined : {key: 'a stack of ${0}', params: [String(stack)]};
+    return reading.grant.placement !== 'own-city' || reading.skipped !== undefined || stack === undefined ? undefined : {key: 'a stack of ${0}', params: [String(stack)]};
   }
   if (reading.context === 'reference' || reading.cities === undefined) {
     return undefined;

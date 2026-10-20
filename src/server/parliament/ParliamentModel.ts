@@ -215,6 +215,8 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
   // and never a seat with a share.
   const participates = parliament.participates(player, 'delegates');
   const enactment = parliament.participates(player, 'enactment');
+  // …and whether it takes the TILE a law grants the seats (D11): a human always, the bot under `'politics'`.
+  const tileGrant = parliament.participates(player, 'tile-grant');
   const access: Array<PartyAccessModel> = REDUX_PARTIES.map((party) => {
     const a = parliament.access(player, party);
     return {
@@ -243,6 +245,7 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
     color: player.color,
     participates,
     enactment,
+    tileGrant,
     lobby: parliament.lobby.has(player.id),
     reserve: parliament.reserve(player),
     onResolutions: parliament.votesOf(player),

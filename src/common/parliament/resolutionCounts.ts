@@ -118,6 +118,12 @@ export const RESOLUTION_COUNT_IDS = [
    */
   'plantMicrobeAnimalTags',
   /**
+   * Mars First Budget: the BUILDING and MARS tags the player has in play,
+   * added up — the two-tag form of Cloud Development's (a card printing both
+   * is worth 2), read with the per-tag breakdown.
+   */
+  'buildingMarsTags',
+  /**
    * Colonization Funding: the player's SPACE CITIES — city tiles on the
    * reserved areas off Mars (Ganymede Colony, Phobos Space Haven, Stanford
    * Torus, the Venus and Pathfinders areas). A count over the BOARD, not the
@@ -291,6 +297,7 @@ export function resolutionCountKind(id: ResolutionCountId): ResolutionCountKind 
   case 'venusJovianTags': return {kind: 'tags', tags: [Tag.VENUS, Tag.JOVIAN]};
   case 'earthVenusJovianTags': return {kind: 'tags', tags: [Tag.EARTH, Tag.VENUS, Tag.JOVIAN]};
   case 'plantMicrobeAnimalTags': return {kind: 'tags', tags: [Tag.PLANT, Tag.MICROBE, Tag.ANIMAL]};
+  case 'buildingMarsTags': return {kind: 'tags', tags: [Tag.BUILDING, Tag.MARS]};
   case 'spaceCities': return {kind: 'board', tiles: 'spaceCity', measure: 'cells'};
   case 'terraformRatingSets': return {kind: 'threshold', metric: 'terraformRating', over: TERRAFORM_RATING_SETS_OVER, step: TERRAFORM_RATING_SETS_STEP};
   case 'steelTitaniumEnergyProduction': return {kind: 'production', resources: INDUSTRIAL_PRODUCTION_RESOURCES};
@@ -651,6 +658,17 @@ export function cardCountVerdict(id: ResolutionCountId, card: CountedCardFacts, 
     }
     if (!card.tags.includes(Tag.PLANT) && !card.tags.includes(Tag.MICROBE) && !card.tags.includes(Tag.ANIMAL)) {
       return {counts: false, reason: 'No plant, microbe or animal tag'};
+    }
+    return {counts: true};
+  }
+  case 'buildingMarsTags': {
+    // The same one question over the two tags Mars First counts: prints a
+    // building OR a Mars tag, face up. A card with both is two UNITS.
+    if (!cardTagsInPlay(card, ctx)) {
+      return {counts: false, reason: 'A played event is face down'};
+    }
+    if (!card.tags.includes(Tag.BUILDING) && !card.tags.includes(Tag.MARS)) {
+      return {counts: false, reason: 'No building or Mars tag'};
     }
     return {counts: true};
   }

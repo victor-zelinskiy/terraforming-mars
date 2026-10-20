@@ -83,7 +83,7 @@ describe('SkyscrapersReadings (RX20)', () => {
     const law = sky();
     expect(law.code).eq('RX20');
     expect(law.party).eq(PartyName.MARS);
-    expect(law.tileGrant).deep.eq({tile: 'city', placement: 'own-city', recipients: {winner: true, influenceAtLeast: 2}});
+    expect(law.tileGrant).deep.eq({tile: 'city', placement: 'own-city', recipients: {kind: 'threshold', winner: true, influenceAtLeast: 2}});
     expect(law.scaled ?? []).deep.eq([]);
     expect(law.winnerReward).is.undefined;
     expect(law.levy).is.undefined;

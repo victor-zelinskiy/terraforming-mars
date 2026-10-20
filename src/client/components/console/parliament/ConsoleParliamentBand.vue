@@ -97,14 +97,17 @@
                                  variant="inline"
                                  :reasonElsewhere="true"
                                  data-parl-band-chip="tile" />
-            <!-- A TILE GRANTED BY THRESHOLD (Skyscrapers): the viewer's own tier — theirs by the vote or the
-                 line, its destinations, the stack it became. A skipped seat reads its skip chip instead. -->
+            <!-- A TILE A LAW GRANTS THE SEATS (Skyscrapers' tier, Mars First Budget's city): the viewer's own — theirs
+                 by the vote, the line or simply being seated, its destinations, the stack it became. ONE line: the
+                 party's answer is left to the panels. A skipped seat reads its skip chip instead. -->
             <ConsoleTileGrant v-else-if="chip.kind === 'grant' && grantReading !== undefined"
                               class="con-band__grant"
                               :reading="grantReading"
                               size="compact"
                               variant="inline"
                               :reasonElsewhere="true"
+                              :withAnswer="false"
+                              :withCaption="grantCaptioned"
                               data-parl-band-chip="grant" />
             <!-- THE PLANET'S OWN MOVE: no seat, no chip in anybody's hands — the
                  parameter, the step it made, and «РТ никому». A lowering is
@@ -366,6 +369,16 @@ export default defineComponent({
     },
     winnerReading(): WinnerRewardReading | undefined {
       return winnerRewardReadingOf(this.resolution, this.model, winnerRewardTableOf(this.playerView.game));
+    },
+    /**
+     * The band's grant chip carries its caption where the caption IS the reading: a threshold's standing (yours by
+     * the vote / the line) and any record. A grant to EVERYONE still owed says nothing a caption must add — the
+     * crumb names the placement and the door's verb the move — and beside a budget's whole plate the line has no
+     * room for it on any profile (RX38: the kicker was cut to «ВА…» at 4K).
+     */
+    grantCaptioned(): boolean {
+      const reading = this.grantReading;
+      return reading === undefined || reading.grant.recipients.kind === 'threshold' || reading.context === 'applied';
     },
     /** A tile granted by threshold (Skyscrapers): the viewer's own reading — the same model the vote block and the inspector read. */
     grantReading(): TileGrantReading | undefined {

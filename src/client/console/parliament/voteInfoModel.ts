@@ -695,8 +695,10 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
   const contexts = new Set(vm.reading.yields.filter((y) => y.context !== 'reference').map((y) => y.context));
   return {
     kickers: 2,
-    // A grant is ONE reading of its own (the seat's standing) where no number is paid.
-    readings: contexts.size + (grant !== undefined ? 1 : 0),
+    // A grant BY THRESHOLD is ONE reading of its own (the seat's standing) where no number is paid. A grant to
+    // EVERYONE decides no standing — like the colony table's line it is the law's own row beside the number,
+    // never a second reading of the seat (Mars First Budget: the net in M€ is the one number, the city a fact).
+    readings: contexts.size + (grant !== undefined && grant.grant.recipients.kind === 'threshold' ? 1 : 0),
     facts: vm.vote.facts.length,
     words: countWords(strings.join(' ')),
     // «Зал» v7 (Ф4): the party box stands beside the reading ONLY under a door that pays the party (its

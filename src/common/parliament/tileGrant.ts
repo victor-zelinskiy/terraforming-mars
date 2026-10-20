@@ -1,64 +1,116 @@
 /*
- * A TILE GRANTED BY THRESHOLD, AS DATA (Turmoil Redux — Skyscrapers, RX20).
+ * A TILE A LAW GRANTS THE SEATS, AS DATA (Turmoil Redux — Skyscrapers RX20,
+ * Mars First Budget RX38).
  *
  * The winner's part (`winnerReward.ts`) goes to ONE seat; an influence-scaled
- * part (`influenceScaling.ts`) pays EVERY seat an amount. Skyscrapers is
- * neither: «the player that won this resolution and players with at least 2
- * Influence each gain a city tile that they MUST place on their existing city
- * on Mars». The recipients are a SET decided by a threshold — the winner
- * always, any other seat at or above the influence line — and what each of
- * them gets is not an amount but ONE tile with ONE legal destination: a tier
- * on top of a city they already own. The sentence lives in the catalog
- * (`text.effect`); the DATA lives here, so every surface that must say «do I
- * get it, and where does it go» reads one declaration and the same rule the
- * engine pays by — never a per-card branch, never a re-derived threshold.
+ * part (`influenceScaling.ts`) pays EVERY seat an amount. A tile grant is
+ * neither: what each recipient gets is not an amount but ONE tile, and the
+ * declaration answers TWO questions that are kept apart, because the cards
+ * answer them independently:
+ *
+ *   WHO   (`recipients`) — a SET decided by a threshold («the player that won
+ *         this resolution and players with at least 2 Influence», Skyscrapers)
+ *         or EVERY participant («each player places a city tile — clockwise
+ *         from the First Player», Mars First Budget);
+ *   WHERE (`placement`)  — a TIER on a city the seat already owns on Mars
+ *         (`own-city`) or a cell by the ordinary city rules (`any-legal`).
+ *
+ * The sentence lives in the catalog (`text.effect`); the DATA lives here, so
+ * every surface that must say «do I get it, and where does it go» reads one
+ * declaration and the same rule the engine pays by — never a per-card branch,
+ * never a re-derived threshold. Every function below is an exhaustive
+ * `switch`, so a third answer to either question fails the compile at every
+ * reader at once.
+ *
+ * WHO INCLUDES MARSBOT (decision D11, 2026-10-20): a law never pays the bot
+ * and never charges it, but the TILE it grants the seats the bot receives by
+ * the same recipients rule and places by its own primitive (the aspect
+ * `tile-grant`, `server/automa/BotTileGrant.ts`).
  *
  * Nothing here promises the CELL: which city, its greeneries, the stack it
- * becomes — that is the placement dossier's, once the seat points at one.
+ * becomes, the bonus it pays — that is the placement dossier's, once the seat
+ * points at one.
  */
 
 import {ResolutionCountId} from './resolutionCounts';
 
-/** WHO receives the tile: the winner of the vote always, and every participant at or above the influence line. */
-export type TileGrantRecipients = {
-  winner: true;
-  influenceAtLeast: number;
-};
+/**
+ * WHO receives the tile:
+ *  - `threshold` — the winner of the vote always, and every participant at or above the influence line;
+ *  - `everyone`  — every participant, in generation order from the first player, whether they voted or not.
+ */
+export type TileGrantRecipients =
+  | {kind: 'threshold'; winner: true; influenceAtLeast: number}
+  | {kind: 'everyone'};
 
-/** The tile granted by threshold: ONE city tile, placed as a TIER on the seat's own existing city on Mars. */
+/**
+ * WHERE it lands:
+ *  - `own-city`  — on top of one of the seat's own cities on Mars (the cell's stack grows by one);
+ *  - `any-legal` — on any cell the ordinary city rules allow (a new city; the cell pays its placement bonus).
+ */
+export type TileGrantPlacement = 'own-city' | 'any-legal';
+
+/** The tile a law grants the seats: ONE city tile, WHO and WHERE declared apart. */
 export type TileGrantDeclaration = {
   tile: 'city';
-  /** WHERE it lands: on top of one of the seat's own cities on Mars — the cell's stack grows by one. */
-  placement: 'own-city';
+  placement: TileGrantPlacement;
   recipients: TileGrantRecipients;
 };
 
 /**
  * WHY a seat receives the tile — or does not. `winner` outranks `influence`
  * (a winner below the line still receives it: the star is unconditional);
- * `none` is the seat the law passes over, and every reading names it as a
- * fact of the rule, never as «no influence».
+ * `everyone` is the seat a law that grants every player reaches by being
+ * seated; `none` is the seat the law passes over, and every reading names it
+ * as a fact of the rule, never as «no influence».
  */
-export type TileGrantEligibility = 'winner' | 'influence' | 'none';
+export type TileGrantEligibility = 'winner' | 'influence' | 'everyone' | 'none';
 
 export function tileGrantEligibility(grant: TileGrantDeclaration, seat: {winner: boolean, influence: number}): TileGrantEligibility {
-  if (seat.winner) {
-    return 'winner';
+  const recipients = grant.recipients;
+  switch (recipients.kind) {
+  case 'everyone':
+    return 'everyone';
+  case 'threshold':
+    if (seat.winner) {
+      return 'winner';
+    }
+    return seat.influence >= recipients.influenceAtLeast ? 'influence' : 'none';
   }
-  return seat.influence >= grant.recipients.influenceAtLeast ? 'influence' : 'none';
+}
+
+/** The influence line of a threshold grant — `undefined` for a grant to everyone (no line to read). */
+export function tileGrantInfluenceLine(grant: TileGrantDeclaration): number | undefined {
+  const recipients = grant.recipients;
+  switch (recipients.kind) {
+  case 'threshold': return recipients.influenceAtLeast;
+  case 'everyone': return undefined;
+  }
+}
+
+/** Does the grant reward the WINNER as such (the star of a threshold grant)? A grant to everyone has no winner's part. */
+export function tileGrantRewardsWinner(grant: TileGrantDeclaration): boolean {
+  const recipients = grant.recipients;
+  switch (recipients.kind) {
+  case 'threshold': return recipients.winner;
+  case 'everyone': return false;
+  }
 }
 
 /**
  * THE COUNT that explains WHERE the tile may go — the seat's legal
  * destinations as a board count the server model carries per seat
  * (`ParliamentPlayerModel.counts`), read by the same cell predicate the
- * stand uses. A grant onto the seat's own city counts their cities on Mars;
- * the number is the destinations (a cell once, whatever its stack), and a
- * zero is the honest «nothing lands».
+ * stand uses. A grant onto the seat's own city counts their cities on Mars
+ * (a cell once, whatever its stack; a zero is the honest «nothing lands»).
+ * A grant by the ordinary rules counts NOTHING (`undefined`): the legal cells
+ * of a city are almost always many, the number explains nothing, and an
+ * empty board is the step's own named skip at the execution.
  */
-export function tileGrantCountId(grant: TileGrantDeclaration): ResolutionCountId {
+export function tileGrantCountId(grant: TileGrantDeclaration): ResolutionCountId | undefined {
   switch (grant.placement) {
   case 'own-city': return 'marsCities';
+  case 'any-legal': return undefined;
   }
 }
 
@@ -70,9 +122,20 @@ export function tileGrantCountId(grant: TileGrantDeclaration): ResolutionCountId
 export function tileGrantStepKey(grant: TileGrantDeclaration): string {
   switch (grant.placement) {
   case 'own-city': return `${grant.tile}-tier`;
+  case 'any-legal': return grant.tile;
   }
 }
 
 /** The skips' reasons — English keys the stage plate translates; the server records them, every reading prints them. */
 export const TILE_GRANT_NOT_ELIGIBLE_REASON = 'Below 2 influence and not the winner of the vote';
 export const TILE_GRANT_NO_DESTINATION_REASON = 'No city on Mars to build on';
+/** The ordinary city rules left no cell (the key the standard project already prints). */
+export const TILE_GRANT_NO_SPACE_REASON = 'No space left for a city tile';
+
+/** The named skip of a seat with nowhere for the tile to go — the placement's own words. */
+export function tileGrantNoDestinationReason(grant: TileGrantDeclaration): string {
+  switch (grant.placement) {
+  case 'own-city': return TILE_GRANT_NO_DESTINATION_REASON;
+  case 'any-legal': return TILE_GRANT_NO_SPACE_REASON;
+  }
+}

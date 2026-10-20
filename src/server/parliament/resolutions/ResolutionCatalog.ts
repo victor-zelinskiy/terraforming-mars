@@ -57,6 +57,7 @@ import {OPEN_IP_TRADE} from './scientists/OpenIpTrade';
 import {RD_FUNDING} from './scientists/RdFunding';
 import {LIVE_EXPERIMENTS} from './scientists/LiveExperiments';
 import {MANUFACTURING_RUN} from './industrialists/ManufacturingRun';
+import {MARS_FIRST_BUDGET} from './marsFirst/MarsFirstBudget';
 import {PLANT_BAN} from './reds/PlantBan';
 import {runResolutionAction} from './ResolutionAction';
 import {SCIENTISTS_BUDGET} from './scientists/ScientistsBudget';
@@ -531,6 +532,10 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // influence 2+») — declared as data (`actionUses`) and read by ONE function, live at every use; the Scientists' party
   // action's shape (the kind a branch, the card a pick — the one builder both stand on), for floaters, fighters and mechs.
   MANUFACTURING_RUN,
+  // The SIXTH BUDGET, and the tile grant's SECOND variant: the shared levy (−12 M€), a count over TWO tags (building +
+  // Mars) + influence, and a CITY for EVERY seat by the ordinary rules, clockwise — the first grant MarsBot takes a
+  // seat of (decision D11: the tile, never the money), placed by its own rule in its own place in the order.
+  MARS_FIRST_BUDGET,
   // The distributing family over TWO KINDS of unit: the recipients are the holders of data AND of microbes at once,
   // and each unit's kind is its card's — never a second question (`AddResourcesToCards` over a list of kinds).
   MEDICAL_DATABASE,

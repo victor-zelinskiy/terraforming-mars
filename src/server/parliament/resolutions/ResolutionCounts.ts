@@ -239,10 +239,12 @@ export function declaredCountIds(catalog: ResolutionCatalog): Array<ResolutionCo
         ids.add(effect.count.id);
       }
     }
-    // A TILE GRANTED BY THRESHOLD counts its DESTINATIONS (Skyscrapers: the seat's cities on Mars) — the
-    // same per-seat count, so every reading of «where would it go» stands on the server's cells.
-    if (definition.tileGrant !== undefined) {
-      ids.add(tileGrantCountId(definition.tileGrant));
+    // A TILE GRANT onto the seat's own city counts its DESTINATIONS (Skyscrapers: the seat's cities on Mars) —
+    // the same per-seat count, so every reading of «where would it go» stands on the server's cells. A grant by
+    // the ordinary rules counts nothing (Mars First Budget — the legal cells explain nothing).
+    const grantCount = definition.tileGrant === undefined ? undefined : tileGrantCountId(definition.tileGrant);
+    if (grantCount !== undefined) {
+      ids.add(grantCount);
     }
   }
   return RESOLUTION_COUNT_IDS.filter((id) => ids.has(id));

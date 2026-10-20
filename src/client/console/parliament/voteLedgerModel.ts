@@ -25,7 +25,7 @@
  */
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
-import {ParliamentModel, seatEnacts} from '@/common/models/ParliamentModel';
+import {ParliamentModel, seatEnacts, seatTakesTileGrant} from '@/common/models/ParliamentModel';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {InfluenceScaledEffect, InfluenceYield} from '@/common/parliament/influenceScaling';
 import {noRecipientCompactNoteOf, oneNumberYieldsOf, voteLevyOf, voteYieldsOf, YieldIcon, yieldIconOf, yieldIsMultiplier} from './influenceYieldModel';
@@ -46,8 +46,9 @@ export type LedgerTone = 'gain' | 'loss' | 'lost' | 'quiet' | 'winner';
 /**
  * WHAT the number IS: a plain amount, a MULTIPLIER over the seat's colony
  * ledger («×2» — Colonial Affairs: what is paid is every tile's own printed
- * bonus, so the number is not a count of anything), or a TILE granted by
- * threshold (Skyscrapers), which is no number at all.
+ * bonus, so the number is not a count of anything), or a TILE a law grants
+ * the seats (Skyscrapers' tier, Mars First Budget's city), which is no number
+ * at all.
  */
 export type LedgerPartKind = 'amount' | 'multiplier' | 'tile';
 
@@ -72,7 +73,7 @@ export type LedgerChipVm = {
 
 /** The key of a levy part with no payout of its own currency to net against («−10 M€» alone). */
 export const LEDGER_LEVY_KEY = 'levy';
-/** …and of a tile granted by threshold. */
+/** …and of a tile a law grants the seats. */
 export const LEDGER_TILE_KEY = 'tile';
 
 export type VoteLedgerInput = {
@@ -112,8 +113,13 @@ function partsOf(
   model: ParliamentModel,
   color: Color,
   tableau: ReadonlyArray<{name: CardName}>,
+  paid: boolean,
 ): Array<LedgerPart> {
   const parts: Array<LedgerPart> = [];
+  // A seat the law does not PAY (MarsBot — D3) reads the TILE alone (D11): no yield, no levy is ever its.
+  if (!paid) {
+    return tilePartsOf(resolution, model, color);
+  }
   const yields: ReadonlyArray<InfluenceYield> = oneNumberYieldsOf(voteYieldsOf(resolution, model, color)).filter((y) => y.context !== 'reference');
   // THE LEVY (a budget takes «10 M€» first): the chip prints the seat's NET in that currency — the
   // panel's own law «−10 → +7 = −3», one number instead of two the player has to add up.
@@ -143,23 +149,34 @@ function partsOf(
   if (levy !== undefined && !levyNetted) {
     parts.unshift({key: LEDGER_LEVY_KEY, kind: 'amount', amount: levy.paid, icon: {family: 'resource', resource: levy.resource, production: false}, tone: 'loss'});
   }
-  // A TILE GRANTED BY THRESHOLD (Skyscrapers) — the seats that pass on INFLUENCE alone get it whoever
-  // wins, and that is what the row compares. The winner's own claim is a scenario, not a standing.
-  const grant = tileGrantReadingOf(resolution, model, color);
-  if (grant !== undefined && grant.context !== 'reference' && grant.eligibility === 'influence') {
-    // …and a seat that qualifies with no city to build on is told so (`✕`), never given a silent tile.
-    parts.push({key: LEDGER_TILE_KEY, kind: 'tile', tone: grant.cities === 0 ? 'lost' : 'gain'});
-  }
+  parts.push(...tilePartsOf(resolution, model, color));
   return parts;
+}
+
+/**
+ * THE TILE a law grants the seats, as the row compares it: a seat that passes
+ * a THRESHOLD on influence alone (Skyscrapers — the winner's own claim is a
+ * scenario, not a standing), or EVERY seat of a grant to everyone (Mars First
+ * Budget's city). A seat that qualifies with no city to build on is told so
+ * (`✕`), never given a silent tile.
+ */
+function tilePartsOf(resolution: IClientResolution, model: ParliamentModel, color: Color): Array<LedgerPart> {
+  const grant = tileGrantReadingOf(resolution, model, color);
+  if (grant === undefined || grant.context === 'reference' || (grant.eligibility !== 'influence' && grant.eligibility !== 'everyone')) {
+    return [];
+  }
+  return [{key: LEDGER_TILE_KEY, kind: 'tile', tone: grant.cities === 0 ? 'lost' : 'gain'}];
 }
 
 /**
  * THE ROW for the selected card: one chip per seat a law PAYS, the viewer
  * first. MarsBot (`enactment === false` — in every mode, decision D3) never
- * appears — not even as a zero: an enacted law never pays it, and a zero
- * would say it lost a contest it was never in. Its DELEGATES are another
- * matter (`participates`): under `'politics'` they stand on the cards and in
- * the seat zone. A card that pays NOBODY anything (a passive, an action)
+ * appears for a payout — not even as a zero: an enacted law never pays it,
+ * and a zero would say it lost a contest it was never in. A law that grants
+ * the seats a TILE is the one exception (decision D11): the bot under
+ * `'politics'` takes that tile (`seatTakesTileGrant`), so its chip stands with
+ * the tile alone. Its DELEGATES are another matter (`participates`): under
+ * `'politics'` they stand on the cards and in the seat zone. A card that pays NOBODY anything (a passive, an action)
  * yields no row at all: there is nothing to compare, and an row of empty cubes
  * would be furniture.
  */
@@ -168,13 +185,14 @@ export function voteLedgerOf(input: VoteLedgerInput): ReadonlyArray<LedgerChipVm
   if (resolution === undefined || model === undefined) {
     return [];
   }
-  const seats = model.players.filter((p) => seatEnacts(p));
+  const grants = resolution.tileGrant !== undefined;
+  const seats = model.players.filter((p) => seatEnacts(p) || (grants && seatTakesTileGrant(p)));
   const mine = viewer === undefined ? undefined : seats.find((p) => p.color === viewer);
   const ordered = [...(mine === undefined ? [] : [mine]), ...seats.filter((p) => p !== mine)];
   const chips = ordered.map((seat) => ({
     color: seat.color,
     you: seat === mine,
-    parts: partsOf(resolution, model, seat.color, input.players.find((p) => p.color === seat.color)?.tableau ?? []),
+    parts: partsOf(resolution, model, seat.color, input.players.find((p) => p.color === seat.color)?.tableau ?? [], seatEnacts(seat)),
   }));
   return chips.some((chip) => chip.parts.length > 0) ? chips : [];
 }

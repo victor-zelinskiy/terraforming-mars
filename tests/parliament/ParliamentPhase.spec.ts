@@ -1,4 +1,5 @@
 import {expect} from 'chai';
+import {tileGrantStepKey} from '../../src/common/parliament/tileGrant';
 import * as fs from 'fs';
 import * as path from 'path';
 import {testGame} from '../TestGame';
@@ -595,9 +596,16 @@ describe('ParliamentPhase', () => {
         // therefore be the WINNING PLAYER: its ★ is paid by declaration (D4), never as a seat's payout of the law.
         // The sitting's SEAT records name the human alone — the bot is outside the enactment.
         const botWon = parliament.lastPhase?.winner.player === bot.id;
-        const seats = new Set((parliament.lastPhase?.outcomes ?? []).filter((o) => o.part !== 'winner').map((o) => o.player).filter((p) => p !== undefined));
-        expect(seats.has(bot.id), `the law paid the bot in generation ${generation}`).is.false;
-        if (!botWon) {
+        // …EXCEPT the TILE a law grants the seats (decision D11 — Skyscrapers' tier, Mars First Budget's city): the
+        // bot is a seat of the grant, by the recipients rule, and its ONE record under the grant's step is not a
+        // payout. Nothing else of the law is ever the bot's.
+        const enacted = parliament.lastPhase === undefined ? undefined : parliament.resolutionOf(parliament.lastPhase.enacted);
+        const grantKey = enacted?.tileGrant === undefined ? undefined : tileGrantStepKey(enacted.tileGrant);
+        const botSeatRecords = (parliament.lastPhase?.outcomes ?? []).filter((o) => o.part !== 'winner' && o.player === bot.id);
+        expect(botSeatRecords.filter((o) => o.step !== grantKey).map((o) => o.step), `the law paid the bot in generation ${generation}`).deep.eq([]);
+        expect(botSeatRecords.filter((o) => o.kind === 'reaction'), 'the ruling party never answers the bot').deep.eq([]);
+        const botPlacedTile = botSeatRecords.some((o) => o.kind === 'city');
+        if (!botWon && !botPlacedTile) {
           expect(bot.megaCredits, `the sitting changed the bot's M€ in generation ${generation}`).eq(botMegacredits);
           expect(bot.terraformRating, `the sitting changed the bot's TR in generation ${generation}`).eq(botTr);
         }

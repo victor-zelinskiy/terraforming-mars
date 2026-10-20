@@ -1395,6 +1395,15 @@
     /* THE WINNER'S TILE in a rail is ONE line too (the Deck broke «Океан 0 → 1 + / РАЗМЕЩЕНО ВАМИ» onto a second row the
        39 px strip cut, and the block ran off the screen's right edge). */
     &__winner.con-wreward, &__winner .con-wreward__body { flex-wrap: nowrap; white-space: nowrap; }
+    /* …and so is a TILE A LAW GRANTS THE SEATS (RX38: Mars First Budget's city beside the money's plate wrapped its
+       caption onto a second row the 4K strip cut, and pushed the kicker to «ВА…»). */
+    &__grant.con-tgrant, &__grant .con-tgrant__body { flex-wrap: nowrap; white-space: nowrap; }
+    /* …and it is a SECONDARY member: beside a budget's whole plate it yields its CAPTION in its own box (an ellipsis),
+       sharing the room with the kicker by the line's one rule (`flex-basis: 0` + `max-width: max-content`) — cut by the
+       strip's edge, «каждый игрок ставит св» lost its end and the kicker read «ВА…» on a 4K screen with room to spare. */
+    &__grant.con-tgrant { flex: 1 1 0; min-width: 0; max-width: max-content; overflow: hidden; }
+    &__grant .con-tgrant__body { min-width: 0; overflow: hidden; }
+    &__grant .con-tgrant__caption { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 }
 /* On the Deck the inline caption («РАЗМЕЩЕНО ВАМИ») restates the band's own «ВАША НАГРАДА · ПОЛУЧЕНО» — the strip is too
    narrow to say it twice, so the tile's body speaks alone. */

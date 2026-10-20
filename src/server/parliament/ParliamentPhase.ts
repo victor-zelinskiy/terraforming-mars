@@ -68,7 +68,9 @@ import {
 } from './SerializedParliament';
 import {CardName} from '../../common/cards/CardName';
 import {ChairmanSeat} from './quests/ChairmanSeat';
-import {botWinnerRewardPlan, declaresWinnerPart, NO_BOT_EXECUTOR_REASON, payBotWinnerReward} from '../automa/BotWinnerReward';
+import {botWinnerRewardPlan, declaresWinnerPass, NO_BOT_EXECUTOR_REASON, payBotWinnerReward} from '../automa/BotWinnerReward';
+import {payBotTileGrant} from '../automa/BotTileGrant';
+import {TileGrantDeclaration, tileGrantStepKey} from '../../common/parliament/tileGrant';
 
 /**
  * THE HANDLE OF A WORLD STEP — the seat the engine's parameter API is handed
@@ -557,7 +559,17 @@ export class ParliamentPhase {
     // MarsBot winner under `'politics'` is outside it (decision D3) — its
     // winner's part is not a seat step at all but the bot's own primitives,
     // paid by a separate pass after the world's (`BotWinnerReward`).
-    const players = parliament.participants(this.game, 'enactment');
+    //
+    // …EXCEPT THE TILE A LAW GRANTS THE SEATS (decision D11): a definition
+    // with `tileGrant` walks every seat of the aspect `tile-grant` — the
+    // enactment's seats plus a MarsBot under `'politics'` — in generation
+    // order, so the bot stands in ITS PLACE in «clockwise from the first
+    // player» (a first-player bot places first). A seat the law pays walks
+    // its whole plan; a seat it does not (the bot) walks the grant alone, by
+    // the bot's own primitive, never a prompt. Every other card walks exactly
+    // the seats it always did.
+    const grant = definition.tileGrant;
+    const players = parliament.participants(this.game, grant === undefined ? 'enactment' : 'tile-grant');
     const winnerEnacts = winner !== undefined && parliament.participates(winner, 'enactment');
     const winnerSteps = definition.winnerSteps ?? [];
     const worldSteps = definition.worldSteps ?? [];
@@ -587,6 +599,15 @@ export class ParliamentPhase {
     for (let index = 0; index < players.length; index++) {
       cursor.playerIndex = index;
       const player = players[index];
+      if (grant !== undefined && !parliament.participates(player, 'enactment')) {
+        // A seat of the grant the law does not pay (MarsBot): its tile, by its own primitive — then the deferred
+        // tail it set off (a human card answering the bot's city) runs, and may wait, before the next seat.
+        this.runBotTileGrant(definition, instance, player, winner, grant);
+        if (this.drainDeferred() === 'waiting') {
+          return 'waiting';
+        }
+        continue;
+      }
       // THE SEAT'S OWN STEPS — the static list, or the definition's per-player
       // PLAN (one step per colony tile the seat has a cube on): re-derived on
       // every entry from the same table, so a reload finds the same keys.
@@ -644,7 +665,8 @@ export class ParliamentPhase {
    * and a red guard in `tests/parliament/BotWinnerReward.spec.ts`.
    */
   private runBotWinnerPass(definition: ResolutionDefinition, instance: ResolutionInstanceId, bot: IPlayer): 'waiting' | 'done' {
-    if (!declaresWinnerPart(definition)) {
+    // A tile grant is never this pass's: the seat loop paid it to every recipient, the winner included (D11).
+    if (!declaresWinnerPass(definition)) {
       return 'done';
     }
     const p = this.progress;
@@ -669,6 +691,39 @@ export class ParliamentPhase {
     }
     // The primitive's deferred tail (a human card reacting to the bot's tile) runs — and may wait — before the walk goes on.
     return this.drainDeferred() === 'waiting' ? 'waiting' : 'done';
+  }
+
+  /**
+   * THE TILE A LAW GRANTS THE SEATS, FOR A SEAT THE LAW DOES NOT PAY (MarsBot
+   * under `'politics'` — decision D11): ONE executor by the declaration
+   * (`payBotTileGrant` — the same recipients rule as a human's step, the bot's
+   * own placement rule, no Failed Action), never a prompt. The record wears
+   * the grant's step key and the effect's part, the idempotency key lives
+   * under the bot's seat exactly as a human's step's does, the scope is the
+   * resolution's with the bot as owner — a reload inside the sitting places
+   * nothing twice, and the results read the bot's tile as one more seat's.
+   */
+  private runBotTileGrant(
+    definition: ResolutionDefinition,
+    instance: ResolutionInstanceId,
+    bot: IPlayer,
+    winner: IPlayer | undefined,
+    grant: TileGrantDeclaration,
+  ): void {
+    const p = this.progress;
+    const stepKey = tileGrantStepKey(grant);
+    const key = `effect:${p.generation}:${instance}:${stepKey}`;
+    if (this.seatApplied(bot.id, key, `effect:${p.generation}:${instance}:${bot.id}:${stepKey}`)) {
+      return;
+    }
+    const events = this.game.events;
+    events.beginAction(bot, {kind: 'resolution', id: definition.id, owner: bot.color}, {category: 'political-phase'});
+    try {
+      payBotTileGrant(this.game, bot, definition, grant, winner, (outcome) => this.recordOutcome(bot, stepKey, 'effect', outcome));
+      this.markSeatApplied(bot.id, key);
+    } finally {
+      events.endScope();
+    }
   }
 
   /**

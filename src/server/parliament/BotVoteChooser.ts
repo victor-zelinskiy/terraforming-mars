@@ -29,7 +29,7 @@ import {IPlayer} from '../IPlayer';
 import {Parliament, Slot} from './Parliament';
 import {ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
 import {MarsBotVoteRule} from '../../common/automa/MarsBotTurn';
-import {botWinnerRewardKind} from '../automa/BotWinnerReward';
+import {botWinsSomething} from '../automa/BotWinnerReward';
 
 export type BotVoteChoice = {
   slotIndex: number;
@@ -150,7 +150,7 @@ export function chooseVoteSlot(parliament: Parliament, bot: IPlayer): BotVoteCho
 
   // 3. The ties — each applied only where it NARROWS.
   if (candidates.length > 1) {
-    const starred = candidates.filter((index) => botWinnerRewardKind(parliament.resolutionOf(slots[index].instance)) !== undefined);
+    const starred = candidates.filter((index) => botWinsSomething(parliament.resolutionOf(slots[index].instance)));
     if (starred.length > 0 && starred.length < candidates.length) {
       candidates = starred;
       rules.push('star');

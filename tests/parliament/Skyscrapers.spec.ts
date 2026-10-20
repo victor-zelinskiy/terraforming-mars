@@ -143,7 +143,7 @@ describe('Skyscrapers', () => {
 
     it('declares the grant as DATA: one city tile as a tier on the seat\'s own city, for the winner and everyone at influence ≥ 2 — the tile-grant family', () => {
       expect(SKYSCRAPERS.tileGrant).eq(SKYSCRAPERS_GRANT);
-      expect(SKYSCRAPERS_GRANT).deep.eq({tile: 'city', placement: 'own-city', recipients: {winner: true, influenceAtLeast: 2}});
+      expect(SKYSCRAPERS_GRANT).deep.eq({tile: 'city', placement: 'own-city', recipients: {kind: 'threshold', winner: true, influenceAtLeast: 2}});
       expect(SKYSCRAPERS_INFLUENCE_LINE).eq(2);
       expect(familyOf(SKYSCRAPERS)).eq('tile-grant');
     });

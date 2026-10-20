@@ -2,7 +2,7 @@
  * THE WINNER'S REWARD, AS MARSBOT EXECUTES IT (docs/TURMOIL_REDUX_MARSBOT.md §4).
  *
  * A resolution declares its winner's part as DATA (`winnerReward` — a tile,
- * a colony, a parameter step; `tileGrant` — a city tier by threshold), and
+ * a colony, a parameter step), and
  * the bot pays it with ITS OWN PRIMITIVES by the KIND of the declaration,
  * never by the card: the ocean and the greenery through `AutomaTilePlacer`
  * (the bot's placement rules, its tie-breaks, the cell's bonuses, the human
@@ -10,8 +10,12 @@
  * `AutomaColonies.botBuildColony` (flip-to-pick among the tiles the rules
  * allow, two storage resources, no M€), the parameter through the bot's own
  * raise (rewarded: the TR, the scale's bonuses as the bot takes them — 2 M€
- * for a heat step, the 0 °C ocean placed at once), the tier through
- * `Game.addCityTier` on one of the bot's own cities (its tie-break).
+ * for a heat step, the 0 °C ocean placed at once).
+ *
+ * A TILE A LAW GRANTS THE SEATS (`tileGrant` — Skyscrapers' tier, whose
+ * recipients include the winner) is NOT a winner's part here: since decision
+ * D11 the bot takes it in the seat loop, by the recipients rule, like any seat
+ * (`BotTileGrant.ts`) — paid here as well, a bot winner would get it twice.
  *
  * This module is the ONE reading of «which kinds can the bot execute»: the
  * vote chooser's ★ tie-break asks it (§3.3) and the sitting's bot pass pays
@@ -21,16 +25,15 @@
  * the primitive (the Failed Action is the bot's TURN compensation — a reward
  * that cannot land pays nothing and says so), and every branch REPORTS once
  * with the same kinds the human's steps record (`ocean` · `greenery` ·
- * `colony` · `globalParameter` · `city` · `skipped`), under the card's own
+ * `colony` · `globalParameter` · `skipped`), under the card's own
  * step key — so the results, the history and the journal read the bot's
  * reward as one more seat's outcome.
  */
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {TileType} from '../../common/TileType';
-import {tileGrantStepKey, TILE_GRANT_NO_DESTINATION_REASON} from '../../common/parliament/tileGrant';
+import {tileGrantRewardsWinner} from '../../common/parliament/tileGrant';
 import {winnerParameterStepKey, WinnerStepParameter} from '../../common/parliament/winnerReward';
 import {parameterRoom} from '../../common/parliament/parameterMove';
-import {Board} from '../boards/Board';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {EnactOutcome, ResolutionDefinition} from '../parliament/resolutions/IResolution';
@@ -42,7 +45,7 @@ import {AutomaTerraformer} from './AutomaTerraformer';
 import {AutomaTilePlacer} from './AutomaTilePlacer';
 import {AutomaCorporations} from './corps/AutomaCorporations';
 
-export type BotWinnerRewardKind = 'ocean' | 'greenery' | 'colony' | 'parameter' | 'city';
+export type BotWinnerRewardKind = 'ocean' | 'greenery' | 'colony' | 'parameter';
 
 /** The named skip when the bot's corporation took the step over (C36 Pristar: «instead it gains…»). */
 export const CORPORATION_REPLACED_STEP_REASON = 'MarsBot\'s corporation replaced the step';
@@ -50,37 +53,43 @@ export const CORPORATION_REPLACED_STEP_REASON = 'MarsBot\'s corporation replaced
 export const NO_BOT_EXECUTOR_REASON = 'No MarsBot executor for this winner\'s part';
 
 /**
- * The kind of winner's reward `definition` declares that the bot CAN execute;
- * `undefined` for a card with no winner's part, or with one the bot has no
+ * The kind of winner's reward `definition` declares that the bot pass CAN
+ * execute; `undefined` for a card with no winner's part, with only a tile
+ * grant (the seat loop's — `BotTileGrant.ts`), or with one the bot has no
  * primitive for (a `winnerSteps` list with no declaration — the guard of the
  * bot pass lists such a card).
  */
 export function botWinnerRewardKind(definition: ResolutionDefinition): BotWinnerRewardKind | undefined {
   const reward = definition.winnerReward;
-  if (reward !== undefined) {
-    switch (reward.kind) {
-    case 'tile':
-      return reward.tile;
-    case 'colony':
-      return 'colony';
-    case 'parameter':
-      return 'parameter';
-    }
+  if (reward === undefined) {
+    return undefined;
   }
-  const grant = definition.tileGrant;
-  if (grant !== undefined && grant.placement === 'own-city' && grant.recipients.winner) {
-    return 'city';
+  switch (reward.kind) {
+  case 'tile':
+    return reward.tile;
+  case 'colony':
+    return 'colony';
+  case 'parameter':
+    return 'parameter';
   }
-  return undefined;
+}
+
+/**
+ * THE ★ THE VOTE CHOOSER PREFERS (§3.3): winning this card gives the bot
+ * something it TAKES — a winner's reward its pass executes, or a tile grant
+ * whose recipients include the winner (Skyscrapers: the bot's tier comes
+ * through the seat loop, but only the win makes it the bot's at influence 0–1).
+ */
+export function botWinsSomething(definition: ResolutionDefinition): boolean {
+  return botWinnerRewardKind(definition) !== undefined ||
+    (definition.tileGrant !== undefined && tileGrantRewardsWinner(definition.tileGrant));
 }
 
 /**
  * WHAT the bot pass records: the kind it executes, the STEP KEY the record
  * wears — the card's own (the same key the human winner's step reports
  * under, so every reader of the outcomes finds the bot's reward where it
- * finds a human's), and the PART (the winner's, or the effect's for a tile
- * granted by threshold — Skyscrapers records its tier for every seat as the
- * effect, the winner included).
+ * finds a human's), and the PART (the winner's).
  */
 export type BotWinnerRewardPlan = {kind: BotWinnerRewardKind; key: string; part: Exclude<EnactOutcomePart, 'world'>};
 
@@ -97,15 +106,23 @@ export function botWinnerRewardPlan(definition: ResolutionDefinition): BotWinner
     return {kind, key: definition.winnerSteps?.[0]?.key ?? kind, part: 'winner'};
   case 'parameter':
     return {kind, key: reward?.kind === 'parameter' ? winnerParameterStepKey(reward) : kind, part: 'winner'};
-  case 'city':
-    return {kind, key: definition.tileGrant === undefined ? kind : tileGrantStepKey(definition.tileGrant), part: 'effect'};
   }
 }
 
-/** Does `definition` carry a winner's part at all (declared or only as steps)? The guard's question. */
+/** Does `definition` carry a winner's part at all (declared, only as steps, or the star of a tile grant)? The guard's question. */
 export function declaresWinnerPart(definition: ResolutionDefinition): boolean {
-  return (definition.winnerSteps?.length ?? 0) > 0 || definition.winnerReward !== undefined ||
-    definition.tileGrant?.recipients.winner === true;
+  return declaresWinnerPass(definition) ||
+    (definition.tileGrant !== undefined && tileGrantRewardsWinner(definition.tileGrant));
+}
+
+/**
+ * Does the bot WINNER'S PASS have work — a winner's part OTHER than a tile
+ * grant (which the seat loop pays every recipient, the winner included)?
+ * `ParliamentPhase.runBotWinnerPass` asks this, so a bot winner of
+ * Skyscrapers gets exactly ONE tier.
+ */
+export function declaresWinnerPass(definition: ResolutionDefinition): boolean {
+  return (definition.winnerSteps?.length ?? 0) > 0 || definition.winnerReward !== undefined;
 }
 
 const GLOBAL_PARAMETER: Readonly<Record<WinnerStepParameter, GlobalParameter>> = {
@@ -129,9 +146,6 @@ export function payBotWinnerReward(game: IGame, bot: IPlayer, definition: Resolu
     return;
   case 'parameter':
     payParameter(game, bot, definition, report);
-    return;
-  case 'city':
-    payCityTier(game, bot, definition, report);
     return;
   }
 }
@@ -251,19 +265,4 @@ function valueOf(game: IGame, parameter: WinnerStepParameter): number {
   case 'oxygen': return game.getOxygenLevel();
   case 'venus': return game.getVenusScaleLevel();
   }
-}
-
-function payCityTier(game: IGame, bot: IPlayer, definition: ResolutionDefinition, report: (outcome: EnactOutcome) => void): void {
-  const influence = game.parliament?.influence(bot) ?? 0;
-  // The candidates are the bot's own cities on Mars — the ONE placement validator (`city-tier`), as for a human.
-  const cities = game.board.getAvailableSpacesForType(bot, 'city-tier');
-  if (cities.length === 0) {
-    game.log('${0} has no city on Mars — the city tile from ${1} is skipped', (b) => b.player(bot).resolution(definition.id));
-    report({kind: 'skipped', influence, reason: TILE_GRANT_NO_DESTINATION_REASON});
-    return;
-  }
-  const space = AutomaTilePlacer.breakTie(game, cities);
-  game.addCityTier(bot, space);
-  game.log('${0} placed the city tile from ${1} on top of its city', (b) => b.player(bot).resolution(definition.id));
-  report({kind: 'city', influence, space: space.id, stackHeight: Board.tiersOf(space)});
 }

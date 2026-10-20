@@ -39,29 +39,26 @@
  *    the countables, Vermin…), every PREDICATE about a cell («is this a
  *    city», «is it next to a city») reads the cell alone; the endgame scores
  *    the adjacent greeneries ONCE PER TIER, one breakdown row per tier.
- *  · MarsBot never participates in the parliament: no tile, and its cities
- *    are never candidates (a seat's own cities only).
+ *  · MarsBot is a seat of the grant (decision D11): the same recipients rule
+ *    (the winner, or influence 2+) gives it a tier, which it places on one of
+ *    ITS OWN cities by its own tie-break (`automa/BotTileGrant.ts`), in its
+ *    place in the seat order; a human's candidates stay their own cities.
  *  · ONCE PER ENACTMENT: the driver's idempotency keys — a reload inside the
  *    question re-runs `run`, which offers the same cities.
  *
- * THE STEP CONTRACT (IResolution.ts): ONE immediate step for EVERY seat — it
- * ASKS (the pick's own answer builds the tier and reports the cell and the
- * stack it became) or, with nothing to build on or a seat the rule passes
- * over, changes nothing and reports the skip. One step, one record.
+ * THE STEP CONTRACT (IResolution.ts): ONE immediate step for EVERY seat — the
+ * family's shared `tileGrantStep` (`ResolutionTileGrant.ts`, Mars First
+ * Budget's city stands on it too). One step, one record.
  */
 import {CardRenderer} from '../../../cards/render/CardRenderer';
 import {Size} from '../../../../common/cards/render/Size';
 import {PartyName} from '../../../../common/turmoil/PartyName';
-import {TileType} from '../../../../common/TileType';
 import {ResolutionCode, ResolutionId} from '../../../../common/parliament/ParliamentTypes';
 import {
-  TILE_GRANT_NO_DESTINATION_REASON, TILE_GRANT_NOT_ELIGIBLE_REASON, TileGrantDeclaration, tileGrantEligibility, tileGrantStepKey,
+  TILE_GRANT_NO_DESTINATION_REASON, TILE_GRANT_NOT_ELIGIBLE_REASON, TileGrantDeclaration, tileGrantStepKey,
 } from '../../../../common/parliament/tileGrant';
-import {ChoiceContextSource} from '../../../../common/models/PlayerInputModel';
-import {createMarsSelectSpace} from '../../../boards/marsSelectSpaceHelper';
-import {committedPlacement} from '../../../inputs/placementContext';
-import {Board} from '../../../boards/Board';
-import {EnactStep, ResolutionDefinition} from '../IResolution';
+import {ResolutionDefinition} from '../IResolution';
+import {tileGrantStep} from '../ResolutionTileGrant';
 
 export const SKYSCRAPERS_ID: ResolutionId = 'RDX_MARS_SKYSCRAPERS';
 export const SKYSCRAPERS_CODE: ResolutionCode = 'RX20';
@@ -73,7 +70,7 @@ export const SKYSCRAPERS_INFLUENCE_LINE = 2;
 export const SKYSCRAPERS_GRANT: TileGrantDeclaration = {
   tile: 'city',
   placement: 'own-city',
-  recipients: {winner: true, influenceAtLeast: SKYSCRAPERS_INFLUENCE_LINE},
+  recipients: {kind: 'threshold', winner: true, influenceAtLeast: SKYSCRAPERS_INFLUENCE_LINE},
 };
 
 /** The step's key — the record's name on every surface, derived from the declaration (`tileGrantStepKey`). */
@@ -83,49 +80,16 @@ export const SKYSCRAPERS_STEP_KEY = tileGrantStepKey(SKYSCRAPERS_GRANT);
 export const NOT_ELIGIBLE_REASON = TILE_GRANT_NOT_ELIGIBLE_REASON;
 export const NO_CITY_ON_MARS_REASON = TILE_GRANT_NO_DESTINATION_REASON;
 
-/** WHO asks — the same source on the placement, its dossier and every skip. */
-const SOURCE: ChoiceContextSource = {kind: 'resolution', resolution: SKYSCRAPERS_ID};
-
-const TIER_STEP: EnactStep = {
-  key: SKYSCRAPERS_STEP_KEY,
-  run(ctx) {
-    const player = ctx.player;
-    const game = ctx.game;
-    const eligibility = tileGrantEligibility(SKYSCRAPERS_GRANT, {winner: ctx.winner?.id === player.id, influence: ctx.influence});
-    if (eligibility === 'none') {
-      // The rule passes the seat over — named as the rule, never as «no influence».
-      game.log('${0} is below 2 influence and did not win the vote — no city tile from ${1}', (b) => b.player(player).resolution(SKYSCRAPERS_ID));
-      ctx.report({kind: 'skipped', influence: ctx.influence, reason: NOT_ELIGIBLE_REASON});
-      return undefined;
-    }
-    // THE CANDIDATES: the seat's own cities on Mars — the ONE placement
-    // validator (`city-tier`), the same set the reason pipeline and the
-    // dossier read. Re-read by a reload's rebuild: nothing on the table moves
-    // while the phase waits for this answer.
-    const cities = game.board.getAvailableSpacesForType(player, 'city-tier');
-    if (cities.length === 0) {
-      // No city on Mars: the tile has nowhere to go — named and skipped,
-      // nothing substitutes for it.
-      game.log('${0} has no city on Mars — the city tile from ${1} is skipped', (b) => b.player(player).resolution(SKYSCRAPERS_ID));
-      ctx.report({kind: 'skipped', influence: ctx.influence, reason: NO_CITY_ON_MARS_REASON});
-      return undefined;
-    }
-    // THE STANDARD PLACEMENT PROMPT over the stack's own kind: the console's
-    // board flow with the cell dossier («City stack: 1 → 2 tiers»), every
-    // other cell explained («not one of your cities on Mars»), the resolution
-    // as the source (`placementContext.source` — the plate, the dossier's
-    // chip, L3). The answer builds the tier and reports the cell + the stack.
-    return createMarsSelectSpace(player, 'Place the city tile on top of one of your cities on Mars', cities, {
-      placementType: 'city-tier',
-      tileType: TileType.CITY,
-      placementContext: committedPlacement('The resolution is enacted: this city tile must be placed on top of one of your cities on Mars.', SOURCE),
-    }).andThen((space) => {
-      game.addCityTier(player, space);
-      ctx.report({kind: 'city', influence: ctx.influence, space: space.id, stackHeight: Board.tiersOf(space)});
-      return undefined;
-    });
-  },
-};
+/**
+ * THE ONE STEP — the family's shared executor (`tileGrantStep`) with this
+ * card's own words: it ASKS (the pick's own answer builds the tier and
+ * reports the cell and the stack it became) or, with nothing to build on or a
+ * seat the rule passes over, changes nothing and reports the skip.
+ */
+const TIER_STEP = tileGrantStep(SKYSCRAPERS_ID, SKYSCRAPERS_GRANT, {
+  title: 'Place the city tile on top of one of your cities on Mars',
+  context: 'The resolution is enacted: this city tile must be placed on top of one of your cities on Mars.',
+});
 
 export const SKYSCRAPERS: ResolutionDefinition = {
   id: SKYSCRAPERS_ID,

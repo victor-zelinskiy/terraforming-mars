@@ -3,7 +3,7 @@ import {ICardRenderRoot} from '../cards/render/Types';
 import {PartyActionId, QuestDefinition, ReduxParty, ResolutionCode, ResolutionId} from './ParliamentTypes';
 import {InfluenceScaledEffect} from './influenceScaling';
 import {ResolutionLevy} from './resolutionLevy';
-import {PartyReaction} from './partyReactions';
+import {PartyReaction, PartyTileAnswer} from './partyReactions';
 import {WinnerRewardDeclaration} from './winnerReward';
 import {TileGrantDeclaration} from './tileGrant';
 import {WorldParameterMove} from './parameterMove';
@@ -146,6 +146,8 @@ export type IClientPartyEffect = {
    * party whose passive nothing forecasts yet.
    */
   reactions?: ReadonlyArray<PartyReaction>;
+  /** The answer to a TILE placed on Mars as DATA (`PartyTileAnswer` — Mars First's steel and city card). */
+  tileAnswer?: PartyTileAnswer;
 };
 
 /** The printed generation-1 quest of the empty ENACTED slot (rulebook p.9). */

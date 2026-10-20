@@ -154,17 +154,13 @@ import {defineComponent, PropType} from 'vue';
 import {AGENDA_TRACK, AgendaStep, PARLIAMENT_AGENDA_STEPS, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
-import {SeatParliamentReadingVm} from '@/client/console/parliament/seatParliamentReading';
+import {SeatParliamentReadingVm, BOT_PARLIAMENT_NOTE, BOT_POLITICS_NOTE} from '@/client/console/parliament/seatParliamentReading';
 import {dossierLadder} from '@/client/console/infoDossierModel';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import {translateTextWithParams} from '@/client/directives/i18n';
 
-/** The bot's one honest line — the existing key the workspace already uses for it. */
-const BOT_NOTE = 'MarsBot takes no part in the parliament';
-/** The POLITICAL bot (Turmoil Redux, decision D3): what it does at the table and what it never receives — in the cards' own language. */
-const BOT_POLITICS_NOTE = 'MarsBot votes, completes chairman quests and takes the winner\'s reward. An enacted resolution never pays it.';
 /** An influence entry whose giver the server does not name (an older save). */
 const OTHER_SOURCE = 'other';
 
@@ -176,7 +172,7 @@ export default defineComponent({
   },
   computed: {
     botNote(): string {
-      return this.reading.botPolitical ? BOT_POLITICS_NOTE : BOT_NOTE;
+      return this.reading.botPolitical ? BOT_POLITICS_NOTE : BOT_PARLIAMENT_NOTE;
     },
     otherSource(): string {
       return OTHER_SOURCE;

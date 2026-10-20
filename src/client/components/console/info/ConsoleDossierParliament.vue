@@ -60,15 +60,12 @@
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {PARLIAMENT_AGENDA_STEPS, ReduxParty} from '@/common/parliament/ParliamentTypes';
-import {SeatParliamentReadingVm} from '@/client/console/parliament/seatParliamentReading';
+import {SeatParliamentReadingVm, BOT_PARLIAMENT_NOTE, BOT_POLITICS_NOTE} from '@/client/console/parliament/seatParliamentReading';
 import {dossierLadder, DossierLadderPip} from '@/client/console/infoDossierModel';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 
-/** The bot's one honest line — the keys the zone already speaks (ConsoleInfoParliament's). */
-const BOT_NOTE = 'MarsBot takes no part in the parliament';
-const BOT_POLITICS_NOTE = 'MarsBot votes, completes chairman quests and takes the winner\'s reward. An enacted resolution never pays it.';
 
 export default defineComponent({
   name: 'ConsoleDossierParliament',
@@ -79,7 +76,7 @@ export default defineComponent({
   },
   computed: {
     botNote(): string {
-      return this.reading.botPolitical ? BOT_POLITICS_NOTE : BOT_NOTE;
+      return this.reading.botPolitical ? BOT_POLITICS_NOTE : BOT_PARLIAMENT_NOTE;
     },
     steps(): number {
       return PARLIAMENT_AGENDA_STEPS;

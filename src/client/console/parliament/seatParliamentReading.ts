@@ -102,13 +102,23 @@ export type SeatEnactedVm = {
   yields: ReadonlyArray<InfluenceYield>;
 };
 
+/** The bot's one honest line when it takes no part (`'none'`) — the key the workspace already speaks. */
+export const BOT_PARLIAMENT_NOTE = 'MarsBot takes no part in the parliament';
+/**
+ * The POLITICAL bot (Turmoil Redux, decisions D3 + D11): what it does at the table, what it never receives — and
+ * the one thing a law gives it, the TILE it grants the players (placed by the bot itself). ONE line for both hosts
+ * (the Information zone and its dossier), in the cards' own language.
+ */
+export const BOT_POLITICS_NOTE = 'MarsBot votes, completes chairman quests and takes the winner\'s reward. An enacted resolution never pays or charges it, but it places the tiles a resolution grants the players.';
+
 export type SeatParliamentReadingVm = {
   color: Color;
   /** The seat is PAID by the laws (every reading below is its); false for a MarsBot seat, whose readings are empty. */
   participates: boolean;
   /**
    * A MarsBot seat that HOLDS DELEGATES (`'politics'`): it votes, completes the chairman quest and takes the
-   * winner's reward, and an enacted law never pays it — the zone says that in ONE line instead of an empty table.
+   * winner's reward, and an enacted law never pays it (it places the tile a law grants the seats — D11) — the zone
+   * says that in ONE line instead of an empty table (`BOT_POLITICS_NOTE`).
    */
   botPolitical: boolean;
   influence: SeatInfluenceVm;

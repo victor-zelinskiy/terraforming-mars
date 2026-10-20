@@ -643,7 +643,7 @@ import ConsoleTileGrant from '@/client/components/console/parliament/ConsoleTile
 import {WinnerRewardReading, winnerRewardReadingOf} from '@/client/console/parliament/winnerRewardModel';
 import {TileGrantReading, tileGrantReadingOf} from '@/client/console/parliament/tileGrantModel';
 import {
-  TILE_GRANT_NO_DESTINATION_REASON, TILE_GRANT_NOT_ELIGIBLE_REASON, tileGrantCountId, tileGrantEligibility, tileGrantStepKey,
+  TILE_GRANT_NO_DESTINATION_REASON, TILE_GRANT_NO_SPACE_REASON, TILE_GRANT_NOT_ELIGIBLE_REASON, tileGrantCountId, tileGrantEligibility, tileGrantStepKey,
 } from '@/common/parliament/tileGrant';
 import {WinnerRewardTable, winnerParameterRoom, winnerRewardParameter} from '@/common/parliament/winnerReward';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
@@ -887,6 +887,9 @@ const FISH = CardName.FISH; // animal, holds animals (1 VP each)
 const PETS = CardName.PETS; // earth + animal, holds animals (1 VP per 2)
 const TREES = CardName.TREES; // plant — counts, holds nothing
 const ECO_ZONE = CardName.ECOLOGICAL_ZONE; // animal + plant — ONE card, TWO of the three; holds animals
+const ROADS = CardName.MARTIAN_ROADS; // Mars + building — ONE card, BOTH of Mars First Budget's two tags
+/** Mars First Budget's city on the stand: a synthetic cell per seat (the board is not the stand's subject). */
+const GRANT_CITY_CELLS: Readonly<Record<SeatIndex, SpaceId>> = {0: '35', 1: '37'};
 
 /*
  * THE BOARD-COUNTED FAMILY's cells (Colonization Funding: 2 M€ production per
@@ -1143,6 +1146,39 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
       {agenda: 0, bonus: 0, cards: [TREES], production: 0, megacredits: 12}], winner: 1, context: 'applied', noRecipient: false},
   {key: 'greens-budget-quest-done', family: 'counted-tags', counts: 'plantMicrobeAnimalTags', label: 'Chairman quest completed', viewer: 0,
     seats: [{agenda: 3, bonus: 0, cards: [FISH, TARDIGRADES], production: 0, megacredits: 34},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
+  // ── MARS FIRST BUDGET (RX38): the same tag-counted family under a SIXTH count (building + Mars, a card printing both
+  //    worth 2), a LEVY of 12, and a CITY for EVERY seat by the usual rules — the tile grant's second variant (WHO:
+  //    everyone, WHERE: any legal cell; no line, no count of cells — a city row beside the money, never added to it).
+  //    Martian Roads (Mars + building) + Mine (building) = 3, Agenda 4 = influence 2, 34 M€ → −12 → +5 = −7. ──
+  {key: 'mars-budget-net', family: 'counted-tags', counts: 'buildingMarsTags', label: 'Levy first, then the payout — net −7; and a city for every player', viewer: 0,
+    seats: [{agenda: 4, bonus: 0, cards: [ROADS, MINE], production: 0, megacredits: 34},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 0, context: 'proposal', noRecipient: false},
+  // Neither tag and no influence: the money's zero is named — the city is still every player's.
+  {key: 'mars-budget-zero', family: 'counted-tags', counts: 'buildingMarsTags', label: 'No building or Mars tags and no influence — the city still comes', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, cards: [NOBEL], production: 0, megacredits: 20},
+      {agenda: 3, bonus: 0, cards: [MINE], production: 0, megacredits: 20}], winner: 1, context: 'applied', noRecipient: false},
+  // ONE card printing BOTH (Martian Roads: Mars + building) counts twice; Martian Culture's two Mars tags count twice too.
+  {key: 'mars-budget-two-tags', family: 'counted-tags', counts: 'buildingMarsTags', label: 'One card with both tags counts twice', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [ROADS, MARTIAN_CULTURE], production: 0, megacredits: 34},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'proposal', noRecipient: false},
+  // 5 M€ held: the levy takes the 5 and says so; the payout and the city still come.
+  {key: 'mars-budget-short', family: 'counted-tags', counts: 'buildingMarsTags', label: 'Short of the levy — 5 M€', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [ROADS], production: 0, megacredits: 5},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'proposal', noRecipient: false},
+  // 0 M€: nothing to take — a named skip with the owed sum; the payout and the city still come.
+  {key: 'mars-budget-nothing', family: 'counted-tags', counts: 'buildingMarsTags', label: 'Nothing to pay — 0 M€', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [MINE], production: 0, megacredits: 0},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 1, context: 'applied', noRecipient: false},
+  // THE BOARD HAS NO LEGAL CELL: every seat's city is a NAMED skip — the money is paid exactly as it would be.
+  {key: 'mars-budget-no-cell', family: 'counted-tags', counts: 'buildingMarsTags', label: 'No legal space for a city — the city is named and skipped', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [ROADS], production: 0, megacredits: 34},
+      {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 0, context: 'applied', noRecipient: false, noCell: true},
+  {key: 'mars-budget-seats', family: 'counted-tags', counts: 'buildingMarsTags', label: 'Every player gets their own result', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, cards: [ROADS, MINE], production: 0, megacredits: 30},
+      {agenda: 0, bonus: 0, cards: [MARTIAN_CULTURE], production: 0, megacredits: 12}], winner: 0, context: 'applied', noRecipient: false},
+  {key: 'mars-budget-quest-done', family: 'counted-tags', counts: 'buildingMarsTags', label: 'Chairman quest completed', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, cards: [ROADS, MINE], production: 0, megacredits: 34},
       {agenda: 1, bonus: 0, cards: [], production: 0, megacredits: 20}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [2, 1], completedBy: 0}},
   // ── URBAN RESEARCH (RX31): the same tag-counted family under a FOURTH count — the CITY TAGS of the tableau — and the
   //    first law whose DRAW is what the count sizes («1 card per city tag»), beside money that is influence alone.
@@ -2470,8 +2506,9 @@ export default defineComponent({
         {player, step: 'ocean', part: 'winner', kind: 'ocean', space: '35', parameter: {id: 'oceans', before, after: before + 1}};
     },
     /**
-     * THE GRANT's records (Skyscrapers): every seat in the walk's order — the tier on one of its cities (a stack
-     * of 2), or the named skip: the rule that passed the seat over, or no city on Mars to build on.
+     * THE GRANT's records: every seat in the walk's order — Skyscrapers' tier on one of its cities (a stack of 2),
+     * or the named skip: the rule that passed the seat over, or no city on Mars to build on; Mars First Budget's
+     * city on a cell of its own (no stack), or — the scenario's board left no legal cell — the named skip.
      */
     grantOutcomes(): Array<ParliamentEnactOutcomeModel> {
       const grant = this.selected?.tileGrant;
@@ -2486,6 +2523,13 @@ export default defineComponent({
         const common = {player, step, part: 'effect' as const, influence};
         if (tileGrantEligibility(grant, {winner: this.winner === i, influence}) === 'none') {
           out.push({...common, kind: 'skipped', reason: TILE_GRANT_NOT_ELIGIBLE_REASON});
+          continue;
+        }
+        if (grant.placement === 'any-legal') {
+          // A city by the usual rules: a synthetic cell per seat — or the board the scenario leaves without one.
+          out.push(this.noCell ?
+            {...common, kind: 'skipped', reason: TILE_GRANT_NO_SPACE_REASON} :
+            {...common, kind: 'city', space: GRANT_CITY_CELLS[i]});
           continue;
         }
         const cell = this.countAt(i)?.spaces?.[0];

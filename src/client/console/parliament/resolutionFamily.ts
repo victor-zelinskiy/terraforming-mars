@@ -44,7 +44,9 @@ import {TileRemovalDeclaration} from '@/common/parliament/tileRemoval';
  *   tile-grant    — a TILE granted by THRESHOLD (Skyscrapers: the winner and every seat with influence ≥ 2 place a
  *                   city tier on their own city) — the instrument is the seat's ELIGIBILITY (the star, the influence
  *                   line) and its CITIES ON MARS (the only legal destination), and the scenarios are their edges
- *                   (below the line, on it, the winner under it, no city to build on, the stack recorded).
+ *                   (below the line, on it, the winner under it, no city to build on, the stack recorded). A grant
+ *                   to EVERYONE (Mars First Budget's city) has no line to read — its card keeps the family of
+ *                   the rest of its declaration (a budget's `counted-tags`), and the city is one more row of it.
  */
 export const RESOLUTION_FAMILIES = [
   'influence', 'counted', 'counted-tags', 'counted-board', 'counted-metric', 'counted-production', 'counted-colonies', 'distributed', 'winner-tile', 'sequel',
@@ -96,7 +98,8 @@ export function levelEffectOf(facts: ResolutionFamilyFacts): InfluenceScaledEffe
 
 export function familyOf(facts: ResolutionFamilyFacts): ResolutionFamily {
   // A TILE BY THRESHOLD first: the instrument is who qualifies and where the tile may go — no amount, no count.
-  if (facts.tileGrant !== undefined) {
+  // (A grant to everyone qualifies nobody: the family is the rest of the declaration's.)
+  if (facts.tileGrant?.recipients.kind === 'threshold') {
     return 'tile-grant';
   }
   // THE COLONY LEDGER next: what is multiplied is the player's own tiles, an instrument no other family has.

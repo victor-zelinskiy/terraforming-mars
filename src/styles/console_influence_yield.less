@@ -512,6 +512,39 @@
     }
     &__note { font-size: .54rem; line-height: 1.25; color: fade(@con-text, 66%); max-width: 18rem; }
     &__note--hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    /* THE RULING PARTY'S ANSWER to the tile (Р3) — its own segment after the tile, in the party reaction's mint: the
+       amounts and their sprites, then the emblem and the party's name (whose rule pays it). */
+    &__answer {
+        display: inline-flex;
+        align-items: center;
+        gap: .16rem;
+        padding-left: .34rem;
+        border-left: .05rem solid rgba(255, 255, 255, 0.14);
+        white-space: nowrap;
+        min-width: 0;
+    }
+    &__answer-amount { font-size: .86rem; font-weight: 700; color: @con-parl-mint; }
+    &__answer-unit {
+        display: inline-block;
+        width: .95rem;
+        height: .95rem;
+        flex-shrink: 0;
+        margin-right: .12rem;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__answer-emblem { width: .95rem; height: .95rem; object-fit: contain; flex-shrink: 0; margin-left: .1rem; }
+    &__answer-party {
+        font-size: .54rem;
+        line-height: 1.2;
+        letter-spacing: .09em;
+        text-transform: uppercase;
+        font-weight: 700;
+        color: fade(@con-parl-mint, 92%);
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
     /* INLINE — one line on a host label's row: the body and the caption, a slimmer plate. */
     &--inline {
         position: relative;
@@ -648,6 +681,39 @@ html.con-profile-tv .con-iyield__suffix-node { width: 1.22rem; height: 1.22rem; 
         border-left: .05rem solid rgba(255, 255, 255, 0.14);
         b { font-size: .92rem; font-weight: 700; color: @con-parl-mint; }
     }
+    /* THE RULING PARTY'S ANSWER to the tile (Р3) — its own segment after the tile, in the party reaction's mint: the
+       amounts and their sprites, then the emblem and the party's name (whose rule pays it). */
+    &__answer {
+        display: inline-flex;
+        align-items: center;
+        gap: .16rem;
+        padding-left: .34rem;
+        border-left: .05rem solid rgba(255, 255, 255, 0.14);
+        white-space: nowrap;
+        min-width: 0;
+    }
+    &__answer-amount { font-size: .86rem; font-weight: 700; color: @con-parl-mint; }
+    &__answer-unit {
+        display: inline-block;
+        width: .95rem;
+        height: .95rem;
+        flex-shrink: 0;
+        margin-right: .12rem;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__answer-emblem { width: .95rem; height: .95rem; object-fit: contain; flex-shrink: 0; margin-left: .1rem; }
+    &__answer-party {
+        font-size: .54rem;
+        line-height: 1.2;
+        letter-spacing: .09em;
+        text-transform: uppercase;
+        font-weight: 700;
+        color: fade(@con-parl-mint, 92%);
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
     /* INLINE — one line on a host label's row: the body and the caption, a slimmer plate. */
     &--inline {
         position: relative;
@@ -682,6 +748,9 @@ html.con-profile-tv .con-iyield__suffix-node { width: 1.22rem; height: 1.22rem; 
         .con-tgrant__name { font-size: .74rem; }
         .con-tgrant__where-text, .con-tgrant__cities { font-size: .54rem; }
         .con-tgrant__stack b { font-size: .8rem; }
+        .con-tgrant__answer-amount { font-size: .74rem; }
+        .con-tgrant__answer-unit, .con-tgrant__answer-emblem { width: .82rem; height: .82rem; }
+        .con-tgrant__answer-party { font-size: .48rem; }
     }
     &--hero {
         padding: .45rem .9rem .5rem .75rem;
@@ -693,5 +762,8 @@ html.con-profile-tv .con-iyield__suffix-node { width: 1.22rem; height: 1.22rem; 
         .con-tgrant__name { font-size: 1.1rem; }
         .con-tgrant__where-text, .con-tgrant__cities { font-size: .78rem; }
         .con-tgrant__stack b { font-size: 1.2rem; }
+        .con-tgrant__answer-amount { font-size: 1.1rem; }
+        .con-tgrant__answer-unit, .con-tgrant__answer-emblem { width: 1.25rem; height: 1.25rem; }
+        .con-tgrant__answer-party { font-size: .66rem; }
     }
 }

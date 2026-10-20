@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {Phase} from '../../src/common/Phase';
 import {TileType} from '../../src/common/TileType';
 import {ResolutionId} from '../../src/common/parliament/ParliamentTypes';
-import {TILE_GRANT_NO_DESTINATION_REASON, tileGrantStepKey} from '../../src/common/parliament/tileGrant';
+import {TILE_GRANT_NO_DESTINATION_REASON, TILE_GRANT_NOT_ELIGIBLE_REASON, tileGrantStepKey} from '../../src/common/parliament/tileGrant';
 import {winnerParameterStepKey} from '../../src/common/parliament/winnerReward';
 import {Game} from '../../src/server/Game';
 import {IGame} from '../../src/server/IGame';
@@ -11,7 +11,7 @@ import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {SelectColony} from '../../src/server/inputs/SelectColony';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 import {Parliament} from '../../src/server/parliament/Parliament';
-import {botWinnerRewardKind, botWinnerRewardPlan, declaresWinnerPart, NO_BOT_EXECUTOR_REASON} from '../../src/server/automa/BotWinnerReward';
+import {botWinnerRewardKind, botWinnerRewardPlan, botWinsSomething, declaresWinnerPart, declaresWinnerPass, NO_BOT_EXECUTOR_REASON} from '../../src/server/automa/BotWinnerReward';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {ResolutionDefinition} from '../../src/server/parliament/resolutions/IResolution';
 import {WINNER_STEP_AT_MAXIMUM_REASON} from '../../src/server/parliament/resolutions/WinnerParameterStep';
@@ -100,13 +100,20 @@ describe('BotWinnerReward — the bot as the winning player', () => {
           expect(botWinnerRewardKind(definition), label(definition)).is.undefined;
           continue;
         }
+        // A tile grant's star (Skyscrapers) is the SEAT LOOP's (D11 — `BotTileGrant`), never the winner pass's:
+        // only a winner's part OUTSIDE the grant needs a pass executor.
+        if (!declaresWinnerPass(definition)) {
+          expect(botWinnerRewardPlan(definition), label(definition)).is.undefined;
+          expect(botWinsSomething(definition), `${label(definition)}: the star of a grant is still a star to the vote chooser`).is.true;
+          continue;
+        }
         const plan = botWinnerRewardPlan(definition);
         if (plan === undefined) {
-          failures.push(`${label(definition)}: winner steps [${(definition.winnerSteps ?? []).map((s) => s.key).join(', ')}] with no declaration the bot executes (winnerReward / tileGrant)`);
+          failures.push(`${label(definition)}: winner steps [${(definition.winnerSteps ?? []).map((s) => s.key).join(', ')}] with no declaration the bot executes (winnerReward)`);
           continue;
         }
         // The record wears the card's OWN step key — the readers find the bot's reward where they find a human's.
-        const own = plan.part === 'winner' ? definition.winnerSteps?.[0]?.key : (definition.tileGrant === undefined ? undefined : tileGrantStepKey(definition.tileGrant));
+        const own = definition.winnerSteps?.[0]?.key;
         if (own !== plan.key) {
           failures.push(`${label(definition)}: the bot's record key '${plan.key}' is not the card's step key '${own}'`);
         }
@@ -135,8 +142,12 @@ describe('BotWinnerReward — the bot as the winning player', () => {
       expect(plan(COLONY_CONTEST_ID)).deep.eq({kind: 'colony', key: 'colony', part: 'winner'});
       const mohole = REDUX_RESOLUTION_CATALOG.getOrThrow(MOHOLE_CONTEST_ID);
       expect(plan(MOHOLE_CONTEST_ID)).deep.eq({kind: 'parameter', key: winnerParameterStepKey(mohole.winnerReward as never), part: 'winner'});
+      // Skyscrapers' tier is the seat loop's (D11): no pass plan, and still a ★ for the vote chooser.
       const skyscrapers = REDUX_RESOLUTION_CATALOG.getOrThrow(SKYSCRAPERS_ID);
-      expect(plan(SKYSCRAPERS_ID)).deep.eq({kind: 'city', key: tileGrantStepKey(skyscrapers.tileGrant as never), part: 'effect'});
+      expect(plan(SKYSCRAPERS_ID)).is.undefined;
+      expect(declaresWinnerPass(skyscrapers)).is.false;
+      expect(declaresWinnerPart(skyscrapers)).is.true;
+      expect(botWinsSomething(skyscrapers)).is.true;
       expect(plan(COLONIZATION_FUNDING_ID)).is.undefined;
     });
   });
@@ -312,13 +323,16 @@ describe('BotWinnerReward — the bot as the winning player', () => {
     });
   });
 
-  describe('RX20 Skyscrapers — a tier on the bot\'s OWN city', () => {
-    it('with a city on Mars the bot stacks a tier on it (the effect\'s record, a stack of 2); the human below the line gets nothing', () => {
+  describe('RX20 Skyscrapers — a tier on the bot\'s OWN city, through the SEAT LOOP (D11)', () => {
+    it('with a city on Mars the bot stacks a tier on it (the effect\'s record, a stack of 2) — EXACTLY ONE, never a second from the winner pass; the human below the line gets nothing', () => {
       const t = seated(SKYSCRAPERS_ID, ({bot}) => addCity(bot));
       botWinsTheVote(t);
       throughTheSitting(t);
-      const [record] = botRecords(t);
+      const records = botRecords(t);
+      expect(records, 'one record for the bot — the seat loop\'s').has.length(1);
+      const [record] = records;
       expect(record).deep.include({part: 'effect', kind: 'city', stackHeight: 2});
+      expect(t.game.board.spaces.filter((s) => s.player?.id === t.bot.id && (s.stackHeight ?? 1) > 1), 'one stack of 2').has.length(1);
       expect(record.step).eq(tileGrantStepKey(REDUX_RESOLUTION_CATALOG.getOrThrow(SKYSCRAPERS_ID).tileGrant as never));
       expect(t.game.board.getSpaceOrThrow(record.space!).player?.id).eq(t.bot.id);
       const humanRecord = (t.parliament.lastPhase?.outcomes ?? []).find((o) => o.player === t.human.id);
@@ -330,6 +344,42 @@ describe('BotWinnerReward — the bot as the winning player', () => {
       botWinsTheVote(t);
       throughTheSitting(t);
       expect(botRecords(t)[0]).deep.include({part: 'effect', kind: 'skipped', reason: TILE_GRANT_NO_DESTINATION_REASON});
+    });
+
+    // Р5 (the owner, 2026-10-20): the bot's tier is the RECIPIENTS RULE's, not the win's — influence 2+ without winning.
+    function humanWinsSkyscrapers(t: Table, botAgenda: number): void {
+      t.parliament.agenda.set(t.bot.id, botAgenda);
+      t.parliament.placeVote(t.human, t.parliament.slots[0], 'lobby');
+      t.game.automa!.actionDeck = [];
+      t.human.popWaitingFor();
+      t.game.playerHasPassed(t.human);
+      t.game.playerIsFinishedTakingActions();
+      expect(t.parliament.phase?.summary?.winner.player).eq(t.human.id);
+    }
+
+    it('NOT the winner, influence 2 → the bot gets its tier all the same (the recipients rule), in its place in the order', () => {
+      const t = seated(SKYSCRAPERS_ID, ({bot, human}) => {
+        addCity(bot);
+        addCity(human);
+      });
+      humanWinsSkyscrapers(t, 3);
+      expect(t.parliament.influence(t.bot)).eq(2);
+      throughTheSitting(t);
+      const records = botRecords(t);
+      expect(records).has.length(1);
+      expect(records[0]).deep.include({part: 'effect', kind: 'city', stackHeight: 2, influence: 2});
+    });
+
+    it('NOT the winner, influence 1 → a skip that names the RULE, exactly as a human\'s', () => {
+      const t = seated(SKYSCRAPERS_ID, ({bot, human}) => {
+        addCity(bot);
+        addCity(human);
+      });
+      humanWinsSkyscrapers(t, 1);
+      expect(t.parliament.influence(t.bot)).eq(1);
+      throughTheSitting(t);
+      expect(botRecords(t)).deep.eq([{player: t.bot.id, step: tileGrantStepKey(REDUX_RESOLUTION_CATALOG.getOrThrow(SKYSCRAPERS_ID).tileGrant as never),
+        part: 'effect', kind: 'skipped', influence: 1, reason: TILE_GRANT_NOT_ELIGIBLE_REASON}]);
     });
   });
 

@@ -36,7 +36,7 @@ import {ActionEffect} from '../../../common/models/ActionPreviewModel';
 import {PartyActionPromptMeta} from '../../../common/models/PlayerInputModel';
 import {drawGain, productionChange} from '../../cards/actionPreviews';
 import {PartyActionId, ReduxParty} from '../../../common/parliament/ParliamentTypes';
-import {PartyReaction} from '../../../common/parliament/partyReactions';
+import {PartyReaction, PartyTileAnswer} from '../../../common/parliament/partyReactions';
 import {IClientPartyEffect} from '../../../common/parliament/IClientResolution';
 import {InputError} from '../../inputs/InputError';
 import {Space} from '../../boards/Space';
@@ -78,6 +78,12 @@ export interface PartyEffectDefinition {
    * states for `ResolutionPassive.forecast`).
    */
   reactions?: ReadonlyArray<PartyReaction>;
+  /**
+   * The answer to a TILE placed on Mars, DECLARED (`PartyTileAnswer`) — the
+   * numbers `onTilePlaced` pays by, so a law that grants the seats a city can
+   * state the ruling party's answer beside it before the tile lands.
+   */
+  tileAnswer?: PartyTileAnswer;
   /** The passive hooks (access already verified by the caller). */
   onTerraformRatingGained?(player: IPlayer, steps: number): void;
   onProductionChanged?(player: IPlayer, resource: Resource, delta: number): void;
@@ -226,6 +232,9 @@ const SCIENTISTS: PartyEffectDefinition = {
   },
 };
 
+/** Mars First's answer to a tile on Mars: 1 steel, and a card more for a city — the hook pays exactly this. */
+const MARS_FIRST_TILE_ANSWER: PartyTileAnswer = {perTile: {resource: Resource.STEEL, amount: 1}, cityCards: 1};
+
 const MARS_FIRST: PartyEffectDefinition = {
   party: PartyName.MARS,
   text: {
@@ -240,13 +249,16 @@ const MARS_FIRST: PartyEffectDefinition = {
     b.effect(undefined, (eb) => eb.emptyTile('normal', {size: Size.SMALL}).asterix().startEffect.steel(1)).br;
     b.effect(undefined, (eb) => eb.city({size: Size.SMALL}).asterix().startEffect.plus().cards(1));
   }),
+  // The hook below, DECLARED — so a law that grants the seats a city states Mars First's answer beside it.
+  tileAnswer: MARS_FIRST_TILE_ANSWER,
   onTilePlaced(player, space) {
     if (space.spaceType === SpaceType.COLONY) {
       return;
     }
-    player.stock.add(Resource.STEEL, 1, {log: true, from: {partyName: PartyName.MARS}});
+    const answer = MARS_FIRST_TILE_ANSWER;
+    player.stock.add(answer.perTile.resource, answer.perTile.amount, {log: true, from: {partyName: PartyName.MARS}});
     if (Board.isCitySpace(space)) {
-      player.drawCard(1);
+      player.drawCard(answer.cityCards);
     }
   },
 };
@@ -481,6 +493,9 @@ export function toClientPartyEffect(definition: PartyEffectDefinition): IClientP
   }
   if (definition.reactions !== undefined) {
     out.reactions = definition.reactions;
+  }
+  if (definition.tileAnswer !== undefined) {
+    out.tileAnswer = definition.tileAnswer;
   }
   return out;
 }

@@ -219,6 +219,14 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
       ruleKey: 'Each plant, microbe and animal tag counts: a card with two of them counts twice. Wild tags do not count.',
       skipReasonKey: 'No plant, microbe or animal tags and no influence',
     };
+  case 'buildingMarsTags':
+    // ONE term over TWO tags (Mars First Budget): the medallions joined by «+» in the face's order (building · Mars).
+    return {
+      glyph: {kind: 'tags', tags: [Tag.BUILDING, Tag.MARS]},
+      pluralKey: '${0} building and Mars tag(s)',
+      ruleKey: 'Each building and Mars tag counts: a card with both counts twice. Wild tags do not count.',
+      skipReasonKey: 'No building or Mars tags and no influence',
+    };
   case 'spaceCities':
     // A count over the BOARD: the glyph is the city tile with the footnote spark — the face's own «space city».
     return {

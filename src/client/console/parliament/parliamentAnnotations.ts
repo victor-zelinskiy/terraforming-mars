@@ -49,7 +49,7 @@ import {
   yieldCountPresentation,
 } from './influenceYieldModel';
 import {WinnerRewardReading, winnerRewardRuleKey, winnerRewardSentenceOf} from './winnerRewardModel';
-import {TILE_GRANT_RULE_KEY, TileGrantReading, tileGrantSentenceOf} from './tileGrantModel';
+import {TileGrantReading, tileGrantRuleKey, tileGrantSentenceOf} from './tileGrantModel';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {SUPPORT_KICKER, SupportReadingVm} from './voteInfoModel';
 
@@ -218,10 +218,11 @@ export function resolutionAnnotations(
         rows.push(COLONY_BONUS_RULE_KEY);
       }
     }
-    // A TILE GRANTED BY THRESHOLD's qualification — what a tier IS for the score, that the cell pays no
-    // bonus again, and that a seat with no city gains nothing (the detailed reading of the face's «STACK» row).
+    // A TILE GRANT's qualification, by WHERE it lands — a tier: what it IS for the score, that the cell pays no
+    // bonus again, that a seat with no city gains nothing (the face's «STACK» row); a city by the usual rules:
+    // the rules are the usual ones and the cell pays its bonus (Mars First Budget's grey hex).
     if (resolution.tileGrant !== undefined) {
-      rows.push(TILE_GRANT_RULE_KEY);
+      rows.push(tileGrantRuleKey(resolution.tileGrant));
     }
     out.push(block('group:immediate', 'immediate', 'When enacted', rows, 0));
   }
