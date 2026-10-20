@@ -93,6 +93,8 @@ function writeFrameAt(frames: ReadonlyArray<CastFrame>, wall: number, preset: st
   const dir = path.join(OUT_ROOT, preset);
   fs.mkdirSync(dir, {recursive: true});
   fs.writeFileSync(path.join(dir, `${name}.jpg`), Buffer.from(best.data, 'base64'));
+  // The frame's distance from the probe's moment — a short beat (the impulse) is honest only within a few frames.
+  console.log(`[reds ${preset}] ${name}: frame Δ${Math.round(best.wall - wall)} ms`);
   return true;
 }
 
@@ -365,6 +367,7 @@ for (const preset of PRESETS) {
       const blueAir = midway(at((s) => s.careerSeat === blue && s.proxy, blueWalk), blueOnTwo);
       const botAir = midway(at((s) => s.careerSeat === bot.color && s.proxy, botImpulse), botOnSeven);
       const impulsePeak = ticks.reduce((best, s, i) => s.careerSeat === blue && s.careerPhase === 'impulse' && s.insW > ticks[best].insW ? i : best, blueImpulse);
+      console.log(`[reds ${preset.id}] the insignia: ${Math.round(ticks[Math.max(0, blueImpulse - 1)].insW)} px at rest → ${Math.round(ticks[impulsePeak].insW)} px at the impulse's peak`);
       const frames: Array<[number, string]> = [[impulsePeak, '03a-insignia-impulse'], [blueAir, '03b-blue-marker-in-the-air'],
         [blueOnTwo + 3, '03c-blue-on-2-tr-token'], [botAir, '04a-bot-marker-in-the-air'], [botOnSeven + 3, '04b-bot-on-7-megacredits']];
       for (const [index, name] of frames) {

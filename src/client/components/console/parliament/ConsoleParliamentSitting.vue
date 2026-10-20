@@ -145,7 +145,7 @@
                     <template v-if="part.megacredits !== undefined && part.megacredits > 0">
                       <b data-sit-part-megacredits>+{{ part.megacredits }}</b>
                       <i class="con-sit__part-unit" :class="netUnitClass('megacredits')" aria-hidden="true"></i>
-                      <span class="con-sit__part-reason">{{ $t('instead of a card') }}</span>
+                      <span class="con-sit__part-reason con-sit__part-reason--wrap">{{ $t('instead of a card') }}</span>
                     </template>
                     <template v-else-if="part.drawn !== undefined && part.drawn > 0">
                       <b data-sit-part-drawn>+{{ part.drawn }}</b>
