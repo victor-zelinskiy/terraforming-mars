@@ -26,8 +26,11 @@
        (opacity up, scale to 1, contact shadow), the ring tightens amber —
        the commit boundary's own colour grammar;
      - committing: the locked pose holds, breathing quietly, until the hero
-       scene takes the cell (the shell unmounts this the moment the
-       tile-placement transaction owns the visual);
+       scene takes the cell;
+     - marker (the tile language, W1): past the commit, while the tile FLIES in
+       from the table edge, the reticle stays on the cell as the tile's
+       reserved place — the steady amber contour, the projection a trace —
+       and lets go once the tile has touched it;
      - pickup (a MOVE's «which city» level): the ring around the REAL tile on
        the cell, no projection — a ghost of a tile over a tile would be a
        second object. The host passes no art for it.
@@ -102,6 +105,8 @@ export default defineComponent({
      * the lock, the hero's proxy and the painted tile are one geometry. No quiet zone: the water took the bonus.
      */
     afloat: {type: Boolean, default: false},
+    /** THE LANDING MARKER (W1): the hero scene owns the cell and the tile is in the air — hold the place it will land. */
+    marker: {type: Boolean, default: false},
   },
   data() {
     return {
@@ -141,6 +146,7 @@ export default defineComponent({
         'con-bcur--pickup': this.pickup && this.legal && this.phase === 'navigate',
         // The afloat pose rides every phase with a projection: aiming, travelling, locked and committing alike.
         'con-bcur--afloat': this.afloat && this.tileArtClass !== '',
+        'con-bcur--marker': this.marker,
       };
     },
     /** One key so a diagonal step arms exactly one settle cycle. */

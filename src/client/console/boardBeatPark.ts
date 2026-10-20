@@ -58,7 +58,7 @@ import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {GameModel} from '@/common/models/GameModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
-import {HeldGlobalParams} from '@/client/console/planetFocus';
+import {HeldGlobalParams, planetFocusState} from '@/client/console/planetFocus';
 import {OwedStoryHandle, owePresentation} from '@/client/console/presentationLedger';
 import {pendingRevealEvents} from '@/client/components/drawnCards/drawnCardsState';
 
@@ -490,7 +490,9 @@ function schedule(run: () => void, ms: number): void {
 
 /** The settle, started only once no surface is still leaving (bounded — see `registerBoardBeatSurfaceProbe`). */
 function scheduleSettle(run: () => void): void {
-  const settle = consoleMotionMs(BOARD_BEAT_SETTLE_MS);
+  // A drain opened INSIDE the camera's exit (W6 — the story starts with the pullback) owes no settle of its own: the
+  // landing camera IS the settle, and the instruments are already readable (`planetFocusStoryReady`).
+  const settle = planetFocusState.storyReady ? 0 : consoleMotionMs(BOARD_BEAT_SETTLE_MS);
   const started = Date.now();
   const tick = (): void => {
     if (surfaceLeavingProbe?.() === true && Date.now() - started < BOARD_BEAT_LEAVE_WAIT_MAX_MS) {

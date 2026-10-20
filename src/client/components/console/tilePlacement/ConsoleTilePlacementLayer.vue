@@ -151,10 +151,10 @@
         <div class="con-tileplace__splash-wash"></div>
         <div class="con-tileplace__splash-ring"></div>
       </div>
-      <!-- A CITY TIER's touchdown (Skyscrapers) — the dust the contact squeezes out from
-           under the tier: a few motes around the hex, burst → rise → fall (the director
-           poses them from the model's deterministic angles). Only a tier lands with dust. -->
-      <div v-if="tilePlacementState.stack !== undefined" ref="dust" class="con-tileplace__dust">
+      <!-- THE DUST a city's contact squeezes out from under it (a Skyscrapers tier, and — the tile
+           language, W7 — every city landing): a few motes around the hex, burst → rise → fall (the
+           director poses them from the model's deterministic angles). -->
+      <div v-if="tilePlacementState.stack !== undefined || ownDust" ref="dust" class="con-tileplace__dust">
         <div v-for="m in dustMotes" :key="'dust-' + m" class="con-tileplace__dust-mote"></div>
       </div>
     </template>
@@ -165,6 +165,12 @@
          the pose/direction carries the provenance. -->
     <template v-if="remotePlacementState.active">
       <div ref="remoteShadow" class="con-tileplace__shadow"></div>
+      <!-- THE LANDING BEACON (the tile language, W2): a ring in the PLACING seat's colour that gathers onto the target
+           cell just before the tile arrives — on an overview board the eye finds the landing by it, and the colour
+           names who placed. Posed and played by the director (`playLandingBeacon`); invisible until then. -->
+      <div ref="remoteBeacon" class="con-tileplace__beacon"
+           :class="remotePlacementState.beaconColor !== undefined ? 'player_bg_color_' + remotePlacementState.beaconColor : ''"
+           :data-beacon-color="remotePlacementState.beaconColor"></div>
       <!-- THE DEPARTING TILE of a REMOVAL (Water Export's ocean, the Reds' action —
            a board event every viewer sees alike): the twin of the tile taken OFF
            the cell, posed 1:1 over it by the director as the real cell blanks,
@@ -209,6 +215,10 @@
         <div class="con-tileplace__splash-wash"></div>
         <div class="con-tileplace__splash-ring"></div>
       </div>
+      <!-- …and a city's dust on the REMOTE stage too: a piece does not change the way it lands by who placed it. -->
+      <div v-if="remoteDust" ref="remoteDust" class="con-tileplace__dust">
+        <div v-for="m in dustMotes" :key="'rdust-' + m" class="con-tileplace__dust-mote"></div>
+      </div>
     </template>
   </div>
 </template>
@@ -222,7 +232,7 @@ import {
 } from '@/client/console/tilePlacement/adjacencyPayoutBeat';
 import {remotePlacementState, abortRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {TileStageEls} from '@/client/console/tilePlacement/tilePlacementDirector';
-import {OCEAN_COIN_SPARKS, TIER_DUST_MOTES} from '@/client/console/tilePlacement/tilePlacementModel';
+import {OCEAN_COIN_SPARKS, TIER_DUST_MOTES, tileContactKind} from '@/client/console/tilePlacement/tilePlacementModel';
 import {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import ConsoleTileProxy, {tileProxyEls} from '@/client/components/console/tilePlacement/ConsoleTileProxy.vue';
@@ -270,6 +280,14 @@ export default defineComponent({
       }
       const suffix = tileCssClassOf(t, tilePlacementState.aresExtension);
       return suffix === '' ? '' : 'board-space-tile--' + suffix;
+    },
+    /** The own landing is a CITY's (W7): it lands with the tier's dust. */
+    ownDust(): boolean {
+      return tileContactKind(tilePlacementState.tileType) === 'dust';
+    },
+    /** …and the remote one. */
+    remoteDust(): boolean {
+      return tileContactKind(remotePlacementState.tileType) === 'dust';
     },
     remoteArtClass(): string {
       const t = remotePlacementState.tileType;
@@ -487,6 +505,8 @@ export default defineComponent({
           bonusIcons: [],
           aresPulses,
           splash: this.$refs.remoteSplash as HTMLElement | undefined,
+          beacon: connected(this.$refs.remoteBeacon as HTMLElement | undefined),
+          dust: connected(this.$refs.remoteDust as HTMLElement | undefined),
           // A REMOVAL departs on this stage (Water Export's ocean — the shared
           // scene, every viewer's); a placement never does.
           depart: connected(this.$refs.remoteDepart as HTMLElement | undefined),

@@ -988,6 +988,9 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
               cardPayouts: newView.game?.cardAdjacencyPayouts,
               prevCardPayouts: currentView().game?.cardAdjacencyPayouts,
               viewerCards: newView.thisPlayer?.tableau,
+              placements: newView.game?.tilePlacements,
+              prevPlacements: currentView().game?.tilePlacements,
+              players: {before: currentView().players ?? [], after: newView.players ?? []},
             });
             // …and a nomad camp that moved in the batch (a concurrent human's
             // move riding the bot's turns): commit hidden, hop at reveal.
@@ -1073,6 +1076,10 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
           cardPayouts: newView.game?.cardAdjacencyPayouts,
           prevCardPayouts: currentView().game?.cardAdjacencyPayouts,
           viewerCards: newView.thisPlayer?.tableau,
+          // …and the record of who placed each tile and what the cell paid them (the tile language).
+          placements: newView.game?.tilePlacements,
+          prevPlacements: currentView().game?.tilePlacements,
+          players: {before: currentView().players ?? [], after: newView.players ?? []},
         });
         // …and a REMOTE nomad hop riding the viewer's own submit response (a
         // concurrent human's move that resolved while the POST was in

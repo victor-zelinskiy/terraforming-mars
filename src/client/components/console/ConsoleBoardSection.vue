@@ -38,16 +38,20 @@
         <span class="con-bmove__line"></span>
         <span class="con-bmove__head"></span>
       </div>
-      <ConsoleBoardCursor
-        v-if="cursorVisible && cursorPos !== undefined"
-        :x="cursorPos.x" :y="cursorPos.y"
-        :legal="selectedAvailable"
-        :phase="placementFlowState.phase"
-        :tileArtClass="cursorArtClass"
-        :cubeColor="cursorCubeColor"
-        :bonusZone="cursorBonusZone"
-        :pickup="movePick || placementShape?.placementEffect === 'remove'"
-        :afloat="placementShape?.placementType === 'city-over-ocean'" />
+      <transition name="con-bcur-out">
+        <ConsoleBoardCursor
+          v-if="(cursorVisible || cursorMarker) && cursorPos !== undefined"
+          :x="cursorPos.x" :y="cursorPos.y"
+          :legal="cursorMarker || selectedAvailable"
+          :phase="cursorMarker ? 'committing' : placementFlowState.phase"
+          :tileArtClass="cursorArtClass"
+          :cubeColor="cursorCubeColor"
+          :bonusZone="cursorBonusZone"
+          :pickup="!cursorMarker && (movePick || placementShape?.placementEffect === 'remove')"
+          :afloat="placementShape?.placementType === 'city-over-ocean'"
+          :marker="cursorMarker"
+          :data-landing-marker="cursorMarker ? tilePlacementState.spaceId : undefined" />
+      </transition>
     </Teleport>
     <!-- Cell details live in the shell-level ConsoleContextPanel (feedback
          iteration 2) — this component owns the STAGE + selection only. -->
@@ -567,8 +571,24 @@ export default defineComponent({
       }
       return true;
     },
-    /** The reticle's anchor cell: the LOCK freezes it on the locked cell. */
+    /**
+     * THE LANDING MARKER (the tile language, W1 — the owner, 2026-10-20): past the commit, while the hero scene flies an
+     * ORDINARY tile in (or grows it, or pays its price into the cell first), the reticle does not yield — it stays on the
+     * armed cell as the tile's reserved place until the CONTACT (`touched` — the frame the tile touches it, never the
+     * handoff ~0.4 s later), then leaves under the landed tile. A move,
+     * a tier and a remove-and-replace keep their own scenes (the reticle yields to them as before).
+     */
+    cursorMarker(): boolean {
+      const scene = this.tilePlacementState;
+      return scene.active && (scene.phase === 'paying' || scene.phase === 'approaching') && !scene.touched &&
+        scene.move === undefined && scene.stack === undefined && scene.departingTile === undefined &&
+        scene.spaceId !== '';
+    },
+    /** The reticle's anchor cell: the LOCK freezes it on the locked cell (the marker, on the armed one). */
     cursorSpaceId(): string | undefined {
+      if (this.cursorMarker) {
+        return this.tilePlacementState.spaceId;
+      }
       const flow = this.placementFlowState;
       if (flow.phase !== 'navigate' && flow.lockedSpaceId !== undefined) {
         return flow.lockedSpaceId;

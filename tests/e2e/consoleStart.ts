@@ -2694,7 +2694,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   // TR59 — the SOURCE of a payout on the viewer's own Ares tile: blue's Restricted Area (Ares) on 47, the free city cell
   // 48 beside it; red (Thorgate, 40 M€, Domed Crater in hand) on the move (`-ares`), or a solo table vs MarsBot whose
   // deck is [B05 Expedited Construction] alone and whose city lands on 48 once blue passes (`-ares-bot`).
-  'notification-source-ares' | 'notification-source-ares-bot' |
+  'notification-source-ares' | 'notification-source-ares-bot' | 'tile-language' |
   // TR60 — «ИНФОРМАЦИЯ — ДОСЬЕ»: a SATURATED table for the Information workspace — blue's 19 cards (eight actions in
   // three states, every effect family, events, automated), a milestone, an award, delegates; red's score hidden.
   'info-dossier' |

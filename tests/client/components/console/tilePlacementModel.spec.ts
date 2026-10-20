@@ -18,6 +18,7 @@ import {
   stackLandingRect, tierHoverPoint, tierDescentScaleAt, dustMoteVector,
   STACK_SCALE, STACK_STEP_PX, TIER_HOVER_LIFT, TIER_CRUISE_SCALE, TIER_DUST_MOTES,
   TIER_APPROACH_MS, TIER_HOVER_MS, TIER_DESCENT_MS, TIER_CONTACT_MS, TIER_SETTLE_MS,
+  tileDivePlan, remoteBirthPoint, tileContactKind, REMOTE_BEACON_LEAD_MS, REMOTE_BEACON_OUT_MS, REWARD_WAVE_STAGGER_MS,
 } from '@/client/console/tilePlacement/tilePlacementModel';
 import {
   holdRemoteReveal, releaseRemoteReveal, isRemoteRevealHeld, clearRemoteRevealHolds, heldPrevTileOf,
@@ -439,6 +440,50 @@ describe('tilePlacementModel (pure math of the placement hero scene)', () => {
       const mid = tileFlightPoint(plan, 0.5);
       expect(mid.y).to.be.lessThan(Math.min(from.y, to.y));
       expect(Math.min(from.y, to.y) - mid.y).to.be.at.most(110 + 0.001);
+    });
+
+    /*
+     * THE TILE LANGUAGE (W2, PL-769 — the owner, 2026-10-20): another seat's tile is born WHOLE under that seat's chip
+     * and DIVES into its cell — its path never climbs above its start, so at 4K no part of the flight is behind the
+     * screen's top edge (the lob's apex `min(from.y, to.y) − lift` put the first third of the bot's city out of view).
+     */
+    it('the remote DIVE never rises above its start and ends on the hex; a target ABOVE the start keeps the lob', () => {
+      const chip = {x: 600, y: 40};
+      const cell = {x: 1800, y: 900};
+      const dive = tileDivePlan(chip, cell);
+      expect(tileFlightPoint(dive, 0)).to.deep.eq(chip);
+      expect(tileFlightPoint(dive, 1)).to.deep.eq(cell);
+      let lastY = chip.y;
+      for (let i = 1; i <= 20; i++) {
+        const p = tileFlightPoint(dive, i / 20);
+        expect(p.y, `t=${i / 20} never above the start`).to.be.at.least(chip.y - 1e-6);
+        expect(p.y, 'a monotone descent').to.be.at.least(lastY - 1e-6);
+        lastY = p.y;
+      }
+      // A cell above its source (never the strip's chip, but honest): the ordinary carried arc.
+      expect(tileDivePlan(cell, chip)).to.deep.eq(tileFlightPlan(cell, chip));
+    });
+
+    it('the remote tile is born WHOLE below the chip: its top edge at the chip\'s centre, never cut by the strip', () => {
+      const chip = {x: 600, y: 40};
+      const birth = remoteBirthPoint(chip, 200, REMOTE_FLIGHT_PROFILE);
+      expect(birth.x).to.eq(600);
+      expect(birth.y - (200 * REMOTE_FLIGHT_PROFILE.startScale) / 2, 'the top edge at the chip').to.be.closeTo(40, 1e-9);
+    });
+
+    it('the CONTACT by kind (W7): a city lands with dust, an ocean with a splash, a greenery grows; the rest touch', () => {
+      expect(tileContactKind(TileType.CITY)).to.eq('dust');
+      expect(tileContactKind(TileType.CAPITAL)).to.eq('dust');
+      expect(tileContactKind(TileType.OCEAN)).to.eq('splash');
+      expect(tileContactKind(TileType.GREENERY)).to.eq('sprout');
+      expect(tileContactKind(TileType.MOHOLE_AREA)).to.eq('touch');
+      expect(tileContactKind(undefined)).to.eq('touch');
+    });
+
+    it('the beacon gathers before the touchdown and lets go after it; the wave\'s stagger is a beat, never a pause', () => {
+      expect(REMOTE_BEACON_LEAD_MS).to.be.greaterThan(0).and.lessThan(TILE_FLIGHT_MS);
+      expect(REMOTE_BEACON_OUT_MS).to.be.greaterThan(0);
+      expect(REWARD_WAVE_STAGGER_MS).to.be.within(40, 160);
     });
 
     it('the scale departs large, never grows, and is EXACTLY 1 at touchdown', () => {

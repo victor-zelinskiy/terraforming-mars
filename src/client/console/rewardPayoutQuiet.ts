@@ -44,7 +44,7 @@
 import {probeTick} from '@/client/console/probeTick';
 import {boardSceneMemberBusy} from '@/client/console/boardSceneMembers';
 import {boardBeatStoryPending} from '@/client/console/boardBeatPark';
-import {planetFocusSettling} from '@/client/console/planetFocus';
+import {planetFocusSettling, planetFocusStoryReady} from '@/client/console/planetFocus';
 import {
   isResourceTransferActive, resourceTransferState,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -99,18 +99,32 @@ export function concurrentResourcePayout(): boolean {
  * flows — their story is a panel's, not the board's).
  */
 export function boardSceneSettling(): boolean {
-  return rewardPayoutSettling() ||
-    tilePlacementRewardsSettling() ||
-    isRemotePlacementActive() ||
-    isRemoteNomadMoveActive() ||
-    isBoardCardBonusActive() ||
-    boardSceneMemberBusy() ||
+  return fieldScenesSettling() ||
     // The CAMERA in motion (planet-focus enter/exit + the arcs' return
     // beat — deliberately not `active`, a fully-grown stage is stable and
     // hosts the placement's own scenes). Added with the one-owner merge:
     // a drain, a yielded return or the endgame open starting mid-exit
     // played its story against a board still travelling.
     planetFocusSettling();
+}
+
+/**
+ * THE SCALE STORY'S OWN scene gate (the tile language, W6): `boardSceneSettling` with the camera term narrowed to «the
+ * instruments cannot be read yet» — the park's drain starts WITH the pullback (`planetFocusStoryReady`), never after the
+ * landing's whole tail. Every other automatic transition keeps the full gate.
+ */
+export function scaleStorySceneSettling(): boolean {
+  return fieldScenesSettling() || (planetFocusSettling() && !planetFocusStoryReady());
+}
+
+/** What plays ON the field (the payouts, the landings, the bonus lift, the registered members) — the camera apart. */
+function fieldScenesSettling(): boolean {
+  return rewardPayoutSettling() ||
+    tilePlacementRewardsSettling() ||
+    isRemotePlacementActive() ||
+    isRemoteNomadMoveActive() ||
+    isBoardCardBonusActive() ||
+    boardSceneMemberBusy();
 }
 
 /**

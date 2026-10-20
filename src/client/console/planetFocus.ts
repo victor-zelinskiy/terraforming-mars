@@ -64,6 +64,14 @@ const SETTLE_MARGIN_MS = 60;
  *  or take the foreground until it is over: a glide behind a half-formed
  *  band is exactly the wasted story this mode exists to prevent. */
 export const PLANET_ARCS_RETURN_MS = 260;
+/**
+ * THE SCALE STORY STARTS WITH THE PULLBACK (the tile language, W6 — the owner, 2026-10-20): the moment of the exit at
+ * which the instruments can be READ — the ring ~¾ materialized (its shells start 260 ms in, expo-out over 540 ms), the
+ * planet ~90 % home. From here the board-beat park may tell what the placement raised while the camera finishes its
+ * landing (`planetFocusStoryReady`); waiting for the whole tail (the landing + the arcs' return + the drain's settle)
+ * left ~1.4 s of a still board between the last reward token and the first glide.
+ */
+export const PLANET_STORY_READY_MS = 400;
 
 export type PlanetFocusPhase = 'idle' | 'entering' | 'active' | 'exit-prep' | 'exiting';
 
@@ -98,6 +106,9 @@ export const planetFocusState = reactive({
    * counts it as covered, so the scale story waits it out by construction.
    */
   arcsReturning: false,
+  /** The exit has passed `PLANET_STORY_READY_MS`: the scales are READABLE while the camera still lands (W6). Cleared
+   *  with the arcs' return, by a reversal and by a reset. */
+  storyReady: false,
   /** Bumped per enter — lets the board section restart per-engagement work. */
   nonce: 0,
 });
@@ -118,6 +129,7 @@ let settleTimer: number | undefined;
 let exitPrepRaf: number | undefined;
 let exitTimer: number | undefined;
 let arcsTimer: number | undefined;
+let storyTimer: number | undefined;
 
 /** Snapshot the four displayed parameters off a game model. */
 export function captureGlobalParams(game: GameModel): HeldGlobalParams {
@@ -166,6 +178,15 @@ export function planetFocusSettling(): boolean {
     planetFocusState.phase === 'exit-prep' ||
     planetFocusState.phase === 'exiting' ||
     planetFocusState.arcsReturning;
+}
+
+/**
+ * May a SCALE STORY play now (W6)? The camera at rest — or, past `PLANET_STORY_READY_MS` of its exit, still landing
+ * with the instruments readable: the story starts WITH the pullback. Only the board-beat park's drain asks this (its
+ * watchable probe and its scene gate); every other automatic transition keeps `planetFocusSettling` — the whole tail.
+ */
+export function planetFocusStoryReady(): boolean {
+  return planetFocusState.storyReady || (planetFocusState.phase === 'idle' && !planetFocusState.arcsReturning);
 }
 
 // ── the lifecycle ───────────────────────────────────────────────────────────
@@ -239,6 +260,12 @@ export function beginPlanetFocusExit(): void {
       return; // a reversal (chained placement) claimed the mode back
     }
     planetFocusState.phase = 'exiting';
+    storyTimer = schedule(() => {
+      storyTimer = undefined;
+      if (planetFocusState.phase === 'exiting') {
+        planetFocusState.storyReady = true;
+      }
+    }, consoleMotionMs(PLANET_STORY_READY_MS));
     exitTimer = schedule(() => {
       exitTimer = undefined;
       if (planetFocusState.phase === 'exiting') {
@@ -247,9 +274,12 @@ export function beginPlanetFocusExit(): void {
         // here, and the park's drain (the scale story) waits it out.
         planetFocusState.phase = 'idle';
         planetFocusState.arcsReturning = true;
+        // The story may already be playing (the ready moment came inside the landing); it stays readable.
+        planetFocusState.storyReady = true;
         arcsTimer = schedule(() => {
           arcsTimer = undefined;
           planetFocusState.arcsReturning = false;
+          planetFocusState.storyReady = false;
           // The mode belongs to an engagement; idle is the placement's default.
           planetFocusState.mode = 'placement';
         }, consoleMotionMs(PLANET_ARCS_RETURN_MS));
@@ -266,6 +296,7 @@ export function resetPlanetFocus(): void {
   settleTimer = undefined;
   planetFocusState.phase = 'idle';
   planetFocusState.arcsReturning = false;
+  planetFocusState.storyReady = false;
   planetFocusState.mode = 'placement';
 }
 
@@ -282,7 +313,10 @@ function clearExitTimers(): void {
   exitTimer = undefined;
   clearTimer(arcsTimer);
   arcsTimer = undefined;
+  clearTimer(storyTimer);
+  storyTimer = undefined;
   planetFocusState.arcsReturning = false;
+  planetFocusState.storyReady = false;
 }
 
 function schedule(run: () => void, ms: number): number | undefined {

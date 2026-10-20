@@ -749,6 +749,10 @@ export default defineComponent({
               cardPayouts: model.game.cardAdjacencyPayouts,
               prevCardPayouts: prevView?.game.cardAdjacencyPayouts,
               viewerCards: (model as PlayerViewModel).thisPlayer?.tableau,
+              // …and its record of who placed each tile and what the cell paid them (the tile language).
+              placements: model.game.tilePlacements,
+              prevPlacements: prevView?.game.tilePlacements,
+              players: prevView !== undefined ? {before: prevView.players, after: model.players} : undefined,
             });
             // …and a REMOTE nomad hop (another player moved the camp — this
             // poll path is how it arrives; an undo restore lands here too and

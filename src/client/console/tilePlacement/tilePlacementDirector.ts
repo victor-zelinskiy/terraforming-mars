@@ -19,7 +19,7 @@
 import {gsap} from 'gsap';
 import {
   TileRect, TileFlightProfile, OWN_FLIGHT_PROFILE,
-  tileFlightPlan, tileFlightPoint, tileScaleAt, tileTiltAt, tileShadowAt,
+  tileFlightPlan, tileDivePlan, tileFlightPoint, tileScaleAt, tileTiltAt, tileShadowAt,
   TILE_SETTLE_PX, TILE_TOUCH_MS, SPROUT_PEAK_SCALE,
   TIER_CRUISE_SCALE, tierDescentScaleAt, dustMoteVector,
   MovePose, movePlan, moveLiftPose, moveCarryPose, moveLandPose, moveShadowAt,
@@ -60,6 +60,9 @@ export type TileStageEls = {
   /** The surface-acceptance overlay INSIDE the departing proxy — present only
    *  when that proxy is a MOVE's (it lands, so it is accepted by the surface). */
   departTouch?: HTMLElement | undefined,
+  /** THE LANDING BEACON of another seat's tile (the tile language, W2): a ring in that seat's colour on the target cell.
+   *  The remote stage's only. */
+  beacon?: HTMLElement | undefined,
   /** THE COVER of the piece that STAYS when the piece under it leaves (TR44: the city over the water the move takes)
    *  — painted above the departing proxy for the lift, settling with the real tier, hidden once the water has cleared.
    *  Absent on every other scene. */
@@ -478,6 +481,14 @@ export type TileFlightOpts = {
    * verify owns that degrade.
    */
   liveHex?: () => TileRect | undefined,
+  /**
+   * The flight's PATH (PL-769): `lob` — the own tile's low carried arc off the table edge (the default); `dive` — a
+   * tile born ABOVE its cell (another seat's, under that seat's chip) that never climbs (`tileDivePlan`).
+   */
+  path?: 'lob' | 'dive',
+  /** Fired IN THE FRAME OF CONTACT (the tile language's contact by kind — the dust, the splash): on the timeline, never
+   *  after the settle the promise waits for. */
+  onContact?: () => void,
 };
 
 /** Where the final-approach re-read happens — the hand-dock family's proven
@@ -494,10 +505,11 @@ export const TILE_RETARGET_AT = 0.72;
  */
 export function playTileFlight(els: TileStageEls, opts: TileFlightOpts): Promise<void> {
   const profile = opts.profile ?? OWN_FLIGHT_PROFILE;
-  const plan = tileFlightPlan(opts.from, {
+  const landing = {
     x: opts.hex.x + opts.hex.w / 2,
     y: opts.hex.y + opts.hex.h / 2,
-  });
+  };
+  const plan = opts.path === 'dive' ? tileDivePlan(opts.from, landing) : tileFlightPlan(opts.from, landing);
   const settlePx = Math.max(2, Math.round(TILE_SETTLE_PX * opts.uiScale));
   return guarded((done) => {
     const tl = gsap.timeline({onComplete: done});
@@ -582,6 +594,9 @@ export function playTileFlight(els: TileStageEls, opts: TileFlightOpts): Promise
     }, 0);
     // CONTACT — all in one beat, inside the settle window:
     addTileTouch(tl, els, {at: opts.flightMs / 1000, settlePx, settleMs: opts.settleMs});
+    if (opts.onContact !== undefined) {
+      tl.call(opts.onContact, undefined, opts.flightMs / 1000);
+    }
   }, opts.flightMs + opts.settleMs + 400);
 }
 
@@ -793,6 +808,8 @@ export type TileSproutOpts = {
   uiScale: number,
   sproutMs: number,
   settleMs: number,
+  /** Fired in the frame the grown tile TOUCHES (the flight's `onContact`). */
+  onContact?: () => void,
 };
 
 /**
@@ -815,7 +832,34 @@ export function playTileSprout(els: TileStageEls, opts: TileSproutOpts): Promise
       tl.fromTo(els.shadow, {autoAlpha: 0, scale: 0.6}, {autoAlpha: 0.42, scale: 1, duration: grow, ease: 'power1.out'}, 0);
     }
     addTileTouch(tl, els, {at: grow, settlePx, settleMs: opts.settleMs});
+    if (opts.onContact !== undefined) {
+      tl.call(opts.onContact, undefined, grow);
+    }
   }, opts.sproutMs + opts.settleMs + 400);
+}
+
+/**
+ * THE LANDING BEACON (the tile language, W2 — another seat's tile): a ring in the placing seat's colour gathers ONTO
+ * the target cell `leadMs` before the touchdown (from a little wider than the hex to the hex), holds through the
+ * contact and lets go over `outMs` — the eye is led to the cell before the tile arrives, and the colour names who
+ * placed it. Fire-and-forget, transform / opacity only, sized from the live hex (never fixed px).
+ */
+export function playLandingBeacon(el: HTMLElement | undefined, opts: {hex: TileRect, delayMs: number, leadMs: number, outMs: number}): void {
+  if (el === undefined || opts.hex.w < 8) {
+    return;
+  }
+  const size = Math.max(opts.hex.w, opts.hex.h);
+  gsap.killTweensOf(el);
+  gsap.set(el, {
+    width: size, height: size,
+    x: opts.hex.x + opts.hex.w / 2 - size / 2,
+    y: opts.hex.y + opts.hex.h / 2 - size / 2,
+    scale: 1.45, autoAlpha: 0, transformOrigin: 'center center',
+  });
+  gsap.timeline({delay: opts.delayMs / 1000})
+    .to(el, {autoAlpha: 1, duration: Math.min(0.14, opts.leadMs / 2000), ease: 'power1.out'}, 0)
+    .to(el, {scale: 1.04, duration: opts.leadMs / 1000, ease: 'power2.out'}, 0)
+    .to(el, {autoAlpha: 0, scale: 0.94, duration: opts.outMs / 1000, ease: 'power1.in'}, opts.leadMs / 1000);
 }
 
 /** The frame-perfect handoff: the REAL board tile is already painted
@@ -1102,6 +1146,10 @@ export function killTileTweens(els: TileStageEls): void {
   }
   if (els.shadow !== undefined) {
     gsap.killTweensOf(els.shadow);
+  }
+  if (els.beacon !== undefined) {
+    gsap.killTweensOf(els.beacon);
+    gsap.set(els.beacon, {autoAlpha: 0});
   }
   els.bonusIcons.forEach((el) => gsap.killTweensOf(el));
   // The pulse/coin/splash pieces animate their CHILDREN (wash / ring / body /

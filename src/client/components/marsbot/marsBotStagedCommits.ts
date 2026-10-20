@@ -186,7 +186,11 @@ function applyAttack(view: ViewModel, attack: MarsBotAttack): void {
  * armed placement animation), global parameters, per-player resources/TR.
  * Absolute `after` values → idempotent (a re-delivered card cannot double-apply).
  */
-export function applyTurnVisual(view: ViewModel, turn: MarsBotTurn, opts?: {aresGrants?: ViewModel['game']['aresAdjacencyGrants']}): void {
+export function applyTurnVisual(view: ViewModel, turn: MarsBotTurn, opts?: {
+  aresGrants?: ViewModel['game']['aresAdjacencyGrants'],
+  /** The buffered LATEST view's ring of tiles placed (who placed, what the cell paid — the bot's M€ for covered icons). */
+  placements?: ViewModel['game']['tilePlacements'],
+}): void {
   const visual = turn.visual;
   if (visual !== undefined) {
     if (visual.tiles !== undefined && visual.tiles.length > 0) {
@@ -217,6 +221,8 @@ export function applyTurnVisual(view: ViewModel, turn: MarsBotTurn, opts?: {ares
           gamePhase: view.game.phase,
           viewerColor: (view as PlayerViewModel).thisPlayer?.color,
           aresGrants: opts?.aresGrants,
+          placements: opts?.placements,
+          prevPlacements: view.game.tilePlacements,
         },
       );
       // Arm BEFORE mutating — BoardSpaceTile's watcher fires synchronously
@@ -348,7 +354,7 @@ export function deliverBotTurnVisual(key: string): 'committed' | 'applied' | 'no
     const next = batch.pendingKeys[0];
     const turn = batch.turnsByKey.get(next);
     if (turn !== undefined) {
-      applyTurnVisual(batch.presented, turn, {aresGrants: batch.latest.game.aresAdjacencyGrants});
+      applyTurnVisual(batch.presented, turn, {aresGrants: batch.latest.game.aresAdjacencyGrants, placements: batch.latest.game.tilePlacements});
     }
     batch.pendingKeys.shift();
     batch.turnsByKey.delete(next);

@@ -614,6 +614,71 @@ export function tileFlightPlan(from: TransferPoint, to: TransferPoint): TileFlig
   };
 }
 
+/**
+ * THE DIVE (the tile language, 2026-10-20 — PL-769): the flight of a tile that starts ABOVE its cell — another seat's,
+ * born under that seat's chip in the top strip. The lob above lifts its apex over the HIGHER end, which for a start at
+ * the top of the screen put a third of the flight behind the screen's top edge. The dive never climbs: the control
+ * point stands level with the start, straight over the target's column, so the tile leaves the chip moving across,
+ * bends down and drops into the cell — y only ever grows (y(t) = y0 + t²·(y1 − y0)), the whole path inside the
+ * opening. A start BELOW the cell (an own tile) keeps the lob.
+ */
+export function tileDivePlan(from: TransferPoint, to: TransferPoint): TileFlightPlan {
+  if (to.y <= from.y) {
+    return tileFlightPlan(from, to);
+  }
+  return {p0: from, c: {x: to.x, y: from.y}, p1: to};
+}
+
+/**
+ * Where another seat's tile is BORN (PL-769): its CENTRE half a carried tile below the seat's chip point, so the whole
+ * proxy stands under the strip from its first frame — the chip point is the strip's lower edge, and a tile centred on
+ * it was half hidden behind the strip.
+ */
+export function remoteBirthPoint(chip: TransferPoint, hexH: number, profile: TileFlightProfile): TransferPoint {
+  return {x: chip.x, y: chip.y + (hexH * profile.startScale) / 2};
+}
+
+/**
+ * HOW A TILE MEETS ITS CELL — the tile language's contact by KIND (the owner's decision W7, 2026-10-20): a city lands
+ * firm and squeezes a ring of dust out from under it (the tier's own dust, `playStackDust`); an ocean answers with the
+ * water's ring and wash (`playCoverSplash` on the full hex); a greenery is never «placed» — it GROWS out of its cell
+ * (`playTileSprout`), whoever paid for it and however; every other tile keeps the one quiet touch.
+ */
+export type TileContactKind = 'dust' | 'splash' | 'sprout' | 'touch';
+
+export function tileContactKind(tileType: TileType | undefined): TileContactKind {
+  if (tileType === undefined) {
+    return 'touch';
+  }
+  if (tileType === TileType.GREENERY) {
+    return 'sprout';
+  }
+  if (tileType === TileType.OCEAN) {
+    return 'splash';
+  }
+  if (CITY_TILES.has(tileType)) {
+    return 'dust';
+  }
+  return 'touch';
+}
+
+/**
+ * THE LANDING BEACON (W2 — another seat's tile): a ring in the placing seat's colour lights the target cell this long
+ * BEFORE the touchdown — on an overview board a 155 px tile dropping onto a 4K screen is found by the eye only if the
+ * cell announces it — and fades out over `REMOTE_BEACON_OUT_MS` after the contact. A sprout (no flight) is announced
+ * the same lead before it starts to grow.
+ */
+/**
+ * THE LANDING'S ONE WAVE (the tile language, W6 — the owner, 2026-10-20): what the cell was printed with, what the
+ * neighbouring water and tiles pay and what the tile changed in the score are ONE statement of the landing — launched
+ * together, each member this much after the one before it (the engine's order), never one beat after another's
+ * touchdowns (a greenery beside two oceans read as four separate events over ~3.5 s).
+ */
+export const REWARD_WAVE_STAGGER_MS = 80;
+
+export const REMOTE_BEACON_LEAD_MS = 200;
+export const REMOTE_BEACON_OUT_MS = 260;
+
 /** Point on the flight at t ∈ [0,1]. */
 export function tileFlightPoint(plan: TileFlightPlan, t: number): TransferPoint {
   const u = 1 - t;

@@ -6268,6 +6268,29 @@ html.con-section-leaving .con-strat {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.55; }
 }
+/* THE LANDING MARKER (the tile language, W1 — the owner, 2026-10-20: «полёт, но с маркером»). Past the commit the
+   tile flies in from the table edge, and the place it was locked onto does NOT let go: the reticle stays on the cell as
+   the tile's reserved place — the amber contour of the commit boundary, steady (the pending breath is over: the
+   server answered), the projection thinned to a trace with no cube and no shadow (the flying tile brings its own) —
+   until the tile TOUCHES it, then it lets go under the landed tile (the leave below). One object leaves the table, and
+   it lands in the place the player chose; the place never disappears in between. */
+.con-bcur--marker .con-bcur__ring { opacity: 0; }
+.con-bcur--marker .con-bcur__lockring {
+    opacity: 0.9;
+    animation: none;
+}
+.con-bcur--marker .con-bcur__ghost {
+    opacity: 0.2;
+    transform: translateY(0) scale(1);
+}
+.con-bcur--marker .con-bcur__cube,
+.con-bcur--marker .con-bcur__shadow { opacity: 0; }
+.con-bcur-out-leave-active {
+    transition: opacity calc(140ms * var(--motion-scale, 1)) ease-out;
+}
+.con-bcur-out-leave-to {
+    opacity: 0;
+}
 
 /* ══ A MOVE (Turmoil Redux TR14 Re-settlement) — the reticle's own family ══
    One of the player's cities travels to a neighbouring cell. Before the one

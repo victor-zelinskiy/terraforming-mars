@@ -7006,6 +7006,32 @@ function seatViewerAresTile(game: IGame, owner: IPlayer, name: string): void {
   write(name, game);
 }
 
+// ── tile-language: «ВИЗУАЛЬНЫЙ ЯЗЫК РАЗМЕЩЕНИЯ ТАЙЛОВ» (the tile-placement polish, 2026-10-20) — the one table every
+//    landing of the language plays on: blue (CrediCor, the viewer) on the move with 150 M€, 16 plants and Domed Crater
+//    in hand (a CARD that places a city — the staged door); red (Thorgate) with 100 M€ and 16 plants, driven over the API
+//    once blue's turn is over (the REMOTE landing: a city, an ocean, a greenery). Base game, no Ares — the bare
+//    language, no hazards in the frame. ──
+{
+  const name = 'tile-language';
+  const pinned = [CardName.CREDICOR, CardName.THORGATE];
+  const [game, blue, red] = testGame(2, {
+    skipInitialCardSelection: false, startingCorporations: 1, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, [blue, red], pinned);
+  answerStartFlow(game, [blue, red]);
+  blue.megaCredits = 150;
+  blue.plants = 16;
+  blue.cardsInHand.push(new DomedCrater());
+  blue.production.add(Resource.ENERGY, 1); // Domed Crater's own price: −1 energy production
+  red.megaCredits = 100;
+  red.plants = 16;
+  runAllActions(game);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== blue.id || !(blue.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`${name}: expected blue on the move with the action menu — got phase=${game.phase} active=${game.activePlayer.color} wf=${blue.getWaitingFor()?.constructor.name}`);
+  }
+  write(name, game);
+}
+
 // ── TR60 · «ИНФОРМАЦИЯ — ДОСЬЕ, А НЕ ТАБЛИЦА» (docs/TURMOIL_REDUX_CIVILIAN_SPACEFIGHTERS.md § ДОСЬЕ): a SATURATED table for
 //    the Information workspace (Y), blue on the move in generation 5, the Industrialists ruling:
 //      · `info-dossier` — blue (Teractor) with 19 cards on the table: EIGHT action cards in three states (TR60 · TR57 ·

@@ -70,6 +70,7 @@ import {
   OCEAN_SPLASH_MS, oceanEdgePoint, oceanShoreDirection,
   MOVE_LIFT_MS, MOVE_CARRY_MS, MOVE_LAND_MS, moveSourceRect, departingCubePose, DepartingCubePose, VerifiedMove,
   stackLandingRect, coverDescentPlan,
+  SPROUT_PROFILE, TILE_SPROUT_MS, TIER_DUST_MS, tileContactKind, remoteBirthPoint, REMOTE_BEACON_LEAD_MS, REMOTE_BEACON_OUT_MS, REWARD_WAVE_STAGGER_MS,
 } from '@/client/console/tilePlacement/tilePlacementModel';
 import {claimTileMove, pairTileMoves} from '@/client/console/tilePlacement/tileMoveRecords';
 import {stackRelease, clearStackRelease, stackDried} from '@/client/console/tilePlacement/cityStackScene';
@@ -84,6 +85,8 @@ import {
 import {AresAdjacencyGrantModel} from '@/common/models/AresAdjacencyGrantModel';
 import {CardAdjacencyPayoutModel} from '@/common/models/CardAdjacencyPayoutModel';
 import {CardModel} from '@/common/models/CardModel';
+import {PublicPlayerModel} from '@/common/models/PlayerModel';
+import {TilePlacementRecordModel} from '@/common/models/TilePlacementRecordModel';
 import {claimCityPayout, cityPayoutVpSteps, cityPayoutsFor} from '@/client/console/tilePlacement/cityDataPayoutModel';
 import {accumulatedVp} from '@/client/components/additionalResources/additionalResources';
 import {claimVpShares, dropVpClaim, flyVpShares, holdsVpShares, isBoardVpShare, noteVpHeldElsewhere, releaseVpShares} from '@/client/console/scoreCell/vpShareLedger';
@@ -93,6 +96,7 @@ import {ResourceTransferSpec, cardResourceKey} from '@/client/console/resourceTr
 import {
   placeTileProxy, playTileFlight, disposeTileProxy, killTileTweens,
   playAresSourcePulses, playCoverSplash, seatTileProxy,
+  playTileSprout, playStackDust, playLandingBeacon,
   placeDepartProxy, playTileDeparture,
   placeMoveProxy, playTileMove, removeMoveProxy, placeStayingCover, hideStayingCover,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
@@ -182,6 +186,8 @@ export const remotePlacementState = reactive({
   /** The VIEWER's own tiles answering the current remote placement (the
    *  Ares owner-income beat) — staged wakes, empty otherwise. */
   aresSources: [] as Array<AresSourceWake>,
+  /** The placing seat's colour on the current landing's BEACON (W2) — undefined for the viewer's own auto-placed tile. */
+  beaconColor: undefined as Color | undefined,
   nonce: 0,
 });
 
@@ -219,6 +225,21 @@ export type RemoteEvent = FreshPlacement & {
    *  (an auto-placed reserved-slot city) — it departs from the viewer's
    *  own bottom supply with the OWN pose; provenance stays honest. */
   own: boolean,
+  /**
+   * WHO PLACED IT, by the server's record (`GameModel.tilePlacements`) — an ocean carries no owner, so without this
+   * its flight could not leave the placer's chip (it left the strip's middle). Undefined: no record (an old server,
+   * a restart) — the tile's own colour, else the neutral origin.
+   */
+  placer?: Color,
+  /** What the cell's PRINTED bonus paid the placer, by the same record — flown from the cell to the placer's chip
+   *  after the touchdown (W3). Undefined / empty: nothing to fly. */
+  cellPaid?: TilePlacementRecordModel['paid'],
+  /**
+   * The plants the placer paid for this GREENERY (the conversion — W4), proven against the two views (the placer's
+   * plants fell by exactly their own price, the cell's printed plants added back). The «−N» leaves their chip into the
+   * cell before the greenery grows. Undefined: not a conversion, or not provable.
+   */
+  plantPrice?: number,
   /**
    * Everything THIS VIEWER physically receives from the placement's Ares
    * adjacency manifest — usually the OWNER INCOME of their own neighbouring
@@ -361,6 +382,13 @@ export type RemoteStageOpts = {
   cardPayouts?: ReadonlyArray<CardAdjacencyPayoutModel>,
   /** The PREVIOUS view's ring — a record of THIS placement is one it did not carry. */
   prevCardPayouts?: ReadonlyArray<CardAdjacencyPayoutModel>,
+  /** The SERVER's ring of tiles placed on Mars (`game.tilePlacements`) — who placed each, what the cell paid them. */
+  placements?: ReadonlyArray<TilePlacementRecordModel>,
+  /** The PREVIOUS view's ring — a record of THIS response is one it did not carry. */
+  prevPlacements?: ReadonlyArray<TilePlacementRecordModel>,
+  /** Every seat's public model in the APPLIED view and in the ANSWER — what a rival's greenery's plant price is proven
+   *  against (W4). Absent: no price token (the honest default). */
+  players?: {before: ReadonlyArray<PublicPlayerModel>, after: ReadonlyArray<PublicPlayerModel>},
   /**
    * The VIEWER's own tableau (their card's face): a payout onto the VIEWER's card that somebody else's placement
    * caused (Pets on a rival's city — TR53 iteration, case 4) rises THAT card by the field, the own scene, never a
@@ -495,12 +523,19 @@ export function stageRemoteTileEvents(
       // phase already in flight, so the cube waits for its explicit drop.
       holdCubeForHeroPlacement(e.spaceId);
     }
+    // THE SERVER'S RECORD OF THIS PLACEMENT (the tile language): who placed it, what the cell paid them.
+    const record = claimPlacementRecordOf(e.spaceId, opts);
     queue.push({
       ...e,
       aresExtension: opts?.aresExtension === true,
       own: e.color !== undefined && e.color === opts?.viewerColor,
       income: claimIncome(e.spaceId, opts),
       cityPayouts: claimCityPayoutsOf(e.spaceId, opts),
+      ...(record !== undefined ? {
+        placer: record.color,
+        cellPaid: record.paid,
+        plantPrice: provenPlantPrice(record, events, opts),
+      } : {}),
     });
     queued = true;
   }
@@ -533,6 +568,52 @@ function claimIncome(spaceId: string, opts: RemoteStageOpts | undefined): Readon
     beginPanelRewardHold(income.map((f) => f.spec));
   }
   return income;
+}
+
+/**
+ * THE RECORD OF THIS PLACEMENT (`game.tilePlacements`): a record of THIS response — one the previous view did not
+ * carry — naming the cell, claimed once per client by `seq` (a poll and a submit reporting the same tile never fly
+ * its bonus twice). Undefined without a ring (an old server, the bot's staging with no buffered view).
+ */
+function claimPlacementRecordOf(spaceId: string, opts: RemoteStageOpts | undefined): TilePlacementRecordModel | undefined {
+  const known = new Set((opts?.prevPlacements ?? []).map((r) => r.seq));
+  const record = [...(opts?.placements ?? [])].reverse().find((r) => r.spaceId === spaceId && !known.has(r.seq) && !claimedPlacementRecords.has(r.seq));
+  if (record === undefined) {
+    return undefined;
+  }
+  claimedPlacementRecords.add(record.seq);
+  if (claimedPlacementRecords.size > 64) {
+    claimedPlacementRecords.delete(claimedPlacementRecords.values().next().value as number);
+  }
+  return record;
+}
+const claimedPlacementRecords = new Set<number>();
+
+/**
+ * A RIVAL'S GREENERY BOUGHT WITH PLANTS (W4), proven, never guessed: the placer's plants fell by exactly their own
+ * conversion price once the cell's printed plants are added back, and this response placed ONE greenery of theirs (two
+ * would share one diff — nothing is flown then). The answer is the price; undefined is «not provable».
+ */
+function provenPlantPrice(
+  record: TilePlacementRecordModel,
+  events: ReadonlyArray<FreshPlacement>,
+  opts: RemoteStageOpts | undefined,
+): number | undefined {
+  if (record.tileType !== TileType.GREENERY || opts?.players === undefined) {
+    return undefined;
+  }
+  const greeneries = events.filter((e) => e.tileType === TileType.GREENERY && e.color === record.color);
+  if (greeneries.length !== 1) {
+    return undefined;
+  }
+  const before = opts.players.before.find((p) => p.color === record.color);
+  const after = opts.players.after.find((p) => p.color === record.color);
+  if (before === undefined || after === undefined) {
+    return undefined;
+  }
+  const paidPlants = record.paid.filter((p) => p.resource === 'plants').reduce((sum, p) => sum + p.amount, 0);
+  const price = before.plants - after.plants + paidPlants;
+  return price > 0 && price === before.plantsNeededForGreenery ? price : undefined;
 }
 
 /** The viewer's own holds of a card payout: the satellite's resource count and what the table answered. */
@@ -618,6 +699,7 @@ export function abortRemotePlacements(): void {
   remotePlacementState.active = false;
   remotePlacementState.waitingForBoard = false;
   remotePlacementState.tileType = undefined;
+  remotePlacementState.beaconColor = undefined;
   remotePlacementState.departingTile = undefined;
   clearMoveStage();
   remotePlacementState.aresSources = [];
@@ -667,6 +749,7 @@ async function drainQueue(): Promise<void> {
       draining = false;
       remotePlacementState.active = false;
       remotePlacementState.tileType = undefined;
+      remotePlacementState.beaconColor = undefined;
       remotePlacementState.departingTile = undefined;
       clearMoveStage();
       clearStageSafety();
@@ -952,36 +1035,94 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   // full hex). A composite (an Ocean City) is one tile and lands on the hex as it always did.
   const afloat = ev.covers === TileType.OCEAN && ev.tileType === TileType.CITY;
   const landingOf = (h: TileRect): TileRect => (afloat ? stackLandingRect(h, 2) : h);
+  // WHO PLACED IT — the tile's owner, else the server's record (an ocean carries no owner): the flight leaves THAT
+  // seat's chip, the beacon wears THAT seat's colour, the cell's bonus flies back to THAT chip.
+  const actor = ev.color ?? ev.placer;
+  // THE CONTACT BY KIND (W7): a greenery GROWS out of its cell — never flown in — a city lands with dust, an ocean
+  // with the water's ring. A cover keeps its own splash (below) and grows nothing.
+  const kind = tileContactKind(ev.tileType);
+  const sprout = kind === 'sprout' && ev.covers === undefined && !afloat;
+  // The cell's printed icons, measured NOW — the held cell still paints them; the touchdown covers them, and the
+  // placer's bonus tokens are born exactly where they were printed (W3).
+  const iconCentres = !ev.own && (ev.cellPaid?.length ?? 0) > 0 ? bonusIconCentres(ev.spaceId) : [];
   remotePlacementState.active = true;
   remotePlacementState.tileType = ev.tileType;
   remotePlacementState.aresExtension = ev.aresExtension;
+  remotePlacementState.beaconColor = ev.own ? undefined : actor;
   remotePlacementState.nonce++;
   await nextTick(); // the layer mounts the remote proxy
   if (epoch !== myEpoch) {
     return;
   }
   const els = tileStageRemoteEls();
-  const profile = ev.own ? OWN_FLIGHT_PROFILE : REMOTE_FLIGHT_PROFILE;
-  const from = ev.own ? tableSupplyPoint(ui) : remoteOriginPoint(ev.color, ui);
-  if (els === undefined || !placeTileProxy(els, {hex: landingOf(hex), from, profile})) {
+  const profile = sprout ? SPROUT_PROFILE : ev.own ? OWN_FLIGHT_PROFILE : REMOTE_FLIGHT_PROFILE;
+  // BORN WHOLE UNDER THE PLACER'S CHIP (PL-769): the chip point is the strip's lower edge — a tile centred on it was
+  // half hidden behind the strip — and the path is a DIVE that never climbs above its start.
+  const landing = landingOf(hex);
+  const from = sprout ? {x: landing.x + landing.w / 2, y: landing.y + landing.h / 2} :
+    ev.own ? tableSupplyPoint(ui) : remoteBirthPoint(remoteOriginPoint(actor, ui), landing.h, profile);
+  if (els === undefined || !placeTileProxy(els, {hex: landing, from, profile})) {
     degradeReveal(ev);
     return;
   }
-  await playTileFlight(els, {
-    hex: landingOf(hex),
-    from,
-    uiScale: ui,
-    flightMs: motionMs(TILE_FLIGHT_MS),
-    settleMs: motionMs(TILE_SETTLE_MS),
-    profile,
-    // The live-anchor contract: the final approach re-reads the cell and
-    // blends the remaining leg onto it — a focus exit that lands mid-flight
-    // no longer parks the tile hundreds of px off its hex.
-    liveHex: () => {
-      const live = measureBoardHexRect(ev.spaceId);
-      return live === undefined ? undefined : landingOf(live);
-    },
-  });
+  // A RIVAL'S GREENERY BOUGHT WITH PLANTS (W4): the «−N» leaves their chip and is drawn quickly into the cell — then
+  // the greenery grows out of it. Proven at staging, else not flown.
+  if (sprout && ev.plantPrice !== undefined && actor !== undefined) {
+    await runResourceTransfers({
+      specs: [{channel: 'stock', resource: 'plants', amount: ev.plantPrice, direction: 'loss'}],
+      source: {point: {x: landing.x + landing.w / 2, y: landing.y + landing.h / 2}},
+      destination: remoteOriginPoint(actor, ui),
+      arrival: 'auto',
+      absorb: 'quick',
+      fromBoard: true,
+    });
+    if (epoch !== myEpoch) {
+      return;
+    }
+  }
+  const flightMs = motionMs(sprout ? TILE_SPROUT_MS : TILE_FLIGHT_MS);
+  const beaconLead = motionMs(REMOTE_BEACON_LEAD_MS);
+  if (!ev.own) {
+    // THE LANDING BEACON (W2): the cell lights in the placer's colour just before the tile arrives — a sprout is
+    // announced the same lead before it starts to grow.
+    playLandingBeacon(els.beacon, {hex, delayMs: sprout ? 0 : Math.max(0, flightMs - beaconLead), leadMs: beaconLead, outMs: motionMs(REMOTE_BEACON_OUT_MS)});
+    if (sprout) {
+      await wait(beaconLead);
+      if (epoch !== myEpoch) {
+        return;
+      }
+    }
+  }
+  const waterHex = hex;
+  const onContact = (): void => {
+    if (ev.covers !== undefined || afloat) {
+      return; // a cover's splash is the water's, played below
+    }
+    if (kind === 'dust') {
+      playStackDust(els, {hex: landing, uiScale: ui, dustMs: motionMs(TIER_DUST_MS)});
+    } else if (kind === 'splash') {
+      playCoverSplash(els, {hex: waterHex, uiScale: ui, splashMs: motionMs(OCEAN_SPLASH_MS)});
+    }
+  };
+  await (sprout ?
+    playTileSprout(els, {hex: landing, uiScale: ui, sproutMs: flightMs, settleMs: motionMs(TILE_SETTLE_MS), onContact}) :
+    playTileFlight(els, {
+      hex: landing,
+      from,
+      uiScale: ui,
+      flightMs,
+      settleMs: motionMs(TILE_SETTLE_MS),
+      profile,
+      path: ev.own ? 'lob' : 'dive',
+      onContact,
+      // The live-anchor contract: the final approach re-reads the cell and
+      // blends the remaining leg onto it — a focus exit that lands mid-flight
+      // no longer parks the tile hundreds of px off its hex.
+      liveHex: () => {
+        const live = measureBoardHexRect(ev.spaceId);
+        return live === undefined ? undefined : landingOf(live);
+      },
+    }));
   if (epoch !== myEpoch) {
     return; // aborted mid-flight — abort already revealed everything
   }
@@ -1012,13 +1153,70 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   if (epoch === myEpoch && ev.color !== undefined) {
     dropCubeForHeroPlacement(ev.spaceId);
   }
+  // ONE WAVE (W6), in the engine's order, `REWARD_WAVE_STAGGER_MS` apart:
+  // THE CELL PAID ITS PLACER (W3): what the printed bonus gave them — the human's icons, MarsBot's M€ for the icons it
+  // covered — lifts off the cell where it was printed and flies to their chip. The server's record, never a guess.
   // THE VIEWER'S OWN TILES ANSWER: the Ares owner-income beat — their tile
   // wakes at the edge it shares with the foreign build and sends the M€
   // home. Runs INSIDE the flight (the stage stays mounted), after the cube.
-  if (epoch === myEpoch && ev.income.length > 0) {
-    await runRemoteAresIncomeBeat(ev, hex, ui, myEpoch);
+  const wave: Array<() => Promise<void>> = [];
+  const placerPaid = ev.cellPaid;
+  if (epoch === myEpoch && !ev.own && actor !== undefined && placerPaid !== undefined && placerPaid.length > 0) {
+    wave.push(() => runPlacerBonusBeat(placerPaid, iconCentres, hex, actor, ui));
   }
+  if (epoch === myEpoch && ev.income.length > 0) {
+    const breathMs = wave.length > 0 ? 0 : undefined;
+    wave.push(() => runRemoteAresIncomeBeat(ev, hex, ui, myEpoch, breathMs));
+  }
+  await Promise.all(wave.map(async (run, i) => {
+    if (i > 0) {
+      await wait(motionMs(REWARD_WAVE_STAGGER_MS * i));
+    }
+    if (epoch === myEpoch) {
+      await run(); // (an abort before the launch already settled everything this member would have held)
+    }
+  }));
   playCityPayouts(ev, hex, ui, myEpoch);
+}
+
+/**
+ * THE PLACER'S BONUS (W3 — the tile language): one token per printed unit, born on the icon it was printed as (in the
+ * printed order; a cell whose icons could not be measured sends them from the tile's centre) and landing on the
+ * placer's chip in the strip. Nothing on the viewer's panel moves — it is somebody else's money; the chip is the seat.
+ */
+async function runPlacerBonusBeat(
+  paid: ReadonlyArray<{resource: string, amount: number}>,
+  iconCentres: ReadonlyArray<TransferPoint>,
+  hex: TileRect,
+  actor: Color,
+  ui: number,
+): Promise<void> {
+  const specs: Array<ResourceTransferSpec> = paid.flatMap((p) =>
+    Array.from({length: Math.max(0, Math.min(p.amount, 6))}, () => ({channel: 'stock' as const, resource: p.resource, amount: 1})));
+  if (specs.length === 0) {
+    return;
+  }
+  const centre = {x: hex.x + hex.w / 2, y: hex.y + hex.h / 2};
+  await runResourceTransfers({
+    specs,
+    origins: specs.map((_, i) => iconCentres[i] ?? centre),
+    source: {point: centre},
+    destination: remoteOriginPoint(actor, ui),
+    arrival: 'auto',
+    fromBoard: true,
+  });
+}
+
+/** The cell's printed bonus icons (the board's own `.board-space-bonus` boxes), centres in the printed order. */
+function bonusIconCentres(spaceId: string): Array<TransferPoint> {
+  if (typeof document === 'undefined') {
+    return [];
+  }
+  const cell = document.querySelector('.board-space[data_space_id="' + spaceId + '"]');
+  return cell === null ? [] : [...cell.querySelectorAll<HTMLElement>('.board-space-bonus')]
+    .map((el) => el.getBoundingClientRect())
+    .filter((r) => r.width > 2 && r.height > 2)
+    .map((r) => ({x: r.left + r.width / 2, y: r.top + r.height / 2}));
 }
 
 /**
@@ -1096,7 +1294,7 @@ function runOwnPayoutOnRemoteStage(item: {payout: CardAdjacencyPayoutModel, own:
  * same shared framework as the own hero's beat; the hold seeded at staging
  * is released chip by chip, and every degrade path releases it whole.
  */
-async function runRemoteAresIncomeBeat(ev: RemoteEvent, tileRect: TileRect, ui: number, myEpoch: number): Promise<void> {
+async function runRemoteAresIncomeBeat(ev: RemoteEvent, tileRect: TileRect, ui: number, myEpoch: number, breathMs?: number): Promise<void> {
   const releaseAll = () => releaseIncomeHolds(ev);
   if (typeof document === 'undefined') {
     releaseAll();
@@ -1122,7 +1320,7 @@ async function runRemoteAresIncomeBeat(ev: RemoteEvent, tileRect: TileRect, ui: 
     pulseDelays.push(delays[i]);
     return oceanEdgePoint(rect, tileRect, OCEAN_COIN_T, lift);
   });
-  await wait(motionMs(OCEAN_BEAT_BREATH_MS));
+  await wait(motionMs(breathMs ?? OCEAN_BEAT_BREATH_MS));
   if (epoch !== myEpoch) {
     releaseAll();
     return;

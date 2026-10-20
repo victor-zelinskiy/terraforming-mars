@@ -2,8 +2,8 @@ import {expect} from 'chai';
 import {
   planetFocusState, enterPlanetFocus, beginPlanetFocusExit, snapPlanetFocusSettled,
   planetFocusSettling, qualifiesForPlanetFocus,
-  captureGlobalParams, resetPlanetFocus, isPlanetFocusEngaged,
-  HeldGlobalParams, PLANET_ARCS_RETURN_MS, PLANET_FOCUS_EXIT_MS,
+  captureGlobalParams, resetPlanetFocus, isPlanetFocusEngaged, planetFocusStoryReady,
+  HeldGlobalParams, PLANET_ARCS_RETURN_MS, PLANET_FOCUS_EXIT_MS, PLANET_STORY_READY_MS,
 } from '@/client/console/planetFocus';
 import {GameModel} from '@/common/models/GameModel';
 import {SpaceModel} from '@/common/models/SpaceModel';
@@ -143,6 +143,44 @@ describe('planetFocus — the main-grid placement stage', function() {
       await sleep(PLANET_ARCS_RETURN_MS + 120);
       expect(planetFocusState.arcsReturning).to.be.false;
       expect(planetFocusSettling()).to.be.false;
+    });
+
+    /*
+     * THE SCALE STORY STARTS WITH THE PULLBACK (the tile language, W6 — the owner, 2026-10-20): past
+     * `PLANET_STORY_READY_MS` of the exit the instruments are READABLE while the camera still lands — the park's drain
+     * may tell the story from here. Every other automatic transition keeps the whole tail (`planetFocusSettling`).
+     */
+    it('the STORY-READY moment: readable inside the exit, the camera still «settling» for everyone else', async () => {
+      expect(planetFocusStoryReady(), 'a camera at rest is ready').to.be.true;
+      enterPlanetFocus();
+      snapPlanetFocusSettled();
+      expect(planetFocusStoryReady(), 'an engaged camera is not').to.be.false;
+      beginPlanetFocusExit();
+      await sleep(80);
+      expect(planetFocusState.phase).to.eq('exiting');
+      expect(planetFocusStoryReady(), 'the exit\'s first frames — the band is not formed').to.be.false;
+      await sleep(PLANET_STORY_READY_MS);
+      expect(planetFocusState.phase, 'still landing').to.eq('exiting');
+      expect(planetFocusStoryReady(), 'readable from here').to.be.true;
+      expect(planetFocusSettling(), '…while every other transition still waits the tail out').to.be.true;
+      await sleep(EXIT_SETTLED_MS - PLANET_STORY_READY_MS);
+      expect(planetFocusState.arcsReturning).to.be.true;
+      expect(planetFocusStoryReady(), 'through the arcs\' return').to.be.true;
+      await sleep(PLANET_ARCS_RETURN_MS + 120);
+      expect(planetFocusState.storyReady).to.be.false;
+      expect(planetFocusStoryReady(), 'at rest again').to.be.true;
+      expect(planetFocusSettling()).to.be.false;
+    });
+
+    it('a reversal mid-exit drops the story-ready moment with the exit', async () => {
+      enterPlanetFocus();
+      snapPlanetFocusSettled();
+      beginPlanetFocusExit();
+      await sleep(80 + PLANET_STORY_READY_MS);
+      expect(planetFocusStoryReady()).to.be.true;
+      enterPlanetFocus();
+      expect(planetFocusState.storyReady).to.be.false;
+      expect(planetFocusStoryReady(), 'the camera is coming back in').to.be.false;
     });
 
     it('a mid-exit re-enter reclaims the mode and cancels the exit', async () => {

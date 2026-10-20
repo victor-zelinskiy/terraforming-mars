@@ -1742,7 +1742,7 @@ import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue
 import ConsoleEndgameWorkspace from '@/client/components/console/ConsoleEndgameWorkspace.vue';
 import {consoleEndgameUi, noteConsoleEndgameLivePhase, resetConsoleEndgame} from '@/client/console/endgame/consoleEndgameState';
 import {sealLiveGameSurfaces} from '@/client/console/endgame/consoleEndgameSeal';
-import {boardSceneSettling, boardStorySettling, waitBoardStoryQuiet, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
+import {boardSceneSettling, boardStorySettling, scaleStorySceneSettling, waitBoardStoryQuiet, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsoleDrawSearchRule from '@/client/components/console/foundation/ConsoleDrawSearchRule.vue';
 import type {DrawDiscardVerdict} from '@/client/console/deckDraw/drawSearchReading';
@@ -2022,7 +2022,7 @@ import {applyOutcomeAdoption, outcomeAdoptionHost, resolveOutcomeAdoption, sameA
 import {
   planetFocusState, enterPlanetFocus, beginPlanetFocusExit,
   qualifiesForPlanetFocus, captureGlobalParams,
-  resetPlanetFocus, isPlanetFocusEngaged,
+  resetPlanetFocus, isPlanetFocusEngaged, planetFocusStoryReady,
   snapPlanetFocusSettled,
 } from '@/client/console/planetFocus';
 import ConsoleDeckDrawLayer from '@/client/components/console/deckDraw/ConsoleDeckDrawLayer.vue';
@@ -8495,7 +8495,9 @@ export default defineComponent({
         this.consoleState.sheet === undefined &&
         !this.workspaceScreenUp &&
         !this.placementActive &&
-        !isPlanetFocusEngaged() && !this.planetFocusState.arcsReturning;
+        // …and the camera at rest, or landing with the instruments already readable: the scale story starts WITH the
+        // pullback (the tile language, W6), never after the landing's whole tail.
+        planetFocusStoryReady();
     },
     /** The right rail's zone is TAKEN (`.con-root--rail-replaced`) — read by
      *  the policy class and by the rail itself, which freezes its paint for
@@ -20652,7 +20654,7 @@ export default defineComponent({
       // transit — the old planet-focus beat's list). A transient cinematic is
       // bounded by the shared cap; a reveal standing for the player is waited
       // out (see below). The ledger's heartbeat re-asks if an edge is missed.
-      const blocked = () => boardSceneSettling() || this.scaleStoryReadBlocked;
+      const blocked = () => scaleStorySceneSettling() || this.scaleStoryReadBlocked;
       if (!blocked()) {
         drainBoardBeatsIfDue();
         return;

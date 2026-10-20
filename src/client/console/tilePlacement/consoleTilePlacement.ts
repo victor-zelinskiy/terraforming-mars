@@ -135,13 +135,13 @@ import {
   PlacementPrice, StockReading, placementPriceVerdict, SPROUT_PROFILE, TILE_SPROUT_MS, SPROUT_BONUS_LIFT_T,
   TILE_DEPART_MS, TILE_DEPART_SCALE, TILE_DEPART_TILT_DEG, TILE_DEPART_FADE_T,
   TILE_DEPART_REVEAL_T, TILE_DEPART_BREATH_MS, departureLiftPx, departingCubePose, DepartingCubePose,
-  BONUS_PRELIFT_START_T, BONUS_RISE_MS, BONUS_HOVER_PX, BONUS_HANDOFF_BREATH_MS,
+  BONUS_PRELIFT_START_T, BONUS_RISE_MS, BONUS_HOVER_PX, BONUS_HANDOFF_BREATH_MS, REWARD_WAVE_STAGGER_MS,
   OCEAN_BEAT_BREATH_MS, OCEAN_COIN_LIFT_PX, OCEAN_COIN_T, OCEAN_PULSE_T, OCEAN_PULSE_DRIFT,
   OCEAN_PULSE_MS, OCEAN_SPLASH_MS,
   oceanEdgePoint, oceanShoreDirection,
   PlacementLawWave, lawWaveFor, LAW_WAVE_BREATH_MS,
   TIER_APPROACH_MS, TIER_HOVER_MS, TIER_DESCENT_MS, TIER_CONTACT_MS, TIER_DUST_MS, TIER_SETTLE_MS,
-  stackLandingRect, tierHoverPoint, coverDescentPlan,
+  stackLandingRect, tierHoverPoint, coverDescentPlan, tileContactKind,
 } from '@/client/console/tilePlacement/tilePlacementModel';
 import {beginStackLoad, stackContact, clearStackScene, stackRelease, clearStackRelease, stackDried} from '@/client/console/tilePlacement/cityStackScene';
 import {markCellVacated} from '@/client/console/tilePlacement/remoteRevealHold';
@@ -275,6 +275,9 @@ export const tilePlacementState = reactive({
   /** THE PRICE BEAT's own account (PL-306): '' (none) · `flying` · `flown` · `reduced` · `mismatch: …` · `degraded: …`.
    *  A probe's witness (`data-tile-price` on the layer) — every end names itself, never a silent skip. */
   price: '' as string,
+  /** THE CONTACT (the tile language, W1): the flying / growing tile has TOUCHED its cell — the frame the landing marker
+   *  lets go of the place (it held the place while the tile was in the air; past the contact the tile holds it). */
+  touched: false,
   reducedMotion: false,
 });
 
@@ -515,6 +518,7 @@ export function armTilePlacement(opts: {
   pendingPrice = undefined;
   priceDepartures.length = 0;
   tilePlacementState.price = '';
+  tilePlacementState.touched = false;
   clearMoveScene();
   armedMovedFrom = opts.movedFrom;
   clearStackScene();
@@ -859,7 +863,10 @@ async function executeApproach(
   const landingRect = afloat ? stackLandingRect(hexRect, 2) : hexRect;
   // THE PRICE FIRST (PL-306): the plants leave the rail for this very cell, the row ticking on the departure; the
   // tile is then born OUT of the cell (the sprout) — a greenery bought with plants is never fetched from the table.
-  const sprout = pendingPrice !== undefined && tilePlacementState.coveredTile === undefined && !afloat;
+  // …and a GREENERY is never fetched from the table at all (the tile language, W7 — the owner, 2026-10-20): bought
+  // with M€, given by a card, it is planted, so it GROWS out of its cell whatever paid for it.
+  const kind = tileContactKind(tilePlacementState.tileType);
+  const sprout = (pendingPrice !== undefined || kind === 'sprout') && tilePlacementState.coveredTile === undefined && !afloat;
   if (pendingPrice !== undefined) {
     const price = pendingPrice;
     pendingPrice = undefined;
@@ -900,14 +907,28 @@ async function executeApproach(
       hoverPx: Math.round(BONUS_HOVER_PX * ui),
     });
   }
+  // THE CONTACT BY KIND (W7), in the frame the tile touches: a city squeezes the tier's dust out from under it, an
+  // ocean answers with the water's ring (a cover keeps its own splash, played at the handoff below).
+  const onContact = (): void => {
+    tilePlacementState.touched = true;
+    if (tilePlacementState.coveredTile !== undefined || afloat) {
+      return;
+    }
+    if (kind === 'dust') {
+      playStackDust(els, {hex: landingRect, uiScale: ui, dustMs: motionMs(TIER_DUST_MS)});
+    } else if (kind === 'splash') {
+      playCoverSplash(els, {hex: hexRect ?? landingRect, uiScale: ui, splashMs: motionMs(OCEAN_SPLASH_MS)});
+    }
+  };
   await (sprout ?
-    playTileSprout(els, {hex: landingRect, uiScale: ui, sproutMs: flightMs, settleMs: motionMs(TILE_SETTLE_MS)}) :
+    playTileSprout(els, {hex: landingRect, uiScale: ui, sproutMs: flightMs, settleMs: motionMs(TILE_SETTLE_MS), onContact}) :
     playTileFlight(els, {
       hex: landingRect,
       from: tableSupplyPoint(ui),
       uiScale: ui,
       flightMs,
       settleMs: motionMs(TILE_SETTLE_MS),
+      onContact,
     }));
   if (!tilePlacementState.active) {
     return; // aborted mid-flight — abort already cleaned up
@@ -1357,21 +1378,28 @@ export async function endTilePlacement(): Promise<void> {
     return;
   }
   tilePlacementState.phase = 'rewarding';
-  // The payouts of one placement run in SEQUENCE, never on top of each
-  // other: what the CELL was printed with, then what the NEIGHBOURING WATER
-  // pays, then what the NEIGHBOURING TILES pay (the Ares adjacency beat).
-  // Each awaits its own touchdowns (not the absorb tail), so the next
-  // beat starts while the previous chips are still being absorbed —
-  // continuous, not queued.
+  // THE LANDING'S ONE WAVE (the tile language, W6 — the owner, 2026-10-20): what the CELL was printed with, what the
+  // NEIGHBOURING WATER pays, what the NEIGHBOURING TILES pay (the Ares adjacency beat) and what the tile changed in the
+  // SCORE (TR55) are one statement — launched together in the engine's order, each member `REWARD_WAVE_STAGGER_MS`
+  // after the one before it, each awaiting its own touchdowns; the wave is over at the LAST touchdown. They used to go
+  // one after another's touchdowns, each with its own breath: a greenery beside two oceans read as four events.
+  const wave: Array<() => Promise<void>> = [];
   if (bonuses.length > 0) {
-    await runPrintedBonusBeat(bonuses);
+    wave.push(() => runPrintedBonusBeat(bonuses));
   }
-  if (ocean !== undefined && tilePlacementState.active) {
-    await runOceanBonusBeat(ocean);
+  if (ocean !== undefined) {
+    wave.push(() => runOceanBonusBeat(ocean, 0));
   }
-  if (aresFlights.length > 0 && tilePlacementState.active) {
-    await runAresAdjacencyBeat(aresFlights);
+  if (aresFlights.length > 0) {
+    wave.push(() => runAresAdjacencyBeat(aresFlights, 0));
   }
+  // The score's shares ride the wave only when NOTHING follows it: a law or a move is a second statement, and the
+  // score (the engine's last word) keeps its place after them.
+  const vpInWave = vpOwed && lawWave === undefined && moveReward === undefined;
+  if (vpInWave) {
+    wave.push(() => runTileVpBeat());
+  }
+  await runRewardWave(wave);
   // …and then, IN TURN, what the enacted LAW paid for the very same cell.
   if (lawWave !== undefined && tilePlacementState.active) {
     await runLawWave(lawWave);
@@ -1384,7 +1412,7 @@ export async function endTilePlacement(): Promise<void> {
   }
   // …and what the tile changed in the SCORE (TR55): the city it is (or stands beside), a card that reads the board —
   // one token per share born on the landed tile, the score cell ticking on the touchdown (a loss on its departure).
-  if (vpOwed && tilePlacementState.active) {
+  if (vpOwed && !vpInWave && tilePlacementState.active) {
     await runTileVpBeat();
   }
   // Belt-and-braces: any hold a degraded transfer left behind snaps to the
@@ -1392,6 +1420,23 @@ export async function endTilePlacement(): Promise<void> {
   clearPanelRewardHold();
   finish();
   kickCityPayout();
+}
+
+/**
+ * THE ONE WAVE (W6): every member launched in order, `REWARD_WAVE_STAGGER_MS` apart, the wave resolving at the last
+ * member's own end (its touchdowns). A member whose transaction died before its launch never starts — the abort has
+ * already released every hold.
+ */
+async function runRewardWave(members: ReadonlyArray<() => Promise<void>>): Promise<void> {
+  await Promise.all(members.map(async (run, i) => {
+    if (i > 0) {
+      await wait(motionMs(REWARD_WAVE_STAGGER_MS * i));
+      if (!tilePlacementState.active) {
+        return;
+      }
+    }
+    await run();
+  }));
 }
 
 /**
@@ -1600,7 +1645,7 @@ async function runPrintedBonusBeat(bonuses: ReadonlyArray<PlacementBonus>): Prom
  * scenes must play one animation, not two dialects of it. This is the tile
  * scene's half of the contract — its rect, its liveness, its hold release.
  */
-async function runOceanBonusBeat(bonus: OceanAdjacencyBonusModel): Promise<void> {
+async function runOceanBonusBeat(bonus: OceanAdjacencyBonusModel, breathMs?: number): Promise<void> {
   const tileRect = hexRect ?? measureBoardHexRect(tilePlacementState.spaceId);
   if (tileRect === undefined) {
     releasePanelRewardHold({channel: 'stock', resource: 'megacredits', amount: bonus.megacredits});
@@ -1612,6 +1657,7 @@ async function runOceanBonusBeat(bonus: OceanAdjacencyBonusModel): Promise<void>
     uiScale: conUiScale(),
     pace: tileRewardTransferPace(),
     alive: () => tilePlacementState.active,
+    breathMs,
     // ONE aggregated release: the counter moves after the money has physically
     // arrived and announces «+2/+4/+6 M€» once — the individual sources are
     // told by the coins themselves.
@@ -1636,7 +1682,7 @@ async function runOceanBonusBeat(bonus: OceanAdjacencyBonusModel): Promise<void>
  * chip from the placed tile itself; no stage at all releases the holds and
  * the reward is announced by its delta chips alone.
  */
-async function runAresAdjacencyBeat(flights: ReadonlyArray<AresAdjacencyFlight>): Promise<void> {
+async function runAresAdjacencyBeat(flights: ReadonlyArray<AresAdjacencyFlight>, breathMs?: number): Promise<void> {
   const releaseAll = () => flights.forEach((f) => releasePanelRewardHold(f.spec));
   const ui = conUiScale();
   const tileRect = hexRect ?? measureBoardHexRect(tilePlacementState.spaceId);
@@ -1669,8 +1715,8 @@ async function runAresAdjacencyBeat(flights: ReadonlyArray<AresAdjacencyFlight>)
     return oceanEdgePoint(rect, tileRect, OCEAN_COIN_T, lift);
   });
 
-  // One calm breath after the previous beat, then the neighbourhood answers.
-  await wait(motionMs(OCEAN_BEAT_BREATH_MS));
+  // One calm breath after the previous beat, then the neighbourhood answers (a member of the ONE wave: its stagger).
+  await wait(motionMs(breathMs ?? OCEAN_BEAT_BREATH_MS));
   if (!tilePlacementState.active) {
     releaseAll();
     return;

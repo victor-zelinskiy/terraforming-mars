@@ -121,6 +121,9 @@ export type OceanBeatOpts = {
   /** Release the aggregated panel hold — called EXACTLY once, however the
    *  beat ends (all coins landed, degraded, aborted). */
   release: () => void,
+  /** The calm breath before the water wakes (default `OCEAN_BEAT_BREATH_MS`). A member of the landing's ONE wave
+   *  (the tile language, W6) passes 0 — the wave's own stagger is its beat. */
+  breathMs?: number,
 };
 
 /**
@@ -148,7 +151,7 @@ export async function runOceanAdjacencyBeat(opts: OceanBeatOpts): Promise<void> 
 
   // One calm breath after the cause (the tile — or the camp — has settled),
   // then the water responds.
-  await wait(motionMs(OCEAN_BEAT_BREATH_MS));
+  await wait(motionMs(opts.breathMs ?? OCEAN_BEAT_BREATH_MS));
   if (!opts.alive()) {
     release();
     return;
