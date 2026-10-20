@@ -234,7 +234,7 @@ import {
 } from '@/client/console/parliament/parliamentRewardBeat';
 import {deliverRulingChangeDraws, openRulingChangePark} from '@/client/console/parliament/rulingChangeDraw';
 import {
-  parliamentWorldBeatState, runTrackMoveBeat, runWorldMoveBeat, takeWorldReceipt, trackMoveOwed, worldMoveOwed, worldReceiptOwed,
+  parliamentWorldBeatState, runTrackMoveBeat, runWorldMoveBeat, seatTileOwed, takeWorldReceipt, trackMoveOwed, worldMoveOwed, worldReceiptOwed,
 } from '@/client/console/parliament/parliamentWorldBeat';
 import {
   sittingPageAuto, sittingPositionOf, SittingPosition, sittingPrimaryKey, sittingRewardSettled, SittingStage, sittingStageAt, sittingStageKey,
@@ -1057,6 +1057,12 @@ export default defineComponent({
       flush: 'post',
       handler(on: boolean): void {
         consoleParliamentUi.stageStanding = on;
+        // The stage STANDS again: the door the world trip held shut is the stage's again (PL-764). Only on the rising
+        // edge — a section re-mounting after the trip reads «not up» for a flush first, and an open door there admitted
+        // the seat's own placement under the returning sitting.
+        if (on) {
+          consoleParliamentUi.worldTripHoldsDoor = false;
+        }
       },
     },
     /**
@@ -2348,7 +2354,10 @@ export default defineComponent({
       // …or the seat's own step set off a placement on the board (the ocean of 0 °C — a TAIL, never a door):
       // the planet's story and that placement share ONE trip to the board, so the frame steps aside now and
       // the placement takes over there (`runWorldMoveBeat` leaves the stack aside while the board is busy).
-      const settled = sittingRewardSettled(position) || (position.rewardStep === 'placement' && position.tail === true);
+      const settled = sittingRewardSettled(position) || (position.rewardStep === 'placement' && position.tail === true) ||
+        // …or ANOTHER SEAT placed its tile BEFORE this seat in the law's order (PL-764 — the bot first): the board shows
+        // that tile land BEFORE this seat's own door is offered (the door stays shut while the frame is away).
+        (position.rewardStep === 'placement' && seatTileOwed(this.sittingKey) && !consoleParliamentUi.boardDoorOpen);
       return settled && !this.rewardPending && !parliamentRewardState.receiptShowing &&
         !this.ledgerReadOwed && !this.stepFrameNested && !this.sittingStepOpen;
     },
@@ -2462,7 +2471,10 @@ export default defineComponent({
               // shown, the results' planet line states the move — and the walk must go on from here: it once
               // stood on the reward page for good, waiting for a remount that never came (an observer whose
               // sitting stood over its start root, Water Export's ocean).
-              void runWorldMoveBeat(key, {boardBusy: () => this.pv.waitingFor?.type === 'space'}).then((played) => {
+              // The board keeps the seat's business only for a TAIL placement (the 0 °C ocean): a DOOR placement standing
+              // behind «К полю» (PL-764 — the trip went before it) is the stage's, so the frame comes back for it.
+              const doorStands = position.rewardStep === 'placement' && position.tail !== true;
+              void runWorldMoveBeat(key, {boardBusy: () => !doorStands && this.pv.waitingFor?.type === 'space'}).then((played) => {
                 if (!played && parliamentFlow.stage === 'sitting') {
                   this.queueWalk();
                 }

@@ -2,9 +2,10 @@ import {expect} from 'chai';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
 import {
-  detectNewWorldMoves, enterWorldBeatSitting, isPlanetRecord, parliamentWorldBeatState, resetParliamentWorldBeat, runWorldMoveBeat,
-  seedWorldMoveBeat, takeWorldReceipt, worldMoveOwed, worldReceiptOwed,
+  detectNewWorldMoves, enterWorldBeatSitting, isPlanetRecord, isSeatTileRecord, parliamentWorldBeatState, resetParliamentWorldBeat, runWorldMoveBeat,
+  seatTileOwed, seedWorldMoveBeat, takeWorldReceipt, worldMoveOwed, worldReceiptOwed,
 } from '@/client/console/parliament/parliamentWorldBeat';
+import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {enterWorkspace, resetWorkspaceStack, stackYieldedToBoard, workspaceStackState} from '@/client/console/consoleWorkspaceStack';
 import {resetBoardBeatPark} from '@/client/console/boardBeatPark';
 
@@ -129,6 +130,74 @@ describe('parliamentWorldBeat — the sitting steps aside for the planet', () =>
     expect(await runWorldMoveBeat('3:1'), 'no root to yield').is.false;
     expect(parliamentWorldBeatState.away).is.false;
     expect(worldReceiptOwed('3:1'), 'a beat that could not play owes no read either').is.false;
+  });
+
+  /*
+   * ANOTHER SEAT'S TILE (PL-764 — Mars First Budget, the bot first in the order): the city the law made the bot place
+   * in the response that asks the viewer for its own is a BOARD story of the sitting — owed to the viewer (never to its
+   * owner, whose door is its own), played in place over a board already in view, and never a trip for a tile that has
+   * already landed (nothing of the remote stage owed — a yield would be a blink and straight back).
+   */
+  describe('another seat\'s tile (PL-764)', () => {
+    const botCity = (over: Partial<ParliamentEnactOutcomeModel> = {}): ParliamentEnactOutcomeModel =>
+      ({player: 'red', step: 'city', part: 'effect', kind: 'city', influence: 0, space: '23', ...over}) as ParliamentEnactOutcomeModel;
+
+    afterEach(() => {
+      consoleParliamentUi.worldTripHoldsDoor = false;
+    });
+
+    it('DETECT: a seat\'s tile of the law is a story for the OTHER viewers only; the winner\'s tile keeps its own road', () => {
+      expect(isSeatTileRecord(botCity())).is.true;
+      expect(isSeatTileRecord(botCity({kind: 'stock'})), 'money is the rail\'s').is.false;
+      expect(isSeatTileRecord(botCity({space: undefined})), 'a named skip lands nowhere').is.false;
+      expect(isSeatTileRecord(botCity({part: 'winner', kind: 'ocean'})), 'the winner\'s tile is the placement\'s').is.false;
+      expect(detectNewWorldMoves(view(3, []), view(3, [botCity()])).map((o) => `${o.player}:${o.step}`), 'blue watches the bot\'s city').deep.eq(['red:city']);
+      expect(detectNewWorldMoves(view(3, [], 'red'), view(3, [botCity()], 'red')), 'never its own seat\'s').deep.eq([]);
+      expect(detectNewWorldMoves(view(3, [botCity()]), view(3, [botCity()])), 'known already').deep.eq([]);
+    });
+
+    it('SEED: over a COVERED board it is owed a trip; over a board in view it lands in place and owes the receipt only', () => {
+      enterWorkspace('parliament');
+      enterWorldBeatSitting('3:1');
+      seedWorldMoveBeat(view(3, []), view(3, [botCity()]));
+      expect(seatTileOwed('3:1'), 'the sitting covers the board: a trip is owed').is.true;
+      resetWorkspaceStack();
+      resetParliamentWorldBeat();
+      enterWorldBeatSitting('3:1');
+      seedWorldMoveBeat(view(3, []), view(3, [botCity()]));
+      expect(seatTileOwed('3:1'), 'the board is in view: the landing plays at once').is.false;
+      expect(worldReceiptOwed('3:1'), 'the reward page reads it on the way back').is.true;
+    });
+
+    it('RUN: a tile that has ALREADY LANDED owes no trip — no yield, no door held, nothing owed after', async () => {
+      enterWorkspace('parliament');
+      enterWorldBeatSitting('3:1');
+      seedWorldMoveBeat(view(3, []), view(3, [botCity()]));
+      expect(await runWorldMoveBeat('3:1'), 'nothing of the remote stage is owed').is.false;
+      expect(stackYieldedToBoard(), 'the sitting never stepped aside').is.false;
+      expect(workspaceStackState.frames).has.length(1);
+      expect(consoleParliamentUi.worldTripHoldsDoor, 'no door held').is.false;
+      expect(seatTileOwed('3:1')).is.false;
+    });
+
+    it('a trip HOLDS THE DOOR while away and hands it back to the stage — or lets go when the frame stays aside', async () => {
+      enterWorkspace('parliament');
+      enterWorldBeatSitting('3:1');
+      seedWorldMoveBeat(view(3, []), view(3, [world('oxygen')]));
+      const run = runWorldMoveBeat('3:1', {boardBusy: () => true});
+      expect(consoleParliamentUi.worldTripHoldsDoor, 'the seat\'s own tile waits while the sitting is away').is.true;
+      await run;
+      expect(consoleParliamentUi.worldTripHoldsDoor, 'the frame stays aside: the door is the board\'s').is.false;
+    });
+
+    it('RESET: a new sitting releases a door the old trip held', () => {
+      consoleParliamentUi.worldTripHoldsDoor = true;
+      enterWorldBeatSitting('4:1');
+      expect(consoleParliamentUi.worldTripHoldsDoor).is.false;
+      consoleParliamentUi.worldTripHoldsDoor = true;
+      resetParliamentWorldBeat();
+      expect(consoleParliamentUi.worldTripHoldsDoor).is.false;
+    });
   });
 
   /*

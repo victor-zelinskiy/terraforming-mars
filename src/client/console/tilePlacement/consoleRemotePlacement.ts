@@ -142,6 +142,20 @@ const REMOTE_STAGE_SAFETY_MS = 15000;
  */
 const BOARD_WAIT_MAX_MS = 20000;
 
+/**
+ * …unless the board is covered by a surface that has PROMISED to step aside for this very landing (PL-764 — a
+ * Parliament sitting owes the board another seat's tile of the law's grant and will yield for it on its reward page):
+ * the wait is then the sitting's walk, not a stall, and the clock waits with it — up to this hard bound.
+ */
+const BOARD_WAIT_KEPT_MAX_MS = 60000;
+
+let boardWaitKeeper: (() => boolean) | undefined;
+
+/** A surface that will yield the board for an owed landing says so here (one keeper — the sitting's world beat). */
+export function registerRemoteBoardWaitKeeper(keeper: (() => boolean) | undefined): void {
+  boardWaitKeeper = keeper;
+}
+
 /** …and once it IS back, the flight lets the screen settle first: the
  *  workspace's own leave is still dissolving over the board it just vacated,
  *  and a tile landing under it is the same invisible flight one beat later. */
@@ -1437,10 +1451,15 @@ function watchableBoardAfterTick(myEpoch: number): Promise<void> {
     return Promise.resolve();
   }
   remotePlacementState.waitingForBoard = true;
-  const deadline = Date.now() + BOARD_WAIT_MAX_MS;
+  const started = Date.now();
+  const deadline = started + BOARD_WAIT_MAX_MS;
+  const expired = (): boolean => {
+    const now = Date.now();
+    return now > deadline && (boardWaitKeeper?.() !== true || now > started + BOARD_WAIT_KEPT_MAX_MS);
+  };
   return new Promise<void>((done) => {
     const poll = () => {
-      if (epoch !== myEpoch || !boardBusyForRemote() || Date.now() > deadline) {
+      if (epoch !== myEpoch || !boardBusyForRemote() || expired()) {
         // The board is back (or we gave up): let the workspace's own leave
         // finish before the tile flies into the space it just vacated.
         // The SETTLE is the scene's own lead-in on a board the player can see,

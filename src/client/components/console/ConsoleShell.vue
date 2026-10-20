@@ -6416,7 +6416,9 @@ export default defineComponent({
       // step's own wave had flown (the section unmounted under it and flushed the wave unplayed). The
       // difference is WHO opens the door — the sitting's walk, once its page is quiet, never a press.
       const own = promptSourceResolution(wf) !== undefined || sittingTailPlacementOf(wf, phase, this.thisPlayer?.color);
-      return own && consoleParliamentUi.stageStanding && !consoleParliamentUi.boardDoorOpen;
+      // …and while the sitting is AWAY for another seat's tile (PL-764) the door stays shut: the section is unmounted,
+      // but the stage it left is coming back, and the seat's own tile is still read on it first.
+      return own && (consoleParliamentUi.stageStanding || consoleParliamentUi.worldTripHoldsDoor) && !consoleParliamentUi.boardDoorOpen;
     },
     /**
      * Server-driven placement (SelectSpace) or a client-side board picker.

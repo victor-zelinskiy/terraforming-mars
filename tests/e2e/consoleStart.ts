@@ -2643,7 +2643,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   // (B21 vote · a Fish that lobbies twice · the building card that completes the chairman quest), and a solo assembly gate the bot won.
   'parliament-bot-vote' | 'parliament-bot-lobby' | 'parliament-bot-chair' | 'parliament-bot-win' |
   // RX38 Mars First Budget with MarsBot: blue's vote, and the solo assembly gate blue wins — blue's levy, payout and city, then the bot's city (D11).
-  'parliament-marsfirst-budget-vote' | 'parliament-marsfirst-budget-bot' |
+  'parliament-marsfirst-budget-vote' | 'parliament-marsfirst-budget-bot' | 'parliament-marsfirst-budget-botfirst' |
   // RX23 Mohole Contest: the assembly at −4 °C with blue's delegate — the winner's two steps reach 0 °C and the ocean follows inside the sitting.
   'parliament-mohole-assembly' |
   // RX24 Open IP Trade: the law ENACTED, blue opening generation 2 with four cards in hand and the action unspent.

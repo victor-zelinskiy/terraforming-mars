@@ -73,6 +73,14 @@ export const consoleParliamentUi = reactive({
    */
   boardDoorOpen: false,
   /**
+   * THE DOOR STAYS SHUT WHILE THE SITTING IS AWAY FOR THE WORLD (PL-764): the sitting stepped aside for a board story
+   * of the law's — ANOTHER SEAT'S tile landing in its place in the order — while this seat's own tile still waits
+   * behind «К полю». `stageStanding` falls with the section's unmount, so without this the placement would be
+   * admitted under the other seat's landing; set by the world beat at the yield, cleared by the section the moment its
+   * stage stands again (or by the beat when the frame does not come back).
+   */
+  worldTripHoldsDoor: false,
+  /**
    * THE PARLIAMENT STANDS AS THE HALL (Парламент v8, § 5 — the mock `b1`): a mounted, visible section — its own screen
    * or a step hosted in another workspace's zone (TR03's hand, TR15's composer, the Redux Venus's colonies), ONE vote
    * on every door. In the hall the vote mode NEVER carries the bills: they stay on the table where the player chose
@@ -89,6 +97,7 @@ export function resetConsoleParliamentUi(): void {
   consoleParliamentUi.fieldStanding = false;
   consoleParliamentUi.agendaSettling = false;
   consoleParliamentUi.boardDoorOpen = false;
+  consoleParliamentUi.worldTripHoldsDoor = false;
 }
 
 // ── the session's memory of PLAYED stages ──────────────────────────────────

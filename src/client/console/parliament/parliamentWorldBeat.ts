@@ -66,6 +66,18 @@
  * Bounded and named like the planet's story: the wave has its own net, and a
  * screen that could not stand (no Parliament frame, a table with no tile)
  * releases every hold and reads the line instead. Never replayed.
+ *
+ * ANOTHER SEAT'S TILE (PL-764 — Mars First Budget's «each player places a city,
+ * clockwise from the First Player», the bot FIRST): the seat before this one
+ * placed its city by the law in the very response that asks this seat for its
+ * own. That tile lands on the board (the shared remote landing stage), so it is
+ * a BOARD record too — the sitting steps aside for it on its reward page, once
+ * the seat's own wave has landed and BEFORE the seat's own door: the order of
+ * the law is the order the player sees. The door stays shut while the frame is
+ * away (`consoleParliamentUi.worldTripHoldsDoor`), the landing's own board wait
+ * is kept by the owed trip (`registerRemoteBoardWaitKeeper` — a long read on the
+ * reward page no longer degrades it to a tile with no flight), and a tile that
+ * has ALREADY landed (the board was in view) owes no trip at all.
  */
 import {reactive} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -79,12 +91,17 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {probeTick} from '@/client/console/probeTick';
 import {isColonyTrackRecord} from './colonyTrackModel';
 import {isTileRemovalRecord} from './tileRemovalModel';
-import {boardCovered, isRemotePlacementActive} from '@/client/console/tilePlacement/consoleRemotePlacement';
+import {
+  boardCovered, isRemotePlacementActive, registerRemoteBoardWaitKeeper, remoteLandingOwed,
+} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {consoleParliamentUi} from './consoleParliamentFlow';
 import {holdColonyTracks, releaseColonyTracks, requestColonyTrackWave} from '@/client/console/colonyTrade/consoleColonyTrade';
 
 /** The wait for the board's own story, capped — the frame comes back either way. */
 export const WORLD_STORY_MAX_MS = 9000;
+
+/** …and for the returning stage to STAND again before the door it held is handed back (a net, never the signal). */
+export const WORLD_DOOR_RETURN_MAX_MS = 4000;
 
 export const parliamentWorldBeatState = reactive({
   /** The sitting the owed records belong to (`generation:seq`). */
@@ -122,13 +139,25 @@ function planetKey(outcome: ParliamentEnactOutcomeModel): string {
 }
 
 /**
- * A BOARD RECORD — a story told on the board: the planet's move, or a TILE
+ * A SEAT'S TILE OF THE LAW (PL-764): the city / tile a resolution's grant made a seat place in its place in the order
+ * (`part: 'effect'` — Mars First Budget's city for everyone, a Skyscrapers tier), with the cell it landed on. Only
+ * ANOTHER seat's is a story of this beat (`detectNewWorldMoves` filters the viewer's own — its door is the viewer's).
+ * The winner's tile (`part: 'winner'`) keeps its own road.
+ */
+export function isSeatTileRecord(outcome: ParliamentEnactOutcomeModel): boolean {
+  return outcome.part === 'effect' && outcome.player !== undefined && outcome.space !== undefined &&
+    (outcome.kind === 'city' || outcome.kind === 'ocean' || outcome.kind === 'greenery');
+}
+
+/**
+ * A BOARD RECORD — a story told on the board: the planet's move, a TILE
  * TAKEN OFF the board (Water Export — the removal scene plays on the very cell
- * the tile leaves). Both yield the sitting to the board; the colony table's
- * move is hosted instead (`runTrackMoveBeat`).
+ * the tile leaves) or ANOTHER SEAT'S TILE landing (PL-764). All yield the
+ * sitting to the board; the colony table's move is hosted instead
+ * (`runTrackMoveBeat`).
  */
 function isBoardRecord(outcome: ParliamentEnactOutcomeModel): boolean {
-  return isPlanetRecord(outcome) || isTileRemovalRecord(outcome);
+  return isPlanetRecord(outcome) || isTileRemovalRecord(outcome) || isSeatTileRecord(outcome);
 }
 
 /** A record this beat OWES a story for: the planet's move, a tile's removal, or the colony table's (Unity Budget). */
@@ -150,8 +179,11 @@ export function detectNewWorldMoves(before: PlayerViewModel | undefined, after: 
   if (phase === undefined || was === undefined || was.generation !== phase.generation) {
     return [];
   }
-  const known = new Set((was.outcomes ?? []).filter(isWorldStoryRecord).map(planetKey));
-  return (phase.outcomes ?? []).filter((o) => isWorldStoryRecord(o) && !known.has(planetKey(o)));
+  // …and ANOTHER seat's tile of the law (PL-764): the viewer's own is behind its own door.
+  const viewer = after.thisPlayer?.color;
+  const story = (o: ParliamentEnactOutcomeModel) => isSeatTileRecord(o) ? o.player !== viewer : isWorldStoryRecord(o);
+  const known = new Set((was.outcomes ?? []).filter(story).map(planetKey));
+  return (phase.outcomes ?? []).filter((o) => story(o) && !known.has(planetKey(o)));
 }
 
 /** A new sitting drops whatever the old one still owed. */
@@ -162,6 +194,7 @@ export function enterWorldBeatSitting(key: string): void {
   parliamentWorldBeatState.sitting = key;
   parliamentWorldBeatState.owed = [];
   parliamentWorldBeatState.away = false;
+  consoleParliamentUi.worldTripHoldsDoor = false;
   parliamentWorldBeatState.hosting = false;
   parliamentWorldBeatState.receipt = undefined;
   parliamentWorldBeatState.receiptShowing = false;
@@ -189,7 +222,8 @@ export function seedWorldMoveBeat(before: PlayerViewModel | undefined, after: Pl
   // story already told and come straight back. Such a record goes to the
   // RECEIPT (the reward page reads its line when the sitting is back); a
   // removal arriving under a covered board is owed the trip like a scale.
-  const inPlace = wanted.filter((o) => isTileRemovalRecord(o) && !boardCovered());
+  // …and so does ANOTHER SEAT'S TILE (PL-764): over a board in view the remote landing plays at once.
+  const inPlace = wanted.filter((o) => (isTileRemovalRecord(o) || isSeatTileRecord(o)) && !boardCovered());
   if (inPlace.length > 0) {
     const receipt = parliamentWorldBeatState.receipt;
     parliamentWorldBeatState.receipt = receipt !== undefined && receipt.sitting === parliamentWorldBeatState.sitting ?
@@ -205,6 +239,11 @@ export function seedWorldMoveBeat(before: PlayerViewModel | undefined, after: Pl
 /** Does this sitting still owe the board a world move — or the colonies screen the table's? */
 export function worldMoveOwed(sitting: string): boolean {
   return parliamentWorldBeatState.sitting === sitting && parliamentWorldBeatState.owed.length > 0;
+}
+
+/** Does this sitting owe the board ANOTHER SEAT'S tile (PL-764)? — the trip that may go before the seat's own door. */
+export function seatTileOwed(sitting: string): boolean {
+  return parliamentWorldBeatState.sitting === sitting && parliamentWorldBeatState.owed.some(isSeatTileRecord);
 }
 
 /** Does this sitting still owe the COLONIES SCREEN the table's move (Unity Budget)? */
@@ -245,7 +284,9 @@ function waitForStoryQuiet(): Promise<void> {
       // …and a TILE'S DEPARTURE (Water Export) is a story of the board too: the
       // shared removal scene queues it under a covered board and lifts the tile
       // the moment the frame steps aside — the frame waits it out like a glide.
-      if ((!boardBeatStoryPending() && !isRemotePlacementActive()) || Date.now() - started > WORLD_STORY_MAX_MS) {
+      // …as is ANOTHER SEAT'S LANDING (PL-764), owed from the moment it is QUEUED (a landing parked for the board is
+      // not yet «active» — waiting only for the flight, the frame came straight back over a board still empty).
+      if ((!boardBeatStoryPending() && !isRemotePlacementActive() && !remoteLandingOwed()) || Date.now() - started > WORLD_STORY_MAX_MS) {
         resolve();
         return;
       }
@@ -280,23 +321,56 @@ export async function runWorldMoveBeat(sitting: string, opts: {
     return false;
   }
   const moves = takeOwed(isBoardRecord);
-  if (moves.length === 0) {
+  // ANOTHER SEAT'S TILE that has ALREADY LANDED (nothing of the remote stage is owed — the board was in view when it
+  // came) owes no trip: the player watched it land; a yield now would be a blink of the board and straight back.
+  const story = moves.filter((o) => !isSeatTileRecord(o) || remoteLandingOwed());
+  if (story.length === 0) {
     return false;
   }
   if (!yieldStackToBoard()) {
     return false;
   }
   parliamentWorldBeatState.away = true;
+  // The seat's own tile waits behind its door while the frame is away (PL-764): the section that holds it is unmounted.
+  consoleParliamentUi.worldTripHoldsDoor = true;
+  let resumed = false;
   try {
     await waitForStoryQuiet();
   } finally {
     parliamentWorldBeatState.away = false;
     if (stackYieldedToBoard() && opts.boardBusy?.() !== true) {
       resumeStackFromBoard();
+      resumed = true;
+    }
+    if (resumed) {
+      handDoorBackOnceStageStands();
+    } else {
+      // The frame stays aside (the seat's business is on the board): the door is the board's now.
+      consoleParliamentUi.worldTripHoldsDoor = false;
     }
     parliamentWorldBeatState.receipt = {sitting, moves};
   }
   return true;
+}
+
+/**
+ * THE DOOR GOES BACK TO THE STAGE (PL-764): the frame is back, and the seat's own tile is held until the returning stage
+ * STANDS (the section's own watcher hands it over on that edge); a stage that never stands lets go on a bounded net —
+ * a placement held behind a door with no stage would be a prompt with no surface.
+ */
+function handDoorBackOnceStageStands(): void {
+  const started = Date.now();
+  const tick = (): void => {
+    if (!consoleParliamentUi.worldTripHoldsDoor) {
+      return;
+    }
+    if (consoleParliamentUi.stageStanding || Date.now() - started > WORLD_DOOR_RETURN_MAX_MS) {
+      consoleParliamentUi.worldTripHoldsDoor = false;
+      return;
+    }
+    probeTick(tick);
+  };
+  probeTick(tick);
 }
 
 /**
@@ -376,7 +450,12 @@ export async function runTrackMoveBeat(sitting: string): Promise<boolean> {
   return true;
 }
 
+// THE LANDING'S BOARD WAIT IS KEPT while the sitting owes the board another seat's tile (PL-764): the sitting will
+// step aside for it on its reward page — the walk, not a stall (bounded by the remote stage's own hard limit).
+registerRemoteBoardWaitKeeper(() => parliamentWorldBeatState.away || parliamentWorldBeatState.owed.some(isSeatTileRecord));
+
 export function resetParliamentWorldBeat(): void {
+  consoleParliamentUi.worldTripHoldsDoor = false;
   parliamentWorldBeatState.sitting = '';
   parliamentWorldBeatState.owed = [];
   parliamentWorldBeatState.away = false;

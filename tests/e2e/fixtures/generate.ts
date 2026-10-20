@@ -6186,8 +6186,10 @@ function botDeckOf(first: AutomaState['actionDeck'][number]): AutomaState['actio
 //    · `-vote` — blue's action phase with 34 M€: the vote panel reads the net, the two-tag breakdown, the city row
 //      with Mars First's answer, and the bot's chip with the tile alone;
 //    · `-bot` — the ASSEMBLY gate with 20 M€ at the sitting: −12 → 8, +4 → 12, then blue's city (asked), then the
-//      bot's city by its own rule. ──
-function marsFirstBudgetBotTable(name: string, stopAt: 'vote' | 'assembly'): void {
+//      bot's city by its own rule;
+//    · `-botfirst` (PL-764) — the same gate with the BOT first in the order: the bot's city is placed by the law in the
+//      very response that asks blue for its own, so the sitting steps aside for it BEFORE blue's door. ──
+function marsFirstBudgetBotTable(name: string, stopAt: 'vote' | 'assembly' | 'assembly-bot-first'): void {
   const t = botTable(name, 1);
   const [human] = t.humans;
   seatResolution(t.parliament, 0, MARS_FIRST_BUDGET_ID);
@@ -6224,8 +6226,13 @@ function marsFirstBudgetBotTable(name: string, stopAt: 'vote' | 'assembly'): voi
   if (t.parliament.phase.summary?.winner.player !== human.id) {
     throw new Error(`${name}: blue is not the winning player (${t.parliament.phase.summary?.winner.player})`);
   }
-  if (t.game.playersInGenerationOrder[0].id !== human.id) {
-    throw new Error(`${name}: blue must place first (the order is ${t.game.playersInGenerationOrder.map((p) => p.color).join(' · ')})`);
+  if (stopAt === 'assembly-bot-first') {
+    // THE BOT FIRST (PL-764): «clockwise from the First Player» — the law's seat loop walks the bot's grant before blue's.
+    t.game.overrideFirstPlayer(t.bot);
+  }
+  const firstSeat = stopAt === 'assembly-bot-first' ? t.bot.id : human.id;
+  if (t.game.playersInGenerationOrder[0].id !== firstSeat) {
+    throw new Error(`${name}: ${stopAt === 'assembly-bot-first' ? 'the bot' : 'blue'} must place first (the order is ${t.game.playersInGenerationOrder.map((p) => p.color).join(' · ')})`);
   }
   // The money AT the sitting (the production phase has paid its income already): 20 M€ — −12 → 8, then +4 → 12.
   human.megaCredits = 20;
@@ -6233,6 +6240,7 @@ function marsFirstBudgetBotTable(name: string, stopAt: 'vote' | 'assembly'): voi
 }
 marsFirstBudgetBotTable('parliament-marsfirst-budget-vote', 'vote');
 marsFirstBudgetBotTable('parliament-marsfirst-budget-bot', 'assembly');
+marsFirstBudgetBotTable('parliament-marsfirst-budget-botfirst', 'assembly-bot-first');
 
 // ── two-player-finale-trigger: the FINALE with a TRIGGERED HAND-OFF (PL-301 / PL-303 — the owner's field
 //    report 2026-10-14). A 2p table at the final greenery: the first seat holds the plants and is asked;

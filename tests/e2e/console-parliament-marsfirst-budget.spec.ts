@@ -2,7 +2,7 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixtureSeats, commitFocusedSpace, crumbText, fetchPlayerModel, openMandatoryAnnounce, placementState, press, pressUntil, settle, walkToSpace,
+  bootFixtureSeats, commitFocusedSpace, crumbText, fetchPlayerModel, openConsole, openMandatoryAnnounce, placementState, press, pressUntil, settle, walkToSpace,
 } from './consoleStart';
 import {
   answerGateOnScreen, armLeakWitness, closeSitting, expectParliamentFits, hotVerb, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, sittingStep,
@@ -28,6 +28,11 @@ import {
  *   cell its rule names (the one beside all three greeneries);
  *   ④ the results: four parts for blue (levy · payout · city · the party's steel), ONE for the bot (its city).
  *   Server truth: one city each, blue's money −12 + 4 (+ the cell's own payout), the bot's money untouched.
+ *
+ *   PART 3 · THE BOT FIRST (`parliament-marsfirst-budget-botfirst`, PL-764): the bot's city is placed by the law in the
+ *   very response that asks blue for its own. The sitting plays blue's money first, then STEPS ASIDE for the bot's city
+ *   (the world beat) — the remote landing flies on the board blue sees, blue's own placement stays shut behind its door
+ *   the whole time — and comes back for blue's door «К полю». Never a landing degraded by a long read at the door.
  *
  * The probe is `MutationObserver` + `setInterval` — never rAF. Screens under screenshots/parliament-marsfirst-budget/<profile>/.
  */
@@ -470,6 +475,130 @@ for (const preset of PRESETS) {
       expect(await strandedReports(page), 'nothing stranded').toEqual([]);
       await closeSitting(page, request, playerId);
       await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
+    });
+
+    test(`PL-764 · the bot FIRST: the sitting steps aside for the bot's city BEFORE blue's door, and blue's tile waits behind it (${preset.id})`, async ({page, request}) => {
+      test.setTimeout(600_000);
+      // The load door lists the seats in GENERATION order — the bot first here — so the viewer is found, never assumed.
+      const {seats} = await bootFixtureSeats(page, request, 'parliament-marsfirst-budget-botfirst', {query: preset.query, landing: 'prompt'});
+      const seatWires = await Promise.all(seats.map(async (id) => ({id, wire: await wireOf(request, id)})));
+      const playerId = seatWires.find((s) => s.wire.players.find((p) => p.color === s.wire.thisPlayer.color)?.isMarsBot !== true)!.id;
+      if (playerId !== seats[0]) {
+        await openConsole(page, playerId, preset.query);
+        await settle(page, {timeoutMs: 20_000});
+      }
+      await armLeakWitness(page);
+      const before = await wireOf(request, playerId);
+      const blue = before.thisPlayer.color;
+      const bot = before.players.find((p) => p.color !== blue)!;
+      const greeneries = before.game.spaces.filter((s) => s.tileType === GREENERY && s.color === undefined).map((s) => s.id);
+      expect(greeneries, 'the fixture\'s three greeneries').toHaveLength(3);
+      const free = before.game.spaces.filter((s) => s.spaceType === 'land' && s.tileType === undefined).map((s) => s.id);
+      const near = await neighboursOf(page, [...free, ...greeneries]);
+      const site = free.find((id) => greeneries.every((g) => near[g]?.includes(id)));
+      expect(site, 'the bot\'s site — the cell beside all three greeneries').toBeDefined();
+
+      await expect(mandatoryPlate(page), 'the sitting is announced').toHaveCount(1, {timeout: 30_000});
+      expect(await openMandatoryAnnounce(page)).toBe(true);
+      await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
+      await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
+      await waitSittingAtRest(page, 30_000);
+
+      // ── GATE 1: the law runs — the bot's city FIRST (its place in the order), then blue is asked for its own.
+      await armProbe(page, {bot: site!, blue: '__none__'});
+      const cast = await recordFrames(page);
+      await answerGateOnScreen(page, request, playerId, 'assembly');
+      await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.type, {timeout: 60_000, message: 'blue\'s city is asked'}).toBe('space');
+      const asked = await wireOf(request, playerId);
+      const order = outcomesOf(asked).filter((o) => o.kind !== 'reaction').map((o) => `${o.player === blue ? 'blue' : 'bot'}:${o.step}`);
+      // The seat loop walks the order: the bot's whole part (its city) first, then blue's money — all before blue is asked.
+      // The SCREEN reads the printed order — the money (everyone's), then the cities clockwise: blue's wave, then the
+      // bot's city, then blue's door.
+      expect(order, 'the bot\'s city, then blue\'s money — recorded before blue is asked').toEqual(['bot:city', 'blue:levy', 'blue:megacredits']);
+      expect(outcomesOf(asked).find((o) => o.player === bot.color)).toMatchObject({kind: 'city', part: 'effect', space: site});
+
+      // ── THE WORLD BEAT: the bot's city paints on the board the sitting stepped aside for…
+      await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.botCity), {
+        timeout: 120_000, message: 'the bot\'s city paints on the board blue sees',
+      }).toBe(true);
+      // …and the sitting comes back for blue's own door.
+      await expect.poll(async () => await sittingStage(page) === 'reward' && await sittingStep(page) === 'placement' &&
+        /К полю|Onto the board/i.test(await hotVerb(page)), {timeout: 90_000, message: 'the sitting is back on blue\'s door'}).toBe(true);
+      await cast.stop();
+      const probe = await readProbe(page);
+      const from = (i0: number, pick: (s: Sample) => boolean) => probe.samples.findIndex((s, i) => i >= i0 && pick(s));
+      const botAt = from(0, (s) => s.botCity);
+      const remoteAt = from(0, (s) => s.remote);
+      const awayAt = from(0, (s) => !s.parl);
+      const backAt = awayAt < 0 ? -1 : from(awayAt, (s) => s.parl);
+      {
+        let lastKey = '';
+        const lines: Array<string> = [];
+        probe.samples.forEach((s) => {
+          const key = `stage:${s.stage}/${s.step} bot:${s.botCity ? 1 : 0} remote:${s.remote ? 1 : 0} placing:${s.placing || '-'} parl:${s.parl ? 1 : 0}`;
+          if (key !== lastKey) {
+            lines.push(`${Math.round(s.t)} ${key}`);
+            lastKey = key;
+          }
+        });
+        console.log(`[marsfirst botfirst ${preset.id}] ${lines.join(' | ')}`);
+      }
+      // THE MONEY FIRST: blue's −12 and +4 have landed before the sitting steps aside (the seat's own wave, then the world).
+      const loss = tracksOf(probe.samples).find((tr) => tr[0].c.dir === 'loss' && tr[0].c.amt.includes('12'));
+      const gain = tracksOf(probe.samples).find((tr) => tr[0].c.dir !== 'loss' && tr[0].c.amt.includes('+4'));
+      expect(loss, 'the levy\'s «−12» flew').toBeDefined();
+      expect(gain, 'the payout\'s «+4» flew').toBeDefined();
+      expect(awayAt, 'the sitting stepped aside for the bot\'s city').toBeGreaterThan(landingIndex(gain!));
+      // THE BOT'S CITY FLIES on the board in view — the proxy before the cell paints, both while the sitting is away.
+      expect(remoteAt, 'the bot\'s city flew in through the remote landing stage').toBeGreaterThan(awayAt);
+      expect(remoteAt, 'the proxy flew before the cell painted').toBeLessThanOrEqual(botAt);
+      expect(backAt, `the sitting came back only once the bot's city had landed (back ${backAt}, bot ${botAt})`).toBeGreaterThan(botAt);
+      // BLUE'S DOOR STAYED SHUT while the sitting was away: its placement never went live under the bot's landing.
+      expect(probe.samples.slice(0, backAt).filter((s) => s.placing !== '').length, 'blue\'s placement never live before the door').toBe(0);
+      const midFlight = Math.min(botAt - 1, remoteAt + Math.max(1, Math.floor((botAt - remoteAt) / 2)));
+      for (const [index, name] of [[awayAt, '08a-botfirst-aside'], [midFlight, '08b-botfirst-bot-city-in-the-air'],
+        [botAt + 2, '08c-botfirst-bot-city-landed'], [backAt + 2, '08d-botfirst-back-at-the-door']] as Array<[number, string]>) {
+        // The storyboard is EVIDENCE, not the claim (the probe above is): a screencast under load may skip a moment.
+        if (!writeFrameAt(cast.frames, probe.samples[Math.min(index, probe.samples.length - 1)].wall, preset.id, name)) {
+          console.log(`[marsfirst botfirst ${preset.id}] no screencast frame near ${name}`);
+        }
+      }
+      await settle(page, {timeoutMs: 20_000});
+      expect((await crumbText(page)).toUpperCase()).toMatch(/РАЗМЕЩЕНИЕ|PLACEMENT/);
+      await shoot(page, preset.id, '08e-botfirst-door');
+
+      // ── BLUE'S CITY through its own door, then the results: blue four parts, the bot ONE.
+      await press(page, 'Enter', 800);
+      await expect.poll(() => placementState(page), {timeout: 30_000, message: 'the board is live'}).not.toBe('none');
+      await settle(page, {timeoutMs: 20_000});
+      const ask = (await wireOf(request, playerId)).waitingFor!;
+      const legal = (ask.spaces ?? []).filter((id) => id !== site && !(near[site!] ?? []).includes(id));
+      const quiet = legal.find((id) => {
+        const space = asked.game.spaces.find((s) => s.id === id);
+        return space !== undefined && space.bonus.every((b) => [0, 1, 2, 4].includes(b));
+      }) ?? legal[0];
+      expect(quiet, 'a legal cell for blue').toBeDefined();
+      await walkToSpace(page, quiet!);
+      await settle(page, {timeoutMs: 15_000});
+      expect(await commitFocusedSpace(page), 'blue\'s city is placed through the standard two-press flow').toBe(true);
+      await expect.poll(async () => (await wireOf(request, playerId)).thisPlayer.citiesCount, {timeout: 30_000}).toBe(1);
+      const revealSlots = page.locator('.con-reveal [data-zoom-slot]');
+      await expect.poll(async () => await revealSlots.count(), {timeout: 40_000, message: 'the party\'s card is presented'}).toBeGreaterThan(0);
+      expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-reveal').count() === 0, {tries: 6, settleMs: 1500}), 'take the card').toBe(true);
+      await expect(parliament(page), 'the sitting is back').toHaveCount(1, {timeout: 60_000});
+      await expect.poll(() => sittingStage(page), {timeout: 120_000, message: 'the walk reaches the results'}).toBe('results');
+      await waitSittingAtRest(page, 40_000);
+      await expect(page.locator('[data-sit-results-hidden]'), 'the results card revealed by its own beat').toHaveCount(0, {timeout: 30_000});
+      const blueRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${blue}"]`);
+      await expect(blueRow.locator('[data-sit-part]'), 'blue: levy · payout · city · the party\'s steel').toHaveCount(4);
+      const botRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${bot.color}"]`);
+      await expect(botRow.locator('[data-sit-part]'), 'the bot: its city — nothing else').toHaveCount(1);
+      await shoot(page, preset.id, '08f-botfirst-results');
+      const end = await wireOf(request, playerId);
+      expect(end.players.find((p) => p.color === bot.color)?.citiesCount, 'the bot\'s one city').toBe(1);
+      expect(end.players.find((p) => p.color === bot.color)?.megacredits, 'the bot: never levied, never paid').toBe(bot.megacredits);
+      expect(await strandedReports(page), 'nothing stranded').toEqual([]);
+      await closeSitting(page, request, playerId);
     });
   });
 }
