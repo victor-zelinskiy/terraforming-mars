@@ -134,12 +134,12 @@ export const SPONSORED_PROJECTS: ResolutionDefinition = {
   copies: 1,
   // THE FACE, as printed: «[a card holding resources] : + [?]» — the set's own
   // holder glyph (the white card with its three cubes, TR53 Frontier Labs'
-  // `resourceCard()`) and the «?» cube: one resource of THAT card's kind —
-  // beside «[card] / [influence]». (The classic global event draws the same
-  // rule with a card wearing the wild-resource corner; this set prints the
-  // holder itself, and the premium face draws it whole.)
+  // `resourceCard()`) and the printed «?» — the WILD square (`wild.png`), what
+  // the scan prints and what the classic global event and CEO's Favorite
+  // Project («a resource on a card that already has one») print: one resource
+  // of THAT card's kind — beside «[card] / [influence]».
   renderData: CardRenderer.builder((b) => {
-    b.resourceCard().colon().plus().resource(CardResource.RESOURCE_CUBE, {questionMark: true}).nbsp;
+    b.resourceCard().colon().plus().wild(1).nbsp;
     b.cards(1).slash().influence();
   }),
   text: {

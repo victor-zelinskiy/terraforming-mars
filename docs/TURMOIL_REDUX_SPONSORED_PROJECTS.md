@@ -25,7 +25,7 @@ your Influence. Add 1 resource to each of your cards that already has a resource
 | **+1 ресурс на каждую карту с ресурсом** | НОВАЯ форма единицы (§2) + седьмой вид счёта (§3) + общий шаг (§4) | эффект `resources`: `unit: {kind: 'cardResource', resources: 'own-kind', onto: 'each-counted'}`, `count: {id: 'cardsWithResources', per: 1}`, `base: 0`, `perInfluence: 0` + `eachCountedCardStep(...)` |
 | **Задание «4 [data]»** | RX35 Diverted Research — тот же вид, глиф и ключ | `quest: 'Add 4 data resources to your cards'`, цель `cardResource DATA ×4`; собственные данные закона не считаются (политическая фаза — корень резолюции, `QuestTracker.eligible`) |
 | **Имя** | ключ глобального события классического Turmoil | `'Sponsored Projects'` — уже переведён в `turmoil_events.json` («Спонсируемые проекты»); новый ключ не заводился |
-| **Лицо** | грамматика TR53 Frontier Labs | `resourceCard() : + [?-куб] · [карта] / [влияние]` |
+| **Лицо** | скан: держатель TR53 + печатный «?» = существующая иконка WILD (`wild.png`) — та же, что у классического события и CEO's Favorite Project | `resourceCard() : + wild(1) · [карта] / [влияние]` |
 | **Арт** | `assets/card-images/RX40.webp` + thumb | `make:cards` |
 
 Каталог: после Skyscrapers (`ResolutionCatalog.ts`). ⚠ Новая карта в колоде СДВИНУЛА сидированную раздачу в
@@ -39,7 +39,7 @@ your Influence. Add 1 resource to each of your cards that already has a resource
 насчитал счёт. `'own-kind'` — честное «любой» (`CardResourceUnitKinds`), никогда список всех видов игры. Читатели
 спрашивают `declaredCardResourceKinds(unit)` / `paysEachCountedCard(effect)`.
 
-Читатели формы, получившие ветку (исчерпывающе): иконка величины (`own-kind-resource` — «?»-куб лица), представление
+Читатели формы, получившие ветку (исчерпывающе): иконка величины (`own-kind-resource` — печатный «?» лица, существующий `iconClassFor('wild')`; своей иконки форма не заводит), представление
 счёта (глиф `resource-card`, `PremiumCountGlyph` / `premiumCardIcons`), поиск пикера (`scaledEffectForCardResource`), две
 заметки «некому» (`noRecipientNoteOf` / `noRecipientCompactNoteOf` — у единицы без объявленного вида ноль — это ноль
 счёта, не «сгорело»), семейство «Полигона» (`each-card`), стенд (`countAt`, синтетические записи), модель итогов
@@ -146,11 +146,11 @@ PRESENT · RETURN, но пикеры RX01 / RX18 / RX34 / RX35 по-прежне
   - **0** (`parliament-sponsored-vote`): панель голосования читает обе выплаты и строку держателей (4 карты, ПО +1, в
     порядке игры), всё в панели;
   - **1** (`parliament-sponsored-assembly`): вердикт → взятие в стадии → квитанция ПОСЛЕ взятия (никогда вместе) →
-    четыре лица (Birds с 0 — нет), жетон на каждое, рождён на «?» закона (`law-cube`), сел на своё лицо
+    четыре лица (Birds с 0 — нет), жетон на каждое, рождён на «?» закона (`law-wild`), сел на своё лицо
     (`receipt:<карта>`), лицо тикает не раньше касания своего жетона, ничего над стеклом → итоги «на 4 карты» → правда
     сервера (рука +2, Arklight 5 · Fish 3 · Dirigibles 2 · Supercomputer 4 · Birds 0; красный Pets 2 своей выплатой);
   - **2** (`parliament-sponsored-eight`): восемь лиц в ОДНОМ ряду внутри панели, все с артом, ничего не обрезано.
-- Свидетель переноса знает два новых якоря: `law-cube` (печатный «?» закона на слоте героя) и `receipt:<карта>`.
+- Свидетель переноса знает два новых якоря: `law-wild` (печатный «?» закона на слоте героя — раньше общего `wild`) и `receipt:<карта>`.
 
 ## 11. Кадры 4K (`screenshots/parliament-sponsored/tv4k/`, GPU) и вердикт
 

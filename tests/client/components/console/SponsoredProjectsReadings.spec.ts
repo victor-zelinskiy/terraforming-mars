@@ -106,7 +106,8 @@ describe('Sponsored Projects — the readings of a payout that asked nobody, and
     expect(yieldCountPresentation('cardsWithResources')).deep.include({glyph: {kind: 'resource-card'}, skipReasonKey: 'No card of yours has a resource yet'});
     // The unit of no declared kind is the face's «?» cube — never a kind standing in for all.
     expect(yieldIconOf(resources)).deep.eq({family: 'own-kind-resource'});
-    expect(yieldIconClasses(yieldIconOf(resources))).deep.eq(['card-resource card-resource-cube con-iyield__unit--own-kind']);
+    // The printed «?» is the existing WILD icon — never a cube with a «?» drawn over it.
+    expect(yieldIconClasses(yieldIconOf(resources))).deep.eq(['resource_icon resource_icon--wild']);
   });
 
   it('the vote: the count is the server\'s cards, the amount one per card, no «forfeited» note — and «ДЛЯ ВАС» names each card\'s change and the points', () => {

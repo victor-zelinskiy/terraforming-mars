@@ -1312,9 +1312,9 @@ function receiptStageClear(root: HTMLElement): boolean {
   return root.querySelector('[data-sit-zone-step]') === null && !isExternalDrawBusy() && !externalDrawState.committing && !isHandDeliveryActive();
 }
 
-/** The law's printed «?» — the cube the face prints for «a resource of the card's own kind» (`resource(RESOURCE_CUBE, {questionMark})`). */
+/** The law's printed «?» — the WILD icon the face prints for «a resource of the card's own kind» (`b.wild(1)`, `wild.png`). */
 function receiptSourceIcon(card: HTMLElement): HTMLElement | undefined {
-  const icons = Array.from(card.querySelectorAll<HTMLElement>('.pcard-ic')).filter((el) => (el.style.backgroundImage ?? '').includes('cube.png'));
+  const icons = Array.from(card.querySelectorAll<HTMLElement>('.pcard-ic')).filter((el) => (el.style.backgroundImage ?? '').includes('wild.png'));
   return icons.find((el) => el.getBoundingClientRect().width > 4);
 }
 
@@ -1390,7 +1390,7 @@ function beatReceipt(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
         ctaEl: undefined,
         actionNode: undefined,
         kind: 'resources',
-        firstResource: 'resource-cube',
+        firstResource: 'wild',
         onHandoff: done,
         onSettled: done,
       });

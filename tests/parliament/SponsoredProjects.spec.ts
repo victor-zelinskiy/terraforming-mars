@@ -181,8 +181,9 @@ describe('SponsoredProjects', () => {
     it('the face prints the set\'s holder glyph — «[a card with resources] : + [?]» — beside «[card] / [influence]»; the quest is 4 data', () => {
       const items = JSON.stringify(SPONSORED_PROJECTS.renderData);
       expect(items).includes(`"type":"${CardRenderItemType.RESOURCE_CARD}"`);
-      expect(items).includes(`"resource":"${CardResource.RESOURCE_CUBE}"`);
-      expect(items).includes('"questionMark":true');
+      // The printed «?» is the WILD square — the existing icon (`wild.png`), never a cube with a «?» drawn over it.
+      expect(items).includes(`"type":"${CardRenderItemType.WILD}"`);
+      expect(items).not.includes(`"resource":"${CardResource.RESOURCE_CUBE}"`);
       expect(items).includes(`"type":"${CardRenderItemType.INFLUENCE}"`);
       expect(SPONSORED_PROJECTS.quest).deep.eq({goal: {kind: 'cardResource', resource: CardResource.DATA}, count: SPONSORED_PROJECTS_QUEST_DATA});
       expect(SPONSORED_PROJECTS_QUEST_DATA).eq(4);

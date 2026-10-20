@@ -135,10 +135,11 @@ export async function armTransferWitness(page: Page): Promise<void> {
     };
     /** The known places a token is born on or lands on, in priority order (the most specific first). */
     const ANCHORS: Array<[string, string]> = [
-      // A card's PRINTED «?» — a standard resource chosen from it is born there (TR54); the most specific of all.
+      // A LAW's printed «?» on the sitting's hero slot (RX40 — one of the card's own kind): the receipt's tokens are born
+      // there. Before the generic «?» below — the same icon, a more specific place.
+      ['law-wild', '[data-parl-sit-hero] .pcard-ic[style*="wild.png"]'],
+      // A card's PRINTED «?» — a standard resource chosen from it is born there (TR54).
       ['wild', '.pcard-ic[style*="wild.png"]'],
-      // A LAW's printed «?» cube on the sitting's hero slot (RX40 — one of the card's own kind): the receipt's tokens are born there.
-      ['law-cube', '[data-parl-sit-hero] .pcard-ic[style*="cube.png"]'],
       // A face of the RECEIPT OF THE TABLE (RX40) — a token of a payout that asked nobody lands on it. `receipt:<card>`.
       ['receipt', '[data-sit-receipt] [data-receipt-card]'],
       // A card's PRINTED VP badge — the score cell's token is born there (TR55); more specific than the card it is on.

@@ -543,7 +543,7 @@ export default defineComponent({
       }
       if (part.kind === 'cardResource') {
         // «One of its own kind» (Sponsored Projects onto cards of several kinds): the face's «?» cube.
-        return part.unit === OWN_KIND_UNIT ? iconClassFor('cube') + ' con-iyield__unit--own-kind' : iconClassFor(cardResourceKey(part.unit));
+        return part.unit === OWN_KIND_UNIT ? iconClassFor('wild') : iconClassFor(cardResourceKey(part.unit));
       }
       return iconClassFor(part.unit) + (part.production ? ' con-iyield__unit--prod' : '');
     },

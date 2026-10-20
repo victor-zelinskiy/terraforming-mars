@@ -55,8 +55,9 @@ export type YieldIcon =
   | {family: 'card-resource', resources: ReadonlyArray<CardResource>}
   /**
    * A card resource of NO declared kind — each card takes one of ITS OWN
-   * (Sponsored Projects' `'own-kind'` unit): the face's own «?» resource cube,
-   * never the list of every kind and never one kind standing in for all.
+   * (Sponsored Projects' `'own-kind'` unit): the face's own printed «?» — the
+   * WILD icon (`wild.png`), never the list of every kind and never one kind
+   * standing in for all.
    */
   | {family: 'own-kind-resource'}
   | {family: 'resource', resource: Resource, production: boolean}
@@ -64,7 +65,7 @@ export type YieldIcon =
   /** The COLONY tile — the unit of a «gain all your colony bonuses k times» effect is the multiplier over the ledger. */
   | {family: 'colony'};
 
-/** The icon of a card-resource unit — its declared kinds, or the «?» cube of a unit that declares none. */
+/** The icon of a card-resource unit — its declared kinds, or the printed «?» (wild) of a unit that declares none. */
 function cardResourceIconOf(unit: CardResourceYieldUnit): YieldIcon {
   const kinds = declaredCardResourceKinds(unit);
   return kinds === undefined ? {family: 'own-kind-resource'} : {family: 'card-resource', resources: kinds};
@@ -106,8 +107,8 @@ export function yieldIconClass(icon: YieldIcon): string {
     // A total over several kinds is not a thing; the first kind names a list of one.
     return iconClassFor(cardResourceIconKey(icon.resources[0]));
   case 'own-kind-resource':
-    // The face's own «?» resource cube (`resource(RESOURCE_CUBE, {questionMark: true})`): the cube sprite, the «?» by the modifier.
-    return iconClassFor('cube') + ' con-iyield__unit--own-kind';
+    // The face's own printed «?» — the WILD icon (`wild.png`, `b.wild(1)`), the one the scan prints.
+    return iconClassFor('wild');
   case 'resource':
     return iconClassFor(icon.resource) + (icon.production ? ' con-iyield__unit--prod' : '');
   case 'cards':

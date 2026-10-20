@@ -271,8 +271,8 @@ for (const preset of PRESETS) {
       const receiptLandings = witness.landings.filter((end) => end.under.startsWith('receipt:'));
       expect(receiptLandings.map((end) => end.under).sort(), 'a token landed on each receiving face').toEqual(RECEIVERS.map((c) => `receipt:${c}`).sort());
       const births = witness.births.filter((b) => receiptLandings.some((l) => l.id === b.id));
-      expect(births.every((b) => b.under === 'law-cube' || b.under === 'hero'), `every token is born on the law's printed «?» (births: ${births.map((b) => b.under).join(', ')})`).toBe(true);
-      expect(births.some((b) => b.under === 'law-cube'), 'born on the «?» cube itself').toBe(true);
+      expect(births.every((b) => b.under === 'law-wild' || b.under === 'hero'), `every token is born on the law's printed «?» (births: ${births.map((b) => b.under).join(', ')})`).toBe(true);
+      expect(births.some((b) => b.under === 'law-wild'), 'born on the printed «?» itself').toBe(true);
       // IN TURN: the touchdowns are spread over the wave's ladder, the whole wave within ~1.5 s.
       const touches = receiptLandings.map((end) => end.touched ?? end.t).sort((a, b) => a - b);
       expect(new Set(touches).size, 'four distinct touchdowns').toBe(4);
