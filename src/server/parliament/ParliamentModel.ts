@@ -6,6 +6,7 @@
  */
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
+import {message} from '../logs/MessageBuilder';
 import {Color} from '../../common/Color';
 import {PlayerId} from '../../common/Types';
 import {
@@ -420,7 +421,12 @@ function resolutionActionModel(parliament: Parliament, viewer: IPlayer): Resolut
   if (!hasAccess) {
     reason = 'MarsBot takes no part in the parliament';
   } else if (usesLeft <= 0) {
-    reason = 'This resolution action was already used this generation';
+    // A law taken more than once a generation (Manufacturing Run RX37) names its numbers — «2 of 2» / «3 of 3».
+    const per = action.usesPerGeneration(viewer);
+    reason = per > 1 ?
+      message('This resolution action was already used ${0} of ${1} times this generation', (b) =>
+        b.number(Math.min(per, parliament.resolutionActionUsesOf(viewer))).number(per)) :
+      'This resolution action was already used this generation';
   } else {
     const verdict = action.canAct(viewer);
     if (verdict.available === false) {

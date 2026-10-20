@@ -10,6 +10,7 @@ import {WorldParameterMove} from './parameterMove';
 import {ColonyTrackAdvance} from './colonyTrackAdvance';
 import {TileRemovalDeclaration} from './tileRemoval';
 import {ResolutionActionBill} from './actionBill';
+import {ResolutionActionUses} from './actionUses';
 import {ActionEffect} from '../models/ActionPreviewModel';
 
 /**
@@ -113,6 +114,12 @@ export type IClientResolution = {
    * that costs nothing.
    */
   actionBill?: ResolutionActionBill;
+  /**
+   * HOW MANY TIMES A GENERATION, as data (`actionUses.ts`) — Manufacturing Run's «twice; 3 times at influence 2+».
+   * Read through the ONE function the server's limit is read by (`actionUsesFor`), never a client constant. Absent
+   * for a law taken once a generation.
+   */
+  actionUses?: ResolutionActionUses;
 };
 
 /** The printed PARTY EFFECT (the board's six banners), same pipeline. */

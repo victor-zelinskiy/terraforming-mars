@@ -1298,5 +1298,10 @@
   "Play a card ignoring its global requirements (Live Experiments)": "Разыграйте карту, игнорируя её требования глобальных параметров (Живые эксперименты)",
   "then play a card ignoring global requirements": "затем — карта без требований глобальных параметров",
   "${0} paid ${1} M€ to ${2}: the next card played ignores its global requirements": "${0} платит ${1} M€ по резолюции ${2}: следующая разыгранная карта игнорирует требования глобальных параметров",
-  "${0} has no card to play with ${1} — the paid waiver stays armed for the next card": "${0}: по резолюции ${1} нечего разыграть — оплаченное снятие требований остаётся для следующей карты"
+  "${0} has no card to play with ${1} — the paid waiver stays armed for the next card": "${0}: по резолюции ${1} нечего разыграть — оплаченное снятие требований остаётся для следующей карты",
+  "Manufacturing Run": "Серийный выпуск",
+  "Add 2 floaters, 1 fighter or 1 mech to one of your cards.": "Добавьте 2 аэростата, 1 истребитель или 1 мех на одну свою карту.",
+  "Add 2 floaters, 1 fighter or 1 mech to a card": "Добавьте 2 аэростата, 1 истребитель или 1 мех на карту",
+  "No card of yours can hold floaters, fighters or mechs": "Ни одна ваша карта не хранит аэростаты, истребители или мехов",
+  "This resolution action was already used ${0} of ${1} times this generation": "Действие этой резолюции в этом поколении уже использовано: ${0} из ${1}"
 }

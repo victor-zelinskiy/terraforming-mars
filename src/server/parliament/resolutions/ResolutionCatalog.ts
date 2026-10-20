@@ -56,6 +56,7 @@ import {MOHOLE_CONTEST} from './greens/MoholeContest';
 import {OPEN_IP_TRADE} from './scientists/OpenIpTrade';
 import {RD_FUNDING} from './scientists/RdFunding';
 import {LIVE_EXPERIMENTS} from './scientists/LiveExperiments';
+import {MANUFACTURING_RUN} from './industrialists/ManufacturingRun';
 import {PLANT_BAN} from './reds/PlantBan';
 import {runResolutionAction} from './ResolutionAction';
 import {SCIENTISTS_BUDGET} from './scientists/ScientistsBudget';
@@ -526,6 +527,10 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // one-play semantics with a law as its source) before the pick; plus data by influence (Diverted Research's step)
   // and the tenth quest kind — cards with a requirement.
   LIVE_EXPERIMENTS,
+  // The first action taken MORE THAN ONCE a generation, by a count that depends on influence («twice; 3 times at
+  // influence 2+») — declared as data (`actionUses`) and read by ONE function, live at every use; the Scientists' party
+  // action's shape (the kind a branch, the card a pick — the one builder both stand on), for floaters, fighters and mechs.
+  MANUFACTURING_RUN,
   // The distributing family over TWO KINDS of unit: the recipients are the holders of data AND of microbes at once,
   // and each unit's kind is its card's — never a second question (`AddResourcesToCards` over a list of kinds).
   MEDICAL_DATABASE,

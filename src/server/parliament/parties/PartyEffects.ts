@@ -34,7 +34,7 @@ import {ICard} from '../../cards/ICard';
 import {IProjectCard} from '../../cards/IProjectCard';
 import {ActionEffect} from '../../../common/models/ActionPreviewModel';
 import {PartyActionPromptMeta} from '../../../common/models/PlayerInputModel';
-import {cardResourceIcon, drawGain, productionChange, targetVictoryPoints} from '../../cards/actionPreviews';
+import {drawGain, productionChange} from '../../cards/actionPreviews';
 import {PartyActionId, ReduxParty} from '../../../common/parliament/ParliamentTypes';
 import {PartyReaction} from '../../../common/parliament/partyReactions';
 import {IClientPartyEffect} from '../../../common/parliament/IClientResolution';
@@ -45,6 +45,7 @@ import {SpaceType} from '../../../common/boards/SpaceType';
 import {EventSource} from '../../../common/events/EventSource';
 import type {Parliament} from '../Parliament';
 import {digit} from '../../cards/Options';
+import {ResourceYield, resourceToOwnCardChoice, resourceToOwnCardPreview, yieldsWithHolders} from '../resourceToOwnCard';
 
 export type PartyActionAvailability = {available: true} | {available: false; reason: string | Message};
 
@@ -99,6 +100,8 @@ export const REDS_MEGACREDITS_PER_TAG = 2;
 export const GREENS_MEGACREDITS_PER_TR = 2;
 export const SCIENTISTS_RESOURCES_PER_USE = 2;
 export const SCIENTISTS_RESOURCE_KINDS: ReadonlyArray<CardResource> = [CardResource.DATA, CardResource.MICROBE];
+/** The Scientists' printed outcomes — the shared «resource onto one of your cards» shape (`resourceToOwnCard.ts`). */
+const SCIENTISTS_YIELDS: ReadonlyArray<ResourceYield> = SCIENTISTS_RESOURCE_KINDS.map((resource) => ({resource, amount: SCIENTISTS_RESOURCES_PER_USE}));
 
 /** The resources the Industrialists may DECREASE right now (one step, within production minimums). */
 export function industrialistsDecreasable(player: IPlayer): Array<Resource> {
@@ -201,47 +204,25 @@ const SCIENTISTS: PartyEffectDefinition = {
     return 1;
   },
   canAct(player) {
-    const any = SCIENTISTS_RESOURCE_KINDS.some((resource) => player.getResourceCards(resource).length > 0);
+    const any = yieldsWithHolders(player, SCIENTISTS_YIELDS).length > 0;
     return any ? {available: true} : {available: false, reason: 'No card of yours can hold data or microbes'};
   },
+  // The shared «resource onto one of your cards — the kind is a branch» prompt (Manufacturing Run RX37 asks the same).
   actionInput(player, parliament, meta) {
-    const options = new OrOptions()
-      .setTitle('Add 2 data or 2 microbes to a card')
-      .setButtonLabel('Add')
-      .markPartyActionPrompt(meta)
-      .markChoiceContext({source: {kind: 'party', party: PartyName.SCIENTISTS}, trigger: 'The Scientists\' action', mode: 'effect-choice'});
-    for (const resource of SCIENTISTS_RESOURCE_KINDS) {
-      const cards = player.getResourceCards(resource);
-      if (cards.length === 0) {
-        continue;
-      }
-      const pick = new SelectCard(
-        message('Add ${0} ${1} to a card', (b) => b.number(SCIENTISTS_RESOURCES_PER_USE).string(resource)),
-        'Add',
-        cards,
-        {min: 1, max: 1})
-        .markResourceGainPrompt({
-          amount: SCIENTISTS_RESOURCES_PER_USE,
-          cardResource: cardResourceIcon(resource),
-          vpBox: targetVictoryPoints(player, cards, SCIENTISTS_RESOURCES_PER_USE),
-        })
-        .markPartyActionPrompt(meta)
-        .andThen(([card]) => {
-          runPartyAction(player, parliament, PartyName.SCIENTISTS, () => {
-            player.addResourceTo(card, {qty: SCIENTISTS_RESOURCES_PER_USE, log: true, from: {partyName: PartyName.SCIENTISTS}});
-          });
-          return undefined;
-        });
-      options.options.push(pick);
-    }
-    if (options.options.length === 0) {
-      throw new InputError('No card can hold data or microbes');
-    }
-    return options;
+    return resourceToOwnCardChoice(player, SCIENTISTS_YIELDS, {
+      title: 'Add 2 data or 2 microbes to a card',
+      buttonLabel: 'Add',
+      mark: (input) => input.markPartyActionPrompt(meta),
+      source: {kind: 'party', party: PartyName.SCIENTISTS},
+      trigger: 'The Scientists\' action',
+      noHolder: 'No card can hold data or microbes',
+      give: (card, outcome) => runPartyAction(player, parliament, PartyName.SCIENTISTS, () => {
+        player.addResourceTo(card, {qty: outcome.amount, log: true, from: {partyName: PartyName.SCIENTISTS}});
+      }),
+    });
   },
   preview() {
-    return [{direction: 'gain', icon: cardResourceIcon(CardResource.DATA), amount: SCIENTISTS_RESOURCES_PER_USE, note: 'to a card'},
-      {direction: 'gain', icon: cardResourceIcon(CardResource.MICROBE), amount: SCIENTISTS_RESOURCES_PER_USE, note: 'to a card'}];
+    return resourceToOwnCardPreview(SCIENTISTS_YIELDS);
   },
 };
 

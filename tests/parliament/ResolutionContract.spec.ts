@@ -14,6 +14,7 @@ import {levelAfter, levelAmount, levelTakesAway, scaledAmount, sequelAmount} fro
 import {LEVY_STEP_KEY, levyDeclared, levyPaid} from '../../src/common/parliament/resolutionLevy';
 import {COLONY_TRACK_STEP_KEY, colonyTrackAdvanceDeclared} from '../../src/common/parliament/colonyTrackAdvance';
 import {TILE_REMOVAL_STEP_KEY, tileRemovalDeclared} from '../../src/common/parliament/tileRemoval';
+import {actionUsesDeclared, actionUsesFor} from '../../src/common/parliament/actionUses';
 import {OUTCOME_KINDS, REWARD_ADDRESS, rewardAddressOf} from '../../src/common/parliament/rewardAddress';
 import {isWinnerParameterReward, winnerParameterStepKey} from '../../src/common/parliament/winnerReward';
 import {parameterStepSize} from '../../src/common/parliament/parameterMove';
@@ -84,7 +85,10 @@ import {answerStandingGates, passToParliament, seatResolution, settleParliamentG
  *   8. THE STAND — the declaration alone yields a scenario family;
  *   9. THE SEAM — a passive declares its forecast, an action its preview, both
  *      their declaration text; a resolution with no immediate step still gives
- *      the sitting's REWARD stage an honest pose (`quietRewardPoseOf`).
+ *      the sitting's REWARD stage an honest pose (`quietRewardPoseOf`); HOW MANY
+ *      TIMES an action is taken is ONE truth — `actionUses` only beside an
+ *      action, and the action's live limit equal to the declaration's reading
+ *      (`actionUsesFor`) at influence 0 / 1 / 2 (1 for a law that declares none).
  */
 
 const ROOT = path.join(__dirname, '..', '..');
@@ -342,6 +346,42 @@ function checkReplacingPass(definition: ResolutionDefinition): Array<string> {
   return failures;
 }
 
+/** Influence exactly `n` (0–5) for a seat no sitting moves: the Agenda step that reads it, no bonus. */
+const AGENDA_FOR_INFLUENCE: ReadonlyArray<number> = [0, 1, 3, 5, 8, 12];
+
+/**
+ * HOW MANY TIMES A GENERATION is ONE truth (Manufacturing Run RX37): the action's live limit for a seat
+ * (`usesPerGeneration`) equals the declaration's ONE reading (`actionUsesFor`) at influence 0 / 1 / 2 — so a surface
+ * that prints the count from the manifest can never disagree with the limit the server enforces. A law with no
+ * declaration reads the family's rule (1): a constant 2 in a card file without the declaration is the drift this
+ * catches.
+ */
+function checkActionUses(definition: ResolutionDefinition): Array<string> {
+  const action = definition.action;
+  if (action === undefined) {
+    return [];
+  }
+  const failures: Array<string> = [];
+  const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+  game.phase = Phase.ACTION;
+  const parliament = game.parliament!;
+  parliament.enacted = resolutionInstanceId(definition.id, 0);
+  for (const influence of [0, 1, 2]) {
+    parliament.agenda.set(player.id, AGENDA_FOR_INFLUENCE[influence]);
+    parliament.influenceBonus.set(player.id, []);
+    if (parliament.influence(player) !== influence) {
+      failures.push(`${label(definition)}: the guard could not seat influence ${influence} (read ${parliament.influence(player)})`);
+      continue;
+    }
+    const live = action.usesPerGeneration(player);
+    const declared = actionUsesFor(definition.actionUses, influence);
+    if (live !== declared) {
+      failures.push(`${label(definition)}: usesPerGeneration reads ${live} at influence ${influence}, the declaration (actionUses) ${declared} — one truth, never two`);
+    }
+  }
+  return failures;
+}
+
 function checkSeam(definition: ResolutionDefinition): Array<string> {
   const failures: Array<string> = [];
   const name = label(definition);
@@ -359,6 +399,15 @@ function checkSeam(definition: ResolutionDefinition): Array<string> {
   if (definition.action !== undefined && typeof definition.action.preview !== 'function') {
     failures.push(`${name}: an action without a preview`);
   }
+  // …and HOW MANY TIMES (RX37): the count is declared BESIDE an action, never instead of it, it is a count the family
+  // can read, and the action's live limit is its one reading.
+  if (definition.actionUses !== undefined && definition.action === undefined) {
+    failures.push(`${name}: actionUses without an action`);
+  }
+  if (definition.actionUses !== undefined && !actionUsesDeclared(definition.actionUses)) {
+    failures.push(`${name}: actionUses must be a positive whole base and a threshold that raises it`);
+  }
+  failures.push(...checkActionUses(definition));
   // …and a REPLACING passive (RX35) without the family's exit pass lets the composer promise the step the law takes:
   // enacted, the pass must STRIKE a printed scale chip in its name, pre-collect the «where», and the law's own
   // forecast must state the replacement off the pass (`ctx.diverted`) on the live channel.

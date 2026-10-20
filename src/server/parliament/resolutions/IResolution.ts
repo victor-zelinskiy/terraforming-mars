@@ -9,6 +9,7 @@ import {WorldParameterMove} from '../../../common/parliament/parameterMove';
 import {ColonyTrackAdvance} from '../../../common/parliament/colonyTrackAdvance';
 import {TileRemovalDeclaration} from '../../../common/parliament/tileRemoval';
 import {ResolutionActionBill} from '../../../common/parliament/actionBill';
+import {ResolutionActionUses} from '../../../common/parliament/actionUses';
 import type {SerializedEnactOutcome} from '../SerializedParliament';
 import {ActionEffect} from '../../../common/models/ActionPreviewModel';
 import type {ActionFutilityVerdict} from '../../../common/models/ActionFutilityModel';
@@ -104,6 +105,11 @@ export type ResolutionActionAvailability = {available: true} | {available: false
  * card stands enacted: another law takes the slot → the action is gone.
  */
 export type ResolutionAction = {
+  /**
+   * The LIVE limit for this seat, read at every use (Manufacturing Run RX37: twice, three times at influence 2+ — a
+   * seat that becomes chairman mid-generation gains the third use at once). A law whose count is not 1 reads it
+   * through its declaration (`ResolutionDefinition.actionUses` + `actionUsesFor`); the contract guard compares the two.
+   */
   usesPerGeneration(player: IPlayer): number;
   /** Ignoring uses — the parliament checks those. A refusal NAMES its reason (an English i18n key). */
   canAct(player: IPlayer): ResolutionActionAvailability;
@@ -566,6 +572,14 @@ export interface ResolutionDefinition {
    * tile's price line and the stand. Absent for an action that costs nothing.
    */
   actionBill?: ResolutionActionBill;
+  /**
+   * HOW MANY TIMES A GENERATION, as data (`actionUses.ts`) — Manufacturing Run: «twice; players with at least 2
+   * Influence 3 times». Declared BESIDE `action`, never instead of it: the action's `usesPerGeneration` reads it
+   * through the ONE function (`actionUsesFor`) with the seat's live influence, and every client reading (the vote
+   * panel's «for you», the inspector, «Ваши эффекты», the stand) reads the same declaration from the manifest — a
+   * client never writes «1» or «2/3» for a law. Absent for a law taken once a generation (the family's rule).
+   */
+  actionUses?: ResolutionActionUses;
 }
 
 /**
