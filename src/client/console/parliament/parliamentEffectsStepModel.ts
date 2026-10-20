@@ -4,6 +4,7 @@ import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mecha
 import {PARLIAMENT_GRAPHIC} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {EffectActionState, EffectItemsInput, EffectWhy, parliamentEffectItems} from './parliamentEffectsModel';
 import {allianceSourceOf, alliancePartnerName, grantSourcesOf} from './consoleParliamentModel';
+import {actionUsesFor} from '@/common/parliament/actionUses';
 
 /*
  * THE INNER STEP «ВАШИ ЭФФЕКТЫ» (Парламент v8, docs/TURMOIL_REDUX_PARLIAMENT_V8_PLAN.md § 6, the mock `c1`): A on the
@@ -35,6 +36,8 @@ export type EffectsStepAction = EffectsStepEntry & {
   state: EffectActionState;
   actionId?: PartyActionId;
   usesPerGeneration: number;
+  /** The uses left this generation, where the action is taken more than once (RX37 — «осталось 1 из 2»). */
+  usesLeft?: number;
 };
 
 /** An entry of the step is an ACTION (it has a state and a door) — the type guard the step's readers branch on. */
@@ -116,7 +119,14 @@ export function parliamentEffectsStep(input: EffectItemsInput): EffectsStepModel
     }
     const action = resolution.hasAction ? lawMechanicsOf(input, 'action') : undefined;
     if (action !== undefined && item.action !== undefined) {
-      out.actions.push({...base, key: `${item.key}:action`, mechanics: action, rule: resolution.text.action ?? '', state: item.action, usesPerGeneration: 1});
+      // THE LAW'S COUNT (RX37 — 2, 3 at influence 2+): the seat's LIVE verdict from the server (`usesPerGeneration`
+      // read at the seat's influence), else the declaration's one reading at its base — never a constant 1.
+      const live = input.resolutionActionState;
+      const per = live !== undefined && live.usesPerGeneration > 0 ? live.usesPerGeneration : actionUsesFor(resolution.actionUses, 0);
+      out.actions.push({
+        ...base, key: `${item.key}:action`, mechanics: action, rule: resolution.text.action ?? '', state: item.action, usesPerGeneration: per,
+        ...(live !== undefined && per > 1 ? {usesLeft: live.usesLeft} : {}),
+      });
     }
   }
   return out;

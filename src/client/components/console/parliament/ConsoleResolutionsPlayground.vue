@@ -456,6 +456,7 @@
             <p v-if="selected.text.winner !== undefined" :class="{'con-rxpg__texts--winner': viewerIsWinner}"><span class="con-rxpg__ckey">{{ $t('For the winner of the vote') }}</span> {{ $t(selected.text.winner) }}</p>
             <p v-if="selected.text.passive !== undefined"><span class="con-rxpg__ckey">{{ $t('Effect while enacted') }}</span> {{ $t(selected.text.passive) }}</p>
             <p v-if="selected.text.action !== undefined"><span class="con-rxpg__ckey">{{ $t('Action while enacted') }}</span> {{ $t(selected.text.action) }}</p>
+            <p v-if="actionUsesLine !== ''" data-rxpg-action-uses><span class="con-rxpg__ckey">{{ $t('How many times') }}</span> {{ actionUsesLine }}</p>
             <p><span class="con-rxpg__ckey">{{ $t('Chairman quest') }}</span> {{ $t(selected.text.quest) }}</p>
           </div>
           <!-- THE ACTION (Open IP Trade): shown the way a PARTY's action is — its printed row, its sentence, its
@@ -672,6 +673,8 @@ import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {actionUsesRule} from '@/client/console/parliament/actionUsesReading';
+import {readingText} from '@/client/console/readingText';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {stepIndex} from '@/client/console/consoleRouter';
 
@@ -1845,6 +1848,11 @@ export default defineComponent({
     };
   },
   computed: {
+    /** HOW MANY TIMES the selected law's action is taken (RX37) — the declaration's one reading; '' for a law taken once. */
+    actionUsesLine(): string {
+      const rule = actionUsesRule(this.selected?.actionUses);
+      return rule === undefined ? '' : readingText(rule);
+    },
     all(): ReadonlyArray<IClientResolution> {
       return allResolutions();
     },

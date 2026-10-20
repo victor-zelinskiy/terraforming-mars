@@ -100,6 +100,8 @@ import {GAS_EXPORT_ID} from '../../../src/server/parliament/resolutions/reds/Gas
 import {HEAT_CAPTURE_ID} from '../../../src/server/parliament/resolutions/reds/HeatCapture';
 import {DIVERTED_RESEARCH_ID} from '../../../src/server/parliament/resolutions/reds/DivertedResearch';
 import {LIVE_EXPERIMENTS_ID} from '../../../src/server/parliament/resolutions/scientists/LiveExperiments';
+import {MANUFACTURING_RUN_ID} from '../../../src/server/parliament/resolutions/industrialists/ManufacturingRun';
+import {TitanShuttles} from '../../../src/server/cards/colonies/TitanShuttles';
 import {Grass} from '../../../src/server/cards/base/Grass';
 import {MartianMediaCenter} from '../../../src/server/cards/turmoil/MartianMediaCenter';
 import {Supercomputer} from '../../../src/server/cards/turmoilRedux/Supercomputer';
@@ -4720,6 +4722,40 @@ parliamentFixture('parliament-live-helion', {
       }
     }
     expectViewerOpensGeneration(table, p2, 'parliament-live-helion');
+  },
+});
+
+// ── RX37 · MANUFACTURING RUN (the Industrialists — «add 2 floaters OR 1 fighter OR 1 mech to one of your cards; twice a
+//    generation, 3 times at influence 2+»). The law ENACTED: red won the sitting from Agenda 0, so it opens generation 2
+//    at influence 1 — TWO uses, the third one influence away. Red holds a holder of EACH kind — Security Fleet (fighter,
+//    1 VP each), Construction Mechs (mech), Titan Shuttles (floater, 1 VP) — so the law's stage reads three variants and
+//    every target row is a real reading; no pending first action (the spec spends both of red's actions on the law).
+parliamentFixture('parliament-manufacturing-enacted', {
+  resolution: MANUFACTURING_RUN_ID,
+  votes: [1],
+  agenda: [1, 0],
+  stopAt: 'done',
+  arrange: ({p2}) => {
+    p2.playedCards.push(new SecurityFleet(), new ConstructionMechs(), new TitanShuttles());
+    p2.pendingInitialActions = [];
+  },
+  expect: (table) => {
+    const {p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(MANUFACTURING_RUN_ID, 0)) {
+      throw new Error(`the parliament-manufacturing-enacted fixture expected Manufacturing Run enacted, got ${parliament.enacted}`);
+    }
+    if (parliament.influence(p2) !== 1 || parliament.resolutionActionUsesLeft(p2) !== 2) {
+      throw new Error(`the parliament-manufacturing-enacted fixture expected red at influence 1 with 2 uses, got ${parliament.influence(p2)} / ${parliament.resolutionActionUsesLeft(p2)}`);
+    }
+    if (p2.pendingInitialActions.length > 0 || p2.actionsTakenThisRound !== 0) {
+      throw new Error('the parliament-manufacturing-enacted fixture expected red to open generation 2 with both actions and no pending first action');
+    }
+    for (const name of [CardName.SECURITY_FLEET, CardName.CONSTRUCTION_MECHS, CardName.TITAN_SHUTTLES]) {
+      if (p2.playedCards.get(name)?.resourceCount !== 0) {
+        throw new Error(`the parliament-manufacturing-enacted fixture expected red to hold an empty ${name}`);
+      }
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-manufacturing-enacted');
   },
 });
 

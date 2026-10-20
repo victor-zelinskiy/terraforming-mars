@@ -1249,9 +1249,13 @@ export function industrialistsResponse(bridge: ParliamentPromptBridge, decreaseI
   ]}};
 }
 
-/** The Scientists' gift: the resource branch + the target card, one submit. */
-export function scientistsResponse(bridge: ParliamentPromptBridge, branchIndex: number, card: CardName): InputResponse | undefined {
-  const entry = bridge.actions['scientists-lab'];
+/**
+ * «A RESOURCE ONTO ONE OF YOUR CARDS» — the kind's branch + the target card, one submit, inside the menu branch the
+ * prompt stands in. ONE answer for every action of that shape (the server's one builder, `resourceToOwnCardChoice`):
+ * the Scientists' party action (`bridge.actions['scientists-lab']`) and a law that asks the same (Manufacturing Run RX37
+ * — `bridge.resolutionAction`). Byte-identical to the historical radio UI.
+ */
+export function resourceToCardResponse(entry: {menuIndex: number, model: PlayerInputModel} | undefined, branchIndex: number, card: CardName): InputResponse | undefined {
   if (entry === undefined || entry.model.type !== 'or') {
     return undefined;
   }

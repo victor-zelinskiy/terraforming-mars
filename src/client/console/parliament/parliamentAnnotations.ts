@@ -29,6 +29,7 @@
  * Everything the panel prints is an English i18n key; a name that reaches a
  * row as a PARAM is a display string and is translated HERE.
  */
+import {actionUsesRule} from './actionUsesReading';
 import {CardAnnotation, CardAnnotationKind} from '@/client/components/cardAnnotations/annotationModel';
 import {ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {IClientPartyEffect} from '@/common/parliament/IClientResolution';
@@ -284,7 +285,11 @@ export function resolutionAnnotations(
     out.push(block('group:effect', 'effect', 'Resolution effect', [text.passive], 2));
   }
   if (text.action !== undefined) {
-    out.push(block('group:action', 'action', 'Resolution action', [text.action], 3));
+    // HOW MANY TIMES (Manufacturing Run RX37): the declared count with its threshold, under the sentence — the ONE
+    // reading of the manifest's `actionUses` (a law taken once a generation adds nothing here).
+    const uses = actionUsesRule(resolution.actionUses);
+    out.push(block('group:action', 'action', 'Resolution action',
+      uses === undefined ? [text.action] : [text.action, {text: uses.label, params: uses.params ?? []}], 3));
   }
   // FOR YOU — WHERE THE VIEWER'S NUMBER COMES FROM: the counted cards behind
   // their reading (the footer shows «2 + 2 → +4»; this names the 2). The

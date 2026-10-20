@@ -131,6 +131,24 @@ describe('voteInfoModel — the reading', () => {
     expect(voteReadingOf(shipped(DEV_PASSIVE), model([seat(3)]), RED, []).kicker).eq(READING_KICKER_SPECTATOR);
   });
 
+  it('A LAW TAKEN MORE THAN ONCE (RX37) reads its count under the quiet kicker — the rule, the seat\'s own count below / on the line, the win\'s forecast where the Agenda step lifts it; another seat\'s reading keeps the rule alone', () => {
+    const run = shipped('RDX_INDUSTRIALISTS_MANUFACTURING_RUN');
+    expect(influenceAtAgenda(2), 'agenda 2 reads influence 1').eq(1);
+    expect(influenceAtAgenda(3), 'the next step is an influence step').eq(2);
+    const below = voteReadingOf(run, model([seat(2)]), BLUE, []);
+    expect(below.kicker).eq(QUIET_REWARD_KICKER.action);
+    expect(below.uses?.rule).deep.eq({label: '${0} times a generation · ${1} with influence ${2}+', params: ['2', '3', '2']});
+    expect(below.uses?.seat).deep.eq({label: 'For you: ${0} times · ${1} more influence for ${2}', params: ['2', '1', '3']});
+    expect([below.uses?.uses, below.uses?.usesIfWin]).deep.eq([2, 3]);
+    const on = voteReadingOf(run, model([seat(3)]), BLUE, []);
+    expect(on.uses?.seat).deep.eq({label: 'For you: ${0} times a generation', params: ['3']});
+    expect(on.uses?.ifWin, 'already on the line — nothing to forecast').is.undefined;
+    const rival = voteReadingOf(run, model([seat(2)]), BLUE, [], {name: 'Bob'});
+    expect(rival.uses?.rule).is.not.undefined;
+    expect(rival.uses?.seat, 'another seat\'s count is not printed in the second person').is.undefined;
+    expect(voteReadingOf(shipped(DEV_ACTION), model([seat(3)]), BLUE, []).uses, 'a law taken once prints no count').is.undefined;
+  });
+
   it('the honest note is the server\'s own compact reason when no card of the viewer can hold the payout', () => {
     const reading = voteReadingOf(shipped(AQUIFER), model([seat(3)]), BLUE, []);
     expect(reading.note).eq('No card can hold animals');

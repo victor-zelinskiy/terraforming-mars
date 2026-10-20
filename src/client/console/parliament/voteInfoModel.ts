@@ -29,7 +29,7 @@
 import type {StagedReceipt} from '@/client/console/stagedPlay';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
-import {ParliamentModel} from '@/common/models/ParliamentModel';
+import {ParliamentModel, seatEnacts} from '@/common/models/ParliamentModel';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {PARLIAMENT_MAX_POPULAR_SUPPORT, ReduxParty} from '@/common/parliament/ParliamentTypes';
@@ -47,6 +47,7 @@ import {COLONY_TRACK_SUMMARY_KEY} from './colonyTrackModel';
 import {colonyLedgerEmptyKey, COLONY_LEDGER_TOTAL, ColonyLedgerReading, colonyLedgerOf} from './colonyLedgerModel';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from './partyReactionModel';
 import {quietRewardPoseOf} from './quietRewardPose';
+import {ActionUsesReading, actionUsesReadingOf} from './actionUsesReading';
 import {TileGrantReading, tileGrantCaptionOf, tileGrantDetailOf, tileGrantLabelKey, tileGrantReadingOf} from './tileGrantModel';
 
 /**
@@ -145,6 +146,12 @@ export type VoteReadingVm = {
    * never enters the net. Undefined for every other resolution.
    */
   removal?: TileRemovalDeclaration;
+  /**
+   * HOW MANY TIMES THE LAW'S ACTION IS TAKEN (Manufacturing Run RX37): the printed count and its threshold, the
+   * seat's own count at its influence, and the win's forecast where the Agenda step lifts it over the line — the ONE
+   * reading of the manifest's `actionUses` (`actionUsesReading.ts`). Undefined for a law taken once a generation.
+   */
+  uses?: ActionUsesReading;
 };
 
 /** One side of a fact: a translatable key with params, or a RAW display string (a player's name), optionally with the leader's cube. */
@@ -328,7 +335,8 @@ export function voteReadingOf(
     // Nothing to pay at the enactment: a passive / an action reads under the quiet reward's kicker
     // (what the card gives while enacted); a card with neither keeps the spectator's plain heading.
     const quiet = quietRewardPoseOf(resolution);
-    return quiet === undefined ? none : {...none, kicker: quiet.kicker};
+    const uses = usesReadingOf(resolution, model, subject, rival !== undefined);
+    return quiet === undefined ? none : {...none, kicker: quiet.kicker, ...(uses === undefined ? {} : {uses})};
   }
   let note: string | undefined;
   for (const effect of resolution.scaled ?? []) {
@@ -347,6 +355,7 @@ export function voteReadingOf(
   note = note ?? levelLossNoteOf(yields);
   const tracks = resolution.trackAdvance;
   const removal = resolution.tileRemoval;
+  const uses = usesReadingOf(resolution, model, subject, rival !== undefined);
   return {
     ...seated,
     yields,
@@ -359,7 +368,19 @@ export function voteReadingOf(
     ...(grant === undefined ? {} : {grant}),
     ...(tracks === undefined ? {} : {tracks}),
     ...(removal === undefined ? {} : {removal}),
+    ...(uses === undefined ? {} : {uses}),
   };
+}
+
+/**
+ * The law's count of uses for the reading's subject — the rule for everyone; the seat's own count and the win's
+ * forecast only on the viewer's own reading (another seat's line would need a third person of its own, and the
+ * rule already says what it is for anybody).
+ */
+function usesReadingOf(resolution: IClientResolution, model: ParliamentModel | undefined, subject: Color | undefined, rival: boolean): ActionUsesReading | undefined {
+  const seat = rival || subject === undefined ? undefined : model?.players.find((p) => p.color === subject);
+  const seated = seat !== undefined && seatEnacts(seat) ? {influence: seat.influence, agenda: seat.agenda} : undefined;
+  return actionUsesReadingOf(resolution.actionUses, seated, true);
 }
 
 // ── THE FACTS ────────────────────────────────────────────────────────────────

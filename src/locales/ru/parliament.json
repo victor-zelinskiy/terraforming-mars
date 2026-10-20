@@ -1303,5 +1303,11 @@
   "Add 2 floaters, 1 fighter or 1 mech to one of your cards.": "Добавьте 2 аэростата, 1 истребитель или 1 мех на одну свою карту.",
   "Add 2 floaters, 1 fighter or 1 mech to a card": "Добавьте 2 аэростата, 1 истребитель или 1 мех на карту",
   "No card of yours can hold floaters, fighters or mechs": "Ни одна ваша карта не хранит аэростаты, истребители или мехов",
-  "This resolution action was already used ${0} of ${1} times this generation": "Действие этой резолюции в этом поколении уже использовано: ${0} из ${1}"
+  "This resolution action was already used ${0} of ${1} times this generation": "Действие этой резолюции в этом поколении уже использовано: ${0} из ${1}",
+  "How many times": "Сколько раз",
+  "${0} times a generation · ${1} with influence ${2}+": "${0} раза за поколение · ${1} при влиянии ${2}+",
+  "For you: ${0} times a generation": "Для вас: ${0} раза за поколение",
+  "For you: ${0} times · ${1} more influence for ${2}": "Для вас: ${0} раза · ещё ${1} влияния — и будет ${2}",
+  "If you win: ${0} times a generation": "Если победите: ${0} раза за поколение",
+  "${0} times a generation · ${1} left": "${0} раза за поколение · осталось ${1}"
 }

@@ -221,13 +221,22 @@ function capsulePoint(card: CardName): TransferPoint | undefined {
   return r !== undefined && r.width > 2 ? {x: r.left + r.width / 2, y: r.top + r.height / 2} : undefined;
 }
 
+/**
+ * A card standing in a row of the action workspace's composer — the card action's (`.con-composer`) or the
+ * parliament's (`.con-pact`: the Scientists' party action and Manufacturing Run's law put a resource on the card the
+ * player chose in their «КАРТА-ЦЕЛЬ» row — PL-427, the class the TR53 director closes for every composer).
+ */
+function composerCardSelector(esc: string): string {
+  return `.con-cardactions .con-composer [data-composer-card="${esc}"], .con-cardactions .con-pact [data-composer-card="${esc}"]`;
+}
+
 /** A card standing in one of the composer's rows (a spend's chosen SOURCE, a reward's chosen TARGET) — its own capsule, else its face. */
 function composerCardPoint(card: CardName): TransferPoint | undefined {
   if (typeof document === 'undefined') {
     return undefined;
   }
   const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card.replace(/"/g, '\\"');
-  const face = document.querySelector<HTMLElement>(`.con-cardactions .con-composer [data-composer-card="${esc}"]`);
+  const face = document.querySelector<HTMLElement>(composerCardSelector(esc));
   for (const el of [face?.querySelector<HTMLElement>('.pcard__res'), face]) {
     const r = el?.getBoundingClientRect();
     if (r !== undefined && r.width > 2 && r.height > 2) {
@@ -248,7 +257,7 @@ function presentComposerCard(card: CardName, on: boolean): void {
     return;
   }
   const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card.replace(/"/g, '\\"');
-  const el = document.querySelector<HTMLElement>(`.con-cardactions .con-composer [data-composer-card="${esc}"]`);
+  const el = document.querySelector<HTMLElement>(composerCardSelector(esc));
   if (el === null) {
     return;
   }

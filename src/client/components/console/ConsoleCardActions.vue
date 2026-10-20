@@ -646,6 +646,8 @@ export default defineComponent({
        * the token's destination. The rail half's `ended` count at the confirm (undefined = nothing waits).
        */
       pendingAfterRail: undefined as number | undefined,
+      /** A party / law flow whose token still flies to the chosen card's miniature — its conclusion waits for the half's end (`ended` at the answer). */
+      concludeAfterRail: undefined as number | undefined,
       /**
        * THE PREVIEW THE COMMITTED ACTION WAS COMPOSED AGAINST — latched at the
        * submit, keyed by the variant it belongs to, released when the stage
@@ -1390,6 +1392,11 @@ export default defineComponent({
   watch: {
     /** The rail half ended (every way out): a pending outcome that waited for the row's landing opens now. */
     railHalvesEnded(n: number): void {
+      // The party / law flow that waited for its token to land (PL-427) ends now.
+      if (this.concludeAfterRail !== undefined && n > this.concludeAfterRail) {
+        this.concludeAfterRail = undefined;
+        void this.$nextTick(() => this.concludeFlow());
+      }
       if (this.pendingAfterRail !== undefined && n > this.pendingAfterRail) {
         this.pendingAfterRail = undefined;
         // Only while THIS workspace's draw claim still stands — a refused commit released it, and an ended half then
@@ -1580,6 +1587,13 @@ export default defineComponent({
         // touchdown — the scene still has its story to tell here, and its own `closing` folds the workspace (the shell's
         // owed fold). Concluding now would tear the receiving stage out from under the card.
         if (lawPlayLandingOf(this.composer?.resolution) !== undefined) {
+          return;
+        }
+        // A RESOURCE ONTO THE CARD THE PLAYER CHOSE (the Scientists, Manufacturing Run RX37 — PL-427): its token is
+        // still flying to that card's miniature IN this stage (the commit's rail half, seeded in the apply block). The
+        // flow ends once the half is over — every way out bumps `ended` — never under the token.
+        if (this.composer?.party !== undefined && actionCommitRailState.phase !== 'idle') {
+          this.concludeAfterRail = actionCommitRailState.ended;
           return;
         }
         void this.$nextTick(() => this.concludeFlow());

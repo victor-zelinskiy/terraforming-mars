@@ -86,7 +86,7 @@
                 <div class="con-parl__info-own-body">
                   <!-- («Зал» v7, Ф4: the card's PRINTED graphic is on the bill itself, a size up right above this
                        plate — the reading no longer repeats it; the formula → number plate alone is the reading.) -->
-                  <div v-if="voteInfo.reading.yields.length > 0 || voteInfo.reading.grant !== undefined || voteLedger.length > 0" class="con-parl__info-readings" data-parl-vote-late>
+                  <div v-if="voteInfo.reading.yields.length > 0 || voteInfo.reading.grant !== undefined || voteInfo.reading.uses !== undefined || voteLedger.length > 0" class="con-parl__info-readings" data-parl-vote-late>
                     <ConsoleInfluenceYield v-if="voteInfo.reading.yields.length > 0"
                                            class="con-parl__info-yield"
                                            :yields="voteInfo.reading.yields"
@@ -112,6 +112,15 @@
                           :data-parl-vote-tracks-steps="voteInfo.reading.tracks.steps">
                       <i class="con-parl__info-tracks-icon" aria-hidden="true"></i>
                       <span>{{ tracksLabel(voteInfo.reading.tracks.steps) }}</span>
+                    </span>
+                    <!-- HOW MANY TIMES THE ACTION IS TAKEN (Manufacturing Run RX37): the printed count with its
+                         threshold, then the seat's own count — on the line or how far below it — and the win's
+                         forecast where the Agenda step lifts it over the line. One reading of the declaration. -->
+                    <span v-if="voteInfo.reading.uses !== undefined" class="con-parl__info-uses" data-parl-vote-uses
+                          :data-parl-vote-uses-now="voteInfo.reading.uses.uses" :data-parl-vote-uses-win="voteInfo.reading.uses.usesIfWin">
+                      <span class="con-parl__info-uses-rule" data-parl-vote-uses-rule>{{ line(voteInfo.reading.uses.rule) }}</span>
+                      <b v-if="voteInfo.reading.uses.seat !== undefined" class="con-parl__info-uses-seat" data-parl-vote-uses-seat>{{ line(voteInfo.reading.uses.seat) }}</b>
+                      <span v-if="voteInfo.reading.uses.ifWin !== undefined" class="con-parl__info-uses-win" data-parl-vote-uses-ifwin>{{ line(voteInfo.reading.uses.ifWin) }}</span>
                     </span>
                     <!-- THE COLONY LEDGER (Colonial Affairs): the tiles the «×k» above multiplies — the
                          SERVER's registry, one row per tile, the sums; «no colonies» in words. -->
@@ -297,6 +306,7 @@ import {translateMessage, translateText, translateTextWithParams} from '@/client
 import {COLONY_TRACK_SUMMARY_KEY} from '@/client/console/parliament/colonyTrackModel';
 import {TILE_REMOVAL_COST_NOTE_KEY, TILE_REMOVAL_SUMMARY_KEY} from '@/client/console/parliament/tileRemovalModel';
 import {offTurnReason} from '@/client/console/offTurnReason';
+import {Reading, readingText} from '@/client/console/readingText';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {StagedReceipt} from '@/client/console/stagedPlay';
 import {afterCommitImpulse} from '@/client/console/consoleActionCommit';
@@ -757,6 +767,10 @@ export default defineComponent({
       });
     },
     /** «Все треки колоний +2» — the colony table's one line (Unity Budget). */
+    /** A reading line with its params — the ONE renderer (PL-160). */
+    line(reading: Reading): string {
+      return readingText(reading);
+    },
     tracksLabel(steps: number): string {
       return translateTextWithParams(COLONY_TRACK_SUMMARY_KEY, [String(steps)]);
     },

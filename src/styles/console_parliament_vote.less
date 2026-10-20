@@ -347,6 +347,15 @@
         display: inline-flex; align-items: center; gap: .3rem; max-width: 100%; min-width: 0;
         font-family: @con-font-read; font-size: .74rem; letter-spacing: .02em; opacity: .9; white-space: nowrap;
     }
+    /* HOW MANY TIMES (RX37): the rule quiet, the seat's own count the line's voice, the win a step brighter —
+       one wrapping run of tracked words, never a table. */
+    &__info-uses {
+        display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: .15rem .55rem; max-width: 100%; min-width: 0;
+        font-family: @con-font-read; font-size: .74rem; letter-spacing: .02em;
+    }
+    &__info-uses-rule { opacity: .78; }
+    &__info-uses-seat { font-weight: 700; color: #e9f6ff; }
+    &__info-uses-win { color: #8ff0c6; font-weight: 600; }
     &__info-tracks-icon {
         display: inline-block; width: 1.05rem; height: .78rem; flex-shrink: 0; border-radius: .16rem;
         background: linear-gradient(90deg, rgba(120, 200, 255, 0.85) 0 34%, rgba(20, 32, 48, 0.9) 34% 100%);

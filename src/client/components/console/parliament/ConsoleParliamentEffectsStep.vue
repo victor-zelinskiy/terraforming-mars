@@ -33,7 +33,7 @@
           </div>
           <p v-if="entry.rule !== ''" class="con-parl-fx__rule">{{ $t(entry.rule) }}</p>
           <footer class="con-parl-fx__foot">
-            <span class="con-parl-fx__cadence">{{ cadenceOf(entry.usesPerGeneration) }}</span>
+            <span class="con-parl-fx__cadence" :data-parl-fx-uses="entry.usesPerGeneration">{{ cadenceOf(entry.usesPerGeneration, entry.usesLeft) }}</span>
             <span class="con-parl-fx__state" :class="'con-parl-fx__state--' + entry.state" :data-parl-effects-action="entry.state">
               {{ $t(entry.state === 'used' ? 'action used' : entry.state === 'ready' ? 'action available' : 'action not now') }}
             </span>
@@ -108,8 +108,14 @@ export default defineComponent({
     nameOf(entry: EffectsStepEntry): string {
       return translateText(entry.kind === 'party' ? partyNameKey(entry.party) : entry.name);
     },
-    cadenceOf(uses: number): string {
-      return uses > 1 ? translateTextWithParams('${0} times a generation', [String(uses)]) : translateText('once a generation');
+    cadenceOf(uses: number, left?: number): string {
+      if (uses <= 1) {
+        return translateText('once a generation');
+      }
+      // A law taken more than once (RX37) reads what is still left once a use is spent — words, never a colour.
+      return left !== undefined && left > 0 && left < uses ?
+        translateTextWithParams('${0} times a generation · ${1} left', [String(uses), String(left)]) :
+        translateTextWithParams('${0} times a generation', [String(uses)]);
     },
     readingOf(reading: EffectWhyReading): string {
       return reading.params.length === 0 ? translateText(reading.key) : translateTextWithParams(reading.key, reading.params.map((p) => translateText(p)));

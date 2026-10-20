@@ -199,7 +199,21 @@
     &__playslot-cost { display: inline-flex; align-items: center; gap: .3rem; }
     &__playslot-eased { font-size: .78rem; font-weight: 700; color: @con-parl-mint; }
     &__playtotal { font-size: .92rem; font-weight: 700; font-variant-numeric: tabular-nums; color: @con-text; }
-    &__card-face { zoom: var(--con-pact-card-zoom); }
+    &__card-face {
+        display: block;
+        zoom: var(--con-pact-card-zoom);
+        /* THE MINIATURE RECEIVES (PL-427 — the TR53 director's composer host, `consoleActionCommitRail.presentComposerCard`):
+           lifted around its own CAPSULE (the face's lower left) while the token flies, ringed in the gain's mint, settled
+           after the read. An ATTRIBUTE, never a class: the button's `:class` rewrites `className` on every re-render.
+           Transform + box-shadow only. */
+        transform-origin: 16% 90%;
+        transition: transform calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
+        > * { border-radius: .5rem; transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease; }
+        &[data-receiving] {
+            transform: scale(1.14);
+            > * { box-shadow: 0 0 0 .5rem fade(@con-mint, 85%), 0 0 3.2rem fade(@con-mint, 38%); }
+        }
+    }
     &__card-delta { display: inline-flex; align-items: center; gap: .3rem; font-size: .74rem; b { font-variant-numeric: tabular-nums; } em { font-style: normal; font-size: .62rem; color: @con-parl-gold; } }
     &__none { font-size: .74rem; opacity: .6; }
     /* THE REDS' SEQUENCE — three steps as graphics. */

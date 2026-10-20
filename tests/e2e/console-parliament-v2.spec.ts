@@ -1087,7 +1087,7 @@ test.describe('parliament v4 · one execution point, two doors · the Reds in fu
     expect(await pressUntil(page, 'Enter', async () => await pact(page, 'scientists').count() > 0, {tries: 3, settleMs: 1200})).toBeTruthy();
     await settle(page, {timeoutMs: 8_000});
     expect((await crumbText(page)).toUpperCase()).toContain('ПАРЛАМЕНТ');
-    await press(page, 'Enter', 500);
+    // One kind held — the variant is seeded, the cursor opens on the card (RX37's form); one press picks the card.
     await press(page, 'Enter', 500);
     await expect(page.locator('.con-pact__opts .con-vchoice__opt--selected, .con-pact__card--picked')).toHaveCount(2);
     await shoot(page, preset, '42-scientists-from-parliament');

@@ -186,7 +186,7 @@
         <!-- THE RESOLUTION'S STAGE BETWEEN STEPS: the pick was refused or
              taken back and nothing is in flight — the rule stands, B returns.
              (A pick that is still to open sees this for one flush only.) -->
-        <div v-else-if="kind === 'resolution' && repeatPrompt === undefined && confirmPrompt === undefined && !playForm" class="con-pact__surface" data-unfold-surface>
+        <div v-else-if="kind === 'resolution' && repeatPrompt === undefined && confirmPrompt === undefined && !playForm && !resourceForm" class="con-pact__surface" data-unfold-surface>
           <p class="con-pact__rule" data-unfold-item>{{ ruleText }}</p>
           <p v-if="refusal !== ''" class="con-pact__warn" data-unfold-item>{{ refusal }}</p>
         </div>
@@ -229,8 +229,11 @@
             </div>
           </template>
 
-          <!-- SCIENTISTS — the resource, then the card it lands on. -->
-          <template v-else-if="kind === 'scientists'">
+          <!-- «A RESOURCE ONTO ONE OF YOUR CARDS» — the resource, then the card it lands on. Read off the PROMPT's
+               shape (`resourceForm`), never the party: the Scientists' action and a LAW that asks the same thing
+               (Manufacturing Run RX37 — 2 floaters OR a fighter OR a mech) are one form, one markup, one answer. -->
+          <template v-else-if="resourceForm">
+            <p v-if="kind === 'resolution'" class="con-pact__rule" data-unfold-item>{{ ruleText }}</p>
             <div class="con-pact__row" data-unfold-item data-pact-row="0"
                  :class="{'con-pact__row--focus': cursorRow === 0, 'con-pact__row--answered': picks[0] !== undefined, 'con-pact__row--open': picks[0] === undefined}">
               <span class="con-pact__row-head">
@@ -238,11 +241,11 @@
                 <span class="con-pact__row-kicker">{{ $t('Resource') }}</span>
               </span>
               <!-- The resource — the variant grammar (`ConsoleVariantChoice`, TR51): two exclusive results, «ИЛИ» between. -->
-              <ConsoleVariantChoice class="con-pact__opts con-pact__opts--res" :options="scientistsOptions" :label="$t('Resource')"
+              <ConsoleVariantChoice class="con-pact__opts con-pact__opts--res" :options="resourceOptions" :label="$t('Resource')"
                                     @pick="pickAt(0, $event)">
                 <template #body="{index}">
-                  <i class="con-pact__res-icon" :class="iconClass(scientistsBranches[index].icon)" aria-hidden="true"></i>
-                  <b class="con-pact__opt-amount">+{{ scientistsBranches[index].amount }}</b>
+                  <i class="con-pact__res-icon" :class="iconClass(resourceBranches[index].icon)" aria-hidden="true"></i>
+                  <b class="con-pact__opt-amount">+{{ resourceBranches[index].amount }}</b>
                 </template>
               </ConsoleVariantChoice>
             </div>
@@ -252,20 +255,24 @@
                 <span class="con-pact__row-mark" aria-hidden="true">{{ picks[1] !== undefined ? '✓' : '2' }}</span>
                 <span class="con-pact__row-kicker">{{ $t('Target card') }}</span>
               </span>
-              <div class="con-pact__cards" :data-pact-cards="scientistsTargets.length">
-                <button v-for="(target, i) in scientistsTargets" :key="target.card.name" type="button" class="con-pact__card"
+              <div class="con-pact__cards" :data-pact-cards="resourceTargets.length">
+                <button v-for="(target, i) in resourceTargets" :key="target.card.name" type="button" class="con-pact__card"
                         :class="{'con-pact__card--cursor': cursorRow === 1 && cursor[1] === i, 'con-pact__card--picked': picks[1] === i}"
                         :data-pact-card="target.card.name"
                         :data-zoom-slot="target.card.name"
                         @click="pickAt(1, i)">
-                  <ConsoleCardFaceLite class="con-pact__card-face" :name="target.card.name" :card="target.card" :lightweight="true" />
+                  <!-- `data-composer-card`: the miniature IS the card on this surface — the commit's token lands HERE
+                       (the TR53 director's composer host: lifted while its token flies, read, settled — PL-427). -->
+                  <span class="con-pact__card-face" :data-composer-card="target.card.name">
+                    <ConsoleCardFaceLite :name="target.card.name" :card="target.card" :lightweight="true" />
+                  </span>
                   <span class="con-pact__card-delta">
                     <i class="con-pact__res-icon con-pact__res-icon--sm" :class="iconClass(target.icon)" aria-hidden="true"></i>
                     <b>{{ target.from }} → {{ target.to }}</b>
                     <em v-if="target.vp !== undefined">{{ $t('VP') }} {{ target.vp.from }} → {{ target.vp.to }}</em>
                   </span>
                 </button>
-                <span v-if="scientistsTargets.length === 0" class="con-pact__none">{{ $t('Choose the resource first') }}</span>
+                <span v-if="resourceTargets.length === 0" class="con-pact__none">{{ $t('Choose the resource first') }}</span>
               </div>
             </div>
           </template>
@@ -473,7 +480,7 @@ import {translateMessage, translateText, translateTextWithParams} from '@/client
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {
   industrialistsResponse, parliamentPromptBridge, ParliamentPromptBridge, redsResponse, resolutionActionConfirmResponse, resolutionActionResponse,
-  resolutionBillOf, resolutionPlayOf, scientistsResponse,
+  resolutionBillOf, resolutionPlayOf, resourceToCardResponse,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {partyTileKey, resolutionTileKey} from '@/client/console/parliament/partyActionKey';
 import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
@@ -494,7 +501,7 @@ import {
   markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeArrivalFlown, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting,
   rearmWorkspaceOutcomeBeat, retractWorkspaceOutcomeSlot, setWorkspaceOutcomeSlot, workspaceClaimsDrawReveal, workspaceOutcomeBeatPending, workspaceOutcomeState,
 } from '@/client/console/consoleWorkspaceOutcome';
-import {ActionCommitKind, actionCommitState, armActionCommit, markActionCommitSettled} from '@/client/console/consoleActionCommit';
+import {ActionCommitKind, ActionCommitRail, actionCommitRailKey, actionCommitState, armActionCommit, markActionCommitSettled} from '@/client/console/consoleActionCommit';
 import {
   ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconOrigins, runActionCommitMotion,
 } from '@/client/console/consoleActionCommitMotion';
@@ -506,6 +513,7 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {ParliamentBeat, scheduleParliamentBeat} from '@/client/console/parliament/parliamentBeat';
 import {armOutcomeOrigin, playConfigRelease, playOutcomeContent, playOutcomePhase, resetOutcomeOrigin} from '@/client/console/consoleActionOutcomeMotion';
 import {mergeTransferSpecs, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {heldCardCapsule} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
 import {ConsolePlayPickResult, enterConsolePlayPick, lawPlayLandingOf} from '@/client/console/consolePlayPick';
@@ -568,8 +576,11 @@ export function partyComposerKind(party: ReduxParty): PartyComposerKind {
 
 type IndustrialistsRow = {label: string, emptyKey: string, items: ReadonlyArray<ConsoleOrItem>};
 type GroupNode = ActionGroup['nodes'][number];
-type ScientistsBranch = {icon: string, amount: number, model: SelectCardModel};
-type ScientistsTarget = {card: CardModel, icon: string, from: number, to: number, vp: VictoryPointsDelta | undefined};
+type ResourceBranch = {icon: string, amount: number, model: SelectCardModel};
+type ResourceTarget = {card: CardModel, icon: string, from: number, to: number, vp: VictoryPointsDelta | undefined};
+
+/** The rail half of a «resource onto a card» commit, before its origins are measured. */
+type ResourceRail = Omit<ActionCommitRail, 'origins' | 'ring'>;
 
 const ACTION_ID_OF: Partial<Record<ReduxParty, PartyActionId>> = {
   [PartyName.INDUSTRIALISTS]: 'industrialists-shift',
@@ -634,6 +645,12 @@ export default defineComponent({
       /** The law's repeat, as the SHARED pick bridge resolved it (the chosen
        *  action + its composed pre-selects). Undefined = the slot is empty. */
       repeatResult: undefined as ConsoleRepeatPickResult | undefined,
+      /**
+       * THE «RESOURCE ONTO A CARD» FORM AS COMMITTED (PL-427): the branches the press was made over. The live menu
+       * moves on with the answer (the Scientists' action leaves it, a law's second use is a fresh prompt) while the
+       * token is still flying to the chosen card's miniature — the rows stand on this snapshot until the flow ends.
+       */
+      resourceSnapshot: undefined as ReadonlyArray<ResourceBranch> | undefined,
       /** The law's PLAY (RX36), as the play pick resolved it — the card, its payment and its answers. Undefined = the slot is empty. */
       playResult: undefined as ConsolePlayPickResult | undefined,
       /** The law's card has LANDED here (PL-726): the stage keeps its tableau until the workspace leaves. */
@@ -944,38 +961,70 @@ export default defineComponent({
       }
       return [dec, inc];
     },
-    /** The Scientists' resource in the variant grammar — the cursor, the pick (the seal), never refused (a holder exists). */
-    scientistsOptions(): ReadonlyArray<VariantChoiceOption> {
-      return this.scientistsBranches.map((_branch, i): VariantChoiceOption => ({
+    /**
+     * THE FORM «A RESOURCE ONTO ONE OF YOUR CARDS» — read off the PROMPT's shape, never the party (Manufacturing Run
+     * RX37 asks what the Scientists' action asks): an `or` whose every branch is a card pick marked
+     * `resourceGainPrompt` (the server's one builder, `resourceToOwnCardChoice`). The Scientists are always it; a
+     * committed form stays it while its snapshot stands (the live menu may already have moved on).
+     */
+    resourceForm(): boolean {
+      if (this.kind === 'scientists') {
+        return true;
+      }
+      if (this.kind !== 'resolution') {
+        return false;
+      }
+      if (this.resourceSnapshot !== undefined) {
+        return true;
+      }
+      const model = this.entry?.model;
+      return model !== undefined && model.type === 'or' && model.options.length > 0 &&
+        model.options.every((o) => o.type === 'card' && (o as SelectCardModel).resourceGainPrompt !== undefined);
+    },
+    /** The resource in the variant grammar — the cursor, the pick (the seal), never refused (a holder exists). */
+    resourceOptions(): ReadonlyArray<VariantChoiceOption> {
+      return this.resourceBranches.map((_branch, i): VariantChoiceOption => ({
         key: 'res#' + i,
         state: {focused: this.cursorRow === 0 && this.cursor[0] === i, selected: this.picks[0] === i, off: false},
         title: '',
         attrs: {'data-pact-opt': String(i)},
       }));
     },
-    scientistsBranches(): ReadonlyArray<ScientistsBranch> {
+    resourceBranches(): ReadonlyArray<ResourceBranch> {
+      if (this.resourceSnapshot !== undefined) {
+        return this.resourceSnapshot;
+      }
       const entry = this.entry;
-      if (this.kind !== 'scientists' || entry === undefined || entry.model.type !== 'or') {
+      if (!this.resourceForm || entry === undefined || entry.model.type !== 'or') {
         return [];
       }
       return entry.model.options
         .filter((o): o is SelectCardModel => o.type === 'card')
         .map((model) => ({icon: model.resourceGainPrompt?.cardResource ?? 'resources', amount: model.resourceGainPrompt?.amount ?? 2, model}));
     },
-    scientistsTargets(): ReadonlyArray<ScientistsTarget> {
+    /**
+     * The holders of the chosen kind, each with the decision's reading (`current → resulting`, the VP box — the
+     * prompt's numbers, frozen with the form) and a FACE that reads the LIVE counter less what a token still in the
+     * air holds (`heldCardCapsule`): the capsule ticks on the touchdown, never with the commit.
+     */
+    resourceTargets(): ReadonlyArray<ResourceTarget> {
       const pick = this.picks[0] ?? this.cursor[0];
-      const branch = this.scientistsBranches[pick];
+      const branch = this.resourceBranches[pick];
       if (branch === undefined) {
         return [];
       }
       const amount = branch.model.resourceGainPrompt?.amount ?? 2;
-      return branch.model.cards.map((card) => ({
-        card,
-        icon: branch.icon,
-        from: card.resources ?? 0,
-        to: (card.resources ?? 0) + amount,
-        vp: branch.model.resourceGainPrompt?.vpBox?.[card.name],
-      }));
+      const tableau = this.playerView.thisPlayer.tableau;
+      return branch.model.cards.map((card) => {
+        const live = tableau.find((c) => c.name === card.name)?.resources ?? card.resources ?? 0;
+        return {
+          card: {...card, resources: Math.max(0, live - heldCardCapsule(card.name))},
+          icon: branch.icon,
+          from: card.resources ?? 0,
+          to: (card.resources ?? 0) + amount,
+          vp: branch.model.resourceGainPrompt?.vpBox?.[card.name],
+        };
+      });
     },
     /**
      * THE LAW'S REPEAT PROMPT — the nested `SelectCard` asking WHICH already-used
@@ -1027,9 +1076,11 @@ export default defineComponent({
     },
     /** The rows before the commit row. */
     decisionRows(): number {
+      if (this.resourceForm) {
+        return 2;
+      }
       switch (this.kind) {
       case 'industrialists': return 2;
-      case 'scientists': return 2;
       case 'resolution': return this.repeatPrompt !== undefined || this.playForm ? 1 : 0;
       default: return 0;
       }
@@ -1039,9 +1090,11 @@ export default defineComponent({
     },
     rowLength(): (row: number) => number {
       return (row: number): number => {
+        if (this.resourceForm) {
+          return row === 0 ? this.resourceBranches.length : this.resourceTargets.length;
+        }
         switch (this.kind) {
         case 'industrialists': return this.industrialistsRows[row]?.items.length ?? 0;
-        case 'scientists': return row === 0 ? this.scientistsBranches.length : this.scientistsTargets.length;
         // The law's row is a DOOR, not a list: left/right have nowhere to go,
         // and A opens the shared pick (see `rowOpensPick`).
         case 'resolution': return 0;
@@ -1053,9 +1106,11 @@ export default defineComponent({
       if (this.entry === undefined) {
         return false;
       }
+      if (this.resourceForm) {
+        return this.picks[0] !== undefined && this.picks[1] !== undefined;
+      }
       switch (this.kind) {
       case 'industrialists': return this.picks[0] !== undefined && this.picks[1] !== undefined;
-      case 'scientists': return this.picks[0] !== undefined && this.picks[1] !== undefined;
       case 'reds': return true;
       case 'resolution':
         // A repeat and a play need their slot filled; a confirm is complete by standing.
@@ -1070,9 +1125,11 @@ export default defineComponent({
       }
     },
     ctaLabel(): string {
+      if (this.resourceForm) {
+        return 'Add';
+      }
       switch (this.kind) {
       case 'industrialists': return 'Shift';
-      case 'scientists': return 'Add';
       case 'reds': return 'Draw 2 cards';
       // The law's own verb, as the server wrote it on the prompt («Take action»).
       case 'resolution': return this.tableauLabel;
@@ -1092,10 +1149,12 @@ export default defineComponent({
         // The embedded reveal owns the bar while the batch is on stage.
         return [];
       }
-      if (this.submitting || this.saleLive) {
+      // …and a committed «resource onto a card» stays a STATUS until its token has landed (the answer may already have
+      // put a fresh prompt on the menu — a law's second use — but this press is spent).
+      if (this.submitting || this.saleLive || this.resourceSnapshot !== undefined) {
         return [{control: 'confirm', label: 'Performing…', enabled: false}];
       }
-      if (this.kind === 'resolution' && this.repeatPrompt === undefined && this.confirmPrompt === undefined) {
+      if (this.kind === 'resolution' && this.repeatPrompt === undefined && this.confirmPrompt === undefined && !this.resourceForm) {
         // Between steps (the pick refused or gone): the way back is the only verb.
         return [{control: 'secondary', label: 'Inspect'}, {control: 'back', label: 'Back'}];
       }
@@ -1276,6 +1335,12 @@ export default defineComponent({
     'actionCommitState.abortNonce'() {
       this.commitHandle?.kill();
       this.commitHandle = undefined;
+      // A refused press gives the form back to the live prompt.
+      this.resourceSnapshot = undefined;
+    },
+    /** One kind held → one branch: no decision on the kind, so it is SEEDED (the card is still asked — no auto-select). */
+    'resourceBranches.length'(): void {
+      this.seedSingleBranch();
     },
     /**
      * THE LAW'S SUBMIT WAS GIVEN BACK (refused / lost) with no batch claimed: the
@@ -1310,7 +1375,7 @@ export default defineComponent({
       }
     },
     submitting(now: boolean, was: boolean): void {
-      if (was && !now && this.kind === 'resolution' && this.repeatPrompt === undefined && this.confirmPrompt === undefined &&
+      if (was && !now && this.kind === 'resolution' && this.repeatPrompt === undefined && this.confirmPrompt === undefined && !this.resourceForm &&
           !this.billStanding && !this.outcomeOn && !this.saleLive && !this.pickOpen && !this.playForm && !this.livePlayStanding) {
         void this.$nextTick(() => this.openResolutionPick(this.salePicked));
       }
@@ -1340,7 +1405,8 @@ export default defineComponent({
     this.cursorRow = this.decisionRows === 0 ? this.ctaRow : 0;
     // THE LAW'S FIRST STEP IS THE PICK: the real hand stands up as a step of
     // this stage the moment the stage is on screen.
-    if (this.kind === 'resolution' && this.repeatPrompt === undefined && this.confirmPrompt === undefined && !this.billStanding &&
+    this.seedSingleBranch();
+    if (this.kind === 'resolution' && this.repeatPrompt === undefined && this.confirmPrompt === undefined && !this.resourceForm && !this.billStanding &&
         !this.outcomeOn && !this.saleLive && !this.livePlayStanding && !this.playForm) {
       void this.$nextTick(() => this.openResolutionPick([]));
     }
@@ -1400,7 +1466,7 @@ export default defineComponent({
     },
     /** The host routes every intent here while the stage stands. */
     handleIntent(intent: GamepadIntent): void {
-      if (this.submitting || this.kind === 'unity' || this.handStep || this.billStanding || this.outcomeOn || this.saleLive) {
+      if (this.submitting || this.kind === 'unity' || this.handStep || this.billStanding || this.outcomeOn || this.saleLive || this.resourceSnapshot !== undefined) {
         return;
       }
       if (this.result !== undefined) {
@@ -1409,7 +1475,7 @@ export default defineComponent({
         }
         return;
       }
-      if (this.kind === 'resolution' && this.repeatPrompt === undefined && this.confirmPrompt === undefined) {
+      if (this.kind === 'resolution' && this.repeatPrompt === undefined && this.confirmPrompt === undefined && !this.resourceForm) {
         // The law's decision is somewhere else (the hand's own surface owns
         // the bar) or already gone — only the way back is ours.
         switch (consoleActionOf(intent)) {
@@ -1469,11 +1535,26 @@ export default defineComponent({
       }
       const next = this.cursor[this.cursorRow] + (dir === 'right' ? 1 : -1);
       this.cursor[this.cursorRow] = Math.min(length - 1, Math.max(0, next));
-      // The Scientists' target list follows the resource under the cursor —
+      // The target list follows the resource under the cursor —
       // a pick made against another resource is stale by construction.
-      if (this.kind === 'scientists' && this.cursorRow === 0 && this.picks[0] !== undefined && this.picks[0] !== this.cursor[0]) {
+      if (this.resourceForm && this.cursorRow === 0 && this.picks[0] !== undefined && this.picks[0] !== this.cursor[0]) {
         this.picks[1] = undefined;
         this.cursor[1] = 0;
+      }
+    },
+    /**
+     * ONE KIND, NO DECISION ON THE KIND — the «РЕСУРС» row's only variant is seeded (the variant law: a selection is
+     * seeded only where there is no decision) and the cursor opens on the target row; the CARD is always the player's
+     * own press, even with a single holder.
+     */
+    seedSingleBranch(): void {
+      if (!this.resourceForm || this.resourceBranches.length !== 1 || this.picks[0] !== undefined || this.resourceSnapshot !== undefined) {
+        return;
+      }
+      this.picks[0] = 0;
+      this.cursor[0] = 0;
+      if (this.cursorRow === 0) {
+        this.cursorRow = 1;
       }
     },
     /** A on an option: PICK it (idempotent) and step to the next unanswered row. */
@@ -1482,7 +1563,7 @@ export default defineComponent({
         return;
       }
       this.cursor[row] = index;
-      if (this.kind === 'scientists' && row === 0 && this.picks[0] !== index) {
+      if (this.resourceForm && row === 0 && this.picks[0] !== index) {
         this.picks[1] = undefined;
         this.cursor[1] = 0;
       }
@@ -1503,7 +1584,31 @@ export default defineComponent({
      * Industrialists' raised production rides the rail wave, the Scientists'
      * resources fly to the chosen card, the Reds' draw hands off to the deck.
      */
-    commitPlanFor(): {kind: ActionCommitKind, specs: Array<ResourceTransferSpec>} {
+    commitPlanFor(): {kind: ActionCommitKind, specs: Array<ResourceTransferSpec>, rail?: ResourceRail} {
+      if (this.resourceForm) {
+        // THE RESOURCE LANDS ON THE CARD THE PLAYER CHOSE (PL-427, К-R9): one rail link onto the target row's
+        // miniature — held against the two views, flown by the TR53 director's composer host (the miniature lifts,
+        // the token lands, its capsule ticks, it settles), the workspace standing to the touchdown. Never the shell's
+        // wave: its ladder knows no composer row and landed the token on the ДОП. РЕСУРСЫ satellite under the glass.
+        const branch = this.resourceBranches[this.picks[0] ?? -1];
+        const target = this.resourceTargets[this.picks[1] ?? -1];
+        if (branch === undefined || target === undefined) {
+          return {kind: 'generic', specs: []};
+        }
+        const spec: ResourceTransferSpec = {channel: 'card-resource', resource: branch.icon, amount: branch.amount, targetCard: target.card.name};
+        const vp = target.vp === undefined ? 0 : target.vp.to - target.vp.from;
+        return {
+          kind: 'resources',
+          specs: [],
+          rail: {
+            key: actionCommitRailKey(this.sourceKey as CardName),
+            reward: {cause: [spec], reactions: [], known: {}, ...(vp !== 0 ? {vp: [vp]} : {})},
+            links: [[0]],
+            holdsSurface: true,
+            capsules: [target.card.name],
+          },
+        };
+      }
       switch (this.kind) {
       case 'industrialists': {
         const inc = this.industrialistsRows[1]?.items[this.picks[1] ?? -1];
@@ -1511,14 +1616,6 @@ export default defineComponent({
         const specs: Array<ResourceTransferSpec> = chip !== undefined && chip.note === 'production' ?
           [{channel: 'production', resource: chip.icon, amount: chip.amount}] : [];
         return {kind: specs.length > 0 ? 'resources' : 'generic', specs: mergeTransferSpecs(specs)};
-      }
-      case 'scientists': {
-        const branch = this.scientistsBranches[this.picks[0] ?? -1];
-        const target = this.scientistsTargets[this.picks[1] ?? -1];
-        if (branch === undefined || target === undefined) {
-          return {kind: 'generic', specs: []};
-        }
-        return {kind: 'resources', specs: [{channel: 'card-resource', resource: branch.icon, amount: branch.amount, targetCard: target.card.name}]};
       }
       case 'reds':
         return {kind: 'draw', specs: []};
@@ -1543,7 +1640,11 @@ export default defineComponent({
         return;
       }
       const plan = this.commitPlanFor();
-      this.playCommitBeat(plan.kind, plan.specs, plan.kind === 'draw' ? pulseDeckPile : undefined);
+      this.playCommitBeat(plan.kind, plan.specs, plan.kind === 'draw' ? pulseDeckPile : undefined, plan.rail);
+      if (this.resourceForm) {
+        // The rows stand on what was pressed until the token has landed (the live menu moves on with the answer).
+        this.resourceSnapshot = [...this.resourceBranches];
+      }
       if (this.kind === 'resolution' && this.playForm && this.playResult !== undefined) {
         // THE PLAY RIDES THE LAW'S COMMIT: the host arms the card's landing off the slot it stands in.
         const detail: PartyConfirmDetail = {
@@ -1562,13 +1663,16 @@ export default defineComponent({
       this.$emit('confirm', response);
     },
     /** The universal ACTION COMMIT beat on the hero (the plaque or the law's face), measured now. */
-    playCommitBeat(kind: ActionCommitKind, specs: Array<ResourceTransferSpec>, onHandoff?: () => void): void {
+    playCommitBeat(kind: ActionCommitKind, specs: Array<ResourceTransferSpec>, onHandoff?: () => void, rail?: ResourceRail): void {
       const root = this.$refs.rootEl as HTMLElement | undefined;
       armOutcomeOrigin(root);
       const wrap = root?.querySelector<HTMLElement>('.con-pact__hero') ?? undefined;
       const anchors = wrap !== undefined ? resolveActionCommitAnchors(wrap, undefined) : undefined;
       const origins = anchors !== undefined ? resolveGainIconOrigins(anchors, specs) : specs.map(() => undefined);
       const srcRect = wrap?.getBoundingClientRect();
+      // The rail half's tokens are born on the printed icon of THEIR kind on the source's face, measured now.
+      const railOrigins = rail === undefined ? [] : anchors !== undefined ?
+        resolveGainIconOrigins(anchors, rail.reward.cause) : rail.reward.cause.map(() => undefined);
       armActionCommit({
         sourceCard: this.sourceKey as CardName,
         kind,
@@ -1576,18 +1680,27 @@ export default defineComponent({
         origins,
         sourcePoint: srcRect !== undefined && srcRect.width > 4 ?
           {x: srcRect.left + srcRect.width / 2, y: srcRect.top + srcRect.height * 0.6} : undefined,
+        ...(rail === undefined ? {} : {rail: {...rail, origins: railOrigins}}),
       });
       this.commitHandle = runActionCommitMotion({
         cardWrapEl: wrap,
         ctaEl: root?.querySelector<HTMLElement>('.con-pact__cta') ?? undefined,
         actionNode: undefined,
         kind,
-        firstResource: specs[0]?.resource,
+        firstResource: specs[0]?.resource ?? rail?.reward.cause[0]?.resource,
         onHandoff,
         onSettled: markActionCommitSettled,
       });
     },
     response(): InputResponse | ReadonlyArray<InputResponse> | undefined {
+      if (this.resourceForm) {
+        const branch = this.picks[0];
+        const target = this.resourceTargets[this.picks[1] ?? -1];
+        if (branch === undefined || target === undefined) {
+          return undefined;
+        }
+        return resourceToCardResponse(this.entry, branch, target.card.name);
+      }
       switch (this.kind) {
       case 'industrialists': {
         const rows = this.industrialistsRows;
@@ -1597,14 +1710,6 @@ export default defineComponent({
           return undefined;
         }
         return industrialistsResponse(this.bridge, dec.optionIndex, inc.optionIndex);
-      }
-      case 'scientists': {
-        const branch = this.picks[0];
-        const target = this.scientistsTargets[this.picks[1] ?? -1];
-        if (branch === undefined || target === undefined) {
-          return undefined;
-        }
-        return scientistsResponse(this.bridge, branch, target.card.name);
       }
       case 'reds':
         return redsResponse(this.bridge);

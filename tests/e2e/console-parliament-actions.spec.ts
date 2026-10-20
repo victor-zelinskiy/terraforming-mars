@@ -349,7 +349,8 @@ test.describe('parliament · party actions', () => {
     await settle(page, {timeoutMs: 8_000});
     await expectComposerFits(page, 'standard-1080');
     await shoot(page, '05-scientists-stage');
-    await press(page, 'Enter', 500); // the resource under the cursor → the target row
+    // ONE kind held (Tardigrades' microbes) — no decision on the kind: the variant is SEEDED and the cursor opens on
+    // the target row (RX37 — the «resource onto a card» form); the CARD is still the player's own press.
     await press(page, 'Enter', 500); // the target card → the commit row
     await expect(page.locator('.con-pact__opts .con-vchoice__opt--selected, .con-pact__card--picked')).toHaveCount(2);
     await press(page, 'Enter', 900); // commit

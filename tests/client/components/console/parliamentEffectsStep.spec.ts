@@ -85,6 +85,31 @@ describe('parliamentEffectsStep — «ВАШИ ЭФФЕКТЫ», the inner step 
     expect(entry?.whyReading).to.deep.eq({key: 'the enacted law · «${0}»', params: [law.text.name]});
   });
 
+  it('THE LAW\'S COUNT is the seat\'s live verdict (RX37 — 3 at influence 2+) with the uses left beside it; a law taken once reads 1 — never a constant', () => {
+    const multi = allResolutions().find((r) => r.hasAction && r.actionUses !== undefined);
+    const once = allResolutions().find((r) => r.hasAction && r.actionUses === undefined && r.hasPassive === false);
+    expect(multi, 'a law taken more than once a generation exists (anti-vacuous)').to.not.be.undefined;
+    expect(once, 'and a law taken once').to.not.be.undefined;
+    if (multi === undefined || once === undefined) {
+      return;
+    }
+    const step = (law: typeof multi, state: PartyActionStateVm) => {
+      const enacted = {instance: 'r1' as never, resolutionId: law.id, resolution: law, party: law.party};
+      return parliamentEffectsStep({
+        view: view(law.party, [], enacted), ruler: law.party, enacted, partyActionStates: states({}), resolutionActionState: state,
+      }).actions.find((a) => a.kind === 'law');
+    };
+    const live = step(multi, {kind: 'available', label: 'Available', reason: undefined, usesLeft: 1, usesPerGeneration: 3});
+    expect(live?.usesPerGeneration).to.eq(3);
+    expect(live?.usesLeft, 'what is still left rides beside the count').to.eq(1);
+    expect(live?.state).to.eq('ready');
+    const spent = step(multi, {kind: 'used', label: 'Already used', reason: undefined, usesLeft: 0, usesPerGeneration: 2});
+    expect([spent?.usesPerGeneration, spent?.state]).to.deep.eq([2, 'used']);
+    const single = step(once, {kind: 'available', label: 'Available', reason: undefined, usesLeft: 1, usesPerGeneration: 1});
+    expect(single?.usesPerGeneration).to.eq(1);
+    expect(single?.usesLeft, 'a once-a-generation law carries no «left»').to.be.undefined;
+  });
+
   it('a spectator holds nothing', () => {
     const v = {...view(PartyName.MARS, []), viewer: undefined};
     const model = parliamentEffectsStep({view: v, ruler: PartyName.MARS, enacted: undefined, partyActionStates: states({}), resolutionActionState: undefined});
