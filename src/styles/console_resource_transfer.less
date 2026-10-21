@@ -205,10 +205,37 @@
             background: radial-gradient(50% 50% at 50% 50%, rgba(240, 200, 112, 0.5), transparent 72%);
         }
     }
+
+    /* ── THE RECEIVER ANNOUNCES ITSELF (T06 «ОБА КОНЦА ПОЛЁТА — ЖИВЫЕ», the owner's decision 7 — «ожидает» везде) ──
+       From the token's birth to its touchdown a thin ring in the resource's tone stands over its receiver — the rail
+       row's ink, a card's capsule, the satellite's cell — following it on the final approach. ONE line, ≤ .5, never a
+       glow of the whole row; the box is the director's (the receiver's resting rect + a hair of air), the fade its own. */
+    &__expect {
+        position: fixed;
+        top: 0;
+        left: 0;
+        box-sizing: border-box;
+        border-radius: .42rem;
+        border: .09rem solid fade(@con-cyan, 45%);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        will-change: transform, opacity;
+
+        &[data-expect-resource="megacredits"] { border-color: rgba(240, 200, 96, 0.48); }
+        &[data-expect-resource="steel"] { border-color: rgba(214, 150, 92, 0.48); }
+        &[data-expect-resource="titanium"] { border-color: rgba(200, 206, 220, 0.45); }
+        &[data-expect-resource="plants"] { border-color: rgba(112, 204, 120, 0.46); }
+        &[data-expect-resource="energy"] { border-color: rgba(190, 120, 236, 0.48); }
+        &[data-expect-resource="heat"] { border-color: rgba(240, 112, 88, 0.46); }
+        &[data-expect-resource="rating"],
+        &[data-expect-resource="vp"] { border-color: rgba(240, 200, 112, 0.48); }
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
     /* The controller skips flights wholesale under reduced motion; belt-and-
        braces the decorative halo so a mid-flight preference flip can't play. */
-    .con-transfer__beat { display: none; }
+    .con-transfer__beat,
+    .con-transfer__expect { display: none; }
 }

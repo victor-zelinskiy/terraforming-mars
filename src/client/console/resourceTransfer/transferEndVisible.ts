@@ -61,7 +61,16 @@ function effectiveOpacity(el: Element): number {
  * strictly: a surface mid-dissolve still holds the layout it imposed (`con-root--ws-open` drops only when it is
  * REMOVED), so a destination measured through its fade is measured in the pose it is about to leave.
  */
-export type TransferEndOptions = {strict?: boolean};
+export type TransferEndOptions = {
+  strict?: boolean;
+  /**
+   * LENIENT — «is the OBJECT still there» rather than «is it painted right now» (T06, the final approach of a flight
+   * already in the air): a mounted, displayed element with a box is an end even while a transient state fades or
+   * covers it (a flip's crossfade, a leaving surface's last frames, the rail's lift dropping) — the token keeps its
+   * object instead of being absorbed in the air. Only an element that is GONE (unmounted, hidden, boxless) fails.
+   */
+  lenient?: boolean;
+};
 
 export function transferEndVerdict(el: Element | null | undefined, opts: TransferEndOptions = {}): TransferEndVerdict {
   if (el === null || el === undefined || !el.isConnected) {
@@ -81,6 +90,9 @@ export function transferEndVerdict(el: Element | null | undefined, opts: Transfe
     if (!Number.isNaN(op)) {
       opacity *= op;
     }
+  }
+  if (opts.lenient === true) {
+    return {visible: true};
   }
   if (opacity < TRANSFER_END_MIN_OPACITY) {
     return {visible: false, why: 'faded'};

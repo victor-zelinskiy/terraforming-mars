@@ -116,7 +116,25 @@ for (const preset of PROFILES) {
       await expect(forecast, '+2 M€ from GMO Contract').toContainText('2');
       await shot(page, preset.id, 'C-composer');
       await armTransferWitness(page);
+      // THE RECEIVER ANNOUNCES ITSELF (the owner's decision 7): while the «+2» is in the air a ring stands over the M€ ink.
+      await page.evaluate(() => {
+        const w = window as unknown as {__expectHits?: Array<number>};
+        w.__expectHits = [];
+        const timer = window.setInterval(() => {
+          const digits = document.querySelector('.con-res__row--megacredits .con-res__digits')?.getBoundingClientRect();
+          for (const ring of Array.from(document.querySelectorAll<HTMLElement>('.con-transfer__expect[data-expect-resource="megacredits"]'))) {
+            const r = ring.getBoundingClientRect();
+            const op = Number(getComputedStyle(ring).opacity);
+            if (digits !== undefined && op > 0.3 && r.left <= digits.left + 2 && r.right >= digits.right - 2 && r.top <= digits.top + 2 && r.bottom >= digits.bottom - 2) {
+              w.__expectHits!.push(op);
+            }
+          }
+        }, 16);
+        window.setTimeout(() => window.clearInterval(timer), 30_000);
+      });
       const after = await playAndWait(page, request, playerId, 'Lichen');
+      const ringHits = await page.evaluate(() => (window as unknown as {__expectHits?: Array<number>}).__expectHits?.length ?? 0);
+      expect(ringHits, 'a ring stood over the M€ ink while the answer flew').toBeGreaterThan(0);
       const w = await transferWitness(page);
       fs.mkdirSync(path.join(OUT, preset.id), {recursive: true});
       fs.writeFileSync(path.join(OUT, preset.id, 'card-C-trail.txt'), transferTrail(w) + '\n');

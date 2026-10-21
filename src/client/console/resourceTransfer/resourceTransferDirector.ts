@@ -18,7 +18,7 @@
 import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {
-  TransferArcPlan, TransferLaunch, TransferPoint, transferArcPlan, transferArcPoint, transferCeilingFor, transferChipScaleAt, transferEndMoved,
+  TransferArcPlan, TransferLaunch, TransferPoint, TransferRect, transferArcPlan, transferArcPoint, transferCeilingFor, transferChipScaleAt, transferEndMoved,
   transferLiftBias, transferRetargetWeight,
   TRANSFER_POP_MS, TRANSFER_ARC_MS, TRANSFER_SETTLE_MS, TRANSFER_BEAT_MS, TRANSFER_QUICK_ABSORB_MS, TRANSFER_RETARGET_AT,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -26,6 +26,8 @@ import {
 export type TransferStagePiece = {
   chip: HTMLElement,
   beat: HTMLElement | undefined,
+  /** The receiver's ring (T06 — «адресат объявляет себя»): drawn over the destination from the token's birth to its touchdown. */
+  expect?: HTMLElement,
 };
 
 export type TransferFlightOpts = {
@@ -63,6 +65,13 @@ export type TransferFlightOpts = {
    */
   liveTo?: () => TransferPoint | undefined;
   standIn?: () => TransferPoint | undefined;
+  /**
+   * THE RECEIVER ANNOUNCES ITSELF (T06, the owner's decision 7 — «ожидает» везде): the destination's box as it rests,
+   * asked in the birth frame and on the final approach — the piece's ring stands over it (a thin line in the
+   * resource's tone, ≤ .5) from the birth to the touchdown, following it; undefined — no ring (a bare point, a
+   * receiver that announces itself — the seat's intake plaque).
+   */
+  expectRect?: () => TransferRect | undefined;
 };
 
 /** What happened to a flight's two ends — filled as the flight goes (the run's trail and its degradations read it). */
@@ -166,6 +175,33 @@ function topRailBottom(): number {
   return rect !== undefined && rect.height > 0 ? Math.max(0, rect.bottom) : 0;
 }
 
+/** The ring's air around its receiver (px @ ui 1). */
+const EXPECT_PAD = 4;
+/** The ring arrives in one short fade — never a line appearing in one frame (ms @ motion scale 1). */
+const EXPECT_IN_MS = 160;
+const EXPECT_OUT_MS = 120;
+
+/** Stand the receiver's ring over `rect` (its first frame fades in, a later one follows the receiver). */
+function placeExpect(piece: TransferStagePiece, rect: TransferRect | undefined, uiScale: number, first: boolean): void {
+  const ring = piece.expect;
+  if (ring === undefined || rect === undefined) {
+    return;
+  }
+  const pad = EXPECT_PAD * uiScale;
+  gsap.set(ring, {x: rect.x - pad, y: rect.y - pad, width: rect.w + 2 * pad, height: rect.h + 2 * pad});
+  if (first) {
+    gsap.set(ring, {autoAlpha: 0});
+    gsap.to(ring, {autoAlpha: 1, duration: motionMs(EXPECT_IN_MS) / 1000, ease: 'none'});
+  }
+}
+
+/** The touchdown takes the ring down (the contact beat is the receiver's answer now). */
+function dropExpect(piece: TransferStagePiece): void {
+  if (piece.expect !== undefined) {
+    gsap.to(piece.expect, {autoAlpha: 0, duration: motionMs(EXPECT_OUT_MS) / 1000, ease: 'none', overwrite: true});
+  }
+}
+
 /**
  * One chip's flight. The chip is CSS-sized (rem — profile-correct); the
  * director only moves/scales it, centring the box on the arc points.
@@ -232,12 +268,19 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
             // The end is gone and nothing stands in for it: the chip is absorbed in the air where it is.
             restingAt = transferArcPoint(plan, prog.q);
             report.restAt = restingAt;
+            dropExpect(piece);
             tl.kill();
             done();
             return;
           }
           corr.x = live.x - plan.p1.x;
           corr.y = live.y - plan.p1.y;
+          // The ring follows its receiver (a stand-in gets none — it was never announced there).
+          if (report.end !== 'stand-in') {
+            placeExpect(piece, opts.expectRect?.(), opts.uiScale, false);
+          } else {
+            dropExpect(piece);
+          }
         }
         const p = transferArcPoint(plan, prog.q);
         const cw = transferRetargetWeight(prog.q, corr.readAt);
@@ -257,6 +300,7 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
     if (opts.liveFrom === undefined) {
       report.born = 'painted';
       report.bornAt = opts.from;
+      placeExpect(piece, opts.expectRect?.(), opts.uiScale, true);
       return true;
     }
     const at = opts.liveFrom();
@@ -272,6 +316,7 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
     }
     report.born = 'painted';
     report.bornAt = at;
+    placeExpect(piece, opts.expectRect?.(), opts.uiScale, true);
     return true;
   }), opts.delayMs + popMs + arcMs + settleMs + 200);
 
@@ -293,6 +338,7 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
    * absorb has no settle (the token is drawn in) and glides only when its end moved.
    */
   function touchdown(done: () => void): void {
+    dropExpect(piece);
     if (report.end === undefined) {
       report.end = 'live';
     }
@@ -493,5 +539,9 @@ export function killTransferPiece(piece: TransferStagePiece): void {
   gsap.killTweensOf(piece.chip);
   if (piece.beat !== undefined) {
     gsap.killTweensOf(piece.beat);
+  }
+  if (piece.expect !== undefined) {
+    gsap.killTweensOf(piece.expect);
+    gsap.set(piece.expect, {autoAlpha: 0});
   }
 }

@@ -761,7 +761,12 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
         // THE TWO ENDS ARE LIVE (T06): the source at the birth, the destination on the final approach and at the
         // touchdown — a bare point answers itself (and the sentinel asks what is painted under it).
         liveFrom,
-        liveTo: () => measureEndRef(e.toRef, e.spec, 'destination'),
+        // The approach asks «is it painted» first and «is the object still THERE» second: a receiver a transient state
+        // fades or covers for a frame keeps its token (never absorbed in the air over a flip); only a GONE one lets go.
+        liveTo: () => measureEndRef(e.toRef, e.spec, 'destination') ?? approachLeniently(runId, e),
+        // THE RECEIVER ANNOUNCES ITSELF (the owner's decision 7): a GAIN's receiver wears the ring from the birth to the
+        // touchdown — a loss's «receiver» is the printed cost it is drawn into, never announced.
+        ...(e.spec.direction !== 'loss' ? {expectRect: () => measureEndRect(e.toRef, e.spec)} : {}),
         // A double of the spec's own home that left → the home itself; the home's own ladder already IS the
         // stand-in chain (the first visible rung), and a landing on another seat has no stand-in of the viewer's.
         ...(!toHome && run.homeStandIn === true && e.spec.direction !== 'loss' ? {standIn: () => targetPointFor(e.spec)} : {}),
@@ -827,6 +832,15 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
   }
 }
 
+/** The final approach's second ask (see `TransferEndOptions.lenient`) — named in the trail with what the strict ask skipped. */
+function approachLeniently(runId: number, e: {id: number, spec: ResourceTransferSpec, toRef: EndRef}): TransferPoint | undefined {
+  const skipped: Array<SkippedEnd> = [];
+  measureEndRef(e.toRef, e.spec, 'destination', skipped);
+  const point = measureEndRef(e.toRef, e.spec, 'destination', undefined, {lenient: true});
+  trail(runId, 'flight:approach', {id: e.id, kept: point !== undefined, skipped: skipped.map((s) => `${s.selector} (${s.verdict.visible ? '' : s.verdict.why})`)});
+  return point;
+}
+
 /** One end of a flight as it IS: an object (re-measured), the spec's own HOME ladder, or a bare point. */
 type EndRef = TransferEndLike | 'home';
 
@@ -853,6 +867,26 @@ function measureEndRef(ref: EndRef, spec: ResourceTransferSpec, role: 'source' |
     return undefined;
   }
   return transferEndPoint({x: r.left, y: r.top, w: r.width, h: r.height}, ref);
+}
+
+/**
+ * The receiver's resting BOX for its ring (`expectRect`): an object end's element, the home ladder's rung (the
+ * element `targetPointFor` landed on), never a bare point; a receiver that announces itself (the seat's intake plaque)
+ * wears no second ring.
+ */
+function measureEndRect(ref: EndRef, spec: ResourceTransferSpec): TransferRect | undefined {
+  let el: Element | undefined;
+  if (ref === 'home') {
+    lastRestingEl = undefined;
+    el = targetPointFor(spec) === undefined ? undefined : lastRestingEl;
+  } else if (isTransferEnd(ref)) {
+    el = transferEndVerdict(ref.el).visible ? ref.el : undefined;
+  }
+  if (el === undefined || el.closest('.con-status__intake') !== null) {
+    return undefined;
+  }
+  const r = restingRectOf(el as HTMLElement);
+  return r.width > 2 && r.height > 2 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
 }
 
 /** A short name of an element for the trail («div.pcard-ic» — its tag and first two classes). */
@@ -1096,8 +1130,15 @@ function measureRestingRect(selector: string, skipped?: Array<SkippedEnd>, opts:
     return undefined;
   }
   const r = restingRectOf(el as HTMLElement);
-  return r.width > 4 && r.height > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
+  if (r.width > 4 && r.height > 4) {
+    lastRestingEl = el;
+    return {x: r.left, y: r.top, w: r.width, h: r.height};
+  }
+  return undefined;
 }
+
+/** The element the last successful resting measure read — the home ladder's rung, for the receiver's ring. */
+let lastRestingEl: Element | undefined;
 
 /** The ladder's skipped ends that were COVERED or FADED — the ones a player would have seen a token come from nowhere for. */
 function coveredEnds(skipped: ReadonlyArray<SkippedEnd>): Array<string> {

@@ -92,7 +92,11 @@ describe('a flight end is an object — the director and the run (source guard)'
   it('the run keeps every end as what it is (an object, the home ladder, a bare point) and hands the director live closures', () => {
     const fn = run.slice(run.indexOf('export async function runResourceTransfers('), run.indexOf('/** One end of a flight as it IS'));
     expect(fn).to.include(`liveFrom,`);
-    expect(fn).to.include(`liveTo: () => measureEndRef(e.toRef, e.spec, 'destination'),`);
+    expect(fn, 'the approach asks «is it painted» first and «is the object still THERE» second')
+      .to.include(`liveTo: () => measureEndRef(e.toRef, e.spec, 'destination') ?? approachLeniently(runId, e),`);
+    const lenient = body(run, 'approachLeniently');
+    expect(lenient, 'the second ask is the LENIENT verdict — a transient fade / cover keeps the object').to.include(`{lenient: true}`);
+    expect(lenient, 'what the strict ask skipped is named in the trail').to.include(`'flight:approach'`);
     expect(fn, 'a double of the home re-homes there, never into the pose it had').to.include('standIn: () => targetPointFor(e.spec)');
     expect(fn, 'the surface folds on the tokens\' own departures').to.include('void Promise.all(departures).then(leftOnce);');
     const measure = body(run, 'measureEndRef');

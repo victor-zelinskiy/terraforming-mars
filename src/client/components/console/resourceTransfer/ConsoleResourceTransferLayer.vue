@@ -39,6 +39,12 @@
       <div class="con-transfer__beat"
            :class="{'con-transfer__beat--production': f.spec.channel === 'production', 'con-transfer__beat--vp': isVp(f.spec)}"
            :ref="(el) => setBeatRef(f.id, el as HTMLElement | null)"></div>
+      <!-- THE RECEIVER ANNOUNCES ITSELF (T06 — «ожидает»): a thin ring in the resource's tone over the destination
+           from the token's birth to its touchdown (the director places it on the receiver's resting box). -->
+      <div v-if="f.spec.direction !== 'loss'"
+           class="con-transfer__expect"
+           :data-expect-resource="f.spec.resource"
+           :ref="(el) => setExpectRef(f.id, el as HTMLElement | null)"></div>
     </template>
   </div>
 </template>
@@ -61,6 +67,7 @@ export default defineComponent({
       unregister: undefined as (() => void) | undefined,
       chipEls: new Map<number, HTMLElement>(),
       beatEls: new Map<number, HTMLElement>(),
+      expectEls: new Map<number, HTMLElement>(),
     };
   },
   computed: {
@@ -107,6 +114,13 @@ export default defineComponent({
         this.beatEls.set(id, el);
       }
     },
+    setExpectRef(id: number, el: HTMLElement | null): void {
+      if (el === null) {
+        this.expectEls.delete(id);
+      } else {
+        this.expectEls.set(id, el);
+      }
+    },
   },
   mounted() {
     this.unregister = registerResourceTransferStage({
@@ -115,7 +129,7 @@ export default defineComponent({
         if (chip === undefined || !chip.isConnected) {
           return undefined;
         }
-        return {chip, beat: this.beatEls.get(id)};
+        return {chip, beat: this.beatEls.get(id), expect: this.expectEls.get(id)};
       },
     });
   },

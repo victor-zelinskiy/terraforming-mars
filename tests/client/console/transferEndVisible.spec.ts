@@ -67,6 +67,22 @@ describe('transferEndVerdict — a place a token may be born on or land on', () 
     expect(transferEndVerdict(el)).to.deep.eq({visible: false, why: 'off-screen'});
   });
 
+  it('LENIENT (the final approach, T06): a faded or covered object is still there — only a gone one fails', () => {
+    const section = document.createElement('section');
+    const el = document.createElement('div');
+    section.appendChild(el);
+    root.appendChild(section);
+    box(el, {left: 100, top: 100, width: 40, height: 40});
+    section.style.opacity = '0.1';
+    expect(transferEndVerdict(el)).to.deep.eq({visible: false, why: 'faded'});
+    expect(transferEndVerdict(el, {lenient: true}), 'a transient fade keeps the object').to.deep.eq({visible: true});
+    section.style.display = 'none';
+    expect(transferEndVerdict(el, {lenient: true}), 'hidden is gone').to.deep.eq({visible: false, why: 'hidden'});
+    section.style.display = '';
+    el.remove();
+    expect(transferEndVerdict(el, {lenient: true}), 'unmounted is gone').to.deep.eq({visible: false, why: 'unmounted'});
+  });
+
   it('COVERED BY PAINT: a foreign .con-ws over the centre refuses; the element\'s own .con-ws, the board, a transfer chip do not', () => {
     const composer = document.createElement('div');
     composer.className = 'con-ws con-cardactions';
