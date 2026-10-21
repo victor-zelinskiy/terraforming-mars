@@ -81,7 +81,9 @@ export type TransferEnd = {
    * The anchor under the chip's centre: `wild` (a card's printed «?» — TR54) · `vp-badge` (a card's printed VP badge — TR55) · `ma-vp` (a ceremony's «+5») ·
    * `printed:<sprite>` (a printed icon on the play scene's landed card — the play's «+N» is born there, TR56) ·
    * `seal:<party>` (a party's seal in the chamber — a card's rating answer to a change of power is born there, TR63) ·
-   * `law-face` (the law's face on a resolution action's stage — the law's own price lands there, PL-725) · `hero` ·
+   * `law-face` (the law's face on a resolution action's stage — the law's own price lands there, PL-725) ·
+   * `law` (the sitting's carrier card on its hero slot — a law's reward wave is born there, RX41) ·
+   * `agenda-step:<n>` (a step of the Career — the winner's step pays its bonus off its node) · `hero` ·
    * `composer-card:<name>` ·
    * `recv:<card|front>` · `played:<card>` ·
    * `slot:<card>` (a live pick's candidate) · `source` (a plate's source dock) ·
@@ -160,6 +162,12 @@ export async function armTransferWitness(page: Page): Promise<void> {
       // The LAW's face — the hero of a resolution action's stage: the law's own price is absorbed into its printed cost
       // (PL-725 — RX36's bill). `law-face`.
       ['law-face', '.con-pact--resolution .con-pact__hero'],
+      // The SITTING's carrier card — on its hero slot, or standing (carried) in the government — a law's reward wave (a
+      // production, a supply payout) is born on its printed graphic (RX41: the M€ production token). `law`.
+      ['law', '[data-parl-sit-hero] .pcard, .con-parl [data-parl-gov] .con-parl__gov-card .pcard, .con-parl [data-parl-gov-carry] .pcard'],
+      // A STEP of the Career on the Agenda track — the winner's step pays its own bonus off its node (the TR of a TR step).
+      // `agenda-step:<n>`.
+      ['agenda-step', '.con-parl [data-parl-agenda] .con-parl__step[data-step]'],
       ['hero', '.con-composer__actcardwrap'],
       ['play-card', '.con-composer__playcard'],
       ['composer-card', '[data-composer-card]'],
@@ -198,6 +206,7 @@ export async function armTransferWitness(page: Page): Promise<void> {
         return `struck:${cls.replace(/^.*--/, '')}`;
       }
       case 'lawseal': return 'lawseal';
+      case 'agenda-step': return `agenda-step:${name(el, 'data-step')}`;
       case 'receipt': return `receipt:${name(el, 'data-receipt-card')}`;
       case 'printed': {
         const sprite = /([\w-]+)\.(?:png|webp|svg)/.exec((el as HTMLElement).style.backgroundImage ?? '')?.[1] ?? 'icon';

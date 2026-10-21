@@ -2639,6 +2639,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   // RX39 Reds Budget with MarsBot: blue's vote, and the solo assembly gate with a NEUTRAL winner — blue's levy, payout and step of the Career, then the bot's step (D11).
   'parliament-reds-budget-vote' | 'parliament-reds-budget-bot' |
   'parliament-sponsored-assembly' | 'parliament-sponsored-eight' | 'parliament-sponsored-vote' |
+  // RX41 Tax Breaks: blue's vote (3 types + influence 3 = 6 → 5) and the assembly gate (the production wave; red's named skip).
+  'parliament-tax-breaks-vote' | 'parliament-tax-breaks-assembly' |
   // RX33 Water Export: the assembly with ONE plain ocean on the board and blue (the first player) holding the delegate —
   // the first world step that ASKS; and the law ENACTED (the ocean gone) with red holding Miranda Resort (12 → 9).
   'parliament-water-assembly' | 'parliament-water-enacted' |

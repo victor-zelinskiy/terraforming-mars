@@ -124,6 +124,7 @@ import {SKYSCRAPERS_ID} from '../../../src/server/parliament/resolutions/marsFir
 import {MARS_FIRST_BUDGET_ID} from '../../../src/server/parliament/resolutions/marsFirst/MarsFirstBudget';
 import {REDS_BUDGET_ID} from '../../../src/server/parliament/resolutions/reds/RedsBudget';
 import {SPONSORED_PROJECTS_ID} from '../../../src/server/parliament/resolutions/scientists/SponsoredProjects';
+import {TAX_BREAKS_ID} from '../../../src/server/parliament/resolutions/industrialists/TaxBreaks';
 import {MarsArmyShips} from '../../../src/server/cards/turmoilRedux/MarsArmyShips';
 import {Satellites} from '../../../src/server/cards/base/Satellites';
 import {Asteroid} from '../../../src/server/cards/base/Asteroid';
@@ -6365,6 +6366,46 @@ parliamentFixture('parliament-sponsored-eight', {
     }
   },
 });
+
+// ── RX41 · TAX BREAKS (the Industrialists — «+1 M€ production for each different TYPE of card resource you have +
+//    Influence, max 5»): the count BY KIND over the seat's cards with a resource. Blue at Agenda 5 = influence 3 holds
+//    Fish 2 + Birds 1 (animals — ONE type), Dirigibles 1 (floaters), Supercomputer 3 (data) and Pets at 0 (no type
+//    yet): 3 types + 3 = 6 → +5, MAX — M€ production 2 → 7. Red: at the VOTE (Agenda 1 = influence 1) Tardigrades 2 →
+//    its own column reads 1 type + 1 = +2; at the ASSEMBLY (Agenda 0) Tardigrades at 0 → no type and no influence — the
+//    long NAMED skip the results plate must print whole (PL-796). `-vote` stops at the vote (blue's delegate in the
+//    lobby: the panel reads the kinds before A); `-assembly` at the ASSEMBLY gate with blue's delegate on the card (the
+//    verdict → the production wave → the results) for console-parliament-tax-breaks.spec.ts. ──
+function taxBreaksTable(name: string, stopAt: 'vote' | 'assembly'): void {
+  const vote = stopAt === 'vote';
+  parliamentFixture(name, {
+    resolution: TAX_BREAKS_ID,
+    votes: vote ? [] : [0],
+    agenda: [5, vote ? 1 : 0],
+    stopAt,
+    arrange: ({p1, p2}) => {
+      p1.playedCards.push(Object.assign(new Fish(), {resourceCount: 2}), Object.assign(new Birds(), {resourceCount: 1}),
+        Object.assign(new Dirigibles(), {resourceCount: 1}), Object.assign(new Supercomputer(), {resourceCount: 3}), new Pets());
+      p2.playedCards.push(Object.assign(new Tardigrades(), {resourceCount: vote ? 2 : 0}));
+      p1.production.override({megacredits: 2});
+      p2.production.override({megacredits: 1});
+      // A corporation's first action left pending would be answered by the board-home driver at load (PL-715).
+      p1.pendingInitialActions = [];
+      p2.pendingInitialActions = [];
+    },
+    expect: ({p1, p2, parliament}) => {
+      const blue = resolutionCount(p1, 'cardResourceTypes');
+      if (blue.count !== 3 || JSON.stringify(blue.cards) !== JSON.stringify([CardName.FISH, CardName.BIRDS, CardName.DIRIGIBLES, CardName.SUPERCOMPUTER])) {
+        throw new Error(`${name}: blue must hold 3 types on 4 cards (Pets at 0 none), got ${JSON.stringify(blue)}`);
+      }
+      const redKinds = vote ? 1 : 0;
+      if (parliament.influence(p1) !== 3 || resolutionCount(p2, 'cardResourceTypes').count !== redKinds || parliament.influence(p2) !== redKinds) {
+        throw new Error(`${name}: expected blue at influence 3, red at ${redKinds} type(s) and influence ${redKinds}`);
+      }
+    },
+  });
+}
+taxBreaksTable('parliament-tax-breaks-vote', 'vote');
+taxBreaksTable('parliament-tax-breaks-assembly', 'assembly');
 
 // ── two-player-finale-trigger: the FINALE with a TRIGGERED HAND-OFF (PL-301 / PL-303 — the owner's field
 //    report 2026-10-14). A 2p table at the final greenery: the first seat holds the plants and is asked;
