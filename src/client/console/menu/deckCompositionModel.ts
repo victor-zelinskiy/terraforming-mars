@@ -60,8 +60,9 @@ export function deckMeterView(model: DeckCompositionModel): DeckMeterView {
     extras: [
       ...(model.extras.colonies === undefined ? [] : [{
         id: 'colonies' as const,
-        key: '${0} of ${1} colony tiles',
-        params: [String(model.extras.colonies.inPlay), String(model.extras.colonies.pool)],
+        // The POOL the table deals from (the owner, 2026-10-21) — how many stand at the start is the deal's, not the deck's.
+        key: '${0} colony tiles',
+        params: [String(model.extras.colonies.pool)],
       }]),
       ...(model.extras.resolutions === undefined ? [] : [{
         id: 'resolutions' as const,
@@ -81,7 +82,6 @@ const CHIP_ORDER: ReadonlyArray<{id: keyof ExpansionContribution, key: string}> 
   {id: 'preludes', key: '+${0} preludes'},
   {id: 'resolutions', key: '+${0} resolutions'},
   {id: 'colonies', key: '+${0} colony tiles'},
-  {id: 'classic', key: '+${0} classic Turmoil cards'},
 ];
 
 /**

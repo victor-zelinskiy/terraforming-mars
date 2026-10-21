@@ -22,27 +22,34 @@ export type DeckComposition = {
   preludes: DeckCount;
   /** What else the party deals beyond the three decks — each present only with the expansion that brings it. */
   extras: {
-    /** Colony tiles: on the table at the start (by seat count, MarsBot seated included) out of the pool. */
-    colonies?: {inPlay: number, pool: number},
+    /**
+     * Colony tiles: the POOL the table deals from (what the meter prints), how many stand on
+     * the table at the start (by seat count, MarsBot seated included), and the pool by the
+     * expansion that PRINTS each tile (the base tiles are Colonies', the additions Redux's).
+     */
+    colonies?: {pool: number, inPlay: number, byExpansion: Partial<Record<Expansion, number>>},
     /** The Mars Parliament's resolution deck (Turmoil Redux). */
     resolutions?: number,
   };
 };
 
 /**
- * What ONE expansion brings to the decks given the rest of the set — «with it − without
- * it», so it is the honest number for an OFF tile too («would add»). Never negative in
- * practice; a replacement (a Redux colony twin) nets out.
+ * What ONE expansion brings to the decks — the cards it PRINTS (its own module), as the deck
+ * holds them with that expansion on and the rest of the set as it stands, so an OFF tile
+ * says what it WOULD add. By ORIGIN, never «with it − without it» (the owner, 2026-10-21):
+ * the difference charged Colonies with the Redux cards that merely REQUIRE Colonies, netted
+ * Ares' 26 cards against the 14 it replaces, and took a guaranteed card (added whatever the
+ * modules) off its own module. A card a module deals only together with another is that
+ * other's: the classic Turmoil cards adapted to Redux are Turmoil Redux's projects.
  */
 export type ExpansionContribution = {
   projects: number,
   corporations: number,
   preludes: number,
-  /** Colony tiles the expansion adds to the POOL (Colonies: the whole pool; Turmoil Redux: its additions). */
+  /** Colony tiles the expansion prints in the pool (Colonies: the base tiles; Turmoil Redux: its additions). */
   colonies: number,
+  /** The resolution deck (Turmoil Redux's alone). */
   resolutions: number,
-  /** Classic Turmoil cards the expansion lets in (Turmoil Redux — the adapted ones, card by card). */
-  classic: number,
 };
 
 export type DeckCompositionModel = DeckComposition & {

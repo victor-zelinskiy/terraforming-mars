@@ -23,9 +23,10 @@ function composition(over: Partial<DeckCompositionModel> = {}): DeckCompositionM
     preludes: {total: 0, byModule: {}},
     extras: {},
     contributions: {
-      prelude: {projects: 0, corporations: 0, preludes: 35, colonies: 0, resolutions: 0, classic: 0},
-      ares: {projects: 0, corporations: 0, preludes: 0, colonies: 0, resolutions: 0, classic: 0},
-      turmoilRedux: {projects: 71, corporations: 0, preludes: 0, colonies: 2, resolutions: 42, classic: 1},
+      prelude: {projects: 0, corporations: 0, preludes: 35, colonies: 0, resolutions: 0},
+      ares: {projects: 0, corporations: 0, preludes: 0, colonies: 0, resolutions: 0},
+      // The adapted classic Turmoil cards are Redux's PROJECTS (72 = 70 + 2) — never a category of their own.
+      turmoilRedux: {projects: 72, corporations: 0, preludes: 0, colonies: 2, resolutions: 42},
     },
     ...over,
   };
@@ -48,15 +49,19 @@ describe('deckCompositionModel — the deck meter reads the server\'s count', ()
     expect(view.segments.every((s) => s.share === 0)).is.true;
   });
 
-  it('«also in the party» — each extra only with the expansion that brings it', () => {
+  it('«also in the party» — each extra only with the expansion that brings it; colonies print the POOL, not «N of M»', () => {
     expect(deckMeterView(composition()).extras).deep.eq([]);
-    const extras = deckMeterView(composition({extras: {colonies: {inPlay: 5, pool: 13}, resolutions: 42}})).extras;
-    expect(extras.map((e) => [e.id, e.params])).deep.eq([['colonies', ['5', '13']], ['resolutions', ['42']]]);
+    const colonies = {pool: 13, inPlay: 5, byExpansion: {colonies: 11, turmoilRedux: 2}};
+    const extras = deckMeterView(composition({extras: {colonies, resolutions: 42}})).extras;
+    expect(extras.map((e) => [e.id, e.key, e.params])).deep.eq([
+      ['colonies', '${0} colony tiles', ['13']],
+      ['resolutions', '${0} resolutions', ['42']],
+    ]);
   });
 
   it('an expansion\'s chips: the server\'s contribution, in the deck order, a zero never printed', () => {
     const redux = contributionChips(composition(), 'turmoilRedux');
-    expect(redux.map((c) => [c.id, c.amount])).deep.eq([['projects', 71], ['resolutions', 42], ['colonies', 2], ['classic', 1]]);
+    expect(redux.map((c) => [c.id, c.amount])).deep.eq([['projects', 72], ['resolutions', 42], ['colonies', 2]]);
     expect(contributionChips(composition(), 'prelude').map((c) => c.id)).deep.eq(['preludes']);
     expect(contributionChips(composition(), 'ares'), 'an expansion that adds no cards prints no «+0»').deep.eq([]);
     expect(contributionChips(undefined, 'turmoilRedux'), 'no answer yet — no chips').deep.eq([]);

@@ -414,7 +414,7 @@ for (const preset of PRESETS) {
       expect(last.preludes.total > 0, 'Prelude now ON → a prelude deck; now OFF → none (the Valley Trust pile is no deck)').toBe(!preludeOn);
 
       if (preset.id !== 'deck') {
-        // Every chip on every plate is the server's «with it − without it», number for number.
+        // Every chip on every plate is the server's count BY ORIGIN (the cards the expansion prints), number for number.
         const chips = await page.locator('.cm-exp [data-exp-chip]').evaluateAll((els) => els.map((el) => ({
           exp: el.closest('[data-exp]')?.getAttribute('data-exp') ?? '',
           id: el.getAttribute('data-exp-chip') ?? '',
@@ -431,7 +431,24 @@ for (const preset of PRESETS) {
             await plate.click();
           }
         };
+        // A card that merely REQUIRES Colonies is not the Colonies' (the owner, 2026-10-21): Redux on or off, their chips stand.
+        // Two answers that differ by Redux ALONE — the Colonies' contribution is the same in both.
+        await set('colonies', true);
+        const answerFor = (redux: boolean, like?: Record<string, boolean>) => [...answers].reverse().find((a) => {
+          const e = a.body.expansions as Record<string, boolean>;
+          return e.colonies === true && e.turmoilRedux === redux &&
+            (like === undefined || Object.keys(like).every((k) => k === 'turmoilRedux' || like[k] === e[k]));
+        });
+        await set('turmoilRedux', false);
+        await expect.poll(() => answerFor(false) !== undefined, {timeout: 15_000}).toBe(true);
+        const withoutRedux = answerFor(false)!;
         await set('turmoilRedux', true);
+        const like = withoutRedux.body.expansions as Record<string, boolean>;
+        await expect.poll(() => answerFor(true, like) !== undefined, {timeout: 15_000}).toBe(true);
+        expect(answerFor(true, like)!.model.contributions.colonies, 'Redux toggled — the Colonies\' count stands')
+          .toEqual(withoutRedux.model.contributions.colonies);
+        // The colony line names the POOL, never «N of M».
+        await expect(page.locator('.cm-expdeck [data-deck-extra="colonies"]')).toHaveText(/^\d+ колони(я|и|й)$/);
         await set('colonies', false);
         const needs = page.locator('.cm-exp[data-exp="turmoilRedux"] [data-exp-needs="colonies"]');
         await expect(needs).toHaveClass(/cm-exp__needs--unmet/);

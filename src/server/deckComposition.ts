@@ -10,6 +10,7 @@ import {CardName} from '../common/cards/CardName';
 import {CardType} from '../common/cards/CardType';
 import {Expansion, GameModule} from '../common/cards/GameModule';
 import {ConstRandom} from '../common/utils/Random';
+import {isTurmoilReduxAddition} from '../common/colonies/AllColonies';
 import {automaModeFor} from '../common/automa/AutomaTypes';
 import {
   DECK_COMPOSITION_EXPANSIONS, DeckComposition, DeckCompositionModel, DeckCount, ExpansionContribution,
@@ -24,9 +25,23 @@ import {
  * `ColonyDealer` and the Parliament's resolution deck — and counts them. No game, no
  * player, no RNG draw: nothing here can change a table.
  *
- * `contributions` is «with it − without it» for every creator toggle, so an OFF tile
- * honestly says what it WOULD add with the rest of the set as it stands.
+ * `contributions` is what every creator toggle PRINTS into these decks — its own module's
+ * cards (and colony tiles, and resolutions), counted in the decks built WITH it on, so an
+ * OFF tile honestly says what it would add with the rest of the set as it stands. By
+ * ORIGIN, never «with it − without it» (`ExpansionContribution`).
  */
+
+/**
+ * The modules whose cards a creator toggle brings. Every toggle prints its own module; Turmoil
+ * Redux also brings the classic Turmoil cards adapted to it (`turmoilReduxAdaptation.ts` —
+ * on a creator table they are dealt only with Redux), so they count as its projects.
+ */
+const ORIGIN_MODULES: Readonly<Record<Expansion, ReadonlyArray<GameModule>>> = {
+  corpera: ['corpera'], prelude: ['prelude'], prelude2: ['prelude2'], venus: ['venus'], colonies: ['colonies'],
+  turmoil: ['turmoil'], community: ['community'], ares: ['ares'], moon: ['moon'], pathfinders: ['pathfinders'],
+  ceo: ['ceo'], starwars: ['starwars'], underworld: ['underworld'], deltaProject: ['deltaProject'],
+  promo: ['promo'], turmoilRedux: ['turmoilRedux', 'turmoil'],
+};
 
 /** Which module each dealable card comes from (a card's own class does not know). */
 const MODULE_OF: ReadonlyMap<CardName, GameModule> = (() => {
@@ -96,11 +111,21 @@ function countOf(cards: ReadonlyArray<ICard>): DeckCount {
   return {total: cards.length, byModule};
 }
 
-/** The colony tiles at the start (the dealer's own count by seats, MarsBot's seat included) out of the pool the options deal from. */
-function colonyTableOf(options: GameOptions, table: DeckTable): {inPlay: number, pool: number} {
+/**
+ * The colony tiles the options deal from — the pool (the dealer's own, or the custom list), how
+ * many stand on the table at the start (by seats, MarsBot's included), and the pool by the
+ * expansion that prints each tile: a Turmoil Redux ADDITION is Redux's, every other tile the
+ * Colonies' (a Redux REPLACEMENT swaps a tile the Colonies print — it adds none).
+ */
+function colonyTableOf(options: GameOptions, table: DeckTable): NonNullable<DeckComposition['extras']['colonies']> {
   const seats = table.humans + (table.bot ? 1 : 0);
-  const pool = options.customColoniesList.length > 0 ? options.customColoniesList.length : new ColonyDealer(new ConstRandom(0), options).poolSize;
-  return {inPlay: Math.min(ColonyDealer.colonyCountFor(seats), pool), pool};
+  const names = options.customColoniesList.length > 0 ? options.customColoniesList : new ColonyDealer(new ConstRandom(0), options).poolNames;
+  const redux = names.filter((name) => isTurmoilReduxAddition(name)).length;
+  const byExpansion: Partial<Record<Expansion, number>> = {colonies: names.length - redux};
+  if (redux > 0) {
+    byExpansion.turmoilRedux = redux;
+  }
+  return {pool: names.length, inPlay: Math.min(ColonyDealer.colonyCountFor(seats), names.length), byExpansion};
 }
 
 function build(options: GameOptions, table: DeckTable): DeckComposition {
@@ -154,15 +179,16 @@ function compositionOf(options: GameOptions, table: DeckTable): DeckComposition 
 /** `options` with ONE creator expansion switched — the expansion flag and the option the engine reads. */
 export type ExpansionToggle = (options: GameOptions, expansion: Expansion, on: boolean) => GameOptions;
 
-function difference(on: DeckComposition, off: DeckComposition): ExpansionContribution {
+/** What `expansion` prints into decks built WITH it on — its own modules' cards, tiles and resolutions. */
+function originOf(expansion: Expansion, on: DeckComposition): ExpansionContribution {
+  const modules = ORIGIN_MODULES[expansion];
+  const own = (deck: DeckCount) => modules.reduce((sum, module) => sum + (deck.byModule[module] ?? 0), 0);
   return {
-    projects: on.projects.total - off.projects.total,
-    corporations: on.corporations.total - off.corporations.total,
-    preludes: on.preludes.total - off.preludes.total,
-    colonies: (on.extras.colonies?.pool ?? 0) - (off.extras.colonies?.pool ?? 0),
-    resolutions: (on.extras.resolutions ?? 0) - (off.extras.resolutions ?? 0),
-    classic: (on.projects.byModule.turmoil ?? 0) + (on.corporations.byModule.turmoil ?? 0) -
-      (off.projects.byModule.turmoil ?? 0) - (off.corporations.byModule.turmoil ?? 0),
+    projects: own(on.projects),
+    corporations: own(on.corporations),
+    preludes: own(on.preludes),
+    colonies: on.extras.colonies?.byExpansion[expansion] ?? 0,
+    resolutions: expansion === 'turmoilRedux' ? on.extras.resolutions ?? 0 : 0,
   };
 }
 
@@ -176,9 +202,7 @@ export function deckCompositionOf(options: GameOptions, table: DeckTable, toggle
   const composition = compositionOf(options, table);
   const contributions: DeckCompositionModel['contributions'] = {};
   for (const expansion of DECK_COMPOSITION_EXPANSIONS) {
-    const on = compositionOf(toggle(options, expansion, true), table);
-    const off = compositionOf(toggle(options, expansion, false), table);
-    contributions[expansion] = difference(on, off);
+    contributions[expansion] = originOf(expansion, compositionOf(toggle(options, expansion, true), table));
   }
   return {...composition, contributions};
 }

@@ -125,6 +125,11 @@ export class ColonyDealer {
     return this.gameColonies.length;
   }
 
+  /** The names of the tiles this game's options can deal (the deck meter attributes each to the expansion that prints it). */
+  public get poolNames(): ReadonlyArray<ColonyName> {
+    return this.gameColonies.map((c) => c.name);
+  }
+
   public drawColonies(players: number): void {
     const customColonies = this.gameOptions.customColoniesList;
     let colonies = this.gameColonies;
