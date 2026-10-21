@@ -27,10 +27,10 @@ import {Payment} from '@/common/inputs/Payment';
 import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES, SpendableCardResource} from '@/common/inputs/Spendable';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {
-  RATING_RAIL_KEY, ResourceTransferSpec, TransferPoint, TransferRect, cardResourceKey, extractPlayRewards, isStandardResource, mergeTransferSpecs,
+  RATING_RAIL_KEY, ResourceTransferSpec, TransferEnd, TransferEndLike, TransferPoint, TransferRect, cardResourceKey, extractPlayRewards, isStandardResource, mergeTransferSpecs,
   divertedStep, pickedCardOf, railRewardSpecs, railRowKey,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
-import type {RailReward} from '@/client/console/resourceTransfer/railReward';
+import type {RailAnswerCause, RailReward} from '@/client/console/resourceTransfer/railReward';
 
 /**
  * The RESULT CATEGORY the commit hands off to. One systemic commit language;
@@ -73,11 +73,12 @@ export type ActionCommitRail = {
   /** The card is a TARGET or a SOURCE of some link: the workspace stands until the last link is born. */
   holdsSurface: boolean;
   /**
-   * Origins aligned with `reward.cause` — the printed icon each token is born on (measured at submit). For a
-   * SPEND (a loss taken off a card — `spendLinks`) it is the point the token is ABSORBED at: the selected
-   * variant's printed result icon, where the result is then born.
+   * Origins aligned with `reward.cause` — the printed icon each token is born on, as an OBJECT re-measured at the
+   * token's birth (T06; a bare point only where no icon element exists). For a SPEND (a loss taken off a card —
+   * `spendLinks`) it is the end the token is ABSORBED at: the selected variant's printed result icon, where the result
+   * is then born.
    */
-  origins: ReadonlyArray<TransferPoint | undefined>;
+  origins: ReadonlyArray<TransferEndLike | undefined>;
   /** The printed icon's box a later link is born under (the TR — TR28; the variant's result — a spend) — its ring marks that birth. */
   ring?: TransferRect;
   /**
@@ -91,16 +92,20 @@ export type ActionCommitRail = {
 };
 
 /**
- * The normalized handoff plan, built and MEASURED at submit time. `origins`
- * aligns to `specs` by index (the resource-transfer contract): each reward
- * chip is born at ITS OWN icon inside the action graphic. `sourcePoint` is
- * the card-level fallback for a spec whose icon could not be resolved.
+ * The normalized handoff plan, built at submit time. `origins` aligns to
+ * `specs` by index (the resource-transfer contract): each reward chip is born
+ * at ITS OWN icon inside the action graphic — the icon ELEMENT, re-measured at
+ * the chip's birth (T06 «оба конца живые»: the press's points described a pose
+ * the composer may have left by the time the answer lands). `source` is the
+ * card-level fallback (the hero's spawn band) for a spec whose icon could not be
+ * resolved; `sourcePoint` the same measured once (a caller with no element).
  */
 export type ActionCommitPlan = {
   sourceCard: CardName;
   kind: ActionCommitKind;
   specs: ReadonlyArray<ResourceTransferSpec>;
-  origins: ReadonlyArray<TransferPoint | undefined>;
+  origins: ReadonlyArray<TransferEndLike | undefined>;
+  source?: TransferEnd;
   sourcePoint?: TransferPoint;
   /** The rail half (a direct TR, a capsule timeline) — held through `railReward`, never by the shell's own hold. */
   rail?: ActionCommitRail;
@@ -854,6 +859,14 @@ export function playRailReward(
     return undefined;
   }
   return {cause, reactions: [...reactions], known: actionKnownRailMoves(branch, stepResponses, paid)};
+}
+
+/**
+ * THE ANSWER'S PRINTED CAUSE (T06 GMO Contract): the play's rail half with the TAG each card answer was woken by
+ * (`receivingStageModel.railAnswerTags`) — the landing scene births the answer on that tag of the landed card. Pure.
+ */
+export function withRailAnswerTags(rail: RailReward | undefined, tags: Partial<Record<string, ReadonlyArray<RailAnswerCause>>>): RailReward | undefined {
+  return rail === undefined || Object.keys(tags).length === 0 ? rail : {...rail, answerTags: tags};
 }
 
 /**

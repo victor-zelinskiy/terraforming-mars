@@ -13055,9 +13055,7 @@ export default defineComponent({
                 // The wave FIRST (chips are born over the still-standing
                 // icons), then the workspace folds UNDER them — the result
                 // outlives the surface that produced it.
-                if (commitPlan !== undefined) {
-                  this.runCommitRewardWave(commitPlan);
-                }
+                const waveLeft = commitPlan !== undefined ? this.runCommitRewardWave(commitPlan) : Promise.resolve();
                 // A committed DEPLOY (Modular Floodgates variant B) does not
                 // dismiss to the board: the Hydronetwork opens as the
                 // execution surface OVER the committed stage (the fresh gate
@@ -13092,18 +13090,26 @@ export default defineComponent({
                   closeConsoleLayers();
                   releaseActionCommit();
                 };
+                // THE WAVE'S TOKENS LEAVE FIRST (T06): the surface folds once every one of them has popped out of its
+                // printed icon — never under a token still to be born (bounded by the run itself: every flight's departure
+                // races its own guarded touchdown, and the run settles its departures on every way out).
+                const waveAway = waveLeft;
                 if (rail.holdsSurface && actionCommitRailState.phase === 'flying') {
                   // The awaiting handoff stays up (the pad stays inert — the
                   // phrase cannot be cut by a press) and a view arriving
                   // mid-phrase must not resolve it a second time.
                   this.commitFoldOwed = true;
-                  void rail.foldable.then(fold);
+                  void Promise.all([rail.foldable, waveAway]).then(fold);
                 } else if (lawPlayLandingOf() !== undefined && isPlayedHeroActive()) {
                   // THE LAW'S CARD IS LANDING IN THIS STAGE (PL-726): the fold waits for the scene to tell its story —
                   // the scene's own `closing` runs it (`playedHeroState.phase` watcher), the workspace dissolving with
                   // the landed tableau inside it. The pad stays inert meanwhile, as for any owed fold.
                   this.commitFoldOwed = true;
                   this.lawPlayFold = fold;
+                } else if (commitPlan !== undefined && commitPlan.specs.length > 0 && !consoleReducedMotionActive()) {
+                  // The wave alone: the surface stands until its last token has popped out of its icon (one stagger).
+                  this.commitFoldOwed = true;
+                  void waveAway.then(fold);
                 } else {
                   fold();
                 }
@@ -20747,17 +20753,27 @@ export default defineComponent({
     },
     /**
      * The ACTION COMMIT's reward wave: the resources the activated mechanic
-     * printed MATERIALIZE at their own icons (origins cached at submit — the
-     * flight never depends on the workspace outliving the answer) and fly to
-     * the rail rows; each counter ticks exactly at its chip's touchdown
-     * (the panel reward hold), the delta chip riding that honest transition.
-     * One existing framework end to end — specs, arcs, aggregation, layer,
-     * reduced motion all come from the resource-transfer system.
+     * printed MATERIALIZE at their own icons and fly to the rail rows; each
+     * counter ticks exactly at its chip's touchdown (the panel reward hold),
+     * the delta chip riding that honest transition. One existing framework end
+     * to end — specs, arcs, aggregation, layer, reduced motion all come from the
+     * resource-transfer system.
+     *
+     * THE ORIGINS ARE OBJECTS (T06 «оба конца живые»): the plan carries the
+     * printed icon ELEMENTS, re-measured at each token's birth — never the
+     * points of the press, which described a pose the composer may have left —
+     * and the workspace folds only once EVERY token has LEFT its icon (the
+     * resolved promise: the run's own `onLeft`, bounded by the caller). A
+     * staggered wave used to be born over a composer already dissolving under it.
      */
-    runCommitRewardWave(plan: ActionCommitPlan): void {
+    runCommitRewardWave(plan: ActionCommitPlan): Promise<void> {
       if (plan.specs.length === 0) {
-        return;
+        return Promise.resolve();
       }
+      let leave: () => void = () => {};
+      const left = new Promise<void>((resolve) => {
+        leave = resolve;
+      });
       // The wave's net releases ITS OWN rows only: a blanket clear here once
       // dropped every other hold on the rail with it — the rail half of the
       // same commit (its TR still in the air) included.
@@ -20769,9 +20785,10 @@ export default defineComponent({
       void runResourceTransfers({
         specs: plan.specs,
         origins: plan.origins,
-        source: {point: plan.sourcePoint},
+        source: plan.source !== undefined ? {end: plan.source} : {point: plan.sourcePoint},
         arrival: 'auto',
         detachCovered: true,
+        onLeft: () => leave(),
         onDetach: (spec) => detached.add(spec),
         onArrive: (spec) => {
           if (pending.delete(spec)) {
@@ -20779,6 +20796,7 @@ export default defineComponent({
           }
         },
       }).finally(() => {
+        leave();
         pending.forEach((spec) => {
           if (!detached.has(spec)) {
             releasePanelRewardHold(spec);
@@ -20786,6 +20804,7 @@ export default defineComponent({
           }
         });
       });
+      return left;
     },
     /**
      * SETTLE the claim once the response has actually been applied.

@@ -41,7 +41,7 @@ import {VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {shouldMaskOwnPassiveVp} from '@/client/components/overview/privateScoreState';
-import {ResourceTransferSpec, TransferPoint, vpTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {ResourceTransferSpec, TransferEndLike, vpTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   beginPanelRewardHold, onCardResourceLanded, registerPanelVpKeeper, releasePanelRewardHold, runResourceTransfers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -351,7 +351,7 @@ export function releaseAllVpShares(why: string): void {
  */
 export async function flyVpShares(
   owner: string,
-  originOf: (share: VpShare) => TransferPoint | undefined,
+  originOf: (share: VpShare) => TransferEndLike | undefined,
   opts: {filter?: (share: VpShare) => boolean, fromBoard?: boolean, pace?: number, inSurface?: boolean} = {},
 ): Promise<'landed' | 'degraded' | 'none'> {
   const mine = vpSharesHeldBy(owner, opts.filter);
@@ -359,7 +359,7 @@ export async function flyVpShares(
     return 'none';
   }
   const flying: Array<HeldVpShare> = [];
-  const origins: Array<TransferPoint> = [];
+  const origins: Array<TransferEndLike> = [];
   const orphans: Array<VpReasonLine> = [];
   for (const entry of mine) {
     const origin = originOf(entry.share);

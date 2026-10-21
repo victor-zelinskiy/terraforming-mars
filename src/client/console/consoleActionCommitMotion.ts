@@ -35,7 +35,7 @@ import type {ICardRenderEffect} from '@/common/cards/render/Types';
 import type {ActionCommitKind} from '@/client/console/consoleActionCommit';
 import {armCommitImpulse, landCommitImpulse} from '@/client/console/consoleActionCommit';
 import {RATING_RAIL_KEY} from '@/client/console/resourceTransfer/resourceTransferModel';
-import type {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
+import type {ResourceTransferSpec, TransferEnd, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ──────────────
 // Tuned for READABILITY over snap (player feedback: the first cut was too
@@ -230,6 +230,35 @@ export function resolveGainIconOrigins(
 }
 
 /**
+ * The same icons as OBJECTS (T06 — «оба конца живые»): each spec's printed icon as an end the transfer framework
+ * re-measures at the token's birth — a commit whose answer arrives after its surface moved or folded never births a
+ * token out of the pose the icon had at the press (the plan used to carry the POINTS measured at submit).
+ */
+export function resolveGainIconEnds(
+  anchors: ActionCommitAnchors,
+  specs: ReadonlyArray<ResourceTransferSpec>,
+): Array<TransferEnd | undefined> {
+  return resolveIconEls(anchors.resultEl ?? anchors.groupEl ?? anchors.cardEl, specs).map(centreEndOf);
+}
+
+/** …and the spends' landing icons as objects (`resolveSpendIconOrigins`'s ends). */
+export function resolveSpendIconEnds(
+  anchors: ActionCommitAnchors,
+  specs: ReadonlyArray<ResourceTransferSpec>,
+): Array<TransferEnd | undefined> {
+  return resolveIconEls(anchors.costEl ?? anchors.groupEl ?? anchors.cardEl, specs).map(centreEndOf);
+}
+
+/** An element as a CENTRED end (its middle, re-measured), or undefined for a box with nothing in it. */
+export function centreEndOf(el: Element | null | undefined): TransferEnd | undefined {
+  if (el === null || el === undefined) {
+    return undefined;
+  }
+  const r = el.getBoundingClientRect();
+  return r.width > 4 && r.height > 4 ? {el, fx: 0.5, fy: 0.5} : undefined;
+}
+
+/**
  * Per-spec LANDING points of a PRICE'S tokens (the rail-spend law): a stock cost leaves its rail row and is
  * absorbed at the printed icon of that resource in the variant's COST cluster — the part before the arrow —
  * then the whole group (a one-part row), then the card. Same icon grammar as the gains: the k-th token of one
@@ -258,14 +287,25 @@ export function bareWildIcons(scope: Element): Array<HTMLElement> {
 }
 
 function resolveIconPoints(scope: HTMLElement, specs: ReadonlyArray<ResourceTransferSpec>): Array<TransferPoint | undefined> {
-  const icons = Array.from(scope.querySelectorAll<HTMLElement>('.pcard-ic'));
-  const prod = scope.querySelector<HTMLElement>('.pcard-prod');
-  const centerOf = (el: HTMLElement | undefined): TransferPoint | undefined => {
+  return resolveIconEls(scope, specs).map((el) => {
     if (el === undefined) {
       return undefined;
     }
     const r = el.getBoundingClientRect();
-    return r.width > 4 ? {x: r.left + r.width / 2, y: r.top + r.height / 2} : undefined;
+    return {x: r.left + r.width / 2, y: r.top + r.height / 2};
+  });
+}
+
+/** Each spec's printed icon ELEMENT in the scope (measurable — a box wider than 4 px), the icon grammar below. */
+function resolveIconEls(scope: HTMLElement, specs: ReadonlyArray<ResourceTransferSpec>): Array<HTMLElement | undefined> {
+  const icons = Array.from(scope.querySelectorAll<HTMLElement>('.pcard-ic'));
+  const prod = scope.querySelector<HTMLElement>('.pcard-prod');
+  const centerOf = (el: HTMLElement | undefined): HTMLElement | undefined => {
+    if (el === undefined) {
+      return undefined;
+    }
+    const r = el.getBoundingClientRect();
+    return r.width > 4 ? el : undefined;
   };
   // The M€ tiles of the graphic, in print order. A face can print SEVERAL: a budget's «−10 [M€]» beside its
   // «1 [M€] / …» — the LOSS is born on / lands on the NEGATIVE tile, a gain on a non-negative one, so each
@@ -279,7 +319,7 @@ function resolveIconPoints(scope: HTMLElement, specs: ReadonlyArray<ResourceTran
   // there (the k-th such resource on the k-th bare «?»), never «out of the plate».
   const wilds = bareWildIcons(scope);
   let wildsTaken = 0;
-  const fromWild = (): TransferPoint | undefined => {
+  const fromWild = (): HTMLElement | undefined => {
     if (wilds.length === 0) {
       return undefined;
     }

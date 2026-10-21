@@ -515,7 +515,7 @@ import {
 } from '@/client/console/consoleWorkspaceOutcome';
 import {ActionCommitKind, ActionCommitRail, actionCommitRailKey, actionCommitState, armActionCommit, markActionCommitSettled} from '@/client/console/consoleActionCommit';
 import {
-  ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconOrigins, runActionCommitMotion,
+  ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconEnds, runActionCommitMotion,
 } from '@/client/console/consoleActionCommitMotion';
 import {BatchArrivalHandle, runBatchArrival, settleBatchProxiesOnto} from '@/client/console/consoleBatchArrivalMotion';
 import {resolveCardArrivalMode} from '@/client/console/consoleCardArrival';
@@ -1731,16 +1731,18 @@ export default defineComponent({
       armOutcomeOrigin(root);
       const wrap = root?.querySelector<HTMLElement>('.con-pact__hero') ?? undefined;
       const anchors = wrap !== undefined ? resolveActionCommitAnchors(wrap, undefined) : undefined;
-      const origins = anchors !== undefined ? resolveGainIconOrigins(anchors, specs) : specs.map(() => undefined);
+      // The origins are OBJECTS re-measured at each token's birth (T06 — the face may have moved or folded by the answer).
+      const origins = anchors !== undefined ? resolveGainIconEnds(anchors, specs) : specs.map(() => undefined);
       const srcRect = wrap?.getBoundingClientRect();
-      // The rail half's tokens are born on the printed icon of THEIR kind on the source's face, measured now.
+      // The rail half's tokens are born on the printed icon of THEIR kind on the source's face, re-measured at the birth.
       const railOrigins = rail === undefined ? [] : anchors !== undefined ?
-        resolveGainIconOrigins(anchors, rail.reward.cause) : rail.reward.cause.map(() => undefined);
+        resolveGainIconEnds(anchors, rail.reward.cause) : rail.reward.cause.map(() => undefined);
       armActionCommit({
         sourceCard: this.sourceKey as CardName,
         kind,
         specs,
         origins,
+        ...(wrap !== undefined && srcRect !== undefined && srcRect.width > 4 ? {source: {el: wrap, fx: 0.5, fy: 0.6}} : {}),
         sourcePoint: srcRect !== undefined && srcRect.width > 4 ?
           {x: srcRect.left + srcRect.width / 2, y: srcRect.top + srcRect.height * 0.6} : undefined,
         ...(rail === undefined ? {} : {rail: {...rail, origins: railOrigins}}),

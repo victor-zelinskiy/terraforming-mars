@@ -63,8 +63,8 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {ActionCommitPlan, ActionCommitRail, actionCommitState, onActionCommitRelease} from '@/client/console/consoleActionCommit';
-import {pulseCommitRing} from '@/client/console/consoleActionCommitMotion';
-import {ResourceTransferSpec, TRANSFER_BEAT_MS, TRANSFER_POP_MS, TRANSFER_QUICK_ABSORB_MS, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {centreEndOf, pulseCommitRing} from '@/client/console/consoleActionCommitMotion';
+import {ResourceTransferSpec, TRANSFER_BEAT_MS, TRANSFER_QUICK_ABSORB_MS, TransferEnd, TransferEndLike} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {RailAnswerFlight, flyRailReward, flyRailRewardLink, railRewardHoldsAnswer, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -210,15 +210,17 @@ export function actionCommitRailHoldsCapsule(card: CardName | string): boolean {
   return actionCommitRailState.phase !== 'idle' && actionCommitRailState.capsules.includes(card as CardName);
 }
 
-/** The capsule of the card standing in the action composer — where a link onto (or off) the card lands. */
-function capsulePoint(card: CardName): TransferPoint | undefined {
+/**
+ * The capsule of the card standing in the action composer — where a link onto (or off) the card lands. An OBJECT end
+ * (T06): re-measured on the token's final approach — the capsule of a composer that moved or folded is never a landing.
+ */
+function capsuleEnd(card: CardName): TransferEnd | undefined {
   if (typeof document === 'undefined') {
     return undefined;
   }
   const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card.replace(/"/g, '\\"');
   const el = document.querySelector<HTMLElement>(`.con-composer__actcardwrap[data-zoom-slot="${esc}"] .pcard__res`);
-  const r = el?.getBoundingClientRect();
-  return r !== undefined && r.width > 2 ? {x: r.left + r.width / 2, y: r.top + r.height / 2} : undefined;
+  return centreEndOf(el);
 }
 
 /**
@@ -230,20 +232,14 @@ function composerCardSelector(esc: string): string {
   return `.con-cardactions .con-composer [data-composer-card="${esc}"], .con-cardactions .con-pact [data-composer-card="${esc}"]`;
 }
 
-/** A card standing in one of the composer's rows (a spend's chosen SOURCE, a reward's chosen TARGET) — its own capsule, else its face. */
-function composerCardPoint(card: CardName): TransferPoint | undefined {
+/** A card standing in one of the composer's rows (a spend's chosen SOURCE, a reward's chosen TARGET) — its own capsule, else its face — as an OBJECT end. */
+function composerCardEnd(card: CardName): TransferEnd | undefined {
   if (typeof document === 'undefined') {
     return undefined;
   }
   const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card.replace(/"/g, '\\"');
   const face = document.querySelector<HTMLElement>(composerCardSelector(esc));
-  for (const el of [face?.querySelector<HTMLElement>('.pcard__res'), face]) {
-    const r = el?.getBoundingClientRect();
-    if (r !== undefined && r.width > 2 && r.height > 2) {
-      return {x: r.left + r.width / 2, y: r.top + r.height / 2};
-    }
-  }
-  return undefined;
+  return centreEndOf(face?.querySelector<HTMLElement>('.pcard__res')) ?? centreEndOf(face);
 }
 
 /**
@@ -268,11 +264,6 @@ function presentComposerCard(card: CardName, on: boolean): void {
   }
 }
 
-/** The centre of an element as painted, or undefined for a box with nothing in it. */
-function centreOf(el: Element | undefined): TransferPoint | undefined {
-  const r = el?.getBoundingClientRect();
-  return r !== undefined && r.width > 2 && r.height > 2 ? {x: r.left + r.width / 2, y: r.top + r.height / 2} : undefined;
-}
 
 /**
  * WHERE THE TABLE'S ANSWER WAS PROMISED (PL-220): the composer's own «Сработает» chip for that rail row — the row's
@@ -280,14 +271,14 @@ function centreOf(el: Element | undefined): TransferPoint | undefined {
  * PAINTED (`firstVisibleEnd`: a covered, faded or unmounted chip is no birth place); else the row's own bolt, the
  * answer folded into «+N»; else nothing — the answer ticks.
  */
-function answerChipPoint(spec: ResourceTransferSpec): TransferPoint | undefined {
+function answerChipPoint(spec: ResourceTransferSpec): TransferEnd | undefined {
   if (typeof document === 'undefined') {
     return undefined;
   }
   const row = railRowKey(spec);
   const scope = '.con-cardactions .con-composer';
-  return centreOf(firstVisibleEnd(`${scope} [data-forecast-rail="${row}"]`)) ??
-    centreOf(firstVisibleEnd(`${scope} [data-forecast-row] .con-forecast__bolt`));
+  return centreEndOf(firstVisibleEnd(`${scope} [data-forecast-rail="${row}"]`)) ??
+    centreEndOf(firstVisibleEnd(`${scope} [data-forecast-row] .con-forecast__bolt`));
 }
 
 /** Some chip of the composer can carry an answer right now — the flight then lets the surface go only after it. */
@@ -322,10 +313,12 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined): Action
   clearOwedFly();
   actionCommitRailState.phase = 'flying';
   const card = plan.sourceCard;
-  const originOf = (spec: ResourceTransferSpec): TransferPoint | undefined => {
+  // The card-level fallback: the hero's spawn band as an OBJECT (T06 — re-measured at the birth), else its point.
+  const fallback: TransferEndLike | undefined = plan.source ?? plan.sourcePoint;
+  const originOf = (spec: ResourceTransferSpec): TransferEndLike | undefined => {
     // The rail module keeps its entries in a reactive store: the spec it hands back may be a PROXY of ours.
     const at = rail.reward.cause.indexOf(toRaw(spec));
-    return at >= 0 ? (rail.origins[at] ?? plan.sourcePoint) : plan.sourcePoint;
+    return at >= 0 ? (rail.origins[at] ?? fallback) : fallback;
   };
   let markFoldable: () => void = () => {};
   const foldable = new Promise<void>((resolve) => {
@@ -348,11 +341,11 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined): Action
    * capsule, a composer row's miniature — or the transfer ladder (a rail row; the satellite for a card nobody
    * stands on screen). A SPEND that cannot be born on its source's face names the fallback.
    */
-  const pointOf = (spec: ResourceTransferSpec, index: number): TransferPoint | undefined => {
+  const pointOf = (spec: ResourceTransferSpec, index: number): TransferEnd | undefined => {
     if (spec.channel !== 'card-resource' || spec.targetCard === undefined) {
       return undefined;
     }
-    const point = spec.targetCard === card ? capsulePoint(card) : composerCardPoint(spec.targetCard);
+    const point = spec.targetCard === card ? capsuleEnd(card) : composerCardEnd(spec.targetCard);
     if (point === undefined && spends.has(index)) {
       actionCommitRailState.fallback = `satellite:${spec.targetCard}`;
       if (process.env.NODE_ENV !== 'production') {
@@ -387,7 +380,7 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined): Action
           // «Выполняется…» over a card that had already answered, was the pause the A scene paid on every mech.
           // EACH token lands on ITS card (TR44's action: the animal into the hero's capsule, the data onto the Census's
           // miniature — one link, two touchdowns; one destination for all sent the data into the hero's capsule).
-          const landingOf = (spec: ResourceTransferSpec): TransferPoint | undefined => points[specs.indexOf(spec)] ?? points[landing];
+          const landingOf = (spec: ResourceTransferSpec): TransferEndLike | undefined => points[specs.indexOf(spec)] ?? points[landing];
           const land = async (): Promise<void> => {
             await flyRailRewardLink(rail.key, onSurface, originOf, {destination: points[landing], destinationOf: landingOf, absorb: 'quick'});
             // The run resolves on the touchdown; the token is ABSORBED into the card over the quick beat — the card it
@@ -441,9 +434,9 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined): Action
           foldUnlessAnswering();
           await flyRailReward(rail.key, originOf, answer);
         } else {
-          const flight = flyRailReward(rail.key, originOf, answer);
-          gsap.delayedCall(motionMs(TRANSFER_POP_MS) / 1000, foldUnlessAnswering);
-          await flight;
+          // The surface folds once EVERY token of the last link has left its printed icon (the run's own `onLeft` —
+          // T06: a clock of one pop let the composer fold under the later tokens of a staggered wave).
+          await flyRailReward(rail.key, originOf, answer, foldUnlessAnswering);
         }
       } else {
         const destination = points.find((p) => p !== undefined);

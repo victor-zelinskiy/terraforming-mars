@@ -950,7 +950,7 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {actionCommitState, armActionCommit, capsuleTimelineReading, commitKindForBranch, commitRailPlan, commitRewardSpecs, commitWaveSpecs, markActionCommitSettled} from '@/client/console/consoleActionCommit';
 import {actionCommitRailHoldsCapsule, actionCommitRailState} from '@/client/console/consoleActionCommitRail';
 import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
-import {ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconOrigins, resolveResultIcon, resolveSpendIconOrigins, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
+import {ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, centreEndOf, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconEnds, resolveResultIcon, resolveSpendIconEnds, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {gsap} from 'gsap';
 import {vueRoot} from '@/client/components/vueRoot';
@@ -5549,7 +5549,10 @@ export default defineComponent({
       const root = this.$refs.rootEl as HTMLElement | undefined;
       const wrap = root?.querySelector<HTMLElement>('.con-composer__actcardwrap') ?? undefined;
       const anchors = wrap !== undefined ? resolveActionCommitAnchors(wrap, this.actionGraphicNode) : undefined;
-      const origins = anchors !== undefined ? resolveGainIconOrigins(anchors, specs) : specs.map(() => undefined);
+      // The ORIGINS ARE OBJECTS (T06 «оба конца живые»): each printed icon is re-measured at its token's birth — the
+      // answer may land after the composer moved or folded, and a point cached here would birth a token where the
+      // card no longer is.
+      const origins = anchors !== undefined ? resolveGainIconEnds(anchors, specs) : specs.map(() => undefined);
       const srcRect = wrap?.getBoundingClientRect();
       // THE RESULT the impulse lands on: the wave's first gain, else the chain's (a spend's result rides the half).
       // A replaced unit's data (RX35) lands on — and is born on — the STRUCK printed icon (`bornOn`), never a data icon.
@@ -5558,8 +5561,7 @@ export default defineComponent({
       // A spend is ABSORBED at the selected variant's printed result icon — the icon its result is then born on.
       const absorbEl = railPlan?.spendLinks !== undefined && anchors !== undefined ? resolveResultIcon(anchors, kind, resultResource) : undefined;
       const absorbRect = absorbEl?.getBoundingClientRect();
-      const absorb = absorbRect !== undefined && absorbRect.width > 2 ?
-        {x: absorbRect.left + absorbRect.width / 2, y: absorbRect.top + absorbRect.height / 2} : undefined;
+      const absorb = absorbRect !== undefined && absorbRect.width > 2 ? centreEndOf(absorbEl) : undefined;
       // A later link is born under a ring: the TR's (a timeline, a spend before a TR), else the spend's result.
       const ringRect = railPlan !== undefined && railPlan.links.length > 1 && anchors !== undefined ?
         (railPlan.reward.cause.some((spec) => spec.resource === RATING_RAIL_KEY) ? resolveResultIcon(anchors, 'rating')?.getBoundingClientRect() : absorbRect) :
@@ -5567,9 +5569,9 @@ export default defineComponent({
       const spendLinks = new Set(railPlan?.spendLinks ?? []);
       // A CARD's spend is absorbed at the result icon (TR29); a PRICE off the RAIL lands on the printed icon of
       // that very cost in the variant's cost cluster (the rail-spend law) — «the plant goes in there».
-      const costPoints = railPlan !== undefined && anchors !== undefined ? resolveSpendIconOrigins(anchors, railPlan.reward.cause) : [];
+      const costPoints = railPlan !== undefined && anchors !== undefined ? resolveSpendIconEnds(anchors, railPlan.reward.cause) : [];
       const railOrigins = railPlan === undefined ? [] : anchors !== undefined ?
-        resolveGainIconOrigins(anchors, railPlan.reward.cause).map((origin, i) =>
+        resolveGainIconEnds(anchors, railPlan.reward.cause).map((origin, i) =>
           (spendLinks.has(i) ? (railPlan.reward.cause[i].channel === 'card-resource' ? absorb : (costPoints[i] ?? absorb)) : origin)) :
         railPlan.reward.cause.map(() => undefined);
       armActionCommit({
@@ -5577,6 +5579,8 @@ export default defineComponent({
         kind,
         specs,
         origins,
+        // The hero's spawn band as an OBJECT (re-measured at the birth), and its point once for a caller without one.
+        ...(wrap !== undefined && srcRect !== undefined && srcRect.width > 4 ? {source: {el: wrap, fx: 0.5, fy: 0.72}} : {}),
         sourcePoint: srcRect !== undefined && srcRect.width > 4 ?
           {x: srcRect.left + srcRect.width / 2, y: srcRect.top + srcRect.height * 0.72} : undefined,
         rail: railPlan === undefined ? undefined : {

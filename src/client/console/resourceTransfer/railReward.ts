@@ -56,12 +56,16 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {
-  RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, TRANSFER_POP_MS, TransferPoint, mergeTransferSpecs, railRowKey,
+  RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, TransferEndLike, mergeTransferSpecs, railRowKey,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   TransferDegradeReason, beginPanelRewardHold, beginPanelVpHold, releasePanelRewardHold, releasePanelVpHold, runResourceTransfers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {noteVpHeldElsewhere} from '@/client/console/scoreCell/vpShareLedger';
+import type {Tag} from '@/common/cards/Tag';
+
+/** One printed cause of a card's answer on a played card: the tag that woke it and the share it pays (T06). */
+export type RailAnswerCause = {tag: Tag, amount: number};
 
 /** What an owner promises the rail: the gains it will FLY, and the table's answer to them. */
 export type RailReward = {
@@ -88,6 +92,14 @@ export type RailReward = {
    * cause. Checked against the views' own score like every row.
    */
   vp?: ReadonlyArray<number>;
+  /**
+   * THE ANSWER'S PRINTED CAUSES ON A PLAYED CARD (T06 GMO Contract): by the answer's rail row (`railRowKey`), the
+   * TAGS of the played card that woke a card's answer, each with its share («+2 M€» per plant / animal / microbe tag) —
+   * the play scene births one token per cause on the landed card's printed tag, the row ticking on each touchdown
+   * (`receivingStageModel.railAnswerTags`). What the causes do not cover (a party's share, nothing printed to be born on)
+   * keeps the tick a beat after the cause.
+   */
+  answerTags?: Readonly<Partial<Record<string, ReadonlyArray<RailAnswerCause>>>>;
 };
 
 /**
@@ -99,7 +111,7 @@ export type RailReward = {
  */
 export type RailAnswerFlight = {
   /** Asked at the answer's launch, per held reaction — undefined: that reaction ticks instead of flying. */
-  originOf: (spec: ResourceTransferSpec) => TransferPoint | undefined;
+  originOf: (spec: ResourceTransferSpec) => TransferEndLike | undefined;
   /** The answer has LEFT its chips (one pop after its birth) — or ticked, or was released: the surface may let go. */
   onLeft: () => void;
 };
@@ -381,11 +393,14 @@ export function railRewardHoldsAnswer(key: string): boolean {
  */
 export function flyRailReward(
   key: string,
-  originOf: (spec: ResourceTransferSpec, index: number) => TransferPoint | undefined,
+  originOf: (spec: ResourceTransferSpec, index: number) => TransferEndLike | undefined,
   answer?: RailAnswerFlight,
+  /** Every token of the cause has LEFT its origin (popped or never born) — the owner's surface may fold now. */
+  onLeft?: () => void,
 ): Promise<RailRewardOutcome> {
   const entry = entryOf(key);
   if (entry === undefined || entry.phase !== 'held') {
+    onLeft?.();
     answer?.onLeft();
     return Promise.resolve('none');
   }
@@ -404,6 +419,7 @@ export function flyRailReward(
     source: {},
     origins,
     arrival: 'auto',
+    ...(onLeft !== undefined ? {onLeft} : {}),
     onArrive: (spec) => {
       const live = entryOf(key);
       if (live !== undefined) {
@@ -434,8 +450,8 @@ export function flyRailReward(
 export function flyRailRewardLink(
   key: string,
   specs: ReadonlyArray<ResourceTransferSpec>,
-  originOf: (spec: ResourceTransferSpec, index: number) => TransferPoint | undefined,
-  opts: {destination?: TransferPoint, destinationOf?: (spec: ResourceTransferSpec) => TransferPoint | undefined, absorb?: 'quick'} = {},
+  originOf: (spec: ResourceTransferSpec, index: number) => TransferEndLike | undefined,
+  opts: {destination?: TransferEndLike, destinationOf?: (spec: ResourceTransferSpec) => TransferEndLike | undefined, absorb?: 'quick', onLeft?: () => void} = {},
 ): Promise<RailRewardOutcome> {
   const entry = entryOf(key);
   const held = entry === undefined ? [] : specs.filter((spec) => entry.cause.includes(spec));
@@ -461,6 +477,10 @@ export function flyRailRewardLink(
     // chosen card's miniature) — each spec names its own touchdown.
     ...(opts.destinationOf !== undefined ? {destinationOf: (spec: ResourceTransferSpec) => opts.destinationOf?.(spec)} : {}),
     ...(opts.absorb !== undefined ? {absorb: opts.absorb} : {}),
+    // The link's destinations are the card's own capsule on the surface (the hero's, a composer row's miniature): a
+    // double of the spec's home — gone on the final approach, the token re-homes there (T06), never into the old pose.
+    homeStandIn: true,
+    ...(opts.onLeft !== undefined ? {onLeft: opts.onLeft} : {}),
     onArrive: (spec) => {
       const live = entryOf(key);
       if (live !== undefined) {
@@ -520,7 +540,7 @@ function answerRailReward(key: string, answer?: RailAnswerFlight): Promise<void>
       }
       const launch = answer === undefined ? [] : live.reactions
         .map((spec) => ({spec, origin: answer.originOf(spec)}))
-        .filter((f): f is {spec: ResourceTransferSpec, origin: TransferPoint} => f.origin !== undefined);
+        .filter((f): f is {spec: ResourceTransferSpec, origin: TransferEndLike} => f.origin !== undefined);
       const flown = launch.map((f) => f.spec);
       const ticked = live.reactions.filter((spec) => !flown.includes(spec));
       railRewardState.lastAnswer = {key, flown: flown.map(railRowKey), ticked: ticked.map(railRowKey)};
@@ -530,14 +550,15 @@ function answerRailReward(key: string, answer?: RailAnswerFlight): Promise<void>
         settle();
         return;
       }
-      // The tokens POP out of their chips first: the surface the chips stand on is let go one pop later — the
-      // token has left it — and the rows tick on the touchdowns, the answer's own rhythm.
-      gsap.delayedCall(motionMs(TRANSFER_POP_MS) / 1000, () => answer?.onLeft());
+      // The tokens POP out of their chips first: the surface the chips stand on is let go once EVERY token has left
+      // it (the run's own `onLeft` — T06: a clock beside a staggered wave let the surface go under the later births),
+      // and the rows tick on the touchdowns, the answer's own rhythm.
       void runResourceTransfers({
         specs: flown,
         source: {},
         origins: launch.map((f) => f.origin),
         arrival: 'auto',
+        onLeft: () => answer?.onLeft(),
         onArrive: (spec) => {
           const now = entryOf(key);
           if (now !== undefined) {
