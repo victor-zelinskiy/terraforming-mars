@@ -114,6 +114,17 @@ export class ColonyDealer {
     return deck;
   }
 
+  /** How many tiles a table of `players` seats starts with (MarsBot's seat counts). */
+  public static colonyCountFor(players: number): number {
+    return (players + 2) +
+      (players <= 2 ? 1 : 0); // Two-player games and solo games get one more colony.
+  }
+
+  /** The tiles this game's options can deal (before a custom list narrows them). */
+  public get poolSize(): number {
+    return this.gameColonies.length;
+  }
+
   public drawColonies(players: number): void {
     const customColonies = this.gameOptions.customColoniesList;
     let colonies = this.gameColonies;
@@ -123,8 +134,7 @@ export class ColonyDealer {
         .map((cf) => new cf.Factory());
     }
 
-    const count = (players + 2) +
-      (players <= 2 ? 1 : 0); // Two-player games and solo games get one more colony.
+    const count = ColonyDealer.colonyCountFor(players);
 
     if (colonies.length < count) {
       throw new Error(`Not enough valid colonies to choose from (want ${count}, has ${colonies.length}.) Remember that colonies like Venus and Pallas are invalid without Venus or Turmoil.`);

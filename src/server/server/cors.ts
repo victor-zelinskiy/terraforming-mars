@@ -68,6 +68,8 @@ const CORS_PATHS: ReadonlySet<string> = new Set<string>([
   paths.API_GAMES_JOINABLE,
   paths.API_GAME_PLAYER_COLOR,
   paths.API_CREATEGAME,
+  // The creator's deck count (read-only, no game) — the desktop creator asks it on every toggle.
+  paths.API_DECK_COMPOSITION,
   paths.API_CLONEABLEGAME,
   // Local-game deletion (host-as-server). CORS-eligible because the desktop
   // renderer's app://bundle origin is cross-origin even to 127.0.0.1 — but the

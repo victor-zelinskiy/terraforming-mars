@@ -3,6 +3,7 @@ import {clearDeckCompositionMemo, deckCompositionOf, deckCompositionStats} from 
 import {gameOptionsFromNewGameConfig} from '../../src/server/game/newGameConfigToOptions';
 import {NewGameConfig} from '../../src/common/game/NewGameConfig';
 import {creatorConfig} from './creatorConfig';
+import {BoardName} from '../../src/common/boards/BoardName';
 import {Expansion} from '../../src/common/cards/GameModule';
 import {RandomBoardOption} from '../../src/common/boards/RandomBoardOption';
 import {DECK_COMPOSITION_EXPANSIONS, DeckCompositionModel} from '../../src/common/models/DeckCompositionModel';
@@ -102,7 +103,7 @@ describe('deckCompositionOf — the creator\'s decks, counted by the server', ()
     const built = deckCompositionStats.builds;
     expect(built).greaterThan(0);
     compositionOf(creatorConfig(['corpera', 'prelude']));
-    compositionOf(creatorConfig(['corpera', 'prelude'], 2, {board: 'tharsis'}));
+    compositionOf(creatorConfig(['corpera', 'prelude'], 2, {board: BoardName.THARSIS}));
     expect(deckCompositionStats.builds).eq(built);
   });
 

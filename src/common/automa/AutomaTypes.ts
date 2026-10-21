@@ -72,6 +72,11 @@ export type DifficultyLevel = 'easy' | 'normal' | 'hard' | 'brutal';
  */
 export type AutomaMode = 'official-solo' | 'multiplayer';
 
+/** The mode a MarsBot table plays, by its HUMAN seat count (one human = the official solo) — the one reading of the rule. */
+export function automaModeFor(humans: number): AutomaMode {
+  return humans === 1 ? 'official-solo' : 'multiplayer';
+}
+
 export type AutomaOptions = {
   difficulty: DifficultyLevel;
   mode?: AutomaMode;

@@ -2,6 +2,8 @@ export const paths = {
   ADMIN: 'admin',
   API_CLONEABLEGAME: 'api/cloneablegame',
   API_CREATEGAME: 'api/creategame',
+  // The creator's decks, counted by the server for the current settings (T04) — read-only, no game.
+  API_DECK_COMPOSITION: 'api/deck-composition',
   API_GAME: 'api/game',
   API_GAME_DELETE: 'api/game/delete',
   API_GAME_HISTORY: 'api/game/history',

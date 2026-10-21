@@ -7,6 +7,7 @@ import {SessionId} from '../auth/Session';
 import {GameLoader} from '../database/GameLoader';
 import {ApiCloneableGame} from '../routes/ApiCloneableGame';
 import {ApiCreateGame} from '../routes/ApiCreateGame';
+import {ApiDeckComposition} from '../routes/ApiDeckComposition';
 import {ApiDesktopVersion} from '../routes/ApiDesktopVersion';
 import {ApiDesktopFeed} from '../routes/ApiDesktopFeed';
 import {ApiGame} from '../routes/ApiGame';
@@ -101,6 +102,7 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.ADMIN, ServeApp.INSTANCE],
     [paths.API_CLONEABLEGAME, ApiCloneableGame.INSTANCE],
     [paths.API_CREATEGAME, ApiCreateGame.INSTANCE],
+    [paths.API_DECK_COMPOSITION, ApiDeckComposition.INSTANCE],
     [paths.API_GAME, ApiGame.INSTANCE],
     [paths.API_GAME_DELETE, ApiGameDelete.INSTANCE],
     [paths.API_GAME_HISTORY, ApiGameHistory.INSTANCE],

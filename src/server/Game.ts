@@ -1,5 +1,5 @@
 import * as constants from '../common/constants';
-import {getAutomaMaxGeneration} from '../common/automa/AutomaTypes';
+import {automaModeFor, getAutomaMaxGeneration} from '../common/automa/AutomaTypes';
 import {AutomaController} from './automa/AutomaController';
 import {AutomaCorporations} from './automa/corps/AutomaCorporations';
 import {BotTurnScheduler} from './automa/BotTurnScheduler';
@@ -413,7 +413,7 @@ export class Game implements IGame, Logger {
       // §12 Q1) — the ban / instant-loss predicates read it downstream.
       gameOptions.automa = {
         ...gameOptions.automa,
-        mode: automaHumans.length === 1 ? 'official-solo' : 'multiplayer',
+        mode: automaModeFor(automaHumans.length),
       };
       if (firstPlayer.isMarsBot) {
         throw new Error('A human player is the starting player of an automa game');

@@ -96,6 +96,13 @@ function countOf(cards: ReadonlyArray<ICard>): DeckCount {
   return {total: cards.length, byModule};
 }
 
+/** The colony tiles at the start (the dealer's own count by seats, MarsBot's seat included) out of the pool the options deal from. */
+function colonyTableOf(options: GameOptions, table: DeckTable): {inPlay: number, pool: number} {
+  const seats = table.humans + (table.bot ? 1 : 0);
+  const pool = options.customColoniesList.length > 0 ? options.customColoniesList.length : new ColonyDealer(new ConstRandom(0), options).poolSize;
+  return {inPlay: Math.min(ColonyDealer.colonyCountFor(seats), pool), pool};
+}
+
 function build(options: GameOptions, table: DeckTable): DeckComposition {
   deckCompositionStats.builds++;
   const cards = new GameCards(options);
@@ -104,16 +111,10 @@ function build(options: GameOptions, table: DeckTable): DeckComposition {
   // `GameCards.getPreludeCards` fills an EMPTY prelude deck for Valley Trust; nobody is dealt
   // a prelude unless the Prelude expansion is on (`Game.newInstance`), so that pile is no deck.
   const preludes = options.preludeExtension ? cards.getPreludeCards() : [];
-  const extras: DeckComposition['extras'] = {};
-  if (options.coloniesExtension) {
-    const seats = table.humans + (table.bot ? 1 : 0);
-    const dealer = new ColonyDealer(new ConstRandom(0), options);
-    const pool = options.customColoniesList.length > 0 ? options.customColoniesList.length : dealer.poolSize;
-    extras.colonies = {inPlay: Math.min(ColonyDealer.colonyCountFor(seats), pool), pool};
-  }
-  if (options.turmoilReduxExpansion) {
-    extras.resolutions = REDUX_RESOLUTION_CATALOG.dealtInstances(compatibleWith(options.expansions)).length;
-  }
+  const extras: DeckComposition['extras'] = {
+    ...(options.coloniesExtension ? {colonies: colonyTableOf(options, table)} : {}),
+    ...(options.turmoilReduxExpansion ? {resolutions: REDUX_RESOLUTION_CATALOG.dealtInstances(compatibleWith(options.expansions)).length} : {}),
+  };
   return {
     projects: {
       ...countOf(projects),
@@ -141,8 +142,11 @@ function compositionOf(options: GameOptions, table: DeckTable): DeckComposition 
   }
   const composition = build(play, table);
   memo.set(key, composition);
-  if (memo.size > MEMO_LIMIT) {
-    memo.delete(memo.keys().next().value!);
+  for (const oldest of memo.keys()) {
+    if (memo.size <= MEMO_LIMIT) {
+      break;
+    }
+    memo.delete(oldest);
   }
   return composition;
 }
