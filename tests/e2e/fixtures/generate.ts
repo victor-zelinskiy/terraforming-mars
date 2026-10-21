@@ -6862,6 +6862,64 @@ parliamentFixture('overclocked-equipment-energy', {
   },
 });
 
+// ── T04 · DIASPORA MOVEMENT — the first CLASSIC Turmoil card dealt to a Redux table (the hold-back list's first row
+//    gone). Blue holds it on 20 M€ with a Jovian tag of its own on the table (Colonizer Training Camp) and red one
+//    (Methane From Titan): the play counts 3 — its own tag included. Both cards are MOVED out of the dealt pool, never
+//    copied (moveToDeckTop), so the deal stays the engine's.
+//      · `diaspora-movement` — the Reds RULE (their quiet law enacted): playable, «+3 M€ · 3 Jovian tags»;
+//      · `diaspora-movement-locked` — another party rules and the Reds' resolution stands on the vote with ONE
+//        delegate of blue's: «✕» with both roads, «1 of 2». ──
+function diasporaTable(game: IGame, p1: IPlayer, p2: IPlayer): void {
+  for (const [name, owner] of [[CardName.COLONIZER_TRAINING_CAMP, p1], [CardName.METHANE_FROM_TITAN, p2]] as const) {
+    moveToDeckTop(game, name);
+    owner.playedCards.push(game.projectDeck.drawOrThrow(game));
+  }
+  moveToDeckTop(game, CardName.DIASPORA_MOVEMENT);
+  p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+}
+function jovianInPlay(game: IGame): number {
+  return game.players.reduce((sum, player) => sum + player.tags.count(Tag.JOVIAN, 'raw'), 0);
+}
+parliamentFixture('diaspora-movement', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, p2, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.REDS));
+    diasporaTable(game, p1, p2);
+  },
+  expect: ({game, p1, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.DIASPORA_MOVEMENT);
+    if (card === undefined || !p1.canPlay(card) || jovianInPlay(game) !== 2 || parliament.rulingParty() !== PartyName.REDS || game.activePlayer.id !== p1.id) {
+      throw new Error(`the diaspora-movement fixture expected T04 playable with the Reds ruling, 2 Jovian tags in play (+ its own = 3) and blue on the move — got card=${card !== undefined} canPlay=${card === undefined ? '-' : p1.canPlay(card)} jovian=${jovianInPlay(game)} ruling=${parliament.rulingParty()}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+parliamentFixture('diaspora-movement-locked', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, p2, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.INDUSTRIALISTS));
+    const slot = parliament.slotOf(PartyName.REDS) === undefined ? 0 : parliament.slots.indexOf(parliament.slotOf(PartyName.REDS)!);
+    if (parliament.slotOf(PartyName.REDS) === undefined) {
+      seatResolution(parliament, slot, quietResolutionOf(PartyName.REDS));
+    }
+    parliament.placeVote(p1, parliament.slots[slot], 'lobby');
+    diasporaTable(game, p1, p2);
+  },
+  expect: ({game, p1, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.DIASPORA_MOVEMENT);
+    const reds = parliament.slotOf(PartyName.REDS);
+    const delegates = reds === undefined ? -1 : parliament.votesOf(p1, reds);
+    if (card === undefined || p1.canPlay(card) || delegates !== 1 || parliament.rulingParty() === PartyName.REDS) {
+      throw new Error(`the diaspora-movement-locked fixture expected T04 UNplayable — the Reds not ruling, one delegate of blue's on their resolution — got card=${card !== undefined} delegates=${delegates} ruling=${parliament.rulingParty()}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
 // ── THE SCORE CELL'S SOURCES, blue on the move (TR55): Terraformer claimable (TR 35, 30 M€ — the milestone's +5 flies
 //    from its ceremony), Security Fleet on the table with no fighter and 2 titanium (the ACTION's fighter brings its
 //    point on its touchdown — К-V2: the preview carries no `vpBox` for the card's own capsule). A quiet government. ──

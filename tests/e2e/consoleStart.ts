@@ -2349,6 +2349,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   // milestone, an action's fighter); a foreign greenery beside blue's city (red on the move) — docs/claude/console/score-cell.md.
   'nuclear-warhead-utilization' | 'nuclear-warhead-locked' | 'vp-cell-sources' | 'vp-cell-rival' |
   'overclocked-equipment' | 'overclocked-equipment-locked' | 'overclocked-equipment-energy' |
+  'diaspora-movement' | 'diaspora-movement-locked' |
   // TR56 Robotics Factory and the iteration «КУДА ЛЯЖЕТ»: three kinds of holders (mechs · fighters · floaters ×2); the
   // floaters only; no holder of any kind; Construction Mechs paying for the Building tag; the Reds ruling.
   'robotics-factory' | 'robotics-factory-one' | 'robotics-factory-none' | 'robotics-factory-mechpay' | 'robotics-factory-locked' |
