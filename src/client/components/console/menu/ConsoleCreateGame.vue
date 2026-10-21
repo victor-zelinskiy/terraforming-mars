@@ -112,7 +112,7 @@
           @activate="activateMap($event)"
         />
       </ConsoleScrollArea>
-      <ConsoleLaunchPanel @launch="onLaunchPressed" />
+      <ConsoleLaunchPanel />
     </div>
 
     <!-- ── Overlays (one at a time, model-owned) ───────────────────────── -->

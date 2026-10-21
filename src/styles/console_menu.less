@@ -2145,31 +2145,6 @@ html.con-profile-handheld {
     gap: .3rem;
     white-space: nowrap;
 }
-.cm-launch__cta {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: .6rem;
-    min-height: 2.6rem;
-    padding: .4rem .7rem;
-    border: 0;
-    border-radius: .55rem;
-    background: rgba(16, 27, 40, 0.95);
-    box-shadow: inset 0 0 0 .05rem fade(@con-amber, 55%);
-    color: @con-text;
-    font-family: inherit;
-    font-size: .85rem;
-    letter-spacing: .1rem;
-    text-transform: uppercase;
-    cursor: pointer;
-
-    &--ready {
-        background: linear-gradient(180deg, fade(@cm-gold, 32%) 0%, fade(@cm-gold, 16%) 100%);
-        box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 85%), 0 0 1.1rem fade(@cm-gold, 30%);
-        color: mix(#ffffff, @cm-gold, 35%);
-        animation: cm-cta-breathe calc(2600ms * var(--motion-scale, 1)) ease-in-out infinite;
-    }
-}
 
 /* ── Launch ceremony ─────────────────────────────────────────────── */
 .cm-launchc__kicker {
@@ -2311,10 +2286,6 @@ html.con-profile-handheld {
 @keyframes cm-pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.45; }
-}
-@keyframes cm-cta-breathe {
-    0%, 100% { box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 85%), 0 0 .9rem fade(@cm-gold, 22%); }
-    50% { box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 95%), 0 0 1.5rem fade(@cm-gold, 42%); }
 }
 @keyframes cm-launch-breathe {
     0%, 100% { opacity: 0; }
@@ -2621,10 +2592,12 @@ html.con-profile-handheld {
     .cm-launch__label { font-size: .8rem; letter-spacing: .16em; }
     .cm-chip { font-size: .9rem; padding: .28rem .7rem; }
     .cm-chip__cube { width: .85rem; height: .85rem; }
-    .cm-launch__map { flex-direction: column; align-items: flex-start; gap: .5rem; }
-    .cm-launch__map-thumb { width: 10rem; }
+    /* The column FITS without a scroll (the owner, 2026-10-21): the miniature sits BESIDE its name, and all eight
+       expansion marks hold ONE row (8 × 2rem + 7 gaps ≤ the 19.8rem content box). */
+    .cm-launch__map { gap: .8rem; }
+    .cm-launch__map-thumb { width: 6.5rem; }
     .cm-launch__map-name { font-size: 1rem; }
-    .cm-launch__icons { gap: .55rem; img { width: 2rem; height: 2rem; } }
+    .cm-launch__icons { gap: .4rem; img { width: 2rem; height: 2rem; } }
     .cm-launch__none { font-size: .9rem; }
     .cm-launch__rule { font-size: .9rem; &::before { font-size: .8rem; } }
     .cm-launch__status { font-size: .95rem; padding: .55rem .8rem; }
@@ -2632,7 +2605,6 @@ html.con-profile-handheld {
     .cm-issues__row { font-size: .9rem; }
     .cm-launch__error { font-size: .9rem; }
     .cm-launch__restored { font-size: .85rem; }
-    .cm-launch__cta { min-height: 3.2rem; font-size: 1rem; }
 
     /* THE OVERLAYS (editor · type pick · confirmations) — the couch's size. */
     .cm-overlay__card { width: min(34rem, 92vw); gap: .9rem; padding: 1.3rem 1.5rem; border-radius: .9rem; }
@@ -2669,7 +2641,6 @@ html.con-profile-handheld {
 @media (prefers-reduced-motion: reduce) {
     .cm-row--shake { animation: none; }
     .cm-launch__status-dot,
-    .cm-launch__cta--ready,
     .cm-confirm__btn--launch::after { animation: none; }
     .cm-maps__strip,
     .cm-map,

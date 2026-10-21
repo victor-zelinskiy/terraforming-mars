@@ -75,11 +75,6 @@
         </div>
       </div>
     </ConsoleScrollArea>
-
-    <button type="button" class="cm-launch__cta" :class="{'cm-launch__cta--ready': ready}" @click="$emit('launch')">
-      <GamepadGlyph control="secondary" />
-      <span>{{ $t(ready ? (campaign ? 'Assemble the campaign' : 'Launch the party') : 'Go to the first issue') }}</span>
-    </button>
   </aside>
 </template>
 
@@ -87,9 +82,11 @@
 /**
  * LAUNCH BRIEFING panel (console create, right column) — the live mission
  * readout: crew chips, map, expansions, rules, then the READINESS block
- * (blocking issues list OR the mint "ready to launch" plate) and the X-CTA.
- * Reads the shared create model directly; the root screen owns the actual
- * launch flow (X → confirm ceremony / jump-to-issue).
+ * (blocking issues list OR the mint "ready to launch" plate). A READOUT only:
+ * the launch verb lives in the command bar (X — «Запуск партии» / «К первой
+ * проблеме»), never a second button here (the owner, 2026-10-21 — the CTA
+ * duplicated the bar and cost the column its no-scroll fit). Reads the shared
+ * create model directly; the root screen owns the launch flow.
  */
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
@@ -99,7 +96,6 @@ import {
   botSeated,
   consoleCreateUi,
   launchIssues,
-  launchReady,
   selectedMapKey,
 } from '@/client/console/menu/consoleCreateModel';
 import {
@@ -119,7 +115,6 @@ import {Expansion} from '@/common/cards/GameModule';
 export default defineComponent({
   name: 'ConsoleLaunchPanel',
   components: {ConsoleDeckMeter, ConsoleScrollArea, GamepadGlyph, PremiumMapFingerprint},
-  emits: ['launch'],
   computed: {
     campaign(): boolean {
       return isCampaignMode();
@@ -161,9 +156,6 @@ export default defineComponent({
     },
     issues(): ReadonlyArray<LaunchIssue> {
       return launchIssues();
-    },
-    ready(): boolean {
-      return launchReady();
     },
     error(): string {
       return createGameState.error;
