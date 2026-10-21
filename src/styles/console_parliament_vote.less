@@ -317,6 +317,9 @@
        is width and drops under it where there is not — never a fixed second
        line the panel has no budget for. */
     &__info-readings {
+        /* THE READING'S SCALE IN ITS FRAME (PL-785): solved by `fitReading` from the frame's own room — the frame keeps
+           one box for every card, the reading takes the room instead of floating between two empty bands. */
+        zoom: var(--con-parl-reading-fit, 1);
         flex: 1 1 auto;
         display: flex;
         flex-wrap: wrap;

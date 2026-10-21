@@ -380,6 +380,9 @@ const VOTE_LANDING_MS = 700;
 /** The confirm's price line: the lobby's delegate is free, the reserve's costs the server's own M€. */
 type CtaCost = {kind: 'free' | 'cost' | 'none', amount: number};
 
+/** The reading's own scale steps in its frame, largest first (PL-785 — `fitReading`): ×1.5 is the reading as a hero, ×1 the floor. */
+const READING_FIT_STEPS: ReadonlyArray<number> = [1.5, 1.35, 1.2, 1.1, 1];
+
 /**
  * THE VOTE MODE — the Parliament frame's phase descent: the three slots are
  * teleported into this layer's row and FLIP there from their overview rects,
@@ -434,6 +437,8 @@ export default defineComponent({
       landingBeat: undefined as ParliamentBeat | undefined,
       landingHold: undefined as AnimationHold | undefined,
       flightHold: undefined as AnimationHold | undefined,
+      /** The reading's own frame is watched for a change of ITS room (a profile, the panel) — the fit's other trigger. */
+      readingRoomObserver: undefined as ResizeObserver | undefined,
     };
   },
   computed: {
@@ -772,12 +777,79 @@ export default defineComponent({
     if (parliamentFlow.stage === 'vote' && parliamentFlow.voteEntering) {
       this.playFreshEntrance();
     }
+    if (typeof ResizeObserver !== 'undefined') {
+      this.readingRoomObserver = new ResizeObserver(() => this.fitReading());
+    }
+    void this.$nextTick(() => this.fitReading());
+  },
+  updated() {
+    // A new card, a new subject, a reading that changed: the reading re-seats in its frame (the frame never moves).
+    this.fitReading();
   },
   beforeUnmount() {
     this.clearLanding();
     freezeParliamentFit(false);
+    this.readingRoomObserver?.disconnect();
   },
   methods: {
+    /**
+     * THE READING SITS IN ITS FRAME (PL-785). «ДЛЯ ВАС ПРИ ПРИНЯТИИ» keeps ONE frame whatever the card (the stability
+     * law — a one-row and a two-row reading draw the same box), so a short reading floated in its middle between two
+     * empty bands. The reading now takes the frame's room: the largest step of the reading's own scale (×1 … ×1.5) at
+     * which it still stands whole inside its body — measured, never assumed (each step laid out once, the first that
+     * fits wins; a reading that fills the frame at ×1 stays ×1). The FRAME never moves; only its content's scale, and
+     * only on a new card, subject or reading — the vote's committed geometry is frozen from A to the leave (law 8).
+     */
+    fitReading(): void {
+      const root = this.$el as HTMLElement | undefined;
+      const body = root?.querySelector?.<HTMLElement>('.con-parl__info-own-body') ?? null;
+      const readings = body?.querySelector<HTMLElement>('.con-parl__info-readings') ?? null;
+      if (body === null) {
+        return;
+      }
+      const observer = this.readingRoomObserver;
+      if (observer !== undefined && (body as HTMLElement & {__fitObserved?: boolean}).__fitObserved !== true) {
+        observer.observe(body);
+        (body as HTMLElement & {__fitObserved?: boolean}).__fitObserved = true;
+      }
+      if (readings === null || this.voteCommitted) {
+        return;
+      }
+      // Only the HALL's panel is a frame with room to fill; a hosted door's band (TR03 · TR15) keeps its compact reading.
+      if (!consoleParliamentUi.hall) {
+        readings.style.removeProperty('--con-parl-reading-fit');
+        return;
+      }
+      const room = body.getBoundingClientRect();
+      const key = `${Math.round(room.width)}x${Math.round(room.height)}|${readings.childElementCount}|${readings.textContent ?? ''}`;
+      if (readings.dataset.fitKey === key) {
+        return;
+      }
+      // The entrance poses the reading with a TRANSFORM (a .96 scale while it surfaces): measured under it, every step
+      // reads 4 % small. The pose is lifted for the synchronous measurement and put back — nothing paints in between.
+      const pose = readings.style.transform;
+      readings.style.transform = 'none';
+      // A READING PLATE never wraps INSIDE itself to buy scale («3 + 1 →» over «+4 …» read as two half-sentences): each
+      // plate's height at ×1 is the reference, and a step may grow it only by the step itself. A secondary line (the
+      // holders', the kinds') may still wrap — it is a list, not one number.
+      const plates = Array.from(readings.querySelectorAll<HTMLElement>('.con-iyield__reading'));
+      readings.style.setProperty('--con-parl-reading-fit', '1');
+      const natural = plates.map((plate) => plate.getBoundingClientRect().height);
+      let fit = 1;
+      for (const step of READING_FIT_STEPS) {
+        readings.style.setProperty('--con-parl-reading-fit', String(step));
+        const r = readings.getBoundingClientRect();
+        const whole = plates.every((plate, i) => plate.getBoundingClientRect().height <= natural[i] * step + 2);
+        if (whole && r.height <= room.height - 1 && r.width <= room.width + 1 && readings.scrollWidth <= readings.clientWidth + 1) {
+          fit = step;
+          break;
+        }
+      }
+      readings.style.transform = pose;
+      readings.style.setProperty('--con-parl-reading-fit', String(fit));
+      readings.dataset.fitKey = key;
+      readings.dataset.readingFit = String(fit);
+    },
     /** The FRESH entrance of a mode armed before the mount (see `mounted`). */
     playFreshEntrance(): void {
       const f = parliamentFlow;
