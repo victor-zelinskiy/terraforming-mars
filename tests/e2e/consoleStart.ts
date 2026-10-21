@@ -1,6 +1,7 @@
 import {APIRequestContext, Locator, Page, expect, test} from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
+import {noteTiming, timed} from './timing';
 /**
  * THE ONLY PROMPT TITLES THIS FILE IS ALLOWED TO MATCH, and the reason they are
  * safe (every other prompt is identified structurally — see the invariant in
@@ -88,19 +89,70 @@ async function inputEchoSeq(page: Page): Promise<number | undefined> {
  * behaves exactly as before.
  */
 export async function press(page: Page, code: string, settleMs = 700): Promise<void> {
-  const before = await inputEchoSeq(page);
-  await page.keyboard.press(code);
-  if (before !== undefined) {
-    const deadline = Date.now() + 300;
-    for (;;) {
-      const now = await inputEchoSeq(page);
-      if (now === undefined || now > before || Date.now() >= deadline) {
-        break;
+  await timed('press', async () => {
+    const before = await inputEchoSeq(page);
+    await page.keyboard.press(code);
+    if (before !== undefined) {
+      const deadline = Date.now() + 300;
+      for (;;) {
+        const now = await inputEchoSeq(page);
+        if (now === undefined || now > before || Date.now() >= deadline) {
+          break;
+        }
+        await pollPause(page, 25);
       }
-      await page.waitForTimeout(25);
     }
+    if (process.env.TM_E2E_FAST_PRESS === '1') {
+      // THE PILOT (the e2e speed iteration, phase 1): the fixed sleep was 36 % of a run (84.5 s of 236 s
+      // on the first instrumented sample) — a GUESS at «the UI has reacted». The console says when it has:
+      // the press consumed, no server request in flight, no animation hold, held for a short quiet window.
+      // `settleMs` stays the CEILING, so a press can never wait longer than it did; it returns early only
+      // when nothing is pending — exactly the case the sleep was wasted on.
+      const t = Date.now();
+      await quietAfterPress(page, settleMs);
+      noteTiming('pressSleep', Date.now() - t);
+    } else {
+      noteTiming('pressSleep', settleMs);
+      await page.waitForTimeout(settleMs);
+    }
+  });
+}
+
+/**
+ * THE ONE PAUSE OF THE DRIVER'S POLL LOOPS — a poll's tick, never a wait for anything (the ratchet counts
+ * `waitForTimeout(` literals, and a poll loop is the sanctioned shape; one helper keeps the count flat).
+ */
+async function pollPause(page: Page, ms: number): Promise<void> {
+  await page.waitForTimeout(ms);
+}
+
+/** Quiet after a press: at least PRESS_MIN_MS, then the console quiet for PRESS_QUIET_MS, at most `maxMs`. */
+const PRESS_MIN_MS = 120;
+const PRESS_QUIET_MS = 150;
+async function quietAfterPress(page: Page, maxMs: number): Promise<void> {
+  const started = Date.now();
+  let quietSince: number | undefined;
+  for (;;) {
+    const r = await readiness(page);
+    if (r === undefined) {
+      // no probe (a menu page) — the old sleep, whole
+      await pollPause(page, Math.max(0, maxMs - (Date.now() - started)));
+      return;
+    }
+    const busy = r.holds.length > 0 || r.transport?.requestInProgress === true || r.transport?.holding === true;
+    const now = Date.now();
+    if (busy) {
+      quietSince = undefined;
+    } else if (quietSince === undefined) {
+      quietSince = now;
+    } else if (now - started >= PRESS_MIN_MS && now - quietSince >= PRESS_QUIET_MS) {
+      return;
+    }
+    if (now - started >= maxMs) {
+      return;
+    }
+    await pollPause(page, 25);
   }
-  await page.waitForTimeout(settleMs);
 }
 
 /** The in-game readiness probe's snapshot (`window.__conReady`,
@@ -132,6 +184,10 @@ export async function readiness(page: Page): Promise<{
  * to a single `quietMs` pause — the pre-settle behaviour, never a hang.
  */
 export async function settle(page: Page, opts: {timeoutMs?: number, quietMs?: number, notifications?: boolean} = {}): Promise<void> {
+  await timed('settle', () => settleInner(page, opts));
+}
+
+async function settleInner(page: Page, opts: {timeoutMs?: number, quietMs?: number, notifications?: boolean}): Promise<void> {
   const timeoutMs = opts.timeoutMs ?? 15_000;
   const quietMs = opts.quietMs ?? 250;
   const deadline = Date.now() + timeoutMs;
@@ -175,7 +231,7 @@ export async function cinematicBeat(page: Page, ms: number, why: string): Promis
   if (why.trim().length === 0) {
     throw new Error('cinematicBeat requires a reason — an unexplained sleep is the anti-pattern it exists to name');
   }
-  await page.waitForTimeout(ms);
+  await timed('beat', () => page.waitForTimeout(ms));
 }
 
 /** The live wizard step, lower-cased ('' while the deal cinematic owns it). */
@@ -1003,9 +1059,19 @@ export async function pressUntil(
     return true;
   }
   for (let i = 0; i < tries; i++) {
+    // A RETRY IS A SECOND PRESS ON WHATEVER THE FIRST ONE OPENED (tests.md) — so the witness gets the WHOLE
+    // window before another press: with the adaptive press returning early, the first pilot re-pressed
+    // 50 times across 12 tests where the witness was simply a beat late (94 → 144 presses, all green by luck).
+    const deadline = Date.now() + settleMs;
     await press(page, code, settleMs);
-    if (await done()) {
-      return true;
+    for (;;) {
+      if (await done()) {
+        return true;
+      }
+      if (Date.now() >= deadline) {
+        break;
+      }
+      await pollPause(page, 50);
     }
   }
   return false;
@@ -1031,10 +1097,12 @@ export async function pressUntil(
  * Same order as {@link openConsole}, deliberately: shell → load → veil.
  */
 export async function reloadConsole(page: Page): Promise<void> {
-  await page.reload();
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 90_000});
-  await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-  await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000});
+  await timed('reload', async () => {
+    await page.reload();
+    await page.waitForSelector('.con-start__frame, .con-root', {timeout: 90_000});
+    await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
+    await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000});
+  });
 }
 
 /**
@@ -1047,9 +1115,11 @@ export async function reloadConsole(page: Page): Promise<void> {
  * 30 s test budget on the campaign map's chronicle reload).
  */
 export async function reloadMenu(page: Page): Promise<void> {
-  await page.reload();
-  await page.waitForSelector('.cm-menu, .cmap', {timeout: 60_000});
-  await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 60_000}).catch(() => {});
+  await timed('reload', async () => {
+    await page.reload();
+    await page.waitForSelector('.cm-menu, .cmap', {timeout: 60_000});
+    await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 60_000}).catch(() => {});
+  });
 }
 
 /** {@link pressUntil} with the overwhelmingly common witness: a selector. */
@@ -1985,14 +2055,22 @@ export async function seedGameOverApi(
  * every behavioural wait after this point is structural.
  */
 export async function openConsole(page: Page, playerId: string, query = ''): Promise<void> {
-  await page.goto(`/player?id=${playerId}&console=1${query}`);
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 90_000});
-  await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-  // The session-wide GPU warm-up paints the real console underneath its veil,
-  // so `.con-root` (and even the live hand dock) can exist while the first key
-  // still races the warm-up's top-layer surface. The veil's unmount is the
-  // structural boundary between "painted" and "ready for the spec to drive".
-  await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000});
+  await timed('boot', async () => {
+    let t = Date.now();
+    await page.goto(`/player?id=${playerId}&console=1${query}`);
+    await page.waitForSelector('.con-start__frame, .con-root', {timeout: 90_000});
+    noteTiming('bootShell', Date.now() - t);
+    t = Date.now();
+    await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
+    noteTiming('bootLoad', Date.now() - t);
+    t = Date.now();
+    // The session-wide GPU warm-up paints the real console underneath its veil,
+    // so `.con-root` (and even the live hand dock) can exist while the first key
+    // still races the warm-up's top-layer surface. The veil's unmount is the
+    // structural boundary between "painted" and "ready for the spec to drive".
+    await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000});
+    noteTiming('bootVeil', Date.now() - t);
+  });
 }
 
 /**
@@ -2745,7 +2823,7 @@ export async function bootFixtureSeats(
   const file = path.resolve(__dirname, 'fixtures', `${fixture}.json`);
   const serialized = JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>;
   opts.arrange?.(serialized);
-  const res = await request.post('/api/dev/load-game', {data: serialized});
+  const res = await timed('fixture', () => request.post('/api/dev/load-game', {data: serialized}));
   expect(res.ok(), `the dev load-game door accepted ${fixture} (status ${res.status()})`).toBeTruthy();
   const model = await res.json() as {players: Array<{id: string}>};
   const seats = model.players.map((p) => p.id);
@@ -2763,7 +2841,8 @@ export async function bootFixtureSeats(
     // its self-heal would answer the very prompt the spec is about.
     await settle(page, {timeoutMs: 20_000});
   } else {
-    await waitForBoardHome(page, opts.waitRounds ?? 25, {keepColony: opts.keepColony});
+    // `home` is WALL time (its presses book themselves too) — the ledger reports it beside the leaves.
+    await timed('home', () => waitForBoardHome(page, opts.waitRounds ?? 25, {keepColony: opts.keepColony}));
   }
   return {playerId, seats};
 }

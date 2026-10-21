@@ -118,7 +118,10 @@ export default defineConfig({
     // trace, film strip included.
     screenshot: 'only-on-failure',
     trace: isCI ? {mode: 'on-first-retry', screenshots: false} : 'on-first-retry',
-    video: isCI ? 'off' : 'retain-on-failure',
+    // Video is OFF by default everywhere now (the e2e speed iteration, 2026-10-21): `retain-on-failure`
+    // RECORDS every test — an ffmpeg per worker encoding a 4K screencast for the whole run — and throws
+    // the file away on green. `TM_E2E_VIDEO=1` turns it back on for a run that wants the film of a red.
+    video: !isCI && process.env.TM_E2E_VIDEO === '1' ? 'retain-on-failure' : 'off',
   },
 
   projects: [

@@ -365,7 +365,7 @@ if [ "$(cat node_modules/.tm-lock-sha 2>/dev/null)" != ${shq(lockShaLocal)} ]; t
   fi
 fi
 echo "[e2e:remote] $(node --version) · playwright $(npx playwright --version | sed 's/Version //') · $(nproc) threads · load $(cut -d' ' -f1-3 /proc/loadavg)"
-env ${envLine} TM_E2E_SLOT="$1" TM_E2E_ROOT=../builds/${task} TM_E2E_OUTPUT_DIR=${TASK_DIR}/test-results TM_E2E_REPORT_DIR=${TASK_DIR}/playwright-report npx playwright test ${pwArgs.map(shq).join(' ')}
+env ${envLine} TM_E2E_SLOT="$1" TM_E2E_ROOT=../builds/${task} TM_E2E_OUTPUT_DIR=${TASK_DIR}/test-results TM_E2E_REPORT_DIR=${TASK_DIR}/playwright-report TM_E2E_TIMINGS=${TASK_DIR}/test-results/timings.jsonl npx playwright test ${pwArgs.map(shq).join(' ')}
 code=$?
 echo $code > ${TASK_DIR}/.last-exit
 exit $code

@@ -1,0 +1,102 @@
+# E2E SPEED — the capital iteration (started 2026-10-21)
+
+Status: **IN PROGRESS** — phase 0. Owner's framing: «имплементация всех новых карт и фич сильно тормозится
+именно медленным e2e — надо подойти основательно». The box: the Steam Machine (`docs/claude/e2e-remote.md`),
+12 threads / 15 GB / Navi 33, two slots, `--exclusive` for a timing.
+
+## Decisions (the owner, 2026-10-21)
+
+1. **Motion ×0.5 for functional specs — try it.** Timing / storyboard specs stay at ×1 (and `--exclusive`).
+2. **The main profile is «TV» = a big screen and the right layout for it, not necessarily 3840×2160.**
+   fhd per card may go; the TV layout may be verified at a cheaper raster, the true 4K kept for storyboards.
+3. **CI stays CI** (its own Linux runners); the Steam Machine is for the local e2e only.
+4. **`sudo` on the box** (CPU EPP etc.) — if a measurement says it matters; the owner runs the command
+   or hands the password for the one occasion.
+
+## Where the time goes — the facts before measuring
+
+| Item | Fact | Lever |
+| --- | --- | --- |
+| hard sleeps | 733 × `waitForTimeout` = 897 s + 85 × `cinematicBeat` = 106 s over 374 specs (≈2.7 s/spec; the top 8 hold 143 s) | state waits; the ratchet locks every fall |
+| the opening | 160 specs boot a fixture, 42 drive the API, **174 walk the live start in the UI** | fixtures (26.9 s vs minutes, measured once) |
+| profiles | 142 specs run fhd AND tv4k | one TV profile per card; 4K only where the raster is the subject |
+| video | `retain-on-failure` recorded EVERY test at 4K (ffmpeg per worker) | off by default — DONE (phase 1.1) |
+| workers | GMO: 2.2 min @1 worker → 1.2 min @2; load 2.7 of 12 threads at 2 workers | scaling curve 1…8 (phase 0) |
+| the box | EPP `balance_performance` (freq at max under load anyway), Steam idle 18 % CPU | small; measure before touching |
+| wrapper | ≈12 s per run (5 ssh handshakes, sync, results pull) | the dev loop (phase 5) |
+| a test | 13–20 s per GMO test at 1 worker — boot + fixture + walk + cinematics + settles: **unmeasured** | phase 0 |
+
+## Phases
+
+### Phase 0 — instrument and measure (first)
+- [ ] per-test PHASE TIMING in the harness: boot (`openConsole`) · fixture (`bootFixture*`) · presses · `settle`
+      (count + total) · `cinematicBeat` · raw `waitForTimeout` (count + total) · the rest = the product and the
+      assertions; an annotation per test + a JSON line per test (`TM_E2E_TIMINGS=<file>`), a report script
+      («where the seconds go», per spec and suite-wide).
+- [ ] the WORKER-SCALING CURVE on the box: a fixed 20-spec sample at 1 / 2 / 4 / 6 / 8 workers — throughput,
+      per-test inflation, CPU / GPU / memory.
+- [ ] the FULL-SUITE BASELINE once (the timings file of every spec) — the worklist for phases 2–4.
+- [ ] 4K vs TV@1080 on the same spec (is the raster a cost on the GPU box at all?).
+
+### Phase 1 — free wins
+- [x] video off by default (`TM_E2E_VIDEO=1` opts in).
+- [ ] default workers per run from the curve; `--exclusive` stays the timing's.
+- [ ] warm caches across tests (a persistent profile per worker: shader cache + HTTP cache) — if phase 0
+      shows the boot is a cost.
+- [ ] the box: EPP `performance` — only if measured.
+
+### Phase 2 — sleeps and live starts (the bulk)
+- [ ] the top offenders by `waitForTimeout` → state waits (`settle` / `pressUntil*` / witnesses); the
+      ratchet baseline locked after each file.
+- [ ] live-start specs → fixtures where the opening is not the subject.
+
+### Phase 3 — motion ×0.5 for functional specs
+- [ ] the product's `?motion=` preset through the driver for the functional class; pilot on 20 specs,
+      classify the reds (a timing window → the `@timing` class, a bug → fix), then the suite.
+
+### Phase 4 — the profile policy
+- [ ] one TV profile per card (the layout at a cheaper raster if phase 0 says the raster costs), 4K only
+      for storyboards / timings; fhd dropped where it duplicates.
+
+### Phase 5 — the dev loop
+- [ ] `--profile` / `--grep` conveniences, a warm server, fewer ssh round trips.
+
+## Phase 0 — the first instrumented sample (2026-10-21, Steam Machine, 2 workers)
+
+`aaa-driver-canary` + `console-classic-gmo-contract` (8, fixture) + `console-action-focus` (3, live start):
+12 tests, 235.9 s summed.
+
+| bucket | s | share | note |
+| --- | --- | --- | --- |
+| press | 88.5 | 38 % | 94 presses — **84.5 s of it the FIXED 700 ms sleep after each** |
+| boot (`openConsole`) | 71.8 | 30 % | 12 boots ≈ **6 s each** |
+| sleep (bare `waitForTimeout`) | 47.1 | 20 % | all in `console-action-focus` (27 calls) |
+| settle | 3.9 | 2 % | 14× — the state wait is CHEAP |
+| fixture POST | 0.2 | 0 % | |
+| **rest = the product + the assertions** | **22.1** | **9 %** | |
+
+**The product is 9 % of a run.** The levers, re-ranked by this: ① the press sleep (an adaptive quiet wait
+with the old 700 ms as the ceiling), ② the boot (6 s — split into shell / load / veil next), ③ bare
+sleeps → state waits, ④ motion ×0.5 touches only «rest» and the part of the press wait a cinematic
+really needs — far smaller than assumed.
+
+**The boot's 6 s, split** (the same sample): `shell` (goto + the 10 MB bundle to the first paint) **0.7–0.8 s**,
+`load` (the `.con-load` curtain) **1.8–2.9 s**, `veil` (the `.boot-loader` GPU warm-up) **2.3–3.3 s**. The bundle
+is not the cost — the product's boot CHOREOGRAPHY is: the warm-up runs N phases × `motionMs(900)` to compile
+Graphite pipelines for the PLAYER's session (`AppBootLoader.vue`), and the curtain holds its status text
+≥ 1150 ms + a 620 ms reveal (`loadingScreenState.ts`) so it never flashes. An e2e test is a fresh browser
+context every time: the compiled pipelines die with it, the curtain's dwell protects nobody. ≈ 4.5 s of
+every boot × ~1000 boots in the suite ≈ an hour. Lever: a URL switch (`fastboot`) that skips the warm-up
+phases and zeroes the curtain's minima — functional class only; the storyboard/timing class keeps the
+warm-up (the first-draw shader stall is exactly what it measures, PL-625).
+
+**The adaptive press pilot** (`TM_E2E_FAST_PRESS=1`, the same 12 tests): press 88.5 → 45.7 s, the run
+236 → 197 s, 12/12 green — but **94 → 142 presses**: the driver's WALKS (`walkFocusUntil` / `focusCard` /
+`waitForBoardHome`) read their witness the moment the console is quiet and re-press when it has not moved
+yet. Green by their own tolerance, not by design: before the fast press becomes the default every walk
+waits for its witness to CHANGE within the old window before pressing again (`pressUntil` already does).
+
+## Journal
+- 2026-10-21 — iteration opened; video off; the timing ledger (`tests/e2e/timing.ts`, the `timing`
+  annotation, `TM_E2E_TIMINGS` + `scripts/e2e-timings-report.mjs`); the first sample above; the
+  adaptive-press pilot behind `TM_E2E_FAST_PRESS=1`.

@@ -45,6 +45,7 @@ import * as http from 'http';
 import * as net from 'net';
 import * as os from 'os';
 import * as path from 'path';
+import {currentTimingBucket, formatTiming, noteTiming, resetTiming, snapshotTiming} from './timing';
 
 export * from '@playwright/test';
 
@@ -265,7 +266,49 @@ const STALL_MARKERS: ReadonlyArray<string> = [
   '[animation-hold]', '[console-leak-detector]', '[deferred-refresh]',
 ];
 
-export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, transferEndsGuard: void, stallHarvest: void}, {workerServer: WorkerServer, workerBuild: string}>({
+export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, transferEndsGuard: void, stallHarvest: void, timingLedger: void}, {workerServer: WorkerServer, workerBuild: string}>({
+  /**
+   * WHERE THE SECONDS GO (the e2e speed iteration, phase 0 — `tests/e2e/timing.ts`): the driver's waits book
+   * themselves; this fixture resets the ledger per test, books the spec's own bare `page.waitForTimeout`
+   * sleeps on every page of the context (a sleep inside a timed primitive is the primitive's), and writes a
+   * `timing` annotation + one JSON line per test into `TM_E2E_TIMINGS` for `scripts/e2e-timings-report.mjs`.
+   */
+  timingLedger: [async ({context}, use, testInfo) => {
+    resetTiming();
+    const book = (page: Page) => {
+      const original = page.waitForTimeout.bind(page);
+      page.waitForTimeout = async (ms: number) => {
+        if (currentTimingBucket() === undefined) {
+          noteTiming('sleep', ms);
+        }
+        await original(ms);
+      };
+    };
+    context.pages().forEach(book);
+    context.on('page', book);
+    await use();
+    const snap = snapshotTiming();
+    testInfo.annotations.push({type: 'timing', description: formatTiming(snap)});
+    const file = process.env.TM_E2E_TIMINGS;
+    if (file) {
+      try {
+        fs.mkdirSync(path.dirname(file), {recursive: true});
+        fs.appendFileSync(file, JSON.stringify({
+          file: path.relative(REPO_ROOT, testInfo.file).replace(/\\/g, '/'),
+          title: testInfo.titlePath.slice(1).join(' › '),
+          status: testInfo.status,
+          host: process.env.TM_E2E_HOST ?? 'laptop',
+          slot: process.env.TM_E2E_SLOT ?? '',
+          workers: testInfo.config.workers,
+          totalMs: snap.totalMs,
+          restMs: snap.restMs,
+          buckets: snap.buckets,
+        }) + '\n');
+      } catch {
+        // a ledger that cannot be written never fails a test
+      }
+    }
+  }, {auto: true}],
   /**
    * EVERY TEST, EVERY PAGE OF ITS CONTEXT: both ends of every resource flight are painted (T06 — the owner's law «оба
    * конца полёта живые»). The console reports a token born on / touched down over nothing; the harness turns it red,
