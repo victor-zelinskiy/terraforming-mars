@@ -15,17 +15,25 @@
  *   1. preflight — the host answers; the game is not running there; no
  *      DO_NOT_DISTURB marker (`~/tm-e2e/DO_NOT_DISTURB`);
  *   2. sync — a MANIFEST diff (size + mtime) of the laptop's tree against the
- *      mirror `~/tm-e2e/repo`, then ONE tar stream of only what changed:
- *      the sources the specs import and the STALE check reads (`src/`),
- *      `tests/`, `assets/`, the package files, and the BUILD of the task's
- *      snapshot (`.e2e-<task>/build` when it exists, else `build/`) minus the
- *      source maps (190 MB nobody opens in a run). Extraneous files under
- *      those roots are deleted on the mirror; `node_modules` is never touched
- *      — it is re-installed only when `package-lock.json` changed;
+ *      mirror, then a tar of only what changed. TWO destinations, because the
+ *      sources are one tree for every session of this clone while the BUILD is
+ *      per task: `~/tm-e2e/repo/` gets `src/` (the specs import from it and the
+ *      STALE check reads its mtimes), `tests/`, `assets/` and the package files;
+ *      `~/tm-e2e/builds/<task>/build/` gets the task's snapshot
+ *      (`.e2e-<task>/build` when it exists, else `build/`) minus the source maps
+ *      (190 MB nobody opens in a run). A shared build was the first defect two
+ *      sessions met there (2026-10-21): the mirror held whichever build synced
+ *      last, and a run served a neighbour's STALE one — the 2026-09-30 class the
+ *      laptop's snapshots exist for. Extraneous files under the synced roots are
+ *      deleted; `node_modules` is never touched — re-installed only when
+ *      `package-lock.json` changed;
  *   3. run — under ONE lock (`flock`; a second session waits, and says so) and
  *      a sleep inhibitor, inside the `e2e` distrobox (Ubuntu 24.04 — the only
  *      place Playwright's Chromium has its libraries; SteamOS's root is
- *      read-only): `TM_E2E_GPU=1 npx playwright test <args>`, output streamed;
+ *      read-only): `TM_E2E_GPU=1 TM_E2E_ROOT=../builds/<task> npx playwright
+ *      test <args>` with the task's own output + report dirs, output streamed;
+ *      the results are packed into `results.tar` BEFORE the lock is released
+ *      (the next session's run wiped them otherwise);
  *   4. results — `test-results/` and `playwright-report/` into
  *      `.e2e-remote/<task>/`, the run's new `screenshots/**` files into the
  *      laptop's `screenshots/` (the same paths a local run writes).
@@ -51,6 +59,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOST = process.env.TM_E2E_REMOTE_HOST ?? 'steam-machine';
 const REMOTE_HOME = '/home/deck/tm-e2e';
 const REMOTE_REPO = `${REMOTE_HOME}/repo`;
+const REMOTE_BUILDS = `${REMOTE_HOME}/builds`;
 const REMOTE_NODE = `${REMOTE_HOME}/node/bin`;
 const CONTAINER = 'e2e';
 const LOCK_WAIT_S = 1800;
@@ -87,6 +96,8 @@ const pwArgs = argv.slice(1);
 if (!pwArgs.some((a) => a.startsWith('--workers'))) {
   pwArgs.push('--workers=2');
 }
+/** This task's own build + output + report dirs on the host — never shared with another session's run. */
+const TASK_DIR = `${REMOTE_BUILDS}/${task}`;
 
 const log = (msg) => console.log(`[e2e:remote] ${msg}`);
 const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
@@ -167,62 +178,62 @@ const STATIC_ROOTS = ['assets', 'src', 'tests', 'package.json', 'package-lock.js
 const staticSkip = (rel, entry) => entry.name === 'node_modules' || rel.startsWith('tests/e2e/__screenshots__') || /\.tsbuildinfo$/.test(entry.name);
 const buildSkip = (rel, entry) => rel === 'build/tests' || /\.map(\.gz|\.br)?$/.test(entry.name);
 
-const files = {}; // rel -> [size, mtimeSec]
-const localOf = {}; // rel -> absolute
-for (const root of STATIC_ROOTS) {
-  const abs = path.join(ROOT, root);
-  if (!fs.existsSync(abs)) {
-    continue;
+/** A sync SET: one destination on the host, the local cwd its paths are relative to, and its manifest. */
+function manifest(cwd, roots, skip) {
+  const files = {}; // rel -> [size, mtimeSec]
+  for (const root of roots) {
+    const abs = path.join(cwd, root);
+    if (!fs.existsSync(abs)) {
+      continue;
+    }
+    const entries = fs.statSync(abs).isDirectory() ? walk(abs, root, skip) : [[root, abs]];
+    for (const [rel, full] of entries) {
+      const st = fs.statSync(full);
+      files[rel] = [st.size, Math.floor(st.mtimeMs / 1000)];
+    }
   }
-  const entries = fs.statSync(abs).isDirectory() ? walk(abs, root, staticSkip) : [[root, abs]];
-  for (const [rel, full] of entries) {
-    const st = fs.statSync(full);
-    files[rel] = [st.size, Math.floor(st.mtimeMs / 1000)];
-    localOf[rel] = full;
-  }
+  return files;
 }
-for (const [rel, full] of walk(path.join(buildRoot, 'build'), 'build', buildSkip)) {
-  const st = fs.statSync(full);
-  files[rel] = [st.size, Math.floor(st.mtimeMs / 1000)];
-  localOf[rel] = full;
-}
+const SETS = [
+  {base: REMOTE_REPO, cwd: ROOT, roots: STATIC_ROOTS, files: manifest(ROOT, STATIC_ROOTS, staticSkip)},
+  {base: TASK_DIR, cwd: buildRoot, roots: ['build'], files: manifest(buildRoot, ['build'], buildSkip)},
+];
 
 const COMPARE_PY = `
 import json, os, sys
 m = json.load(sys.stdin)
-base = os.path.expanduser('~/tm-e2e/repo')
-files = m['files']
-send = []
-for rel, (size, mt) in files.items():
-    p = os.path.join(base, rel)
-    try:
-        st = os.stat(p)
-    except FileNotFoundError:
-        send.append(rel); continue
-    if st.st_size != size or int(st.st_mtime) != mt:
-        send.append(rel)
+out = []
 deleted = 0
-for root in m['roots']:
-    rp = os.path.join(base, root)
-    if os.path.isfile(rp):
-        if root not in files:
-            os.remove(rp); deleted += 1
-        continue
-    for d, _, fs_ in os.walk(rp):
-        for f in fs_:
-            full = os.path.join(d, f)
-            rel = os.path.relpath(full, base).replace(os.sep, '/')
-            if rel not in files:
-                os.remove(full); deleted += 1
-lock_sha = ''
-try:
-    lock_sha = open(os.path.join(base, 'node_modules', '.tm-lock-sha')).read().strip()
-except Exception:
-    pass
-print(json.dumps({'send': send, 'deleted': deleted, 'lock_sha': lock_sha}))
+for s in m['sets']:
+    base = os.path.expanduser(s['base'])
+    os.makedirs(base, exist_ok=True)
+    files = s['files']
+    send = []
+    for rel, (size, mt) in files.items():
+        p = os.path.join(base, rel)
+        try:
+            st = os.stat(p)
+        except FileNotFoundError:
+            send.append(rel); continue
+        if st.st_size != size or int(st.st_mtime) != mt:
+            send.append(rel)
+    for root in s['roots']:
+        rp = os.path.join(base, root)
+        if os.path.isfile(rp):
+            if root not in files:
+                os.remove(rp); deleted += 1
+            continue
+        for d, _, fs_ in os.walk(rp):
+            for f in fs_:
+                full = os.path.join(d, f)
+                rel = os.path.relpath(full, base).replace(os.sep, '/')
+                if rel not in files:
+                    os.remove(full); deleted += 1
+    out.append(send)
+print(json.dumps({'send': out, 'deleted': deleted}))
 `;
 const t0 = Date.now();
-const cmp = ssh(`python3 -c ${shq(COMPARE_PY)}`, {input: JSON.stringify({roots: [...STATIC_ROOTS, 'build'], files})});
+const cmp = ssh(`python3 -c ${shq(COMPARE_PY)}`, {input: JSON.stringify({sets: SETS.map((s) => ({base: s.base, roots: s.roots, files: s.files}))})});
 if (res255(cmp)) {
   unreachable(cmp, 'manifest');
 }
@@ -231,42 +242,49 @@ if (cmp.status !== 0) {
   process.exit(2);
 }
 const verdict = JSON.parse(String(cmp.stdout));
-const send = verdict.send;
-const sendBytes = send.reduce((n, rel) => n + files[rel][0], 0);
-log(`mirror: ${Object.keys(files).length} files checked, ${send.length} to send (${(sendBytes / 1048576).toFixed(1)} MB), ${verdict.deleted} removed — ${Date.now() - t0} ms`);
-
-if (send.length > 0) {
-  // ONE archive in a temp file, two cwds (the static roots live under the repo, the build under its
-  // root — the second group is APPENDED with `-r`), then ssh reads it as its stdin FROM A FILE
-  // DESCRIPTOR: a tar→ssh pipe from Node died with `write EOF` on Windows OpenSSH mid-stream, while
-  // a file-backed stdin delivered every byte (measured 2026-10-21).
-  const t1 = Date.now();
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tm-e2e-remote-'));
-  const archive = path.join(tmpDir, 'sync.tar');
-  const groups = [
-    {cwd: ROOT, rels: send.filter((r) => !r.startsWith('build/'))},
-    {cwd: buildRoot, rels: send.filter((r) => r.startsWith('build/'))},
-  ].filter((g) => g.rels.length > 0);
-  for (const [i, g] of groups.entries()) {
-    const list = path.join(tmpDir, `list-${i}.txt`);
-    fs.writeFileSync(list, g.rels.join('\n') + '\n');
-    const tar = spawnSync(TAR, [i === 0 ? '-cf' : '-rf', archive, '-T', list], {cwd: g.cwd, stdio: ['ignore', 'inherit', 'inherit']});
-    if (tar.status !== 0) {
-      log(`local tar failed (exit ${tar.status}) on group ${i}`);
-      process.exit(2);
+const checked = SETS.reduce((n, s) => n + Object.keys(s.files).length, 0);
+const toSend = SETS.map((s, i) => ({...s, send: verdict.send[i]}));
+const sendCount = toSend.reduce((n, s) => n + s.send.length, 0);
+const sendBytes = toSend.reduce((n, s) => n + s.send.reduce((m, rel) => m + s.files[rel][0], 0), 0);
+log(`mirror: ${checked} files checked, ${sendCount} to send (${(sendBytes / 1048576).toFixed(1)} MB), ${verdict.deleted} removed — ${Date.now() - t0} ms`);
+if (process.env.TM_E2E_SYNC_VERBOSE === '1') {
+  for (const s of toSend) {
+    for (const rel of s.send.slice(0, 40)) {
+      log(`  → ${s.base}/${rel}`);
     }
   }
+}
+
+// One archive per destination, in a temp file, handed to ssh as its stdin FROM A FILE DESCRIPTOR: a
+// tar→ssh pipe from Node died with `write EOF` on Windows OpenSSH mid-stream, while a file-backed
+// stdin delivered every byte (measured 2026-10-21).
+const t1 = Date.now();
+for (const s of toSend) {
+  if (s.send.length === 0) {
+    continue;
+  }
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tm-e2e-remote-'));
+  const archive = path.join(tmpDir, 'sync.tar');
+  const list = path.join(tmpDir, 'list.txt');
+  fs.writeFileSync(list, s.send.join('\n') + '\n');
+  const tar = spawnSync(TAR, ['-cf', archive, '-T', list], {cwd: s.cwd, stdio: ['ignore', 'inherit', 'inherit']});
+  if (tar.status !== 0) {
+    log(`local tar failed (exit ${tar.status}) for ${s.base}`);
+    process.exit(2);
+  }
   const fd = fs.openSync(archive, 'r');
-  const remote = spawnSync(SSH, [...SSH_OPTS, '-C', HOST, `tar -xf - -C ${REMOTE_REPO}`], {stdio: [fd, 'inherit', 'inherit']});
+  const remote = spawnSync(SSH, [...SSH_OPTS, '-C', HOST, `tar -xf - -C ${s.base}`], {stdio: [fd, 'inherit', 'inherit']});
   fs.closeSync(fd);
   fs.rmSync(tmpDir, {recursive: true, force: true});
   if (res255(remote)) {
     unreachable(remote, 'sync');
   }
   if (remote.status !== 0) {
-    log(`remote tar failed (exit ${remote.status})`);
+    log(`remote tar failed (exit ${remote.status}) for ${s.base}`);
     process.exit(2);
   }
+}
+if (sendCount > 0) {
   log(`sent in ${Date.now() - t1} ms`);
 }
 
@@ -310,12 +328,12 @@ if [ "$(cat node_modules/.tm-lock-sha 2>/dev/null)" != ${shq(lockShaLocal)} ]; t
   npx playwright install chromium --with-deps 2>&1 | tail -2 || exit 2
   echo ${shq(lockShaLocal)} > node_modules/.tm-lock-sha
 fi
-touch .run-start
-rm -f .last-exit
+touch ${TASK_DIR}/.run-start
+rm -f ${TASK_DIR}/.last-exit
 echo "[e2e:remote] $(node --version) · playwright $(npx playwright --version | sed 's/Version //') · $(nproc) threads · load $(cut -d' ' -f1-3 /proc/loadavg)"
-env ${envLine} npx playwright test ${pwArgs.map(shq).join(' ')}
+env ${envLine} TM_E2E_ROOT=../builds/${task} TM_E2E_OUTPUT_DIR=${TASK_DIR}/test-results TM_E2E_REPORT_DIR=${TASK_DIR}/playwright-report npx playwright test ${pwArgs.map(shq).join(' ')}
 code=$?
-echo $code > .last-exit
+echo $code > ${TASK_DIR}/.last-exit
 exit $code
 `;
 // The outer script runs on the SteamOS host: the lock, the sleep inhibitor, the container.
@@ -331,6 +349,13 @@ if ! flock -n 9; then
 fi
 if pgrep -f '[T]erraformingMars.AppImage' >/dev/null; then echo "[e2e:remote] the game started on the Steam Machine while we waited — refusing"; exit 4; fi
 echo "[e2e:remote] lock taken — running ${shq(task)} on $(cat /etc/hostname 2>/dev/null)"
+# The task's serve root: its own build beside LINKS to what the server reads relative to its cwd
+# (the laptop's \`e2e:snapshot\` does the same with junctions) — and to \`node_modules\`, which Node
+# resolves UPWARD from the server's real path: on the laptop the snapshot sits inside the repo, here
+# the task dir stands beside the mirror (the first run of this layout: «worker server exited with 1»).
+# Old tasks' builds go after 14 idle days.
+mkdir -p ${TASK_DIR} && ln -sfn ../../repo/assets ${TASK_DIR}/assets && ln -sfn ../../repo/tests ${TASK_DIR}/tests && ln -sfn ../../repo/node_modules ${TASK_DIR}/node_modules
+find ${REMOTE_BUILDS} -mindepth 1 -maxdepth 1 -type d -mtime +14 -exec rm -rf {} + 2>/dev/null
 # The sleep inhibitor is best-effort: over ssh polkit answers «Interactive authentication required»
 # unless the owner adds a rule, and the Gaming Mode idle sleep is a Steam setting anyway (Never).
 INHIBIT=""
@@ -340,6 +365,12 @@ else
   echo "[e2e:remote] (no sleep inhibitor over ssh — the Steam Machine's idle sleep must be set to Never)"
 fi
 $INHIBIT distrobox enter ${CONTAINER} -- bash ${innerPath}
+code=$?
+# Pack the results WHILE STILL HOLDING THE LOCK — the next session's run starts the moment it is released.
+rm -f ${TASK_DIR}/results.tar
+( cd ${TASK_DIR} && tar -cf results.tar --ignore-failed-read test-results playwright-report .last-exit 2>/dev/null )
+( cd ${REMOTE_REPO} && find screenshots -type f -newer ${TASK_DIR}/.run-start 2>/dev/null | tar -rf ${TASK_DIR}/results.tar -T - 2>/dev/null )
+exit $code
 `;
 log(`running: playwright test ${pwArgs.join(' ')}  (${envLine})`);
 const run = ssh(`mkdir -p ${REMOTE_HOME}/runs && cat > ${outerPath} && bash ${outerPath}`, {input: outer, inherit: true});
@@ -355,9 +386,9 @@ if (run.status === 3 || run.status === 4) {
 const outDir = path.join(ROOT, '.e2e-remote', task);
 fs.rmSync(outDir, {recursive: true, force: true});
 fs.mkdirSync(outDir, {recursive: true});
-const pull = spawnSync(SSH, [...SSH_OPTS, '-C', HOST,
-  `cd ${REMOTE_REPO} && { ls .last-exit 2>/dev/null; ls -d test-results playwright-report 2>/dev/null; find screenshots -type f -newer .run-start 2>/dev/null; } | tar -cf - -T - 2>/dev/null`],
-{stdio: ['ignore', 'pipe', 'inherit'], maxBuffer: 4 * 1024 * 1024 * 1024});
+// The archive was packed under the lock (outer.sh); here it is only fetched and removed.
+const pull = spawnSync(SSH, [...SSH_OPTS, '-C', HOST, `cat ${TASK_DIR}/results.tar 2>/dev/null && rm -f ${TASK_DIR}/results.tar`],
+  {stdio: ['ignore', 'pipe', 'inherit'], maxBuffer: 4 * 1024 * 1024 * 1024});
 let exitCode = run.status ?? 1;
 if (pull.status === 0 && pull.stdout.length > 0) {
   const x = spawnSync(TAR, ['-xf', '-', '-C', outDir], {input: pull.stdout, stdio: ['pipe', 'inherit', 'inherit']});

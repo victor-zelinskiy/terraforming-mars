@@ -88,11 +88,14 @@ export default defineConfig({
 
   reporter: [
     ['list'],
-    ['html', {outputFolder: 'playwright-report', open: 'never'}],
+    // On the Steam Machine every task gets its own report + output dirs (`scripts/e2e-remote.mjs` sets both):
+    // two sessions' runs are serialized there, and the next one wiped the previous one's `test-results/`
+    // before its owner had pulled it (seen 2026-10-21).
+    ['html', {outputFolder: process.env.TM_E2E_REPORT_DIR ?? 'playwright-report', open: 'never'}],
   ],
 
   // Where screenshots / traces / videos for a failed run are written.
-  outputDir: 'test-results',
+  outputDir: process.env.TM_E2E_OUTPUT_DIR ?? 'test-results',
 
   use: {
     baseURL: BASE_URL,
