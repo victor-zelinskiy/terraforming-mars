@@ -291,6 +291,8 @@ export type ResultsReading = {
   payouts: ReadonlyArray<ResultsPayout>;
   /** NOBODY was paid: the resolution is a passive / an action, and the kicker says which. */
   quiet?: {kicker: string, kind: 'passive' | 'action'};
+  /** A RATING-VETOING law (RX42): the seats it binds as the sitting closes, with their ratings — the server's list. */
+  veto?: ReadonlyArray<{color: Color, tr: number}>;
   /** The WORLD's own part, when the enactment had one — never a seat's row. */
   planet?: ReadonlyArray<ResultsPlanetMove>;
   /** The COLONY TABLE's own part (Unity Budget), when the enactment had one — never a seat's row. */
@@ -515,7 +517,7 @@ export function resultsReadingOf(
   summary: ParliamentPhaseSummaryModel,
   seats: ReadonlyArray<ResultsSeat>,
   support: ReadonlyArray<{party: ReduxParty, support: number}>,
-  extras: {quiet?: {kicker: string, kind: 'passive' | 'action'}} = {},
+  extras: {quiet?: {kicker: string, kind: 'passive' | 'action'}, veto?: ReadonlyArray<{color: Color, tr: number}>} = {},
 ): ResultsReading {
   const byPlayer = new Map<Color, Array<ResultsPayoutPart>>();
   for (const seat of seats) {
@@ -578,6 +580,9 @@ export function resultsReadingOf(
   // A law that MOVED THE WORLD — the planet, or the colony table — is not «quiet»: that line is its reading.
   if (extras.quiet !== undefined && planet.length === 0 && tracks === undefined && payouts.every((p) => p.parts.length === 0)) {
     reading.quiet = extras.quiet;
+  }
+  if (extras.veto !== undefined && extras.veto.length > 0) {
+    reading.veto = extras.veto;
   }
   return reading;
 }

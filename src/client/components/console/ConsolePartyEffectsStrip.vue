@@ -38,6 +38,7 @@ import {ParliamentModel, ParliamentPlayerModel, seatEnacts} from '@/common/model
 import {REDUX_PARTIES, ReduxParty, partyActionOf} from '@/common/parliament/ParliamentTypes';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {accessReasonRows, AccessReasonRow, effectDelegatesLowered, effectDelegatesSourceOf} from '@/client/console/parliament/consoleParliamentModel';
+import {seatRestricted} from '@/common/models/ParliamentModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
@@ -66,6 +67,8 @@ export default defineComponent({
     parliament: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
     /** The seat whose effects are shown. */
     color: {type: String as PropType<Color>, required: true},
+    /** Display names by colour (the veto's row names the seats the law binds); the colour itself when absent. */
+    playerNames: {type: Object as PropType<Readonly<Record<string, string>>>, default: () => ({})},
   },
   computed: {
     /** The seat whose effects are listed (undefined outside the parliament). */
@@ -130,7 +133,12 @@ export default defineComponent({
           renderRoot: enacted.renderData,
           emblem: partyEmblemUrl(enacted.party),
           accent: partyAccent(enacted.party),
-          reasons: [{key: 'Enacted resolution: its effect applies to every player', params: [], tone: 'holds'}],
+          reasons: [
+            {key: 'Enacted resolution: its effect applies to every player', params: [], tone: 'holds'},
+            // A RATING-VETOING law (RX42) names WHO it binds right now — the server's live leaders, the seat shown
+            // as «you» where it is one of them — so the row is a warning before any press, not a rule to remember.
+            ...this.vetoReasonRows(model),
+          ],
           action: undefined,
         });
       }
@@ -138,6 +146,24 @@ export default defineComponent({
     },
   },
   methods: {
+    /** The veto's row(s) for the enacted law — one line, every bound seat with its rating. */
+    vetoReasonRows(model: ParliamentModel): Array<AccessReasonRow> {
+      const veto = model.enacted?.trVeto;
+      if (veto === undefined) {
+        return [];
+      }
+      const bound = veto.leaders.filter((l) => {
+        const seat = model.players.find((p) => p.color === l.color);
+        return seat === undefined || seatRestricted(seat);
+      });
+      if (bound.length === 0) {
+        return [];
+      }
+      const names = bound.map((l) => l.color === this.color ?
+        translateTextWithParams('you (${0})', [String(l.tr)]) :
+        `${this.playerNames[l.color] ?? l.color} (${l.tr})`);
+      return [{key: 'Under the veto now: ${0}', params: [names.join(', ')], tone: 'holds'}];
+    },
     reasonText(row: AccessReasonRow): string {
       return row.params.length > 0 ? translateTextWithParams(row.key, [...row.params]) : translateText(row.key);
     },

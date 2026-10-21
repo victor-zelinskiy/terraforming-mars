@@ -218,7 +218,10 @@ function lawAnswerNotification(input: RootBuildInput, actor: Color): Notificatio
     return undefined;
   }
   const chips = mergeChips(chain.filter((e) => e.parentId === marker.id && e.player === actor).flatMap((e) => impactChips(e.impact)));
-  if (chips.length === 0) {
+  // A law that REFUSED something (RX42 UNMI Veto: the rating the seat first by rating does not gain) pays nothing —
+  // its card is the NAMED LOSS under the law's own line, never silence.
+  const skipped = chips.length === 0 ? skippedLinesOf(chain.filter((e) => e.parentId === marker.id), actor) : [];
+  if (chips.length === 0 && skipped.length === 0) {
     return undefined;
   }
   const own = input.children.find((m) => m.parentId === marker.id);
@@ -238,7 +241,62 @@ function lawAnswerNotification(input: RootBuildInput, actor: Color): Notificatio
     affects: [actor],
     header,
     pills,
-    pillGroups: [{scope: 'actor', chips: pills}],
+    pillGroups: pills.length > 0 ? [{scope: 'actor', chips: pills}] : [],
+    detailCount: 0,
+    ...skippedField(skipped),
+    correlationId: input.correlationId,
+    generation: input.generation,
+    ttl: NOTIFICATION_TTL.normal,
+    persistent: false,
+    cta: effectCta(source),
+    createdAt: input.createdAt,
+    effectSource: source,
+  };
+}
+
+/** The status card's headline keys (RX42): the veto now binds the viewer / no longer does. */
+export const VETO_BINDS_YOU = '${0} now binds you: your terraform rating is the highest (${1})';
+export const VETO_RELEASES_YOU = '${0} no longer binds you — the highest terraform rating now: ${1} (${2})';
+
+/**
+ * THE VETO'S STATUS MOVED FOR THE VIEWER (Turmoil Redux RX42 UNMI Veto — `rating-veto-changed`): a rating rose or
+ * fell and the viewer ENTERED the set of seats first by rating (the law now refuses their rating) or LEFT it. Told
+ * to the seat it is about, whoever moved the rating — their own play included (the gain that made them first is the
+ * one thing their own action's card would have said nothing about); the law is the source, its inspector the action.
+ */
+function ratingVetoNotification(input: RootBuildInput, viewerColor: Color): NotificationModel | undefined {
+  const event = input.chain.find((e) => e.type === 'rating-veto-changed' && e.impact.ratingVeto !== undefined &&
+    (e.impact.ratingVeto.entered.includes(viewerColor) || e.impact.ratingVeto.left.includes(viewerColor)));
+  const fact = event?.impact.ratingVeto;
+  if (event === undefined || fact === undefined || event.source?.kind !== 'resolution') {
+    return undefined;
+  }
+  const law = event.source.id;
+  const entered = fact.entered.includes(viewerColor);
+  const mine = fact.leaders.find((l) => l.color === viewerColor);
+  const first = fact.leaders[0];
+  const header = entered ?
+    new LogMessage(LogMessageType.DEFAULT, VETO_BINDS_YOU, [
+      {type: LogMessageDataType.RESOLUTION, value: law}, {type: LogMessageDataType.STRING, value: String(mine?.tr ?? '')},
+    ]) :
+    new LogMessage(LogMessageType.DEFAULT, VETO_RELEASES_YOU, [
+      {type: LogMessageDataType.RESOLUTION, value: law},
+      {type: LogMessageDataType.PLAYER, value: first?.color ?? viewerColor}, {type: LogMessageDataType.STRING, value: String(first?.tr ?? '')},
+    ]);
+  const source: NotificationEffectSource = {kind: 'resolution', resolution: law};
+  return {
+    id: `g${input.correlationId}:veto`,
+    kind: 'normal',
+    variant: 'passive-effect',
+    priority: NOTIFICATION_PRIORITY.normal,
+    sign: 'neutral',
+    importance: 'notable',
+    typeLabelKey: 'Enacted resolution',
+    category: input.header.category,
+    actor: event.player,
+    affects: [viewerColor],
+    header,
+    pills: [],
     detailCount: 0,
     correlationId: input.correlationId,
     generation: input.generation,
@@ -584,6 +642,12 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
     return undefined;
   }
   const actor = rootActor(header, chain);
+  // THE VETO'S STATUS MOVED FOR THE VIEWER (RX42) — told first, to the seat it is about, unless the same chain hurt
+  // the viewer (the loss leads; the journal keeps the status line).
+  const vetoCard = ratingVetoNotification(input, viewerColor);
+  if (vetoCard !== undefined && viewerImpactOfChain(chain, viewerColor, actor).losses.length === 0) {
+    return vetoCard;
+  }
   const variant = rootVariant(header, chain);
   let kind = variantKind(variant);
 

@@ -175,10 +175,14 @@ export function agendaWalkHostFor(): AgendaWalkHost | undefined {
  */
 export function agendaWalkBonuses(record: AgendaWalkRecord, generation: number, reactions: ReadonlyArray<ResourceTransferSpec> = []): Array<AgendaBonusOwed> {
   const out: Array<AgendaBonusOwed> = [];
-  const trSteps = record.steps.filter((step) => step.bonus === 'tr').length;
+  // A rating the law REFUSED (RX42 — `vetoed` on the step) never came: no token, no share of an answer.
+  const trSteps = record.steps.filter((step) => step.bonus === 'tr' && step.vetoed !== true).length;
   const shares = answersPerRatingStep(reactions, trSteps);
   let rating = 0;
   for (const step of record.steps) {
+    if (step.bonus === 'tr' && step.vetoed === true) {
+      continue;
+    }
     if (step.bonus === 'tr') {
       const spec: ResourceTransferSpec = {channel: 'stock', resource: RATING_RAIL_KEY, amount: 1};
       const answer = shares[rating] ?? [];
@@ -225,7 +229,7 @@ export function answersPerRatingStep(reactions: ReadonlyArray<ResourceTransferSp
  * the commit, honestly (`verifyRailReward` names the mismatch).
  */
 export function agendaWalkReactions(record: AgendaWalkRecord, rail: AgendaWalkRailPromise | undefined, before: PlayerViewModel | undefined, after: PlayerViewModel | undefined): Array<ResourceTransferSpec> {
-  const trSteps = record.steps.filter((step) => step.bonus === 'tr').length;
+  const trSteps = record.steps.filter((step) => step.bonus === 'tr' && step.vetoed !== true).length;
   if (rail === undefined || rail.reactions.length === 0 || trSteps === 0) {
     return [];
   }

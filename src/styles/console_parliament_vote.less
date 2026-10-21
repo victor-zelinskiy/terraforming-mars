@@ -718,3 +718,38 @@ html.con-profile-tv .con-vledger {
     background: fade(@con-cyan, 12%);
     box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 70%);
 }
+
+/* ── THE RATING VETO's line (RX42 UNMI Veto): who the law binds «as if enacted now» — one line under the readings,
+   the rating icon leading, the words in the law's register (the panel's own type scale; nothing moves around it). ── */
+.con-parl__info-veto {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    min-width: 0;
+    color: #ffd0c8;
+    font-size: .8rem;
+    line-height: 1.25;
+}
+.con-parl__info-veto-icon {
+    flex: 0 0 auto;
+    width: 1.1em;
+    height: 1.1em;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    position: relative;
+    /* the stamp's strike — the same mark the rating cell wears */
+    &::after {
+        content: '';
+        position: absolute;
+        left: -10%;
+        right: -10%;
+        top: 50%;
+        height: .12em;
+        margin-top: -.06em;
+        background: rgba(255, 96, 84, 0.95);
+        transform: rotate(-38deg);
+    }
+}
+.con-parl__info-veto-text { min-width: 0; }
+html.con-profile-tv .con-parl__info-veto { font-size: .92rem; }

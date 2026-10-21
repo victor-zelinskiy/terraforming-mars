@@ -28,6 +28,7 @@ import {PlayerInputModel, SelectPartyModel, SelectPaymentModel, SelectProjectCar
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {ActionEffect, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
+import {RatingVetoModel} from '@/common/models/ParliamentModel';
 import {ICardRenderRoot} from '@/common/cards/render/Types';
 import {
   ParliamentModel, ParliamentPlayerModel, PartyAccessModel, PartyActionModel, PartyAllianceModel, PartyAllianceRoadModel, ResolutionActionModel, seatEnacts,
@@ -48,6 +49,8 @@ export type ParliamentSlotVm = {
   resolutionId: ResolutionId;
   resolution: IClientResolution | undefined;
   party: ReduxParty;
+  /** WHO a rating-vetoing candidate (RX42) would bind «as if enacted now» — the server's live reading. */
+  trVetoIfEnacted?: RatingVetoModel;
   votes: ReadonlyArray<{owner: Color | 'neutral', seq: number}>;
   totalVotes: number;
   leader: Color | 'neutral' | undefined;
@@ -120,7 +123,7 @@ export type ParliamentQuestVm = {
 
 export type ParliamentViewVm = {
   slots: ReadonlyArray<ParliamentSlotVm>;
-  enacted: {instance: ResolutionInstanceId, resolutionId: ResolutionId, resolution: IClientResolution | undefined, party: ReduxParty} | undefined;
+  enacted: {instance: ResolutionInstanceId, resolutionId: ResolutionId, resolution: IClientResolution | undefined, party: ReduxParty, trVeto?: RatingVetoModel} | undefined;
   rulingParty: ReduxParty;
   rulingEffect: IClientPartyEffect | undefined;
   quest: ParliamentQuestVm | undefined;
@@ -213,6 +216,7 @@ export function buildParliamentView(model: ParliamentModel, viewer: Color | unde
     viewerVotes: slot.viewerVotes,
     viewerEffectDelegates: effectDelegatesOf(viewerAccess.get(slot.party)),
     projection: projections.get(slot.instance),
+    ...(slot.trVetoIfEnacted === undefined ? {} : {trVetoIfEnacted: slot.trVetoIfEnacted}),
   }));
 
   const parties: Array<ParliamentPartyVm> = REDUX_PARTIES.map((party) => {
@@ -274,6 +278,8 @@ export function buildParliamentView(model: ParliamentModel, viewer: Color | unde
     resolutionId: model.enacted.resolution,
     resolution: getResolution(model.enacted.resolution),
     party: model.enacted.party,
+    // WHO the law binds right now (RX42) — the server's live reading, never a client count.
+    ...(model.enacted.trVeto === undefined ? {} : {trVeto: model.enacted.trVeto}),
   };
 
   return {

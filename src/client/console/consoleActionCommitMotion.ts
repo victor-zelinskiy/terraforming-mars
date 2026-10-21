@@ -330,6 +330,13 @@ export type ActionCommitMotionArgs = {
    * and let go with the episode.
    */
   divertedSeal?: boolean;
+  /**
+   * The variant's printed RATING is REFUSED by a law (RX42 UNMI Veto — a struck `tr` chip): the Reds' seal strikes
+   * the printed TR icon at the handoff, apart from the landing — the scale icon takes the impulse (the step moves),
+   * the rating icon takes the stamp (nothing is born on it). Where the rating IS the landing (the UNMI corporation's
+   * «3 M€ → +1 TR»), the landing's ring is the seal.
+   */
+  vetoSeal?: boolean;
   /** Fired at the impulse's landing — the result handoff (overlapping). */
   onHandoff?: () => void;
   /** Fired when the mandatory beat has played out (the min-beat release). */
@@ -467,6 +474,9 @@ export function runActionCommitMotion(args: ActionCommitMotionArgs): ActionCommi
 
   const anchors = resolveActionCommitAnchors(args.cardWrapEl, args.actionNode);
   const iconEl = resolveResultIcon(anchors, args.kind, args.firstResource);
+  // The printed rating icon the veto strikes (RX42) — the landing itself when the rating is all the variant pays.
+  const vetoIconEl = args.vetoSeal === true ? resolveResultIcon(anchors, 'rating') : undefined;
+  const sealOnLanding = args.divertedSeal === true || (vetoIconEl !== undefined && vetoIconEl === iconEl);
 
   // ── reduced motion: the semantics survive as a short accent — the icon
   //    highlights, the handoff and the committed state land on time. ──
@@ -548,10 +558,13 @@ export function runActionCommitMotion(args: ActionCommitMotionArgs): ActionCommi
   if (landingEl !== undefined) {
     const r = landingEl.getBoundingClientRect();
     const ring = document.createElement('div');
-    ring.className = args.divertedSeal === true ? 'con-commit-ring con-commit-seal' : 'con-commit-ring';
+    ring.className = sealOnLanding ? 'con-commit-ring con-commit-seal' : 'con-commit-ring';
+    if (vetoIconEl !== undefined && vetoIconEl === iconEl) {
+      ring.setAttribute('data-commit-seal', 'tr');
+    }
     ring.style.cssText = `left:${r.left - 5}px;top:${r.top - 5}px;width:${r.width + 10}px;height:${r.height + 10}px;`;
     layer.appendChild(ring);
-    if (args.divertedSeal === true) {
+    if (sealOnLanding) {
       // THE SEAL's strike — one diagonal bar across the icon, drawn in from nothing with the rim.
       const strike = document.createElement('div');
       strike.className = 'con-commit-seal__strike';
@@ -571,8 +584,28 @@ export function runActionCommitMotion(args: ActionCommitMotionArgs): ActionCommi
     }, s(COMMIT_HANDOFF_AT_MS - 40));
     // The ring DWELLS a beat before letting go — the «executed» mark is the
     // one thing the eye must be given time to read. The SEAL dwells longer: the data's token is born on it meanwhile.
-    const dwell = args.divertedSeal === true ? ICON_MS * 1.6 : ICON_MS * 0.55;
+    const dwell = sealOnLanding ? ICON_MS * 1.6 : ICON_MS * 0.55;
     tl.to(ring, {opacity: 0, scale: 1.1, duration: s(ICON_MS * 1.15), ease: 'sine.out'}, s(COMMIT_HANDOFF_AT_MS + dwell));
+  }
+  // 4b. THE VETO'S STAMP (RX42) on the printed rating icon, APART from the landing: the same seal — the rim and the
+  //     strike settle on the icon at the handoff (never one frame — `polish-direction-smoothness`), dwell long enough
+  //     to be read, and let go with the episode. Nothing is born on it: the rating does not come.
+  if (vetoIconEl !== undefined && vetoIconEl !== iconEl) {
+    const r = vetoIconEl.getBoundingClientRect();
+    const seal = document.createElement('div');
+    seal.className = 'con-commit-ring con-commit-seal';
+    seal.setAttribute('data-commit-seal', 'tr');
+    seal.style.cssText = `left:${r.left - 5}px;top:${r.top - 5}px;width:${r.width + 10}px;height:${r.height + 10}px;`;
+    layer.appendChild(seal);
+    const strike = document.createElement('div');
+    strike.className = 'con-commit-seal__strike';
+    seal.appendChild(strike);
+    tl.fromTo(seal, {opacity: 0, scale: 0.78}, {
+      opacity: 0.95, scale: 1, duration: s(ICON_MS * 0.5), ease: 'sine.out', transformOrigin: '50% 50%',
+    }, s(COMMIT_HANDOFF_AT_MS - 40));
+    tl.fromTo(strike, {scaleX: 0, opacity: 0}, {scaleX: 1, opacity: 1, duration: s(ICON_MS * 0.6), ease: 'power2.out', transformOrigin: '0% 50%'},
+      s(COMMIT_HANDOFF_AT_MS - 40 + ICON_MS * 0.25));
+    tl.to(seal, {opacity: 0, scale: 1.08, duration: s(ICON_MS * 1.15), ease: 'sine.out'}, s(COMMIT_HANDOFF_AT_MS + ICON_MS * 1.6));
   }
 
   tl.call(fireHandoff, undefined, s(COMMIT_HANDOFF_AT_MS));

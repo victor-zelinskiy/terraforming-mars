@@ -70,7 +70,8 @@ describe('UnmiVeto — the readings of the rating veto', () => {
       expect(root.classes()).includes('action-effect-chip--vetoed');
       expect(root.classes()).includes('premium-tooltip');
       expect(root.attributes('data-vetoed')).eq('2');
-      expect(root.attributes('data-hint') ?? '').includes(lawName() === 'UNMI Veto' ? 'Вето UNMI' : lawName());
+      expect(root.attributes('data-hint') ?? '', 'the law by its printed name (the manifest one), translated where a locale is loaded').match(/UNMI Veto|Вето UNMI/);
+      expect(lawName()).eq('UNMI Veto');
       expect(root.attributes('data-hint') ?? '').includes('2');
       expect(w.find('[data-chip-diverted]').exists(), 'nothing stands in the rating\'s place — no tail').is.false;
       expect(w.find('.action-effect-chip__note--noeffect').exists(), 'never «no effect»').is.false;
@@ -187,7 +188,7 @@ describe('UnmiVeto — the readings of the rating veto', () => {
       const summary: ParliamentPhaseSummaryModel = {
         generation: 3, final: false,
         winner: {instance: `${LAW}#0`, resolution: LAW, party: PartyName.REDS, votes: 1, player: BLUE},
-        support: [], outcomes: [],
+        support: [], outcomes: [], refreshed: [], lobbyRefilled: [],
         enacted: {instance: `${LAW}#0`, resolution: LAW, party: PartyName.REDS},
       } as unknown as ParliamentPhaseSummaryModel;
       const reading = resultsReadingOf(summary, [{player: BLUE, lobby: true, reserve: 3}, {player: RED, lobby: true, reserve: 3}], [],

@@ -72,7 +72,9 @@
                 <b>+{{ chip.megacredits }}</b><i class="con-band__unit" :class="megacreditsClass" aria-hidden="true"></i>
                 <span class="con-band__text con-band__text--quiet">{{ $t('instead of a card') }}</span>
               </span>
-              <span v-else-if="chip.bonus !== undefined" class="con-band__bonus" :data-parl-band-bonus="chip.bonus">
+              <!-- A rating the law REFUSED (RX42 — the step's `vetoed`): the marker moved, the «+1» reads struck. -->
+              <span v-else-if="chip.bonus !== undefined" class="con-band__bonus" :class="{'con-band__bonus--vetoed': chip.vetoed === true}"
+                    :data-parl-band-bonus="chip.bonus" :data-parl-band-vetoed="chip.vetoed === true ? 'tr' : undefined">
                 <b>+1</b><i class="con-band__unit" :class="bonusClass(chip.bonus)" aria-hidden="true"></i>
               </span>
               <!-- An INFLUENCE step: the glyph with the level in one disc (law 14 — a bare numeral reads as an ordinal). -->
@@ -315,6 +317,7 @@ export default defineComponent({
         to: walk.to,
         ...(last?.bonus === undefined ? {level: influenceAtAgenda(walk.to)} : {bonus: last.bonus}),
         ...(walk.megacredits === undefined ? {} : {megacredits: walk.megacredits}),
+        ...(last?.vetoed === true ? {vetoed: true as const} : {}),
       };
     },
     /**
@@ -333,6 +336,7 @@ export default defineComponent({
         to: walk.to,
         ...(last.bonus === undefined ? {level: influenceAtAgenda(walk.to)} : {bonus: last.bonus}),
         ...(record.megacredits === undefined ? {} : {megacredits: record.megacredits}),
+        ...(last.vetoed === true ? {vetoed: true as const} : {}),
       };
     },
     /** The law's walk now playing — its phase (`impulse` · `walk` · `landed`), the e2e probe's witness of «the marker leaves only after the impulse». */

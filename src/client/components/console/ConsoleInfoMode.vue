@@ -218,7 +218,8 @@
         <ConsoleArmedEffectsSection :player="viewed" />
         <ConsolePartyEffectsStrip v-if="playerView.game.parliament !== undefined"
                                   :parliament="playerView.game.parliament"
-                                  :color="viewed.color" />
+                                  :color="viewed.color"
+                                  :playerNames="playerNamesByColor" />
         <ConsoleEffectsExplorer ref="effectsView"
                                 :cards="viewed.tableau"
                                 :color="viewed.color"
@@ -328,6 +329,8 @@ import ConsoleScoreExplorer from '@/client/components/console/ConsoleScoreExplor
 import ConsoleExtrasExplorer from '@/client/components/console/ConsoleExtrasExplorer.vue';
 import ConsoleEffectsExplorer from '@/client/components/console/ConsoleEffectsExplorer.vue';
 import ConsolePartyEffectsStrip from '@/client/components/console/ConsolePartyEffectsStrip.vue';
+import {seatRestricted} from '@/common/models/ParliamentModel';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import ConsoleArmedEffectsSection from '@/client/components/console/ConsoleArmedEffectsSection.vue';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {seatParliamentReadingOf, SeatParliamentReadingVm} from '@/client/console/parliament/seatParliamentReading';
@@ -612,7 +615,25 @@ export default defineComponent({
       return dossierSealedFacts(this.viewed.terraformRating, this.viewed.color,
         (game.milestones ?? []).map((m) => ({name: m.name, color: m.color})),
         (game.awards ?? []).map((a) => ({name: a.name, color: a.color})),
-        maArtSlug);
+        maArtSlug, this.viewedRatingVeto);
+    },
+    /** The VIEWED seat is under the rating veto (RX42) — the law's name; read off the server's live leaders. */
+    viewedRatingVeto(): {law: string} | undefined {
+      const enacted = this.playerView.game.parliament?.enacted;
+      const veto = enacted?.trVeto;
+      if (enacted === undefined || veto === undefined || !veto.leaders.some((l) => l.color === this.viewed.color)) {
+        return undefined;
+      }
+      const seat = this.playerView.game.parliament?.players.find((p) => p.color === this.viewed.color);
+      return seat !== undefined && !seatRestricted(seat) ? undefined : {law: getResolution(enacted.resolution)?.text.name ?? enacted.resolution};
+    },
+    /** Display names by colour — for the surfaces that name a seat in words. */
+    playerNamesByColor(): Readonly<Record<string, string>> {
+      const out: Record<string, string> = {};
+      for (const p of this.playerView.players) {
+        out[p.color] = p.name;
+      }
+      return out;
     },
     /** The card story — the played table's own grouping (the bot's pile + its corporation, the parity). */
     cardHistory(): DossierCardHistory {

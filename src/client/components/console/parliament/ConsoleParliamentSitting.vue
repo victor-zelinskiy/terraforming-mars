@@ -91,6 +91,15 @@
         <div class="con-sit__payouts" data-sit-section="payouts">
           <span class="con-parl__chip-dim con-sit__section-kicker">{{ $t('Payouts') }}</span>
           <span v-if="results.quiet !== undefined" class="con-sit__payout-quiet" data-sit-payout-quiet>{{ $t(results.quiet.kicker) }}</span>
+          <!-- A RATING-VETOING law (RX42): who it binds as the sitting closes — the server's live leaders. -->
+          <span v-if="results.veto !== undefined" class="con-sit__veto" data-sit-veto>
+            <span class="con-sit__veto-kicker">{{ $t('Under the veto') }}</span>
+            <span v-for="l in results.veto" :key="l.color" class="con-sit__veto-seat" :data-sit-veto-seat="l.color">
+              <PlayerCube :color="l.color" :size="cubePx(11)" :glow="false" />
+              <b>{{ nameOfColor(l.color) }}</b>
+              <span class="con-sit__veto-tr">{{ l.tr }}</span>
+            </span>
+          </span>
           <div v-for="row in results.payouts" v-else :key="row.player" class="con-sit__payout"
                :class="{'con-sit__payout--winner': shownSummary !== undefined && shownSummary.winner.player === row.player}"
                data-sit-payout :data-sit-payout-seat="row.player">
@@ -313,7 +322,7 @@
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {ParliamentModel, ParliamentPhaseSummaryModel, seatEnacts} from '@/common/models/ParliamentModel';
+import {ParliamentModel, ParliamentPhaseSummaryModel, seatEnacts, seatRestricted} from '@/common/models/ParliamentModel';
 import {PARLIAMENT_MAX_POPULAR_SUPPORT, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import PlayerCube from '@/client/components/PlayerCube.vue';
@@ -412,6 +421,12 @@ export default defineComponent({
         return undefined;
       }
       const quiet = quietRewardPoseOf(this.resolution);
+      // The seats a RATING-VETOING law binds as the sitting closes (RX42) — the server's live leaders, in its aspect.
+      const trVeto = this.model?.enacted?.resolution === summary.winner.resolution ? this.model?.enacted?.trVeto : undefined;
+      const veto = trVeto?.leaders.filter((l) => {
+        const seat = this.model?.players.find((p) => p.color === l.color);
+        return seat === undefined || seatRestricted(seat);
+      });
       return resultsReadingOf(
         summary,
         // The LIVE participating seats, after the lobby step: the payout order AND what each of them will
@@ -419,7 +434,10 @@ export default defineComponent({
         (this.model?.players ?? []).filter((p) => p.participates)
           .map((p) => ({player: p.color, lobby: p.lobby, reserve: p.reserve, enacts: seatEnacts(p)})),
         this.view.parties.map((party) => ({party: party.party, support: party.support})),
-        quiet === undefined ? {} : {quiet: {kicker: quiet.kicker, kind: quiet.kind}},
+        {
+          ...(quiet === undefined ? {} : {quiet: {kicker: quiet.kicker, kind: quiet.kind}}),
+          ...(veto === undefined || veto.length === 0 ? {} : {veto}),
+        },
       );
     },
     /** The places one party's support row reserves — the plaques' own count, so the two read as one vocabulary. */

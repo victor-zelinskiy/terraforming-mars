@@ -2643,6 +2643,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   'parliament-sponsored-assembly' | 'parliament-sponsored-eight' | 'parliament-sponsored-vote' |
   // RX41 Tax Breaks: blue's vote (3 types + influence 3 = 6 → 5) and the assembly gate (the production wave; red's named skip).
   'parliament-tax-breaks-vote' | 'parliament-tax-breaks-assembly' |
+  // RX42 UNMI Veto: the law ENACTED with red first by rating (30 vs 27) — every promised rating struck; and the vote with blue NOT first.
+  'parliament-unmi-veto-enacted' | 'parliament-unmi-veto-vote' |
   // RX33 Water Export: the assembly with ONE plain ocean on the board and blue (the first player) holding the delegate —
   // the first world step that ASKS; and the law ENACTED (the ocean gone) with red holding Miranda Resort (12 → 9).
   'parliament-water-assembly' | 'parliament-water-enacted' |

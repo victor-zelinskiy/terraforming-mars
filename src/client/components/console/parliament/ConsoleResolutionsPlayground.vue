@@ -206,6 +206,11 @@
                per effect, the win's difference as its suffix (the same model). -->
           <ConsoleInfluenceYield v-if="yields.length > 0" :yields="yields" :levy="levy" :oneNumber="context === 'proposal'" size="hero" :note="yieldNote" :kicker="contextLabel" data-rxpg-yield />
           <p v-else class="con-rxpg__none" data-rxpg-yield-none>{{ $t('Not scaled by influence') }}</p>
+          <!-- WHO THE VETO BINDS (RX42) — the vote panel's own reading, off the scenario's ratings. -->
+          <span v-if="vetoReading !== undefined" class="con-parl__info-veto con-rxpg__veto" data-rxpg-veto :data-rxpg-veto-kind="vetoReading.kind">
+            <i class="con-parl__info-veto-icon resource_icon resource_icon--rating" aria-hidden="true"></i>
+            <span class="con-parl__info-veto-text">{{ vetoText(vetoReading) }}</span>
+          </span>
           <!-- THE COLONY LEDGER (Colonial Affairs): the viewer's tiles the multiplier above multiplies — the
                same reading the vote panel, the inspector and the sitting print. -->
           <ConsoleColonyLedger v-if="ledger !== undefined" :reading="ledger" size="normal" data-rxpg-ledger />
@@ -580,6 +585,8 @@
 </template>
 
 <script lang="ts">
+import {ratingVetoReadingOf, RatingVetoReading} from '@/client/console/parliament/voteInfoModel';
+import {RatingVetoModel} from '@/common/models/ParliamentModel';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
@@ -797,6 +804,11 @@ type PgScenario = {
    */
   emptyDeck?: boolean,
   /**
+   * A law that VETOES A RATING (RX42): the scenario stands the seats' ratings against each other («you first», «the
+   * other first», «a tie») — listed only under such a law; the reading is the vote panel's own.
+   */
+  vetoes?: true,
+  /**
    * A law that advances EVERY COLONY TRACK (Unity Budget): the stand's synthetic table — each tile with its marker's
    * position — so the inspector reads every tile's step, and a track at its end reads as named (never moved).
    */
@@ -998,6 +1010,10 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
   // Agenda 4 = influence 2; winning takes the marker to step 5 (influence 3) BEFORE the effect.
   {key: 'winner-agenda', family: 'influence', label: 'The winner advances on the Agenda first', viewer: 0, seats: [{agenda: 4, bonus: 0}, {agenda: 3, bonus: 0}], winner: 0, context: 'resolving', noRecipient: false},
   {key: 'beyond-track', family: 'influence', label: 'Influence beyond the track', viewer: 0, seats: [{agenda: 4, bonus: 1}, {agenda: 3, bonus: 0}], winner: 1, context: 'proposal', noRecipient: false},
+  // THE RATING VETO (RX42 UNMI Veto): who the law would bind «as if enacted now» — the viewer first, the other first, a tie.
+  {key: 'veto-you-first', family: 'influence', label: 'The veto — you are first by rating', viewer: 0, seats: [{agenda: 3, bonus: 0, tr: 32}, {agenda: 1, bonus: 0, tr: 28}], winner: 1, context: 'proposal', noRecipient: false, vetoes: true},
+  {key: 'veto-other-first', family: 'influence', label: 'The veto — the other seat is first by rating', viewer: 0, seats: [{agenda: 3, bonus: 0, tr: 28}, {agenda: 1, bonus: 0, tr: 32}], winner: 1, context: 'proposal', noRecipient: false, vetoes: true},
+  {key: 'veto-tie', family: 'influence', label: 'The veto — a tie at the top', viewer: 0, seats: [{agenda: 3, bonus: 0, tr: 32}, {agenda: 1, bonus: 0, tr: 32}], winner: 1, context: 'proposal', noRecipient: false, vetoes: true},
   {key: 'no-recipient', family: 'influence', label: 'No eligible card', viewer: 0, seats: [{agenda: 3, bonus: 0}, {agenda: 5, bonus: 0}], winner: 1, context: 'resolving', noRecipient: true},
   {key: 'applied', family: 'influence', label: 'Recorded payout', viewer: 0, seats: [{agenda: 4, bonus: 0}, {agenda: 0, bonus: 0}], winner: 0, context: 'applied', noRecipient: false},
   {key: 'spectator', family: 'influence', label: 'Spectator — the formula alone', viewer: SPECTATOR, seats: [{agenda: 5, bonus: 0}, {agenda: 3, bonus: 0}], winner: 0, context: 'proposal', noRecipient: false},
@@ -2162,10 +2178,26 @@ export default defineComponent({
       const kinds = this.spreadResources ?? [];
       const countId = this.countEffect?.count?.id;
       return SCENARIOS.map((s, i) => ({s, i})).filter((entry) => entry.s.family === this.family &&
+        (entry.s.vetoes === undefined || this.selected?.vetoesRating === true) &&
         (entry.s.parameter === undefined || moved.has(entry.s.parameter)) &&
         (entry.s.holds === undefined || entry.s.holds.every((kind) => kinds.includes(kind))) &&
         (entry.s.counts === undefined || entry.s.counts === countId) &&
         (entry.s.levelDirection === undefined || entry.s.levelDirection === this.levelDirection));
+    },
+    /** The veto's reading for the viewer in this scenario (RX42) — the vote panel's own function over the synthetic slot. */
+    vetoReading(): RatingVetoReading | undefined {
+      const slot = this.model?.slots[0];
+      if (slot === undefined || this.context !== 'proposal') {
+        return undefined;
+      }
+      const seatIndex = (color: Color): SeatIndex | undefined => SEATS.find((i) => TEST_PLAYERS[i].color === color);
+      const nameOf = (color: Color): string => {
+        const i = seatIndex(color);
+        return i === undefined ? color : translateText(TEST_PLAYERS[i].label);
+      };
+      const viewerIndex = this.viewerSeatIndex;
+      return ratingVetoReadingOf(slot.trVetoIfEnacted, this.viewerColor, this.model?.players ?? [], nameOf,
+        viewerIndex === undefined ? undefined : (this.seats[viewerIndex].tr ?? 20));
     },
     /** The first scaled part that COUNTS the tableau — what the tableau rows explain. */
     countEffect(): InfluenceScaledEffect | undefined {
@@ -2528,6 +2560,9 @@ export default defineComponent({
           slots: [{
             instance, resolution: r.id, party: r.party, votes: [{owner, seq: 1}, {owner, seq: 2}], totalVotes: 2,
             isWinning: true, tiePriority: 1, viewerVotes: viewer !== undefined && viewer === owner ? 2 : 0, leader: owner,
+            // A RATING-VETOING law (RX42): who it would bind «as if enacted now» — the scenario's ratings, the way the
+            // server's live reading carries them (every seat at the top, with its rating).
+            ...(r.vetoesRating === true ? {trVetoIfEnacted: this.ratingVetoOfSeats()} : {}),
           }],
         };
       }
@@ -3243,9 +3278,19 @@ export default defineComponent({
     influenceAt(i: SeatIndex): number {
       return influenceAtAgenda(this.agendaAt(i)) + this.seats[i].bonus;
     },
+    /** The veto's sentence (RX42) — its key with its params through the one i18n helper. */
+    vetoText(veto: {key: string, params: ReadonlyArray<string>}): string {
+      return translateTextWithParams(veto.key, [...veto.params]);
+    },
+    /** The seats first by rating in this scenario (every one at the top, with its rating) — the server reading's shape. */
+    ratingVetoOfSeats(): RatingVetoModel {
+      const ratings = SEATS.map((i) => ({color: TEST_PLAYERS[i].color, tr: this.seats[i].tr ?? 20}));
+      const top = Math.max(...ratings.map((r) => r.tr));
+      return {leaders: ratings.filter((r) => r.tr === top)};
+    },
     seatModel(i: SeatIndex): ParliamentPlayerModel {
       const model: ParliamentPlayerModel = {
-        color: TEST_PLAYERS[i].color, participates: true, lobby: true, reserve: 5, onResolutions: this.winner === i ? 2 : 0, chairman: false,
+        color: TEST_PLAYERS[i].color, participates: true, restriction: true, lobby: true, reserve: 5, onResolutions: this.winner === i ? 2 : 0, chairman: false,
         agenda: this.agendaAt(i), influence: this.influenceAt(i), access: [], partyActionUses: {}, resolutionActionUses: 0,
       };
       // The seat's COUNTS, the way the server model carries them — through the shared predicate.

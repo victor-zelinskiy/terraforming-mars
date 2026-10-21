@@ -23,6 +23,9 @@
           <span class="con-dsealed__disc"><i class="con-dsealed__glyph" :class="iconClass('tr')" aria-hidden="true"></i></span>
           <b class="con-dsealed__value">{{ facts.rating }}</b>
           <span class="con-dsealed__label">{{ $t('TR') }}</span>
+          <!-- UNDER THE RATING VETO (RX42): the seat is first by rating and gains none — the law named, the seat's own
+               fact beside its rating (a rival's dossier says it too). -->
+          <span v-if="facts.veto !== undefined" class="con-dsealed__veto" data-dossier-veto>{{ vetoText }}</span>
         </div>
         <div class="con-dsealed__fact" data-dossier-public-fact="milestones">
           <span class="con-dsealed__disc con-dsealed__disc--ma">
@@ -49,6 +52,7 @@
 import {defineComponent, PropType} from 'vue';
 import {DossierSealedFacts} from '@/client/console/infoDossierModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {translateTextWithParams} from '@/client/directives/i18n';
 import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
 import PrivateScoreMask from '@/client/components/overview/PrivateScoreMask.vue';
 
@@ -57,6 +61,12 @@ export default defineComponent({
   components: {ConsoleVpBadge, PrivateScoreMask},
   props: {
     facts: {type: Object as PropType<DossierSealedFacts>, required: true},
+  },
+  computed: {
+    vetoText(): string {
+      const veto = this.facts.veto;
+      return veto === undefined ? '' : translateTextWithParams('under the veto of ${0}', [translateTextWithParams(veto.law, [])]);
+    },
   },
   methods: {
     iconClass(icon: string): string {

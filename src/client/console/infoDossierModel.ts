@@ -85,6 +85,8 @@ export type DossierSealedFacts = {
   rating: number;
   milestones: ReadonlyArray<{name: string, slug: string}>;
   awards: ReadonlyArray<{name: string, slug: string}>;
+  /** The seat is UNDER A RATING VETO (RX42): the law (its printed name, an i18n key) — read off the server's live leaders. */
+  veto?: {law: string};
 };
 
 export function dossierSealedFacts(
@@ -93,10 +95,11 @@ export function dossierSealedFacts(
   milestones: ReadonlyArray<{name: string, color?: Color}>,
   awards: ReadonlyArray<{name: string, color?: Color}>,
   slugOf: (name: string) => string,
+  veto: {law: string} | undefined = undefined,
 ): DossierSealedFacts {
   const own = (list: ReadonlyArray<{name: string, color?: Color}>) =>
     list.filter((m) => m.color === color).map((m) => ({name: m.name, slug: slugOf(m.name)}));
-  return {rating, milestones: own(milestones), awards: own(awards)};
+  return {rating, milestones: own(milestones), awards: own(awards), ...(veto === undefined ? {} : {veto})};
 }
 
 // ── THE CARD HISTORY — the corporation's face + fans by type ──────────────

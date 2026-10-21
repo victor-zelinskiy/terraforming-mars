@@ -121,6 +121,10 @@ export function detectNewCareerWalks(before: PlayerViewModel | undefined, after:
 export function careerWalkBonuses(walk: CareerWalkOwed): Array<AgendaBonusOwed> {
   const out: Array<AgendaBonusOwed> = [];
   for (const step of walk.steps) {
+    if (step.bonus === 'tr' && step.vetoed === true) {
+      // The rating the law REFUSED (RX42): the marker moved, no token flies — the band reads the step struck.
+      continue;
+    }
     if (step.bonus === 'tr') {
       out.push({generation: walk.generation, player: walk.player, step: step.to, kind: 'tr', spec: {channel: 'stock', resource: RATING_RAIL_KEY, amount: 1}, career: true});
     } else if (step.bonus === 'card') {

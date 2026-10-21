@@ -29,7 +29,7 @@
 import type {StagedReceipt} from '@/client/console/stagedPlay';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
-import {ParliamentModel, seatEnacts} from '@/common/models/ParliamentModel';
+import {ParliamentModel, ParliamentPlayerModel, RatingVetoModel, seatEnacts, seatRestricted} from '@/common/models/ParliamentModel';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {InfluenceYield, paysEachCountedCard} from '@/common/parliament/influenceScaling';
 import {CardResource} from '@/common/CardResource';
@@ -322,6 +322,8 @@ export type VoteInfoVm = {
   party: ReduxParty;
   winning: boolean;
   reading: VoteReadingVm;
+  /** A RATING-VETOING law (RX42): who it binds «as if enacted now» — the live reading, for the subject. */
+  veto?: RatingVetoReading;
   vote: {
     /** English i18n key. */
     kicker: string;
@@ -564,6 +566,10 @@ export type VoteInfoInput = {
   subject: Color | undefined;
   /** Present when the subject is not the viewer: its display name (the kicker's). */
   rival?: {name: string};
+  /** A seat's display name (the veto reading names the seats it binds) — the colour itself when absent. */
+  nameOf?: (color: Color) => string;
+  /** The SUBJECT's terraform rating now (the veto reading's «yours: N») — absent when the panel does not know it. */
+  subjectRating?: number;
   /** The SUBJECT's public tableau — the holder law is read for the seat the reading is about. */
   tableau: ReadonlyArray<{name: CardName}>;
   /** The resolution's name (English key) and the winning flag as the mode shows them. */
@@ -592,12 +598,17 @@ export type VoteInfoInput = {
 export function voteInfoOf(input: VoteInfoInput): VoteInfoVm {
   const card = input.grant?.card === true;
   const receipt = card ? input.grant?.receipt : undefined;
+  // The veto's reading (RX42): the candidate's «as if enacted now», or the enacted law's own standing.
+  const trVeto = input.slot.trVetoIfEnacted ??
+    (input.model?.enacted?.resolution === input.slot.resolutionId ? input.model.enacted.trVeto : undefined);
+  const veto = ratingVetoReadingOf(trVeto, input.subject, input.model?.players ?? [], input.nameOf, input.subjectRating);
   return {
     instance: input.slot.instance,
     name: input.name,
     party: input.slot.party,
     winning: input.winning,
     reading: voteReadingOf(input.resolution, input.model, input.subject, input.tableau, input.rival),
+    ...(veto === undefined ? {} : {veto}),
     vote: {
       kicker: input.grant !== undefined ? GRANT_KICKER : VOTE_KICKER,
       source: input.source,
@@ -791,4 +802,66 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
     moment: 0,
     support: vm.support === undefined ? 0 : countWords(`${text(SUPPORT_KICKER)} ${supportTailText(vm.support, text)}`),
   };
+}
+
+// ── THE RATING VETO (RX42 UNMI Veto) — who the law binds, read for the subject ──────────────────────────────────
+
+/** One reading of the veto's standing for the subject: the kind decides the sentence, the params fill it. */
+export type RatingVetoReading = {
+  /** `you` — the subject alone is first by rating; `tie` — with others; `others` — not the subject; `solo` — the only seat. */
+  kind: 'you' | 'others' | 'tie' | 'solo';
+  /** The sentence (an English i18n key) and its params (display names and ratings, as strings). */
+  key: string;
+  params: ReadonlyArray<string>;
+  /** The seats the law binds now, with their ratings — the server's own list (the subject included where it is). */
+  leaders: ReadonlyArray<{color: Color, tr: number}>;
+};
+
+export const VETO_READING_YOU = 'You have the highest terraform rating (${0}): your rating gains will not count';
+export const VETO_READING_TIE = '${0} and you (${1}) share the highest terraform rating — the veto binds you all';
+export const VETO_READING_OTHERS = 'The highest terraform rating now: ${0} (${1}) — their rating gains will not count';
+export const VETO_READING_OTHERS_YOURS = 'The highest terraform rating now: ${0} (${1}) — their rating gains will not count. Yours: ${2}';
+export const VETO_READING_SOLO = 'You are the only seat — the veto always binds you';
+
+/**
+ * The veto's reading for `subject` off the SERVER's live leaders (`RatingVetoModel` — every seat first by rating with
+ * its rating; a seat outside the law's `restriction` aspect is not bound and is left out). Nothing is counted here:
+ * the kind and the words follow the list. Undefined without a vetoing law or a subject.
+ */
+export function ratingVetoReadingOf(
+  veto: RatingVetoModel | undefined,
+  subject: Color | undefined,
+  players: ReadonlyArray<ParliamentPlayerModel>,
+  nameOf: ((color: Color) => string) | undefined = undefined,
+  subjectRating: number | undefined = undefined,
+): RatingVetoReading | undefined {
+  if (veto === undefined || subject === undefined) {
+    return undefined;
+  }
+  const bound = (color: Color): boolean => {
+    const seat = players.find((p) => p.color === color);
+    return seat === undefined || seatRestricted(seat);
+  };
+  const leaders = veto.leaders.filter((l) => bound(l.color));
+  const name = (color: Color): string => nameOf === undefined ? color : nameOf(color);
+  const seated = players.filter((p) => p.participates);
+  if (seated.length === 1 && seated[0].color === subject) {
+    return {kind: 'solo', key: VETO_READING_SOLO, params: [], leaders};
+  }
+  const mine = leaders.find((l) => l.color === subject);
+  const others = leaders.filter((l) => l.color !== subject);
+  if (mine !== undefined && others.length === 0) {
+    return {kind: 'you', key: VETO_READING_YOU, params: [String(mine.tr)], leaders};
+  }
+  if (mine !== undefined) {
+    return {kind: 'tie', key: VETO_READING_TIE, params: [others.map((l) => name(l.color)).join(', '), String(mine.tr)], leaders};
+  }
+  if (others.length === 0) {
+    return undefined;
+  }
+  const names = others.map((l) => name(l.color)).join(', ');
+  const top = String(others[0].tr);
+  return subjectRating === undefined ?
+    {kind: 'others', key: VETO_READING_OTHERS, params: [names, top], leaders} :
+    {kind: 'others', key: VETO_READING_OTHERS_YOURS, params: [names, top, String(subjectRating)], leaders};
 }

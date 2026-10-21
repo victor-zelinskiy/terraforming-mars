@@ -99,6 +99,7 @@ import {CLOUD_DEVELOPMENT_ID} from '../../../src/server/parliament/resolutions/u
 import {GAS_EXPORT_ID} from '../../../src/server/parliament/resolutions/reds/GasExport';
 import {HEAT_CAPTURE_ID} from '../../../src/server/parliament/resolutions/reds/HeatCapture';
 import {DIVERTED_RESEARCH_ID} from '../../../src/server/parliament/resolutions/reds/DivertedResearch';
+import {UNMI_VETO_ID} from '../../../src/server/parliament/resolutions/reds/UnmiVeto';
 import {LIVE_EXPERIMENTS_ID} from '../../../src/server/parliament/resolutions/scientists/LiveExperiments';
 import {MANUFACTURING_RUN_ID} from '../../../src/server/parliament/resolutions/industrialists/ManufacturingRun';
 import {TitanShuttles} from '../../../src/server/cards/colonies/TitanShuttles';
@@ -6412,6 +6413,74 @@ function taxBreaksTable(name: string, stopAt: 'vote' | 'assembly'): void {
 }
 taxBreaksTable('parliament-tax-breaks-vote', 'vote');
 taxBreaksTable('parliament-tax-breaks-assembly', 'assembly');
+
+// ── RX42 · UNMI VETO (the Reds — «draw cards = influence; while enacted, the player(s) with the highest terraform rating
+//    ignore any rating they would gain»): the SECOND REPLACING passive, on the RATING alone. ENACTED: the sitting is
+//    over, RED won it (the seat the loader opens in generation 2) and is FIRST BY RATING — 30 against blue's 27 — with
+//    30 M€, 8 heat, the temperature at −10 °C and «Bribed Committee» (+2 TR, 7 M€) in hand: every surface that promises
+//    a rating must STRIKE it (the rail's stamp, the hand's plate, the wheel's note, the heat confirm's chip, the Asteroid
+//    row), and the heat conversion moves the scale while the rating stays 30 (the law's named skip in the journal). ──
+parliamentFixture('parliament-unmi-veto-enacted', {
+  resolution: UNMI_VETO_ID,
+  votes: [1],
+  agenda: [1, 2],
+  stopAt: 'done',
+  arrange: ({game, p2}) => {
+    setTemperature(game, -10);
+    p2.heat = 8;
+    p2.cardsInHand.push(new BribedCommittee());
+    // The spec spends red's actions (the heat conversion): a corporation's pending first action standing at boot would
+    // be answered by the board-home driver and cost the first (PL-715).
+    p2.pendingInitialActions = [];
+  },
+  after: ({p1, p2}) => {
+    // The ratings AFTER the sitting (the enactment, the research, the income are all over): red first, blue three below.
+    p1.setTerraformRating(27);
+    p2.setTerraformRating(30);
+    p2.megaCredits = 30;
+  },
+  expect: (table) => {
+    const {game, p1, p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(UNMI_VETO_ID, 0)) {
+      throw new Error(`the parliament-unmi-veto-enacted fixture expected UNMI Veto enacted, got ${parliament.enacted}`);
+    }
+    if (p2.pendingInitialActions.length > 0 || p2.actionsTakenThisRound !== 0) {
+      throw new Error('the parliament-unmi-veto-enacted fixture expected red to open generation 2 with both actions and no pending first action');
+    }
+    if (p2.terraformRating !== 30 || p1.terraformRating !== 27) {
+      throw new Error(`the parliament-unmi-veto-enacted fixture expected red first by rating 30 against 27, got ${p2.terraformRating} / ${p1.terraformRating}`);
+    }
+    if (p2.heat < 8 || p2.megaCredits !== 30) {
+      throw new Error(`the parliament-unmi-veto-enacted fixture expected red with 8 heat and 30 M€, has ${p2.heat} / ${p2.megaCredits}`);
+    }
+    if (game.getTemperature() !== -10) {
+      throw new Error(`the parliament-unmi-veto-enacted fixture expected −10 °C, got ${game.getTemperature()}`);
+    }
+    if (!p2.cardsInHand.some((c) => c.name === CardName.BRIBED_COMMITTEE)) {
+      throw new Error('the parliament-unmi-veto-enacted fixture expected red to hold Bribed Committee');
+    }
+    expectViewerOpensGeneration(table, p2, 'parliament-unmi-veto-enacted');
+  },
+});
+// …and the law AT THE VOTE (`-vote`): UNMI Veto in the first slot, nobody's delegate on it yet, BLUE the viewer and NOT
+// first by rating (20 against red's 30) — the vote panel names who the veto would bind right now, with the number.
+parliamentFixture('parliament-unmi-veto-vote', {
+  resolution: UNMI_VETO_ID,
+  votes: [],
+  agenda: [1, 2],
+  stopAt: 'vote',
+  arrange: ({p1, p2}) => {
+    p1.setTerraformRating(20);
+    p2.setTerraformRating(30);
+    p1.pendingInitialActions = [];
+    p2.pendingInitialActions = [];
+  },
+  expect: ({p1, p2}) => {
+    if (p1.terraformRating !== 20 || p2.terraformRating !== 30) {
+      throw new Error(`the parliament-unmi-veto-vote fixture expected blue 20 / red 30, got ${p1.terraformRating} / ${p2.terraformRating}`);
+    }
+  },
+});
 
 // ── two-player-finale-trigger: the FINALE with a TRIGGERED HAND-OFF (PL-301 / PL-303 — the owner's field
 //    report 2026-10-14). A 2p table at the final greenery: the first seat holds the plants and is asked;

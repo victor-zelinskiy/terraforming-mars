@@ -86,7 +86,7 @@
                 <div class="con-parl__info-own-body">
                   <!-- («Зал» v7, Ф4: the card's PRINTED graphic is on the bill itself, a size up right above this
                        plate — the reading no longer repeats it; the formula → number plate alone is the reading.) -->
-                  <div v-if="voteInfo.reading.yields.length > 0 || voteInfo.reading.grant !== undefined || voteInfo.reading.uses !== undefined || voteLedger.length > 0" class="con-parl__info-readings" data-parl-vote-late>
+                  <div v-if="voteInfo.reading.yields.length > 0 || voteInfo.reading.grant !== undefined || voteInfo.reading.uses !== undefined || voteInfo.veto !== undefined || voteLedger.length > 0" class="con-parl__info-readings" data-parl-vote-late>
                     <ConsoleInfluenceYield v-if="voteInfo.reading.yields.length > 0"
                                            class="con-parl__info-yield"
                                            :yields="voteInfo.reading.yields"
@@ -141,6 +141,12 @@
                     <!-- HOW MANY TIMES THE ACTION IS TAKEN (Manufacturing Run RX37): the printed count with its
                          threshold, then the seat's own count — on the line or how far below it — and the win's
                          forecast where the Agenda step lifts it over the line. One reading of the declaration. -->
+                    <!-- WHO THE VETO BINDS (RX42 UNMI Veto) — «as if enacted now», the server's live leaders, the subject
+                         named «you» where it is one of them: the warning stands BEFORE the vote, in the law's register. -->
+                    <span v-if="voteInfo.veto !== undefined" class="con-parl__info-veto" data-parl-vote-veto :data-parl-vote-veto-kind="voteInfo.veto.kind">
+                      <i class="con-parl__info-veto-icon resource_icon resource_icon--rating" aria-hidden="true"></i>
+                      <span class="con-parl__info-veto-text">{{ vetoText(voteInfo.veto) }}</span>
+                    </span>
                     <span v-if="voteInfo.reading.uses !== undefined" class="con-parl__info-uses" data-parl-vote-uses
                           :data-parl-vote-uses-now="voteInfo.reading.uses.uses" :data-parl-vote-uses-win="voteInfo.reading.uses.usesIfWin">
                       <span class="con-parl__info-uses-rule" data-parl-vote-uses-rule>{{ line(voteInfo.reading.uses.rule) }}</span>
@@ -549,6 +555,8 @@ export default defineComponent({
         model: this.model,
         subject: this.voteSubject,
         rival: this.subjectIsRival ? {name: this.nameOf(this.voteSubject)} : undefined,
+        nameOf: (color: Color) => this.nameOf(color),
+        subjectRating: this.playerView.players.find((p) => p.color === this.voteSubject)?.terraformRating,
         tableau: this.subjectTableau,
         name: resolutionTitleOf(this.view, slot.resolutionId),
         winning: winningShownOf(slot),
@@ -878,6 +886,10 @@ export default defineComponent({
     /** A reading line with its params — the ONE renderer (PL-160). */
     line(reading: Reading): string {
       return readingText(reading);
+    },
+    /** The veto's sentence (RX42) — its key with its params through the one i18n helper. */
+    vetoText(veto: {key: string, params: ReadonlyArray<string>}): string {
+      return translateTextWithParams(veto.key, [...veto.params]);
     },
     /** A counted holder's own kind — the icon its unit lands as. */
     holderUnitClass(resource: string): string {

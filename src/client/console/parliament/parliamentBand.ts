@@ -82,7 +82,7 @@ export type BandChip =
    * The Agenda step's own gift: the influence level it sets (the GLYPH with the level in one disc — parliament
    * law 14, never a bare numeral), or the bonus it hands over.
    */
-  | {kind: 'agenda', to: number, level?: number, bonus?: 'tr' | 'card', megacredits?: number}
+  | {kind: 'agenda', to: number, level?: number, bonus?: 'tr' | 'card', megacredits?: number, vetoed?: true}
   /** The payout formula — the reward's reading, printed whole (with the LEVY a budget takes first, when there is one). */
   | {kind: 'yield', yields: ReadonlyArray<InfluenceYield>, levy?: LevyReading}
   /** The ruling party's answer to a step of the payout. */
@@ -168,7 +168,7 @@ export type BandRewardReading = {
    * A STEP OF THE CAREER the law granted the viewer (Reds Budget), once its walk is RECORDED and played: the step it
    * reached and what it paid (never a skip: the skip chip says that). Absent while the sitting still owes the walk.
    */
-  career?: {to: number, bonus?: 'tr' | 'card', level?: number, megacredits?: number};
+  career?: {to: number, bonus?: 'tr' | 'card', level?: number, megacredits?: number, vetoed?: true};
   /** The WORLD's own part of the enactment — the planet's moves, in the server's order. */
   world?: ReadonlyArray<{parameter: ParameterMoveId, before: number, after: number, steps: number, unrewarded: boolean, skipped?: string}>;
   /** The COLONY TABLE's own part of the enactment (Unity Budget) — every track's move, in the server's order. */
@@ -250,7 +250,7 @@ export type BandSitting = {
    * КАРЬЕРА (Reds Budget): the seat whose step of the Career the law's walk is playing now, the step it reaches and
    * what that step pays — MarsBot's card step reads as the M€ it took instead (`megacredits`). Undefined between walks.
    */
-  career?: {player: Color, to: number, bonus?: 'tr' | 'card', level?: number, megacredits?: number};
+  career?: {player: Color, to: number, bonus?: 'tr' | 'card', level?: number, megacredits?: number, vetoed?: true};
   /**
    * THE ENACTMENT'S TAIL (TR62): a card's answer to the change of power, delivered while the line still reads the
    * enactment — the card that answered, the party that came to power and how many cards leave the deck.
@@ -290,7 +290,7 @@ export type BandQuest = {
  */
 export type BandWalk = {
   player: Color;
-  landed: ReadonlyArray<{to: number, bonus?: 'tr' | 'card', level?: number}>;
+  landed: ReadonlyArray<{to: number, bonus?: 'tr' | 'card', level?: number, vetoed?: true}>;
 };
 
 /**
@@ -385,7 +385,7 @@ export function parliamentBandLine(ctx: BandContext): BandLine {
 function walkLine(walk: BandWalk): BandLine {
   const chips: Array<BandChip> = [{kind: 'player', player: walk.player}];
   for (const step of walk.landed) {
-    chips.push({kind: 'agenda', to: step.to, ...(step.level === undefined ? {} : {level: step.level}), ...(step.bonus === undefined ? {} : {bonus: step.bonus})});
+    chips.push({kind: 'agenda', to: step.to, ...(step.level === undefined ? {} : {level: step.level}), ...(step.bonus === undefined ? {} : {bonus: step.bonus}), ...(step.vetoed === true ? {vetoed: true as const} : {})});
   }
   return {kicker: 'Agenda track', key: `walk:${walk.player}`, chips, committed: true};
 }
@@ -691,6 +691,7 @@ function careerLine(career: NonNullable<BandSitting['career']>): BandLine {
     ...(career.level === undefined ? {} : {level: career.level}),
     ...(career.bonus === undefined ? {} : {bonus: career.bonus}),
     ...(career.megacredits === undefined ? {} : {megacredits: career.megacredits}),
+    ...(career.vetoed === true ? {vetoed: true as const} : {}),
   });
   return {kicker: 'Agenda track', key: `career:${career.player}:${career.to}`, chips, committed: true};
 }

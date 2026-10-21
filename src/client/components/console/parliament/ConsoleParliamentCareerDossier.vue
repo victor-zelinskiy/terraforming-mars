@@ -28,7 +28,8 @@
           <span class="con-parl-qd__rung-label">{{ $t('Career start') }}</span>
         </div>
         <div v-for="step in view.agenda" :key="step.index" class="con-parl-qd__rung"
-             :class="'con-parl-qd__rung--' + step.step.kind" :data-parl-cd-step="step.index">
+             :class="['con-parl-qd__rung--' + step.step.kind, {'con-parl-qd__rung--vetoed': vetoedRungs.has(step.index)}]"
+             :data-parl-cd-step="step.index" :data-parl-cd-vetoed="vetoedRungs.has(step.index) ? 'tr' : undefined">
           <span class="con-parl-qd__rung-n">{{ step.index }}</span>
           <span class="con-parl-qd__rung-cubes"><PlayerCube v-for="c in step.cubes" :key="c" :color="c" :size="cubePx(15)" :glow="false" /></span>
           <span v-if="step.step.kind === 'influence'" class="con-parl-qd__coin con-parl-qd__coin--rung"><i class="con-parl-qd__coin-glyph" aria-hidden="true"></i><b>{{ step.step.influence }}</b></span>
@@ -58,6 +59,7 @@
 </template>
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
+import {seatRestricted} from '@/common/models/ParliamentModel';
 import {Color} from '@/common/Color';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
@@ -72,6 +74,29 @@ export default defineComponent({
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
   },
   computed: {
+    /**
+     * THE RATING RUNGS A BOUND SEAT WOULD NOT BE PAID (RX42 UNMI Veto): for every seat the enacted law binds (the
+     * server's live leaders, in the law's aspect), its NEXT rating rung on the track — struck, with the words. Read
+     * off the model; nothing counted here.
+     */
+    vetoedRungs(): ReadonlySet<number> {
+      const veto = this.view.enacted?.trVeto;
+      const out = new Set<number>();
+      if (veto === undefined) {
+        return out;
+      }
+      for (const leader of veto.leaders) {
+        const seat = this.view.players.find((p) => p.color === leader.color);
+        if (seat === undefined || !seatRestricted(seat)) {
+          continue;
+        }
+        const next = this.view.agenda.find((step) => step.index > seat.agenda && step.step.kind === 'tr');
+        if (next !== undefined) {
+          out.add(next.index);
+        }
+      }
+      return out;
+    },
     /** Every seat that holds delegates, with its step and its influence (the server's numbers). */
     seats(): ReadonlyArray<{color: Color, name: string, agenda: number, influence: number}> {
       return this.view.players.filter((p) => p.participates).map((p) => ({color: p.color, name: p.name, agenda: p.agenda, influence: p.influence}));
@@ -81,8 +106,11 @@ export default defineComponent({
     stepText(agenda: number): string {
       return agenda === 0 ? translateText('Career start') : translateTextWithParams('step ${0}', [String(agenda)]);
     },
-    /** A TR or a card rung's reward in words (an influence rung is its coin). */
+    /** A TR or a card rung's reward in words (an influence rung is its coin) — a struck rung says why. */
     rewardText(step: ParliamentAgendaStepVm): string {
+      if (step.step.kind === 'tr' && this.vetoedRungs.has(step.index)) {
+        return translateText('+1 TR') + ' · ' + translateText('TR under the veto');
+      }
       return translateText(step.step.kind === 'tr' ? '+1 TR' : '+1 card');
     },
     cubePx(logical: number): number {

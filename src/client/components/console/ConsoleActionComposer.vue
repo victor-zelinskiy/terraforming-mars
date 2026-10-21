@@ -5592,6 +5592,8 @@ export default defineComponent({
         kind,
         firstResource: resultResource,
         divertedSeal: firstGain?.bornOn !== undefined,
+        // A RATING the law REFUSES (RX42): the printed TR icon takes the Reds' seal, apart from the landing.
+        vetoSeal: (branch?.effects ?? []).some((e) => e.vetoed !== undefined),
         // The draw's causality: the impulse lands on the printed card-draw
         // icon and the HUD deck ANSWERS — right before the physical pull.
         onHandoff: kind === 'draw' || kind === 'deck-check' ? pulseDeckPile : undefined,
