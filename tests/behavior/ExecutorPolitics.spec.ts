@@ -125,7 +125,7 @@ describe('Executor · behavior.turmoil through game.politics', () => {
       runAllActions(game);
       const prompt = cast(player.popWaitingFor(), SelectParty);
       expect(prompt.parties).to.include(PartyName.MARS);
-      prompt.process({type: 'party', partyName: PartyName.MARS}, player);
+      prompt.process({type: 'party', partyName: PartyName.MARS});
       runAllActions(game);
       expect(parliament.votesOf(player, parliament.slots[1])).eq(2);
       expect(parliament.reserve(player)).eq(reserve - 2);
