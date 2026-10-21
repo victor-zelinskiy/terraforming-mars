@@ -1405,5 +1405,18 @@
   "UNMI Veto: your terraform rating is the highest — the rating is not gained": "«Вето UNMI»: у вас наибольший РТ — рост РТ не засчитывается",
   "for a vetoed terraform rating": "за не засчитанный РТ",
   "${0} now has the highest terraform rating — ${1} refuses their rating": "${0}: теперь наибольший РТ — ${1} не засчитывает рост РТ",
-  "${0} no longer has the highest terraform rating — ${1} refuses nothing of theirs": "${0}: РТ больше не наибольший — ${1} больше не действует"
+  "${0} no longer has the highest terraform rating — ${1} refuses nothing of theirs": "${0}: РТ больше не наибольший — ${1} больше не действует",
+  "You have the highest terraform rating (${0}): your rating gains will not count": "Вы — первый по РТ (${0}): ваш рост РТ не будет засчитываться",
+  "${0} and you (${1}) share the highest terraform rating — the veto binds you all": "${0} и вы (${1}) — наибольший РТ у вас всех: под вето каждый",
+  "The highest terraform rating now: ${0} (${1}) — their rating gains will not count": "Сейчас наибольший РТ — ${0} (${1}): этот рост РТ не будет засчитываться",
+  "The highest terraform rating now: ${0} (${1}) — their rating gains will not count. Yours: ${2}": "Сейчас наибольший РТ — ${0} (${1}): этот рост РТ не будет засчитываться. Вы — ${2}",
+  "You are the only seat — the veto always binds you": "Вы единственное место — вето всегда ваше",
+  "Under the veto now: ${0}": "Под вето сейчас: ${0}",
+  "Under the veto": "Под вето",
+  "${0} now binds you: your terraform rating is the highest (${1})": "${0} теперь действует на вас: у вас наибольший РТ (${1})",
+  "${0} no longer binds you — the highest terraform rating now: ${1} (${2})": "${0} больше не действует на вас — первый по РТ теперь ${1} (${2})",
+  "The veto — you are first by rating": "Вето — вы первый по РТ",
+  "The veto — the other seat is first by rating": "Вето — первый по РТ другой",
+  "The veto — a tie at the top": "Вето — ничья наверху",
+  "TR under the veto": "РТ под вето"
 }

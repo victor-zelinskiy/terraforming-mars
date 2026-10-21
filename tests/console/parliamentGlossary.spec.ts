@@ -150,6 +150,15 @@ const CANON: Record<string, string> = {
   'chairman now: ${0}': 'председатель сейчас: ${0}',
   'the chair is vacant': 'кресло свободно',
   'Turmoil Redux requires Colonies': '«Кризис: Возвращение» требует дополнение «Колонии»',
+  // THE RATING VETO (RX42 UNMI Veto — glossary § «Вето»): the seat first by rating is «первый по РТ» / «наибольший РТ»
+  // — never «лидер» (the glossary's leader is the vote's); the state is «под вето»; the law's RU name keeps «UNMI».
+  'UNMI Veto': 'Вето UNMI',
+  'TR under the veto': 'РТ под вето',
+  'Under the veto now: ${0}': 'Под вето сейчас: ${0}',
+  'Under the veto': 'Под вето',
+  'You have the highest terraform rating (${0}): your rating gains will not count': 'Вы — первый по РТ (${0}): ваш рост РТ не будет засчитываться',
+  'The highest terraform rating now: ${0} (${1}) — their rating gains will not count. Yours: ${2}': 'Сейчас наибольший РТ — ${0} (${1}): этот рост РТ не будет засчитываться. Вы — ${2}',
+  'You are the only seat — the veto always binds you': 'Вы единственное место — вето всегда ваше',
   'Redux resolutions showcase': 'Витрина резолюций «Кризис: Возвращение»',
 };
 

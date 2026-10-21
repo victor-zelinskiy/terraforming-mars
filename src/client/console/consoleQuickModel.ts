@@ -55,6 +55,11 @@ export type QuickEntry = {
   futile?: string,
   /** Secondary line (conversion cost etc.), already composed. */
   meta?: string,
+  /**
+   * The verb does what it says — and its RATING is refused (RX42 UNMI Veto: the seat is first by terraform rating): an
+   * English i18n key in the quiet register, under the meta. Never a blocker, never «no effect» (the step moves).
+   */
+  note?: string,
   available: boolean,
   /** English i18n key naming the CONCRETE blocker ('' when available). */
   reason: string,
@@ -198,6 +203,8 @@ export type LtQuickContext = {
   convertHeatAvailable: boolean,
   /** The heat conversion is offered but would change nothing (the reason key) — the temperature's maximum. */
   convertHeatFutile?: string,
+  /** The heat conversion's rating is refused by the standing law (RX42) — the step still moves. */
+  convertHeatVetoed?: boolean,
   plantsNeeded: number,
   heatNeeded: number,
 };
@@ -268,6 +275,7 @@ export function buildLtQuickEntries(ctx: LtQuickContext): Array<QuickEntry> {
       meta: `${ctx.heatNeeded}`,
       ...turnGate(ctx.convertHeatAvailable, 'Not enough heat'),
       ...(ctx.convertHeatAvailable && ctx.convertHeatFutile !== undefined ? {futile: ctx.convertHeatFutile} : {}),
+      ...(ctx.convertHeatAvailable && ctx.convertHeatFutile === undefined && ctx.convertHeatVetoed === true ? {note: 'TR under the veto'} : {}),
     },
   ];
 }

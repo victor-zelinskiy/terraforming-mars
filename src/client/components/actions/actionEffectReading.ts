@@ -23,6 +23,15 @@ export function divertedChip(effect: ActionEffect): boolean {
   return effect.diverted !== undefined;
 }
 
+/**
+ * A chip whose RATING a LAW REFUSES (Turmoil Redux RX42 UNMI Veto — `ActionEffect.vetoed`): the seat is first by
+ * terraform rating, the printed rating is not gained and nothing stands in its place. The reader draws it STRUCK in
+ * the same register as a replaced unit, with no tail — never «no effect», never «at maximum».
+ */
+export function vetoedChip(effect: ActionEffect): boolean {
+  return effect.vetoed !== undefined;
+}
+
 /** A gain whose pool does not move. */
 function steady(effect: ActionEffect): boolean {
   return effect.direction === 'gain' && effect.current !== undefined && effect.resulting !== undefined &&
@@ -36,7 +45,7 @@ export function victoryPointsSteady(effect: ActionEffect): boolean {
 
 /** A gain wasted on a parameter at its limit — the one «already at maximum» the composer may warn about. */
 export function gainAtParameterLimit(effect: ActionEffect): boolean {
-  return !divertedChip(effect) && LIMITED_PARAMETER_ICONS.has(effect.icon) && steady(effect);
+  return !divertedChip(effect) && !vetoedChip(effect) && LIMITED_PARAMETER_ICONS.has(effect.icon) && steady(effect);
 }
 
 /**
@@ -44,7 +53,7 @@ export function gainAtParameterLimit(effect: ActionEffect): boolean {
  * zero. A VP reading is never «no effect» (see the module note).
  */
 export function gainHasNoEffect(effect: ActionEffect): boolean {
-  if (effect.direction !== 'gain' || effect.icon === 'vp' || divertedChip(effect)) {
+  if (effect.direction !== 'gain' || effect.icon === 'vp' || divertedChip(effect) || vetoedChip(effect)) {
     return false;
   }
   if (effect.current === undefined || effect.resulting === undefined) {

@@ -327,6 +327,7 @@
                     :data-hand-walk="forecastPlates.get(cell.e.card.name)?.kind === 'walk' ? forecastPlates.get(cell.e.card.name)?.value : undefined"
                     :data-hand-count="forecastPlates.get(cell.e.card.name)?.kind === 'count' ? forecastPlates.get(cell.e.card.name)?.value : undefined"
                     :data-hand-ease="easingHook(cell.e.card.name)"
+                    :data-hand-veto="forecastPlates.get(cell.e.card.name)?.veto"
                     aria-hidden="true">
                 <!-- THE REQUIREMENT UNDER AN EFFECT (TR49 class) — the plate's FIRST reader, the precondition before what
                      the play gives: «[t°] ±2» (shifted) · the scale struck (ignored) · a check when the card is playable
@@ -343,7 +344,8 @@
                   <span v-if="easingPlates.get(cell.e.card.name)?.decisive" class="con-hand__plate-check" aria-hidden="true"></span>
                   <span v-if="forecastPlates.has(cell.e.card.name) || tenderPlates.has(cell.e.card.name)" class="con-hand__plate-sep" aria-hidden="true"></span>
                 </template>
-                <span v-for="(item, k) in forecastPlates.get(cell.e.card.name)?.items ?? []" :key="k" class="con-hand__plate-item">
+                <!-- A RATING THE LAW REFUSES (RX42): the plate's last item, STRUCK — the server's number (`CardModel.ratingVetoed`). -->
+                <span v-for="(item, k) in forecastPlates.get(cell.e.card.name)?.items ?? []" :key="k" class="con-hand__plate-item" :class="{'con-hand__plate-item--struck': item.struck === true}">
                   <span class="con-hand__plate-icon" :class="[item.iconClass, {'con-hand__plate-icon--prod': item.production}]"></span>
                   <span class="con-hand__plate-n">{{ item.upTo ? plateUpToText(item.amount) : item.signed ? signedAmount(item.amount) : item.amount }}</span>
                 </span>

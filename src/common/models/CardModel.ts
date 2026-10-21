@@ -125,6 +125,13 @@ export interface CardModel {
     /** A play whose count the player CHOOSES (TR54): the hand plate's ceiling «[?] up to +max» (`ICard.countedChoiceForecast`). */
     countedChoice?: {max: number};
     /**
+     * THE RATING THIS PLAY PROMISES AND THE LAW WILL REFUSE (Turmoil Redux RX42 UNMI Veto): the steps the play
+     * preview's exit pass struck (`ActionEffect.vetoed`, summed over the branch that strikes the most), read by the
+     * server for the viewer's OWN hand while a vetoing law stands and the seat is in its aspect. The hand tile's plate
+     * strikes them BEFORE the composer opens; the client counts nothing (invariant 2). Absent when nothing is struck.
+     */
+    ratingVetoed?: {steps: number};
+    /**
      * THE REQUIREMENT UNDER A MODIFIER (TR49 class): for each printed GLOBAL
      * requirement this player's modifiers touch — an armed Special Design (±2),
      * Cutting-Edge Design / Ecology Experts (ignored), Inventrix / Adaptation

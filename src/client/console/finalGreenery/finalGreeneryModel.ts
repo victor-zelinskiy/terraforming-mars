@@ -52,6 +52,8 @@ export type FinalGreeneryViewModel = {
    * plain OPTION (no cell), the plants buy `data` data on one of the seat's cards, and the law's own «where» follows.
    */
   diverted?: {resolution: string, data: number};
+  /** The greenery's ratings are REFUSED by a law (RX42 UNMI Veto): the tile is seated, no rating comes. */
+  ratingVetoed?: {resolution: string};
 };
 
 // ── copy keys (English text IS the i18n key) ────────────────────────────────
@@ -78,6 +80,8 @@ export const YIELD_VP = '+1 VP per greenery';
 export const YIELD_TR = '+1 TR per greenery';
 /** …and under a law that REPLACES the greenery (Turmoil Redux RX35): the plants buy data, no tile. */
 export const YIELD_DATA = '+1 data per greenery';
+/** Under a RATING VETO (RX42): the tile is seated, its rating is refused — the session says so instead of promising it. */
+export const YIELD_TR_VETOED = 'No TR per greenery — your terraform rating is the highest';
 /** The finale ORDER block: every seat's place in the phase. */
 export const QUEUE_LABEL = 'Finale order';
 export const SEAT_DONE = 'Finished';
@@ -143,6 +147,7 @@ export function buildFinalGreenery(
     placeIndex,
     stopIndex,
     ...(marker.diverted !== undefined ? {diverted: marker.diverted} : {}),
+    ...(marker.ratingVetoed !== undefined ? {ratingVetoed: marker.ratingVetoed} : {}),
   };
 }
 
@@ -308,9 +313,12 @@ export type FinalePanelModel = {
 };
 
 /** What one final greenery is worth under the table's rules (classic: 1 VP for the tile; Turmoil Redux: +1 TR). */
-export function finaleYieldKey(parliament: boolean, diverted = false): string {
+export function finaleYieldKey(parliament: boolean, diverted = false, vetoed = false): string {
   if (diverted) {
     return YIELD_DATA;
+  }
+  if (parliament && vetoed) {
+    return YIELD_TR_VETOED;
   }
   return parliament ? YIELD_TR : YIELD_VP;
 }

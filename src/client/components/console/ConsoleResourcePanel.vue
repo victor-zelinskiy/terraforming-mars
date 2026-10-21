@@ -12,9 +12,18 @@
            never changes, and NO delta chip / number pulse can fire while
            masked (the AnimatedMetricValue simply isn't mounted). -->
       <div class="con-score">
+        <!-- UNDER THE RATING VETO (RX42 UNMI Veto): the seat is first by terraform rating and gains none — the Reds'
+             stamp over the rating icon (weight and the strike, never colour alone), the law and the number in the
+             hint. The cell's box, baseline and neighbours do not move: the stamp is absolute inside the icon's wrap. -->
         <div class="con-score__cell con-score__cell--tr"
+             :class="{'con-score__cell--vetoed': trVeto !== undefined, 'premium-tooltip': trVeto !== undefined}"
+             :data-tr-vetoed="trVeto !== undefined ? trVeto.tr : undefined"
+             :data-hint="trVeto !== undefined ? trVetoHint : undefined"
              :aria-label="$t('Terraforming Rating') + ': ' + tr">
-          <i class="con-score__icon resource_icon resource_icon--rating" aria-hidden="true"></i>
+          <span class="con-score__iconwrap">
+            <i class="con-score__icon resource_icon resource_icon--rating" aria-hidden="true"></i>
+            <i v-if="trVeto !== undefined" class="con-score__veto" aria-hidden="true"></i>
+          </span>
           <span class="con-score__valwrap">
             <span class="con-score__value con-score__value--tr" :class="wideClass(tr)">{{ tr }}</span>
             <AnimatedMetricValue
@@ -540,6 +549,12 @@ export default defineComponent({
     /** As above, for "convert heat into temperature". */
     convertHeat: {type: Boolean, default: false},
     /**
+     * THE RATING VETO BINDS THIS SEAT (Turmoil Redux RX42 UNMI Veto): the law's printed name (translated) and the
+     * seat's rating now — read by the shell off the server's live leaders (`parliament.enacted.trVeto`), never counted
+     * here. The rating cell wears the stamp and names the law in its hint. Undefined while no veto binds the seat.
+     */
+    trVeto: {type: Object as PropType<{law: string, tr: number} | undefined>, default: undefined},
+    /**
      * The board section is the active view. The ДОП.РЕСУРСЫ satellite paints
      * over the board area, so it only renders here — never floating over the
      * hand / colonies / other section content.
@@ -646,6 +661,12 @@ export default defineComponent({
      * and stages `terraformRating`, so a corp's starting-TR bonus fires the
      * premium +N chip here exactly like the resource rows.
      */
+    /** The stamp's hint: the law, the rating, the rule — one sentence (the TV has no hover; the e2e reads it). */
+    trVetoHint(): string {
+      const veto = this.trVeto;
+      return veto === undefined ? '' :
+        translateTextWithParams('${0}: your terraform rating is the highest (${1}) — rating gains are not counted', [veto.law, String(veto.tr)]);
+    },
     tr(): number {
       // The rating rides the SAME reward hold as the rows (`rating` on the
       // stock channel — the Parliament's Agenda bonus flies into this cell):

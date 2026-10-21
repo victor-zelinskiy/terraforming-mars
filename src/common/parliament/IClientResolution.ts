@@ -46,6 +46,8 @@ export type IClientResolution = {
     quest: string;
   };
   quest: QuestDefinition;
+  /** The passive VETOES a rating (RX42 UNMI Veto) — the stand lists the veto's own scenarios under such a law. */
+  vetoesRating?: true;
   /**
    * The quest's GOAL as a graphic (the same render DSL the faces draw): the
    * card's quest footnote, the workspace's quest block and the inspector all

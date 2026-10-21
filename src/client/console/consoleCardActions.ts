@@ -137,6 +137,13 @@ export type ConsoleActionTile = {
    */
   futile?: ActionFutilityVerdict;
   /**
+   * THE RATING THIS VARIANT PROMISES AND THE LAW REFUSES (RX42 UNMI Veto): the steps the branch's exit pass struck
+   * (`ActionEffect.vetoed`, summed) — the slot's note before the press («РТ под вето»), beside the struck chips. The
+   * scale step / tile the branch prints still happens; only a variant whose WHOLE result is the rating is «no effect»
+   * (`futile`, which outranks this note). Undefined when nothing is struck.
+   */
+  ratingVetoed?: number;
+  /**
    * The STRUCTURED semantics of that reason (undefined when available): does it
    * take the action out of the potential count, and which register does the
    * slot paint? Never re-derived from the reason's TEXT — see
@@ -1029,6 +1036,7 @@ function buildTiles(
       hasChoices: (preview?.preSteps ?? []).length > 0 || avail.branching || branchNeedsChoices(branch),
       choiceKinds: branchChoiceKinds(branch, preview, avail.branching),
       cardPickAmount: firstCardPickAmount(branch, preview),
+      ...(vetoedRatingOf(branch) > 0 ? {ratingVetoed: vetoedRatingOf(branch)} : {}),
       reason,
       ...(futile !== undefined ? {futile} : {}),
       // A 'soft' variant is blocked by the WINDOW only (the card meets every
@@ -1254,6 +1262,11 @@ export function buildResolutionTile(source: ResolutionActionSource): ConsoleActi
     // Only a LIVE verb can be futile — a blocked or activated one already says why it is not offered.
     ...(source.futile !== undefined && (status === 'available' || status === 'soft') ? {futile: source.futile} : {}),
   };
+}
+
+/** The rating steps a branch's chips promise and the law refuses (RX42 — `ActionEffect.vetoed`, summed; 0 without a branch). */
+function vetoedRatingOf(branch: ActionPreviewBranch | undefined): number {
+  return (branch?.effects ?? []).reduce((sum, e) => sum + (e.vetoed?.steps ?? 0), 0);
 }
 
 /** The tile of a Parliament source, whichever kind it is. */

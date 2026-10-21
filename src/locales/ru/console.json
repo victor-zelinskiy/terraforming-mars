@@ -1187,5 +1187,9 @@
     "Spend ${0} from here: a city tile": "Потратьте ${0} отсюда: город",
     "repeat of a used action": "повтор использованного действия",
     "Choose a card from your hand to play": "Выберите карту из руки",
-    "${0} M€ for the law + ${1} M€ for the card = ${2} M€": "${0} M€ за закон + ${1} M€ за карту = ${2} M€"
+    "${0} M€ for the law + ${1} M€ for the card = ${2} M€": "${0} M€ за закон + ${1} M€ за карту = ${2} M€",
+    "No TR per greenery — your terraform rating is the highest": "РТ за озеленение не будет: у вас наибольший РТ",
+    "${0}: your terraform rating is the highest (${1}) — rating gains are not counted": "${0}: у вас наибольший РТ (${1}) — рост РТ не засчитывается",
+    "under the veto of ${0}": "под вето «${0}»",
+    "you (${0})": "вы (${0})"
 }

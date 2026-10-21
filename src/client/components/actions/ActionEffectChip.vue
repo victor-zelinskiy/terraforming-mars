@@ -16,10 +16,14 @@
           'action-effect-chip--bare': iconClass === '' && !isVictoryPoints,
           'action-effect-chip--timeline': moves !== undefined,
           'action-effect-chip--implied': effect.implied === true,
-          'action-effect-chip--diverted': diverted,
+          'action-effect-chip--diverted': diverted || vetoed,
           'action-effect-chip--diverted-lost': diverted && effect.diverted?.lost === true,
+          'action-effect-chip--vetoed': vetoed,
+          'premium-tooltip': vetoed,
         }]"
-        :data-diverted="diverted ? effect.diverted?.data : undefined">
+        :data-diverted="diverted ? effect.diverted?.data : undefined"
+        :data-vetoed="vetoed ? effect.vetoed?.steps : undefined"
+        :data-hint="vetoed ? vetoedHint : undefined">
     <!-- The icon is ALWAYS a real sprite (including `tr` → tr.png and `cards` →
          card.png, via iconClassFor) — never a drawn glyph, so it matches the game art.
          A few effects have NO honest single sprite (the Ares penalty lets the player
@@ -117,7 +121,7 @@
 import {defineComponent, PropType} from 'vue';
 import {ActionEffect, ActionEffectBasis} from '@/common/models/ActionPreviewModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {divertedChip, gainHasNoEffect, victoryPointsSteady} from '@/client/components/actions/actionEffectReading';
+import {divertedChip, gainHasNoEffect, vetoedChip, victoryPointsSteady} from '@/client/components/actions/actionEffectReading';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import ConsoleDrawSearchRule from '@/client/components/console/foundation/ConsoleDrawSearchRule.vue';
@@ -163,6 +167,21 @@ export default defineComponent({
     /** The unit is REPLACED by a standing law (RX35): struck, with the data it becomes beside it. */
     diverted(): boolean {
       return divertedChip(this.effect);
+    },
+    /**
+     * The RATING is REFUSED by a standing law (RX42 UNMI Veto — the seat is first by terraform rating): struck in the
+     * same register as a replaced unit, NO tail (nothing stands in its place), the law and the steps in the hint.
+     */
+    vetoed(): boolean {
+      return vetoedChip(this.effect);
+    },
+    vetoedHint(): string {
+      const mark = this.effect.vetoed;
+      if (mark === undefined) {
+        return '';
+      }
+      const law = getResolution(mark.resolution)?.text.name ?? mark.resolution;
+      return translateTextWithParams('Vetoed by ${0}: your terraform rating is the highest — ${1} TR not gained', [translateTextWithParams(law, []), String(mark.steps)]);
     },
     /** The hint names the LAW (the manifest's own name, never the catalog id) and the data. */
     divertedHint(): string {

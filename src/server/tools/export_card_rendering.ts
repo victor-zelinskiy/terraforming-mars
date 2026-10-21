@@ -245,6 +245,7 @@ class ParliamentProcessor {
       hasAction: definition.action !== undefined,
       ...(definition.action === undefined ? {} : {actionPreview: [...definition.action.preview()]}),
       ...(definition.actionBill === undefined ? {} : {actionBill: {...definition.actionBill}}),
+      ...(definition.passive?.vetoRating === undefined ? {} : {vetoesRating: true as const}),
       ...(definition.actionUses === undefined ? {} : {actionUses: {...definition.actionUses, ...(definition.actionUses.atInfluence === undefined ? {} : {atInfluence: {...definition.actionUses.atInfluence}})}}),
     };
   }

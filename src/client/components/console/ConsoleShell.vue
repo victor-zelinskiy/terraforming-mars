@@ -115,6 +115,7 @@
                             :convertPlants="convertPlantsReady && railShowsSelf" :convertHeat="convertHeatReady && convertHeatFutile === undefined && railShowsSelf"
                             :boardVisible="consoleState.section === 'board' && !infoModeState.open && !startSceneVisible"
                             :own="railShowsSelf"
+                            :trVeto="railTrVeto"
                             :vpHidden="railVpHidden"
                             :automa="railAutoma"
                             :botCtx="botExtrasCtx"
@@ -1705,6 +1706,7 @@ import {parliamentSittingFlowBeat, parliamentSittingLive, sittingTailPlacementOf
 import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
 import {getResolution, resolutionName} from '@/client/parliament/ClientParliamentManifest';
+import {seatRestricted} from '@/common/models/ParliamentModel';
 import ConsoleResolutionAside from '@/client/components/console/parliament/ConsoleResolutionAside.vue';
 import ConsolePartyAccessPanel from '@/client/components/console/parliament/ConsolePartyAccessPanel.vue';
 import type {PartyConfirmDetail} from '@/client/components/console/parliament/ConsolePartyActionComposer.vue';
@@ -2852,6 +2854,28 @@ export default defineComponent({
     convertHeatFutile(): string | undefined {
       return findConvertHeatOption(this.playerView.waitingFor)?.option.metadata?.futile?.reason;
     },
+    /** The heat conversion's rating is refused by the standing law (RX42) — its option's own struck chip says so. */
+    convertHeatVetoed(): boolean {
+      return (findConvertHeatOption(this.playerView.waitingFor)?.option.metadata?.effects ?? []).some((e) => e.vetoed !== undefined);
+    },
+    /**
+     * THE RAIL'S OWN SEAT IS UNDER THE RATING VETO (RX42 UNMI Veto): the server's live leaders on the enacted law
+     * carry this seat, and the seat is in the law's aspect — the rating cell wears the stamp and names the law.
+     * Nothing is counted here.
+     */
+    railTrVeto(): {law: string, tr: number} | undefined {
+      const enacted = this.game.parliament?.enacted;
+      const veto = enacted?.trVeto;
+      if (enacted === undefined || veto === undefined || !this.railShowsSelf) {
+        return undefined;
+      }
+      const mine = veto.leaders.find((l) => l.color === this.thisPlayer.color);
+      const seat = this.game.parliament?.players.find((p) => p.color === this.thisPlayer.color);
+      if (mine === undefined || (seat !== undefined && !seatRestricted(seat))) {
+        return undefined;
+      }
+      return {law: translateText(resolutionName(enacted.resolution)), tr: mine.tr};
+    },
     playAction() {
       // A LAW'S PLAY PICK (RX36): the album and the composer play from the law's PROMISED pick (the live prompt's own
       // shape, the law's waiver standing) — the live menu's «play a card» plays WITHOUT the law, so it is not the
@@ -3781,7 +3805,7 @@ export default defineComponent({
         cost: stock.cost,
         bank: finalGreeneryBank(stock),
         freeCells: spaces !== undefined && spaces < stock.affordable ? spaces : undefined,
-        yieldKey: finaleYieldKey(this.game.parliament !== undefined, this.finalGreeneryRawVm?.diverted !== undefined),
+        yieldKey: finaleYieldKey(this.game.parliament !== undefined, this.finalGreeneryRawVm?.diverted !== undefined, this.finalGreeneryRawVm?.ratingVetoed !== undefined),
         queue: finaleQueue(this.playerView.players, this.game.finalGreenery?.done ?? [], this.thisPlayer.color, true),
         waitingOn: stage === 'wait' ?
           finaleWaitingOn(this.playerView.players, this.thisPlayer.color, liveWaitingSignal(this.waitingOnPlayers)) :
@@ -8607,6 +8631,7 @@ export default defineComponent({
           convertPlantsAvailable: this.convertPlantsReady,
           convertHeatAvailable: this.convertHeatReady,
           convertHeatFutile: this.convertHeatFutile,
+          convertHeatVetoed: this.convertHeatVetoed,
           plantsNeeded: this.thisPlayer.plantsNeededForGreenery,
           heatNeeded: this.thisPlayer.heatNeededForTemperature,
         });

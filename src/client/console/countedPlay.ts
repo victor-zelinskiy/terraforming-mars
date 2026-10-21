@@ -26,7 +26,7 @@ import type {SpaceId} from '@/common/Types';
 // ── THE HAND'S FORECAST PLATE ────────────────────────────────────────────────
 
 /** One unit of the plate: an icon (on the production plate when it is a production step) and its number. */
-export type HandPlateItem = {iconClass: string, production: boolean, amount: number, signed: boolean, upTo?: boolean};
+export type HandPlateItem = {iconClass: string, production: boolean, amount: number, signed: boolean, upTo?: boolean, struck?: boolean};
 
 /**
  * THE PLATE — «[★] 2» for a walk (TR42), «[microbe] +14» for a counted play.
@@ -35,7 +35,18 @@ export type HandPlateItem = {iconClass: string, production: boolean, amount: num
  * the counted goods past `HAND_PLATE_MAX_ITEMS` — named «ещё N», never dropped
  * (Productive Outpost's colony bonuses can be three goods and more).
  */
-export type HandForecastPlate = {kind: 'walk' | 'count', items: ReadonlyArray<HandPlateItem>, value: number, zero: boolean, more: number};
+export type HandForecastPlate = {
+  kind: 'walk' | 'count',
+  items: ReadonlyArray<HandPlateItem>,
+  value: number,
+  zero: boolean,
+  more: number,
+  /**
+   * THE RATING THE LAW WOULD REFUSE (RX42 UNMI Veto — `CardModel.ratingVetoed`): the steps the play promises and the
+   * seat, first by rating, will not gain — the plate's LAST item, the rating struck. The number is the server's.
+   */
+  veto?: number,
+};
 
 /** At most this many counted units on one plate — a tile is a card, not a ledger (the composer holds the rest). */
 export const HAND_PLATE_MAX_ITEMS = 2;
@@ -46,6 +57,20 @@ export const HAND_PLATE_MAX_ITEMS = 2;
  * COUNTED reader: the first counted chips, each its icon and its signed number.
  */
 export function handForecastPlate(card: CardModel): HandForecastPlate | undefined {
+  const base = handForecastPlateOf(card);
+  const veto = card.ratingVetoed?.steps;
+  if (veto === undefined || veto <= 0) {
+    return base;
+  }
+  // THE RATING THE LAW REFUSES (RX42): the plate's last item, struck — beside the count or alone.
+  const struck: HandPlateItem = {iconClass: iconClassFor('tr'), production: false, amount: veto, signed: true, struck: true};
+  if (base === undefined) {
+    return {kind: 'count', items: [struck], value: veto, zero: false, more: 0, veto};
+  }
+  return {...base, items: [...base.items, struck], zero: false, veto};
+}
+
+function handForecastPlateOf(card: CardModel): HandForecastPlate | undefined {
   const walk = card.agendaWalk;
   if (walk !== undefined) {
     return {

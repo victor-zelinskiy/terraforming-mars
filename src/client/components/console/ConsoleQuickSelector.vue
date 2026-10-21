@@ -50,6 +50,8 @@
               </span>
               <span class="con-quick__slot-label">{{ $t(entry.label) }}</span>
               <span v-if="entry.meta !== undefined && entry.available && entry.futile === undefined" class="con-quick__slot-meta">{{ entry.meta }}</span>
+              <!-- The verb moves the scale and its RATING is refused (RX42 UNMI Veto): a note in the quiet register, under the meta. -->
+              <span v-if="entry.note !== undefined && entry.available && entry.futile === undefined" class="con-quick__slot-note" data-slot-veto>{{ $t(entry.note) }}</span>
               <!-- The count's register: mint while something it counts is worth doing, white when nothing is. -->
               <span v-if="entry.badge !== undefined && entry.badge > 0" class="con-quick__slot-badge"
                     :class="{'con-quick__slot-badge--neutral': entry.badgeTone === 'neutral'}"

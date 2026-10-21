@@ -359,8 +359,9 @@ export function commitKindForBranch(
   if (actionRailTrSpecs(branch, stepResponses).length > 0) {
     return 'rating';
   }
-  // A TR the rail rule does not own (a chip with a note) keeps the historical landing on its icon.
-  if (effects.some((e) => e.direction === 'gain' && e.icon === 'tr')) {
+  // A TR the rail rule does not own (a chip with a note) keeps the historical landing on its icon — a REFUSED rating
+  // (RX42, `vetoed`) lands nowhere: nothing is born.
+  if (effects.some((e) => e.direction === 'gain' && e.icon === 'tr' && e.vetoed === undefined)) {
     return 'global';
   }
   // A rail-bound gain (stock or production of a standard resource, or a
@@ -426,7 +427,8 @@ function directTrSpecs(
   if (effects.some((e) => e.direction === 'gain' && (SCALE_ICONS.has(e.icon) || (opts.drawOwnsTr && e.icon === 'cards')))) {
     return [];
   }
-  return railRewardSpecs(effects).filter((spec) => spec.resource === RATING_RAIL_KEY);
+  // A rating the law REFUSES (RX42 — `vetoed`) flies nowhere: the rail never gets it.
+  return railRewardSpecs(effects.filter((e) => e.vetoed === undefined)).filter((spec) => spec.resource === RATING_RAIL_KEY);
 }
 
 /**

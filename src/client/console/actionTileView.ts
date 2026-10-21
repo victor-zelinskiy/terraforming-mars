@@ -91,7 +91,10 @@ export function choiceKindsLabel(tile: ConsoleActionTile): string {
   return tile.choiceKinds.map((k) => translateText(k === 'card' ? cardPickAskKey(tile.cardPickAmount) : CHOICE_KIND_LABEL[k])).join(' · ');
 }
 
-export type SlotMeta = {kind: 'validation' | 'futile' | 'continuation' | 'none', text: string, tone: 'warning' | 'danger'};
+export type SlotMeta = {kind: 'validation' | 'futile' | 'veto' | 'continuation' | 'none', text: string, tone: 'warning' | 'danger'};
+
+/** The slot's note under a RATING VETO (RX42): the variant's rating is promised and refused — the third tone, never «no effect». */
+export const TILE_VETO_NOTE = 'TR under the veto';
 
 /**
  * The slot's STATE line — one of two semantic kinds, resolved from two DIFFERENT model fields, never from styling:
@@ -110,6 +113,10 @@ export function slotMeta(tile: ConsoleActionTile, readonly = false): SlotMeta {
   // AVAILABLE and changing nothing: what the press would do is the slot's news, before the steps it would ask.
   if (tile.futile !== undefined) {
     return {kind: 'futile', text: translateText(tile.futile.reason), tone: 'warning'};
+  }
+  // AVAILABLE, doing something — and its RATING refused (RX42): said before the steps, in the third tone.
+  if (tile.ratingVetoed !== undefined && tile.ratingVetoed > 0 && (tile.status === 'available' || (readonly && tile.status === 'soft'))) {
+    return {kind: 'veto', text: translateText(TILE_VETO_NOTE), tone: 'warning'};
   }
   if (!readonly && tile.choiceKinds.length > 0) {
     return {kind: 'continuation', text: choiceKindsLabel(tile), tone: 'danger'};

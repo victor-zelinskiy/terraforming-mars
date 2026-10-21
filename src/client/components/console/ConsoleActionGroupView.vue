@@ -136,6 +136,13 @@
             <span aria-hidden="true">○</span>
             <span>{{ metaOf(tile).text }}</span>
           </div>
+          <!-- AVAILABLE, doing something — and its RATING refused (RX42 UNMI Veto): the third tone, the law's own
+               register (the struck chips above carry the law in their hint), never «no effect». -->
+          <div v-else-if="metaOf(tile).kind === 'veto'"
+               class="con-cardactions__tile-reason con-cardactions__tile-reason--veto" data-tile-veto>
+            <span aria-hidden="true">⊘</span>
+            <span>{{ metaOf(tile).text }}</span>
+          </div>
           <div v-else-if="metaOf(tile).kind === 'continuation'" class="con-cardactions__tile-choices">
             <span aria-hidden="true">◈</span>
             <span>{{ metaOf(tile).text }}</span>

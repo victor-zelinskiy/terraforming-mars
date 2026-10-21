@@ -73,7 +73,8 @@
                      }"
                      :ref="i === index ? 'focusedCard' : undefined"
                      :data-stdp-card="it.cardName"
-                     :data-stdp-futile="rowFutile(it) ? it.preview?.futile?.kind : undefined">
+                     :data-stdp-futile="rowFutile(it) ? it.preview?.futile?.kind : undefined"
+                     :data-stdp-veto="rowVetoed(it) || undefined">
             <span v-if="it.available" class="con-stdp__rail" aria-hidden="true">
               <!-- The gold pass's own body inside the state marker: the rail
                    is re-forged rather than repainted. -->
@@ -145,6 +146,9 @@
                 <!-- The project changes NOTHING right now — the server's verdict supersedes the per-chip warnings
                      (it says more, and the two never stand together). -->
                 <span v-if="focusedFutile !== undefined" class="con-stdp__context-futile" data-stdp-context-futile>○ {{ $t(focusedFutile) }} · {{ $t('the action will change nothing') }}</span>
+                <!-- The project moves the scale — and its RATING is refused (RX42 UNMI Veto): the struck chip above
+                     names the law; the foot says it in words, in the law's own register. -->
+                <span v-else-if="focusedVeto" class="con-stdp__context-veto" data-stdp-context-veto>⊘ {{ $t('TR under the veto') }}</span>
                 <template v-else>
                   <span v-for="w in focusedWarnings" :key="w" class="con-stdp__context-warning">⚠ {{ $t(warningTextOf(w)) }}</span>
                 </template>
@@ -299,6 +303,11 @@ export default defineComponent({
       const f = this.focused;
       return f !== undefined && this.rowFutile(f) ? f.preview?.futile?.reason : undefined;
     },
+    /** The focused project's rating is refused (RX42) — the foot's note beside the struck chip. */
+    focusedVeto(): boolean {
+      const f = this.focused;
+      return f !== undefined && this.rowVetoed(f);
+    },
     /** The pay-on-commit follow-up, named BEFORE the descent (§7: only the
      *  guaranteed part is promised — target-dependent results arrive with the
      *  step's own preview surfaces). Existing i18n keys, nothing coined. */
@@ -446,6 +455,10 @@ export default defineComponent({
     /** Is this the row the commit phrase is playing on? */
     rowFutile(it: StdProjectItem): boolean {
       return it.available && it.preview?.futile !== undefined;
+    },
+    /** The row's rating is REFUSED by a standing law (RX42 — a struck chip in its preview). */
+    rowVetoed(it: StdProjectItem): boolean {
+      return it.available && (it.preview?.effects ?? []).some((e) => e.vetoed !== undefined);
     },
     isCommitRow(it: StdProjectItem): boolean {
       return this.commitPhase !== 'idle' && it.key === this.commitCardKey;
