@@ -2,6 +2,7 @@ import {APIRequestContext, Locator, Page, expect, test} from '@playwright/test';
 import * as fs from 'fs';
 import * as path from 'path';
 import {noteTiming, timed} from './timing';
+import {isTimingSpec} from './timingSpecs';
 /**
  * THE ONLY PROMPT TITLES THIS FILE IS ALLOWED TO MATCH, and the reason they are
  * safe (every other prompt is identified structurally — see the invariant in
@@ -103,7 +104,7 @@ export async function press(page: Page, code: string, settleMs = 700): Promise<v
       }
     }
     const t = Date.now();
-    if (process.env.TM_E2E_FAST_PRESS === '1') {
+    if (fastPressOn()) {
       // THE PILOT (the e2e speed iteration, phase 1): the fixed sleep was 36 % of a run (84.5 s of 236 s
       // on the first instrumented sample) — a GUESS at «the UI has reacted». The console says when it has:
       // the press consumed, no server request in flight, no animation hold, held for a short quiet window.
@@ -133,19 +134,48 @@ async function pollPause(page: Page, ms: number): Promise<void> {
 }
 
 /**
- * THE E2E QUERY (the e2e speed iteration, phase 1 — the pilots, env-gated):
- *  · `TM_E2E_FAST_BOOT=1` → `&fastboot=1`: the product skips its GPU warm-up phases and the curtain's cosmetic
- *    minima (`bootWarmupState.fastBootRequested`). Measured without it: ≈ 4.5 s of every 6 s boot.
- *  · `TM_E2E_MOTION=<x>` → `&motion=<x>`: the product's numeric duration multiplier (`motionTokens.motionScale`,
- *    the owner's ×0.5 for the functional class — a timing / storyboard spec never sets it).
+ * THE TWO CLASSES OF A SPEC (the e2e speed iteration — `timingSpecs.ts`): FUNCTIONAL (the default) runs the
+ * product in the fast configuration — `?fastboot=1` (no GPU warm-up phases, no curtain minima — ≈ 4.5 s of
+ * every 6 s boot), the adaptive press, motion ×0.5 (the owner's call) — because what it asserts is logic;
+ * TIMING (the listed storyboards / witnesses / probes) gets none of it: the real boot, the fixed press
+ * settle, motion ×1. Env overrides, for a bisect: `TM_E2E_FAST_BOOT=0`, `TM_E2E_FAST_PRESS=0`,
+ * `TM_E2E_MOTION=<x>` (1 = the product's own pace); `TM_E2E_FAST_BOOT=1` etc. force the fast flags ON for
+ * a timing spec too (a measurement of the flags themselves).
  */
+const FUNCTIONAL_MOTION = 0.5;
+
+function currentSpecIsTiming(): boolean {
+  try {
+    return isTimingSpec(test.info().file);
+  } catch {
+    return false; // outside a test (a worker fixture) — the functional default
+  }
+}
+
+function flagOn(env: string | undefined, functionalDefault: boolean): boolean {
+  if (env === '1') {
+    return true;
+  }
+  if (env === '0') {
+    return false;
+  }
+  return functionalDefault && !currentSpecIsTiming();
+}
+
+/** The adaptive press (vs the fixed settle) for the current test. */
+function fastPressOn(): boolean {
+  return flagOn(process.env.TM_E2E_FAST_PRESS, true);
+}
+
+/** `&fastboot=1&motion=<x>` for the current test's class. */
 function fastBootQuery(): string {
   const parts: Array<string> = [];
-  if (process.env.TM_E2E_FAST_BOOT === '1') {
+  if (flagOn(process.env.TM_E2E_FAST_BOOT, true)) {
     parts.push('&fastboot=1');
   }
-  const motion = Number(process.env.TM_E2E_MOTION);
-  if (Number.isFinite(motion) && motion > 0 && motion !== 1) {
+  const env = Number(process.env.TM_E2E_MOTION);
+  const motion = Number.isFinite(env) && env > 0 ? env : (currentSpecIsTiming() ? 1 : FUNCTIONAL_MOTION);
+  if (motion !== 1) {
     parts.push(`&motion=${motion}`);
   }
   return parts.join('');

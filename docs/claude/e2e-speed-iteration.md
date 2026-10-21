@@ -134,7 +134,23 @@ The reds, by class:
    `--exclusive`, never the fast flags. The class is DECLARED (`tests/e2e/timingSpecs.ts`), the driver
    drops the flags for it.
 3. `info-dossier` B fhd («the plate unfolds from the zone's own box») — in both runs, not motion: bisected
-   below.
+   — red with fastboot alone, with the fast press alone, AND with no flag at all (1 failed / 1 passed on the
+   current build): a pre-existing flake of the unfold's first-frame sampler, not the iteration's. Reported.
+
+## The class defaults (shipped after the sample)
+
+`tests/e2e/timingSpecs.ts` declares the TIMING class (the seed: the four reds above, the motion-grammar
+guards, every `*probe*` — 35 files); everything else is FUNCTIONAL and gets, with no env flag at all,
+`?fastboot=1` + the adaptive press + `?motion=0.5`; a timing spec gets the real boot, the fixed settle,
+motion ×1. The driver decides per test from `test.info().file`; `TM_E2E_FAST_BOOT` / `TM_E2E_FAST_PRESS`
+(`0`/`1`) and `TM_E2E_MOTION=<x>` override for a bisect. The list grows from the full-suite run: a timing
+red joins it with its reason, a logic red is fixed.
+
+Verified with no flags (beside the owner's game, by their word — `TM_E2E_BESIDE_GAME=1`): the canary and
+GMO booted in 1.6–1.9 s with the adaptive press (avg 420–680 ms per press, the surfaces' real entrances);
+`console-cursor` booted in 6 s with the fixed settles, 8/8 at ×1. Two GMO fhd reds in that run («the
+«Сработает» row stands», «board home never became live» with no press yet) did not reproduce on a
+`--repeat-each=2` (4/4): a transient of the game's load, not the configuration.
 
 **Phase 2 tooling ready**: `scripts/e2e-codemod-key-helper.mjs` rewrites the spec-local `key()` / `tap()`
 helper (a press + a fixed sleep) into `await press(page, code, settleMs)` — a dry run matches 70 of the

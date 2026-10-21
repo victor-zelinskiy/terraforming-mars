@@ -147,9 +147,15 @@ if (flags.has('DND')) {
   log(`${HOST} carries ${REMOTE_HOME}/DO_NOT_DISTURB — the owner asked for quiet; ask before running`);
   process.exit(4);
 }
+// `TM_E2E_BESIDE_GAME=1` — the OWNER's explicit, per-case word that an e2e may run beside their game (it
+// costs the game frames); never an agent's own decision — the rule stays «exit 4 → ask».
+const besideGame = process.env.TM_E2E_BESIDE_GAME === '1';
 if (flags.has('GAME-RUNNING')) {
-  log(`the game is RUNNING on ${HOST} — refusing to load it with an e2e run; ask the owner`);
-  process.exit(4);
+  if (!besideGame) {
+    log(`the game is RUNNING on ${HOST} — refusing to load it with an e2e run; ask the owner`);
+    process.exit(4);
+  }
+  log(`the game is RUNNING on ${HOST} — running beside it on the owner's word (TM_E2E_BESIDE_GAME=1); not a timing`);
 }
 if (flags.has('RUN-IN-PROGRESS')) {
   log(`another e2e run is in progress on ${HOST} — ${exclusive ? `this EXCLUSIVE run waits for the box to empty (up to ${LOCK_WAIT_S / 60} min)` : `this one takes a free slot of ${SLOTS}, or waits for one (up to ${LOCK_WAIT_S / 60} min)`}`);
@@ -403,7 +409,7 @@ SLOT="exclusive"` : `while [ -z "$SLOT" ]; do
     sleep 2
   fi
 done`}
-if pgrep -f '[T]erraformingMars.AppImage' >/dev/null; then echo "[e2e:remote] the game started on the Steam Machine while we waited — refusing"; exit 4; fi
+if ! ${besideGame ? 'true' : 'false'} && pgrep -f '[T]erraformingMars.AppImage' >/dev/null; then echo "[e2e:remote] the game started on the Steam Machine while we waited — refusing"; exit 4; fi
 echo "[e2e:remote] $SLOT — running ${shq(task)} on $(cat /etc/hostname 2>/dev/null) · load $(cut -d' ' -f1-3 /proc/loadavg)"
 # The task's serve root: its own build beside LINKS to what the server reads relative to its cwd
 # (the laptop's \`e2e:snapshot\` does the same with junctions) — and to \`node_modules\`, which Node

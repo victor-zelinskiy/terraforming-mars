@@ -67,7 +67,8 @@ What it does, in order:
 unreachable, no mirror, no build, a sync failure, or Playwright never started; 3 = no slot (or, for
 `--exclusive`, not the whole box) in 30 min; 4 = the game is running there or the owner set
 `DO_NOT_DISTURB`. On any of them an agent STOPS and ASKS the owner — never a silent fallback to a laptop
-run.
+run. The owner's answer «run beside my game» is `TM_E2E_BESIDE_GAME=1` on that run (it costs the game
+frames; never a timing) — the owner's word for the occasion, never an agent's own setting.
 
 Product edits still need a fresh build (`npm run build` + `npm run e2e:snapshot <task>`) before the run:
 the sync mirrors what is on disk. Spec edits sync by themselves (`tests/` is in the mirror).
