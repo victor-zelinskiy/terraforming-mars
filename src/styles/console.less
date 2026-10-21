@@ -4933,6 +4933,34 @@ each(@players, {
         align-items: center;
         margin-left: auto;       /* number right-anchored → digit growth extends LEFT */
     }
+    /* UNDER THE RATING VETO (RX42 UNMI Veto): the Reds' stamp over the rating icon — a diagonal strike inside a thin
+       rim, absolute inside the icon's own box, so the cell, its baseline and its neighbours never move. Weight and the
+       strike carry the state; the red is the party's language, never the only signal. */
+    &__iconwrap {
+        position: relative;
+        display: inline-flex;
+        flex-shrink: 0;
+    }
+    &__veto {
+        position: absolute;
+        inset: -.1rem;
+        pointer-events: none;
+        border-radius: .3rem;
+        box-shadow: inset 0 0 0 .09rem rgba(255, 96, 84, 0.95), 0 0 .35rem rgba(255, 96, 84, 0.45);
+        &::before {
+            content: '';
+            position: absolute;
+            left: -8%;
+            right: -8%;
+            top: 50%;
+            height: .14rem;
+            margin-top: -.07rem;
+            background: rgba(255, 96, 84, 0.95);
+            transform: rotate(-38deg);
+            box-shadow: 0 0 .25rem rgba(255, 96, 84, 0.6);
+        }
+    }
+    &__cell--vetoed &__value--tr { opacity: .92; }
     &__value {
         display: inline-block;   /* the score-num pulse transform target */
         transform-origin: center;
@@ -10977,6 +11005,14 @@ html.console-mode {
     /* AVAILABLE and changing nothing: a calm fact in white, never the amber of a refusal (after the base rule — same
        specificity, the later one wins). */
     &__slot-reason&__slot-reason--futile { color: fade(#e3eaf2, 86%); }
+    /* The verb moves the scale and its RATING is refused (RX42): the quiet note under the meta, in the law's register. */
+    &__slot-note {
+        font-size: .62rem;
+        line-height: 1.1;
+        color: #ffd0c8;
+        letter-spacing: .02em;
+        white-space: nowrap;
+    }
 
     /* ── FOCUS (focus-confirm's persistent cursor): the CALM first stage —
        a clear ring, a touch of extra depth, a soft inner light. Deliberately
@@ -14334,6 +14370,16 @@ html.con-profile-handheld .con-mafocus {
         color: @con-amber;
         font-size: .78rem;
         white-space: nowrap;
+    }
+    /* The project moves the scale and its RATING is refused (RX42): the law's own register, calm, beside the struck chip. */
+    &__context-veto {
+        flex-shrink: 1;
+        min-width: 0;
+        color: #ffd0c8;
+        font-size: .78rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     /* The project changes nothing right now — a calm fact in white, never the amber of a warning. */
     &__context-futile {
@@ -19652,12 +19698,25 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
  * is LIVE here while the stage is up, at THIS stage's real geometry — which
  * is why the flying marker and the flying cube are the size of the resting
  * ones and land ON them. */
+/* THE PANEL'S FLOOR IS A REGISTERED PROPERTY, so the commit's growth to the band can be a TRANSITION (colony polish
+   2). An unregistered custom property is a token swap, and `min-height: min(100%, max(var(--colfocus-h), …))` does not
+   interpolate between a rem floor and a `100%` one either — the storyboard showed the panel jump 36.5rem → the band in
+   one frame (t00329 → t00343). With `<length-percentage>` registered the value itself tweens (rem → % mixes to a
+   calc) and the surface follows every frame. */
+@property --colfocus-h {
+    syntax: '<length-percentage>';
+    inherits: true;
+    initial-value: 0px;
+}
 .con-colfocus {
     position: absolute;
     inset: 0;
     display: flex;
     align-items: center;
     min-height: 0;
+    /* The growth to the band (`--claimed` / `--bonus`), played once at the commit under the pinned receipt — settled
+       long before any cover aims at a slot. */
+    transition: --colfocus-h calc(360ms * var(--motion-scale, 1)) @con-ease-standard;
 
     /* THE PANEL HEIGHT IS A TOKEN, AND THE TOKEN IS PER MODE. It is sized for
        the tallest thing each mode must hold — on the TV profile the payment
@@ -19692,8 +19751,19 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        there is no jump either way.
        It rides OWNERSHIP (`--claimed`), never readiness: the geometry must be
        held for the whole gap between the submit and the payout's arrival, or
-       the panel shrinks and grows again around the very beat it is hosting. */
-    &--claimed { --colfocus-h: 27.5rem; }
+       the panel shrinks and grows again around the very beat it is hosting.
+       …AND THE PAYOUT TAKES THE WHOLE BAND (colony polish 2, the owner's 4K
+       report of 2026-10-21). Pinned at the action token the panel stood 1460 px
+       tall in a 1772 px band at 4K — 156 px of nothing above AND below a stage
+       whose five cards (three income + two places) had just wrapped 4 + 1 and
+       cropped under their own head. The cards are the protagonists of this
+       pose and the band is their room: `100%` resolves the floor to the host
+       (`min(100%, …)` keeps a SHORT host — a prelude's step — honest), the
+       growth plays once at the commit under the pinned receipt (see the
+       surface's transition), BEFORE any cover aims at a slot, and the discard
+       step that follows takes the same room with its hand — the two poses of
+       one resolution share one footprint. */
+    &--claimed { --colfocus-h: 100%; }
 
     /* A DENSE PANEL — sized by its composition, centred in the band, so a tall
        host gives it AIR AROUND it instead of a hole inside it.
@@ -19720,6 +19790,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
            to any ancestor's intrinsic height — which is exactly why the panel
            kept its token height and scrolled with half the band empty. */
         min-height: min(100%, max(var(--colfocus-h), var(--colfocus-need, 0px)));
+        /* (The growth to the band is the ROOT's `--colfocus-h` transition — the registered property above the block.
+           A `min-height` transition here could not interpolate `min(100%, max(36.5rem, …))` → `min(100%, …)`.) */
         display: flex;
         gap: .95rem;
         padding: .85rem 1rem;
@@ -20940,8 +21012,10 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
     /* The bonus stage is as tall as a payout needs (it hosts the same reveal
        the trade does), and its zone starts at the frame — there is no working
-       area under it to keep room for. */
-    &--bonus { --colfocus-h: 27.5rem; }
+       area under it to keep room for. Since colony polish 2 a payout's room is
+       the whole band on every door (see `--claimed`): the same table a foreign
+       trade pays stands in the same footprint. */
+    &--bonus { --colfocus-h: 100%; }
 
     /* ── THE HAND STEP's zone — the mandatory discard unfolds in the same
        room the payout occupied, one layer above the (now empty) claim zone,
@@ -31957,6 +32031,8 @@ html.console-mode {
     &__tile &__graphic-text {
         display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
     }
+    /* The variant's RATING is refused (RX42): the third tone — the law's register, never the amber gate nor the white «no effect». */
+    &__tile-reason--veto { color: #ffd0c8; }
     &__tile-reason {
         display: flex; align-items: center; gap: .3rem; min-width: 0;
         font-size: .75rem; color: fade(#ffb0a6, 88%);

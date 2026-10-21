@@ -31,6 +31,11 @@ const plugins = [
       configOverwrite: {
         exclude: [
           'tests/**/*.ts',
+          // `screenshots/` is GITIGNORED scratch (stand specs, mocks, probes a session leaves behind) that the root
+          // tsconfig's `**/*.ts` still pulls into this checker — a stale mock from a finished session failed the
+          // PRODUCT build with four errors in files nobody ships (2026-10-21). The product's gate is `lint:client`.
+          'screenshots/**/*.ts',
+          'tmp/**/*.ts',
         ],
       },
     },

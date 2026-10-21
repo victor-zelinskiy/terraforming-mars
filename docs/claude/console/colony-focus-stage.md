@@ -382,12 +382,26 @@ screen that then vanishes»:
    cards being born out of a number. The berth seat still leads for the OWNER
    bonus — that one is earned by a settlement the player can see standing there.
 
-⚠️ **The panel keeps the ACTION height while a follow-up is CLAIMED**
-(`--claimed`, not `--handing`: the geometry must be held for the whole gap
-between the submit and the payout's arrival). Past the commit the server takes
-the pick away and `presentMode` re-derives to `inspect`; without the override
-the panel shrank by a third UNDER the payout, the reveal's strip lost ~150 px
-and every card was cropped by its slot.
+⚠️ **The panel takes the WHOLE BAND while a follow-up is CLAIMED** (colony
+polish 2, 2026-10-21 — `--claimed` and the bonus composition's `--bonus` both
+set `--colfocus-h: 100%`; before that the claim merely held the ACTION height).
+Two reasons, both measured on the owner's 4K frame: (a) `--claimed`, not
+`--handing` — the geometry must be held for the whole gap between the submit
+and the payout's arrival, or past the commit `presentMode` re-derives to
+`inspect` and the panel shrinks by a third UNDER the payout (the reveal's
+strip lost ~150 px and every card was cropped by its slot); (b) the band, not
+the token — pinned at 36.5rem the panel stood 1460 px tall in a 1772 px band,
+156 px of nothing above AND below a stage whose cards had just wrapped and
+cropped. The cards are the protagonists of this pose and the band is their
+room; the growth is a transition of the REGISTERED property `--colfocus-h`
+(`@property … <length-percentage>` on the root — a `min-height` transition
+could not interpolate `min(100%, max(36.5rem, …))` and the storyboard showed a
+one-frame jump), played at the commit under the pinned receipt — settled long
+before any cover aims at a slot (the response's round trip is longer than
+360 ms) — and the discard step that
+follows takes the same room with its hand, so the two poses of one resolution
+share one footprint. `min(100%, …)` keeps a SHORT host (a prelude's step)
+honest.
 
 ⚠️ **The claim itself is STRUCTURAL on BOTH paths.** `colonyTradeDealsCards`
 (shell) asks the colony's own metadata — `colonyTradeMayDrawCards(metadata,

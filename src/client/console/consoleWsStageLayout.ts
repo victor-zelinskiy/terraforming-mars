@@ -134,6 +134,18 @@ const MAX_ROWS = 3;
  */
 const WRAP_GAIN = 1.03;
 
+/**
+ * ONE LINE has to be THIS much bigger to beat the SHELVES (see `groups`). Two
+ * groups on two lines are a composition — each source on its own shelf, the
+ * band filled top to bottom; one line of the same objects at a near-equal size
+ * is a stripe with the rest of the stage empty. Measured on the 4K payout zone
+ * (2408 × 1300): five objects solve to 1.40 on one line and 1.36 on two shelves
+ * — a 3 % difference nobody sees, against a composition everybody does. A pair
+ * of pairs (2 + 2) still stands on one line: there the line's cards are ~30 %
+ * bigger, which IS a visible gain.
+ */
+const SHELF_GAIN = 1.08;
+
 export type WsStageLayoutInput = {
   /** Content-box width available to the row (padding already subtracted). */
   availW: number;
@@ -154,6 +166,18 @@ export type WsStageLayoutInput = {
    * breaks; omit it and the cap is not published (the historical behaviour).
    */
   padXPx?: number;
+  /**
+   * THE SHELVES — a SEMANTIC split of the batch into groups that may each stand
+   * on a line of their own (a settlement table: the track's income cards, then
+   * the colony's places — colony polish 2). The count-wrap is a shape of
+   * CONVENIENCE and breaks a line wherever the count says, which cut a table's
+   * places away from each other («2 income + place 1 / places 2–3»); with groups
+   * the only shapes considered are ONE LINE (the groups side by side) and ONE
+   * LINE PER GROUP, and a group is never cut in half. The host renders the
+   * break where the layout says so (`shelves`). Ignored unless at least two
+   * groups, every one of them > 0, sum to `n`.
+   */
+  groups?: ReadonlyArray<number>;
 };
 
 export type WsStageLayout = {
@@ -179,6 +203,14 @@ export type WsStageLayout = {
    * planned row makes the break an output like everything else.
    */
   rowMaxPx?: number;
+  /**
+   * The groups laid out ONE PER LINE, in order — `undefined` when the batch
+   * stands on one line (or no groups were given). The host breaks the line
+   * after each group but the last; the break is as tall as `rowGapPx` and the
+   * row's own `row-gap` is 0 in that shape, so the vertical budget the shape
+   * was solved for is exactly what renders.
+   */
+  shelves?: ReadonlyArray<number>;
 };
 
 /** The lateral room ONE focused slot needs beyond its own box, in px. */
@@ -310,9 +342,77 @@ function shapeZoom(o: WsStageLayoutInput, rows: number, perRow: number, rowGap: 
  * thing that ever differs between two cards on this stage is which one holds
  * the focus, and that is a ring, not a size.
  */
+/**
+ * Solve ONE shape — `rows` lines of up to `perRow` slots — to the candidate the
+ * comparison below scores: the zoom, the focus-safe gap it is back-solved
+ * against, and the wrap cap that makes the browser break the line where this
+ * shape says.
+ */
+function solveShape(o: WsStageLayoutInput, rows: number, perRow: number, rowGapPx: number): WsStageLayout {
+  // The CEILING only (see MAX_ZOOM): `shapeZoom` already returns the largest
+  // zoom this shape can afford, so anything above it overflows by
+  // construction — and shapes are compared on this same value, so an
+  // infeasible one can never out-score a feasible one.
+  const raw = Math.min(MAX_ZOOM * o.ui, shapeZoom(o, rows, perRow, rowGapPx));
+  const gapPx = snapUp(
+    Math.max(MIN_GAP_PX * o.ui, focusHeadroomPx(o.slotW * raw, o.ui)), GAP_STEP);
+  // BACK-SOLVE against the gap we are actually going to use. `shapeZoom`
+  // solves the gap as a function of the zoom (focus headroom), but the gap
+  // ALSO has a floor — and on a starved band that floor is the larger of the
+  // two, so the row ended up wider than the budget the zoom was solved for.
+  // One pass is exact: shrinking the zoom can only shrink the headroom, at
+  // which point the floor dominates and the gap stops moving.
+  const gaps = Math.max(0, perRow - 1);
+  const fitW = perRow * o.slotW > 0 ?
+    (0.98 * o.availW - gaps * gapPx) / (perRow * o.slotW) :
+    raw;
+  const zoom = snapDown(Math.max(0, Math.min(raw, fitW)), ZOOM_STEP);
+  return {
+    zoom, gapPx, rowGapPx, rows, perRow,
+    // THE CAP SITS AT THE MIDPOINT, not on the shape's own width. Its only
+    // job is to be a number that fits `perRow` cards and not `perRow + 1`,
+    // and those two widths are a WHOLE CARD apart — so pinning it to the
+    // first of them spends the entire tolerance on the wrong side and lets
+    // any sub-pixel disagreement (layout units, a `zoom` factor rounded by
+    // the compositor, a profile ladder's fractional padding) break a card
+    // off the line. Half a card of slack is invisible — the group is centred
+    // inside the cap — and puts the failure ~190 px away instead of 0.06.
+    rowMaxPx: o.padXPx === undefined ? undefined :
+      perRow * o.slotW * zoom + gaps * gapPx + o.padXPx +
+      (o.slotW * zoom + gapPx) / 2,
+  };
+}
+
+/** The groups as SHELVES — or `undefined` when they do not describe `n` (see `WsStageLayoutInput.groups`). */
+function shelvesOf(groups: ReadonlyArray<number> | undefined, n: number): ReadonlyArray<number> | undefined {
+  if (groups === undefined || groups.length < 2) {
+    return undefined;
+  }
+  const whole = groups.map((g) => Math.floor(g));
+  if (whole.some((g) => g <= 0) || whole.reduce((a, b) => a + b, 0) !== n) {
+    return undefined;
+  }
+  return whole;
+}
+
 export function wsStageLayout(o: WsStageLayoutInput): WsStageLayout {
   const n = Math.max(1, Math.floor(o.n));
   const rowGapPx = snapUp(o.rowGapPx ?? Math.max(MIN_GAP_PX * o.ui, 12 * o.ui), GAP_STEP);
+  // THE SHELVES: two shapes only — the groups on ONE line, or one line PER
+  // group. The tie goes the OTHER way than a count-wrap's: the shelves are a
+  // reading («the track's income, then the settlements' places»), and a line
+  // of five objects across a band whose height they leave two-thirds empty is
+  // the stripe-in-a-void composition the owner's 4K frame showed — so one line
+  // has to EARN itself by making every card visibly bigger (SHELF_GAIN), not
+  // merely by being one line. A shelved shape has no wrap cap: its break is
+  // rendered by the host, never found by `flex-wrap`.
+  const shelves = shelvesOf(o.groups, n);
+  if (shelves !== undefined) {
+    const line = solveShape(o, 1, n, rowGapPx);
+    const shelved = solveShape(o, shelves.length, Math.max(...shelves), rowGapPx);
+    return line.zoom > shelved.zoom * SHELF_GAIN ?
+      line : {...shelved, rowMaxPx: undefined, shelves};
+  }
   let best: WsStageLayout | undefined;
   for (let rows = 1; rows <= Math.min(MAX_ROWS, n); rows++) {
     const perRow = Math.ceil(n / rows);
@@ -321,38 +421,7 @@ export function wsStageLayout(o: WsStageLayoutInput): WsStageLayout {
     if (Math.ceil(n / perRow) !== rows) {
       continue;
     }
-    // The CEILING only (see MAX_ZOOM): `shapeZoom` already returns the largest
-    // zoom this shape can afford, so anything above it overflows by
-    // construction — and shapes are compared on this same value, so an
-    // infeasible one can never out-score a feasible one.
-    const raw = Math.min(MAX_ZOOM * o.ui, shapeZoom(o, rows, perRow, rowGapPx));
-    const gapPx = snapUp(
-      Math.max(MIN_GAP_PX * o.ui, focusHeadroomPx(o.slotW * raw, o.ui)), GAP_STEP);
-    // BACK-SOLVE against the gap we are actually going to use. `shapeZoom`
-    // solves the gap as a function of the zoom (focus headroom), but the gap
-    // ALSO has a floor — and on a starved band that floor is the larger of the
-    // two, so the row ended up wider than the budget the zoom was solved for.
-    // One pass is exact: shrinking the zoom can only shrink the headroom, at
-    // which point the floor dominates and the gap stops moving.
-    const gaps = Math.max(0, perRow - 1);
-    const fitW = perRow * o.slotW > 0 ?
-      (0.98 * o.availW - gaps * gapPx) / (perRow * o.slotW) :
-      raw;
-    const zoom = snapDown(Math.max(0, Math.min(raw, fitW)), ZOOM_STEP);
-    const candidate: WsStageLayout = {
-      zoom, gapPx, rowGapPx, rows, perRow,
-      // THE CAP SITS AT THE MIDPOINT, not on the shape's own width. Its only
-      // job is to be a number that fits `perRow` cards and not `perRow + 1`,
-      // and those two widths are a WHOLE CARD apart — so pinning it to the
-      // first of them spends the entire tolerance on the wrong side and lets
-      // any sub-pixel disagreement (layout units, a `zoom` factor rounded by
-      // the compositor, a profile ladder's fractional padding) break a card
-      // off the line. Half a card of slack is invisible — the group is centred
-      // inside the cap — and puts the failure ~190 px away instead of 0.06.
-      rowMaxPx: o.padXPx === undefined ? undefined :
-        perRow * o.slotW * zoom + gaps * gapPx + o.padXPx +
-        (o.slotW * zoom + gapPx) / 2,
-    };
+    const candidate = solveShape(o, rows, perRow, rowGapPx);
     if (best === undefined) {
       best = candidate;
       continue;

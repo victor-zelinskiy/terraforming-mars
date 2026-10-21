@@ -2367,6 +2367,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   // of its own cubes there (a hand of three); `-foreign` red trades (blue owns 2, a hand of three); `-empty-hand` the
   // same foreign table with blue's hand empty (each cycle's discard decides itself).
   'pluto-settlements-2' | 'pluto-settlements-3' | 'pluto-settlements-foreign' | 'pluto-settlements-empty-hand' |
+  // Colony polish 2 — the WIDE tables: 3 income cards + 2 places (the owner's 4K frame), 4 income cards + 3 places.
+  'pluto-settlements-2-wide' | 'pluto-settlements-3-wide' |
   'play-scale-card' | 'effect-forecast' |
   // X87 Shipment to Earth: a solo action phase with the card in hand, 5 plants / 4 steel / 30 M€, two plain Earth tags
   // in the tableau — the price the play takes OFF THE RAIL leaves into the standing card before it lifts (PL-107).

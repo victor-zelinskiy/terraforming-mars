@@ -1062,7 +1062,8 @@ html.con-profile-tv {
            ability text at TV type sizes (iteration 4 — 21rem starved `__desc`
            to zero under «Здесь стоит ваш флот»). */
         &--inspect { --colfocus-h: 23.5rem; }
-        &--handing { --colfocus-h: 36.5rem; }
+        /* The payout pose takes the whole band on every profile (colony polish 2 — see the base rule's note). */
+        &--claimed, &--handing { --colfocus-h: 100%; }
         &__fleetline { font-size: var(--con-t-caption); }
         &__verdict { font-size: var(--con-t-secondary); }
         --colfocus-rail-w: 18.5rem;

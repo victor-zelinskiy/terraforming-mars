@@ -347,4 +347,69 @@ describe('wsStageLayout — one geometry for buy and reveal', () => {
       });
     });
   });
+
+  /**
+   * THE SHELVES (colony polish 2) — a settlement table is two GROUPS of objects: the track's income cards and the
+   * colony's places. The owner's 4K frame had five of them (3 + 2) wrapped 4 + 1 by count and cropped; by meaning
+   * they stand on two shelves, every card bigger, and a group is never cut in half.
+   */
+  describe('shelves — a semantic break, never a count-wrap', () => {
+    // The 4K payout zone with the stage on the whole band (measured: w2408 after the zone furniture, ~1300 of row).
+    const tv = {availW: 2408, availH: 1300, slotW: 320, slotH: 460, ui: 2};
+
+    it('five objects (3 income + 2 places) stand on two shelves at 4K — the cards no smaller than one line\'s', () => {
+      const line = wsStageLayout({...tv, n: 5});
+      const shelved = wsStageLayout({...tv, n: 5, groups: [3, 2]});
+      expect(shelved.shelves).to.deep.eq([3, 2]);
+      expect(shelved.rows).to.eq(2);
+      expect(shelved.perRow).to.eq(3);
+      // One line of five is width-bound at ~1.40 here, the shelves height-bound at ~1.36: a difference nobody sees,
+      // against a composition everybody does — so the shelves win the near-tie, and the line must EARN itself.
+      expect(shelved.zoom).to.be.greaterThan(line.zoom / 1.08);
+      // …and they fill the band: two shelves + the break spend the height.
+      expect(2 * 460 * shelved.zoom + shelved.rowGapPx).to.be.closeTo(tv.availH, 12);
+      expect(shelved.rowMaxPx, 'a shelved shape has no wrap cap — the host renders the break').to.eq(undefined);
+    });
+
+    it('one line wins only when it makes the cards VISIBLY bigger (a wide, short band)', () => {
+      const short = {availW: 2408, availH: 700, slotW: 320, slotH: 460, ui: 2};
+      const l = wsStageLayout({...short, n: 5, groups: [3, 2]});
+      expect(l.shelves).to.eq(undefined);
+      expect(l.rows).to.eq(1);
+    });
+
+    it('seven objects (4 income + 3 places) never cut a group: 4 + 3, not 4 + 3 by count that happens to match', () => {
+      const l = wsStageLayout({...tv, n: 7, groups: [4, 3]});
+      expect(l.shelves).to.deep.eq([4, 3]);
+      // The first shelf binds the width: four cards + three gaps fit the row.
+      expect(4 * 320 * l.zoom + 3 * l.gapPx).to.be.at.most(tv.availW);
+      // …and both shelves + the break fit the height.
+      expect(2 * 460 * l.zoom + l.rowGapPx).to.be.at.most(tv.availH);
+    });
+
+    it('a group split that a count-wrap would cut (2 income + 3 places) stays whole', () => {
+      const l = wsStageLayout({...tv, n: 5, groups: [2, 3]});
+      expect(l.shelves).to.deep.eq([2, 3]);
+      expect(l.perRow, 'the wider shelf sets the per-row figure').to.eq(3);
+    });
+
+    it('four objects (2 + 2) stay ONE line — a break has to earn itself', () => {
+      const l = wsStageLayout({...tv, n: 4, groups: [2, 2]});
+      expect(l.shelves).to.eq(undefined);
+      expect(l.rows).to.eq(1);
+    });
+
+    it('groups that do not describe the batch are ignored', () => {
+      for (const groups of [[5], [3, 3], [0, 5], [2, 2]]) {
+        const l = wsStageLayout({...tv, n: 5, groups});
+        expect(l.shelves, JSON.stringify(groups)).to.eq(undefined);
+      }
+    });
+
+    it('the published style says how many stand per row, and no cap, for a shelved shape', () => {
+      const style = wsStageLayoutStyle(wsStageLayout({...tv, n: 5, groups: [3, 2]}));
+      expect(style['--con-ws-stage-per-row']).to.eq('3');
+      expect(style['--con-ws-stage-rowmax']).to.eq('100%');
+    });
+  });
 });

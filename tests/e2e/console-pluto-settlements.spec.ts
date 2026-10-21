@@ -266,6 +266,9 @@ type Door = 'own' | 'foreign';
 const SCENARIOS: ReadonlyArray<{fixture: FixtureName, cubes: number, door: Door, title: string, emptyHand?: true}> = [
   {fixture: 'pluto-settlements-2', cubes: 2, door: 'own', title: 'own trade, 2 settlements'},
   {fixture: 'pluto-settlements-3', cubes: 3, door: 'own', title: 'own trade, 3 settlements'},
+  // Colony polish 2 — the WIDE tables (the owner's 4K frame: 3 income cards + 2 places; and 4 + 3, the widest).
+  {fixture: 'pluto-settlements-2-wide', cubes: 2, door: 'own', title: 'own trade, 2 settlements, 3 income cards'},
+  {fixture: 'pluto-settlements-3-wide', cubes: 3, door: 'own', title: 'own trade, 3 settlements, 4 income cards'},
   {fixture: 'pluto-settlements-foreign', cubes: 2, door: 'foreign', title: 'an opponent trades, 2 settlements'},
   {fixture: 'pluto-settlements-empty-hand', cubes: 2, door: 'foreign', title: 'an opponent trades, the viewer\'s hand empty', emptyHand: true},
 ];

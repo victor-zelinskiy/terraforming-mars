@@ -468,6 +468,12 @@ function plutoSettlementsTable(name: string, spec: {cubes: number, track: number
 }
 plutoSettlementsTable('pluto-settlements-2', {cubes: 2, track: 3});
 plutoSettlementsTable('pluto-settlements-3', {cubes: 3, track: 4});
+// Colony polish 2 (the owner's 4K report of 2026-10-21 — «на экране торговли на Плутоне очень плохая компоновка»):
+//   -2-wide  the viewer trades, two settlements, the track at 4 (3 income cards + 2 places = FIVE objects — the frame
+//            the owner photographed: the row wrapped 4 + 1 and cropped under the head);
+//   -3-wide  three settlements, the track at 6 (4 income cards + 3 places = SEVEN objects — the widest table Pluto pays).
+plutoSettlementsTable('pluto-settlements-2-wide', {cubes: 2, track: 4});
+plutoSettlementsTable('pluto-settlements-3-wide', {cubes: 3, track: 6});
 plutoSettlementsTable('pluto-settlements-foreign', {cubes: 2, track: 3, foreign: true});
 plutoSettlementsTable('pluto-settlements-empty-hand', {cubes: 2, track: 3, foreign: true, hand: 0});
 

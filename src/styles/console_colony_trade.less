@@ -88,7 +88,10 @@
     &::before {
         content: '';
         position: absolute;
-        inset: -1.05rem -.85rem -.75rem;
+        /* The caption stands IN FLOW at the top of the zone now (colony polish 2 — it used to float 1.62rem ABOVE the
+           box, and every row that held a zone had to reserve that overhang as strip padding), so the frame's top
+           overhang is the same breathing room as its sides. */
+        inset: -.6rem -.85rem -.75rem;
         border-radius: .6rem;
         background: linear-gradient(180deg, fade(@con-mint, 5%), fade(@con-mint, 1%) 72%);
         box-shadow: inset 0 0 0 .05rem fade(@con-mint, 17%);
@@ -121,11 +124,14 @@
         opacity: 0.5;
     }
 }
+/* THE CAPTION IS IN FLOW (colony polish 2). It used to float `top: -1.62rem` above the zone's box: every strip that
+   held a zone reserved that overhang as padding on its FIRST line, the fit added it to the row gap for a WRAPPED
+   line, and the zone's own height said nothing about it — three places to keep one number. In flow the zone is
+   simply as tall as its caption + card + condition, the fit measures that from the DOM (`zoneExtraH`) and nothing
+   else has to know. Same pill, same voice — it just stands on the card instead of over the frame. */
 .con-reveal__bonus-zone-label {
-    position: absolute;
-    top: -1.62rem;
-    left: 50%;
-    transform: translateX(-50%);
+    position: relative;
+    flex-shrink: 0;
     white-space: nowrap;
     padding: .14rem .6rem;
     border-radius: .5rem;
@@ -166,7 +172,30 @@
 .con-reveal--embedded .con-reveal__strip:has(.con-reveal__bonus-zone) {
     padding-left: 1.7rem;
     padding-right: 1.7rem;
-    padding-top: 1.7rem; /* the floating zone label sits above the row */
+    /* (No extra top padding since colony polish 2: the zone's caption stands IN its box — the row's own 1.3rem is
+       the focus lift's clearance and covers the frame's .6rem top overhang.) */
+}
+
+/* ── THE TWO SHELVES (colony polish 2) ───────────────────────────────────────────────────────────────────────────
+   A payout with colony zones is two groups of objects — the track's income cards and the settlements' places — and
+   the layout engine may stand them on a line each (`wsStageLayout` → `shelves`; the owner's 4K frame had five objects
+   wrapped 4 + 1 by count and cropped under the head). The break is an element the host renders where the layout
+   said; it spans the line (a 100 % basis breaks before and after it) and is exactly as tall as the solved row gap,
+   while the row's own `row-gap` is 0 in this shape — so the height the shape was solved for is what renders, and
+   nothing is found by `flex-wrap`. */
+/* (0,4,0): the stage row's own `row-gap: var(--con-ws-stage-rowgap)` is (0,2,0) and the TV ladder re-states it at
+   (0,3,1) — a plain modifier class lost to both, and the break then stood BETWEEN two row gaps: 24 + 24 + 24 px at
+   fhd for a 24 px shelf step, 47 px of unsolved height, the first shelf 6 px over the row's top.) */
+.con-reveal.con-reveal .con-reveal__strip--shelves.con-ws-stage-row {
+    row-gap: 0;
+}
+.con-reveal__shelfbreak {
+    flex: 0 0 100%;
+    width: 100%;
+    height: var(--con-ws-stage-rowgap, .7rem);
+    margin: 0;
+    padding: 0;
+    pointer-events: none;
 }
 
 /* THE SOURCE CELL ANSWERS A DEPARTURE — a one-shot press as each card
@@ -493,10 +522,17 @@
     display: inline-flex;
     align-items: center;
     gap: .45rem;
-    max-width: 22rem;
+    /* NEVER WIDER THAN ITS CARD (colony polish 2). The condition is a label in rem while the card is a 320 px design
+       box under the row's solved `zoom`: at 4K the label ran 532 px under a 406 px card, the zone column grew to the
+       label, the line came out ~250 px wider than the width the fit had solved it for, `flex-wrap` broke a card off
+       and the second line had no height — the owner's cropped frame (and the fhd one: a 266 px label under 152 px
+       cards wrapped seven objects 5 + 2). So the label is capped at the card's box, and its type rides the card's
+       zoom (relative to the profile's rem scale, which the zoom already carries) between a couch-readable floor and
+       the authored size; the ellipsis on the text is the last backstop, not the plan. */
+    max-width: calc(320px * var(--con-cards-zoom, 1)); /* keep-px: the premium face's design box */
     padding: .22rem .7rem .24rem;
     border-radius: .5rem;
-    font-size: .72rem;
+    font-size: clamp(.56rem, calc(.72rem * var(--con-cards-zoom, 1) / var(--con-ui-scale, 1)), .8rem);
     font-weight: 700;
     line-height: 1.2;
     letter-spacing: .04rem;
@@ -509,23 +545,28 @@
 .con-reveal__sealcond-cost {
     display: inline-flex;
     align-items: center;
+    flex-shrink: 0;
     gap: .15rem;
     padding: .02rem .35rem;
     border-radius: .35rem;
-    font-size: .78rem;
+    /* In em: the chip and its glyph follow the label's zoom-driven size (above). */
+    font-size: 1.08em;
     font-weight: 800;
     color: #ffd9c2;
     background: rgba(40, 16, 10, 0.45);
     box-shadow: inset 0 0 0 .05rem rgba(255, 170, 130, 0.35);
 
     .resource_icon {
-        width: 1rem;
-        height: 1.25rem;
+        width: 1.3em;
+        height: 1.6em;
         background-size: contain;
     }
 }
 .con-reveal__sealcond-text {
     white-space: nowrap;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .con-reveal__sealcond-link {
     position: absolute;
@@ -540,10 +581,41 @@
     pointer-events: none;
 }
 /* A TABLE place's line has ONE height in every state (see the template: a centred zone column whose line came and
-   went moved the place above it), and a place with nothing to say keeps the box, unseen. */
+   went moved the place above it), and a place with nothing to say keeps the box, unseen.
+   TWO LINES' WORTH (colony polish 2): the condition is capped at its card's width (above), and under a small card
+   «после сброса за бонус 1» does not fit one line — an ellipsis there («после сброс…») is the rule unreadable, which
+   is worse than a second line. So the table's box reserves two lines in EVERY state (a one-line reading sits
+   centred in it — the box is transparent, only the PILL inside is painted), and the text wraps instead of clipping.
+   The reserve is the same for a sealed, a taken and a blank place, so a state change moves nothing. */
 .con-reveal__sealcond--table {
     box-sizing: border-box;
-    height: 1.85rem;
+    height: 2.6rem;
+    padding: 0;
+    background: none;
+    box-shadow: none;
+    justify-content: center;
+
+    .con-reveal__sealcond-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        max-width: 100%;
+        min-width: 0;
+        /* Tighter than the one-line pill: under the narrowest card (seven objects at 4K — 318 px) the text column
+           is what decides whether «после сброса / за бонус 1» is two lines or three. */
+        padding: .18rem .5rem .2rem;
+        border-radius: .5rem;
+        line-height: 1.15;
+        background: linear-gradient(180deg, rgba(150, 165, 180, 0.16), rgba(60, 70, 82, 0.22));
+        box-shadow: inset 0 0 0 .05rem rgba(190, 205, 220, 0.34);
+    }
+    .con-reveal__sealcond-text {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+        text-align: left;
+        letter-spacing: .02rem;
+    }
 }
 .con-reveal__sealcond--blank {
     visibility: hidden;
@@ -551,8 +623,11 @@
 /* The current place, TAKEN, its discard owed — a quiet note, the ✓ is in the socket above. */
 .con-reveal__sealcond--owed {
     color: fade(@con-mint, 92%);
-    background: linear-gradient(180deg, fade(@con-mint, 10%), rgba(8, 14, 20, 0.4));
-    box-shadow: inset 0 0 0 .05rem fade(@con-mint, 32%);
+
+    .con-reveal__sealcond-pill {
+        background: linear-gradient(180deg, fade(@con-mint, 10%), rgba(8, 14, 20, 0.4));
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 32%);
+    }
 }
 /* The status line's reading of a sealed place under the cursor. */
 .con-reveal__sealreading {

@@ -141,7 +141,8 @@
               <transition-group tag="div" name="con-reveal-shift"
                    class="con-cards__strip con-reveal__strip"
                    :class="[stripCountClass, {'con-cards__strip--has-focus': drawnUntaken.length > 1,
-                            'con-ws-stage-row': stageChassis, 'con-reveal__strip--table': tableOn}]"
+                            'con-ws-stage-row': stageChassis, 'con-reveal__strip--table': tableOn,
+                            'con-reveal__strip--shelves': shelfBreak}]"
                    :style="stripZoomStyle">
                 <!-- THE SETTLEMENT TABLE's income places — keyed by POSITION: a taken card leaves its empty socket
                      (✓), and a later cycle draws the same sockets from the table's memory, so the places beside them
@@ -211,6 +212,13 @@
                   face-down placeholder (their card is not drawn yet — the
                   server only draws it once this one is finished).
                 -->
+                <!-- THE SHELF BREAK (colony polish 2): the layout engine laid the table out as TWO SHELVES — the
+                     track's income cards on one line, the settlements' places on the next (`wsStageLayout` →
+                     `shelves`, chosen only where it makes every card visibly bigger than one line would). The break
+                     is rendered HERE, where the layout said, never found by `flex-wrap` — a count-wrap once cut
+                     «2 income + place 1 / places 2–3». As tall as the solved row gap (the row's own `row-gap` is 0
+                     in this shape), so the height the shape was solved for is exactly what renders. -->
+                <i v-if="shelfBreak" key="shelfbreak" class="con-reveal__shelfbreak" aria-hidden="true"></i>
                 <div v-for="zone in bonusZones" :key="'zone' + zone.index"
                      class="con-reveal__bonus-zone"
                      :class="['con-reveal__bonus-zone--' + zone.state, {'con-reveal__bonus-zone--table': tableOn}]"
@@ -277,11 +285,17 @@
                             'con-reveal__sealcond--blank': placePaint(zone) !== 'sealed' && placePaint(zone) !== 'taken',
                           }"
                           :data-settlement-cond="zone.index">
-                      <span v-if="placePaint(zone) === 'taken'" class="con-reveal__sealcond-text">{{ $t('Taken · the discard is yours') }}</span>
+                      <!-- The box reserves two lines in every state; the PILL inside is what is painted, and its text
+                           may wrap under a small card (colony polish 2 — never an ellipsis in the rule). -->
+                      <span v-if="placePaint(zone) === 'taken'" class="con-reveal__sealcond-pill">
+                        <span class="con-reveal__sealcond-text">{{ $t('Taken · the discard is yours') }}</span>
+                      </span>
                       <template v-else>
                         <span v-if="placePaint(zone) === 'sealed'" class="con-reveal__sealcond-link" aria-hidden="true"></span>
-                        <span class="con-reveal__sealcond-cost">−1<i class="resource_icon resource_icon--cards" aria-hidden="true"></i></span>
-                        <span class="con-reveal__sealcond-text">{{ sealCondText(zone) }}</span>
+                        <span class="con-reveal__sealcond-pill">
+                          <span class="con-reveal__sealcond-cost">−1<i class="resource_icon resource_icon--cards" aria-hidden="true"></i></span>
+                          <span class="con-reveal__sealcond-text">{{ sealCondText(zone) }}</span>
+                        </span>
                       </template>
                     </span>
                   </template>
@@ -824,6 +838,8 @@ export default defineComponent({
       fitSolvedKey: '',
       /** The solved layout as CSS custom properties (one writer, both hosts). */
       embedLayoutStyle: {} as Record<string, string>,
+      /** The solved SHELVES (`wsStageLayout.shelves`) — the income cards and the places on lines of their own. */
+      embedShelves: undefined as ReadonlyArray<number> | undefined,
       embedFitRetries: 0,
       embedFitScheduled: false,
       /** The solved verdict-band factor (0 = not measured yet). */
@@ -1519,7 +1535,12 @@ export default defineComponent({
       const id = this.drawnEvent?.id;
       return (isDeckDrawActive() && isDeckDrawStaged(id)) ||
         (isBoardCardBonusActive() && isBonusRevealStaged(id)) ||
-        (isColonyTradeActive() && isColonyTradeRevealStaged(id));
+        // ⚠️ The colony trade stays ACTIVE for the whole resolution (the owner-bonus cycles, the discard, the marker's
+        // return), and a batch stays STAGED for as long — so these two terms alone held the status rail for the
+        // table's entire life: a player with the cursor on a landed card never read its name or its requirement
+        // (colony polish 2, measured on the 4K frames of polish 1). The scene owns the cards only while its covers
+        // are in the air: once it has handed them over (`cardScene === 'idle'`) the rail speaks.
+        (isColonyTradeActive() && isColonyTradeRevealStaged(id) && colonyTradeState.cardScene !== 'idle');
     },
     /**
      * The FOCUSED drawn card's factual availability — the SHARED model in the
@@ -1539,6 +1560,10 @@ export default defineComponent({
         return undefined;
       }
       return buildCardAvailability({reasons: entry.card.unplayableReasons, easing: entry.card.requirementEasing}, ctx);
+    },
+    /** The table stands on TWO SHELVES — the income cards, then the places (the solved layout's own decision). */
+    shelfBreak(): boolean {
+      return this.embedShelves !== undefined && this.embedShelves.length > 1;
     },
     /** The count class the tv profile keys its per-count boost / gap off. */
     stripCountClass(): string {
@@ -2107,6 +2132,7 @@ export default defineComponent({
         this.settleFitTimer = undefined;
       }
       this.embedFitZoom = 0;
+      this.embedShelves = undefined;
       this.fitSolvedKey = '';
     },
     /**
@@ -2391,16 +2417,30 @@ export default defineComponent({
       const seatReserve = sourceSeatReservePx(ui);
       // (The discard berth's corner keep-out (PL-091) is gone with the berth: the search's pile is the table's now,
       // beside the HUD deck — the stage keeps no corner for it. TR52, PL-260.)
+      // THE SHELVES (colony polish 2): a payout with colony zones is TWO GROUPS
+      // of objects — the track's income cards and the settlements' places — and
+      // the engine may stand them on a line each (the owner's 4K frame: five
+      // objects wrapped 4 + 1 by count and cropped; as 3 + 2 by meaning every
+      // card is bigger and the two sources read as two shelves). Passed only
+      // when both groups exist; the engine decides whether the break pays.
+      const zonesN = zoneEls.length;
+      const incomeN = n - zonesN;
+      const groups = zonesN > 0 && incomeN > 0 ? [incomeN, zonesN] : undefined;
       const layout = wsStageLayout({
         availW: Math.max(1, availW - zoneExtraW - seatReserve * 2),
         availH: Math.max(1, availH - zoneExtraH),
         slotW, slotH, n, ui,
-        rowGapPx: colGap + zoneCaptionH,
+        // The gap between two lines: at least a readable shelf step (24 px @1×
+        // — the hand album's own row gap), plus whatever a zone's caption
+        // still reaches above its box (0 since the caption stands in flow).
+        rowGapPx: Math.max(colGap, 24 * ui) + zoneCaptionH,
         padXPx: padX + zoneExtraW,
+        groups,
       });
       this.embedLayoutStyle = wsStageLayoutStyle(layout);
       Object.entries(this.embedLayoutStyle).forEach(([k, v]) => strip.style.setProperty(k, v));
       this.embedFitZoom = layout.zoom;
+      this.embedShelves = layout.shelves;
       this.fitSolvedKey = this.revealKey;
       // THE ROW STATES ITS OWN SOLVE. Every past defect in this engine was
       // diagnosed by guessing which INPUT was wrong, at the one resolution the
@@ -2409,7 +2449,8 @@ export default defineComponent({
       strip.setAttribute('data-fit',
         `z=${layout.zoom} w=${Math.round(availW)} h=${Math.round(availH)} ` +
         `slot=${Math.round(slotW)}x${Math.round(slotH)} n=${n} ui=${ui} ` +
-        `seat=${Math.round(seatReserve)} rows=${layout.rows}x${layout.perRow}`);
+        `seat=${Math.round(seatReserve)} rows=${layout.rows}x${layout.perRow}` +
+        (layout.shelves === undefined ? '' : ` shelves=${layout.shelves.join('+')}`));
       // THE FIT'S OWN INPUTS, on the row it solved. A cropped batch is always a
       // disagreement between what the engine measured and what the browser laid
       // out, and reading the result alone can never tell them apart — this is

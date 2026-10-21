@@ -708,6 +708,55 @@ nonce on one root, ≤ 1 flight per place with no face on a sealed cover, the se
 forward-only) · `console-pluto-two-colony-sequence.spec.ts` (the fixme → an assertion) ·
 `console-pluto-bonus-discard.spec.ts`.
 
+## Iteration 14 — THE TABLE TAKES THE BAND, and stands on two shelves (colony polish 2, 2026-10-21)
+
+The owner's 4K frame: Pluto, the track at 4, two settlements — three income cards and two places, the row wrapped
+4 + 1, the second line with no height, the cards cropped under their own head («очень плохая компоновка на 4K TV, не
+хватает места и карты не видны»). Reproduced 1:1 on the stand (`pluto-settlements-2-wide`) and measured
+(`tests/e2e/console-colony-payout-geometry.spec.ts`, BEFORE on `.e2e-colony2-before` / AFTER on `.e2e-colony2`, GPU):
+
+| | BEFORE 4K | AFTER 4K | BEFORE fhd | AFTER fhd |
+| --- | --- | --- | --- | --- |
+| 5 objects (3 + 2) | `r1x5` solved, rendered **4 + 1**, overflow 237 px, 41 px over the panel | one line, 449 × 646, overflow 0 | one line by luck (189 × 271) | one line, 222 × 320 |
+| 7 objects (4 + 3) | `r1x7` solved, rendered 5 + 2, 307 × 442, overflow 87 | **shelves 4 + 3**, 318 × 457, overflow 0 | rendered 5 + 2, overflow 102, 15 px over the panel | shelves 4 + 3, 179 × 258 |
+| the stage panel | 1460 px in a 1772 px band | the band | 550 in 904 | the band |
+| the status rail | `--held` for the table's whole life | speaks once the covers landed | held | speaks |
+
+Four causes, each its own fix:
+
+1. **The condition label was wider than its card** (`.con-reveal__sealcond`, rem — 532 px under a 449 px card at 4K, 266
+   under 152 at fhd). The zone is a centred column, so it grew to the label; the engine models a zone as ONE CARD wide
+   (+ its margins, measured), so the line it solved was ~250 px narrower than the one the browser laid out, `flex-wrap`
+   broke a card off and `align-content: center` split the overflow — the crop. The label is now capped at the card's
+   box (`max-width: calc(320px * var(--con-cards-zoom))`), its type rides the zoom relative to the profile's rem scale
+   (`clamp(.56rem, .72rem × zoom / ui, .8rem)`), and the table's box reserves TWO LINES in every state with the painted
+   PILL inside it (`__sealcond-pill`) — under the narrowest card the text wraps («после сброса / за бонус 1») instead
+   of ending in an ellipsis. Nothing in a zone may be wider than its card: that is what keeps the fit's width model
+   true without ever measuring the label.
+2. **The panel was pinned to the action token** (36.5rem on TV = 1460 px) with 156 px of empty band above and below.
+   `--claimed` and `--bonus` now resolve the floor to `100%`; the growth plays at the commit under the pinned receipt
+   (before any cover aims at a slot) and the discard step's hand takes the same room afterwards.
+3. **The row shape was a count-wrap.** Five objects were one line, seven «5 + 2» — a places group cut in half.
+   `wsStageLayout` takes `groups: [income, places]` and answers `shelves`: one line, or one line PER GROUP; the host
+   renders `.con-reveal__shelfbreak` where the layout said (a 100 % basis line as tall as the solved row gap, the row's
+   own `row-gap` 0 in that shape — at (0,4,0), because the TV ladder re-states `row-gap` at (0,3,1) and the break then
+   stood between two gaps). The tie goes to the SHELVES (`SHELF_GAIN` 1.08): on the 4K zone five objects solve to
+   1.40 on a line and 1.36 on shelves — the line wins there (visibly bigger cards); seven objects solve to 0.96 / 0.99
+   and the shelves win. The caption («БОНУС КОЛОНИИ N/k») stands IN FLOW now, so the zone's height says everything
+   (no first-line strip padding, no `rowGapPx` overhang term).
+4. **The status rail never spoke.** `revealSceneStaged` held it on `isColonyTradeActive() && staged(batch)` — both true
+   for the whole resolution. It holds only while `cardScene !== 'idle'`.
+
+Also on the way: `build:client` failed on gitignored scratch under `screenshots/**` and `tmp/**` (the root tsconfig's
+`**/*.ts` feeds fork-ts-checker; «Build Finished» printed, the bundle NOT emitted) — both excluded in
+`webpack.config.js`. Fixtures: `pluto-settlements-2-wide` (cubes 2, track 4) and `-3-wide` (cubes 3, track 6), walked by
+`console-pluto-settlements` too (one table, one object per place, the crumb forward only — 4K, GPU, storyboard).
+
+Open for the owner (ledger BT): a line of five at 4K leaves ~290 px of air above and below inside the zone (the shelves
+would fill it at −20 % card size); seven objects at 4K stand at 318 × 457 — smaller than the hand's 490 × 690, the
+difference being the zone furniture (caption 44 + condition 104 + gaps) and the head/status chrome. Candidates: the
+caption into the seal's number, a narrower hero column in the payout pose.
+
 ## The invariant
 
 From the trade confirm to the last owed follow-up, the COLONY WORKSPACE is the
@@ -917,14 +966,25 @@ is never named either.
    and glow never cut.
    ⚠️ **…and a ZONE IS NOT A SLOT.** `wsStageLayout` solves `n` boxes of exactly
    `slotW × slotH`; a bonus zone is a slot PLUS furniture — a lateral margin
-   keeping its frame off its neighbour, a caption that floats ABOVE the row, and
-   a box that is simply TALLER than the slot it holds. All three are real
-   layout, so all three ride into the fit MEASURED FROM THE DOM (never re-stated
-   from LESS): margins come off `availW` and go into `padXPx` (the wrap cap must
+   keeping its frame off its neighbour, a caption, a condition line — a box
+   that is simply TALLER than the slot it holds. All of it is real layout, so
+   all of it rides into the fit MEASURED FROM THE DOM (never re-stated from
+   LESS): margins come off `availW` and go into `padXPx` (the wrap cap must
    hold the line that will actually be laid out), the extra height comes off
-   `availH` (a flex line is as tall as its tallest item), and the caption's
-   overhang is added to `rowGapPx` so a WRAPPED zone has the clearance the
-   strip's own padding only ever gave the first row.
+   `availH` (a flex line is as tall as its tallest item). *(Until colony polish
+   2 the caption FLOATED above the zone's box, and its overhang had to be kept
+   in three places at once — the strip's first-line padding, a `rowGapPx` term
+   for a wrapped line, and nothing in the zone's own height. It stands in flow
+   now: the zone's height says everything — see iteration 14.)*
+
+   ⚠️⚠️ **…AND NOTHING IN A ZONE MAY BE WIDER THAN ITS CARD** (iteration 14).
+   The engine only ever sees the card (320 px × the solved zoom); the zone's
+   furniture is rem. A condition label 532 px wide under a 449 px card made the
+   zone 532 wide, the line ~250 px wider than solved, and the row wrapped 4 + 1
+   into a height it did not have — the owner's cropped 4K frame. Capping the
+   label at the card's width (its type riding the zoom, a two-line box reserved
+   in every state) is what keeps the zone exactly one card wide, so the fit's
+   width model stays true without measuring the label at all.
 
    ⚠️ **Subtract, NEVER floor.** Writing those costs as
    `Math.max(slotW/slotH, avail − cost)` reads like a safety rail and is the
