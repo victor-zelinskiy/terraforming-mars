@@ -150,7 +150,15 @@ headless) can go through the GPU; the headless shell cannot open `chrome://gpu` 
   `version`**: the pre-commit `bump-version` hook rewrites the version on every commit of every session,
   so hashed raw the lock «changed» several times an hour — and each change would have been a 2-minute
   `npm ci` for nothing. The hash is over the lock with the root `version` (top level and `packages[""]`)
-  dropped; the 0.4 MB re-send is noise.
+  dropped; the 0.4 MB re-send is noise. A real dependency change (the Electron 45 bump) triggers ONE
+  `npm ci` on the next run — Electron's binary is never downloaded there (`ELECTRON_SKIP_BINARY_DOWNLOAD=1`;
+  the e2e runs the web build), so an Electron bump costs the install and nothing else.
+- **A failed `npm ci` does not block the box.** The sync mirrors the laptop's WORKING TREE, so a neighbour's
+  half-done dependency bump (`package.json` ahead of its lock — «Missing: webpack@5.112.0 from lock file»,
+  2026-10-21) reaches the Steam Machine before it is consistent. The run then goes on with the PREVIOUS
+  install, says so loudly, leaves the stamp unchanged and retries next run; the bump's author runs
+  `npm install` on the laptop. And the run's markers (`.run-start`, `.last-exit`) are reset BEFORE the
+  install block — a failed install once reported exit 0 with the previous run's screenshots.
 - Two sessions run side by side in the two slots; a timing / storyboard claim is `--exclusive` and
   waits for the box to empty — its annotation then reads `exclusive`, a shared run's `slot i/2`. Raise
   `TM_E2E_SLOTS` only on measurement (the speed-up plan's phase 0: the worker-scaling curve).

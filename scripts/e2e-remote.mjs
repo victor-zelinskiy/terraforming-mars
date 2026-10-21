@@ -342,14 +342,28 @@ const inner = `#!/bin/bash
 set -o pipefail
 export PATH=${REMOTE_NODE}:$PATH
 cd ${REMOTE_REPO}
-if [ "$(cat node_modules/.tm-lock-sha 2>/dev/null)" != ${shq(lockShaLocal)} ]; then
-  echo "[e2e:remote] package-lock.json changed — npm ci on the Steam Machine (a few minutes, once)"
-  ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci --no-audit --no-fund 2>&1 | tail -3 || exit 2
-  npx playwright install chromium --with-deps 2>&1 | tail -2 || exit 2
-  echo ${shq(lockShaLocal)} > node_modules/.tm-lock-sha
-fi
+# The run's markers FIRST: a failure anywhere below leaves no \`.last-exit\` (= «Playwright never started»)
+# and no stale screenshots newer than the marker — a failed \`npm ci\` once reported exit 0 with the
+# previous run's twelve frames.
 touch ${TASK_DIR}/.run-start
 rm -f ${TASK_DIR}/.last-exit
+if [ "$(cat node_modules/.tm-lock-sha 2>/dev/null)" != ${shq(lockShaLocal)} ]; then
+  echo "[e2e:remote] package-lock.json changed — npm ci on the Steam Machine (a few minutes, once)"
+  # npm's own exit code decides (never a pipeline's under pipefail — a filter's early exit would read a
+  # successful install as failed); the log is then filtered to the lines that say WHY (\`code EUSAGE\`,
+  # «not in sync», «Missing: webpack@… from lock file») or how much («added N packages»).
+  ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci --no-audit --no-fund > /tmp/tm-e2e-npm-ci.log 2>&1
+  NPM_RC=$?
+  grep -E "error code|sync|Missing|added|packages in" /tmp/tm-e2e-npm-ci.log | head -8
+  if [ "$NPM_RC" -eq 0 ]; then
+    npx playwright install chromium --with-deps 2>&1 | tail -2
+    echo ${shq(lockShaLocal)} > node_modules/.tm-lock-sha
+  else
+    # A neighbour's half-done dependency bump (package.json ahead of its lock) must not block every
+    # session's e2e: run on the previous install, say so loudly, and retry the install next run.
+    echo "[e2e:remote] ⚠ DEPENDENCIES ON THE STEAM MACHINE ARE STALE — npm ci failed (package.json and package-lock.json out of sync on the laptop? the bump's author runs \\\`npm install\\\`); running on the PREVIOUS install"
+  fi
+fi
 echo "[e2e:remote] $(node --version) · playwright $(npx playwright --version | sed 's/Version //') · $(nproc) threads · load $(cut -d' ' -f1-3 /proc/loadavg)"
 env ${envLine} TM_E2E_SLOT="$1" TM_E2E_ROOT=../builds/${task} TM_E2E_OUTPUT_DIR=${TASK_DIR}/test-results TM_E2E_REPORT_DIR=${TASK_DIR}/playwright-report npx playwright test ${pwArgs.map(shq).join(' ')}
 code=$?
