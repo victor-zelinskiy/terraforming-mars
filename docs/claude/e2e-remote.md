@@ -140,6 +140,11 @@ headless) can go through the GPU; the headless shell cannot open `chrome://gpu` 
 - **The box SLEEPS after 1 h idle until the owner sets «Never»**, and its NIC has Wake-on-LAN disabled
   (`/sys/class/net/enp5s0/device/power/wakeup` = `disabled`), so a magic packet cannot wake it: an
   `ssh: connect … timed out` in the preflight is «ask the owner», not something the wrapper can fix.
+- **`package.json` / `package-lock.json` are re-sent on every run and the lock's hash ignores the root
+  `version`**: the pre-commit `bump-version` hook rewrites the version on every commit of every session,
+  so hashed raw the lock «changed» several times an hour — and each change would have been a 2-minute
+  `npm ci` for nothing. The hash is over the lock with the root `version` (top level and `packages[""]`)
+  dropped; the 0.4 MB re-send is noise.
 - The mirror keeps ONE copy of the build: two sessions' runs are serialized by the lock and each syncs
   its own build in before running — the delta is small (chunk names are stable), but a session that
   wants to run while another is mid-run WAITS; that is by design (one box, honest numbers).

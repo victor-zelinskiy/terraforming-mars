@@ -50,6 +50,7 @@
  * or a timing claim, as `tests.md` says).
  */
 import {spawnSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -293,9 +294,19 @@ const head = (() => {
   const r = spawnSync('git', ['rev-parse', '--short', 'HEAD'], {cwd: ROOT, encoding: 'utf8'});
   return r.status === 0 ? r.stdout.trim() : '';
 })();
+/**
+ * The DEPENDENCY hash of package-lock.json: the root `version` (top level and `packages[""]`) is
+ * dropped first, because the pre-commit `bump-version` hook rewrites it on EVERY commit of EVERY
+ * session — hashed raw, the lock «changed» several times an hour and each change was a 2-minute
+ * `npm ci` on the Steam Machine for nothing.
+ */
 const lockShaLocal = (() => {
-  const r = spawnSync(process.execPath, ['-e', 'process.stdout.write(require("crypto").createHash("sha256").update(require("fs").readFileSync(process.argv[1])).digest("hex").slice(0,16))', path.join(ROOT, 'package-lock.json')], {encoding: 'utf8'});
-  return r.stdout.trim();
+  const lock = JSON.parse(fs.readFileSync(path.join(ROOT, 'package-lock.json'), 'utf8'));
+  delete lock.version;
+  if (lock.packages && lock.packages['']) {
+    delete lock.packages[''].version;
+  }
+  return createHash('sha256').update(JSON.stringify(lock)).digest('hex').slice(0, 16);
 })();
 const LOCAL_ONLY = new Set(['TM_E2E_ROOT', 'TM_E2E_SHARED_SERVER', 'TM_E2E_PORT_BASE', 'TM_E2E_STALL_LOG', 'TM_E2E_REMOTE_HOST', 'TM_E2E_BASE_URL']);
 const env = {TM_E2E_GPU: '1'};
