@@ -80,6 +80,8 @@ export type TransferEnd = {
   /**
    * The anchor under the chip's centre: `wild` (a card's printed «?» — TR54) · `vp-badge` (a card's printed VP badge — TR55) · `ma-vp` (a ceremony's «+5») ·
    * `printed:<sprite>` (a printed icon on the play scene's landed card — the play's «+N» is born there, TR56) ·
+   * `tag:<tag>` (a printed tag of the landed card — the table's answer it woke is born there, T06) · `seat:<color>` (another
+   * seat's chip in the strip — a rival's payout lands there, T06) ·
    * `seal:<party>` (a party's seal in the chamber — a card's rating answer to a change of power is born there, TR63) ·
    * `law-face` (the law's face on a resolution action's stage — the law's own price lands there, PL-725) ·
    * `law` (the sitting's carrier card on its hero slot — a law's reward wave is born there, RX41) ·
@@ -155,6 +157,9 @@ export async function armTransferWitness(page: Page): Promise<void> {
       ['lawseal', '.con-task-host [data-task-law-seal]'],
       // A PRINTED icon on the landed card of the play's scene — the play's «+N» is born on the icon of its resource in
       // the on-play row (PL-190; TR56 — the chosen branch's own icon of a row of alternatives). `printed:<sprite>`.
+      // A printed TAG of the landed card — the table's answer it woke is born there (T06 GMO Contract: «+2 M€» off the
+      // plant tag of Lichen). `tag:<tag>`. More specific than the card's icons below.
+      ['tag', '.con-recv [data-recv-front] .pcard-tag[data-tag], .con-played [data-played-key] .pcard-tag[data-tag]'],
       ['printed', '.con-recv [data-recv-front] .pcard-ic'],
       // A party's SEAL in the chamber — a card's rating answer to a change of power is born on the seal of the party that
       // came to power (TR63). `seal:<party>`.
@@ -181,6 +186,8 @@ export async function armTransferWitness(page: Page): Promise<void> {
       ['rail', '.con-res__row, .con-score__cell'],
       ['aux', '.con-res-aux__cell'],
       // A board CELL — the least specific anchor: a price drawn into the cell its tile grows out of (PL-306).
+      // ANOTHER SEAT's chip in the status strip — a rival's payout lands there (T06). `seat:<color>`.
+      ['seat', '.con-status__player[data-color]'],
       ['cell', '.board-space[data_space_id]'],
     ];
     const anchorName = (kind: string, el: Element): string => {
@@ -200,6 +207,8 @@ export async function armTransferWitness(page: Page): Promise<void> {
       }
       case 'aux': return `aux:${name(el, 'data-aux-resource')}`;
       case 'cell': return `cell:${name(el, 'data_space_id')}`;
+      case 'tag': return `tag:${name(el, 'data-tag')}`;
+      case 'seat': return `seat:${name(el.closest('[data-color]'), 'data-color')}`;
       case 'seal': return `seal:${name(el.closest('[data-party]'), 'data-party')}`;
       case 'struck': {
         const cls = Array.from(el.classList).find((c) => c.includes('--') && !c.startsWith('action-effect-chip')) ?? 'icon';

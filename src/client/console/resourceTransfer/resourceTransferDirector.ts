@@ -18,8 +18,9 @@
 import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {
-  TransferLaunch, TransferPoint, transferArcPlan, transferArcPoint, transferCeilingFor, transferChipScaleAt, transferLiftBias,
-  TRANSFER_POP_MS, TRANSFER_ARC_MS, TRANSFER_SETTLE_MS, TRANSFER_BEAT_MS, TRANSFER_QUICK_ABSORB_MS,
+  TransferArcPlan, TransferLaunch, TransferPoint, transferArcPlan, transferArcPoint, transferCeilingFor, transferChipScaleAt, transferEndMoved,
+  transferLiftBias, transferRetargetWeight,
+  TRANSFER_POP_MS, TRANSFER_ARC_MS, TRANSFER_SETTLE_MS, TRANSFER_BEAT_MS, TRANSFER_QUICK_ABSORB_MS, TRANSFER_RETARGET_AT,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 
 export type TransferStagePiece = {
@@ -48,6 +49,31 @@ export type TransferFlightOpts = {
    * absorb beat (`TRANSFER_QUICK_ABSORB_MS`) — so the result is born out of it at once.
    */
   absorb?: 'quick';
+  /**
+   * THE SOURCE, RE-MEASURED AT THE BIRTH (T06 — «оба конца живые»): asked in the very tick the chip turns visible.
+   * A point — the chip is born THERE (the object moved since the plan: the arc is planned again from it); undefined —
+   * the object is no longer painted (a folded composer, a card that left): the chip is NEVER born, the flight is
+   * reported `unpainted` and resolves at once (the caller's counter ticks — the honest degradation).
+   */
+  liveFrom?: () => TransferPoint | undefined;
+  /**
+   * THE DESTINATION, RE-MEASURED ON THE FINAL APPROACH (past `TRANSFER_RETARGET_AT` — the difference is ramped in, no
+   * jerk) and AT THE TOUCHDOWN (the settle glides onto it). Undefined — the object is gone: `standIn` is asked for the
+   * same object's double (a rail row, the satellite cell, a seat chip); with none the chip is ABSORBED WHERE IT IS.
+   */
+  liveTo?: () => TransferPoint | undefined;
+  standIn?: () => TransferPoint | undefined;
+};
+
+/** What happened to a flight's two ends — filled as the flight goes (the run's trail and its degradations read it). */
+export type TransferFlightReport = {
+  /** `painted` — born on its live source; `unpainted` — the source was gone at the birth: never born. */
+  born?: 'painted' | 'unpainted';
+  /** `live` — landed where planned; `moved` — the object moved, the approach followed it; `stand-in` — re-homed; `lost` — absorbed in place. */
+  end?: 'live' | 'moved' | 'stand-in' | 'lost';
+  /** Where the chip was born / came to rest (the sentinel asks what was painted there). */
+  bornAt?: TransferPoint;
+  restAt?: TransferPoint;
 };
 
 export type TransferFlightHandles = {
@@ -57,6 +83,8 @@ export type TransferFlightHandles = {
   touched: Promise<void>;
   /** Resolves when the piece is fully done ('landed' = resting, hold mode). */
   finished: Promise<'landed' | 'done'>;
+  /** The flight's ends as they happened (complete once `touched` resolves). */
+  report: TransferFlightReport;
 };
 
 /** The chip's first PAINTED pose: at its source, the first frame of its pop (the pop then rises from here). */
@@ -81,10 +109,16 @@ const pendingStarts = new WeakMap<HTMLElement, {cancel: () => void}>();
  * them) and runs from there. Whatever the frames cost afterwards, the first thing the player sees is the source.
  * The cost is one frame.
  */
-function bornThenFlown(chip: HTMLElement, delayMs: number, fly: () => void): void {
+function bornThenFlown(chip: HTMLElement, delayMs: number, fly: () => void, place?: () => boolean): void {
   pendingStarts.get(chip)?.cancel();
   let listener: (() => void) | undefined;
   const birth = gsap.delayedCall(delayMs / 1000, () => {
+    // THE BIRTH FRAME (T06): the source is measured HERE, in the tick the chip turns visible — a source that is no
+    // longer painted gets no chip at all (`place` answers false and owns the outcome), never a token out of its old pose.
+    if (place !== undefined && !place()) {
+      cancel();
+      return;
+    }
     gsap.set(chip, {autoAlpha: TRANSFER_BIRTH_ALPHA});
     const bornFrame = gsap.ticker.frame;
     // A listener added while this tick dispatches is called in this very tick — hence the frame count.
@@ -144,8 +178,12 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
   // leave the viewport and come back down onto its row). The line it may not cross is the lower edge of the top
   // HUD rail — the flight layer paints UNDER the cockpit rails, so a chip above that edge is a chip cut in half —
   // and, for a row that itself stands above that line, the top of the screen.
-  const ceiling = transferCeilingFor(opts.from, opts.to, h, opts.uiScale, topRailBottom());
-  const plan = transferArcPlan(opts.from, opts.to, transferLiftBias(opts.index), ceiling, opts.launch);
+  const planFrom = (from: TransferPoint): TransferArcPlan =>
+    transferArcPlan(from, opts.to, transferLiftBias(opts.index), transferCeilingFor(from, opts.to, h, opts.uiScale, topRailBottom()), opts.launch);
+  let plan = planFrom(opts.from);
+  const report: TransferFlightReport = {};
+  // Where the chip comes to rest — the planned landing, the followed one, a stand-in, or the air where its end vanished.
+  let restingAt: TransferPoint = opts.to;
   const startTilt = (opts.index % 2 === 0 ? -1 : 1) * 7;
   const settlePx = Math.max(2, Math.round(2.5 * opts.uiScale));
   const pace = opts.pace ?? 1;
@@ -167,48 +205,132 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
   const launchedAt = new Promise<void>((resolve) => {
     launchedResolve = resolve;
   });
+  let unborn = false;
   const touched = guarded((done) => bornThenFlown(chip, opts.delayMs, () => {
     // (The wave's stagger was the birth's — the flight starts the moment it is called.)
-    const tl = gsap.timeline({onComplete: done});
+    const tl = gsap.timeline({onComplete: () => touchdown(done)});
     // Materialize at the source — the chip is BORN there, never teleported in (its first frame is already painted).
     tl.to(chip, {autoAlpha: 1, duration: popMs / 1000, ease: 'power1.out'}, 0);
     // …and LEAVES it once whole: the launch is the end of the pop.
     tl.call(() => launchedResolve(), undefined, popMs / 1000);
     // ONE progress tween drives the whole flight through the model's arc —
     // position, the bloom-then-approach scale and the unwinding tilt behave
-    // as one physical object on one curve.
+    // as one physical object on one curve. Past `TRANSFER_RETARGET_AT` the destination is read LIVE once and the
+    // difference ramps in over the rest of the curve (T06 — an end that moved is followed; one that vanished is
+    // re-homed, or the chip is absorbed where it is).
     const prog = {q: 0};
+    const corr = {x: 0, y: 0, readAt: -1};
     tl.to(prog, {
       q: 1,
       duration: (popMs + arcMs) / 1000,
       ease: 'power1.inOut',
       onUpdate: () => {
+        if (corr.readAt < 0 && prog.q >= TRANSFER_RETARGET_AT && opts.liveTo !== undefined) {
+          corr.readAt = prog.q;
+          const live = finalApproach();
+          if (live === undefined) {
+            // The end is gone and nothing stands in for it: the chip is absorbed in the air where it is.
+            restingAt = transferArcPoint(plan, prog.q);
+            report.restAt = restingAt;
+            tl.kill();
+            done();
+            return;
+          }
+          corr.x = live.x - plan.p1.x;
+          corr.y = live.y - plan.p1.y;
+        }
         const p = transferArcPoint(plan, prog.q);
+        const cw = transferRetargetWeight(prog.q, corr.readAt);
         gsap.set(chip, {
-          x: p.x - w / 2,
-          y: p.y - h / 2,
+          x: p.x + corr.x * cw - w / 2,
+          y: p.y + corr.y * cw - h / 2,
           scale: transferChipScaleAt(prog.q),
           rotation: startTilt * (1 - prog.q), // fully square at the landing
         });
       },
+      onComplete: () => {
+        restingAt = {x: plan.p1.x + corr.x, y: plan.p1.y + corr.y};
+      },
     }, 0);
-    // Touchdown: microscopic damped weight — felt, not seen. (A QUICK absorb has no settle: the token is drawn in.)
-    if (settleMs > 0) {
+  }, () => {
+    // THE BIRTH FRAME: the source as painted NOW — moved since the plan → the arc starts from where it IS; gone → no chip.
+    if (opts.liveFrom === undefined) {
+      report.born = 'painted';
+      report.bornAt = opts.from;
+      return true;
+    }
+    const at = opts.liveFrom();
+    if (at === undefined) {
+      report.born = 'unpainted';
+      unborn = true;
+      done();
+      return false;
+    }
+    if (transferEndMoved(opts.from, at)) {
+      plan = planFrom(at);
+      gsap.set(chip, {x: at.x - w / 2, y: at.y - h / 2});
+    }
+    report.born = 'painted';
+    report.bornAt = at;
+    return true;
+  }), opts.delayMs + popMs + arcMs + settleMs + 200);
+
+  /** The final approach's read: the live end, else its stand-in, else undefined (lost). Fills the report. */
+  function finalApproach(): TransferPoint | undefined {
+    const live = opts.liveTo?.();
+    if (live !== undefined) {
+      report.end = transferEndMoved(plan.p1, live) ? 'moved' : 'live';
+      return live;
+    }
+    const standIn = opts.standIn?.();
+    report.end = standIn === undefined ? 'lost' : 'stand-in';
+    return standIn;
+  }
+
+  /**
+   * THE TOUCHDOWN: the destination is read once more — an object that moved again since the final approach is met by
+   * the settle (a short glide onto it, never a jump); then the microscopic damped weight — felt, not seen. A QUICK
+   * absorb has no settle (the token is drawn in) and glides only when its end moved.
+   */
+  function touchdown(done: () => void): void {
+    if (report.end === undefined) {
+      report.end = 'live';
+    }
+    const live = report.end === 'stand-in' || opts.liveTo === undefined ? undefined : opts.liveTo();
+    const glide = live !== undefined && transferEndMoved(restingAt, live);
+    if (glide) {
+      restingAt = live;
+      if (report.end === 'live') {
+        report.end = 'moved';
+      }
+    }
+    report.restAt = restingAt;
+    if (settleMs <= 0 && !glide) {
+      done();
+      return;
+    }
+    const tl = gsap.timeline({onComplete: done});
+    if (glide) {
+      tl.to(chip, {x: restingAt.x - w / 2, y: restingAt.y - h / 2, duration: Math.max(0.08, settleMs / 1000), ease: 'power2.out'});
+    } else {
       tl.to(chip, {y: `+=${settlePx}`, duration: 0.08, ease: 'power1.out'});
       tl.to(chip, {y: `-=${settlePx}`, duration: (settleMs / 1000) - 0.08, ease: 'power2.out'});
     }
-  }), opts.delayMs + popMs + arcMs + settleMs);
+  }
 
   const finished: Promise<'landed' | 'done'> = touched.then(() => {
+    if (unborn) {
+      return 'done' as const;
+    }
     if (opts.hold) {
       return 'landed' as const;
     }
-    return absorbChip(piece, opts.to, absorbMs).then(() => 'done' as const);
+    return absorbChip(piece, restingAt, absorbMs).then(() => 'done' as const);
   });
   // A launch that never fired (a killed timeline, the guard's budget) resolves with the touchdown: never a hang.
   const launched = Promise.race([launchedAt, touched]);
 
-  return {launched, touched, finished};
+  return {launched, touched, finished, report};
 }
 
 /**
@@ -235,6 +357,9 @@ export type DetachedFlightOpts = TransferFlightOpts & {
 
 export function runDetachedTransferFlight(piece: TransferStagePiece, opts: DetachedFlightOpts): TransferFlightHandles {
   const chip = piece.chip;
+  const report: TransferFlightReport = {};
+  let unborn = false;
+  let from = opts.from;
   const w = chip.offsetWidth || 48;
   const h = chip.offsetHeight || 48;
   const startTilt = (opts.index % 2 === 0 ? -1 : 1) * 7;
@@ -268,15 +393,19 @@ export function runDetachedTransferFlight(piece: TransferStagePiece, opts: Detac
       void opts.awaitTo().then((to) => {
         if (to === undefined) {
           // Nowhere visible to go: absorbed where it stands — the counter ticks with its chip.
+          report.end = 'lost';
+          report.restAt = restingAt;
           done();
           return;
         }
         opts.onArc?.();
-        const ceiling = transferCeilingFor(opts.from, to, h, opts.uiScale, topRailBottom());
-        const plan = transferArcPlan(opts.from, to, transferLiftBias(opts.index), ceiling, opts.launch);
+        report.end = 'live';
+        const ceiling = transferCeilingFor(from, to, h, opts.uiScale, topRailBottom());
+        const plan = transferArcPlan(from, to, transferLiftBias(opts.index), ceiling, opts.launch);
         const prog = {q: 0};
         const arc = gsap.timeline({onComplete: () => {
           restingAt = to;
+          report.restAt = to;
           done();
         }});
         arc.to(prog, {
@@ -298,11 +427,31 @@ export function runDetachedTransferFlight(piece: TransferStagePiece, opts: Detac
       });
     }});
     pop.to(chip, {autoAlpha: 1, scale: holdScale, rotation: 0, duration: popMs / 1000, ease: 'power1.out'}, 0);
+  }, () => {
+    // THE BIRTH FRAME (T06): the same live source as an ordinary flight — gone → no chip, moved → born where it is.
+    if (opts.liveFrom === undefined) {
+      report.born = 'painted';
+      report.bornAt = from;
+      return true;
+    }
+    const at = opts.liveFrom();
+    if (at === undefined) {
+      report.born = 'unpainted';
+      unborn = true;
+      done();
+      return false;
+    }
+    from = at;
+    restingAt = at;
+    gsap.set(chip, {x: at.x - w / 2, y: at.y - h / 2});
+    report.born = 'painted';
+    report.bornAt = at;
+    return true;
   }), opts.delayMs + popMs + opts.waitBudgetMs + arcMs + settleMs);
 
-  const finished: Promise<'landed' | 'done'> = touched.then(() => absorbChip(piece, restingAt, motionMs(TRANSFER_BEAT_MS) * pace)).then(() => 'done' as const);
+  const finished: Promise<'landed' | 'done'> = touched.then(() => (unborn ? undefined : absorbChip(piece, restingAt, motionMs(TRANSFER_BEAT_MS) * pace))).then(() => 'done' as const);
   const launched = Promise.race([launchedAt, touched]);
-  return {launched, touched, finished};
+  return {launched, touched, finished, report};
 }
 
 /**

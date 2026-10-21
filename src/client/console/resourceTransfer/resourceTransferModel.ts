@@ -76,6 +76,62 @@ export function transferSignedAmount(spec: ResourceTransferSpec): number {
 export type TransferPoint = {x: number, y: number};
 export type TransferRect = {x: number, y: number, w: number, h: number};
 
+/**
+ * A FLIGHT END IS AN OBJECT (T06 «ОБА КОНЦА ПОЛЁТА — ЖИВЫЕ», the owner's direction 2026-10-21): the element a token is
+ * born on or lands on, and the place inside its box — fractions of its width and height (a printed icon's centre is
+ * ½ · ½; a card's spawn band ½ · 0.72). It is RE-MEASURED in the frame the end matters — the birth, the final
+ * approach, the touchdown — never a point cached at the press: a point has no verdict (the object may have folded,
+ * moved or unmounted since), an object has one (`transferEndVerdict`). An end whose object is gone is no end: the
+ * token re-homes to a stand-in of the SAME object or is absorbed in place with its tick — never flown into the old pose.
+ */
+export type TransferEnd = {el: Element, fx: number, fy: number};
+/** A bare point is still accepted (a board cell's icon, an explicit stage point) — but only an OBJECT is re-measured. */
+export type TransferEndLike = TransferPoint | TransferEnd;
+
+export function isTransferEnd(end: TransferEndLike | undefined): end is TransferEnd {
+  return end !== undefined && (end as TransferEnd).el !== undefined;
+}
+
+/**
+ * The end of `el` at a point measured in its box NOW (the fractions are kept, the box is re-read later) — or at the
+ * given fractions (default its centre). A point outside the box is clamped onto its edge: an end is ON its object.
+ */
+export function transferEndOf(el: Element, rect: TransferRect, point?: TransferPoint): TransferEnd {
+  if (point === undefined || rect.w <= 0 || rect.h <= 0) {
+    return {el, fx: 0.5, fy: 0.5};
+  }
+  return {el, fx: clamp(0, 1, (point.x - rect.x) / rect.w), fy: clamp(0, 1, (point.y - rect.y) / rect.h)};
+}
+
+/** The point of an end inside its object's CURRENT box. */
+export function transferEndPoint(rect: TransferRect, end: Pick<TransferEnd, 'fx' | 'fy'>): TransferPoint {
+  return {x: rect.x + rect.w * end.fx, y: rect.y + rect.h * end.fy};
+}
+
+/**
+ * THE RETARGET OF THE FINAL APPROACH (the card flights' `final-approach` discipline, applied to tokens): past
+ * `TRANSFER_RETARGET_AT` of the arc the destination is re-measured once; the difference to the planned landing is
+ * RAMPED IN over the rest of the flight (zero at the read, whole at the touchdown) — the token follows an object that
+ * moved under it (a rail shifted by a leaving workspace, a seat chip carried along its ribbon) without a jerk.
+ */
+export const TRANSFER_RETARGET_AT = 0.8;
+/** A move below this is measuring noise, not a moved object (px). */
+export const TRANSFER_RETARGET_EPS = 2;
+
+/** The share of the correction applied at arc progress `q`, given the progress it was read at (0 before it; 1 at the touchdown). */
+export function transferRetargetWeight(q: number, readAt: number): number {
+  if (readAt < 0 || readAt >= 1 || q <= readAt) {
+    return 0;
+  }
+  const k = clamp(0, 1, (q - readAt) / (1 - readAt));
+  return k * k * (3 - 2 * k);
+}
+
+/** Is the destination's move worth a correction (more than measuring noise)? */
+export function transferEndMoved(planned: TransferPoint, live: TransferPoint): boolean {
+  return Math.hypot(live.x - planned.x, live.y - planned.y) > TRANSFER_RETARGET_EPS;
+}
+
 /** Timings (ms @ motion scale 1). One flight reads in ~0.6 s; a wave of
  *  several rewards stays ≈1 s via the capped stagger. */
 export const TRANSFER_POP_MS = 150;

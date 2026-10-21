@@ -40,16 +40,16 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {
-  ResourceTransferSpec, TransferPoint, TransferRect,
-  transferFlightBudgetMs, transferWaveDelayMs, sourceSpawnPoint, cardResourceKey,
+  ResourceTransferSpec, TransferEnd, TransferEndLike, TransferPoint, TransferRect,
+  transferFlightBudgetMs, transferWaveDelayMs, sourceSpawnPoint, cardResourceKey, isTransferEnd, transferEndOf, transferEndPoint,
   TRANSFER_BEAT_MS, TRANSFER_DETACH_WAIT_MS, clampTransferPace, RATING_RAIL_KEY, VP_RAIL_KEY, isVpTransfer, transferLaunchFor,
   transferSignedAmount,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
-  TransferStagePiece, runDetachedTransferFlight, runTransferFlight, settleTransferChip, killTransferPiece,
+  TransferFlightReport, TransferStagePiece, runDetachedTransferFlight, runTransferFlight, settleTransferChip, killTransferPiece,
 } from '@/client/console/resourceTransfer/resourceTransferDirector';
 import {probeTick} from '@/client/console/probeTick';
-import {firstVisibleEnd, TransferEndOptions, TransferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
+import {firstVisibleEnd, TransferEndOptions, TransferEndVerdict, transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
 
 export type TransferFlight = {
   id: number,
@@ -411,13 +411,15 @@ export type ResourceTransferRun = {
    *    card's slot / the events backstack), spawn points spread across the
    *    matched element's lower band.
    */
-  source: {point?: TransferPoint, selectors?: ReadonlyArray<string>};
+  source: {point?: TransferPoint, selectors?: ReadonlyArray<string>, end?: TransferEnd};
   /**
    * PER-SPEC origin override, aligned with `specs` by index (the tile
    * placement scene: each printed bonus icon on the field is its own
    * birth point). An undefined entry falls back to the shared `source`.
+   * An OBJECT end (`TransferEnd` — T06) is re-measured at the birth: a printed icon that is no longer painted (its
+   * surface folded, its card left) gets no token at all — never one out of the pose it had at the press.
    */
-  origins?: ReadonlyArray<TransferPoint | undefined>;
+  origins?: ReadonlyArray<TransferEndLike | undefined>;
   /**
    * `auto` — each chip is absorbed at its destination right after the
    * contact beat (the played-card reward wave);
@@ -479,14 +481,34 @@ export type ResourceTransferRun = {
    * home (a panel row, a host card, the satellite cell). Nothing is held or
    * ticked by such a landing; `onArrive` still fires at the touchdown.
    */
-  destination?: TransferPoint;
+  destination?: TransferEndLike;
   /**
    * A PER-SPEC destination, aligned with `specs` by index — for a run whose tokens land on DIFFERENT cards the
    * caller shows (TR44's action: the animal into the hero's capsule, the data onto the chosen card's miniature in
    * the composer row — one link, two touchdowns). `undefined` for a spec falls back to `destination`, then to the
    * spec's own home.
    */
-  destinationOf?: (spec: ResourceTransferSpec, index: number) => TransferPoint | undefined;
+  destinationOf?: (spec: ResourceTransferSpec, index: number) => TransferEndLike | undefined;
+  /**
+   * An explicit destination that is a visible DOUBLE of the spec's own home (a card's capsule in a composer row, the
+   * hero's capsule — the counter that ticks is the card's): when that object is gone at the final approach the token
+   * re-homes to the spec's own ladder (`targetPointFor` — the satellite cell of that resource, a rail row), never
+   * into the pose the object had. Never for a landing on ANOTHER seat (their chip is no double of the viewer's row).
+   */
+  homeStandIn?: boolean;
+  /**
+   * EVERY token of the run has LEFT its source (its pop is over — or it was never born): the surface the sources
+   * stand on may fold now. The law «a surface folds only after the token has left it», told by the tokens themselves
+   * instead of a clock beside them (a wave's later tokens are born a stagger after the first).
+   */
+  onLeft?: () => void;
+  /**
+   * EVERY token of the run has been ABSORBED at its destination (or was never flown) — the run resolves at the
+   * touchdowns, the absorb's contact beat runs on past them. A host whose SURFACE IS the destination (the play
+   * scene's card receiving its own resource) may not dissolve before this: a token absorbing over a card that has
+   * left is a token hanging over the board where the card was (the T06 stand: Pets' animal, 1094 px off any object).
+   */
+  onAbsorbed?: () => void;
   /**
    * THE RESULT OUTLIVES ITS SURFACE (PL-165 — the second half of the law of visible ends). A gain whose destination
    * EXISTS but is COVERED by the standing surface that produced it (the ДОП. РЕСУРСЫ satellite under the action
@@ -504,7 +526,7 @@ export type ResourceTransferRun = {
 };
 
 /** WHY a transfer's flight was lost: nothing to be born on, nowhere to land, no layer to fly in, or a wave that stalled past its budget. */
-export type TransferDegradeReason = 'no-source' | 'no-destination' | 'no-stage' | 'stalled';
+export type TransferDegradeReason = 'no-source' | 'no-destination' | 'no-stage' | 'stalled' | 'source-gone' | 'destination-gone';
 
 let flightSeq = 0;
 /** Landed hold-mode chips awaiting settle (id → its landing point). */
@@ -555,12 +577,29 @@ registerAnimationHoldSupplier('resource-transfer-in-surface', isInSurfaceResourc
 export async function runResourceTransfers(run: ResourceTransferRun): Promise<void> {
   const runId = ++runIdSeq;
   trail(runId, 'run:start', {arrival: run.arrival, specs: run.specs.length});
+  // The caller hears «every token has left its source» and «every token was absorbed» ONCE, whichever way the run ends.
+  let left = false;
+  const leftOnce = (): void => {
+    if (!left) {
+      left = true;
+      run.onLeft?.();
+    }
+  };
+  let absorbed = false;
+  const absorbedOnce = (): void => {
+    if (!absorbed) {
+      absorbed = true;
+      run.onAbsorbed?.();
+    }
+  };
   // `origins` aligns with `run.specs` by index — pair them BEFORE filtering.
   const specEntries = run.specs
     .map((spec, i) => ({spec, origin: run.origins?.[i]}))
     .filter((e) => e.spec.amount > 0);
   if (specEntries.length === 0) {
     trail(runId, 'run:earlyreturn', 'no-positive-specs');
+    leftOnce();
+    absorbedOnce();
     return;
   }
   const releaseAll = (list: ReadonlyArray<{spec: ResourceTransferSpec}>) => {
@@ -572,17 +611,21 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
   if (consoleReducedMotionActive() || typeof document === 'undefined') {
     releaseAll(specEntries);
     trail(runId, 'run:earlyreturn', 'reduced-or-nodom');
+    leftOnce();
+    absorbedOnce();
     return;
   }
   // What the ladders SKIPPED for this run (a covered satellite, a fading surface) — named in the trail and, in a
   // dev build, said out loud: a token that would have come from or gone to nothing is the class this law removes.
   const skipped: Array<SkippedEnd> = [];
-  const sourceRect = resolveSourceRect(run.source, skipped);
-  if (sourceRect === undefined && !specEntries.some((e) => e.origin !== undefined)) {
+  const sourceRef = resolveSourceEnd(run.source, skipped);
+  if (sourceRef === undefined && !specEntries.some((e) => e.origin !== undefined)) {
     releaseAll(specEntries);
     specEntries.forEach((e) => run.onDegrade?.(e.spec, 'no-source'));
     trail(runId, 'run:earlyreturn', {why: 'no-source-geometry', skipped: coveredEnds(skipped)});
     warnCoveredEnds(skipped, 'source');
+    leftOnce();
+    absorbedOnce();
     return;
   }
   // Resolve each spec's destination NOW (the wave flies into real, settled
@@ -591,15 +634,26 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
   // BORN and the run's source (the origin icon, else the source's box) is
   // where it lands — so `from` / `to` are fixed per spec, not per run.
   // A DETACHED flight (PL-165) has no `to` yet: its destination exists but is covered, and is measured when it opens.
-  const flights: Array<{spec: ResourceTransferSpec, from: TransferPoint, to: TransferPoint, detached?: boolean}> = [];
+  // Every end is kept as what it IS — an object re-measured in the frame it matters (T06), the spec's own HOME ladder
+  // (re-run: the first VISIBLE match then), or a bare point (an explicit stage point, a board icon) — so the director
+  // can ask again at the birth, on the final approach and at the touchdown.
+  const flights: Array<{spec: ResourceTransferSpec, from: TransferPoint, to: TransferPoint, fromRef: EndRef, toRef: EndRef, detached?: boolean}> = [];
   for (const [i, e] of specEntries.entries()) {
     const skippedHere: Array<SkippedEnd> = [];
-    const row = run.destinationOf?.(e.spec, i) ?? run.destination ?? targetPointFor(e.spec, skippedHere);
-    const sourcePoint = e.origin ?? run.source.point ??
-      (sourceRect === undefined ? undefined : sourceSpawnPoint(sourceRect, i, specEntries.length));
-    if (row === undefined && sourcePoint !== undefined && detachable(run, e.spec, skippedHere)) {
+    const explicit = run.destinationOf?.(e.spec, i) ?? run.destination;
+    let rowRef: EndRef = explicit === undefined ? 'home' : explicit;
+    let row = measureEndRef(rowRef, e.spec, 'destination', skippedHere);
+    if (row === undefined && explicit !== undefined && run.homeStandIn === true) {
+      // The double is not painted (its surface already left): the token lands on the spec's own home instead.
+      rowRef = 'home';
+      row = targetPointFor(e.spec, skippedHere);
+    }
+    const srcRef: EndRef | undefined = e.origin ?? run.source.end ?? run.source.point ??
+      (sourceRef === undefined ? undefined : spawnEndOf(sourceRef, i, specEntries.length));
+    const sourcePoint = srcRef === undefined ? undefined : measureEndRef(srcRef, e.spec, 'source', skipped);
+    if (row === undefined && sourcePoint !== undefined && srcRef !== undefined && detachable(run, e.spec, skippedHere)) {
       trail(runId, 'flight:detach', {channel: e.spec.channel, resource: e.spec.resource, targetCard: e.spec.targetCard ?? null, covered: coveredEnds(skippedHere)});
-      flights.push({spec: e.spec, from: sourcePoint, to: sourcePoint, detached: true});
+      flights.push({spec: e.spec, from: sourcePoint, to: sourcePoint, fromRef: srcRef, toRef: 'home', detached: true});
       continue;
     }
     if (row === undefined || sourcePoint === undefined) {
@@ -613,13 +667,15 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
       run.onArrive?.(e.spec);
       run.onDegrade?.(e.spec, sourcePoint === undefined ? 'no-source' : 'no-destination');
     } else if (e.spec.direction === 'loss') {
-      flights.push({spec: e.spec, from: row, to: sourcePoint});
+      flights.push({spec: e.spec, from: row, to: sourcePoint, fromRef: rowRef, toRef: srcRef ?? sourcePoint});
     } else {
-      flights.push({spec: e.spec, from: sourcePoint, to: row});
+      flights.push({spec: e.spec, from: sourcePoint, to: row, fromRef: srcRef ?? sourcePoint, toRef: rowRef});
     }
   }
   if (flights.length === 0) {
     trail(runId, 'run:earlyreturn', 'no-resolvable-destinations');
+    leftOnce();
+    absorbedOnce();
     return;
   }
 
@@ -640,6 +696,8 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     spec: f.spec,
     to: f.to,
     from: f.from,
+    fromRef: f.fromRef,
+    toRef: f.toRef,
     detached: f.detached === true,
     delayMs: Math.round(motionMs(transferWaveDelayMs(i, flights.length)) * pace),
     index: i,
@@ -669,6 +727,9 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
 
     // The caller resolves at the TOUCHDOWNS (never held on the absorb tail);
     // the finish chain removes each piece when its decoration fully ends.
+    // EVERY token's departure (its pop, or its refused birth) — the run's `onLeft` (the surface may fold).
+    const departures: Array<Promise<void>> = [];
+    const absorbs: Array<Promise<unknown>> = [];
     const touchdowns = entries.map((e) => {
       const piece = stage?.piece(e.id);
       if (piece === undefined) {
@@ -680,9 +741,13 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
         removeFlight(e.id);
         return Promise.resolve();
       }
+      const liveFrom = () => measureEndRef(e.fromRef, e.spec, 'source');
       if (e.detached) {
-        return flyDetached(runId, run, piece, e, uiScale, pace, () => safetyFired);
+        const detached = flyDetached(runId, run, piece, e, uiScale, pace, () => safetyFired, liveFrom);
+        departures.push(detached);
+        return detached;
       }
+      const toHome = e.toRef === 'home';
       const handles = runTransferFlight(piece, {
         from: e.from,
         to: e.to,
@@ -693,7 +758,16 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
         pace,
         launch: transferLaunchFor(e.spec, run.destination !== undefined || run.destinationOf !== undefined),
         ...(run.absorb === undefined ? {} : {absorb: run.absorb}),
+        // THE TWO ENDS ARE LIVE (T06): the source at the birth, the destination on the final approach and at the
+        // touchdown — a bare point answers itself (and the sentinel asks what is painted under it).
+        liveFrom,
+        liveTo: () => measureEndRef(e.toRef, e.spec, 'destination'),
+        // A double of the spec's own home that left → the home itself; the home's own ladder already IS the
+        // stand-in chain (the first visible rung), and a landing on another seat has no stand-in of the viewer's.
+        ...(!toHome && run.homeStandIn === true && e.spec.direction !== 'loss' ? {standIn: () => targetPointFor(e.spec)} : {}),
       });
+      departures.push(handles.launched);
+      absorbs.push(handles.finished);
       const loss = e.spec.direction === 'loss';
       // A LOSS is fixed at its DEPARTURE: the row's counter ticks the moment the chip leaves it.
       let released = false;
@@ -712,11 +786,12 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
         // released at its launch; released here only if the launch never fired).
         noteCardResourceLanding(e.spec);
         release();
+        reportEnds(runId, run, e, handles.report, safetyFired);
         // A hold-mode chip registers as RESTING synchronously with its
         // touchdown — the caller's commit/settle (which awaits the
         // touchdowns) can never race past an unregistered landed chip.
-        if (run.arrival === 'hold') {
-          heldChips.push({id: e.id, at: e.to});
+        if (run.arrival === 'hold' && handles.report.born !== 'unpainted') {
+          heldChips.push({id: e.id, at: handles.report.restAt ?? e.to});
           trail(runId, 'flight:held', e.id);
         }
       });
@@ -727,7 +802,11 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
       });
       return touched;
     });
+    if (run.onLeft !== undefined) {
+      void Promise.all(departures).then(leftOnce);
+    }
     await Promise.all(touchdowns);
+    void Promise.all(absorbs).then(absorbedOnce);
     window.clearTimeout(safety);
     markRun(false);
     trail(runId, 'run:end', {arrival: run.arrival});
@@ -743,6 +822,117 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
       removeFlight(entry.id);
     });
     markRun(false);
+    leftOnce();
+    absorbedOnce();
+  }
+}
+
+/** One end of a flight as it IS: an object (re-measured), the spec's own HOME ladder, or a bare point. */
+type EndRef = TransferEndLike | 'home';
+
+/**
+ * MEASURE AN END NOW (T06 — «оба конца живые»). An object end must pass the ONE verdict of a visible end
+ * (`transferEndVerdict`) — a source is measured as PAINTED (the chip is born where the object is now), a destination at
+ * REST (`restingRectOf` — never where a settling zone is passing); the HOME ladder re-runs (its first visible rung); a
+ * bare point answers itself. Undefined — the end is not painted: no birth, no landing there.
+ */
+function measureEndRef(ref: EndRef, spec: ResourceTransferSpec, role: 'source' | 'destination', skipped?: Array<SkippedEnd>, opts: TransferEndOptions = {}): TransferPoint | undefined {
+  if (ref === 'home') {
+    return targetPointFor(spec, skipped, opts);
+  }
+  if (!isTransferEnd(ref)) {
+    return ref;
+  }
+  const verdict = transferEndVerdict(ref.el, opts);
+  if (!verdict.visible) {
+    skipped?.push({selector: describeEl(ref.el), verdict});
+    return undefined;
+  }
+  const r = role === 'destination' ? restingRectOf(ref.el as HTMLElement) : ref.el.getBoundingClientRect();
+  if (r.width <= 0 || r.height <= 0) {
+    return undefined;
+  }
+  return transferEndPoint({x: r.left, y: r.top, w: r.width, h: r.height}, ref);
+}
+
+/** A short name of an element for the trail («div.pcard-ic» — its tag and first two classes). */
+function describeEl(el: Element): string {
+  return `${el.tagName.toLowerCase()}${Array.from(el.classList).slice(0, 2).map((c) => `.${c}`).join('')}`;
+}
+
+/** The run's shared source as an OBJECT end: the matched element's spawn band, kept as fractions of its box. */
+function spawnEndOf(source: TransferEnd | TransferPoint, i: number, n: number): TransferEndLike {
+  if (!isTransferEnd(source)) {
+    return source;
+  }
+  const at = sourceSpawnPoint({x: 0, y: 0, w: 1, h: 1}, i, n);
+  return {el: source.el, fx: at.x, fy: at.y};
+}
+
+/**
+ * THE RUNTIME SENTINEL (T06): a token's two ends were PAINTED in the frame they mattered — said out loud otherwise, in
+ * every build (the e2e harness turns `[transfer] end not painted` red on every spec). An OBJECT end cannot fail it by
+ * construction (it is measured through the verdict — gone means not flown); what it watches is a BARE POINT, whose
+ * object the framework cannot know: nothing painted under it (the console's root, the page) is a token born out of /
+ * landed into nothing. A degraded end is named in the trail beside it.
+ */
+function reportEnds(runId: number, run: ResourceTransferRun, e: {id: number, spec: ResourceTransferSpec, fromRef: EndRef, toRef: EndRef}, report: TransferFlightReport, safetyFired: boolean): void {
+  trail(runId, 'flight:ends', {id: e.id, born: report.born ?? null, end: report.end ?? null});
+  if (report.born === 'unpainted') {
+    if (!safetyFired) {
+      run.onDegrade?.(e.spec, 'source-gone');
+    }
+    return;
+  }
+  if (report.end === 'lost' && !safetyFired) {
+    run.onDegrade?.(e.spec, 'destination-gone');
+  }
+  const bare = (ref: EndRef) => ref !== 'home' && !isTransferEnd(ref);
+  if (bare(e.fromRef) && report.bornAt !== undefined) {
+    sentinel('birth', e.spec, report.bornAt);
+  }
+  if (bare(e.toRef) && report.restAt !== undefined && report.end !== 'lost') {
+    sentinel('touchdown', e.spec, report.restAt);
+  }
+}
+
+/**
+ * An end's point NOW, through the same verdict a flight uses (an object must be painted; a bare point answers itself) —
+ * for a caller that aims something else at the end (a token's formation leaning toward its destination).
+ */
+export function transferEndPointNow(end: TransferEndLike, role: 'source' | 'destination' = 'destination'): TransferPoint | undefined {
+  if (!isTransferEnd(end)) {
+    return end;
+  }
+  if (!transferEndVerdict(end.el).visible) {
+    return undefined;
+  }
+  const r = role === 'destination' ? restingRectOf(end.el as HTMLElement) : end.el.getBoundingClientRect();
+  return r.width > 0 && r.height > 0 ? transferEndPoint({x: r.left, y: r.top, w: r.width, h: r.height}, end) : undefined;
+}
+
+/** What is painted under a point — undefined when something real is (any element but the page and the console's bare root). */
+export function unpaintedUnder(point: TransferPoint): string | undefined {
+  if (typeof document === 'undefined' || typeof document.elementsFromPoint !== 'function') {
+    return undefined;
+  }
+  if (point.x < 0 || point.y < 0 || point.x > window.innerWidth || point.y > window.innerHeight) {
+    return 'off-screen';
+  }
+  const top = document.elementsFromPoint(point.x, point.y).find((el) => el.closest('.con-transfer') === null);
+  if (top === undefined) {
+    return 'nothing';
+  }
+  if (top === document.documentElement || top === document.body || top.classList.contains('con-root')) {
+    return describeEl(top);
+  }
+  return undefined;
+}
+
+function sentinel(end: 'birth' | 'touchdown', spec: ResourceTransferSpec, at: TransferPoint): void {
+  const why = unpaintedUnder(at);
+  if (why !== undefined) {
+    console.warn(`[transfer] end not painted — the ${end} of ${spec.channel}:${spec.resource}${spec.targetCard !== undefined ? `@${spec.targetCard}` : ''} at (${Math.round(at.x)}, ${Math.round(at.y)}) stands over ${why}`);
   }
 }
 
@@ -796,6 +986,7 @@ function flyDetached(
   uiScale: number,
   pace: number,
   safetyFired: () => boolean,
+  liveFrom?: () => TransferPoint | undefined,
 ): Promise<void> {
   const alive = () => resourceTransferState.flights.some((f) => f.id === e.id);
   let reached = false;
@@ -809,6 +1000,7 @@ function flyDetached(
     pace,
     launch: transferLaunchFor(e.spec, false),
     waitBudgetMs: motionMs(TRANSFER_DETACH_WAIT_MS),
+    ...(liveFrom !== undefined ? {liveFrom} : {}),
     awaitTo: () => awaitVisibleDestination(e.spec, motionMs(TRANSFER_DETACH_WAIT_MS), alive).then((to) => {
       reached = to !== undefined;
       trail(runId, reached ? 'flight:detach-opened' : 'flight:detach-expired', e.id);
@@ -826,10 +1018,13 @@ function flyDetached(
     noteCardResourceLanding(e.spec);
     if (!safetyFired()) {
       run.onArrive?.(e.spec);
-      if (!reached) {
+      if (handles.report.born === 'unpainted') {
+        run.onDegrade?.(e.spec, 'source-gone');
+      } else if (!reached) {
         run.onDegrade?.(e.spec, 'no-destination');
       }
     }
+    trail(runId, 'flight:ends', {id: e.id, born: handles.report.born ?? null, end: handles.report.end ?? null});
   });
   void handles.finished.then(() => removeFlight(e.id));
   return handles.launched.then(() => {
@@ -891,15 +1086,6 @@ function removeFlight(id: number): void {
  */
 type SkippedEnd = {selector: string, verdict: TransferEndVerdict};
 
-function measureRect(selector: string, skipped?: Array<SkippedEnd>): TransferRect | undefined {
-  const el = firstVisibleEnd(selector, skipped);
-  if (el === undefined) {
-    return undefined;
-  }
-  const r = el.getBoundingClientRect();
-  return r.width > 4 && r.height > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
-}
-
 /** LANDING measure: where the anchor will REST. A reward chip regularly aims
  *  at a zone that is still running its own entry (an embedded step's rise, a
  *  stage panel settling) — a raw rect lands the chip where the counter was
@@ -924,15 +1110,26 @@ function centerOf(rect: TransferRect): TransferPoint {
   return {x: rect.x + rect.w / 2, y: rect.y + rect.h / 2};
 }
 
-function resolveSourceRect(source: ResourceTransferRun['source'], skipped?: Array<SkippedEnd>): TransferRect | undefined {
+/**
+ * The run's shared source — an OBJECT end where it can be one (T06): an explicit end, else the first VISIBLE match of
+ * the selectors (the law of visible ends — a parked layer may hold the same card identity under glass), kept as the
+ * element so every token is born on it AS IT IS at its own birth; a bare point stays a point.
+ */
+function resolveSourceEnd(source: ResourceTransferRun['source'], skipped?: Array<SkippedEnd>): TransferEnd | TransferPoint | undefined {
+  if (source.end !== undefined) {
+    return source.end;
+  }
   if (source.point !== undefined) {
-    return {x: source.point.x, y: source.point.y, w: 0, h: 0};
+    return source.point;
   }
   for (const sel of source.selectors ?? []) {
-    // The first VISIBLE match (the law of visible ends) — a parked layer may hold the same card identity under glass.
-    const r = measureRect(sel, skipped);
-    if (r !== undefined) {
-      return r;
+    const el = firstVisibleEnd(sel, skipped);
+    if (el === undefined) {
+      continue;
+    }
+    const r = el.getBoundingClientRect();
+    if (r.width > 4 && r.height > 4) {
+      return transferEndOf(el, {x: r.left, y: r.top, w: r.width, h: r.height});
     }
   }
   return undefined;

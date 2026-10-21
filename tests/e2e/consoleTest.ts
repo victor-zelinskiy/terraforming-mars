@@ -236,6 +236,13 @@ const POST_COMMIT_CHOICE = 'POST-COMMIT CHOICE';
  * (the «Корпоративные архивы» blocker of 2026-10-18). The stranded check calls that served; this one does not.
  */
 const COVERED_PROMPT = 'COVERED PROMPT';
+/**
+ * The «flight end» sentinel's marker (`src/client/console/resourceTransfer/consoleResourceTransfer.ts` — T06 «ОБА КОНЦА
+ * ПОЛЁТА — ЖИВЫЕ»): a resource token was born on, or touched down over, a point where NOTHING was painted (the page, the
+ * console's bare root) — a token out of nothing / into nothing. An object end can never print it (it is measured through
+ * the visible-end verdict and not flown when gone); a bare point that drifted off its object does.
+ */
+const TRANSFER_END_NOT_PAINTED = '[transfer] end not painted';
 
 /**
  * THE STALL HARVEST — every product warning a test's pages print, kept (2026-10-14, the field «залипания»).
@@ -251,7 +258,30 @@ const STALL_MARKERS: ReadonlyArray<string> = [
   '[animation-hold]', '[console-leak-detector]', '[deferred-refresh]',
 ];
 
-export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, stallHarvest: void}, {workerServer: WorkerServer, workerBuild: string}>({
+export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, transferEndsGuard: void, stallHarvest: void}, {workerServer: WorkerServer, workerBuild: string}>({
+  /**
+   * EVERY TEST, EVERY PAGE OF ITS CONTEXT: both ends of every resource flight are painted (T06 — the owner's law «оба
+   * конца полёта живые»). The console reports a token born on / touched down over nothing; the harness turns it red,
+   * so every spec that flies a token is a witness of the law.
+   */
+  transferEndsGuard: [async ({context}, use) => {
+    const unpainted: Array<string> = [];
+    const watch = (page: Page) => {
+      page.on('console', (message) => {
+        const text = message.text();
+        if (text.includes(TRANSFER_END_NOT_PAINTED)) {
+          unpainted.push(text.slice(0, 300));
+        }
+      });
+    };
+    context.pages().forEach(watch);
+    context.on('page', watch);
+    await use();
+    if (unpainted.length > 0) {
+      throw new Error(`${TRANSFER_END_NOT_PAINTED} — a resource token was born on / landed over nothing (the law of live flight ends):\n  ${unpainted.join('\n  ')}`);
+    }
+  }, {auto: true}],
+
   stallHarvest: [async ({context}, use, testInfo) => {
     const t0 = Date.now();
     const seen: Array<{at: number, text: string}> = [];
