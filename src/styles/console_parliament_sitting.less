@@ -480,7 +480,17 @@
         background: rgba(255, 255, 255, 0.04);
         box-shadow: inset 0 0 0 .05rem rgba(201, 198, 214, 0.18);
     }
-    &__part--skipped { font-size: .8rem; }
+    /* A SKIP is a TWO-LINE plate — what was skipped, then WHY. The reason is the skip's whole statement (law 4: a skip
+       names itself), so it takes its own line under the label and WRAPS there; it is never ellipsized beside a label
+       that already took the plate's width (PL-796 — «Влиян…» in a 4K plate with room to spare). */
+    &__part--skipped {
+        font-size: .8rem;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .12rem;
+        max-width: 100%;
+        .con-sit__part-reason { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.15; max-width: 100%; opacity: .92; }
+    }
     &__part-unit { width: 1.9rem; height: 1.9rem; }
     &__part-cards--kinds .con-sit__part-unit { width: 1.4rem; height: 1.4rem; }
     &__net { font-size: 1.1rem; }

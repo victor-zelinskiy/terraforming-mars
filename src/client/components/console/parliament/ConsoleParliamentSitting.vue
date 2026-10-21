@@ -118,7 +118,7 @@
                        phrase the band printed, then the server's reason. -->
                   <span v-if="part.none !== undefined" class="con-parl__chip-dim" data-sit-part-none>{{ $t(part.none) }}</span>
                   <span v-else class="con-parl__chip-dim">{{ $t('Skipped') }} · {{ $t(part.skipped.title) }}</span>
-                  <span class="con-sit__part-reason">{{ $t(part.skipped.reason) }}</span>
+                  <span class="con-sit__part-reason" data-sit-part-reason>{{ $t(part.skipped.reason) }}</span>
                 </template>
                 <template v-else>
                   <img v-if="part.party !== undefined" class="con-sit__emblem" :src="emblemUrl(part.party)" alt="" />
