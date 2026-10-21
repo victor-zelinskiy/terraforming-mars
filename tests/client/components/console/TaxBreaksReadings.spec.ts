@@ -1,4 +1,6 @@
+import {mount} from '@vue/test-utils';
 import {expect} from 'chai';
+import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {CardResource} from '@/common/CardResource';
@@ -27,6 +29,7 @@ import {getResolution} from '@/client/parliament/ClientParliamentManifest';
  * the inspector names the kinds in words, another seat reads its own kinds, the results print the production, and
  * RX40's readings did not move.
  */
+const t = {global: {mocks: {$t: (key: string) => key}}};
 const TAX_ID = 'RDX_INDUSTRIALISTS_TAX_BREAKS';
 const SPONSORED_ID = 'RDX_SCIENTISTS_SPONSORED_PROJECTS';
 const BLUE = 'blue' as Color;
@@ -129,6 +132,20 @@ describe('Tax Breaks — the readings of a count by KIND', () => {
     const red = voteYieldsOf(law(TAX_ID), table, RED);
     expect(red.find((y) => y.context === 'estimate')).deep.include({count: 1, amount: 1});
     expect(kindsReadingOf(red)?.rows).deep.eq([{resource: CardResource.MICROBE, cards: [CardName.TARDIGRADES]}]);
+  });
+
+  it('THE SUM BEFORE THE CAP (PL-799): «3 + 3 = 6 → +5 MAX» — printed only where the cap actually cut', () => {
+    const capped = voteYieldsOf(law(TAX_ID), upForVote(TAX_ID, [seat(BLUE, 5, 3), seat(RED, 0, 0, [])]), BLUE);
+    const wrapper = mount(ConsoleInfluenceYield, {props: {yields: capped, formula: false, oneNumber: true, captions: false}, ...t});
+    const sum = wrapper.find('[data-yield-sum]');
+    expect(sum.exists(), 'the sum stands in the inputs').is.true;
+    expect(sum.attributes('data-yield-sum-value')).eq('6');
+    expect(wrapper.find('.con-iyield__in [data-yield-sum]').exists(), 'inside the inputs\' own cluster — the reading\'s grid keeps its three columns').is.true;
+    expect(wrapper.find('.con-iyield__out b').text()).eq('+5');
+    // 3 types + influence 2 = 5: AT the cap, nothing was cut — no sum beside it.
+    const exact = voteYieldsOf(law(TAX_ID), upForVote(TAX_ID, [seat(BLUE, 3, 2), seat(RED, 0, 0, [])]), BLUE);
+    const atCap = mount(ConsoleInfluenceYield, {props: {yields: exact, formula: false, oneNumber: true, captions: false}, ...t});
+    expect(atCap.find('[data-yield-sum]').exists(), 'a sum AT the cap prints nothing extra').is.false;
   });
 
   it('a seat holding nothing reads no kinds line — the count\'s own zero names it', () => {

@@ -299,6 +299,16 @@
         &--minus b { color: fade(@con-amber, 96%); }
     }
     &__eq { font-size: .9rem; font-weight: 700; color: fade(@con-text, 55%); margin-right: .04rem; }
+    /* THE SUM BEFORE THE CAP («= 6») closing the inputs: a step quieter than the inputs and well below the amount —
+       the number the player checks, never a second result (sized in em of the inputs' own digits). */
+    &__sum {
+        display: inline-flex; align-items: baseline; gap: .1rem; margin-left: .12rem; font-size: .9rem;
+        .con-iyield__eq { font-size: .8em; }
+    }
+    /* (0,3,1): above every size variant's `__in b` — the sum's digits take the sum's own size. */
+    & &__in &__sum b { font-size: inherit; font-weight: 700; color: fade(@con-text, 66%); }
+    &--compact &__sum { font-size: .76rem; }
+    &--hero &__sum { font-size: 1.3rem; }
     /* THE HORIZON under a production part beside a levy: a caption-sized note — next generation, never today. */
     &__horizon {
         grid-column: 1 / -1;

@@ -204,6 +204,12 @@
             <!-- The influence input stands only where influence is a TERM of the part («[colony] 4 → +4»: Jovian Tax
                  Rights's production prints no «+ [influence] 3» — the record carries the influence, the formula does not use it). -->
             <template v-if="y.influence !== undefined && influenceEnters(group.effect)"><i class="con-iyield__inf"></i><b data-yield-in="influence">{{ y.influence }}</b></template>
+            <!-- THE SUM BEFORE THE CAP («3 + 3 = 6 → +5 MAX»): where the cap bit, the inputs add up to more than is paid —
+                 the sum closes the inputs' own cluster, quiet, so the MAX beside the amount explains a number the player
+                 can check. Only where the cap actually cut (a sum AT the cap prints nothing extra). -->
+            <span v-if="capSumOn(group, y)" class="con-iyield__sum" data-yield-sum :data-yield-sum-value="y.uncapped">
+              <span class="con-iyield__eq" aria-hidden="true">=</span><b>{{ y.uncapped }}</b>
+            </span>
           </span>
           <span v-if="(y.total !== undefined || y.influence !== undefined || y.count !== undefined) && !isFlat(group.effect)" class="con-iyield__arrow" aria-hidden="true">→</span>
           <!-- A forfeited payout keeps its SIZE and says it did not land (✕ + struck amount); the caption names why.
@@ -252,7 +258,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {Resource} from '@/common/Resource';
-import {InfluenceScaledEffect, InfluenceYield, levelTakesAway as yieldTakesAway, yieldAtCap} from '@/common/parliament/influenceScaling';
+import {InfluenceScaledEffect, InfluenceYield, levelTakesAway as yieldTakesAway, yieldAtCap, yieldCapped} from '@/common/parliament/influenceScaling';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {
   LEVEL_IN_HAND_KEY, LEVEL_UP_TO_KEY, levelPresentation, levelYieldIsNone, METRIC_SETS_PLURAL_KEY, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY,
@@ -429,6 +435,14 @@ export default defineComponent({
     /** The reading stands at the effect's maximum — the MAX mark (reached or passed; the uncapped sum rides the data attribute). */
     atCap(y: InfluenceYield): boolean {
       return yieldAtCap(y);
+    },
+    /**
+     * The sum before the cap is printed: the cap CUT this reading (the inputs add up to more than is paid), its inputs
+     * stand as a cluster (a count or an influence term — never a level, a sequel or a flat part) and the payout lands.
+     */
+    capSumOn(group: Group, y: InfluenceYield): boolean {
+      return yieldCapped(y) && y.skipped === undefined && y.total === undefined && y.target === undefined && !this.isFlat(group.effect) &&
+        (y.count !== undefined || (y.influence !== undefined && this.influenceEnters(group.effect)));
     },
     capText(effect: InfluenceScaledEffect): string {
       return effect.cap === undefined ? '' : translateTextWithParams('max ${0}', [String(effect.cap)]);
