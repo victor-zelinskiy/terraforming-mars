@@ -327,7 +327,19 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 10_000});
       const capped = page.locator('[data-rxpg-yield] [data-yield-uncapped="6"][data-yield-amount="5"]');
       await expect(capped.first(), '«3 + 3 = 6 → 5 MAX» on the stand').toBeVisible();
+      // PL-803: «КАРТЫ В ИГРЕ» reads the seat's HOLDINGS — the four holders ticked (Fish and Birds two cards, one kind),
+      // Pets at 0 named and not counted, and the row's number IS the reading's 3 (it printed «0 · Карт в игре нет»).
+      const tableau = page.locator('[data-rxpg-tableau="blue"]');
+      await expect(tableau.locator('[data-rxpg-count]'), 'the row\'s number is the measure — 3 kinds').toHaveText('3');
+      await expect(tableau.locator('[data-rxpg-card][data-rxpg-counts="true"]'), 'four holders ticked').toHaveCount(4);
+      await expect(tableau.locator('[data-rxpg-card="Pets"]'), 'Pets at 0 is named, not counted').toHaveAttribute('data-rxpg-counts', 'false');
+      await expect(tableau.locator('[data-rxpg-card="Fish"] .con-rxpg__tcard-verdict'), 'a holder names its kind and its number').toContainText(/(Животное|Animal) 2/);
       await shoot(page, preset.id, '05-stand-cap');
+      await tableau.scrollIntoViewIfNeeded();
+      // The faces' art is `loading="lazy"`: scrolled into view, it loads now — the frame waits for every picture.
+      await expect.poll(async () => await tableau.locator('img').evaluateAll((imgs) => imgs.every((img) => (img as HTMLImageElement).complete)),
+        {timeout: 10_000}).toBe(true);
+      await shoot(page, preset.id, '05b-stand-holders');
     });
   });
 }

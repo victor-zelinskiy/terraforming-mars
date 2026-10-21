@@ -608,7 +608,7 @@ import {
 import {PartyReactionReading, partyReactionsOf} from '@/client/console/parliament/partyReactionModel';
 import {
   BoardCountMeasure, cardCountUnits, cardCountVerdict, CardCountContext, countCardsToward, countColoniesToward, CountedSpaceFacts, countHoldersToward,
-  countMetricToward, countProductionToward, countSpacesToward, ResolutionCountByResource, ResolutionCountId, ResolutionCountKind, ResolutionCountMetricModel,
+  holderCountVerdict, countMetricToward, countProductionToward, countSpacesToward, ResolutionCountByResource, ResolutionCountId, ResolutionCountKind, ResolutionCountMetricModel,
   ResolutionCountModel, resolutionCountKind, spaceCountVerdict,
 } from '@/common/parliament/resolutionCounts';
 import {cityTiersOf} from '@/common/boards/cityStack';
@@ -1946,7 +1946,8 @@ type SeatPayout = {
 };
 
 /** One card of a seat's synthetic tableau, with the shared predicate's verdict, what it contributed — and whether it can HOLD the payout (a distributed family's holder). */
-type TableauCardRow = {name: CardName, counts: boolean, reason: string, units: number, holds: boolean};
+/** `held` — a HOLDERS count's card: the kind it holds and how many (its verdict names them — «✓ Животное 2»). */
+type TableauCardRow = {name: CardName, counts: boolean, reason: string, units: number, holds: boolean, held?: {resource: CardResource, count: number}};
 
 /** THE KIND a holder takes — its own storage rule on the client manifest (a WARE holder its wildcard), the server's `holderResourceOf`. */
 function holderKindOf(name: CardName): CardResource | undefined {
@@ -2224,6 +2225,30 @@ export default defineComponent({
         return [];
       }
       const id = effect.count.id;
+      // A HOLDERS count reads the seat's HOLDINGS — real cards with a number on each — never `cards`, which a holders
+      // scenario does not declare: read that way «КАРТЫ В ИГРЕ» printed «0 · Карт в игре нет» under a reading of 3
+      // (PL-803, RX40 and RX41). Each card's verdict is the shared `holderCountVerdict`, the row's number the shared
+      // reader's measure (a card apiece, or a KIND apiece — two animal cards tick twice and count once).
+      if (this.countKind === 'holders') {
+        return SEATS.map((i) => {
+          const held = (this.seats[i].holdings ?? []).map((h) => ({name: h.card, resourceType: holderKindOf(h.card), resourceCount: h.count}));
+          const cards = held.map((card): TableauCardRow => {
+            const verdict = holderCountVerdict(card);
+            if (!verdict.counts) {
+              return {name: card.name, counts: false, reason: verdict.reason, units: 0, holds: false};
+            }
+            const kind = card.resourceType === undefined ? {} : {held: {resource: card.resourceType, count: card.resourceCount}};
+            return {name: card.name, counts: true, reason: '', units: 1, holds: false, ...kind};
+          });
+          return {
+            color: TEST_PLAYERS[i].color,
+            label: TEST_PLAYERS[i].label,
+            viewer: this.viewerSeatIndex === i,
+            count: countHoldersToward(id, held).count,
+            cards,
+          };
+        });
+      }
       return SEATS.map((i) => {
         const names = this.seats[i].cards ?? [];
         const ctx = this.countContextOf(names);
@@ -3159,6 +3184,9 @@ export default defineComponent({
     verdictOf(card: TableauCardRow): string {
       if (!card.counts) {
         return '✕ ' + translateText(card.reason);
+      }
+      if (card.held !== undefined) {
+        return '✓ ' + translateText(card.held.resource) + ' ' + card.held.count;
       }
       return card.units > 1 ?
         '✓ ' + translateTextWithParams('Counted ×${0}', [String(card.units)]) :
