@@ -13,6 +13,8 @@ import {BASE_CARD_MANIFEST} from '../../src/server/cards/StandardCardManifests';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {compatibleWith} from '../../src/server/parliament/Parliament';
 import {GameCards} from '../../src/server/GameCards';
+import {TURMOIL_CARD_MANIFEST} from '../../src/server/cards/turmoil/TurmoilCardManifest';
+import {TURMOIL_CARDS_HELD_BACK_UNDER_REDUX} from '../../src/common/cards/turmoilReduxAdaptation';
 
 /** The route's own composition: the config mapped by the launch's function, a toggle through it too. */
 function compositionOf(config: NewGameConfig): DeckCompositionModel {
@@ -50,10 +52,14 @@ describe('deckCompositionOf — the creator\'s decks, counted by the server', ()
     const c = compositionOf(creatorConfig(['corpera', 'prelude', 'venus', 'colonies', 'promo', 'turmoilRedux']));
     expect(c.projects.byModule.turmoilRedux).eq(Object.keys(TURMOIL_REDUX_CARD_MANIFEST.projectCards).length);
     expect(c.projects.byModule.turmoilRedux).eq(70);
-    expect(c.projects.byModule.turmoil, 'the classic cards adapted so far — Diaspora Movement').eq(1);
+    // The classic project cards adapted so far — counted from the hold-back list, never a literal (T04 Diaspora
+    // Movement, T06 GMO Contract, …): each adaptation deals one more.
+    const adaptedClassic = Object.keys(TURMOIL_CARD_MANIFEST.projectCards).filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name as CardName)).length;
+    expect(adaptedClassic).greaterThanOrEqual(2);
+    expect(c.projects.byModule.turmoil, 'the classic cards adapted so far').eq(adaptedClassic);
     expect(c.extras.resolutions).eq(REDUX_RESOLUTION_CATALOG.dealtInstances(compatibleWith(gameOptionsFromNewGameConfig(creatorConfig(['venus', 'colonies', 'turmoilRedux']), RandomBoardOption.ALL).expansions)).length);
     expect(c.extras.colonies?.inPlay, '2 seats: 2 + 2 + 1').eq(5);
-    expect(c.contributions.turmoilRedux).deep.include({projects: 71, classic: 1, resolutions: c.extras.resolutions});
+    expect(c.contributions.turmoilRedux).deep.include({projects: 70 + adaptedClassic, classic: adaptedClassic, resolutions: c.extras.resolutions});
   });
 
   it('the resolution deck follows Venus Next (its Venus-only laws) — the deal\'s own filter', () => {
