@@ -106,9 +106,14 @@ function poolKey(effect: ActionEffect): string {
   return `${effect.direction}|${effect.icon}|${isProductionChip(effect) ? 'production' : 'stock'}`;
 }
 
-/** Merge two same-pool chips: the amounts add, the chip stays bare. */
+/** Merge two same-pool chips: the amounts add, the chip stays bare — and a STRIKE on either side stays, its steps summed. */
 function mergeEffect(into: ActionEffect, add: ActionEffect): ActionEffect {
-  return {...into, amount: into.amount + add.amount};
+  const merged: ActionEffect = {...into, amount: into.amount + add.amount};
+  const veto = into.vetoed ?? add.vetoed;
+  if (veto !== undefined) {
+    merged.vetoed = {resolution: veto.resolution, steps: (into.vetoed?.steps ?? 0) + (add.vetoed?.steps ?? 0)};
+  }
+  return merged;
 }
 
 /** Which of a fact's chips the row shows for an ASKS fact — the first GAIN of
@@ -160,6 +165,11 @@ export function rowChip(effect: ActionEffect): ActionEffect {
   const bare: ActionEffect = {direction: effect.direction, icon: effect.icon, amount: effect.amount};
   if (effect.unit !== undefined) {
     bare.unit = effect.unit;
+  }
+  // A rating the law REFUSES (RX42 UNMI Veto) keeps its STRIKE in the row: stripped to a bare «+1 [TR]» the compact row
+  // read as a gain with a warning badge beside it (PL-814) — the one shape the owner's P0 forbids.
+  if (effect.vetoed !== undefined) {
+    bare.vetoed = effect.vetoed;
   }
   return bare;
 }

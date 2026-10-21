@@ -600,7 +600,8 @@ describe('UnmiVeto', () => {
       expect(own[0].certainty).eq('skipped');
       expect(own[0].reason).eq(UNMI_VETO_FORECAST_TITLE);
       expect(own[0].note).eq(UNMI_VETO_REASON);
-      expect(own[0].effects).deep.eq([{direction: 'gain', icon: 'tr', amount: 3}]);
+      // The fact's chip wears the STRIKE itself, so the compact «Сработает» row prints it struck (never «+3 [TR]» + a badge).
+      expect(own[0].effects).deep.eq([{direction: 'gain', icon: 'tr', amount: 3, vetoed: {resolution: UNMI_VETO_ID, steps: 3}}]);
       expect(facts.some((f) => f.source.kind === 'party'), 'no party reacts to a rating that never comes').is.false;
       expect(game.events.events.filter((e) => e.type === 'effect-triggered'), 'read-only').deep.eq([]);
     });

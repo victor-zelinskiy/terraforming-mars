@@ -160,7 +160,9 @@ export const UNMI_VETO: ResolutionDefinition = {
       if (steps <= 0) {
         return [];
       }
-      const chip: ActionEffect = {direction: 'gain', icon: 'tr', amount: steps};
+      // The chip wears the STRIKE the exit pass gave the branch's own rating chips — so the compact «Сработает» row and
+      // the R3 layer print it struck (the family's `--vetoed` face), never a bare «+N [TR]» with a warning badge beside it.
+      const chip: ActionEffect = {direction: 'gain', icon: 'tr', amount: steps, vetoed: {resolution: UNMI_VETO_ID, steps}};
       return [ctx.skipped(ctx.source('rating-vetoed'), [chip], UNMI_VETO_FORECAST_TITLE, {id: 'unmi-veto-rating', note: UNMI_VETO_REASON})];
     },
   },

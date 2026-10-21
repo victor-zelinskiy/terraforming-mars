@@ -145,6 +145,24 @@ describe('effectForecastModel', () => {
       expect(tail.chips.map((c) => c.kind)).to.deep.eq(['skipped', 'unknown']);
     });
 
+    it('a rating the law REFUSES keeps its STRIKE in the row (RX42 — PL-814): the bare chip carries `vetoed`, merged steps add', () => {
+      const vetoed = (steps: number): ActionEffect => ({...gain('tr', steps), vetoed: {resolution: 'RDX_REDS_UNMI_VETO', steps}});
+      const one = compactForecastChips(forecast([fact({certainty: 'skipped', effects: [vetoed(1)], reason: 'the highest rating'})]));
+      expect(one.chips.map((c) => c.kind)).to.deep.eq(['skipped']);
+      expect(one.chips[0].kind === 'skipped' && one.chips[0].effect, 'the strike survives the bare copy').to.deep.eq(
+        {direction: 'gain', icon: 'tr', amount: 1, vetoed: {resolution: 'RDX_REDS_UNMI_VETO', steps: 1}});
+      // Two struck facts of one pool merge by amount AND by the refused steps.
+      const two = compactForecastChips(forecast([
+        fact({certainty: 'skipped', effects: [vetoed(1)], reason: 'the highest rating'}),
+        fact({certainty: 'skipped', effects: [vetoed(2)], reason: 'the highest rating'}),
+      ]));
+      expect(two.chips[0].kind === 'skipped' && two.chips[0].effect).to.deep.eq(
+        {direction: 'gain', icon: 'tr', amount: 3, vetoed: {resolution: 'RDX_REDS_UNMI_VETO', steps: 3}});
+      // A plain chip stays bare — nothing is invented for it.
+      const plain = compactForecastChips(forecast([fact({effects: [gain('tr', 1)]})]));
+      expect(plain.chips[0].kind === 'own' && plain.chips[0].effect).to.deep.eq({direction: 'gain', icon: 'tr', amount: 1});
+    });
+
     it('merges the SAME pool inside one degree (two +2 M€ sources → one +4 M€) and never across degrees', () => {
       const f = forecast([
         fact({effects: [gain('megacredits', 2)]}),

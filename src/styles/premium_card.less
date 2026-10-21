@@ -1466,6 +1466,15 @@
   color: #2f2008;
   text-shadow: 0 1px 0 rgba(255, 244, 205, 0.4);
 }
+/* a RATING square's inner text (RX42's «>» — the scan prints it white over the emblem): the dark M€ ink vanished on the
+   dark globe at the square's centre, so it is light with a dark STROKE (console strips text-shadow; a stroke is paint). */
+.pcard-mi__inside--rating {
+  color: #fff3dc;
+  font-weight: 800;
+  -webkit-text-stroke: 0.09em rgba(38, 18, 4, 0.92);
+  paint-order: stroke fill;
+  text-shadow: none;
+}
 /* «any player» bezel — a crafted crimson-copper ring (dark seat + accent
    kant + a soft glow), NOT a flat alarm-red box. Reads as «counts for every
    player», premium and calm. Same hue as the accented rule words. */

@@ -48,7 +48,7 @@
     <template v-else-if="iconUrl !== undefined">
       <span v-if="digitText !== undefined" class="pcard-mi__digit">{{ digitText }}</span>
       <span v-for="i in repeats" :key="i" class="pcard-ic" :class="iconModClass" :style="iconStyle">
-        <span v-if="insideText !== undefined && i === 1" class="pcard-mi__inside">{{ insideText }}</span>
+        <span v-if="insideText !== undefined && i === 1" class="pcard-mi__inside" :class="{'pcard-mi__inside--rating': ratingInner}">{{ insideText }}</span>
       </span>
       <span v-if="bubbleUrl !== undefined" class="pcard-mi__bubble" :class="{'pcard-mi__bubble--tile': bubble?.shape === 'tile'}" :style="bubbleStyle"></span>
       <!-- «card WITH a requirement» (AltSecondaryTag.REQ — Xavier): the
@@ -319,6 +319,11 @@ export default defineComponent({
     isMegacredits(): boolean {
       return this.itemNode?.type === CardRenderItemType.MEGACREDITS;
     },
+    /** A RATING square with an authored inner text (RX42's «>») — printed inside, in the square's own light ink. */
+    ratingInner(): boolean {
+      const item = this.itemNode;
+      return item !== undefined && item.type === CardRenderItemType.TR && item.innerText !== undefined && item.innerText !== '';
+    },
     /** M€ (and explicit amountInside items) draw the value INSIDE the icon. */
     insideText(): string | undefined {
       const item = this.itemNode;
@@ -328,7 +333,10 @@ export default defineComponent({
       if (item.questionMark === true) {
         return '?';
       }
-      if (this.isMegacredits || item.amountInside === true) {
+      // A RATING with an authored inner text (RX42 UNMI Veto prints «[TR >] : [TR struck]» — the «>» the scan
+      // puts inside the first rating square): the DSL's `{text}` option on a TR item is the author saying «print this
+      // INSIDE the icon»; before this branch the premium face dropped it and printed two identical squares.
+      if (this.isMegacredits || item.amountInside === true || this.ratingInner) {
         // The DSL's `{text: 'x'}` item option lands on `innerText`, NOT `text`
         // (`text` is set only by `.plate()` / `.text()`, which never produce an
         // M€ item) — reading only `text` printed the placeholder amount `1` over
