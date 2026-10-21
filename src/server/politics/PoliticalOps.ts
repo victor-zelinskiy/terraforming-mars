@@ -20,8 +20,22 @@ import {CardName} from '../../common/cards/CardName';
 import {Turmoil} from '../turmoil/Turmoil';
 import {normalizeReduxParty, PARTY_EFFECT_DELEGATES} from '../../common/parliament/ParliamentTypes';
 import {isReduxPartyName, Parliament} from '../parliament/Parliament';
+import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
+import {SendDelegateToArea} from '../deferredActions/SendDelegateToArea';
 
 export type PoliticalDelegate = IPlayer | 'NEUTRAL';
+
+/** How a card's delegates land (`PoliticalOps.placeDelegates`). */
+export type PlaceDelegatesOptions = {
+  /**
+   * All of them on ONE party / resolution («place 2 delegates in 1 party» — Cultural
+   * Metropolis; the default of `behavior.turmoil.sendDelegates`); `false` asks for each
+   * delegate apart (`manyParties`).
+   */
+  oneParty: boolean;
+  /** The giver — the card the prompt names (Redux keeps it; classic Turmoil has nowhere to put it). */
+  source: CardName;
+};
 
 /**
  * WHERE A PLAYER STANDS AGAINST A PARTY REQUIREMENT — the two roads of the
@@ -96,6 +110,16 @@ export interface PoliticalOps {
    * module, so the facade stays honest instead of pretending parties are it.
    */
   delegatesOnResolutions(player: IPlayer): number;
+  /**
+   * PLACE `count` OF THE PLAYER'S DELEGATES — a card's political EFFECT (`behavior.turmoil.sendDelegates`:
+   * Martian Media Center's action, the prelude2 / Pathfinders envoys). DEFERS the asks, changes nothing
+   * itself. Redux: the vote step's body without its economy (`PlaceDelegatesOnResolution`, TR03) — the
+   * cubes leave the reserve for a resolution of the voting area, the giver named on the prompt, every
+   * way the grant cannot be taken a named journal line. Classic: upstream's `SendDelegateToArea`, byte
+   * for byte (the classic engine is upstream's). Availability is `delegatesInReserve` — the Executor
+   * reads it in `canExecute`, never the classic engine.
+   */
+  placeDelegates(player: IPlayer, count: number, options: PlaceDelegatesOptions): void;
 }
 
 export class ReduxPoliticalOps implements PoliticalOps {
@@ -179,6 +203,16 @@ export class ReduxPoliticalOps implements PoliticalOps {
   public delegatesOnResolutions(player: IPlayer): number {
     return this.parliament.votesOf(player);
   }
+  public placeDelegates(player: IPlayer, count: number, options: PlaceDelegatesOptions): void {
+    const cause = {kind: 'card' as const, card: options.source};
+    if (options.oneParty) {
+      this.game.defer(new PlaceDelegatesOnResolution(player, count, cause));
+      return;
+    }
+    for (let i = 0; i < count; i++) {
+      this.game.defer(new PlaceDelegatesOnResolution(player, 1, cause));
+    }
+  }
 }
 
 export class ClassicPoliticalOps implements PoliticalOps {
@@ -237,6 +271,16 @@ export class ClassicPoliticalOps implements PoliticalOps {
   public delegatesOnResolutions(_player: IPlayer): number {
     // Classic Turmoil has no voting area and no resolutions: nothing stands «on a resolution».
     return 0;
+  }
+  public placeDelegates(player: IPlayer, count: number, options: PlaceDelegatesOptions): void {
+    // Upstream's Executor branch, moved here unchanged (the source has nowhere to live in the classic engine).
+    if (!options.oneParty) {
+      for (let i = 0; i < count; i++) {
+        player.game.defer(new SendDelegateToArea(player, 'Select where to send delegate'));
+      }
+    } else {
+      player.game.defer(new SendDelegateToArea(player, `Select where to send ${count} delegates`, {count: count}));
+    }
   }
 }
 

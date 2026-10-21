@@ -18,8 +18,6 @@ import {PlaceSpecialMoonTile} from '../moon/PlaceSpecialMoonTile';
 import {CanAffordOptions, IPlayer} from '../IPlayer';
 import {Behavior} from './Behavior';
 import {Counter, ICounter} from './Counter';
-import {Turmoil} from '../turmoil/Turmoil';
-import {SendDelegateToArea} from '../deferredActions/SendDelegateToArea';
 import {BehaviorExecutor} from './BehaviorExecutor';
 import {PlaceTile} from '../deferredActions/PlaceTile';
 import {Resource} from '../../common/Resource';
@@ -271,10 +269,11 @@ export class Executor implements BehaviorExecutor {
     // }
 
     if (behavior.turmoil) {
-      const turmoil = Turmoil.getTurmoil(game);
       if (behavior.turmoil.sendDelegates) {
         const count = ctx.count(behavior.turmoil.sendDelegates.count);
-        if (turmoil.getAvailableDelegateCount(player) < count) {
+        // The facade's reserve — the Mars Parliament's on a Redux table, upstream's on a classic one.
+        const politics = game.politics;
+        if (politics === undefined || politics.delegatesInReserve(player) < count) {
           return false;
         }
       }
@@ -740,21 +739,19 @@ export class Executor implements BehaviorExecutor {
     }
 
     if (behavior.turmoil) {
-      const turmoil = Turmoil.getTurmoil(player.game);
+      // Politics through the ONE facade (`game.politics`): a classic card adapted to Turmoil Redux reads the
+      // Mars Parliament with the same declaration; a classic table keeps upstream's steps byte for byte.
+      const politics = player.game.politics;
+      if (politics === undefined) {
+        throw new Error(`${card.name}: a political effect in a game without a political engine`);
+      }
       if (behavior.turmoil.influenceBonus === 1) {
-        turmoil.addInfluenceBonus(player);
+        politics.addInfluenceBonus(player, 1, card.name);
       }
 
       if (behavior.turmoil.sendDelegates) {
         const sendDelegates = behavior.turmoil.sendDelegates;
-        const count = ctx.count(sendDelegates.count);
-        if (sendDelegates.manyParties) {
-          for (let i = 0; i < count; i++) {
-            player.game.defer(new SendDelegateToArea(player, 'Select where to send delegate'));
-          }
-        } else {
-          player.game.defer(new SendDelegateToArea(player, `Select where to send ${sendDelegates.count} delegates`, {count: count}));
-        }
+        politics.placeDelegates(player, ctx.count(sendDelegates.count), {oneParty: sendDelegates.manyParties !== true, source: card.name});
       }
     }
 
