@@ -2,7 +2,7 @@
 
 **Status:** Phase 0 — feasibility audit + implementation-grade plan (analysis only; no Electron runtime added yet).
 **Target runtime:** Electron **43.0.0** · **Windows-first** · macOS signing/notarization deferred to a separate future initiative.
-> **Runtime pin has since moved — this document is a Phase-0 historical record and its `43.0.0` references are NOT the shipped version.** The live pin is `package.json` `devDependencies.electron` (**44.3.0** as of 2026-09-11 — Chromium 152, Node 24.20.0, V8 15.2). Runtime-version upgrades do not amend the Phase-0 analysis below; see the *Runtime upgrades* log at the end of this file.
+> **Runtime pin has since moved — this document is a Phase-0 historical record and its `43.0.0` references are NOT the shipped version.** The live pin is `package.json` `devDependencies.electron` (**45.0.0** as of 2026-10-21 — Chromium 156, Node 24.22.0, V8 15.6). Runtime-version upgrades do not amend the Phase-0 analysis below; see the *Runtime upgrades* log at the end of this file.
 **Baseline:** builds on the completed WebSocket realtime layer — see `WEBSOCKET_MIGRATION_PLAN.md` (§L mutation matrix + flag ladder). This document is its desktop-shell companion.
 
 This plan is grounded in a read-only audit of the actual codebase (branch `main`, Node v22.22.3 / npm 10.9.8). Every load-bearing claim cites `file:line`. It is a plan, not an implementation — the first code lands only when Phase 1 is explicitly requested.
@@ -939,17 +939,71 @@ letting the web-server lane drift: `engines.node`, `devDependencies.@types/node`
 must move all of them in the same commit.**
 
 Aligned 2026-08-31 on **Node 24 «Krypton»** (Active LTS to 2028-04; Electron 44.0.0 bundles 24.18.1,
-44.1.0 bundles 24.19.0, 44.2.0+ bundle 24.20.0): `engines` `>=22.22.2 <23` → `>=24.18.1 <25` (raised to `>=24.19.0 <25` with the 44.1.0 bump, to `>=24.20.0 <25` with 44.3.0); `@types/node` `^25` → `^24` (both 25
+44.1.0 bundles 24.19.0, 44.2.0+ bundle 24.20.0): `engines` `>=22.22.2 <23` → `>=24.18.1 <25` (raised to `>=24.19.0 <25` with the 44.1.0 bump, to `>=24.20.0 <25` with 44.3.0, and deliberately LEFT there by 45.0.0 — same major, nothing needs a 24.22 API, and the local fnm toolchain is 24.20.0); `@types/node` `^25` → `^24` (both 25
 and 26 track **non-LTS** Node lines, and types ahead of the runtime turn a missing API into a production
 crash rather than a build error); 7 CI `node-version` pins and the `Dockerfile` base `22-alpine3.21` →
 `24-alpine3.21`. `.nvmrc` already read `v24`.
 
 | Date | Pin | Chromium | Node | V8 | Notes |
 | --- | --- | --- | --- | --- | --- |
+| 2026-10-21 | **45.0.0** | 156.0.8078.48 | 24.22.0 | 15.6.75.19 | Major — breaking-change audit below. Skips 44.4.0…44.9.3 (dependabot proposed 44.4.5) |
 | 2026-09-11 | **44.3.0** | 152.0.7977.78 | 24.20.0 | 15.2.124.19 | Rolls up 44.1.1 + 44.2.0 + 44.3.0 — no breaking changes; see the upgrade notes below |
 | 2026-08-31 | **44.1.0** | 152.0.7977.65 | 24.19.0 | 15.2.124.18 | Patch release - no breaking changes; see below |
 | 2026-08-25 | **44.0.0** | 152.0.7977.54 | 24.18.1 | 15.2.124.13 | See audit below |
 | (prior) | 43.4.0 | 150.0.7871.224 | 24.18.1 | 15.0.245.28 | |
+
+### 45.0.0 — breaking-change audit
+
+Electron 45's breaking changes vs. this codebase (upstream list: `docs/breaking-changes.md` @ `v45.0.0`,
+§ «Breaking API Changes (45.0)»). The items the 45.0.0 release notes mark «Also in 44» (W3C clipboard,
+`ia32`/`armv7l` removed, `openAsHidden`, the Linux support-policy wording) are covered by the 44.0.0 table.
+
+| Breaking change | Impact here |
+| --- | --- |
+| **Sandboxed preloads lose the `events` / `timers` / `url` shims and the `Buffer` / `setImmediate` / `clearImmediate` globals** ([#54048](https://github.com/electron/electron/pull/54048)) | **Checked — no impact.** Both preloads are sandboxed (`sandbox: true` in `electron/main.ts` and `electron/curtainOverlay.ts`) and import ONLY `electron`; they touch `contextBridge`, `ipcRenderer.on/invoke/send` and `process.argv` / `process.platform`, all kept. The highest-risk item of the bump for us, and a miss would have been a blank window. |
+| **`ipcRenderer` / `process` in sandboxed preloads use a native `EventEmitter`** (static `events.once` / `listenerCount` gone) | No impact — instance `.on()` only. |
+| **`fs` descriptors for files inside an ASAR are only usable through `fs`** (raw-fd consumers get `EBADF`; write flags `EACCES`) | **Checked — no impact.** `electron/protocol.ts:175` reads by PATH (`fs.promises.readFile`). The raw-file consumers are already outside the archive: velopack's `.node` and `build/electron/embedded-server.js` are `asarUnpack`ed (`electron-builder.yml`) — `utilityProcess.fork` needed a real file anyway. `nativeGamepadLinux.ts:619` streams `/dev/input/js*`, not an archive entry. |
+| **`window.open()` children of unsandboxed windows get their own process** | No impact — both windows are sandboxed and both `setWindowOpenHandler`s return `deny` (main routes external http(s) to `shell.openExternal`). |
+| **Workers created by subframes need `nodeIntegrationInSubFrames`** | No impact — `nodeIntegrationInWorker` is never set. |
+| **Preloads run in a `chrome-extension://` frame only when DevTools hosts it** | No impact — no extensions are loaded; the DevTools pad cursor (`electron/devtoolsPadCursor.ts`) drives the front-end through `executeJavaScript`, not a preload. |
+| **`chromeMediaSource: 'desktop'` rejects WebContents ids; capture requests report `display-capture`** | No impact — no `desktopCapturer` / `getUserMedia` / `setPermissionRequestHandler`. |
+| **`contentTracing.enableHeapProfiling()` removed; recordings are Perfetto protobuf** | No impact — `contentTracing` is not used in `electron/` (`perf.ts` has its own probes). |
+| **`document.requestStorageAccessFor` disabled by default** | No impact — unused. |
+| **Synchronous `safeStorage` methods deprecated (removal in 46)** | No impact — `safeStorage` is unused. |
+
+Fixes in 45.0.0 that land on our paths: the Linux startup crash with GTK modules loaded
+([#55017](https://github.com/electron/electron/pull/55017)) and without a display server
+([#54781](https://github.com/electron/electron/pull/54781)) — the Steam Deck lane's kind of bug, re-check on
+hardware; a potential crash during shutdown ([#54526](https://github.com/electron/electron/pull/54526)) — our
+`before-quit → will-quit` chain; closing detached DevTools ([#54538](https://github.com/electron/electron/pull/54538)).
+`matchMedia('(display-mode: …)')` now reports `fullscreen` for a fullscreen window
+([#51396](https://github.com/electron/electron/pull/51396)) — no `display-mode` query exists in the renderer
+(grep-verified), so the always-fullscreen shell renders unchanged.
+
+**Companion bumps** (the dependabot batch of 2026-10-01 — `5dcf3804e6`, `18d12734b1`): `velopack` `1.2.0 → 1.2.161`
+together with the CI `vpk --version` (the SDK/CLI pair moves together — see `electron/README.md`; packed locally from
+this `win-unpacked`: a 1.2.0-built full → 1.2.161 delta builds, `assets.win.json` keeps `RelativeFileName` + the Portable
+entry the workflow drops, `releases.win.json` keeps the live feed's schema, `RELEASES` still emitted, the package
+stays `rid win-x64` with a 32-bit `Update.exe` as before — vpk's «defaulting to x86» warning names exactly that); `webpack`
+`5.109.2 → 5.111.1` (the 5.110 embedded-bundle miscompile is fixed upstream since 5.110.3,
+`scripts/check-embedded-bundle.mjs`; 5.112.0 is out of reach — mochapack deep-requires the `lib/Watching.js` it
+moved, `webpack.test.config.js`); `@types/node` `^24.13.3 → ^24.19.2` — dependabot's `26.x` declined per
+the Node-pin rule above.
+
+**Verified on the bump (2026-10-21, Windows):** `npx electron --version` → `v45.0.0`,
+`node_modules/electron/dist/version` → `45.0.0` (unpacked manually — see the gotcha below); `build:server`,
+`electron:build:main`, `build:test`, `lint:server`, `lint:client` green; `test:server` 17524 passing,
+`test:client` 7536 passing. The packaged renderer boots under `TM_ELECTRON_LOAD=app` (dev identity,
+`%APPDATA%\Electron`): the embedded server forked as a `utilityProcess` (local-filesystem DB, 11 ids preloaded,
+WS gateway on `/ws`), `app://bundle/` served, the console-native main menu painted with the saved games and the
+«Добавить в библиотеку Steam» entry (so the sandboxed preload's `desktopBridge` is alive), zero errors or warnings
+in the boot log. GPU unchanged from 44.x: `gpu_compositing: enabled`, `opengl: enabled_on`,
+`skia_graphite: enabled_on`, `webgl`/`webgpu: enabled`. Closing the window walks
+`before-quit → will-quit → quit`, the embedded server gets its shutdown request and exits 0, no process left.
+`npm run pack:only:win` packs `electron=45.0.0` from `electronDist`; velopack 1.2.161 and `embedded-server.js`
+land in `app.asar.unpacked`. The runtime now ships `electron_wer.dll` (45's Windows Error Reporting helper for
+`crashReporter`, [#53851](https://github.com/electron/electron/pull/53851)); electron-builder leaves it
+unrenamed, which is moot — `crashReporter` is not used.
 
 ### 44.1.1 → 44.3.0 — upgrade notes
 

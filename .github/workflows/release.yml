@@ -205,7 +205,7 @@ jobs:
           --icon electron/build-resources/icon.ico
 
       # The portable zip is ~434 MB of pure upload volume nobody installs from (see the UPLOAD
-      # VOLUME note in the header). vpk 1.2.0 has no CLI switch for it — `NoPortable` exists on
+      # VOLUME note in the header). vpk 1.2.x has no CLI switch for it (re-checked on 1.2.161) — `NoPortable` exists on
       # WindowsPackOptions but is never wired to an AddOption — so drop it from the upload set
       # instead: `vpk upload` uploads exactly what Releases/assets.win.json lists, and only the
       # Full/Delta entries of that manifest feed releases.win.json, so removing the Portable entry
@@ -218,7 +218,7 @@ jobs:
             const fs = require("fs");
             const manifest = "Releases/assets.win.json";
             const all = JSON.parse(fs.readFileSync(manifest, "utf8"));
-            // vpk 1.2.0 serialises with Newtonsoft and no contract resolver, so the key is verbatim
+            // vpk 1.2.x serialises with Newtonsoft and no contract resolver (1.2.161 too), so the key is verbatim
             // PascalCase; tolerate a casing change rather than crashing the release on a vpk bump.
             const nameOf = (a) => a.RelativeFileName || a.relativeFileName || "";
             const keep = all.filter((a) => !nameOf(a).endsWith("-Portable.zip"));
