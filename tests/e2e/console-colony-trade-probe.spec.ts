@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame, openMandatoryAnnounce, reloadConsole} from './consoleStart';
+import {bootSeededGame, openMandatoryAnnounce, press, reloadConsole} from './consoleStart';
 
 /**
  * COLONY-TRADE REWARD PROBE — drives a REAL game (colonies on, Pluto
@@ -82,8 +82,7 @@ function newGameConfig(automa: boolean, seed = 0.42) {
 }
 
 async function key(page: Page, code: string, settleMs = 450): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 async function shoot(page: Page, name: string): Promise<void> {

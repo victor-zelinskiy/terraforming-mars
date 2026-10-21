@@ -1,5 +1,5 @@
-import {expect, test} from './consoleTest';
-import {openBotBoardDetail, bootToBoard, corporationsExcluding, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {expect, test, Page} from './consoleTest';
+import {bootToBoard, corporationsExcluding, openBotBoardDetail, press, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * ARIDOR (C30) — the first corporation whose cube COLOUR carries no rule: «a
@@ -24,9 +24,8 @@ const ARIDOR_CONFIG = soloGameConfig({
   customCorporationsList: corporationsExcluding('Aridor'),
 });
 
-async function key(page: import('@playwright/test').Page, code: string, settle = 700): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settle);
+async function key(page: Page, code: string, settle = 700): Promise<void> {
+  await press(page, code, settle);
 }
 
 test.describe('console: a MarsBot corporation whose colours share one meaning', () => {

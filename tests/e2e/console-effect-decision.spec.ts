@@ -1,5 +1,5 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootSeededGame, pressUntilVisible, reloadConsole, settle} from './consoleStart';
+import {bootSeededGame, press, pressUntilVisible, reloadConsole, settle} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -92,8 +92,7 @@ async function createGame(request: APIRequestContext): Promise<string> {
 }
 
 async function key(page: Page, k: string, wait = 600): Promise<void> {
-  await page.keyboard.press(k);
-  await page.waitForTimeout(wait);
+  await press(page, k, wait);
 }
 
 /** Serve a prompt of the given shape on every poll. */

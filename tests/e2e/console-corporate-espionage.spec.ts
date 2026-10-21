@@ -1,8 +1,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {NO_PAYMENT, fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, soloGameConfig, waitForBoardHome,
-} from './consoleStart';
+import {fetchPlayerModel, NO_PAYMENT, openConsole, press, seedGameOverApi, sendPlayerInput, soloGameConfig, waitForBoardHome} from './consoleStart';
 
 /**
  * DP10 — CORPORATE ESPIONAGE, the premium vertical slice, live:
@@ -43,8 +42,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 async function key(page: Page, code: string, settleMs = 350): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 function payMc(amount: number): Wire {

@@ -1,7 +1,7 @@
 import {test, expect, APIRequestContext, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame} from './consoleStart';
+import {bootIntoGame, press} from './consoleStart';
 
 /**
  * HAND ALBUM probe — the strict-page rework of «Карты в руке»
@@ -79,8 +79,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 async function key(page: Page, code: string, settleMs = 350): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 async function bootBigHand(page: Page, request: APIRequestContext, profileQuery = '', buy = 13): Promise<void> {

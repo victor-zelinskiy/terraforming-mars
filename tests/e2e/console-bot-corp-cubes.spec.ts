@@ -1,5 +1,5 @@
-import {expect, test} from './consoleTest';
-import {openBotBoardDetail, bootToBoard, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {expect, test, Page} from './consoleTest';
+import {bootToBoard, openBotBoardDetail, press, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * HELION (C03) — the first MarsBot corporation that seeds CUBES on the bot's
@@ -18,9 +18,8 @@ const HELION_CONFIG = soloGameConfig({
   customCorporationsList: ['Tharsis Republic', 'Inventrix'],
 });
 
-async function key(page: import('@playwright/test').Page, code: string, settle = 700): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settle);
+async function key(page: Page, code: string, settle = 700): Promise<void> {
+  await press(page, code, settle);
 }
 
 test.describe('console: MarsBot corporation cubes on the tracks', () => {

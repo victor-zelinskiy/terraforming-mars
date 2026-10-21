@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame} from './consoleStart';
+import {bootIntoGame, press} from './consoleStart';
 
 /**
  * The IN-GAME SYSTEM overlay (`.con-sys--menu`) and the settings console it
@@ -81,8 +81,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 async function key(page: Page, code: string, settleMs = 450): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 /**

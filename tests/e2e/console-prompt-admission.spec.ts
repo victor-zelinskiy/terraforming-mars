@@ -1,21 +1,7 @@
 import {test, expect, APIRequestContext, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {
-  bootIntoGame,
-  createGameWithCards,
-  offeredCards,
-  openConsole,
-  pickCalmCorporation,
-  pickCards,
-  pickedCards,
-  playQueueCard,
-  playQueueUntil,
-  queueCards,
-  soloGameConfig,
-  submitSummary,
-  walkToSummary,
-} from './consoleStart';
+import {bootIntoGame, createGameWithCards, offeredCards, openConsole, pickCalmCorporation, pickCards, pickedCards, playQueueCard, playQueueUntil, press, queueCards, soloGameConfig, submitSummary, walkToSummary} from './consoleStart';
 
 /**
  * Console-native PROMPT ADMISSION · one response, one demand on the player.
@@ -96,8 +82,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 async function key(page: Page, code: string, settleMs = 450): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 async function prepareExperimentalForest(

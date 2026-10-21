@@ -20,6 +20,7 @@
  *   workspace gone → a proxy flies → and only then does the tile appear.
  */
 import {expect, test, Page, APIRequestContext} from './consoleTest';
+import {press} from './consoleStart';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -85,8 +86,7 @@ function newGameConfig() {
 }
 
 async function key(page: Page, code: string, settleMs = 400): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 async function shoot(page: Page, name: string): Promise<void> {

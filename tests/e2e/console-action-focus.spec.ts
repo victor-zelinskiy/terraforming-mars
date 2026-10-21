@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootWithCards, openActionFocus, openCardActions, playCardFromHand, soloGameConfig, waitForTurn} from './consoleStart';
+import {bootWithCards, openActionFocus, openCardActions, playCardFromHand, press, soloGameConfig, waitForTurn} from './consoleStart';
 
 /**
  * Console ACTION FLOW · the browse ⇄ ACTION FOCUS recompose.
@@ -36,8 +36,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 async function key(page: Page, code: string, settleMs = 450): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 const PROFILES = [

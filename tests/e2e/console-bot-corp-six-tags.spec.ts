@@ -1,5 +1,5 @@
-import {expect, test} from './consoleTest';
-import {openBotBoardDetail, bootToBoard, corporationsExcluding, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {expect, test, Page} from './consoleTest';
+import {bootToBoard, corporationsExcluding, openBotBoardDetail, press, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * POLYPHEMOS (C32) — SIX printed starting tags, the most of any implemented
@@ -20,9 +20,8 @@ const POLYPHEMOS_CONFIG = soloGameConfig({
   customCorporationsList: corporationsExcluding('Polyphemos'),
 });
 
-async function key(page: import('@playwright/test').Page, code: string, settle = 700): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settle);
+async function key(page: Page, code: string, settle = 700): Promise<void> {
+  await press(page, code, settle);
 }
 
 test.describe('console: a MarsBot corporation with six starting tags', () => {

@@ -1,5 +1,5 @@
 import {test, expect, APIRequestContext, Page} from './consoleTest';
-import {bootIntoGame} from './consoleStart';
+import {bootIntoGame, press} from './consoleStart';
 
 /**
  * THE PLANET DOES NOT MOVE WHEN A SECTION HANDS THE SCREEN BACK.
@@ -242,8 +242,7 @@ function print(label: string, rows: ReadonlyArray<Sample>): void {
 }
 
 async function key(page: Page, code: string, settleMs = 450): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 /**

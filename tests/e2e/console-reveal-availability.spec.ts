@@ -1,4 +1,5 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
+import {press} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -99,8 +100,7 @@ function newGameConfig() {
 }
 
 async function key(page: Page, code: string, settleMs = 400): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 async function shoot(page: Page, preset: string, name: string): Promise<void> {

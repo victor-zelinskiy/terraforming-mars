@@ -1,13 +1,5 @@
 import {test, expect, APIRequestContext, Page} from './consoleTest';
-import {
-  createGameWithCards,
-  openConsole,
-  pickCards,
-  playQueueCard,
-  playQueueUntil,
-  submitSummary,
-  walkToSummary,
-} from './consoleStart';
+import {createGameWithCards, openConsole, pickCards, playQueueCard, playQueueUntil, press, submitSummary, walkToSummary} from './consoleStart';
 
 /**
  * Regression: a reveal overlay is a TOP-PRIORITY modal — it cannot be
@@ -77,8 +69,7 @@ function newGameConfig() {
 }
 
 async function key(page: Page, code: string, settleMs = 900): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 async function prepareDrawingPrelude(page: Page, request: APIRequestContext): Promise<string> {

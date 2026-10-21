@@ -1,5 +1,5 @@
-import {expect, test} from './consoleTest';
-import {bootToBoard, openBotBoardDetail, openInfoPlayedTable, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {expect, test, Page} from './consoleTest';
+import {bootToBoard, openBotBoardDetail, openInfoPlayedTable, press, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * KUIPER COOPERATIVE (C41) — six cubes, all on the space track: three white
@@ -16,9 +16,8 @@ const KUIPER_CONFIG = soloGameConfig({
   automa: {difficulty: 'normal', corporation: 'C41'},
 });
 
-async function key(page: import('@playwright/test').Page, code: string, settle = 700): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settle);
+async function key(page: Page, code: string, settle = 700): Promise<void> {
+  await press(page, code, settle);
 }
 
 test.describe('console: the MarsBot corporation whose whole game is one mined track', () => {

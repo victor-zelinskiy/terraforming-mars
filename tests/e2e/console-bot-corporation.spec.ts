@@ -1,5 +1,5 @@
-import {expect, test} from './consoleTest';
-import {bootToBoard, openBotScreenHub, openInfoPlayedTable, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {expect, test, Page} from './consoleTest';
+import {bootToBoard, openBotScreenHub, openInfoPlayedTable, press, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * MarsBot CORPORATIONS (Rule Book B) — the participant surfaces, live.
@@ -22,9 +22,8 @@ const BOT_CORP_CONFIG = soloGameConfig({
   automa: {difficulty: 'normal', corporation: 'C45'},
 });
 
-async function key(page: import('@playwright/test').Page, code: string, settle = 700): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settle);
+async function key(page: Page, code: string, settle = 700): Promise<void> {
+  await press(page, code, settle);
 }
 
 test.describe('console: the MarsBot corporation card', () => {

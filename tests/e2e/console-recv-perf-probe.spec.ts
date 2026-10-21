@@ -32,7 +32,7 @@
 import {expect, test, Page, APIRequestContext, CDPSession} from './consoleTest';
 import * as fs from 'fs';
 import * as path from 'path';
-import {NO_PAYMENT} from './consoleStart';
+import {NO_PAYMENT, press} from './consoleStart';
 
 const RUN = process.env.RECV_PERF === '1';
 const LABEL = process.env.RECV_PERF_LABEL ?? 'run';
@@ -280,8 +280,7 @@ async function forceFrame(page: Page): Promise<void> {
 }
 
 async function key(page: Page, code: string, settleMs = 400): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 // ── the console UI walk (descend into the play of `card`) ──────────────────

@@ -1,5 +1,5 @@
-import {expect, test} from './consoleTest';
-import {bootToBoard, openInfoPlayedTable, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {expect, test, Page} from './consoleTest';
+import {bootToBoard, openInfoPlayedTable, press, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * NIRGAL ENTERPRISES (C42) — the corporation that is a SCHEDULE: a free
@@ -17,9 +17,8 @@ const NIRGAL_CONFIG = soloGameConfig({
   automa: {difficulty: 'normal', corporation: 'C42'},
 });
 
-async function key(page: import('@playwright/test').Page, code: string, settle = 700): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settle);
+async function key(page: Page, code: string, settle = 700): Promise<void> {
+  await press(page, code, settle);
 }
 
 test.describe('console: the MarsBot corporation that runs on a schedule', () => {

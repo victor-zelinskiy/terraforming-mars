@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame} from './consoleStart';
+import {bootSeededGame, press} from './consoleStart';
 
 /**
  * TRADE FLEET VISUAL PROBE — drives a real solo colonies game to a trade and
@@ -37,8 +37,7 @@ function newGameConfig() {
 }
 
 async function key(page: Page, code: string, settleMs = 450): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 async function shoot(page: Page, name: string): Promise<void> {

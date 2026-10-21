@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, focusInfoZone, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {bootIntoGame, focusInfoZone, press, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * THE INFORMATION WORKSPACE (Y) — the overlay workspace probe.
@@ -54,8 +54,7 @@ const GAME_CONFIG = soloGameConfig({
 });
 
 async function key(page: Page, code: string, settleMs = 450): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 async function shoot(page: Page, preset: Preset, name: string): Promise<void> {

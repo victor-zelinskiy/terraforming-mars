@@ -1,5 +1,5 @@
-import {expect, test} from './consoleTest';
-import {bootToBoard, openInfoPlayedTable, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {expect, test, Page} from './consoleTest';
+import {bootToBoard, openInfoPlayedTable, press, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * TYCHO MAGNETICS (C46) — the emptiest face in the set: no starting tags, no
@@ -21,9 +21,8 @@ const TYCHO_CONFIG = soloGameConfig({
   automa: {difficulty: 'normal', corporation: 'C46'},
 });
 
-async function key(page: import('@playwright/test').Page, code: string, settle = 700): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settle);
+async function key(page: Page, code: string, settle = 700): Promise<void> {
+  await press(page, code, settle);
 }
 
 test.describe('console: the MarsBot corporation whose whole rule is a bonus card', () => {

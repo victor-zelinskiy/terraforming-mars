@@ -2,7 +2,7 @@ import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {WS_STAGE_BOX, WS_STAGE_HEAD, stageProbe} from './wsStageParity';
-import {bootWithCards, closeZoomViewer, openActionFocus, openCardActions, openZoomViewer, playCardFromHand, soloGameConfig, waitForTurn} from './consoleStart';
+import {bootWithCards, closeZoomViewer, openActionFocus, openCardActions, openZoomViewer, playCardFromHand, press, soloGameConfig, waitForTurn} from './consoleStart';
 
 /**
  * Console BLUE ACTION · the COMMIT half — the EMBEDDED PURCHASE stage
@@ -41,8 +41,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 async function key(page: Page, code: string, settleMs = 450): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 const PROFILES = [

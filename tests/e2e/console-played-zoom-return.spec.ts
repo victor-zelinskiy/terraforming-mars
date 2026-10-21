@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, soloGameConfig} from './consoleStart';
+import {bootIntoGame, press, soloGameConfig} from './consoleStart';
 
 /**
  * «РАЗЫГРАНО» → fullscreen → BACK: the table must stay on stage.
@@ -29,8 +29,7 @@ const GAME_CONFIG = soloGameConfig({
 });
 
 async function key(page: Page, code: string, settleMs = 500): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 async function shoot(page: Page, name: string): Promise<void> {

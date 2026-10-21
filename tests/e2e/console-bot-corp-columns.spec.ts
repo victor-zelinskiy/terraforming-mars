@@ -1,5 +1,5 @@
-import {expect, test} from './consoleTest';
-import {openBotBoardDetail, bootToBoard, corporationsExcluding, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {expect, test, Page} from './consoleTest';
+import {bootToBoard, corporationsExcluding, openBotBoardDetail, press, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * MANUTECH (C29) — its SETUP box puts a black cube «above the #5 and #12
@@ -23,9 +23,8 @@ const MANUTECH_CONFIG = soloGameConfig({
   customCorporationsList: corporationsExcluding('Manutech'),
 });
 
-async function key(page: import('@playwright/test').Page, code: string, settle = 700): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settle);
+async function key(page: Page, code: string, settle = 700): Promise<void> {
+  await press(page, code, settle);
 }
 
 test.describe('console: MarsBot corporation marked columns', () => {

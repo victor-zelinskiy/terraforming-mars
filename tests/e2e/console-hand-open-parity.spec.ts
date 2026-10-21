@@ -1,5 +1,5 @@
 import {test, expect, Page} from './consoleTest';
-import {bootIntoGame} from './consoleStart';
+import {bootIntoGame, press} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -42,8 +42,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 async function key(page: Page, code: string, settleMs = 450): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 /** Every `.pcard` under `root`, keyed by its own `pcard--<slug>` class. */

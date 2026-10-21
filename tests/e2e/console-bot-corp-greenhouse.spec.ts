@@ -1,5 +1,5 @@
-import {expect, test} from './consoleTest';
-import {bootToBoard, openBotBoardDetail, openInfoPlayedTable, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {expect, test, Page} from './consoleTest';
+import {bootToBoard, openBotBoardDetail, openInfoPlayedTable, press, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * ECOTEC (C40) — a greenhouse on the corporation card: every plant, microbe or
@@ -20,9 +20,8 @@ const ECOTEC_CONFIG = soloGameConfig({
   automa: {difficulty: 'normal', corporation: 'C40'},
 });
 
-async function key(page: import('@playwright/test').Page, code: string, settle = 700): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settle);
+async function key(page: Page, code: string, settle = 700): Promise<void> {
+  await press(page, code, settle);
 }
 
 test.describe('console: the MarsBot corporation that grows plants on its own card', () => {

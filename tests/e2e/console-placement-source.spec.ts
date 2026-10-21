@@ -1,5 +1,5 @@
 import {test, expect, APIRequestContext, Page} from './consoleTest';
-import {bootSeededGame} from './consoleStart';
+import {bootSeededGame, press} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -51,8 +51,7 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT, `${name}.png`)});
 }
 async function key(page: Page, code: string, settle = 450): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settle);
+  await press(page, code, settle);
 }
 
 async function focusStdProject(page: Page, title: RegExp): Promise<boolean> {

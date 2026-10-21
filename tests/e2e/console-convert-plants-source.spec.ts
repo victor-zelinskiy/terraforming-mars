@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, soloGameConfig} from './consoleStart';
+import {bootIntoGame, press, soloGameConfig} from './consoleStart';
 
 /**
  * CONVERT PLANTS NAMES ITSELF — over the real DOM.
@@ -31,8 +31,7 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT, `${name}.png`)});
 }
 async function key(page: Page, code: string, settle = 450): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settle);
+  await press(page, code, settle);
 }
 
 test.describe('console placement panel · convert plants', () => {

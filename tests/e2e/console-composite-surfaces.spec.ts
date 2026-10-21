@@ -1,5 +1,5 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootSeededGame, reloadConsole} from './consoleStart';
+import {bootSeededGame, press, reloadConsole} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -83,8 +83,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 async function key(page: Page, k: string, wait = 600): Promise<void> {
-  await page.keyboard.press(k);
-  await page.waitForTimeout(wait);
+  await press(page, k, wait);
 }
 
 async function createGame(request: APIRequestContext): Promise<string> {

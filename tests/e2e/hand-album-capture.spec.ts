@@ -1,5 +1,5 @@
 import {test, expect, Page} from './consoleTest';
-import {bootIntoGame} from './consoleStart';
+import {bootIntoGame, press} from './consoleStart';
 
 /**
  * HAND ALBUM capture — a VIDEO-ONLY run for the frame-by-frame motion review
@@ -67,8 +67,7 @@ function newGameConfig() {
 }
 
 async function key(page: Page, code: string, settleMs = 300): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 test('capture: open → walk → jump → close', async ({page, request}) => {

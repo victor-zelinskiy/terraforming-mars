@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootWithCards, openActionFocus, openCardActions, openQuickWheel, playCardFromHand, soloGameConfig, waitForTurn} from './consoleStart';
+import {bootWithCards, openActionFocus, openCardActions, openQuickWheel, playCardFromHand, press, soloGameConfig, waitForTurn} from './consoleStart';
 
 /**
  * Console surface-motion system · the Search For Life reveal chain + wheels.
@@ -43,8 +43,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 async function key(page: Page, code: string, settleMs = 450): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 /** Sample the shade's ON state every `stepMs` — the anti-blink probe. */

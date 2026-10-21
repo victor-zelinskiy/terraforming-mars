@@ -1,16 +1,7 @@
 import {test, expect, APIRequestContext, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {
-  createGameWithCards,
-  fillPicks,
-  openConsole,
-  pickCards,
-  playQueueCard,
-  submitSummary,
-  waitQueueIdle,
-  walkToSummary,
-} from './consoleStart';
+import {createGameWithCards, fillPicks, openConsole, pickCards, playQueueCard, press, submitSummary, waitQueueIdle, walkToSummary} from './consoleStart';
 
 /**
  * HAND DELIVERY probe — the starting-cards delivery cinematic
@@ -61,8 +52,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 async function key(page: Page, code: string, settleMs = 900): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 /** Walk the wizard to the summary and buy at least one project WITHOUT the

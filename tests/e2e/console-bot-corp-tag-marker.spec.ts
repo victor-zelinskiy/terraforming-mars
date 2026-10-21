@@ -1,5 +1,5 @@
-import {expect, test} from './consoleTest';
-import {openBotBoardDetail, bootToBoard, corporationsExcluding, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {expect, test, Page} from './consoleTest';
+import {bootToBoard, corporationsExcluding, openBotBoardDetail, press, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * ARKLIGHT (C31) — a white tracker that reminds of a TAG rule, not a track
@@ -21,9 +21,8 @@ const ARKLIGHT_CONFIG = soloGameConfig({
   customCorporationsList: corporationsExcluding('Arklight'),
 });
 
-async function key(page: import('@playwright/test').Page, code: string, settle = 700): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settle);
+async function key(page: Page, code: string, settle = 700): Promise<void> {
+  await press(page, code, settle);
 }
 
 test.describe('console: a MarsBot tracker that reminds of a TAG rule', () => {

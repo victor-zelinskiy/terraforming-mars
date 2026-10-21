@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame, createGameWithCards, soloGameConfig} from './consoleStart';
+import {bootSeededGame, createGameWithCards, press, soloGameConfig} from './consoleStart';
 
 /**
  * THE ONE SANCTIONED EXCEPTION to «a modal never covers a bar»: the RIGHT-EDGE
@@ -29,8 +29,7 @@ import {bootSeededGame, createGameWithCards, soloGameConfig} from './consoleStar
 const OUT = path.resolve('screenshots', 'right-drawer');
 
 async function key(page: Page, code: string, settle = 600): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settle);
+  await press(page, code, settle);
 }
 
 async function shoot(page: Page, name: string): Promise<void> {

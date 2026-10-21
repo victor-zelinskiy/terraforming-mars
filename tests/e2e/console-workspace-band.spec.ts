@@ -1,5 +1,5 @@
 import {test, expect, Page} from './consoleTest';
-import {bootSeededGame, createGameWithCards} from './consoleStart';
+import {bootSeededGame, createGameWithCards, press} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -57,8 +57,7 @@ function cfg() {
 }
 
 async function key(page: Page, code: string, settle = 500): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settle);
+  await press(page, code, settle);
 }
 
 async function shoot(page: Page, tag: string, name: string): Promise<void> {

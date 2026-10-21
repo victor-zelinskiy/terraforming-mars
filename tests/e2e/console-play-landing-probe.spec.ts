@@ -24,6 +24,7 @@
  * under reduced motion.
  */
 import {expect, test, Page, APIRequestContext} from './consoleTest';
+import {press} from './consoleStart';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -97,8 +98,7 @@ function newGameConfig(withPreludes: boolean) {
 }
 
 async function key(page: Page, code: string, settleMs = 500): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 async function shoot(page: Page, name: string): Promise<void> {

@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, focusedSpaceId} from './consoleStart';
+import {bootIntoGame, focusedSpaceId, press} from './consoleStart';
 
 /**
  * Console-native · ARCADIAN COMMUNITIES, the two halves of one card.
@@ -83,8 +83,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 async function key(page: Page, code: string, settleMs = 450): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 /**

@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame as driveToBoard} from './consoleStart';
+import {bootIntoGame as driveToBoard, press} from './consoleStart';
 
 /**
  * Console colonies · the premium PlayerCube settlement marker.
@@ -86,8 +86,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 async function key(page: Page, code: string, settleMs = 450): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 /** Boot a game and land on the LIVE board through the SHARED console-start

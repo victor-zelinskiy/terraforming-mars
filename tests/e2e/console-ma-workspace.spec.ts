@@ -1,5 +1,5 @@
 import {test, expect, Page} from './consoleTest';
-import {bootIntoGame, soloGameConfig} from './consoleStart';
+import {bootIntoGame, press, soloGameConfig} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -35,8 +35,7 @@ const GAME_CONFIG = soloGameConfig({
 });
 
 async function key(page: Page, code: string, settle = 500): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settle);
+  await press(page, code, settle);
 }
 
 async function shoot(page: Page, name: string): Promise<void> {

@@ -22,7 +22,7 @@
  * when it regresses. This one proves the product really behaves that way.
  */
 import {expect, test, Page, APIRequestContext} from './consoleTest';
-import {commitFocusedSpace, pressUntilGone, walkToSpace} from './consoleStart';
+import {commitFocusedSpace, press, pressUntilGone, walkToSpace} from './consoleStart';
 
 /** The card that grants the bonus move — and, conveniently, a BUILDING tag,
  *  which is exactly what track position 1 requires, so the offer is FREE. */
@@ -90,8 +90,7 @@ function newGameConfig() {
 }
 
 async function key(page: Page, code: string, settleMs = 400): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 /** Boot + drive the start wizard, buying the probe's cards into the hand. */

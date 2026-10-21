@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, placeTile, soloGameConfig} from './consoleStart';
+import {bootIntoGame, placeTile, press, soloGameConfig} from './consoleStart';
 
 /**
  * Console-native · the corporation's MANDATORY FIRST ACTION — the Game Start
@@ -53,8 +53,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 async function key(page: Page, code: string, settleMs = 450): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 /** The start workspace is PAINTED (mounted-and-hidden is the yield pose). */

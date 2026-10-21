@@ -1,5 +1,5 @@
-import {expect, test} from './consoleTest';
-import {bootToBoard, openBotBoardDetail, openInfoPlayedTable, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {expect, test, Page} from './consoleTest';
+import {bootToBoard, openBotBoardDetail, openInfoPlayedTable, press, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * PALLADIN SHIPPING (C43) — twelve cubes on TWO tracks: six white on space,
@@ -17,9 +17,8 @@ const PALLADIN_CONFIG = soloGameConfig({
   automa: {difficulty: 'normal', corporation: 'C43'},
 });
 
-async function key(page: import('@playwright/test').Page, code: string, settle = 700): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settle);
+async function key(page: Page, code: string, settle = 700): Promise<void> {
+  await press(page, code, settle);
 }
 
 test.describe('console: the MarsBot corporation that needs both halves of a shipment', () => {
