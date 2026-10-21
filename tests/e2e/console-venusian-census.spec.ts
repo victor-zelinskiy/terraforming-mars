@@ -92,6 +92,8 @@ type ScaleProbe = {
   auxBox?: Box;
   /** Where a REMOTE token lands: the owner's chip in the status strip. */
   ownerChip?: Box;
+  /** The owner's INTAKE plaque under its chip (T06 — another seat's gain lands on its number), while it stands. */
+  ownerIntake?: Box;
   phases: Array<string>;
   wsSeen: boolean;
   wsGoneAt?: number;
@@ -165,6 +167,10 @@ async function armProbe(page: Page, owner: string): Promise<void> {
       if (dotBox !== undefined) {
         p.ownerChip = dotBox;
       }
+      const intakeBox = boxOf(document.querySelector(`[data-intake-seat="${ownerColor}"]`));
+      if (intakeBox !== undefined) {
+        p.ownerIntake = intakeBox;
+      }
       if (document.querySelector('.con-ws') !== null) {
         p.wsSeen = true;
       } else if (p.wsSeen) {
@@ -197,7 +203,7 @@ async function armProbe(page: Page, owner: string): Promise<void> {
           } else {
             rec.last = c;
             rec.t1 = now;
-            if (rec.arrivedAt === undefined && (inBox(c, p.auxBox, 6) || inBox(c, p.ownerChip, 40))) {
+            if (rec.arrivedAt === undefined && (inBox(c, p.auxBox, 6) || inBox(c, p.ownerChip, 40) || inBox(c, p.ownerIntake, 6))) {
               rec.arrivedAt = now;
             }
           }

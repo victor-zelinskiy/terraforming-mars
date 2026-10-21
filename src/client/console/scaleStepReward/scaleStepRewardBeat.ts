@@ -54,7 +54,8 @@ import {
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {OCEAN_COIN_FORM_MS, OCEAN_COIN_LEAD_MS, OCEAN_COIN_SPARKS, oceanWaveLeadMs} from '@/client/console/tilePlacement/tilePlacementModel';
 import {killOceanTweens, playOceanCoinHandoff, playOceanCoinMaterialize} from '@/client/console/tilePlacement/tilePlacementDirector';
-import {remoteOriginPoint} from '@/client/console/tilePlacement/consoleRemotePlacement';
+import {seatChipEnd} from '@/client/console/tilePlacement/cityDataPayoutBeat';
+import {acceptSeatIntake, openSeatIntake, seatIntakeEnd} from '@/client/console/statusIntake';
 import {
   SCALE_STEP_BREATH_MS, SCALE_STEP_STAGE_DUE_MS, freshScaleStepRewards, scaleAccentOf, scaleParamKeyOf,
   scaleStepHoldSpec, scaleStepTokenOrigins, scaleStepTokenSpecs,
@@ -338,7 +339,16 @@ async function pay(entry: ScaleStepEntry, myEpoch: number): Promise<void> {
   const rect = {x: box.left, y: box.top, w: box.width, h: box.height};
   const ui = conUiScale();
   const origins = scaleStepTokenOrigins(rect, specs.length);
-  const destination = entry.own ? undefined : remoteOriginPoint(record.owner, ui);
+  // ANOTHER SEAT's tokens land on its chip's INTAKE (T06 — the owner's M1): an OBJECT, never the point 16 px under the
+  // dot it used to be (the sentinel caught it over the console's bare root); no chip on screen — nothing flies.
+  const seat = entry.own ? undefined : record.owner;
+  const chip = seat === undefined ? undefined : seatChipEnd(seat);
+  if (seat !== undefined && chip === undefined) {
+    degrade(entry);
+    return;
+  }
+  // The receiver announces itself FIRST: the plaque opens while the coins condense on the marker (never after them).
+  const intakeOpen = seat !== undefined && !reduced ? openSeatIntake(seat, specs) : Promise.resolve();
   if (!reduced) {
     // THE BIRTH: each token condenses on the marker's rim, then hands off to its flight (the framework's own chip
     // takes over on the same point — one cadence, the framework's wave stagger). Waited on the GSAP clock the
@@ -381,6 +391,7 @@ async function pay(entry: ScaleStepEntry, myEpoch: number): Promise<void> {
       }, lastTick - now))]);
     }
   };
+  await intakeOpen;
   await runResourceTransfers({
     specs,
     origins,
@@ -388,8 +399,12 @@ async function pay(entry: ScaleStepEntry, myEpoch: number): Promise<void> {
     arrival: 'auto',
     // Born on the board: under a workspace opened mid-flight the wave recedes with it.
     fromBoard: true,
-    ...(destination !== undefined ? {destination} : {}),
+    ...(chip !== undefined ? {destination: chip} : {}),
+    ...(seat !== undefined ? {destinationOf: (spec: ResourceTransferSpec) => seatIntakeEnd(seat, spec.resource)} : {}),
     onArrive: (spec: ResourceTransferSpec) => tickAt(() => {
+      if (seat !== undefined) {
+        acceptSeatIntake(seat, spec);
+      }
       if (epoch !== myEpoch) {
         return;
       }
