@@ -1436,3 +1436,20 @@ RX18 · RX34 · RX35), и их показ стоит на пикере. «+1 р�
 
 Что это оставляет следующим картам: «+K чего-то на каждую карту с X» — новое `id` счёта вида `holders` (если
 предикат другой) и та же форма единицы; квитанция и чтения получаются даром.
+
+**У `holders` ДВЕ МЕРЫ (RX41 Tax Breaks, 2026-10-21) — урок счёта по полю RX21.** `resolutionCountKind(...).measure`:
+`cards` — держатель = единица (`cardsWithResources`, RX40: каждая посчитанная карта получает); `types` — РАЗНЫЕ ВИДЫ среди
+тех же держателей (`cardResourceTypes`, RX41: «Рыба + Птицы» = один вид — мера движка Tradesman / Collector /
+`ResourceTypeRequirement`). Та же выборка `getCardsWithResources()`, тот же `byCard`, другое число — через ОДНУ
+группировку `holderKindsOf(byCard)` (число видов = её длина, `holdersMeasured`); своя выборка «карт с ресурсом» — дефект.
+Шаг `eachCountedCardStep` принимает только меру `cards` (счёт по видам — не список адресатов), гард `checkEachCounted` —
+тоже. Счёт по видам платит не на карты, а чем-то ещё: семейство «Полигона» `counted-holders`, чтение панели голосования —
+строка видов `voteInfoModel.kindsReadingOf` (`[data-parl-vote-kinds]`: число видов ведёт, за ним вид → его карты),
+осмотр — «Учтены сейчас: Животное — Рыба, Птицы · …». ПО «одной ещё» мера `types` не несёт (некуда класть).
+
+**ПРОИЗВОДСТВО ПО СЧЁТУ — ОДИН ОБЩИЙ ШАГ (RX41).** Тело «счёт → `scaledAmount` с потолком → `production.add` → одна
+строка журнала → запись `production` со счётом и его разбором» было написано четыре раза (RX02 · RX04 · RX08 · RX17);
+теперь это `productionCountStep(id, effect, words)` (`resolutions/ResolutionProductionCount.ts`): карта объявляет
+эффект и свои СЛОВА журнала (`ProductionCountWords`: `none` · `reason` · `gained` · `capped`; влияние в строке — только
+если оно член части), разбор счёта переносится в запись целиком (units · byTag · spaces · tiers · metric · colonies ·
+byCard — что есть у счёта). Соседи переведены байт в байт, их спеки зелёные без правок.

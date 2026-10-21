@@ -480,7 +480,7 @@ Lobbyist/Politician/T. Politician — набор в `getCandidates` (`MilestoneA
 | Scientists Budget | Scientists | −10 M€; M€ = наука + влияние; каждому 2 карты — второй БЮДЖЕТ и чистая СБОРКА: плата = `levy` + общий `levyStep` (RX15) без правок, счёт = `scienceTags` (RX18), добор = общий `ExternalDrawIntake` (RX05/RX16), плоский (влияние карт не покупает и с деньгами не складывается); надбавка меток RX26 в счёт НЕ входит (счёт читает `'raw'`, а закон к моменту выплаты уже покинул правительство) | Н | 2 метки науки | **A · СДАНА RX27** |
 | Skyscrapers | Mars First | ★ и все с влиянием ≥2 кладут город **на свой город** — СТОПКА: `Space.stackHeight`, ОДНА величина `countCities` (ярусы), ПО за ярус; тайл ПО ПОРОГУ (`tileGrant`, счёт назначений `marsCities`) | В(стек) | 2 города на Марсе | **A · СДАНА RX20** |
 | Sponsored Projects | Scientists | карты = влияние; +1 ресурс на каждую карту с ресурсами — первая выплата на карты БЕЗ ВОПРОСА: добор = общий интейк (шаг Open IP Trade один в один), ресурсы — третья форма единицы `onto: 'each-counted'` + `resources: 'own-kind'` (честное «любой»), седьмой вид счёта `holders` (`cardsWithResources` = движковый `getCardsWithResources`, корпорация считается, держатель с 0 — нет; `byCard` с ПО), общий шаг `eachCountedCardStep` (список зафиксирован до посадки, по единице СВОЕГО вида, запись с «было» и ПО), адрес стадии `reward`; бот — ничего (Р3); показ — КВИТАНЦИЯ СТОЛА (пятый хост директора приёма TR53: ряд лиц в зоне стадии после взятия добора, жетоны с печатного «?» на свои капсулы) | Н | 4 data | **A · СДАНА RX40** |
-| Tax Breaks | Industrialists | +1 пр. M€ за тип ресурса карт + влияние (max 5) | Н | 2 mech | D (эффект A) |
+| Tax Breaks | Industrialists | +1 пр. M€ за РАЗНЫЙ вид ресурса на своих картах + влияние (max 5) — СБОРКА: выплата RX04 член в член (производство M€ = счёт + влияние, потолок на прибавку), счёт — выборка RX40 (`getCardsWithResources`) с МЕРОЙ `types` (`cardResourceTypes` = вид `holders`, `measure: 'types'`; мера движка Tradesman / Collector, одна группировка `holderKindsOf`); вид — с ≥ 1 ресурсом (Р2), корпорация считается; общий шаг `productionCountStep` (RX02 / RX04 / RX08 / RX17 переведены на него); бот — ничего, задание для бота недостижимо (мехов не хранит) | Н | 2 mech | **A · СДАНА RX41** |
 | Trade Industries | Unity | **Д**: 12 M€ (можно титаном, скидка 2×влияние) → +1 флот — первое ПЛАТНОЕ действие: счёт как данные (`actionBill`), цена ОДНОЙ функцией (`actionBillPrice`, пол ноль), ПЛАТИ-ПОТОМ-ПОЛУЧАЙ через общую воронку `runPaidResolutionAction` (учёт и флот в `andThen` счёта, маркер `pay`); задание — девятый вид `trade` | Д | 2 торговли | **A · СДАНА RX28** |
 | Unity Budget | Unity | −12 M€; M€ = Земля+Венера+Юпитер + влияние; все треки колоний +2 — четвёртый БЮДЖЕТ (плата = `levy` RX15, счёт = новый трёхтеговый id `earthVenusJovianTags` формы RX06) и первый МИРОВОЙ шаг по СТОЛУ КОЛОНИЙ: объявление `trackAdvance {steps}` + общий `colonyTrackStep` (все активные тайлы через `Colony.increaseTrack`, раз за принятие, запись `colonyTrack` без места с `tracks: [{colony, before, after}]`, потолок назван); показ — заседание ХОСТИТ экран колоний как шаг-ПОКАЗ (мост RX09 без вопроса) и волной двигает все маркеры на общем глайде торговли | Н | 2 метки Земли | **A · СДАНА RX29** |
 | UNMI Inspection | Unity (UW) | … | — | 2 метки Земли | C |
@@ -494,7 +494,7 @@ Lobbyist/Politician/T. Politician — набор в `getCandidates` (`MilestoneA
 Venus (Cloud Development, Gas Export); **B = 7** (Development Craze, Diverted Research, Forestry
 Support, Live Experiments-действие, R&D Funding, Skyscrapers, UNMI Veto); **C = 6** (Underworld);
 **D = 5** (задания: Live Experiments, Trade Industries, Joint Research и Mars First Budget сданы — значки опознаны как табличка требования, торговля, метка события и метка Марса (её печатают 19 карт turmoilRedux);
-UNMI Veto — метка Марса; Sponsored Projects, Diverted Research — data; Tax Breaks — mech).
+UNMI Veto — метка Марса; Sponsored Projects, Diverted Research — data; Tax Breaks — mech, СДАНА RX41: задание «2 [мех]» опознано, эффект A).
 
 **Бюджеты закончены (RX39, 2026-10-20):** все шесть — по одному на партию (Industrialist, Scientists RX27, Unity RX29,
 Greens RX34, Mars First RX38, Reds RX39) — стоят на ОДНОЙ плате (`levy` + `levyStep`, RX15) и ОДНОЙ форме счёта по
@@ -567,7 +567,7 @@ Migration Funding) после двух ошибок чтения за один �
 | Scientists Budget | круг науки ×2 | 2 метки науки | — | каталог ✓ |
 | Skyscrapers | гекс города + мини-гекс Марса ×2 | 2 города на Марсе | — | каталог ✓ |
 | Sponsored Projects | оранжевый квадрат data ×4 | 4 data | — | каталог ✓ |
-| Tax Breaks | синий квадрат с мехом ×2 | 2 mech | — | каталог ✓ |
+| Tax Breaks | синий квадрат с мехом ×2 | 2 mech | `cardResource MECH ×2` | ✓ (RX41: для бота недостижимо — ни одна область бота не хранит мехи, блок говорит это) |
 | Trade Industries | чёрный треугольник с белой стрелкой (ТОРГОВЛЯ) ×2 | 2 торговли | `trade ×2` | ✓ (`Q-4` закрыт RX28: значок сноски ≠ значок флота в правиле; задания — совершение, не состояние) |
 | UNMI Inspection | круг Земли ×2 | 2 метки Земли | — | каталог: было пусто → заполнено |
 | UNMI Veto | круг Марса ×2 | 2 метки Марса | — | каталог ✓ |
