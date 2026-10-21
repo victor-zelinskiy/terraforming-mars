@@ -248,6 +248,15 @@ describe('GMOContract — on a Turmoil Redux table', () => {
       expect(fact.timing).eq('after-card');
     });
 
+    it('ONE fact per matching printed tag, each naming its tag — the play scene births each answer on the tag that woke it', () => {
+      const t = contractInPlay();
+      const research = new EcologyResearch();
+      t.p1.cardsInHand.push(research);
+      const facts = forecastOf(t.p1, research);
+      expect(facts.map((f) => f.reasonTag)).deep.eq([Tag.PLANT, Tag.ANIMAL, Tag.MICROBE]);
+      expect(facts.map((f) => f.effects[0].amount)).deep.eq([2, 2, 2]);
+    });
+
     it('an opponent\'s play is never forecast for the owner', () => {
       const t = contractInPlay();
       const lichen = new Lichen();

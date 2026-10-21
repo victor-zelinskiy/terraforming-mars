@@ -12,6 +12,9 @@ import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
 import * as actionPreviews from '../actionPreviews';
 import * as forecast from '../effectForecastPreviews';
 
+/** The tags the contract pays for — the hook's count and the forecast's parts read the same list. */
+const GMO_TAGS = [Tag.ANIMAL, Tag.PLANT, Tag.MICROBE];
+
 export class GMOContract extends Card implements IProjectCard {
   constructor() {
     super({
@@ -42,7 +45,7 @@ export class GMOContract extends Card implements IProjectCard {
   }
 
   public onCardPlayed(player: IPlayer, card: ICard): void {
-    const amount = player.tags.cardTagCount(card, [Tag.ANIMAL, Tag.PLANT, Tag.MICROBE]);
+    const amount = player.tags.cardTagCount(card, GMO_TAGS);
     if (amount > 0) {
       player.defer(() => player.stock.add(Resource.MEGACREDITS, amount * 2, {log: true}));
     }
@@ -50,16 +53,24 @@ export class GMOContract extends Card implements IProjectCard {
   /**
    * Mirrors `onCardPlayed`: 2 M€ per matching tag (Decomposers' count), deferred
    * through `player.defer` at `Priority.DEFAULT` — after the card's own choices.
-   * The card is a reactor of its own play («including this»), so its composer
-   * forecasts the +2 of its own microbe tag.
+   * ONE FACT PER MATCHING PRINTED TAG (Mars University's science shape): each
+   * tag pays its own 2 M€ and names itself (`reasonTag`), so the play scene
+   * births each answer on the tag of the landed card that woke it. The card is
+   * a reactor of its own play («including this»), so its composer forecasts
+   * the +2 of its own microbe tag.
    */
   public cardPlayedForecast(cardOwner: IPlayer, _activePlayer: IPlayer, card: ICard): ReadonlyArray<EffectForecastFact> {
-    const tags = cardOwner.tags.cardTagCount(card, [Tag.ANIMAL, Tag.PLANT, Tag.MICROBE]);
-    if (tags === 0) {
+    const count = cardOwner.tags.cardTagCount(card, GMO_TAGS);
+    if (count === 0) {
       return [];
     }
-    return [forecast.exact(forecast.sourceOf(this, cardOwner, 'card-played'),
-      [actionPreviews.stockGain(cardOwner, Resource.MEGACREDITS, tags * 2)],
-      'You play a card with an animal, plant or microbe tag', forecast.AFTER_CARD)];
+    const source = forecast.sourceOf(this, cardOwner, 'card-played');
+    const printed = card.tags.filter((tag) => GMO_TAGS.includes(tag));
+    // The hook's own count decides the total; the printed tags are its parts (always equal for these three tags).
+    const parts = printed.length === count ? printed : [undefined];
+    return parts.map((tag, i) => forecast.exact(source,
+      [actionPreviews.stockGain(cardOwner, Resource.MEGACREDITS, tag === undefined ? count * 2 : 2)],
+      tag === undefined ? 'You play a card with an animal, plant or microbe tag' : forecast.tagReason(tag),
+      {...forecast.AFTER_CARD, id: `gmo-${i}`, ...(tag !== undefined ? {reasonTag: tag} : {})}));
   }
 }
