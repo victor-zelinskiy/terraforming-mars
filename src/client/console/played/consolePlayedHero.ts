@@ -71,9 +71,9 @@ import {
 } from '@/client/console/played/playedCardReturn';
 import {PlayReaction, splitPlayRewards, cardTargetGroups} from '@/client/console/played/receivingStageModel';
 import {runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
-import {RailReward, flyRailReward, railRewardPending, releaseRailReward, seedRailReward, verifyRailReward} from '@/client/console/resourceTransfer/railReward';
-import {TOUCHDOWN_TICK_GAP_MS, TransferPoint, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {bareWildIcons, iconNeedlesFor, resolveActionCommitAnchors, resolveSpendIconOrigins, wildChosen} from '@/client/console/consoleActionCommitMotion';
+import {RailAnswerCause, RailAnswerFlight, RailReward, flyRailReward, railRewardPending, releaseRailReward, seedRailReward, verifyRailReward} from '@/client/console/resourceTransfer/railReward';
+import {TOUCHDOWN_TICK_GAP_MS, TransferEnd, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {bareWildIcons, centreEndOf, iconNeedlesFor, resolveActionCommitAnchors, resolveSpendIconEnds, wildChosen} from '@/client/console/consoleActionCommitMotion';
 import type {PlayCardPrice} from '@/client/console/consoleActionCommit';
 import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
 import {armedEffectsChange, releaseArmedEffectHolds, releaseStagedArmedSpends, settleArmedEffectHolds, shipArmedEffects} from '@/client/console/armedEffectFlight';
@@ -253,6 +253,8 @@ let heldRewards: Array<ResourceTransferSpec> = [];
 let pendingRail: RailReward | undefined;
 /** The rail reward this transaction SEEDED (its owner key) — undefined: nothing of it is held. */
 let heldRailKey: string | undefined;
+/** …and the printed tags its answers were woken by (T06) — the answer flies from them after the rating. */
+let heldRailAnswerTags: Readonly<Partial<Record<string, ReadonlyArray<RailAnswerCause>>>> | undefined;
 
 /**
  * THE TABLE'S ANSWER TO THE PLAY ON THE CARDS (К-S1 — PL-124): the HOLDERS of
@@ -287,6 +289,28 @@ let heldReactions: ReadonlyArray<PlayReaction> = [];
  * scene releases them at once.
  */
 let heldAnswers: Array<ResourceTransferSpec> = [];
+/**
+ * …and WHERE an answer is caused on the landed card (T06 GMO Contract — «Сработает: +2 M€ · Контракты на ГМО»): the
+ * printed TAG that woke a card's answer, by its rail row (`RailReward.answerTags`). Such an answer is not a number that
+ * changes a beat after the wave — its token is BORN on that tag of the landed card and the row ticks on its touchdown.
+ */
+let heldAnswerTags: Readonly<Partial<Record<string, ReadonlyArray<RailAnswerCause>>>> = {};
+
+/**
+ * THE ABSORBS THE STAGE OWES (T06 — «оба конца живые»): the card-target groups land their tokens ON this scene's cards,
+ * and a token's contact beat runs on past its touchdown — the scene closes only once every such token is absorbed
+ * (every run's `onAbsorbed` resolves: the director guards each absorb).
+ */
+const stageAbsorbs: Array<Promise<void>> = [];
+
+/** A run's `onAbsorbed`, registered with the stage — the close waits for it. */
+function stageAbsorb(): () => void {
+  let done: () => void = () => {};
+  stageAbsorbs.push(new Promise<void>((resolve) => {
+    done = resolve;
+  }));
+  return () => done();
+}
 
 /**
  * THE SHIPMENT BEAT (PL-107 — the rail-spend law, PL-099, at the play door):
@@ -407,20 +431,74 @@ function holdHeroAnswers(rail: RailReward, before?: PlayerViewModel, after?: Pla
     return;
   }
   heldAnswers = [...verdict.reactions];
+  heldAnswerTags = rail.answerTags ?? {};
   beginPanelRewardHold(heldAnswers);
 }
 
-/** The table's rail answers tick ONE BEAT after the scene's wave has landed (`TOUCHDOWN_TICK_GAP_MS`), on the animation clock. */
-function answerHeroAfterWave(): void {
+/**
+ * The table's rail answers, ONE BEAT after the scene's wave has landed (`TOUCHDOWN_TICK_GAP_MS`, on the animation clock):
+ * an answer whose cause is PRINTED on the landed card (a tag that woke it — T06 GMO Contract's «+2 M€» for Lichen's
+ * plant) is FLOWN from that tag to its row, the row ticking on the touchdown; one with no printed cause (a party's
+ * answer) ticks at the beat, as before. Resolves once every flown answer has touched down.
+ */
+async function answerHeroAfterWave(): Promise<void> {
   const answers = heldAnswers.splice(0);
+  const tags = heldAnswerTags;
+  heldAnswerTags = {};
   if (answers.length === 0) {
     return;
   }
-  gsap.delayedCall(motionMs(TOUCHDOWN_TICK_GAP_MS) / 1000, () => {
-    for (const spec of answers) {
-      releasePanelRewardHold(spec);
+  await new Promise<void>((resolve) => gsap.delayedCall(motionMs(TOUCHDOWN_TICK_GAP_MS) / 1000, resolve));
+  const card = playedHeroState.card ?? '';
+  const flown: Array<{spec: ResourceTransferSpec, origin: TransferEnd}> = [];
+  for (const spec of answers) {
+    // One token per printed cause (a tag and its share — Ecology Research's plant, animal and microbe are three);
+    // what no visible cause covers (a party's share, a tag not on screen) ticks at the beat.
+    let covered = 0;
+    for (const cause of tags[railRowKey(spec)] ?? []) {
+      const origin = !playedHeroState.active || covered + cause.amount > spec.amount ? undefined : heroTagOrigin(card, cause.tag);
+      if (origin !== undefined) {
+        flown.push({spec: {...spec, amount: cause.amount}, origin});
+        covered += cause.amount;
+      }
     }
+    if (covered < spec.amount) {
+      releasePanelRewardHold({...spec, amount: spec.amount - covered});
+    }
+  }
+  if (flown.length === 0) {
+    return;
+  }
+  const left = new Set(flown.map((f) => f.spec));
+  await runResourceTransfers({
+    specs: flown.map((f) => f.spec),
+    source: {},
+    origins: flown.map((f) => f.origin),
+    arrival: 'auto',
+    onArrive: (spec) => {
+      if (left.delete(spec)) {
+        releasePanelRewardHold(spec);
+      }
+    },
   });
+  // Whatever the wave left held (it never does — the framework releases every spec) ticks now.
+  left.forEach((spec) => releasePanelRewardHold(spec));
+  playedHeroState.reactions = 'flown';
+}
+
+/** The rail answers' flight for a play WITH a rating (the rail module's answer, PL-220's shape): born on the woken tag. */
+function heroAnswerFlight(card: string, tags: Readonly<Partial<Record<string, ReadonlyArray<RailAnswerCause>>>> | undefined): RailAnswerFlight | undefined {
+  if (tags === undefined || Object.keys(tags).length === 0) {
+    return undefined;
+  }
+  return {
+    // The rail module flies a held answer as ONE token: born on its first printed cause.
+    originOf: (spec) => {
+      const cause = tags[railRowKey(spec)]?.[0];
+      return cause === undefined ? undefined : heroTagOrigin(card, cause.tag);
+    },
+    onLeft: () => {},
+  };
 }
 
 // ── stage / target registries (layer + overlay plug in) ────────────────────
@@ -621,6 +699,9 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {
   followUpPending = false;
   pendingRewards = opts.rewards ?? [];
   pendingReactions = opts.reactions ?? [];
+  stageAbsorbs.splice(0);
+  heldAnswerTags = {};
+  heldRailAnswerTags = undefined;
   // THE SCORE CELL (TR55): the card's own share and the shares of the cards this play feeds or wakes are this scene's
   // to show — claimed at the press, held by the ledger in the apply block, flown / released by the reward beat.
   releaseVpShares(PLAYED_HERO_VP_OWNER, {why: 're-armed'});
@@ -842,6 +923,7 @@ export function seedPlayedHeroRewardHold(before?: PlayerViewModel, after?: Playe
     holdHeroAnswers(rail, before, after);
   } else if (rail !== undefined && card !== undefined && seedRailReward(playedHeroRailKey(card), rail, before, after)) {
     heldRailKey = playedHeroRailKey(card);
+    heldRailAnswerTags = rail.answerTags;
   }
 }
 
@@ -1136,17 +1218,16 @@ function shipTargetSpends(mine: () => boolean): Promise<void> | undefined {
     playedHeroState.targetSpend = 'no-row';
     return undefined;
   }
-  const r = icon.getBoundingClientRect();
   const anchors = resolveActionCommitAnchors(el, undefined);
-  const origins = resolveSpendIconOrigins(anchors, verified);
-  const body = anchors.cardEl.getBoundingClientRect();
+  const origins = resolveSpendIconEnds(anchors, verified);
   playedHeroState.targetSpend = 'flying';
   return runResourceTransfers({
     specs: verified,
-    // A LOSS walks the geometry backwards: born at `destination` (the target row), absorbed at the printed icon.
-    source: {point: {x: body.left + body.width / 2, y: body.top + body.height / 2}},
+    // A LOSS walks the geometry backwards: born at `destination` (the target row), absorbed at the printed icon —
+    // both OBJECTS (T06), re-measured at the birth and on the final approach (the card lifts as the play lands).
+    source: {end: bodyEnd(anchors.cardEl)},
     origins,
-    destination: {x: r.left + r.width / 2, y: r.top + r.height / 2},
+    destination: {el: icon, fx: 0.5, fy: 0.5},
     arrival: 'auto',
     // Drawn INTO the printed icons of the card they pay for: no settle, the short absorb (PL-140's spend grammar).
     absorb: 'quick',
@@ -1181,8 +1262,8 @@ function shipCardPrice(price: PlayCardPrice | undefined, mine: () => boolean): P
   }
   // The absorb point: the printed COST badge of the standing card (its body when the face prints none).
   const badge = el.querySelector<HTMLElement>('.pcard__cost-badge') ?? el.querySelector<HTMLElement>('.pcard__cost') ?? el;
-  const b = badge.getBoundingClientRect();
-  const absorb: TransferPoint = {x: b.left + b.width / 2, y: b.top + b.height / 2};
+  // An OBJECT end (T06): the badge is re-measured on the token's final approach.
+  const absorb: TransferEnd = {el: badge, fx: 0.5, fy: 0.5};
   const flights: Array<Promise<void>> = [];
   for (const spec of verdict.cause) {
     const unit = price.units[price.reward.cause.indexOf(spec)];
@@ -1193,13 +1274,12 @@ function shipCardPrice(price: PlayCardPrice | undefined, mine: () => boolean): P
       playedHeroState.price = `no-row: ${unit ?? spec.resource}`;
       continue;
     }
-    const r = icon.getBoundingClientRect();
     playedHeroState.price = 'flying';
     flights.push(runResourceTransfers({
       specs: [spec],
-      // A LOSS walks the geometry backwards: born at `destination` (the pay row), absorbed at the source point.
-      source: {point: absorb},
-      destination: {x: r.left + r.width / 2, y: r.top + r.height / 2},
+      // A LOSS walks the geometry backwards: born at `destination` (the pay row), absorbed at the source — both objects.
+      source: {end: absorb},
+      destination: {el: icon, fx: 0.5, fy: 0.5},
       arrival: 'auto',
       onDegrade: (_spec, why) => {
         playedHeroState.price = `degraded: ${why} (${spec.resource})`;
@@ -1232,19 +1312,18 @@ function shipLawBill(mine: () => boolean): Promise<void> | undefined {
     }
     return undefined;
   }
-  const el = firstMeasurable(bill.targetSelector);
+  const el = firstVisibleEnd(bill.targetSelector) as HTMLElement | undefined;
   if (el === undefined) {
     playedHeroState.bill = 'no-source';
     return undefined;
   }
   const anchors = resolveActionCommitAnchors(el, undefined);
   const specs = verdict.cause;
-  const origins = resolveSpendIconOrigins(anchors, specs);
-  const body = anchors.cardEl.getBoundingClientRect();
+  const origins = resolveSpendIconEnds(anchors, specs);
   playedHeroState.bill = 'flying';
   return runResourceTransfers({
     specs,
-    source: {point: {x: body.left + body.width / 2, y: body.top + body.height / 2}},
+    source: {end: bodyEnd(anchors.cardEl)},
     origins,
     arrival: 'auto',
     // A LOSS releases at its LAUNCH: the row ticks the moment the token leaves it (a departure hold — released by the
@@ -1258,20 +1337,6 @@ function shipLawBill(mine: () => boolean): Promise<void> | undefined {
       playedHeroState.bill = `degraded: ${why} (${spec.resource})`;
     },
   });
-}
-
-/** The first MEASURABLE match of a selector (a parked layer may hold the same identity with a zero rect). */
-function firstMeasurable(selector: string): HTMLElement | undefined {
-  if (typeof document === 'undefined') {
-    return undefined;
-  }
-  for (const el of document.querySelectorAll<HTMLElement>(selector)) {
-    const r = el.getBoundingClientRect();
-    if (r.width >= 10 && r.height >= 10) {
-      return el;
-    }
-  }
-  return undefined;
 }
 
 /** The STOCK spends of the play's effect (PL-107 — X87's plants and steel off the rail). Undefined — nothing to fly. */
@@ -1307,12 +1372,11 @@ function shipStockSpends(mine: () => boolean): Promise<void> | undefined {
   }
   const anchors = resolveActionCommitAnchors(el, undefined);
   const specs = verdict.cause;
-  const origins = resolveSpendIconOrigins(anchors, specs);
-  const body = anchors.cardEl.getBoundingClientRect();
+  const origins = resolveSpendIconEnds(anchors, specs);
   playedHeroState.shipment = 'flying';
   return runResourceTransfers({
     specs,
-    source: {point: {x: body.left + body.width / 2, y: body.top + body.height / 2}},
+    source: {end: bodyEnd(anchors.cardEl)},
     origins,
     arrival: 'auto',
     // A LOSS releases at its LAUNCH (the transfer language's own law): the row ticks the moment the token leaves
@@ -1349,18 +1413,17 @@ function seedDeparture(spec: ResourceTransferSpec): void {
   beginPanelRewardHold([hold]);
 }
 
-/** The card standing in the composer (the lift's source) — the first measurable match, never just the first. */
+/**
+ * The card standing in the composer (the lift's source) — the first VISIBLE match (T06 — the law of visible ends):
+ * a folding stage, a slot under glass are measurable and are not a place a token may leave from or be drawn into.
+ */
 function standingSourceEl(): HTMLElement | undefined {
-  if (typeof document === 'undefined') {
-    return undefined;
-  }
-  for (const el of document.querySelectorAll<HTMLElement>(sourceSelector)) {
-    const r = el.getBoundingClientRect();
-    if (r.width >= 10 && r.height >= 10) {
-      return el;
-    }
-  }
-  return undefined;
+  return firstVisibleEnd(sourceSelector) as HTMLElement | undefined;
+}
+
+/** The body of the standing card as an OBJECT end (its middle) — the loss chains' card-level fallback. */
+function bodyEnd(el: HTMLElement): TransferEnd {
+  return {el, fx: 0.5, fy: 0.5};
 }
 
 /** The LANDING picture, resolved from the answer (see `HeroLandingFaceSpec`). */
@@ -1484,7 +1547,7 @@ export async function endPlayedHero(): Promise<void> {
         const printedOrigins = group.specs.map((spec) => heroGainOrigin(playedHeroState.card ?? '', spec));
         const origins = printedOrigins.some((o) => o !== undefined) ? printedOrigins : undefined;
         await receiveOnStage(group, hooks, () =>
-          runResourceTransfers({specs: group.specs, source, ...(origins !== undefined ? {origins} : {}), arrival: 'auto', onArrive: release}));
+          runResourceTransfers({specs: group.specs, source, ...(origins !== undefined ? {origins} : {}), arrival: 'auto', onArrive: release, onAbsorbed: stageAbsorb()}));
         if (!playedHeroState.active) {
           return;
         }
@@ -1501,8 +1564,9 @@ export async function endPlayedHero(): Promise<void> {
     // THE TABLE'S ANSWER ON THE CARDS (К-S1): the holders the play woke, each its own group after the card's own
     // gains — before the TR, which stays last.
     await flyHeroReactions(source, release, hooks);
-    // THE TABLE'S ANSWER ON THE RAIL with no rating to ride (PL-035): one beat after the wave's last touchdown.
-    answerHeroAfterWave();
+    // THE TABLE'S ANSWER ON THE RAIL with no rating to ride (PL-035): one beat after the wave's last touchdown — FLOWN
+    // from the landed card's printed tag that woke it (T06), ticking on its touchdown; a party's answer ticks.
+    await answerHeroAfterWave();
     // Belt-and-braces: any hold of OURS a degraded transfer left behind snaps to
     // the committed truth now (its chip fires marginally late, never lost).
     releaseHeroRewards();
@@ -1517,7 +1581,8 @@ export async function endPlayedHero(): Promise<void> {
       // event — where that card now lies), the rating and its VP cell tick on
       // the touchdown, and the table's answer (the ruling Greens' M€) one beat
       // after — `flyRailReward` resolves once all of it has ticked.
-      await flyRailReward(railKey, () => heroRailOrigin(playedHeroState.card ?? ''));
+      await flyRailReward(railKey, () => heroRailOrigin(playedHeroState.card ?? ''),
+        heroAnswerFlight(playedHeroState.card ?? '', heldRailAnswerTags));
       heldRailKey = undefined;
       if (!playedHeroState.active) {
         return;
@@ -1547,6 +1612,13 @@ export async function endPlayedHero(): Promise<void> {
     if (!playedHeroState.active) {
       return;
     }
+  }
+  // THE STAGE STANDS UNTIL ITS OWN TOKENS ARE ABSORBED (T06): a resource landing on a card of this scene finishes its
+  // contact beat ON that card — the scene dissolving under it left the token hanging over the board where the card was
+  // (the stand: Pets' animal, 1094 px off any object at fhd, 2094 at 4K). Every absorb resolves (the director's guard).
+  await Promise.all(stageAbsorbs.splice(0));
+  if (!playedHeroState.active) {
+    return;
   }
   playedHeroState.phase = 'closing';
   if (playedHeroState.autoClose && playedHeroState.tableOpen) {
@@ -1950,7 +2022,7 @@ async function flyHeroReactions(
         return;
       }
       await receiveOnStage(group, hooks, () =>
-        runResourceTransfers({specs: group.specs, source, origins: originsOf(group.specs), arrival: 'auto', onArrive: release}));
+        runResourceTransfers({specs: group.specs, source, origins: originsOf(group.specs), arrival: 'auto', onArrive: release, onAbsorbed: stageAbsorb()}));
       if (!playedHeroState.active) {
         return;
       }
@@ -1963,30 +2035,30 @@ async function flyHeroReactions(
 }
 
 /**
- * WHERE a reaction's chip is born: the centre of the landed card's printed
- * tag medallion of `tag` — on the front card of the receiving stage, else on
- * the landed card of the «Разыграно» table (the overlay) — undefined when no
- * measurable face prints it (the transfer falls back to the card itself).
+ * THE PLACE THE PLAY'S REWARDS ARE BORN ON — the FIRST VISIBLE place of the reward ladder (T06 — the law of visible
+ * ends: never the first MEASURABLE one; a folding stage, a slot under glass still measure). Undefined when none is
+ * painted: the token degrades by name, never out of a place nobody sees.
  */
-function heroTagOrigin(card: string, tag: Tag): TransferPoint | undefined {
+function heroRewardPlace(card: string): HTMLElement | undefined {
   if (typeof document === 'undefined' || card === '') {
     return undefined;
   }
   for (const selector of heroRewardSourceSelectors(card)) {
-    for (const el of document.querySelectorAll<HTMLElement>(selector)) {
-      const r = el.getBoundingClientRect();
-      if (r.width <= 4 || r.height <= 4) {
-        continue;
-      }
-      const medallion = el.querySelector<HTMLElement>(`.pcard-tag[data-tag="${tag}"]`);
-      const mr = medallion?.getBoundingClientRect();
-      if (mr !== undefined && mr.width > 4) {
-        return {x: mr.left + mr.width / 2, y: mr.top + mr.height / 2};
-      }
-      return undefined;
+    const el = firstVisibleEnd(selector);
+    if (el !== undefined) {
+      return el as HTMLElement;
     }
   }
   return undefined;
+}
+
+/**
+ * WHERE a reaction's chip is born: the landed card's printed tag medallion of `tag` — on the front card of the
+ * receiving stage, else on the landed card of the «Разыграно» table (the overlay) — as an OBJECT end (T06, re-measured
+ * at the birth); undefined when the visible place prints none (the transfer falls back to the card itself).
+ */
+function heroTagOrigin(card: string, tag: Tag): TransferEnd | undefined {
+  return centreEndOf(heroRewardPlace(card)?.querySelector<HTMLElement>(`.pcard-tag[data-tag="${tag}"]`));
 }
 
 /**
@@ -1995,11 +2067,11 @@ function heroTagOrigin(card: string, tag: Tag): TransferPoint | undefined {
  * effect frame (TR45 prints two microbes in its action, «spend 2 microbes»; the play's «+14» is the third,
  * «[microbe] / [tile on Mars]»). A row of alternatives prints each branch's own resource («3 [мех]* OR 3 [истребитель]*
  * OR 6 [аэростат]*»), so the icon of the token's resource IS the chosen branch's. The first such icon of the first
- * measurable place of the reward ladder; undefined when the face prints none outside a frame (the shared spawn point
- * stands) or for any other channel.
+ * VISIBLE place of the reward ladder, as an object end; undefined when the face prints none outside a frame (the
+ * shared spawn point stands) or for any other channel.
  */
-function heroGainOrigin(card: string, spec: ResourceTransferSpec): TransferPoint | undefined {
-  if (typeof document === 'undefined' || card === '' || spec.channel !== 'card-resource') {
+function heroGainOrigin(card: string, spec: ResourceTransferSpec): TransferEnd | undefined {
+  if (spec.channel !== 'card-resource') {
     return undefined;
   }
   // A replaced unit's data (RX35) is born on the STRUCK printed scale / tile icon (`bornOn`) — the step it replaced.
@@ -2007,43 +2079,20 @@ function heroGainOrigin(card: string, spec: ResourceTransferSpec): TransferPoint
   if (needles.length === 0) {
     return undefined;
   }
-  for (const selector of heroRewardSourceSelectors(card)) {
-    for (const el of document.querySelectorAll<HTMLElement>(selector)) {
-      const r = el.getBoundingClientRect();
-      if (r.width <= 4 || r.height <= 4) {
-        continue;
-      }
-      const printed = Array.from(el.querySelectorAll<HTMLElement>('.pcard-ic'))
-        .find((icon) => icon.closest('.pcard-effect') === null && needles.some((needle) => (icon.style.backgroundImage ?? '').includes(needle)));
-      const ir = printed?.getBoundingClientRect();
-      return ir !== undefined && ir.width > 4 ? {x: ir.left + ir.width / 2, y: ir.top + ir.height / 2} : undefined;
-    }
-  }
-  return undefined;
+  const place = heroRewardPlace(card);
+  return centreEndOf(place === undefined ? undefined : Array.from(place.querySelectorAll<HTMLElement>('.pcard-ic'))
+    .find((icon) => icon.closest('.pcard-effect') === null && needles.some((needle) => (icon.style.backgroundImage ?? '').includes(needle))));
 }
 
 /**
  * WHERE A STANDARD RESOURCE CHOSEN FROM THE FACE'S «?» IS BORN (TR54 — «ПАЛИТРА СТАНДАРТНОГО РЕСУРСА»): on the landed
  * card, its bare printed «?» outside every action / effect frame (never the «?» inside a production frame — that one
- * is the production it reads). The first measurable place of the reward ladder; undefined when that place prints no
+ * is the production it reads). The first VISIBLE place of the reward ladder; undefined when that place prints no
  * bare «?» (the shared spawn point stands — the card).
  */
-function heroWildOrigin(card: string): TransferPoint | undefined {
-  if (typeof document === 'undefined' || card === '') {
-    return undefined;
-  }
-  for (const selector of heroRewardSourceSelectors(card)) {
-    for (const el of document.querySelectorAll<HTMLElement>(selector)) {
-      const r = el.getBoundingClientRect();
-      if (r.width <= 4 || r.height <= 4) {
-        continue;
-      }
-      const printed = bareWildIcons(el).find((icon) => icon.closest('.pcard-effect') === null);
-      const ir = printed?.getBoundingClientRect();
-      return ir !== undefined && ir.width > 4 ? {x: ir.left + ir.width / 2, y: ir.top + ir.height / 2} : undefined;
-    }
-  }
-  return undefined;
+function heroWildOrigin(card: string): TransferEnd | undefined {
+  const place = heroRewardPlace(card);
+  return centreEndOf(place === undefined ? undefined : bareWildIcons(place).find((icon) => icon.closest('.pcard-effect') === null));
 }
 
 /**
@@ -2112,68 +2161,30 @@ async function flyHeroCardVp(card: string): Promise<void> {
 /** The press the printed badge plays as its token is born (ms @ motion scale 1). */
 const VP_EMIT_PRESS_MS = 260;
 
-/** The landed card's printed VP badge on the first measurable place of the reward ladder, if its face is up. */
+/** The landed card's printed VP badge on the first VISIBLE place of the reward ladder, if its face is up. */
 function heroVpBadgeEl(card: string): HTMLElement | undefined {
-  if (typeof document === 'undefined' || card === '') {
-    return undefined;
-  }
-  for (const selector of heroRewardSourceSelectors(card)) {
-    for (const el of document.querySelectorAll<HTMLElement>(selector)) {
-      const r = el.getBoundingClientRect();
-      if (r.width <= 4 || r.height <= 4) {
-        continue;
-      }
-      const badge = el.querySelector<HTMLElement>('.pcard__vp');
-      const br = badge?.getBoundingClientRect();
-      return badge !== null && badge !== undefined && br !== undefined && br.width > 4 ? badge : undefined;
-    }
-  }
-  return undefined;
+  const badge = heroRewardPlace(card)?.querySelector<HTMLElement>('.pcard__vp') ?? undefined;
+  return centreEndOf(badge) !== undefined ? badge : undefined;
 }
 
 /**
- * WHERE THE CARD'S POINTS ARE BORN (TR55): the centre of the landed card's printed VP badge — and, when the place
- * prints no face (an EVENT lies face-down on its pile), the centre of that place: the card's honest location.
+ * WHERE THE CARD'S POINTS ARE BORN (TR55): the landed card's printed VP badge — and, when the place prints no face (an
+ * EVENT lies face-down on its pile), that place: the card's honest location. Object ends (T06).
  */
-function heroVpOrigin(card: string): TransferPoint | undefined {
-  const badge = heroVpBadgeEl(card);
-  if (badge !== undefined) {
-    const r = badge.getBoundingClientRect();
-    return {x: r.left + r.width / 2, y: r.top + r.height / 2};
-  }
-  if (typeof document === 'undefined' || card === '') {
-    return undefined;
-  }
-  for (const selector of heroRewardSourceSelectors(card)) {
-    for (const el of document.querySelectorAll<HTMLElement>(selector)) {
-      const r = el.getBoundingClientRect();
-      if (r.width > 4 && r.height > 4) {
-        return {x: r.left + r.width / 2, y: r.top + r.height / 2};
-      }
-    }
-  }
-  return undefined;
+function heroVpOrigin(card: string): TransferEnd | undefined {
+  return centreEndOf(heroVpBadgeEl(card)) ?? centreEndOf(heroRewardPlace(card));
 }
 
-function heroRailOrigin(card: string): TransferPoint | undefined {
-  if (typeof document === 'undefined' || card === '') {
+/** The landed card's printed TR icon on the first visible place of the reward ladder, else that place — object ends. */
+function heroRailOrigin(card: string): TransferEnd | undefined {
+  const place = heroRewardPlace(card);
+  if (place === undefined) {
     return undefined;
   }
   const needles = iconNeedlesFor('tr') ?? [];
-  const centre = (r: DOMRect): TransferPoint => ({x: r.left + r.width / 2, y: r.top + r.height / 2});
-  for (const selector of heroRewardSourceSelectors(card)) {
-    for (const el of document.querySelectorAll<HTMLElement>(selector)) {
-      const r = el.getBoundingClientRect();
-      if (r.width <= 4 || r.height <= 4) {
-        continue;
-      }
-      const printed = Array.from(el.querySelectorAll<HTMLElement>('.pcard-ic'))
-        .find((icon) => needles.some((needle) => (icon.style.backgroundImage ?? '').includes(needle)));
-      const ir = printed?.getBoundingClientRect();
-      return ir !== undefined && ir.width > 4 ? centre(ir) : centre(r);
-    }
-  }
-  return undefined;
+  const printed = Array.from(place.querySelectorAll<HTMLElement>('.pcard-ic'))
+    .find((icon) => needles.some((needle) => (icon.style.backgroundImage ?? '').includes(needle)));
+  return centreEndOf(printed) ?? centreEndOf(place);
 }
 
 /**

@@ -43,7 +43,8 @@ import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {PlayedZones, PLAYED_CARD_NATURAL_W, PLAYED_CARD_NATURAL_H, PLAYED_PEEK_NATURAL} from '@/client/components/console/consolePlayedModel';
 import {PlayedCategoryKey} from '@/client/components/console/consolePlayedCategoryModel';
-import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {ResourceTransferSpec, railRewardSpecs, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import type {RailAnswerCause} from '@/client/console/resourceTransfer/railReward';
 
 export {PLAYED_CARD_NATURAL_W, PLAYED_CARD_NATURAL_H, PLAYED_PEEK_NATURAL};
 
@@ -452,6 +453,25 @@ export type PlayReaction = {spec: ResourceTransferSpec, tag?: Tag};
  * composer and NEVER flown — a flight of a number the server may not apply is
  * a lie. Order: the forecast's own (the server's reactor order).
  */
+/**
+ * THE TABLE'S RAIL ANSWERS THAT HAVE A CAUSE PRINTED ON THE PLAYED CARD (T06 GMO Contract — «Сработает: +2 M€ ·
+ * Контракты на ГМО»): every EXACT fact addressed to «you», sourced by a CARD and woken by a TAG of the played card
+ * (`reasonTag` — a hook that pays per tag states one fact per printed tag), as its rail row's CAUSES — the tag and the
+ * share it pays. The play scene births one token per cause on the landed card's printed tag. Pure.
+ */
+export function railAnswerTags(facts: ReadonlyArray<EffectForecastFact> | undefined): Partial<Record<string, Array<RailAnswerCause>>> {
+  const out: Partial<Record<string, Array<RailAnswerCause>>> = {};
+  for (const fact of facts ?? []) {
+    if (fact.certainty !== 'exact' || fact.recipient.kind !== 'you' || fact.source.kind !== 'card' || fact.reasonTag === undefined) {
+      continue;
+    }
+    for (const spec of railRewardSpecs(fact.effects)) {
+      (out[railRowKey(spec)] ??= []).push({tag: fact.reasonTag, amount: spec.amount});
+    }
+  }
+  return out;
+}
+
 export function playCardReactions(facts: ReadonlyArray<EffectForecastFact> | undefined): Array<PlayReaction> {
   const out: Array<PlayReaction> = [];
   for (const fact of facts ?? []) {

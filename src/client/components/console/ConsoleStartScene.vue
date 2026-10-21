@@ -1178,7 +1178,8 @@ import ConsoleStartSelectionDock from '@/client/components/console/ConsoleStartS
 import {armDeliveryHold, runHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {extractPlayRewards, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import type {RailReward} from '@/client/console/resourceTransfer/railReward';
-import {playRailReward} from '@/client/console/consoleActionCommit';
+import {playRailReward, withRailAnswerTags} from '@/client/console/consoleActionCommit';
+import {railAnswerTags} from '@/client/console/played/receivingStageModel';
 import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
 import {forecastForFixedBranch} from '@/client/console/effectForecastModel';
 import {clearPanelRewardHold, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -8283,8 +8284,8 @@ export default defineComponent({
               this.playRewards.set(name, rewards);
             }
             // The rail half — the ceremony pre-collects nothing and a start play costs nothing it pays here.
-            const rail = playRailReward(branch, branch.effects ?? [], {}, undefined,
-              reactionRailSpecs(forecastForFixedBranch(preview?.forecast, 0)?.facts));
+            const rail = withRailAnswerTags(playRailReward(branch, branch.effects ?? [], {}, undefined,
+              reactionRailSpecs(forecastForFixedBranch(preview?.forecast, 0)?.facts)), railAnswerTags(forecastForFixedBranch(preview?.forecast, 0)?.facts));
             if (this.rewardVersion === version) {
               if (rail !== undefined) {
                 this.playRails.set(name, rail);
