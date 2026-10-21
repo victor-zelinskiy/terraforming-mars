@@ -118,9 +118,24 @@ export function setMotionSpeedPreset(preset: MotionSpeedPreset): void {
   applyMotionCssScale();
 }
 
-/** The duration multiplier of the active preset. */
+/**
+ * `?motion=<number>` — a NUMERIC duration multiplier from the URL alone (the e2e speed iteration, 2026-10-21:
+ * the functional e2e class runs the product at ×0.5 — the owner's call; the timing / storyboard class does
+ * not pass it). Never a preset, never persisted, not in the settings picker; clamped to [0.1, 2].
+ */
+let cachedUrlScale: number | undefined | null;
+function urlMotionScale(): number | undefined {
+  if (cachedUrlScale === undefined) {
+    const raw = /[?&]motion=(\d*\.?\d+)(&|$)/.exec(searchString())?.[1];
+    const n = raw === undefined ? NaN : Number(raw);
+    cachedUrlScale = Number.isFinite(n) && n > 0 ? Math.min(2, Math.max(0.1, n)) : null;
+  }
+  return cachedUrlScale ?? undefined;
+}
+
+/** The duration multiplier of the active preset (or the URL's numeric override). */
 export function motionScale(): number {
-  return SPEED_MULTIPLIER[motionSpeedPreset()];
+  return urlMotionScale() ?? SPEED_MULTIPLIER[motionSpeedPreset()];
 }
 
 /**

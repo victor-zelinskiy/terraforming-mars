@@ -10,13 +10,14 @@
  * Buckets are LEAVES (they never nest into each other's totals): `boot` (openConsole), `reload`,
  * `fixture` (the load-game POST), `press` (the whole press: echo wait + its fixed settle, the settle
  * counted again in `pressSleep`), `settle`, `beat` (cinematicBeat), `sleep` (a spec's bare
- * waitForTimeout). `home` (waitForBoardHome) is WALL time that includes its own presses — reported
- * beside the leaves, never summed with them. What no bucket claims is the product + the assertions.
+ * waitForTimeout). `home` (waitForBoardHome) and `opening` (the UI walk through the start flow) are WALL
+ * time that includes their own presses — reported beside the leaves, never summed with them. What no
+ * bucket claims is the product + the assertions.
  *
  * A sleep taken INSIDE a timed primitive is the primitive's (the bucket stack), so the spec's `sleep`
  * bucket counts only what the spec itself wrote.
  */
-export type TimingBucket = 'boot' | 'bootShell' | 'bootLoad' | 'bootVeil' | 'reload' | 'fixture' | 'home' | 'press' | 'pressSleep' | 'settle' | 'beat' | 'sleep';
+export type TimingBucket = 'boot' | 'bootShell' | 'bootLoad' | 'bootVeil' | 'reload' | 'fixture' | 'home' | 'opening' | 'press' | 'pressSleep' | 'settle' | 'beat' | 'sleep';
 
 type Cell = {ms: number, n: number};
 
@@ -88,6 +89,7 @@ export function formatTiming(t: TimingSnapshot): string {
     b.boot === undefined ? undefined : `boot ${s(b.boot.ms)} (${b.boot.n}×: shell ${s(b.bootShell?.ms ?? 0)} · load ${s(b.bootLoad?.ms ?? 0)} · veil ${s(b.bootVeil?.ms ?? 0)})`,
     cell('reload'),
     cell('fixture'),
+    b.opening === undefined ? undefined : `opening ${s(b.opening.ms)} (wall)`,
     b.home === undefined ? undefined : `home ${s(b.home.ms)} (wall)`,
     b.press === undefined ? undefined : `press ${s(b.press.ms)} (${b.press.n}×, sleep ${s(b.pressSleep?.ms ?? 0)})`,
     cell('settle'),

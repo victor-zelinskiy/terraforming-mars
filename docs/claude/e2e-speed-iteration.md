@@ -104,7 +104,42 @@ to change before «no change» is believed** (`pressUntil` had it; `walkFocusUnt
 
 **The fast boot pilot** (`TM_E2E_FAST_BOOT=1` → `?fastboot=1`: no warm-up phases, no curtain minima; the
 same 12 tests, with the fast press): boot **72.0 → 26.3 s** (veil 34.8 → 0, load 27.6 → 16.3 = 1.4 s per
-boot of real readiness, shell unchanged 0.8), the run **236 → 151 s (−36 %)**, 12/12 green.
+boot of real readiness, shell unchanged 0.8), the run **236 → 151 s (−36 %)**, 12/12 green. The 1.4 s left
+in the curtain is its READINESS holds — `fonts` (ConsoleShell), `start-scene`, `board-fit` (two settled
+frames), `atmosphere` (the background decode) — paid per fresh context; only a warm cache across tests
+(phase 1.3) can shorten them.
+
+**The DOM-quiet press** (the second pilot build): the walk's ping-pong gone (94 presses again), but the
+press now waits the surface's REAL entrance — RT's wheel ≈ 800 ms, X's viewer ≈ 950 ms (the census: the
+idle board mutates nothing but the document title once a second, so those waits are the product's own
+motion). The sample 151 → 175 s against the console-quiet-only press — honest, and exactly the number
+motion ×0.5 halves.
+
+## The broad sample (28 specs / 138 tests, two runs side by side on the box, load ≈ 5)
+
+| run | result | time | press | rest |
+| --- | --- | --- | --- | --- |
+| CONTROL: fast boot + fast press, motion ×1 | 131 / 138 | 24.5 min | 794 s | 912 s |
+| the same + motion **×0.5** | 131 / 138 | 21.4 min (**−14 %**) | 689 s | 748 s |
+
+The reds, by class:
+1. **The lock dwell** (`frontier-labs` B ×2, `tile-language` ×2 — in BOTH runs): `commitFocusedSpace` /
+   `placeTile` pressed the confirm right after the lock press returned; the fixed 420 ms used to cover the
+   product's 280 ms dwell by accident, the adaptive press returns at ~270 ms and the confirm landed INSIDE
+   the dwell, ignored. Fixed: `lockedPlacementSeen` — the lock SEEN (`.con-board--locked`) and the dwell
+   passed before the confirm. Re-run: 10 / 10.
+2. **Timing witnesses** (`aerial-mappers` B tv4k, `supercomputer` B tv4k — `endsOverGlass`; `cursor` tv4k —
+   «a face that jumped with no motion»; `parliament-sitting-reward` RX01/RX02 — «the tick rides the
+   touchdown», flaky under the two-run load in BOTH runs): the storyboard / timing class — real motion,
+   `--exclusive`, never the fast flags. The class is DECLARED (`tests/e2e/timingSpecs.ts`), the driver
+   drops the flags for it.
+3. `info-dossier` B fhd («the plate unfolds from the zone's own box») — in both runs, not motion: bisected
+   below.
+
+**Phase 2 tooling ready**: `scripts/e2e-codemod-key-helper.mjs` rewrites the spec-local `key()` / `tap()`
+helper (a press + a fixed sleep) into `await press(page, code, settleMs)` — a dry run matches 70 of the
+78 files; the rest have a three-line body and go by hand. Run it the day the fast press is the default
+(until then the driver's `press` is the slower of the two for a 450 ms helper).
 
 ## Journal
 - 2026-10-21 — iteration opened; video off; the timing ledger (`tests/e2e/timing.ts`, the `timing`

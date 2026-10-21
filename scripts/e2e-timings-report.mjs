@@ -22,7 +22,7 @@ if (rows.length === 0) {
   console.log('no rows');
   process.exit(0);
 }
-const BUCKETS = ['boot', 'reload', 'fixture', 'press', 'pressSleep', 'settle', 'beat', 'sleep', 'home'];
+const BUCKETS = ['boot', 'reload', 'fixture', 'press', 'pressSleep', 'settle', 'beat', 'sleep', 'home', 'opening'];
 const LEAVES = ['boot', 'reload', 'fixture', 'press', 'settle', 'beat', 'sleep'];
 const s = (ms) => (ms / 1000).toFixed(1).padStart(7);
 const pct = (ms, total) => total > 0 ? `${((100 * ms) / total).toFixed(0).padStart(3)}%` : '   -';
@@ -44,6 +44,7 @@ for (const b of LEAVES) {
 }
 console.log(`  ${'rest'.padEnd(10)} ${s(total - leaves)} s ${pct(total - leaves, total)}`);
 console.log(`  ${'home'.padEnd(10)} ${s(sum.home)} s ${pct(sum.home, total)}  (wall of waitForBoardHome, inside the above)`);
+console.log(`  ${'opening'.padEnd(10)} ${s(sum.opening)} s ${pct(sum.opening, total)}  (wall of the UI start-flow walk, inside the above)`);
 
 const byFile = new Map();
 for (const r of rows) {

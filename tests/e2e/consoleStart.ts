@@ -133,12 +133,22 @@ async function pollPause(page: Page, ms: number): Promise<void> {
 }
 
 /**
- * THE FAST BOOT PILOT (the e2e speed iteration, phase 1): `TM_E2E_FAST_BOOT=1` appends `fastboot=1` to every
- * console URL — the product then skips its GPU warm-up phases and the curtain's cosmetic minima
- * (`bootWarmupState.fastBootRequested`). Measured without it: ≈ 4.5 s of every 6 s boot.
+ * THE E2E QUERY (the e2e speed iteration, phase 1 — the pilots, env-gated):
+ *  · `TM_E2E_FAST_BOOT=1` → `&fastboot=1`: the product skips its GPU warm-up phases and the curtain's cosmetic
+ *    minima (`bootWarmupState.fastBootRequested`). Measured without it: ≈ 4.5 s of every 6 s boot.
+ *  · `TM_E2E_MOTION=<x>` → `&motion=<x>`: the product's numeric duration multiplier (`motionTokens.motionScale`,
+ *    the owner's ×0.5 for the functional class — a timing / storyboard spec never sets it).
  */
 function fastBootQuery(): string {
-  return process.env.TM_E2E_FAST_BOOT === '1' ? '&fastboot=1' : '';
+  const parts: Array<string> = [];
+  if (process.env.TM_E2E_FAST_BOOT === '1') {
+    parts.push('&fastboot=1');
+  }
+  const motion = Number(process.env.TM_E2E_MOTION);
+  if (Number.isFinite(motion) && motion > 0 && motion !== 1) {
+    parts.push(`&motion=${motion}`);
+  }
+  return parts.join('');
 }
 
 /**
@@ -1050,10 +1060,12 @@ export async function placeTile(page: Page, maxTries = 24): Promise<boolean> {
   }
   const dirs = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowUp'];
   for (let i = 0; i < maxTries && await kicker.count() > 0; i++) {
+    const lockedAt = Date.now();
     await press(page, 'Enter', 600); // lock (or the whole commit in swift mode)
     if (await kicker.count() === 0) {
       return true;
     }
+    await lockedPlacementSeen(page, lockedAt); // the lock seen + the dwell passed — see commitFocusedSpace
     await press(page, 'Enter', 1100); // confirm — past the lock dwell
     if (await kicker.count() === 0) {
       return true;
@@ -1250,6 +1262,7 @@ export async function commitFocusedSpace(page: Page, settleMs = 900): Promise<bo
     }
     return await placing.count() === 0;
   };
+  const lockedAt = Date.now();
   await press(page, 'Enter', 420); // lock (or the whole commit in swift mode)
   if (await placing.count() === 0) { // swift mode: that WAS the commit
     if (settleMs > 0) {
@@ -1257,6 +1270,11 @@ export async function commitFocusedSpace(page: Page, settleMs = 900): Promise<bo
     }
     return true;
   }
+  // THE CONFIRM IS A SEPARATE PRESS PAST THE LOCK DWELL (280 ms, `placementFlow.ts`) — and the dwell is the
+  // product's, not the driver's sleep: the fixed 420 ms used to cover it by accident, the adaptive press
+  // returns at ~270 ms and the confirm then landed INSIDE the dwell and was ignored (frontier-labs B,
+  // tile-language — the first fast-press sample). Wait for the lock to be SEEN, then for the dwell to pass.
+  await lockedPlacementSeen(page, lockedAt);
   await page.keyboard.press('Enter'); // confirm — past the 280 ms lock dwell
   // VERIFIED BY POLL, never by a fixed settle: the caller may legitimately ask
   // for a zero settle (a probe that must bracket the episode tightly), and a
@@ -1266,6 +1284,28 @@ export async function commitFocusedSpace(page: Page, settleMs = 900): Promise<bo
     await page.waitForTimeout(settleMs);
   }
   return done;
+}
+
+/** The lock's DWELL (`placementFlow.ts`: 280 ms before a second, separately released press commits) plus a margin. */
+const PLACEMENT_LOCK_DWELL_MS = 320;
+
+/**
+ * After the lock press: the board shows the lock (`.con-board--locked` — or the placement is already gone, the
+ * swift mode's one-press commit), and the dwell has passed since the press — only then may the confirm go.
+ */
+async function lockedPlacementSeen(page: Page, lockedAt: number): Promise<void> {
+  const locked = page.locator('.con-board--locked');
+  const deadline = lockedAt + 2_000;
+  while (await locked.count() === 0 && Date.now() < deadline) {
+    if (await page.locator('.con-context__task-kicker').count() === 0) {
+      break;
+    }
+    await pollPause(page, 25);
+  }
+  const left = lockedAt + PLACEMENT_LOCK_DWELL_MS - Date.now();
+  if (left > 0) {
+    await pollPause(page, left);
+  }
 }
 
 /** Take every card of a standing reveal (A per card; the last one closes). */
@@ -2893,8 +2933,8 @@ export async function bootIntoGame(
   const cards = opts.cards ?? [];
   // No required cards → `every` over an empty list is true, so this creates
   // exactly one game and returns it. Same road either way.
-  const playerId = await createGameWithCards(request, cards,
-    {config: opts.config, seed: opts.seed, step: opts.step});
+  const playerId = await timed('fixture', () => createGameWithCards(request, cards,
+    {config: opts.config, seed: opts.seed, step: opts.step}));
   const via = opts.via ?? (opts.onStep === undefined ? 'api' : 'ui');
   if (via === 'api') {
     await bootSeededGame(page, request, playerId, {
@@ -2910,14 +2950,17 @@ export async function bootIntoGame(
     return playerId;
   }
   await openConsole(page, playerId, opts.query ?? '');
-  await walkToSummary(page, {onStep: opts.onStep ?? buyProjects(cards)});
-  await submitSummary(page);
-  await playStartQueue(page, {first: opts.first});
+  // The UI road through the opening is WALL time (its presses book themselves) — `opening` in the ledger.
+  await timed('opening', async () => {
+    await walkToSummary(page, {onStep: opts.onStep ?? buyProjects(cards)});
+    await submitSummary(page);
+    await playStartQueue(page, {first: opts.first});
+  });
   if (opts.until === 'startRelease') {
     await waitForStartRelease(page);
     return playerId;
   }
-  await waitForBoardHome(page, 70, {keepColony: opts.keepColony});
+  await timed('home', () => waitForBoardHome(page, 70, {keepColony: opts.keepColony}));
   return playerId;
 }
 
@@ -2938,7 +2981,7 @@ export async function bootSeededGame(
   playerId: string,
   opts: SeedPlan & {query?: string} = {},
 ): Promise<void> {
-  await seedGameOverApi(request, playerId, opts);
+  await timed('fixture', () => seedGameOverApi(request, playerId, opts));
   await openConsole(page, playerId, opts.query ?? '');
   if (opts.until === 'startRelease') {
     // The start workspace never mounts on this path (its own prompts are
@@ -2950,7 +2993,7 @@ export async function bootSeededGame(
   // takes presses and nothing is holding the screen», and a game seeded into
   // the action phase can still open on something (a deferred prompt, a colony
   // follow-up). Fewer rounds than the walk because there is no wizard to finish.
-  await waitForBoardHome(page, 25, {keepColony: opts.keepColony});
+  await timed('home', () => waitForBoardHome(page, 25, {keepColony: opts.keepColony}));
 }
 
 /**
