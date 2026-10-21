@@ -69,6 +69,14 @@ export class SolarFarm extends Card implements IProjectCard {
     return Units.of({energy: this.energyFor(space)});
   }
 
+  // A wild standard resource bonus is chosen after the tile is placed, so the
+  // choice is counted here instead of in productionBox.
+  public onStandardResourcePlacementBonus(cardOwner: IPlayer, activePlayer: IPlayer, space: Space, resource: Resource) {
+    if (cardOwner === activePlayer && resource === Resource.PLANTS && space.tile?.card === this.name) {
+      cardOwner.production.add(Resource.ENERGY, 1, {log: true});
+    }
+  }
+
   public override bespokePlay(player: IPlayer) {
     player.game.defer(
       new PlaceTile(player, {
