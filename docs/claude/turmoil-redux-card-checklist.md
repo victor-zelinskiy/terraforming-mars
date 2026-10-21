@@ -17,9 +17,15 @@
   «апстрим-карта, адаптированная к движку» и требует `politics: 'redux'`); ▲ у арта — Колонии
   (`compatibility: 'colonies'`).
 - [ ] Номер `TR##` — двузначный, ноль впереди, единственный в наборе (гард манифеста падает с именем).
-- [ ] Шесть карт-ЗАМЕН (Aerial Lenses, Banned Delegate, Political Alliance, Recruitment, Sponsored Mohole,
-  Vote of No Confidence) — ЗАРЕЗЕРВИРОВАНЫ: у них другой контракт (замена базовой карты Turmoil), гард
-  манифеста не пускает их в набор как обычные карты, пока контракт не написан.
+- [ ] Семь карт-ЗАМЕН (6 проектов — Aerial Lenses, Banned Delegate, Political Alliance, Recruitment, Sponsored
+  Mohole, Vote of No Confidence — и корпорация Septem Tribus; реестр `turmoilRedux/classicReplacements.ts`,
+  сканы `…/TM Turmoil Redux/Projects/Replacement - <Имя>.png` и `…/Corporations/Corporation - Septem Tribus.png`)
+  — у них ДРУГОЙ контракт: класс в Redux-манифесте под `:redux`-именем (`CardName.X_REDUX = 'X:redux'`, прецедент
+  `Deimos Down:promo` / `Capital:ares`), классическое имя — в `cardsToRemove` Redux-манифеста, и ТЕМ ЖЕ диффом
+  строка карты уходит из hold-back-списка `turmoil/turmoilReduxAdaptation.ts` (гард
+  `tests/cards/turmoil/TurmoilCardsUnderRedux.spec.ts` требует всё три). Под классическим именем гард манифеста
+  карту не пускает. Сканы печатают «TR00» — номер-ключ выбирает контракт (TR01–TR70 заняты).
+  Контракт и ворклист 22 классических карт Turmoil под Redux — `docs/TURMOIL_REDUX_CLASSIC_CARDS.md`.
 - [ ] Новая механика? (новый ресурс карт, новая платёжная единица, новый вид требования) — сначала её
   инфраструктура сквозным контрактом (образец меха: `docs/TURMOIL_REDUX_EVA_MECHS.md` §2–§3), потом карта.
 

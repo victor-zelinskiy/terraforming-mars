@@ -103,7 +103,7 @@ Turmoil Redux v1.0 от 2026-03-07 (`Turmoil Redux rulebook v1.0.pdf`, «R p.N»
 | Colonies | Д | **Обязательны.** Плутон заменяется тайлом Redux; добавляются Venus и Vesta; остальные дополнения опциональны (Venus-карты убрать без Venus Next) | R p.12 | `coloniesExtension` — булево без валидации (`GameOptions.ts:42`); Плутон `src/server/colonies/Pluto.ts`; существующая колония `VENUS` — community-модуль (`ColonyManifest.ts:52`, гейт `community && venusNext`) |
 | Вехи/награды | Д/У | +3 вехи (Activist, Aeronaut, Dataminer), +2 награды (Influencer, Politologist) — в случайные пулы; Lobbyist/Politician/T. Politician **не использовать** | R p.16–17, p.19 | `MAManifest.compatibility` — одиночный `Expansion` (`MAManifest.ts:9`); исключения — через `getCandidates` (`MilestoneAwardSelector.ts:164-214`); T. Politician в фиксированном наборе Terra Cimmeria (`Awards.ts:127`) |
 | Терраформер = 26 | ? | Redux не упоминает; классика заменяет тайл на Тарсисе | T p.2 | `Terraformer.ts:9-26` через `Turmoil.ifTurmoilElse` → под новым ключом останется 35 | `Q-12` |
-| Septem Tribus и прочий контент Redux | У (итерация 1) | Замены/новые карты — вне скоупа | R p.12 | классические карты Turmoil исключаются автоматически (§3.1) |
+| Классические карты Turmoil (17 проектов + 5 корпораций) и 7 замен | **В РАБОТЕ** (общий код включения сдан 2026-10-21; адаптировано 0 / 22) | Карты официального Turmoil играются вместе с Redux; Septem Tribus и 6 проектов (Aerial Lenses, Banned Delegate, Political Alliance, Recruitment, Sponsored Mohole, Vote of No Confidence) — ЗАМЕНЕНЫ Redux-версиями | R p.1, p.12 | `GameCards` включает `TURMOIL_CARD_MANIFEST` при Redux; неадаптированные карты удерживает ВРЕМЕННЫЙ hold-back-список `cards/turmoil/turmoilReduxAdaptation.ts` (сейчас все 22); 7 замен — `cards/turmoilRedux/classicReplacements.ts` (факт набора); контракт и ворклист — `docs/TURMOIL_REDUX_CLASSIC_CARDS.md`; гард `tests/cards/turmoil/TurmoilCardsUnderRedux.spec.ts` |
 
 ### 1.2 Фаза действий
 
@@ -251,8 +251,15 @@ MarsBot (`automaCompatibility.ts`). Серверный модуль — `src/ser
 `compatibility:'turmoil'`, Pallas — `ColonyDealer.ts:33`, `CollusionStandardProject`,
 `SpaceBonus.DELEGATE` — `Game.ts:2154`), переводятся на фасад `game.politics` (семантика Redux) и
 получают признак готовности `politics: 'classic' | 'redux' | 'both'` на записи манифеста; в пул
-Redux попадают только готовые записи. Автоматическое исключение по ключу — лишь текущее следствие
-того, что ни одна карта пока не помечена; детали — `TURMOIL_REDUX_ITERATION0_PLAN.md` §2.1.
+Redux попадают только готовые записи. Детали — `TURMOIL_REDUX_ITERATION0_PLAN.md` §2.1.
+**Уточнение 2026-10-21 (решение владельца) — для карт САМОГО манифеста Turmoil признак не используется:**
+`TURMOIL_CARD_MANIFEST` включается в `GameCards` при Redux целиком (R p.12 — карты официального Turmoil
+играются с Redux), а неадаптированные карты удерживает ВРЕМЕННЫЙ hold-back-список-ворклист
+`cards/turmoil/turmoilReduxAdaptation.ts` (сейчас — все 22; адаптация карты = удалить её строку; пустой
+список удаляется вместе с фильтром). Маркер `politics` остаётся для записей `compatibility: 'turmoil'`
+ДРУГИХ модулей. Семь карт набор ЗАМЕНЯЕТ (`cards/turmoilRedux/classicReplacements.ts`): классическая
+версия в колоду Redux не попадает никогда — до замены её держит список, после — `cardsToRemove`
+Redux-манифеста. Контракт и ворклист: `docs/TURMOIL_REDUX_CLASSIC_CARDS.md`.
 Что при этом **переиспользуется** из инфраструктуры Turmoil: `PartyName` (+`INDUSTRIALISTS`),
 `From {partyName}` и `EventSource {kind:'party'}` (`EventSource.ts:41`, `From.ts:16-18`), токены
 журнала `PARTY`, `SelectParty` как проводной контракт голосования (тип `party`,

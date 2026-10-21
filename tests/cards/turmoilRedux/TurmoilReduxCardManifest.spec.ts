@@ -11,6 +11,9 @@ import {CardName} from '../../../src/common/cards/CardName';
 import {CardType} from '../../../src/common/cards/CardType';
 import {DEFAULT_GAME_OPTIONS, GameOptions} from '../../../src/server/game/GameOptions';
 import {toName} from '../../../src/common/utils/utils';
+import {TURMOIL_CARD_MANIFEST} from '../../../src/server/cards/turmoil/TurmoilCardManifest';
+import {TURMOIL_CARDS_HELD_BACK_UNDER_REDUX} from '../../../src/server/cards/turmoil/turmoilReduxAdaptation';
+import {TURMOIL_REDUX_REPLACED_CLASSIC_NAMES} from '../../../src/server/cards/turmoilRedux/classicReplacements';
 
 /**
  * INFRASTRUCTURE guard for the Turmoil Redux («Кризис: Возвращение») PROJECT CARD set.
@@ -91,16 +94,14 @@ describe('TurmoilReduxCardManifest', () => {
       expect(collisions, collisions.join(', ')).is.empty;
     });
 
-    // The six replacement cards the set prints for base Turmoil (Aerial Lenses,
-    // Banned Delegate, Political Alliance, Recruitment, Sponsored Mohole, Vote
-    // of No Confidence) are RESERVED: until they are authored as Redux cards,
-    // the manifest must not register a card under any of those names.
-    it('the reserved replacement cards are not registered as ordinary Redux cards yet', () => {
-      const reserved = new Set<string>([
-        'Aerial Lenses', 'Banned Delegate', 'Political Alliance', 'Recruitment', 'Sponsored Mohole', 'Vote Of No Confidence',
-      ]);
+    // The replacements the set prints for seven classic Turmoil cards
+    // (`classicReplacements.ts` — six projects and Septem Tribus) are registered
+    // under a `:redux`-suffixed name, never under the classic one: the plain
+    // name stays the classic card's, so `newCard` resolves it to the classic
+    // class in every game and the Redux manifest's `cardsToRemove` can name it.
+    it('the replacement cards are never registered under the classic card\'s own name', () => {
       for (const {name} of reduxCards) {
-        expect(reserved.has(name), `${name} is a reserved replacement card`).is.false;
+        expect(TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(name), `${name} is a classic Turmoil card's name — register the replacement as "${name}:redux"`).is.false;
       }
     });
   });
@@ -130,12 +131,24 @@ describe('TurmoilReduxCardManifest', () => {
       for (const name of dealtProjectNames) {
         expect(offNames, `${name} must not be dealt with Turmoil Redux off`).to.not.contain(name);
       }
-      // Turning the module on may only ADD its own cards — never remove or
-      // replace anything, and never introduce a card it does not register.
+      // Turning the module on may only ADD its own cards and the classic Turmoil
+      // cards already ADAPTED to the parliament (rulebook p.12 — the classic
+      // manifest rides along, its unadapted cards held back; pinned card by card
+      // in tests/cards/turmoil/TurmoilCardsUnderRedux.spec.ts) — never remove or
+      // replace anything, and never introduce a card neither manifest registers.
+      const classicProjects = new Set<CardName>(CardManifest.keys(TURMOIL_CARD_MANIFEST.projectCards));
+      const classicCorporations = new Set<CardName>(CardManifest.keys(TURMOIL_CARD_MANIFEST.corporationCards));
       const added = on.getProjectCards().map(toName).filter((n) => !offNames.includes(n));
-      expect(added).to.have.members(dealtProjectNames);
+      expect(added.filter((n) => !classicProjects.has(n))).to.have.members(dealtProjectNames);
+      for (const n of added.filter((n) => classicProjects.has(n))) {
+        expect(TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(n), `${n} is a classic Turmoil card still on the hold-back list`).is.false;
+      }
       expect(off.getPreludeCards().map(toName)).to.have.members(on.getPreludeCards().map(toName));
-      expect(off.getCorporationCards().map(toName)).to.have.members(on.getCorporationCards().map(toName));
+      const offCorporations = off.getCorporationCards().map(toName);
+      const addedCorporations = on.getCorporationCards().map(toName).filter((n) => !offCorporations.includes(n));
+      for (const n of addedCorporations) {
+        expect(classicCorporations.has(n) && !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(n), `${n} may join only as an adapted classic Turmoil corporation`).is.true;
+      }
     });
 
     // The card is resolvable by name whatever the options — deserializing a

@@ -77,10 +77,14 @@ import {PrometheanAlliance} from './PrometheanAlliance';
  * The expansion's RESOLUTIONS are not cards of this manifest: they live in
  * `src/server/parliament/resolutions/**` and reach the client through
  * `ParliamentCatalog`. This manifest carries the set's 70 PROJECT CARDS
- * (TR01…TR70), shipped ONE AT A TIME like the resolutions were, plus the six
- * REPLACEMENT cards the set prints for the base Turmoil ones (Aerial Lenses,
- * Banned Delegate, Political Alliance, Recruitment, Sponsored Mohole, Vote of
- * No Confidence) — RESERVED, not yet authored.
+ * (TR01…TR70), shipped ONE AT A TIME like the resolutions were, plus — still
+ * to author — the REPLACEMENTS the set prints for seven classic Turmoil cards
+ * (`classicReplacements.ts`: six projects and the Septem Tribus corporation).
+ * A replacement is registered here under a `:redux`-suffixed name with the
+ * classic name in this manifest's `cardsToRemove`; until then the classic card
+ * is held back by `cards/turmoil/turmoilReduxAdaptation.ts`. The classic
+ * Turmoil manifest itself joins a Redux deck since 2026-10-21 (`GameCards`),
+ * card by card as that hold-back list empties.
  *
  * CARD NUMBER NAMESPACE — `TR##`, zero-padded to two digits (TR01…TR70).
  * `metadata.cardNumber` is the module's card ID, and in this fork it is also
