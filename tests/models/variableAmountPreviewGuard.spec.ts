@@ -8,6 +8,7 @@ import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
 import {actionPreview} from '../../src/server/models/actionPreview';
 import {IActionCard} from '../../src/server/cards/ICard';
 import {testGame} from '../TestGame';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
 /**
  * A VARIABLE AMOUNT NEVER DISAPPEARS FROM A PREVIEW.
@@ -26,7 +27,7 @@ import {testGame} from '../TestGame';
  * hook that builds its chips by hand) cannot quietly reintroduce the hole.
  */
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+const SCOPE = PREMIUM_SCOPE_MODULES;
 
 /** The chip a declared clause must produce, as `icon` + whether it is production. */
 type Clause = {field: string, icon: string, production: boolean};
@@ -73,12 +74,12 @@ function reports(effects: ReadonlyArray<ActionEffect>, clause: Clause): boolean 
 
 function forEachInScopeCard(cb: (card: ICard, module: GameModule) => void): void {
   for (const manifest of ALL_MODULE_MANIFESTS) {
-    if (!SCOPE.has(manifest.module)) {
+    if (!SCOPE.includes(manifest.module)) {
       continue;
     }
     for (const name of Object.keys(manifest.projectCards)) {
       const Factory = (manifest.projectCards as Record<string, {Factory: new () => ICard}>)[name]?.Factory;
-      if (Factory === undefined) {
+      if (Factory === undefined || !inPremiumScope({module: manifest.module, name}, SCOPE)) {
         continue;
       }
       let card: ICard;

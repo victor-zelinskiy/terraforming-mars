@@ -5,6 +5,7 @@ import {JournalActionCategory} from '../../src/common/events/GameEvent';
 import {BonusCardId, MarsBotCorpId} from '../../src/common/automa/AutomaTypes';
 import {ICard} from '../../src/server/cards/ICard';
 import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
 /**
  * ⭐ CROSS-PLAYER DELIVERY COVERAGE GUARD — the machine-checked completeness
@@ -37,7 +38,7 @@ import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
  * would be «cross-player» and the classification would say nothing.
  */
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+const SCOPE = PREMIUM_SCOPE_MODULES;
 
 /** The cross-player mechanism families. EVERY family must point at the
  *  delivery scenario that proves its notification path end to end. */
@@ -181,7 +182,7 @@ const GROUPS: ReadonlyArray<CardGroup> = ['projectCards', 'corporationCards', 'p
 
 function forEachInScopeCard(cb: (card: ICard, module: GameModule, group: CardGroup) => void): void {
   for (const manifest of ALL_MODULE_MANIFESTS) {
-    if (!SCOPE.has(manifest.module)) {
+    if (!SCOPE.includes(manifest.module)) {
       continue;
     }
     for (const group of GROUPS) {
@@ -191,7 +192,7 @@ function forEachInScopeCard(cb: (card: ICard, module: GameModule, group: CardGro
       }
       for (const name of Object.keys(cards)) {
         const Factory = cards[name]?.Factory;
-        if (Factory === undefined) {
+        if (Factory === undefined || !inPremiumScope({module: manifest.module, name}, SCOPE)) {
           continue;
         }
         let card: ICard;

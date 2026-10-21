@@ -3,8 +3,8 @@ import * as fs from 'fs';
 import {ClientCard} from '../../src/common/cards/ClientCard';
 import {CardInformation} from '../../src/common/cards/CardInformation';
 import {deriveGraphicIds} from '../../src/common/cards/render/cardGraphicIds';
-import {GameModule} from '../../src/common/cards/GameModule';
 import {CardType} from '../../src/common/cards/CardType';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
 /*
  * CARD INFORMATION MODEL — the acceptance guards.
@@ -15,7 +15,7 @@ import {CardType} from '../../src/common/cards/CardType';
  * graphic linkage, no duplication, and the flagship Asteroid split.
  */
 
-const SCOPE_MODULES = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+const SCOPE_MODULES = PREMIUM_SCOPE_MODULES;
 const SCOPE_TYPES = new Set<CardType>([CardType.AUTOMATED, CardType.ACTIVE, CardType.EVENT, CardType.PRELUDE, CardType.CORPORATION]);
 
 function loadCards(): Array<ClientCard> {
@@ -23,7 +23,7 @@ function loadCards(): Array<ClientCard> {
 }
 
 function scopeCards(): Array<ClientCard> {
-  return loadCards().filter((c) => SCOPE_MODULES.has(c.module) && SCOPE_TYPES.has(c.type));
+  return loadCards().filter((c) => inPremiumScope(c, SCOPE_MODULES) && SCOPE_TYPES.has(c.type));
 }
 
 function info(card: ClientCard): CardInformation | undefined {
@@ -450,7 +450,7 @@ describe('card information model', function() {
   });
 
   it('out-of-scope cards carry NO information (scope is explicit)', () => {
-    const outside = loadCards().filter((c) => !SCOPE_MODULES.has(c.module) || !SCOPE_TYPES.has(c.type));
+    const outside = loadCards().filter((c) => !inPremiumScope(c, SCOPE_MODULES) || !SCOPE_TYPES.has(c.type));
     for (const card of outside) {
       expect(info(card), `unexpected information on out-of-scope ${card.name}`).to.eq(undefined);
     }

@@ -4,10 +4,10 @@ import {ClientCard} from '../../src/common/cards/ClientCard';
 import {CardInfoBlock} from '../../src/common/cards/CardInformation';
 import {CardRequirementDescriptor} from '../../src/common/cards/CardRequirementDescriptor';
 import {RequirementType} from '../../src/common/cards/RequirementType';
-import {GameModule} from '../../src/common/cards/GameModule';
 import {CardType} from '../../src/common/cards/CardType';
 import {Tag} from '../../src/common/cards/Tag';
 import {NormalizedRequirement, normalizeRequirement} from '../../src/client/components/premiumCard/premiumCardViewModel';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
 /*
  * REQUIREMENT PROSE ↔ REQUIREMENT GRAPHIC — the agreement audit.
@@ -35,12 +35,12 @@ import {NormalizedRequirement, normalizeRequirement} from '../../src/client/comp
  * key just as thoroughly («не менее» for «at most»).
  */
 
-const SCOPE_MODULES = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+const SCOPE_MODULES = PREMIUM_SCOPE_MODULES;
 const SCOPE_TYPES = new Set<CardType>([CardType.AUTOMATED, CardType.ACTIVE, CardType.EVENT, CardType.PRELUDE, CardType.CORPORATION]);
 
 function scopeCards(): Array<ClientCard> {
   const cards: Array<ClientCard> = JSON.parse(fs.readFileSync('src/genfiles/cards.json', 'utf8'));
-  return cards.filter((c) => SCOPE_MODULES.has(c.module) && SCOPE_TYPES.has(c.type) && (c.requirements ?? []).length > 0);
+  return cards.filter((c) => inPremiumScope(c, SCOPE_MODULES) && SCOPE_TYPES.has(c.type) && (c.requirements ?? []).length > 0);
 }
 
 function ruDictionary(): Map<string, string> {

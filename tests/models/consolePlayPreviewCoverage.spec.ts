@@ -2,7 +2,6 @@ import {expect} from 'chai';
 import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
 import {ICard} from '../../src/server/cards/ICard';
 import {IProjectCard} from '../../src/server/cards/IProjectCard';
-import {GameModule} from '../../src/common/cards/GameModule';
 import {Resource} from '../../src/common/Resource';
 import {Tag} from '../../src/common/cards/Tag';
 import {CardName} from '../../src/common/cards/CardName';
@@ -12,8 +11,11 @@ import {testGame} from '../TestGame';
 import {fakeCard} from '../TestingUtils';
 import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
 import {PoliticalDonation} from '../../src/server/cards/turmoilRedux/PoliticalDonation';
+import {GameModule} from '../../src/common/cards/GameModule';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'deltaProject', 'turmoilRedux']);
+// This walk has never covered Ares — widening it is its own task, not this guard's.
+const SCOPE: ReadonlyArray<GameModule> = PREMIUM_SCOPE_MODULES.filter((m) => m !== 'ares');
 
 /**
  * The console PLAY composer (ConsolePlayCardConfirm) must pre-collect EVERY
@@ -131,13 +133,13 @@ describe('console play-preview coverage', () => {
   it('every in-scope cardPlayPreview hook produces only console-hostable steps', () => {
     const gaps: Array<string> = [];
     for (const manifest of ALL_MODULE_MANIFESTS) {
-      if (!SCOPE.has(manifest.module)) {
+      if (!SCOPE.includes(manifest.module)) {
         continue;
       }
       for (const group of [manifest.projectCards, manifest.corporationCards, manifest.preludeCards]) {
         for (const name of Object.keys(group)) {
           const Factory = (group as Record<string, {Factory: new () => ICard}>)[name]?.Factory;
-          if (Factory === undefined) {
+          if (Factory === undefined || !inPremiumScope({module: manifest.module, name}, SCOPE)) {
             continue;
           }
           let card: ICard;
@@ -247,13 +249,13 @@ describe('console play-preview coverage', () => {
   it('every declarative on-play ATTACK emits an inline (pre-collected) target step', () => {
     const missing: Array<string> = [];
     for (const manifest of ALL_MODULE_MANIFESTS) {
-      if (!SCOPE.has(manifest.module)) {
+      if (!SCOPE.includes(manifest.module)) {
         continue;
       }
       const projectCards = manifest.projectCards as Record<string, {Factory: new () => ICard}>;
       for (const name of Object.keys(projectCards)) {
         const Factory = projectCards[name]?.Factory;
-        if (Factory === undefined) {
+        if (Factory === undefined || !inPremiumScope({module: manifest.module, name}, SCOPE)) {
           continue;
         }
         let card: ICard;

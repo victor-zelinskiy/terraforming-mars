@@ -2,7 +2,6 @@ import {expect} from 'chai';
 import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
 import {ICard} from '../../src/server/cards/ICard';
 import {IProjectCard} from '../../src/server/cards/IProjectCard';
-import {GameModule} from '../../src/common/cards/GameModule';
 import {CardName} from '../../src/common/cards/CardName';
 import {CardType} from '../../src/common/cards/CardType';
 import {Tag} from '../../src/common/cards/Tag';
@@ -32,6 +31,7 @@ import {CardPlayPreview} from '../../src/server/routes/CardPlayPreview';
 import {statusCode} from '../../src/common/http/statusCode';
 import {MockResponse} from '../routes/HttpMocks';
 import {RouteTestScaffolding} from '../routes/RouteTestScaffolding';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
 /**
  * THE PLAY'S VP PROJECTION — `cardVictoryPointsAtPlay` — says, BEFORE the
@@ -48,7 +48,7 @@ import {RouteTestScaffolding} from '../routes/RouteTestScaffolding';
  * same tag); a city card on a table with a space city of the player's own, a
  * rival's, and a city on Mars. A mismatch is printed by card name.
  */
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+const SCOPE = PREMIUM_SCOPE_MODULES;
 
 /** VP per city of the player's OWN, of a named place, not «next to this» — the second projected class. */
 function countsOwnCitiesOfAPlace(card: ICard): boolean {
@@ -59,11 +59,14 @@ function countsOwnCitiesOfAPlace(card: ICard): boolean {
 function projectedCardsInScope(): Array<ICard> {
   const out: Array<ICard> = [];
   for (const manifest of ALL_MODULE_MANIFESTS) {
-    if (!SCOPE.has(manifest.module)) {
+    if (!SCOPE.includes(manifest.module)) {
       continue;
     }
     for (const entry of Object.values(manifest.projectCards)) {
       const card = new entry.Factory();
+      if (!inPremiumScope({module: manifest.module, name: card.name}, SCOPE)) {
+        continue;
+      }
       const vp = card.victoryPoints;
       if ((typeof vp === 'object' && vp.tag !== undefined) || countsOwnCitiesOfAPlace(card)) {
         out.push(card);

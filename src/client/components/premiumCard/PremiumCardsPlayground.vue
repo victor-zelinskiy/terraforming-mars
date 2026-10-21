@@ -135,6 +135,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {ClientCard} from '@/common/cards/ClientCard';
 import {GameModule} from '@/common/cards/GameModule';
+import {PREMIUM_FACE_SCOPE_MODULES, inPremiumScope} from '@/common/cards/premiumScope';
 import {getCards, getCardOrThrow} from '@/client/cards/ClientCardManifest';
 import {translateText} from '@/client/directives/i18n';
 import {Tag} from '@/common/cards/Tag';
@@ -145,7 +146,6 @@ import {MechDensity} from './mechanicsModel';
 import PremiumCard from './PremiumCard.vue';
 import PremiumRequirementsBar from './PremiumRequirementsBar.vue';
 
-const SCOPE_MODULES: ReadonlyArray<GameModule> = ['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo', 'deltaProject', 'turmoilRedux'];
 
 type CuratedCase = {label: string, model: CardModel};
 type ReqCase = {label: string, reqs: Array<NormalizedRequirement>};
@@ -177,10 +177,10 @@ export default defineComponent({
   },
   computed: {
     scopeCards(): Array<ClientCard> {
-      return getCards((c) => SCOPE_MODULES.includes(c.module) && isPremiumFaceType(c.type));
+      return getCards((c) => inPremiumScope(c, PREMIUM_FACE_SCOPE_MODULES) && isPremiumFaceType(c.type));
     },
     modules(): ReadonlyArray<GameModule> {
-      return SCOPE_MODULES;
+      return PREMIUM_FACE_SCOPE_MODULES;
     },
     referenceNames(): Array<CardName> {
       // green / blue / red / prelude — the theme quartet next to the back.

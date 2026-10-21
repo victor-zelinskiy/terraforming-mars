@@ -1,7 +1,6 @@
 import {expect} from 'chai';
 import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
 import {ICard} from '../../src/server/cards/ICard';
-import {GameModule} from '../../src/common/cards/GameModule';
 import {CardName} from '../../src/common/cards/CardName';
 import {Phase} from '../../src/common/Phase';
 import {SpaceName} from '../../src/common/boards/SpaceName';
@@ -24,6 +23,7 @@ import {CardType} from '../../src/common/cards/CardType';
 import {CardResource} from '../../src/common/CardResource';
 import {TileType} from '../../src/common/TileType';
 import {ActionEffect} from '../../src/common/models/ActionPreviewModel';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
 /**
  * THE COUNTED PLAY — the hand's forecast plate as a CLASS (the owner's decision
@@ -37,7 +37,7 @@ import {ActionEffect} from '../../src/common/models/ActionPreviewModel';
  * it — a declaration or a bespoke card's own `countedPlayForecast` — must be
  * on the plate. Both print their lists.
  */
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+const SCOPE = PREMIUM_SCOPE_MODULES;
 
 function isVariable(raw: unknown): boolean {
   return raw !== null && typeof raw === 'object';
@@ -60,12 +60,12 @@ function hasCountedMember(b: Behavior | undefined, card: ICard): boolean {
 /** Every in-scope card a player can hold in hand (project cards and preludes), fresh. */
 function* inScopeCards(): Generator<{name: string, make: () => ICard}> {
   for (const manifest of ALL_MODULE_MANIFESTS) {
-    if (!SCOPE.has(manifest.module)) {
+    if (!SCOPE.includes(manifest.module)) {
       continue;
     }
     const factories = {...manifest.projectCards, ...manifest.preludeCards} as Record<string, {Factory: new () => ICard} | undefined>;
     for (const [name, entry] of Object.entries(factories)) {
-      if (entry !== undefined) {
+      if (entry !== undefined && inPremiumScope({module: manifest.module, name}, SCOPE)) {
         yield {name, make: () => new entry.Factory()};
       }
     }
@@ -203,12 +203,12 @@ describe('countedPlayForecast', () => {
     const listed: Array<string> = [];
     const wrong: Array<string> = [];
     for (const manifest of ALL_MODULE_MANIFESTS) {
-      if (!SCOPE.has(manifest.module)) {
+      if (!SCOPE.includes(manifest.module)) {
         continue;
       }
       const factories = {...manifest.projectCards, ...manifest.preludeCards} as Record<string, {Factory: new () => ICard} | undefined>;
       for (const [name, entry] of Object.entries(factories)) {
-        if (entry === undefined) {
+        if (entry === undefined || !inPremiumScope({module: manifest.module, name}, SCOPE)) {
           continue;
         }
         const card = new entry.Factory();

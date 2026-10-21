@@ -11,6 +11,7 @@ import {CardRenderItemType} from '../../src/common/cards/render/CardRenderItemTy
 import {armedPlayEffectsOf, oneShotEffectsOf} from '../../src/server/cards/armedPlayEffects';
 import {testGame} from '../TestGame';
 import {fakeCard} from '../TestingUtils';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
 /**
  * THE WORKLIST OF THE ONE-PLAY CLASS (TR49): every in-scope card whose code
@@ -21,8 +22,10 @@ import {fakeCard} from '../TestingUtils';
  * discount / the shift / the waiver; disarm → nothing); and every in-scope
  * card that PRINTS «ignore global requirements» declares the waiver by KIND.
  */
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
-const SCOPE_DIRS = ['base', 'corporation', 'promo', 'venusNext', 'colonies', 'prelude', 'ares', 'delta', 'turmoilRedux'];
+const SCOPE = PREMIUM_SCOPE_MODULES;
+/** The card source directory of a module key — four keys differ from their directory. */
+const DIR_OF: Partial<Record<GameModule, string>> = {corpera: 'corporation', venus: 'venusNext', deltaProject: 'delta', ceo: 'ceos'};
+const SCOPE_DIRS = SCOPE.map((module) => DIR_OF[module] ?? module);
 
 /** Files that read `lastCardPlayed` for something that is NOT an armed one-play effect. */
 const NOT_AN_ARMED_EFFECT: Record<string, string> = {
@@ -34,13 +37,13 @@ const GLOBAL_PARAMETERS = [GlobalParameter.TEMPERATURE, GlobalParameter.OXYGEN, 
 
 function forEachInScopeCard(cb: (card: ICard) => void): void {
   for (const manifest of ALL_MODULE_MANIFESTS) {
-    if (!SCOPE.has(manifest.module)) {
+    if (!SCOPE.includes(manifest.module)) {
       continue;
     }
     for (const family of [manifest.projectCards, manifest.preludeCards, manifest.corporationCards]) {
       for (const name of Object.keys(family)) {
         const Factory = (family as Record<string, {Factory: new () => ICard}>)[name]?.Factory;
-        if (Factory === undefined) {
+        if (Factory === undefined || !inPremiumScope({module: manifest.module, name}, SCOPE)) {
           continue;
         }
         cb(new Factory());

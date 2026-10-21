@@ -26,6 +26,7 @@ import {MAX_TEMPERATURE, MAX_VENUS_SCALE, MAX_OXYGEN_LEVEL} from '../../src/comm
 import {testGame} from '../TestGame';
 import {TestPlayer} from '../TestPlayer';
 import {setTemperature, setVenusScaleLevel, setOxygenLevel, churn} from '../TestingUtils';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
 /*
  * THE PRE-COLLECT CONTRACT, ENFORCED.
@@ -51,7 +52,7 @@ import {setTemperature, setVenusScaleLevel, setOxygenLevel, churn} from '../Test
  * decision someone has to make on purpose.
  */
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+const SCOPE = PREMIUM_SCOPE_MODULES;
 
 /**
  * Cards whose action still defers a payment the preview does not pre-collect
@@ -111,13 +112,13 @@ const LEFTOVER_CHAIN_WORKLIST = new Set<CardName>([]);
 /** Iterate every constructable in-scope action card. */
 function forEachActionCard(fn: (Factory: new () => ICard, module: GameModule) => void): void {
   for (const manifest of ALL_MODULE_MANIFESTS) {
-    if (!SCOPE.has(manifest.module)) {
+    if (!SCOPE.includes(manifest.module)) {
       continue;
     }
     for (const group of [manifest.projectCards, manifest.corporationCards, manifest.preludeCards]) {
       for (const name of Object.keys(group)) {
         const Factory = (group as Record<string, {Factory: new () => ICard}>)[name]?.Factory;
-        if (Factory === undefined) {
+        if (Factory === undefined || !inPremiumScope({module: manifest.module, name}, SCOPE)) {
           continue;
         }
         let probe: ICard;

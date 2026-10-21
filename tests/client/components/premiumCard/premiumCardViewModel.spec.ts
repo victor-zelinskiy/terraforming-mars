@@ -9,7 +9,7 @@ import {GlobalParameter} from '@/common/GlobalParameter';
 import {CardModel} from '@/common/models/CardModel';
 import {ClientCard} from '@/common/cards/ClientCard';
 import {getCardOrThrow, getCards} from '@/client/cards/ClientCardManifest';
-import {GameModule} from '@/common/cards/GameModule';
+import {PREMIUM_FACE_SCOPE_MODULES, PREMIUM_SCOPE_MODULES, inPremiumScope} from '@/common/cards/premiumScope';
 import {isICardRenderEffect, isICardRenderSymbol, isICardRenderItem, isICardRenderCorpBoxAction, isICardRenderCorpBoxEffect, isICardRenderCorpBoxEffectAction} from '@/common/cards/render/Types';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {Size} from '@/common/cards/render/Size';
@@ -341,9 +341,9 @@ describe('the OR choice marker is never lost on the face', () => {
   });
 
   it('every in-scope multi-action card carries a choice marker at each action junction', () => {
-    const SCOPE_ALL = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo', 'deltaProject', 'turmoilRedux']);
+    const SCOPE_ALL = PREMIUM_FACE_SCOPE_MODULES;
     const offenders: Array<string> = [];
-    for (const card of getCards((c) => SCOPE_ALL.has(c.module) && isPremiumFaceType(c.type))) {
+    for (const card of getCards((c) => inPremiumScope(c, SCOPE_ALL) && isPremiumFaceType(c.type))) {
       const groups = buildPremiumCardViewModel(card).mechanics.groups;
       for (let i = 1; i < groups.length; i++) {
         if (groups[i].kind === 'action' && groups[i - 1].kind === 'action' && groups[i].orJoin !== true) {
@@ -355,9 +355,9 @@ describe('the OR choice marker is never lost on the face', () => {
   });
 
   it('no group renders a stray leading/trailing bare OR glyph, incl. inside effect frames (population sweep)', () => {
-    const SCOPE_ALL = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo', 'deltaProject', 'turmoilRedux']);
+    const SCOPE_ALL = PREMIUM_FACE_SCOPE_MODULES;
     const offenders = new Set<string>();
-    for (const card of getCards((c) => SCOPE_ALL.has(c.module) && isPremiumFaceType(c.type))) {
+    for (const card of getCards((c) => inPremiumScope(c, SCOPE_ALL) && isPremiumFaceType(c.type))) {
       for (const group of buildPremiumCardViewModel(card).mechanics.groups) {
         const first = group.nodes.find((n) => !isSpacer(n));
         const last = [...group.nodes].reverse().find((n) => !isSpacer(n));
@@ -625,7 +625,7 @@ describe('premium face coverage guard', () => {
   // (the art takes the space). A NEW card landing in this list should be
   // triaged (does it truly have no graphics?), never silently accepted.
   // 'ceo' joined in desktop-removal wave 4 (all L-cards render mechanics).
-  const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo', 'deltaProject', 'turmoilRedux']);
+  const SCOPE = PREMIUM_FACE_SCOPE_MODULES;
   const NO_MECHANICS_ACCEPTED = new Set<string>([
     CardName.ADVANCED_ECOSYSTEMS,
     CardName.BREATHING_FILTERS,
@@ -644,7 +644,7 @@ describe('premium face coverage guard', () => {
   ]);
 
   it('builds every in-scope premium card', () => {
-    const cards = getCards((c) => SCOPE.has(c.module) && isPremiumFaceType(c.type));
+    const cards = getCards((c) => inPremiumScope(c, SCOPE) && isPremiumFaceType(c.type));
     expect(cards.length).to.be.greaterThan(300);
     const unexpected: Array<string> = [];
     for (const card of cards) {
@@ -728,7 +728,7 @@ describe('card art coverage — full premium-face scope (project + prelude + cor
   // CEO face's procedural identity band (.pcard-ceo-ident) is the INTENDED
   // look of the whole type — resolveArt answers undefined by design, so an
   // art sweep over CEOs would assert a fallback that is not a gap.
-  const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+  const SCOPE = PREMIUM_SCOPE_MODULES;
   // Corporations with NO real illustration to scan — the corp premium face
   // falls back to the wordmark identity zone by design in this case (see
   // "Corporation face" in CLAUDE.md). A newly-added corp landing here should
@@ -761,7 +761,7 @@ describe('card art coverage — full premium-face scope (project + prelude + cor
   ]);
 
   it('every in-scope premium card resolves real art', () => {
-    const cards = getCards((c) => SCOPE.has(c.module) && isPremiumFaceType(c.type));
+    const cards = getCards((c) => inPremiumScope(c, SCOPE) && isPremiumFaceType(c.type));
     expect(cards.length).to.be.greaterThan(490);
     const missing: Array<string> = [];
     for (const card of cards) {
@@ -778,7 +778,7 @@ describe('card lore coverage — project + prelude + corporation', () => {
   // source card's lore when it has no entry of its own. Standard projects /
   // standard actions joined the premium face WITHOUT lore by design (board
   // machinery, not flavoured cards) — LORE_CARD_TYPES pins them out.
-  const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+  const SCOPE = PREMIUM_SCOPE_MODULES;
   const LORE_CARD_TYPES = new Set<CardType>([
     CardType.AUTOMATED,
     CardType.ACTIVE,
@@ -826,7 +826,7 @@ describe('card lore coverage — project + prelude + corporation', () => {
 
   it('every in-scope project, prelude, and corporation has non-empty lore text', () => {
     const cards = getCards((c) =>
-      SCOPE.has(c.module) &&
+      inPremiumScope(c, SCOPE) &&
       LORE_CARD_TYPES.has(c.type) &&
       !NEVER_DEALT.has(c.name),
     );
@@ -985,8 +985,8 @@ describe('premium face is ICONS-ONLY: prose plainText never renders', () => {
     // vpText fine print are KEPT. CEO faces drop plainText the same way
     // (Xavier) — their rule prose renders in the DEDICATED `vm.prose` zone,
     // never baked into the mechanics rows.
-    const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'ceo', 'deltaProject', 'turmoilRedux']);
-    const cards = getCards((c) => SCOPE.has(c.module) && isPremiumFaceType(c.type));
+    const SCOPE = PREMIUM_FACE_SCOPE_MODULES;
+    const cards = getCards((c) => inPremiumScope(c, SCOPE) && isPremiumFaceType(c.type));
     const offenders: Array<string> = [];
     for (const card of cards) {
       for (const group of buildPremiumCardViewModel(card).mechanics.groups) {

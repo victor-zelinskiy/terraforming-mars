@@ -5,7 +5,7 @@
  */
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
-import {GameModule} from '@/common/cards/GameModule';
+import {inPremiumScope} from '@/common/cards/premiumScope';
 import {CardModel} from '@/common/models/CardModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {
@@ -423,10 +423,6 @@ export function playerEffectGroups(tableau: ReadonlyArray<CardModel>): Array<Eff
   return [...groups.values()];
 }
 
-// Current scope for the effects feature.
-const SCOPE_MODULES: ReadonlySet<GameModule> =
-  new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
-
 /**
  * Every in-scope card (Base / CorpEra / Promo / Venus / Colonies / Prelude) that
  * grants at least one passive effect — the data source for the dev playground
@@ -437,7 +433,7 @@ export function allScopeEffectCardNames(): Array<CardName> {
   const out: Array<CardName> = [];
   for (const name of Object.values(CardName)) {
     const card = getCard(name);
-    if (card === undefined || !SCOPE_MODULES.has(card.module)) {
+    if (card === undefined || !inPremiumScope(card)) {
       continue;
     }
     if (cardHasPassiveEffect(name)) {
@@ -470,7 +466,7 @@ export function flaggedEffectCandidates(): Array<CardName> {
   const out: Array<CardName> = [];
   for (const name of Object.values(CardName)) {
     const card = getCard(name);
-    if (card === undefined || !SCOPE_MODULES.has(card.module)) {
+    if (card === undefined || !inPremiumScope(card)) {
       continue;
     }
     if (card.type !== CardType.ACTIVE && card.type !== CardType.CORPORATION) {

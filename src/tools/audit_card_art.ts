@@ -8,7 +8,7 @@
  * reissue with no art of its own inherits the base card's illustration).
  *
  * ALSO reports corporation art coverage separately — corporations render
- * premium across EVERY module (not just SCOPE_MODULES) and opportunistically
+ * premium across EVERY module (not just the premium scope) and opportunistically
  * use real art when present, falling back to the wordmark identity zone
  * otherwise (see resolveArt() in premiumCardViewModel.ts) — so a missing
  * corp art is a cosmetic gap, not a hard scope violation.
@@ -21,10 +21,9 @@ import {ALL_MODULE_MANIFESTS} from '../server/cards/AllManifests';
 import {CardManifest} from '../server/cards/ModuleManifest';
 import {ICard} from '../server/cards/ICard';
 import {GameModule} from '../common/cards/GameModule';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../common/cards/premiumScope';
 import {CardType} from '../common/cards/CardType';
 
-// The premium-face scope (mirrors PremiumCardsPlayground SCOPE_MODULES).
-const SCOPE_MODULES: ReadonlySet<GameModule> = new Set(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
 // Project + prelude only — corporations are EXCLUDED per the audit request
 // (they render an identity/wordmark zone instead of art).
 const SCOPE_TYPES: ReadonlySet<CardType> = new Set([CardType.AUTOMATED, CardType.ACTIVE, CardType.EVENT, CardType.PRELUDE]);
@@ -58,7 +57,7 @@ for (const manifest of ALL_MODULE_MANIFESTS) {
       }
       const md = card.metadata as unknown as Meta | undefined;
       metaByName.set(card.name, {cardNumber: md?.cardNumber, reimplements: md?.reimplements});
-      if (inScopeDeck && SCOPE_MODULES.has(module) && SCOPE_TYPES.has(card.type)) {
+      if (inScopeDeck && inPremiumScope({module, name: card.name}) && SCOPE_TYPES.has(card.type)) {
         scopeCards.push({name: card.name, module, type: card.type, cardNumber: md?.cardNumber});
       }
       if (card.type === CardType.CORPORATION) {
@@ -99,7 +98,7 @@ for (const c of missing) {
 }
 
 console.log('================ CARD ART COVERAGE AUDIT ================');
-console.log(`Scope: modules {${[...SCOPE_MODULES].join(', ')}}, types {project + prelude} (corporations EXCLUDED)`);
+console.log(`Scope: modules {${PREMIUM_SCOPE_MODULES.join(', ')}} (classic Turmoil card by card), types {project + prelude} (corporations EXCLUDED)`);
 console.log(`In-scope cards : ${scopeCards.length}`);
 console.log(`With art       : ${scopeCards.length - missing.length}`);
 console.log(`MISSING art    : ${missing.length}`);

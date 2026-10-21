@@ -2,7 +2,6 @@ import {expect} from 'chai';
 import {testGame} from '../TestGame';
 import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
 import {isIActionCard, ICard, IActionCard} from '../../src/server/cards/ICard';
-import {GameModule} from '../../src/common/cards/GameModule';
 import {CardModel} from '../../src/common/models/CardModel';
 import {CardName} from '../../src/common/cards/CardName';
 import {CardRenderItemType} from '../../src/common/cards/render/CardRenderItemType';
@@ -15,8 +14,9 @@ import {
 } from '../../src/client/components/actions/actionBranchView';
 import {AtmoCollectors} from '../../src/server/cards/colonies/AtmoCollectors';
 import {AsteroidRights} from '../../src/server/cards/promo/AsteroidRights';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+const SCOPE = PREMIUM_SCOPE_MODULES;
 
 /**
  * THE PRINTED ROW OF ONE BRANCH (`BranchView.printed`) — the option tile's headline.
@@ -153,13 +153,13 @@ describe('actionBranchView · the printed row of ONE branch', () => {
     const gaps: Array<string> = [];
     let walked = 0;
     for (const manifest of ALL_MODULE_MANIFESTS) {
-      if (!SCOPE.has(manifest.module)) {
+      if (!SCOPE.includes(manifest.module)) {
         continue;
       }
       for (const group of [manifest.projectCards, manifest.corporationCards, manifest.preludeCards]) {
         for (const key of Object.keys(group)) {
           const Factory = (group as Record<string, {Factory: new () => ICard}>)[key]?.Factory;
-          if (Factory === undefined) {
+          if (Factory === undefined || !inPremiumScope({module: manifest.module, name: key}, SCOPE)) {
             continue;
           }
           let card: ICard;

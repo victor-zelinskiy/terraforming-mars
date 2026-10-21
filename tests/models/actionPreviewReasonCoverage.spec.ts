@@ -2,10 +2,10 @@ import {expect} from 'chai';
 import {testGame} from '../TestGame';
 import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
 import {isIActionCard, ICard, IActionCard} from '../../src/server/cards/ICard';
-import {GameModule} from '../../src/common/cards/GameModule';
 import {actionPreview} from '../../src/server/models/actionPreview';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+const SCOPE = PREMIUM_SCOPE_MODULES;
 
 /**
  * The BEHAVIOURAL guard for preview-branch reasons: for every in-scope action
@@ -31,13 +31,13 @@ describe('action-preview reason coverage', () => {
     let blockedBranches = 0;
     let cardsWalked = 0;
     for (const manifest of ALL_MODULE_MANIFESTS) {
-      if (!SCOPE.has(manifest.module)) {
+      if (!SCOPE.includes(manifest.module)) {
         continue;
       }
       for (const group of [manifest.projectCards, manifest.corporationCards, manifest.preludeCards]) {
         for (const name of Object.keys(group)) {
           const Factory = (group as Record<string, {Factory: new () => ICard}>)[name]?.Factory;
-          if (Factory === undefined) {
+          if (Factory === undefined || !inPremiumScope({module: manifest.module, name}, SCOPE)) {
             continue;
           }
           let card: ICard;

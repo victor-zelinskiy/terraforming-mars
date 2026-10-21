@@ -6,6 +6,7 @@ import {CardName} from '../../src/common/cards/CardName';
 import {MARS_BOT_CORP_IDS} from '../../src/common/automa/MarsBotCorpData';
 import {AutomaCorporations} from '../../src/server/automa/corps/AutomaCorporations';
 import {FORECAST_HOOK_PAIRS} from '../../src/server/models/effectForecast';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
 /**
  * THE EFFECT FORECAST COVERAGE GUARD — the worklist.
@@ -22,7 +23,7 @@ import {FORECAST_HOOK_PAIRS} from '../../src/server/models/effectForecast';
  * The same law for the MarsBot corporations: a corporation reacting to human
  * plays (`onHumanCardPlayed`) declares `humanCardPlayedForecast`.
  */
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+const SCOPE = PREMIUM_SCOPE_MODULES;
 
 /**
  * Cards with a live hook and NO forecast, each with the reason the forecast
@@ -35,14 +36,14 @@ type Factory = new () => ICard;
 
 function forEachInScopeCard(cb: (card: ICard, module: GameModule) => void): void {
   for (const manifest of ALL_MODULE_MANIFESTS) {
-    if (!SCOPE.has(manifest.module)) {
+    if (!SCOPE.includes(manifest.module)) {
       continue;
     }
     const groups = [manifest.projectCards, manifest.corporationCards, manifest.preludeCards];
     for (const group of groups) {
       for (const name of Object.keys(group)) {
         const Factory = (group as Record<string, {Factory: Factory}>)[name]?.Factory;
-        if (Factory === undefined) {
+        if (Factory === undefined || !inPremiumScope({module: manifest.module, name}, SCOPE)) {
           continue;
         }
         let card: ICard;

@@ -13,20 +13,22 @@ import {Vitor} from '../../src/server/cards/prelude/Vitor';
 import {Aridor} from '../../src/server/cards/colonies/Aridor';
 import {ArcadianCommunities} from '../../src/server/cards/promo/ArcadianCommunities';
 import {PolderTechDutch} from '../../src/server/cards/promo/PolderTechDutch';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
 // Modules whose corporations flow through the console's dedicated first-action
 // confirm modal today. Widen alongside the other preview SCOPE sets when an
 // expansion is adapted (the EXPANSION ADAPTATION CHECKLIST).
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'deltaProject', 'turmoilRedux']);
+// This walk has never covered Ares — widening it is its own task, not this guard's.
+const SCOPE: ReadonlyArray<GameModule> = PREMIUM_SCOPE_MODULES.filter((m) => m !== 'ares');
 
 function forEachInScopeCorporation(cb: (corp: ICorporationCard, module: GameModule) => void): void {
   for (const manifest of ALL_MODULE_MANIFESTS) {
-    if (!SCOPE.has(manifest.module)) {
+    if (!SCOPE.includes(manifest.module)) {
       continue;
     }
     for (const name of Object.keys(manifest.corporationCards)) {
       const Factory = (manifest.corporationCards as Record<string, {Factory: new () => ICorporationCard}>)[name]?.Factory;
-      if (Factory === undefined) {
+      if (Factory === undefined || !inPremiumScope({module: manifest.module, name}, SCOPE)) {
         continue;
       }
       let corp: ICorporationCard;

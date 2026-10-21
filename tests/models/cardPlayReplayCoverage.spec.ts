@@ -41,6 +41,7 @@ import {Splice} from '../../src/server/cards/promo/Splice';
 import {Supercomputer} from '../../src/server/cards/turmoilRedux/Supercomputer';
 import {DIVERTED_RESEARCH_ID} from '../../src/server/parliament/resolutions/reds/DivertedResearch';
 import {resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
 /*
  * THE PLAY'S PRE-SELECTS LAND — EVERY ONE, BY CONSTRUCTION.
@@ -86,7 +87,7 @@ import {resolutionInstanceId} from '../../src/common/parliament/ParliamentTypes'
  * leak is a regression, a fixed entry must be removed.
  */
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+const SCOPE = PREMIUM_SCOPE_MODULES;
 
 const LEFTOVER_PRESELECT_WORKLIST = new Set<string>([]);
 
@@ -164,12 +165,12 @@ const PROFILES: ReadonlyArray<Profile> = [
 
 function forEachInScopeProjectCard(cb: (Factory: new () => ICard, name: string, module: GameModule) => void): void {
   for (const manifest of ALL_MODULE_MANIFESTS) {
-    if (!SCOPE.has(manifest.module)) {
+    if (!SCOPE.includes(manifest.module)) {
       continue;
     }
     for (const name of Object.keys(manifest.projectCards)) {
       const Factory = (manifest.projectCards as Record<string, {Factory: new () => ICard}>)[name]?.Factory;
-      if (Factory !== undefined) {
+      if (Factory !== undefined && inPremiumScope({module: manifest.module, name}, SCOPE)) {
         cb(Factory, name, manifest.module);
       }
     }

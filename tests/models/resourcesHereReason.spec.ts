@@ -8,6 +8,7 @@ import {GameModule} from '../../src/common/cards/GameModule';
 import {CardResource} from '../../src/common/CardResource';
 import {RESOURCES_HERE_SHORT_GENERIC, resourcesHereShortMessage} from '../../src/server/cards/actionReasons';
 import {resolvePluralGroups} from '../../src/client/i18n/pluralForms';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
 /**
  * PL-197 — «N of M <resource> on this card»: a declared price «spend M from
@@ -19,7 +20,7 @@ import {resolvePluralGroups} from '../../src/client/i18n/pluralForms';
  * RU translation exists and its plural group reads the need's form in both
  * languages.
  */
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+const SCOPE = PREMIUM_SCOPE_MODULES;
 
 function spendsHere(behavior: Behavior | undefined): boolean {
   if (behavior === undefined) {
@@ -34,13 +35,13 @@ function spendsHere(behavior: Behavior | undefined): boolean {
 function inScopeSpenders(): Array<{card: ICard, module: GameModule}> {
   const out: Array<{card: ICard, module: GameModule}> = [];
   for (const manifest of ALL_MODULE_MANIFESTS) {
-    if (!SCOPE.has(manifest.module)) {
+    if (!SCOPE.includes(manifest.module)) {
       continue;
     }
     for (const group of [manifest.projectCards, manifest.corporationCards, manifest.preludeCards]) {
       for (const name of Object.keys(group)) {
         const Factory = (group as Record<string, {Factory: new () => ICard}>)[name]?.Factory;
-        if (Factory === undefined) {
+        if (Factory === undefined || !inPremiumScope({module: manifest.module, name}, SCOPE)) {
           continue;
         }
         const card = new Factory();

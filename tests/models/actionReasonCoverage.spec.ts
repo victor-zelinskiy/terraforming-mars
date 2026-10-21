@@ -1,9 +1,9 @@
 import {expect} from 'chai';
 import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
 import {isIActionCard, ICard} from '../../src/server/cards/ICard';
-import {GameModule} from '../../src/common/cards/GameModule';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+const SCOPE = PREMIUM_SCOPE_MODULES;
 
 // A card whose canAct is literally `return true` can never be unavailable, so it
 // never needs a reason. Detect by source (despaced) ending in `return true}`.
@@ -15,13 +15,13 @@ describe('action-reason coverage', () => {
   it('every in-scope action card that can be unavailable has a SPECIFIC reason source', () => {
     const gaps: Array<string> = [];
     for (const manifest of ALL_MODULE_MANIFESTS) {
-      if (!SCOPE.has(manifest.module)) {
+      if (!SCOPE.includes(manifest.module)) {
         continue;
       }
       for (const group of [manifest.projectCards, manifest.corporationCards, manifest.preludeCards]) {
         for (const name of Object.keys(group)) {
           const Factory = (group as Record<string, {Factory: new () => ICard}>)[name]?.Factory;
-          if (Factory === undefined) {
+          if (Factory === undefined || !inPremiumScope({module: manifest.module, name}, SCOPE)) {
             continue;
           }
           let card: ICard;

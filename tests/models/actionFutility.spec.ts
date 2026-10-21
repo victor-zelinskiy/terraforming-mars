@@ -12,7 +12,6 @@ import {buildStandardProjectPreview} from '../../src/server/models/standardProje
 import {heatConversionMetadata} from '../../src/server/cards/base/standardActions/ConvertHeat';
 import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
 import {isIActionCard, ICard, IActionCard} from '../../src/server/cards/ICard';
-import {GameModule} from '../../src/common/cards/GameModule';
 import {CardName} from '../../src/common/cards/CardName';
 import {CardResource} from '../../src/common/CardResource';
 import {Resource} from '../../src/common/Resource';
@@ -38,6 +37,7 @@ import {CrediCor} from '../../src/server/cards/corporation/CrediCor';
 import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
 import {Ants} from '../../src/server/cards/base/Ants';
 import {VP_NOT_YET_NOTE} from '../../src/server/cards/actionPreviews';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
 /**
  * THE «NO EFFECT» VERDICT (the owner's iteration of 2026-10-15) — PROVEN or nothing: an action the rules allow is
@@ -46,7 +46,7 @@ import {VP_NOT_YET_NOTE} from '../../src/server/cards/actionPreviews';
  * rescues (Whales, a reacting card, a live award), the partial class that must NEVER read futile (Ironworks at 14 %
  * oxygen still pays its steel), and a corpus walk over every in-scope action card.
  */
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+const SCOPE = PREMIUM_SCOPE_MODULES;
 
 function seat(player: TestPlayer, card: ICard, resources = 0): void {
   player.playedCards.push(card);
@@ -250,13 +250,13 @@ describe('actionFutility — the «no effect» verdict', () => {
     this.timeout(60_000);
     function forEachActionCard(fn: (name: CardName, make: () => ICard & IActionCard) => void): void {
       for (const manifest of ALL_MODULE_MANIFESTS) {
-        if (!SCOPE.has(manifest.module)) {
+        if (!SCOPE.includes(manifest.module)) {
           continue;
         }
         for (const group of [manifest.projectCards, manifest.corporationCards, manifest.preludeCards]) {
           for (const name of Object.keys(group)) {
             const Factory = (group as Record<string, {Factory: new () => ICard}>)[name]?.Factory;
-            if (Factory === undefined) {
+            if (Factory === undefined || !inPremiumScope({module: manifest.module, name}, SCOPE)) {
               continue;
             }
             let probe: ICard;

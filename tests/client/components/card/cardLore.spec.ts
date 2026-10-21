@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
-import {GameModule} from '@/common/cards/GameModule';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '@/common/cards/premiumScope';
 import {ClientCard} from '@/common/cards/ClientCard';
 import {getCards, getCardOrThrow} from '@/client/cards/ClientCardManifest';
 import {PreferencesManager} from '@/client/utils/PreferencesManager';
@@ -237,7 +237,7 @@ describe('cardLore', () => {
   describe('current scope coverage', () => {
     // Mirrors the premium-face scope: every card that can reach the fullscreen
     // viewer must have a real archive entry — never the fallback.
-    const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+    const SCOPE = PREMIUM_SCOPE_MODULES;
     const LORE_CARD_TYPES = new Set<CardType>([
       CardType.AUTOMATED,
       CardType.ACTIVE,
@@ -258,7 +258,7 @@ describe('cardLore', () => {
 
     function inScope(): ReadonlyArray<ClientCard> {
       return getCards((c) =>
-        SCOPE.has(c.module) &&
+        inPremiumScope(c, SCOPE) &&
         LORE_CARD_TYPES.has(c.type) &&
         !NEVER_DEALT.has(c.name));
     }

@@ -13,8 +13,9 @@ import {playerActionGroups} from '../../src/client/components/actions/actionExtr
 import {nodeAvailability} from '../../src/client/components/actions/actionBranchView';
 import {ActionEntry} from '../../src/client/components/actions/actionModel';
 import {buildConsoleActionsModel} from '../../src/client/console/consoleCardActions';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+const SCOPE = PREMIUM_SCOPE_MODULES;
 
 /**
  * THE TWO LEVELS OF «CAN THIS BE ACTIVATED» MUST AGREE.
@@ -43,13 +44,13 @@ describe('action availability: card level vs variant level', () => {
   function eachActionCard(player: IPlayer, prep: (card: ICard) => void, fn: (w: Walk) => void): number {
     let walked = 0;
     for (const manifest of ALL_MODULE_MANIFESTS) {
-      if (!SCOPE.has(manifest.module)) {
+      if (!SCOPE.includes(manifest.module)) {
         continue;
       }
       for (const group of [manifest.projectCards, manifest.corporationCards, manifest.preludeCards]) {
         for (const key of Object.keys(group)) {
           const Factory = (group as Record<string, {Factory: new () => ICard}>)[key]?.Factory;
-          if (Factory === undefined) {
+          if (Factory === undefined || !inPremiumScope({module: manifest.module, name: key}, SCOPE)) {
             continue;
           }
           let card: ICard;

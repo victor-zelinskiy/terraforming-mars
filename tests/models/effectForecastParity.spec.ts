@@ -9,7 +9,6 @@ import {IPlayer} from '../../src/server/IPlayer';
 import {ICard} from '../../src/server/cards/ICard';
 import {IProjectCard} from '../../src/server/cards/IProjectCard';
 import {CardName} from '../../src/common/cards/CardName';
-import {GameModule} from '../../src/common/cards/GameModule';
 import {GameEvent} from '../../src/common/events/GameEvent';
 import {MarsBotCorpId} from '../../src/common/automa/AutomaTypes';
 import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
@@ -46,6 +45,7 @@ import {MiningColony} from '../../src/server/cards/colonies/MiningColony';
 import {NuclearZone} from '../../src/server/cards/base/NuclearZone';
 import {RedMuseum} from '../../src/server/cards/turmoilRedux/RedMuseum';
 import {SelectColony} from '../../src/server/inputs/SelectColony';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
 /**
  * THE EFFECT FORECAST ↔ EXECUTION PARITY GUARD.
@@ -63,20 +63,20 @@ import {SelectColony} from '../../src/server/inputs/SelectColony';
  * anti-vacuous floor), so a hook the sweep cannot fire is a spec bug, not a
  * green.
  */
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+const SCOPE = PREMIUM_SCOPE_MODULES;
 
 type Factory = new () => ICard;
 
 function inScopeReactors(): Array<Factory> {
   const out: Array<Factory> = [];
   for (const manifest of ALL_MODULE_MANIFESTS) {
-    if (!SCOPE.has(manifest.module)) {
+    if (!SCOPE.includes(manifest.module)) {
       continue;
     }
     for (const group of [manifest.projectCards, manifest.corporationCards, manifest.preludeCards]) {
       for (const name of Object.keys(group)) {
         const F = (group as Record<string, {Factory: Factory}>)[name]?.Factory;
-        if (F === undefined) {
+        if (F === undefined || !inPremiumScope({module: manifest.module, name}, SCOPE)) {
           continue;
         }
         let card: ICard;

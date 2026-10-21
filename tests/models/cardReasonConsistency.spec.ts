@@ -5,8 +5,9 @@ import {ICard} from '../../src/server/cards/ICard';
 import {GameModule} from '../../src/common/cards/GameModule';
 import {unplayableReasons} from '../../src/server/models/unplayableReasons';
 import {CEOsFavoriteProject} from '../../src/server/cards/base/CEOsFavoriteProject';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+const SCOPE = PREMIUM_SCOPE_MODULES;
 
 /**
  * True when the card's OWN class prototype defines `method` (a per-card override),
@@ -21,13 +22,13 @@ function definesOwnMethod(card: object, method: string): boolean {
 
 function eachScopeCard(fn: (card: ICard, module: GameModule) => void): void {
   for (const manifest of ALL_MODULE_MANIFESTS) {
-    if (!SCOPE.has(manifest.module)) {
+    if (!SCOPE.includes(manifest.module)) {
       continue;
     }
     for (const group of [manifest.projectCards, manifest.corporationCards, manifest.preludeCards]) {
       for (const name of Object.keys(group)) {
         const Factory = (group as Record<string, {Factory: new () => ICard}>)[name]?.Factory;
-        if (Factory === undefined) {
+        if (Factory === undefined || !inPremiumScope({module: manifest.module, name}, SCOPE)) {
           continue;
         }
         let card: ICard;

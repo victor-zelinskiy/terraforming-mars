@@ -5,7 +5,7 @@
  */
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
-import {GameModule} from '@/common/cards/GameModule';
+import {inPremiumScope} from '@/common/cards/premiumScope';
 import {CardModel} from '@/common/models/CardModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {
@@ -418,9 +418,6 @@ export function playerActionSourceCount(tableau: ReadonlyArray<CardModel>): numb
   return playerActionGroups(tableau).length;
 }
 
-// Current scope for the actions feature (same as the effects overlay).
-const SCOPE_MODULES: ReadonlySet<GameModule> =
-  new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
 
 /**
  * Every in-scope card (Base / CorpEra / Promo / Venus / Colonies / Prelude) with
@@ -431,7 +428,7 @@ export function allScopeActionCardNames(): Array<CardName> {
   const out: Array<CardName> = [];
   for (const name of Object.values(CardName)) {
     const card = getCard(name);
-    if (card === undefined || !SCOPE_MODULES.has(card.module)) {
+    if (card === undefined || !inPremiumScope(card)) {
       continue;
     }
     if (cardHasAction(name)) {
@@ -479,7 +476,7 @@ export function flaggedActionCandidates(): Array<CardName> {
   const out: Array<CardName> = [];
   for (const name of Object.values(CardName)) {
     const card = getCard(name);
-    if (card === undefined || !SCOPE_MODULES.has(card.module)) {
+    if (card === undefined || !inPremiumScope(card)) {
       continue;
     }
     if (card.hasAction !== true || ACTION_OVERRIDES[name] !== undefined) {

@@ -43,6 +43,7 @@
 import * as fs from 'fs';
 import {ICard} from '../../cards/ICard';
 import {GameModule} from '../../../common/cards/GameModule';
+import {inPremiumScope} from '../../../common/cards/premiumScope';
 import {CardType} from '../../../common/cards/CardType';
 import {Tag} from '../../../common/cards/Tag';
 import {Resource} from '../../../common/Resource';
@@ -62,7 +63,6 @@ import {Card} from '../../cards/Card';
 import {drawSearchOf} from '../../deferredActions/drawSearch';
 import {DrawSearchModel} from '../../../common/models/CardDrawRevealModel';
 
-const SCOPE_MODULES: ReadonlySet<GameModule> = new Set(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
 const SCOPE_TYPES: ReadonlySet<CardType> = new Set([CardType.AUTOMATED, CardType.ACTIVE, CardType.EVENT, CardType.PRELUDE, CardType.CORPORATION]);
 
 /** Locales whose card-information coverage is ENFORCED (audited). */
@@ -926,7 +926,7 @@ function sentenceCount(text: string): number {
 /* ── the per-card builder ───────────────────────────────────────────── */
 
 export function buildCardInformation(card: ICard, module: GameModule): CardInformation | undefined {
-  if (!SCOPE_MODULES.has(module) || !SCOPE_TYPES.has(card.type)) {
+  if (!inPremiumScope({module, name: card.name}) || !SCOPE_TYPES.has(card.type)) {
     return undefined;
   }
   const notes: Array<string> = [];

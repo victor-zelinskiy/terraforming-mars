@@ -32,6 +32,7 @@ import {actionPreview} from '../../src/server/models/actionPreview';
 import {testGame} from '../TestGame';
 import {TestPlayer} from '../TestPlayer';
 import {runAllActions} from '../TestingUtils';
+import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
 /*
  * THE RATING VETO, SWEPT OVER THE WHOLE SCOPE (Turmoil Redux RX42 UNMI Veto — invariant 11: a guard is the
@@ -56,7 +57,7 @@ import {runAllActions} from '../TestingUtils';
  * `LEFTOVER_VETO_WORKLIST` is EMPTY ON PURPOSE and fails BOTH ways: a new leak is a regression, a fixed entry must
  * be removed.
  */
-const SCOPE = new Set<GameModule>(['base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux']);
+const SCOPE = PREMIUM_SCOPE_MODULES;
 const LEFTOVER_VETO_WORKLIST = new Set<string>([]);
 
 const VETO = resolutionInstanceId(UNMI_VETO_ID, 0);
@@ -135,13 +136,13 @@ type Candidate = {Factory: new () => ICard, module: GameModule, name: CardName, 
 function candidates(): Array<Candidate> {
   const out: Array<Candidate> = [];
   for (const manifest of ALL_MODULE_MANIFESTS) {
-    if (!SCOPE.has(manifest.module)) {
+    if (!SCOPE.includes(manifest.module)) {
       continue;
     }
     for (const group of [manifest.projectCards, manifest.corporationCards, manifest.preludeCards]) {
       for (const name of Object.keys(group)) {
         const Factory = (group as Record<string, {Factory: new () => ICard}>)[name]?.Factory;
-        if (Factory === undefined) {
+        if (Factory === undefined || !inPremiumScope({module: manifest.module, name}, SCOPE)) {
           continue;
         }
         let probe: ICard;
