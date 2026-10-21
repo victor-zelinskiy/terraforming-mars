@@ -42,7 +42,6 @@ import {CardName} from './CardName';
 export const TURMOIL_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
   // A party requirement and a declarative body — `PartyRequirement` already reads `game.politics`;
   // the work is the premium scope (preview / information / reasons / lore) and the Redux spec table.
-  CardName.DIASPORA_MOVEMENT, // Reds · 1 M€ per Jovian tag in play
   CardName.GMO_CONTRACT, // Greens · effect: 2 M€ per animal / plant / microbe tag you play
   CardName.PR_OFFICE, // Unity · +1 TR, 1 M€ per Earth tag
   CardName.PARLIAMENT_HALL, // Mars First · +1 M€ production per 3 Building tags

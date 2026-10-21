@@ -97,6 +97,13 @@ describe('classic Turmoil cards under Turmoil Redux', () => {
       // Informational — the numbers the owner walks: how many classic cards still wait, how many crossed.
       expect(left + adapted.length).to.eq(CLASSIC.length);
     });
+
+    // Each adaptation updates this pin in the diff that deletes its row — a row that vanished by
+    // accident (and dealt a card nobody adapted) fails here, by name.
+    it('the adapted cards, as of the last adaptation — T04 Diaspora Movement (2026-10-21)', () => {
+      expect(CLASSIC.filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name))).deep.eq([CardName.DIASPORA_MOVEMENT]);
+      expect(dealtClassic(REDUX)).deep.eq({projects: [CardName.DIASPORA_MOVEMENT], corporations: []});
+    });
   });
 
   describe('the deck', () => {

@@ -62,7 +62,10 @@ describe('premium scope', () => {
     expect(serverList.TURMOIL_CARDS_HELD_BACK_UNDER_REDUX).eq(TURMOIL_CARDS_HELD_BACK_UNDER_REDUX);
   });
 
-  describe('no hand-written premium module list outside `premiumScope.ts`', () => {
+  describe('no hand-written premium module list outside `premiumScope.ts`', function() {
+    // Two walks over every source and spec file — seconds on a loaded machine.
+    // eslint-disable-next-line no-invalid-this
+    this.timeout(30_000);
     /**
      * Lists of modules that are NOT a premium scope, with the reason. A row that stops
      * matching fails too, so the allowance cannot outlive its subject.
