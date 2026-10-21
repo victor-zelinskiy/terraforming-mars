@@ -598,9 +598,11 @@ export type VoteInfoInput = {
 export function voteInfoOf(input: VoteInfoInput): VoteInfoVm {
   const card = input.grant?.card === true;
   const receipt = card ? input.grant?.receipt : undefined;
-  // The veto's reading (RX42): the candidate's «as if enacted now», or the enacted law's own standing.
+  // The veto's reading (RX42): the candidate's «as if enacted now», or the enacted law's own standing. The enacted law
+  // is read off its OWN object — a panel with no model and a slot with no id must never match `undefined === undefined`.
+  const enacted = input.model?.enacted;
   const trVeto = input.slot.trVetoIfEnacted ??
-    (input.model?.enacted?.resolution === input.slot.resolutionId ? input.model.enacted.trVeto : undefined);
+    (enacted !== undefined && enacted.resolution === input.slot.resolutionId ? enacted.trVeto : undefined);
   const veto = ratingVetoReadingOf(trVeto, input.subject, input.model?.players ?? [], input.nameOf, input.subjectRating);
   return {
     instance: input.slot.instance,
