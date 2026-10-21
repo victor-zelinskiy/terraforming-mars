@@ -27,27 +27,33 @@
  *      laptop's snapshots exist for. Extraneous files under the synced roots are
  *      deleted; `node_modules` is never touched — re-installed only when
  *      `package-lock.json` changed;
- *   3. run — under ONE lock (`flock`; a second session waits, and says so) and
- *      a sleep inhibitor, inside the `e2e` distrobox (Ubuntu 24.04 — the only
- *      place Playwright's Chromium has its libraries; SteamOS's root is
- *      read-only): `TM_E2E_GPU=1 TM_E2E_ROOT=../builds/<task> npx playwright
- *      test <args>` with the task's own output + report dirs, output streamed;
- *      the results are packed into `results.tar` BEFORE the lock is released
- *      (the next session's run wiped them otherwise);
+ *   3. run — in ONE of K SLOTS (`~/tm-e2e/slots/<i>`, `flock` each; K = 2 —
+ *      the box has 12 threads and 15 GB, two runs of two 4K workers leave
+ *      headroom; `TM_E2E_SLOTS` overrides) so two sessions run SIDE BY SIDE,
+ *      or — `--exclusive` — holding ALL slots, for a timing / storyboard claim
+ *      whose numbers a neighbour's run would contaminate (the owner's call
+ *      2026-10-21: one run at a time was too strict for a dedicated box; one
+ *      run at a time for a TIMING is the whole point of the box). A run with
+ *      no slot in 30 min gives up (exit 3) and says so. Inside the `e2e`
+ *      distrobox (Ubuntu 24.04 — the only place Playwright's Chromium has its
+ *      libraries; SteamOS's root is read-only): `TM_E2E_GPU=1
+ *      TM_E2E_ROOT=../builds/<task> npx playwright test <args>` with the
+ *      task's own output + report dirs, output streamed; the results are
+ *      packed into `results.tar` BEFORE the slot is released;
  *   4. results — `test-results/` and `playwright-report/` into
  *      `.e2e-remote/<task>/`, the run's new `screenshots/**` files into the
  *      laptop's `screenshots/` (the same paths a local run writes).
  *
- * The exit code is Playwright's. A host that cannot be reached exits 2, the
- * lock not obtained in 30 min exits 3, the game running there exits 4 — each
+ * The exit code is Playwright's. A host that cannot be reached exits 2, no
+ * slot obtained in 30 min exits 3, the game running there exits 4 — each
  * says so in one line. THE RULE FOR AN AGENT: never fall back to a local run
  * silently on 2/3/4 — ask the owner (memory `e2e-only-on-steam-machine`).
  *
  * Env: TM_E2E_REMOTE_HOST (ssh alias, default `steam-machine`),
- * TM_E2E_ROOT (an explicit build root), every TM_E2E_* flag except the
- * local-only ones is forwarded (TM_E2E_GPU defaults to 1 — that is the point).
- * Default workers: 2 (the box has 12 threads and renders 4K; 1 for a storyboard
- * or a timing claim, as `tests.md` says).
+ * TM_E2E_ROOT (an explicit build root), TM_E2E_SLOTS (the box's slot count),
+ * every TM_E2E_* flag except the local-only ones is forwarded (TM_E2E_GPU
+ * defaults to 1 — that is the point). Default workers: 2 per run (two runs
+ * share the box). A storyboard / timing claim: `--exclusive --workers=1`.
  */
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
@@ -93,10 +99,13 @@ if (!/^[a-z0-9][a-z0-9-]*$/i.test(task)) {
   console.error('usage: npm run e2e:remote -- <task> [playwright args…]   (letters, digits, dashes — your task\'s name)');
   process.exit(2);
 }
-const pwArgs = argv.slice(1);
+// `--exclusive` is the wrapper's own flag (never Playwright's): the run holds every slot of the box.
+const exclusive = argv.includes('--exclusive');
+const pwArgs = argv.slice(1).filter((a) => a !== '--exclusive');
 if (!pwArgs.some((a) => a.startsWith('--workers'))) {
   pwArgs.push('--workers=2');
 }
+const SLOTS = Math.max(1, Number(process.env.TM_E2E_SLOTS ?? 2) || 2);
 /** This task's own build + output + report dirs on the host — never shared with another session's run. */
 const TASK_DIR = `${REMOTE_BUILDS}/${task}`;
 
@@ -143,7 +152,7 @@ if (flags.has('GAME-RUNNING')) {
   process.exit(4);
 }
 if (flags.has('RUN-IN-PROGRESS')) {
-  log(`another e2e run is in progress on ${HOST} — this one will wait for the lock (up to ${LOCK_WAIT_S / 60} min)`);
+  log(`another e2e run is in progress on ${HOST} — ${exclusive ? `this EXCLUSIVE run waits for the box to empty (up to ${LOCK_WAIT_S / 60} min)` : `this one takes a free slot of ${SLOTS}, or waits for one (up to ${LOCK_WAIT_S / 60} min)`}`);
 }
 
 function res255(res) {
@@ -342,7 +351,7 @@ fi
 touch ${TASK_DIR}/.run-start
 rm -f ${TASK_DIR}/.last-exit
 echo "[e2e:remote] $(node --version) · playwright $(npx playwright --version | sed 's/Version //') · $(nproc) threads · load $(cut -d' ' -f1-3 /proc/loadavg)"
-env ${envLine} TM_E2E_ROOT=../builds/${task} TM_E2E_OUTPUT_DIR=${TASK_DIR}/test-results TM_E2E_REPORT_DIR=${TASK_DIR}/playwright-report npx playwright test ${pwArgs.map(shq).join(' ')}
+env ${envLine} TM_E2E_SLOT="$1" TM_E2E_ROOT=../builds/${task} TM_E2E_OUTPUT_DIR=${TASK_DIR}/test-results TM_E2E_REPORT_DIR=${TASK_DIR}/playwright-report npx playwright test ${pwArgs.map(shq).join(' ')}
 code=$?
 echo $code > ${TASK_DIR}/.last-exit
 exit $code
@@ -353,13 +362,35 @@ mkdir -p ${REMOTE_HOME}/runs
 cat > ${innerPath} <<'TM_INNER'
 ${inner}TM_INNER
 trap 'rm -f ${innerPath} ${outerPath}' EXIT
-exec 9>${REMOTE_HOME}/lock
-if ! flock -n 9; then
-  echo "[e2e:remote] the Steam Machine is BUSY (another run holds the lock) — waiting up to ${LOCK_WAIT_S / 60} min…"
-  flock -w ${LOCK_WAIT_S} 9 || { echo "[e2e:remote] gave up waiting for the lock"; exit 3; }
-fi
+# THE SLOTS: K lock files, one flock each (fds 10…). A SHARED run takes the first free one, polling
+# every 2 s up to the deadline; an EXCLUSIVE run takes ALL of them in order (holding the first while
+# waiting for the rest is what keeps a timing run from starving behind a stream of shared ones).
+mkdir -p ${REMOTE_HOME}/slots
+SLOTS=${SLOTS}
+DEADLINE=$((SECONDS + ${LOCK_WAIT_S}))
+SLOT=""
+${exclusive ? `for i in $(seq 0 $((SLOTS - 1))); do
+  eval "exec $((10 + i))>${REMOTE_HOME}/slots/$i"
+  if ! flock -n $((10 + i)); then
+    echo "[e2e:remote] EXCLUSIVE run — waiting for slot $i of $SLOTS to free (up to $(( (DEADLINE - SECONDS) / 60 )) min)…"
+    flock -w $((DEADLINE - SECONDS)) $((10 + i)) || { echo "[e2e:remote] gave up waiting for the box"; exit 3; }
+  fi
+done
+SLOT="exclusive"` : `while [ -z "$SLOT" ]; do
+  for i in $(seq 0 $((SLOTS - 1))); do
+    eval "exec $((10 + i))>${REMOTE_HOME}/slots/$i"
+    if flock -n $((10 + i)); then SLOT="slot $((i + 1))/$SLOTS"; break; fi
+    eval "exec $((10 + i))>&-"
+  done
+  if [ -z "$SLOT" ]; then
+    [ -z "$WAITED" ] && echo "[e2e:remote] every slot of $SLOTS is BUSY — waiting for one (up to $(( (DEADLINE - SECONDS) / 60 )) min)…"
+    WAITED=1
+    [ $SECONDS -ge $DEADLINE ] && { echo "[e2e:remote] gave up waiting for a slot"; exit 3; }
+    sleep 2
+  fi
+done`}
 if pgrep -f '[T]erraformingMars.AppImage' >/dev/null; then echo "[e2e:remote] the game started on the Steam Machine while we waited — refusing"; exit 4; fi
-echo "[e2e:remote] lock taken — running ${shq(task)} on $(cat /etc/hostname 2>/dev/null)"
+echo "[e2e:remote] $SLOT — running ${shq(task)} on $(cat /etc/hostname 2>/dev/null) · load $(cut -d' ' -f1-3 /proc/loadavg)"
 # The task's serve root: its own build beside LINKS to what the server reads relative to its cwd
 # (the laptop's \`e2e:snapshot\` does the same with junctions) — and to \`node_modules\`, which Node
 # resolves UPWARD from the server's real path: on the laptop the snapshot sits inside the repo, here
@@ -375,15 +406,15 @@ if systemd-inhibit --what=sleep:idle --who=tm-e2e --why=probe --mode=block true 
 else
   echo "[e2e:remote] (no sleep inhibitor over ssh — the Steam Machine's idle sleep must be set to Never)"
 fi
-$INHIBIT distrobox enter ${CONTAINER} -- bash ${innerPath}
+$INHIBIT distrobox enter ${CONTAINER} -- bash ${innerPath} "$SLOT"
 code=$?
-# Pack the results WHILE STILL HOLDING THE LOCK — the next session's run starts the moment it is released.
+# Pack the results WHILE STILL HOLDING THE SLOT — a waiting run starts the moment it is released.
 rm -f ${TASK_DIR}/results.tar
 ( cd ${TASK_DIR} && tar -cf results.tar --ignore-failed-read test-results playwright-report .last-exit 2>/dev/null )
 ( cd ${REMOTE_REPO} && find screenshots -type f -newer ${TASK_DIR}/.run-start 2>/dev/null | tar -rf ${TASK_DIR}/results.tar -T - 2>/dev/null )
 exit $code
 `;
-log(`running: playwright test ${pwArgs.join(' ')}  (${envLine})`);
+log(`running${exclusive ? ' EXCLUSIVE' : ''}: playwright test ${pwArgs.join(' ')}  (${envLine})`);
 const run = ssh(`mkdir -p ${REMOTE_HOME}/runs && cat > ${outerPath} && bash ${outerPath}`, {input: outer, inherit: true});
 if (res255(run)) {
   unreachable(run, 'run');

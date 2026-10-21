@@ -135,9 +135,11 @@ function buildStamp(): string {
     // hands the laptop's HEAD over in the env); the build's own head is enough otherwise
     tree = process.env.TM_E2E_HEAD ? ` · HEAD ${process.env.TM_E2E_HEAD}` : '';
   }
-  // WHERE it ran: a remote run (`npm run e2e:remote`) names its host, so a timing read off the quiet
-  // Steam Machine is never confused with one taken on the loaded laptop.
-  const host = process.env.TM_E2E_HOST ? ` · host ${process.env.TM_E2E_HOST}` : '';
+  // WHERE it ran: a remote run (`npm run e2e:remote`) names its host and its SLOT — `exclusive` (the box
+  // to itself: a timing / storyboard claim) or `slot i/K` (beside another session's run) — so a timing
+  // read off the quiet Steam Machine is never confused with one taken on the loaded laptop or beside a
+  // neighbour.
+  const host = process.env.TM_E2E_HOST ? ` · host ${process.env.TM_E2E_HOST}${process.env.TM_E2E_SLOT ? ` (${process.env.TM_E2E_SLOT})` : ''}` : '';
   return `build ${head} (${builtAt}) from ${root}${tree}${host}${staleNote}`;
 }
 

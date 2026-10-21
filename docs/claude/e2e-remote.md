@@ -46,22 +46,28 @@ What it does, in order:
    when that snapshot exists, else the shared `build/` — minus `build/tests` and the source maps
    (190 MB nobody opens in a run). Extraneous files under those roots are deleted. `node_modules` is
    never touched; it is re-installed inside the container only when `package-lock.json`'s hash changed.
-3. **run** — under ONE lock (`flock ~/tm-e2e/lock`; a second session's run WAITS up to 30 min and says
-   so), inside the `e2e` distrobox: `TM_E2E_GPU=1 TM_E2E_HOST=steam-machine TM_E2E_HEAD=<laptop HEAD>
+3. **run** — in one of **K = 2 SLOTS** (`~/tm-e2e/slots/<i>`, one `flock` each; `TM_E2E_SLOTS`
+   overrides): two sessions run SIDE BY SIDE, a third waits for a slot (up to 30 min, and says so).
+   **`--exclusive`** takes ALL slots — for a timing / storyboard claim, whose numbers a neighbour's run
+   would contaminate (the owner's call 2026-10-21: one run at a time was too strict for a dedicated box;
+   one run at a time for a TIMING is the whole point of it). The run goes inside the `e2e` distrobox:
+   `TM_E2E_GPU=1 TM_E2E_HOST=steam-machine TM_E2E_SLOT=<slot i/K | exclusive> TM_E2E_HEAD=<laptop HEAD>
    TM_E2E_ROOT=../builds/<task> npx playwright test <args>` with the task's own `test-results/` and
    `playwright-report/` (`TM_E2E_OUTPUT_DIR` / `TM_E2E_REPORT_DIR`, read by `playwright.config.ts`),
-   output streamed to your terminal. The serve root `~/tm-e2e/builds/<task>/` carries `assets` and
-   `tests` as links to the mirror — the laptop's `e2e:snapshot` layout, mirrored. Before the lock is
-   released the results are packed into `results.tar` there.
+   output streamed to your terminal. The serve root `~/tm-e2e/builds/<task>/` carries `assets`, `tests`
+   and `node_modules` as links to the mirror — the laptop's `e2e:snapshot` layout, mirrored. Before the
+   slot is released the results are packed into `results.tar` there.
 4. **results** — that archive into `.e2e-remote/<task>/` (`test-results/`, `playwright-report/`,
    `.last-exit`), the run's new `screenshots/**` files into the laptop's `screenshots/` (the same paths
    a local run writes). The `build` annotation of every test reads
-   `build <sha> (<time>) from ../builds/<task> · HEAD <sha> · host steam-machine`.
+   `build <sha> (<time>) from ../builds/<task> · HEAD <sha> · host steam-machine (slot 1/2 | exclusive)`
+   — a timing read beside a neighbour's run says so.
 
 **Exit codes.** 0 / 1 are Playwright's own. **2 / 3 / 4 mean the run did NOT happen**: 2 = the host is
-unreachable, no mirror, no build, a sync failure, or Playwright never started; 3 = the lock was not
-obtained in 30 min; 4 = the game is running there or the owner set `DO_NOT_DISTURB`. On any of them an
-agent STOPS and ASKS the owner — never a silent fallback to a laptop run.
+unreachable, no mirror, no build, a sync failure, or Playwright never started; 3 = no slot (or, for
+`--exclusive`, not the whole box) in 30 min; 4 = the game is running there or the owner set
+`DO_NOT_DISTURB`. On any of them an agent STOPS and ASKS the owner — never a silent fallback to a laptop
+run.
 
 Product edits still need a fresh build (`npm run build` + `npm run e2e:snapshot <task>`) before the run:
 the sync mirrors what is on disk. Spec edits sync by themselves (`tests/` is in the mirror).
@@ -84,7 +90,7 @@ so nothing here needs `sudo` on the host and nothing is lost to an update:
 | the mirror | `~/tm-e2e/repo/` | `src tests assets package*.json tsconfig.json playwright.config.ts` + its own `node_modules` (`ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci`, stamped `node_modules/.tm-lock-sha`) — ONE tree for every session of this clone |
 | the builds | `~/tm-e2e/builds/<task>/` | per task: `build/` (synced), `assets` + `tests` → links to the mirror, `test-results/`, `playwright-report/`, `.run-start`, `.last-exit`, `results.tar` (transient); a task idle for 14 days is pruned by the next run |
 | browsers | `~/.cache/ms-playwright/` | `npx playwright install chromium --with-deps` inside the container |
-| per-run files | `~/tm-e2e/lock`, `~/tm-e2e/runs/<task>-<id>.{outer,inner}.sh` (removed on exit) | written by the wrapper |
+| per-run files | `~/tm-e2e/slots/<i>` (the K slot locks), `~/tm-e2e/runs/<task>-<id>.{outer,inner}.sh` (removed on exit) | written by the wrapper |
 
 Re-provisioning from scratch = the table top to bottom; the wrapper's `npm ci` branch rebuilds
 `node_modules` + browsers by itself whenever the lock hash differs.
@@ -145,6 +151,6 @@ headless) can go through the GPU; the headless shell cannot open `chrome://gpu` 
   so hashed raw the lock «changed» several times an hour — and each change would have been a 2-minute
   `npm ci` for nothing. The hash is over the lock with the root `version` (top level and `packages[""]`)
   dropped; the 0.4 MB re-send is noise.
-- The mirror keeps ONE copy of the build: two sessions' runs are serialized by the lock and each syncs
-  its own build in before running — the delta is small (chunk names are stable), but a session that
-  wants to run while another is mid-run WAITS; that is by design (one box, honest numbers).
+- Two sessions run side by side in the two slots; a timing / storyboard claim is `--exclusive` and
+  waits for the box to empty — its annotation then reads `exclusive`, a shared run's `slot i/2`. Raise
+  `TM_E2E_SLOTS` only on measurement (the speed-up plan's phase 0: the worker-scaling curve).
