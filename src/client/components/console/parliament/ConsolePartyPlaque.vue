@@ -46,6 +46,7 @@
            'con-pseal--dim': state !== undefined && !state.held && state.kind === 'absent',
            'con-pseal--used': actionState?.kind === 'used',
            'con-pseal--allied': state?.ring === 'allied',
+           'con-pseal--long-name': longName,
          },
          roll !== '' ? 'con-pseal--roll-' + roll : '',
        ]"
@@ -65,7 +66,7 @@
       <span v-if="state?.ally !== undefined" class="con-pseal__ally" :class="'con-pseal__ally--' + state.ally.badge" aria-hidden="true"></span>
     </div>
     <div class="con-pseal__head">
-      <span class="con-pseal__name">{{ $t(partyNameKey(party)) }}</span>
+      <span class="con-pseal__name" :class="{'con-pseal__name--long': longName}" :data-pseal-name-long="longName ? 'true' : undefined">{{ $t(partyNameKey(party)) }}</span>
       <!-- THE ACTION BADGE — one object for one fact: available now (lit),
            used this generation (stamped ✓), not now / blocked (outlined). -->
       <span v-if="actionState !== undefined && actionState.kind !== 'none'"
@@ -181,6 +182,9 @@ import {translateText, translateTextWithParams} from '@/client/directives/i18n';
  */
 export type PartyPlaqueSize = 'tile' | 'hero' | 'full' | 'aside' | 'row' | 'ruler';
 
+/** The seal name's LENGTH TIER: a word longer than this (11 letters — «Марс вперёд» wraps by its space) is a long word. */
+const PSEAL_NAME_LONG_WORD = 11;
+
 export default defineComponent({
   name: 'ConsolePartyPlaque',
   components: {ConsolePartyFormula, ConsoleSupportPlaces, PlayerCube},
@@ -249,6 +253,16 @@ export default defineComponent({
   computed: {
     accent(): string {
       return partyAccent(this.party);
+    },
+    /**
+     * THE NAME IS ONE LONG WORD (the length tier of the seal's name — «ИНДУСТРИАЛИСТЫ», «Industrialists»): a word does
+     * not wrap, so the ruler's seat (as wide as its seal plus two lines of a SHORT name — the stability law: one box for
+     * whoever rules) cannot hold it at the name's size, and an ancestor cut it («…ДУСТРИАЛИСТЫ» on the dais, PL-801).
+     * Such a word takes the tier's tighter size instead — read off the TRANSLATED name's longest word, never a party.
+     */
+    longName(): boolean {
+      const words = translateText(partyNameKey(this.party)).split(/\s+/);
+      return words.some((word) => word.length > PSEAL_NAME_LONG_WORD);
     },
     /** The party's accent — and, under an alliance (TR62), the PARTNER's for the borrowed ring and the badge. */
     sealStyle(): Record<string, string> {

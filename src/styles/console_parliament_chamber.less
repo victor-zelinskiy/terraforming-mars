@@ -990,6 +990,15 @@
         .con-pseal__ring { inset: -.32rem; border-width: .11rem; border-color: @con-parl-gold; box-shadow: none; }
         .con-pseal__head { justify-content: center; }
         .con-pseal__name { flex: 0 1 auto; max-width: 100%; font-size: .92rem; font-weight: 400; line-height: 1.2; letter-spacing: .05em; white-space: normal; text-align: center; color: #fff; }
+        /* ONE LONG WORD («ИНДУСТРИАЛИСТЫ») cannot wrap inside the seat (seal + two lines of a short name — the one box
+           for whoever rules): it takes the tier's tighter size, never an ancestor's cut (PL-801) — and the party
+           action's badge beside it goes UNDER the name when the two do not share the seat's line (the head WRAPS, the
+           badge stays the name's neighbour; a short name keeps both on one line). */
+        .con-pseal__head { flex-wrap: wrap; row-gap: .25rem; max-width: 100%; }
+        .con-pseal__name--long { font-size: .72rem; letter-spacing: 0; }
+        /* …and the seat gives such a word its side padding: the long word reads at the profile's floor (the TV's .8rem)
+           across the seat's whole width instead of under it. */
+        &.con-pseal--long-name { padding-left: 0; padding-right: 0; }
         .con-pseal__state { flex-direction: column; justify-content: flex-start; height: 2.3rem; gap: .3rem; overflow: visible; }
         .con-pseal__state-text {
             flex: 0 0 auto;
@@ -1068,6 +1077,7 @@ html.con-profile-handheld .con-parl {
     .con-pseal--ruler { padding: .8rem .1rem .2rem; row-gap: .2rem; }
     .con-pseal--ruler .con-pseal__seal { width: var(--con-pseal-ruler-seal); height: var(--con-pseal-ruler-seal); &::before { top: -.85rem; width: 1.4rem; height: .95rem; } }
     .con-pseal--ruler .con-pseal__name { font-size: .7rem; }
+    .con-pseal--ruler .con-pseal__name--long { font-size: .56rem; letter-spacing: 0; }
 }
 
 /* ── the TV ladder (10-foot): the same hall at couch type — every WORD at or above the couch floor (.8rem). ── */
@@ -1114,6 +1124,9 @@ html.con-profile-tv .con-parl {
     .con-pseal--row .con-pseal__state { height: 1rem; }
     .con-pseal--ruler .con-pseal__seal { width: var(--con-pseal-ruler-seal); height: var(--con-pseal-ruler-seal); }
     .con-pseal--ruler .con-pseal__name { font-size: 1rem; }
+    .con-pseal--ruler .con-pseal__name--long { font-size: .8rem; letter-spacing: 0; }
+    /* The TV's party wrapper pads every seal .4rem a side (`console_parliament.less`): the long word's seat takes it back. */
+    .con-parl__party > .con-pseal--ruler.con-pseal--long-name { padding-left: 0; padding-right: 0; }
     .con-pseal--ruler .con-pseal__state-text { font-size: .8rem; letter-spacing: .2em; }
 }
 
