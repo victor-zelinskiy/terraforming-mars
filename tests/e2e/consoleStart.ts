@@ -2350,6 +2350,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   'nuclear-warhead-utilization' | 'nuclear-warhead-locked' | 'vp-cell-sources' | 'vp-cell-rival' |
   'overclocked-equipment' | 'overclocked-equipment-locked' | 'overclocked-equipment-energy' |
   'diaspora-movement' | 'diaspora-movement-locked' |
+  // T06 GMO Contract — the contract on the table (Lichen · Ecology Research · Pets in hand) · in hand · locked.
+  'gmo-contract' | 'gmo-contract-hand' | 'gmo-contract-locked' |
   // TR56 Robotics Factory and the iteration «КУДА ЛЯЖЕТ»: three kinds of holders (mechs · fighters · floaters ×2); the
   // floaters only; no holder of any kind; Construction Mechs paying for the Building tag; the Reds ruling.
   'robotics-factory' | 'robotics-factory-one' | 'robotics-factory-none' | 'robotics-factory-mechpay' | 'robotics-factory-locked' |

@@ -6920,6 +6920,88 @@ parliamentFixture('diaspora-movement-locked', {
   },
 });
 
+// ── T06 · GMO CONTRACT — the first classic Turmoil card with a live EFFECT on a Redux table: 2 M€ for each plant /
+//    animal / microbe tag blue plays, its own microbe included. Every card is MOVED out of the dealt pool, never
+//    copied (moveToDeckTop), so the deal stays the engine's.
+//      · `gmo-contract` — the Greens RULE (their quiet law enacted), the contract already on blue's table; in hand
+//        Lichen (a plant tag: +2 — the temperature at −24 °C), Ecology Research (plant + animal + microbe: +6) and Pets (an animal on itself and
+//        an animal tag: +2 — the play's own gain beside the table's answer); 30 M€;
+//      · `gmo-contract-hand` — the Greens rule, the contract in hand (its own microbe tag answers its own play: +2);
+//      · `gmo-contract-locked` — another party rules and the Greens' resolution stands on the vote with ONE delegate
+//        of blue's: «✕», «1 of 2». ──
+function gmoToHand(game: IGame, p1: IPlayer, names: ReadonlyArray<CardName>): void {
+  for (const name of names) {
+    moveToDeckTop(game, name);
+    p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+  }
+}
+function gmoExpectPlayable(name: string, p1: IPlayer, cards: ReadonlyArray<CardName>): void {
+  for (const card of cards) {
+    const inHand = p1.cardsInHand.find((c) => c.name === card);
+    if (inHand === undefined || !p1.canPlay(inHand)) {
+      throw new Error(`the ${name} fixture expected ${card} playable from blue's hand — got inHand=${inHand !== undefined}`);
+    }
+  }
+}
+parliamentFixture('gmo-contract', {
+  stopAt: 'vote',
+  megacredits: [30, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.GREENS));
+    // Lichen asks −24 °C — the temperature stands there (three steps of nobody's, set before the play).
+    setTemperature(game, -24);
+    moveToDeckTop(game, CardName.GMO_CONTRACT);
+    p1.playedCards.push(game.projectDeck.drawOrThrow(game));
+    gmoToHand(game, p1, [CardName.LICHEN, CardName.ECOLOGY_RESEARCH, CardName.PETS]);
+  },
+  expect: ({game, p1, parliament}) => {
+    if (!p1.tableau.has(CardName.GMO_CONTRACT) || parliament.rulingParty() !== PartyName.GREENS || game.activePlayer.id !== p1.id) {
+      throw new Error(`the gmo-contract fixture expected GMO Contract on blue's table, the Greens ruling and blue on the move — got ruling=${parliament.rulingParty()}`);
+    }
+    gmoExpectPlayable('gmo-contract', p1, [CardName.LICHEN, CardName.ECOLOGY_RESEARCH, CardName.PETS]);
+    parliament.assertLedger(game);
+  },
+});
+parliamentFixture('gmo-contract-hand', {
+  stopAt: 'vote',
+  megacredits: [30, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.GREENS));
+    gmoToHand(game, p1, [CardName.GMO_CONTRACT]);
+  },
+  expect: ({game, p1, parliament}) => {
+    if (parliament.rulingParty() !== PartyName.GREENS || game.activePlayer.id !== p1.id) {
+      throw new Error(`the gmo-contract-hand fixture expected the Greens ruling and blue on the move — got ruling=${parliament.rulingParty()}`);
+    }
+    gmoExpectPlayable('gmo-contract-hand', p1, [CardName.GMO_CONTRACT]);
+    parliament.assertLedger(game);
+  },
+});
+parliamentFixture('gmo-contract-locked', {
+  stopAt: 'vote',
+  megacredits: [30, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.INDUSTRIALISTS));
+    if (parliament.slotOf(PartyName.GREENS) === undefined) {
+      seatResolution(parliament, 0, quietResolutionOf(PartyName.GREENS));
+    }
+    parliament.placeVote(p1, parliament.slotOf(PartyName.GREENS)!, 'lobby');
+    gmoToHand(game, p1, [CardName.GMO_CONTRACT]);
+  },
+  expect: ({game, p1, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.GMO_CONTRACT);
+    const greens = parliament.slotOf(PartyName.GREENS);
+    const delegates = greens === undefined ? -1 : parliament.votesOf(p1, greens);
+    if (card === undefined || p1.canPlay(card) || delegates !== 1 || parliament.rulingParty() === PartyName.GREENS) {
+      throw new Error(`the gmo-contract-locked fixture expected T06 UNplayable — the Greens not ruling, one delegate of blue's on their resolution — got card=${card !== undefined} delegates=${delegates} ruling=${parliament.rulingParty()}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
 // ── THE SCORE CELL'S SOURCES, blue on the move (TR55): Terraformer claimable (TR 35, 30 M€ — the milestone's +5 flies
 //    from its ceremony), Security Fleet on the table with no fighter and 2 titanium (the ACTION's fighter brings its
 //    point on its touchdown — К-V2: the preview carries no `vpBox` for the card's own capsule). A quiet government. ──
