@@ -57,6 +57,33 @@ under it.
 `seatChipPoint` fell back to «the top centre of the screen» — it stays only as a remote TILE's birth supply, never a
 resource's destination).
 
+## 1b. Another seat's gain lands on its chip's INTAKE (the owner's decision 6 = M1 «плашка-хвост»)
+
+The seat's chip is a rival's only body on this screen, so it has a RECEIVER: `console/statusIntake.ts` (state +
+lifecycle on the animation clock) rendered by `ConsoleStatusStrip` — a plaque hanging from the chip's lower edge, in the
+seat's tone (the dot's own paint), a stem on the dot. A SIBLING of the chips in the ribbon, absolute (the chip's width
+and the ribbon never move; it rides the ribbon's one transform with its chip; a passed chip's opacity never fades it).
+
+| Phase | What the plaque shows | Who moves it |
+| --- | --- | --- |
+| EXPECTING | the icons of what is coming, «…», a thin ring of intake (≤ .5) | `openSeatIntake(seat, specs)` — BEFORE the tokens (it resolves once the plaque's numbers are PAINTED — the verdict on `probeTick`, bounded on the wall clock by `INTAKE_PAINT_WAIT_MS`; never on GSAP's clock alone, which stands still with the compositor), so the receiver announces itself before the token flies |
+| RECEIVED | «+N» per resource, white | `acceptSeatIntake(seat, spec)` on each token's touchdown (`onArrive` — a degraded token counts too) |
+| fold | — (back into the chip) | `INTAKE_READ_MS` (1.2 s) after the last unit; `INTAKE_SAFETY_MS` (6 s) if the tokens never came; `resetStatusIntakes` on the remote stage's abort |
+
+The token lands on the plaque's NUMBER (`seatIntakeEnd(seat, resource)` — the delta-chip anchor law), else on the chip's
+dot (`seatChipEnd`). ONE item and ONE token per resource (a sum — `runPlacerBonusBeat` merges the cell's units; the
+city payout's per-city tokens add up on one item). A later payout to the same seat extends the standing plaque. Users:
+the placer's cell bonus (W3) and a rival's card payout (`runRemoteCityPayoutBeat({seat})`).
+
+## 1c. The receiver announces itself — «ожидает» везде (the owner's decision 7)
+
+From a GAIN token's birth to its touchdown its receiver wears a ring (`.con-transfer__expect`, one per flight in the
+transfer layer — never a class on a foreign element): the director places it on the receiver's RESTING box
+(`expectRect` → `measureEndRect`: an object end's element, the home ladder's rung) in the birth frame, moves it with the
+final approach, drops it at the touchdown (the contact beat answers then); a thin line in the resource's tone
+(`data-expect-resource`), ≤ .5, a 160 ms fade in — never a glow of the row. A loss's «receiver» (the printed cost it is
+drawn into) is not announced; the seat's intake announces itself; reduced motion shows none.
+
 ## 2. The surface folds only after its tokens have LEFT it — told by the tokens
 
 `ResourceTransferRun.onLeft` fires once every token of the run has left its source (its pop is over, or it was never
@@ -105,7 +132,10 @@ stands in). Every degrade ticks the counter (`onArrive`) — late, never lost.
 | `tests/client/console/transferEndVisible.spec.ts` | the ONE verdict |
 | e2e `transferEndsGuard` (every spec) | no token born on / landed over nothing |
 | e2e `console-classic-gmo-contract` (C) | the answer born on `tag:plant`, landed on `rail:megacredits`, its contact beat played |
-| e2e witness `tests/e2e/transferWitness.ts` | anchors `tag:<tag>` (a printed tag of the landed card) and `seat:<color>` (another seat's chip) |
+| e2e witness `tests/e2e/transferWitness.ts` | anchors `tag:<tag>` (a printed tag of the landed card), `seat:<color>` (another seat's chip), `intake:<color>` (its intake plaque) |
+| `tests/client/console/statusIntake.spec.ts` | one item per resource, the lifecycle (expecting → received → fold), a later payout extends, the number as the end |
+| e2e `console-rival-payout-intake` | the plaque EXPECTING in the frame of the first birth, one token per resource on `intake:<seat>`, RECEIVED «+N» standing a read, the ribbon's width constant |
+| e2e `console-classic-gmo-contract` (C) | the receiver's ring over the M€ ink while the answer flies |
 
 Laws: `.claude/rules/console-ui.md` § THE ENDS OF A FLIGHT ARE VISIBLE (… AND LIVE), `.claude/rules/animations.md` §
 Landing rects are RESTING rects. Ledger: section BW (`docs/claude/gameplay-polish-ledger.md`).

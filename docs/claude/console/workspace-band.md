@@ -842,8 +842,12 @@ result-иконки = смысловое усиление из реальной 
 - **Result handoff по категории**: draw/deck-check — запуск существующего
   beat ЗАДЕРЖАН до handoff'а (импульс садится на иконку добора → пульс
   `.con-deckstack__pile` → физический добор); resources — reward-волна
-  resource-transfer framework: origin'ы = ректы иконок, **кэшированные в
-  submit** (полёт не зависит от жизни workspace после ответа),
+  resource-transfer framework: origin'ы = ЭЛЕМЕНТЫ печатных иконок (T06 «оба
+  конца живые» — `resolveGainIconEnds`, `TransferEnd`), ПЕРЕМЕРЯЕМЫЕ в кадр
+  рождения каждого жетона (до T06 — точки, кэшированные в submit: композер,
+  сложившийся раньше волны, рожал жетоны из старой позы); фолд workspace ждёт,
+  пока КАЖДЫЙ жетон волны покинул иконку (`onLeft` прогона —
+  `docs/claude/console/resource-transfer.md` §2),
   `beginPanelRewardHold` в pre-flush → счётчик рельсы тикает на касании
   чипа; tile/global — иконка-акцент + существующие placement/scale-системы.
 - **Быстрый сервер не режет commit**: dismiss не-embedded результата ждёт
