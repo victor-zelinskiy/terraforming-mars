@@ -46,11 +46,11 @@ import {
 import {
   playOceanActivation, playOceanCoinMaterialize, playOceanCoinHandoff, killOceanTweens,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
-import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {runResourceTransfers, transferEndPointNow} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {boardStorySettling, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
 import {registerBoardSceneMember} from '@/client/console/boardSceneMembers';
-import {ResourceTransferSpec, TransferPoint, cardResourceKey, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {ResourceTransferSpec, TransferEnd, TransferEndLike, TransferPoint, cardResourceKey, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {CardReceiveOutcome, runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
 import {
   CITY_PAYOUT_BREATH_MS, CITY_PAYOUT_READ_MS, CITY_PAYOUT_RETURN_MS, CITY_PAYOUT_RISE_MS, CITY_PAYOUT_TICK_GAP_MS,
@@ -180,9 +180,27 @@ function measureHex(spaceId: string): Rect | undefined {
 }
 
 /**
- * A SEAT's chip in the top status strip — where another player's units go (and
- * where a remote tile departs from: the opponents live in the top HUD). An
- * unmounted strip falls back to the neutral top table edge.
+ * A SEAT's chip in the top status strip as the DESTINATION OF ANOTHER PLAYER'S UNITS (T06 — «оба конца живые»): the
+ * chip's own seat dot as an OBJECT end — re-measured on the token's final approach (the ribbon carries the chip along
+ * on a change of generation order) and judged by the visible-end verdict. No chip on screen — no destination: the
+ * caller does not fly (never the synthetic «top centre of the screen» of the tile births).
+ */
+export function seatChipEnd(color: Color | undefined): TransferEnd | undefined {
+  if (typeof document === 'undefined' || color === undefined) {
+    return undefined;
+  }
+  const dot = document.querySelector<HTMLElement>(`.con-status__player .player_bg_color_${color}`);
+  if (dot === null) {
+    return undefined;
+  }
+  const r = dot.getBoundingClientRect();
+  return r.width > 2 && r.height > 2 ? {el: dot, fx: 0.5, fy: 0.5} : undefined;
+}
+
+/**
+ * A SEAT's chip in the top status strip — where a remote TILE departs from (the opponents live in the top HUD; the
+ * tile's own supply, never a resource's destination — those land on `seatChipEnd`). An ownerless tile or an unmounted
+ * strip departs from the neutral top table edge, the mirror of the viewer's own bottom-centre supply.
  */
 export function seatChipPoint(color: Color | undefined, ui: number): TransferPoint {
   if (typeof document !== 'undefined' && color !== undefined) {
@@ -303,7 +321,7 @@ async function payTokens(
   ui: number,
   pace: number,
   specOf: (token: CityTokenProxy) => ResourceTransferSpec,
-  destination: TransferPoint | undefined,
+  destination: TransferEndLike | undefined,
   onLanded: () => void,
   myEpoch: number,
 ): Promise<boolean> {
@@ -642,9 +660,10 @@ export type RemoteCityPayoutOpts = {
   payout: CardAdjacencyPayoutModel,
   tileRect: TileRect,
   uiScale: number,
-  /** Where the tokens land: the paid seat's chip in the status strip (an opponent),
-   *  or `undefined` for the viewer's own satellite cell (a parked pin landing on the remote stage). */
-  destination: TransferPoint | undefined,
+  /** Whose chip the tokens land on: ANOTHER seat's (its chip in the status strip — `seatChipEnd`, an object end, no
+   *  chip on screen → no flight), or `undefined` for the viewer's own satellite cell (a parked pin landing on the
+   *  remote stage). */
+  seat: Color | undefined,
   /** The viewer's own holds, when the payout is theirs (released per token / at a degrade). */
   release?: () => void,
 };
@@ -685,9 +704,16 @@ export async function runRemoteCityPayoutBeat(opts: RemoteCityPayoutOpts): Promi
   cityPayoutState.phase = 'paying';
   await wait(motionMs(CITY_PAYOUT_BREATH_MS));
   const senders = epoch === myEpoch ? senderRects(opts.payout) : undefined;
-  // Where the units are going: the seat's chip, or — the viewer's own payout — their satellite cell.
-  const home = opts.destination === undefined ? auxCellRect(opts.payout.resource, opts.payout.target) : undefined;
-  const toward = opts.destination ?? (home !== undefined ? centre(home) : undefined);
+  // Where the units are going: the seat's chip, or — the viewer's own payout — their satellite cell. Another seat with
+  // no chip on screen is NO destination (T06): the scene degrades, never a token into the air under a missing chip.
+  const destination = opts.seat === undefined ? undefined : seatChipEnd(opts.seat);
+  if (opts.seat !== undefined && destination === undefined) {
+    cityPayoutState.degraded = true;
+    end();
+    return;
+  }
+  const home = destination === undefined ? auxCellRect(opts.payout.resource, opts.payout.target) : undefined;
+  const toward = (destination === undefined ? undefined : transferEndPointNow(destination)) ?? (home !== undefined ? centre(home) : undefined);
   const geometry = senders !== undefined ? tokenGeometry(opts.payout, senders, opts.tileRect, opts.uiScale, toward) : undefined;
   if (geometry === undefined) {
     if (epoch === myEpoch) {
@@ -699,7 +725,7 @@ export async function runRemoteCityPayoutBeat(opts: RemoteCityPayoutOpts): Promi
   const resource = cardResourceKey(opts.payout.resource);
   const paid = await payTokens(geometry, opts.tileRect, opts.uiScale, 1,
     () => ({channel: 'card-resource', resource, amount: 1}),
-    opts.destination,
+    destination,
     () => undefined,
     myEpoch);
   if (!paid && epoch === myEpoch) {

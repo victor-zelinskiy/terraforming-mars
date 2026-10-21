@@ -91,7 +91,7 @@ import {claimCityPayout, cityPayoutVpSteps, cityPayoutsFor} from '@/client/conso
 import {accumulatedVp} from '@/client/components/additionalResources/additionalResources';
 import {claimVpShares, dropVpClaim, flyVpShares, holdsVpShares, isBoardVpShare, noteVpHeldElsewhere, releaseVpShares} from '@/client/console/scoreCell/vpShareLedger';
 import {VpShare} from '@/common/game/vpAttribution';
-import {cityPayoutReactionSpecs, runCityPayoutBeat, runCityPayoutSequence, runRemoteCityPayoutBeat, seatChipPoint} from '@/client/console/tilePlacement/cityDataPayoutBeat';
+import {cityPayoutReactionSpecs, runCityPayoutBeat, runCityPayoutSequence, runRemoteCityPayoutBeat, seatChipEnd, seatChipPoint} from '@/client/console/tilePlacement/cityDataPayoutBeat';
 import {ResourceTransferSpec, cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   placeTileProxy, playTileFlight, disposeTileProxy, killTileTweens,
@@ -1081,11 +1081,12 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   }
   // A RIVAL'S GREENERY BOUGHT WITH PLANTS (W4): the «−N» leaves their chip and is drawn quickly into the cell — then
   // the greenery grows out of it. Proven at staging, else not flown.
-  if (sprout && ev.plantPrice !== undefined && actor !== undefined) {
+  const priceChip = sprout && ev.plantPrice !== undefined ? seatChipEnd(actor) : undefined;
+  if (sprout && ev.plantPrice !== undefined && priceChip !== undefined) {
     await runResourceTransfers({
       specs: [{channel: 'stock', resource: 'plants', amount: ev.plantPrice, direction: 'loss'}],
       source: {point: {x: landing.x + landing.w / 2, y: landing.y + landing.h / 2}},
-      destination: remoteOriginPoint(actor, ui),
+      destination: priceChip,
       arrival: 'auto',
       absorb: 'quick',
       fromBoard: true,
@@ -1176,7 +1177,7 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   const wave: Array<() => Promise<void>> = [];
   const placerPaid = ev.cellPaid;
   if (epoch === myEpoch && !ev.own && actor !== undefined && placerPaid !== undefined && placerPaid.length > 0) {
-    wave.push(() => runPlacerBonusBeat(placerPaid, iconCentres, hex, actor, ui));
+    wave.push(() => runPlacerBonusBeat(placerPaid, iconCentres, hex, actor));
   }
   if (epoch === myEpoch && ev.income.length > 0) {
     const breathMs = wave.length > 0 ? 0 : undefined;
@@ -1194,28 +1195,42 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
 }
 
 /**
- * THE PLACER'S BONUS (W3 — the tile language): one token per printed unit, born on the icon it was printed as (in the
- * printed order; a cell whose icons could not be measured sends them from the tile's centre) and landing on the
- * placer's chip in the strip. Nothing on the viewer's panel moves — it is somebody else's money; the chip is the seat.
+ * THE PLACER'S BONUS (W3 — the tile language): ONE token per printed RESOURCE carrying its sum (T06 — a swarm of one
+ * token per unit read as noise on the 4K field: two steel were two «+1» flying to one chip), born on the first icon it
+ * was printed as (in the printed order; a cell whose icons could not be measured sends it from the tile's centre) and
+ * landing on the placer's chip in the strip — an OBJECT end, re-measured on the approach (the ribbon may carry the chip
+ * along); no chip on screen, no flight. Nothing on the viewer's panel moves — it is somebody else's money.
  */
 async function runPlacerBonusBeat(
   paid: ReadonlyArray<{resource: string, amount: number}>,
   iconCentres: ReadonlyArray<TransferPoint>,
   hex: TileRect,
   actor: Color,
-  ui: number,
 ): Promise<void> {
-  const specs: Array<ResourceTransferSpec> = paid.flatMap((p) =>
-    Array.from({length: Math.max(0, Math.min(p.amount, 6))}, () => ({channel: 'stock' as const, resource: p.resource, amount: 1})));
-  if (specs.length === 0) {
+  const chip = seatChipEnd(actor);
+  if (chip === undefined) {
     return;
   }
   const centre = {x: hex.x + hex.w / 2, y: hex.y + hex.h / 2};
+  const specs: Array<ResourceTransferSpec> = [];
+  const origins: Array<TransferPoint> = [];
+  let unit = 0;
+  for (const p of paid) {
+    if (p.amount <= 0) {
+      continue;
+    }
+    specs.push({channel: 'stock', resource: p.resource, amount: p.amount});
+    origins.push(iconCentres[unit] ?? centre);
+    unit += p.amount;
+  }
+  if (specs.length === 0) {
+    return;
+  }
   await runResourceTransfers({
     specs,
-    origins: specs.map((_, i) => iconCentres[i] ?? centre),
+    origins,
     source: {point: centre},
-    destination: remoteOriginPoint(actor, ui),
+    destination: chip,
     arrival: 'auto',
     fromBoard: true,
   });
@@ -1252,7 +1267,7 @@ function playCityPayouts(ev: RemoteEvent, hex: TileRect, ui: number, myEpoch: nu
       payout: item.payout,
       tileRect: hex,
       uiScale: ui,
-      destination: item.own ? undefined : remoteOriginPoint(item.payout.color, ui),
+      seat: item.own ? undefined : item.payout.color,
       release: () => releaseCityPayoutHold(item),
     }),
     release: () => releaseCityPayoutHold(item),

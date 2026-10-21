@@ -166,7 +166,6 @@ import {CardModel} from '@/common/models/CardModel';
 import {claimCityPayout, cityPayoutVpSteps, cityPayoutsFor} from '@/client/console/tilePlacement/cityDataPayoutModel';
 import {
   abortCityPayoutBeat, cityPayoutReactionSpecs, cityPayoutState, runCityPayoutBeat, runCityPayoutSequence, runRemoteCityPayoutBeat,
-  seatChipPoint,
 } from '@/client/console/tilePlacement/cityDataPayoutBeat';
 import {
   TileStageEls, placeTileProxy, playTileFlight, disposeTileProxy,
@@ -1558,7 +1557,7 @@ function startCityPayouts(list: ReadonlyArray<PendingCityPayout>, tileRect: Tile
       payout: item.payout,
       tileRect,
       uiScale: ui,
-      destination: seatChipPoint(item.payout.color, ui),
+      seat: item.payout.color,
     }),
     release: () => {
       ownCityPayoutHolds([item]).forEach((spec) => releasePanelRewardHold(spec));
