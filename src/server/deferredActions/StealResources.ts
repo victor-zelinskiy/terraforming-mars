@@ -13,6 +13,7 @@ import {AutomaTargeting} from '../automa/AutomaTargeting';
 // Runtime-only reads (a late-bound circular import, like AddResourcesToCard's).
 import {SKIP_REASON, SKIPPED_LABEL, skippedAttackChip} from '../cards/actionPreviews';
 import {recordSkippedEffect} from './skippedEffect';
+import {LogHelper} from '../LogHelper';
 
 export class StealResources extends DeferredAction {
   constructor(
@@ -61,6 +62,7 @@ export class StealResources extends DeferredAction {
   public execute() {
     if (this.player.game.isSoloMode()) {
       this.player.stock.add(this.resource, this.count);
+      LogHelper.logStealFromNeutralPlayer(this.player, this.resource, this.count);
       this.player.resolveInsuranceInSoloGame();
       return undefined;
     }
