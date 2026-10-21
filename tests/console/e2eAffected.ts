@@ -182,5 +182,6 @@ if (unmapped.length > 0) {
 }
 const strong = [...(drivers.length > 0 ? ['tests/e2e/aaa-driver-canary.spec.ts'] : []), ...specs.filter((r) => r.strength !== 'renders').map((r) => r.spec)];
 if (strong.length > 0) {
-  console.log(`\nrun (direct + copy + self):\n  TM_E2E_ROOT=.e2e-<name> npx playwright test ${strong.map((s) => s.replace(/^tests\/e2e\//, '')).join(' ')}`);
+  // On the Steam Machine (the owner's decision 2026-10-21) — the wrapper picks up `.e2e-<name>/build` by the task's name.
+  console.log(`\nrun (direct + copy + self):\n  npm run e2e:remote -- <name> ${strong.map((s) => s.replace(/^tests\/e2e\//, '')).join(' ')}`);
 }

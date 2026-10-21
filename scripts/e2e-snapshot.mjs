@@ -116,4 +116,5 @@ try {
   // an old build without a stamp — still servable
 }
 console.log(`snapshot .e2e-${name}${stamp}`);
-console.log(`run:  TM_E2E_ROOT=.e2e-${name} npx playwright test <spec>`);
+// Every e2e run goes to the Steam Machine (the owner's decision 2026-10-21); the wrapper picks this snapshot up by name.
+console.log(`run:  npm run e2e:remote -- ${name} <spec>`);

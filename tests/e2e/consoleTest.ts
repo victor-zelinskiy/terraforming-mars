@@ -131,9 +131,14 @@ function buildStamp(): string {
   try {
     tree = ` · HEAD ${execSync('git rev-parse --short HEAD', {cwd: REPO_ROOT, stdio: ['ignore', 'pipe', 'ignore']}).toString().trim()}`;
   } catch {
-    // not a git checkout (a packaged CI artifact) — the build's own head is enough
+    // not a git checkout (a packaged CI artifact, or the Steam Machine's mirror — `scripts/e2e-remote.mjs`
+    // hands the laptop's HEAD over in the env); the build's own head is enough otherwise
+    tree = process.env.TM_E2E_HEAD ? ` · HEAD ${process.env.TM_E2E_HEAD}` : '';
   }
-  return `build ${head} (${builtAt}) from ${root}${tree}${staleNote}`;
+  // WHERE it ran: a remote run (`npm run e2e:remote`) names its host, so a timing read off the quiet
+  // Steam Machine is never confused with one taken on the loaded laptop.
+  const host = process.env.TM_E2E_HOST ? ` · host ${process.env.TM_E2E_HOST}` : '';
+  return `build ${head} (${builtAt}) from ${root}${tree}${host}${staleNote}`;
 }
 
 type WorkerServer = {baseURL: string};

@@ -20,6 +20,36 @@ import {defineConfig, devices} from '@playwright/test';
 const BASE_URL = process.env.BASE_URL ?? 'http://localhost:8080';
 const isCI = Boolean(process.env.CI);
 
+/*
+ * THE E2E RUNS ON THE STEAM MACHINE — the owner's decision 2026-10-21, enforced here, not only in a rule.
+ * The laptop carries several sessions, builds and watchers at once; a Playwright run there is a verdict
+ * about the load, and it loads the box every other session works on. `npm run e2e:remote -- <task> <spec…>`
+ * mirrors the build to the Steam Machine and runs there (`TM_E2E_HOST` is set by that wrapper); CI keeps
+ * its own runners; `--list` launches no browser. `TM_E2E_LAPTOP_OVERRIDE=1` exists for the OWNER's explicit,
+ * per-case permission (a display-bound `--ui` / `--headed` debug session) — never an agent's own decision.
+ */
+if (!isCI && !process.env.TM_E2E_HOST && process.env.TM_E2E_LAPTOP_OVERRIDE !== '1' && !process.argv.includes('--list')) {
+  throw new Error(
+    'e2e runs ONLY on the Steam Machine: `npm run e2e:remote -- <task> tests/e2e/<spec>.spec.ts [args…]` ' +
+    '(docs/claude/e2e-remote.md). The laptop runs no Playwright browsers — TM_E2E_LAPTOP_OVERRIDE=1 only with ' +
+    'the owner\'s explicit permission for this one run.');
+}
+
+/*
+ * The GPU road per platform (TM_E2E_GPU=1). Windows: ANGLE over D3D11 — the RTX laptop driving the
+ * TV. Linux: the Steam Machine (`npm run e2e:remote` — a quiet AMD box on the LAN, RADV/Mesa inside
+ * an Ubuntu distrobox): ANGLE over Vulkan — `DefaultANGLEVulkan` is the piece without which ANGLE
+ * tries native EGL and falls back to SwiftShader (`electron/perf.ts` says the same of the product).
+ * Deliberately NOT the product's full recipe: with the Vulkan COMPOSITOR (`Vulkan,VulkanFromANGLE`)
+ * the headless GPU process has no surface and crashed 3× per launch (measured 2026-10-21: WebGL
+ * lost, raster still hardware), and `--disable-vulkan-surface` turned the compositing software.
+ * Measured on the Steam Machine with this set: 0 crashes, raster + compositing hardware,
+ * WebGL «ANGLE (AMD, Vulkan … RADV NAVI33)», 61 fps on a 300-layer scene.
+ */
+const GPU_ARGS = process.platform === 'linux' ?
+  ['--use-angle=vulkan', '--enable-features=DefaultANGLEVulkan', '--ignore-gpu-blocklist', '--enable-gpu-rasterization', '--enable-zero-copy'] :
+  ['--use-angle=d3d11', '--enable-gpu-rasterization', '--ignore-gpu-blocklist', '--enable-zero-copy'];
+
 export default defineConfig({
   testDir: 'tests/e2e',
 
@@ -102,7 +132,7 @@ export default defineConfig({
          */
         ...(process.env.TM_E2E_GPU === '1' && !isCI ? {
           channel: 'chromium',
-          launchOptions: {args: ['--use-angle=d3d11', '--enable-gpu-rasterization', '--ignore-gpu-blocklist', '--enable-zero-copy']},
+          launchOptions: {args: GPU_ARGS},
         } : {}),
       },
     },
