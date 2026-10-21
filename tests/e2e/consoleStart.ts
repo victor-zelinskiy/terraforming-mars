@@ -102,18 +102,24 @@ export async function press(page: Page, code: string, settleMs = 700): Promise<v
         await pollPause(page, 25);
       }
     }
+    const t = Date.now();
     if (process.env.TM_E2E_FAST_PRESS === '1') {
       // THE PILOT (the e2e speed iteration, phase 1): the fixed sleep was 36 % of a run (84.5 s of 236 s
       // on the first instrumented sample) — a GUESS at «the UI has reacted». The console says when it has:
       // the press consumed, no server request in flight, no animation hold, held for a short quiet window.
       // `settleMs` stays the CEILING, so a press can never wait longer than it did; it returns early only
       // when nothing is pending — exactly the case the sleep was wasted on.
-      const t = Date.now();
       await quietAfterPress(page, settleMs);
       noteTiming('pressSleep', Date.now() - t);
     } else {
       noteTiming('pressSleep', settleMs);
       await page.waitForTimeout(settleMs);
+    }
+    if (process.env.TM_E2E_PRESS_TRACE === '1') {
+      // Who pressed, with what ceiling, how long it really waited — the trace that found the fast press's
+      // extra presses (94 → 142 on the first pilot).
+      const caller = (new Error().stack ?? '').split('\n').slice(3, 5).map((l) => l.trim().replace(/^at /, '')).join(' ← ');
+      console.log(`[press] ${code} ≤${settleMs} waited ${Date.now() - t} ms  ${caller}`);
     }
   });
 }
@@ -126,20 +132,43 @@ async function pollPause(page: Page, ms: number): Promise<void> {
   await page.waitForTimeout(ms);
 }
 
-/** Quiet after a press: at least PRESS_MIN_MS, then the console quiet for PRESS_QUIET_MS, at most `maxMs`. */
+/**
+ * THE FAST BOOT PILOT (the e2e speed iteration, phase 1): `TM_E2E_FAST_BOOT=1` appends `fastboot=1` to every
+ * console URL — the product then skips its GPU warm-up phases and the curtain's cosmetic minima
+ * (`bootWarmupState.fastBootRequested`). Measured without it: ≈ 4.5 s of every 6 s boot.
+ */
+function fastBootQuery(): string {
+  return process.env.TM_E2E_FAST_BOOT === '1' ? '&fastboot=1' : '';
+}
+
+/**
+ * Quiet after a press: at least PRESS_MIN_MS, then — the console quiet (no hold, no request in flight) AND the
+ * DOM holding still for DOM_QUIET_MS (the harness's mutation clock, `consoleTest.ts`) — for PRESS_QUIET_MS,
+ * at most `maxMs`. The DOM half is what makes «quiet» mean «the witness has landed»: the first pilot
+ * returned on the console's quiet alone, a walk read the rail before its name arrived and turned around.
+ */
 const PRESS_MIN_MS = 120;
 const PRESS_QUIET_MS = 150;
+const DOM_QUIET_MS = 100;
 async function quietAfterPress(page: Page, maxMs: number): Promise<void> {
   const started = Date.now();
   let quietSince: number | undefined;
   for (;;) {
-    const r = await readiness(page);
+    const snap = await page.evaluate(() => {
+      const w = window as unknown as {__conReady?: () => unknown, __tmLastMutation?: number};
+      return {
+        ready: w.__conReady === undefined ? undefined : w.__conReady(),
+        sinceMutation: w.__tmLastMutation === undefined ? undefined : performance.now() - w.__tmLastMutation,
+      };
+    }) as {ready: Awaited<ReturnType<typeof readiness>>, sinceMutation: number | undefined};
+    const r = snap.ready;
     if (r === undefined) {
       // no probe (a menu page) — the old sleep, whole
       await pollPause(page, Math.max(0, maxMs - (Date.now() - started)));
       return;
     }
-    const busy = r.holds.length > 0 || r.transport?.requestInProgress === true || r.transport?.holding === true;
+    const busy = r.holds.length > 0 || r.transport?.requestInProgress === true || r.transport?.holding === true ||
+      (snap.sinceMutation !== undefined && snap.sinceMutation < DOM_QUIET_MS);
     const now = Date.now();
     if (busy) {
       quietSince = undefined;
@@ -390,8 +419,17 @@ export async function walkFocusUntil(
       return true;
     }
     const at = await where();
+    // The witness gets the WHOLE window to move before «no move» is believed: the adaptive press returns
+    // the moment the console is quiet, and the rail's name lands a beat after the cursor — read at once it
+    // said «wall», the walk turned around, and a two-press walk became →←→←→→ (the press trace, 2026-10-21).
+    const deadline = Date.now() + settleMs;
     await press(page, dir, settleMs);
-    if (await where() === at) {
+    let now = await where();
+    while (now === at && Date.now() < deadline) {
+      await pollPause(page, 25);
+      now = await where();
+    }
+    if (now === at) {
       dir = dir === 'ArrowRight' ? 'ArrowLeft' : 'ArrowRight';
     }
   }
@@ -2057,7 +2095,7 @@ export async function seedGameOverApi(
 export async function openConsole(page: Page, playerId: string, query = ''): Promise<void> {
   await timed('boot', async () => {
     let t = Date.now();
-    await page.goto(`/player?id=${playerId}&console=1${query}`);
+    await page.goto(`/player?id=${playerId}&console=1${query}${fastBootQuery()}`);
     await page.waitForSelector('.con-start__frame, .con-root', {timeout: 90_000});
     noteTiming('bootShell', Date.now() - t);
     t = Date.now();

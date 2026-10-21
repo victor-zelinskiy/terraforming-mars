@@ -275,6 +275,27 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
    */
   timingLedger: [async ({context}, use, testInfo) => {
     resetTiming();
+    // THE DOM-QUIET CLOCK for the adaptive press (`consoleStart.quietAfterPress`): `window.__tmLastMutation`
+    // = the time of the last DOM mutation on the page. «The console is quiet» (no hold, no request) is not
+    // «the witness has landed» — the rail's card name lands a beat after the cursor moves, a GSAP flight
+    // writes a style per frame — so the press also waits for the DOM to hold still for a short window.
+    await context.addInitScript(() => {
+      const w = window as unknown as {__tmLastMutation: number};
+      w.__tmLastMutation = performance.now();
+      const observe = () => {
+        new MutationObserver((records) => {
+          // The document <title> ticks once a second on an idle board (the census, 2026-10-21) — not a witness.
+          if (records.some((r) => (r.target as Element).nodeName !== 'TITLE' && (r.target.parentNode as Element | null)?.nodeName !== 'TITLE')) {
+            w.__tmLastMutation = performance.now();
+          }
+        }).observe(document.documentElement, {subtree: true, childList: true, attributes: true, characterData: true});
+      };
+      if (document.documentElement) {
+        observe();
+      } else {
+        document.addEventListener('DOMContentLoaded', observe, {once: true});
+      }
+    });
     const book = (page: Page) => {
       const original = page.waitForTimeout.bind(page);
       page.waitForTimeout = async (ms: number) => {

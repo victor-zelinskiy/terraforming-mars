@@ -27,8 +27,26 @@ export const bootWarmupState = reactive({
   active: false,
 });
 
-/** True only the first time in this session (survives the game-boundary reload). */
+/**
+ * `?fastboot=1` — THE E2E BOOT (the e2e speed iteration, 2026-10-21): no warm-up phases, no curtain minima.
+ * A functional e2e test is a fresh browser context every time, so the pipelines the warm-up compiles die
+ * with it and the curtain's readable-dwell protects nobody — measured as ≈ 4.5 s of every 6 s boot, an
+ * hour over the suite. Never the player's road (no setting, no persistence: the URL alone); the
+ * storyboard / timing class does NOT pass it — the first-draw shader stall is what it measures (PL-625).
+ */
+export function fastBootRequested(): boolean {
+  try {
+    return typeof window !== 'undefined' && /[?&]fastboot=1(&|$)/.test(window.location.search);
+  } catch {
+    return false;
+  }
+}
+
+/** True only the first time in this session (survives the game-boundary reload) — and never under `fastboot`. */
 export function shouldRunBootWarmup(): boolean {
+  if (fastBootRequested()) {
+    return false;
+  }
   try {
     return sessionStorage.getItem(WARMUP_DONE_FLAG) !== '1';
   } catch {

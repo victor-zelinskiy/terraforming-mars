@@ -44,6 +44,7 @@
 
 import {reactive} from 'vue';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {fastBootRequested} from '@/client/components/boot/bootWarmupState';
 import {probeTick} from '@/client/console/probeTick';
 import {supportsNativeFullscreen} from '@/client/console/runtimeMode';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
@@ -86,6 +87,15 @@ export type SceneTransitionPhase = 'idle' | 'covering' | 'revealing';
 // ── Timing (base ms; motion-scaled at schedule time) ────────────────────────
 /** Status text appears only after this much covering — a faster load shows
  *  no text at all (the anti-flash rule). */
+/**
+ * The curtain's COSMETIC minima (the text's appearance, its readable dwell, the reveal dissolve) — motion-scaled,
+ * and ZERO under `?fastboot=1` (`bootWarmupState.fastBootRequested`: the e2e boot — a fresh context per test,
+ * nobody to protect from a flash). The readiness holds and the two-frame settle are NOT minima and stay.
+ */
+function curtainMs(base: number): number {
+  return fastBootRequested() ? 0 : motionMs(base);
+}
+
 export const TEXT_APPEAR_MS = 900;
 /** Once shown, the status text is held readable before the reveal starts. */
 export const TEXT_MIN_DWELL_MS = 1150;
@@ -288,7 +298,7 @@ export function beginLoading(stage: LoadingStage = 'sync', context?: TransitionC
   const elapsed = Math.max(0, sched.now() - coverT0);
   // The status block appears only if the wait is real; once shown it is held
   // readable by the dwell rule inside maybeReveal().
-  schedule(Math.max(0, motionMs(TEXT_APPEAR_MS) - elapsed), () => {
+  schedule(Math.max(0, curtainMs(TEXT_APPEAR_MS) - elapsed), () => {
     if (loadingScreenState.phase === 'covering') {
       loadingScreenState.textShown = true;
       textShownAt = sched.now();
@@ -400,7 +410,7 @@ function maybeReveal(): void {
   }
   // The dwell rule: text that was shown must have been readable.
   if (loadingScreenState.textShown) {
-    const dwellLeft = textShownAt + motionMs(TEXT_MIN_DWELL_MS) - sched.now();
+    const dwellLeft = textShownAt + curtainMs(TEXT_MIN_DWELL_MS) - sched.now();
     if (dwellLeft > 0) {
       schedule(dwellLeft, maybeReveal);
       return;
@@ -438,7 +448,7 @@ function startReveal(): void {
       console.warn('[scene-transition] onSceneRevealed callback failed', e);
     }
   }
-  schedule(motionMs(REVEAL_MS), () => endLoading());
+  schedule(curtainMs(REVEAL_MS), () => endLoading());
 }
 
 /** Tear the curtain down (also the terminal step of a finished reveal). */
@@ -567,7 +577,7 @@ function buildOverlayPayload(t0: number): CurtainOverlayPayload {
     uiScale: consoleLayoutState.uiScale,
     orbitMs: ORBIT_MS,
     pulseMs: motionMs(PULSE_MS),
-    textAppearAtMs: t0 + motionMs(TEXT_APPEAR_MS),
+    textAppearAtMs: t0 + curtainMs(TEXT_APPEAR_MS),
     longWaitAtMs: t0 + motionMs(LONG_WAIT_MS),
     kicker: translateText(curtainKickerKey(ctx)),
     title: title === undefined ? '' : translateTextWithParams(title.key, title.params),

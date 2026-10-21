@@ -46,6 +46,11 @@ Status: **IN PROGRESS** — phase 0. Owner's framing: «имплементаци
 - [ ] the box: EPP `performance` — only if measured.
 
 ### Phase 2 — sleeps and live starts (the bulk)
+- [ ] **334 direct `page.keyboard.press(` in 148 specs** — spec-local `key()` / `tap()` helpers (a press +
+      a fixed sleep, 450–800 ms) that bypass the driver's `press`, so neither the echo wait nor the
+      adaptive quiet reaches them (`console-action-focus`: 27 such sleeps = 47 s of a 102 s file). A
+      codemod routes the common shape through `press(page, code, settleMs)`; the driver guard then
+      forbids a new one.
 - [ ] the top offenders by `waitForTimeout` → state waits (`settle` / `pressUntil*` / witnesses); the
       ratchet baseline locked after each file.
 - [ ] live-start specs → fixtures where the opening is not the subject.
@@ -91,10 +96,15 @@ phases and zeroes the curtain's minima — functional class only; the storyboard
 warm-up (the first-draw shader stall is exactly what it measures, PL-625).
 
 **The adaptive press pilot** (`TM_E2E_FAST_PRESS=1`, the same 12 tests): press 88.5 → 45.7 s, the run
-236 → 197 s, 12/12 green — but **94 → 142 presses**: the driver's WALKS (`walkFocusUntil` / `focusCard` /
-`waitForBoardHome`) read their witness the moment the console is quiet and re-press when it has not moved
-yet. Green by their own tolerance, not by design: before the fast press becomes the default every walk
-waits for its witness to CHANGE within the old window before pressing again (`pressUntil` already does).
+236 → 197 s, 12/12 green — but **94 → 142 presses**. The press trace (`TM_E2E_PRESS_TRACE=1`) named it:
+`walkFocusUntil` pressed →←→←→→ where the normal press pressed →→ — the adaptive press returned at
+~155 ms (the console quiet), the walk read its witness (the rail's card name) at once, it had not landed
+yet, «wall», turn around. The law for every press-then-read loop: **the witness gets the WHOLE old window
+to change before «no change» is believed** (`pressUntil` had it; `walkFocusUntil` has it now).
+
+**The fast boot pilot** (`TM_E2E_FAST_BOOT=1` → `?fastboot=1`: no warm-up phases, no curtain minima; the
+same 12 tests, with the fast press): boot **72.0 → 26.3 s** (veil 34.8 → 0, load 27.6 → 16.3 = 1.4 s per
+boot of real readiness, shell unchanged 0.8), the run **236 → 151 s (−36 %)**, 12/12 green.
 
 ## Journal
 - 2026-10-21 — iteration opened; video off; the timing ledger (`tests/e2e/timing.ts`, the `timing`
