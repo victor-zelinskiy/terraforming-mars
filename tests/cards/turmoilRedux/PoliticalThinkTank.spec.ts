@@ -15,6 +15,8 @@ import {newProjectCard} from '../../../src/server/createCard';
 import {IProjectCard} from '../../../src/server/cards/IProjectCard';
 import {hasPartyRequirement, partyRequirementCardsInGame} from '../../../src/server/cards/requirements/partyRequirementCards';
 import {TURMOIL_REDUX_CARD_MANIFEST} from '../../../src/server/cards/turmoilRedux/TurmoilReduxCardManifest';
+import {TURMOIL_CARD_MANIFEST} from '../../../src/server/cards/turmoil/TurmoilCardManifest';
+import {TURMOIL_CARDS_HELD_BACK_UNDER_REDUX} from '../../../src/common/cards/turmoilReduxAdaptation';
 import {formatMessage} from '../../TestingUtils';
 
 /**
@@ -41,9 +43,16 @@ function topCard(game: IGame, name: CardName): IProjectCard {
   return card;
 }
 
-/** How many cards of the Turmoil Redux SET print a party requirement — the pool of a clean Redux table. */
+/**
+ * How many cards a clean Redux table DEALS that print a party requirement — the Redux set's AND the classic Turmoil
+ * cards adapted so far (T04: a classic card leaves the hold-back list and joins the deal; Diaspora Movement prints the
+ * Reds' requirement). The held-back classic cards are not dealt, so they are not in the pool.
+ */
 function setPartyRequirementCards(): number {
-  return Object.values(TURMOIL_REDUX_CARD_MANIFEST.projectCards)
+  const classic = Object.entries(TURMOIL_CARD_MANIFEST.projectCards)
+    .filter(([name]) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name as CardName))
+    .map(([, entry]) => entry);
+  return [...Object.values(TURMOIL_REDUX_CARD_MANIFEST.projectCards), ...classic]
     .map((entry) => entry?.Factory === undefined ? undefined : new entry.Factory())
     .filter((c) => c !== undefined && hasPartyRequirement(c)).length;
 }
@@ -221,8 +230,8 @@ describe('PoliticalThinkTank', () => {
     });
 
     it('a clean Redux table holds exactly the SET\'s party-requirement cards — and the pool counts the cards ADDED, wherever they stand', () => {
-      // A CLASS, never a literal: every Redux card printing a party requirement (TR15 Martian Census was the
-      // first; TR14–TR27 follow) is dealt into the game — the count grows with the set, not with this spec.
+      // A CLASS, never a literal: every DEALT card printing a party requirement (TR15 Martian Census was the
+      // first; TR14–TR27 follow; the adapted classic cards since T04) — the count grows with the deal, not with this spec.
       const base = setPartyRequirementCards();
       expect(base, 'TR15 joined the set').gte(1);
       expect(partyRequirementCardsInGame(game)).eq(base);
