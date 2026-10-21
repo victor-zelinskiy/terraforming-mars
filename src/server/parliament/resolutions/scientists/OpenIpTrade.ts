@@ -54,14 +54,14 @@ import {CardRenderer} from '../../../cards/render/CardRenderer';
 import {PartyName} from '../../../../common/turmoil/PartyName';
 import {Resource} from '../../../../common/Resource';
 import {ResolutionCode, ResolutionId} from '../../../../common/parliament/ParliamentTypes';
-import {InfluenceScaledEffect, scaledAmount} from '../../../../common/parliament/influenceScaling';
+import {InfluenceScaledEffect} from '../../../../common/parliament/influenceScaling';
 import {ChoiceContextSource} from '../../../../common/models/PlayerInputModel';
-import {ExternalDrawIntake} from '../../../deferredActions/ExternalDrawIntake';
 import {SelectCard} from '../../../inputs/SelectCard';
 import {InputError} from '../../../inputs/InputError';
 import {IProjectCard} from '../../../cards/IProjectCard';
 import {IPlayer} from '../../../IPlayer';
-import {EnactStep, ResolutionAction, ResolutionDefinition} from '../IResolution';
+import {ResolutionAction, ResolutionDefinition} from '../IResolution';
+import {influenceDrawStep} from '../ResolutionInfluenceDraw';
 import {runResolutionAction} from '../ResolutionAction';
 
 export const OPEN_IP_TRADE_ID: ResolutionId = 'RDX_SCIENTISTS_OPEN_IP_TRADE';
@@ -85,48 +85,6 @@ export const OPEN_IP_TRADE_DRAW: InfluenceScaledEffect = {
 
 const SOURCE: ChoiceContextSource = {kind: 'resolution', resolution: OPEN_IP_TRADE_ID};
 
-/** The intake the draw step opened — the proof it already drew (game state carries the cards). */
-const INTAKE_KEY = 'drawIntake';
-
-const DRAW_STEP: EnactStep = {
-  key: 'draw',
-  run(ctx) {
-    const player = ctx.player;
-    const effect = OPEN_IP_TRADE_DRAW;
-    // RE-ENTRY (a reload inside the take): the cards already left the deck and
-    // sit in the intake — game state. Nothing is drawn again; the mandatory
-    // prompt is re-derived from the intake.
-    const remembered = ctx.state[INTAKE_KEY];
-    if (typeof remembered === 'number') {
-      const pending = ExternalDrawIntake.pendingOf(player, remembered);
-      return pending === undefined ? undefined : ExternalDrawIntake.takePromptFor(player, pending);
-    }
-    const influence = ctx.influence;
-    const owed = scaledAmount(effect, influence);
-    if (owed <= 0) {
-      ctx.game.log('${0} has no influence — no cards from ${1}', (b) => b.player(player).resolution(OPEN_IP_TRADE_ID));
-      ctx.report({kind: 'skipped', effect: effect.id, amount: 0, influence, reason: 'No influence'});
-      return undefined;
-    }
-    // THE SHARED INTAKE: the project deck, the standard exhaustion behaviour,
-    // the cards withheld from the hand until taken, the prompt re-derivable.
-    const intake = ExternalDrawIntake.open(player, owed, {kind: 'resolution', resolution: OPEN_IP_TRADE_ID, effect: effect.id});
-    if (intake === undefined) {
-      // The deck (and its discard) had nothing left — named, never silent.
-      ctx.report({kind: 'skipped', effect: effect.id, amount: owed, drawn: 0, influence, reason: 'The project deck is empty'});
-      return undefined;
-    }
-    ctx.state[INTAKE_KEY] = intake.id;
-    ctx.game.log('${0} draws ${1} card(s) from ${2}: 1 per point of influence, influence ${3}', (b) =>
-      b.player(player).number(intake.count).resolution(OPEN_IP_TRADE_ID).number(influence));
-    if (intake.count < owed) {
-      ctx.game.log('Only ${0} of ${1} card(s) were left in the deck for ${2}', (b) =>
-        b.number(intake.count).number(owed).player(player));
-    }
-    ctx.report({kind: 'cards', effect: effect.id, amount: owed, drawn: intake.count, intake: intake.id, influence});
-    return ExternalDrawIntake.takePromptFor(player, intake);
-  },
-};
 
 /**
  * THE COMMIT of the action: the picked cards leave the hand, the supply
@@ -224,6 +182,6 @@ export const OPEN_IP_TRADE: ResolutionDefinition = {
   // BY TYPE: a green card is an AUTOMATED card — never a tag, never a colour of the face.
   quest: {goal: {kind: 'cardsPlayed', cardType: 'automated'}, count: 2},
   scaled: [OPEN_IP_TRADE_DRAW],
-  immediateSteps: [DRAW_STEP],
+  immediateSteps: [influenceDrawStep(OPEN_IP_TRADE_ID, OPEN_IP_TRADE_DRAW)],
   action: OPEN_IP_TRADE_ACTION,
 };

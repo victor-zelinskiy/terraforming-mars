@@ -49,12 +49,30 @@ export type ParliamentSlotModel = {
    * Viewer-only; absent when nothing reacts or the law moves no scale.
    */
   worldForecast?: EffectForecast;
+  /**
+   * The seats first by rating NOW — what a RATING-VETOING candidate (RX42) would bind «as if enacted this moment»
+   * (the same live reading the enacted law carries). Absent for every other candidate.
+   */
+  trVetoIfEnacted?: RatingVetoModel;
+};
+
+/**
+ * WHO IS UNDER A RATING VETO (Turmoil Redux RX42 UNMI Veto) — read LIVE by the server at every model build from the
+ * whole table (`ratingLeaders`: every seat first by terraform rating, MarsBot included in the comparison — a tie at
+ * the top is every one of them), each with its rating. Every client surface that says «under the veto» / «the
+ * highest rating now» reads THIS and counts nothing itself (invariant 2). A seat outside the law's `restriction`
+ * aspect (MarsBot under `'none'`) may lead the comparison without being bound — `ParliamentPlayerModel.restriction`.
+ */
+export type RatingVetoModel = {
+  leaders: ReadonlyArray<{color: Color, tr: number}>;
 };
 
 export type ParliamentEnactedModel = {
   instance: ResolutionInstanceId;
   resolution: ResolutionId;
   party: ReduxParty;
+  /** The seats first by rating NOW, while the enacted law vetoes a rating (RX42); absent for every other law. */
+  trVeto?: RatingVetoModel;
 };
 
 export type ParliamentQuestModel = {
@@ -152,6 +170,13 @@ export type ParliamentPlayerModel = {
    * read it through {@link seatTakesSeatGrant}, never bare.
    */
   seatGrant?: boolean;
+  /**
+   * The seat is BOUND by a standing law's RESTRICTION (aspect `restriction`, RX42 UNMI Veto — decision Р3): true for a
+   * human and for a MarsBot seat under `'politics'`; false for a bot under `'none'`, which may still lead the rating
+   * comparison without being bound. Absent on a fixture written before the field — read it through
+   * {@link seatRestricted}, never bare.
+   */
+  restriction?: boolean;
   lobby: boolean;
   reserve: number;
   onResolutions: number;
@@ -223,6 +248,11 @@ export type ParliamentPlayerModel = {
  */
 export function seatEnacts(seat: Pick<ParliamentPlayerModel, 'participates' | 'enactment'>): boolean {
   return seat.enactment ?? seat.participates;
+}
+
+/** Is the seat BOUND by a standing law's restriction (RX42)? A fixture from before the field: a human is, a bot is not. */
+export function seatRestricted(seat: Pick<ParliamentPlayerModel, 'participates' | 'enactment' | 'restriction'>): boolean {
+  return seat.restriction ?? seatEnacts(seat);
 }
 
 /**

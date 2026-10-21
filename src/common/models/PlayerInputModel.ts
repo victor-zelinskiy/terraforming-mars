@@ -478,6 +478,12 @@ export type FinalGreeneryPromptMeta = {
    * cell count.
    */
   diverted?: {resolution: string, data: number};
+  /**
+   * THE GREENERY'S RATINGS ARE VETOED (Turmoil Redux RX42 UNMI Veto): the seat is first by rating, so the tile is
+   * seated and the oxygen rises, but neither the oxygen's rating nor the Redux tile's rating is gained. The session
+   * strikes both yields and names the law; the plants and the cell are as they were.
+   */
+  ratingVetoed?: {resolution: string};
 }
 
 /**

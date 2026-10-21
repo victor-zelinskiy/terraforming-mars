@@ -161,10 +161,16 @@ export type ResolutionForecastContext = {
    * chips beside it can never disagree; every other law reads 0.
    */
   diverted: {data: number, holder: boolean};
+  /**
+   * THE RATING THE OPERATION'S OWN CHIPS ALREADY GAVE UP (RX42 UNMI Veto): the rating steps the preview's exit pass
+   * struck (`ActionEffect.vetoed`, summed) — the seat is first by rating and gains none of them. A vetoing law reads
+   * ITS OWN refusal here, off the same pass that struck the chips; every other law reads 0.
+   */
+  vetoed: {steps: number};
   source(channel: EffectForecastSource['channel']): EffectForecastSource;
   exact(source: EffectForecastSource, effects: ReadonlyArray<ActionEffect>, title: string, opts?: {id?: string}): EffectForecastFact;
   deferred(source: EffectForecastSource, effects: ReadonlyArray<ActionEffect>, title: string, opts?: {id?: string}): EffectForecastFact;
-  /** A fact of the law that WILL NOT pay — the reason named (no holder for the diverted data). */
+  /** A fact of the law that WILL NOT pay — the reason named (no holder for the diverted data, a vetoed rating). */
   skipped(source: EffectForecastSource, effects: ReadonlyArray<ActionEffect>, title: string, opts?: {id?: string, note?: string}): EffectForecastFact;
   stockGain(resource: Resource, amount: number): ActionEffect;
   productionChange(resource: Resource, delta: number): ActionEffect;
@@ -193,6 +199,16 @@ export type TerraformingUnit =
  * reads this, never a guess from the stack.
  */
 export type TerraformingOrigin = ChoiceContextSource;
+
+/**
+ * A RATING the seat is ABOUT TO GAIN — ONE event of the rating funnel
+ * (`Player.increaseTerraformRating`: the whole call, never a step of it).
+ * `global` is the funnel's own flag (a scale step's rating, already attributed
+ * to the parameter); `origin` is who produced the gain, read off the live
+ * event scope by the dispatcher when the funnel hands none. Handed to
+ * {@link ResolutionPassive.vetoRating} BEFORE the mutation.
+ */
+export type RatingGain = {steps: number, global: boolean, origin?: TerraformingOrigin};
 
 /**
  * What a CARD-PLAYED passive's forecast twin reads (`ResolutionPassive.
@@ -419,6 +435,38 @@ export type ResolutionPassive = {
    * law the pass does not know (`divertsTerraforming` is the pass's gate).
    */
   divertTerraforming?(player: IPlayer, unit: TerraformingUnit, origin: TerraformingOrigin | undefined): boolean;
+  /**
+   * THE SECOND REPLACING KIND — a VETO ON THE RATING (RX42 UNMI Veto: «the
+   * player(s) with the highest terraform rating ignore any rating they would
+   * gain»). Like {@link divertTerraforming} it stands IN FRONT of the event and
+   * is asked before the mutation; unlike it, it takes ONLY THE RATING and puts
+   * NOTHING in its place and asks NOTHING: the scale step moves, the tile is
+   * seated, the bonuses of the track and the cell arrive — the rating step
+   * alone is refused, whole (one call of the funnel = one event: all of its
+   * steps or none of them).
+   *
+   * The ONE dispatcher is `ParliamentHandler.vetoRating` — the FIRST line of
+   * `Player.increaseTerraformRating`, the one funnel every rating of the game
+   * goes through (the scale steps, `behavior.tr`, the bespoke cards, the
+   * colonies, Ares, the Agenda track, the Redux greenery, MarsBot's own
+   * primitives): not one caller is touched, not one caller may bypass it. It
+   * gates (ENACTED · `participates(player, 'restriction')` · the seat is first
+   * by rating RIGHT NOW among every player of the game — `ratingLeaders`, read
+   * live at every event, never stored) and opens the law's effect scope on the
+   * channel `rating-vetoed`; the hook JOURNALS the loss with its magnitude and
+   * records the named skip (`effect-skipped`) — a silent refusal is a defect
+   * (invariant 4) — and returns `true`. Nothing of the funnel runs then: no
+   * `trThisGeneration`, no «raised this generation» flag, no `tr-changed`, no
+   * Greens' M€, no any-player reactor.
+   *
+   * Its forecast twin is the family's ONE exit pass over every preview
+   * (`models/vetoedRating.ts`, run right AFTER the implied-rating pass in
+   * every door the diverting pass stands in): the rating chips are STRUCK in
+   * the funnel's own order (the seat's rating projected chip by chip against
+   * the others' highest), and `forecast` states the refusal off `ctx.vetoed`.
+   * The contract guard refuses the hook on a law the pass does not know.
+   */
+  vetoRating?(player: IPlayer, gain: RatingGain): boolean;
   forecast(ctx: ResolutionForecastContext): Array<EffectForecastFact>;
 };
 

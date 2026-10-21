@@ -10,7 +10,7 @@ import {message} from '../logs/MessageBuilder';
 import {Color} from '../../common/Color';
 import {PlayerId} from '../../common/Types';
 import {
-  ParliamentModel, ParliamentPhaseModel, ParliamentPhaseSummaryModel, ParliamentPlayerModel, ParliamentRenewalEventModel, ParliamentSlotModel,
+  ParliamentModel, ParliamentPhaseModel, ParliamentPhaseSummaryModel, ParliamentPlayerModel, ParliamentRenewalEventModel, ParliamentSlotModel, RatingVetoModel,
   PartyAccessModel, PartyActionModel, ResolutionActionModel, VoteOptionModel, VoteProjectionModel, ParliamentEnactedModel, ParliamentEnactOutcomeModel,
 } from '../../common/models/ParliamentModel';
 import {PartyName} from '../../common/turmoil/PartyName';
@@ -26,6 +26,8 @@ import {botQuestReachable} from '../../common/parliament/botQuestPath';
 import {botQuestTableOf} from '../automa/BotQuestEvents';
 import {ownColonyBonuses} from '../colonies/allColonyBonuses';
 import {worldMoveForecast} from '../models/effectForecast';
+import {ratingLeaders} from './ratingVetoGate';
+import {ResolutionDefinition} from './resolutions/IResolution';
 
 function colorOf(game: IGame, delegate: Delegate): Color | 'neutral' {
   return delegate === 'NEUTRAL' ? 'neutral' : game.getPlayerById(delegate).color;
@@ -56,12 +58,31 @@ function enactedModel(parliament: Parliament, instance: ResolutionInstanceId): P
   return {instance, resolution: definition.id, party: definition.party};
 }
 
+/**
+ * WHO IS UNDER THE RATING VETO NOW (RX42 UNMI Veto) — every seat first by terraform rating, read live off the whole
+ * table (the one source of truth the funnel reads), with its rating. Built once per model; stamped on the enacted
+ * law and on every candidate that vetoes a rating.
+ */
+function ratingVetoModel(game: IGame): RatingVetoModel {
+  const leaders = ratingLeaders(game);
+  return {leaders: game.playersInGenerationOrder.filter((p) => leaders.has(p.id)).map((p) => ({color: p.color, tr: p.terraformRating}))};
+}
+
 export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentModel | undefined {
   const parliament = game.parliament;
   if (parliament === undefined) {
     return undefined;
   }
   const winner = parliament.winner();
+  // The rating veto's live reading (RX42) — built once, read by the enacted law and by every vetoing candidate.
+  let trVeto: RatingVetoModel | undefined;
+  const trVetoOf = (definition: ResolutionDefinition): RatingVetoModel | undefined => {
+    if (definition.passive?.vetoRating === undefined) {
+      return undefined;
+    }
+    trVeto = trVeto ?? ratingVetoModel(game);
+    return trVeto;
+  };
   const slots: Array<ParliamentSlotModel> = parliament.slots.map((slot, index) => {
     const definition = parliament.resolutionOf(slot.instance);
     const leader = parliament.leaderOf(slot);
@@ -77,6 +98,11 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
     };
     if (leader !== undefined) {
       model.leader = colorOf(game, leader.owner);
+    }
+    // A candidate that VETOES a rating (RX42) reads who it would bind «as if enacted now» — the same live reading.
+    const trVetoIfEnacted = parliament.enacted === slot.instance ? undefined : trVetoOf(definition);
+    if (trVetoIfEnacted !== undefined) {
+      model.trVetoIfEnacted = trVetoIfEnacted;
     }
     // The world move's answer, read for the VIEWER (PL-052) — the enacted law reads it from its records instead.
     if (viewer !== undefined && definition.worldMoves !== undefined && parliament.enacted !== slot.instance) {
@@ -107,6 +133,11 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
   };
   if (parliament.enacted !== undefined) {
     model.enacted = enactedModel(parliament, parliament.enacted);
+    // …and WHO the enacted law binds right now, when it vetoes a rating (RX42).
+    const enactedTrVeto = trVetoOf(parliament.resolutionOf(parliament.enacted));
+    if (enactedTrVeto !== undefined) {
+      model.enacted.trVeto = enactedTrVeto;
+    }
   }
   if (parliament.chairman !== undefined) {
     model.chairman = game.getPlayerById(parliament.chairman).color;
@@ -219,6 +250,8 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
   // …and whether it performs the DEED a law grants the seats — a tile, a step of the Career (D11): a human always,
   // the bot under `'politics'`.
   const seatGrant = parliament.participates(player, 'seat-grant');
+  // …and whether a standing law's RESTRICTION binds it (RX42 UNMI Veto, Р3): a human always, the bot under `'politics'`.
+  const restriction = parliament.participates(player, 'restriction');
   const access: Array<PartyAccessModel> = REDUX_PARTIES.map((party) => {
     const a = parliament.access(player, party);
     return {
@@ -248,6 +281,7 @@ function playerModel(game: IGame, parliament: Parliament, player: IPlayer): Parl
     participates,
     enactment,
     seatGrant,
+    restriction,
     lobby: parliament.lobby.has(player.id),
     reserve: parliament.reserve(player),
     onResolutions: parliament.votesOf(player),

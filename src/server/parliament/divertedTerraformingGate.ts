@@ -61,8 +61,8 @@ export function divertTerraforming(player: IPlayer, unit: TerraformingUnit, orig
     () => hook(player, unit, from) === true);
 }
 
-/** The unit's origin as the live scope names it — the vocabulary every prompt's asker speaks. */
-function originOfScope(source: EventSource | undefined): TerraformingOrigin | undefined {
+/** The unit's origin as the live scope names it — the vocabulary every prompt's asker speaks (shared with the rating veto's gate). */
+export function originOfScope(source: EventSource | undefined): TerraformingOrigin | undefined {
   if (source === undefined) {
     return undefined;
   }

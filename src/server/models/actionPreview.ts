@@ -23,6 +23,7 @@ import {FLEET_LIMIT_REASON, skippedTradeFleet, tradeFleetGainChip, tradeFleetsLo
 import {drawSearchOf} from '../deferredActions/drawSearch';
 import {withPreselectAddresses} from './preselectAddresses';
 import {withDivertedTerraforming} from './divertedTerraforming';
+import {withVetoedRating} from './vetoedRating';
 import * as divertedGate from '../parliament/divertedTerraformingGate';
 import {actionFutility} from './actionFutility';
 import {attachStagedPlacement, stagedPlacementForBehavior} from './stagedBehaviorPlacement';
@@ -48,9 +49,10 @@ import {attachStagedPlacement, stagedPlacementForBehavior} from './stagedBehavio
  */
 export function actionPreview(player: IPlayer, card: ICard & IActionCard): ActionPreview {
   // The door's exit passes, in order: a replacing law strikes the printed units and pre-collects the «where»
-  // (`divertedTerraforming.ts`, RX35), the rating pass states no rating for a struck chip, every step is addressed
-  // to its own prompt (the pre-select law, `preselectAddresses.ts`), the «no effect» verdicts last.
-  return withActionFutility(player, card, withPreselectAddresses(withImpliedRatings(withDivertedTerraforming(player, actionPreviewOf(player, card)))));
+  // (`divertedTerraforming.ts`, RX35), the rating pass states no rating for a struck chip, the rating veto strikes
+  // every rating the funnel will refuse (`vetoedRating.ts`, RX42 — after the ratings are all stated), every step is
+  // addressed to its own prompt (the pre-select law, `preselectAddresses.ts`), the «no effect» verdicts last.
+  return withActionFutility(player, card, withPreselectAddresses(withVetoedRating(player, withImpliedRatings(withDivertedTerraforming(player, actionPreviewOf(player, card))))));
 }
 
 /**

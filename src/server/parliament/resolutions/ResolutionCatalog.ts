@@ -65,6 +65,7 @@ import {SCIENTISTS_BUDGET} from './scientists/ScientistsBudget';
 import {SKYSCRAPERS} from './marsFirst/Skyscrapers';
 import {SPONSORED_PROJECTS} from './scientists/SponsoredProjects';
 import {TAX_BREAKS} from './industrialists/TaxBreaks';
+import {UNMI_VETO} from './reds/UnmiVeto';
 import {TRADE_INDUSTRIES} from './unity/TradeIndustries';
 import {UNITY_BUDGET} from './unity/UnityBudget';
 import {URBAN_DEVELOPMENT} from './marsFirst/UrbanDevelopment';
@@ -591,6 +592,11 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // tags (Earth + Venus + Jovian) + influence, and «advance each colony track 2 steps» — a WORLD step (every tile in
   // play, once, for nobody) declared as data (`trackAdvance`) and paid by the family's shared `colonyTrackStep`.
   UNITY_BUDGET,
+  // The SECOND REPLACING passive, and the lighter one: a seat first by terraform rating gains NO rating while the law
+  // stands — one gate on the first line of the one rating funnel, read live at every event (a tie binds every one at
+  // the top, MarsBot in the comparison and under the veto), the scale step / tile / bonus that carried the rating
+  // happening as printed; nothing stands in its place, nothing is asked. Plus a draw by influence (the shared step).
+  UNMI_VETO,
   // Development Craze's steel and Development Craze's quest, and one new thing: the family's SECOND reactive passive —
   // a law that answers A CARD BEING PLAYED («after you play a Building tag, draw a card»), counted PER TAG the way the
   // engine has always counted a tag effect (Point Luna), with its own forecast twin standing where the hook fires.

@@ -11,6 +11,8 @@ import {TITLES} from '../../inputs/titles';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 import {Resource} from '../../../common/Resource';
 import * as actionPreviews from '../actionPreviews';
+import {ActionFutility} from '../../../common/models/ActionFutilityModel';
+import {ratingVetoFutility} from '../../models/vetoedRating';
 export const ACTION_COST = 3;
 export class UnitedNationsMarsInitiative extends CorporationCard implements IActionCard, ICorporationCard {
   constructor() {
@@ -57,6 +59,16 @@ export class UnitedNationsMarsInitiative extends CorporationCard implements IAct
       actionPreviews.stockCost(player, Resource.MEGACREDITS, ACTION_COST),
       actionPreviews.trGain(player, 1),
     ]);
+  }
+
+  /**
+   * NO EFFECT under the rating veto (Turmoil Redux RX42 UNMI Veto, decision Р5): the action's whole result is a
+   * rating, and a seat first by rating gains none — 3 M€ for nothing. The action stays available (the player may
+   * take it on purpose); the tile and the composer say why it changes nothing.
+   */
+  public actionFutility(player: IPlayer): ActionFutility | undefined {
+    const verdict = ratingVetoFutility(player);
+    return verdict === undefined ? undefined : {verdict};
   }
 
   public action(player: IPlayer) {

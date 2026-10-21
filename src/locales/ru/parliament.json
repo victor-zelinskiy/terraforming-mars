@@ -1397,5 +1397,13 @@
   "Three animal cards are one type": "Три карты с животными — один вид",
   "A corporation holding resources is a type too": "Корпорация с ресурсами тоже даёт вид",
   "Six types — the count alone passes the maximum": "Шесть видов — счёт сам выходит за максимум",
-  "One type and influence 5 — the influence passes the maximum": "Один вид и влияние 5 — влияние выходит за максимум"
+  "One type and influence 5 — the influence passes the maximum": "Один вид и влияние 5 — влияние выходит за максимум",
+  "UNMI Veto": "Вето UNMI",
+  "The player(s) with the highest terraform rating ignore any rating they would gain.": "Игрок (или игроки) с наибольшим РТ не получает РТ, который ему полагался бы.",
+  "${0} does not gain ${1} ${2}: ${3} — the highest rating": "${0} не получает ${1} ${2}: ${3} — наибольший РТ",
+  "Your terraform rating is the highest — the enacted resolution ignores the gain": "У вас наибольший РТ — принятая резолюция не засчитывает рост РТ",
+  "UNMI Veto: your terraform rating is the highest — the rating is not gained": "«Вето UNMI»: у вас наибольший РТ — рост РТ не засчитывается",
+  "for a vetoed terraform rating": "за не засчитанный РТ",
+  "${0} now has the highest terraform rating — ${1} refuses their rating": "${0}: теперь наибольший РТ — ${1} не засчитывает рост РТ",
+  "${0} no longer has the highest terraform rating — ${1} refuses nothing of theirs": "${0}: РТ больше не наибольший — ${1} больше не действует"
 }

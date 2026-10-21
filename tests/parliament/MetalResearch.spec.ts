@@ -397,6 +397,7 @@ describe('MetalResearch', () => {
         player: p1, grants: [], tiles: [],
         source: (channel) => ({kind: 'resolution', name: METAL_RESEARCH_ID, owner: p1.color, channel}),
         diverted: {data: 0, holder: false},
+        vetoed: {steps: 0},
         skipped: () => {
           throw new Error('not called');
         },

@@ -1,4 +1,5 @@
 import {Units} from '../Units';
+import {Color} from '../Color';
 import {RequirementType} from '../cards/RequirementType';
 import {CardResource} from '../CardResource';
 import {GlobalParameter} from '../GlobalParameter';
@@ -244,6 +245,8 @@ export type EventImpact = {
   adjacencyVp?: ReadonlyArray<AdjacencyVpChange>;
   /** An effect that could not apply (`effect-skipped`) — see {@link SkippedEffectFact}. Nothing moved. */
   skipped?: SkippedEffectFact;
+  /** The seats under a RATING VETO moved (`rating-veto-changed`, RX42) — see {@link RatingVetoChangeFact}. A fact, never a delta. */
+  ratingVeto?: RatingVetoChangeFact;
   /** A conditional draw search (`deck-searched`) — see {@link DeckSearchFact}. A fact, never a delta. */
   deckSearch?: DeckSearchFact;
 };
@@ -270,6 +273,18 @@ export type DeckSearchFact = {
   discarded: ReadonlyArray<CardName>;
   /** The deck (and its reshuffled discard pile) ran out before the search found what it wanted. */
   exhausted?: true;
+};
+
+/**
+ * WHO IS UNDER THE RATING VETO after a rating moved (`rating-veto-changed`, Turmoil Redux RX42 UNMI Veto): the
+ * seats that ENTERED the veto with this move, the seats that LEFT it, and every seat first by terraform rating now
+ * (the veto's whole set — a tie at the top is every one of them) with its rating. A seat outside the law's
+ * `restriction` aspect (MarsBot under `'none'`) is never listed: the fact names the BOUND, not the arithmetic.
+ */
+export type RatingVetoChangeFact = {
+  entered: ReadonlyArray<Color>;
+  left: ReadonlyArray<Color>;
+  leaders: ReadonlyArray<{color: Color; tr: number}>;
 };
 
 /**

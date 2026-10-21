@@ -14,6 +14,7 @@ import {OptionMetadata} from '../../../../common/models/PlayerInputModel';
 import * as actionPreviews from '../../actionPreviews';
 import {rewardReactionForecast} from '../../../models/effectForecast';
 import {divertEffects, divertedFutility} from '../../../models/divertedTerraforming';
+import {vetoEffects} from '../../../models/vetoedRating';
 import * as divertedGate from '../../../parliament/divertedTerraformingGate';
 
 
@@ -26,7 +27,8 @@ import * as divertedGate from '../../../parliament/divertedTerraformingGate';
 export function plantConversionMetadata(player: IPlayer): OptionMetadata {
   const diverted = divertEffects(player, [actionPreviews.stockCost(player, Resource.PLANTS, player.plantsNeededForGreenery)],
     [{kind: 'boardPlacement', placementType: 'greenery', tileType: TileType.GREENERY}]);
-  const effects = actionPreviews.withImpliedRating(diverted.effects);
+  // …then the rating veto (RX42): the greenery's ratings struck for a seat first by rating — the tile is seated.
+  const effects = vetoEffects(player, actionPreviews.withImpliedRating(diverted.effects), diverted.steps);
   const forecast = rewardReactionForecast(player, undefined, effects);
   const futile = divertedFutility(player);
   return {

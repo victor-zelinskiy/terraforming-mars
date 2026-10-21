@@ -37,6 +37,8 @@ import {
 import {EffectForecastContext, EffectForecastGrant, EffectForecastTile} from '../cards/EffectForecastContext';
 import {cardResourceGain, cardResourceIcon, drawGain, globalGain, globalParameterStepSize, oceanGain, productionChange, stockGain, trGain} from '../cards/actionPreviews';
 import {divertedDataOf} from './divertedTerraforming';
+import {vetoedStepsOf} from './vetoedRating';
+import {ratingVetoed} from '../parliament/ratingVetoGate';
 import * as forecast from '../cards/effectForecastPreviews';
 import {GREENS_MEGACREDITS_PER_TR} from '../parliament/parties/PartyEffects';
 import {CARD_FOR_SPENDABLE_RESOURCE, SPENDABLE_CARD_RESOURCES, SpendableCardResource} from '../../common/inputs/Spendable';
@@ -242,8 +244,9 @@ function scaleStepsOf(effect: ActionEffect, parameter: GlobalParameter): number 
  *  resulting` — or nothing a hook reacts to). */
 export function grantOfEffect(effect: ActionEffect): EffectForecastGrant | undefined {
   // A STRUCK chip (a law's replacement, RX35) grants nothing: the scale does not move, the tile is not seated — no
-  // rating for the Greens, no bonus step, no reactor of the raise.
-  if (effect.direction !== 'gain' || effect.amount <= 0 || effect.implied === true || effect.diverted !== undefined) {
+  // rating for the Greens, no bonus step, no reactor of the raise. A VETOED rating (RX42) grants nothing either: the
+  // seat gains no rating, so the Greens have nothing to pay for.
+  if (effect.direction !== 'gain' || effect.amount <= 0 || effect.implied === true || effect.diverted !== undefined || effect.vetoed !== undefined) {
     return undefined;
   }
   if (effect.current !== undefined && effect.resulting !== undefined && effect.resulting <= effect.current) {
@@ -289,16 +292,19 @@ export function grantOfEffect(effect: ActionEffect): EffectForecastGrant | undef
  * greenery revision's own TR arrives as an explicit chip beside the oxygen
  * and is honestly a second step.
  */
-function partyFacts(player: IPlayer, grants: ReadonlyArray<EffectForecastGrant>, tiles: ReadonlyArray<EffectForecastTile>): Array<EffectForecastFact> {
+function partyFacts(player: IPlayer, grants: ReadonlyArray<EffectForecastGrant>, tiles: ReadonlyArray<EffectForecastTile>, effects: ReadonlyArray<ActionEffect> = []): Array<EffectForecastFact> {
   const parliament = player.game.parliament;
   if (parliament === undefined || !parliament.participates(player, 'party-effects')) {
     return [];
   }
+  // THE RATING VETO (RX42): a seat first by rating gains NO rating from this operation — the Greens have nothing to
+  // pay for; a seat below the top gains until it is first, and the exit pass struck the rest (`vetoed` on the chips).
+  const vetoedRating = ratingVetoed(player) ? Number.POSITIVE_INFINITY : vetoedStepsOf(effects);
   const facts: Array<EffectForecastFact> = [];
   const partySource = (party: PartyName, channel: EffectForecastSource['channel']): EffectForecastSource =>
     ({kind: 'party', name: party, owner: player.color, channel});
   if (parliament.hasPartyEffect(player, PartyName.GREENS)) {
-    const tr = grants.reduce((sum, g) => sum + (g.kind === 'tr' ? g.amount : g.kind === 'global' ? g.steps : 0), 0);
+    const tr = Math.max(0, grants.reduce((sum, g) => sum + (g.kind === 'tr' ? g.amount : g.kind === 'global' ? g.steps : 0), 0) - vetoedRating);
     if (tr > 0) {
       facts.push(forecast.exact(partySource(PartyName.GREENS, 'tr-increase'),
         [stockGain(player, Resource.MEGACREDITS, GREENS_MEGACREDITS_PER_TR * tr)],
@@ -346,11 +352,14 @@ function resolutionFacts(player: IPlayer, grants: ReadonlyArray<EffectForecastGr
   const id = enacted.id;
   // What the exit pass of a REPLACING law already struck on the operation's own chips (RX35) — the law reads its sum.
   const diverted = {data: divertedDataOf(effects), holder: !effects.some((e) => e.diverted?.lost === true)};
+  // …and what the rating veto's exit pass struck (RX42) — the law reads its own refusal's sum.
+  const vetoed = {steps: vetoedStepsOf(effects)};
   return passive.forecast({
     player,
     grants,
     tiles,
     diverted,
+    vetoed,
     source: (channel) => ({kind: 'resolution', name: id, owner: player.color, channel}),
     exact: (source, effects, title, opts) => forecast.exact(source, effects, title, opts),
     deferred: (source, effects, title, opts) => forecast.deferred(source, effects, title, opts),
@@ -583,8 +592,13 @@ function scaleBonusPass(player: IPlayer, grants: ReadonlyArray<EffectForecastGra
         facts.push(forecast.exact(source, [drawGain(1)], 'Crossing 8 % Venus draws a card', {id: 'venus-card-bonus'}));
       }
       if (crosses(from, to, VENUS_LEVEL_FOR_TR_BONUS)) {
-        facts.push(forecast.exact(source, [trGain(player, 1)], 'Crossing 16 % Venus raises your TR a step', {id: 'venus-tr-bonus'}));
-        extra.push({kind: 'tr', amount: 1});
+        // …refused for a seat first by rating under the veto (RX42) — a named skip, no grant.
+        if (ratingVetoed(player)) {
+          facts.push(forecast.skipped(source, [trGain(player, 1)], 'Crossing 16 % Venus raises your TR a step', {id: 'venus-tr-bonus', note: 'Your terraform rating is the highest — the enacted resolution ignores the gain'}));
+        } else {
+          facts.push(forecast.exact(source, [trGain(player, 1)], 'Crossing 16 % Venus raises your TR a step', {id: 'venus-tr-bonus'}));
+          extra.push({kind: 'tr', amount: 1});
+        }
       }
       if (game.gameOptions.altVenusBoard && (Math.min(to, MAX_VENUS_SCALE) - Math.max(from, ALT_VENUS_MINIMUM_BONUS) > 0 || to >= MAX_VENUS_SCALE)) {
         facts.push(forecast.unknown(source, 'The alternate Venus track pays a bonus of your choice past 16 %'));
@@ -1155,7 +1169,7 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
   // Turmoil Redux: the acting seat's PARTY EFFECTS answer its own grants and
   // tiles — the branch-independent ones in `facts`, an option's own inside it.
   facts.push(
-    ...partyFacts(player, ownGrants, sharedTiles),
+    ...partyFacts(player, ownGrants, sharedTiles, single ? ownEffects : []),
     ...resolutionFacts(player, ownGrants, sharedTiles, single ? ownEffects : []));
   if (!single) {
     for (let pos = 0; pos < branches.length; pos++) {
@@ -1164,7 +1178,7 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
         continue;
       }
       const own = [
-        ...partyFacts(player, branchGrants[pos] ?? [], ownTilesOf(perBranchTiles[pos], sharedTiles)),
+        ...partyFacts(player, branchGrants[pos] ?? [], ownTilesOf(perBranchTiles[pos], sharedTiles), branch.effects),
         ...resolutionFacts(player, branchGrants[pos] ?? [], ownTilesOf(perBranchTiles[pos], sharedTiles), branch.effects),
       ];
       if (own.length > 0) {
@@ -1232,7 +1246,7 @@ export function rewardReactionFacts(
   const facts = [...bonuses.facts, ...grantFacts(player, player, card, grants, ctx)];
   facts.push(...cascadeFacts(player, card, facts, ctx));
   if (!world) {
-    facts.push(...partyFacts(player, grants, []), ...resolutionFacts(player, grants, [], effects));
+    facts.push(...partyFacts(player, grants, [], effects), ...resolutionFacts(player, grants, [], effects));
   }
   facts.push(...colonyBuiltFacts(player, card, opts.coloniesBuilt ?? 0, ctx));
   return stripTouchedPools(facts.map((fact) => stampHosts(fact, card)), effects, card);

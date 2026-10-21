@@ -135,6 +135,16 @@ export type DivertedTerraformingMark = {
   lost?: true;
 };
 
+/**
+ * The LAW's VETO of a rating on a chip (see `ActionEffect.vetoed` — Turmoil Redux RX42 UNMI Veto): WHICH law (the
+ * catalog id — the reader names it through the parliament manifest) and HOW MANY rating steps the chip promised and
+ * the seat will NOT gain. Nothing stands in their place: the chip stays printed and is read STRUCK, with no tail.
+ */
+export type VetoedRatingMark = {
+  resolution: string;
+  steps: number;
+};
+
 export type ActionEffect = {
   /** 'cost' (spent / lost) or 'gain' (produced / raised) — drives the chip colour. */
   direction: 'cost' | 'gain';
@@ -198,6 +208,16 @@ export type ActionEffect = {
    * (`server/models/divertedTerraforming.ts`) — never by a card.
    */
   diverted?: DivertedTerraformingMark;
+  /**
+   * THIS CHIP'S RATING IS VETOED BY A LAW (Turmoil Redux RX42 UNMI Veto: «the player(s) with the highest terraform
+   * rating ignore any rating they would gain»): the printed rating stays — the player must see what the card
+   * PROMISES — and the reader draws it STRUCK in the same register as a replaced unit, with the law in the hint and
+   * NO tail (nothing stands in its place). The scale step / tile / bonus beside it happen as printed; only the
+   * rating is refused, and the forecast's grants make no rating grant of a vetoed chip (no Greens' M€). Stamped by
+   * the ONE exit pass (`server/models/vetoedRating.ts`), in the funnel's own order (the seat's rating projected chip
+   * by chip against the others' highest) — never by a card.
+   */
+  vetoed?: VetoedRatingMark;
   /**
    * For a VARIABLE amount computed from game state ("1 M€ per city on Mars"),
    * the live BASIS of that computation — so the player sees WHY the amount is

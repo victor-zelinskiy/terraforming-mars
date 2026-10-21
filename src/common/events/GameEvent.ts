@@ -180,6 +180,15 @@ export type GameEventType =
    */
   | 'effect-skipped'
   /**
+   * THE SET OF SEATS UNDER A RATING VETO MOVED (Turmoil Redux RX42 UNMI Veto): a rating rose or fell and the seats
+   * first by terraform rating are not the seats they were — `impact.ratingVeto` names who ENTERED the veto, who LEFT
+   * it, and every seat first by rating now with its rating; `player` is the seat whose rating moved, the standing law
+   * rides the event's `source`. Written only while a vetoing law stands, by the rating funnel's own watch
+   * (`parliament/ratingVetoGate.withRatingVetoWatch`). Journal-visible, never a delta: the notification tells a seat
+   * «the veto now binds you» / «no longer binds you».
+   */
+  | 'rating-veto-changed'
+  /**
    * A CARD WAS PLAYED THANKS TO A REQUIREMENT MODIFIER (TR49 class): at least
    * one printed GLOBAL requirement was met ONLY because of a named modifier —
    * an armed Special Design (±2), Cutting-Edge Design / Ecology Experts (the
@@ -243,6 +252,13 @@ export type EventTrigger =
    * named loss); no `global-parameter-changed` / `tile-placed` stands beside them — nothing of the planet moved.
    */
   | 'terraforming-diverted'
+  /**
+   * Turmoil Redux: the enacted law VETOED a rating the seat was about to gain (RX42 UNMI Veto: «the player(s) with
+   * the highest terraform rating ignore any rating they would gain») — ONE event of the rating funnel, refused whole
+   * BEFORE the mutation. The marker's child is the named loss (`effect-skipped` with the rating's magnitude); the
+   * scale step / tile / bonus that carried the rating happened as printed, so their own events stand beside it.
+   */
+  | 'rating-vetoed'
   | 'automa-corporation'; // a MarsBot corporation's printed effect fired (Rule Book B)
 
 /**

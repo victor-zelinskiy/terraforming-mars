@@ -71,11 +71,12 @@ export type DivertedPreview = {
   data: number;
 };
 
-type TileKind = 'greenery' | 'ocean';
+export type TileKind = 'greenery' | 'ocean';
 
 const TILE_ICON: Readonly<Record<TileKind, string>> = {greenery: 'greenery', ocean: 'oceans'};
 
-function tileKindOfStep(step: ActionPreviewStep): TileKind | undefined {
+/** The tile KIND a placement step seats (a greenery, an ocean) — undefined for a city, a colony, a special tile. Shared with the rating veto's pass. */
+export function tileKindOfStep(step: ActionPreviewStep): TileKind | undefined {
   if (step.kind !== 'boardPlacement' || step.placementType === 'colony') {
     return undefined;
   }

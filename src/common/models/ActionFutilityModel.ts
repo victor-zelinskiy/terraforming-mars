@@ -25,7 +25,12 @@ export type ActionFutilityKind =
   /** It adds a resource to «any card» and no card can take it. */
   | 'no-target'
   /** It adds a resource to a card whose points no longer grow, and nothing else uses or counts it. */
-  | 'vp-capped';
+  | 'vp-capped'
+  /**
+   * Its whole result is a terraform rating the enacted law refuses (Turmoil Redux RX42 UNMI Veto: the player is
+   * first by rating). A step of a scale under the veto is NOT this — the scale moves (the table moved, never nothing).
+   */
+  | 'rating-vetoed';
 
 /** The global parameters a step of which can be all an action does. */
 export type FutileParameter = 'temperature' | 'oxygen' | 'oceans' | 'venus';

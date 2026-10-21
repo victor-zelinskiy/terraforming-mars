@@ -32,8 +32,9 @@ import {PARTY_EFFECTS, partySource, redsDiscardPrompt} from './parties/PartyEffe
 import {QuestTracker} from './quests/QuestTracker';
 import {ChairmanSeat} from './quests/ChairmanSeat';
 import {ParliamentPhase} from './ParliamentPhase';
-import {ResolutionPassive, TerraformingOrigin, TerraformingUnit, TilePlacementBonusContext} from './resolutions/IResolution';
+import {RatingGain, ResolutionPassive, TerraformingOrigin, TerraformingUnit, TilePlacementBonusContext} from './resolutions/IResolution';
 import {divertsTerraforming, divertTerraforming} from './divertedTerraformingGate';
+import {ratingVetoed, vetoRating} from './ratingVetoGate';
 
 export class ParliamentHandler {
   // ───────────────────────── the action menu ─────────────────────────
@@ -244,6 +245,35 @@ export class ParliamentHandler {
    */
   public static divertTerraforming(player: IPlayer, unit: TerraformingUnit, origin?: TerraformingOrigin): boolean {
     return divertTerraforming(player, unit, origin);
+  }
+
+  /**
+   * DOES A STANDING LAW BIND THIS SEAT'S RATING? (Turmoil Redux RX42 UNMI
+   * Veto — `ResolutionPassive.vetoRating`.) A pure QUERY: a vetoing law
+   * stands, the seat is in its `restriction` aspect (a human; MarsBot under
+   * `'politics'`) and the seat is first by terraform rating RIGHT NOW among
+   * every player of the game (a tie at the top binds every one of them). Read
+   * live, never stored. The previews' exit pass, the futility reader, the
+   * model and every reading ask this — nothing on the client decides who is
+   * first (invariant 2). The body lives in `ratingVetoGate.ts`; this is its
+   * face in the hub.
+   */
+  public static ratingVetoed(player: IPlayer): boolean {
+    return ratingVetoed(player);
+  }
+
+  /**
+   * THE ONE DOOR A RATING GOES THROUGH BEFORE THE ENGINE GRANTS IT (RX42):
+   * the FIRST line of `Player.increaseTerraformRating` — the funnel every
+   * rating of the game runs through — asks this with the whole event and
+   * grants NOTHING when it answers true: the law has journaled the loss with
+   * its magnitude under its own effect scope on the channel `rating-vetoed`.
+   * Only the rating is refused: the scale step, the tile, the bonuses of the
+   * track and the cell that carried it happen as printed, upstream of the
+   * funnel. Not one caller of the funnel is touched.
+   */
+  public static vetoRating(player: IPlayer, gain: RatingGain): boolean {
+    return vetoRating(player, gain);
   }
 
   /**

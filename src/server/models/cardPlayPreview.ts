@@ -12,6 +12,7 @@ import {ActionEffect, ActionPreview, ActionPreviewBranch, ActionPreviewStep} fro
 import {deriveOrBranches, effectsForBehavior, stepsForBehavior, withImpliedRatings} from './actionPreview';
 import {withPreselectAddresses} from './preselectAddresses';
 import {withDivertedTerraforming} from './divertedTerraforming';
+import {withVetoedRating} from './vetoedRating';
 import {attachStagedPlacement, stagedPlacementForBehavior} from './stagedBehaviorPlacement';
 
 /**
@@ -109,9 +110,10 @@ function offeredCorporation(player: IPlayer, name: CardName): ICard | undefined 
 export function cardPlayPreview(player: IPlayer, card: ICard): ActionPreview {
   // The door's exit passes, in order (hook or declaration alike): a replacing law strikes the printed units and
   // pre-collects the «where» (`divertedTerraforming.ts`, RX35 — the played card is a holder of its own data), a scale
-  // step's own rating stated after the scale (PL-147; none for a struck chip), and every step addressed to its own
-  // prompt (the pre-select law, `preselectAddresses.ts`).
-  return withPreselectAddresses(withImpliedRatings(withDivertedTerraforming(player, cardPlayPreviewOf(player, card), card)));
+  // step's own rating stated after the scale (PL-147; none for a struck chip), the rating veto striking every rating
+  // the funnel will refuse (`vetoedRating.ts`, RX42 — right after the ratings are all stated), and every step
+  // addressed to its own prompt (the pre-select law, `preselectAddresses.ts`).
+  return withPreselectAddresses(withVetoedRating(player, withImpliedRatings(withDivertedTerraforming(player, cardPlayPreviewOf(player, card), card))));
 }
 
 function cardPlayPreviewOf(player: IPlayer, card: ICard): ActionPreview {

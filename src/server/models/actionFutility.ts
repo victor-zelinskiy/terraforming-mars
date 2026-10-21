@@ -33,6 +33,7 @@ import {
 } from '../cards/actionFutilities';
 import {subAvailability} from './actionPreview';
 import {divertedFutility, divertingLaw, trSourceNamesDivertedUnit} from './divertedTerraforming';
+import {ratingVetoFutility} from './vetoedRating';
 import {milestoneThreshold} from '../milestones/IMilestone';
 import {QuestTracker} from '../parliament/quests/QuestTracker';
 import {asArray} from '../../common/utils/utils';
@@ -61,6 +62,7 @@ function yieldOf(player: IPlayer, card: ICard, behavior: Behavior): BehaviorYiel
   // by the HOLDERS of the data they become, never by the ceiling: a step at its maximum is a yield then.
   const diverted = divertedFutility(player);
   const diverting = divertingLaw(player) !== undefined;
+  const vetoed = ratingVetoFutility(player);
   for (const key of Object.keys(behavior) as Array<keyof Behavior>) {
     if (NOT_A_YIELD.has(key) || behavior[key] === undefined) {
       continue;
@@ -115,6 +117,12 @@ function yieldOf(player: IPlayer, card: ICard, behavior: Behavior): BehaviorYiel
     case 'tr':
     case 'addResources': {
       const n = counter.count(behavior[key] ?? 0);
+      // A RATING the enacted law refuses (RX42 UNMI Veto — the seat is first by rating): a bare `tr` is the one yield
+      // the law takes whole; the scale keys above stay yields (the table moves).
+      if (key === 'tr' && n > 0 && vetoed !== undefined) {
+        empties.push(vetoed);
+        break;
+      }
       if (n > 0) {
         return 'yields';
       }

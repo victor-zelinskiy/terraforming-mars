@@ -50,6 +50,7 @@ import {AgendaAdvanceStep, ResolutionId} from '../../../common/parliament/Parlia
 import {CardName} from '../../../common/cards/CardName';
 import type {Parliament} from '../Parliament';
 import {chooseSeatSlot} from '../BotVoteChooser';
+import {ratingVetoed} from '../ratingVetoGate';
 import {AutomaTurnLog} from '../../automa/AutomaTurnLog';
 
 /** What `seat()` did: the office changed hands here and now, or the player still has to pick the delegate. */
@@ -107,9 +108,15 @@ export class ChairmanSeat {
           game.log('${0} is already at the end of the Agenda track', (b) => b.player(player));
           break;
         }
-        taken.push(advance.bonus === undefined ? {to: advance.to} : {to: advance.to, bonus: advance.bonus});
         game.log('${0} advances on the Agenda track to step ${1}', (b) => b.player(player).number(advance.to));
-        ChairmanSeat.payStep(player, advance.bonus);
+        const vetoed = ChairmanSeat.payStep(player, advance.bonus);
+        taken.push({
+          to: advance.to,
+          ...(advance.bonus === undefined ? {} : {bonus: advance.bonus}),
+          // The step's rating was REFUSED by the standing law (RX42 UNMI Veto — the seat is first by rating): the
+          // marker moved, the record says the «+1 TR» did not come, and the presentation strikes it instead of flying it.
+          ...(vetoed ? {vetoed: true as const} : {}),
+        });
       }
       if (taken.length === 0) {
         return undefined;
@@ -138,11 +145,19 @@ export class ChairmanSeat {
     return cause.reason === 'card' || cause.reason === 'resolution' ? walk() : game.events.withSource({kind: 'parliament'}, walk);
   }
 
-  /** The step's own bonus, paid the moment the marker lands on it — before the next step is taken. */
-  private static payStep(player: IPlayer, bonus: 'tr' | 'card' | undefined): void {
+  /**
+   * The step's own bonus, paid the moment the marker lands on it — before the next step is taken. Returns whether a
+   * rating step was VETOED (RX42: the funnel refuses the whole event for a seat first by rating — read off the same
+   * gate the funnel reads, so the record and the refusal can never disagree; the law's own line replaces the track's).
+   */
+  private static payStep(player: IPlayer, bonus: 'tr' | 'card' | undefined): boolean {
     const game = player.game;
     if (bonus === 'tr') {
+      const vetoed = ratingVetoed(player);
       player.increaseTerraformRating(1, {trAttribution: {sourceType: 'other', sourceName: 'Agenda track'}});
+      if (vetoed) {
+        return true;
+      }
       game.log('${0} gained ${1} ${2} from the Agenda track', (b) => b.player(player).number(1).tr());
     } else if (bonus === 'card') {
       if (player.isMarsBot) {
@@ -154,6 +169,7 @@ export class ChairmanSeat {
         player.drawCard(1, {source: {type: 'agenda'}});
       }
     }
+    return false;
   }
 
   /**

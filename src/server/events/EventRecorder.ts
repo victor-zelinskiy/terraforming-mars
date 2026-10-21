@@ -474,6 +474,20 @@ export class EventRecorder {
   }
 
   /**
+   * THE SEATS UNDER A RATING VETO MOVED (Turmoil Redux RX42 UNMI Veto): a
+   * rating rose or fell and the seats first by rating are not the seats they
+   * were. `player` is the seat whose rating moved, `source` the standing law;
+   * `ratingVeto` names who entered the veto, who left it and the whole set
+   * now. Written only by the rating funnel's own watch
+   * (`parliament/ratingVetoGate.withRatingVetoWatch`) — inside the live chain
+   * when a chain stands (a card's play, a sitting's step), a root of its own
+   * when none does. Journal-visible, never a delta.
+   */
+  public recordRatingVetoChanged(player: IPlayer, source: EventSource, ratingVeto: NonNullable<EventImpact['ratingVeto']>): void {
+    this.record({type: 'rating-veto-changed', source, player: player.color, impact: {ratingVeto}, visibility: 'journal'});
+  }
+
+  /**
    * A TRADE FLEET LANDED ON A CARD (Turmoil Redux — a fleet dock: TR06 Water
    * Hauling and its sisters). Recorded under the card's own source inside the
    * trade's chain, so the journal's row and the rival's notification name the

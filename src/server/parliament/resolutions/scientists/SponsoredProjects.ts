@@ -52,9 +52,9 @@ import {CardRenderer} from '../../../cards/render/CardRenderer';
 import {PartyName} from '../../../../common/turmoil/PartyName';
 import {CardResource} from '../../../../common/CardResource';
 import {ResolutionCode, ResolutionId} from '../../../../common/parliament/ParliamentTypes';
-import {InfluenceScaledEffect, scaledAmount} from '../../../../common/parliament/influenceScaling';
-import {ExternalDrawIntake} from '../../../deferredActions/ExternalDrawIntake';
-import {EnactStep, ResolutionDefinition} from '../IResolution';
+import {InfluenceScaledEffect} from '../../../../common/parliament/influenceScaling';
+import {ResolutionDefinition} from '../IResolution';
+import {influenceDrawStep} from '../ResolutionInfluenceDraw';
 import {eachCountedCardStep} from '../ResolutionEachCard';
 
 export const SPONSORED_PROJECTS_ID: ResolutionId = 'RDX_SCIENTISTS_SPONSORED_PROJECTS';
@@ -83,48 +83,6 @@ export const SPONSORED_PROJECTS_RESOURCES: InfluenceScaledEffect = {
   recipient: 'each',
 };
 
-/** The intake the draw step opened — the proof it already drew (game state carries the cards). */
-const INTAKE_KEY = 'drawIntake';
-
-const DRAW_STEP: EnactStep = {
-  key: 'draw',
-  run(ctx) {
-    const player = ctx.player;
-    const effect = SPONSORED_PROJECTS_DRAW;
-    // RE-ENTRY (a reload inside the take): the cards already left the deck and
-    // sit in the intake — game state. Nothing is drawn again; the mandatory
-    // prompt is re-derived from the intake.
-    const remembered = ctx.state[INTAKE_KEY];
-    if (typeof remembered === 'number') {
-      const pending = ExternalDrawIntake.pendingOf(player, remembered);
-      return pending === undefined ? undefined : ExternalDrawIntake.takePromptFor(player, pending);
-    }
-    const influence = ctx.influence;
-    const owed = scaledAmount(effect, influence);
-    if (owed <= 0) {
-      ctx.game.log('${0} has no influence — no cards from ${1}', (b) => b.player(player).resolution(SPONSORED_PROJECTS_ID));
-      ctx.report({kind: 'skipped', effect: effect.id, amount: 0, influence, reason: 'No influence'});
-      return undefined;
-    }
-    // THE SHARED INTAKE: the project deck, the standard exhaustion behaviour,
-    // the cards withheld from the hand until taken, the prompt re-derivable.
-    const intake = ExternalDrawIntake.open(player, owed, {kind: 'resolution', resolution: SPONSORED_PROJECTS_ID, effect: effect.id});
-    if (intake === undefined) {
-      // The deck (and its discard) had nothing left — named, never silent.
-      ctx.report({kind: 'skipped', effect: effect.id, amount: owed, drawn: 0, influence, reason: 'The project deck is empty'});
-      return undefined;
-    }
-    ctx.state[INTAKE_KEY] = intake.id;
-    ctx.game.log('${0} draws ${1} card(s) from ${2}: 1 per point of influence, influence ${3}', (b) =>
-      b.player(player).number(intake.count).resolution(SPONSORED_PROJECTS_ID).number(influence));
-    if (intake.count < owed) {
-      ctx.game.log('Only ${0} of ${1} card(s) were left in the deck for ${2}', (b) =>
-        b.number(intake.count).number(owed).player(player));
-    }
-    ctx.report({kind: 'cards', effect: effect.id, amount: owed, drawn: intake.count, intake: intake.id, influence});
-    return ExternalDrawIntake.takePromptFor(player, intake);
-  },
-};
 
 export const SPONSORED_PROJECTS: ResolutionDefinition = {
   id: SPONSORED_PROJECTS_ID,
@@ -150,5 +108,5 @@ export const SPONSORED_PROJECTS: ResolutionDefinition = {
   quest: {goal: {kind: 'cardResource', resource: CardResource.DATA}, count: SPONSORED_PROJECTS_QUEST_DATA},
   scaled: [SPONSORED_PROJECTS_DRAW, SPONSORED_PROJECTS_RESOURCES],
   // THE PRINTED ORDER: the cards first, then a resource onto every card that holds one.
-  immediateSteps: [DRAW_STEP, eachCountedCardStep(SPONSORED_PROJECTS_ID, SPONSORED_PROJECTS_RESOURCES)],
+  immediateSteps: [influenceDrawStep(SPONSORED_PROJECTS_ID, SPONSORED_PROJECTS_DRAW), eachCountedCardStep(SPONSORED_PROJECTS_ID, SPONSORED_PROJECTS_RESOURCES)],
 };

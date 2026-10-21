@@ -73,6 +73,7 @@ import {AutomaTargeting} from './automa/AutomaTargeting';
 import {calculateVictoryPoints} from './game/calculateVictoryPoints';
 import {TRSourceEntry, TRSourceType, VictoryPointsBreakdown} from '../common/game/VictoryPointsBreakdown';
 import {ParliamentHandler} from './parliament/ParliamentHandler';
+import {withRatingVetoWatch} from './parliament/ratingVetoGate';
 import {fromToEventSource} from './events/fromToEventSource';
 import {Supercapacitors} from './cards/promo/Supercapacitors';
 import {CanAffordOptions, CardAction, CardDrawReveal, IPlayer, PendingCardIntake, PlayabilityOptions, RevealedCard, CardDrawSearchOutcome, RequirementBonusEntry, GlobalWaiverProbe} from './IPlayer';
@@ -553,6 +554,14 @@ export class Player implements IPlayer {
   }
 
   public increaseTerraformRating(steps: number = 1, opts: {log?: boolean, from?: From, global?: boolean, trAttribution?: {sourceType: TRSourceType, sourceName: string, sourceCardId?: string}} = {}) {
+    // TURMOIL REDUX RX42 UNMI VETO — THE ONE GATE OF THE ONE FUNNEL: a seat first by rating under the standing law
+    // gains NO rating — this whole event, refused before anything of the funnel runs (no `trThisGeneration`, no
+    // «raised this generation», no `tr-changed`, no Greens' M€, no reactor). The law journals the loss with its
+    // magnitude under its own scope; the scale step / tile / bonus that carried the rating already happened upstream.
+    // Every caller of the game goes through here and not one is touched (`ratingVetoGate.ts`).
+    if (steps > 0 && ParliamentHandler.vetoRating(this, {steps, global: opts.global === true})) {
+      return;
+    }
     const inActionPhase = this.game.phase === Phase.ACTION;
     const isFirstTrThisGeneration = this.trThisGeneration === 0;
     if (inActionPhase) {
@@ -567,7 +576,10 @@ export class Player implements IPlayer {
       }
     }
     const raiseRating = () => {
-      this.terraformRating += steps;
+      // The seats first by rating may change with this raise — the veto's watch names who entered / left (RX42).
+      withRatingVetoWatch(this, () => {
+        this.terraformRating += steps;
+      });
       this.hasIncreasedTerraformRatingThisGeneration = true;
       // `global` increases are already attributed via `globalParameterSteps`;
       // everything else is direct card / effect TR (for the score breakdown).
@@ -631,7 +643,11 @@ export class Player implements IPlayer {
   }
 
   public decreaseTerraformRating(steps: number = 1, opts: {log?: boolean} = {}) {
-    this.terraformRating -= steps;
+    // A LOWERING is never vetoed (the law says «gain») — but it moves the seats first by rating: a seat that falls
+    // out of the top leaves the veto, and the watch names it (RX42).
+    withRatingVetoWatch(this, () => {
+      this.terraformRating -= steps;
+    });
     // The loss is always written to the journal (TR70 — a price the player must see named); a bare corporation spec
     // instantiates a player with no game, so the game is asked like the recorder below.
     if (opts.log === true) {
@@ -2339,9 +2355,12 @@ export class Player implements IPlayer {
       // it to the console's finale screen, where that branch is destructive and
       // two-step instead of a calm row in a list. `spaces` is the one fact the
       // client cannot derive (plants and their cost ride the player model).
+      // …and under a RATING VETO (RX42) the tile is seated and its two ratings are refused — the session says so.
+      const vetoingLaw = ParliamentHandler.ratingVetoed(this) ? this.game.parliament?.enactedDefinition() : undefined;
       action.markFinalGreeneryPrompt({
         spaces: this.game.board.getAvailableSpacesForGreenery(this).length,
         ...(divertingLaw !== undefined ? {diverted: {resolution: divertingLaw.id, data: 1}} : {}),
+        ...(vetoingLaw !== undefined ? {ratingVetoed: {resolution: vetoingLaw.id}} : {}),
       });
       this.setWaitingForSafely(action);
       return;

@@ -116,7 +116,12 @@ export const PARLIAMENT_AGENDA_STEPS = 12;
  * (`ParliamentAdvanceModel.steps`), because a card walks the marker several
  * steps at once and «collects bonuses from each step» (TR04).
  */
-export type AgendaAdvanceStep = {to: number; bonus?: 'tr' | 'card'};
+/**
+ * One step of a walk: the step reached and the bonus it paid. `vetoed` (RX42 UNMI Veto): the step's rating was
+ * NOT gained — the seat was first by rating under the standing law; the marker moved all the same, and the
+ * presentation strikes the «+1 TR» instead of flying it.
+ */
+export type AgendaAdvanceStep = {to: number; bonus?: 'tr' | 'card'; vetoed?: true};
 
 /**
  * The ENGINES of the track — the sitting's winner step, the chairman quest, a
@@ -321,7 +326,13 @@ export const BOT_PARLIAMENT_MODES: ReadonlyArray<BotParliamentMode> = ['none', '
  *  - `prompts`       is ASKED: the sitting's gates, an asking step, the
  *                    quest gate, the seat pick.
  */
-export const PARLIAMENT_ASPECTS = ['delegates', 'winner-reward', 'enactment', 'seat-grant', 'party-effects', 'quest', 'prompts'] as const;
+/**
+ * `restriction` (RX42 UNMI Veto, decision Р3): a standing law's RESTRICTION — «the player(s) with the highest
+ * terraform rating ignore any rating they would gain» — binds the seat. A human always; MarsBot under `'politics'`
+ * too (the law restrains, it never pays — decision D3 speaks of payouts, and a bot first by rating that still gained
+ * its rating would make the law dead for every human behind it).
+ */
+export const PARLIAMENT_ASPECTS = ['delegates', 'winner-reward', 'enactment', 'seat-grant', 'party-effects', 'quest', 'prompts', 'restriction'] as const;
 export type ParliamentAspect = typeof PARLIAMENT_ASPECTS[number];
 
 export const PARTY_ACTION_IDS = ['unity-trade', 'scientists-lab', 'industrialists-shift', 'reds-recycle'] as const;

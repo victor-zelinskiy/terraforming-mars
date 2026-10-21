@@ -350,6 +350,42 @@ function checkReplacingPass(definition: ResolutionDefinition): Array<string> {
   return failures;
 }
 
+/**
+ * A VETOING passive (RX42) without the family's exit pass lets the composer promise the rating the law refuses:
+ * enacted, with the seat FIRST by rating, the pass must STRIKE a card's rating chip in the law's name (an implied one
+ * beside a scale step too), the law's own forecast must state the refusal off the pass (`ctx.vetoed`) on the live
+ * channel as a NAMED skip, and a seat below the top must keep its promise (the pass projects, never blankets).
+ */
+function checkVetoingPass(definition: ResolutionDefinition): Array<string> {
+  const failures: Array<string> = [];
+  const name = label(definition);
+  const [game, player, other] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+  game.phase = Phase.ACTION;
+  game.parliament!.enacted = resolutionInstanceId(definition.id, 0);
+  player.terraformRating = 40;
+  other.terraformRating = 20;
+  const card = new Asteroid();
+  const preview = cardPlayPreview(player, card);
+  const chips = preview.branches[0]?.effects ?? [];
+  const struck = chips.filter((e) => e.icon === 'tr' && e.direction === 'gain');
+  if (struck.length === 0 || struck.some((e) => e.vetoed === undefined || e.vetoed.resolution !== definition.id)) {
+    failures.push(`${name}: a vetoing passive whose exit pass does not strike the rating of a scale step in its name`);
+  }
+  if (chips.some((e) => e.icon === 'temperature' && e.vetoed !== undefined)) {
+    failures.push(`${name}: the exit pass struck the scale step itself — the veto takes the rating alone`);
+  }
+  const facts = allForecastFacts(effectForecastForPlay(player, card, preview)).filter((f) => f.source.kind === 'resolution' && f.source.name === definition.id);
+  if (!facts.some((f) => f.source.channel === 'rating-vetoed' && f.certainty === 'skipped')) {
+    failures.push(`${name}: the law's forecast states no named skip on the 'rating-vetoed' channel for a struck rating`);
+  }
+  player.terraformRating = 10;
+  const below = cardPlayPreview(player, card).branches[0]?.effects ?? [];
+  if (below.some((e) => e.vetoed !== undefined)) {
+    failures.push(`${name}: the exit pass struck a rating of a seat below the top — the pass must project, not blanket`);
+  }
+  return failures;
+}
+
 /** Influence exactly `n` (0–5) for a seat no sitting moves: the Agenda step that reads it, no bonus. */
 const AGENDA_FOR_INFLUENCE: ReadonlyArray<number> = [0, 1, 3, 5, 8, 12];
 
@@ -417,6 +453,10 @@ function checkSeam(definition: ResolutionDefinition): Array<string> {
   // forecast must state the replacement off the pass (`ctx.diverted`) on the live channel.
   if (definition.passive?.divertTerraforming !== undefined) {
     failures.push(...checkReplacingPass(definition));
+  }
+  // …and a VETOING passive (RX42) without its exit pass lets the composer promise the rating the law refuses.
+  if (definition.passive?.vetoRating !== undefined) {
+    failures.push(...checkVetoingPass(definition));
   }
   if (definition.passive !== undefined && (definition.text.passive ?? '') === '') {
     failures.push(`${name}: a passive without its declaration text (the REWARD stage reads it)`);
