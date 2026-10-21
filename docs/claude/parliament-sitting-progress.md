@@ -4509,6 +4509,7 @@ PL-797. PL-426 остаётся открытой (пикеры RX01 / RX18 / RX3
 | `npm run lint` (eslint · i18n · vue-tsc), `build:server`, `build:test`, `make:css`, `make:json`, `make:cards` | зелёные |
 | e2e `console-parliament-unmi-veto` (снапшот `.e2e-rx42`): standard-1080 · tv4k (`TM_E2E_GPU=1`, раскадровка коммита тепла 21 кадр) | 3 / 3 · 3 / 3 |
 | A/B соседей (1080): `console-parliament-diverted` (RX35), `console-futile-actions`, `console-parliament-sponsored` (RX40) | 4 / 4 |
+| A/B после полировки (1080): `console-supercomputer` (строка «Сработает»), `console-parliament-diverted`, `console-resolution-face` | 8 / 9 — красный `console-resolution-face` § стенд: «pcard--rdx-scientists-live-experiments: the footnote prints words («2MIN»)» — RX36, не RX42: тот же красный на соседском снапшоте `.e2e-rx41e` (до блоков B/C/полировки); сноска RX36 печатает слово «MIN» на жёлтой плите требования, а правило лица (09-22) запрещает слова в сноске — открыто для RX36 / владельца |
 
 Гочи прогона: heredoc > ~6 КБ в bash обрезается RTK-хуком (python-патч «упал» молча на `unexpected EOF`) — скрипты через Write;
 неэкранированный апостроф в сообщении `expect` клиентского спека = семь TS-ошибок компиляции, но mochapack выходит с кодом 0 —
