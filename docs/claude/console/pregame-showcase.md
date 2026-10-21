@@ -92,12 +92,54 @@ From the logical 1920 layout up (`CREATE_WIDE_MIN_WIDTH` — ONE threshold for t
 - **the crew** — a ROW of seat cards (the cube, the name in the hero voice, the role, the issue in amber, the creator /
   TR tags), the «add» card dashed; ◀ ▶ walk it;
 - **the rules** — two columns of full-height rows, the description readable, the switch a real control; ◀ ▶ ▲ ▼;
-- **the expansions** — tiles: the emblem (3.5rem), the name, WHAT IT ADDS (`.cm-exp__desc`), the switch;
+- **the expansions** — the DECK METER over the tiles (§6a); each tile: the emblem (3.5rem), the name and the SWITCH on one
+  line (T04 — the text below gets the plate's whole width), WHAT IT ADDS in ONE sentence in its neighbours' voice
+  (`.cm-exp__desc` — never a rulebook: the Redux greenery revision is told in the game), what it adds to the DECKS in
+  numbers (`.cm-exp__chips`, T04), and what it NEEDS closing that row (`.cm-exp__needs`, T04);
 - **the map** — board cards of a mission card's size (16.5rem — 660 px at 4K), the carousel centred as before;
-- **the briefing** — a dossier (22rem): the crew's chips, the board's miniature (10rem), the emblems, the rules, the
-  readiness, the CTA;
+- **the briefing** — a dossier (22rem): the crew's chips, the board's miniature (10rem), the emblems + the deck totals (the
+  meter's `brief` variant, T04), the rules, the readiness, the CTA;
 - **the overlays** — the participant editor, the type pick and the confirmations at the couch's size; the LAUNCH plate
   «ЦЕНТР УПРАВЛЕНИЯ» shows the BOARD as its hero beside the crew and the emblems, its CTA breathing on an opacity layer.
+
+## 6a. The deck is visible before launch (T04, 2026-10-21)
+
+«What will be in the decks?» is answered on the creator's first screen, before the player presses anything — and only by
+the SERVER, because only `GameCards` knows the banned, replaced (`cardsToRemove`), held-back-under-Redux, Automa-banned
+(Mons Insurance — a corporation, official solo only), two-corporation (Merger) and guaranteed cards, and that the prelude
+«deck» built for Valley Trust is dealt to nobody without the Prelude expansion. A client count would lie on each of them
+and on every next classic card.
+
+- **The route** — `PUT /api/deck-composition` (`routes/ApiDeckComposition.ts`): the LAUNCH body (`NewGameConfig`,
+  `buildCreateGamePayloadFromPremiumState`), mapped — and every toggle re-mapped — through `gameOptionsFromNewGameConfig`,
+  the launch's own function. Read-only and table-free (no game, no `GameLoader`, no DB — the spec's loader throws on
+  touch); in the Electron CORS allowlist. The pure half `server/deckComposition.ts` (`deckCompositionOf`): projects by
+  colour and by module, corporations, preludes, the colony table (`ColonyDealer.colonyCountFor(seats)` — MarsBot's seat
+  counts — out of `poolSize`), the resolution deck (`dealtInstances(compatibleWith(…))`), and `contributions` — «with
+  it − without it» for every creator toggle (`DECK_COMPOSITION_EXPANSIONS`, pinned to `PREMIUM_EXPANSIONS`). Memoized per
+  CANONICAL options (the board aside), LRU 64; a build ≈ 14 ms, the eight toggles ≈ 220 ms cold.
+- **The model** — `console/menu/deckCompositionState.ts` (module reactive; the creator's mount starts the watch, its unmount
+  stops it): one ask per task for a change of what the decks depend on (`deckCompositionKey` — names, the map and the seed
+  never re-ask), an answer older than the latest ask dropped, the previous numbers kept while asking (`loading` — dimmed on
+  an opacity layer, never a blank or «…») and on a failure (`error` — one quiet line; never a launch blocker). The pure
+  view `console/menu/deckCompositionModel.ts`: the three totals, the project deck by colour in the FIXED order green · blue
+  · red (`deckMeterView`), «also in the party», a plate's chips (`contributionChips` — a zero never printed), the launch
+  line (`deckLine`). No number is counted in a template.
+- **The meter** — `ConsoleDeckMeter.vue`, one component on three surfaces: the expansions deck's head (`deck`), the
+  briefing (`brief`), and the launch plate reads the same model as one line («Колоды: N проектов · N корпораций · N
+  прологов»). Form by the dataviz method: three STAT TILES (a one-bar chart is an anti-pattern) + ONE part-to-whole bar for
+  the projects by type — the premium face's card colours validated on the console surface (green stepped into the
+  lightness band: `#3da877` · `#4d8fd9` · `#cf5a52`), every segment directly labelled with its count and word; the
+  totals flip through `ConsoleFlipValue` (both ways), the segments are full-width layers scaled on X (transform only), the
+  2 px gaps their own layers; reduced motion snaps. Never a cursor target — `deckNavStep` is unchanged.
+- **The plate** — the server's contribution as chips («+71 проект · +2 корпорации»; an OFF plate «Даст: …» in the quiet
+  register), and the dependency closing that row («• Требует «Колонии»», red with «!» only while the plate
+  is on without it — `ExpansionRow.requires` from `EXPANSION_REQUIRES`); the briefing's blocker list still names it.
+- **The Deck 1280×800** keeps one line of totals over the grid and one-line plates (no bar, no chips, no dependency chip).
+- **Guards** — `tests/server/deckComposition.spec.ts`, `tests/routes/ApiDeckComposition.spec.ts`,
+  `tests/client/console/menu/deckCompositionModel.spec.ts`, e2e `console-pregame-showcase` I (fhd · tv4k · deck: the meter
+  answers, a toggle answers in place sampled on tasks, every chip = the server's contribution, the dependency chip, the
+  floor, the Deck's one line).
 
 **The Deck 1280×800 is the base contract and does not grow**: every deck still fits it without a scroll (its crew a
 vertical list, its rules one column — the base rules above the wide block).

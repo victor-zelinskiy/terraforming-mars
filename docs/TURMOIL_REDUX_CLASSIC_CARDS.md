@@ -1,6 +1,7 @@
 # Классические карты Turmoil под Turmoil Redux — включение, hold-back-список, замены
 
-**Статус 2026-10-21: ОБЩИЙ КОД ВКЛЮЧЕНИЯ СДАН. Адаптировано 0 из 22 — все 22 карты в hold-back-списке.**
+**Статус 2026-10-21: ОБЩИЙ КОД ВКЛЮЧЕНИЯ СДАН. Адаптировано 1 из 22 — T04 Diaspora Movement (первая, с ней — правило
+скоупа «модуль минус список» и Executor на фасаде); 21 карта в hold-back-списке.**
 Адаптация идёт по одной карте, отдельными задачами, по ворклисту §4; список — временный костыль и
 удаляется, когда опустеет (§2.3).
 
@@ -39,7 +40,8 @@ Turmoil»); чеклист карты набора `docs/claude/turmoil-redux-ca
 не читает.
 
 ### 2.2 Hold-back-список (ВРЕМЕННЫЙ)
-`src/server/cards/turmoil/turmoilReduxAdaptation.ts`:
+ИМЕНА — `src/common/cards/turmoilReduxAdaptation.ts` (с T04: их читает и премиум-скоуп на обеих сторонах, см. §3.1 п. 2);
+ПРЕДИКАТ по `GameOptions` и ре-экспорт тех же массивов — `src/server/cards/turmoil/turmoilReduxAdaptation.ts`:
 
 - `TURMOIL_CARDS_TO_ADAPT_IN_PLACE` — 11 проектов + 4 корпорации, которые остаются теми же картами и
   адаптируются на месте;
@@ -98,18 +100,23 @@ is off» допускает в разнице только адаптирова�
    `ChairmanRequirement`, `PartyLeadersRequirement`) — у семи карт с одним требованием политической работы на
    сервере нет. Что читает классику напрямую: **Executor** для `behavior.turmoil.influenceBonus` (Event
    Analysts) и `behavior.turmoil.sendDelegates` (Martian Media Center) — `Executor.ts` `canExecute` / `execute`
-   берут `Turmoil.getTurmoil(game)`; перевод на фасад — ОДНА общая правка при первой из этих карт
-   (`influence` → `politics.addInfluenceBonus(player, 1, source)`; `sendDelegates` → Redux-шаг
-   `PlaceDelegatesOnResolution` TR03 вместо `SendDelegateToArea`, доступность — `delegatesInReserve`).
+   брали `Turmoil.getTurmoil(game)`. **СДЕЛАНО с T04 (2026-10-21):** Executor читает только `game.politics` —
+   `canExecute`: `delegatesInReserve(player) < count`; `execute`: `addInfluenceBonus(player, 1, card.name)` и новый
+   глагол фасада `placeDelegates(player, count, {oneParty, source})` (Redux — `PlaceDelegatesOnResolution` TR03, одна
+   выдача N на одну резолюцию или N выдач по одному для `manyParties`; классика — `SendDelegateToArea` апстрима без
+   изменений). Спек `tests/behavior/ExecutorPolitics.spec.ts` (оба стола, `fakeCard`). Строки Event Analysts / Martian
+   Media Center / Cultural Metropolis в списке ОСТАЮТСЯ — путь движка готов, их лицо / спек / превью — их задачи.
    Cultural Metropolis — `bespokePlay` с `Turmoil.getAvailableDelegateCount` + `SendDelegateToArea {count: 2}`
    → тот же Redux-шаг (две фишки на ОДНУ резолюцию — «in 1 party»).
-2. **Премиум-скоуп.** Модуль `turmoil` сегодня вне всех SCOPE-точек (`docs/claude/expansion-adaptation-checklist.md`
-   — «the frontier»), а SCOPE задаётся **по модулю, не по карте**. Рекомендация: при ПЕРВОЙ адаптированной
-   карте добавить `turmoil` во все SCOPE-точки (список — чеклист, шаг 1) и закрыть, что напечатают гарды.
-   Ожидание: большинство классических карт декларативны (требование + `behavior`), поэтому гарды должны
-   быть почти зелёными; бесподобные — Cultural Metropolis (и четыре заменяемые, которые на месте не
-   адаптируются). Альтернатива — держать `turmoil` вне скоупа до последней карты — означает, что первые
-   адаптированные карты поедут на стол без превью / причин / инфо-модели; не рекомендуется.
+2. **Премиум-скоуп = «премиум-модули ∪ (`turmoil` − список)».** (Решение T04, 2026-10-21.) SCOPE задавался ПО МОДУЛЮ, и
+   `'turmoil'` в каждом литерале ввёл бы все 22 карты (4 корпорации и 4 бесподобные среди них) в каждый гард разом —
+   против «по одной». Теперь ОДИН хелпер `src/common/cards/premiumScope.ts`: `PREMIUM_SCOPE_MODULES` (девять +
+   `turmoil`), `PREMIUM_FACE_SCOPE_MODULES` (+ `ceo` — каталог лица), `inPremiumScope({module, name}, modules?)` —
+   модуль в списке И не (классическая карта, ещё стоящая в hold-back-списке). Все ≈ 30 гардов и пять исходников
+   (`buildCardInformation`, `PremiumCardsPlayground.vue`, `actionExtraction` / `effectExtraction`, `audit_card_art`)
+   читают его; гард `tests/cards/premiumScope.spec.ts` отказывает любому рукописному списку модулей в `src/` и `tests/`.
+   **Ворклист и скоуп — один объект**: карта входит во все гарды в момент, когда её строка покидает список, — тем же
+   удалением, что раздаёт её на стол Redux. Гарды печатают работу (у T04 — одна RU-строка `card_info`).
 3. **Лор, арт, инфо-модель, RU.** RU-имена классических карт уже есть в `cards.json`; лор — `assets/text/lore_texts.json` по
    `metadata.cardNumber` карты апстрима;
    `card_info.json` — по аудиту `make:cards`.
@@ -120,8 +127,9 @@ is off» допускает в разнице только адаптирова�
    (`normalizeParty`).
 5. **MarsBot.** Четыре корпорации без политики уже играются ботом как его собственные
    (`console-bot-corp-*.spec.ts`); человеческая версия — отдельная карта, бот не трогается.
-6. **Удалить строку** из `TURMOIL_CARDS_TO_ADAPT_IN_PLACE`; гард «with Turmoil Redux on, deals exactly…»
-   подтверждает раздачу.
+6. **Удалить строку** из `TURMOIL_CARDS_TO_ADAPT_IN_PLACE` (`src/common/cards/…`); гард «with Turmoil Redux on, deals exactly…»
+   подтверждает раздачу, а пин «the adapted cards, as of the last adaptation» — НАЗВАННЫЙ набор адаптированных (обновить
+   его тем же диффом). Дальше прогнать ворклист гардов (чеклист карты §3) и `make:cards`.
 
 ### 3.2 Карта-замена (7 карт)
 1. **Класс** в `src/server/cards/turmoilRedux/<Name>Redux.ts` (`Card` / `ActionCard` / корпорация), имя
@@ -145,7 +153,7 @@ is off» допускает в разнице только адаптирова�
 
 ---
 
-## 4. Ворклист — 22 карты (статус на 2026-10-21: все «ждёт»)
+## 4. Ворклист — 22 карты (статус на 2026-10-21: 1 сдана, 21 ждёт)
 
 Политическая зависимость — что карта читает СЕГОДНЯ (upstream-код). «Путь» — §3.1 или §3.2.
 
@@ -165,7 +173,7 @@ is off» допускает в разнице только адаптирова�
 
 | Карта | Классика | Политика сегодня | Работа | Статус |
 | --- | --- | --- | --- | --- |
-| Diaspora Movement | зелёная, 7, Юпитер, 1 ПО; Красные; 1 M€ за метку Юпитера в игре | требование партии | скоуп + спек Redux | ждёт |
+| Diaspora Movement | зелёная, 7, Юпитер, 1 ПО; Красные; 1 M€ за метку Юпитера в игре | требование партии | скоуп + спек Redux | **СДАНА T04** (2026-10-21): `cardNumber` `TO4`→`T04` (опечатка апстрима — лор/арт ключуются номером), RU описания, арт, лор, спек Redux-стола (15), e2e `console-classic-diaspora` |
 | GMO Contract | синяя, 3, Микроб + Наука; Зелёные; эффект 2 M€ за метку животного/растения/микроба | требование партии | скоуп + спек Redux | ждёт |
 | PR Office | зелёная, 7, Земля; Союз; +1 РТ, 1 M€ за метку Земли | требование партии | скоуп + спек Redux | ждёт |
 | Parliament Hall | зелёная, 8, Здание, 1 ПО; Марс прежде всего; +1 пр. M€ за 3 метки Здания | требование партии | скоуп + спек Redux | ждёт |
@@ -185,9 +193,11 @@ is off» допускает в разнице только адаптирова�
 
 ## 5. Не сделано / открыто
 
-- **Executor `behavior.turmoil`** по-прежнему читает классику — общая правка при первой карте, которой она
-  нужна (Event Analysts / Martian Media Center); до неё эти две карты на Redux-столе упали бы на
-  `Turmoil.getTurmoil` — поэтому они в списке.
+- ~~**Executor `behavior.turmoil`** читает классику~~ — **сделано с T04** (§3.1 п. 1). Event Analysts / Martian Media
+  Center / Cultural Metropolis остаются в списке до своих задач (лицо, спек Redux-стола, превью; у Cultural Metropolis —
+  перевод `bespokePlay` на тот же глагол фасада `placeDelegates` с `oneParty: true`).
+- **Расхождение номера с апстримом**: `DiasporaMovement.ts` печатает `'T04'`, апстрим — `'TO4'` (буква O). При синке
+  взять форковое значение (иначе лор/арт T04 перестанут находиться).
 - **Глобальные события / Chaotic Variant** — вне скоупа (спека §1.1).
 - **Вехи/награды классики** (Politician, Lobbyist, T. Politician — `compatibility: 'turmoil'` в MA-манифесте)
   — не карты, решаются отдельно (анализ, п. 3).
