@@ -97,8 +97,10 @@ From the logical 1920 layout up (`CREATE_WIDE_MIN_WIDTH` — ONE threshold for t
   (`.cm-exp__desc` — never a rulebook: the Redux greenery revision is told in the game), what it adds to the DECKS in
   numbers (`.cm-exp__chips`, T04), and what it NEEDS closing that row (`.cm-exp__needs`, T04);
 - **the map** — board cards of a mission card's size (16.5rem — 660 px at 4K), the carousel centred as before;
-- **the briefing** — a dossier (22rem): the crew's chips, the board's miniature (10rem), the emblems + the deck totals (the
-  meter's `brief` variant, T04), the rules, the readiness, the CTA;
+- **the briefing** — a dossier (22rem) that FITS without a scroll: the crew's chips, the board's miniature (6.5rem, beside
+  its name), the eight emblems on ONE row + the deck totals (the meter's `brief` variant, T04), the rules, the readiness.
+  A READOUT, never a second launch button — the verb is the command bar's X alone («Запуск партии» / «К первой проблеме»;
+  the owner, 2026-10-21: the CTA duplicated the bar and cost the column its fit);
 - **the overlays** — the participant editor, the type pick and the confirmations at the couch's size; the LAUNCH plate
   «ЦЕНТР УПРАВЛЕНИЯ» shows the BOARD as its hero beside the crew and the emblems, its CTA breathing on an opacity layer.
 
@@ -114,10 +116,19 @@ and on every next classic card.
   `buildCreateGamePayloadFromPremiumState`), mapped — and every toggle re-mapped — through `gameOptionsFromNewGameConfig`,
   the launch's own function. Read-only and table-free (no game, no `GameLoader`, no DB — the spec's loader throws on
   touch); in the Electron CORS allowlist. The pure half `server/deckComposition.ts` (`deckCompositionOf`): projects by
-  colour and by module, corporations, preludes, the colony table (`ColonyDealer.colonyCountFor(seats)` — MarsBot's seat
-  counts — out of `poolSize`), the resolution deck (`dealtInstances(compatibleWith(…))`), and `contributions` — «with
-  it − without it» for every creator toggle (`DECK_COMPOSITION_EXPANSIONS`, pinned to `PREMIUM_EXPANSIONS`). Memoized per
-  CANONICAL options (the board aside), LRU 64; a build ≈ 14 ms, the eight toggles ≈ 220 ms cold.
+  colour and by module, corporations, preludes, the colony table (the POOL — `ColonyDealer.poolNames` or the custom list —
+  split by the expansion that prints each tile: a Redux ADDITION is Redux's, every other tile the Colonies'; plus
+  `colonyCountFor(seats)` at the start, MarsBot's seat counted), the resolution deck (`dealtInstances(compatibleWith(…))`),
+  and `contributions` for every creator toggle (`DECK_COMPOSITION_EXPANSIONS`, pinned to `PREMIUM_EXPANSIONS`). Memoized
+  per CANONICAL options (the board aside), LRU 64; one build per OFF toggle (an ON toggle IS the table) — the owner-sized set ≈ 110 ms cold in a fresh process, ≈ 35 ms warm.
+- **A contribution is counted by ORIGIN** (the owner, 2026-10-21) — the cards the expansion PRINTS (`ORIGIN_MODULES`: its
+  own module; Turmoil Redux also `turmoil`, the classic cards adapted to it — dealt only with it, so they are its
+  PROJECTS, never a category of their own), as the deck holds them WITH the toggle on and the rest of the set as it stands
+  (an OFF plate still says what it would add). Never «with it − without it»: that marginal charged Colonies with the eight
+  Redux cards that merely REQUIRE it (its «+48» became «+57» when Redux was switched on), netted Ares' 26 cards against
+  the 14 base cards it replaces («+12»), took a GUARANTEED card (dealt whatever the modules) off its own module
+  (Hydronetworks «+2» for its ten), and dressed Venus in Redux's Venus colony and laws. «Requires» is the dependency chip's
+  business (`EXPANSION_REQUIRES`), never the count's.
 - **The model** — `console/menu/deckCompositionState.ts` (module reactive; the creator's mount starts the watch, its unmount
   stops it): one ask per task for a change of what the decks depend on (`deckCompositionKey` — names, the map and the seed
   never re-ask), an answer older than the latest ask dropped, the previous numbers kept while asking (`loading` — dimmed on
@@ -132,8 +143,8 @@ and on every next classic card.
   lightness band: `#3da877` · `#4d8fd9` · `#cf5a52`), every segment directly labelled with its count and word; the
   totals flip through `ConsoleFlipValue` (both ways), the segments are full-width layers scaled on X (transform only), the
   2 px gaps their own layers; reduced motion snaps. Never a cursor target — `deckNavStep` is unchanged.
-- **The plate** — the server's contribution as chips («+71 проект · +2 корпорации»; an OFF plate «Даст: …» in the quiet
-  register), and the dependency closing that row («• Требует «Колонии»», red with «!» only while the plate
+- **The plate** — the server's contribution as chips («+72 проекта · +42 резолюции · +2 колонии»; an OFF plate «Даст: …» in
+  the quiet register), and the dependency closing that row («• Требует «Колонии»», red with «!» only while the plate
   is on without it — `ExpansionRow.requires` from `EXPANSION_REQUIRES`); the briefing's blocker list still names it.
 - **The Deck 1280×800** keeps one line of totals over the grid and one-line plates (no bar, no chips, no dependency chip).
 - **Guards** — `tests/server/deckComposition.spec.ts`, `tests/routes/ApiDeckComposition.spec.ts`,

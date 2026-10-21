@@ -457,6 +457,20 @@ for (const preset of PRESETS) {
         await set('colonies', true);
         await expect(needs).not.toHaveClass(/cm-exp__needs--unmet/);
         await expect(page.locator('.cm-launch [data-deck-meter]'), 'the briefing reads the same meter').toHaveCount(1);
+        // The briefing FITS (the owner, 2026-10-21): all eight expansions on — the marks on ONE row, no scroll in the dossier,
+        // and no second launch button (the verb is the command bar's X alone).
+        for (const id of ['corpera', 'prelude', 'venus', 'colonies', 'promo', 'ares', 'deltaProject', 'turmoilRedux']) {
+          await set(id, true);
+        }
+        await settled(page);
+        await page.screenshot({path: `screenshots/tr68/${preset.id}/after-i-all-expansions.png`});
+        const marks = await page.locator('.cm-launch__icons img').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+        expect(marks.length, 'eight marks').toBe(8);
+        expect(new Set(marks).size, `the marks hold one row: ${marks.join(' ')}`).toBe(1);
+        const fit = await page.locator('.cm-launch__scroll .con-scroll-area__viewport').evaluate((el) => ({over: el.scrollHeight - el.clientHeight, height: el.clientHeight}));
+        expect(fit.over, `the briefing overflows by ${fit.over}px of ${fit.height}`).toBeLessThanOrEqual(0);
+        await expect(page.locator('.cm-launch .con-scroll-area--overflowing')).toHaveCount(0);
+        await expect(page.locator('.cm-launch button'), 'the briefing is a readout').toHaveCount(0);
         if (preset.id === 'tv4k') {
           await settled(page);
           expect((await belowFloor(page, '.cm-create')).below, 'the meter and the chips on the floor').toEqual([]);
