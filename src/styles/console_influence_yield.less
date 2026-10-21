@@ -362,9 +362,11 @@
         flex-direction: row;
         flex-wrap: wrap;
         align-items: center;
-        gap: .3rem .55rem;
+        /* Two parts of one payout are two FRAMED plates side by side — the gap separates them, never a printed «·»:
+           a separator riding the right plate's `::before` opened the WRAPPED line with a stray dot (PL-795, RX40's
+           «· [карта] 4 → +4»). A plate is the unit that wraps, so a new line always starts on a plate. */
+        gap: .35rem .8rem;
         .con-iyield__group { flex-direction: row; align-items: center; }
-        .con-iyield__group + .con-iyield__group::before { content: '·'; margin-right: .55rem; font-size: 1rem; font-weight: 700; color: fade(@con-text, 45%); }
         .con-iyield__readings { flex-wrap: nowrap; }
         .con-iyield__reading { display: inline-flex; align-items: center; column-gap: .3rem; flex-wrap: wrap; row-gap: .1rem; }
         .con-iyield__note { flex-basis: 100%; }
