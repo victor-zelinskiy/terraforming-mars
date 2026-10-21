@@ -92,6 +92,7 @@ import {accumulatedVp} from '@/client/components/additionalResources/additionalR
 import {claimVpShares, dropVpClaim, flyVpShares, holdsVpShares, isBoardVpShare, noteVpHeldElsewhere, releaseVpShares} from '@/client/console/scoreCell/vpShareLedger';
 import {VpShare} from '@/common/game/vpAttribution';
 import {cityPayoutReactionSpecs, runCityPayoutBeat, runCityPayoutSequence, runRemoteCityPayoutBeat, seatChipEnd, seatChipPoint} from '@/client/console/tilePlacement/cityDataPayoutBeat';
+import {acceptSeatIntake, openSeatIntake, resetStatusIntakes, seatIntakeEnd} from '@/client/console/statusIntake';
 import {ResourceTransferSpec, cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   placeTileProxy, playTileFlight, disposeTileProxy, killTileTweens,
@@ -690,6 +691,8 @@ function releaseCityPayoutHolds(ev: RemoteEvent): void {
  */
 export function abortRemotePlacements(): void {
   epoch++;
+  // The seats' intake plaques the stage opened fold with it (an aborted payout never leaves a receiver waiting).
+  resetStatusIntakes();
   const els = tileStageRemoteEls();
   if (els !== undefined) {
     killTileTweens(els);
@@ -1226,13 +1229,18 @@ async function runPlacerBonusBeat(
   if (specs.length === 0) {
     return;
   }
+  // THE SEAT'S INTAKE (the owner's M1): the plaque under the placer's chip opens BEFORE the tokens are born, each token
+  // lands on its resource's number and ticks it; a resource whose number is not painted lands on the chip itself.
+  await openSeatIntake(actor, specs);
   await runResourceTransfers({
     specs,
     origins,
     source: {point: centre},
     destination: chip,
+    destinationOf: (spec) => seatIntakeEnd(actor, spec.resource),
     arrival: 'auto',
     fromBoard: true,
+    onArrive: (spec) => acceptSeatIntake(actor, spec),
   });
 }
 

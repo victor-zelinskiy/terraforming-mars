@@ -42,6 +42,29 @@
                 aria-hidden="true">!</span>
         </transition>
       </span>
+      <!-- THE SEAT'S INTAKE (T06 — the owner's M1 «плашка-хвост», `console/statusIntake.ts`): another seat's gain off
+           the field lands HERE — a plaque hanging from that seat's chip, in its tone, open BEFORE the token is born
+           (a thin ring, «…»), ticking «+N» on the touchdown, folding back after one read. A SIBLING of the chips in
+           the ribbon (never a child: a passed chip's opacity would fade its receiver), absolute — the chip's width and
+           the ribbon never move — and riding the ribbon's one transform with its chip. -->
+      <transition-group name="con-intake">
+        <span v-for="intake in intakes"
+              :key="intake.seat"
+              class="con-status__intake"
+              :class="'con-status__intake--' + intake.phase"
+              :style="intakeStyle(intake)"
+              :data-intake-seat="intake.seat"
+              :data-intake-phase="intake.phase"
+              aria-hidden="true">
+          <span v-for="item in intake.items"
+                :key="item.resource"
+                class="con-status__intake-item"
+                :data-intake-resource="item.resource">
+            <i class="con-status__intake-icon" :class="intakeIconClass(item.resource)"></i>
+            <span class="con-status__intake-num">{{ intakeText(item) }}</span>
+          </span>
+        </span>
+      </transition-group>
       </div>
     </div>
 
@@ -215,6 +238,8 @@ import {captureGlobalParams} from '@/client/console/planetFocus';
 import {boardBeatParkState, boardBeatDisplayParams} from '@/client/console/boardBeatPark';
 import {createChipConveyor} from '@/client/console/statusChipConveyor';
 import {noteGenerationFlipEnd} from '@/client/console/generationScene/generationScene';
+import {SeatIntake, SeatIntakeItem, intakeItemText, statusIntakeState} from '@/client/console/statusIntake';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 
 /** Glyph → the chip's compact text mark (mirrors the desktop PlayerStatusGlyph;
  *  CSS animates the active dot via the --active class). MarsBot's active turn
@@ -313,6 +338,10 @@ export default defineComponent({
     };
   },
   computed: {
+    /** The seats' INTAKE plaques standing now (T06 — `console/statusIntake.ts`). */
+    intakes(): ReadonlyArray<SeatIntake> {
+      return statusIntakeState.intakes;
+    },
     /**
      * The game the strip DISPLAYS. While a scale change is parked (a covered
      * board — a workspace, or an engaged Planet Focus) the four global
@@ -570,6 +599,32 @@ export default defineComponent({
     }
   },
   methods: {
+    /**
+     * WHERE a seat's intake hangs: under its chip — the plaque's left edge on the chip's, its stem on the seat's dot,
+     * its ring in the seat's tone (the dot's own paint). Measured in the ribbon's coordinates (the plaque rides the
+     * ribbon's one transform with its chip); `seq` re-renders it on every change of the plaque.
+     */
+    intakeStyle(intake: SeatIntake): Record<string, string> {
+      void intake.seq;
+      const ribbon = (this.$refs.playersEl as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-status__ribbon');
+      const chip = ribbon?.querySelector<HTMLElement>(`.con-status__player[data-color="${intake.seat}"]:not(.con-status__pghost)`);
+      const dot = chip?.querySelector<HTMLElement>('.con-status__dot');
+      if (ribbon === undefined || ribbon === null || chip === undefined || chip === null) {
+        return {display: 'none'};
+      }
+      const style: Record<string, string> = {left: `${chip.offsetLeft}px`};
+      if (dot !== null && dot !== undefined) {
+        style['--con-intake-stem-x'] = `${dot.offsetLeft + dot.offsetWidth / 2}px`;
+        style['--con-intake-tone'] = getComputedStyle(dot).backgroundColor;
+      }
+      return style;
+    },
+    intakeIconClass(resource: string): string {
+      return iconClassFor(resource);
+    },
+    intakeText(item: SeatIntakeItem): string {
+      return intakeItemText(item);
+    },
     /** The generation readout finished its flip — the generation scene's FIRST beat is over (TR61). */
     onGenerationFlipEnd(generation: number): void {
       noteGenerationFlipEnd(generation);

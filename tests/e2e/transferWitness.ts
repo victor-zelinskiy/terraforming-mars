@@ -186,6 +186,8 @@ export async function armTransferWitness(page: Page): Promise<void> {
       ['rail', '.con-res__row, .con-score__cell'],
       ['aux', '.con-res-aux__cell'],
       // A board CELL — the least specific anchor: a price drawn into the cell its tile grows out of (PL-306).
+      // ANOTHER SEAT's INTAKE plaque under its chip — a rival's payout lands on its number (T06, the owner's M1). `intake:<color>`.
+      ['intake', '[data-intake-seat] .con-status__intake-item'],
       // ANOTHER SEAT's chip in the status strip — a rival's payout lands there (T06). `seat:<color>`.
       ['seat', '.con-status__player[data-color]'],
       ['cell', '.board-space[data_space_id]'],
@@ -209,6 +211,7 @@ export async function armTransferWitness(page: Page): Promise<void> {
       case 'cell': return `cell:${name(el, 'data_space_id')}`;
       case 'tag': return `tag:${name(el, 'data-tag')}`;
       case 'seat': return `seat:${name(el.closest('[data-color]'), 'data-color')}`;
+      case 'intake': return `intake:${name(el.closest('[data-intake-seat]'), 'data-intake-seat')}`;
       case 'seal': return `seal:${name(el.closest('[data-party]'), 'data-party')}`;
       case 'struck': {
         const cls = Array.from(el.classList).find((c) => c.includes('--') && !c.startsWith('action-effect-chip')) ?? 'icon';

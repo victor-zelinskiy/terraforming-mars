@@ -47,6 +47,7 @@ import {
   playOceanActivation, playOceanCoinMaterialize, playOceanCoinHandoff, killOceanTweens,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {runResourceTransfers, transferEndPointNow} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {acceptSeatIntake, openSeatIntake, seatIntakeEnd} from '@/client/console/statusIntake';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {boardStorySettling, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
 import {registerBoardSceneMember} from '@/client/console/boardSceneMembers';
@@ -723,10 +724,20 @@ export async function runRemoteCityPayoutBeat(opts: RemoteCityPayoutOpts): Promi
     return;
   }
   const resource = cardResourceKey(opts.payout.resource);
+  const seat = opts.seat;
+  // ANOTHER SEAT's units land on its chip's INTAKE (the owner's M1): the plaque opens before the tokens are born, each
+  // token lands on its number and ticks it; with no plaque painted they land on the chip itself.
+  if (seat !== undefined) {
+    await openSeatIntake(seat, geometry.tokens.map(() => ({resource, amount: 1})));
+  }
   const paid = await payTokens(geometry, opts.tileRect, opts.uiScale, 1,
     () => ({channel: 'card-resource', resource, amount: 1}),
-    destination,
-    () => undefined,
+    seat === undefined ? destination : (seatIntakeEnd(seat, resource) ?? destination),
+    () => {
+      if (seat !== undefined) {
+        acceptSeatIntake(seat, {resource, amount: 1});
+      }
+    },
     myEpoch);
   if (!paid && epoch === myEpoch) {
     cityPayoutState.degraded = true;
