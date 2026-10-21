@@ -2,7 +2,7 @@
  * EMBEDDED-BUNDLE CODEGEN GUARD — fails the build on a webpack interop bug that
  * is invisible at compile time and fatal at runtime.
  *
- * WHAT IT CATCHES. webpack 5.110.x inlines a deferred CJS namespace
+ * WHAT IT CATCHES. webpack 5.110.0–5.110.2 inline a deferred CJS namespace
  * (`__webpack_require__.cw`) into a `new` expression WITHOUT parenthesising it:
  *
  *     new gauge_namespaceFn()({name: 'realtime_rooms', ...})
@@ -21,7 +21,10 @@
  *
  * `webpack` is therefore pinned EXACTLY (no caret) in package.json. This guard
  * is what makes the next bump safe: if a future webpack reintroduces the bug,
- * the build fails here instead of shipping a broken auto-update.
+ * the build fails here instead of shipping a broken auto-update. (Fixed upstream
+ * in 5.110.3 — webpack#21876 «parenthesize a wrapped module's accessor call»;
+ * the bundle still emits ~33k `_namespaceFn()` accessors, so the pattern stays
+ * one regression away.)
  *
  * Run: node scripts/check-embedded-bundle.mjs   (chained into `npm run build:embedded`)
  */
@@ -57,7 +60,7 @@ console.error(
   'downgrades to remote mode instead of starting the embedded server.\n\n' +
   [...byName.entries()].map(([name, count]) => `  ${count}× new ${name}()(`).join('\n') +
   `\n\nwebpack in use: ${readWebpackVersion()}. Pin \`webpack\` to a version without this bug\n` +
-  '(5.109.2 is known good; 5.110.2 is known bad) — see scripts/check-embedded-bundle.mjs.',
+  '(5.109.2 and 5.112.0 are known good; 5.110.0–5.110.2 are known bad) — see scripts/check-embedded-bundle.mjs.',
 );
 process.exit(1);
 

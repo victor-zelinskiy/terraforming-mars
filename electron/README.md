@@ -194,7 +194,7 @@ npm run pack:dir:win        # → dist-desktop/win-unpacked/   (input to `vpk pa
 npm run pack:dir:linux      # → dist-desktop/linux-unpacked/ (input to `vpk pack … --mainExe terraforming-mars`)
 ```
 
-`vpk` is a **.NET global tool** (`dotnet tool install -g vpk --version 1.2.0`) — packing/publishing
+`vpk` is a **.NET global tool** (`dotnet tool install -g vpk --version 1.2.161`) — packing/publishing
 (`vpk download github` → `vpk pack` → `vpk upload github`) runs in CI. All scripts `rimraf
 dist-desktop/` first; `electronDist: node_modules/electron/dist` packages the already-unpacked
 Electron runtime instead of re-extracting the zip, sidestepping the flaky Windows
@@ -398,7 +398,7 @@ npm run pack:dir:win     # dist-desktop/win-unpacked/   → vpk pack … --mainE
 npm run pack:dir:linux   # dist-desktop/linux-unpacked/ → vpk pack … --mainExe terraforming-mars
 ```
 
-`vpk` is a .NET global tool (`dotnet tool install -g vpk --version 1.2.0`). The CI flow is
+`vpk` is a .NET global tool (`dotnet tool install -g vpk --version 1.2.161`). The CI flow is
 `vpk download github` (fetch prior release → delta) → `vpk pack` → `vpk upload github --publish`.
 
 **Cut a release** — just push to `main`. The workflow reads the version from the committed

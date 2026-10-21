@@ -13,7 +13,7 @@ import {CampaignGameContract} from '../../common/campaign/CampaignGameContract';
 
 // The PUBLIC campaign mission contract (see the common file for the privacy
 // contract) — re-exported so server code keeps one import path.
-export {CampaignGameContract, CampaignGrant} from '../../common/campaign/CampaignGameContract';
+export type {CampaignGameContract, CampaignGrant} from '../../common/campaign/CampaignGameContract';
 
 export type GameOptions = {
   boardName: BoardName;

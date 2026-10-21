@@ -244,9 +244,16 @@ requirement, `bundleSetup.ts` auto-unmount, the `run-tests.mjs` collected-count 
 the bundle-shared module-state rules in `.claude/rules/tests.md`). Do not start it
 casually.
 
-### D8. ⚠️ `871f3fd17e` — webpack 5.108.3 → 5.110.1 — DO NOT take blind
+### D8. ✅ `871f3fd17e` — webpack 5.108.3 → 5.110.1 — RESOLVED 2026-10-21 (pin → 5.112.0)
 
-We are pinned at **5.109.2 on purpose**: webpack 5.110 silently miscompiles the embedded
+**Resolved.** The miscompile was fixed upstream in **5.110.3** (webpack#21876, «parenthesize
+a wrapped module's accessor call»). The pin moved **5.109.2 → 5.112.0** (still exact, no
+caret): `npm run build:embedded` passes `scripts/check-embedded-bundle.mjs`, and the bundle
+was booted for real under Electron 45's Node (`ELECTRON_RUN_AS_NODE`) — LocalFilesystem DB
+up, WS gateway on `/ws`, prom-client gauges constructed, `/api/desktop/version` 200. The
+guard stays chained into `build:embedded`. The original note, kept for the record:
+
+We were pinned at **5.109.2 on purpose**: webpack 5.110 silently miscompiles the embedded
 bundle (namespace/new-codegen), and the symptom is a 500 only when serving to another
 host — invisible in a local run. 5.110.1 may or may not be the fix. Verify against the
 embedded-server path (`docs/EMBEDDED_SERVER.md`) on a second machine before bumping.

@@ -6,7 +6,7 @@
 //      policy (electron/updatePolicy.ts) persisted to disk (electron/session.ts) means a
 //      server outage no longer silently unlocks a known-outdated client (→ `offlineBlocked`),
 //      while a first-run offline launch still fails open (unless TM_DESKTOP_STRICT_OFFLINE=1).
-//   2. DELIVERY — Velopack (velopack npm 1.2.0). `UpdateManager` reads the GitHub Releases
+//   2. DELIVERY — Velopack (velopack npm 1.2.161). `UpdateManager` reads the GitHub Releases
 //      feed (the vpk-published releases.<channel>.json + full/delta .nupkg), downloads in the
 //      background with progress, and applies on the NEXT app exit (Squirrel-style in-place
 //      swap: fast, per-user, no UAC). Unreachable/unconfigured feed → manual-download.

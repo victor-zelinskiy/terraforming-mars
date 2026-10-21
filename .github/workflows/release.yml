@@ -165,7 +165,7 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Install vpk
-        run: dotnet tool install -g vpk --version 1.2.0
+        run: dotnet tool install -g vpk --version 1.2.161
 
       - name: Resolve release version (from committed package.json)
         shell: bash
@@ -299,7 +299,7 @@ jobs:
           dotnet-version: 8.0.x
 
       - name: Install vpk
-        run: dotnet tool install -g vpk --version 1.2.0
+        run: dotnet tool install -g vpk --version 1.2.161
 
       - name: Resolve release version (from committed package.json)
         shell: bash
