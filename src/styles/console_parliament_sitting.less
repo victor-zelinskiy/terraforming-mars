@@ -260,6 +260,10 @@
         &--skipped { padding-left: .4rem; box-shadow: inset .16rem 0 0 rgba(230, 195, 74, 0.7); font-size: .74rem; }
     }
     &__part-unit { width: 1.1rem; height: 1.1rem; background-size: contain; background-repeat: no-repeat; background-position: center; flex-shrink: 0; }
+    /* A PRODUCTION part wears the printed brown plate, the sprite seated at 70 % inside it — the readings' own unit
+       (`.con-iyield__unit--prod`). The part's `contain` above drew the M€ coin over the whole plate, so «+5 пр. M€»
+       read as «+5 M€» in the results (PL-800 — RX04, RX41, every production law). */
+    &__part-unit.con-iyield__unit--prod { background-size: 70% 70%; }
     /* A payout SPREAD over several cards: each recipient with its share, quiet beside the sum — the
        record's own list (never a recount), cut only by its own ellipsis. */
     &__part-cards { display: inline-flex; align-items: center; gap: .35rem; min-width: 0; font-family: @con-font-read; font-size: .72rem; opacity: .82; }
