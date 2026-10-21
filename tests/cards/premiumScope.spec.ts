@@ -52,7 +52,9 @@ describe('premium scope', () => {
     expect(inPremiumScope({module: 'ceo', name: CardName.ASIMOV}, PREMIUM_FACE_SCOPE_MODULES)).is.true;
     const narrowed = PREMIUM_SCOPE_MODULES.filter((m) => m !== 'ares');
     expect(inPremiumScope({module: 'ares', name: CardName.CAPITAL_ARES}, narrowed)).is.false;
-    expect(inPremiumScope({module: 'turmoil', name: CardName.GMO_CONTRACT}, narrowed)).is.false;
+    // A card still held back — read from the list, never a name: each adaptation shortens it (T06 took GMO Contract out).
+    const heldBack = [...TURMOIL_CARDS_HELD_BACK_UNDER_REDUX][0];
+    expect(inPremiumScope({module: 'turmoil', name: heldBack}, narrowed)).is.false;
     expect(inPremiumScope({module: 'turmoil', name: 'A card that left the list'}, narrowed)).is.true;
   });
 
