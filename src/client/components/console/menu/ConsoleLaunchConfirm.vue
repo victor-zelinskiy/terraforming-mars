@@ -40,6 +40,11 @@
             <img v-for="e in enabledExpansions" :key="e.id" :src="icon(e.id)" :alt="$t(e.labelKey)" draggable="false" />
           </div>
           <div v-else class="cm-launch__none">{{ $t('Base game only') }}</div>
+          <!-- The decks, in one line — the same server count the creator's meter reads (T04). -->
+          <div v-if="deckLine.length > 0" class="cm-launchc__decks" data-launch-decks>
+            <span class="cm-launchc__decks-label">{{ $t('Decks') }}:</span>
+            <span v-for="part in deckLine" :key="part.id" class="cm-launchc__deck" :data-launch-deck="part.id">{{ readPart(part) }}</span>
+          </div>
         </div>
       </div>
       </div>
@@ -85,6 +90,9 @@ import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMap
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {BoardName} from '@/common/boards/BoardName';
 import {Expansion} from '@/common/cards/GameModule';
+import {deckCompositionState} from '@/client/console/menu/deckCompositionState';
+import {deckLine} from '@/client/console/menu/deckCompositionModel';
+import {translateTextWithParams} from '@/client/directives/i18n';
 
 export default defineComponent({
   name: 'ConsoleLaunchConfirm',
@@ -126,10 +134,17 @@ export default defineComponent({
     error(): string {
       return createGameState.error;
     },
+    deckLine(): ReturnType<typeof deckLine> {
+      const composition = deckCompositionState.composition;
+      return composition === undefined ? [] : deckLine(composition);
+    },
   },
   methods: {
     icon(id: Expansion): string {
       return expansionIcon(id);
+    },
+    readPart(part: {key: string, amount: number}): string {
+      return translateTextWithParams(part.key, [String(part.amount)]);
     },
   },
 });

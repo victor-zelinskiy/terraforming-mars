@@ -19,6 +19,8 @@ import {campaignBase, createCampaign, seedIdentity} from './campaignFixtures';
  *   F  the overlays (the participant editor · the keyboard · the launch plate) on the floor
  *   G  the Deck: the lobby and every deck without a scroll
  *   H  reduced motion: the screen arrives without a camera
+ *   I  (T04) the deck is visible before launch: the meter reads the server's count, a toggle answers in place (never
+ *      blank), every plate chip = the server's contribution, the dependency chip red without Colonies; the Deck one line
  */
 
 const NAME = 'Alice';
@@ -352,6 +354,105 @@ for (const preset of PRESETS) {
         expect((await belowFloor(page, '.cm-overlay--launch')).below, 'the launch plate on the floor').toEqual([]);
       }
       await press(page, 'Escape', 400);
+    });
+    test(`I — the deck is visible before launch: the server's count, live on a toggle, the plates' chips (${preset.id})`, async ({page}) => {
+      test.setTimeout(240_000);
+      const overflow = overflowWarnings(page);
+      // The creator's own asks — every answer the meter can read is captured here, the chips compared against the last.
+      const answers: Array<{body: Record<string, unknown>, model: {
+        projects: {total: number}, corporations: {total: number}, preludes: {total: number},
+        contributions: Record<string, Record<string, number>>,
+      }}> = [];
+      page.on('response', async (res) => {
+        if (res.url().includes('/api/deck-composition') && res.request().method() === 'PUT' && res.ok()) {
+          answers.push({body: JSON.parse(res.request().postData() ?? '{}'), model: await res.json()});
+        }
+      });
+      await seedIdentity(page, NAME);
+      await toMenu(page, preset);
+      await openItem(page, 'create');
+      await page.waitForSelector('.cm-mode__tile', {timeout: 30_000});
+      await press(page, 'Enter', 600);
+      await page.waitForSelector('.cm-crew', {timeout: 30_000});
+      for (let i = 0; i < 2; i++) {
+        await press(page, 'KeyE', 500);
+      }
+      await page.waitForSelector('.cm-exp', {timeout: 15_000});
+      const meter = page.locator('.cm-expdeck [data-deck-meter]');
+      await expect(meter, 'the deck head carries the meter').toHaveCount(1);
+      await expect(meter.locator('[data-deck-tile="projects"]'), 'the server answered').toHaveAttribute('data-deck-total', /^[1-9]\d*$/, {timeout: 15_000});
+      await settled(page);
+
+      // A toggle is answered in place: «Прелюдия» flips the prelude total, sampled on TASKS — never blank, never «…».
+      const preludeOn = await page.locator('.cm-exp[data-exp="prelude"]').evaluate((el) => el.classList.contains('cm-exp--on'));
+      await page.evaluate(() => {
+        const out: Array<string> = [];
+        const sample = () => {
+          const tile = document.querySelector('.cm-expdeck [data-deck-tile="preludes"]');
+          out.push(`${tile?.getAttribute('data-deck-total') ?? 'none'}|${tile?.querySelector('.cm-meter__value')?.textContent?.trim() ?? ''}`);
+        };
+        sample();
+        const timer = window.setInterval(sample, 50);
+        (window as unknown as {__decks: {out: Array<string>, stop: () => void}}).__decks = {out, stop: () => window.clearInterval(timer)};
+      });
+      await page.locator('.cm-exp[data-exp="prelude"]').click();
+      // The answer to THIS toggle (an ask already in flight may land after the click — it is not ours).
+      const ours = () => [...answers].reverse().find((a) => (a.body.expansions as Record<string, boolean>).prelude === !preludeOn);
+      await expect.poll(() => ours() !== undefined, {timeout: 15_000}).toBe(true);
+      await expect(meter.locator('[data-deck-tile="preludes"]'), 'the tile reads the answer to the toggle')
+        .toHaveAttribute('data-deck-total', String(ours()!.model.preludes.total), {timeout: 10_000});
+      await settled(page);
+      const samples = await page.evaluate(() => {
+        const d = (window as unknown as {__decks: {out: Array<string>, stop: () => void}}).__decks;
+        d.stop();
+        return d.out;
+      });
+      const totals = [...new Set(samples.map((s) => s.split('|')[0]))];
+      expect(samples.every((s) => !s.startsWith('none') && s.split('|')[1] !== '' && !s.includes('…')), `never blank, never «…»: ${samples.join(' ')}`).toBe(true);
+      expect(totals.length, `the prelude total moved: ${totals.join(' → ')}`).toBeGreaterThanOrEqual(2);
+      const last = ours()!.model;
+      expect(last.preludes.total > 0, 'Prelude now ON → a prelude deck; now OFF → none (the Valley Trust pile is no deck)').toBe(!preludeOn);
+
+      if (preset.id !== 'deck') {
+        // Every chip on every plate is the server's «with it − without it», number for number.
+        const chips = await page.locator('.cm-exp [data-exp-chip]').evaluateAll((els) => els.map((el) => ({
+          exp: el.closest('[data-exp]')?.getAttribute('data-exp') ?? '',
+          id: el.getAttribute('data-exp-chip') ?? '',
+          amount: Number(el.getAttribute('data-exp-chip-amount')),
+        })));
+        expect(chips.length, 'the plates carry their chips').toBeGreaterThan(3);
+        for (const chip of chips) {
+          expect(chip.amount, `${chip.exp} · ${chip.id}`).toBe(last.contributions[chip.exp][chip.id]);
+        }
+        // Turmoil Redux without Colonies: its dependency chip turns red (and says so by its mark, not colour alone).
+        const set = async (id: string, on: boolean) => {
+          const plate = page.locator(`.cm-exp[data-exp="${id}"]`);
+          if (await plate.evaluate((el) => el.classList.contains('cm-exp--on')) !== on) {
+            await plate.click();
+          }
+        };
+        await set('turmoilRedux', true);
+        await set('colonies', false);
+        const needs = page.locator('.cm-exp[data-exp="turmoilRedux"] [data-exp-needs="colonies"]');
+        await expect(needs).toHaveClass(/cm-exp__needs--unmet/);
+        await expect(needs.locator('.cm-exp__needs-mark')).toHaveText('!');
+        await expect(page.locator('.cm-launch .cm-issues__row'), 'the briefing names the blocker').toContainText([/Колонии/]);
+        await set('colonies', true);
+        await expect(needs).not.toHaveClass(/cm-exp__needs--unmet/);
+        await expect(page.locator('.cm-launch [data-deck-meter]'), 'the briefing reads the same meter').toHaveCount(1);
+        if (preset.id === 'tv4k') {
+          await settled(page);
+          expect((await belowFloor(page, '.cm-create')).below, 'the meter and the chips on the floor').toEqual([]);
+        }
+      } else {
+        const lines = await meter.evaluate((el) => {
+          const tiles = Array.from(el.querySelectorAll('[data-deck-tile]')).map((t) => Math.round(t.getBoundingClientRect().top));
+          return new Set(tiles).size;
+        });
+        expect(lines, 'the Deck: the totals stand in ONE line').toBe(1);
+        await expect(page.locator('.cm-exp [data-exp-chips]').first(), 'the Deck plate stays one line').toBeHidden();
+      }
+      expect(overflow, 'no console overflow on the expansions deck').toEqual([]);
     });
   });
 }

@@ -61,6 +61,7 @@ import {
   BOT_DIFFICULTIES,
   EXPANSION_REQUIRES,
   PREMIUM_EXPANSIONS,
+  expansionLabelKey,
   PREMIUM_MAPS,
   PremiumExpansionMeta,
   PremiumMapMeta,
@@ -452,14 +453,24 @@ export function toggleRule(id: PremiumRuleMeta['id']): void {
   rules[id] = !rules[id];
 }
 
-export type ExpansionRow = {meta: PremiumExpansionMeta, value: boolean, conflictKey: string | undefined};
+/** An expansion this one depends on (`EXPANSION_REQUIRES`) — `met` while it is selected too. */
+export type ExpansionRequirement = {id: Expansion, labelKey: string, met: boolean};
+
+export type ExpansionRow = {
+  meta: PremiumExpansionMeta,
+  value: boolean,
+  conflictKey: string | undefined,
+  /** What the tile needs — printed ON the tile (T04), red only while the tile is on and the need is not met. */
+  requires: ReadonlyArray<ExpansionRequirement>,
+};
 
 export function expansionRows(): ReadonlyArray<ExpansionRow> {
   const config = createGameState.config;
   const conflicts = stateAutomaConflictKeysSafe();
   return PREMIUM_EXPANSIONS.map((meta) => {
     const key = `expansion:${meta.id}`;
-    return {meta, value: config.selectedExpansions[meta.id] === true, conflictKey: conflicts.has(key) ? key : undefined};
+    const requires = (EXPANSION_REQUIRES[meta.id] ?? []).map((id) => ({id, labelKey: expansionLabelKey(id), met: config.selectedExpansions[id] === true}));
+    return {meta, value: config.selectedExpansions[meta.id] === true, conflictKey: conflicts.has(key) ? key : undefined, requires};
   });
 }
 

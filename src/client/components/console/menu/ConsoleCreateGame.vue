@@ -254,6 +254,7 @@ import ConsoleLaunchConfirm from '@/client/components/console/menu/ConsoleLaunch
 import ConsoleDevCardPicker from '@/client/components/console/menu/ConsoleDevCardPicker.vue';
 import {pruneGuaranteedCards} from '@/client/components/create/premium/devGuaranteedCards';
 import {$t} from '@/client/directives/i18n';
+import {trackDeckComposition} from '@/client/console/menu/deckCompositionState';
 
 const SHAKE_MS = 460;
 
@@ -287,6 +288,8 @@ export default defineComponent({
       ui: consoleCreateUi,
       identityState,
       offPad: undefined as (() => void) | undefined,
+      // The deck counts the server keeps live while the creator stands (T04).
+      offDecks: undefined as (() => void) | undefined,
       shakeDeck: undefined as CreateDeckId | undefined,
       shakeRow: -1,
       shakeTimer: undefined as ReturnType<typeof setTimeout> | undefined,
@@ -508,9 +511,11 @@ export default defineComponent({
     resetConsoleCreateUi();
     consoleCreateUi.restored = restored;
     this.offPad = installMenuPad((intent) => this.onIntent(intent));
+    this.offDecks = trackDeckComposition();
   },
   beforeUnmount() {
     this.offPad?.();
+    this.offDecks?.();
     this.clearShake();
   },
   methods: {

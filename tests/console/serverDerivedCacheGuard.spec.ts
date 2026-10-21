@@ -87,6 +87,8 @@ const NOT_A_CACHE = new Map<string, string>([
     'the campaign document carries its own monotonic rev (stale responses are refused by it); it holds no per-game verdict'],
   [path.join('src', 'client', 'console', 'campaign', 'campaignsState.ts'),
     'the «Мои кампании» lobby list — server-sorted summaries outside any game view, refreshed wholesale (rows carry the campaign rev); it holds no per-game verdict'],
+  [path.join('src', 'client', 'console', 'menu', 'deckCompositionState.ts'),
+    'the creator\'s deck count (T04) — outside any game view; every settings change re-asks and the latest ask wins (its own seq); it holds no per-game verdict'],
   [path.join('src', 'client', 'components', 'console', 'parliament', 'ConsoleResolutionsPlayground.vue'),
     'the «Полигон» live scenario — a one-shot dev POST that CREATES a game from a fixture and navigates to it; nothing is kept, and there is no game to be stale about'],
 ]);

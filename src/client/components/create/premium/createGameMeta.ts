@@ -25,17 +25,17 @@ export type PremiumExpansionMeta = {
 // grouping — this is only the render order. Matches the fork's default game.
 export const PREMIUM_EXPANSIONS: ReadonlyArray<PremiumExpansionMeta> = [
   {id: 'corpera', labelKey: 'Corporate Era', descKey: 'Adds broader economy and project cards — the standard full-game setting.'},
-  {id: 'prelude', labelKey: 'Prelude', descKey: 'Each player starts with prelude cards that shape their early strategy.'},
+  {id: 'prelude', labelKey: 'Prelude', descKey: 'Each player starts with prelude cards that shape the opening.'},
   {id: 'venus', labelKey: 'Venus Next', descKey: 'Adds the Venus global parameter and Venus-focused cards.'},
   {id: 'colonies', labelKey: 'Colonies', descKey: 'Adds colony tiles, trading and resource engines.'},
   {id: 'promo', labelKey: 'Promo', descKey: 'Adds promotional cards to the project and corporation decks.'},
   {id: 'ares', labelKey: 'Ares', descKey: 'Adds hazard tiles and adjacency effects that reshape the board.'},
   // Delta Project is surfaced under its in-game name, "Hydronetworks" → «Гидросети».
-  {id: 'deltaProject', labelKey: 'Hydronetworks', descKey: 'A competitive module with a shared progress track: spend energy and meet tag requirements to advance, earn bonuses and race for victory points.'},
-  // Turmoil Redux — the Mars Parliament. Requires Colonies (the creator says so before launch).
-  // The greenery revision is a rule of the whole game, not of the parliament's screens — the
-  // one place the player reads the rules of an expansion before choosing it names it.
-  {id: 'turmoilRedux', labelKey: 'Turmoil Redux', descKey: 'The Mars Parliament: vote with delegates on resolutions, gain party effects, complete chairman quests and advance your Agenda. A greenery pays 2 TR (the oxygen and the tile itself) and scores no VP of its own; cities still score their adjacent greeneries. Requires Colonies.'},
+  {id: 'deltaProject', labelKey: 'Hydronetworks', descKey: 'Adds a shared progress track: spend energy to advance, claim its bonuses and race for VP.'},
+  // Turmoil Redux — the Mars Parliament. ONE sentence in its neighbours' voice (T04): the creator is
+  // not the rulebook — the greenery revision is told in the game (the parliament's help, the
+  // dossier), and «requires Colonies» is the plate's own chip (`EXPANSION_REQUIRES`), never prose.
+  {id: 'turmoilRedux', labelKey: 'Turmoil Redux', descKey: 'Adds the Mars Parliament: delegates voting on resolutions, party effects and the Agenda track.'},
 ];
 
 /** Expansions another expansion depends on (the creator blocks the launch and names the missing one). */

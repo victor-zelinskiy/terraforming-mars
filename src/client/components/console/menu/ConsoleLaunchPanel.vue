@@ -40,6 +40,8 @@
           <img v-for="e in enabledExpansions" :key="e.id" :src="icon(e.id)" :alt="$t(e.labelKey)" draggable="false" />
         </div>
         <div v-else class="cm-launch__none">{{ $t('Base game only') }}</div>
+        <!-- …and what the decks will hold with them — the server's count (T04), the same meter the deck's head reads. -->
+        <ConsoleDeckMeter variant="brief" class="cm-launch__decks" />
       </div>
 
       <!-- Rules -->
@@ -110,12 +112,13 @@ import {
 import PremiumMapFingerprint from '@/client/components/create/premium/PremiumMapFingerprint.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
+import ConsoleDeckMeter from '@/client/components/console/menu/ConsoleDeckMeter.vue';
 import {BoardName} from '@/common/boards/BoardName';
 import {Expansion} from '@/common/cards/GameModule';
 
 export default defineComponent({
   name: 'ConsoleLaunchPanel',
-  components: {ConsoleScrollArea, GamepadGlyph, PremiumMapFingerprint},
+  components: {ConsoleDeckMeter, ConsoleScrollArea, GamepadGlyph, PremiumMapFingerprint},
   emits: ['launch'],
   computed: {
     campaign(): boolean {

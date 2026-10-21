@@ -1788,6 +1788,78 @@ html.con-profile-handheld {
     &--on { background: fade(@cm-gold, 16%); box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 60%); color: @cm-gold; }
 }
 
+/* ── THE DECK METER (T04 «the deck is visible before launch») ───────────
+   The server's count of the party's decks for the current settings
+   (`ConsoleDeckMeter` ← `deckCompositionState`). The BASE (the Deck
+   1280×800 and every narrow creator) is ONE LINE of totals — no bars, no
+   chips; the wide creator (≥ 1900 logical) grows it into stat tiles + the
+   project deck by colour. While the next answer is in flight the previous
+   numbers stay, dimmed on an opacity layer. Never a cursor target. */
+@cm-type-automated: #3da877;
+@cm-type-active: #4d8fd9;
+@cm-type-event: #cf5a52;
+
+.cm-expdeck {
+    gap: .5rem;
+    > .cm-expansions { flex: 1; min-height: 0; }
+}
+.cm-meter {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .25rem .8rem;
+    min-height: 1.6rem;
+    padding: .25rem .6rem;
+    border-radius: .5rem;
+    background: fade(@con-glass-soft, 60%);
+    box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 16%);
+    opacity: 0;
+    transition: opacity calc(260ms * var(--motion-scale, 1)) @con-ease-standard;
+    &--ready { opacity: 1; }
+}
+.cm-meter__head { display: flex; align-items: baseline; gap: .6rem; }
+.cm-meter__title {
+    font-size: .65rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: @cm-gold;
+}
+.cm-meter__status { font-size: .65rem; color: @con-text-dim; }
+.cm-meter__tiles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .1rem .9rem;
+    transition: opacity calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
+    .cm-meter--pending & { opacity: .5; }
+}
+.cm-meter__tile { display: inline-flex; align-items: baseline; gap: .3rem; }
+.cm-meter__value {
+    font-size: .95rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: @con-text;
+}
+.cm-meter__label { font-size: .65rem; letter-spacing: .06em; color: @con-text-dim; }
+/* The bar, the legend and the extras are the wide creator's — the Deck keeps one line of totals. */
+.cm-meter__bar,
+.cm-meter__legend,
+.cm-meter__extras { display: none; }
+.cm-meter--brief {
+    background: none;
+    box-shadow: none;
+    padding: 0;
+    .cm-meter__head { display: none; }
+}
+
+/* What a plate adds to the decks, in numbers, and what it needs — the wide creator's; the Deck's plate stays one line
+   (the briefing's blocker list names a missing dependency there). */
+.cm-exp__title { display: flex; align-items: center; gap: .4rem; min-width: 0; }
+.cm-exp__title > .cm-exp__state { margin-left: auto; flex-shrink: 0; }
+.cm-exp__title > .cm-exp__name { min-width: 0; }
+.cm-exp__chips,
+.cm-exp__needs { display: none; }
+
 /* ── Map carousel ────────────────────────────────────────────────── */
 .cm-maps {
     justify-content: center;
@@ -2138,6 +2210,20 @@ html.con-profile-handheld {
     gap: .7rem;
     padding: .2rem 0;
 }
+/* The decks in one line (T04) — the server's count, the meter's own numbers. */
+.cm-launchc__decks {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: .15rem .7rem;
+    margin-top: .35rem;
+    font-size: .7rem;
+    color: @con-text;
+    font-variant-numeric: tabular-nums;
+}
+.cm-launchc__decks-label { color: @con-text-dim; letter-spacing: .06em; }
+.cm-launchc__deck + .cm-launchc__deck::before { content: '·'; margin-right: .7rem; color: @con-text-dim; }
+.cm-launch__decks { margin-top: .3rem; }
 .cm-launchc__creating {
     display: flex;
     align-items: center;
@@ -2367,6 +2453,149 @@ html.con-profile-handheld {
     .cm-exp__issue { font-size: .9rem; }
     .cm-exp__state { font-size: .85rem; padding: .3rem .8rem; }
 
+    /* THE DECK METER — a band across the deck's head: the three totals as stat tiles, the project deck by colour beside
+       them (one part-to-whole bar, each segment directly labelled), what else the party deals under it. */
+    .cm-expdeck { gap: .8rem; }
+    /* The tiles under the meter: a little tighter than TR68's (the meter takes its band out of the same opening). */
+    .cm-expdeck > .cm-expansions { gap: .7rem 1.2rem; grid-auto-rows: minmax(6rem, auto); }
+    .cm-expdeck .cm-exp { padding: .8rem 1.25rem; gap: 1.1rem; }
+    .cm-expdeck .cm-exp__main { gap: .25rem; }
+    .cm-exp__title { flex-wrap: wrap; gap: .25rem .7rem; }
+    .cm-meter {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        grid-template-areas: "head bar" "tiles legend" "tiles extras";
+        align-items: center;
+        gap: .3rem 2.4rem;
+        min-height: 5.4rem;
+        padding: .65rem 1.4rem .7rem;
+        border-radius: .8rem;
+    }
+    .cm-meter__head { grid-area: head; }
+    .cm-meter__title { font-size: .8rem; letter-spacing: .2em; }
+    .cm-meter__status { font-size: .8rem; }
+    .cm-meter__tiles { grid-area: tiles; align-self: start; gap: 1.8rem; align-items: flex-end; }
+    .cm-meter__tile { flex-direction: column; align-items: flex-start; gap: .1rem; }
+    .cm-meter__value { font-size: 2.1rem; line-height: 1; }
+    .cm-meter__label { font-size: .8rem; letter-spacing: .14em; text-transform: uppercase; }
+    .cm-meter__bar {
+        grid-area: bar;
+        display: block;
+        position: relative;
+        height: .8rem;
+        border-radius: .4rem;
+        overflow: hidden;
+        background: fade(@con-text-dim, 10%);
+        transition: opacity calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
+        .cm-meter--pending & { opacity: .5; }
+    }
+    .cm-meter__segment,
+    .cm-meter__gap {
+        position: absolute;
+        inset: 0;
+        transform-origin: left center;
+        transition: transform calc(420ms * var(--motion-scale, 1)) @con-ease-standard;
+    }
+    .cm-meter__segment {
+        &--automated { background: @cm-type-automated; }
+        &--active { background: @cm-type-active; }
+        &--event { background: @cm-type-event; }
+    }
+    /* The 2 px surface gap between two segments — its own layer, never a scaled border. */
+    .cm-meter__gap-line {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: -.05rem;
+        width: .1rem;
+        background: rgba(8, 14, 22, 1);
+    }
+    .cm-meter__legend {
+        grid-area: legend;
+        display: flex;
+        flex-wrap: wrap;
+        gap: .2rem 1.4rem;
+        transition: opacity calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
+        .cm-meter--pending & { opacity: .5; }
+    }
+    .cm-meter__key { display: inline-flex; align-items: center; gap: .4rem; font-size: .85rem; color: @con-text-dim; }
+    .cm-meter__key-count { color: @con-text; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .cm-meter__swatch {
+        width: .7rem;
+        height: .7rem;
+        border-radius: .2rem;
+        .cm-meter__key--automated & { background: @cm-type-automated; }
+        .cm-meter__key--active & { background: @cm-type-active; }
+        .cm-meter__key--event & { background: @cm-type-event; }
+    }
+    .cm-meter__extras {
+        grid-area: extras;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        gap: .2rem 1.2rem;
+        font-size: .85rem;
+        color: @con-text;
+    }
+    .cm-meter__extras-label { font-size: .8rem; letter-spacing: .14em; text-transform: uppercase; color: @con-text-dim; }
+    /* In the briefing: the totals only, three quiet tiles in a row (+ what else the party deals). */
+    .cm-meter--brief {
+        display: flex;
+        min-height: 0;
+        padding: 0;
+        .cm-meter__tiles { gap: 1.2rem; }
+        .cm-meter__value { font-size: 1.5rem; }
+        .cm-meter__label { font-size: .8rem; letter-spacing: .1em; }
+        .cm-meter__extras { display: flex; font-size: .85rem; gap: .15rem .8rem; }
+        .cm-meter__extras-label { display: none; }
+    }
+
+    /* What THIS expansion adds to the decks — the server's «with it − without it»; an OFF plate «would add», quieter. */
+    .cm-exp__chips {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .3rem .35rem;
+        margin-top: .1rem;
+    }
+    .cm-exp__would { font-size: .8rem; color: @con-text-dim; }
+    .cm-exp__chip {
+        font-size: .8rem;
+        padding: .08rem .5rem;
+        border-radius: 49.95rem;
+        font-variant-numeric: tabular-nums;
+        color: @con-text;
+        background: fade(@cm-gold, 13%);
+        box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 45%);
+        transition:
+            background-color calc(220ms * var(--motion-scale, 1)) @con-ease-standard,
+            color calc(220ms * var(--motion-scale, 1)) @con-ease-standard,
+            box-shadow calc(220ms * var(--motion-scale, 1)) @con-ease-standard;
+        .cm-exp:not(.cm-exp--on) & {
+            color: @con-text-dim;
+            background: transparent;
+            box-shadow: inset 0 0 0 .05rem fade(@con-text-dim, 32%);
+        }
+    }
+    /* What the expansion needs — a quiet statement, RED only while the plate is on without it (the mark says so too). */
+    .cm-exp__needs {
+        display: inline-flex;
+        flex-shrink: 0;
+        align-items: center;
+        gap: .35rem;
+        font-size: .8rem;
+        padding: .06rem .5rem;
+        border-radius: .3rem;
+        color: @con-text-dim;
+        box-shadow: inset 0 0 0 .05rem fade(@con-text-dim, 28%);
+        &--unmet {
+            color: mix(#ffffff, @con-red, 45%);
+            background: fade(@con-red, 14%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-red, 70%);
+        }
+    }
+    .cm-exp__needs-mark { font-weight: 700; }
+
     /* THE MAP — board cards of a campaign mission card's size, the carousel centred as before. */
     .cm-maps { gap: 1.2rem; }
     .cm-maps__viewport { height: 25rem; }
@@ -2433,6 +2662,8 @@ html.con-profile-handheld {
     .cm-launchc__title { font-size: 1.9rem; }
     .cm-launchc__mission { grid-template-columns: 15rem minmax(0, 1fr); gap: 1.6rem; }
     .cm-launchc__creating { font-size: 1rem; }
+    .cm-launchc__decks { font-size: .9rem; margin-top: .5rem; }
+    .cm-launch__decks { margin-top: .55rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2443,6 +2674,10 @@ html.con-profile-handheld {
     .cm-maps__strip,
     .cm-map,
     .cm-item { transition: none; }
+    /* The deck meter snaps (T04): segments and gaps land at once; the numbers keep ConsoleFlipValue's own snap. */
+    .cm-meter__segment,
+    .cm-meter__gap,
+    .cm-exp__chip { transition: none; }
 }
 
 /* ═══ Virtual keyboard (simple-keyboard, fully restyled premium) ═════
