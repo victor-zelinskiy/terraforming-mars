@@ -167,7 +167,7 @@ describe('SponsoredProjects', () => {
         expect(scaledAmount(SPONSORED_PROJECTS_RESOURCES, influence, 4)).eq(4);
         expect(scaledAmount(SPONSORED_PROJECTS_DRAW, influence)).eq(influence);
       }
-      expect(resolutionCountKind('cardsWithResources')).deep.eq({kind: 'holders'});
+      expect(resolutionCountKind('cardsWithResources')).deep.eq({kind: 'holders', measure: 'cards'});
       expect(declaredCountIds(REDUX_RESOLUTION_CATALOG)).includes('cardsWithResources');
       expect(familyOf(SPONSORED_PROJECTS)).eq('each-card');
     });
@@ -175,6 +175,7 @@ describe('SponsoredProjects', () => {
     it('the shared step refuses any other declaration — the step and its unit are one thing', () => {
       expect(() => eachCountedCardStep(SPONSORED_PROJECTS_ID, SPONSORED_PROJECTS_DRAW)).throws(/each-counted/);
       expect(() => eachCountedCardStep(SPONSORED_PROJECTS_ID, {...SPONSORED_PROJECTS_RESOURCES, count: {id: 'scienceTags', per: 1}})).throws(/HOLDERS/);
+      expect(() => eachCountedCardStep(SPONSORED_PROJECTS_ID, {...SPONSORED_PROJECTS_RESOURCES, count: {id: 'cardResourceTypes', per: 1}}), 'a count by KIND is not a list of destinations').throws(/measured by card/);
       expect(() => eachCountedCardStep(SPONSORED_PROJECTS_ID, {...SPONSORED_PROJECTS_RESOURCES, count: undefined})).throws();
     });
 

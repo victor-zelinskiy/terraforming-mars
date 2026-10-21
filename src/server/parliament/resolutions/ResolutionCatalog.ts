@@ -64,6 +64,7 @@ import {runResolutionAction} from './ResolutionAction';
 import {SCIENTISTS_BUDGET} from './scientists/ScientistsBudget';
 import {SKYSCRAPERS} from './marsFirst/Skyscrapers';
 import {SPONSORED_PROJECTS} from './scientists/SponsoredProjects';
+import {TAX_BREAKS} from './industrialists/TaxBreaks';
 import {TRADE_INDUSTRIES} from './unity/TradeIndustries';
 import {UNITY_BUDGET} from './unity/UnityBudget';
 import {URBAN_DEVELOPMENT} from './marsFirst/UrbanDevelopment';
@@ -578,6 +579,10 @@ export const REDUX_RESOLUTION_CATALOG = new ResolutionCatalog([
   // 1 resource of its own kind onto EVERY card that already holds one — a card-resource unit `onto: 'each-counted'`
   // over the seventh count kind (`holders`: the engine's `getCardsWithResources`), paid by ONE shared step.
   SPONSORED_PROJECTS,
+  // An ASSEMBLY and one word: Central Power Grid's payout (M€ production = count + influence, max 5) over Sponsored
+  // Projects' reading of the seat's cards — measured by KIND, not by card (`cardResourceTypes`: the holders count's
+  // `types` measure, the engine's Tradesman / Collector measure). Paid by the family's counted production step.
+  TAX_BREAKS,
   // The first action that COSTS something («pay 12 M€ to gain an extra trade fleet — titanium accepted, 2 M€ off per
   // influence»): the bill declared as data and priced by ONE function, PAY-THEN-GAIN through the family's paid funnel
   // (the use and the fleet wait in the bill's andThen); and the ninth quest kind — TRADES performed (decision Q-4).

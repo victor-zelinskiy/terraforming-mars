@@ -19,6 +19,7 @@ import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {CENTRAL_POWER_GRID_ID} from '../../src/server/parliament/resolutions/industrialists/CentralPowerGrid';
 import {COLONIZATION_FUNDING_ID} from '../../src/server/parliament/resolutions/unity/ColonizationFunding';
+import {TAX_BREAKS_ID} from '../../src/server/parliament/resolutions/industrialists/TaxBreaks';
 import {testAutomaGame} from '../automa/AutomaTestGame';
 import {TestPlayer} from '../TestPlayer';
 import {runAllActions} from '../TestingUtils';
@@ -278,7 +279,7 @@ describe('BotQuest — the chairman quest and MarsBot', () => {
       expect(failures).deep.eq([]);
     });
 
-    it('the UNREACHABLE quests of the dealt catalog (the worklist): the space city always; the special tiles unless the bot is Philares', () => {
+    it('the UNREACHABLE quests of the dealt catalog (the worklist): the space city and the mechs always; the special tiles unless the bot is Philares', () => {
       const unreachableOn = (specialTiles: boolean) => REDUX_RESOLUTION_CATALOG.all()
         .filter((d) => d.copies > 0 && !botQuestReachable(d.quest.goal, {...FULL_TABLE, specialTiles}))
         .map((d) => `${d.id}: ${JSON.stringify(d.quest.goal)}`)
@@ -287,8 +288,13 @@ describe('BotQuest — the chairman quest and MarsBot', () => {
         'RDX_MARS_DEVELOPMENT_CRAZE: {"kind":"tile","tile":"special"}',
         'RDX_MARS_URBAN_DEVELOPMENT: {"kind":"tile","tile":"special"}',
         `${COLONIZATION_FUNDING_ID}: {"kind":"tile","tile":"spaceCity"}`,
+        // Tax Breaks' «2 [mech]»: no storage area of the bot holds a mech (no colony tile prints one) — honestly unreachable.
+        `${TAX_BREAKS_ID}: {"kind":"cardResource","resource":"Mech"}`,
       ].sort());
-      expect(unreachableOn(true)).deep.eq([`${COLONIZATION_FUNDING_ID}: {"kind":"tile","tile":"spaceCity"}`]);
+      expect(unreachableOn(true)).deep.eq([
+        `${COLONIZATION_FUNDING_ID}: {"kind":"tile","tile":"spaceCity"}`,
+        `${TAX_BREAKS_ID}: {"kind":"cardResource","resource":"Mech"}`,
+      ].sort());
     });
 
     it('the table decides: a production the tracks lack, a card resource no area holds, a special tile without Philares', () => {

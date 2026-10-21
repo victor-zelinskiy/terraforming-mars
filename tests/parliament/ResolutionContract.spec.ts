@@ -647,8 +647,9 @@ function checkEachCounted(definition: ResolutionDefinition, run: Run): Array<str
     if (!paysEachCountedCard(effect)) {
       continue;
     }
-    if (effect.count === undefined || resolutionCountKind(effect.count.id).kind !== 'holders') {
-      failures.push(`${label(definition)}: часть '${effect.id}' платит каждой посчитанной карте, но её счёт — не счёт держателей`);
+    const kind = effect.count === undefined ? undefined : resolutionCountKind(effect.count.id);
+    if (effect.count === undefined || kind?.kind !== 'holders' || kind.measure !== 'cards') {
+      failures.push(`${label(definition)}: часть '${effect.id}' платит каждой посчитанной карте, но её счёт — не счёт держателей по картам`);
       continue;
     }
     if (!(definition.immediateSteps ?? []).some((step) => step.key === effect.id)) {

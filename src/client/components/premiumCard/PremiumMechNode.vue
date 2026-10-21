@@ -43,7 +43,7 @@
       <span v-if="partySeal.caption !== undefined" class="pcard-pseal__caption">{{ $t(partySeal.caption) }}</span>
     </span>
     <!-- a card that HOLDS resources (TR53) — the white card with its three cubes -->
-    <PremiumResourceCardGlyph v-else-if="isResourceCard" class="pcard-ic pcard-ic--resource-card" />
+    <PremiumResourceCardGlyph v-else-if="isResourceCard" class="pcard-ic pcard-ic--resource-card" :wild="resourceCardWild" />
     <!-- image icons -->
     <template v-else-if="iconUrl !== undefined">
       <span v-if="digitText !== undefined" class="pcard-mi__digit">{{ digitText }}</span>
@@ -310,6 +310,11 @@ export default defineComponent({
     },
     isResourceCard(): boolean {
       return this.mechIcon?.kind === 'resourceCard';
+    },
+    /** The holder carries the printed «?» — a KIND of resource (RX41), not its three cubes. */
+    resourceCardWild(): boolean {
+      const icon = this.mechIcon;
+      return icon?.kind === 'resourceCard' && icon.wild === true;
     },
     isMegacredits(): boolean {
       return this.itemNode?.type === CardRenderItemType.MEGACREDITS;

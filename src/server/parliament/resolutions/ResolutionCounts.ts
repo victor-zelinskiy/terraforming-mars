@@ -59,11 +59,13 @@
  * holds, how many, and what ONE more does to its victory points (the preview
  * family's `targetVictoryPoints`, the reading every card pick shows). The
  * payout pays exactly these cards; nothing here restates what «holds» means.
+ * The `types` measure (Tax Breaks' «each different type of card resource you
+ * have») weighs the SAME list by kind — Tradesman's and Collector's measure.
  */
 import {CardName} from '../../../common/cards/CardName';
 import {
   BoardCountedTile, BoardCountMeasure, cardCountUnits, countCardsToward, countColoniesToward, countMetricToward, countProductionToward,
-  ResolutionCountByCard, ResolutionCountId, ResolutionCountMetric, ResolutionCountModel, resolutionCountKind, RESOLUTION_COUNT_IDS, RESOLUTION_TAG_COUNTING_MODE,
+  holdersMeasured, ResolutionCountByCard, ResolutionCountId, ResolutionCountMetric, ResolutionCountModel, resolutionCountKind, RESOLUTION_COUNT_IDS, RESOLUTION_TAG_COUNTING_MODE,
 } from '../../../common/parliament/resolutionCounts';
 import {Resource} from '../../../common/Resource';
 import {tileGrantCountId} from '../../../common/parliament/tileGrant';
@@ -171,14 +173,19 @@ export function resolutionCount(player: IPlayer, id: ResolutionCountId): Resolut
 /**
  * THE ENGINE'S OWN LIST of the seat's cards that already hold a resource
  * (`Player.getCardsWithResources`, in play order) — the cards a holders count
- * counts and an `each-counted` payout pays, with the kind each holds, the
- * number on it and its points after ONE more. One function for the count,
- * the payout and every reading: a second walk would promise one set and pay
- * another.
+ * counts and an `each-counted` payout pays, with the kind each holds and the
+ * number on it. One function for the count, the payout and every reading: a
+ * second walk would promise one set and pay another. The MEASURE weighs the
+ * list (`holdersMeasured`): a card apiece, or a different KIND apiece — the
+ * engine's own Tradesman / Collector measure over the same cards. Only a card
+ * apiece is a DESTINATION (Sponsored Projects pays each one), so only that
+ * measure carries what ONE more does to each card's points.
  */
 export function holdersCount(player: IPlayer, id: ResolutionCountId): ResolutionCountModel {
+  const kind = resolutionCountKind(id);
+  const measure = kind.kind === 'holders' ? kind.measure : 'cards';
   const cards = player.getCardsWithResources();
-  const vp = targetVictoryPoints(player, cards, 1) ?? {};
+  const vp = measure === 'cards' ? targetVictoryPoints(player, cards, 1) ?? {} : {};
   const byCard: Array<ResolutionCountByCard> = [];
   for (const card of cards) {
     // `getCardsWithResources` keeps only cards with a storage rule — the guard below is the type's, never a filter.
@@ -188,7 +195,7 @@ export function holdersCount(player: IPlayer, id: ResolutionCountId): Resolution
     const points = vp[card.name];
     byCard.push({card: card.name, resource: card.resourceType, count: card.resourceCount, ...(points === undefined ? {} : {vp: {from: points.from, to: points.to}})});
   }
-  return {id, count: byCard.length, cards: byCard.map((entry) => entry.card), byCard};
+  return {id, count: holdersMeasured(measure, byCard), cards: byCard.map((entry) => entry.card), byCard};
 }
 
 /** What ONE card of `player`'s tableau contributes to `id` (0 = it does not count). */

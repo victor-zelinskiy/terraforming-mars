@@ -38,8 +38,8 @@ import {VoteSupportProjection} from '@/common/models/PlayerInputModel';
 import {ParliamentPartyVm, ParliamentSlotVm, PARTY_EFFECT_PLACES, voteAccessOf, VoteForecastVm} from './consoleParliamentModel';
 import {partyNameKey} from './partyNames';
 import {
-  countedHoldersVp, levelLossNoteOf, levelPresentation, levelYieldIsNone, noRecipientCompactNoteOf, oneNumberYieldsOf, PRODUCTION_HORIZON_KEY,
-  productionHorizonOn, ReadingPerson, voteLevyOf, voteYieldsOf, WinSuffix, winSuffixesOf,
+  countedHolderKinds, countedHoldersVp, levelLossNoteOf, levelPresentation, levelYieldIsNone, noRecipientCompactNoteOf, oneNumberYieldsOf,
+  PRODUCTION_HORIZON_KEY, productionHorizonOn, ReadingPerson, voteLevyOf, voteYieldsOf, WinSuffix, winSuffixesOf, yieldCountPresentation, yieldCountsKinds,
 } from './influenceYieldModel';
 import {LevyReading, levyShortNoteKey} from '@/common/parliament/resolutionLevy';
 import {ColonyTrackAdvance} from '@/common/parliament/colonyTrackAdvance';
@@ -166,7 +166,35 @@ export type VoteReadingVm = {
    * and for a seat with no holder (the count's own zero names it).
    */
   holders?: HoldersReading;
+  /**
+   * THE KINDS A COUNT BY KIND STANDS ON (Tax Breaks): each different kind of resource on the subject's cards with the
+   * cards that hold it — «[animal] Fish · Birds  [floater] Dirigibles» — the SERVER's count by card grouped by the ONE
+   * grouping; the number of rows is the count. Undefined for every other resolution, and for a seat holding nothing
+   * (the count's own zero names it).
+   */
+  kinds?: KindsReading;
 };
+
+/** One kind of a count by kind: «[animal] Fish · Birds» — the kind and the cards holding it, in play order. */
+export type KindRow = {resource: CardResource, cards: ReadonlyArray<CardName>};
+/** `totalKey` — the count's own plural noun («3 вида ресурсов»), the closing word of the line. */
+export type KindsReading = {rows: ReadonlyArray<KindRow>, totalKey: string};
+
+/**
+ * The kinds a reading's count BY KIND stands on — the server's `countedByCard` grouped by `holderKindsOf`, never a
+ * client search. A holder at 0 is not in the server's list, so it is not in a row either. Pure.
+ */
+export function kindsReadingOf(yields: ReadonlyArray<InfluenceYield>): KindsReading | undefined {
+  const y = yields.find((candidate) => yieldCountsKinds(candidate.effect) && (candidate.countedByCard?.length ?? 0) > 0);
+  const id = y?.effect.count?.id;
+  if (y === undefined || id === undefined) {
+    return undefined;
+  }
+  return {
+    rows: countedHolderKinds(y).map((kind) => ({resource: kind.resource, cards: kind.cards.map((entry) => entry.card)})),
+    totalKey: yieldCountPresentation(id).pluralKey,
+  };
+}
 
 /** One counted holder of a payout that asks nobody: «[kind] Fish 2 → 3». */
 export type HolderRow = {card: CardName, resource: CardResource, before: number, after: number};
@@ -393,6 +421,7 @@ export function voteReadingOf(
   const removal = resolution.tileRemoval;
   const uses = usesReadingOf(resolution, model, subject, rival !== undefined);
   const holders = holdersReadingOf(yields);
+  const kinds = kindsReadingOf(yields);
   return {
     ...seated,
     yields,
@@ -408,6 +437,7 @@ export function voteReadingOf(
     ...(removal === undefined ? {} : {removal}),
     ...(uses === undefined ? {} : {uses}),
     ...(holders === undefined ? {} : {holders}),
+    ...(kinds === undefined ? {} : {kinds}),
   };
 }
 
@@ -692,6 +722,14 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
   }
   if ((vm.reading.holders?.vp ?? 0) !== 0) {
     strings.push(text('VP'));
+  }
+  // THE KINDS' line (Tax Breaks): every holding card's name and the closing count — the kinds are icons.
+  const kinds = vm.reading.kinds;
+  for (const row of kinds?.rows ?? []) {
+    strings.push(...row.cards.map((card) => text(card)));
+  }
+  if (kinds !== undefined) {
+    strings.push(text(kinds.totalKey, [String(kinds.rows.length)]));
   }
   // THE COLONY LEDGER's words: the tiles' names (one each — the bonus, the multiplier and the total are
   // icons and numbers), the «no colonies» line, the sums' kicker.

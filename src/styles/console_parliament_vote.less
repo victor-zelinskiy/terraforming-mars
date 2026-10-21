@@ -364,6 +364,14 @@
     &__info-holder-name { opacity: .78; }
     &__info-holder-to { color: #8ff0c6; }
     &__info-holders-vp { color: #f2cf73; font-weight: 700; white-space: nowrap; }
+    /* THE KINDS A COUNT BY KIND STANDS ON (RX41): the count's own noun leads in the reading's voice, then the holders'
+       run grouped — each KIND an unbreakable unit (its icon, its cards quiet); a wrap starts on a kind's icon. */
+    &__info-kinds {
+        display: inline-flex; flex-wrap: wrap; align-items: center; gap: .2rem .8rem; max-width: 100%; min-width: 0;
+        font-family: @con-font-read; font-size: .74rem; letter-spacing: .02em;
+    }
+    &__info-kind { display: inline-flex; align-items: center; gap: .26rem; white-space: nowrap; }
+    &__info-kinds-total { color: #e9f6ff; font-weight: 700; white-space: nowrap; }
     &__info-uses-rule { opacity: .78; }
     &__info-uses-seat { font-weight: 700; color: #e9f6ff; }
     &__info-uses-win { color: #8ff0c6; font-weight: 600; }

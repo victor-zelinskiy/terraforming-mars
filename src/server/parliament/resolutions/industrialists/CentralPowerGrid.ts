@@ -63,9 +63,9 @@ import {Resource} from '../../../../common/Resource';
 import {Tag} from '../../../../common/cards/Tag';
 import {Size} from '../../../../common/cards/render/Size';
 import {ResolutionCode, ResolutionId} from '../../../../common/parliament/ParliamentTypes';
-import {InfluenceScaledEffect, scaledAmount, uncappedAmount} from '../../../../common/parliament/influenceScaling';
-import {EnactStep, ResolutionDefinition} from '../IResolution';
-import {resolutionCount} from '../ResolutionCounts';
+import {InfluenceScaledEffect} from '../../../../common/parliament/influenceScaling';
+import {ResolutionDefinition} from '../IResolution';
+import {productionCountStep, ProductionCountWords} from '../ResolutionProductionCount';
 
 export const CENTRAL_POWER_GRID_ID: ResolutionId = 'RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID';
 export const CENTRAL_POWER_GRID_CODE: ResolutionCode = 'RX04';
@@ -82,51 +82,18 @@ export const CENTRAL_POWER_GRID_PRODUCTION: InfluenceScaledEffect = {
   recipient: 'each',
 };
 
-const PRODUCTION_STEP: EnactStep = {
-  key: 'production',
-  run(ctx) {
-    const player = ctx.player;
-    const effect = CENTRAL_POWER_GRID_PRODUCTION;
-    // The canonical tag count in the enactment's own context, with the cards
-    // that made it — see `ResolutionCounts.ts`.
-    const counted = resolutionCount(player, 'powerTags');
-    const influence = ctx.influence;
-    const uncapped = uncappedAmount(effect, influence, counted.count);
-    const amount = scaledAmount(effect, influence, counted.count);
-    const recorded = {
-      effect: effect.id,
-      production: Resource.MEGACREDITS,
-      influence,
-      count: counted.count,
-      counted: [...counted.cards],
-      ...(counted.units === undefined ? {} : {countedUnits: [...counted.units]}),
-      uncapped,
-    };
-    if (amount <= 0) {
-      ctx.game.log('${0} has no power tag and no influence — no ${1} production from ${2}', (b) =>
-        b.player(player).resource(Resource.MEGACREDITS).resolution(CENTRAL_POWER_GRID_ID));
-      ctx.report({kind: 'skipped', ...recorded, amount: 0, reason: 'No power tags and no influence'});
-      return undefined;
-    }
-    const before = player.production.megacredits;
-    // The standard increase: its events, the party reactions and the
-    // recorder see it under this resolution's source. The ONE journal line
-    // below carries the whole calculation, so the add itself stays silent.
-    player.production.add(Resource.MEGACREDITS, amount, {log: false, from: {resolution: CENTRAL_POWER_GRID_ID}});
-    const after = player.production.megacredits;
-    if (uncapped > amount) {
-      ctx.game.log('${0} gained ${1} ${2} production from ${3}: ${4} power tag(s) + ${5} influence = ${6}, limited to the maximum of ${1} (${7} → ${8})', (b) =>
-        b.player(player).number(amount).resource(Resource.MEGACREDITS).resolution(CENTRAL_POWER_GRID_ID)
-          .number(counted.count).number(influence).number(uncapped).number(before).number(after));
-    } else {
-      ctx.game.log('${0} gained ${1} ${2} production from ${3}: ${4} power tag(s) + ${5} influence (${6} → ${7})', (b) =>
-        b.player(player).number(amount).resource(Resource.MEGACREDITS).resolution(CENTRAL_POWER_GRID_ID)
-          .number(counted.count).number(influence).number(before).number(after));
-    }
-    ctx.report({kind: 'production', ...recorded, amount, before, after});
-    return undefined;
-  },
+/** THE JOURNAL — the card's own sentence; the shared step supplies the numbers (`ProductionCountWords`). */
+const WORDS: ProductionCountWords = {
+  none: '${0} has no power tag and no influence — no ${1} production from ${2}',
+  reason: 'No power tags and no influence',
+  gained: '${0} gained ${1} ${2} production from ${3}: ${4} power tag(s) + ${5} influence (${6} → ${7})',
+  capped: '${0} gained ${1} ${2} production from ${3}: ${4} power tag(s) + ${5} influence = ${6}, limited to the maximum of ${1} (${7} → ${8})',
 };
+
+// THE STEP is the family's (`productionCountStep`): the canonical tag count in
+// the enactment's own context, with the cards that made it — see
+// `ResolutionCounts.ts` — paid through `production.add`, frozen in the record.
+const PRODUCTION_STEP = productionCountStep(CENTRAL_POWER_GRID_ID, CENTRAL_POWER_GRID_PRODUCTION, WORDS);
 
 export const CENTRAL_POWER_GRID: ResolutionDefinition = {
   id: CENTRAL_POWER_GRID_ID,

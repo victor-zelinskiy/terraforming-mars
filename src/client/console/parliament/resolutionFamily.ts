@@ -29,6 +29,10 @@ import {TileRemovalDeclaration} from '@/common/parliament/tileRemoval';
  *                   plain influence payout (Jovian Tax Rights: titanium = influence, +1 M€ production
  *                   per colony, max 5) — the instrument is the COLONY TABLE, and the scenarios are the
  *                   cube counts against the cap (none, one, several, at the cap, past it);
+ *   counted-holders — a COUNT over what the seat's cards HOLD + influence, paid as something else (Tax Breaks:
+ *                   +1 M€ production per different KIND of resource on your cards + influence, max 5) — the
+ *                   instrument is the seat's HOLDERS by kind (a holder at 0 holds none, two of one kind are one, a
+ *                   corporation among them), and the scenarios are those edges against the cap (count, influence);
  *   distributed   — a card-resource payout LAID OUT over the player's holders, 0..N per card
  *                   (Cloud Development: floaters by Venus + Jovian tags + influence) — the count
  *                   is a term of it, the SPREAD is what the player works with;
@@ -54,7 +58,7 @@ import {TileRemovalDeclaration} from '@/common/parliament/tileRemoval';
  *                   the rest of its declaration (a budget's `counted-tags`), and the city is one more row of it.
  */
 export const RESOLUTION_FAMILIES = [
-  'influence', 'counted', 'counted-tags', 'counted-board', 'counted-metric', 'counted-production', 'counted-colonies', 'distributed', 'each-card', 'winner-tile',
+  'influence', 'counted', 'counted-tags', 'counted-board', 'counted-metric', 'counted-production', 'counted-colonies', 'counted-holders', 'distributed', 'each-card', 'winner-tile',
   'sequel', 'colony-bonuses', 'world-move', 'level', 'tile-grant',
 ] as const;
 export type ResolutionFamily = typeof RESOLUTION_FAMILIES[number];
@@ -143,7 +147,9 @@ export function familyOf(facts: ResolutionFamilyFacts): ResolutionFamily {
     case 'threshold': return 'counted-metric';
     case 'production': return 'counted-production';
     case 'colonies': return 'counted-colonies';
-    case 'holders': return 'each-card';
+    // A holders count that pays something ELSE (an each-counted payout returned above): the cards are the count's
+    // instrument, not its destinations — Tax Breaks' kinds.
+    case 'holders': return 'counted-holders';
     case 'cards': return 'counted';
     }
   }

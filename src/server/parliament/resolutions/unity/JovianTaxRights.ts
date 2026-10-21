@@ -49,9 +49,9 @@ import {Resource} from '../../../../common/Resource';
 import {Tag} from '../../../../common/cards/Tag';
 import {Size} from '../../../../common/cards/render/Size';
 import {ResolutionCode, ResolutionId} from '../../../../common/parliament/ParliamentTypes';
-import {InfluenceScaledEffect, scaledAmount, uncappedAmount} from '../../../../common/parliament/influenceScaling';
+import {InfluenceScaledEffect, scaledAmount} from '../../../../common/parliament/influenceScaling';
 import {EnactStep, ResolutionDefinition} from '../IResolution';
-import {resolutionCount} from '../ResolutionCounts';
+import {productionCountStep, ProductionCountWords} from '../ResolutionProductionCount';
 
 export const JOVIAN_TAX_RIGHTS_ID: ResolutionId = 'RDX_UNITY_JOVIAN_TAX_RIGHTS';
 export const JOVIAN_TAX_RIGHTS_CODE: ResolutionCode = 'RX17';
@@ -104,53 +104,21 @@ const TITANIUM_STEP: EnactStep = {
   },
 };
 
-const PRODUCTION_STEP: EnactStep = {
-  key: 'production',
-  run(ctx) {
-    const player = ctx.player;
-    const effect = JOVIAN_TAX_RIGHTS_PRODUCTION;
-    // THE ENGINE's own list of the seat's colonies (one per cube), through the
-    // family's shared reader — with the LIST of tiles that explains it.
-    const counted = resolutionCount(player, 'colonies');
-    const influence = ctx.influence;
-    const uncapped = uncappedAmount(effect, influence, counted.count);
-    const amount = scaledAmount(effect, influence, counted.count);
-    const recorded = {
-      effect: effect.id,
-      production: Resource.MEGACREDITS,
-      influence,
-      count: counted.count,
-      counted: [...counted.cards],
-      countedColonies: [...(counted.colonies ?? [])],
-      uncapped,
-    };
-    if (amount <= 0) {
-      // Zero colonies — the rule working: named, nothing changes. (Influence
-      // is not an input here, so this skip never says «no influence».)
-      ctx.game.log('${0} has no colonies — no ${1} production from ${2}', (b) =>
-        b.player(player).resource(Resource.MEGACREDITS).resolution(JOVIAN_TAX_RIGHTS_ID));
-      ctx.report({kind: 'skipped', ...recorded, amount: 0, reason: NO_COLONIES});
-      return undefined;
-    }
-    const before = player.production.megacredits;
-    // The standard increase: its events, the party reactions and the
-    // recorder see it under this resolution's source. The ONE journal line
-    // below carries the whole calculation, so the add itself stays silent.
-    player.production.add(Resource.MEGACREDITS, amount, {log: false, from: {resolution: JOVIAN_TAX_RIGHTS_ID}});
-    const after = player.production.megacredits;
-    if (uncapped > amount) {
-      ctx.game.log('${0} gained ${1} ${2} production from ${3}: 1 per colony, ${4} colony(-ies) = ${5}, limited to the maximum of ${1} (${6} → ${7})', (b) =>
-        b.player(player).number(amount).resource(Resource.MEGACREDITS).resolution(JOVIAN_TAX_RIGHTS_ID)
-          .number(counted.count).number(uncapped).number(before).number(after));
-    } else {
-      ctx.game.log('${0} gained ${1} ${2} production from ${3}: 1 per colony, ${4} colony(-ies) (${5} → ${6})', (b) =>
-        b.player(player).number(amount).resource(Resource.MEGACREDITS).resolution(JOVIAN_TAX_RIGHTS_ID)
-          .number(counted.count).number(before).number(after));
-    }
-    ctx.report({kind: 'production', ...recorded, amount, before, after});
-    return undefined;
-  },
+/**
+ * THE PRODUCTION'S JOURNAL — the card's own sentence; the shared step supplies the numbers. Zero colonies is the
+ * rule working: named, nothing changes — and influence is not an input here, so neither the skip nor the payout
+ * ever names it (`productionCountStep` reads the part's rate of 0).
+ */
+const PRODUCTION_WORDS: ProductionCountWords = {
+  none: '${0} has no colonies — no ${1} production from ${2}',
+  reason: NO_COLONIES,
+  gained: '${0} gained ${1} ${2} production from ${3}: 1 per colony, ${4} colony(-ies) (${5} → ${6})',
+  capped: '${0} gained ${1} ${2} production from ${3}: 1 per colony, ${4} colony(-ies) = ${5}, limited to the maximum of ${1} (${6} → ${7})',
 };
+
+// THE ENGINE's own list of the seat's colonies (one per cube) through the family's shared reader, with the LIST of
+// tiles that explains it — paid by the family's counted production step.
+const PRODUCTION_STEP = productionCountStep(JOVIAN_TAX_RIGHTS_ID, JOVIAN_TAX_RIGHTS_PRODUCTION, PRODUCTION_WORDS);
 
 export const JOVIAN_TAX_RIGHTS: ResolutionDefinition = {
   id: JOVIAN_TAX_RIGHTS_ID,

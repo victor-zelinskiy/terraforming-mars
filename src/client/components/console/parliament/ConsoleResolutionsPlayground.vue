@@ -747,8 +747,8 @@ type PgWinner = SeatIndex | 'neutral';
  * icon vs. cards that print the tag vs. CELLS of the board) — or a supply
  * resource by influence + the WINNER's tile.
  */
-type PgFamily = 'influence' | 'counted' | 'counted-tags' | 'counted-board' | 'counted-metric' | 'counted-production' | 'counted-colonies' | 'distributed' |
-  'each-card' | 'winner-tile' | 'sequel' | 'colony-bonuses' | 'world-move' | 'level' | 'tile-grant';
+type PgFamily = 'influence' | 'counted' | 'counted-tags' | 'counted-board' | 'counted-metric' | 'counted-production' | 'counted-colonies' | 'counted-holders' |
+  'distributed' | 'each-card' | 'winner-tile' | 'sequel' | 'colony-bonuses' | 'world-move' | 'level' | 'tile-grant';
 /** The table's global parameters a winner tile reads (oxygen %, temperature °C, oceans placed). */
 type PgTable = {oxygen: number, temperature: number, oceans: number, venus: number};
 const DEFAULT_TABLE: PgTable = {oxygen: 5, temperature: -14, oceans: 3, venus: 10};
@@ -972,6 +972,22 @@ const EACH_THREE_KINDS: ReadonlyArray<{card: CardName, count: number}> = [
 const EACH_EIGHT: ReadonlyArray<{card: CardName, count: number}> = [
   {card: ARKLIGHT, count: 4}, {card: FISH, count: 2}, {card: PETS, count: 1}, {card: DIRIGIBLES, count: 1},
   {card: ATMO, count: 2}, {card: TARDIGRADES, count: 3}, {card: GHG, count: 1}, {card: SUPERCOMPUTER, count: 2},
+];
+/*
+ * THE COUNTED-HOLDERS FAMILY (Tax Breaks: +1 M€ production per different TYPE of resource on your cards + influence,
+ * max 5) — the SAME holders as the each-card family, measured by KIND: Fish and Birds are one type, a holder at 0 is
+ * none, a corporation holding animals is one. Six kinds for «the count alone passes the maximum».
+ */
+const CONSTRUCTION_MECHS = CardName.CONSTRUCTION_MECHS; // Turmoil Redux — holds MECHS
+const SECURITY_FLEET = CardName.SECURITY_FLEET; // holds FIGHTERS
+/** The prompt's table: Fish 2 + Birds 1 (animals — one type), Dirigibles 1 (floaters), Supercomputer 3 (data) → 3 types on 4 cards. */
+const KINDS_FOUR: ReadonlyArray<{card: CardName, count: number}> = [
+  {card: FISH, count: 2}, {card: BIRDS_CARD, count: 1}, {card: DIRIGIBLES, count: 1}, {card: SUPERCOMPUTER, count: 3},
+];
+/** Six types: animals, floaters, data, microbes, mechs, fighters — the count alone over the maximum. */
+const KINDS_SIX: ReadonlyArray<{card: CardName, count: number}> = [
+  {card: FISH, count: 1}, {card: DIRIGIBLES, count: 2}, {card: SUPERCOMPUTER, count: 1}, {card: TARDIGRADES, count: 3},
+  {card: CONSTRUCTION_MECHS, count: 1}, {card: SECURITY_FLEET, count: 1},
 ];
 
 const SCENARIOS: ReadonlyArray<PgScenario> = [
@@ -1568,6 +1584,45 @@ const SCENARIOS: ReadonlyArray<PgScenario> = [
     seats: [{agenda: 3, bonus: 0, holdings: EACH_THREE_KINDS}, {agenda: 1, bonus: 0, holdings: []}], winner: 1, context: 'applied', noRecipient: false, emptyDeck: true},
   {key: 'each-applied', family: 'each-card', label: 'Recorded result', viewer: 0,
     seats: [{agenda: 3, bonus: 0, holdings: EACH_THREE_KINDS}, {agenda: 1, bonus: 0, holdings: [{card: PETS, count: 1}]}], winner: 1, context: 'applied', noRecipient: false},
+  // ── TAX BREAKS (RX41): the counted-holders family — the seat's holders measured by KIND, + influence, max 5.
+  //    The instrument is what the seat's cards hold; the scenarios are the edges of «a type you have» and the cap. ──
+  // The reference reading: 3 types on 4 cards + influence 1 → +4 M€ production, below the maximum.
+  {key: 'kinds-three', family: 'counted-holders', label: 'Three types on four cards — Fish and Birds are one', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, holdings: KINDS_FOUR}, {agenda: 1, bonus: 0, holdings: [{card: PETS, count: 1}]}], winner: 1, context: 'proposal', noRecipient: false},
+  // The prompt's vote: 3 types + influence 3 = 6 → 5, Pets at 0 nowhere in the breakdown.
+  {key: 'kinds-vote', family: 'counted-holders', label: 'The vote — 3 types + influence 3 = 6, max 5', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, holdings: [...KINDS_FOUR, {card: PETS, count: 0}]}, {agenda: 1, bonus: 0, holdings: [{card: DIRIGIBLES, count: 2}]}],
+    winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'kinds-none', family: 'counted-holders', label: 'No resource on any card and no influence — named and skipped', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, holdings: [{card: BIRDS_CARD, count: 0}, {card: MINE, count: 0}]}, {agenda: 1, bonus: 0, holdings: [{card: FISH, count: 1}]}],
+    winner: 1, context: 'resolving', noRecipient: false},
+  {key: 'kinds-empty-holder', family: 'counted-holders', label: 'A holder at 0 adds no type', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, holdings: [{card: FISH, count: 2}, {card: DIRIGIBLES, count: 0}]}, {agenda: 1, bonus: 0, holdings: []}],
+    winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'kinds-one-type', family: 'counted-holders', label: 'Three animal cards are one type', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, holdings: [{card: FISH, count: 2}, {card: BIRDS_CARD, count: 1}, {card: PETS, count: 3}]}, {agenda: 1, bonus: 0, holdings: []}],
+    winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'kinds-corporation', family: 'counted-holders', label: 'A corporation holding resources is a type too', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, holdings: [{card: ARKLIGHT, count: 4}, {card: DIRIGIBLES, count: 1}]}, {agenda: 1, bonus: 0, holdings: []}],
+    winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'kinds-exact-cap', family: 'counted-holders', label: 'Exactly +5', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, holdings: KINDS_FOUR}, {agenda: 1, bonus: 0, holdings: []}], winner: 1, context: 'proposal', noRecipient: false},
+  {key: 'kinds-cap-by-count', family: 'counted-holders', label: 'Six types — the count alone passes the maximum', viewer: 0,
+    seats: [{agenda: 0, bonus: 0, holdings: KINDS_SIX}, {agenda: 1, bonus: 0, holdings: []}], winner: 1, context: 'resolving', noRecipient: false},
+  {key: 'kinds-cap-by-influence', family: 'counted-holders', label: 'One type and influence 5 — the influence passes the maximum', viewer: 0,
+    seats: [{agenda: 12, bonus: 0, holdings: [{card: FISH, count: 1}]}, {agenda: 1, bonus: 0, holdings: []}], winner: 1, context: 'resolving', noRecipient: false},
+  {key: 'kinds-seats', family: 'counted-holders', label: 'Every player gets their own result', viewer: 0,
+    seats: [{agenda: 1, bonus: 0, holdings: KINDS_FOUR}, {agenda: 3, bonus: 0, holdings: [{card: TARDIGRADES, count: 2}, {card: ATMO, count: 1}]}],
+    winner: 0, context: 'applied', noRecipient: false},
+  {key: 'kinds-applied', family: 'counted-holders', label: 'Recorded result', viewer: 0,
+    seats: [{agenda: 5, bonus: 0, holdings: KINDS_FOUR}, {agenda: 0, bonus: 0, holdings: []}], winner: 1, context: 'applied', noRecipient: false},
+  {key: 'kinds-spectator', family: 'counted-holders', label: 'Spectator — the formula alone', viewer: SPECTATOR,
+    seats: [{agenda: 3, bonus: 0, holdings: KINDS_FOUR}, {agenda: 1, bonus: 0, holdings: []}], winner: 0, context: 'proposal', noRecipient: false},
+  {key: 'kinds-quest-0', family: 'counted-holders', label: 'Chairman quest 0/2', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, holdings: KINDS_FOUR}, {agenda: 1, bonus: 0, holdings: []}], winner: 0, context: 'applied', noRecipient: false, quest: {progress: [0, 0]}},
+  {key: 'kinds-quest-done', family: 'counted-holders', label: 'Chairman quest completed', viewer: 0,
+    seats: [{agenda: 3, bonus: 0, holdings: KINDS_FOUR}, {agenda: 1, bonus: 0, holdings: []}], winner: 0, context: 'applied', noRecipient: false,
+    quest: {progress: [2, 1], completedBy: 0}},
   /*
    * THE COLONY-BONUSES FAMILY (Colonial Affairs): each seat holds SYNTHETIC CUBES on real tiles of the
    * colony manifest — the server's registry shape — and the ledger multiplies them: a supply tile (Luna),
@@ -1845,6 +1900,7 @@ const DEFAULT_SCENARIO_OF: Readonly<Record<PgFamily, number>> = {
   'counted-metric': SCENARIOS.findIndex((s) => s.key === 'generous-one-set'),
   'counted-production': SCENARIOS.findIndex((s) => s.key === 'budget-net'),
   'counted-colonies': SCENARIOS.findIndex((s) => s.key === 'jovian-four'),
+  'counted-holders': SCENARIOS.findIndex((s) => s.key === 'kinds-three'),
   'distributed': SCENARIOS.findIndex((s) => s.key === 'cloud-layout'),
   'each-card': SCENARIOS.findIndex((s) => s.key === 'each-three-kinds'),
   'winner-tile': SCENARIOS.findIndex((s) => s.key === 'tile-influence-3'),
@@ -2146,6 +2202,7 @@ export default defineComponent({
       case 'counted-colonies': return 'Result by influence and by colonies';
       case 'distributed': return 'Result by tags and influence, laid out over your holders';
       case 'each-card': return 'Result by your cards that already hold a resource';
+      case 'counted-holders': return 'Result by the types of resource on your cards and influence';
       case 'sequel': return 'Result by influence, then by production';
       case 'level': return this.levelDirection === 'down' ? 'Result by influence, cut to a limit' : 'Result by influence, up to a hand size';
       case 'colony-bonuses': return 'Result by influence, over your colony bonuses';
@@ -2747,7 +2804,7 @@ export default defineComponent({
             const common = {
               player: TEST_PLAYERS[i].color, step: effect.id, part: 'effect' as const, effect: effect.id, production: resource, amount: payout.amount, influence: payout.influence,
               count: payout.count?.count, counted: payout.count?.cards, countedUnits: payout.count?.units, countedSpaces: payout.count?.spaces,
-              countedTiers: payout.count?.tiers, countedMetric: payout.count?.metric, uncapped: payout.uncapped,
+              countedTiers: payout.count?.tiers, countedMetric: payout.count?.metric, countedByCard: payout.count?.byCard, uncapped: payout.uncapped,
             };
             out.push(payout.skipped === undefined ?
               {...common, kind: 'production', before, after: before + payout.amount} :

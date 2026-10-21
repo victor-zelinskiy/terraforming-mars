@@ -47,9 +47,9 @@ import {Resource} from '../../../../common/Resource';
 import {Tag} from '../../../../common/cards/Tag';
 import {Size} from '../../../../common/cards/render/Size';
 import {ResolutionCode, ResolutionId} from '../../../../common/parliament/ParliamentTypes';
-import {InfluenceScaledEffect, scaledAmount, uncappedAmount} from '../../../../common/parliament/influenceScaling';
-import {EnactStep, ResolutionDefinition} from '../IResolution';
-import {resolutionCount} from '../ResolutionCounts';
+import {InfluenceScaledEffect} from '../../../../common/parliament/influenceScaling';
+import {ResolutionDefinition} from '../IResolution';
+import {productionCountStep, ProductionCountWords} from '../ResolutionProductionCount';
 
 export const ARCHITECTURE_AWARD_ID: ResolutionId = 'RDX_MARS_ARCHITECTURE_AWARD';
 export const ARCHITECTURE_AWARD_CODE: ResolutionCode = 'RX02';
@@ -66,48 +66,17 @@ export const ARCHITECTURE_AWARD_PRODUCTION: InfluenceScaledEffect = {
   recipient: 'each',
 };
 
-const PRODUCTION_STEP: EnactStep = {
-  key: 'production',
-  run(ctx) {
-    const player = ctx.player;
-    const effect = ARCHITECTURE_AWARD_PRODUCTION;
-    const counted = resolutionCount(player, 'buildingCardsWithNonNegativeVp');
-    const influence = ctx.influence;
-    const uncapped = uncappedAmount(effect, influence, counted.count);
-    const amount = scaledAmount(effect, influence, counted.count);
-    const recorded = {
-      effect: effect.id,
-      production: Resource.MEGACREDITS,
-      influence,
-      count: counted.count,
-      counted: [...counted.cards],
-      uncapped,
-    };
-    if (amount <= 0) {
-      ctx.game.log('${0} has no Building card with a non-negative VP icon and no influence — no ${1} production from ${2}', (b) =>
-        b.player(player).resource(Resource.MEGACREDITS).resolution(ARCHITECTURE_AWARD_ID));
-      ctx.report({kind: 'skipped', ...recorded, amount: 0, reason: 'No qualifying cards and no influence'});
-      return undefined;
-    }
-    const before = player.production.megacredits;
-    // The standard increase: its events, the party reactions and the
-    // recorder see it under this resolution's source. The ONE journal line
-    // below carries the whole calculation, so the add itself stays silent.
-    player.production.add(Resource.MEGACREDITS, amount, {log: false, from: {resolution: ARCHITECTURE_AWARD_ID}});
-    const after = player.production.megacredits;
-    if (uncapped > amount) {
-      ctx.game.log('${0} gained ${1} ${2} production from ${3}: ${4} Building card(s) with a non-negative VP icon + ${5} influence = ${6}, limited to the maximum of ${1} (${7} → ${8})', (b) =>
-        b.player(player).number(amount).resource(Resource.MEGACREDITS).resolution(ARCHITECTURE_AWARD_ID)
-          .number(counted.count).number(influence).number(uncapped).number(before).number(after));
-    } else {
-      ctx.game.log('${0} gained ${1} ${2} production from ${3}: ${4} Building card(s) with a non-negative VP icon + ${5} influence (${6} → ${7})', (b) =>
-        b.player(player).number(amount).resource(Resource.MEGACREDITS).resolution(ARCHITECTURE_AWARD_ID)
-          .number(counted.count).number(influence).number(before).number(after));
-    }
-    ctx.report({kind: 'production', ...recorded, amount, before, after});
-    return undefined;
-  },
+/** THE JOURNAL — the card's own sentence; the shared step supplies the numbers (`ProductionCountWords`). */
+const WORDS: ProductionCountWords = {
+  none: '${0} has no Building card with a non-negative VP icon and no influence — no ${1} production from ${2}',
+  reason: 'No qualifying cards and no influence',
+  gained: '${0} gained ${1} ${2} production from ${3}: ${4} Building card(s) with a non-negative VP icon + ${5} influence (${6} → ${7})',
+  capped: '${0} gained ${1} ${2} production from ${3}: ${4} Building card(s) with a non-negative VP icon + ${5} influence = ${6}, limited to the maximum of ${1} (${7} → ${8})',
 };
+
+// THE STEP is the family's (`productionCountStep`): the shared card count, the
+// cap on the increase, `production.add` under the law, the record frozen.
+const PRODUCTION_STEP = productionCountStep(ARCHITECTURE_AWARD_ID, ARCHITECTURE_AWARD_PRODUCTION, WORDS);
 
 export const ARCHITECTURE_AWARD: ResolutionDefinition = {
   id: ARCHITECTURE_AWARD_ID,

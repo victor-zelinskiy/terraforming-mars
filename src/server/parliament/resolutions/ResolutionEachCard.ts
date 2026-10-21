@@ -70,8 +70,11 @@ function isCountModel(value: unknown): value is ResolutionCountModel {
  */
 export function eachCountedCardStep(resolution: ResolutionId, effect: InfluenceScaledEffect): EnactStep {
   const count = effect.count;
-  if (!paysEachCountedCard(effect) || count === undefined || resolutionCountKind(count.id).kind !== 'holders') {
-    throw new Error(`${resolution}: the each-counted step pays a card-resource unit onto every card of a HOLDERS count (effect '${effect.id}')`);
+  // A HOLDER APIECE (`cards`): every counted card is a destination. A count by KIND (`types`, Tax Breaks) names
+  // fewer units than it has cards — paying it here would land on every card and record a smaller amount.
+  const kind = count === undefined ? undefined : resolutionCountKind(count.id);
+  if (!paysEachCountedCard(effect) || count === undefined || kind?.kind !== 'holders' || kind.measure !== 'cards') {
+    throw new Error(`${resolution}: the each-counted step pays a card-resource unit onto every card of a HOLDERS count measured by card (effect '${effect.id}')`);
   }
   return {
     key: effect.id,

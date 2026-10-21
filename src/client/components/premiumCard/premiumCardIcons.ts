@@ -57,8 +57,11 @@ export type MechIconSpec =
    * under the pair («Ruling»).
    */
   | {kind: 'partySeal', party: PartyName, url: string, stacked?: true, caption?: string}
-  /** A card that HOLDS resources (Turmoil Redux TR53) — `PremiumResourceCardGlyph`. */
-  | {kind: 'resourceCard'}
+  /**
+   * A card that HOLDS resources (Turmoil Redux TR53) — `PremiumResourceCardGlyph`; `wild` — the holder carries the
+   * WILD «?» instead of its cubes (RX41 Tax Breaks: «a KIND of resource on your cards», the item's secondary mark).
+   */
+  | {kind: 'resourceCard', wild?: true}
   | {kind: 'glyph', glyph: string};
 
 const RES = 'assets/resources';
@@ -161,8 +164,10 @@ export type CountedObjectGlyph =
    * a resource» — Sponsored Projects): the white card with its three cubes the
    * face prints for `b.resourceCard()` (TR53's holder) — what is counted is the
    * card BY WHAT IT HOLDS, so neither a tag nor a bare cover states the rule.
+   * `wild` — the same holder with ONE printed «?» (Tax Breaks: «each different
+   * KIND of resource on your cards»): the face's own drawing of that count.
    */
-  | {kind: 'resource-card'};
+  | {kind: 'resource-card', wild?: true};
 
 /**
  * THE COVER a card glyph is drawn on, and the BAND modifier its TYPE wears —
@@ -637,7 +642,9 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
   }
   case CardRenderItemType.RESOURCE_CARD:
     // «A card that already holds a resource» (TR53): the white card with the three cubes — the HOLDER, never a cube.
-    return {kind: 'resourceCard'};
+    // Its WILD mark (RX41) puts the printed «?» on the holder: «a KIND of resource» — the mark rides the face, never
+    // a corner bubble (`secondaryBubbleOf` has no entry for it).
+    return item.secondaryTag === AltSecondaryTag.WILD_RESOURCE ? {kind: 'resourceCard', wild: true} : {kind: 'resourceCard'};
   case CardRenderItemType.PARTY_SEAL: {
     // ONE NAMED PARTY (TR62): its emblem — the same table the requirement plate and the hand's counter draw by.
     const party = item.party;

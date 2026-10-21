@@ -45,9 +45,9 @@ import {tileRemovalReadingOf, tileRemovalSentenceOf} from './tileRemovalModel';
 import {colonyTrackReadingOf, colonyTrackTileSentenceOf} from './colonyTrackModel';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {
-  CountedCellEntry, countedCellEntries, countedCellLabel, countedColonyNames, countedContributions, countedHolderChanges, countedHoldersVp, countedMetricParts,
-  countedProductionParts, levelPresentation,
-  yieldCountPresentation,
+  CountedCellEntry, countedCellEntries, countedCellLabel, countedColonyNames, countedContributions, countedHolderChanges, countedHolderKinds, countedHoldersVp,
+  countedMetricParts, countedProductionParts, levelPresentation,
+  yieldCountPresentation, yieldCountsKinds,
 } from './influenceYieldModel';
 import {WinnerRewardReading, winnerRewardRuleKey, winnerRewardSentenceOf} from './winnerRewardModel';
 import {TileGrantReading, tileGrantRuleKey, tileGrantSentenceOf} from './tileGrantModel';
@@ -413,6 +413,17 @@ export function resolutionAnnotations(
       forYou.push({text: key, params: [parts.join(' · ')]});
     } else if ((counted.count ?? 0) === 0) {
       forYou.push({text: applied ? 'No tile was counted at the enactment' : 'No tile counts right now'});
+    }
+  } else if (counted !== undefined && counted.countedByCard !== undefined && yieldCountsKinds(counted.effect)) {
+    // A count by KIND (Tax Breaks): each different kind with the cards that hold it («Животное: Рыба, Птицы ·
+    // Аэростат: Дирижабли») — the ONE grouping over the server's own cards; nothing lands on them, so no «2 → 3».
+    const applied = counted.context === 'applied';
+    const kinds = countedHolderKinds(counted);
+    if (kinds.length > 0) {
+      const text = kinds.map((kind) => `${translateText(kind.resource)} — ${kind.cards.map((entry) => translateText(entry.card)).join(', ')}`).join(' · ');
+      forYou.push({text: applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}', params: [text]});
+    } else {
+      forYou.push({text: applied ? 'No card had a resource at the enactment' : 'No card of yours has a resource yet'});
     }
   } else if (counted?.countedByCard !== undefined) {
     // A HOLDERS count (Sponsored Projects): every card that already holds a resource, with what the payout makes of it

@@ -82,7 +82,16 @@
  *     keeps every counted card WITH the kind it holds and how many
  *     (`ResolutionCountModel.byCard`), so «Fish 2 → 3» explains itself. The
  *     stand restates the engine's predicate for its synthetic cards
- *     (`countHoldersToward`), pinned to the engine by spec.
+ *     (`countHoldersToward`), pinned to the engine by spec. A holders count is
+ *     of ONE OF TWO MEASURES, and the declaration says which
+ *     (`HolderCountMeasure`) — the board count's lesson (RX21): `cards` — a
+ *     holder is one unit (Sponsored Projects: every card that has one
+ *     receives one); `types` — the DIFFERENT KINDS among the holders are
+ *     counted (Tax Breaks: «for each different type of card resource you
+ *     have» — Fish and Birds are ONE kind), the engine's own measure for
+ *     Tradesman, Collector and the resource-type requirement. Same cards,
+ *     same `byCard`, a different number — and the grouping that explains it
+ *     is ONE function (`holderKindsOf`).
  *
  * WHAT A CARD IS, for a count: its name, type, printed tags and VP
  * declaration — the facts `ICard` and `ClientCard` share. Played-event tags
@@ -224,6 +233,16 @@ export const RESOLUTION_COUNT_IDS = [
    * has»), and another seat's cards never are. The seventh kind (`holders`).
    */
   'cardsWithResources',
+  /**
+   * Tax Breaks: the DIFFERENT KINDS of card resource on the player's cards in
+   * play — the SAME cards as `cardsWithResources` (a storage rule and at least
+   * one resource on it, a corporation included), measured by KIND: Fish 2 and
+   * Birds 1 are ONE kind (animals), Dirigibles a second, Supercomputer a third.
+   * The engine's own measure for Tradesman, Collector and the resource-type
+   * requirement (`new Set(getCardsWithResources().map(resourceType)).size`).
+   * A holder at 0 holds no kind yet. The holders kind, measure `types`.
+   */
+  'cardResourceTypes',
 ] as const;
 export type ResolutionCountId = typeof RESOLUTION_COUNT_IDS[number];
 
@@ -277,6 +296,20 @@ export type BoardCountedTile = 'spaceCity' | 'marsCity';
 export type BoardCountMeasure = 'cells' | 'tiers';
 
 /**
+ * WHAT ONE HOLDER WEIGHS in a holders count — the word that tells the two
+ * counts over the seat's cards with a resource apart (the twin of
+ * `BoardCountMeasure`):
+ *   · `cards` — a holder is ONE unit (Sponsored Projects' `cardsWithResources`:
+ *     every card that has a resource is a destination of its payout);
+ *   · `types` — the DIFFERENT KINDS among the holders are counted (Tax Breaks'
+ *     `cardResourceTypes`): two animal cards are one kind. The number is
+ *     `holderKindsOf(byCard).length`, never the list's length.
+ * With one holder per kind the two agree — which is exactly why the
+ * declaration says which one it is, and the specs pin the divergence.
+ */
+export type HolderCountMeasure = 'cards' | 'types';
+
+/**
  * WHICH player METRIC a THRESHOLD count reads: `terraformRating` — the
  * player's TR as the engine keeps it (`player.terraformRating`). The family's
  * next word (the Budgets' «steps of production») is one entry here and one
@@ -302,9 +335,10 @@ export type ResolutionCountMetric = 'terraformRating';
  * unit per step, each resource's own total kept for the reading. `colonies`
  * — the player's CUBES on the colony tiles (Jovian Tax Rights's «each colony
  * you have»): one unit per cube, the tiles' names kept for the reading.
- * `holders` — the player's cards that ALREADY HOLD a resource (Sponsored
- * Projects): one unit per card, the kind and the number each holds kept for
- * the reading (`byCard`).
+ * `holders` — the player's cards that ALREADY HOLD a resource, weighed by the
+ * declared MEASURE: one unit per card (Sponsored Projects) or one per
+ * different kind among them (Tax Breaks); the kind and the number each card
+ * holds kept for the reading (`byCard`) either way.
  */
 export type ResolutionCountKind =
   | {kind: 'cards'}
@@ -313,7 +347,7 @@ export type ResolutionCountKind =
   | {kind: 'threshold', metric: ResolutionCountMetric, over: number, step: number}
   | {kind: 'production', resources: ReadonlyArray<Resource>}
   | {kind: 'colonies'}
-  | {kind: 'holders'};
+  | {kind: 'holders', measure: HolderCountMeasure};
 
 /** Generous Funding's printed «5 TR over 15» — the threshold and the set. */
 export const TERRAFORM_RATING_SETS_OVER = 15;
@@ -347,7 +381,10 @@ export function resolutionCountKind(id: ResolutionCountId): ResolutionCountKind 
   // exactly as Architecture Award's is; only the question differs.
   case 'blueCards': return {kind: 'cards'};
   // A count by what the card HOLDS — not by its tags, its type or its VP: the engine's own reading of the tableau.
-  case 'cardsWithResources': return {kind: 'holders'};
+  // THE TWO COUNTS OVER THE SAME CARDS, told apart by the measure and nothing else (the board counts' lesson): a
+  // holder apiece (every one receives) and a KIND apiece (Fish and Birds are one).
+  case 'cardsWithResources': return {kind: 'holders', measure: 'cards'};
+  case 'cardResourceTypes': return {kind: 'holders', measure: 'types'};
   }
 }
 
@@ -425,6 +462,35 @@ export type ResolutionCountByResource = {resource: Resource; count: number};
  */
 export type ResolutionCountByCard = {card: CardName; resource: CardResource; count: number; vp?: {from: number; to: number}};
 
+/** ONE KIND of a holders count of the `types` measure («[animal] Fish 2 · Birds 1») — the kind and the cards that hold it, in play order. */
+export type ResolutionCountByKind = {resource: CardResource; cards: ReadonlyArray<{card: CardName; count: number}>};
+
+/**
+ * THE ONE GROUPING of a holders count by KIND — the number of a `types` count
+ * (its length) and the breakdown that explains it, for the server's payout,
+ * the record, the model and every reading alike. Kinds stand in the order
+ * their first holder is in play; a card a kind's later holder joins it there
+ * («Fish 2 · Birds 1» under one animal). Nothing else groups holders: a second
+ * grouping would count three kinds and explain two.
+ */
+export function holderKindsOf(byCard: ReadonlyArray<Pick<ResolutionCountByCard, 'card' | 'resource' | 'count'>>): Array<ResolutionCountByKind> {
+  const out: Array<{resource: CardResource; cards: Array<{card: CardName; count: number}>}> = [];
+  for (const entry of byCard) {
+    let kind = out.find((k) => k.resource === entry.resource);
+    if (kind === undefined) {
+      kind = {resource: entry.resource, cards: []};
+      out.push(kind);
+    }
+    kind.cards.push({card: entry.card, count: entry.count});
+  }
+  return out;
+}
+
+/** The NUMBER a holders count of `measure` comes to over its counted cards — a card apiece, or a kind apiece. */
+export function holdersMeasured(measure: HolderCountMeasure, byCard: ReadonlyArray<Pick<ResolutionCountByCard, 'card' | 'resource' | 'count'>>): number {
+  return measure === 'types' ? holderKindsOf(byCard).length : byCard.length;
+}
+
 /**
  * The card facts a HOLDERS count reads — what the server's `ICard` and the
  * stand's synthetic holder share: its name, its storage rule (absent = it
@@ -451,12 +517,14 @@ export function holderCountVerdict(card: HeldCardFacts): CardCountVerdict {
 
 /**
  * Count `cards` (the owner's cards in play, in play order) toward a HOLDERS
- * count `id` — the stand's reading of synthetic holders: one unit per card
- * that holds a resource, each with its kind and number. A non-holders id
- * counts nothing this way (a zero, never a guess).
+ * count `id` — the stand's reading of synthetic holders: every card that
+ * holds a resource, each with its kind and number, weighed by the id's
+ * MEASURE (a card apiece, or a different kind apiece — `holdersMeasured`). A
+ * non-holders id counts nothing this way (a zero, never a guess).
  */
 export function countHoldersToward(id: ResolutionCountId, cards: Iterable<HeldCardFacts>): ResolutionCountModel {
-  if (resolutionCountKind(id).kind !== 'holders') {
+  const kind = resolutionCountKind(id);
+  if (kind.kind !== 'holders') {
     return {id, count: 0, cards: []};
   }
   const counted: Array<CardName> = [];
@@ -467,7 +535,7 @@ export function countHoldersToward(id: ResolutionCountId, cards: Iterable<HeldCa
       byCard.push({card: card.name, resource: card.resourceType, count: card.resourceCount});
     }
   }
-  return {id, count: counted.length, cards: counted, byCard};
+  return {id, count: holdersMeasured(kind.measure, byCard), cards: counted, byCard};
 }
 
 /**
@@ -829,6 +897,7 @@ export function cardCountVerdict(id: ResolutionCountId, card: CountedCardFacts, 
     // corporation, a prelude, a CEO and a green card fail here by type alone.
     return card.type === CardType.ACTIVE ? {counts: true} : {counts: false, reason: 'Not a blue card'};
   case 'cardsWithResources':
+  case 'cardResourceTypes':
     // A HOLDERS count: the question is what the card HOLDS (`holderCountVerdict`), which these facts do not carry.
     return {counts: false, reason: 'Counted by the resources on your cards'};
   }

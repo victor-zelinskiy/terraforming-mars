@@ -26,8 +26,8 @@ import {
 } from '@/common/parliament/influenceScaling';
 import {AGENDA_TRACK, influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import {
-  countMetricToward, countOf, INDUSTRIAL_PRODUCTION_RESOURCES, ResolutionCountByResource, ResolutionCountId, ResolutionCountMetric,
-  ResolutionCountMetricModel,
+  countMetricToward, countOf, holderKindsOf, INDUSTRIAL_PRODUCTION_RESOURCES, ResolutionCountByKind, ResolutionCountByResource, ResolutionCountId,
+  resolutionCountKind, ResolutionCountMetric, ResolutionCountMetricModel,
 } from '@/common/parliament/resolutionCounts';
 import {LEVY_STEP_KEY, levyEstimate, levyNetEffectOf, levyRecorded, LevyReading, ResolutionLevy} from '@/common/parliament/resolutionLevy';
 import {Tag} from '@/common/cards/Tag';
@@ -329,6 +329,16 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
       ruleKey: 'Each of your cards that already holds a resource counts once, your corporation included. A card that can hold resources but has none yet does not count.',
       skipReasonKey: 'No card of yours has a resource yet',
     };
+  case 'cardResourceTypes':
+    // The SAME holders measured by KIND (Tax Breaks): the holder glyph carrying the face's one printed «?»
+    // (`wild.png`) instead of its three cubes — three cubes count the cards, one «?» counts the kinds. The rule says
+    // out loud the edges a player asks about: two cards of one kind are one, an empty holder is none, the corporation counts.
+    return {
+      glyph: {kind: 'resource-card', wild: true},
+      pluralKey: '${0} resource type(s)',
+      ruleKey: 'Each different type of resource on your cards counts once, your corporation included: two animal cards are one type. A card that can hold resources but has none yet adds no type.',
+      skipReasonKey: 'No resources on your cards and no influence',
+    };
   case 'blueCards':
     // A count by the card's TYPE — the card cover wearing its BLUE band, the
     // very glyph the face prints and the chairman quest repeats. The rule
@@ -400,6 +410,28 @@ export function countedCellLabel(entry: CountedCellEntry & {name: string}): stri
 export function countedHolderChanges(y: Pick<InfluenceYield, 'countedByCard' | 'effect'>, nameOf: (card: CardName) => string): Array<string> {
   const per = y.effect.count?.per ?? 1;
   return (y.countedByCard ?? []).map((entry) => `${nameOf(entry.card)} ${entry.count} → ${entry.count + per}`);
+}
+
+/**
+ * The part's count weighs the seat's holders by KIND (Tax Breaks — the holders count's `types` measure): its reading
+ * groups the cards under their kinds and never prints RX40's «Fish 2 → 3» (nothing lands on them).
+ */
+export function yieldCountsKinds(effect: InfluenceScaledEffect): boolean {
+  const id = effect.count?.id;
+  if (id === undefined) {
+    return false;
+  }
+  const kind = resolutionCountKind(id);
+  return kind.kind === 'holders' && kind.measure === 'types';
+}
+
+/**
+ * The counted holders of a count by KIND, grouped kind by kind with the cards that hold it («[animal] Fish · Birds»,
+ * «[floater] Dirigibles») — the ONE grouping (`holderKindsOf`) over the record's / the model's own cards, so the
+ * number of groups IS the count. Empty for any other count.
+ */
+export function countedHolderKinds(y: Pick<InfluenceYield, 'countedByCard' | 'effect'>): Array<ResolutionCountByKind> {
+  return yieldCountsKinds(y.effect) ? holderKindsOf(y.countedByCard ?? []) : [];
 }
 
 /**

@@ -125,6 +125,19 @@
                       </span>
                       <b v-if="voteInfo.reading.holders.vp !== 0" class="con-parl__info-holders-vp" data-parl-vote-holders-points>{{ $t('VP') }} {{ signed(voteInfo.reading.holders.vp) }}</b>
                     </span>
+                    <!-- THE KINDS A COUNT BY KIND STANDS ON (Tax Breaks RX41): the count's own noun LEADS («3 вида
+                         ресурсов»), then each kind's icon with the cards that hold it — the server's count by card
+                         grouped by the one grouping (`holderKindsOf`). Every group is ONE unbreakable unit, so a wrapped
+                         line always starts with a KIND's icon — never with a separator or a stray «= N»; a holder at 0 is
+                         not in the server's list, so it is not here either. -->
+                    <span v-if="voteInfo.reading.kinds !== undefined" class="con-parl__info-kinds" data-parl-vote-kinds
+                          :data-parl-vote-kinds-count="voteInfo.reading.kinds.rows.length">
+                      <b class="con-parl__info-kinds-total" data-parl-vote-kinds-total>{{ kindsTotalText(voteInfo.reading.kinds.totalKey, voteInfo.reading.kinds.rows.length) }}</b>
+                      <span v-for="row in voteInfo.reading.kinds.rows" :key="row.resource" class="con-parl__info-kind" :data-parl-vote-kind="row.resource">
+                        <i class="con-parl__info-holder-unit" :class="holderUnitClass(row.resource)" aria-hidden="true"></i>
+                        <span class="con-parl__info-holder-name">{{ kindCardsText(row.cards) }}</span>
+                      </span>
+                    </span>
                     <!-- HOW MANY TIMES THE ACTION IS TAKEN (Manufacturing Run RX37): the printed count with its
                          threshold, then the seat's own count — on the line or how far below it — and the win's
                          forecast where the Agenda step lifts it over the line. One reading of the declaration. -->
@@ -800,6 +813,14 @@ export default defineComponent({
     },
     signed(n: number): string {
       return n > 0 ? `+${n}` : String(n);
+    },
+    /** The cards of ONE kind, translated, in play order — «Рыба · Птицы». */
+    kindCardsText(cards: ReadonlyArray<CardName>): string {
+      return cards.map((card) => translateText(card)).join(' · ');
+    },
+    /** The count's own noun, the line's lead — «3 вида ресурсов». */
+    kindsTotalText(key: string, count: number): string {
+      return translateTextWithParams(key, [String(count)]);
     },
     tracksLabel(steps: number): string {
       return translateTextWithParams(COLONY_TRACK_SUMMARY_KEY, [String(steps)]);
