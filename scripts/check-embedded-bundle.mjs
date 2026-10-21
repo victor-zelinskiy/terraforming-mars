@@ -60,7 +60,7 @@ console.error(
   'downgrades to remote mode instead of starting the embedded server.\n\n' +
   [...byName.entries()].map(([name, count]) => `  ${count}× new ${name}()(`).join('\n') +
   `\n\nwebpack in use: ${readWebpackVersion()}. Pin \`webpack\` to a version without this bug\n` +
-  '(5.109.2 and 5.112.0 are known good; 5.110.0–5.110.2 are known bad) — see scripts/check-embedded-bundle.mjs.',
+  '(5.109.2 and 5.111.1 are known good; 5.110.0–5.110.2 are known bad) — see scripts/check-embedded-bundle.mjs.',
 );
 process.exit(1);
 

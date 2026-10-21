@@ -38,6 +38,13 @@
  * Guard: `npm run test:client` runs through `scripts/run-tests.mjs`, which fails
  * the run when fewer tests are COLLECTED than its `--min` floor — so a silent
  * zero can never be green again.
+ *
+ * ⚠️ WEBPACK CEILING: mochapack 2.1.5 (its last release) deep-requires
+ * `webpack/lib/Watching`, which webpack 5.112.0 MOVED to `lib/watch/Watching`
+ * (no shim). On 5.112+ the runner dies with MODULE_NOT_FOUND before collecting
+ * a single test — the floor catches it as «0 collected». That is why
+ * package.json pins webpack at 5.111.1; lifting it needs a mochapack fix or a
+ * runner swap first.
  */
 const base = require('./webpack.config.js');
 

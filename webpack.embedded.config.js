@@ -14,7 +14,7 @@
 // the embedded server never starts and the desktop app silently downgrades to
 // remote mode - the symptom is "games cannot be created", nowhere near here.
 // `scripts/check-embedded-bundle.mjs` (chained into `build:embedded`) fails the
-// build if a future bump brings it back. 5.109.2 and 5.112.0 good; 5.110.0-2
+// build if a future bump brings it back. 5.109.2 and 5.111.1 good; 5.110.0-2
 // bad (fixed upstream in 5.110.3, webpack#21876).
 //
 // Externals: the two optional DB drivers (never loaded — the embedded server
