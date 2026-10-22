@@ -36,6 +36,9 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   'console-parliament-renewal.spec.ts', // the renewal's tact sampled object by object (order, plaque release) — flaky beside a loaded box even at ×1: exclusive
   'console-parliament-urban.spec.ts', // «the arriving card names …» — read while the card is in flight; red 2 / 2 at ×0.5, green at ×1
   'console-planet-focus.spec.ts', // the camera's phases waited for by `waitForFunction` windows; red 2 / 2 at ×0.5, green at ×1
+  'console-robotics-factory.spec.ts', // the transfer witness: a token born on the composer's pay row as it leaves (A) — flaky at ×0.5, 5 / 5 at ×1
+  'console-x87-shipment-to-earth.spec.ts', // «the card lifted only after the shipment was absorbed» — an order in time; flaky at ×0.5, green at ×1
+  'hand-album-continuity.spec.ts', // the album's continuity witness (dock jumps between frames) — flaky at ×0.5, 8 / 8 at ×1
   'console-social-heating.spec.ts', // the Hydronetwork's RESULT layer stands a motion-scaled beat; at ×0.5 it comes and goes inside the commit's press
   'console-ma-states.spec.ts', // a storyboard of the milestone ceremony: at ×0.5 it has ENDED by the time the 4K «42-committing» frame is taken — green with only TM_E2E_MOTION=1
   // the motion-grammar guards
