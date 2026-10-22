@@ -105,12 +105,45 @@
             rgba(6, 10, 17, 0) var(--eg-arc-r, 240vw));
 }
 
+/* T08 — THE STAGE HOLDS ITS LAYERS while the ceremony plays (PL-868). Every category start used to promote and drop
+ * small layers (a medal's transition, a chip's spotlight, the light), and each churn re-created the five seats as
+ * «Overlap» layers and re-painted the horizon — measured on the Steam Machine at 4K (CDP LayerTree + a GPU trace,
+ * HEAD and T08 alike): five 186-tile seat layers re-made with new ids and a 1151-tile layer re-rastered per
+ * category, the main thread blocked 450–600 ms in `WaitForCommitCompletion` — one stalled frame per category, the
+ * cascade collapsing into it. Promoted once for the scene's whole life (the count, the FLIPs, the settled screen — a
+ * demotion at the settle would be one more full re-raster), the seats, the horizon and the instruments raster once and
+ * only their own transforms / opacities move. */
+.con-endgame::before,
+.con-eg__row,
+.con-eg__lchip,
+.con-eg__medal,
+.con-eg__subseg,
+.con-eg__seg::after,
+.con-eg__reclaim,
+.con-eg__plate {
+    will-change: transform, opacity;
+}
+/* …and what CHANGES inside a seat is a layer of its own, so the seat's big layer (the face, the name, the bar's
+ * well) never re-rasters for it: the running total (a direct textContent write per frame of the count) and the
+ * place medal. */
+.con-eg__total-num,
+.con-eg__place {
+    will-change: transform;
+}
+
 /* The frozen game HUD leaves — nothing on the frame may pre-reveal a
  * total mid-ceremony. `visibility`, never `display` (the boxes must
  * survive so `.con-main` never re-lays out under the scene). The shell
  * drops `.con-root--endgame` while the scene is COLLAPSED (B) — the HUD
  * and the final board come back for the inspection round trip. */
 .con-root--endgame {
+    /* T08 (PL-868): the board under the OPAQUE scene stops rastering — its layers held GPU tiles the stage needed
+     * (the seats' tiles were evicted and re-rastered once a category). `visibility` (the boxes survive, nothing
+     * re-lays out), hidden only once the scene has arrived; «Свернуть» drops the class and the board is back at once. */
+    .con-main {
+        visibility: hidden;
+        transition: visibility 0s linear calc(480ms * var(--motion-scale, 1));
+    }
     .con-status,
     .con-res-host,
     .con-banner {
@@ -139,8 +172,11 @@
 .con-eg {
     --eg-rail-fs: 0.95rem;
     --eg-rail-disc: 2.2rem;
-    --eg-cap-fs: 1.05rem;
-    --eg-cap-h: 1.9rem;
+    --eg-cap-fs: 1.25rem;
+    /* T08: the slot of the CATEGORY PLATE (its disc + name + the sub-step's voice) — in flow, so the podium's box is
+     * measured under it and the planner solves the seats from what is left. */
+    --eg-cap-h: 3.1rem;
+    --eg-plate-disc: 2.3rem;
     --eg-zone-h: 6.2rem;
     --eg-act-fs: 1.05rem;
 
@@ -225,23 +261,23 @@
     text-transform: uppercase;
     color: rgba(196, 216, 236, 0.45);
     transition:
-        color calc(260ms * var(--motion-scale, 1)) ease,
-        border-color calc(260ms * var(--motion-scale, 1)) ease,
-        background-color calc(260ms * var(--motion-scale, 1)) ease,
-        transform calc(260ms * var(--motion-scale, 1)) @con-ease-standard;
+        color calc(260ms * var(--motion-scale, 1) * var(--eg-pace, 1)) ease,
+        border-color calc(260ms * var(--motion-scale, 1) * var(--eg-pace, 1)) ease,
+        background-color calc(260ms * var(--motion-scale, 1) * var(--eg-pace, 1)) ease,
+        transform calc(260ms * var(--motion-scale, 1) * var(--eg-pace, 1)) @con-ease-standard;
 }
 .con-endgame--entering .con-eg__lchip {
     animation: con-eg-fadein calc(360ms * var(--motion-scale, 1)) ease backwards;
     animation-delay: calc(120ms + var(--eg-ci, 0) * 45ms * var(--motion-scale, 1));
 }
-/* The rail's MEDALLION — the dossier's disc (TR69): the category's own symbol ringed in its hue, where its tokens
- * are born. Dim while the category waits, full once settled, lit while it speaks. */
+/* The rail's MEDALLION — the dossier's disc (TR69): the category's own symbol ringed in its hue. Dim while the
+ * category waits, full once settled, lit while it speaks (its plate stands under the rail). */
 .con-eg__ldisc.con-dscore__disc {
     width: var(--eg-rail-disc);
     height: var(--eg-rail-disc);
     opacity: 0.55;
     box-shadow: inset 0 0 0 0.1rem var(--eg-c, @con-cyan), 0 0.15rem 0.5rem rgba(0, 0, 0, 0.5);
-    transition: opacity calc(260ms * var(--motion-scale, 1)) ease;
+    transition: opacity calc(260ms * var(--motion-scale, 1) * var(--eg-pace, 1)) ease;
 }
 .con-eg__ldisc.con-dscore__disc > .con-dscore__glyph {
     width: calc(var(--eg-rail-disc) * 0.66);
@@ -268,39 +304,112 @@
     .con-eg__ldisc { opacity: 1; }
 }
 
-/* ── Stage caption (the micro-reveal voice) ──────────────────────── */
+/* ── THE CATEGORY PLATE (T08 «СЧЁТ ПРИХОДИТ СВЕТОМ») ─────────────────
+ * The active category opened under the rail: ONE plate for the whole count — its disc, its name in the scene's voice,
+ * the sub-step as a quieter second voice, its TONE the category's (a ring + a wash, never a filled colour). Its face
+ * hands over in place (the layered crossfade, the caption's grammar); the plate itself only fades in with the first
+ * category and out at the preRank. The category's light falls from its foot. */
 .con-eg__caption {
     position: relative;
     height: var(--eg-cap-h);
     margin-top: 0.4rem;
+    display: flex;
+    justify-content: center;
 }
-.con-eg__caption-text {
+.con-eg__plate {
+    position: relative;
+    height: 100%;
+    min-width: 18rem;
+    padding: 0 2.2rem 0 0.5rem;
+    box-sizing: border-box;
+    border-radius: calc(var(--eg-cap-h) / 2);
+    border: 0.06rem solid color-mix(in srgb, var(--eg-c, #8aa4c0) 62%, transparent);
+    background: linear-gradient(180deg,
+        color-mix(in srgb, var(--eg-c, #8aa4c0) 20%, rgba(12, 20, 30, 0.9)) 0%,
+        rgba(8, 14, 22, 0.94) 100%);
+    box-shadow:
+        0 0 0 0.1rem color-mix(in srgb, var(--eg-c, #8aa4c0) 18%, transparent),
+        0 0.6rem 2rem rgba(0, 0, 0, 0.5),
+        0 0 2.6rem color-mix(in srgb, var(--eg-c, #8aa4c0) 24%, transparent);
+    opacity: 0;
+    transform: translateY(-0.4rem) scale(0.96);
+    transition:
+        opacity calc(260ms * var(--motion-scale, 1) * var(--eg-pace, 1)) ease,
+        transform calc(320ms * var(--motion-scale, 1) * var(--eg-pace, 1)) @con-ease-enter,
+        border-color calc(300ms * var(--motion-scale, 1) * var(--eg-pace, 1)) ease,
+        background-color calc(300ms * var(--motion-scale, 1) * var(--eg-pace, 1)) ease,
+        box-shadow calc(300ms * var(--motion-scale, 1) * var(--eg-pace, 1)) ease;
+}
+.con-eg__plate--on {
+    opacity: 1;
+    transform: none;
+}
+.con-eg__plate-face {
     position: absolute;
-    inset: 0;
+    inset: 0 2.2rem 0 0.5rem;
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 0.9rem;
+    white-space: nowrap;
+}
+.con-eg__plate-disc.con-dscore__disc {
+    flex: none;
+    width: var(--eg-plate-disc);
+    height: var(--eg-plate-disc);
+    box-shadow: inset 0 0 0 0.12rem var(--eg-c, @con-cyan), 0 0 1rem color-mix(in srgb, var(--eg-c, @con-cyan) 45%, transparent);
+}
+.con-eg__plate-disc.con-dscore__disc > .con-dscore__glyph {
+    width: calc(var(--eg-plate-disc) * 0.66);
+    height: calc(var(--eg-plate-disc) * 0.66);
+}
+.con-eg__plate-disc.con-dscore__disc > .con-dscore__glyph--mark {
+    width: calc(var(--eg-plate-disc) * 0.3);
+    height: calc(var(--eg-plate-disc) * 0.3);
+    box-shadow: none;
+}
+.con-eg__plate-name {
     font-family: @con-font;
     font-size: var(--eg-cap-fs);
-    letter-spacing: 0.18em;
+    font-weight: 700;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
+    color: #f2f8ff;
+}
+/* The sub-step — the plate's second voice (a TR source, a card family): its accent ink, a hairline before it. */
+.con-eg__plate-sub {
+    position: relative;
+    padding-left: 0.9rem;
+    font-family: @con-font;
+    font-size: calc(var(--eg-cap-fs) * 0.82);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+.con-eg__plate-sub::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 15%;
+    bottom: 15%;
+    width: 0.06rem;
+    background: color-mix(in srgb, var(--eg-c, #8aa4c0) 55%, transparent);
 }
 /* The title / caption HANDOFF (title slot + caption): one line gives way to the next as ONE phrase — the old line lets
  * go ON THE SPOT (130 ms), the new one arrives 40 ms before the old is gone (300 ms, from a hair under its size) — the
  * prompt family's handoff (PL-576). Layered in the same box (no empty slot, no layout shift), but never a
  * cross-fade of two LEGIBLE lines: the simultaneous one read «ФИ◈ИТОГИ ПАРТИИЧЁТ» at mid-swap. */
 .con-eg-xfade-enter-active {
-    transition: opacity calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.2, 0.8, 0.2, 1) calc(90ms * var(--motion-scale, 1)),
-        transform calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.2, 0.8, 0.2, 1) calc(90ms * var(--motion-scale, 1));
+    transition: opacity calc(300ms * var(--motion-scale, 1) * var(--eg-pace, 1)) cubic-bezier(0.2, 0.8, 0.2, 1) calc(90ms * var(--motion-scale, 1) * var(--eg-pace, 1)),
+        transform calc(300ms * var(--motion-scale, 1) * var(--eg-pace, 1)) cubic-bezier(0.2, 0.8, 0.2, 1) calc(90ms * var(--motion-scale, 1) * var(--eg-pace, 1));
 }
-.con-eg-xfade-leave-active { transition: opacity calc(130ms * var(--motion-scale, 1)) ease-out; }
+.con-eg-xfade-leave-active { transition: opacity calc(130ms * var(--motion-scale, 1) * var(--eg-pace, 1)) ease-out; }
 .con-eg-xfade-enter-from { opacity: 0; transform: scale(.965); }
 .con-eg-xfade-leave-to { opacity: 0; }
 
 /* ── THE PODIUM (TR69 «ФИНАЛ — ЭТО ЦЕРЕМОНИЯ») ───────────────────────
  * Every player is a SEAT standing on the horizon: the corporation's face,
  * the name, the score in the score cell's language (the award shield and
- * the running total — where every category's token lands), the counting
+ * the running total — it ticks on each ignition), the counting
  * bar under it, the category medallions. The geometry is the pure
  * planner's (`consoleEndgamePodium.ts`) — the seat's width / height / face
  * height / reading block arrive as px vars on the seat; the TYPE is rem
@@ -630,7 +739,7 @@
  * quiet accent so «какой бот» reads at a glance and never as a corp name. */
 .con-eg__diff { color: rgba(124, 214, 226, 0.85); }
 
-/* ── The SCORE — the award shield + the running total (the token's landing) ── */
+/* ── The SCORE — the award shield + the running total (it ticks on the seat's ignition) ── */
 .con-eg__total {
     position: relative;
     display: flex;
@@ -693,7 +802,7 @@
     width: 0.08rem;
     background: rgba(4, 8, 14, 0.85);
     opacity: 0;
-    transition: opacity calc(260ms * var(--motion-scale, 1)) ease calc(380ms * var(--motion-scale, 1));
+    transition: opacity calc(260ms * var(--motion-scale, 1) * var(--eg-pace, 1)) ease calc(380ms * var(--motion-scale, 1) * var(--eg-pace, 1));
 }
 .con-eg__seg--on::after { opacity: 1; }
 
@@ -705,9 +814,9 @@
     transform: scaleX(0);
     transform-origin: left center;
     transition:
-        transform calc(600ms * var(--motion-scale, 1)) @con-ease-standard,
-        background-color calc(480ms * var(--motion-scale, 1)) ease,
-        box-shadow calc(480ms * var(--motion-scale, 1)) ease;
+        transform calc(600ms * var(--motion-scale, 1) * var(--eg-pace, 1)) @con-ease-standard,
+        background-color calc(480ms * var(--motion-scale, 1) * var(--eg-pace, 1)) ease,
+        box-shadow calc(480ms * var(--motion-scale, 1) * var(--eg-pace, 1)) ease;
 }
 .con-eg__subseg--on { transform: scaleX(1); }
 /* The micro-reveal's own voice: shades + seams — CLASS-GATED, they
@@ -734,7 +843,7 @@
     box-shadow: inset 0.09rem 0 0 rgba(224, 106, 106, 0.75);
     transform: scaleX(0);
     transform-origin: right center;
-    transition: transform calc(640ms * var(--motion-scale, 1)) @con-ease-standard;
+    transition: transform calc(640ms * var(--motion-scale, 1) * var(--eg-pace, 1)) @con-ease-standard;
     z-index: 2;
 }
 .con-eg__reclaim--on { transform: scaleX(1); }
@@ -766,7 +875,9 @@
 }
 
 /* ── The MEDALLIONS — one disc per category (the dossier's own), the value
- *    beside it: dim while the category waits, lit on its token's touchdown. ── */
+ *    beside it: dim while the category waits, IGNITED when its light reaches
+ *    the seat (T08) — the disc settles, a ring of the category's light lifts
+ *    off it (`.con-eg__medal-glow`, a layer of its own: opacity / transform). ── */
 .con-eg__medals {
     display: flex;
     flex-wrap: wrap;
@@ -777,16 +888,32 @@
     overflow: hidden;
 }
 .con-eg__medal {
+    position: relative;
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
     opacity: 0.3;
     transition:
-        opacity calc(260ms * var(--motion-scale, 1)) ease,
-        transform calc(260ms * var(--motion-scale, 1)) @con-ease-enter;
+        opacity calc(260ms * var(--motion-scale, 1) * var(--eg-pace, 1)) ease,
+        transform calc(260ms * var(--motion-scale, 1) * var(--eg-pace, 1)) @con-ease-enter;
 }
 .con-eg__medal--on { opacity: 1; }
-/* The active category's medallion is lifted while its tokens are coming. */
+/* THE IGNITION'S RING — sized to the disc, standing behind it, dark at rest; the director's accent lifts it once. */
+.con-eg__medal-glow {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: var(--eg-medal-d);
+    height: var(--eg-medal-d);
+    margin-top: calc(var(--eg-medal-d) / -2);
+    border-radius: 50%;
+    box-shadow:
+        0 0 0 0.14rem color-mix(in srgb, var(--eg-c, @con-cyan) 85%, transparent),
+        0 0 1.3rem 0.25rem color-mix(in srgb, var(--eg-c, @con-cyan) 60%, transparent);
+    opacity: 0;
+    pointer-events: none;
+}
+/* The active category's medallion is lifted while its light is coming. */
 .con-eg__medal--active { opacity: 0.7; transform: translateY(-0.1rem); }
 .con-eg__medal--active.con-eg__medal--on { opacity: 1; transform: none; }
 .con-eg__medal .con-dscore__disc {
@@ -848,51 +975,37 @@
 .con-eg__rows--side .con-eg__medals { justify-content: flex-start; gap: 0.6rem 1.1rem; }
 .con-eg__rows--side .con-eg__place { left: auto; right: 0; transform: translate(40%, 40%); }
 
-/* ── THE TOKENS — a category's disc + its points, flying from the rail's
- *    medallion into a seat's shield (the director's clock; transform/opacity). ── */
-.con-eg__tokens {
+/* ── THE LIGHT (T08 «СЧЁТ ПРИХОДИТ СВЕТОМ») — the category's ONE light: a
+ *    soft wash in its tone from under the plate to the foot of the medallion
+ *    row, across the seats. The box is posed once per fall (static px); the
+ *    WASH alone moves — it descends (scaleY from the top) and fades
+ *    (opacity) under the director's clock. Faded in at its top (painted into
+ *    the canvas) so it is born out of the plate, never a hard edge; no blur,
+ *    no filter. ── */
+.con-eg__light {
     position: absolute;
     inset: 0;
     pointer-events: none;
     z-index: 6;
+    overflow: hidden;
 }
-.con-eg-token {
+.con-eg__beam {
     position: absolute;
     left: 0;
     top: 0;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.3rem;
+    width: 0;
+    height: 0;
+}
+.con-eg__beam-wash {
+    /* A small canvas (the light painted once per category in its tone) stretched over the beam's box — the soft
+     * gradient survives the upscale, and a tone change never re-rasters a 4K-wide layer. */
+    position: absolute;
+    left: -1.5rem;
+    top: 0;
+    width: calc(100% + 3rem);
+    height: 100%;
+    opacity: 0;
     will-change: transform, opacity;
-}
-.con-eg-token__disc.con-dscore__disc {
-    width: 2.6rem;
-    height: 2.6rem;
-    box-shadow: inset 0 0 0 0.14rem var(--eg-c, @con-cyan), 0 0.3rem 1rem rgba(0, 0, 0, 0.6), 0 0 1.1rem color-mix(in srgb, var(--eg-c, @con-cyan) 40%, transparent);
-}
-.con-eg-token__disc.con-dscore__disc > .con-dscore__glyph {
-    width: 1.7rem;
-    height: 1.7rem;
-}
-.con-eg-token__disc.con-dscore__disc > .con-dscore__glyph--mark {
-    width: 0.8rem;
-    height: 0.8rem;
-}
-.con-eg-token__val {
-    padding: 0.12rem 0.55rem;
-    border-radius: 0.45rem;
-    border: 0.05rem solid rgba(255, 216, 122, 0.55);
-    background: rgba(8, 14, 22, 0.95);
-    font-family: @con-font;
-    font-size: 1.15rem;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
-    color: #ffe7a8;
-    box-shadow: 0 0.2rem 0.7rem rgba(0, 0, 0, 0.55);
-}
-.con-eg-token--minus .con-eg-token__val {
-    color: #ffb3b3;
-    border-color: rgba(224, 106, 106, 0.6);
 }
 
 /* ── The bottom zone: tie-break → note → actions (LAYERED, no gap) ── */
@@ -1221,6 +1334,10 @@ html.con-profile-handheld {
         --eg-rail-disc: 1.7rem;
         --eg-zone-h: 5.4rem;
         --eg-act-fs: 0.9rem;
+        /* T08: the category plate on the short stage — one size down, so the podium keeps its height. */
+        --eg-cap-h: 2.5rem;
+        --eg-cap-fs: 1rem;
+        --eg-plate-disc: 1.8rem;
     }
     .con-eg__tb-name { max-width: 7rem; }
     .con-eg__action { padding: 0.4rem 0.7rem; }
@@ -1246,8 +1363,8 @@ html.con-profile-handheld {
 
 /* Reduced motion: entrances collapse to plain fades; the segments keep a
  * SHORT transition (the growth is information — order of reveal — but no
- * long travel); no token flies (the medallion lights at the touchdown's
- * moment) and the crowning snaps (the component skips its FLIP). */
+ * long travel); no light falls and no ignition accent plays (the medallion
+ * lights at its moment) and the crowning snaps (the component skips its FLIP). */
 @media (prefers-reduced-motion: reduce) {
     .con-endgame--entering .con-eg__row,
     .con-endgame--entering .con-eg__lchip,

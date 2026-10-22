@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {buildEndgameModel, EndgamePlayerInput} from '@/client/components/endgame/endgameModel';
 import {buildConsoleEndgameVm, ConsoleEndgameVm, ConsoleEndgameVmOptions} from '@/client/console/endgame/consoleEndgameModel';
-import {beatLengthMs, ceremonyBeats, ceremonyTotalMs, CEREMONY_MS} from '@/client/console/endgame/consoleEndgameScript';
+import {beatLengthMs, ceremonyBeats, ceremonyTotalMs, CEREMONY_MS, HURRY_SCALE, igniteOffsets, igniteSpanMs} from '@/client/console/endgame/consoleEndgameScript';
 import {
   consoleEndgameUi, ceremonyShouldPlay, finalizeCeremony, noteConsoleEndgameLivePhase,
   resetCeremonyProgress, resetConsoleEndgame,
@@ -171,34 +171,64 @@ describe('consoleEndgameScript', () => {
     expect(ceremonyTotalMs(beats)).to.be.lessThan(30_000);
   });
 
-  it('a MAIN category is a readable five-part phrase (the brief\'s windows + TR69\'s token flight)', () => {
-    // preparation/focus ~160–260 · the tokens' flight ~240–380 · movement ~550–850 · settle ~180–300 ·
-    // pause ~220–380 — the whole phrase stays a compact, readable event.
+  it('a MAIN category is a readable five-part phrase (the brief\'s windows + T08\'s light and its cascade)', () => {
+    // preparation/focus ~160–260 · the light's fall ~240–380 · the cascade 50–70 a seat · movement ~500–850 ·
+    // settle ~180–300 · pause ~220–380 — the whole phrase stays a compact, readable event at five seats too.
     expect(CEREMONY_MS.categoryFocus).to.be.within(160, 260);
-    expect(CEREMONY_MS.categoryFly).to.be.within(240, 380);
-    expect(CEREMONY_MS.categoryGrow).to.be.within(550, 850);
+    expect(CEREMONY_MS.categoryLight).to.be.within(240, 380);
+    expect(CEREMONY_MS.igniteStagger).to.be.within(50, 70);
+    expect(CEREMONY_MS.categoryGrow).to.be.within(500, 850);
     expect(CEREMONY_MS.categorySettle).to.be.within(180, 300);
     expect(CEREMONY_MS.categoryPause).to.be.within(220, 380);
-    const phrase = CEREMONY_MS.categoryFocus + CEREMONY_MS.categoryFly + CEREMONY_MS.categoryGrow +
-      CEREMONY_MS.categorySettle + CEREMONY_MS.categoryPause;
-    expect(phrase).to.be.within(1100, 1800);
+    for (const seats of [2, 5]) {
+      const beat = ceremonyBeats(richVm()).find((b) => b.kind === 'category')!;
+      expect(beatLengthMs(beat, seats), `${seats} seats`).to.be.within(1100, 1900);
+    }
     expect(CEREMONY_MS.sub).to.be.within(300, 500); // inner steps read faster
-    // A sub-step's token lands inside its own window, leaving time for the count to answer it.
-    expect(CEREMONY_MS.subFly).to.be.lessThan(CEREMONY_MS.sub * 0.6);
+    // A sub-step's cascade (five seats) fits inside its own window, leaving time for the count to answer it.
+    expect(igniteSpanMs(5, CEREMONY_MS.subStagger)).to.be.lessThan(CEREMONY_MS.sub * 0.6);
   });
 
-  it('TR69: every category beat carries its token flight, every sub-step its own', () => {
+  it('T08: every category beat carries its light and its cascade; a sub-step has NO light of its own (one held light per category)', () => {
     const vm = richVm();
     for (const beat of ceremonyBeats(vm)) {
       if (beat.kind === 'category') {
-        expect(beat.flyMs).to.eq(CEREMONY_MS.categoryFly);
-        expect(beatLengthMs(beat)).to.eq(beat.focusMs + beat.flyMs + beat.growMs + beat.settleMs + beat.pauseMs);
+        expect(beat.lightMs).to.eq(CEREMONY_MS.categoryLight);
+        expect(beat.staggerMs).to.eq(CEREMONY_MS.igniteStagger);
+        expect(beatLengthMs(beat, 2)).to.eq(beat.focusMs + beat.lightMs + beat.staggerMs + beat.growMs + beat.settleMs + beat.pauseMs);
+      }
+      if (beat.kind === 'subIntro') {
+        expect(beat.lightMs, 'the multi-sub category\'s ONE light falls at its intro').to.eq(CEREMONY_MS.categoryLight);
+        expect(beat.lightMs).to.be.lessThan(beat.ms);
       }
       if (beat.kind === 'sub') {
-        expect(beat.flyMs).to.eq(CEREMONY_MS.subFly);
-        expect(beat.flyMs).to.be.lessThan(beat.ms);
+        expect('lightMs' in beat, 'a sub-step re-ignites under the held light').to.eq(false);
+        expect(beat.staggerMs).to.eq(CEREMONY_MS.subStagger);
       }
+      expect('flyMs' in beat, 'no beat carries a token flight any more').to.eq(false);
     }
+  });
+
+  it('T08: the ignition cascade is the light\'s fall, then one seat per stagger, left to right', () => {
+    expect(igniteOffsets(5, 280, 60)).to.deep.eq([280, 340, 400, 460, 520]);
+    expect(igniteOffsets(2, 280, 60)).to.deep.eq([280, 340]);
+    expect(igniteOffsets(1, 0, 40)).to.deep.eq([0]);
+    expect(igniteSpanMs(5, 60)).to.eq(240);
+    expect(igniteSpanMs(1, 60)).to.eq(0);
+  });
+
+  it('T08: the preRank keeps a full-pace breath — a hurried count returns to ×1 before the ranking', () => {
+    const pre = ceremonyBeats(richVm()).find((b) => b.kind === 'preRank');
+    expect(pre).to.not.eq(undefined);
+    if (pre?.kind !== 'preRank') {
+      return;
+    }
+    expect(pre.breathMs).to.eq(CEREMONY_MS.preRankBreath);
+    expect(pre.breathMs).to.be.within(200, pre.ms);
+    // Hurried, the preRank is a short beat — never zero, never the full breath again.
+    const hurried = (pre.ms - pre.breathMs) / HURRY_SCALE + pre.breathMs;
+    expect(hurried).to.be.within(250, 400);
+    expect(HURRY_SCALE).to.be.within(4, 8);
   });
 });
 
@@ -329,6 +359,21 @@ describe('consoleEndgameState', () => {
     finalizeCeremony(richVm());
     expect(consoleEndgameUi.phase).to.eq('actions');
     expect(consoleEndgameUi.collapsed).to.eq(true);
+  });
+
+  it('T08: finalize and a fresh run clear the hurry and every seat\'s ignition', () => {
+    consoleEndgameUi.hurry = 'on';
+    consoleEndgameUi.seatCat = {red: 2};
+    consoleEndgameUi.seatSub = {red: 1};
+    finalizeCeremony(richVm());
+    expect(consoleEndgameUi.hurry).to.eq('off');
+    expect(consoleEndgameUi.seatCat).to.deep.eq({});
+    expect(consoleEndgameUi.seatSub).to.deep.eq({});
+    consoleEndgameUi.hurry = 'returned';
+    consoleEndgameUi.seatCat = {blue: 0};
+    resetCeremonyProgress();
+    expect(consoleEndgameUi.hurry).to.eq('off');
+    expect(consoleEndgameUi.seatCat).to.deep.eq({});
   });
 
   it('a fresh ceremony run resets the beat machinery (stage, focus) but not the collapse round trip', () => {

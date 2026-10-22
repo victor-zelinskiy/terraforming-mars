@@ -24,7 +24,7 @@
  *    SAME workspace (the desktop `.eg-results` never rises) and B returns
  *    without replaying the ceremony — the deep overview journey lives in
  *    console-endgame-overview.spec.ts;
- *  · «Повторить подсчёт» replays, X skips atomically.
+ *  · «Повторить подсчёт» replays, X HURRIES it (T08 — the crowning still plays), a second X is a no-op.
  *
  * ⚠ Headless Chromium starves rAF on a quiet screen — every wait pumps a
  * tiny screenshot (a real BeginFrame), or the GSAP ceremony never advances.
@@ -131,7 +131,7 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     // taken (`.con-root--rail-replaced` → visibility, the box survives).
     await expect(page.locator('.con-strat')).toBeHidden();
     expect(await page.locator('.con-handdock:visible').count()).toBe(0);
-    await expect(page.locator('.con-cmdbar')).toContainText(/Пропустить подсчёт/i);
+    await expect(page.locator('.con-cmdbar')).toContainText(/Ускорить подсчёт/i);
     await expect(page.locator('.con-cmdbar')).toContainText(/Свернуть/i);
     await expect(page.locator('.con-cmdbar .con-cmdbar__context')).not.toContainText(/Финальный подсчёт/i);
     // All rows on screen at once, in seating order, bars growing; the result
@@ -192,8 +192,8 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     }
     // The barcode: the settled bar is ONE hue per category — no micro shades.
     expect(await page.locator('.con-eg__subseg--seamed').count()).toBe(0);
-    // No category token is left in the air over the settled podium (TR69).
-    expect(await page.locator('.con-eg-token').count()).toBe(0);
+    // No category light is left standing over the settled podium (T08).
+    expect(await page.locator('.con-eg__beam-wash').evaluateAll((els) => els.filter((el) => Number(getComputedStyle(el).opacity) > 0.05).length)).toBe(0);
 
     // 5 · The winner is the SEAT: ribbon + places + the hero; NO duplicate plate exists.
     expect(await page.locator('.con-eg__ribbon').count()).toBeGreaterThan(0);
@@ -298,9 +298,12 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     await waitWithFrames(page, async () =>
       (await page.locator('.con-endgame--entering, .con-endgame--scoring').count()) > 0,
     10_000, 'the replay to start');
-    await page.keyboard.press('KeyX');
-    await waitWithFrames(page, async () => (await page.locator('.con-eg__actions').count()) > 0, 8_000, 'the atomic skip');
-    await page.keyboard.press('KeyX'); // a second skip must be a no-op
+    await page.keyboard.press('KeyX'); // X HURRIES the count — the ranking and the crowning still play (T08)
+    await waitWithFrames(page, async () => (await page.locator('.con-endgame[data-eg-hurried]').count()) > 0, 8_000, 'the hurry');
+    await page.keyboard.press('KeyX'); // a second X must be a no-op
+    // The PHASE, never the list: the replay's own reset sends the old action list out through its leave transition,
+    // so `.con-eg__actions` stands in the DOM at the replay's first beats (an atomic X used to bring it straight back).
+    await waitWithFrames(page, async () => (await page.locator('.con-endgame--actions').count()) > 0, 30_000, 'the hurried count settled');
     await forceFrame(page);
     const shownAfterSkip = (await page.locator('.con-eg__total-num').allTextContents())
       .map((t) => Number(t.trim()))

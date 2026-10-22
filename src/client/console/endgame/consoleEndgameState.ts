@@ -57,8 +57,15 @@ export type CeremonyPhase =
  *  result holds still; each step is a MEANING — see consoleEndgameScript). */
 export type ChampionStage = 0 | 1 | 2 | 3 | 4;
 
-/** The inner stage of the active category's phrase (TR69: `fly` — its tokens are in the air, nothing landed yet). */
-export type CeremonyBeatStage = '' | 'focus' | 'fly' | 'grow' | 'settle';
+/** The inner stage of the active category's phrase (T08: `light` — its light falls from the plate, no seat lit yet). */
+export type CeremonyBeatStage = '' | 'focus' | 'light' | 'grow' | 'settle';
+
+/**
+ * T08 — X HURRIES the count, never skips it: `off` (the count at its own pace; the bar offers X) · `on` (X pressed —
+ * the count plays at `HURRY_SCALE`, the CSS pace token follows) · `returned` (the pace came back inside the preRank
+ * breath — the ranking and the crowning play at ×1). Reset by every fresh run and by `finalizeCeremony`.
+ */
+export type CeremonyHurry = 'off' | 'on' | 'returned';
 
 export const consoleEndgameUi = reactive({
   phase: 'idle' as CeremonyPhase,
@@ -75,6 +82,16 @@ export const consoleEndgameUi = reactive({
   subsOn: {} as Record<string, number>,
   /** Per-category «seams faded, reads as one segment again» flag. */
   merged: {} as Record<string, boolean>,
+  /**
+   * T08 — THE IGNITION, per seat: color → the index of the ACTIVE category this seat's medallion has lit (absent /
+   * another index = not yet). Written once per seat per cascade (a beat-level write, never per frame); the settled
+   * categories read `catsSettled`.
+   */
+  seatCat: {} as Record<string, number>,
+  /** T08: color → the sub-steps of the active multi-sub category this seat has lit so far. */
+  seatSub: {} as Record<string, number>,
+  /** T08: X hurries the count (see {@link CeremonyHurry}). */
+  hurry: 'off' as CeremonyHurry,
 
   /**
    * color → the running total at the LAST SETTLED boundary. Written per beat,
@@ -136,6 +153,9 @@ export function resetCeremonyProgress(): void {
   s.catsSettled = 0;
   s.subsOn = {};
   s.merged = {};
+  s.seatCat = {};
+  s.seatSub = {};
+  s.hurry = 'off';
   s.displayTotals = {};
   s.ranked = false;
   s.placesShown = false;
@@ -181,6 +201,9 @@ export function finalizeCeremony(vm: ConsoleEndgameVm): void {
   }
   s.subsOn = subsOn;
   s.merged = merged;
+  s.seatCat = {};
+  s.seatSub = {};
+  s.hurry = 'off';
   const totals: Record<string, number> = {};
   for (const row of vm.rows) {
     totals[row.color] = row.finalTotal;

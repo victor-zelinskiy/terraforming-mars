@@ -35,8 +35,8 @@
   -->
   <div class="con-endgame" role="region" :aria-label="$t('Final scoring')"
        :class="{'con-endgame--noanim': noanim, 'con-endgame--ovopen': overviewParked || campaignScene !== undefined, ['con-endgame--' + ui.phase]: true}"
-       :style="{'--eg-horizon-y': horizonY + 'px', '--eg-arc-r': arcRadius + 'px'}"
-       :data-eg-beat="ui.beatStage" :data-eg-cat="ui.catIdx">
+       :style="{'--eg-horizon-y': horizonY + 'px', '--eg-arc-r': arcRadius + 'px', '--eg-pace': paceToken}"
+       :data-eg-beat="ui.beatStage" :data-eg-cat="ui.catIdx" :data-eg-hurried="ui.hurry === 'off' ? undefined : ui.hurry">
     <div class="con-eg" :class="'con-eg--n' + densityN">
       <header class="con-eg__head">
         <!-- A fixed-height slot + layered crossfade: the title swap
@@ -58,8 +58,8 @@
            strip with dead space under it. -->
       <div class="con-eg__stage">
         <!-- CATEGORY RAIL — one stable strip of MEDALLIONS (the dossier's own discs, TR69); the ACTIVE category is the
-             spotlight (bright, lifted, accent-lit) and its disc is where the category's TOKENS are born; settled ones
-             stay readable, future ones wait dim. Identity = symbol + colour + position + name (never colour alone). -->
+             spotlight (bright, lifted, accent-lit) whose PLATE stands under the rail; settled ones stay readable,
+             future ones wait dim. Identity = symbol + colour + position + name (never colour alone). -->
         <div class="con-eg__rail">
           <div v-for="(cat, i) in vm.categories" :key="cat.key"
                class="con-eg__lchip" :class="lchipClass(cat, i)" :style="{'--eg-ci': i}" :data-eg-rail="cat.key">
@@ -68,13 +68,20 @@
           </div>
         </div>
 
-        <!-- STAGE CAPTION — the micro-reveal voice (a TR source, a card
-             family, the full category name during its focus beat). Layered
-             crossfade: the line hands over without an empty beat. -->
+        <!-- THE CATEGORY PLATE (T08 «СЧЁТ ПРИХОДИТ СВЕТОМ») — the active category opened under the rail: its disc, its
+             name, its tone (a TR source / a card family as the quiet second voice). ONE object for the whole count:
+             its tone follows the category, its face hands over in place (the layered crossfade — never an empty
+             beat), and the category's ONE light falls from its foot onto the podium. -->
         <div class="con-eg__caption" aria-live="polite">
-          <transition name="con-eg-xfade">
-            <span :key="captionKey" class="con-eg__caption-text" :class="captionAccent">{{ captionText }}</span>
-          </transition>
+          <div class="con-eg__plate" :class="plateClass" :data-eg-plate="activeCategory?.key ?? ''">
+            <transition name="con-eg-xfade">
+              <div v-if="activeCategory !== undefined" :key="captionKey" class="con-eg__plate-face">
+                <ConsoleScoreDisc class="con-eg__plate-disc" :glyph="glyphOf(activeCategory.key)" />
+                <span class="con-eg__plate-name">{{ $t(activeCategory.label) }}</span>
+                <span v-if="activeSub !== undefined" class="con-eg__plate-sub" :class="captionAccent">{{ $t(activeSub.label) }}</span>
+              </div>
+            </transition>
+          </div>
         </div>
 
         <!-- THE PODIUM (TR69 «ФИНАЛ — ЭТО ЦЕРЕМОНИЯ») — every player is a SEAT standing on the horizon: the corporation's
@@ -159,11 +166,11 @@
                   <span v-else-if="rowBy(color).difficulty !== undefined" class="con-eg__corp con-eg__diff">{{ $t(rowBy(color).difficulty!) }}</span>
                 </div>
               </div>
-              <!-- THE SCORE in the score cell's language (TR55): the award shield and the running total — where every
-                   category's token lands. No binding on the number: the count-up writes textContent directly. -->
+              <!-- THE SCORE in the score cell's language (TR55): the award shield and the running total — it ticks on
+                   the seat's every ignition. No binding on the number: the count-up writes textContent directly. -->
               <div class="con-eg__total">
                 <ConsoleVpBadge class="con-eg__shield" :label="$t('VP')" />
-                <span class="con-eg__total-num" :data-eg-total="color">0</span>
+                <span class="con-eg__total-num" :data-eg-total="color" :style="{minWidth: totalDigits[color] + 'ch'}">0</span>
                 <!-- The champion KEEL — the fixation's persistent witness: a
                      thin gold bar under the final total, mounted at the FIX
                      window and kept by the settled screen (absolute — zero
@@ -175,10 +182,10 @@
               <div class="con-eg__track">
                 <div class="con-eg__bar">
                   <div v-for="seg in rowGeo[color].segs" :key="seg.key"
-                       class="con-eg__seg" :class="segClass(seg)"
+                       class="con-eg__seg" :class="segClass(seg, color)"
                        :style="{left: seg.leftPct + '%', width: seg.widthPct + '%'}">
                     <div v-for="sub in seg.subs" :key="sub.key"
-                         class="con-eg__subseg" :class="subClass(seg, sub)"
+                         class="con-eg__subseg" :class="subClass(seg, sub, color)"
                          :style="{left: sub.leftPct + '%', width: sub.widthPct + '%'}"></div>
                   </div>
                   <!-- The subtractive SCAR — the bar's tip retreats over it when
@@ -194,11 +201,13 @@
                   <b>{{ rowBy(color).megacredits }}</b>
                 </div>
               </div>
-              <!-- THE MEDALLIONS — one per category, the dossier's discs: lit on the token's touchdown with the
-                   category's value (a zero stays a quiet «0»); before it, a dim disc keeping its place. -->
+              <!-- THE MEDALLIONS — one per category, the dossier's discs: IGNITED in turn when the category's light
+                   reaches the seat (T08), with the category's value (a zero stays a quiet «0»); before it, a dim disc
+                   keeping its place. The glow is a layer of its own (opacity / transform — the ignition's accent). -->
               <div class="con-eg__medals">
                 <span v-for="(cat, ci) in vm.categories" :key="cat.key"
                       class="con-eg__medal" :class="medalClass(cat, ci, color)" :data-eg-medal="cat.key">
+                  <i class="con-eg__medal-glow" aria-hidden="true"></i>
                   <ConsoleScoreDisc :glyph="glyphOf(cat.key)" />
                   <b class="con-eg__medal-val">{{ medalText(cat, ci, color) }}</b>
                 </span>
@@ -261,9 +270,17 @@
       </div>
     </div>
 
-    <!-- THE TOKEN LAYER (TR69) — the category tokens fly here, from the rail's medallion into every seat's score;
-         absolute over the stage, inert, emptied by every skip / replay / teardown. -->
-    <div ref="tokensEl" class="con-eg__tokens" aria-hidden="true"></div>
+    <!-- THE LIGHT LAYER (T08 «СЧЁТ ПРИХОДИТ СВЕТОМ») — the category's ONE light: a soft wash in its tone that falls
+         from the plate's foot over the podium to the medallion row and lets go at the settle. Never an object that
+         crosses the stage; absolute over it, inert, put out by every skip / replay / teardown. -->
+    <div class="con-eg__light" aria-hidden="true">
+      <!-- The wash is a SMALL canvas painted once per category in its tone and stretched by the compositor (a soft
+           gradient loses nothing to the upscale): a tone change re-rasters a 256×128 bitmap, never a 4K-wide layer
+           (PL-868 — the class-toned div re-rastered ≈ 750 GPU tiles per category). -->
+      <div ref="beamEl" class="con-eg__beam" :data-eg-beam="beamCat ?? ''">
+        <canvas ref="washEl" class="con-eg__beam-wash" width="256" height="128"></canvas>
+      </div>
+    </div>
 
     <!-- «ОБЗОР ПАРТИИ» — the analytics scene, one level deeper INSIDE this
          workspace. Mounted only while its scene lives; the shared backdrop,
@@ -313,7 +330,7 @@ import {requestEndgameFacts, cachedEndgameFacts} from '@/client/components/endga
 import {rematchState, submitRematch, rematchJoinHref} from '@/client/components/rematch/rematchState';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {
-  buildConsoleEndgameVm, ConsoleEndgameVm, ConsoleEndgameCategory, ConsoleEndgameCategoryKey, ConsoleEndgameRow,
+  buildConsoleEndgameVm, ConsoleEndgameVm, ConsoleEndgameCategory, ConsoleEndgameCategoryKey, ConsoleEndgameRow, ConsoleEndgameSub,
 } from '@/client/console/endgame/consoleEndgameModel';
 import {
   buildRowGeometry, EndgameRowGeo, EndgameSegGeo, EndgameSubGeo,
@@ -321,10 +338,9 @@ import {
 import {
   faceZoom, horizonDrop, horizonRadius, planPodium, podiumOrder, PodiumPlan, SeatGeo, slotOffset,
 } from '@/client/console/endgame/consoleEndgamePodium';
-import {CEREMONY_MS} from '@/client/console/endgame/consoleEndgameScript';
-import {runEndgameCeremony, CeremonyHandle, CeremonyTokenBeat} from '@/client/console/endgame/consoleEndgameDirector';
+import {CEREMONY_MS, HURRY_SCALE} from '@/client/console/endgame/consoleEndgameScript';
+import {runEndgameCeremony, CeremonyHandle, CeremonyIgnition, CeremonyLightBeat} from '@/client/console/endgame/consoleEndgameDirector';
 import {DossierGlyph, scoreCategoryGlyph} from '@/client/console/infoDossierModel';
-import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
@@ -383,6 +399,58 @@ type PostGameAction = {
   run: () => void,
 };
 
+/** `#rgb` / `#rrggbb` → `rgba(r, g, b, a)`; anything else falls back to the palette's neutral steel. */
+function toneRgba(tone: string, alpha: number): string {
+  const hex = tone.startsWith('#') ? tone.slice(1) : '';
+  const full = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex;
+  if (!/^[0-9a-f]{6}$/i.test(full)) {
+    return `rgba(138, 164, 192, ${alpha})`;
+  }
+  const n = parseInt(full, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+/**
+ * T08: paint the category's light into its small canvas — a radial wash under the plate (brightest at the plate's
+ * foot), a soft band where it touches the medallion row, the top faded in so the light is born out of the plate. Drawn
+ * once per category; the compositor stretches the bitmap over the podium (PL-868).
+ */
+function paintLightWash(canvas: HTMLCanvasElement, tone: string): void {
+  const ctx = canvas.getContext('2d');
+  if (ctx === null) {
+    return;
+  }
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.clearRect(0, 0, w, h);
+  ctx.save();
+  ctx.translate(w / 2, 0);
+  ctx.scale(0.44 * w, 0.82 * h);
+  const wash = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+  wash.addColorStop(0, toneRgba(tone, 0.32));
+  wash.addColorStop(0.55, toneRgba(tone, 0.11));
+  wash.addColorStop(1, toneRgba(tone, 0));
+  ctx.fillStyle = wash;
+  ctx.fillRect(-1 / 0.44, 0, 2 / 0.44, 1 / 0.82);
+  ctx.restore();
+  const band = ctx.createLinearGradient(0, 0, 0, h);
+  band.addColorStop(0, toneRgba(tone, 0));
+  band.addColorStop(0.8, toneRgba(tone, 0));
+  band.addColorStop(0.93, toneRgba(tone, 0.15));
+  band.addColorStop(1, toneRgba(tone, 0));
+  ctx.fillStyle = band;
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalCompositeOperation = 'destination-in';
+  const born = ctx.createLinearGradient(0, 0, 0, h);
+  born.addColorStop(0, 'rgba(0, 0, 0, 0)');
+  born.addColorStop(0.14, 'rgba(0, 0, 0, 1)');
+  born.addColorStop(1, 'rgba(0, 0, 0, 1)');
+  ctx.fillStyle = born;
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalCompositeOperation = 'source-over';
+}
+
 export default defineComponent({
   name: 'ConsoleEndgameWorkspace',
   components: {ConsoleEndgameOverview, ConsoleCampaignMap, ConsoleScoreDisc, ConsoleVpBadge, ConsoleCardFaceLite, MarsBotCorpFace},
@@ -421,6 +489,8 @@ export default defineComponent({
       campaignScene: undefined as undefined | 'map',
       /** The coda animates only when the ceremony itself played live. */
       campaignCodaAnimated: false,
+      /** T08: the category whose light stands over the podium (its tone on the beam), undefined while dark. */
+      beamCat: undefined as ConsoleEndgameCategory['accent'] | undefined,
     };
   },
   computed: {
@@ -589,6 +659,19 @@ export default defineComponent({
       return horizonRadius(this.sceneW);
     },
     /** Per-row track geometry — solved from the VM alone, cached by Vue. */
+    /**
+     * T08 (PL-868): the running total's box holds the WIDEST number the count will show (the pre-penalty sum, the
+     * final total — whichever has more digits), so a digit arriving never moves the shield beside it: that shift
+     * re-painted the whole seat layer on every count-up that crossed a power of ten.
+     */
+    totalDigits(): Record<string, number> {
+      const out: Record<string, number> = {};
+      for (const row of this.vm.rows) {
+        const gross = this.vm.categories.reduce((sum, cat) => sum + Math.max(0, cat.values[row.color] ?? 0), 0);
+        out[row.color] = Math.max(String(gross).length, String(row.finalTotal).length);
+      }
+      return out;
+    },
     rowGeo(): Record<string, EndgameRowGeo> {
       const out: Record<string, EndgameRowGeo> = {};
       for (const row of this.vm.rows) {
@@ -611,16 +694,28 @@ export default defineComponent({
     activeCategory(): ConsoleEndgameCategory | undefined {
       return this.ui.catIdx >= 0 ? this.vm.categories[this.ui.catIdx] : undefined;
     },
-    captionText(): string {
+    /** The sub-step the plate names beside its category (a TR source / a card family), undefined for a whole beat. */
+    activeSub(): ConsoleEndgameSub | undefined {
       const cat = this.activeCategory;
-      if (cat === undefined) {
-        return '';
-      }
-      const sub = this.ui.subIdx >= 0 ? cat.subs[this.ui.subIdx] : undefined;
-      if (sub !== undefined) {
-        return this.$t(sub.label);
-      }
-      return this.$t(cat.label);
+      return cat !== undefined && this.ui.subIdx >= 0 ? cat.subs[this.ui.subIdx] : undefined;
+    },
+    /** T08: the plate stands while a category speaks, in that category's tone. */
+    plateClass(): Record<string, boolean> {
+      const cat = this.activeCategory;
+      return {
+        'con-eg__plate--on': cat !== undefined && this.ui.phase === 'scoring',
+        ['con-eg-cat--' + (cat?.accent ?? 'tr')]: true,
+        'con-eg__plate--penalty': cat?.penalty === true,
+      };
+    },
+    /** T08: the CSS pace token — the transitions run at the hurried pace while X hurries the count, ×1 otherwise. */
+    paceToken(): string {
+      return this.ui.hurry === 'on' ? String(Math.round((1 / HURRY_SCALE) * 1000) / 1000) : '1';
+    },
+    /** T08: X still has a count to hurry — not yet hurried, and the ceremony has not reached its ranking. */
+    countHurriable(): boolean {
+      const p = this.ui.phase;
+      return this.ui.hurry === 'off' && (p === 'idle' || p === 'entering' || p === 'scoring' || p === 'settling');
     },
     captionKey(): string {
       return `${this.ui.catIdx}:${this.ui.subIdx}`;
@@ -794,13 +889,17 @@ export default defineComponent({
         return run;
       }
       if (this.ui.phase !== 'actions') {
-        // The count runs: B parks it (pause + board), X skips it — quietly
-        // labelled, never the loudest thing on screen (the ceremony is the
-        // point). A deliberately does nothing (the count is not a dialog).
-        return [
-          {control: 'back', label: 'Minimize'},
-          {control: 'secondary', label: 'Skip scoring', priority: 0},
-        ];
+        // The count runs: B parks it (pause + board), X HURRIES it (T08) —
+        // quietly labelled, never the loudest thing on screen (the ceremony
+        // is the point). The verb exists only while there is a count left to
+        // hurry: once pressed, and through the ranking and the crowning
+        // (always at the full pace), the bar offers B alone. A deliberately
+        // does nothing (the count is not a dialog).
+        const cmds: Array<ConsoleCommand> = [{control: 'back', label: 'Minimize'}];
+        if (this.countHurriable) {
+          cmds.push({control: 'secondary', label: 'Hurry the count', priority: 0});
+        }
+        return cmds;
       }
       return [
         {control: 'dpad', label: 'Select'},
@@ -831,8 +930,8 @@ export default defineComponent({
     // board (the audit's measured final flash).
     'ui.skipSeq': function(): void {
       this.noanim = true;
-      // The skip lands on the canonical final state — no token may still be flying over it.
-      this.clearTokens();
+      // The skip lands on the canonical final state — no light may still stand over it.
+      this.putOutLight();
       this.writeAllTotals();
       cancelAnimationFrame(this.noanimRaf);
       this.noanimRaf = requestAnimationFrame(() => {
@@ -1003,27 +1102,24 @@ export default defineComponent({
       }
       return this.playerView.players.find((p) => p.color === color)?.tableau.find((c) => c.name === face.name);
     },
-    /** Has this category's token LANDED on the seats (its medallion lit, its segment grown)? */
-    landed(idx: number): boolean {
+    /** T08: has THIS seat's medallion of this category IGNITED (its value standing, its segment grown)? */
+    landed(idx: number, color: Color): boolean {
       if (idx < this.ui.catsSettled) {
         return true;
       }
-      if (idx !== this.ui.catIdx) {
+      if (idx !== this.ui.catIdx || this.ui.seatCat[color] !== idx) {
         return false;
       }
       const cat = this.vm.categories[idx];
-      if (cat.subs.length > 1) {
-        return (this.ui.subsOn[cat.key] ?? 0) > 0;
-      }
-      return this.ui.beatStage === 'grow' || this.ui.beatStage === 'settle';
+      return cat.subs.length <= 1 || (this.ui.seatSub[color] ?? 0) > 0;
     },
-    /** The medallion's value: the category's (a multi-sub category sums the sources landed so far); none before. */
+    /** The medallion's value: the category's (a multi-sub category sums the sources THIS seat has lit); none before. */
     medalValue(cat: ConsoleEndgameCategory, idx: number, color: Color): number | undefined {
-      if (!this.landed(idx)) {
+      if (!this.landed(idx, color)) {
         return undefined;
       }
       if (idx >= this.ui.catsSettled && cat.subs.length > 1) {
-        const on = this.ui.subsOn[cat.key] ?? 0;
+        const on = this.ui.seatSub[color] ?? 0;
         return cat.subs.slice(0, on).reduce((sum, sub) => sum + (sub.values[color] ?? 0), 0);
       }
       return cat.values[color] ?? 0;
@@ -1043,32 +1139,23 @@ export default defineComponent({
       };
     },
     // ── layout state ─────────────────────────────────────────────────────
-    segOn(idx: number): boolean {
-      if (idx < this.ui.catsSettled) {
-        return true;
-      }
-      // The active category's own segment grows on its tokens' TOUCHDOWN — never during the focus beat (the
-      // spotlight prepares) nor while its tokens are in the air (TR69: the bar answers the token, never ahead of it).
-      return idx === this.ui.catIdx && this.ui.beatStage !== 'focus' && this.ui.beatStage !== 'fly';
+    /** The seat's segment of this category grows out of its medallion — on THAT seat's ignition (T08), never ahead. */
+    segOn(idx: number, color: Color): boolean {
+      return this.landed(idx, color);
     },
-    subOn(idx: number, cat: ConsoleEndgameCategory, sidx: number): boolean {
+    subOn(idx: number, cat: ConsoleEndgameCategory, sidx: number, color: Color): boolean {
       if (idx < this.ui.catsSettled) {
         return true;
       }
-      if (idx !== this.ui.catIdx) {
+      if (idx !== this.ui.catIdx || this.ui.seatCat[color] !== idx) {
         return false;
       }
-      return (this.ui.subsOn[cat.key] ?? 0) > sidx;
+      return cat.subs.length <= 1 || (this.ui.seatSub[color] ?? 0) > sidx;
     },
+    /** The penalty's scar sweeps in on the seat's ignition of the penalty category (the bar's tip retreats). */
     reclaimOn(color: Color): boolean {
       const reclaim = this.rowGeo[color].reclaim;
-      if (reclaim === undefined) {
-        return false;
-      }
-      if (reclaim.catIdx < this.ui.catsSettled) {
-        return true;
-      }
-      return reclaim.catIdx === this.ui.catIdx && this.ui.beatStage !== 'focus' && this.ui.beatStage !== 'fly';
+      return reclaim !== undefined && this.landed(reclaim.catIdx, color);
     },
     // ── classes ───────────────────────────────────────────────────────────
     lchipClass(cat: ConsoleEndgameCategory, i: number): Record<string, boolean> {
@@ -1078,19 +1165,19 @@ export default defineComponent({
         'con-eg__lchip--done': i < this.ui.catsSettled,
       };
     },
-    segClass(seg: EndgameSegGeo): Record<string, boolean> {
+    segClass(seg: EndgameSegGeo, color: Color): Record<string, boolean> {
       const merged = this.ui.merged[seg.key] === true || seg.subs.length <= 1;
       return {
         ['con-eg-cat--' + seg.accent]: true,
-        'con-eg__seg--on': this.segOn(seg.catIdx),
+        'con-eg__seg--on': this.segOn(seg.catIdx, color),
         'con-eg__seg--merged': merged,
       };
     },
-    subClass(seg: EndgameSegGeo, sub: EndgameSubGeo): Record<string, boolean> {
+    subClass(seg: EndgameSegGeo, sub: EndgameSubGeo, color: Color): Record<string, boolean> {
       const merged = this.ui.merged[seg.key] === true || seg.subs.length <= 1;
       const cat = this.vm.categories[seg.catIdx];
       return {
-        'con-eg__subseg--on': this.subOn(seg.catIdx, cat, sub.idx),
+        'con-eg__subseg--on': this.subOn(seg.catIdx, cat, sub.idx, color),
         // The shades and seams are the micro-reveal's own voice — they
         // DISSOLVE at the merge (the settled bar is one hue per category).
         ['con-eg__subseg--s' + sub.shade]: !merged,
@@ -1181,7 +1268,8 @@ export default defineComponent({
       this.handle = runEndgameCeremony(this.vm, {
         onRankFlip: () => this.performRankFlip(),
         onCrown: () => this.performCrown(),
-        onTokens: (beat, attach) => this.flyTokens(beat, attach),
+        onLight: (beat, attach) => this.playLight(beat, attach),
+        onIgnite: (ignition, attach) => this.igniteMedal(ignition, attach),
         onWinnerFx: () => this.fireWinnerFx(),
         onCount: (color, value) => this.writeTotal(color, value),
         onChampionFx: () => this.fireChampionFx(),
@@ -1196,6 +1284,17 @@ export default defineComponent({
       } else {
         finalizeCeremony(this.vm);
       }
+    },
+    /**
+     * X (T08): HURRY the count — the rest of it plays at `HURRY_SCALE`, the ranking and the crowning at the full
+     * pace after it; a second press is a no-op. Reduced motion has no motion to hurry: X lands atomically, as before.
+     */
+    hurryCeremony(): void {
+      if (this.reduced || this.handle === undefined) {
+        this.skipCeremony();
+        return;
+      }
+      this.handle.hurry();
     },
     /** B = «Свернуть»: hide the scene, pause a running count, open the board. */
     collapseToBoard(): void {
@@ -1214,7 +1313,7 @@ export default defineComponent({
     teardown(): void {
       this.handle?.kill();
       this.handle = undefined;
-      this.clearTokens();
+      this.putOutLight();
       this.commitCall?.kill();
       this.commitCall = undefined;
       for (const b of this.bursts.splice(0)) {
@@ -1323,74 +1422,86 @@ export default defineComponent({
       });
     },
     /**
-     * THE CATEGORY'S TOKENS (TR69 — the score cell's language): one per seat that scores in this beat, born on the
-     * rail's medallion of the category, flying in an arc into the seat's score shield and absorbed there — the count
-     * ticks on the touchdown (the director starts it at the flight's end). A zero brings none. Each flight is handed
-     * to the director's clock (`attach`): the ceremony's pause freezes it, a skip kills it and the layer is emptied.
-     * Reduced motion flies nothing (the medallion and the count still answer at the touchdown's moment).
+     * THE CATEGORY'S LIGHT (T08 «СЧЁТ ПРИХОДИТ СВЕТОМ») — ONE soft wash in the category's tone. On `fall` its box is
+     * posed once (from under the plate to the foot of the seats' medallion row, across every seat — a static box,
+     * never an animated geometry) and the wash DESCENDS into it (scaleY from the top + opacity); on `release` it lets go
+     * in place. Both under the director's clock (`attach`): a pause freezes it, a hurry scales it, a skip puts it out.
+     * Reduced motion draws no light — the medallions still ignite at their moments.
      */
-    flyTokens(beat: CeremonyTokenBeat, attach: (tween: gsap.core.Animation) => void): void {
+    playLight(beat: CeremonyLightBeat, attach: (tween: gsap.core.Animation) => void): void {
       const root = this.$el as HTMLElement | undefined;
-      const layer = this.$refs.tokensEl as HTMLElement | undefined;
+      const beam = this.$refs.beamEl as HTMLElement | undefined;
+      const wash = this.$refs.washEl as HTMLCanvasElement | undefined;
       const cat = this.vm.categories[beat.catIdx];
-      if (root === undefined || layer === undefined || cat === undefined || this.reduced || beat.flyMs <= 0) {
+      if (root === undefined || beam === undefined || wash === undefined || cat === undefined || this.reduced) {
+        return;
+      }
+      if (beat.kind === 'release') {
+        gsap.killTweensOf(wash);
+        attach(gsap.to(wash, {opacity: 0, duration: beat.ms / 1000, ease: 'power1.out'}));
         return;
       }
       const origin = root.getBoundingClientRect();
-      const disc = root.querySelector<HTMLElement>(`[data-eg-rail="${cat.key}"] .con-dscore__disc`)?.getBoundingClientRect();
-      if (disc === undefined || disc.width <= 0) {
+      const plate = root.querySelector<HTMLElement>('.con-eg__plate')?.getBoundingClientRect();
+      const seats = Array.from(root.querySelectorAll<HTMLElement>('[data-eg-row]')).map((el) => el.getBoundingClientRect());
+      const medals = Array.from(root.querySelectorAll<HTMLElement>(`[data-eg-row] [data-eg-medal="${cat.key}"]`))
+        .map((el) => el.getBoundingClientRect()).filter((r) => r.height > 0);
+      if (plate === undefined || plate.height <= 0 || seats.length === 0 || medals.length === 0) {
         return;
       }
-      const sec = beat.flyMs / 1000;
-      const fromX = disc.left + disc.width / 2 - origin.left;
-      const fromY = disc.top + disc.height / 2 - origin.top;
-      for (const row of this.vm.rows) {
-        const value = beat.values[row.color] ?? 0;
-        if (value === 0) {
-          continue;
+      const left = Math.min(...seats.map((r) => r.left)) - origin.left;
+      const right = Math.max(...seats.map((r) => r.right)) - origin.left;
+      const top = plate.top + plate.height / 2 - origin.top;
+      const bottom = Math.max(...medals.map((r) => r.bottom)) - origin.top + this.remPx * 0.6;
+      const box = {left: `${Math.round(left)}px`, top: `${Math.round(top)}px`, width: `${Math.round(right - left)}px`, height: `${Math.max(0, Math.round(bottom - top))}px`};
+      for (const [prop, value] of Object.entries(box)) {
+        if (beam.style.getPropertyValue(prop) !== value) {
+          beam.style.setProperty(prop, value);
         }
-        const shield = root.querySelector<HTMLElement>(`[data-eg-row="${row.color}"] .con-eg__shield`)?.getBoundingClientRect();
-        if (shield === undefined || shield.width <= 0) {
-          continue;
-        }
-        const token = this.makeToken(cat, value);
-        layer.appendChild(token);
-        const toX = shield.left + shield.width / 2 - origin.left;
-        const toY = shield.top + shield.height / 2 - origin.top;
-        gsap.set(token, {x: fromX, y: fromY, xPercent: -50, yPercent: -50, scale: 0.55, opacity: 0});
-        const flight = gsap.timeline({onComplete: () => token.remove(), onInterrupt: () => token.remove()});
-        // Born on the medallion (a pop), carried in an arc (x eased evenly, y falling INTO the seat), absorbed by the shield.
-        flight.to(token, {opacity: 1, scale: 1, duration: sec * 0.18, ease: 'power2.out'}, 0);
-        flight.to(token, {x: toX, duration: sec * 0.72, ease: 'power1.inOut'}, sec * 0.14);
-        flight.to(token, {y: toY, duration: sec * 0.72, ease: 'power2.in'}, sec * 0.14);
-        flight.to(token, {scale: 0.45, opacity: 0, duration: sec * 0.16, ease: 'power2.in'}, sec * 0.84);
-        attach(flight);
       }
+      // The tone is the category's own (`--eg-c` on its rail chip — the palette has one source).
+      const chip = root.querySelector<HTMLElement>(`[data-eg-rail="${cat.key}"]`);
+      paintLightWash(wash, chip === null ? '' : getComputedStyle(chip).getPropertyValue('--eg-c').trim());
+      this.beamCat = cat.accent;
+      gsap.killTweensOf(wash);
+      attach(gsap.fromTo(wash,
+        {opacity: 0, scaleY: 0.18, transformOrigin: '50% 0%'},
+        {opacity: 1, scaleY: 1, duration: beat.ms / 1000, ease: 'power2.out'}));
     },
-    /** One token: the category's disc (its own symbol, ringed in its hue) and the signed points it carries. */
-    makeToken(cat: ConsoleEndgameCategory, value: number): HTMLElement {
-      const token = document.createElement('div');
-      token.className = `con-eg-token con-eg-cat--${cat.accent}` + (value < 0 ? ' con-eg-token--minus' : '');
-      token.dataset.egToken = cat.key;
-      const disc = document.createElement('span');
-      disc.className = 'con-dscore__disc con-eg-token__disc';
-      const glyph = document.createElement('i');
-      const g = scoreCategoryGlyph(cat.key);
-      glyph.className = g.kind === 'icon' ? `con-dscore__glyph ${iconClassFor(g.icon)}` :
-        g.kind === 'tile' ? `con-dscore__glyph con-dscore__glyph--tile con-dscore__glyph--${g.tile}` :
-          'con-dscore__glyph con-dscore__glyph--mark';
-      disc.appendChild(glyph);
-      const label = document.createElement('b');
-      label.className = 'con-eg-token__val';
-      label.textContent = value > 0 ? `+${value}` : this.fmtLabel(value);
-      token.append(disc, label);
-      return token;
-    },
-    clearTokens(): void {
-      const layer = this.$refs.tokensEl as HTMLElement | undefined;
-      if (layer !== undefined) {
-        layer.replaceChildren();
+    /**
+     * A SEAT'S MEDALLION IGNITES (T08): its disc settles from a hair under its size and a ring of the category's light
+     * lifts off it — the accent of «this is where the points arrived». The value and the segment are the template's
+     * (the ignition is state); a zero ignites without the accent (no fake celebration), a sub-step's re-ignition with a
+     * lighter one. Under the director's clock; reduced motion plays none of it.
+     */
+    igniteMedal(ignition: CeremonyIgnition, attach: (tween: gsap.core.Animation) => void): void {
+      const root = this.$el as HTMLElement | undefined;
+      const cat = this.vm.categories[ignition.catIdx];
+      if (root === undefined || cat === undefined || ignition.value === 0 || this.reduced) {
+        return;
       }
+      const medal = root.querySelector<HTMLElement>(`[data-eg-row="${ignition.color}"] [data-eg-medal="${cat.key}"]`);
+      const glow = medal?.querySelector<HTMLElement>('.con-eg__medal-glow');
+      const disc = medal?.querySelector<HTMLElement>('.con-dscore__disc');
+      if (glow === null || glow === undefined || disc === null || disc === undefined) {
+        return;
+      }
+      const whole = ignition.subIdx < 0;
+      const settle = () => gsap.set([glow, disc], {clearProps: 'opacity,transform'});
+      const accent = gsap.timeline({onComplete: settle, onInterrupt: settle});
+      accent.fromTo(disc, {scale: whole ? 0.9 : 0.95}, {scale: 1, duration: consoleMotionMs(340) / 1000, ease: 'power2.out'}, 0);
+      accent.fromTo(glow, {opacity: whole ? 0.95 : 0.6, scale: 0.72},
+        {opacity: 0, scale: 1.4, duration: consoleMotionMs(560) / 1000, ease: 'power2.out'}, 0);
+      attach(accent);
+    },
+    /** Put the light out at once (a skip, a replay, a teardown) — the wash at rest, the beam dark. */
+    putOutLight(): void {
+      const wash = this.$refs.washEl as HTMLCanvasElement | undefined;
+      if (wash !== undefined) {
+        gsap.killTweensOf(wash);
+        gsap.set(wash, {opacity: 0, clearProps: 'transform'});
+      }
+      this.beamCat = undefined;
     },
     /** The champion FIX accent — one strong, restrained beat on every champion
      *  total, EQUAL across a shared championship (no «main» champion): a gold
@@ -1529,10 +1640,13 @@ export default defineComponent({
         return;
       }
       if (this.ui.phase !== 'actions') {
-        // X — the one labelled skip verb; B parks the ceremony (pause +
-        // board). A/Y deliberately do nothing: the count is not a dialog.
+        // X — the one labelled hurry verb (only while a count is left to
+        // hurry); B parks the ceremony (pause + board). A/Y deliberately do
+        // nothing: the count is not a dialog.
         if (action === 'inspect') {
-          this.skipCeremony();
+          if (this.countHurriable) {
+            this.hurryCeremony();
+          }
         } else if (action === 'back') {
           this.collapseToBoard();
         }

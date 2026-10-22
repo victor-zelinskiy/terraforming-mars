@@ -321,6 +321,26 @@ export async function shoot(page: Page, dir: string, name: string): Promise<void
   await page.screenshot({path: `${dir}/${name}.png`});
 }
 
+/**
+ * A FRAME PUMP for a motion claim: headless Chromium paints only when asked, so a ceremony read by a sampler alone
+ * crawls (measured T08 beside a neighbour's run: ~5 rAF/s, the beats stretched 6×, the safety net finalizing mid-count). A tiny
+ * screencast asks the compositor for every frame (each acked and thrown away) — the pace a TV's vsync gives. A
+ * storyboard is a pump too: under `TM_E2E_STORYBOARD=1` this returns a no-op and the storyboard pumps.
+ */
+export async function pumpFrames(page: Page): Promise<() => Promise<void>> {
+  if (process.env.TM_E2E_STORYBOARD === '1') {
+    return async () => {};
+  }
+  const client = await page.context().newCDPSession(page);
+  client.on('Page.screencastFrame', (frame) => {
+    void client.send('Page.screencastFrameAck', {sessionId: frame.sessionId}).catch(() => undefined);
+  });
+  await client.send('Page.startScreencast', {format: 'jpeg', quality: 10, maxWidth: 320, maxHeight: 180, everyNthFrame: 1});
+  return async () => {
+    await client.send('Page.stopScreencast').catch(() => undefined);
+  };
+}
+
 /** A STORYBOARD of one scene (`TM_E2E_STORYBOARD=1` only): every frame the compositor produced, named by its time. */
 export async function storyboard(page: Page, dir: string, name: string): Promise<() => Promise<void>> {
   if (process.env.TM_E2E_STORYBOARD !== '1') {

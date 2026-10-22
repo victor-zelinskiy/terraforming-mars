@@ -224,13 +224,13 @@ async function journeyToEndgameRotated(page: Page, request: APIRequestContext, i
   }, 75_000, 'the endgame workspace (taking pending reveals first)');
 }
 
-/** Land on the SETTLED results (ceremony skipped — this spec is about the overview). */
+/** Land on the SETTLED results (the count hurried — this spec is about the overview). */
 async function settleToActions(page: Page): Promise<void> {
   await waitWithFrames(page, async () =>
     (await page.locator('.con-endgame--entering, .con-endgame--scoring, .con-endgame--actions').count()) > 0,
   15_000, 'the endgame workspace');
-  await page.keyboard.press('KeyX'); // skip the count — atomic settle
-  await waitWithFrames(page, async () => (await page.locator('.con-eg__actions').count()) > 0, 10_000, 'the settled actions');
+  await page.keyboard.press('KeyX'); // hurry the count (T08) — the ranking and the crowning still play, briefly
+  await waitWithFrames(page, async () => (await page.locator('.con-eg__actions').count()) > 0, 30_000, 'the settled actions');
   // Let the WORKSPACE-ARRIVAL fade finish: `.con-root--endgame` hides the
   // HUD over 360 ms, and in headless that transition only advances on pumped
   // frames — the seamlessness probe must not mistake the ceremony's own

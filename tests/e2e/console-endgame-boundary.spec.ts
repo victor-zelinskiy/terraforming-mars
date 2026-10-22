@@ -105,8 +105,8 @@ test.describe('console endgame — the boundary seal and the read-only free roam
     await expect(page.locator('.con-journal, .con-played, .con-info, .con-zoom, .con-confirm'),
       'no live-game surface survived the boundary').toHaveCount(0);
 
-    // The scene is USABLE — which is the whole point of the report: X skips
-    // the count and lands on the settled action list.
+    // The scene is USABLE — which is the whole point of the report: X hurries
+    // the count (T08 — the crowning still plays) and lands on the settled action list.
     await pressFramed(page, 'KeyX', 1500);
     await waitWithFrames(page, async () =>
       (await page.locator('.con-eg__action').count()) > 0, 30_000, 'the settled action list');

@@ -13,38 +13,58 @@
  *    precomputed running sum — the canonical settle record;
  *  · the beat cadence (every duration through consoleMotionMs — speed presets
  *    scale it, reduced motion caps every beat at its short variant);
+ *  · THE IGNITION (T08 «СЧЁТ ПРИХОДИТ СВЕТОМ»): a category's light falls from
+ *    its plate (`onLight`), then every seat's OWN medallion ignites in turn,
+ *    left to right in the count's seat order (`igniteOffsets` — the times are
+ *    the script's, never the DOM's), and that seat's total starts ticking on
+ *    ITS ignition; a zero ignites too (a quiet «0», no celebration);
+ *  · HURRY (T08 — X): the timeline and every attached tween play at
+ *    `HURRY_SCALE` until the preRank's breath, where the pace RETURNS to ×1 —
+ *    the ranking FLIP, the places, the winner hold and the crowning always
+ *    play at the full pace; a second hurry is a no-op by construction;
  *  · SKIP: kill everything, then `finalizeCeremony` — one atomic jump to the
- *    canonical final state; repeated skips are no-ops by construction;
+ *    canonical final state, kept for reduced motion, the safety net and a
+ *    teardown; repeated skips are no-ops by construction;
  *  · PAUSE/RESUME — the B=«Свернуть» round trip: the timeline freezes where
- *    it stands and continues from the same beat on return;
+ *    it stands and continues from the same beat (and pace) on return;
  *  · a safety net (a stalled rAF in a hidden tab must not pin the ceremony's
  *    animation hold at its 35s ceiling — the net finalizes honestly instead,
- *    and RE-ARMS while the ceremony is deliberately paused/collapsed).
+ *    and RE-ARMS while the ceremony is deliberately paused/collapsed). It is
+ *    sized from the LAID timeline (`tl.duration()`), never from a capped sum:
+ *    under reduced motion every window is capped on its own.
  *
  * The component contributes the DOM moments the director cannot know:
  * `onRankFlip` (measure → reorder → invert → play), `onCrown` (the podium's
  * own FLIP — the winner rises, the places step down), `onWinnerFx` (the
- * ceremonyFx burst on the winner seat), `onTokens` (TR69: the category's
- * tokens flying from the rail's medallion into every seat's score) and
- * `onCount` (the total sink) — every flight and FLIP is put under the
+ * ceremonyFx burst on the winner seat), `onLight` (the category's one light
+ * falling from the plate / letting go), `onIgnite` (a seat's medallion
+ * igniting) and `onCount` (the total sink) — every motion is put under the
  * director's clock (`attach`) or its teardown (`addCleanup`), so a pause
- * freezes it and a skip can never leave a half-played transform.
+ * freezes it, a hurry scales it and a skip can never leave a half-played
+ * transform.
  */
 import {gsap} from 'gsap';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import type {ConsoleEndgameVm} from '@/client/console/endgame/consoleEndgameModel';
-import {ceremonyBeats, ceremonyTotalMs} from '@/client/console/endgame/consoleEndgameScript';
+import {CEREMONY_MS, ceremonyBeats, HURRY_SCALE, igniteOffsets, igniteSpanMs} from '@/client/console/endgame/consoleEndgameScript';
 import {consoleEndgameUi, finalizeCeremony} from '@/client/console/endgame/consoleEndgameState';
 
-/** One category's (or one sub-step's) token beat — what the host flies, and for how long. */
-export type CeremonyTokenBeat = {
+/** One category's light (T08): it FALLS from the plate and stays, or it lets go. */
+export type CeremonyLightBeat = {
+  catIdx: number,
+  kind: 'fall' | 'release',
+  /** The motion's length, ms (already through `consoleMotionMs`). */
+  ms: number,
+};
+
+/** One seat's ignition (T08): its medallion of `catIdx` lights with the value this beat brings it. */
+export type CeremonyIgnition = {
+  color: string,
   catIdx: number,
   /** The sub-step inside a multi-sub category, −1 for a whole category. */
   subIdx: number,
-  /** color → the signed points this beat brings (a zero brings no token). */
-  values: Record<string, number>,
-  /** The flight's length, ms (already through `consoleMotionMs`). */
-  flyMs: number,
+  /** The signed points this ignition brings the seat (0 = a quiet zero, no accent). */
+  value: number,
 };
 
 export type CeremonyHooks = {
@@ -53,9 +73,11 @@ export type CeremonyHooks = {
   /** TR69: the podium FORMS — the crowned seats rise, the rest step down (a FLIP of the seats' boxes). Fired with
    *  the winner beat, before the burst. */
   onCrown?: () => void,
-  /** TR69: the beat's TOKENS — born on the rail's medallion, flying into every seat's score; each tween is handed to
-   *  `attach` so the ceremony's pause / resume / kill reach it. Absent → no tokens (the count still runs). */
-  onTokens?: (beat: CeremonyTokenBeat, attach: (tween: gsap.core.Animation) => void) => void,
+  /** T08: the category's ONE light — falls from its plate onto the podium, lets go at the settle. Each tween is
+   *  handed to `attach` so the ceremony's pause / hurry / kill reach it. Absent → no light (the count still runs). */
+  onLight?: (beat: CeremonyLightBeat, attach: (tween: gsap.core.Animation) => void) => void,
+  /** T08: a seat's medallion ignites (the accent is the host's; under `attach` like the light). */
+  onIgnite?: (ignition: CeremonyIgnition, attach: (tween: gsap.core.Animation) => void) => void,
   /** The winner burst (ceremonyFx) — fired once at the winner beat. */
   onWinnerFx: () => void,
   /** The live count-up sink — a DIRECT DOM write, one integer per frame. */
@@ -66,8 +88,13 @@ export type CeremonyHooks = {
 };
 
 export type CeremonyHandle = {
-  /** Atomic jump to the final state. Idempotent; safe at any moment. */
+  /** Atomic jump to the final state. Idempotent; safe at any moment. Reduced motion / the net / an explicit end. */
   skip: () => void,
+  /**
+   * T08 — X: play the rest of the COUNT at `HURRY_SCALE` (the pace returns at the preRank's breath). True when it
+   * took effect; false (a no-op) once hurried, past the breath, or after the end.
+   */
+  hurry: () => boolean,
   /** Tear down without finalizing (unmount / workspace closed). */
   kill: () => void,
   /** Freeze the timeline in place (B = «Свернуть» while the count runs). */
@@ -76,12 +103,22 @@ export type CeremonyHandle = {
   resume: () => void,
   /** Register extra teardown (the component's own tweens). */
   addCleanup: (fn: () => void) => void,
+  /** The ONE timeline — the unit specs' seam (seek it with events on); never driven by product code. */
+  readonly timeline: gsap.core.Timeline,
 };
 
-export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): CeremonyHandle {
+export type CeremonyOptions = {
+  /** Start playing at once (the product); a spec passes false and seeks the timeline itself. */
+  autoplay?: boolean,
+};
+
+export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, options: CeremonyOptions = {}): CeremonyHandle {
   const s = consoleEndgameUi;
   const beats = ceremonyBeats(vm);
   const sec = (ms: number) => consoleMotionMs(ms) / 1000;
+  // The count's seat order — the seats stand in the VM's order until the ranking FLIP (the cascade reads left to
+  // right as the player sees it).
+  const seats = vm.rows.map((r) => r.color);
 
   const cleanups: Array<() => void> = [];
   let done = false;
@@ -100,7 +137,8 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
 
   const tl = gsap.timeline({paused: true});
 
-  // The host's own tweens (the token flights) — under the SAME clock as the timeline: paused, resumed and killed with it.
+  // The host's own tweens (the light, the ignitions) — under the SAME clock as the timeline: paused, resumed, hurried
+  // and killed with it. The tween's OWN onComplete is kept (its cleanup — chained, never replaced).
   const attached = new Set<gsap.core.Animation>();
   const attach = (tween: gsap.core.Animation) => {
     if (done) {
@@ -108,10 +146,15 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
       return;
     }
     attached.add(tween);
+    tween.timeScale(tl.timeScale());
     if (tl.paused()) {
       tween.pause();
     }
-    tween.eventCallback('onComplete', () => attached.delete(tween));
+    const own = tween.eventCallback('onComplete') as ((...args: Array<unknown>) => void) | null | undefined;
+    tween.eventCallback('onComplete', (...args: Array<unknown>) => {
+      attached.delete(tween);
+      own?.(...args);
+    });
   };
 
   const countUp = (at: number, color: string, add: number, ms: number) => {
@@ -145,15 +188,45 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
     }, [], at);
   };
 
-  /** The beat's tokens leave the rail at `at` (the host flies them; a zero brings none — no fake celebration). */
-  const flyTokens = (at: number, catIdx: number, subIdx: number, values: Record<string, number>, flyMs: number) => {
+  const light = (at: number, catIdx: number, kind: CeremonyLightBeat['kind'], ms: number) => {
     tl.call(() => {
-      hooks.onTokens?.({catIdx, subIdx, values, flyMs: consoleMotionMs(flyMs)}, attach);
+      hooks.onLight?.({catIdx, kind, ms: consoleMotionMs(ms)}, attach);
     }, [], at);
+  };
+
+  /**
+   * One ignition CASCADE at `at` (the light's start, or the sub-step's): seat `i` ignites at its offset, its medallion
+   * lights, its count starts. Returns the time the LAST seat ignites.
+   */
+  const cascade = (at: number, catIdx: number, subIdx: number, values: Record<string, number>, leadMs: number, staggerMs: number, countMs: (span: number) => number): number => {
+    const cat = vm.categories[catIdx];
+    const offsets = igniteOffsets(seats.length, consoleMotionMs(leadMs), consoleMotionMs(staggerMs)).map((ms) => ms / 1000);
+    const span = igniteSpanMs(seats.length, staggerMs);
+    seats.forEach((color, i) => {
+      const t = at + offsets[i];
+      const value = values[color] ?? 0;
+      tl.call(() => {
+        if (i === 0) {
+          s.beatStage = 'grow';
+        }
+        s.seatCat = {...s.seatCat, [color]: catIdx};
+        if (subIdx >= 0) {
+          s.seatSub = {...s.seatSub, [color]: subIdx + 1};
+          if (i === seats.length - 1) {
+            s.subsOn = {...s.subsOn, [cat.key]: subIdx + 1};
+          }
+        }
+        hooks.onIgnite?.({color, catIdx, subIdx, value}, attach);
+      }, [], t);
+      countUp(t, color, value, countMs(span));
+    });
+    return at + (offsets[offsets.length - 1] ?? 0);
   };
 
   // ── lay the beats onto the timeline ──────────────────────────────────────
   let at = 0;
+  // The point where a hurried count returns to the full pace (the preRank's breath).
+  let paceReturnAt: number | undefined;
   for (const beat of beats) {
     switch (beat.kind) {
     case 'enter':
@@ -168,33 +241,29 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
 
     case 'category': {
       const cat = vm.categories[beat.idx];
-      // FOCUS — the rail spotlights the coming category; nothing moves yet.
+      // FOCUS — the rail spotlights the coming category, the plate takes it; nothing on the seats moves yet.
       tl.call(() => {
         s.catIdx = beat.idx;
         s.subIdx = -1;
         s.beatStage = 'focus';
+        s.seatSub = {};
       }, [], at);
       at += sec(beat.focusMs);
-      // FLY — the category's tokens leave the rail's medallion for every seat's score; nothing on the seats moves yet.
+      // LIGHT — the category's one light falls from the plate; nothing on the seats has moved yet.
       tl.call(() => {
-        s.beatStage = 'fly';
+        s.beatStage = 'light';
       }, [], at);
-      flyTokens(at, beat.idx, -1, cat.values, beat.flyMs);
-      at += sec(beat.flyMs);
-      // GROW — the touchdown: the bar, the count and the seat's medallion move together.
-      tl.call(() => {
-        s.beatStage = 'grow';
-      }, [], at);
-      for (const row of vm.rows) {
-        countUp(at, row.color, cat.values[row.color] ?? 0, beat.growMs * 0.8);
-      }
-      at += sec(beat.growMs);
-      // SETTLE — the segment locks, the value stands in the medallion.
+      light(at, beat.idx, 'fall', beat.lightMs);
+      // GROW — the medallions ignite in turn; each seat's count starts on ITS ignition.
+      const last = cascade(at, beat.idx, -1, cat.values, beat.lightMs, beat.staggerMs, () => beat.growMs * 0.8);
+      at = last + sec(beat.growMs);
+      // SETTLE — the segment locks, the value stands in the medallion, the light lets go.
       tl.call(() => {
         s.beatStage = 'settle';
         s.catsSettled = beat.idx + 1;
       }, [], at);
       settleTotals(at);
+      light(at, beat.idx, 'release', beat.settleMs);
       at += sec(beat.settleMs);
       // PAUSE — a breath.
       at += sec(beat.pauseMs);
@@ -202,11 +271,14 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
     }
 
     case 'subIntro': {
+      // The plate takes the category and its ONE light falls — it is held through every sub-step.
       tl.call(() => {
         s.catIdx = beat.idx;
         s.subIdx = -1;
         s.beatStage = 'focus';
+        s.seatSub = {};
       }, [], at);
+      light(at, beat.idx, 'fall', beat.lightMs);
       at += sec(beat.ms);
       break;
     }
@@ -214,21 +286,12 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
     case 'sub': {
       const cat = vm.categories[beat.idx];
       const sub = cat.subs[beat.sub];
-      // The caption names the source first; its tokens fly; the touchdown grows the sub-segment and the count.
+      // The plate names the source; every seat re-ignites under the held light — no light of its own.
       tl.call(() => {
         s.catIdx = beat.idx;
         s.subIdx = beat.sub;
-        s.beatStage = 'fly';
       }, [], at);
-      flyTokens(at, beat.idx, beat.sub, sub.values, beat.flyMs);
-      const land = at + sec(beat.flyMs);
-      tl.call(() => {
-        s.beatStage = 'grow';
-        s.subsOn = {...s.subsOn, [cat.key]: beat.sub + 1};
-      }, [], land);
-      for (const row of vm.rows) {
-        countUp(land, row.color, sub.values[row.color] ?? 0, (beat.ms - beat.flyMs) * 0.85);
-      }
+      cascade(at, beat.idx, beat.sub, sub.values, 0, beat.staggerMs, (span) => Math.max(0, beat.ms - span) * 0.85);
       at += sec(beat.ms);
       break;
     }
@@ -242,6 +305,7 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
         s.catsSettled = beat.idx + 1;
       }, [], at);
       settleTotals(at);
+      light(at, beat.idx, 'release', CEREMONY_MS.lightRelease);
       at += sec(beat.ms);
       break;
     }
@@ -251,8 +315,22 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
         s.phase = 'settling';
         s.catIdx = -1;
         s.beatStage = '';
+        s.seatCat = {};
+        s.seatSub = {};
       }, [], at);
-      at += sec(beat.ms);
+      at += sec(Math.max(0, beat.ms - beat.breathMs));
+      // THE PACE RETURNS — whatever X did to the count, the ranking and the crowning play at ×1 from here.
+      paceReturnAt = at;
+      tl.call(() => {
+        if (s.hurry === 'on') {
+          tl.timeScale(1);
+          for (const tween of attached) {
+            tween.timeScale(1);
+          }
+          s.hurry = 'returned';
+        }
+      }, [], at);
+      at += sec(beat.breathMs);
       break;
 
     case 'ranking':
@@ -353,9 +431,10 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
   // Safety net: a hidden tab starves rAF and freezes the timeline mid-flight;
   // the ceremony's animation hold would then sit until its 35s ceiling. The
   // net finalizes honestly instead — but a PAUSED (collapsed) ceremony is the
-  // player's own deliberate state, so the net re-arms and waits it out.
-  const totalMs = consoleMotionMs(ceremonyTotalMs(beats));
-  const netDelay = totalMs * 1.6 + 2500;
+  // player's own deliberate state, so the net re-arms and waits it out. Sized
+  // from the LAID timeline: a capped sum (reduced motion caps the WHOLE total
+  // at one window) once cut the ceremony short.
+  const netDelay = tl.duration() * 1000 * 1.6 + 2500;
   let safety = 0;
   const armSafety = () => {
     safety = window.setTimeout(() => {
@@ -397,10 +476,32 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
     finalizeCeremony(vm);
   };
 
-  tl.play(0);
+  const hurry = (): boolean => {
+    if (done || s.hurry !== 'off') {
+      return false;
+    }
+    const p = s.phase;
+    if (p !== 'idle' && p !== 'entering' && p !== 'scoring' && p !== 'settling') {
+      return false;
+    }
+    if (paceReturnAt !== undefined && tl.time() >= paceReturnAt) {
+      return false;
+    }
+    s.hurry = 'on';
+    tl.timeScale(HURRY_SCALE);
+    for (const tween of attached) {
+      tween.timeScale(HURRY_SCALE);
+    }
+    return true;
+  };
+
+  if (options.autoplay !== false) {
+    tl.play(0);
+  }
 
   return {
     skip,
+    hurry,
     kill: teardown,
     pause: () => {
       if (!done) {
@@ -421,5 +522,7 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
     addCleanup: (fn) => {
       cleanups.push(fn);
     },
+    timeline: tl,
   };
 }
+
