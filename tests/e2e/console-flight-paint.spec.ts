@@ -55,6 +55,30 @@ async function sceneDone(page: Page): Promise<void> {
   await settle(page, {timeoutMs: 30_000});
 }
 
+/**
+ * A STORYBOARD of the scene (`TM_E2E_STORYBOARD=1` only): every frame the compositor produced, named by its time —
+ * `screenshots/t12/<profile>/story-<scene>-<tag>/`. (On the 4K raster the CDP screencast hands back empty frames — the
+ * T08 finding; the fhd storyboard is the frame-by-frame evidence, the 4K one the witness's numbers.)
+ */
+async function storyboard(page: Page, profile: string, scene: string): Promise<() => Promise<void>> {
+  if (process.env.TM_E2E_STORYBOARD !== '1') {
+    return async () => {};
+  }
+  const dir = path.join(OUT, profile, `story-${scene}-${TAG}`);
+  fs.rmSync(dir, {recursive: true, force: true});
+  fs.mkdirSync(dir, {recursive: true});
+  const client = await page.context().newCDPSession(page);
+  const t0 = Date.now();
+  client.on('Page.screencastFrame', (frame) => {
+    fs.writeFileSync(path.join(dir, `t${String(Date.now() - t0).padStart(5, '0')}.jpg`), Buffer.from(frame.data, 'base64'));
+    void client.send('Page.screencastFrameAck', {sessionId: frame.sessionId}).catch(() => undefined);
+  });
+  await client.send('Page.startScreencast', {format: 'jpeg', quality: 82, everyNthFrame: 1});
+  return async () => {
+    await client.send('Page.stopScreencast').catch(() => undefined);
+  };
+}
+
 function record(profile: string, scene: string, w: PaintWitness): string {
   const report = paintReport(w);
   fs.mkdirSync(path.join(OUT, profile), {recursive: true});
@@ -137,8 +161,10 @@ for (const profile of PROFILES) {
       await page.waitForSelector('.con-context__task-kicker', {timeout: 30_000});
       await walkToSpace(page, cell);
       await armPaintWitness(page);
+      const stopStory = await storyboard(page, profile.id, 'prelude-city');
       expect(await commitFocusedSpace(page), `the city lands on ${cell}`).toBeTruthy();
       await sceneDone(page);
+      await stopStory();
       const w = await readPaintWitness(page);
       const report = record(profile.id, 'prelude-city', w);
       test.info().annotations.push({type: 'paint', description: report});
@@ -163,10 +189,12 @@ for (const profile of PROFILES) {
       const {cell, printed} = await richestCell(request, red);
       expect(printed, 'the richest legal cell prints a bonus').toBeGreaterThan(0);
       await armPaintWitness(page);
+      const stopStory = await storyboard(page, profile.id, 'rival-intake');
       await sendPlayerInput(request, red, {type: 'space', spaceId: cell});
       await expect.poll(() => page.locator('[data-intake-seat]').count(), {timeout: 60_000, message: 'the rival\'s intake opened'}).toBeGreaterThan(0);
       await expect.poll(() => page.locator('[data-intake-seat]').count(), {timeout: 30_000, message: 'the rival\'s intake folded'}).toBe(0);
       await sceneDone(page);
+      await stopStory();
       const w = await readPaintWitness(page);
       const report = record(profile.id, 'rival-intake', w);
       test.info().annotations.push({type: 'paint', description: report});

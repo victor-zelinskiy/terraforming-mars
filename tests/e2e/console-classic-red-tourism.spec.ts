@@ -6,7 +6,7 @@
  *   A · `red-tourism` — the Reds rule; blue's two greeneries, red's city on one of their neighbours: the hand plate
  *       reads the server's count, the composer's «ПОЧЕМУ» says the same number, L3 «Показать на поле» lights EXACTLY the
  *       server's cells on the board (red's tile is not among them) and gives the composer back; A plays it: the server
- *       pays − 3 + N.
+ *       pays − cost + N (the cost is the server's — Teractor's Earth discount makes it 0).
  *   B · `red-tourism-zero` — blue has no tile: the plate reads 0 (muted, never hidden), the composer names the zero in
  *       words («Рядом с вашими тайлами нет пустых клеток») and offers no peek.
  *
@@ -27,7 +27,7 @@ const OUT = path.resolve('screenshots', 't12');
 type Basis = {count: number, spaces?: Array<string>};
 type Wire = {
   thisPlayer: {megacredits: number},
-  cardsInHand?: Array<{name: string, countedPlay?: Array<{icon: string, amount: number, basis?: Array<Basis>}>}>,
+  cardsInHand?: Array<{name: string, calculatedCost?: number, countedPlay?: Array<{icon: string, amount: number, basis?: Array<Basis>}>}>,
 };
 
 async function serverModel(request: APIRequestContext, playerId: string): Promise<Wire> {
@@ -68,13 +68,16 @@ for (const preset of PROFILES) {
       test.setTimeout(240_000);
       const {playerId} = await bootFixtureSeats(page, request, 'red-tourism', {query: preset.query});
       const before = await serverModel(request, playerId);
+      const cost = before.cardsInHand?.find((c) => c.name === T12)?.calculatedCost ?? 3;
       const {n, spaces} = await serverCount(request, playerId);
       expect(n, 'the server counts at least five empty areas').toBeGreaterThanOrEqual(5);
       expect(spaces.length, 'one cell per counted area').toBe(n);
       await focusT12(page);
       const slot = page.locator(`.con-hand__slot[data-zoom-slot="${T12}"]`);
       await expect(slot.locator('[data-hand-count]'), 'the plate reads the server\'s count').toHaveAttribute('data-hand-count', String(n));
-      expect(await slot.locator('img').evaluateAll((imgs) => imgs.some((i) => (i as HTMLImageElement).src.includes('T12'))), 'the face wears the T12 art').toBe(true);
+      // The art is a lazily decoded picture (a cold cache on the box paints the frame's placeholder first) — waited for, never sampled once.
+      await expect.poll(() => slot.locator('img').evaluateAll((imgs) => imgs.some((i) => (i as HTMLImageElement).src.includes('T12') && (i as HTMLImageElement).complete)),
+        {timeout: 15_000, message: 'the face wears the T12 art'}).toBe(true);
       await shot(page, preset.id, 'A-hand');
       await openComposer(page);
       const why = page.locator('.con-composer--play .con-cwhy');
@@ -100,7 +103,7 @@ for (const preset of PROFILES) {
         after = await serverModel(request, playerId);
       }
       expect(after.cardsInHand?.some((c) => c.name === T12), 'T12 left the hand').toBe(false);
-      expect(after.thisPlayer.megacredits, `the server: − 3 + ${n}`).toBe(before.thisPlayer.megacredits - 3 + n);
+      expect(after.thisPlayer.megacredits, `the server: − ${cost} + ${n}`).toBe(before.thisPlayer.megacredits - cost + n);
       await settle(page, {timeoutMs: 30_000});
       await shot(page, preset.id, 'A-played');
     });
