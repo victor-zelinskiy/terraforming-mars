@@ -507,7 +507,9 @@ test.describe('console finale podium — the count arrives as light (4K)', () =>
     // The hurried REMAINDER — X to the count's end — against the same categories at their natural pace: ≤ ¼. The box's
     // long frames (LoAF — the GPU commit; once a category whatever the pace) are the frames', never the hurry's, and
     // come off the remainder (they are printed with the frames).
-    const settledAt = after.find((s) => s.phase === 'settling')?.t ?? -1;
+    // The count's END is its first post-count sample: the settle — or, when the hurried settle is shorter than one
+    // sampler step (it ran ×6 under X), the ranking that follows it.
+    const settledAt = after.find((s) => s.phase === 'settling' || s.phase === 'ranking')?.t ?? -1;
     expect(settledAt, 'the hurried count reached its end').toBeGreaterThan(xAt);
     const stallMs = lastStalls.filter((st) => st.t >= xAt && st.t - st.gap <= settledAt).reduce((sum, st) => sum + st.gap, 0);
     const remainder = settledAt - xAt - stallMs;
