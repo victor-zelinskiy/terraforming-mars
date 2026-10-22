@@ -1,5 +1,5 @@
 import {expect, test, Page} from './consoleTest';
-import {bootToBoard, openBotBoardDetail, openInfoPlayedTable, press, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {bootSeededGame, openBotBoardDetail, openInfoPlayedTable, press, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * PALLADIN SHIPPING (C43) — twelve cubes on TWO tracks: six white on space,
@@ -29,11 +29,7 @@ test.describe('console: the MarsBot corporation that needs both halves of a ship
     const created = await request.post('/api/creategame', {data: PALLADIN_CONFIG});
     expect(created.ok(), 'the server accepted the automa config').toBeTruthy();
     const {players} = await created.json();
-    await page.goto(`/player?id=${players[0].id}&console=1`);
-    await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-    await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-
-    await bootToBoard(page);
+    await bootSeededGame(page, request, players[0].id);
 
     // Information workspace → the BOT seat.
     await key(page, 'KeyY', 1200);

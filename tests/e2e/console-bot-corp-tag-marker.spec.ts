@@ -1,5 +1,5 @@
 import {expect, test, Page} from './consoleTest';
-import {bootToBoard, corporationsExcluding, openBotBoardDetail, press, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {bootSeededGame, corporationsExcluding, openBotBoardDetail, press, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * ARKLIGHT (C31) — a white tracker that reminds of a TAG rule, not a track
@@ -33,11 +33,7 @@ test.describe('console: a MarsBot tracker that reminds of a TAG rule', () => {
     const created = await request.post('/api/creategame', {data: ARKLIGHT_CONFIG});
     expect(created.ok(), 'the server accepted the automa config').toBeTruthy();
     const {players} = await created.json();
-    await page.goto(`/player?id=${players[0].id}&console=1`);
-    await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-    await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-
-    await bootToBoard(page);
+    await bootSeededGame(page, request, players[0].id);
 
     // Information workspace → the BOT seat.
     await key(page, 'KeyY', 1200);
