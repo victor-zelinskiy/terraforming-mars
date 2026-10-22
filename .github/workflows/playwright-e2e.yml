@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       shards:
-        description: 'How many parallel shards to split the suite across'
+        description: 'How many parallel shards to split the suite across (tests/e2e/shardPlan.json is balanced for 4, 6, 8 and 10)'
         required: false
-        default: '4'
+        default: '8'
       grep:
         description: 'Only run tests whose title matches this (Playwright --grep)'
         required: false
@@ -20,6 +20,25 @@ permissions:
   contents: read
 
 jobs:
+  # ── THE SHARD MATRIX, from the `shards` input ─────────────────────────────
+  # The suite doubled in a month (≈ 200 → 378 spec files): four shards of one
+  # worker each put a shard near its 120-minute cap. The count is an INPUT now
+  # (default 8), and shardPlan.json carries a time-balanced plan per count, so
+  # changing it on the day needs no regeneration.
+  plan:
+    name: Shard matrix
+    runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.m.outputs.shards }}
+      list: ${{ steps.m.outputs.list }}
+    steps:
+      - id: m
+        run: |
+          N='${{ inputs.shards || '8' }}'
+          case "$N" in ''|*[!0-9]*) echo "shards must be a positive integer, got '$N'"; exit 1;; esac
+          echo "shards=$N" >> "$GITHUB_OUTPUT"
+          echo "list=[$(seq -s, 1 "$N")]" >> "$GITHUB_OUTPUT"
+
   # ── ONE SHARD OF THE SUITE ────────────────────────────────────────────────
   # The suite is split across independent runners rather than given more workers
   # on one. Each spec creates its OWN game over the API and drives its OWN page,
@@ -30,17 +49,17 @@ jobs:
   # those failures are indistinguishable from product bugs in the report (see the
   # note in playwright.config.ts).
   e2e:
-    name: E2E shard ${{ matrix.shard }}/${{ matrix.shards }}
+    name: E2E shard ${{ matrix.shard }}/${{ needs.plan.outputs.shards }}
+    needs: plan
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 150
 
     strategy:
       # One shard failing must never cancel the others — the whole point is to
       # learn the state of the WHOLE suite in one run.
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
-        shards: [4]
+        shard: ${{ fromJSON(needs.plan.outputs.list) }}
 
     steps:
       - name: Checkout
@@ -75,11 +94,11 @@ jobs:
             echo "commit:        ${{ github.sha }}"
             echo "ref:           ${{ github.ref }}"
             echo "run:           ${{ github.run_id }} attempt ${{ github.run_attempt }}"
-            echo "shard:         ${{ matrix.shard }}/${{ matrix.shards }}"
+            echo "shard:         ${{ matrix.shard }}/${{ needs.plan.outputs.shards }}"
             echo "grep:          ${{ inputs.grep }}"
             echo "node:          $(node --version)"
             echo "playwright:    $(npx playwright --version)"
-            echo "command:       npx playwright test tests/e2e --shard=${{ matrix.shard }}/${{ matrix.shards }} --workers=1"
+            echo "command:       npx playwright test tests/e2e --shard=${{ matrix.shard }}/${{ needs.plan.outputs.shards }} --workers=1"
             echo "config:        workers=1 retries=2 trace=on-first-retry(no-screencast) video=off screenshot=only-on-failure"
           } | tee test-results/run-params.txt
 
@@ -104,11 +123,11 @@ jobs:
       # otherwise the positional --shard fallback keeps the run whole.
       - name: Run Playwright E2E (shard ${{ matrix.shard }})
         run: |
-          if FILES=$(node scripts/e2e-shard-files.mjs ${{ matrix.shard }} ${{ matrix.shards }}); then
+          if FILES=$(node scripts/e2e-shard-files.mjs ${{ matrix.shard }} ${{ needs.plan.outputs.shards }}); then
             echo "time-balanced bucket: $FILES"
             npx playwright test $FILES --workers=1 --reporter=list,github,blob ${{ inputs.grep && format('--grep "{0}"', inputs.grep) || '' }}
           else
-            npx playwright test tests/e2e --shard=${{ matrix.shard }}/${{ matrix.shards }} --workers=1 --reporter=list,github,blob ${{ inputs.grep && format('--grep "{0}"', inputs.grep) || '' }}
+            npx playwright test tests/e2e --shard=${{ matrix.shard }}/${{ needs.plan.outputs.shards }} --workers=1 --reporter=list,github,blob ${{ inputs.grep && format('--grep "{0}"', inputs.grep) || '' }}
           fi
 
       # Blobs exist only to be merged by the report job minutes later — they

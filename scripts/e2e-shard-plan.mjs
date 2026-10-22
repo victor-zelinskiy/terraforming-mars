@@ -7,9 +7,13 @@
  * run or CI's merged blobs), sums each spec FILE's duration, greedy-bins the
  * files into N buckets and writes tests/e2e/shardPlan.json. The CI run step
  * consumes it through scripts/e2e-shard-files.mjs and falls back to --shard
- * when the plan is absent or shaped for a different shard count.
+ * when the plan has no buckets for the requested shard count.
  *
- * Usage: node scripts/e2e-shard-plan.mjs <report.json> [--shards 4] [--write]
+ * ONE FILE, SEVERAL SHARD COUNTS (2026-10-23): `--shards 4,6,8,10` writes a plan
+ * per count under `plans`, so the workflow's `shards` input can be changed on
+ * the day without a regeneration — every count it offers stays time-balanced.
+ *
+ * Usage: node scripts/e2e-shard-plan.mjs <report.json | ledger.jsonl...> [--shards 4,6,8] [--write]
  */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -21,14 +25,29 @@ const OUT = path.join(repo, 'tests', 'e2e', 'shardPlan.json');
 const args = process.argv.slice(2);
 const reportPath = args.find((a) => !a.startsWith('--'));
 if (reportPath === undefined) {
-  console.error('usage: node scripts/e2e-shard-plan.mjs <playwright-report.json> [--shards 4] [--write]');
+  console.error('usage: node scripts/e2e-shard-plan.mjs <playwright-report.json | ledger.jsonl...> [--shards 4] [--write]');
   process.exit(2);
 }
 const shardsIdx = args.indexOf('--shards');
-const SHARDS = shardsIdx >= 0 ? Number(args[shardsIdx + 1]) : 4;
+const SHARD_COUNTS = (shardsIdx >= 0 ? args[shardsIdx + 1] : '4').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0);
 
-const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
 const durations = new Map();
+// THE TIMING LEDGER (`TM_E2E_TIMINGS` — one JSON line per test attempt, the Steam Machine's wrapper always writes
+// one) is accepted beside a Playwright report: several ledgers may be given (the FUNCTIONAL and the TIMING runs are
+// two runs), each line's `totalMs` summed per spec file. The box is faster than a CI runner, but the plan only needs
+// the RELATIVE weights — and a ledger exists for every run, a merged CI report only when CI has run.
+const ledgers = args.filter((a) => a.endsWith('.jsonl'));
+const sources = ledgers.length > 0 ? ledgers.map((l) => path.basename(path.dirname(path.dirname(l))) + '/' + path.basename(l)) : [path.basename(reportPath)];
+for (const ledger of ledgers) {
+  for (const line of fs.readFileSync(ledger, 'utf8').split('\n').filter(Boolean)) {
+    const row = JSON.parse(line);
+    const key = path.basename(row.file ?? '');
+    if (key !== '') {
+      durations.set(key, (durations.get(key) ?? 0) + (row.totalMs ?? 0));
+    }
+  }
+}
+const report = ledgers.length > 0 ? {suites: []} : JSON.parse(fs.readFileSync(reportPath, 'utf8'));
 
 function collect(suite, file) {
   const ownFile = suite.file ?? file;
@@ -57,27 +76,41 @@ if (durations.size === 0) {
 }
 
 // Greedy: heaviest file into the lightest bucket.
-const files = [...durations.entries()].sort((a, b) => b[1] - a[1]);
-const buckets = Array.from({length: SHARDS}, () => ({ms: 0, files: []}));
-for (const [file, ms] of files) {
-  buckets.sort((a, b) => a.ms - b.ms);
-  buckets[0].files.push(file);
-  buckets[0].ms += ms;
+function binPack(shards) {
+  const files = [...durations.entries()].sort((a, b) => b[1] - a[1]);
+  const buckets = Array.from({length: shards}, () => ({ms: 0, files: []}));
+  for (const [file, ms] of files) {
+    buckets.sort((a, b) => a.ms - b.ms);
+    buckets[0].files.push(file);
+    buckets[0].ms += ms;
+  }
+  buckets.sort((a, b) => b.ms - a.ms);
+  return {
+    bucketMinutes: buckets.map((b) => Number((b.ms / 60_000).toFixed(1))),
+    buckets: buckets.map((b) => b.files.sort()),
+  };
 }
-buckets.sort((a, b) => b.ms - a.ms);
 
+const plans = {};
+for (const n of SHARD_COUNTS) {
+  plans[String(n)] = binPack(n);
+}
 const plan = {
-  '//': 'Time-balanced CI shard buckets. Regenerate from a full run: ' +
-        'node scripts/e2e-shard-plan.mjs <report.json> --shards 4 --write. ' +
-        'Files not listed here are round-robined by e2e-shard-files.mjs.',
+  '//': 'Time-balanced CI shard buckets, one plan per shard count. Regenerate from a full run: ' +
+        'node scripts/e2e-shard-plan.mjs <report.json | ledger.jsonl...> --shards 4,6,8,10 --write. ' +
+        'Files not listed here are round-robined by e2e-shard-files.mjs. The minutes are RELATIVE weights ' +
+        '(a ledger is measured on the Steam Machine, a CI runner is slower) — read them as the balance, not the clock.',
   generatedAt: new Date().toISOString(),
-  shards: SHARDS,
-  bucketMinutes: buckets.map((b) => Number((b.ms / 60_000).toFixed(1))),
-  buckets: buckets.map((b) => b.files.sort()),
+  sources,
+  files: durations.size,
+  plans,
 };
 
 const json = JSON.stringify(plan, null, 2) + '\n';
-console.log(`buckets (minutes): ${plan.bucketMinutes.join(' / ')} across ${durations.size} files`);
+for (const [n, p] of Object.entries(plans)) {
+  console.log(`${n} shards — buckets (minutes): ${p.bucketMinutes.join(' / ')}`);
+}
+console.log(`across ${durations.size} files`);
 if (args.includes('--write')) {
   fs.writeFileSync(OUT, json);
   console.log(`wrote ${path.relative(repo, OUT)}`);

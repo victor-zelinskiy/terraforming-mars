@@ -30,9 +30,11 @@ if (!fs.existsSync(PLAN)) {
   console.error('no shardPlan.json — fall back to --shard');
   process.exit(2);
 }
-const plan = JSON.parse(fs.readFileSync(PLAN, 'utf8'));
-if (plan.shards !== total || !Array.isArray(plan.buckets) || plan.buckets.length !== total) {
-  console.error(`plan is for ${plan.shards} shards, requested ${total} — fall back to --shard`);
+const file = JSON.parse(fs.readFileSync(PLAN, 'utf8'));
+// A plan per shard count (`plans: {"4": {buckets}, "8": {…}}`); the single-count legacy shape is still read.
+const plan = file.plans?.[String(total)] ?? (file.shards === total ? file : undefined);
+if (plan === undefined || !Array.isArray(plan.buckets) || plan.buckets.length !== total) {
+  console.error(`no plan for ${total} shards (have: ${Object.keys(file.plans ?? {}).join(', ') || file.shards}) — fall back to --shard`);
   process.exit(2);
 }
 
