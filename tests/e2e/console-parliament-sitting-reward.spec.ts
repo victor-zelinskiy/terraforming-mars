@@ -361,8 +361,11 @@ for (const preset of PARLIAMENT_PRESETS) {
             }
           }
           // …and nothing of the parliament or the wave is held at rest — read LIVE (a sample can lag a release by one tick).
+          // The walk turns to the RESULTS page on its own once the reward page has rested, and that page's own beat
+          // (`parliament-sitting:results`) is its hold, not a leak of this one: by the time the probe above has been
+          // read, a law with no follow-up (RX02, RX04) is already there — 6 of 12 «leaks» at one worker were that.
           const restHolds = await page.evaluate(() => ((window as unknown as {__conReady: () => {holds: Array<string>}}).__conReady().holds)
-            .filter((h) => h.startsWith('parliament-sitting') || h.startsWith('resource-transfer')));
+            .filter((h) => (h.startsWith('parliament-sitting') && !h.startsWith('parliament-sitting:results')) || h.startsWith('resource-transfer')));
           expect(restHolds, 'every hold released at rest').toEqual([]);
         }
         await shoot(page, preset.id, `${c.rx}-02-after-wave`);
@@ -428,9 +431,43 @@ for (const preset of PARLIAMENT_PRESETS) {
           await settle(page, {timeoutMs: 20_000});
           await expectParliamentFits(page, `${preset.id} ${c.rx} pick`);
           await shoot(page, preset.id, `${c.rx}-03-pick`);
-          await press(page, 'Enter', 1500);
+          // A on the recipient: act → verify → retry (tests.md). One A in six went nowhere at one worker — consumed by
+          // the console, nothing sent, the pick standing with «A ВЫБРАТЬ» 30 s later. A retry fires ONLY when the press
+          // moved nothing at all (no record, no request in flight, no hold — the receive scene raises one), so it can
+          // never land on what an answered pick opens; each swallowed press names the state it met.
+          const pickLive = page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-task .con-cards__slot--focused');
+          await expect(pickLive, 'the pick is live — a focused candidate, no arrival / pick beat holding it').toHaveCount(1, {timeout: 15_000});
+          const paidOut = async () => ((await parliamentWire(request, playerId)).game.parliament?.phase?.outcomes ?? []).some((o) => o.player === viewer && o.kind === 'cardResource');
+          const moved = async () => await paidOut() || await page.evaluate(() => {
+            const r = (window as unknown as {__conReady?: () => {holds: Array<string>, transport?: {requestInProgress: boolean}}}).__conReady?.();
+            return r !== undefined && (r.transport?.requestInProgress === true || r.holds.length > 0);
+          });
+          const swallowed: Array<string> = [];
+          let answered = false;
+          for (let attempt = 0; attempt < 3 && !answered; attempt++) {
+            answered = await pressUntil(page, 'Enter', moved, {tries: 1, settleMs: 2500});
+            if (!answered) {
+              swallowed.push(await page.evaluate(() => {
+                const w = window as unknown as {
+                  __conReady?: () => {input: {seq: number, last?: {code: string, outcome: string}}, holds: Array<string>, outcome?: unknown},
+                  __conPromptSequence?: () => {settleLeftMs: number, current?: {key: string}},
+                };
+                const r = w.__conReady?.();
+                const s = w.__conPromptSequence?.();
+                return JSON.stringify({
+                  input: r?.input, holds: r?.holds, outcome: r?.outcome, settleLeft: s?.settleLeftMs, prompt: s?.current?.key,
+                  focused: document.querySelectorAll('.con-parl [data-embed-slot="parliament-stage"] .con-cards__slot--focused').length,
+                  held: document.querySelectorAll('.con-parl [data-embed-slot="parliament-stage"] .con-cards__verdictbar--held').length,
+                });
+              }));
+            }
+          }
+          if (swallowed.length > 0) {
+            console.log(`[${preset.id} ${c.rx}] the recipient pick swallowed ${swallowed.length} press(es): ${swallowed.join(' · ')}`);
+          }
+          expect(answered, `A on the recipient pick reaches the server (swallowed: ${swallowed.join(' · ')})`).toBe(true);
           // The chip lands on the chosen card; the record is in.
-          await expect.poll(async () => ((await parliamentWire(request, playerId)).game.parliament?.phase?.outcomes ?? []).some((o) => o.player === viewer && o.kind === 'cardResource'), {timeout: 30_000}).toBe(true);
+          await expect.poll(paidOut, {timeout: 30_000}).toBe(true);
           await settle(page, {timeoutMs: 30_000});
         }
         if (c.follow === 'tile' || (c.follow === 'pick' && iWin)) {

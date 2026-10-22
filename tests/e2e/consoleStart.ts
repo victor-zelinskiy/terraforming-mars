@@ -79,6 +79,39 @@ async function inputEchoSeq(page: Page): Promise<number | undefined> {
   }
 }
 
+/** The keys whose console button DECIDES (`promptSequence.ts` DECIDING_BUTTONS: confirm · secondary · the bumpers · the triggers). */
+const DECIDING_KEYS = new Set(['Enter', 'NumpadEnter', 'KeyX', 'KeyQ', 'KeyE', 'BracketLeft', 'BracketRight', 'Comma', 'Period']);
+
+/**
+ * A DECIDING press waits out the decision's settle window first (the prompt-modal family's law 5 — «a decision is never
+ * answered by rhythm»: the shell swallows a deciding press for 300 / 650 / 1100 ms after a decision arrives and nudges
+ * instead). The product says how much is left (`__conPromptSequence().settleLeftMs`); a driver press inside it was a
+ * press the player could not have made, and a spec with a fixed press then waited 30 s for an answer that never left
+ * (parliament-sitting-reward RX01, the recipient pick right after the reward wave — 3 of 6 at one worker). Bounded;
+ * a page without the probe answers 0. A spec that ASSERTS the swallow presses raw (`page.keyboard.press`).
+ */
+async function awaitDecisionSettled(page: Page, code: string): Promise<void> {
+  if (!DECIDING_KEYS.has(code)) {
+    return;
+  }
+  const deadline = Date.now() + 1_500;
+  for (;;) {
+    let left = 0;
+    try {
+      left = await page.evaluate(() => {
+        const w = window as unknown as {__conPromptSequence?: () => {settleLeftMs: number}};
+        return w.__conPromptSequence === undefined ? 0 : w.__conPromptSequence().settleLeftMs;
+      });
+    } catch {
+      return; // a navigating / closing page — the press goes as it always did
+    }
+    if (left <= 0 || Date.now() >= deadline) {
+      return;
+    }
+    await pollPause(page, Math.min(left + 20, 200));
+  }
+}
+
 /**
  * A press + its settle. The one place a spec's cadence is defined.
  *
@@ -91,6 +124,7 @@ async function inputEchoSeq(page: Page): Promise<number | undefined> {
  */
 export async function press(page: Page, code: string, settleMs = 700): Promise<void> {
   await timed('press', async () => {
+    await awaitDecisionSettled(page, code);
     const before = await inputEchoSeq(page);
     await page.keyboard.press(code);
     if (before !== undefined) {

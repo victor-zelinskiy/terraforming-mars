@@ -290,3 +290,25 @@ worker-scaling curve FIRST** (phase 0.2) — the 28-spec sample at 2 workers was
   Next: the baseline's tail, the TIMING pass `--exclusive --workers=1` (38 + 16 specs), the second profile pass
   (46 files name their 1080 row `standard-1080` — the shared `PARLIAMENT_PRESETS` stays: the geometry guards
   of the Parliament are profile sweeps by contract), the sleep pass ranked by the full ledger.
+- 2026-10-22 (evening) — **the baseline's reds closed; the TIMING class run whole.** The functional re-verify of
+  every fixed spec: 156 / 156. The fixtures saved mid-opening (`startGamePrompt`) are now answered over the API
+  when the spec wants the board (`58636197de` — colony-venus-cells had stood 300 s on the start's purchase plate):
+  the seven specs on them 21 / 21. The TIMING class (58 files, `--exclusive --workers=2`): 196 passed, 0 red,
+  4 flaky — re-judged at one worker (`--repeat-each=2`): finale-podium C′ 2 / 2 (it was the load);
+  parliament-sitting-reward 9 / 18 red, TWO causes, both the driver's / the spec's:
+  ① **a deciding press inside the decision's settle window** (`promptSequence.ts` — the shell swallows A / X / the
+  bumpers / the triggers for 300 / 650 / 1100 ms after a decision arrives): RX01's recipient pick stood right
+  after the reward wave and the fixed press landed in the window. `press()` now waits the window out for a
+  deciding key (`__conPromptSequence().settleLeftMs`, bounded 1.5 s; a spec that ASSERTS the swallow presses raw);
+  ② RX02 / RX04's «every hold released at rest» read the holds LIVE after the analysis — by then the walk had
+  turned to the results page on its own and its beat (`parliament-sitting:results`) was standing: the next page's
+  hold, not a leak → excluded by name. After both: 35 / 36 — RX01 once more, A consumed by the console and
+  nothing sent, the settle window closed. The pick's A is now act → verify → retry (a retry only when the press
+  moved NOTHING — no record, no request, no hold) with the state each swallowed press met printed. The re-run
+  (`--exclusive --workers=1 --repeat-each=2`): **36 / 36**, the retry never fired — if the swallow comes back,
+  its line in the run's output names the gate.
+  **Where the seconds still are** (the full ledger, 1081 tests, 26 162 s summed): the adaptive press 31 % — of
+  which 6 671 s is its own quiet wait, ≈ 410 ms a press, floored by `PRESS_MIN_MS` 120 + `DOM_QUIET_MS` 100 +
+  `PRESS_QUIET_MS` 150 (a lever, not pulled while chasing green: every press race is a flake); bare sleeps 17 %
+  (tv-profile-screens 474 s, parliament-biodome / -aquifer / -cloud ≈ 290 s each — 69 sleeps × 0.7 s in ONE
+  enactment test, inside driver helpers, not the spec: the next pass traces them by call site); boot 10 %.
