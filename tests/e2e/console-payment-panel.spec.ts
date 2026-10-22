@@ -88,10 +88,15 @@ async function key(page: Page, code: string, settle = 500): Promise<void> {
   await press(page, code, settle);
 }
 /** The CTA's viewport box — the thing that must never move. */
+/**
+ * The CTA's box in WHOLE device pixels. The contract is «the CTA does not MOVE» — a move the eye can see — and a
+ * box compared to the sixteenth of a pixel failed on Chromium 156 with y 733.69 → 733.89 on expand: a sub-pixel
+ * re-rounding of the same layout, not a shift (the first full baseline on the Steam Machine, red at motion ×1 too).
+ */
 async function ctaBox(page: Page) {
   const box = await page.locator('.con-composer__cta').first().boundingBox();
   expect(box, 'the play CTA is not rendered').not.toBeNull();
-  return box!;
+  return {x: Math.round(box!.x), y: Math.round(box!.y), width: Math.round(box!.width), height: Math.round(box!.height)};
 }
 
 /**
@@ -167,7 +172,7 @@ test.describe(`console payment — one block, two densities · ${PROFILE_ID}`, (
     const compactRows = await page.locator('.con-payrow').count();
     const compactCta = await ctaBox(page);
     const compactCard = (await page.locator('.con-composer__playcard').boundingBox())!;
-    const compactPayTop = (await pay.boundingBox())!.y;
+    const compactPayTop = Math.round((await pay.boundingBox())!.y); // whole pixels — see `ctaBox`
 
     // ── THE LAYOUT-SHIFT CONTRACT: dial the alt source and watch the CTA ──
     // Walk the whole dial range; the CTA must not move by a single pixel at
@@ -225,7 +230,7 @@ test.describe(`console payment — one block, two densities · ${PROFILE_ID}`, (
     // this is what makes it read as an unfolding, not a new screen.
     expect(await ctaBox(page), 'the CTA moved on expand').toEqual(compactCta);
     expect((await page.locator('.con-composer__playcard').boundingBox())!).toEqual(compactCard);
-    expect((await page.locator('.con-pay').boundingBox())!.y).toEqual(compactPayTop);
+    expect(Math.round((await page.locator('.con-pay').boundingBox())!.y)).toEqual(compactPayTop);
     // Same rows, same order; the cursor opens on the source the bumpers drove.
     expect(await page.locator('.con-payrow').count()).toBe(compactRows);
     expect(await page.locator('.con-payrow--focused').count()).toBe(1);

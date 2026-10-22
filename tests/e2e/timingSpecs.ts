@@ -34,6 +34,8 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   'console-parliament-sitting-v4.spec.ts', // «ПОВЕСТКА is the segment lead plus the shared marker glide» — a duration; green at ×1
   'console-parliament-marsfirst-budget.spec.ts', // a CDP-screencast storyboard (a frame per beat) and the bot's city scene — load-sensitive at ×0.5 and ×1
   'console-parliament-renewal.spec.ts', // the renewal's tact sampled object by object (order, plaque release) — flaky beside a loaded box even at ×1: exclusive
+  'console-parliament-urban.spec.ts', // «the arriving card names …» — read while the card is in flight; red 2 / 2 at ×0.5, green at ×1
+  'console-planet-focus.spec.ts', // the camera's phases waited for by `waitForFunction` windows; red 2 / 2 at ×0.5, green at ×1
   'console-ma-states.spec.ts', // a storyboard of the milestone ceremony: at ×0.5 it has ENDED by the time the 4K «42-committing» frame is taken — green with only TM_E2E_MOTION=1
   // the motion-grammar guards
   'console-smoothness.spec.ts',
