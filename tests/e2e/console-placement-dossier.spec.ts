@@ -106,8 +106,7 @@ async function pump(page: Page): Promise<void> {
 }
 
 async function key(page: Page, code: string, settle = 420): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settle);
+  await press(page, code, settle);
   await pump(page);
 }
 

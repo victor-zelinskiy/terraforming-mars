@@ -1,7 +1,7 @@
 {
   "//": "Frozen per-file counts of e2e anti-patterns. Counts may only FALL. Regenerate with: node scripts/e2e-ratchet-baseline.mjs --write",
   "totals": {
-    "waitForTimeout": 761,
+    "waitForTimeout": 755,
     "requestAnimationFrame": 42
   },
   "files": {
@@ -257,13 +257,13 @@
       "waitForTimeout": 10
     },
     "console-placement-confirm.spec.ts": {
-      "waitForTimeout": 3
+      "waitForTimeout": 2
     },
     "console-placement-dossier.spec.ts": {
-      "waitForTimeout": 17
+      "waitForTimeout": 16
     },
     "console-placement-navigation.spec.ts": {
-      "waitForTimeout": 3
+      "waitForTimeout": 2
     },
     "console-placement-relations.spec.ts": {
       "waitForTimeout": 4
@@ -276,7 +276,7 @@
       "requestAnimationFrame": 4
     },
     "console-play-draw-embed.spec.ts": {
-      "waitForTimeout": 10
+      "waitForTimeout": 9
     },
     "console-play-landing-probe.spec.ts": {
       "waitForTimeout": 12
@@ -382,7 +382,7 @@
       "requestAnimationFrame": 2
     },
     "console-start-summary.spec.ts": {
-      "waitForTimeout": 5
+      "waitForTimeout": 4
     },
     "console-stdp-stable-geometry.spec.ts": {
       "waitForTimeout": 4
@@ -486,7 +486,7 @@
       "waitForTimeout": 3
     },
     "start-scene-profiles.spec.ts": {
-      "waitForTimeout": 5
+      "waitForTimeout": 4
     },
     "start-shelf-art.spec.ts": {
       "waitForTimeout": 1,

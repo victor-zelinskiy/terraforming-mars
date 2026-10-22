@@ -1,5 +1,5 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootSeededGame, createGameWithCards, soloGameConfig} from './consoleStart';
+import {bootSeededGame, createGameWithCards, press, soloGameConfig} from './consoleStart';
 
 /**
  * THE TWO-PHASE PLACEMENT CONFIRM (placementFlow.ts) — the console default.
@@ -20,8 +20,7 @@ import {bootSeededGame, createGameWithCards, soloGameConfig} from './consoleStar
 const OUT_TIMEOUT = 300_000;
 
 async function key(page: Page, code: string, settle = 300): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settle);
+  await press(page, code, settle);
   // Headless Chromium drives rAF off the compositor — force a frame.
   await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}});
 }

@@ -60,8 +60,14 @@ Status: **IN PROGRESS** — phase 0. Owner's framing: «имплементаци
       classify the reds (a timing window → the `@timing` class, a bug → fix), then the suite.
 
 ### Phase 4 — the profile policy
-- [ ] one TV profile per card (the layout at a cheaper raster if phase 0 says the raster costs), 4K only
-      for storyboards / timings; fhd dropped where it duplicates.
+- [x] **The 4K raster costs nothing on the box** (2026-10-22 04:1x): `TM_E2E_TV_RASTER=1080` (the harness
+      swaps a 3840×2160 viewport for 1920×1080, `consoleProfile=tv` untouched → `computeTvUiScale` = 1, the
+      same layout at a quarter of the pixels) ran GMO's four tv4k tests in 7.9–11.1 s against 9.3 / 7.8 /
+      11.0 / 8.8 s at the real 4K — identical. The GPU rasters 4K for free; the time is motion and holds.
+      The switch stays as an experiment's tool; the specs keep their 4K viewport.
+- [ ] fhd per card: the second profile DOUBLES every card spec for a layout the profile sweeps already
+      cover — a policy for the card checklist (new specs: the TV profile only) and a codemod for the
+      `PROFILES` tables of existing ones; decided after the baseline's numbers.
 
 ### Phase 5 — the dev loop
 - [ ] `--profile` / `--grep` conveniences, a warm server, fewer ssh round trips.

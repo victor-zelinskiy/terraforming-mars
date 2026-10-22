@@ -1,4 +1,5 @@
 import {test, expect, Page} from './consoleTest';
+import {press} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -53,8 +54,7 @@ async function shoot(page: Page, preset: Preset, name: string): Promise<void> {
 }
 
 async function key(page: Page, code: string, settleMs = 700): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+  await press(page, code, settleMs);
 }
 
 /** The live wizard step — the workspace breadcrumb's SUBJECT (lower-cased;

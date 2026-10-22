@@ -266,7 +266,27 @@ const STALL_MARKERS: ReadonlyArray<string> = [
   '[animation-hold]', '[console-leak-detector]', '[deferred-refresh]',
 ];
 
+/**
+ * THE TV RASTER EXPERIMENT (the e2e speed iteration, phase 4 — `TM_E2E_TV_RASTER=1080`): a spec that asks
+ * for the 3840×2160 viewport gets 1920×1080 instead, with its `&consoleProfile=tv` query untouched —
+ * `computeTvUiScale` then answers 1 instead of 2, the TV LAYOUT is the same composition in logical px and
+ * the raster is a quarter. The owner's framing (2026-10-21): the main profile is a big screen and the right
+ * layout for it, not necessarily 3840×2160. Measured, then decided; off by default.
+ */
+const TV_RASTER = Number(process.env.TM_E2E_TV_RASTER);
+function rasterViewport<T extends {width: number, height: number} | null | undefined>(v: T): T {
+  if (TV_RASTER === 1080 && v && v.width === 3840 && v.height === 2160) {
+    return {...v, width: 1920, height: 1080} as T;
+  }
+  return v;
+}
+
 export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, transferEndsGuard: void, stallHarvest: void, timingLedger: void}, {workerServer: WorkerServer, workerBuild: string}>({
+  // `viewport` is a self-referencing option fixture; `screen` is not one (Playwright refuses the override) —
+  // the raster is the viewport, `window.screen` only reports.
+  viewport: async ({viewport}, use) => {
+    await use(rasterViewport(viewport));
+  },
   /**
    * WHERE THE SECONDS GO (the e2e speed iteration, phase 0 — `tests/e2e/timing.ts`): the driver's waits book
    * themselves; this fixture resets the ledger per test, books the spec's own bare `page.waitForTimeout`

@@ -52,7 +52,8 @@ for (const name of fs.readdirSync(E2E).filter((f) => f.endsWith('.spec.ts')).sor
       out = out.replace(importRe, `import {${names.join(', ')}} from './consoleStart';`);
     }
   } else {
-    out = out.replace(/(import [^\n]*from '\.\/consoleTest';\n)/, `$1import {press} from './consoleStart';\n`);
+    // CRLF-safe: the anchor line may end in `\r\n`.
+    out = out.replace(/(import [^\r\n]*from '\.\/consoleTest';\r?\n)/, `$1import {press} from './consoleStart';${eol}`);
     if (!out.includes("import {press} from './consoleStart';")) {
       console.log(`  ?  ${name} — no ./consoleTest import to anchor on; skipped`);
       continue;

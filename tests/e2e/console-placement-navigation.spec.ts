@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame, createGameWithCards, soloGameConfig} from './consoleStart';
+import {bootSeededGame, createGameWithCards, press, soloGameConfig} from './consoleStart';
 
 /**
  * FAST NAVIGATION — the panel must not be the moving object on screen.
@@ -20,8 +20,7 @@ import {bootSeededGame, createGameWithCards, soloGameConfig} from './consoleStar
 const OUT = path.resolve('screenshots', 'placement-navigation');
 
 async function key(page: Page, code: string, settle = 130): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settle);
+  await press(page, code, settle);
   // Headless Chromium drives rAF off the compositor: a screenshot is what
   // forces a frame, so the walk really renders rather than idling.
   await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}});
