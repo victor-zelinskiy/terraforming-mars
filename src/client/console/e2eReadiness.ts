@@ -37,6 +37,7 @@ import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {colonyTrackWaveDiag} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {railRewardDiag} from '@/client/console/resourceTransfer/railReward';
 import {actionCommitRailState} from '@/client/console/consoleActionCommitRail';
+import {transferTrailTail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {playedHeroState} from '@/client/console/played/consolePlayedHero';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {boardBeatParkState} from '@/client/console/boardBeatPark';
@@ -65,6 +66,8 @@ export type ConsoleReadinessSnapshot = {
   railReward: ReturnType<typeof railRewardDiag>;
   /** A card action's RAIL HALF (a direct TR, a capsule timeline — TR28): whose, its phase, the link in the air, why the last one ended early. */
   actionCommitRail: {card: string, phase: string, link: number, lastEnd: string, capsules: Array<string>, fallback: string};
+  /** The flights' own trail (T09, decision 8): the runs, their ends, the seeds' verdicts (`rail:seed`), the halves' ends (`rail:end`), the fold's waits. */
+  transfer: {trail: ReadonlyArray<unknown>};
   /** The card PLAY's landing scene: its phase and how its SHIPMENT BEAT (the price taken off the rail — PL-107) ended, by name. */
   playedHero: {phase: string, shipment: string, bill: string, host: string};
   /** The workspace OUTCOME claim's gates — who holds it, how far the answer / the beat / the arrival are (an embedded stage swallows presses while `arrivalDone` is false). */
@@ -91,6 +94,7 @@ export function consoleReadinessSnapshot(): ConsoleReadinessSnapshot {
     colonyTrackWave: colonyTrackWaveDiag(),
     railReward: railRewardDiag(),
     actionCommitRail: {card: actionCommitRailState.card, phase: actionCommitRailState.phase, link: actionCommitRailState.link, lastEnd: actionCommitRailState.lastEnd, capsules: [...actionCommitRailState.capsules], fallback: actionCommitRailState.fallback},
+    transfer: {trail: transferTrailTail(40)},
     playedHero: {phase: playedHeroState.phase, shipment: playedHeroState.shipment, bill: playedHeroState.bill, host: playedHeroState.host},
     outcome: {
       host: workspaceOutcomeState.host ?? '', stage: workspaceOutcomeState.stage, answerIn: workspaceOutcomeState.answerIn,

@@ -1931,7 +1931,8 @@ import {hydroBonusAdvancePlan, hydroBonusDoorAction, hydroBonusOffer} from '@/cl
 import {HYDRO_STAGES} from '@/client/components/hydronetwork/hydroStages';
 import {bonusActionInStartFlow, bonusActionOnBoard, bonusActionOwed, bonusActionTurnControlReason} from '@/client/console/bonusAction';
 import {firstActionOwed} from '@/client/console/startFirstAction';
-import {isResourceTransferActive, resourceTransferDiagnostics} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {isResourceTransferActive, resourceTransferDiagnostics, surfaceClear, surfaceHoldsTokens} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {actionCentreLeavesOnPromptChange} from '@/client/console/actionCentreLeave';
 import {panelCommands} from '@/client/console/consolePanelUi';
 import {consoleActionComposerUi, resetConsoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {focusKicker} from '@/client/console/consoleActionFlow';
@@ -13036,12 +13037,23 @@ export default defineComponent({
               // capsule on its own beat (the half was seeded against the views in
               // the apply block; nothing seeded → nothing flies). The release
               // below leaves a half in the air flying — its chain releases it.
-              void flyActionCommitRail(consumeActionCommitPlan());
+              const claimedSurface = document.querySelector(`[data-motion-surface="${awaiting.from}"]`) ?? document.querySelector('.con-cardactions');
+              const claimedRail = flyActionCommitRail(consumeActionCommitPlan(), claimedSurface);
               // The workspace's own stages carry the outcome from here — the
               // commit beat's job is done, its plan unused (a draw's reward
               // is the cards themselves).
               releaseActionCommit();
-              this.reconcileWorkspaceOutcome();
+              // …and the claim's SETTLE waits for the rail half's tokens to
+              // leave the surface (T09 / BY — H3): a claim nothing turned out
+              // to host is released there and the workspace concludes — a
+              // conclusion in this flush folded it under the spend still
+              // flying off its capsule. Nothing on the surface → at once, as
+              // before.
+              if (claimedRail.holdsSurface || surfaceHoldsTokens(claimedSurface)) {
+                void claimedRail.foldable.then(() => surfaceClear(claimedSurface)).then(() => this.reconcileWorkspaceOutcome());
+              } else {
+                this.reconcileWorkspaceOutcome();
+              }
             } else {
               // ── ACTION COMMIT resolution (non-embedded results). The rail
               //    freezes NOW — pre-flush, before this view commits — so a
@@ -13076,7 +13088,10 @@ export default defineComponent({
                 // last one; a TABLE'S ANSWER flying from the composer's
                 // «Сработает» chip keeps it until the token has left the chip
                 // (PL-220) — the flight says which (`consoleActionCommitRail.ts`).
-                const rail = flyActionCommitRail(commitPlan);
+                // THE SURFACE the commit's tokens are born on and land on — the
+                // one the fold takes away (its motion surface; the action band).
+                const surfaceEl = document.querySelector(`[data-motion-surface="${awaiting.from}"]`) ?? document.querySelector('.con-cardactions');
+                const rail = flyActionCommitRail(commitPlan, surfaceEl);
                 const fold = () => {
                   this.commitFoldOwed = false;
                   // Capture the departing composer UNCONDITIONALLY — the incoming
@@ -13090,26 +13105,35 @@ export default defineComponent({
                   closeConsoleLayers();
                   releaseActionCommit();
                 };
-                // THE WAVE'S TOKENS LEAVE FIRST (T06): the surface folds once every one of them has popped out of its
-                // printed icon — never under a token still to be born (bounded by the run itself: every flight's departure
-                // races its own guarded touchdown, and the run settles its departures on every way out).
-                const waveAway = waveLeft;
+                // THE LAW OF THE FOLD (T06 → T09 / BY): the surface folds when
+                // it is neither the SOURCE nor the DESTINATION of a token in the
+                // air — the wave's tokens born on its printed icons, the rail
+                // half's price drawn INTO its printed cost icon, a result landing
+                // on its capsule. The wave and the chain say when their tokens
+                // have STARTED (`waveLeft` · `rail.foldable`); the engine,
+                // which knows both ends of each as objects, says when the
+                // surface is clear of them (`surfaceClear`). Never a clock,
+                // never a departure alone — a price LEAVES the rail and is still
+                // flying into this surface.
+                const tokensAway = (): Promise<void> => Promise.all([rail.foldable, waveLeft]).then(() => surfaceClear(surfaceEl));
                 if (rail.holdsSurface && actionCommitRailState.phase === 'flying') {
                   // The awaiting handoff stays up (the pad stays inert — the
                   // phrase cannot be cut by a press) and a view arriving
                   // mid-phrase must not resolve it a second time.
                   this.commitFoldOwed = true;
-                  void Promise.all([rail.foldable, waveAway]).then(fold);
+                  void tokensAway().then(fold);
                 } else if (lawPlayLandingOf() !== undefined && isPlayedHeroActive()) {
                   // THE LAW'S CARD IS LANDING IN THIS STAGE (PL-726): the fold waits for the scene to tell its story —
                   // the scene's own `closing` runs it (`playedHeroState.phase` watcher), the workspace dissolving with
                   // the landed tableau inside it. The pad stays inert meanwhile, as for any owed fold.
                   this.commitFoldOwed = true;
                   this.lawPlayFold = fold;
-                } else if (commitPlan !== undefined && commitPlan.specs.length > 0 && !consoleReducedMotionActive()) {
-                  // The wave alone: the surface stands until its last token has popped out of its icon (one stagger).
+                } else if ((commitPlan !== undefined && commitPlan.specs.length > 0 && !consoleReducedMotionActive()) || surfaceHoldsTokens(surfaceEl)) {
+                  // The wave, or a single link of the rail (a plain TR born on
+                  // its printed icon): the surface stands until the tokens have
+                  // left it — one pop, told by the tokens.
                   this.commitFoldOwed = true;
-                  void waveAway.then(fold);
+                  void tokensAway().then(fold);
                 } else {
                   fold();
                 }
@@ -13119,6 +13143,14 @@ export default defineComponent({
               // motion's own completion releases it; a dead stage releases
               // through the beat's short backstop).
               if (actionCommitHolding()) {
+                // THE COMMIT IS RESOLVED ONCE (T09 / BY — H5b): the fold is owed
+                // from THIS moment, not from the beat's settle. Left open, a
+                // second view in the beat (the bot's «active» broadcast, a poll
+                // behind the answer, the bot's own turn) resolved the handoff
+                // again, found the plan already consumed and OVERWROTE this
+                // dismissal with one that carried no plan: the workspace folded
+                // at the beat's end and the seeded rail half was never flown.
+                this.commitFoldOwed = true;
                 this.pendingCommitDismiss = finishDismiss;
               } else {
                 finishDismiss();
@@ -13309,11 +13341,22 @@ export default defineComponent({
           // just confirmed HERE, so the workspace stays and hosts it.
           // A hosted STEP is the same fact for a SelectColony follow-up: the
           // workspace is standing around the colonies right now.
-          if (workspaceFrameMounted('card-actions') &&
-              taskFor(this.playerView)?.kind !== 'actionMenu' &&
-              !workspaceOutcomeClaimed() &&
-              !workspaceFrameHasNested('card-actions') &&
-              !this.partyFlowOwed) {
+          //
+          // …and never under its OWN COMMITTED PHRASE (T09 / BY — H6): an
+          // action that ENDS the turn (every second one against MarsBot) moves
+          // the prompt off the menu in the very flush that resolves its commit,
+          // and leaving here unmounted the composer, killed the commit's motion
+          // and flew the price into the printed icon of a card already gone.
+          // While the commit's handoff stands the leave is the commit's own
+          // fold, which waits for the surface to be clear of its tokens.
+          if (actionCentreLeavesOnPromptChange({
+            mounted: workspaceFrameMounted('card-actions'),
+            menu: taskFor(this.playerView)?.kind === 'actionMenu',
+            outcomeClaimed: workspaceOutcomeClaimed(),
+            nestedStep: workspaceFrameHasNested('card-actions'),
+            partyFlowOwed: this.partyFlowOwed,
+            commitOwnsSurface: isSurfaceAwaitingHandoff() || this.commitFoldOwed || this.pendingCommitDismiss !== undefined,
+          })) {
             leaveWorkspace();
             this.consoleState.sheetIndex = 0;
           }

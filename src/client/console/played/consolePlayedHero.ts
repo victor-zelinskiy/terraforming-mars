@@ -61,7 +61,7 @@ import {
 import {
   runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold,
   resetCardResourceLandings, noteCardResourceLanding,
-  cardResourceLanded,
+  cardResourceLanded, surfaceClear,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
   ResourceTransferSpec, TRANSFER_BEAT_MS, TRANSFER_READ_MS, TRANSFER_RESIDUAL_PAUSE_MS, transferFlightBudgetMs, transferWaveDelayMs,
@@ -1616,7 +1616,10 @@ export async function endPlayedHero(): Promise<void> {
   // THE STAGE STANDS UNTIL ITS OWN TOKENS ARE ABSORBED (T06): a resource landing on a card of this scene finishes its
   // contact beat ON that card — the scene dissolving under it left the token hanging over the board where the card was
   // (the stand: Pets' animal, 1094 px off any object at fhd, 2094 at 4K). Every absorb resolves (the director's guard).
+  // …and THE LAW OF THE FOLD (T09 / BY) asks the stage itself: no token still to be born on it (a TR off the landed card,
+  // an answer off its printed tag), none still to be absorbed on it — whichever run flew it.
   await Promise.all(stageAbsorbs.splice(0));
+  await surfaceClear(typeof document === 'undefined' ? null : document.querySelector('.con-recv'));
   if (!playedHeroState.active) {
     return;
   }

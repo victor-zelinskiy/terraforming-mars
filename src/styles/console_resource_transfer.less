@@ -239,3 +239,28 @@
     .con-transfer__beat,
     .con-transfer__expect { display: none; }
 }
+
+// THE FLIGHTS' TRAIL ON SCREEN (T09, decision 8 — `?trail=1`): a read-only diagnostic column over everything, never a
+// surface (no pointer events, no layout anywhere else). rem — it grows with the TV like every console line.
+.con-transfer-trail {
+  position: fixed;
+  left: 0.6rem;
+  bottom: 0.6rem;
+  z-index: 13000;
+  max-width: min(46rem, 60vw);
+  margin: 0;
+  padding: 0.4rem 0.6rem;
+  list-style: none;
+  pointer-events: none;
+  background: rgba(4, 10, 18, 0.82);
+  border: 1px solid rgba(120, 200, 255, 0.25);
+  border-radius: 0.3rem;
+  font: 0.55rem/1.35 ui-monospace, Consolas, monospace;
+  color: rgba(200, 230, 255, 0.92);
+}
+
+.con-transfer-trail__line {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

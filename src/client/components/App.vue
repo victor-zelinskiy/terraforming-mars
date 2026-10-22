@@ -352,6 +352,7 @@ import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemot
 import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
 import {seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
 import {seedRevealRewardHold} from '@/client/console/revealHandoff';
+import {seedActionCommitRail} from '@/client/console/consoleActionCommitRail';
 import {seedColonyRosterHolds} from '@/client/console/colonyRoster/consoleColonyRoster';
 import {seedColonyCityHolds} from '@/client/console/colonyCity/consoleColonyCity';
 import {seedScaleStepRewardHolds} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
@@ -816,6 +817,11 @@ export default defineComponent({
             seedRivalVotes(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and a deck-check verdict's stock reward (TR13) whose answer arrived through this frame.
             seedRevealRewardHold(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+            // …and a CARD ACTION's rail half (T09 / BY — H5): the first view that PAYS the press may come through THIS road
+            // (a WebSocket wake or a poll applied ahead of the submit's own answer) — seeded only in the transport's block,
+            // the half was never held, never flown, and the shell folded at once. Idempotent: a plan is seeded once, and a
+            // view that has paid nothing of it yet (the press's own state) leaves the plan armed for the view that does.
+            seedActionCommitRail(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and a COLONY ROSTER somebody else changed (a tile replaced / added / removed): held at the old table
             // while the colony grid on screen plays the planet out and in — only when that grid stands.
             seedColonyRosterHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);

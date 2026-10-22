@@ -10,11 +10,12 @@ import {
 import {
   actionCommitRailHoldsCapsule, actionCommitRailState, armedRailLandsOnRow, flyActionCommitRail, resetActionCommitRail, seedActionCommitRail,
 } from '@/client/console/consoleActionCommitRail';
-import {clearPanelRewardHold, heldCardCapsule, heldCardResource, heldStock, heldVictoryPoints} from '@/client/console/resourceTransfer/consoleResourceTransfer';
-import {RATING_RAIL_KEY, TRANSFER_BEAT_MS} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {
+  clearPanelRewardHold, dropTransferEnds, heldCardCapsule, heldCardResource, heldStock, heldVictoryPoints, registerTransferEnds, resetTransferEnds,
+} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {RATING_RAIL_KEY} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {railRewardPending, railRewardState, resetRailRewards} from '@/client/console/resourceTransfer/railReward';
 import {reduceMotionOverrideState} from '@/client/utils/reducedMotion';
-import {motionMs} from '@/client/components/motion/motionTokens';
 
 /*
  * THE ACTION COMMIT'S RAIL HALF (`consoleActionCommitRail.ts`) — PL-001 for
@@ -85,6 +86,7 @@ describe('consoleActionCommitRail — the action commit\'s rail half', () => {
     resetActionCommit();
     resetRailRewards();
     clearPanelRewardHold();
+    resetTransferEnds();
   });
 
   // TR53 iteration: a unit onto the card a composer ROW shows (the card the player CHOSE) — that row must stand for
@@ -115,10 +117,19 @@ describe('consoleActionCommitRail — the action commit\'s rail half', () => {
     it('a half that never began ENDS all the same (a stage waiting on it opens)', () => {
       arm(UNMI, unmiBranch());
       const before = actionCommitRailState.ended;
-      // The views do not bear the promise out (no TR moved): the seed refuses — and counts the end.
-      seedActionCommitRail(view({tr: 20, mc: 20}), view({tr: 20, mc: 20}));
+      // The views do not bear the promise out (the price paid, no TR moved): the seed refuses — and counts the end.
+      seedActionCommitRail(view({tr: 20, mc: 20}), view({tr: 20, mc: 17}));
       expect(actionCommitRailState.phase).eq('idle');
       expect(actionCommitRailState.ended).eq(before + 1);
+    });
+
+    it('a half whose paying view never came ENDS on the commit\'s release (T09 / BY — every way out, PL-430)', () => {
+      arm(UNMI, unmiBranch());
+      const before = actionCommitRailState.ended;
+      seedActionCommitRail(view({tr: 20, mc: 20}), view({tr: 20, mc: 20}));
+      expect(actionCommitRailState.ended, 'a view that paid nothing yet is no end — the plan waits').eq(before);
+      releaseActionCommit('released');
+      expect(actionCommitRailState.ended, 'released without its paying view: over all the same').eq(before + 1);
     });
   });
 
@@ -138,6 +149,16 @@ describe('consoleActionCommitRail — the action commit\'s rail half', () => {
       expect(actionCommitRailState.phase).eq('idle');
       expect(heldStock(RATING_RAIL_KEY)).eq(0);
       expect(railRewardState.degraded?.why).eq('mismatch');
+    });
+
+    it('H5 (T09 / BY) — a view that has paid NOTHING yet (the press\'s own state: a poll / WS frame ahead of the answer) leaves the plan ARMED; the paying view seeds it', () => {
+      arm(UNMI, unmiBranch());
+      seedActionCommitRail(view({tr: 20, mc: 20}), view({tr: 20, mc: 20}));
+      expect(actionCommitRailState.phase, 'nothing held on a view that paid nothing').eq('idle');
+      expect(railRewardState.degraded, 'no mismatch named — it is OWED, not wrong').eq(undefined);
+      seedActionCommitRail(view({tr: 20, mc: 20}), view({tr: 21, mc: 17}));
+      expect(actionCommitRailState.phase, 'the paying view seeds the half').eq('seeded');
+      expect(heldStock(RATING_RAIL_KEY)).eq(1);
     });
 
     it('a plan is seeded ONCE — a later frame cannot re-seed (and so release) the held rows', () => {
@@ -202,9 +223,15 @@ describe('consoleActionCommitRail — the action commit\'s rail half', () => {
 
     /* THE PRICE IS THE LAST LINK (the TR41 walk, 2026-10-10): «8 heat → a Venus step», a tile's price before the board —
        no rail result follows, so the price link is the chain's last. It is absorbed at the hero's printed cost icon,
-       and the surface stood on the POP (`markFoldable` 150 ms after the token's birth): the «−8» touched down where the
-       icon had been, over the bare board. The fold waits for the touchdown and the contact beat, as a landing does. */
-    it('PL-099 — a price with NOTHING after it (the last link is a loss): the surface stands to the token\'s touchdown and one beat, never the pop', async () => {
+       and the surface stood on the POP: the «−8» touched down where the icon had been, over the bare board. Since T09
+       (BY) the fold is not a beat of the clock after the touchdown either: the surface is let go when the ENGINE says no
+       token is still landing on it (`surfaceClear`) — here a token still in the air onto the hero's cost icon. */
+    it('PL-099 / BY — a price with NOTHING after it: the surface stands while a token still lands on it — told by the engine, never by a clock', async () => {
+      const surface = document.createElement('div');
+      surface.className = 'con-cardactions con-ws';
+      const costIcon = document.createElement('i');
+      surface.appendChild(costIcon);
+      document.body.appendChild(surface);
       const branch = {
         index: -1, title: '', available: true, renderKeys: [], steps: [],
         effects: [{direction: 'cost', icon: 'heat', amount: 8, current: 10, resulting: 2}],
@@ -214,18 +241,44 @@ describe('consoleActionCommitRail — the action commit\'s rail half', () => {
       expect(plan.rail?.holdsSurface, 'a price off the rail holds the surface').is.true;
       seedActionCommitRail(view({tr: 20, mc: 20, heat: 10}), view({tr: 20, mc: 20, heat: 2}));
       expect(actionCommitRailState.phase).eq('seeded');
-      const started = performance.now();
+      // The price's token, still in the air, drawn INTO the printed cost icon ON the surface.
+      registerTransferEnds(90_001, {channel: 'stock', resource: 'heat', amount: 8, direction: 'loss'}, undefined, costIcon);
+      const flight = flyActionCommitRail(plan, surface);
+      let folded = false;
+      void flight.foldable.then(() => {
+        folded = true;
+      });
+      await flight.done;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(folded, 'the chain is over, but a token still lands on the surface — it stands').is.false;
+      expect(heldStock('heat'), 'the row has ticked (on the departure)').eq(0);
+      dropTransferEnds(90_001);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(folded, 'the token absorbed — the surface is clear, the fold may come').is.true;
+      expect(actionCommitRailState.phase).eq('idle');
+      surface.remove();
+    });
+
+    it('PL-099 — a price with nothing after it still flies before the table\'s answer (no surface on screen: the fold is the engine\'s at once)', async () => {
+      const branch = {
+        index: -1, title: '', available: true, renderKeys: [], steps: [],
+        effects: [{direction: 'cost', icon: 'heat', amount: 8, current: 10, resulting: 2}],
+      } as ActionPreviewBranch;
+      const plan = arm(UNMI, branch);
+      expect(plan.rail?.links, 'one link — the price').deep.eq([[0]]);
+      expect(plan.rail?.holdsSurface, 'a price off the rail holds the surface').is.true;
+      seedActionCommitRail(view({tr: 20, mc: 20, heat: 10}), view({tr: 20, mc: 20, heat: 2}));
+      expect(actionCommitRailState.phase).eq('seeded');
       const flight = flyActionCommitRail(plan);
-      let foldedAfterMs = -1;
+      let folded = false;
       let pendingAtFold = false;
       void flight.foldable.then(() => {
-        foldedAfterMs = performance.now() - started;
+        folded = true;
         pendingAtFold = railRewardPending(plan.rail!.key);
       });
       await flight.done;
-      expect(foldedAfterMs, 'folded').to.be.at.least(0);
-      expect(foldedAfterMs, 'not on the pop (150 ms) — after the touchdown and the contact beat').to.be.at.least(motionMs(TRANSFER_BEAT_MS) * 0.8);
-      expect(pendingAtFold, 'the table\'s answer had not been flown yet when the surface was released: the fold sits between the price\'s beat and the answer').is.true;
+      expect(folded, 'folded').is.true;
+      expect(pendingAtFold, 'the table\'s answer had not been flown yet when the surface was released: the fold sits between the price and the answer').is.true;
       expect(heldStock('heat'), 'the row has ticked').eq(0);
       expect(actionCommitRailState.phase).eq('idle');
     });

@@ -59,7 +59,7 @@ import {
   RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, TransferEndLike, mergeTransferSpecs, railRowKey,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
-  TransferDegradeReason, beginPanelRewardHold, beginPanelVpHold, releasePanelRewardHold, releasePanelVpHold, runResourceTransfers,
+  TransferDegradeReason, beginPanelRewardHold, beginPanelVpHold, noteTransferTrail, releasePanelRewardHold, releasePanelVpHold, runResourceTransfers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {noteVpHeldElsewhere} from '@/client/console/scoreCell/vpShareLedger';
 import type {Tag} from '@/common/cards/Tag';
@@ -350,6 +350,12 @@ export function seedRailReward(key: string, reward: RailReward, before: PlayerVi
     return false;
   }
   const verdict = verifyRailReward(reward, before, after);
+  // THE SEED'S VERDICT, in the flights' own trail (T09, decision 8): «held» or WHY not — the rows that moved otherwise,
+  // or «owed» (nothing of the cause applied yet) — so a report from the field names the refusal beside the flights.
+  noteTransferTrail('rail:seed', {
+    key, verdict: verdict.cause.length > 0 ? 'held' : verdict.owed ? 'owed' : 'refused',
+    ...(verdict.mismatches.length > 0 ? {mismatches: verdict.mismatches} : {}),
+  });
   if (verdict.mismatches.length > 0) {
     noteDegrade(key, 'mismatch', verdict.mismatches.join('; '));
   }
@@ -451,11 +457,18 @@ export function flyRailRewardLink(
   key: string,
   specs: ReadonlyArray<ResourceTransferSpec>,
   originOf: (spec: ResourceTransferSpec, index: number) => TransferEndLike | undefined,
-  opts: {destination?: TransferEndLike, destinationOf?: (spec: ResourceTransferSpec) => TransferEndLike | undefined, absorb?: 'quick', onLeft?: () => void} = {},
+  opts: {
+    destination?: TransferEndLike, destinationOf?: (spec: ResourceTransferSpec) => TransferEndLike | undefined, absorb?: 'quick',
+    onLeft?: () => void,
+    /** Every token of the link has been ABSORBED at its destination (or never flew) — the owner's «the card received it». */
+    onAbsorbed?: () => void,
+  } = {},
 ): Promise<RailRewardOutcome> {
   const entry = entryOf(key);
   const held = entry === undefined ? [] : specs.filter((spec) => entry.cause.includes(spec));
   if (entry === undefined || entry.phase !== 'held' || held.length === 0) {
+    opts.onLeft?.();
+    opts.onAbsorbed?.();
     return Promise.resolve('none');
   }
   entry.phase = 'flying';
@@ -481,6 +494,7 @@ export function flyRailRewardLink(
     // double of the spec's home — gone on the final approach, the token re-homes there (T06), never into the old pose.
     homeStandIn: true,
     ...(opts.onLeft !== undefined ? {onLeft: opts.onLeft} : {}),
+    ...(opts.onAbsorbed !== undefined ? {onAbsorbed: opts.onAbsorbed} : {}),
     onArrive: (spec) => {
       const live = entryOf(key);
       if (live !== undefined) {

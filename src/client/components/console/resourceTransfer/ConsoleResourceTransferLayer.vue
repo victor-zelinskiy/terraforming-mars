@@ -47,11 +47,17 @@
            :ref="(el) => setExpectRef(f.id, el as HTMLElement | null)"></div>
     </template>
   </div>
+  <!-- THE FLIGHTS' TRAIL ON SCREEN (T09, decision 8 — `?trail=1`): the last events of the transfer trail — the seeds'
+       verdicts (`rail:seed`), the halves' ends (`rail:end`), every flight's ends, the fold's waits — so a report from the
+       couch («the price flew into nowhere») comes with WHY. A diagnostic, read-only, never a surface. -->
+  <ol v-if="trailOn" class="con-transfer-trail" data-transfer-trail aria-hidden="true">
+    <li v-for="(line, i) in trailLines" :key="i" class="con-transfer-trail__line">{{ line }}</li>
+  </ol>
 </template>
 
 <script lang="ts">
 import {defineComponent} from 'vue';
-import {resourceTransferState, registerResourceTransferStage} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {resourceTransferState, registerResourceTransferStage, transferTrailState, transferTrailTail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {TransferStagePiece} from '@/client/console/resourceTransfer/resourceTransferDirector';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -68,9 +74,22 @@ export default defineComponent({
       chipEls: new Map<number, HTMLElement>(),
       beatEls: new Map<number, HTMLElement>(),
       expectEls: new Map<number, HTMLElement>(),
+      transferTrailState,
+      trailOn: typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('trail') === '1',
     };
   },
   computed: {
+    /** The trail's last events, one line each (`?trail=1`): «t ev detail», the detail clipped to one line. */
+    trailLines(): Array<string> {
+      if (!this.trailOn) {
+        return [];
+      }
+      void this.transferTrailState.seq;
+      return transferTrailTail(24).map((e) => {
+        const detail = e.detail === undefined ? '' : JSON.stringify(e.detail);
+        return `${e.t} ${e.runId ?? '·'} ${e.ev} ${detail.length > 140 ? detail.slice(0, 140) + '…' : detail}`;
+      });
+    },
     /** Any live chip of a board-sourced run — the whole layer recedes for the
      *  span (concurrent mixed waves are rare and the demotion is cosmetic). */
     boardSourced(): boolean {

@@ -98,11 +98,29 @@ function trailNow(): number {
     Math.round(performance.now()) : 0;
 }
 
+/** The trail's reactive tick — the `?trail=1` overlay re-reads the tail on it (nothing else reads it). */
+export const transferTrailState = reactive({seq: 0});
+
 function trail(runId: number | undefined, ev: string, detail?: unknown): void {
   transferTrail.push({t: trailNow(), runId, ev, detail});
   if (transferTrail.length > TRAIL_CAP) {
     transferTrail.splice(0, transferTrail.length - TRAIL_CAP);
   }
+  transferTrailState.seq++;
+}
+
+/**
+ * A NAMED EVENT OF A FLIGHT'S OWNER in the same trail (T09, decision 8): the rail half's seed verdict
+ * (`rail:seed {key, verdict, mismatches, owed}`) and its end (`rail:end {why}`), the fold's own steps — so a report from
+ * the field («the price flew into nowhere») comes with WHY, beside the flights it is about.
+ */
+export function noteTransferTrail(ev: string, detail?: unknown): void {
+  trail(undefined, ev, detail);
+}
+
+/** The last `n` trail events (the `?trail=1` overlay; `__conReady().transfer`). */
+export function transferTrailTail(n = 40): ReadonlyArray<{t: number, runId: number | undefined, ev: string, detail?: unknown}> {
+  return transferTrail.slice(-n);
 }
 
 /** Dumped into the animation-hold ceiling warn — the full leak picture. */
@@ -114,8 +132,163 @@ export function resourceTransferDiagnostics(): unknown {
     })),
     heldChipIds: heldChips.map((h) => h.id),
     stageBound: stage !== undefined,
+    liveEnds: [...liveEnds.values()].map((e) => ({id: e.id, from: e.from === undefined ? null : describeEl(e.from), to: e.to === undefined ? null : describeEl(e.to), left: e.left})),
     trail: transferTrail.slice(-40),
   };
+}
+
+// ── THE LAW OF THE FOLD — a surface never folds under its own token (T09, ledger BY) ─────────────────────────────────
+//
+// T06 made a flight's ends OBJECTS and let a surface fold on its tokens' departure (`onLeft`). That was the law for a
+// SOURCE only: a PRICE leaves the rail and is absorbed at a printed icon ON the folding surface — its `onLeft` (the pop
+// off the rail) told the surface it could go while the token was still flying INTO it. The symmetric law is one
+// question asked of the engine, which knows both ends of every token as objects: «is any token in the air still BORN on
+// this surface (not yet left it) or still LANDING on it (not yet absorbed)?». `surfaceClear(el)` resolves when the answer
+// is no — every host folds on it, never on a clock, never on a departure alone.
+
+type LiveEnds = {
+  id: number,
+  spec: ResourceTransferSpec,
+  /** The element the token is born on — matters until its departure (`left`). */
+  from?: Element,
+  /** The element the token lands on — matters until it is absorbed (the flight's removal). */
+  to?: Element,
+  left: boolean,
+  /** The band surfaces the two ends stood on at the flight's start (the sentinel asks whether they LEFT under it). */
+  fromSurface?: Element,
+  toSurface?: Element,
+};
+
+const liveEnds = new Map<number, LiveEnds>();
+const clearWaiters: Array<{surface: Element, settle: () => void}> = [];
+
+/** The surfaces a flight end may stand on and fold under it — a band surface, the play scene's receiving stage. */
+const FOLDING_SURFACE = '.con-ws, .con-recv';
+
+/** Does `surface` still carry a token's end — a birth not yet left, a landing not yet absorbed? */
+export function surfaceHoldsTokens(surface: Element | null | undefined): boolean {
+  if (surface === null || surface === undefined || !surface.isConnected) {
+    return false;
+  }
+  for (const e of liveEnds.values()) {
+    if ((!e.left && e.from !== undefined && surface.contains(e.from)) || (e.to !== undefined && surface.contains(e.to))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * THE FOLD'S ONE QUESTION: resolves once `surface` is neither the SOURCE of a token still to leave it nor the
+ * DESTINATION of a token still to be absorbed on it — at once when it is not (or is gone). Ask it AFTER the runs that may
+ * touch the surface have STARTED (a run registers its tokens synchronously, in the call). Bounded: a run that stalls is
+ * dropped by its own safety, and a ceiling past every honest flight names itself in the trail (never a silent wait).
+ */
+export function surfaceClear(surface: Element | null | undefined): Promise<void> {
+  if (!surfaceHoldsTokens(surface)) {
+    return Promise.resolve();
+  }
+  trail(undefined, 'surface:wait', {surface: describeEl(surface as Element), ends: liveEndsOn(surface as Element)});
+  return new Promise<void>((resolve) => {
+    let done = false;
+    const ceiling = setTimeout(() => {
+      if (!done) {
+        trail(undefined, 'surface:ceiling', {surface: describeEl(surface as Element), ends: liveEndsOn(surface as Element)});
+        settle();
+      }
+    }, SURFACE_CLEAR_CEILING_MS);
+    const settle = () => {
+      if (done) {
+        return;
+      }
+      done = true;
+      clearTimeout(ceiling);
+      const at = clearWaiters.findIndex((w) => w.settle === settle);
+      if (at >= 0) {
+        clearWaiters.splice(at, 1);
+      }
+      resolve();
+    };
+    clearWaiters.push({surface: surface as Element, settle});
+  });
+}
+
+/** Past every honest flight (a pop, an arc, an absorb, a detached wait) — the ceiling of one `surfaceClear`, never its signal. */
+const SURFACE_CLEAR_CEILING_MS = 9000;
+
+function liveEndsOn(surface: Element): Array<string> {
+  return [...liveEnds.values()]
+    .filter((e) => (!e.left && e.from !== undefined && surface.contains(e.from)) || (e.to !== undefined && surface.contains(e.to)))
+    .map((e) => `${e.id}:${e.spec.channel}:${e.spec.resource}${!e.left && e.from !== undefined && surface.contains(e.from) ? ' born here' : ' lands here'}`);
+}
+
+function wakeClearWaiters(): void {
+  for (const waiter of [...clearWaiters]) {
+    if (!surfaceHoldsTokens(waiter.surface)) {
+      waiter.settle();
+    }
+  }
+}
+
+/** A token's two ends enter the registry — called in the run's synchronous half, before the first `await`. */
+export function registerTransferEnds(id: number, spec: ResourceTransferSpec, from: Element | undefined, to: Element | undefined): void {
+  liveEnds.set(id, {
+    id, spec, from, to, left: false,
+    fromSurface: from?.closest(FOLDING_SURFACE) ?? undefined,
+    toSurface: to?.closest(FOLDING_SURFACE) ?? undefined,
+  });
+}
+
+/** The token has LEFT its source (its pop is over, or it was never born). */
+export function markTransferEndLeft(id: number): void {
+  const e = liveEnds.get(id);
+  if (e !== undefined && !e.left) {
+    e.left = true;
+    wakeClearWaiters();
+  }
+}
+
+/** The token is gone — absorbed, degraded, stalled or aborted: neither end holds anything any more. */
+export function dropTransferEnds(id: number): void {
+  if (liveEnds.delete(id)) {
+    wakeClearWaiters();
+  }
+}
+
+/** Test-only: forget every registered end and settle every waiter. */
+export function resetTransferEnds(): void {
+  liveEnds.clear();
+  [...clearWaiters].forEach((w) => w.settle());
+}
+
+
+/**
+ * THE FOLD SENTINEL (T09, decision 7): a token whose end stood on a band surface that LEFT while the token was still
+ * flying to it (or before it was born off it) — the surface folded under its own token. Not a degrade the framework
+ * absorbs quietly: the law `surfaceClear` states was broken by a host, and every e2e spec turns it red (the harness's
+ * `transferEndsGuard` reads this marker beside «end not painted»). Every build.
+ */
+function foldSentinel(id: number, end: 'birth' | 'touchdown'): void {
+  const e = liveEnds.get(id);
+  const surface = end === 'birth' ? e?.fromSurface : e?.toSurface;
+  const el = end === 'birth' ? e?.from : e?.to;
+  if (e === undefined || surface === undefined || el === undefined) {
+    return;
+  }
+  if (!surface.isConnected || surfaceOpacity(surface) < 0.5) {
+    console.warn(`[transfer] surface folded under its token — the ${end} of ${e.spec.channel}:${e.spec.resource}${e.spec.targetCard !== undefined ? `@${e.spec.targetCard}` : ''} ${end === 'birth' ? 'off' : 'into'} ${describeEl(el)} (${describeEl(surface)} ${surface.isConnected ? 'faded' : 'gone'})`);
+  }
+}
+
+function surfaceOpacity(el: Element): number {
+  if (typeof getComputedStyle !== 'function') {
+    return 1;
+  }
+  let op = 1;
+  for (let n: Element | null = el; n !== null; n = n.parentElement) {
+    op *= Number(getComputedStyle(n).opacity || '1');
+  }
+  return op;
 }
 
 // ── the PANEL REWARD HOLD (delayed visual commit of reward metrics) ─────────
@@ -637,23 +810,29 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
   // Every end is kept as what it IS — an object re-measured in the frame it matters (T06), the spec's own HOME ladder
   // (re-run: the first VISIBLE match then), or a bare point (an explicit stage point, a board icon) — so the director
   // can ask again at the birth, on the final approach and at the touchdown.
-  const flights: Array<{spec: ResourceTransferSpec, from: TransferPoint, to: TransferPoint, fromRef: EndRef, toRef: EndRef, detached?: boolean}> = [];
+  // Each flight also keeps the ELEMENTS its two ends were measured on (the law of the fold, BY) — taken from THIS measure,
+  // never a second walk of the ladder.
+  const flights: Array<{spec: ResourceTransferSpec, from: TransferPoint, to: TransferPoint, fromRef: EndRef, toRef: EndRef, detached?: boolean, fromEl?: Element, toEl?: Element}> = [];
   for (const [i, e] of specEntries.entries()) {
     const skippedHere: Array<SkippedEnd> = [];
     const explicit = run.destinationOf?.(e.spec, i) ?? run.destination;
     let rowRef: EndRef = explicit === undefined ? 'home' : explicit;
+    lastRestingEl = undefined;
     let row = measureEndRef(rowRef, e.spec, 'destination', skippedHere);
     if (row === undefined && explicit !== undefined && run.homeStandIn === true) {
       // The double is not painted (its surface already left): the token lands on the spec's own home instead.
       rowRef = 'home';
+      lastRestingEl = undefined;
       row = targetPointFor(e.spec, skippedHere);
     }
+    const rowEl = row === undefined ? undefined : rowRef === 'home' ? lastRestingEl : isTransferEnd(rowRef) ? rowRef.el : undefined;
     const srcRef: EndRef | undefined = e.origin ?? run.source.end ?? run.source.point ??
       (sourceRef === undefined ? undefined : spawnEndOf(sourceRef, i, specEntries.length));
+    const srcEl = srcRef !== undefined && isTransferEnd(srcRef) ? srcRef.el : undefined;
     const sourcePoint = srcRef === undefined ? undefined : measureEndRef(srcRef, e.spec, 'source', skipped);
     if (row === undefined && sourcePoint !== undefined && srcRef !== undefined && detachable(run, e.spec, skippedHere)) {
       trail(runId, 'flight:detach', {channel: e.spec.channel, resource: e.spec.resource, targetCard: e.spec.targetCard ?? null, covered: coveredEnds(skippedHere)});
-      flights.push({spec: e.spec, from: sourcePoint, to: sourcePoint, fromRef: srcRef, toRef: 'home', detached: true});
+      flights.push({spec: e.spec, from: sourcePoint, to: sourcePoint, fromRef: srcRef, toRef: 'home', detached: true, fromEl: srcEl});
       continue;
     }
     if (row === undefined || sourcePoint === undefined) {
@@ -667,9 +846,9 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
       run.onArrive?.(e.spec);
       run.onDegrade?.(e.spec, sourcePoint === undefined ? 'no-source' : 'no-destination');
     } else if (e.spec.direction === 'loss') {
-      flights.push({spec: e.spec, from: row, to: sourcePoint, fromRef: rowRef, toRef: srcRef ?? sourcePoint});
+      flights.push({spec: e.spec, from: row, to: sourcePoint, fromRef: rowRef, toRef: srcRef ?? sourcePoint, fromEl: rowEl, toEl: srcEl});
     } else {
-      flights.push({spec: e.spec, from: sourcePoint, to: row, fromRef: srcRef ?? sourcePoint, toRef: rowRef});
+      flights.push({spec: e.spec, from: sourcePoint, to: row, fromRef: srcRef ?? sourcePoint, toRef: rowRef, fromEl: srcEl, toEl: rowEl});
     }
   }
   if (flights.length === 0) {
@@ -701,11 +880,19 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     detached: f.detached === true,
     delayMs: Math.round(motionMs(transferWaveDelayMs(i, flights.length)) * pace),
     index: i,
+    fromEl: f.fromEl,
+    toEl: f.toEl,
   }));
   // A DETACHED token waits for its surface to leave holding the FEED only (its wait must never be what keeps that
   // surface's flow from concluding); it turns into an ordinary flying chip once its arc starts (`onArc`).
   resourceTransferState.flights = [...resourceTransferState.flights,
     ...entries.map((e) => ({id: e.id, spec: e.spec, fromBoard: run.fromBoard === true, inSurface: inSurface || e.detached}))];
+  // THE LAW OF THE FOLD (BY): both ends of every token enter the registry in THIS synchronous half of the call, so a host
+  // asking `surfaceClear` right after starting the run already sees its tokens (a detached token's destination is under
+  // a foreign surface by definition — only its birth can hold the surface it rises from).
+  for (const e of entries) {
+    registerTransferEnds(e.id, e.spec, e.fromEl, e.detached ? undefined : e.toEl);
+  }
   trail(runId, 'run:flights', {arrival: run.arrival, ids: entries.map((e) => e.id)});
   try {
     await nextTick(); // the layer mounts the chips
@@ -722,6 +909,8 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
         noteCardResourceLanding(e.spec);
         run.onArrive?.(e.spec);
         run.onDegrade?.(e.spec, 'stalled');
+        // A stalled wave holds no surface: its tokens are declared gone (the fold may not wait on a clock that stopped).
+        dropTransferEnds(e.id);
       });
     }, waveBudget);
 
@@ -744,6 +933,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
       const liveFrom = () => measureEndRef(e.fromRef, e.spec, 'source');
       if (e.detached) {
         const detached = flyDetached(runId, run, piece, e, uiScale, pace, () => safetyFired, liveFrom);
+        void detached.then(() => markTransferEndLeft(e.id));
         departures.push(detached);
         return detached;
       }
@@ -773,6 +963,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
       });
       departures.push(handles.launched);
       absorbs.push(handles.finished);
+      void handles.launched.then(() => markTransferEndLeft(e.id));
       const loss = e.spec.direction === 'loss';
       // A LOSS is fixed at its DEPARTURE: the row's counter ticks the moment the chip leaves it.
       let released = false;
@@ -803,6 +994,8 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
       void handles.finished.then((outcome) => {
         if (outcome !== 'landed') {
           removeFlight(e.id); // 'auto' — absorbed at the destination
+        } else {
+          dropTransferEnds(e.id); // 'hold' — RESTING on its row: the flight stays for the settle, its ends hold nothing
         }
       });
       return touched;
@@ -915,11 +1108,13 @@ function reportEnds(runId: number, run: ResourceTransferRun, e: {id: number, spe
   if (report.born === 'unpainted') {
     if (!safetyFired) {
       run.onDegrade?.(e.spec, 'source-gone');
+      foldSentinel(e.id, 'birth');
     }
     return;
   }
   if (report.end === 'lost' && !safetyFired) {
     run.onDegrade?.(e.spec, 'destination-gone');
+    foldSentinel(e.id, 'touchdown');
   }
   const bare = (ref: EndRef) => ref !== 'home' && !isTransferEnd(ref);
   if (bare(e.fromRef) && report.bornAt !== undefined) {
@@ -1103,10 +1298,13 @@ export function abortResourceTransfers(): void {
   heldChips = [];
   resourceTransferState.runActive = false;
   resourceTransferState.surfaceRuns = 0;
+  liveEnds.clear();
+  wakeClearWaiters();
 }
 
 function removeFlight(id: number): void {
   resourceTransferState.flights = resourceTransferState.flights.filter((f) => f.id !== id);
+  dropTransferEnds(id);
 }
 
 // ── anchors (measured from the REAL interface, per profile) ─────────────────
