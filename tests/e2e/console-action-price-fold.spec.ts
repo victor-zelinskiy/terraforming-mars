@@ -188,7 +188,8 @@ async function serverOf(request: APIRequestContext, playerId: string): Promise<{
 }
 
 async function delayAnswers(page: Page, ms: number): Promise<void> {
-  await page.route('**/api/player/input*', async (route) => {
+  // The submit funnel posts to `player/input` / `player/input-batch` (no `/api` prefix — `paths.PLAYER_INPUT`).
+  await page.route('**/player/input*', async (route) => {
     await new Promise((resolve) => setTimeout(resolve, ms));
     await route.continue();
   });
@@ -389,6 +390,6 @@ test.describe(`console-action-price-fold · ${PROFILE.id}`, () => {
     expectLaw(reading, false);
     const after = await serverOf(request, playerId);
     expect(after.tr - before.tr, '+1 TR').toBe(1);
-    expect(after.mc - before.mc, '−7 for the card, +3 for three Earth tags').toBe(-7 + 3);
+    expect(after.mc - before.mc, '−7 for the card less Teractor\'s 3 on an Earth card, +3 for three Earth tags').toBe(-(7 - 3) + 3);
   });
 });
