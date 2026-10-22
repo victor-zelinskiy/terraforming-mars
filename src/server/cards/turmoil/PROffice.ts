@@ -21,6 +21,10 @@ export class PROffice extends Card implements IProjectCard {
 
       requirements: {party: PartyName.UNITY},
       metadata: {
+        infoText: [
+          {text: 'Gain 1 TR.', tokens: ['tr']},
+          {text: 'Gain 1 M€ for each Earth tag you have, including this.', tokens: ['megacredits']},
+        ],
         cardNumber: 'T09',
         renderData: CardRenderer.builder((b) => {
           b.tr(1).br;
