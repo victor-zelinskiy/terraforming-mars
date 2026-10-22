@@ -374,7 +374,10 @@ if [ "$(cat node_modules/.tm-lock-sha 2>/dev/null)" != ${shq(lockShaLocal)} ]; t
   NPM_RC=$?
   grep -E "error code|sync|Missing|added|packages in" /tmp/tm-e2e-npm-ci.log | head -8
   if [ "$NPM_RC" -eq 0 ]; then
-    npx playwright install chromium --with-deps 2>&1 | tail -2
+    # The browser that matches the installed Playwright (1.64 → Chromium 156, the engine Electron 45 ships).
+    # No \`--with-deps\`: it reaches for sudo, which has no terminal over ssh; the container's libraries were
+    # installed once at setup (docs/claude/e2e-remote.md).
+    npx playwright install chromium 2>&1 | tail -2
     echo ${shq(lockShaLocal)} > node_modules/.tm-lock-sha
   else
     # A neighbour's half-done dependency bump (package.json ahead of its lock) must not block every
@@ -404,26 +407,38 @@ mkdir -p ${REMOTE_HOME}/slots
 SLOTS=${SLOTS}
 DEADLINE=$((SECONDS + ${LOCK_WAIT_S}))
 SLOT=""
-${exclusive ? `for i in $(seq 0 $((SLOTS - 1))); do
-  eval "exec $((10 + i))>${REMOTE_HOME}/slots/$i"
-  if ! flock -n $((10 + i)); then
-    echo "[e2e:remote] EXCLUSIVE run — waiting for slot $i of $SLOTS to free (up to $(( (DEADLINE - SECONDS) / 60 )) min)…"
-    flock -w $((DEADLINE - SECONDS)) $((10 + i)) || { echo "[e2e:remote] gave up waiting for the box"; exit 3; }
-  fi
-done
-SLOT="exclusive"` : `while [ -z "$SLOT" ]; do
+EXCL=${exclusive ? '1' : '0'}
+# A changed lock means \`npm ci\` in the SHARED mirror — it deletes the node_modules every running
+# task links, so the install may only happen with the box EMPTY: such a run goes exclusive whatever
+# was asked (seen 2026-10-22: a shared install beside a neighbour's run would have cut its workers off).
+if [ "$(cat ${REMOTE_REPO}/node_modules/.tm-lock-sha 2>/dev/null)" != ${shq(lockShaLocal)} ]; then
+  echo "[e2e:remote] the lock changed — the install needs the whole box: this run goes EXCLUSIVE"
+  EXCL=1
+fi
+if [ "$EXCL" = 1 ]; then
   for i in $(seq 0 $((SLOTS - 1))); do
     eval "exec $((10 + i))>${REMOTE_HOME}/slots/$i"
-    if flock -n $((10 + i)); then SLOT="slot $((i + 1))/$SLOTS"; break; fi
-    eval "exec $((10 + i))>&-"
+    if ! flock -n $((10 + i)); then
+      echo "[e2e:remote] EXCLUSIVE run — waiting for slot $i of $SLOTS to free (up to $(( (DEADLINE - SECONDS) / 60 )) min)…"
+      flock -w $((DEADLINE - SECONDS)) $((10 + i)) || { echo "[e2e:remote] gave up waiting for the box"; exit 3; }
+    fi
   done
-  if [ -z "$SLOT" ]; then
-    [ -z "$WAITED" ] && echo "[e2e:remote] every slot of $SLOTS is BUSY — waiting for one (up to $(( (DEADLINE - SECONDS) / 60 )) min)…"
-    WAITED=1
-    [ $SECONDS -ge $DEADLINE ] && { echo "[e2e:remote] gave up waiting for a slot"; exit 3; }
-    sleep 2
-  fi
-done`}
+  SLOT="exclusive"
+else
+  while [ -z "$SLOT" ]; do
+    for i in $(seq 0 $((SLOTS - 1))); do
+      eval "exec $((10 + i))>${REMOTE_HOME}/slots/$i"
+      if flock -n $((10 + i)); then SLOT="slot $((i + 1))/$SLOTS"; break; fi
+      eval "exec $((10 + i))>&-"
+    done
+    if [ -z "$SLOT" ]; then
+      [ -z "$WAITED" ] && echo "[e2e:remote] every slot of $SLOTS is BUSY — waiting for one (up to $(( (DEADLINE - SECONDS) / 60 )) min)…"
+      WAITED=1
+      [ $SECONDS -ge $DEADLINE ] && { echo "[e2e:remote] gave up waiting for a slot"; exit 3; }
+      sleep 2
+    fi
+  done
+fi
 if ! ${besideGame ? 'true' : 'false'} && pgrep -f '[T]erraformingMars.AppImage' >/dev/null; then echo "[e2e:remote] the game started on the Steam Machine while we waited — refusing"; exit 4; fi
 echo "[e2e:remote] $SLOT — running ${shq(task)} on $(cat /etc/hostname 2>/dev/null) · load $(cut -d' ' -f1-3 /proc/loadavg)"
 # The task's serve root: its own build beside LINKS to what the server reads relative to its cwd

@@ -86,11 +86,11 @@ so nothing here needs `sudo` on the host and nothing is lost to an update:
 | Piece | Where | Notes |
 | --- | --- | --- |
 | sshd | `systemctl enable --now sshd` (the owner, once) | key-only login for the laptop's `~/.ssh/id_ed25519_steammachine` (no passphrase — agents are non-interactive); alias `steam-machine` in the laptop's `~/.ssh/config` |
-| Node 22.22.3 | `~/tm-e2e/node/` | the official linux-x64 tarball, same version as the laptop |
+| Node 24.20.0 | `~/tm-e2e/node` → `node-24/` (symlink; `node-22/` kept beside it) | the official linux-x64 tarball, the version `package.json` `engines` demands and CI / the laptop's fnm run. ⚠ The box ran Node 22 / npm 10 for its first day and npm 10 refused a lock npm 11 had written («Missing: webpack@5.112.0 from lock file» — npm 11 prunes the nested `webpack` a types-only peer wants, npm 10 demands it): the box's npm MUST match the laptop's major, or every bump flips the lock |
 | Ubuntu 24.04 container | `distrobox create --name e2e --image docker.io/library/ubuntu:24.04` | the only place Playwright's Chromium has its libraries (`install-deps` is Debian-only); `/dev/dri` is mounted by distrobox, `mesa-vulkan-drivers` inside gives RADV; `build-essential python3` for native modules |
 | the mirror | `~/tm-e2e/repo/` | `assets/` + the package files + its own `node_modules` (`ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci`, stamped `node_modules/.tm-lock-sha`) — the only things SHARED by every task |
 | the tasks | `~/tm-e2e/builds/<task>/` | per task, the run's cwd: `src/`, `tests/`, `package*.json`, `tsconfig.json`, `playwright.config.ts` (synced copies), `build/` (synced), `assets` + `node_modules` → links to the mirror, `test-results/`, `playwright-report/`, `screenshots/`, `.run-start`, `.last-exit`, `results.tar` (transient); a task idle for 14 days is pruned by the next run. Sources are per task because Playwright re-reads the harness whenever it restarts a worker (after every failure) — a neighbour's sync into a shared `tests/` once turned a running baseline red in minutes |
-| browsers | `~/.cache/ms-playwright/` | `npx playwright install chromium --with-deps` inside the container |
+| browsers | `~/.cache/ms-playwright/` | `npx playwright install chromium --with-deps` inside the container ONCE at setup (the `--with-deps` apt step needs a terminal for sudo); the wrapper's install branch runs `npx playwright install chromium` without it — the Chromium that matches the installed Playwright (1.64 → 156, the engine Electron 45 ships) |
 | per-run files | `~/tm-e2e/slots/<i>` (the K slot locks), `~/tm-e2e/runs/<task>-<id>.{outer,inner}.sh` (removed on exit) | written by the wrapper |
 
 Re-provisioning from scratch = the table top to bottom; the wrapper's `npm ci` branch rebuilds
@@ -163,3 +163,9 @@ headless) can go through the GPU; the headless shell cannot open `chrome://gpu` 
 - Two sessions run side by side in the two slots; a timing / storyboard claim is `--exclusive` and
   waits for the box to empty — its annotation then reads `exclusive`, a shared run's `slot i/2`. Raise
   `TM_E2E_SLOTS` only on measurement (the speed-up plan's phase 0: the worker-scaling curve).
+- **A run whose lock changed goes EXCLUSIVE by itself.** `npm ci` rebuilds the SHARED mirror's
+  `node_modules` — the one every task links — so an install beside a neighbour's run would cut that run's
+  workers off their modules mid-flight. The outer script compares the lock stamp BEFORE taking a slot and,
+  on a mismatch, takes all of them («the lock changed — the install needs the whole box»), installs, then
+  runs; its annotation reads `exclusive`. A neighbour who sees the wait simply waits — the install is a
+  few minutes, once per dependency change.
