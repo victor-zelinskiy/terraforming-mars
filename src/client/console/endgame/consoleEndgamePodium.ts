@@ -20,6 +20,11 @@
  *    `EQUAL_HEADROOM` of the hero's, so the crowning has room to RISE;
  *  · once crowned, the winner(s) stand at the full height with the largest face and the rest step down to
  *    `placeRatio` of it — the podium. Every face also fits its seat's width.
+ *
+ * THE STAND — what a seat holds above its reading: the face and the LINEAGE behind it (the seat's other corporations,
+ * standing BEHIND the face as charters whose nameplates rise above it — `LINEAGE_STEP` of the face's height each, at
+ * most `LINEAGE_VISIBLE` of them). The table's deepest lineage sizes every seat's stand alike: the count's seats stay
+ * equal, a seat with one corporation keeps the same geometry with its rise empty.
  */
 
 /** The premium face's own aspect (`--pcard-w` / `--pcard-h`: 320 × 460). */
@@ -29,6 +34,27 @@ export const FACE_PX_H = 460;
 
 /** While the count runs every seat's face stands at this share of the hero's — the crowning's rise. */
 export const EQUAL_HEADROOM = 0.86;
+
+/**
+ * THE LINEAGE — how far each charter behind the face rises above the one in front of it, as a share of the face's
+ * height: the corporation face's whole nameplate (its gold frame + the name band, 12.5 % of the face) shows, with a
+ * hair of the art under it — never a sliver of a name.
+ */
+export const LINEAGE_STEP = 0.13;
+/** Each charter deeper stands this much narrower (scale per step) — the lineage reads as DEPTH, never as a wall. */
+export const LINEAGE_SHRINK = 0.05;
+/** At most this many charters stand behind a face; a longer lineage names the rest on the deepest band («+N»). */
+export const LINEAGE_VISIBLE = 3;
+
+/** How many charters stand behind a face for a lineage of `extra` corporations behind it. */
+export function lineageShown(extra: number): number {
+  return Math.max(0, Math.min(LINEAGE_VISIBLE, Math.floor(extra)));
+}
+
+/** The lineage's rise above the face, as a share of the face's height, for a table whose deepest shows `depth`. */
+export function lineageRise(depth: number): number {
+  return lineageShown(depth) * LINEAGE_STEP;
+}
 
 export type PodiumMode = 'stack' | 'side';
 
@@ -44,6 +70,9 @@ export type PodiumPlan = {
   mode: PodiumMode;
   /** The gap between two seats, px. */
   gap: number;
+  /** The table's lineage depth (charters behind the deepest face, ≤ `LINEAGE_VISIBLE`) and its rise share. */
+  lineage: number;
+  rise: number;
   /** The reading block's height (stack) in px — the seat's fixed part under the face. */
   readH: number;
   /** The crowned hero's reading block (its larger name and total). */
@@ -64,6 +93,8 @@ export type PodiumInput = {
   boxH: number;
   /** The live rem, px (the TV profile's 40 px at 4K, 20 px at 1080). */
   rem: number;
+  /** The deepest lineage at the table — corporations behind one seat's face (0 / absent: one corporation each). */
+  lineage?: number;
 };
 
 /**
@@ -90,9 +121,13 @@ export type SeatSpec = {
   placeRatio: number;
 };
 
+/*
+ * padY = the seat's top padding (1.2rem — the CREST's inner half: the «ПОБЕДИТЕЛЬ» ribbon, the champion plate, a
+ * campaign title straddle the seat's top edge and never reach the lineage under it) + its bottom padding.
+ */
 export const SEAT_SPEC: Readonly<Record<PodiumMode, SeatSpec>> = {
-  stack: {readRem: 13.6, heroReadRem: 16.4, padXRem: 1.6, padYRem: 1.4, infoWRem: 0, maxWRem: 30, gapRem: 1.4, placeRatio: 0.76},
-  side: {readRem: 21, heroReadRem: 23.5, padXRem: 3.2, padYRem: 1.6, infoWRem: 19, maxWRem: 48, gapRem: 3.2, placeRatio: 0.88},
+  stack: {readRem: 12.6, heroReadRem: 15.4, padXRem: 1.6, padYRem: 1.9, infoWRem: 0, maxWRem: 30, gapRem: 1.4, placeRatio: 0.76},
+  side: {readRem: 21, heroReadRem: 23.5, padXRem: 3.2, padYRem: 2, infoWRem: 19, maxWRem: 48, gapRem: 3.2, placeRatio: 0.88},
 };
 
 /** The layout of a table: the duel (and a solo game) stand side by side, three and more stack. */
@@ -117,12 +152,18 @@ export function planPodium(input: PodiumInput): PodiumPlan {
   const padY = spec.padYRem * rem;
   const readH = spec.readRem * rem;
   const heroReadH = spec.heroReadRem * rem;
+  const lineage = lineageShown(input.lineage ?? 0);
+  const rise = lineageRise(lineage);
+  // The stand: the face and the lineage's rise over it.
+  const standOf = (faceH: number) => faceH * (1 + rise);
 
-  // The widest a face may be inside the seat (side: beside the reading column).
+  // The widest a face may be inside the seat (side: beside the reading column). The charters behind it are
+  // narrower (they shrink with depth), so the face is the stand's width.
   const faceWMax = Math.max(0, seatW - padX - (mode === 'side' ? spec.infoWRem * rem : 0));
   const widthCap = faceWMax / FACE_ASPECT;
-  // The tallest a face may be inside the box (stack: under it stands the reading block).
-  const heightCap = (read: number) => Math.max(0, input.boxH - padY - (mode === 'stack' ? read : 0));
+  // The tallest a face may be inside the box: the box less the seat's padding, the lineage's rise and (stack) the
+  // reading block under the stand.
+  const heightCap = (read: number) => Math.max(0, (input.boxH - padY - (mode === 'stack' ? read : 0)) / (1 + rise));
 
   const heroFace = Math.min(widthCap, heightCap(heroReadH));
   const placeFace = heroFace * spec.placeRatio;
@@ -131,13 +172,15 @@ export function planPodium(input: PodiumInput): PodiumPlan {
   const seat = (faceH: number, read: number): SeatGeo => ({
     faceH,
     seatW,
-    // Side: the face and the reading column stand BESIDE each other — the seat is the taller of the two (a Deck's
+    // Side: the stand and the reading column stand BESIDE each other — the seat is the taller of the two (a Deck's
     // width-capped face once left the medallions hanging under the seat, over the actions), never past the box.
-    seatH: mode === 'stack' ? faceH + padY + read : Math.min(input.boxH, Math.max(faceH, read) + padY),
+    seatH: mode === 'stack' ? standOf(faceH) + padY + read : Math.min(input.boxH, Math.max(standOf(faceH), read) + padY),
   });
   return {
     mode,
     gap,
+    lineage,
+    rise,
     readH,
     heroReadH,
     equal: seat(equalFace, readH),

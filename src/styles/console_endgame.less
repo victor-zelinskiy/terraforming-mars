@@ -445,6 +445,8 @@
     --eg-medal-fs: 1rem;
     --eg-medals-h: 3.4rem;
     --eg-read-gap: 0.45rem;
+    /* The place mark beside the name (the colour dot, then the place medal) — the ident's own height. */
+    --eg-mark-d: 2.3rem;
 
     position: relative;
     flex: none;
@@ -456,7 +458,9 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 0.7rem 0.8rem;
+    /* The top padding is the CREST's room: the ribbon, the champion plate and a campaign title straddle the seat's
+     * top edge, and their inner half lives here — never over the lineage or the face (the planner's padY). */
+    padding: 1.2rem 0.8rem 0.7rem;
     border-radius: 0.9rem;
     border: 0.05rem solid rgba(150, 175, 205, 0.15);
     background:
@@ -494,6 +498,7 @@
     --eg-medal-fs: 1.25rem;
     --eg-medals-h: 4.2rem;
     --eg-read-gap: 0.5rem;
+    --eg-mark-d: 2.7rem;
 }
 .con-eg__row--winner {
     border-color: rgba(255, 216, 122, 0.55);
@@ -550,73 +555,193 @@
     color: rgba(196, 216, 236, 0.85);
 }
 
-/* The CAMPAIGN TITLE badge — the ribbon's idiom on the seat's top-right
- * shoulder: absolute (zero layout impact). Weight ascends with the title
- * (Prefect bronze → Governor/champion gold); the emblem PNGs are complete
- * material renders and are never tinted. */
+/* The ribbon YIELDS to its row's title crest (campaign missions 1–3): it fades on the anchor in the very beat the
+ * crest unfolds there — the same ascending delay as the title's — so the swap is one motion, never two objects on
+ * one anchor. The entrance keeps its own animation; the yield is the second one (opacity only — the anchor's
+ * transform is the entrance's). */
+.con-eg__ribbon--yield {
+    animation:
+        con-eg-ribbon-in calc(420ms * var(--motion-scale, 1)) @con-ease-enter backwards,
+        con-eg-ribbon-yield calc(220ms * var(--motion-scale, 1)) ease-out forwards;
+    animation-delay: 0ms, calc(260ms + var(--egb-i, 0) * 300ms * var(--motion-scale, 1));
+}
+@keyframes con-eg-ribbon-yield {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+
+/* THE CAMPAIGN TITLE CREST — the seat's honour on the crest anchor the ribbon
+ * and the champion plate share (the top edge, centred): the real insignia
+ * (assets/titles — complete material renders, never tinted) standing taller
+ * than its plaque like an order on its ribbon, the title in its metal, the
+ * Title Points under it. Weight ascends with the title (Prefect bronze →
+ * Administrator silver → Governor gold). Absolute (zero layout); its inner
+ * half lives in the seat's crest padding, so it never covers the lineage,
+ * the face or the name. */
 .con-eg__title {
+    --eg-crest-emblem: 2.7rem;
     position: absolute;
     top: 0;
-    right: 0.8rem;
-    transform: translateY(-52%);
+    left: 50%;
+    transform: translate(-50%, -60%);
     display: flex;
     align-items: center;
-    gap: 0.4rem;
-    padding: 0.1rem 0.55rem 0.1rem 0.3rem;
-    border-radius: 0.3rem;
-    border: 0.05rem solid rgba(170, 180, 195, 0.5);
-    background: linear-gradient(180deg, #1a2028 0%, #10151c 100%);
-    box-shadow: 0 0.15rem 0.6rem rgba(0, 0, 0, 0.5);
+    gap: 0.45rem;
+    padding: 0.22rem 0.85rem 0.22rem calc(var(--eg-crest-emblem) * 0.86 + 0.75rem);
+    border-radius: 0.35rem;
+    border: 0.05rem solid rgba(170, 180, 195, 0.55);
+    background: linear-gradient(180deg, #1b222b 0%, #0f141b 100%);
+    box-shadow: 0 0.2rem 0.8rem rgba(0, 0, 0, 0.55);
+    white-space: nowrap;
     z-index: 3;
 }
-.con-eg__title--prefect { border-color: rgba(150, 120, 95, 0.6); }
-.con-eg__title--administrator { border-color: rgba(170, 180, 195, 0.6); }
+.con-eg__title--prefect {
+    border-color: rgba(190, 140, 100, 0.65);
+    background: linear-gradient(180deg, #261c15 0%, #140f0a 100%);
+}
+.con-eg__title--administrator {
+    border-color: rgba(196, 206, 220, 0.65);
+}
 .con-eg__title--governor,
 .con-eg__title--champion {
-    border-color: rgba(240, 208, 130, 0.7);
+    border-color: rgba(240, 208, 130, 0.75);
     background: linear-gradient(180deg, #2a2214 0%, #191307 100%);
-    box-shadow: 0 0 0 0.05rem rgba(240, 208, 130, 0.25), 0 0.15rem 0.6rem rgba(0, 0, 0, 0.5);
+    box-shadow: 0 0 0 0.05rem rgba(240, 208, 130, 0.25), 0 0.2rem 0.8rem rgba(0, 0, 0, 0.55), 0 0 1.4rem rgba(255, 200, 110, 0.16);
 }
+/* The insignia stands on the plaque's left, taller than it (centred on it) — the order pinned on its ribbon. */
 .con-eg__title-emblem {
-    width: 1.5rem;
-    height: 1.5rem;
+    position: absolute;
+    left: 0.4rem;
+    top: 50%;
+    width: calc(var(--eg-crest-emblem) * 0.86);
+    height: var(--eg-crest-emblem);
+    transform: translateY(-50%);
     object-fit: contain;
-    flex: 0 0 auto;
+}
+.con-eg__title-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.05rem;
+    line-height: 1.1;
 }
 .con-eg__title-label {
     font-family: @con-font;
     font-size: 0.85rem;
-    letter-spacing: 0.18em;
+    font-weight: 700;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: #cdd8e4;
-    white-space: nowrap;
+    color: #d6dfe9;
 }
+.con-eg__title--prefect .con-eg__title-label { color: #e2b48c; }
 .con-eg__title--governor .con-eg__title-label,
 .con-eg__title--champion .con-eg__title-label {
     color: @sem-prestige;
 }
 .con-eg__title-tp {
-    font-size: 0.85rem;
+    font-family: @con-font;
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    font-variant-numeric: tabular-nums;
     color: #ecd39a;
-    letter-spacing: 0.06em;
-    white-space: nowrap;
 }
-/* Ascending reveal after the winner beat — transform/opacity only; the
- * settled path (reload / replay off) mounts without the animation class. */
+/* Ascending reveal after the winner beat (Prefect → Administrator → Governor — the climax last) — transform /
+ * opacity only; the settled path (reload / replay off) mounts without the animation class. */
 .con-eg__title--animate {
     opacity: 0;
     animation: con-eg-title-in calc(420ms * var(--motion-scale, 1)) @con-ease-enter forwards;
     animation-delay: calc(260ms + var(--egb-i, 0) * 300ms * var(--motion-scale, 1));
 }
 @keyframes con-eg-title-in {
-    from { opacity: 0; transform: translateY(-20%); }
-    to { opacity: 1; transform: translateY(-52%); }
+    from { opacity: 0; transform: translate(-50%, -30%) scale(0.96); }
+    to { opacity: 1; transform: translate(-50%, -60%) scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
     .con-eg__title--animate {
         animation: none;
         opacity: 1;
     }
+}
+
+/* ── THE STAND — the face and the LINEAGE behind it ──────────────────
+ * The face is the seat's first corporation (a campaign seat's base, the one
+ * it founded its company on), at the planner's height. Every other
+ * corporation the seat played stands BEHIND it as a CHARTER: the same premium
+ * face, one nameplate higher per depth (`--eg-rise` is the table's deepest
+ * rise, reserved on every seat so the faces stand level), a step narrower and
+ * a shade deeper — the names rise above the face like the tiers of a
+ * pediment, the face stays the one hero, and nothing is painted over it.
+ * Transform / opacity only; the shade is an overlay (the console strips
+ * `filter`), never the charter's own opacity (a translucent charter would
+ * show the art of the one behind through its nameplate). */
+.con-eg__stand {
+    --eg-lineage-step: 0.13; /* = LINEAGE_STEP (consoleEndgamePodium) */
+    --eg-lineage-shrink: 0.05; /* = LINEAGE_SHRINK */
+    position: relative;
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-top: calc(var(--eg-face-h, 12rem) * var(--eg-rise, 0));
+}
+.con-eg__charter {
+    --eg-ch-y: calc(var(--eg-face-h, 12rem) * var(--eg-lineage-step) * var(--eg-k, 1) * -1);
+    --eg-ch-s: calc(1 - var(--eg-lineage-shrink) * var(--eg-k, 1));
+    position: absolute;
+    left: 50%;
+    top: calc(var(--eg-face-h, 12rem) * var(--eg-rise, 0));
+    width: calc(var(--eg-face-h, 12rem) * 0.6957);
+    height: var(--eg-face-h, 12rem);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    transform-origin: 50% 0;
+    transform: translateX(-50%) translateY(var(--eg-ch-y)) scale(var(--eg-ch-s));
+    pointer-events: none;
+}
+/* The charter's shade — the premium face's own silhouette (its radius is the face's, in its px under the zoom —
+ * keep-px), lighter over the nameplate (the part that shows) and deepening with the depth. */
+.con-eg__charter-shade {
+    position: absolute;
+    inset: 0;
+    border-radius: 15px; /* keep-px: --pcard-radius, under the face's zoom */
+    background: linear-gradient(180deg,
+        rgba(6, 10, 17, calc(0.08 + var(--eg-k, 1) * 0.08)) 0%,
+        rgba(6, 10, 17, calc(0.08 + var(--eg-k, 1) * 0.08)) 13%,
+        rgba(6, 10, 17, 0.62) 20%);
+    pointer-events: none;
+}
+.con-eg__charter .con-eg__face-zoom {
+    position: relative;
+    .pcard { box-shadow: 0 0.3rem 1rem rgba(0, 0, 0, 0.5); }
+}
+/* A lineage longer than the stand shows: the rest, named on the deepest nameplate. */
+.con-eg__charter-more {
+    position: absolute;
+    top: calc(var(--eg-face-h, 12rem) * 0.028);
+    right: -0.4rem;
+    transform: translateX(100%);
+    padding: 0.06rem 0.45rem;
+    border-radius: 0.3rem;
+    border: 0.05rem solid rgba(240, 208, 130, 0.5);
+    background: rgba(14, 18, 24, 0.94);
+    font-family: @con-font;
+    font-size: 0.85rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    color: rgba(240, 222, 170, 0.92);
+    white-space: nowrap;
+}
+/* The lineage RISES from behind the face as the scene enters — each charter out from under the one in front, the
+ * deepest last (one beat after the seat's own entrance; transform / opacity only). */
+.con-endgame--entering .con-eg__charter {
+    animation: con-eg-charter-rise calc(420ms * var(--motion-scale, 1)) @con-ease-enter backwards;
+    animation-delay: calc((var(--eg-i, 0) * 80ms + 260ms + var(--eg-k, 1) * 110ms) * var(--motion-scale, 1));
+}
+@keyframes con-eg-charter-rise {
+    from { opacity: 0; transform: translateX(-50%) translateY(0) scale(var(--eg-ch-s)); }
+    to { opacity: 1; transform: translateX(-50%) translateY(var(--eg-ch-y)) scale(var(--eg-ch-s)); }
 }
 
 /* ── The FACE — the corporation's premium face at the planner's height ── */
@@ -644,48 +769,13 @@
     box-shadow: inset 0 0 0 0.12rem rgba(255, 255, 255, 0.5);
 }
 
-/* The PLACE — a medal standing on the face's foot once the ranking is told. */
-.con-eg__place {
-    position: absolute;
-    left: 50%;
-    bottom: 0;
-    transform: translate(-50%, 45%);
-    display: grid;
-    place-items: center;
-    width: 2.6rem;
-    height: 2.6rem;
-    border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, rgba(44, 60, 82, 0.98), rgba(9, 14, 23, 0.98));
-    box-shadow: inset 0 0 0 0.12rem rgba(200, 215, 235, 0.55), 0 0.25rem 0.8rem rgba(0, 0, 0, 0.6);
-    z-index: 2;
-}
-.con-eg__place-num {
-    font-family: @con-font;
-    font-size: 1.35rem;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
-    color: rgba(230, 240, 250, 0.95);
-    animation: con-eg-fadein calc(300ms * var(--motion-scale, 1)) ease backwards;
-}
-.con-eg__row--winner .con-eg__place {
-    background: radial-gradient(circle at 35% 30%, #4a3a16, #1c1505);
-    box-shadow: inset 0 0 0 0.14rem rgba(255, 216, 122, 0.85), 0 0.25rem 0.9rem rgba(0, 0, 0, 0.6), 0 0 1.2rem rgba(255, 200, 110, 0.3);
-}
-.con-eg__row--winner .con-eg__place-num { color: @sem-prestige; }
-.con-eg__place-dot {
-    width: 0.4rem;
-    height: 0.4rem;
-    border-radius: 50%;
-    background: rgba(150, 175, 205, 0.4);
-}
-
 /* ── The READING block — name · score · bar · medallions (fixed height) ── */
 .con-eg__read {
     flex: none;
     width: 100%;
     height: var(--eg-read-h, 12rem);
     box-sizing: border-box;
-    padding-top: 1.6rem;
+    padding-top: 0.6rem;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
@@ -699,13 +789,70 @@
     gap: 0.55rem;
     min-width: 0;
 }
-.con-eg__swatch {
+/* THE PLACE MARK — one slot beside the name, the place medal's size from the first frame: the player's colour dot
+ * while the count runs; once the ranking is told the dot GROWS into the medal — the place numeral on a dark disc
+ * ringed in the player's colour (the winner's in gold). Nothing moves and nothing covers the face: the medal used to
+ * stand on the face's foot, over the corporation's starting row. */
+.con-eg__mark {
+    position: relative;
     flex: 0 0 auto;
+    width: var(--eg-mark-d);
+    height: var(--eg-mark-d);
+    display: grid;
+    place-items: center;
+}
+.con-eg__swatch {
     width: 0.95rem;
     height: 0.95rem;
     border-radius: 50%;
     box-shadow: inset 0 0 0 0.05rem rgba(255, 255, 255, 0.35);
+    transition:
+        opacity calc(220ms * var(--motion-scale, 1)) ease,
+        transform calc(220ms * var(--motion-scale, 1)) @con-ease-standard;
 }
+.con-eg__mark--ranked .con-eg__swatch {
+    opacity: 0;
+    transform: scale(0.4);
+}
+.con-eg__place {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    /* The player's colour is the ring (the `player_bg_color_*` ground); the dark disc lies inside it. */
+    box-shadow: 0 0.2rem 0.7rem rgba(0, 0, 0, 0.55);
+    animation: con-eg-place-in calc(360ms * var(--motion-scale, 1)) @con-ease-enter backwards;
+}
+.con-eg__place::before {
+    content: '';
+    position: absolute;
+    inset: 0.16rem;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, rgba(44, 60, 82, 0.98), rgba(9, 14, 23, 0.98));
+    box-shadow: inset 0 0 0 0.06rem rgba(200, 215, 235, 0.35);
+}
+@keyframes con-eg-place-in {
+    from { opacity: 0; transform: scale(0.4); }
+    to { opacity: 1; transform: scale(1); }
+}
+.con-eg__place-num {
+    position: relative;
+    font-family: @con-font;
+    font-size: calc(var(--eg-mark-d) * 0.52);
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: rgba(230, 240, 250, 0.95);
+}
+.con-eg__row--winner .con-eg__place {
+    box-shadow: 0 0 0 0.1rem rgba(255, 216, 122, 0.9), 0 0.2rem 0.8rem rgba(0, 0, 0, 0.6), 0 0 1.1rem rgba(255, 200, 110, 0.32);
+}
+.con-eg__row--winner .con-eg__place::before {
+    background: radial-gradient(circle at 35% 30%, #4a3a16, #1c1505);
+    box-shadow: inset 0 0 0 0.06rem rgba(255, 216, 122, 0.6);
+}
+.con-eg__row--winner .con-eg__place-num { color: @sem-prestige; }
 .con-eg__who {
     display: flex;
     flex-direction: column;
@@ -953,16 +1100,27 @@
     --eg-medal-fs: 1.5rem;
     --eg-medals-h: auto;
     --eg-read-gap: 1rem;
+    --eg-mark-d: 3rem;
 
+    --eg-side-gap: 1.6rem;
     flex-direction: row;
     align-items: center;
-    gap: 1.6rem;
-    padding: 0.8rem 1.6rem;
+    gap: var(--eg-side-gap);
+    padding: 1.2rem 1.6rem 0.8rem;
+}
+/* The duel's CREST anchor stands over the READING column (the player's name and score — whose honour it is), never
+ * over the seat's middle, where it hung over the seam between the face and the name: the column's centre is the
+ * seat's middle plus half the face column and its gap (the paddings are symmetric). */
+.con-eg__rows--side .con-eg__ribbon,
+.con-eg__rows--side .con-eg__champline,
+.con-eg__rows--side .con-eg__title {
+    left: calc(50% + (var(--eg-face-h, 12rem) * 0.6957 + var(--eg-side-gap)) / 2);
 }
 .con-eg__rows--side .con-eg__row--hero {
     --eg-name-fs: 2.3rem;
     --eg-total-fs: 6rem;
     --eg-shield-h: 5rem;
+    --eg-mark-d: 3.3rem;
 }
 .con-eg__rows--side .con-eg__read {
     flex: 1 1 0;
@@ -973,7 +1131,6 @@
 .con-eg__rows--side .con-eg__ident,
 .con-eg__rows--side .con-eg__total { justify-content: flex-start; }
 .con-eg__rows--side .con-eg__medals { justify-content: flex-start; gap: 0.6rem 1.1rem; }
-.con-eg__rows--side .con-eg__place { left: auto; right: 0; transform: translate(40%, 40%); }
 
 /* ── THE LIGHT (T08 «СЧЁТ ПРИХОДИТ СВЕТОМ») — the category's ONE light: a
  *    soft wash in its tone from under the plate to the foot of the medallion
@@ -1350,13 +1507,15 @@ html.con-profile-handheld {
         --eg-medal-d: 1.9rem;
         --eg-medal-fs: 1.2rem;
         --eg-read-gap: 0.6rem;
-        gap: 1.1rem;
-        padding: 0.6rem 1.1rem;
+        --eg-mark-d: 2.4rem;
+        --eg-side-gap: 1.1rem;
+        padding: 1.2rem 1.1rem 0.6rem;
     }
     .con-eg__rows--side .con-eg__row--hero {
         --eg-name-fs: 1.7rem;
         --eg-total-fs: 4.4rem;
         --eg-shield-h: 3.6rem;
+        --eg-mark-d: 2.7rem;
     }
     .con-eg__rows--side .con-eg__medals { gap: 0.4rem 0.7rem; }
 }
@@ -1368,9 +1527,10 @@ html.con-profile-handheld {
 @media (prefers-reduced-motion: reduce) {
     .con-endgame--entering .con-eg__row,
     .con-endgame--entering .con-eg__lchip,
+    .con-endgame--entering .con-eg__charter,
     .con-eg__ribbon,
     .con-eg__tiechip,
-    .con-eg__place-num {
+    .con-eg__place {
         animation-duration: 1ms !important;
         animation-delay: 0ms !important;
     }

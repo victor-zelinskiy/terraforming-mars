@@ -90,7 +90,7 @@
              crowning RAISES the winner into the hero — the tallest seat, the largest face — while the rest step down.
              The geometry is the pure planner's (`consoleEndgamePodium`), solved from the measured box. -->
         <div ref="rowsEl" class="con-eg__rows" :class="'con-eg__rows--' + podium.mode"
-             :style="{'--eg-seat-gap': podium.gap + 'px'}">
+             :style="{'--eg-seat-gap': podium.gap + 'px', '--eg-rise': podium.rise}">
           <div v-for="(color, i) in rowOrder" :key="color"
                class="con-eg__row" :class="rowClass(color)"
                :data-eg-row="color" :style="seatStyle(color, i)">
@@ -101,7 +101,8 @@
                  absolute: zero layout impact at any density, ever. -->
             <transition name="con-eg-fade">
               <div v-if="rowRibbon(color) !== undefined" class="con-eg__ribbon"
-                   :class="{'con-eg__ribbon--defeat': soloDefeat}">{{ $t(rowRibbon(color)!) }}</div>
+                   :class="{'con-eg__ribbon--defeat': soloDefeat, 'con-eg__ribbon--yield': ribbonYields(color)}"
+                   :style="ribbonYields(color) ? {'--egb-i': rowTitleBadge(color)!.order} : undefined">{{ $t(rowRibbon(color)!) }}</div>
             </transition>
             <div v-if="championPlateFor(color)" class="con-eg__champline"
                  :class="{'con-eg__champline--animate': campaignCodaAnimated}">
@@ -123,39 +124,59 @@
             <div v-if="championSweepFor(color)" class="con-eg__champ-rim" aria-hidden="true">
               <span class="con-eg__champ-rim-bar"></span>
             </div>
-            <!-- CAMPAIGN TITLE — a compact mark ON the holder's own seat (the
-                 ribbon's idiom, the seat's other shoulder). The seat is where a
-                 player reads their result, so the title marks it there; the
-                 full story (TP ledger, comeback M€, per-mission provenance)
-                 stays on the campaign map. Data is the SERVER'S committed
-                 result (campaignState), never a client guess. -->
+            <!-- THE SEAT'S CREST — a campaign mission's TITLE (missions 1–3) on the crest anchor the ribbon and the
+                 champion plate share (the seat's top edge, centred): the real insignia, the title in its metal, the
+                 Title Points under it. The winner's «ПОБЕДИТЕЛЬ» YIELDS to its Governor crest — the mission is won
+                 first, the title conferred second (one anchor, a transformation, never a swap). Absolute, inside
+                 the seat's reserved crest padding: it never covers the face, the lineage or the name. Data is the
+                 SERVER'S committed result (campaignState), never a client guess; the full story (TP ledger, comeback
+                 M€, per-mission provenance) stays on the campaign map. -->
             <div v-if="rowTitleBadge(color) !== undefined" class="con-eg__title"
                  :class="['con-eg__title--' + rowTitleBadge(color)!.kind,
                           {'con-eg__title--animate': campaignCodaAnimated}]"
-                 :style="{'--egb-i': rowTitleBadge(color)!.order}">
+                 :style="{'--egb-i': rowTitleBadge(color)!.order}" :data-eg-title="rowTitleBadge(color)!.kind">
               <img class="con-eg__title-emblem" :src="titleArtUrl(rowTitleBadge(color)!.art)"
                    :alt="$t(rowTitleBadge(color)!.label)" draggable="false" />
-              <span class="con-eg__title-label">{{ $t(rowTitleBadge(color)!.label) }}</span>
-              <span v-if="rowTitleBadge(color)!.tp > 0" class="con-eg__title-tp">+{{ rowTitleBadge(color)!.tp }} <span v-i18n>TP</span></span>
+              <span class="con-eg__title-text">
+                <span class="con-eg__title-label">{{ $t(rowTitleBadge(color)!.label) }}</span>
+                <span v-if="rowTitleBadge(color)!.tp > 0" class="con-eg__title-tp">+{{ rowTitleBadge(color)!.tp }} <span v-i18n>TP</span></span>
+              </span>
             </div>
-            <!-- THE FACE — the corporation the seat stands behind, the premium face at the planner's size (a human's
-                 card, the MarsBot corporation's own face); a corpless seat shows its prepared place in its colour. -->
-            <div class="con-eg__face" :data-eg-face="rowBy(color).face?.kind ?? 'none'">
-              <div v-if="rowBy(color).face !== undefined" class="con-eg__face-zoom" :style="{zoom: faceZoomOf(color)}">
-                <ConsoleCardFaceLite v-if="rowBy(color).face!.kind === 'card'"
-                                     :name="faceCardName(color)" :card="corporationModel(color)" />
-                <MarsBotCorpFace v-else :id="faceBotId(color)" :resources="botCorpResources" />
+            <!-- THE STAND — the face and the LINEAGE behind it: the seat's other corporations stand BEHIND the face as
+                 charters (the deepest first in paint order), each one nameplate higher and a step narrower, so their
+                 names rise above the face like the tiers of a pediment and the face stays the one hero. The planner
+                 reserves the table's deepest rise for every seat (`--eg-rise`) — the faces stand level. -->
+            <div class="con-eg__stand" :data-eg-lineage="rowBy(color).lineage.length">
+              <div v-for="charter in lineageShownOf(color)" :key="charter.name"
+                   class="con-eg__charter" :style="{'--eg-k': charter.depth}" :data-eg-charter="charter.name">
+                <div class="con-eg__face-zoom" :style="{zoom: faceZoomOf(color)}">
+                  <ConsoleCardFaceLite :name="charter.name" :card="tableauCard(color, charter.name)" />
+                  <i class="con-eg__charter-shade" aria-hidden="true"></i>
+                </div>
+                <span v-if="charter.more > 0" class="con-eg__charter-more">+{{ charter.more }}</span>
               </div>
-              <div v-else class="con-eg__face-empty" :class="'player_bg_color_' + color" aria-hidden="true"></div>
-              <!-- The PLACE — a medal on the face's foot, after the ranking. -->
-              <div class="con-eg__place" aria-hidden="true">
-                <span v-if="ui.placesShown" class="con-eg__place-num">{{ rowBy(color).place }}</span>
-                <span v-else class="con-eg__place-dot"></span>
+              <!-- THE FACE — the corporation the seat stands behind, the premium face at the planner's size (a human's
+                   card, the MarsBot corporation's own face); a corpless seat shows its prepared place in its colour. -->
+              <div class="con-eg__face" :data-eg-face="rowBy(color).face?.kind ?? 'none'">
+                <div v-if="rowBy(color).face !== undefined" class="con-eg__face-zoom" :style="{zoom: faceZoomOf(color)}">
+                  <ConsoleCardFaceLite v-if="rowBy(color).face!.kind === 'card'"
+                                       :name="faceCardName(color)" :card="corporationModel(color)" />
+                  <MarsBotCorpFace v-else :id="faceBotId(color)" :resources="botCorpResources" />
+                </div>
+                <div v-else class="con-eg__face-empty" :class="'player_bg_color_' + color" aria-hidden="true"></div>
               </div>
             </div>
             <div class="con-eg__read">
               <div class="con-eg__ident">
-                <span class="con-eg__swatch" :class="'player_bg_color_' + color" aria-hidden="true"></span>
+                <!-- THE PLACE MARK — the player's colour dot while the count runs; once ranked it GROWS into the
+                     place medal ringed in that colour, in the slot reserved for it from the start (nothing moves,
+                     nothing covers the face's starting row). -->
+                <span class="con-eg__mark" :class="{'con-eg__mark--ranked': ui.placesShown}" aria-hidden="true">
+                  <span class="con-eg__swatch" :class="'player_bg_color_' + color"></span>
+                  <span v-if="ui.placesShown" class="con-eg__place" :class="'player_bg_color_' + color">
+                    <span class="con-eg__place-num">{{ rowBy(color).place }}</span>
+                  </span>
+                </span>
                 <div class="con-eg__who">
                   <span class="con-eg__name">{{ rowBy(color).name }}</span>
                   <!-- The bot's corporation is its PRIMARY identity (like a human's);
@@ -336,7 +357,8 @@ import {
   buildRowGeometry, EndgameRowGeo, EndgameSegGeo, EndgameSubGeo,
 } from '@/client/console/endgame/consoleEndgameLayout';
 import {
-  faceZoom, horizonDrop, horizonRadius, planPodium, podiumOrder, PodiumPlan, SeatGeo, slotOffset,
+  faceZoom, horizonDrop, horizonRadius, LINEAGE_VISIBLE, lineageShown, planPodium, podiumOrder, PodiumPlan, SeatGeo,
+  slotOffset,
 } from '@/client/console/endgame/consoleEndgamePodium';
 import {CEREMONY_MS, HURRY_SCALE} from '@/client/console/endgame/consoleEndgameScript';
 import {runEndgameCeremony, CeremonyHandle, CeremonyIgnition, CeremonyLightBeat} from '@/client/console/endgame/consoleEndgameDirector';
@@ -681,7 +703,11 @@ export default defineComponent({
     },
     /** THE PODIUM — the seats' geometry from the measured box (TR69); recomputed only on a box / profile change. */
     podium(): PodiumPlan {
-      return planPodium({seats: this.vm.rows.length, boxW: this.stageW, boxH: this.stageH, rem: this.remPx});
+      return planPodium({seats: this.vm.rows.length, boxW: this.stageW, boxH: this.stageH, rem: this.remPx, lineage: this.lineageDepth});
+    },
+    /** The table's deepest lineage — how many charters stand behind one face (every seat's stand reserves it). */
+    lineageDepth(): number {
+      return Math.max(0, ...this.vm.rows.map((r) => lineageShown(r.lineage.length)));
     },
     /** The podium FORMED: the crowning has happened (a solo game crowns its one seat, won or lost). */
     podiumFormed(): boolean {
@@ -1086,6 +1112,23 @@ export default defineComponent({
     faceZoomOf(color: Color): number {
       return faceZoom(this.seatGeoOf(color).faceH);
     },
+    /**
+     * The charters behind this seat's face, DEEPEST FIRST (paint order — the nearer one covers it): the first
+     * `LINEAGE_VISIBLE` corporations behind the face in play order, the deepest naming the rest («+N»).
+     */
+    lineageShownOf(color: Color): Array<{name: CardName, depth: number, more: number}> {
+      const lineage = this.rowBy(color).lineage;
+      const shown = lineageShown(lineage.length);
+      const out: Array<{name: CardName, depth: number, more: number}> = [];
+      for (let depth = shown; depth >= 1; depth--) {
+        out.push({name: lineage[depth - 1], depth, more: depth === shown ? lineage.length - LINEAGE_VISIBLE : 0});
+      }
+      return out;
+    },
+    /** A corporation card as it stands on this seat's table (its stored resources honest on the face's capsule). */
+    tableauCard(color: Color, name: CardName): CardModel | undefined {
+      return this.playerView.players.find((p) => p.color === color)?.tableau.find((c) => c.name === name);
+    },
     faceCardName(color: Color): CardName {
       const face = this.rowBy(color).face;
       return face?.kind === 'card' ? face.name : CardName.BEGINNER_CORPORATION;
@@ -1100,7 +1143,7 @@ export default defineComponent({
       if (face?.kind !== 'card') {
         return undefined;
       }
-      return this.playerView.players.find((p) => p.color === color)?.tableau.find((c) => c.name === face.name);
+      return this.tableauCard(color, face.name);
     },
     /** T08: has THIS seat's medallion of this category IGNITED (its value standing, its segment grown)? */
     landed(idx: number, color: Color): boolean {
@@ -1216,8 +1259,18 @@ export default defineComponent({
       // On the campaign finale the ribbon yields to the champion plate at the
       // plate window (the ribbon's fade + the plate's unfold share the anchor
       // — one transformation). Before that window it reads «ПОБЕДИТЕЛЬ»: the
-      // mission is won first, the campaign crowns second.
+      // mission is won first, the campaign crowns second. On missions 1–3 it
+      // yields the same way to the winner's title crest (`ribbonYields`) — and
+      // a settled screen (a reload, reduced replay) shows the crest alone.
+      if (this.rowTitleBadge(color) !== undefined && !this.campaignCodaAnimated) {
+        return undefined;
+      }
       return this.championPlateOn ? undefined : 'Winner';
+    },
+    /** The ribbon fades on the crest anchor in the very beat its row's title crest unfolds there (CSS-timed: both
+     *  ride the title's ascending delay, so the swap is one motion — never two objects on one anchor). */
+    ribbonYields(color: Color): boolean {
+      return this.campaignCodaAnimated && this.rowTitleBadge(color) !== undefined;
     },
     /** The champion plate — every row that shares first place, equally. */
     championPlateFor(color: Color): boolean {

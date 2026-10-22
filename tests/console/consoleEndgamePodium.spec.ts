@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {
-  EQUAL_HEADROOM, FACE_ASPECT, FACE_PX_H, faceZoom, horizonDrop, horizonRadius, planPodium, podiumModeFor, podiumOrder,
-  SEAT_SPEC, slotOffset,
+  EQUAL_HEADROOM, FACE_ASPECT, FACE_PX_H, faceZoom, horizonDrop, horizonRadius, LINEAGE_STEP, LINEAGE_VISIBLE, lineageRise,
+  lineageShown, planPodium, podiumModeFor, podiumOrder, SEAT_SPEC, slotOffset,
 } from '../../src/client/console/endgame/consoleEndgamePodium';
 
 /**
@@ -94,6 +94,42 @@ describe('consoleEndgamePodium — the podium planner (TR69)', () => {
     expect(drops[1]).to.be.closeTo(drops[3], 1e-6);
     expect(drops[0]).to.be.greaterThan(drops[1]);
     expect(drops[0], 'a gentle planet, never a dome').to.be.below(0.12 * TV4K.boxH);
+  });
+
+  it(`THE LINEAGE: at most ${LINEAGE_VISIBLE} charters stand behind a face, each one nameplate higher`, () => {
+    expect([0, 1, 2, 3, 4, 7].map(lineageShown)).deep.eq([0, 1, 2, 3, 3, 3]);
+    expect(lineageRise(2)).to.be.closeTo(2 * LINEAGE_STEP, 1e-9);
+    expect(lineageRise(9)).to.be.closeTo(LINEAGE_VISIBLE * LINEAGE_STEP, 1e-9);
+    // The nameplate (the face's gold frame + its name band, 12.5 % of the face) shows whole above the face in front.
+    expect(LINEAGE_STEP).to.be.at.least(0.125);
+  });
+
+  for (const [profile, box] of [['tv4k', TV4K], ['fhd', FHD], ['deck', DECK]] as const) {
+    for (const seats of [2, 3, 4, 5]) {
+      it(`${profile} · ${seats} seat(s) · three charters behind a face: the stand fits its seat and the box, the hero stays the tallest`, () => {
+        const plain = planPodium({seats, ...box});
+        const plan = planPodium({seats, ...box, lineage: 3});
+        expect(plan.lineage).eq(3);
+        expect(plan.rise).to.be.closeTo(3 * LINEAGE_STEP, 1e-9);
+        const padY = SEAT_SPEC[plan.mode].padYRem * box.rem;
+        for (const geo of [plan.equal, plan.hero, plan.place]) {
+          const stand = geo.faceH * (1 + plan.rise);
+          const read = plan.mode === 'stack' ? (geo === plan.hero ? plan.heroReadH : plan.readH) : 0;
+          expect(geo.seatH, 'no seat taller than the box').to.be.at.most(box.boxH + 0.5);
+          // The stand (the face + the charters' rise) never reaches into the crest padding nor out of the seat.
+          expect(stand + read + padY, 'the stand fits its seat').to.be.at.most(geo.seatH + 0.5);
+          expect(geo.faceH * FACE_ASPECT, 'the face fits its seat\'s width').to.be.at.most(geo.seatW + 0.5);
+        }
+        expect(plan.hero.faceH, 'the charters cost face height — never an overflow').to.be.at.most(plain.hero.faceH + 0.5);
+        expect(plan.hero.seatH).to.be.at.least(plan.place.seatH);
+        expect(plan.equal.faceH).to.be.at.most(plan.hero.faceH * EQUAL_HEADROOM + 0.5);
+      });
+    }
+  }
+
+  it('a table of one-corporation seats reserves no rise — the plain podium, unchanged', () => {
+    expect(planPodium({seats: 4, ...TV4K, lineage: 0})).deep.eq(planPodium({seats: 4, ...TV4K}));
+    expect(planPodium({seats: 4, ...TV4K}).rise).eq(0);
   });
 
   it('the face zoom maps the planner\'s face height onto the premium face\'s own px', () => {

@@ -98,6 +98,13 @@ export type ConsoleEndgameRow = {
   difficulty?: string;
   /** The corporation face the seat stands behind (see {@link ConsoleEndgameFace}). */
   face: ConsoleEndgameFace | undefined;
+  /**
+   * THE LINEAGE BEHIND THE FACE — every other corporation the seat played, in the order it played them (a campaign
+   * seat's acquisition order: the base corporation is the face, the later ones stand behind it). `[]` for a seat with
+   * one corporation, a bot and a corpless seat. The podium stands them behind the face as charters whose title bands
+   * rise above it (`consoleEndgamePodium` § THE LINEAGE).
+   */
+  lineage: ReadonlyArray<CardName>;
   finalTotal: number;
   megacredits: number;
   /** 1-based place; ties share the lower number (from the ranked model). */
@@ -286,6 +293,7 @@ export function buildConsoleEndgameVm(
       isBot: botColors.has(p.color),
       ...(difficulty !== undefined ? {difficulty: DIFFICULTY_LABEL[difficulty]} : {}),
       face: faceOf(ranked),
+      lineage: lineageOf(ranked),
       finalTotal: p.finalTotal,
       megacredits: ranked?.megacredits ?? 0,
       place: ranked?.place ?? reveal.players.length,
@@ -381,6 +389,14 @@ function faceOf(player: EndgameModel['players'][number] | undefined): ConsoleEnd
   }
   const name = player.corporations[0];
   return name === undefined ? undefined : {kind: 'card', name: name as CardName};
+}
+
+/** The corporations behind the face: the seat's later ones in play order (a bot's corporation is its face alone). */
+function lineageOf(player: EndgameModel['players'][number] | undefined): ReadonlyArray<CardName> {
+  if (player === undefined || player.botCorporation !== undefined) {
+    return [];
+  }
+  return player.corporations.slice(1).map((name) => name as CardName);
 }
 
 /** Running total after the first `n` categories — what the count-up shows. */

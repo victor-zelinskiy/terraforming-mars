@@ -327,6 +327,21 @@ describe('consoleEndgameModel', () => {
     expect(face('green')).to.eq(undefined);
   });
 
+  it('THE LINEAGE: the face is the FIRST corporation, every later one stands behind it in play order — none for a bot or a one-corporation seat', () => {
+    const vm = vmOf([
+      player('red', 'A', {terraformRating: 30}, {corporations: ['Ecoline', 'Mining Guild', 'Tharsis Republic', 'Credicor']}),
+      player('yellow', 'B', {terraformRating: 28}, {corporations: ['Helion']}),
+      player('blue', 'Bot', {terraformRating: 25}, {botCorporation: {id: MarsBotCorpId.C02_ECOLINE, name: 'Ecoline'}}),
+      player('green', 'C', {terraformRating: 20}),
+    ], {}, ['blue']);
+    const row = (c: Color) => vm.rows.find((r) => r.color === c)!;
+    expect(row('red').face).to.deep.eq({kind: 'card', name: 'Ecoline'});
+    expect(row('red').lineage, 'the base is the face, the rest behind it in acquisition order').to.deep.eq(['Mining Guild', 'Tharsis Republic', 'Credicor']);
+    expect(row('yellow').lineage).to.deep.eq([]);
+    expect(row('blue').lineage, 'the bot\'s corporation is its face alone').to.deep.eq([]);
+    expect(row('green').lineage).to.deep.eq([]);
+  });
+
   it('runningTotal walks the category prefix (the count-up contract)', () => {
     const a = player('red', 'A', {terraformRating: 25, greenery: 3, victoryPoints: 4});
     const vm = vmOf([a, player('blue', 'B', {})]);
