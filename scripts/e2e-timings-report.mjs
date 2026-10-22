@@ -86,6 +86,22 @@ for (const b of ['press', 'sleep', 'beat', 'settle', 'boot']) {
   }
 }
 
+// ── WHERE THE SLEEPS ARE (each ledger row carries its top call sites — `consoleTest.ts` § sleepSiteOf) ───────
+const sites = new Map();
+for (const r of rows) {
+  for (const x of r.sleepSites ?? []) {
+    const c = sites.get(x.site) ?? {n: 0, ms: 0, tests: 0};
+    sites.set(x.site, {n: c.n + x.n, ms: c.ms + x.ms, tests: c.tests + 1});
+  }
+}
+if (sites.size > 0) {
+  console.log('');
+  console.log(`TOP ${Math.min(topN, sites.size)} SLEEP SITES (suite-wide, the bare sleeps only):`);
+  for (const [site, c] of [...sites.entries()].sort((a, b) => b[1].ms - a[1].ms).slice(0, topN)) {
+    console.log(`  ${s(c.ms)} s  ${String(c.n).padStart(6)}×  in ${String(c.tests).padStart(4)} tests  ${site}`);
+  }
+}
+
 // ── THE CLASSIFICATION WORKLIST ──────────────────────────────────────────────────────────────────────────
 // One ledger line per ATTEMPT: a retried test appears twice. Group by file + title and read the sequence.
 const attempts = new Map();

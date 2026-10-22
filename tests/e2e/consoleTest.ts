@@ -293,6 +293,18 @@ function rasterViewport<T extends {width: number, height: number} | null | undef
   return v;
 }
 
+/** The caller of a bare sleep: the first stack frame outside this harness and the driver's pass-through pause. */
+function sleepSiteOf(stack: string): string {
+  for (const line of stack.split('\n').slice(1)) {
+    const m = /at (?:async )?(?:(\S+) \()?(.*?):(\d+):\d+\)?$/.exec(line.trim());
+    if (m === null || /consoleTest\.ts$|node:internal|node_modules/.test(m[2]) || m[1] === 'pollPause') {
+      continue;
+    }
+    return `${m[1] ?? '<anon>'} ${path.basename(m[2])}:${m[3]}`;
+  }
+  return '<unknown>';
+}
+
 export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, transferEndsGuard: void, stallHarvest: void, timingLedger: void}, {workerServer: WorkerServer, workerBuild: string}>({
   // `viewport` is a self-referencing option fixture; `screen` is not one (Playwright refuses the override) —
   // the raster is the viewport, `window.screen` only reports.
@@ -341,11 +353,20 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
         document.addEventListener('DOMContentLoaded', observe, {once: true});
       }
     });
+    // WHERE THE SLEEPS ARE (the speed iteration's sleep pass): a bare sleep is booked against its CALL SITE — the first
+    // frame outside this harness and the driver's pass-through pause — so the ledger ranks helpers by the seconds they
+    // spend asleep instead of a guess. Only while a ledger is written; a stack per sleep is cheap at this volume.
+    const sleepSites = new Map<string, {n: number, ms: number}>();
     const book = (page: Page) => {
       const original = page.waitForTimeout.bind(page);
       page.waitForTimeout = async (ms: number) => {
         if (currentTimingBucket() === undefined) {
           noteTiming('sleep', ms);
+          if (process.env.TM_E2E_TIMINGS) {
+            const site = sleepSiteOf(new Error().stack ?? '');
+            const s = sleepSites.get(site) ?? {n: 0, ms: 0};
+            sleepSites.set(site, {n: s.n + 1, ms: s.ms + ms});
+          }
         }
         await original(ms);
       };
@@ -369,6 +390,8 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
           totalMs: snap.totalMs,
           restMs: snap.restMs,
           buckets: snap.buckets,
+          sleepSites: [...sleepSites.entries()].sort((a, b) => b[1].ms - a[1].ms).slice(0, 8)
+            .map(([site, s]) => ({site, n: s.n, ms: s.ms})),
         }) + '\n');
       } catch {
         // a ledger that cannot be written never fails a test
