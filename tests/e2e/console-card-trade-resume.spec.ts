@@ -111,7 +111,6 @@ async function buildOnPluto(page: Page): Promise<void> {
  *  was only ever visible there. */
 const RESUME_PROFILES = [
   {tag: 'deck', width: 1280, height: 800, query: ''},
-  {tag: 'fhd', width: 1920, height: 1080, query: ''},
   {tag: 'tv4k', width: 3840, height: 2160, query: '&consoleProfile=tv'},
 ] as const;
 

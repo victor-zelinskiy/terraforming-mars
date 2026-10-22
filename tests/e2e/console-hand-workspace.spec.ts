@@ -167,7 +167,6 @@ async function focusPlayableCard(page: Page): Promise<string> {
 }
 
 const PROFILES = [
-  {tag: 'fhd', width: 1920, height: 1080, query: ''},
   {tag: 'tv4k', width: 3840, height: 2160, query: '&consoleProfile=tv'},
   // The Deck is the tightest band the workspace has to hold: the seam tokens
   // narrow it AND the composition has to stay two columns without a horizontal

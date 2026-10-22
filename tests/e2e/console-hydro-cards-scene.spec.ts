@@ -99,7 +99,6 @@ async function serverState(request: APIRequestContext, id: string): Promise<{pos
 }
 
 const PROFILES = [
-  {tag: 'fhd', width: 1920, height: 1080, query: '', slotMin: 170},
   {tag: 'tv4k', width: 3840, height: 2160, query: '&consoleProfile=tv', slotMin: 340},
 ] as const;
 

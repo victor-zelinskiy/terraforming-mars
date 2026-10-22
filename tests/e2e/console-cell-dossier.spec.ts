@@ -23,7 +23,6 @@ const COMPOSER = '.con-composer--play';
 const STAND = {city: '40', greenA: '39', greenB: '41', rivalCity: '48', between: '47', ocean: '32', capital: '50', capitalOcean: '43', land: '31', reserve: '33'} as const;
 
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
   {id: 'deck', viewport: {width: 1280, height: 800}, query: '&consoleProfile=handheld'},
 ] as const;
@@ -323,7 +322,7 @@ for (const preset of PRESETS) {
       });
     }
 
-    if (preset.id === 'fhd') {
+    if (preset.id === 'tv4k') {
       test('C · the skips are named before the press: no holder → the microbes; nine oceans → the oceans', async ({page, request}) => {
         test.setTimeout(300_000);
         await bootFixtureSeats(page, request, 'enceladean-incubator-bare', {query: preset.query});

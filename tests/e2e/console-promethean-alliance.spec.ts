@@ -29,7 +29,6 @@ const PROD = '.con-res .con-res__row--megacredits .con-res__prod';
 
 const PRESETS = [
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'deck', viewport: {width: 1280, height: 800}, query: '&consoleProfile=handheld'},
 ] as const;
 

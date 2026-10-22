@@ -32,7 +32,6 @@ import {storyboard} from './consoleEndgameHarness';
  */
 const OUT = path.resolve('screenshots', 'generation-scene', process.env.TM_E2E_SHOTS_TAG ?? '');
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 

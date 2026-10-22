@@ -41,7 +41,6 @@ type Sample = {t: number, slot: Rect, proxy: Rect, card: Rect, vslot: Rect, verd
 const EPS = 1;
 
 const PROFILES = [
-  {tag: 'fhd', width: 1920, height: 1080, query: '', backstop: true},
   {tag: 'tv4k', width: 3840, height: 2160, query: '&consoleProfile=tv', backstop: false},
 ] as const;
 

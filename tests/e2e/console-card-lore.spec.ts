@@ -95,7 +95,6 @@ async function boxOf(page: Page, selector: string): Promise<Box | undefined> {
 }
 
 const PROFILES = [
-  {tag: 'fhd', width: 1920, height: 1080},
   {tag: 'tv4k', width: 3840, height: 2160},
 ] as const;
 

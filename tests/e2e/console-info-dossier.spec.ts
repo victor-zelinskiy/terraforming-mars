@@ -25,7 +25,6 @@ const FIXTURE = 'info-dossier';
 const OUT = path.resolve(__dirname, '..', '..', 'screenshots', 'e2e', 'info-dossier');
 
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
   {id: 'deck', viewport: {width: 1280, height: 800}, query: '&consoleProfile=auto'},
 ] as const;

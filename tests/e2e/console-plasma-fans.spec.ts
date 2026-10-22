@@ -54,7 +54,6 @@ const OUT = path.resolve('screenshots', 'plasma-fans');
 const TOUCHDOWN_TICK_GAP_MS = 90;
 
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 

@@ -28,7 +28,6 @@ import {bootFixture, playCardFromHand, press, pressUntil, settle, walkFocusUntil
 const OUT = path.resolve('screenshots', 'mu-colony-question');
 const CARD = 'Research Colony';
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 
@@ -205,7 +204,7 @@ for (const preset of PRESETS) {
       expect(seq.slice(-2), `the tail ends «СБРОС КАРТЫ → ДОБОР КАРТ»: ${seq.join(' → ')}`).toEqual(['Сброс карты', 'Добор карт']);
     });
 
-    if (preset.id === 'fhd') {
+    if (preset.id === 'tv4k') {
       test(`(B) Luna: the colony step ends with the colony, the play does not — the album stands inside it (${preset.id})`, async ({page, request}) => {
         test.setTimeout(420_000);
         const playerId = await bootFixture(page, request, 'mu-research-colony', {query: preset.query});

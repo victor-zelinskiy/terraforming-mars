@@ -22,7 +22,6 @@ import {ColonyName} from '../../src/common/colonies/ColonyName';
  */
 
 const PROFILES = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
   {id: 'deck', viewport: {width: 1280, height: 800}, query: '&consoleProfile=handheld'},
 ] as const;

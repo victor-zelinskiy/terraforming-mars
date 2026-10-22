@@ -43,7 +43,6 @@ const CARD_RU = 'Представительство меньшинств';
 const ROOT_RU = 'Карты в руке';
 
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 

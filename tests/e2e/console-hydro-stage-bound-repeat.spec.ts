@@ -153,7 +153,6 @@ async function drainReveals(page: Page): Promise<void> {
  * of the band at 4K, where the TV profile's own ladders meet the shared engine.
  */
 const PROFILES = [
-  {name: 'fhd', w: 1920, h: 1080},
   {name: 'tv4k', w: 3840, h: 2160},
 ] as const;
 

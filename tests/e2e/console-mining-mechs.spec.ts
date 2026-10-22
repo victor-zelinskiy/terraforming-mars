@@ -28,7 +28,6 @@ const PLAY_COMPOSER = '.con-composer--play';
 const ACTION_COMPOSER = '.con-cardactions__stagewrap .con-composer--stage';
 
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 

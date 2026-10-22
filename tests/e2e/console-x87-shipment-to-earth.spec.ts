@@ -48,7 +48,6 @@ const OUT = path.resolve('screenshots', 'x87-shipment-to-earth');
 
 const PRESETS = [
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
 ] as const;
 
 type Wire = {

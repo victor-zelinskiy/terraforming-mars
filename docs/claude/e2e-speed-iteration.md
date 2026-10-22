@@ -19,7 +19,7 @@ Status: **IN PROGRESS** — phase 0. Owner's framing: «имплементаци
 | --- | --- | --- |
 | hard sleeps | 733 × `waitForTimeout` = 897 s + 85 × `cinematicBeat` = 106 s over 374 specs (≈2.7 s/spec; the top 8 hold 143 s) | state waits; the ratchet locks every fall |
 | the opening | 160 specs boot a fixture, 42 drive the API, **174 walk the live start in the UI** | fixtures (26.9 s vs minutes, measured once) |
-| profiles | 142 specs run fhd AND tv4k | one TV profile per card; 4K only where the raster is the subject |
+| profiles | 142 specs run fhd AND tv4k | one TV profile per card — DONE (phase 4: 103 specs, 1396 → 1172 tests); the 4K raster is free on the box |
 | video | `retain-on-failure` recorded EVERY test at 4K (ffmpeg per worker) | off by default — DONE (phase 1.1) |
 | workers | GMO: 2.2 min @1 worker → 1.2 min @2; load 2.7 of 12 threads at 2 workers | scaling curve 1…8 (phase 0) |
 | the box | EPP `balance_performance` (freq at max under load anyway), Steam idle 18 % CPU | small; measure before touching |
@@ -65,9 +65,19 @@ Status: **IN PROGRESS** — phase 0. Owner's framing: «имплементаци
       same layout at a quarter of the pixels) ran GMO's four tv4k tests in 7.9–11.1 s against 9.3 / 7.8 /
       11.0 / 8.8 s at the real 4K — identical. The GPU rasters 4K for free; the time is motion and holds.
       The switch stays as an experiment's tool; the specs keep their 4K viewport.
-- [ ] fhd per card: the second profile DOUBLES every card spec for a layout the profile sweeps already
-      cover — a policy for the card checklist (new specs: the TV profile only) and a codemod for the
-      `PROFILES` tables of existing ones; decided after the baseline's numbers.
+- [x] **fhd per card is GONE** (2026-10-22, `scripts/e2e-codemod-drop-fhd.mjs`): the second profile DOUBLED
+      every card spec for a layout the profile sweeps already cover. The codemod dropped the `fhd` line of the
+      PROFILES / PRESETS table in **103 specs** — the suite is **1396 → 1172 tests (−16 %)** in the same 373
+      files — and moved the «once» gates to the TV (`if (preset.id === 'fhd') { test(…) }`, an early `return`,
+      a `shoot(page, 'fhd', …)` label on a one-off test that boots `PRESETS[0]`: seven files, twelve spots —
+      the raster is free on the box, so «once» is «once, on the TV»). It KEEPS both profiles where the fhd branch
+      asserts fhd-specific numbers (`blue-action-purchase` 26px heading, `prompt-family` 120 / 900 ms thresholds,
+      `desc-tier-fit` the 1080 ladder, `card-lore-measure` per-profile line budgets, `terraformed-scene`
+      budgetMs + `const FHD`, `finale-podium` three profiles with `tv:`), skips the timing class and the profile
+      sweeps by name (`profile` / `screens` / `hud-frame` / `parity` / `frame`). `build:test`, the liveness
+      guard (7/7) and the ratchet (755 / 42, unchanged) are green; the dropped tests have not been run on the
+      box since (it is down) — the next baseline is the proof. **Policy for new specs: the TV profile only**;
+      a second profile needs a reason in the spec (a profile-specific number), not a habit.
 
 ### Phase 5 — the dev loop
 - [ ] `--profile` / `--grep` conveniences, a warm server, fewer ssh round trips.
@@ -185,6 +195,18 @@ helper (a press + a fixed sleep) into `await press(page, code, settleMs)` — a 
 78 files; the rest have a three-line body and go by hand. Run it the day the fast press is the default
 (until then the driver's `press` is the slower of the two for a 450 ms helper).
 
+## ⚠ SOURCES ARE PER TASK TOO — a shared `tests/` poisoned a running baseline (2026-10-22, 04:00)
+
+The second full baseline (338 specs, 2 workers, the pad stubbed) was 90 ✓ / 607 ✘ fourteen minutes in.
+Not the product: my TV-raster experiment had synced a broken `consoleTest.ts` (a `screen` fixture
+Playwright refuses) into the SHARED `~/tm-e2e/repo/tests/` while the baseline ran — and Playwright
+RESTARTS a worker after every failure, re-reading the harness, so one bad file turned every later test red
+in seconds. The build had been made per task on day one for exactly this class; the sources had not. Now
+`src/`, `tests/` and the config files are synced into `~/tm-e2e/builds/<task>/` as the task's own copies
+(only `assets/` and `node_modules` stay shared links), the run's cwd is the task dir and `TM_E2E_ROOT` is
+unset — a neighbour's sync can no longer touch a running run's sources. (The box went down right after the
+owner's game ended, before this could be validated — the resume point is in memory.)
+
 ## ⚠ A PHYSICAL CONTROLLER ON THE BOX REACHES THE E2E BROWSERS (2026-10-22, 03:30)
 
 After the load artifact was cleared, the 7-spec sample was STILL 16 / 48 red at 2 workers exclusive on a
@@ -218,3 +240,11 @@ worker-scaling curve FIRST** (phase 0.2) — the 28-spec sample at 2 workers was
   → `scripts/e2e-timings-report.mjs`), then the classification of its reds (ROT / TIMING / LOGIC), the
   worker-scaling curve on an idle box, TV@1080 (phase 4), the sleeps pass and the live-start → fixture pass
   (phase 2), the eight `key()` helpers with a three-line body by hand.
+- 2026-10-22 (morning, the box DOWN since ~04:05 — ssh times out, no ping) — `727172167f` (the last eight
+  `key()` helpers, the ratchet 755, `TM_E2E_TV_RASTER=1080` measured: the 4K raster is free). The per-task
+  SOURCES restructure of the wrapper is written and `node --check`-clean but UNVALIDATED (the canary runs the
+  moment the box answers — a background waiter polls ssh). Meanwhile phase 4's last lever shipped without the
+  box: `scripts/e2e-codemod-drop-fhd.mjs` dropped fhd from 103 card / feature specs (1396 → 1172 tests);
+  `build:test`, the liveness guard and the ratchet green. Still pending: the canary on the per-task layout →
+  commit the wrapper; the full FUNCTIONAL baseline at 2 workers and its ROT / TIMING / LOGIC classification;
+  the worker-scaling curve; the sleeps and live-start passes.

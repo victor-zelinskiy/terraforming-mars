@@ -82,7 +82,6 @@ async function walkToSource(page: Page, card: string, steps = 12): Promise<boole
  * chrome budget, and this stage is a ROW of two cards plus a panel.
  */
 const PROFILES = [
-  {tag: 'fhd', width: 1920, height: 1080},
   {tag: 'tv4k', width: 3840, height: 2160},
 ] as const;
 

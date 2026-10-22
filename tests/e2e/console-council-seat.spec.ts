@@ -54,7 +54,6 @@ const OUT = path.resolve('screenshots', 'council-seat');
 
 const PRESETS = [
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
 ] as const;
 
 type Access = {party: string, delegates: number, effectDelegates?: number, effectDelegatesBy?: string, byDelegates: boolean, hasEffect: boolean, satisfiesRequirement: boolean};

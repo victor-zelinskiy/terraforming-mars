@@ -30,7 +30,6 @@ const MU = 'Mars University';
 const COMPOSER = '.con-hand__stage .con-composer--play';
 const ALBUM = '.con-hand[data-flow="picking"]';
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 
@@ -211,7 +210,7 @@ test.describe('a discard behind a draw — answer now, or after the draw', () =>
     await expect(page.locator(`${ALBUM} .con-hand__question [data-defer-plate]`)).toContainText('Конференция на Олимпе');
     await expect(page.locator(`${ALBUM} .con-hand__question [data-decline-plate]`), '«RT Не сбрасывать»').toHaveCount(1);
     expect(await barText(page), 'the bar names R3 too (its short form)').toContain('После добора');
-    await shoot(page, 'fhd', 'B1-album-two-buttons');
+    await shoot(page, 'tv4k', 'B1-album-two-buttons');
     const chosen = await page.locator('.con-hand__slot--selected').first().getAttribute('data-zoom-slot') ?? '';
     expect(chosen, 'a card under the cursor').not.toBe('');
     expect(await pressUntil(page, 'Enter', async () => await page.locator(`${COMPOSER}:visible`).count() > 0, {tries: 3, settleMs: 1200}),
@@ -221,7 +220,7 @@ test.describe('a discard behind a draw — answer now, or after the draw', () =>
     await expect(mu).toHaveAttribute('data-tq-state', 'early');
     await expect(mu.locator('[data-tq-value]')).toContainText('Сбросить');
     await expect(mu.locator('[data-tq-note]')).toContainText('до добора');
-    await shoot(page, 'fhd', 'B2-answered-now');
+    await shoot(page, 'tv4k', 'B2-answered-now');
 
     // Changed mind: back into the album, R3 — the answer let go, the row may wait again.
     for (let i = 0; i < 6 && await focusedRowOf(page, MU).count() === 0; i++) {
@@ -278,6 +277,6 @@ test.describe('a discard behind a draw — answer now, or after the draw', () =>
     await expect(focusedRowOf(page, MU), 'the owed question takes the cursor').toHaveCount(1);
     await expect(mu.locator('[data-tq-note]')).toContainText('Новая карта до вопроса не придёт');
     await expect(page.locator('.con-composer__cta--ready'), 'the commit waits for it').toHaveCount(0);
-    await shoot(page, 'fhd', 'C1-owed');
+    await shoot(page, 'tv4k', 'C1-owed');
   });
 });

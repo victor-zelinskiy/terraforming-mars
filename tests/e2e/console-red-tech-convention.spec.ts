@@ -47,7 +47,6 @@ const THROWN = [['Algae', 'plant'], ['Ants', 'microbe'], ['Fish', 'animal']] as 
 const OUT = path.resolve('screenshots', 'red-tech-convention');
 
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 
@@ -449,7 +448,7 @@ test.describe('TR32 · the class on a neighbour — TR05 Vector Computations (a 
     }
     await expect(verdict, 'a positive filter\'s discard names the RULE it missed').toHaveAttribute('data-verdict-kind', 'rule');
     await expect(verdict.locator('[data-draw-search]')).toHaveAttribute('data-draw-search', 'with:space');
-    await shoot(page, 'fhd', '07-tr05-tray');
+    await shoot(page, 'tv4k', '07-tr05-tray');
     await press(page, 'Escape', 1200);
   });
 });
@@ -555,7 +554,7 @@ test.describe('TR32 Red Tech Convention · three clean cards on top', () => {
     await expect(summary.locator('[data-draw-search]')).toHaveAttribute('data-draw-search', RULE);
     await expect(page.locator('[data-discard-pile]'), 'no pile').toHaveCount(0);
     await expect(page.locator('.con-cmdbar'), 'no R3 verb').not.toContainText(/сброшенные/i);
-    await shoot(page, 'fhd', '06-clean-top');
+    await shoot(page, 'tv4k', '06-clean-top');
     await press(page, 'Escape', 600);
     await expect(page.locator('.con-hand')).toHaveCount(0, {timeout: 30_000});
     const after = await wireOf(request, playerId);

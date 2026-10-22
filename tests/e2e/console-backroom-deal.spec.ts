@@ -23,7 +23,6 @@ const COMET = 'Comet';
 const COMPOSER = '.con-hand__stage .con-composer--play';
 const dockChip = (source: string) => `[data-armed-strip][data-armed-variant="chip"][data-armed-source="${source}"]`;
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 

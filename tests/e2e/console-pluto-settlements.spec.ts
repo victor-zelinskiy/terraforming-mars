@@ -25,7 +25,6 @@ const OUT = path.join('screenshots', process.env.PLU_OUT ?? 'pluto-settlements')
 const PLUTO = 'Pluto';
 
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 

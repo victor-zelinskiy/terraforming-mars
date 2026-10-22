@@ -41,7 +41,6 @@ const UNMI = 'United Nations Mars Initiative';
 const OUT = path.resolve('screenshots', 'earth-army-contract');
 
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 

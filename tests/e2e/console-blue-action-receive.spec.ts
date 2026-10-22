@@ -84,7 +84,6 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
 }
 
 const PROFILES = [
-  {tag: 'fhd', width: 1920, height: 1080, query: ''},
   // The 4K TV is the target platform AND the profile where the two stages
   // drifted apart last (the tv ladder re-sized only the buy heading) — the
   // parity probe below runs here too.

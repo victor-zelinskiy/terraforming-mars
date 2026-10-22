@@ -31,7 +31,6 @@ import {armLeakWitness, strandedReports} from './parliamentDrive';
 const OUT = path.resolve('screenshots', 'play-tr-reward');
 
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 

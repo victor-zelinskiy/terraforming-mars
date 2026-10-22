@@ -37,7 +37,6 @@ const SITE = {plants: '28', steel: '04', bare: '07', station: '33', beside: '34'
 const CASCADE = {card: '45', bonus: '43'} as const;
 
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 
@@ -332,7 +331,7 @@ for (const preset of PRESETS) {
       expect(pageErrors, 'no page error').toEqual([]);
     });
 
-    if (preset.id !== 'fhd') {
+    if (preset.id !== 'tv4k') {
       return;
     }
 

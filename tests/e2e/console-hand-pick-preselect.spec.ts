@@ -40,7 +40,6 @@ const PLAY_COMPOSER = '.con-composer--play';
 const OUT = path.resolve('screenshots', 'hand-pick-preselect', process.env.TM_E2E_SHOTS_TAG ?? '');
 
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 
@@ -255,7 +254,7 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, 'A6-board');
     });
 
-    if (preset.id === 'fhd') {
+    if (preset.id === 'tv4k') {
       test('B · the table\'s question: Mars University on the table answers a science tag — the same door', async ({page, request}) => {
         test.setTimeout(300_000);
         const posts = watchPosts(page);

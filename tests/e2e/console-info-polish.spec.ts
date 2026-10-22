@@ -21,7 +21,6 @@ const OUT = path.resolve(__dirname, '..', '..', 'screenshots', 'info-polish', 'f
 
 const PRESETS = [
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv', handheld: false},
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto', handheld: false},
   {id: 'deck', viewport: {width: 1280, height: 800}, query: '&consoleProfile=handheld', handheld: true},
 ] as const;
 

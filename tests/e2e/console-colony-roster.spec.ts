@@ -38,7 +38,6 @@ const GAME_CONFIG = soloGameConfig({
 });
 
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}},
 ] as const;
 

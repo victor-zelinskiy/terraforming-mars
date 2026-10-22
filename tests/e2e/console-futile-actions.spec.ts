@@ -27,7 +27,6 @@ import {bootFixtureSeats, openActionFocus, openCardActions, press, pressUntil, s
  */
 const OUT = path.resolve('screenshots', 'futile-actions');
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 

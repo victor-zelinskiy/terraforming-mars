@@ -25,7 +25,6 @@ import {bootFixtureSeats, bootIntoGame, closeZoomViewer, press, pressUntil, sett
  * (`console-play-landing-probe` / `-geometry`).
  */
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto', faceFloor: 190},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv', faceFloor: 380},
   {id: 'deck', viewport: {width: 1280, height: 800}, query: '&consoleProfile=handheld', faceFloor: 120},
 ] as const;

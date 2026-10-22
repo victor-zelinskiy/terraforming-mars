@@ -254,7 +254,6 @@ async function assertBand(page: Page, selector: string, label: string): Promise<
 }
 
 const PROFILES = [
-  {tag: 'fhd', width: 1920, height: 1080, query: ''},
   {tag: 'tv4k', width: 3840, height: 2160, query: '&consoleProfile=tv'},
   {tag: 'deck', width: 1280, height: 800, query: '&consoleProfile=handheld'},
 ] as const;

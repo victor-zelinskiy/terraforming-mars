@@ -37,7 +37,6 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 const PROFILES = [
-  {tag: 'fhd', width: 1920, height: 1080, query: ''},
   {tag: 'tv4k', width: 3840, height: 2160, query: '&consoleProfile=tv'},
   // A mid-size desktop window (the reported reproduction: ~2175×1237,
   // standard profile) — the in-between widths are exactly where a vw-based

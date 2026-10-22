@@ -28,7 +28,6 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 const PROFILES = [
-  {tag: 'fhd', width: 1920, height: 1080, query: ''},
   {tag: 'tv4k', width: 3840, height: 2160, query: '&consoleProfile=tv'},
 ] as const;
 

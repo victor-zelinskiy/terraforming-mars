@@ -21,7 +21,6 @@ import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusCard, openZoom
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
 const PROFILES = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 

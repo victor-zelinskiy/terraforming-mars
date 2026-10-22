@@ -17,7 +17,6 @@ const LIST = `${PLAY} .con-composer__sublist`;
 const ROWS = `${LIST} .con-vchoice__opt`;
 const OUT = path.resolve('screenshots', 'player-pick');
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto', rem: 20},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv', rem: 40},
 ] as const;
 

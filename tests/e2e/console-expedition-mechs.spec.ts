@@ -41,7 +41,6 @@ const ACTION_COMPOSER = '.con-cardactions__stagewrap .con-composer--stage';
 const FAMILY = ['EVA Mechs', 'Construction Mechs', 'Mech Sports', 'Mars Army Mechs', 'Automated Convoys', 'Forestry Mechs', CARD];
 
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 

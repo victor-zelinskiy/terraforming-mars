@@ -24,7 +24,6 @@ import {bootSeededGame, closeZoomViewer, fetchPlayerModel, forceSwiftPlacement, 
 import {STEEL_CARD_CELL, TWO_CARDS_CELL, createCleanTcnGame, openConvertPlants, walkBoardCursorTo} from './boardCellBonus';
 
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 

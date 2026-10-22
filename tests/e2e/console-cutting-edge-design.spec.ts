@@ -36,7 +36,6 @@ const ARCHAE = 'ArchaeBacteria';
 const COMPOSER = '.con-hand__stage .con-composer--play';
 const dockChip = (source: string) => `[data-armed-strip][data-armed-variant="chip"][data-armed-source="${source}"]`;
 const PRESETS = [
-  {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 
@@ -298,7 +297,7 @@ test.describe('TR49 — the one-play class', () => {
     await expect(page.locator(`${COMPOSER} [data-composer-req]`)).toHaveAttribute('data-req-state', 'decisive');
     await expect(page.locator(`${COMPOSER} [data-composer-req]`)).toContainText('Особая разработка');
     await expect(page.locator(`${COMPOSER} [data-composer-consume]`), 'a USED effect needs no consume note').toHaveCount(0);
-    await shoot(page, 'fhd', 'B1-grass-decisive');
+    await shoot(page, 'tv4k', 'B1-grass-decisive');
     await press(page, 'Escape', 900);
     await settle(page);
     await openComposer(page, COMET);
@@ -307,7 +306,7 @@ test.describe('TR49 — the one-play class', () => {
     await expect(consume).toContainText('впустую');
     await expect(consume).toHaveClass(/con-composer__warn--info/);
     await expect(page.locator(`${COMPOSER} .con-forecast__chip--modifier.con-forecast__chip--unused`), 'the muted chip').toHaveCount(1);
-    await shoot(page, 'fhd', 'B2-comet-wasted');
+    await shoot(page, 'tv4k', 'B2-comet-wasted');
   });
 
   test('(C) Indentured Workers armed: the payment head names the one-play discount', async ({page, request}) => {
@@ -317,7 +316,7 @@ test.describe('TR49 — the one-play class', () => {
     await openComposer(page, COMET);
     await expect(page.locator(`${COMPOSER} [data-pay-saved]`)).toHaveText('−8');
     await expect(page.locator(`${COMPOSER} [data-pay-armed]`), 'the head names whose discount the play spends').toContainText('Законтрактованные рабочие');
-    await shoot(page, 'fhd', 'C1-comet-discount');
+    await shoot(page, 'tv4k', 'C1-comet-discount');
   });
 
   for (const preset of PRESETS) {

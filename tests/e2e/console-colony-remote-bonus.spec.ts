@@ -476,7 +476,6 @@ test('a FOREIGN trade pays this colony: the bonus composition, and an ending', a
  * screenshot said otherwise. Geometry is asserted where the geometry lives.
  */
 const FIT_PROFILES = [
-  {tag: 'fhd', width: 1920, height: 1080, query: ''},
   {tag: 'tv4k', width: 3840, height: 2160, query: '&consoleProfile=tv'},
 ] as const;
 
