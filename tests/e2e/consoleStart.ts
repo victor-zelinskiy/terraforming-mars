@@ -194,13 +194,22 @@ async function quietAfterPress(page: Page, maxMs: number): Promise<void> {
   const started = Date.now();
   let quietSince: number | undefined;
   for (;;) {
-    const snap = await page.evaluate(() => {
-      const w = window as unknown as {__conReady?: () => unknown, __tmLastMutation?: number};
-      return {
-        ready: w.__conReady === undefined ? undefined : w.__conReady(),
-        sinceMutation: w.__tmLastMutation === undefined ? undefined : performance.now() - w.__tmLastMutation,
-      };
-    }) as {ready: Awaited<ReturnType<typeof readiness>>, sinceMutation: number | undefined};
+    let snap: {ready: Awaited<ReturnType<typeof readiness>>, sinceMutation: number | undefined};
+    try {
+      snap = await page.evaluate(() => {
+        const w = window as unknown as {__conReady?: () => unknown, __tmLastMutation?: number};
+        return {
+          ready: w.__conReady === undefined ? undefined : w.__conReady(),
+          sinceMutation: w.__tmLastMutation === undefined ? undefined : performance.now() - w.__tmLastMutation,
+        };
+      }) as {ready: Awaited<ReturnType<typeof readiness>>, sinceMutation: number | undefined};
+    } catch {
+      // THE PRESS NAVIGATED (a campaign map's launch, a menu's «play»): the document the quiet was asked of is gone —
+      // «Execution context was destroyed» (the first full baseline: campaigns-list's LAN launch). The press did its
+      // job; the spec waits for what it navigated to (its URL / its selector), exactly as `inputEchoSeq` stays
+      // tolerant beside it. Never a thrown press.
+      return;
+    }
     const r = snap.ready;
     if (r === undefined) {
       // no probe (a menu page) — the old sleep, whole
