@@ -21,6 +21,7 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   'console-action-price-fold.spec.ts', // T09 bench: a storyboard + the fold measured against the tokens' touchdowns (BY)
   'console-cursor.spec.ts', // «a face that jumped with no motion» — the cursor grammar's sampler
   'console-parliament-sitting-reward.spec.ts', // «the tick rides the touchdown» — a touchdown/tick window
+  'console-plasma-fans.spec.ts', // «the Greens' +2 ticks a beat AFTER the rating» — the gap is `motionMs(90)`, 45 ms at ×0.5 (T09 regression, 2026-10-22: 43 ms vs the spec's 60)
   // the motion-grammar guards
   'console-smoothness.spec.ts',
   'console-scene-transition.spec.ts',

@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {FixtureName, bootFixture, cinematicBeat, fetchPlayerModel, openActionFocus, openCardActions, playCardFromHand, press, settle, waitForBoardHome} from './consoleStart';
+import {FixtureName, bootFixture, fetchPlayerModel, openActionFocus, openCardActions, playCardFromHand, press, settle, waitForBoardHome} from './consoleStart';
 import {armTransferWitness, transferWitness, TransferWitness} from './transferWitness';
 
 /**
@@ -16,7 +16,8 @@ import {armTransferWitness, transferWitness, TransferWitness} from './transferWi
  * neither the SOURCE nor the DESTINATION of a token in the air (`surfaceClear`, `resource-transfer.md` §2).
  *
  * THE MATRIX (one test per cell, the TV layout — `tests.md` § «A CARD / FEATURE SPEC RUNS ITS TABLE ON THE TV PROFILE
- * ONLY»; the 3840×2160 raster is free on the box, so the storyboards are taken here too):
+ * ONLY»; the 3840×2160 raster is free on the box, so the storyboards are taken here too — `TM_E2E_STORYBOARD=1`, every
+ * compositor frame from the press to the settle under `screenshots/price-fold/<tag>/<cell>/story/`):
  *   A1 · Electro Catapult, blue's FIRST action of the turn (`price-fold-bot`) — nothing else in the answer (control);
  *   A2 · the same as the turn's SECOND action (`price-fold-bot-second`) — the bot's turn is due: the server answers
  *        with the bot ACTIVE and its Meteor Shower (5 plants off the very row the price left) lands ≈ 2 s later, in
@@ -200,12 +201,28 @@ function shot(page: Page, cell: string, name: string): Promise<Buffer> {
   return page.screenshot({path: path.join(OUT, cell, `${name}.png`)});
 }
 
-/** The storyboard of a cell: one frame every `everyMs` from the press, `frames` of them — the couch's own view of the phrase. */
-async function storyboard(page: Page, cell: string, frames: number, everyMs: number): Promise<void> {
-  for (let i = 0; i < frames; i++) {
-    await shot(page, cell, `${String(i).padStart(2, '0')}-${i * everyMs}ms`);
-    await cinematicBeat(page, everyMs, 'a storyboard frame: the cadence IS the subject, not a wait for state');
+/**
+ * The STORYBOARD of a cell (`TM_E2E_STORYBOARD=1` only — the suite's convention, `console-aerial-mappers`): every frame
+ * the compositor produced from the press to the settle, named by its time (`<cell>/story/t<ms>.jpg`). A 4K PNG per
+ * fixed interval took ~2 s a frame on the box and missed the whole phrase between two of them.
+ */
+async function storyboard(page: Page, cell: string): Promise<() => Promise<void>> {
+  if (process.env.TM_E2E_STORYBOARD !== '1') {
+    return async () => {};
   }
+  const dir = path.join(OUT, cell, 'story');
+  fs.rmSync(dir, {recursive: true, force: true});
+  fs.mkdirSync(dir, {recursive: true});
+  const client = await page.context().newCDPSession(page);
+  const t0 = Date.now();
+  client.on('Page.screencastFrame', (frame) => {
+    fs.writeFileSync(path.join(dir, `t${String(Date.now() - t0).padStart(5, '0')}.jpg`), Buffer.from(frame.data, 'base64'));
+    void client.send('Page.screencastFrameAck', {sessionId: frame.sessionId}).catch(() => undefined);
+  });
+  await client.send('Page.startScreencast', {format: 'jpeg', quality: 82, everyNthFrame: 1});
+  return async () => {
+    await client.send('Page.stopScreencast').catch(() => undefined);
+  };
 }
 
 /** The cell's reading: what the bench measured, in the words of the hypotheses table. */
@@ -272,7 +289,7 @@ test.describe(`console-action-price-fold · ${PROFILE.id}`, () => {
   test.use({viewport: PROFILE.viewport, deviceScaleFactor: 1, screen: PROFILE.viewport});
 
   async function catapult(page: Page, request: APIRequestContext, cell: string, fixture: FixtureName,
-    opts: {query?: string, delayMs?: number, backDuringBeat?: boolean, frames?: number} = {}): Promise<{playerId: string, before: Awaited<ReturnType<typeof serverOf>>, reading: CellReading}> {
+    opts: {query?: string, delayMs?: number, backDuringBeat?: boolean} = {}): Promise<{playerId: string, before: Awaited<ReturnType<typeof serverOf>>, reading: CellReading}> {
     const playerId = await bootFixture(page, request, fixture, {query: `${PROFILE.query}${opts.query ?? ''}`});
     const before = await serverOf(request, playerId);
     if (opts.delayMs !== undefined) {
@@ -283,13 +300,14 @@ test.describe(`console-action-price-fold · ${PROFILE.id}`, () => {
     await shot(page, cell, 'setup');
     await armTransferWitness(page);
     await armBench(page);
+    const stopStory = await storyboard(page, cell);
     await press(page, 'Enter', 0);
     if (opts.backDuringBeat === true) {
       await press(page, 'Escape', 0);
     }
-    await storyboard(page, cell, opts.frames ?? 10, 300);
     await expect(page.locator(READOUTS.mc)).toContainText(String(before.mc + 7), {timeout: 30_000});
     await settle(page, {timeoutMs: 45_000});
+    await stopStory();
     await waitForBoardHome(page, 30);
     const bench = await readBench(page);
     const reading = readCell(cell, bench, '−1', '+7');
@@ -309,7 +327,7 @@ test.describe(`console-action-price-fold · ${PROFILE.id}`, () => {
 
   test('A2 · Electro Catapult ENDS the turn — the bot\'s Meteor Shower lands inside the flight (the owner\'s table)', async ({page, request}) => {
     test.setTimeout(420_000);
-    const {playerId, before, reading} = await catapult(page, request, 'A2', 'price-fold-bot-second', {frames: 14});
+    const {playerId, before, reading} = await catapult(page, request, 'A2', 'price-fold-bot-second');
     expectLaw(reading, true);
     // The bot's turn is paced by the server — wait for it before reading the server's numbers.
     await expect.poll(async () => (await serverOf(request, playerId)).plants, {timeout: 30_000}).toBe(before.plants - 1 - 5);
@@ -318,13 +336,13 @@ test.describe(`console-action-price-fold · ${PROFILE.id}`, () => {
 
   test('B · A2 with the poll alone (`?realtime=0`)', async ({page, request}) => {
     test.setTimeout(420_000);
-    const {reading} = await catapult(page, request, 'B', 'price-fold-bot-second', {query: '&realtime=0', frames: 14});
+    const {reading} = await catapult(page, request, 'B', 'price-fold-bot-second', {query: '&realtime=0'});
     expectLaw(reading, true);
   });
 
   test('C · A2 with the answer delayed 1.5 s', async ({page, request}) => {
     test.setTimeout(420_000);
-    const {reading} = await catapult(page, request, 'C', 'price-fold-bot-second', {delayMs: 1500, frames: 16});
+    const {reading} = await catapult(page, request, 'C', 'price-fold-bot-second', {delayMs: 1500});
     expectLaw(reading, true);
   });
 
@@ -341,9 +359,10 @@ test.describe(`console-action-price-fold · ${PROFILE.id}`, () => {
     await readyToCommit(page);
     await armTransferWitness(page);
     await armBench(page);
+    const stopStory = await storyboard(page, 'E-2');
     await press(page, 'Enter', 0);
-    await storyboard(page, 'E-2', 14, 300);
     await settle(page, {timeoutMs: 45_000});
+    await stopStory();
     await waitForBoardHome(page, 30);
     const bench = await readBench(page);
     const reading = readCell('E-2', bench, '−7', '+1');
@@ -360,9 +379,10 @@ test.describe(`console-action-price-fold · ${PROFILE.id}`, () => {
     await readyToCommit(page);
     await armTransferWitness(page);
     await armBench(page);
+    const stopStory = await storyboard(page, 'F');
     await press(page, 'Enter', 0);
-    await storyboard(page, 'F', 10, 300);
     await settle(page, {timeoutMs: 45_000});
+    await stopStory();
     await waitForBoardHome(page, 30);
     const bench = await readBench(page);
     const reading = readCell('F', bench, '−8', '+1');
@@ -380,9 +400,10 @@ test.describe(`console-action-price-fold · ${PROFILE.id}`, () => {
     await delayAnswers(page, 1500);
     await armTransferWitness(page);
     await armBench(page, '.con-recv');
+    const stopStory = await storyboard(page, 'G');
     expect(await playCardFromHand(page, 'PR Office'), 'the play went through').toBe(true);
-    await storyboard(page, 'G', 14, 300);
     await settle(page, {timeoutMs: 45_000});
+    await stopStory();
     await waitForBoardHome(page, 30);
     const bench = await readBench(page);
     const reading = readCell('G', bench, '', '+1');
