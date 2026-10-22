@@ -100,8 +100,8 @@ describe('classic Turmoil cards under Turmoil Redux', () => {
 
     // Each adaptation updates this pin in the diff that deletes its row — a row that vanished by
     // accident (and dealt a card nobody adapted) fails here, by name.
-    it('the adapted cards, as of the last adaptation — T08 Parliament Hall (2026-10-22; T04 Diaspora Movement, T06 GMO Contract and T09 PR Office before it)', () => {
-      const adapted = [CardName.DIASPORA_MOVEMENT, CardName.GMO_CONTRACT, CardName.PR_OFFICE, CardName.PARLIAMENT_HALL];
+    it('the adapted cards, as of the last adaptation — T12 Red Tourism Wave (2026-10-22; T04 Diaspora Movement, T06 GMO Contract, T09 PR Office and T08 Parliament Hall before it)', () => {
+      const adapted = [CardName.DIASPORA_MOVEMENT, CardName.GMO_CONTRACT, CardName.PR_OFFICE, CardName.PARLIAMENT_HALL, CardName.RED_TOURISM_WAVE];
       expect(CLASSIC.filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name))).to.have.members(adapted).and.length(adapted.length);
       const dealt = dealtClassic(REDUX);
       expect(dealt.projects).to.have.members(adapted).and.length(adapted.length);

@@ -25,6 +25,8 @@
       </template>
     </template>
     <span v-else-if="why.composed" class="con-cwhy__zero">{{ $t('No tiles on Mars yet') }}</span>
+    <!-- A single term's zero in the server's words (T12 — «Рядом с вашими тайлами нет пустых клеток»), never a bare «0 → 0». -->
+    <span v-else-if="why.zero && why.zeroLabel !== undefined" class="con-cwhy__zero" data-count-zero>{{ $t(why.zeroLabel) }}</span>
     <span class="con-cwhy__arrow" aria-hidden="true">→</span>
     <span class="con-cwhy__result" data-count-result>
       <b class="con-cwhy__num">{{ result }}</b>
@@ -39,6 +41,7 @@ import {defineComponent, PropType} from 'vue';
 import PremiumMechNode from '@/client/components/premiumCard/PremiumMechNode.vue';
 import {CountedWhy, excludedTail, PART_LABEL, signedAmount} from '@/client/console/countedPlay';
 import {ActionEffectBasisPartKind} from '@/common/models/ActionPreviewModel';
+import {BoardPeekBeat} from '@/client/console/boardPeek';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
@@ -48,7 +51,7 @@ export default defineComponent({
   props: {
     why: {type: Object as PropType<CountedWhy>, required: true},
     /** The share the board peek is reading right now (its cells pulse in the same beat), or 'excluded'. */
-    lit: {type: String as PropType<ActionEffectBasisPartKind | 'excluded' | undefined>, default: undefined},
+    lit: {type: String as PropType<BoardPeekBeat | undefined>, default: undefined},
   },
   computed: {
     kicker(): string {

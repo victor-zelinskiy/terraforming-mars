@@ -273,6 +273,14 @@ export type ActionEffectBasis = {
    * player sees says why. Absent when nothing is excluded.
    */
   excluded?: ReadonlyArray<ActionEffectBasisPart>,
+  /**
+   * THE CELLS of a SINGLE-TERM count that lives on the board (T12 Red Tourism Wave, Hermetic Order of Mars — «per
+   * empty area adjacent to your tiles»), in the board's order: the board peek lights them as ONE group. A composed
+   * count carries its cells per share (`parts`) instead.
+   */
+  spaces?: ReadonlyArray<SpaceId>,
+  /** The term's honest ZERO in words (an i18n key — «No empty areas next to your tiles»), read where the count is 0. */
+  zero?: string,
 };
 
 /** The kinds a counted share can be — its pictogram and its word are the client's, by this key. */

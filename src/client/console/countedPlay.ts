@@ -210,6 +210,13 @@ export type CountedWhy = {
   parts: ReadonlyArray<{kind: ActionEffectBasisPartKind, count: number, spaces: ReadonlyArray<SpaceId>, glyph: CountedGlyph | undefined}>,
   excluded: ReadonlyArray<{kind: ActionEffectBasisPartKind, count: number, spaces: ReadonlyArray<SpaceId>}>,
   /**
+   * The cells of a SINGLE-TERM count that lives on the board (T12 — «per empty area adjacent to your tiles»): the
+   * board peek's one group. Empty for a composed count (its cells ride its parts) and for a term with no cells.
+   */
+  spaces: ReadonlyArray<SpaceId>,
+  /** The term's honest zero in words (an i18n key), when the server named it — read instead of a bare «0». */
+  zeroLabel: string | undefined,
+  /**
    * The term carries a COMPOSITION (the census — TR45): the reading prints
    * «= shares» and names its zero in words. A single-term count (PL-196 —
    * TR23's colonies, TR43's oceans) is its glyph and its number alone.
@@ -249,6 +256,8 @@ export function countedWhyOf(effects: ReadonlyArray<ActionEffect> | undefined): 
       glyph: countGlyphOf(term),
       parts: (term.parts ?? []).map((p) => ({kind: p.kind, count: p.count, spaces: p.spaces, glyph: PART_GLYPH[p.kind]})),
       excluded: (term.excluded ?? []).map((p) => ({kind: p.kind, count: p.count, spaces: p.spaces})),
+      spaces: term.parts === undefined ? (term.spaces ?? []) : [],
+      zeroLabel: term.zero,
       composed: term.parts !== undefined,
       zero: term.count === 0,
     };
@@ -278,7 +287,11 @@ export function countedWhyRow(why: CountedWhy, t: CountedTranslator): string {
   // The result as the chip states it: the signed number and where it lands («на эту карту», «производство»).
   const result = why.chip.note === undefined ? signedAmount(why.chip.amount) : `${signedAmount(why.chip.amount)} ${t.text(why.chip.note)}`;
   if (!why.composed) {
-    // A single term (PL-196): «Колонии в игре 5 → +5 на эту карту» — a zero reads as its own «0 → 0».
+    // A single term (PL-196): «Колонии в игре 5 → +5 на эту карту» — a zero reads as its own «0 → 0», or in the words
+    // the server named it with (T12 — «Рядом с вашими тайлами нет пустых клеток → 0»).
+    if (why.zero && why.zeroLabel !== undefined) {
+      return `${t.text(why.zeroLabel)} → ${result}`;
+    }
     return `${t.text(why.term.label)} ${why.term.count} → ${result}`;
   }
   if (why.zero) {

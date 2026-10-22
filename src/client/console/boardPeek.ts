@@ -27,7 +27,11 @@ import {probeTick} from '@/client/console/probeTick';
 import {findBoardOverlay} from '@/client/components/journal/boardCellHighlight';
 
 export type BoardPeekTone = 'counted' | 'excluded';
-export type BoardPeekGroup = {kind: ActionEffectBasisPartKind, tone: BoardPeekTone, spaces: ReadonlyArray<SpaceId>};
+/** A group's kind: a share of a composed count, or the ONE term of a single-term count that has cells (`'term'` — T12). */
+export type BoardPeekKind = ActionEffectBasisPartKind | 'term';
+/** One beat of the roll call: a counted group, or every uncounted cell at once. */
+export type BoardPeekBeat = BoardPeekKind | 'excluded';
+export type BoardPeekGroup = {kind: BoardPeekKind, tone: BoardPeekTone, spaces: ReadonlyArray<SpaceId>};
 export type BoardPeek = {why: CountedWhy, groups: ReadonlyArray<BoardPeekGroup>};
 
 /**
@@ -45,11 +49,15 @@ export const boardPeekState = reactive({
   /** The open peek's TOKEN — «is this still my peek?» is asked by it, never by identity (the store hands back a proxy). */
   seq: 0,
   shown: false,
-  lit: undefined as ActionEffectBasisPartKind | 'excluded' | undefined,
+  lit: undefined as BoardPeekBeat | undefined,
 });
 
 /** The groups of cells a counted reading lights — counted shares in the strip's order, then the named uncounted. */
 export function peekGroupsOf(why: CountedWhy): ReadonlyArray<BoardPeekGroup> {
+  // A single-term count with its cells (T12 — the empty areas next to your tiles) is ONE group: the term itself.
+  if (why.spaces.length > 0) {
+    return [{kind: 'term', tone: 'counted', spaces: why.spaces}];
+  }
   const counted = why.parts.filter((p) => p.spaces.length > 0).map((p): BoardPeekGroup => ({kind: p.kind, tone: 'counted', spaces: p.spaces}));
   const excluded = why.excluded.filter((p) => p.spaces.length > 0).map((p): BoardPeekGroup => ({kind: p.kind, tone: 'excluded', spaces: p.spaces}));
   return [...counted, ...excluded];
@@ -61,8 +69,8 @@ export function peekable(why: CountedWhy | undefined): boolean {
 }
 
 /** The roll call's beats: each counted share, then the uncounted as one beat. */
-export function rollCallOf(peek: BoardPeek): ReadonlyArray<ActionEffectBasisPartKind | 'excluded'> {
-  const beats: Array<ActionEffectBasisPartKind | 'excluded'> = peek.groups.filter((g) => g.tone === 'counted').map((g) => g.kind);
+export function rollCallOf(peek: BoardPeek): ReadonlyArray<BoardPeekBeat> {
+  const beats: Array<BoardPeekBeat> = peek.groups.filter((g) => g.tone === 'counted').map((g) => g.kind);
   if (peek.groups.some((g) => g.tone === 'excluded')) {
     beats.push('excluded');
   }
@@ -103,7 +111,7 @@ function stopRollCall(): void {
 }
 
 /** Light ONE beat: its cells take the one-shot pulse (re-armed every beat), every other cell stands marked. */
-function lightBeat(peek: BoardPeek, beat: ActionEffectBasisPartKind | 'excluded'): void {
+function lightBeat(peek: BoardPeek, beat: BoardPeekBeat): void {
   boardPeekState.lit = beat;
   eachCell(peek, (el, group) => {
     const on = beat === 'excluded' ? group.tone === 'excluded' : group.kind === beat && group.tone === 'counted';

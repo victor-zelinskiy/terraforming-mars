@@ -24,6 +24,15 @@ const census: ActionEffect = {
 };
 const zero: ActionEffect = {direction: 'gain', icon: 'microbe', amount: 0, current: 0, resulting: 0, note: 'on this card', basis: [{count: 0, label: 'Tiles on Mars', parts: []}]};
 const oceansProduction: ActionEffect = {direction: 'gain', icon: 'megacredits', amount: 3, current: 0, resulting: 3, note: 'production', basis: [{count: 3, label: 'Oceans'}]};
+/** T12 — a single term that lives on the board: its cells and its named zero ride the basis. */
+const areas: ActionEffect = {
+  direction: 'gain', icon: 'megacredits', amount: 3, current: 20, resulting: 23,
+  basis: [{count: 3, label: 'Empty areas next to your tiles', spaces: ['30', '31', '42'], zero: 'No empty areas next to your tiles'}],
+};
+const noAreas: ActionEffect = {
+  direction: 'gain', icon: 'megacredits', amount: 0, current: 20, resulting: 20,
+  basis: [{count: 0, label: 'Empty areas next to your tiles', spaces: [], zero: 'No empty areas next to your tiles'}],
+};
 
 function card(extra: Partial<CardModel>): CardModel {
   return {name: CardName.COMPOSTING_INITIATIVE, resources: undefined, calculatedCost: 8, isSelfReplicatingRobotsCard: false, ...extra} as CardModel;
@@ -148,6 +157,14 @@ describe('countedPlay', () => {
       const none: ActionEffect = {direction: 'gain', icon: 'data', amount: 0, note: 'on this card', basis: [{count: 0, label: 'Colonies in play'}]};
       expect(countedWhyRow(countedWhyOf([none])!, t)).eq('Colonies in play 0 → 0 on this card');
     });
+
+    it('T12 — a single term with cells reads as a single term; its zero reads in the words the server sent', () => {
+      const why = countedWhyOf([areas])!;
+      expect(why.composed).is.false;
+      expect(why.spaces).deep.eq(['30', '31', '42']);
+      expect(countedWhyRow(why, t)).eq('Empty areas next to your tiles 3 → +3');
+      expect(countedWhyRow(countedWhyOf([noAreas])!, t)).eq('No empty areas next to your tiles → 0');
+    });
   });
 });
 
@@ -169,5 +186,14 @@ describe('boardPeek — the cells a counted reading lights', () => {
 
   it('PL-196 — a single-term count has no cells either: the strip reads, L3 is not offered', () => {
     expect(peekable(countedWhyOf([oceansProduction]))).is.false;
+  });
+
+  it('T12 — a single-term count WITH its cells is ONE group, read in one beat; its zero offers nothing', () => {
+    const why = countedWhyOf([areas])!;
+    const groups = peekGroupsOf(why);
+    expect(groups.map((g) => [g.kind, g.tone, g.spaces])).deep.eq([['term', 'counted', ['30', '31', '42']]]);
+    expect(rollCallOf({why, groups})).deep.eq(['term']);
+    expect(peekable(why)).is.true;
+    expect(peekable(countedWhyOf([noAreas]))).is.false;
   });
 });

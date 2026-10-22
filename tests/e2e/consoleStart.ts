@@ -2566,6 +2566,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   'nuclear-warhead-utilization' | 'nuclear-warhead-locked' | 'vp-cell-sources' | 'vp-cell-rival' |
   'overclocked-equipment' | 'overclocked-equipment-locked' | 'overclocked-equipment-energy' |
   'diaspora-movement' | 'diaspora-movement-locked' |
+  'red-tourism' | 'red-tourism-zero' |
   // T06 GMO Contract — the contract on the table (Lichen · Ecology Research · Pets in hand) · in hand · locked.
   'gmo-contract' | 'gmo-contract-hand' | 'gmo-contract-locked' |
   // T09 PR Office — Unity rule (playable, «+1 TR · +3 M€») · locked («1 of 2»).

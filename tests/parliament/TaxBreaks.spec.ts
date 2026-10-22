@@ -32,6 +32,7 @@ import {EventSource} from '../../src/common/events/EventSource';
 import {familyOf} from '../../src/client/console/parliament/resolutionFamily';
 import {runAllActions} from '../TestingUtils';
 import {testAutomaGame} from '../automa/AutomaTestGame';
+import {colonyCardResources} from '../../src/common/colonies/ColonyMetadata';
 import {ICard} from '../../src/server/cards/ICard';
 import {Fish} from '../../src/server/cards/base/Fish';
 import {Birds} from '../../src/server/cards/base/Birds';
@@ -383,6 +384,14 @@ describe('TaxBreaks', () => {
 
     it('a bot IN the quest (mode politics) cannot reach 2 mechs — the model says so, never a silent 0/2', () => {
       const [game, human] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'politics'});
+      // A table with NO mech-printing colony, whatever the deal: the Redux Vesta prints one, and the deal moves with the card
+      // pool (T12 dealt one more classic card under Redux and the seed's table became Vesta's — the verdict was then TRUE,
+      // honestly). MarsBot refuses a custom colony list, so the printer is taken off the dealt table.
+      for (let i = game.colonies.length - 1; i >= 0; i--) {
+        if (colonyCardResources(game.colonies[i].metadata).includes(CardResource.MECH)) {
+          game.colonies.splice(i, 1);
+        }
+      }
       game.playerIsFinishedWithResearchPhase(human);
       const parliament = game.parliament!;
       parliament.quest = {definition: TAX_BREAKS.quest, source: TAX_BREAKS_ID, generation: game.generation, progress: new Map()};

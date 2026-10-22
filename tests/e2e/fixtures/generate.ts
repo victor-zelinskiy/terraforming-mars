@@ -62,6 +62,7 @@ import {actionFutility} from '../../../src/server/models/actionFutility';
 import {IActionCard, ICard, isIActionCard} from '../../../src/server/cards/ICard';
 import {SpaceMirrors} from '../../../src/server/cards/base/SpaceMirrors';
 import {ShipmentToEarth} from '../../../src/server/cards/promo/ShipmentToEarth';
+import {RedTourismWave} from '../../../src/server/cards/turmoil/RedTourismWave';
 import {Sponsors} from '../../../src/server/cards/base/Sponsors';
 import {Cartel} from '../../../src/server/cards/base/Cartel';
 import {CarbonNanosystems} from '../../../src/server/cards/promo/CarbonNanosystems';
@@ -6954,6 +6955,62 @@ parliamentFixture('diaspora-movement-locked', {
     if (card === undefined || p1.canPlay(card) || delegates !== 1 || parliament.rulingParty() === PartyName.REDS) {
       throw new Error(`the diaspora-movement-locked fixture expected T04 UNplayable — the Reds not ruling, one delegate of blue's on their resolution — got card=${card !== undefined} delegates=${delegates} ruling=${parliament.rulingParty()}`);
     }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── T12 · RED TOURISM WAVE — «+1 M€ for each EMPTY area adjacent to your tiles»: the first classic card whose result is
+//    a SET OF CELLS (the counted play carries them; L3 «Показать на поле» lights them). The Reds RULE (their quiet law
+//    enacted); T12 MOVED out of the dealt pool into blue's hand (never copied).
+//      · `red-tourism` — blue's two greeneries on 50 · 51 and red's city on one of their land neighbours (an area
+//        taken away, red's own areas never blue's); 20 M€;
+//      · `red-tourism-zero` — blue has no tile at all (red's greenery stands): the honest zero, named. ──
+function redTourismToHand(game: IGame, p1: IPlayer): void {
+  moveToDeckTop(game, CardName.RED_TOURISM_WAVE);
+  p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+}
+function redTourismExpect(name: string, p1: IPlayer, parliament: Parliament, count: (n: number) => boolean): void {
+  const card = p1.cardsInHand.find((c) => c.name === CardName.RED_TOURISM_WAVE);
+  const n = RedTourismWave.getAdjacentEmptySpacesCount(p1);
+  if (card === undefined || !p1.canPlay(card) || parliament.rulingParty() !== PartyName.REDS || !count(n) ||
+    RedTourismWave.getAdjacentEmptySpaces(p1).length !== n) {
+    throw new Error(`the ${name} fixture expected T12 playable with the Reds ruling — got card=${card !== undefined} canPlay=${card === undefined ? '-' : p1.canPlay(card)} ruling=${parliament.rulingParty()} areas=${n}`);
+  }
+}
+parliamentFixture('red-tourism', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, p2, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.REDS));
+    addGreenery(p1, '50' as SpaceId);
+    addGreenery(p1, '51' as SpaceId);
+    const neighbour = game.board.getAdjacentSpaces(game.board.getSpaceOrThrow('50' as SpaceId)).find((s) => s.spaceType === SpaceType.LAND && s.tile === undefined);
+    if (neighbour === undefined) {
+      throw new Error('red-tourism: no free land neighbour of 50 for the rival city');
+    }
+    addCity(p2, neighbour.id);
+    redTourismToHand(game, p1);
+  },
+  expect: ({game, p1, parliament}) => {
+    redTourismExpect('red-tourism', p1, parliament, (n) => n >= 5);
+    if (game.activePlayer.id !== p1.id) {
+      throw new Error('red-tourism: blue is not on the move');
+    }
+    parliament.assertLedger(game);
+  },
+});
+parliamentFixture('red-tourism-zero', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, p2, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.REDS));
+    addGreenery(p2, '50' as SpaceId);
+    redTourismToHand(game, p1);
+  },
+  expect: ({game, p1, parliament}) => {
+    redTourismExpect('red-tourism-zero', p1, parliament, (n) => n === 0);
     parliament.assertLedger(game);
   },
 });
