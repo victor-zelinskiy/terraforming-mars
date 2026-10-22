@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext, Route} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootToBoard, fillPicks, press, reloadConsole} from './consoleStart';
+import {bootSeededGame, press, reloadConsole} from './consoleStart';
 
 /**
  * MY REVEAL IS MINE UNTIL I FINISH IT — even when somebody else's colony bonus
@@ -219,20 +219,8 @@ test('a remote colony bonus WAITS for the reveal the player is standing in', asy
       watchdogRecoveries.push(msg.text());
     }
   });
-  await page.goto(`/player?id=${playerId}&console=1`);
-  await page.waitForSelector('.con-root, .con-start__frame', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-  await page.waitForTimeout(2500);
-  await bootToBoard(page, {
-    onStep: async (p, kind) => {
-      if (kind === 'corporation') {
-        await press(p, 'Enter', 600);
-      } else if (kind === 'project') {
-        await fillPicks(p, 2);
-      }
-    },
-  });
-  await page.waitForTimeout(1500);
+  // The opening is not the subject (the collision is patched in after a reload): answered over the API.
+  await bootSeededGame(page, request, playerId, {buy: 2});
 
   await installCollision(page);
   await reloadConsole(page);

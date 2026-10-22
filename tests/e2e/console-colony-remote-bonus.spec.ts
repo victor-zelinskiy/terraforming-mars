@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext, Route} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootToBoard, fillPicks, openMandatoryAnnounce, press, reloadConsole} from './consoleStart';
+import {bootSeededGame, openMandatoryAnnounce, press, reloadConsole} from './consoleStart';
 
 /**
  * SOMEBODY ELSE TRADED ON MY COLONY — the whole leg, to its END.
@@ -383,20 +383,8 @@ async function takePayout(page: Page): Promise<void> {
 test('a FOREIGN trade pays this colony: the bonus composition, and an ending', async ({page, request}) => {
   test.setTimeout(240_000);
   const playerId = await createGame(request);
-  await page.goto(`/player?id=${playerId}&console=1`);
-  await page.waitForSelector('.con-root, .con-start__frame', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-  await page.waitForTimeout(2500);
-  await bootToBoard(page, {
-    onStep: async (p, kind) => {
-      if (kind === 'corporation') {
-        await press(p, 'Enter', 600);
-      } else if (kind === 'project') {
-        await fillPicks(p, 2);
-      }
-    },
-  });
-  await page.waitForTimeout(1500);
+  // The opening is not the subject (the payout is patched in after a reload): answered over the API.
+  await bootSeededGame(page, request, playerId, {buy: 2});
 
   const sequence = await installSequence(page);
   await reloadConsole(page);
@@ -490,20 +478,8 @@ for (const profile of FIT_PROFILES) {
     test('four boxes fit the payout zone — no crop, no wrap the stage cannot hold', async ({page, request}) => {
       test.setTimeout(240_000);
       const playerId = await createGame(request);
-      await page.goto(`/player?id=${playerId}&console=1${profile.query}`);
-      await page.waitForSelector('.con-root, .con-start__frame', {timeout: 45_000});
-      await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-      await page.waitForTimeout(2500);
-      await bootToBoard(page, {
-        onStep: async (p, kind) => {
-          if (kind === 'corporation') {
-            await press(p, 'Enter', 600);
-          } else if (kind === 'project') {
-            await fillPicks(p, 2);
-          }
-        },
-      });
-      await page.waitForTimeout(1500);
+      // The opening is not the subject (the payout is patched in after a reload): answered over the API.
+      await bootSeededGame(page, request, playerId, {buy: 2, query: profile.query});
 
       await installMerged(page);
       await reloadConsole(page);

@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootToBoard, fillPicks, openMandatoryAnnounce, press, reloadConsole} from './consoleStart';
+import {bootSeededGame, openMandatoryAnnounce, reloadConsole} from './consoleStart';
 
 /**
  * PLUTO'S PAYOUT CLOSES INSIDE THE REVEAL MODAL — ONE COLONY AT A TIME.
@@ -94,32 +94,6 @@ async function createGame(request: APIRequestContext): Promise<string> {
   return (model.players.find((p) => p.name === 'PlutoBonus') ?? model.players[0]).id;
 }
 
-
-/**
- * Walk the whole game opening until the action phase is live. The payout is
- * injected only AFTERWARDS: during the start wizard the hand dock has no real
- * pack slots, so the take cinematic never commits and nothing could unlock.
- */
-async function walkUntilActionReady(page: Page): Promise<void> {
-  // THE SHARED DRIVER, never a bespoke walk. The hand-rolled loop this
-  // replaced could only reach the action phase by out-waiting every surface
-  // it did not understand — including the start workspace's embedded
-  // «убрать колонию» pick, which now DESCENDS into the colony focus stage
-  // and needs its own confirm there. `waitForBoardHome` knows that flow (and
-  // every other one on the way home), so the spec fails on ITS OWN claim
-  // instead of on the road to it.
-  await bootToBoard(page, {
-    onStep: async (p, kind) => {
-      if (kind === 'corporation') {
-        await press(p, 'Enter', 600);
-      } else if (kind === 'project') {
-        await fillPicks(p, 2);
-      }
-    },
-  });
-  await page.waitForTimeout(1500);
-}
-
 /**
  * Inject the trade's FIRST payout: the trade income plus colony 1's single
  * bonus card, with colony 1 of `cubes` owing its discard. Colonies 2..N have
@@ -154,11 +128,8 @@ async function injectPayout(page: Page, cubes: number): Promise<void> {
 test('the merged payout closes with its MANDATORY discard step', async ({page, request}) => {
   test.setTimeout(150_000);
   const playerId = await createGame(request);
-  await page.goto(`/player?id=${playerId}&console=1`);
-  await page.waitForSelector('.con-root, .con-start__frame', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-  await page.waitForTimeout(3500);
-  await walkUntilActionReady(page);
+  // The opening is not the subject (the bonus is patched in after a reload): answered over the API.
+  await bootSeededGame(page, request, playerId, {buy: 2});
 
   // NOW the payout can arrive: a real hand, a real dock, no wizard in the way.
   await injectPayout(page, 3);

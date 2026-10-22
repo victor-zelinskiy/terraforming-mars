@@ -1,5 +1,5 @@
 import {expect, test, Page} from './consoleTest';
-import {bootToBoard, corporationsExcluding, openBotBoardDetail, press, soloGameConfig, visibleSurfaces} from './consoleStart';
+import {bootSeededGame, corporationsExcluding, openBotBoardDetail, press, soloGameConfig, visibleSurfaces} from './consoleStart';
 
 /**
  * POSEIDON (C33) — the first corporation whose Setup box puts something on the
@@ -38,11 +38,7 @@ test.describe('console: a MarsBot corporation that settles at setup', () => {
 
     // The SERVER's own answer first: one bot colony, one bought step. The
     // screens below are how the player sees it; this is what is true.
-    await page.goto(`/player?id=${id}&console=1`);
-    await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-    await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-
-    await bootToBoard(page);
+    await bootSeededGame(page, request, id);
 
     const model = await (await request.get(`/api/player?id=${id}`)).json();
     const stats = model.game?.automa?.corporation?.stats ?? {};

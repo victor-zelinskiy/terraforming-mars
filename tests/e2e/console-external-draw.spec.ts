@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext, Route} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootToBoard, fillPicks, openMandatoryAnnounce, press, pressUntil, reloadConsole} from './consoleStart';
+import {bootSeededGame, openMandatoryAnnounce, press, pressUntil, reloadConsole} from './consoleStart';
 import type {ExternalDrawTakeMeta} from '../../src/common/models/ExternalDrawPromptModel';
 import type {CardName} from '../../src/common/cards/CardName';
 
@@ -209,20 +209,8 @@ async function snapshot(page: Page) {
 test('an external draw: announced → A opens the workspace → take one, take all → the workspace folds', async ({page, request}) => {
   test.setTimeout(240_000);
   const playerId = await createGame(request);
-  await page.goto(`/player?id=${playerId}&console=1`);
-  await page.waitForSelector('.con-root, .con-start__frame', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-  await page.waitForTimeout(2500);
-  await bootToBoard(page, {
-    onStep: async (p, kind) => {
-      if (kind === 'corporation') {
-        await press(p, 'Enter', 600);
-      } else if (kind === 'project') {
-        await fillPicks(p, 2);
-      }
-    },
-  });
-  await page.waitForTimeout(1500);
+  // The opening is not the subject (the draw is patched in after a reload): answered over the API.
+  await bootSeededGame(page, request, playerId, {buy: 2});
 
   const sequence = await installSequence(page);
   await reloadConsole(page);
@@ -284,20 +272,8 @@ test('an external draw: announced → A opens the workspace → take one, take a
 test('the workspace is LOCKED: B with one card left neither takes nor closes', async ({page, request}) => {
   test.setTimeout(240_000);
   const playerId = await createGame(request);
-  await page.goto(`/player?id=${playerId}&console=1`);
-  await page.waitForSelector('.con-root, .con-start__frame', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-  await page.waitForTimeout(2500);
-  await bootToBoard(page, {
-    onStep: async (p, kind) => {
-      if (kind === 'corporation') {
-        await press(p, 'Enter', 600);
-      } else if (kind === 'project') {
-        await fillPicks(p, 2);
-      }
-    },
-  });
-  await page.waitForTimeout(1500);
+  // The opening is not the subject (the draw is patched in after a reload): answered over the API.
+  await bootSeededGame(page, request, playerId, {buy: 2});
 
   const sequence = await installSequence(page);
   await reloadConsole(page);
