@@ -349,12 +349,15 @@ for (const preset of PRESETS) {
 
       // ── 8b. THE LANDING: the receipt grid — Luna in Ceres's slot, nobody else moved ──
       await page.locator('.con-hand .con-colonies--receipt').waitFor({timeout: 30_000});
+      // The receipt stands for ONE read (`ROSTER_READ_MS`, 680 ms — 340 at the functional class's ×0.5) and the box
+      // measure below waits for two equal samples: its words are read IN that window, never after it.
+      const receiptWords = page.locator('.con-hand [data-colony-roster-receipt]').textContent({timeout: 5_000});
       const landed = await tileBoxes(page, '.con-hand .con-colonies');
       expect(landed.Luna, 'Luna stands in the very box Ceres stood in').toBe(tableBoxes.Ceres);
       for (const name of ['Io', 'Callisto', 'Europa']) {
         expect(landed[name], `${name} did not move`).toBe(tableBoxes[name]);
       }
-      await expect(page.locator('.con-hand [data-colony-roster-receipt]'), 'the receipt names the change').toContainText('Церера');
+      expect(await receiptWords ?? '', 'the receipt names the change').toContain('Церера');
 
       // ── 9. the flow ends on the board ──
       await expect.poll(() => page.evaluate(() => ({
