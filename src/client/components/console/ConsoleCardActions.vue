@@ -419,6 +419,7 @@ import {ActionPreview, StagedPlacementModel, StagedVoteModel} from '@/common/mod
 import type {ICardRenderEffect} from '@/common/cards/render/Types';
 import {actionPreviewFingerprint, actionPreviewMap, branchOutcomeClaimPlan, ensureActionPreviews, ledgerDraws, previewBranchByIndex} from '@/client/console/actionPreviewStore';
 import {actionCommitRailState, armedRailLandsOnRow} from '@/client/console/consoleActionCommitRail';
+import {actionCommitOwnsEnding, actionCommitState} from '@/client/console/consoleActionCommit';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {paths} from '@/common/app/paths';
@@ -650,6 +651,12 @@ export default defineComponent({
       /** A party / law flow whose token still flies to the chosen card's miniature — its conclusion waits for the half's end (`ended` at the answer). */
       concludeAfterRail: undefined as number | undefined,
       /**
+       * A party / law flow whose ending the ACTION COMMIT owns (T09 / BY): the answer landed while the commit's dismissal
+       * — its reward wave off the printed icons, the fold once the surface is clear of its tokens — was still owed; the
+       * conclusion waits for the commit's release (`actionCommitLive`).
+       */
+      concludeAfterCommit: false,
+      /**
        * THE PREVIEW THE COMMITTED ACTION WAS COMPOSED AGAINST — latched at the
        * submit, keyed by the variant it belongs to, released when the stage
        * lets go of that variant.
@@ -702,6 +709,10 @@ export default defineComponent({
     /** The rail half's end count (every way out) — what a pending outcome waiting for a row's landing watches. */
     railHalvesEnded(): number {
       return actionCommitRailState.ended;
+    },
+    /** The ACTION COMMIT is armed and not yet released — what a party flow waiting for the commit's fold watches. */
+    actionCommitLive(): boolean {
+      return actionCommitState.active;
     },
     thisPlayer() {
       return this.playerView.thisPlayer;
@@ -1391,6 +1402,16 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * THE ACTION COMMIT LET GO (its fold — the workspace already leaving with it —, a hosted claim, a refusal): the party
+     * flow whose ending it owned ends now, through the one guarded conclusion (idempotent when the fold took the frame).
+     */
+    actionCommitLive(live: boolean): void {
+      if (!live && this.concludeAfterCommit) {
+        this.concludeAfterCommit = false;
+        void this.$nextTick(() => this.concludeFlow());
+      }
+    },
     /** The rail half ended (every way out): a pending outcome that waited for the row's landing opens now. */
     railHalvesEnded(n: number): void {
       // The party / law flow that waited for its token to land (PL-427) ends now.
@@ -1595,6 +1616,16 @@ export default defineComponent({
         // flow ends once the half is over — every way out bumps `ended` — never under the token.
         if (this.composer?.party !== undefined && actionCommitRailState.phase !== 'idle') {
           this.concludeAfterRail = actionCommitRailState.ended;
+          return;
+        }
+        // THE ACTION COMMIT STILL OWNS THE SURFACE (T09 / BY — «nothing else may take the surface from under the
+        // phrase»): the shell's own watcher (the parent's — it runs first) resolved the commit's handoff on this very
+        // answer, and its dismissal IS the flow's ending — the reward wave born on the party's printed icons (the
+        // Industrialists' raised production off its `.pcard-prod`), the fold once the surface is clear of its tokens.
+        // Concluding here took the stage down while the beat still held the wave back: the token's printed icon was
+        // gone at its birth («surface folded under its token»). The flow ends once the commit lets go.
+        if (actionCommitOwnsEnding(surfaceMotionState.awaiting !== undefined)) {
+          this.concludeAfterCommit = true;
           return;
         }
         void this.$nextTick(() => this.concludeFlow());

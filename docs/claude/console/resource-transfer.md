@@ -141,6 +141,17 @@ resolved it again, found the plan consumed and OVERWROTE the parked dismissal wi
 came at the beat's end and the seeded half was never flown. The parked dismissal now marks the fold owed
 (`commitFoldOwed`) the moment it is parked.
 
+### 2c. A party flow does not end on the ANSWER while the commit owns the surface (the first full baseline)
+
+The Industrialists from «ДЕЙСТВИЯ КАРТ» (`console-parliament-actions`, `console-parliament-v2` — red in every attempt
+with «the birth of production:megacredits off span.pcard-prod (div.con-cardactions.con-ws gone)»): the party flow
+ended itself on the answer — `ConsoleCardActions`' `playerView.game.gameAge` watcher concluded a tick after the shell
+had resolved the commit's handoff and PARKED its dismissal behind the beat (or started its wave), so the workspace was
+gone when the wave's production token was to be born on the plaque's printed icon. The watcher now asks
+`actionCommitOwnsEnding(awaiting)` (`consoleActionCommit.ts` — armed, not released, its handoff standing) and, when it
+does, concludes only on the commit's release (`actionCommitLive` → `concludeAfterCommit`): the commit's own fold leaves
+first, after `surfaceClear`, and the conclusion behind it is idempotent.
+
 ## 3. The table's answer to a play FLIES from its printed cause
 
 A card's answer to a play (T06 GMO Contract — «+2 M€» for each plant / animal / microbe tag) is not a number that changes
@@ -207,7 +218,7 @@ stands in). Every degrade ticks the counter (`onArrive`) — late, never lost.
 | e2e `console-rival-payout-intake` | the plaque EXPECTING in the frame of the first birth, one token per resource on `intake:<seat>`, RECEIVED «+N» standing a read, the ribbon's width constant |
 | e2e `console-classic-gmo-contract` (C) | the receiver's ring over the M€ ink while the answer flies |
 | `tests/client/console/transferSurfaceClear.spec.ts` | the law's engine: a price into an icon on the surface holds it to the ABSORB (its departure off the rail is no release), a gain born on it to its POP, both to both, the last token decides, an end elsewhere / a gone surface holds nothing |
-| `tests/console/transferSurfaceClear.spec.ts` | the source guard: ends registered before the run's first `await`, left on `launched`, dropped on every way out; the fold sentinel in every build + the harness; no client file folds on `onLeft` without `surfaceClear`; the chain keeps no clock; the shell's fold, the claimed path and H5b; the play scene; `App.update` seeds |
+| `tests/console/transferSurfaceClear.spec.ts` | the source guard: ends registered before the run's first `await`, left on `launched`, dropped on every way out; the fold sentinel in every build + the harness; no client file folds on `onLeft` without `surfaceClear`; the chain keeps no clock; the shell's fold, the claimed path and H5b; §2c — the party flow's answer asks the commit before it concludes; the play scene; `App.update` seeds |
 | `tests/console/actionCentreLeave.spec.ts` | H6 — the voluntary action centre stands aside while the commit owns the surface; the shell asks the one function |
 | `tests/client/console/actionCommitRail.spec.ts` | § PL-099 / BY — a price with nothing after it: the surface stands while a token still lands on it (the engine, never a clock); H5 — an owed view leaves the plan armed; a never-seeded half ends on the release |
 | e2e `console-action-price-fold` (TIMING) | the BENCH of BY on the owner's table (solo against MarsBot, the bot's turn inside the flight, `?realtime=0`, a slow answer, B in «Выполнение», two actions in a row, Caretaker, T09's play): the price lands on `hero`, the workspace stands at that landing and folds no earlier than the result's birth, no fold sentinel |

@@ -177,6 +177,19 @@ export function actionCommitHolding(): boolean {
   return actionCommitState.active && !actionCommitState.settled;
 }
 
+/**
+ * DOES THE COMMIT STILL OWN ITS SURFACE'S ENDING? (T09 / BY — «nothing else may take the surface from under the
+ * phrase».) Armed and not yet released, with its awaiting handoff standing — resolved or not: the shell clears a
+ * resolved handoff only in the commit's own fold. The shell's dismissal IS the flow's ending then — the reward wave
+ * born on the printed icons, the fold once the surface is clear of its tokens (`surfaceClear`) — so a host that would
+ * end its flow on the ANSWER (the party composer's) waits for the release (`releaseActionCommit`: the fold, a hosted
+ * claim, a refusal) instead of concluding under it. The awaiting fact is handed in: this module stays the unit-testable
+ * half.
+ */
+export function actionCommitOwnsEnding(awaitingHandoff: boolean): boolean {
+  return actionCommitState.active && awaitingHandoff;
+}
+
 /** Take the handoff plan (one consumer — the shell's awaiting resolution). */
 export function consumeActionCommitPlan(): ActionCommitPlan | undefined {
   const plan = actionCommitState.plan;

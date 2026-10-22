@@ -363,6 +363,10 @@ test.describe('parliament · party actions', () => {
     await expect(parliament(page)).toBeVisible();
     await expect(page.locator('.con-parl__party[data-party="Scientists"][data-action-state="used"]')).toHaveCount(1);
     await shoot(page, '05a-back-in-parliament-used');
+    // A visible toast OVERRIDES B everywhere (the press closes the card and is consumed): the two actions and the turn's
+    // hand-off queue four «Эффект партии» cards here («ДАЛЬШЕ +3»), so the feed drains before B is asked to leave the
+    // Parliament — the same walk as console-parliament-v2's (the feed is serialized, up to ~52 s for four cards).
+    await settle(page, {timeoutMs: 60_000, notifications: true});
     expect(await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 4, settleMs: 900})).toBeTruthy();
     await settle(page);
 

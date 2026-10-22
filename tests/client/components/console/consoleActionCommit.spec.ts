@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {
   actionCommitState, armActionCommit, markActionCommitSettled, actionCommitHolding,
   consumeActionCommitPlan, releaseActionCommit, abortConsoleActionCommit, resetActionCommit,
-  commitKindForBranch, commitRewardSpecs, onActionCommitRelease,
+  commitKindForBranch, commitRewardSpecs, onActionCommitRelease, actionCommitOwnsEnding,
 } from '@/client/console/consoleActionCommit';
 import {CardName} from '@/common/cards/CardName';
 import {ActionPreviewBranch, ActionEffect} from '@/common/models/ActionPreviewModel';
@@ -63,6 +63,20 @@ describe('consoleActionCommit — the universal activation beat', () => {
       expect(actionCommitHolding()).to.eq(false);
       expect(actionCommitState.abortNonce).to.eq(nonce + 1);
       expect(consumeActionCommitPlan()).to.eq(undefined);
+    });
+
+    it('T09 / BY — the commit OWNS its surface\'s ending from the arm to the release, while its handoff stands — past the beat\'s settle too', () => {
+      expect(actionCommitOwnsEnding(true), 'nothing armed').to.eq(false);
+      armActionCommit(PLAN);
+      expect(actionCommitOwnsEnding(true), 'armed, the handoff standing').to.eq(true);
+      expect(actionCommitOwnsEnding(false), 'no handoff (it never stood, or expired before the answer) — no fold is coming').to.eq(false);
+      markActionCommitSettled();
+      expect(actionCommitOwnsEnding(true), 'the beat settled, the dismissal still owed: the wave and the fold are still to come').to.eq(true);
+      releaseActionCommit();
+      expect(actionCommitOwnsEnding(true), 'released by its fold — the flow may end').to.eq(false);
+      armActionCommit(PLAN);
+      abortConsoleActionCommit();
+      expect(actionCommitOwnsEnding(true), 'a refusal lets go too').to.eq(false);
     });
   });
 
