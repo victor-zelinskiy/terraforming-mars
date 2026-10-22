@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootToBoard, fillPicks, press} from './consoleStart';
+import {bootSeededGame, press} from './consoleStart';
 
 /**
  * TV display-profile screenshot matrix (TV-3).
@@ -174,15 +174,12 @@ for (const preset of PRESETS) {
       // The wizard's default hook only answers the CORPORATION step; this game
       // deals preludes and projects too, and an unsatisfied step greys out RT
       // («СЛЕД. ШАГ»), so the walk would sit on «Выберите ещё 2» forever.
-      await bootToBoard(page, {
-        onStep: async (p, kind) => {
-          if (kind === 'corporation') {
-            await press(p, 'Enter', 600);
-          } else if (kind === 'prelude' || kind === 'project') {
-            await fillPicks(p, 2);
-          }
-        },
-      });
+      //
+      // …AND THE REST OF THE OPENING IS ANSWERED OVER THE API (the e2e speed iteration, 2026-10-22): the frames of the
+      // opening are the two above; walking the remaining wizard in the UI only to reach the board cost 95 s of the
+      // driver's own sleeps per preset — 474 s of this file's 790 s in the first full baseline. The same answers
+      // (corporation, two preludes, two projects) go over the API, and the console re-opens on the board.
+      await bootSeededGame(page, request, playerId, {buy: 2, query: preset.profileQuery});
       await shoot(page, preset, '03-after-start');
 
       // ── 4 · The main board + HUD ───────────────────────────────────
