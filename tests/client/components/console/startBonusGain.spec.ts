@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  armBonusGainClaim, bonusGainRewardState, bonusGainSourceSelectors, bonusGainSpec,
+  armBonusGainClaim, awaitVisibleBonusGainSource, bonusGainRewardState, bonusGainSourceSelectors, bonusGainSpec,
   consumeBonusGainReward, detectBonusGainAutoResolve, noteBonusGainRows, pendingBonusGainRows,
   resetBonusGainReward, seedBonusGainRewardHold,
 } from '@/client/console/startBonusGain';
@@ -159,5 +159,29 @@ describe('startBonusGain (the «Фора» gain reward beat)', () => {
     expect(bonusGainSpec('steel', 2)).to.deep.eq({channel: 'stock', resource: 'steel', amount: 2});
     expect(bonusGainSpec('megacredits', -3).amount, 'the framework moves GAINS only').to.eq(0);
     expect(bonusGainSpec('megacredits', 4.6).amount).to.eq(5);
+  });
+});
+
+describe('startBonusGain · the wave waits for its source to be SEEN', () => {
+  it('resolves false at once when there is nothing to look for', async () => {
+    expect(await awaitVisibleBonusGainSource([], 50)).to.eq(false);
+  });
+
+  it('resolves false at once when the scene is gone, never polling a dead stage', async () => {
+    let asked = 0;
+    const started = Date.now();
+    const seen = await awaitVisibleBonusGainSource(['.nothing-here'], 5_000, () => {
+      asked++;
+      return false;
+    });
+    expect(seen).to.eq(false);
+    expect(asked, 'alive is asked at most once — never a poll of a dead stage').to.be.at.most(1);
+    expect(Date.now() - started, 'no wait for a stage that is gone').to.be.lessThan(1_000);
+  });
+
+  it('gives up at its own deadline — the caller flies anyway and the gain degrades as before', async () => {
+    const started = Date.now();
+    expect(await awaitVisibleBonusGainSource(['.con-start__played [data-played-key="Head Start"]'], 120)).to.eq(false);
+    expect(Date.now() - started, 'bounded').to.be.lessThan(2_000);
   });
 });

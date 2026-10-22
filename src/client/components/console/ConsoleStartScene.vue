@@ -1184,7 +1184,7 @@ import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
 import {forecastForFixedBranch} from '@/client/console/effectForecastModel';
 import {clearPanelRewardHold, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
-  armBonusGainClaim, bonusGainRewardState, bonusGainSourceSelectors, consumeBonusGainReward,
+  armBonusGainClaim, awaitVisibleBonusGainSource, bonusGainRewardState, bonusGainSourceSelectors, consumeBonusGainReward,
 } from '@/client/console/startBonusGain';
 import {ActionEffect, ActionPreview} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
@@ -7840,22 +7840,35 @@ export default defineComponent({
       }
     },
     runBonusGainWave(): void {
+      // Taken at once — the mount edge and the watcher may both ask, and the wave must never start twice.
       const reward = consumeBonusGainReward();
       if (reward === undefined) {
         return;
       }
-      void runResourceTransfers({
-        specs: reward.specs,
-        source: reward.point !== undefined ?
-          {point: reward.point} :
-          {selectors: bonusGainSourceSelectors(reward.source)},
-        arrival: 'auto',
-        onArrive: (spec) => releasePanelRewardHold(spec),
-      }).then(() => {
-        // Belt-and-braces: a degraded transfer's hold snaps to the committed
-        // truth now (its chip fires marginally late, never lost).
-        clearPanelRewardHold();
-      });
+      const fly = (): void => {
+        void runResourceTransfers({
+          specs: reward.specs,
+          source: reward.point !== undefined ?
+            {point: reward.point} :
+            {selectors: bonusGainSourceSelectors(reward.source)},
+          arrival: 'auto',
+          onArrive: (spec) => releasePanelRewardHold(spec),
+        }).then(() => {
+          // Belt-and-braces: a degraded transfer's hold snaps to the committed
+          // truth now (its chip fires marginally late, never lost).
+          clearPanelRewardHold();
+        });
+      };
+      if (reward.point !== undefined) {
+        fly();
+        return;
+      }
+      // THE AUTO-RESOLVE FLIES OUT OF «РАЗЫГРАНО», and the shelf comes back WITH this scene: at the mount edge the
+      // granting card is measurable but still transparent, which the law of visible ends refuses — the wave degraded
+      // to a bare tick on every return. Wait (bounded) for the card to be SEEN; fly either way, so a card that never
+      // shows degrades exactly as before. The panel keeps holding the gains meanwhile.
+      const scene = this.$el as Node | null;
+      void awaitVisibleBonusGainSource(bonusGainSourceSelectors(reward.source), undefined, () => scene?.isConnected === true).then(fly);
     },
     /**
      * A on the standing briefing — THE HAND-OFF.

@@ -47,6 +47,8 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {BonusGainRow, bonusActionGains, bonusActionSource, bonusActionsOwed} from '@/client/console/bonusAction';
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {beginPanelRewardHold, clearPanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {firstVisibleEnd} from '@/client/console/resourceTransfer/transferEndVisible';
+import {probeTick} from '@/client/console/probeTick';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 
 /** What the beat owes: where it comes from, and what is arriving. */
@@ -257,6 +259,53 @@ export function resetBonusGainReward(): void {
  * column. A source that cannot be measured means no flight at all, and the gain
  * is then announced by its delta chip alone — marginally late, never lost.
  */
+/**
+ * How long the auto-resolve's wave waits for its source card to be SEEN. The shelf the card stands on comes back WITH
+ * the scene (it fades in over its own entry), so at the mount edge — the one moment the wave can be asked — the card
+ * is measurable but still transparent. Generous next to that entry (~0.3 s), well inside the hold's backstop.
+ */
+export const BONUS_GAIN_SOURCE_WAIT_MS = 1_200;
+
+/**
+ * WAIT FOR THE GRANTING CARD TO BE VISIBLE before the auto-resolve flies out of it — bounded, on `probeTick`.
+ *
+ * The law of visible ends (PL-162, `transferEndVisible.ts`) refuses an end below half its opacity, which is right: a
+ * token born on a card the player cannot see yet is a token out of nothing. But the wave is asked at the scene's MOUNT
+ * (an `immediate` watcher would run before there is DOM), and at the mount «РАЗЫГРАНО» is still fading in — measured at
+ * 4K: the card at opacity 0.00 on the mount sample, 1.00 two samples later. Asked then, every selector was skipped,
+ * the run degraded to «no flight» and the M€ arrived as a bare tick: «Фора» did nothing the player could see. Resolves
+ * `true` the first probe a selector's card is visible, `false` at the deadline or once the scene is gone — the caller
+ * flies either way, so a card that never shows degrades exactly as before (the counter ticks with its chip).
+ */
+export function awaitVisibleBonusGainSource(
+  selectors: ReadonlyArray<string>,
+  budgetMs: number = BONUS_GAIN_SOURCE_WAIT_MS,
+  alive: () => boolean = () => true,
+): Promise<boolean> {
+  if (typeof document === 'undefined' || selectors.length === 0) {
+    return Promise.resolve(false);
+  }
+  const deadline = Date.now() + budgetMs;
+  return new Promise((resolve) => {
+    const poll = (): void => {
+      if (!alive()) {
+        resolve(false);
+        return;
+      }
+      if (selectors.some((sel) => firstVisibleEnd(sel) !== undefined)) {
+        resolve(true);
+        return;
+      }
+      if (Date.now() >= deadline) {
+        resolve(false);
+        return;
+      }
+      probeTick(poll);
+    };
+    poll();
+  });
+}
+
 export function bonusGainSourceSelectors(source: CardName | undefined): Array<string> {
   const name = source ?? '';
   if (name === '') {
