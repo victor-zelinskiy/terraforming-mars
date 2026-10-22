@@ -190,7 +190,17 @@ function* walk(dir, relBase, skip) {
     }
   }
 }
-const STATIC_ROOTS = ['assets', 'src', 'tests', 'package.json', 'package-lock.json', 'tsconfig.json', 'playwright.config.ts'];
+/**
+ * WHAT IS SHARED AND WHAT IS THE TASK'S. Shared (`~/tm-e2e/repo`): `assets/` (956 MB, identical for every
+ * session of this clone) and the package files `npm ci` installs `node_modules` from. The TASK's
+ * (`~/tm-e2e/builds/<task>`): `src/` (the specs import from it, the STALE check reads it), `tests/`, the
+ * config files and the BUILD — because a running run re-reads its sources whenever Playwright restarts a
+ * worker (it does so after every failure), and a neighbour's sync into a SHARED `tests/` mid-run poisoned
+ * a 338-spec baseline with one broken harness file (2026-10-22 04:00: 607 reds in 14 minutes). The run's
+ * cwd is the task dir: `assets` and `node_modules` stand beside it as links to the mirror.
+ */
+const SHARED_ROOTS = ['assets', 'package.json', 'package-lock.json'];
+const TASK_ROOTS = ['src', 'tests', 'package.json', 'package-lock.json', 'tsconfig.json', 'playwright.config.ts'];
 const staticSkip = (rel, entry) => entry.name === 'node_modules' || rel.startsWith('tests/e2e/__screenshots__') || /\.tsbuildinfo$/.test(entry.name);
 const buildSkip = (rel, entry) => rel === 'build/tests' || /\.map(\.gz|\.br)?$/.test(entry.name);
 
@@ -211,7 +221,8 @@ function manifest(cwd, roots, skip) {
   return files;
 }
 const SETS = [
-  {base: REMOTE_REPO, cwd: ROOT, roots: STATIC_ROOTS, files: manifest(ROOT, STATIC_ROOTS, staticSkip)},
+  {base: REMOTE_REPO, cwd: ROOT, roots: SHARED_ROOTS, files: manifest(ROOT, SHARED_ROOTS, staticSkip)},
+  {base: TASK_DIR, cwd: ROOT, roots: TASK_ROOTS, files: manifest(ROOT, TASK_ROOTS, staticSkip)},
   {base: TASK_DIR, cwd: buildRoot, roots: ['build'], files: manifest(buildRoot, ['build'], buildSkip)},
 ];
 
@@ -353,6 +364,7 @@ cd ${REMOTE_REPO}
 # previous run's twelve frames.
 touch ${TASK_DIR}/.run-start
 rm -f ${TASK_DIR}/.last-exit
+# \`npm ci\` runs in the SHARED mirror (its node_modules is what every task links); the run itself in the task dir.
 if [ "$(cat node_modules/.tm-lock-sha 2>/dev/null)" != ${shq(lockShaLocal)} ]; then
   echo "[e2e:remote] package-lock.json changed — npm ci on the Steam Machine (a few minutes, once)"
   # npm's own exit code decides (never a pipeline's under pipefail — a filter's early exit would read a
@@ -371,7 +383,10 @@ if [ "$(cat node_modules/.tm-lock-sha 2>/dev/null)" != ${shq(lockShaLocal)} ]; t
   fi
 fi
 echo "[e2e:remote] $(node --version) · playwright $(npx playwright --version | sed 's/Version //') · $(nproc) threads · load $(cut -d' ' -f1-3 /proc/loadavg)"
-env ${envLine} TM_E2E_SLOT="$1" TM_E2E_ROOT=../builds/${task} TM_E2E_OUTPUT_DIR=${TASK_DIR}/test-results TM_E2E_REPORT_DIR=${TASK_DIR}/playwright-report TM_E2E_TIMINGS=${TASK_DIR}/test-results/timings.jsonl npx playwright test ${pwArgs.map(shq).join(' ')}
+# The run's cwd is the TASK dir: its own src / tests / config / build, assets + node_modules linked beside them
+# — so the harness's REPO_ROOT (= the config's dir) IS the task dir and TM_E2E_ROOT stays '.'.
+cd ${TASK_DIR}
+env ${envLine} TM_E2E_SLOT="$1" TM_E2E_OUTPUT_DIR=${TASK_DIR}/test-results TM_E2E_REPORT_DIR=${TASK_DIR}/playwright-report TM_E2E_TIMINGS=${TASK_DIR}/test-results/timings.jsonl npx playwright test ${pwArgs.map(shq).join(' ')}
 code=$?
 echo $code > ${TASK_DIR}/.last-exit
 exit $code
@@ -416,7 +431,9 @@ echo "[e2e:remote] $SLOT — running ${shq(task)} on $(cat /etc/hostname 2>/dev/
 # resolves UPWARD from the server's real path: on the laptop the snapshot sits inside the repo, here
 # the task dir stands beside the mirror (the first run of this layout: «worker server exited with 1»).
 # Old tasks' builds go after 14 idle days.
-mkdir -p ${TASK_DIR} && ln -sfn ../../repo/assets ${TASK_DIR}/assets && ln -sfn ../../repo/tests ${TASK_DIR}/tests && ln -sfn ../../repo/node_modules ${TASK_DIR}/node_modules
+mkdir -p ${TASK_DIR} && ln -sfn ../../repo/assets ${TASK_DIR}/assets && ln -sfn ../../repo/node_modules ${TASK_DIR}/node_modules
+# A task dir from the earlier layout linked \`tests\` to the mirror; the sync now writes the task's own copy there.
+[ -L ${TASK_DIR}/tests ] && rm -f ${TASK_DIR}/tests
 find ${REMOTE_BUILDS} -mindepth 1 -maxdepth 1 -type d -mtime +14 -exec rm -rf {} + 2>/dev/null
 # The sleep inhibitor is best-effort: over ssh polkit answers «Interactive authentication required»
 # unless the owner adds a rule, and the Gaming Mode idle sleep is a Steam setting anyway (Never).
@@ -431,7 +448,7 @@ code=$?
 # Pack the results WHILE STILL HOLDING THE SLOT — a waiting run starts the moment it is released.
 rm -f ${TASK_DIR}/results.tar
 ( cd ${TASK_DIR} && tar -cf results.tar --ignore-failed-read test-results playwright-report .last-exit 2>/dev/null )
-( cd ${REMOTE_REPO} && find screenshots -type f -newer ${TASK_DIR}/.run-start 2>/dev/null | tar -rf ${TASK_DIR}/results.tar -T - 2>/dev/null )
+( cd ${TASK_DIR} && find screenshots -type f -newer .run-start 2>/dev/null | tar -rf results.tar -T - 2>/dev/null )
 exit $code
 `;
 log(`running${exclusive ? ' EXCLUSIVE' : ''}: playwright test ${pwArgs.join(' ')}  (${envLine})`);
