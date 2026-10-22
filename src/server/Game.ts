@@ -3327,7 +3327,7 @@ export class Game implements IGame, Logger {
     }
   }
 
-  public getStandardProjects(): Array<IStandardProjectCard> {
+  public getStandardProjects(): ReadonlyArray<IStandardProjectCard> {
     const gameOptions = this.gameOptions;
     return new GameCards(gameOptions)
       .getStandardProjects()

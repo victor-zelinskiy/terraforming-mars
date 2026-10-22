@@ -517,7 +517,7 @@ export interface IGame extends Logger {
   /**
    * Returns the list of standard project cards used in this game, sorted by cost.
    */
-  getStandardProjects(): Array<IStandardProjectCard>;
+  getStandardProjects(): ReadonlyArray<IStandardProjectCard>;
 
   log(message: string, f?: (builder: LogMessageBuilder) => void, options?: {reservedFor?: IPlayer, reveal?: RevealLogMeta}): void;
   discardForCost(cardCount: 1 | 2, toPlace: TileType): number;

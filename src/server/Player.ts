@@ -49,7 +49,6 @@ import {requirementEasingOf} from './models/requirementEasing';
 import {LogMessageBuilder} from './logs/LogMessageBuilder';
 import {CapturedEventContext} from './events/EventRecorder';
 import {MoonExpansion} from './moon/MoonExpansion';
-import {IStandardProjectCard} from './cards/IStandardProjectCard';
 import {ConvertPlants} from './cards/base/standardActions/ConvertPlants';
 import {ConvertHeat, heatConversionMetadata} from './cards/base/standardActions/ConvertHeat';
 import {KELVINISTS_POLICY_3} from './turmoil/parties/Kelvinists';
@@ -2964,7 +2963,7 @@ export class Player implements IPlayer {
   }
 
   public getStandardProjectOption(): SelectStandardProjectToPlay {
-    const standardProjects: Array<IStandardProjectCard> = this.game.getStandardProjects();
+    const standardProjects = this.game.getStandardProjects();
 
     return new SelectStandardProjectToPlay(
       this,
