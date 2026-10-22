@@ -71,6 +71,8 @@ type Sample = {
   mech: Rect | undefined; mechVisible: boolean;
   cell: Rect | undefined; cellVisible: boolean;
   plants: string; deltas: number;
+  /** The band's kicker and state word IN THE SAME SAMPLE — the walk moves on to the results while a 4K frame is taken. */
+  kicker: string; bandState: string;
 };
 type Probe = {samples: Array<Sample>};
 
@@ -115,8 +117,11 @@ async function armProbe(page: Page): Promise<void> {
       const mech = card?.querySelector('.pcard__mech') ?? null;
       const row = document.querySelector('.con-res__row--plants');
       const cell = row?.querySelector('.con-res__stockwrap') ?? null;
+      const bandEl = document.querySelector('.con-band[data-parl-band-zone]');
       w.__banProbe.samples.push({
         t: performance.now(),
+        kicker: bandEl?.getAttribute('data-parl-band-kicker') ?? '',
+        bandState: bandEl?.querySelector('[data-parl-band-state]')?.getAttribute('data-parl-band-state') ?? '',
         stage: document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') ?? '',
         chips,
         mech: rectOf(mech),
@@ -257,10 +262,15 @@ test.describe('Plant Ban · standard-1080', () => {
     await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.stage === 'reward' && s.chips.some((c) => c.dir === 'loss')),
       {timeout: 30_000, message: 'the cut\'s chip left the rail on the reward page'}).toBe(true);
     await shoot(page, '04-plants-leave');
-    // …and the BAND over it never calls a cut a reward: the kicker names what LEAVES, the state word with it.
-    const band = page.locator('.con-band[data-parl-band-zone]');
-    await expect(band, 'the reward beat names the loss, never a reward').toHaveAttribute('data-parl-band-kicker', 'What you lose');
-    await expect(band.locator('[data-parl-band-state]'), 'never «получено» for a cut').toHaveAttribute('data-parl-band-state', /This loss|Taken/);
+    // …and the BAND over it never calls a cut a reward: the kicker names what LEAVES, the state word with it — read
+    // off the probe's samples of the reward page (the live band has moved on to the results by the time a 4K frame
+    // is taken: the first full baseline read «Results» there, at motion ×1 too).
+    const onCut = (await readProbe(page)).samples.filter((s) => s.stage === 'reward' && s.chips.some((c) => c.dir === 'loss'));
+    expect(onCut.some((s) => s.kicker === 'What you lose'), `the reward beat names the loss (${[...new Set(onCut.map((s) => s.kicker))].join(' | ')})`).toBe(true);
+    expect(onCut.filter((s) => s.kicker === 'Your reward'), 'never a reward for a cut').toEqual([]);
+    const states = onCut.map((s) => s.bandState).filter((v) => v !== '');
+    expect(states.length, 'the band carries a state word on the cut').toBeGreaterThan(0);
+    expect(states.filter((v) => !/This loss|Taken/.test(v)), 'never «получено» for a cut').toEqual([]);
     await expect.poll(async () => (await readProbe(page)).samples.slice(-1)[0].chips.length, {timeout: 60_000, message: 'the chip landed'}).toBe(0);
 
     const probe = await readProbe(page);
