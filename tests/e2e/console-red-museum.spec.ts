@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, fetchPlayerModel, focusCard, openConsole, press, pressUntil, settle, walkToSpace} from './consoleStart';
+import {bootFixtureSeats, confirmLockedPlacement, fetchPlayerModel, focusCard, openConsole, press, pressUntil, settle, walkToSpace} from './consoleStart';
 import {TileType} from '../../src/common/TileType';
 
 /**
@@ -289,7 +289,7 @@ async function openCityProject(page: Page): Promise<void> {
 async function confirmCell(page: Page): Promise<void> {
   await press(page, 'Enter', 420);
   await expect(page.locator('.con-bcur--locked'), 'A locks the cell').toHaveCount(1);
-  await page.keyboard.press('Enter');
+  await confirmLockedPlacement(page); // confirm — past the lock's dwell (the driver waits it out)
 }
 
 /** Open the hand from board home and descend into the card's play composer. */

@@ -1,6 +1,6 @@
 import {test, expect} from './consoleTest';
 import type {Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, cinematicBeat, commitFocusedSpace, fetchPlayerModel, focusCard, openActionFocus, openCardActions, openConsole, placementState, press, pressUntil, settle, waitForBoardHome, walkToSpace} from './consoleStart';
+import {bootFixtureSeats, confirmLockedPlacement, cinematicBeat, commitFocusedSpace, fetchPlayerModel, focusCard, openActionFocus, openCardActions, openConsole, placementState, press, pressUntil, settle, waitForBoardHome, walkToSpace} from './consoleStart';
 import {expectSeeThrough, expectUncovers} from './peekWitness';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 import {TileType} from '../../src/common/TileType';
@@ -729,7 +729,7 @@ for (const preset of PRESETS) {
       const stop = await storyboard(page, preset.id, 'lift');
       await press(page, 'Enter', 420); // lock
       await expect(page.locator('.con-bcur--locked'), 'A locks the cell').toHaveCount(1);
-      await page.keyboard.press('Enter'); // confirm — past the lock's dwell
+      await confirmLockedPlacement(page); // confirm — past the lock's dwell (the driver waits it out)
       await expect.poll(async () => cellOf(await wireOf(request, playerId), LIFT.dest)?.tileType, {timeout: 30_000, message: 'the ocean never reached the reserve on the server'}).toBe(TileType.OCEAN);
       await expect.poll(async () => (await readLiftProbe(page)).landedAt, {timeout: 30_000, message: 'the ocean never landed on screen'}).toBeDefined();
       await settle(page, {timeoutMs: 30_000});

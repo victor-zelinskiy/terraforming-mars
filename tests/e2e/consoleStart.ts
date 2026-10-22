@@ -1338,6 +1338,19 @@ async function lockedPlacementSeen(page: Page, lockedAt: number): Promise<void> 
   }
 }
 
+/**
+ * THE CONFIRM OF A LOCKED PLACEMENT, for a spec that pressed the lock itself (a storyboard brackets the commit
+ * tightly, so it drives the two presses by hand): wait out the lock's dwell, THEN the raw confirm. The dwell is the
+ * product's (`placementFlow.ts`, 280 ms) — the old fixed 420 ms settle of the lock press covered it by accident, the
+ * adaptive press returns the moment the lock paints, and a confirm pressed inside the dwell is ignored: the play
+ * never reaches the server (the first full baseline on Chromium 156: arboretum, aquatic research station). Call it
+ * right after the lock is seen; the confirm stays a RAW press so a probe armed before it sees the commit's first frame.
+ */
+export async function confirmLockedPlacement(page: Page, key = 'Enter'): Promise<void> {
+  await pollPause(page, PLACEMENT_LOCK_DWELL_MS);
+  await page.keyboard.press(key);
+}
+
 /** Take every card of a standing reveal (A per card; the last one closes). */
 export async function takeRevealCards(page: Page, maxTakes = 12): Promise<void> {
   const reveal = page.locator('.con-reveal');

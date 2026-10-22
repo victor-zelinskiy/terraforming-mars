@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, fetchPlayerModel, focusCard, openConsole, press, pressUntil, settle, walkToSpace} from './consoleStart';
+import {bootFixtureSeats, confirmLockedPlacement, fetchPlayerModel, focusCard, openConsole, press, pressUntil, settle, walkToSpace} from './consoleStart';
 import {TileType} from '../../src/common/TileType';
 
 /**
@@ -434,7 +434,7 @@ for (const preset of PRESETS) {
       const stopRed = await storyboard(redPage, preset.id, 'opponent');
       await press(page, 'Enter', 420);
       await expect(page.locator('.con-bcur--locked')).toHaveCount(1);
-      await page.keyboard.press('Enter');
+      await confirmLockedPlacement(page); // confirm — past the lock's dwell (the driver waits it out)
       await expect.poll(async () => cellOf(await wireOf(request, playerId), G)?.tileType,
         {timeout: 30_000, message: 'the greenery never reached G on the server'}).toBe(TileType.GREENERY);
       expect(posts.length, `exactly ONE POST: ${posts.map((p) => p.url).join(', ')}`).toBe(1);

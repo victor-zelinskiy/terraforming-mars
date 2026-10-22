@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, fetchPlayerModel, focusCard, focusedSpaceId, openConsole, press, pressUntil, settle, walkToSpace} from './consoleStart';
+import {bootFixtureSeats, confirmLockedPlacement, fetchPlayerModel, focusCard, focusedSpaceId, openConsole, press, pressUntil, settle, walkToSpace} from './consoleStart';
 import {expectSeeThrough, expectUncovers} from './peekWitness';
 import {TileType} from '../../src/common/TileType';
 
@@ -555,7 +555,7 @@ for (const preset of PRESETS) {
       const stopRedStory = await storyboard(redPage, preset.id, 'opponent');
       await press(page, 'Enter', 420); // lock
       await expect(page.locator('.con-bcur--locked')).toHaveCount(1);
-      await page.keyboard.press('Enter'); // confirm — past the lock's dwell
+      await confirmLockedPlacement(page); // confirm — past the lock's dwell (the driver waits it out)
       await expect.poll(async () => cellOf(await wireOf(request, playerId), B)?.tileType,
         {timeout: 30_000, message: 'the city never reached the destination on the server'}).toBe(TileType.CITY);
       expect(posts.length, `exactly ONE POST: ${posts.map((p) => p.url).join(', ')}`).toBe(1);
@@ -751,7 +751,7 @@ for (const preset of PRESETS) {
       const pieceOf = () => page.evaluate(() => (window as unknown as {__piece: {ticks: number, art: Array<string>, landed: boolean}}).__piece);
       await press(page, 'Enter', 420); // lock
       await expect(page.locator('.con-bcur--locked')).toHaveCount(1);
-      await page.keyboard.press('Enter'); // confirm — past the lock's dwell
+      await confirmLockedPlacement(page); // confirm — past the lock's dwell (the driver waits it out)
       await expect.poll(async () => (await pieceOf()).landed, {timeout: 30_000, message: 'the tier never landed on screen'}).toBe(true);
       const drawn = page.locator('.con-zoom, .con-reveal');
       await expect.poll(() => drawn.count(), {timeout: 30_000, message: 'Mars First\'s card never arrived'}).toBeGreaterThan(0);
