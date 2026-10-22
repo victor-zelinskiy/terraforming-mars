@@ -8,8 +8,17 @@
  *
  * Prints the suite-wide split (which bucket holds how many seconds), the per-file totals, and the top
  * offenders per bucket — the worklist of the e2e speed iteration (`docs/claude/e2e-speed-iteration.md`).
+ *
+ * When the run had reds it ends with the CLASSIFICATION WORKLIST: every test that did not pass, grouped by
+ * file, each with its attempts (`failed → passed` is FLAKY, all red is RED), the file's CLASS (TIMING if it
+ * stands in `tests/e2e/timingSpecs.ts`, else FUNCTIONAL) and the date the spec was last touched in git — the
+ * three facts the triage needs: an old untouched file is ROT first, a timing-class red is a timing, a recent
+ * functional red is a LOGIC bug or a candidate for the timing class WITH ITS REASON.
  */
 import * as fs from 'node:fs';
+import * as path from 'node:path';
+import {spawnSync} from 'node:child_process';
+import {fileURLToPath} from 'node:url';
 
 const file = process.argv[2];
 const topN = Number((process.argv.find((a, i) => process.argv[i - 1] === '--top')) ?? 15);
@@ -75,4 +84,53 @@ for (const b of ['press', 'sleep', 'beat', 'settle', 'boot']) {
   for (const [f, c] of ranked) {
     console.log(`  ${s(c.buckets[b])} s  ${pct(c.buckets[b], c.totalMs)} of its ${s(c.totalMs).trim()} s  ${f}`);
   }
+}
+
+// ── THE CLASSIFICATION WORKLIST ──────────────────────────────────────────────────────────────────────────
+// One ledger line per ATTEMPT: a retried test appears twice. Group by file + title and read the sequence.
+const attempts = new Map();
+for (const r of rows) {
+  const key = `${r.file}\u0000${r.title}`;
+  const cell = attempts.get(key) ?? {file: r.file, title: r.title, statuses: [], totalMs: 0};
+  cell.statuses.push(r.status ?? '?');
+  cell.totalMs += r.totalMs;
+  attempts.set(key, cell);
+}
+const notGreen = [...attempts.values()].filter((a) => a.statuses.some((st) => st !== 'passed' && st !== 'skipped'));
+if (notGreen.length > 0) {
+  const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  let timing = new Set();
+  try {
+    const src = fs.readFileSync(path.join(ROOT, 'tests', 'e2e', 'timingSpecs.ts'), 'utf8');
+    timing = new Set([...src.matchAll(/'([a-z0-9-]+\.spec\.ts)'/g)].map((m) => m[1]));
+  } catch {
+    // no class list at hand — every file reads as FUNCTIONAL
+  }
+  // The last commit that touched the spec BY HAND — the suite-wide codemods (the `key()` rewrite, the fhd
+  // drop; their messages say «codemod») touched a hundred files each and would date every spec «today».
+  const touched = (f) => {
+    const out = spawnSync('git', ['log', '-1', '--format=%cs', '--invert-grep', '--grep=codemod', '--', f], {cwd: ROOT, encoding: 'utf8'});
+    return out.status === 0 && out.stdout.trim() ? out.stdout.trim() : '?';
+  };
+  const byRedFile = new Map();
+  for (const a of notGreen) {
+    const list = byRedFile.get(a.file) ?? [];
+    list.push(a);
+    byRedFile.set(a.file, list);
+  }
+  const reds = notGreen.filter((a) => !a.statuses.includes('passed')).length;
+  const flaky = notGreen.length - reds;
+  console.log('');
+  console.log(`CLASSIFICATION WORKLIST — ${reds} red, ${flaky} flaky (red then green on a retry), in ${byRedFile.size} files:`);
+  for (const [f, list] of [...byRedFile.entries()].sort((a, b) => b[1].length - a[1].length || a[0].localeCompare(b[0]))) {
+    const base = path.basename(f);
+    const cls = timing.has(base) ? 'TIMING    ' : 'FUNCTIONAL';
+    console.log(`  ${cls}  touched ${touched(f)}  ${f}  (${list.length} of ${[...attempts.values()].filter((a) => a.file === f).length} tests)`);
+    for (const a of list) {
+      const verdict = a.statuses.includes('passed') ? 'FLAKY' : 'RED  ';
+      console.log(`      ${verdict}  ${a.statuses.join(' → ').padEnd(24)}  ${s(a.totalMs).trim()} s  ${a.title}`);
+    }
+  }
+  console.log('  Triage: an old untouched FUNCTIONAL file → ROT (run it alone with no flag first); a TIMING file → a timing (re-run --exclusive);');
+  console.log('  a recent FUNCTIONAL red → a LOGIC bug, or the timing class WITH ITS REASON in timingSpecs.ts.');
 }
