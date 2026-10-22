@@ -42,7 +42,6 @@ import {CardName} from './CardName';
 export const TURMOIL_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
   // A party requirement and a declarative body — `PartyRequirement` already reads `game.politics`;
   // the work is the premium scope (preview / information / reasons / lore) and the Redux spec table.
-  CardName.SUPPORTED_RESEARCH, // Scientists · draw 2
   CardName.WILDLIFE_DOME, // Greens · a greenery
   // A chairman requirement only — `ChairmanRequirement` reads `game.politics`.
   CardName.PUBLIC_CELEBRATIONS, // 2 VP
