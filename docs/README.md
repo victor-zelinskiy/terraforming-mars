@@ -53,6 +53,7 @@ files here are the deeper dives it points at.
 - [ELECTRON_MIGRATION_PLAN.md](ELECTRON_MIGRATION_PLAN.md) — phased Electron desktop-client roadmap.
 - [WEBSOCKET_MIGRATION_PLAN.md](WEBSOCKET_MIGRATION_PLAN.md) — realtime transport migration plan.
 - [EMBEDDED_SERVER.md](EMBEDDED_SERVER.md) — host-as-server app modes: embedded server in a utility process, LAN discovery/join, future WebRTC public hosting.
+- [research/reports/Аудит современного стека Electron 45.md](research/reports/Аудит%20современного%20стека%20Electron%2045.md) — 2026-10-22 audit (RU): what Electron 45 / Chromium ≤156 and modern libraries/toolchain offer the console client, mapped to our files, with take-now / trial / skip tables; raw research notes in `research/research_notes/`.
 
 ## Cards / expansion adaptation
 - [UPSTREAM_DEFERRED_WORKLIST.md](UPSTREAM_DEFERRED_WORKLIST.md) — upstream work reviewed but NOT taken, with the blockers and the port plan: the action-card → declarative `behavior` conversions, and the global-events DSL cluster. Read before re-auditing either.
