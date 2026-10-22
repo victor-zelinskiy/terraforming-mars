@@ -470,7 +470,10 @@ $INHIBIT distrobox enter ${CONTAINER} -- bash ${innerPath} "$SLOT"
 code=$?
 # Pack the results WHILE STILL HOLDING THE SLOT — a waiting run starts the moment it is released.
 rm -f ${TASK_DIR}/results.tar
-( cd ${TASK_DIR} && tar -cf results.tar --ignore-failed-read test-results playwright-report .last-exit 2>/dev/null )
+# TRACES STAY ON THE BOX unless asked for (TM_E2E_PULL_TRACES=1): a 4K trace is 100–300 MB, the HTML report
+# embeds a second copy of each, and the first full baseline packed 20 GB — 12.7 of it traces — past what the
+# laptop's pull could hold. The traces remain under ${TASK_DIR}/test-results/ until the task's next run.
+( cd ${TASK_DIR} && tar -cf results.tar --ignore-failed-read ${process.env.TM_E2E_PULL_TRACES === '1' ? '' : "--exclude='*.zip' --exclude='playwright-report/data'"} test-results playwright-report .last-exit 2>/dev/null )
 ( cd ${TASK_DIR} && find screenshots -type f -newer .run-start 2>/dev/null | tar -rf results.tar -T - 2>/dev/null )
 exit $code
 `;
@@ -494,11 +497,21 @@ try {
 }
 fs.mkdirSync(outDir, {recursive: true});
 // The archive was packed under the lock (outer.sh); here it is only fetched and removed.
-const pull = spawnSync(SSH, [...SSH_OPTS, '-C', HOST, `cat ${TASK_DIR}/results.tar 2>/dev/null && rm -f ${TASK_DIR}/results.tar`],
-  {stdio: ['ignore', 'pipe', 'inherit'], maxBuffer: 4 * 1024 * 1024 * 1024});
+// STREAMED TO A FILE, never buffered: the archive's size is the run's (a full suite's screenshots alone are GBs),
+// and an in-memory pull over its buffer failed SILENTLY — the run was then reported as «Playwright never started».
+const pullDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tm-e2e-pull-'));
+const pullFile = path.join(pullDir, 'results.tar');
+const pullFd = fs.openSync(pullFile, 'w');
+const pull = spawnSync(SSH, [...SSH_OPTS, HOST, `cat ${TASK_DIR}/results.tar 2>/dev/null && rm -f ${TASK_DIR}/results.tar`],
+  {stdio: ['ignore', pullFd, 'inherit']});
+fs.closeSync(pullFd);
+const pulledBytes = fs.existsSync(pullFile) ? fs.statSync(pullFile).size : 0;
 let exitCode = run.status ?? 1;
-if (pull.status === 0 && pull.stdout.length > 0) {
-  const x = spawnSync(TAR, ['-xf', '-', '-C', outDir], {input: pull.stdout, stdio: ['pipe', 'inherit', 'inherit']});
+if (pull.status !== 0) {
+  log(`the results did not come back (ssh exit ${pull.status}, ${(pulledBytes / 1048576).toFixed(0)} MB received) — they are still on ${HOST}:${TASK_DIR}/ (test-results, playwright-report, results.tar)`);
+}
+if (pull.status === 0 && pulledBytes > 0) {
+  const x = spawnSync(TAR, ['-xf', pullFile, '-C', outDir], {stdio: ['ignore', 'inherit', 'inherit']});
   if (x.status !== 0) {
     log('could not unpack the results');
   }
@@ -518,9 +531,16 @@ if (pull.status === 0 && pull.stdout.length > 0) {
     log(`${n} screenshot file(s) placed under screenshots/ (same paths as a local run)`);
   }
   log(`results: ${path.relative(ROOT, outDir)}/{test-results,playwright-report} (annotation host=${HOST})`);
-} else {
+} else if (pull.status === 0) {
   log('no results came back — Playwright never started on the Steam Machine (see the output above)');
   exitCode = 2;
+} else {
+  // The run happened (its own exit code stands); only the fetch failed — said above, with where the results are.
+  exitCode = run.status === 0 ? 0 : (run.status ?? 1);
+}
+fs.rmSync(pullDir, {recursive: true, force: true});
+if (process.env.TM_E2E_PULL_TRACES !== '1') {
+  log(`traces (if any) stay on ${HOST}:${TASK_DIR}/test-results/ — TM_E2E_PULL_TRACES=1 to bring them`);
 }
 const exclude = path.join(ROOT, '.git', 'info', 'exclude');
 if (fs.existsSync(path.dirname(exclude))) {
