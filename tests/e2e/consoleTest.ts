@@ -312,7 +312,10 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
       // trigger opening «Действия карт» at boot, a drifting stick walking the cursor — and 16 of 48 tests
       // went red while every one of them passed alone. The Gamepad API answers «none» here, always.
       try {
-        Object.defineProperty(navigator, 'getGamepads', {configurable: true, value: () => []});
+        // WRITABLE: a gamepad spec installs its own virtual pad by plain ASSIGNMENT (`navigator.getGamepads = …`);
+        // a defineProperty without it is read-only, the assignment fails silently, and the spec's pad never
+        // exists (gamepad-first-press / gamepad-reload-carryover, red in the first full baseline).
+        Object.defineProperty(navigator, 'getGamepads', {configurable: true, writable: true, value: () => []});
       } catch {
         // a locked-down navigator — the console then sees whatever it sees
       }
