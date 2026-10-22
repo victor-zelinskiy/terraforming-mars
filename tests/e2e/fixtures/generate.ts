@@ -521,6 +521,44 @@ plutoSettlementsTable('pluto-settlements-empty-hand', {cubes: 2, track: 3, forei
   write('rail-reward-action', game);
 }
 
+// ── price-fold-bot / price-fold-bot-second: «ПОВЕРХНОСТЬ НЕ СКЛАДЫВАЕТСЯ ПОД СВОИМ ЖЕТОНОМ» (T09, the flights' second
+//    iteration — the bench of `console-action-price-fold`). The OWNER'S table, not the fast solo one: SOLO AGAINST
+//    MARSBOT (base, CrediCor — no first action), blue on the move with Electro Catapult · Space Mirrors · Caretaker
+//    Contract on the table, 40 M€, 5 steel, 8 plants, 16 heat; the bot's action deck opens with B01 Meteor Shower
+//    (5 plants off blue — the very row the catapult's price leaves).
+//      · `price-fold-bot` — blue's FIRST action of the turn: the answer carries the action alone;
+//      · `price-fold-bot-second` — blue has taken one action this turn, so the catapult ENDS it: the bot's turn is due
+//        and the server's scheduler (`BotTurnScheduler`, on in every e2e worker server) answers with the bot ACTIVE
+//        (a broadcast before the POST answer) and plays the Meteor Shower ≈ 2 s later — inside the commit's flight. ──
+for (const name of ['price-fold-bot', 'price-fold-bot-second'] as const) {
+  const pinned = [CardName.CREDICOR];
+  const [game, human] = testAutomaGame({startingCorporations: 1, keepInitialCardSelection: true, customCorporationsList: [...pinned]});
+  assignPinnedCorporations(name, [human], pinned);
+  if (!(human.getWaitingFor() instanceof SelectInitialCards)) {
+    throw new Error(`${name}: expected SelectInitialCards, got ${human.getWaitingFor()?.constructor.name}`);
+  }
+  answerStartFlow(game, [human]);
+  human.playedCards.push(new ElectroCatapult(), new SpaceMirrors(), new CaretakerContract());
+  human.megaCredits = 40;
+  human.steel = 5;
+  human.plants = 8;
+  human.heat = 16;
+  const automa = game.automa;
+  if (automa === undefined) {
+    throw new Error(`${name}: not an automa game`);
+  }
+  automa.actionDeck = [{kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER}];
+  if (name === 'price-fold-bot-second') {
+    // One action already taken this turn (the loader re-primes the menu from the counter): the next one ends the turn.
+    human.actionsTakenThisRound = 1;
+  }
+  runAllActions(game);
+  if (game.phase !== Phase.ACTION || game.activePlayer.id !== human.id || !(human.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`${name}: expected blue on the move with the action menu — got phase=${game.phase} active=${game.activePlayer.color} wf=${human.getWaitingFor()?.constructor.name}`);
+  }
+  write(name, game);
+}
+
 // ── futile-only / futile-mixed: ACTIONS THAT CHANGE NOTHING (the owner's iteration of 2026-10-15 — «действия, которые
 //    фактически не имеют смысла»). A solo action phase on a FINISHED planet — +8 °C, 14 % oxygen, every ocean placed —
 //    Teractor (no standard-project rebate, no first action), an empty hand (nothing playable — the RT count is the card
@@ -6997,6 +7035,62 @@ parliamentFixture('gmo-contract-locked', {
     const delegates = greens === undefined ? -1 : parliament.votesOf(p1, greens);
     if (card === undefined || p1.canPlay(card) || delegates !== 1 || parliament.rulingParty() === PartyName.GREENS) {
       throw new Error(`the gmo-contract-locked fixture expected T06 UNplayable — the Greens not ruling, one delegate of blue's on their resolution — got card=${card !== undefined} delegates=${delegates} ruling=${parliament.rulingParty()}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── T09 · PR OFFICE — the third classic Turmoil card on a Redux table: «+1 TR; +1 M€ for each Earth tag you have,
+//    including this». Blue holds it on 20 M€ with two Earth tags of its own (Teractor's · Sponsors on the table) and
+//    red one (Earth Office): the play counts 3 — its own tag included, red's never. Every card is MOVED out of the
+//    dealt pool, never copied (moveToDeckTop).
+//      · `pr-office` — Unity RULE (their quiet law enacted): playable, «+1 TR» · «+3 M€ · 3 Earth tags»; the bench of
+//        the flights' second iteration plays it as its cell (з) — the PLAY's rail half (TR + M€) under a slow answer;
+//      · `pr-office-locked` — another party rules and Unity's resolution stands on the vote with ONE delegate of
+//        blue's: «✕» with both roads, «1 of 2». ──
+function prOfficeTable(game: IGame, p1: IPlayer, p2: IPlayer): void {
+  for (const [name, owner] of [[CardName.SPONSORS, p1], [CardName.EARTH_OFFICE, p2]] as const) {
+    moveToDeckTop(game, name);
+    owner.playedCards.push(game.projectDeck.drawOrThrow(game));
+  }
+  moveToDeckTop(game, CardName.PR_OFFICE);
+  p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+}
+parliamentFixture('pr-office', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, p2, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.UNITY));
+    prOfficeTable(game, p1, p2);
+  },
+  expect: ({game, p1, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.PR_OFFICE);
+    const earth = p1.tags.count(Tag.EARTH, 'raw');
+    if (card === undefined || !p1.canPlay(card) || earth !== 2 || parliament.rulingParty() !== PartyName.UNITY || game.activePlayer.id !== p1.id) {
+      throw new Error(`the pr-office fixture expected T09 playable with Unity ruling, 2 Earth tags of blue's (+ its own = 3) and blue on the move — got card=${card !== undefined} canPlay=${card === undefined ? '-' : p1.canPlay(card)} earth=${earth} ruling=${parliament.rulingParty()}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+parliamentFixture('pr-office-locked', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, p2, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.INDUSTRIALISTS));
+    if (parliament.slotOf(PartyName.UNITY) === undefined) {
+      seatResolution(parliament, 0, quietResolutionOf(PartyName.UNITY));
+    }
+    parliament.placeVote(p1, parliament.slotOf(PartyName.UNITY)!, 'lobby');
+    prOfficeTable(game, p1, p2);
+  },
+  expect: ({game, p1, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.PR_OFFICE);
+    const unity = parliament.slotOf(PartyName.UNITY);
+    const delegates = unity === undefined ? -1 : parliament.votesOf(p1, unity);
+    if (card === undefined || p1.canPlay(card) || delegates !== 1 || parliament.rulingParty() === PartyName.UNITY) {
+      throw new Error(`the pr-office-locked fixture expected T09 UNplayable — Unity not ruling, one delegate of blue's on their resolution — got card=${card !== undefined} delegates=${delegates} ruling=${parliament.rulingParty()}`);
     }
     parliament.assertLedger(game);
   },

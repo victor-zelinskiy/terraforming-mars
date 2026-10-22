@@ -18,6 +18,7 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   // the four the first broad sample named (28 specs at motion ×0.5, 2026-10-21)
   'console-aerial-mappers.spec.ts', // the transfer witness: endsOverGlass at tv4k
   'console-supercomputer.spec.ts', // the transfer witness: endsOverGlass at tv4k
+  'console-action-price-fold.spec.ts', // T09 bench: a storyboard + the fold measured against the tokens' touchdowns (BY)
   'console-cursor.spec.ts', // «a face that jumped with no motion» — the cursor grammar's sampler
   'console-parliament-sitting-reward.spec.ts', // «the tick rides the touchdown» — a touchdown/tick window
   // the motion-grammar guards

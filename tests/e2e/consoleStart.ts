@@ -2538,6 +2538,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   'diaspora-movement' | 'diaspora-movement-locked' |
   // T06 GMO Contract — the contract on the table (Lichen · Ecology Research · Pets in hand) · in hand · locked.
   'gmo-contract' | 'gmo-contract-hand' | 'gmo-contract-locked' |
+  // T09 PR Office — Unity rule (playable, «+1 TR · +3 M€») · locked («1 of 2»).
+  'pr-office' | 'pr-office-locked' |
   // TR56 Robotics Factory and the iteration «КУДА ЛЯЖЕТ»: three kinds of holders (mechs · fighters · floaters ×2); the
   // floaters only; no holder of any kind; Construction Mechs paying for the Building tag; the Reds ruling.
   'robotics-factory' | 'robotics-factory-one' | 'robotics-factory-none' | 'robotics-factory-mechpay' | 'robotics-factory-locked' |
@@ -2619,6 +2621,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   // Two plain resource-paying blue actions (Electro Catapult: 1 steel → 7 M€; Space Mirrors: 7 M€ → +1 energy
   // production) in a solo action phase — the ACTION COMMIT's reward wave onto the rail's own rows.
   'rail-reward-action' |
+  // T09 flights, iteration 2 — the OWNER'S table: solo against MarsBot (Meteor Shower first), Electro Catapult · Space
+  // Mirrors · Caretaker Contract; `-second`: the catapult ENDS the turn, the bot's turn lands inside the commit's flight.
+  'price-fold-bot' | 'price-fold-bot-second' |
   // ACTIONS THAT CHANGE NOTHING (2026-10-15): a finished planet, three card actions the server proves futile and a
   // futile heat conversion (`-only`), plus a useful pair and a blocked card beside them (`-mixed`).
   'futile-only' | 'futile-mixed' |

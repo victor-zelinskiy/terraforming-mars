@@ -251,6 +251,12 @@ const COVERED_PROMPT = 'COVERED PROMPT';
  * the visible-end verdict and not flown when gone); a bare point that drifted off its object does.
  */
 const TRANSFER_END_NOT_PAINTED = '[transfer] end not painted';
+/**
+ * …and the FOLD sentinel's (T09 «ПОВЕРХНОСТЬ НЕ СКЛАДЫВАЕТСЯ ПОД СВОИМ ЖЕТОНОМ», ledger BY): a token's end stood on a band
+ * surface (`.con-ws` / `.con-recv`) that LEFT while the token was still in the air — the surface folded under its own
+ * token, the class `surfaceClear` makes unexpressible. Not a degrade: a law broken.
+ */
+const TRANSFER_SURFACE_FOLDED = '[transfer] surface folded under its token';
 
 /**
  * THE STALL HARVEST — every product warning a test's pages print, kept (2026-10-14, the field «залипания»).
@@ -370,7 +376,7 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     const watch = (page: Page) => {
       page.on('console', (message) => {
         const text = message.text();
-        if (text.includes(TRANSFER_END_NOT_PAINTED)) {
+        if (text.includes(TRANSFER_END_NOT_PAINTED) || text.includes(TRANSFER_SURFACE_FOLDED)) {
           unpainted.push(text.slice(0, 300));
         }
       });
@@ -379,7 +385,7 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     context.on('page', watch);
     await use();
     if (unpainted.length > 0) {
-      throw new Error(`${TRANSFER_END_NOT_PAINTED} — a resource token was born on / landed over nothing (the law of live flight ends):\n  ${unpainted.join('\n  ')}`);
+      throw new Error(`${TRANSFER_END_NOT_PAINTED} / ${TRANSFER_SURFACE_FOLDED} — a resource token was born on / landed over nothing, or its surface folded under it (the laws of live flight ends and of the fold):\n  ${unpainted.join('\n  ')}`);
     }
   }, {auto: true}],
 
