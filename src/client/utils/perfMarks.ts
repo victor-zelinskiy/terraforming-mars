@@ -4,7 +4,11 @@
  * up in the DevTools Performance panel's "Timings" track AND in Electron `contentTracing`.
  *
  * Also installs a long-task observer that logs every main-thread task >= 50 ms — the
- * fastest way to find jank without instrumenting every call site.
+ * fastest way to find jank without instrumenting every call site — and, where the
+ * engine has it (Chromium 123+), a Long Animation Frame observer: a frame >= 50 ms
+ * with its blocking time, its style/layout/paint tail, and the scripts that FORCED a
+ * synchronous style+layout. That tail, not JS, is our 4K bottleneck
+ * (docs/PERFORMANCE_AUDIT.md), and a `longtask` entry cannot see it.
  *
  * Add `perfMark('label')` at any suspected hot path; wrap a block with `perfTime`.
  */
@@ -88,5 +92,59 @@ export function startLongTaskObserver(): void {
     longTaskObserver.observe({entryTypes: ['longtask']});
   } catch {
     // longtask entry type unsupported — ignore
+  }
+  startLongAnimationFrameObserver();
+}
+
+/**
+ * The fields of a `long-animation-frame` entry this logger reads. TS 6.0's DOM lib
+ * has no `PerformanceLongAnimationFrameTiming` yet.
+ */
+type LoafScript = {
+  duration: number;
+  forcedStyleAndLayoutDuration: number;
+  invoker: string;
+  sourceURL: string;
+  sourceCharPosition: number;
+};
+type LoafEntry = PerformanceEntry & {
+  blockingDuration: number;
+  renderStart: number;
+  styleAndLayoutStart: number;
+  scripts: ReadonlyArray<LoafScript>;
+};
+
+let loafObserver: PerformanceObserver | undefined;
+
+/** Log every animation frame >= 50 ms with its render tail + forced-layout culprits. */
+function startLongAnimationFrameObserver(): void {
+  if (loafObserver !== undefined) {
+    return;
+  }
+  try {
+    if (!(PerformanceObserver.supportedEntryTypes ?? []).includes('long-animation-frame')) {
+      return;
+    }
+    loafObserver = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries() as Array<LoafEntry>) {
+        if (entry.duration < 50) {
+          continue;
+        }
+        const end = entry.startTime + entry.duration;
+        // renderStart / styleAndLayoutStart are 0 when the frame did not render.
+        const render = entry.renderStart > 0 ? end - entry.renderStart : 0;
+        const styleLayout = entry.styleAndLayoutStart > 0 ? end - entry.styleAndLayoutStart : 0;
+        const forced = entry.scripts
+          .filter((script) => script.forcedStyleAndLayoutDuration >= 1)
+          .map((script) => `${script.invoker || script.sourceURL}@${script.sourceCharPosition} ` +
+            `forced ${script.forcedStyleAndLayoutDuration.toFixed(0)}ms`);
+        console.warn(`[perf] long frame ${entry.duration.toFixed(0)}ms @ ${entry.startTime.toFixed(0)}ms — ` +
+          `blocking ${entry.blockingDuration.toFixed(0)}ms, render ${render.toFixed(0)}ms ` +
+          `(style+layout ${styleLayout.toFixed(0)}ms)` + (forced.length > 0 ? ` · ${forced.join(' · ')}` : ''));
+      }
+    });
+    loafObserver.observe({type: 'long-animation-frame', buffered: true});
+  } catch {
+    // long-animation-frame entry type unsupported — ignore
   }
 }

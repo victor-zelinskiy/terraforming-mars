@@ -1,10 +1,9 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <link
-            href="https://fonts.googleapis.com/css?family=Ubuntu&display=swap"
-            rel="stylesheet"
-        />
+        <!-- No third-party request at boot: Ubuntu is self-hosted in styles.css
+             (src/styles/common.less) — the Google Fonts <link> that stood here
+             was render-blocking and never resolved on an offline TV. -->
         <!-- Reading faces, preloaded so the first fullscreen card / rules
              panel paints with final metrics (no fallback flash, no reflow).
              `crossorigin` is required even same-origin: fonts always fetch

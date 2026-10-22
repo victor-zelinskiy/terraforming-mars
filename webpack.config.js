@@ -128,12 +128,13 @@ module.exports = {
     splitChunks: {
       chunks: 'all',
       cacheGroups: {
-        // BND-1 (docs/PERFORMANCE_AUDIT.md): carve the two heavy lazy-only libs into
-        // their OWN async chunks so the single fixed-name `vendors` group below
-        // can't merge them into the eager bundle. chart.js (endgame VP chart) and
-        // markdown-it (card-help popup) are now dynamic-import()ed by their sole
-        // consumers, so `chunks: 'async'` + a higher priority keeps them out of
-        // the login/menu/board startup parse. Their small deps stay in vendors.
+        // BND-1 (docs/PERFORMANCE_AUDIT.md): carve the heavy lazy-only lib into
+        // its OWN async chunk so the single fixed-name `vendors` group below
+        // can't merge it into the eager bundle. chart.js (endgame VP chart) is
+        // dynamic-import()ed by its sole consumer, so `chunks: 'async'` + a higher
+        // priority keeps it out of the login/menu/board startup parse. Its small
+        // deps stay in vendors. (markdown-it had the same group until 2026-10-22 —
+        // its only consumer, CardHelp.vue, was deleted and the package dropped.)
         chartjs: {
           test: /[\\/]node_modules[\\/]chart\.js[\\/]/,
           name: 'chartjs',
@@ -141,19 +142,12 @@ module.exports = {
           priority: 20,
           enforce: true,
         },
-        markdownit: {
-          test: /[\\/]node_modules[\\/]markdown-it[\\/]/,
-          name: 'markdownit',
-          chunks: 'async',
-          priority: 20,
-          enforce: true,
-        },
         vendors: {
-          // Exclude the two lazy-only libs so this `chunks: 'all'` catch-all
-          // can't hoist them (async-only though they are) into the INITIAL
-          // vendors bundle — that hoist is exactly the BND-1 bug. With them
-          // excluded, only the chartjs/markdownit async groups above match them.
-          test: /[\\/]node_modules[\\/](?!chart\.js[\\/]|markdown-it[\\/])/,
+          // Exclude the lazy-only lib so this `chunks: 'all'` catch-all can't
+          // hoist it (async-only though it is) into the INITIAL vendors bundle —
+          // that hoist is exactly the BND-1 bug. With it excluded, only the
+          // chartjs async group above matches it.
+          test: /[\\/]node_modules[\\/](?!chart\.js[\\/])/,
           name: 'vendors',
           chunks: 'all',
         },

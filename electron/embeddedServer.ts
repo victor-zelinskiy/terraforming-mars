@@ -57,6 +57,8 @@ type StartOptions = {
 
 const READY_TIMEOUT_MS = 20_000;
 const RESPAWN_DELAY_MS = 2_000;
+/** The utilityProcess `serviceName` — also how `child-process-gone` names it. */
+const SERVICE_NAME = 'tm-embedded-server';
 
 let child: UtilityProcess | undefined;
 let status: EmbeddedServerStatus = 'stopped';
@@ -162,6 +164,35 @@ function wireChild(proc: UtilityProcess, onReady: (port: number) => void, onFata
   });
 }
 
+let processGoneWatched = false;
+
+/**
+ * Why the utility process died, in Chromium's words. `exit` carries only a code;
+ * `child-process-gone` adds the reason (crashed / oom / launch-failed / killed /
+ * integrity-failure …) and, when the OS reports one, the `systemErrorCode` of a
+ * failed launch (an antivirus block, a missing file). Written to
+ * embedded-server.log — the one record a field report can be read from, and a
+ * silent startup failure here downgrades the app to remote mode (main.ts), so the
+ * cause is otherwise invisible. Logging only; the supervisor's decisions stay on
+ * `exit`.
+ */
+function watchProcessGone(): void {
+  if (processGoneWatched) {
+    return;
+  }
+  processGoneWatched = true;
+  app.on('child-process-gone', (_event, details) => {
+    if (details.type !== 'Utility' || details.serviceName !== SERVICE_NAME) {
+      return;
+    }
+    const line = `[embedded] process gone: reason=${details.reason} exitCode=${details.exitCode}` +
+      (details.systemErrorCode === undefined ? '' : ` systemErrorCode=${details.systemErrorCode}`);
+    // eslint-disable-next-line no-console
+    console.warn(line);
+    logStream?.write(`${line}\n`);
+  });
+}
+
 function spawn(options: StartOptions): UtilityProcess | undefined {
   const script = serverScriptPath();
   if (script === undefined) {
@@ -173,8 +204,9 @@ function spawn(options: StartOptions): UtilityProcess | undefined {
   logStream ??= openLog(root);
   // eslint-disable-next-line no-console
   console.log(`[embedded] forking ${script} (root: ${root}, lan: ${options.lanVisible ? 'visible' : 'off'})`);
+  watchProcessGone();
   return utilityProcess.fork(script, [], {
-    serviceName: 'tm-embedded-server',
+    serviceName: SERVICE_NAME,
     stdio: 'pipe',
     env: {
       ...process.env,
