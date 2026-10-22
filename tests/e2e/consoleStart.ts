@@ -1396,6 +1396,8 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
   // never tried to drive.
   const task = page.locator('.con-task');
   const taskVisible = async () => await task.count() > 0 && await task.first().isVisible();
+  /** The research workspace's purchase stage between generations (TR61 — it rises by itself after the income). */
+  const researchBuy = page.locator('.con-draftws__stage--buy');
   /** A colony grid / stage the player can SEE — it owns the input over a start scene that hosts it. */
   const coloniesOnTop = async () => await colonies.count() > 0 && await colonies.first().isVisible();
   /** Consecutive rounds the task host has been up with nothing above it. */
@@ -1410,7 +1412,13 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
     // ORDER MATTERS — always drive the surface that is ON TOP, or the driver
     // fights a covered one (pressing into the start while the hand overlay
     // owns the input is how this used to spin until the budget died).
-    if (await reveal.count() > 0) {
+    if (await researchBuy.count() > 0 && await researchBuy.first().isVisible()) {
+      // THE RESEARCH BUY BETWEEN GENERATIONS (TR61): the generation scene ENTERS the research workspace by itself
+      // (`--buy` stage), so a walk home across a generation boundary meets it — the Parliament specs that close a
+      // sitting into generation 2 reported «board home never became live — still showing [".con-board"]» in the
+      // first full baseline. RT = «Пропустить» (buy nothing): the neutral answer, like every default here.
+      await press(page, 'Period', 1400);
+    } else if (await reveal.count() > 0) {
       await press(page, 'Enter', 1200);
     } else if (await hand.count() > 0) {
       // INSIDE the start workspace the hand IS the pending start work (a
@@ -1645,7 +1653,7 @@ export async function placementState(page: Page): Promise<'none' | 'aiming' | 'l
 export async function visibleSurfaces(page: Page): Promise<Array<string>> {
   return page.evaluate(() => {
     const roots = ['.con-start', '.con-start__summary', '.con-hand', '.con-composer', '.con-reveal',
-      '.con-mandatory', '.con-task', '.con-deckdraw', '.con-handdock--live', '.con-board'];
+      '.con-mandatory', '.con-task', '.con-deckdraw', '.con-draftws', '.con-handdock--live', '.con-board'];
     return roots.filter((sel) => {
       const el = document.querySelector(sel);
       return el !== null && (el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true});
