@@ -120,6 +120,18 @@ headless) can go through the GPU; the headless shell cannot open `chrome://gpu` 
 
 ## 5. Gotchas paid for on day one
 
+- **A full suite's results are tens of GB — the traces stay on the box** (2026-10-22, the first full baseline:
+  20 GB = 6.8 GB of `trace.zip` (`on-first-retry`, 100–300 MB each at 4K) + 5.9 GB of their copies inside the
+  HTML report + 6.8 GB of the specs' own 4K frames). The archive excludes `*.zip` and `playwright-report/data`
+  unless `TM_E2E_PULL_TRACES=1`; the pull STREAMS into a temp file (an in-memory pull over its 4 GB buffer
+  failed silently and the wrapper then reported «Playwright never started» about a finished run); a failed fetch
+  is named with the box path (`~/tm-e2e/builds/<task>/test-results/`) and keeps the run's own exit code. To read
+  a red without pulling: `ssh steam-machine 'sed -n "/# Error details/,/# Page snapshot/p"
+  ~/tm-e2e/builds/<task>/test-results/<test-dir>/error-context.md'` — the error is there while the run is still
+  going.
+- **Whole-suite runs: `--exclusive --workers=4`** for the functional list (4 workers measured clean; 8 = load
+  23 / 12 threads, CPU 98 %), the timing list as its own run (`--exclusive --workers=2`, reds re-judged at 1).
+
 - **Windows' built-in `ssh.exe` uploads a file-backed stdin at ~2 MB/s; Git's MSYS `ssh` at 42–64 MB/s**
   (40 MB: 18–22 s against 0.6–0.9 s). The wrapper prefers `C:\Program Files\Git\usr\bin\ssh.exe` (or the
   one beside `git --exec-path`) and falls back to the built-in. Both read the same `~/.ssh/config` and
