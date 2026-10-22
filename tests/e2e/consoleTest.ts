@@ -38,7 +38,7 @@
  *     STALE out loud — a red against a stale or foreign build is not a verdict
  *     about the code in front of you (`tests.md` § «VERIFY THE BUILD»).
  */
-import {Page, test as base} from '@playwright/test';
+import {Browser, Page, test as base} from '@playwright/test';
 import {ChildProcess, execSync, spawn} from 'child_process';
 import * as fs from 'fs';
 import * as http from 'http';
@@ -293,6 +293,43 @@ function rasterViewport<T extends {width: number, height: number} | null | undef
   return v;
 }
 
+/**
+ * THE PAGE HARNESS — installed in EVERY context a test opens: the test's own and every `browser.newContext()` a spec
+ * makes for a second seat. A second seat's context used to get neither half: the box's physical pad reached it (a
+ * phantom Y opened «Информация» on red's page and its R never reached the journal — console-supercomputer (C), 3 of 4
+ * at one worker, the night run of 2026-10-22), and its presses had no DOM-quiet clock.
+ */
+function pageHarnessScript(): void {
+  // NO GAMEPAD REACHES AN E2E PAGE. The driver speaks keyboard; a REAL pad plugged into the box (the
+  // owner's DualSense on the Steam Machine, 2026-10-22 03:00) is visible to headless Chromium through
+  // the container's /dev/input, so the console read it — PlayStation glyphs on the bar, a resting
+  // trigger opening «Действия карт» at boot, a drifting stick walking the cursor — and 16 of 48 tests
+  // went red while every one of them passed alone. The Gamepad API answers «none» here, always.
+  try {
+    // WRITABLE: a gamepad spec installs its own virtual pad by plain ASSIGNMENT (`navigator.getGamepads = …`);
+    // a defineProperty without it is read-only, the assignment fails silently, and the spec's pad never
+    // exists (gamepad-first-press / gamepad-reload-carryover, red in the first full baseline).
+    Object.defineProperty(navigator, 'getGamepads', {configurable: true, writable: true, value: () => []});
+  } catch {
+    // a locked-down navigator — the console then sees whatever it sees
+  }
+  const w = window as unknown as {__tmLastMutation: number};
+  w.__tmLastMutation = performance.now();
+  const observe = () => {
+    new MutationObserver((records) => {
+      // The document <title> ticks once a second on an idle board (the census, 2026-10-21) — not a witness.
+      if (records.some((r) => (r.target as Element).nodeName !== 'TITLE' && (r.target.parentNode as Element | null)?.nodeName !== 'TITLE')) {
+        w.__tmLastMutation = performance.now();
+      }
+    }).observe(document.documentElement, {subtree: true, childList: true, attributes: true, characterData: true});
+  };
+  if (document.documentElement) {
+    observe();
+  } else {
+    document.addEventListener('DOMContentLoaded', observe, {once: true});
+  }
+}
+
 /** The caller of a bare sleep: the first stack frame outside this harness and the driver's pass-through pause. */
 function sleepSiteOf(stack: string): string {
   for (const line of stack.split('\n').slice(1)) {
@@ -317,42 +354,21 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
    * sleeps on every page of the context (a sleep inside a timed primitive is the primitive's), and writes a
    * `timing` annotation + one JSON line per test into `TM_E2E_TIMINGS` for `scripts/e2e-timings-report.mjs`.
    */
-  timingLedger: [async ({context}, use, testInfo) => {
+  timingLedger: [async ({context, browser}, use, testInfo) => {
     resetTiming();
     // THE DOM-QUIET CLOCK for the adaptive press (`consoleStart.quietAfterPress`): `window.__tmLastMutation`
     // = the time of the last DOM mutation on the page. «The console is quiet» (no hold, no request) is not
     // «the witness has landed» — the rail's card name lands a beat after the cursor moves, a GSAP flight
     // writes a style per frame — so the press also waits for the DOM to hold still for a short window.
-    await context.addInitScript(() => {
-      // NO GAMEPAD REACHES AN E2E PAGE. The driver speaks keyboard; a REAL pad plugged into the box (the
-      // owner's DualSense on the Steam Machine, 2026-10-22 03:00) is visible to headless Chromium through
-      // the container's /dev/input, so the console read it — PlayStation glyphs on the bar, a resting
-      // trigger opening «Действия карт» at boot, a drifting stick walking the cursor — and 16 of 48 tests
-      // went red while every one of them passed alone. The Gamepad API answers «none» here, always.
-      try {
-        // WRITABLE: a gamepad spec installs its own virtual pad by plain ASSIGNMENT (`navigator.getGamepads = …`);
-        // a defineProperty without it is read-only, the assignment fails silently, and the spec's pad never
-        // exists (gamepad-first-press / gamepad-reload-carryover, red in the first full baseline).
-        Object.defineProperty(navigator, 'getGamepads', {configurable: true, writable: true, value: () => []});
-      } catch {
-        // a locked-down navigator — the console then sees whatever it sees
-      }
-      const w = window as unknown as {__tmLastMutation: number};
-      w.__tmLastMutation = performance.now();
-      const observe = () => {
-        new MutationObserver((records) => {
-          // The document <title> ticks once a second on an idle board (the census, 2026-10-21) — not a witness.
-          if (records.some((r) => (r.target as Element).nodeName !== 'TITLE' && (r.target.parentNode as Element | null)?.nodeName !== 'TITLE')) {
-            w.__tmLastMutation = performance.now();
-          }
-        }).observe(document.documentElement, {subtree: true, childList: true, attributes: true, characterData: true});
-      };
-      if (document.documentElement) {
-        observe();
-      } else {
-        document.addEventListener('DOMContentLoaded', observe, {once: true});
-      }
-    });
+    await context.addInitScript(pageHarnessScript);
+    // …and every OTHER context the test opens (a second seat) gets the same page harness and the same sleep book.
+    const originalNewContext = browser.newContext.bind(browser);
+    browser.newContext = async (options?: Parameters<Browser['newContext']>[0]) => {
+      const extra = await originalNewContext(options);
+      await extra.addInitScript(pageHarnessScript);
+      extra.on('page', (p) => book(p));
+      return extra;
+    };
     // WHERE THE SLEEPS ARE (the speed iteration's sleep pass): a bare sleep is booked against its CALL SITE — the first
     // frame outside this harness and the driver's pass-through pause — so the ledger ranks helpers by the seconds they
     // spend asleep instead of a guess. Only while a ledger is written; a stack per sleep is cheap at this volume.
@@ -373,7 +389,11 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     };
     context.pages().forEach(book);
     context.on('page', book);
-    await use();
+    try {
+      await use();
+    } finally {
+      browser.newContext = originalNewContext;
+    }
     const snap = snapshotTiming();
     testInfo.annotations.push({type: 'timing', description: formatTiming(snap)});
     const file = process.env.TM_E2E_TIMINGS;

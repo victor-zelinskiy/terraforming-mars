@@ -120,9 +120,31 @@ async function positionOf(request: APIRequestContext, id: string): Promise<numbe
 }
 
 /** The «ДОПОЛНИТЕЛЬНО» group, read off the live DOM. */
-async function extraRow(page: Page) {
-  return page.evaluate(() => {
-    const group = document.querySelector('.con-hydro__gains-extra');
+/**
+ * The result's aggregate row, read the moment the RESULT layer stands with the row's number painted. A fixed press
+ * settle before the read is a race with the layer's own beat: the timing class waited a fixed 4 s after the commit and
+ * met the row mid-leave («+4» read as «», the night run of 2026-10-22). Polled on the task clock, bounded.
+ */
+async function standingResultRow(page: Page, maxMs: number) {
+  // An interval poll in the page (never rAF — a quiet screen starves it); a deadline is «no row», never a throw.
+  // SCOPED TO THE RESULT LAYER: the plan's own row can still stand in the DOM (leaving, unpainted) — a document-wide
+  // read found it first and its `innerText` was «» (the re-judge of 2026-10-23, 4 / 4).
+  const stands = await page.waitForFunction(() => {
+    const plus = document.querySelector<HTMLElement>('.con-hydro__layer--result .con-hydro__gains-extra .con-hydro__plus');
+    return plus !== null && plus.innerText.trim() !== '';
+  }, undefined, {timeout: maxMs, polling: 40}).then(() => true, () => false);
+  if (!stands) {
+    return undefined;
+  }
+  const row = await extraRow(page, '.con-hydro__layer--result');
+  return row === undefined ? undefined :
+    {...row, rows: await page.locator('.con-hydro__layer--result .con-hydro__gains-extra .con-hydro__extra').count()};
+}
+
+async function extraRow(page: Page, scope = '') {
+  return page.evaluate((scope) => {
+    const root: Document | Element = scope === '' ? document : document.querySelector(scope) ?? document;
+    const group = root.querySelector('.con-hydro__gains-extra');
     if (group === null) {
       return undefined;
     }
@@ -134,9 +156,9 @@ async function extraRow(page: Page) {
       plus: norm((group.querySelector('.con-hydro__plus') as HTMLElement | null)?.innerText),
       icon: (group.querySelector('.con-hydro__delta-img') as HTMLElement | null)?.className ?? '',
       // Inside the ONE outcome block — never a panel of its own.
-      insideGains: document.querySelector('.con-hydro__gains .con-hydro__gains-extra') !== null,
+      insideGains: root.querySelector('.con-hydro__gains .con-hydro__gains-extra') !== null,
     };
-  });
+  }, scope);
 }
 
 test.describe('Social Heating (DP09) · fhd', () => {
@@ -215,11 +237,10 @@ test.describe('Social Heating (DP09) · fhd', () => {
     expect((await extraRow(page))!.plus).toBe('+3');
 
     // ── 2 · THE PAYOUT. Commit; the marker walks; the wave lands. ──
-    await press(page, 'Enter', 3500);
-    await page.waitForSelector('.con-hydro__layer--result', {timeout: 40_000});
+    await press(page, 'Enter', 300);
     // The result's rows are read while the result STANDS — at the functional class's motion ×0.5 it has left by the
     // time a fixed 1.2 s has passed (the first full baseline: «the result restates …» undefined, green at ×1).
-    const result = await extraRow(page);
+    const result = await standingResultRow(page, 40_000);
     await page.waitForTimeout(1200);
 
     expect(await positionOf(request, id), 'the marker committed 0 → 3').toBe(3);
@@ -300,11 +321,10 @@ test.describe('Social Heating × Delta Surge · fhd', () => {
     expect(await page.locator('.con-hydro__pickrow .con-hydro__bonus-tick').count(),
       'both crossed choices resolved').toBe(2);
 
-    await press(page, 'Enter', 4000);
-    await page.waitForSelector('.con-hydro__layer--result', {timeout: 60_000});
+    await press(page, 'Enter', 300);
     // Read while the result STANDS (see the first test).
-    const result = await extraRow(page);
-    const extraRows = await page.locator('.con-hydro__gains-extra .con-hydro__extra').count();
+    const result = await standingResultRow(page, 60_000);
+    const extraRows = result?.rows ?? 0;
     await page.waitForTimeout(1500);
 
     expect(await positionOf(request, id), 'the marker committed 0 → 4').toBe(4);

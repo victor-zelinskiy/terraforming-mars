@@ -321,3 +321,11 @@ worker-scaling curve FIRST** (phase 0.2) — the 28-spec sample at 2 workers was
   | console-final-greenery | PRODUCT | the own landing measured its cell at the verify while the finale's camera was still moving the board; the «−8» touched down in the NEIGHBOUR cell (`cell:24`, the greenery on 25). The landing now waits for a calm board and re-measures when the board's space moved (`settledHexRect` — the remote stage's own rule), and the price is aimed at the cell ELEMENT (T06 live end). `board-placement-flow.md` § THE TILE LANGUAGE, word 8 |
   | console-info-dossier (D) | SPEC (probe clock) | «the plate unfolds from the zone's box» read the FIRST `setInterval` tick, which came after the whole 160 ms door under load (3001 × 1736). The start pose is written in the same task as the plate's class (`fromTo`), so the first sample of either clock reads it; the door's OPENING is asserted from the plate's growth |
   | console-prelude-burn-gate | DRIVER | a stray pick («Metal-Rich Asteroid») held the second place before the walk began, so the limit refused «Business Empire» on three visits. `pickCards(…, {exclusive: true})` takes a stray back on the way; the shortfall trail now names what the step held at the start |
+  **The TIMING class on fresh HEAD** (`4bb9907f76`, built in a clean worktree so a neighbour's uncommitted client
+  could not enter the measure; 59 files, `--exclusive --workers=2 --retries=1`, 44 min): 202 passed · 1 red · 1 flaky ·
+  10 skipped. Both closed: ① console-supercomputer (C) — a HARNESS hole: the gamepad stub and the DOM-quiet clock were
+  installed only in the test's own context, so a second seat's `browser.newContext()` saw the box's physical pad, a
+  phantom Y opened «Информация» on red's page and its R never reached the journal (3 / 4 at one worker). Every context a
+  test opens now gets the same page harness (`pageHarnessScript`) and the same sleep book; the five specs with a second
+  seat 36 / 36. ② console-social-heating — the read of the RESULT row was document-wide while the plan's row still
+  stood in the DOM unpainted (its `innerText` «»); scoped to the result layer and read the moment it paints — 12 / 12.
