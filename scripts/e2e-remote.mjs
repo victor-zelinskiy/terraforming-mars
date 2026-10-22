@@ -234,6 +234,14 @@ deleted = 0
 for s in m['sets']:
     base = os.path.expanduser(s['base'])
     os.makedirs(base, exist_ok=True)
+    # A task dir from the earlier layout LINKED \`tests\` (and maybe more) to the shared mirror. The link must
+    # go BEFORE the compare: compared through it, the files read as present and the sync wrote through it
+    # into the mirror, and the outer script's later cleanup then left the task with no tests at all
+    # («No tests found», the first baseline of 2026-10-22).
+    for root in s['roots']:
+        rp = os.path.join(base, root)
+        if os.path.islink(rp):
+            os.remove(rp)
     files = s['files']
     send = []
     for rel, (size, mt) in files.items():
