@@ -23,6 +23,9 @@ import {
   cardPickAskKey,
   cardPickRoleKey,
   commonVariantCost,
+  soleCandidateOf,
+  soleMarkKeys,
+  ComposerChoice,
 } from '@/client/console/consoleActionComposer';
 import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 
@@ -443,6 +446,61 @@ describe('consoleActionComposer', () => {
     it('no dials → nothing to drive', () => {
       expect(soleInlineDial([])).to.eq(undefined);
       expect(focusFreeDialId([])).to.eq(undefined);
+    });
+  });
+
+  /**
+   * THE SOLE CANDIDATE (T14 · ledger CC — `docs/claude/console/composer-preselect.md`): a target whose ONE enabled
+   * candidate is the whole answer is seeded, shown and marked; every case that is a decision — or not a target — is not.
+   * One `it` per row of the contract's table.
+   */
+  describe('soleCandidateOf — the sole candidate is seeded, a decision never', () => {
+    const card = (cards: Array<{name: string, isDisabled?: boolean}>, over: Record<string, unknown> = {}): ComposerChoice =>
+      ({id: 'step#0', scope: 'step', index: 0, kind: 'card', input: {type: 'card', title: 'Select card', cards, min: 1, max: 1, ...over} as unknown as PlayerInputModel});
+    const player = (players: Array<string>): ComposerChoice =>
+      ({id: 'step#0', scope: 'step', index: 0, kind: 'player', input: {type: 'player', title: 'Select player', players} as unknown as PlayerInputModel});
+
+    it('ONE card candidate: seeded with it', () => {
+      expect(soleCandidateOf(card([{name: 'Tardigrades'}]))).to.deep.eq({kind: 'card', name: 'Tardigrades'});
+    });
+    it('TWO candidates: a choice — never seeded', () => {
+      expect(soleCandidateOf(card([{name: 'Tardigrades'}, {name: 'Decomposers'}]))).to.eq(undefined);
+    });
+    it('one ENABLED beside a disabled one (shown with its reason): the enabled one is the answer', () => {
+      expect(soleCandidateOf(card([{name: 'Tardigrades'}, {name: 'Ants', isDisabled: true}]))).to.deep.eq({kind: 'card', name: 'Tardigrades'});
+    });
+    it('a lone candidate that is DISABLED: never seeded (its reason holds the commit)', () => {
+      expect(soleCandidateOf(card([{name: 'Ants', isDisabled: true}]))).to.eq(undefined);
+    });
+    it('an OPTIONAL pick (min 0): declining is a second real answer — never seeded', () => {
+      expect(soleCandidateOf(card([{name: 'Tardigrades'}], {min: 0}))).to.eq(undefined);
+    });
+    it('a RANGE (max > 1): how many is a decision — never seeded', () => {
+      expect(soleCandidateOf(card([{name: 'Tardigrades'}], {max: 2}))).to.eq(undefined);
+    });
+    it('a multi-select (reveal any number): never seeded', () => {
+      expect(soleCandidateOf({...card([{name: 'Tardigrades'}]), multiSelect: {countLabel: 'x'}})).to.eq(undefined);
+    });
+    it('a TABLE QUESTION (another card asks): never seeded', () => {
+      expect(soleCandidateOf({...card([{name: 'Tardigrades'}]), reaction: {card: 'Mars University' as CardName} as never})).to.eq(undefined);
+    });
+    it('a REPEAT slot (its answer is another card\'s composed action): never seeded', () => {
+      expect(soleCandidateOf({...card([{name: 'Tardigrades'}]), repeatAction: true})).to.eq(undefined);
+    });
+    it('ONE player target: seeded with that player', () => {
+      expect(soleCandidateOf(player(['red']))).to.deep.eq({kind: 'player', color: 'red'});
+    });
+    it('TWO player targets: a choice — never seeded', () => {
+      expect(soleCandidateOf(player(['red', 'blue']))).to.eq(undefined);
+    });
+    it('an OR question, an amount, a payment: not a target — never seeded', () => {
+      expect(soleCandidateOf({id: 'step#0', scope: 'step', index: 0, kind: 'or', input: {type: 'or', title: 't', options: []} as unknown as PlayerInputModel})).to.eq(undefined);
+      expect(soleCandidateOf({id: 'step#0', scope: 'step', index: 0, kind: 'amount', input: AMOUNT_INPUT})).to.eq(undefined);
+    });
+    it('the mark names what was chosen: a target on the table, a card from the hand, a player', () => {
+      expect(soleMarkKeys({kind: 'card', name: 'A' as CardName}, false)).to.deep.eq({mark: 'The only target', hint: 'No other targets'});
+      expect(soleMarkKeys({kind: 'card', name: 'A' as CardName}, true)).to.deep.eq({mark: 'The only card', hint: 'No other cards'});
+      expect(soleMarkKeys({kind: 'player', color: 'red'}, false)).to.deep.eq({mark: 'The only player', hint: 'No other players'});
     });
   });
 });

@@ -181,9 +181,15 @@ const composerText = (page: Page) => page.evaluate((sel) => (document.querySelec
 const focusedRow = (page: Page) => page.evaluate((sel) => (document.querySelector(`${sel} .con-composer__row--focused`)?.textContent ?? '').replace(/\s+/g, ' ').trim(), COMPOSER);
 const ctaReady = (page: Page) => page.evaluate((sel) => document.querySelector(`${sel} .con-composer__cta--ready`) !== null, COMPOSER);
 
-/** The microbes' holder — the composer's own target step (one holder is still a question). */
+/**
+ * The microbes' holder — ONE holder (Decomposers) is no decision any more (T14 · ledger CC, `soleCandidateOf`): the
+ * composer opens with the target SEEDED, shown answered and marked «единственная цель», the play ready; A on the row
+ * still opens its one-card step, and the step answers with the same card.
+ */
 async function answerMicrobeTarget(page: Page): Promise<void> {
-  expect(await ctaReady(page), 'one holder is still asked — the play is not ready before the answer').toBe(false);
+  await expect(page.locator(`${COMPOSER} [data-composer-target-row][data-seeded="sole"]`), 'the sole holder is seeded').toHaveCount(1);
+  await expect(page.locator(`${COMPOSER} [data-composer-target-row] [data-seeded-mark]`), 'and marked').toHaveCount(1);
+  expect(await ctaReady(page), 'nothing left to ask — the play is ready').toBe(true);
   for (const k of ['ArrowUp', 'ArrowDown']) {
     for (let i = 0; i < 8 && !/получател|микроб|Куда/i.test(await focusedRow(page)); i++) {
       await press(page, k, 220);
@@ -191,10 +197,10 @@ async function answerMicrobeTarget(page: Page): Promise<void> {
   }
   expect(await focusedRow(page), 'the microbes\' target row is focused').toMatch(/получател|микроб|Куда/i);
   await press(page, 'Enter', 600);
-  await expect(page.locator('.con-ptsel'), 'the target step opened').toBeVisible();
+  await expect(page.locator('.con-ptsel'), 'A on the seeded row still opens the step').toBeVisible();
   await press(page, 'Enter', 600);
   await expect(page.locator('.con-ptsel'), 'the step answered and closed').toHaveCount(0);
-  await expect.poll(() => ctaReady(page), {timeout: 10_000, message: 'ready once the microbes have a holder'}).toBe(true);
+  await expect.poll(() => ctaReady(page), {timeout: 10_000, message: 'ready with the microbes addressed'}).toBe(true);
 }
 
 async function playOnTheBoard(page: Page): Promise<void> {

@@ -266,8 +266,16 @@
         &--danger&--ready { background: fade(@con-red, 10%); box-shadow: inset 0 0 0 .07rem fade(@con-red, 65%); }
         &--danger&--ready&--focus { box-shadow: inset 0 0 0 .07rem fade(@con-red, 75%), 0 0 0 .1rem @con-cyan; }
         &--busy { opacity: .8; cursor: default; }
+        /* THE COMMIT ARRIVES ARMED (T14 · CC): one breath of the ready row's halo when the ONE cursor rule lands here —
+           the same list shape as the ready+focus paint ([inset, outer, outer]), so it interpolates; the Reds' red row
+           keeps its own two-layer paint and does not breathe. */
+        &--ready:not(&--danger)[data-composer-armed] {
+            animation: con-pact-commit-armed calc(380ms * var(--motion-scale, 1)) @con-ease-standard 1;
+        }
     }
     &__cta-label { font-size: .92rem; font-weight: 700; letter-spacing: .02em; }
+    /* The seeded target's mark (T14 · CC) — the composers' own word, under the picked card. */
+    &__card .con-composer__sole { margin-top: .3rem; }
     &__cta-steps { margin-left: auto; display: inline-flex; gap: .22rem; }
     &__cta-step {
         width: .55rem; height: .55rem; border-radius: 50%;
@@ -608,4 +616,12 @@ html.con-profile-handheld .con-pact--resolution {
 }
 html.console-native .card-container .card-resource-trade-fleet {
     background-image: url(./assets/tiles/trade-fleet.png);
+}
+
+/* The party composer's commit — one breath of its halo (`[data-composer-armed]`). */
+@keyframes con-pact-commit-armed {
+    42% {
+        box-shadow: inset 0 0 0 .12rem fade(@con-parl-mint, 95%), 0 0 0 .1rem @con-cyan, 0 0 1.4rem fade(@con-parl-mint, 26%);
+        background: fade(@con-parl-mint, 20%);
+    }
 }

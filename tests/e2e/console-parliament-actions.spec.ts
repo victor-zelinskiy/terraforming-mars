@@ -349,11 +349,12 @@ test.describe('parliament · party actions', () => {
     await settle(page, {timeoutMs: 8_000});
     await expectComposerFits(page, 'standard-1080');
     await shoot(page, '05-scientists-stage');
-    // ONE kind held (Tardigrades' microbes) — no decision on the kind: the variant is SEEDED and the cursor opens on
-    // the target row (RX37 — the «resource onto a card» form); the CARD is still the player's own press.
-    await press(page, 'Enter', 500); // the target card → the commit row
+    // ONE kind held (Tardigrades' microbes) and ONE holder — nothing to decide (T14 · CC «ЕДИНСТВЕННАЯ ЦЕЛЬ»): the
+    // variant AND the card are SEEDED, the card wears the quiet mark, and the cursor ARRIVES on the commit row.
     await expect(page.locator('.con-pact__opts .con-vchoice__opt--selected, .con-pact__card--picked')).toHaveCount(2);
-    await press(page, 'Enter', 900); // commit
+    await expect(page.locator('.con-pact__card--picked [data-seeded-mark]'), 'the sole holder is marked').toHaveCount(1);
+    await expect(page.locator('[data-pact-cta].con-pact__cta--focus'), 'the cursor stands on the commit').toHaveCount(1);
+    await press(page, 'Enter', 900); // ONE press commits
     await expect.poll(async () => (await seatOf(request, playerId)).seat.tableau.find((c) => c.name === 'Tardigrades')?.resources ?? -1,
       {timeout: 20_000, message: 'Tardigrades received 2 microbes'}).toBe(2);
     expect(await usesLeft(request, playerId, 'scientists-lab')).toBe(0);

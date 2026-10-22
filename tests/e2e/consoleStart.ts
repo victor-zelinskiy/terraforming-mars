@@ -98,9 +98,16 @@ async function awaitDecisionSettled(page: Page, code: string): Promise<void> {
   for (;;) {
     let left = 0;
     try {
+      // …and the COMMIT ARRIVAL's window (T14, `commitArrival.ts`): a press on a commit row the cursor has just ARRIVED
+      // at — before its pose paints, or within the ring's clock after — is the arrival, never the move.
       left = await page.evaluate(() => {
-        const w = window as unknown as {__conPromptSequence?: () => {settleLeftMs: number}};
-        return w.__conPromptSequence === undefined ? 0 : w.__conPromptSequence().settleLeftMs;
+        const w = window as unknown as {
+          __conPromptSequence?: () => {settleLeftMs: number},
+          __conCommitArrival?: () => {leftMs: number},
+        };
+        const decision = w.__conPromptSequence === undefined ? 0 : w.__conPromptSequence().settleLeftMs;
+        const arrival = w.__conCommitArrival === undefined ? 0 : w.__conCommitArrival().leftMs;
+        return Math.max(decision, arrival);
       });
     } catch {
       return; // a navigating / closing page — the press goes as it always did
@@ -2639,6 +2646,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   'overclocked-equipment' | 'overclocked-equipment-locked' | 'overclocked-equipment-energy' |
   'diaspora-movement' | 'diaspora-movement-locked' |
   'red-tourism' | 'red-tourism-zero' |
+  // T14 Supported Research — the Scientists rule, a play that asks nothing; the pre-select stand (ledger CC): one floater
+  // holder · two microbe holders · an optional plant removal · one player target · the Mappers' self-target.
+  'supported-research' | 'preselect-sole' |
   // T06 GMO Contract — the contract on the table (Lichen · Ecology Research · Pets in hand) · in hand · locked.
   'gmo-contract' | 'gmo-contract-hand' | 'gmo-contract-locked' |
   // T09 PR Office — Unity rule (playable, «+1 TR · +3 M€») · locked («1 of 2»).

@@ -380,6 +380,7 @@
                             'con-composer__row--deferred': row.kind === 'step' && tableRowView(row.choice)?.state.kind === 'deferred'}"
                    :data-reaction-card="row.kind === 'step' ? row.choice.reaction?.card : undefined"
                    :data-tq-state="row.kind === 'step' ? tableRowView(row.choice)?.state.kind : undefined"
+                   :data-seeded="row.kind === 'step' && soleMark(row.choice) !== undefined ? 'sole' : undefined"
                    :ref="focusIdx === row.i ? 'focusedEl' : undefined">
                 <!-- A tabbedTargets row (Virus) — the chosen target or a prompt. -->
                 <template v-if="row.kind === 'tabbed'">
@@ -445,6 +446,7 @@
                                             :resultModel="targetRowModel(row.choice)"
                                             :tag="targetRowTag(row.choice)"
                                             :impacts="targetSummaryImpacts(row.choice)"
+                                            :sole="soleMark(row.choice)"
                                             :focused="focusIdx === row.i" />
                 </template>
                 <!-- THE ESPIONAGE TARGET (Corporate Espionage) — the pick row
@@ -542,6 +544,11 @@
                   <div class="con-composer__row-value">
                     <span v-if="chosenLabel(row.choice) !== ''">{{ chosenLabel(row.choice) }}</span>
                     <span v-else class="con-composer__row-empty">{{ pickPlaceholder(row.choice) }}…</span>
+                    <!-- THE SOLE CANDIDATE'S MARK (T14 · CC): the row was answered by the composer because there is
+                         nothing to choose — said once, quietly, at the row's tail; the hint names why. -->
+                    <template v-for="m in [soleMark(row.choice)]" :key="row.id + '#sole'">
+                      <span v-if="m !== undefined" class="con-composer__sole" data-seeded-mark :data-hint="$t(m.hint)">{{ $t(m.mark) }}</span>
+                    </template>
                     <span v-if="chosenImpact(row.choice) !== ''" class="con-composer__row-impact">
                       <i v-if="chosenImpactIcon(row.choice)" class="con-composer__row-impact-icon" :class="iconClass(chosenImpactIcon(row.choice))" aria-hidden="true"></i>{{ chosenImpact(row.choice) }}
                     </span>
@@ -578,7 +585,9 @@
                      'con-composer__cta--held': !ctaPressMeaningful && !submitting,
                      'con-composer__cta--blocked': ctaBlockedReason !== '',
                    }"
+                   :data-composer-armed="commitArrival.armed && ctaFocused ? '' : undefined"
                    :ref="ctaFocused && !payExpanded ? 'focusedEl' : undefined"
+                   @animationend="onCommitBreathEnd"
                    @click="clickCta()">
                 <!-- A REFUSED rail does not advertise Ⓐ. It swaps the glyph for
                      the amber blocker mark this UI uses everywhere else, and
@@ -727,7 +736,7 @@ import {
 } from '@/client/console/consoleForecastFocusMotion';
 import {effectStatsFor, ensureEffectStats} from '@/client/console/effectStatsStore';
 import {descendRectOf} from '@/client/console/surfaceMotion/workspaceDescend';
-import {arriveCursor, createCursorArrival, holdCursor, releaseCursor} from '@/client/console/cursorArrival';
+import {arriveCursor, createCursorArrival, gateCursorDuringEntry, holdCursor, releaseCursor} from '@/client/console/cursorArrival';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
@@ -772,6 +781,7 @@ import {
   ComposerChoice, preChoices, branchChoices,
   spendHeatPlan, spendHeatStock, spendHeatResponse, spendHeatValid,
   orderedPreResponses, orderedStepResponses, tabbedStepsOf, cardPickAskKey, cardPickRoleKey, keepPlayAnswers,
+  soleCandidateOf, soleMarkKeys,
 } from '@/client/console/consoleActionComposer';
 import {buildOrItems, orItemResponse, buildTabbedTargets, nestedPickHostable, ConsoleOrItem, ConsoleTabbedTarget, TabbedCardOwner} from '@/client/console/consoleOrChoice';
 import {
@@ -822,7 +832,11 @@ import {
 import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
 import {armPayloadCarry, armPayloadReturn, playPayloadCarry, playPayloadReturn} from '@/client/console/played/payloadCarry';
 import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTargetZoom';
-import {computeCommitGate, commitAllowed, commitAcceptsCursor, commitRedirectTarget, CommitGate} from '@/client/console/consoleCommitGate';
+import {
+  computeCommitGate, commitAllowed, commitAcceptsCursor, commitRedirectTarget, CommitGate, CommitRequirement, CursorLanding,
+  nextCursorAfterAnswer,
+} from '@/client/console/consoleCommitGate';
+import {arriveAtCommit, commitArrivalAbsorbs, createCommitArrival, endCommitBreath, leaveCommit} from '@/client/console/commitArrival';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {gsap} from 'gsap';
@@ -1017,6 +1031,14 @@ export default defineComponent({
        */
       lateCursor: createCursorArrival('play composer (a late preview)'),
       lateCascade: [] as Array<Animation>,
+      /**
+       * THE COMMIT ARRIVES (T14, ledger CC — `commitArrival.ts`): the cursor the ONE rule lands on the commit row because
+       * nothing is left to ask ARRIVES there — a press before its pose paints (or inside the ring's clock after) is the
+       * arrival, never the play — and the row takes one breath («взведено»).
+       */
+      commitArrival: createCommitArrival('play composer'),
+      /** The rows the composer SEEDED with their sole candidate (`soleCandidateOf`) — answered, shown, marked. */
+      seeded: {} as Record<string, 'sole'>,
       /** This mount is the RETURN from a staged step (its draft is waiting to be applied): the card was on
        *  screen a moment ago, so its face skips the first-load fade. A peek — `applyPreview` consumes the draft. */
       restored: consolePlayCardUi.stagedDraft?.cardName === this.cardName,
@@ -1651,48 +1673,7 @@ export default defineComponent({
      */
     playedTargetModel(): PlayedTargetModel | undefined {
       const choice = this.playedTargetChoice;
-      if (choice === undefined) {
-        return undefined;
-      }
-      const model = choice.input as SelectCardModel;
-      // DEDUPE (Cyberia Systems' sequential copy steps): a card an EARLIER
-      // step already holds is not a candidate here. The rule lived only in the
-      // old tableau-pick branch; it moves with the flow rather than being left
-      // behind — the step's contract is «only selectable candidates», and a
-      // card that cannot be chosen twice is not selectable a second time.
-      const taken = new Set<string>();
-      const step = choice.scope === 'step' ? this.selectedBranch?.steps[choice.index] : undefined;
-      for (const si of (step !== undefined && step.kind === 'input' ? step.dedupeFromSteps ?? [] : [])) {
-        const name = this.capturedCardNameAt(si);
-        if (name !== undefined) {
-          taken.add(name);
-        }
-      }
-      return buildPlayedTargetModel({
-        candidates: taken.size === 0 ? model.cards : model.cards.filter((c) => !taken.has(c.name)),
-        players: this.playerView.players,
-        viewerColor: this.thisPlayer.color,
-        // The composer printed the rule and the gain chip: the step's own generic ask would be the third telling.
-        ask: model.resourceGainPrompt?.genericTitle === true ? '' : textOf(model.title),
-        // The card being PLAYED, which CAN be a candidate for its own on-play
-        // effect: Titan Floating Launch-pad adds two floaters to any Jovian card
-        // and is itself Jovian, so with no other Jovian card in play it is the
-        // only legal target the rules offer. It has no tableau row yet, so the
-        // model seats it with the viewer, and it renders as the SAME handle the
-        // blue actions use — an arrow pointing at the card already standing in
-        // the hero slot, never a second full-size copy of one physical object.
-        sourceCardName: this.cardName,
-        typeOf: (name) => getCard(name)?.type,
-        // A NEGATIVE delta means the step takes FROM the chosen card, which is
-        // what makes «your own card» a warning rather than the ordinary target.
-        takesFromTarget: (choice.amount ?? 0) < 0,
-        // The near misses of a step taking more than one (TR52: a card with 1 data) — shown with the server's reason.
-        blocked: playedTargetShortfalls(model.disabledCards, choice.amount, (c) => textOf(c.disabledReason), model.resourceGainPrompt?.holdsAtLeast),
-        preview: (name) => this.playedTargetPreview(choice, name),
-        resourceContext: (_name, card) => this.playedTargetResourceContext(choice, card),
-        // «КУДА: 3 [мех]» (TR56, П3) — what lands, carried from the tile it was chosen on.
-        payload: this.payloadFor(choice),
-      });
+      return choice === undefined ? undefined : this.playedTargetModelFor(choice);
     },
     /**
      * The SELECTED variant's printed graphic — the tile's hero, when the branch has exactly ONE gain-to-a-card pick
@@ -1914,12 +1895,16 @@ export default defineComponent({
      * still refuses the COMMIT; `ctaPressMeaningful` is what decides the ring
      * and the glyph.
      */
+    /** Every decision row in cursor order — what the gate and the cursor rule read. */
+    commitRequirements(): ReadonlyArray<CommitRequirement> {
+      return this.rows
+        .filter((r): r is PlayRow => r.kind !== 'cta')
+        .map((r) => ({index: r.i, verb: this.rowVerb(r), satisfied: !this.rowMissing(r)}));
+    },
     commitGate(): CommitGate {
       const st = this.primaryActionState;
       return computeCommitGate({
-        requirements: this.rows
-          .filter((r): r is PlayRow => r.kind !== 'cta')
-          .map((r) => ({index: r.i, verb: this.rowVerb(r), satisfied: !this.rowMissing(r)})),
+        requirements: this.commitRequirements,
         submitting: this.submitting,
         unavailable: st.kind === 'blocked-requirement' ?
           st.reason :
@@ -2325,9 +2310,9 @@ export default defineComponent({
         pickAnswered: row !== undefined && !this.rowMissing(row) && !(row.kind === 'step' && this.stepUnanswered(row.choice)),
         pickDeferred: row?.kind === 'step' && row.choice.reaction !== undefined && this.tableRowState(row.choice).kind === 'deferred',
         primary: this.primaryActionState,
-        // The vote's door names itself in the bar exactly as on the rail («Выбрать резолюцию»): the press
-        // opens the Parliament, it does not finish the play. (The board's door keeps its historical bar verb.)
-        doorVerb: this.playDoor?.kind === 'parliament' || this.playDoor?.kind === 'colonies' ? playCommitVerb(this.playDoor) : undefined,
+        // ONE verb for the rail and the bar (T14 · CC): the press names itself in the bar exactly as on the rail —
+        // «Разыграть карту», «Разыграть на поле», «Выбрать резолюцию» — never a shorter second promise beside it.
+        doorVerb: playCommitVerb(this.playDoor),
       });
     },
     /** The focused row opens a sub-picker on A (card/player/or step or tabbed) —
@@ -2535,7 +2520,10 @@ export default defineComponent({
         return;
       }
       const from = armPayloadReturn(root.querySelector('.con-ptsel'));
-      void this.$nextTick(() => playPayloadReturn(this.$refs.rootEl as HTMLElement | undefined, from));
+      // The review RETURNS: the cursor the answer landed (the next question, or the commit — T14 · CC) ARRIVES once it
+      // stands — its pose is gated on the root for the phrase (`gateCursorDuringEntry`; a press releases it at once).
+      const arrived = gateCursorDuringEntry(root, () => undefined);
+      void this.$nextTick(() => playPayloadReturn(this.$refs.rootEl as HTMLElement | undefined, from, arrived));
     },
     /** PL-127: the hosted-step declaration, handed to the shell as it changes (cleared with the composer by `resetConsolePlayCardUi`). */
     hostedStepDeclared: {
@@ -2656,6 +2644,10 @@ export default defineComponent({
       if (this.rows[idx]?.kind === 'variant') {
         this.variantReturnIdx = idx;
       }
+      // The cursor left the commit row: its arrival (and the window it opened) is over.
+      if (this.rows[idx]?.kind !== 'cta') {
+        leaveCommit(this.commitArrival);
+      }
       // A table question OFFERED to the cursor is seen once the cursor leaves it — the walk then goes on to the commit.
       const left = this.rows[was];
       if (left?.kind === 'step' && left.choice.reaction !== undefined && idx !== was) {
@@ -2721,6 +2713,7 @@ export default defineComponent({
   beforeUnmount() {
     this.lateCascade.forEach((a) => a.cancel());
     releaseCursor(this.lateCursor);
+    leaveCommit(this.commitArrival);
     this.settled?.stop();
     resetConsolePlayCardUi();
     closeEffectForecastLayer('play');
@@ -2917,9 +2910,44 @@ export default defineComponent({
           storeHandPlayPreview(this.playerView, cardName, next);
           if (samePreviewShape(this.preview, next)) {
             this.preview = next;
+            this.reseatSeeds();
           }
         })
         .catch(() => { /* the standing preview stays — nothing to roll back */ });
+    },
+    /**
+     * A refetched preview of the SAME shape keeps every answer — but a SEED is a reading of the server's candidate set
+     * (T14 · CC), and the set may have moved: a seed whose candidate left, or is no longer alone, lets go (the row is
+     * open again and holds the commit — the cursor goes to it by the ONE rule); a row that has just become a sole
+     * candidate is seeded. Never touches an answer the player gave.
+     */
+    reseatSeeds(): void {
+      let changed = false;
+      for (const c of this.stepChoices) {
+        if (this.seeded[c.id] !== 'sole') {
+          continue;
+        }
+        const seed = soleCandidateOf(c);
+        if (seed !== undefined && (seed.kind === 'player' ? seed.color : seed.name) === this.picks[c.id]) {
+          continue;
+        }
+        this.captureFor(c, undefined);
+        const {[c.id]: _pick, ...picks} = this.picks;
+        const {[c.id]: _result, ...results} = this.playedTargetResults;
+        const {[c.id]: _seed, ...seeded} = this.seeded;
+        this.picks = picks;
+        this.playedTargetResults = results;
+        this.seeded = seeded;
+        changed = true;
+      }
+      const before = Object.keys(this.seeded).length;
+      for (const c of this.stepChoices) {
+        this.seedSole(c);
+      }
+      if (changed || Object.keys(this.seeded).length !== before) {
+        this.landCursor();
+        this.scrollFocused();
+      }
     },
     /**
      * THE LATE CONTENT ENTERS (PL-510) — called a tick after the preview landed on a cache miss, before that patch can
@@ -3011,8 +3039,11 @@ export default defineComponent({
       // the card on a result the player had never chosen. A seeded selection is
       // an answer nobody gave.
       this.selectedPos = initialVariantSelection(this.branches);
+      this.seeded = {};
       this.seedChoiceDefaults();
-      this.focusIdx = this.firstActionableIndex();
+      // The ONE cursor rule, at the open: a screen with nothing to ask opens ON the commit — an ARRIVAL with the
+      // decision's first settle under it (the A that opened the composer never plays the card).
+      this.landCursor({opening: true});
       // The radiogroup (if any) renders in the next patch — learn its axis then.
       void this.$nextTick(() => this.armVariantObserver());
       // STAGED PLAY return (B from the board): the player's own captures beat
@@ -3031,7 +3062,15 @@ export default defineComponent({
         this.multiPicks = {...draft.multiPicks};
         this.payCounts = {...draft.payCounts} as Partial<Record<SpendableResource, number>>;
         this.playedTargetResults = {...draft.playedTargetResults} as Record<string, PlayedTargetResult>;
+        this.seeded = {...(draft.seeded ?? {})};
         this.focusIdx = draft.focusIdx;
+        // The round trip lands the player where they left; back on the commit row it is an arrival again (the press
+        // that brought them back is not the play).
+        if (this.focusIdx === this.ctaIndex && commitAllowed(this.commitGate)) {
+          this.arriveAtCommitRow(true);
+        } else {
+          leaveCommit(this.commitArrival);
+        }
       }
       // Dev audit: a genuine preview gap (no immediate result, no follow-up) —
       // surface it once per load so it can be found and closed (audit contract).
@@ -3039,19 +3078,52 @@ export default defineComponent({
         console.warn(`[console play] no computable preview for ${this.cardName} — showing fallback result`);
       }
     },
-    /** The row to focus on open / after a pick: the first UNRESOLVED choice,
-     *  else the «Разыграть» CTA (so a ready card lands the player on the explicit
-     *  play button showing Ⓐ — never on a pick row where A might read as "play"). */
-    firstActionableIndex(): number {
-      const missing = this.firstMissingIndex();
-      if (missing >= 0) {
-        return missing;
-      }
-      // …then a table question that may wait for a draw, OFFERED once (2026-10-15 — «and this one: now, or after the
-      // draw?»): it holds nothing up, but it is the next question, so the cursor goes there before the commit.
+    /**
+     * WHERE THE CURSOR GOES — the ONE rule (`nextCursorAfterAnswer`, T14 · ledger CC), asked on open and after EVERY
+     * answer: the first row that holds the commit, else a table question that may wait for a draw and was not visited
+     * yet (2026-10-15 — «and this one: now, or after the draw?» — it holds nothing up, but it IS the next question),
+     * else the commit row. The questions outrank a payment that does not cover yet: a shortfall is fixed ON the commit
+     * row (A opens the editor), so it is the commit row's reading only once nothing is left to ask.
+     */
+    cursorLanding(): CursorLanding | undefined {
       const offered = this.rows.findIndex((r) => r.kind === 'step' && r.choice.reaction !== undefined &&
         tableQuestionRowOffered(this.tableRowState(r.choice), this.offeredSeen[r.choice.id] === true));
-      return offered >= 0 ? offered : this.ctaIndex;
+      const questions = computeCommitGate({requirements: this.commitRequirements, submitting: this.submitting});
+      return nextCursorAfterAnswer(questions.kind === 'ready' ? this.commitGate : questions, this.ctaIndex, offered);
+    },
+    /** The row the rule lands on (the current one while a press is in flight). */
+    firstActionableIndex(): number {
+      return this.cursorLanding()?.index ?? this.focusIdx;
+    },
+    /**
+     * LAND THE CURSOR by the rule — the ONE call every answer ends with (a pick, a variant, «Далее», the payment's
+     * «Готово», a decline, a bridge's answer) and the open's. A landing on a commit that RUNS is an ARRIVAL: the pose
+     * arrives, the row breathes once and a press inside its window is the arrival, not the play (`commitArrival.ts`);
+     * `opening` (the screen opened with nothing to ask) adds the decision family's first settle under it, so the A
+     * that opened the composer never plays the card.
+     */
+    landCursor(opts: {opening?: boolean} = {}): void {
+      const landing = this.cursorLanding();
+      if (landing === undefined) {
+        return;
+      }
+      const from = this.focusIdx;
+      this.focusIdx = landing.index;
+      if (landing.kind !== 'commit') {
+        leaveCommit(this.commitArrival);
+      } else if (opts.opening === true || from !== landing.index || this.commitArrival.arrival === undefined) {
+        this.arriveAtCommitRow(opts.opening === true);
+      }
+    },
+    /** The commit row's arrival, measured against the root the gate may stand on once it has rendered. */
+    arriveAtCommitRow(opening: boolean): void {
+      arriveAtCommit(this.commitArrival, () => this.$refs.rootEl as HTMLElement | undefined, {opening});
+    },
+    /** The commit row's one breath ended (its layer's `animationend` — never a child's animation bubbling up). */
+    onCommitBreathEnd(e: AnimationEvent): void {
+      if (e.animationName === 'con-commit-armed') {
+        endCommitBreath(this.commitArrival);
+      }
     },
     /** The first row that holds up the commit (-1 = none). */
     firstMissingIndex(): number {
@@ -3219,12 +3291,60 @@ export default defineComponent({
           this.captureFor(c, spendHeatResponse(plan, plan.minFloaters));
         }
       }
-      // A card/player/or TARGET is NEVER auto-selected — not even a lone
-      // candidate (the fork's non-negotiable no-auto-select rule): the player
-      // must consciously pick WHERE the resource goes, so a single-target choice
-      // is never silently skipped. The row starts unresolved, focus lands on it,
-      // and A opens the picker («Выбрать»). Only amount/heat get a visible,
-      // adjustable default above.
+      // A card / player TARGET with ONE enabled candidate is SEEDED with it (T14 · CC, `soleCandidateOf`): shown
+      // answered — where the resource goes, its `current → resulting` — and marked; A on the row still opens the
+      // choice. A real choice (two candidates, an optional one, a range, a disabled lone one) opens unanswered.
+      this.seedSole(c);
+    },
+    /**
+     * SEED a sole candidate — the same capture a press would write (`confirmPlayedTarget` / `pickListItem` / the
+     * album's answer), plus the `seeded` mark. Never over an answer already given (a staged draft, a variant switch
+     * keeping the play's own `pre#` answers).
+     */
+    seedSole(c: ComposerChoice): void {
+      const mode = this.choiceMode(c);
+      // The espionage's synthetic owner rows (`esp-owner-*`) answer on the Hydronetwork's own stage and are folded into
+      // ONE wire entry at the commit — never a capture of their own, so never a seed.
+      if ((mode !== 'inline' && mode !== 'handPick' && mode !== 'playedTarget') || this.isMergedPickChoice(c) ||
+          c.input.type === 'deltaEspionage' || c.id.startsWith('esp-owner') || !this.stepUnanswered(c)) {
+        return;
+      }
+      const seed = soleCandidateOf(c);
+      if (seed === undefined) {
+        return;
+      }
+      if (seed.kind === 'player') {
+        this.picks = {...this.picks, [c.id]: seed.color};
+        this.captureFor(c, {type: 'player', player: seed.color});
+      } else {
+        if (mode === 'handPick') {
+          // Two discards never name one card (`cardsHeldByOtherDiscards`): a card another row already holds is no seed.
+          const model = c.input as SelectCardModel;
+          if (model.discardPrompt !== undefined && cardsHeldByOtherDiscards(this.discardAnswers, c.id).has(seed.name)) {
+            return;
+          }
+        }
+        if (mode === 'playedTarget') {
+          const owners = this.playedTargetModelFor(c)?.owners ?? [];
+          const focus = findPlayedTargetFocus(seed.name, owners);
+          const candidate = focus === undefined ? undefined : playedTargetAt(focus, owners);
+          if (candidate === undefined || candidate.blocked !== undefined) {
+            return;
+          }
+          this.playedTargetResults = {...this.playedTargetResults, [c.id]: playedTargetResultOf(candidate, owners, this.playedTargetVersion)};
+        }
+        this.picks = {...this.picks, [c.id]: seed.name};
+        this.captureFor(c, {type: 'card', cards: [seed.name]});
+      }
+      this.seeded = {...this.seeded, [c.id]: 'sole'};
+    },
+    /** The mark of a seeded row (i18n keys) — `undefined` when the row was not seeded or no longer holds its seed. */
+    soleMark(c: ComposerChoice): {mark: string, hint: string} | undefined {
+      if (this.seeded[c.id] !== 'sole' || this.stepUnanswered(c)) {
+        return undefined;
+      }
+      const seed = soleCandidateOf(c);
+      return seed === undefined ? undefined : soleMarkKeys(seed, this.choiceMode(c) === 'handPick');
     },
     captureFor(c: ComposerChoice, response: unknown | undefined): void {
       if (c.scope === 'pre') {
@@ -3478,6 +3598,12 @@ export default defineComponent({
       if (multi !== undefined && this.isMergedPickChoice(c) && multi.length > 0) {
         return `+${multi.length}`;
       }
+      // An ANSWERED PLAYER target keeps the reading the list showed — who loses what, `current → resulting` (PL-899:
+      // the collapsed row printed the name alone, so a seeded sole target — T14 · CC — would have hidden its change).
+      if (c.input.type === 'player') {
+        const color = this.picks[c.id];
+        return color === undefined ? '' : this.playerImpact(c.input as SelectPlayerModel, color) ?? '';
+      }
       if (c.input.type !== 'card' || c.amount === undefined) {
         return '';
       }
@@ -3505,6 +3631,9 @@ export default defineComponent({
     chosenImpactIcon(c: ComposerChoice): string | undefined {
       if (c.cardResource !== undefined) {
         return c.cardResource;
+      }
+      if (c.input.type === 'player' && this.picks[c.id] !== undefined) {
+        return (c.input as SelectPlayerModel).icon;
       }
       const gain = c.multiSelect?.revealGain;
       if (this.multiPicks[c.id] !== undefined && gain !== undefined) {
@@ -3694,6 +3823,11 @@ export default defineComponent({
       const row = this.focusedRow;
       switch (action) {
       case 'primary':
+        // THE COMMIT ARRIVES (T14 · CC): a press inside the arrival window — before the commit's pose paints, or within
+        // the ring's clock after — is the ARRIVAL (the input observer has already posed the cursor), never the play.
+        if (row?.kind === 'cta' && commitArrivalAbsorbs(this.commitArrival)) {
+          return;
+        }
         this.primaryAction();
         return;
       case 'prevTab':
@@ -3789,12 +3923,14 @@ export default defineComponent({
         this.scrollFocused();
         return;
       }
-      // A VARIANT: the press SELECTS, and that is the whole of it. The cursor
-      // does not travel to the commit rail afterwards — «выбрать» and
-      // «разыграть» must be two separate, deliberate presses, so one held
-      // button or a fast double press can never do both.
+      // A VARIANT: the press SELECTS — an answer like any other, so the ONE rule lands the cursor on the next
+      // question, or on the commit when nothing is left (T14 · CC, decision 3). «Выбрать» and «разыграть» stay two
+      // presses by construction: the commit ARRIVES, and a press inside its arrival window (a held button, a fast
+      // double press) is the arrival, never the play (`commitArrival.ts`).
       if (row.kind === 'variant') {
         this.selectVariant(row.pos);
+        this.landCursor();
+        this.scrollFocused();
         return;
       }
       if (this.focusedOpensPicker) {
@@ -3802,7 +3938,7 @@ export default defineComponent({
         return;
       }
       // An amount / spend-heat row → proceed toward the play CTA.
-      this.focusIdx = this.firstActionableIndex();
+      this.landCursor();
       this.scrollFocused();
     },
     /**
@@ -3867,13 +4003,21 @@ export default defineComponent({
       }
       this.focusIdx = row.i;
       this.selectVariant(row.pos);
+      // The mouse speaks the pad's grammar: an answer lands the cursor by the ONE rule.
+      this.landCursor();
+      this.scrollFocused();
+    },
+    /** The pointer moved the cursor onto a row (a click) — the player's own placement, never a rule's landing. */
+    pointCursorAt(index: number): void {
+      this.focusIdx = index;
     },
     /** …and a click on the commit rail COMMITS — the second, separate press. */
     clickCta(): void {
       if (this.loading || this.sub !== undefined) {
         return;
       }
-      this.focusIdx = this.ctaIndex;
+      // The POINTER placed the cursor (the pad picks up where the mouse left off) — a player's placement, not a landing.
+      this.pointCursorAt(this.ctaIndex);
       // The gate's own backstop for input that did not come through the cursor:
       // an unmet requirement redirects instead of running (never a silent no-op).
       const redirect = commitRedirectTarget(this.commitGate);
@@ -4058,7 +4202,7 @@ export default defineComponent({
           this.picks[cur.id] = draft.selectedCard;
           this.captureFor(cur, {type: 'card', cards: [draft.selectedCard]});
         }
-        this.focusIdx = this.firstActionableIndex();
+        this.landCursor();
         this.scrollFocused();
       });
     },
@@ -4076,7 +4220,7 @@ export default defineComponent({
       }, (draft) => {
         const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
         this.captureFor(cur, deltaEspionageStepResponse(projection, draft.target, this.espionageOwnerAnswer));
-        this.focusIdx = this.firstActionableIndex();
+        this.landCursor();
         this.scrollFocused();
       });
     },
@@ -4096,7 +4240,7 @@ export default defineComponent({
           {chosenCard: this.repeatResult.chosenCard, nodeIndex: this.repeatResult.nodeIndex} : undefined,
       }, (result) => {
         this.repeatResult = result;
-        this.focusIdx = this.firstActionableIndex();
+        this.landCursor();
         this.scrollFocused();
       });
     },
@@ -4205,7 +4349,7 @@ export default defineComponent({
       this.picks = {...this.picks, [choice.id]: String(cards.length)};
       this.captureFor(choice, {type: 'card', cards});
       this.sub = undefined;
-      this.focusIdx = this.firstActionableIndex();
+      this.landCursor();
       this.scrollFocused();
     },
     /**
@@ -4285,15 +4429,67 @@ export default defineComponent({
       this.captureFor(choice, {type: 'card', cards: [candidate.cardName]});
       this.picks = {...this.picks, [choice.id]: candidate.cardName};
       this.sub = undefined;
-      this.focusIdx = this.firstActionableIndex();
+      this.landCursor();
       this.scrollFocused();
+    },
+    /**
+     * THE EMBEDDED SELECTOR'S MODEL for ONE choice — the open step's, a seed's (T14 · CC: a sole candidate is read off
+     * the same model the step would draw) and every answered row's liveness. Per CHOICE, never «the» step: a play with
+     * two played-card picks judged the second against the first one's owners.
+     */
+    playedTargetModelFor(choice: ComposerChoice): PlayedTargetModel | undefined {
+      const model = choice.input as SelectCardModel;
+      if (model.type !== 'card') {
+        return undefined;
+      }
+      // DEDUPE (Cyberia Systems' sequential copy steps): a card an EARLIER
+      // step already holds is not a candidate here. The rule lived only in the
+      // old tableau-pick branch; it moves with the flow rather than being left
+      // behind — the step's contract is «only selectable candidates», and a
+      // card that cannot be chosen twice is not selectable a second time.
+      const taken = new Set<string>();
+      const step = choice.scope === 'step' ? this.selectedBranch?.steps[choice.index] : undefined;
+      for (const si of (step !== undefined && step.kind === 'input' ? step.dedupeFromSteps ?? [] : [])) {
+        const name = this.capturedCardNameAt(si);
+        if (name !== undefined) {
+          taken.add(name);
+        }
+      }
+      return buildPlayedTargetModel({
+        candidates: taken.size === 0 ? model.cards : model.cards.filter((c) => !taken.has(c.name)),
+        players: this.playerView.players,
+        viewerColor: this.thisPlayer.color,
+        // The composer printed the rule and the gain chip: the step's own generic ask would be the third telling.
+        ask: model.resourceGainPrompt?.genericTitle === true ? '' : textOf(model.title),
+        // The card being PLAYED, which CAN be a candidate for its own on-play
+        // effect: Titan Floating Launch-pad adds two floaters to any Jovian card
+        // and is itself Jovian, so with no other Jovian card in play it is the
+        // only legal target the rules offer. It has no tableau row yet, so the
+        // model seats it with the viewer, and it renders as the SAME handle the
+        // blue actions use — an arrow pointing at the card already standing in
+        // the hero slot, never a second full-size copy of one physical object.
+        sourceCardName: this.cardName,
+        typeOf: (name) => getCard(name)?.type,
+        // A NEGATIVE delta means the step takes FROM the chosen card, which is
+        // what makes «your own card» a warning rather than the ordinary target.
+        takesFromTarget: (choice.amount ?? 0) < 0,
+        // The near misses of a step taking more than one (TR52: a card with 1 data) — shown with the server's reason.
+        blocked: playedTargetShortfalls(model.disabledCards, choice.amount, (c) => textOf(c.disabledReason), model.resourceGainPrompt?.holdsAtLeast),
+        preview: (name) => this.playedTargetPreview(choice, name),
+        resourceContext: (_name, card) => this.playedTargetResourceContext(choice, card),
+        // «КУДА: 3 [мех]» (TR56, П3) — what lands, carried from the tile it was chosen on.
+        payload: this.payloadFor(choice),
+      });
     },
     /** The summary of an answered played-target choice (undefined = unanswered
      *  or gone stale — a target whose card left the table is never shown as
      *  chosen, and never submitted). */
     playedTargetResult(c: ComposerChoice): PlayedTargetResult | undefined {
       const result = this.playedTargetResults[c.id];
-      const owners = this.playedTargetModel?.owners ?? [];
+      if (result === undefined) {
+        return undefined;
+      }
+      const owners = (this.playedTargetChoice?.id === c.id ? this.playedTargetModel : this.playedTargetModelFor(c))?.owners ?? [];
       return playedTargetResultLive(result, owners, this.playedTargetVersion) ? result : undefined;
     },
     /**
@@ -4477,7 +4673,7 @@ export default defineComponent({
           this.picks[cur.id] = cards[0];
           this.captureFor(cur, {type: 'card', cards: [cards[0]]});
         }
-        this.focusIdx = this.firstActionableIndex();
+        this.landCursor();
         this.scrollFocused();
       }, () => {
         this.handPickOpen = undefined;
@@ -4508,7 +4704,7 @@ export default defineComponent({
       this.captureFor(c, undefined);
       this.offeredSeen[c.id] = true;
       this.sub = undefined;
-      this.focusIdx = this.firstActionableIndex();
+      this.landCursor();
       this.scrollFocused();
     },
     /**
@@ -4624,7 +4820,7 @@ export default defineComponent({
       this.picks['tabbed#' + stepIndex] = TABBED_DECLINE_KEY;
       this.captured[stepIndex] = {type: 'or', index: decline.index, response: {type: 'option'}};
       this.sub = undefined;
-      this.focusIdx = this.firstActionableIndex();
+      this.landCursor();
       this.scrollFocused();
     },
     /** The choice is answered with its DECLINE — the same capture a picked decline row once made. */
@@ -4637,7 +4833,7 @@ export default defineComponent({
       delete this.picks[nestedPickKey(c.id)];
       this.captureFor(c, declineResponse(oc));
       this.sub = undefined;
-      this.focusIdx = this.firstActionableIndex();
+      this.landCursor();
       this.scrollFocused();
     },
     /**
@@ -4684,7 +4880,7 @@ export default defineComponent({
      */
     closePaymentEditor(): void {
       this.sub = undefined;
-      this.focusIdx = this.firstActionableIndex();
+      this.landCursor();
     },
     /** Select a variant (from navigation) — resets the branch-specific captures
      *  and re-seeds defaults. Focus is owned by the caller (nav), not changed here. */
@@ -4702,6 +4898,7 @@ export default defineComponent({
       this.multiPicks = keepPlayAnswers(this.multiPicks);
       // …the variant's TARGET answer too (TR56, П5): its row lets go by a phrase back to the NEW kind's candidates.
       this.playedTargetResults = keepPlayAnswers(this.playedTargetResults);
+      this.seeded = keepPlayAnswers(this.seeded);
       this.amounts = {};
       this.floaters = {};
       this.repeatResult = undefined;
@@ -4723,7 +4920,7 @@ export default defineComponent({
         this.picks['tabbed#' + sub.stepIndex] = target.key;
         this.captured[sub.stepIndex] = target.response;
         this.sub = undefined;
-        this.focusIdx = this.firstActionableIndex();
+        this.landCursor();
         return;
       }
       const c = this.subChoice;
@@ -4745,7 +4942,7 @@ export default defineComponent({
         this.picks[nestedPickKey(c.id)] = nested?.type === 'player' ? String(item.color) : String(item.card?.name);
         this.captureFor(c, orItemResponse(sub.item, nestedResp));
         this.sub = undefined;
-        this.focusIdx = this.firstActionableIndex();
+        this.landCursor();
         return;
       }
       // sub.kind === 'list'
@@ -4772,7 +4969,7 @@ export default defineComponent({
         return;
       }
       this.sub = undefined;
-      this.focusIdx = this.firstActionableIndex();
+      this.landCursor();
     },
     /**
      * X on the embedded step — the focused candidate rises through the ONE
@@ -4857,6 +5054,7 @@ export default defineComponent({
         return;
       }
       this.submitting = true;
+      leaveCommit(this.commitArrival);
       const payment: Payment = paymentFromCounts(this.cost, this.payLanes, this.payCounts, this.megacreditsOnHand);
       // The espionage response is ASSEMBLED at the commit: the captured target
       // plus the owner's landing answer folded from the synthetic rows — the
@@ -5074,6 +5272,7 @@ export default defineComponent({
         multiPicks: {...this.multiPicks},
         payCounts: {...this.payCounts} as Record<string, number>,
         playedTargetResults: {...this.playedTargetResults},
+        seeded: {...this.seeded},
         focusIdx: this.focusIdx,
       };
     },

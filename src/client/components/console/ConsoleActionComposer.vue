@@ -439,6 +439,7 @@
                    'con-composer__row--dial': item.choice.id === focusFreeDialId,
                  }"
                  :data-choice-kind="item.choice.kind"
+                 :data-seeded="soleMark(item.choice) !== undefined ? 'sole' : undefined"
                  :ref="isFocused(item) ? 'focusedEl' : undefined">
               <!-- A refused commit lands HERE, and says so: one short local
                    pulse on the row that is holding it. Never a toast detached
@@ -529,6 +530,7 @@
                                           :resultModel="targetRowModel(item.choice)"
                                           :tag="targetRowTag(item.choice)"
                                           :impacts="targetSummaryImpacts(item.choice)"
+                                          :sole="soleMark(item.choice)"
                                           :focused="isFocused(item)" />
               </template>
               <!-- The STAGE-REWARD slot (Dutch Mountains): empty → a prompt to
@@ -603,6 +605,10 @@
                 <div class="con-composer__row-value">
                   <span v-if="chosenLabel(item.choice) !== ''">{{ chosenLabel(item.choice) }}</span>
                   <span v-else class="con-composer__row-empty">{{ pickPlaceholder(item.choice) }}…</span>
+                  <!-- THE SOLE CANDIDATE'S MARK (T14 · CC) — the composer answered this row: nothing to choose. -->
+                  <template v-for="m in [soleMark(item.choice)]" :key="item.id + '#sole'">
+                    <span v-if="m !== undefined" class="con-composer__sole" data-seeded-mark :data-hint="$t(m.hint)">{{ $t(m.mark) }}</span>
+                  </template>
                   <span v-if="chosenImpact(item.choice) !== ''" class="con-composer__row-impact">{{ chosenImpact(item.choice) }}</span>
                 </div>
               </template>
@@ -725,7 +731,9 @@
                'con-composer__cta--done': ledgerSettled,
              }"
              :aria-disabled="!commitReady || ctaBusy ? 'true' : 'false'"
+             :data-composer-armed="commitArrival.armed && ctaFocused ? '' : undefined"
              :ref="ctaFocused && commitReady ? 'focusedEl' : undefined"
+             @animationend="onCommitBreathEnd"
              @click="submit">
           <!-- The glyph appears only with the press it stands for. -->
           <GamepadGlyph v-if="!ctaBusy && commitReady" control="confirm" class="con-composer__cta-glyph" />
@@ -907,6 +915,8 @@ import {
   stepOfChoice,
   cardPickAskKey,
   cardPickRoleKey, keepPlayAnswers,
+  // THE SOLE CANDIDATE (T14 · CC) — a target with ONE enabled candidate is seeded, shown and marked.
+  soleCandidateOf, soleMarkKeys,
   // The price every variant shares — printed once, on the price side.
   commonVariantCost,
   // The good every variant buys — printed once, after the price tiles (TR58).
@@ -1038,9 +1048,11 @@ import {playedTargetSelfState} from '@/client/console/played/consolePlayedTarget
 import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTargetZoom';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {
-  computeCommitGate, commitAllowed, commitAcceptsCursor, commitCursorTarget,
-  commitRedirectTarget, CommitGate, CommitRequirement,
+  computeCommitGate, commitAllowed, commitAcceptsCursor,
+  commitRedirectTarget, CommitGate, CommitRequirement, CursorLanding, nextCursorAfterAnswer,
 } from '@/client/console/consoleCommitGate';
+import {arriveAtCommit, commitArrivalAbsorbs, createCommitArrival, endCommitBreath, leaveCommit} from '@/client/console/commitArrival';
+import {gateCursorDuringEntry} from '@/client/console/cursorArrival';
 
 /**
  * A `v-for` string ref → a dense element array. Vue hands back an array, a
@@ -1262,6 +1274,12 @@ export default defineComponent({
     return {
       /** The decision column that stops re-centring once the player presses (`settledColumn.ts`). */
       settled: undefined as SettledColumn | undefined,
+      /** THE COMMIT ARRIVES (T14 · CC, `commitArrival.ts`) — the arrival the ONE cursor rule makes on the commit row. */
+      commitArrival: createCommitArrival('action composer'),
+      /** The rows the composer SEEDED with their sole candidate (`soleCandidateOf`) — answered, shown, marked. */
+      seeded: {} as Record<string, 'sole'>,
+      /** The open re-seated a STAGED snapshot (B from the board): the player's own focus stands, the rule waits. */
+      stagedRestored: false,
       /**
        * The variant group's live AXIS, measured off the rendered tiles (all at one `offsetTop` ⇒ a row, ←→ switch
        * them; stacked ⇒ a column, the ordinary ↑↓ walk) — never a duplicated breakpoint.
@@ -2109,8 +2127,9 @@ export default defineComponent({
         // ONE verb for the row and the bar. They used to be resolved
         // separately, so the row could read «Выбрать колонию» while the bar
         // under it still promised «Подтвердить» — two answers to «what does A
-        // do», on one screen, at the same time.
-        commitLabel: this.commitVerbKey !== 'Confirm action' ? this.commitVerbKey : undefined,
+        // do», on one screen, at the same time. The plain action too (T14 · CC):
+        // the row read «Подтвердить выполнение» over a bar's «Подтвердить».
+        commitLabel: this.commitVerbKey,
         // LB/RB follow the ACTIVE dial (the same resolution the input uses), and
         // LT is the payment editor's dedicated, focus-independent entry.
         dial: this.activeDialHint,
@@ -2518,7 +2537,9 @@ export default defineComponent({
         if (item.kind === 'branch') {
           // A branch row is a requirement only while nothing is selected — and
           // then it is THE first one (nothing below it is even decided yet).
-          if (this.selectedPos === undefined) {
+          // A REFUSED branch is no question (nothing to answer there — the play
+          // composer's rule): the cursor's first landing is a tile it can press.
+          if (this.selectedPos === undefined && this.branches[item.pos]?.available === true) {
             out.push({index, verb: 'Choose an option', satisfied: false});
           }
           return;
@@ -2893,7 +2914,9 @@ export default defineComponent({
         return;
       }
       const from = armPayloadReturn(root.querySelector('.con-ptsel'));
-      void this.$nextTick(() => playPayloadReturn(this.$el as HTMLElement | undefined, from));
+      // The review RETURNS: the cursor the answer landed ARRIVES once it stands (T14 · CC — the TR58 grammar).
+      const arrived = gateCursorDuringEntry(root, () => undefined);
+      void this.$nextTick(() => playPayloadReturn(this.$el as HTMLElement | undefined, from, arrived));
     },
     settleSuspended(now: boolean) {
       this.settled?.suspend(now);
@@ -2906,6 +2929,10 @@ export default defineComponent({
     focusIdx(now: number) {
       if (this.navItems[now]?.kind === 'branch') {
         this.branchReturnIdx = now;
+      }
+      // The cursor left the commit row: its arrival (and the window it opened) is over.
+      if (now < this.ctaIndex) {
+        leaveCommit(this.commitArrival);
       }
     },
     /** The group (re)mounts with the preview — re-arm the axis measurement on its new root. */
@@ -2948,6 +2975,8 @@ export default defineComponent({
       // CURSOR survive (TR58: every refetch used to re-seat the draft, so the cursor jumped back to the first variant
       // mid-decision). The play composer's rule (`samePreviewShape`), one rule for both.
       if (was !== undefined && now !== undefined && samePreviewShape(was, now)) {
+        // …but a SEED reads the candidate set, which may have moved (T14 · CC).
+        this.reseatSeeds();
         return;
       }
       this.resetFromPreview();
@@ -3333,6 +3362,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.settled?.stop();
+    leaveCommit(this.commitArrival);
     // The rail lights every row again the moment the owner's formula leaves the screen (PL-139).
     if (this.publishCommands) {
       consoleCardActionsUi.railFocus = undefined;
@@ -3629,6 +3659,7 @@ export default defineComponent({
       this.sub = undefined;
       this.focusIdx = 0;
       this.submitting = false;
+      this.seeded = {};
       // MAY a choice be seeded at all — ONE rule, shared with the play composer
       // (`initialVariantSelection`): a single option, or exactly one the RULES
       // allow; a real question opens unanswered. This screen and the play
@@ -3649,17 +3680,57 @@ export default defineComponent({
       // One-shot by contract; nothing was submitted in between, so the preview
       // (version-cached) and the choice ids are the same shape.
       this.applyStagedComposerSnapshot();
-      // …and then let the GATE have the last word: if a requirement is already
-      // waiting, the cursor starts ON it. A screen that opens on a commit row
-      // it will refuse is the defect this whole model exists to remove.
-      // Decided NOW, before the first render (TR58): re-seated a tick later, the
-      // cursor stood on one row and moved to another while the composer entered.
-      // The tick only scrolls to it (and re-asks — idempotent).
-      const gateTarget = commitCursorTarget(this.commitGate, this.ctaIndex);
-      if (gateTarget !== undefined) {
-        this.focusIdx = gateTarget;
+      // …and then the ONE cursor rule has the last word (T14 · CC — `nextCursorAfterAnswer`): a requirement already
+      // waiting holds the cursor; a screen with nothing left to ask opens ON the commit — an ARRIVAL with the
+      // decision's first settle under it (the A that opened the composer never runs the action). Decided NOW, before
+      // the first render (TR58): re-seated a tick later, the cursor stood on one row and moved to another while the
+      // composer entered. The tick only scrolls to it (and re-asks — idempotent). A staged return lands where the
+      // player left (its snapshot), and arrives again only when that is the commit row.
+      if (this.stagedRestored) {
+        this.stagedRestored = false;
+        if (this.focusIdx >= this.ctaIndex && commitAllowed(this.commitGate)) {
+          this.arriveAtCommitRow(true);
+        }
+      } else {
+        this.landCursor({opening: true});
       }
       void this.$nextTick(() => this.syncCommitFocus());
+    },
+    /**
+     * WHERE THE CURSOR GOES — the ONE rule (`nextCursorAfterAnswer`, T14 · ledger CC), asked on open and after EVERY
+     * answer: the first row that holds the commit, else the commit row (a refused action keeps its reason there).
+     */
+    cursorLanding(): CursorLanding | undefined {
+      return nextCursorAfterAnswer(this.commitGate, this.ctaIndex);
+    },
+    /**
+     * LAND THE CURSOR by the rule — the ONE call every answer ends with (a pick from a list, the album or the table, a
+     * variant, «Далее», the payment's «Готово», a decline, a bridge's answer) and the open's. A landing on a commit
+     * that RUNS is an ARRIVAL (`commitArrival.ts`): the pose arrives, the row breathes once, a press inside its window
+     * is the arrival, not the action. Never `focusIdx = ctaIndex` by hand.
+     */
+    landCursor(opts: {opening?: boolean} = {}): void {
+      const landing = this.cursorLanding();
+      if (landing === undefined) {
+        return;
+      }
+      const from = this.focusIdx;
+      this.focusIdx = landing.index;
+      if (landing.kind !== 'commit') {
+        leaveCommit(this.commitArrival);
+      } else if (opts.opening === true || from !== landing.index || this.commitArrival.arrival === undefined) {
+        this.arriveAtCommitRow(opts.opening === true);
+      }
+    },
+    /** The commit row's arrival, measured against the root the gate may stand on once it has rendered. */
+    arriveAtCommitRow(opening: boolean): void {
+      arriveAtCommit(this.commitArrival, () => this.$refs.rootEl as HTMLElement | undefined, {opening});
+    },
+    /** The commit row's one breath ended (its layer's `animationend` — never a child's animation bubbling up). */
+    onCommitBreathEnd(e: AnimationEvent): void {
+      if (e.animationName === 'con-commit-armed') {
+        endCommitBreath(this.commitArrival);
+      }
     },
     /** The staged-return capture snapshot — written at the staged confirm,
      *  applied back by `applyStagedComposerSnapshot`. Opaque outside this
@@ -3676,6 +3747,7 @@ export default defineComponent({
         picks: {...this.picks},
         multiPicks: {...this.multiPicks},
         orDescents: {...this.orDescents},
+        seeded: {...this.seeded},
         focusIdx: this.focusIdx,
       };
     },
@@ -3691,6 +3763,7 @@ export default defineComponent({
         picks: Record<string, string>,
         multiPicks: Record<string, ReadonlyArray<string>>,
         orDescents: Record<string, {item: ConsoleOrItem, pick: string}>,
+        seeded?: Record<string, 'sole'>,
         focusIdx: number,
       } | undefined;
       if (snap === undefined) {
@@ -3706,7 +3779,9 @@ export default defineComponent({
       this.picks = {...snap.picks};
       this.multiPicks = {...snap.multiPicks};
       this.orDescents = {...snap.orDescents};
+      this.seeded = {...(snap.seeded ?? {})};
       this.focusIdx = snap.focusIdx;
+      this.stagedRestored = true;
     },
     seedDefaults(): void {
       for (const c of this.allChoices) {
@@ -3735,10 +3810,82 @@ export default defineComponent({
           this.captureFor(c, {type: 'payment', payment: paymentFromCounts(model.amount, lanes, counts, mc)});
         }
       }
-      // A card/player/or TARGET is NEVER auto-selected — not even a lone
-      // candidate (the fork's non-negotiable no-auto-select rule): the player
-      // must consciously pick the target, so a single-target choice is never
-      // silently skipped. Only amount/heat/payment get a visible, editable default.
+      // A card / player TARGET with ONE enabled candidate is SEEDED with it (T14 · CC, `soleCandidateOf`): shown
+      // answered — where the resource goes, its `current → resulting` — and marked; A on the row still opens the
+      // choice. A real choice (two candidates, an optional one, a range, a disabled lone one) opens unanswered.
+      this.seedSole(c);
+    },
+    /**
+     * SEED a sole candidate — the same capture a press would write (`confirmPlayedTarget` / `pickListItem` / the
+     * album's answer), plus the `seeded` mark. Never over an answer already given.
+     */
+    seedSole(c: ComposerChoice): void {
+      if (!this.choiceMissing(c) || (c.input.type !== 'card' && c.input.type !== 'player')) {
+        return;
+      }
+      const seed = soleCandidateOf(c);
+      if (seed === undefined) {
+        return;
+      }
+      if (seed.kind === 'player') {
+        this.picks = {...this.picks, [c.id]: seed.color};
+        this.captureFor(c, {type: 'player', player: seed.color});
+      } else {
+        if (this.isPlayedTargetChoice(c)) {
+          const owners = this.playedTargetModelFor(c)?.owners ?? [];
+          const focus = findPlayedTargetFocus(seed.name, owners);
+          const candidate = focus === undefined ? undefined : playedTargetAt(focus, owners);
+          if (candidate === undefined || candidate.blocked !== undefined) {
+            return;
+          }
+          this.playedTargetResults = {...this.playedTargetResults, [c.id]: playedTargetResultOf(candidate, owners, this.playedTargetVersion)};
+        }
+        this.picks = {...this.picks, [c.id]: seed.name};
+        this.captureFor(c, {type: 'card', cards: [seed.name]});
+      }
+      this.seeded = {...this.seeded, [c.id]: 'sole'};
+    },
+    /** The mark of a seeded row (i18n keys) — `undefined` when the row was not seeded or no longer holds its seed. */
+    soleMark(c: ComposerChoice): {mark: string, hint: string} | undefined {
+      if (this.seeded[c.id] !== 'sole' || this.choiceMissing(c)) {
+        return undefined;
+      }
+      const seed = soleCandidateOf(c);
+      return seed === undefined ? undefined : soleMarkKeys(seed, this.isHandPickChoice(c));
+    },
+    /**
+     * A refetched preview of the SAME shape keeps every answer — but a SEED is a reading of the server's candidate set
+     * (T14 · CC): a seed whose candidate left, or is no longer alone, lets go (the row is open again and holds the
+     * commit — the ONE rule sends the cursor to it); a row that has just become a sole candidate is seeded. Never
+     * touches an answer the player gave.
+     */
+    reseatSeeds(): void {
+      let changed = false;
+      for (const c of this.allChoices) {
+        if (this.seeded[c.id] !== 'sole') {
+          continue;
+        }
+        const seed = soleCandidateOf(c);
+        if (seed !== undefined && (seed.kind === 'player' ? seed.color : seed.name) === this.picks[c.id]) {
+          continue;
+        }
+        this.captureFor(c, undefined);
+        const {[c.id]: _pick, ...picks} = this.picks;
+        const {[c.id]: _result, ...results} = this.playedTargetResults;
+        const {[c.id]: _seed, ...seeded} = this.seeded;
+        this.picks = picks;
+        this.playedTargetResults = results;
+        this.seeded = seeded;
+        changed = true;
+      }
+      const before = Object.keys(this.seeded).length;
+      for (const c of this.allChoices) {
+        this.seedSole(c);
+      }
+      if (changed || Object.keys(this.seeded).length !== before) {
+        this.landCursor();
+        this.scrollFocused();
+      }
     },
     /** Is this RENDERED row the focused one? Identity-based, because the render
      *  list and the nav list differ (a focus-free dial renders but never focuses). */
@@ -3995,6 +4142,9 @@ export default defineComponent({
     /** Fold the editor back into the compact summary, keeping the chosen mix. */
     closePaymentEditor(): void {
       this.sub = undefined;
+      // «Готово» is an answer: the ONE rule lands the cursor (T14 · CC).
+      this.landCursor();
+      this.scrollFocused();
     },
     /**
      * Dial ONE payment source — the single mutation both densities go through.
@@ -4100,6 +4250,11 @@ export default defineComponent({
           .find((it) => String(it.optionIndex) === this.picks[c.id]);
         const chip = item?.chips.find((e) => e.current !== undefined && e.resulting !== undefined);
         return chip === undefined ? '' : `${chip.current} → ${chip.resulting}`;
+      }
+      // An ANSWERED PLAYER target keeps the reading the list showed — who loses what (PL-899; T14 · CC).
+      if (c.input.type === 'player') {
+        const color = this.picks[c.id];
+        return color === undefined ? '' : this.playerListItem(c.input as SelectPlayerModel, color, true, false, undefined).impact;
       }
       if (c.input.type !== 'card' || c.amount === undefined) {
         return '';
@@ -4260,14 +4415,21 @@ export default defineComponent({
       switch (action) {
       case 'primary':
         if (this.ctaFocused || item === undefined) {
+          // THE COMMIT ARRIVES (T14 · CC): a press inside the arrival window — before the commit's pose paints, or
+          // within the ring's clock after — is the ARRIVAL (the input observer has already posed it), never the action.
+          if (commitArrivalAbsorbs(this.commitArrival)) {
+            return;
+          }
           this.submit();
         } else if (item.kind === 'branch') {
           this.selectBranch(item.pos);
+          // A variant is an answer: the ONE rule lands the cursor on the next question, or arrives on the commit.
+          this.landCursor();
+          this.scrollFocused();
         } else if (item.choice.kind === 'amount' || item.choice.kind === 'spendHeat') {
-          // A stepper adjusts via LB/RB — A ADVANCES toward the CTA («Далее»),
-          // mirroring the play composer's grammar (the visible, editable
-          // default is already captured).
-          this.focusIdx = Math.min(this.navMaxIndex, this.focusIdx + 1);
+          // A stepper adjusts via LB/RB — A is «Далее»: the dial's visible, editable default is already captured, so
+          // the ONE rule lands the cursor on the next question or the commit (the play composer's grammar).
+          this.landCursor();
           this.scrollFocused();
         } else {
           this.openChoice(item.choice);
@@ -4400,8 +4562,9 @@ export default defineComponent({
           {chosenCard: this.repeatResult.chosenCard, nodeIndex: this.repeatResult.nodeIndex} : undefined,
       }, (result) => {
         this.repeatResult = result;
-        // Land on the CTA — the slot is filled, the action is ready to perform.
-        this.focusIdx = this.ctaIndex;
+        // The slot is filled: the ONE rule lands the cursor (the commit, when nothing else is left to ask — T14 · CC;
+        // a jump to the commit by hand stood the cursor past the last row while another question still waited).
+        this.landCursor();
         this.scrollFocused();
       });
     },
@@ -4424,7 +4587,7 @@ export default defineComponent({
         this.stageRewardDraft = draft;
         const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
         this.captureFor(cur, deltaRewardStepResponse(draft));
-        this.focusIdx = this.ctaIndex;
+        this.landCursor();
         this.scrollFocused();
       });
     },
@@ -4444,7 +4607,7 @@ export default defineComponent({
       }, (draft) => {
         const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
         this.captureFor(cur, deltaBlockadeStepResponse(model.projection, draft.target));
-        this.focusIdx = this.ctaIndex;
+        this.landCursor();
         this.scrollFocused();
       });
     },
@@ -4486,7 +4649,7 @@ export default defineComponent({
         }
         const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
         this.captureFor(cur, response);
-        this.focusIdx = this.ctaIndex;
+        this.landCursor();
         this.scrollFocused();
       });
     },
@@ -4560,9 +4723,11 @@ export default defineComponent({
      * the cursor ends up parked on a row that has since stopped working.
      */
     syncCommitFocus(): void {
-      const target = commitCursorTarget(this.commitGate, this.ctaIndex);
-      if (target !== undefined && target !== this.focusIdx) {
-        this.focusIdx = target;
+      // The gate's word changed under the cursor (a variant switch, a target gone): the ONE rule re-lands it — but a
+      // REFUSED action leaves the cursor where it stands (nothing on the screen moved it; the commit row says why).
+      const landing = this.cursorLanding();
+      if (landing !== undefined && landing.kind !== 'held' && landing.index !== this.focusIdx) {
+        this.landCursor();
         this.scrollFocused();
       }
     },
@@ -4586,6 +4751,10 @@ export default defineComponent({
       return c.kind === 'card' && c.repeatAction !== true &&
         !isHandCardSelection(c.input as SelectCardModel, this.handNamesSet) &&
         isCardSelectionWithin(c.input as SelectCardModel, this.playedNamesSet);
+    },
+    /** Is this choice answered in the hand album (every candidate a card in hand)? */
+    isHandPickChoice(c: ComposerChoice): boolean {
+      return c.kind === 'card' && isHandCardSelection(c.input as SelectCardModel, this.handNamesSet);
     },
     /**
      * DESCEND into the embedded played-target step — the same level the card-play
@@ -4794,6 +4963,8 @@ export default defineComponent({
       this.picks[choice.id] = String(cards.length);
       this.captureFor(choice, {type: 'card', cards});
       this.sub = undefined;
+      // The answer is in: the ONE rule lands the cursor (T14 · CC).
+      this.landCursor();
       this.scrollFocused();
     },
     /** A — lock the focused candidate in as this choice's target. */
@@ -4823,6 +4994,8 @@ export default defineComponent({
       this.captureFor(choice, {type: 'card', cards: [candidate.cardName]});
       this.picks[choice.id] = candidate.cardName;
       this.sub = undefined;
+      // The answer is in: the ONE rule lands the cursor (T14 · CC).
+      this.landCursor();
       this.scrollFocused();
     },
     /** X inside the step — the FOCUSED candidate fullscreen, lifting from its
@@ -4969,6 +5142,8 @@ export default defineComponent({
           this.picks[cur.id] = cards[0];
           this.captureFor(cur, {type: 'card', cards: [cards[0]]});
         }
+        // The album answered: the ONE rule lands the cursor (T14 · CC).
+        this.landCursor();
         this.scrollFocused();
       }, () => {
         // B in the album: an option's pick returns to the option list it was opened from, cursor on that option (a
@@ -5002,6 +5177,9 @@ export default defineComponent({
       const pos = this.branchItemPositions[index];
       if (pos !== undefined && this.sub === undefined) {
         this.selectBranch(pos);
+        // The mouse speaks the pad's grammar: an answer lands the cursor by the ONE rule.
+        this.landCursor();
+        this.scrollFocused();
       }
     },
     selectBranch(pos: number): void {
@@ -5018,6 +5196,7 @@ export default defineComponent({
       this.orDescents = {};
       // …and the variant's TARGET answer (TR56, П5) — `step#0` names every branch's first step alike.
       this.playedTargetResults = keepPlayAnswers(this.playedTargetResults);
+      this.seeded = keepPlayAnswers(this.seeded);
       this.amounts = {};
       this.repeatResult = undefined;
       for (const c of this.branchChoiceList) {
@@ -5132,6 +5311,8 @@ export default defineComponent({
       this.picks[c.id] = String(oc.decline.index);
       this.captureFor(c, declineResponse(oc));
       this.sub = undefined;
+      // A decline is an answer like any other: the ONE rule lands the cursor (T14 · CC).
+      this.landCursor();
       this.scrollFocused();
     },
     /** The ONE pick an optional choice offers beside its decline (`undefined` = not that shape, or not drawable here). */
@@ -5196,6 +5377,9 @@ export default defineComponent({
         this.captureFor(c, orItemResponse(item.orItem));
       }
       this.sub = undefined;
+      // The answer is in: the ONE rule lands the cursor (T14 · CC).
+      this.landCursor();
+      this.scrollFocused();
     },
     /**
      * DESCEND into an or-branch that is itself an input — WHERE it is answered
@@ -5238,6 +5422,8 @@ export default defineComponent({
       this.picks[c.id] = String(item.optionIndex);
       this.captureFor(c, orItemResponse(item, response));
       this.sub = undefined;
+      // The answer is in: the ONE rule lands the cursor (T14 · CC).
+      this.landCursor();
       this.scrollFocused();
     },
     /** B out of a nested descent → the OR LIST it came from (ONE logical level),
@@ -5643,6 +5829,8 @@ export default defineComponent({
       if (branch === undefined || !this.commitReady || this.ctaBusy || this.preview === undefined) {
         return;
       }
+      // The press went: the commit's arrival (and its breath) is over.
+      leaveCommit(this.commitArrival);
       // ── THE SECOND DOOR. A colony-trade branch commits NOTHING here: no
       //    floater spent, no card marked used, no action consumed, no request.
       //    It hands the player to the trade the server is already offering,

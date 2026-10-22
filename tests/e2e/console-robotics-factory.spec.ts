@@ -257,12 +257,15 @@ for (const preset of PRESETS) {
       await chooseTile(page, 0);
       await settle(page);
       const reset = await targetRow(page);
-      expect(reset, 'the row lets the old answer go and asks for a MECH holder').toMatchObject({state: 'open', payload: 'mech', strip: [CM], answered: []});
+      // The old answer goes with its variant; the MECH kind has ONE holder (Construction Mechs) — SEEDED with it, shown and
+      // marked (T14 · CC «ЕДИНСТВЕННАЯ ЦЕЛЬ»), never left as a question with one answer.
+      expect(reset, 'the row lets the old answer go and SEEDS the mech kind\'s one holder').toMatchObject({state: 'answered', payload: 'mech', answered: [CM]});
+      await expect(page.locator(`${PLAY} [data-composer-target-row][data-seeded="sole"] [data-seeded-mark]`), 'the sole holder\'s mark').toHaveCount(1);
       expect(reset.height, 'the two states are one height').toBe(answered.height);
       expect(Math.abs((await colTop()) - top0), 'the column does not jump').toBeLessThanOrEqual(2);
       await shoot(page, preset.id, 'a-05-variant-changed');
 
-      // ── the mechs: ONE candidate, the protagonist.
+      // ── the mechs: ONE candidate, the protagonist — A on the seeded row still opens the step.
       await openStep(page);
       const mechs = await stepGeometry(page);
       expect(mechs.payload).toBe('mech');
@@ -318,7 +321,9 @@ for (const preset of PRESETS) {
       expect(opened.slice(0, 2).every((t) => t.reason !== '' && t.dest.length === 0), 'a refused tile says why and has no address').toBe(true);
       expect(opened[2], 'the lone open tile: chosen for the player, its one holder named').toMatchObject({selected: true, dest: [DIR], destCount: '1'});
       await shoot(page, preset.id, 'b-01-composer');
-      expect(await targetRow(page)).toMatchObject({state: 'open', payload: 'floater', strip: [DIR]});
+      // The lone holder is SEEDED — answered, shown and marked (T14 · CC); A on the row still opens it: SHOWN, never silent.
+      expect(await targetRow(page)).toMatchObject({state: 'answered', payload: 'floater', answered: [DIR]});
+      await expect(page.locator(`${PLAY} [data-composer-target-row][data-seeded="sole"]`), 'seeded by the composer').toHaveCount(1);
       await openStep(page);
       expect((await stepGeometry(page)).cards, 'the lone holder is SHOWN — never applied silently').toEqual([DIR]);
       await confirmTarget(page);

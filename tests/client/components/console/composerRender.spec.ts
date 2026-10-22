@@ -46,6 +46,16 @@ function viewWithTableau(names: ReadonlyArray<string>): any {
   return {...PLAYER_VIEW, thisPlayer: {...PLAYER_VIEW.thisPlayer, tableau}, players: [{color: 'blue', name: 'Me', tableau}]};
 }
 
+/** The commit's arrival window has passed (the ring painted long ago, no opening settle) — the next press is the move. */
+function pastTheArrival(vm: any): void {
+  if (vm.commitArrival.arrival !== undefined) {
+    vm.commitArrival.arrival = {at: 0, paintedAt: -10_000, settleUntil: 0};
+  }
+}
+
+const cardStep = (names: ReadonlyArray<string>) =>
+  ({kind: 'input', input: {type: 'card', title: 'Select card', buttonLabel: 'Select', cards: names.map((name) => ({name})), min: 1, max: 1}});
+
 function prod(icon: string) {
   return {direction: 'gain', icon, amount: 1, current: 0, resulting: 1, note: 'production'};
 }
@@ -851,8 +861,13 @@ describe('ConsoleActionComposer — premium render', () => {
     vm.handleIntent({kind: 'press', button: 'triggerR'});
     expect(vm.amountFor(vm.focusFreeDialId)).to.eq(5);
     // The bar advertises the dial + the confirm, never a «Далее» detour.
-    expect(vm.footCommands.map((c: any) => c.label)).to.deep.eq(['−1 / +1', 'MAX', 'Confirm', 'Inspect', 'Cancel']);
-    // A goes straight to the commit — one press.
+    // ONE verb for the commit row and the bar (T14 · CC): the bar reads the row's own «Подтвердить выполнение».
+    expect(vm.footCommands.map((c: any) => c.label)).to.deep.eq(['−1 / +1', 'MAX', 'Confirm action', 'Inspect', 'Cancel']);
+    // A goes straight to the commit — one press, once the commit has ARRIVED (T14 · CC: the screen opened with nothing
+    // to ask, so the press right after the opening one is the arrival, never the action — `commitArrival.ts`).
+    vm.handleIntent({kind: 'press', button: 'confirm'});
+    expect(w.emitted('confirm'), 'the press inside the opening window is absorbed').to.eq(undefined);
+    pastTheArrival(vm);
     vm.handleIntent({kind: 'press', button: 'confirm'});
     expect(w.emitted('confirm')).to.have.length(1);
     w.unmount();
@@ -1371,6 +1386,136 @@ describe('ConsoleActionComposer — premium render', () => {
     const chip = w.find('.con-composer__actcard .pcard__res');
     expect(chip.exists(), 'the card wears its own resource capsule').to.eq(true);
     expect(chip.find('.pcard__res-count').text()).to.eq('3');
+    w.unmount();
+  });
+});
+
+/**
+ * «ОДИН КУРСОР ПОСЛЕ ОТВЕТА · ПРИБЫТИЕ НА КОММИТ · ЕДИНСТВЕННАЯ ЦЕЛЬ» (T14 · ledger CC — `docs/claude/console/
+ * composer-preselect.md`). After EVERY answer the ONE rule (`nextCursorAfterAnswer`) lands the cursor on the next open
+ * question, else on the commit — which ARRIVES (a press inside its window is the arrival, never the action); a target
+ * with ONE enabled candidate opens answered, shown and marked.
+ */
+describe('ConsoleActionComposer — one cursor rule, the commit arrives, the sole candidate (T14 · CC)', () => {
+  const single = (steps: Array<unknown>) => ({
+    card: 'Y', isCorporation: false, kind: 'declarative',
+    branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps}],
+  });
+
+  it('a SOLE candidate is SEEDED: the row reads answered and marked, the cursor ARRIVES on the commit', async () => {
+    const w = factory(single([cardStep(['Tardigrades'])]), 'Y');
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    expect(vm.choiceMissing(vm.allChoices[0]), 'answered by the composer').to.eq(false);
+    expect(w.find('[data-seeded="sole"]').exists(), 'the row says it was seeded').to.eq(true);
+    expect(w.find('[data-seeded-mark]').exists(), 'and wears the quiet mark').to.eq(true);
+    expect(vm.commitGate.kind).to.eq('ready');
+    expect(vm.ctaFocused, 'nothing left to ask: the cursor stands on the commit').to.eq(true);
+    expect(vm.commitArrival.arrival, 'an ARRIVAL, the opening settle under it').to.not.eq(undefined);
+    w.unmount();
+  });
+
+  it('a press inside the arrival window is the arrival; the next one after it is the action — ONE emit', async () => {
+    const w = factory(single([cardStep(['Tardigrades'])]), 'Y');
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    vm.handleIntent({kind: 'press', button: 'confirm'});
+    expect(w.emitted('confirm'), 'the inertia press sends nothing').to.eq(undefined);
+    pastTheArrival(vm);
+    vm.handleIntent({kind: 'press', button: 'confirm'});
+    expect(w.emitted('confirm')).to.have.length(1);
+    const [payload] = w.emitted('confirm')![0] as [any];
+    expect(JSON.stringify(payload), 'the seed rides the batch like any pre-select').to.contain('Tardigrades');
+    w.unmount();
+  });
+
+  it('A on the seeded row still OPENS the choice (one card), and B keeps the seed', async () => {
+    const w = factory(single([cardStep(['Tardigrades'])]), 'Y');
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    vm.handleIntent({kind: 'nav', dir: 'up', repeat: false});
+    expect(vm.ctaFocused, 'the row is a stop like any answered row').to.eq(false);
+    vm.handleIntent({kind: 'press', button: 'confirm'});
+    expect(vm.sub?.kind, 'the list of one').to.eq('list');
+    expect(vm.listItems).to.have.length(1);
+    vm.handleIntent({kind: 'press', button: 'back'});
+    expect(vm.sub).to.eq(undefined);
+    expect(vm.choiceMissing(vm.allChoices[0]), 'the seed survives B').to.eq(false);
+    w.unmount();
+  });
+
+  it('TWO candidates: never seeded — the row holds the cursor; the pick lands the cursor on the commit, an arrival', async () => {
+    const w = factory(single([cardStep(['Tardigrades', 'Regolith Eaters'])]), 'Y');
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    expect(w.find('[data-seeded="sole"]').exists()).to.eq(false);
+    expect(vm.ctaFocused, 'the open question holds the cursor').to.eq(false);
+    vm.handleIntent({kind: 'press', button: 'confirm'});
+    expect(vm.sub?.kind).to.eq('list');
+    vm.handleIntent({kind: 'press', button: 'confirm'});
+    expect(vm.sub, 'answered').to.eq(undefined);
+    expect(vm.ctaFocused, 'the ONE rule: nothing left to ask — the commit').to.eq(true);
+    expect(vm.commitArrival.arrival).to.not.eq(undefined);
+    w.unmount();
+  });
+
+  it('two questions: the first answer lands the cursor on the SECOND, never on the commit', async () => {
+    const w = factory(single([cardStep(['Tardigrades', 'Regolith Eaters']), cardStep(['Ants', 'Fish'])]), 'Y');
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    expect(vm.focusIdx).to.eq(0);
+    vm.handleIntent({kind: 'press', button: 'confirm'});
+    vm.handleIntent({kind: 'press', button: 'confirm'});
+    expect(vm.focusIdx, 'the next open question').to.eq(1);
+    expect(vm.ctaFocused).to.eq(false);
+    w.unmount();
+  });
+
+  it('a VARIANT with nothing after it: A on the tile steps the cursor onto the commit', async () => {
+    const w = factory({
+      card: 'Robinson Industries', isCorporation: true, kind: 'bespoke',
+      branches: [
+        {index: 0, title: 'Increase steel production 1 step', available: true, renderKeys: [], effects: [M4, prod('steel')], steps: []},
+        {index: 1, title: 'Increase titanium production 1 step', available: true, renderKeys: [], effects: [M4, prod('titanium')], steps: []},
+      ],
+    });
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    expect(vm.focusedItem?.kind, 'the open question is the variant').to.eq('branch');
+    vm.handleIntent({kind: 'press', button: 'confirm'});
+    expect(vm.selectedPos).to.not.eq(undefined);
+    expect(vm.ctaFocused, 'the variant answered, nothing left: the commit').to.eq(true);
+    vm.handleIntent({kind: 'press', button: 'confirm'});
+    expect(w.emitted('confirm'), 'a double press on the tile never runs the action').to.eq(undefined);
+    w.unmount();
+  });
+
+  it('a SOLE PLAYER target is seeded and its row reads who loses what (`current → resulting`) — never the name alone', async () => {
+    const view = {
+      ...PLAYER_VIEW,
+      players: [{color: 'blue', name: 'Me', tableau: []}, {color: 'red', name: 'Rival', tableau: [], heatProduction: 3}],
+    };
+    const w = factory(single([{kind: 'input', input: {type: 'player', title: 'Select player', buttonLabel: 'Select', players: ['red'], icon: 'heat', amount: 2, scope: 'production'}}]), 'Y', 0, view);
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    expect(vm.choiceMissing(vm.allChoices[0])).to.eq(false);
+    const row = w.find('[data-seeded="sole"]');
+    expect(row.exists()).to.eq(true);
+    expect(row.text(), 'the change the seed makes is ON the row').to.match(/3\s*→\s*1/);
+    expect(vm.ctaFocused).to.eq(true);
+    w.unmount();
+  });
+
+  it('a seeded candidate that LEAVES on a refetch of the same shape lets go — the cursor goes back to the row', async () => {
+    const w = factory(single([cardStep(['Tardigrades'])]), 'Y');
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    expect(vm.ctaFocused).to.eq(true);
+    await w.setProps({preview: single([cardStep(['Tardigrades', 'Regolith Eaters'])])});
+    await w.vm.$nextTick();
+    expect(vm.choiceMissing(vm.allChoices[0]), 'no longer alone: the seed lets go').to.eq(true);
+    expect(w.find('[data-seeded="sole"]').exists()).to.eq(false);
+    expect(vm.ctaFocused, 'the open question holds the cursor again').to.eq(false);
     w.unmount();
   });
 });

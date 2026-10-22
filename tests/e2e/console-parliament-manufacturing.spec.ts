@@ -130,8 +130,10 @@ async function composeUse(page: Page, variant: number, card: string): Promise<vo
   expect(await pressUntil(page, 'Enter', async () => await page.locator(`${STAGE} [data-pact-row="0"].con-pact__row--answered`).count() > 0,
     {tries: 4, settleMs: 700}), 'A picks the variant').toBeTruthy();
   await expect(page.locator(`${STAGE} [data-pact-card="${card}"]`), `the variant's holders include ${card}`).toHaveCount(1);
+  // ONE holder of the kind is SEEDED (T14 · CC) — the commit is ready at once and `pressUntil` presses nothing; two
+  // holders would take the player's A on the card.
   expect(await pressUntil(page, 'Enter', async () => await page.locator(`${STAGE} [data-pact-cta][data-pact-ready]`).count() > 0, {tries: 3, settleMs: 700}),
-    'A picks the card: the commit is ready').toBeTruthy();
+    'the card is chosen (seeded, or A on it): the commit is ready').toBeTruthy();
 }
 
 for (const preset of PRESETS) {
@@ -171,8 +173,10 @@ for (const preset of PRESETS) {
       await expect(page.locator(`${STAGE} [data-pact-card="${MECHS}"] .con-pact__card-delta`), 'current → resulting').toContainText(/0\s*→\s*1/);
       await settle(page, {timeoutMs: 10_000});
       await shoot(page, preset.id, '03-mech-targets');
+      // Construction Mechs is the mech's ONLY holder — SEEDED and marked (T14 · CC), the commit ready at once.
+      await expect(page.locator(`${STAGE} .con-pact__card--picked[data-pact-card="${MECHS}"] [data-seeded-mark]`), 'the sole holder, marked').toHaveCount(1);
       expect(await pressUntil(page, 'Enter', async () => await page.locator(`${STAGE} [data-pact-cta][data-pact-ready]`).count() > 0, {tries: 3, settleMs: 700}),
-        'A picks the card: the commit is ready').toBeTruthy();
+        'the card is chosen: the commit is ready').toBeTruthy();
 
       // ── ③ THE COMMIT: the token is born on the law's face and lands ON the card (never the satellite under the glass).
       await armTransferWitness(page);

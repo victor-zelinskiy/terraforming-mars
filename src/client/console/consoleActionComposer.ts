@@ -136,6 +136,56 @@ export function keepPlayAnswers<T>(record: Readonly<Record<string, T>>): Record<
 }
 
 /**
+ * THE SOLE CANDIDATE — a target whose ONE enabled candidate is the whole answer (T14 «ЕДИНСТВЕННАЯ ЦЕЛЬ», ledger CC,
+ * `docs/claude/console/composer-preselect.md`).
+ *
+ * The owner (2026-10-22): «no auto-select» is about the SERVER applying a target silently at the play; a composer's
+ * row is a PRE-SELECT the player sees — where the resource goes, its `current → resulting` — and can open to find the
+ * one candidate there. A question with nothing to decide used to cost two presses (open the step, press A on the only
+ * card) for zero decisions. So the composer SEEDS it, shows it answered and marks it («единственная цель»); the batch
+ * posts it ADDRESSED like any pre-select, and the server still asks (`game-logic.md` § NO AUTO-SELECT stands).
+ *
+ * WHAT IS NEVER SEEDED — every case is a decision or not a target:
+ *  · an OPTIONAL choice (the server's `skip` marker / a card pick of `min 0`) — declining is the second real answer;
+ *  · a MULTI pick (a range — «up to N», `max > 1`, a multi-select's count) — how many is a decision;
+ *  · a lone candidate that is DISABLED (its reason holds the commit; the row says why);
+ *  · a table question (`reaction` — another card asks, and its row has its own deferral states), a repeat slot (its
+ *    answer is ANOTHER card's composed action), a Hydronetwork landing pick — not a target of this card;
+ *  · a board placement (never a composer row — it stays the follow-up).
+ * Pure: the host maps the seed onto its own answer record (the same capture a press would write).
+ */
+export type SoleSeed =
+  | {kind: 'card', name: CardName}
+  | {kind: 'player', color: string};
+
+export function soleCandidateOf(choice: ComposerChoice): SoleSeed | undefined {
+  if (choice.reaction !== undefined || choice.repeatAction === true || choice.multiSelect !== undefined || choice.deltaLanding !== undefined) {
+    return undefined;
+  }
+  if (choice.kind === 'card') {
+    const model = choice.input as SelectCardModel;
+    if ((model.max ?? 1) !== 1 || (model.min ?? 1) !== 1 || model.selectBlueCardAction === true) {
+      return undefined;
+    }
+    const enabled = model.cards.filter((card) => card.isDisabled !== true);
+    return enabled.length === 1 ? {kind: 'card', name: enabled[0].name} : undefined;
+  }
+  if (choice.kind === 'player') {
+    const model = choice.input as SelectPlayerModel;
+    return model.players.length === 1 ? {kind: 'player', color: model.players[0]} : undefined;
+  }
+  return undefined;
+}
+
+/** The mark's words for a seeded row (i18n keys): a player, a card from the hand, a card on the table. */
+export function soleMarkKeys(seed: SoleSeed, fromHand: boolean): {mark: string, hint: string} {
+  if (seed.kind === 'player') {
+    return {mark: 'The only player', hint: 'No other players'};
+  }
+  return fromHand ? {mark: 'The only card', hint: 'No other cards'} : {mark: 'The only target', hint: 'No other targets'};
+}
+
+/**
  * The pre-branch choices (branch-independent — captured once per preview). A
  * card-level input carries its delta and resource exactly like a branch step:
  * the SOURCE of a spend taken from a card the player chooses (TR29 — «spend 1

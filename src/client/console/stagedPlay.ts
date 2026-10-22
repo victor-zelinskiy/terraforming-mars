@@ -85,6 +85,8 @@ export type PlayComposerDraft = {
   multiPicks: Record<string, ReadonlyArray<string>>;
   payCounts: Record<string, number>;
   playedTargetResults: Record<string, unknown>;
+  /** The rows seeded with their sole candidate (T14 · CC) — the mark survives the round trip. */
+  seeded?: Record<string, 'sole'>;
   focusIdx: number;
 };
 

@@ -398,23 +398,14 @@ for (const preset of PRESETS) {
       expect((await rowStates(page)).map(([, , , word]) => word), 'each row names the step it will raise').toEqual(['', 'взять карту', 'карта → сброс', 'выбор карты']);
       await expect(page.locator(`${ledger} [data-colony-ledger-totals]`), 'no «Итого» row — the chips above are the sums').toHaveCount(0);
       await expect(page.locator(composer), 'the cost chip: the card\'s own data, current → resulting').toContainText(/4\s*→\s*2/);
-      const stepRow = page.locator(`${composer} .con-composer__row--missing`);
-      await expect(stepRow, 'Titan\'s target is a STEP — one holder is still shown, never pre-answered').toHaveCount(1);
+      // Titan's target has ONE holder — SEEDED, shown answered and marked (T14 · CC «ЕДИНСТВЕННАЯ ЦЕЛЬ»): never applied
+      // silently (the row stands, names its colony and reads the target's change), never a question with one answer.
+      const stepRow = page.locator(`${composer} .con-composer__row[data-seeded="sole"]`);
+      await expect(stepRow, 'Titan\'s target is a ROW — its one holder seeded, shown, marked').toHaveCount(1);
       await expect(stepRow.locator('.con-composer__row-label'), 'the step names its colony').toHaveText(/Колония · Титан/i);
+      await expect(stepRow.locator('[data-seeded-mark]'), 'the quiet mark').toHaveCount(1);
+      await expect(page.locator(`${composer} .con-composer__row--missing`), 'nothing left to ask').toHaveCount(0);
       await shoot(page, preset.id, '01-ledger-promised');
-
-      // Answer the step: walk to the unanswered row, open it, pick the (one) holder.
-      for (let i = 0; i < 8 && await stepRow.count() > 0; i++) {
-        if (await page.locator(`${composer} .con-composer__row--missing.con-composer__row--focused`).count() === 0) {
-          await press(page, 'ArrowDown', 200);
-          continue;
-        }
-        await press(page, 'Enter', 400);
-        await settle(page);
-        await press(page, 'Enter', 400);
-        await settle(page);
-      }
-      await expect(stepRow, 'the target is chosen').toHaveCount(0);
       await expect(page.locator(composer), 'the target\'s own reading').toContainText(/0\s*→\s*1/);
       await settle(page);
       const boxKey = (box: Box | undefined) => box === undefined ? '-' : [box.x - box.w / 2, box.y - box.h / 2, box.w, box.h].map(Math.round).join(',');

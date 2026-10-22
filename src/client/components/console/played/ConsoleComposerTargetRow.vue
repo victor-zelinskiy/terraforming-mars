@@ -1,5 +1,6 @@
 <template>
-  <div class="con-tgtrow" :data-tgtrow-state="result === undefined ? 'open' : 'answered'" data-composer-target-row>
+  <div class="con-tgtrow" :data-tgtrow-state="result === undefined ? 'open' : 'answered'" data-composer-target-row
+       :data-seeded="sole !== undefined && result !== undefined ? 'sole' : undefined">
     <!-- THE TARGET ROW OF A COMPOSER — ONE row for both composers (TR56 «КУДА ЛЯЖЕТ», П2), the question line of a
          «put N on ANY card» pick and its answer:
            · the LABEL is the question, and it never changes with the answer: «КУДА: 3 [мех]» — the payload's own print
@@ -84,6 +85,10 @@
               <template v-else-if="imp.per !== undefined"><b class="con-ptsel__imp-delta con-ptsel__imp-count">{{ imp.from }}</b><span class="con-ptsel__imp-per">· {{ $t(imp.per) }}</span></template>
             </span>
           </div>
+          <!-- THE SOLE CANDIDATE'S MARK (T14 · CC): the composer answered this row because the server offered ONE target
+               — said once, quietly, in the row's tail (a tracked-caps word, never a ring of its own: the cursor's ring
+               stays the loudest thing on the row); the hint names why. A on the row still opens the choice. -->
+          <span v-if="sole !== undefined" class="con-tgtrow__sole" data-seeded-mark :data-hint="$t(sole.hint)">{{ $t(sole.mark) }}</span>
           <!-- The CHANGE affordance — drawn ONLY while this row holds the cursor (one button, one verb at a time); its
                slot is reserved either way, so gaining the cursor moves nothing. -->
           <span class="con-composer__target-change" :class="{'con-composer__target-change--on': focused}">
@@ -137,6 +142,8 @@ export default defineComponent({
     impacts: {type: Array as PropType<ReadonlyArray<PlayedTargetQuickImpact>>, default: () => []},
     /** The row holds the cursor — the change affordance shows. */
     focused: {type: Boolean, default: false},
+    /** The composer SEEDED this answer — the server offered one candidate (T14 · CC): the mark's i18n keys. */
+    sole: {type: Object as PropType<{mark: string, hint: string} | undefined>, default: undefined},
   },
   computed: {
     shown(): ReadonlyArray<CardModel> {

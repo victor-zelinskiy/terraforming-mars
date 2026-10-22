@@ -35104,6 +35104,28 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
    physical button advertises exactly one verb at a time.
    `visibility` and not `display`: the slot stays reserved, so gaining the
    cursor cannot move the row, the thumbnail, the Result or the payment. */
+/* THE SOLE CANDIDATE'S MARK (T14 · ledger CC — `soleCandidateOf`): the composer answered this row because the server
+   offered ONE candidate. Said once, quietly, at the row's tail — tracked caps a step under the row's own words, a
+   hairline mint kant, no ring and no glow of its own (the cursor stays the loudest thing on the row, the answer the
+   second); never a colour alone (the WORD carries it). The hint names why («Других целей нет»). */
+.con-composer__sole,
+.con-tgtrow__sole {
+    .premium-tooltip(16rem);
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    padding: .08rem .45rem;
+    border-radius: .35rem;
+    box-shadow: inset 0 0 0 .05rem fade(@con-mint, 34%);
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .08rem;
+    text-transform: uppercase;
+    color: fade(@con-mint, 78%);
+    white-space: nowrap;
+}
+.con-composer__row-value .con-composer__sole { margin-left: .5rem; }
+
 .con-composer__target-change {
     flex-shrink: 0;
     display: inline-flex; align-items: center; gap: .35rem;
@@ -35553,6 +35575,16 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
             box-shadow: inset 0 0 0 .05rem fade(@con-amber, 42%);
             --con-cursor-on: 0;
         }
+        /* THE COMMIT ARRIVES ARMED (T14 · ledger CC — `commitArrival.ts`): when the ONE cursor rule lands here because
+           nothing is left to ask, the ring LAYER takes ONE breath — its glass fills with mint and its ring thickens,
+           then both settle back; a one-shot on the layer only (the host's transform is the ACTION COMMIT's), never a
+           loop; the attribute leaves on the breath's own `animationend`. It reads «the next press is the move» and
+           nothing else (reduced motion: no breath — the record never arms). The keyframe names only the middle: the
+           paint of the state the row stands in (ready on the band or embedded) is both ends, and the list keeps its
+           shape — [inset, outer] — so it interpolates. */
+        &[data-composer-armed]::after {
+            animation: con-commit-armed calc(380ms * var(--motion-scale, 1)) var(--con-cursor-ease) 1;
+        }
     }
     /* The label stays legible while held — muted, never ghosted: the player
        must still be able to read what the screen is building toward. */
@@ -35609,6 +35641,16 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     @media (prefers-reduced-motion: reduce) {
         &__cta { transition: none; }
         &__cta-wait { animation: none; }
+    }
+}
+
+/* The commit's one breath (`[data-composer-armed]`) — the ready plate fills with mint and its ring thickens, then both
+   return. INSIDE the row's box: the commit row stands in a scroll area whose viewport clips anything outside it, so a
+   halo breath was invisible on the play composer (measured on the T14 stand — the swell painted, clipped away). */
+@keyframes con-commit-armed {
+    42% {
+        box-shadow: inset 0 0 0 .16rem @con-mint, 0 0 1.2rem fade(@con-mint, 34%);
+        background: fade(@con-mint, 17%);
     }
 }
 

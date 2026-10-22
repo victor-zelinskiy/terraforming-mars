@@ -1087,9 +1087,10 @@ test.describe('parliament v4 · one execution point, two doors · the Reds in fu
     expect(await pressUntil(page, 'Enter', async () => await pact(page, 'scientists').count() > 0, {tries: 3, settleMs: 1200})).toBeTruthy();
     await settle(page, {timeoutMs: 8_000});
     expect((await crumbText(page)).toUpperCase()).toContain('ПАРЛАМЕНТ');
-    // One kind held — the variant is seeded, the cursor opens on the card (RX37's form); one press picks the card.
-    await press(page, 'Enter', 500);
+    // One kind held and ONE holder (Tardigrades) — nothing to decide (T14 · CC): the variant and the card are seeded, the
+    // card marked, the cursor on the commit row; ONE press commits.
     await expect(page.locator('.con-pact__opts .con-vchoice__opt--selected, .con-pact__card--picked')).toHaveCount(2);
+    await expect(page.locator('[data-pact-cta].con-pact__cta--focus'), 'the cursor stands on the commit').toHaveCount(1);
     await shoot(page, preset, '42-scientists-from-parliament');
     await press(page, 'Enter', 900);
     await expect.poll(async () => (await seatOf(request, playerId)).seat.tableau.find((c) => c.name === 'Tardigrades')?.resources ?? -1, {timeout: 20_000}).toBe(2);

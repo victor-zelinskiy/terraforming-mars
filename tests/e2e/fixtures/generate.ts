@@ -205,6 +205,9 @@ import {CaretakerContract} from '../../../src/server/cards/base/CaretakerContrac
 import {HabitatScience} from '../../../src/server/cards/turmoilRedux/HabitatScience';
 import {JovianLanterns} from '../../../src/server/cards/colonies/JovianLanterns';
 import {AtmoCollectors} from '../../../src/server/cards/colonies/AtmoCollectors';
+import {FloaterPrototypes} from '../../../src/server/cards/colonies/FloaterPrototypes';
+import {ImportedNutrients} from '../../../src/server/cards/promo/ImportedNutrients';
+import {HeatTrappers} from '../../../src/server/cards/base/HeatTrappers';
 import {AsteroidRights} from '../../../src/server/cards/promo/AsteroidRights';
 import {PublicPlans} from '../../../src/server/cards/promo/PublicPlans';
 import {AsteroidMiningConsortium} from '../../../src/server/cards/base/AsteroidMiningConsortium';
@@ -8183,3 +8186,60 @@ function prometheanAllianceFixture(name: string, at: 'journey' | 'enact'): void 
 }
 prometheanAllianceFixture('promethean-alliance', 'journey');
 prometheanAllianceFixture('promethean-alliance-enact', 'enact');
+
+// ── T14 · SUPPORTED RESEARCH — «draw 2 cards», the Scientists ruling (their quiet law enacted), T14 MOVED out of the
+//    dealt pool into blue's hand (never copied), 20 M€. The play asks NOTHING: its composer opens ready, so it is the
+//    stand's «nothing to ask» cell of the pre-select iteration (ledger CC — the commit ARRIVES, the opening press is
+//    absorbed as the arrival, the next one plays). ──
+parliamentFixture('supported-research', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.SCIENTISTS));
+    moveToDeckTop(game, CardName.SUPPORTED_RESEARCH);
+    p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+  },
+  expect: ({game, p1, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.SUPPORTED_RESEARCH);
+    if (card === undefined || !p1.canPlay(card) || parliament.rulingParty() !== PartyName.SCIENTISTS || game.activePlayer.id !== p1.id) {
+      throw new Error(`the supported-research fixture expected T14 playable with the Scientists ruling and blue on the move — got card=${card !== undefined} ruling=${parliament.rulingParty()}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── preselect-sole: THE PRE-SELECT STAND (T14 · ledger CC — «ОДИН КУРСОР ПОСЛЕ ОТВЕТА · ПРИБЫТИЕ НА КОММИТ ·
+//    ЕДИНСТВЕННАЯ ЦЕЛЬ»). One base table, every cell of the matrix in blue's hand / tableau:
+//      · Aerial Mappers (ONE floater) is the ONLY floater holder on the table — Floater Prototypes («2 floaters to ANY
+//        card») has exactly one target (a), and the Mappers' own action «add 1 floater to ANY card» targets the hero
+//        itself (d — the self-target);
+//      · Tardigrades + Decomposers are TWO microbe holders — Imported Nutrients («4 microbes to ANY card») is a real
+//        choice (b);
+//      · Asteroid's «remove up to 3 plants from any player» — red holds 5 plants, blue none: one target beside the
+//        DECLINE, an optional choice that is never seeded (c);
+//      · Heat Trappers' «decrease ANY heat production 2 steps» — red produces 3 heat, blue none: ONE player target (f);
+//      · Artificial Photosynthesis — «+1 plant production OR +2 energy production»: a variant with nothing after it (h);
+//    60 M€, CALM corporations (Teractor · Thorgate). The cards are pushed into the tableau / hand, so no expansion gate
+//    is exercised (the variant-tiles precedent). ──
+{
+  const [game, p1, p2] = testGame(2, {skipInitialCardSelection: false, customCorporationsList: [CardName.TERACTOR, CardName.THORGATE], startingCorporations: 1});
+  answerStartFlow(game, [p1, p2]);
+  const mappers = new AerialMappers();
+  mappers.resourceCount = 1;
+  p1.playedCards.push(mappers, new Tardigrades(), new Decomposers());
+  const stand = [new FloaterPrototypes(), new ImportedNutrients(), new Asteroid(), new HeatTrappers(), new ArtificialPhotosynthesis()];
+  p1.cardsInHand.push(...stand);
+  p1.megaCredits = 60;
+  p1.plants = 0;
+  p1.heat = 0;
+  p2.production.add(Resource.HEAT, 3);
+  p2.plants = 5;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  const unplayable = stand.filter((c) => !p1.canPlay(c)).map((c) => c.name);
+  if (unplayable.length > 0 || !mappers.canAct(p1) || game.activePlayer.id !== p1.id) {
+    throw new Error(`the preselect-sole fixture expected the five stand cards playable and Aerial Mappers' action open on blue's turn — unplayable: ${unplayable.join(', ')}; mappers=${mappers.canAct(p1)}`);
+  }
+  write('preselect-sole', game);
+}

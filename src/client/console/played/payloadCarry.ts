@@ -89,9 +89,12 @@ export function armPayloadReturn(step: Element | null | undefined): Rect | undef
 /**
  * PLAY THE RETURN — one level back of the same phrase: the selected tile's print flies home from the header's rect, and
  * the review's other groups surface from inside (the group holding the carried print stands — it is the destination).
+ * `onDone` — the phrase's end (or at once when nothing plays): the review STANDS, the cursor may arrive (T14 · CC — the
+ * commit row an answer lands on breathes only once it is there to be seen).
  */
-export function playPayloadReturn(scope: HTMLElement | undefined, from: Rect | undefined): void {
+export function playPayloadReturn(scope: HTMLElement | undefined, from: Rect | undefined, onDone: () => void = () => undefined): void {
   if (scope === undefined || from === undefined || consoleReducedMotionActive()) {
+    onDone();
     return;
   }
   const ink = scope.querySelector<HTMLElement>('.con-vchoice__shared [data-vchoice-print] .con-vchoice__ink') ??
@@ -103,17 +106,19 @@ export function playPayloadReturn(scope: HTMLElement | undefined, from: Rect | u
   if (ink === null || flip === undefined) {
     // Nothing to carry home: the review still RETURNS — its groups surface from inside (never one frame, PL-473).
     if (all.length > 0) {
-      guardedDescend(scope, REVEAL_MS, () => undefined, (finish) => {
+      guardedDescend(scope, REVEAL_MS, onDone, (finish) => {
         const tl = gsap.timeline({onComplete: finish, onInterrupt: finish});
         descendCascade(tl, all, motionMs(REVEAL_MS) / 1000, 0);
         return tl;
       });
+    } else {
+      onDone();
     }
     return;
   }
   const home = ink.closest<HTMLElement>('[data-unfold-item]');
   const groups = all.filter((el) => el !== home && !el.contains(ink));
-  guardedDescend(ink, CARRY_MS, () => undefined, (finish) => {
+  guardedDescend(ink, CARRY_MS, onDone, (finish) => {
     const tl = gsap.timeline({onComplete: finish, onInterrupt: () => {
       gsap.set(ink, {clearProps: 'transform,transformOrigin'});
       finish();

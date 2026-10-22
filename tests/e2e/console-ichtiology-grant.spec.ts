@@ -83,12 +83,26 @@ async function openPlayComposerOf(page: Page, card: string): Promise<void> {
 }
 
 /** The «ИЛИ» group: the option tiles, which are greyed, which is chosen. */
-async function variants(page: Page): Promise<Array<{text: string, off: boolean, selected: boolean}>> {
+async function variants(page: Page): Promise<Array<{text: string, off: boolean, selected: boolean, focused: boolean}>> {
   return page.locator(`${PLAY_COMPOSER} .con-composer__variants .con-vchoice__opt`).evaluateAll((els) => els.map((el) => ({
     text: (el.textContent ?? '').replace(/\s+/g, ' ').trim(),
     off: el.classList.contains('con-vchoice__opt--off'),
     selected: el.classList.contains('con-vchoice__opt--selected'),
+    focused: el.classList.contains('con-vchoice__opt--focused'),
   })));
+}
+
+/**
+ * Choose the option at `index` with ONE A on it: steer the cursor onto it first (← / → wrap in a row), then press once.
+ * A on a variant is an answer — the ONE cursor rule then leaves the group for the next question (T14 · CC), so a
+ * blind «← + A» loop would land its second A wherever the first answer sent the cursor.
+ */
+async function chooseVariant(page: Page, index: number): Promise<void> {
+  for (let i = 0; i < 4 && !(await variants(page))[index]?.focused; i++) {
+    await press(page, 'ArrowLeft', 300);
+  }
+  expect((await variants(page))[index]?.focused, `the cursor stands on option ${index}`).toBe(true);
+  await press(page, 'Enter', 700);
 }
 
 /** Open the embedded target step (the CTA check inside the loop — A on the CTA would PLAY). */
@@ -98,7 +112,8 @@ async function openTargetStep(page: Page): Promise<void> {
     if (await page.locator(`${PLAY_COMPOSER} .con-composer__cta--focused`).count() > 0) {
       await press(page, 'ArrowUp', 700);
     }
-    // A CHOICE IS A PRESS: A on an option selects it and the cursor STAYS there — the target row is one step down.
+    // A cursor still on the options (a walk back up): the target row is one step down. (After A on an option the ONE
+    // cursor rule has already left the group — T14 · CC.)
     if (await page.locator(`${PLAY_COMPOSER} .con-vchoice__opt--focused`).count() > 0) {
       await press(page, 'ArrowDown', 700);
     }
@@ -185,13 +200,13 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, 'a-01-composer');
 
       // The ANIMAL option (the first) — chosen with A on it.
-      for (let i = 0; i < 4 && !(await variants(page))[0].selected; i++) {
-        await press(page, 'ArrowLeft', 300);
-        await press(page, 'Enter', 700);
-      }
+      await chooseVariant(page, 0);
       expect((await variants(page))[0].selected, 'the animal option is chosen').toBe(true);
-      // The rail names the question still open in its row's own words — never «Выберите вариант» over a chosen variant.
-      await expect(page.locator(`${PLAY_COMPOSER} .con-composer__cta`), 'the rail asks for the receiving card').toContainText('Выберите карту-получатель');
+      // The animal option's ONE holder (Pets) is SEEDED — answered, shown and marked (T14 · CC «ЕДИНСТВЕННАЯ ЦЕЛЬ»):
+      // nothing is left to ask, so the rail is the play and the cursor stands on it; A on the row still opens the step.
+      await expect(page.locator(`${PLAY_COMPOSER} [data-composer-target-row][data-seeded="sole"] [data-composer-card="Pets"]`),
+        'the sole animal holder is the seeded answer').toHaveCount(1);
+      await expect(page.locator(`${PLAY_COMPOSER} .con-composer__cta--ready`), 'the rail is the play').toContainText('Разыграть карту');
       await openTargetStep(page);
       expect((await crumbText(page)).toLowerCase(), 'the crumb names the card the step belongs to').toContain(CARD_RU.toLowerCase());
       // PL-170: the focused card's ring never stands on its owner's name, and a lone group stands in the middle of its room.

@@ -284,11 +284,13 @@ for (const preset of PRESETS) {
       await expect(universityRow, 'the discard is owed again').toHaveAttribute('data-tq-state', 'plain');
       await declineHandReaction(page, 'Mars University');
 
-      // The card's own choice: the data option → Supercomputer.
+      // The card's own choice: the data option → Supercomputer — the table's ONLY data holder, so the target is SEEDED
+      // with it (T14 · CC «ЕДИНСТВЕННАЯ ЦЕЛЬ»): answered, shown and marked, and the cursor arrives on the commit.
       await focusTile(page, 1);
       await press(page, 'Enter', 700);
-      await openTargetStep(page);
-      await pickTarget(page, 'Supercomputer');
+      await expect(page.locator(`${PLAY} [data-composer-target-row][data-seeded="sole"] [data-composer-card="Supercomputer"]`),
+        'the sole data holder is the seeded answer').toHaveCount(1);
+      await expect(page.locator(`${PLAY} .con-composer__cta--focused`), 'nothing left to ask — the commit').toHaveCount(1);
       // The table's answers are the PLAY's: choosing a variant after them keeps both answers AND their words.
       await expect(page.locator(`${PLAY} .con-composer__row--reaction .con-composer__row-empty`), 'no answered question reads «choose» again').toHaveCount(0);
       await shoot(page, preset.id, 'b-03-answered');

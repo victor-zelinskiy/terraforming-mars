@@ -102,14 +102,31 @@ describe('ConsolePartyActionComposer — «a resource onto one of your cards», 
     expect(w.find('.con-pact__uses').text()).to.match(/2\D+2/);
   });
 
-  it('ONE kind held is SEEDED — the cursor opens on the target row; the CARD is still the player\'s press', async () => {
-    const w = mountLaw(menu(lawPrompt([branch('mech', 1, [MECHS])])));
+  it('ONE kind held is SEEDED — with TWO holders the cursor opens on the target row and the CARD is the player\'s press', async () => {
+    const w = mountLaw(menu(lawPrompt([branch('mech', 1, [MECHS, FLEET])])));
     await w.vm.$nextTick();
     expect(w.findAll('[data-pact-opt]')).to.have.length(1);
     expect(w.find('[data-pact-row="0"]').classes(), 'the only kind is answered').to.include('con-pact__row--answered');
     expect(w.find('[data-pact-row="1"]').classes(), 'the cursor waits on the card').to.include('con-pact__row--focus');
-    expect(w.find('.con-pact__card--picked').exists(), 'no card is chosen for the player').to.be.false;
+    expect(w.find('.con-pact__card--picked').exists(), 'two holders: no card is chosen for the player').to.be.false;
+    expect(w.find('[data-pact-row="1"]').attributes('data-seeded')).to.be.undefined;
     expect(w.find('[data-pact-cta]').attributes('data-pact-ready')).to.be.undefined;
+  });
+
+  /**
+   * ONE KIND, ONE HOLDER — NOTHING TO DECIDE (T14 · ledger CC, `soleCandidateOf`): the card is SEEDED too, shown picked
+   * and MARKED («единственная цель»), and the cursor ARRIVES on the commit (the ONE cursor rule); one press commits.
+   */
+  it('ONE kind and ONE holder: both SEEDED — the card shown picked and marked, the cursor on the commit', async () => {
+    const w = mountLaw(menu(lawPrompt([branch('mech', 1, [MECHS])])));
+    await w.vm.$nextTick();
+    expect(w.find('[data-pact-row="0"]').classes()).to.include('con-pact__row--answered');
+    expect(w.find('[data-pact-row="1"]').classes(), 'the card is answered').to.include('con-pact__row--answered');
+    expect(w.find('[data-pact-row="1"]').attributes('data-seeded'), 'by the composer — the sole holder').to.eq('sole');
+    expect(w.find(`.con-pact__card--picked[data-pact-card="${CardName.CONSTRUCTION_MECHS}"]`).exists()).to.be.true;
+    expect(w.find('.con-pact__card--picked [data-seeded-mark]').exists(), 'the quiet mark under the card').to.be.true;
+    expect(w.find('[data-pact-cta]').classes(), 'nothing left to ask: the cursor stands on the commit').to.include('con-pact__cta--focus');
+    expect(w.find('[data-pact-cta]').attributes('data-pact-ready'), 'ready').to.not.be.undefined;
   });
 
   it('THE COMMIT: the Scientists\' answer inside the law\'s menu branch, and a RAIL half onto the chosen card (PL-427)', async () => {

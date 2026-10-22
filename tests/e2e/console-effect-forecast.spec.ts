@@ -409,7 +409,8 @@ for (const preset of PRESETS) {
       await shoot(page, preset, '7-or-reactions');
 
       // ── 6b. THE RADIOGROUP MOVES BY ITS GEOMETRY: side by side, → switches
-      // the option, A selects it, ↓ leaves to the commit rail, ↑ returns to
+      // the option, A selects it — an answer, so the ONE cursor rule lands the
+      // cursor on the commit rail (T14 · CC: nothing else to ask), ↑ returns to
       // the SAME option; the bar says «◄► Вариант» while the cursor is in. ──
       await expect(page.locator('.con-composer--play .con-composer__variants')).toHaveAttribute('data-variant-axis', 'row');
       expect(await focusedVariant(page), 'the cursor opens on the first option').toBe(0);
@@ -419,9 +420,8 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-vchoice__opt--selected'), 'moving the cursor selects nothing').toHaveCount(0);
       await press(page, 'Enter', 700);
       await expect(page.locator('.con-composer--play .con-composer__variants .con-vchoice__opt').nth(1)).toHaveClass(/con-vchoice__opt--selected/);
-      expect(await focusedVariant(page), 'A selects and does not move the cursor').toBe(1);
-      await press(page, 'ArrowDown', 500);
-      await expect(page.locator('.con-composer__cta--focused'), '↓ leaves the group for the commit rail').toHaveCount(1);
+      // A selects — and the cursor steps onto the commit rail by the ONE rule (nothing else to ask): no ↓ needed.
+      await expect(page.locator('.con-composer__cta--focused'), 'the variant answered: the cursor arrives on the commit rail').toHaveCount(1);
       expect(await focusedVariant(page)).toBe(-1);
       await expect(page.locator('.con-cmdbar')).not.toContainText(/вариант/i);
       await press(page, 'ArrowUp', 500);

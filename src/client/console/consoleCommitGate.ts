@@ -164,6 +164,93 @@ export function commitFocusVerb(gate: CommitGate, onCommitRow: boolean): string 
   return onCommitRow ? 'Confirm action' : undefined;
 }
 
+/*
+ * THE ONE CURSOR RULE AFTER AN ANSWER (T14 «ОДИН КУРСОР ПОСЛЕ ОТВЕТА», ledger CC — `docs/claude/console/
+ * composer-preselect.md`).
+ *
+ * THE DEFECT IT REMOVES. Three composers had three landing rules: the play composer walked to the first open row and
+ * then the commit — except after a VARIANT, where the cursor stayed on the tile; the action composer re-seated the
+ * cursor only on open and in four hand-written `focusIdx = ctaIndex` branches, so closing any of its seven sub-pickers
+ * left the cursor on the row just answered; the Parliament's party composer counted its own `cursorRow`. «Smart focus
+ * works in some cases» was exactly that: the same question («where does the cursor go now?») answered three ways.
+ *
+ * So the answer is ONE function, asked from ONE point in every composer — after EVERY answer (a pick from a list, the
+ * album, the table or a player; a variant; «Далее» on a dial; the payment's «Готово»; a decline; a B back from a
+ * sub-picker that carries an answer), on open, after a refetch of the same shape and when a target goes stale:
+ *
+ *   1. the row that HOLDS the commit (`incomplete` / `stale` → its blocking requirement) — a QUESTION;
+ *   2. else the next question that was OFFERED and may wait (the play composer's table question deferrable behind a
+ *      draw — it holds nothing up, but it IS the next question, so the cursor visits it once before the commit);
+ *   3. else the COMMIT row — `ready`: the next press plays the move, so the arrival is the ARMED one; `blocked`: the
+ *      row that says why (nothing else on the screen does — the payment shortfall's fix is opened from there).
+ *
+ * `submitting` → `undefined`: the cursor is frozen while the press is in flight. The host never writes
+ * `focusIdx = ctaIndex` by hand again — the guard of that is the absence of the assignment (`composerCursorRule.spec`).
+ */
+
+/** Why the cursor stands where the rule put it — the arrival paints from this. */
+export type CursorLanding =
+  /** A requirement holds the commit: the cursor goes to it (its own verb on the bar). */
+  | {kind: 'question', index: number}
+  /** Nothing holds the commit, but a question that may wait was offered and not yet visited. */
+  | {kind: 'offered', index: number}
+  /** Nothing is left to ask and the commit RUNS: the next press plays the move — the commit row ARRIVES armed. */
+  | {kind: 'commit', index: number}
+  /** Nothing is left to ask, but the commit cannot run (`blocked`): the commit row, which names why — never armed. */
+  | {kind: 'held', index: number};
+
+/**
+ * Where the cursor goes after an answer (and on open). `offered` is the host's index of a deferrable question it has
+ * not visited yet (-1 / undefined = none) — consulted only when nothing holds the commit.
+ */
+export function nextCursorAfterAnswer(gate: CommitGate, commitIndex: number, offered?: number): CursorLanding | undefined {
+  switch (gate.kind) {
+  case 'incomplete':
+  case 'stale':
+    return {kind: 'question', index: gate.blocking.index};
+  case 'submitting':
+    return undefined;
+  case 'ready':
+  case 'blocked':
+    if (offered !== undefined && offered >= 0) {
+      return {kind: 'offered', index: offered};
+    }
+    return {kind: gate.kind === 'ready' ? 'commit' : 'held', index: commitIndex};
+  }
+}
+
+/**
+ * THE COMMIT ARRIVES — and a press in its arrival window is the arrival, never the move (decision 4 of the T14 prompt).
+ *
+ * The cursor that lands on the commit row BECAUSE the last question was answered (or because the screen opened with
+ * nothing to ask) makes the next press a move — so the player must SEE the landing before the press counts: an A that
+ * comes before the commit's pose is PAINTED (the arrival window — the ring's one clock plus a frame), or, on an open
+ * whose every answer was seeded, inside the decision family's first settle (`SETTLE_FIRST_MS` — the A that opened the
+ * composer must never be the A that plays the card), is ABSORBED. Pure: the host owns the clock and the paint signal.
+ */
+export type CommitArrival = {
+  /** When the cursor landed on the commit row by the rule (ms, the host's clock). */
+  at: number;
+  /** When the commit's pose became paintable (`undefined` while a surface's arrival gate still holds it). */
+  paintedAt: number | undefined;
+  /** An absolute floor for the window (an open with everything seeded: the decision's first settle). */
+  settleUntil: number;
+};
+
+/** The arrival window past the paint: the ring's own clock (`CURSOR_MS`, 180) and a frame. */
+export const COMMIT_ARRIVAL_ABSORB_MS = 200;
+
+/** Is a deciding press on the commit row, at `now`, still the ARRIVAL (absorbed) rather than the move? */
+export function commitPressAbsorbed(arrival: CommitArrival | undefined, now: number): boolean {
+  if (arrival === undefined) {
+    return false;
+  }
+  if (now < arrival.settleUntil) {
+    return true;
+  }
+  return arrival.paintedAt === undefined || now < arrival.paintedAt + COMMIT_ARRIVAL_ABSORB_MS;
+}
+
 /**
  * Does a submit attempt have to be REDIRECTED rather than run?
  *

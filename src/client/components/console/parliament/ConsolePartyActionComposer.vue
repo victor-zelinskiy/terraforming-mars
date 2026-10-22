@@ -251,7 +251,8 @@
               </ConsoleVariantChoice>
             </div>
             <div class="con-pact__row" data-unfold-item data-pact-row="1"
-                 :class="{'con-pact__row--focus': cursorRow === 1, 'con-pact__row--answered': picks[1] !== undefined, 'con-pact__row--open': picks[1] === undefined}">
+                 :class="{'con-pact__row--focus': cursorRow === 1, 'con-pact__row--answered': picks[1] !== undefined, 'con-pact__row--open': picks[1] === undefined}"
+                 :data-seeded="seededTarget && picks[1] !== undefined ? 'sole' : undefined">
               <span class="con-pact__row-head">
                 <span class="con-pact__row-mark" aria-hidden="true">{{ picks[1] !== undefined ? '✓' : '2' }}</span>
                 <span class="con-pact__row-kicker">{{ $t('Target card') }}</span>
@@ -272,6 +273,8 @@
                     <b>{{ target.from }} → {{ target.to }}</b>
                     <em v-if="target.vp !== undefined">{{ $t('VP') }} {{ target.vp.from }} → {{ target.vp.to }}</em>
                   </span>
+                  <!-- THE SOLE HOLDER'S MARK (T14 · CC): the composer answered the row — one card holds the resource. -->
+                  <span v-if="seededTarget && picks[1] === i" class="con-composer__sole" data-seeded-mark :data-hint="$t('No other targets')">{{ $t('The only target') }}</span>
                 </button>
                 <span v-if="resourceTargets.length === 0" class="con-pact__none">{{ $t('Choose the resource first') }}</span>
               </div>
@@ -414,6 +417,8 @@
                data-pact-cta
                data-unfold-item
                :data-pact-ready="complete && !submitting ? '' : undefined"
+               :data-composer-armed="commitArrival.armed && cursorRow === ctaRow ? '' : undefined"
+               @animationend="onCommitBreathEnd"
                @click="commit()">
             <GamepadGlyph control="confirm" class="con-pact__cta-glyph" />
             <span class="con-pact__cta-label">{{ $t(submitting ? 'Performing…' : ctaLabel) }}</span>
@@ -503,6 +508,8 @@ import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import ConsoleVariantChoice from '@/client/components/console/foundation/ConsoleVariantChoice.vue';
 import {heroOfEffect, paletteOf, VariantChoiceOption} from '@/client/console/variantChoiceModel';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import {computeCommitGate, commitAcceptsCursor, CommitGate, nextCursorAfterAnswer} from '@/client/console/consoleCommitGate';
+import {arriveAtCommit, commitArrivalAbsorbs, createCommitArrival, endCommitBreath, leaveCommit} from '@/client/console/commitArrival';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
@@ -656,6 +663,10 @@ export default defineComponent({
       cursor: [0, 0] as Array<number>,
       /** Per-row PICK (undefined = unanswered). */
       picks: [undefined, undefined] as Array<number | undefined>,
+      /** The target row was SEEDED with its sole holder (T14 · CC — one card holds the resource: shown, marked). */
+      seededTarget: false,
+      /** THE COMMIT ARRIVES (T14 · CC, `commitArrival.ts`) — the arrival the ONE cursor rule makes on the commit row. */
+      commitArrival: createCommitArrival('party composer'),
       /** The law's repeat, as the SHARED pick bridge resolved it (the chosen
        *  action + its composed pre-selects). Undefined = the slot is empty. */
       repeatResult: undefined as ConsoleRepeatPickResult | undefined,
@@ -1131,6 +1142,17 @@ export default defineComponent({
         }
       };
     },
+    /**
+     * THE PARTY COMPOSER'S COMMIT GATE (T14 · CC) — its decision rows in cursor order, the commit row last: what the
+     * ONE cursor rule (`nextCursorAfterAnswer`) and the navigation's commit stop read, as in the other two composers.
+     */
+    pactGate(): CommitGate {
+      const requirements = [];
+      for (let row = 0; row < this.ctaRow; row++) {
+        requirements.push({index: row, verb: 'Select', satisfied: this.rowAnswered(row)});
+      }
+      return computeCommitGate({requirements, submitting: this.submitting});
+    },
     complete(): boolean {
       if (this.entry === undefined) {
         return false;
@@ -1238,6 +1260,12 @@ export default defineComponent({
     },
   },
   watch: {
+    /** The cursor left the commit row: its arrival (and the window it opened) is over. */
+    cursorRow(now: number) {
+      if (now !== this.ctaRow) {
+        leaveCommit(this.commitArrival);
+      }
+    },
     commands: {
       immediate: true,
       deep: true,
@@ -1452,18 +1480,19 @@ export default defineComponent({
         this.playResult = kept;
       }
     }
-    // A one-row action (the Reds' confirm) opens ON its commit row; a
-    // configurable one opens on its first decision.
-    this.cursorRow = this.decisionRows === 0 ? this.ctaRow : (this.playResult !== undefined ? this.ctaRow : 0);
     // THE LAW'S FIRST STEP IS THE PICK: the real hand stands up as a step of
     // this stage the moment the stage is on screen.
     this.seedSingleBranch();
+    // The ONE cursor rule (T14 · CC): a one-row action (the Reds' confirm) and a form whose every answer is seeded open
+    // ON the commit — an arrival, the opening press never the commit; anything else opens on its first open question.
+    this.landCursor({opening: true});
     if (this.kind === 'resolution' && this.repeatPrompt === undefined && this.confirmPrompt === undefined && !this.resourceForm && !this.billStanding &&
         !this.outcomeOn && !this.saleLive && !this.livePlayStanding && !this.playForm) {
       void this.$nextTick(() => this.openResolutionPick([]));
     }
   },
   beforeUnmount() {
+    leaveCommit(this.commitArrival);
     this.clearBeatDelay();
     this.abortBeatFlight();
     this.commitHandle?.kill();
@@ -1548,6 +1577,10 @@ export default defineComponent({
       switch (consoleActionOf(intent)) {
       case 'primary':
         if (this.cursorRow >= this.ctaRow) {
+          // THE COMMIT ARRIVES (T14 · CC): a press inside its arrival window is the arrival, never the commit.
+          if (commitArrivalAbsorbs(this.commitArrival)) {
+            return;
+          }
           this.commit();
         } else if (this.rowOpensPick(this.cursorRow)) {
           if (this.playForm) {
@@ -1575,7 +1608,9 @@ export default defineComponent({
         return;
       }
       if (dir === 'down') {
-        this.cursorRow = Math.min(this.ctaRow, this.cursorRow + 1);
+        // The commit row is no stop while a decision is still open (the composers' law — `commitAcceptsCursor`).
+        const max = commitAcceptsCursor(this.pactGate) ? this.ctaRow : Math.max(0, this.ctaRow - 1);
+        this.cursorRow = Math.min(max, this.cursorRow + 1);
         return;
       }
       if (this.cursorRow >= this.ctaRow) {
@@ -1596,17 +1631,50 @@ export default defineComponent({
     },
     /**
      * ONE KIND, NO DECISION ON THE KIND — the «РЕСУРС» row's only variant is seeded (the variant law: a selection is
-     * seeded only where there is no decision) and the cursor opens on the target row; the CARD is always the player's
-     * own press, even with a single holder.
+     * seeded only where there is no decision); and ONE HOLDER, NO DECISION ON THE CARD (T14 · CC) — the target row is
+     * seeded with it, shown and marked («единственная цель»). A on the row still walks its one card.
      */
     seedSingleBranch(): void {
       if (!this.resourceForm || this.resourceBranches.length !== 1 || this.picks[0] !== undefined || this.resourceSnapshot !== undefined) {
+        this.seedSoleTarget();
         return;
       }
       this.picks[0] = 0;
       this.cursor[0] = 0;
-      if (this.cursorRow === 0) {
-        this.cursorRow = 1;
+      this.seedSoleTarget();
+    },
+    /** The chosen kind's holders are ONE card: the target is seeded with it (never over an answer given). */
+    seedSoleTarget(): void {
+      if (!this.resourceForm || this.picks[0] === undefined || this.picks[1] !== undefined || this.resourceSnapshot !== undefined) {
+        return;
+      }
+      if (this.resourceTargets.length === 1) {
+        this.picks[1] = 0;
+        this.cursor[1] = 0;
+        this.seededTarget = true;
+      }
+    },
+    /**
+     * LAND THE CURSOR by the ONE rule (`nextCursorAfterAnswer`, T14 · CC) — the first open decision row, else the
+     * commit row; a commit that can run is an ARRIVAL (`commitArrival.ts`), the opening press never the commit.
+     */
+    landCursor(opts: {opening?: boolean} = {}): void {
+      const landing = nextCursorAfterAnswer(this.pactGate, this.ctaRow);
+      if (landing === undefined) {
+        return;
+      }
+      const from = this.cursorRow;
+      this.cursorRow = landing.index;
+      if (landing.kind !== 'commit' || !this.complete) {
+        leaveCommit(this.commitArrival);
+      } else if (opts.opening === true || from !== landing.index || this.commitArrival.arrival === undefined) {
+        arriveAtCommit(this.commitArrival, () => this.$refs.rootEl as HTMLElement | undefined, {opening: opts.opening === true});
+      }
+    },
+    /** The commit row's one breath ended (its own `animationend`). */
+    onCommitBreathEnd(e: AnimationEvent): void {
+      if (e.animationName === 'con-pact-commit-armed') {
+        endCommitBreath(this.commitArrival);
       }
     },
     /** A on an option: PICK it (idempotent) and step to the next unanswered row. */
@@ -1618,17 +1686,14 @@ export default defineComponent({
       if (this.resourceForm && row === 0 && this.picks[0] !== index) {
         this.picks[1] = undefined;
         this.cursor[1] = 0;
+        this.seededTarget = false;
       }
       this.picks[row] = index;
-      // Advance to the next unanswered row — the commit row when every
-      // decision is made. Never a commit: that is the player's own press.
-      for (let next = row + 1; next < this.ctaRow; next++) {
-        if (this.picks[next] === undefined) {
-          this.cursorRow = next;
-          return;
-        }
-      }
-      this.cursorRow = this.ctaRow;
+      // A new kind with ONE holder: its card is the answer (T14 · CC).
+      this.seedSoleTarget();
+      // The ONE cursor rule: the next open decision, else the commit row — an arrival. Never a commit: that is the
+      // player's own press.
+      this.landCursor();
     },
     /**
      * THE RESULT CATEGORY + the reward specs of the commit beat — from the
@@ -1686,6 +1751,7 @@ export default defineComponent({
       if (this.submitting || !this.complete || this.outcomeOn) {
         return;
       }
+      leaveCommit(this.commitArrival);
       const response = this.response();
       if (response === undefined) {
         this.$emit('cancel');
@@ -1811,11 +1877,13 @@ export default defineComponent({
         gsap.killTweensOf(surface);
         gsap.set(surface, {clearProps: 'opacity,visibility'});
       }
-      this.cursorRow = this.playResult !== undefined ? this.ctaRow : 0;
+      this.landCursor();
     },
     /** A decision row is answered: a pick made — or, for a law's SLOT (a repeat, a play), the slot filled. */
     rowAnswered(row: number): boolean {
-      if (this.kind === 'resolution' && row === 0) {
+      // A law's SLOT row (a repeat, a play) is answered by its bridge; a law's «resource onto a card» rows by their picks
+      // (RX37 — the Scientists' own form: the slot reading left its kind row «open» for the cursor rule, T14 · CC).
+      if (this.rowOpensPick(row)) {
         return this.repeatResult !== undefined || this.playResult !== undefined;
       }
       return this.picks[row] !== undefined;
@@ -1871,8 +1939,8 @@ export default defineComponent({
         this.playResult = result;
         // Kept OUTSIDE the stage too: a staged cell yields the stage away and a park remounts it — the slot comes back.
         rememberLawPlay(id, result);
-        // Land on the CTA — the slot is filled, the play is ready to commit.
-        this.cursorRow = this.ctaRow;
+        // The slot is filled: the ONE cursor rule lands the cursor (the commit, an arrival).
+        this.landCursor();
       });
     },
     /**
@@ -1907,8 +1975,8 @@ export default defineComponent({
         prior: prior === undefined ? undefined : {chosenCard: prior.chosenCard, nodeIndex: prior.nodeIndex},
       }, (result) => {
         this.repeatResult = result;
-        // Land on the CTA — the slot is filled, the action is ready to perform.
-        this.cursorRow = this.ctaRow;
+        // The slot is filled: the ONE cursor rule lands the cursor (the commit, an arrival).
+        this.landCursor();
       });
     },
     // ── THE LAW'S SELECTION — the real hand as a step of this stage ──

@@ -466,11 +466,9 @@ for (const preset of PRESETS) {
 
       // ── TR29: the fighter from itself, variant B, the target step over seven holders. ──
       await openVariant(page, RECYCLING, 0);
-      await walkComposer(page, async () => /Выберите карту-источник/.test(await focusedRow(page)), 'the source row');
-      await press(page, 'Enter', 500);
-      await expect(page.locator('.con-ptsel'), 'the source step').toBeVisible();
-      await press(page, 'Enter', 500);
-      await expect(page.locator('.con-ptsel'), 'the source answered').toHaveCount(0);
+      // The fighter's SOURCE is the card itself — its only holder: SEEDED (T14 · CC «ЕДИНСТВЕННАЯ ЦЕЛЬ»), the handle row,
+      // never a question with one answer.
+      await expect(page.locator(`${ACTION_COMPOSER} [data-composer-target-row][data-seeded="sole"]`), 'the source is seeded').toHaveCount(1);
       const branchAt = () => page.evaluate(() => Number(document.querySelector('.con-composer__branches .con-vchoice__opt--focused')?.getAttribute('data-branch-pos') ?? -1));
       await walkComposer(page, async () => (await branchAt()) === 1, 'variant B');
       await press(page, 'Enter', 400);

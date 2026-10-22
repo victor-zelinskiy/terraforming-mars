@@ -2,7 +2,10 @@ import {expect} from 'chai';
 import {
   computeCommitGate, commitAllowed, commitAcceptsCursor, commitCursorTarget,
   commitFocusVerb, commitRedirectTarget, CommitRequirement,
+  nextCursorAfterAnswer, commitPressAbsorbed, COMMIT_ARRIVAL_ABSORB_MS,
 } from '@/client/console/consoleCommitGate';
+import {CURSOR_MS} from '@/client/components/motion/motionTokens';
+import {SETTLE_FIRST_MS} from '@/client/console/promptSequence';
 import {focusCommandRun} from '@/client/console/consoleActionFlow';
 
 const req = (over: Partial<CommitRequirement> = {}): CommitRequirement =>
@@ -138,6 +141,88 @@ describe('consoleCommitGate — one answer to «may this be confirmed yet»', ()
         submitting: false,
       });
       expect(commitCursorTarget(reblocked, 4)).to.eq(1);
+    });
+  });
+
+  /**
+   * THE ONE CURSOR RULE AFTER AN ANSWER (T14, ledger CC): every composer asks THIS after every answer — the row that
+   * holds the commit, else a question offered and not yet visited, else the commit row (armed when it runs, «held» when
+   * it cannot and the row is what says why). One table, so the three composers cannot answer it three ways again.
+   */
+  describe('nextCursorAfterAnswer — one landing rule for every composer', () => {
+    const ready = computeCommitGate({requirements: [req({index: 0, satisfied: true})], submitting: false});
+    const incomplete = computeCommitGate({requirements: [req({index: 0, satisfied: true}), req({index: 2})], submitting: false});
+    const stale = computeCommitGate({requirements: [req({index: 1, satisfied: false, stale: true})], submitting: false});
+    const blocked = computeCommitGate({requirements: [], submitting: false, unavailable: 'Not enough M€'});
+    const submitting = computeCommitGate({requirements: [], submitting: true});
+
+    it('a requirement still open: the cursor goes to it — a QUESTION', () => {
+      expect(nextCursorAfterAnswer(incomplete, 9)).to.deep.eq({kind: 'question', index: 2});
+    });
+
+    it('a target gone stale: the cursor goes to the row that lost its answer — a QUESTION', () => {
+      expect(nextCursorAfterAnswer(stale, 9)).to.deep.eq({kind: 'question', index: 1});
+    });
+
+    it('a requirement outranks an offered question (an offer never holds the commit; a requirement does)', () => {
+      expect(nextCursorAfterAnswer(incomplete, 9, 5)).to.deep.eq({kind: 'question', index: 2});
+    });
+
+    it('nothing holds the commit but a deferrable question was offered: it is visited first — OFFERED', () => {
+      expect(nextCursorAfterAnswer(ready, 9, 5)).to.deep.eq({kind: 'offered', index: 5});
+      expect(nextCursorAfterAnswer(ready, 9, -1), '-1 is «none»').to.deep.eq({kind: 'commit', index: 9});
+    });
+
+    it('nothing left to ask and the commit runs: the commit row — COMMIT (the armed arrival)', () => {
+      expect(nextCursorAfterAnswer(ready, 9)).to.deep.eq({kind: 'commit', index: 9});
+      expect(nextCursorAfterAnswer(computeCommitGate({requirements: [], submitting: false}), 0)).to.deep.eq({kind: 'commit', index: 0});
+    });
+
+    it('nothing left to ask but the commit cannot run: the commit row that names why — HELD, never armed', () => {
+      expect(nextCursorAfterAnswer(blocked, 9)).to.deep.eq({kind: 'held', index: 9});
+    });
+
+    it('a press in flight: the cursor is frozen (undefined — leave it alone)', () => {
+      expect(nextCursorAfterAnswer(submitting, 9, 5)).to.eq(undefined);
+    });
+
+    it('agrees with the gate everywhere they overlap (commitCursorTarget is the open-time half of the same rule)', () => {
+      for (const gate of [ready, incomplete, stale]) {
+        expect(nextCursorAfterAnswer(gate, 9)?.index).to.eq(commitCursorTarget(gate, 9));
+      }
+    });
+  });
+
+  /**
+   * THE COMMIT ARRIVES — a press inside its arrival window is the arrival, never the move (decision 4): before the pose
+   * is painted, within the ring's clock and a frame after it, and — on an open whose every answer was seeded — inside
+   * the decision family's first settle.
+   */
+  describe('commitPressAbsorbed — the inertia gate of the commit arrival', () => {
+    it('the window is the cursor clock and a frame', () => {
+      expect(COMMIT_ARRIVAL_ABSORB_MS).to.be.gte(CURSOR_MS);
+      expect(COMMIT_ARRIVAL_ABSORB_MS).to.be.lte(CURSOR_MS + 34);
+    });
+
+    it('no arrival recorded (the player WALKED onto the commit row): nothing is absorbed', () => {
+      expect(commitPressAbsorbed(undefined, 1000)).to.eq(false);
+    });
+
+    it('a press before the pose is painted is absorbed — however late', () => {
+      expect(commitPressAbsorbed({at: 0, paintedAt: undefined, settleUntil: 0}, 5000)).to.eq(true);
+    });
+
+    it('a press inside the window after the paint is absorbed; the next one after it is the move', () => {
+      const arrival = {at: 100, paintedAt: 120, settleUntil: 0};
+      expect(commitPressAbsorbed(arrival, 120)).to.eq(true);
+      expect(commitPressAbsorbed(arrival, 120 + COMMIT_ARRIVAL_ABSORB_MS - 1)).to.eq(true);
+      expect(commitPressAbsorbed(arrival, 120 + COMMIT_ARRIVAL_ABSORB_MS)).to.eq(false);
+    });
+
+    it('an open with everything seeded: the decision settle is a floor under the window', () => {
+      const arrival = {at: 0, paintedAt: 0, settleUntil: SETTLE_FIRST_MS};
+      expect(commitPressAbsorbed(arrival, COMMIT_ARRIVAL_ABSORB_MS + 10), 'past the ring, still inside the settle').to.eq(true);
+      expect(commitPressAbsorbed(arrival, SETTLE_FIRST_MS)).to.eq(false);
     });
   });
 
