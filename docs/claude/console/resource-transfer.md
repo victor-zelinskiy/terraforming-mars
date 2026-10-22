@@ -241,8 +241,11 @@ keeps its birth layer to the end.
 **The turn** (`transferTurnDue`, on the arc's `onUpdate`, at most once — never back): `up` the moment the token's box is
 no longer wholly under the cover (it surfaces at the edge of the glass, before any part could slide under the lit rail), at
 the final approach at the latest (a lit destination INSIDE the opening — the satellite — is landed on, not under); `down`
-once the box is wholly under the cover, at the touchdown at the latest. A surfacing token ramps from the shade's paint
-(`TRANSFER_HANDOVER_FROM` .3) to 1 in `TRANSFER_HANDOVER_MS` (120 × motion) — never a flash from the glass to the rail.
+once the box is wholly under the cover, at the touchdown at the latest. A surfacing token ramps from what the dim over the
+board lets through RIGHT NOW (`boardPaintThrough` — the shade's fade × its dim, the start scene's room while it stands;
+floored at `TRANSFER_HANDOVER_FROM` .3) to 1 in `TRANSFER_HANDOVER_MS` (120 × motion) — never a flash from the glass to the
+rail; with nothing dimming the board (the start yielded to the field, the shade off) it simply changes layer — the own
+storyboard caught a constant .3 ramp as a bright → dim → bright blink there.
 
 **The handover moves the SAME element.** `ConsoleResourceTransferLayer` renders both layers `fixed; inset: 0` (one
 coordinate space) and wraps the token in `<Teleport defer to="[data-transfer-under]" :disabled>` — the director only says

@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {mount} from '@vue/test-utils';
 import {nextTick} from 'vue';
 import ConsoleResourceTransferLayer from '@/client/components/console/resourceTransfer/ConsoleResourceTransferLayer.vue';
-import {measureTransferCover, resourceTransferState, tokenPaintedUnder} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {boardPaintThrough, measureTransferCover, resourceTransferState, tokenPaintedUnder} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {globalConfig} from '../components/getLocalVue';
 
 /*
@@ -108,6 +108,54 @@ describe('the two paints of a flight — the DOM half (T12 / CA)', () => {
     it('the endgame scene: everything is cover', () => {
       root.classList.add('con-root--endgame', 'con-root--ws-open');
       expect(measureTransferCover()).deep.eq({rects: [], everything: true});
+    });
+  });
+
+  describe('boardPaintThrough — what the dim over the board lets through (the surfacing ramp starts there)', () => {
+    let root: HTMLElement;
+    let shade: HTMLElement;
+
+    beforeEach(() => {
+      root = document.createElement('div');
+      root.className = 'con-root';
+      shade = document.createElement('div');
+      shade.className = 'con-shade';
+      root.appendChild(shade);
+      document.body.appendChild(root);
+    });
+
+    afterEach(() => {
+      root.remove();
+    });
+
+    it('nothing dims the board (the shade faded out, the start yielded): the whole paint — the surfacing is a plain change of layer', () => {
+      shade.style.opacity = '0';
+      const start = document.createElement('div');
+      start.className = 'con-start con-start--yielded';
+      const bg = document.createElement('div');
+      bg.className = 'con-start__bg';
+      start.appendChild(bg);
+      root.appendChild(start);
+      expect(boardPaintThrough()).eq(1);
+    });
+
+    it('the shade on: what its dim lets through, floored — the ramp starts from the glass', () => {
+      shade.style.opacity = '1';
+      expect(boardPaintThrough()).closeTo(0.3, 1e-9);
+      shade.style.opacity = '0.28';
+      expect(boardPaintThrough()).closeTo(1 - 0.28 * 0.74, 1e-9);
+    });
+
+    it('the room of the start scene while it stands (its own dim, .8 of it)', () => {
+      shade.style.opacity = '0';
+      const start = document.createElement('div');
+      start.className = 'con-start con-start--bounded';
+      const bg = document.createElement('div');
+      bg.className = 'con-start__bg';
+      bg.style.opacity = '0.8';
+      start.appendChild(bg);
+      root.appendChild(start);
+      expect(boardPaintThrough()).closeTo(1 - 0.8 * 0.74, 1e-9);
     });
   });
 

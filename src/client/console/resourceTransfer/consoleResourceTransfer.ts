@@ -43,7 +43,7 @@ import {
   ResourceTransferSpec, TransferCover, TransferEnd, TransferEndLike, TransferPoint, TransferRect,
   transferFlightBudgetMs, transferWaveDelayMs, sourceSpawnPoint, cardResourceKey, isTransferEnd, transferEndOf, transferEndPoint,
   TRANSFER_BEAT_MS, TRANSFER_DETACH_WAIT_MS, clampTransferPace, RATING_RAIL_KEY, VP_RAIL_KEY, isVpTransfer, transferLaunchFor,
-  transferSignedAmount, NO_TRANSFER_COVER, transferPaintPlan,
+  transferSignedAmount, NO_TRANSFER_COVER, transferPaintPlan, TRANSFER_HANDOVER_FROM,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   TransferFlightPaint, TransferFlightReport, TransferStagePiece, runDetachedTransferFlight, runTransferFlight, settleTransferChip, killTransferPiece,
@@ -1234,7 +1234,47 @@ function paintOf(e: {spec: ResourceTransferSpec, toRef: EndRef}, birthBox: Trans
     destinationBox: destinationOnBoard ? endBoxOf(e.toRef, birthBox, e.spec) : undefined,
     cover,
   });
-  return {plan, cover};
+  return {plan, cover, through: boardPaintThrough};
+}
+
+/** The dim the band family paints over the board (`.con-backdrop-dim()` — its inner stop, raised on the TV through the var). */
+const BOARD_DIM_DEFAULT = 0.74;
+
+/**
+ * HOW MUCH OF A TOKEN'S PAINT THE DIM OVER THE BOARD LETS THROUGH, right now: the shared shade (its fade × its dim) and
+ * the start scene's own room (while it stands — a yielded start paints nothing). 1 when nothing dims the board — a token
+ * under the shaded twin then looks exactly as it will in the lit layer, and its surfacing is a plain change of layer;
+ * floored at `TRANSFER_HANDOVER_FROM` (an opaque band over the token is the floor's case — it surfaces from the glass).
+ */
+export function boardPaintThrough(): number {
+  if (typeof document === 'undefined') {
+    return 1;
+  }
+  let through = 1;
+  const dimOf = (el: Element | null, alpha: (cs: CSSStyleDeclaration) => number): void => {
+    if (el === null) {
+      return;
+    }
+    const cs = getComputedStyle(el);
+    if (cs.visibility === 'hidden' || cs.display === 'none') {
+      return;
+    }
+    let opacity = 1;
+    for (let n: Element | null = el; n !== null; n = n.parentElement) {
+      const op = Number(getComputedStyle(n).opacity);
+      if (!Number.isNaN(op)) {
+        opacity *= op;
+      }
+    }
+    through *= 1 - Math.min(1, Math.max(0, opacity * alpha(cs)));
+  };
+  const dimAlpha = (cs: CSSStyleDeclaration) => {
+    const v = Number.parseFloat(cs.getPropertyValue('--con-dim-a'));
+    return Number.isFinite(v) && v > 0 ? v : BOARD_DIM_DEFAULT;
+  };
+  dimOf(document.querySelector('.con-shade'), dimAlpha);
+  dimOf(document.querySelector('.con-start:not(.con-start--yielded) .con-start__bg'), dimAlpha);
+  return Math.max(TRANSFER_HANDOVER_FROM, Math.min(1, through));
 }
 
 /**

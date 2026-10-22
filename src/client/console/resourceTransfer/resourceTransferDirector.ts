@@ -37,8 +37,15 @@ export type TransferStagePiece = {
   setLayer?: (part: 'chip' | 'end', layer: TransferPaintLayer) => void,
 };
 
-/** What a token's paint is, asked once in its birth frame (`opts.paint`): its plan and the cover it was planned against. */
-export type TransferFlightPaint = {plan: TransferPaintPlan, cover: TransferCover};
+/**
+ * What a token's paint is, asked once in its birth frame (`opts.paint`): its plan, the cover it was planned against,
+ * and — asked at the handover — how much of the token's paint the dim over the board lets through RIGHT NOW (1 — nothing
+ * dims the board: the surfacing needs no ramp; the shade on — about .3).
+ */
+export type TransferFlightPaint = {plan: TransferPaintPlan, cover: TransferCover, through?: () => number};
+
+/** Below this the surfacing ramps from the dim's paint; at or above it the token simply changes layer (no visible step). */
+const SURFACING_RAMP_BELOW = 0.95;
 
 /** The three moments the paint sentinel asks «is the token the topmost thing painted here?». */
 export type TransferPaintMoment = 'birth' | 'approach' | 'touchdown';
@@ -281,8 +288,11 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
     layer = paint.plan.end;
     report.handover = {turn: paint.plan.turn, q: Math.round(q * 100) / 100};
     piece.setLayer?.('chip', layer);
-    if (paint.plan.turn === 'up') {
-      gsap.fromTo(chip, {opacity: TRANSFER_HANDOVER_FROM}, {opacity: 1, duration: motionMs(TRANSFER_HANDOVER_MS) / 1000, ease: 'power1.out'});
+    // Surfacing out of a DIM ramps from what that dim let through — never a flash; with nothing dimming the board (the
+    // start scene yielded to the field, the shade off) the token was already at full paint and only changes layer.
+    const from = paint.plan.turn === 'up' ? (paint.through?.() ?? TRANSFER_HANDOVER_FROM) : 1;
+    if (from < SURFACING_RAMP_BELOW) {
+      gsap.fromTo(chip, {opacity: from}, {opacity: 1, duration: motionMs(TRANSFER_HANDOVER_MS) / 1000, ease: 'power1.out'});
     }
   };
   /** THE PAINT SENTINEL: after the layer's move has landed (a microtask — the stage moves the element in its own flush). */
