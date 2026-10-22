@@ -31,7 +31,6 @@ type Preset = {id: string, viewport: {width: number, height: number}, profileQue
 /** The three supported display profiles — the same trio the Information
  *  workspace suite sweeps (couch 1080 / TV 4K / Steam Deck). */
 const PRESETS: ReadonlyArray<Preset> = [
-  {id: 'standard-1080', viewport: {width: 1920, height: 1080}, profileQuery: '&consoleProfile=auto'},
   {id: 'tv-4k', viewport: {width: 3840, height: 2160}, profileQuery: '&consoleProfile=tv'},
   {id: 'deck-handheld', viewport: {width: 1280, height: 800}, profileQuery: '&consoleProfile=handheld'},
 ];

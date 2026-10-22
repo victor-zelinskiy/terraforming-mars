@@ -39,7 +39,6 @@ type Preset = {
 };
 
 const PRESETS: ReadonlyArray<Preset> = [
-  {id: 'standard-1080', viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1, profileQuery: '&consoleProfile=auto'},
   {id: 'tv-4k', viewport: {width: 3840, height: 2160}, deviceScaleFactor: 1, profileQuery: '&consoleProfile=tv'},
   {id: 'deck-handheld', viewport: {width: 1280, height: 800}, deviceScaleFactor: 1, profileQuery: '&consoleProfile=handheld'},
 ];
@@ -446,7 +445,7 @@ for (const preset of PRESETS) {
       // hands it back UNTOUCHED — same frame, same focused row, nothing
       // committed, cancelled or replayed (the info panel never enters the
       // workspace stack; the snapshot restores the transient cursors). ──
-      if (preset.id === 'standard-1080') {
+      if (preset.id === 'tv-4k') {
         await key(page, 'Comma', 1100); // LT wheel
         await key(page, 'Enter', 1400); // → «Стандартные проекты»
         await page.waitForSelector('.con-stdp', {timeout: 15_000});
@@ -469,7 +468,7 @@ for (const preset of PRESETS) {
       }
 
       // ── 11 · Reduced motion: the mode still switches cleanly ────────
-      if (preset.id === 'standard-1080') {
+      if (preset.id === 'tv-4k') {
         await page.emulateMedia({reducedMotion: 'reduce'});
         await key(page, 'KeyY', 700);
         await expect(page.locator('.con-info')).toHaveCount(1);

@@ -188,7 +188,6 @@ async function armTakeProbe(page: Page, name: string): Promise<void> {
 const readTakeProbe = (page: Page) => page.evaluate(() => (window as unknown as {__take: TakeProbe}).__take);
 
 const PRESETS = [
-  {id: 'standard-1080', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv-4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
   {id: 'deck-handheld', viewport: {width: 1280, height: 800}, query: '&consoleProfile=handheld'},
 ] as const;

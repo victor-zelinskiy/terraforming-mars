@@ -263,3 +263,30 @@ worker-scaling curve FIRST** (phase 0.2) — the 28-spec sample at 2 workers was
   in-progress file, not on the harness).
   **The owner's goal restated 2026-10-22: the fastest suite AND 100 % green on the Steam Machine — the old specs
   get updated, «гоняем и правим пока не будет полного покрытия», then the owner runs CI.**
+- 2026-10-22 (afternoon) — **the box on the production engine and the first full functional baseline.**
+  The Steam Machine ran Node 22 / npm 10, which refuses every lock npm 11 writes («Missing: webpack@5.112.0»),
+  so the 1.64.1 bump never reached it: `~/tm-e2e/node` → `node-24/` (24.20.0, the laptop's), and an install now
+  takes the WHOLE box (`e435691cde` — a lock mismatch makes the run exclusive; `npm ci` rebuilds the shared
+  `node_modules`). The per-task sources layout validated (canary 5.6 s), its legacy `tests` link removed BEFORE
+  the compare (`d9163632f5` — the first baseline found «No tests found»). Workers measured: 4 = load 3–12 of 12
+  threads at 62–74 °C, clean; 4 + 4 = load 23, CPU 98 % — past the knee, the second shard stopped.
+  **The baseline (337 functional specs, 1037 tests, 4 workers, one retry) as the worklist, each red classified
+  and fixed the same afternoon:**
+  | class | specs | what |
+  | --- | --- | --- |
+  | PRODUCT | bonus-action-handoff | «Фора»'s auto-resolve flew from a shelf still fading in → `98b5eda965` (the wave waits for a VISIBLE source) |
+  | PRODUCT | parliament-actions, parliament-v2 | a card-actions workspace folds before a production-M€ token's birth (the T09 fold sentinel) — handed to a sub-investigation |
+  | DRIVER | arboretum, aquatic, canyon, red-museum, re-settlement | a raw confirm inside the 280 ms lock dwell → `confirmLockedPlacement` (`382f70f874`) |
+  | DRIVER | campaigns-list | a press that navigates threw in the quiet wait → tolerant (`b986accfdd`) |
+  | DRIVER | gamepad-first-press, gamepad-reload-carryover | the harness's pad stub was read-only → `writable: true` (`3e2079731d`) |
+  | DRIVER | parliament-aquifer / -biodome / -cloud | the walk home did not answer TR61's research buy → RT in `waitForBoardHome` (`c1fc0cbd89`) |
+  | SPEC (read too late) | fringe-colony, notification-source, parliament-ban | an assertion on a surface that legitimately left (a receipt's one read, a card's TTL, the walk's next page) → read in the same sample |
+  | SPEC (sub-pixel) | payment-panel | Chromium 156 re-rounds the same layout by 0.2 px → whole pixels |
+  | TIMING (→ `timingSpecs.ts`) | delta-card-advance, expedition-mechs, ichtiology-grant, habitat-science, overclocked-equipment, ma-states, parliament-colonial / -reds-budget / -research / -sitting-v4 / -marsfirst-budget / -renewal / -urban, planet-focus | each red at ×0.5 and green with only `TM_E2E_MOTION=1` (or the full timing configuration) — durations, flight witnesses, storyboards |
+  | FLAKY (to repeat) | colony-venus-cells | a 300 s timeout once, green on the retry |
+  **Live start → API** (phase 2's biggest single lever, measured in this baseline): the 17 MarsBot corporation
+  specs 62.0 → 9.3 s per test (`d664ce5754`), five more 48–71 → 8–14 s (`264178e2cc`). The specs that keep the
+  UI walk photograph or assert the opening itself (start-*, firstact, tv-profile-screens).
+  Next: the baseline's tail, the TIMING pass `--exclusive --workers=1` (38 + 16 specs), the second profile pass
+  (46 files name their 1080 row `standard-1080` — the shared `PARLIAMENT_PRESETS` stays: the geometry guards
+  of the Parliament are profile sweeps by contract), the sleep pass ranked by the full ledger.

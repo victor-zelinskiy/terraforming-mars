@@ -31,7 +31,6 @@ const FLOATERS = 'Titan Shuttles';
 const STAGE = '.con-pact--resolution';
 
 const PRESETS = [
-  {id: 'standard-1080', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 

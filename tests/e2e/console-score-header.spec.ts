@@ -21,7 +21,6 @@ type Preset = {
 };
 
 const PRESETS: ReadonlyArray<Preset> = [
-  {id: 'standard-1080', viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1, profileQuery: '&consoleProfile=auto'},
   {id: 'tv-4k', viewport: {width: 3840, height: 2160}, deviceScaleFactor: 1, profileQuery: ''},
   {id: 'deck-handheld', viewport: {width: 1280, height: 800}, deviceScaleFactor: 1, profileQuery: ''},
   {id: 'compact-720', viewport: {width: 1280, height: 720}, deviceScaleFactor: 1, profileQuery: ''},
@@ -105,7 +104,7 @@ for (const preset of PRESETS) {
       // Live score delta chip (1080 only): the Asteroid standard project
       // raises TR by 1 — the cap's TR cell must fire the existing score chip.
       // Evidence-only (bounded, no assertions — the chip is transient).
-      if (preset.id === 'standard-1080') {
+      if (preset.id === 'tv-4k') {
         await key(page, 'Comma', 1000);        // LT wheel
         await key(page, 'Enter', 1400);        // centre slot = Standard Projects
         await key(page, 'ArrowDown', 400);

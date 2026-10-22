@@ -22,7 +22,6 @@ import {NO_PAYMENT, bootFixtureSeats, commitFocusedSpace, fetchPlayerModel, plac
  */
 const OUT_ROOT = path.resolve('screenshots', 'tile-language');
 const PRESETS = [
-  {id: 'standard-1080', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'},
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
 ] as const;
 

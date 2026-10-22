@@ -40,20 +40,47 @@ const KEEP = new Set([
   'console-card-lore-measure.spec.ts',
   'console-terraformed-scene.spec.ts',
   'console-finale-podium.spec.ts',
+  // The Parliament's geometry / fit guards are profile sweeps by contract (`.claude/rules/console-ui.md` § THE
+  // PARLIAMENT SITTING: «the government's geometry on three profiles», «1080 + 4K», «the acceptance of every
+  // parliament surface») — they keep every profile whatever the 1080 row is called.
+  'console-parliament-vote-fit.spec.ts',
+  'console-parliament-vote-geometry.spec.ts',
+  'console-parliament-zone-v5-regression.spec.ts',
+  'console-parliament-gallery.spec.ts',
+  'console-resolution-face.spec.ts',
+  'console-parliament-reds-plaque.spec.ts',
+  'console-parliament-stability.spec.ts',
+  // FIT SWEEPS — the spec's own claim is «zero scroll / fits on every profile» (the effect forecast's law 4, the
+  // explorers' probed scale ladder, the Parliament's own fit guards).
+  'console-parliament.spec.ts',
+  'console-parliament-v2.spec.ts',
+  'console-parliament-sitting.spec.ts',
+  'console-effect-forecast.spec.ts',
+  'console-effects-explorer.spec.ts',
+  'console-extras-explorer.spec.ts',
+  'console-score-explorer.spec.ts',
 ]);
+// The 1080 row's id(s): `--ids fhd,standard-1080` (default `fhd` — the first pass); the TV row is `tv4k` or `tv-4k`
+// (the second pass, 2026-10-22: 87 files still ran a 1080 profile, 21 % of the suite, most of it named
+// `standard-1080`).
+const idsArg = process.argv.find((a, i) => process.argv[i - 1] === '--ids');
+const FHD_IDS = (idsArg ?? 'fhd').split(',').map((x) => x.trim()).filter(Boolean);
+const ALT = FHD_IDS.map((x) => x.replace(/[-]/g, '\\-')).join('|');
+const NAMED = new RegExp(`'(?:${ALT})'`);
 // The «once» shapes that move to the TV profile.
-const ONCE_GATE = /((?:preset|profile|p)\.(?:id|tag|name) (?:===|!==) )'fhd'/g;
-const ONCE_SHOT = /(shoot\(page, )'fhd'(,)/g;
-// One-line fhd entry of a PROFILES / PRESETS table: `{id|tag|name: 'fhd', …},` on its own line.
-const FHD_LINE = /^[ \t]*\{(?:id|tag|name): 'fhd'[^\n]*\},?[ \t]*\r?\n/m;
-const TV_LINE = /^[ \t]*\{(?:id|tag|name): 'tv4k'/m;
+const ONCE_GATE = new RegExp(`((?:preset|profile|p)\\.(?:id|tag|name) (?:===|!==) )'(?:${ALT})'`, 'g');
+const ONCE_SHOT = new RegExp(`(shoot\\(page, )'(?:${ALT})'(,)`, 'g');
+// One-line 1080 entry of a PROFILES / PRESETS table: `{id|tag|name: '<id>', …},` on its own line.
+const FHD_LINE = new RegExp(`^[ \\t]*\\{(?:id|tag|name): '(?:${ALT})'[^\\n]*\\},?[ \\t]*\\r?\\n`, 'm');
+const TV_LINE = /^[ \t]*\{(?:id|tag|name): '(tv4k|tv-4k)'/m;
 
 let changed = 0;
 const skipped = [];
 for (const name of fs.readdirSync(E2E).filter((f) => f.endsWith('.spec.ts')).sort()) {
   const file = path.join(E2E, name);
   const src = fs.readFileSync(file, 'utf8');
-  if (!TV_LINE.test(src) || !/'fhd'/.test(src)) {
+  const tv = TV_LINE.exec(src);
+  if (tv === null || !NAMED.test(src)) {
     continue;
   }
   if (timing.has(name)) {
@@ -76,9 +103,9 @@ for (const name of fs.readdirSync(E2E).filter((f) => f.endsWith('.spec.ts')).sor
   let rest = src.replace(m[0], '');
   let moved = 0;
   rest = rest
-    .replace(ONCE_GATE, (_, head) => (moved += 1, `${head}'tv4k'`))
-    .replace(ONCE_SHOT, (_, head, tail) => (moved += 1, `${head}'tv4k'${tail}`));
-  if (/'fhd'/.test(rest)) {
+    .replace(ONCE_GATE, (_, head) => (moved += 1, `${head}'${tv[1]}'`))
+    .replace(ONCE_SHOT, (_, head, tail) => (moved += 1, `${head}'${tv[1]}'${tail}`));
+  if (NAMED.test(rest)) {
     skipped.push(`${name} — names 'fhd' in another shape (hand-check)`);
     continue;
   }
