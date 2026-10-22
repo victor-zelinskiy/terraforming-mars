@@ -25,6 +25,8 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   // the full functional baseline on Chromium 156 (2026-10-22, four workers on the Steam Machine)
   'console-delta-card-advance.spec.ts', // «the whole leg must play»: span > 600 ms of the marker's glide — 518–534 ms at ×0.5
   'console-expedition-mechs.spec.ts', // the transfer witness: endsOverGlass at tv4k (the data's token born on its pay row as the composer leaves) — green at ×1
+  'console-ichtiology-grant.spec.ts', // the transfer witness: endsOverGlass at tv4k (the +2 born on the printed animal) — red 2 / 2 at ×0.5, green 3 / 3 at ×1
+  'console-habitat-science.spec.ts', // a DETACHED token's landing on the satellite where it stands — flaky at ×0.5, 3 / 3 at ×1
   // the motion-grammar guards
   'console-smoothness.spec.ts',
   'console-scene-transition.spec.ts',
