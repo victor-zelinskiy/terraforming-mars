@@ -29,6 +29,11 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   'console-habitat-science.spec.ts', // a DETACHED token's landing on the satellite where it stands — flaky at ×0.5, 3 / 3 at ×1
   'console-overclocked-equipment.spec.ts', // the transfer witness: the −3 off the rail and the +1 born on the printed «?» — red 2 / 2 at ×0.5, 5 / 5 at ×1
   'console-parliament-colonial.spec.ts', // «the read beat lasted» ≥ its floor — the ledger's read is motion-scaled; red 2 / 2 at ×0.5, green at ×1
+  'console-parliament-reds-budget.spec.ts', // «the payout's +4 flew» — a flight sampled on the reward page; red 2 / 2 at ×0.5, green at ×1
+  'console-parliament-research.spec.ts', // the walk's stage sampled at the reward page; red 2 / 2 at ×0.5, green at ×1
+  'console-parliament-sitting-v4.spec.ts', // «ПОВЕСТКА is the segment lead plus the shared marker glide» — a duration; green at ×1
+  'console-parliament-marsfirst-budget.spec.ts', // a CDP-screencast storyboard (a frame per beat) and the bot's city scene — load-sensitive at ×0.5 and ×1
+  'console-parliament-renewal.spec.ts', // the renewal's tact sampled object by object (order, plaque release) — flaky beside a loaded box even at ×1: exclusive
   'console-ma-states.spec.ts', // a storyboard of the milestone ceremony: at ×0.5 it has ENDED by the time the 4K «42-committing» frame is taken — green with only TM_E2E_MOTION=1
   // the motion-grammar guards
   'console-smoothness.spec.ts',
