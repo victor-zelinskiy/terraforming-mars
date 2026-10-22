@@ -196,12 +196,69 @@ air (`destination-gone`) with that surface gone or faded under .5 — prints
 Not a degrade the framework absorbs quietly: a host broke the law of §2. Every build; `transferEndsGuard` reads it beside
 «end not painted».
 
+**…and the PAINT sentinel (T12 / CA, §7):** a token in the LIT layer that is not the topmost thing painted at its centre
+— asked at its birth, on its final approach (0.8) and at its touchdown, the token made hit-testable for that one
+`elementsFromPoint` (`tokenPaintedUnder`) — prints `[transfer] token painted under <element> in <surface> at the
+<birth|approach|touchdown> — <spec>`. A token under the shade BY PLAN (born on a covered cell) is not asked. Every build;
+`transferEndsGuard` reads it beside the other two. Its blind spot is the hit test's own — a `pointer-events: none`
+cover (the shade, the satellite, a seat's plaque) is never named; those are the z map's to guard (§7).
+
 ## 5. Degrades and their names
 
 `TransferDegradeReason`: `no-source` (no visible source at the run's start) · `no-destination` (no visible destination,
 not detachable) · `no-stage` (the layer is not mounted) · `stalled` (the wave's safety) · **`source-gone`** (the source
 vanished before the token's birth) · **`destination-gone`** (the destination vanished on the final approach and nothing
 stands in). Every degrade ticks the counter (`onArrive`) — late, never lost.
+
+## 7. Two paints and the handover (T12 / CA — «жетон никогда не красится под поверхностью, на которую садится»)
+
+The owner's report of 2026-10-22: «при размещении на поле от розыгрыша ПРОЛОГА ресурс летит ПОД панель, как будто
+проблема с z-index». It was no z bug: the 09-03 cut demoted a board-sourced wave by its SOURCE for its WHOLE flight
+(`fromBoard` → `con-flight-to-board` on the whole `.con-transfer` layer, 11444) while the rail it lands on stands lifted
+over it under any workspace (`.con-res` 11520) — the token slid under the rail and «the rail counter still ticks at the
+touchdown». And the lit layer itself (11670) stood UNDER the status strip (11706) a rival's intake plaque hangs in. The
+stand (`tests/e2e/console-flight-paint.spec.ts`, the paint witness `tests/e2e/paintWitness.ts`) measured it before the
+fix: the prelude's city — 36–37 samples of each token UNDER `aside.con-res`, the touchdown under the rail's digits (fhd and
+tv4k); a rival's city — 41–42 samples under `.con-status`, the touchdown under `.con-status__intake`.
+
+**One flight, two paints.** A token's two ends live in different paint: a board cell under a standing workspace is the
+shade's (background — the 09-03 alarm about a chip «materializing out of the UI» was about the BIRTH), the rail it lands
+on is lit. So the layer has a SHADED TWIN:
+
+| Layer | z | Holds |
+| --- | --- | --- |
+| `.con-transfer` (lit) | 11715 | over every hull surface in every state — the rail lifted (11520), under the start's ceremony (11490), in Info (11561), the satellite (11470), the status strip and its plaques (11706), the command bar (11700), the dock (11702–11705), the hand's verdict rail (11711); under every scene that takes the screen (the MA ceremony 11720, the notices 11740, the card-deal / stranded layers 11890+) |
+| `.con-transfer--under` (shaded twin) | 11444 | under the shade (11460) and every band surface (11480+) — a board story's token while it is still over the covered board |
+
+**The plan** (`resourceTransferModel.transferPaintPlan`, asked ONCE in the token's birth frame through
+`TransferFlightOpts.paint` — only for a `fromBoard` run): the COVERED AREA is the central opening — the shade's box
+(always mounted, bounded by the four hull members' measured insets) while `con-root--ws-open` stands, the whole screen under
+`con-root--endgame` (`measureTransferCover`). A token whose SOURCE is the board and whose box is wholly under the cover is
+born UNDER; one whose DESTINATION is the board (a loss drawn back into its cell — a rival's plant price, a VP share walked
+back; a card standing in a `con-flight-to-board` layer) lands UNDER; everything else is LIT. Under the endgame a board story
+keeps its birth layer to the end.
+
+**The turn** (`transferTurnDue`, on the arc's `onUpdate`, at most once — never back): `up` the moment the token's box is
+no longer wholly under the cover (it surfaces at the edge of the glass, before any part could slide under the lit rail), at
+the final approach at the latest (a lit destination INSIDE the opening — the satellite — is landed on, not under); `down`
+once the box is wholly under the cover, at the touchdown at the latest. A surfacing token ramps from the shade's paint
+(`TRANSFER_HANDOVER_FROM` .3) to 1 in `TRANSFER_HANDOVER_MS` (120 × motion) — never a flash from the glass to the rail.
+
+**The handover moves the SAME element.** `ConsoleResourceTransferLayer` renders both layers `fixed; inset: 0` (one
+coordinate space) and wraps the token in `<Teleport defer to="[data-transfer-under]" :disabled>` — the director only says
+`piece.setLayer(part, layer)`; Vue moves the node (its transform, its tweens untouched), and a flight that ends leaves from
+whichever layer it stands in (a hand-made `appendChild` leaks the node: Vue removes a fragment by walking its siblings).
+The destination's marks (the contact beat, the receiver's ring) stand in the destination's layer. Every token wears
+`data-transfer-layer="lit|under"`; the trail's `flight:ends` carries `layer: under→lit` and the handover's `q`.
+
+**Static demotion is a declaration.** `con-flight-to-board` stays on the layers whose pieces never leave the board —
+`.con-tileplace`, `.con-nomadmove`, `.con-scaleswing`, and the coins of `.con-scalepay` / `.con-citypay`, which condense on
+the board and hand the crossing to a transfer token at the same point — each with `data-flight-lands="board"` beside it.
+The transfer layer never carries it again.
+
+**What did not change:** the gate of the board's quiet (`boardSourcedTransferActive` — automatic transitions wait for a
+board-sourced wave), the demotion of the layers that land ON the board, the demotion under the finale, the panel reward
+hold (z-blind).
 
 ## 6. Guards
 
@@ -221,8 +278,13 @@ stands in). Every degrade ticks the counter (`onArrive`) — late, never lost.
 | `tests/console/transferSurfaceClear.spec.ts` | the source guard: ends registered before the run's first `await`, left on `launched`, dropped on every way out; the fold sentinel in every build + the harness; no client file folds on `onLeft` without `surfaceClear`; the chain keeps no clock; the shell's fold, the claimed path and H5b; §2c — the party flow's answer asks the commit before it concludes; the play scene; `App.update` seeds |
 | `tests/console/actionCentreLeave.spec.ts` | H6 — the voluntary action centre stands aside while the commit owns the surface; the shell asks the one function |
 | `tests/client/console/actionCommitRail.spec.ts` | § PL-099 / BY — a price with nothing after it: the surface stands while a token still lands on it (the engine, never a clock); H5 — an owed view leaves the plan armed; a never-seeded half ends on the release |
+| `tests/console/transferPaintPlan.spec.ts` | §7's pure half — the plan (the owner's case under → lit; no cover; a lit birth; a cell at the edge; a loss into a covered cell dives; a card in a demoted layer; the endgame) and the turn (the edge, the approach, a dive whole, the touchdown) + the source guards (no `con-flight-to-board` on the transfer layer, the Teleports, the plan in the birth frame, the three sentinel moments, only a board-sourced run) |
+| `tests/client/console/transferLayerHandover.spec.ts` | §7's DOM half — the SAME node moves between the twins with its transform, the end marks follow their own layer, a flight leaves from whichever layer; `measureTransferCover` (none · the opening · the endgame); the paint sentinel names what stands over a token and gives its pointer events back |
+| `tests/console/flightLayerZOrder.spec.ts` | §7's z map off the COMPILED stylesheet: the lit layer over every hull surface in every state and under the screen-taking scenes; the twin under the shade, the bands and the lifted rail; a static demotion only with `data-flight-lands="board"` |
+| e2e `console-flight-paint` (TIMING) | §7's stand: the paint witness on every token of a start prelude's city (the owner's case) and a rival's city — never under the hull, the touchdown on top (fhd + tv4k) |
+| e2e `transferEndsGuard` (every spec) | no token painted under a surface in the lit layer (`[transfer] token painted under`) |
 | e2e `console-action-price-fold` (TIMING) | the BENCH of BY on the owner's table (solo against MarsBot, the bot's turn inside the flight, `?realtime=0`, a slow answer, B in «Выполнение», two actions in a row, Caretaker, T09's play): the price lands on `hero`, the workspace stands at that landing and folds no earlier than the result's birth, no fold sentinel |
 
 Laws: `.claude/rules/console-ui.md` § THE ENDS OF A FLIGHT ARE VISIBLE (… AND LIVE … AND A SURFACE NEVER FOLDS UNDER ITS
-OWN TOKEN), `.claude/rules/animations.md` § Landing rects are RESTING rects. Ledger: sections BW (T06) and BY (T09)
-(`docs/claude/gameplay-polish-ledger.md`).
+OWN TOKEN … AND PAINTED ON TOP OF WHAT THEY LAND ON), `.claude/rules/animations.md` § Landing rects are RESTING rects.
+Ledger: sections BW (T06), BY (T09) and CA (T12) (`docs/claude/gameplay-polish-ledger.md`).
