@@ -40,9 +40,6 @@ import {CardName} from './CardName';
 
 /** ADAPT IN PLACE — project cards + corporations (ordered by how much they touch politics). */
 export const TURMOIL_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
-  // A party requirement and a declarative body — `PartyRequirement` already reads `game.politics`;
-  // the work is the premium scope (preview / information / reasons / lore) and the Redux spec table.
-  CardName.WILDLIFE_DOME, // Greens · a greenery
   // A chairman requirement only — `ChairmanRequirement` reads `game.politics`.
   CardName.PUBLIC_CELEBRATIONS, // 2 VP
   // A political EFFECT that reads the classic engine directly — the adaptation moves it onto the facade.

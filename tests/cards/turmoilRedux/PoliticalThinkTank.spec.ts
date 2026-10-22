@@ -235,15 +235,14 @@ describe('PoliticalThinkTank', () => {
       const base = setPartyRequirementCards();
       expect(base, 'TR15 joined the set').gte(1);
       expect(partyRequirementCardsInGame(game)).eq(base);
-      topCard(game, CardName.WILDLIFE_DOME);
-      expect(actionPreview(player, card).branches[0].reveal?.pool).deep.eq({count: base + 1});
-      // Classic cards a Redux table does NOT deal yet — read from the hold-back list, never a name (T09 dealt PR Office and
-      // T12 Red Tourism Wave, the cards these lines pushed until then: an adapted card is already in the clean pool and
-      // adds nothing).
+      // Classic cards a Redux table does NOT deal yet — read from the hold-back list, never a name (T09 dealt PR Office,
+      // T12 Red Tourism Wave and T15 Wildlife Dome, the cards these lines pushed until then: an adapted card is already
+      // in the clean pool and adds nothing).
       const heldBack = [...TURMOIL_CARDS_HELD_BACK_UNDER_REDUX].map((name) => newProjectCard(name))
-        .filter((c): c is IProjectCard => c !== undefined && hasPartyRequirement(c) &&
-          ![CardName.WILDLIFE_DOME, CardName.SPONSORED_MOHOLE].includes(c.name));
-      expect(heldBack.length, 'two held-back classic cards with a party requirement').gte(2);
+        .filter((c): c is IProjectCard => c !== undefined && hasPartyRequirement(c) && c.name !== CardName.SPONSORED_MOHOLE);
+      expect(heldBack.length, 'three held-back classic cards with a party requirement').gte(3);
+      game.projectDeck.drawPile.push(heldBack[2]);
+      expect(actionPreview(player, card).branches[0].reveal?.pool).deep.eq({count: base + 1});
       opponent.cardsInHand.push(heldBack[0]);
       game.projectDeck.discardPile.push(heldBack[1]);
       opponent.playedCards.push(newProjectCard(CardName.SPONSORED_MOHOLE)!);
