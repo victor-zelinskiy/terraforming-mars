@@ -13,15 +13,34 @@
    `transition: all`; `will-change` scoped to elements that exist only for
    the duration of a flight (the layer is v-if'd on live flights). */
 
+/* THE TWO PAINTS OF A FLIGHT (T12 / CA — «жетон никогда не красится под поверхностью, на которую садится»). One layer
+   and its SHADED TWIN, both `fixed; inset: 0` — one coordinate space, so a token handed between them (the same element,
+   `ConsoleResourceTransferLayer`'s `<Teleport :disabled>`) moves not a pixel:
+
+    · LIT (`.con-transfer`) — the top of the cockpit: over every surface a token can LAND on in every state — the rail
+      lifted under a workspace (`.con-res` 11520), the rail and the strip under the start's ceremony (11490), Info's
+      rail (11561), the satellite (11470), the status strip and a seat's intake plaque (11706 — the plaque is in the
+      strip's stacking context), the command bar (11700), the hand dock (11702–11705), the hand's verdict rail (11711)
+      — and under every scene that takes the screen (the MA ceremony 11720, the notices 11740, the card-deal and
+      stranded layers 11890+). A lit token is the topmost object of its beat: it lands OVER its destination's paint.
+    · UNDER (`.con-transfer--under`) — one step under the shade (11460) and every band surface (11480+): where a token
+      born on a board cell under a standing workspace starts, the board's own background story (the 09-03 alarm — a
+      chip «materializing out of the UI» over the glass), until the director hands it UP where it leaves the covered
+      area; a token drawn INTO a covered cell dives here before it lands. Under the endgame scene a board story stays
+      here to the end (the finale is full-bleed).
+
+   The ladder is guarded (`tests/console/flightLayerZOrder.spec.ts` — lit above every lit destination in every state,
+   the twin under the shade and the bands). The trail column (13000) stands over both. */
 .con-transfer {
     position: fixed;
     inset: 0;
-    /* Above the «Разыграно» table (11400) + the sale terminal (11660) — the
-       travelling reward is the topmost object of its beat; under the command
-       bar (11700). */
-    z-index: 11670;
+    z-index: 11715;
     pointer-events: none;
     contain: layout style;
+
+    &--under {
+        z-index: 11444;
+    }
 
     /* ── the physical chip ───────────────────────────────────────────────
        A resource token, not a UI plate: the real sprite with depth (drop

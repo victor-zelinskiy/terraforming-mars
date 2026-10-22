@@ -132,6 +132,102 @@ export function transferEndMoved(planned: TransferPoint, live: TransferPoint): b
   return Math.hypot(live.x - planned.x, live.y - planned.y) > TRANSFER_RETARGET_EPS;
 }
 
+// ── THE PAINT OF A FLIGHT (T12 / CA — «жетон никогда не красится под поверхностью, на которую садится») ─────────────
+//
+// A token has TWO ends and they live in different paint: a board cell under a standing workspace is the shade's
+// (background — the 09-03 alarm was a chip «materializing out of the UI» over the glass), the rail it lands on is LIT
+// (11520 under `--ws-open` — a chip under it was the owner's «ресурс летит ПОД панель»). One z for the whole flight
+// cannot be right for both, so the layer has a SHADED TWIN (`.con-transfer--under`, under the shade) and the token is
+// HANDED OVER between the two where it crosses the edge of the covered area: the axis is the DESTINATION — a token
+// lands in its destination's paint — and the birth keeps its own.
+
+/** Which of the two twin layers a token paints in. */
+export type TransferPaintLayer = 'lit' | 'under';
+
+/**
+ * THE COVERED AREA — what paints over the board while a workspace stands: the shade's opening and every standing band
+ * surface (`.con-ws`), viewport px, measured once at the token's birth. `everything` — the endgame scene, full-bleed:
+ * the whole screen is cover and a board story stays under it to the end (the 09-03 net under the finale).
+ */
+export type TransferCover = {rects: ReadonlyArray<TransferRect>, everything: boolean};
+
+export const NO_TRANSFER_COVER: TransferCover = {rects: [], everything: false};
+
+function pointCovered(x: number, y: number, cover: TransferCover): boolean {
+  return cover.rects.some((r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
+}
+
+/** Is the whole box under the cover (its four corners — the union of the shade and the bands is a convex-enough shape)? */
+export function boxInsideCover(box: TransferRect, cover: TransferCover): boolean {
+  if (cover.everything) {
+    return true;
+  }
+  return pointCovered(box.x, box.y, cover) && pointCovered(box.x + box.w, box.y, cover) &&
+    pointCovered(box.x, box.y + box.h, cover) && pointCovered(box.x + box.w, box.y + box.h, cover);
+}
+
+/**
+ * The plan of one token's paint: the layer it is BORN in, the layer it must LAND in, and the one way it turns between
+ * them (`up` — out from under the glass into the lit layer; `down` — a token drawn INTO a covered cell dives under it).
+ * A token turns at most once; it never goes back.
+ */
+export type TransferPaintPlan = {birth: TransferPaintLayer, end: TransferPaintLayer, turn: 'up' | 'down' | 'none'};
+
+export type TransferPaintInput = {
+  /** The flight's SOURCE belongs to the board's story (a gain of a board-sourced wave — a cell's printed bonus…). */
+  sourceOnBoard: boolean,
+  /** The flight's DESTINATION belongs to it (a board-sourced LOSS drawn back into its cell, a card standing in a demoted layer). */
+  destinationOnBoard: boolean,
+  /** The token's box at its birth, and its destination's box (both viewport px). */
+  birthBox: TransferRect,
+  destinationBox: TransferRect | undefined,
+  cover: TransferCover,
+};
+
+/**
+ * WHERE A TOKEN PAINTS. A board end under the cover paints UNDER (it is the board's own background story); every
+ * other end paints LIT — the rail, a card's capsule, the satellite, a seat's plaque: a token lands over its
+ * destination's paint, never under it. Under the endgame scene a board-born story keeps its layer to the end (the
+ * finale is full-bleed, the rail is not on screen).
+ */
+export function transferPaintPlan(input: TransferPaintInput): TransferPaintPlan {
+  const {cover} = input;
+  if (!cover.everything && cover.rects.length === 0) {
+    return {birth: 'lit', end: 'lit', turn: 'none'};
+  }
+  const birth: TransferPaintLayer = input.sourceOnBoard && boxInsideCover(input.birthBox, cover) ? 'under' : 'lit';
+  if (cover.everything) {
+    return {birth, end: birth, turn: 'none'};
+  }
+  const end: TransferPaintLayer = input.destinationOnBoard && input.destinationBox !== undefined && boxInsideCover(input.destinationBox, cover) ? 'under' : 'lit';
+  return {birth, end, turn: birth === end ? 'none' : birth === 'under' ? 'up' : 'down'};
+}
+
+/**
+ * IS THE TURN DUE NOW? `up` — the moment the token's box is no longer wholly under the cover (it surfaces at the edge
+ * of the glass, before any part of it could slide under the lit rail), and at the final approach at the latest (a lit
+ * destination standing INSIDE the covered area — the satellite under the rail's edge — is still landed on, not under);
+ * `down` — once the box is wholly under the cover (the token dives under the glass whole, never half over the rail),
+ * and at the touchdown at the latest.
+ */
+export function transferTurnDue(turn: TransferPaintPlan['turn'], box: TransferRect, cover: TransferCover, q: number): boolean {
+  if (turn === 'up') {
+    return q >= TRANSFER_RETARGET_AT || !boxInsideCover(box, cover);
+  }
+  if (turn === 'down') {
+    return q >= 1 || boxInsideCover(box, cover);
+  }
+  return false;
+}
+
+/**
+ * The surfacing's own beat (ms @ motion scale 1): a token handed UP out of the shade arrives at the shade's brightness
+ * and reaches full paint in this ramp — never a flash from the dim glass to the lit rail in one frame.
+ */
+export const TRANSFER_HANDOVER_MS = 120;
+/** The paint a surfacing token starts the ramp at — about what the band's dim lets through (`.con-backdrop-dim()`, 0.74). */
+export const TRANSFER_HANDOVER_FROM = 0.3;
+
 /** Timings (ms @ motion scale 1). One flight reads in ~0.6 s; a wave of
  *  several rewards stays ≈1 s via the capped stagger. */
 export const TRANSFER_POP_MS = 150;

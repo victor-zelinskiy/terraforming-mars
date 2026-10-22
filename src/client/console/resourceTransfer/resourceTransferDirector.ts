@@ -18,9 +18,10 @@
 import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {
-  TransferArcPlan, TransferLaunch, TransferPoint, TransferRect, transferArcPlan, transferArcPoint, transferCeilingFor, transferChipScaleAt, transferEndMoved,
-  transferLiftBias, transferRetargetWeight,
+  TransferArcPlan, TransferCover, TransferLaunch, TransferPaintLayer, TransferPaintPlan, TransferPoint, TransferRect, transferArcPlan, transferArcPoint,
+  transferCeilingFor, transferChipScaleAt, transferEndMoved, transferLiftBias, transferRetargetWeight, transferTurnDue,
   TRANSFER_POP_MS, TRANSFER_ARC_MS, TRANSFER_SETTLE_MS, TRANSFER_BEAT_MS, TRANSFER_QUICK_ABSORB_MS, TRANSFER_RETARGET_AT,
+  TRANSFER_HANDOVER_FROM, TRANSFER_HANDOVER_MS,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 
 export type TransferStagePiece = {
@@ -28,7 +29,19 @@ export type TransferStagePiece = {
   beat: HTMLElement | undefined,
   /** The receiver's ring (T06 — «адресат объявляет себя»): drawn over the destination from the token's birth to its touchdown. */
   expect?: HTMLElement,
+  /**
+   * THE TWO PAINTS (T12 / CA): put the token (`chip`) or its destination's marks (`end` — the contact beat and the
+   * receiver's ring) into the lit layer or its shaded twin. The SAME element moves — its transform, its tweens and its
+   * box are untouched (both layers are `fixed; inset: 0`): a handover is never a jump.
+   */
+  setLayer?: (part: 'chip' | 'end', layer: TransferPaintLayer) => void,
 };
+
+/** What a token's paint is, asked once in its birth frame (`opts.paint`): its plan and the cover it was planned against. */
+export type TransferFlightPaint = {plan: TransferPaintPlan, cover: TransferCover};
+
+/** The three moments the paint sentinel asks «is the token the topmost thing painted here?». */
+export type TransferPaintMoment = 'birth' | 'approach' | 'touchdown';
 
 export type TransferFlightOpts = {
   from: TransferPoint;
@@ -72,6 +85,18 @@ export type TransferFlightOpts = {
    * receiver that announces itself — the seat's intake plaque).
    */
   expectRect?: () => TransferRect | undefined;
+  /**
+   * THE PAINT OF THE TOKEN (T12 / CA): asked in the birth frame with the token's box there — the layer it is born in,
+   * the layer it lands in, the one turn between them (`resourceTransferModel.transferPaintPlan`). Undefined — the lit
+   * layer for the whole flight (a token born on a lit surface).
+   */
+  paint?: (birthBox: TransferRect) => TransferFlightPaint | undefined;
+  /**
+   * THE PAINT SENTINEL (T12 / CA, decision 5): «what is painted over the token here?» — undefined when the token is
+   * the topmost thing at its centre; asked at the birth, on the final approach and at the touchdown, only while the token
+   * is in the LIT layer (under the shade it is the board's background story by plan).
+   */
+  probePaint?: (chip: HTMLElement) => string | undefined;
 };
 
 /** What happened to a flight's two ends — filled as the flight goes (the run's trail and its degradations read it). */
@@ -83,6 +108,13 @@ export type TransferFlightReport = {
   /** Where the chip was born / came to rest (the sentinel asks what was painted there). */
   bornAt?: TransferPoint;
   restAt?: TransferPoint;
+  /** The layer the token was born in and the one it ended in (T12 / CA). */
+  bornLayer?: TransferPaintLayer;
+  layer?: TransferPaintLayer;
+  /** Where the token was handed between the layers (arc progress), when it was. */
+  handover?: {turn: 'up' | 'down', q: number};
+  /** Every moment the sentinel found the token painted UNDER something (in the lit layer) — empty when it never was. */
+  paintedUnder?: Array<{at: TransferPaintMoment, under: string}>;
 };
 
 export type TransferFlightHandles = {
@@ -218,6 +250,57 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
     transferArcPlan(from, opts.to, transferLiftBias(opts.index), transferCeilingFor(from, opts.to, h, opts.uiScale, topRailBottom()), opts.launch);
   let plan = planFrom(opts.from);
   const report: TransferFlightReport = {};
+  // THE PAINT (T12 / CA): planned in the birth frame, turned at most once on the way, asked by the sentinel at three
+  // moments. A token with no plan paints in the lit layer for its whole flight.
+  let paint: TransferFlightPaint | undefined;
+  let layer: TransferPaintLayer = 'lit';
+  let turned = false;
+  let approachAsked = false;
+  /** The token's box at a point of the arc (its transform-origin is its centre). */
+  const boxAt = (at: TransferPoint, q: number): TransferRect => {
+    const s = transferChipScaleAt(q);
+    return {x: at.x - (w * s) / 2, y: at.y - (h * s) / 2, w: w * s, h: h * s};
+  };
+  /** The birth frame plans the paint: the layer the token is born in, the one its destination's marks stand in. */
+  const planPaint = (at: TransferPoint): void => {
+    paint = opts.paint?.(boxAt(at, 0));
+    if (paint === undefined) {
+      return;
+    }
+    layer = paint.plan.birth;
+    report.bornLayer = layer;
+    piece.setLayer?.('chip', layer);
+    piece.setLayer?.('end', paint.plan.end);
+  };
+  /** The one turn: the SAME element moves to the other layer; surfacing out of the shade ramps up from the shade's paint. */
+  const handOver = (q: number): void => {
+    if (paint === undefined || paint.plan.turn === 'none') {
+      return;
+    }
+    turned = true;
+    layer = paint.plan.end;
+    report.handover = {turn: paint.plan.turn, q: Math.round(q * 100) / 100};
+    piece.setLayer?.('chip', layer);
+    if (paint.plan.turn === 'up') {
+      gsap.fromTo(chip, {opacity: TRANSFER_HANDOVER_FROM}, {opacity: 1, duration: motionMs(TRANSFER_HANDOVER_MS) / 1000, ease: 'power1.out'});
+    }
+  };
+  /** THE PAINT SENTINEL: after the layer's move has landed (a microtask — the stage moves the element in its own flush). */
+  const askPaint = (at: TransferPaintMoment): void => {
+    const probe = opts.probePaint;
+    if (probe === undefined) {
+      return;
+    }
+    void Promise.resolve().then(() => {
+      if (layer !== 'lit' || !chip.isConnected) {
+        return;
+      }
+      const under = probe(chip);
+      if (under !== undefined) {
+        (report.paintedUnder ??= []).push({at, under});
+      }
+    });
+  };
   // Where the chip comes to rest — the planned landing, the followed one, a stand-in, or the air where its end vanished.
   let restingAt: TransferPoint = opts.to;
   const startTilt = (opts.index % 2 === 0 ? -1 : 1) * 7;
@@ -244,6 +327,8 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
   let unborn = false;
   const touched = guarded((done) => bornThenFlown(chip, opts.delayMs, () => {
     // (The wave's stagger was the birth's — the flight starts the moment it is called.)
+    // The birth frame has been painted (in its layer) — the sentinel asks what stands over it.
+    askPaint('birth');
     const tl = gsap.timeline({onComplete: () => touchdown(done)});
     // Materialize at the source — the chip is BORN there, never teleported in (its first frame is already painted).
     tl.to(chip, {autoAlpha: 1, duration: popMs / 1000, ease: 'power1.out'}, 0);
@@ -284,12 +369,21 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
         }
         const p = transferArcPoint(plan, prog.q);
         const cw = transferRetargetWeight(prog.q, corr.readAt);
+        const at = {x: p.x + corr.x * cw, y: p.y + corr.y * cw};
         gsap.set(chip, {
-          x: p.x + corr.x * cw - w / 2,
-          y: p.y + corr.y * cw - h / 2,
+          x: at.x - w / 2,
+          y: at.y - h / 2,
           scale: transferChipScaleAt(prog.q),
           rotation: startTilt * (1 - prog.q), // fully square at the landing
         });
+        // THE HANDOVER (T12 / CA): at the edge of the covered area — never one z for both ends of the flight.
+        if (!turned && paint !== undefined && paint.plan.turn !== 'none' && transferTurnDue(paint.plan.turn, boxAt(at, prog.q), paint.cover, prog.q)) {
+          handOver(prog.q);
+        }
+        if (!approachAsked && prog.q >= TRANSFER_RETARGET_AT) {
+          approachAsked = true;
+          askPaint('approach');
+        }
       },
       onComplete: () => {
         restingAt = {x: plan.p1.x + corr.x, y: plan.p1.y + corr.y};
@@ -300,6 +394,7 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
     if (opts.liveFrom === undefined) {
       report.born = 'painted';
       report.bornAt = opts.from;
+      planPaint(opts.from);
       placeExpect(piece, opts.expectRect?.(), opts.uiScale, true);
       return true;
     }
@@ -316,6 +411,7 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
     }
     report.born = 'painted';
     report.bornAt = at;
+    planPaint(at);
     placeExpect(piece, opts.expectRect?.(), opts.uiScale, true);
     return true;
   }), opts.delayMs + popMs + arcMs + settleMs + 200);
@@ -339,6 +435,12 @@ export function runTransferFlight(piece: TransferStagePiece, opts: TransferFligh
    */
   function touchdown(done: () => void): void {
     dropExpect(piece);
+    // A turn still owed lands now at the latest (a dive into a covered cell); the touchdown is then asked about its paint.
+    if (!turned && paint !== undefined && paint.plan.turn !== 'none') {
+      handOver(1);
+    }
+    report.layer = layer;
+    askPaint('touchdown');
     if (report.end === undefined) {
       report.end = 'live';
     }

@@ -22,6 +22,7 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   'console-cursor.spec.ts', // «a face that jumped with no motion» — the cursor grammar's sampler
   'console-parliament-sitting-reward.spec.ts', // «the tick rides the touchdown» — a touchdown/tick window
   'console-plasma-fans.spec.ts', // «the Greens' +2 ticks a beat AFTER the rating» — the gap is `motionMs(90)`, 45 ms at ×0.5 (T09 regression, 2026-10-22: 43 ms vs the spec's 60)
+  'console-flight-paint.spec.ts', // T12 / CA stand: the paint of every token sampled on its whole path (birth · approach · touchdown) against the rail, the strip and the plaques — motion itself
   'console-finale-podium.spec.ts', // T08 «the count arrives as light»: the ignition cascade's stagger, the hurry's share of a natural category, the ranking / crowning FLIPs at the full pace — motion itself
   // the full functional baseline on Chromium 156 (2026-10-22, four workers on the Steam Machine)
   'console-delta-card-advance.spec.ts', // «the whole leg must play»: span > 600 ms of the marker's glide — 518–534 ms at ×0.5

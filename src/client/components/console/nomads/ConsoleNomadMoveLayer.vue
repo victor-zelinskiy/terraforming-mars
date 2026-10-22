@@ -23,7 +23,7 @@
     shade instead of flying bright over the panel the player is reading.
   -->
   <div v-if="nomadMoveState.active || nomadMoveState.remoteActive"
-       class="con-nomadmove con-flight-to-board" aria-hidden="true">
+       class="con-nomadmove con-flight-to-board" data-flight-lands="board" aria-hidden="true">
     <div ref="srcShadow" class="con-nomadmove__shadow"></div>
     <div ref="dstShadow" class="con-nomadmove__shadow"></div>
     <div ref="token" class="con-nomadmove__token">

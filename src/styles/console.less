@@ -2014,27 +2014,40 @@ html.console-native {
        flying on top (the old, merely-cosmetic behaviour) instead of having
        its arrival buried.
 
-       Two layers land on the board outright (`.con-tileplace`,
-       `.con-nomadmove` — the marker is static on their roots). Of the rest,
-       the flights land on the «Разыграно» table (`.con-played-hero`), the
-       footer dock (`.con-handdelivery-layer`), a reveal modal
-       (`.con-deckdraw`, `.con-bonusfly-layer`, `.con-coltrade-layer`), the
-       task host (`.con-deal-layer`), the hand grid
-       (`.con-handreveal-layer`) or their own tray (`.con-discard`,
+       Five layers keep their pieces on the board outright and carry the
+       marker statically, with `data-flight-lands="board"` beside it
+       (`.con-tileplace`, `.con-nomadmove`, `.con-scaleswing`; and the
+       scale-step / city payouts' coins `.con-scalepay` / `.con-citypay`,
+       which condense on the board and HAND their crossing to the transfer
+       chips below). Of the rest, the flights land on the «Разыграно» table
+       (`.con-played-hero`), the footer dock (`.con-handdelivery-layer`), a
+       reveal modal (`.con-deckdraw`, `.con-bonusfly-layer`,
+       `.con-coltrade-layer`), the task host (`.con-deal-layer`), the hand
+       grid (`.con-handreveal-layer`) or their own tray (`.con-discard`,
        `.con-sale-hero`) — every one of those targets stays lit, so demoting
        them broke the arrival outright.
 
-       ONE refinement to the axis: a flight whose SOURCE is the board also
-       demotes, even when it lands on the always-lit rail. A board-cell's
-       printed-bonus wave (`.con-transfer`, `fromBoard` runs only — the
-       layer binds the marker per wave) is the board's own story: its birth
-       point is covered by the panel, so flying bright over the workspace
-       reads as chips materializing out of the UI. Demoted, it plays out as
-       a dimmed background event — the rail counter still ticks at the
-       touchdown (the panel reward hold is z-blind), which is the same
-       treatment the remote tile already gets. A wave born ON a workspace
+       AND A FLIGHT THAT CROSSES FROM THE BOARD TO A LIT SURFACE HAS TWO
+       PAINTS, NEVER ONE (T12 / CA, 2026-10-22 — the owner's «ресурс летит
+       ПОД панель, как будто проблема с z-index»). The 09-03 cut answered the
+       alarm about the BIRTH (a board-cell's printed bonus flying bright over
+       the workspace reads as chips materializing out of the UI) by demoting
+       the WHOLE wave by its SOURCE — and so the token landed UNDER the lifted
+       rail (11444 vs 11520) while «the rail counter still ticks at the
+       touchdown»: a tick with no cause on screen. One z for a flight whose
+       two ends live in different paint cannot be right for both. The
+       resource-transfer layer has a SHADED TWIN instead
+       (`console_resource_transfer.less`): a token born on a covered cell
+       starts UNDER the shade, dimmed with the board it was born on, and the
+       director HANDS IT OVER to the lit layer the moment its box leaves the
+       covered opening (the same element — no jump), ramping up from the
+       shade's paint; it lands OVER the rail. The axis is the DESTINATION
+       again, for the birth too: a token drawn back INTO a covered cell dives
+       under the glass, a token landing on a lit surface lands lit. The
+       runtime paint sentinel (`[transfer] token painted under …`) asks at
+       the birth, the approach and the touchdown. A wave born ON a workspace
        surface (a played card's rewards, the sale payout, an action commit)
-       keeps flying on top — its source is the lit panel itself. */
+       is lit from its birth — its source is the lit panel itself. */
     .con-flight-to-board {
         z-index: 11444;
     }
@@ -2050,7 +2063,10 @@ html.console-native {
    board inspection keeps its flights fully lit. (The gate in
    `rewardPayoutQuiet.waitBoardSceneQuiet` makes this window rare — the
    endgame auto-open waits the board scene out; this is the net under it
-   for a flight that starts late or outlives the cap.) */
+   for a flight that starts late or outlives the cap.) The reward wave's
+   tokens obey the same flag through the transfer layer's own paint plan
+   (`measureTransferCover` — the endgame is cover everywhere: a board story
+   is born under its shaded twin and stays there to the end). */
 .con-root--endgame {
     .con-flight-to-board {
         z-index: 11444;

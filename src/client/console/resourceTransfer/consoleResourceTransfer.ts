@@ -40,13 +40,13 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {
-  ResourceTransferSpec, TransferEnd, TransferEndLike, TransferPoint, TransferRect,
+  ResourceTransferSpec, TransferCover, TransferEnd, TransferEndLike, TransferPoint, TransferRect,
   transferFlightBudgetMs, transferWaveDelayMs, sourceSpawnPoint, cardResourceKey, isTransferEnd, transferEndOf, transferEndPoint,
   TRANSFER_BEAT_MS, TRANSFER_DETACH_WAIT_MS, clampTransferPace, RATING_RAIL_KEY, VP_RAIL_KEY, isVpTransfer, transferLaunchFor,
-  transferSignedAmount,
+  transferSignedAmount, NO_TRANSFER_COVER, transferPaintPlan,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
-  TransferFlightReport, TransferStagePiece, runDetachedTransferFlight, runTransferFlight, settleTransferChip, killTransferPiece,
+  TransferFlightPaint, TransferFlightReport, TransferStagePiece, runDetachedTransferFlight, runTransferFlight, settleTransferChip, killTransferPiece,
 } from '@/client/console/resourceTransfer/resourceTransferDirector';
 import {probeTick} from '@/client/console/probeTick';
 import {firstVisibleEnd, TransferEndOptions, TransferEndVerdict, transferEndVerdict} from '@/client/console/resourceTransfer/transferEndVisible';
@@ -960,6 +960,11 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
         // A double of the spec's own home that left → the home itself; the home's own ladder already IS the
         // stand-in chain (the first visible rung), and a landing on another seat has no stand-in of the viewer's.
         ...(!toHome && run.homeStandIn === true && e.spec.direction !== 'loss' ? {standIn: () => targetPointFor(e.spec)} : {}),
+        // THE TWO PAINTS (T12 / CA): a board-sourced wave plans each token's layers in its birth frame — born UNDER the
+        // glass when its cell is covered, handed to the LIT layer where it leaves the covered area; the destination
+        // decides where it lands. Every token is asked by the paint sentinel whether it is painted on top.
+        ...(run.fromBoard === true ? {paint: (birthBox: TransferRect) => paintOf(e, birthBox)} : {}),
+        probePaint: tokenPaintedUnder,
       });
       departures.push(handles.launched);
       absorbs.push(handles.finished);
@@ -1104,7 +1109,14 @@ function spawnEndOf(source: TransferEnd | TransferPoint, i: number, n: number): 
  * landed into nothing. A degraded end is named in the trail beside it.
  */
 function reportEnds(runId: number, run: ResourceTransferRun, e: {id: number, spec: ResourceTransferSpec, fromRef: EndRef, toRef: EndRef}, report: TransferFlightReport, safetyFired: boolean): void {
-  trail(runId, 'flight:ends', {id: e.id, born: report.born ?? null, end: report.end ?? null});
+  trail(runId, 'flight:ends', {
+    id: e.id, born: report.born ?? null, end: report.end ?? null,
+    ...(report.bornLayer !== undefined ? {layer: `${report.bornLayer}→${report.layer ?? report.bornLayer}`} : {}),
+    ...(report.handover !== undefined ? {handover: report.handover} : {}),
+  });
+  for (const under of report.paintedUnder ?? []) {
+    paintSentinel(e.spec, under.at, under.under);
+  }
   if (report.born === 'unpainted') {
     if (!safetyFired) {
       run.onDegrade?.(e.spec, 'source-gone');
@@ -1163,6 +1175,102 @@ function sentinel(end: 'birth' | 'touchdown', spec: ResourceTransferSpec, at: Tr
   if (why !== undefined) {
     console.warn(`[transfer] end not painted — the ${end} of ${spec.channel}:${spec.resource}${spec.targetCard !== undefined ? `@${spec.targetCard}` : ''} at (${Math.round(at.x)}, ${Math.round(at.y)}) stands over ${why}`);
   }
+}
+
+// ── THE PAINT OF A TOKEN (T12 / CA — «жетон никогда не красится под поверхностью, на которую садится») ──────────────
+
+/**
+ * THE COVERED AREA, measured NOW: while a workspace stands (`con-root--ws-open` — the presence bridge's own fact) the
+ * board is under the CENTRAL OPENING's glass, and the opening is the shade's box (`.con-shade` is always mounted and
+ * bounded by the four hull members' measured insets — the band family's box by contract); under the endgame scene the
+ * whole screen is cover. Nothing stands → no cover: the board is the screen and every token paints lit.
+ */
+export function measureTransferCover(): TransferCover {
+  if (typeof document === 'undefined') {
+    return NO_TRANSFER_COVER;
+  }
+  const root = document.querySelector('.con-root');
+  if (root === null) {
+    return NO_TRANSFER_COVER;
+  }
+  if (root.classList.contains('con-root--endgame')) {
+    return {rects: [], everything: true};
+  }
+  if (!root.classList.contains('con-root--ws-open')) {
+    return NO_TRANSFER_COVER;
+  }
+  const opening = document.querySelector('.con-shade')?.getBoundingClientRect();
+  if (opening === undefined || opening.width <= 0 || opening.height <= 0) {
+    return NO_TRANSFER_COVER;
+  }
+  return {rects: [{x: opening.left, y: opening.top, w: opening.width, h: opening.height}], everything: false};
+}
+
+/** The box of an end's element, or of a token-sized square around a bare point (the home ladder's first visible rung). */
+function endBoxOf(ref: EndRef, birthBox: TransferRect, spec: ResourceTransferSpec): TransferRect | undefined {
+  if (ref !== 'home' && isTransferEnd(ref)) {
+    const r = ref.el.getBoundingClientRect();
+    return {x: r.left, y: r.top, w: r.width, h: r.height};
+  }
+  const at = ref === 'home' ? targetPointFor(spec) : ref;
+  return at === undefined ? undefined : {x: at.x - birthBox.w / 2, y: at.y - birthBox.h / 2, w: birthBox.w, h: birthBox.h};
+}
+
+/**
+ * A board-sourced token's paint, planned in its birth frame: its SOURCE is the board's (a gain off a cell) or its
+ * DESTINATION is (a loss drawn back into its cell; a card standing in a layer that recedes with the board —
+ * `con-flight-to-board`, the field's own scene).
+ */
+function paintOf(e: {spec: ResourceTransferSpec, toRef: EndRef}, birthBox: TransferRect): TransferFlightPaint {
+  const cover = measureTransferCover();
+  const loss = e.spec.direction === 'loss';
+  const destEl = e.toRef !== 'home' && isTransferEnd(e.toRef) ? e.toRef.el : undefined;
+  const destinationOnBoard = loss || (destEl !== undefined && destEl.closest('.con-flight-to-board') !== null);
+  const plan = transferPaintPlan({
+    sourceOnBoard: !loss,
+    destinationOnBoard,
+    birthBox,
+    // Only a board destination's box decides anything (a lit one paints lit wherever it stands) — never a ladder walk for nothing.
+    destinationBox: destinationOnBoard ? endBoxOf(e.toRef, birthBox, e.spec) : undefined,
+    cover,
+  });
+  return {plan, cover};
+}
+
+/**
+ * THE PAINT SENTINEL (T12 / CA, decision 5): what is painted over the token at its centre — undefined when the token
+ * is the topmost thing there. The token is `pointer-events: none`, so for the one hit test it is made hit-testable;
+ * the hit test then names the first hit-testable element ABOVE it (a band, the rail, the strip) — what is not
+ * hit-testable itself (the shade, the satellite, a seat's plaque) is the z map's to guard (`flightLayerZOrder.spec`).
+ */
+export function tokenPaintedUnder(chip: HTMLElement): string | undefined {
+  if (typeof document === 'undefined' || typeof document.elementsFromPoint !== 'function' || !chip.isConnected) {
+    return undefined;
+  }
+  const r = chip.getBoundingClientRect();
+  const cx = r.left + r.width / 2;
+  const cy = r.top + r.height / 2;
+  if (r.width <= 0 || cx < 0 || cy < 0 || cx > window.innerWidth || cy > window.innerHeight) {
+    return undefined;
+  }
+  const before = chip.style.pointerEvents;
+  chip.style.pointerEvents = 'auto';
+  let top: Element | undefined;
+  try {
+    top = document.elementsFromPoint(cx, cy)[0];
+  } finally {
+    chip.style.pointerEvents = before;
+  }
+  if (top === undefined || top === chip || chip.contains(top)) {
+    return undefined;
+  }
+  const surface = top.closest('.con-ws, .con-res, .con-res-host, .con-status, .con-handdock, .con-footer');
+  return surface !== null && surface !== top ? `${describeEl(top)} in ${describeEl(surface)}` : describeEl(top);
+}
+
+/** «[transfer] token painted under …» — every build; the e2e harness turns it red on every spec (`transferEndsGuard`). */
+function paintSentinel(spec: ResourceTransferSpec, at: string, under: string): void {
+  console.warn(`[transfer] token painted under ${under} at the ${at} — ${spec.channel}:${spec.resource}${spec.targetCard !== undefined ? `@${spec.targetCard}` : ''}`);
 }
 
 /** «Is this gain's destination COVERED by a surface that will leave?» — only then may its token wait for it (PL-165). */

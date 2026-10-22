@@ -17,7 +17,7 @@
     board covers them (the scene plays only over a board the player can see).
   -->
   <div v-if="scaleSwingState.phase !== 'idle'"
-       class="con-scaleswing con-flight-to-board" aria-hidden="true"
+       class="con-scaleswing con-flight-to-board" data-flight-lands="board" aria-hidden="true"
        :data-scale-swing="scaleSwingState.phase"
        :data-scale-swing-seq="scaleSwingState.seq"
        :data-scale-swing-leg="scaleSwingState.leg || undefined"

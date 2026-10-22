@@ -10,11 +10,14 @@
     to the shared Resource Transfer Framework's chip. Its root carries the
     scene's state for the probes (`data-scale-reward*`).
 
-    `con-flight-to-board`: the tokens are born on the board; a workspace over
-    the board covers them.
+    `con-flight-to-board` (+ `data-flight-lands="board"`): the coins condense
+    on the board and never leave it — the crossing to the rail is the transfer
+    chip's (born UNDER the shade on a covered board and handed to the lit
+    layer at the edge of the opening — T12 / CA); a workspace over the board
+    covers them.
   -->
   <div v-if="scaleStepRewardState.phase !== 'idle' || scaleStepRewardState.degraded"
-       class="con-scalepay con-flight-to-board" aria-hidden="true"
+       class="con-scalepay con-flight-to-board" data-flight-lands="board" aria-hidden="true"
        :data-scale-reward="scaleStepRewardState.phase"
        :data-scale-reward-seq="scaleStepRewardState.seq"
        :data-scale-reward-landed="scaleStepRewardState.landed"

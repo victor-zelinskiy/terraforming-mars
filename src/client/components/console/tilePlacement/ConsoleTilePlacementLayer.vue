@@ -30,7 +30,7 @@
     the safe default.
   -->
   <div v-if="tilePlacementState.active || remotePlacementState.active || oceanBeatState.coins.length > 0 || groveBeatState.chips.length > 0"
-       class="con-tileplace con-flight-to-board" aria-hidden="true"
+       class="con-tileplace con-flight-to-board" data-flight-lands="board" aria-hidden="true"
        :data-tile-phase="tilePlacementState.active ? tilePlacementState.phase : undefined"
        :data-tile-price="tilePlacementState.price !== '' ? tilePlacementState.price : undefined"
        :data-law-wave="tilePlacementState.lawWave ? '1' : undefined"

@@ -23,7 +23,7 @@
     hidden behind the very glass it was leaving (an empty slot frame on 4K).
   -->
   <div v-if="cityPayoutState.phase !== 'idle' || cityPayoutState.degraded"
-       class="con-citypay" :class="{'con-flight-to-board': !cityPayoutState.inPrompt}" aria-hidden="true"
+       class="con-citypay" :class="{'con-flight-to-board': !cityPayoutState.inPrompt}" data-flight-lands="board" aria-hidden="true"
        :data-city-payout="cityPayoutState.phase"
        :data-city-payout-mode="cityPayoutState.mode"
        :data-city-payout-seq="cityPayoutState.seq"

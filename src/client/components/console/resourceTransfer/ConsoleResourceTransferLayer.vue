@@ -16,35 +16,41 @@
     Every chip carries its amount — «+1» included — in a contrast-managed
     plate that reads on any resource colour at TV distance.
   -->
-  <!-- `con-flight-to-board` rides ONLY a board-sourced wave (a cell's printed
-       bonus, an Ares/ocean payout, a nomad reward, a remote landing's income):
-       under an open workspace / the endgame scene such a wave recedes with
-       the board it was born on (see the z ladder in console.less) — while a
-       workspace-sourced wave (a played card, the sale, an action commit)
-       keeps flying over the panel whose story it is. -->
-  <div v-if="resourceTransferState.flights.length > 0" class="con-transfer"
-       :class="{'con-flight-to-board': boardSourced}" aria-hidden="true">
+  <!-- THE TWO PAINTS (T12 / CA — «жетон никогда не красится под поверхностью, на которую садится»). Two fixed twin
+       layers in ONE coordinate space: the LIT layer over every surface a token can land on (the rail, the strip, a
+       seat's plaque, the dock — see the z map in console_resource_transfer.less) and its SHADED twin under the shade,
+       where a token born on a board cell under a standing workspace starts (the board's own background story, the
+       09-03 alarm). The director hands a token between them where it leaves the covered area: the SAME element moves
+       (`<Teleport :disabled>` — Vue keeps the node, its transform, its tweens), so a handover is never a jump. The
+       destination's marks (the contact beat, the receiver's ring) stand in the destination's paint. -->
+  <div v-if="resourceTransferState.flights.length > 0" class="con-transfer con-transfer--under" data-transfer-under aria-hidden="true"></div>
+  <div v-if="resourceTransferState.flights.length > 0" class="con-transfer" data-transfer-lit aria-hidden="true">
     <template v-for="f in resourceTransferState.flights" :key="f.id">
-      <div class="con-transfer__chip"
-           :class="chipClass(f.spec)"
-           :data-transfer-id="f.id"
-           :data-transfer-direction="f.spec.direction ?? 'gain'"
-           :ref="(el) => setChipRef(f.id, el as HTMLElement | null)">
-        <!-- THE VP TOKEN (TR55): the score cell's own emblem — the gold shield the cell wears — with its «±N» seat. -->
-        <ConsoleVpBadge v-if="isVp(f.spec)" class="con-transfer__vpface" :label="$t('VP')" />
-        <i v-else-if="!isMegacredits(f.spec)" class="con-transfer__icon" :class="iconClass(f.spec)"></i>
-        <!-- A LOSS reads «−N»: the same token, the same seat, the sign of what actually happened. -->
-        <span class="con-transfer__amt" :class="{'con-transfer__amt--mc': isMegacredits(f.spec)}">{{ f.spec.direction === 'loss' ? '−' : '+' }}{{ f.spec.amount }}</span>
-      </div>
-      <div class="con-transfer__beat"
-           :class="{'con-transfer__beat--production': f.spec.channel === 'production', 'con-transfer__beat--vp': isVp(f.spec)}"
-           :ref="(el) => setBeatRef(f.id, el as HTMLElement | null)"></div>
-      <!-- THE RECEIVER ANNOUNCES ITSELF (T06 — «ожидает»): a thin ring in the resource's tone over the destination
-           from the token's birth to its touchdown (the director places it on the receiver's resting box). -->
-      <div v-if="f.spec.direction !== 'loss'"
-           class="con-transfer__expect"
-           :data-expect-resource="f.spec.resource"
-           :ref="(el) => setExpectRef(f.id, el as HTMLElement | null)"></div>
+      <Teleport defer to="[data-transfer-under]" :disabled="layerOf(f.id, 'chip') !== 'under'">
+        <div class="con-transfer__chip"
+             :class="chipClass(f.spec)"
+             :data-transfer-id="f.id"
+             :data-transfer-direction="f.spec.direction ?? 'gain'"
+             :data-transfer-layer="layerOf(f.id, 'chip')"
+             :ref="(el) => setChipRef(f.id, el as HTMLElement | null)">
+          <!-- THE VP TOKEN (TR55): the score cell's own emblem — the gold shield the cell wears — with its «±N» seat. -->
+          <ConsoleVpBadge v-if="isVp(f.spec)" class="con-transfer__vpface" :label="$t('VP')" />
+          <i v-else-if="!isMegacredits(f.spec)" class="con-transfer__icon" :class="iconClass(f.spec)"></i>
+          <!-- A LOSS reads «−N»: the same token, the same seat, the sign of what actually happened. -->
+          <span class="con-transfer__amt" :class="{'con-transfer__amt--mc': isMegacredits(f.spec)}">{{ f.spec.direction === 'loss' ? '−' : '+' }}{{ f.spec.amount }}</span>
+        </div>
+      </Teleport>
+      <Teleport defer to="[data-transfer-under]" :disabled="layerOf(f.id, 'end') !== 'under'">
+        <div class="con-transfer__beat"
+             :class="{'con-transfer__beat--production': f.spec.channel === 'production', 'con-transfer__beat--vp': isVp(f.spec)}"
+             :ref="(el) => setBeatRef(f.id, el as HTMLElement | null)"></div>
+        <!-- THE RECEIVER ANNOUNCES ITSELF (T06 — «ожидает»): a thin ring in the resource's tone over the destination
+             from the token's birth to its touchdown (the director places it on the receiver's resting box). -->
+        <div v-if="f.spec.direction !== 'loss'"
+             class="con-transfer__expect"
+             :data-expect-resource="f.spec.resource"
+             :ref="(el) => setExpectRef(f.id, el as HTMLElement | null)"></div>
+      </Teleport>
     </template>
   </div>
   <!-- THE FLIGHTS' TRAIL ON SCREEN (T09, decision 8 — `?trail=1`): the last events of the transfer trail — the seeds'
@@ -60,6 +66,7 @@ import {defineComponent} from 'vue';
 import {resourceTransferState, registerResourceTransferStage, transferTrailState, transferTrailTail} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {TransferStagePiece} from '@/client/console/resourceTransfer/resourceTransferDirector';
+import {TransferPaintLayer} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {isVpTransfer} from '@/client/console/resourceTransfer/resourceTransferModel';
 import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
@@ -74,6 +81,8 @@ export default defineComponent({
       chipEls: new Map<number, HTMLElement>(),
       beatEls: new Map<number, HTMLElement>(),
       expectEls: new Map<number, HTMLElement>(),
+      /** Which twin layer each flight's token (`chip`) and its destination's marks (`end`) paint in — the director's to set. */
+      layers: {} as Record<string, TransferPaintLayer>,
       transferTrailState,
       trailOn: typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('trail') === '1',
     };
@@ -90,13 +99,12 @@ export default defineComponent({
         return `${e.t} ${e.runId ?? '·'} ${e.ev} ${detail.length > 140 ? detail.slice(0, 140) + '…' : detail}`;
       });
     },
-    /** Any live chip of a board-sourced run — the whole layer recedes for the
-     *  span (concurrent mixed waves are rare and the demotion is cosmetic). */
-    boardSourced(): boolean {
-      return this.resourceTransferState.flights.some((f) => f.fromBoard);
-    },
   },
   methods: {
+    /** The layer a flight's part paints in (lit until the director says otherwise). */
+    layerOf(id: number, part: 'chip' | 'end'): TransferPaintLayer {
+      return this.layers[`${part}:${id}`] ?? 'lit';
+    },
     /** The score cell's VP token (TR55). */
     isVp(spec: ResourceTransferSpec): boolean {
       return isVpTransfer(spec);
@@ -122,6 +130,9 @@ export default defineComponent({
     setChipRef(id: number, el: HTMLElement | null): void {
       if (el === null) {
         this.chipEls.delete(id);
+        // The flight is gone: its layers go with it (a later flight with this id paints lit until told otherwise).
+        delete this.layers[`chip:${id}`];
+        delete this.layers[`end:${id}`];
       } else {
         this.chipEls.set(id, el);
       }
@@ -148,7 +159,12 @@ export default defineComponent({
         if (chip === undefined || !chip.isConnected) {
           return undefined;
         }
-        return {chip, beat: this.beatEls.get(id), expect: this.expectEls.get(id)};
+        return {
+          chip, beat: this.beatEls.get(id), expect: this.expectEls.get(id),
+          setLayer: (part: 'chip' | 'end', layer: TransferPaintLayer) => {
+            this.layers[`${part}:${id}`] = layer;
+          },
+        };
       },
     });
   },

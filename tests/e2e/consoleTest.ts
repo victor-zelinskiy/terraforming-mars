@@ -257,6 +257,12 @@ const TRANSFER_END_NOT_PAINTED = '[transfer] end not painted';
  * token, the class `surfaceClear` makes unexpressible. Not a degrade: a law broken.
  */
 const TRANSFER_SURFACE_FOLDED = '[transfer] surface folded under its token';
+/**
+ * …and the PAINT sentinel's (T12 / CA «ЖЕТОН НИКОГДА НЕ КРАСИТСЯ ПОД ПОВЕРХНОСТЬЮ, НА КОТОРУЮ САДИТСЯ»): a token in the LIT
+ * layer was not the topmost thing painted at its centre — at its birth, on its final approach or at its touchdown
+ * (the owner's «ресурс летит ПОД панель»). A token under the shade by plan (born on a covered cell) is never asked.
+ */
+const TRANSFER_TOKEN_UNDER = '[transfer] token painted under';
 
 /**
  * THE STALL HARVEST — every product warning a test's pages print, kept (2026-10-14, the field «залипания»).
@@ -371,15 +377,16 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
   }, {auto: true}],
   /**
    * EVERY TEST, EVERY PAGE OF ITS CONTEXT: both ends of every resource flight are painted (T06 — the owner's law «оба
-   * конца полёта живые»). The console reports a token born on / touched down over nothing; the harness turns it red,
-   * so every spec that flies a token is a witness of the law.
+   * конца полёта живые») and the token is painted ON TOP of what it lands on (T12 / CA). The console reports a token
+   * born on / touched down over nothing, or painted under a surface; the harness turns it red, so every spec that flies
+   * a token is a witness of the law.
    */
   transferEndsGuard: [async ({context}, use) => {
     const unpainted: Array<string> = [];
     const watch = (page: Page) => {
       page.on('console', (message) => {
         const text = message.text();
-        if (text.includes(TRANSFER_END_NOT_PAINTED) || text.includes(TRANSFER_SURFACE_FOLDED)) {
+        if (text.includes(TRANSFER_END_NOT_PAINTED) || text.includes(TRANSFER_SURFACE_FOLDED) || text.includes(TRANSFER_TOKEN_UNDER)) {
           unpainted.push(text.slice(0, 300));
         }
       });
@@ -388,7 +395,7 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     context.on('page', watch);
     await use();
     if (unpainted.length > 0) {
-      throw new Error(`${TRANSFER_END_NOT_PAINTED} / ${TRANSFER_SURFACE_FOLDED} — a resource token was born on / landed over nothing, or its surface folded under it (the laws of live flight ends and of the fold):\n  ${unpainted.join('\n  ')}`);
+      throw new Error(`${TRANSFER_END_NOT_PAINTED} / ${TRANSFER_SURFACE_FOLDED} / ${TRANSFER_TOKEN_UNDER} — a resource token was born on / landed over nothing, its surface folded under it, or it was painted under a surface (the laws of live flight ends, of the fold and of the paint):\n  ${unpainted.join('\n  ')}`);
     }
   }, {auto: true}],
 
