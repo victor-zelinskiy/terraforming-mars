@@ -165,7 +165,7 @@ covers (a party's share) ticks at the beat, as before.
   `consoleActionCommitRail`), `rail:end {card, phase, link, why}` (`flown` · `not flown` · `superseded` · `ceiling` ·
   `never seeded — …`), `surface:wait` / `surface:ceiling`. Read it through `window.__conReady().transfer.trail` (e2e),
   or ON SCREEN with `?trail=1` (the last 24 events in a corner of the transfer layer — a diagnostic, never a surface).
-- **Still the DIFF of two views** (decision 3 open — the owner's call): a foreign change of the SAME row in the SAME
+- **Still the DIFF of two views** (decision 3 — the owner, 2026-10-22: keep the diff + the trail; the bench saw no `refused`; seeding against the response's EVENTS needs a server channel and is revisited only if a `refused` shows in the trail): a foreign change of the SAME row in the SAME
   response (a reaction no forecast states, a concurrent seat) refuses the seed with its mismatch named in the trail. The
   bot's turn is NOT such a change — the server's scheduler plays it in its own response ≥ 1 s later.
 
