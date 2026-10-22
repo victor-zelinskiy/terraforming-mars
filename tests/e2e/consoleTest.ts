@@ -280,6 +280,16 @@ export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, 
     // «the witness has landed» — the rail's card name lands a beat after the cursor moves, a GSAP flight
     // writes a style per frame — so the press also waits for the DOM to hold still for a short window.
     await context.addInitScript(() => {
+      // NO GAMEPAD REACHES AN E2E PAGE. The driver speaks keyboard; a REAL pad plugged into the box (the
+      // owner's DualSense on the Steam Machine, 2026-10-22 03:00) is visible to headless Chromium through
+      // the container's /dev/input, so the console read it — PlayStation glyphs on the bar, a resting
+      // trigger opening «Действия карт» at boot, a drifting stick walking the cursor — and 16 of 48 tests
+      // went red while every one of them passed alone. The Gamepad API answers «none» here, always.
+      try {
+        Object.defineProperty(navigator, 'getGamepads', {configurable: true, value: () => []});
+      } catch {
+        // a locked-down navigator — the console then sees whatever it sees
+      }
       const w = window as unknown as {__tmLastMutation: number};
       w.__tmLastMutation = performance.now();
       const observe = () => {

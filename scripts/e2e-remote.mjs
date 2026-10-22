@@ -446,7 +446,12 @@ if (run.status === 3 || run.status === 4) {
 
 // ─── 4. results ──────────────────────────────────────────────────────────────
 const outDir = path.join(ROOT, '.e2e-remote', task);
-fs.rmSync(outDir, {recursive: true, force: true});
+try {
+  fs.rmSync(outDir, {recursive: true, force: true});
+} catch (err) {
+  // Windows: a shell standing INSIDE the directory locks it (EBUSY) — extract over it rather than lose the run.
+  log(`could not clear ${path.relative(ROOT, outDir)} (${err.code ?? err.message}) — extracting over it`);
+}
 fs.mkdirSync(outDir, {recursive: true});
 // The archive was packed under the lock (outer.sh); here it is only fetched and removed.
 const pull = spawnSync(SSH, [...SSH_OPTS, '-C', HOST, `cat ${TASK_DIR}/results.tar 2>/dev/null && rm -f ${TASK_DIR}/results.tar`],

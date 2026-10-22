@@ -152,12 +152,63 @@ GMO booted in 1.6–1.9 s with the adaptive press (avg 420–680 ms per press, t
 «Сработает» row stands», «board home never became live» with no press yet) did not reproduce on a
 `--repeat-each=2` (4/4): a transient of the game's load, not the configuration.
 
+## Phase 2, the `key()` codemod — and the OLD specs it exposed (2026-10-22, night)
+
+`--write` rewrote 70 files (the ratchet locked 831 → 761). Validating on ten of them (old live-start specs:
+`action-focus`, `auto-tile-landing`, `blue-action-*`, `board-framing`, `bot-corp-award-office`,
+`wheel-rework`, `tv-profile-screens`, `colony-cube`, `hazard-placement`):
+
+| configuration | result |
+| --- | --- |
+| the class defaults (fast boot + adaptive press + ×0.5) | 10 / 24 |
+| the codemod, every fast flag OFF | 12 / 24 |
+| three of them, fastboot ONLY | `action-focus` 3/3 · `tv-profile-screens` 2/4 · `wheel-rework` 2/3 |
+| the same ten at HEAD (no codemod), every flag OFF | 12 / 24 — the SAME eight files red (only the flake count per file moves) |
+
+So most of these reds are neither the flags' nor (pending the control) the codemod's: the files were last
+touched 2026-09-08/09, six weeks of console rework ago — `wheel-rework` waits for `/базовые/i` on the
+wheel's kicker, a copy the product no longer has; `tv-profile-screens` sleeps 1600 / 3500 ms for «fonts»
+and «the deal» instead of waiting on state; «the Period wheel never opened», «standard projects sheet never
+opened», «board home never became live». SPEC ROT, hidden until now because nobody ran them locally and
+CI's flake ledger absorbs retries. The full functional baseline enumerates it; each red is then classified:
+ROT (fix the witness or delete the check), TIMING (the list), LOGIC (a bug). The 28-spec sample of
+RECENT specs is the honest measure of the defaults: 131 / 138.
+
 **Phase 2 tooling ready**: `scripts/e2e-codemod-key-helper.mjs` rewrites the spec-local `key()` / `tap()`
 helper (a press + a fixed sleep) into `await press(page, code, settleMs)` — a dry run matches 70 of the
 78 files; the rest have a three-line body and go by hand. Run it the day the fast press is the default
 (until then the driver's `press` is the slower of the two for a 450 ms helper).
 
+## ⚠ A PHYSICAL CONTROLLER ON THE BOX REACHES THE E2E BROWSERS (2026-10-22, 03:30)
+
+After the load artifact was cleared, the 7-spec sample was STILL 16 / 48 red at 2 workers exclusive on a
+cool box — while every red test passed alone. The canary's screenshot said it: «Действия карт» open on
+the board home right after boot, and PlayStation glyphs on the bar where the evening's screenshots had
+Xbox ones. A Steam Controller (its puck, `/dev/input/js0`) had been plugged into the Steam Machine with
+the owner's game at 23:48; distrobox mounts the host's `/dev`, headless Chromium exposes the pad through
+the Gamepad API, the console read it — a resting trigger opened the actions workspace, a drifting stick
+walked the cursor. The harness now stubs `navigator.getGamepads` to `[]` on every page (the driver speaks
+keyboard); the same sample: 48 / 48 in 4.8 min. **The worker-scaling curve of 03:0x is void** (orphans +
+the pad); it re-runs on a clean box.
+
+## ⚠ The full baseline of night 1 was a LOAD artifact — do not read it (2026-10-22, 03:00)
+
+338 functional specs at `--workers=4` beside the owner's game: load 12.6 on 12 threads, 77 °C, 49 Chrome
+processes at 100–137 % CPU each — and 374 ✓ / 366 ✘ by 03:00 (`console-parliament-gallery` 50 red / 67
+green, the shape of timeouts, not of bugs). Killed. The lesson the plan already held and I skipped: **the
+worker-scaling curve FIRST** (phase 0.2) — the 28-spec sample at 2 workers was 131/138; 4 workers on a
+4K suite is past this box's knee. The full baseline re-runs on an idle box at the measured worker count.
+
 ## Journal
 - 2026-10-21 — iteration opened; video off; the timing ledger (`tests/e2e/timing.ts`, the `timing`
   annotation, `TM_E2E_TIMINGS` + `scripts/e2e-timings-report.mjs`); the first sample above; the
   adaptive-press pilot behind `TM_E2E_FAST_PRESS=1`.
+- 2026-10-21/22 (night) — shipped in order: `7ea2b3a42b` (phase 0 ledger, video off, the press pilot) ·
+  `520da8095a` (`?fastboot=1`, the DOM-quiet press, the walk's witness window) · `4b349db242` (the lock
+  dwell, `?motion=<x>`, the opening buckets, the A/B script, the codemod script) · `301f19b103` (the class
+  defaults + `timingSpecs.ts` + `TM_E2E_BESIDE_GAME`) · `c999d5bae8` (the `key()` codemod, 70 files, the
+  ratchet 831 → 761). Pending: the full FUNCTIONAL baseline (338 specs, 4 workers, auto-started when the
+  owner's game ends — `.e2e-remote/baseline-functional.txt` + `.e2e-remote/baseline/test-results/timings.jsonl`
+  → `scripts/e2e-timings-report.mjs`), then the classification of its reds (ROT / TIMING / LOGIC), the
+  worker-scaling curve on an idle box, TV@1080 (phase 4), the sleeps pass and the live-start → fixture pass
+  (phase 2), the eight `key()` helpers with a three-line body by hand.
