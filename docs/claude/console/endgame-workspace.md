@@ -84,6 +84,26 @@ and each is pinned by an e2e probe (`console-endgame.spec.ts` § stability):
    background-color transition — the settled bar is ONE hue per top-level
    category, with a dark hairline between categories (`.con-eg__seg::after`).
 
+## THE STAGE HOLDS ITS LAYERS — one stalled frame per category was the GPU (PL-868, T08)
+
+Measured on the Steam Machine at 4K (TV profile, GPU raster, `--exclusive`), HEAD and T08 alike: once per category a
+frame of 450–600 ms — the main thread idle in `LayerTreeHost::WaitForCommitCompletion` while `CrGpuMain` rastered
+(`RendererRasterWorker` ≈ 600 ms). CDP `LayerTree` + a GPU trace named it: every category start promoted and dropped
+small layers (a medal's transition, a chip's spotlight, the light), each churn RE-CREATED the five seats as «Overlap»
+layers (new ids, 186 tiles each, rastered from scratch) and re-rastered a 1151-tile layer; the light's tone change
+re-rastered its 3744×1384 wash (750 tiles); the count-up crossing a power of ten moved the shield beside it and
+re-painted the whole seat. Four fixes, all in `console_endgame.less` / the component: ① the stage's moving parts and
+the seats are promoted ONCE for the scene's life (`will-change` on the seats, the horizon, the rail chips, the
+medallions, the sub-segments, the seams, the scar, the plate; the running total and the place medal as layers of their
+own); ② the light's wash is a 256×128 `<canvas>` painted once per category (`paintLightWash`) and stretched by the
+compositor — a tone change re-rasters a bitmap, never a 4K-wide layer; ③ the total's box holds its widest number
+(`totalDigits` — the pre-penalty sum or the final, whichever has more digits), so a digit arriving never moves the
+shield; ④ the board under the opaque scene stops rastering (`.con-root--endgame .con-main { visibility: hidden }`,
+after the scene's 480 ms arrival; «Свернуть» drops the class and the board is back at once). Result (the same probe,
+the same box): the worst per-category frame 550 → ~120 ms, p95 350 → 117 ms, frames over 500 ms 6 → 1 (the mount);
+the trace has no main frame over 60 ms left. The remaining ~120 ms vsync misses are GPU-side with the main thread
+idle (the screencast pump's readback is the suspect) — named open in the ledger.
+
 ## Track geometry (`consoleEndgameLayout.ts`) — the counting instrument
 
 Pure and spec'd: `buildRowGeometry` solves all segments once per VM on the
@@ -100,7 +120,7 @@ Every player is a SEAT standing on the horizon: the corporation's premium face
 (`ConsoleEndgameRow.face` — a human's first corporation card, the MarsBot
 corporation's own face; a corpless seat shows its prepared place in its
 colour), the place medal on the face's foot, the name, the score in the score
-cell's language (`ConsoleVpBadge` + the total — the tokens' landing), the bar,
+cell's language (`ConsoleVpBadge` + the total — it ticks on the seat's ignition), the bar,
 the medallions (the dossier's discs — `scoreCategoryGlyph`). The planner
 (`planPodium`) solves the seats from the MEASURED box (`.con-eg__rows` is
 `flex: 1 1 0` — the free space, never its content; a ResizeObserver re-plans
@@ -134,33 +154,67 @@ its OWN corporation face on a seat: `data-eg-face="bot"`, the fixture
 
 `CeremonyPhase`: `idle → entering → scoring → settling → ranking →
 [tiebreak] → winner → actions`; inside a category the phrase is
-`beatStage: focus → fly → grow → settle` (+ a scripted pause). The pure script
-(`ceremonyBeats`) emits the beat list — a MAIN category ≈ 220/300/600/240/270 ms,
-sub-steps 440 ms (their own 200 ms flight inside), merges 500 ms, `preRank`
-breath, FLIP, places, a **winnerHold** (the crowning never rides the FLIP),
-winner 1.5 s (the crowning FLIP inside, `crown` 640 ms), actions.
+`beatStage: focus → light → grow → settle` (+ a scripted pause). The pure script
+(`ceremonyBeats`) emits the beat list — a MAIN category ≈ 220 focus / 280 light /
+60 a seat (the cascade) / 560 grow / 240 settle / 250 pause ms, a multi-sub
+category's intro 320 ms (its ONE light falls there), sub-steps 420 ms (a 40 ms
+cascade each, no light of their own), merges 500 ms (the light lets go), the
+`preRank` breath (its last `preRankBreath` 260 ms always at ×1), FLIP, places,
+a **winnerHold** (the crowning never rides the FLIP), winner 1.5 s (the
+crowning FLIP inside, `crown` 640 ms), actions.
 
-**THE COUNT FLOWS (TR69).** On `fly` the category's TOKENS — its disc and
-the signed points — are born on the rail's medallion (`[data-eg-rail]`) and
-arc into every scoring seat's shield (`hooks.onTokens` → `flyTokens`; a zero
-brings none); the director starts the count-up at the flight's END, so the
-score cell ticks on the touchdown and the segment / the medallion answer it
-(`segOn` / `landed` exclude `fly`). The flights are put under the director's
-clock (`attach` — paused with the timeline, killed by a skip / an unmount; the
-layer `.con-eg__tokens` is emptied with them). Reduced motion flies nothing.
-The ranking FLIP moves the seats along both axes; the crowning is its own
-FLIP (`hooks.onCrown` — measured before `winnerShown`, played after: translate
-+ a uniform scale from the seat's foot). The root publishes the beat for the
-probes (`data-eg-beat` / `data-eg-cat`).
-Typical full act ≈ 12–15 s base (rich configs a little more); spec-guarded
+**THE COUNT ARRIVES AS LIGHT (T08, the owner's direction 2026-10-22 — the
+TR69 tokens are gone: up to ≈ 80 small bodies crossing the stage from the rail
+read as arcade busyness from the couch).** On `focus` the rail spotlights the
+category and the PLATE under the rail takes it (`.con-eg__plate` in the
+caption's slot — its disc, its name, a sub-step's source as a second voice, the
+category's tone; ONE plate for the whole count, its face handing over in place).
+On `light` the category's ONE light falls from the plate's foot over the
+podium to the medallion row (`hooks.onLight` → `playLight`: the box posed once,
+the wash descending by scaleY + opacity — `.con-eg__light` › `.con-eg__beam`),
+then every seat's OWN medallion IGNITES in turn, left to right in the count's
+seat order (`igniteOffsets(seats, light, stagger)` — the times are the
+script's, never the DOM's): `consoleEndgameUi.seatCat` / `seatSub` are written
+once per seat per cascade, the medallion lights with its value, the seat's
+segment grows out of it (`segOn` / `subOn` / `reclaimOn` read the seat's
+ignition — the old «the bar fills at the settle» lag of single categories is
+gone), and the director starts THAT seat's count-up on its ignition. The
+accent is `hooks.onIgnite` → `igniteMedal` (the disc settles from 0.9, a ring of
+the category's light lifts off it — `.con-eg__medal-glow`); a zero ignites as a
+quiet «0» with no accent; a sub-step re-ignites under the held light with a
+lighter accent; the penalty's light is the subtractive red and its scar sweeps in
+on the seat's ignition. Every motion is under the director's clock (`attach` —
+paused, hurried and killed with the timeline; a tween's OWN `onComplete` is
+chained, never replaced — replacing it once leaked every token node into the
+layer). Reduced motion draws no light and plays no accent; the medallions
+light at their moments. The ranking FLIP moves the seats along both axes; the
+crowning is its own FLIP (`hooks.onCrown` — measured before `winnerShown`,
+played after: translate + a uniform scale from the seat's foot). The root
+publishes the beat for the probes (`data-eg-beat` / `data-eg-cat` /
+`data-eg-hurried`).
+Typical full act ≈ 13–17 s base (rich configs a little more); spec-guarded
 windows. The director lays it on ONE paused GSAP timeline through
 `consoleMotionMs`, advancing `consoleEndgameUi`; CSS transitions
 (transform/opacity only) paint. Count-ups tween ABSOLUTE running targets
 into the DOM sink. The FLIP and the `ceremonyFx` gold burst are component
 hooks registered as director cleanups.
 
-**`finalizeCeremony(vm)` is the ONE canonical terminal state** — skip (X),
-the natural ending, reload-into-END and the safety net all land there;
+**X HURRIES THE COUNT — it never skips the crowning (T08).** `handle.hurry()`
+puts the timeline and every attached tween at `HURRY_SCALE` (6) and
+`consoleEndgameUi.hurry = 'on'` (the root's `--eg-pace` token drops the CSS
+transitions to the same pace); the rest of the count reads as a quick cascade of
+categories, never «all at once». At the preRank's breath the director puts the
+pace back to ×1 (`hurry = 'returned'`), so the ranking FLIP, the places, the
+winner hold, the crowning and the burst — and the campaign champion beat — play
+at the full pace. A second X is a no-op; past the breath (the ranking, the
+crowning) X is refused and the bar does not offer it. **The one atomic settle
+remains** for reduced motion (X there is `skip()` — there is no motion to
+hurry), the hidden-tab safety net (sized from the LAID timeline,
+`tl.duration()` — the old `consoleMotionMs(total)` capped the whole act at one
+window under reduced motion and cut it short) and a reload into END.
+
+**`finalizeCeremony(vm)` is the ONE canonical terminal state** — the natural
+ending, a reduced-motion X, reload-into-END and the safety net all land there;
 `skipSeq` drives the one-frame transition suppression. It resets
 `actionsFocus` to 0 («Обзор партии» — the natural next step) and leaves
 `collapsed` alone (finalizing behind a collapsed scene must not yank the
@@ -380,8 +434,10 @@ while it stands (`overviewParked` branch at the top of `handleIntent`); the
 desktop `.eg-results` overlay never rises in console mode. Full contract:
 `docs/claude/console/endgame-overview.md`.
 
-Bar: PanelOwner `'endgame'`; during the count `B Свернуть · X Пропустить
-подсчёт`; settled `dpad Выбрать · A Подтвердить · B Свернуть`. COLLAPSED the
+Bar: PanelOwner `'endgame'`; during the count `B Свернуть · X Ускорить
+подсчёт` (T08 — `countHurriable`: the verb exists only while a count is left to
+hurry; once pressed, and through the ranking and the crowning, the bar is `B
+Свернуть` alone); settled `dpad Выбрать · A Подтвердить · B Свернуть`. COLLAPSED the
 workspace publishes NOTHING — the bar belongs to whatever surface the free roam
 is standing on, and the board home carries the ordinary view run plus
 `B Итоги партии`. The bar CONTEXT is empty while the scene shows (the scene's
@@ -415,7 +471,13 @@ finishes the others over the API, and the promptless page hears the END
 through its own poll. Also: testMode deals 8 corps/seat — a 4-seat table
 needs `promo+community` or two seats are never dealt and the start deadlocks
 on `every(pickedCorporationCard)`. Probes are `setInterval`, never rAF
-(headless starves rAF; a dead probe passes).
+(headless starves rAF; a dead probe passes). **A MOTION claim pumps its frames and reads them** (T08): headless
+Chromium paints only when asked, so an unpumped 4K count crawled (≈ 5 rAF/s beside a neighbour's run, the beats
+stretched ×6, the safety net finalizing mid-count) — `pumpFrames(page)` (a low-res CDP screencast, every frame acked
+and dropped; a storyboard pumps by itself) and the probe's own rAF / LoAF record (`readCountProbe` prints `[frames]`
+and annotates the test) sit beside every verdict; a cascade is judged only where the page HAD its frames (a gap over
+200 ms inside its window is the frame's verdict, never the cascade's). `console-finale-podium` is TIMING class:
+`--exclusive --workers=1`.
 
 ## «Обзор партии» — the internal analytics scene
 
