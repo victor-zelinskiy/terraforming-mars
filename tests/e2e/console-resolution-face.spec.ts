@@ -107,8 +107,12 @@ const readFaces = (page: Page, scope: string) => page.evaluate((sel) => {
     // (б) the footnote: no words beside a graphic, a tenth of the face at most.
     const quest = face.querySelector<HTMLElement>('.pcard-bill__quest');
     if (quest !== null) {
-      if (quest.querySelector('.pcard__quest-graphic') !== null && (quest.textContent ?? '').replace(/[\s\d+−/:*]/g, '') !== '') {
-        problems.push(`${id}: the footnote prints words («${(quest.textContent ?? '').trim()}»)`);
+      // Words BESIDE the graphic — the text left once the graphic itself is taken out: a printed plate's own label
+      // (RX36's yellow «MIN» requirement plate, the scan's glyph) is part of the graphic, not a word next to it.
+      const beside = quest.cloneNode(true) as HTMLElement;
+      beside.querySelectorAll('.pcard__quest-graphic').forEach((g) => g.remove());
+      if (quest.querySelector('.pcard__quest-graphic') !== null && (beside.textContent ?? '').replace(/[\s\d+−/:*]/g, '') !== '') {
+        problems.push(`${id}: the footnote prints words («${(beside.textContent ?? '').trim()}»)`);
       }
       questShare = Math.max(questShare, (foot?.getBoundingClientRect().height ?? 0) / box.height);
     }

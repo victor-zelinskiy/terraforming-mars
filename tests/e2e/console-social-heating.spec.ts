@@ -217,13 +217,15 @@ test.describe('Social Heating (DP09) · fhd', () => {
     // ── 2 · THE PAYOUT. Commit; the marker walks; the wave lands. ──
     await press(page, 'Enter', 3500);
     await page.waitForSelector('.con-hydro__layer--result', {timeout: 40_000});
+    // The result's rows are read while the result STANDS — at the functional class's motion ×0.5 it has left by the
+    // time a fixed 1.2 s has passed (the first full baseline: «the result restates …» undefined, green at ×1).
+    const result = await extraRow(page);
     await page.waitForTimeout(1200);
 
     expect(await positionOf(request, id), 'the marker committed 0 → 3').toBe(3);
     const heatAfter = await heatOf(request, id);
     expect(heatAfter, 'the server paid exactly what the row promised').toBe(heatBefore + 3);
 
-    const result = await extraRow(page);
     expect(result, 'the result restates the ДОПОЛНИТЕЛЬНО row').toBeDefined();
     expect(result!.source).toBe('Социальное отопление');
     expect(result!.plus).toBe('+3');
@@ -300,15 +302,16 @@ test.describe('Social Heating × Delta Surge · fhd', () => {
 
     await press(page, 'Enter', 4000);
     await page.waitForSelector('.con-hydro__layer--result', {timeout: 60_000});
+    // Read while the result STANDS (see the first test).
+    const result = await extraRow(page);
+    const extraRows = await page.locator('.con-hydro__gains-extra .con-hydro__extra').count();
     await page.waitForTimeout(1500);
 
     expect(await positionOf(request, id), 'the marker committed 0 → 4').toBe(4);
     expect(await heatOf(request, id), 'exactly four heat, once')
       .toBe(heatBefore + 4);
-    const result = await extraRow(page);
     expect(result!.plus).toBe('+4');
-    expect(await page.locator('.con-hydro__gains-extra .con-hydro__extra').count(),
-      'the result states ONE aggregate row').toBe(1);
+    expect(extraRows, 'the result states ONE aggregate row').toBe(1);
     await shoot(page, '04-traversal-result');
   });
 });
