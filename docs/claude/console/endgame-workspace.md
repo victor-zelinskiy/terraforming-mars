@@ -119,7 +119,8 @@ edge chip retired with the rows.
 Every player is a SEAT standing on the horizon: the corporation's premium face
 (`ConsoleEndgameRow.face` — a human's first corporation card, the MarsBot
 corporation's own face; a corpless seat shows its prepared place in its
-colour), the place medal on the face's foot, the name, the score in the score
+colour) with the seat's LINEAGE behind it (below), the name with its PLACE MARK
+beside it, the score in the score
 cell's language (`ConsoleVpBadge` + the total — it ticks on the seat's ignition), the bar,
 the medallions (the dossier's discs — `scoreCategoryGlyph`). The planner
 (`planPodium`) solves the seats from the MEASURED box (`.con-eg__rows` is
@@ -140,6 +141,48 @@ it; a hidden scene keeps the last box) and the live rem:
 - the horizon (`.con-endgame::before`) crests at the podium's measured foot
   (`--eg-horizon-y`) — the stage the winner stands on, the actions on the
   ground below it.
+**THE LINEAGE STANDS BEHIND THE FACE, THE HONOURS NEVER COVER IT** (the owner's
+direction of 2026-10-22 — a campaign seat carries several corporations, «первая
+всегда главная, дополнительные премиально сзади»; the title badges «не должны
+закрывать важную инфу»). Four rules:
+- **The face is the FIRST corporation** (`player.corporations[0]` — the tableau
+  is in play order, so a campaign seat's base corporation, the one its lineage
+  starts with); **every later one is a CHARTER behind it**
+  (`ConsoleEndgameRow.lineage`, play order — a bot has none): the same premium
+  face, one NAMEPLATE higher per depth (`LINEAGE_STEP` = 0.13 of the face — the
+  gold frame + the name band, 12.5 %, show whole), `LINEAGE_SHRINK` narrower and
+  a shade deeper per depth (an overlay — never the charter's own opacity, which
+  would show the art behind through its nameplate), at most `LINEAGE_VISIBLE`
+  (3), the deepest naming the rest («+N»). The names rise above the face like a
+  pediment's tiers; the face stays the one hero. The charters stand OUTSIDE
+  `.con-eg__face` (`.con-eg__stand` › `.con-eg__charter[data-eg-charter]`), so
+  «the seat's face» keeps meaning the first corporation; they rise from behind
+  it as the scene enters (transform / opacity).
+- **The planner reserves the table's deepest rise on EVERY seat**
+  (`planPodium({lineage})` → `rise`; the face is solved from the box less
+  `(1 + rise)`, `--eg-rise` on the rows) — the faces stand level, a
+  one-corporation seat keeps the geometry with its rise empty, the count's
+  seats stay equal. A table of one corporation each reserves nothing.
+- **The place medal stands BESIDE THE NAME, never on the face** — it stood on
+  the face's foot, over the corporation's starting row («30 · пр. стали»). The
+  ident's PLACE MARK slot (`.con-eg__mark`, `--eg-mark-d`) is reserved from the
+  first frame: the colour dot while the count runs, the medal ringed in the
+  player's colour once ranked (the dot grows into it — nothing moves).
+- **A campaign title is the seat's CREST** (missions 1–3; `.con-eg__title`,
+  `data-eg-title`): on the anchor the ribbon and the champion plate share — the
+  seat's top edge, centred — the real insignia taller than its plaque, the
+  title in its metal, the TP under it; the seat's top padding (1.2rem, the
+  planner's `padY`) holds the crest's inner half, so it never reaches the
+  lineage, the face or the name. The winner's «ПОБЕДИТЕЛЬ» YIELDS to its
+  Governor crest in the crest's own beat (`ribbonYields` — CSS-timed on the
+  title's ascending delay, Prefect → Administrator → Governor), the champion
+  plate's precedent: the mission is won first, the title conferred second; a
+  settled screen shows the crest alone. In the DUEL (`side`) the whole crest
+  anchor — ribbon, champion plate, title — stands over the READING column (the
+  player's name and score, whose honour it is: `50% + (face + gap) / 2`), never
+  over the seat's middle, where it hung over the seam between the face and the
+  name.
+
 The type is rem ≥ 0.85 everywhere on the podium (the TV floor is a floor of
 type; the faces are what scale). Guard: `consoleEndgamePodium.spec` (every
 profile × table size: the seats fit, the hero ≥ a third of the box and the
@@ -148,7 +191,14 @@ tallest, the count lower); e2e `console-finale-podium` (A — five seats at
 empty band over ⅓, no scroll, nothing under the floor; B — the duel × 4K /
 FHD / Deck, every seat holding its reading column; E — MarsBot in the race,
 its OWN corporation face on a seat: `data-eg-face="bot"`, the fixture
-`finale-rich-bot`).
+`finale-rich-bot`). The lineage and the honours: `consoleEndgamePodium.spec`
+§ THE LINEAGE (the stand fits every profile × table size with three charters,
+a one-corporation table reserves nothing), `consoleEndgameModel.spec` § THE
+LINEAGE (the first corporation is the face, the rest in play order, a bot has
+none), e2e `console-campaign-endgame` § campaign podium (`seatCoverage` — the
+crest, its insignia, the ribbon and the place medal cover 0 % of a face, the
+crest 0 % of the name; every charter's nameplate whole above the card in
+front of it).
 
 ## Ceremony machine
 
@@ -273,7 +323,8 @@ ONE-FLOW»).
 
 **THE WINNER IS THE SEAT — the hero of the podium** (TR69): the tallest seat
 with the largest face on the horizon's crest, the gold rim + wash, the
-«ПОБЕДИТЕЛЬ» ribbon standing on the seat's top edge, the gold place medal and
+«ПОБЕДИТЕЛЬ» ribbon standing on the seat's top edge (on missions 1–3 it yields
+to the Governor crest), the gold place medal beside the name and the
 total with a one-shot crown pulse — never a duplicate plate. Solo defeat = a calm neutral ribbon, no burst. The tie-break strip is
 transient zone annunciation; the deciding M€ chips stay on the contender
 rows through the settled state (absolute — zero layout impact). Winner gold
