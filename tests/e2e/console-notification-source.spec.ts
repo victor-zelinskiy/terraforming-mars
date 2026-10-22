@@ -193,6 +193,15 @@ async function auditCard(page: Page, selector: string): Promise<CardAudit> {
       summary: all('.con-notif__summary-line'),
       clusters: all('.con-notif__cluster-tag'),
       reveal: all('.con-notif__revealline'),
+      // The parts the contract asserts, read in the SAME sample (the card leaves by its own TTL — PL: the first full
+      // baseline read them off the live card after two 4K frames and found it gone).
+      causeLabel: all('.con-notif__why .con-notif__cause-label'),
+      causeCard: all('.con-notif__why .con-notif__card'),
+      causeTrigger: all('.con-notif__why .con-notif__cause-trigger'),
+      via: all('.con-notif__why [data-notif-via]'),
+      actorChip: all('[data-notif-actor]'),
+      planetCluster: Array.from(card.querySelectorAll('[data-notif-cluster="planet"]')).map(() => 'planet'),
+      clusterLine: Array.from(card.querySelectorAll('.con-notif__clusters')).map(() => 'clusters'),
     };
     const causes = Array.from(card.querySelectorAll('.con-notif__cause')).map((line) => ({
       label: textOf(line.querySelector('.con-notif__cause-label') ?? document.createElement('i')),
@@ -293,15 +302,17 @@ async function recordPositiveCard(page: Page, profile: string, scene: string): P
   const card = page.locator(POSITIVE).first();
   await card.waitFor({state: 'visible', timeout: 60_000});
   const box = await cardAtRest(page, POSITIVE);
+  // The AUDIT first, the frames after: a card leaves by its own TTL, and two 4K screenshots under a parallel run
+  // outlasted it — `auditCard` then read a card that was gone (`querySelector(…)` null, the first full baseline).
+  const audit = await auditCard(page, POSITIVE);
   const full = await shootFull(page, profile, scene);
   const crop = await shootCrop(page, profile, scene, box);
-  const audit = await auditCard(page, POSITIVE);
   report(scene, audit, [full, crop]);
-  // WHAT, on both sides of the fix: the band states the viewer's own +1 M€.
-  const band = card.locator('.con-notif__you');
-  await expect(band, 'the positive card leads with the viewer band').toHaveCount(1);
-  await expect(band).toContainText('+1');
-  await expect(band).toContainText('M€');
+  // WHAT, on both sides of the fix: the band states the viewer's own +1 M€ — read off the audit, the card as it STOOD
+  // (the live card may have left by its TTL while the frames were taken).
+  expect(audit.zones.band, 'the positive card leads with the viewer band').toHaveLength(1);
+  expect(audit.zones.band[0]).toContain('+1');
+  expect(audit.zones.band[0]).toContain('M€');
   return audit;
 }
 
@@ -327,17 +338,17 @@ async function expectAfterContract(page: Page, profile: string, audit: CardAudit
   if (PREFIX === 'before') {
     return;
   }
-  const card = page.locator(POSITIVE).first();
-  const why = card.locator('.con-notif__why');
-  await expect(why.locator('.con-notif__cause-label'), 'the anchor names what of YOURS paid').toHaveText(/ВАШ ТАЙЛ|Your tile/i);
-  await expect(why.locator('.con-notif__card'), 'the tile\'s card is the name').toHaveText(/Закрытая зона|Restricted Area/);
-  await expect(why.locator('.con-notif__cause-trigger')).toHaveText(/за город рядом|for a city next to it/i);
-  await expect(why.locator('[data-notif-via]'), 'the actor\'s move is only the tail').toHaveText(expected.via);
+  // Every claim is read off the AUDIT — the card as it STOOD (it leaves by its own TTL while the frames are taken).
+  const z = audit.zones;
+  expect(z.causeLabel.join(' '), 'the anchor names what of YOURS paid').toMatch(/ВАШ ТАЙЛ|Your tile/i);
+  expect(z.causeCard.join(' '), 'the tile\'s card is the name').toMatch(/Закрытая зона|Restricted Area/);
+  expect(z.causeTrigger.join(' ')).toMatch(/за город рядом|for a city next to it/i);
+  expect(z.via.join(' '), 'the actor\'s move is only the tail').toMatch(expected.via);
   // ONE ACTOR STATEMENT — the head's chip, nowhere else.
   const actorHits = (audit.text.match(new RegExp(expected.actor.source, 'gi')) ?? []).length;
   expect(actorHits, `the actor is named once on «${audit.text}»`).toBe(1);
-  expect(await card.locator('[data-notif-cluster="planet"]').count(), 'no «Марс» cluster (the HUD shows it)').toBe(0);
-  expect(await card.locator('.con-notif__summary-line').count(), 'no bot bookkeeping under the band').toBe(0);
+  expect(z.planetCluster.length, 'no «Марс» cluster (the HUD shows it)').toBe(0);
+  expect(z.summary.length, 'no bot bookkeeping under the band').toBe(0);
   // DECISION 7 — the corner of the central opening: the strategy rail is never covered.
   const strat = audit.covers.find((c) => c.member === '.con-strat');
   expect(strat?.overlap ?? 0, `the card stands clear of the strategy rail (${JSON.stringify(audit.covers)})`).toBeLessThan(0.01);
@@ -446,12 +457,11 @@ for (const profile of PROFILES) {
       await rivalBuildsCityOn(request, seats[1], CITY_CELL);
       await expect.poll(async () => megacreditsOf(await wireOf(request, viewer)), {timeout: 20_000}).toBe(before + 1);
       const audit = await recordPositiveCard(page, profile.id, 'a2-ares-human-mine');
-      const card = page.locator(POSITIVE).first();
-      // The answer is untouched by any mode…
-      await expect(card.locator('.con-notif__why .con-notif__cause-label')).toHaveText(/ВАШ ТАЙЛ|Your tile/i);
-      await expect(card.locator('[data-notif-actor]')).toContainText('player2');
+      // The answer is untouched by any mode… (read off the audit — the card as it stood)
+      expect(audit.zones.causeLabel.join(' ')).toMatch(/ВАШ ТАЙЛ|Your tile/i);
+      expect(audit.zones.actorChip.join(' ')).toContain('player2');
       // …and nothing else rides it: no actor line, no third player.
-      expect(await card.locator('.con-notif__clusters').count(), `no actor line in «Только моё» («${audit.text}»)`).toBe(0);
+      expect(audit.zones.clusterLine.length, `no actor line in «Только моё» («${audit.text}»)`).toBe(0);
     });
   });
 }

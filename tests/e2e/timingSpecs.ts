@@ -27,6 +27,7 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   'console-expedition-mechs.spec.ts', // the transfer witness: endsOverGlass at tv4k (the data's token born on its pay row as the composer leaves) — green at ×1
   'console-ichtiology-grant.spec.ts', // the transfer witness: endsOverGlass at tv4k (the +2 born on the printed animal) — red 2 / 2 at ×0.5, green 3 / 3 at ×1
   'console-habitat-science.spec.ts', // a DETACHED token's landing on the satellite where it stands — flaky at ×0.5, 3 / 3 at ×1
+  'console-overclocked-equipment.spec.ts', // the transfer witness: the −3 off the rail and the +1 born on the printed «?» — red 2 / 2 at ×0.5, 5 / 5 at ×1
   // the motion-grammar guards
   'console-smoothness.spec.ts',
   'console-scene-transition.spec.ts',
