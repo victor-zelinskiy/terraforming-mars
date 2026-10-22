@@ -130,6 +130,13 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         /*
+         * Playwright ≥ 1.64 forwards the descriptor's `screen` (1920×1080 for Desktop Chrome) into the emulation, so
+         * `window.screen` would read 1080p under every 4K viewport — and the console's layout profile READS the screen
+         * (`consoleLayoutProfile.ts`: `window.screen.width/height`). Opting out keeps the pre-1.64 behaviour: the
+         * screen is the viewport, as a real TV reports its own panel.
+         */
+        screen: undefined,
+        /*
          * PL-211 (the owner's decision 2026-10-12): `TM_E2E_GPU=1` runs the NEW headless (`channel: 'chromium'`) on
          * the machine's GPU through ANGLE/D3D11 with GPU raster — the road the TV build takes (the RTX laptop,
          * Electron's GPU raster). The default headless shell renders with SwiftShader: every 4K commit waits on a

@@ -248,3 +248,18 @@ worker-scaling curve FIRST** (phase 0.2) — the 28-spec sample at 2 workers was
   `build:test`, the liveness guard and the ratchet green. Still pending: the canary on the per-task layout →
   commit the wrapper; the full FUNCTIONAL baseline at 2 workers and its ROT / TIMING / LOGIC classification;
   the worker-scaling curve; the sleeps and live-start passes.
+- 2026-10-22 (midday) — **the e2e browser is the PRODUCTION engine's major** (the owner's call, path 1 of three):
+  Electron 45.0.0 carries Chromium 156.0.8078.48; Playwright 1.62.1 drove Chromium 151.0.7922.34 — five majors
+  behind the players. `@playwright/test` 1.62.1 → **1.64.1 = Chromium 156.0.8078.4**, the same release branch
+  (8078). The 1.64 breaking change that bites here: the device descriptor's `screen` is forwarded into the
+  emulation, so `window.screen` would read 1920×1080 under every 4K viewport while `consoleLayoutProfile.ts`
+  reads the screen — the project opts out (`screen: undefined` → the screen is the viewport, as a TV reports its
+  panel). Deferred, offered: Chrome for Testing 156.0.8078.47 via `executablePath` (exact-patch; the .48 exists only
+  inside Electron) with a guard tied to the Electron version; the real Electron through `_electron` (full flag
+  parity with `electron/perf.ts`, but Electron has no headless — a display on the box means xvfb = software
+  raster against PL-211, or the owner's gamescope session). The box installs the new browser itself on its next
+  run (`npm ci` on the lock change → `npx playwright install chromium`). Verified on the laptop: `--list` 1180
+  tests, the e2e tsconfig clean, the liveness guard 7/7 (the shared tests tsconfig is red on a neighbour's
+  in-progress file, not on the harness).
+  **The owner's goal restated 2026-10-22: the fastest suite AND 100 % green on the Steam Machine — the old specs
+  get updated, «гоняем и правим пока не будет полного покрытия», then the owner runs CI.**
