@@ -2976,6 +2976,17 @@ export async function bootFixtureSeats(
   } catch {
     // outside a running test — nothing to annotate
   }
+  if (opts.landing !== 'prompt') {
+    // A FIXTURE THAT STANDS IN THE OPENING (the server's `startGamePrompt` marker — a solo game's colony removal,
+    // the project purchase, a prelude) is answered over the API before the console opens, when the spec wants the
+    // board: walking it in the UI was the slow road and a flaky one (colony-venus-cells stood 300 s on the start's
+    // «Куплено карт · A ОПЛАТИТЬ» plate in the first full baseline, the press swallowed). Same answers, `keepColony`
+    // steering the removal; a fixture already on the board costs one model fetch.
+    const first = await fetchPlayerModel(request, playerId) as {waitingFor?: WirePrompt};
+    if (first.waitingFor?.startGamePrompt !== undefined) {
+      await timed('fixture', () => seedGameOverApi(request, playerId, {keepColony: opts.keepColony}));
+    }
+  }
   await openConsole(page, playerId, opts.query ?? '');
   if (opts.landing === 'prompt') {
     // The fixture resumes on a prompt that OWNS the screen (a mandatory pick the
