@@ -29,6 +29,7 @@ Every per-card hook lives **IN the card file**, next to `canPlay`/`canAct`/`besp
 ## 🚫 NO AUTO-SELECT — every targetable choice is SHOWN, even with a SINGLE candidate
 The player must see WHO/WHICH card is hit and its `current → resulting` BEFORE confirming. The trap is bespoke code doing `if (candidates.length === 1) { apply directly }` — build the `SelectCard`/`SelectPlayer` instead (neither auto-resolves on one option) and pre-collect it in the preview. Mirror it in BOTH `execute()` and the read-only `previewSelect*()`. `AddResourcesToCard`/`RemoveResourcesFromCard` need explicit `autoSelect/autoselect: false`.
 **Exempt:** a FIXED self-target (`filter: c => c.name === this.name` — Ants/Predators) and `OrOptions.reduce()` auto-picking the only OR BRANCH (no hidden target).
+The client's COMPOSER SEED is NOT this trap (T14 · `docs/claude/console/composer-preselect.md`): a composer row with ONE enabled candidate opens pre-selected, SHOWN (target, `current → resulting`) and marked, and its answer rides the batch ADDRESSED — the server keeps building and asking its `SelectCard` / `SelectPlayer`; nothing is applied without a prompt.
 Per module, grep for `length === 1` / `length > 1` near `addResourceTo` / `removeResourceFrom` / `.attack(` / `.cb(` / `production.add` — there is NO auto-guard for this class. Record triage in `docs/DELAYED_TARGET_AUDIT.md`.
 
 ## No silent loss — a skipped effect must NAME itself

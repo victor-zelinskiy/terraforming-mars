@@ -115,10 +115,21 @@ for a surface that is still busy arriving. `ConsoleScrollArea.ensureVisible` / `
 
 ## Composers
 
-ONE seed: `resetFromPreview` sets the cursor synchronously (`commitCursorTarget`) — no `$nextTick` re-seat; a refetched
-preview of the SAME shape (`samePreviewShape`, shared with the play composer) keeps the cursor and every capture. The
-standard projects seed their row in `openSheet` before the first render (`seedSheetCursor`), not the last visit's
-index followed by a re-seat.
+ONE RULE (T14 · ledger CC — `docs/claude/console/composer-preselect.md`): the three composers (play · action · party)
+land their cursor through `consoleCommitGate.nextCursorAfterAnswer` — the row that holds the commit, else a question
+offered and not yet visited (the play composer's deferrable table question), else the commit row — from ONE
+`landCursor()` that every answer ends with (a pick, a variant, «Далее», the payment's «Готово», a decline, a bridge's
+answer) and the open runs too, synchronously (no `$nextTick` re-seat); a refetched preview of the SAME shape
+(`samePreviewShape`, shared by the two card composers) keeps the cursor and every capture, re-reading only the seeds
+(`reseatSeeds`). B lands nothing (one level back); a pointer click places the cursor where it clicked. A landing on a
+commit that RUNS is an ARRIVAL (`console/commitArrival.ts`): the pose is painted only once its gate lets go (the
+record watches `[data-cursor-pending]` leave — read AFTER the patch the landing rides), the commit row breathes once
+(`data-composer-armed` → `@keyframes con-commit-armed`, one-shot on the ring layer, nothing in reduced motion), and a
+deciding press before the paint, within `COMMIT_ARRIVAL_ABSORB_MS` after it, or inside the opening settle of a screen
+that opened with nothing to ask, is the ARRIVAL — never the move (`commitArrivalAbsorbs`; the e2e driver waits the
+window out through `__conCommitArrival()`). No composer writes `focusIdx = ctaIndex` / `cursorRow = ctaRow` by hand
+(guard `tests/console/composerCursorRule.spec.ts`). The standard projects seed their row in `openSheet` before the
+first render (`seedSheetCursor`), not the last visit's index followed by a re-seat.
 
 ## Guards
 
@@ -130,6 +141,9 @@ index followed by a re-seat.
   `CURSOR_GRAMMAR_STYLES=<git archive of src/styles>`); no `scrollIntoView` in the console.
 * `tests/console/cubicBezier.spec.ts` — the CSS curve the scroll tween evaluates.
 * `tests/client/console/cursorArrival.spec.ts` — hold / arrive / release, epochs, reduced motion, input release.
+* `tests/client/console/commitArrival.spec.ts` — the commit's arrival: painted once its gate lets go, the window, the
+  opening settle, the breath, reduced motion (T14 · CC); `consoleCommitGate.spec` § nextCursorAfterAnswer · § commitPressAbsorbed.
+* `tests/console/composerCursorRule.spec.ts` — no composer lands on its commit row by hand.
 * `tests/e2e/focusWitness.ts` — `armFocusWitness(page, {candidates, face, keyAttr, proxy, proxyFace, scroller})` /
   `focusWitness(page)` / `analyseFocusTrail`: on every sample (MutationObserver + `setInterval`, never rAF) the box of
   the FACE under the cursor, its transform, the ring's strength (the layer's opacity, or an outer/inset spread ring

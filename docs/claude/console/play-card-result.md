@@ -82,9 +82,15 @@ card on a result nobody had chosen.
    door is a ceremony. Verified live on «Эксплуатация источников тепла»: two
    branches, one refused, heading «РЕЗУЛЬТАТ», play available on open.)
 2. **Navigation moves the cursor and nothing else.** Selection is a press.
-3. **A on a variant SELECTS, and does not move the cursor.** Idempotent — never a
-   toggle; a choice that can be un-made by repeating the press has no stable
-   state to commit.
+3. **A on a variant SELECTS — an answer like any other** (T14 · CC, the owner's
+   decision 2026-10-22). Idempotent — never a toggle; a choice that can be un-made
+   by repeating the press has no stable state to commit. The ONE cursor rule then
+   lands the cursor on the next open question, else on the commit row
+   (`nextCursorAfterAnswer`, `composer-preselect.md`) — and «choose» and «play»
+   stay two presses by construction: the commit ARRIVES, and a press inside its
+   arrival window (a double press, a held button) is the arrival, never the play
+   (`commitArrival.ts`). (Until T14 the cursor stayed on the tile, and the player
+   walked to the rail by hand.)
 4. **The choice is a commit REQUIREMENT** (`rowMissing` is true for every
    *choosable* variant while `selectedPos === undefined`). That is the structural
    half of the guarantee: `computeCommitGate` → `incomplete` →
