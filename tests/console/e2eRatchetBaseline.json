@@ -1,7 +1,7 @@
 {
   "//": "Frozen per-file counts of e2e anti-patterns. Counts may only FALL. Regenerate with: node scripts/e2e-ratchet-baseline.mjs --write",
   "totals": {
-    "waitForTimeout": 755,
+    "waitForTimeout": 743,
     "requestAnimationFrame": 42
   },
   "files": {
@@ -88,7 +88,7 @@
       "requestAnimationFrame": 4
     },
     "console-colony-remote-bonus.spec.ts": {
-      "waitForTimeout": 7
+      "waitForTimeout": 3
     },
     "console-colony-trade-probe.spec.ts": {
       "waitForTimeout": 6
@@ -155,7 +155,7 @@
       "waitForTimeout": 2
     },
     "console-external-draw.spec.ts": {
-      "waitForTimeout": 7
+      "waitForTimeout": 3
     },
     "console-first-action-draw.spec.ts": {
       "waitForTimeout": 5
@@ -285,7 +285,7 @@
       "waitForTimeout": 17
     },
     "console-pluto-bonus-discard.spec.ts": {
-      "waitForTimeout": 6
+      "waitForTimeout": 4
     },
     "console-pluto-two-colony-sequence.spec.ts": {
       "waitForTimeout": 6
@@ -333,7 +333,7 @@
       "waitForTimeout": 1
     },
     "console-reveal-remote-bonus-collision.spec.ts": {
-      "waitForTimeout": 3
+      "waitForTimeout": 1
     },
     "console-scale-marker.spec.ts": {
       "waitForTimeout": 5
