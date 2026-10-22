@@ -123,7 +123,11 @@ own account rides `data-tile-price` on the flight layer (`flying` → `flown` ·
 `degraded: …`). Guards: `tests/console/placementPrice.spec.ts`, `consoleTilePlacement.spec` § PL-306, e2e
 `console-final-greenery` ② (the transfer witness: one token born on `rail:plants`, landed on `cell:<id>`; the row
 ticked between the birth and the touchdown, its «−8» chip painted with that tick — never in the commit's frame; the
-tile's first painted frame on its own cell, no earlier than the touchdown).
+tile's first painted frame on its own cell, no earlier than the touchdown). **The cell is the one that stands NOW**
+(2026-10-22): the finale's camera can still be moving the board when the verify measures it, so the landing waits for
+a calm board and re-measures (`settledHexRect`), and the price is aimed at the cell ELEMENT, re-read on the approach —
+a stale rect once sent the «−8» into the neighbour while the greenery grew in its own (`board-placement-flow.md`
+§ THE TILE LANGUAGE, word 8).
 
 ## The block (`FinalePanelModel`, PL-304 / PL-305)
 

@@ -17,7 +17,9 @@ import {
   tilePlacementState,
   seedTilePlacementRewardHold,
   tileRewardTransferPace,
+  settledHexRectForTest,
 } from '@/client/console/tilePlacement/consoleTilePlacement';
+import {bumpBoardSpaceEpoch, registerBoardGeometryProbe, resetBoardSpaceGeometry} from '@/client/console/boardSpaceGeometry';
 import {panelRewardHold, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {TRANSFER_CONCURRENT_PACE} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {armBoardCardBonus, resetBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
@@ -735,6 +737,62 @@ describe('consoleTilePlacement (the animation transaction)', () => {
       await runTilePlacement(prev, next);
       expect(tilePlacementState.price).to.eq('');
       expect(heldStock('plants')).to.eq(0);
+    });
+  });
+
+  describe('THE CELL AS IT STANDS NOW (a board that moved between the verify and the landing)', () => {
+    const MEASURED = {x: 400, y: 300, w: 46, h: 51};
+    let teardown: () => void = () => undefined;
+    let offProbe: () => void = () => undefined;
+    afterEach(() => {
+      teardown();
+      offProbe();
+      resetBoardSpaceGeometry();
+    });
+    const armOn05 = () => {
+      teardown = boardCell('05');
+      armTilePlacement({spaceId: '05'});
+      detectTilePlacement([space('05')], [space('05', {tileType: TileType.GREENERY, color: 'green'})]);
+    };
+    const moveCellTo = (left: number, top: number) => {
+      const cell = document.querySelector<HTMLElement>('.board-space[data_space_id="05"]')!;
+      cell.getBoundingClientRect = () => ({
+        x: left, y: top, left, top, right: left + 46, bottom: top + 51, width: 46, height: 51, toJSON: () => ({}),
+      } as DOMRect);
+    };
+
+    it('a calm board in the space it was measured in keeps the verify\'s rect — nothing is measured twice', async () => {
+      armOn05();
+      moveCellTo(900, 900); // a lie the helper must not read: the space has not moved
+      expect(await settledHexRectForTest('05', MEASURED)).to.deep.eq(MEASURED);
+    });
+
+    it('a board whose space MOVED (Planet Focus, a refit) re-measures the cell — the finale\'s «−8» into the neighbour', async () => {
+      armOn05();
+      moveCellTo(620, 355);
+      bumpBoardSpaceEpoch();
+      expect(await settledHexRectForTest('05', MEASURED)).to.deep.eq({x: 620, y: 355, w: 46, h: 51});
+    });
+
+    it('a board still MOVING is waited out first, then measured where it stopped', async () => {
+      armOn05();
+      let calm = false;
+      offProbe = registerBoardGeometryProbe(() => calm);
+      moveCellTo(500, 320);
+      bumpBoardSpaceEpoch();
+      const pending = settledHexRectForTest('05', MEASURED);
+      await settle(30);
+      moveCellTo(640, 360); // the camera's last frame
+      calm = true;
+      expect(await pending).to.deep.eq({x: 640, y: 360, w: 46, h: 51});
+    });
+
+    it('an unmeasurable cell keeps the stored rect — never worse than the verify', async () => {
+      armOn05();
+      teardown();
+      teardown = () => undefined;
+      bumpBoardSpaceEpoch();
+      expect(await settledHexRectForTest('05', MEASURED)).to.deep.eq(MEASURED);
     });
   });
 

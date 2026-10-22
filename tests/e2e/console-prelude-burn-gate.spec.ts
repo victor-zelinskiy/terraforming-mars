@@ -121,7 +121,9 @@ async function reachDeployment(page: Page): Promise<void> {
     } else if (kind === 'prelude') {
       // THE SUBJECTS FIRST (the step has a pick LIMIT — filling first burns it
       // on cards nobody asked for; the driver documents this trap).
-      const got = await pickCards(page, [WAITING, ENABLER]);
+      // EXCLUSIVE: the step must hold the two subjects and nothing else — a stray pick (the final functional run of
+      // 2026-10-22, once) held the second place, and the limit refused the enabler on every visit.
+      const got = await pickCards(page, [WAITING, ENABLER], 34, {exclusive: true});
       expect(got, 'both subject preludes were offered and picked').toEqual(
         expect.arrayContaining([WAITING, ENABLER]));
     }

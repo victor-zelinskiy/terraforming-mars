@@ -312,3 +312,12 @@ worker-scaling curve FIRST** (phase 0.2) — the 28-spec sample at 2 workers was
   `PRESS_QUIET_MS` 150 (a lever, not pulled while chasing green: every press race is a flake); bare sleeps 17 %
   (tv-profile-screens 474 s, parliament-biodome / -aquifer / -cloud ≈ 290 s each — 69 sleeps × 0.7 s in ONE
   enactment test, inside driver helpers, not the spec: the next pass traces them by call site); boot 10 %.
+- 2026-10-22 (night) — **THE FINAL FUNCTIONAL RUN on fresh HEAD (`2e15e0f06d`, 318 specs / 937 tests,
+  `--exclusive --workers=4 --retries=1`, 1.2 h): 930 passed · 0 failed · 3 flaky · 4 skipped.** No hard red — the
+  owner's CI is next, and CI's runners are weaker than the box, so the three flakies are hardened rather than
+  retried away:
+  | spec | class | cause → fix |
+  | --- | --- | --- |
+  | console-final-greenery | PRODUCT | the own landing measured its cell at the verify while the finale's camera was still moving the board; the «−8» touched down in the NEIGHBOUR cell (`cell:24`, the greenery on 25). The landing now waits for a calm board and re-measures when the board's space moved (`settledHexRect` — the remote stage's own rule), and the price is aimed at the cell ELEMENT (T06 live end). `board-placement-flow.md` § THE TILE LANGUAGE, word 8 |
+  | console-info-dossier (D) | SPEC (probe clock) | «the plate unfolds from the zone's box» read the FIRST `setInterval` tick, which came after the whole 160 ms door under load (3001 × 1736). The start pose is written in the same task as the plate's class (`fromTo`), so the first sample of either clock reads it; the door's OPENING is asserted from the plate's growth |
+  | console-prelude-burn-gate | DRIVER | a stray pick («Metal-Rich Asteroid») held the second place before the walk began, so the limit refused «Business Empire» on three visits. `pickCards(…, {exclusive: true})` takes a stray back on the way; the shortfall trail now names what the step held at the start |

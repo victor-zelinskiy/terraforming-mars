@@ -253,14 +253,21 @@ for (const preset of PRESETS) {
       const entry = await readFrameProbe(page);
       expect(entry.length, `the sampler ran (${entry.length} samples)`).toBeGreaterThan(5);
       expect(entry.filter((s) => !s.filled).length, 'the frame is never empty on the way in').toBe(0);
-      // A claim about a PAINTED frame is read off the task-clock samples only (a mutation sample can see a class before the
-      // tween's first render — a state the browser never paints).
-      const firstPlate = entry.find((s) => s.tick && s.unfolding !== null)?.unfolding;
+      // The START of the unfold is the pose the enter hook writes in the same task as the plate's class (`descendUnfold`
+      // is a `fromTo` — its start clip is rendered immediately), so the FIRST sample of either clock that sees the plate
+      // reads it. A task-clock sample alone cannot carry the claim: on a loaded 4K run the first `setInterval` tick came
+      // after the whole 160 ms door had opened (the final functional run of 2026-10-22: «first plate» 3001 × 1736, the
+      // product right). The claim that the door then OPENS is read off the plate's own growth.
+      const plates = entry.filter((s) => s.unfolding !== null).map((s) => s.unfolding!);
+      const firstPlate = plates[0];
       expect(firstPlate, 'the detail arrives as the zone\'s plate').toBeDefined();
       const near = (a: number, b: number, tol: number) => Math.abs(a - b) <= tol;
       const tol = Math.max(24, from!.width * 0.12);
       expect(near(firstPlate!.left, from!.left, tol) && near(firstPlate!.top, from!.top, tol) && near(firstPlate!.width, from!.width, tol * 2),
         `the plate unfolds from the zone's own box (zone ${JSON.stringify(from)} · first plate ${JSON.stringify(firstPlate)})`).toBe(true);
+      const widest = Math.max(...plates.map((p) => p.width));
+      expect(widest, `…and the door OPENS out of it (widths ${plates.map((p) => Math.round(p.width)).join(' → ')})`)
+        .toBeGreaterThan(firstPlate!.width + tol * 2);
 
       // ── (B) the same tiles, read-only ──
       const gallery = page.locator('[data-info-zone="actions"]');

@@ -159,6 +159,15 @@ Every tile that lands on Mars speaks ONE language, whoever placed it and whateve
    `scaleStorySceneSettling`; the drain's own settle is the camera's landing — `scheduleSettle` 0 while
    `storyReady`). Every other automatic transition keeps `planetFocusSettling` — the whole tail. Measured on the
    4K GPU stand (greenery beside two oceans, plants): commit → the last token 8.4 s → 5.3 s.
+8. **THE CELL IS WHERE IT STANDS NOW — the own landing is measured in the board's present space** (2026-10-22, the
+   final functional run). The hex is measured at the verify, and the board can still be moving then (the finale's
+   Planet Focus, a refit after a surface left): the own landing waits for a calm board and measures AGAIN whenever
+   the board's coordinate space has moved since (`settledHexRect` — `boardGeometryStable` + `boardSpaceEpoch`, the
+   remote stage's own rule; bounded 1.2 s, an unmeasurable cell keeps the verify's rect), once before the beats and
+   once more after a price beat; the price itself is aimed at the cell ELEMENT (`cellEndOf` → `source: {end}` — T06's
+   live end, re-measured on the approach), never the point the press cached. Aimed at the stale rect, a finale's
+   «−8» touched down in the NEIGHBOUR cell while the greenery grew in its own. Guard:
+   `consoleTilePlacement.spec` § THE CELL AS IT STANDS NOW; e2e `console-final-greenery` ② (landed on `cell:<id>`).
 
 Guards: `tilePlacementModel.spec` (the dive never above its start, the birth whole, the contact by kind, the
 beacon / wave constants), `planetFocus.spec` (the story-ready moment inside the exit, dropped by a reversal),

@@ -523,14 +523,27 @@ export async function walkFocusUntil(
  * Pick `cards` (English `CardName`s) on the CURRENT step. Returns the names
  * it actually picked, so a spec asserts exactly what it needs — and reads
  * what was offered when the deal didn't contain it.
+ *
+ * `exclusive`: the step must end holding THESE cards and nothing else — a card
+ * picked that is not one of them is UNPICKED on the way (A is a toggle). A step
+ * with a pick LIMIT refuses the subject while a stray holds a place, and a stray
+ * is one swallowed-then-replayed press away (the final functional run of
+ * 2026-10-22: «Metal-Rich Asteroid» picked before the walk began, «2 / 2», and
+ * «Business Empire» refused on three visits — console-prelude-burn-gate).
  */
 // The budget must cover ~2.5 PASSES of the ring, and the prelude step deals
 // up to TEN candidates (measured by the shortfall trail, 2026-09-09) — 20
 // moves died at exactly 1.8 passes with one swallowed press in the ledger.
-export async function pickCards(page: Page, cards: ReadonlyArray<string>, maxMoves = 34): Promise<Array<string>> {
+export async function pickCards(page: Page, cards: ReadonlyArray<string>, maxMoves = 34,
+  opts: {exclusive?: boolean} = {}): Promise<Array<string>> {
   await waitStepDealSettled(page);
 
   const hit = new Set<string>();
+  const strays = new Set<string>();
+  const pickedAtStart = await pickedCards(page);
+  // Done = every subject verified, and (exclusive) no other card left holding a place.
+  const done = async () => hit.size >= cards.length &&
+    (opts.exclusive !== true || (await pickedCards(page)).every((c) => cards.includes(c)));
   // THE RING CLAMPS (ConsoleStartScene.onNav: Math.min/max, no wrap), so a
   // one-way walk visits each card EXACTLY ONCE and the lap-based self-heal
   // below is vacuous — one swallowed press on a loaded runner and the card is
@@ -542,7 +555,7 @@ export async function pickCards(page: Page, cards: ReadonlyArray<string>, maxMov
   let prevFocused = '';
   let stuck = 0;
   const trail: Array<string> = [];
-  for (let i = 0; i < maxMoves && hit.size < cards.length; i++) {
+  for (let i = 0; i < maxMoves && !(await done()); i++) {
     const focused = await focusedCard(page);
     trail.push(focused === '' ? '·' : focused);
     // ⚠ A WALL and a SWALLOWED ARROW are indistinguishable for ONE lap — both
@@ -563,7 +576,16 @@ export async function pickCards(page: Page, cards: ReadonlyArray<string>, maxMov
       stuck = 0;
     }
     prevFocused = focused;
-    if (cards.includes(focused) && !hit.has(focused)) {
+    if (opts.exclusive === true && focused !== '' && !cards.includes(focused) && (await pickedCards(page)).includes(focused)) {
+      // A STRAY holds a place: take it back (verified, the same retry-in-place as a pick).
+      strays.add(focused);
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await press(page, 'Enter', 520);
+        if (await pickCleared(page, focused)) {
+          break;
+        }
+      }
+    } else if (cards.includes(focused) && !hit.has(focused)) {
       // ACT → VERIFY, never «pressed = picked». This is rule 4 of this very
       // file — a press is SWALLOWED by design often enough (an arriving card,
       // a commit gate, a step that has just changed) — and this function was
@@ -599,15 +621,19 @@ export async function pickCards(page: Page, cards: ReadonlyArray<string>, maxMov
         }
       }
     }
-    if (hit.size < cards.length) {
+    if (!(await done())) {
       await press(page, arrow, 280);
     }
   }
   if (hit.size < cards.length) {
     // The trail is the diagnosis: it shows every stop the walk made, so the
-    // next CI shortfall names WHERE the subject card was lost, not just THAT.
+    // next CI shortfall names WHERE the subject card was lost, not just THAT —
+    // and what the step already held when the walk began.
     console.log(`[pickCards] shortfall: wanted [${cards.join(', ')}], got [${[...hit].join(', ')}], ` +
-      `walk: ${trail.join(' → ')}`);
+      `picked at start [${pickedAtStart.join(', ')}], now [${(await pickedCards(page)).join(', ')}], ` +
+      `strays taken back [${[...strays].join(', ')}], walk: ${trail.join(' → ')}`);
+  } else if (strays.size > 0 || pickedAtStart.some((c) => !cards.includes(c))) {
+    console.log(`[pickCards] the step held [${pickedAtStart.join(', ')}] before the walk; strays taken back: [${[...strays].join(', ')}]`);
   }
   return [...hit];
 }
@@ -638,6 +664,18 @@ export async function waitStepDealSettled(page: Page, maxMs = 15_000): Promise<v
  * step's own render — and bounded, because the caller must be free to come
  * round and try again rather than press twice into the same lap.
  */
+/** A card's pick has been taken back on the CURRENT step (the toggle's other half). */
+async function pickCleared(page: Page, card: string, maxMs = 1_800): Promise<boolean> {
+  const started = Date.now();
+  while (Date.now() - started < maxMs) {
+    if (!(await pickedCards(page)).includes(card)) {
+      return true;
+    }
+    await pollPause(page, 150);
+  }
+  return false;
+}
+
 async function pickRegistered(page: Page, card: string, maxMs = 1_800): Promise<boolean> {
   const started = Date.now();
   while (Date.now() - started < maxMs) {

@@ -191,9 +191,10 @@ import {claimVpShares, dropVpClaim, flyVpShares, holdsVpShares, isBoardVpShare, 
 export const TILE_VP_OWNER = 'tile';
 const TILE_VP_RANK = 1;
 import {
-  ResourceTransferSpec, TransferPoint, cardResourceKey, transferWaveDelayMs, TRANSFER_CONCURRENT_PACE,
+  ResourceTransferSpec, TransferEnd, TransferPoint, cardResourceKey, transferWaveDelayMs, TRANSFER_CONCURRENT_PACE,
   RATING_RAIL_KEY, TOUCHDOWN_TICK_GAP_MS, isStandardResource,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
+import {boardGeometryStable, boardSpaceEpoch, waitBoardGeometryStable} from '@/client/console/boardSpaceGeometry';
 import {TileMoveRewardModel} from '@/common/models/TileMoveRewardModel';
 import {isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {snapPlanetFocusSettled} from '@/client/console/planetFocus';
@@ -355,6 +356,8 @@ function ownCityPayoutVp(list: ReadonlyArray<PendingCityPayout>): number {
 let pendingAresFlights: ReadonlyArray<AresAdjacencyFlight> = [];
 /** The armed hex's live rect (captured at detect — post pan/zoom truth). */
 let hexRect: TileRect | undefined;
+/** The board's coordinate-space version `hexRect` was taken in (`boardSpaceGeometry`) — a later epoch means it is stale. */
+let hexRectEpoch = 0;
 /** The REAL printed-icon container we blanked under the proxies (the
  *  `con-deal-hold` swap discipline) — restored on abort/finish. */
 let heldBonusEl: HTMLElement | undefined;
@@ -604,6 +607,7 @@ export function detectTilePlacement(
   tilePlacementState.aresExtension = opts?.aresExtension === true;
   landedColor = landed.color;
   hexRect = measureBoardHexRect(spaceId);
+  hexRectEpoch = boardSpaceEpoch();
   if (landed.moves !== undefined) {
     // A MOVE: the city that stood on `from` is the object — its art and its
     // owner cube ride the one proxy (the twin's socket is derived from the
@@ -832,6 +836,14 @@ async function executeApproach(
   if (!tilePlacementState.active) {
     return;
   }
+  // THE BOARD MAY STILL BE MOVING UNDER THE SCENE (the finale's Planet Focus, a fit pass after a surface left): the rect
+  // measured at the verify is versioned by the coordinate space it was taken in, so the landing waits for a calm board
+  // and measures again — the remote stage's own rule (`flyRemote`). Aimed at the stale rect, the plants' «−8» was drawn
+  // into the NEIGHBOUR cell while the greenery grew in its own (console-final-greenery, under a loaded 4K run).
+  hexRect = await settledHexRect(tilePlacementState.spaceId, hexRect);
+  if (!tilePlacementState.active) {
+    return;
+  }
   if (move !== undefined) {
     await runMove(hexRect, move, vacateSource, paintRealTile);
     return;
@@ -859,7 +871,7 @@ async function executeApproach(
   // the top of a two-piece cell (`stackLandingRect`, the same geometry the reticle's afloat pose and the tier's
   // landing use) — never onto the full hex: the water stays the ground, painted the whole way.
   const afloat = armedOverOcean && tilePlacementState.coveredTile === TileType.OCEAN && tilePlacementState.tileType === TileType.CITY;
-  const landingRect = afloat ? stackLandingRect(hexRect, 2) : hexRect;
+  let landingRect = afloat ? stackLandingRect(hexRect, 2) : hexRect;
   // THE PRICE FIRST (PL-306): the plants leave the rail for this very cell, the row ticking on the departure; the
   // tile is then born OUT of the cell (the sprout) — a greenery bought with plants is never fetched from the table.
   // …and a GREENERY is never fetched from the table at all (the tile language, W7 — the owner, 2026-10-20): bought
@@ -874,6 +886,12 @@ async function executeApproach(
       return; // aborted mid-payment — the abort already let every hold go
     }
     tilePlacementState.phase = 'approaching';
+    // The price was a beat in the air: a board that moved meanwhile seats the sprout on the cell as it stands NOW.
+    hexRect = await settledHexRect(tilePlacementState.spaceId, hexRect);
+    if (!tilePlacementState.active) {
+      return;
+    }
+    landingRect = afloat ? stackLandingRect(hexRect, 2) : hexRect;
   }
   const tileFrom = sprout ? {x: landingRect.x + landingRect.w / 2, y: landingRect.y + landingRect.h / 2} : tableSupplyPoint(ui);
   if (els === undefined || !placeTileProxy(els, {
@@ -976,10 +994,13 @@ async function runPriceBeat(hex: TileRect, price: PlacementPrice): Promise<void>
   const spec: ResourceTransferSpec = {channel: 'stock', resource: price.resource, amount: price.amount, direction: 'loss'};
   tilePlacementState.price = 'flying';
   let degraded: string | undefined;
+  // The cell is an OBJECT end (T06 — re-measured on the approach and at the touchdown), never the point the press
+  // cached: a board that moves while the token is in the air still receives it in the cell it was paid for.
+  const cell = cellEndOf(tilePlacementState.spaceId);
   await runResourceTransfers({
     specs: [spec],
     // A LOSS walks the geometry backwards: born on the row, absorbed at the run's source — the cell.
-    source: {point: {x: hex.x + hex.w / 2, y: hex.y + hex.h / 2}},
+    source: cell !== undefined ? {end: cell} : {point: {x: hex.x + hex.w / 2, y: hex.y + hex.h / 2}},
     arrival: 'auto',
     absorb: 'quick',
     onArrive: (s) => {
@@ -1994,6 +2015,41 @@ function clearMoveScene(): void {
 
 /** The live rect of a board hex (post pan/zoom truth) — shared with the
  *  remote-placement scene (consoleRemotePlacement). */
+/**
+ * The armed hex as it stands NOW: the stored rect while the board is calm and its coordinate space has not moved since
+ * the measure; otherwise a bounded wait for a stable board (`waitBoardGeometryStable` — short: the run gate's own
+ * safety bounds the scene) and a fresh measure. Never worse than the stored rect — an unmeasurable cell keeps it.
+ */
+async function settledHexRect(spaceId: string, stored: TileRect): Promise<TileRect> {
+  if (boardGeometryStable() && boardSpaceEpoch() === hexRectEpoch) {
+    return stored;
+  }
+  await waitBoardGeometryStable({maxMs: 1200, alive: () => tilePlacementState.active});
+  const live = measureBoardHexRect(spaceId);
+  if (live === undefined) {
+    return stored;
+  }
+  hexRectEpoch = boardSpaceEpoch();
+  return live;
+}
+
+/** The landing's own re-measure, for the unit suite (it reads the module's measure epoch). */
+export function settledHexRectForTest(spaceId: string, stored: TileRect): Promise<TileRect> {
+  return settledHexRect(spaceId, stored);
+}
+
+/**
+ * The armed cell as a transfer END — its element, aimed at its centre. Never a fraction derived from a stored rect:
+ * a stale rect against the live element would aim OUTSIDE the cell, which is the very defect the end exists to remove.
+ */
+function cellEndOf(spaceId: string): TransferEnd | undefined {
+  if (typeof document === 'undefined') {
+    return undefined;
+  }
+  const el = document.querySelector<HTMLElement>(`.board-space[data_space_id="${escapeId(spaceId)}"]`);
+  return el === null ? undefined : {el, fx: 0.5, fy: 0.5};
+}
+
 export function measureBoardHexRect(spaceId: string): TileRect | undefined {
   if (typeof document === 'undefined') {
     return undefined;
