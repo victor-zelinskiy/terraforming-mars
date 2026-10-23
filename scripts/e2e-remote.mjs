@@ -12,8 +12,9 @@
  * pulls the results out. Nothing of the run crosses the network.
  *
  * WHAT IT DOES, in order:
- *   1. preflight — the host answers; the game is not running there; no
- *      DO_NOT_DISTURB marker (`~/tm-e2e/DO_NOT_DISTURB`);
+ *   1. preflight — the host answers; no DO_NOT_DISTURB marker
+ *      (`~/tm-e2e/DO_NOT_DISTURB`); a running game is noted, never a refusal
+ *      (the owner, 2026-10-23 — the run goes beside it);
  *   2. sync — a MANIFEST diff (size + mtime) of the laptop's tree against the
  *      mirror, then a tar of only what changed. TWO destinations, because the
  *      sources are one tree for every session of this clone while the BUILD is
@@ -45,7 +46,7 @@
  *      laptop's `screenshots/` (the same paths a local run writes).
  *
  * The exit code is Playwright's. A host that cannot be reached exits 2, no
- * slot obtained in 30 min exits 3, the game running there exits 4 — each
+ * slot obtained in 30 min exits 3, the owner's DO_NOT_DISTURB exits 4 — each
  * says so in one line. THE RULE FOR AN AGENT: never fall back to a local run
  * silently on 2/3/4 — ask the owner (memory `e2e-only-on-steam-machine`).
  *
@@ -147,15 +148,11 @@ if (flags.has('DND')) {
   log(`${HOST} carries ${REMOTE_HOME}/DO_NOT_DISTURB — the owner asked for quiet; ask before running`);
   process.exit(4);
 }
-// `TM_E2E_BESIDE_GAME=1` — the OWNER's explicit, per-case word that an e2e may run beside their game (it
-// costs the game frames); never an agent's own decision — the rule stays «exit 4 → ask».
-const besideGame = process.env.TM_E2E_BESIDE_GAME === '1';
+// A running game is NOT a refusal (the owner, 2026-10-23: «можно гонять e2e на steam machine даже когда игра
+// запущена»): the run goes beside it. It shares the GPU with the game, so whoever reports a TIMING taken now
+// must say so beside its numbers; the owner's one opt-out is the DO_NOT_DISTURB marker above.
 if (flags.has('GAME-RUNNING')) {
-  if (!besideGame) {
-    log(`the game is RUNNING on ${HOST} — refusing to load it with an e2e run; ask the owner`);
-    process.exit(4);
-  }
-  log(`the game is RUNNING on ${HOST} — running beside it on the owner's word (TM_E2E_BESIDE_GAME=1); not a timing`);
+  log(`the game is RUNNING on ${HOST} — running beside it${exclusive ? '; this TIMING shares the GPU with the game — say so with its numbers' : ''}`);
 }
 if (flags.has('RUN-IN-PROGRESS')) {
   log(`another e2e run is in progress on ${HOST} — ${exclusive ? `this EXCLUSIVE run waits for the box to empty (up to ${LOCK_WAIT_S / 60} min)` : `this one takes a free slot of ${SLOTS}, or waits for one (up to ${LOCK_WAIT_S / 60} min)`}`);
@@ -447,7 +444,6 @@ else
     fi
   done
 fi
-if ! ${besideGame ? 'true' : 'false'} && pgrep -f '[T]erraformingMars.AppImage' >/dev/null; then echo "[e2e:remote] the game started on the Steam Machine while we waited — refusing"; exit 4; fi
 echo "[e2e:remote] $SLOT — running ${shq(task)} on $(cat /etc/hostname 2>/dev/null) · load $(cut -d' ' -f1-3 /proc/loadavg)"
 # The task's serve root: its own build beside LINKS to what the server reads relative to its cwd
 # (the laptop's \`e2e:snapshot\` does the same with junctions) — and to \`node_modules\`, which Node

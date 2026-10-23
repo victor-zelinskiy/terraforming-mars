@@ -65,10 +65,13 @@ What it does, in order:
 
 **Exit codes.** 0 / 1 are Playwright's own. **2 / 3 / 4 mean the run did NOT happen**: 2 = the host is
 unreachable, no mirror, no build, a sync failure, or Playwright never started; 3 = no slot (or, for
-`--exclusive`, not the whole box) in 30 min; 4 = the game is running there or the owner set
-`DO_NOT_DISTURB`. On any of them an agent STOPS and ASKS the owner — never a silent fallback to a laptop
-run. The owner's answer «run beside my game» is `TM_E2E_BESIDE_GAME=1` on that run (it costs the game
-frames; never a timing) — the owner's word for the occasion, never an agent's own setting.
+`--exclusive`, not the whole box) in 30 min; 4 = the owner set `DO_NOT_DISTURB`. On any of them an
+agent STOPS and ASKS the owner — never a silent fallback to a laptop run.
+
+**A running game is NOT a refusal** (the owner, 2026-10-23: «можно гонять e2e на steam machine даже когда
+игра запущена»). The preflight still detects it and the run goes beside it with one log line; it shares
+the GPU with the game, so a TIMING taken then (an `--exclusive` run warns) must say so beside its numbers.
+`TM_E2E_BESIDE_GAME` (the old per-case override of the refusal) is gone with the refusal.
 
 Product edits still need a fresh build (`npm run build` + `npm run e2e:snapshot <task>`) before the run:
 the sync mirrors what is on disk. Spec edits sync by themselves (`tests/` is in the mirror).
