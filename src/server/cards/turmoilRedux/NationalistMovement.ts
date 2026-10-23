@@ -105,9 +105,8 @@ export class NationalistMovement extends Card implements IProjectCard {
       metadata: {
         cardNumber: 'TR31',
         infoText: [
-          {text: 'Add 1 neutral delegate to each Reds and Mars First resolution up for a vote. It is a vote: the card may become the winning one, but a neutral delegate never leads it while a player stands on it.', tokens: ['neutral-delegate']},
-          {text: 'Add 1 neutral delegate to the Popular Support Area of the Reds and of Mars First (3 per area at most, supply permitting).', tokens: ['neutral-delegate']},
-          {text: 'Gain 1 M€ per neutral delegate in use — on any resolution or in any Popular Support Area, not in the reserve.', tokens: ['megacredits']},
+          {text: 'Add 1 neutral delegate to each Reds and Mars First resolution up for a vote and to each of their Popular Support Areas.', tokens: ['neutral-delegate']},
+          {text: 'Gain 1 M€ per neutral delegate in use (not in the reserve).', tokens: ['megacredits']},
         ],
         renderData: CardRenderer.builder((b) => {
           b.neutralDelegate(1).asterix().nbsp.nbsp.megacredits(1).slash().neutralDelegate(1);
