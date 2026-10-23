@@ -984,13 +984,21 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
     // …except under a law that REPLACES the ocean (RX35): the PRINTED count is promised whole — the law takes every
     // printed unit and the ceiling cuts nothing («even if the parameter is maxed»); the exit pass strikes it.
     const remaining = Math.max(0, MAX_OCEAN_TILES - player.game.board.getOceanSpaces().length);
-    const count = divertedGate.divertsTerraforming(player) ? (behavior.ocean.count ?? 1) : Math.min(behavior.ocean.count ?? 1, remaining);
+    const printed = behavior.ocean.count ?? 1;
+    const count = divertedGate.divertsTerraforming(player) ? printed : Math.min(printed, remaining);
+    // What the board has no room for is a NAMED skip with its magnitude (`SKIPPED_LABEL.placeOcean` — the coverage
+    // guard's «every warning names the skipped effect»), never a silent count.
+    const lost = (n: number) => ({label: actionPreviews.SKIPPED_LABEL.placeOcean, effect: {direction: 'gain' as const, icon: 'oceans', amount: n}});
     if (count > 0) {
       steps.push({kind: 'boardPlacement', placementType: 'ocean', tileType: TileType.OCEAN, count: count > 1 ? count : undefined});
+      if (count < printed) {
+        // PL-595 (T15 · CD): a two-ocean card with one ocean left places ONE — the second is lost, and says so.
+        steps.push(actionPreviews.warningNote(actionPreviews.OCEANS_PARTLY_PLACED_NOTE, {skipped: lost(printed - count)}));
+      }
     } else {
       // …and the skip is NAMED, never silent (TR67): nine oceans stand, the card plays without its ocean and without
       // its rating — the card's own `maxoceans` warning, in its words, before the press.
-      steps.push(actionPreviews.warningNote(actionPreviews.OCEANS_MAXED_NOTE));
+      steps.push(actionPreviews.warningNote(actionPreviews.OCEANS_MAXED_NOTE, {skipped: lost(printed)}));
     }
   }
   if (behavior.city !== undefined && behavior.city.space === undefined) {

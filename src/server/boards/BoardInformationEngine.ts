@@ -1626,10 +1626,12 @@ function tileTriggerFacts(player: IPlayer, space: Space, ctx: PlacementPreviewCo
         // Namespace by owner: two players holding the same card must not collide
         // on the fact id (the client keys its `v-for` on it). A reply names the
         // fact it answers by that same id, so its link is namespaced with it.
+        // The placer's OWN card answering the tile is the table's answer («Сработает» — T15 · CD), never the cell's gain.
         out.push(...facts.map((fact) => ({
           ...fact,
           id: `${owner.color}-${fact.id}`,
           ...(fact.answers !== undefined ? {answers: `${owner.color}-${fact.answers}`} : {}),
+          ...(owner.id === player.id ? {tableAnswer: true} : {}),
         })));
       }
     }

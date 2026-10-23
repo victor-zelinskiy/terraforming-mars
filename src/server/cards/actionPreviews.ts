@@ -840,6 +840,13 @@ export function warningNote(
  */
 export const OCEANS_MAXED_NOTE = 'Note: all oceans are already on the board.';
 
+/**
+ * PL-595 (T15 · CD): a card printing TWO oceans with ONE left on the board places one — the second is lost before
+ * the press and is NAMED, never dropped silently. A plain sentence: the lost COUNT rides the skipped chip beside it
+ * («Размещение океана +1» — the warning surfaces translate the note as a bare key, never with params).
+ */
+export const OCEANS_PARTLY_PLACED_NOTE = 'The oceans are almost full: not every ocean of this card will be placed.';
+
 /** Identifies WHICH effect a `warning` note is about — see
  *  `ActionPreviewStep`'s `skipped`. */
 export type SkippedEffect = {label: string | Message, effect?: ActionEffect};
@@ -861,6 +868,8 @@ export const SKIPPED_LABEL = {
   reduceProduction: 'Reduce another player\'s production',
   removeAnimalsOrPlants: 'Remove animals or plants from another player',
   addToCard: 'Add resources to a card',
+  // An ocean the board has no room for (nine stand, or fewer left than printed — TR67 / PL-595, T15 · CD).
+  placeOcean: 'Placing an ocean tile',
   // A discard FOR something (Strategic Shift's «cards with a requirement for M€ and cards»): skipped when the hand
   // holds no candidate — named before the press (the preview) and after it (the record).
   discardCards: 'Discard cards from hand',

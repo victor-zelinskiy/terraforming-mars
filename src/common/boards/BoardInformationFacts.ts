@@ -182,6 +182,13 @@ export type BoardFact = {
    */
   reaction?: boolean;
   /**
+   * THE PLACER'S OWN TABLE ANSWERS this tile (T15 · CD — Herbivores' animal for a greenery, Pets' for a city, Rover
+   * Construction's M€, Red Museum's «decided by the cell»): a fact of one of the placer's OWN cards' `tilePlacedPreview`
+   * (`tileTriggerFacts`). Structural — the dossier reads it as «Сработает», the composers' word for the table's answer,
+   * never mixed into what the CELL gives («Вы получите»). Another seat's card answering is a recipient fact instead.
+   */
+  tableAnswer?: boolean;
+  /**
    * The id of the fact a `reaction` ANSWERS — the grant it is the table's reply
    * to (Martian Fiber's M€ answering TR30 Red Museum's «+2 data», or TR21's data
    * for the adjacent cities). Structural, so the dossier reads the consequence

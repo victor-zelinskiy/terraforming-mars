@@ -8,6 +8,8 @@ import {Behavior} from '../../src/server/behavior/Behavior';
 import {stepsForBehavior} from '../../src/server/models/actionPreview';
 import {Counter} from '../../src/server/behavior/Counter';
 import {testGame} from '../TestGame';
+import {maxOutOceans} from '../TestingUtils';
+import {MAX_OCEAN_TILES} from '../../src/common/constants';
 import {CardResource} from '../../src/common/CardResource';
 import {Tag} from '../../src/common/cards/Tag';
 import {SelectCardModel} from '../../src/common/models/PlayerInputModel';
@@ -392,5 +394,38 @@ describe('card-play-preview coverage', () => {
       }
     });
     expect(anonymous, `warnings that don't name WHICH effect is skipped:\n  ${anonymous.join('\n  ')}`).to.have.length(0);
+  });
+  // GUARD (T15 · CD — «no silent tile loss»): a tile the board has no room for is NAMED before the press. On a board
+  // with every ocean placed, a card that declares an ocean either keeps a placement step (a law replacing it — the
+  // printed count promised whole) or states the loss as a NAMED warning with its magnitude; with ONE ocean left, a
+  // card printing two places one and names the second (PL-595). A declarative CITY / GREENERY / TILE needs no such
+  // note: with no legal cell the card is not playable at all, and the hand names why («No space available for the
+  // tile» — `unplayableReasons`; WildlifeDome.spec rule 3 pins it).
+  it('no silent tile loss: every declared ocean a full board refuses is named, with its count', () => {
+    const silent: Array<string> = [];
+    const named = (steps: ReturnType<typeof stepsForBehavior>, lost: number) => steps.some((st) =>
+      st.kind === 'note' && st.noteKind === 'warning' && st.skipped !== undefined && st.skipped.label !== '' &&
+      st.skipped.effect?.amount === lost);
+    let exercised = 0;
+    for (const left of [0, 1]) {
+      const [game, player] = testGame(2);
+      maxOutOceans(player, MAX_OCEAN_TILES - left);
+      expect(game.board.getOceanSpaces().length).eq(MAX_OCEAN_TILES - left);
+      forEachInScopeProjectCard((card, module) => {
+        const behavior = (card as {behavior?: Behavior}).behavior;
+        const printed = behavior?.ocean === undefined ? 0 : (behavior.ocean.count ?? 1);
+        if (behavior === undefined || printed <= left) {
+          return;
+        }
+        exercised++;
+        const steps = stepsForBehavior(player, card, behavior);
+        const placed = steps.reduce((n, st) => n + (st.kind === 'boardPlacement' && st.placementType === 'ocean' ? (st.count ?? 1) : 0), 0);
+        if (placed < printed && !named(steps, printed - placed)) {
+          silent.push(`${card.name} [${module}] — ${left} left, prints ${printed}, steps place ${placed}`);
+        }
+      });
+    }
+    expect(exercised, 'the sweep reaches the ocean cards (anti-vacuous)').greaterThan(5);
+    expect(silent, `oceans lost without a named warning:\n  ${silent.join('\n  ')}`).to.have.length(0);
   });
 });
