@@ -84,6 +84,12 @@ It is applied at three points:
 The push step is what closes the hole; the guard is the backstop that keeps a manual
 `git push` safe and turns a red CI into an instant local refusal.
 
+**A bare `git push origin main` is allowed** (the owner, 2026-10-24) — for the case the wrapper
+cannot serve: the shared tree holds other sessions' uncommitted work, which `npm run push` refuses
+(it never stashes). The guard above still refuses a claimed version and a non-fast-forward, so the
+two cheap-and-expensive mistakes stay impossible; a push refused as behind needs a rebase, i.e. a
+clean tree, and goes back to `npm run push`.
+
 ## Deliberate non-behaviours
 
 - **`npm run push` never resolves a content conflict.** It aborts the rebase and hands
