@@ -212,10 +212,18 @@ jobs:
           restore-keys: |
             e2e-flake-ledger-
 
+      # ── THE FIX BRIEF: every failed / flaky test with its error, location, code frame, stdout tail and seed, as ONE
+      # copyable block on this run's summary page — what a fix needs, without downloading the HTML report. Runs
+      # BEFORE the ledger (which may exit 1 on a repeat offender) and never fails the job itself.
+      - name: Merge JSON report
+        run: npx playwright merge-reports --reporter=json ./all-blobs > merged-report.json
+
+      - name: Fix brief (copyable, on the summary page)
+        if: ${{ !cancelled() }}
+        run: node scripts/e2e-fix-brief.mjs merged-report.json --run "${{ github.run_id }}.${{ github.run_attempt }}" --commit "${{ github.sha }}"
+
       - name: Update flake ledger
-        run: |
-          npx playwright merge-reports --reporter=json ./all-blobs > merged-report.json
-          node scripts/e2e-flake-ledger.mjs merged-report.json --run-id "${{ github.run_id }}.${{ github.run_attempt }}"
+        run: node scripts/e2e-flake-ledger.mjs merged-report.json --run-id "${{ github.run_id }}.${{ github.run_attempt }}"
 
       - name: Save flake ledger
         if: ${{ !cancelled() }}
