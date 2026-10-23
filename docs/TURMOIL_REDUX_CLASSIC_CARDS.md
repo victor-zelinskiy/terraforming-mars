@@ -86,10 +86,13 @@ underworld, starwars — их `isCompatibleWith` не изменился). Це�
 (постоянный факт набора, см. 2.4).
 
 ### 2.4 Замены (ПОСТОЯННАЯ часть)
-`src/server/cards/turmoilRedux/classicReplacements.ts` — реестр семи заменяемых карт: классическое имя, вид,
-скан (относительно `…/TM Turmoil Redux/`), что меняет замена (прочитано со сканов 2026-10-21). Классическая
-версия **никогда** не попадает в колоду Redux: до замены её держит список, после — `cardsToRemove`
-Redux-манифеста (механизм апстрима, `GameCards.filterReplacedCards`). Контракт замены — §3.2.
+`src/common/cards/turmoilReduxReplacements.ts` (с TR71 — в `common`; серверный `turmoilRedux/classicReplacements.ts`
+— ре-экспорт) — реестр семи заменяемых карт: классическое имя, вид, скан (относительно `…/TM Turmoil Redux/`), что
+меняет замена (прочитано со сканов 2026-10-21), и `replacementCardNumber` (TR71…TR76 по порядку проектных строк).
+Классическая версия **никогда** не попадает в колоду Redux: до замены её держит список, после — `cardsToRemove`
+Redux-манифеста (механизм апстрима, `GameCards.filterReplacedCards`); и **никогда** не входит в премиум-скоуп и в
+dev-пикер гарантированных карт (`inPremiumScope`, `guaranteedModuleOf` читают реестр — потому он и в `common`).
+Контракт замены — §3.2.
 
 ### 2.5 Гарды
 `tests/cards/turmoil/TurmoilCardsUnderRedux.spec.ts` (12 тестов):
@@ -162,18 +165,29 @@ is off» допускает в разнице только адаптирова�
 ### 3.2 Карта-замена (7 карт)
 1. **Класс** в `src/server/cards/turmoilRedux/<Name>Redux.ts` (`Card` / `ActionCard` / корпорация), имя
    `CardName.<X>_REDUX = '<X>:redux'` — прецедент апстрима для одноимённой перепечатки: `DEIMOS_DOWN_PROMO =
-   'Deimos Down:promo'`, `CAPITAL_ARES = 'Capital:ares'`; клиент режет суффикс для показа
-   (`name.split(':')[0]` — журнал, финальный счёт, чипы, лог). Проверить каждое место, где имя карты —
-   ключ (лор, арт, RU-имя, `CardRenames`).
+   'Deimos Down:promo'`, `CAPITAL_ARES = 'Capital:ares'`. **Где имя — ключ (проверено на TR71):** RU-имя —
+   `translateText` сам откатывает `Name:variant` на имя без суффикса (`/^(.+):[a-z0-9]+$/`), `translateCardName`
+   — тоже (лицо `PremiumCard`, токен CARD журнала/лога); ключ-дубль `"<X>:redux"` НЕ заводить (пин
+   `tests/client/i18n.spec.ts`); журнал / финальный счёт / превью-поповер / лог режут `split(':')[0]`; арт и
+   лор — через `reimplements` (п. 4); `CardRenames` не нужен (имя новое, старого нет).
 2. **Регистрация** в `TURMOIL_REDUX_CARD_MANIFEST` + **`cardsToRemove: [CardName.<X>]`** там же (классическая
    карта уходит из колоды Redux навсегда; под классикой Redux-манифест не включён, поэтому классика цела).
 3. **ТЕМ ЖЕ диффом** — строка `CardName.<X>` долой из `TURMOIL_CARDS_AWAITING_REDUX_REPLACEMENT` (гард «a
-   replacement that has crossed stands in the Redux manifest's cardsToRemove» требует всё вместе).
-4. **Номер-ключ арта/лора.** Сканы печатают «TR00» у всех шести; `TR01…TR70` заняты, гард манифеста пинит
-   `TR\d{2}` в 1…70 — расширить его осознанно (например, `TR71…TR77` в порядке списка или отдельный
-   префикс), не переиспользуя номер. Лор Political Alliance уже придуман
-   (`docs/claude/turmoil-redux-invented-lore.md`).
+   replacement that has crossed stands in the Redux manifest's cardsToRemove» требует всё вместе) и пин «the
+   adapted cards» `TurmoilCardsUnderRedux.spec` (массив `replaced`). Счётные пины читают `cardsToRemove`, а не
+   литерал (`PoliticalThinkTank.spec` — пул карт с требованием партии, `deckComposition.spec` — 70 + замены).
+4. **Номер и арт/лор (РЕШЕНО на TR71, 2026-10-24).** Сканы печатают «TR00»; номер = `replacementCardNumber(classic)`
+   — **TR71…TR76 по порядку проектных строк реестра** (Aerial Lenses 71 · Banned Delegate 72 · Political Alliance 73
+   · Recruitment 74 · Sponsored Mohole 75 · Vote of No Confidence 76). Гард манифеста: номер в 1…76, номер > 70 —
+   замена ровно своей строки, `reimplements` её классики, имя `<X>:redux`; `cardsToRemove` = классика авторизованных
+   замен. Арт и лор — **КЛАССИЧЕСКОЙ карты через `metadata.reimplements: CardName.<X>`** (`artKey` / `cardLoreSource`):
+   арт импортировать под классическим номером (`node scripts/import-card-art.mjs "<Mars Arts>/T0#.png" T0#`), лор —
+   ключ `T0#` в `assets/text/lore_texts.json` + RU; своих `TR7#.webp` / ключа `TR7#` НЕ заводить. Если на скане замены
+   цитаты нет — лор придуман (Political Alliance — `docs/claude/turmoil-redux-invented-lore.md`) и всё равно кладётся
+   под классический номер.
 5. Reserved-гард: под классическим именем в Redux-манифесте карту зарегистрировать нельзя.
+5а. **Скоуп и пикер.** Заменённая классика вне премиум-скоупа и вне dev-пикера НАВСЕГДА (реестр в `common`);
+   замена — в скоупе модуля `turmoilRedux` и под ним в пикере. Гарды `premiumScope.spec`, `devGuaranteedCards.spec`.
 6. Septem Tribus — корпорация с НОВОЙ механикой («кубы на знамёнах партий» → эффект партии): резерв
    `grantPartyEffect` в `PoliticalOps`; требование карты эффект, выданный картой, НЕ выполняет (FAQ p.19,
    `docs/TURMOIL_REDUX_COUNCIL_SEAT.md` §2). Сначала инфраструктура сквозным контрактом, потом карта
@@ -189,7 +203,7 @@ is off» допускает в разнице только адаптирова�
 
 | Карта | Классика | Политика сегодня | Что меняет замена (скан) | Статус |
 | --- | --- | --- | --- | --- |
-| Aerial Lenses | зелёная, 2, −1 ПО; Кельвинисты; −2 растения любому, +2 пр. тепла | требование партии | партия → **Учёные** (не Зелёные по общему правилу); стоимость 2 → 3; метка Науки; **−1 ПО убран** | ждёт |
+| Aerial Lenses | зелёная, 2, −1 ПО; Кельвинисты; −2 растения любому, +2 пр. тепла | требование партии | партия → **Учёные** (не Зелёные по общему правилу); стоимость 2 → 3; метка Науки; **−1 ПО убран** | **СДАНА 2026-10-24** — TR71 `Aerial Lenses:redux` (первая замена; полностью декларативная; арт/лор T01 через `reimplements`) |
 | Banned Delegate | событие, 0; председатель; убрать любого НЕ-лидера | `chairman` + `bespokePlay` (`Turmoil.getTurmoil`, `SelectDelegate`) | «любой делегат с резолюции или из области Народной поддержки» — без оговорки о лидере | ждёт |
 | Political Alliance | событие, 4; 2 лидера партий; +1 РТ | `partyLeader: 2` (фасад `partiesLedBy`) | стоимость 4 → 2; «больше всех делегатов на 2 резолюциях сразу» (ничья — кто поставил первым; нейтральные не считаются — это и есть `partiesLedBy`); +1 РТ → **1 шаг Карьеры** | ждёт |
 | Recruitment | событие, 2; обмен НЕЙТРАЛЬНОГО НЕ-лидера на своего из запаса | `bespokePlay` (`Turmoil`, `SendDelegateToArea {replace: 'NEUTRAL'}`) | «нейтральный делегат на резолюции» ↔ свой из запаса; без оговорки о лидере; только резолюции | ждёт |
