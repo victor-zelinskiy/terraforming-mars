@@ -22,7 +22,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, fetchPlayerModel, focusCard, focusedSpaceId, placementState, press, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, fetchPlayerModel, focusCard, focusedSpaceId, placementState, pressUntil, settle} from './consoleStart';
 
 const PROFILES = [
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
