@@ -24,6 +24,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {GameModule} from '@/common/cards/GameModule';
 import {ClientCard} from '@/common/cards/ClientCard';
+import {TURMOIL_CARDS_HELD_BACK_UNDER_REDUX} from '@/common/cards/turmoilReduxAdaptation';
 import {getCard, getCards} from '@/client/cards/ClientCardManifest';
 import {PremiumTheme, premiumThemeFor} from '@/client/components/premiumCard/premiumCardTheme';
 import {translateCardName} from '@/client/directives/i18n';
@@ -110,8 +111,22 @@ function guaranteeable(card: ClientCard): boolean {
   return guaranteedListOf(card.type) !== undefined && !NOT_GUARANTEEABLE.has(card.name);
 }
 
+/**
+ * The picker module a card is offered under — its own module, except the classic
+ * Turmoil cards: the creator has no classic-Turmoil toggle, and an ADAPTED one is dealt
+ * only with Turmoil Redux, so it is listed under Redux (the deck meter counts it there
+ * too — `deckComposition.ts` `ORIGIN_MODULES`). A card still on the hold-back list is
+ * offered nowhere: no Redux table deals it.
+ */
+export function guaranteedModuleOf(card: ClientCard): GameModule | undefined {
+  if (card.module === 'turmoil') {
+    return TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(card.name) ? undefined : 'turmoilRedux';
+  }
+  return card.module;
+}
+
 function pickable(card: ClientCard, module: GameModule): boolean {
-  return card.module === module && guaranteeable(card);
+  return guaranteedModuleOf(card) === module && guaranteeable(card);
 }
 
 // ── Picks ──────────────────────────────────────────────────────────────────
@@ -175,9 +190,10 @@ export function pruneGuaranteedCards(picks: GuaranteedCardPicks): number {
   for (const list of GUARANTEED_PICK_LISTS) {
     const kept = picks[list].filter((name) => {
       const card = getCard(name);
+      const module = card === undefined ? undefined : guaranteedModuleOf(card);
       return card !== undefined &&
         card.name === name &&
-        modules.has(card.module) &&
+        module !== undefined && modules.has(module) &&
         guaranteeable(card) &&
         guaranteedListOf(card.type) === list;
     });

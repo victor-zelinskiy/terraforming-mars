@@ -3,6 +3,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {GameModule} from '@/common/cards/GameModule';
 import {getCardOrThrow} from '@/client/cards/ClientCardManifest';
+import {TURMOIL_CARDS_HELD_BACK_UNDER_REDUX} from '@/common/cards/turmoilReduxAdaptation';
 import {PREMIUM_EXPANSIONS} from '@/client/components/create/premium/createGameMeta';
 import type {GuaranteedCardPicks} from '@/client/components/create/premium/createGameState';
 import {
@@ -129,6 +130,29 @@ describe('devGuaranteedCards', () => {
         .flatMap((row) => row.kind === 'card' ? [row.entry.name] : []);
       expect(named('base')).to.not.include(CardName.BEGINNER_CORPORATION);
       expect(named('deltaProject')).to.not.include(CardName.DELTA_PROJECT);
+    });
+
+    it('lists the classic Turmoil cards ADAPTED to Redux under Turmoil Redux, and never a held-back one', () => {
+      const named = guaranteedPickRows('turmoilRedux', new Set())
+        .flatMap((row) => row.kind === 'card' ? [row.entry.name] : []);
+      // Adapted classic cards (off the hold-back list) — dealt only with Redux, so picked there.
+      const adapted = named.filter((name) => getCardOrThrow(name).module === 'turmoil');
+      expect(adapted).to.include(CardName.DIASPORA_MOVEMENT);
+      expect(adapted).to.include(CardName.EVENT_ANALYSTS);
+      for (const name of adapted) {
+        expect(TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name), name).to.be.false;
+      }
+      // A card awaiting its Redux replacement is dealt to no Redux table — offered nowhere.
+      expect(named).to.not.include(CardName.AERIAL_LENSES);
+      for (const module of GUARANTEED_MODULES) {
+        expect(guaranteedPickRows(module.id, new Set()).some((row) => row.kind === 'card' && row.entry.name === CardName.AERIAL_LENSES),
+          module.id).to.be.false;
+      }
+      // …and a restored pick of an adapted card survives the prune.
+      const p = picks();
+      toggleGuaranteedCard(p, CardName.DIASPORA_MOVEMENT);
+      expect(pruneGuaranteedCards(p)).to.eq(0);
+      expect(p.projects).to.deep.eq([CardName.DIASPORA_MOVEMENT]);
     });
 
     it('marks the already-picked cards and counts them per module', () => {
