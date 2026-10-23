@@ -11,7 +11,7 @@ import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from 
  *
  *  A · the composer (`utopia-invest`): the six variants are ONE PALETTE (the face prints a single «[?-prod] → 4 [?]» row
  *      — nothing to slice), in the printed order, each tile led by its resource and «+4», its reading BOTH axes with the
- *      server's numbers (the production `N → N−1`, the stock `S → S+4`); the three dead ones SHOWN with their named
+ *      server's numbers (the production `N → N−1`, the stock `S → S+4`); the three dead ones SHOWN with their
  *      reason; the group fits (no scroll, the commit row under it); ◄► walk a row, ▲▼ the rows of a folded grid;
  *  C · the ACTION COMMIT on steel: the production PRICE leaves first — its token born on the steel row's production
  *      badge, absorbed into the printed «?» production frame, the badge ticking 1 → 0 on the departure, never the stock
@@ -19,7 +19,7 @@ import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from 
  *      no end over glass; the server: production −1, stock +4, the action used; «Действия карт» then reads «Активирована»;
  *  B · `utopia-invest-sole` — the one live variant (steel) opens SEEDED and marked «Единственный вариант», the cursor
  *      ARRIVES on the commit (an immediate A is the arrival, never the action);
- *  D · `utopia-invest-dead` — every production at its floor: the action tile is refused with the named reason.
+ *  D · `utopia-invest-dead` — every production at its floor: the action tile is refused with its reason.
  *
  * TIMING class (the commit's order is a claim about time) — `--exclusive --workers=1` on the box. The TV profile; the
  * fit of A runs on fhd and the Deck too (the palette's fold and the column's room are per-profile numbers).
@@ -148,7 +148,7 @@ for (const profile of PROFILES) {
   test.describe(`Utopia Invest · the six-variant palette · ${profile.id}`, () => {
     test.use({viewport: profile.viewport});
 
-    test(`A · six variants are ONE palette: both axes on every tile, three refused by name, the grid walks (${profile.id})`, async ({page, request}) => {
+    test(`A · six variants are ONE palette: both axes on every tile, three refused with their reason, the grid walks (${profile.id})`, async ({page, request}) => {
       test.setTimeout(240_000);
       const overflow: Array<string> = [];
       page.on('console', (m) => {
@@ -170,7 +170,7 @@ for (const profile of PROFILES) {
       expect(ts.map((t) => t.figure), 'the hero\'s number — the server\'s +4').toEqual(ORDER.map(() => '+4'));
       expect(ts.map((t) => t.off), 'M€ · steel · titanium live; plants · energy · heat refused').toEqual([false, false, false, true, true, true]);
       for (const t of ts.filter((x) => x.off)) {
-        expect(t.reason, `${t.resource}: the refusal names its production`).toMatch(/Производство .* 0 — понижать нечего/);
+        expect(t.reason, `${t.resource}: the refusal is stated on the tile`).toMatch(/Невозможно уменьшить производство/);
       }
       // BOTH AXES with the server's numbers: the production chip (cost) and the stock chip (gain).
       const prodKey: Record<string, string> = {
@@ -285,7 +285,7 @@ test.describe('Utopia Invest · the activation · tv', () => {
     await shoot(page, TV.id, 'B-01-sole');
     const ts = await tiles(page);
     expect(ts.map((t) => t.off), 'only steel is live').toEqual([true, false, true, true, true, true]);
-    expect(ts[0].reason, 'M€ at its floor names it').toMatch(/Производство M€ [−-]5: ниже [−-]5 не опускается/);
+    expect(ts[0].reason, 'M€ at its floor is refused with its reason').toMatch(/Невозможно уменьшить производство/);
     const steel = ts[1];
     expect([steel.selected, steel.seeded, steel.mark], 'seeded, shown, marked').toEqual([true, true, 'Единственный вариант']);
     expect((await fit(page)).ctaFocused, 'nothing left to ask: the cursor stands on the commit').toBe(true);
@@ -300,13 +300,13 @@ test.describe('Utopia Invest · the activation · tv', () => {
     }, {timeout: 20_000, message: 'the seeded steel variant ran: production 1 → 0, stock 2 → 6, M€ production untouched'}).toEqual([0, 6, -5]);
   });
 
-  test('D · every production at its floor: the action is refused on its tile with the named reason', async ({page, request}) => {
+  test('D · every production at its floor: the action is refused on its tile with its reason', async ({page, request}) => {
     test.setTimeout(180_000);
     await boot(page, request, 'utopia-invest-dead', TV);
     await openCardActions(page);
     const tile = page.locator(`[data-action-card="${UTOPIA}"]`).first();
     await expect(tile, 'the action is refused by the rules').toHaveAttribute('data-action-verdict', 'rules');
-    await expect(tile.locator('.con-cardactions__tile-reason'), 'the reason names the production').toContainText(/Производство/);
+    await expect(tile.locator('.con-cardactions__tile-reason'), 'the tile states the reason').toContainText(/Невозможно уменьшить производство/);
     await shoot(page, TV.id, 'D-01-refused');
   });
 });

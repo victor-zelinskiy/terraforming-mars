@@ -173,8 +173,9 @@ standard-resource GAIN (`heroOfEffect`) — is of one kind, at least three. Then
 
 - **The tile**: the hero is the resource and «+4» (the server's number); the READING keeps BOTH axes — the variant's own
   price chip (the production `N → N−1`, its note «производство»; the palette hides the chip's icon — the hero IS the
-  resource) and the stock chip `S → S+4`. A refused variant stays a tile, its hero faded, its reason NAMED
-  («Производство растений 0 — понижать нечего», `unavailability-reasons.md` § A production that cannot be lowered).
+  resource) and the stock chip `S → S+4`. A refused variant stays a tile, its hero faded, its reason on its plate
+  («Невозможно уменьшить производство» — the tile's own hero names the resource; a per-resource line was tried and
+  turned down by the owner, 2026-10-23).
 - **The fold**: the palette's own container rule folds six into 3 + 3 (never 5 + 1); the axis is measured — one row is
   `row`, a fold is `grid` (`branchGridRows`; ◄► inside a row, ▲▼ between rows — the play composer's `variantGroupNav`),
   the bar reads «◄► Вариант» in both.
@@ -187,4 +188,4 @@ standard-resource GAIN (`heroOfEffect`) — is of one kind, at least three. Then
 Robinson Industries (six «+1 production of your lowest» variants, the same unsliced shape) reads the same palette with
 production heroes. Guards: `variantChoiceModel.spec` § AN ACTION'S VARIANTS AS A PALETTE, `actionBranchPrinted.spec`
 (`KNOWN_UNSLICED`); e2e `console-utopia-invest` (A — tv4k + fhd: the palette, both axes with the server's numbers, three
-refusals named, the fit, the grid walk; B — the sole variant).
+refusals stated, the fit, the grid walk; B — the sole variant).

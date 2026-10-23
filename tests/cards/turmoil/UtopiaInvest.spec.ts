@@ -84,17 +84,14 @@ describe('UtopiaInvest — on a Turmoil Redux table', () => {
   });
 
   describe('rule 2 — the six variants', () => {
-    it('the starting table: M€ (0 → −1), steel and titanium are live; plants, energy and heat are refused BY NAME', () => {
+    it('the starting table: M€ (0 → −1), steel and titanium are live; plants, energy and heat are refused with their reason', () => {
       const {p1, card} = table();
       const preview = actionPreview(p1, card);
       expect(preview.branches.map((b) => b.available)).deep.eq([true, true, true, false, false, false]);
       // The runtime OrOptions index is the position among the EXECUTABLE variants; a refused one is −1.
       expect(preview.branches.map((b) => b.index)).deep.eq([0, 1, 2, -1, -1, -1]);
-      expect(preview.branches.slice(3).map((b) => [b.unavailableReason, b.unavailableReasonParams])).deep.eq([
-        ['Plant production is ${0}: too low to reduce', ['0']],
-        ['Energy production is ${0}: too low to reduce', ['0']],
-        ['Heat production is ${0}: too low to reduce', ['0']],
-      ]);
+      // The owner's call (2026-10-23): the classic line — the tile's own picture names the resource.
+      expect(preview.branches.slice(3).map((b) => b.unavailableReason)).deep.eq(['Cannot reduce production', 'Cannot reduce production', 'Cannot reduce production']);
     });
 
     it('every variant states BOTH axes with the server\'s numbers: production current → resulting, stock current → resulting', () => {
@@ -112,7 +109,7 @@ describe('UtopiaInvest — on a Turmoil Redux table', () => {
       });
     });
 
-    it('the floors: steel 1 → live, 0 → refused; M€ −4 → live, −5 → refused («cannot go below −5»)', () => {
+    it('the floors: steel 1 → live, 0 → refused; M€ −4 → live, −5 → refused', () => {
       const {p1, card} = table();
       setProduction(p1, {megacredits: -4, steel: 1});
       let b = actionPreview(p1, card).branches;
@@ -121,7 +118,7 @@ describe('UtopiaInvest — on a Turmoil Redux table', () => {
       setProduction(p1, {megacredits: -5, steel: 0, titanium: 1});
       b = actionPreview(p1, card).branches;
       expect(b[0].available, 'M€ at −5').is.false;
-      expect([b[0].unavailableReason, b[0].unavailableReasonParams]).deep.eq(['M€ production is ${0}: it cannot go below −5', ['-5']]);
+      expect(b[0].unavailableReason).eq('Cannot reduce production');
       expect(b[1].available, 'steel at 0').is.false;
       expect(b.map((x) => x.index)).deep.eq([-1, -1, 0, -1, -1, -1]);
     });
@@ -168,13 +165,11 @@ describe('UtopiaInvest — on a Turmoil Redux table', () => {
       expect(preview.branches[1].index, 'the lone branch keeps its runtime index (no autoSelect)').eq(0);
     });
 
-    it('ALL six dead (M€ at −5, every other production 0): the action is unavailable, each production named', () => {
+    it('ALL six dead (M€ at −5, every other production 0): the action is unavailable with ONE reason', () => {
       const {p1, card} = table();
       setProduction(p1, {megacredits: -5});
       expect(card.canAct(p1)).is.false;
-      const reasons = actionUnavailableReasons(p1, card);
-      expect(reasons.length).greaterThan(0);
-      expect(reasons[0]).deep.include({type: 'production', resource: Resource.MEGACREDITS, current: -5});
+      expect(actionUnavailableReasons(p1, card)).deep.eq([{type: 'production', message: 'Cannot reduce production'}]);
       expect(p1.getPlayableActionCards().map((c) => c.name)).not.include(CardName.UTOPIA_INVEST);
     });
 

@@ -4,18 +4,6 @@
 control carries a CONCRETE reason. A reason names ONE blocker; it never makes the player guess
 between "X or Y", and it never states something the code did not verify.
 
-## A production that cannot be lowered NAMES itself (R33 Utopia Invest, 2026-10-23)
-
-An action's production price (`behavior.production` with a negative unit — Utopia Invest's six «lower ANY production»
-variants, Equatorial Magnetizer's energy production) used to be refused by ONE bare line, «Cannot reduce production»: six
-refused tiles said WHICH only through their picture. `productionReductionReasons(player, units)`
-(`models/actionUnavailableReasons.ts`) walks the units against `productionFloor` (M€ −5, the rest 0) and gives ONE reason
-per production that would fall through, with its resource (the icon) and its `current`, in a key per resource (a param is
-never translated): «Steel production is ${0}: too low to reduce» → «Производство стали 0 — понижать нечего»; M€ «M€
-production is ${0}: it cannot go below −5» → «Производство M€ −5: ниже −5 не опускается». The classic line stays for a
-shape the walk cannot name. A PLAY's line (`unplayableReasons` — «Cannot reduce production») is untouched. Guard:
-`tests/cards/turmoil/UtopiaInvest.spec.ts` (the floors, the refused variants' reasons, «all six dead»).
-
 ## The delegate RESERVE is counted, on the facade (T03, 2026-10-23)
 
 A declarative `behavior.turmoil.sendDelegates` (a card's play — Cultural Metropolis, the prelude2 / Pathfinders envoys;
