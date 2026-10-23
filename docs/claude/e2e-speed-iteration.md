@@ -329,3 +329,23 @@ worker-scaling curve FIRST** (phase 0.2) — the 28-spec sample at 2 workers was
   test opens now gets the same page harness (`pageHarnessScript`) and the same sleep book; the five specs with a second
   seat 36 / 36. ② console-social-heating — the read of the RESULT row was document-wide while the plan's row still
   stood in the DOM unpainted (its `innerText` «»); scoped to the result layer and read the moment it paints — 12 / 12.
+
+## 2026-10-23 — the morning runs and the last flakes (HEAD 1e644681ef → fcd6fb7374)
+
+| Run | Result |
+| --- | --- |
+| Functional (`--exclusive --workers=4`, clean worktree) | 931 passed · 1 failed · 1 flaky · 4 skipped (1.3 h) |
+| Timing (`--exclusive --workers=2`) | 226 passed · 0 failed · 2 flaky · 11 skipped (46.6 min) |
+| Re-judge at fcd6fb7374, 1 worker, `--retries=0` | functional 16/16 (`--repeat-each=4`), timing 12/12 (`--repeat-each=6`) |
+
+Each red and flake was fixed at its cause, never by a looser threshold:
+- `console-red-museum`: spec rot against T15 · CD (the museum's payout now stands in «Сработает»).
+- `console-parliament-unity`: a live read after a show step that leaves by itself → read the probe's samples.
+- `console-scene-transition`: a PRODUCT bug. The curtain's readable dwell counted from the flag, and a busy boot
+  painted the line ~500 ms late (649 of 1150 ms on screen). The dwell now counts from the paint (`noteCurtainTextPainted`).
+- `console-finale-podium` H: long 4K render frames starve the sampler, so the FLIP spans add those frames
+  (the remainder already did).
+- HEAD's `build:test` was red because of T10's `draftReadingModel.spec` type literal.
+
+Shards: `shardPlan.json` was rebalanced from both ledgers for 4–20 shards and the CI default is now 12 (≈ 31 box-minutes
+each). `console-parliament-gallery` alone takes 29 box-minutes, which is the floor above 12; split it before going wider.
