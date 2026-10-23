@@ -160,7 +160,16 @@ export class ReduxPoliticalOps implements PoliticalOps {
     return this.parliament.influence(player);
   }
   public addInfluenceBonus(player: IPlayer, bonus: number = 1, source?: string): void {
+    const before = this.parliament.influence(player);
     this.parliament.addInfluenceBonus(player, bonus, source);
+    // Influence beyond the Career is a change of state like any other (T05 Event Analysts): the journal names the
+    // giver and the seat's whole influence before → after — never a bonus the player has to discover in Information.
+    const after = this.parliament.influence(player);
+    if (source === undefined) {
+      this.game.log('${0} gained +${1} influence (${2} → ${3})', (b) => b.player(player).number(bonus).number(before).number(after));
+    } else {
+      this.game.log('${0} gained +${1} influence from ${2} (${3} → ${4})', (b) => b.player(player).number(bonus).cardName(source as CardName).number(before).number(after));
+    }
   }
   public satisfiesPartyRequirement(player: IPlayer, party: PartyName): boolean {
     return this.parliament.satisfiesPartyRequirement(player, this.normalizeParty(party));

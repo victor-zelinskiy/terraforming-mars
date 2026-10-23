@@ -1419,5 +1419,7 @@
   "The veto — you are first by rating": "Вето — вы первый по РТ",
   "The veto — the other seat is first by rating": "Вето — первый по РТ другой",
   "The veto — a tie at the top": "Вето — ничья наверху",
-  "TR under the veto": "РТ под вето"
+  "TR under the veto": "РТ под вето",
+  "${0} gained +${1} influence from ${2} (${3} → ${4})": "${0} получает +${1} влияния — ${2} (${3} → ${4})",
+  "${0} gained +${1} influence (${2} → ${3})": "${0} получает +${1} влияния (${2} → ${3})"
 }
