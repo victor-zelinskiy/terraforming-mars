@@ -10,6 +10,7 @@ import {
   progressTrack,
   rowSourceLabel,
   rowTimingKey,
+  stagedPlayPlate,
 } from '@/client/console/placementDossier';
 import {BoardFact, BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 import {CardName} from '@/common/cards/CardName';
@@ -602,6 +603,87 @@ describe('placementDossier', () => {
       expect(row.progress).to.deep.equal({from: 1, to: 0});
       expect(row.severity).to.equal('warning');
       expect(progressTrack(row.progress)).to.be.undefined;
+    });
+  });
+
+  describe('T15 · CD — the staged board names the whole gain', () => {
+    const fact = (over: Partial<BoardFact>): BoardFact => ({
+      id: 'f', category: 'placement-effect', timing: 'immediate', severity: 'positive',
+      recipient: {kind: 'current-player'}, title: 'f', ...over,
+    });
+    const preview = (over: Partial<BoardPlacementPreview>): BoardPlacementPreview => ({
+      space: '05', kind: 'greenery', legal: true, costFacts: [], immediateFacts: [], recipientFacts: [],
+      warningFacts: [], futureScoringFacts: [], ruleFacts: [], ...over,
+    });
+    const tr = (id: string, reason: string, current: number): BoardFact => fact({
+      id, title: 'TR', reason, delta: {icon: 'tr', amount: 1, direction: 'gain', current, resulting: current + 1},
+    });
+
+    it('the rating is ONE vector with both causes — the oxygen step and the Redux tile («РТ 20 → 22»)', () => {
+      const rows = buildDossierRows([tr('effect-tr-oxygen', 'Oxygen', 20), tr('redux-greenery-tile-tr', 'Greenery tile', 20)]);
+      expect(rows).has.length(1);
+      expect(rows[0].delta).to.include({current: 20, resulting: 22, amount: 2});
+      expect(rows[0].reasons.map((r) => `${r.label} ${r.amount}`)).deep.eq(['Oxygen +1', 'Greenery tile +1']);
+    });
+
+    it("at the oxygen maximum the tile's rating stands ALONE and still names itself («РТ 20 → 21 · Тайл озеленения +1»)", () => {
+      const rows = buildDossierRows([tr('redux-greenery-tile-tr', 'Greenery tile', 20)]);
+      expect(rows).has.length(1);
+      expect(rows[0].delta).to.include({current: 20, resulting: 21});
+      expect(rows[0].reasons.map((r) => `${r.label} ${r.amount}`)).deep.eq(['Greenery tile +1']);
+    });
+
+    it('a fact with no pool reason stays a bare row (no invented breakdown)', () => {
+      const rows = buildDossierRows([fact({id: 'plants', title: 'Plants', delta: {icon: 'plants', amount: 2, direction: 'gain', current: 3, resulting: 5}})]);
+      expect(rows[0].reasons).deep.eq([]);
+    });
+
+    it("the placer's OWN cards answering the tile read «Сработает», apart from what the cell gives", () => {
+      const herbivores = fact({id: 'red-herbivores', category: 'card-trigger', title: 'Herbivores', tableAnswer: true,
+        delta: {icon: 'animals', amount: 1, direction: 'gain', current: 2, resulting: 3}});
+      const museum = fact({id: 'red-museum-note', category: 'card-trigger', timing: 'rule', severity: 'info',
+        recipient: {kind: 'nobody'}, title: 'Red Museum: no data here', tableAnswer: true});
+      const cellBonus = fact({id: 'bonus', title: 'Plants', delta: {icon: 'plants', amount: 1, direction: 'gain'}});
+      const sections = dossierSections(preview({immediateFacts: [cellBonus, herbivores], ruleFacts: [museum]}));
+      const gain = sections.find((s) => s.key === 'gain');
+      const answers = sections.find((s) => s.key === 'reactions');
+      expect(gain?.rows.map((r) => r.key)).deep.eq(['bonus']);
+      expect(answers?.titleKey).eq('Will trigger');
+      expect(answers?.rows.map((r) => r.key)).deep.eq(['red-herbivores', 'red-museum-note']);
+      expect(sections.find((s) => s.key === 'rules'), 'a table answer is no field rule').is.undefined;
+      expect(sections.findIndex((s) => s.key === 'reactions')).eq(sections.findIndex((s) => s.key === 'gain') + 1);
+    });
+
+    it("a reaction ANSWERING a table answer stands under that answer's own row", () => {
+      const museum = fact({id: 'red-museum', category: 'card-trigger', title: 'Red Museum', tableAnswer: true,
+        delta: {icon: 'data', amount: 2, direction: 'gain', current: 0, resulting: 2}});
+      const fiber = fact({id: 'red-fiber', title: 'Martian Fiber', reaction: true, answers: 'red-museum',
+        delta: {icon: 'megacredits', amount: 2, direction: 'gain'}});
+      const answers = dossierSections(preview({immediateFacts: [museum, fiber]})).find((s) => s.key === 'reactions');
+      expect(answers?.rows).has.length(1);
+      expect(answers?.rows[0].reactions?.map((r) => r.key)).deep.eq(['red-fiber']);
+    });
+
+    describe('the play plate', () => {
+      it('a staged play carries its card, its price and one line — above the identity, gone with the commit', () => {
+        const plate = stagedPlayPlate({card: CardName.WILDLIFE_DOME, flow: 'play', phase: 'navigate', receipt: {amount: 15, icon: 'megacredits'}});
+        expect(plate).deep.eq({
+          card: CardName.WILDLIFE_DOME, flow: 'play',
+          price: {amount: 15, icon: 'megacredits'},
+        });
+        expect(stagedPlayPlate({card: CardName.WILDLIFE_DOME, flow: 'play', phase: 'locked'})?.price, 'no receipt — no price').is.undefined;
+        expect(stagedPlayPlate({card: CardName.WILDLIFE_DOME, flow: 'play', phase: 'committing'}), 'past the press the card is being played').is.undefined;
+        expect(stagedPlayPlate({card: undefined, flow: 'play', phase: 'navigate'}), 'a live pick has no plate').is.undefined;
+      });
+
+      it("a law's play reads as a play; a blue card's action as an action", () => {
+        expect(stagedPlayPlate({card: CardName.WILDLIFE_DOME, flow: 'law', phase: 'navigate'})?.flow).eq('play');
+        expect(stagedPlayPlate({card: CardName.AQUIFER_PUMPING, flow: 'action', phase: 'navigate'})?.flow).eq('action');
+      });
+
+      it('a free play shows no «0» price', () => {
+        expect(stagedPlayPlate({card: CardName.WILDLIFE_DOME, flow: 'play', phase: 'navigate', receipt: {amount: 0, icon: 'megacredits'}})?.price).is.undefined;
+      });
     });
   });
 });

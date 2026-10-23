@@ -182,6 +182,43 @@ export function placementFollowUpLine(
     translate('Then ${0} more placements: ${1}', [String(followUps.length), names.join(' · ')]);
 }
 
+/**
+ * THE PLAY PLATE (T15 · CD) — a STAGED pick is the last reversible step of playing a card (or of a blue card's action),
+ * and the board left the card's workspace — its crumb, its composer, its price — behind. The plate carries the card
+ * ONTO the dossier in ONE row, at the height of the source chip it replaces: its art, its name and the price the one
+ * POST charges. ONE row because the dossier may not scroll (console-ui.md): measured on the stand's busiest first cell,
+ * the HEAD panel filled 1948 / 1948 px at 4K with the chip, and a two-row plate (a «last step · going back costs
+ * nothing» line under the name) pushed it 167 px into a scroll — the truth that line carried is the BAR's (A «Разыграть
+ * здесь · 15 M€», B «К карте»). The panel's eyebrow keeps naming the task («Размещение тайла»); the plate stands ABOVE
+ * the identity, never in its place — the title is still the TILE (law 1) — it names no button, and it leaves with the
+ * commit (past the press the card is being played, not carried).
+ */
+export type StagedPlayPlate = {
+  card: CardName;
+  flow: 'play' | 'action';
+  /** The price the one POST charges, when the arm knows it (an amount and its icon). */
+  price?: {amount: number, icon: string};
+};
+
+export function stagedPlayPlate(opts: {
+  /** The staged arm's card, or undefined when the pick is not staged. */
+  card: CardName | undefined,
+  flow: 'play' | 'action' | 'law',
+  /** The two-phase flow's phase — the plate leaves with the commit. */
+  phase: 'navigate' | 'locked' | 'committing',
+  receipt?: {amount: number, icon: string},
+}): StagedPlayPlate | undefined {
+  if (opts.card === undefined || opts.phase === 'committing') {
+    return undefined;
+  }
+  const flow = opts.flow === 'action' ? 'action' : 'play';
+  return {
+    card: opts.card,
+    flow,
+    ...(opts.receipt !== undefined && opts.receipt.amount > 0 ? {price: {amount: opts.receipt.amount, icon: opts.receipt.icon}} : {}),
+  };
+}
+
 export function placementIdentity(opts: {
   /** The live prompt title, ALREADY TRANSLATED by the caller (string titles
    *  via translateText, Message titles via translateMessage). */
@@ -635,7 +672,11 @@ function singleRow(fact: BoardFact, stated: ReadonlyArray<BoardFactTiming>, chos
     ...(fact.delta !== undefined && fact.recipient.kind === 'nobody' ? {neutralDelta: true} : {}),
     vp: fact.vp !== undefined ? fact.vp.to - fact.vp.from : undefined,
     progress: fact.progress,
-    reasons: [],
+    // A POOL MEMBER standing alone still names its cause (T15 · CD): at the oxygen maximum a Redux greenery's rating
+    // is the tile's +1 alone, and «РТ 20 → 21» with no «Тайл озеленения +1» under it read as the oxygen step that
+    // cannot happen. The same law as a one-member VP pool: the vector, with what moved it.
+    reasons: fact.reason !== undefined && fact.delta?.current !== undefined ?
+      [{key: `${fact.id}:0`, label: reasonLabel(fact), amount: signed(deltaAmount(fact.delta))}] : [],
     note: fact.description !== undefined ? {text: fact.description, params: fact.params} : undefined,
     source: rowSourceLabel(fact),
     timingKey: rowTimingKey(fact, stated),
@@ -735,31 +776,44 @@ export function dossierSections(
   // What the TABLE answers to what this cell makes the card grant (`reaction`
   // — Martian Fiber's M€ for Arboretum's data) is «Сработает», the composers'
   // word for the same thing, under the result it answers — never mixed into it.
-  const gains = preview.immediateFacts.filter((f) => f.reaction !== true);
+  // …and so is what the placer's OWN cards answer to the TILE itself (`tableAnswer` — T15 · CD: Herbivores' animal for
+  // a greenery, Pets' for a city, Red Museum's «decided by the cell», a no-op note naming itself): the cell's gain is
+  // «Вы получите», the table's answer «Сработает» — two sources, two sections, one glance.
+  const gains = preview.immediateFacts.filter((f) => f.reaction !== true && f.tableAnswer !== true);
+  const answers = [
+    ...preview.immediateFacts.filter((f) => f.reaction !== true && f.tableAnswer === true),
+    ...preview.ruleFacts.filter((f) => f.tableAnswer === true),
+  ];
   const reactions = preview.immediateFacts.filter((f) => f.reaction === true && f.delta !== undefined);
   // The table's answer is read WITH its cause: under the row of the grant it ANSWERS (`BoardFact.answers` — the
   // server names it: TR30's «+2 data», TR21's landing on the chosen card) or, unnamed, under the row whose delta
   // lands on the chosen card — a section of its own only when no such row stands. One line, never a second head:
   // the dossier is a HUD that may not scroll (a 4K panel wraps every sentence twice).
   const gainSection = gains.length > 0 ? section('gain', 'You receive', gains, ['immediate', 'on-confirm']) : undefined;
+  const answerSection = answers.length > 0 ? section('reactions', 'Will trigger', answers, ['immediate', 'on-confirm', 'rule']) : undefined;
   const landingKey = gainSection?.rows.find((r) => gains.some((f) => f.id === r.key && f.landsOnChosenCard !== undefined))?.key;
-  const rowKeys = new Set(gainSection?.rows.map((r) => r.key) ?? []);
+  const rowKeys = new Set([...(gainSection?.rows ?? []), ...(answerSection?.rows ?? [])].map((r) => r.key));
   const causeOf = (f: BoardFact): string | undefined =>
     f.answers !== undefined && rowKeys.has(f.answers) ? f.answers : f.answers === undefined ? landingKey : undefined;
   const placed = reactions.filter((f) => causeOf(f) !== undefined);
-  if (gainSection !== undefined) {
-    const rows = placed.length === 0 ? gainSection.rows : gainSection.rows.map((r) => {
+  const withReactions = (s: DossierSection): DossierSection => placed.length === 0 ? s : {
+    ...s,
+    rows: s.rows.map((r) => {
       const mine = placed.filter((f) => causeOf(f) === r.key);
       return mine.length === 0 ? r : {
         ...r,
         reactions: mine.map((f) => ({key: f.id, label: compactTitleKey(f), delta: f.delta as BoardFactDelta})),
       };
-    });
-    out.push({...gainSection, rows});
+    }),
+  };
+  if (gainSection !== undefined) {
+    out.push(withReactions(gainSection));
   }
   const unplaced = reactions.filter((f) => causeOf(f) === undefined);
-  if (unplaced.length > 0) {
-    out.push(section('reactions', 'Will trigger', unplaced, ['immediate', 'on-confirm']));
+  if (answerSection !== undefined || unplaced.length > 0) {
+    const own = answerSection === undefined ? undefined : withReactions(answerSection);
+    const rest = unplaced.length > 0 ? section('reactions', 'Will trigger', unplaced, ['immediate', 'on-confirm']) : undefined;
+    out.push(own === undefined ? rest as DossierSection : rest === undefined ? own : {...own, rows: [...own.rows, ...rest.rows]});
   }
   // «ПРАВИЛА ПОЛЯ» used to be one bag: the tile's own future-adjacency
   // mechanic (a TRIGGER → OUTCOME the player is buying) sat in it beside
@@ -772,7 +826,7 @@ export function dossierSections(
   // right after the tile being pointed at (a move's source level): the decision's own object first, then what
   // its leaving opens, then everybody else. Never a field rule.
   const uncovers = preview.ruleFacts.filter((f) => f.category === UNCOVERED_CATEGORY);
-  const fieldRules = preview.ruleFacts.filter((f) =>
+  const fieldRules = preview.ruleFacts.filter((f) => f.tableAnswer !== true &&
     !TILE_STANDING_CATEGORIES.includes(f.category) && f.category !== MOVE_CATEGORY && f.category !== UNCOVERED_CATEGORY);
   const uncoversSection = uncovers.length > 0 ? section('uncovers', 'Uncovers', uncovers, []) : undefined;
   if (uncoversSection !== undefined && move.length === 0) {

@@ -11453,6 +11453,59 @@ html.console-mode {
         letter-spacing: .08rem;
         opacity: .85;
     }
+    /* THE PLAY PLATE (T15 · CD) — a staged pick's card carried onto the dossier in ONE row: [art] NAME [price], at the
+       height of the source chip it replaces (the dossier may not scroll). The pre-commit CYAN (the move is still reversible); quieter than the identity under it
+       (the title is the TILE); constant for the whole pick (it reads the arm, never the focused cell), gone with the
+       commit. Paint only — no motion of its own (the panel's «nothing animates while the player points»). */
+    &__staged {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        grid-template-areas: "art name price";
+        align-items: center;
+        column-gap: .5rem;
+        padding: .14rem .4rem;
+        border-radius: .5rem;
+        background: rgba(30, 70, 94, 0.32);
+        box-shadow: inset 0 0 0 .05rem rgba(110, 200, 235, 0.3);
+    }
+    &__staged-art {
+        grid-area: art;
+        width: 1.9rem;
+        height: 1.26rem;
+        border-radius: .3rem;
+        background-color: rgba(10, 18, 28, 0.8);
+        background-size: cover;
+        background-position: center;
+        box-shadow: 0 0 0 .05rem rgba(110, 200, 235, 0.35);
+    }
+    /* The card's NAME is decision context and is never clamped — a long name wraps. */
+    &__staged-name {
+        grid-area: name;
+        min-width: 0;
+        font-family: @con-font;
+        font-size: var(--ctx-t-sub);
+        font-weight: 600;
+        line-height: 1.2;
+        color: @con-text;
+    }
+    &__staged-price {
+        grid-area: price;
+        display: inline-flex;
+        align-items: center;
+        gap: .2rem;
+        padding: .04rem .32rem;
+        border-radius: .35rem;
+        background: rgba(10, 18, 28, 0.55);
+        font-family: @con-font;
+        font-variant-numeric: tabular-nums;
+        font-size: var(--ctx-t-sub);
+
+        .con-context__f-ico {
+            width: .95rem;
+            height: .95rem;
+        }
+        color: @con-text;
+    }
 
     /* ── 2 · THE FOCUSED CELL — one fixed line + the expanding refusal ── */
     &__cell {

@@ -27,6 +27,20 @@
  *   locked        A «Подтвердить переселение» / «Подтвердить перенос» · B «Изменить клетку»
  *   committing    the status «Переселение…» / «Перенос…», no live verb
  *
+ * A STAGED board (T15 · CD — docs/TILE_PLAY_STAGED_COMMIT.md: the cell pick is the LAST REVERSIBLE STEP of playing a
+ * card, or of a blue card's action, and nothing has been sent) speaks THE PLAY, not a placement. A does not merely put
+ * a tile down — it plays the card for its price (the one POST); B does not cancel anything — it walks back to the card,
+ * nothing sent. The generic «Разместить здесь» / «Отменить размещение» there told the player the one thing that was not
+ * true, so the staged words are the FLOW's (`play` / `action`), and the price rides the second half of the decision:
+ *
+ *   navigate      A «Разыграть здесь» (single-press: «Разыграть · 15 M€») · B «К карте»
+ *   locked        A «Разыграть · 15 M€» · B «Изменить клетку»
+ *   committing    the status «Разыгрываем…»
+ *   B owed        B «Возвращаемся…» (a status — a B pressed during a hold is OWED and SHOWN, never swallowed; A waits)
+ *
+ * The action's words are «Выполнить здесь» / «Выполнить · …» / «К действию» / «Выполняется…». A staged MOVE keeps its
+ * family's words (the move's levels are its own grammar), and so does the finale (it is never staged).
+ *
  * No button is ever named here: the controls are semantic (`confirm`, `back`,
  * `stickL` …) and the bar draws their glyphs.
  */
@@ -57,7 +71,77 @@ export type PlacementCommandState = {
    * one way to stop placing — the irreversible «Завершить свою партию» — stands as a HOLD beside A.
    */
   finale?: {finish: ConsoleCommand};
+  /** A STAGED pick (nothing sent yet): whose words the verbs speak, and the price the commit charges. */
+  staged?: PlacementStagedState;
 };
+
+export type PlacementStagedState = {
+  /** A card PLAYED from the hand (or through a law) — or a blue card's ACTION. */
+  flow: 'play' | 'action';
+  /** The price the one POST charges, already a display string («15 M€»); absent when no receipt is known. */
+  price?: string;
+  /** B was pressed during a hold and is OWED — the bar shows the return instead of offering it again. */
+  backOwed?: boolean;
+};
+
+/** The staged verbs, per flow — English i18n keys. */
+type StagedWords = {
+  /** A on the cell (lock in two-step mode; the commit itself in single-press mode when no price is known). */
+  here: string;
+  /** A that commits, with the price as `${0}`. */
+  priced: string;
+  /** B on the navigate level: back to the card / the action, nothing sent. */
+  back: string;
+  /** The one POST on the wire — a status. */
+  busy: string;
+};
+
+const STAGED_WORDS: Readonly<Record<PlacementStagedState['flow'], StagedWords>> = {
+  play: {here: 'Play here', priced: 'Play · ${0}', back: 'Back to the card', busy: 'Playing…'},
+  action: {here: 'Perform here', priced: 'Perform · ${0}', back: 'Back to the action setup', busy: 'Performing…'},
+};
+
+/** The B a staged board shows while a press is owed (the return is under way). */
+export const STAGED_BACK_OWED = 'Returning…';
+
+/** A on a staged cell that COMMITS — priced when the receipt is known. */
+function stagedCommit(words: StagedWords, staged: PlacementStagedState, legal: boolean): ConsoleCommand {
+  return staged.price === undefined ?
+    {control: 'confirm', label: words.here, enabled: legal, highlight: legal} :
+    {control: 'confirm', label: words.priced, labelParams: [staged.price], enabled: legal, highlight: legal};
+}
+
+/**
+ * THE STAGED BAR — the pick is the last reversible step of a play (see the header). Undefined when the state is no
+ * staged pick this law speaks for (a move keeps its family's words; the finale is never staged).
+ */
+function stagedPlacementCommands(state: PlacementCommandState, source: ReadonlyArray<ConsoleCommand>): Array<ConsoleCommand> | undefined {
+  const staged = state.staged;
+  if (staged === undefined || state.moveLevel !== undefined || state.finale !== undefined) {
+    return undefined;
+  }
+  const words = STAGED_WORDS[staged.flow];
+  if (state.phase === 'committing') {
+    return [{control: 'confirm', label: words.busy, enabled: false}];
+  }
+  // THE OWED RETURN: one calm status where B stood, and A waits — the press already made is the decision.
+  if (staged.backOwed === true) {
+    return [{control: 'confirm', label: words.here, enabled: false}, {control: 'back', label: STAGED_BACK_OWED, enabled: false}];
+  }
+  if (state.phase === 'locked') {
+    return [stagedCommit(words, staged, true), {control: 'back', label: 'Change cell'}, ...source];
+  }
+  const roam: ConsoleCommand = {control: 'stickR', label: state.freeRoam ? 'Available only' : 'All cells', priority: 2};
+  return [
+    {control: 'dpad', label: 'Navigate'},
+    state.twoStep ?
+      {control: 'confirm', label: words.here, enabled: state.legal, highlight: state.legal} :
+      stagedCommit(words, staged, state.legal),
+    ...source,
+    roam,
+    {control: 'back', label: words.back},
+  ];
+}
 
 /** The move's verbs, per family — English i18n keys. */
 type MoveWords = {
@@ -82,6 +166,10 @@ export function placementCommands(state: PlacementCommandState): Array<ConsoleCo
   const move = state.moveLevel !== undefined;
   const words = MOVE_WORDS[state.moveFamily ?? 'city'];
   const source: Array<ConsoleCommand> = state.sourceInspectable ? [{control: 'stickL', label: 'Source', priority: 1}] : [];
+  const staged = stagedPlacementCommands(state, source);
+  if (staged !== undefined) {
+    return staged;
+  }
 
   // A COMMIT ON THE WIRE: one calm status, no live verbs — every press is
   // absorbed by the flow anyway, and the bar must say so.

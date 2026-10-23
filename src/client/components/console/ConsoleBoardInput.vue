@@ -412,13 +412,16 @@ export default defineComponent({
       // answers, and a refusal rolls back to the locked phase + re-arms
       // the wiring this method just tore down.
       beginPlacementCommit(spaceId);
-      this.selectedTile.classList.add('board-space--selected');
+      // PL-039 (T15 · CD): the legacy `board-space--selected` amber is NOT painted at the commit any more. In the console
+      // the held place is the reticle's own (the lock contour, then the landing MARKER of the tile language's W1, let go
+      // in the frame of contact) — the class was a second, desktop-era outline nobody removed until the binder unmounted,
+      // so it stood ~60 ms over the landed tile (longer for a move). The selection's state ends with the commit.
       this.saveData();
     },
     disableAnimation() {
       const tiles = this.getSelectableSpaces();
       tiles.forEach((tile) => {
-        tile.classList.remove('board-space--available', 'board-space--selected');
+        tile.classList.remove('board-space--available');
       });
       this.removeIllegalTooltips();
       // BRD-3: the `.board-space--available` set is gone (pre-mount clear, a tile

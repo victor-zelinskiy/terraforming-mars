@@ -178,6 +178,7 @@
                              :inspectAll="consoleState.freeRoam"
                              :sourceView="placementSourceView"
                              :chosenTarget="placementChosenTarget"
+                             :stagedPlate="placementStagedPlate"
                              :trackInfo="trackInfo"
                              :trackScale="trackScaleOverview"
                              :lore="selectedCellLore"
@@ -1979,7 +1980,7 @@ import {buildBotAttackView, BotAttackViewModel} from '@/client/console/botAttack
 import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.vue';
 
 import {promptSourceResolution, promptSourceView, PromptSourceView} from '@/client/console/promptSource';
-import {PlacementConversion, PlacementShape} from '@/client/console/placementDossier';
+import {PlacementConversion, PlacementShape, StagedPlayPlate, stagedPlayPlate} from '@/client/console/placementDossier';
 
 import {ConsoleTaskSummary, consoleTaskSummary, placementKicker} from '@/client/console/consoleTaskSummary';
 import {setStartSetupRevealSuspended} from '@/client/components/startGameFlow/startSetupRevealState';
@@ -2079,7 +2080,7 @@ import {
   PlacementMoveFamily,
   PlacementMoveLevel,
 } from '@/client/console/tilePlacement/placementMove';
-import {placementCommands} from '@/client/console/tilePlacement/placementCommands';
+import {placementCommands, PlacementStagedState, STAGED_BACK_OWED} from '@/client/console/tilePlacement/placementCommands';
 import {abortRemotePlacements, remoteLandingOwed} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {abortOceanBeat} from '@/client/console/tilePlacement/adjacencyPayoutBeat';
 import {abortNomadMove, nomadMoveState, nomadMoveHolding} from '@/client/console/nomads/consoleNomadMove';
@@ -2154,7 +2155,7 @@ import {albumSpecFor} from '@/client/components/console/consoleHandAlbum';
 import {albumLayoutState, setAlbumLayoutRecomposer} from '@/client/console/consoleAlbumLayout';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
 import {StageHost, useWorkspaceBandGeometry} from '@/client/console/composables/useWorkspaceBandGeometry';
-import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
+import {ConsoleAction, consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {awaitingViewerInput, handPlayWindowClosed, offTurnReason} from '@/client/console/offTurnReason';
 // Only as the DEGRADE default for a player model that predates `maCosts` (an
 // old save, a test fixture) — the live price always comes from the server.
@@ -2394,6 +2395,9 @@ const STAGED_VOTE_RELEASE_MS = STAGED_STEP_RELEASE_MS;
  */
 const PLAY_CLAIMED_TASK_KINDS: ReadonlySet<TaskKind> =
   new Set<TaskKind>(['deckSelect', 'cardSelect', 'payment']);
+
+/** The bound of an owed staged B (T15 · CD) — the hand-off's holds are bounded themselves; this only names a stall. */
+const STAGED_BACK_OWED_MAX_MS = 6000;
 
 /** A staged PLAY's locked receipt — the card's price in M€ as the composer settled it (TR03 / TR07). */
 function playReceiptOf(pending: PendingPlayCard): StagedReceipt | undefined {
@@ -2736,6 +2740,9 @@ export default defineComponent({
       /** A B pressed in the STAGED landing's tail (the board already holds the staged placement while the landed
        *  card's proxy dissolves) — OWED, not swallowed: it cancels the staged play the moment the scene is idle (PL-581). */
       stagedBackOwed: false,
+      /** THE STAGED LANDING RITUAL is playing (the card lifting onto its stack BEFORE the board — nothing sent): a B
+       *  pressed in it is OWED to the ritual's own end (T15 · CD), never swallowed by the scene's absorb. */
+      stagedLandingInFlight: false,
       pendingClientPayment: undefined as PendingClientPayment | undefined,
       /** A client-hosted PICK (RX35's «where» on a one-press door) — see `PendingClientPick`. */
       pendingClientPick: undefined as PendingClientPick | undefined,
@@ -6559,6 +6566,31 @@ export default defineComponent({
       return raw !== undefined && raw === this.stagedPlayPrompt && stagedPlayState.arm !== undefined && stagedPlayState.arm.flow !== 'action';
     },
     /**
+     * THE STAGED BOARD SPEAKS THE PLAY (T15 · CD): the bar's staged state — whose words (a play / an action), the
+     * price the one POST charges (the arm's locked receipt) and whether a B is OWED. Undefined for every other pick
+     * (a live prompt, convert plants, a task's nested cell).
+     */
+    /** THE PLAY PLATE (T15 · CD): the staged card carried onto the dossier — art, name, price, one line; gone with the commit. */
+    placementStagedPlate(): StagedPlayPlate | undefined {
+      const arm = stagedPlayState.arm;
+      if (this.placementStagedBar === undefined || arm === undefined) {
+        return undefined;
+      }
+      return stagedPlayPlate({card: arm.cardName, flow: arm.flow, phase: this.placementFlowState.phase, receipt: arm.receipt});
+    },
+    placementStagedBar(): PlacementStagedState | undefined {
+      const arm = stagedPlayState.arm;
+      const raw = this.placementRawSpaceModel;
+      if (arm === undefined || raw === undefined || raw !== this.stagedPlayPrompt) {
+        return undefined;
+      }
+      return {
+        flow: arm.flow === 'action' ? 'action' : 'play',
+        ...(arm.receipt?.icon === 'megacredits' ? {price: `${arm.receipt.amount} M€`} : {}),
+        ...(this.stagedBackOwed ? {backOwed: true} : {}),
+      };
+    },
+    /**
      * PLANET FOCUS target — should the enlarged placement stage be up?
      *
      * TRUE while a space prompt whose WHOLE candidate set lives on the main
@@ -9231,9 +9263,20 @@ export default defineComponent({
       // (A CITY LANDING ON A COLONY TILE (TR22) and its homing beat used to blank the bar here. The pad is still the
       // scene's — the input routing absorbs it — but the bar now speaks the colony acts' ONE status grammar below:
       // «Выполняется…» on the stage past the press, «Выполнено» while the grid stands as the receipt.)
+      // THE STAGED RITUAL (T15 · CD): the card lands on its stack BEFORE the board and nothing is sent — A has nothing to
+      // do (the cell is the next press), and B is offered for what it is: back to the card, OWED to the ritual's end
+      // and shown as the return once pressed. Above the played-hero quiet below: that quiet is for a play whose commit
+      // is made; this one's is still ahead, and a bar with no verb is where the stand found the B being lost.
+      if (this.stagedLandingInFlight) {
+        return [
+          {control: 'confirm', label: 'Going to the board…', enabled: false},
+          this.stagedBackOwed ? {control: 'back', label: STAGED_BACK_OWED, enabled: false} : {control: 'back', label: 'Back to the card'},
+        ];
+      }
       // The played-card hero scene: the bar goes quiet — the card is the
       // whole story (a press during the result beat quietly skips ahead).
-      if (this.playedHeroHolds) {
+      // …except the STAGED hand-off's tail: the board already holds the staged pick, and its own verbs speak (T15 · CD).
+      if (this.playedHeroHolds && this.placementStagedBar === undefined) {
         return [];
       }
       // «Разбор хода» review: X inspect the played card, L3 show on map, B
@@ -9966,6 +10009,7 @@ export default defineComponent({
           moveLevel: this.placementMoveLevelNow,
           moveFamily: this.placementMoveFamilyNow,
           finale: this.finalGreeneryPickPending ? {finish: finalGreeneryFinishCommand()} : undefined,
+          staged: this.placementStagedBar,
         });
       }
       if (this.consoleState.sale.active) {
@@ -11419,13 +11463,6 @@ export default defineComponent({
         const fold = this.lawPlayFold;
         this.lawPlayFold = undefined;
         fold();
-      }
-      if (phase === 'idle' && this.stagedBackOwed) {
-        // The owed B of the staged hand-off's tail (PL-581): the scene is over — the board's back verb runs now.
-        this.stagedBackOwed = false;
-        if (stagedPlayActive() && !stagedPlayState.committing) {
-          this.cancelStagedPlay();
-        }
       }
       if (phase === 'lifting' && playedHeroState.host !== 'workspace') {
         const pending = this.pendingPlayCard;
@@ -14056,6 +14093,9 @@ export default defineComponent({
       // Bounded by AWAITING_SAFETY_MS (the resolve/expiry lives in the
       // playerView watcher), so the pad can never stick. Sits BELOW the
       // system alert (a rejected input stays acknowledgeable above).
+      if (this.stagedBackOwedNow(intent, action)) {
+        return true;
+      }
       if (isSurfaceAwaitingHandoff()) {
         return true;
       }
@@ -14120,13 +14160,6 @@ export default defineComponent({
           if (action === 'back') {
             return true;
           }
-        } else if (action === 'back' && stagedPlayActive() && !stagedPlayState.committing) {
-          // THE STAGED HAND-OFF's TAIL (PL-581): the board already holds the staged placement (its bar reads
-          // «B Отменить размещение») while the landed card's proxy dissolves with the leaving workspace. Nothing
-          // was sent, so B here is the board's own «one level back» — OWED to the scene's end, never swallowed
-          // (a B in that window used to vanish and leave the player on the board with the composer gone).
-          this.stagedBackOwed = true;
-          return true;
         } else {
           if (intent.kind === 'press' && this.playedHeroState.phase === 'showing-result') {
             skipPlayedHeroResult();
@@ -17398,6 +17431,8 @@ export default defineComponent({
           batch,
           target: {kind: 'cell', placement: payload.staged},
           ...(payload.stagedCardTarget !== undefined ? {cardTarget: payload.stagedCardTarget} : {}),
+          // The price the board's bar and plate name («Разыграть · 15 M€») — the composer's settled cost (T15 · CD).
+          receipt: playReceiptOf(pending),
           ...(payload.armedSpends !== undefined && payload.armedSpends.length > 0 ? {armedSpends: payload.armedSpends} : {}),
           rewards: payload.rewards,
           draws: payload.draws ?? 0,
@@ -21427,6 +21462,8 @@ export default defineComponent({
       // (backVerb 'none'), exactly like every committed beat — except this
       // one's «commit» is still ahead, on the board.
       setWorkspaceFramePhase('hand', 'executing');
+      this.stagedLandingInFlight = true;
+      this.stagedBackOwed = false;
       // The one-play class (TR49): what this play spends rides the ritual — drawn out of the dock into the card.
       stageArmedSpends(arm.armedSpends ?? []);
       armPlayedHero(pending.cardName, isEvent, {
@@ -21441,12 +21478,25 @@ export default defineComponent({
       if (!landed || !isPlayedHeroActive()) {
         // Aborted mid-ceremony — the abort already restored the source and
         // flagged 'failed' (the watcher rolls the frame back to configure).
+        this.stagedLandingInFlight = false;
+        this.stagedBackOwed = false;
         return;
       }
       // The read beat: the card rests on the stack before the board takes over.
       await new Promise((resolve) => setTimeout(resolve, motionMs(320)));
+      this.stagedLandingInFlight = false;
       if (!isPlayedHeroActive() || this.pendingPlayCard?.cardName !== pending.cardName) {
+        this.stagedBackOwed = false;
         void finishStagedPlayedLanding();
+        return;
+      }
+      // A B PRESSED DURING THE RITUAL IS OWED (T15 · CD) and is honoured HERE, at the ritual's own end: nothing was
+      // sent, so the press means «back to the card» — the ordinary refusal road takes the landed card back to its
+      // composer (the source restored, 'failed' re-arms the CTA, the frame back to configure, every capture intact)
+      // and the board never opens. Cutting the ritual at the press would tear the frame; ignoring it lost the press.
+      if (this.stagedBackOwed) {
+        this.stagedBackOwed = false;
+        abortPlayedHero();
         return;
       }
       if (arm.target.kind === 'resolution') {
@@ -22530,6 +22580,71 @@ export default defineComponent({
      * composer re-seats every capture from the parked draft. The play is
      * simply «not yet made» again.
      */
+    /**
+     * THE STAGED BOARD'S B IS OWED, NEVER LOST (T15 · CD — one law for every hold of the staged hand-off; PL-581 and
+     * PL-026 were two windows of it). Nothing is sent until the cell's confirm, so a B pressed while a HOLD owns the
+     * pad — the landing ritual, the hero's tail, the hand's leave, the surface hand-off, the board not yet standing —
+     * is the board's own «back to the card». It is TAKEN (never routed to whatever surface the hold left under the
+     * pad), OWED to the hold's end and SHOWN (the bar reads «Возвращаемся…»); a second B is a no-op. Returns true when
+     * the press was the staged board's.
+     */
+    stagedBackOwedNow(intent: GamepadIntent, action: ConsoleAction | undefined): boolean {
+      if (intent.kind !== 'press' || action !== 'back') {
+        return false;
+      }
+      if (this.stagedBackOwed && (this.stagedLandingInFlight || stagedPlayActive())) {
+        return true;
+      }
+      if (!this.stagedBackOwable()) {
+        return false;
+      }
+      this.stagedBackOwed = true;
+      void this.runOwedStagedBack();
+      return true;
+    },
+    /** A staged hand-off is under way and the board's own B cannot run yet (see {@link stagedBackOwedNow}). */
+    stagedBackOwable(): boolean {
+      if (this.stagedLandingInFlight) {
+        return true;
+      }
+      const arm = stagedPlayState.arm;
+      if (arm === undefined || arm.target.kind !== 'cell' || stagedPlayState.committing) {
+        return false;
+      }
+      const boardTakesB = this.placementActive && this.consoleState.section === 'board' && !this.stagedHandoffHolding();
+      return !boardTakesB;
+    },
+    /** A scene of the staged hand-off still owns the moment (the hero's tail, the hand's leave, the surface hand-off). */
+    stagedHandoffHolding(): boolean {
+      return isPlayedHeroActive() || handStageTransitioning() || isSurfaceAwaitingHandoff();
+    },
+    /**
+     * The owed B runs the moment the hand-off's holds are over — read on the probe tick (the hold's own end is the
+     * signal; the tick only notices it), bounded and named. A ritual still in flight honours the B at its own end
+     * (`beginStagedPlayLanding`); a commit or a cleared arm voids the debt (nothing is left to go back to).
+     */
+    async runOwedStagedBack(): Promise<void> {
+      const deadline = Date.now() + STAGED_BACK_OWED_MAX_MS;
+      while (this.stagedBackOwed) {
+        if (this.stagedLandingInFlight) {
+          return;
+        }
+        if (stagedPlayState.arm === undefined || stagedPlayState.committing) {
+          this.stagedBackOwed = false;
+          return;
+        }
+        const expired = Date.now() > deadline;
+        if (!this.stagedHandoffHolding() || expired) {
+          if (expired) {
+            console.warn('[staged-play] the owed B ran past its hold (bounded):', STAGED_BACK_OWED_MAX_MS, 'ms');
+          }
+          this.stagedBackOwed = false;
+          this.cancelStagedPlay();
+          return;
+        }
+        await new Promise<void>((resolve) => probeTick(() => resolve()));
+      }
+    },
     cancelStagedPlay(): void {
       const arm = stagedPlayState.arm;
       if (arm === undefined || stagedPlayState.committing) {

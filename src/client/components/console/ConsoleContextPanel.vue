@@ -27,6 +27,17 @@
             <span class="con-context__finale-stage-dot" aria-hidden="true"></span>{{ $t(finaleStageKey) }}
           </div>
         </div>
+        <!-- THE PLAY PLATE (T15 · CD): a STAGED pick carries its card onto the board — ONE row at the chip's height: the
+             art, the name, the price the one POST charges. ABOVE the identity, never in its place (the title is the
+             TILE); no controller prompt (the verbs are the bar's); gone with the commit. -->
+        <div v-if="stagedPlate !== undefined" class="con-context__staged" data-staged-plate :data-staged-flow="stagedPlate.flow">
+          <span class="con-context__staged-art" :style="stagedArtStyle" aria-hidden="true"></span>
+          <span class="con-context__staged-name" data-staged-card>{{ $t(stagedPlate.card) }}</span>
+          <span v-if="stagedPlate.price !== undefined" class="con-context__staged-price" data-staged-price>
+            <span class="con-context__f-ico" :class="stagedPriceIconClass" aria-hidden="true"></span>
+            <b>{{ stagedPlate.price.amount }}</b>
+          </span>
+        </div>
         <!-- WHAT LANDS — the real tile art + its name, never the server's
              whole sentence (placementDossier owns the naming law). -->
         <div class="con-context__head">
@@ -62,7 +73,7 @@
         </div>
         <!-- WHO asked — one quiet line of metadata (`.con-src` chip). The
              inspect verb lives in the command bar (L3), not here. -->
-        <console-source-dock v-if="sourceView !== undefined" :view="sourceView" chip ref="sourceChip" />
+        <console-source-dock v-if="sourceView !== undefined && stagedPlate === undefined" :view="sourceView" chip ref="sourceChip" />
       </header>
 
       <!-- ── THE FINALE's own block (the final greenery is played ON THE BOARD — PL-295). Constant for the whole pick:
@@ -361,7 +372,9 @@ import {
   DossierChosenTarget,
   placementFollowUpLine,
   placementIdentity,
+  StagedPlayPlate,
 } from '@/client/console/placementDossier';
+import {cardArtUrl, cardArtUrlAtTier} from '@/client/cards/cardArt';
 import {
   BANK_BURNS, BANK_CELLS, BANK_ENOUGH, BANK_LABEL as FINALE_BANK_LABEL, FinalePanelModel, FinaleSeatState, LANDING_LINE,
   QUEUE_LABEL, SEAT_DONE, SEAT_PLACING, SEAT_WAITING, SEAT_YOU, STAGE_LANDING, STAGE_PICK, STAGE_WAIT, WAITING_ON,
@@ -466,6 +479,8 @@ export default defineComponent({
     inspectAll: {type: Boolean, default: false},
     /** WHO asked for this placement — normalized by the shared model. */
     sourceView: {type: Object as PropType<PromptSourceView | undefined>, default: undefined},
+    /** THE PLAY PLATE of a staged pick (T15 · CD) — undefined for every other placement and past the commit. */
+    stagedPlate: {type: Object as PropType<StagedPlayPlate | undefined>, default: undefined},
     /** The card a reward the cell decides lands on, as the staged play chose it (Arboretum) — its live count. */
     chosenTarget: {type: Object as PropType<DossierChosenTarget | undefined>, default: undefined},
     // track mode (P27)
@@ -478,6 +493,15 @@ export default defineComponent({
     finale: {type: Object as PropType<FinalePanelModel | undefined>, default: undefined},
   },
   computed: {
+    /** The staged card's art as the plate's thumbnail (the thumb tier — a 4.6rem swatch). */
+    stagedArtStyle(): Record<string, string> {
+      const url = this.stagedPlate === undefined ? undefined : cardArtUrl(this.stagedPlate.card);
+      return url === undefined ? {} : {backgroundImage: `url(${cardArtUrlAtTier(url, 'thumb')})`};
+    },
+    /** The price's resource glyph (M€ for a play). */
+    stagedPriceIconClass(): string {
+      return this.stagedPlate?.price === undefined ? '' : iconClassFor(this.stagedPlate.price.icon);
+    },
     /** The plant glyph of the finale's stock line. */
     plantIconClass(): string {
       return iconClassFor('plants');

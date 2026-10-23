@@ -103,6 +103,7 @@ import {PlacementRelation, relationsFromInfo, relationsFromPreview} from '@/clie
 import {BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 import {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
 import {TileType} from '@/common/TileType';
+import {initialPlacementCursor} from '@/client/console/tilePlacement/placementCursorStart';
 import type {BonusZone} from '@/client/components/console/ConsoleBoardCursor.vue';
 
 const SELECT_CLASS = 'con-cell-sel';
@@ -1712,9 +1713,26 @@ export default defineComponent({
       }
       this.consoleState.trackMarker = markers[(at + step + markers.length) % markers.length].id;
     },
-    /** Seed the selection: available cell (or any cell) nearest the board center. */
+    /**
+     * Seed the selection. A PLACEMENT opens on the legal cell nearest the centre of the player's own tiles (the board's
+     * centre with none — `initialPlacementCursor`, T15 · CD: one law for every pick, read off the board's geometry, so
+     * it holds for a stage still hidden too); anything else — and a pick of off-grid cells only — on the available cell
+     * (or any cell) nearest the board's on-screen centre.
+     */
     seed(preferAvailable: boolean): void {
+      const first = preferAvailable && this.placementActive && this.legalSpaces.length > 0 ?
+        initialPlacementCursor({cells: this.playerView.game.spaces, legal: this.legalSpaces as ReadonlyArray<SpaceId>, viewer: this.playerView.thisPlayer.color}) :
+        undefined;
       const cells = this.candidates().filter((c) => c.kind === 'cell');
+      if (first !== undefined) {
+        const seat = cells.find((c) => c.id === first);
+        if (seat !== undefined) {
+          this.landOn(seat);
+        } else {
+          this.select(first);
+        }
+        return;
+      }
       if (cells.length === 0) {
         return;
       }

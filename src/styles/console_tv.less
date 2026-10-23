@@ -323,14 +323,18 @@ html.con-profile-tv {
            tightened until the BUSIEST standard placement (a city on a
            hazard-taxed cell: toll + result + standing + endgame) fits between
            the two bars with margin. Scrolling a placement panel is the defect
-           this iteration removes — it cut the endgame block off screen. */
-        --ctx-row-py: .18rem;
+           this iteration removes — it cut the endgame block off screen.
+           RE-CALIBRATED 2026-10-23 (T15 · CD): the busiest cell is now a Redux greenery beside one's own tiles with a
+           table answer («Сработает» — its own section head) + the Greens' reply + two milestone rows + the endgame + a
+           field rule; at .18 / .58 it ran 36 px into a scroll at 4K (the stand `console-staged-board-clarity` A
+           measures it), at .16 / .46 with the section head 1.1rem and the identity gap .26rem it fits. */
+        --ctx-row-py: .16rem;
 
         &__sec-total { font-size: 1.15rem; }
         &__cellbar { min-height: 1.9rem; }
-        &__sec-head { height: 1.2rem; }
-        &__body { gap: .58rem; }
-        &__id { gap: .34rem; }
+        &__sec-head { height: 1.1rem; }
+        &__body { gap: .46rem; }
+        &__id { gap: .26rem; }
     }
     .con-dossier-row {
         &__ico { width: 1.5rem; height: 1.5rem; }

@@ -189,7 +189,8 @@
  *     wrapper) is the universal hook for the baseline + hover layer.
  *   - `.board-space--available` (added by SelectSpace.vue during
  *     placement) escalates ::before to the legal state (amber outline).
- *   - `.board-space--selected` (post-confirm) → steady saturated gold.
+ *   - (the post-confirm `.board-space--selected` gold is gone — PL-039, T15 · CD: the console's reticle holds the
+ *     committed place, the landing marker lets go in the frame of contact.)
  *   - `.board-space--illegal` (server-marked off-limits) → cursor +
  *     faint danger-red rim.
  *   - `:has(.board-space--available)` on `.board-cont` triggers the
@@ -243,7 +244,6 @@
 	--placement-available-glow-2: rgba(255, 235, 170, 0.50);
 	--placement-hover-glow-1:     rgba(255, 240, 180, 1);
 	--placement-hover-glow-2:     rgba(255, 255, 255, 0.85);
-	--placement-selected-glow:    rgba(255, 215, 120, 0.95);
 	// WARM dust-glow for the baseline (non-placement) hover — matches the
 	// new warm "Martian survey engraving" grid palette (sunlit-dust lip,
 	// rgb ~238,217,188) rather than the old cool silver. Pulled toward a
@@ -483,21 +483,6 @@
 	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(@{grid-backing-c},0.45)' stroke-width='2.45' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23FFF6CC' stroke-width='2.1' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.85' stroke-width='0.9' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
 }
 
-// ── Placement mode: confirmed selection ───────────────────────────────
-//
-// Steady saturated gold, no hover dependence — the player has committed
-// to this cell, it shouldn't dim when their mouse moves away.
-.board > .board-space.board-space--selected,
-.board-outer-spaces > .board-space.board-space--selected {
-	filter: drop-shadow(0 0 10px var(--placement-selected-glow));
-	z-index: 2;
-}
-
-.board > .board-space.board-space--selected::before,
-.board-outer-spaces > .board-space.board-space--selected::before {
-	background: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 51' preserveAspectRatio='none'><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='rgba(@{grid-backing-c},0.42)' stroke-width='2.35' stroke-linejoin='round'/><polygon points='23,1 44.5,13.3 44.5,37.7 23,50 1.5,37.7 1.5,13.3' fill='none' stroke='%23FFC857' stroke-width='2' stroke-linejoin='round'/><polygon points='23,5.6 40.9,15.6 40.9,35.4 23,45.4 5.1,35.4 5.1,15.6' fill='none' stroke='%23ffffff' stroke-opacity='0.55' stroke-width='0.7' stroke-linejoin='round'/></svg>") center/100% 100% no-repeat;
-}
-
 // ── Placement mode: non-target cells ──────────────────────────────────
 //
 // REWORK: previously we set `opacity: 0.62 + saturate: 0.82` on the
@@ -519,8 +504,8 @@
 //   so this selector naturally skips them. Includes the small standalone
 //   `.board-space-type-deflection-zone` overlay div, which is a board
 //   feature marker — fine to fade with the empty hex.
-.board-cont:has(.board-space--available) .board > .board-space:not(.board-space--available):not(.board-space--selected) > [class*="board-space-type-"],
-.board-cont:has(.board-space--available) .board-outer-spaces > .board-space:not(.board-space--available):not(.board-space--selected) > [class*="board-space-type-"] {
+.board-cont:has(.board-space--available) .board > .board-space:not(.board-space--available) > [class*="board-space-type-"],
+.board-cont:has(.board-space--available) .board-outer-spaces > .board-space:not(.board-space--available) > [class*="board-space-type-"] {
 	// Very mild dim — the empty hex still reads as land/ocean/cove, just
 	// recedes against the amber-glowing legal cells. Saturate cut more
 	// than opacity since saturation drop preserves shape readability.
@@ -533,8 +518,8 @@
 // baseline-hover outline that pops back via the existing :hover::before
 // rule. Without this, an illegal-but-hovered cell shows full-strength
 // outline over a still-faded type colour — visually inconsistent.
-.board-cont:has(.board-space--available) .board > .board-space:not(.board-space--available):not(.board-space--selected):hover > [class*="board-space-type-"],
-.board-cont:has(.board-space--available) .board-outer-spaces > .board-space:not(.board-space--available):not(.board-space--selected):hover > [class*="board-space-type-"] {
+.board-cont:has(.board-space--available) .board > .board-space:not(.board-space--available):hover > [class*="board-space-type-"],
+.board-cont:has(.board-space--available) .board-outer-spaces > .board-space:not(.board-space--available):hover > [class*="board-space-type-"] {
 	opacity: 1;
 	filter: saturate(1);
 }
@@ -543,8 +528,8 @@
 // without disappearing. Hover still pops to the warm-white baseline
 // hover (handled by the existing :hover::before rule — specificity
 // wins over this no-hover scope).
-.board-cont:has(.board-space--available) .board > .board-space:not(.board-space--available):not(.board-space--selected):not(:hover)::before,
-.board-cont:has(.board-space--available) .board-outer-spaces > .board-space:not(.board-space--available):not(.board-space--selected):not(:hover)::before {
+.board-cont:has(.board-space--available) .board > .board-space:not(.board-space--available):not(:hover)::before,
+.board-cont:has(.board-space--available) .board-outer-spaces > .board-space:not(.board-space--available):not(:hover)::before {
 	opacity: 0.4;
 	transition: opacity 240ms ease;
 }
@@ -756,8 +741,7 @@
 // Placement lock-on: while a cell is a legal (hovered / selected) target, the
 // bonus mount's warm rim brightens to amber to match the cell's amber outline +
 // the wrapper's amber bloom, so the whole reward reads "lock-on" in one language.
-.board-space--available:hover .board-space-bonus::before,
-.board-space--selected .board-space-bonus::before {
+.board-space--available:hover .board-space-bonus::before {
 	box-shadow: inset 0 0 0 0.8px rgba(255, 216, 140, 0.5);
 }
 
@@ -1555,8 +1539,7 @@
 		transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), filter 220ms ease;
 	}
 
-	&.board-space--available:hover .board-space-bonuses,
-	&.board-space--selected .board-space-bonuses {
+	&.board-space--available:hover .board-space-bonuses {
 		// Light the reward up IN PLACE: amber glow + brightness/saturation +
 		// a 2px rise toward the free hex centre. Reads as "these get collected
 		// when you place here" without ever breaking the cell boundary.
