@@ -35,7 +35,11 @@ This is the contract of the showcase that replaced it. Stand: `tests/e2e/console
   re-laid out), so a flight measured on a seat stays true.
 - **THE WAIT brings the SAME rack forward** (`.con-draftws--waiting`): lifted to the stage's middle and scaled by the
   planner (on the TV the faces reach ≥ 40 % of the body), its plate dissolving so the faces stand on the stage; the
-  pass lane keeps the top.
+  pass lane keeps the top. Only the FACES come forward: the shelf's head («ОТОБРАННЫЕ 1/4 · LT») dissolves — scaled with
+  the rack it stood over the pass lane's lines (the 4K frame of the stand).
+- The owner's batch (2026-10-23): M1 (the shelf a band under the packet — `DRAFT_SHOWCASE_COMPOSITION = 'stack'`), the
+  wait brings the shelf forward, the wallet plate + the stamp, the chair everywhere. The Deck's wait stays at the floor
+  (decision 10 — PL-927 waits for the owner).
 
 ## 3. The reading row — the card under the cursor read whole
 
@@ -50,6 +54,12 @@ reserved status zone under the stage (one line, the stage never reflows):
   the server's `thisPlayer.cardCost`; numbers on `ConsoleFlipValue`).
 - **The purchase's verb counts what it buys**: RT «Купить N» (`Buy ${0}`), «Купить 0» when nothing is chosen — never
   «Пропустить»; nothing glows at zero.
+- The purchase's money lives ONLY in the wallet plate (`[data-draft-wallet]`) — the header's old financial strip is
+  gone; a card chosen for the buy wears «✓ КУПЛЕНО» (`[data-draft-bought]`).
+- The floor probe of the stand counts the UI's text, never the text inside a card FACE (a premium face is a graphic
+  printed at its own scale).
+- Open: PL-924 — a game LOADED straight into the buy after a draft (the removed fixture) showed a degenerate scene; the
+  stand reaches the buy by a real draft.
 
 ## 4. Guards
 
