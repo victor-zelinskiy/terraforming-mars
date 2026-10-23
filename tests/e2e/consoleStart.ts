@@ -2891,6 +2891,11 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   'generation-end-solo' |
   'generation-end-solo-no-energy' |
   'generation-end-draft' |
+  // T10 · CE the packet showcase: red on its FIRST packet of a two-seat draft (blue never answers → the wait), red's
+  // research buy of the four drafted cards (40 M€), and the solo no-draft buy.
+  'draft-showcase-pick' |
+  'draft-showcase-buy' |
+  'draft-showcase-solo-buy' |
   // TR61 Cargo Mechs: the card on the table with a mech and a used action beside it (Restricted Area), Viron as the
   // corporation (the loop guard's own table), 1 energy for A, a second mech holder for A's «КУДА»; `-empty`: no mech
   // here — B refused with its count, A alone live.

@@ -7877,6 +7877,67 @@ function generationEndStocks(player: TestPlayer, energy: number): void {
   write('generation-end-draft', game);
 }
 
+// ── T10 · CE · THE PACKET SHOWCASE (the draft + research buy on the 4K TV): the workspace's stages stood up directly,
+//    no generation scene in front of them. `draft-showcase-pick`: two seats WITH the draft, generation 2, both seats
+//    holding their FIRST packet (4 cards) — red picks on the UI, blue never answers, so red's next stage is the WAIT;
+//    `draft-showcase-buy`: the same table with every pick answered by the engine — red's research BUY of the four
+//    drafted cards, 40 M€ (buy two → «2 × 3 = −6 · 40 → 34»); `draft-showcase-solo-buy`: solo, no draft — the buy of
+//    the next generation is the whole flow (the `research-startups` road's twin through the generation's own end). ──
+function draftShowcaseTable(): {game: IGame, p1: TestPlayer, p2: TestPlayer} {
+  const [game, p1, p2] = testGame(2, {skipInitialCardSelection: false, draftVariant: true});
+  answerStartFlow(game, [p1, p2]);
+  p1.megaCredits = 40;
+  p2.megaCredits = 40;
+  p2.pass();
+  runAllActions(game);
+  // Red's pass is the generation's last: the production phase and the draft follow it at once.
+  p1.popWaitingFor();
+  game.playerHasPassed(p1);
+  game.playerIsFinishedTakingActions();
+  runAllActions(game);
+  return {game, p1, p2};
+}
+{
+  const {game, p1, p2} = draftShowcaseTable();
+  const wf1 = p1.getWaitingFor();
+  const wf2 = p2.getWaitingFor();
+  if (game.phase !== Phase.DRAFTING || !(wf1 instanceof SelectCard) || wf1.cards.length !== 4 || !(wf2 instanceof SelectCard)) {
+    throw new Error(`draft-showcase-pick: expected both seats on their first 4-card packet, got phase=${game.phase} wf1=${wf1?.constructor.name} cards=${wf1 instanceof SelectCard ? wf1.cards.length : -1}`);
+  }
+  write('draft-showcase-pick', game);
+}
+{
+  const {game, p1, p2} = draftShowcaseTable();
+  for (let i = 0; i < 20 && game.phase === Phase.DRAFTING; i++) {
+    for (const p of [p1, p2]) {
+      const wf = p.getWaitingFor();
+      if (wf instanceof SelectCard && game.phase === Phase.DRAFTING) {
+        p.process({type: 'card', cards: [wf.cards[0].name]});
+        runAllActions(game);
+      }
+    }
+  }
+  const wf = p1.getWaitingFor();
+  p1.megaCredits = 40;
+  if (game.phase !== Phase.RESEARCH || !(wf instanceof SelectCard) || wf.cards.length !== 4) {
+    throw new Error(`draft-showcase-buy: expected red's research buy of 4 drafted cards, got phase=${game.phase} wf=${wf?.constructor.name} cards=${wf instanceof SelectCard ? wf.cards.length : -1}`);
+  }
+  write('draft-showcase-buy', game);
+}
+{
+  const {game, player} = soloActionPhase();
+  player.megaCredits = 40;
+  player.popWaitingFor();
+  game.playerHasPassed(player);
+  game.playerIsFinishedTakingActions();
+  runAllActions(game);
+  const wf = player.getWaitingFor();
+  if (game.phase !== Phase.RESEARCH || game.gameOptions.draftVariant || !(wf instanceof SelectCard) || wf.cards.length !== 4) {
+    throw new Error(`draft-showcase-solo-buy: expected a solo research buy of 4 cards, got phase=${game.phase} draft=${game.gameOptions.draftVariant} wf=${wf?.constructor.name}`);
+  }
+  write('draft-showcase-solo-buy', game);
+}
+
 // ── TR61 · CARGO MECHS: the card on the table (its requirement is the play's — on the table it acts whoever rules),
 //    Viron as the seat's corporation (the loop guard's own table — both copiers at once), Restricted Area USED this
 //    generation and able to act again (10 M€ — B's one candidate), Forestry Mechs as a second mech holder (A's target
