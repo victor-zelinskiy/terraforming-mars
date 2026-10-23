@@ -122,7 +122,6 @@
     "${0} automated": "${0} {автоматическая|автоматические|автоматических}",
     "${0} active": "${0} {активная|активные|активных}",
     "${0} events": "${0} {событие|события|событий}",
-    "Would add:": "Даст:",
     "Each player starts with prelude cards that shape the opening.": "Каждый игрок начинает с карт-прологов, задающих раннюю стратегию.",
     "Requires ${0}": "Требует «${0}»",
     "Adds the Mars Parliament: delegates voting on resolutions, party effects and the Agenda track.": "Добавляет Марсианский парламент: голосование делегатов за резолюции, эффекты партий и трек Карьеры."

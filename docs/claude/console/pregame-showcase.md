@@ -143,8 +143,9 @@ and on every next classic card.
   lightness band: `#3da877` · `#4d8fd9` · `#cf5a52`), every segment directly labelled with its count and word; the
   totals flip through `ConsoleFlipValue` (both ways), the segments are full-width layers scaled on X (transform only), the
   2 px gaps their own layers; reduced motion snaps. Never a cursor target — `deckNavStep` is unchanged.
-- **The plate** — the server's contribution as chips («+72 проекта · +42 резолюции · +2 колонии»; an OFF plate «Даст: …» in
-  the quiet register), and the dependency closing that row («• Требует «Колонии»», red with «!» only while the plate
+- **The plate** — the server's contribution as chips («+72 проекта · +42 резолюции · +2 колонии»; an OFF plate reads the same chips in
+  the quiet register — no «would add» label: a toggle changes PAINT only, and the ON/OFF chip keeps one width with both
+  words in one grid cell, so nothing on the plate re-flows; the owner, 2026-10-23), and the dependency closing that row («• Требует «Колонии»», red with «!» only while the plate
   is on without it — `ExpansionRow.requires` from `EXPANSION_REQUIRES`); the briefing's blocker list still names it.
 - **The Deck 1280×800** keeps one line of totals over the grid and one-line plates (no bar, no chips, no dependency chip).
 - **Guards** — `tests/server/deckComposition.spec.ts`, `tests/routes/ApiDeckComposition.spec.ts`,

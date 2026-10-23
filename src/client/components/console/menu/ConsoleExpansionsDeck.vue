@@ -25,17 +25,20 @@
           <!-- The name and the switch on ONE line: the description and the deck chips get the plate's whole width. -->
           <span class="cm-exp__title">
             <span class="cm-exp__name">{{ $t(row.meta.labelKey) }}</span>
+            <!-- Both words stand in ONE grid cell, the other one hidden: the chip is as wide as the longer of them in
+                 either state, so a toggle never re-flows the title row. -->
             <span class="cm-exp__state" :class="{'cm-exp__state--on': row.value}">
-              {{ $t(row.value ? 'On' : 'Off') }}
+              <span class="cm-exp__state-word" :class="{'cm-exp__state-word--off': !row.value}">{{ $t('On') }}</span>
+              <span class="cm-exp__state-word" :class="{'cm-exp__state-word--off': row.value}">{{ $t('Off') }}</span>
             </span>
           </span>
           <span v-if="row.conflictKey !== undefined" class="cm-exp__issue">{{ $t(blockerText(row.conflictKey)) }}</span>
           <!-- What it adds — read on the wide creator (TR68), out of the Deck's one-line tile. -->
           <span v-else class="cm-exp__desc">{{ $t(row.meta.descKey) }}</span>
-          <!-- …and what it adds to the DECKS, in numbers — the server's «with it − without it»; an OFF tile «would add». -->
+          <!-- …and what it adds to the DECKS, in numbers — the server's contribution. An OFF plate reads the same chips in
+               their quiet register: no «would add» label, so a toggle changes paint only and the row never re-flows. -->
           <!-- What it NEEDS closes the row — a quiet statement, red (with «!») only while the plate is on without it. -->
           <span v-if="chipsOf(row).length > 0 || row.requires.length > 0" class="cm-exp__chips" :data-exp-chips="row.meta.id">
-            <span v-if="!row.value && chipsOf(row).length > 0" class="cm-exp__would">{{ $t('Would add:') }}</span>
             <span
               v-for="chip in chipsOf(row)"
               :key="chip.id"
