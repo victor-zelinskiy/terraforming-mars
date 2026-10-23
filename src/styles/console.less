@@ -4624,11 +4624,38 @@ each(@players, {
        last row half-buried under the bottom beam). */
     overflow: hidden;
 
+    /* ── THE GLASS PLATE (T03 · CF — «материал, не форма», the owner's M3) ──
+       ONE plate of dark glass under the six rows — an instrument bank, not six
+       grey slabs. The plate carries the hull bleed itself (the rows used to
+       bleed one by one): the container steps into the hull by the same
+       --con-pad-x the rows stepped, the rows stand at margin 0 — so every row
+       box, and every anchor inside it, is exactly where it was (guarded by
+       `console-rail-material` against the base client's rects, ±1 px). Paint
+       only: no transform / filter on the plate or a row (the flight layers). */
     &__rows {
         display: flex;
         flex-direction: column;
         gap: var(--cr-rgap);
+        margin-left: calc(-1 * var(--con-pad-x, 0vw));
+        border-radius: 0 .6rem .6rem 0;
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent .9rem),
+            linear-gradient(180deg, rgba(32, 44, 60, 0.9), rgba(11, 18, 28, 0.94));
+        box-shadow:
+            inset 0 .07rem 0 rgba(255, 255, 255, 0.08),
+            inset 0 -.08rem 0 rgba(0, 0, 0, 0.5),
+            inset -.06rem 0 0 fade(@con-cyan, 26%),
+            0 .2rem .6rem rgba(0, 0, 0, 0.45);
     }
+    /* THE TONE of each resource — one source, the colours its own icon and the
+       console already speak; read by the row's edge wash, its digits and its
+       engraved production. */
+    &__row--megacredits { --res-tone: @con-amber; }
+    &__row--steel { --res-tone: #c98a4e; }
+    &__row--titanium { --res-tone: #cfd9e8; }
+    &__row--plants { --res-tone: @con-plants; }
+    &__row--energy { --res-tone: @con-energy-violet; }
+    &__row--heat { --res-tone: @con-heat-warm; }
     /* (`--rows--bot` is a MARKER — the bot seat renders the same six REAL
        rows as a human, so the МЕТКИ anchor below is identical by
        construction; no reserved-height math exists any more.) */
@@ -4645,16 +4672,29 @@ each(@players, {
         grid-template-columns: var(--cr-icon) minmax(0, 1fr) var(--cr-prod-w, 2.2rem);
         align-items: center;
         column-gap: .4rem;
-        /* ADAPTIVE (rail-stack policy): the instrument plate OWNS the hull
-           zone the welded chassis gained — it bleeds toward the physical
-           edge while the icon/value stay on the safe content line (the
-           compensating padding). The rail reads as one wide instrument
-           bank, not a narrow column on a wide background. */
-        margin-left: calc(-1 * var(--con-pad-x, 0vw));
+        /* ADAPTIVE (rail-stack policy): the instrument bank OWNS the hull
+           zone the welded chassis gained — the PLATE above bleeds toward the
+           physical edge (the row stands at its left edge, margin 0) while the
+           icon/value stay on the safe content line (the compensating padding). */
+        margin-left: 0;
         padding: var(--cr-row-py) .5rem var(--cr-row-py) calc(.5rem + var(--con-pad-x, 0vw));
         border-radius: 0 .4rem .4rem 0;
-        background: rgba(16, 26, 38, 0.6);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+        /* On the plate a row is a SECTION, not a slab: its resource's tone
+           washes in from the hull edge (the bank's colour key), nothing else. */
+        background: linear-gradient(90deg, ~"color-mix(in srgb, var(--res-tone, #8fb3d6) 16%, transparent)", transparent 32%);
+        box-shadow: none;
+        /* The seam between two sections — a hairline in the middle of the gap,
+           absolute (a border would grow the row and move every anchor below). */
+        &:not(:last-child)::before {
+            content: '';
+            position: absolute;
+            left: calc(.5rem + var(--con-pad-x, 0vw));
+            right: .5rem;
+            bottom: calc(-.5 * var(--cr-rgap) - .025rem);
+            height: .05rem;
+            background: linear-gradient(90deg, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.03));
+            pointer-events: none;
+        }
         /* THE RAIL RECEDES BEHIND A FORMULA (PL-139): a row the standing action formula does not touch goes
            quiet — its icon, digits and plate step back, the row's plate stays (the instrument bank keeps its
            shape; nothing moves). An opacity TRANSITION, compositor-only; the children, never the row — a
@@ -4719,6 +4759,9 @@ each(@players, {
         min-width: 3.1rem;
         text-align: right;
         font-variant-numeric: tabular-nums;
+        /* The digits read their resource's tone — a fifth of it, white still
+           carries the contrast (the console strips `text-shadow`: no glow). */
+        color: ~"color-mix(in srgb, #ffffff 80%, var(--res-tone, #ffffff))";
     }
     /* SEPARATE-STORE capsule (the bot's M€ row): a tiny resource CUBE + the
        stored amount — the physical board keeps cubes in the storage areas,
@@ -4757,19 +4800,24 @@ each(@players, {
         font-variant-numeric: tabular-nums;
         color: #dfe9f5;
     }
-    /* Production chip — the classic brown TM production tile read. Lives
-       in the row grid's own end track (no margin push): whole by
-       construction, inside the plate's right padding. */
+    /* Production — an ENGRAVED «+N» in its resource's tone (T03 · CF): cut
+       into the glass rather than a brown pill laid on it, six rows six tones.
+       Lives in the row grid's own end track (no margin push): whole by
+       construction, inside the plate's right padding; the box is the old
+       chip's to the pixel (the production flights aim at it). */
     &__prod {
         position: relative;   /* the production shield's anchor (zero layout) */
         justify-self: stretch; /* fill the fixed track — one chip width per rail */
         box-sizing: border-box;
         min-width: 0;
         padding: .15rem .3rem;
-        border-radius: .25rem;
-        background: linear-gradient(180deg, #8a5a2b, #6b4520);
-        box-shadow: inset 0 0 0 .05rem rgba(255, 220, 170, 0.35), 0 .1rem .25rem rgba(0, 0, 0, 0.45);
-        color: #ffe9cf;
+        border-radius: .2rem;
+        background: linear-gradient(180deg, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.28));
+        box-shadow:
+            inset 0 .07rem .14rem rgba(0, 0, 0, 0.75),
+            inset 0 -.05rem 0 ~"color-mix(in srgb, var(--res-tone, #8fb3d6) 30%, transparent)",
+            0 0 0 .05rem ~"color-mix(in srgb, var(--res-tone, #8fb3d6) 48%, transparent)";
+        color: ~"color-mix(in srgb, #ffffff 30%, var(--res-tone, #ffffff))";
         font-size: .9rem;
         line-height: 1.2; /* explicit — the row height stays icon-driven */
         font-weight: 700;
@@ -4794,10 +4842,11 @@ each(@players, {
             left: -.24rem;
         }
 
+        /* A NEGATIVE production is a red engraving — the sign is in the
+           digits, the red ring repeats it (never colour alone). */
         &--negative {
-            background: linear-gradient(180deg, #8a2b2b, #6b2020);
-            box-shadow: inset 0 0 0 .05rem rgba(255, 170, 170, 0.35), 0 .1rem .25rem rgba(0, 0, 0, 0.45);
-            color: #ffd6d6;
+            box-shadow: inset 0 .07rem .14rem rgba(0, 0, 0, 0.75), 0 0 0 .05rem rgba(255, 110, 96, 0.6);
+            color: #ff9c90;
         }
     }
 
@@ -4826,7 +4875,10 @@ each(@players, {
        The medallion grid itself stays on the safe content line. */
     margin-left: calc(-1 * var(--con-pad-x, 0vw));
     padding-left: var(--con-pad-x, 0vw);
-    border-top: .05rem solid fade(@con-cyan, 20%);
+    /* The section SEAM in the bank's grammar (T03 · CF): a cut into the hull — a dark line over a lit one —
+       never a cyan hairline laid on top. */
+    border-top: .05rem solid rgba(0, 0, 0, 0.65);
+    box-shadow: inset 0 .05rem 0 rgba(255, 255, 255, 0.05);
     padding-top: .55rem;
     /* Budget contract: the matrix yields before the rail can overflow.
        A flex COLUMN so the grid below can SOLVE its rows into whatever
@@ -4848,7 +4900,7 @@ each(@players, {
         font-size: .75rem;
         letter-spacing: .12rem;
         text-transform: uppercase;
-        color: fade(@con-cyan, 85%);
+        color: fade(@con-action-gold, 82%);
         white-space: nowrap;
     }
     /* Hairline tail after the title — ties the header to the panel's sci-fi
@@ -4856,7 +4908,7 @@ each(@players, {
     &__rule {
         flex: 1 1 auto;
         height: .05rem;
-        background: linear-gradient(90deg, fade(@con-cyan, 30%), transparent);
+        background: linear-gradient(90deg, fade(@con-action-gold, 40%), transparent);
     }
     /* The law behind the «+N» cells — its own line under the head, in the
        same mint as the additions it explains (the colour is what ties the
@@ -4923,8 +4975,9 @@ each(@players, {
         min-height: 0;
         padding: .2rem 0 .15rem;
         border-radius: .35rem;
-        background: rgba(10, 18, 28, 0.35);
-        box-shadow: inset 0 .05rem .2rem rgba(0, 0, 0, 0.35);
+        /* A MEDALLION BANK (T03 · CF, the owner's 5a): each cell a faint pool of light the medal sits in — no
+           card-let plate, the matrix reads as one instrument. */
+        background: radial-gradient(circle at 50% 36%, rgba(30, 42, 58, 0.55), transparent 70%);
     }
 
     /* The medalwrap takes over the medallion's role in the cell's vertical
@@ -4973,9 +5026,13 @@ each(@players, {
         background-size: calc(100% * var(--tag-face-scale, 1.13));
         border-radius: 50%;
         z-index: auto;
+        /* The bronze RIM of a collected tag + its light; a zero swaps the rim for steel and loses the light (the
+           state is the MATERIAL, never colour alone — the count's plate says it too). */
         box-shadow:
-            0 0 0 .05rem rgba(0, 0, 0, 0.34),
-            0 .1rem .2rem -.05rem rgba(0, 0, 0, 0.5);
+            0 0 0 .08rem #b98b52,
+            0 0 0 .14rem rgba(0, 0, 0, 0.6),
+            0 .12rem .3rem rgba(0, 0, 0, 0.55),
+            0 0 .45rem fade(@con-amber, 30%);
         transition:
             opacity calc(320ms * var(--motion-scale, 1)) ease,
             filter calc(320ms * var(--motion-scale, 1)) ease,
@@ -5001,6 +5058,18 @@ each(@players, {
         justify-content: center;
         gap: .12rem;
         margin-top: .15rem;
+        /* The count on an ENGRAVED PLATE lifted onto the medal's lower rim: drawn by spread shadows around the
+           digits' own box and moved by `top` (a relative offset) — never a padding-block or a margin, which
+           re-solve the matrix's rows (the stand measured 7.8–31 px of drift from exactly that). */
+        z-index: 1;
+        top: -.22rem;
+        padding-inline: .32rem;
+        border-radius: .5rem;
+        background: rgba(8, 12, 19, 0.95);
+        box-shadow:
+            0 0 0 .06rem rgba(8, 12, 19, 0.95),
+            0 0 0 .11rem fade(#b98b52, 75%),
+            0 .1rem .25rem .1rem rgba(0, 0, 0, 0.5);
     }
     /* THE ADDITION a standing law makes — beside the printed digit, never in
        place of it, and unmistakably a different KIND of number: smaller,
@@ -5022,7 +5091,7 @@ each(@players, {
         font-weight: 700;
         letter-spacing: .02rem;
         font-variant-numeric: tabular-nums;
-        color: @con-text;
+        color: #ffe9bf;
         text-shadow: 0 .05rem .2rem rgba(0, 0, 0, 0.55);
         transition: color calc(320ms * var(--motion-scale, 1)) ease;
     }
@@ -5036,10 +5105,13 @@ each(@players, {
             opacity: .48;
             filter: saturate(0.4) contrast(0.94);
             transform: scale(0.93);
-            box-shadow: 0 0 0 .05rem rgba(0, 0, 0, 0.22);
+            box-shadow: 0 0 0 .08rem #4a5463, 0 0 0 .14rem rgba(0, 0, 0, 0.55);
+        }
+        .con-tagmx__numwrap {
+            box-shadow: 0 0 0 .06rem rgba(8, 12, 19, 0.9), 0 0 0 .11rem rgba(90, 102, 118, 0.45);
         }
         .con-tagmx__num {
-            color: fade(@con-text, 42%);
+            color: fade(@con-text, 46%);
             font-weight: 600;
             text-shadow: none;
         }
@@ -5082,13 +5154,18 @@ each(@players, {
        the resource plates below it — content stays on the safe line via
        the first cell's compensating padding. */
     margin-left: calc(-1 * var(--con-pad-x, 0vw));
-    border-radius: 0 .4rem .4rem 0;
-    background: linear-gradient(180deg, rgba(31, 39, 53, 0.85), rgba(13, 20, 30, 0.82));
+    /* The bank's material one register up (T03 · CF): the same dark glass as
+       the resource plate, a chamfered outer corner and the warm gold keyline —
+       the cap of the instrument, never a separate box. Paint only. */
+    border-radius: 0 .6rem .18rem 0;
+    background:
+        linear-gradient(225deg, rgba(9, 15, 23, 1) .42rem, transparent .43rem),
+        linear-gradient(180deg, rgba(48, 50, 56, 0.95), rgba(16, 20, 28, 0.96));
     box-shadow:
-        inset 0 0 0 .05rem fade(@con-action-gold, 24%),
-        inset 0 .1rem 0 rgba(255, 255, 255, 0.05),
-        inset 0 -.6rem .9rem -.55rem rgba(0, 0, 0, 0.5),
-        0 .2rem .6rem rgba(0, 0, 0, 0.3);
+        inset 0 0 0 .05rem fade(@con-action-gold, 34%),
+        inset 0 .07rem 0 rgba(255, 255, 255, 0.09),
+        inset 0 -.08rem 0 rgba(0, 0, 0, 0.5),
+        0 .16rem .45rem rgba(0, 0, 0, 0.45);
 
     &__cell {
         flex: 1 1 0;
