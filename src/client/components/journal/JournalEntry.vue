@@ -12,13 +12,13 @@
       :data-correlation-id="message.correlationId"
       :class="{'journal-entry--fresh': animateIn, 'journal-entry--private': isPrivate, 'journal-entry--announcement': isAnnouncement}">
     <span class="journal-entry__rail" aria-hidden="true"></span>
-    <span class="journal-entry__time" :title="fullWhen">{{ when }}</span>
+    <span v-if="timeShown" class="journal-entry__time" :aria-label="fullWhen">{{ when }}</span>
     <span class="journal-entry__body">
-      <JournalTokenRenderer
-        v-for="(tok, i) in entries"
-        :key="i"
-        :token="tok"
-        :players="players" />
+      <template v-for="(tok, i) in entries" :key="i">
+        <!-- Several cards drawn at once read as their faces (CH — a fan, never a sheet of names). -->
+        <JournalCardFan v-if="fanOf(tok) !== undefined" :cards="fanOf(tok)!" kind="kept" />
+        <JournalTokenRenderer v-else :token="tok" :players="players" />
+      </template>
     </span>
   </li>
 </template>
@@ -31,6 +31,9 @@ import {LogMessageType} from '@/common/logs/LogMessageType';
 import {parseLocalizedLog} from '@/client/components/journal/logLocalization';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import JournalTokenRenderer from '@/client/components/journal/JournalTokenRenderer.vue';
+import JournalCardFan from '@/client/components/journal/JournalCardFan.vue';
+import {CardName} from '@/common/cards/CardName';
+import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 
 /**
  * A single journal feed row. Two shapes:
@@ -45,7 +48,7 @@ import JournalTokenRenderer from '@/client/components/journal/JournalTokenRender
  */
 export default defineComponent({
   name: 'JournalEntry',
-  components: {JournalTokenRenderer},
+  components: {JournalTokenRenderer, JournalCardFan},
   props: {
     message: {
       type: Object as () => LogMessage,
@@ -58,6 +61,11 @@ export default defineComponent({
     animateIn: {
       type: Boolean,
       default: false,
+    },
+    /** The feed shows the stamp only where it changes (the panel decides — it knows the previous row). */
+    timeShown: {
+      type: Boolean,
+      default: true,
     },
   },
   computed: {
@@ -86,6 +94,16 @@ export default defineComponent({
     },
     fullWhen(): string {
       return new Date(this.message.timestamp).toLocaleString();
+    },
+  },
+  methods: {
+    /** A token of SEVERAL cards (two or more, not an ellipsis) — the fan's cards; anything else renders as a token. */
+    fanOf(tok: string | LogMessageData): ReadonlyArray<CardName> | undefined {
+      if (typeof tok === 'string' || tok.type !== LogMessageDataType.CARDS || tok.attrs?.ellipsis === true) {
+        return undefined;
+      }
+      const cards = tok.value as ReadonlyArray<CardName>;
+      return cards.length >= 2 ? cards : undefined;
     },
   },
 });

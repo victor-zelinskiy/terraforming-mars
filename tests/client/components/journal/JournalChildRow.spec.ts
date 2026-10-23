@@ -98,7 +98,7 @@ describe('JournalChildRow', () => {
       },
     });
 
-    it('names the counts through the reading renderer (no raw template), the thrown-away cards as card chips in order, then the rule', () => {
+    it('names the counts through the reading renderer (no raw template), the thrown-away cards as a FAN of faces in order, then the rule', () => {
       const wrapper = mountRow(search());
       const row = wrapper.find('[data-journal-search]');
       expect(row.exists()).is.true;
@@ -108,7 +108,10 @@ describe('JournalChildRow', () => {
       expect(row.attributes('data-search-exhausted')).eq('no');
       expect(wrapper.find('[data-journal-search-tally]').text()).eq('Turned over 6 · received 3 · thrown away 3');
       const discards = wrapper.findAll('[data-journal-search-discard]');
-      expect(discards.map((d) => d.find('.journal-chip__label').text())).deep.eq([CardName.ANTS, CardName.BIRDS, CardName.COMET]);
+      expect(discards.map((d) => d.attributes('data-card'))).deep.eq([CardName.ANTS, CardName.BIRDS, CardName.COMET]);
+      // CH: a draw reads as cards — the faces in a quiet fan, never a sheet of name chips.
+      expect(wrapper.find('.journal-fan--discard').attributes('data-fan-count')).eq('3');
+      expect(row.find('.journal-chip__label').exists(), 'no name chip for a thrown-away card').is.false;
       // The rule is the ONE renderer of the server's descriptor — the same one the reveal and the composer's chip mount.
       expect(wrapper.find('[data-journal-search-rule] [data-draw-search]').attributes('data-draw-search')).eq('with:building');
       expect(wrapper.find('[data-journal-search-end]').exists(), 'the deck did not run out').is.false;

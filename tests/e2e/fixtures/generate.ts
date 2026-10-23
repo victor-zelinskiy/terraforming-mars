@@ -8575,3 +8575,135 @@ mediaCenterFixture('martian-media-center-hand', (table) => {
     'the card in hand, NOT playable, one delegate of blue\'s on Mars First\'s resolution' : undefined;
 });
 
+// ── CH · «ЖУРНАЛ — ХРОНИКА, НЕ ЛОГ» — the journal's stand (the first e2e of the console journal). A two-seat base
+//    table (Teractor · Thorgate) whose generation 1 was PLAYED through the real doors, so the log and the event stream
+//    carry every kind of row the chronicle draws, and generation 2 is open with one more play:
+//      · blue plays Imported Nitrogen through the menu — +1 TR, 4 plants, and its «3 microbes / 2 animals to ANOTHER
+//        card» find no holder: two NAMED skips («ПРОПУЩЕНО»);
+//      · blue takes Development Center's action (1 energy → a card) — a card ACTION;
+//      · red plays Mine and Asteroid — another seat's turn; the asteroid's «remove up to 3 plants» takes blue's (an
+//        arrow with a direction: from whom → to whom);
+//      · blue's Acquired Space Agency reveals until two space cards — the SEARCH draw («revealed N · kept 2 · the rest
+//        discarded»), the sheet of names the chronicle turns into a fan;
+//      · both pass: the production phase (TR61 — each seat's income group), the research buy (nothing bought);
+//      · generation 2: red draws with Lagrange Observatory and passes; blue plays its own (a draw of 1).
+//    Blue is on the move in generation 2; the journal's pager has two generations. ──
+{
+  const name = 'journal-chronicle';
+  const pinned = [CardName.TERACTOR, CardName.THORGATE];
+  const [game, p1, p2] = testGame(2, {skipInitialCardSelection: false, startingCorporations: 1, customCorporationsList: [...pinned]});
+  assignPinnedCorporations(name, [p1, p2], pinned);
+  answerStartFlow(game, [p1, p2]);
+  const fresh = (cardName: CardName) => {
+    const card = newProjectCard(cardName);
+    if (card === undefined) {
+      throw new Error(`${name}: no card ${cardName}`);
+    }
+    return card;
+  };
+  const menu = (player: TestPlayer): OrOptions => {
+    const wf = player.getWaitingFor();
+    if (!(wf instanceof OrOptions)) {
+      throw new Error(`${name}: ${player.color} is not at the action menu (${wf?.constructor.name})`);
+    }
+    return wf;
+  };
+  const option = (player: TestPlayer, title: string): number => {
+    const index = menu(player).options.findIndex((o) => o.title === title);
+    if (index < 0) {
+      throw new Error(`${name}: ${player.color}'s menu has no «${title}» (${menu(player).options.map((o) => String(o.title)).join(' | ')})`);
+    }
+    return index;
+  };
+  /** Answer what a play asked with the plainest legal answer (the first of each). */
+  const answerAsks = (player: TestPlayer) => {
+    for (let round = 0; round < 8; round++) {
+      const wf = player.getWaitingFor();
+      if (wf === undefined || (wf instanceof OrOptions && wf.options.some((o) => o.title === 'Pass for this generation'))) {
+        return;
+      }
+      if (wf instanceof SelectCard) {
+        player.process({type: 'card', cards: wf.cards.slice(0, wf.config.min).map((c) => c.name)});
+      } else if (wf instanceof OrOptions) {
+        player.process({type: 'or', index: 0, response: {type: 'option'}});
+      } else if (wf instanceof SelectSpace) {
+        player.process({type: 'space', spaceId: quietCellOf(game, wf).id});
+      } else if (wf.type === 'player') {
+        player.process({type: 'player', player: p1.color});
+      } else {
+        throw new Error(`${name}: the builder cannot answer a «${wf.type}» prompt of ${player.color}`);
+      }
+      runAllActions(game);
+    }
+  };
+  // Every card a seat plays is in its hand BEFORE its menu is built (the menu lists the hand as it stood).
+  const play = (player: TestPlayer, cardName: CardName) => {
+    const card = player.cardsInHand.find((c) => c.name === cardName);
+    if (card === undefined) {
+      throw new Error(`${name}: ${cardName} is not in ${player.color}'s hand`);
+    }
+    player.process({type: 'or', index: option(player, 'Play project card'), response: {
+      type: 'projectCard', card: card.name, payment: Payment.of({megacredits: player.getCardCost(card)}),
+    }});
+    runAllActions(game);
+    answerAsks(player);
+  };
+  p1.megaCredits = 80;
+  p2.megaCredits = 80;
+  p1.plants = 2;
+  p1.energy = 3;
+  p1.playedCards.push(fresh(CardName.DEVELOPMENT_CENTER));
+  p1.cardsInHand.push(fresh(CardName.IMPORTED_NITROGEN), fresh(CardName.LAGRANGE_OBSERVATORY));
+  p2.cardsInHand.push(fresh(CardName.MINE), fresh(CardName.ASTEROID), fresh(CardName.LAGRANGE_OBSERVATORY));
+  if (game.activePlayer.id !== p1.id) {
+    throw new Error(`${name}: expected blue to open the generation`);
+  }
+  // The menu standing was built before the hand grew: build it again.
+  p1.popWaitingFor();
+  p1.takeAction();
+  play(p1, CardName.IMPORTED_NITROGEN);
+  p1.process({type: 'or', index: option(p1, 'Perform an action from a played card'), response: {type: 'card', cards: [CardName.DEVELOPMENT_CENTER]}});
+  runAllActions(game);
+  answerAsks(p1);
+  play(p2, CardName.MINE);
+  play(p2, CardName.ASTEROID);
+  // The SEARCH draw — the prelude's own play (a card-play scope of its own), while blue holds the menu.
+  const agency = newPrelude(CardName.ACQUIRED_SPACE_AGENCY);
+  if (agency === undefined) {
+    throw new Error(`${name}: no Acquired Space Agency`);
+  }
+  p1.playCard(agency);
+  runAllActions(game);
+  answerAsks(p1);
+  // Both pass: the production phase, then the research buy (nothing bought).
+  p1.process({type: 'or', index: option(p1, 'Pass for this generation'), response: {type: 'option'}});
+  runAllActions(game);
+  p2.process({type: 'or', index: option(p2, 'Pass for this generation'), response: {type: 'option'}});
+  runAllActions(game);
+  for (const seat of [p1, p2]) {
+    const wf = seat.getWaitingFor();
+    if (wf instanceof SelectCard) {
+      seat.process({type: 'card', cards: []});
+      runAllActions(game);
+    }
+  }
+  if (game.generation !== 2 || game.phase !== Phase.ACTION) {
+    throw new Error(`${name}: expected generation 2's action phase, got gen=${game.generation} phase=${game.phase}`);
+  }
+  // Generation 2 opens with red (the first player rotates): red's draw, red's pass — then blue's own play, blue on the move.
+  if (game.activePlayer.id === p2.id) {
+    play(p2, CardName.LAGRANGE_OBSERVATORY);
+    p2.process({type: 'or', index: option(p2, 'Pass for this generation'), response: {type: 'option'}});
+    runAllActions(game);
+  }
+  play(p1, CardName.LAGRANGE_OBSERVATORY);
+  if (game.activePlayer.id !== p1.id || !(p1.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`${name}: expected blue on the move in generation 2`);
+  }
+  const skips = (game.serialize().gameEvents ?? []).filter((e) => e.type === 'effect-skipped').length;
+  const search = game.gameLog.some((m) => m.message.includes('revealed'));
+  if (skips < 1 || game.gameLog.length < 20) {
+    throw new Error(`${name}: expected a rich generation — got skips=${skips} search=${search} log=${game.gameLog.length}`);
+  }
+  write(name, game);
+}

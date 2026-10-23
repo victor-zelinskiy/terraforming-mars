@@ -16267,10 +16267,17 @@ html.con-profile-handheld .con-mafocus {
        bleed through it (the panel underneath is also visibility-hidden).
        Drawer grammar: the accent sits on the stage-facing edge, the hull
        darkens toward the physical edge — never a full ring. */
+    /* CH: the panel speaks the CF glass (T03 · M3 «одна стеклянная плита») — a lit top edge, the plate's two-step
+       gradient, the stage-facing cyan bevel — near-opaque still (it REPLACES the right panel). */
     background:
         linear-gradient(270deg, rgba(4, 8, 13, 0.5), transparent calc(var(--con-pad-x, .6rem) + 1.2rem)),
-        linear-gradient(180deg, rgba(11, 19, 29, 0.99), rgba(8, 14, 22, 0.99));
-    box-shadow: inset .06rem 0 0 fade(@con-cyan, 32%), inset 0 .05rem 0 rgba(190, 225, 255, 0.05), -1rem 0 2.4rem rgba(0, 0, 0, 0.5);
+        linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 1.2rem),
+        linear-gradient(180deg, rgba(28, 40, 55, 0.99), rgba(10, 16, 25, 0.99));
+    box-shadow:
+        inset .07rem 0 0 fade(@con-cyan, 30%),
+        inset 0 .07rem 0 rgba(255, 255, 255, 0.08),
+        inset 0 -.08rem 0 rgba(0, 0, 0, 0.5),
+        -1rem 0 2.4rem rgba(0, 0, 0, 0.5);
     font-family: @con-font;
     overflow: hidden;
     /* P29: the map-highlight PEEK (L3 «Показать») fades the whole surface
@@ -16509,13 +16516,186 @@ html.con-profile-handheld .con-mafocus {
 }
 /* The focus ring lands ON the reused journal rows (class fallthrough). */
 .con-journal__node {
-    border-radius: .45rem;
+    position: relative;
+    border-radius: .5rem;
     margin: .1rem 0;
+    /* THE CURSOR (TR58 grammar): the ring is the node's own layer, only its opacity moves — the event card's material
+       (its box-shadow) stays the card's, never swapped for a focus list. No lift: the feed scrolls under it. */
+    .con-cursor-ring(inset 0 0 0 var(--con-focus-ring, .05rem) fade(@con-cyan, 85%), 0 0 var(--con-glow-r, .7rem) fade(@con-cyan, 22%); @radius: .5rem);
 
     &--focused {
-        background: rgba(16, 28, 42, 0.85);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 65%), 0 0 .7rem fade(@con-cyan, 14%);
+        .con-cursor-on();
     }
+}
+
+/* ── THE CHRONICLE (CH, 2026-10-23 — «ЖУРНАЛ — ХРОНИКА, НЕ ЛОГ») ───────────────────────────────────────────────────
+   The owner's 4K frame read the journal as a console log: a wall of equal chips with arrows, 70 px art, «15:24» on every
+   line, a draw as a sheet of names. Now an EVENT is a CARD on the panel's glass: the object's art beside a one-line
+   headline in the display face, the consequences ONE tier quieter under it (chips without arrows — an arrow only where
+   something flows to another seat), the time ONCE per run in the card's gutter, a draw a FAN of faces, a generation a
+   plate. The model, the chips' grammar (shared with the toasts — they stay `.con-notif__tokens`-scoped), the popovers,
+   the modes and the pager are untouched: this is paint and the group's own layout. */
+.con-journal .journal-group {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "time" "head" "body";
+    column-gap: .7rem;
+    row-gap: .3rem;
+    align-items: start;
+    margin: .5rem .1rem;
+    padding: .55rem .65rem .6rem;
+    border: 0;
+    border-radius: .5rem;
+    /* The event card on the CF glass: a lit top edge, a dark lower edge, the category's accent as the card's left
+       bevel (it was a free-standing spine) — material, never a frame. */
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 1rem),
+        rgba(22, 33, 47, 0.82);
+    box-shadow:
+        inset 0 .05rem 0 rgba(255, 255, 255, 0.07),
+        inset 0 -.06rem 0 rgba(0, 0, 0, 0.5),
+        inset .14rem 0 0 var(--jg-accent),
+        0 .18rem .55rem rgba(0, 0, 0, 0.4);
+    transition: none;
+
+    &:hover {
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 1rem),
+            rgba(22, 33, 47, 0.82);
+    }
+}
+.con-journal .journal-group--object {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas: "time time" "art head" "art body";
+}
+.con-journal .journal-group__spine,
+.con-journal .journal-group__tick { display: none; }
+.con-journal .journal-group__time {
+    grid-area: time;
+    padding: 0;
+    color: rgba(150, 200, 230, 0.78);
+    letter-spacing: .08rem;
+}
+.con-journal .journal-group__object {
+    grid-area: art;
+    order: 0;
+    /* The card's art, framed by the glass (3 : 2 — the thumb tier's own proportion; ≥ 160 px at 4K). */
+    width: 4.6rem;
+    height: 3.07rem;
+    border-radius: .35rem;
+    box-shadow: 0 0 0 .06rem rgba(255, 255, 255, 0.14), 0 .25rem .6rem rgba(0, 0, 0, 0.55);
+    transition: opacity calc(140ms * var(--motion-scale, 1)) ease;
+
+    &--dim { opacity: .5; }
+}
+.con-journal .journal-group__root {
+    grid-area: head;
+    padding: 0;
+    align-items: baseline;
+}
+.con-journal .journal-group__root-body {
+    font-family: @con-font;
+    font-weight: 600;
+    line-height: 1.3;
+    color: #f1f7ff;
+    letter-spacing: .02rem;
+}
+/* The headline names its object as a WORD — the art is the object's picture, the pill's box would be a second frame
+   inside the card. Scoped to the headline (the rows and the toasts keep their chips). */
+.con-journal .journal-group__root-body .journal-chip--card {
+    padding: 0;
+    background: none;
+    border: 0;
+    font-weight: 700;
+    color: #ffffff;
+}
+.con-journal .journal-group__root-body .journal-chip--card .journal-chip__dot { display: none; }
+.con-journal .journal-group__children {
+    grid-area: body;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+}
+.con-journal .journal-group__child {
+    margin: 0;
+    padding: 0;
+}
+.con-journal .journal-group__child-body { color: rgba(214, 228, 242, 0.92); }
+/* The row's pieces size by their CONTENT in the console: journal.less authors them for the desktop panel in fixed px
+   (a 19 px chip, an 18 px label), which the rem icons and the couch type outgrow — the rows then overlapped. */
+.con-journal .journal-child-row__chip,
+.con-journal .journal-child-row__src,
+.con-journal .journal-child-row__discount-badge,
+.con-journal .journal-child-row__skipped-badge,
+.con-journal .journal-child-row__eased-badge {
+    height: auto;
+    min-height: 1.45em;
+}
+.con-journal .journal-child-row__chip {
+    padding: .06rem .4rem .06rem .2rem;
+    border-radius: .25rem;
+    background: rgba(255, 255, 255, 0.045);
+    border: 0;
+    box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08);
+}
+.con-journal .journal-child-row { row-gap: .2rem; }
+/* A row whose source is the group's own card (not repeated) has an EMPTY lead: no reserved column, no gap before the chips. */
+.con-journal .journal-child-row__lead { min-width: 0; }
+.con-journal .journal-child-row__lead:empty { display: none; }
+.con-journal .journal-entry { padding: .3rem .65rem; }
+.con-journal .journal-entry__time {
+    color: rgba(150, 200, 230, 0.78);
+    letter-spacing: .08rem;
+}
+/* A GENERATION is a plate across the feed, never a hairline. */
+.con-journal .journal-gen-divider { margin: 1rem 0 .55rem; }
+.con-journal .journal-gen-divider__line { display: none; }
+.con-journal .journal-gen-divider__label {
+    flex: 1;
+    text-align: center;
+    padding: .3rem .8rem;
+    border-radius: .35rem;
+    letter-spacing: .3rem;
+    color: #e8f4ff;
+    background: linear-gradient(90deg, transparent, fade(@con-cyan, 14%) 30%, fade(@con-cyan, 14%) 70%, transparent);
+    box-shadow: inset 0 .05rem 0 rgba(255, 255, 255, 0.08), inset 0 -.05rem 0 rgba(0, 0, 0, 0.4);
+}
+/* THE FAN — a draw's cards as their faces: the kept lit, the thrown-away quiet; ≤ 6 then «+N». */
+.con-journal .journal-fan {
+    display: inline-flex;
+    align-items: flex-end;
+    padding: .2rem 0 .1rem .2rem;
+    vertical-align: middle;
+}
+.con-journal .journal-fan__card {
+    position: relative;
+    flex-shrink: 0;
+    width: 2.4rem;
+    height: 3.45rem;
+    margin-left: -.5rem;
+    border-radius: .2rem;
+    overflow: hidden;
+    box-shadow: 0 0 0 .05rem rgba(255, 255, 255, 0.18), 0 .2rem .45rem rgba(0, 0, 0, 0.6);
+
+    &:first-child { margin-left: 0; }
+}
+/* The face is the real premium card at its 320 × 460 design box, zoomed to the fan's width (2.4rem = 48 logical px). */
+.con-journal .journal-fan__face {
+    display: block;
+    width: 320px; // keep-px — the premium face's own design box (zoomed below)
+    height: 460px; // keep-px
+    zoom: calc(0.15 * var(--con-ui-scale, 1));
+    pointer-events: none;
+}
+.con-journal .journal-fan--discard .journal-fan__card { opacity: .58; }
+.con-journal .journal-fan--kept .journal-fan__card { box-shadow: 0 0 0 .07rem fade(@con-mint, 75%), 0 .2rem .45rem rgba(0, 0, 0, 0.6); }
+.con-journal .journal-fan__more {
+    margin-left: .55rem;
+    align-self: center;
+    color: rgba(200, 220, 240, 0.78);
+    letter-spacing: .05rem;
 }
 /* ── P29: the INSPECT card (X — standard project / action / hydro).
    A compact premium preview centred in the panel; reuses the shared

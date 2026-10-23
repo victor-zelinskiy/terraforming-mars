@@ -4,6 +4,8 @@ import {
   hasInspectTarget,
   JournalInspectKind,
   journalInspectTargets,
+  journalMinuteStamp,
+  journalTimeShown,
   journalNodeMode,
   stepJournalGeneration,
 } from '@/client/components/console/consoleJournalModel';
@@ -172,6 +174,21 @@ describe('consoleJournalModel (P28)', () => {
     it('flips AGAINST the global mode when overridden', () => {
       expect(journalNodeMode('summary', true)).to.eq('detailed');
       expect(journalNodeMode('detailed', true)).to.eq('summary');
+    });
+  });
+
+  describe('the time ONCE per run (CH — a chronicle, not a log)', () => {
+    it('a stamp shows only where it changes', () => {
+      expect(journalTimeShown(['15:24', '15:24', '15:24', '15:25', '15:25', '15:24'])).deep.eq([true, false, false, true, false, true]);
+    });
+
+    it('a generation divider prints no time and starts a new run', () => {
+      expect(journalTimeShown(['15:24', undefined, '15:24', '15:24'])).deep.eq([true, false, true, false]);
+    });
+
+    it('the minute stamp is HH:MM of the local clock', () => {
+      const t = new Date(2026, 9, 23, 7, 5, 59).getTime();
+      expect(journalMinuteStamp(t)).eq('07:05');
     });
   });
 });

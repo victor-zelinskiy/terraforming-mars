@@ -1111,7 +1111,8 @@ html.con-profile-tv {
         /* Timestamps: floor size + REAL contrast (they were the least
            readable element of the whole feed on the panel). */
         .journal-entry__time, .journal-group__time { font-size: var(--con-t-floor); color: rgba(214, 230, 245, 0.82); }
-        .journal-group__root-body { font-size: 1.05rem; }
+        /* CH — three tiers: the headline (the event) › the consequences › the service (the time, the divider). */
+        .journal-group__root-body { font-size: 1.15rem; }
         .journal-group__count { font-size: var(--con-t-caption); }
         .journal-group__replay { font-size: var(--con-t-caption); }
         .journal-group__replay-glyph { font-size: var(--con-t-floor); }
@@ -1976,7 +1977,6 @@ html.con-profile-tv {
     .con-colfocus__payrow--focused,
     .con-colfocus__steprow--focused,
     .con-govsupport__card--focused,
-    .con-journal__node--focused,
     .con-hydro__stop--focused {
         box-shadow: inset 0 0 0 var(--con-focus-ring) fade(@con-cyan, 90%), 0 0 var(--con-glow-r) fade(@con-cyan, 32%);
     }

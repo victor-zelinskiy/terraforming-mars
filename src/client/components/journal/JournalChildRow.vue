@@ -35,7 +35,7 @@
          and muted — never a gain chip. -->
     <template v-else-if="vm.skipped !== undefined">
       <span class="journal-child-row__lead">
-        <JournalCardChip v-if="vm.source.kind === 'card'" :name="vm.source.card" />
+        <JournalCardChip v-if="vm.source.kind === 'card' && !sourceIsOwn" :name="vm.source.card" />
         <span v-else-if="vm.source.kind === 'label'" class="journal-child-row__src" v-i18n>{{ vm.source.label }}</span>
         <span class="journal-child-row__skipped-badge" v-i18n>Skipped</span>
         <span v-if="vm.player !== undefined"
@@ -63,7 +63,7 @@
          through. -->
     <template v-else-if="vm.eased !== undefined">
       <span class="journal-child-row__lead">
-        <JournalCardChip v-if="vm.source.kind === 'card'" :name="vm.source.card" />
+        <JournalCardChip v-if="vm.source.kind === 'card' && !sourceIsOwn" :name="vm.source.card" />
         <span v-else-if="vm.source.kind === 'label'" class="journal-child-row__src" v-i18n>{{ vm.source.label }}</span>
         <span class="journal-child-row__eased-badge" v-i18n>Requirement</span>
       </span>
@@ -90,7 +90,7 @@
          the row tells what the deck did; the kept cards are the «+N» row. -->
     <template v-else-if="vm.search !== undefined">
       <span class="journal-child-row__lead">
-        <JournalCardChip v-if="vm.source.kind === 'card'" :name="vm.source.card" />
+        <JournalCardChip v-if="vm.source.kind === 'card' && !sourceIsOwn" :name="vm.source.card" />
         <span v-else-if="vm.source.kind === 'label'" class="journal-child-row__src" v-i18n>{{ vm.source.label }}</span>
         <span v-if="vm.player !== undefined"
               class="journal-player journal-child-row__player"
@@ -106,11 +106,10 @@
             :data-search-discarded="vm.search.discarded.length"
             :data-search-exhausted="vm.search.exhausted ? 'yes' : 'no'">
         <span class="journal-child-row__tile journal-em" data-journal-search-tally>{{ searchTally }}</span>
-        <!-- Each chip in its own hook span: the chip is MULTI-ROOT (the token + its teleported preview), so it
-             cannot carry an attribute of ours. -->
-        <span v-for="(name, i) in vm.search.discarded" :key="i" class="journal-child-row__search-discard" data-journal-search-discard>
-          <JournalCardChip :name="name" />
-        </span>
+        <!-- The thrown-away cards as a FAN of their faces (CH — a draw reads as cards, never a sheet of names); each
+             face carries the hook and its card's name. -->
+        <JournalCardFan v-if="vm.search.discarded.length > 0" class="journal-child-row__search-fan"
+                        :cards="vm.search.discarded" kind="discard" hook="data-journal-search-discard" />
         <span v-if="vm.search.rule !== undefined" class="journal-child-row__tile" data-journal-search-rule>
           <span aria-hidden="true">— </span>
           <ConsoleDrawSearchRule :search="vm.search.rule" />
@@ -121,10 +120,10 @@
       </span>
     </template>
 
-    <!-- Source → impact. -->
+    <!-- Source → impact. A source that IS the group's own card is not repeated (the headline names it — CH). -->
     <template v-else>
       <span class="journal-child-row__lead">
-        <JournalCardChip v-if="vm.source.kind === 'card'" :name="vm.source.card" />
+        <JournalCardChip v-if="vm.source.kind === 'card' && !sourceIsOwn" :name="vm.source.card" />
         <span v-else-if="vm.source.kind === 'label'" class="journal-child-row__src" v-i18n>{{ vm.source.label }}</span>
 
         <!-- DISCOUNT badge — a cost reduction reads as a "−N M€" chip, which a
@@ -141,7 +140,8 @@
         </span>
       </span>
 
-      <span v-if="hasResult" class="journal-child-row__arrow" aria-hidden="true">→</span>
+      <!-- An arrow only where something flows to ANOTHER seat («у кого → кому»); a gain of one's own reads without it. -->
+      <span v-if="hasResult && vm.player !== undefined" class="journal-child-row__arrow" aria-hidden="true">→</span>
       <span class="journal-child-row__impacts">
         <!-- Copied action: "copied <card>" flows in the result area (NOT the lead)
              so it wraps gracefully instead of squeezing the source column. -->
@@ -195,6 +195,8 @@ import {JournalChildVM, JournalImpactChip, searchTallyReading} from '@/client/co
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {highlightBoardSpace} from '@/client/components/journal/boardCellHighlight';
 import JournalCardChip from '@/client/components/journal/JournalCardChip.vue';
+import JournalCardFan from '@/client/components/journal/JournalCardFan.vue';
+import {CardName} from '@/common/cards/CardName';
 import ConsoleDrawSearchRule from '@/client/components/console/foundation/ConsoleDrawSearchRule.vue';
 import {readingText} from '@/client/console/readingText';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
@@ -216,7 +218,7 @@ import {PARLIAMENT_MAX_POPULAR_SUPPORT} from '@/common/parliament/ParliamentType
  */
 export default defineComponent({
   name: 'JournalChildRow',
-  components: {JournalCardChip, ConsoleDrawSearchRule},
+  components: {JournalCardChip, JournalCardFan, ConsoleDrawSearchRule},
   props: {
     vm: {
       type: Object as PropType<JournalChildVM>,
@@ -226,8 +228,16 @@ export default defineComponent({
       type: Array as () => ReadonlyArray<PublicPlayerModel>,
       required: true,
     },
+    /** The group's own card (its headline names it) — a row sourced by it does not repeat it. */
+    ownCard: {
+      type: String as PropType<CardName | undefined>,
+      default: undefined,
+    },
   },
   computed: {
+    sourceIsOwn(): boolean {
+      return this.ownCard !== undefined && this.vm.source.kind === 'card' && this.vm.source.card === this.ownCard;
+    },
     // Whether the row has a result to point an arrow at (impacts OR a copied card).
     hasResult(): boolean {
       return this.vm.source.kind !== 'none' && (this.vm.chips.length > 0 || this.vm.copiedCard !== undefined);

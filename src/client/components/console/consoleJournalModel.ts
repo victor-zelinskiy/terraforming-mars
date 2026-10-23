@@ -170,3 +170,27 @@ export function journalNodeMode(globalMode: 'detailed' | 'summary', overridden: 
   }
   return globalMode === 'summary' ? 'detailed' : 'summary';
 }
+
+/** A row's minute stamp («15:24») — the one reading the feed's time gutter compares. */
+export function journalMinuteStamp(timestamp: number): string {
+  const d = new Date(timestamp);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/**
+ * THE TIME ONCE PER RUN (CH «ЖУРНАЛ — ХРОНИКА»): a feed where every row printed «15:24» read as a console log. A row
+ * shows its stamp only where the stamp CHANGES — the first row, the first after a different minute, the first after a
+ * generation divider (`undefined`: the divider itself prints no time and starts a new run).
+ */
+export function journalTimeShown(stamps: ReadonlyArray<string | undefined>): Array<boolean> {
+  let last: string | undefined;
+  return stamps.map((stamp) => {
+    if (stamp === undefined) {
+      last = undefined;
+      return false;
+    }
+    const shown = stamp !== last;
+    last = stamp;
+    return shown;
+  });
+}

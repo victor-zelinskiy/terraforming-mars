@@ -68,6 +68,7 @@
             :events="eventsFor(node.group.correlationId)"
             :players="players"
             :mode="nodeModeFor(node, index)"
+            :timeShown="timeShown[index]"
             :filterActive="filterActive"
             :headerMatched="node.headerMatched"
             :childMatched="node.childMatched" />
@@ -76,6 +77,7 @@
             class="con-journal__node"
             :class="focusClassFor(index)"
             :message="node.message"
+            :timeShown="timeShown[index]"
             :players="players" />
         </template>
       </ul>
@@ -180,7 +182,7 @@ import {botReplayAvailableFor} from '@/client/components/marsbot/marsBotTurnArch
 import {openBotTurnReviewByCorrelation} from '@/client/components/marsbot/marsBotPresentation';
 import {createJournalDataSource, JournalDataSource} from '@/client/components/journal/journalDataSource';
 import {consoleJournalUi, resetConsoleJournalUi} from '@/client/console/consoleJournalState';
-import {consoleFilterOptions, ConsoleFilterOption, hasInspectTarget, JournalInspectKind, JournalInspectTargets, journalInspectTargets, journalNodeMode, stepJournalGeneration} from '@/client/components/console/consoleJournalModel';
+import {consoleFilterOptions, ConsoleFilterOption, hasInspectTarget, JournalInspectKind, JournalInspectTargets, journalInspectTargets, journalMinuteStamp, journalNodeMode, journalTimeShown, stepJournalGeneration} from '@/client/components/console/consoleJournalModel';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
@@ -311,6 +313,13 @@ export default defineComponent({
         }
       }
       return out;
+    },
+    /** The time gutter: a row's stamp only where it changes (a generation divider starts a new run). */
+    timeShown(): Array<boolean> {
+      return journalTimeShown(this.renderNodes.map((node) => {
+        const message = node.kind === 'group' ? node.group.header : node.message;
+        return message.type === LogMessageType.NEW_GENERATION ? undefined : journalMinuteStamp(message.timestamp);
+      }));
     },
     // Events grouped by correlation chain, for the event-driven child rows.
     eventsByCorrelation(): Map<number, Array<GameEvent>> {

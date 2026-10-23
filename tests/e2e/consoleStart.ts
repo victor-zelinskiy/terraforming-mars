@@ -2661,6 +2661,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   // T07 Martian Media Center — the action as the STAGED vote door for 3 M€ (ledger CH): live · 2 M€ · no resolution up
   // for a vote · an empty reserve · the card in hand with ONE delegate on Mars First's resolution («1 of 2»).
   'martian-media-center' | 'martian-media-center-poor' | 'martian-media-center-quiet' | 'martian-media-center-reserve' | 'martian-media-center-hand' |
+  // CH · the journal's chronicle stand — a two-seat base table whose generation 1 was PLAYED (skips, an action, a search
+  // draw, another seat's turn, the income), generation 2 open with blue on the move.
+  'journal-chronicle' |
   // T06 GMO Contract — the contract on the table (Lichen · Ecology Research · Pets in hand) · in hand · locked.
   'gmo-contract' | 'gmo-contract-hand' | 'gmo-contract-locked' |
   // T09 PR Office — Unity rule (playable, «+1 TR · +3 M€») · locked («1 of 2»).

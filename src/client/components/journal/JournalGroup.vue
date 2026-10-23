@@ -1,21 +1,22 @@
 <template>
   <li class="journal-group"
       :data-correlation-id="header.correlationId"
-      :class="[categoryClass, {'journal-group--fresh': headerFresh, 'journal-group--summary': summary, 'journal-group--filtering': filterActive}]">
+      :class="[categoryClass, {'journal-group--fresh': headerFresh, 'journal-group--summary': summary, 'journal-group--filtering': filterActive, 'journal-group--object': subject !== undefined}]">
     <!-- The category spine — runs the full group height, visually binding the
          root action to its consequences as ONE event. -->
     <span class="journal-group__spine" aria-hidden="true"></span>
 
-    <!-- Root action — the dominant header that owns the group. It leads with the event's OBJECT (PL-577): the card's
-         own art for a play / an action, the standard project's pictogram — the journal reads as events with their
-         objects, never as a column of sentences. A header naming no card has none. -->
+    <!-- THE EVENT CARD (CH «ЖУРНАЛ — ХРОНИКА»): the time ONCE per run of equal times (a turn reads one stamp, never
+         one per line — the full date is its accessible name, never a native `title`), the event's OBJECT (PL-577 — the
+         card's own art, the standard project's pictogram), the headline, then the consequences one tier quieter. The
+         object and the time stand OUTSIDE the root so the card lays out as one grid (art beside headline and rows). -->
+    <span v-if="timeShown" class="journal-group__time" :aria-label="fullWhen">{{ when }}</span>
+    <span v-if="subject !== undefined" class="journal-group__object" :class="['journal-group__object--' + subject.kind, {'journal-group__object--dim': filterActive && !headerMatched}]"
+          :data-journal-object="subject.name" aria-hidden="true">
+      <img v-if="subject.kind === 'card'" class="journal-group__art" :src="subject.art" alt="" loading="lazy" />
+      <i v-else class="journal-group__pict" :class="subject.icon"></i>
+    </span>
     <div class="journal-group__root" :class="{'journal-group__root--dim': filterActive && !headerMatched, 'journal-group__root--object': subject !== undefined}">
-      <span v-if="subject !== undefined" class="journal-group__object" :class="'journal-group__object--' + subject.kind"
-            :data-journal-object="subject.name" aria-hidden="true">
-        <img v-if="subject.kind === 'card'" class="journal-group__art" :src="subject.art" alt="" loading="lazy" />
-        <i v-else class="journal-group__pict" :class="subject.icon"></i>
-      </span>
-      <span class="journal-group__time" :title="fullWhen">{{ when }}</span>
       <span class="journal-group__root-body">
         <JournalTokenRenderer
           v-for="(tok, i) in headerEntries"
@@ -47,7 +48,7 @@
         <li v-for="(vm, i) in eventVMs" :key="i" class="journal-group__child journal-group__child--event">
           <span class="journal-group__tick" aria-hidden="true"></span>
           <span class="journal-group__child-body">
-            <JournalChildRow :vm="vm" :players="players" />
+            <JournalChildRow :vm="vm" :players="players" :ownCard="subject?.name" />
           </span>
         </li>
       </template>
@@ -135,6 +136,11 @@ export default defineComponent({
       type: String as () => JournalActionCategory | undefined,
       required: false,
       default: undefined,
+    },
+    /** The feed shows the stamp only where it changes (the panel decides — it knows the previous row). */
+    timeShown: {
+      type: Boolean,
+      default: true,
     },
     players: {
       type: Array as () => ReadonlyArray<PublicPlayerModel>,
