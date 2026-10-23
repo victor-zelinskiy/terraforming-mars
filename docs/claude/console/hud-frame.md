@@ -286,6 +286,26 @@ later in the same file).
 - `ConsoleCommandBar.runPlan`'s `barPad` mirrors the `.35rem`/`.25rem`
   breathing of `--con-hud-pad-x` — keep them in step.
 
+## THE MATERIAL OF THE PLAYER BOARD (T03 · CF, 2026-10-23 — the owner's M3)
+
+The left rail's FORM is a contract (the row grid `icon | value | production`, the `--cr-*` / `--ct-*` tokens, the vertical
+budget, the `--con-rail-w` seam, every flight anchor); its PAINT is free. The shipped paint: ONE glass plate under the six rows
+(`.con-res__rows` — the plate carries the hull bleed: the container steps −pad-x, the rows stand at margin 0, so every row box
+is where the per-row bleed put it), each row a SECTION (its resource's tone washes in from the hull edge; a hairline seam in the
+middle of the gap, absolute), ONE tone per resource (`--res-tone` on `.con-res__row--<key>` — the wash, a fifth of it in the
+digits, the engraved production), production ENGRAVED «+N» in the tone (negative: a red engraving + the sign; the bot's
+`--void` keeps no material), the score cap on the same material one register up, the tag matrix a medallion bank (bronze rim +
+light / steel rim on a zero; the count on an engraved plate lifted onto the rim). **No frame around a square printed icon** —
+the owner's word («выглядит странно и не органично»): tone rides the plate, never a ring on the icon.
+
+Three rules it paid for: ① a decorative layer moves nothing — `top` (a relative offset), spread shadows and absolute
+pseudo-elements, never a padding / margin / border on a rail child (the mockup's count plate re-solved the matrix's rows by
+7.8–31 px); ② no `transform` / `filter` / `will-change` on the plate, a row or the hull (a stacking context under the
+flight layers, a moved box); ③ every state (quiet · conv-watch / -source / -target · convertible · negative production · the
+bot seat · the info recolour · the private score) is re-seated on the new paint with its OWN box. Guards: `tests/console/
+railGeometryParity.spec.ts` (the tokens table on every profile + the banned properties), e2e `console-rail-material` (50
+anchors × tv4k / fhd / deck against `tests/e2e/railAnchorsBaseline.json`, ±1 px; the states storyboard).
+
 ## Guards
 
 - `tests/e2e/console-hud-frame.spec.ts` — FHD + forced-TV 4K: computed

@@ -4,6 +4,15 @@
 control carries a CONCRETE reason. A reason names ONE blocker; it never makes the player guess
 between "X or Y", and it never states something the code did not verify.
 
+## The delegate RESERVE is counted, on the facade (T03, 2026-10-23)
+
+A declarative `behavior.turmoil.sendDelegates` (a card's play — Cultural Metropolis, the prelude2 / Pathfinders envoys;
+an action — Martian Media Center) is refused when the reserve cannot cover it; the reason is ONE function,
+`delegateReserveReason` (`models/actionUnavailableReasons.ts`, read by both the play and the action reasons): it reads
+`game.politics.delegatesInReserve` — the number the Executor gates on — never the classic engine. Turmoil Redux COUNTS
+the gap («Delegates in your reserve: ${0} of ${1}» → «Делегатов в резерве: 1 из 2», `current` set); the classic engine
+keeps upstream's «Not enough available delegates».
+
 ## Requirement ATTAINABILITY — «пока не выполнено» vs «уже не выполнить» (2026-08-16)
 
 A card-evaluation surface (the draft pick, the research buy) needs a second axis the play-now

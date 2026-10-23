@@ -85,6 +85,11 @@ final approach, drops it at the touchdown (the contact beat answers then); a thi
 (`data-expect-resource`), ≤ .5, a 160 ms fade in — never a glow of the row. A loss's «receiver» (the printed cost it is
 drawn into) is not announced; the seat's intake announces itself; reduced motion shows none.
 
+**The rail as a destination on the new material (T03 · CF):** the left rail's paint changed (one glass plate, engraved
+production — `hud-frame.md` § THE MATERIAL OF THE PLAYER BOARD) and its ANCHORS did not: `.con-score__value`,
+`.con-res__row--X .con-res__digits / __stockwrap / __prod` are the same selectors at the same rects (±1 px, guarded by
+`console-rail-material`). A flight aims at the same selectors on every material.
+
 ## 2. A surface never folds under its own token — `surfaceClear` (T09, ledger BY)
 
 **The law: a surface folds when it is neither the SOURCE of a token still to leave it nor the DESTINATION of a token
