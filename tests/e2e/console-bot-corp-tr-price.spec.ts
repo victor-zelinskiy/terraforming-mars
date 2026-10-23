@@ -13,8 +13,11 @@ import {bootSeededGame, openInfoPlayedTable, press, soloGameConfig, visibleSurfa
  * So this probe reads the painted face AND the bot's live TR beside it. The
  * printed science tag rides the corner box, so the tag rail must carry one.
  *
- * TerraLabs Research is a Turmoil corporation and Turmoil is off in this
- * config, so the collision rule cannot hand the bot a different corporation.
+ * TerraLabs Research is a Turmoil corporation and neither Turmoil is on in
+ * this config, so no human is dealt it and the collision rule cannot hand the
+ * bot a different corporation. (Since 2026-10-23 a Turmoil Redux table deals
+ * the HUMAN TerraLabs too — there a human on it keeps the bot off C38, pinned
+ * in `tests/automa/AutomaCorporations.spec.ts`.)
  */
 
 const TERRALABS_CONFIG = soloGameConfig({

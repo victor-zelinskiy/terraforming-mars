@@ -27,9 +27,11 @@ describe('draftReadingModel — the packet showcase\'s reading (T10 · CE)', () 
   });
 
   it('the wallet: N × price = −total · on hand → after, affordable by the server\'s numbers', () => {
-    expect(draftWalletOf(2, 3, 40)).deep.eq({count: 2, perCard: 3, total: 6, onHand: 40, after: 34, affordable: true});
+    expect(draftWalletOf(2, 3, 40)).deep.eq({count: 2, perCard: 3, total: 6, onHand: 40, after: 34, affordable: true, priceHint: ''});
     expect(draftWalletOf(0, 3, 40)).deep.include({total: 0, after: 40, affordable: true});
     expect(draftWalletOf(4, 3, 10)).deep.include({total: 12, after: -2, affordable: false});
+    // A non-default price carries who set it — the «× N»'s hint, never a line of its own.
+    expect(draftWalletOf(4, 1, 10, 'Card purchase price: 1 M€ · TerraLabs Research')).deep.include({total: 4, after: 6, priceHint: 'Card purchase price: 1 M€ · TerraLabs Research'});
   });
 
   it('the purchase\'s verb counts what it buys — «Купить 0» when nothing is chosen', () => {

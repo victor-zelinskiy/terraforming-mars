@@ -15,6 +15,7 @@
   " Terralabs Research ": "テララブス開発",
   "You start with 14 M€. Lower your TR 1 step.": "初期資源：14MC. TR-1段階.",
   "Effect: Buying cards to hand costs 1 M€.": "効果：カード購入費-2MC.",
+  "Effect: Buying cards to hand costs 1 M€, including your starting hand.": "効果：カードを手札に購入する費用は1 M€（初期手札を含む）。",
 
   "UTOPIA": "",
   "INVEST": "",

@@ -6024,3 +6024,23 @@ TIMING, рядом с игрой владельца) — 5 / 5.
 повторяется, время раз на серию, добор — веер лиц, поколение — плита; чипы строк — по содержимому (px-высоты десктопа
 резали строки на 4K); фокус узла — грамматика курсора. Контракт `docs/claude/journal.md` § ХРОНИКА. Стенд
 `console-journal-chronicle` (tv4k · fhd · deck; первый e2e журнала) — 7 / 7; таблица пробника — реестр CH.
+
+## R14 TerraLabs Research — СДАНА 2026-10-23 · ВТОРАЯ классическая корпорация Turmoil «на месте» · ЦЕНА 1 M€ ВО ВСЕХ ПОТОКАХ ПОКУПКИ, ИСТОЧНИК ЦЕНЫ — ХИНТОМ
+
+Правила без правок (декларативная: `cardCost: 1` заменяет базу `Player.baseCardCost`, `behavior.tr: −1`, 14 M€, Наука + Земля).
+Строка hold-back удалена (корпорации «на месте»: остались Pristar, Utopia Invest). Сервер: `infoText` «Cards to hand cost 1 M€,
+starting hand included» (бюджет подписи эксплорера — 52 знака) + RU; печатный текст эффекта выровнен по скану («…, including your
+starting hand» — новый ключ во всех 15 `turmoil_corporations.json`, старые переводы перенесены, недостающие дописаны);
+`IPlayer.cardCostSources` → `PublicPlayerModel.cardCostSources` (корпорации, заменившие базу, + карты со скидкой покупки — Quantum
+Research). Клиент: ноль новых компонентов; `console/purchasePriceSource.ts` — `data-hint` «Цена покупки карты: 1 M€ · TerraLabs
+Research» на «× N» кошелька драфта / исследования, сводной строке и чипе стартовой сцены, сумме fallback-покупки `ConsoleTaskHost`
+(`.con-price-hint`, без геометрии; только когда цена ≠ 3). Ни одного литерала «3» в печати цены не нашлось — все потоки уже читали
+`cardCost`. Попутно: `deckComposition.spec` ожидал 0 корпораций Redux (красный с R38) — считает адаптированные из hold-back.
+Спеки: карта 14 (печать, Redux-раздача, РТ, ChooseCards 4 = −4 и доступность, стартовая рука 14 − 5 и отказ 15, Quantum Research → 0,
+Merger + Polyphemos → 3, кампания 1 / 3, модель для обоих зрителей, save / load), коллизия C38 в `AutomaCorporations`, пин
+`adaptedCorporations = [LAKEFRONT, TERRALABS]`, клиент `purchasePriceSource` 4 + кошелёк. Стенд `console-terralabs-research`
+(tv4k, FUNCTIONAL, фикстуры `terralabs-research` / `-draft`) — 3 / 3: старт «Проекты 3 × 1» → ИТОГО 11 → РТ 13 (соло) и 11 M€ в первом
+кадре; исследование «2 × 1 = −2 · у вас 36 → 34», сервер списал 2; драфт «1 × 1». Регрессия на Steam Machine 35 / 35 (канарейка,
+start-scene-profiles, start-summary(+fit), research-startups, draft-showcase, draft-workspace, bot-corp-tr-price, generation-scene,
+tv-profile-screens). Юниты: сервер 17 904 / 17 906 — две красные (подпись эксплорера, deckComposition) починены и перепрогнаны точечно (55 / 55), клиент 7 652 / 7 652. Открыто: хинт виден мышью / `.gp-focus`, кошелёк —
+не стоп курсора (вопрос владельцу); RU описания «Вы начинаете с 14M€. Уменьшите свой РТ на 1» — ключ не мой, не переписан.

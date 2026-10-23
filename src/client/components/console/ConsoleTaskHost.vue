@@ -83,7 +83,7 @@
               <!-- Main total + muted "N × unit" breakdown — honest, printed-cost-free. -->
               <span class="con-task__buysum" :class="{'con-task__buysum--over': !cardBuyAffordable}">
                 <span class="con-task__buysum-total">{{ $t('Purchase') }}: −{{ buyTotal }}<i class="resource_icon resource_icon--megacredits con-task__buysum-mc" aria-hidden="true"></i></span>
-                <span v-if="picks.length > 0" class="con-task__buysum-detail">{{ picks.length }} × {{ buyCostPerCard }} {{ $t('per card') }}</span>
+                <span v-if="picks.length > 0" class="con-task__buysum-detail con-price-hint" data-purchase-price :data-hint="buyPriceHint">{{ picks.length }} × {{ buyCostPerCard }} {{ $t('per card') }}</span>
               </span>
               <!-- Wallet: you-have + after-purchase (only when affordable).
                    The coin sits in an inline-flex item so it is vertically
@@ -740,6 +740,7 @@ import ConsolePromptHead from '@/client/components/console/foundation/ConsolePro
 import ConsolePromptOutcome, {PromptOutcomeItem} from '@/client/components/console/foundation/ConsolePromptOutcome.vue';
 import {PromptTone, promptCommitLabelKey, promptToneWithin} from '@/client/console/promptTone';
 import {promptSequenceKey} from '@/client/console/promptSequence';
+import {purchasePriceHint, purchasePriceSource} from '@/client/console/purchasePriceSource';
 
 /** The prompt-modal family's SIZE tiers (`console_prompt.less` § SIZE RULES). */
 type PromptSize = 's' | 'm' | 'l' | 'xl';
@@ -1954,6 +1955,10 @@ export default defineComponent({
      */
     buyCostPerCard(): number {
       return this.playerView.thisPlayer.cardCost;
+    },
+    /** Who set a non-default `buyCostPerCard` — the «N × unit»'s hint ('' on a plain table). */
+    buyPriceHint(): string {
+      return purchasePriceHint(purchasePriceSource(this.playerView.thisPlayer));
     },
     buyTotal(): number {
       return this.picks.length * this.buyCostPerCard;

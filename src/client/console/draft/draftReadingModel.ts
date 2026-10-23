@@ -14,7 +14,9 @@
  *    the card is judged for LATER, money will change), and only when there is
  *    something to say;
  * and, on the purchase, the WALLET: «N × 3 = −M · у вас A → B», the price per
- * card the server's (`thisPlayer.cardCost`), never a client constant.
+ * card the server's (`thisPlayer.cardCost`), never a client constant. When that
+ * price is not the default 3 M€ the «× N» carries a hint naming who set it
+ * (`purchasePriceSource.ts`) — a hint, never a line.
  */
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
@@ -46,12 +48,14 @@ export type DraftWallet = {
   onHand: number,
   after: number,
   affordable: boolean,
+  /** Who set a non-default price — the «× N»'s hint; '' on a plain table. */
+  priceHint: string,
 };
 
 /** The purchase's arithmetic — the wallet plate's every number. */
-export function draftWalletOf(count: number, perCard: number, onHand: number): DraftWallet {
+export function draftWalletOf(count: number, perCard: number, onHand: number, priceHint = ''): DraftWallet {
   const total = count * perCard;
-  return {count, perCard, total, onHand, after: onHand - total, affordable: total <= onHand};
+  return {count, perCard, total, onHand, after: onHand - total, affordable: total <= onHand, priceHint};
 }
 
 /** The purchase's honest verb: «Купить N» — «Купить 0» when nothing is chosen (it is still the commit). */

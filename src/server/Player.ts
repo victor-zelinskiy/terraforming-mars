@@ -1323,6 +1323,22 @@ export class Player implements IPlayer {
     return Math.max(cost, 0);
   }
 
+  /** The cards behind a non-default {@link cardCost} — see `IPlayer.cardCostSources`. */
+  public get cardCostSources(): ReadonlyArray<CardName> {
+    const sources: Array<CardName> = [];
+    for (const corporation of this.playedCards.corporations()) {
+      if (corporation.cardCost !== undefined && corporation.cardCost !== constants.CARD_COST) {
+        sources.push(corporation.name);
+      }
+    }
+    for (const playedCard of this.tableau) {
+      if ((playedCard.getCardPurchaseDiscount?.(this) ?? 0) !== 0) {
+        sources.push(playedCard.name);
+      }
+    }
+    return sources;
+  }
+
   public getCardCost(card: IProjectCard): number {
     return this.getCardCostBreakdown(card).final;
   }

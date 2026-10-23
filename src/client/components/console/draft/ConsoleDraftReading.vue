@@ -21,7 +21,7 @@
     <span v-if="wallet !== undefined" class="con-dread__wallet" :class="{'con-dread__wallet--over': !wallet.affordable}" data-draft-wallet>
       <span class="con-dread__wallet-kicker">{{ $t('Purchase') }}</span>
       <span class="con-dread__wallet-calc">
-        <ConsoleFlipValue :value="wallet.count" flip-on-decrease class="con-dread__wallet-count" /><span class="con-dread__wallet-op">×</span>{{ wallet.perCard }}
+        <ConsoleFlipValue :value="wallet.count" flip-on-decrease class="con-dread__wallet-count" /><span class="con-dread__wallet-op">×</span><span class="con-price-hint" data-purchase-price :data-hint="wallet.priceHint">{{ wallet.perCard }}</span>
         <span class="con-dread__wallet-op">=</span>
         <b class="con-dread__wallet-total">−<ConsoleFlipValue :value="wallet.total" flip-on-decrease accent="gold" /></b>
         <i class="resource_icon resource_icon--megacredits con-dread__mc" aria-hidden="true"></i>

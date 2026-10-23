@@ -401,6 +401,13 @@ export interface IPlayer {
    * only writable half is `baseCardCost`.
    */
   readonly cardCost: number;
+  /**
+   * The cards that move {@link cardCost} off the 3 M€ default — every corporation that
+   * replaced the base (Terralabs 1, Polyphemos 5) and every card with a purchase
+   * discount (Quantum Research). Empty on a plain table. Read by the model so the
+   * client can NAME the source of a non-default price without re-deriving it.
+   */
+  readonly cardCostSources: ReadonlyArray<CardName>;
   // This will eventually replace playedCards.
   tableau: PlayedCards;
 

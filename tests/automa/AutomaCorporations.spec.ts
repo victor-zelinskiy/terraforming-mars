@@ -119,6 +119,20 @@ describe('AutomaCorporations — the MarsBot corporation framework', () => {
       expect(game.automa!.corporation).not.eq(MarsBotCorpId.C35_LAKEFRONT_RESORTS);
     });
 
+    // R14 Terralabs Research followed it the same day — the bot's C38 twin (its own «−8 TR» price) is untouched;
+    // only the collision key is pinned.
+    it('Turmoil Redux: a human on Terralabs Research keeps the bot off C38 (the collision key is `original`)', () => {
+      expect(marsBotCorpInfo(MarsBotCorpId.C38_TERRALABS).original).eq(CardName.TERRALABS_RESEARCH);
+      const [game, human] = testAutomaGame({
+        corporation: MarsBotCorpId.C38_TERRALABS, keepInitialCardSelection: true,
+        turmoilReduxExpansion: true, coloniesExtension: true,
+      }, '-redux-terralabs');
+      pickCorporation(game, human, CardName.TERRALABS_RESEARCH);
+      expect(human.playedCards.corporations().map((c) => c.name)).deep.eq([CardName.TERRALABS_RESEARCH]);
+      expect(game.automa!.corporation).is.not.undefined;
+      expect(game.automa!.corporation).not.eq(MarsBotCorpId.C38_TERRALABS);
+    });
+
     it('multiplayer collision: a corporation picked by ANY human is excluded', () => {
       const [game, humans] = testAutomaMultiplayerGame(2,
         {corporation: 'random', keepInitialCardSelection: true}, '-mp-coll');

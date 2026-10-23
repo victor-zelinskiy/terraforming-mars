@@ -76,6 +76,8 @@ export type PublicPlayerModel = {
   alliedParty?: AlliedPartyModel;
   availableBlueCardActionCount: number;
   cardCost: number;
+  /** The cards behind a non-default `cardCost` (`IPlayer.cardCostSources`) — empty on a plain table. */
+  cardCostSources: ReadonlyArray<CardName>;
   cardDiscount: number;
   cardsInHandNbr: number;
   citiesCount: number;

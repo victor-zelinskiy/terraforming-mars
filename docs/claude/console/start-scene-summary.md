@@ -18,3 +18,13 @@ The start wizard's final step (`ConsoleStartScene`, mode `wizard`, `currentStep 
 
 Guards: `consoleStartState.spec.ts` (the launch readout: bot / solo / another human / un-landed poll / live-poll-wins / the no-gate invariant) + `tests/e2e/console-start-summary.spec.ts` (drives a real bot game AND a real two-human game: the A CTA, the zero-buy double-confirm, the waiting readout naming the opponent, and the live morph).
 
+
+## The buy price that is not 3 M€ — a hint names WHO set it (R14 Terralabs Research, 2026-10-23)
+
+Every purchase surface prints the honest number — the start scene's quick chip «Проекты N × цена» and the summary's «Проекты: N × цена» (`cardCostForCorp` + the campaign's `cardCostDelta`, i.e. `ClientCard.cardCost`), the draft / research wallet «N × цена = −M» and the fallback buy sum (the server's `thisPlayer.cardCost`). None of them used to say WHY the number is not 3. The answer is a `data-hint` on the «× N» those rows already print (`.con-price-hint` — `.premium-tooltip()` on an element the row already had: no box, no line, no geometry), present ONLY when a source exists — «Цена покупки карты: 1 M€ · TerraLabs Research» (Polyphemos 5 · Quantum Research −1 · two corporations by Merger are both named).
+
+- **One module, two readings** — `console/purchasePriceSource.ts`: in play the sources are the SERVER's (`PublicPlayerModel.cardCostSources` ← `IPlayer.cardCostSources`: every corporation whose printed price replaced the base + every tableau card with a purchase discount — Quantum Research's −1 is a server hook the client cannot see); before the corporation is played (the start scene) they are the pick and the campaign lineage whose `ClientCard.cardCost` is not 3. The client computes no price — it names the cards behind the number it was given.
+- **Never a line**: the corporation's face already prints «[карта] : 1 M€», and the reading row never repeats the face (`status-line-no-face-restatement`). The hint is the one place the source is said.
+- ⚠ A hint is a hover / `.gp-focus` affordance, and the wallet is not a cursor stop — a pad player sees the number, not its source. Raised with the owner (decision 3 of the R14 prompt).
+
+Guards: `tests/client/console/purchasePriceSource.spec.ts`, `draftReadingModel.spec` § the wallet, `tests/cards/turmoil/TerralabsResearch.spec.ts` § rule 2 / 3 (the sources on the model); e2e `console-terralabs-research` (A the start scene · B the research buy · C the buy after a draft).

@@ -657,6 +657,7 @@ export class Server {
       // `potentialActions.cardActions` carries (one validator, two readers).
       availableBlueCardActionCount: potential?.cardActions ?? player.getPlayableActionCards().length,
       cardCost: player.cardCost,
+      cardCostSources: player.cardCostSources,
       cardDiscount: player.colonies.cardDiscount,
       cardsInHandNbr: player.cardsInHand.length,
       citiesCount: game.board.countCities(player),

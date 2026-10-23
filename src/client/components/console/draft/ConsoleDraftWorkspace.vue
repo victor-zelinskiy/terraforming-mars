@@ -308,6 +308,7 @@ import {consoleActionOf, ConsoleAction} from '@/client/console/composables/conso
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {cardsResponse} from '@/client/console/taskResponses';
 import {megacreditsAvailable} from '@/client/console/paymentPlan';
+import {purchasePriceHint, purchasePriceSource} from '@/client/console/purchasePriceSource';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {CloneFlightHandle, flyCardClones, measureCardRects} from '@/client/console/cardFlight/cloneFlights';
@@ -703,7 +704,8 @@ export default defineComponent({
     },
     /** The purchase's WALLET (T10 · CE, decision 8): the reading row's plate on the buy — the server's price per card. */
     walletModel(): DraftWallet | undefined {
-      return this.zone === 'buy' || this.zone === 'pay' ? draftWalletOf(this.picks.length, this.buyCostPerCard, this.megacreditsOnHand) : undefined;
+      return this.zone === 'buy' || this.zone === 'pay' ? draftWalletOf(this.picks.length, this.buyCostPerCard, this.megacreditsOnHand,
+        purchasePriceHint(purchasePriceSource(this.playerView.thisPlayer))) : undefined;
     },
     collectedAsEntries(): ReadonlyArray<CardEntry> {
       return this.collectedEntries

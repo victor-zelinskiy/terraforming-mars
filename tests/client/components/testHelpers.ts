@@ -115,6 +115,7 @@ export function fakePublicPlayerModel(overrides?: RecursivePartial<PublicPlayerM
     patentSalesThisGeneration: 0,
     availableBlueCardActionCount: 0,
     cardCost: 0,
+    cardCostSources: [],
     cardDiscount: 0,
     cardsInHandNbr: 0,
     citiesCount: 0,

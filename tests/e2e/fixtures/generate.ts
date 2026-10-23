@@ -228,7 +228,7 @@ import {PhysicsComplex} from '../../../src/server/cards/base/PhysicsComplex';
 import {BiomassCombustors} from '../../../src/server/cards/base/BiomassCombustors';
 import {PowerPlant} from '../../../src/server/cards/base/PowerPlant';
 import {StrategicShift} from '../../../src/server/cards/turmoilRedux/StrategicShift';
-import {newPrelude, newProjectCard} from '../../../src/server/createCard';
+import {newCorporationCard, newPrelude, newProjectCard} from '../../../src/server/createCard';
 import {ALL_MODULE_MANIFESTS} from '../../../src/server/cards/AllManifests';
 import {CardType} from '../../../src/common/cards/CardType';
 import {FusionPower} from '../../../src/server/cards/base/FusionPower';
@@ -8706,4 +8706,51 @@ mediaCenterFixture('martian-media-center-hand', (table) => {
     throw new Error(`${name}: expected a rich generation — got skips=${skips} search=${search} log=${game.gameLog.length}`);
   }
   write(name, game);
+}
+
+// ── R14 · TERRALABS RESEARCH — the second classic Turmoil CORPORATION adapted in place: its printed 1 M€ REPLACES the
+//    buy-to-hand price, so the stand reads every purchase surface for «× 1» (never a «3»). Both tables are the TR61
+//    generation end with blue on TerraLabs (`baseCardCost` 1, the TR one step below the table's) and 20 M€:
+//      · `terralabs-research`       — solo, NO draft: the pass ends the generation and the research buy rises — the
+//        wallet «N × 1 = −N · у вас 20 → …», its «× 1» naming TerraLabs in the hint;
+//      · `terralabs-research-draft` — two seats WITH the draft, red already passed: blue's pass opens the draft and its
+//        purchase — the same wallet after the picks. ──
+function terralabsTable(name: string, player: TestPlayer, game: IGame): void {
+  if (!player.playedCards.has(CardName.TERRALABS_RESEARCH) || player.cardCost !== 1 || player.megaCredits !== 20) {
+    throw new Error(`${name}: expected blue on TerraLabs Research (price ${player.cardCost}) with 20 M€ (got ${player.megaCredits})`);
+  }
+  write(name, game);
+}
+{
+  const {game, player} = soloActionPhase({customCorporationsList: [CardName.TERRALABS_RESEARCH], startingCorporations: 1});
+  generationEndStocks(player, 4);
+  player.setTerraformRating(13);
+  runAllActions(game);
+  if (game.gameOptions.draftVariant || game.activePlayer.id !== player.id || !(player.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`terralabs-research: expected a solo table without a draft on the move, got wf=${player.getWaitingFor()?.constructor.name}`);
+  }
+  terralabsTable('terralabs-research', player, game);
+}
+{
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, draftVariant: true,
+    customCorporationsList: [CardName.THORGATE, CardName.TERACTOR], startingCorporations: 1,
+  });
+  answerStartFlow(game, [p1, p2]);
+  // The list goes on top of the DECK, not to a seat — blue's corporation is replaced through the real play (the
+  // printed price written into `baseCardCost`), then the stocks below set the table.
+  for (const corp of p1.playedCards.corporations()) {
+    p1.playedCards.remove(corp);
+  }
+  p1.playCorporationCard(newCorporationCard(CardName.TERRALABS_RESEARCH)!);
+  runAllActions(game);
+  generationEndStocks(p1, 4);
+  p1.setTerraformRating(19);
+  p2.megaCredits = 20;
+  p2.pass();
+  runAllActions(game);
+  if (!game.gameOptions.draftVariant || game.activePlayer.id !== p1.id || !game.getPassedPlayers().includes(p2.color) || !(p1.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`terralabs-research-draft: expected blue on the move with red passed on a drafting table, got active=${game.activePlayer.color} wf=${p1.getWaitingFor()?.constructor.name}`);
+  }
+  terralabsTable('terralabs-research-draft', p1, game);
 }

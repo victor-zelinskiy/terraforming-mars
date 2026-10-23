@@ -223,7 +223,7 @@
               <div class="con-start__hudprev-money">
                 <div class="con-start__money-line"><span>{{ $t('Starting funds') }}</span>
                   <b>{{ preview.start }} <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b></div>
-                <div v-if="preview.buys > 0" class="con-start__money-line"><span>{{ $t('Projects') }}: {{ preview.buys }} × {{ preview.cardCost }}</span>
+                <div v-if="preview.buys > 0" class="con-start__money-line"><span class="con-price-hint" data-purchase-price :data-hint="startPriceHint">{{ $t('Projects') }}: {{ preview.buys }} × {{ preview.cardCost }}</span>
                   <b>−{{ preview.projectsCost }} <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b></div>
                 <div v-if="preview.preludeDelta !== 0" class="con-start__money-line"><span>{{ $t('Prelude effects') }}</span>
                   <b>{{ preview.preludeDelta > 0 ? '+' : '' }}{{ preview.preludeDelta }} <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b></div>
@@ -989,7 +989,7 @@
             <span v-if="budget !== undefined" class="con-start__status-quick"
                   :class="{'con-start__status-quick--broke': budget.remaining + budget.preludes < 0}">
               <template v-if="!moneyCompact">
-                <span class="con-start__status-quick-part">{{ $t('Projects') }} {{ budget.buys }} × {{ budget.cardCost }}</span>
+                <span class="con-start__status-quick-part con-price-hint" data-purchase-price :data-hint="startPriceHint">{{ $t('Projects') }} {{ budget.buys }} × {{ budget.cardCost }}</span>
                 <span class="con-start__status-quick-sep" aria-hidden="true">·</span>
               </template>
               <span class="con-start__status-quick-part con-start__status-quick-part--strong">
@@ -1111,6 +1111,7 @@ import {
 import {buildStartStatusPreview, StartStatusPreview} from '@/client/console/startStatusPreview';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {afterPreludes, cardCostForCorp, startingMegacredits} from '@/client/components/initialDraft/initialDraftMoney';
+import {purchasePriceHint, startPurchasePriceSource} from '@/client/console/purchasePriceSource';
 import {
   bonusActionGains, bonusActionGranted, bonusActionIndex, bonusActionNestedFirstAction,
   bonusActionOnBoard, bonusActionOwed, bonusActionRemaining, bonusActionsDeclaredBy,
@@ -3397,6 +3398,11 @@ export default defineComponent({
     },
     cardCost(): number {
       return cardCostForCorp(this.state.corp) + this.campaignExtra.cardCostDelta;
+    },
+    /** Who set a non-default `cardCost` — the pick and the campaign lineage (`purchasePriceSource.ts`); '' at 3 M€. */
+    startPriceHint(): string {
+      const lineage = this.playerView.game.gameOptions.campaign?.grants.find((g) => g.color === this.playerView.thisPlayer.color)?.corporations ?? [];
+      return purchasePriceHint(startPurchasePriceSource(this.cardCost, [...lineage, this.state.corp]));
     },
     /** The wizard funds after `buys` purchases — ONE formula for the budget,
      *  the per-card gate and the pick guard (campaign-aware). */

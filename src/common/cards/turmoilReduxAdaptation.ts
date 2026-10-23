@@ -42,9 +42,9 @@ import {CardName} from './CardName';
 export const TURMOIL_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
   // Corporations WITHOUT a political dependency — the premium adaptation only (lore, information model,
   // previews); MarsBot already plays their bot twins (`console-bot-corp-*.spec.ts`). Lakefront Resorts left
-  // 2026-10-23 (forecast twins of its ocean hook) — the template for the three below.
+  // 2026-10-23 (forecast twins of its ocean hook) — the template for the ones below; Terralabs Research left
+  // the same day (no live hook: the 1 M€ price is `player.cardCost`, pinned in every buy-to-hand flow).
   CardName.PRISTAR,
-  CardName.TERRALABS_RESEARCH,
   CardName.UTOPIA_INVEST,
 ];
 

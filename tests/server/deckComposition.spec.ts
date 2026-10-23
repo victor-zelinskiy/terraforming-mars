@@ -70,7 +70,11 @@ describe('deckCompositionOf — the creator\'s decks, counted by the server', ()
     expect(additions).greaterThan(0);
     expect(c.extras.colonies).deep.include({pool: pool.length, byExpansion: {colonies: pool.length - additions, turmoilRedux: additions}});
     // The adapted classic cards are PROJECTS — counted in Redux's projects, never a category of their own.
-    expect(c.contributions.turmoilRedux).deep.eq({projects: 70 + adaptedClassic, corporations: 0, preludes: 0, colonies: additions, resolutions: c.extras.resolutions});
+    // The adapted classic CORPORATIONS (R38 Lakefront Resorts, R14 Terralabs Research) are dealt as Redux's corporations —
+    // counted from the hold-back list as well, never a literal.
+    const adaptedCorporations = Object.keys(TURMOIL_CARD_MANIFEST.corporationCards).filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name as CardName)).length;
+    expect(adaptedCorporations).greaterThanOrEqual(2);
+    expect(c.contributions.turmoilRedux).deep.eq({projects: 70 + adaptedClassic, corporations: adaptedCorporations, preludes: 0, colonies: additions, resolutions: c.extras.resolutions});
     expect(c.contributions.colonies?.colonies).eq(pool.length - additions);
   });
 
