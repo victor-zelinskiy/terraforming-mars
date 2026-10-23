@@ -105,6 +105,20 @@ describe('AutomaCorporations — the MarsBot corporation framework', () => {
       expect(game.automa!.corporation).not.eq(MarsBotCorpId.C01_CREDICOR);
     });
 
+    // R38 Lakefront Resorts left the Turmoil Redux hold-back list (2026-10-23): a Redux table now deals the HUMAN
+    // corporation, so the bot's C35 twin meets its original at the collision rule like any other corporation.
+    it('Turmoil Redux: a human on Lakefront Resorts keeps the bot off C35 (the collision key is `original`)', () => {
+      expect(marsBotCorpInfo(MarsBotCorpId.C35_LAKEFRONT_RESORTS).original).eq(CardName.LAKEFRONT_RESORTS);
+      const [game, human] = testAutomaGame({
+        corporation: MarsBotCorpId.C35_LAKEFRONT_RESORTS, keepInitialCardSelection: true,
+        turmoilReduxExpansion: true, coloniesExtension: true,
+      }, '-redux-lakefront');
+      pickCorporation(game, human, CardName.LAKEFRONT_RESORTS);
+      expect(human.playedCards.corporations().map((c) => c.name)).deep.eq([CardName.LAKEFRONT_RESORTS]);
+      expect(game.automa!.corporation).is.not.undefined;
+      expect(game.automa!.corporation).not.eq(MarsBotCorpId.C35_LAKEFRONT_RESORTS);
+    });
+
     it('multiplayer collision: a corporation picked by ANY human is excluded', () => {
       const [game, humans] = testAutomaMultiplayerGame(2,
         {corporation: 'random', keepInitialCardSelection: true}, '-mp-coll');

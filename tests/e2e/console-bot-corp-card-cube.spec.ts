@@ -13,8 +13,11 @@ import {bootSeededGame, openInfoPlayedTable, press, soloGameConfig, visibleSurfa
  * live `CardModel` handed to the face. This probe reads the PAINTED number in
  * the bot's tableau: one cube after setup.
  *
- * Lakefront Resorts is a Turmoil corporation and Turmoil is off in this
- * config, so the collision rule cannot hand the bot a different corporation.
+ * Lakefront Resorts is a Turmoil corporation and neither Turmoil is on in this
+ * config, so no human is dealt it and the collision rule cannot hand the bot a
+ * different corporation. (Since 2026-10-23 a Turmoil Redux table deals the
+ * HUMAN Lakefront too — there a human on it keeps the bot off C35, pinned in
+ * `tests/automa/AutomaCorporations.spec.ts`.)
  */
 
 const LAKEFRONT_CONFIG = soloGameConfig({
