@@ -257,7 +257,6 @@ describe('consoleEndgameScript', () => {
     expect(hurrySweepMs(12)).to.eq(CEREMONY_MS.hurrySweepMax);
     expect(hurrySweepMs(4)).to.be.lessThan(hurrySweepMs(6));
   });
-
 });
 
 describe('consoleEndgameState', () => {

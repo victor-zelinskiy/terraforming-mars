@@ -452,7 +452,7 @@ test.describe('console finale — the brightness (FHD screencast)', () => {
     test(`K · ${scene} — the podium's brightness swings ≤ ${MAX_SWINGS_PER_SEC} a second`, async ({page, request}) => {
       test.setTimeout(600_000);
       await armBudgetProbe(page);
-        const ids = await fixtureTable(request, 'finale-rich-5p');
+      const ids = await fixtureTable(request, 'finale-rich-5p');
       await journeyToEndgame(page, request, ids);
       const rec = await recordLuma(page, KEEP_FRAMES ? path.join(OUT, 'fhd', `story-${scene}`) : undefined);
       if (scene === 'hurried') {
