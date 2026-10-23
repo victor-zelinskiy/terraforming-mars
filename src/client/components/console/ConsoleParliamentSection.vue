@@ -224,6 +224,7 @@ import {
   agendaViewOf, AgendaVm, buildParliamentView, emptyParliamentView, grantSupportOf, ParliamentPartyVm, ParliamentPromptBridge, ParliamentSlotVm, ParliamentTileVm,
   ParliamentViewVm, parliamentPromptBridge, PARTY_EFFECT_PLACES, partyActionStateOf, PartyActionStateVm, partyStateOf, PartyStateVm, resolutionActionStateOf, seatResponse,
 } from '@/client/console/parliament/consoleParliamentModel';
+import {influenceReadingOf} from '@/client/console/parliament/influenceReading';
 import {
   armGrantVoteFlow, armSupportPickFlow, consoleParliamentUi, notePlayedSittingStage, parliamentSupportUp, parliamentCrumbCommitted, parliamentCrumbStage, parliamentCrumbSubject, ParliamentStage,
   parliamentFlow, parliamentSittingUp, parliamentStageKind, parliamentStageUp, parliamentVoteUp, pulseParliamentChair, resetParliamentFlow,
@@ -907,7 +908,7 @@ export default defineComponent({
         const me = view.viewer;
         const next = this.agendaVm.nextStep;
         return {
-          kind: 'agenda', position: me?.agenda ?? 0, influence: me?.influence ?? 0, participates: this.viewerParticipates,
+          kind: 'agenda', position: me?.agenda ?? 0, influence: influenceReadingOf(me), participates: this.viewerParticipates,
           ...(next === undefined ? {} : {next: {kind: next.kind, ...(next.kind === 'influence' ? {influence: next.influence} : {})}}),
           ...(stop === undefined ? {} : {stop: {index: stop.index, kind: stop.step.kind, ...(stop.step.kind === 'influence' ? {influence: stop.step.influence} : {})}}),
         };

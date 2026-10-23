@@ -221,6 +221,15 @@ describe('consoleParliamentModel — the Agenda reading and the view', () => {
     expect(agenda.steps.find((s) => s.index === 1)?.level).to.eq(1);
   });
 
+  it('T05 — influence beyond the Career: the reading carries the FINAL number, the level and the bonus with its giver', () => {
+    const m = model();
+    const view = buildParliamentView({...m, players: [{...m.players[0], influence: 3, influenceSources: [{amount: 1, source: 'Event Analysts'}]}]}, 'blue' as Color, []);
+    const agenda = agendaViewOf(view);
+    expect(agenda.viewerLevel, 'the cell\'s level stays the track\'s').to.eq(2);
+    expect(agenda.viewerInfluence, 'the server\'s final number').to.eq(3);
+    expect(agenda.viewerReading).to.deep.eq({total: 3, track: 2, bonus: 1, sources: [{amount: 1, source: 'Event Analysts'}]});
+  });
+
   it('at the end of the track there is no next step', () => {
     const m = model();
     const view = buildParliamentView({...m, players: [{...m.players[0], agenda: 12}]}, 'blue' as Color, []);

@@ -47,6 +47,7 @@ import type {WinnerRewardGlyph} from './winnerRewardModel';
 import {ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {InfluenceYield, levelTakesAway} from '@/common/parliament/influenceScaling';
+import {InfluenceReading} from './influenceReading';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
 import {ColonyTrackMoveChip} from './colonyTrackModel';
@@ -76,13 +77,21 @@ export type BandChip =
   | {kind: 'neutralGain', amount: number}
   /** A seat: its cube and its name. */
   | {kind: 'player', player: Color | 'neutral'}
-  /** A count under its own word («Делегаты 5»); `id` names the chip for a scene that is born on it (the rally's coin). */
-  | {kind: 'count', key: string, amount: number, id?: string}
+  /**
+   * A count under its own word («Делегаты 5»); `id` names the chip for a scene that is born on it (the rally's coin).
+   * `modifier` — an influence count's reading: the number is the FINAL influence and «+N» stands beside it (T05).
+   */
+  | {kind: 'count', key: string, amount: number, id?: string, modifier?: InfluenceReading}
   /**
    * The Agenda step's own gift: the influence level it sets (the GLYPH with the level in one disc — parliament
    * law 14, never a bare numeral), or the bonus it hands over.
    */
-  | {kind: 'agenda', to: number, level?: number, bonus?: 'tr' | 'card', megacredits?: number, vetoed?: true}
+  | {kind: 'agenda', to: number, level?: number, bonus?: 'tr' | 'card', megacredits?: number, vetoed?: true,
+     /**
+      * The seat's FINAL influence once its marker stands on this step, with its modifier (T05) — only for a seat
+      * holding influence beyond the Career (`influenceReadingAtStep`); the level stays the cell's reward.
+      */
+     influence?: InfluenceReading}
   /** The payout formula — the reward's reading, printed whole (with the LEVY a budget takes first, when there is one). */
   | {kind: 'yield', yields: ReadonlyArray<InfluenceYield>, levy?: LevyReading}
   /** The ruling party's answer to a step of the payout. */
@@ -168,7 +177,7 @@ export type BandRewardReading = {
    * A STEP OF THE CAREER the law granted the viewer (Reds Budget), once its walk is RECORDED and played: the step it
    * reached and what it paid (never a skip: the skip chip says that). Absent while the sitting still owes the walk.
    */
-  career?: {to: number, bonus?: 'tr' | 'card', level?: number, megacredits?: number, vetoed?: true};
+  career?: {to: number, bonus?: 'tr' | 'card', level?: number, megacredits?: number, vetoed?: true, influence?: InfluenceReading};
   /** The WORLD's own part of the enactment — the planet's moves, in the server's order. */
   world?: ReadonlyArray<{parameter: ParameterMoveId, before: number, after: number, steps: number, unrewarded: boolean, skipped?: string}>;
   /** The COLONY TABLE's own part of the enactment (Unity Budget) — every track's move, in the server's order. */
@@ -198,7 +207,7 @@ export type BandFocus =
   | {kind: 'ruler', party: ReduxParty, resolution?: ResolutionId}
   | {kind: 'party', party: ReduxParty, inArea: boolean, mine: number, threshold: number, held: boolean, support: number, action: string, participates: boolean}
   | {kind: 'engine', text?: string, count?: number, mine?: number, chairman?: Color, completedBy?: Color}
-  | {kind: 'agenda', position: number, influence: number, participates: boolean, next?: {kind: 'tr' | 'card' | 'influence', influence?: number},
+  | {kind: 'agenda', position: number, influence: InfluenceReading, participates: boolean, next?: {kind: 'tr' | 'card' | 'influence', influence?: number},
      /** The STOP under the cursor («Зал» v7 — the edge is walked): its index and its reward. */
      stop?: {index: number, kind: 'tr' | 'card' | 'influence', influence?: number}};
 
@@ -250,7 +259,7 @@ export type BandSitting = {
    * КАРЬЕРА (Reds Budget): the seat whose step of the Career the law's walk is playing now, the step it reaches and
    * what that step pays — MarsBot's card step reads as the M€ it took instead (`megacredits`). Undefined between walks.
    */
-  career?: {player: Color, to: number, bonus?: 'tr' | 'card', level?: number, megacredits?: number, vetoed?: true};
+  career?: {player: Color, to: number, bonus?: 'tr' | 'card', level?: number, megacredits?: number, vetoed?: true, influence?: InfluenceReading};
   /**
    * THE ENACTMENT'S TAIL (TR62): a card's answer to the change of power, delivered while the line still reads the
    * enactment — the card that answered, the party that came to power and how many cards leave the deck.
@@ -290,7 +299,7 @@ export type BandQuest = {
  */
 export type BandWalk = {
   player: Color;
-  landed: ReadonlyArray<{to: number, bonus?: 'tr' | 'card', level?: number, vetoed?: true}>;
+  landed: ReadonlyArray<{to: number, bonus?: 'tr' | 'card', level?: number, vetoed?: true, influence?: InfluenceReading}>;
 };
 
 /**
@@ -385,7 +394,10 @@ export function parliamentBandLine(ctx: BandContext): BandLine {
 function walkLine(walk: BandWalk): BandLine {
   const chips: Array<BandChip> = [{kind: 'player', player: walk.player}];
   for (const step of walk.landed) {
-    chips.push({kind: 'agenda', to: step.to, ...(step.level === undefined ? {} : {level: step.level}), ...(step.bonus === undefined ? {} : {bonus: step.bonus}), ...(step.vetoed === true ? {vetoed: true as const} : {})});
+    chips.push({
+      kind: 'agenda', to: step.to, ...(step.level === undefined ? {} : {level: step.level}), ...(step.bonus === undefined ? {} : {bonus: step.bonus}),
+      ...(step.vetoed === true ? {vetoed: true as const} : {}), ...(step.influence === undefined ? {} : {influence: step.influence}),
+    });
   }
   return {kicker: 'Agenda track', key: `walk:${walk.player}`, chips, committed: true};
 }
@@ -563,21 +575,23 @@ function focusLine(focus: BandFocus): BandLine {
     if (focus.participates) {
       // The viewer's own stop — only once they have one (the start is no stop) and only when it is not the one read.
       if (focus.position > 0 && (focus.stop === undefined || focus.stop.index !== focus.position)) {
-        chips.push({kind: 'agenda', to: focus.position, level: focus.influence});
+        chips.push({kind: 'agenda', to: focus.position, level: focus.influence.track});
       }
-      chips.push({kind: 'count', key: 'Influence', amount: focus.influence});
+      // The FINAL influence (T05): the server's number, with what stands beyond the Career beside it — «уровень 2 ·
+      // влияние 3 +1». The step chips name LEVELS (a cell's reward); this one names what the seat votes with.
+      chips.push({kind: 'count', key: 'Influence', amount: focus.influence.total, ...(focus.influence.bonus > 0 ? {modifier: focus.influence} : {})});
       if (focus.stop !== undefined) {
         // The reading is the stop's — the «next reward» tail belongs to the standing cursor-less line only.
       } else if (focus.next !== undefined) {
         chips.push({kind: 'label', key: 'next reward', tone: 'quiet'});
         chips.push(focus.next.kind === 'influence' ?
-          {kind: 'agenda', to: focus.position + 1, level: focus.next.influence ?? focus.influence + 1} :
+          {kind: 'agenda', to: focus.position + 1, level: focus.next.influence ?? focus.influence.track + 1} :
           {kind: 'agenda', to: focus.position + 1, bonus: focus.next.kind});
       } else {
         chips.push({kind: 'label', key: 'end of the track', tone: 'quiet'});
       }
     }
-    return {kicker: 'Agenda track', key: ['focus:agenda', focus.position, focus.influence, focus.next?.kind ?? '', focus.stop?.index ?? ''].join(':'), chips, committed: false};
+    return {kicker: 'Agenda track', key: ['focus:agenda', focus.position, focus.influence.total, focus.influence.bonus, focus.next?.kind ?? '', focus.stop?.index ?? ''].join(':'), chips, committed: false};
   }
 }
 
@@ -692,6 +706,7 @@ function careerLine(career: NonNullable<BandSitting['career']>): BandLine {
     ...(career.bonus === undefined ? {} : {bonus: career.bonus}),
     ...(career.megacredits === undefined ? {} : {megacredits: career.megacredits}),
     ...(career.vetoed === true ? {vetoed: true as const} : {}),
+    ...(career.influence === undefined ? {} : {influence: career.influence}),
   });
   return {kicker: 'Agenda track', key: `career:${career.player}:${career.to}`, chips, committed: true};
 }

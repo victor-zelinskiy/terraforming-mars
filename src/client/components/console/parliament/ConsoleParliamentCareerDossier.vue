@@ -11,7 +11,10 @@
           <PlayerCube :color="seat.color" :size="cubePx(14)" :glow="false" />
           <span class="con-parl-qd__row-name">{{ seat.name }}</span>
           <span class="con-parl-qd__row-step">{{ stepText(seat.agenda) }}</span>
-          <span class="con-parl-qd__coin" :aria-label="$t('Influence')"><i class="con-parl-qd__coin-glyph" aria-hidden="true"></i><b>{{ seat.influence }}</b></span>
+          <!-- The seat's FINAL influence (the server's) with what stands beyond the Career beside it (T05) — the rungs on
+               the right name LEVELS, the cells' rewards. -->
+          <span class="con-parl-qd__coin" :aria-label="$t('Influence')" :data-parl-cd-influence="seat.reading.total"><i class="con-parl-qd__coin-glyph" aria-hidden="true"></i><b>{{ seat.reading.total }}</b></span>
+          <ConsoleInfluenceMod :reading="seat.reading" />
         </div>
       </div>
       <div class="con-parl-qd__note">
@@ -62,13 +65,15 @@ import {defineComponent, PropType} from 'vue';
 import {seatRestricted} from '@/common/models/ParliamentModel';
 import {Color} from '@/common/Color';
 import PlayerCube from '@/client/components/PlayerCube.vue';
+import ConsoleInfluenceMod from '@/client/components/console/parliament/ConsoleInfluenceMod.vue';
+import {InfluenceReading, influenceReadingOf} from '@/client/console/parliament/influenceReading';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {ParliamentAgendaStepVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 export default defineComponent({
   name: 'ConsoleParliamentCareerDossier',
-  components: {PlayerCube},
+  components: {PlayerCube, ConsoleInfluenceMod},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
@@ -97,9 +102,9 @@ export default defineComponent({
       }
       return out;
     },
-    /** Every seat that holds delegates, with its step and its influence (the server's numbers). */
-    seats(): ReadonlyArray<{color: Color, name: string, agenda: number, influence: number}> {
-      return this.view.players.filter((p) => p.participates).map((p) => ({color: p.color, name: p.name, agenda: p.agenda, influence: p.influence}));
+    /** Every seat that holds delegates, with its step and its influence — the ONE reading (`influenceReading.ts`). */
+    seats(): ReadonlyArray<{color: Color, name: string, agenda: number, reading: InfluenceReading}> {
+      return this.view.players.filter((p) => p.participates).map((p) => ({color: p.color, name: p.name, agenda: p.agenda, reading: influenceReadingOf(p)}));
     },
   },
   methods: {

@@ -27,6 +27,7 @@
           <div class="con-iparl__badge">
             <i class="con-iparl__inficon" aria-hidden="true"></i>
             <b class="con-iparl__infval con-info__mint" data-parl-info-total>{{ reading.influence.total }}</b>
+            <ConsoleInfluenceMod :reading="reading.influence" />
           </div>
           <div class="con-info__parl-sum con-iparl__sum" data-parl-info-influence>
             <span class="con-info__parl-term"><span>{{ $t('Agenda track') }}</span><b>{{ reading.influence.track }}</b></span>
@@ -159,6 +160,7 @@ import {dossierLadder} from '@/client/console/infoDossierModel';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
+import ConsoleInfluenceMod from '@/client/components/console/parliament/ConsoleInfluenceMod.vue';
 import PremiumChairGlyph from '@/client/components/premiumCard/PremiumChairGlyph.vue';
 import {translateTextWithParams} from '@/client/directives/i18n';
 
@@ -167,7 +169,7 @@ const OTHER_SOURCE = 'other';
 
 export default defineComponent({
   name: 'ConsoleInfoParliament',
-  components: {ConsoleInfluenceYield, PlayerCube, PremiumChairGlyph},
+  components: {ConsoleInfluenceYield, PlayerCube, PremiumChairGlyph, ConsoleInfluenceMod},
   props: {
     reading: {type: Object as PropType<SeatParliamentReadingVm>, required: true},
   },

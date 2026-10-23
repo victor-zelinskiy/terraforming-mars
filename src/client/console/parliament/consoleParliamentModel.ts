@@ -43,6 +43,7 @@ import {getPartyEffect, getResolution, getStarterQuest} from '@/client/parliamen
 import {translateCardName, translateText} from '@/client/directives/i18n';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {partyNameKey} from './partyNames';
+import {InfluenceReading, influenceReadingOf, NO_INFLUENCE} from './influenceReading';
 
 export type ParliamentSlotVm = {
   instance: ResolutionInstanceId;
@@ -944,6 +945,12 @@ export type AgendaVm = {
   viewerInfluence: number;
   /** The track's own level at the viewer's position (what the Agenda alone grants). */
   viewerLevel: number;
+  /**
+   * THE ONE READING of the viewer's influence (`influenceReading.ts`): the final number, the track's level and what
+   * stands beyond it with its givers — the head of the track and the viewer's band chip print the FINAL number and
+   * the modifier from it (T05). A held walk carries the reading back with the marker; the bonus never moves.
+   */
+  viewerReading: InfluenceReading;
   /** The reward of the viewer's next advance (undefined at the end of the track). */
   nextStep: AgendaStep | undefined;
 };
@@ -963,6 +970,7 @@ export function agendaViewOf(view: ParliamentViewVm): AgendaVm {
     viewerPosition: position,
     viewerInfluence: viewer?.influence ?? 0,
     viewerLevel: influenceAtAgenda(position),
+    viewerReading: viewer !== undefined && viewer.participates ? influenceReadingOf(viewer) : NO_INFLUENCE,
     nextStep: next === undefined ? undefined : AGENDA_TRACK[next - 1],
   };
 }

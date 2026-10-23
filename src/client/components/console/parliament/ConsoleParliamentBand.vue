@@ -62,6 +62,7 @@
               <!-- A NAMED count ticks IN PLACE (the rally's recount — one mark per task): its own key, never the line's. -->
               <b v-if="chip.id !== undefined" :key="'n' + chip.amount" class="con-band__num con-parl__tick" :data-parl-count="chip.amount">{{ chip.amount }}</b>
               <b v-else class="con-band__num">{{ chip.amount }}</b>
+              <ConsoleInfluenceMod v-if="chip.modifier !== undefined" :reading="chip.modifier" />
             </span>
             <span v-else-if="chip.kind === 'agenda'" class="con-band__chip con-band__chip--agenda" data-parl-band-chip="agenda"
                   :data-parl-band-step="chip.to" :data-parl-band-level="chip.level">
@@ -78,9 +79,19 @@
                 <b>+1</b><i class="con-band__unit" :class="bonusClass(chip.bonus)" aria-hidden="true"></i>
               </span>
               <!-- An INFLUENCE step: the glyph with the level in one disc (law 14 — a bare numeral reads as an ordinal). -->
-              <span v-else-if="chip.level !== undefined" class="con-band__bonus con-band__bonus--inf">
-                <i class="con-band__unit con-band__unit--inf" aria-hidden="true"></i><b>{{ chip.level }}</b>
-              </span>
+              <template v-else-if="chip.level !== undefined">
+                <!-- T05: a seat with influence beyond the Career reads the step as «уровень N · влияние M +k» — the level
+                     is the cell's reward, the influence what the seat votes with there (the server's bonus on top). -->
+                <span v-if="chip.influence !== undefined" class="con-band__text con-band__text--dim">{{ $t('level') }}</span>
+                <span class="con-band__bonus con-band__bonus--inf">
+                  <i class="con-band__unit con-band__unit--inf" aria-hidden="true"></i><b>{{ chip.level }}</b>
+                </span>
+                <span v-if="chip.influence !== undefined" class="con-band__inf-final" data-parl-band-influence :data-parl-band-influence-total="chip.influence.total">
+                  <span class="con-band__text con-band__text--dim">{{ $t('Influence') }}</span>
+                  <span class="con-band__bonus con-band__bonus--inf"><i class="con-band__unit con-band__unit--inf" aria-hidden="true"></i><b>{{ chip.influence.total }}</b></span>
+                  <ConsoleInfluenceMod :reading="chip.influence" />
+                </span>
+              </template>
             </span>
             <ConsoleInfluenceYield v-else-if="chip.kind === 'yield'"
                                    class="con-band__yield"
@@ -212,6 +223,8 @@ import {agendaWalkFlow} from '@/client/console/parliament/agendaWalk';
 import {careerGrantState} from '@/client/console/parliament/careerGrantBeat';
 import {rulingChangeDrawState} from '@/client/console/parliament/rulingChangeDraw';
 import {influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
+import {InfluenceReading, influenceReadingAtStep} from '@/client/console/parliament/influenceReading';
+import ConsoleInfluenceMod from '@/client/components/console/parliament/ConsoleInfluenceMod.vue';
 import {quietRewardPoseOf, SittingPosition, SittingStage} from '@/client/console/parliament/consoleSittingFlow';
 import {enactedLevyOf, enactedYieldsOf, resolvingLevyOf, resolvingYieldsOf} from '@/client/console/parliament/influenceYieldModel';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
@@ -229,7 +242,7 @@ import {ParameterMoveId} from '@/common/parliament/parameterMove';
 
 export default defineComponent({
   name: 'ConsoleParliamentBand',
-  components: {PlayerCube, ConsoleInfluenceYield, ConsolePartyReaction, ConsoleWinnerReward, ConsoleTileGrant, ConsoleYieldUnit},
+  components: {PlayerCube, ConsoleInfluenceYield, ConsolePartyReaction, ConsoleWinnerReward, ConsoleTileGrant, ConsoleYieldUnit, ConsoleInfluenceMod},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
@@ -260,9 +273,11 @@ export default defineComponent({
       if (!flow.live || flow.owed === undefined) {
         return undefined;
       }
+      const player = flow.owed.player;
       return {
-        player: flow.owed.player,
-        landed: flow.landed.map((step) => step.bonus === undefined ? {to: step.to, level: influenceAtAgenda(step.to)} : {to: step.to, bonus: step.bonus}),
+        player,
+        landed: flow.landed.map((step) => step.bonus === undefined ?
+          {to: step.to, level: influenceAtAgenda(step.to), ...this.influenceOn(player, step.to)} : {to: step.to, bonus: step.bonus}),
       };
     },
     /**
@@ -315,7 +330,7 @@ export default defineComponent({
       return {
         player: walk.player,
         to: walk.to,
-        ...(last?.bonus === undefined ? {level: influenceAtAgenda(walk.to)} : {bonus: last.bonus}),
+        ...(last?.bonus === undefined ? {level: influenceAtAgenda(walk.to), ...this.influenceOn(walk.player, walk.to)} : {bonus: last.bonus}),
         ...(walk.megacredits === undefined ? {} : {megacredits: walk.megacredits}),
         ...(last?.vetoed === true ? {vetoed: true as const} : {}),
       };
@@ -334,7 +349,7 @@ export default defineComponent({
       const last = walk.steps[walk.steps.length - 1];
       return {
         to: walk.to,
-        ...(last.bonus === undefined ? {level: influenceAtAgenda(walk.to)} : {bonus: last.bonus}),
+        ...(last.bonus === undefined ? {level: influenceAtAgenda(walk.to), ...(this.viewerColor === undefined ? {} : this.influenceOn(this.viewerColor, walk.to))} : {bonus: last.bonus}),
         ...(record.megacredits === undefined ? {} : {megacredits: record.megacredits}),
         ...(last.vetoed === true ? {vetoed: true as const} : {}),
       };
@@ -612,6 +627,14 @@ export default defineComponent({
     },
   },
   methods: {
+    /**
+     * THE SEAT'S FINAL INFLUENCE ON A STEP (T05): spread into a step's chip only for a seat holding influence beyond
+     * the Career — the chip then reads «уровень N · влияние M +k» (`influenceReadingAtStep`; the level is the cell's).
+     */
+    influenceOn(color: Color, step: number): {influence?: InfluenceReading} {
+      const reading = influenceReadingAtStep(this.model?.players.find((p) => p.color === color && p.participates), step);
+      return reading === undefined ? {} : {influence: reading};
+    },
     partyNameKey(party: string): string {
       return partyNameKey(party);
     },

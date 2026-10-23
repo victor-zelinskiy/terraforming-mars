@@ -31,21 +31,14 @@ import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {ParliamentModel, ParliamentPlayerModel, seatEnacts} from '@/common/models/ParliamentModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
-import {AGENDA_TRACK, AgendaStep, influenceAtAgenda, ReduxParty, ResolutionInstanceId} from '@/common/parliament/ParliamentTypes';
+import {AGENDA_TRACK, AgendaStep, ReduxParty, ResolutionInstanceId} from '@/common/parliament/ParliamentTypes';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {enactedYieldsOf} from './influenceYieldModel';
 import {voteReadingOf, VoteReadingVm} from './voteInfoModel';
+import {InfluenceReading, influenceReadingOf, NO_INFLUENCE} from './influenceReading';
 
-/** WHERE the seat's influence comes from — the track, and every entry on top of it by name. */
-export type SeatInfluenceVm = {
-  total: number;
-  /** The Agenda track's own level at the seat's step. */
-  track: number;
-  /** Everything above it (0 = the track alone — the ordinary case today). */
-  bonus: number;
-  /** …itemised, when the server knows the givers. `source` is an i18n key / a card name. */
-  sources: ReadonlyArray<{amount: number, source?: string}>;
-};
+/** WHERE the seat's influence comes from — THE one reading (`influenceReading.ts`), never a second one. */
+export type SeatInfluenceVm = InfluenceReading;
 
 export type SeatAgendaVm = {
   /** 0 = no marker on the track yet; 1…12 = the step it stands on. */
@@ -139,7 +132,7 @@ const EMPTY: SeatParliamentReadingVm = {
   color: 'neutral' as Color,
   participates: false,
   botPolitical: false,
-  influence: {total: 0, track: 0, bonus: 0, sources: []},
+  influence: NO_INFLUENCE,
   agenda: {position: 0},
   delegates: {lobby: false, reserve: 0, onSlots: [], onResolutions: 0},
   chairman: false,
@@ -165,7 +158,6 @@ export function seatParliamentReadingOf(
   if (!seatEnacts(seat)) {
     return {...EMPTY, color, botPolitical: seat.participates};
   }
-  const track = influenceAtAgenda(seat.agenda);
   // A reading of ANOTHER seat speaks in the third person — but it does NOT name the subject: the
   // surface hosting this model already says whose standing it shows (the Information crumb).
   const rival = opts.viewer === undefined || opts.viewer === color ? undefined : {};
@@ -182,12 +174,7 @@ export function seatParliamentReadingOf(
     color,
     participates: true,
     botPolitical: false,
-    influence: {
-      total: seat.influence,
-      track,
-      bonus: Math.max(0, seat.influence - track),
-      sources: seat.influenceSources ?? [],
-    },
+    influence: influenceReadingOf(seat),
     agenda: {
       position: seat.agenda,
       ...(seat.agenda >= AGENDA_TRACK.length ? {} : {next: AGENDA_TRACK[seat.agenda]}),

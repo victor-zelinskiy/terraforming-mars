@@ -17,10 +17,19 @@
              moves, so the symbol leads the eye HERE (the glyph alone named nothing on the screen it was printed on). -->
         <span class="con-parl__kicker"><i class="career-step-glyph con-parl__agenda-glyph" aria-hidden="true"></i>{{ $t('Agenda track') }}</span>
         <!-- «Зал» v7: the symbol says «влияние» — the word is the reading line's (and the label's for assistive tech). -->
-        <span v-if="view.viewer !== undefined" class="con-parl__agenda-me" :aria-label="$t('Influence')">
+        <!-- T05: the number is the viewer's FINAL influence (the server's); with influence beyond the Career the head
+             reads it as a sum — «= [insignia] level +bonus» — the level being the track's, the modifier the cards'
+             (`influenceReading.ts`: one reading, one grammar). Nothing is added up here. -->
+        <span v-if="view.viewer !== undefined" class="con-parl__agenda-me" :aria-label="$t('Your influence')" data-parl-influence-head>
           <PlayerCube :color="view.viewer.color" :size="cubePx(12)" :glow="false" />
+          <span v-if="shown.viewerReading.bonus > 0" class="con-parl__agenda-me-label">{{ $t('Your influence') }}</span>
           <i class="con-parl__inf-icon" aria-hidden="true"></i>
           <b :key="'ai' + shown.viewerInfluence" class="con-parl__tick" data-parl-influence>{{ shown.viewerInfluence }}</b>
+          <span v-if="shown.viewerReading.bonus > 0" class="con-parl__agenda-sum" data-parl-influence-sum>
+            <span class="con-parl__agenda-sum-op" aria-hidden="true">=</span>
+            <i class="career-step-glyph con-parl__agenda-sum-glyph" aria-hidden="true"></i><b data-parl-influence-track>{{ shown.viewerReading.track }}</b>
+            <ConsoleInfluenceMod :reading="shown.viewerReading" />
+          </span>
         </span>
       </div>
       <!-- THE INSTRUMENT (v8): a START cell + twelve TILES — the marker row ABOVE each tile (reserved whether or not a cube
@@ -70,7 +79,9 @@
               :class="['con-parl__inf-band--l' + band.level, {'con-parl__inf-band--mine': band.mine}]"
               :style="{gridColumn: band.from + 1 + ' / ' + (band.to + 2)}"
               :data-parl-inf-band="band.level" data-budget-scale="influence">
-          <span class="con-parl__inf-band-chip"><i class="con-parl__inf-band-glyph" aria-hidden="true"></i><b>{{ band.level }}</b></span>
+          <!-- The viewer's span prints the viewer's FINAL influence with its modifier (T05) — the ring stays on the
+               LEVEL's span (a cell of the track); every other span names its level. -->
+          <span class="con-parl__inf-band-chip"><i class="con-parl__inf-band-glyph" aria-hidden="true"></i><b :data-parl-inf-band-value="band.mine ? shown.viewerInfluence : band.level">{{ band.mine ? shown.viewerInfluence : band.level }}</b><ConsoleInfluenceMod v-if="band.mine" :reading="shown.viewerReading" /></span>
         </span>
       </div>
     </div>
@@ -90,6 +101,7 @@ import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {AGENDA_TRACK, influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import ConsoleParliamentEngine from '@/client/components/console/parliament/ConsoleParliamentEngine.vue';
+import ConsoleInfluenceMod from '@/client/components/console/parliament/ConsoleInfluenceMod.vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -113,7 +125,7 @@ import {agendaWalkFlow, releaseAgendaWalkHolds} from '@/client/console/parliamen
  */
 export default defineComponent({
   name: 'ConsoleParliamentAgenda',
-  components: {PlayerCube, ConsoleParliamentEngine},
+  components: {PlayerCube, ConsoleParliamentEngine, ConsoleInfluenceMod},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     /** The seats (the engine's race names them) and the viewer — the engine's own props, threaded through. */
@@ -309,6 +321,8 @@ export default defineComponent({
         viewerPosition: position,
         viewerInfluence: mine ? Math.max(0, vm.viewerInfluence - levelDelta) : vm.viewerInfluence,
         viewerLevel: mine ? influenceAtAgenda(hold.from) : vm.viewerLevel,
+        // The bonus beyond the Career is not a step: a held walk carries the level and the total back, never the bonus.
+        viewerReading: mine ? {...vm.viewerReading, total: Math.max(0, vm.viewerInfluence - levelDelta), track: influenceAtAgenda(hold.from)} : vm.viewerReading,
         nextStep: mine ? (next === undefined ? undefined : AGENDA_TRACK[next - 1]) : vm.nextStep,
       };
     },
