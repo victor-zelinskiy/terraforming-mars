@@ -99,6 +99,17 @@ describe('consoleQuickModel (P27)', () => {
       expect(parliament?.available).to.eq(true);
       expect(parliament?.badge).to.eq(1);
       expect(parliament?.label).to.eq('Parliament');
+      expect(parliament?.badgeTone, 'the free lobby vote is an invitation (mint)').to.eq(undefined);
+    });
+
+    it('only a PAID vote left: the Parliament badge keeps its number and turns white (information, not a «go»)', () => {
+      const entries = buildRtQuickEntries({
+        cardsPlayable: 0, cardsTotal: 0, actionsAvailable: 0, tradesAvailable: 0, hydroAvailable: 0,
+        hasColonies: true, hasParliament: true, votesAvailable: 1, votesPaidOnly: true, hasHydro: false,
+      });
+      const parliament = entries.find((e) => e.id === 'parliament');
+      expect(parliament?.badge).to.eq(1);
+      expect(parliament?.badgeTone).to.eq('neutral');
     });
 
     /*

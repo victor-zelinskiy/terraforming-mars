@@ -109,6 +109,11 @@ export type RtQuickContext = {
   hasParliament: boolean,
   /** 0 or 1 — a vote the viewer could cast right now (the free lobby delegate or a paid one). */
   votesAvailable: number,
+  /**
+   * The free lobby delegate is spent and only a paid vote (from the reserve) is left: the badge loses its «go»
+   * register — information, never an invitation (the paid vote is rarely worth its price).
+   */
+  votesPaidOnly?: boolean,
   /** The Delta-Project (Hydronetwork) expansion is on. */
   hasHydro: boolean,
   /**
@@ -151,9 +156,11 @@ export function buildRtQuickEntries(ctx: RtQuickContext): Array<QuickEntry> {
     {
       // «ПАРЛАМЕНТ» — the Mars Parliament (Turmoil Redux): the vote, the
       // party effects and actions, the Agenda. A VIEW too (like Trading), so
-      // it stays open post-game; the badge is whether a vote can be cast now.
+      // it stays open post-game; the badge is whether a vote can be cast now —
+      // mint for the free lobby delegate, white once only a paid vote is left.
       id: 'parliament', slot: 'down', label: 'Parliament', barIcon: 'parliament',
       badge: ctx.votesAvailable,
+      ...(ctx.votesPaidOnly === true ? {badgeTone: 'neutral' as const} : {}),
       available: ctx.hasParliament, reason: 'Not in this game',
     },
     {

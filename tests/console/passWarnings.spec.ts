@@ -36,13 +36,19 @@ describe('passWarnings', () => {
   });
 
   it('every other opportunity keeps its line, in the confirm\'s order', () => {
-    const w = passWarnings({cardActions: 1, futileCardActions: 0, trade: true, plants: true, heat: 'useful', hydro: true});
+    const w = passWarnings({cardActions: 1, futileCardActions: 0, trade: true, plants: true, heat: 'useful', hydro: true, freeVote: true});
     expect(w.lines.map((l) => l.key)).to.deep.eq([
       'You still have unused available actions',
       'You still have a free trade fleet and can afford a colony trade',
       'You can still convert plants into greenery',
       'You can still convert heat into temperature',
       'You can still advance the Hydronetwork this generation',
+      'You can still vote with your free delegate from the lobby',
     ]);
+  });
+
+  it('the FREE lobby vote warns; a paid vote (the free one spent) is never a warning and no «no effect» line', () => {
+    expect(passWarnings({...NONE, freeVote: true}).lines).to.deep.eq([{key: 'You can still vote with your free delegate from the lobby'}]);
+    expect(passWarnings({...NONE, freeVote: false})).to.deep.eq({lines: []});
   });
 });

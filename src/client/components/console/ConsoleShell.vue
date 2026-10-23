@@ -7722,6 +7722,7 @@ export default defineComponent({
         plants: findConvertPlantsOption(this.playerView.waitingFor, this.thisPlayer.canConvertPlants === true) !== undefined,
         heat: !this.convertHeatReady ? 'none' : this.convertHeatFutile !== undefined ? 'futile' : 'useful',
         hydro: this.hydroActionAvailable,
+        freeVote: this.game.parliament?.viewer?.vote.available === true && this.game.parliament.viewer.vote.source === 'lobby',
       });
     },
     confirmWarnings(): Array<string> {
@@ -8654,6 +8655,7 @@ export default defineComponent({
           hasColonies: this.game.colonies.length > 0,
           hasParliament: this.game.parliament !== undefined,
           votesAvailable: this.game.parliament?.viewer?.vote.available === true ? 1 : 0,
+          votesPaidOnly: this.game.parliament?.viewer?.vote.available === true && this.game.parliament.viewer.vote.source !== 'lobby',
           hasHydro: this.game.gameOptions.expansions.deltaProject === true,
           postGame: this.postGame,
         });

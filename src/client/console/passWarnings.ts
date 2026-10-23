@@ -26,6 +26,11 @@ export type PassFacts = {
   heat: 'none' | 'useful' | 'futile';
   /** A Hydronetwork advance is still possible. */
   hydro: boolean;
+  /**
+   * The free lobby delegate can still vote (Turmoil Redux). A PAID vote from the reserve is never a warning — it is
+   * rarely worth its price, so the pass does not invite to it (the wheel shows it as a white, informational badge).
+   */
+  freeVote?: boolean;
 };
 
 /** One line of the list: an i18n key and, for a count, its number (already a string). */
@@ -55,6 +60,9 @@ export function passWarnings(facts: PassFacts): PassWarnings {
   }
   if (facts.hydro) {
     lines.push({key: 'You can still advance the Hydronetwork this generation'});
+  }
+  if (facts.freeVote === true) {
+    lines.push({key: 'You can still vote with your free delegate from the lobby'});
   }
   const futile = Math.max(0, Math.min(facts.futileCardActions, facts.cardActions)) + (facts.heat === 'futile' ? 1 : 0);
   if (lines.length === 0 && futile > 0) {
