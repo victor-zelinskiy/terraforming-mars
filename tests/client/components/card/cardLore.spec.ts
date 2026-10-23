@@ -4,6 +4,7 @@ import {CardType} from '@/common/cards/CardType';
 import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '@/common/cards/premiumScope';
 import {ClientCard} from '@/common/cards/ClientCard';
 import {getCards, getCardOrThrow} from '@/client/cards/ClientCardManifest';
+import {cardArtUrl} from '@/client/cards/cardArt';
 import {PreferencesManager} from '@/client/utils/PreferencesManager';
 import {translateText} from '@/client/directives/i18n';
 import {
@@ -69,6 +70,14 @@ describe('cardLore', () => {
     it('borrows the source card\'s entry for an Ares variant', () => {
       expect(cardLoreSource(CardName.CAPITAL_ARES)).to.eq(cardLoreSource(CardName.CAPITAL));
       expect(cardLoreSource(CardName.GREAT_DAM_ARES)).to.eq(cardLoreSource(CardName.GREAT_DAM));
+    });
+
+    // A Turmoil Redux REPLACEMENT (TR71…) prints the classic card's quote: the
+    // entry stays keyed by the classic number (T01), the replacement borrows it.
+    it('borrows the classic card\'s entry for a Turmoil Redux replacement', () => {
+      expect(cardLoreSource(CardName.AERIAL_LENSES)).to.eq('Burning the ground to release carbon dioxide.');
+      expect(cardLoreSource(CardName.AERIAL_LENSES_REDUX)).to.eq(cardLoreSource(CardName.AERIAL_LENSES));
+      expect(cardArtUrl(CardName.AERIAL_LENSES_REDUX), 'and the classic T01 art').to.eq('assets/card-images/T01.webp');
     });
 
     it('resolves every reimplementing card the same way the manifest links them', () => {

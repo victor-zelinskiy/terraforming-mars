@@ -52,13 +52,16 @@ describe('deckCompositionOf — the creator\'s decks, counted by the server', ()
     expect(off.preludes.total).eq(0);
   });
 
-  it('+ Colonies + Turmoil Redux: 70 Redux projects + the adapted classic cards (ITS projects), the resolution deck, the colony table', () => {
+  it('+ Colonies + Turmoil Redux: 70 Redux projects + the replacements authored + the adapted classic cards (ITS projects), the resolution deck, the colony table', () => {
     const c = compositionOf(creatorConfig(['corpera', 'prelude', 'venus', 'colonies', 'promo', 'turmoilRedux']));
     expect(c.projects.byModule.turmoilRedux).eq(Object.keys(TURMOIL_REDUX_CARD_MANIFEST.projectCards).length);
-    expect(c.projects.byModule.turmoilRedux).eq(70);
+    // The printed 70 + the replacements authored so far (TR71 Aerial Lenses:redux the first) — each removes its classic card.
+    expect(c.projects.byModule.turmoilRedux).eq(70 + TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.size);
     // The classic project cards adapted so far — counted from the hold-back list, never a literal (T04 Diaspora
-    // Movement, T06 GMO Contract, …): each adaptation deals one more.
-    const adaptedClassic = Object.keys(TURMOIL_CARD_MANIFEST.projectCards).filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name as CardName)).length;
+    // Movement, T06 GMO Contract, …): each adaptation deals one more. A REPLACED classic card (off the list once its
+    // replacement crossed) is removed by `cardsToRemove` — never dealt.
+    const adaptedClassic = Object.keys(TURMOIL_CARD_MANIFEST.projectCards)
+      .filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name as CardName) && !TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.has(name as CardName)).length;
     expect(adaptedClassic).greaterThanOrEqual(2);
     expect(c.projects.byModule.turmoil, 'the classic cards adapted so far').eq(adaptedClassic);
     expect(c.extras.resolutions).eq(REDUX_RESOLUTION_CATALOG.dealtInstances(compatibleWith(gameOptionsFromNewGameConfig(creatorConfig(['venus', 'colonies', 'turmoilRedux']), RandomBoardOption.ALL).expansions)).length);
@@ -74,7 +77,7 @@ describe('deckCompositionOf — the creator\'s decks, counted by the server', ()
     // counted from the hold-back list as well, never a literal.
     const adaptedCorporations = Object.keys(TURMOIL_CARD_MANIFEST.corporationCards).filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name as CardName)).length;
     expect(adaptedCorporations).greaterThanOrEqual(2);
-    expect(c.contributions.turmoilRedux).deep.eq({projects: 70 + adaptedClassic, corporations: adaptedCorporations, preludes: 0, colonies: additions, resolutions: c.extras.resolutions});
+    expect(c.contributions.turmoilRedux).deep.eq({projects: 70 + TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.size + adaptedClassic, corporations: adaptedCorporations, preludes: 0, colonies: additions, resolutions: c.extras.resolutions});
     expect(c.contributions.colonies?.colonies).eq(pool.length - additions);
   });
 

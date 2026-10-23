@@ -25,6 +25,7 @@ import {CardType} from '@/common/cards/CardType';
 import {GameModule} from '@/common/cards/GameModule';
 import {ClientCard} from '@/common/cards/ClientCard';
 import {TURMOIL_CARDS_HELD_BACK_UNDER_REDUX} from '@/common/cards/turmoilReduxAdaptation';
+import {TURMOIL_REDUX_REPLACED_CLASSIC_NAMES} from '@/common/cards/turmoilReduxReplacements';
 import {getCard, getCards} from '@/client/cards/ClientCardManifest';
 import {PremiumTheme, premiumThemeFor} from '@/client/components/premiumCard/premiumCardTheme';
 import {translateCardName} from '@/client/directives/i18n';
@@ -116,11 +117,14 @@ function guaranteeable(card: ClientCard): boolean {
  * Turmoil cards: the creator has no classic-Turmoil toggle, and an ADAPTED one is dealt
  * only with Turmoil Redux, so it is listed under Redux (the deck meter counts it there
  * too — `deckComposition.ts` `ORIGIN_MODULES`). A card still on the hold-back list is
- * offered nowhere: no Redux table deals it.
+ * offered nowhere: no Redux table deals it — and neither is a card the Redux set REPLACES,
+ * whose `:redux` replacement (listed under Redux by its own module) is the card a Redux
+ * table deals (`cardsToRemove`).
  */
 export function guaranteedModuleOf(card: ClientCard): GameModule | undefined {
   if (card.module === 'turmoil') {
-    return TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(card.name) ? undefined : 'turmoilRedux';
+    const dealtUnderRedux = !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(card.name) && !TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(card.name);
+    return dealtUnderRedux ? 'turmoilRedux' : undefined;
   }
   return card.module;
 }

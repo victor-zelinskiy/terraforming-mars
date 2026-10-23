@@ -54,10 +54,10 @@ export const TURMOIL_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
 /**
  * REPLACED BY THE REDUX SET — 6 project cards + 1 corporation. The classic card never
  * joins a Redux deck; the row leaves when its `:redux` replacement is authored AND the
- * classic name stands in the Redux manifest's `cardsToRemove`.
+ * classic name stands in the Redux manifest's `cardsToRemove`. Aerial Lenses left 2026-10-24
+ * (TR71 `Aerial Lenses:redux` — the first replacement; the template for the rows below).
  */
 export const TURMOIL_CARDS_AWAITING_REDUX_REPLACEMENT: ReadonlyArray<CardName> = [
-  CardName.AERIAL_LENSES, // → Scientists, cost 3, Science tag, no VP penalty
   CardName.BANNED_DELEGATE, // → any delegate off a resolution or a Popular Support area
   CardName.POLITICAL_ALLIANCE, // → leader of 2 resolutions → 1 Agenda step (cost 2)
   CardName.RECRUITMENT, // → a NEUTRAL delegate on a resolution ↔ your own from the reserve

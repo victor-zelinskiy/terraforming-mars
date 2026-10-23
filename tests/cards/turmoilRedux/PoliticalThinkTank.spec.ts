@@ -50,7 +50,8 @@ function topCard(game: IGame, name: CardName): IProjectCard {
  */
 function setPartyRequirementCards(): number {
   const classic = Object.entries(TURMOIL_CARD_MANIFEST.projectCards)
-    .filter(([name]) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name as CardName))
+    // Off the hold-back list AND not replaced: a replaced classic card (TR71 took Aerial Lenses) is never dealt to Redux.
+    .filter(([name]) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name as CardName) && !TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.has(name as CardName))
     .map(([, entry]) => entry);
   return [...Object.values(TURMOIL_REDUX_CARD_MANIFEST.projectCards), ...classic]
     .map((entry) => entry?.Factory === undefined ? undefined : new entry.Factory())
@@ -238,7 +239,8 @@ describe('PoliticalThinkTank', () => {
       // Classic cards a Redux table does NOT deal yet — read from the hold-back list, never a name (T09 dealt PR Office,
       // T12 Red Tourism Wave and T15 Wildlife Dome, the cards these lines pushed until then: an adapted card is already
       // in the clean pool and adds nothing).
-      const heldBack = [...TURMOIL_CARDS_HELD_BACK_UNDER_REDUX].map((name) => newProjectCard(name))
+      // A REPLACED classic card counts too (TR71 removed Aerial Lenses — the last such card off the list).
+      const heldBack = [...TURMOIL_CARDS_HELD_BACK_UNDER_REDUX, ...TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove].map((name) => newProjectCard(name))
         .filter((c): c is IProjectCard => c !== undefined && hasPartyRequirement(c) && c.name !== CardName.SPONSORED_MOHOLE);
       // The held-back list shrinks with every adaptation (T05 dealt Event Analysts), so ONE held-back card walks every
       // place a card can stand — the draw pile, a hand, the discard — and Sponsored Mohole stands on a table.

@@ -8,6 +8,7 @@ import {
   TURMOIL_CARDS_HELD_BACK_UNDER_REDUX,
   TURMOIL_CARDS_TO_ADAPT_IN_PLACE,
 } from '../../src/common/cards/turmoilReduxAdaptation';
+import {TURMOIL_REDUX_REPLACED_CLASSIC_NAMES} from '../../src/common/cards/turmoilReduxReplacements';
 import {TURMOIL_CARD_MANIFEST} from '../../src/server/cards/turmoil/TurmoilCardManifest';
 import * as serverList from '../../src/server/cards/turmoil/turmoilReduxAdaptation';
 
@@ -32,11 +33,22 @@ describe('premium scope', () => {
     }
   });
 
-  it('a classic Turmoil card that left the list is IN scope — the scope is exactly «the manifest minus the list»', () => {
+  it('a classic Turmoil card that left the list is IN scope — the scope is exactly «the manifest minus the list minus the replaced»', () => {
     const manifest = Object.keys(TURMOIL_CARD_MANIFEST.projectCards).concat(Object.keys(TURMOIL_CARD_MANIFEST.corporationCards));
     const inScope = manifest.filter((name) => inPremiumScope({module: 'turmoil', name}));
-    expect(inScope).deep.eq(manifest.filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name as CardName)));
+    expect(inScope).deep.eq(manifest.filter((name) =>
+      !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name as CardName) && !TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(name as CardName)));
     expect(inPremiumScope({module: 'turmoil', name: 'A card that left the list'})).is.true;
+  });
+
+  // A REPLACED classic card never reaches a Redux table, whichever way it is kept out (its row, or — once its
+  // `:redux` replacement is authored — the Redux manifest's `cardsToRemove`): it is never in scope, the replacement is.
+  it('a replaced classic Turmoil card is OUT of scope for good — off the list too (TR71 Aerial Lenses:redux is the first)', () => {
+    for (const name of TURMOIL_REDUX_REPLACED_CLASSIC_NAMES) {
+      expect(inPremiumScope({module: 'turmoil', name}), name).is.false;
+    }
+    expect(TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(CardName.AERIAL_LENSES), 'Aerial Lenses left the list').is.false;
+    expect(inPremiumScope({module: 'turmoilRedux', name: CardName.AERIAL_LENSES_REDUX})).is.true;
   });
 
   it('the list is read for the classic Turmoil module ONLY — another module\'s card is never held back by a name', () => {

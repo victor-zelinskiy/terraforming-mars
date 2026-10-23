@@ -1,6 +1,7 @@
 import {CardName} from './CardName';
 import {GameModule} from './GameModule';
 import {TURMOIL_CARDS_HELD_BACK_UNDER_REDUX} from './turmoilReduxAdaptation';
+import {TURMOIL_REDUX_REPLACED_CLASSIC_NAMES} from './turmoilReduxReplacements';
 
 /**
  * THE PREMIUM SCOPE — which cards every premium subsystem covers (previews, reasons, the
@@ -14,7 +15,8 @@ import {TURMOIL_CARDS_HELD_BACK_UNDER_REDUX} from './turmoilReduxAdaptation';
  * adapted in its own task (`docs/TURMOIL_REDUX_CLASSIC_CARDS.md`); a card still in the
  * hold-back list (`turmoilReduxAdaptation.ts`) is neither dealt to a Redux table nor in
  * scope, and leaving the list does both at once — the worklist and the scope are one
- * object. Widening to a whole new module is the expansion-adaptation procedure
+ * object. A classic card the Redux set REPLACES (`turmoilReduxReplacements.ts`) stays out
+ * for good: its `:redux` replacement is the card a Redux table deals and covers. Widening to a whole new module is the expansion-adaptation procedure
  * (`docs/claude/expansion-adaptation-checklist.md`): add its key HERE, then let the
  * guards print the work.
  */
@@ -43,5 +45,11 @@ export function inPremiumScope(card: PremiumScopeSubject, modules: ReadonlyArray
   if (!modules.includes(card.module)) {
     return false;
   }
-  return card.module !== 'turmoil' || !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(card.name as CardName);
+  if (card.module !== 'turmoil') {
+    return true;
+  }
+  // A REPLACED classic card never reaches a Redux table — not while its row holds it back, not after its
+  // `:redux` replacement took over (`cardsToRemove`); the replacement is the Redux card in scope.
+  const name = card.name as CardName;
+  return !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name) && !TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(name);
 }

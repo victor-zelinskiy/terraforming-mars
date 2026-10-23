@@ -1142,6 +1142,9 @@ export enum CardName {
   EDEN_ALLIANCE = 'Eden Alliance',
   PROMETHEAN_ALLIANCE = 'Promethean Alliance',
 
+  // Turmoil Redux replacements of classic Turmoil cards (TR71…; `cards/turmoilRedux/classicReplacements.ts`)
+  AERIAL_LENSES_REDUX = 'Aerial Lenses:redux',
+
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',
   COLLUSION_STANDARD_PROJECT = 'Collusion:SP',

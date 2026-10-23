@@ -142,12 +142,16 @@ describe('devGuaranteedCards', () => {
       for (const name of adapted) {
         expect(TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name), name).to.be.false;
       }
-      // A card awaiting its Redux replacement is dealt to no Redux table — offered nowhere.
-      expect(named).to.not.include(CardName.AERIAL_LENSES);
-      for (const module of GUARANTEED_MODULES) {
-        expect(guaranteedPickRows(module.id, new Set()).some((row) => row.kind === 'card' && row.entry.name === CardName.AERIAL_LENSES),
-          module.id).to.be.false;
+      // A card awaiting its Redux replacement (Banned Delegate) and a REPLACED one (Aerial Lenses — off the list since
+      // TR71) are dealt to no Redux table — offered nowhere; the replacement itself is offered under Redux.
+      for (const classic of [CardName.BANNED_DELEGATE, CardName.AERIAL_LENSES]) {
+        expect(named).to.not.include(classic);
+        for (const module of GUARANTEED_MODULES) {
+          expect(guaranteedPickRows(module.id, new Set()).some((row) => row.kind === 'card' && row.entry.name === classic),
+            `${module.id} · ${classic}`).to.be.false;
+        }
       }
+      expect(named).to.include(CardName.AERIAL_LENSES_REDUX);
       // …and a restored pick of an adapted card survives the prune.
       const p = picks();
       toggleGuaranteedCard(p, CardName.DIASPORA_MOVEMENT);

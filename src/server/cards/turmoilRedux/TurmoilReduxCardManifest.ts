@@ -70,6 +70,7 @@ import {PoliticalRecognition} from './PoliticalRecognition';
 import {TharsisAlliance} from './TharsisAlliance';
 import {EdenAlliance} from './EdenAlliance';
 import {PrometheanAlliance} from './PrometheanAlliance';
+import {AerialLensesRedux} from './AerialLensesRedux';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -77,16 +78,19 @@ import {PrometheanAlliance} from './PrometheanAlliance';
  * The expansion's RESOLUTIONS are not cards of this manifest: they live in
  * `src/server/parliament/resolutions/**` and reach the client through
  * `ParliamentCatalog`. This manifest carries the set's 70 PROJECT CARDS
- * (TR01…TR70), shipped ONE AT A TIME like the resolutions were, plus — still
- * to author — the REPLACEMENTS the set prints for seven classic Turmoil cards
- * (`classicReplacements.ts`: six projects and the Septem Tribus corporation).
+ * (TR01…TR70), shipped ONE AT A TIME like the resolutions were, plus the
+ * REPLACEMENTS the set prints for seven classic Turmoil cards
+ * (`classicReplacements.ts`: six projects — TR71…TR76 in the registry's order —
+ * and the Septem Tribus corporation; TR71 Aerial Lenses authored 2026-10-24).
  * A replacement is registered here under a `:redux`-suffixed name with the
  * classic name in this manifest's `cardsToRemove`; until then the classic card
  * is held back by `cards/turmoil/turmoilReduxAdaptation.ts`. The classic
  * Turmoil manifest itself joins a Redux deck since 2026-10-21 (`GameCards`),
  * card by card as that hold-back list empties.
  *
- * CARD NUMBER NAMESPACE — `TR##`, zero-padded to two digits (TR01…TR70).
+ * CARD NUMBER NAMESPACE — `TR##`, zero-padded to two digits (TR01…TR70; the
+ * replacements TR71…TR76, whose scans print the placeholder «TR00» — each one
+ * borrows its classic card's art and lore through `metadata.reimplements`).
  * `metadata.cardNumber` is the module's card ID, and in this fork it is also
  * the ART key (`assets/card-images/<cardNumber>.webp` + `thumb/`) and the LORE
  * key (`assets/text/lore_texts.json`) — see `client/cards/cardArt.ts` and
@@ -340,5 +344,14 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // power is the owner's rating (+1 TR when either party becomes ruling).
     [CardName.EDEN_ALLIANCE]: {Factory: EdenAlliance},
     [CardName.PROMETHEAN_ALLIANCE]: {Factory: PrometheanAlliance},
+    // REPLACEMENTS (TR71…, `common/cards/turmoilReduxReplacements.ts`) — a `:redux` card over a classic Turmoil card the
+    // Redux set reprints; the classic name stands in `cardsToRemove` below. TR71: the classic T01 at the Scientists' plate,
+    // 3 M€, a Science tag and no −1 VP; the art and the lore are T01's (`reimplements`).
+    [CardName.AERIAL_LENSES_REDUX]: {Factory: AerialLensesRedux},
   },
+  // The classic cards a replacement above stands in for — never dealt into a Redux game (upstream's
+  // `GameCards.filterReplacedCards`); a classic-Turmoil game does not load this manifest, so it keeps them.
+  cardsToRemove: [
+    CardName.AERIAL_LENSES,
+  ],
 });

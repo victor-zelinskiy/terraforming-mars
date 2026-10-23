@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {PreferencesManager} from '@/client/utils/PreferencesManager';
-import {translateText, translateTextNode} from '@/client/directives/i18n';
+import {translateCardName, translateText, translateTextNode} from '@/client/directives/i18n';
 
 describe('i18n', () => {
   let originalTranslations: unknown;
@@ -29,6 +29,15 @@ describe('i18n', () => {
     expect(translateText('x')).eq('x');
     expect(translateText('3x')).eq('3x');
 
+    expect(logs).deep.eq([]);
+  });
+
+  // A variant card id (`Name:promo` / `Name:ares` / a Turmoil Redux replacement's `Name:redux`) is keyed by its
+  // BASE name only — the replacement reads as the classic card's localized name, never a `:redux` duplicate key.
+  it('translates a `:redux` replacement id through the classic card\'s name', () => {
+    (window as any)._translations = {'Aerial Lenses': 'Воздушные линзы'};
+    expect(translateText('Aerial Lenses:redux')).eq('Воздушные линзы');
+    expect(translateCardName('Aerial Lenses:redux')).eq('Воздушные линзы');
     expect(logs).deep.eq([]);
   });
 

@@ -110,7 +110,11 @@ describe('classic Turmoil cards under Turmoil Redux', () => {
       const adapted = [CardName.DIASPORA_MOVEMENT, CardName.GMO_CONTRACT, CardName.PR_OFFICE, CardName.PARLIAMENT_HALL, CardName.RED_TOURISM_WAVE, CardName.SUPPORTED_RESEARCH, CardName.WILDLIFE_DOME, CardName.PUBLIC_CELEBRATIONS, CardName.CULTURAL_METROPOLIS, CardName.EVENT_ANALYSTS, CardName.MARTIAN_MEDIA_CENTER];
       const adaptedCorporations = [CardName.LAKEFRONT_RESORTS, CardName.TERRALABS_RESEARCH, CardName.UTOPIA_INVEST, CardName.PRISTAR];
       const all = [...adapted, ...adaptedCorporations];
-      expect(CLASSIC.filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name))).to.have.members(all).and.length(all.length);
+      // Off the list but REPLACED (TR71 Aerial Lenses:redux, 2026-10-24 — the first): never dealt, see «the replacements».
+      const replaced = [CardName.AERIAL_LENSES];
+      const offTheList = CLASSIC.filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name));
+      expect(offTheList).to.have.members([...all, ...replaced]).and.length(all.length + replaced.length);
+      expect(offTheList.filter((name) => !TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(name))).to.have.members(all).and.length(all.length);
       const dealt = dealtClassic(REDUX);
       expect(dealt.projects).to.have.members(adapted).and.length(adapted.length);
       expect(dealt.corporations).to.have.members(adaptedCorporations).and.length(adaptedCorporations.length);
@@ -118,9 +122,9 @@ describe('classic Turmoil cards under Turmoil Redux', () => {
   });
 
   describe('the deck', () => {
-    it('with Turmoil Redux on, deals exactly the classic cards no longer held back', () => {
+    it('with Turmoil Redux on, deals exactly the classic cards no longer held back — and not replaced', () => {
       const {projects, corporations} = dealtClassic(REDUX);
-      const expectedProjects = PROJECTS.filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name));
+      const expectedProjects = PROJECTS.filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name) && !TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.has(name));
       const expectedCorporations = CORPORATIONS.filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name) && name !== CardName.SEPTUM_TRIBUS);
       expect(projects).to.have.members(expectedProjects);
       expect(corporations).to.have.members(expectedCorporations);

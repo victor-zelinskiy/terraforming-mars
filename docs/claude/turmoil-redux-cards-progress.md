@@ -6092,3 +6092,27 @@ M1 / M2 / M3 на боксе (раскадровки FHD) → батч: **M1 «�
 (рамка производства), «+4» рождён `wild` (голый «?») → сел `rail:steel`; рельс `pr1|st2 → pr0|st2 → pr0|st6`; сервер 1 → 0 /
 2 → 6, действие использовано («Активированы 1»); B — единственный вариант посеян и помечен, коммит прибыл, A исполняет
 сталь; D — всё на полу: плитка `rules` с названной причиной. 6 / 6. Фикстуры `utopia-invest`, `-sole`, `-dead`.
+
+## TR71 · Aerial Lenses:redux («Воздушные линзы») — ПЕРВАЯ КАРТА-ЗАМЕНА · МЕХАНИЗМ ЗАМЕНЫ — СДАНА 2026-10-24
+
+**Карта** (`turmoilRedux/AerialLensesRedux.ts`): зелёная, 3, Наука, без ПО; требование — ПЕЧАТНЫЕ «Учёные» (`{party: SCIENTISTS}`, не
+нормализация Кельвинисты → Зелёные классики); `behavior: {production: {heat: 2}, removeAnyPlants: 2}` — ни строки bespoke. Лицо: «− [растение]
+[растение]» (рамки «любой игрок») / плита производства с двумя теплом. `cardNumber: 'TR71'`, `reimplements: AERIAL_LENSES` → арт `T01.webp`
+(импортирован под классическим номером, DARPA) и лор `T01` («Burning the ground to release carbon dioxide.» — со скана, не придуман; RU
+«Выжигаем почву, чтобы высвободить углекислый газ.»). RU описания — `turmoil_redux_cards.json`; RU-имя — классическое через откат суффикса
+(`translateText` / `translateCardName`, пин `tests/client/i18n.spec.ts`). `card_info` — аудит чист (0 missing).
+
+**Механизм замены** (общий слой, впервые): ① реестр замен переехал в `common/cards/turmoilReduxReplacements.ts` (серверный
+`classicReplacements.ts` — ре-экспорт): его читает премиум-скоуп; ② `inPremiumScope` исключает заменённую классику НАВСЕГДА (иначе уход
+строки из hold-back-списка ввёл бы классическую Aerial Lenses во все гарды); ③ dev-пикер «Гарантированные карты» (`guaranteedModuleOf`) тоже —
+иначе классика предлагалась бы под Redux; ④ манифест: регистрация + `cardsToRemove: [AERIAL_LENSES]` (`GameCards.filterReplacedCards` апстрима;
+счётчик колоды серверный — через `GameCards`, уважает сам); ⑤ номера: TR71…TR76 = проектные строки реестра по порядку
+(`replacementCardNumber`), гард манифеста `within(1, 76)` + «номер > 70 — замена своей строки, `reimplements` её классики, имя `<X>:redux`» +
+«`cardsToRemove` = ровно классика авторизованных замен»; ⑥ строка долой из `TURMOIL_CARDS_AWAITING_REDUX_REPLACEMENT`, пины
+`TurmoilCardsUnderRedux` («adapted» + `replaced`; «deals exactly» минус `cardsToRemove`).
+
+**Гарды.** `AerialLensesRedux.spec` (20: печать, требование — 0/1/2 из 2, `partyOffVote`, Зелёные у власти — не дорога, грант — не дорога,
+TR70-вейвер; розыгрыш — пик цели, «до 2», отказ внутри пика, именованный пропуск без целей, превью = исполнение, MarsBot — цель; раздача —
+Redux / классика; скоуп; save/load), `TurmoilReduxCardManifest.spec` (+2), `premiumScope.spec` (+1), `cardLore.spec` (+1, арт и лор через
+`reimplements`), `devGuaranteedCards.spec`. Своего e2e нет (§5: механики не новые). Чужие красные на момент сдачи: `effectCaption` (Pristar —
+сосед), `cardLore` RU-паритет (`T02` — лор следующей замены, добавлен владельцем без RU).

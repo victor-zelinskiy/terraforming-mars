@@ -65,6 +65,14 @@
   RU-переводу из `turmoil_redux_cards.json` РУКАМИ: гарды `effectCaption` / `actionCaption` читают RU только из
   `cards.json` / `card_info.json` / `ui.json` и модульный словарь не видят (TR05: EN-правило 44, RU ≈ 75 → `action-short`).
 - Перед КАЖДЫМ ключом: `grep -rn '"<ключ>"' src/locales/*/*.json` — дубль роняет `make:json`.
+- **Карта-ЗАМЕНА** (одна из шести проектов реестра `common/cards/turmoilReduxReplacements.ts`; первая — TR71 Aerial Lenses,
+  2026-10-24): имя `CardName.<X>_REDUX = '<X>:redux'` (RU-имя — классическое: `translateText` / `translateCardName` откатываются
+  на имя без суффикса, ключ-дубль `"<X>:redux"` НЕ заводить), номер — из реестра (`replacementCardNumber(classic)`: TR71…TR76 по
+  порядку проектных строк; скан печатает «TR00»), `metadata.reimplements: CardName.<X>` — арт и лор КЛАССИЧЕСКОЙ карты
+  (`T0#.webp` и ключ `T0#` — импортировать под классическим номером, своих `TR7#` не заводить), манифест — регистрация +
+  `cardsToRemove: [CardName.<X>]`, строка `CardName.<X>` долой из `TURMOIL_CARDS_AWAITING_REDUX_REPLACEMENT` и пин «the adapted
+  cards» (`replaced`) — тем же диффом. Заменённая классика вне премиум-скоупа и вне dev-пикера НАВСЕГДА (`inPremiumScope`,
+  `guaranteedModuleOf` читают реестр). Гарды: `TurmoilReduxCardManifest.spec` § «a number past TR70», `premiumScope.spec`.
 - **Тестовый режим**: модуль уже в `GUARANTEED_MODULES` (через `PREMIUM_EXPANSIONS`) — карту можно
   гарантировать в первую руку без правок (`docs/DEV_GUARANTEED_CARDS.md`).
 
