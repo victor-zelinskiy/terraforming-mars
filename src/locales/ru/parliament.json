@@ -1211,6 +1211,8 @@
   "No neutral delegates left": "Нейтральных делегатов не осталось",
   "Choose the resolution": "Выбрать резолюцию",
   "Resolution — chosen in the Parliament": "Резолюция — выбор в Парламенте",
+  "1 delegate to a resolution, after the play — chosen in the Parliament": "1 делегат на резолюцию после розыгрыша — выбор в Парламенте",
+  "${0} delegates to one resolution, after the play — chosen in the Parliament": "${0} делегата на одну резолюцию после розыгрыша — выбор в Парламенте",
   "from the reserve · by the card": "из резерва · по карте",
   "+${0} of ${1} · area limit": "+${0} из ${1} · предел области",
   "+${0} of ${1} · neutral supply: ${2}": "+${0} из ${1} · нейтральных в запасе: ${2}",

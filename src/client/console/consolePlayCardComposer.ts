@@ -384,6 +384,18 @@ export function agendaWalkNextRows(walk: AgendaWalkModel): Array<NextRowKey> {
 }
 
 /**
+ * THEN — A LIVE DELEGATE GRANT'S «next» ROW (T03 Cultural Metropolis — `delegateGrantFollowUp`): the play's other
+ * door (the city's staged cell) is the reversible one, the vote comes AFTER the commit as the flow's next step. The
+ * count is the step's own (what the reserve covers — the server's number), never parsed from a note; the resolution
+ * is not guessed — it is chosen in the Parliament, where each card reads its own forecast.
+ */
+export function delegateGrantFollowUpRow(step: {count: number}): NextRowKey {
+  return step.count === 1 ?
+    {key: '1 delegate to a resolution, after the play — chosen in the Parliament'} :
+    {key: '${0} delegates to one resolution, after the play — chosen in the Parliament', params: [String(step.count)]};
+}
+
+/**
  * THE WHY OF A COUNTED WALK, as one row (TR42 — `walk.basis`): «Шаги Карьеры по
  * РТ: РТ 33 · порог 20 · 2 полных набора · до следующего 2», or the named zero
  * «Маркер Карьеры не двинется: РТ 23 · порог 20 · ни одного полного набора по

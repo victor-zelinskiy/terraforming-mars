@@ -2653,6 +2653,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   // oxygen at its maximum · no free cell (T15 not playable) · a standard City with Pets on the table · Ice Asteroid with
   // one ocean left (PL-595).
   'wildlife-dome' | 'wildlife-dome-o2max' | 'wildlife-dome-noroom' | 'sp-city-pets' | 'oceans-one-left' |
+  // T03 Cultural Metropolis — two doors (the city's staged cell, then the live vote for 2): Unity rules · locked
+  // («1 of 2») · Unity rules with ONE delegate in the reserve («Делегатов в резерве: 1 из 2»).
+  'cultural-metropolis' | 'cultural-metropolis-locked' | 'cultural-metropolis-reserve' |
   // T06 GMO Contract — the contract on the table (Lichen · Ecology Research · Pets in hand) · in hand · locked.
   'gmo-contract' | 'gmo-contract-hand' | 'gmo-contract-locked' |
   // T09 PR Office — Unity rule (playable, «+1 TR · +3 M€») · locked («1 of 2»).

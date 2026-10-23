@@ -1767,6 +1767,7 @@ import {
   workspaceStackRootKind,
   resumeStackFromBoard,
   stackYieldedToBoard,
+  yieldedStackCards,
   descendWorkspaceFrame,
   enterWorkspace,
   foldWorkspaceFrame,
@@ -1982,6 +1983,7 @@ import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.v
 
 import {promptSourceResolution, promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {PlacementConversion, PlacementShape, StagedPlayPlate, stagedPlayPlate} from '@/client/console/placementDossier';
+import {cardGrantOwedTo} from '@/client/console/cardGrantHost';
 
 import {ConsoleTaskSummary, consoleTaskSummary, placementKicker} from '@/client/console/consoleTaskSummary';
 import {setStartSetupRevealSuspended} from '@/client/components/startGameFlow/startSetupRevealState';
@@ -12331,7 +12333,12 @@ export default defineComponent({
               ...(parked.movedFrom !== undefined ? {movedFrom: parked.movedFrom} : {}),
             });
           }
-          discardYieldedStack();
+          // …UNLESS THE PLAY OWES A SECOND DOOR (T03 Cultural Metropolis — `cardGrantHost.ts`): the answer raised this
+          // card's own live delegate grant, so the flow is not over — it stays aside, comes back over the quiet board
+          // (`resumeYieldedStackOverQuietBoard`, the placement's falling edge) and hosts the vote as its next step.
+          if (!(arm?.flow === 'play' && cardGrantOwedTo(this.playerView.waitingFor, yieldedStackCards()))) {
+            discardYieldedStack();
+          }
           // A card played THROUGH A LAW (RX36): its stage was yielded and is dropped with the stack — nothing of it is
           // kept (the composed play, the landing, the stage's own drafts it kept while it was only aside).
           if (arm?.flow === 'law') {
@@ -13646,11 +13653,18 @@ export default defineComponent({
      * falling edge fired against a stack that held no frames, so nothing else will pop the frame.
      */
     resumeStackFromBoardAndSettle(): void {
+      const carried = yieldedStackCards();
       if (!resumeStackFromBoard()) {
         return;
       }
       if (!this.colonyFollowUpLive) {
         this.settleColonyFollowUp();
+      }
+      // THE PLAY'S SECOND DOOR (T03): the flow came back for the card's own live grant — its vote opens INSIDE it now
+      // (the party branch held it while the flow stood aside).
+      const task = taskFor(this.playerView);
+      if (task !== undefined && task.kind === 'party' && cardGrantOwedTo(this.playerView.waitingFor, carried)) {
+        this.openShellTaskSurface(task);
       }
     },
     openColoniesForPrompt(): void {
@@ -19844,6 +19858,12 @@ export default defineComponent({
         // A CARD's build (TR25) whose stage still stands: the grant's step takes the section's central area, so its
         // door waits for the stage to go HOME — `landColonyBuild` opens it then (never a Parliament over a lit stage).
         if (partyStep && colonyBuildAnswered() && this.colonyFocus.open) {
+          return;
+        }
+        // A CARD's live grant whose play stands aside for the board (T03 — the city's staged cell came first): the
+        // flow comes back over the quiet board and opens the vote inside itself (`resumeStackFromBoardAndSettle`);
+        // a standalone Parliament here would be a second place for one press.
+        if (partyStep && stackYieldedToBoard() && cardGrantOwedTo(this.playerView.waitingFor, yieldedStackCards())) {
           return;
         }
         if (partyStep) {

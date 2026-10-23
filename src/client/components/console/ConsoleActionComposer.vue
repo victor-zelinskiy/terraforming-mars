@@ -880,7 +880,7 @@ import {ActionPreview, ActionPreviewBranch, ActionEffect, StagedVoteModel} from 
 import {ActionFutilityVerdict} from '@/common/models/ActionFutilityModel';
 import {gainAtParameterLimit} from '@/client/components/actions/actionEffectReading';
 import {DELEGATE_ICON} from '@/common/parliament/ParliamentTypes';
-import {playCommitVerb, playDoorNextStepKey, playDoorOf, samePreviewShape, variantGroupNav, VariantAxis} from '@/client/console/consolePlayCardComposer';
+import {delegateGrantFollowUpRow, nextRowText, playCommitVerb, playDoorNextStepKey, playDoorOf, samePreviewShape, variantGroupNav, VariantAxis} from '@/client/console/consolePlayCardComposer';
 import {useResizeObserver} from '@vueuse/core';
 import {SettledColumn} from '@/client/console/settledColumn';
 import {STAGED_STEP_RELEASE_MS, StagedReceipt, stagedPlayState, stagedVoteOf} from '@/client/console/stagedPlay';
@@ -2302,6 +2302,10 @@ export default defineComponent({
           // The resolution is chosen in the Parliament (TR15 — the play door's own row, one key for both doors):
           // the step's NAME, never a guess about its result.
           out.push(noteRow(translateText(playDoorNextStepKey({kind: 'parliament', staged: step.staged, mode: 'vote'}) ?? '')));
+        } else if (step.kind === 'delegateGrantFollowUp') {
+          // THEN — a LIVE grant after the activation (a declarative `turmoil.sendDelegates` action — Martian Media
+          // Center on a Redux table): the play composer's own row (T03).
+          out.push(noteRow(nextRowText(delegateGrantFollowUpRow(step), {text: translateText, params: translateTextWithParams})));
         } else if (step.kind === 'note' && step.noteKind !== 'warning') {
           out.push(noteRow(step.text !== undefined ? textOf(step.text) : translateText('An additional choice')));
         }

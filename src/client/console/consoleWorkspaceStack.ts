@@ -1625,6 +1625,14 @@ export function stackYieldedToBoard(): boolean {
   return boardYielded.length > 0;
 }
 
+/**
+ * The cards the flow standing aside for the board CARRIES (its frames' subjects and source cards) — what a live
+ * follow-up of that flow names as its giver (`cardGrantHost.cardGrantOwedTo`, T03).
+ */
+export function yieldedStackCards(): Array<string> {
+  return boardYielded.flatMap((frame) => [frame.subject, frame.sourceCard]).filter((card) => card !== '');
+}
+
 /** Park the whole stack (B past the commit boundary — «свернуть»). */
 export function collapseWorkspaceStack(): void {
   traceVerb('collapseWorkspaceStack');

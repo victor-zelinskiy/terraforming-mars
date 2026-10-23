@@ -8331,6 +8331,61 @@ wildlifeDomeTable('wildlife-dome-noroom', ({game, p1, p2}) => {
     }
   }
 }, false);
+// ── T03 · CULTURAL METROPOLIS — the first classic card with a political EFFECT on the facade, and the first play with
+//    TWO DOORS (ledger CF): the city's staged cell, THEN the live grant «2 delegates to one resolution» (the vote mode,
+//    hosted in the hand's own zone). Cultural Metropolis MOVED out of the dealt pool into blue's hand, 40 M€, 1 energy
+//    production (the card's −1 needs a step to take).
+//      · `cultural-metropolis` — Unity RULES (its quiet law enacted): playable, «energy 1 → 0 · M€ +3», the reserve 2+;
+//      · `cultural-metropolis-locked` — another party rules and Unity's resolution stands on the vote with ONE delegate of
+//        blue's: «✕», «1 of 2»;
+//      · `cultural-metropolis-reserve` — Unity rules, but blue's reserve holds ONE delegate (the rest on a resolution):
+//        «✕», «Делегатов в резерве: 1 из 2». ──
+function culturalMetropolisTable(game: IGame, p1: IPlayer): void {
+  p1.production.add(Resource.ENERGY, 1);
+  gmoToHand(game, p1, [CardName.CULTURAL_METROPOLIS]);
+}
+function culturalMetropolisFixture(name: string, arrange: (table: ParliamentTable) => void, playable: boolean, check: (table: ParliamentTable) => string | undefined): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [40, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: (table) => {
+      arrange(table);
+      culturalMetropolisTable(table.game, table.p1);
+    },
+    expect: (table) => {
+      const {game, p1, parliament} = table;
+      const card = p1.cardsInHand.find((c) => c.name === CardName.CULTURAL_METROPOLIS);
+      const wrong = check(table);
+      if (card === undefined || p1.canPlay(card) !== playable || game.activePlayer.id !== p1.id || wrong !== undefined) {
+        throw new Error(`the ${name} fixture expected T03 ${playable ? 'playable' : 'NOT playable'} with blue on the move — got card=${card !== undefined} canPlay=${card !== undefined && p1.canPlay(card)} ruling=${parliament.rulingParty()} reserve=${parliament.reserve(p1)} ${wrong ?? ''}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+culturalMetropolisFixture('cultural-metropolis', ({parliament}) => {
+  seatEnacted(parliament, quietResolutionOf(PartyName.UNITY));
+}, true, ({p1, parliament}) =>
+  parliament.rulingParty() !== PartyName.UNITY || parliament.reserve(p1) < 2 || parliament.partiesInVotingArea().length < 2 ? 'Unity ruling, 2+ in reserve, 2+ resolutions on the vote' : undefined);
+culturalMetropolisFixture('cultural-metropolis-locked', ({parliament, p1}) => {
+  seatEnacted(parliament, quietResolutionOf(PartyName.INDUSTRIALISTS));
+  if (parliament.slotOf(PartyName.UNITY) === undefined) {
+    seatResolution(parliament, 0, quietResolutionOf(PartyName.UNITY));
+  }
+  parliament.placeVote(p1, parliament.slotOf(PartyName.UNITY)!, 'lobby');
+}, false, ({p1, parliament}) => {
+  const unity = parliament.slotOf(PartyName.UNITY);
+  return unity === undefined || parliament.votesOf(p1, unity) !== 1 || parliament.rulingParty() === PartyName.UNITY ? 'one delegate of blue\'s on Unity\'s resolution, Unity not ruling' : undefined;
+});
+culturalMetropolisFixture('cultural-metropolis-reserve', ({parliament, p1}) => {
+  seatEnacted(parliament, quietResolutionOf(PartyName.UNITY));
+  const slot = parliament.slots[parliament.slots.length - 1];
+  while (parliament.reserve(p1) > 1) {
+    parliament.placeVote(p1, slot, 'reserve');
+  }
+}, false, ({p1, parliament}) =>
+  parliament.rulingParty() !== PartyName.UNITY || parliament.reserve(p1) !== 1 ? 'Unity ruling and exactly 1 in blue\'s reserve' : undefined);
 parliamentFixture('sp-city-pets', {
   stopAt: 'vote',
   megacredits: [40, 30],

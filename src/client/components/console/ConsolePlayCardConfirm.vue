@@ -798,7 +798,7 @@ import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 import {isGeneralBranch, sharedLeadingEffects,
   playComposerFootHints, FootHint, PlayFocusKind,
   computePrimaryAction, PrimaryActionState, initialVariantSelection,
-  playPrimaryVerb, PlayFocusTarget, PlayDoor, playDoorOf, playCommitVerb, playDoorNextStepKey, heroRewardEffectsOf, agendaWalkNextRows, nextRowText, RowTranslator, branchHostsParliamentStep, agendaWalkWhy, AgendaWalkWhy,
+  playPrimaryVerb, PlayFocusTarget, PlayDoor, playDoorOf, playCommitVerb, playDoorNextStepKey, heroRewardEffectsOf, agendaWalkNextRows, delegateGrantFollowUpRow, nextRowText, RowTranslator, branchHostsParliamentStep, agendaWalkWhy, AgendaWalkWhy,
   playChoiceMode, PlayChoiceMode, foldCopiedProductionEffects, samePreviewShape,
   variantGroupNav, VariantAxis,
 } from '@/client/console/consolePlayCardComposer';
@@ -2131,6 +2131,10 @@ export default defineComponent({
           if (key !== undefined) {
             out.push(noteRow(translateText(key)));
           }
+        } else if (s.kind === 'delegateGrantFollowUp') {
+          // THEN — the LIVE grant after the commit (T03): «Затем: 2 делегата на одну резолюцию — выбор в Парламенте»,
+          // the count the server's, the resolution chosen where its forecast reads.
+          out.push(noteRow(nextRowText(delegateGrantFollowUpRow(s), ROW_TRANSLATOR)));
         } else if (s.kind === 'supportDiscard') {
           // THE SUPPORT-AREA DOOR's own row (TR12): «Область поддержки — выбор в Парламенте» — what leaves which
           // area is read on each plaque in the Parliament («3 → 0»), never guessed here before the area is chosen.
