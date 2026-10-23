@@ -232,34 +232,18 @@
         </transition>
       </div>
 
-      <!-- ── STATUS RAIL: the focused card's availability block (the shared
-           ConsoleCardAvailabilityPanel, compact density): the card's name +
-           a loud TV-readable status on the first row, the requirement-vs-now
-           comparison in the reading voice on the second. Amber = «пока не
-           выполнено» (evaluative), red = the server PROVED «уже не
-           выполнить» — informational either way, never blocking language
-           (the pick/buy stays fully available). IN FLOW, directly under the
-           stage and ABOVE the shelf overlay: it explains the card the player
-           is looking at, so it may never be covered by the collection, nor
-           float over the cards. ─────────── -->
-      <!-- Held through the commit's completion too: a status line naming the
-           focused card floated alone over the emptied stage while the
-           unbought cards tumbled out. -->
+      <!-- ── THE READING ROW (T10 · CE): the card under the cursor read whole —
+           name · play cost · tags · VP · the requirement's verdict in the
+           hand's language (amber «пока не выполнено», red when the server
+           PROVED «уже не выполнить» — informational, the pick/buy stays
+           available). ONE line in a reserved zone: the stage above never
+           reflows. IN FLOW under the stage and ABOVE the shelf overlay — it
+           explains the card the player is looking at, so the collection may
+           never cover it. Held through the commit's completion: a line naming
+           the focused card floated alone over the emptied stage while the
+           unbought cards tumbled out. ─────────── -->
       <div class="con-draftws__statusbar" :class="{'con-draftws__statusbar--held': beatActive || buyDeparting}">
-        <!-- ONE block in BOTH states. A met requirement set is the DEFAULT and
-             says nothing beyond the card's name (a status that fires on every
-             card is noise, and the positive state has no reader) — but the
-             NAME is the same element, at the same size, whether or not a
-             verdict stands beside it. The second, hand-rolled span this
-             replaced inherited the document's px size and read tiny on a TV
-             next to the block's own 1.18rem name. The key re-announces the
-             name on every focus move. -->
-        <ConsoleCardAvailabilityPanel v-if="statusEntry !== undefined"
-                                      :key="statusEntry.name"
-                                      variant="compact"
-                                      :view="statusAvailability"
-                                      :cardTitle="$t(statusEntry.name)"/>
-        <span v-else-if="zone === 'wait'" class="con-draftws__status-idle">{{ $t('Waiting for the other players') }}</span>
+        <ConsoleDraftReading :reading="statusReading" :idle="zone === 'wait' ? 'Waiting for the other players' : ''" />
       </div>
 
       <!-- ── THE SHELF («ОТОБРАНО») — the permanent collection zone. Slots
@@ -332,6 +316,9 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ConsoleJourneyRail from '@/client/components/console/foundation/ConsoleJourneyRail.vue';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
+import ConsoleDraftReading from '@/client/components/console/draft/ConsoleDraftReading.vue';
+import {DraftReading, draftReadingOf} from '@/client/console/draft/draftReadingModel';
+import {getCard} from '@/client/cards/ClientCardManifest';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
@@ -369,7 +356,6 @@ import {
 import {draftCommands, setConsoleDraftCommands, resetConsoleDraftUi, DraftCommandState} from '@/client/console/draft/consoleDraftUi';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {availabilityContextFor, buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
-import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 
 type CardEntry = {name: CardName, key: string, card: CardModel};
 
@@ -378,7 +364,7 @@ type DraftZone = 'pick' | 'wait' | 'buy' | 'pay' | 'inspect' | 'done';
 
 export default defineComponent({
   name: 'ConsoleDraftWorkspace',
-  components: {Card, GamepadGlyph, ConsoleWsHead, ConsoleJourneyRail, ConsoleCardDealLayer, ConsoleCardAvailabilityPanel},
+  components: {Card, GamepadGlyph, ConsoleWsHead, ConsoleJourneyRail, ConsoleCardDealLayer, ConsoleDraftReading},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
   },
@@ -720,6 +706,11 @@ export default defineComponent({
           this.zone === 'inspect' ? this.collectedAsEntries : [];
       return list[this.focusIdx] ?? list[0];
     },
+    /** The reading row's model (T10 · CE) — `undefined` when no card is under the cursor (the wait). */
+    statusReading(): DraftReading | undefined {
+      const entry = this.statusEntry;
+      return entry === undefined ? undefined : draftReadingOf(entry.card, getCard(entry.name));
+    },
     collectedAsEntries(): ReadonlyArray<CardEntry> {
       return this.collectedEntries
         .filter((e): e is {name: CardName, card: CardModel} => (e.card as CardModel).name !== undefined)
@@ -757,6 +748,7 @@ export default defineComponent({
           (this.zone === 'inspect' && this.collectedEntries.length > 0),
         hasCollected: this.collectedEntries.length > 0,
         buyingNothing: this.zone === 'buy' && this.picks.length === 0,
+        buyCount: this.zone === 'buy' ? this.picks.length : 0,
       };
     },
     buyAffordableWithOneMore(): boolean {

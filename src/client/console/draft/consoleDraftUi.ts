@@ -14,7 +14,8 @@
  *    LT = the drafted-cards sub-stage, B = minimize.
  *  - WAIT: LT = drafted cards, B = minimize (the pick is locked — nothing
  *    else is honestly on offer).
- *  - BUY: A = select/deselect, X = inspect, RT = confirm the purchase,
+ *  - BUY: A = select/deselect, X = inspect, RT = «Купить N» (N counted —
+ *    «Купить 0» is the honest verb of buying nothing; T10 · CE),
  *    B = minimize.
  *  - INSPECT (LT sub-stage): X = inspect, B = back. No game verbs — the
  *    picks are made; nothing here may mutate anything.
@@ -23,7 +24,7 @@ import {reactive} from 'vue';
 import type {GlyphControl} from '@/client/gamepad/glyphSets';
 
 /** A structural subset of the command bar's `ConsoleCommand`. */
-export type DraftCommand = {control: GlyphControl, label: string, enabled?: boolean, highlight?: boolean};
+export type DraftCommand = {control: GlyphControl, label: string, labelParams?: ReadonlyArray<string>, enabled?: boolean, highlight?: boolean};
 
 /** The workspace facts the command contract is derived from (pure — testable). */
 export type DraftCommandState = {
@@ -42,8 +43,10 @@ export type DraftCommandState = {
   hasCards: boolean,
   /** The drafted shelf has cards (LT has something to show). */
   hasCollected: boolean,
-  /** BUY: zero cards selected — RT's honest label is «Skip». */
+  /** BUY: zero cards selected — RT still commits, but nothing glows. */
   buyingNothing: boolean,
+  /** BUY: the cards selected — RT's honest verb counts them («Купить 2», «Купить 0» — T10 · CE). */
+  buyCount: number,
 };
 
 /** The draft command contract — ONE pure derivation for the bar. */
@@ -90,7 +93,8 @@ export function draftCommands(s: DraftCommandState): Array<DraftCommand> {
     }
     hints.push({
       control: 'triggerR',
-      label: s.buyingNothing ? 'Skip' : 'Buy',
+      label: 'Buy ${0}',
+      labelParams: [String(s.buyCount)],
       enabled: s.setValid,
       highlight: s.setValid && !s.buyingNothing,
     });

@@ -1198,5 +1198,6 @@
     "The only card": "Единственная карта",
     "No other targets": "Других целей нет",
     "No other players": "Других игроков нет",
-    "No other cards": "Других карт нет"
+    "No other cards": "Других карт нет",
+    "Buy ${0}": "Купить ${0}"
 }

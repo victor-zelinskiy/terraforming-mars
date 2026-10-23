@@ -220,7 +220,7 @@ async function surface(page: Page) {
       // probe, so measure the box against its content.
       statusClipped: (() => {
         const bar = document.querySelector<HTMLElement>('.con-draftws__statusbar');
-        const block = document.querySelector<HTMLElement>('.con-draftws__statusbar .con-cardavail');
+        const block = document.querySelector<HTMLElement>('.con-draftws__statusbar .con-dread');
         if (bar === null || block === null) {
           return false;
         }
@@ -340,12 +340,10 @@ test.describe('draft workspace · the between-generations flow', () => {
     //    reason in its «ДОСТУПНОСТЬ» panel; a card with nothing to say shows
     //    NO panel at all (never an empty container). One view-model feeds
     //    both, so a mismatch here is a wiring regression, not a copy drift.
-    //    The COMPACT block itself is always there — it is also the status
-    //    zone's card NAME, at one constant size whether or not a verdict
-    //    stands beside it — so `data-severity="clear"` is what says «nothing
-    //    to answer for», never the block's absence.
+    //    The READING ROW (T10 · CE) always names the card; the verdict is its
+    //    line-variant block, present only when there is something to say.
     const compactAvail = await page.evaluate(() => {
-      const el = document.querySelector('.con-draftws__statusbar .con-cardavail');
+      const el = document.querySelector('.con-draftws__statusbar .con-dread .con-cardavail');
       if (el === null) {
         return undefined;
       }
@@ -356,7 +354,7 @@ test.describe('draft workspace · the between-generations flow', () => {
       };
     });
     // The name is the one thing the zone ALWAYS states, in both states.
-    expect(await page.locator('.con-draftws__statusbar .con-cardavail__name').count(),
+    expect(await page.locator('.con-draftws__statusbar .con-dread__name').count(),
       'the status zone names the focused card whatever its verdict').toBe(1);
     await press(page, 'KeyX', 2600); // X — fullscreen (the open flight settles)
     await page.waitForSelector('dialog.con-zoom[open]', {timeout: 20_000});

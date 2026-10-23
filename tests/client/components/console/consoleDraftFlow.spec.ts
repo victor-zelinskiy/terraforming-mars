@@ -353,6 +353,7 @@ describe('consoleDraftUi — the command contract', () => {
     hasCards: true,
     hasCollected: true,
     buyingNothing: false,
+    buyCount: 0,
   };
 
   it('a beat swallows everything into Skip', () => {
@@ -377,12 +378,14 @@ describe('consoleDraftUi — the command contract', () => {
     expect(cmds.map((c) => c.control)).deep.eq(['triggerL', 'back']);
   });
 
-  it('the buy: toggle, inspect, RT with the honest Skip at zero picks', () => {
-    const zero = draftCommands({...BASE, zone: 'buy', singlePick: false, setValid: true, buyingNothing: true});
-    expect(zero.find((c) => c.control === 'triggerR')?.label).eq('Skip');
-    const some = draftCommands({...BASE, zone: 'buy', singlePick: false, setValid: true, focusedPicked: true});
+  it('the buy: toggle, inspect, RT counts what it buys — «Купить 0» at zero picks, nothing glowing (T10 · CE)', () => {
+    const zero = draftCommands({...BASE, zone: 'buy', singlePick: false, setValid: true, buyingNothing: true, buyCount: 0});
+    const rt0 = zero.find((c) => c.control === 'triggerR');
+    expect([rt0?.label, rt0?.labelParams, rt0?.highlight]).deep.eq(['Buy ${0}', ['0'], false]);
+    const some = draftCommands({...BASE, zone: 'buy', singlePick: false, setValid: true, focusedPicked: true, buyCount: 2});
     expect(some.find((c) => c.control === 'confirm')?.label).eq('Deselect');
-    expect(some.find((c) => c.control === 'triggerR')?.label).eq('Buy');
+    const rt2 = some.find((c) => c.control === 'triggerR');
+    expect([rt2?.label, rt2?.labelParams, rt2?.highlight]).deep.eq(['Buy ${0}', ['2'], true]);
   });
 
   it('the inspect sub-stage is read-only: X and Back, nothing else', () => {

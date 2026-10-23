@@ -3955,6 +3955,122 @@ html.con-reduced-motion {
     }
 }
 
+/* ── THE PACKET SHOWCASE'S READING ROW (T10 · CE — `ConsoleDraftReading`) ──
+   The card under the cursor read whole on ONE line: the name in the row's
+   hero voice, then its facts as OBJECTS (an icon and its number), the
+   verdict in the availability block's quiet register, the wallet closing
+   the row on the purchase. One line in every state (the host reserves its
+   height and clips); hierarchy by weight and colour, never by size alone. */
+.con-dread {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1.1rem;
+    min-width: 0;
+    max-width: 100%;
+    white-space: nowrap;
+    font-family: @con-font;
+    color: @con-text;
+
+    &__name {
+        flex: 0 1 auto;
+        min-width: 4rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: var(--con-t-section);
+        font-weight: 800;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        animation: con-draftws-num calc(180ms * var(--motion-scale, 1)) ease-out;
+    }
+    &__fact {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: var(--con-t-body);
+        b { font-weight: 800; }
+    }
+    &__fact + &__fact,
+    &__name + &__fact {
+        padding-left: 1.1rem;
+        box-shadow: inset .06rem 0 0 rgba(122, 168, 214, 0.22);
+    }
+    &__mc {
+        width: 1.25em;
+        height: 1.25em;
+        flex-shrink: 0;
+    }
+    &__printed {
+        color: @con-text-dim;
+        font-size: .82em;
+    }
+    &__tag {
+        width: 1.45em;
+        height: 1.45em;
+        flex-shrink: 0;
+        border-radius: 50%;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain;
+    }
+    &__vpbadge {
+        width: 1.25em;
+        height: 1.4em;
+        flex-shrink: 0;
+    }
+    &__verdict {
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+    }
+    &__idle {
+        color: @con-text-dim;
+        letter-spacing: .07rem;
+        text-transform: uppercase;
+        font-size: var(--con-t-secondary);
+    }
+    /* THE WALLET — the purchase's arithmetic as one plate at the row's end. */
+    &__wallet {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: .55rem;
+        margin-left: .6rem;
+        padding: .3rem .9rem;
+        border-radius: .5rem;
+        background: fade(@con-glass-soft, 70%);
+        box-shadow: inset 0 0 0 .05rem rgba(122, 168, 214, 0.22);
+        font-size: var(--con-t-body);
+
+        &--over { box-shadow: inset 0 0 0 .06rem fade(@con-amber, 70%); }
+    }
+    &__wallet-kicker {
+        font-size: var(--con-t-floor);
+        font-weight: 700;
+        letter-spacing: .12rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__wallet-calc {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        font-variant-numeric: tabular-nums;
+    }
+    &__wallet-op { color: @con-text-dim; padding: 0 .1rem; }
+    &__wallet-total { color: @con-amber; font-weight: 800; }
+    &__wallet-after { font-weight: 800; }
+    &__wallet--over &__wallet-after { color: @con-amber; }
+    &__wallet-sep {
+        width: .06rem;
+        align-self: stretch;
+        margin: 0 .3rem;
+        background: rgba(122, 168, 214, 0.22);
+    }
+}
+
+
 /* THE PASS EXIT — two readable beats, one gesture: the card GATHERS (a small
    lift with a tilt INTO the travel direction — the hand taking the packet),
    then ACCELERATES out toward the neighbor while the card physically TURNS
