@@ -55,7 +55,7 @@ describe('ChairmanSeat.walkAgenda — one walk for the three engines of the trac
       expect(linesOf(game, at)).deep.eq([ADVANCE, TR_LINE]);
       const events = game.events.events.filter((e) => e.type === 'agenda-advanced');
       expect(events).has.lengthOf(1);
-      expect(events[0].impact.agenda).deep.eq({from: 1, to: 2, steps: [{to: 2, bonus: 'tr'}], reason: 'quest'});
+      expect(events[0].impact.agenda).deep.eq({from: 1, to: 2, steps: [{to: 2, bonus: 'tr'}], reason: 'quest', influence: 1});
       expect(events[0].source, 'the quest is the PARLIAMENT\'s deed').deep.eq({kind: 'parliament'});
     });
 
@@ -100,7 +100,7 @@ describe('ChairmanSeat.walkAgenda — one walk for the three engines of the trac
       expect(linesOf(game, at), 'step 2 · its TR · step 3 — the bonus before the next step').deep.eq([ADVANCE, TR_LINE, ADVANCE]);
       const events = game.events.events.filter((e) => e.type === 'agenda-advanced');
       expect(events).has.lengthOf(1);
-      expect(events[0].impact.agenda).deep.eq({from: 1, to: 3, steps: [{to: 2, bonus: 'tr'}, {to: 3}], reason: 'card'});
+      expect(events[0].impact.agenda).deep.eq({from: 1, to: 3, steps: [{to: 2, bonus: 'tr'}, {to: 3}], reason: 'card', influence: 2});
       expect(events[0].source, 'a card\'s walk is NOT wrapped in the parliament\'s source — it keeps the live scope (the card\'s play)').not.deep.eq({kind: 'parliament'});
     });
 
@@ -149,7 +149,7 @@ describe('ChairmanSeat.walkAgenda — one walk for the three engines of the trac
       expect(linesOf(game, at)).deep.eq([ADVANCE, ADVANCE, TR_LINE, ADVANCE, ADVANCE, TR_LINE, ADVANCE]);
       const events = game.events.events.filter((e) => e.type === 'agenda-advanced');
       expect(events).has.lengthOf(1);
-      expect(events[0].impact.agenda).deep.eq({from: 0, to: 5, steps, reason: 'card'});
+      expect(events[0].impact.agenda).deep.eq({from: 0, to: 5, steps, reason: 'card', influence: 3});
     });
   });
 

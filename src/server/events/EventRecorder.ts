@@ -417,8 +417,19 @@ export class EventRecorder {
    * parliament's for the sitting and the quest, the CARD's for a card's walk
    * (so the journal row and the rival's notification name the card).
    */
-  public recordAgendaAdvanced(player: IPlayer, walk: {from: number; to: number; steps: ReadonlyArray<AgendaAdvanceStep>}, reason: AgendaAdvanceReason): void {
-    this.record({type: 'agenda-advanced', player: player.color, impact: {agenda: {from: walk.from, to: walk.to, steps: [...walk.steps], reason}}, visibility: 'journal'});
+  public recordAgendaAdvanced(player: IPlayer, walk: {from: number; to: number; steps: ReadonlyArray<AgendaAdvanceStep>; influence?: number}, reason: AgendaAdvanceReason): void {
+    this.record({type: 'agenda-advanced', player: player.color, impact: {agenda: {
+      from: walk.from, to: walk.to, steps: [...walk.steps], reason, ...(walk.influence === undefined ? {} : {influence: walk.influence}),
+    }}, visibility: 'journal'});
+  }
+
+  /**
+   * INFLUENCE BEYOND THE CAREER WAS GIVEN (Turmoil Redux, T05): the seat's whole influence before → after, under the
+   * live scope (the card's play — the journal row and a rival's notification name the card). Written only by
+   * `ReduxPoliticalOps.addInfluenceBonus`.
+   */
+  public recordInfluenceChanged(player: IPlayer, change: {before: number; after: number; amount: number}): void {
+    this.record({type: 'influence-changed', player: player.color, impact: {influence: {...change}}, visibility: 'journal'});
   }
 
   /**

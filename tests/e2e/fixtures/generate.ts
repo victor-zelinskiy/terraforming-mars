@@ -8417,3 +8417,79 @@ parliamentFixture('oceans-one-left', {
     parliament.assertLedger(game);
   },
 });
+// ── T05 · EVENT ANALYSTS — «+1 influence», the first card of the premium scope that gives influence BEYOND the Career
+//    (ledger CG — «ИТОГОВОЕ ВЛИЯНИЕ ВЕЗДЕ»). The Scientists RULE (their quiet law enacted), Biodome Contest («2 plants per
+//    influence») stands on the vote — the forecast reads the final influence; blue's Career marker on step 3 (level 2),
+//    20 M€ (Teractor · Thorgate — calm corporations):
+//      · `event-analysts` — Event Analysts MOVED out of the dealt pool into blue's hand: playable, the composer's chip
+//        «[влияние] 2 → 3»;
+//      · `event-analysts-played` — the card PLAYED for real (the facade's journal line, the bonus with its source):
+//        influence 3 = 2 + 1 everywhere; Political Recognition («advance your Career 3 steps») in hand with four other
+//        cards with requirements on the table — its walk 3 → 6 lands on the level-3 step: «уровень 3 · влияние 4 +1»;
+//      · `event-analysts-locked` — another party rules and the Scientists' resolution stands on the vote with ONE delegate
+//        of blue's: «✕», «1 of 2». ──
+function eventAnalystsFixture(name: string, arrange: (table: ParliamentTable) => void, check: (table: ParliamentTable) => string | undefined): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [20, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: (table) => {
+      table.parliament.agenda.set(table.p1.id, 3);
+      arrange(table);
+    },
+    expect: (table) => {
+      const {game, p1, parliament} = table;
+      const wrong = check(table);
+      if (game.activePlayer.id !== p1.id || wrong !== undefined) {
+        throw new Error(`the ${name} fixture: ${wrong ?? 'blue is not on the move'} (ruling=${parliament.rulingParty()} influence=${parliament.influence(p1)})`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+function eventAnalystsTable({game, parliament}: ParliamentTable): void {
+  seatEnacted(parliament, quietResolutionOf(PartyName.SCIENTISTS));
+  seatResolution(parliament, 0, BIODOME_CONTEST_ID);
+  if (game.parliament?.slotOf(PartyName.GREENS) === undefined) {
+    throw new Error('event-analysts: Biodome Contest did not take the vote');
+  }
+}
+eventAnalystsFixture('event-analysts', (table) => {
+  eventAnalystsTable(table);
+  gmoToHand(table.game, table.p1, [CardName.EVENT_ANALYSTS]);
+}, ({p1, parliament}) => {
+  const card = p1.cardsInHand.find((c) => c.name === CardName.EVENT_ANALYSTS);
+  return card === undefined || !p1.canPlay(card) || parliament.influence(p1) !== 2 ? 'T05 playable, influence 2' : undefined;
+});
+eventAnalystsFixture('event-analysts-played', (table) => {
+  eventAnalystsTable(table);
+  const {game, p1} = table;
+  gmoToHand(game, p1, [CardName.EVENT_ANALYSTS]);
+  p1.playCard(p1.cardsInHand.find((c) => c.name === CardName.EVENT_ANALYSTS)!);
+  runAllActions(game);
+  for (const required of [CardName.LICHEN, CardName.ALGAE, CardName.KELP_FARMING, CardName.TUNDRA_FARMING]) {
+    moveToDeckTop(game, required);
+    p1.playedCards.push(game.projectDeck.drawOrThrow(game));
+  }
+  gmoToHand(game, p1, [CardName.POLITICAL_RECOGNITION]);
+  p1.megaCredits = 20;
+}, ({p1, parliament}) => {
+  const walk = p1.cardsInHand.find((c) => c.name === CardName.POLITICAL_RECOGNITION);
+  if (parliament.influence(p1) !== 3 || parliament.influenceBonusOf(p1) !== 1) {
+    return `influence 3 with a bonus of 1 (got ${parliament.influence(p1)} / ${parliament.influenceBonusOf(p1)})`;
+  }
+  return walk === undefined || !p1.canPlay(walk) ? 'Political Recognition playable' : undefined;
+});
+eventAnalystsFixture('event-analysts-locked', ({game, p1, parliament}) => {
+  seatEnacted(parliament, quietResolutionOf(PartyName.INDUSTRIALISTS));
+  if (parliament.slotOf(PartyName.SCIENTISTS) === undefined) {
+    seatResolution(parliament, 0, quietResolutionOf(PartyName.SCIENTISTS));
+  }
+  parliament.placeVote(p1, parliament.slotOf(PartyName.SCIENTISTS)!, 'lobby');
+  gmoToHand(game, p1, [CardName.EVENT_ANALYSTS]);
+}, ({p1, parliament}) => {
+  const card = p1.cardsInHand.find((c) => c.name === CardName.EVENT_ANALYSTS);
+  const slot = parliament.slotOf(PartyName.SCIENTISTS);
+  return card === undefined || p1.canPlay(card) || slot === undefined || parliament.votesOf(p1, slot) !== 1 ? 'T05 NOT playable, one delegate of blue\'s on the Scientists\' resolution' : undefined;
+});
+

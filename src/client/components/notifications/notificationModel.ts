@@ -178,6 +178,8 @@ function effectSourceOf(chain: ReadonlyArray<GameEvent>, correlationId: number |
  */
 const PARLIAMENT_OUTCOME_EVENTS: ReadonlySet<GameEvent['type']> = new Set([
   'delegates-placed', 'neutral-delegates-placed', 'popular-support-gained', 'popular-support-discarded', 'agenda-advanced',
+  // T05 Event Analysts — influence beyond the Career: the table's numbers moved for every reading of that seat.
+  'influence-changed',
 ]);
 
 /** A party's effect gained / lost by the seat (PL-112) rides this chain. */

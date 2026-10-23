@@ -5,6 +5,7 @@ import {IGame} from '../../../src/server/IGame';
 import {Game} from '../../../src/server/Game';
 import {Parliament} from '../../../src/server/parliament/Parliament';
 import {getParliamentModel} from '../../../src/server/parliament/ParliamentModel';
+import {ChairmanSeat} from '../../../src/server/parliament/quests/ChairmanSeat';
 import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
 import {PARTY_REQUIREMENT_REASON, unplayableReasons} from '../../../src/server/models/unplayableReasons';
 import {requiredPartyOf} from '../../../src/server/cards/requirements/partyRequirementCards';
@@ -284,6 +285,25 @@ describe('EventAnalysts — on a Turmoil Redux table', () => {
         LogMessageDataType.PLAYER, LogMessageDataType.RAW_STRING, LogMessageDataType.CARD, LogMessageDataType.RAW_STRING, LogMessageDataType.RAW_STRING,
       ]);
       expect(lines[0].data.map((d) => d.value)).deep.eq([t.p1.color, '1', CardName.EVENT_ANALYSTS, '2', '3']);
+    });
+
+    it('…and ONE typed event the journal reads (`influence-changed`): before → after, under the card\'s play', () => {
+      const t = scientistsRuling();
+      const from = t.game.events.events.length;
+      play(t);
+      const events = t.game.events.events.slice(from).filter((e) => e.type === 'influence-changed');
+      expect(events.map((e) => e.impact.influence), JSON.stringify(events)).deep.eq([{before: 2, after: 3, amount: 1}]);
+      expect(events[0].player).eq(t.p1.color);
+      expect(events[0].source, 'the giver rides the event').deep.include({card: CardName.EVENT_ANALYSTS});
+    });
+
+    it('a walk of the Career records the seat\'s FINAL influence on its event (the journal prints it, never the level)', () => {
+      const t = scientistsRuling();
+      play(t);
+      const from = t.game.events.events.length;
+      ChairmanSeat.walkAgenda(t.p1, t.parliament, 2, {reason: 'card', card: CardName.POLITICAL_RECOGNITION});
+      const walk = t.game.events.events.slice(from).find((e) => e.type === 'agenda-advanced');
+      expect(walk?.impact.agenda).deep.include({from: 3, to: 5, influence: 4});
     });
   });
 

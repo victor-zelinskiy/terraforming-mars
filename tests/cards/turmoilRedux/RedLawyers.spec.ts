@@ -266,7 +266,7 @@ describe('RedLawyers', () => {
       play(t);
       const advanced = t.game.events.events.filter((e) => e.type === 'agenda-advanced');
       expect(advanced).has.lengthOf(1);
-      expect(advanced[0].impact.agenda).deep.eq({from: 6, to: 8, steps: [{to: 7, bonus: 'card'}, {to: 8}], reason: 'card'});
+      expect(advanced[0].impact.agenda).deep.eq({from: 6, to: 8, steps: [{to: 7, bonus: 'card'}, {to: 8}], reason: 'card', influence: 4});
       expect(advanced[0].source).deep.include({kind: 'card', card: CardName.RED_LAWYERS});
       const drawn = t.game.events.events.filter((e) => e.type === 'cards-drawn' && e.player === t.p1.color);
       expect(drawn, 'the card step\'s draw is the card\'s deed').has.lengthOf(1);

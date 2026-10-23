@@ -214,7 +214,17 @@ export type EventImpact = {
    * quest, or a card (TR04; the card itself rides the event's `source`). One
    * event per walk, written after the last step.
    */
-  agenda?: {from: number; to: number; steps: ReadonlyArray<AgendaAdvanceStep>; reason: AgendaAdvanceReason};
+  agenda?: {from: number; to: number; steps: ReadonlyArray<AgendaAdvanceStep>; reason: AgendaAdvanceReason;
+    /**
+     * The seat's FINAL influence once the walk has landed (the Career's level + every bonus beyond it — T05): the
+     * journal row prints it as the influence, never the step's level. Absent on an event recorded before T05.
+     */
+    influence?: number};
+  /**
+   * INFLUENCE BEYOND THE CAREER (`influence-changed`, Turmoil Redux — T05 Event Analysts): the seat's WHOLE
+   * influence before → after a bonus was given, and the bonus itself. The giver rides the event's `source`.
+   */
+  influence?: {before: number; after: number; amount: number};
   /**
    * A CARD EFFECT MOVED A COLONY TILE'S TRACK (`colony-track-moved`, Turmoil
    * Redux TR07): the tile and the marker's 0-based position before and after.

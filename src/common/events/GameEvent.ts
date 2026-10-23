@@ -85,6 +85,13 @@ export type GameEventType =
    */
   | 'agenda-advanced'
   /**
+   * INFLUENCE BEYOND THE CAREER (Turmoil Redux, T05 Event Analysts): a card gave the seat «+N influence» — not a step
+   * of the track, a bonus on top of it (`Parliament.influenceSourcesOf`). `impact.influence` carries the seat's whole
+   * influence before → after; the journal reads it as its own row under the card, a rival's notification as the
+   * Parliament's outcome. Recorded by the Redux facade (`ReduxPoliticalOps.addInfluenceBonus`) only.
+   */
+  | 'influence-changed'
+  /**
    * DELEGATES PLACED ON A RESOLUTION BY AN EFFECT (Turmoil Redux): a colony's
    * grant, a card's play (TR03 Political Donation) — `impact.delegates` names
    * how many and onto which resolution. The vote ACTION needs none: its chain

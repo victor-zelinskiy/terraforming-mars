@@ -137,7 +137,7 @@ export class ChairmanSeat {
         ...(cause.reason === 'resolution' ? {resolution: cause.resolution} : {}),
         generation: game.generation,
       };
-      game.events.recordAgendaAdvanced(player, {from, to: last.to, steps: taken}, cause.reason);
+      game.events.recordAgendaAdvanced(player, {from, to: last.to, steps: taken, influence: parliament.influence(player)}, cause.reason);
       return {from, to: last.to, steps: taken};
     };
     // A card's and a law's walk keep the scope they run in (the card's play, the law's seat step); the sitting's

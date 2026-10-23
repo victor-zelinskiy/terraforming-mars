@@ -240,16 +240,23 @@ describe('PoliticalThinkTank', () => {
       // in the clean pool and adds nothing).
       const heldBack = [...TURMOIL_CARDS_HELD_BACK_UNDER_REDUX].map((name) => newProjectCard(name))
         .filter((c): c is IProjectCard => c !== undefined && hasPartyRequirement(c) && c.name !== CardName.SPONSORED_MOHOLE);
-      expect(heldBack.length, 'three held-back classic cards with a party requirement').gte(3);
-      game.projectDeck.drawPile.push(heldBack[2]);
+      // The held-back list shrinks with every adaptation (T05 dealt Event Analysts), so ONE held-back card walks every
+      // place a card can stand — the draw pile, a hand, the discard — and Sponsored Mohole stands on a table.
+      expect(heldBack.length, 'a held-back classic card with a party requirement').gte(1);
+      const walker = heldBack[0];
+      game.projectDeck.drawPile.push(walker);
       expect(actionPreview(player, card).branches[0].reveal?.pool).deep.eq({count: base + 1});
-      opponent.cardsInHand.push(heldBack[0]);
-      game.projectDeck.discardPile.push(heldBack[1]);
+      game.projectDeck.drawPile.pop();
+      opponent.cardsInHand.push(walker);
+      expect(partyRequirementCardsInGame(game), 'in a hand').eq(base + 1);
+      opponent.cardsInHand.pop();
+      game.projectDeck.discardPile.push(walker);
+      expect(partyRequirementCardsInGame(game), 'in the discard').eq(base + 1);
       opponent.playedCards.push(newProjectCard(CardName.SPONSORED_MOHOLE)!);
-      expect(partyRequirementCardsInGame(game)).eq(base + 4);
+      expect(partyRequirementCardsInGame(game), 'and on a table').eq(base + 2);
       // A card with a NON-party political requirement is not in the pool.
       game.projectDeck.drawPile.push(newProjectCard(CardName.BANNED_DELEGATE)!);
-      expect(partyRequirementCardsInGame(game)).eq(base + 4);
+      expect(partyRequirementCardsInGame(game)).eq(base + 2);
     });
 
     it('is read-only: the game serializes identically before and after', () => {

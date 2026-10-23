@@ -149,7 +149,7 @@ describe('MinorityRepresentation', () => {
       runAllActions(game);
       const advanced = game.events.events.filter((e) => e.type === 'agenda-advanced');
       expect(advanced).has.lengthOf(1);
-      expect(advanced[0].impact.agenda).deep.eq({from: 1, to: 3, steps: [{to: 2, bonus: 'tr'}, {to: 3}], reason: 'card'});
+      expect(advanced[0].impact.agenda).deep.eq({from: 1, to: 3, steps: [{to: 2, bonus: 'tr'}, {to: 3}], reason: 'card', influence: 2});
       expect(advanced[0].source).deep.include({kind: 'card', card: CardName.MINORITY_REPRESENTATION});
       const trChanged = game.events.events.filter((e) => e.type === 'tr-changed' && e.player === p1.color);
       expect(trChanged).has.lengthOf(1);

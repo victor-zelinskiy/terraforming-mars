@@ -132,6 +132,8 @@ export type JournalChildVM = {
     | {kind: 'support'; party: PartyName; total: number}
     /** A WALK of the Agenda track (`agenda-advanced`, TR04): from → to and the influence level the walk set. */
     | {kind: 'agenda'; from: number; to: number; level: number}
+    /** INFLUENCE BEYOND THE CAREER (`influence-changed`, T05): the seat's whole influence before → after. */
+    | {kind: 'influence'; before: number; after: number}
     /** A colony TILE's track moved by a card effect (`colony-track-moved`, TR07): the tile, 0-based before → after. */
     | {kind: 'colonyTrack'; colony: ColonyName; before: number; after: number}
     /** THE COLONY ROSTER changed (`colony-roster-changed`): a tile entered, left, or was replaced in its slot. */
@@ -624,8 +626,19 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
       // it, never summed into this one.
       const agenda = e.impact.agenda;
       push(`agenda|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [],
-        political: {kind: 'agenda', from: agenda.from, to: agenda.to, level: influenceAtAgenda(agenda.to)}},
+        // `level` is what the label prints as the influence: the seat's FINAL influence when the server recorded it
+        // (T05 — a bonus beyond the Career rides on top of the level), the step's level on an older event.
+        political: {kind: 'agenda', from: agenda.from, to: agenda.to, level: agenda.influence ?? influenceAtAgenda(agenda.to)}},
       [{icon: 'agenda', text: signed(agenda.to - agenda.from)}]);
+      continue;
+    }
+    if (e.type === 'influence-changed' && e.impact.influence !== undefined) {
+      // INFLUENCE BEYOND THE CAREER (T05 Event Analysts): its OWN row under the giver — the chip is the bonus
+      // («+1 [influence]»), the label the seat's whole influence before → after; no stock says it otherwise.
+      const influence = e.impact.influence;
+      push(`influence|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [],
+        political: {kind: 'influence', before: influence.before, after: influence.after}},
+      [{icon: 'influence', text: signed(influence.amount)}]);
       continue;
     }
     if (e.type === 'colony-track-moved' && e.impact.colonyTrackMove !== undefined) {

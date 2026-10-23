@@ -332,7 +332,7 @@ describe('RedsBudget', () => {
       for (const walk of walks) {
         expect(walk.source, 'the law is the source').deep.include({kind: 'resolution', id: REDS_BUDGET_ID});
       }
-      expect(walks[1].impact.agenda).deep.eq({from: 3, to: 4, steps: [{to: 4, bonus: 'tr'}], reason: 'resolution'});
+      expect(walks[1].impact.agenda).deep.eq({from: 3, to: 4, steps: [{to: 4, bonus: 'tr'}], reason: 'resolution', influence: 2});
       expect(p2.terraformRatingSources.some((s) => s.sourceName === 'Agenda track'), 'the TR segment is the track\'s').is.true;
     });
 

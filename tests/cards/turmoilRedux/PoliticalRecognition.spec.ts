@@ -163,7 +163,7 @@ describe('PoliticalRecognition', () => {
       play(t);
       const advanced = t.game.events.events.filter((e) => e.type === 'agenda-advanced');
       expect(advanced).has.lengthOf(1);
-      expect(advanced[0].impact.agenda).deep.eq({from: 1, to: 4, steps: [{to: 2, bonus: 'tr'}, {to: 3}, {to: 4, bonus: 'tr'}], reason: 'card'});
+      expect(advanced[0].impact.agenda).deep.eq({from: 1, to: 4, steps: [{to: 2, bonus: 'tr'}, {to: 3}, {to: 4, bonus: 'tr'}], reason: 'card', influence: 2});
       expect(advanced[0].source).deep.include({kind: 'card', card: CardName.POLITICAL_RECOGNITION});
     });
   });

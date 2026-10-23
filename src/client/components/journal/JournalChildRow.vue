@@ -172,6 +172,8 @@
               class="journal-token journal-token--resolution" v-i18n>{{ resolutionLabel(vm.political.resolution) }}</span>
         <span v-else-if="vm.political !== undefined && vm.political.kind === 'agenda'"
               class="journal-child-row__tile journal-em">{{ agendaLabel(vm.political.from, vm.political.to, vm.political.level) }}</span>
+        <span v-else-if="vm.political !== undefined && vm.political.kind === 'influence'"
+              class="journal-child-row__tile journal-em" data-journal-influence>{{ influenceLabel(vm.political.before, vm.political.after) }}</span>
         <span v-else-if="vm.political !== undefined && vm.political.kind === 'colonyTrack'"
               class="journal-child-row__tile journal-em">{{ colonyTrackLabel(vm.political.colony, vm.political.before, vm.political.after) }}</span>
         <span v-else-if="vm.political !== undefined && vm.political.kind === 'colonyRoster'"
@@ -269,6 +271,10 @@ export default defineComponent({
     /** «Карьера 1 → 3 · Влияние 2» — the position fact and the level the walk set (the chip beside it counts the steps). */
     agendaLabel(from: number, to: number, level: number): string {
       return `${translateTextWithParams('Agenda track ${0} → ${1}', [String(from), String(to)])} · ${translateText('Influence')} ${level}`;
+    },
+    /** «Влияние 2 → 3» — the seat's WHOLE influence around a bonus beyond the Career (T05; the chip says the bonus). */
+    influenceLabel(before: number, after: number): string {
+      return `${translateText('Influence')} ${before} → ${after}`;
     },
     /** «Трек колонии · Луна 3 → 7» — the tile's own 1-based readout (the chip beside it counts the steps). */
     colonyTrackLabel(colony: string, before: number, after: number): string {
