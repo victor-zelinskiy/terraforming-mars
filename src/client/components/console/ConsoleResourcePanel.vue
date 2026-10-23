@@ -14,15 +14,22 @@
       <div class="con-score">
         <!-- UNDER THE RATING VETO (RX42 UNMI Veto): the seat is first by terraform rating and gains none — the Reds'
              stamp over the rating icon (weight and the strike, never colour alone), the law and the number in the
-             hint. The cell's box, baseline and neighbours do not move: the stamp is absolute inside the icon's wrap. -->
+             hint. The cell's box, baseline and neighbours do not move: the stamp is absolute inside the icon's wrap.
+             PRISTAR (R07 — `console/railMarks.ts`): the corporation's STATE, a second mark of the same grammar in the
+             wrap's lower-right corner — the preservation token «waiting» (no rise this generation: the production phase
+             pays) or the same token struck and dimmed (a rise cancelled it). Read off the server's flag; the token is
+             also where the phase's +6 M€ is born (`data-income-hook` — the generation scene's origin). -->
         <div class="con-score__cell con-score__cell--tr"
-             :class="{'con-score__cell--vetoed': trVeto !== undefined, 'premium-tooltip': trVeto !== undefined}"
+             :class="{'con-score__cell--vetoed': trVeto !== undefined, 'premium-tooltip': trHint !== ''}"
              :data-tr-vetoed="trVeto !== undefined ? trVeto.tr : undefined"
-             :data-hint="trVeto !== undefined ? trVetoHint : undefined"
+             :data-tr-pristar="trPristar"
+             :data-hint="trHint !== '' ? trHint : undefined"
              :aria-label="$t('Terraforming Rating') + ': ' + tr">
           <span class="con-score__iconwrap">
             <i class="con-score__icon resource_icon resource_icon--rating" aria-hidden="true"></i>
             <i v-if="trVeto !== undefined" class="con-score__veto" aria-hidden="true"></i>
+            <i v-if="trPristar !== undefined" class="con-score__pristar"
+               :class="'con-score__pristar--' + trPristar" :data-income-hook="pristarCard" aria-hidden="true"></i>
           </span>
           <span class="con-score__valwrap">
             <span class="con-score__value con-score__value--tr" :class="wideClass(tr)">{{ tr }}</span>
@@ -432,6 +439,8 @@ import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {vpShareState} from '@/client/console/scoreCell/vpShareLedger';
 import {VpReasonView, vpReasonViews} from '@/client/console/scoreCell/vpReasonText';
+import {PRISTAR_MARK_HINT, PristarMark} from '@/client/console/railMarks';
+import {CardName} from '@/common/cards/CardName';
 
 /** How long the VP cell's named cause stands — one read (a reading time, never motion-scaled). */
 const VP_REASON_READ_MS = 2800;
@@ -555,6 +564,12 @@ export default defineComponent({
      */
     trVeto: {type: Object as PropType<{law: string, tr: number} | undefined>, default: undefined},
     /**
+     * PRISTAR'S STATE ON THIS SEAT (R07 — `railMarks.pristarMarkOf`, read by the shell off the DISPLAYED seat's
+     * public `ratingRaisedThisGeneration`): «waiting» — the production phase will pay; «spent» — a rise this
+     * generation cancelled it. Undefined for a seat without the corporation.
+     */
+    trPristar: {type: String as PropType<PristarMark | undefined>, default: undefined},
+    /**
      * The board section is the active view. The ДОП.РЕСУРСЫ satellite paints
      * over the board area, so it only renders here — never floating over the
      * hand / colonies / other section content.
@@ -666,6 +681,21 @@ export default defineComponent({
       const veto = this.trVeto;
       return veto === undefined ? '' :
         translateTextWithParams('${0}: your terraform rating is the highest (${1}) — rating gains are not counted', [veto.law, String(veto.tr)]);
+    },
+    /** The card behind the Pristar mark — its name in the hint, its key on the token. */
+    pristarCard(): CardName {
+      return CardName.PRISTAR;
+    },
+    /** The rating cell's hint: each standing mark's one sentence, joined by « · » when both stand (the veto first). */
+    trHint(): string {
+      const lines: Array<string> = [];
+      if (this.trVeto !== undefined) {
+        lines.push(this.trVetoHint);
+      }
+      if (this.trPristar !== undefined) {
+        lines.push(translateTextWithParams(PRISTAR_MARK_HINT[this.trPristar], [translateText(CardName.PRISTAR)]));
+      }
+      return lines.join(' · ');
     },
     tr(): number {
       // The rating rides the SAME reward hold as the rows (`rating` on the

@@ -43,9 +43,12 @@ export const TURMOIL_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
   // Corporations WITHOUT a political dependency — the premium adaptation only (lore, information model,
   // previews); MarsBot already plays their bot twins (`console-bot-corp-*.spec.ts`). Lakefront Resorts left
   // 2026-10-23 (forecast twins of its ocean hook) — the template for the ones below; Terralabs Research left
-  // the same day (no live hook: the 1 M€ price is `player.cardCost`, pinned in every buy-to-hand flow), and
-  // Utopia Invest after it (no live hook: six declarative `or` variants, every premium action path from the box).
-  CardName.PRISTAR,
+  // the same day (no live hook: the 1 M€ price is `player.cardCost`, pinned in every buy-to-hand flow),
+  // Utopia Invest after it (no live hook: six declarative `or` variants, every premium action path from the box),
+  // and Pristar last (2026-10-24 — its production hook pays inside the phase and is named in the record; the
+  // rail's mark reads `ratingRaisedThisGeneration`). EMPTY since: every classic card that stays itself under
+  // Redux is adapted (11 projects + 4 corporations); only the REPLACED rows below still hold cards back. Kept as an (empty) list so the guard's worklist
+  // and the premium-scope reader keep one shape until the replacements cross too.
 ];
 
 /**

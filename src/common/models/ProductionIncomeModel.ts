@@ -1,3 +1,4 @@
+import {CardName} from '../cards/CardName';
 import {Units} from '../Units';
 
 /**
@@ -29,4 +30,18 @@ export type ProductionIncomeModel = {
   readonly rating: number;
   /** Energy turned into heat BEFORE the income (0 when there was none) — the same amount `energyHeatConversion` carries. */
   readonly conversion: number;
+  /**
+   * What a card's OWN production hook (`onProductionPhase`) paid into this seat's stock INSIDE the phase, card by
+   * card in tableau order (Pristar's 6 M€, Sol Bank's M€ per data) — the stock measured around each hook by the
+   * server, never re-derived from the card. Absent / empty when no hook moved the stock. A hook that DEFERS its
+   * payment is not here (its move lands after the record): the scene's promise then disagrees and degrades honestly.
+   */
+  readonly hooks?: ReadonlyArray<ProductionHookIncomeModel>;
+};
+
+/** One card's production hook payment (`ProductionIncomeModel.hooks`). */
+export type ProductionHookIncomeModel = {
+  readonly card: CardName;
+  /** The stock change the hook made, per resource (only non-zero entries matter). */
+  readonly income: Units;
 };

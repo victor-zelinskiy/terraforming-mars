@@ -89,7 +89,7 @@ import {CardDrawRevealSource} from '../common/models/CardDrawRevealModel';
 import {ColonyTradeManifestModel} from '../common/models/ColonyTradeManifestModel';
 import {RevealResultModel} from '../common/models/RevealResultModel';
 import {EnergyHeatConversionModel} from '../common/models/EnergyHeatConversionModel';
-import {ProductionIncomeModel} from '../common/models/ProductionIncomeModel';
+import {ProductionHookIncomeModel, ProductionIncomeModel} from '../common/models/ProductionIncomeModel';
 import {OceanAdjacencyBonusModel} from '../common/models/OceanAdjacencyBonusModel';
 import {PlacementLawPayoutModel} from '../common/models/PlacementLawPayoutModel';
 import {TileMoveRewardModel} from '../common/models/TileMoveRewardModel';
@@ -1211,8 +1211,29 @@ export class Player implements IPlayer {
       },
     };
 
+    // A card's own hook pays INSIDE the phase under its own source (Pristar's 6 M€): the record names what each one
+    // moved on this seat's stock, measured around the call — the scene's promise then holds the whole M€ row instead
+    // of refusing the wave for a payment it was never told about (TR61 · PL-607).
+    const hooks: Array<ProductionHookIncomeModel> = [];
     for (const card of this.tableau) {
-      card.onProductionPhase?.(this);
+      if (card.onProductionPhase === undefined) {
+        continue;
+      }
+      const before = this.stock.asUnits();
+      card.onProductionPhase(this);
+      const after = this.stock.asUnits();
+      const income = Units.of({});
+      let moved = false;
+      for (const key of Units.keys) {
+        income[key] = after[key] - before[key];
+        moved = moved || income[key] !== 0;
+      }
+      if (moved) {
+        hooks.push({card: card.name, income});
+      }
+    }
+    if (hooks.length > 0 && this.productionIncome !== undefined) {
+      this.productionIncome = {...this.productionIncome, hooks};
     }
 
     // Turn off CEO OPG actions that were activated this generation

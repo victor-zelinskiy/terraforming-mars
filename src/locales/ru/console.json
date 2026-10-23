@@ -1196,6 +1196,8 @@
     "No TR per greenery — your terraform rating is the highest": "РТ за озеленение не будет: у вас наибольший РТ",
     "${0}: your terraform rating is the highest (${1}) — rating gains are not counted": "${0}: у вас наибольший РТ (${1}) — рост РТ не засчитывается",
     "under the veto of ${0}": "под вето «${0}»",
+    "${0}: no TR gained this generation — +1 preservation and 6 M€ at production": "${0}: РТ в этом поколении не рос — в фазе производства +1 сбережение и +6 M€",
+    "${0}: TR gained this generation — the effect will not trigger": "${0}: РТ в этом поколении вырос — эффект не сработает",
     "you (${0})": "вы (${0})",
     "The only target": "Единственная цель",
     "The only option": "Единственный вариант",

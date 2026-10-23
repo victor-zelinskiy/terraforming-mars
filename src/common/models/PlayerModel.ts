@@ -205,6 +205,13 @@ export type PublicPlayerModel = {
    */
   tagBonuses: ReadonlyArray<TagBonusModel>;
   terraformRating: number;
+  /**
+   * The seat's rating has RISEN this generation (`IPlayer.hasIncreasedTerraformRatingThisGeneration` — set by every
+   * raise that goes through the one funnel, never by a lowering, never by a raise the RX42 veto refused; reset with the
+   * generation). Public — a rise is a public fact (UNMI's action and Pristar's payout read the same flag): the rail's
+   * Pristar mark reads it (`console/railMarks.ts`), never a guess off the log or a rating delta.
+   */
+  ratingRaisedThisGeneration: boolean;
   timer: TimerModel;
   titanium: number;
   titaniumProduction: number;

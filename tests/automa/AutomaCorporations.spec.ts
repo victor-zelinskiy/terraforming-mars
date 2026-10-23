@@ -147,6 +147,20 @@ describe('AutomaCorporations — the MarsBot corporation framework', () => {
       expect(game.automa!.corporation).not.eq(MarsBotCorpId.C39_UTOPIA_INVEST);
     });
 
+    // R07 Pristar last (2026-10-24) — the bot's C36 twin (four struck tracks + its die) is its OWN mechanic and
+    // untouched; only the collision key is pinned.
+    it('Turmoil Redux: a human on Pristar keeps the bot off C36 (the collision key is `original`)', () => {
+      expect(marsBotCorpInfo(MarsBotCorpId.C36_PRISTAR).original).eq(CardName.PRISTAR);
+      const [game, human] = testAutomaGame({
+        corporation: MarsBotCorpId.C36_PRISTAR, keepInitialCardSelection: true,
+        turmoilReduxExpansion: true, coloniesExtension: true,
+      }, '-redux-pristar');
+      pickCorporation(game, human, CardName.PRISTAR);
+      expect(human.playedCards.corporations().map((c) => c.name)).deep.eq([CardName.PRISTAR]);
+      expect(game.automa!.corporation).is.not.undefined;
+      expect(game.automa!.corporation).not.eq(MarsBotCorpId.C36_PRISTAR);
+    });
+
     it('multiplayer collision: a corporation picked by ANY human is excluded', () => {
       const [game, humans] = testAutomaMultiplayerGame(2,
         {corporation: 'random', keepInitialCardSelection: true}, '-mp-coll');

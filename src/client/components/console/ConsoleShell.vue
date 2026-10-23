@@ -116,6 +116,7 @@
                             :boardVisible="consoleState.section === 'board' && !infoModeState.open && !startSceneVisible"
                             :own="railShowsSelf"
                             :trVeto="railTrVeto"
+                            :trPristar="railPristarMark"
                             :vpHidden="railVpHidden"
                             :automa="railAutoma"
                             :botCtx="botExtrasCtx"
@@ -1708,6 +1709,7 @@ import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} fro
 import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
 import {getResolution, resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {seatRestricted} from '@/common/models/ParliamentModel';
+import {PristarMark, pristarMarkOf} from '@/client/console/railMarks';
 import ConsoleResolutionAside from '@/client/components/console/parliament/ConsoleResolutionAside.vue';
 import ConsolePartyAccessPanel from '@/client/components/console/parliament/ConsolePartyAccessPanel.vue';
 import type {PartyConfirmDetail} from '@/client/components/console/parliament/ConsolePartyActionComposer.vue';
@@ -2889,6 +2891,13 @@ export default defineComponent({
         return undefined;
       }
       return {law: translateText(resolutionName(enacted.resolution)), tr: mine.tr};
+    },
+    /**
+     * PRISTAR'S STATE ON THE DISPLAYED SEAT (R07 — `railMarks.pristarMarkOf`): the rail's own seat, or the seat the
+     * Information Workspace inspects (the rail IS its summary half) — the server's public flag, nothing counted here.
+     */
+    railPristarMark(): PristarMark | undefined {
+      return pristarMarkOf(this.railPlayer);
     },
     playAction() {
       // A LAW'S PLAY PICK (RX36): the album and the composer play from the law's PROMISED pick (the live prompt's own

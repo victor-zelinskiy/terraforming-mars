@@ -12,8 +12,11 @@ import {bootSeededGame, openInfoPlayedTable, press, soloGameConfig, visibleSurfa
  * that the Before-Action-Phase box has already placed by the first action
  * phase (which is why the card prints no SETUP box at all).
  *
- * Pristar is a Turmoil corporation and Turmoil is off in this config, so the
- * collision rule cannot hand the bot a different corporation.
+ * Pristar is a Turmoil corporation and neither Turmoil is on in this config,
+ * so no human is dealt it and the collision rule cannot hand the bot a
+ * different corporation. (Since 2026-10-24 a Turmoil Redux table deals the
+ * HUMAN Pristar too — there a human on it keeps the bot off C36, pinned in
+ * `tests/automa/AutomaCorporations.spec.ts`.)
  */
 
 const PRISTAR_CONFIG = soloGameConfig({

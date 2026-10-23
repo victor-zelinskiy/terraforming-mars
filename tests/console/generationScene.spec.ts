@@ -6,7 +6,9 @@ import {
   detectGenerationScene, generationIncomeReward, generationSceneState, noteGenerationFlipEnd, resetGenerationScene, runGenerationFlip,
   endGenerationScene, armedGenerationScene, seedGenerationIncomeHold, GENERATION_INCOME_KEY,
 } from '@/client/console/generationScene/generationScene';
-import {railRewardPending, resetRailRewards} from '@/client/console/resourceTransfer/railReward';
+import {railRewardPending, resetRailRewards, verifyRailReward} from '@/client/console/resourceTransfer/railReward';
+import {CardName} from '@/common/cards/CardName';
+import {Units} from '@/common/Units';
 import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 
 /**
@@ -116,6 +118,32 @@ describe('the generation scene — the pure half (TR61)', () => {
     expect(railRewardPending(GENERATION_INCOME_KEY), 'an interrupt releases every held row').is.false;
     expect(generationSceneState.phase).eq('idle');
     expect(generationSceneState.lastEnd).eq('test');
+  });
+
+  // R07 Pristar: a card's own production hook pays INSIDE the phase, and the record names it (`hooks`) — the wave
+  // carries it as its own token AFTER the income instead of refusing the whole M€ row (PL-607, every generation).
+  it('a hook the record names rides the wave after the income — a token per resource paid, a payment taken back is known', () => {
+    const reward = generationIncomeReward(record({
+      hooks: [
+        {card: CardName.PRISTAR, income: {...Units.EMPTY, megacredits: 6}},
+        {card: CardName.SOLBANK, income: {...Units.EMPTY, megacredits: 2, heat: -1}},
+      ],
+    }));
+    expect(reward.cause.map((s) => `${s.resource}:${s.amount}`)).deep.eq([
+      'megacredits:21', 'megacredits:5', 'steel:2', 'plants:1', 'energy:3', 'megacredits:6', 'megacredits:2',
+    ]);
+    expect(reward.known).deep.eq({'stock:energy': -4, 'stock:heat': 4 - 1});
+  });
+
+  it('a hook the record names keeps the promise against the applied views — nothing refused', () => {
+    const income = record({hooks: [{card: CardName.PRISTAR, income: {...Units.EMPTY, megacredits: 6}}]});
+    const before = view({generation: 1, phase: Phase.ACTION, stock: {megacredits: 10, steel: 0, plants: 0, energy: 4, heat: 2}});
+    const after = view({generation: 2, income, stock: {megacredits: 10 + 21 + 5 + 6, steel: 2, plants: 1, energy: 3, heat: 2 + 4}});
+    const verdict = verifyRailReward(generationIncomeReward(income), before, after);
+    expect(verdict.mismatches).deep.eq([]);
+    expect(verdict.cause.map((s) => `${s.resource}:${s.amount}`)).to.include('megacredits:6');
+    // …and the SAME payment unnamed is the old refusal: the M€ row disagrees, nothing of the cause is held.
+    expect(verifyRailReward(generationIncomeReward(record()), before, after).cause).deep.eq([]);
   });
 
   it('a diff that breaks the promise (a hook paid something else) holds nothing — the counters tick with the commit, the scene still runs', () => {

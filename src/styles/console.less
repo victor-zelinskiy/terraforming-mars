@@ -5213,6 +5213,57 @@ each(@players, {
         }
     }
     &__cell--vetoed &__value--tr { opacity: .92; }
+    /* PRISTAR (R07 — `console/railMarks.ts`): the corporation's STATE, a second mark of the same wrap — the
+       preservation token in the lower-right corner, out of the veto's ring (both may stand, neither covers the
+       other or the number). «waiting»: the token whole inside a thin gold line (the «ожидает» grammar — a line,
+       ≤ .5 alpha, no glow). «spent»: the same token dimmed by its material and struck (the card face's own
+       «cancelled» slash) — the FORM carries the state, colour only helps. A change of state is one crossfade;
+       the token never pulses and never answers a tick. Absolute: the cell's box never moves. */
+    &__pristar {
+        position: absolute;
+        right: -.34rem;
+        bottom: -.28rem;
+        width: .66rem;
+        height: .66rem;
+        border-radius: .14rem;
+        pointer-events: none;
+        background: url('./assets/resources/preservation.png') center / contain no-repeat;
+        box-shadow: 0 0 0 .07rem rgba(9, 15, 23, 0.92), 0 0 0 .12rem fade(@con-action-gold, 48%);
+        transition: box-shadow calc(240ms * var(--motion-scale, 1)) @con-ease-standard;
+        /* The material's dim (spent) and the slash — both faded in, never popped. */
+        &::before,
+        &::after {
+            content: '';
+            position: absolute;
+            opacity: 0;
+            transition: opacity calc(240ms * var(--motion-scale, 1)) @con-ease-standard;
+        }
+        &::before {
+            inset: 0;
+            border-radius: inherit;
+            background: rgba(9, 15, 23, 0.58);
+        }
+        &::after {
+            left: -16%;
+            right: -16%;
+            top: 50%;
+            height: .11rem;
+            margin-top: -.055rem;
+            background: #e03d3d;
+            transform: rotate(-38deg);
+            box-shadow: 0 0 0 .03rem rgba(0, 0, 0, 0.75);
+        }
+        &--spent {
+            box-shadow: 0 0 0 .07rem rgba(9, 15, 23, 0.92), 0 0 0 .12rem rgba(160, 166, 176, 0.32);
+            &::before,
+            &::after { opacity: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            &,
+            &::before,
+            &::after { transition: none; }
+        }
+    }
     &__value {
         display: inline-block;   /* the score-num pulse transform target */
         transform-origin: center;
@@ -37378,6 +37429,8 @@ html.con-profile-handheld {
         &__cell:first-child { padding-left: calc(.3rem + var(--con-pad-x, 0vw)); }
         &__divider { margin: .25rem 0; }
         &__icon { width: 1rem; height: 1rem; }
+        /* The Pristar token keeps its share of the smaller icon (R07). */
+        &__pristar { width: .54rem; height: .54rem; right: -.28rem; bottom: -.22rem; }
         &__vp-icon { width: .95rem; height: 1.05rem; }
         &__value {
             font-size: .95rem;

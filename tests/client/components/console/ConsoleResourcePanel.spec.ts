@@ -920,3 +920,56 @@ describe('ConsoleResourcePanel — the extras satellite in info mode', () => {
     expect(w.find('.con-res__row--steel .con-res__value').text(), 'the storage steel reads in the standard row').to.eq('2');
   });
 });
+
+/**
+ * THE RATING CELL'S MARKS (R07 Pristar beside RX42's veto — `console/railMarks.ts`): the corporation's STATE is a
+ * token in the icon wrap's own corner, read off the prop the shell derives from the server's flag; both marks may
+ * stand at once, each in its own place, the hint naming both.
+ */
+describe('ConsoleResourcePanel — the rating cell\'s marks', () => {
+  function mountMarks(props: Record<string, unknown>) {
+    return mount(ConsoleResourcePanel, {
+      global: globalConfig.global,
+      props: {player: fakePlayer(), gameTags: BASE_GAME_TAGS as Array<Tag>, ...props},
+    });
+  }
+
+  it('no corporation, no veto: a clean cell — no mark, no hint, no tooltip', () => {
+    const cell = mountMarks({}).find('.con-score__cell--tr');
+    expect(cell.find('.con-score__pristar').exists()).is.false;
+    expect(cell.attributes('data-tr-pristar')).is.undefined;
+    expect(cell.attributes('data-hint')).is.undefined;
+    expect(cell.classes()).to.not.include('premium-tooltip');
+  });
+
+  it('«waiting»: the token stands in the wrap with its hint, and is the hook\'s birth point', () => {
+    const cell = mountMarks({trPristar: 'waiting'}).find('.con-score__cell--tr');
+    const mark = cell.find('.con-score__iconwrap .con-score__pristar');
+    expect(mark.exists()).is.true;
+    expect(mark.classes()).to.include('con-score__pristar--waiting');
+    expect(mark.attributes('data-income-hook')).eq(CardName.PRISTAR);
+    expect(cell.attributes('data-tr-pristar')).eq('waiting');
+    expect(cell.classes()).to.include('premium-tooltip');
+    expect(cell.attributes('data-hint')).to.contain('Pristar').and.contain('6 M€');
+    expect(cell.attributes('data-hint')).to.not.contain('${');
+  });
+
+  it('«spent»: the SAME token in its struck state, the hint says the effect will not trigger', async () => {
+    const w = mountMarks({trPristar: 'waiting'});
+    const before = w.find('.con-score__pristar').element;
+    await w.setProps({trPristar: 'spent'});
+    const mark = w.find('.con-score__pristar');
+    expect(mark.element, 'one node changes its state — a crossfade, never a re-mount').eq(before);
+    expect(mark.classes()).to.include('con-score__pristar--spent');
+    expect(w.find('.con-score__cell--tr').attributes('data-hint')).to.contain('will not trigger');
+  });
+
+  it('under the veto too: two marks in their own places, the hint names both (the veto first)', () => {
+    const cell = mountMarks({trPristar: 'waiting', trVeto: {law: 'UNMI Veto', tr: 30}}).find('.con-score__cell--tr');
+    expect(cell.find('.con-score__veto').exists()).is.true;
+    expect(cell.find('.con-score__pristar').exists()).is.true;
+    const hint = cell.attributes('data-hint') ?? '';
+    expect(hint.split(' · ')).to.have.length(2);
+    expect(hint.indexOf('UNMI Veto')).to.be.lessThan(hint.indexOf('Pristar'));
+  });
+});

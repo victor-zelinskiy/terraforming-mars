@@ -44,6 +44,7 @@
  * production, a reload) plays nothing: the buy then arrives the ordinary way.
  */
 import {reactive} from 'vue';
+import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {Phase} from '@/common/Phase';
 import {Units} from '@/common/Units';
@@ -198,16 +199,26 @@ const INCOME_ORDER: ReadonlyArray<keyof Units> = ['megacredits', 'steel', 'titan
 
 /** The ONE spec object of the rating's M€ (released by identity on its own touchdown — two M€ tokens are two flights). */
 let ratingSpec: ResourceTransferSpec | undefined;
+/** The tokens a card's own production hook pays (the record's `hooks`), by spec object → the card they are born on. */
+const hookSpecs = new Map<ResourceTransferSpec, CardName>();
 
 /**
  * THE PROMISE of the income wave, read off the record: one token per
  * production value that landed (positive), the rating's M€ as a token of its
  * own; the moves the diff must allow for beside them — the conversion
  * (energy −, heat +) and a NEGATIVE M€ production — are `known`.
+ *
+ * …and what a card's OWN production hook paid inside the phase (the record's
+ * `hooks` — Pristar's 6 M€) rides the same wave AFTER the income, one token per
+ * resource it paid, born on the card's mark on this screen
+ * (`[data-income-hook]` — Pristar's token on the rating cell). Before the
+ * record named them, one such payment made the M€ row disagree and the whole
+ * wave was refused (PL-607's honest degrade, every generation for Pristar).
  */
 export function generationIncomeReward(record: ProductionIncomeModel): RailReward {
   const cause: Array<ResourceTransferSpec> = [];
   ratingSpec = undefined;
+  hookSpecs.clear();
   if (record.rating > 0) {
     ratingSpec = {channel: 'stock', resource: 'megacredits', amount: record.rating};
     cause.push(ratingSpec);
@@ -219,6 +230,18 @@ export function generationIncomeReward(record: ProductionIncomeModel): RailRewar
       cause.push({channel: 'stock', resource, amount});
     } else if (amount < 0) {
       known[`stock:${resource}`] = (known[`stock:${resource}`] ?? 0) + amount;
+    }
+  }
+  for (const hook of record.hooks ?? []) {
+    for (const resource of INCOME_ORDER) {
+      const amount = hook.income[resource];
+      if (amount > 0) {
+        const spec: ResourceTransferSpec = {channel: 'stock', resource, amount};
+        hookSpecs.set(spec, hook.card);
+        cause.push(spec);
+      } else if (amount < 0) {
+        known[`stock:${resource}`] = (known[`stock:${resource}`] ?? 0) + amount;
+      }
     }
   }
   if (record.conversion > 0) {
@@ -254,8 +277,29 @@ function centerOf(selector: string): TransferPoint | undefined {
   return {x: r.left + r.width / 2, y: r.top + r.height / 2};
 }
 
-/** Where a token is BORN: the rating's M€ in the rating cell, a production value on its row's production badge. */
+/** The mark a paying card wears on this screen (`data-income-hook` = its name) — undefined when it wears none. */
+function hookMarkCenter(card: CardName): TransferPoint | undefined {
+  if (typeof document === 'undefined') {
+    return undefined;
+  }
+  for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-res [data-income-hook]'))) {
+    if (el.dataset.incomeHook === card) {
+      const r = el.getBoundingClientRect();
+      return r.width < 2 || r.height < 2 ? undefined : {x: r.left + r.width / 2, y: r.top + r.height / 2};
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Where a token is BORN: the rating's M€ in the rating cell, a production value on its row's production badge,
+ * a hook's payment on its card's mark (none on screen → the token degrades by name and its row ticks).
+ */
 export function incomeOriginOf(spec: ResourceTransferSpec): TransferPoint | undefined {
+  const hook = hookSpecs.get(spec);
+  if (hook !== undefined) {
+    return hookMarkCenter(hook);
+  }
   if (spec === ratingSpec || spec.resource === RATING_RAIL_KEY) {
     return centerOf('.con-res .con-score__cell--tr .con-score__value') ?? centerOf('.con-res .con-score__cell--tr');
   }
@@ -329,6 +373,7 @@ export function resetGenerationScene(): void {
   endGenerationScene('reset');
   seen.clear();
   ratingSpec = undefined;
+  hookSpecs.clear();
   generationSceneState.color = '';
   generationSceneState.generation = 0;
   generationSceneState.nonce = 0;

@@ -722,6 +722,7 @@ export class Server {
       // side — never one number folded into the other.
       tagBonuses: ParliamentHandler.tagBonuses(player),
       terraformRating: player.terraformRating,
+      ratingRaisedThisGeneration: player.hasIncreasedTerraformRatingThisGeneration,
       timer: player.timer.serialize(),
       titanium: player.titanium,
       titaniumProduction: player.production.titanium,

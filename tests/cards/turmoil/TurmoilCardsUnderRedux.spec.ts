@@ -91,6 +91,12 @@ describe('classic Turmoil cards under Turmoil Redux', () => {
       expect(CLASSIC).to.have.members(CLASSIC_AS_OF_2026_10_21);
     });
 
+    // 2026-10-24: every in-place row is gone — only the replaced cards still wait (their Redux replacements).
+    it('the adapt-in-place worklist is empty — what is held back is exactly the replaced set', () => {
+      expect(TURMOIL_CARDS_TO_ADAPT_IN_PLACE).is.empty;
+      expect([...TURMOIL_CARDS_HELD_BACK_UNDER_REDUX]).to.have.members([...TURMOIL_CARDS_AWAITING_REDUX_REPLACEMENT]);
+    });
+
     it('prints the worklist', () => {
       const left = TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.size;
       const adapted = CLASSIC.filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name));
@@ -100,9 +106,9 @@ describe('classic Turmoil cards under Turmoil Redux', () => {
 
     // Each adaptation updates this pin in the diff that deletes its row — a row that vanished by
     // accident (and dealt a card nobody adapted) fails here, by name.
-    it('the adapted cards, as of the last adaptation — R33 Utopia Invest, the third corporation (2026-10-23; R38 Lakefront Resorts the first, R14 Terralabs Research the second; T04 Diaspora Movement, T06 GMO Contract, T09 PR Office, T08 Parliament Hall, T12 Red Tourism Wave, T14 Supported Research, T15 Wildlife Dome, T10 Public Celebrations, T03 Cultural Metropolis, T05 Event Analysts and T07 Martian Media Center before it)', () => {
+    it('the adapted cards, as of the last adaptation — R07 Pristar, the fourth and last corporation (2026-10-24 — the in-place list is EMPTY; R38 Lakefront Resorts the first, R14 Terralabs Research the second, R33 Utopia Invest the third; T04 Diaspora Movement, T06 GMO Contract, T09 PR Office, T08 Parliament Hall, T12 Red Tourism Wave, T14 Supported Research, T15 Wildlife Dome, T10 Public Celebrations, T03 Cultural Metropolis, T05 Event Analysts and T07 Martian Media Center before it)', () => {
       const adapted = [CardName.DIASPORA_MOVEMENT, CardName.GMO_CONTRACT, CardName.PR_OFFICE, CardName.PARLIAMENT_HALL, CardName.RED_TOURISM_WAVE, CardName.SUPPORTED_RESEARCH, CardName.WILDLIFE_DOME, CardName.PUBLIC_CELEBRATIONS, CardName.CULTURAL_METROPOLIS, CardName.EVENT_ANALYSTS, CardName.MARTIAN_MEDIA_CENTER];
-      const adaptedCorporations = [CardName.LAKEFRONT_RESORTS, CardName.TERRALABS_RESEARCH, CardName.UTOPIA_INVEST];
+      const adaptedCorporations = [CardName.LAKEFRONT_RESORTS, CardName.TERRALABS_RESEARCH, CardName.UTOPIA_INVEST, CardName.PRISTAR];
       const all = [...adapted, ...adaptedCorporations];
       expect(CLASSIC.filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name))).to.have.members(all).and.length(all.length);
       const dealt = dealtClassic(REDUX);
@@ -133,7 +139,8 @@ describe('classic Turmoil cards under Turmoil Redux', () => {
     });
 
     it('answers only for a Redux table without the classic engine', () => {
-      const held = TURMOIL_CARDS_TO_ADAPT_IN_PLACE[0];
+      // The in-place rows are gone (2026-10-24): a held-back card is now one awaiting its Redux replacement.
+      const held = TURMOIL_CARDS_AWAITING_REDUX_REPLACEMENT[0];
       expect(isTurmoilCardHeldBackUnderRedux(held, options(REDUX))).is.true;
       expect(isTurmoilCardHeldBackUnderRedux(held, options(CLASSIC_ON))).is.false;
       expect(isTurmoilCardHeldBackUnderRedux(held, options(NEITHER))).is.false;
@@ -144,15 +151,13 @@ describe('classic Turmoil cards under Turmoil Redux', () => {
     // The dev road onto a Redux table before a card's row goes: the guaranteed
     // cards are added AFTER the filter, exactly like a card of a module that is off.
     it('a held-back card can still be forced in as a guaranteed card', () => {
-      // T07 took the last in-place project row (only corporations wait there now): a project still held back is
-      // one awaiting its Redux replacement — the same filter keeps it out.
+      // T07 took the last in-place project row and R07 Pristar the last corporation row (2026-10-24): a card still
+      // held back is one awaiting its Redux replacement — the same filter keeps it out. The one held-back
+      // corporation (Septem Tribus) is also kept out by its `compatibility: 'turmoil'`, so only a project is forced.
       const project = [...TURMOIL_CARDS_HELD_BACK_UNDER_REDUX].find((name) => PROJECTS.includes(name));
-      const corporation = TURMOIL_CARDS_TO_ADAPT_IN_PLACE.find((name) => CORPORATIONS.includes(name));
       expect(project).is.not.undefined;
-      expect(corporation).is.not.undefined;
-      const cards = new GameCards(options({...REDUX, customProjectCards: [project!], customCorporationsList: [corporation!]}));
+      const cards = new GameCards(options({...REDUX, customProjectCards: [project!]}));
       expect(cards.getProjectCards().map(toName)).to.contain(project);
-      expect(cards.getCorporationCards().map(toName)).to.contain(corporation);
     });
   });
 

@@ -23,6 +23,7 @@ export class Pristar extends CorporationCard implements ICorporationCard {
       metadata: {
         cardNumber: 'R07',
         description: 'You start with 53 M€. Decrease your TR 2 steps. 1 VP per preservation resource here.',
+        infoText: [{kind: 'effect-short', text: 'No TR gained this generation: +1 preservation, 6 M€'}],
 
         renderData: CardRenderer.builder((b) => {
           b.br.br.br;
