@@ -41,15 +41,19 @@ This is the contract of the showcase that replaced it. Stand: `tests/e2e/console
   wait brings the shelf forward, the wallet plate + the stamp, the chair everywhere. The Deck's wait stays at the floor
   (decision 10 — PL-927 waits for the owner).
 
-## 3. The reading row — the card under the cursor read whole
+## 3. The reading row — the name, and only what the face cannot print
 
 `console/draft/draftReadingModel.ts` (pure) + `ConsoleDraftReading.vue` (`.con-dread`, `[data-draft-reading]`), in the
 reserved status zone under the stage (one line, the stage never reflows):
 
-- the name in the row's hero voice; the PLAY cost (`calculatedCost` — the server's, under the player's discounts —
-  the printed one struck beside it when a discount moved it); the printed tags (an event wears the event tag); the
-  VP (a number or «special»); the requirement's verdict through the hand's own `buildCardAvailability(…, 'draft')`
-  (only printed requirements speak — money will change by the time the card is played).
+- the name in the row's hero voice; the requirement's verdict through the hand's own
+  `buildCardAvailability(…, 'draft')` — only when there is something to say (only printed requirements speak — money
+  will change by the time the card is played).
+- **The row never repeats the face** (the owner, 2026-10-23): the cost (the face already prints the discounted
+  `calculatedCost`), the tags, the VP and its condition stand on the card right above the row. The first cut of CE
+  listed them as icon «facts» and read as overload; `DraftReading` is `{name, availability}` and
+  `draftReadingModel.spec` pins it. The general rule: `.claude/rules/console-ui.md` § A STATUS LINE NEVER REPEATS THE
+  FACE ABOVE IT.
 - On the purchase the WALLET closes the row («ПОКУПКА N × 3 = −M · У ВАС A → B», `draftWalletOf` — the price per card
   the server's `thisPlayer.cardCost`; numbers on `ConsoleFlipValue`).
 - **The purchase's verb counts what it buys**: RT «Купить N» (`Buy ${0}`), «Купить 0» when nothing is chosen — never

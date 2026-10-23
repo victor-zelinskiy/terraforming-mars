@@ -3943,11 +3943,11 @@ html.con-reduced-motion {
 }
 
 /* ── THE PACKET SHOWCASE'S READING ROW (T10 · CE — `ConsoleDraftReading`) ──
-   The card under the cursor read whole on ONE line: the name in the row's
-   hero voice, then its facts as OBJECTS (an icon and its number), the
-   verdict in the availability block's quiet register, the wallet closing
-   the row on the purchase. One line in every state (the host reserves its
-   height and clips); hierarchy by weight and colour, never by size alone. */
+   ONE quiet line: the focused card's name, the verdict in the availability
+   block's register only when there is one, the wallet closing the row on
+   the purchase. It never repeats the face above it (cost, tags, VP — the
+   owner, 2026-10-23). One line in every state (the host reserves its height
+   and clips); hierarchy by weight and colour, never by size alone. */
 .con-dread {
     display: flex;
     align-items: center;
@@ -3970,40 +3970,9 @@ html.con-reduced-motion {
         text-transform: uppercase;
         animation: con-draftws-num calc(180ms * var(--motion-scale, 1)) ease-out;
     }
-    &__fact {
-        flex-shrink: 0;
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        font-size: var(--con-t-body);
-        b { font-weight: 800; }
-    }
-    &__fact + &__fact,
-    &__name + &__fact {
-        padding-left: 1.1rem;
-        box-shadow: inset .06rem 0 0 rgba(122, 168, 214, 0.22);
-    }
     &__mc {
         width: 1.25em;
         height: 1.25em;
-        flex-shrink: 0;
-    }
-    &__printed {
-        color: @con-text-dim;
-        font-size: .82em;
-    }
-    &__tag {
-        width: 1.45em;
-        height: 1.45em;
-        flex-shrink: 0;
-        border-radius: 50%;
-        background-repeat: no-repeat;
-        background-position: center;
-        background-size: contain;
-    }
-    &__vpbadge {
-        width: 1.25em;
-        height: 1.4em;
         flex-shrink: 0;
     }
     &__verdict {

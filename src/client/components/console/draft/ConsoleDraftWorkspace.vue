@@ -211,11 +211,12 @@
         </transition>
       </div>
 
-      <!-- ── THE READING ROW (T10 · CE): the card under the cursor read whole —
-           name · play cost · tags · VP · the requirement's verdict in the
-           hand's language (amber «пока не выполнено», red when the server
-           PROVED «уже не выполнить» — informational, the pick/buy stays
-           available). ONE line in a reserved zone: the stage above never
+      <!-- ── THE READING ROW (T10 · CE): the focused card's name + only what
+           its face cannot print — the requirement's verdict in the hand's
+           language (amber «пока не выполнено», red when the server PROVED
+           «уже не выполнить» — informational, the pick/buy stays available);
+           never the cost / tags / VP the face already shows above it. ONE
+           line in a reserved zone: the stage above never
            reflows. IN FLOW under the stage and ABOVE the shelf overlay — it
            explains the card the player is looking at, so the collection may
            never cover it. Held through the commit's completion: a line naming
@@ -299,7 +300,6 @@ import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCa
 import ConsoleDraftReading from '@/client/components/console/draft/ConsoleDraftReading.vue';
 import {DraftReading, draftReadingOf, DraftWallet, draftWalletOf} from '@/client/console/draft/draftReadingModel';
 import {DraftShowcaseComposition, planDraftShowcase} from '@/client/console/draft/draftShowcaseLayout';
-import {getCard} from '@/client/cards/ClientCardManifest';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
@@ -699,7 +699,7 @@ export default defineComponent({
     /** The reading row's model (T10 · CE) — `undefined` when no card is under the cursor (the wait). */
     statusReading(): DraftReading | undefined {
       const entry = this.statusEntry;
-      return entry === undefined ? undefined : draftReadingOf(entry.card, getCard(entry.name));
+      return entry === undefined ? undefined : draftReadingOf(entry.card);
     },
     /** The purchase's WALLET (T10 · CE, decision 8): the reading row's plate on the buy — the server's price per card. */
     walletModel(): DraftWallet | undefined {
