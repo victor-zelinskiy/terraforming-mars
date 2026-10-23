@@ -1,14 +1,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import {test, expect, Page} from './consoleTest';
-import {bootFixture, press, pressUntil, pressUntilVisible, settle} from './consoleStart';
+import {test, expect, Page, APIRequestContext} from './consoleTest';
+import {bootFixture, bootFixtureSeats, cinematicBeat, fetchPlayerModel, press, pressUntil, pressUntilVisible, sendPlayerInput, settle} from './consoleStart';
 
 /**
  * T10 · CE — THE PACKET SHOWCASE (the draft + the research buy on the 4K TV). The stand of the iteration «ДРАФТ И
  * ПОКУПКА ИССЛЕДОВАНИЯ — ВИТРИНА ПАКЕТА НА 4K»: the most frequent screen between generations, walked on every profile
  * from fixtures that stand its stages up directly (`draft-showcase-pick` — red's first packet of a two-seat draft,
- * blue never answers, so a pick leads to the WAIT; `draft-showcase-buy` — red's research buy of the four drafted cards,
- * 40 M€; `draft-showcase-solo-buy` — the no-draft buy).
+ * blue never answers, so a pick leads to the WAIT — and, walked with blue answering over the API, to red's research buy of
+ * the four drafted cards; `draft-showcase-solo-buy` — the no-draft buy). (A fixture standing IN the buy after a draft
+ * loads a degenerate scene — the reload-into-buy defect, ledger CE — so the buy is reached the way a player reaches it.)
  *
  * THE SHOWCASE PROBE (the TR68 / TR69 class) measures each stage against the workspace's BODY (the opening the stages
  * live in): the content's FOOT (the lowest visible content as a share of the body's height), the INK (the share of a
@@ -107,7 +108,8 @@ async function measure(page: Page, stage: string): Promise<Showcase> {
       }
       const own = Array.from(el.childNodes).some((n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? '').trim() !== '');
       const object = el.classList.contains('pcard') || el.tagName === 'IMG' || /__await-node|__shelf-slot|con-card-back/.test(String(el.className));
-      if (own && el.closest('svg') === null) {
+      // A card FACE is a graphic printed at its own scale (the premium face's type is the card's) — the floor is the UI's.
+      if (own && el.closest('svg') === null && el.closest('.pcard') === null) {
         texts++;
         const z = (el as unknown as {currentCSSZoom?: number}).currentCSSZoom ?? 1;
         const px = parseFloat(getComputedStyle(el).fontSize) * z;
@@ -191,11 +193,16 @@ async function measure(page: Page, stage: string): Promise<Showcase> {
   }, stage);
 }
 
+type Wire = {game: {phase: string}, waitingFor?: {type: string, buyMode?: boolean, draftPrompt?: unknown, cards?: Array<{name: string}>}};
+async function wireOf(request: APIRequestContext, playerId: string): Promise<Wire> {
+  return await fetchPlayerModel(request, playerId) as unknown as Wire;
+}
+
 async function stageVisible(page: Page, stage: string): Promise<boolean> {
   return page.locator(`.con-draftws__stage--${stage}`).isVisible();
 }
 
-async function openDraft(page: Page, request: Parameters<typeof bootFixture>[1], fixture: 'draft-showcase-pick' | 'draft-showcase-buy' | 'draft-showcase-solo-buy', profile: Profile): Promise<string> {
+async function openDraft(page: Page, request: Parameters<typeof bootFixture>[1], fixture: 'draft-showcase-pick' | 'draft-showcase-solo-buy', profile: Profile): Promise<string> {
   const playerId = await bootFixture(page, request, fixture, {query: profile.query, landing: 'prompt'});
   if (!await page.locator('.con-draftws').isVisible()) {
     await pressUntilVisible(page, 'Enter', '.con-draftws', {settleMs: 1500});
@@ -220,63 +227,6 @@ function expectHonest(profile: Profile, s: Showcase): void {
   expect(s.scrollers, `${s.stage}: no scroll container`).toBe(0);
   if (profile.id === 'tv4k') {
     expect(s.below, `${s.stage}: nothing under the couch floor (${s.floorPx}px)`).toEqual([]);
-  }
-}
-
-/**
- * THE MOCKUPS (`TM_DRAFT_MOCKUPS=1`, the TV only) — three compositions for the owner's batch, drawn as CSS over the
- * LIVE scene (the real fit engine solves the cards in the box each mockup leaves them): M1 the packet in the whole
- * opening over a shelf of large faces at the foot; M2 the shelf as a column at the right; M3 the shelf as a ribbon
- * above the packet. Each is shot on the first packet and on the wait (where M1–M3 also stand the shelf big).
- */
-const MOCKUPS: Record<string, string> = {
-  M1: `
-    .con-draftws__stagewrap--shelved .con-draftws__stage { bottom: 12.4rem !important; }
-    .con-draftws__shelf { padding: .5rem 1.2rem .6rem !important; background: rgba(9,15,24,.55) !important; }
-    .con-draftws__shelf-row { justify-content: center; min-height: 0 !important; gap: 1rem !important; }
-    .con-draftws__shelf-slot, .con-draftws__shelf-seat { width: 6.6rem !important; height: 9.3rem !important; }
-    .con-draftws__shelf-slot :is(.card-container, .pcard) { zoom: calc(0.415 * var(--con-ui-scale, 1)) !important; }
-    .con-draftws:has(.con-draftws__stage--wait:not([style*="none"])) .con-draftws__shelf { bottom: 38% !important; background: none !important; box-shadow: none !important; }
-    .con-draftws:has(.con-draftws__stage--wait:not([style*="none"])) .con-draftws__shelf-slot,
-    .con-draftws:has(.con-draftws__stage--wait:not([style*="none"])) .con-draftws__shelf-seat { width: 12rem !important; height: 16.9rem !important; }
-    .con-draftws:has(.con-draftws__stage--wait:not([style*="none"])) .con-draftws__shelf-slot :is(.card-container, .pcard) { zoom: calc(0.755 * var(--con-ui-scale, 1)) !important; }
-    .con-draftws:has(.con-draftws__stage--wait:not([style*="none"])) .con-draftws__stage--wait { justify-content: flex-end; padding-bottom: 2rem; }
-  `,
-  M2: `
-    .con-draftws__stagewrap--shelved .con-draftws__stage { bottom: 0 !important; right: 17.5rem !important; }
-    .con-draftws__shelf { left: auto !important; right: 0 !important; top: 0 !important; width: 16.5rem !important; justify-content: center; }
-    .con-draftws__shelf-row { flex-wrap: wrap; justify-content: center; align-content: center; min-height: 0 !important; gap: .8rem !important; }
-    .con-draftws__shelf-slot, .con-draftws__shelf-seat { width: 7rem !important; height: 9.9rem !important; }
-    .con-draftws__shelf-slot :is(.card-container, .pcard) { zoom: calc(0.44 * var(--con-ui-scale, 1)) !important; }
-  `,
-  M3: `
-    .con-draftws__stagewrap--shelved .con-draftws__stage { top: 11.4rem !important; bottom: 0 !important; }
-    .con-draftws__shelf { top: 0 !important; bottom: auto !important; }
-    .con-draftws__shelf-row { justify-content: center; min-height: 0 !important; gap: 1rem !important; }
-    .con-draftws__shelf-slot, .con-draftws__shelf-seat { width: 6.4rem !important; height: 9rem !important; }
-    .con-draftws__shelf-slot :is(.card-container, .pcard) { zoom: calc(0.4 * var(--con-ui-scale, 1)) !important; }
-  `,
-};
-
-if (process.env.TM_DRAFT_MOCKUPS === '1') {
-  const tv = PROFILES[0];
-  for (const [mock, css] of Object.entries(MOCKUPS)) {
-    test.describe(`the packet showcase · mockup ${mock}`, () => {
-      test.use({viewport: tv.viewport});
-      test(`${mock} — the first packet and the wait`, async ({page, request}) => {
-        test.setTimeout(240_000);
-        await bootFixture(page, request, 'draft-showcase-pick', {query: tv.query, landing: 'prompt'});
-        await page.addStyleTag({content: css});
-        if (!await page.locator('.con-draftws').isVisible()) {
-          await pressUntilVisible(page, 'Enter', '.con-draftws', {settleMs: 1500});
-        }
-        await page.evaluate(() => window.dispatchEvent(new Event('resize')));
-        await expect(page.locator('.con-draftws__stage--pick .con-cards__slot').first()).toBeVisible({timeout: 45_000});
-        await cell(page, tv, `mock-${mock}-a-packet`, 'pick');
-        expect(await pressUntil(page, 'Enter', async () => await stageVisible(page, 'wait'), {settleMs: 1200}), 'A picks into the wait').toBe(true);
-        await cell(page, tv, `mock-${mock}-b-wait`, 'wait');
-      });
-    });
   }
 }
 
@@ -314,10 +264,28 @@ for (const profile of PROFILES) {
       }
     });
 
-    test('D — the research buy of the drafted cards: nothing picked, then two', async ({page, request}) => {
-      test.setTimeout(300_000);
-      await openDraft(page, request, 'draft-showcase-buy', profile);
-      await expect(page.locator('.con-draftws__stage--buy .con-cards__slot')).toHaveCount(4, {timeout: 45_000});
+    test('D — the research buy of the drafted cards (the draft walked: the viewer on the pad, the rival over the API): nothing picked, then two', async ({page, request}) => {
+      test.setTimeout(420_000);
+      const {playerId, seats} = await bootFixtureSeats(page, request, 'draft-showcase-pick', {query: profile.query, landing: 'prompt'});
+      if (!await page.locator('.con-draftws').isVisible()) {
+        await pressUntilVisible(page, 'Enter', '.con-draftws', {settleMs: 1500});
+      }
+      for (let round = 0; round < 24; round++) {
+        const mine = await wireOf(request, playerId);
+        if (mine.game.phase === 'research' && mine.waitingFor?.buyMode === true) {
+          break;
+        }
+        const theirs = await wireOf(request, seats[1]);
+        if (theirs.waitingFor?.type === 'card' && theirs.waitingFor.draftPrompt !== undefined && (theirs.waitingFor.cards?.length ?? 0) > 0) {
+          await sendPlayerInput(request, seats[1], {type: 'card', cards: [theirs.waitingFor.cards![0].name]} as never);
+        }
+        if (mine.waitingFor?.type === 'card' && mine.waitingFor.draftPrompt !== undefined && await stageVisible(page, 'pick')) {
+          await pressUntil(page, 'Enter', async () => await stageVisible(page, 'wait') || await stageVisible(page, 'buy') ||
+            await page.locator('.con-draftws__stage--pick .con-cards__slot--picked').count() > 0, {settleMs: 900});
+        }
+        await cinematicBeat(page, 700, 'the rival answers and the packet passes');
+      }
+      await expect(page.locator('.con-draftws__stage--buy .con-cards__slot')).toHaveCount(4, {timeout: 60_000});
       const zero = await cell(page, profile, 'd-buy-0', 'buy');
       const picked = async () => page.locator('.con-draftws__stage--buy .con-cards__slot--picked').count();
       await pressUntil(page, 'Enter', async () => await picked() >= 1, {settleMs: 900});

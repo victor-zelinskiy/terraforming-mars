@@ -40,37 +40,14 @@
                             terminal-label="Ready" />
       </template>
       <template #trailing>
-        <!-- The chapter's own READOUT — one reserved slot in the header's
-             stable chrome, so neither of the two costs the cards a single
-             pixel of stage height: the SELECTION states where the packet
-             goes; the PURCHASE states what it costs. -->
+        <!-- The selection's own READOUT — one reserved slot in the header's
+             stable chrome: where the packet goes. (The PURCHASE's wallet
+             closes the reading row under the packet — T10 · CE.) -->
         <div v-if="passReadout !== undefined" class="con-draftws__pass">
           <span class="con-draftws__pass-label">{{ $t('Passing to') }}</span>
           <span class="con-draftws__pass-dot" :class="'player_bg_color_' + passReadout.color" aria-hidden="true"></span>
           <span class="con-draftws__pass-name">{{ passReadout.name }}</span>
           <span class="con-draftws__pass-arrow" aria-hidden="true">{{ giveSide === 'right' ? '⟶' : '⟵' }}</span>
-        </div>
-        <div v-else-if="zone === 'buy' || zone === 'pay'"
-             class="con-draftws__finstrip" :class="{'con-draftws__finstrip--over': !buyAffordable}">
-          <span class="con-draftws__fin-main">
-            <span class="con-draftws__fin-label">{{ $t('Purchase') }}</span>
-            <span class="con-draftws__fin-total" :key="buyTotal">−{{ buyTotal }}</span>
-            <i class="resource_icon resource_icon--megacredits con-draftws__fin-mc" aria-hidden="true"></i>
-            <span class="con-draftws__fin-detail">{{ picks.length }} × {{ buyCostPerCard }}</span>
-          </span>
-          <span class="con-draftws__fin-wallet">
-            <span class="con-draftws__fin-cell">
-              <span class="con-draftws__fin-caption">{{ $t('You have') }}</span>
-              <span class="con-draftws__fin-num">{{ megacreditsOnHand }}</span>
-              <i class="resource_icon resource_icon--megacredits con-draftws__fin-mc" aria-hidden="true"></i>
-            </span>
-            <span class="con-draftws__fin-sep" aria-hidden="true">→</span>
-            <span class="con-draftws__fin-cell">
-              <span class="con-draftws__fin-caption">{{ $t('After purchase') }}</span>
-              <span class="con-draftws__fin-num" :class="{'con-draftws__fin-num--over': !buyAffordable}">{{ megacreditsAfterPurchase }}</span>
-              <i class="resource_icon resource_icon--megacredits con-draftws__fin-mc" aria-hidden="true"></i>
-            </span>
-          </span>
         </div>
       </template>
     </ConsoleWsHead>
@@ -174,7 +151,7 @@
                      'con-deal-hold': deal.isHeld(entry.key),
                    }">
                 <Card :card="entry.card" :key="entry.name" lightweight />
-                <span v-if="isPicked(entry.name) && !buyDeparting" class="con-cards__pickband" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
+                <span v-if="isPicked(entry.name) && !buyDeparting" class="con-cards__pickband con-draftws__bought" data-draft-bought aria-hidden="true">✓ {{ $t('Bought') }}</span>
               </div>
             </div>
           </div>
@@ -245,7 +222,7 @@
            the focused card floated alone over the emptied stage while the
            unbought cards tumbled out. ─────────── -->
       <div class="con-draftws__statusbar" :class="{'con-draftws__statusbar--held': beatActive || buyDeparting}" ref="statusbar">
-        <ConsoleDraftReading :reading="statusReading" :idle="zone === 'wait' ? 'Waiting for the other players' : ''" />
+        <ConsoleDraftReading :reading="statusReading" :wallet="walletModel" :idle="zone === 'wait' ? 'Waiting for the other players' : ''" />
       </div>
 
       <!-- ── THE SHELF («ОТОБРАНО») — the permanent collection zone. Slots
@@ -320,7 +297,7 @@ import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.
 import ConsoleJourneyRail from '@/client/components/console/foundation/ConsoleJourneyRail.vue';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
 import ConsoleDraftReading from '@/client/components/console/draft/ConsoleDraftReading.vue';
-import {DraftReading, draftReadingOf} from '@/client/console/draft/draftReadingModel';
+import {DraftReading, draftReadingOf, DraftWallet, draftWalletOf} from '@/client/console/draft/draftReadingModel';
 import {DraftShowcaseComposition, planDraftShowcase} from '@/client/console/draft/draftShowcaseLayout';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -723,6 +700,10 @@ export default defineComponent({
     statusReading(): DraftReading | undefined {
       const entry = this.statusEntry;
       return entry === undefined ? undefined : draftReadingOf(entry.card, getCard(entry.name));
+    },
+    /** The purchase's WALLET (T10 · CE, decision 8): the reading row's plate on the buy — the server's price per card. */
+    walletModel(): DraftWallet | undefined {
+      return this.zone === 'buy' || this.zone === 'pay' ? draftWalletOf(this.picks.length, this.buyCostPerCard, this.megacreditsOnHand) : undefined;
     },
     collectedAsEntries(): ReadonlyArray<CardEntry> {
       return this.collectedEntries
@@ -1872,7 +1853,6 @@ export default defineComponent({
         // THE STAGE's box, not the wrap's: the shelved zones inset their
         // stages off the shelf overlay, so the stage box IS the honest room.
         const stageEl = row.closest<HTMLElement>('.con-draftws__stage') ?? wrap;
-        const chrome = this.stageChromeHeight();
         // The row's own paddings (focus/lift headroom on all four sides) are
         // part of the budget — MEASURED off the element, never re-stated as
         // constants that drift from the stylesheet.
@@ -1883,7 +1863,7 @@ export default defineComponent({
           // The ZONE's width, never the row's own: a shrink-to-fit row
           // reports its content width — the fit engine reading its output.
           availW: Math.max(160, stageEl.clientWidth - rowPadX),
-          availH: Math.max(120, stageEl.clientHeight - chrome - rowPadY),
+          availH: Math.max(120, stageEl.clientHeight - rowPadY),
           slotW, slotH,
           n: list.length,
           ui: conUiScale(),
@@ -1893,14 +1873,6 @@ export default defineComponent({
         const zoneKey = zone === 'inspect' ? 'inspect' : (zone === 'buy' || zone === 'pay' ? 'buy' : 'pick');
         this.perRowByZone[zoneKey] = layout.perRow;
       });
-    },
-    /** Measured non-row chrome INSIDE the stage (the financial strip). */
-    stageChromeHeight(): number {
-      if (this.zone !== 'buy' && this.zone !== 'pay') {
-        return 0;
-      }
-      const fin = (this.$el as HTMLElement).querySelector<HTMLElement>('.con-draftws__finstrip');
-      return fin === null ? 0 : fin.offsetHeight + 12 * conUiScale();
     },
     // ── the clone-proxy flights (the LT spread/collect) ─────────────────
     // The engine lives in the SHARED `cardFlight/cloneFlights.ts` (the

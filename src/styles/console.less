@@ -3629,75 +3629,21 @@ html.con-reduced-motion {
         color: @con-text-dim;
     }
 
-    /* ── BUY: the financial strip — compact, one line, instantly readable. ── */
-    /* The PURCHASE readout lives in the HEADER's trailing slot (the same
-       reserved place the selection's pass readout uses) — the cards own the
-       whole stage height. Compact by construction: one line, no plate. */
-    &__finstrip {
-        display: inline-flex;
-        align-items: baseline;
-        gap: 1.1rem;
-        padding: .3rem .8rem .35rem;
-        border-radius: .5rem;
-        background: fade(@con-glass-soft, 70%);
-        box-shadow: inset 0 0 0 .05rem rgba(122, 168, 214, 0.2);
-        white-space: nowrap;
 
-        &--over {
-            box-shadow: inset 0 0 0 .06rem fade(@con-amber, 65%);
-        }
-    }
-    &__fin-main {
-        display: inline-flex;
-        align-items: baseline;
-        gap: .5rem;
-    }
-    &__fin-label {
-        font-size: .78rem;
+    /* THE PURCHASE'S STAMP (T10 · CE, decision 8): a card chosen for the buy wears «✓ КУПЛЕНО» on its face —
+       the pick band's chassis in the gain's mint, tracked caps (the state is the WORD, never colour alone). */
+    &__bought {
         letter-spacing: .12rem;
         text-transform: uppercase;
-        color: @con-text-dim;
-    }
-    &__fin-total {
-        font-size: 1.1rem;
         font-weight: 800;
-        color: @con-amber;
-        animation: con-draftws-num calc(220ms * var(--motion-scale, 1)) ease-out;
     }
+    /* The M€ glyph beside the terminal beat's spend. */
     &__fin-mc {
         width: .95rem;
         height: .95rem;
         flex-shrink: 0;
         align-self: center;
     }
-    &__fin-detail {
-        font-size: .78rem;
-        color: @con-text-dim;
-    }
-    &__fin-wallet {
-        display: inline-flex;
-        align-items: baseline;
-        gap: .8rem;
-    }
-    &__fin-cell {
-        display: inline-flex;
-        align-items: baseline;
-        gap: .45rem;
-    }
-    &__fin-caption {
-        font-size: .72rem;
-        letter-spacing: .09rem;
-        text-transform: uppercase;
-        color: @con-text-dim;
-    }
-    &__fin-num {
-        font-size: .95rem;
-        font-weight: 700;
-        color: @con-text;
-
-        &--over { color: @con-amber; }
-    }
-    &__fin-sep { color: @con-text-dim; }
 
     &__paystep {
         position: absolute;
@@ -3893,6 +3839,10 @@ html.con-reduced-motion {
         background-color: transparent;
         box-shadow: none;
     }
+    /* …and only the FACES come forward: the head («ОТОБРАННЫЕ 1/4 · LT») dissolves — scaled with the rack it stood
+       over the pass lane's lines (the 4K frame of the stand); the seats are numbered, the count is theirs. */
+    &__shelf-head { transition: opacity calc(200ms * var(--motion-scale, 1)) ease; }
+    &--waiting &__shelf-head { opacity: 0; }
     &--waiting &__stage--wait {
         justify-content: flex-start;
         padding-top: 1.2rem;

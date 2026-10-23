@@ -209,7 +209,7 @@ async function surface(page: Page) {
       railItems: document.querySelectorAll('.con-jrail [data-phase="picks"] .con-jrail__item').length,
       railDone: document.querySelectorAll('.con-jrail [data-phase="picks"] .con-jrail__item--done').length,
       railPresentation: document.querySelector('.con-jrail')?.getAttribute('data-presentation') ?? '',
-      finstrip: painted('.con-draftws__finstrip'),
+      finstrip: painted('[data-draft-wallet]'),
       hud: painted('.con-status'),
       rail: painted('.con-res'),
       dock: painted('.con-handdock'),
@@ -593,7 +593,7 @@ test.describe('draft workspace · the between-generations flow', () => {
     s = await surface(page);
     console.log('[purchase]', JSON.stringify(s));
     expect(s.buySlots, 'the whole drafted set is the purchase row').toBe(4);
-    expect(s.finstrip, 'the financial strip stands').toBeTruthy();
+    expect(s.finstrip, 'the wallet plate stands in the reading row (T10 · CE)').toBeTruthy();
     expect(s.workspace, 'still the same workspace').toBeTruthy();
     expect(s.taskHostBands, 'still no standalone modal').toBe(0);
     await shoot(page, '06-purchase');

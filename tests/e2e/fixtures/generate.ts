@@ -7879,9 +7879,8 @@ function generationEndStocks(player: TestPlayer, energy: number): void {
 
 // ── T10 · CE · THE PACKET SHOWCASE (the draft + research buy on the 4K TV): the workspace's stages stood up directly,
 //    no generation scene in front of them. `draft-showcase-pick`: two seats WITH the draft, generation 2, both seats
-//    holding their FIRST packet (4 cards) — red picks on the UI, blue never answers, so red's next stage is the WAIT;
-//    `draft-showcase-buy`: the same table with every pick answered by the engine — red's research BUY of the four
-//    drafted cards, 40 M€ (buy two → «2 × 3 = −6 · 40 → 34»); `draft-showcase-solo-buy`: solo, no draft — the buy of
+//    holding their FIRST packet (4 cards) — red picks on the UI, blue never answers, so red's next stage is the WAIT (the stand walks the rest of the draft
+//    with blue answering over the API); `draft-showcase-solo-buy`: solo, no draft — the buy of
 //    the next generation is the whole flow (the `research-startups` road's twin through the generation's own end). ──
 function draftShowcaseTable(): {game: IGame, p1: TestPlayer, p2: TestPlayer} {
   const [game, p1, p2] = testGame(2, {skipInitialCardSelection: false, draftVariant: true});
@@ -7905,24 +7904,6 @@ function draftShowcaseTable(): {game: IGame, p1: TestPlayer, p2: TestPlayer} {
     throw new Error(`draft-showcase-pick: expected both seats on their first 4-card packet, got phase=${game.phase} wf1=${wf1?.constructor.name} cards=${wf1 instanceof SelectCard ? wf1.cards.length : -1}`);
   }
   write('draft-showcase-pick', game);
-}
-{
-  const {game, p1, p2} = draftShowcaseTable();
-  for (let i = 0; i < 20 && game.phase === Phase.DRAFTING; i++) {
-    for (const p of [p1, p2]) {
-      const wf = p.getWaitingFor();
-      if (wf instanceof SelectCard && game.phase === Phase.DRAFTING) {
-        p.process({type: 'card', cards: [wf.cards[0].name]});
-        runAllActions(game);
-      }
-    }
-  }
-  const wf = p1.getWaitingFor();
-  p1.megaCredits = 40;
-  if (game.phase !== Phase.RESEARCH || !(wf instanceof SelectCard) || wf.cards.length !== 4) {
-    throw new Error(`draft-showcase-buy: expected red's research buy of 4 drafted cards, got phase=${game.phase} wf=${wf?.constructor.name} cards=${wf instanceof SelectCard ? wf.cards.length : -1}`);
-  }
-  write('draft-showcase-buy', game);
 }
 {
   const {game, player} = soloActionPhase();

@@ -197,7 +197,7 @@ for (const preset of PRESETS) {
       const crumb = await crumbText(page);
       expect(crumb, 'the crumb names the research and the purchase').toMatch(/ИССЛЕДОВАНИЕ/i);
       expect(crumb).toMatch(/ПОКУПКА/i);
-      await expect(page.locator('.con-draftws__finstrip')).toBeVisible();
+      await expect(page.locator('[data-draft-wallet]'), 'the wallet closes the reading row (T10 · CE)').toBeVisible();
       await expect(page.locator('.con-draftws__shelf'), 'no shelf without a draft (nothing was collected)').toBeHidden();
       // Part Г — THE PURCHASE AT THE COUCH'S SCALE: the card is a protagonist (≥ ⅓ of the workspace's height — the
       // receiving stage's law), and every line of the financial strip reads at or above the TV's type floor
@@ -218,9 +218,9 @@ for (const preset of PRESETS) {
         return {
           bandH: band?.height ?? 0, cardH: card?.height ?? 0, cardW: card?.width ?? 0, floorPx,
           fin: {
-            label: px(document.querySelector('.con-draftws__fin-label')),
-            total: px(document.querySelector('.con-draftws__fin-total')),
-            detail: px(document.querySelector('.con-draftws__fin-detail')),
+            label: px(document.querySelector('.con-dread__wallet-kicker')),
+            total: px(document.querySelector('.con-dread__wallet-total')),
+            detail: px(document.querySelector('.con-dread__wallet-calc')),
           },
         };
       });
@@ -275,7 +275,7 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, 'b-02-purchase');
       // PARITY: the buy chrome is the same set of hooks the no-draft road rendered.
       expect(await crumbText(page)).toMatch(/ПОКУПКА/i);
-      await expect(page.locator('.con-draftws__finstrip')).toBeVisible();
+      await expect(page.locator('[data-draft-wallet]'), 'the wallet closes the reading row (T10 · CE)').toBeVisible();
       expect(await page.locator('.con-task--wide').count(), 'no standalone plate on the drafting road either').toBe(0);
     });
 
