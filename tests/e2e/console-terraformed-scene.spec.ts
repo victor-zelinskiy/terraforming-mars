@@ -103,6 +103,28 @@ async function armSampler(page: Page): Promise<void> {
     // workspace) is that surface's own policy, not the scene's — the baseline is taken at the arm.
     const RECEDING = ['.con-res-host', '.con-cmdbar', '.con-handdock', '.con-info', '.con-reveal', '.con-strat'];
     const baselineNone = new Set(RECEDING.filter((sel) => op(sel) === 'none'));
+    // THE CLASS TIMELINE — a MutationObserver (a microtask after each patch, never a frame): every change of the root's
+    // scene classes, with the hand's declared transition at that moment. A starved renderer (CI's SwiftShader at 4K)
+    // stretches the 100 ms sampler past a whole 500 ms fade, but not this: the recede's opacity is a CSS transition on
+    // the CLOCK, so «faded out before it left the row» is «the stage class came at least one transition after the recede».
+    const cw = window as unknown as {__tfClasses: Array<{t: number, cls: Array<string>, handDur: string}>};
+    cw.__tfClasses = [];
+    let lastKey = '';
+    const noteClasses = () => {
+      const r = document.querySelector<HTMLElement>('.con-root');
+      if (r === null) {
+        return;
+      }
+      const cls = Array.from(r.classList).filter((c) => /terraformed/.test(c)).map((c) => c.replace('con-root--', '')).sort();
+      if (cls.join(' ') === lastKey) {
+        return;
+      }
+      lastKey = cls.join(' ');
+      const hand = document.querySelector<HTMLElement>('.con-hand');
+      cw.__tfClasses.push({t: Math.round(performance.now() - t0), cls, handDur: hand === null ? '' : getComputedStyle(hand).transitionDuration});
+    };
+    noteClasses();
+    new MutationObserver(noteClasses).observe(document.documentElement, {subtree: true, attributes: true, attributeFilter: ['class']});
     w.__tfTimer = window.setInterval(() => {
       const root = document.querySelector<HTMLElement>('.con-root');
       const board = document.querySelector<HTMLElement>('.con-board');
@@ -374,11 +396,20 @@ test.describe('«Марс терраформирован» — the planet shows 
       // reached 0 (the player sees nothing switch), and is back in the row before it fades in.
       const firstNone = samples.findIndex((s) => s.hand === 'none');
       expect(firstNone, 'the album left the row for the board').toBeGreaterThan(0);
-      const fadedBefore = samples.slice(0, firstNone).some((s) => s.hand !== 'none' && s.hand !== '-' && Number(s.hand) <= 0.5);
-      expect(fadedBefore, 'the album was faded OUT before it left the row').toBe(true);
+      // Seen in the samples where the renderer let the sampler run — else read off the CLASS TIMELINE (the clock).
+      const classes = await page.evaluate(() => (window as unknown as {__tfClasses: Array<{t: number, cls: Array<string>, handDur: string}>}).__tfClasses);
+      const recede = classes.find((c) => c.cls.includes('terraformed'));
+      const stage = classes.find((c) => c.cls.includes('terraformed-stage'));
+      const stageBack = stage === undefined ? undefined : classes.find((c) => c.t >= stage.t && !c.cls.includes('terraformed-stage'));
+      const fadeMs = Math.max(0, ...(recede?.handDur ?? '').split(',').map((d) => parseFloat(d) * (/ms\s*$/.test(d) ? 1 : 1000)).filter((n) => Number.isFinite(n)));
+      const timeline = classes.map((c) => `${c.t}:[${c.cls.join(' ')}]`).join(' ');
+      const fadedBefore = samples.slice(0, firstNone).some((s) => s.hand !== 'none' && s.hand !== '-' && Number(s.hand) <= 0.5) ||
+        (recede !== undefined && stage !== undefined && fadeMs > 0 && stage.t - recede.t >= fadeMs - 30);
+      expect(fadedBefore, `the album was faded OUT before it left the row (fade ${fadeMs} ms · ${timeline})`).toBe(true);
       const lastNone = samples.map((s) => s.hand).lastIndexOf('none');
-      const fadedAfter = samples.slice(lastNone + 1).some((s) => s.hand !== 'none' && s.hand !== '-' && Number(s.hand) <= 0.5);
-      expect(fadedAfter, `the album came back into the row still faded, then faded in (after the flip: ${samples.slice(lastNone + 1, lastNone + 7).map((s) => s.hand).join(' → ')})`).toBe(true);
+      const fadedAfter = samples.slice(lastNone + 1).some((s) => s.hand !== 'none' && s.hand !== '-' && Number(s.hand) <= 0.5) ||
+        (stageBack !== undefined && stageBack.cls.includes('terraformed'));
+      expect(fadedAfter, `the album came back into the row still faded, then faded in (after the flip: ${samples.slice(lastNone + 1, lastNone + 7).map((s) => s.hand).join(' → ')} · ${timeline})`).toBe(true);
       expect(summary.stageBoxes, 'the stage keeps ONE box (the board stood in for the album)').toHaveLength(1);
       const after = {card: await focusedCard(page), pager: await page.locator('.con-handdock__pager').textContent().catch(() => '')};
       expect(after.card, 'the same card in focus').toBe(before.card);

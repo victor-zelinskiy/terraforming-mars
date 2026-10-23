@@ -221,8 +221,14 @@ for (const preset of PRESETS) {
       // L3 — WHERE FROM: the scene recedes over the board, the paying cell is ringed; L3 brings the cards back.
       expect(await pressUntil(page, 'KeyC', async () => await page.locator('.con-reveal--peek').count() > 0, {settleMs: 300})).toBeTruthy();
       await expect(page.locator('.board-log-highlight.con-peek-cell--source'), 'the paying cell is ringed').toHaveCount(1);
-      const peekOpacity = await page.evaluate(() => Number(getComputedStyle(document.querySelector('.con-reveal__card')!).opacity));
-      expect(peekOpacity, 'the scene recedes while the cell is shown').toBeLessThan(0.3);
+      // The recede is a 200 ms opacity transition from the class flip — wait it out (a loaded renderer reads it mid-way),
+      // and name the reveal's own classes if it never comes (the peek rule keys on `--scene.--peek`).
+      const peekRead = () => page.evaluate(() => {
+        const card = document.querySelector<HTMLElement>('.con-reveal__card');
+        return {opacity: card === null ? -1 : Number(getComputedStyle(card).opacity), classes: document.querySelector('.con-reveal')?.className ?? '(no .con-reveal)'};
+      });
+      await expect.poll(async () => (await peekRead()).opacity, {timeout: 3_000, message: `the scene recedes while the cell is shown (${JSON.stringify(await peekRead())})`})
+        .toBeLessThan(0.3);
       expect(await pressUntil(page, 'KeyC', async () => await page.locator('.con-reveal--peek').count() === 0, {settleMs: 300})).toBeTruthy();
       await expect(page.locator('.board-log-highlight.con-peek-cell--source')).toHaveCount(0);
 

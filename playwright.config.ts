@@ -143,10 +143,18 @@ export default defineConfig({
          * CPU compositor (150–380 ms, PL-149), and under two workers holds hit their ceilings — red that is not the
          * product's. Opt-in, never on CI (Linux runners have no GPU): a 4K storyboard / timing claim is taken with it.
          */
+        /*
+         * CI (and `TM_E2E_CHANNEL=chromium` anywhere) runs the NEW headless WITHOUT the GPU flags — software raster, CI
+         * has no GPU. The headless SHELL lays text out with other font metrics than the full browser: measured on the box
+         * 2026-10-23, the same build under the shell failed 16 text-fit / anchor guards that the full browser passes 17/17
+         * (a 4K strip chip 2.8 px wider, «Причал свободен» / «Финансирование исследований» / a resolution's title no
+         * longer whole, the ruler block one line taller) — and CI's reds were exactly those. Every text-fit guard is
+         * calibrated on the full browser (the box runs it with `TM_E2E_GPU=1`), so CI runs the full browser too.
+         */
         ...(process.env.TM_E2E_GPU === '1' && !isCI ? {
           channel: 'chromium',
           launchOptions: {args: GPU_ARGS},
-        } : {}),
+        } : isCI || process.env.TM_E2E_CHANNEL === 'chromium' ? {channel: 'chromium'} : {}),
       },
     },
   ],
