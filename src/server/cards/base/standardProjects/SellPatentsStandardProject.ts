@@ -9,6 +9,7 @@ import * as actionReason from '../../actionReasons';
 import {UnplayableReason} from '../../../../common/cards/UnplayableReason';
 import {SELL_PATENTS_MEGACREDITS_PER_CARD} from './patentSale';
 import {patentSaleModel} from '../../../models/patentSaleModel';
+import {SELL_PATENTS_EXHAUSTED_REASON} from '../../../../common/game/fastMode';
 
 export class SellPatentsStandardProject extends StandardProjectCard {
   constructor() {
@@ -26,12 +27,24 @@ export class SellPatentsStandardProject extends StandardProjectCard {
     });
   }
 
+  /**
+   * FAST MODE caps the sale at ONE per generation per player (the fork's
+   * extension of upstream's «cannot end turn after one action»). The same
+   * predicate feeds `canAct` and the reason, so the two can never drift.
+   */
+  public static exhaustedForGeneration(player: IPlayer): boolean {
+    return player.game.gameOptions.fastModeOption && player.patentSalesThisGeneration > 0;
+  }
+
   public override canAct(player: IPlayer): boolean {
-    return player.cardsInHand.length > 0;
+    return player.cardsInHand.length > 0 && !SellPatentsStandardProject.exhaustedForGeneration(player);
   }
 
   // Co-located with canAct so the reason can't drift when the gate changes.
   public actionUnavailableReason(player: IPlayer): UnplayableReason | undefined {
+    if (SellPatentsStandardProject.exhaustedForGeneration(player)) {
+      return actionReason.ruleReason(SELL_PATENTS_EXHAUSTED_REASON);
+    }
     return player.cardsInHand.length === 0 ? actionReason.ruleReason('No cards in hand') : undefined;
   }
 
@@ -58,6 +71,9 @@ export class SellPatentsStandardProject extends StandardProjectCard {
           // recorded as a GameEvent and appears in the journal / notifications.
           player.stock.add(Resource.MEGACREDITS, cards.length * SELL_PATENTS_MEGACREDITS_PER_CARD);
           cards.forEach((card) => player.discardCardFromHand(card));
+          // The fast-mode cap counts SALES, not cards: a one-card sale spends the
+          // generation's one sale exactly like a ten-card sale.
+          player.patentSalesThisGeneration++;
           this.projectPlayed(player);
           player.game.log('${0} sold ${1} patents', (b) => b.player(player).number(cards.length));
           this.patentsSold(player, cards);

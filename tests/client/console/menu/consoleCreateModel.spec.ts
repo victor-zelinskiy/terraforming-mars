@@ -202,6 +202,16 @@ describe('consoleCreateModel', () => {
       expect(createGameState.config.rules.draftVariant).to.eq(!before);
     });
 
+    it('offers fast mode in every setup (no expansion gate), off by default, and toggles it', () => {
+      const row = ruleRows().find((r) => r.meta.id === 'fastMode');
+      expect(row, 'fast mode is a rule row').to.not.eq(undefined);
+      expect(row?.value).to.eq(false);
+      toggleExpansion('venus');
+      expect(ruleRows().map((r) => r.meta.id), 'not tied to an expansion').to.include('fastMode');
+      toggleRule('fastMode');
+      expect(createGameState.config.rules.fastMode).to.eq(true);
+    });
+
     it('shows the test-mode rule only while a seat is taken by admin', () => {
       expect(ruleRows().map((r) => r.meta.id)).to.not.include('testMode');
       setSlotName(0, ' Admin ');

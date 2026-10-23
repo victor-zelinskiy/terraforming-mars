@@ -91,6 +91,9 @@
             <div class="con-stdp__body">
               <div class="con-stdp__name">{{ $t(it.title) }}</div>
               <div class="con-stdp__desc">{{ $t(it.description) }}</div>
+              <!-- A STANDING rule of this party under the description (fast mode's «раз за поколение» on the
+                   patent sale) — printed while the row is live; a blocker speaks in the footer, not here. -->
+              <div v-if="it.note !== undefined" class="con-stdp__note" data-stdp-note>{{ $t(it.note) }}</div>
             </div>
             <div class="con-stdp__status">
               <span v-if="it.cost !== undefined" class="con-stdp__cost"

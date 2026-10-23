@@ -73,7 +73,7 @@ export function buildCreateGamePayloadFromPremiumState(state: PremiumCreateGameS
     clonedGamedId: undefined,
     undoOption: d.undoOption,
     showTimers: d.showTimers,
-    fastModeOption: d.fastModeOption,
+    fastModeOption: state.rules.fastMode,
     showOtherPlayersVP: state.rules.showOtherPlayersVP,
     testMode,
     aresExtremeVariant: d.aresExtremeVariant,

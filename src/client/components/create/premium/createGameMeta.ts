@@ -118,13 +118,14 @@ export type PremiumRuleId =
   | 'trBoostEnabled'
   | 'showOtherPlayersVP'
   | 'alternativeVenusBoard'
+  | 'fastMode'
   | 'testMode';
 
 export type PremiumRuleMeta = {
   id: PremiumRuleId;
   labelKey: string;
   descKey: string;
-  icon: 'draft' | 'dice' | 'shuffle' | 'tr' | 'venus' | 'vp' | 'test';
+  icon: 'draft' | 'dice' | 'shuffle' | 'tr' | 'venus' | 'vp' | 'fast' | 'test';
   /** When set, the toggle only shows while the given expansion is enabled. */
   requiresExpansion?: Expansion;
   /**
@@ -142,5 +143,7 @@ export const PREMIUM_RULES: ReadonlyArray<PremiumRuleMeta> = [
   {id: 'trBoostEnabled', labelKey: 'Starting TR bonus', descKey: 'Give each player an extra starting Terraform Rating (a per-player handicap).', icon: 'tr'},
   {id: 'showOtherPlayersVP', labelKey: 'Show real-time VP', descKey: 'Reveal every player\'s and MarsBot\'s victory points during the game, instead of hiding them until the final scoring.', icon: 'vp'},
   {id: 'alternativeVenusBoard', labelKey: 'Alternative Venus board', descKey: 'Use the alternative Venus board layout.', icon: 'venus', requiresExpansion: 'venus'},
+  // Upstream's fast mode + the fork's patent-sale cap (`src/common/game/fastMode.ts`).
+  {id: 'fastMode', labelKey: 'Fast mode', descKey: 'A turn cannot end after a single action: take two actions or pass for the generation. Selling patents is limited to once per generation per player.', icon: 'fast'},
   {id: 'testMode', labelKey: 'Test mode', descKey: 'Development setup: every player is dealt the whole deck to choose from, so any card can be tried out. Not a real game.', icon: 'test', requiresAdmin: true},
 ];

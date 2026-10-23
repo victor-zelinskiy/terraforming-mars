@@ -13,6 +13,7 @@
  * via the turnIntents walkers — the server tree stays the ONLY source of
  * truth for "can act right now"); this module only shapes them for the UI.
  */
+import {SELL_PATENTS_EXHAUSTED_REASON, SELL_PATENTS_ONCE_PER_GENERATION_NOTE} from '@/common/game/fastMode';
 import {CardName} from '@/common/cards/CardName';
 import {PatentSaleModel} from '@/common/models/PatentSaleModel';
 import {patentSaleRowForecast} from '@/client/console/patentSale/patentSaleAnswers';
@@ -199,6 +200,14 @@ export type LtQuickContext = {
    * this names the real rule. '' = no such reason (the ordinary gate applies).
    */
   turnControlReason?: string,
+  /**
+   * «Пропустить ход» does not exist in THIS PARTY (fast mode: a turn cannot
+   * end after one action). A STRUCTURAL absence for the whole game — it
+   * outranks the bonus-action and first-action reasons (they describe a turn
+   * the verb will never get), and the tile takes the de-energized pose, never
+   * the soft «не сейчас» one. Only a parked decision outranks it. '' = none.
+   */
+  skipTurnReason?: string,
   convertPlantsAvailable: boolean,
   convertHeatAvailable: boolean,
   /** The heat conversion is offered but would change nothing (the reason key) — the temperature's maximum. */
@@ -246,6 +255,14 @@ export function buildLtQuickEntries(ctx: LtQuickContext): Array<QuickEntry> {
     }
     return turnGate(available, reason);
   };
+  /** The skip-turn verb: a parked decision first, then the party-wide absence (fast mode), then the turn-control gate. */
+  const skipTurnGate = (): {available: boolean, reason: string, soft?: boolean} => {
+    const parked = ctx.blockedReason !== undefined && ctx.blockedReason !== '';
+    if (!parked && ctx.skipTurnReason !== undefined && ctx.skipTurnReason !== '') {
+      return {available: false, reason: ctx.skipTurnReason};
+    }
+    return turnControlGate(ctx.endTurnAvailable, 'Available after your first action this round');
+  };
   return [
     {
       id: 'standardProjects', slot: 'center', label: 'Standard Projects',
@@ -257,7 +274,7 @@ export function buildLtQuickEntries(ctx: LtQuickContext): Array<QuickEntry> {
       // wheel icons instead of a colour emoji. Skip a turn = fast-forward;
       // Pass = concede the generation (a flag).
       id: 'skipTurn', slot: 'up', label: 'Skip turn', barIcon: 'skip-turn',
-      ...turnControlGate(ctx.endTurnAvailable, 'Available after your first action this round'),
+      ...skipTurnGate(),
     },
     {
       id: 'pass', slot: 'down', label: 'Pass', barIcon: 'pass',
@@ -309,6 +326,12 @@ export type StdProjectItem = {
   /** '+1 M€' style gain marker (Patent sale). */
   gain?: string,
   /**
+   * A STANDING rule note under the description (English i18n key) — printed
+   * while the row is live, never in place of a blocker: fast mode's «раз за
+   * поколение» on the patent sale.
+   */
+  note?: string,
+  /**
    * The server-computed GUARANTEED result chips (`current → resulting`) +
    * the pay-on-commit target marker — `CardModel.standardProjectPreview`,
    * passed through untouched (the client re-derives nothing).
@@ -352,6 +375,10 @@ export type StdProjectScreenContext = {
    */
   sellModel?: PatentSaleModel,
   cardsInHand: number,
+  /** Fast mode: the sale is capped at one per generation per player (the row carries the note). */
+  sellOncePerGeneration?: boolean,
+  /** Fast mode: this generation's one sale is already spent (the row's reason; the server withholds the prompt). */
+  sellExhausted?: boolean,
 };
 
 /**
@@ -422,7 +449,8 @@ export function buildStdProjectItems(ctx: StdProjectScreenContext): Array<StdPro
   // Steam version — the free "sell patents" action always comes first).
   const sellVisual = standardProjectVisual(CardName.SELL_PATENTS_STANDARD_PROJECT);
   const blocked = ctx.blockedReason !== undefined && ctx.blockedReason !== '';
-  const sellAvailable = !blocked && ctx.sellAvailable && ctx.cardsInHand > 0;
+  const sellExhausted = ctx.sellOncePerGeneration === true && ctx.sellExhausted === true;
+  const sellAvailable = !blocked && ctx.sellAvailable && ctx.cardsInHand > 0 && !sellExhausted;
   // What the table answers to ONE card sold (TR46 Research Startups, Martian Fiber after it) — the row's door.
   const sellForecast = patentSaleRowForecast(ctx.sellModel);
   const sellRow: StdProjectItem = {
@@ -433,10 +461,15 @@ export function buildStdProjectItems(ctx: StdProjectScreenContext): Array<StdPro
     description: sellVisual.description,
     gain: `+${ctx.sellModel?.megacreditsPerCard ?? 1}`,
     ...(sellForecast !== undefined ? {preview: {effects: [], forecast: sellForecast}} : {}),
+    ...(ctx.sellOncePerGeneration === true ? {note: SELL_PATENTS_ONCE_PER_GENERATION_NOTE} : {}),
     available: sellAvailable,
+    // The spent sale is a RULE of this party, not turn arithmetic: it speaks
+    // before the off-turn reason (the server withholds the prompt for the whole
+    // generation — «не ваш ход» would be true and useless).
     reason: sellAvailable ? '' :
       blocked ? (ctx.blockedReason as string) :
-        (!ctx.sellAvailable ? offTurnReason(ctx.awaitingInput) : 'No cards in hand'),
+        sellExhausted ? SELL_PATENTS_EXHAUSTED_REASON :
+          (!ctx.sellAvailable ? offTurnReason(ctx.awaitingInput) : 'No cards in hand'),
   };
   return [sellRow, ...projectRows];
 }

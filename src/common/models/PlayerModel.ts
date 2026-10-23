@@ -71,6 +71,8 @@ export type PublicPlayerModel = {
   actionsTakenThisRound: number;
   actionsThisGeneration: ReadonlyArray<CardName>;
   actionsTakenThisGame: number;
+  /** Patent sales this generation — fast mode caps the sale at one (`src/common/game/fastMode.ts`). */
+  patentSalesThisGeneration: number;
   alliedParty?: AlliedPartyModel;
   availableBlueCardActionCount: number;
   cardCost: number;

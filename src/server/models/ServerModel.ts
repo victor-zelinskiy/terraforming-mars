@@ -651,6 +651,7 @@ export class Server {
       actionsTakenThisRound: player.actionsTakenThisRound,
       actionsTakenThisGame: player.actionsTakenThisGame,
       actionsThisGeneration: Array.from(player.actionsThisGeneration),
+      patentSalesThisGeneration: player.patentSalesThisGeneration,
       alliedParty: player.alliedParty,
       // Public for every seat; for the viewer's own model it is the same number
       // `potentialActions.cardActions` carries (one validator, two readers).

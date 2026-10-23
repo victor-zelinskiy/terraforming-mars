@@ -1931,6 +1931,7 @@ import {boardExcursionActive, boardExcursionQuiet, engageBoardExcursion, release
 import {hydroBonusAdvancePlan, hydroBonusDoorAction, hydroBonusOffer} from '@/client/console/hydroFlow/hydroBonusOffer';
 import {HYDRO_STAGES} from '@/client/components/hydronetwork/hydroStages';
 import {bonusActionInStartFlow, bonusActionOnBoard, bonusActionOwed, bonusActionTurnControlReason} from '@/client/console/bonusAction';
+import {SKIP_TURN_FAST_MODE_REASON} from '@/common/game/fastMode';
 import {firstActionOwed} from '@/client/console/startFirstAction';
 import {isResourceTransferActive, resourceTransferDiagnostics, surfaceClear, surfaceHoldsTokens} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {actionCentreLeavesOnPromptChange} from '@/client/console/actionCentreLeave';
@@ -8661,6 +8662,9 @@ export default defineComponent({
           // says why — the server does not offer them, so without this the
           // wheel would fall back to «сейчас недоступно» over a live menu.
           turnControlReason: bonusActionTurnControlReason(this.playerView),
+          // Fast mode: the skip-turn verb does not exist in this party — the
+          // server never offers it, and the tile says so for the whole game.
+          skipTurnReason: this.game.gameOptions.fastModeOption ? SKIP_TURN_FAST_MODE_REASON : '',
           convertPlantsAvailable: this.convertPlantsReady,
           convertHeatAvailable: this.convertHeatReady,
           convertHeatFutile: this.convertHeatFutile,
@@ -8701,6 +8705,8 @@ export default defineComponent({
         sellAvailable: this.salePatentModel !== undefined,
         sellModel: this.salePatentModel,
         cardsInHand: this.cardsTotalCount,
+        sellOncePerGeneration: this.game.gameOptions.fastModeOption,
+        sellExhausted: this.thisPlayer.patentSalesThisGeneration > 0,
       });
     },
     /**

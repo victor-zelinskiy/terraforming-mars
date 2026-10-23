@@ -29,6 +29,7 @@ function baseState(): PremiumCreateGameState {
       randomMilestonesAwards: true,
       randomBoardTiles: true,
       alternativeVenusBoard: true,
+      fastMode: false,
       trBoostEnabled: false,
       showOtherPlayersVP: false,
       testMode: false,
@@ -103,6 +104,13 @@ describe('buildCreateGamePayloadFromPremiumState', () => {
     const on = baseState();
     on.rules.showOtherPlayersVP = true;
     expect(buildCreateGamePayloadFromPremiumState(on).showOtherPlayersVP).eq(true);
+  });
+
+  it('maps the fast-mode toggle (upstream fast mode + the once-per-generation patent sale)', () => {
+    expect(buildCreateGamePayloadFromPremiumState(baseState()).fastModeOption).eq(false);
+    const on = baseState();
+    on.rules.fastMode = true;
+    expect(buildCreateGamePayloadFromPremiumState(on).fastModeOption).eq(true);
   });
 
   it('keeps alt-Venus board off when Venus is disabled even if the rule is on', () => {

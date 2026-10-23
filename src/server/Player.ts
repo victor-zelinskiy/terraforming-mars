@@ -388,6 +388,15 @@ export class Player implements IPlayer {
   public underworldData: UnderworldPlayerData = UnderworldExpansion.initializePlayer();
   public deltaProjectData?: DeltaProjectPlayerModel;
   public standardProjectsThisGeneration: Set<CardName> = new Set();
+  /**
+   * FAST MODE (`gameOptions.fastModeOption`): patent sales this player made
+   * this generation — the option caps the sale at ONE per generation per
+   * player. Kept apart from `standardProjectsThisGeneration`, which excludes
+   * Sell Patents by contract (Underworld's Standard Technology / Labor
+   * Trafficking read it). Counted in every game; the cap reads it only in
+   * fast mode. Cleared with the production phase.
+   */
+  public patentSalesThisGeneration = 0;
   public temporaryGlobalParameterRequirementBonus = 0;
   public temporaryGlobalRequirementWaiver: GlobalWaiverProbe | undefined = undefined;
 
@@ -1100,6 +1109,7 @@ export class Player implements IPlayer {
     this.actionsThisGeneration.clear();
     this.removingPlayers = [];
     this.standardProjectsThisGeneration.clear();
+    this.patentSalesThisGeneration = 0;
     if (this.deltaProjectData !== undefined) {
       // The global "Гидросеть" track action is once per generation.
       this.deltaProjectData.usedThisGeneration = false;
@@ -3452,6 +3462,7 @@ export class Player implements IPlayer {
       removedFromPlayCards: this.removedFromPlayCards.map(toName),
       // Standard Technology: Underworld
       standardProjectsThisGeneration: Array.from(this.standardProjectsThisGeneration),
+      patentSalesThisGeneration: this.patentSalesThisGeneration,
       withinDeflectionZone: this.withinDeflectionZone,
 
       name: this.name,
@@ -3513,6 +3524,8 @@ export class Player implements IPlayer {
     // An older save carries no law waiver — nothing armed (RX36).
     player.armedLawWaiver = d.armedLawWaiver;
     player.standardProjectsThisGeneration = new Set(d.standardProjectsThisGeneration);
+    // An older save carries no sale count — none sold this generation (fast mode).
+    player.patentSalesThisGeneration = d.patentSalesThisGeneration ?? 0;
     player.megaCredits = d.megaCredits;
     player.needsToDraft = d.needsToDraft;
     player.oceanBonus = d.oceanBonus;

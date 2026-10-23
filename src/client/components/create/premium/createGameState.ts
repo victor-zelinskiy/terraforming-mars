@@ -51,6 +51,8 @@ export type PremiumRules = {
   randomMilestonesAwards: boolean;
   randomBoardTiles: boolean;
   alternativeVenusBoard: boolean;
+  /** Upstream's fast mode (no turn end after one action) + the fork's once-per-generation patent sale. */
+  fastMode: boolean;
   trBoostEnabled: boolean;
   /** Show every player's (and MarsBot's) VP in real time instead of hiding it until the end. */
   showOtherPlayersVP: boolean;
@@ -138,6 +140,7 @@ export function defaultPremiumState(): PremiumCreateGameState {
       randomMilestonesAwards: d.randomMA !== RandomMAOptionType.NONE,
       randomBoardTiles: d.shuffleMapOption,
       alternativeVenusBoard: d.altVenusBoard,
+      fastMode: d.fastModeOption,
       trBoostEnabled: false,
       showOtherPlayersVP: d.showOtherPlayersVP,
       testMode: d.testMode,

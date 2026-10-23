@@ -122,6 +122,8 @@ export interface SerializedPlayer extends DeprecatedFields{
   removingPlayers: Array<PlayerId>;
   scienceTagCount: number;
   standardProjectsThisGeneration: Array<CardName>;
+  /** Fast mode's once-per-generation patent-sale cap. Absent on older saves. */
+  patentSalesThisGeneration?: number;
   steel: number;
   steelProduction: number;
   steelValue: number;

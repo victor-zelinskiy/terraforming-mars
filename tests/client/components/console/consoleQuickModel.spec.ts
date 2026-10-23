@@ -6,6 +6,7 @@ import {
   QUICK_SLOT_GLYPH,
 } from '@/client/console/consoleQuickModel';
 import {CardName} from '@/common/cards/CardName';
+import {SELL_PATENTS_EXHAUSTED_REASON, SELL_PATENTS_ONCE_PER_GENERATION_NOTE, SKIP_TURN_FAST_MODE_REASON} from '@/common/game/fastMode';
 
 /**
  * P27: the main-board command model view-models — the RT/LT quick-selector
@@ -240,6 +241,31 @@ describe('consoleQuickModel (P27)', () => {
       expect(byId.get('convertHeat')?.available).to.eq(true);
     });
 
+    /*
+     * FAST MODE: «Пропустить ход» does not exist in this party. A STRUCTURAL
+     * absence for the whole game — it outranks the first-action and bonus-action
+     * reasons (both describe a turn the verb will never get) and the tile takes
+     * the de-energized pose; only a parked decision speaks before it. Pass is
+     * untouched — fast mode is «two actions or pass».
+     */
+    it('fast mode withholds Skip turn for the whole party, above the turn-control reasons, Pass untouched', () => {
+      const byId = (over: Parameters<typeof ctx>[0]) => new Map(buildLtQuickEntries(ctx(over)).map((e) => [e.id, e]));
+      const plain = byId({skipTurnReason: SKIP_TURN_FAST_MODE_REASON, endTurnAvailable: false, passAvailable: true});
+      expect(plain.get('skipTurn')?.available).to.eq(false);
+      expect(plain.get('skipTurn')?.reason).to.eq(SKIP_TURN_FAST_MODE_REASON);
+      expect(plain.get('skipTurn')?.soft, 'never in this game — not a soft «не сейчас»').to.eq(undefined);
+      expect(plain.get('pass')?.available, 'passing stays open').to.eq(true);
+      // Above the bonus-action reason …
+      const bonus = byId({skipTurnReason: SKIP_TURN_FAST_MODE_REASON, turnControlReason: 'Bonus actions must be spent', passAvailable: false});
+      expect(bonus.get('skipTurn')?.reason).to.eq(SKIP_TURN_FAST_MODE_REASON);
+      expect(bonus.get('pass')?.reason, 'the bonus reason still owns Pass').to.eq('Bonus actions must be spent');
+      // … and below a parked decision.
+      const parked = byId({skipTurnReason: SKIP_TURN_FAST_MODE_REASON, blockedReason: 'Finish your current action first'});
+      expect(parked.get('skipTurn')?.reason).to.eq('Finish your current action first');
+      // '' = no such rule: the ordinary gate speaks.
+      expect(byId({skipTurnReason: ''}).get('skipTurn')?.reason).to.eq('Available after your first action this round');
+    });
+
     it('a set-aside decision still outranks the bonus-action reason', () => {
       // Both are true; only one is the reason the game will not move.
       const entries = buildLtQuickEntries(ctx({
@@ -335,6 +361,30 @@ describe('consoleQuickModel (P27)', () => {
         expect(item.reason, `'${item.key}' must name the real blocker`)
           .to.eq('Finish your current action first');
       }
+    });
+
+    it('fast mode: the patent-sale row carries «раз за поколение», and the spent sale names itself before any turn arithmetic', () => {
+      const base = {
+        cards: [{name: CardName.POWER_PLANT_STANDARD_PROJECT, calculatedCost: 11}],
+        myTurn: true, awaitingInput: true, myMegacredits: 20, cardsInHand: 4,
+      };
+      const live = buildStdProjectItems({...base, sellAvailable: true, sellOncePerGeneration: true, sellExhausted: false})[0];
+      expect(live.key).to.eq('sell-patents');
+      expect(live.available).to.eq(true);
+      expect(live.note).to.eq(SELL_PATENTS_ONCE_PER_GENERATION_NOTE);
+      // Spent: the server withholds the prompt (sellAvailable=false), yet the
+      // row says the RULE, never «не ваш ход».
+      const spent = buildStdProjectItems({...base, sellAvailable: false, sellOncePerGeneration: true, sellExhausted: true})[0];
+      expect(spent.available).to.eq(false);
+      expect(spent.reason).to.eq(SELL_PATENTS_EXHAUSTED_REASON);
+      expect(spent.note, 'the note stands with the rule').to.eq(SELL_PATENTS_ONCE_PER_GENERATION_NOTE);
+      // Without fast mode a sale already made this generation changes nothing.
+      const ordinary = buildStdProjectItems({...base, sellAvailable: true, sellOncePerGeneration: false, sellExhausted: true})[0];
+      expect(ordinary.available).to.eq(true);
+      expect(ordinary.note).to.eq(undefined);
+      // A parked decision still outranks the rule.
+      const parked = buildStdProjectItems({...base, blockedReason: 'Finish your current action first', sellAvailable: false, sellOncePerGeneration: true, sellExhausted: true})[0];
+      expect(parked.reason).to.eq('Finish your current action first');
     });
 
     it('leads with Patent sale, then the server cards (canonical order)', () => {

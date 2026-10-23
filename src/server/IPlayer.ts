@@ -456,6 +456,11 @@ export interface IPlayer {
    * Note: Sell Patents is absent to simplify Labor Trafficking. It's also not necessary.
    */
   standardProjectsThisGeneration: Set<CardName>;
+  /**
+   * Patent sales this generation (fast mode caps the sale at one per generation
+   * per player — `SellPatentsStandardProject` is the one writer and the one gate).
+   */
+  patentSalesThisGeneration: number;
 
   /**
    * For Hollandia. When true, player has tiles on Mars, and all of them are in the deflection zone.
