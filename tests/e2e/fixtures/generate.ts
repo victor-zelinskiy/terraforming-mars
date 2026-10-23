@@ -60,6 +60,7 @@ import {RestrictedArea} from '../../../src/server/cards/base/RestrictedArea';
 import {Ants} from '../../../src/server/cards/base/Ants';
 import {actionFutility} from '../../../src/server/models/actionFutility';
 import {IActionCard, ICard, isIActionCard} from '../../../src/server/cards/ICard';
+import {actionPreview} from '../../../src/server/models/actionPreview';
 import {SpaceMirrors} from '../../../src/server/cards/base/SpaceMirrors';
 import {ShipmentToEarth} from '../../../src/server/cards/promo/ShipmentToEarth';
 import {RedTourismWave} from '../../../src/server/cards/turmoil/RedTourismWave';
@@ -8779,3 +8780,39 @@ function terralabsTable(name: string, player: TestPlayer, game: IGame): void {
   }
   terralabsTable('terralabs-research-draft', p1, game);
 }
+
+// ── R33 · UTOPIA INVEST — the third classic Turmoil CORPORATION adapted in place: its ACTION is six declarative
+//    variants «lower a production 1 step → gain 4 of that resource», read by the action composer as ONE PALETTE (the
+//    face prints one «[?-prod] → 4 [?]» row for all six) and committed with the production PRICE leaving the rail's
+//    badge FIRST. A Redux two-seat table, blue on Utopia Invest (replaced through the real play), on the move:
+//      · `utopia-invest`      — the opening's productions (M€ 0 · steel 1 · titanium 1 · the rest 0): three live
+//        variants (M€ 0 → −1 allowed), three refused by name; stocks 20 M€ / 2 steel / 0 titanium / 5 heat;
+//      · `utopia-invest-sole` — M€ production at its floor (−5), only steel 1: ONE live variant, seeded and marked;
+//      · `utopia-invest-dead` — M€ −5 and every other production 0: the action itself is unavailable, one reason. ──
+function utopiaTable(name: string, production: {megacredits: number, steel: number, titanium: number}, liveVariants: number): void {
+  const [game, p1, p2] = testGame(2, {skipInitialCardSelection: false, turmoilReduxExpansion: true, coloniesExtension: true});
+  answerStartFlow(game, [p1, p2]);
+  for (const corp of p1.playedCards.corporations()) {
+    p1.playedCards.remove(corp);
+  }
+  p1.playCorporationCard(newCorporationCard(CardName.UTOPIA_INVEST)!);
+  runAllActions(game);
+  p1.production.override({...production, plants: 0, energy: 0, heat: 0});
+  p1.megaCredits = 20;
+  p1.steel = 2;
+  p1.titanium = 0;
+  p1.plants = 1;
+  p1.energy = 0;
+  p1.heat = 5;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  const utopia = p1.playedCards.corporations().find((c) => c.name === CardName.UTOPIA_INVEST);
+  const live = utopia === undefined ? -1 : actionPreview(p1, utopia as unknown as ICard & IActionCard).branches.filter((b) => b.available).length;
+  if (game.activePlayer.id !== p1.id || !(p1.getWaitingFor() instanceof OrOptions) || live !== liveVariants) {
+    throw new Error(`${name}: expected blue on Utopia Invest on the move with ${liveVariants} live variants, got active=${game.activePlayer.color} live=${live} wf=${p1.getWaitingFor()?.constructor.name}`);
+  }
+  write(name, game);
+}
+utopiaTable('utopia-invest', {megacredits: 0, steel: 1, titanium: 1}, 3);
+utopiaTable('utopia-invest-sole', {megacredits: -5, steel: 1, titanium: 0}, 1);
+utopiaTable('utopia-invest-dead', {megacredits: -5, steel: 0, titanium: 0}, 0);

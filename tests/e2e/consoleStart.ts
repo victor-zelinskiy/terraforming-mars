@@ -2666,6 +2666,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   'lakefront-resorts' |
   // R14 Terralabs Research — the second: blue on TerraLabs (the 1 M€ price) at a generation's end, solo and drafting.
   'terralabs-research' | 'terralabs-research-draft' |
+  // R33 Utopia Invest — the third: the six-variant palette (three live · one live, seeded · none — the action refused).
+  'utopia-invest' | 'utopia-invest-sole' | 'utopia-invest-dead' |
   // T05 Event Analysts — influence beyond the Career (ledger CG).
   'event-analysts' | 'event-analysts-played' | 'event-analysts-locked' |
   // T07 Martian Media Center — the action as the STAGED vote door for 3 M€ (ledger CH): live · 2 M€ · no resolution up

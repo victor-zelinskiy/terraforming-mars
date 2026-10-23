@@ -11,7 +11,7 @@ import {
   actionCommitRailHoldsCapsule, actionCommitRailState, armedRailLandsOnRow, flyActionCommitRail, resetActionCommitRail, seedActionCommitRail,
 } from '@/client/console/consoleActionCommitRail';
 import {
-  clearPanelRewardHold, dropTransferEnds, heldCardCapsule, heldCardResource, heldStock, heldVictoryPoints, registerTransferEnds, resetTransferEnds,
+  clearPanelRewardHold, dropTransferEnds, heldCardCapsule, heldCardResource, heldProduction, heldStock, heldVictoryPoints, registerTransferEnds, resetTransferEnds,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {RATING_RAIL_KEY} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {railRewardPending, railRewardState, resetRailRewards} from '@/client/console/resourceTransfer/railReward';
@@ -61,11 +61,11 @@ function unmiBranch(): ActionPreviewBranch {
   } as ActionPreviewBranch;
 }
 
-/** A TR paid with a PRODUCTION step (Equatorial Magnetizer's shape): the plate's own number, no token leaves the rail. */
+/** A TR with NO price on the rail (a free action's shape): one link, nothing leaves the rail before it. */
 function plainTrBranch(): ActionPreviewBranch {
   return {
     index: -1, title: '', available: true, renderKeys: [], steps: [],
-    effects: [{direction: 'cost', icon: 'energy', amount: 1, note: 'production'}, {direction: 'gain', icon: 'tr', amount: 1, current: 20, resulting: 21}],
+    effects: [{direction: 'gain', icon: 'tr', amount: 1, current: 20, resulting: 21}],
   } as ActionPreviewBranch;
 }
 
@@ -187,7 +187,7 @@ describe('consoleActionCommitRail — the action commit\'s rail half', () => {
   });
 
   describe('FLY — the links in the printed order', () => {
-    it('a plain TR (no price — a production cost is the plate\'s number) may fold at once; its row ticks on the flight', async () => {
+    it('a plain TR (no price) may fold at once; its row ticks on the flight', async () => {
       const plan = arm(UNMI, plainTrBranch());
       seedActionCommitRail(view({tr: 20, mc: 20}), view({tr: 21, mc: 20}));
       const flight = flyActionCommitRail(plan);
@@ -218,6 +218,36 @@ describe('consoleActionCommitRail — the action commit\'s rail half', () => {
       stop();
       expect(seen, 'the row reads 20, then 17 on the departure, the rating only after').deep.eq(['mc20|tr20', 'mc17|tr20', 'mc17|tr21']);
       expect(foldedAt, 'the surface stood while the card was absorbing the price').not.eq('mc20|tr20');
+      expect(actionCommitRailState.phase).eq('idle');
+    });
+
+    /* A PRODUCTION PRICE IS A DEPARTURE TOO (R33 Utopia Invest, 2026-10-23 — «[?-production] → 4 [?]»): the steel
+       production badge ticks 1 → 0 on its token's departure, and the +4 steel is born only after — never the result
+       before its cause, never the badge ticking with the commit. */
+    it('R33 — THE PRODUCTION PRICE LEAVES FIRST: the badge ticks on the departure, the +4 steel only after', async () => {
+      const branch = {
+        index: 1, title: '', available: true, renderKeys: [], steps: [],
+        effects: [
+          {direction: 'cost', icon: 'steel', amount: 1, current: 1, resulting: 0, note: 'production'},
+          {direction: 'gain', icon: 'steel', amount: 4, current: 2, resulting: 6},
+        ],
+      } as ActionPreviewBranch;
+      const utopia = CardName.UTOPIA_INVEST;
+      const plan = arm(utopia, branch);
+      expect(plan.rail?.links, 'the price, then the result').deep.eq([[0], [1]]);
+      const steelView = (stock: number, prod: number): PlayerViewModel => {
+        const v = view({tr: 20});
+        return {...v, thisPlayer: {...v.thisPlayer, steel: stock, steelProduction: prod}} as PlayerViewModel;
+      };
+      seedActionCommitRail(steelView(2, 1), steelView(6, 0));
+      expect(actionCommitRailState.phase).eq('seeded');
+      const shown = () => `pr${0 - heldProduction('steel')}|st${6 - heldStock('steel')}`;
+      const seen: Array<string> = [shown()];
+      const stop = watch(shown, (now) => seen.push(now), {flush: 'pre'});
+      const flight = flyActionCommitRail(plan);
+      await flight.done;
+      stop();
+      expect(seen, 'the badge reads 1, then 0 on the departure; the stock 2 → 6 only after').deep.eq(['pr1|st2', 'pr0|st2', 'pr0|st6']);
       expect(actionCommitRailState.phase).eq('idle');
     });
 

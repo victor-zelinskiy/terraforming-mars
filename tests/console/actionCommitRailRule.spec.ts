@@ -27,6 +27,7 @@ import {AquaticResearchStation} from '../../src/server/cards/turmoilRedux/Aquati
 import {MartianCensus} from '../../src/server/cards/turmoilRedux/MartianCensus';
 import {Supercomputer} from '../../src/server/cards/turmoilRedux/Supercomputer';
 import {Dirigibles} from '../../src/server/cards/venusNext/Dirigibles';
+import {UtopiaInvest} from '../../src/server/cards/turmoil/UtopiaInvest';
 import {fakeCard} from '../TestingUtils';
 import {cardPlayPreview} from '../../src/server/models/cardPlayPreview';
 import {CardName} from '../../src/common/cards/CardName';
@@ -169,13 +170,14 @@ describe('the action commit\'s rail rule — a DIRECT TR of a branch flies to th
       expect(plan?.capsules).deep.eq([]);
     });
 
-    it('a plain TR with no price: one link, the surface folds at once (a production cost is the plate\'s own number)', () => {
+    it('a PRODUCTION price before the TR (Equatorial Magnetizer): the badge\'s token leaves FIRST, the TR is the last link — the surface held while the card absorbs it (R33, 2026-10-23)', () => {
       const {p, cards} = table();
       const plan = commitRailPlan(cards.equatorial.name, branchesOf(p, cards.equatorial)[0], {}, []);
-      expect(plan?.reward.cause).deep.eq(TR);
-      expect(plan?.links).deep.eq([[0]]);
-      expect(plan?.holdsSurface).is.false;
-      expect(plan?.reward.known).deep.eq({'production:energy': -1});
+      expect(plan?.reward.cause).deep.eq([{channel: 'production', resource: 'energy', amount: 1, direction: 'loss'}, ...TR]);
+      expect(plan?.links).deep.eq([[0], [1]]);
+      expect(plan?.spendLinks).deep.eq([0]);
+      expect(plan?.holdsSurface).is.true;
+      expect(plan?.reward.known, 'the price is the chain\'s own promise, never a «known» move beside it').deep.eq({});
     });
 
     it('a price before a TILE (Aquifer Pumping, Water Import): the price alone is the rail half — one link, the surface held until the card has absorbed it; nothing else', () => {
@@ -541,9 +543,30 @@ describe('the action commit\'s rail rule — a DIRECT TR of a branch flies to th
       expect(plan.reward.known, 'the payment\'s rows are the chain\'s promise too').deep.eq({});
     });
 
-    it('a production cost is the plate\'s own number, never a token (Equatorial Magnetizer)', () => {
+    it('a PRODUCTION cost leaves its row\'s badge as a token too (Equatorial Magnetizer — R33, 2026-10-23)', () => {
       const {p, cards} = table();
-      expect(spendLinkSpecs(cards.equatorial.name, branchesOf(p, cards.equatorial)[0])).deep.eq([]);
+      expect(spendLinkSpecs(cards.equatorial.name, branchesOf(p, cards.equatorial)[0])).deep.eq([{channel: 'production', resource: 'energy', amount: 1, direction: 'loss'}]);
+    });
+
+    it('UTOPIA INVEST (R33): each variant\'s production price leaves FIRST, then its +4 rides the last link — every variant its own resource', () => {
+      const {p} = table();
+      const utopia = new UtopiaInvest();
+      p.playedCards.push(utopia);
+      p.production.override({megacredits: 1, steel: 1, titanium: 1, plants: 1, energy: 1, heat: 1});
+      const branches = branchesOf(p, utopia);
+      expect(branches).length(6);
+      branches.forEach((branch, i) => {
+        const r = Object.keys(utopia.actionBehavior?.or?.behaviors[i].stock ?? {})[0];
+        const plan = commitRailPlan(utopia.name, branch, {}, [])!;
+        expect(plan.reward.cause, r).deep.eq([
+          {channel: 'production', resource: r, amount: 1, direction: 'loss'},
+          {channel: 'stock', resource: r, amount: 4},
+        ]);
+        expect(plan.links, r).deep.eq([[0], [1]]);
+        expect(plan.spendLinks, r).deep.eq([0]);
+        expect(plan.holdsSurface, r).is.true;
+        expect(plan.reward.known, r).deep.eq({});
+      });
     });
   });
 });

@@ -34057,6 +34057,26 @@ html.console-mode {
     &__branch-formula { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
     &__branch-arrow { font-size: 1rem; font-weight: 800; color: fade(@con-cyan, 90%); }
     &__branch-needs { font-size: .7rem; color: fade(@con-cyan, 88%); }
+    /* THE VARIANTS AS A PALETTE (R33 Utopia Invest — six «production −1 → +4»): a palette tile is a narrow column, so
+       its reading STACKS — the price chip over the gain chip (amber over mint: the tone says which is which, so the
+       arrow between them goes), a production chip's «производство» on its own line under its numbers; the sole
+       variant's mark wraps inside the tile. Nothing of a tile's reading may be wider than the tile. */
+    &__branches.con-vchoice--palette &__branch-formula { flex-direction: column; flex-wrap: nowrap; gap: .25rem; }
+    &__branches.con-vchoice--palette &__branch-arrow { display: none; }
+    &__branches.con-vchoice--palette &__branch-formula .action-effect-chip {
+        flex-wrap: wrap;
+        justify-content: center;
+        row-gap: 0;
+        max-width: 100%;
+    }
+    &__branches.con-vchoice--palette &__branch-formula .action-effect-chip__note { flex-basis: 100%; text-align: center; }
+    &__branches.con-vchoice--palette .con-composer__sole {
+        max-width: 100%;
+        white-space: normal;
+        text-align: center;
+        line-height: 1.15;
+        letter-spacing: .04rem;
+    }
     /* Branch cards ride the system chip size (tokens). */
 
     &__row {

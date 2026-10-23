@@ -823,6 +823,15 @@ inspectable через L3 (ТОЛЬКО в баре: локальная подп
 > правило «центр действий — добровольная поверхность» отступает, пока фраза коммита владеет поверхностью (действие,
 > завершающее ход против MarsBot, H6), коммит разрешается ОДИН раз (H5b), вид без оплаты — «ещё должен», а не отказ (H5).
 > Контракт — `docs/claude/console/resource-transfer.md` §2 / §3a.
+>
+> **R33 Utopia Invest (2026-10-23) — ЦЕНА-ПРОИЗВОДСТВО тоже уход.** Цена варианта в ПРОИЗВОДСТВЕ (чип стоимости с нотой
+> «production» — Utopia Invest «[?-пр.] → 4 [?]», Equatorial / Venus Magnetizer, Refugee Camps) больше не «собственное число
+> плашки»: `spendLinkSpecs` делает её первым звеном цепи (`channel: 'production'`, `loss`) — жетон «−1» рождается на
+> БЕЙДЖЕ производства своей строки рельса (`.con-res__prod`), уходит ВБОК (`transferLaunchFor` — `side`) и поглощается в
+> печатной рамке производства цены (`resolveIconEls` → `.pcard-prod`, «?» внутри неё); бейдж тикает на ОТЛЁТЕ
+> (`panelRewardHold.productionLoss`), результат — последнее звено: «+4» рождается на ГОЛОМ печатном «4 ?» (`bareWildIcons`
+> / `wildChosen` — в тоне ВЫБРАННОГО ресурса) и садится на цифры его строки, тик на касании. Гарды: `actionCommitRailRule.spec`
+> § UTOPIA INVEST, `actionCommitRail.spec` § R33; стенд `console-utopia-invest` (C).
 
 **Каждое действие карты имеет одну commit-фазу** между «A Подтвердить» и
 result-анимацией: `Confirm → Mechanical Press → Action Commit → Result

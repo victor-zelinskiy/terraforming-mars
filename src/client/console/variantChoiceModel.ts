@@ -202,6 +202,19 @@ export function paletteOf(options: ReadonlyArray<{hero?: VariantHero}>, min = 3)
   return kind !== undefined && options.every((o) => o.hero !== undefined && o.hero.kind === kind);
 }
 
+/**
+ * AN ACTION'S VARIANTS ARE A PALETTE (R33 Utopia Invest — «lower ANY production: gain 4 of that kind», six variants):
+ * the face prints no slice of its own for any variant (ONE row «[?-prod] → 4 [?]» — no seam to cut), the variants share
+ * no printed result, and every variant's HERO (its first standard-resource GAIN) is of one kind — then «which resource»
+ * is asked as ONE palette, never a row of compare tiles. A sliced row keeps its print (Atmo Collectors stays `compare`).
+ */
+export function branchesArePalette(variants: ReadonlyArray<{hero?: VariantHero, printed?: ReadonlyArray<unknown>}>, sharedResult: boolean): boolean {
+  if (sharedResult || variants.some((v) => v.printed !== undefined)) {
+    return false;
+  }
+  return paletteOf(variants);
+}
+
 /** The palette tile's number as it reads — «+3», «−1», a zero bare. */
 export function heroFigure(hero: VariantHero): string {
   if (hero.amount === undefined) {

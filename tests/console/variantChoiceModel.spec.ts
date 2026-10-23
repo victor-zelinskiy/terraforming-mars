@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {groupDecided, heroFigure, heroOfEffect, paletteOf, printedVariantRows, variantDestinationsOf, variantOptionClasses, variantRecedes, VariantChoiceState} from '../../src/client/console/variantChoiceModel';
+import {branchesArePalette, groupDecided, heroFigure, heroOfEffect, paletteOf, printedVariantRows, variantDestinationsOf, variantOptionClasses, variantRecedes, VariantChoiceState} from '../../src/client/console/variantChoiceModel';
 import {RoboticsFactory} from '../../src/server/cards/turmoilRedux/RoboticsFactory';
 import {ConstructionMechs} from '../../src/server/cards/turmoilRedux/ConstructionMechs';
 import {SecurityFleet} from '../../src/server/cards/base/SecurityFleet';
@@ -19,6 +19,8 @@ import {InfluentialDiscovery} from '../../src/server/cards/turmoilRedux/Influent
 import {IchtiologyGrant} from '../../src/server/cards/turmoilRedux/IchtiologyGrant';
 import {ExpeditionMechs} from '../../src/server/cards/turmoilRedux/ExpeditionMechs';
 import {Algae} from '../../src/server/cards/base/Algae';
+import {UtopiaInvest} from '../../src/server/cards/turmoil/UtopiaInvest';
+import {actionPreview} from '../../src/server/models/actionPreview';
 import {CardRenderItemType} from '../../src/common/cards/render/CardRenderItemType';
 import {isICardRenderEffect, isICardRenderItem, ItemType} from '../../src/common/cards/render/Types';
 import {CardComponent} from '../../src/common/cards/render/CardComponent';
@@ -190,6 +192,34 @@ describe('variantChoiceModel', () => {
       expect(heroes.map((h) => [h?.icon, h?.amount])).deep.eq([['megacredits', 0], ['steel', 2], ['titanium', 0], ['plants', 3], ['energy', 1], ['heat', 4]]);
       expect(paletteOf(heroes.map((hero) => ({hero})))).is.true;
       expect(printedVariantRows(render(card), 6), 'the printed «?» row has no OR to slice').is.undefined;
+    });
+  });
+
+  describe('AN ACTION\'S VARIANTS AS A PALETTE (R33 Utopia Invest) — six «production −1 → +4» variants, one row of «?»', () => {
+    it('the server\'s six variants: each hero is its +4 stock gain, all of one kind, no slice of the face → a palette', () => {
+      const [game, p] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+      game.phase = Phase.ACTION;
+      const card = new UtopiaInvest();
+      p.playedCards.push(card);
+      p.production.override({megacredits: 2, steel: 1, titanium: 1, plants: 0, energy: 0, heat: 0});
+      const branches = actionPreview(p, card).branches;
+      const heroes = branches.map((b) => heroOfEffect(b.effects.filter((e) => e.direction === 'gain')[0]));
+      expect(heroes.map((h) => [h?.kind, h?.icon, h?.amount, h?.direction])).deep.eq(
+        ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'].map((icon) => ['resource', icon, 4, 'gain']));
+      expect(printedVariantRows(render(card), 6), 'the face\'s one «?» row has nothing to slice').is.undefined;
+      expect(branchesArePalette(heroes.map((hero) => ({hero})), false)).is.true;
+      // A refused variant keeps its hero (shown, never hidden — its reason speaks on the tile).
+      expect(branches[3].available).is.false;
+      expect(heroes[3]).is.not.undefined;
+    });
+
+    it('never a palette: a variant with its own print (a sliced row), a printed shared result, or two kinds', () => {
+      const r = (icon: string) => heroOfEffect({direction: 'gain', icon, amount: 1, current: 0, resulting: 1});
+      const three = [r('steel'), r('titanium'), r('heat')].map((hero) => ({hero}));
+      expect(branchesArePalette(three, false)).is.true;
+      expect(branchesArePalette([{hero: three[0].hero, printed: []}, ...three.slice(1)], false), 'a slice of the face speaks for itself').is.false;
+      expect(branchesArePalette(three, true), 'the options are PRICES of one shared good (TR58)').is.false;
+      expect(branchesArePalette(three.slice(0, 2), false), 'two are a comparison').is.false;
     });
   });
 });

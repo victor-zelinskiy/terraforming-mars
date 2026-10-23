@@ -390,7 +390,9 @@
             <ConsoleVariantChoice v-if="item.kind === 'branch' && item.pos === branchItemPositions[0]"
                                   ref="branchesEl"
                                   class="con-composer__branches"
-                                  layout="compare"
+                                  :layout="branchPalette ? 'palette' : 'compare'"
+                                  :kicker="branchPalette ? branchPaletteKicker : ''"
+                                  :emblem="branchPalette ? 'wild' : 'none'"
                                   :data-variant-axis="branchAxis"
                                   :options="branchOptions"
                                   :shared="variantShared"
@@ -424,6 +426,10 @@
                     <ConsoleForecastReactions :reaction="variantReactions(pos)" />
                   </div>
                   <div v-if="branchView(pos).needs !== ''" class="con-composer__branch-needs">◈ {{ branchView(pos).needs }}</div>
+                  <!-- THE SOLE LIVE VARIANT'S MARK (T14 · CC for a variant, R33): the rules left one — it opens chosen,
+                       SHOWN and quietly named, never applied in silence. -->
+                  <span v-if="soleVariantPos === pos" class="con-composer__sole" data-seeded-mark
+                        :data-hint="$t('No other options')">{{ $t('The only option') }}</span>
                 </template>
               </template>
             </ConsoleVariantChoice>
@@ -932,7 +938,7 @@ import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleVariantChoice from '@/client/components/console/foundation/ConsoleVariantChoice.vue';
 import ConsoleDeclinePlate from '@/client/components/console/foundation/ConsoleDeclinePlate.vue';
-import {variantDestinationsOf, heroOfEffect, paletteOf, sharedVariantDestinations, VariantChoiceOption, VariantHero, VariantSharedResult} from '@/client/console/variantChoiceModel';
+import {branchesArePalette, variantDestinationsOf, heroOfEffect, paletteOf, sharedVariantDestinations, VariantChoiceOption, VariantHero, VariantSharedResult} from '@/client/console/variantChoiceModel';
 import {armPostCommitWitness, HonestFollowUp} from '@/client/console/preselectWitness';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleForecastRow from '@/client/components/console/ConsoleForecastRow.vue';
@@ -1285,6 +1291,8 @@ export default defineComponent({
        * them; stacked ⇒ a column, the ordinary ↑↓ walk) — never a duplicated breakpoint.
        */
       branchAxis: 'row' as VariantAxis,
+      /** The palette's row of each tile (`grid` only), in `branchNavIndices` order. */
+      branchGridRows: [] as Array<number>,
       /** The variant tile the cursor last stood on — ↑ from the row below re-enters the group there. */
       branchReturnIdx: -1,
       stopBranchObs: undefined as (() => void) | undefined,
@@ -2116,7 +2124,7 @@ export default defineComponent({
       const payView = pay !== undefined ? this.paymentPanelView(pay) : undefined;
       // The side-by-side variant group: ←→ are the option switch — said in the bar while the cursor stands in it
       // (the play composer's «◄► Вариант»).
-      const groupHint: Array<ConsoleCommand> = kind === 'branch' && this.branchAxis === 'row' && this.branchNavIndices.length > 1 ?
+      const groupHint: Array<ConsoleCommand> = kind === 'branch' && (this.branchAxis === 'row' || this.branchAxis === 'grid') && this.branchNavIndices.length > 1 ?
         [{control: 'dpadH', label: 'Option'}] : [];
       return [...groupHint, ...focusCommandRun({
         state: 'main', focused: kind, resolved,
@@ -2369,12 +2377,52 @@ export default defineComponent({
           // The server proved this live branch changes nothing right now — said on the tile, before the choice.
           ...(branch.available && branch.futile !== undefined ? {quiet: translateText(branch.futile.reason)} : {}),
           printed,
+          // THE PALETTE (R33 Utopia Invest): the variant IS a kind of standard resource — its hero leads the tile.
+          ...(this.branchPalette ? {hero: this.branchHeroes[pos]} : {}),
           // «КУДА ЛЯЖЕТ» (TR56, П1): a variant that puts N on ANY card names its ADDRESSES — the server's holders for it;
           // a set every variant shares stands ONCE, beside the good they all buy (`variantShared`, TR58).
           destinations: this.variantShared?.destinations !== undefined ? undefined : variantDestinationsOf(branch),
-          attrs: {'data-branch-pos': String(pos), 'data-branch-nav': this.branchNavKind(pos)},
+          attrs: {
+            'data-branch-pos': String(pos), 'data-branch-nav': this.branchNavKind(pos),
+            'data-seeded': this.soleVariantPos === pos ? 'sole' : undefined,
+            'data-palette-resource': this.branchPalette ? this.branchHeroes[pos]?.icon : undefined,
+          },
         };
       });
+    },
+    /**
+     * Each variant's HERO — the standard resource its own first GAIN chip puts in the stock (`heroOfEffect`, the
+     * server's number); `undefined` for a variant that gains no single standard resource.
+     */
+    branchHeroes(): ReadonlyArray<VariantHero | undefined> {
+      return this.branches.map((_b, pos) => heroOfEffect(this.branchView(pos).gain[0]));
+    },
+    /**
+     * THE VARIANTS ARE A PALETTE (R33 Utopia Invest — «lower ANY production: gain 4 of that kind», six variants):
+     * the face prints ONE row for every variant («[?-prod] → 4 [?]» — no seam to slice, `KNOWN_UNSLICED`), no price
+     * every variant shares, and each variant buys ONE standard resource of one kind — «which resource» asked as ONE
+     * group of equal tiles (TR54's palette, the play composer's and the or-pick's), folded 3 + 3, never six sentences in
+     * a row of compare tiles. Each tile's hero is the resource and its number; its reading keeps BOTH axes (the
+     * variant's own price chip — a production's `current → resulting` — and the stock's).
+     */
+    branchPalette(): boolean {
+      return branchesArePalette(this.branchItemPositions.map((pos) => ({hero: this.branchHeroes[pos], printed: this.branchPrinted[pos]})),
+        this.variantShared !== undefined);
+    },
+    /**
+     * The ONE live variant among several (`initialVariantSelection` — the rules left one): it opens selected, and the
+     * tile says so («Единственный вариант»). `undefined` for a real choice and for a lone variant (no group at all).
+     */
+    soleVariantPos(): number | undefined {
+      const positions = this.branchItemPositions;
+      if (positions.length < 2) {
+        return undefined;
+      }
+      const seed = initialVariantSelection(positions.map((p) => this.branches[p] ?? {available: false}));
+      return seed === undefined ? undefined : positions[seed];
+    },
+    branchPaletteKicker(): string {
+      return translateTextWithParams('One of ${0}', [String(this.branchItemPositions.length)]);
     },
     /** The nav-row indices of the variant tiles, in order — what `variantGroupNav` walks. */
     branchNavIndices(): ReadonlyArray<number> {
@@ -4382,7 +4430,7 @@ export default defineComponent({
       }
       const inGroup = variantGroupNav({
         dir, axis: this.branchAxis, focusIdx: this.focusIdx, variantIdx: this.branchNavIndices,
-        returnIdx: this.branchReturnIdx, navMaxIndex: this.navMaxIndex,
+        returnIdx: this.branchReturnIdx, navMaxIndex: this.navMaxIndex, rows: this.branchGridRows,
       });
       if (inGroup !== undefined) {
         this.focusIdx = inGroup;
@@ -6525,11 +6573,11 @@ export default defineComponent({
         this.branchAxis = 'row';
         return;
       }
-      const tops = new Set<number>();
-      for (const tile of Array.from(el.querySelectorAll<HTMLElement>('.con-vchoice__opt'))) {
-        tops.add(Math.round(tile.offsetTop));
-      }
-      this.branchAxis = tops.size <= 1 ? 'row' : 'column';
+      const tiles = Array.from(el.querySelectorAll<HTMLElement>('.con-vchoice__opt'));
+      const tops = [...new Set(tiles.map((tile) => Math.round(tile.offsetTop)))].sort((a, b) => a - b);
+      // A PALETTE folded into rows (3 + 3) is a GRID — ←→ in a row, ↑↓ between rows (the play composer's rule).
+      this.branchGridRows = this.branchPalette && tops.length > 1 ? tiles.map((tile) => tops.indexOf(Math.round(tile.offsetTop))) : [];
+      this.branchAxis = tops.length <= 1 ? 'row' : this.branchGridRows.length > 0 ? 'grid' : 'column';
     },
     /** Re-measure on every resize of the group's box (a profile switch, the rail lifting, a font settling) — the
      *  responsive path, never a window listener. Re-armed whenever the group (re)mounts. */

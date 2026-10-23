@@ -631,8 +631,10 @@ function sourceStepsOf(branch: ActionPreviewBranch, stepResponses: Readonly<Reco
  * at the variant's printed COST icon, the row ticking on the departure; the
  * result is born only after it. A cost a PAYMENT STEP settled is read as the
  * rows the player actually paid from (steel or titanium for M€ — each row its
- * own token), in place of the M€ chip. A production cost is the plate's own
- * number, never a token; a cost chip with a note is somebody else's statement.
+ * own token), in place of the M€ chip. A PRODUCTION cost (a chip noted
+ * «production») leaves its row's production badge the same way, absorbed at
+ * the printed production frame (R33, 2026-10-23); a cost chip with any other
+ * note is somebody else's statement.
  */
 export function spendLinkSpecs(
   cardName: CardName,
@@ -666,8 +668,16 @@ export function spendLinkSpecs(
       continue;
     }
     if (isStandardResource(e.icon)) {
+      // A PRODUCTION PRICE (R33 Utopia Invest's «[?-production] → 4 [?]», Equatorial / Venus Magnetizer's energy
+      // production, Refugee Camps' M€ production) is a departure too — off its row's PRODUCTION BADGE (the plate the
+      // rail prints the number on), sideways, into the printed production frame of the variant's cost; the badge ticks
+      // on the departure, the result is born after it (PL-099 / PL-104 for the badge, the owner's decision 2026-10-23).
+      if (e.note === 'production') {
+        out.push({channel: 'production', resource: e.icon, amount: e.amount, direction: 'loss'});
+        continue;
+      }
       if (e.note !== undefined) {
-        continue; // a production cost (the plate's own number) or another host's statement
+        continue; // another host's statement
       }
       if (e.icon === 'megacredits' && payments.length > 0) {
         // The payment settles this chip: the rows it was paid from leave, once, in the payment's own order.
