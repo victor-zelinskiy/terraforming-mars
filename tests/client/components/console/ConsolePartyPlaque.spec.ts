@@ -95,3 +95,20 @@ describe('ConsolePartyPlaque — the support sockets and the ruler', () => {
     expect(wrapper.find('[data-parl-support]').exists()).is.false;
   });
 });
+
+describe('ConsolePartyPlaque — the action badge tells its five states by FORM', () => {
+  const kinds = ['available', 'not-now', 'blocked', 'used', 'no-access'] as const;
+  for (const kind of kinds) {
+    it(kind, () => {
+      const wrapper = make({party: PartyName.UNITY, actionState: {kind, label: '', reason: undefined, usesLeft: 0, usesPerGeneration: 1}});
+      const badge = wrapper.find('.con-pseal__action');
+      expect(badge.attributes('data-action-state')).to.eq(kind);
+      expect(badge.find('svg.con-pseal__action-bolt').exists(), 'the bolt is an SVG on currentColor, never an emoji').is.true;
+      const mark = badge.find('.con-pseal__action-mark');
+      expect(mark.exists() ? mark.text() : '', 'only used (✓) and blocked (✕) wear a seal').to.eq(kind === 'used' ? '✓' : kind === 'blocked' ? '✕' : '');
+    });
+  }
+  it('no action → no badge', () => {
+    expect(make({actionState: {kind: 'none', label: '', reason: undefined, usesLeft: 0, usesPerGeneration: 0}}).find('.con-pseal__action').exists()).is.false;
+  });
+});

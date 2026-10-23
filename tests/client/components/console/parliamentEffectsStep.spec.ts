@@ -59,6 +59,22 @@ describe('parliamentEffectsStep — «ВАШИ ЭФФЕКТЫ», the inner step 
     expect(held?.whyReading.key, 'held by delegates').to.match(/your delegates/);
   });
 
+  it('an ACTION-ONLY party is an action and never a standing effect (its empty passive root is `[[]]`)', () => {
+    const actionOnly = REDUX_PARTIES.filter((p) => {
+      const effect = getPartyEffect(p);
+      return effect?.actionRenderData !== undefined && effect.passiveRenderData.rows.every((row) => row.length === 0);
+    });
+    expect(actionOnly, 'Unity, Industrialists and Reds print no passive (anti-vacuous)').to.include.members([PartyName.UNITY, PartyName.INDUSTRIALISTS, PartyName.REDS]);
+    for (const party of actionOnly) {
+      const model = parliamentEffectsStep({
+        view: view(party, []), ruler: party, enacted: undefined,
+        partyActionStates: states({[party]: 'available'}), resolutionActionState: undefined,
+      });
+      expect(model.actions.map((a) => a.party), `${party} rules — its action is listed`).to.deep.eq([party]);
+      expect(model.standing.map((e) => e.party), `${party} rules — no standing effect`).to.deep.eq([]);
+    }
+  });
+
   it('a card\'s grant names the card', () => {
     const model = parliamentEffectsStep({
       view: view(PartyName.MARS, [access(PartyName.SCIENTISTS, {granted: ['Political Recognition'], hasEffect: true})]),

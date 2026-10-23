@@ -67,15 +67,19 @@
     </div>
     <div class="con-pseal__head">
       <span class="con-pseal__name" :class="{'con-pseal__name--long': longName}" :data-pseal-name-long="longName ? 'true' : undefined">{{ $t(partyNameKey(party)) }}</span>
-      <!-- THE ACTION BADGE — one object for one fact: available now (lit),
-           used this generation (stamped ✓), not now / blocked (outlined). -->
+      <!-- THE ACTION BADGE — one object, five states told by FORM, never colour alone:
+           available (a lit plate) · not now (yours, a solid ring — wait for your turn) ·
+           blocked (yours, a rule refuses — the ✕ seal) · used (the ✓ seal) ·
+           no access (not yours — a dashed ghost). The bolt is an SVG on
+           `currentColor`: the old ⚡ emoji ignored the state's colour. -->
       <span v-if="actionState !== undefined && actionState.kind !== 'none'"
             class="con-pseal__action"
             :class="'con-pseal__action--' + actionState.kind"
             :data-action-state="actionState.kind"
             aria-hidden="true">
-        <span class="con-pseal__action-bolt">⚡</span>
+        <svg class="con-pseal__action-bolt" viewBox="0 0 16 16"><path d="M9.6 1 3.4 9.1h3.9L6.2 15l6.4-8.4H8.6z" fill="currentColor" /></svg>
         <span v-if="actionState.kind === 'used'" class="con-pseal__action-mark">✓</span>
+        <span v-else-if="actionState.kind === 'blocked'" class="con-pseal__action-mark con-pseal__action-mark--blocked">✕</span>
       </span>
     </div>
     <!-- THE CONTEXT LINE (the `aside` size): what the party's effect means

@@ -72,7 +72,11 @@ export function parliamentEffectItems(input: EffectItemsInput): Array<EffectItem
       return undefined;
     }
     const action = vm.effect.actionRenderData === undefined ? undefined : actionStateOf(input.partyActionStates[index]);
-    return {key: `party:${party}`, kind: 'party', party, why, effect: vm.effect.passiveRenderData.rows.length > 0, ...(action === undefined ? {} : {action})};
+    // An ACTION-ONLY party (Unity, Industrialists, Reds) prints an EMPTY passive root — and an empty builder is
+    // `[[]]`, one row with nothing in it. A passive exists only when some row draws something: counted by rows, the
+    // action landed in «ПОСТОЯННЫЕ ЭФФЕКТЫ» too, as «Печатного эффекта нет» over the action's own sentence.
+    const effect = vm.effect.passiveRenderData.rows.some((row) => row.length > 0);
+    return {key: `party:${party}`, kind: 'party', party, why, effect, ...(action === undefined ? {} : {action})};
   };
   const ruler = partyItem(input.ruler, 'ruling');
   if (ruler !== undefined) {

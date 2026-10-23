@@ -96,7 +96,10 @@
         overflow: hidden;
         text-overflow: ellipsis;
     }
-    /* THE ACTION BADGE — available (lit), used (stamped ✓), not now / blocked (outlined). */
+    /* THE ACTION BADGE — five states by FORM (paint only — the box never changes):
+       available = a lit plate · not now = yours, a solid amber ring · blocked = yours, a rule
+       refuses: a faint ring + the ✕ seal · used = the ✓ seal · no access = not yours: a dashed
+       ghost (outline with a negative offset — no border, no layout). */
     &__action {
         flex-shrink: 0;
         position: relative;
@@ -113,10 +116,17 @@
         color: fade(@con-text, 50%);
         &--available { color: #0d1a14; background: @con-parl-mint; box-shadow: 0 0 .6rem fade(@con-parl-mint, 45%); }
         &--used { color: fade(@con-text, 45%); background: rgba(0, 0, 0, 0.45); box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.1); }
-        &--not-now { color: @con-amber; box-shadow: inset 0 0 0 .06rem fade(@con-amber, 55%); }
-        &--blocked, &--no-access { color: fade(@con-text, 35%); }
+        &--not-now { color: @con-amber; background: fade(@con-amber, 8%); box-shadow: inset 0 0 0 .06rem fade(@con-amber, 70%); }
+        &--blocked { color: fade(@con-text, 55%); }
+        &--no-access {
+            color: fade(@con-text, 30%);
+            background: transparent;
+            box-shadow: none;
+            outline: .06rem dashed fade(@con-text, 30%);
+            outline-offset: -.06rem;
+        }
     }
-    &__action-bolt { display: block; }
+    &__action-bolt { display: block; width: 1em; height: 1em; }
     &__action-mark {
         position: absolute;
         right: -.28rem;
@@ -132,6 +142,7 @@
         background: #262633;
         color: @con-parl-mint;
         box-shadow: 0 0 0 .05rem rgba(255, 255, 255, 0.22);
+        &--blocked { color: @con-red; }
     }
     /* THE MECHANIC — the plate's centre: centred on both axes in the room
        the head and the foot leave, never pinned to an edge. */
