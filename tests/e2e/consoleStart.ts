@@ -2666,6 +2666,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   'lakefront-resorts' |
   // R14 Terralabs Research — the second: blue on TerraLabs (the 1 M€ price) at a generation's end, solo and drafting.
   'terralabs-research' | 'terralabs-research-draft' |
+  // R07 Pristar — the last: the rating cell's mark (waiting / spent), the veto's second mark, the generation scene's hook token.
+  'pristar' | 'pristar-raised' | 'pristar-production' | 'pristar-production-raised' | 'pristar-veto' |
   // R33 Utopia Invest — the third: the six-variant palette (three live · one live, seeded · none — the action refused).
   'utopia-invest' | 'utopia-invest-sole' | 'utopia-invest-dead' |
   // T05 Event Analysts — influence beyond the Career (ledger CG).

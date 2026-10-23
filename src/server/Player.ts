@@ -1220,6 +1220,8 @@ export class Player implements IPlayer {
         continue;
       }
       const before = this.stock.asUnits();
+      const storeBefore = card.resourceCount;
+      const vpBefore = card.resourceType === undefined ? 0 : card.getVictoryPoints(this);
       card.onProductionPhase(this);
       const after = this.stock.asUnits();
       const income = Units.of({});
@@ -1228,8 +1230,11 @@ export class Player implements IPlayer {
         income[key] = after[key] - before[key];
         moved = moved || income[key] !== 0;
       }
-      if (moved) {
-        hooks.push({card: card.name, income});
+      const stored = card.resourceCount - storeBefore;
+      const cardResources = card.resourceType !== undefined && stored > 0 ?
+        {resource: card.resourceType, amount: stored, vp: card.getVictoryPoints(this) - vpBefore} : undefined;
+      if (moved || cardResources !== undefined) {
+        hooks.push({card: card.name, income, ...(cardResources === undefined ? {} : {cardResources})});
       }
     }
     if (hooks.length > 0 && this.productionIncome !== undefined) {

@@ -8816,3 +8816,85 @@ function utopiaTable(name: string, production: {megacredits: number, steel: numb
 utopiaTable('utopia-invest', {megacredits: 0, steel: 1, titanium: 1}, 3);
 utopiaTable('utopia-invest-sole', {megacredits: -5, steel: 1, titanium: 0}, 1);
 utopiaTable('utopia-invest-dead', {megacredits: -5, steel: 0, titanium: 0}, 0);
+
+// ── R07 · PRISTAR — the fourth and last classic Turmoil corporation adapted in place: the rating cell wears its STATE
+//    (the preservation token «waiting» / «spent», `data-tr-pristar`) off the server's `ratingRaisedThisGeneration`,
+//    and the production phase names its +6 M€ (`productionIncome.hooks`) so the generation scene flies it.
+//      · `pristar`                   — two seats on Redux, generation 1's action phase, blue on Pristar (TR 18), red on
+//                                      a calm corporation, 8 heat at −30 °C: the heat conversion raises the rating on the UI;
+//      · `pristar-raised`            — the same table after a rise (the flag up — the token struck);
+//      · `pristar-production`        — solo, NO draft, the TR61 generation end on Pristar with the flag down: the pass
+//                                      plays the scene, the hook's token after the income;
+//      · `pristar-production-raised` — the same with the flag up: no hook line, no token, no preservation;
+//      · `pristar-veto`              — RX42 enacted, RED (the viewer, who opens generation 2) on Pristar and first by
+//                                      rating 30 against blue's 27, the flag down: the two marks of one cell. ──
+function pristarSolo(name: string): {game: IGame, player: TestPlayer} {
+  const {game, player} = soloActionPhase({customCorporationsList: [CardName.PRISTAR], startingCorporations: 1});
+  if (!player.playedCards.has(CardName.PRISTAR) || player.hasIncreasedTerraformRatingThisGeneration) {
+    throw new Error(`${name}: expected blue on Pristar with the rating not raised this generation, got tr=${player.terraformRating}`);
+  }
+  return {game, player};
+}
+for (const raised of [false, true]) {
+  const name = raised ? 'pristar-raised' : 'pristar';
+  // Two seats (no solo colony trim in the start): blue on Pristar opens generation 1, red on a calm corporation is the
+  // rival whose rail never wears the mark.
+  const {game, p1} = reduxTable(name, {customCorporationsList: [CardName.PRISTAR, REDUX_TABLE_CORPORATIONS[0]]});
+  p1.heat = 8;
+  p1.megaCredits = 40;
+  p1.pendingInitialActions = [];
+  if (raised) {
+    p1.increaseTerraformRating(1);
+  }
+  runAllActions(game);
+  if (!p1.playedCards.has(CardName.PRISTAR) || p1.hasIncreasedTerraformRatingThisGeneration !== raised || game.generation !== 1 ||
+      game.activePlayer.id !== p1.id || !(p1.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`${name}: expected blue on Pristar on the move in generation 1 with the flag ${raised ? 'up' : 'down'}, got gen=${game.generation} wf=${p1.getWaitingFor()?.constructor.name}`);
+  }
+  if (p1.terraformRating !== 18 + (raised ? 1 : 0)) {
+    throw new Error(`${name}: expected the start two steps down (18), got ${p1.terraformRating}`);
+  }
+  write(name, game);
+}
+for (const raised of [false, true]) {
+  const name = raised ? 'pristar-production-raised' : 'pristar-production';
+  const {game, player} = pristarSolo(name);
+  generationEndStocks(player, 4);
+  player.pendingInitialActions = [];
+  player.hasIncreasedTerraformRatingThisGeneration = raised;
+  runAllActions(game);
+  if (game.gameOptions.draftVariant || game.activePlayer.id !== player.id || !(player.getWaitingFor() instanceof OrOptions)) {
+    throw new Error(`${name}: expected a solo table without a draft on the move, got wf=${player.getWaitingFor()?.constructor.name}`);
+  }
+  write(name, game);
+}
+parliamentFixture('pristar-veto', {
+  resolution: UNMI_VETO_ID,
+  votes: [1],
+  agenda: [1, 2],
+  stopAt: 'done',
+  options: {customCorporationsList: [REDUX_TABLE_CORPORATIONS[0], CardName.PRISTAR]},
+  arrange: ({p2}) => {
+    p2.pendingInitialActions = [];
+  },
+  after: ({p1, p2}) => {
+    p1.setTerraformRating(27);
+    p2.setTerraformRating(30);
+    p2.megaCredits = 30;
+    // The sitting's own steps (a Career bonus) may have raised the rating in generation 2 — the stand reads «waiting».
+    p2.hasIncreasedTerraformRatingThisGeneration = false;
+  },
+  expect: (table) => {
+    const {p1, p2, parliament} = table;
+    if (parliament.enacted !== resolutionInstanceId(UNMI_VETO_ID, 0)) {
+      throw new Error(`pristar-veto: expected UNMI Veto enacted, got ${parliament.enacted}`);
+    }
+    if (!p2.playedCards.has(CardName.PRISTAR) || p1.playedCards.has(CardName.PRISTAR)) {
+      throw new Error('pristar-veto: expected red (and only red) on Pristar');
+    }
+    if (p2.terraformRating !== 30 || p1.terraformRating !== 27 || p2.hasIncreasedTerraformRatingThisGeneration) {
+      throw new Error(`pristar-veto: expected red first by rating 30 / 27 with the flag down, got ${p2.terraformRating} / ${p1.terraformRating}`);
+    }
+    expectViewerOpensGeneration(table, p2, 'pristar-veto');
+  },
+});

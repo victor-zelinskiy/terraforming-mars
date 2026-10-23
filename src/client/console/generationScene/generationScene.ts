@@ -43,7 +43,7 @@
  * same numbers, no motion. A view with no record (an old save, a rival's
  * production, a reload) plays nothing: the buy then arrives the ordinary way.
  */
-import {reactive} from 'vue';
+import {reactive, toRaw} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {Phase} from '@/common/Phase';
@@ -54,8 +54,9 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {RailReward, flyRailReward, railRewardPending, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
-import {RATING_RAIL_KEY, ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {RATING_RAIL_KEY, ResourceTransferSpec, TransferPoint, cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {acknowledgeMandatoryBeat} from '@/client/console/consoleMandatoryGate';
+import {surfaceClear} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {enterWorkspace, workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
 import {betweenGenResearchLive, draftMandatoryFlowBeat} from '@/client/console/draft/consoleDraftFlow';
 
@@ -224,6 +225,8 @@ export function generationIncomeReward(record: ProductionIncomeModel): RailRewar
     cause.push(ratingSpec);
   }
   const known: Record<string, number> = {};
+  /** The points each cause token brings (aligned with `cause`) — a hook's resource on a scoring card (Pristar). */
+  const vp: Array<number> = [];
   for (const resource of INCOME_ORDER) {
     const amount = record.income[resource];
     if (amount > 0) {
@@ -243,12 +246,22 @@ export function generationIncomeReward(record: ProductionIncomeModel): RailRewar
         known[`stock:${resource}`] = (known[`stock:${resource}`] ?? 0) + amount;
       }
     }
+    // …and what it laid on its OWN card (Pristar's preservation): one token from the same mark onto the card's counter
+    // (its satellite cell on this screen), bringing the card's points with it.
+    const stored = hook.cardResources;
+    if (stored !== undefined && stored.amount > 0) {
+      const spec: ResourceTransferSpec = {channel: 'card-resource', resource: cardResourceKey(stored.resource), amount: stored.amount, targetCard: hook.card};
+      hookSpecs.set(spec, hook.card);
+      vp[cause.length] = stored.vp;
+      cause.push(spec);
+    }
   }
   if (record.conversion > 0) {
     known['stock:energy'] = (known['stock:energy'] ?? 0) - record.conversion;
     known['stock:heat'] = (known['stock:heat'] ?? 0) + record.conversion;
   }
-  return {cause, reactions: [], known};
+  const points = cause.map((_, i) => vp[i] ?? 0);
+  return {cause, reactions: [], known, ...(points.some((v) => v !== 0) ? {vp: points} : {})};
 }
 
 /**
@@ -291,19 +304,40 @@ function hookMarkCenter(card: CardName): TransferPoint | undefined {
   return undefined;
 }
 
+/** The object a token of the wave is born on (pure — the registry's Proxy unwrapped). */
+export type IncomeOrigin = {kind: 'rating'} | {kind: 'hook', card: CardName} | {kind: 'row', resource: string};
+
 /**
- * Where a token is BORN: the rating's M€ in the rating cell, a production value on its row's production badge,
- * a hook's payment on its card's mark (none on screen → the token degrades by name and its row ticks).
+ * Which object a token is BORN on: the rating's M€ the rating cell, a production value its row's production badge,
+ * a hook's payment its card's mark.
+ *
+ * ⚠ The flight asks with the spec the rail-reward REGISTRY holds — a reactive store, so a Proxy: the identity
+ * tests read the raw object (asked by identity on the Proxy, the rating's M€ was born on the M€ row's production
+ * badge every generation, and a hook's token never found its mark).
  */
-export function incomeOriginOf(spec: ResourceTransferSpec): TransferPoint | undefined {
-  const hook = hookSpecs.get(spec);
-  if (hook !== undefined) {
-    return hookMarkCenter(hook);
+export function incomeOriginKindOf(asked: ResourceTransferSpec): IncomeOrigin {
+  const spec = toRaw(asked);
+  const card = hookSpecs.get(spec);
+  if (card !== undefined) {
+    return {kind: 'hook', card};
   }
   if (spec === ratingSpec || spec.resource === RATING_RAIL_KEY) {
-    return centerOf('.con-res .con-score__cell--tr .con-score__value') ?? centerOf('.con-res .con-score__cell--tr');
+    return {kind: 'rating'};
   }
-  return centerOf(`.con-res__row--${spec.resource} .con-res__prod`) ?? centerOf(`.con-res__row--${spec.resource}`);
+  return {kind: 'row', resource: spec.resource};
+}
+
+/** Where a token is BORN, measured (a hook whose card wears no mark on screen → the token degrades by name, its row ticks). */
+export function incomeOriginOf(spec: ResourceTransferSpec): TransferPoint | undefined {
+  const origin = incomeOriginKindOf(spec);
+  switch (origin.kind) {
+  case 'hook':
+    return hookMarkCenter(origin.card);
+  case 'rating':
+    return centerOf('.con-res .con-score__cell--tr .con-score__value') ?? centerOf('.con-res .con-score__cell--tr');
+  case 'row':
+    return centerOf(`.con-res__row--${origin.resource} .con-res__prod`) ?? centerOf(`.con-res__row--${origin.resource}`);
+  }
 }
 
 /**
@@ -320,6 +354,10 @@ export async function runGenerationIncomeFlights(view: () => PlayerViewModel | u
   try {
     if (railRewardPending(GENERATION_INCOME_KEY)) {
       await flyRailReward(GENERATION_INCOME_KEY, (spec) => incomeOriginOf(spec));
+      // THE RISE WAITS FOR THE LAST ABSORB, never for a touchdown alone: a hook's resource lands on its card's cell of the
+      // ДОП. РЕСУРСЫ satellite (Pristar's preservation), which every band surface covers — the purchase rising on the
+      // touchdown painted its workspace over the token still being absorbed there. Bounded by the law's own ceiling.
+      await surfaceClear(typeof document === 'undefined' ? null : document.querySelector('.con-res-host'));
     }
   } finally {
     concludeGenerationScene(view());

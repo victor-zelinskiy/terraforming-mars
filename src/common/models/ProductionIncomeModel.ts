@@ -1,4 +1,5 @@
 import {CardName} from '../cards/CardName';
+import {CardResource} from '../CardResource';
 import {Units} from '../Units';
 
 /**
@@ -44,4 +45,10 @@ export type ProductionHookIncomeModel = {
   readonly card: CardName;
   /** The stock change the hook made, per resource (only non-zero entries matter). */
   readonly income: Units;
+  /**
+   * What the hook ADDED to its own card (Pristar's preservation) — measured on the card's counter around the call,
+   * with the victory points that move with it (the card's own `getVictoryPoints`, before → after). Absent when the
+   * card's store did not grow.
+   */
+  readonly cardResources?: {readonly resource: CardResource, readonly amount: number, readonly vp: number};
 };

@@ -91,7 +91,10 @@ describe('Pristar — on a Turmoil Redux table', () => {
       const {p1, card} = table();
       expect(produce(p1)).eq(6);
       expect(card.resourceCount).eq(1);
-      expect(p1.productionIncome?.hooks).deep.eq([{card: CardName.PRISTAR, income: {...Units.EMPTY, megacredits: 6}}]);
+      expect(p1.productionIncome?.hooks).deep.eq([{
+        card: CardName.PRISTAR, income: {...Units.EMPTY, megacredits: 6},
+        cardResources: {resource: CardResource.PRESERVATION, amount: 1, vp: 1},
+      }]);
     });
 
     it('a global parameter step raises the rating → nothing paid, no hook line, no «skip» in the log', () => {

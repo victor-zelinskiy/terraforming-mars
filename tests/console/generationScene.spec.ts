@@ -4,11 +4,13 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ProductionIncomeModel} from '@/common/models/ProductionIncomeModel';
 import {
   detectGenerationScene, generationIncomeReward, generationSceneState, noteGenerationFlipEnd, resetGenerationScene, runGenerationFlip,
-  endGenerationScene, armedGenerationScene, seedGenerationIncomeHold, GENERATION_INCOME_KEY,
+  endGenerationScene, armedGenerationScene, seedGenerationIncomeHold, GENERATION_INCOME_KEY, incomeOriginKindOf,
 } from '@/client/console/generationScene/generationScene';
+import {reactive} from 'vue';
 import {railRewardPending, resetRailRewards, verifyRailReward} from '@/client/console/resourceTransfer/railReward';
 import {CardName} from '@/common/cards/CardName';
 import {Units} from '@/common/Units';
+import {CardResource} from '@/common/CardResource';
 import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 
 /**
@@ -133,6 +135,39 @@ describe('the generation scene — the pure half (TR61)', () => {
       'megacredits:21', 'megacredits:5', 'steel:2', 'plants:1', 'energy:3', 'megacredits:6', 'megacredits:2',
     ]);
     expect(reward.known).deep.eq({'stock:energy': -4, 'stock:heat': 4 - 1});
+  });
+
+  // The flight asks with the registry's spec — a reactive Proxy. Asked by identity on the Proxy, the rating's M€ was
+  // born on the M€ row's production badge every generation (the rating cell never paid), and a hook found no mark.
+  it('the origin of a token is read off the RAW spec — the rating cell, the hook mark, a row badge — through the registry Proxy', () => {
+    const reward = generationIncomeReward(record({hooks: [{card: CardName.PRISTAR, income: {...Units.EMPTY, megacredits: 6}}]}));
+    const held = reactive({cause: [...reward.cause]}).cause;
+    expect(incomeOriginKindOf(held[0])).deep.eq({kind: 'rating'});
+    expect(incomeOriginKindOf(held[1])).deep.eq({kind: 'row', resource: 'megacredits'});
+    expect(incomeOriginKindOf(held[held.length - 1])).deep.eq({kind: 'hook', card: CardName.PRISTAR});
+  });
+
+  it('a hook that laid a resource on its OWN card flies it too — onto the card, with the points it brings', () => {
+    const income = record({hooks: [{
+      card: CardName.PRISTAR, income: {...Units.EMPTY, megacredits: 6},
+      cardResources: {resource: CardResource.PRESERVATION, amount: 1, vp: 1},
+    }]});
+    const reward = generationIncomeReward(income);
+    const last = reward.cause[reward.cause.length - 1];
+    expect(last).deep.eq({channel: 'card-resource', resource: 'preservation', amount: 1, targetCard: CardName.PRISTAR});
+    expect(reward.vp?.[reward.cause.length - 1]).eq(1);
+    expect(reward.vp?.slice(0, -1).every((v) => v === 0)).is.true;
+    expect(incomeOriginKindOf(last)).deep.eq({kind: 'hook', card: CardName.PRISTAR});
+    // Checked against the views: the card's counter and the score moved by exactly what the record says.
+    const before = view({generation: 1, phase: Phase.ACTION, stock: {megacredits: 10, steel: 0, plants: 0, energy: 4, heat: 2}});
+    const after = view({generation: 2, income, stock: {megacredits: 10 + 21 + 5 + 6, steel: 2, plants: 1, energy: 3, heat: 2 + 4}});
+    (before.thisPlayer as unknown as Record<string, unknown>).tableau = [{name: CardName.PRISTAR, resources: 0}];
+    (after.thisPlayer as unknown as Record<string, unknown>).tableau = [{name: CardName.PRISTAR, resources: 1}];
+    (before.thisPlayer as unknown as Record<string, unknown>).victoryPointsBreakdown = {total: 20};
+    (after.thisPlayer as unknown as Record<string, unknown>).victoryPointsBreakdown = {total: 21};
+    const verdict = verifyRailReward(reward, before, after);
+    expect(verdict.mismatches).deep.eq([]);
+    expect(verdict.vp[verdict.vp.length - 1]).eq(1);
   });
 
   it('a hook the record names keeps the promise against the applied views — nothing refused', () => {

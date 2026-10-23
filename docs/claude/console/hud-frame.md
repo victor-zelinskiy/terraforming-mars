@@ -325,6 +325,28 @@ received — × tv4k / fhd / deck against `tests/e2e/statusAnchorsBaseline.json`
 mid-game table `TM_E2E_STATUS_FIXTURE=info-dossier-rich`). Two posed frames extend net-zero by design (the conveyor's window,
 the ghost ring) — the stand reads their contents, not the frames (`NET_ZERO_FRAMES`).
 
+## THE MARKS OF THE RATING CELL — «Печати на ячейке РТ» (RX42 · R07 Pristar, 2026-10-24)
+
+A seat's STATE that the rating governs is a MARK on the rating icon's wrap (`.con-score__iconwrap` — `position: relative`,
+the marks absolute inside it: the cell's box, the digits' baseline and `.con-score__value` — the flights' anchor — never move).
+Two marks exist, each in its OWN place, both may stand at once:
+
+| Mark | Place | Read off | States (by FORM, colour only helps) | Data |
+| --- | --- | --- | --- | --- |
+| RX42 UNMI Veto | the whole icon — a rim + a diagonal strike (`.con-score__veto`) | `parliament.enacted.trVeto` (the server's live leaders) | under the veto / none | `data-tr-vetoed="<tr>"` |
+| R07 Pristar | the lower-right CORNER — the preservation token (`.con-score__pristar`) | `PublicPlayerModel.ratingRaisedThisGeneration` × the corporation on the public tableau | `waiting` — the token whole in a thin gold line (the payout stands) · `spent` — the SAME node dimmed by its material + the card face's «cancelled» slash (a rise this generation) | `data-tr-pristar="waiting|spent"` |
+
+Laws: ① the state is a SERVER FIELD read by a pure function (`console/railMarks.ts` `pristarMarkOf` — never the log, a rating
+delta or `terraformRatingFromCards`); ② the cell's ONE hint carries each standing mark's ONE sentence, joined by « · », the veto
+first (`premium-tooltip` + `data-hint`, never `title`); ③ a change of state is ONE crossfade of the same node (240 ms on the
+motion scale, none under reduced motion) — no pulse, nothing on a tick; ④ the token never covers the digits and stays in its
+corner, off the stamp's strike (e2e `console-pristar` D, G — fhd / deck ≥ 12 px); ⑤ the rail is the Information Workspace's
+summary half, so the INSPECTED seat wears its own marks there and a seat without the corporation shows a clean cell — nowhere
+else (the seat chips, the face) prints them; ⑥ a mark may be a flight's BIRTH POINT: Pristar's token carries
+`data-income-hook="Pristar"` and the generation scene births the hook's +6 M€ and +1 preservation on it
+(`generationScene.incomeOriginKindOf`). A new corporation state on the rail is a new row of this table — a mark in its own
+place, a pure reader, one sentence in the hint.
+
 ## Guards
 
 - `tests/e2e/console-hud-frame.spec.ts` — FHD + forced-TV 4K: computed
