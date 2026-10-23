@@ -9,10 +9,13 @@
  *  C′ · THE COUNT ARRIVES AS LIGHT (T08): an init-script probe (setInterval — never rAF, from the mount) sees ONE
  *      light per category and never a body crossing the stage, the seats' medallions igniting IN TURN left to right
  *      (a cascade, never «all at once»), and a seat's total standing until ITS ignition; the server's totals;
- *  H · X HURRIES, never skips: the categories after X are a fraction of a natural one, the pace returns before the
- *      ranking, the ranking FLIP and the crowning FLIP play at the full pace, the bar drops X; the server's totals;
+ *  H · X HURRIES, never skips (CI — its OWN choreography: one pass of the light, an odometer): the remainder after X is
+ *      a fraction of the natural categories, the pass is over before the ranking, the ranking FLIP and the crowning
+ *      FLIP play at the full pace, the bar drops X; the server's totals (the light budget of both paces is
+ *      `console-finale-flash-budget`);
  *  D · the overview's «Счёт» and «Игроки» fill the opening with the same objects (faces, medallions);
- *  G · reduced motion: no light ever falls, the result is the same; I · reduced motion + X lands atomically.
+ *  G · reduced motion: no light ever falls, the result is the same; I · reduced motion + X HURRIES too — the same pass
+ *      with no light, the ranking and the crowning still reached (the atomic jump is the net's / a reload's only).
  * The hidden score opens HERE: the totals on the podium are the server's own breakdown totals. TIMING class
  * (`timingSpecs.ts` — the stagger, the hurry's share and the crowning's pace are motion): `--exclusive --workers=1`.
  */
@@ -607,7 +610,7 @@ test.describe('console finale podium — reduced motion (FHD)', () => {
     await expect(page.locator('.con-eg__row--hero')).toHaveCount(1);
   });
 
-  test('I · reduced motion + X lands ATOMICALLY (there is no motion to hurry): no ranking beat, the canonical state', async ({page, request}) => {
+  test('I · reduced motion + X HURRIES (no light): the pass, then the ranking and the crowning, the canonical state', async ({page, request}) => {
     test.setTimeout(600_000);
     await armCountProbe(page);
     const ids = await fixtureTable(request, 'finale-rich-5p');
@@ -615,7 +618,7 @@ test.describe('console finale podium — reduced motion (FHD)', () => {
     await journeyToEndgame(page, request, ids);
     await waitWithFrames(page, async () => (await page.locator('.con-endgame--entering, .con-endgame--scoring').count()) > 0, 20_000, 'the count');
     await page.keyboard.press('KeyX');
-    await waitWithFrames(page, async () => (await page.locator('.con-eg__actions').count()) > 0, 8_000, 'the atomic settle');
+    await waitWithFrames(page, async () => (await page.locator('.con-eg__actions').count()) > 0, 30_000, 'the hurried count settled');
     // The sampler's own tick reads the settled root (state, not a sleep).
     await waitWithFrames(page, async () => await page.evaluate(() => {
       const p = (window as unknown as {__count: {samples: Array<{phase: string}>}}).__count;
@@ -628,8 +631,9 @@ test.describe('console finale podium — reduced motion (FHD)', () => {
         phases.push(s.phase);
       }
     }
-    expect(phases, `the phases: ${phases.join(' → ')}`).not.toContain('ranking');
+    expect(phases, `the phases: ${phases.join(' → ')}`).toEqual(expect.arrayContaining(['ranking', 'winner', 'actions']));
     expect(phases[phases.length - 1]).toBe('actions');
+    expect(Math.max(...samples.map((x) => x.lightVisible)), 'reduced motion draws no light, hurried or not').toBe(0);
     expect(await shownTotals(page)).toEqual(await serverTotals(request, ids[0]));
     await expect(page.locator('.con-eg__row--hero')).toHaveCount(1);
   });

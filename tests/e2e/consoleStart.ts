@@ -1333,24 +1333,29 @@ export async function focusedSpaceId(page: Page): Promise<string> {
  * X, it visited 11 cells» is a diagnosis, «Enter did nothing» is not.
  */
 export async function walkToSpace(page: Page, spaceId: string, maxSteps = 150): Promise<void> {
-  for (let i = 0; i < 12; i++) {
-    await press(page, 'ArrowUp', 80);
-  }
-  for (let i = 0; i < 12; i++) {
-    await press(page, 'ArrowLeft', 80);
-  }
-  const lane = [
-    ...Array(9).fill('ArrowRight'), 'ArrowDown',
-    ...Array(9).fill('ArrowLeft'), 'ArrowDown',
-  ];
   const seen = new Set<string>();
-  for (let i = 0; i < maxSteps; i++) {
-    const id = await focusedSpaceId(page);
-    seen.add(id);
-    if (id === spaceId) {
-      return;
+  // Two passes: the serpentine from the top-LEFT corner, then its MIRROR from the top-RIGHT one. One parity of the
+  // snaps enters a row on a cell and walks AWAY from the rest of that row (Lakefront's 12: the lane entered row 1 on
+  // 10 heading left, and 11 / 12 were never visited) — the mirror enters the same rows from the other side.
+  for (const [home, out, back] of [['ArrowLeft', 'ArrowRight', 'ArrowLeft'], ['ArrowRight', 'ArrowLeft', 'ArrowRight']] as const) {
+    for (let i = 0; i < 12; i++) {
+      await press(page, 'ArrowUp', 80);
     }
-    await press(page, lane[i % lane.length], 90);
+    for (let i = 0; i < 12; i++) {
+      await press(page, home, 80);
+    }
+    const lane = [
+      ...Array(9).fill(out), 'ArrowDown',
+      ...Array(9).fill(back), 'ArrowDown',
+    ];
+    for (let i = 0; i < maxSteps; i++) {
+      const id = await focusedSpaceId(page);
+      seen.add(id);
+      if (id === spaceId) {
+        return;
+      }
+      await press(page, lane[i % lane.length], 90);
+    }
   }
   throw new Error(`the cursor never reached space ${spaceId}; it visited ${seen.size} cells: ${[...seen].join(',')}`);
 }

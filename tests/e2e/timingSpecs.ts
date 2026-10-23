@@ -27,6 +27,7 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   'console-staged-board-clarity.spec.ts', // T15 / CD stand: B pressed INSIDE the staged ritual's windows (0 · 400 · 1200 · 2100 ms) and the bar's «Возвращаемся…» sampled while a hold owes it — motion itself
   'console-martian-media-center.spec.ts', // T07 / CH stand: the «−3» M€ token's birth on the row, its SIDEWAYS path and absorb, the row's tick on the departure and the cube's lift AFTER the absorb — motion itself
   'console-finale-podium.spec.ts', // T08 «the count arrives as light»: the ignition cascade's stagger, the hurry's share of a natural category, the ranking / crowning FLIPs at the full pace — motion itself
+  'console-finale-flash-budget.spec.ts', // Lakefront / CI stand: the light budget sampled on both paces (ignitions/s, the shortest luminous event, lights at once) and the podium's brightness off the screencast — motion itself
   // the full functional baseline on Chromium 156 (2026-10-22, four workers on the Steam Machine)
   'console-delta-card-advance.spec.ts', // «the whole leg must play»: span > 600 ms of the marker's glide — 518–534 ms at ×0.5
   'console-expedition-mechs.spec.ts', // the transfer witness: endsOverGlass at tv4k (the data's token born on its pay row as the composer leaves) — green at ×1

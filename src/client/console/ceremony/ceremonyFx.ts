@@ -29,8 +29,11 @@ export type CeremonyBurstOptions = {
   accent: CeremonyAccent,
   reduced: boolean,
   /** 'full' — the coronation-grade burst (rings + sparks + flash + sweep);
-   *  'ping' — the unobtrusive remote beat (one ring, a few sparks). */
-  intensity?: 'full' | 'ping',
+   *  'ping' — the unobtrusive remote beat (one ring, a few sparks);
+   *  'wave' / 'wave-quiet' — the finale's crowning (CI «премиум, не дискотека»): ONE ring that SWELLS in (a soft
+   *  attack ≥ 400 ms — never an instant flash) and lets go slower than it came, one soft sweep after it; no sparks,
+   *  no flash, no repeats. 'wave-quiet' is the co-winner's, at a lower light. */
+  intensity?: 'full' | 'ping' | 'wave' | 'wave-quiet',
   /** Base start delay in ms (pre-motionMs) — lets a CSS entrance land first. */
   delayMs?: number,
 };
@@ -78,7 +81,11 @@ export function playCeremonyBurst(opts: CeremonyBurstOptions): CeremonyBurstHand
     return NOOP_HANDLE;
   }
   const palette = PALETTES[opts.accent];
-  const full = (opts.intensity ?? 'full') === 'full';
+  const intensity = opts.intensity ?? 'full';
+  if (intensity === 'wave' || intensity === 'wave-quiet') {
+    return playWave(opts, palette, intensity === 'wave' ? 1 : 0.55);
+  }
+  const full = intensity === 'full';
   const s = (baseMs: number) => motionMs(baseMs) / 1000;
   const at0 = s(opts.delayMs ?? 0);
 
@@ -169,5 +176,49 @@ export function playCeremonyBurst(opts: CeremonyBurstOptions): CeremonyBurstHand
     tl.to(sweep, {autoAlpha: 0, duration: s(180)}, at0 + s(880));
   }
 
+  return {stop: cleanup};
+}
+
+/** The finale's crowning WAVE: one ring with a soft attack, one soft sweep — the light budget's own shape. */
+function playWave(opts: CeremonyBurstOptions, palette: Palette, strength: number): CeremonyBurstHandle {
+  const {host} = opts;
+  const s = (baseMs: number) => motionMs(baseMs) / 1000;
+  const at0 = s(opts.delayMs ?? 0);
+  const radius = Math.max(host.offsetWidth, host.offsetHeight, 80) / 2;
+  const layer = document.createElement('div');
+  layer.className = 'con-ceremony-fx';
+  layer.setAttribute('aria-hidden', 'true');
+  host.appendChild(layer);
+  let done = false;
+  const cleanup = () => {
+    if (done) {
+      return;
+    }
+    done = true;
+    tl.kill();
+    layer.remove();
+  };
+  const tl = gsap.timeline({onComplete: cleanup});
+  const ring = document.createElement('div');
+  ring.className = 'con-ceremony-fx__ring';
+  const size = radius * 1.3;
+  ring.style.width = `${size}px`;
+  ring.style.height = `${size}px`;
+  ring.style.left = '50%';
+  ring.style.top = '50%';
+  ring.style.marginLeft = `${-size / 2}px`;
+  ring.style.marginTop = `${-size / 2}px`;
+  ring.style.boxShadow = `0 0 0 2px ${palette.ring}, 0 0 22px ${palette.ringGlow}`;
+  layer.appendChild(ring);
+  // The SWELL — no instant attack: the ring comes up with its own growth, then lets go slower than it came.
+  tl.fromTo(ring, {scale: 0.7, autoAlpha: 0}, {scale: 1.05, autoAlpha: 0.75 * strength, duration: Math.max(s(460), 0.4), ease: 'sine.out'}, at0);
+  tl.to(ring, {scale: 1.45, autoAlpha: 0, duration: Math.max(s(900), 0.6), ease: 'sine.inOut'});
+  const sweep = document.createElement('div');
+  sweep.className = 'con-ceremony-fx__sweep';
+  sweep.style.background = `linear-gradient(100deg, transparent 0%, ${palette.flash} 50%, transparent 100%)`;
+  layer.appendChild(sweep);
+  tl.fromTo(sweep, {x: -radius * 2.4, autoAlpha: 0},
+    {x: radius * 2.4, autoAlpha: 0.4 * strength, duration: Math.max(s(1100), 0.8), ease: 'sine.inOut'}, at0 + s(260));
+  tl.to(sweep, {autoAlpha: 0, duration: Math.max(s(320), 0.24), ease: 'sine.in'}, '>-0.32');
   return {stop: cleanup};
 }

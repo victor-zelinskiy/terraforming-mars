@@ -1,7 +1,10 @@
 import {expect} from 'chai';
 import {buildEndgameModel, EndgamePlayerInput} from '@/client/components/endgame/endgameModel';
 import {buildConsoleEndgameVm, ConsoleEndgameVm, ConsoleEndgameVmOptions} from '@/client/console/endgame/consoleEndgameModel';
-import {beatLengthMs, ceremonyBeats, ceremonyTotalMs, CEREMONY_MS, HURRY_SCALE, igniteOffsets, igniteSpanMs} from '@/client/console/endgame/consoleEndgameScript';
+import {
+  beatLengthMs, CeremonyBeat, ceremonyBeats, ceremonyTotalMs, CEREMONY_MS, countBeats, finalSums, hurriedBeats, hurrySweepMs, igniteOffsets,
+  igniteSpanMs, luminousMs, tailBeats,
+} from '@/client/console/endgame/consoleEndgameScript';
 import {
   consoleEndgameUi, ceremonyShouldPlay, finalizeCeremony, noteConsoleEndgameLivePhase,
   resetCeremonyProgress, resetConsoleEndgame,
@@ -171,65 +174,90 @@ describe('consoleEndgameScript', () => {
     expect(ceremonyTotalMs(beats)).to.be.lessThan(30_000);
   });
 
-  it('a MAIN category is a readable five-part phrase (the brief\'s windows + T08\'s light and its cascade)', () => {
-    // preparation/focus ~160–260 · the light's fall ~240–380 · the cascade 50–70 a seat · movement ~500–850 ·
-    // settle ~180–300 · pause ~220–380 — the whole phrase stays a compact, readable event at five seats too.
+  it('a MAIN category is a readable phrase (the brief\'s windows; CI — the cascade a soft rise, the light a glide)', () => {
+    // focus ~160–260 · the light's way ~240–380 · the cascade 80–140 a seat (a rise of its own ≥ 400) · movement
+    // ~400–850 · settle / pause ~150–300 — the whole phrase stays a compact, readable event at five seats too.
     expect(CEREMONY_MS.categoryFocus).to.be.within(160, 260);
     expect(CEREMONY_MS.categoryLight).to.be.within(240, 380);
-    expect(CEREMONY_MS.igniteStagger).to.be.within(50, 70);
-    expect(CEREMONY_MS.categoryGrow).to.be.within(500, 850);
-    expect(CEREMONY_MS.categorySettle).to.be.within(180, 300);
-    expect(CEREMONY_MS.categoryPause).to.be.within(220, 380);
+    expect(CEREMONY_MS.igniteStagger).to.be.within(80, 140);
+    expect(CEREMONY_MS.igniteRise, 'the ignition rises, it never flashes').to.be.at.least(400);
+    expect(CEREMONY_MS.categoryGrow).to.be.within(400, 850);
+    expect(CEREMONY_MS.categorySettle).to.be.within(150, 300);
+    expect(CEREMONY_MS.categoryPause).to.be.within(150, 380);
     for (const seats of [2, 5]) {
       const beat = ceremonyBeats(richVm()).find((b) => b.kind === 'category')!;
       expect(beatLengthMs(beat, seats), `${seats} seats`).to.be.within(1100, 1900);
     }
     expect(CEREMONY_MS.sub).to.be.within(300, 500); // inner steps read faster
-    // A sub-step's cascade (five seats) fits inside its own window, leaving time for the count to answer it.
-    expect(igniteSpanMs(5, CEREMONY_MS.subStagger)).to.be.lessThan(CEREMONY_MS.sub * 0.6);
   });
 
-  it('T08: every category beat carries its light and its cascade; a sub-step has NO light of its own (one held light per category)', () => {
+  it('CI: the light budget\'s numbers — a floor under every luminous event, one glide per category, a release longer than the rise', () => {
+    expect(CEREMONY_MS.minEvent).to.eq(240);
+    expect(luminousMs(43), 'a pace may never cut a light under the floor').to.eq(CEREMONY_MS.minEvent);
+    expect(luminousMs(600)).to.eq(600);
+    for (const ms of [CEREMONY_MS.lightRise, CEREMONY_MS.lightGlide, CEREMONY_MS.lightRelease, CEREMONY_MS.igniteRise]) {
+      expect(ms, 'a luminous event ≥ 400 ms on the natural pace').to.be.at.least(400);
+    }
+    expect(CEREMONY_MS.lightRelease).to.be.greaterThan(CEREMONY_MS.lightRise);
+    // The glide ARRIVES as the first seat ignites (focus + the light's way) — never long after it.
+    expect(CEREMONY_MS.lightGlide).to.be.within(CEREMONY_MS.categoryLight, CEREMONY_MS.categoryFocus + CEREMONY_MS.categoryLight);
+  });
+
+  it('CI: a multi-sub category ignites ONCE — its first source cascades, the later ones count on at once', () => {
     const vm = richVm();
+    const subs = ceremonyBeats(vm).filter((b): b is Extract<CeremonyBeat, {kind: 'sub'}> => b.kind === 'sub');
+    expect(subs.length).to.be.greaterThan(1);
+    for (const beat of subs) {
+      expect(beat.staggerMs, `sub ${beat.sub}`).to.eq(beat.sub === 0 ? CEREMONY_MS.subStagger : 0);
+    }
     for (const beat of ceremonyBeats(vm)) {
-      if (beat.kind === 'category') {
-        expect(beat.lightMs).to.eq(CEREMONY_MS.categoryLight);
-        expect(beat.staggerMs).to.eq(CEREMONY_MS.igniteStagger);
-        expect(beatLengthMs(beat, 2)).to.eq(beat.focusMs + beat.lightMs + beat.staggerMs + beat.growMs + beat.settleMs + beat.pauseMs);
-      }
-      if (beat.kind === 'subIntro') {
-        expect(beat.lightMs, 'the multi-sub category\'s ONE light falls at its intro').to.eq(CEREMONY_MS.categoryLight);
-        expect(beat.lightMs).to.be.lessThan(beat.ms);
-      }
-      if (beat.kind === 'sub') {
-        expect('lightMs' in beat, 'a sub-step re-ignites under the held light').to.eq(false);
-        expect(beat.staggerMs).to.eq(CEREMONY_MS.subStagger);
-      }
       expect('flyMs' in beat, 'no beat carries a token flight any more').to.eq(false);
     }
   });
 
-  it('T08: the ignition cascade is the light\'s fall, then one seat per stagger, left to right', () => {
-    expect(igniteOffsets(5, 280, 60)).to.deep.eq([280, 340, 400, 460, 520]);
-    expect(igniteOffsets(2, 280, 60)).to.deep.eq([280, 340]);
+  it('the ignition cascade is the light\'s arrival, then one seat per stagger, left to right', () => {
+    expect(igniteOffsets(5, 280, 100)).to.deep.eq([280, 380, 480, 580, 680]);
+    expect(igniteOffsets(2, 280, 100)).to.deep.eq([280, 380]);
     expect(igniteOffsets(1, 0, 40)).to.deep.eq([0]);
-    expect(igniteSpanMs(5, 60)).to.eq(240);
-    expect(igniteSpanMs(1, 60)).to.eq(0);
+    expect(igniteSpanMs(5, 100)).to.eq(400);
+    expect(igniteSpanMs(1, 100)).to.eq(0);
   });
 
-  it('T08: the preRank keeps a full-pace breath — a hurried count returns to ×1 before the ranking', () => {
-    const pre = ceremonyBeats(richVm()).find((b) => b.kind === 'preRank');
-    expect(pre).to.not.eq(undefined);
-    if (pre?.kind !== 'preRank') {
-      return;
-    }
-    expect(pre.breathMs).to.eq(CEREMONY_MS.preRankBreath);
-    expect(pre.breathMs).to.be.within(200, pre.ms);
-    // Hurried, the preRank is a short beat — never zero, never the full breath again.
-    const hurried = (pre.ms - pre.breathMs) / HURRY_SCALE + pre.breathMs;
-    expect(hurried).to.be.within(250, 400);
-    expect(HURRY_SCALE).to.be.within(4, 8);
+  it('CI: the natural count of a full table stays ≈ 11–14 s', () => {
+    const count = countBeats(richVm());
+    expect(ceremonyTotalMs(count, 5)).to.be.within(5_000, 14_500);
   });
+
+  it('CI: X is its OWN script from any category — one pass, the odometer, one breath, then the SAME tail', () => {
+    const vm = richVm();
+    const tail = tailBeats(vm).map((b) => b.kind);
+    for (let from = 0; from < vm.categories.length; from++) {
+      const beats = hurriedBeats(vm, from);
+      expect(beats.map((b) => b.kind), `from ${from}`).to.deep.eq(['sweep', 'odometer', 'preRank', ...tail]);
+      const sweep = beats[0];
+      if (sweep.kind !== 'sweep') {
+        return;
+      }
+      const remaining = vm.categories.length - from;
+      expect(sweep.fromIdx).to.eq(from);
+      expect(sweep.toIdx).to.eq(vm.categories.length - 1);
+      expect(sweep.ms, 'one pass, between its floor and its ceiling').to.be.within(CEREMONY_MS.hurrySweepMin, CEREMONY_MS.hurrySweepMax);
+      expect(sweep.ms).to.eq(hurrySweepMs(remaining));
+      expect(sweep.stepMs * remaining).to.be.closeTo(sweep.ms, remaining);
+      expect(sweep.stepMs, 'a chip of the pass is never a flash').to.be.at.least(CEREMONY_MS.minEvent);
+    }
+    expect(hurriedBeats(vm, vm.categories.length), 'nothing left to hurry').to.deep.eq([]);
+    // The odometer lands on the categories' own sums — the VM's final totals.
+    const sums = finalSums(vm);
+    for (const row of vm.rows) {
+      expect(sums[row.color], row.color).to.eq(row.finalTotal);
+    }
+    // The fewer left, the shorter — never under the floor of a readable pass.
+    expect(hurrySweepMs(1)).to.eq(CEREMONY_MS.hurrySweepMin);
+    expect(hurrySweepMs(12)).to.eq(CEREMONY_MS.hurrySweepMax);
+    expect(hurrySweepMs(4)).to.be.lessThan(hurrySweepMs(6));
+  });
+
 });
 
 describe('consoleEndgameState', () => {

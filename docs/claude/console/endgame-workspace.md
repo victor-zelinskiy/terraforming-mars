@@ -205,66 +205,75 @@ front of it).
 `CeremonyPhase`: `idle → entering → scoring → settling → ranking →
 [tiebreak] → winner → actions`; inside a category the phrase is
 `beatStage: focus → light → grow → settle` (+ a scripted pause). The pure script
-(`ceremonyBeats`) emits the beat list — a MAIN category ≈ 220 focus / 280 light /
-60 a seat (the cascade) / 560 grow / 240 settle / 250 pause ms, a multi-sub
-category's intro 320 ms (its ONE light falls there), sub-steps 420 ms (a 40 ms
-cascade each, no light of their own), merges 500 ms (the light lets go), the
-`preRank` breath (its last `preRankBreath` 260 ms always at ×1), FLIP, places,
-a **winnerHold** (the crowning never rides the FLIP), winner 1.5 s (the
-crowning FLIP inside, `crown` 640 ms), actions.
+emits TWO beat lists that share ONE tail (`tailBeats` — ranking, places, tie-break,
+winner hold, winner, champion, actions — always at ×1): the NATURAL count
+(`ceremonyBeats` = `countBeats` + preRank + tail — a MAIN category ≈ 220 focus /
+280 the light's way / 100 a seat (the cascade) / 440 grow / 180 settle / 180 pause ms,
+a multi-sub category's intro 360 ms, sub-steps 340 ms, merges 400 ms; ≈ 12.4 s for
+`finale-rich-5p` on the box) and the HURRIED one (`hurriedBeats(vm, from)`, below).
 
-**THE COUNT ARRIVES AS LIGHT (T08, the owner's direction 2026-10-22 — the
-TR69 tokens are gone: up to ≈ 80 small bodies crossing the stage from the rail
-read as arcade busyness from the couch).** On `focus` the rail spotlights the
-category and the PLATE under the rail takes it (`.con-eg__plate` in the
-caption's slot — its disc, its name, a sub-step's source as a second voice, the
-category's tone; ONE plate for the whole count, its face handing over in place).
-On `light` the category's ONE light falls from the plate's foot over the
-podium to the medallion row (`hooks.onLight` → `playLight`: the box posed once,
-the wash descending by scaleY + opacity — `.con-eg__light` › `.con-eg__beam`),
-then every seat's OWN medallion IGNITES in turn, left to right in the count's
-seat order (`igniteOffsets(seats, light, stagger)` — the times are the
-script's, never the DOM's): `consoleEndgameUi.seatCat` / `seatSub` are written
-once per seat per cascade, the medallion lights with its value, the seat's
-segment grows out of it (`segOn` / `subOn` / `reclaimOn` read the seat's
-ignition — the old «the bar fills at the settle» lag of single categories is
-gone), and the director starts THAT seat's count-up on its ignition. The
-accent is `hooks.onIgnite` → `igniteMedal` (the disc settles from 0.9, a ring of
-the category's light lifts off it — `.con-eg__medal-glow`); a zero ignites as a
-quiet «0» with no accent; a sub-step re-ignites under the held light with a
-lighter accent; the penalty's light is the subtractive red and its scar sweeps in
-on the seat's ignition. Every motion is under the director's clock (`attach` —
-paused, hurried and killed with the timeline; a tween's OWN `onComplete` is
-chained, never replaced — replacing it once leaked every token node into the
-layer). Reduced motion draws no light and plays no accent; the medallions
-light at their moments. The ranking FLIP moves the seats along both axes; the
-crowning is its own FLIP (`hooks.onCrown` — measured before `winnerShown`,
-played after: translate + a uniform scale from the seat's foot). The root
-publishes the beat for the probes (`data-eg-beat` / `data-eg-cat` /
-`data-eg-hurried`).
-Typical full act ≈ 13–17 s base (rich configs a little more); spec-guarded
-windows. The director lays it on ONE paused GSAP timeline through
-`consoleMotionMs`, advancing `consoleEndgameUi`; CSS transitions
-(transform/opacity only) paint. Count-ups tween ABSOLUTE running targets
-into the DOM sink. The FLIP and the `ceremonyFx` gold burst are component
-hooks registered as director cleanups.
+**THE LIGHT BUDGET (CI, the owner 2026-10-23: «всё мигает как на дискотеке,
+особенно при ускоренном подсчёте») — the law every beat obeys on ANY pace.**
+① ONE light lives the whole count: `onLight` 'rise' with the first category
+(600 ms), 'glide' to every next one (500 ms — the wash's HOTSPOT moves under the
+category's rail chip and its TONE lerps to the category's, the 256×128 canvas
+re-painted per frame: the light never switches off), one 'release' at the preRank
+(760 ms, longer than the rise). Never «falls and releases» per category (T08 did
+— 14 switch-ons/offs of the podium's light per count). ② No luminous event is
+shorter than `CEREMONY_MS.minEvent` (240 ms): JS through `luminousMs`, CSS through
+`max(@eg-floor, calc(Xms * var(--motion-scale, 1)))`; the old `--eg-pace` token is
+GONE (it cut the rail's spotlight and the ignition to 43–53 ms under X). ③ A
+seat's medallion ignites ONCE per category: a soft RISE of the medallion itself
+(CSS `--on` 420 ms ease-out + the disc settling from 0.92, `igniteRise`) — no
+ring, no flash (`.con-eg__medal-glow` is deleted); a multi-sub category ignites
+on its first source (stagger 100) and its later sources count on at once under
+the same rise. ④ The PLATE is a STRIP (`.con-eg__plate` = a masked window as wide
+as the widest face, every category's face in one grid cell shifted by
+`--eg-pf − --eg-plate-i`, each face its own content-sized PILL): a category change
+SLIDES it — never a crossfade of two faces; its frame is neutral (the tone is each
+face's disc), the sources of a multi-sub category stand in one cell and change by
+opacity. ⑤ The rail's spotlight and the plate's slide are floored transitions;
+under X the plate slides LINEARLY at the pass's step (`--eg-sweep-step`) so the
+steps chain into one glide. The ignition cascade reads the script's times
+(`igniteOffsets`), the seat's count starts on ITS ignition, its segment grows
+out of the medallion (`segOn` / `subOn` / `reclaimOn` read the seat's ignition).
+Every motion is under the director's clock (`attach` — paused and killed with
+the timeline; a tween's OWN `onComplete` is chained, never replaced). Reduced
+motion draws no light and plays no accent. The ranking FLIP moves the seats along
+both axes; the crowning is its own FLIP (`hooks.onCrown`). The winner's
+`ceremonyFx` is a WAVE (`intensity: 'wave'` / `'wave-quiet'` for a co-winner):
+ONE ring that swells in over ≥ 400 ms and lets go slower, one soft sweep — no
+sparks, no flash, no repeated rings. The root publishes the beat for the probes
+(`data-eg-beat` / `data-eg-cat` / `data-eg-hurried`); the light declares itself
+(`data-eg-light="wash"`).
 
-**X HURRIES THE COUNT — it never skips the crowning (T08).** `handle.hurry()`
-puts the timeline and every attached tween at `HURRY_SCALE` (6) and
-`consoleEndgameUi.hurry = 'on'` (the root's `--eg-pace` token drops the CSS
-transitions to the same pace); the rest of the count reads as a quick cascade of
-categories, never «all at once». At the preRank's breath the director puts the
-pace back to ×1 (`hurry = 'returned'`), so the ranking FLIP, the places, the
-winner hold, the crowning and the burst — and the campaign champion beat — play
-at the full pace. A second X is a no-op; past the breath (the ranking, the
-crowning) X is refused and the bar does not offer it. **The one atomic settle
-remains** for reduced motion (X there is `skip()` — there is no motion to
-hurry), the hidden-tab safety net (sized from the LAID timeline,
-`tl.duration()` — the old `consoleMotionMs(total)` capped the whole act at one
-window under reduced motion and cut it short) and a reload into END.
+**X HURRIES THE COUNT — ITS OWN CHOREOGRAPHY, never `timeScale` (CI; the owner
+chose M1 «one pass» on the live mockups, 2026-10-23, over the per-category comb
+×3 and the all-at-once curtain).** `handle.hurry()` cuts the timeline at the
+playhead (every beat not yet played and every count-up still running — its proxy
+keeps the value it shows) and lays `hurriedBeats(vm, from)` in its place, from
+the category the count stands in: one `sweep` (`hurrySweepMs(remaining)` — 1.2–1.8 s,
+the fewer left the shorter): the light glides chip to chip in ONE motion
+(`onLight` 'sweep' with the path, or 'rise' with it when X lands before the
+first category), each category falls into place as the light passes it (every
+seat's medallion at once — one comb), the plate slides after the light; the
+`odometer` (one `power2.out` tween per seat from its shown value to its FINAL
+sum — never a step per category); a `preRank` breath of 460 ms at ×1
+(`hurry = 'returned'`); then the SAME tail at the full pace. A second X is a no-op;
+past the count X is refused and the bar does not offer it (`countHurriable`).
+Reduced motion HURRIES TOO — the same beats, no light (the hooks draw none
+there). **The one atomic settle remains** only for the hidden-tab safety net
+(sized from the LAID timeline, `tl.duration()`) and a reload into END.
+
+The numbers (Steam Machine, `--exclusive --workers=1`, TV 4K / FHD, `finale-rich-5p`;
+the stand `console-finale-flash-budget`, the game running beside it): the natural
+count — lights at once 6 → 1, luminous events per count 47 → 1, per second 11 → 1;
+the hurried remainder — luminous events per second 23 → 0, the shortest 58 ms →
+none (the light glides), the podium's brightness swings (≥ 1 luma within 400 ms)
+8 → 1 a second, the odometer never steps back; the remainder 1.8 s either way.
 
 **`finalizeCeremony(vm)` is the ONE canonical terminal state** — the natural
-ending, a reduced-motion X, reload-into-END and the safety net all land there;
+ending, reload-into-END and the safety net all land there;
 `skipSeq` drives the one-frame transition suppression. It resets
 `actionsFocus` to 0 («Обзор партии» — the natural next step) and leaves
 `collapsed` alone (finalizing behind a collapsed scene must not yank the

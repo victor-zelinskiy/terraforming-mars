@@ -57,13 +57,14 @@ export type CeremonyPhase =
  *  result holds still; each step is a MEANING — see consoleEndgameScript). */
 export type ChampionStage = 0 | 1 | 2 | 3 | 4;
 
-/** The inner stage of the active category's phrase (T08: `light` — its light falls from the plate, no seat lit yet). */
+/** The inner stage of the active category's phrase (`light` — the light is on its way to the category, no seat lit yet). */
 export type CeremonyBeatStage = '' | 'focus' | 'light' | 'grow' | 'settle';
 
 /**
- * T08 — X HURRIES the count, never skips it: `off` (the count at its own pace; the bar offers X) · `on` (X pressed —
- * the count plays at `HURRY_SCALE`, the CSS pace token follows) · `returned` (the pace came back inside the preRank
- * breath — the ranking and the crowning play at ×1). Reset by every fresh run and by `finalizeCeremony`.
+ * X HURRIES the count, never skips it (T08; CI — its OWN choreography): `off` (the count at its own pace; the bar
+ * offers X) · `on` (X pressed — the categories left play as ONE pass of the light, the totals an odometer) · `returned`
+ * (the hurried pass is over — the preRank's breath, the ranking and the crowning play their own beats at ×1). Reset by
+ * every fresh run and by `finalizeCeremony`.
  */
 export type CeremonyHurry = 'off' | 'on' | 'returned';
 
@@ -92,6 +93,11 @@ export const consoleEndgameUi = reactive({
   seatSub: {} as Record<string, number>,
   /** T08: X hurries the count (see {@link CeremonyHurry}). */
   hurry: 'off' as CeremonyHurry,
+  /**
+   * CI — the hurried PASS: the time between two chips (ms, 0 outside a pass). The plate slides after the light at this
+   * step — linearly, so the steps chain into ONE glide, never a stop per category.
+   */
+  sweepStepMs: 0,
 
   /**
    * color → the running total at the LAST SETTLED boundary. Written per beat,
@@ -156,6 +162,7 @@ export function resetCeremonyProgress(): void {
   s.seatCat = {};
   s.seatSub = {};
   s.hurry = 'off';
+  s.sweepStepMs = 0;
   s.displayTotals = {};
   s.ranked = false;
   s.placesShown = false;
@@ -204,6 +211,7 @@ export function finalizeCeremony(vm: ConsoleEndgameVm): void {
   s.seatCat = {};
   s.seatSub = {};
   s.hurry = 'off';
+  s.sweepStepMs = 0;
   const totals: Record<string, number> = {};
   for (const row of vm.rows) {
     totals[row.color] = row.finalTotal;

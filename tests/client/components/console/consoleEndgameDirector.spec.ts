@@ -2,17 +2,18 @@ import {expect} from 'chai';
 import {gsap} from 'gsap';
 import {buildEndgameModel, EndgamePlayerInput} from '@/client/components/endgame/endgameModel';
 import {buildConsoleEndgameVm, ConsoleEndgameVm, ConsoleEndgameVmOptions} from '@/client/console/endgame/consoleEndgameModel';
-import {CEREMONY_MS, HURRY_SCALE, ceremonyBeats} from '@/client/console/endgame/consoleEndgameScript';
+import {CEREMONY_MS, hurrySweepMs} from '@/client/console/endgame/consoleEndgameScript';
 import {CeremonyHandle, CeremonyHooks, CeremonyIgnition, CeremonyLightBeat, runEndgameCeremony} from '@/client/console/endgame/consoleEndgameDirector';
 import {consoleEndgameUi, resetConsoleEndgame} from '@/client/console/endgame/consoleEndgameState';
 import {VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
 import {Color} from '@/common/Color';
 
 /*
- * T08 — the ceremony DIRECTOR: «the count arrives as light» (one light per category, the seats' medallions ignite in
- * turn, each total ticks on its own ignition) and «X hurries, never skips» (the count ×HURRY_SCALE, the pace back at
- * the preRank's breath, the ranking / crowning / champion at ×1). The timeline is driven by SEEKING it with events on
- * (`autoplay: false`) — deterministic, no ticker.
+ * The ceremony DIRECTOR (T08 · CI «ФИНАЛ — ПРЕМИУМ, НЕ ДИСКОТЕКА»): ONE light for the whole count (it rises once,
+ * glides from category to category, lets go once), the seats' medallions ignite in turn ONCE per category (a soft rise,
+ * each total ticking on its own ignition), and X is its OWN choreography — one pass of the light over the categories
+ * left, the totals an odometer, never timeScale — with the ranking / crowning / champion the same beats at ×1. The
+ * timeline is driven by SEEKING it with events on (`autoplay: false`) — deterministic, no ticker.
  */
 
 function breakdown(partial: Partial<VictoryPointsBreakdown>): VictoryPointsBreakdown {
@@ -99,7 +100,7 @@ function play(handle: CeremonyHandle, toSec: number, until?: () => boolean): voi
   }
 }
 
-describe('consoleEndgameDirector (T08)', () => {
+describe('consoleEndgameDirector (T08 · CI — the light budget)', () => {
   let current: CeremonyHandle | undefined;
   afterEach(() => {
     current?.kill();
@@ -107,7 +108,7 @@ describe('consoleEndgameDirector (T08)', () => {
     resetConsoleEndgame();
   });
 
-  it('a category\'s seats ignite IN TURN, left to right in the count\'s order, one stagger apart, after its light falls', () => {
+  it('a category\'s seats ignite IN TURN, left to right, one stagger apart, as the light arrives', () => {
     const vm = threeSeats();
     const {handle, log} = run(vm);
     current = handle;
@@ -115,13 +116,14 @@ describe('consoleEndgameDirector (T08)', () => {
     play(handle, handle.timeline.duration(), () => consoleEndgameUi.catsSettled > greenery);
     const lit = log.ignitions.filter((i) => i.catIdx === greenery);
     expect(lit.map((i) => i.color), 'the count\'s seat order').deep.eq(vm.rows.map((r) => r.color));
-    const fall = log.lights.find((l) => l.catIdx === greenery && l.kind === 'fall');
-    expect(fall, 'the category\'s light fell').to.not.eq(undefined);
-    expect(lit[0].t - fall!.t, 'the first seat ignites once the light has fallen').to.be.closeTo(CEREMONY_MS.categoryLight / 1000, 0.012);
+    const glide = log.lights.find((l) => l.catIdx === greenery && l.kind === 'glide');
+    expect(glide, 'the light glided to the category').to.not.eq(undefined);
+    expect(lit[0].t - glide!.t, 'the first seat ignites as the light arrives').to.be.closeTo((CEREMONY_MS.categoryFocus + CEREMONY_MS.categoryLight) / 1000, 0.012);
     for (let i = 1; i < lit.length; i++) {
       expect(lit[i].t - lit[i - 1].t, `stagger ${i}`).to.be.closeTo(CEREMONY_MS.igniteStagger / 1000, 0.012);
     }
     expect(lit.map((i) => i.value)).deep.eq(vm.rows.map((r) => vm.categories[greenery].values[r.color] ?? 0));
+    expect(lit.every((i) => i.ms >= CEREMONY_MS.minEvent && i.ms >= 400), 'the ignition is a soft rise (≥ 400 ms)').to.eq(true);
   });
 
   it('a seat\'s total does not move before ITS ignition — and its medallion is not lit before it either', () => {
@@ -142,7 +144,6 @@ describe('consoleEndgameDirector (T08)', () => {
     for (const row of vm.rows) {
       const value = vm.categories[city].values[row.color] ?? 0;
       expect(litAt[row.color], `${row.color} ignited`).to.not.eq(undefined);
-      // Every write before the ignition stays at or below the running total of the categories before this one.
       const prior = vm.categories.slice(0, city).reduce((sum, c) => sum + (c.values[row.color] ?? 0), 0);
       expect(Math.max(prior, ...before(row.color).map((c) => c.value)), `${row.color}: no city point before its ignition`).to.eq(prior);
       if (value === 0) {
@@ -151,42 +152,74 @@ describe('consoleEndgameDirector (T08)', () => {
     }
   });
 
-  it('ONE light per category: it falls at the category and lets go at its settle; a multi-sub category\'s light falls once and is held through its sub-steps', () => {
+  it('ONE light for the whole count: it rises once, glides to every next category, lets go once — never a fall and a release per category', () => {
+    const vm = threeSeats();
+    const {handle, log} = run(vm);
+    current = handle;
+    play(handle, handle.timeline.duration(), () => consoleEndgameUi.phase === 'ranking');
+    expect(log.lights.map((l) => l.kind)).deep.eq([
+      'rise', ...Array<string>(vm.categories.length - 1).fill('glide'), 'release',
+    ]);
+    expect(log.lights.slice(0, vm.categories.length).map((l) => l.catIdx), 'the light visits every category in order').deep.eq(vm.categories.map((_, i) => i));
+    expect(log.lights.every((l) => l.ms >= CEREMONY_MS.minEvent), 'no luminous event under the floor').to.eq(true);
+    const release = log.lights[log.lights.length - 1];
+    expect(release.ms, 'the light lets go slower than it came').to.be.greaterThan(log.lights[0].ms);
+  });
+
+  it('a multi-sub category ignites every seat ONCE (on its first source) and counts on under the same rise', () => {
     const vm = threeSeats();
     const {handle, log} = run(vm);
     current = handle;
     play(handle, handle.timeline.duration(), () => consoleEndgameUi.phase === 'settling');
-    for (let idx = 0; idx < vm.categories.length; idx++) {
-      const own = log.lights.filter((l) => l.catIdx === idx);
-      expect(own.map((l) => l.kind), vm.categories[idx].key).deep.eq(['fall', 'release']);
-    }
     const tr = vm.categories.findIndex((c) => c.key === 'tr');
     expect(vm.categories[tr].subs.length, 'the fixture\'s TR has sub-steps').to.be.greaterThan(1);
     const trIgnitions = log.ignitions.filter((i) => i.catIdx === tr);
-    expect(trIgnitions.length, 'every seat re-ignites per sub-step').to.eq(vm.categories[tr].subs.length * vm.rows.length);
+    expect(trIgnitions.map((i) => i.color), 'one ignition per seat').deep.eq(vm.rows.map((r) => r.color));
+    for (const row of vm.rows) {
+      expect(consoleEndgameUi.displayTotals[row.color], `${row.color}'s count reached its total`).to.eq(row.finalTotal);
+    }
   });
 
-  it('X HURRIES: the count plays at HURRY_SCALE, a second press is a no-op, and the pace returns at the preRank breath', () => {
+  it('X is its OWN choreography: no timeScale, ONE pass of the light over the categories left, the totals an odometer', () => {
     const vm = threeSeats();
     const {handle, log} = run(vm);
     current = handle;
-    play(handle, handle.timeline.duration(), () => consoleEndgameUi.catIdx >= 1);
+    play(handle, handle.timeline.duration(), () => consoleEndgameUi.catIdx >= 1 && consoleEndgameUi.beatStage === 'grow');
+    const from = consoleEndgameUi.catIdx;
+    const xAt = handle.timeline.time();
+    const countsBefore = log.counts.length;
     expect(handle.hurry(), 'the first X hurries').to.eq(true);
     expect(consoleEndgameUi.hurry).to.eq('on');
-    expect(handle.timeline.timeScale()).to.eq(HURRY_SCALE);
+    expect(handle.timeline.timeScale(), 'never a timeScale').to.eq(1);
     expect(handle.hurry(), 'a second X is a no-op').to.eq(false);
-    // A tween attached while hurried is hurried with it.
-    const probe = gsap.to({v: 0}, {v: 1, duration: 1, paused: true});
-    log.attach!(probe);
-    expect(probe.timeScale()).to.eq(HURRY_SCALE);
-    play(handle, handle.timeline.duration(), () => consoleEndgameUi.phase === 'ranking');
-    expect(consoleEndgameUi.hurry, 'the pace came back before the ranking').to.eq('returned');
-    expect(handle.timeline.timeScale(), 'the ranking plays at ×1').to.eq(1);
-    expect(probe.timeScale(), 'the attached tweens too').to.eq(1);
+    let settlingAt: number | undefined;
+    play(handle, handle.timeline.duration(), () => {
+      if (settlingAt === undefined && consoleEndgameUi.phase === 'settling') {
+        settlingAt = handle.timeline.time();
+      }
+      return consoleEndgameUi.phase === 'ranking';
+    });
+    // ONE pass: one sweep light over every category left, then the one release.
+    const after = log.lights.filter((l) => l.t >= xAt - 1e-6);
+    expect(after.map((l) => l.kind)).deep.eq(['sweep', 'release']);
+    expect(after[0].path).deep.eq(vm.categories.map((_, i) => i).slice(from));
+    const remaining = vm.categories.length - from;
+    expect(settlingAt! - xAt, 'the remainder is the pass').to.be.closeTo(hurrySweepMs(remaining) / 1000, 0.015);
+    // No ignition accents in the pass — the pass IS the light.
+    expect(log.ignitions.filter((i) => i.t > xAt + 1e-6)).deep.eq([]);
+    // THE ODOMETER: after X every seat's count only rises (no penalty in this table) and lands on the server's total.
+    for (const row of vm.rows) {
+      const series = log.counts.slice(countsBefore).filter((c) => c.color === row.color).map((c) => c.value);
+      for (let i = 1; i < series.length; i++) {
+        expect(series[i], `${row.color}: the odometer never steps back`).to.be.at.least(series[i - 1]);
+      }
+      expect(consoleEndgameUi.displayTotals[row.color]).to.eq(row.finalTotal);
+    }
+    expect(consoleEndgameUi.hurry, 'the pass is over before the ranking').to.eq('returned');
     expect(handle.hurry(), 'nothing left to hurry').to.eq(false);
   });
 
-  it('the hurried preRank is ONE short beat: the breath before the ranking stays at the full pace', () => {
+  it('the hurried preRank is ONE breath at ×1 before the ranking', () => {
     const vm = threeSeats();
     const {handle} = run(vm);
     current = handle;
@@ -194,26 +227,29 @@ describe('consoleEndgameDirector (T08)', () => {
     handle.hurry();
     let settlingAt: number | undefined;
     let rankingAt: number | undefined;
-    let realSec = 0;
-    const tl = handle.timeline;
-    // Wall time = timeline time / timeScale, accumulated step by step.
-    for (let guard = 0; guard < 200_000 && rankingAt === undefined; guard++) {
-      const scale = tl.timeScale();
-      tl.seek(Math.min(tl.time() + 0.002, tl.duration()), false);
-      realSec += 0.002 / scale;
+    play(handle, handle.timeline.duration(), () => {
       if (settlingAt === undefined && consoleEndgameUi.phase === 'settling') {
-        settlingAt = realSec;
+        settlingAt = handle.timeline.time();
       }
       if (consoleEndgameUi.phase === 'ranking') {
-        rankingAt = realSec;
+        rankingAt = handle.timeline.time();
+        return true;
       }
-    }
-    expect(settlingAt).to.not.eq(undefined);
-    expect(rankingAt).to.not.eq(undefined);
-    const pre = ceremonyBeats(vm).find((b) => b.kind === 'preRank')!;
-    const expected = ((CEREMONY_MS.preRank - CEREMONY_MS.preRankBreath) / HURRY_SCALE + CEREMONY_MS.preRankBreath) / 1000;
-    expect(pre.kind).to.eq('preRank');
-    expect(rankingAt! - settlingAt!).to.be.closeTo(expected, 0.02);
+      return false;
+    });
+    expect(rankingAt! - settlingAt!).to.be.closeTo(CEREMONY_MS.hurryPreRank / 1000, 0.012);
+  });
+
+  it('X before the first category: the light rises INTO the pass (no glide from nowhere), every category settles', () => {
+    const vm = threeSeats();
+    const {handle, log} = run(vm);
+    current = handle;
+    play(handle, handle.timeline.duration(), () => consoleEndgameUi.phase === 'entering');
+    expect(handle.hurry()).to.eq(true);
+    play(handle, handle.timeline.duration(), () => consoleEndgameUi.phase === 'ranking');
+    expect(log.lights.map((l) => l.kind)).deep.eq(['rise', 'release']);
+    expect(log.lights[0].path).deep.eq(vm.categories.map((_, i) => i));
+    expect(consoleEndgameUi.catsSettled).to.eq(vm.categories.length);
   });
 
   it('X is refused once the count is over: during the ranking, the crowning and after the end', () => {
@@ -224,13 +260,12 @@ describe('consoleEndgameDirector (T08)', () => {
     expect(handle.hurry()).to.eq(false);
     play(handle, handle.timeline.duration(), () => consoleEndgameUi.phase === 'winner');
     expect(handle.hurry()).to.eq(false);
-    expect(handle.timeline.timeScale()).to.eq(1);
     play(handle, handle.timeline.duration());
     expect(consoleEndgameUi.phase).to.eq('actions');
     expect(handle.hurry()).to.eq(false);
   });
 
-  it('the campaign champion beat is never hurried — a hurried finale reaches it at ×1', () => {
+  it('the campaign champion beat stays whole after a hurried count', () => {
     const vm = vmOf([
       player('red', 'A', {terraformRating: 33, greenery: 4, milestones: 5}),
       player('blue', 'B', {terraformRating: 25, greenery: 1}),
@@ -239,9 +274,14 @@ describe('consoleEndgameDirector (T08)', () => {
     current = handle;
     play(handle, handle.timeline.duration(), () => consoleEndgameUi.phase === 'scoring');
     expect(handle.hurry()).to.eq(true);
-    play(handle, handle.timeline.duration(), () => consoleEndgameUi.phase === 'champion');
-    expect(consoleEndgameUi.phase).to.eq('champion');
-    expect(handle.timeline.timeScale()).to.eq(1);
+    const stages = new Set<number>();
+    play(handle, handle.timeline.duration(), () => {
+      if (consoleEndgameUi.phase === 'champion') {
+        stages.add(consoleEndgameUi.championStage);
+      }
+      return consoleEndgameUi.phase === 'actions';
+    });
+    expect([...stages].sort(), 'every window of the champion beat played').deep.eq([0, 1, 2, 3, 4]);
   });
 
   it('an attached tween keeps its OWN onComplete (the host\'s cleanup is chained, never replaced)', () => {
@@ -256,7 +296,7 @@ describe('consoleEndgameDirector (T08)', () => {
     expect(own, 'the tween\'s own completion ran').to.eq(1);
   });
 
-  it('SKIP still lands atomically on the canonical state (reduced motion, the net, an explicit end)', () => {
+  it('SKIP still lands atomically on the canonical state (the net, an explicit end)', () => {
     const vm = threeSeats();
     const {handle} = run(vm);
     current = handle;

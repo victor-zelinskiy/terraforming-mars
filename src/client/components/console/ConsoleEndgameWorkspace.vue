@@ -35,7 +35,7 @@
   -->
   <div class="con-endgame" role="region" :aria-label="$t('Final scoring')"
        :class="{'con-endgame--noanim': noanim, 'con-endgame--ovopen': overviewParked || campaignScene !== undefined, ['con-endgame--' + ui.phase]: true}"
-       :style="{'--eg-horizon-y': horizonY + 'px', '--eg-arc-r': arcRadius + 'px', '--eg-pace': paceToken}"
+       :style="{'--eg-horizon-y': horizonY + 'px', '--eg-arc-r': arcRadius + 'px'}"
        :data-eg-beat="ui.beatStage" :data-eg-cat="ui.catIdx" :data-eg-hurried="ui.hurry === 'off' ? undefined : ui.hurry">
     <div class="con-eg" :class="'con-eg--n' + densityN">
       <header class="con-eg__head">
@@ -68,19 +68,28 @@
           </div>
         </div>
 
-        <!-- THE CATEGORY PLATE (T08 «СЧЁТ ПРИХОДИТ СВЕТОМ») — the active category opened under the rail: its disc, its
-             name, its tone (a TR source / a card family as the quiet second voice). ONE object for the whole count:
-             its tone follows the category, its face hands over in place (the layered crossfade — never an empty
-             beat), and the category's ONE light falls from its foot onto the podium. -->
+        <!-- THE CATEGORY PLATE (T08; CI «ФИНАЛ — ПРЕМИУМ, НЕ ДИСКОТЕКА») — the active category under the rail: its disc,
+             its name, its sources (a TR row / a card family) as the quiet second voice. ONE object for the whole count
+             and a STRIP inside it: every category's face stands in one grid cell (the plate is as wide as its widest
+             face), shifted by its distance from the active one — a category change SLIDES the strip, never a crossfade
+             of two faces; under X it slides after the light at the pass's own step. The plate's frame is neutral: the
+             tone is the face's own disc, so nothing on the plate changes colour. -->
         <div class="con-eg__caption" aria-live="polite">
-          <div class="con-eg__plate" :class="plateClass" :data-eg-plate="activeCategory?.key ?? ''">
-            <transition name="con-eg-xfade">
-              <div v-if="activeCategory !== undefined" :key="captionKey" class="con-eg__plate-face">
-                <ConsoleScoreDisc class="con-eg__plate-disc" :glyph="glyphOf(activeCategory.key)" />
-                <span class="con-eg__plate-name">{{ $t(activeCategory.label) }}</span>
-                <span v-if="activeSub !== undefined" class="con-eg__plate-sub" :class="captionAccent">{{ $t(activeSub.label) }}</span>
-              </div>
-            </transition>
+          <div class="con-eg__plate" :class="plateClass" :data-eg-plate="activeCategory?.key ?? ''"
+               :style="{'--eg-plate-i': plateIdx, '--eg-sweep-step': ui.sweepStepMs + 'ms'}">
+            <div v-for="(cat, i) in vm.categories" :key="cat.key"
+                 class="con-eg__plate-face" :class="'con-eg-cat--' + cat.accent" :style="{'--eg-pf': i}" :data-eg-plate-face="cat.key">
+              <span class="con-eg__plate-pill">
+                <ConsoleScoreDisc class="con-eg__plate-disc" :glyph="glyphOf(cat.key)" />
+                <span class="con-eg__plate-name">{{ $t(cat.label) }}</span>
+                <!-- The sources stand in one cell too (the slot is as wide as the longest): a source changes by opacity
+                     in place, the pill never re-sizes. -->
+                <span v-if="cat.subs.length > 1" class="con-eg__plate-subs" :class="'con-eg-ink--' + cat.accent">
+                  <span v-for="(sub, si) in cat.subs" :key="sub.key" class="con-eg__plate-sub"
+                        :class="{'con-eg__plate-sub--on': i === ui.catIdx && si === ui.subIdx}">{{ $t(sub.label) }}</span>
+                </span>
+              </span>
+            </div>
           </div>
         </div>
 
@@ -224,11 +233,10 @@
               </div>
               <!-- THE MEDALLIONS — one per category, the dossier's discs: IGNITED in turn when the category's light
                    reaches the seat (T08), with the category's value (a zero stays a quiet «0»); before it, a dim disc
-                   keeping its place. The glow is a layer of its own (opacity / transform — the ignition's accent). -->
+                   keeping its place. The ignition is a soft RISE of the medallion itself (CI — no ring, no flash). -->
               <div class="con-eg__medals">
                 <span v-for="(cat, ci) in vm.categories" :key="cat.key"
                       class="con-eg__medal" :class="medalClass(cat, ci, color)" :data-eg-medal="cat.key">
-                  <i class="con-eg__medal-glow" aria-hidden="true"></i>
                   <ConsoleScoreDisc :glyph="glyphOf(cat.key)" />
                   <b class="con-eg__medal-val">{{ medalText(cat, ci, color) }}</b>
                 </span>
@@ -291,15 +299,17 @@
       </div>
     </div>
 
-    <!-- THE LIGHT LAYER (T08 «СЧЁТ ПРИХОДИТ СВЕТОМ») — the category's ONE light: a soft wash in its tone that falls
-         from the plate's foot over the podium to the medallion row and lets go at the settle. Never an object that
-         crosses the stage; absolute over it, inert, put out by every skip / replay / teardown. -->
+    <!-- THE LIGHT LAYER (T08 «СЧЁТ ПРИХОДИТ СВЕТОМ»; CI — ONE light for the whole count) — a soft wash over the podium
+         whose hotspot stands under the active category's chip and whose tone is that category's: it RISES once with
+         the first category, GLIDES from category to category (hotspot and tone in one motion), and lets go once at the
+         preRank. Never an object that crosses the stage; absolute over it, inert, put out by every skip / replay /
+         teardown. -->
     <div class="con-eg__light" aria-hidden="true">
       <!-- The wash is a SMALL canvas painted once per category in its tone and stretched by the compositor (a soft
            gradient loses nothing to the upscale): a tone change re-rasters a 256×128 bitmap, never a 4K-wide layer
            (PL-868 — the class-toned div re-rastered ≈ 750 GPU tiles per category). -->
       <div ref="beamEl" class="con-eg__beam" :data-eg-beam="beamCat ?? ''">
-        <canvas ref="washEl" class="con-eg__beam-wash" width="256" height="128"></canvas>
+        <canvas ref="washEl" class="con-eg__beam-wash" width="256" height="128" data-eg-light="wash"></canvas>
       </div>
     </div>
 
@@ -351,7 +361,7 @@ import {requestEndgameFacts, cachedEndgameFacts} from '@/client/components/endga
 import {rematchState, submitRematch, rematchJoinHref} from '@/client/components/rematch/rematchState';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {
-  buildConsoleEndgameVm, ConsoleEndgameVm, ConsoleEndgameCategory, ConsoleEndgameCategoryKey, ConsoleEndgameRow, ConsoleEndgameSub,
+  buildConsoleEndgameVm, ConsoleEndgameVm, ConsoleEndgameCategory, ConsoleEndgameCategoryKey, ConsoleEndgameRow,
 } from '@/client/console/endgame/consoleEndgameModel';
 import {
   buildRowGeometry, EndgameRowGeo, EndgameSegGeo, EndgameSubGeo,
@@ -360,7 +370,7 @@ import {
   faceZoom, horizonDrop, horizonRadius, LINEAGE_VISIBLE, lineageShown, planPodium, podiumOrder, PodiumPlan, SeatGeo,
   slotOffset,
 } from '@/client/console/endgame/consoleEndgamePodium';
-import {CEREMONY_MS, HURRY_SCALE} from '@/client/console/endgame/consoleEndgameScript';
+import {CEREMONY_MS} from '@/client/console/endgame/consoleEndgameScript';
 import {runEndgameCeremony, CeremonyHandle, CeremonyIgnition, CeremonyLightBeat} from '@/client/console/endgame/consoleEndgameDirector';
 import {DossierGlyph, scoreCategoryGlyph} from '@/client/console/infoDossierModel';
 import {CardName} from '@/common/cards/CardName';
@@ -421,46 +431,51 @@ type PostGameAction = {
   run: () => void,
 };
 
-/** `#rgb` / `#rrggbb` → `rgba(r, g, b, a)`; anything else falls back to the palette's neutral steel. */
-function toneRgba(tone: string, alpha: number): string {
+/** The light's state between two paints: its hotspot (0–1 of the podium's width) and its tone. */
+type LightPaint = {x: number, r: number, g: number, b: number};
+
+/** `#rgb` / `#rrggbb` → the channels; anything else falls back to the palette's neutral steel. */
+function toneRgb(tone: string): [number, number, number] {
   const hex = tone.startsWith('#') ? tone.slice(1) : '';
   const full = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex;
   if (!/^[0-9a-f]{6}$/i.test(full)) {
-    return `rgba(138, 164, 192, ${alpha})`;
+    return [138, 164, 192];
   }
   const n = parseInt(full, 16);
-  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
 /**
- * T08: paint the category's light into its small canvas — a radial wash under the plate (brightest at the plate's
- * foot), a soft band where it touches the medallion row, the top faded in so the light is born out of the plate. Drawn
- * once per category; the compositor stretches the bitmap over the podium (PL-868).
+ * CI — paint the ONE light into its small canvas: a radial wash whose hotspot stands under the active category's chip
+ * (`light.x`), brightest at the top, a soft band where it touches the medallion row, the top faded in so the light is
+ * born out of the plate's line. The canvas is 256×128 (PL-868 — the compositor stretches it), so a glide re-paints it
+ * every frame for the cost of a tiny bitmap — the light MOVES and changes tone without ever switching off.
  */
-function paintLightWash(canvas: HTMLCanvasElement, tone: string): void {
+function paintLightWash(canvas: HTMLCanvasElement, light: LightPaint): void {
   const ctx = canvas.getContext('2d');
   if (ctx === null) {
     return;
   }
   const w = canvas.width;
   const h = canvas.height;
+  const tone = (alpha: number) => `rgba(${Math.round(light.r)}, ${Math.round(light.g)}, ${Math.round(light.b)}, ${alpha})`;
   ctx.globalCompositeOperation = 'source-over';
   ctx.clearRect(0, 0, w, h);
   ctx.save();
-  ctx.translate(w / 2, 0);
+  ctx.translate(w * light.x, 0);
   ctx.scale(0.44 * w, 0.82 * h);
   const wash = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
-  wash.addColorStop(0, toneRgba(tone, 0.32));
-  wash.addColorStop(0.55, toneRgba(tone, 0.11));
-  wash.addColorStop(1, toneRgba(tone, 0));
+  wash.addColorStop(0, tone(0.32));
+  wash.addColorStop(0.55, tone(0.11));
+  wash.addColorStop(1, tone(0));
   ctx.fillStyle = wash;
-  ctx.fillRect(-1 / 0.44, 0, 2 / 0.44, 1 / 0.82);
+  ctx.fillRect(-3 / 0.44, 0, 6 / 0.44, 1 / 0.82);
   ctx.restore();
   const band = ctx.createLinearGradient(0, 0, 0, h);
-  band.addColorStop(0, toneRgba(tone, 0));
-  band.addColorStop(0.8, toneRgba(tone, 0));
-  band.addColorStop(0.93, toneRgba(tone, 0.15));
-  band.addColorStop(1, toneRgba(tone, 0));
+  band.addColorStop(0, tone(0));
+  band.addColorStop(0.8, tone(0));
+  band.addColorStop(0.93, tone(0.15));
+  band.addColorStop(1, tone(0));
   ctx.fillStyle = band;
   ctx.fillRect(0, 0, w, h);
   ctx.globalCompositeOperation = 'destination-in';
@@ -482,7 +497,9 @@ export default defineComponent({
   setup() {
     const {reduced} = useConsoleReducedMotion();
     const {width: vpWidth} = useConsoleViewport();
-    return {reduced, vpWidth};
+    // The light's live paint (hotspot + tone) — a plain object, never reactive: a glide writes it every frame.
+    const light: LightPaint = {x: 0.5, r: 138, g: 164, b: 192};
+    return {reduced, vpWidth, light};
   },
   data() {
     return {
@@ -720,35 +737,25 @@ export default defineComponent({
     activeCategory(): ConsoleEndgameCategory | undefined {
       return this.ui.catIdx >= 0 ? this.vm.categories[this.ui.catIdx] : undefined;
     },
-    /** The sub-step the plate names beside its category (a TR source / a card family), undefined for a whole beat. */
-    activeSub(): ConsoleEndgameSub | undefined {
-      const cat = this.activeCategory;
-      return cat !== undefined && this.ui.subIdx >= 0 ? cat.subs[this.ui.subIdx] : undefined;
-    },
-    /** T08: the plate stands while a category speaks, in that category's tone. */
+    /** The plate stands while the count speaks (its frame neutral — the tone is each face's own disc). */
     plateClass(): Record<string, boolean> {
-      const cat = this.activeCategory;
       return {
-        'con-eg__plate--on': cat !== undefined && this.ui.phase === 'scoring',
-        ['con-eg-cat--' + (cat?.accent ?? 'tr')]: true,
-        'con-eg__plate--penalty': cat?.penalty === true,
+        'con-eg__plate--on': this.activeCategory !== undefined && this.ui.phase === 'scoring',
+        'con-eg__plate--sweep': this.ui.sweepStepMs > 0,
       };
     },
-    /** T08: the CSS pace token — the transitions run at the hurried pace while X hurries the count, ×1 otherwise. */
-    paceToken(): string {
-      return this.ui.hurry === 'on' ? String(Math.round((1 / HURRY_SCALE) * 1000) / 1000) : '1';
+    /**
+     * CI — where the plate's strip stands: the active category; between two categories (and while the plate leaves)
+     * it STAYS on the last one — a strip sliding back to the first face while the plate fades would be one more motion.
+     */
+    plateIdx(): number {
+      return this.ui.catIdx >= 0 ? this.ui.catIdx : Math.max(0, this.ui.catsSettled - 1);
     },
-    /** T08: X still has a count to hurry — not yet hurried, and the ceremony has not reached its ranking. */
+    /** X still has a count to hurry — not yet hurried, a category still to tell, the ranking not reached. */
     countHurriable(): boolean {
       const p = this.ui.phase;
-      return this.ui.hurry === 'off' && (p === 'idle' || p === 'entering' || p === 'scoring' || p === 'settling');
-    },
-    captionKey(): string {
-      return `${this.ui.catIdx}:${this.ui.subIdx}`;
-    },
-    captionAccent(): string {
-      const cat = this.activeCategory;
-      return cat !== undefined ? `con-eg-ink--${cat.accent}` : '';
+      return this.ui.hurry === 'off' && this.ui.catsSettled < this.vm.categories.length &&
+        (p === 'idle' || p === 'entering' || p === 'scoring');
     },
     sharedWin(): boolean {
       return this.vm.winners.length > 1;
@@ -1339,11 +1346,12 @@ export default defineComponent({
       }
     },
     /**
-     * X (T08): HURRY the count — the rest of it plays at `HURRY_SCALE`, the ranking and the crowning at the full
-     * pace after it; a second press is a no-op. Reduced motion has no motion to hurry: X lands atomically, as before.
+     * X (CI): HURRY the count — its OWN choreography: the categories left in ONE pass of the light, the totals an
+     * odometer, then the ranking and the crowning at ×1; a second press is a no-op. Reduced motion hurries too — the
+     * same beats, no light (the hooks draw none there); the atomic jump stays for the net and a reload only.
      */
     hurryCeremony(): void {
-      if (this.reduced || this.handle === undefined) {
+      if (this.handle === undefined) {
         this.skipCeremony();
         return;
       }
@@ -1475,32 +1483,74 @@ export default defineComponent({
       });
     },
     /**
-     * THE CATEGORY'S LIGHT (T08 «СЧЁТ ПРИХОДИТ СВЕТОМ») — ONE soft wash in the category's tone. On `fall` its box is
-     * posed once (from under the plate to the foot of the seats' medallion row, across every seat — a static box,
-     * never an animated geometry) and the wash DESCENDS into it (scaleY from the top + opacity); on `release` it lets go
-     * in place. Both under the director's clock (`attach`): a pause freezes it, a hurry scales it, a skip puts it out.
-     * Reduced motion draws no light — the medallions still ignite at their moments.
+     * THE ONE LIGHT (CI «ФИНАЛ — ПРЕМИУМ, НЕ ДИСКОТЕКА») — a soft wash over the podium, its hotspot under the active
+     * category's chip, its tone that category's. `rise`: the box is posed once (from the plate's line to the foot of
+     * the medallion row, across every seat — a static box, never an animated geometry) and the wash comes on, slowly;
+     * `glide`: the hotspot and the tone move to the next category in ONE motion (the canvas re-painted per frame — the
+     * light never switches off); `sweep` (X): one continuous glide over the categories left; `release`: it lets go,
+     * once, in place. Every length is already floored (`CEREMONY_MS.minEvent`). Under the director's clock
+     * (`attach`): a pause freezes it, a skip puts it out. Reduced motion draws no light.
      */
     playLight(beat: CeremonyLightBeat, attach: (tween: gsap.core.Animation) => void): void {
       const root = this.$el as HTMLElement | undefined;
       const beam = this.$refs.beamEl as HTMLElement | undefined;
       const wash = this.$refs.washEl as HTMLCanvasElement | undefined;
-      const cat = this.vm.categories[beat.catIdx];
-      if (root === undefined || beam === undefined || wash === undefined || cat === undefined || this.reduced) {
+      if (root === undefined || beam === undefined || wash === undefined || this.vm.categories[beat.catIdx] === undefined || this.reduced) {
         return;
       }
+      const light = this.light;
       if (beat.kind === 'release') {
         gsap.killTweensOf(wash);
-        attach(gsap.to(wash, {opacity: 0, duration: beat.ms / 1000, ease: 'power1.out'}));
+        attach(gsap.to(wash, {opacity: 0, duration: beat.ms / 1000, ease: 'sine.inOut'}));
         return;
       }
+      const rising = beat.kind === 'rise' || Number(getComputedStyle(wash).opacity) < 0.05;
+      if (rising && !this.poseBeam(root, beam)) {
+        return;
+      }
+      const path = beat.path ?? [beat.catIdx];
+      const target = (idx: number): LightPaint => {
+        const [r, g, b] = toneRgb(this.toneOf(root, idx));
+        return {x: this.hotspotOf(root, beam, idx), r, g, b};
+      };
+      gsap.killTweensOf(light);
+      if (rising) {
+        // The light comes on where it is needed — at the path's first category — and only then moves.
+        Object.assign(light, target(path[0]));
+        paintLightWash(wash, light);
+        this.beamCat = this.vm.categories[path[0]].accent;
+        gsap.killTweensOf(wash);
+        attach(gsap.fromTo(wash,
+          {opacity: 0, scaleY: 0.82, transformOrigin: '50% 0%'},
+          {opacity: 1, scaleY: 1, duration: (beat.path === undefined ? beat.ms : Math.max(beat.ms * 0.3, CEREMONY_MS.minEvent)) / 1000, ease: 'sine.out'}));
+        if (beat.path === undefined) {
+          return;
+        }
+      }
+      // The glide — one tween per leg of the path, chained without a pause (a sweep is ONE motion over the rail).
+      const legs = rising ? path.slice(1) : path;
+      if (legs.length === 0) {
+        return;
+      }
+      const glide = gsap.timeline({onUpdate: () => paintLightWash(wash, light)});
+      const legSec = beat.ms / 1000 / legs.length;
+      legs.forEach((idx) => {
+        glide.to(light, {...target(idx), duration: legSec, ease: legs.length > 1 ? 'none' : 'power2.inOut'});
+      });
+      glide.call(() => {
+        this.beamCat = this.vm.categories[path[path.length - 1]].accent;
+      });
+      attach(glide);
+    },
+    /** Pose the light's box over the podium (once, when it comes on) — false while there is nothing to measure. */
+    poseBeam(root: HTMLElement, beam: HTMLElement): boolean {
       const origin = root.getBoundingClientRect();
       const plate = root.querySelector<HTMLElement>('.con-eg__plate')?.getBoundingClientRect();
       const seats = Array.from(root.querySelectorAll<HTMLElement>('[data-eg-row]')).map((el) => el.getBoundingClientRect());
-      const medals = Array.from(root.querySelectorAll<HTMLElement>(`[data-eg-row] [data-eg-medal="${cat.key}"]`))
+      const medals = Array.from(root.querySelectorAll<HTMLElement>('[data-eg-row] .con-eg__medals'))
         .map((el) => el.getBoundingClientRect()).filter((r) => r.height > 0);
       if (plate === undefined || plate.height <= 0 || seats.length === 0 || medals.length === 0) {
-        return;
+        return false;
       }
       const left = Math.min(...seats.map((r) => r.left)) - origin.left;
       const right = Math.max(...seats.map((r) => r.right)) - origin.left;
@@ -1512,20 +1562,32 @@ export default defineComponent({
           beam.style.setProperty(prop, value);
         }
       }
-      // The tone is the category's own (`--eg-c` on its rail chip — the palette has one source).
-      const chip = root.querySelector<HTMLElement>(`[data-eg-rail="${cat.key}"]`);
-      paintLightWash(wash, chip === null ? '' : getComputedStyle(chip).getPropertyValue('--eg-c').trim());
-      this.beamCat = cat.accent;
-      gsap.killTweensOf(wash);
-      attach(gsap.fromTo(wash,
-        {opacity: 0, scaleY: 0.18, transformOrigin: '50% 0%'},
-        {opacity: 1, scaleY: 1, duration: beat.ms / 1000, ease: 'power2.out'}));
+      return true;
+    },
+    /** The category's tone — `--eg-c` on its rail chip (the palette has one source). */
+    toneOf(root: HTMLElement, idx: number): string {
+      const chip = root.querySelector<HTMLElement>(`[data-eg-rail="${this.vm.categories[idx].key}"]`);
+      return chip === null ? '' : getComputedStyle(chip).getPropertyValue('--eg-c').trim();
     },
     /**
-     * A SEAT'S MEDALLION IGNITES (T08): its disc settles from a hair under its size and a ring of the category's light
-     * lifts off it — the accent of «this is where the points arrived». The value and the segment are the template's
-     * (the ignition is state); a zero ignites without the accent (no fake celebration), a sub-step's re-ignition with a
-     * lighter one. Under the director's clock; reduced motion plays none of it.
+     * The light's hotspot for a category (0–1 of the podium's width): under its rail chip, pulled most of the way back
+     * towards the centre — the light LEANS to the category, it never leaves the podium.
+     */
+    hotspotOf(root: HTMLElement, beam: HTMLElement, idx: number): number {
+      const chip = root.querySelector<HTMLElement>(`[data-eg-rail="${this.vm.categories[idx].key}"]`)?.getBoundingClientRect();
+      const box = beam.getBoundingClientRect();
+      if (chip === undefined || box.width <= 0) {
+        return 0.5;
+      }
+      const frac = (chip.left + chip.width / 2 - box.left) / box.width;
+      return Math.min(0.85, Math.max(0.15, 0.5 + (frac - 0.5) * 0.6));
+    },
+    /**
+     * A SEAT'S MEDALLION IGNITES (T08; CI): a soft RISE of the medallion itself — its disc settles from a hair under
+     * its size while the CSS brings it up from dim (`--on`, the same length, ease-out). No ring, no flash, no attack:
+     * the light that brought the points is the podium's one wash. The value and the segment are the template's (the
+     * ignition is state); a zero rises without the settle (no fake celebration). Under the director's clock; reduced
+     * motion plays none of it.
      */
     igniteMedal(ignition: CeremonyIgnition, attach: (tween: gsap.core.Animation) => void): void {
       const root = this.$el as HTMLElement | undefined;
@@ -1533,19 +1595,13 @@ export default defineComponent({
       if (root === undefined || cat === undefined || ignition.value === 0 || this.reduced) {
         return;
       }
-      const medal = root.querySelector<HTMLElement>(`[data-eg-row="${ignition.color}"] [data-eg-medal="${cat.key}"]`);
-      const glow = medal?.querySelector<HTMLElement>('.con-eg__medal-glow');
-      const disc = medal?.querySelector<HTMLElement>('.con-dscore__disc');
-      if (glow === null || glow === undefined || disc === null || disc === undefined) {
+      const disc = root.querySelector<HTMLElement>(`[data-eg-row="${ignition.color}"] [data-eg-medal="${cat.key}"] .con-dscore__disc`);
+      if (disc === null) {
         return;
       }
-      const whole = ignition.subIdx < 0;
-      const settle = () => gsap.set([glow, disc], {clearProps: 'opacity,transform'});
-      const accent = gsap.timeline({onComplete: settle, onInterrupt: settle});
-      accent.fromTo(disc, {scale: whole ? 0.9 : 0.95}, {scale: 1, duration: consoleMotionMs(340) / 1000, ease: 'power2.out'}, 0);
-      accent.fromTo(glow, {opacity: whole ? 0.95 : 0.6, scale: 0.72},
-        {opacity: 0, scale: 1.4, duration: consoleMotionMs(560) / 1000, ease: 'power2.out'}, 0);
-      attach(accent);
+      const settle = () => gsap.set(disc, {clearProps: 'transform'});
+      attach(gsap.fromTo(disc, {scale: 0.92},
+        {scale: 1, duration: ignition.ms / 1000, ease: 'power2.out', onComplete: settle, onInterrupt: settle}));
     },
     /** Put the light out at once (a skip, a replay, a teardown) — the wash at rest, the beam dark. */
     putOutLight(): void {
@@ -1554,6 +1610,7 @@ export default defineComponent({
         gsap.killTweensOf(wash);
         gsap.set(wash, {opacity: 0, clearProps: 'transform'});
       }
+      gsap.killTweensOf(this.light);
       this.beamCat = undefined;
     },
     /** The champion FIX accent — one strong, restrained beat on every champion
@@ -1601,8 +1658,10 @@ export default defineComponent({
         this.vm.winners.forEach((color, i) => {
           const host = rowsEl?.querySelector<HTMLElement>(`[data-eg-row="${color}"]`);
           if (host !== null && host !== undefined) {
+            // CI (decision 8): ONE wave with a soft attack — never the strobing rings / flash / sparks of the full
+            // burst; a co-winner's is the same wave, quieter.
             this.bursts.push(playCeremonyBurst({
-              host, accent: 'gold', reduced: this.reduced, intensity: i === 0 ? 'full' : 'ping',
+              host, accent: 'gold', reduced: this.reduced, intensity: i === 0 ? 'wave' : 'wave-quiet',
             }));
           }
         });

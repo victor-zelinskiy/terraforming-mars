@@ -12,21 +12,23 @@
  *    The REACTIVE `displayTotals` is written once per BEAT BOUNDARY with the
  *    precomputed running sum — the canonical settle record;
  *  · the beat cadence (every duration through consoleMotionMs — speed presets
- *    scale it, reduced motion caps every beat at its short variant);
- *  · THE IGNITION (T08 «СЧЁТ ПРИХОДИТ СВЕТОМ»): a category's light falls from
- *    its plate (`onLight`), then every seat's OWN medallion ignites in turn,
- *    left to right in the count's seat order (`igniteOffsets` — the times are
- *    the script's, never the DOM's), and that seat's total starts ticking on
- *    ITS ignition; a zero ignites too (a quiet «0», no celebration);
- *  · HURRY (T08 — X): the timeline and every attached tween play at
- *    `HURRY_SCALE` until the preRank's breath, where the pace RETURNS to ×1 —
- *    the ranking FLIP, the places, the winner hold and the crowning always
- *    play at the full pace; a second hurry is a no-op by construction;
+ *    scale it, reduced motion caps every beat at its short variant); a LUMINOUS
+ *    event additionally keeps the floor no pace scales (`luminousMs`, CI);
+ *  · THE ONE LIGHT (CI «ФИНАЛ — ПРЕМИУМ, НЕ ДИСКОТЕКА»): it RISES with the first category, GLIDES to every next one
+ *    (`onLight` 'glide' — its hotspot under the category's chip, its tone the category's), and lets go ONCE at the
+ *    preRank — never a fall and a release per category;
+ *  · THE IGNITION (T08): every seat's OWN medallion ignites once per category, in turn, left to right in the count's
+ *    seat order (`igniteOffsets` — the times are the script's, never the DOM's), and that seat's total starts ticking
+ *    on ITS ignition; a multi-sub category ignites on its first source and counts on under the same rise;
+ *  · HURRY (CI — X): its OWN choreography, never `timeScale`. The rest of the count is cut at the playhead and the
+ *    hurried script (`hurriedBeats`) is laid in its place — ONE pass of the light over the categories left, the totals
+ *    an ODOMETER (one tween per seat to its final sum), one breath — and then the SAME tail (ranking, places, winner
+ *    hold, crowning, champion) at ×1; a second hurry is a no-op by construction;
  *  · SKIP: kill everything, then `finalizeCeremony` — one atomic jump to the
- *    canonical final state, kept for reduced motion, the safety net and a
- *    teardown; repeated skips are no-ops by construction;
+ *    canonical final state, kept for the safety net and a teardown; repeated
+ *    skips are no-ops by construction;
  *  · PAUSE/RESUME — the B=«Свернуть» round trip: the timeline freezes where
- *    it stands and continues from the same beat (and pace) on return;
+ *    it stands and continues from the same beat on return;
  *  · a safety net (a stalled rAF in a hidden tab must not pin the ceremony's
  *    animation hold at its 35s ceiling — the net finalizes honestly instead,
  *    and RE-ARMS while the ceremony is deliberately paused/collapsed). It is
@@ -36,25 +38,31 @@
  * The component contributes the DOM moments the director cannot know:
  * `onRankFlip` (measure → reorder → invert → play), `onCrown` (the podium's
  * own FLIP — the winner rises, the places step down), `onWinnerFx` (the
- * ceremonyFx burst on the winner seat), `onLight` (the category's one light
- * falling from the plate / letting go), `onIgnite` (a seat's medallion
- * igniting) and `onCount` (the total sink) — every motion is put under the
- * director's clock (`attach`) or its teardown (`addCleanup`), so a pause
- * freezes it, a hurry scales it and a skip can never leave a half-played
- * transform.
+ * ceremonyFx wave on the winner seat), `onLight` (the one light: rise / glide /
+ * sweep / release), `onIgnite` (a seat's medallion igniting) and `onCount` (the
+ * total sink) — every motion is put under the director's clock (`attach`) or
+ * its teardown (`addCleanup`), so a pause freezes it and a skip can never leave
+ * a half-played transform.
  */
 import {gsap} from 'gsap';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import type {ConsoleEndgameVm} from '@/client/console/endgame/consoleEndgameModel';
-import {CEREMONY_MS, ceremonyBeats, HURRY_SCALE, igniteOffsets, igniteSpanMs} from '@/client/console/endgame/consoleEndgameScript';
+import {
+  CEREMONY_MS, CeremonyBeat, ceremonyBeats, finalSums, hurriedBeats, igniteOffsets, igniteSpanMs, luminousMs,
+} from '@/client/console/endgame/consoleEndgameScript';
 import {consoleEndgameUi, finalizeCeremony} from '@/client/console/endgame/consoleEndgameState';
 
-/** One category's light (T08): it FALLS from the plate and stays, or it lets go. */
+/**
+ * The ONE light (CI): `rise` (it comes on with the first category), `glide` (it moves to the next category — hotspot
+ * and tone, one motion), `sweep` (X — one continuous pass over `path`), `release` (it lets go, once, at the preRank).
+ */
 export type CeremonyLightBeat = {
   catIdx: number,
-  kind: 'fall' | 'release',
-  /** The motion's length, ms (already through `consoleMotionMs`). */
+  kind: 'rise' | 'glide' | 'sweep' | 'release',
+  /** The motion's length, ms (already through `consoleMotionMs`, and never under `CEREMONY_MS.minEvent`). */
   ms: number,
+  /** `sweep`: the categories the light passes, in order (the last is where it rests). */
+  path?: ReadonlyArray<number>,
 };
 
 /** One seat's ignition (T08): its medallion of `catIdx` lights with the value this beat brings it. */
@@ -65,20 +73,22 @@ export type CeremonyIgnition = {
   subIdx: number,
   /** The signed points this ignition brings the seat (0 = a quiet zero, no accent). */
   value: number,
+  /** The rise's length, ms (already floored) — the host's soft ignition plays exactly this long. */
+  ms: number,
 };
 
 export type CeremonyHooks = {
   /** Measure current row rects, flip `ranked` on, invert+play — the FLIP. */
   onRankFlip: () => void,
   /** TR69: the podium FORMS — the crowned seats rise, the rest step down (a FLIP of the seats' boxes). Fired with
-   *  the winner beat, before the burst. */
+   *  the winner beat, before the wave. */
   onCrown?: () => void,
-  /** T08: the category's ONE light — falls from its plate onto the podium, lets go at the settle. Each tween is
-   *  handed to `attach` so the ceremony's pause / hurry / kill reach it. Absent → no light (the count still runs). */
+  /** CI: the ONE light — rise / glide / sweep / release. Each tween is handed to `attach` so the ceremony's pause /
+   *  kill reach it. Absent → no light (the count still runs). */
   onLight?: (beat: CeremonyLightBeat, attach: (tween: gsap.core.Animation) => void) => void,
   /** T08: a seat's medallion ignites (the accent is the host's; under `attach` like the light). */
   onIgnite?: (ignition: CeremonyIgnition, attach: (tween: gsap.core.Animation) => void) => void,
-  /** The winner burst (ceremonyFx) — fired once at the winner beat. */
+  /** The winner's wave (ceremonyFx) — fired once at the winner beat. */
   onWinnerFx: () => void,
   /** The live count-up sink — a DIRECT DOM write, one integer per frame. */
   onCount: (color: string, value: number) => void,
@@ -88,11 +98,12 @@ export type CeremonyHooks = {
 };
 
 export type CeremonyHandle = {
-  /** Atomic jump to the final state. Idempotent; safe at any moment. Reduced motion / the net / an explicit end. */
+  /** Atomic jump to the final state. Idempotent; safe at any moment. The net / an explicit end / a teardown. */
   skip: () => void,
   /**
-   * T08 — X: play the rest of the COUNT at `HURRY_SCALE` (the pace returns at the preRank's breath). True when it
-   * took effect; false (a no-op) once hurried, past the breath, or after the end.
+   * CI — X: cut the count at the playhead and lay the HURRIED script in its place (one pass of the light, the
+   * odometer, one breath, then the same tail at ×1). True when it took effect; false (a no-op) once hurried, past the
+   * count, or after the end.
    */
   hurry: () => boolean,
   /** Tear down without finalizing (unmount / workspace closed). */
@@ -114,11 +125,13 @@ export type CeremonyOptions = {
 
 export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, options: CeremonyOptions = {}): CeremonyHandle {
   const s = consoleEndgameUi;
-  const beats = ceremonyBeats(vm);
   const sec = (ms: number) => consoleMotionMs(ms) / 1000;
+  /** A luminous event's length, ms — the motion preset applied, then the floor no pace may cut. */
+  const lum = (ms: number) => luminousMs(consoleMotionMs(ms));
   // The count's seat order — the seats stand in the VM's order until the ranking FLIP (the cascade reads left to
   // right as the player sees it).
   const seats = vm.rows.map((r) => r.color);
+  const finals = finalSums(vm);
 
   const cleanups: Array<() => void> = [];
   let done = false;
@@ -137,8 +150,8 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
 
   const tl = gsap.timeline({paused: true});
 
-  // The host's own tweens (the light, the ignitions) — under the SAME clock as the timeline: paused, resumed, hurried
-  // and killed with it. The tween's OWN onComplete is kept (its cleanup — chained, never replaced).
+  // The host's own tweens (the light, the ignitions) — under the SAME clock as the timeline: paused, resumed and
+  // killed with it. The tween's OWN onComplete is kept (its cleanup — chained, never replaced).
   const attached = new Set<gsap.core.Animation>();
   const attach = (tween: gsap.core.Animation) => {
     if (done) {
@@ -146,7 +159,6 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
       return;
     }
     attached.add(tween);
-    tween.timeScale(tl.timeScale());
     if (tl.paused()) {
       tween.pause();
     }
@@ -188,17 +200,33 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
     }, [], at);
   };
 
-  const light = (at: number, catIdx: number, kind: CeremonyLightBeat['kind'], ms: number) => {
+  // THE ONE LIGHT: is it already up (so the next category GLIDES it) — a laying-time fact, the beats are laid in order;
+  // `lightLit` is the same fact on the PLAYHEAD (a hurry lays its pass from what is really on screen).
+  let lightUp = false;
+  let lightLit = false;
+  const light = (at: number, catIdx: number, kind: CeremonyLightBeat['kind'], ms: number, path?: ReadonlyArray<number>) => {
+    const beat: CeremonyLightBeat = {catIdx, kind, ms: lum(ms), ...(path !== undefined ? {path} : {})};
     tl.call(() => {
-      hooks.onLight?.({catIdx, kind, ms: consoleMotionMs(ms)}, attach);
+      lightLit = kind !== 'release';
+      hooks.onLight?.(beat, attach);
     }, [], at);
+  };
+  /** The light comes to category `catIdx`: it rises the first time, glides every time after. */
+  const lightTo = (at: number, catIdx: number) => {
+    if (lightUp) {
+      light(at, catIdx, 'glide', CEREMONY_MS.lightGlide);
+    } else {
+      light(at, catIdx, 'rise', CEREMONY_MS.lightRise);
+      lightUp = true;
+    }
   };
 
   /**
-   * One ignition CASCADE at `at` (the light's start, or the sub-step's): seat `i` ignites at its offset, its medallion
-   * lights, its count starts. Returns the time the LAST seat ignites.
+   * One ignition CASCADE at `at` (the light's arrival, or the sub-step's): seat `i` ignites at its offset — once per
+   * category (`ignite`), the later sources of a multi-sub category counting on under the same rise — and its count
+   * starts. Returns the time the LAST seat ignites.
    */
-  const cascade = (at: number, catIdx: number, subIdx: number, values: Record<string, number>, leadMs: number, staggerMs: number, countMs: (span: number) => number): number => {
+  const cascade = (at: number, catIdx: number, subIdx: number, values: Record<string, number>, leadMs: number, staggerMs: number, countMs: (span: number) => number, ignite: boolean): number => {
     const cat = vm.categories[catIdx];
     const offsets = igniteOffsets(seats.length, consoleMotionMs(leadMs), consoleMotionMs(staggerMs)).map((ms) => ms / 1000);
     const span = igniteSpanMs(seats.length, staggerMs);
@@ -216,18 +244,20 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
             s.subsOn = {...s.subsOn, [cat.key]: subIdx + 1};
           }
         }
-        hooks.onIgnite?.({color, catIdx, subIdx, value}, attach);
+        if (ignite) {
+          hooks.onIgnite?.({color, catIdx, subIdx, value, ms: lum(CEREMONY_MS.igniteRise)}, attach);
+        }
       }, [], t);
       countUp(t, color, value, countMs(span));
     });
     return at + (offsets[offsets.length - 1] ?? 0);
   };
 
-  // ── lay the beats onto the timeline ──────────────────────────────────────
-  let at = 0;
-  // The point where a hurried count returns to the full pace (the preRank's breath).
-  let paceReturnAt: number | undefined;
-  for (const beat of beats) {
+  /** The odometer's start (the hurried pass's) — the odometer beat runs UNDER the sweep. */
+  let sweepAt = 0;
+
+  /** Lay ONE beat at `at`; returns where the next beat starts. */
+  const layBeat = (beat: CeremonyBeat, at: number): number => {
     switch (beat.kind) {
     case 'enter':
       tl.call(() => {
@@ -237,63 +267,57 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
       tl.call(() => {
         s.phase = 'scoring';
       }, [], at);
-      break;
+      return at;
 
     case 'category': {
       const cat = vm.categories[beat.idx];
-      // FOCUS — the rail spotlights the coming category, the plate takes it; nothing on the seats moves yet.
+      // FOCUS — the rail spotlights the coming category, the plate slides to it, the light sets off towards it.
       tl.call(() => {
         s.catIdx = beat.idx;
         s.subIdx = -1;
         s.beatStage = 'focus';
         s.seatSub = {};
       }, [], at);
+      lightTo(at, beat.idx);
       at += sec(beat.focusMs);
-      // LIGHT — the category's one light falls from the plate; nothing on the seats has moved yet.
       tl.call(() => {
         s.beatStage = 'light';
       }, [], at);
-      light(at, beat.idx, 'fall', beat.lightMs);
-      // GROW — the medallions ignite in turn; each seat's count starts on ITS ignition.
-      const last = cascade(at, beat.idx, -1, cat.values, beat.lightMs, beat.staggerMs, () => beat.growMs * 0.8);
+      // IGNITE — the medallions ignite in turn as the light arrives; each seat's count starts on ITS ignition.
+      const last = cascade(at, beat.idx, -1, cat.values, beat.lightMs, beat.staggerMs, () => beat.growMs * 0.8, true);
       at = last + sec(beat.growMs);
-      // SETTLE — the segment locks, the value stands in the medallion, the light lets go.
+      // SETTLE — the segment locks, the value stands in the medallion; the light stays (it glides on to the next).
       tl.call(() => {
         s.beatStage = 'settle';
         s.catsSettled = beat.idx + 1;
       }, [], at);
       settleTotals(at);
-      light(at, beat.idx, 'release', beat.settleMs);
       at += sec(beat.settleMs);
       // PAUSE — a breath.
-      at += sec(beat.pauseMs);
-      break;
+      return at + sec(beat.pauseMs);
     }
 
-    case 'subIntro': {
-      // The plate takes the category and its ONE light falls — it is held through every sub-step.
+    case 'subIntro':
+      // The plate takes the category and the light glides to it — held through every sub-step.
       tl.call(() => {
         s.catIdx = beat.idx;
         s.subIdx = -1;
         s.beatStage = 'focus';
         s.seatSub = {};
       }, [], at);
-      light(at, beat.idx, 'fall', beat.lightMs);
-      at += sec(beat.ms);
-      break;
-    }
+      lightTo(at, beat.idx);
+      return at + sec(beat.ms);
 
     case 'sub': {
       const cat = vm.categories[beat.idx];
       const sub = cat.subs[beat.sub];
-      // The plate names the source; every seat re-ignites under the held light — no light of its own.
+      // The plate names the source; the first source ignites the seats in turn, the later ones count on at once.
       tl.call(() => {
         s.catIdx = beat.idx;
         s.subIdx = beat.sub;
       }, [], at);
-      cascade(at, beat.idx, beat.sub, sub.values, 0, beat.staggerMs, (span) => Math.max(0, beat.ms - span) * 0.85);
-      at += sec(beat.ms);
-      break;
+      cascade(at, beat.idx, beat.sub, sub.values, 0, beat.staggerMs, (span) => Math.max(0, beat.ms - span) * 0.85, beat.sub === 0);
+      return at + sec(beat.ms);
     }
 
     case 'subMerge': {
@@ -305,10 +329,74 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
         s.catsSettled = beat.idx + 1;
       }, [], at);
       settleTotals(at);
-      light(at, beat.idx, 'release', CEREMONY_MS.lightRelease);
-      at += sec(beat.ms);
-      break;
+      return at + sec(beat.ms);
     }
+
+    case 'sweep': {
+      // CI — X: ONE pass over the categories left. The light glides chip to chip in one motion (`sweep`), each
+      // category falls into place as the light passes it (every seat's medallion at once — one comb), the plate
+      // slides after the light at the pass's own step. No ignition accents: the pass IS the light.
+      sweepAt = at;
+      const path: Array<number> = [];
+      for (let i = beat.fromIdx; i <= beat.toIdx; i++) {
+        path.push(i);
+      }
+      const stepSec = sec(beat.stepMs);
+      tl.call(() => {
+        s.phase = 'scoring';
+        s.sweepStepMs = consoleMotionMs(beat.stepMs);
+      }, [], at);
+      light(at, beat.toIdx, lightUp ? 'sweep' : 'rise', beat.ms, path);
+      lightUp = true;
+      path.forEach((idx, i) => {
+        const cat = vm.categories[idx];
+        const t = at + i * stepSec;
+        tl.call(() => {
+          s.catIdx = idx;
+          s.subIdx = -1;
+          s.beatStage = 'grow';
+          const lit: Record<string, number> = {};
+          const subs: Record<string, number> = {};
+          for (const color of seats) {
+            lit[color] = idx;
+            subs[color] = cat.subs.length;
+          }
+          s.seatCat = lit;
+          s.seatSub = subs;
+          s.subsOn = {...s.subsOn, [cat.key]: cat.subs.length};
+          s.merged = {...s.merged, [cat.key]: true};
+          // The category before this one is passed — it stands settled.
+          s.catsSettled = Math.max(s.catsSettled, idx);
+        }, [], t);
+      });
+      at += sec(beat.ms);
+      tl.call(() => {
+        s.beatStage = 'settle';
+        s.catsSettled = vm.categories.length;
+        s.sweepStepMs = 0;
+      }, [], at);
+      return at;
+    }
+
+    case 'odometer':
+      // CI — X: every seat's total runs ONCE from where it stands to its final sum (one ease, never a step per
+      // category).
+      if (s.hurry !== 'off') {
+        for (const color of seats) {
+          const proxy = counters[color];
+          runningTargets[color] = finals[color];
+          tl.to(proxy, {
+            v: finals[color],
+            duration: sec(beat.ms),
+            ease: 'power2.out',
+            onUpdate: () => {
+              hooks.onCount(color, Math.round(proxy.v));
+            },
+          }, sweepAt);
+        }
+        settleTotals(sweepAt + sec(beat.ms));
+      }
+      return at;
 
     case 'preRank':
       tl.call(() => {
@@ -317,21 +405,15 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
         s.beatStage = '';
         s.seatCat = {};
         s.seatSub = {};
-      }, [], at);
-      at += sec(Math.max(0, beat.ms - beat.breathMs));
-      // THE PACE RETURNS — whatever X did to the count, the ranking and the crowning play at ×1 from here.
-      paceReturnAt = at;
-      tl.call(() => {
         if (s.hurry === 'on') {
-          tl.timeScale(1);
-          for (const tween of attached) {
-            tween.timeScale(1);
-          }
+          // The hurried pass is over: the breath, the ranking and the crowning are the natural ones, at ×1.
           s.hurry = 'returned';
         }
       }, [], at);
-      at += sec(beat.breathMs);
-      break;
+      if (lightUp) {
+        light(at, vm.categories.length - 1, 'release', CEREMONY_MS.lightRelease);
+      }
+      return at + sec(beat.ms);
 
     case 'ranking':
       tl.call(() => {
@@ -342,8 +424,7 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
       tl.call(() => {
         s.placesShown = true;
       }, [], at);
-      at += sec(beat.placesMs);
-      break;
+      return at + sec(beat.placesMs);
 
     case 'tiebreak':
       tl.call(() => {
@@ -358,14 +439,12 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
       tl.call(() => {
         s.tieStage = 2;
       }, [], at);
-      at += sec(beat.resolveMs);
-      break;
+      return at + sec(beat.resolveMs);
 
     case 'winnerHold':
       // The quiet hold between the settled ranking and the crowning —
       // deliberately empty: stillness is what makes the next beat an event.
-      at += sec(beat.ms);
-      break;
+      return at + sec(beat.ms);
 
     case 'winner':
       tl.call(() => {
@@ -375,8 +454,7 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
         s.winnerShown = true;
         hooks.onWinnerFx();
       }, [], at);
-      at += sec(beat.ms);
-      break;
+      return at + sec(beat.ms);
 
     case 'champion':
       // The MANDATORY campaign-champion ceremony (final mission only). One
@@ -409,8 +487,7 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
       }, [], at);
       at += sec(beat.fixMs);
       // The reading hold — deliberately empty stillness before the actions.
-      at += sec(beat.holdMs);
-      break;
+      return at + sec(beat.holdMs);
 
     case 'actions':
       tl.call(() => {
@@ -423,9 +500,14 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
         // one point off the authoritative total.
         finalizeCeremony(vm);
       }, [], at);
-      at += sec(beat.ms);
-      break;
+      return at + sec(beat.ms);
     }
+  };
+
+  // ── lay the natural beats onto the timeline ──────────────────────────────
+  let at = 0;
+  for (const beat of ceremonyBeats(vm)) {
+    at = layBeat(beat, at);
   }
 
   // Safety net: a hidden tab starves rAF and freezes the timeline mid-flight;
@@ -481,16 +563,32 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
       return false;
     }
     const p = s.phase;
-    if (p !== 'idle' && p !== 'entering' && p !== 'scoring' && p !== 'settling') {
+    if (p !== 'idle' && p !== 'entering' && p !== 'scoring') {
       return false;
     }
-    if (paceReturnAt !== undefined && tl.time() >= paceReturnAt) {
+    // From the category the count stands in (still unsettled), else the next one.
+    const from = s.catIdx >= 0 && s.catsSettled <= s.catIdx ? s.catIdx : s.catsSettled;
+    const beats = hurriedBeats(vm, from);
+    if (beats.length === 0) {
       return false;
+    }
+    // CUT the rest of the count at the playhead: every beat not yet played and every count-up still running (its
+    // proxy keeps the value it stands at — the odometer runs on from there). What the player already saw stays.
+    const now = tl.time();
+    for (const child of tl.getChildren(false, true, true)) {
+      if (child.startTime() + child.totalDuration() > now + 1e-6) {
+        child.kill();
+      }
+    }
+    // The running totals the odometer counts on from: what each seat shows NOW.
+    for (const color of seats) {
+      runningTargets[color] = Math.round(counters[color].v);
     }
     s.hurry = 'on';
-    tl.timeScale(HURRY_SCALE);
-    for (const tween of attached) {
-      tween.timeScale(HURRY_SCALE);
+    lightUp = lightLit;
+    let next = now;
+    for (const beat of beats) {
+      next = layBeat(beat, next);
     }
     return true;
   };
@@ -525,4 +623,3 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks, o
     timeline: tl,
   };
 }
-

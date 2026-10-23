@@ -8,8 +8,8 @@
  *      and its effect line in the set's voice (any ocean → +1 M€ production · the adjacency rate 3 instead of 2);
  *  B · the cell dossier reads the OWNER's rate: a standard City aimed at 12 — «Океанов рядом: 2 × 3 M€», B returns with
  *      nothing paid;
- *  C · the table's answer BEFORE the press: the standard Aquifer's «⚡ сработает» door names +1 M€ production, the R3
- *      layer stands Lakefront Resorts in «Вы получите»; the press places the ocean and the server's production rises;
+ *  C · the table's answer BEFORE the press: the standard Aquifer's ocean cell names Lakefront Resorts' +1 M€ production
+ *      in the dossier (the placement's answer is the cell's — PL-066); the press places the ocean, the production rises;
  *  D · a RIVAL's ocean (red's standard Aquifer, over the API) pays blue: one notification, the band «+1» with the
  *      corporation as its reason (`.con-notif__why` — «ВАША КОРПОРАЦИЯ · Lakefront Resorts»), the server's +1.
  * The bot's collision (a human on Lakefront keeps the bot off C35) is pinned server-side
@@ -32,6 +32,8 @@ type Wire = {
   waitingFor?: {type: string, spaces?: Array<string>, options?: Array<WireOption>},
 };
 const wireOf = async (request: APIRequestContext, id: string): Promise<Wire> => await fetchPlayerModel(request, id) as unknown as Wire;
+const megacredits = async (request: APIRequestContext, id: string): Promise<number> =>
+  ((await fetchPlayerModel(request, id)) as unknown as {thisPlayer: {megaCredits: number}}).thisPlayer.megaCredits;
 const mcProduction = async (request: APIRequestContext, id: string): Promise<number> => {
   const w = await wireOf(request, id);
   return w.thisPlayer.megaCreditProduction ?? w.thisPlayer.megacreditProduction ?? -999;
@@ -105,12 +107,7 @@ test.describe(`console · R38 Lakefront Resorts · ${PRESET.id}`, () => {
     await backToBoard(page);
 
     // ── B · a standard City aimed at 12 (two oceans beside it): the dossier reads the OWNER's rate — 2 × 3 M€.
-    const posts: Array<string> = [];
-    page.on('request', (req) => {
-      if (req.method() === 'POST' && /\/player\/input/.test(req.url())) {
-        posts.push(req.url());
-      }
-    });
+    const mcBefore = await megacredits(request, blue);
     await openStandardProjects(page);
     await focusRow(page, /город/i);
     await pressUntil(page, 'Enter', async () => await page.locator('.con-board--placing').count() > 0, {tries: 3, settleMs: 1500});
@@ -120,25 +117,22 @@ test.describe(`console · R38 Lakefront Resorts · ${PRESET.id}`, () => {
     await expect(panel, 'six M€ for the two oceans').toContainText(/\+\s*6/);
     await shoot(page, '02-dossier-two-oceans');
     // B steps back to the projects, nothing paid (a standard city is pay-on-commit).
+    expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-board--placing').count() === 0, {tries: 3, settleMs: 1500}),
+      'B leaves the placement').toBeTruthy();
     await backToBoard(page);
-    expect(posts.filter((u) => /input/.test(u)).length <= 1, 'at most the pick reached the server (pay-on-commit)').toBe(true);
+    expect(await megacredits(request, blue), 'nothing paid — the standard city is pay-on-commit').toBe(mcBefore);
 
-    // ── C · the Aquifer: the «⚡ сработает» door before the press, the R3 layer, then the ocean and the payout.
+    // ── C · the Aquifer: the table's answer to the PLACEMENT is the cell dossier's (PL-066 — the project's row answers
+    // the bump: the ruling Greens' M€ for the ocean's TR step); the ocean cell names Lakefront Resorts' +1 M€
+    // production (`tilePlacedPreview`) before the press, the press places it, the server's production rises.
     const before = await mcProduction(request, blue);
     await openStandardProjects(page);
     await focusRow(page, /океан/i);
-    const door = page.locator('.con-stdp [data-forecast-row]');
-    await expect(door, 'the table\'s answer stands on the row').toHaveCount(1);
-    expect(((await door.textContent()) ?? '').replace(/\s+/g, ' '), 'the +1 M€ production').toMatch(/\+\s*1/);
-    await shoot(page, '03-aquifer-forecast');
-    expect(await pressUntil(page, 'KeyV', async () => await page.locator('.con-stdp [data-forecast-layer]').count() > 0, {tries: 3, settleMs: 1100}),
-      'R3 opens the «Эффекты» layer').toBeTruthy();
-    await expect(page.locator('.con-stdp [data-forecast-layer] [data-forecast-group="receive"]'), 'Lakefront Resorts in «Вы получите»')
-      .toContainText(/Lakefront/i);
-    await shoot(page, '04-aquifer-layer');
-    expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-stdp [data-forecast-layer]').count() === 0, {tries: 3, settleMs: 1100}),
-      'B folds the layer').toBeTruthy();
+    await expect(page.locator('.con-stdp [data-forecast-row]'), 'the row answers the bump').toHaveCount(1);
+    await shoot(page, '03-aquifer-row');
     await pressUntil(page, 'Enter', async () => await page.locator('.con-board--placing').count() > 0, {tries: 3, settleMs: 1500});
+    await expect(page.locator('.con-context'), 'the ocean cell names the answer of Lakefront Resorts').toContainText(/Lakefront/i, {timeout: 10_000});
+    await shoot(page, '04-aquifer-cell-answer');
     expect(await placeTile(page), 'the ocean placed').toBeTruthy();
     await expect.poll(() => mcProduction(request, blue), {timeout: 30_000, message: 'the server raised blue\'s M€ production'}).toBe(before + 1);
     await settle(page, {timeoutMs: 30_000});
