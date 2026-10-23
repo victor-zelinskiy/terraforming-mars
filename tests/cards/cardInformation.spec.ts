@@ -379,6 +379,7 @@ describe('card information model', function() {
       ['Mining Mechs', '"4 mech resources" = "Add 4 mechs to this card." — the play\'s card resources (TR57, the TR38 class), only the noun differs'],
       ['Civilian Spacefighters', '"1 fighter resource" = "Add 1 fighter to this card." — the play\'s card resource (TR60, the TR38 class), only the noun differs'],
       ['Floating Biodomes', '"2 floater resources" = "Add 2 floaters to this card." — the play\'s card resources (TR69, the TR38 class), only the noun differs'],
+      ['Cultural Metropolis', '"place 2 delegates in 1 party" = "Add 2 delegates to one resolution." — the Turmoil Redux reading (T03): a party is reached through its resolution in the voting area; only the noun differs'],
       ['PolderTECH Dutch', '"next to each other" = "an adjacent greenery tile", shown; only the wording differs'],
       ['Aqueduct Systems', 'the printed "draw 3 cards with a building tag" IS a search (the engine reveals until 3 match — `DrawCards`), and the generated text says so from the ONE search descriptor: "Reveal … until you reveal 3 cards with a building tag. Take them into your hand"; only the verb differs'],
     ]);

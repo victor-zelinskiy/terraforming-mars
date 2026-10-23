@@ -666,6 +666,22 @@ export type ActionPreviewStep =
    * `effects` draw, and the very numbers the play applies — one function).
    */
   | {kind: 'neutralRally', rally: NeutralRallyModel}
+  /**
+   * THEN — A DELEGATE GRANT ASKED AFTER THE COMMIT (T03 Cultural Metropolis: «place a
+   * city tile. Add 2 delegates to one resolution»; every declarative
+   * `behavior.turmoil.sendDelegates` on a Turmoil Redux table). The play's ONE
+   * reversible door is the other one (the city's staged cell — the last reversible
+   * step), so the vote is NOT a staged door: it is the LIVE grant the commit's
+   * answer raises (`PlaceDelegatesOnResolution`, `votePrompt.source === 'grant'`),
+   * a STEP of the same flow. Structural for the console's sake: the composer
+   * prints «then: N delegates to one resolution — chosen in the Parliament» from
+   * the count, never from a note's text; the crumb names the coming stage
+   * («ГОЛОСОВАНИЕ») from the press on, and the flow owes the step until the grant
+   * is answered (`owed-step`). `count` is what the reserve covers today, `printed`
+   * what the card prints. Absent when the grant would ask nothing — the branch
+   * then carries the NAMED skip instead (`PlaceDelegatesOnResolution.previewSkip`).
+   */
+  | {kind: 'delegateGrantFollowUp', count: number, printed: number}
   | {
     kind: 'boardPlacement',
     placementType: string,

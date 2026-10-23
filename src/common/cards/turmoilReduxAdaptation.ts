@@ -41,7 +41,6 @@ import {CardName} from './CardName';
 /** ADAPT IN PLACE — project cards + corporations (ordered by how much they touch politics). */
 export const TURMOIL_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
   // A political EFFECT that reads the classic engine directly — the adaptation moves it onto the facade.
-  CardName.CULTURAL_METROPOLIS, // Unity · places 2 delegates (`Turmoil.getAvailableDelegateCount` + `SendDelegateToArea`)
   CardName.EVENT_ANALYSTS, // Scientists · `behavior.turmoil.influenceBonus` (the Executor reads `Turmoil.getTurmoil`)
   CardName.MARTIAN_MEDIA_CENTER, // Mars First · action `behavior.turmoil.sendDelegates` (the Executor reads `Turmoil.getTurmoil`)
   // Corporations WITHOUT a political dependency — the premium adaptation only (lore, information model,

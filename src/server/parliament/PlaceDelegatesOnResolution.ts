@@ -8,7 +8,7 @@ import {InputError} from '../inputs/InputError';
 import {message} from '../logs/MessageBuilder';
 import {ChoiceContextSource, SelectPartyModel, VoteSupportProjection} from '../../common/models/PlayerInputModel';
 import {
-  NEUTRAL_DELEGATE_ICON, PARLIAMENT_MAX_POPULAR_SUPPORT, POPULAR_SUPPORT_LABEL, ReduxParty, SUPPORT_LIMIT_REASON, SupportRoom,
+  DELEGATE_ICON, NEUTRAL_DELEGATE_ICON, PARLIAMENT_MAX_POPULAR_SUPPORT, POPULAR_SUPPORT_LABEL, ReduxParty, SUPPORT_LIMIT_REASON, SupportRoom,
 } from '../../common/parliament/ParliamentTypes';
 import {PartyName} from '../../common/turmoil/PartyName';
 import type {SkippedEffect} from '../cards/actionPreviews';
@@ -188,6 +188,29 @@ export class PlaceDelegatesOnResolution extends DeferredAction<undefined> {
     const model = select.toModel(this.player);
     model.choiceContext = select.choiceContext;
     return model;
+  }
+
+  /**
+   * READ-ONLY: what a grant that would ask NOTHING loses, named for the play
+   * preview's warning (the «no silent loss» rule before the press) — the same
+   * branches `execute()` refuses with a journal line. `undefined` when the
+   * grant asks (or the seat takes no part in the Parliament at all — MarsBot's
+   * grant is placed by its own rules, a game without a Parliament has no grant).
+   */
+  public previewSkip(): {reason: string, skipped: SkippedEffect} | undefined {
+    const parliament = this.player.game.parliament;
+    if (parliament === undefined || !parliament.participates(this.player, 'delegates') || this.player.isMarsBot) {
+      return undefined;
+    }
+    const skipped: SkippedEffect = {label: 'Add delegates to a resolution', effect: {direction: 'gain', icon: DELEGATE_ICON, amount: this.quantity}};
+    if (parliament.partiesInVotingArea().length === 0) {
+      // The keys TR03 Political Donation's reasons already speak (`POLITICAL_DONATION_*_REASON`).
+      return {reason: 'No resolution is up for a vote', skipped};
+    }
+    if (parliament.reserve(this.player) <= 0) {
+      return {reason: 'No delegate in your reserve', skipped};
+    }
+    return undefined;
   }
 
   public execute(): PlayerInput | undefined {

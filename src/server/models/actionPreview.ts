@@ -27,6 +27,7 @@ import {withVetoedRating} from './vetoedRating';
 import * as divertedGate from '../parliament/divertedTerraformingGate';
 import {actionFutility} from './actionFutility';
 import {attachStagedPlacement, stagedPlacementForBehavior} from './stagedBehaviorPlacement';
+import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
 
 /**
  * READ-ONLY preview of an activatable action — the analog of
@@ -675,6 +676,16 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
   if (typeof fleets === 'number' && fleets > 0) {
     out.push(tradeFleetGainChip(player, fleets));
   }
+  // «Add N delegates» on a Turmoil Redux table — the cubes leave the RESERVE (never the lobby): the chip reads the
+  // reserve `current → resulting`, the number `delegatesInReserve` gates the play on (T03). The classic engine keeps
+  // upstream's silence (its vote is not the console's).
+  const sendDelegates = behavior.turmoil?.sendDelegates;
+  if (sendDelegates !== undefined && game.parliament !== undefined) {
+    const count = ctx.count(sendDelegates.count);
+    if (count > 0) {
+      out.push(actionPreviews.delegateFromReserve(player, Math.min(count, game.parliament.reserve(player))));
+    }
+  }
 
   return out;
 }
@@ -1009,6 +1020,25 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
   }
   if (behavior.tile !== undefined) {
     steps.push({kind: 'boardPlacement', placementType: behavior.tile.on, tileType: behavior.tile.type});
+  }
+  // THEN the delegates (Executor defers them after every tile): a LIVE grant step of the same flow on a Turmoil Redux
+  // table — or, where the grant would ask nothing, its NAMED skip. Built from the very step the Executor defers
+  // (`politics.placeDelegates` → `PlaceDelegatesOnResolution`), asked read-only.
+  const sendDelegates = behavior.turmoil?.sendDelegates;
+  if (sendDelegates !== undefined && sendDelegates.manyParties !== true && player.game.parliament !== undefined) {
+    const printed = ctx.count(sendDelegates.count);
+    if (printed > 0) {
+      const grant = new PlaceDelegatesOnResolution(player, printed, cardSource(card));
+      const lost = grant.previewSkip();
+      if (lost !== undefined) {
+        steps.push(actionPreviews.warningNote(lost.reason, {skipped: lost.skipped}));
+      } else {
+        const prompt = grant.previewSelectParty();
+        if (prompt !== undefined) {
+          steps.push({kind: 'delegateGrantFollowUp', count: prompt.votePrompt?.count ?? printed, printed});
+        }
+      }
+    }
   }
 
   return steps;

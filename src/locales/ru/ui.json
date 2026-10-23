@@ -177,6 +177,7 @@
     "Cannot place here": "Нельзя разместить здесь",
     "Cannot reduce production": "Невозможно уменьшить производство",
     "Not enough available delegates": "Недостаточно доступных делегатов",
+    "Delegates in your reserve: ${0} of ${1}": "Делегатов в резерве: ${0} из ${1}",
     "Card is unavailable due to unmet conditions": "Карта недоступна из-за невыполненных условий",
     "Card requirement not met": "Условие карты не выполнено",
     "Action cards": "Карты действий",

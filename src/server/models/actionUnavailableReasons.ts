@@ -5,7 +5,6 @@ import {Counter} from '../behavior/Counter';
 import {Resource} from '../../common/Resource';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
-import {Turmoil} from '../turmoil/Turmoil';
 import {resourcesHereShort} from '../cards/actionReasons';
 
 /**
@@ -169,11 +168,31 @@ export function collectActionBehaviorReasons(
   }
 
   if (behavior.turmoil?.sendDelegates !== undefined) {
-    const count = ctx.count(behavior.turmoil.sendDelegates.count);
-    if (Turmoil.getTurmoil(game).getAvailableDelegateCount(player) < count) {
-      out.push({type: 'party', message: 'Not enough available delegates'});
+    const reason = delegateReserveReason(player, ctx.count(behavior.turmoil.sendDelegates.count));
+    if (reason !== undefined) {
+      out.push(reason);
     }
   }
+}
+
+/**
+ * «Not enough delegates to place» — why `behavior.turmoil.sendDelegates` fails
+ * `Executor.canExecute` (a card's play: Cultural Metropolis, the prelude2 /
+ * Pathfinders envoys; an action: Martian Media Center). Reads the FACADE's reserve —
+ * the number the Executor gates on — never the classic engine (which throws on a
+ * Turmoil Redux table). Redux NAMES the gap («Delegates in your reserve: 1 of 2»);
+ * the classic engine keeps upstream's bare line.
+ */
+export function delegateReserveReason(player: IPlayer, count: number): UnplayableReason | undefined {
+  const politics = player.game.politics;
+  const inReserve = politics?.delegatesInReserve(player) ?? 0;
+  if (inReserve >= count) {
+    return undefined;
+  }
+  if (politics?.engine !== 'redux') {
+    return {type: 'party', message: 'Not enough available delegates'};
+  }
+  return {type: 'party', message: 'Delegates in your reserve: ${0} of ${1}', params: [String(inReserve), String(count)], current: inReserve};
 }
 
 /**

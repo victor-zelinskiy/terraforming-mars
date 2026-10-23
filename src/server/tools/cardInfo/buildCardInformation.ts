@@ -652,7 +652,17 @@ function behaviorBlocks(card: ICard, notes: Array<string>): Array<Pending> | und
     complex = true;
     notes.push('behavior.or (choice) — needs curation');
   }
-  if (b.turmoil !== undefined || b.moon !== undefined || b.underworld !== undefined) {
+  // «Place N delegates in 1 party» read the Turmoil Redux way (T03 Cultural Metropolis): the cubes leave the
+  // reserve for ONE resolution of the voting area. Only the plain one-party grant — an influence bonus or a
+  // per-party spread stays curated.
+  const sendDelegates = b.turmoil?.sendDelegates;
+  const grantCount = sendDelegates === undefined || sendDelegates.manyParties === true ? undefined : numeric(sendDelegates.count);
+  const plainGrant = b.turmoil !== undefined && b.turmoil.influenceBonus === undefined && grantCount !== undefined;
+  if (grantCount !== undefined && plainGrant) {
+    const n = grantCount;
+    push('turmoil.delegates', n === 1 ? 'Add 1 delegate to a resolution.' : `Add ${n} delegates to one resolution.`, ['delegates']);
+  }
+  if ((b.turmoil !== undefined && !plainGrant) || b.moon !== undefined || b.underworld !== undefined) {
     complex = true;
     notes.push('out-of-scope expansion behavior keys present');
   }

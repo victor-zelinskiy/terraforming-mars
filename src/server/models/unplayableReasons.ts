@@ -17,9 +17,8 @@ import {MAX_TEMPERATURE, MAX_OXYGEN_LEVEL, MAX_VENUS_SCALE} from '../../common/c
 import {Counter} from '../behavior/Counter';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {MoonExpansion} from '../moon/MoonExpansion';
-import {Turmoil} from '../turmoil/Turmoil';
 import type {PlacementType} from '../boards/PlacementType';
-import {spendStockReasons} from './actionUnavailableReasons';
+import {delegateReserveReason, spendStockReasons} from './actionUnavailableReasons';
 
 /**
  * Authoritative, structured explanation of why `card` (a project card in the
@@ -497,9 +496,9 @@ function collectBehaviorReasons(player: IPlayer, card: IProjectCard, out: Array<
 
   if (b.turmoil?.sendDelegates !== undefined) {
     const ctx = new Counter(player, card);
-    const count = ctx.count(b.turmoil.sendDelegates.count);
-    if (Turmoil.getTurmoil(game).getAvailableDelegateCount(player) < count) {
-      out.push({type: 'party', message: 'Not enough available delegates'});
+    const reason = delegateReserveReason(player, ctx.count(b.turmoil.sendDelegates.count));
+    if (reason !== undefined) {
+      out.push(reason);
     }
   }
 }
