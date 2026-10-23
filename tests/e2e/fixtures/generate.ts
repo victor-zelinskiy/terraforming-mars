@@ -8708,6 +8708,31 @@ mediaCenterFixture('martian-media-center-hand', (table) => {
   write(name, game);
 }
 
+// ── R38 · LAKEFRONT RESORTS — the first classic Turmoil CORPORATION adapted in place (ledger CI): a Redux table, blue
+//    on Lakefront Resorts (its adjacency rate 3 — `oceanBonus`), red on ThorGate, 80 M€ each. Red's two oceans stand
+//    on 06 and 07 (Tharsis' first row), so 12 — the land between them — has TWO oceans beside it: the cell dossier reads
+//    «2 × 3 M€» for blue (and «2 × 2» for red). Blue is on the move:
+//      · `lakefront-resorts` — the stand's one table: the corporation's face and its two rules, the Aquifer's forecast
+//        «+1 M€ production · Lakefront Resorts», the dossier on 12, and red's own ocean answered on blue's production. ──
+parliamentFixture('lakefront-resorts', {
+  stopAt: 'vote',
+  megacredits: [80, 80],
+  options: {customCorporationsList: [CardName.LAKEFRONT_RESORTS, CardName.THORGATE]},
+  arrange: ({game, p2}) => {
+    for (const id of ['06', '07'] as const) {
+      game.addOcean(p2, game.board.getSpaceOrThrow(id as SpaceId));
+    }
+  },
+  expect: ({game, p1}) => {
+    const between = game.board.getSpaceOrThrow('12' as SpaceId);
+    const oceans = game.board.getAdjacentSpaces(between).filter((s) => Board.isOceanSpace(s)).map((s) => s.id);
+    if (!p1.playedCards.has(CardName.LAKEFRONT_RESORTS) || p1.oceanBonus !== 3 || game.activePlayer.id !== p1.id ||
+      between.spaceType !== SpaceType.LAND || between.tile !== undefined || oceans.join(',') !== '06,07') {
+      throw new Error(`the lakefront-resorts fixture: blue on Lakefront (rate ${p1.oceanBonus}), on the move (${game.activePlayer.color}), 12 a free land cell beside exactly 06 and 07 (got ${between.spaceType} ${oceans.join(',')})`);
+    }
+  },
+});
+
 // ── R14 · TERRALABS RESEARCH — the second classic Turmoil CORPORATION adapted in place: its printed 1 M€ REPLACES the
 //    buy-to-hand price, so the stand reads every purchase surface for «× 1» (never a «3»). Both tables are the TR61
 //    generation end with blue on TerraLabs (`baseCardCost` 1, the TR one step below the table's) and 20 M€:

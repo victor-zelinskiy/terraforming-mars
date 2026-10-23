@@ -2656,6 +2656,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   // T03 Cultural Metropolis — two doors (the city's staged cell, then the live vote for 2): Unity rules · locked
   // («1 of 2») · Unity rules with ONE delegate in the reserve («Делегатов в резерве: 1 из 2»).
   'cultural-metropolis' | 'cultural-metropolis-locked' | 'cultural-metropolis-reserve' |
+  // R38 Lakefront Resorts — the first classic corporation adapted in place (ledger CI): blue on Lakefront, two oceans
+  // beside the free land 12, blue on the move.
+  'lakefront-resorts' |
   // R14 Terralabs Research — the second: blue on TerraLabs (the 1 M€ price) at a generation's end, solo and drafting.
   'terralabs-research' | 'terralabs-research-draft' |
   // T05 Event Analysts — influence beyond the Career (ledger CG).
