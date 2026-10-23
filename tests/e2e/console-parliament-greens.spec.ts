@@ -230,15 +230,15 @@ test.describe('Greens Budget · standard-1080', () => {
       await expectParliamentFits(page, 'vote mode');
       await shoot(page, '02-vote-net-and-portions');
 
-      // ── THE FULLSCREEN: the levy row, the breakdown by TAG behind the number — the cards that made it.
+      // ── THE FULLSCREEN: the printed text alone — the levy, the breakdown and the cards are the panel's (texts 2026-10-23).
       await openZoomViewer(page);
       const zoom = page.locator('dialog.con-zoom[open]');
       await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(BUDGET_CLASS);
       await expectDossierIsRules(page, 'greens');
       const rules = zoom.locator('.con-zoom-sidecol');
-      await expect(rules, 'the levy row').toContainText(/Плата: сначала 10 M€|Levy: 10 M€ first/);
-      await expect(rules, 'the rule says what counts').toContainText(/Универсальные метки не считаются|Wild tags do not count/);
-      await expect(rules, 'the breakdown behind the number').toContainText(/Учтены сейчас|Counted right now/);
+      await expect(rules, 'the printed text: the levy first').toContainText(/Потеряйте 10 M€|Lose 10 M€/);
+      await expect(rules, '…the tags').toContainText(/метку растений, бактерий и животных|plant, microbe and animal tag/);
+      await expect(rules, '…and the two portions').toContainText(/2 животных на одну свою карту и 3 бактерии|2 animals to one of your cards and 3 microbes/);
       await expect(page.locator('dialog.con-zoom.con-zoom--parliament[open]:not(.con-zoom--flight)')).toHaveCount(1, {timeout: 10_000});
       await shoot(page, '03-fullscreen-breakdown');
       await closeZoomViewer(page);

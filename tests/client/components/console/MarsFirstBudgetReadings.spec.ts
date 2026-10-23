@@ -15,10 +15,7 @@ import {voteLevyOf, voteYieldsOf, yieldCountPresentation} from '@/client/console
 import {voteReadingOf} from '@/client/console/parliament/voteInfoModel';
 import {voteLedgerOf} from '@/client/console/parliament/voteLedgerModel';
 import {familyOf} from '@/client/console/parliament/resolutionFamily';
-import {
-  TILE_GRANT_ANY_LEGAL_RULE_KEY, TILE_GRANT_RULE_KEY, tileGrantCaptionOf, tileGrantDetailOf, tileGrantReadingOf, tileGrantRecipientsKey, tileGrantRuleKey,
-  tileGrantWhereKey,
-} from '@/client/console/parliament/tileGrantModel';
+import {tileGrantCaptionOf, tileGrantDetailOf, tileGrantReadingOf, tileGrantRecipientsKey, tileGrantWhereKey} from '@/client/console/parliament/tileGrantModel';
 import {BOT_POLITICS_NOTE} from '@/client/console/parliament/seatParliamentReading';
 import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamentManifest';
 
@@ -117,7 +114,6 @@ describe('Mars First Budget — the readings of the sixth budget and of the gran
     expect(yieldCountPresentation('buildingMarsTags')).deep.eq({
       glyph: {kind: 'tags', tags: [Tag.BUILDING, Tag.MARS]},
       pluralKey: '${0} building and Mars tag(s)',
-      ruleKey: 'Each building and Mars tag counts: a card with both counts twice. Wild tags do not count.',
       skipReasonKey: 'No building or Mars tags and no influence',
     });
   });
@@ -138,8 +134,6 @@ describe('Mars First Budget — the readings of the sixth budget and of the gran
     expect(tileGrantDetailOf(grant), 'no destinations to count, no stack').is.undefined;
     expect(tileGrantWhereKey(grant.grant)).eq('on any legal space on Mars');
     expect(tileGrantRecipientsKey(grant.grant)).deep.eq({key: 'Every player, clockwise from the first player', params: []});
-    expect(tileGrantRuleKey(grant.grant)).eq(TILE_GRANT_ANY_LEGAL_RULE_KEY);
-    expect(tileGrantRuleKey(resolutionOf(SKYSCRAPERS_ID).tileGrant!), 'the stack\'s sentence stays Skyscrapers\'').eq(TILE_GRANT_RULE_KEY);
     const reading = voteReadingOf(law, m, BLUE, []);
     expect(reading.grant?.eligibility).eq('everyone');
     expect(reading.yields.length).is.greaterThan(0);

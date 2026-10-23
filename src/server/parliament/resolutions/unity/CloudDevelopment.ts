@@ -176,7 +176,7 @@ export const CLOUD_DEVELOPMENT: ResolutionDefinition = {
   }),
   text: {
     name: 'Cloud Development',
-    effect: 'Add 1 floater per Venus and Jovian tag you have, plus 1 per influence, to your cards that can hold floaters. Each floater may go on a different card.',
+    effect: 'Add 1 floater per Venus and Jovian tag you have, plus 1 per influence, to your cards. The floaters may go on different cards.',
     quest: 'Play 2 Venus tags',
   },
   quest: {goal: {kind: 'tag', tag: Tag.VENUS}, count: 2},

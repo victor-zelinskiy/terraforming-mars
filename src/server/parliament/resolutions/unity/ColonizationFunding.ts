@@ -102,7 +102,7 @@ export const COLONIZATION_FUNDING: ResolutionDefinition = {
   }),
   text: {
     name: 'Colonization Funding',
-    effect: 'Raise your M€ production 2 steps per space city you have, plus 1 per influence. Max 6.',
+    effect: 'Raise your M€ production 2 steps per space city (a city off Mars) you have, plus 1 per influence. Max 6.',
     quest: 'Place 1 space city',
   },
   quest: {goal: {kind: 'tile', tile: 'spaceCity'}, count: 1},

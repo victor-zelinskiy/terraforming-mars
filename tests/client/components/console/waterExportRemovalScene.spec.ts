@@ -140,14 +140,14 @@ describe('Water Export — the removal scene and its readings', () => {
   it('the inspector prints the world block from the SAME declaration: the sentence, the board\'s numbers, the named edge', () => {
     const rows = (blocks: ReadonlyArray<{key?: string, id?: string, rows?: ReadonlyArray<unknown>}>) =>
       blocks.find((b) => (b as {id?: string}).id === 'group:world' || (b as {key?: string}).key === 'group:world');
-    const withRoom = resolutionAnnotations(LAW_ID, [], undefined, {table: undefined, removal: {oceans: 3, removableOceans: 3}});
+    const withRoom = resolutionAnnotations(LAW_ID, {table: undefined, removal: {oceans: 3, removableOceans: 3}});
     const world = rows(withRoom as never);
     expect(world, 'the world block stands').is.not.undefined;
     expect(JSON.stringify(world)).contains('3');
     expect(JSON.stringify(world)).contains('2');
-    const atMax = resolutionAnnotations(LAW_ID, [], undefined, {table: undefined, removal: {oceans: 9}});
+    const atMax = resolutionAnnotations(LAW_ID, {table: undefined, removal: {oceans: 9}});
     expect(JSON.stringify(rows(atMax as never))).contains('oceans at their maximum');
-    const reference = resolutionAnnotations(LAW_ID, [], undefined, undefined);
+    const reference = resolutionAnnotations(LAW_ID);
     expect(JSON.stringify(rows(reference as never)), 'no board: the sentence alone').not.contains('→');
   });
 });

@@ -16,7 +16,7 @@ import {voteLevyOf, voteYieldsOf, yieldCountPresentation} from '@/client/console
 import {voteReadingOf} from '@/client/console/parliament/voteInfoModel';
 import {ledgerPartText, voteLedgerOf} from '@/client/console/parliament/voteLedgerModel';
 import {familyOf} from '@/client/console/parliament/resolutionFamily';
-import {AGENDA_GRANT_RULE_KEY, agendaGrantCaptionOf, agendaGrantReadingOf, agendaGrantWinKey} from '@/client/console/parliament/agendaGrantModel';
+import {agendaGrantCaptionOf, agendaGrantReadingOf, agendaGrantWinKey} from '@/client/console/parliament/agendaGrantModel';
 import {resultsPayoutPart} from '@/client/console/parliament/parliamentResultsModel';
 import {parliamentBandLine} from '@/client/console/parliament/parliamentBand';
 import {careerGrantState, careerWalkBonuses, detectNewCareerWalks, resetCareerGrantBeat, seedCareerGrantWalks} from '@/client/console/parliament/careerGrantBeat';
@@ -130,12 +130,12 @@ describe('Reds Budget — the readings of the last budget and of the step of the
     expect(yieldCountPresentation('spaceMarsTags')).deep.eq({
       glyph: {kind: 'tags', tags: [Tag.SPACE, Tag.MARS]},
       pluralKey: '${0} space and Mars tag(s)',
-      ruleKey: 'Each space and Mars tag counts: a card with both counts twice. Wild tags and the space tags of played events do not count.',
       skipReasonKey: 'No space or Mars tags and no influence',
     });
-    // The inspector's one sentence under the effect: what a step pays on the spot, the bot's card step included.
+    // The inspector prints the printed text alone (texts 2026-10-23): the step of the Career is the card's own sentence.
     const rules = resolutionAnnotations(BUDGET_ID);
-    expect(JSON.stringify(rules)).includes(AGENDA_GRANT_RULE_KEY);
+    expect(rules.find((b) => b.id === 'group:immediate')?.rows.map((r) => r.text)).deep.eq([law.text.effect]);
+    expect(law.text.effect).includes('Every player advances their Agenda marker 1 step.');
   });
 
   it('the NET line is the levy\'s on the M€ payout: 15 M€ − 10 + (3 tags + influence 2) = net −5', () => {

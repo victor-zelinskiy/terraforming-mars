@@ -6,7 +6,7 @@ import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPlayerModel, Par
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {winnerRewardTrTotal} from '@/common/parliament/winnerReward';
 import {
-  winnerOutcomeOf, winnerRewardCaptionOf, winnerRewardGlyph, winnerRewardReadingOf, winnerRewardRuleKey, winnerRewardSentenceOf, winnerRewardTableOf,
+  winnerOutcomeOf, winnerRewardCaptionOf, winnerRewardGlyph, winnerRewardReadingOf, winnerRewardSentenceOf, winnerRewardTableOf,
   winnerStepFollowUps, winnerTileLabelKey,
 } from '@/client/console/parliament/winnerRewardModel';
 import {enactedYieldsOf, voteYieldsOf, yieldIconOf} from '@/client/console/parliament/influenceYieldModel';
@@ -177,24 +177,17 @@ describe('winnerRewardModel', () => {
     }), table(5))!;
     expect(winnerRewardSentenceOf(neutral, blue, String, t)).deep.eq({caption: 'Neutral winner — nobody places it', detail: ''});
     expect(winnerRewardSentenceOf(winnerRewardReadingOf(biodome(), undefined, undefined)!, blue, String, t), 'no table, no words').is.undefined;
-    // The inspector's «for you» block carries exactly that one row; the reference (no table) adds none.
-    const rows = resolutionAnnotations(BIODOME_ID, [], {reading: conditional, viewer: blue, nameOf: String}).find((b) => b.id === 'group:you')?.rows ?? [];
-    expect(rows).has.length(1);
-    expect(rows[0].text).eq('${0}: ${1}');
-    expect(rows[0].params?.[1]).to.match(/7 → 8 %/);
-    expect(resolutionAnnotations(BIODOME_ID, [], {reading: winnerRewardReadingOf(biodome(), undefined, undefined), viewer: blue, nameOf: String})
-      .some((b) => b.id === 'group:you')).is.false;
+    // The dossier carries no «for you» block (texts 2026-10-23) — the winner's reading in words is the vote panel's and the sitting's.
+    expect(resolutionAnnotations(BIODOME_ID).some((b) => b.id === 'group:you')).is.false;
   });
 
-  it('the table comes straight off the game model; the inspector names the greenery\'s TR rule once under the winner block', () => {
+  it('the table comes straight off the game model; the inspector prints the winner\'s printed text alone under the winner block', () => {
     expect(winnerRewardTableOf({oxygenLevel: 3, temperature: -12, oceans: 4})).deep.eq({oxygenLevel: 3, temperature: -12, oceans: 4});
     expect(winnerRewardTableOf(undefined)).is.undefined;
-    const rule = winnerRewardRuleKey({kind: 'tile', tile: 'greenery'});
-    expect(rule).is.not.undefined;
-    expect(winnerRewardRuleKey({kind: 'tile', tile: 'ocean'})).is.undefined;
     const blocks = resolutionAnnotations(BIODOME_ID);
     const winner = blocks.find((b) => b.id === 'group:winner');
-    expect(winner?.rows.map((r) => r.text)).deep.eq([biodome().text.winner, rule]);
+    expect(winner?.rows.map((r) => r.text)).deep.eq([biodome().text.winner]);
+    expect(biodome().text.winner).eq('Place a greenery tile.');
     expect(blocks.find((b) => b.id === 'group:immediate')?.rows.map((r) => r.text)).deep.eq([biodome().text.effect]);
     expect(blocks.find((b) => b.id === 'group:quest')?.rows.map((r) => r.text)).deep.eq(['Place 2 greeneries']);
   });
@@ -229,7 +222,6 @@ describe('winnerRewardModel — the winner\'s DIRECT STEP of a parameter', () =>
     expect(resolution.worldMoves, 'the step is the winner\'s, never the world\'s').is.undefined;
     expect(winnerTileLabelKey(resolution.winnerReward!)).eq('Temperature');
     expect(winnerRewardGlyph(resolution.winnerReward!)).eq('temperature');
-    expect(winnerRewardRuleKey(resolution.winnerReward!)).is.a('string');
   });
 
   it('no table: the rule alone (reference), with the parameter named', () => {
@@ -304,7 +296,7 @@ describe('winnerRewardModel — the winner\'s DIRECT STEP of a parameter', () =>
     expect(winnerRewardSentenceOf(max, blue, String, t)).deep.eq({caption: 'If you win', detail: 'temperature at its maximum — no step'});
     const blocks = resolutionAnnotations(MOHOLE_ID);
     const winner = blocks.find((b) => b.id === 'group:winner');
-    expect(winner?.rows.map((r) => r.text)).deep.eq([mohole().text.winner, winnerRewardRuleKey(mohole().winnerReward!)]);
+    expect(winner?.rows.map((r) => r.text)).deep.eq([mohole().text.winner]);
     expect(blocks.find((b) => b.id === 'group:world'), 'no world block — the step is the winner\'s').is.undefined;
     expect(blocks.find((b) => b.id === 'group:quest')?.rows.map((r) => r.text)).deep.eq(['Play a card with a microbe tag']);
   });
@@ -368,14 +360,13 @@ describe('winnerRewardModel — the winner\'s COLONY', () => {
     expect(winnerRewardSentenceOf(history!, blue, String, t)).deep.eq({caption: '[Generation ${0}|2] · [No colony is available]', detail: ''});
   });
 
-  it('the labels: «Colony», the `colony` glyph, the one qualification sentence under the winner block; the tile helpers are untouched', () => {
+  it('the labels: «Colony», the `colony` glyph, the winner block printing the text alone; the tile helpers are untouched', () => {
     expect(winnerTileLabelKey({kind: 'colony'})).eq('Colony');
     expect(winnerRewardGlyph({kind: 'colony'})).eq('colony');
     expect(winnerRewardGlyph({kind: 'tile', tile: 'ocean'})).eq('ocean');
-    expect(winnerRewardRuleKey({kind: 'colony'})).to.match(/built for free/);
     expect(winnerTileLabelKey({kind: 'tile', tile: 'greenery'})).eq('Greenery');
     const blocks = resolutionAnnotations(CONTEST_ID);
-    expect(blocks.find((b) => b.id === 'group:winner')?.rows.map((r) => r.text)).deep.eq([contest().text.winner, winnerRewardRuleKey({kind: 'colony'})]);
+    expect(blocks.find((b) => b.id === 'group:winner')?.rows.map((r) => r.text)).deep.eq([contest().text.winner]);
     expect(blocks.find((b) => b.id === 'group:quest')?.rows.map((r) => r.text)).deep.eq(['Build 2 colonies']);
   });
 });

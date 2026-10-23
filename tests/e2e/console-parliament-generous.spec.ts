@@ -220,19 +220,13 @@ test.describe('Generous Funding · standard-1080', () => {
     await expectParliamentFits(page, 'vote mode');
     await shoot(page, '02-vote-reading');
 
-    // ── THE FULLSCREEN: the estimate and the «if you win» plate; the rules column prints the BREAKDOWN — never a list.
+    // ── THE FULLSCREEN: the rules column is the printed text alone — the breakdown is the panel's (texts 2026-10-23).
     await openZoomViewer(page);
     const zoom = page.locator('dialog.con-zoom[open]');
     await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(GENEROUS_CLASS);
     await expectDossierIsRules(page, 'generous');
     const rules = zoom.locator('.con-zoom-sidecol');
-    await expect(rules, 'the rule says what a set is').toContainText(/РТ 25 — два|TR 25 is 2/);
-    await expect(rules, 'the breakdown behind the number').toContainText(/Учтены сейчас|Counted right now/);
-    await expect(rules, 'the rating').toContainText(/РТ 24|TR 24/);
-    await expect(rules, 'the threshold').toContainText(/порог 15|threshold 15/);
-    await expect(rules, 'the sets').toContainText(/1 полный набор|1 complete set/);
-    await expect(rules, 'the distance to the next set').toContainText(/до следующего 1|1 to the next set/);
-    await expect(rules, 'never «no card»').not.toContainText(/ни одна карта|No card counts/i);
+    await expect(rules, 'the printed text: the threshold').toContainText(/за каждые полные 5 РТ сверх 15|per full 5 TR you have above 15/);
     await expect(page.locator('dialog.con-zoom.con-zoom--parliament[open]:not(.con-zoom--flight)')).toHaveCount(1, {timeout: 10_000});
     await shoot(page, '03-fullscreen');
     await closeZoomViewer(page);

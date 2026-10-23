@@ -10,7 +10,7 @@ import {
 } from '@/common/parliament/tileGrant';
 import ConsoleTileGrant from '@/client/components/console/parliament/ConsoleTileGrant.vue';
 import {
-  TILE_GRANT_RULE_KEY, TileGrantReading, tileGrantCaptionOf, tileGrantDetailOf, tileGrantOutcomeOf, tileGrantReadingOf, tileGrantSentenceOf,
+  TileGrantReading, tileGrantCaptionOf, tileGrantDetailOf, tileGrantOutcomeOf, tileGrantReadingOf, tileGrantSentenceOf,
 } from '@/client/console/parliament/tileGrantModel';
 import {READING_KICKER_SEATED, READING_KICKER_SPECTATOR, voteReadingOf} from '@/client/console/parliament/voteInfoModel';
 import {resolutionAnnotations} from '@/client/console/parliament/parliamentAnnotations';
@@ -182,19 +182,11 @@ describe('SkyscrapersReadings (RX20)', () => {
       expect(spectator.grant).is.undefined;
     });
 
-    it('the inspector: the effect with the STACK rule under it, the quest last; «for you» reads the viewer\'s standing in words', () => {
+    it('the inspector: the printed text alone (the stack rule is the card\'s own sentence), the quest last — no «for you» block (texts 2026-10-23)', () => {
       const plain = resolutionAnnotations(SKY_ID);
       expect(plain.map((b) => b.labelKey)).deep.eq(['When enacted', 'Chairman quest']);
-      expect(plain[0].rows.map((r) => r.text)).deep.eq([sky().text.effect, TILE_GRANT_RULE_KEY]);
-      const seated = resolutionAnnotations(SKY_ID, [], undefined, undefined, undefined, {reading: tileGrantReadingOf(sky(), voting([seat(BLUE, 3, 2, 1)]), BLUE)});
-      expect(seated.map((b) => b.labelKey)).deep.eq(['When enacted', 'For you', 'Chairman quest']);
-      const you = seated[1].rows[0] as {text: string, params?: ReadonlyArray<string>};
-      expect(you.text).eq('${0}: ${1}');
-      expect(you.params?.[0]).contains('influence 2');
-      expect(you.params?.[1]).contains('1');
-      // Off the table the row does not exist — a reference reading says nothing personal.
-      expect(resolutionAnnotations(SKY_ID, [], undefined, undefined, undefined, {reading: tileGrantReadingOf(sky(), undefined, BLUE)}).map((b) => b.labelKey))
-        .deep.eq(['When enacted', 'Chairman quest']);
+      expect(plain[0].rows.map((r) => r.text)).deep.eq([sky().text.effect]);
+      expect(sky().text.effect).contains('Each city in the stack counts separately.');
     });
 
     it('the band: a `grant` chip on the reward line for a tier owed or placed — never for a skipped seat (its skip chip says that)', () => {

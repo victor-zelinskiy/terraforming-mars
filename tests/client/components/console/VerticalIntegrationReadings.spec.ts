@@ -102,7 +102,6 @@ describe('Vertical Integration — the readings of a count by card type', () => 
     expect(yieldCountPresentation('blueCards')).deep.eq({
       glyph: {kind: 'type-card', cardType: CardType.ACTIVE},
       pluralKey: '${0} blue card(s)',
-      ruleKey: 'Each blue (active) project card in play counts once, whatever it prints. Green cards, events, preludes, CEOs and your corporation do not count.',
       skipReasonKey: 'No blue cards and no influence',
     });
     // The other CARDS count of the catalog keeps its own drawing and its own sentence.

@@ -159,7 +159,7 @@ export const MARS_FIRST_BUDGET: ResolutionDefinition = {
   }),
   text: {
     name: 'Mars First Budget',
-    effect: 'Lose 12 M€. Then gain 1 M€ per building and Mars tag you have, plus 1 per influence. Then every player places a city tile, clockwise from the first player.',
+    effect: 'Lose 12 M€. Gain 1 M€ per building and Mars tag you have and 1 per influence. Every player places a city tile.',
     quest: 'Play 2 Mars tags',
   },
   quest: {goal: {kind: 'tag', tag: Tag.MARS}, count: 2},

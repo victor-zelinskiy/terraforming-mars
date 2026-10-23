@@ -188,24 +188,16 @@ describe('levelYieldModel (Joint Research)', () => {
     const presentation = levelPresentation(term);
     expect(presentation.skipReasonKey).eq('Already at the target hand size');
     expect(presentation.noneKey).eq(LEVEL_NONE_KEY);
-    for (const key of [LEVEL_UP_TO_KEY, LEVEL_IN_HAND_KEY, LEVEL_NONE_KEY, presentation.skipReasonKey, presentation.ruleKey]) {
+    for (const key of [LEVEL_UP_TO_KEY, LEVEL_IN_HAND_KEY, LEVEL_NONE_KEY, presentation.skipReasonKey]) {
       expect(RU[key], `«${key}» has a RU translation`).is.a('string');
     }
   });
 
-  it('the inspector\'s «for you» row names the target, the hand and the draw — and the zero as no draw needed', () => {
+  it('the inspector prints the printed text alone — no «for you» row, no rule sentence under the effect (the target, the hand and the draw are the vote panel\'s)', () => {
     const r = research();
-    const estimate = voteYieldsOf(r, model([seat({agenda: 5, influence: 3, hand: 5})]), BLUE);
-    const rows = resolutionAnnotations(r.id, estimate);
-    const forYou = rows.find((block) => block.id === 'group:you');
-    expect(forYou, 'a «for you» block').is.not.undefined;
-    const text = JSON.stringify(forYou);
-    expect(text).includes('Target right now');
-    expect(text).includes('"9"').and.includes('"5"').and.includes('"4"');
-    const zero = voteYieldsOf(r, model([seat({agenda: 5, influence: 3, hand: 9})]), BLUE);
-    expect(JSON.stringify(resolutionAnnotations(r.id, zero).find((block) => block.id === 'group:you'))).includes('no draw needed');
-    // The rule sentence stands under the effect.
-    const when = rows.find((block) => block.id === 'group:immediate');
-    expect(JSON.stringify(when)).includes('The hand is counted at the sitting');
+    const rows = resolutionAnnotations(r.id);
+    expect(rows.some((block) => block.id === 'group:you')).is.false;
+    expect(rows.find((block) => block.id === 'group:immediate')?.rows.map((row) => row.text)).deep.eq([r.text.effect]);
+    expect(r.text.effect).eq('Draw cards until you have 6 cards in hand plus 1 per influence.');
   });
 });

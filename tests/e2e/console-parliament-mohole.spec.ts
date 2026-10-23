@@ -112,16 +112,14 @@ test.describe(`Mohole Contest · ${PRESET.id}`, () => {
     expect(before.game.oceans, 'no ocean yet').toBe(0);
     await shoot(page, '01-verdict');
 
-    // ── ⓪ THE INSPECTION reads the winner's part HONESTLY, before anything has changed: at the verdict the
-    //      winner of record is FIXED (the recipient — «you raise it»), the step, its TR and what the track pays
-    //      on the way are read over the table AS IT STANDS — from the same room the server will pay by.
+    // ── ⓪ THE INSPECTION reads the winner's part — the printed text alone (texts 2026-10-23): the recipient, the
+    //      step, its TR and what the track pays on the way are the sitting's reading, never a row of the dossier.
     await openZoomViewer(page);
     const zoom = page.locator('dialog.con-zoom[open]');
     const rules = zoom.locator('.con-zoom-sidecol');
     await expect(rules).toContainText(/Победителю голосования|For the winner of the vote/);
     await expect(rules).toContainText(/Повысьте температуру на 2|Raise the temperature 2 steps/);
-    await expect(rules).toContainText(/Повышаете вы: температура -4 → 0 °C; РТ \+2; на 0 °C следует океан|You raise it: temperature -4 → 0 °C; TR \+2; an ocean follows at 0 °C/);
-    // Парламент v8 (the owner's point 9): the winner's part reads in the rules' words above — the dossier has no plate.
+    // Парламент v8 (the owner's point 9): the dossier has no plate — and no «ДЛЯ ВАС» row either.
     await expectDossierIsRules(page, 'mohole');
     await shoot(page, '01b-inspect-winner');
     await closeZoomViewer(page);

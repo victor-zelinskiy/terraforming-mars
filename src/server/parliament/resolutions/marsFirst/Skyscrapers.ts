@@ -106,7 +106,7 @@ export const SKYSCRAPERS: ResolutionDefinition = {
   }),
   text: {
     name: 'Skyscrapers',
-    effect: 'The winner of the vote and every player with at least 2 influence each gain a city tile, placed on top of one of their own cities on Mars.',
+    effect: 'The winner of the vote and every player with at least 2 influence place a city tile on top of one of their own cities on Mars. Each city in the stack counts separately.',
     quest: 'Place 2 city tiles on Mars',
   },
   quest: {goal: {kind: 'tile', tile: 'city'}, count: 2},

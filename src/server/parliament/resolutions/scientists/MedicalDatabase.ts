@@ -183,7 +183,7 @@ export const MEDICAL_DATABASE: ResolutionDefinition = {
   }),
   text: {
     name: 'Medical Database',
-    effect: 'Add 1 data or microbe resource per science tag you have, plus 1 per influence, to your cards that can hold data or microbes. Each resource may go on a different card.',
+    effect: 'Add 1 data or microbe per science tag you have, plus 1 per influence, to your cards. The resources may go on different cards.',
     quest: 'Play 2 science tags',
   },
   quest: {goal: {kind: 'tag', tag: Tag.SCIENCE}, count: 2},

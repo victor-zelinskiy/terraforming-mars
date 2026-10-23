@@ -156,7 +156,7 @@ export const REDS_BUDGET: ResolutionDefinition = {
   }),
   text: {
     name: 'Reds Budget',
-    effect: 'Lose 10 M€. Then gain 1 M€ per space and Mars tag you have, plus 1 per influence. Then every player advances their Agenda marker 1 step.',
+    effect: 'Lose 10 M€. Gain 1 M€ per space and Mars tag you have and 1 per influence. Every player advances their Agenda marker 1 step.',
     quest: 'Play 2 space tags',
   },
   quest: {goal: {kind: 'tag', tag: Tag.SPACE}, count: 2},

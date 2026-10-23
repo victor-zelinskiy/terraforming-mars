@@ -143,8 +143,8 @@ export const UNITY_BUDGET: ResolutionDefinition = {
   }),
   text: {
     name: 'Unity Budget',
-    effect: 'Lose 12 M€. Then gain 1 M€ per Earth, Venus and Jovian tag you have, plus 1 per influence.',
-    world: 'Advance every colony track 2 steps.',
+    effect: 'Lose 12 M€. Gain 1 M€ per Earth, Venus and Jovian tag you have and 1 per influence.',
+    world: 'Every colony track advances 2 steps.',
     quest: 'Play 2 Earth tags',
   },
   quest: {goal: {kind: 'tag', tag: Tag.EARTH}, count: 2},

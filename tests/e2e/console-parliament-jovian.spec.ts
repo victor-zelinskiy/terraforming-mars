@@ -242,16 +242,13 @@ test.describe('Jovian Tax Rights · standard-1080', () => {
       await expectParliamentFits(page, 'vote mode');
       await shoot(page, '02-vote-two-lines');
 
-      // ── THE FULLSCREEN: the production formula WITHOUT an influence term, the rule, the LIST of tiles behind the number.
+      // ── THE FULLSCREEN: the printed text alone — the list of tiles behind the number is the panel's (texts 2026-10-23).
       await openZoomViewer(page);
       const zoom = page.locator('dialog.con-zoom[open]');
       await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(RIGHTS_CLASS);
       await expectDossierIsRules(page, 'jovian');
       const rules = zoom.locator('.con-zoom-sidecol');
-      await expect(rules, 'the rule says what counts').toContainText(/две колонии на одном тайле дают 2|two colonies on one tile count twice/);
-      await expect(rules, 'the list behind the number').toContainText(/Учтены сейчас|Counted right now/);
-      await expect(rules).toContainText(/Луна ×2 · Титан · Миранда|Luna ×2 · Titan · Miranda/);
-      await expect(rules, 'never «no card»').not.toContainText(/ни одна карта|No card counts/i);
+      await expect(rules, 'the printed text').toContainText(/за каждую вашу колонию|per colony you have/);
       await expect(page.locator('dialog.con-zoom.con-zoom--parliament[open]:not(.con-zoom--flight)')).toHaveCount(1, {timeout: 10_000});
       await shoot(page, '03-fullscreen-tiles');
       await closeZoomViewer(page);

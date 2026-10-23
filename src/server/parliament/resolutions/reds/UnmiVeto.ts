@@ -133,7 +133,7 @@ export const UNMI_VETO: ResolutionDefinition = {
     // Open IP Trade's key — the same part, the same sentence.
     effect: 'Draw 1 card per influence.',
     // The block label says WHEN («Эффект, пока принята»); the sentence says WHAT.
-    passive: 'The player(s) with the highest terraform rating ignore any rating they would gain.',
+    passive: 'The players with the highest TR gain no TR.',
     // Mars First Budget's key — the same goal.
     quest: 'Play 2 Mars tags',
   },

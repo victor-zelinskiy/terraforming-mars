@@ -183,19 +183,16 @@ for (const preset of PRESETS) {
       await expectFits(page, `${preset.id} vote mode`);
       await shoot(page, preset.id, '02-vote-reading');
 
-      // ── THE FULLSCREEN INSPECTOR: the footer reads the same numbers; the rules name each counted card WITH its contribution.
+      // ── THE FULLSCREEN INSPECTOR: the rules are the printed text alone — the counted cards are the panel's (texts 2026-10-23).
       await openZoomViewer(page);
       const zoom = page.locator('dialog.con-zoom[open]');
       await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(GRID_CLASS);
       await expectDossierIsRules(page, preset.id);
       const rules = zoom.locator('.con-zoom-sidecol');
-      await expect(rules, 'the rules state the tag qualification in words').toContainText(/энергетическ|power tag/i);
-      await expect(rules, 'the counted cards behind the number').toContainText(/Учтены сейчас|Counted right now/);
-      await expect(rules, 'the card worth TWO tags says so').toContainText('×2');
-      await expect(rules, 'a card that only raises energy production is not counted').not.toContainText(/Искусственный фотосинтез|Artificial Photosynthesis/);
+      await expect(rules, 'the printed text names the tag').toContainText(/энергетическ|power tag/i);
       await expect(page.locator('dialog.con-zoom.con-zoom--parliament[open]:not(.con-zoom--flight)')).toHaveCount(1, {timeout: 10_000});
       await shoot(page, preset.id, '03-fullscreen');
-      // Paging to another resolution and back re-reads the grid's own numbers at once.
+      // Paging to another resolution and back re-reads the grid's own text at once.
       await press(page, 'BracketRight', 900);
       await expect(zoom.locator('.card-zoom-stage .pcard').first()).not.toHaveClass(GRID_CLASS, {timeout: 10_000});
       await press(page, 'BracketLeft', 900);

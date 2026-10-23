@@ -93,7 +93,6 @@ describe('Tax Breaks — the readings of a count by KIND', () => {
     expect(yieldCountPresentation('cardResourceTypes')).deep.eq({
       glyph: {kind: 'resource-card', wild: true},
       pluralKey: '${0} resource type(s)',
-      ruleKey: 'Each different type of resource on your cards counts once, your corporation included: two animal cards are one type. A card that can hold resources but has none yet adds no type.',
       skipReasonKey: 'No resources on your cards and no influence',
     });
     // The unit is the ordinary M€ production plate — the count's glyph is the only new drawing.
@@ -155,23 +154,18 @@ describe('Tax Breaks — the readings of a count by KIND', () => {
     expect(kindsReadingOf(yields)).is.undefined;
   });
 
-  it('the inspector («ДЛЯ ВАС»): the kinds in words with their cards; no «→» of a payout that lands nowhere', () => {
+  it('the inspector prints the printed text alone — no «ДЛЯ ВАС» block (the kinds in words are the vote panel\'s); the record reads the server\'s numbers', () => {
     const table = upForVote(TAX_ID, [seat(BLUE, 5, 3), seat(RED, 0, 0, [])]);
-    const forYou = resolutionAnnotations(TAX_ID, voteYieldsOf(law(TAX_ID), table, BLUE)).find((block) => block.id === 'group:you');
-    const text = JSON.stringify(forYou);
-    expect(text).includes('Counted right now: ${0}');
-    expect(text).includes(`${CardName.FISH}, ${CardName.BIRDS}`);
-    expect(text).not.includes(`${CardName.FISH} 2 → 3`);
-    // Recorded: the enactment's own words, frozen.
+    const blocks = resolutionAnnotations(TAX_ID);
+    expect(blocks.map((b) => b.labelKey)).deep.eq(['When enacted', 'Chairman quest']);
+    expect(blocks[0].rows.map((r) => r.text)).deep.eq([law(TAX_ID).text.effect]);
+    // Recorded: the enactment's own numbers, frozen.
     const enacted = {
       ...table, enacted: {instance: `${TAX_ID}#0`, resolution: TAX_ID, party: PartyName.INDUSTRIALISTS},
       lastPhase: {outcomes: [productionRecord(BLUE, 5, 3, FOUR, 6)]},
     } as unknown as ParliamentModel;
     const applied = enactedYieldsOf(law(TAX_ID), enacted, BLUE);
     expect(applied.find((y) => y.context === 'applied')).deep.include({amount: 5, count: 3, uncapped: 6});
-    const recorded = JSON.stringify(resolutionAnnotations(TAX_ID, applied).find((block) => block.id === 'group:you'));
-    expect(recorded).includes('Counted at the enactment: ${0}');
-    expect(recorded).includes(`${CardName.FISH}, ${CardName.BIRDS}`);
   });
 
   it('the results: «+5 M€ production» from the record — the kinds ride it for the inspector', () => {

@@ -186,7 +186,7 @@ export const GAS_EXPORT: ResolutionDefinition = {
   text: {
     name: 'Gas Export',
     effect: 'Gain 2 M€ for every point of your influence.',
-    world: 'Lower oxygen 1 step (unless it is at its maximum) and raise Venus 2 steps. Nobody gains TR for this.',
+    world: 'Oxygen is lowered 1 step and Venus is raised 2 steps. Nobody gains TR for this.',
     quest: 'Play 2 Venus tags',
   },
   quest: {goal: {kind: 'tag', tag: Tag.VENUS}, count: 2},

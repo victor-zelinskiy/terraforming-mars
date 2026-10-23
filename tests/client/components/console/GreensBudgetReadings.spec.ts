@@ -128,7 +128,6 @@ describe('Greens Budget — the readings of the fifth budget', () => {
     expect(yieldCountPresentation('plantMicrobeAnimalTags')).deep.eq({
       glyph: {kind: 'tags', tags: [Tag.ANIMAL, Tag.PLANT, Tag.MICROBE]},
       pluralKey: '${0} plant, microbe and animal tag(s)',
-      ruleKey: 'Each plant, microbe and animal tag counts: a card with two of them counts twice. Wild tags do not count.',
       skipReasonKey: 'No plant, microbe or animal tags and no influence',
     });
     const law = budget();

@@ -215,19 +215,16 @@ for (const preset of PRESETS) {
       await expectFits(page, `${preset.id} vote mode`);
       await shoot(page, preset.id, '02-vote-reading');
 
-      // ── THE FULLSCREEN INSPECTOR (Парламент v8): the rules in words — the numbers are the panel's; the winner's
-      //    tile for the viewer reads in the rules' last group («ДЛЯ ВАС», words only).
+      // ── THE FULLSCREEN INSPECTOR (Парламент v8, texts 2026-10-23): the printed texts alone — the numbers and the
+      //    winner's tile for the viewer are the panel's; no «ДЛЯ ВАС» block, no rule sentence under the winner's part.
       await openZoomViewer(page);
       const zoom = page.locator('dialog.con-zoom[open]');
       await expect(zoom.locator('.card-zoom-stage .pcard').first()).toHaveClass(BIODOME_CLASS);
       await expectDossierIsRules(page, preset.id);
       const rules = zoom.locator('.con-zoom-sidecol');
       await expect(rules).toContainText(/Получите по 2 растения за каждое влияние|Gain 2 plants for every point of your influence/);
-      await expect(rules).toContainText(/Бесплатно разместите тайл озеленения|Place a greenery tile for free/);
-      await expect(rules).toContainText(/1 РТ за озеленение и 1 РТ за шаг кислорода|1 TR for the greenery and 1 TR for the oxygen step/);
+      await expect(rules).toContainText(/Разместите тайл озеленения|Place a greenery tile/);
       await expect(rules).toContainText(/Разместите 2 озеленения|Place 2 greeneries/);
-      // FOR YOU: the winner's reading in words — on the Deck the footer has no room for the chip, so this row is it.
-      await expect(rules).toContainText(/Если победите: кислород 5 → 6 %; РТ \+2 \(за тайл \+1, за кислород \+1\)|If you win: oxygen 5 → 6 %; TR \+2 \(for the tile \+1, for oxygen \+1\)/);
       await expectFits(page, `${preset.id} fullscreen`, 'dialog.con-zoom[open]');
       await shoot(page, preset.id, '03-fullscreen');
       await closeZoomViewer(page);
@@ -290,12 +287,11 @@ for (const preset of PRESETS) {
       await openZoomViewer(page, 'KeyC');
       await expect(page.locator('dialog.con-zoom.con-zoom--parliament[open]'), 'L3 opens the RESOLUTION inspector').toHaveCount(1);
       await expect(page.locator('dialog.con-zoom[open] .card-zoom-stage .pcard').first()).toHaveClass(BIODOME_CLASS);
-      // Парламент v8: the FIXED recipient reads in the rules' «ДЛЯ ВАС» words (the dossier carries no plate).
+      // Парламент v8 (texts 2026-10-23): the dossier is the printed texts — the recipient and the tile's numbers are the
+      // board's dossier and the sitting's, never a row here.
       await expectDossierIsRules(page, `${preset.id} source`);
       const sourceRules = page.locator('dialog.con-zoom[open] .con-zoom-sidecol');
-      await expect(sourceRules).toContainText(/Размещаете вы|You place it/);
-      await expect(sourceRules).toContainText(/7 → 8/);
-      await expect(sourceRules).toContainText(/РТ \+3|TR \+3/);
+      await expect(sourceRules).toContainText(/Разместите тайл озеленения|Place a greenery tile/);
       await shoot(page, preset.id, '06-source-inspector');
       await closeZoomViewer(page);
       await expect.poll(async () => await placementState(page), {timeout: 10_000, message: 'inspection does not cancel the placement'}).not.toBe('none');
@@ -374,11 +370,10 @@ for (const preset of PRESETS) {
       expect(rows.some((r) => /РТ|TR/.test(r.label) && /Тайл озеленения|Greenery tile/.test(r.note + r.why.join(' ') + r.label)) ||
         rows.some((r) => /РТ|TR/.test(r.label)), `the tile's own TR stands (${JSON.stringify(rows)})`).toBe(true);
       await openZoomViewer(page, 'KeyC');
-      // Парламент v8: the maxed oxygen and the tile's own TR read in the rules' «ДЛЯ ВАС» words.
+      // Парламент v8 (texts 2026-10-23): the dossier is the printed texts — the maxed oxygen reads on the board's dossier.
       await expectDossierIsRules(page, `${preset.id} maxed source`);
       const maxedRules = page.locator('dialog.con-zoom[open] .con-zoom-sidecol');
-      await expect(maxedRules).toContainText(/кислород на максимуме|oxygen at its maximum/i);
-      await expect(maxedRules).toContainText(/РТ \+1|TR \+1/);
+      await expect(maxedRules).toContainText(/Разместите тайл озеленения|Place a greenery tile/);
       await shoot(page, preset.id, '09-maxed-source');
       await closeZoomViewer(page);
       await expect.poll(async () => await placementState(page), {timeout: 10_000}).not.toBe('none');

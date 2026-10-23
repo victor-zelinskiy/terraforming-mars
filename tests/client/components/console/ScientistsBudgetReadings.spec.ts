@@ -102,7 +102,6 @@ describe('Scientists Budget — the readings of the second budget', () => {
     expect(yieldCountPresentation('scienceTags')).deep.eq({
       glyph: {kind: 'tag', tag: Tag.SCIENCE},
       pluralKey: '${0} science tag(s)',
-      ruleKey: 'Each science tag counts: a card with two science tags counts twice. Wild tags do not count.',
       skipReasonKey: 'No science tags and no influence',
     });
     const law = budget();

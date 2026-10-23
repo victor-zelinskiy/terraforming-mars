@@ -303,8 +303,6 @@ describe('influenceYieldModel', () => {
     expect(presentation.glyph).deep.eq({kind: 'tile', tile: 'spaceCity'});
     expect(presentation.pluralKey).eq('${0} space city(-ies)');
     expect(presentation.skipReasonKey).eq('No space cities and no influence');
-    expect(presentation.ruleKey).contains('off Mars');
-    expect(presentation.ruleKey).contains('Moon');
     // The other counts keep their objects — the family did not move.
     expect(yieldCountPresentation('powerTags').glyph).deep.eq({kind: 'tag', tag: Tag.POWER});
     expect(yieldCountPresentation('buildingCardsWithNonNegativeVp').glyph).deep.eq({kind: 'vp-card', tag: Tag.BUILDING});
@@ -393,8 +391,6 @@ describe('influenceYieldModel', () => {
     expect(presentation.glyph).deep.eq({kind: 'tile', tile: 'marsCity'});
     expect(presentation.pluralKey).eq('${0} city(-ies) on Mars');
     expect(presentation.skipReasonKey).eq('No cities on Mars and no influence');
-    expect(presentation.ruleKey).contains('stack of two counts twice');
-    expect(presentation.ruleKey).contains('off Mars does not count');
     // Skyscrapers' count of DESTINATIONS keeps its own words beside it.
     expect(yieldCountPresentation('marsCities').glyph).deep.eq({kind: 'tile', tile: 'marsCity'});
     expect(yieldCountPresentation('marsCities').skipReasonKey).eq('No city on Mars to build on');
@@ -485,8 +481,6 @@ describe('influenceYieldModel', () => {
     expect(presentation.glyph).deep.eq({kind: 'metric', metric: 'terraformRating'});
     expect(presentation.pluralKey).eq('${0} complete set(s) of 5 TR over 15');
     expect(presentation.skipReasonKey).eq('No TR sets and no influence');
-    expect(presentation.ruleKey).contains('TR 25 is 2');
-    expect(presentation.ruleKey).contains('remainder pays nothing');
     // The other counts keep their objects — the family did not move.
     expect(yieldCountPresentation('spaceCities').glyph).deep.eq({kind: 'tile', tile: 'spaceCity'});
     expect(yieldCountPresentation('powerTags').glyph).deep.eq({kind: 'tag', tag: Tag.POWER});

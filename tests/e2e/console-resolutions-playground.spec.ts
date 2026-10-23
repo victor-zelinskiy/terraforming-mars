@@ -267,8 +267,8 @@ for (const preset of PRESETS) {
       await expect(slot.locator('.pcard')).toHaveClass(/pcard--resolution-art/);
       await expect(slot.locator('.pcard__mech .pvpcard[data-vp-card-tag="building"]')).toHaveCount(1);
       await press(page, 'BracketRight', 700);
-      // The inspector's columns name the counted cards for the test player (the rules panel).
-      await expect(page.locator('[data-rxpg-inspect] .con-rxpg__rules')).toContainText(/Учтены сейчас|Counted right now/);
+      // The inspector's columns read the printed text (the rules panel).
+      await expect(page.locator('[data-rxpg-inspect] .con-rxpg__rules')).toContainText(/неотрицательным значком ПО|non-negative VP icon/);
       await shoot(page, preset.id, '10-award-sizes');
       await press(page, 'BracketRight', 700);
 
@@ -542,8 +542,7 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, '30-grid-catalog');
       // RB → the face at the three sizes + the inspector's columns; RB again → the scenario section.
       await press(page, 'BracketRight', 700);
-      await expect(page.locator('[data-rxpg-inspect] .con-rxpg__rules')).toContainText(/Учтены сейчас|Counted right now/);
-      await expect(page.locator('[data-rxpg-inspect] .con-rxpg__rules'), 'the tag rule in words').toContainText(/энергетическ|power tag/i);
+      await expect(page.locator('[data-rxpg-inspect] .con-rxpg__rules'), 'the printed text names the tag').toContainText(/энергетическ|power tag/i);
       await shoot(page, preset.id, '30b-grid-sizes');
       await press(page, 'BracketRight', 700);
 
@@ -626,7 +625,6 @@ for (const preset of PRESETS) {
       const zoom = page.locator('dialog.con-zoom[open]');
       await expect(zoom.locator('.card-zoom-stage .pcard').first()).toHaveClass(/rdx-industrialists-central-power-grid/);
       await expect(zoom.locator('.con-zoom-sidecol')).toContainText(/энергетическ|power tag/i);
-      await expect(zoom.locator('.con-zoom-sidecol'), 'the card worth two says so').toContainText('\u00d72');
       await shoot(page, preset.id, '40-grid-fullscreen');
       await press(page, 'Escape', 900);
     });

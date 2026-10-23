@@ -145,7 +145,7 @@ export const PLANT_BAN: ResolutionDefinition = {
   }),
   text: {
     name: 'Plant Ban',
-    effect: 'Lose all plants above 2 plus 1 per influence. If you have no more than that, lose nothing.',
+    effect: 'Lose all plants above 2 plus 1 per influence. No card protects against this.',
     quest: 'Send 4 delegates to resolutions',
   },
   quest: {goal: {kind: 'delegates'}, count: PLANT_BAN_QUEST_DELEGATES},

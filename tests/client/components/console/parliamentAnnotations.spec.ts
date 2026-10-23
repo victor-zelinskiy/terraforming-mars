@@ -1,27 +1,26 @@
 import {expect} from 'chai';
-import {Resource} from '@/common/Resource';
 import {ColonyName} from '@/common/colonies/ColonyName';
-import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {REDUX_PARTIES} from '@/common/parliament/ParliamentTypes';
 import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {CardName} from '@/common/cards/CardName';
 import {allResolutions, getResolution} from '@/client/parliament/ClientParliamentManifest';
-import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {EffectForecast} from '@/common/models/EffectForecastModel';
 
 /**
  * THE INSPECTOR'S READING BLOCKS for a parliament subject (Turmoil Redux).
  * The project card's language: the GRAPHIC is on the card, the blocks beside
  * it explain it in words and never draw it again. A resolution reads as one
- * scene: its OWN rules on the right (its effect part by part, labelled by
- * when it applies, then the quest's condition), its PARTY's mechanics on the
- * left (the plaque draws the formula, these blocks say the sentences), and
- * the footer states the standing — so no block restates the table, the
- * general rules, a technical note or the viewer's state. A party opened on
- * its own keeps its fuller reading (the mechanics, «for you» with the live
- * state, one reference line).
+ * scene: its OWN rules on the right (its PRINTED texts part by part, labelled
+ * by when they apply, then the quest's condition — the owner's direction
+ * 2026-10-23: the project card's dose, no qualification sentence under an
+ * effect, no «for you» block), its PARTY's mechanics on the left (the plaque
+ * draws the formula, these blocks say the sentences), and the footer states
+ * the standing — so no block restates the table, the general rules, a
+ * technical note or the viewer's state. A party opened on its own keeps its
+ * fuller reading (the mechanics, «for you» with the live state, one reference
+ * line).
  */
 
 const GRID = 'RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID';
@@ -161,25 +160,89 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
   });
 
   /*
+   * THE DOSE (the owner's direction 2026-10-23): a resolution's dossier is its PRINTED TEXTS and nothing else — the way
+   * a project card's rules panel reads. No sentence on which cards count, what a stack scores or when the hand is read
+   * (those once stood under the effect and read as a wall of text); no «for you» block (the viewer's number, the counted
+   * cards, the winner's tile and the levy are the vote panel's). The one row that is not a printed text is the declared
+   * count of a resolution ACTION (Manufacturing Run) — and only there.
+   */
+  it('every SHIPPED resolution reads its PRINTED texts alone — no qualification sentence, no «for you» block; the action\'s declared count is the one addition', () => {
+    for (const resolution of allResolutions().filter((r) => r.copies > 0)) {
+      const blocks = resolutionAnnotations(resolution.id);
+      expect(blocks.map((b) => b.id), `${resolution.id}: no «for you»`).to.not.include('group:you');
+      const printed = [resolution.text.effect, resolution.text.world, resolution.text.winner, resolution.text.passive, resolution.text.action, resolution.text.quest];
+      for (const block of blocks) {
+        for (const row of block.rows) {
+          if (printed.includes(row.text)) {
+            continue;
+          }
+          expect(block.id, `${resolution.id}: «${row.text}» is not a printed text of the card`).to.eq('group:action');
+          expect(resolution.actionUses, `${resolution.id}: only a declared count may stand under the action`).to.not.be.undefined;
+        }
+        expect(block.rows.length, `${resolution.id}: ${block.id} is one printed text`).to.be.at.most(block.id === 'group:action' ? 2 : 1);
+      }
+    }
+  });
+
+  it('the counted and the levied laws read their printed sentence and nothing else', () => {
+    const expected: Record<string, [string, string]> = {
+      RDX_MARS_ARCHITECTURE_AWARD: ['Raise your M€ production 1 step per building card with a non-negative VP icon you have in play, plus 1 per influence. Max 5.', 'Play 2 building tags'],
+      RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID: ['Raise your M€ production 1 step per power tag you have, plus 1 per influence. Max 5.', 'Play 2 power tags'],
+      RDX_UNITY_COLONIZATION_FUNDING: ['Raise your M€ production 2 steps per space city (a city off Mars) you have, plus 1 per influence. Max 6.', 'Place 1 space city'],
+      RDX_MARSFIRST_MIGRATION_FUNDING: ['Gain 2 M€ per city you have on Mars, plus 2 per influence. Each city in a stack counts separately.', 'Place 2 city tiles on Mars'],
+      RDX_GREENS_GENEROUS_FUNDING: ['Gain 2 M€ per influence and 2 M€ per full 5 TR you have above 15.', 'Raise your TR 3 steps'],
+      RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET: ['Lose 10 M€. Gain 1 M€ per step of steel, titanium and energy production you have and 1 per influence. Raise your M€ production 4 steps.', 'Raise your steel production 1 step'],
+      RDX_UNITY_JOVIAN_TAX_RIGHTS: ['Gain 1 titanium for every point of your influence. Raise your M€ production 1 step per colony you have. Max 5.', 'Play 2 Jovian tags'],
+    };
+    for (const [id, [effect, quest]] of Object.entries(expected)) {
+      const blocks = resolutionAnnotations(id);
+      expect(blocks.map((b) => b.labelKey), id).to.deep.eq(['When enacted', 'Chairman quest']);
+      expect(texts([blocks[0]]), id).to.deep.eq([effect]);
+      expect(texts([blocks[1]]), id).to.deep.eq([quest]);
+    }
+  });
+
+  it('where a nuance of THIS implementation matters it is INSIDE the printed text, one short sentence — never a block of its own', () => {
+    const text = (id: string, field: 'effect' | 'passive' | 'world') => getResolution(id)?.text[field] ?? '';
+    expect(text('RDX_MARS_SKYSCRAPERS', 'effect')).to.contain('Each city in the stack counts separately.');
+    expect(text('RDX_REDS_PLANT_BAN', 'effect')).to.contain('No card protects against this.');
+    expect(text('RDX_UNITY_CLOUD_DEVELOPMENT', 'effect')).to.contain('The floaters may go on different cards.');
+    expect(text('RDX_SCIENTISTS_MEDICAL_DATABASE', 'effect')).to.contain('The resources may go on different cards.');
+    expect(text('RDX_REDS_DIVERTED_RESEARCH', 'passive')).to.contain('Even if the parameter is at its maximum.');
+    expect(text('RDX_REDS_GAS_EXPORT', 'world')).to.contain('Nobody gains TR for this.');
+    // …and the edge cases that once filled the dossier are gone from the texts too.
+    for (const resolution of allResolutions().filter((r) => r.copies > 0)) {
+      for (const field of ['effect', 'winner', 'passive', 'action', 'world'] as const) {
+        const value = resolution.text[field];
+        if (value === undefined) {
+          continue;
+        }
+        expect(value, `${resolution.id}.${field}`).to.not.match(/unless|If you already|clockwise|that can hold|for free\. Raise/);
+        expect(value.length, `${resolution.id}.${field} reads in one breath`).to.be.at.most(200);
+      }
+    }
+  });
+
+  /*
    * THE COLONY TABLE'S BLOCK (Unity Budget, RX29): the world block, headed by what it moves, printing the
    * law's sentence and — against a live table — every tile's marker, a tile at the end of its track named.
    */
   it('a law that advances the colony tracks reads its own block: the declaration alone without a table, every tile against a live one', () => {
     const id = 'RDX_UNITY_UNITY_BUDGET';
-    const reference = resolutionAnnotations(id, undefined, undefined, {table: undefined});
+    const reference = resolutionAnnotations(id, {table: undefined});
     const block = reference.find((b) => b.id === 'group:world');
     expect(block?.labelKey).eq('What it does to the colony table');
-    expect(block?.rows.map((r) => r.text)).deep.eq(['Advance every colony track 2 steps.']);
+    expect(block?.rows.map((r) => r.text)).deep.eq(['Every colony track advances 2 steps.']);
     const colonies = [
       {name: ColonyName.LUNA, trackPosition: 3, isActive: true, colonies: [], visitor: undefined},
       {name: ColonyName.IO, trackPosition: 6, isActive: true, colonies: [], visitor: undefined},
       {name: ColonyName.MIRANDA, trackPosition: 1, isActive: false, colonies: [], visitor: undefined},
     ];
-    const live = resolutionAnnotations(id, undefined, undefined, {table: undefined, colonies}).find((b) => b.id === 'group:world');
-    expect(live?.rows.map((r) => r.text)).deep.eq(['Advance every colony track 2 steps.', '${0}: ${1}', '${0}: ${1}']);
+    const live = resolutionAnnotations(id, {table: undefined, colonies}).find((b) => b.id === 'group:world');
+    expect(live?.rows.map((r) => r.text)).deep.eq(['Every colony track advances 2 steps.', '${0}: ${1}', '${0}: ${1}']);
     expect(live?.rows.slice(1).map((r) => r.params)).deep.eq([['Luna', '3 → 5'], ['Io', 'track at its maximum']]);
     // The record outranks the table: the server's own list.
-    const applied = resolutionAnnotations(id, undefined, undefined, {table: undefined, colonies, enacted: true, outcomes: [
+    const applied = resolutionAnnotations(id, {table: undefined, colonies, enacted: true, outcomes: [
       {step: 'colonyTracks', part: 'world', kind: 'colonyTrack', amount: 2, tracks: [{colony: ColonyName.LUNA, before: 2, after: 4}]},
     ]}).find((b) => b.id === 'group:world');
     expect(applied?.rows.slice(1).map((r) => r.params)).deep.eq([['Luna', '2 → 4']]);
@@ -209,159 +272,6 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     }
   });
 
-  it('a COUNTED effect (Architecture Award): the effect, one sentence on which cards count, then — for a viewer — WHICH cards were counted', () => {
-    const id = 'RDX_MARS_ARCHITECTURE_AWARD';
-    const effect = getResolution(id)?.scaled?.[0];
-    if (effect === undefined) {
-      throw new Error('Architecture Award declares no scaled effect');
-    }
-    const bare = resolutionAnnotations(id);
-    expect(bare.map((b) => b.labelKey), 'no viewer → no «for you»').to.deep.eq(['When enacted', 'Chairman quest']);
-    expect(texts([bare[0]])).to.deep.eq([
-      'Raise your M€ production 1 step per building card with a VP icon you have in play, plus 1 per influence. Max 5.',
-      'A card with a variable VP icon counts even at 0 VP. A card with a negative VP icon or no VP icon does not.',
-    ]);
-    expect(texts([bare[1]])).to.deep.eq(['Play 2 building tags']);
-    const now: InfluenceYield = {effect, context: 'estimate', influence: 2, amount: 4, count: 2, counted: [CardName.ARTIFICIAL_LAKE, CardName.MINE]};
-    const live = resolutionAnnotations(id, [now, {...now, context: 'forecast'}]);
-    expect(live.map((b) => b.labelKey)).to.deep.eq(['When enacted', 'For you', 'Chairman quest']);
-    expect(live[1].rows[0].text).to.eq('Counted right now: ${0}');
-    expect(live[1].rows[0].params?.[0]).to.contain(' · ');
-    // Nothing counted AT the enactment — the record is B = 0 with an empty list.
-    const recorded = resolutionAnnotations(id, [{...now, context: 'applied', count: 0, counted: []}]);
-    expect(texts([recorded[1]])).to.deep.eq(['No card was counted at the enactment']);
-  });
-
-  it('a TAG-COUNTED effect (Central Power Grid): its own qualification sentence, and each card with what IT contributed', () => {
-    const id = 'RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID';
-    const effect = getResolution(id)?.scaled?.[0];
-    if (effect === undefined) {
-      throw new Error('Central Power Grid declares no scaled effect');
-    }
-    const bare = resolutionAnnotations(id);
-    expect(bare.map((b) => b.labelKey), 'no winner block — this card has no winner part').to.deep.eq(['When enacted', 'Chairman quest']);
-    expect(texts([bare[0]])).to.deep.eq([
-      'Raise your M€ production 1 step per power tag you have, plus 1 per influence. Max 5.',
-      'Each power tag counts: a card with two power tags counts twice. Wild tags and energy production do not count.',
-    ]);
-    expect(texts([bare[1]])).to.deep.eq(['Play 2 power tags']);
-    const now: InfluenceYield = {
-      effect, context: 'estimate', influence: 2, amount: 5, count: 3,
-      counted: [CardName.HE3_FUSION_PLANT, CardName.POWER_PLANT], countedUnits: [2, 1],
-    };
-    const live = resolutionAnnotations(id, [now]);
-    expect(live.map((b) => b.labelKey)).to.deep.eq(['When enacted', 'For you', 'Chairman quest']);
-    expect(live[1].rows[0].text).to.eq('Counted right now: ${0}');
-    // The card worth two says so; the card worth one does not carry a ×1.
-    expect(live[1].rows[0].params?.[0]).to.contain('×2');
-    expect(live[1].rows[0].params?.[0]).to.not.contain('×1');
-    const recorded = resolutionAnnotations(id, [{...now, context: 'applied', count: 0, counted: [], countedUnits: []}]);
-    expect(texts([recorded[1]])).to.deep.eq(['No card was counted at the enactment']);
-  });
-
-  it('a BOARD-COUNTED effect (Colonization Funding): its own qualification sentence, and the CELLS behind the number — by the board layer\'s names, else the number', () => {
-    const id = 'RDX_UNITY_COLONIZATION_FUNDING';
-    const effect = getResolution(id)?.scaled?.[0];
-    if (effect === undefined) {
-      throw new Error('Colonization Funding declares no scaled effect');
-    }
-    const bare = resolutionAnnotations(id);
-    expect(bare.map((b) => b.labelKey), 'no winner block — this card has no winner part').to.deep.eq(['When enacted', 'Chairman quest']);
-    expect(texts([bare[0]])).to.deep.eq([
-      'Raise your M€ production 2 steps per space city you have, plus 1 per influence. Max 6.',
-      'A city on a reserved area off Mars counts: Ganymede Colony, Phobos Space Haven, Stanford Torus and the like. Cities on Mars and on the Moon do not.',
-    ]);
-    expect(texts([bare[1]])).to.deep.eq(['Place 1 space city']);
-    // Two named reserved areas: the row lists them by the names the placement hints already print.
-    const now: InfluenceYield = {effect, context: 'estimate', influence: 3, amount: 6, count: 2, counted: [], countedSpaces: ['01', '02'], uncapped: 7};
-    const live = resolutionAnnotations(id, [now]);
-    expect(live.map((b) => b.labelKey)).to.deep.eq(['When enacted', 'For you', 'Chairman quest']);
-    expect(live[1].rows[0].text).to.eq('Counted right now: ${0}');
-    expect(live[1].rows[0].params?.[0]).to.eq('Ganymede Colony · Phobos Space Haven');
-    // A cell the board layer does not name: the row prints the NUMBER (the plural of the counted object), never an invented name.
-    const unnamed = resolutionAnnotations(id, [{...now, count: 2, countedSpaces: ['01', '75']}]);
-    expect(unnamed[1].rows[0].text).to.eq('Counted right now: ${0}');
-    expect(unnamed[1].rows[0].params?.[0]).to.match(/^2 /);
-    expect(unnamed[1].rows[0].params?.[0]).to.not.contain('75');
-    // Nothing counted at the enactment — said in the object's own terms (a tile, never «no card»).
-    const recorded = resolutionAnnotations(id, [{...now, context: 'applied', count: 0, countedSpaces: [], amount: 3, uncapped: 3}]);
-    expect(texts([recorded[1]])).to.deep.eq(['No tile was counted at the enactment']);
-    expect(texts([resolutionAnnotations(id, [{...now, count: 0, countedSpaces: [], amount: 3, uncapped: 3}])[1]])).to.deep.eq(['No tile counts right now']);
-  });
-
-  it('a BOARD-COUNTED effect of the `tiers` measure (Migration Funding): the rule of the stack; a named stack reads «×2»; unnamed cells read the number, then the cells and each stack that make it exceed them', () => {
-    const id = 'RDX_MARSFIRST_MIGRATION_FUNDING';
-    const effect = getResolution(id)?.scaled?.[0];
-    if (effect === undefined) {
-      throw new Error('Migration Funding declares no scaled effect');
-    }
-    const bare = resolutionAnnotations(id);
-    expect(bare.map((b) => b.labelKey), 'no winner block — this card has no winner part').to.deep.eq(['When enacted', 'Chairman quest']);
-    expect(texts([bare[0]])).to.deep.eq([
-      'Gain 2 M€ per city you have on Mars, plus 2 per influence. Each city in a stack counts separately.',
-      'Each city of yours on Mars counts: a stack of two counts twice. A city off Mars does not count.',
-    ]);
-    expect(texts([bare[1]])).to.deep.eq(['Place 2 city tiles on Mars']);
-    // Every counted cell named: the list, the stack with its weight — the board's own «×2». (The names are the board layer's
-    // and, without a board, only the reserved areas carry one — Noctis City and the mountains are Tharsis's — so the
-    // named case is exercised over the areas; on Mars itself the ordinary cells read by number, the next case.)
-    const now: InfluenceYield = {effect, context: 'estimate', influence: 3, amount: 12, count: 3, counted: [], countedSpaces: ['01', '02'], countedTiers: [2, 1]};
-    const named = resolutionAnnotations(id, [now]);
-    expect(named.map((b) => b.labelKey)).to.deep.eq(['When enacted', 'For you', 'Chairman quest']);
-    expect(named[1].rows[0].text).to.eq('Counted right now: ${0}');
-    expect(named[1].rows[0].params?.[0]).to.eq('Ganymede Colony ×2 · Phobos Space Haven');
-    // Unnamed cells with a stack: the number, then what makes it exceed the cells — how many cells, and the stack.
-    const unnamed = resolutionAnnotations(id, [{...now, count: 4, amount: 14, countedSpaces: ['35', '42', '47'], countedTiers: [1, 1, 2]}]);
-    expect(unnamed[1].rows[0].text).to.eq('Counted right now: ${0}');
-    expect(unnamed[1].rows[0].params?.[0]).to.match(/^4 /);
-    expect(unnamed[1].rows[0].params?.[0]).to.match(/ · 3 cell/);
-    expect(unnamed[1].rows[0].params?.[0]).to.match(/ · a stack of 2$/);
-    expect(unnamed[1].rows[0].params?.[0]).to.not.contain('47');
-    // A named stack among unnamed cells is named; two stacks are two entries.
-    const mixed = resolutionAnnotations(id, [{...now, count: 6, amount: 18, countedSpaces: ['35', '01', '42'], countedTiers: [1, 2, 3]}]);
-    expect(mixed[1].rows[0].params?.[0]).to.match(/^6 .* · 3 cell.* · Ganymede Colony ×2 · a stack of 3$/);
-    // No stack among unnamed cells: the number alone — nothing to explain beyond the rule sentence.
-    const plain = resolutionAnnotations(id, [{...now, count: 3, amount: 12, countedSpaces: ['35', '42', '47'], countedTiers: [1, 1, 1]}]);
-    expect(plain[1].rows[0].params?.[0]).to.match(/^3 /);
-    expect(plain[1].rows[0].params?.[0]).to.not.contain('cell');
-    // The record reads the same way, frozen; nothing counted — said in the object's own terms (a tile, never «no card»).
-    const applied = resolutionAnnotations(id, [{...now, context: 'applied', count: 4, amount: 14, countedSpaces: ['01', '35', '42'], countedTiers: [2, 1, 1]}]);
-    expect(applied[1].rows[0].text).to.eq('Counted at the enactment: ${0}');
-    expect(applied[1].rows[0].params?.[0]).to.match(/^4 .* · 3 cell.* · Ganymede Colony ×2$/);
-    expect(texts([resolutionAnnotations(id, [{...now, context: 'applied', count: 0, amount: 6, countedSpaces: [], countedTiers: []}])[1]])).to.deep.eq(['No tile was counted at the enactment']);
-    expect(texts([resolutionAnnotations(id, [{...now, count: 0, amount: 6, countedSpaces: [], countedTiers: []}])[1]])).to.deep.eq(['No tile counts right now']);
-  });
-
-  it('a THRESHOLD-COUNTED effect (Generous Funding): its own qualification sentence, and the BREAKDOWN of the rating behind the number — never a list, never «no card»', () => {
-    const id = 'RDX_GREENS_GENEROUS_FUNDING';
-    const effect = getResolution(id)?.scaled?.[0];
-    if (effect === undefined) {
-      throw new Error('Generous Funding declares no scaled effect');
-    }
-    const bare = resolutionAnnotations(id);
-    expect(bare.map((b) => b.labelKey), 'no winner block — this card has no winner part').to.deep.eq(['When enacted', 'Chairman quest']);
-    expect(texts([bare[0]])).to.deep.eq([
-      'Gain 2 M€ per influence and 2 M€ per full 5 TR you have above 15.',
-      'Each full 5 TR above 15 is one set: TR 20 is 1 set, TR 24 still 1, TR 25 is 2. The remainder pays nothing.',
-    ]);
-    expect(texts([bare[1]])).to.deep.eq(['Raise your TR 3 steps']);
-    // The row is the breakdown of the VALUE: «TR 24 · threshold 15 · 1 complete set · 1 to the next set» — the server's numbers.
-    const metric = {metric: 'terraformRating' as const, value: 24, over: 15, step: 5, sets: 1, toNext: 1};
-    const now: InfluenceYield = {effect, context: 'estimate', influence: 3, amount: 8, count: 1, counted: [], countedMetric: metric};
-    const live = resolutionAnnotations(id, [now]);
-    expect(live.map((b) => b.labelKey)).to.deep.eq(['When enacted', 'For you', 'Chairman quest']);
-    expect(live[1].rows[0].text).to.eq('Counted right now: ${0}');
-    expect(live[1].rows[0].params?.[0]).to.eq('TR 24 · threshold 15 · 1 complete set(s) · 1 to the next set');
-    // Zero sets is still a breakdown (TR 19: one point short) — never «no card counts right now».
-    const short = resolutionAnnotations(id, [{...now, count: 0, amount: 6, countedMetric: {...metric, value: 19, sets: 0, toNext: 1}}]);
-    expect(short[1].rows[0].params?.[0]).to.eq('TR 19 · threshold 15 · 0 complete set(s) · 1 to the next set');
-    expect(texts(short)).to.not.include('No card counts right now');
-    // Once recorded, the row says so and prints the RECORDED breakdown.
-    const recorded = resolutionAnnotations(id, [{...now, context: 'applied'}]);
-    expect(recorded[1].rows[0].text).to.eq('Counted at the enactment: ${0}');
-    expect(recorded[1].rows[0].params?.[0]).to.eq('TR 24 · threshold 15 · 1 complete set(s) · 1 to the next set');
-  });
-
   it('an unknown resolution reads nothing (never a blank chip)', () => {
     expect(resolutionAnnotations('RDX_NOT_A_CARD')).to.deep.eq([]);
   });
@@ -377,75 +287,6 @@ describe('parliamentAnnotations — the fullscreen inspector\'s reading blocks',
     }
     // The rules column is untouched either way.
     expect(resolutionAnnotations(GRID).map((b) => b.labelKey)).to.deep.eq(['When enacted', 'Chairman quest']);
-  });
-
-  it('a PRODUCTION-COUNTED effect behind a LEVY (Industrialist Budget): the qualification sentence, the LEVY row FIRST, then the breakdown by resource — a zero listed, never «no card»', () => {
-    const id = 'RDX_INDUSTRIALISTS_INDUSTRIALIST_BUDGET';
-    const effect = getResolution(id)?.scaled?.[0];
-    if (effect === undefined) {
-      throw new Error('Industrialist Budget declares no scaled effect');
-    }
-    const bare = resolutionAnnotations(id);
-    expect(bare.map((b) => b.labelKey), 'no winner block, no world block').to.deep.eq(['When enacted', 'Chairman quest']);
-    expect(texts([bare[0]])).to.deep.eq([
-      'Lose 10 M€. Then gain 1 M€ per step of steel, titanium and energy production you have, plus 1 per influence. Then raise your M€ production 4 steps.',
-      'Each step of steel, titanium and energy production counts, added up. Resources in your supply do not count.',
-    ]);
-    expect(texts([bare[1]])).to.deep.eq(['Raise your steel production 1 step']);
-    const track = [{resource: Resource.STEEL, count: 2}, {resource: Resource.TITANIUM, count: 0}, {resource: Resource.ENERGY, count: 3}];
-    const now: InfluenceYield = {effect, context: 'estimate', influence: 2, amount: 7, count: 5, counted: [], countedByResource: track};
-    const levy: LevyReading = {resource: Resource.MEGACREDITS, context: 'estimate', owed: 10, paid: 10, short: false, held: 34, payout: {effectId: 'megacredits', amount: 7}, net: -3};
-    const live = resolutionAnnotations(id, [now], undefined, undefined, levy);
-    expect(live.map((b) => b.labelKey)).to.deep.eq(['When enacted', 'For you', 'Chairman quest']);
-    // The printed order: the levy first, then what the payout was counted from.
-    expect(live[1].rows.map((r) => r.text)).to.deep.eq(['Levy: ${0} M€ first, then the payout', 'Counted right now: ${0}']);
-    expect(live[1].rows[0].params).to.deep.eq(['10']);
-    expect(live[1].rows[1].params?.[0]).to.eq('steel production 2 · titanium production 0 · energy production 3');
-    // A short seat's warning, in words; nothing on the track is a row of zeros — never «no card counts right now».
-    const short = resolutionAnnotations(id, [{...now, count: 0, amount: 2, countedByResource: track.map((t) => ({...t, count: 0}))}], undefined, undefined,
-      {...levy, paid: 4, short: true, net: -2, note: 'Not enough M€: the rest of the levy is not taken'});
-    expect(short[1].rows[0]).to.deep.include({text: 'Not enough M€ for the levy: ${0} of ${1} M€ would be taken', params: ['4', '10']});
-    expect(short[1].rows[1].params?.[0]).to.eq('steel production 0 · titanium production 0 · energy production 0');
-    expect(texts(short)).to.not.include('No card counts right now');
-    // Once recorded, both rows say so and print the RECORDED numbers — never today's track.
-    const recorded = resolutionAnnotations(id, [{...now, context: 'applied', amount: 9, influence: 3}], undefined, undefined,
-      {...levy, context: 'applied', payout: {effectId: 'megacredits', amount: 9}, net: -1});
-    expect(recorded[1].rows.map((r) => r.text)).to.deep.eq(['Levy taken: ${0} M€, then the payout', 'Counted at the enactment: ${0}']);
-    expect(recorded[1].rows[0].params).to.deep.eq(['10']);
-    const recordedShort = resolutionAnnotations(id, [{...now, context: 'applied'}], undefined, undefined, {...levy, context: 'applied', paid: 4, short: true});
-    expect(recordedShort[1].rows[0]).to.deep.include({text: 'Levy taken: ${0} of ${1} M€ — not enough M€', params: ['4', '10']});
-    // Without a levy reading (a spectator) the «for you» block carries the breakdown alone.
-    expect(resolutionAnnotations(id, [now])[1].rows.map((r) => r.text)).to.deep.eq(['Counted right now: ${0}']);
-  });
-
-  it('a COLONIES-COUNTED effect (Jovian Tax Rights): the qualification sentence, then the TILES the cubes stand on — «Luna ×2 · Titan», never «no card»; no cube reads as a calm zero about colonies', () => {
-    const id = 'RDX_UNITY_JOVIAN_TAX_RIGHTS';
-    const effect = getResolution(id)?.scaled?.[1];
-    if (effect === undefined) {
-      throw new Error('Jovian Tax Rights declares no production effect');
-    }
-    const bare = resolutionAnnotations(id);
-    expect(bare.map((b) => b.labelKey), 'no winner block, no world block').to.deep.eq(['When enacted', 'Chairman quest']);
-    expect(texts([bare[0]])).to.deep.eq([
-      'Gain 1 titanium for every point of your influence. Raise your M€ production 1 step per colony you have. Max 5.',
-      'Each colony you have counts: two colonies on one tile count twice. A tile without your colony does not count.',
-    ]);
-    expect(texts([bare[1]])).to.deep.eq(['Play 2 Jovian tags']);
-    const now: InfluenceYield = {effect, context: 'estimate', influence: 2, amount: 3, count: 3, counted: [], countedColonies: [ColonyName.LUNA, ColonyName.LUNA, ColonyName.TITAN], uncapped: 3};
-    const live = resolutionAnnotations(id, [now]);
-    expect(live.map((b) => b.labelKey)).to.deep.eq(['When enacted', 'For you', 'Chairman quest']);
-    expect(live[1].rows.map((r) => r.text)).to.deep.eq(['Counted right now: ${0}']);
-    expect(live[1].rows[0].params?.[0]).to.eq('Luna ×2 · Titan');
-    // Zero cubes: the calm zero about COLONIES — never «no card counts» (the count stands on tiles, not cards).
-    const none = resolutionAnnotations(id, [{...now, count: 0, amount: 0, countedColonies: [], uncapped: 0}]);
-    expect(none[1].rows.map((r) => r.text)).to.deep.eq(['No colony counts right now']);
-    expect(texts(none)).to.not.include('No card counts right now');
-    // Once recorded, the row says so and prints the RECORDED list — never today's table.
-    const recorded = resolutionAnnotations(id, [{...now, context: 'applied'}]);
-    expect(recorded[1].rows.map((r) => r.text)).to.deep.eq(['Counted at the enactment: ${0}']);
-    expect(recorded[1].rows[0].params?.[0]).to.eq('Luna ×2 · Titan');
-    expect(resolutionAnnotations(id, [{...now, context: 'applied', count: 0, amount: 0, countedColonies: []}])[1].rows.map((r) => r.text))
-      .to.deep.eq(['No colony was counted at the enactment']);
   });
 });
 
@@ -468,7 +309,7 @@ describe('resolutionAnnotations — the world move\'s answer (PL-052)', () => {
 
   it('prints «Will trigger: Aphrodite (Rival) +4 M€» under the planet\'s rows, by name', () => {
     expect(gasExport, 'the catalog has a Venus-moving law').is.not.undefined;
-    const block = resolutionAnnotations(gasExport!.id, undefined, undefined, {table, forecast, nameOf: () => 'Rival'}).find((b) => b.id === 'group:world');
+    const block = resolutionAnnotations(gasExport!.id, {table, forecast, nameOf: () => 'Rival'}).find((b) => b.id === 'group:world');
     expect(block).is.not.undefined;
     const answer = block!.rows.find((row) => row.params?.[0] === 'Will trigger');
     expect(answer, JSON.stringify(block!.rows)).is.not.undefined;
@@ -479,7 +320,7 @@ describe('resolutionAnnotations — the world move\'s answer (PL-052)', () => {
   });
 
   it('without a forecast the block is the planet\'s rows alone', () => {
-    const block = resolutionAnnotations(gasExport!.id, undefined, undefined, {table}).find((b) => b.id === 'group:world');
+    const block = resolutionAnnotations(gasExport!.id, {table}).find((b) => b.id === 'group:world');
     expect(block!.rows.some((row) => row.params?.[0] === 'Will trigger')).is.false;
   });
 });

@@ -474,7 +474,8 @@ export async function expectInspectorFooterWhole(page: Page, label: string): Pro
  * A RESOLUTION'S DOSSIER IS ITS RULES (Парламент v8, the owner's point 9): the fullscreen inspector of a resolution
  * carries the card, its party and its RULES — none of the viewer's own PLATES (the standing chip, the vote's facts,
  * the estimate, the ledger, the party's answer, the winner's tile, the grant: the vote panel's). The rules panel
- * stands; «ДЛЯ ВАС» keeps only its words, as the panel's LAST group. Call with the viewer open on a resolution.
+ * stands and prints the PRINTED texts alone — no «ДЛЯ ВАС» block (the texts iteration 2026-10-23). Call with the
+ * viewer open on a resolution.
  */
 export async function expectDossierIsRules(page: Page, label = ''): Promise<void> {
   const dialog = page.locator('dialog.con-zoom[open]');
@@ -482,6 +483,5 @@ export async function expectDossierIsRules(page: Page, label = ''): Promise<void
   await expect(dialog.locator('[data-zoom-yield], [data-zoom-winner], [data-zoom-reaction], [data-zoom-grant], .con-rstatus'),
     `${label} no plate of the viewer's own stands in the dossier — the vote panel carries them`.trim()).toHaveCount(0);
   const groups = await dialog.locator('.con-zoom-rules [data-rules-group]').evaluateAll((els) => els.map((el) => el.getAttribute('data-rules-group') ?? ''));
-  const you = groups.indexOf('group:you');
-  expect(you === -1 || you === groups.length - 1, `${label} «ДЛЯ ВАС» is the rules panel's LAST group (${groups.join(' · ')})`.trim()).toBe(true);
+  expect(groups, `${label} no «ДЛЯ ВАС» block in a resolution's dossier — the viewer's reading is the vote panel's (${groups.join(' · ')})`.trim()).not.toContain('group:you');
 }

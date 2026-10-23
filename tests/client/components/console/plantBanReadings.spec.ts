@@ -207,31 +207,19 @@ describe('plantBanReadings (Plant Ban)', () => {
     expect(resultsPayoutPart(zero as any, 0).none, 'with no declaration in hand the row falls back to the draw\'s phrase').is.not.eq(LEVEL_NONE_LOSS_KEY);
   });
 
-  it('the inspector\'s «for you» row names the limit, the supply and the loss — and the zero as nothing to lose', () => {
+  it('the inspector prints the printed text alone — «No card protects against this» is the card\'s own sentence; no «for you» row (the limit and the loss are the vote panel\'s)', () => {
     const r = ban();
-    const estimate = voteYieldsOf(r, model([withPlants(7, {agenda: 3, influence: 2})]), BLUE);
-    const rows = resolutionAnnotations(r.id, estimate);
-    const forYou = JSON.stringify(rows.find((block) => block.id === 'group:you'));
-    expect(forYou).includes('Plant limit right now');
-    expect(forYou, 'the limit, its base, the influence, the supply and what leaves')
-      .includes('"4"').and.includes('"2"').and.includes('"7"').and.includes('"3"');
-    const zero = voteYieldsOf(r, model([withPlants(1, {agenda: 3, influence: 2})]), BLUE);
-    expect(JSON.stringify(resolutionAnnotations(r.id, zero).find((block) => block.id === 'group:you'))).includes('nothing to lose');
-    // The rule sentence — including «no card protects against this» — stands under the effect.
-    const when = JSON.stringify(rows.find((block) => block.id === 'group:immediate'));
-    expect(when).includes('The plants are counted at the sitting');
-    expect(when).includes('no card protects against this');
+    const rows = resolutionAnnotations(r.id);
+    expect(rows.some((block) => block.id === 'group:you')).is.false;
+    expect(rows.find((block) => block.id === 'group:immediate')?.rows.map((row) => row.text)).deep.eq([r.text.effect]);
+    expect(r.text.effect).includes('No card protects against this.');
   });
 
   it('every word the cut prints has a RU translation', () => {
     const words = levelPresentation(limitEffect().level!);
     const keys = [
       LEVEL_MAX_KEY, LEVEL_IN_SUPPLY_KEY, LEVEL_NONE_LOSS_KEY, LEVEL_LOSS_NOTE_KEY,
-      words.skipReasonKey, words.ruleKey, 'This loss',
-      'Plant limit right now: ${0} (${1} + influence ${2}). You have ${3} — ${4} would be taken',
-      'Plant limit right now: ${0} (${1} + influence ${2}). You have ${3} — nothing to lose',
-      'Plant limit at the enactment: ${0} (${1} + influence ${2}). Had ${3}, lost ${4}',
-      'Plant limit at the enactment: ${0} (${1} + influence ${2}). Had ${3} — nothing was taken',
+      words.skipReasonKey, 'This loss',
     ];
     for (const key of keys) {
       expect(RU[key], `«${key}» has a RU translation`).is.a('string');

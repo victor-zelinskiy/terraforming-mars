@@ -156,7 +156,7 @@ export const INDUSTRIALIST_BUDGET: ResolutionDefinition = {
   }),
   text: {
     name: 'Industrialist Budget',
-    effect: 'Lose 10 M€. Then gain 1 M€ per step of steel, titanium and energy production you have, plus 1 per influence. Then raise your M€ production 4 steps.',
+    effect: 'Lose 10 M€. Gain 1 M€ per step of steel, titanium and energy production you have and 1 per influence. Raise your M€ production 4 steps.',
     quest: 'Raise your steel production 1 step',
   },
   quest: {goal: {kind: 'production', resource: Resource.STEEL}, count: 1},

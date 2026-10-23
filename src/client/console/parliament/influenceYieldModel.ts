@@ -188,8 +188,6 @@ export type YieldCountPresentation = {
   glyph: YieldCountGlyph;
   /** English i18n key `${0} …` with a plural group, resolved against the count. */
   pluralKey: string;
-  /** English i18n key of the qualification rule (the detailed inspection's sentence). */
-  ruleKey: string;
   /** English i18n key of the SERVER's own skip reason when the whole formula comes to nothing. */
   skipReasonKey: string;
 };
@@ -200,14 +198,12 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
     return {
       glyph: {kind: 'vp-card', tag: Tag.BUILDING},
       pluralKey: '${0} building card(s) with a VP icon',
-      ruleKey: 'A card with a variable VP icon counts even at 0 VP. A card with a negative VP icon or no VP icon does not.',
       skipReasonKey: 'No qualifying cards and no influence',
     };
   case 'powerTags':
     return {
       glyph: {kind: 'tag', tag: Tag.POWER},
       pluralKey: '${0} power tag(s)',
-      ruleKey: 'Each power tag counts: a card with two power tags counts twice. Wild tags and energy production do not count.',
       skipReasonKey: 'No power tags and no influence',
     };
   case 'venusJovianTags':
@@ -215,7 +211,6 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
     return {
       glyph: {kind: 'tags', tags: [Tag.VENUS, Tag.JOVIAN]},
       pluralKey: '${0} Venus and Jovian tag(s)',
-      ruleKey: 'Each Venus and Jovian tag counts: a card with both counts twice. Wild tags do not count.',
       skipReasonKey: 'No Venus or Jovian tags and no influence',
     };
   case 'earthVenusJovianTags':
@@ -223,7 +218,6 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
     return {
       glyph: {kind: 'tags', tags: [Tag.EARTH, Tag.VENUS, Tag.JOVIAN]},
       pluralKey: '${0} Earth, Venus and Jovian tag(s)',
-      ruleKey: 'Each Earth, Venus and Jovian tag counts: a card with two of them counts twice. Wild tags do not count.',
       skipReasonKey: 'No Earth, Venus or Jovian tags and no influence',
     };
   case 'plantMicrobeAnimalTags':
@@ -232,7 +226,6 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
     return {
       glyph: {kind: 'tags', tags: [Tag.ANIMAL, Tag.PLANT, Tag.MICROBE]},
       pluralKey: '${0} plant, microbe and animal tag(s)',
-      ruleKey: 'Each plant, microbe and animal tag counts: a card with two of them counts twice. Wild tags do not count.',
       skipReasonKey: 'No plant, microbe or animal tags and no influence',
     };
   case 'buildingMarsTags':
@@ -240,7 +233,6 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
     return {
       glyph: {kind: 'tags', tags: [Tag.BUILDING, Tag.MARS]},
       pluralKey: '${0} building and Mars tag(s)',
-      ruleKey: 'Each building and Mars tag counts: a card with both counts twice. Wild tags do not count.',
       skipReasonKey: 'No building or Mars tags and no influence',
     };
   case 'spaceMarsTags':
@@ -248,7 +240,6 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
     return {
       glyph: {kind: 'tags', tags: [Tag.SPACE, Tag.MARS]},
       pluralKey: '${0} space and Mars tag(s)',
-      ruleKey: 'Each space and Mars tag counts: a card with both counts twice. Wild tags and the space tags of played events do not count.',
       skipReasonKey: 'No space or Mars tags and no influence',
     };
   case 'spaceCities':
@@ -256,7 +247,6 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
     return {
       glyph: {kind: 'tile', tile: 'spaceCity'},
       pluralKey: '${0} space city(-ies)',
-      ruleKey: 'A city on a reserved area off Mars counts: Ganymede Colony, Phobos Space Haven, Stanford Torus and the like. Cities on Mars and on the Moon do not.',
       skipReasonKey: 'No space cities and no influence',
     };
   case 'terraformRatingSets':
@@ -264,7 +254,6 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
     return {
       glyph: {kind: 'metric', metric: 'terraformRating'},
       pluralKey: '${0} complete set(s) of 5 TR over 15',
-      ruleKey: 'Each full 5 TR above 15 is one set: TR 20 is 1 set, TR 24 still 1, TR 25 is 2. The remainder pays nothing.',
       skipReasonKey: 'No TR sets and no influence',
     };
   case 'steelTitaniumEnergyProduction':
@@ -273,7 +262,6 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
     return {
       glyph: {kind: 'production', resources: INDUSTRIAL_PRODUCTION_RESOURCES},
       pluralKey: '${0} step(s) of steel, titanium and energy production',
-      ruleKey: 'Each step of steel, titanium and energy production counts, added up. Resources in your supply do not count.',
       skipReasonKey: 'No steel, titanium or energy production and no influence',
     };
   case 'colonies':
@@ -282,7 +270,6 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
     return {
       glyph: {kind: 'colony'},
       pluralKey: '${0} colony(-ies)',
-      ruleKey: 'Each colony you have counts: two colonies on one tile count twice. A tile without your colony does not count.',
       skipReasonKey: 'No colonies',
     };
   case 'marsCities':
@@ -290,7 +277,6 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
     return {
       glyph: {kind: 'tile', tile: 'marsCity'},
       pluralKey: '${0} city(-ies) on Mars',
-      ruleKey: 'A city of yours on Mars counts once, whatever the height of its stack. A city off Mars does not.',
       skipReasonKey: 'No city on Mars to build on',
     };
   case 'marsCityTiers':
@@ -298,14 +284,12 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
     return {
       glyph: {kind: 'tile', tile: 'marsCity'},
       pluralKey: '${0} city(-ies) on Mars',
-      ruleKey: 'Each city of yours on Mars counts: a stack of two counts twice. A city off Mars does not count.',
       skipReasonKey: 'No cities on Mars and no influence',
     };
   case 'scienceTags':
     return {
       glyph: {kind: 'tag', tag: Tag.SCIENCE},
       pluralKey: '${0} science tag(s)',
-      ruleKey: 'Each science tag counts: a card with two science tags counts twice. Wild tags do not count.',
       skipReasonKey: 'No science tags and no influence',
     };
   case 'cityTags':
@@ -316,38 +300,30 @@ export function yieldCountPresentation(id: ResolutionCountId): YieldCountPresent
     return {
       glyph: {kind: 'tag', tag: Tag.CITY},
       pluralKey: '${0} city tag(s)',
-      ruleKey: 'Each city tag on your cards counts: a card with two city tags counts twice. Wild tags do not count, and a city on the board is not a tag.',
       skipReasonKey: 'No city tags',
     };
   case 'cardsWithResources':
     // A count by what the card HOLDS — the white card with its three cubes the face prints (`b.resourceCard()`,
     // TR53's «a card that already has a resource»): a tag would state a rule about tags, a bare cover «per card».
-    // The rule says out loud the two edges a player asks about: the corporation counts, an empty holder does not.
     return {
       glyph: {kind: 'resource-card'},
       pluralKey: '${0} card(s) with a resource',
-      ruleKey: 'Each of your cards that already holds a resource counts once, your corporation included. A card that can hold resources but has none yet does not count.',
       skipReasonKey: 'No card of yours has a resource yet',
     };
   case 'cardResourceTypes':
     // The SAME holders measured by KIND (Tax Breaks): the holder glyph carrying the face's one printed «?»
-    // (`wild.png`) instead of its three cubes — three cubes count the cards, one «?» counts the kinds. The rule says
-    // out loud the edges a player asks about: two cards of one kind are one, an empty holder is none, the corporation counts.
+    // (`wild.png`) instead of its three cubes — three cubes count the cards, one «?» counts the kinds.
     return {
       glyph: {kind: 'resource-card', wild: true},
       pluralKey: '${0} resource type(s)',
-      ruleKey: 'Each different type of resource on your cards counts once, your corporation included: two animal cards are one type. A card that can hold resources but has none yet adds no type.',
       skipReasonKey: 'No resources on your cards and no influence',
     };
   case 'blueCards':
     // A count by the card's TYPE — the card cover wearing its BLUE band, the
-    // very glyph the face prints and the chairman quest repeats. The rule
-    // says out loud what the type excludes, because «blue» is the one word
-    // the engine's own counters (Tycoon, Celebrity) read as «blue or green».
+    // very glyph the face prints and the chairman quest repeats.
     return {
       glyph: {kind: 'type-card', cardType: CardType.ACTIVE},
       pluralKey: '${0} blue card(s)',
-      ruleKey: 'Each blue (active) project card in play counts once, whatever it prints. Green cards, events, preludes, CEOs and your corporation do not count.',
       skipReasonKey: 'No blue cards and no influence',
     };
   }
@@ -607,8 +583,7 @@ export const LEVEL_LOSS_NOTE_KEY = 'Everything above the limit is taken';
  * HOW A LEVEL TERM IS NAMED — one entry per level unit, exactly as
  * `sequelPresentation` names a sequel: the SERVER's own reason for the zero
  * (a hand already at the target — the rule working, never a want of
- * influence), the sentence that explains what the level is, and the words the
- * reading prints beside the number. A surface that explains the zero reads
+ * influence) and the words the reading prints beside the number. A surface that explains the zero reads
  * the sentence the game would record, never one of its own.
  */
 export type LevelPresentation = {
@@ -617,7 +592,6 @@ export type LevelPresentation = {
   /** The seat's current level beside the target, with its number («5 in hand», «7 of yours»). */
   levelKey: string;
   skipReasonKey: string;
-  ruleKey: string;
   noneKey: string;
   /** The panel's honest warning where the term TAKES and the seat has something to lose (a cut only). */
   noteKey?: string;
@@ -633,7 +607,6 @@ export function levelPresentation(term: InfluenceLevelTerm, person: ReadingPerso
         wordKey: LEVEL_MAX_KEY,
         levelKey: supply,
         skipReasonKey: 'Plants already at or below the limit',
-        ruleKey: 'The plants are counted at the sitting, after the production phase. Everything above the limit is taken; a player at or below it loses nothing, and no card protects against this.',
         noneKey: LEVEL_NONE_LOSS_KEY,
         noteKey: LEVEL_LOSS_NOTE_KEY,
       };
@@ -642,7 +615,6 @@ export function levelPresentation(term: InfluenceLevelTerm, person: ReadingPerso
       wordKey: LEVEL_MAX_KEY,
       levelKey: supply,
       skipReasonKey: 'Already at or below the limit',
-      ruleKey: 'The current value is read at the sitting; everything above the limit is taken.',
       noneKey: LEVEL_NONE_LOSS_KEY,
       noteKey: LEVEL_LOSS_NOTE_KEY,
     };
@@ -652,7 +624,6 @@ export function levelPresentation(term: InfluenceLevelTerm, person: ReadingPerso
       wordKey: LEVEL_UP_TO_KEY,
       levelKey: LEVEL_IN_HAND_KEY,
       skipReasonKey: 'Already at the target hand size',
-      ruleKey: 'The hand is counted at the sitting, after the production phase. A hand already at the target draws nothing; the rest comes from the project deck.',
       noneKey: LEVEL_NONE_KEY,
     };
   }
@@ -660,7 +631,6 @@ export function levelPresentation(term: InfluenceLevelTerm, person: ReadingPerso
     wordKey: LEVEL_UP_TO_KEY,
     levelKey: supply,
     skipReasonKey: 'Nothing is owed',
-    ruleKey: 'The current value is read at the sitting; only the difference to the target is paid.',
     noneKey: LEVEL_NONE_KEY,
   };
 }

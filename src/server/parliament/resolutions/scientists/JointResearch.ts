@@ -152,7 +152,7 @@ export const JOINT_RESEARCH: ResolutionDefinition = {
   }),
   text: {
     name: 'Joint Research',
-    effect: 'Draw cards until you have 6 cards in hand plus 1 per influence. If you already have that many or more, draw none.',
+    effect: 'Draw cards until you have 6 cards in hand plus 1 per influence.',
     quest: 'Play 2 event cards',
   },
   // BY TYPE, never by tag: the event tag is not printed in `card.tags` in this engine (it follows from

@@ -2119,8 +2119,7 @@ export default defineComponent({
     },
     annotations(): ReadonlyArray<CardAnnotation> {
       return this.selected === undefined ? [] :
-        resolutionAnnotations(this.selected.id, this.yields, {reading: this.winnerReading, viewer: this.viewerColor, nameOf: this.seatName},
-          {table: this.winnerTable, colonies: this.standColonies, removal: {oceans: this.table.oceans}, nameOf: this.seatName}, this.levy, {reading: this.grantReading});
+        resolutionAnnotations(this.selected.id, {table: this.winnerTable, colonies: this.standColonies, removal: {oceans: this.table.oceans}, nameOf: this.seatName});
     },
     /**
      * THE STAND'S COLONY TABLE for a law that advances every track (Unity Budget): the scenario's tiles with their

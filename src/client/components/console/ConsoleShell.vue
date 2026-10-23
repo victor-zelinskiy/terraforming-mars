@@ -1711,9 +1711,8 @@ import {seatRestricted} from '@/common/models/ParliamentModel';
 import ConsoleResolutionAside from '@/client/components/console/parliament/ConsoleResolutionAside.vue';
 import ConsolePartyAccessPanel from '@/client/components/console/parliament/ConsolePartyAccessPanel.vue';
 import type {PartyConfirmDetail} from '@/client/components/console/parliament/ConsolePartyActionComposer.vue';
-import {WinnerRewardReading, winnerRewardReadingOf, winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
+import {winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
 import {tileRemovalTableOf} from '@/client/console/parliament/tileRemovalModel';
-import {TileGrantReading, tileGrantReadingOf} from '@/client/console/parliament/tileGrantModel';
 import {WinnerRewardTable} from '@/common/parliament/winnerReward';
 import {ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
 import {enactedLevyOf, enactedYieldsOf, voteLevyOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
@@ -10293,11 +10292,10 @@ export default defineComponent({
         return undefined;
       }
       if (isResolutionZoom(card)) {
-        // Парламент v8 (the owner's point 9): the dossier is the RULES — the rules read FIRST; the viewer's «ДЛЯ ВАС»
-        // keeps only its words (what was counted, the winner's tile, the grant — the audit of the number) and stands
-        // LAST, after the chairman quest. The plates (the standing, the vote's facts, the estimate) are the vote panel's.
-        return resolutionAnnotations(card.resolution, this.zoomResolutionYields, this.zoomResolutionWinnerWords, this.zoomResolutionWorld, this.zoomResolutionLevy, this.zoomResolutionGrantWords)
-          .map((a) => (a.id === 'group:you' ? {...a, order: 9} : a));
+        // Парламент v8 (the owner's point 9): the dossier is the RULES — the printed texts in the project card's dose
+        // (2026-10-23): no «ДЛЯ ВАС» block, no qualification sentence under an effect. The plates (the standing, the
+        // vote's facts, the estimate, the counted cards) are the vote panel's.
+        return resolutionAnnotations(card.resolution, this.zoomResolutionWorld);
       }
       if (isPartyEffectZoom(card)) {
         return partyAnnotations(card.partyEffect, this.game.parliament, this.thisPlayer.color, this.myTurn && this.awaitingInput, this.zoomPartyAccess !== undefined);
@@ -10388,15 +10386,6 @@ export default defineComponent({
     parliamentSeatName(): (color: Color) => string {
       return (color: Color) => this.playerView.players.find((p) => p.color === color)?.name ?? color;
     },
-    /** The same reading for the rules column's «for you» row (the words beside — or, on the Deck, instead of — the chip). */
-    zoomResolutionWinnerWords(): {reading: WinnerRewardReading | undefined, viewer: Color | undefined, nameOf: (color: Color) => string} {
-      return {reading: this.zoomResolutionWinner, viewer: this.thisPlayer.color, nameOf: this.parliamentSeatName};
-    },
-    /** A TILE GRANTED BY THRESHOLD on the stage (Skyscrapers): the viewer's own reading over the live table (`tileGrantModel`). */
-    zoomResolutionGrant(): TileGrantReading | undefined {
-      const id = this.zoomResolutionId;
-      return id === undefined ? undefined : tileGrantReadingOf(getResolution(id), this.game.parliament, this.zoomResolutionSubject);
-    },
     /**
      * THE PARTY'S SUPPORT of the resolution on the stage, under the door the
      * vote mode stands behind (a delegate grant that also pays the party —
@@ -10411,10 +10400,6 @@ export default defineComponent({
       }
       const row = grantSupportOf(parliamentPromptBridge(this.playerView.waitingFor, this.stagedVoteModel).grant, party);
       return row === undefined ? undefined : supportReadingOf(row);
-    },
-    /** The same reading for the rules column's «for you» row. */
-    zoomResolutionGrantWords(): {reading: TileGrantReading | undefined} {
-      return {reading: this.zoomResolutionGrant};
     },
     /**
      * The WORLD's part of the resolution on the stage, read over the live
@@ -10441,11 +10426,6 @@ export default defineComponent({
         nameOf: (color: Color) => this.playerView.players.find((p) => p.color === color)?.name ?? String(color),
       };
     },
-    /** The WINNER's tile of the resolution on the stage, read over the live table (`winnerRewardModel`). */
-    zoomResolutionWinner(): WinnerRewardReading | undefined {
-      const id = this.zoomResolutionId;
-      return id === undefined ? undefined : winnerRewardReadingOf(getResolution(id), this.game.parliament, winnerRewardTableOf(this.game));
-    },
     /**
      * ONE type size for the resolution scene: the denser of the party
      * column's and the rules column's own reading tiers — two panels beside
@@ -10457,7 +10437,7 @@ export default defineComponent({
       if (id === undefined || party === undefined) {
         return undefined;
       }
-      const rules = resolutionAnnotations(id, this.zoomResolutionYields, this.zoomResolutionWinnerWords, this.zoomResolutionWorld, this.zoomResolutionLevy, this.zoomResolutionGrantWords);
+      const rules = resolutionAnnotations(id, this.zoomResolutionWorld);
       return denserRulesTier(rulesLengthTier(rules), rulesLengthTier(resolutionPartyAnnotations(party)));
     },
     /**

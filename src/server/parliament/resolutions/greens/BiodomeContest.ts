@@ -152,7 +152,7 @@ export const BIODOME_CONTEST: ResolutionDefinition = {
   text: {
     name: 'Biodome Contest',
     effect: 'Gain 2 plants for every point of your influence.',
-    winner: 'Place a greenery tile for free. Raise oxygen 1 step if it is not at its maximum.',
+    winner: 'Place a greenery tile.',
     quest: 'Place 2 greeneries',
   },
   quest: {goal: {kind: 'tile', tile: 'greenery'}, count: 2},

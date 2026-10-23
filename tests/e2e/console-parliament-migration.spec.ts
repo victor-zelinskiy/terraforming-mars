@@ -235,18 +235,13 @@ test.describe('Migration Funding · standard-1080', () => {
     await expectParliamentFits(page, 'vote mode');
     await shoot(page, '02-vote-reading');
 
-    // ── THE FULLSCREEN: the same number; the rules column states the rule of the stack and explains the four — three cells, a stack of 2.
+    // ── THE FULLSCREEN: the same number on the panel; the rules column is the printed text — the stack rule is the card's own sentence (texts 2026-10-23).
     await openZoomViewer(page);
     const zoom = page.locator('dialog.con-zoom[open]');
     await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(MIGRATION_CLASS);
     await expectDossierIsRules(page, 'migration');
     const rules = zoom.locator('.con-zoom-sidecol');
-    await expect(rules, 'the rule of the stack').toContainText(/стопка из двух даёт 2|a stack of two counts twice/i);
-    await expect(rules, 'the counted cells behind the number').toContainText(/Учтены сейчас|Counted right now/);
-    await expect(rules, 'the number of cities').toContainText(/4 города на Марсе|4 cit(y|ies) on Mars/);
-    await expect(rules, '…on how many cells').toContainText(/3 клетки|3 cell/);
-    await expect(rules, '…and the stack that makes the difference').toContainText(/стопка из 2|a stack of 2/);
-    await expect(rules, 'never «no card»').not.toContainText(/ни одна карта|No card counts/i);
+    await expect(rules, 'the printed stack rule').toContainText(/Каждый город в стопке считается отдельно|Each city in a stack counts separately/);
     await expect(page.locator('dialog.con-zoom.con-zoom--parliament[open]:not(.con-zoom--flight)')).toHaveCount(1, {timeout: 10_000});
     await shoot(page, '03-fullscreen');
     await closeZoomViewer(page);

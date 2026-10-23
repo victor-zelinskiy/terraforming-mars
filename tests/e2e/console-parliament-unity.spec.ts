@@ -88,6 +88,8 @@ type Sample = {
   crumb: string;
   page: string;
   tracksChip: boolean;
+  /** The class list of the hero card on the left (the sitting's enacted resolution) — read while the grid stood, never live. */
+  hero: string;
 };
 type Probe = {samples: Array<Sample>};
 
@@ -138,6 +140,7 @@ async function armProbe(page: Page): Promise<void> {
         crumb: head === undefined ? '' : (head.textContent ?? '').replace(/\s+/g, ' ').trim(),
         page: document.querySelector('.con-parl')?.getAttribute('data-sitting-page') ?? '',
         tracksChip: document.querySelector('[data-parl-band-chip="tracks"]') !== null,
+        hero: document.querySelector('[data-parl-sit-hero] .con-parl__gov-card .pcard')?.className ?? '',
       });
       if (w.__unityProbe.samples.length > 6000) {
         w.__unityProbe.samples.splice(0, 3000);
@@ -248,7 +251,10 @@ test.describe(`Unity Budget · ${PRESET.id}`, () => {
       message: `ONE continuous crumb while the grid stood: the workspace, the sitting, the step (wave ${hostedDiag})`}).toBe(true);
     const hosted = await hostedSamples();
     expect(Math.max(...hosted.map((s) => s.tiles)), `the hosted grid holds the four tiles (crumbs ${JSON.stringify([...new Set(hosted.map((s) => s.crumb))])})`).toBe(4);
-    await expect(page.locator('[data-parl-sit-hero] .con-parl__gov-card .pcard'), 'the resolution is the hero on the left').toHaveClass(/rdx-unity-unity-budget/);
+    // …and the hero off the SAME samples: a live read here found the step already gone twice on a shared slot of the box
+    // (the sitting walks on by itself once the wave has played) — the sample says what stood beside the grid.
+    expect(hosted.some((s) => /rdx-unity-unity-budget/.test(s.hero)),
+      `the resolution is the hero on the left while the grid stood (heroes ${JSON.stringify([...new Set(hosted.map((s) => s.hero))])})`).toBe(true);
     await expectParliamentFits(page, `${PRESET.id} colonies hosted`);
 
     // ── ③ THE WAVE: one tile after another, two countable steps, a track at its end named and unmoved.

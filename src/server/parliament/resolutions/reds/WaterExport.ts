@@ -139,7 +139,7 @@ export const WATER_EXPORT: ResolutionDefinition = {
   text: {
     name: 'Water Export',
     effect: 'Gain 2 M€ for every point of your influence.',
-    world: 'The first player removes 1 ocean tile from the board, unless the oceans are already at their maximum. Nobody loses TR for this.',
+    world: 'The first player removes 1 ocean tile from the board. Nobody loses TR for this.',
     // The block label says WHEN («Эффект, пока принята»); the sentence says WHAT.
     passive: 'When you play a card with an Earth, Venus or Jovian tag, you pay 3 M€ less for it.',
     quest: 'Play 2 Jovian tags',

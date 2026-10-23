@@ -242,7 +242,7 @@ export const GREENS_BUDGET: ResolutionDefinition = {
   }),
   text: {
     name: 'Greens Budget',
-    effect: 'Lose 10 M€. Then gain 1 M€ per plant, microbe and animal tag you have, plus 1 per influence. Then add 2 animals to one of your cards and 3 microbes to one of your cards.',
+    effect: 'Lose 10 M€. Gain 1 M€ per plant, microbe and animal tag you have and 1 per influence. Add 2 animals to one of your cards and 3 microbes to one of your cards.',
     quest: 'Play 2 plant tags',
   },
   quest: {goal: {kind: 'tag', tag: Tag.PLANT}, count: 2},

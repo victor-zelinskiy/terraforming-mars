@@ -176,26 +176,23 @@ for (const preset of PRESETS) {
       await expectFits(page, `${preset.id} vote mode`);
       await shoot(page, preset.id, '02-vote-reading');
 
-      // ── THE FULLSCREEN INSPECTOR (Парламент v8): the RULES — the numbers are the panel's; the rules' last group
-      //    («ДЛЯ ВАС», words only) names the counted cards behind the number.
+      // ── THE FULLSCREEN INSPECTOR (Парламент v8, texts 2026-10-23): the RULES are the printed texts alone — the
+      //    numbers and the counted cards are the panel's; no «ДЛЯ ВАС» block, no qualification under the effect.
       await openZoomViewer(page);
       const zoom = page.locator('dialog.con-zoom[open]');
       await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(AWARD_CLASS);
       await expectDossierIsRules(page, preset.id);
       const rules = zoom.locator('.con-zoom-sidecol');
-      await expect(rules, 'the rules state the qualification in words').toContainText(/значком ПО|VP icon/);
-      await expect(rules, 'the counted cards behind the number').toContainText(/Учтены сейчас|Counted right now/);
-      await expect(rules).toContainText(/Искусственное озеро|Artificial Lake/);
-      await expect(rules, 'Mine (no VP icon) is not counted').not.toContainText(/Шахта|\bMine\b/);
+      await expect(rules, 'the printed text names the non-negative VP icon').toContainText(/неотрицательным значком ПО|non-negative VP icon/);
       await expect(page.locator('dialog.con-zoom.con-zoom--parliament[open]:not(.con-zoom--flight)')).toHaveCount(1, {timeout: 10_000});
       await shoot(page, preset.id, '03-fullscreen');
       // Paging to another resolution re-reads its own rules at once — and back again.
       await press(page, 'BracketRight', 900);
       await expect(zoom.locator('.card-zoom-stage .pcard').first()).not.toHaveClass(AWARD_CLASS, {timeout: 10_000});
-      await expect(rules, 'the neighbour rules count nothing of the award').not.toContainText(/Искусственное озеро|Artificial Lake/);
+      await expect(rules, 'the neighbour reads its own text').not.toContainText(/неотрицательным значком ПО|non-negative VP icon/);
       await press(page, 'BracketLeft', 900);
       await expect(zoom.locator('.card-zoom-stage .pcard').first()).toHaveClass(AWARD_CLASS, {timeout: 10_000});
-      await expect(rules).toContainText(/Искусственное озеро|Artificial Lake/);
+      await expect(rules).toContainText(/неотрицательным значком ПО|non-negative VP icon/);
       await closeZoomViewer(page);
       await press(page, 'Escape', 900);
     });

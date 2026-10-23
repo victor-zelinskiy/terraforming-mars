@@ -4,7 +4,10 @@
  *
  * THE INSPECTOR'S LANGUAGE is the project card's: the GRAPHIC is on the card,
  * the blocks beside it explain that graphic in words — a block never draws
- * the formula again. A resolution reads as one scene:
+ * the formula again, and (the owner's direction 2026-10-23) it never explains
+ * an edge case either: a resolution's dossier is its PRINTED TEXTS in the
+ * project card's dose, so a player who opens the card sees its idea at once.
+ * A resolution reads as one scene:
  *   · the RIGHT column is the resolution's own rules (`resolutionAnnotations`)
  *     — its own effect, part by part, labelled by WHEN it applies (the way a
  *     project card's «При розыгрыше» / «Эффект» / «Действие» are), then the
@@ -17,10 +20,14 @@
  *     vote verb (`resolutionInspectModel.ts`) — nothing here repeats it.
  *
  * RULES ARE NOT STATE. A block is the printed mechanic — what happens, what
- * the player chooses, how much, under which conditions. «Available», «used
- * this generation» belong to the place made for state (the plaque's action
- * badge, the party inspector's «for you» block), and the ordinary limit of an
- * action («once per generation») is the action language itself, never a line.
+ * the player chooses, how much, under which conditions. The viewer's own
+ * number, the cards it was counted from, the winner's tile for them and the
+ * levy from their supply are the VOTE PANEL's («ДЛЯ ВАС ПРИ ПРИНЯТИИ») and the
+ * sitting's — a resolution's dossier carries no «for you» block at all.
+ * «Available», «used this generation» belong to the place made for state
+ * (the plaque's action badge, the party inspector's «for you» block), and the
+ * ordinary limit of an action («once per generation») is the action language
+ * itself, never a line.
  *
  * A PARTY opened on its own (`partyAnnotations`) keeps its fuller reading:
  * the same mechanic blocks, then «for you» (the live bases AND the action's
@@ -37,28 +44,15 @@ import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamen
 import {Color} from '@/common/Color';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {accessReasonRows} from './consoleParliamentModel';
-import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {ParliamentEnactOutcomeModel, ParliamentModel} from '@/common/models/ParliamentModel';
 import {WorldMoveTable, worldMoveReadingOf, worldMoveSentenceOf} from './worldMoveModel';
 import type {EffectForecast, EffectForecastFact} from '@/common/models/EffectForecastModel';
 import {tileRemovalReadingOf, tileRemovalSentenceOf} from './tileRemovalModel';
 import {colonyTrackReadingOf, colonyTrackTileSentenceOf} from './colonyTrackModel';
 import {ColonyModel} from '@/common/models/ColonyModel';
-import {
-  CountedCellEntry, countedCellEntries, countedCellLabel, countedColonyNames, countedContributions, countedHolderChanges, countedHolderKinds, countedHoldersVp,
-  countedMetricParts, countedProductionParts, levelPresentation,
-  yieldCountPresentation, yieldCountsKinds,
-} from './influenceYieldModel';
-import {WinnerRewardReading, winnerRewardRuleKey, winnerRewardSentenceOf} from './winnerRewardModel';
-import {TileGrantReading, tileGrantRuleKey, tileGrantSentenceOf} from './tileGrantModel';
-import {AGENDA_GRANT_RULE_KEY} from './agendaGrantModel';
-import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {SUPPORT_KICKER, SupportReadingVm} from './voteInfoModel';
 
 export type RowText = {text: string, params?: ReadonlyArray<string>};
-
-/** The rule a «colony bonuses» effect stands on — the one sentence the inspector prints under it (an English key). */
-export const COLONY_BONUS_RULE_KEY = 'A colony bonus is the bonus printed on the tile for your cube when another player trades there. Trade income and the build bonus do not count. Pluto\'s draw-then-discard is paid one pair at a time.';
 
 /** The short names of the pools a world move's answer can touch (existing i18n keys). */
 const ANSWER_LABEL_KEY: Record<string, string> = {
@@ -165,20 +159,25 @@ function partyActionStateRow(party: ReduxParty, model: ParliamentModel, viewer: 
 }
 
 /**
- * THE RESOLUTION'S OWN READING — the right column. Its own effect leads, part
- * by part, each labelled by WHEN it applies (the text never repeats the
- * label); then the chairman quest's condition. The quest reward is the same
- * for every resolution and lives in the government block; the card's
+ * THE RESOLUTION'S OWN READING — the right column, in the PROJECT CARD's
+ * dose (the owner's direction 2026-10-23): the printed texts alone, part by
+ * part, each labelled by WHEN it applies, then the chairman quest's
+ * condition. Nothing is added under a text — no sentence on which cards
+ * count, what a stack scores or when the hand is read: a player who opens
+ * the card must see its idea at once, and the one nuance worth a sentence is
+ * written INTO `text.*` by the card itself. No «for you» block either: the
+ * viewer's number, the counted cards and the winner's tile are the VOTE
+ * PANEL's and the sitting's, never the dossier's. The quest reward is the
+ * same for every resolution and lives in the government block; the card's
  * standing and the viewer's access live in the footer — neither is here.
  */
 export function resolutionAnnotations(
   id: ResolutionId,
-  yields?: ReadonlyArray<InfluenceYield>,
-  /** The viewer's reading of the resolution's WINNER tile, when there is a table to read it over. */
-  winner?: {reading: WinnerRewardReading | undefined, viewer: Color | undefined, nameOf: (color: Color) => string},
   /**
    * The table the WORLD's part is read against (and, once it happened, the server's own records) — the
-   * planet's globals, and the COLONY TABLE for a law that advances its tracks (Unity Budget).
+   * planet's globals, and the COLONY TABLE for a law that advances its tracks (Unity Budget). The world's
+   * rows are NUMBERS («Кислород: 5 % → 4 %»), never prose: the one live reading the dossier keeps, because
+   * the planet is nobody's and no panel of the viewer's carries it.
    */
   world?: {
     table: WorldMoveTable | undefined, enacted?: boolean, outcomes?: ReadonlyArray<ParliamentEnactOutcomeModel>, colonies?: ReadonlyArray<ColonyModel>,
@@ -189,10 +188,6 @@ export function resolutionAnnotations(
     /** WHAT THE TABLE ANSWERS to the world move, for the viewer (`ParliamentSlotModel.worldForecast`, PL-052). */
     forecast?: EffectForecast,
   },
-  /** The viewer's reading of the LEVY a budget takes first (the estimate from their supply, or the record). */
-  levy?: LevyReading,
-  /** The viewer's reading of a TILE GRANTED BY THRESHOLD (Skyscrapers) — their standing, their destinations, their record. */
-  grant?: {reading: TileGrantReading | undefined},
 ): ReadonlyArray<CardAnnotation> {
   const resolution = getResolution(id);
   if (resolution === undefined) {
@@ -201,37 +196,7 @@ export function resolutionAnnotations(
   const out: Array<CardAnnotation> = [];
   const text = resolution.text;
   if (text.effect !== undefined) {
-    // A COUNTED term's qualification is the detailed reading of the face's
-    // card glyph (which cards count, and which do not) — one sentence
-    // under the effect, never a rules primer.
-    const rows: Array<string | RowText> = [text.effect];
-    for (const effect of resolution.scaled ?? []) {
-      if (effect.count !== undefined) {
-        rows.push(yieldCountPresentation(effect.count.id).ruleKey);
-      }
-      // A LEVEL term's qualification — WHEN the hand is counted and what a hand
-      // already at the target means (the detailed reading of the face's spark).
-      if (effect.level !== undefined) {
-        rows.push(levelPresentation(effect.level).ruleKey);
-      }
-      // THE COLONY LEDGER's qualification — what a colony bonus IS (the detailed reading of «all your colony
-      // bonuses»), one sentence under the effect; the ledger itself reads in the footer.
-      if (effect.unit.kind === 'colonyBonuses') {
-        rows.push(COLONY_BONUS_RULE_KEY);
-      }
-    }
-    // A TILE GRANT's qualification, by WHERE it lands — a tier: what it IS for the score, that the cell pays no
-    // bonus again, that a seat with no city gains nothing (the face's «STACK» row); a city by the usual rules:
-    // the rules are the usual ones and the cell pays its bonus (Mars First Budget's grey hex).
-    if (resolution.tileGrant !== undefined) {
-      rows.push(tileGrantRuleKey(resolution.tileGrant));
-    }
-    // A STEP OF THE CAREER's qualification (Reds Budget): what a step PAYS on the spot — the track's own bonus — and
-    // MarsBot's card step, in one sentence under the effect.
-    if (resolution.agendaGrant !== undefined) {
-      rows.push(AGENDA_GRANT_RULE_KEY);
-    }
-    out.push(block('group:immediate', 'immediate', 'When enacted', rows, 0));
+    out.push(block('group:immediate', 'immediate', 'When enacted', [text.effect], 0));
   }
   // THE WORLD'S PART — its own block, between everyone's effect and the
   // winner's: what the law does to the PLANET belongs to no seat, so it can
@@ -280,14 +245,7 @@ export function resolutionAnnotations(
     out.push(block('group:world', 'immediate', heading, rows, 0.5));
   }
   if (text.winner !== undefined) {
-    // A winner TILE's qualification — the detailed reading of the face's
-    // symbol (the Redux greenery's TR rule) — one sentence under it.
-    const rows: Array<string | RowText> = [text.winner];
-    const rule = resolution.winnerReward === undefined ? undefined : winnerRewardRuleKey(resolution.winnerReward);
-    if (rule !== undefined) {
-      rows.push(rule);
-    }
-    out.push(block('group:winner', 'immediate', 'For the winner of the vote', rows, 1));
+    out.push(block('group:winner', 'immediate', 'For the winner of the vote', [text.winner], 1));
   }
   if (text.passive !== undefined) {
     out.push(block('group:effect', 'effect', 'Resolution effect', [text.passive], 2));
@@ -298,187 +256,6 @@ export function resolutionAnnotations(
     const uses = actionUsesRule(resolution.actionUses);
     out.push(block('group:action', 'action', 'Resolution action',
       uses === undefined ? [text.action] : [text.action, {text: uses.label, params: uses.params ?? []}], 3));
-  }
-  // FOR YOU — WHERE THE VIEWER'S NUMBER COMES FROM: the counted cards behind
-  // their reading (the footer shows «2 + 2 → +4»; this names the 2). The
-  // cards of the enactment once it is recorded (frozen), today's cards while
-  // the card is up for the vote — each labelled by which one it is.
-  const forYou: Array<RowText> = [];
-  // THE LEVY FIRST — the printed order: what leaves the viewer's supply before anything is paid. A short seat
-  // reads its shortfall here in words (the footer's plate prints the take); a whole take reads as the fact.
-  if (levy !== undefined) {
-    const applied = levy.context !== 'estimate';
-    if (levy.short) {
-      forYou.push(applied ?
-        {text: 'Levy taken: ${0} of ${1} M€ — not enough M€', params: [String(levy.paid), String(levy.owed)]} :
-        {text: 'Not enough M€ for the levy: ${0} of ${1} M€ would be taken', params: [String(levy.paid), String(levy.owed)]});
-    } else {
-      forYou.push(applied ?
-        {text: 'Levy taken: ${0} M€, then the payout', params: [String(levy.paid)]} :
-        {text: 'Levy: ${0} M€ first, then the payout', params: [String(levy.paid)]});
-    }
-  }
-  // A LEVEL part (Joint Research): the target, the hand it was read against and the difference — the
-  // footer's plate in words, the zero named as the rule working. Today's hand while the card is up for
-  // the vote, the recorded numbers once enacted.
-  const level = (yields ?? []).find((y) => y.effect.level !== undefined && y.target !== undefined && y.total !== undefined &&
-    (y.context === 'estimate' || y.context === 'applied'));
-  if (level?.target !== undefined && level.total !== undefined) {
-    const applied = level.context === 'applied';
-    const influence = String(level.influence ?? 0);
-    const target = String(level.target);
-    const before = String(level.total.before);
-    const moved = String(level.amount ?? 0);
-    // A CUT (Plant Ban) says the same three numbers the other way round: the LIMIT, what the seat has,
-    // and what LEAVES. Never «you will be left with 4» — the player is asking how much is taken, and the
-    // rule's own qualification (no card protects against it) is already stated above with the effect.
-    if (level.effect.level?.direction === 'down') {
-      const base = String(level.effect.base ?? 0);
-      if ((level.amount ?? 0) <= 0) {
-        forYou.push(applied ?
-          {text: 'Plant limit at the enactment: ${0} (${1} + influence ${2}). Had ${3} — nothing was taken', params: [target, base, influence, before]} :
-          {text: 'Plant limit right now: ${0} (${1} + influence ${2}). You have ${3} — nothing to lose', params: [target, base, influence, before]});
-      } else {
-        forYou.push(applied ?
-          {text: 'Plant limit at the enactment: ${0} (${1} + influence ${2}). Had ${3}, lost ${4}', params: [target, base, influence, before, moved]} :
-          {text: 'Plant limit right now: ${0} (${1} + influence ${2}). You have ${3} — ${4} would be taken', params: [target, base, influence, before, moved]});
-      }
-    } else if ((level.amount ?? 0) <= 0) {
-      forYou.push(applied ?
-        {text: 'Target at the enactment: ${0} cards in hand (6 + influence ${1}). Had ${2} — no draw was needed', params: [target, influence, before]} :
-        {text: 'Target right now: ${0} cards in hand (6 + influence ${1}). ${2} in hand — no draw needed', params: [target, influence, before]});
-    } else if (applied) {
-      const drawn = String(level.delivered ?? level.amount ?? 0);
-      forYou.push(level.delivered !== undefined && level.delivered < (level.amount ?? 0) ?
-        {text: 'Target at the enactment: ${0} cards in hand (6 + influence ${1}). Had ${2}, owed ${3}, the deck had ${4}', params: [target, influence, before, String(level.amount ?? 0), drawn]} :
-        {text: 'Target at the enactment: ${0} cards in hand (6 + influence ${1}). Had ${2}, drew ${3}', params: [target, influence, before, drawn]});
-    } else {
-      forYou.push({text: 'Target right now: ${0} cards in hand (6 + influence ${1}). ${2} in hand — ${3} to draw', params: [target, influence, before, String(level.amount ?? 0)]});
-    }
-  }
-  const counted = (yields ?? []).find((y) => (y.counted !== undefined || y.countedSpaces !== undefined || y.countedMetric !== undefined || y.countedByResource !== undefined ||
-    y.countedColonies !== undefined) && (y.context === 'estimate' || y.context === 'applied'));
-  if (counted?.countedColonies !== undefined) {
-    // A COLONIES count (Jovian Tax Rights): the TILES the seat's cubes stand on, by the colonies' own names, two
-    // cubes on one tile as «×2» («Luna ×2 · Titan») — the record's own list, frozen once recorded. No cube is a
-    // calm zero about COLONIES, never «no card counts» (the count stands on tiles, not cards).
-    const applied = counted.context === 'applied';
-    const names = countedColonyNames(counted, (colony) => translateText(colony));
-    if (names.length > 0) {
-      forYou.push({text: applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}', params: [names.join(' · ')]});
-    } else {
-      forYou.push({text: applied ? 'No colony was counted at the enactment' : 'No colony counts right now'});
-    }
-  } else if (counted?.countedByResource !== undefined) {
-    // A PRODUCTION count (steel + titanium + energy steps): no list — the row is the BREAKDOWN by resource
-    // («steel production 2 · titanium production 1 · energy production 3»), a zero listed, frozen once recorded.
-    const applied = counted.context === 'applied';
-    const breakdown = countedProductionParts(counted.countedByResource).map((part) => translateTextWithParams(part.key, [...part.params])).join(' · ');
-    forYou.push({text: applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}', params: [breakdown]});
-  } else if (counted?.countedMetric !== undefined) {
-    // A THRESHOLD count (sets of TR): there is no list — the row is the
-    // BREAKDOWN of the value («TR 24 · threshold 15 · 1 complete set · 1 to
-    // the next set»), the server's own numbers, frozen once recorded.
-    const applied = counted.context === 'applied';
-    const breakdown = countedMetricParts(counted.countedMetric).map((part) => translateTextWithParams(part.key, [...part.params])).join(' · ');
-    forYou.push({text: applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}', params: [breakdown]});
-  } else if (counted?.countedSpaces !== undefined) {
-    // A BOARD count (space cities, cities on Mars): the CELLS, by the names the
-    // board's own information layer gives them (the reserved areas, Noctis
-    // City, the named mountains). A cell that layer does not name is never
-    // christened here — the row prints the NUMBER instead and the rule
-    // sentence above says what was counted. On the `tiers` measure a cell
-    // reads with its weight («Noctis City ×2» — the board's own stack
-    // counter), and where the cells go unnamed the number is followed by
-    // what makes it exceed the cells: how many cells, and each stack
-    // («4 cities on Mars · 3 cells · a stack of 2») — the row where the
-    // player checks that the card does not lie.
-    const applied = counted.context === 'applied';
-    const entries = countedCellEntries(counted, (key) => translateText(key));
-    const named = entries.filter((entry): entry is CountedCellEntry & {name: string} => entry.name !== undefined);
-    const key = applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}';
-    if (entries.length > 0 && named.length === entries.length) {
-      forYou.push({text: key, params: [named.map(countedCellLabel).join(' · ')]});
-    } else if (entries.length > 0 && counted.effect.count !== undefined) {
-      const total = counted.count ?? entries.length;
-      const parts = [translateTextWithParams(yieldCountPresentation(counted.effect.count.id).pluralKey, [String(total)])];
-      if (total > entries.length) {
-        parts.push(translateTextWithParams('${0} cell(s)', [String(entries.length)]));
-        for (const entry of entries) {
-          if (entry.tiers > 1) {
-            parts.push(entry.name === undefined ? translateTextWithParams('a stack of ${0}', [String(entry.tiers)]) : countedCellLabel({name: entry.name, tiers: entry.tiers}));
-          }
-        }
-      }
-      forYou.push({text: key, params: [parts.join(' · ')]});
-    } else if ((counted.count ?? 0) === 0) {
-      forYou.push({text: applied ? 'No tile was counted at the enactment' : 'No tile counts right now'});
-    }
-  } else if (counted !== undefined && counted.countedByCard !== undefined && yieldCountsKinds(counted.effect)) {
-    // A count by KIND (Tax Breaks): each different kind with the cards that hold it («Животное: Рыба, Птицы ·
-    // Аэростат: Дирижабли») — the ONE grouping over the server's own cards; nothing lands on them, so no «2 → 3».
-    const applied = counted.context === 'applied';
-    const kinds = countedHolderKinds(counted);
-    if (kinds.length > 0) {
-      const text = kinds.map((kind) => `${translateText(kind.resource)} — ${kind.cards.map((entry) => translateText(entry.card)).join(', ')}`).join(' · ');
-      forYou.push({text: applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}', params: [text]});
-    } else {
-      forYou.push({text: applied ? 'No card had a resource at the enactment' : 'No card of yours has a resource yet'});
-    }
-  } else if (counted?.countedByCard !== undefined) {
-    // A HOLDERS count (Sponsored Projects): every card that already holds a resource, with what the payout makes of it
-    // («Fish 2 → 3 · Dirigibles 1 → 2») — and what that does to the cards' points, the server's own reading, summed.
-    const applied = counted.context === 'applied';
-    const changes = countedHolderChanges(counted, (name) => translateText(name));
-    if (changes.length > 0) {
-      forYou.push({text: applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}', params: [changes.join(' · ')]});
-      const vp = countedHoldersVp(counted);
-      if (vp !== 0) {
-        forYou.push({text: applied ? 'These resources brought ${0} VP' : 'These resources would bring ${0} VP', params: [vp > 0 ? `+${vp}` : String(vp)]});
-      }
-    } else {
-      forYou.push({text: applied ? 'No card had a resource at the enactment' : 'No card of yours has a resource yet'});
-    }
-  } else if (counted?.counted !== undefined) {
-    // Each card with what IT contributed («Fusion Power ×2») — a TAG count can
-    // owe several units to one card, and a list of bare names would leave the
-    // number unexplained. A card count is worth 1 apiece and reads as a list.
-    const names = countedContributions(counted, (name) => translateText(name));
-    const applied = counted.context === 'applied';
-    if (names.length > 0) {
-      forYou.push({text: applied ? 'Counted at the enactment: ${0}' : 'Counted right now: ${0}', params: [names.join(' · ')]});
-    } else if ((counted.count ?? 0) === 0) {
-      // Nothing counted — said plainly. A count standing on something that is
-      // not a card at all (a permanent modifier) is never called «no card».
-      forYou.push({text: applied ? 'No card was counted at the enactment' : 'No card counts right now'});
-    }
-  }
-  // …AND WHAT THE WINNER'S TILE DOES for the viewer at this moment, in words —
-  // the footer's chip read out (where the footer has no room for the chip, this
-  // row IS the reading): «if you win: oxygen 5 → 6 %; TR +2 (tile +1, oxygen +1)».
-  const reading = winner?.reading;
-  if (winner !== undefined && reading !== undefined && reading.context !== 'reference') {
-    const sentence = winnerRewardSentenceOf(reading, winner.viewer, winner.nameOf,
-      {text: translateText, params: translateTextWithParams});
-    if (sentence !== undefined) {
-      forYou.push(sentence.detail === '' ?
-        {text: '${0}', params: [sentence.caption]} :
-        {text: '${0}: ${1}', params: [sentence.caption, sentence.detail]});
-    }
-  }
-  // …AND THE VIEWER'S OWN STANDING ON A TILE GRANTED BY THRESHOLD, in words — the footer's chip read out:
-  // «yours at influence 2 — win or not: your cities on Mars: 1», «you placed it — influence 2: a stack of 2».
-  const grantReading = grant?.reading;
-  if (grantReading !== undefined && grantReading.context !== 'reference') {
-    const sentence = tileGrantSentenceOf(grantReading, {text: translateText, params: translateTextWithParams});
-    if (sentence !== undefined) {
-      forYou.push(sentence.detail === '' ?
-        {text: '${0}', params: [sentence.caption]} :
-        {text: '${0}: ${1}', params: [sentence.caption, sentence.detail]});
-    }
-  }
-  if (forYou.length > 0) {
-    out.push(block('group:you', 'note', 'For you', forYou, 3.5));
   }
   // THE CHAIRMAN QUEST — the printed condition, in words (the card draws it).
   out.push(block('group:quest', 'note', 'Chairman quest', [text.quest], 4));

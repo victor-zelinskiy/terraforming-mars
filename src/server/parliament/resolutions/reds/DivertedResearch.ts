@@ -165,7 +165,7 @@ export const DIVERTED_RESEARCH: ResolutionDefinition = {
     name: 'Diverted Research',
     effect: 'Add 1 data resource per point of your influence to one of your cards.',
     // The block label says WHEN («Эффект, пока принята»); the sentence says WHAT.
-    passive: 'Each step of oxygen or temperature you would raise and each greenery or ocean tile you would place becomes 1 data resource on one of your cards instead — even when the parameter is at its maximum.',
+    passive: 'Each oxygen or temperature step and each greenery or ocean tile you would gain is replaced with 1 data on one of your cards. Even if the parameter is at its maximum.',
     quest: 'Add 4 data resources to your cards',
   },
   quest: {goal: {kind: 'cardResource', resource: CardResource.DATA}, count: DIVERTED_RESEARCH_QUEST_DATA},

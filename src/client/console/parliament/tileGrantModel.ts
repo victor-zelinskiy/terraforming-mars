@@ -203,22 +203,6 @@ export function tileGrantReadingOf(
   return {grant, context: 'reference'};
 }
 
-/**
- * The ONE qualification sentence the inspector adds under the effect (an
- * English key), by WHERE the tile lands: a tier — what it IS for the score,
- * and that a seat with no city gains nothing; a city by the ordinary rules —
- * that the rules are the usual ones and the cell pays its bonus.
- */
-export const TILE_GRANT_RULE_KEY = 'Each city in the stack scores its adjacent greeneries separately. The cell pays no placement bonus again. A player with no city on Mars gains nothing.';
-export const TILE_GRANT_ANY_LEGAL_RULE_KEY = 'A city tile placed by the usual rules; the cell pays its placement bonus.';
-
-export function tileGrantRuleKey(grant: TileGrantDeclaration): string {
-  switch (grant.placement) {
-  case 'own-city': return TILE_GRANT_RULE_KEY;
-  case 'any-legal': return TILE_GRANT_ANY_LEGAL_RULE_KEY;
-  }
-}
-
 /** The grant's own name (English key): the tile granted. */
 export function tileGrantLabelKey(grant: TileGrantDeclaration): string {
   switch (grant.tile) {

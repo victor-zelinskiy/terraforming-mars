@@ -196,7 +196,7 @@ async function expectUniformGrid(page: Page, label: string): Promise<void> {
 /**
  * The inspector's reading bodies need no scroll (the panels' whole point) — the party column's text block included.
  * Парламент v8 (the owner's point 9): a resolution's dossier is its RULES — the viewer's plates are the vote panel's,
- * «ДЛЯ ВАС» keeps only its words as the panel's LAST group. On the TV and at 1080 the whole panel fits; the Deck is a
+ * and since the texts iteration (2026-10-23) the panel is the printed texts alone. On the TV and at 1080 the whole panel fits; the Deck is a
  * starved host (a 420 px column under a levy card's rules), where the panel may scroll as the last rung of its own
  * ladder — but only past the rules' own groups (what is cut is the tail) and with a readable area.
  */
@@ -212,11 +212,6 @@ async function expectRulesFit(page: Page, label: string): Promise<void> {
       const inner = scroll.querySelector<HTMLElement>('.con-zoom-rules__body') ?? scroll;
       if (inner.scrollHeight > scroll.clientHeight + 2) {
         if (starved) {
-          const groups = Array.from(inner.querySelectorAll<HTMLElement>('[data-rules-group]'));
-          const you = groups.findIndex((g) => g.getAttribute('data-rules-group') === 'group:you');
-          if (you !== -1 && you !== groups.length - 1) {
-            out.push('the «ДЛЯ ВАС» words are not the panel\'s last group');
-          }
           const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 20;
           if (scroll.clientHeight < 8 * rem) {
             out.push(`the resolution's panel is a sliver on the Deck: ${scroll.clientHeight} px`);

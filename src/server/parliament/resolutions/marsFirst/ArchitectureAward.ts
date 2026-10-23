@@ -94,7 +94,7 @@ export const ARCHITECTURE_AWARD: ResolutionDefinition = {
   }),
   text: {
     name: 'Architecture Award',
-    effect: 'Raise your M€ production 1 step per building card with a VP icon you have in play, plus 1 per influence. Max 5.',
+    effect: 'Raise your M€ production 1 step per building card with a non-negative VP icon you have in play, plus 1 per influence. Max 5.',
     quest: 'Play 2 building tags',
   },
   quest: {goal: {kind: 'tag', tag: Tag.BUILDING}, count: 2},

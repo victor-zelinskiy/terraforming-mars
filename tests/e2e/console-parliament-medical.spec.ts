@@ -187,13 +187,12 @@ test.describe('Medical Database · standard-1080', () => {
       await expectParliamentFits(page, 'vote mode');
       await shoot(page, '02-vote-reading');
 
-      // ── THE FULLSCREEN: the rule of the count, the counted cards.
+      // ── THE FULLSCREEN: the printed text alone (texts 2026-10-23).
       await openZoomViewer(page);
       const zoom = page.locator('dialog.con-zoom[open]');
       await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(MEDICAL_CLASS);
       const rules = zoom.locator('.con-zoom-sidecol');
-      await expect(rules, 'the rule says what counts').toContainText(/карта с двумя метками даёт 2|two science tags counts twice/);
-      await expect(rules, 'the counted cards').toContainText(/Учтены сейчас|Counted right now/);
+      await expect(rules, 'the printed text').toContainText(/за каждую свою метку науки|per science tag you have/);
       await shoot(page, '03-fullscreen');
       await closeZoomViewer(page);
       await press(page, 'Escape', 900);

@@ -159,7 +159,7 @@ export const AQUIFER_CONTEST: ResolutionDefinition = {
   }),
   text: {
     name: 'Aquifer Contest',
-    effect: 'Add 1 animal per influence to one of your cards that can hold animals.',
+    effect: 'Add 1 animal per influence to one of your cards.',
     winner: 'Place an ocean tile.',
     quest: 'Play a card with an animal tag',
   },

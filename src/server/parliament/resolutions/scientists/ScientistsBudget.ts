@@ -188,7 +188,7 @@ export const SCIENTISTS_BUDGET: ResolutionDefinition = {
   }),
   text: {
     name: 'Scientists Budget',
-    effect: 'Lose 10 M€. Then gain 1 M€ per science tag you have, plus 1 per influence. Then draw 2 cards.',
+    effect: 'Lose 10 M€. Gain 1 M€ per science tag you have and 1 per influence. Draw 2 cards.',
     quest: 'Play 2 science tags',
   },
   quest: {goal: {kind: 'tag', tag: Tag.SCIENCE}, count: 2},

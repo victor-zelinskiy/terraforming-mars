@@ -252,20 +252,16 @@ test.describe('Industrialist Budget · standard-1080', () => {
       await expectParliamentFits(page, 'vote mode');
       await shoot(page, '02-vote-net');
 
-      // ── THE FULLSCREEN (Парламент v8): the RULES — the levy row FIRST, then the breakdown by resource in the rules'
-      //    «ДЛЯ ВАС» words; the numbers are the panel's.
+      // ── THE FULLSCREEN (Парламент v8, texts 2026-10-23): the printed text alone — the levy, the breakdown and the
+      //    numbers are the panel's; no «ДЛЯ ВАС» block, no qualification under the effect.
       await openZoomViewer(page);
       const zoom = page.locator('dialog.con-zoom[open]');
       await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(BUDGET_CLASS);
       await expectDossierIsRules(page, 'budget');
       const rules = zoom.locator('.con-zoom-sidecol');
-      await expect(rules, 'the rule says what counts').toContainText(/Ресурсы в запасе не считаются|Resources in your supply do not count/);
-      await expect(rules, 'the levy row').toContainText(/Плата: сначала 10 M€|Levy: 10 M€ first/);
-      await expect(rules, 'the breakdown behind the number').toContainText(/Учтены сейчас|Counted right now/);
-      await expect(rules).toContainText(/производство стали 2|steel production 2/);
-      await expect(rules).toContainText(/производство титана 1|titanium production 1/);
-      await expect(rules).toContainText(/производство энергии 2|energy production 2/);
-      await expect(rules, 'never «no card»').not.toContainText(/ни одна карта|No card counts/i);
+      await expect(rules, 'the printed text: the levy first').toContainText(/Потеряйте 10 M€|Lose 10 M€/);
+      await expect(rules, '…the count').toContainText(/производства стали, титана и энергии|steel, titanium and energy production/);
+      await expect(rules, '…and the production').toContainText(/производство M€ на 4|M€ production 4 steps/);
       await expect(page.locator('dialog.con-zoom.con-zoom--parliament[open]:not(.con-zoom--flight)')).toHaveCount(1, {timeout: 10_000});
       await shoot(page, '03-fullscreen-breakdown');
       await closeZoomViewer(page);

@@ -1082,7 +1082,7 @@ scaled: [{id: 'megacredits', unit: {kind: 'stock', resource: MEGACREDITS}, perIn
 trackAdvance: {steps: 2},                                                                       // common/parliament/colonyTrackAdvance.ts
 immediateSteps: [levyStep(ID, LEVY), MEGACREDITS_STEP],                                          // печатный порядок, на каждое место
 worldSteps: [colonyTrackStep(ID, {steps: 2})],                                                   // ОДИН раз за принятие — никогда в immediateSteps
-text: {..., world: 'Advance every colony track 2 steps.'},
+text: {..., world: 'Every colony track advances 2 steps.'},
 // запись: {kind: 'colonyTrack', amount: 2, tracks: [{colony, before, after}]} — без места; стол без тайлов — skipped
 ```
 

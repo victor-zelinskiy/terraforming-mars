@@ -126,16 +126,13 @@ test.describe('Joint Research · standard-1080', () => {
       await expectParliamentFits(page, 'vote mode');
       await shoot(page, '02-vote-explained');
 
-      // ── THE FULLSCREEN: the same three numbers, in words beside them; the forecast as its own plate.
+      // ── THE FULLSCREEN: the printed text alone — the three numbers are the panel's (texts 2026-10-23).
       await openZoomViewer(page);
       const zoom = page.locator('dialog.con-zoom[open]');
       await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(RESEARCH_CLASS);
       await expectDossierIsRules(page, 'research');
       const rules = zoom.locator('.con-zoom-sidecol');
-      await expect(rules, 'the rule says when the hand is counted').toContainText(/Рука считается на заседании|The hand is counted at the sitting/);
-      await expect(rules, 'the «for you» row: the target').toContainText(/Цель сейчас: 8|Target right now: 8/);
-      await expect(rules, '…the hand').toContainText(/В руке 5|5 in hand/);
-      await expect(rules, '…and the draw').toContainText(/добор 3|3 to draw/);
+      await expect(rules, 'the printed text').toContainText(/пока в руке не станет 6 карт|until you have 6 cards in hand/);
       await expect(page.locator('dialog.con-zoom.con-zoom--parliament[open]:not(.con-zoom--flight)')).toHaveCount(1, {timeout: 10_000});
       await shoot(page, '03-fullscreen-words');
       await closeZoomViewer(page);

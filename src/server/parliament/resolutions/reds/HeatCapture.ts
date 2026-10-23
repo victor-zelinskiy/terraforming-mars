@@ -179,7 +179,7 @@ export const HEAT_CAPTURE: ResolutionDefinition = {
   text: {
     name: 'Heat Capture',
     effect: 'Gain 2 M€ for every point of your influence.',
-    world: 'The temperature is reduced 2 steps unless it is already at its maximum. Nobody loses or gains TR for this.',
+    world: 'The temperature is lowered 2 steps.',
     // The block label says WHEN («Эффект, пока принята»); the sentence says WHAT.
     passive: 'When you play a card with a building tag, you pay 3 M€ less for it.',
     quest: 'Play 2 building tags',

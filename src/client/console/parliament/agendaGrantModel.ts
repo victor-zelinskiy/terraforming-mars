@@ -155,9 +155,6 @@ export function agendaGrantReadingOf(
   return {grant, context: 'reference'};
 }
 
-/** The ONE qualification sentence the inspector adds under the effect (an English key): what a step pays on the spot. */
-export const AGENDA_GRANT_RULE_KEY = 'Each step pays its own Career bonus on the spot: a TR, a card, or a new influence level. MarsBot takes 1 M€ instead of a card.';
-
 /** The grant's head (English key): what each seat receives — the steps, for everyone. */
 export function agendaGrantLabelKey(grant: AgendaGrantDeclaration): {key: string, params: ReadonlyArray<string>} {
   return grant.steps === 1 ?

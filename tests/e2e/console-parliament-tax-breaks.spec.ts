@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, pressUntil, settle} from './consoleStart';
 import {
-  answerGateAs, answerGateOnScreen, armLeakWitness, closeSitting, expectParliamentFits, mandatoryPlate, openParliament, parliament, sittingStage,
+  answerGateAs, answerGateOnScreen, armLeakWitness, closeSitting, expectDossierIsRules, expectParliamentFits, mandatoryPlate, openParliament, parliament, sittingStage,
   strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
@@ -200,12 +200,12 @@ for (const preset of PRESETS) {
       await expectParliamentFits(page, `${preset.id} vote`);
       await shoot(page, preset.id, '01-vote-panel');
 
-      // THE INSPECTOR (X): the face large, and «ДЛЯ ВАС» names the kinds in words.
+      // THE INSPECTOR (X): the face large, the printed text alone — the kinds in words are the vote panel's (texts 2026-10-23).
       await openZoomViewer(page);
       const zoom = page.locator('dialog.con-zoom[open]');
       await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(/rdx-industrialists-tax-breaks/);
-      await expect(zoom.locator('.con-zoom-sidecol'), 'the counted kinds behind the number').toContainText(/Учтены сейчас|Counted right now/);
-      await expect(zoom.locator('.con-zoom-sidecol')).toContainText(/Животное — Рыба, Птицы|Animal — Fish, Birds/);
+      await expectDossierIsRules(page, preset.id);
+      await expect(zoom.locator('.con-zoom-sidecol'), 'the printed text').toContainText(/за каждый вид ресурса на ваших картах|per different type of resource on your cards/);
       await expect(page.locator('dialog.con-zoom.con-zoom--parliament[open]:not(.con-zoom--flight)')).toHaveCount(1, {timeout: 10_000});
       await shoot(page, preset.id, '02-face-inspector');
       await closeZoomViewer(page);

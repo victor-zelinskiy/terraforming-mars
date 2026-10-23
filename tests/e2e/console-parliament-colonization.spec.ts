@@ -213,16 +213,13 @@ test.describe('Colonization Funding · standard-1080', () => {
     await expectParliamentFits(page, 'vote mode');
     await shoot(page, '02-vote-reading');
 
-    // ── THE FULLSCREEN: the footer reads the same number; the rules column names the two CELLS by the board's own names.
+    // ── THE FULLSCREEN: the rules column is the printed text — a space city named as a city off Mars (texts 2026-10-23).
     await openZoomViewer(page);
     const zoom = page.locator('dialog.con-zoom[open]');
     await expect(zoom.locator('.card-zoom-stage .pcard').first(), 'the resolution on the stage').toHaveClass(FUNDING_CLASS);
     await expectDossierIsRules(page, 'colonization');
     const rules = zoom.locator('.con-zoom-sidecol');
-    await expect(rules, 'the rule names what a space city is').toContainText(/вне Марса|off Mars/i);
-    await expect(rules, 'the counted cells behind the number').toContainText(/Учтены сейчас|Counted right now/);
-    await expect(rules, 'Ganymede Colony by the board\'s own name').toContainText(/Колония на Ганимеде|Ganymede Colony/);
-    await expect(rules, 'Phobos Space Haven by the board\'s own name').toContainText(/Космопорт на Фобосе|Phobos Space Haven/);
+    await expect(rules, 'the printed text names what a space city is').toContainText(/вне Марса|off Mars/i);
     await expect(page.locator('dialog.con-zoom.con-zoom--parliament[open]:not(.con-zoom--flight)')).toHaveCount(1, {timeout: 10_000});
     await shoot(page, '03-fullscreen');
     await closeZoomViewer(page);

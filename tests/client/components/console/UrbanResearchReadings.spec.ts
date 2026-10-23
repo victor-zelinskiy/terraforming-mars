@@ -111,7 +111,6 @@ describe('Urban Research — the readings of a counted draw', () => {
     expect(yieldCountPresentation('cityTags')).deep.eq({
       glyph: {kind: 'tag', tag: Tag.CITY},
       pluralKey: '${0} city tag(s)',
-      ruleKey: 'Each city tag on your cards counts: a card with two city tags counts twice. Wild tags do not count, and a city on the board is not a tag.',
       skipReasonKey: 'No city tags',
     });
     // The three city counts over the BOARD keep their own words — no reading can confuse the four.

@@ -207,24 +207,6 @@ export function winnerRewardReadingOf(
   return {...head, context: 'reference'};
 }
 
-/**
- * The ONE qualification sentence the inspector adds under the winner's block —
- * the detailed reading of the face's symbol (English key), or none where the
- * part follows the base rules untouched.
- */
-export function winnerRewardRuleKey(reward: WinnerRewardDeclaration): string | undefined {
-  switch (reward.kind) {
-  case 'colony':
-    return 'The colony is built for free on any open tile without your cube. Its build bonus is paid; no trade fleet is spent.';
-  case 'parameter':
-    return 'The winner raises it as a player would: 1 TR per step, the track\'s own bonuses, and the ocean of 0 °C as a placement of their own.';
-  case 'tile':
-    return reward.tile === 'greenery' ?
-      '1 TR for the greenery and 1 TR for the oxygen step. At maximum oxygen, only the TR for the greenery.' :
-      undefined;
-  }
-}
-
 /** «at its maximum — no step», per parameter (English keys) — the sentence's own clause and the block's note. */
 export function winnerParameterMaxKey(parameter: WinnerRewardParameter): string {
   switch (parameter) {

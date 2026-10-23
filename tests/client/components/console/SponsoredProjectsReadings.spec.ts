@@ -110,7 +110,7 @@ describe('Sponsored Projects — the readings of a payout that asked nobody, and
     expect(yieldIconClasses(yieldIconOf(resources))).deep.eq(['resource_icon resource_icon--wild']);
   });
 
-  it('the vote: the count is the server\'s cards, the amount one per card, no «forfeited» note — and «ДЛЯ ВАС» names each card\'s change and the points', () => {
+  it('the vote: the count is the server\'s cards, the amount one per card, no «forfeited» note — the dossier carries no «ДЛЯ ВАС»; the panel\'s own line names each card\'s change and the points', () => {
     const law = resolutionOf();
     const table = upForVote([seat(BLUE, 3, 2), seat(RED, 0, 0, [])]);
     const yields = voteYieldsOf(law, table, BLUE).filter((y) => y.context === 'estimate');
@@ -122,10 +122,8 @@ describe('Sponsored Projects — the readings of a payout that asked nobody, and
     expect(noRecipientCompactNoteOf(resources, [])).is.undefined;
     expect(countedHolderChanges(holders, (name) => name)).deep.eq([`${CardName.FISH} 2 → 3`, `${CardName.DIRIGIBLES} 1 → 2`, `${CardName.SUPERCOMPUTER} 3 → 4`]);
     expect(countedHoldersVp(holders)).eq(1);
-    const forYou = JSON.stringify(resolutionAnnotations(SPONSORED_ID, voteYieldsOf(law, table, BLUE)).find((block) => block.id === 'group:you'));
-    expect(forYou).includes('Counted right now: ${0}');
-    expect(forYou).includes(`${CardName.FISH} 2 → 3`);
-    expect(forYou).includes('These resources would bring ${0} VP');
+    // The dossier carries no «for you» block (texts 2026-10-23) — the holders' changes are the panel's line below.
+    expect(resolutionAnnotations(SPONSORED_ID).some((block) => block.id === 'group:you')).is.false;
     // Another seat reads ITS OWN cards (the ledger's column) — red holds none: a zero, the count's own reason.
     const red = voteYieldsOf(law, table, RED).find((y) => y.context === 'estimate' && y.effect.id === 'resources');
     expect(red).deep.include({amount: 0, count: 0});
