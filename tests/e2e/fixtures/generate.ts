@@ -8243,3 +8243,80 @@ parliamentFixture('supported-research', {
   }
   write('preselect-sole', game);
 }
+
+// ── T15 · WILDLIFE DOME — THE STAGED BOARD'S STAND (ledger CD — «STAGED PLAY — РОЗЫГРЫШ, КОТОРЫЙ ЗАКАНЧИВАЕТСЯ НА
+//    ПОЛЕ»). The Greens rule (their quiet law enacted); Wildlife Dome MOVED out of the dealt pool into blue's hand, 40 M€;
+//    blue owns a city and a greenery on the board's first land cells (seated bare — `simpleAddTile`: no bonus, no
+//    oxygen, so the scales stand at the start) and Herbivores on the table, so a greenery's cell names the table's answer
+//    («Сработает»: +1 animal) beside what the cell gives, and the cursor's first cell is beside blue's own tiles (far
+//    from the board's centre). Variants: the oxygen at its maximum (the tile's rating alone); no free cell beside blue's
+//    tiles (the card is NOT playable, the hand names why); a city with Pets on the table (the standard project's dossier
+//    names Pets' animal); Ice Asteroid with one ocean left (PL-595 — the second ocean is named, never dropped). ──
+function wildlifeDomeTable(name: string, extra?: (table: ParliamentTable) => void, playable = true): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [40, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: (table) => {
+      const {game, p1, parliament} = table;
+      seatEnacted(parliament, quietResolutionOf(PartyName.GREENS));
+      const city = game.board.getAvailableSpacesForCity(p1)[0];
+      game.simpleAddTile(p1, city, {tileType: TileType.CITY});
+      const green = game.board.getAvailableSpacesForGreenery(p1)[0];
+      game.simpleAddTile(p1, green, {tileType: TileType.GREENERY});
+      moveToDeckTop(game, CardName.HERBIVORES);
+      p1.playedCards.push(game.projectDeck.drawOrThrow(game));
+      gmoToHand(game, p1, [CardName.WILDLIFE_DOME]);
+      extra?.(table);
+    },
+    expect: ({game, p1, parliament}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.WILDLIFE_DOME);
+      if (card === undefined || p1.canPlay(card) !== playable || parliament.rulingParty() !== PartyName.GREENS || game.activePlayer.id !== p1.id) {
+        throw new Error(`the ${name} fixture expected T15 ${playable ? 'playable' : 'NOT playable'} with the Greens ruling and blue on the move — got card=${card !== undefined} canPlay=${card !== undefined && p1.canPlay(card)} ruling=${parliament.rulingParty()}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+wildlifeDomeTable('wildlife-dome');
+wildlifeDomeTable('wildlife-dome-o2max', ({game}) => setOxygenLevel(game, 14));
+wildlifeDomeTable('wildlife-dome-noroom', ({game, p1, p2}) => {
+  // Every cell a greenery of blue's may take holds red's city (seated bare) — beside blue's tiles first, then the
+  // «anywhere on land» fallback the greenery rule opens when those are gone: blue's greenery has nowhere to go.
+  for (let round = 0; round < 3; round++) {
+    for (const space of game.board.getAvailableSpacesForGreenery(p1)) {
+      game.simpleAddTile(p2, space, {tileType: TileType.CITY});
+    }
+  }
+}, false);
+parliamentFixture('sp-city-pets', {
+  stopAt: 'vote',
+  megacredits: [40, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1}) => {
+    moveToDeckTop(game, CardName.PETS);
+    p1.playedCards.push(game.projectDeck.drawOrThrow(game));
+  },
+  expect: ({game, p1, parliament}) => {
+    if (!p1.tableau.has(CardName.PETS) || game.activePlayer.id !== p1.id || p1.megaCredits < 25) {
+      throw new Error('the sp-city-pets fixture expected Pets on blue\'s table, 25+ M€ and blue on the move');
+    }
+    parliament.assertLedger(game);
+  },
+});
+parliamentFixture('oceans-one-left', {
+  stopAt: 'vote',
+  megacredits: [40, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1}) => {
+    maxOutOceans(p1, 8);
+    gmoToHand(game, p1, [CardName.ICE_ASTEROID]);
+  },
+  expect: ({game, p1, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.ICE_ASTEROID);
+    if (card === undefined || !p1.canPlay(card) || game.board.getOceanSpaces().length !== 8 || game.activePlayer.id !== p1.id) {
+      throw new Error(`the oceans-one-left fixture expected Ice Asteroid playable with 8 oceans and blue on the move — got oceans=${game.board.getOceanSpaces().length}`);
+    }
+    parliament.assertLedger(game);
+  },
+});

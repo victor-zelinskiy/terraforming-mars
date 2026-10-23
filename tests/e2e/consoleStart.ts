@@ -2649,6 +2649,10 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' |
   // T14 Supported Research — the Scientists rule, a play that asks nothing; the pre-select stand (ledger CC): one floater
   // holder · two microbe holders · an optional plant removal · one player target · the Mappers' self-target.
   'supported-research' | 'preselect-sole' |
+  // T15 Wildlife Dome — the staged board's stand (ledger CD): the Greens rule, blue's city + greenery + Herbivores · the
+  // oxygen at its maximum · no free cell (T15 not playable) · a standard City with Pets on the table · Ice Asteroid with
+  // one ocean left (PL-595).
+  'wildlife-dome' | 'wildlife-dome-o2max' | 'wildlife-dome-noroom' | 'sp-city-pets' | 'oceans-one-left' |
   // T06 GMO Contract — the contract on the table (Lichen · Ecology Research · Pets in hand) · in hand · locked.
   'gmo-contract' | 'gmo-contract-hand' | 'gmo-contract-locked' |
   // T09 PR Office — Unity rule (playable, «+1 TR · +3 M€») · locked («1 of 2»).
