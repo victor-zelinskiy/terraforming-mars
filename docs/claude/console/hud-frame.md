@@ -306,6 +306,25 @@ bot seat · the info recolour · the private score) is re-seated on the new pain
 railGeometryParity.spec.ts` (the tokens table on every profile + the banned properties), e2e `console-rail-material` (50
 anchors × tv4k / fhd / deck against `tests/e2e/railAnchorsBaseline.json`, ±1 px; the states storyboard).
 
+## THE MATERIAL OF THE TOP STRIP (T05 · CG, 2026-10-23 — the owner's M1 «приборная доска»)
+
+The strip's FORM is a contract: ONE height token (`--con-hud-h` — 2.2 / TV 2.3 / handheld 1.7 rem, shared with the command
+bar), the chip ribbon on its one transform (`statusChipConveyor`), the seat INTAKE hanging under a chip (a rival's payout lands
+on its number — `statusIntake.seatIntakeEnd`), the chip a city payout aims at, the parameter cells the scale swing reads, the
+deck's pile the draw deals from, the chip line under the beam's seam. Its PAINT is `src/styles/console_status_material.less`
+(imported right after `console.less`, before the TV sizes): the beam on the player board's glass (the two always-visible
+edges are one material); a seat chip as a CROSS — the seat's colour a LIT EDGE (`--seat` by `data-color`, never a fill), the
+name on the glass, the status ENGRAVED (active lit mint, waiting recessed, the me / active / attention rims re-seated); the
+three global parameters as DIALS round their own icons (the icon's `::after`, `inset` in % of the icon — every profile; the
+reading `--con-param-fill` / `--con-param-steps` bound by `ConsoleStatusStrip.paramFill` off the value the cell prints); the
+deck's count and the generation on engraved plates (spread shadows). Paint only — no padding / margin / border / gap / size /
+font / transform / filter / display outside a pseudo-element. Guards: `tests/console/statusGeometryParity.spec.ts` (the token
+per profile, the banned properties, the import order), e2e `console-status-material` (31 anchors + the posed states — the
+viewer's attention, a passed seat, the conveyor's window, a ghost-ringed dial, the final generation, an intake expecting /
+received — × tv4k / fhd / deck against `tests/e2e/statusAnchorsBaseline.json`, ±1 px; the mockups `TM_E2E_STATUS_MOCK`, a
+mid-game table `TM_E2E_STATUS_FIXTURE=info-dossier-rich`). Two posed frames extend net-zero by design (the conveyor's window,
+the ghost ring) — the stand reads their contents, not the frames (`NET_ZERO_FRAMES`).
+
 ## Guards
 
 - `tests/e2e/console-hud-frame.spec.ts` — FHD + forced-TV 4K: computed
