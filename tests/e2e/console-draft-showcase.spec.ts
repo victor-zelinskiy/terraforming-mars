@@ -223,6 +223,63 @@ function expectHonest(profile: Profile, s: Showcase): void {
   }
 }
 
+/**
+ * THE MOCKUPS (`TM_DRAFT_MOCKUPS=1`, the TV only) — three compositions for the owner's batch, drawn as CSS over the
+ * LIVE scene (the real fit engine solves the cards in the box each mockup leaves them): M1 the packet in the whole
+ * opening over a shelf of large faces at the foot; M2 the shelf as a column at the right; M3 the shelf as a ribbon
+ * above the packet. Each is shot on the first packet and on the wait (where M1–M3 also stand the shelf big).
+ */
+const MOCKUPS: Record<string, string> = {
+  M1: `
+    .con-draftws__stagewrap--shelved .con-draftws__stage { bottom: 12.4rem !important; }
+    .con-draftws__shelf { padding: .5rem 1.2rem .6rem !important; background: rgba(9,15,24,.55) !important; }
+    .con-draftws__shelf-row { justify-content: center; min-height: 0 !important; gap: 1rem !important; }
+    .con-draftws__shelf-slot, .con-draftws__shelf-seat { width: 6.6rem !important; height: 9.3rem !important; }
+    .con-draftws__shelf-slot :is(.card-container, .pcard) { zoom: calc(0.415 * var(--con-ui-scale, 1)) !important; }
+    .con-draftws:has(.con-draftws__stage--wait:not([style*="none"])) .con-draftws__shelf { bottom: 38% !important; background: none !important; box-shadow: none !important; }
+    .con-draftws:has(.con-draftws__stage--wait:not([style*="none"])) .con-draftws__shelf-slot,
+    .con-draftws:has(.con-draftws__stage--wait:not([style*="none"])) .con-draftws__shelf-seat { width: 12rem !important; height: 16.9rem !important; }
+    .con-draftws:has(.con-draftws__stage--wait:not([style*="none"])) .con-draftws__shelf-slot :is(.card-container, .pcard) { zoom: calc(0.755 * var(--con-ui-scale, 1)) !important; }
+    .con-draftws:has(.con-draftws__stage--wait:not([style*="none"])) .con-draftws__stage--wait { justify-content: flex-end; padding-bottom: 2rem; }
+  `,
+  M2: `
+    .con-draftws__stagewrap--shelved .con-draftws__stage { bottom: 0 !important; right: 17.5rem !important; }
+    .con-draftws__shelf { left: auto !important; right: 0 !important; top: 0 !important; width: 16.5rem !important; justify-content: center; }
+    .con-draftws__shelf-row { flex-wrap: wrap; justify-content: center; align-content: center; min-height: 0 !important; gap: .8rem !important; }
+    .con-draftws__shelf-slot, .con-draftws__shelf-seat { width: 7rem !important; height: 9.9rem !important; }
+    .con-draftws__shelf-slot :is(.card-container, .pcard) { zoom: calc(0.44 * var(--con-ui-scale, 1)) !important; }
+  `,
+  M3: `
+    .con-draftws__stagewrap--shelved .con-draftws__stage { top: 11.4rem !important; bottom: 0 !important; }
+    .con-draftws__shelf { top: 0 !important; bottom: auto !important; }
+    .con-draftws__shelf-row { justify-content: center; min-height: 0 !important; gap: 1rem !important; }
+    .con-draftws__shelf-slot, .con-draftws__shelf-seat { width: 6.4rem !important; height: 9rem !important; }
+    .con-draftws__shelf-slot :is(.card-container, .pcard) { zoom: calc(0.4 * var(--con-ui-scale, 1)) !important; }
+  `,
+};
+
+if (process.env.TM_DRAFT_MOCKUPS === '1') {
+  const tv = PROFILES[0];
+  for (const [mock, css] of Object.entries(MOCKUPS)) {
+    test.describe(`the packet showcase · mockup ${mock}`, () => {
+      test.use({viewport: tv.viewport});
+      test(`${mock} — the first packet and the wait`, async ({page, request}) => {
+        test.setTimeout(240_000);
+        await bootFixture(page, request, 'draft-showcase-pick', {query: tv.query, landing: 'prompt'});
+        await page.addStyleTag({content: css});
+        if (!await page.locator('.con-draftws').isVisible()) {
+          await pressUntilVisible(page, 'Enter', '.con-draftws', {settleMs: 1500});
+        }
+        await page.evaluate(() => window.dispatchEvent(new Event('resize')));
+        await expect(page.locator('.con-draftws__stage--pick .con-cards__slot').first()).toBeVisible({timeout: 45_000});
+        await cell(page, tv, `mock-${mock}-a-packet`, 'pick');
+        expect(await pressUntil(page, 'Enter', async () => await stageVisible(page, 'wait'), {settleMs: 1200}), 'A picks into the wait').toBe(true);
+        await cell(page, tv, `mock-${mock}-b-wait`, 'wait');
+      });
+    });
+  }
+}
+
 for (const profile of PROFILES) {
   test.describe(`the packet showcase · ${profile.id}`, () => {
     test.use({viewport: profile.viewport});

@@ -282,6 +282,9 @@ for (const preset of PRESETS) {
       await press(page, 'Enter', 1200);
       await page.locator(composer).waitFor({timeout: 15_000});
       await settle(page);
+      // THE CHAIR in the MIN plate (T10 — the one mark of the chairmanship, never upstream's bust).
+      expect(await page.locator(`${composer} .pcard__reqs .pcard-req__icon`).first().evaluate((el) => getComputedStyle(el).backgroundImage),
+        'the hero\'s MIN plate prints the chair').toContain('chair.svg');
       await expect(page.locator(composer), 'the CTA is the door\'s navigation verb').toContainText('Выбрать партию');
       await expect(page.locator(composer), 'the next step is named, not guessed').toContainText('Область поддержки — выбор в Парламенте');
       await expect(page.locator(`${composer} .action-effect-chip .resource_icon--agenda-step`), 'the walk\'s track chip').toHaveCount(1);
