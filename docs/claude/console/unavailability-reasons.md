@@ -13,6 +13,16 @@ an action — Martian Media Center) is refused when the reserve cannot cover it;
 the gap («Delegates in your reserve: ${0} of ${1}» → «Делегатов в резерве: 1 из 2», `current` set); the classic engine
 keeps upstream's «Not enough available delegates».
 
+**…and an ACTION whose whole result is the delegate needs somewhere to land it (T07, 2026-10-23).** Martian Media Center —
+«pay 3 M€ → add a delegate» — with no resolution up for a vote would be PAID AND PLACE NOTHING (the grant's named skip after
+the money is gone — the futile class, a paid one). `delegateIsTheActionsResult(card, behavior)` (`politics/`, a light
+module — the Executor imports it) recognises the shape (`behavior === card.actionBehavior`, yields only
+`turmoil.sendDelegates` beside `spend` / `log` / `title`), `Executor.canExecute` refuses it while the facade's
+`delegatesHaveAnAddress()` is false (Redux: the voting area holds a resolution; classic: always), and
+`actionDelegateAddressReason` names it — «No resolution is up for a vote» (the TR03 / TR15 key) — BEFORE the reserve's
+count: ONE political reason, in check order M€ → the voting area → the reserve. A PLAY is never refused for it (the card
+lands; the grant is a named skip — T03), nor an action with another yield.
+
 ## Requirement ATTAINABILITY — «пока не выполнено» vs «уже не выполнить» (2026-08-16)
 
 A card-evaluation surface (the draft pick, the research buy) needs a second axis the play-now

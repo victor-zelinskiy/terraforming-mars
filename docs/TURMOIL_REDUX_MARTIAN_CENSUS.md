@@ -143,6 +143,18 @@ COMMIT своей карты (`playCommitBeat(branch)` — вынесен из `
 `RUNTIME_NAVIGATION_STEP_KINDS` получил `delegateGrant` (строка «ДАЛЕЕ: Резолюция — выбор в Парламенте», CTA «Выбрать
 резолюцию» — ключи TR03).
 
+**ДЕКЛАРАТИВНОЕ ДЕЙСТВИЕ (T07 Martian Media Center, 2026-10-23).** Та же дверь без bespoke-кода в карте: превью
+ДЕЙСТВИЯ, объявившего `turmoil.sendDelegates`, строится `declaredActionSteps` → `stepsForBehavior(…, {delegateDoor: true})` —
+шаг `delegateGrant` (дверь), а не `delegateGrantFollowUp` (живой шаг ПОСЛЕ оплаты — дорога РОЗЫГРЫША T03, без изменений).
+Действие, чей единственный результат — делегат (`delegateIsTheActionsResult`: ключи поведения — только `spend`/`log`/`title`
++ `turmoil.sendDelegates`), при пустой области голосования ВЫКЛЮЧЕНО (`delegatesHaveAnAddress()` фасада;
+`actionUnavailableReasons` — «Нет резолюций на голосовании» до причины резерва). ЦЕНА С РЕЛЬСА: квитанция — фишка M€
+(`{3, megacredits}`), A режима играет ACTION COMMIT с ценой рельсовым звеном без своего результата (`resultElsewhere` —
+результат голосования), половина засеивается в блоке применения, а посадка голоса летит её сама
+(`consoleActionCommitRail.flyStagedVotePrice`: после импульса — PL-103 — жетон «−3» с цифр строки M€ ВБОК в печатную
+иконку цены, строка тикает на отлёте, куб отрывается от резерва после ПОГЛОЩЕНИЯ; снимок голоса помнит `railPrice`).
+Цена-ресурс карты (TR15 / TR34) — как была: `spendDepartsElsewhere`, жетон Парламента. Стенд `console-martian-media-center`.
+
 **Крошка** — `ДЕЙСТВИЯ КАРТ › МАРСИАНСКАЯ ПЕРЕПИСЬ › ГОЛОСОВАНИЕ`: хвост из кадра Парламента
 (`workspaceFrameStage('parliament')` в `focusKickerKey`), циан до A, янтарь после (`parliamentStepCommitted` в
 `:committed` шапки). Чип варианта «2/2» прячется, пока стоит шаг. Эмблема workspace и имя карты не двигаются.

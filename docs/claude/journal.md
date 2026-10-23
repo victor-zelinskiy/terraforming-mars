@@ -61,3 +61,38 @@ next generation's first play. Now every seat's phase is ONE root `production-pha
 reads the same events through `productionIncomeByPlayerGeneration`. The notification layer shows nothing for the
 category by policy (the console's generation scene is the announcement — `notificationContentPolicy.announcedElsewhere`).
 Guards: `tests/events/productionIncomeJournal.spec.ts`; e2e `console-generation-scene` § E.
+
+## ХРОНИКА (CH, 2026-10-23 — «ЖУРНАЛ — ХРОНИКА, НЕ ЛОГ»)
+
+The owner's 4K frame (`screenshots/tv-profile/tv-4k/08-journal.png`) read the panel as a console log: equal chips with
+arrows, 70 px art, «15:24» on every line, a draw as a sheet of names. The owner chose **M1 «карточка события»** (batch
+2026-10-23; M2 «material only» and M3 «chronicle pages» were the alternatives — frames under
+`screenshots/journal-chronicle/`). What stands now — paint and the group's own layout; the model (`journalView`,
+`journalEventChild`, the chip tokens shared with the toasts), the popovers, the modes, the pager and the live feed are
+untouched:
+
+- **An EVENT is a CARD** on the panel's CF glass (`console.less` § THE CHRONICLE): `.journal-group` is a grid — the
+  object's art (`journal-group__object`, the thumb tier 3 : 2, 4.6rem base / 5.2rem TV = 208 px at 4K / 3.6rem Deck)
+  BESIDE the headline (`__root`, display face, 1.15rem on TV) and the consequences under it (`__children`, one tier
+  quieter); the category's accent is the card's left bevel (the free spine is hidden). The time and the object stand
+  OUTSIDE `__root` in the template so the card lays out as one grid (`journal-group--object` adds the art column).
+- **The time ONCE per run** — `consoleJournalModel.journalTimeShown` over the rendered nodes (a stamp shows where it
+  changes; a generation divider starts a new run) → the `timeShown` prop of `JournalGroup` / `JournalEntry`. The full
+  date is the stamp's `aria-label` — never a native `title`.
+- **An arrow only where something flows to ANOTHER seat** (`JournalChildRow`: `vm.player !== undefined` — «у кого →
+  кому»); **the group's own card is not repeated** as the source of its rows (`ownCard` prop, every row kind).
+- **A draw reads as cards** — `JournalCardFan` (`ConsoleCardFaceLite` faces, ≤ 6, «+N»): a search's thrown-away cards
+  (quiet, the hook `data-journal-search-discard` + `data-card` on each face) and a flat entry naming two or more cards
+  (kept, mint kant). The fan replaces the chips IN THE JOURNAL ONLY — `JournalTokenRenderer` (shared with the toasts)
+  is unchanged.
+- **A generation is a plate** across the feed (`journal-gen-divider__label`), never a hairline.
+- **Row pieces size by content in the console** — journal.less authors chips / labels / badges for the desktop in px
+  (19 / 18 px) and the rem icons outgrew them (rows overlapped): `.con-journal` gives them `height: auto;
+  min-height: 1.45em`; an empty lead (own source hidden) reserves no column.
+- **The focus is the cursor grammar** — `.con-cursor-ring` on `.con-journal__node`, `.con-cursor-on()` on `--focused`.
+- Everything is scoped to `.con-journal`: the toasts' chips (`.con-notif__tokens`) keep their paint — the stand checks
+  their computed styles before = after.
+
+Stand: `tests/e2e/console-journal-chronicle.spec.ts` (tv4k · fhd · deck, fixture `journal-chronicle` — generation 1
+PLAYED through the real doors: named skips, a card action, another seat's attack, a search draw, the income); the
+probe's table (time per group, arrows, chips, ink, under the TV floor, clipped, art px, `title`) is in the ledger, CH.
