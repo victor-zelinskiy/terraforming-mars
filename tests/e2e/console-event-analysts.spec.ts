@@ -129,8 +129,10 @@ for (const preset of PROFILES) {
       // (б) the journal names the bonus — the giver and the whole influence before → after.
       await pressUntilVisible(page, 'KeyR', '.con-journal', {settleMs: 1200});
       await settle(page, {timeoutMs: 15_000});
-      await expect(page.locator('.con-journal'), 'the journal line «+1 влияния — Анализ событий»').toContainText(/\+1 влияния/, {timeout: 10_000});
-      await expect(page.locator('.con-journal')).toContainText('Анализ событий');
+      // The journal is event-built: the card's group carries its OWN row for the bonus — «+1 [influence] · Влияние 2 → 3».
+      const row = page.locator('.con-journal [data-journal-influence]');
+      await expect(row, 'the journal row of the bonus').toHaveText(/Влияние\s*2\s*→\s*3/, {timeout: 10_000});
+      await expect(page.locator('.con-journal'), 'under the card that gave it').toContainText('Анализ событий');
       await shot(page, preset.id, 'A-journal');
     });
 

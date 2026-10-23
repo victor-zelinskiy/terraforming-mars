@@ -85,7 +85,9 @@
              see ConsoleFlipValue's layering note) plus the delta chip. A global
              parameter a card LOWERS (TR47 «ОБРАТНЫЙ ХОД») is an event too: the
              four parameters flip on a decrease, rolled the other way. -->
-        <span class="con-status__param" :class="{'con-status__param--ghost': ghostParam === 'temperature'}">
+        <!-- T05 · CG: each parameter is a DIAL round its own icon (`console_status_material.less`), read off the value shown. -->
+        <span class="con-status__param con-status__param--temperature" :class="{'con-status__param--ghost': ghostParam === 'temperature'}"
+              :style="{'--con-param-fill': paramFill('temperature')}">
           <!-- data-wheel-anchor="temp": reserved acknowledgement anchor (the
                heat conversion's SERVER result animates here via the existing
                flip/delta pipeline — no scripted pre-timing). -->
@@ -100,7 +102,8 @@
             :epoch="epoch"
             variant="global-parameter" />
         </span>
-        <span class="con-status__param" :class="{'con-status__param--ghost': ghostParam === 'oxygen'}">
+        <span class="con-status__param con-status__param--oxygen" :class="{'con-status__param--ghost': ghostParam === 'oxygen'}"
+              :style="{'--con-param-fill': paramFill('oxygen')}">
           <i class="wgt-icon wgt-icon--oxygen con-status__icon" aria-hidden="true"></i>
           <span class="con-status__value">
             <ConsoleFlipValue :value="game.oxygenLevel" :text="`${game.oxygenLevel}%`" flip-on-decrease />
@@ -112,7 +115,8 @@
             :epoch="epoch"
             variant="global-parameter" />
         </span>
-        <span class="con-status__param" :class="{'con-status__param--ghost': ghostParam === 'oceans'}">
+        <span class="con-status__param con-status__param--oceans" :class="{'con-status__param--ghost': ghostParam === 'oceans'}"
+              :style="{'--con-param-steps': String(Math.max(0, Math.min(MAX_OCEAN_TILES, game.oceans)))}">
           <i class="wgt-icon wgt-icon--ocean con-status__icon" aria-hidden="true"></i>
           <span class="con-status__value">
             <ConsoleFlipValue :value="game.oceans" :text="`${game.oceans}/9`" flip-on-decrease />
@@ -216,6 +220,7 @@
  * "your turn" transition that replaced the central «ВАШ ХОД» pill.
  */
 import {defineComponent, markRaw, PropType} from 'vue';
+import {MAX_OCEAN_TILES, MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE} from '@/common/constants';
 import {GameModel} from '@/common/models/GameModel';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
@@ -310,6 +315,7 @@ export default defineComponent({
   },
   data() {
     return {
+      MAX_OCEAN_TILES,
       /** One-shot "turn passed to YOU" attention burst on the viewer's chip. */
       turnBurst: false,
       burstTimer: undefined as number | undefined,
@@ -599,6 +605,16 @@ export default defineComponent({
     }
   },
   methods: {
+    /**
+     * A DIAL's reading (T05 · CG) — how far the shown value stands along its scale, 0…1: the temperature from −30 to
+     * +8 °C, the oxygen from 0 to 14 %. The value is the one the cell prints (the board-beat park's display included).
+     */
+    paramFill(param: 'temperature' | 'oxygen'): string {
+      const fill = param === 'temperature' ?
+        (this.game.temperature - MIN_TEMPERATURE) / (MAX_TEMPERATURE - MIN_TEMPERATURE) :
+        this.game.oxygenLevel / MAX_OXYGEN_LEVEL;
+      return String(Math.max(0, Math.min(1, fill)));
+    },
     /**
      * WHERE a seat's intake hangs: under its chip — the plaque's left edge on the chip's, its stem on the seat's dot,
      * its ring in the seat's tone (the dot's own paint). Measured in the ribbon's coordinates (the plaque rides the
