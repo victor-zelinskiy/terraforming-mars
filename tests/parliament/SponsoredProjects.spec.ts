@@ -432,20 +432,26 @@ describe('SponsoredProjects', () => {
       game.playerIsFinishedWithResearchPhase(human);
       seatResolution(parliament, 0, SPONSORED);
       parliament.placeVote(human, parliament.slots[0], 'lobby');
-      human.playedCards.push(holding(new Fish(), 1));
+      // Two animals on the human's Fish: the bot's turn moves with the card pool (T10 dealt one more classic card under
+      // Redux, and the seed's bot drew Invasive Species, which takes one animal off a Fish) — so the counts are read at
+      // the sitting's door, and the law's +1 is asserted against them.
+      human.playedCards.push(holding(new Fish(), 2));
       bot.playedCards.push(holding(new Fish(), 2));
       const botHand = bot.cardsInHand.length;
       human.popWaitingFor();
       game.playerHasPassed(human);
       game.playerIsFinishedTakingActions();
       expect(game.phase).eq(Phase.PARLIAMENT);
+      const humanFish = countOn(human, CardName.FISH);
+      const botFish = countOn(bot, CardName.FISH);
+      expect(humanFish, 'the human\'s Fish still holds an animal').gte(1);
       answerGate(human, 'assembly');
       takeAll(human);
       runAllActions(game);
       expect(bot.getWaitingFor()).is.undefined;
       expect(bot.cardsInHand).has.length(botHand);
-      expect(countOn(bot, CardName.FISH)).eq(2);
-      expect(countOn(human, CardName.FISH)).eq(2);
+      expect(countOn(bot, CardName.FISH)).eq(botFish);
+      expect(countOn(human, CardName.FISH)).eq(humanFish + 1);
       const summary = parliament.lastPhase ?? parliament.phase?.summary;
       expect((summary?.outcomes ?? []).filter((o) => o.player === bot.id)).is.empty;
     });

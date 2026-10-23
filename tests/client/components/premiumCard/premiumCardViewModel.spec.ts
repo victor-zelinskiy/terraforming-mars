@@ -641,6 +641,8 @@ describe('premium face coverage guard', () => {
     // TR33: the TR20 shape under the Reds' plate — «1 VP per Mars tag you have» is the per-one badge «1/[Mars]»;
     // the scan's field is text only, there is no effect row to iconify.
     CardName.REDS_NEWS_OUTLET,
+    // T10: the chair in the MIN plate + the 2 VP badge are the whole card; the scan's field is text only.
+    CardName.PUBLIC_CELEBRATIONS,
   ]);
 
   it('builds every in-scope premium card', () => {

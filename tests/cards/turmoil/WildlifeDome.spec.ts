@@ -190,8 +190,11 @@ describe('WildlifeDome — on a Turmoil Redux table', () => {
 
     it('the Greens\' resolution is not up for the vote: the road is CLOSED (`partyOffVote`), not «0 of 2»', () => {
       const t = table();
-      ([PartyName.UNITY, PartyName.SCIENTISTS, PartyName.MARS] as const).forEach((party, i) => seatResolution(t.parliament, i, quietResolutionOf(party)));
+      // The law first, the area after: an enacted card's slot refills from the deck, and the deck's order moves with the
+      // card pool (T10 dealt one more classic card under Redux and the refill became the Greens' — on the vote again).
       seatEnacted(t.parliament, quietResolutionOf(PartyName.UNITY));
+      ([PartyName.REDS, PartyName.SCIENTISTS, PartyName.MARS] as const).forEach((party, i) => seatResolution(t.parliament, i, quietResolutionOf(party)));
+      expect(t.parliament.slots.some((slot) => t.parliament.resolutionOf(slot.instance).party === G), 'the Greens are off the vote').is.false;
       expect(t.p1.canPlay(t.card)).is.false;
       expect(unplayableReasons(t.p1, t.card)[0]).deep.include({party: G, partyOffVote: true});
     });

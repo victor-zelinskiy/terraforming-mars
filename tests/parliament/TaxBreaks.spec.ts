@@ -365,7 +365,9 @@ describe('TaxBreaks', () => {
       game.playerIsFinishedWithResearchPhase(human);
       seatResolution(parliament, 0, LAW);
       parliament.placeVote(human, parliament.slots[0], 'lobby');
-      human.playedCards.push(holding(new Fish(), 1), holding(new Dirigibles(), 1));
+      // The human's animals are PETS' — no card can take them — so the count holds whatever the deal: the bot's flips move
+      // with the card pool (T10 dealt one more classic card under Redux and the seed's bot took the animal off a Fish).
+      human.playedCards.push(holding(new Pets(), 1), holding(new Dirigibles(), 1));
       bot.playedCards.push(holding(new Fish(), 2), holding(new Supercomputer(), 1));
       human.popWaitingFor();
       game.playerHasPassed(human);
