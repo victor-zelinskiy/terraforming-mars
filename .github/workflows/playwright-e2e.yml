@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       shards:
-        description: 'How many parallel shards to split the suite across (tests/e2e/shardPlan.json is balanced for 4, 6, 8 and 10)'
+        description: 'How many parallel shards to split the suite across (tests/e2e/shardPlan.json is balanced for 4, 6, 8, 10, 12, 16 and 20; ~370 box-minutes of serial test time in all — 12 keeps a CI shard near an hour)'
         required: false
-        default: '8'
+        default: '12'
       grep:
         description: 'Only run tests whose title matches this (Playwright --grep)'
         required: false
@@ -34,7 +34,7 @@ jobs:
     steps:
       - id: m
         run: |
-          N='${{ inputs.shards || '8' }}'
+          N='${{ inputs.shards || '12' }}'
           case "$N" in ''|*[!0-9]*) echo "shards must be a positive integer, got '$N'"; exit 1;; esac
           echo "shards=$N" >> "$GITHUB_OUTPUT"
           echo "list=[$(seq -s, 1 "$N")]" >> "$GITHUB_OUTPUT"
@@ -77,6 +77,14 @@ jobs:
       # Playwright's webServer starts the compiled application with `npm start`.
       - name: Build application
         run: npm run build
+
+      # The browser download is the same for every shard of a run (and across runs until the lock moves): cached
+      # by the lock's hash, `install --with-deps` then only checks it and installs the OS packages.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
@@ -275,6 +283,13 @@ jobs:
       - name: Build application
         if: ${{ steps.changed.outputs.specs != '' }}
         run: npm run build
+
+      - name: Cache Playwright browsers
+        if: ${{ steps.changed.outputs.specs != '' }}
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-browsers-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
       - name: Install Chromium
         if: ${{ steps.changed.outputs.specs != '' }}

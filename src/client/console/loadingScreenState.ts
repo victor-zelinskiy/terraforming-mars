@@ -404,6 +404,18 @@ function readyNow(): boolean {
   return true;
 }
 
+/**
+ * The status text has been PAINTED (the curtain's own surface calls this a settled tick after its foot turned
+ * visible). The dwell is a promise about what the player READ, so it counts from the paint, never from the flag:
+ * a boot busy enough to show the text is busy enough to render it late (measured on the box — the flag at t, the
+ * paint ~500 ms later, the reveal at t + dwell: the line stood 649 ms of its 1150). Only ever moves the start LATER.
+ */
+export function noteCurtainTextPainted(): void {
+  if (loadingScreenState.textShown && loadingScreenState.phase === 'covering') {
+    textShownAt = Math.max(textShownAt, sched.now());
+  }
+}
+
 function maybeReveal(): void {
   if (!readyNow() || settling) {
     return;

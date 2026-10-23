@@ -12,6 +12,7 @@ import {
   endLoading,
   failLoading,
   loadingScreenState,
+  noteCurtainTextPainted,
   noteScreenResolved,
   onSceneRevealed,
   resetSceneTransitionForTest,
@@ -158,6 +159,26 @@ describe('sceneTransition (the director state machine)', () => {
     sched.flushSettle();
     expect(loadingScreenState.phase).to.eq('covering');
     sched.advance(TEXT_MIN_DWELL_MS + 10);
+    finishReveal();
+  });
+
+  it('text policy: the readable dwell counts from the PAINT of the line, never from the flag (a busy boot paints late)', () => {
+    beginLoading('sync');
+    noteScreenResolved('player-home');
+    const release = deferSceneReveal('slow-data');
+    armSceneDestination();
+    sched.advance(TEXT_APPEAR_MS + 10);
+    expect(loadingScreenState.textShown).to.eq(true);
+    // The main thread is busy: the line reaches the screen 500 ms after the flag.
+    sched.advance(500);
+    noteCurtainTextPainted();
+    release();
+    sched.flushSettle();
+    // The flag's own dwell has run out — the painted line has not been read for its dwell yet.
+    sched.advance(TEXT_MIN_DWELL_MS - 500 + 10);
+    sched.flushSettle();
+    expect(loadingScreenState.phase, 'the line was on screen for less than its dwell').to.eq('covering');
+    sched.advance(500);
     finishReveal();
   });
 

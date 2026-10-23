@@ -520,10 +520,23 @@ test.describe('console finale podium — the count arrives as light (4K)', () =>
     const returned = after.find((s) => s.hurried === 'returned')?.t ?? -1;
     expect(returned, 'the pace returned').toBeGreaterThan(0);
     expect(returned).toBeLessThanOrEqual(rankAt);
-    const flip = after.filter((s) => s.phase === 'ranking' && s.movingSeats > 0);
-    expect(flip.length > 0 ? flip[flip.length - 1].t - flip[0].t : 0, 'the ranking FLIP ran at the full pace').toBeGreaterThanOrEqual(400);
-    const crown = after.filter((s) => s.heroTransform !== '');
-    expect(crown.length > 0 ? crown[crown.length - 1].t - crown[0].t : 0, 'the crowning FLIP ran at the full pace (intermediate transforms seen)').toBeGreaterThanOrEqual(380);
+    // A FLIP's span is what the sampler SAW plus the long frames inside it: a 4K render frame starves the sampler
+    // while the tween's clock runs on (measured on the box: a 308 + 249 ms pair inside the ranking FLIP left 354 ms of
+    // samples of its 820). The same accounting as the remainder's — the frames' time, never the hurry's.
+    const seenSpan = (run: Array<CountSample>, from: number): {span: number, stalls: number} => {
+      if (run.length === 0) {
+        return {span: 0, stalls: 0};
+      }
+      const first = run[0].t;
+      const last = run[run.length - 1].t;
+      const stalls = lastStalls.filter((st) => st.t > from && st.t - st.gap < last).reduce((sum, st) => sum + Math.min(st.gap, st.t - from), 0);
+      return {span: last - first + stalls, stalls};
+    };
+    const flip = seenSpan(after.filter((s) => s.phase === 'ranking' && s.movingSeats > 0), rankAt);
+    expect(flip.span, `the ranking FLIP ran at the full pace (${flip.span - flip.stalls} ms seen + ${flip.stalls} ms of long frames)`).toBeGreaterThanOrEqual(400);
+    const crownRun = after.filter((s) => s.heroTransform !== '');
+    const crown = seenSpan(crownRun, crownRun.length > 0 ? after[Math.max(0, after.indexOf(crownRun[0]) - 1)].t : 0);
+    expect(crown.span, `the crowning FLIP ran at the full pace — intermediate transforms seen (${crown.span - crown.stalls} ms seen + ${crown.stalls} ms of long frames)`).toBeGreaterThanOrEqual(380);
     // Once hurried, the bar no longer offers X (and never during the ranking / crowning).
     expect(after.filter((s) => s.t > xAt + 200 && s.phase !== 'actions').some((s) => s.hurryVerb), 'no X after the hurry').toBe(false);
     // The server's totals.

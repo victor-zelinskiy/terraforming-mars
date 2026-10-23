@@ -85,7 +85,7 @@
  */
 import {defineComponent} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import {PULSE_MS, clearFullscreenLost, curtainKickerKey, curtainStatusKey, curtainTitleParts, dismissStaticBootCurtain, loadingScreenState, orbitPhaseDelayMs} from '@/client/console/loadingScreenState';
+import {PULSE_MS, clearFullscreenLost, curtainKickerKey, curtainStatusKey, curtainTitleParts, dismissStaticBootCurtain, loadingScreenState, noteCurtainTextPainted, orbitPhaseDelayMs} from '@/client/console/loadingScreenState';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {probeTick} from '@/client/console/probeTick';
 import {requestConsoleFullscreen} from '@/client/console/consoleModeState';
@@ -125,6 +125,18 @@ export default defineComponent({
     },
     padVisible(): boolean {
       return inputModeState.mode === 'gamepad';
+    },
+  },
+  watch: {
+    // The readable dwell counts from the PAINT of the status line (a busy boot renders it late) — one settled
+    // tick after the patch that turned it on, the curtain tells the director the line is on screen.
+    footShown: {
+      handler(shown: boolean): void {
+        if (shown) {
+          probeTick(() => noteCurtainTextPainted());
+        }
+      },
+      flush: 'post',
     },
   },
   mounted() {

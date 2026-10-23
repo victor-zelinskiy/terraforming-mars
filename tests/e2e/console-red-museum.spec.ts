@@ -449,7 +449,13 @@ for (const preset of PRESETS) {
       await expect(page.locator(panel), 'the clean cell: the museum pays').toContainText('Рядом нет озеленения и океана', {timeout: 15_000});
       await expect(page.locator(`${panel} [data-dossier-reaction]`), 'Martian Fiber +2 under the museum\'s row (the reply names its cause)')
         .toContainText(/Марсианское оптоволокно\s*\+2/);
-      await expect(page.locator(`${panel} .con-context__sec--reactions`), 'no second head for the same answer').toHaveCount(0);
+      // T15 · CD: the museum's payout is the TABLE's answer to the tile, so it stands in «Сработает» itself, and
+      // Fiber's reply stands under it there — ONE head for the cause and its reply, never a second one for the reply.
+      await expect(page.locator(`${panel} .con-context__sec--reactions`), 'no second head for the same answer').toHaveCount(1);
+      await expect(page.locator(`${panel} .con-context__sec--reactions`), 'the museum row stands in «Сработает»')
+        .toContainText('Рядом нет озеленения и океана');
+      await expect(page.locator(`${panel} .con-context__sec--reactions [data-dossier-reaction]`), 'the reply under its cause, in the same section')
+        .toContainText(/Марсианское оптоволокно\s*\+2/);
       const panelFit = await page.evaluate(() => {
         const scroller = document.querySelector('.con-inspector') as HTMLElement | null;
         return scroller === null ? -1 : scroller.scrollHeight - scroller.clientHeight;

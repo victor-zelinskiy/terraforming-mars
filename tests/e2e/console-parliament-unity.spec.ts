@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, pressUntil, settle} from './consoleStart';
 import {
   answerGateAs, armLeakWitness, expectParliamentFits, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
@@ -73,6 +73,8 @@ type Sample = {
   grid: boolean;
   gridHead: boolean;
   gridMotionId: string | null;
+  /** How many colony tiles the hosted grid holds in this sample. */
+  tiles: number;
   marker: Record<string, number>;
   /** The tiles whose marker proxy is MID-GLIDE (the resting marker dims) — the wave's start order. */
   gliding: Array<string>;
@@ -124,6 +126,7 @@ async function armProbe(page: Page): Promise<void> {
         grid: visible(gridEl),
         gridHead: gridEl !== null && gridEl.querySelector('.con-wshead') !== null,
         gridMotionId: gridEl === null ? null : gridEl.getAttribute('data-motion-surface'),
+        tiles: gridEl === null ? 0 : gridEl.querySelectorAll('.con-coltile').length,
         marker,
         gliding: Array.from(document.querySelectorAll<HTMLElement>(`${grid} .con-coltile--marker-gliding`))
           .map((el) => (el.getAttribute('data-test') ?? '').replace('con-colony-', '')),
@@ -236,12 +239,15 @@ test.describe(`Unity Budget · ${PRESET.id}`, () => {
     }
     expect(gridFirst!.gridHead, 'host-agnostic: no head of its own').toBe(false);
     expect(gridFirst!.gridMotionId, 'no motion id inside a host zone (the shade guard)').toBeNull();
-    const crumb = await crumbText(page);
+    // Read off the probe's samples while the grid STOOD, never live: a show step plays its wave and leaves by itself,
+    // and on a quick box it can be gone before a live read (measured: 0 tiles, the sitting already past the step).
     const hostedDiag = await waveDiag(page);
-    expect(crumb, `ONE continuous crumb: the workspace, the sitting, the step (wave ${hostedDiag})`).toMatch(/парламент|parliament/i);
-    expect(crumb, `the sitting is the crumb's subject (wave ${hostedDiag})`).toMatch(/заседание|sitting/i);
-    expect(crumb, `the step is the crumb's tail (wave ${hostedDiag})`).toMatch(/колонии|colonies/i);
-    await expect(page.locator(`${GRID} .con-coltile`)).toHaveCount(4);
+    const crumbOk = (c: string) => /парламент|parliament/i.test(c) && /заседание|sitting/i.test(c) && /колонии|colonies/i.test(c);
+    const hostedSamples = async () => (await readProbe(page)).samples.filter((s) => s.grid && s.t >= gridFirst!.t);
+    await expect.poll(async () => (await hostedSamples()).some((s) => crumbOk(s.crumb)), {timeout: 15_000,
+      message: `ONE continuous crumb while the grid stood: the workspace, the sitting, the step (wave ${hostedDiag})`}).toBe(true);
+    const hosted = await hostedSamples();
+    expect(Math.max(...hosted.map((s) => s.tiles)), `the hosted grid holds the four tiles (crumbs ${JSON.stringify([...new Set(hosted.map((s) => s.crumb))])})`).toBe(4);
     await expect(page.locator('[data-parl-sit-hero] .con-parl__gov-card .pcard'), 'the resolution is the hero on the left').toHaveClass(/rdx-unity-unity-budget/);
     await expectParliamentFits(page, `${PRESET.id} colonies hosted`);
 

@@ -37,9 +37,9 @@ describe('draftReadingModel — the packet showcase\'s reading (T10 · CE)', () 
   it('the verdict speaks the hand\'s language — only printed requirements (money will change by the time it is played)', () => {
     const money = draftReadingOf(model(CardName.ALGAE, {unplayableReasons: [{type: 'megacredits', message: 'Need ${0} more M€', params: ['3']}]}), client({}));
     expect(money.availability, 'a money shortfall says nothing in the draft').is.undefined;
-    const req = draftReadingOf(model(CardName.ALGAE, {unplayableReasons: [{type: 'requirement', message: 'Requires ${0}% oxygen', params: ['5'], requirement: true, requirementKey: 'req:Oxygen'}]}), client({}));
+    const req = draftReadingOf(model(CardName.ALGAE, {unplayableReasons: [{type: 'globalParameter', message: 'Requires ${0}% oxygen', params: ['5'], requirement: true, requirementKey: 'req:Oxygen'}]}), client({}));
     expect(req.availability?.severity).eq('pending');
-    const gone = draftReadingOf(model(CardName.ALGAE, {unplayableReasons: [{type: 'requirement', message: 'max', requirement: true, unattainable: true}]}), client({}));
+    const gone = draftReadingOf(model(CardName.ALGAE, {unplayableReasons: [{type: 'globalParameter', message: 'max', requirement: true, unattainable: true}]}), client({}));
     expect(gone.availability?.severity).eq('missed');
   });
 
