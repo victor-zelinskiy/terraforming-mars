@@ -492,6 +492,23 @@ export function flyActionCommitRail(armed: ActionCommitPlan | undefined, surface
   return {holdsSurface: rail.holdsSurface || answerFlies, foldable, done};
 }
 
+/**
+ * A STAGED ACTION VOTE'S PRICE OFF THE RAIL (T07 Martian Media Center — «pay 3 M€ → add a delegate»). The vote mode's
+ * A commits the action, but its answer never reaches the shell's handoff (`flyActionCommitRail` above is the shell's):
+ * so the Parliament's landing flies the armed commit's SEEDED half itself — the price token off the row's digits,
+ * sideways into the printed cost icon, the row ticking on the departure (PL-104) — and resolves once the token has been
+ * ABSORBED (the surface is clear of it), the moment the cube may lift off the reserve: price, then cube (TR15 §6).
+ * `undefined` when no half is seeded (reduced motion, views that did not bear the promise out, a plain vote) — the
+ * cube flies at once and the row ticks with the release.
+ */
+export function flyStagedVotePrice(): Promise<void> | undefined {
+  const plan = actionCommitState.plan;
+  if (plan === undefined || plan.rail === undefined || actionCommitRailState.phase !== 'seeded' || seededRail !== toRaw(plan.rail)) {
+    return undefined;
+  }
+  return flyActionCommitRail(plan, commitSurface()).foldable;
+}
+
 // A commit released WITHOUT its handoff (the workspace hosts the result, a rejected submit, a reset) owes no
 // flight: a half still waiting for one ticks now. A half in the air keeps flying — its own chain releases it.
 onActionCommitRelease((why) => {

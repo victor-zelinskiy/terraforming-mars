@@ -189,6 +189,12 @@ export type VoteSnapshot = {
   /** A STAGED card door's receipt (what the commit charged for the card — M€ or the action's own cost chip) — read through the landing. */
   receipt?: StagedReceipt,
   /**
+   * A STAGED ACTION's price paid OFF THE RAIL (T07 Martian Media Center — 3 M€): the action commit's rail half flies its
+   * token into the printed cost icon and the cube lifts off the reserve only after the absorb (`flyStagedVotePrice`).
+   * Absent for a card-resource price (the Parliament flies that token itself) and for a play's M€ (the payment's).
+   */
+  railPrice?: true,
+  /**
    * THE PARTY'S SUPPORT this press also pays («then up to N neutral delegates to the chosen resolution's
    * party»): the server's row for the SELECTED card's party as it stood at the press. The block reads it
    * until every neutral cube has landed — the places fill on the touchdowns, never on the packet.

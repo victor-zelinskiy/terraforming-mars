@@ -12,6 +12,8 @@ import {parliamentCommandsOf, stagedDoorVerb} from '@/client/console/parliament/
 import {parliamentFlow, resetParliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {enterWorkspace, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
 import ConsoleActionComposer from '@/client/components/console/ConsoleActionComposer.vue';
+import {actionCommitState, resetActionCommit} from '@/client/console/consoleActionCommit';
+import {flyStagedVotePrice} from '@/client/console/consoleActionCommitRail';
 
 /**
  * THE STAGED ACTION VOTE — the vote's FOURTH door (Turmoil Redux TR15 Martian
@@ -337,6 +339,119 @@ describe('ConsoleActionComposer — the PRICE leaves before the cube (PL-100)', 
     parliamentFlow.sourceLeavingCount = 0;
     await w.vm.$nextTick();
     expect(vm.stagedVoteCapsuleHeld, 'the cube lifted').to.eq(undefined);
+    w.unmount();
+  });
+});
+
+/**
+ * T07 MARTIAN MEDIA CENTER — the same door from a DECLARATIVE action whose price is on the RAIL («pay 3 M€ → add a
+ * delegate»): the server's preview now carries the door (`declaredActionSteps` → `delegateGrant`), the receipt is the
+ * branch's own M€ chip, and the mode's A arms a commit whose RAIL HALF carries the price as a spend link with no
+ * result of its own (the delegate is the vote's) — flown by the vote's landing before the cube (`flyStagedVotePrice`).
+ * A card-resource price (TR34) keeps leaving with the cube: no rail half.
+ */
+const MEDIA_GRANT: SelectPartyModel = {
+  ...GRANT,
+  choiceContext: {source: {kind: 'card', card: CardName.MARTIAN_MEDIA_CENTER}, mode: 'reward'},
+} as unknown as SelectPartyModel;
+const MEDIA_STAGED: StagedVoteModel = {prompt: MEDIA_GRANT, sourceCard: CardName.MARTIAN_MEDIA_CENTER};
+
+const MEDIA_PLAYER_VIEW: any = {
+  ...PLAYER_VIEW,
+  thisPlayer: {...PLAYER_VIEW.thisPlayer, megacredits: 20, tableau: [{name: CardName.MARTIAN_MEDIA_CENTER, resources: 0}]},
+};
+
+/** The server's declarative preview for Martian Media Center: one branch, −3 M€ · reserve 6 → 5 · the Parliament's door. */
+const MEDIA_PREVIEW: any = {
+  card: CardName.MARTIAN_MEDIA_CENTER,
+  kind: 'declarative',
+  branches: [
+    {index: -1, title: '', available: true, renderKeys: [],
+      effects: [
+        {direction: 'cost', icon: 'megacredits', amount: 3, current: 20, resulting: 17},
+        {direction: 'cost', icon: 'delegate', amount: 1, current: 6, resulting: 5, note: 'from the reserve'},
+      ],
+      steps: [{kind: 'delegateGrant', staged: MEDIA_STAGED}]},
+  ],
+};
+
+function mediaFactory() {
+  return mount(ConsoleActionComposer, {
+    ...globalConfig,
+    global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+    props: {
+      playerView: MEDIA_PLAYER_VIEW,
+      entry: {
+        group: {key: CardName.MARTIAN_MEDIA_CENTER, cardName: CardName.MARTIAN_MEDIA_CENTER, isCorporation: false, isDisabled: false,
+          nodes: [{key: 'a', actionNode: undefined, renderRoot: undefined, text: undefined}]},
+        cardName: CardName.MARTIAN_MEDIA_CENTER,
+        isCorporation: false,
+        state: {status: 'available', activatable: true, reasons: [], softReason: undefined},
+      } as any,
+      preview: MEDIA_PREVIEW,
+      nodeIndex: 0,
+      repeatPickDisabled: false,
+      publishCommands: true,
+      commitLabel: 'Confirm action',
+    },
+  });
+}
+
+describe('ConsoleActionComposer — the vote door of T07 (a declarative action, the price on the rail)', () => {
+  afterEach(() => {
+    clearStagedPlay();
+    resetWorkspaceStack();
+    resetParliamentFlow();
+    resetActionCommit();
+  });
+
+  it('the one branch is the Parliament\'s door: «Выбрать резолюцию»; confirming sends NOTHING, the receipt is «3 M€»', async () => {
+    enterWorkspace('card-actions');
+    const w = mediaFactory();
+    const vm = w.vm as any;
+    await w.vm.$nextTick();
+    expect(vm.voteEntryDoor).to.deep.eq(MEDIA_STAGED);
+    expect(vm.commitVerbKey).to.eq('Choose the resolution');
+    expect(vm.afterNotes.map((row: {text: string}) => row.text)).to.include('Resolution — chosen in the Parliament');
+    vm.submit();
+    await w.vm.$nextTick();
+    expect(w.emitted('confirm'), 'nothing on the wire — the M€ stays on the rail').to.eq(undefined);
+    const staged = (w.emitted('staged-vote') as Array<Array<any>>)[0][0];
+    expect(staged.receipt, 'the card\'s own price — never the ordinary vote\'s, never the delegate').to.deep.eq({amount: 3, icon: 'megacredits'});
+    expect(vm.submitting).to.eq(false);
+    w.unmount();
+  });
+
+  it('the mode\'s A arms the commit with the price as a RAIL link (no result link) — the vote\'s landing flies it', async () => {
+    enterWorkspace('card-actions');
+    const w = mediaFactory();
+    const vm = w.vm as any;
+    await w.vm.$nextTick();
+    armStagedPlay({flow: 'action', cardName: CardName.MARTIAN_MEDIA_CENTER, isEvent: false, batch: [], target: {kind: 'resolution', vote: MEDIA_STAGED}, draws: 0, deckCheck: false, yieldedStack: false});
+    markStagedPlayCommitting();
+    await w.vm.$nextTick();
+    expect(vm.stagedVoteSent).to.eq(true);
+    const rail = actionCommitState.plan?.rail;
+    expect(rail, 'a rail half is armed').to.not.eq(undefined);
+    expect(rail!.reward.cause).to.deep.eq([{channel: 'stock', resource: 'megacredits', amount: 3, direction: 'loss'}]);
+    expect(rail!.spendLinks).to.deep.eq([0]);
+    expect(rail!.links, 'the price is the chain\'s only link — the delegate is the vote\'s result').to.deep.eq([[0]]);
+    // Nothing is seeded before the answer pays it — the landing finds nothing to fly and launches the cube at once.
+    expect(flyStagedVotePrice()).to.eq(undefined);
+    w.unmount();
+  });
+
+  it('a CARD-RESOURCE price (TR34\'s mech) arms no rail half — its token is the Parliament\'s own flight', async () => {
+    enterWorkspace('card-actions');
+    const w = mechFactory();
+    const vm = w.vm as any;
+    vm.selectedPos = 1;
+    await w.vm.$nextTick();
+    armStagedPlay({flow: 'action', cardName: CardName.MARS_ARMY_MECHS, isEvent: false, batch: [], target: {kind: 'resolution', vote: MECH_STAGED}, draws: 0, deckCheck: false, yieldedStack: false});
+    markStagedPlayCommitting();
+    await w.vm.$nextTick();
+    expect(actionCommitState.active).to.eq(true);
+    expect(actionCommitState.plan?.rail).to.eq(undefined);
     w.unmount();
   });
 });

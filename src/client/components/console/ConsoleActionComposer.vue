@@ -994,7 +994,7 @@ import {tileIconStyle} from '@/client/console/consoleTileIcon';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
 import {targetImpactRows, targetImpactText, targetImpactIsLoss} from '@/client/components/modalInputs/targetImpactRows';
-import {RATING_RAIL_KEY, cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {RATING_RAIL_KEY, cardResourceKey, isStandardResource} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
 import {translateMessage, translateText, translateTextWithParams, translateCardName} from '@/client/directives/i18n';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
@@ -3094,8 +3094,13 @@ export default defineComponent({
         this.submitting = true;
         const branch = this.selectedBranch;
         if (branch !== undefined) {
-          // The price leaves WITH the cube (the Parliament's own flight), never as a rail link of this commit.
-          this.playCommitBeat(branch, {spendDepartsElsewhere: true});
+          // A price off the CARD (TR15's data, TR34's mech) leaves WITH the cube — the Parliament's own flight, never a
+          // rail link of this commit. A price off the RAIL (T07's 3 M€) IS this commit's: its token leaves the row into
+          // the printed cost icon (PL-104), seeded with the answer and flown by the vote's landing BEFORE the cube
+          // (`flyStagedVotePrice`); the delegate is the vote's result, never a link here.
+          const receipt = stagedVoteReceiptOf(branch);
+          const railPrice = receipt !== undefined && isStandardResource(receipt.icon);
+          this.playCommitBeat(branch, railPrice ? {resultElsewhere: true} : {spendDepartsElsewhere: true});
         }
         return;
       }
@@ -5695,7 +5700,7 @@ export default defineComponent({
      *    outliving the answer). Played by the composer's own confirm — and by a STAGED ACTION VOTE's confirm in
      *    the Parliament standing in this composer (TR15): the press is the mode's A, the beat is this card's.
      */
-    playCommitBeat(branch: ActionPreviewBranch, opts: {spendDepartsElsewhere?: boolean} = {}): void {
+    playCommitBeat(branch: ActionPreviewBranch, opts: {spendDepartsElsewhere?: boolean, resultElsewhere?: boolean} = {}): void {
       // BOTH read the captures: a branch whose result is chosen in a step
       // («любой стандартный ресурс») has no chips of its own, so the category
       // and the reward wave are only knowable once the answer is in hand.
@@ -5730,7 +5735,7 @@ export default defineComponent({
             preResponses: this.capturedPre,
             ownCard: (name) => this.thisPlayer.tableau.some((c) => c.name === name),
             departsElsewhere: opts.spendDepartsElsewhere === true,
-            resultElsewhere: kind === 'draw',
+            resultElsewhere: kind === 'draw' || opts.resultElsewhere === true,
           });
       const specs = ledgerBranch ? [] : [
         ...(railPlan !== undefined ? commitWaveSpecs(this.entry.cardName, branch, this.captured, railPlan) : commitRewardSpecs(this.entry.cardName, branch, this.captured)),

@@ -8493,3 +8493,85 @@ eventAnalystsFixture('event-analysts-locked', ({game, p1, parliament}) => {
   return card === undefined || p1.canPlay(card) || slot === undefined || parliament.votesOf(p1, slot) !== 1 ? 'T05 NOT playable, one delegate of blue\'s on the Scientists\' resolution' : undefined;
 });
 
+// ── T07 · MARTIAN MEDIA CENTER — «pay 3 M€ → add a delegate»: under Redux a vote from the RESERVE for 3 M€, an ACTION
+//    of «Действия карт» that enters the Parliament as the STAGED door (TR15's fourth door — ledger CH). The voting area
+//    is pinned as `martian-census`'s (Industrialists · Mars First · Greens — the Greens rule by the starting rule), blue
+//    holds 20 M€, the free delegate in the lobby and a full reserve; the card is the game's own copy, taken out of
+//    wherever the deal put it, on blue's table with its action unused (Teractor · Thorgate — calm corporations: no
+//    Helion bill in front of the door):
+//      · `martian-media-center` — the action live;
+//      · `martian-media-center-poor` — 2 M€: «Need 1 more M€»;
+//      · `martian-media-center-quiet` — no resolution up for a vote: «No resolution is up for a vote» (never «paid and
+//        placed nothing»);
+//      · `martian-media-center-reserve` — every delegate of blue's in play: «Delegates in your reserve: 0 of 1»;
+//      · `martian-media-center-hand` — the card in HAND with ONE delegate of blue's on Mars First's resolution: the
+//        requirement's chip «1 of 2». ──
+function mediaCenterFixture(name: string, arrange: (table: ParliamentTable) => void, check: (table: ParliamentTable) => string | undefined): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [20, 30],
+    options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+    arrange: (table) => {
+      const {game, parliament} = table;
+      seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
+      seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+      seatResolution(parliament, 2, AQUIFER_CONTEST_ID);
+      moveToDeckTop(game, CardName.MARTIAN_MEDIA_CENTER);
+      arrange(table);
+    },
+    expect: (table) => {
+      const {game, p1, parliament} = table;
+      const wrong = check(table);
+      if (game.activePlayer.id !== p1.id || wrong !== undefined) {
+        throw new Error(`the ${name} fixture: ${wrong ?? 'blue is not on the move'} (mc=${p1.megaCredits} reserve=${parliament.reserve(p1)} slots=${parliament.slots.length})`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+/** The card off the deck's top onto blue's table, its action unused. */
+function mediaCenterOnTable({game, p1}: ParliamentTable): MartianMediaCenter {
+  const card = game.projectDeck.drawPile.pop() as MartianMediaCenter;
+  p1.playedCards.push(card);
+  return card;
+}
+mediaCenterFixture('martian-media-center', (table) => {
+  mediaCenterOnTable(table);
+}, ({p1, parliament}) => {
+  const card = p1.tableau.get(CardName.MARTIAN_MEDIA_CENTER);
+  const parties = parliament.slots.map((s) => parliament.resolutionOf(s.instance).party);
+  if (card === undefined || !(card as MartianMediaCenter).canAct(p1) || p1.actionsThisGeneration.has(CardName.MARTIAN_MEDIA_CENTER)) {
+    return 'the card on the table with its action live';
+  }
+  return p1.megaCredits !== 20 || !parliament.lobby.has(p1.id) || parliament.reserve(p1) < 2 ||
+    parties.join(',') !== [PartyName.INDUSTRIALISTS, PartyName.MARS, PartyName.GREENS].join(',') ?
+    `20 M€, the lobby cube, a reserve of 2+, slots [Industrialists, Mars First, Greens] (got ${parties.join(',')})` : undefined;
+});
+mediaCenterFixture('martian-media-center-poor', (table) => {
+  mediaCenterOnTable(table);
+  table.p1.megaCredits = 2;
+}, ({p1}) => (p1.tableau.get(CardName.MARTIAN_MEDIA_CENTER) as MartianMediaCenter | undefined)?.canAct(p1) !== false ? 'the action refused for M€' : undefined);
+mediaCenterFixture('martian-media-center-quiet', (table) => {
+  mediaCenterOnTable(table);
+  table.parliament.slots = [];
+}, ({p1, parliament}) => parliament.slots.length !== 0 || (p1.tableau.get(CardName.MARTIAN_MEDIA_CENTER) as MartianMediaCenter | undefined)?.canAct(p1) !== false ?
+  'an empty voting area, the action refused' : undefined);
+mediaCenterFixture('martian-media-center-reserve', (table) => {
+  mediaCenterOnTable(table);
+  const {p1, parliament} = table;
+  const slot = parliament.slots[2];
+  while (parliament.reserve(p1) > 0) {
+    parliament.placeVote(p1, slot, 'reserve');
+  }
+}, ({p1, parliament}) => parliament.reserve(p1) !== 0 || (p1.tableau.get(CardName.MARTIAN_MEDIA_CENTER) as MartianMediaCenter | undefined)?.canAct(p1) !== false ?
+  'an empty reserve, the action refused' : undefined);
+mediaCenterFixture('martian-media-center-hand', (table) => {
+  const {game, p1, parliament} = table;
+  p1.cardsInHand.push(game.projectDeck.drawPile.pop() as MartianMediaCenter);
+  parliament.placeVote(p1, parliament.slotOf(PartyName.MARS)!, 'reserve');
+}, ({p1, parliament}) => {
+  const card = p1.cardsInHand.find((c) => c.name === CardName.MARTIAN_MEDIA_CENTER);
+  return card === undefined || p1.canPlay(card) || parliament.votesOf(p1, parliament.slotOf(PartyName.MARS)!) !== 1 ?
+    'the card in hand, NOT playable, one delegate of blue\'s on Mars First\'s resolution' : undefined;
+});
+

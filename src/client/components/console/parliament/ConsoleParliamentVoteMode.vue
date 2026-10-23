@@ -349,9 +349,10 @@ import {TILE_REMOVAL_COST_NOTE_KEY, TILE_REMOVAL_SUMMARY_KEY} from '@/client/con
 import {offTurnReason} from '@/client/console/offTurnReason';
 import {Reading, readingText} from '@/client/console/readingText';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {cardResourceKey, isStandardResource} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {StagedReceipt} from '@/client/console/stagedPlay';
 import {afterCommitImpulse} from '@/client/console/consoleActionCommit';
+import {flyStagedVotePrice} from '@/client/console/consoleActionCommitRail';
 import {stagedDoorVerb} from '@/client/console/parliament/parliamentCommands';
 import {probeTick} from '@/client/console/probeTick';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
@@ -1174,6 +1175,9 @@ export default defineComponent({
       const support = this.supportRow;
       const receipt = this.receiptChip;
       const byCard = this.cardDoor;
+      // An ACTION's price on the RAIL (T07's 3 M€) is the commit's own token, flown before the cube; a card's resource
+      // (TR15's data) is this mode's price token; a play's M€ is the payment's business.
+      const railPrice = byCard && this.stagedDoor && this.stagedFlow === 'action' && receipt !== undefined && isStandardResource(receipt.icon);
       parliamentFlow.supportHeld = 0;
       parliamentFlow.supportLanded = 0;
       parliamentFlow.grantDegraded = '';
@@ -1182,6 +1186,7 @@ export default defineComponent({
         count: grant?.count ?? 1,
         ...(byCard ? {door: 'card' as const} : {}),
         ...(receipt === undefined ? {} : {receipt}),
+        ...(railPrice ? {railPrice: true as const} : {}),
         ...(support === undefined ? {} : {support}),
       };
       // FROM THE PRESS TO THE FLOW'S END nothing but text, the confirm's state and the cube's flight may change:
@@ -1284,8 +1289,9 @@ export default defineComponent({
       }
       f.supportHeld = supportLanded;
       f.supportLanded = 0;
-      // The ceiling budgets the price token's flight too (PL-100) when the door has a card-resource price to fly.
-      const priced = snap.door === 'card' && snap.receipt !== undefined && snap.receipt.icon !== 'megacredits';
+      // The ceiling budgets the price token's flight too (PL-100) when the door has a price to fly — a card resource's
+      // (this mode's token) or an action's rail price (the commit's token, PL-104).
+      const priced = snap.door === 'card' && snap.receipt !== undefined && (snap.receipt.icon !== 'megacredits' || snap.railPrice === true);
       this.landingHold = beginAnimationHold('parliament-vote-landing', {maxHoldMs: 4000 + 1200 * (seqs.length - 1) + 900 * supportLanded + (priced ? 900 : 0)});
       f.landedSeqs = [];
       f.flightSeq = seqs[0];
@@ -1316,6 +1322,28 @@ export default defineComponent({
       const snap = f.voteSnapshot;
       const receipt = snap?.receipt;
       const launch = () => this.flyDelegates(seqs, 0, me);
+      const stillLanding = () => parliamentFlow.stage === 'landed' && parliamentFlow.voteSnapshot !== undefined;
+      if (snap?.railPrice === true) {
+        // THE ACTION'S PRICE OFF THE RAIL (T07 — PL-104, then TR15 §6): after the impulse has landed (PL-103) the
+        // commit's seeded half flies the «−3» off the M€ row's digits into the printed cost icon, the row ticking on
+        // the departure; the cube lifts off the reserve once that token is absorbed. Nothing seeded → the cube at once.
+        afterCommitImpulse(() => {
+          if (!stillLanding()) {
+            return;
+          }
+          const price = flyStagedVotePrice();
+          if (price === undefined) {
+            launch();
+            return;
+          }
+          void price.then(() => {
+            if (stillLanding()) {
+              launch();
+            }
+          });
+        });
+        return;
+      }
       if (snap === undefined || snap.door !== 'card' || receipt === undefined || receipt.icon === 'megacredits') {
         launch();
         return;
