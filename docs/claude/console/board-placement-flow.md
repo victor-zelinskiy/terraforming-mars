@@ -79,6 +79,34 @@ same setting: click = lock, click the locked cell again = confirm, click
 another legal cell = move the lock (`onTileSelected`'s two-step branch — the
 last gate re-checks `placementCommitReady()`, so no path can bypass it).
 
+## The staged board speaks its own verbs (T15 · CD, 2026-10-23)
+
+A STAGED pick (`docs/TILE_PLAY_STAGED_COMMIT.md` §9-terdecies) is the last reversible step of playing a card — nothing
+has been sent. The bar says so: `placementCommands({…, staged: {flow, price, backOwed}})` — navigate «A Разыграть
+здесь» (single press: «Разыграть · 15 M€») · «B К карте»; locked «A Разыграть · 15 M€» · «B Изменить клетку»;
+committing «Разыгрываем…»; a blue card's action «Выполнить здесь» / «К действию». A move and the finale keep their own
+words. The dossier carries the card over the tile's identity — the PLAY PLATE (one row: art · name · price, at the
+source chip's height — the dossier may not scroll), gone with the commit.
+
+## The cursor's first cell (T15 · CD)
+
+`tilePlacement/placementCursorStart.initialPlacementCursor(cells, legal, viewer)` — the legal cell nearest the centre of
+the player's OWN tiles on Mars (the board's centre with none), on the board's own hex geometry (`miniCellCenter`), never
+the list's order and never the DOM: a greenery opens beside the player's tiles, a city near their centre, and the answer
+holds for a stage that is still hidden. One law for every pick (`ConsoleBoardSection.seed` on the placement's rising
+edge); a pick of off-grid cells only keeps the old screen-centre fallback. A move's lifted city still sends the cursor to
+its FIRST destination (the server's order — `moveFirstDestination`).
+
+## B is owed, never lost (T15 · CD)
+
+From «Разыграть» to the standing board a staged play passes through HOLDS — the landing ritual, the hero's tail, the
+hand's leave, the surface hand-off — and every one of them used to swallow B (PL-026 / PL-581 were two windows of that
+class). `ConsoleShell.stagedBackOwedNow` sits at the top of the input routing (under the system alert): while a hold
+owns the moment and the board cannot take B yet, the press is TAKEN, OWED and SHOWN («Возвращаемся…» on the bar; a
+second B is a no-op). Inside the ritual it is honoured at the ritual's own end by the refusal road (`abortPlayedHero` —
+the composer back, the board never opens); after the hand-off, on the holds' end (`runOwedStagedBack`, bounded). A commit
+or a cleared arm voids it. On the standing board B is the board's own (locked → unlock, navigate → back to the card).
+
 ## The reticle (`ConsoleBoardCursor.vue`)
 
 ONE persistent element teleported INSIDE `.board-cont` (resolved once at
