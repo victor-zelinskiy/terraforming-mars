@@ -92,6 +92,28 @@ async function railShot(page: Page, profile: string, name: string): Promise<void
   }
 }
 
+/**
+ * THE STATES ON THE NEW MATERIAL — the storyboard of the classes the product writes on a row (a quiet row behind a
+ * formula, the conversion's watch / source / target, a convertible stock's rim, a negative production): written onto
+ * the live rail by the stand (the paint is what is judged, not the logic that sets them — each has its own spec),
+ * every anchor re-read — a state may not move a box either.
+ */
+async function poseStates(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const row = (key: string) => document.querySelector(`.con-res__row--${key}`);
+    ['steel', 'titanium', 'heat'].forEach((key) => row(key)?.classList.add('con-res__row--quiet'));
+    row('energy')?.classList.add('con-res__row--conv-source');
+    row('heat')?.classList.add('con-res__row--conv-target');
+    row('plants')?.classList.add('con-res__row--convertible', 'con-res__row--convertible-plants');
+    row('megacredits')?.classList.add('con-res__row--conv-watch');
+    const prod = row('titanium')?.querySelector('.con-res__prod');
+    if (prod instanceof HTMLElement) {
+      prod.classList.add('con-res__prod--negative');
+      prod.firstChild!.textContent = '-2';
+    }
+  });
+}
+
 for (const preset of PROFILES) {
   test.describe(`T03 · the rail's material · ${preset.id}`, () => {
     test.use({viewport: preset.viewport});
@@ -106,6 +128,11 @@ for (const preset of PROFILES) {
       fs.writeFileSync(path.join(OUT, preset.id, 'anchors.json'), JSON.stringify(base, null, 1));
       if (MOCK === undefined) {
         await railShot(page, preset.id, 'board');
+        await poseStates(page);
+        await settle(page, {timeoutMs: 10_000});
+        const posed = drift(base, await readAnchors(page));
+        await railShot(page, preset.id, 'states');
+        expect(posed, `a row state moved an anchor:\n${posed.join('\n')}`).toEqual([]);
         if (fs.existsSync(BASELINE)) {
           const baseline = (JSON.parse(fs.readFileSync(BASELINE, 'utf8')) as Record<string, Anchors>)[preset.id];
           if (baseline !== undefined) {
