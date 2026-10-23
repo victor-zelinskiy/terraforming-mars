@@ -523,8 +523,13 @@ export function submitInput(out: InputResponse): void {
  * response is a normal PlayerViewModel, so the same hold/animation + update
  * path as `submitInput` applies; a leftover `waitingFor` (board placement /
  * divergence) renders through the existing routing.
+ *
+ * `composedFor` — the serial of the prompt the batch was COMPOSED against, when
+ * the composing surface outlives a round trip (the play composer is opened on
+ * one action menu and confirmed later). Omitted, the prompt standing now is
+ * the stamp, exactly as before.
  */
-export function submitBatch(responses: ReadonlyArray<InputResponse>): void {
+export function submitBatch(responses: ReadonlyArray<InputResponse>, composedFor?: number): void {
   // The «re-asked» witness remembers what this batch answered (`preselectWitness.ts`).
   notePreselectBatch(responses);
   notePromptSubmit();
@@ -535,7 +540,12 @@ export function submitBatch(responses: ReadonlyArray<InputResponse>): void {
       headers: {'Content-Type': 'application/json'},
       // Same identity stamp as submitInput — the batch's head answers the
       // displayed prompt, so the whole batch rides or falls with its identity.
-      body: JSON.stringify({runId: currentView().runId, promptId: currentWaitingFor()?.promptId, responses}),
+      // …and a batch composed against an EARLIER prompt carries THAT prompt's
+      // serial: once every other seat has passed, two action menus in a row are
+      // indistinguishable to the eye, and a play posted against the second one
+      // was applied to it («Unknown card name Corporate Espionage», 2026-10-23)
+      // instead of being refused as stale.
+      body: JSON.stringify({runId: currentView().runId, promptId: composedFor ?? currentWaitingFor()?.promptId, responses}),
     },
     false);
 }

@@ -101,7 +101,8 @@ export const nomadMoveState = reactive({
   /** The flying proxy's footprint (px) — the layer sizes the token from it. */
   tokenSizePx: 18,
   reducedMotion: false,
-  /** TRUE while a REMOTE hop's proxy is on stage (drives the layer). */
+  /** TRUE while a REMOTE hop's proxy is on stage (drives the layer) — cleared the moment the queue PARKS for a covered
+   *  board, so the next hop's wait never inherits the last hop's stage (the remote-tile lesson, 2026-10-23). */
   remoteActive: false,
   /** TRUE while the remote queue merely waits for a watchable board —
    *  a parked queue is NOT an animation (the remote-tile lesson). */
@@ -193,12 +194,13 @@ export function nomadMoveHolding(): boolean {
 }
 
 /** TRUE while a REMOTE hop is presenting (proxy on stage or a queue that is
- *  actually runnable). ⚠ The REACTIVE terms come first — this is a hold
- *  supplier predicate polled through a Vue watch (the remote-tile lesson:
- *  a non-reactive first term orphans the watcher's dependency). */
+ *  actually runnable) — never while the queue is PARKED for a covered board: the wait is read FIRST and outranks
+ *  everything (the remote-tile lesson, 2026-10-23: `remoteActive` left up by the previous hop turned the next hop's
+ *  wait into a blocking hold over the very workspace covering the board). ⚠ The REACTIVE terms come first — this is a
+ *  hold supplier predicate polled through a Vue watch (a non-reactive first term orphans the watcher's dependency). */
 export function isRemoteNomadMoveActive(): boolean {
-  return nomadMoveState.remoteActive ||
-    (!nomadMoveState.remoteWaiting && remoteQueue.length > 0);
+  return !nomadMoveState.remoteWaiting &&
+    (nomadMoveState.remoteActive || remoteQueue.length > 0);
 }
 
 // ── the OWN lifecycle ───────────────────────────────────────────────────────
@@ -730,7 +732,12 @@ async function flyRemoteHop(ev: RemoteNomadEvent, myEpoch: number): Promise<void
   // watchable board — the wait costs nothing, the source keeps its ghost
   // and the destination reads untouched. Bounded: a hidden camp is a worse
   // lie than a missed animation.
-  nomadMoveState.remoteWaiting = boardCovered();
+  if (boardCovered()) {
+    // PARKED: the wait holds nothing, and nothing of the previous hop stands through it (a hop that found no stage
+    // returns past `remoteActive = true` — the remote-tile lesson, 2026-10-23).
+    nomadMoveState.remoteWaiting = true;
+    nomadMoveState.remoteActive = false;
+  }
   try {
     await awaitWatchableBoard(myEpoch);
   } finally {

@@ -216,11 +216,30 @@ async function openEspionageComposer(page: Page): Promise<void> {
   await page.waitForTimeout(900);
 }
 
+/** Count the play's input POSTs from the commit on — the play is ONE batch,
+ *  whatever the player presses on the track afterwards. */
+function armInputPosts(page: Page): Array<string> {
+  const posts: Array<string> = [];
+  page.on('request', (r) => {
+    if (r.method() === 'POST' && /\/player\/input/.test(r.url())) {
+      posts.push(new URL(r.url()).pathname);
+    }
+  });
+  return posts;
+}
+
 /** Watch the execution: the hydro workspace, the espionage line, the marker
- *  glide(s), the result — pressing A only on the result to conclude. */
+ *  glide(s), the result — pressing A only on the result to conclude. The flow
+ *  must END on the board: no composer left standing (or stood up again as a
+ *  band), no system alert — the field report of 2026-10-23 («Unknown card name
+ *  Corporate Espionage»: the A on the result went to the composer hidden under
+ *  the track and posted the play a second time; in solo every menu after the
+ *  first reads «Take your next action», so the composer outlived its play). */
 async function watchExecution(page: Page, log: {glideColors: Set<string>, sawEspLine: boolean, sawResult: boolean}): Promise<void> {
   let resultStreak = 0;
-  for (let i = 0; i < 240; i++) {
+  let alert = '';
+  let board = false;
+  for (let i = 0; i < 240 && !board; i++) {
     const s = await page.evaluate(() => {
       const marker = document.querySelector('.con-hydromarker');
       const color = marker === null ? '' :
@@ -232,6 +251,7 @@ async function watchExecution(page: Page, log: {glideColors: Set<string>, sawEsp
         result: document.querySelector('.con-hydro__layer--result') !== null,
         board: document.querySelector('.con-hydro') === null &&
           document.querySelector('.con-composer--play') === null,
+        alert: (document.querySelector('.con-alert')?.textContent ?? '').replace(/\s+/g, ' ').trim(),
       };
     });
     if (s.marker !== '') {
@@ -239,6 +259,10 @@ async function watchExecution(page: Page, log: {glideColors: Set<string>, sawEsp
     }
     if (s.espLine) {
       log.sawEspLine = true;
+    }
+    if (s.alert !== '' && alert === '') {
+      alert = s.alert;
+      await shoot(page, 'alert');
     }
     if (s.result) {
       log.sawResult = true;
@@ -252,12 +276,14 @@ async function watchExecution(page: Page, log: {glideColors: Set<string>, sawEsp
     } else {
       resultStreak = 0;
     }
-    if (log.sawResult && s.board) {
-      return;
+    board = log.sawResult && s.board;
+    if (!board) {
+      await page.waitForTimeout(200);
     }
-    await page.waitForTimeout(200);
   }
   expect(log.sawResult, 'the execution reached its result summary').toBeTruthy();
+  expect(alert, 'no system alert during the execution (a second post of the play reads «Unknown card name …»)').toBe('');
+  expect(board, 'the flow concluded to the board — no composer left standing over it').toBeTruthy();
 }
 
 test.describe('Corporate Espionage — the premium vertical slice', () => {
@@ -309,10 +335,12 @@ test.describe('Corporate Espionage — the premium vertical slice', () => {
     expect(pickLog.sawChoice, 'the stage\'s own choice selector opened').toBeTruthy();
     expect(pickLog.sawArc, 'the movement arc linked the marker to its ghost').toBeTruthy();
     await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 10_000});
+    const posts = armInputPosts(page);
     await key(page, 'Enter', 400); // commit
 
     const log = {glideColors: new Set<string>(), sawEspLine: false, sawResult: false};
     await watchExecution(page, log);
+    expect(posts, 'the play is ONE batch POST').toEqual(['/player/input-batch']);
     expect(log.sawEspLine, 'the espionage line narrated the skip').toBeTruthy();
     expect([...log.glideColors], 'only the OWNER\'s marker glided').toEqual(['red']);
 
@@ -441,10 +469,14 @@ test.describe('Corporate Espionage — the premium vertical slice', () => {
     expect(log.orderViolated, 'the repeat selector was sighted BEFORE the hydro descent (the over-the-composer violation)').toBeFalsy();
     await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 10_000});
     await shoot(page, 'stage7-composer-ready');
+    // THE FIELD REPORT'S SHAPE: DP10 is played as a LATER action of a solo game, where every menu reads «Take your
+    // next action» — the menu after the play has the same key as the one it answered.
+    const posts = armInputPosts(page);
     await key(page, 'Enter', 400); // commit
 
     const exec = {glideColors: new Set<string>(), sawEspLine: false, sawResult: false};
     await watchExecution(page, exec);
+    expect(posts, 'the play is ONE batch POST — A on the track\'s result never re-posts it').toEqual(['/player/input-batch']);
     expect(exec.sawResult, 'the execution reached its result').toBeTruthy();
     await expect.poll(async () =>
       ((await fetchPlayerModel(request, id)) as Wire).thisPlayer.deltaProject?.position ?? 0,
@@ -588,10 +620,12 @@ test.describe('Corporate Espionage — the premium vertical slice', () => {
 
     await answerOwnerChoiceRow(page);
     await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 10_000});
+    const posts = armInputPosts(page);
     await key(page, 'Enter', 400); // commit
 
     const log = {glideColors: new Set<string>(), sawEspLine: false, sawResult: false};
     await watchExecution(page, log);
+    expect(posts, 'the play is ONE batch POST').toEqual(['/player/input-batch']);
     expect(log.sawEspLine, 'the espionage commit line stood').toBeTruthy();
     expect(log.glideColors.has('blue'), `the TARGET's own marker glided (saw: ${[...log.glideColors].join(',')})`).toBeTruthy();
     expect(log.glideColors.has('red'), 'the OWNER\'s marker glided too').toBeTruthy();

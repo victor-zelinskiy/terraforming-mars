@@ -2021,6 +2021,7 @@ import {cardExitBusy} from '@/client/console/cardDeal/cardExitDirector';
 import type {WorkspaceOutcomeKind, WorkspaceOutcomeScope} from '@/client/console/consoleWorkspaceOutcome';
 import {ResultRevealPresentation, resultRevealPresentation} from '@/client/console/consoleRevealPresentation';
 import {claimPlayOutcome, isPlayOutcomeHost, playLandingShowing} from '@/client/console/played/consolePlayOutcomeClaim';
+import {playComposerOutlived} from '@/client/console/played/playComposerLifetime';
 import {noteBonusGainRows, resetBonusGainReward} from '@/client/console/startBonusGain';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, boardCardBonusClaimsReveal, boardCardBonusState, isBoardCardBonusActive, isBoardCardBonusFieldPhase} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
@@ -2268,6 +2269,9 @@ import {
 type PendingPlayCard = {
   cardName: CardName;
   input: SelectProjectCardToPlayModel;
+  /** The serial of the prompt the composer was opened on — its batch is stamped with it, and a view past it releases
+   *  a composer nothing else owns (`playComposerLifetime.ts`). */
+  promptId?: number;
 };
 
 /** The CLIENT-built standard-project payment, hosted NATIVELY by the task
@@ -3602,6 +3606,10 @@ export default defineComponent({
     handCoveredByHydro(): boolean {
       const hand = workspaceFrameIndex('hand');
       return hand !== -1 && workspaceFrameIndex('hydro') > hand;
+    },
+    /** A Corporate Espionage EXECUTION stands — its falling edge with the play's prompt still standing is a refusal. */
+    espionageExecutionStanding(): boolean {
+      return this.hydroFlow.commit?.espionage !== undefined;
     },
     /**
      * The corporations whose mandatory first action is live RIGHT NOW (>1 =
@@ -9576,6 +9584,14 @@ export default defineComponent({
         cmds.push({control: 'back', label: consoleHandPickState.request?.backLabel ?? 'Back'});
         return cmds;
       }
+      // A HYDRO FRAME OVER THE HAND (the espionage pick, the espionage EXECUTION) is the surface the pad drives
+      // (`handCoveredByHydro` — the routing's own term), so it names the bar: the covered composer's verbs read over
+      // the track's result while A on «Продолжить» went to that composer and posted the play again (2026-10-23).
+      if (this.handCoveredByHydro) {
+        return consoleHydroUi.commands.length > 0 ?
+          [...consoleHydroUi.commands] :
+          [{control: 'back', label: 'Back'}];
+      }
       // …unless the composer has LET GO of the bar (PL-084): a hosted step is rising out of its rect while it
       // fades, its frame already past the commit — the bar then reads the STEP's own contract below, never the
       // composer's verbs over a surface that accepts none of them.
@@ -11304,6 +11320,26 @@ export default defineComponent({
       if (!live && isDeltaEspionagePickActive()) {
         cancelDeltaEspionagePick();
       }
+    },
+    /**
+     * THE ESPIONAGE EXECUTION WAS REFUSED — the transport's abort battery rolled the hydro commit back, and the server
+     * still holds the very prompt the play was composed on (a refusal keeps the serial — `Player.process`). The play
+     * did not happen: the execution frame leaves, the descent is configurable again and the composer's commit re-arms
+     * — the landing scene's `failed` for the one play that arms none. An ACCEPTED execution ends with the serial
+     * moved (the composer released by then — `playComposerOutlived`) and never acts here.
+     */
+    espionageExecutionStanding(standing: boolean, was: boolean): void {
+      const pending = this.pendingPlayCard;
+      if (standing || !was || pending?.promptId === undefined || pending.promptId !== this.playerView.waitingFor?.promptId) {
+        return;
+      }
+      if (workspaceStackTop()?.kind === 'hydro' && this.handCoveredByHydro) {
+        popWorkspaceFrame();
+      }
+      if (isCommitted(workspaceFramePhase('hand') ?? 'browse')) {
+        setWorkspaceFramePhase('hand', 'configure');
+      }
+      (this.$refs.playConfirm as InstanceType<typeof ConsolePlayCardConfirm> | undefined)?.resetSubmitting?.();
     },
     // THE RECOVERY NET: the SERVER phase drives the flow when the glide
     // degraded (an expired arm on a slow answer never fires the marker's own
@@ -13410,6 +13446,20 @@ export default defineComponent({
             this.openShellTaskSurface(shellTask);
           }
         }
+        // …AND THE PLAY COMPOSER ANSWERS ONE PROMPT, named by its SERIAL. The key above is «type | title», and once
+        // every other seat has passed (or in any solo game) every action menu reads «Take your next action»: an
+        // ACCEPTED play left its composer standing on the same key, and the espionage — the one play no landing scene
+        // owns — posted itself a second time from under the Hydronetwork («Unknown card name Corporate Espionage»,
+        // 2026-10-23); with the flow over, `goBoardHome` stood the same composer up again as a band. A moved serial
+        // is the server's own word; a landing scene or the play's outcome still owning the composer keeps it.
+        if (playComposerOutlived({
+          composedFor: this.pendingPlayCard?.promptId,
+          live: newView.waitingFor?.promptId,
+          heroOwns: isPlayedHeroActive(),
+          outcomeOwns: isPlayOutcomeHost(workspaceOutcomeState.host) && workspaceOutcomeClaimed(),
+        })) {
+          this.pendingPlayCard = undefined;
+        }
       },
     },
   },
@@ -14663,9 +14713,12 @@ export default defineComponent({
       // «delta picks first» sent the d-pad into a hydro surface hidden BEHIND
       // the live browser — the player walked invisible stages while the
       // browser they were looking at never moved.
+      // …and so does a hydro frame standing OVER THE HAND (`handCoveredByHydro`): the espionage EXECUTION is the
+      // play's commit descended into the track, and the composer it covers is hidden with nothing left to answer —
+      // routed to it, the A meant for the track's «Продолжить» re-posted the play (2026-10-23).
       {
         const deltaInstrumentUp = isDeltaEspionagePickActive() || isDeltaRewardPickActive() ||
-          isDeltaBlockadePickActive() || isBlockadeExecutionActive();
+          isDeltaBlockadePickActive() || isBlockadeExecutionActive() || this.handCoveredByHydro;
         const hydroDeeper = workspaceFrameIndex('hydro') > workspaceFrameIndex('repeat-pick');
         if (deltaInstrumentUp && (!this.repeatPickActive || hydroDeeper)) {
           const section = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
@@ -17225,7 +17278,7 @@ export default defineComponent({
       if (workspaceFrameMounted('hand')) {
         descendWorkspaceFrame('hand', cardName, 'Playing', {type: 'cardInHand', card: cardName});
       }
-      this.pendingPlayCard = {cardName, input: {...action.input, cards: [card]}};
+      this.pendingPlayCard = {cardName, input: {...action.input, cards: [card]}, promptId: this.playerView.waitingFor?.promptId};
     },
     /**
      * T8 (pre-select parity): the native play composer resolved — assemble the
@@ -17399,9 +17452,14 @@ export default defineComponent({
       // physical presence is the ctx source dock; the owner's stage-5 draw
       // is the hydro claim's).
       if (payload.espionage !== undefined) {
+        // ONE PLAY, ONE EXECUTION — the hydro advance's own guard: while an execution stands (or its marker glides)
+        // the commit owns the moment, and a second confirm is the same play posted twice.
+        if (this.hydroFlow.commit !== undefined || isHydroMarkerActive()) {
+          return;
+        }
         this.beginEspionageExecution(payload.espionage);
         setWorkspaceFramePhase('hand', 'executing');
-        this.submitBatch(batch);
+        this.submitBatch(batch, pending.promptId);
         return;
       }
       // STAGED PLAY (docs/TILE_PLAY_STAGED_COMMIT.md): a play whose preview
@@ -17582,7 +17640,9 @@ export default defineComponent({
       // a claim that lapsed there would tear the hand out from under a card
       // that is still in the air.
       setWorkspaceFramePhase('hand', 'executing');
-      this.submitBatch(batch);
+      // Stamped with the prompt the composer was OPENED on: a play composed for a prompt the server no longer holds is
+      // refused as stale, never applied to whatever menu stands now.
+      this.submitBatch(batch, pending.promptId);
     },
     /**
      * The hydro stage-7 pick (reuse-a-blue-action) — the ДЕЙСТВИЯ КАРТ
@@ -23876,8 +23936,9 @@ export default defineComponent({
     submit(response: unknown): void {
       submitInput(response as InputResponse);
     },
-    submitBatch(responses: ReadonlyArray<unknown>): void {
-      transportSubmitBatch(responses as ReadonlyArray<InputResponse>);
+    /** `promptId` — the prompt the batch was COMPOSED for (default: the one standing now; see `gameTransport.submitBatch`). */
+    submitBatch(responses: ReadonlyArray<unknown>, promptId?: number): void {
+      transportSubmitBatch(responses as ReadonlyArray<InputResponse>, promptId);
     },
     showNotice(key: string): void {
       this.notice = key;

@@ -842,6 +842,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {gsap} from 'gsap';
 import {MOTION_EASE, motionMs} from '@/client/components/motion/motionTokens';
 import {playedHeroLandingPrewarm} from '@/client/console/played/consolePlayedHero';
+import {composerReArms} from '@/client/console/played/playComposerLifetime';
 import {
   beginPlayLandingRelease, markPlayLandingReleased, playLandingHolding, playLandingShowing,
   playLandingYieldedToOutcome,
@@ -1095,6 +1096,8 @@ export default defineComponent({
       offeredSeen: {} as Record<string, true>,
       sub: undefined as SubState | undefined,
       submitting: false,
+      /** The serial of the prompt the commit ANSWERED — a view past it never re-arms the commit (`composerReArms`). */
+      answeredFor: undefined as number | undefined,
       /** Bumped on each quick-adjust to re-trigger the one-shot chip pulse. */
       payFlashNonce: 0,
       /** The «Сработает» row's one-shot COMMIT pulse (the descend's first beat). */
@@ -2587,7 +2590,12 @@ export default defineComponent({
       },
     },
     playerView() {
-      this.submitting = false;
+      // A view past the prompt this commit answered means the play was TAKEN: the composer never fires it again (it
+      // may still stand as the play's scene — the espionage's Hydronetwork over it, a landing handing off). A refusal
+      // re-arms through `resetSubmitting`, never through a view.
+      if (composerReArms({answeredFor: this.answeredFor, live: this.playerView.waitingFor?.promptId})) {
+        this.submitting = false;
+      }
     },
     // Publish the CONTEXTUAL footer controls to the shell's ONE bottom command
     // bar (hints live only there — never inline). Replaces the old hard-coded,
@@ -2831,6 +2839,7 @@ export default defineComponent({
      */
     resetSubmitting(): void {
       this.submitting = false;
+      this.answeredFor = undefined;
     },
     /**
      * THE LANDING SCENE LEAVES THE STAGE — the deck has begun dealing what this
@@ -3035,6 +3044,7 @@ export default defineComponent({
       this.sub = undefined;
       this.handPickOpen = undefined;
       this.submitting = false;
+      this.answeredFor = undefined;
     },
     applyPreview(): void {
       // NO auto-select where there is a real ИЛИ choice (`initialVariantSelection`
@@ -5058,6 +5068,8 @@ export default defineComponent({
         return;
       }
       this.submitting = true;
+      // The prompt this commit answers — once the server holds another, the answer was taken (`composerReArms`).
+      this.answeredFor = this.playerView.waitingFor?.promptId;
       leaveCommit(this.commitArrival);
       const payment: Payment = paymentFromCounts(this.cost, this.payLanes, this.payCounts, this.megacreditsOnHand);
       // The espionage response is ASSEMBLED at the commit: the captured target

@@ -163,7 +163,11 @@ export function registerRemoteBoardWaitKeeper(keeper: (() => boolean) | undefine
 const BOARD_SETTLE_MS = 320;
 
 export const remotePlacementState = reactive({
-  /** TRUE while a remote proxy is on stage (drives the layer's remote block). */
+  /**
+   * TRUE while a remote proxy is on stage (drives the layer's remote block). Between two landings on a board in view
+   * it stays up (the last one's splash and dust still play on its elements), but the moment the queue PARKS for a
+   * covered board it comes down (`parkForBoard`): a stage reading «on» through a wait is a scene nobody is playing.
+   */
   active: false,
   /**
    * TRUE while the queue is merely PARKED waiting for a watchable board.
@@ -179,6 +183,13 @@ export const remotePlacementState = reactive({
    * когда я в workspace во время его хода»: nothing was on screen and nothing
    * was moving — the scene was politely waiting for a board the player had
    * covered, and holding the game while it waited.
+   *
+   * ⚠️ …AND THE WAIT OUTRANKS EVERY OTHER TERM (field log 2026-10-23, «Коммерческая сеть»: `{active: true,
+   * waitingForBoard: true, queued: 1, draining: true}` for 35 s). The predicate used to read `active || (!waiting &&
+   * queued)`, and `active` stayed true from the PREVIOUS landing of the same queue, so the second landing's wait held
+   * the blocking hold after all: the player opened «Действия карт», the action's own draw waited for the blocking holds
+   * («Берём карты из колоды…» standing still), the landing waited for the workspace to leave — a deadlock only the
+   * 35 s ceiling ended. A waiting queue holds NOTHING, whatever was on stage a moment ago.
    */
   waitingForBoard: false,
   /** The CURRENT flight's tile art (one remote flight at a time — the
@@ -342,20 +353,21 @@ function remoteVpOrigin(share: VpShare, cells: ReadonlyArray<string>): TransferP
 let epoch = 0;
 let stageSafety: number | undefined;
 
+/**
+ * THE HOLD IS FOR THE SCENE, NEVER FOR THE WAIT: a proxy on stage or a queued landing holds — except while the queue
+ * is PARKED for a board the player cannot see. The wait is read FIRST and outranks every other term: a landing that
+ * waits for a covered board holds nothing, whatever was on stage a moment ago, so the very surface covering it (a
+ * workspace whose own draw waits for the blocking holds) is never deadlocked against it.
+ *
+ * ⚠ ORDER IS LOAD-BEARING: this is an animation-hold supplier, read through a Vue `watch` that short-circuits. The
+ * two REACTIVE terms come first — `waitingForBoard` (its falling edge re-raises the hold the moment the board is back,
+ * its rising edge releases it the moment the queue parks) and `active`; `queue` is a plain array, read last, so the
+ * watcher never drops its only reactive dependency (the bug that hit `isResourceTransferActive` when its first term
+ * was a non-reactive `let`).
+ */
 export function isRemotePlacementActive(): boolean {
-  // ⚠ ORDER IS LOAD-BEARING: the REACTIVE term (`active`) MUST come first. This
-  // is an animation-hold supplier predicate, polled through a Vue `watch` that
-  // short-circuits `a || b`. `queue` is a plain (non-reactive) array, so if it
-  // were read first the watcher could drop its only reactive dependency and
-  // orphan the 35 s safety ceiling (the bug that hit `isResourceTransferActive`
-  // when its first term was a non-reactive `let`). Reading `active` first keeps
-  // it tracked; `active` only goes false once `queue` is already empty
-  // (drain-end / abort), so the false transition is always observed.
-  // A PARKED queue is not an animation: nothing is on stage and nothing moves
-  // until the board comes back (see `waitingForBoard`). Both terms read before
-  // `queue` are reactive, so the watcher keeps its dependency either way.
-  return remotePlacementState.active ||
-    (!remotePlacementState.waitingForBoard && queue.length > 0);
+  return !remotePlacementState.waitingForBoard &&
+    (remotePlacementState.active || queue.length > 0);
 }
 
 // Queued/flying remote landings hold the presentation exactly like the own
@@ -713,14 +725,35 @@ export function abortRemotePlacements(): void {
   remoteVpCells = [];
   clearRemoteRevealHolds(); // belt-and-braces: nothing may stay hidden
   draining = false;
-  remotePlacementState.active = false;
   remotePlacementState.waitingForBoard = false;
+  clearRemoteStage();
+  clearStageSafety();
+}
+
+/**
+ * The stage comes down: the proxy's art, the beacon, the departure, the move's pose, the Ares wakes — and `active`,
+ * which says «a proxy is on stage». At the drain's end, at an abort, and whenever the queue PARKS for a covered board
+ * (`parkForBoard`) — never merely between two landings on a board in view, where the last one's splash and dust are
+ * still playing on these very elements while the next one takes its first look.
+ */
+function clearRemoteStage(): void {
+  remotePlacementState.active = false;
   remotePlacementState.tileType = undefined;
   remotePlacementState.beaconColor = undefined;
   remotePlacementState.departingTile = undefined;
   clearMoveStage();
   remotePlacementState.aresSources = [];
-  clearStageSafety();
+}
+
+/**
+ * The queue PARKS for a board the player cannot see. The wait holds nothing (`isRemotePlacementActive` reads it first),
+ * and nothing of the PREVIOUS landing stands through it: a degrade path leaves `active` up (`degradeMove` mounts the
+ * root for its witness, a flight that found no proxy returns past it), and a stage still «on» through the next
+ * landing's wait was the 35 s deadlock of the field log on `waitingForBoard`.
+ */
+function parkForBoard(): void {
+  remotePlacementState.waitingForBoard = true;
+  clearRemoteStage();
 }
 
 /** A move's SOURCE cell shows what was committed: the held city, its cube, its former height and the release answer all go. */
@@ -764,11 +797,7 @@ async function drainQueue(): Promise<void> {
   } finally {
     if (epoch === myEpoch) {
       draining = false;
-      remotePlacementState.active = false;
-      remotePlacementState.tileType = undefined;
-      remotePlacementState.beaconColor = undefined;
-      remotePlacementState.departingTile = undefined;
-      clearMoveStage();
+      clearRemoteStage();
       clearStageSafety();
     }
   }
@@ -816,7 +845,9 @@ async function drainEvents(myEpoch: number): Promise<void> {
  * stand — named (`moveDegraded`), never a hidden city.
  */
 async function moveRemote(ev: RemoteEvent, move: RemoteMove, myEpoch: number): Promise<void> {
-  remotePlacementState.waitingForBoard = boardCovered();
+  if (boardCovered()) {
+    parkForBoard();
+  }
   try {
     await awaitWatchableBoard(myEpoch);
   } finally {
@@ -949,7 +980,9 @@ async function degradeMove(ev: RemoteEvent, myEpoch: number): Promise<void> {
  * no proxy): the cell is never left hidden.
  */
 async function liftRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
-  remotePlacementState.waitingForBoard = boardCovered();
+  if (boardCovered()) {
+    parkForBoard();
+  }
   try {
     await awaitWatchableBoard(myEpoch);
   } finally {
@@ -1022,7 +1055,9 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   // BE there when the workspace folds. This is the whole reason the tile
   // stays held: the wait costs nothing (the cell reads untouched) and buys
   // the player the one moment the placement actually happens.
-  remotePlacementState.waitingForBoard = boardCovered();
+  if (boardCovered()) {
+    parkForBoard();
+  }
   try {
     await awaitWatchableBoard(myEpoch);
   } finally {
@@ -1473,7 +1508,7 @@ function watchableBoardAfterTick(myEpoch: number): Promise<void> {
   if (!boardBusyForRemote()) {
     return Promise.resolve();
   }
-  remotePlacementState.waitingForBoard = true;
+  parkForBoard();
   const started = Date.now();
   const deadline = started + BOARD_WAIT_MAX_MS;
   const expired = (): boolean => {

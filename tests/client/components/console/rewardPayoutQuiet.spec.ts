@@ -33,7 +33,9 @@ describe('rewardPayoutQuiet (card ↔ resource payout coordination)', () => {
     nomadMoveState.active = false;
     nomadMoveState.phase = 'idle';
     nomadMoveState.remoteActive = false;
+    nomadMoveState.remoteWaiting = false;
     remotePlacementState.active = false;
+    remotePlacementState.waitingForBoard = false;
     boardCardBonusState.active = false;
     await settle(5); // the tile abort lowers 'failed' → 'idle' on nextTick
   });
@@ -136,16 +138,21 @@ describe('rewardPayoutQuiet (card ↔ resource payout coordination)', () => {
       expect(boardSceneSettling()).to.be.true;
     });
 
-    it('a REMOTE tile landing settles the board scene', () => {
+    it('a REMOTE tile landing settles the board scene — and its WAIT for a covered board does not', () => {
       remotePlacementState.active = true;
       expect(boardSceneSettling()).to.be.true;
+      remotePlacementState.waitingForBoard = true;
+      expect(boardSceneSettling(), 'a landing parked for the board is no scene, whatever its stage still reads').to.be.false;
+      remotePlacementState.waitingForBoard = false;
       remotePlacementState.active = false;
       expect(boardSceneSettling()).to.be.false;
     });
 
-    it('a REMOTE nomad hop settles the board scene', () => {
+    it('a REMOTE nomad hop settles the board scene — and its WAIT for a covered board does not', () => {
       nomadMoveState.remoteActive = true;
       expect(boardSceneSettling()).to.be.true;
+      nomadMoveState.remoteWaiting = true;
+      expect(boardSceneSettling(), 'a hop parked for the board is no scene, whatever its stage still reads').to.be.false;
     });
 
     it('the placed cell\'s card-bonus lift settles the board scene', () => {
