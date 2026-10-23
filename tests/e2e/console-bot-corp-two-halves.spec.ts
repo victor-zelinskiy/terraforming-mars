@@ -11,8 +11,11 @@ import {bootSeededGame, openInfoPlayedTable, press, soloGameConfig, visibleSurfa
  * So this probe reads the painted card (two starting tags, the named plate)
  * AND the printed rules panel, where both halves must be stated.
  *
- * Utopia Invest is a Turmoil corporation and Turmoil is off in this config,
- * so the collision rule cannot hand the bot a different corporation.
+ * Utopia Invest is a Turmoil corporation and neither Turmoil is on in this
+ * config, so no human is dealt it and the collision rule cannot hand the bot a
+ * different corporation. (Since 2026-10-23 a Turmoil Redux table deals the
+ * HUMAN Utopia Invest too — there a human on it keeps the bot off C39, pinned
+ * in `tests/automa/AutomaCorporations.spec.ts`.)
  */
 
 const UTOPIA_CONFIG = soloGameConfig({

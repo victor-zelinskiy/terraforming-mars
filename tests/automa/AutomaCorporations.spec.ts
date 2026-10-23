@@ -133,6 +133,20 @@ describe('AutomaCorporations — the MarsBot corporation framework', () => {
       expect(game.automa!.corporation).not.eq(MarsBotCorpId.C38_TERRALABS);
     });
 
+    // R33 Utopia Invest third — the bot's C39 twin («two halves»: B32 Investors by the generation's parity) is its OWN
+    // mechanic and untouched; only the collision key is pinned.
+    it('Turmoil Redux: a human on Utopia Invest keeps the bot off C39 (the collision key is `original`)', () => {
+      expect(marsBotCorpInfo(MarsBotCorpId.C39_UTOPIA_INVEST).original).eq(CardName.UTOPIA_INVEST);
+      const [game, human] = testAutomaGame({
+        corporation: MarsBotCorpId.C39_UTOPIA_INVEST, keepInitialCardSelection: true,
+        turmoilReduxExpansion: true, coloniesExtension: true,
+      }, '-redux-utopia');
+      pickCorporation(game, human, CardName.UTOPIA_INVEST);
+      expect(human.playedCards.corporations().map((c) => c.name)).deep.eq([CardName.UTOPIA_INVEST]);
+      expect(game.automa!.corporation).is.not.undefined;
+      expect(game.automa!.corporation).not.eq(MarsBotCorpId.C39_UTOPIA_INVEST);
+    });
+
     it('multiplayer collision: a corporation picked by ANY human is excluded', () => {
       const [game, humans] = testAutomaMultiplayerGame(2,
         {corporation: 'random', keepInitialCardSelection: true}, '-mp-coll');

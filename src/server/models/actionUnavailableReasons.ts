@@ -7,6 +7,8 @@ import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {resourcesHereShort} from '../cards/actionReasons';
 import {delegateIsTheActionsResult} from '../politics/delegateIsTheActionsResult';
+import {Units} from '../../common/Units';
+import {productionFloor} from '../player/productionFloor';
 
 /**
  * Authoritative, structured explanation of why an action card's ACTIVATABLE
@@ -91,8 +93,8 @@ export function collectActionBehaviorReasons(
     out.push(...shared, ...perSub.flat());
   }
 
-  if (behavior.production !== undefined && !player.production.canAdjust(ctx.countUnits(behavior.production))) {
-    out.push({type: 'production', message: 'Cannot reduce production'});
+  if (behavior.production !== undefined) {
+    out.push(...productionReductionReasons(player, ctx.countUnits(behavior.production)));
   }
 
   const spend = behavior.spend;
@@ -211,6 +213,37 @@ export function delegateReserveReason(player: IPlayer, count: number): Unplayabl
     return {type: 'party', message: 'Not enough available delegates'};
   }
   return {type: 'party', message: 'Delegates in your reserve: ${0} of ${1}', params: [String(inReserve), String(count)], current: inReserve};
+}
+
+/** «Steel production is 0: too low to reduce» — one key per standard resource (a param is never translated). */
+const PRODUCTION_TOO_LOW: Readonly<Record<keyof Units, string>> = {
+  megacredits: 'M€ production is ${0}: it cannot go below −5',
+  steel: 'Steel production is ${0}: too low to reduce',
+  titanium: 'Titanium production is ${0}: too low to reduce',
+  plants: 'Plant production is ${0}: too low to reduce',
+  energy: 'Energy production is ${0}: too low to reduce',
+  heat: 'Heat production is ${0}: too low to reduce',
+};
+
+/**
+ * Why an ACTION's production price cannot be paid (`Production.canAdjust` — M€ down to −5, the rest to 0): one reason
+ * per production that would fall through its floor, NAMING the resource and its current value (Utopia Invest's six
+ * «lower any production» variants each refused by its own — a bare «Cannot reduce production» on six tiles said which
+ * only through the tile's picture). The classic line stays for a shape the per-resource walk cannot name.
+ */
+export function productionReductionReasons(player: IPlayer, units: Units): Array<UnplayableReason> {
+  if (player.production.canAdjust(units)) {
+    return [];
+  }
+  const out: Array<UnplayableReason> = [];
+  for (const key of Units.keys) {
+    const delta = units[key];
+    const current = player.production[key];
+    if (delta < 0 && current + delta < productionFloor(key as Resource)) {
+      out.push({type: 'production', message: PRODUCTION_TOO_LOW[key], params: [String(current)], resource: key as Resource, current});
+    }
+  }
+  return out.length > 0 ? out : [{type: 'production', message: 'Cannot reduce production'}];
 }
 
 /**

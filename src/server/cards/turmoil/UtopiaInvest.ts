@@ -34,6 +34,7 @@ export class UtopiaInvest extends ActiveCorporationCard implements ICorporationC
       metadata: {
         cardNumber: 'R33',
         description: 'You start with 40 M€. Increase your steel and titanium production 1 step each.',
+        infoText: [{kind: 'action-short', text: 'Lower any production 1 step: gain 4 of that resource'}],
         renderData: CardRenderer.builder((b) => {
           b.br;
           b.megacredits(40).nbsp.production((pb) => pb.steel(1).titanium(1));
