@@ -3438,7 +3438,9 @@ html.con-reduced-motion {
        stages step off its zone via this inset — and so does the status rail
        (in flow BELOW the stage), which the overlay must never cover. */
     &__stagewrap--shelved .con-draftws__stage {
-        bottom: 8.9rem;
+        /* T10 · CE: the shelf band's height is the PLANNER's (`planDraftShowcase` → `--con-draftws-shelf-block`),
+           solved from the measured body — the old fixed 8.9rem is only the pre-measure fallback. */
+        bottom: var(--con-draftws-shelf-block, 8.9rem);
     }
     /* The BUY chapter stacks its chrome: the financial strip keeps the top,
        the card row centres in everything that remains. */
@@ -3814,8 +3816,15 @@ html.con-reduced-motion {
        reflows the stage above (the rise flies over a settled layout). ── */
     &__shelf {
         position: absolute;
-        left: 0;
-        right: 0;
+        /* T10 · CE: the rack is CENTRED and sized by its seats (the planner's), so the WAIT can bring the same rack
+           forward by `translate` + `scale` alone — both transitionable, nothing re-laid out, a flight measured on a
+           seat stays true. */
+        left: 50%;
+        width: max-content;
+        max-width: 100%;
+        translate: -50% 0;
+        scale: 1;
+        transform-origin: 50% 100%;
         /* Sits UNDER the status rail's row (which is in flow at the body's
            bottom) — the collection never covers the verdict of the card the
            player is looking at. The offset IS the status row's height. */
@@ -3828,7 +3837,11 @@ html.con-reduced-motion {
         border-radius: .6rem;
         background: rgba(9, 15, 24, 0.82);
         box-shadow: inset 0 0 0 .05rem rgba(122, 168, 214, 0.16);
-        transition: opacity calc(200ms * var(--motion-scale, 1)) ease;
+        transition:
+            opacity calc(200ms * var(--motion-scale, 1)) ease,
+            translate calc(420ms * var(--motion-scale, 1)) @con-ease-standard,
+            scale calc(420ms * var(--motion-scale, 1)) @con-ease-standard,
+            background-color calc(300ms * var(--motion-scale, 1)) ease;
 
         &--muted { opacity: .4; }
         /* NOTHING COLLECTED YET is a PAINT state, never a layout one: the
@@ -3870,6 +3883,20 @@ html.con-reduced-motion {
             animation: con-draftws-setglow calc(640ms * var(--motion-scale, 1)) ease-out;
         }
     }
+    /* THE WAIT BRINGS THE RACK FORWARD (T10 · CE, decision 6): the longest stage of the draft (the neighbours are
+       still choosing) shows what the player has drafted as FACES at the scale of the stage — the SAME rack, lifted to
+       the stage's middle and scaled by the planner (`--con-draftws-wait-scale` / `-lift`), its plate dissolving so
+       the faces stand on the stage itself. The pass lane keeps the top. */
+    &--waiting &__shelf {
+        translate: -50% calc(-1 * var(--con-draftws-wait-lift, 0px));
+        scale: var(--con-draftws-wait-scale, 1);
+        background-color: transparent;
+        box-shadow: none;
+    }
+    &--waiting &__stage--wait {
+        justify-content: flex-start;
+        padding-top: 1.2rem;
+    }
     /* The shelf's own leave: a calm fade, SYNCHRONIZED with the rise handoff
        (its cards have already physically left for the purchase row). */
     &__shelf.con-draftws-shelf-leave-active {
@@ -3910,13 +3937,14 @@ html.con-reduced-motion {
     &__shelf-row {
         display: flex;
         align-items: flex-end;
-        gap: .5rem;
-        min-height: 5.6rem;
+        justify-content: center;
+        gap: 1rem;
+        min-height: var(--con-draftws-seat-h, 5.5rem);
     }
     &__shelf-slot {
         position: relative;
-        width: 3.9rem;
-        height: 5.5rem;
+        width: var(--con-draftws-seat-w, 3.9rem);
+        height: var(--con-draftws-seat-h, 5.5rem);
         border-radius: .3rem;
         /* NO opacity transition — the no-dip handoff: releasing the hold
            SNAPS the real mini-card visible UNDER the still-opaque proxy,
@@ -3925,7 +3953,7 @@ html.con-reduced-motion {
 
         /* The mini card: real premium face, clipped to the seat. */
         :is(.card-container, .pcard) {
-            zoom: calc(0.245 * var(--con-ui-scale, 1));
+            zoom: var(--con-draftws-seat-zoom, calc(0.245 * var(--con-ui-scale, 1)));
             margin: 0;
             pointer-events: none;
         }
@@ -3947,11 +3975,20 @@ html.con-reduced-motion {
         :is(.card-container, .pcard) { opacity: 0 !important; }
     }
     &__shelf-seat {
-        width: 3.9rem;
-        height: 5.5rem;
+        width: var(--con-draftws-seat-w, 3.9rem);
+        height: var(--con-draftws-seat-h, 5.5rem);
+        /* A prepared seat names its PLACE (T10 · CE): «2 · 3 · 4» — how far the draft runs, never a bare box. */
+        display: grid;
+        place-items: center;
         border-radius: .3rem;
         box-shadow: inset 0 0 0 .05rem rgba(122, 168, 214, 0.2);
         background: rgba(12, 20, 30, 0.4);
+    }
+    &__shelf-seatnum {
+        font-size: var(--con-t-section);
+        font-weight: 800;
+        color: fade(@con-text-dim, 70%);
+        font-variant-numeric: tabular-nums;
     }
 }
 

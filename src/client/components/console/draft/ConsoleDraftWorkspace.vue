@@ -23,7 +23,9 @@
     `draftPrompt` marker + `buyMode`); submissions are the byte-identical
     `cardsResponse` the legacy UI sends. No rule is re-implemented here.
   -->
-  <section class="con-draftws con-ws" data-motion-surface="draftws" ref="rootEl">
+  <section class="con-draftws con-ws" data-motion-surface="draftws" ref="rootEl"
+           :class="{'con-draftws--waiting': zone === 'wait'}" :style="showcaseStyle"
+           :data-draft-composition="composition">
     <!-- The identity EMBLEM is load-bearing here, not decoration: the flow
          connector's origin diamond rises out of the ROOT GLYPH's slot
          (--con-wsflow-axis), and without an emblem that axis falls under
@@ -73,7 +75,7 @@
       </template>
     </ConsoleWsHead>
 
-    <div class="con-draftws__body" data-motion-panel>
+    <div class="con-draftws__body" data-motion-panel ref="body">
       <!-- Invisible flight anchors at the side edges — the physical origin a
            PASSED packet's deal launches from (round 1 deals off the HUD deck). -->
       <span class="con-draftws__lane con-draftws__lane--left" ref="laneLeft" aria-hidden="true"></span>
@@ -242,7 +244,7 @@
            never cover it. Held through the commit's completion: a line naming
            the focused card floated alone over the emptied stage while the
            unbought cards tumbled out. ─────────── -->
-      <div class="con-draftws__statusbar" :class="{'con-draftws__statusbar--held': beatActive || buyDeparting}">
+      <div class="con-draftws__statusbar" :class="{'con-draftws__statusbar--held': beatActive || buyDeparting}" ref="statusbar">
         <ConsoleDraftReading :reading="statusReading" :idle="zone === 'wait' ? 'Waiting for the other players' : ''" />
       </div>
 
@@ -296,7 +298,8 @@
           <!-- Prepared empty seats up to the known total: the shelf states how
                far the draft runs before a single card has landed — including
                at zero, which is exactly when that statement is worth most. -->
-          <span v-for="n in emptySeats" :key="'seat-' + n" class="con-draftws__shelf-seat" aria-hidden="true"></span>
+          <span v-for="n in emptySeats" :key="'seat-' + n" class="con-draftws__shelf-seat" aria-hidden="true"
+                :data-shelf-seat="collectedEntries.length + n"><b class="con-draftws__shelf-seatnum">{{ collectedEntries.length + n }}</b></span>
         </div>
       </div>
       </transition>
@@ -318,6 +321,7 @@ import ConsoleJourneyRail from '@/client/components/console/foundation/ConsoleJo
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
 import ConsoleDraftReading from '@/client/components/console/draft/ConsoleDraftReading.vue';
 import {DraftReading, draftReadingOf} from '@/client/console/draft/draftReadingModel';
+import {DraftShowcaseComposition, planDraftShowcase} from '@/client/console/draft/draftShowcaseLayout';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
@@ -330,7 +334,7 @@ import {megacreditsAvailable} from '@/client/console/paymentPlan';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {CloneFlightHandle, flyCardClones, measureCardRects} from '@/client/console/cardFlight/cloneFlights';
-import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {createCardDealSequence, RiseLaunchExtras} from '@/client/console/cardDeal/cardDealSequence';
@@ -358,6 +362,9 @@ import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {availabilityContextFor, buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
 
 type CardEntry = {name: CardName, key: string, card: CardModel};
+
+/** T10 · CE — the packet showcase's composition (M1: the shelf a band of large faces under the packet). */
+const DRAFT_SHOWCASE_COMPOSITION: DraftShowcaseComposition = 'stack';
 
 /** One workspace zone — what the staging area is showing right now. */
 type DraftZone = 'pick' | 'wait' | 'buy' | 'pay' | 'inspect' | 'done';
@@ -430,6 +437,8 @@ export default defineComponent({
       /** Wall-clock deadline of the running pass exit's read. */
       passUntil: 0,
       /** Solved stage layouts (CSS custom-property maps). */
+      /** T10 · CE: the packet showcase's plan, published as custom properties on the root (`planShowcase`). */
+      showcaseStyle: {} as Record<string, string>,
       packetRowStyle: {} as Record<string, string>,
       buyRowStyle: {} as Record<string, string>,
       inspectRowStyle: {} as Record<string, string>,
@@ -580,6 +589,10 @@ export default defineComponent({
      *  before the opening prompt lands (a reload into an empty wait state). */
     rackKnown(): boolean {
       return this.pickTotal > 0 || this.collectedEntries.length > 0;
+    },
+    /** The packet showcase's composition (the owner's batch, decision 4 — M1: the shelf a band under the packet). */
+    composition(): DraftShowcaseComposition {
+      return DRAFT_SHOWCASE_COMPOSITION;
     },
     pickTotal(): number {
       return draftWorkspaceState.total;
@@ -1759,7 +1772,57 @@ export default defineComponent({
     /** ONE fit for the active zone's row: the shared workspace stage solver
      *  (size + focus-safe gap + row shape together; resets its own outputs
      *  before measuring — the engine may never read its own output). */
+    /**
+     * THE PACKET SHOWCASE (T10 · CE): share the MEASURED body between the packet, the shelf and the reading row
+     * (`planDraftShowcase`) and publish the plan as custom properties — the stage's inset, the shelf's seats, the
+     * wait's forward scale. Runs synchronously before the row's fit measures the stage box the plan leaves.
+     */
+    planShowcase(): void {
+      const body = this.$refs.body as HTMLElement | undefined;
+      const bar = this.$refs.statusbar as HTMLElement | undefined;
+      if (body === undefined || body === null || body.clientHeight < 40) {
+        return;
+      }
+      const zone = this.zone;
+      const rowRef = zone === 'buy' || zone === 'pay' ? 'buyRow' : zone === 'inspect' ? 'inspectRow' : 'packetRow';
+      const row = this.$refs[rowRef] as HTMLElement | undefined;
+      const probe = row?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
+      const rowStyle = row === undefined || row === null ? undefined : getComputedStyle(row);
+      const list = zone === 'buy' || zone === 'pay' ? this.buyEntries : zone === 'inspect' ? this.collectedAsEntries : this.packetEntries;
+      const plan = planDraftShowcase({
+        bodyW: body.clientWidth,
+        bodyH: body.clientHeight,
+        readingH: bar?.offsetHeight ?? 0,
+        stage: zone === 'pay' ? 'buy' : zone,
+        cards: list.length,
+        seats: this.rackKnown ? Math.max(this.pickTotal, this.collectedEntries.length) : 0,
+        slotW: probe !== null && probe.offsetWidth > 10 ? probe.offsetWidth : 320,
+        slotH: probe !== null && probe.offsetHeight > 10 ? probe.offsetHeight : 460,
+        rowPadX: rowStyle === undefined ? 0 : (parseFloat(rowStyle.paddingLeft) || 0) + (parseFloat(rowStyle.paddingRight) || 0),
+        rowPadY: rowStyle === undefined ? 0 : (parseFloat(rowStyle.paddingTop) || 0) + (parseFloat(rowStyle.paddingBottom) || 0),
+        ui: conUiScale(),
+        grown: consoleLayoutState.profile !== 'handheld',
+        composition: this.composition,
+      });
+      if (plan.seatH === 0) {
+        return; // no shelf in this stage — the last plan stays (the shelf leaves by its own fade)
+      }
+      const stageH = body.clientHeight - (bar?.offsetHeight ?? 0);
+      const next: Record<string, string> = {
+        '--con-draftws-seat-w': `${plan.seatW}px`,
+        '--con-draftws-seat-h': `${plan.seatH}px`,
+        '--con-draftws-seat-zoom': plan.seatZoom.toFixed(4),
+        '--con-draftws-shelf-block': `${Math.ceil(plan.shelfBlock)}px`,
+        '--con-draftws-wait-scale': plan.waitScale.toFixed(4),
+        '--con-draftws-wait-lift': `${Math.round(Math.max(0, (stageH - plan.shelfBlock * plan.waitScale) / 2))}px`,
+      };
+      const cur = this.showcaseStyle;
+      if (Object.keys(next).some((k) => cur[k] !== next[k])) {
+        this.showcaseStyle = next;
+      }
+    },
     fitStage(): void {
+      this.planShowcase();
       const zone = this.zone;
       const rowRef = zone === 'buy' || zone === 'pay' ? 'buyRow' : zone === 'inspect' ? 'inspectRow' : 'packetRow';
       const row = this.$refs[rowRef] as HTMLElement | undefined;
