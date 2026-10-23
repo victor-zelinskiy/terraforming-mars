@@ -120,6 +120,12 @@ export interface PoliticalOps {
    * reads it in `canExecute`, never the classic engine.
    */
   placeDelegates(player: IPlayer, count: number, options: PlaceDelegatesOptions): void;
+  /**
+   * Is there somewhere for a placed delegate to LAND right now? Redux: a resolution stands in the voting area —
+   * without one a grant asks nothing (`PlaceDelegatesOnResolution` refuses by name). Classic: always — every party
+   * takes delegates.
+   */
+  delegatesHaveAnAddress(): boolean;
 }
 
 export class ReduxPoliticalOps implements PoliticalOps {
@@ -212,6 +218,9 @@ export class ReduxPoliticalOps implements PoliticalOps {
   public delegatesOnResolutions(player: IPlayer): number {
     return this.parliament.votesOf(player);
   }
+  public delegatesHaveAnAddress(): boolean {
+    return this.parliament.partiesInVotingArea().length > 0;
+  }
   public placeDelegates(player: IPlayer, count: number, options: PlaceDelegatesOptions): void {
     const cause = {kind: 'card' as const, card: options.source};
     if (options.oneParty) {
@@ -280,6 +289,9 @@ export class ClassicPoliticalOps implements PoliticalOps {
   public delegatesOnResolutions(_player: IPlayer): number {
     // Classic Turmoil has no voting area and no resolutions: nothing stands «on a resolution».
     return 0;
+  }
+  public delegatesHaveAnAddress(): boolean {
+    return true;
   }
   public placeDelegates(player: IPlayer, count: number, options: PlaceDelegatesOptions): void {
     // Upstream's Executor branch, moved here unchanged (the source has nowhere to live in the classic engine).

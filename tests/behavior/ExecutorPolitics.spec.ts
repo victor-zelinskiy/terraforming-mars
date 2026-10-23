@@ -82,6 +82,13 @@ describe('Executor · behavior.turmoil through game.politics', () => {
       expect(executor.canExecute({turmoil: {sendDelegates: {count: reserve}}}, player, fake)).is.true;
       expect(executor.canExecute({turmoil: {sendDelegates: {count: reserve + 1}}}, player, fake)).is.false;
     });
+
+    it('an ACTION whose result is the delegate is never refused for want of an address — every party takes delegates', () => {
+      const action: Behavior = {spend: {megacredits: 3}, turmoil: {sendDelegates: {count: 1}}};
+      player.megaCredits = 10;
+      expect(game.politics!.delegatesHaveAnAddress()).is.true;
+      expect(executor.canExecute(action, player, fakeCard({name: CARD, actionBehavior: action}))).is.true;
+    });
   });
 
   describe('on a Turmoil Redux table — the Mars Parliament', () => {
@@ -138,6 +145,34 @@ describe('Executor · behavior.turmoil through game.politics', () => {
       const behavior = (count: number): Behavior => ({turmoil: {sendDelegates: {count}}});
       expect(executor.canExecute(behavior(reserve), player, fake)).is.true;
       expect(executor.canExecute(behavior(reserve + 1), player, fake)).is.false;
+    });
+
+    /*
+     * T07 Martian Media Center — «pay 3 M€ → add a delegate»: an ACTION whose whole result is the delegate, with no
+     * resolution up for a vote, would be paid and place nothing — refused. A play is never refused for it (the card
+     * lands; the grant is a named skip), and neither is an action with another yield beside the delegate.
+     */
+    describe('an empty voting area', () => {
+      const action: Behavior = {spend: {megacredits: 3}, turmoil: {sendDelegates: {count: 1}}};
+
+      beforeEach(() => {
+        player.megaCredits = 10;
+        game.parliament!.slots = [];
+        expect(game.politics!.delegatesHaveAnAddress()).is.false;
+      });
+
+      it('an ACTION whose whole result is the delegate cannot execute — never «paid and placed nothing»', () => {
+        expect(executor.canExecute(action, player, fakeCard({name: CARD, actionBehavior: action}))).is.false;
+      });
+
+      it('the same declaration as a PLAY still executes (the card lands; the grant is a named skip)', () => {
+        expect(executor.canExecute(action, player, fakeCard({name: CARD}))).is.true;
+      });
+
+      it('an action with another yield beside the delegate still executes', () => {
+        const withProduction: Behavior = {...action, production: {megacredits: 1}};
+        expect(executor.canExecute(withProduction, player, fakeCard({name: CARD, actionBehavior: withProduction}))).is.true;
+      });
     });
   });
 

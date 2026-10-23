@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {testGame} from '../TestGame';
 import {Resource} from '../../src/common/Resource';
-import {actionPreview, effectsForBehavior} from '../../src/server/models/actionPreview';
+import {actionPreview, effectsForBehavior, stepsForBehavior} from '../../src/server/models/actionPreview';
 import {RegolithEaters} from '../../src/server/cards/base/RegolithEaters';
 import {Ants} from '../../src/server/cards/base/Ants';
 import {Predators} from '../../src/server/cards/base/Predators';
@@ -503,6 +503,35 @@ describe('actionPreview', () => {
       expect(link.available).is.true;
       expect(link.index).eq(-1);
       expect(link.optionInput?.type).eq('card');
+    });
+  });
+
+  /*
+   * A DECLARED DELEGATE GRANT HAS TWO ROADS, by who asks (T07 Martian Media Center · T03 Cultural Metropolis): an
+   * ACTION's delegate is a STAGED door — the resolution is chosen in the Parliament before anything is sent, B walks
+   * back with the price on the rail — and a PLAY's is the live follow-up its commit raises (its door is the city's cell).
+   */
+  describe('a declared delegate grant on a Turmoil Redux table', () => {
+    const behavior = {spend: {megacredits: 3}, turmoil: {sendDelegates: {count: 1}}};
+
+    it('the ACTION → the staged «delegateGrant» door; the PLAY → the live «delegateGrantFollowUp»', () => {
+      const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+      expect(game.parliament!.partiesInVotingArea().length).gt(0);
+      const card = fakeCard({name: CardName.MARTIAN_MEDIA_CENTER});
+      const door = stepsForBehavior(player, card, behavior, {delegateDoor: true});
+      expect(door.map((s) => s.kind)).deep.eq(['delegateGrant']);
+      const followUp = stepsForBehavior(player, card, behavior);
+      expect(followUp).deep.eq([{kind: 'delegateGrantFollowUp', count: 1, printed: 1}]);
+    });
+
+    it('nowhere to land: the NAMED skip on both roads — never a door', () => {
+      const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+      game.parliament!.slots = [];
+      const card = fakeCard({name: CardName.MARTIAN_MEDIA_CENTER});
+      for (const steps of [stepsForBehavior(player, card, behavior, {delegateDoor: true}), stepsForBehavior(player, card, behavior)]) {
+        expect(steps).has.length(1);
+        expect(steps[0]).deep.include({kind: 'note', noteKind: 'warning', text: 'No resolution is up for a vote'});
+      }
     });
   });
 });

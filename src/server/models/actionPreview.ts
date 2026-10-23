@@ -305,9 +305,14 @@ function deriveDeclarativeBranches(player: IPlayer, card: ICard & IActionCard, b
  * places a tile (TR69's greenery) gets the cell as the action's LAST REVERSIBLE STEP for free — the composer parks the
  * batch, the board picks the cell, ONE POST `[…, {type: 'space'}]` — the same derivation the play door stages with,
  * minus the unpaid card's price (an action's cost is spent before its placement resolves). Never a hook in the card.
+ *
+ * …AND ITS DELEGATE AS A DOOR (T07 Martian Media Center — «pay 3 M€ → add a delegate»): a declared action that places
+ * a delegate enters the Parliament's vote mode BEFORE anything is sent (`delegateGrantStep` — the staged action vote,
+ * TR15's fourth door), so B walks back with the M€ still on the rail and the mode's A is the action's one POST. A
+ * live follow-up after the price is paid is the PLAY's road (T03 — its door is the city's cell), never an action's.
  */
 function declaredActionSteps(player: IPlayer, card: ICard, behavior: Behavior): ReadonlyArray<ActionPreviewStep> {
-  return attachStagedPlacement(stepsForBehavior(player, card, behavior), stagedPlacementForBehavior(player, card, behavior));
+  return attachStagedPlacement(stepsForBehavior(player, card, behavior, {delegateDoor: true}), stagedPlacementForBehavior(player, card, behavior));
 }
 
 // ── Effects: the at-a-glance cost/gain chips (icon + current → resulting) ────
@@ -820,8 +825,16 @@ export function resourcesToNextVictoryPoint(player: IPlayer, card: ICard, delta:
  * produces NO step. Payment (`spend.megacredits`), colony build, and the
  * less-common pickers are added as their card groups are migrated — until then
  * they produce no step and the leftover prompt rides the graceful fallback.
+ *
+ * `delegateDoor` — a delegate grant is a STAGED door (`delegateGrant`, an action's — `declaredActionSteps`) rather
+ * than the play's live follow-up (`delegateGrantFollowUp`).
  */
-export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavior): ReadonlyArray<ActionPreviewStep> {
+export function stepsForBehavior(
+  player: IPlayer,
+  card: ICard,
+  behavior: Behavior,
+  opts: {delegateDoor?: boolean} = {},
+): ReadonlyArray<ActionPreviewStep> {
   const steps: Array<ActionPreviewStep> = [];
   const ctx = new Counter(player, card);
 
@@ -1030,8 +1043,8 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
     steps.push({kind: 'boardPlacement', placementType: behavior.tile.on, tileType: behavior.tile.type});
   }
   // THEN the delegates (Executor defers them after every tile): a LIVE grant step of the same flow on a Turmoil Redux
-  // table — or, where the grant would ask nothing, its NAMED skip. Built from the very step the Executor defers
-  // (`politics.placeDelegates` → `PlaceDelegatesOnResolution`), asked read-only.
+  // table — an action's STAGED door (`delegateDoor`) — or, where the grant would ask nothing, its NAMED skip. Built
+  // from the very step the Executor defers (`politics.placeDelegates` → `PlaceDelegatesOnResolution`), asked read-only.
   const sendDelegates = behavior.turmoil?.sendDelegates;
   if (sendDelegates !== undefined && sendDelegates.manyParties !== true && player.game.parliament !== undefined) {
     const printed = ctx.count(sendDelegates.count);
@@ -1040,6 +1053,11 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
       const lost = grant.previewSkip();
       if (lost !== undefined) {
         steps.push(actionPreviews.warningNote(lost.reason, {skipped: lost.skipped}));
+      } else if (opts.delegateDoor === true) {
+        const door = actionPreviews.delegateGrantStep(card, grant);
+        if (door !== undefined) {
+          steps.push(door);
+        }
       } else {
         const prompt = grant.previewSelectParty();
         if (prompt !== undefined) {

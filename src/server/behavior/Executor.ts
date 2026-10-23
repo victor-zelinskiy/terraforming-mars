@@ -48,6 +48,7 @@ import {steelSpendSourceOptions} from './steelSpendSource';
 import {FLEET_LIMIT_REASON, skippedTradeFleet, tradeFleetsLost} from '../colonies/tradeFleetGain';
 import {recordSkippedEffect} from '../deferredActions/skippedEffect';
 import {skippedOrBranch} from '../cards/actionPreviews';
+import {delegateIsTheActionsResult} from '../politics/delegateIsTheActionsResult';
 
 export class Executor implements BehaviorExecutor {
   public canExecute(behavior: Behavior, player: IPlayer, card: ICard, canAffordOptions?: CanAffordOptions) {
@@ -274,6 +275,11 @@ export class Executor implements BehaviorExecutor {
         // The facade's reserve — the Mars Parliament's on a Redux table, upstream's on a classic one.
         const politics = game.politics;
         if (politics === undefined || politics.delegatesInReserve(player) < count) {
+          return false;
+        }
+        // An ACTION whose whole result is the delegate (T07 Martian Media Center) with nowhere for it to land would be
+        // paid and place nothing — refused, never «paid for a named skip». A play still plays (the card lands).
+        if (!politics.delegatesHaveAnAddress() && delegateIsTheActionsResult(card, behavior)) {
           return false;
         }
       }

@@ -40,8 +40,6 @@ import {CardName} from './CardName';
 
 /** ADAPT IN PLACE — project cards + corporations (ordered by how much they touch politics). */
 export const TURMOIL_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
-  // A political EFFECT — the Executor reads the facade since T04; the adaptation is the card's face, spec and preview.
-  CardName.MARTIAN_MEDIA_CENTER, // Mars First · action `behavior.turmoil.sendDelegates` (the facade's `placeDelegates` — its face, spec, preview)
   // Corporations WITHOUT a political dependency — the premium adaptation only (lore, information model,
   // previews); MarsBot already plays their bot twins (`console-bot-corp-*.spec.ts`).
   CardName.LAKEFRONT_RESORTS,

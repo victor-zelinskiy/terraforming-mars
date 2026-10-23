@@ -100,8 +100,8 @@ describe('classic Turmoil cards under Turmoil Redux', () => {
 
     // Each adaptation updates this pin in the diff that deletes its row — a row that vanished by
     // accident (and dealt a card nobody adapted) fails here, by name.
-    it('the adapted cards, as of the last adaptation — T05 Event Analysts (2026-10-23; T04 Diaspora Movement, T06 GMO Contract, T09 PR Office, T08 Parliament Hall, T12 Red Tourism Wave, T14 Supported Research, T15 Wildlife Dome, T10 Public Celebrations and T03 Cultural Metropolis before it)', () => {
-      const adapted = [CardName.DIASPORA_MOVEMENT, CardName.GMO_CONTRACT, CardName.PR_OFFICE, CardName.PARLIAMENT_HALL, CardName.RED_TOURISM_WAVE, CardName.SUPPORTED_RESEARCH, CardName.WILDLIFE_DOME, CardName.PUBLIC_CELEBRATIONS, CardName.CULTURAL_METROPOLIS, CardName.EVENT_ANALYSTS];
+    it('the adapted cards, as of the last adaptation — T07 Martian Media Center (2026-10-23; T04 Diaspora Movement, T06 GMO Contract, T09 PR Office, T08 Parliament Hall, T12 Red Tourism Wave, T14 Supported Research, T15 Wildlife Dome, T10 Public Celebrations, T03 Cultural Metropolis and T05 Event Analysts before it)', () => {
+      const adapted = [CardName.DIASPORA_MOVEMENT, CardName.GMO_CONTRACT, CardName.PR_OFFICE, CardName.PARLIAMENT_HALL, CardName.RED_TOURISM_WAVE, CardName.SUPPORTED_RESEARCH, CardName.WILDLIFE_DOME, CardName.PUBLIC_CELEBRATIONS, CardName.CULTURAL_METROPOLIS, CardName.EVENT_ANALYSTS, CardName.MARTIAN_MEDIA_CENTER];
       expect(CLASSIC.filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name))).to.have.members(adapted).and.length(adapted.length);
       const dealt = dealtClassic(REDUX);
       expect(dealt.projects).to.have.members(adapted).and.length(adapted.length);
@@ -142,7 +142,9 @@ describe('classic Turmoil cards under Turmoil Redux', () => {
     // The dev road onto a Redux table before a card's row goes: the guaranteed
     // cards are added AFTER the filter, exactly like a card of a module that is off.
     it('a held-back card can still be forced in as a guaranteed card', () => {
-      const project = TURMOIL_CARDS_TO_ADAPT_IN_PLACE.find((name) => PROJECTS.includes(name));
+      // T07 took the last in-place project row (only corporations wait there now): a project still held back is
+      // one awaiting its Redux replacement — the same filter keeps it out.
+      const project = [...TURMOIL_CARDS_HELD_BACK_UNDER_REDUX].find((name) => PROJECTS.includes(name));
       const corporation = TURMOIL_CARDS_TO_ADAPT_IN_PLACE.find((name) => CORPORATIONS.includes(name));
       expect(project).is.not.undefined;
       expect(corporation).is.not.undefined;

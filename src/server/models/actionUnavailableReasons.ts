@@ -6,6 +6,7 @@ import {Resource} from '../../common/Resource';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {resourcesHereShort} from '../cards/actionReasons';
+import {delegateIsTheActionsResult} from '../politics/delegateIsTheActionsResult';
 
 /**
  * Authoritative, structured explanation of why an action card's ACTIVATABLE
@@ -168,11 +169,28 @@ export function collectActionBehaviorReasons(
   }
 
   if (behavior.turmoil?.sendDelegates !== undefined) {
-    const reason = delegateReserveReason(player, ctx.count(behavior.turmoil.sendDelegates.count));
+    // ONE political reason, in check order: nowhere for the delegate to land (an action whose whole result is the
+    // delegate — T07; the key TR03 / TR15 already speak), then the reserve.
+    const reason = actionDelegateAddressReason(player, card, behavior) ??
+      delegateReserveReason(player, ctx.count(behavior.turmoil.sendDelegates.count));
     if (reason !== undefined) {
       out.push(reason);
     }
   }
+}
+
+/**
+ * «No resolution is up for a vote» — why an ACTION whose whole result is the delegate (T07 Martian Media Center:
+ * «pay 3 M€ → add a delegate») is refused while the voting area is empty (`Executor.canExecute` — never «paid and
+ * placed nothing»). `undefined` for a play, for an action with another yield, and on the classic engine (every party
+ * takes delegates there). The key is the one TR03 Political Donation and TR15's census vote already speak.
+ */
+export function actionDelegateAddressReason(player: IPlayer, card: ICard, behavior: Behavior): UnplayableReason | undefined {
+  const politics = player.game.politics;
+  if (politics === undefined || politics.delegatesHaveAnAddress() || !delegateIsTheActionsResult(card, behavior)) {
+    return undefined;
+  }
+  return {type: 'party', message: 'No resolution is up for a vote'};
 }
 
 /**
