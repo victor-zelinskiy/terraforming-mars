@@ -857,8 +857,29 @@ export default defineComponent({
         }
       };
       ctx.stream = {lease, allPeeled};
+      // THE NET CATCHES A STALL, never a SLOW stream. The peels run on GSAP's frames, which lag-smooth on a starved
+      // renderer (a software-rastered 4K: a frame over 500 ms advances the timeline 33 ms), while a plain net at the
+      // plan's length runs on the wall clock — it fired before the peels, the owner's flight released the deck's
+      // hold, and the counter jumped 283 → 280 in one step (CI, the box without a GPU). So the net re-arms while the
+      // stream is still making progress (a beat starting, a card leaving the deck), and a hard cap keeps «the owner's
+      // flight never waits on a stream that stalled» bounded.
       const lastPeelMs = beats.length > 0 ? beats[beats.length - 1].atMs + t.peelMs : 0;
-      ctx.timers.push(setTimeout(allPeeled, motionMs(lastPeelMs) + motionMs(400)));
+      const streamStart = performance.now();
+      let lastProgress = streamStart;
+      const stallMs = motionMs(t.peelMs) + motionMs(600);
+      const capMs = motionMs(lastPeelMs) * 3 + 2_000;
+      const net = () => {
+        if (released) {
+          return;
+        }
+        const now = performance.now();
+        if (peeled < beats.length && now - lastProgress < stallMs && now - streamStart < capMs) {
+          ctx.timers.push(setTimeout(net, motionMs(150)));
+          return;
+        }
+        allPeeled();
+      };
+      ctx.timers.push(setTimeout(net, motionMs(lastPeelMs) + motionMs(400)));
       void this.$nextTick(() => {
         const slot = discardPileSlotEl();
         const trayRect = slot !== undefined ? restingRectOf(slot) : undefined;
@@ -881,6 +902,7 @@ export default defineComponent({
             return;
           }
           ctx.timers.push(setTimeout(() => {
+            lastProgress = performance.now();
             const handle = runDeckDrawBeat({
               beat,
               els: {proxy, flip},
@@ -889,6 +911,7 @@ export default defineComponent({
               t,
               reduced,
               onDrawn: () => {
+                lastProgress = performance.now();
                 tickDeckDisplay();
                 this.tickDeck();
                 peeled++;

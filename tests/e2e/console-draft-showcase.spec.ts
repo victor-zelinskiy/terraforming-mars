@@ -214,7 +214,16 @@ async function openDraft(page: Page, request: Parameters<typeof bootFixture>[1],
 /** The record of one cell: the table first, the frame beside it, the assertions only after (an AFTER run). */
 async function cell(page: Page, profile: Profile, name: string, stage: string): Promise<Showcase> {
   await settle(page, {timeoutMs: 30_000});
-  const s = await measure(page, stage);
+  // A SETTLED read — two consecutive equal samples of what is asserted (the fit, the cards' size): the console's quiet
+  // says nothing about a ResizeObserver refit still catching up on a software-rastered 4K (measured on CI: the first
+  // read 0.775 of the body with 1070 px cards, the fitted one 0.99 with 1119 px).
+  let s = await measure(page, stage);
+  await expect.poll(async () => {
+    const next = await measure(page, stage);
+    const same = Math.abs(next.foot - s.foot) < 0.005 && Math.abs(next.cardH - s.cardH) < 1;
+    s = next;
+    return same;
+  }, {timeout: 6_000, intervals: [250], message: `${name}: the showcase's fit settles`}).toBe(true);
   write(profile, name, s);
   await shoot(page, profile, name);
   console.log(`[showcase ${TAG} ${profile.id} ${name}]`, JSON.stringify({...s, below: s.below.length, clipped: s.clipped}));

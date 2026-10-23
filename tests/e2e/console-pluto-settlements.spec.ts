@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, cinematicBeat, FixtureName, openMandatoryAnnounce, press, settle} from './consoleStart';
+import {bootFixtureSeats, cinematicBeat, FixtureName, openMandatoryAnnounce, press, pressUntil, settle} from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
 
 /**
@@ -358,7 +358,12 @@ for (const preset of PRESETS) {
               await expect(page.locator('.con-cmdbar'), 'the verb sends it to the discard').toContainText(/В сброс/i);
               await expect(page.locator('.con-cmdbar'), 'nothing offers to TAKE a card the hand does not hold').not.toContainText(/Взять/i);
               await shoot(page, dir, `c${cycle}-auto-discard`);
-              await press(page, 'Enter', 1800);
+              // Act → verify → retry: a press inside the card's own arrival window is the arrival's (the cursor gate),
+              // never the verb — one blind press left the card on the table on a slow renderer (CI: 15 s of «Сброшена»).
+              const scene = page.locator('.con-reveal').first();
+              const sent = await scene.innerText();
+              expect(await pressUntil(page, 'Enter', async () => await pill.count() === 0 || await scene.innerText().catch(() => '') !== sent,
+                {tries: 4, settleMs: 1800}), `settlement ${cycle}: «В сброс» sent the card away`).toBe(true);
             }
             await expect(page.locator('.con-reveal [data-reveal-discarded]'), 'both cards were sent away').toHaveCount(0, {timeout: 15_000});
             await stop();
