@@ -101,8 +101,8 @@ describe('unplayableReasonFormat — the compact counter form', () => {
       expect(unplayableReasonLine(vacant)).eq('Requires you to be the chairman · the chair is vacant');
     });
 
-    it('the rail: the chairman badge and the holder (or «vacant»)', () => {
-      expect(unplayableReasonEmblem(held)).eq('assets/misc/chairman.png');
+    it('the rail: THE CHAIR (the plate\'s own mark, T10) and the holder (or «vacant»)', () => {
+      expect(unplayableReasonEmblem(held)).eq('assets/misc/chair.svg');
       expect(unplayableReasonCompact(held)).eq('Rival');
       expect(unplayableReasonCompact(vacant)).eq('Seat empty');
     });

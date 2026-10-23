@@ -81,7 +81,7 @@
             <span class="con-iparl__tokenlabel">{{ $t('On resolutions') }}</span>
           </span>
           <span v-if="reading.chairman" class="con-iparl__token">
-            <span class="con-iparl__socket"><img class="con-iparl__chair" src="assets/misc/chairman.png" alt="" /></span>
+            <span class="con-iparl__socket"><PremiumChairGlyph class="con-iparl__chair" /></span>
             <span class="con-iparl__tokenlabel">{{ $t('Chairman') }}</span>
           </span>
           <!-- ACCESS is a COUNT here and nothing more: the effects themselves are the «Эффекты» zone's, and this zone
@@ -159,6 +159,7 @@ import {dossierLadder} from '@/client/console/infoDossierModel';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
+import PremiumChairGlyph from '@/client/components/premiumCard/PremiumChairGlyph.vue';
 import {translateTextWithParams} from '@/client/directives/i18n';
 
 /** An influence entry whose giver the server does not name (an older save). */
@@ -166,7 +167,7 @@ const OTHER_SOURCE = 'other';
 
 export default defineComponent({
   name: 'ConsoleInfoParliament',
-  components: {ConsoleInfluenceYield, PlayerCube},
+  components: {ConsoleInfluenceYield, PlayerCube, PremiumChairGlyph},
   props: {
     reading: {type: Object as PropType<SeatParliamentReadingVm>, required: true},
   },

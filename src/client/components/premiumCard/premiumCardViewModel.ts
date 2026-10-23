@@ -281,7 +281,9 @@ const REQUIREMENT_RENDER: Partial<Record<RequirementType, RequirementRender>> = 
   // A PARTY is drawn by its EMBLEM (Turmoil Redux, TR15+ — the scan prints the party's emblem in the MIN plate);
   // the icon is per party, resolved in `normalizeRequirement`. A party with no emblem keeps the text label.
   [RequirementType.PARTY]: {value: () => 0, binary: true},
-  [RequirementType.CHAIRMAN]: {value: () => 0, iconUrl: `${MISC}/chairman.png`, binary: true},
+  // THE CHAIR — the ONE mark of the chairmanship (`PremiumChairGlyph`'s drawing as a file, `chair.svg`): the scan's
+  // silhouette in the MIN plate reads as the chair every Parliament surface already draws (glossary §4), never upstream's bust.
+  [RequirementType.CHAIRMAN]: {value: () => 0, iconUrl: `${MISC}/chair.svg`, binary: true},
   [RequirementType.PARTY_LEADERS]: {value: (d) => d.partyLeader ?? d.count ?? 1, iconUrl: `${MISC}/delegate.png`},
   // Hydronetwork track progress (Dutch Mountains): the module's own medallion
   // is the ONE established glyph of the track — the same mark the DP cards

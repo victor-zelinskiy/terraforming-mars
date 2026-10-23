@@ -19,7 +19,7 @@
           <span class="con-dparl__inflabel">{{ $t('Influence') }}</span>
         </span>
         <span v-if="reading.chairman" class="con-dparl__chair" data-parl-zone-chairman>
-          <img class="con-dparl__chairicon" src="assets/misc/chairman.png" alt="" />
+          <PremiumChairGlyph class="con-dparl__chairicon" />
           <span>{{ $t('Chairman') }}</span>
         </span>
       </div>
@@ -65,11 +65,12 @@ import {dossierLadder, DossierLadderPip} from '@/client/console/infoDossierModel
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import PlayerCube from '@/client/components/PlayerCube.vue';
+import PremiumChairGlyph from '@/client/components/premiumCard/PremiumChairGlyph.vue';
 
 
 export default defineComponent({
   name: 'ConsoleDossierParliament',
-  components: {PlayerCube},
+  components: {PlayerCube, PremiumChairGlyph},
   props: {
     reading: {type: Object as PropType<SeatParliamentReadingVm>, required: true},
     color: {type: String as PropType<Color>, required: true},

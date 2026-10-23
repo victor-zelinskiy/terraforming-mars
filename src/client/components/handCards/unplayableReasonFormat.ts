@@ -65,8 +65,8 @@ function chairmanNowText(now: NonNullable<UnplayableReason['chairmanNow']>): str
   return now === 'vacant' ? translateText('the chair is vacant') : translateTextWithParams('chairman now: ${0}', [now.name]);
 }
 
-/** The chairman's badge — the same one the card's requirement plate prints (`premiumCardViewModel`). */
-const CHAIRMAN_EMBLEM = 'assets/misc/chairman.png';
+/** The chairmanship's mark — THE CHAIR, the same one the card's requirement plate prints (`premiumCardViewModel`). */
+const CHAIRMAN_EMBLEM = 'assets/misc/chair.svg';
 
 /**
  * A COUNTED reason whose subject has a GLYPH of its own on the card's plate (Turmoil Redux TR68 — «a card with a

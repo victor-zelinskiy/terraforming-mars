@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 18 18" width="36" height="36">
+  <!-- Turmoil Redux — THE CHAIR, the ONE mark of the chairmanship (`docs/claude/parliament-glossary.md` §4).
+       The SAME drawing as `PremiumChairGlyph.vue` (the path below is its `PATH`, byte for byte — guard
+       `tests/parliament/ChairGlyphParity.spec.ts`), as a file for the surfaces that print
+       an icon by URL: the requirement plate's socket («requires you to be the chairman»), the hand's blocker
+       chip. The colour lives in the file (the console strips every `filter`): the
+       Parliament's gold lacquer with a dark rim, so it reads on the copper plate and on dark glass alike. -->
+  <defs>
+    <linearGradient id="chair-lacquer" x1="0" y1="1" x2="0" y2="15" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff0a6"/>
+      <stop offset="0.55" stop-color="#e6c34a"/>
+      <stop offset="1" stop-color="#b07d16"/>
+    </linearGradient>
+  </defs>
+  <path d="M5 1h6a1.4 1.4 0 0 1 1.4 1.4V7h1.1a.9.9 0 0 1 .9.9v3.3H13V15h-1.7v-2.6H4.7V15H3v-3.8H1.6V7.9a.9.9 0 0 1 .9-.9h1.1V2.4A1.4 1.4 0 0 1 5 1Zm.3 1.7V9.2h5.4V2.7Z"
+        fill="url(#chair-lacquer)" stroke="#3a2805" stroke-width="0.9" stroke-linejoin="round" paint-order="stroke"/>
+</svg>

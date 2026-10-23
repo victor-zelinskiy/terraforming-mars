@@ -614,6 +614,13 @@ describe('normalizeRequirement', () => {
     expect(kelvinists.iconUrl).to.eq(undefined);
     expect(kelvinists.isBinary).to.eq(true);
   });
+
+  it('the CHAIRMAN (T10 Public Celebrations, TR12 Party Sanctions) draws THE CHAIR — the ONE mark of the chairmanship, never upstream\'s bust', () => {
+    const chair = normalizeRequirement({chairman: true});
+    expect(chair.type).to.eq(RequirementType.CHAIRMAN);
+    expect(chair.isBinary, 'the mark is the whole statement — no number').to.eq(true);
+    expect(chair.iconUrl, 'PremiumChairGlyph\'s drawing as a file').to.eq('assets/misc/chair.svg');
+  });
 });
 
 describe('premium face coverage guard', () => {
