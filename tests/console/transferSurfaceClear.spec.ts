@@ -95,7 +95,17 @@ describe('the law of the fold — source guard', () => {
     // `.pcard-prod` already gone. ONE FRAMEWORK (С5): a political action is the card composer's, so its ending is the
     // commit's own fold (the shell's `Promise.all([rail.foldable, waveLeft])` above) — no answer watcher of its own.
     const actions = read('src/client/components/console/ConsoleCardActions.vue');
-    expect(actions, 'no answer watcher of a party flow').not.to.include('\'playerView.game.gameAge\'(age: number): void {');
+    // The ONE answer watcher left is the party DISCARD's (the Reds): it pays the discard's payout off the plaque — the
+    // wave held by the transport — and only then concludes, and only while that payout is awaited. Never a bare
+    // conclusion on the answer.
+    const signature = '    \'playerView.game.gameAge\'(age: number): void {';
+    const at = actions.indexOf(signature);
+    if (at >= 0) {
+      const watcher = actions.slice(at, actions.indexOf('\n    },\n', at));
+      expect(watcher, 'the answer watcher acts only on an awaited discard payout').to.include('consoleCardActionsUi.payoutAwaited');
+      expect(watcher, '…and pays it before it concludes').to.include('this.payDiscardAndConclude()');
+      expect(watcher, 'never a bare conclusion on the answer').not.to.include('this.concludeFlow()');
+    }
     expect(actions, 'no deferred conclusion of a party flow').not.to.match(/concludeAfterCommit|concludeAfterRail|partySubmitting/);
   });
 
