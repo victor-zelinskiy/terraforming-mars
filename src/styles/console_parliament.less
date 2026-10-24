@@ -957,6 +957,9 @@
         transition: box-shadow calc(180ms * var(--motion-scale, 1)) @con-ease-standard, background-color calc(180ms * var(--motion-scale, 1)) @con-ease-standard;
         /* The viewer's SOURCE for the next vote — marked while the mode stands. */
         &--source { background: fade(@con-parl-mint, 10%); box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 70%), 0 0 .7rem fade(@con-parl-mint, 18%); }
+        /* ANOTHER SEAT'S delegate is being CARRIED from this place (a rival's vote, a rival card's neutral rally): the place
+           lights warm-white for the length of the carry — who moves it reads by the place it left, never by colour alone. */
+        &--carrying { background: rgba(255, 244, 222, 0.08); box-shadow: inset 0 0 0 .07rem rgba(255, 240, 210, 0.62), 0 0 .7rem rgba(255, 236, 200, 0.2); }
     }
     &__seat-key { position: relative; font-size: .44rem; line-height: 1; letter-spacing: .1em; text-transform: uppercase; opacity: .55; }
 
@@ -1730,9 +1733,11 @@ html.con-profile-handheld .con-parl {
         .con-pseal__action-mark { width: .62rem; height: .62rem; font-size: .4rem; }
         .con-pseal__state { font-size: .48rem; height: 1.3rem; }
         .con-pseal__state-text { font-size: .46rem; }
-        .con-pseal__place { width: .74rem; height: .9rem; --pd-host: .9rem; }
+        .con-pseal__place { width: .6rem; height: .6rem; }
         .con-pseal__places-count { font-size: .52rem; }
         .con-pseal__support-place { width: .74rem; height: .9rem; --pd-host: .9rem; }
+        /* …the ruler keeps its fixed state line: the figure rises from the old .72rem floor (chamber § the ruler). */
+        &.con-pseal--ruler .con-pseal__support-place { height: .72rem; }
     }
     &__stage { padding: .4rem .55rem; gap: .3rem; }
     &__stage-title { font-size: .92rem; }

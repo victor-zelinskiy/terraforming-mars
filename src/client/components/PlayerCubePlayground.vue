@@ -59,6 +59,27 @@
       </div>
     </div>
 
+    <!-- THE DELEGATE FIGURE (the Parliament's piece): every colour + the neutral steel at the hall's three sizes
+         (18 · 24 · 28 logical px — the floor, the ribbon / chair, Information), on the hall's own glass; beside
+         each, the CUBE of the same player — one palette, the same RGB; and the card's printed mark. The probe
+         `console-player-token-parity` reads this section. -->
+    <div class="cube-playground__section-head">Delegate figures — the Parliament's piece</div>
+    <div class="cube-playground__surface cube-playground__surface--panel" data-token-stand="figures">
+      <div v-for="h in figureSizes" :key="'fig-' + h" class="cube-playground__row" style="margin-bottom: 18px;" :data-token-row="h">
+        <div v-for="c in tokenColors" :key="'fig-' + h + c" class="cube-playground__swatch" :data-token-pair="c">
+          <span style="display: inline-flex; align-items: flex-end; gap: 10px;">
+            <player-delegate :color="c" :steel="c === 'neutral'" :size="figurePx(h)" :glow="glow" :shadow="shadow" :overlay-symbol="overlaySymbol" :animate-in="animateIn" :key="'fd-' + h + c + animKey" />
+            <player-cube v-if="h === 24" :color="c" :steel="c === 'neutral'" :size="figurePx(15)" :glow="glow" :shadow="shadow" :overlay-symbol="overlaySymbol" />
+          </span>
+          <span class="cube-playground__swatch-name">{{ c === 'neutral' ? 'steel' : c }} · {{ h }}</span>
+        </div>
+      </div>
+      <div class="cube-playground__row" data-token-row="print">
+        <div class="cube-playground__swatch"><i class="resource_icon resource_icon--delegate" style="display: inline-block; width: 40px; height: 52px;" data-token-print="player"></i><span class="cube-playground__swatch-name">print</span></div>
+        <div class="cube-playground__swatch"><i class="resource_icon resource_icon--neutral-delegate" style="display: inline-block; width: 40px; height: 52px;" data-token-print="neutral"></i><span class="cube-playground__swatch-name">print · neutral</span></div>
+      </div>
+    </div>
+
     <div class="cube-playground__section-head">New vs legacy sprite (at ~21px)</div>
     <div class="cube-playground__surface cube-playground__surface--panel">
       <div v-for="c in colors" :key="'cmp-' + c" class="cube-playground__compare" style="margin-bottom: 14px;">
@@ -80,13 +101,19 @@
 import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
 import PlayerCube from '@/client/components/PlayerCube.vue';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
+import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
+import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 
 const COLORS: ReadonlyArray<Color> = ['red', 'green', 'yellow', 'blue', 'black', 'purple', 'orange', 'pink', 'bronze'];
+/** The delegate stand: the eight player colours and the neutral delegate's steel. */
+const TOKEN_COLORS: ReadonlyArray<Color> = ['red', 'green', 'yellow', 'blue', 'black', 'purple', 'orange', 'pink', 'neutral'];
 
 export default defineComponent({
   name: 'PlayerCubePlayground',
   components: {
     'player-cube': PlayerCube,
+    'player-delegate': PlayerDelegate,
   },
   props: {
     /** Hosted in the console playground stand — the host owns fullscreen + scroll. */
@@ -105,6 +132,7 @@ export default defineComponent({
       animKey: 0,
       scaleColor: 'blue' as Color,
       sizes: [14, 18, 21, 28, 40, 64],
+      figureSizes: [18, 24, 28],
       surfaces: [
         {key: 'dark', label: 'Dark board panel'},
         {key: 'mars', label: 'Mars tile (warm)'},
@@ -117,8 +145,15 @@ export default defineComponent({
     colors(): ReadonlyArray<Color> {
       return COLORS;
     },
+    tokenColors(): ReadonlyArray<Color> {
+      return TOKEN_COLORS;
+    },
   },
   methods: {
+    /** A figure's height at the hall's scale (the floor enforced) — a cube beside it at the logical size it is given. */
+    figurePx(logical: number): number {
+      return logical >= 18 ? delegateFigurePx(logical) : conLogicalPx(logical);
+    },
     // Force a remount (animKey) with animateIn on, so the placement keyframe
     // replays for every cube; then drop the flag back.
     replay(): void {

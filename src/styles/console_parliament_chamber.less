@@ -1007,6 +1007,10 @@
             clip-path: polygon(0 0, 100% 0, calc(100% - .4rem) 50%, 100% 100%, 0 100%, .4rem 50%);
         }
         .con-pseal__support { margin-left: 0; }
+        /* The ruler's state row is a FIXED 2.3rem (the ruler's plaque is the row's box — the condition of the swap): its
+           support places keep the old line (.72rem) and the 18 px figure stands on its floor, rising into the row's gap
+           (the row is `overflow: visible`) — the line's density yields, never the figure. */
+        .con-pseal__support-place { height: .72rem; }
     }
 }
 
@@ -1061,12 +1065,13 @@ html.con-profile-handheld .con-parl {
     &__chair-glyph { width: 1.4rem; height: 1.4rem; }
     &__kicker { font-size: .6rem; }
     &__slot-win { font-size: 11px; } /* keep-px: card px inside the face's zoom */
-    .con-pseal--row { padding: .15rem .4rem .15rem .35rem; column-gap: .45rem; row-gap: .12rem; }
+    /* The row's padding yields the .18rem the support line needs to hold an 18 px figure (the box never moves). */
+    .con-pseal--row { padding: .06rem .4rem .06rem .35rem; column-gap: .45rem; row-gap: .12rem; }
     .con-pseal--row .con-pseal__seal { width: var(--con-pseal-row-seal); height: var(--con-pseal-row-seal); }
     .con-pseal--row .con-pseal__head { height: 1rem; }
     .con-pseal--row .con-pseal__action { width: 1rem; height: 1rem; font-size: .6rem; }
     .con-pseal--row .con-pseal__name { font-size: .56rem; }
-    .con-pseal--row .con-pseal__state { height: .72rem; }
+    .con-pseal--row .con-pseal__state { height: .9rem; }
     .con-pseal--row .con-pseal__support-place { width: .74rem; height: .9rem; --pd-host: .9rem; }
     .con-pseal--row .con-pseal__places { left: calc(.35rem - .22rem); width: calc(var(--con-pseal-row-seal) + .44rem); height: calc(var(--con-pseal-row-seal) + .44rem); }
     .con-pseal--row .con-pseal__place { border-width: .11rem; }

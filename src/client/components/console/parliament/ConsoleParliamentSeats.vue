@@ -16,14 +16,14 @@
         <PlayerDelegate :color="seat.color" :size="figurePx(18)" :glow="false" />
         <span class="con-parl__seat-name">{{ seat.name }}</span>
       </span>
-      <span class="con-parl__seat-place" :class="{'con-parl__seat-place--source': seatSourceOf(seat) === 'lobby'}" data-parl-seat-place="lobby" :aria-label="$t('Lobby')">
+      <span class="con-parl__seat-place" :class="{'con-parl__seat-place--source': seatSourceOf(seat) === 'lobby', 'con-parl__seat-place--carrying': carryingFrom(seat.color) === 'lobby'}" data-parl-seat-place="lobby" :data-parl-carrying="carryingFrom(seat.color) === 'lobby' ? '' : undefined" :aria-label="$t('Lobby')">
         <span class="con-parl__seat-obj">
           <span class="con-parl__socket con-parl__socket--seat" :class="{'con-parl__socket--empty': !seat.lobby}" :data-parl-seat-lobby="seat.color">
             <PlayerDelegate v-if="seat.lobby" :color="seat.color" :glow="false" />
           </span>
         </span>
       </span>
-      <span class="con-parl__seat-place" :class="{'con-parl__seat-place--source': seatSourceOf(seat) === 'reserve', 'con-parl__seat-place--incoming': seat.incoming > 0}" data-parl-seat-place="reserve" :aria-label="$t('Reserve')">
+      <span class="con-parl__seat-place" :class="{'con-parl__seat-place--source': seatSourceOf(seat) === 'reserve', 'con-parl__seat-place--incoming': seat.incoming > 0, 'con-parl__seat-place--carrying': carryingFrom(seat.color) === 'reserve'}" data-parl-seat-place="reserve" :data-parl-carrying="carryingFrom(seat.color) === 'reserve' ? '' : undefined" :aria-label="$t('Reserve')">
         <!-- A delegate is on its way HOME (the sitting's enactment beat): the
              reserve's key says so with a quiet arrow — a mark that lives on
              the key's own line (absolute, opacity only: nothing shifts). -->
@@ -50,7 +50,7 @@
       </span>
       <!-- A SOURCE, marked like the viewer's own place, while the vote mode's door also pays the selected
            card's party out of this supply (`neutralSource`) — the second source of the press, named before it. -->
-      <span class="con-parl__seat-place" :class="{'con-parl__seat-place--source': neutralSource}" data-parl-seat-place="neutral" :data-parl-neutral-source="neutralSource ? '' : undefined" :aria-label="$t('Reserve')">
+      <span class="con-parl__seat-place" :class="{'con-parl__seat-place--source': neutralSource, 'con-parl__seat-place--carrying': carryingFrom('neutral') === 'pool'}" data-parl-seat-place="neutral" :data-parl-neutral-source="neutralSource ? '' : undefined" :data-parl-carrying="carryingFrom('neutral') === 'pool' ? '' : undefined" :aria-label="$t('Reserve')">
         <span class="con-parl__seat-obj">
           <span class="con-parl__stack con-parl__stack--seat" :class="{'con-parl__stack--empty': neutralSupplyShown === 0}" data-parl-neutral-cube :data-count="neutralSupplyShown">
             <span v-for="n in Math.min(neutralSupplyShown, 3)" :key="n" class="con-parl__stack-cube" :data-stack="n">
@@ -235,6 +235,18 @@ export default defineComponent({
       return this.landFlash[color] ?? 0;
     },
     /** WHICH of the viewer's places the next delegate leaves — marked on the zone while the mode stands, never on another player's group. */
+    /**
+     * WHO CARRIES the delegate in the air right now — another seat's (or a rival card's neutral) figure leaving THIS
+     * place: the place lights for the length of the carry, so the eye reads WHO moves it by the place it left, never by
+     * its colour alone (a rival's vote, a rival's rally out of the common supply).
+     */
+    carryingFrom(color: Color | 'neutral'): 'lobby' | 'reserve' | 'pool' | undefined {
+      const flying = rivalVotes.flying;
+      if (flying === undefined || flying.kind !== 'vote' || flying.owner !== color) {
+        return undefined;
+      }
+      return flying.source;
+    },
     seatSourceOf(seat: SeatRow): 'lobby' | 'reserve' | undefined {
       return seatSourceOf(seat.color, this.viewerColor, this.benchSource, this.benchWarn);
     },
