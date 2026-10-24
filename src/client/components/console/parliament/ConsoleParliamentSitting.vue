@@ -95,7 +95,7 @@
           <span v-if="results.veto !== undefined" class="con-sit__veto" data-sit-veto>
             <span class="con-sit__veto-kicker">{{ $t('Under the veto') }}</span>
             <span v-for="l in results.veto" :key="l.color" class="con-sit__veto-seat" :data-sit-veto-seat="l.color">
-              <PlayerCube :color="l.color" :size="cubePx(11)" :glow="false" />
+              <PlayerDelegate :color="l.color" :size="figurePx(18)" :glow="false" />
               <b>{{ nameOfColor(l.color) }}</b>
               <span class="con-sit__veto-tr">{{ l.tr }}</span>
             </span>
@@ -104,7 +104,7 @@
                :class="{'con-sit__payout--winner': shownSummary !== undefined && shownSummary.winner.player === row.player}"
                data-sit-payout :data-sit-payout-seat="row.player">
             <span class="con-sit__payout-who">
-              <PlayerCube :color="row.player" :size="cubePx(11)" :glow="false" />
+              <PlayerDelegate :color="row.player" :size="figurePx(18)" :glow="false" />
               <b class="con-sit__payout-name">{{ nameOfColor(row.player) }}</b>
               <!-- The seat that WON the vote wears the crown (the one fact of the row the chips cannot say). -->
               <span v-if="shownSummary !== undefined && shownSummary.winner.player === row.player" class="con-sit__payout-winner" data-sit-payout-winner>
@@ -292,7 +292,7 @@
                           'con-sit__support-place--fresh': n <= entry.total && n > entry.total - entry.fresh,
                         }"
                         :data-support-place="n">
-                    <PlayerCube v-if="n <= entry.total" color="neutral" steel :size="cubePx(9)" :glow="false" />
+                    <PlayerDelegate v-if="n <= entry.total" color="neutral" steel :glow="false" />
                   </span>
                 </span>
               </span>
@@ -309,7 +309,7 @@
             <span class="con-parl__chip-dim">{{ $t('Without a free delegate') }}</span>
             <span class="con-sit__chips">
               <span v-for="color in results.table.noDelegate" :key="color" class="con-sit__chip" data-sit-nodelegate :data-sit-nodelegate-seat="color">
-                <PlayerCube :color="color" :size="cubePx(11)" :glow="false" /><b class="con-sit__seat-name">{{ nameOfColor(color) }}</b>
+                <PlayerDelegate :color="color" :size="figurePx(18)" :glow="false" /><b class="con-sit__seat-name">{{ nameOfColor(color) }}</b>
               </span>
             </span>
           </div>
@@ -321,7 +321,7 @@
             <span class="con-parl__chip-dim">{{ $t('Still in the sitting') }}</span>
             <span class="con-sit__chips">
               <span v-for="color in othersInSitting" :key="color" class="con-sit__chip" data-sit-in-sitting :data-sit-in-sitting-seat="color">
-                <PlayerCube :color="color" :size="cubePx(11)" :glow="false" /><b class="con-sit__seat-name">{{ nameOfColor(color) }}</b>
+                <PlayerDelegate :color="color" :size="figurePx(18)" :glow="false" /><b class="con-sit__seat-name">{{ nameOfColor(color) }}</b>
               </span>
             </span>
           </div>
@@ -337,11 +337,11 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentModel, ParliamentPhaseSummaryModel, seatEnacts, seatRestricted} from '@/common/models/ParliamentModel';
 import {PARLIAMENT_MAX_POPULAR_SUPPORT, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
-import PlayerCube from '@/client/components/PlayerCube.vue';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import ConsoleYieldUnit from '@/client/components/console/parliament/ConsoleYieldUnit.vue';
-import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
+import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
@@ -364,7 +364,7 @@ import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransfe
 
 export default defineComponent({
   name: 'ConsoleParliamentSitting',
-  components: {PlayerCube, ConsoleColonyLedger, ConsoleTableReceipt, ConsoleYieldUnit},
+  components: {PlayerDelegate, ConsoleColonyLedger, ConsoleTableReceipt, ConsoleYieldUnit},
   props: {
     /** Where the sitting stands on the server (`consoleSittingFlow.sittingPositionOf`). */
     position: {type: Object as PropType<SittingPosition>, required: true},
@@ -493,8 +493,8 @@ export default defineComponent({
     partyNameKey(party: ReduxParty): string {
       return partyNameKey(party);
     },
-    cubePx(logical: number): number {
-      return conLogicalPx(logical);
+    figurePx(logical: number): number {
+      return delegateFigurePx(logical);
     },
     /** The ledger layer comes back under a step that has left — the drawer phrase, on the zone's own layer. */
     onLedgerEnter(el: Element, done: () => void): void {

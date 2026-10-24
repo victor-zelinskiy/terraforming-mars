@@ -1736,8 +1736,9 @@ html.con-profile-handheld .con-parl {
         .con-pseal__place { width: .6rem; height: .6rem; }
         .con-pseal__places-count { font-size: .52rem; }
         .con-pseal__support-place { width: .74rem; height: .9rem; --pd-host: .9rem; }
-        /* …the ruler keeps its fixed state line: the figure rises from the old .72rem floor (chamber § the ruler). */
-        &.con-pseal--ruler .con-pseal__support-place { height: .72rem; }
+        /* …the ruler keeps its old state line (.54rem here — the Deck's state row is 1.3rem): the 18 px figure rises from
+           that floor (the ruler's state is `overflow: visible`; an upward rise never grows the plaque). */
+        &.con-pseal--ruler .con-pseal__support-place { height: .54rem; }
     }
     &__stage { padding: .4rem .55rem; gap: .3rem; }
     &__stage-title { font-size: .92rem; }

@@ -334,14 +334,13 @@
     &__planet, &__tracks { grid-column: 1; }
     &__support-places { display: inline-flex; align-items: center; gap: .1rem; flex-shrink: 0; }
     &__support-place {
-        width: .72rem; height: .72rem; border-radius: .15rem;
-        display: inline-flex; align-items: center; justify-content: center;
-        background: rgba(0, 0, 0, 0.4);
-        box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.3);
-        &--on { box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.55); }
-        /* …and the ones THIS sitting brought carry the gold rim the whole surface uses for «new»: the
+        .pd-footprint(.9rem);
+        width: .74rem; height: .9rem;
+        --pd-foot-rim: rgba(200, 205, 215, 0.36);
+        &--on { --pd-foot-rim: rgba(200, 205, 215, 0.55); }
+        /* …and the ones THIS sitting brought carry the gold trace the whole surface uses for «new»: the
            distinction survives desaturation by the rim's weight, never by colour alone. */
-        &--fresh { box-shadow: inset 0 0 0 .09rem fade(@con-parl-gold, 85%); }
+        &--fresh { --pd-foot-rim: fade(@con-parl-gold, 90%); --pd-foot-glow: 0 0 .3rem fade(@con-parl-gold, 40%); }
     }
     &__seat-name { font-size: .78rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     /* THE EXCEPTION READS AS ONE: the amber seam the whole surface uses for «this cost you something»
@@ -467,14 +466,9 @@
     &__support-row .con-sit__chips { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: .5rem; }
     &__support { flex-direction: column; justify-content: center; gap: .35rem; }
     &__support .con-sit__emblem { width: 1.9rem; height: 1.9rem; }
-    /* The support SOCKETS speak the bench's own language — the delegate's silhouette (a dashed hex), never a square
-       box (the plan's «чекбоксы» — the cheap language v8 retired); a socket this sitting filled keeps the gold rim. */
-    &__support-place {
-        width: .95rem; height: .95rem; border-radius: 0; box-shadow: none;
-        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M10 2 17 6v8l-7 4-7-4V6z' fill='rgba(0,0,0,0.35)' stroke='rgba(205,218,232,0.4)' stroke-width='1.2' stroke-dasharray='2 1.6'/%3E%3C/svg%3E") center / contain no-repeat;
-        &--on { background: none; box-shadow: none; }
-        &--fresh { background: none; border-radius: 50%; box-shadow: 0 0 0 .08rem fade(@con-parl-gold, 80%); }
-    }
+    /* The support places speak the bench's own language — the delegate's FOOTPRINT, never a square box; a place this
+       sitting filled keeps the gold trace. */
+    &__support-place { width: .8rem; height: .95rem; --pd-host: .95rem; }
     /* A PART is a chip at the card's scale: the number large beside its unit, on its own small plate. */
     &__part {
         font-size: 1.5rem;
@@ -528,7 +522,7 @@ html.con-profile-handheld .con-parl[data-sitting-stage="results"] .con-sit {
     &__fresh-row { gap: .35rem; }
     &__fresh-card { zoom: calc(.24 * var(--con-ui-scale, 1)); }
     &__support .con-sit__emblem { width: 1.2rem; height: 1.2rem; }
-    &__support-place { width: .7rem; height: .7rem; }
+    &__support-place { width: .74rem; height: .9rem; --pd-host: .9rem; }
     &__support-row > .con-parl__chip-dim { font-size: .56rem; }
     &__payout-name { font-size: .72rem; }
     &__part { font-size: .8rem; }
@@ -546,7 +540,7 @@ html.con-profile-handheld .con-sit {
     &__payout { padding: .24rem .4rem; }
     &__row { font-size: .68rem; padding: .14rem .35rem; b { font-size: .76rem; } }
     &__payout-name, &__seat-name { font-size: .7rem; }
-    &__support-place { width: .56rem; height: .56rem; }
+    &__support-place { width: .74rem; height: .9rem; --pd-host: .9rem; }
     &__part { font-size: .74rem; }
     &__part-unit { width: .95rem; height: .95rem; }
     &__part-reason, &__payout-quiet { font-size: .68rem; }
@@ -556,7 +550,7 @@ html.con-profile-handheld .con-sit {
 html.con-profile-tv .con-sit {
     &__row { font-size: .88rem; b { font-size: .96rem; } }
     &__payout-name, &__seat-name { font-size: .94rem; }
-    &__support-place { width: .9rem; height: .9rem; }
+    &__support-place { width: .8rem; height: .95rem; --pd-host: .95rem; }
     &__part { font-size: .98rem; }
     &__part-unit { width: 1.3rem; height: 1.3rem; }
     &__part-reason, &__payout-quiet { font-size: .9rem; }

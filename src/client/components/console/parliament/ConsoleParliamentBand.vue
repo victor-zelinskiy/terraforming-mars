@@ -49,12 +49,12 @@
             </span>
             <span v-else-if="chip.kind === 'neutralGain'" class="con-band__chip con-band__chip--gain" data-parl-band-chip="neutralGain">
               <span class="con-band__arrow" aria-hidden="true">→</span>
-              <PlayerCube color="neutral" steel :size="cubePx(11)" :glow="false" />
+              <PlayerDelegate color="neutral" steel :size="figurePx(18)" :glow="false" />
               <b class="con-band__num">+{{ chip.amount }}</b>
             </span>
             <span v-else-if="chip.kind === 'player'" class="con-band__chip" data-parl-band-chip="player">
-              <PlayerCube v-if="chip.player !== 'neutral'" :color="chip.player" :size="cubePx(11)" :glow="false" />
-              <PlayerCube v-else color="neutral" steel :size="cubePx(11)" :glow="false" />
+              <PlayerDelegate v-if="chip.player !== 'neutral'" :color="chip.player" :size="figurePx(18)" :glow="false" />
+              <PlayerDelegate v-else color="neutral" steel :size="figurePx(18)" :glow="false" />
               <b class="con-band__text con-band__text--strong">{{ nameOf(chip.player) }}</b>
             </span>
             <span v-else-if="chip.kind === 'count'" class="con-band__chip" data-parl-band-chip="count" :data-parl-count-id="chip.id">
@@ -179,13 +179,13 @@
                   :data-parl-band-support="chip.party" :data-parl-band-support-delta="chip.amount">
               <img class="con-band__emblem" :src="emblemUrl(chip.party)" alt="" />
               <b class="con-band__text">{{ $t(partyNameKey(chip.party)) }}</b>
-              <PlayerCube color="neutral" steel :size="cubePx(11)" :glow="false" />
+              <PlayerDelegate color="neutral" steel :size="figurePx(18)" :glow="false" />
               <b class="con-band__num">−{{ chip.amount }}</b>
             </span>
             <span v-else-if="chip.kind === 'asking'" class="con-band__chip con-band__chip--await" data-parl-band-chip="asking" data-sit-asking>
               <span class="con-band__text con-band__text--dim">{{ $t('Waiting for the other seats') }}</span>
               <span v-for="c in chip.seats" :key="c" class="con-band__seat">
-                <PlayerCube :color="c" :size="cubePx(11)" :glow="false" /><span class="con-band__text">{{ nameOfColor(c) }}</span>
+                <PlayerDelegate :color="c" :size="figurePx(18)" :glow="false" /><span class="con-band__text">{{ nameOfColor(c) }}</span>
               </span>
             </span>
           </template>
@@ -203,7 +203,7 @@ import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {IClientResolution} from '@/common/parliament/IClientResolution';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import {REWARD_ADDRESS, rewardAddressOf} from '@/common/parliament/rewardAddress';
-import PlayerCube from '@/client/components/PlayerCube.vue';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import ConsoleYieldUnit from '@/client/components/console/parliament/ConsoleYieldUnit.vue';
 import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
@@ -211,7 +211,7 @@ import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleW
 import ConsoleTileGrant from '@/client/components/console/parliament/ConsoleTileGrant.vue';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
+import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
@@ -242,7 +242,7 @@ import {ParameterMoveId} from '@/common/parliament/parameterMove';
 
 export default defineComponent({
   name: 'ConsoleParliamentBand',
-  components: {PlayerCube, ConsoleInfluenceYield, ConsolePartyReaction, ConsoleWinnerReward, ConsoleTileGrant, ConsoleYieldUnit, ConsoleInfluenceMod},
+  components: {PlayerDelegate, ConsoleInfluenceYield, ConsolePartyReaction, ConsoleWinnerReward, ConsoleTileGrant, ConsoleYieldUnit, ConsoleInfluenceMod},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     model: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
@@ -640,8 +640,8 @@ export default defineComponent({
     reactionOf(party: ReduxParty): PartyReactionReading | undefined {
       return this.reactions.find((r) => r.party === party);
     },
-    cubePx(logical: number): number {
-      return conLogicalPx(logical);
+    figurePx(logical: number): number {
+      return delegateFigurePx(logical);
     },
     emblemUrl(party: ReduxParty): string {
       return partyEmblemUrl(party);

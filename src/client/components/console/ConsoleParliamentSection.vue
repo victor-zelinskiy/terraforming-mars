@@ -275,7 +275,7 @@ import {
   AGENDA_WALK_READ_MS, AgendaWalkHooks, AgendaWalkLeg, AgendaWalkRecordLike, agendaWalkHoldMs, agendaWalkMotion, deliverAgendaStepReward,
 } from '@/client/console/parliament/agendaWalkDirector';
 import {ParliamentBeat} from '@/client/console/parliament/parliamentBeat';
-import {finishParliamentFlights, flyCube, flySeatDelegate, killParliamentFlights, parliamentFlightsAirborne, placeCubeRect, scheduleHurriedParliamentBeat, setParliamentFlightsHurried} from '@/client/console/parliament/parliamentFlights';
+import {finishParliamentFlights, flyDelegate, flySeatDelegate, killParliamentFlights, parliamentFlightsAirborne, placeFigureRect, scheduleHurriedParliamentBeat, setParliamentFlightsHurried} from '@/client/console/parliament/parliamentFlights';
 import {rivalVotes, runRivalVotes, settleRivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {fitParliamentCards, freezeParliamentFit} from '@/client/console/parliament/parliamentCardFit';
@@ -2038,13 +2038,13 @@ export default defineComponent({
       }
       this.rallyHold?.release();
       this.rallyHold = beginAnimationHold('parliament-neutral-rally', {maxHoldMs: neutralRallyHoldMs(owed)});
-      const measure = (selector: string) => (root === undefined ? undefined : placeCubeRect(root, selector));
+      const measure = (selector: string) => (root === undefined ? undefined : placeFigureRect(root, selector));
       this.rallyHandle?.skip();
       this.rallyHandle = runNeutralRally(owed, {
         pool: () => measure('[data-parl-neutral-cube]'),
         votePlace: (vote) => measure(`.con-parl__slot[data-instance="${vote.instance}"] [data-seq="${vote.seq}"]`),
         supportPlace: (party, place) => measure(plaquePlaceSelector(party, place)),
-        fly: (from, to, onLanded, onLifted) => flyCube('neutral', from, to, 0, onLanded, {onLifted}),
+        fly: (from, to, onLanded, onLifted) => flyDelegate('neutral', from, to, 0, onLanded, {onLifted}),
         coinOrigin: () => {
           const node = root?.querySelector<HTMLElement>(`[data-parl-count-id="${RALLY_COUNT_CHIP_ID}"] .con-band__num`) ??
             root?.querySelector<HTMLElement>(`[data-parl-count-id="${RALLY_COUNT_CHIP_ID}"]`);

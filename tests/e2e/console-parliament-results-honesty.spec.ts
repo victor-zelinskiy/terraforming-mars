@@ -378,6 +378,11 @@ test.describe('«Итоги: честность» — панель, поддер
 
     const row = await page.locator('[data-sit-support]').evaluateAll((els) => els.map((el) => {
       const places = Array.from(el.querySelectorAll('.con-sit__support-place'));
+      // The place's FOOTPRINT (its ::before trace) carries the rim — the colour and the glow, never the box.
+      const traceOf = (p: Element) => {
+        const t = getComputedStyle(p, '::before');
+        return `${t.borderTopColor} ${t.boxShadow}`;
+      };
       const rowBox = el.closest('[data-sit-row="results-support"]')!.getBoundingClientRect();
       const own = el.getBoundingClientRect();
       return {
@@ -387,11 +392,11 @@ test.describe('«Итоги: честность» — панель, поддер
         places: places.length,
         filled: places.filter((p) => p.classList.contains('con-sit__support-place--on')).length,
         marked: places.filter((p) => p.classList.contains('con-sit__support-place--fresh')).length,
-        // A marked socket must LOOK different from a plain filled one, and by more than a hue.
+        // A marked place must LOOK different from a plain filled one, and by more than a hue — read on its FOOTPRINT (the trace).
         markRim: places.filter((p) => p.classList.contains('con-sit__support-place--fresh'))
-          .map((p) => getComputedStyle(p).boxShadow).join(' | '),
+          .map((p) => traceOf(p)).join(' | '),
         plainRim: places.filter((p) => p.classList.contains('con-sit__support-place--on') && !p.classList.contains('con-sit__support-place--fresh'))
-          .map((p) => getComputedStyle(p).boxShadow).join(' | '),
+          .map((p) => traceOf(p)).join(' | '),
         inside: own.left >= rowBox.left - 1 && own.right <= rowBox.right + 1,
       };
     }));

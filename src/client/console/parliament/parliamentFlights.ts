@@ -55,9 +55,6 @@ function hostFigureHeight(place: HTMLElement): number | undefined {
   return h > 1 ? h : undefined;
 }
 
-/** @deprecated The cube is gone from the Parliament — `placeFigureRect`. Kept for one sitting's worth of callers. */
-export const placeCubeRect = placeFigureRect;
-
 /*
  * THE PARLIAMENT'S FLIGHTS — the specifications of every proxy the workspace
  * flies (a delegate cube from a real place to a real place; a resolution's
@@ -563,9 +560,6 @@ export function flyDelegate(color: Color | 'neutral', from: Rect | undefined, to
   });
   return id;
 }
-
-/** @deprecated The cube is gone from the Parliament — `flyDelegate`. Kept for one sitting's worth of callers. */
-export const flyCube = flyDelegate;
 
 /** The chairman's delegate leaves the card it was taken from and settles on the seat mark of the ledger (`onLanded` pulses the chair). */
 export function flySeatDelegate(root: HTMLElement | undefined, color: Color | undefined, from: Rect | undefined, onLanded: () => void): void {
