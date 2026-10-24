@@ -4,7 +4,7 @@ import {CardModel} from '../../src/common/models/CardModel';
 import {Color} from '../../src/common/Color';
 import {
   dossierActionCounts, dossierActionTiles, dossierCardHistory, dossierEffectFamilies, dossierLadder, dossierMedallions,
-  dossierSealedFacts, MEDALLION_EMBLEMS_MAX,
+  dossierPlateTiles, dossierSealedFacts, MEDALLION_EMBLEMS_MAX,
 } from '../../src/client/console/infoDossierModel';
 import {ScoreOverviewModel, ScoreTile} from '../../src/client/console/scoreExplorerModel';
 import {PlayedZones} from '../../src/client/components/console/consolePlayedModel';
@@ -113,6 +113,21 @@ describe('infoDossierModel', () => {
       expect(dossierLadder(2, 5).map((p) => p.state)).deep.eq(['passed', 'here', 'next', 'ahead', 'ahead']);
       expect(dossierLadder(0, 3).map((p) => p.state), 'no marker yet: the first step is the next').deep.eq(['next', 'ahead', 'ahead']);
       expect(dossierLadder(3, 3).map((p) => p.state), 'the end of the track has no next').deep.eq(['passed', 'passed', 'here']);
+    });
+  });
+
+  describe('the actions plate past its cap', () => {
+    const t = (name: string, state: 'ready' | 'idle' | 'blocked' | 'used') => ({name: name as CardName, state});
+    it('every state that exists keeps its first tile; the order stays the state order; one cell is «+K»', () => {
+      const tiles = [t('a', 'ready'), t('b', 'ready'), t('c', 'ready'), t('d', 'ready'), t('e', 'blocked'), t('f', 'blocked'), t('g', 'used'), t('h', 'used'), t('i', 'used')];
+      const shown = dossierPlateTiles(tiles, 4);
+      expect(shown.map((x) => x.name), 'three cells and «+K»').deep.eq(['a', 'e', 'g']);
+      expect(dossierPlateTiles(tiles, 6).map((x) => x.name), 'room left fills in the state order').deep.eq(['a', 'b', 'c', 'e', 'g']);
+      expect(new Set(shown.map((x) => x.state)), 'ready · blocked · used — all three read on the plate').deep.eq(new Set(['ready', 'blocked', 'used']));
+    });
+    it('under the cap the plate is the whole list', () => {
+      const tiles = [t('a', 'ready'), t('g', 'used')];
+      expect(dossierPlateTiles(tiles, 8)).deep.eq(tiles);
     });
   });
 });

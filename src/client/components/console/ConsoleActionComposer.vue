@@ -951,7 +951,7 @@ import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {partyAccent} from '@/client/components/premiumCard/partyEmblems';
-import {ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {PartyName} from '@/common/turmoil/PartyName';
 import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
@@ -3678,6 +3678,20 @@ export default defineComponent({
      * those steps are a card's alone — a political source's preview never asks them — so reaching one without a card
      * is a broken invariant, said out loud, never a stand-in name.
      */
+    /**
+     * The OPERATION a hand pick belongs to (the album names it): a card's action — the card; an enacted LAW's (Open IP
+     * Trade's «sell any number of cards») — the law's printed name with its resolution (L3 opens the law's inspector);
+     * a party's — nothing to name (no party action picks from the hand). Never `cardOrThrow`: a law has no card, and the
+     * throw swallowed A on the law's pick row whole (the box's openip probe).
+     */
+    handPickSource(): {kicker: string, card: CardName, resolution?: ResolutionId} | undefined {
+      const name = this.heroCardName;
+      if (name !== undefined) {
+        return {kicker: 'Action setup', card: name};
+      }
+      const law = this.politicalEntry?.source.kind === 'law' ? this.politicalEntry.source.resolution : undefined;
+      return law === undefined ? undefined : {kicker: 'Action setup', card: (this.lawNameKey ?? law) as CardName, resolution: law};
+    },
     cardOrThrow(): CardName {
       const name = this.heroCardName;
       if (name === undefined) {
@@ -5496,7 +5510,7 @@ export default defineComponent({
         gainPerCard: gain !== undefined ? {icon: gain.resource, amount: gain.amount} : undefined,
         // The pick surface names the operation it serves — the player keeps
         // the WHY while the focus stage waits hidden underneath.
-        source: {kicker: 'Action setup', card: this.cardOrThrow()},
+        source: this.handPickSource(),
         // The server's own DISCARD marker, raw (the album's discard skin), and a pre-select leaves nothing.
         discard: model.discardPrompt,
         leaving: 'none',

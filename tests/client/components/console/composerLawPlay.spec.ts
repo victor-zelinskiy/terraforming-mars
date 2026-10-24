@@ -239,3 +239,13 @@ describe('ConsoleActionComposer — a LAW\'s action (С4)', () => {
     expect(w.emitted('confirm'), 'opening the pick commits nothing').to.be.undefined;
   });
 });
+
+describe('ConsoleActionComposer — a LAW\'s hand pick names the LAW (Open IP Trade)', () => {
+  it('the album\'s source is the law\'s printed name with its resolution — never a thrown «only a card has»', () => {
+    const w = factory(lawEntry(LIVE), livePreview(PLAY));
+    const source = (w.vm as any).handPickSource();
+    expect(source?.resolution, 'L3 opens the law\'s own inspector').to.eq(LIVE);
+    expect(source?.card, 'the chip names the law by its printed name').to.eq(getResolution(LIVE as never)!.text.name);
+    expect(source?.kicker).to.eq('Action setup');
+  });
+});

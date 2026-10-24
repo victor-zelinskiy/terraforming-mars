@@ -613,6 +613,8 @@ export default defineComponent({
        * the token's destination. The rail half's `ended` count at the confirm (undefined = nothing waits).
        */
       pendingAfterRail: undefined as number | undefined,
+      /** What the hosted HAND step is (set at its rising edge — see the `handStepHosted` watcher). */
+      handStepKind: undefined as 'discard' | 'live' | 'pick' | undefined,
       /**
        * THE PREVIEW THE COMMITTED ACTION WAS COMPOSED AGAINST — latched at the
        * submit, keyed by the variant it belongs to, released when the stage
@@ -1459,15 +1461,24 @@ export default defineComponent({
         }
         if (on) {
           setWorkspaceFrameSlot('card-actions', '[data-embed-slot="action-hand"]');
+          // WHAT the step is, read at its rising edge (structural — the server's markers, never a title): a party's
+          // mandatory DISCARD, the law's LIVE play (PL-727), or a PICK the composer asked for (a law's play slot — the
+          // album with the play composer one level deeper: its answer comes back INTO the stage, nothing ends).
+          this.handStepKind = this.playerView.waitingFor?.partyActionPrompt?.stage === 'discard' ? 'discard' :
+            this.livePlayStanding ? 'live' : 'pick';
         } else if (was) {
           setWorkspaceFrameSlot('card-actions', '');
-          // A POLITICAL source's hand step answered in the card composer's zone — a party's mandatory discard (its
-          // payout flies off the plaque's printed icon, held by the transport and checked against the views) or a
-          // law's LIVE play (PL-727, the card on the table): then the flow LEAVES through the one guarded conclusion
-          // (a step still owed holds it there). A law's play PICK (before the commit) is a pick bridge — no hand frame.
-          if (this.composer?.party !== undefined) {
+          const kind = this.handStepKind;
+          this.handStepKind = undefined;
+          // A party's discard answered in the card composer's zone: its payout flies off the plaque's printed icon (held
+          // by the transport, checked against the views), then the flow LEAVES through the one guarded conclusion; the
+          // law's live play leaves the same way (the card on the table; a step still owed holds it there). A PICK's
+          // return is the stage's own next row — never an ending (it once folded the law's stage under its slot).
+          if (kind === 'discard') {
             const ref = this.$refs.composerRef as InstanceType<typeof ConsoleActionComposer> | undefined;
             void (ref?.flyDiscardExchange() ?? Promise.resolve()).then(() => this.concludeFlow());
+          } else if (kind === 'live') {
+            void this.$nextTick(() => this.concludeFlow());
           }
         }
       },
@@ -1717,8 +1728,11 @@ export default defineComponent({
       }
     }
     // A HAND STEP hosted BEFORE this mount (a restore mid-discard): the
-    // change-watcher cannot fire true→true, so the zone is republished here.
+    // change-watcher cannot fire true→true, so the zone is republished here — and the step's kind is read, or its
+    // answer would end nothing (the discard's payout and the conclusion ride the falling edge).
     if (this.handStepHosted) {
+      this.handStepKind = this.playerView.waitingFor?.partyActionPrompt?.stage === 'discard' ? 'discard' :
+        this.livePlayStanding ? 'live' : 'pick';
       void this.$nextTick(() => {
         if (this.handStepHosted) {
           setWorkspaceFrameSlot('card-actions', '[data-embed-slot="action-hand"]');

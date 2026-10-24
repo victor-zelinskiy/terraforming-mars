@@ -1,0 +1,66 @@
+/* ══ A POLITICAL SOURCE ON THE CARD FRAME (Turmoil Redux — ONE FRAMEWORK) ═══════════════════════════════════════════
+   The shared rules that used to live in the deleted party composer's stylesheet (`console_party_action.less`, С5)
+   but were never the composer's: the action menu's party / law tile and plate, its detail column, the effects
+   explorer's party emblem, the trade-fleet marker. A party or a law is a BADGE on the card frame — these are the
+   badge's paint, nothing more. */
+.con-cardactions {
+    &__plate--party { gap: .45rem; }
+    &__plate-emblem { width: 1.3rem; height: 1.3rem; object-fit: contain; flex-shrink: 0; }
+    &__plate-kicker { font-size: .56rem; letter-spacing: .12em; text-transform: uppercase; opacity: .6; flex-shrink: 0; }
+    &__plate-chip--uses { b { font-size: .66rem; } }
+    /* THE ROAD of a party held BY THE ALLIANCE (TR62): the partner's emblem + the one link shape — «ВАШИ ЭФФЕКТЫ»'s why-mark */
+    &__plate-ally { display: inline-flex; align-items: center; gap: .14rem; flex-shrink: 0; }
+    &__plate-ally-seal { width: 1rem; height: 1rem; border-radius: 50%; background: center / contain no-repeat; box-shadow: 0 0 0 .05rem rgba(4, 4, 8, 0.9); }
+    &__plate-ally-link {
+        position: relative;
+        width: .56rem;
+        height: .56rem;
+        .alliance-link-glyph(.56rem; 0rem; 0rem; #ffd27a; .065rem);
+    }
+    /* THE PARTY FORMULA IS PX ART LIKE EVERY FORMULA ON THIS STAGE: the
+       graphic's own zoom (`ui-scale`, and the TV ladder's 1.32× couch
+       enlargement over it — `console_tv.less`) is the ONE zoom law of the
+       stage, so the formula adds a CONSTANT and no scale term of its own:
+       28 px premium icons ≈ the card tiles' 30 px sprites on every profile.
+       A scale term here STACKS with the graphic's — the old `0.52 × ui-scale`
+       drew 14 px glyphs at 1080 (the Unity «→ ▲» unreadable from the sofa)
+       and squared the ui-scale at 4K, where the tile was fit-limited instead.
+       A wide or two-line formula (Industrialists, Reds) is fitted INTO the
+       stage by `useActionCanvasFit` like every other, never authored smaller
+       for all. */
+    &__graphic--party {
+        --con-pformula-zoom: 1;
+        .con-pformula__mech .pcard__mech { padding: 0; }
+    }
+    &__tile--party .con-cardactions__canvas { justify-content: center; }
+    &__detail-party { display: flex; flex-direction: column; align-items: center; gap: .4rem; padding: .3rem 0 .5rem; }
+    &__detail-emblem { width: 5.2rem; height: 5.2rem; object-fit: contain; }
+    &__detail-formula { --con-pformula-zoom: calc(0.66 * var(--con-ui-scale, 1)); }
+    &__detail-party-note { font-size: .7rem; opacity: .7; text-align: center; }
+    &__detail-uses { font-size: .66rem; letter-spacing: .06em; text-transform: uppercase; opacity: .7; }
+}
+
+/* ── The effects explorer: a PARTY-sourced forecast fact draws the party's
+   emblem where a card source draws its printed block. ── */
+.con-efx__graphic--party { display: flex; align-items: center; justify-content: center; min-height: 3.6rem; }
+.con-efx__party-emblem { width: 3.2rem; height: 3.2rem; object-fit: contain; }
+.con-efx__hero-rule--party { display: flex; align-items: center; justify-content: center; }
+.con-efx__hero-rule--party .con-efx__party-emblem { width: 62%; height: auto; max-height: 62%; }
+
+/* The law's dossier hero in the action menu's detail column: the face, whole, at the plaque's width. */
+.con-cardactions__detail-bill {
+    display: flex; flex-direction: column; align-items: center; gap: .4rem; padding: .3rem 0 .5rem;
+    > .pcard { zoom: calc(0.42 * var(--con-ui-scale, 1)); }
+}
+
+/* THE FLEET MARKER (Trade Industries: `tradeFleet()` on the face, `icon: 'trade-fleet'` on the chip): the trade
+   canvas PRE-INVERTED as an asset — the console strips `filter` permanently, so the legacy
+   `card-resource-trade-fleet` rule (invert(1) under `.card-container`) drew the plain TRADE glyph on the action
+   tile, and never reached a chip at all (the tile's «1 → 2» read with no glyph). One asset, every surface —
+   the premium face reads the same asset straight from `premiumCardIcons`. */
+.action-effect-chip__icon.card-resource-trade-fleet {
+    background: url(./assets/tiles/trade-fleet.png) center / contain no-repeat;
+}
+html.console-native .card-container .card-resource-trade-fleet {
+    background-image: url(./assets/tiles/trade-fleet.png);
+}

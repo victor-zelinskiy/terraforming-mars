@@ -248,6 +248,31 @@ export function withPoliticalActionTiles(cards: ReadonlyArray<DossierActionTile>
   return tiles.map(({at: _at, ...tile}) => tile);
 }
 
+/**
+ * THE TILES THE PLATE SHOWS when there are more than `max` (the rest are counted «+K», the zone shows them all): the
+ * order stays the state order, but every STATE that exists keeps its first tile on the plate — a state on the table is
+ * never only a number in the legend (ONE FRAMEWORK: the seat's Parliament actions joined the cards, and a used card fell
+ * off a plate of ready and blocked ones). One cell goes to «+K».
+ */
+export function dossierPlateTiles(tiles: ReadonlyArray<DossierActionTile>, max: number): ReadonlyArray<DossierActionTile> {
+  if (tiles.length <= max) {
+    return tiles;
+  }
+  const budget = Math.max(1, max - 1);
+  const keep = new Set<number>();
+  const seen = new Set<DossierActionState>();
+  tiles.forEach((t, i) => {
+    if (!seen.has(t.state)) {
+      seen.add(t.state);
+      keep.add(i);
+    }
+  });
+  for (let i = 0; i < tiles.length && keep.size < budget; i++) {
+    keep.add(i);
+  }
+  return tiles.filter((_, i) => keep.has(i)).slice(0, Math.max(budget, seen.size));
+}
+
 /** How many tiles stand in each state (the plate's legend — only the states that exist). */
 export function dossierActionCounts(tiles: ReadonlyArray<DossierActionTile>): ReadonlyArray<{state: DossierActionState, count: number}> {
   const counts = new Map<DossierActionState, number>();

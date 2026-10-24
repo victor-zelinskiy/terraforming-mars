@@ -40,7 +40,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
-import {DossierActionState, DossierActionTile, dossierActionCounts} from '@/client/console/infoDossierModel';
+import {DossierActionState, DossierActionTile, dossierActionCounts, dossierPlateTiles} from '@/client/console/infoDossierModel';
 import {cardArtUrl, cardArtUrlAtTier, CARD_ART_FALLBACK_URL} from '@/client/cards/cardArt';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
@@ -68,7 +68,7 @@ export default defineComponent({
   },
   computed: {
     shown(): ReadonlyArray<DossierActionTile> {
-      return this.tiles.length > this.max ? this.tiles.slice(0, this.max - 1) : this.tiles;
+      return dossierPlateTiles(this.tiles, this.max);
     },
     hidden(): number {
       return this.tiles.length - this.shown.length;

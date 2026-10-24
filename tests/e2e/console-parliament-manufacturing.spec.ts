@@ -176,7 +176,7 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 10_000});
       await shoot(page, preset.id, '03-mech-targets');
       // Construction Mechs is the mech's ONLY holder — SEEDED and marked (T14 · CC), the commit ready at once.
-      await expect(page.locator(`${STAGE} [data-seeded="sole"]`), 'the sole holder, seeded').toHaveCount(1);
+      await expect(page.locator(`${STAGE} .con-composer__row[data-seeded="sole"]`), 'the sole holder, seeded').toHaveCount(1);
       await expect(page.locator(`${STAGE} [data-seeded-mark]`).first(), 'and marked').toBeAttached();
       expect(await pressUntil(page, 'Enter', async () => await page.locator(READY).count() > 0, {tries: 3, settleMs: 700}),
         'the card is chosen: the commit is ready').toBeTruthy();

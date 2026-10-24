@@ -276,8 +276,24 @@ for (const preset of PRESETS) {
       await expect(gallery.locator('.con-dgal__tile[data-zoom-slot="Civilian Spacefighters"]'), 'TR60 stands in the gallery').toHaveCount(1);
       await expect(gallery.locator('.con-dgal__tile--wide[data-zoom-slot="Civilian Spacefighters"]'), 'its two variants take two columns').toHaveCount(1);
       await expect(gallery.locator('[data-action-count="used"] b'), 'the legend counts the used actions').toHaveText('2');
-      const verdicts = await gallery.locator('[data-action-verdict]')
-        .evaluateAll((els) => [...new Set(els.map((e) => e.getAttribute('data-action-verdict') ?? ''))]);
+      // The verdicts over EVERY page (ONE FRAMEWORK: the seat's Parliament actions stand among the cards and can take the
+      // first page) — the cursor walks the pages and comes back to where it stood.
+      const verdictSet = new Set<string>();
+      const readVerdicts = async () => {
+        for (const v of await gallery.locator('[data-action-verdict]').evaluateAll((els) => els.map((e) => e.getAttribute('data-action-verdict') ?? ''))) {
+          verdictSet.add(v);
+        }
+      };
+      await readVerdicts();
+      let walked = 0;
+      for (; walked < 24 && verdictSet.size < 3; walked++) {
+        await press(page, 'ArrowRight', 160);
+        await readVerdicts();
+      }
+      for (let i = 0; i < walked; i++) {
+        await press(page, 'ArrowLeft', 120);
+      }
+      const verdicts = [...verdictSet];
       expect(verdicts.length, `the gallery's tiles read their states by the server's verdict (${verdicts.join(', ')})`).toBeGreaterThanOrEqual(3);
       await shoot(page, preset.id, 'B-gallery');
       await openZoomViewer(page, 'KeyX');
