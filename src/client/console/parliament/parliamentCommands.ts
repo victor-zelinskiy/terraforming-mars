@@ -190,19 +190,29 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
     // bar while it stands in the stage's zone — then `primary` is undefined.
     const sitting = input.sitting;
     const cmds: Array<ConsoleCommand> = [];
+    // THE RESULTS PAGE WITH «ПОДРОБНОСТИ ВЫПЛАТ» (the owner, 2026-10-24): A stands LAST — the bar's right zone packs
+    // from the right edge, so the last command never moves while its neighbours change (the card ⇄ the step); the
+    // step offers no X of its own (B is the way back), L3 the law and the scroll.
+    if (sitting?.payouts !== undefined) {
+      if (sitting.payouts === 'door') {
+        cmds.push({control: 'secondary', label: 'Inspect'});
+      }
+      cmds.push({control: 'stickL', label: 'Source', priority: 1});
+      if (sitting.payouts === 'open') {
+        cmds.push({control: 'stickScroll', label: 'Scroll', priority: 1});
+      }
+      if (sitting.back !== undefined) {
+        cmds.push({control: 'back', label: sitting.back});
+      }
+      if (sitting.primary !== undefined) {
+        cmds.push({control: 'confirm', label: sitting.primary, highlight: true});
+      }
+      return cmds;
+    }
     if (sitting?.primary !== undefined) {
       cmds.push({control: 'confirm', label: sitting.primary, highlight: true});
     }
-    if (sitting?.payouts === 'open') {
-      cmds.push({control: 'stickScroll', label: 'Scroll', priority: 1});
-    }
-    if (sitting?.payouts === 'open') {
-      cmds.push({control: 'secondary', label: 'Close'});
-      cmds.push({control: 'stickL', label: 'Source', priority: 1});
-    } else if (sitting?.payouts === 'door') {
-      cmds.push({control: 'secondary', label: 'Inspect'});
-      cmds.push({control: 'stickL', label: 'Source', priority: 1});
-    } else if (sitting?.inspect === true) {
+    if (sitting?.inspect === true) {
       cmds.push({control: 'secondary', label: 'Inspect'});
     }
     if (sitting?.back !== undefined) {

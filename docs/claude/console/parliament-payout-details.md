@@ -10,18 +10,21 @@ On the RESULTS page (the card revealed, a law that paid some seat — `ConsolePa
 
 | Press | On the card | Inside the step |
 | --- | --- | --- |
-| **X** «Осмотреть» | opens the step — X inspects the CURRENT object, and on this page that is the payouts | folds it back («Закрыть») |
+| **X** «Осмотреть» | opens the step — X inspects the CURRENT object, and on this page that is the payouts | folds it back (unadvertised — the bar names B) |
 | **L3** «Источник» | the enacted law in the fullscreen inspector — the SOURCE of the payouts | the same |
 | **A** | onward — closes the sitting, as before | the same (the sitting closes from inside the step too) |
 | **B** | — (the results page owns no B) | folds the step back («Назад») |
 | ↑/↓ · right stick | — | scroll the table (`ConsoleScrollArea`) |
 
-The crumb's tail grows forward one level: «ЗАСЕДАНИЕ › ИТОГИ · ВЫПЛАТЫ». The step titles nothing.
+The crumb's tail grows forward one level: «ЗАСЕДАНИЕ › ИТОГИ · ВЫПЛАТЫ». The step titles nothing. **On this page A
+stands LAST on the bar** (the owner, 2026-10-24): the bar's right zone packs from the right edge, so the last command
+keeps its place while its neighbours change between the card and the step.
 
 ## The phrase — one level deeper on the same card
 
 The enacted law's column (the carried object) never moves; the payouts / world / next-vote columns RELEASE in place
-(`.con-sit__results--details`, opacity only); the table UNFOLDS out of the rect the payouts held (`con-sitpd-enter`,
+(`.con-sit__results--details`, opacity only); the table never SIZES the card (`contain: size` — the stage grows by
+its content, and a taller table moved the centred law up and down on the way in) and UNFOLDS out of the rect the payouts held (`con-sitpd-enter`,
 origin over the payouts column) and its sections surface in turn. X / B fold it back. Never a `v-if` blink: the step
 mounts inside a `<transition>`.
 

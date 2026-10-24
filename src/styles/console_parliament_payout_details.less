@@ -18,10 +18,16 @@
         opacity: 0;
         pointer-events: none;
     }
-    /* The step stands in the columns it replaces — the enacted law's column never moves. */
+    /* The step stands in the columns it replaces — the enacted law's column never moves. It takes the AREA the card
+       already has and never sizes it: the stage grows by its content (law 9), so a table taller than the payouts it
+       replaced grew the panel and moved the centred law up and down on the way in (the owner, 2026-10-24) —
+       `contain: size` makes the step contribute nothing, it stretches over the area and scrolls inside it. */
     &__details {
         grid-column: 2 / -1;
         grid-row: 1 / -1;
+        align-self: stretch;
+        justify-self: stretch;
+        contain: size;
         min-width: 0;
         min-height: 0;
     }
