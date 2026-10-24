@@ -33925,28 +33925,18 @@ html.console-mode {
     background: rgba(8, 14, 22, 0.5);
     box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 16%);
 }
-/* A POLITICAL SOURCE IN THE HERO SLOT (Turmoil Redux «один фреймворк», decision Р2): the party's PLAQUE or the law's
-   FACE stands in the CARD's box — 320 × 460 px under the stage's own `zoom: k × ui-scale` — so the hero column's
-   geometry never changes with the source, in any phase. The law's face IS a premium card (px-authored, it fills the
-   box as a card does); the plaque is REM-authored (its sizes already ride the UI scale), so it cancels the ui factor
-   once inside the zoomed box and is laid out at the box's full height, its seal and formula centred. */
+/* A POLITICAL SOURCE IN THE HERO SLOT (Turmoil Redux «один фреймворк»): the law's FACE, or the party drawn as a CARD
+   (the owner's decision Р2 — `partyPremiumVm`), stands in the CARD's box — 320 × 460 px under the stage's own
+   `zoom: k × ui-scale` — so the hero column's geometry never changes with the source, in any phase. Both ARE premium
+   cards (px-authored, they fill the box as a card does). */
 .con-composer__actlaw,
-.con-composer__actplaque {
+.con-composer__actparty {
     width: 320px;   /* keep-px — the premium card's own box (`--pcard-w`) */
     height: 460px;  /* keep-px — `--pcard-h` */
     display: flex;
     align-items: center;
     justify-content: center;
     > .pcard { margin: 0; }
-}
-.con-composer__actplaque > .con-pseal {
-    width: calc(320px * var(--con-ui-scale, 1));  /* keep-px */
-    min-height: calc(460px * var(--con-ui-scale, 1));  /* keep-px */
-    box-sizing: border-box;
-    zoom: calc(1 / var(--con-ui-scale, 1));
-    align-content: center;
-    box-shadow: inset 0 0 0 .1rem var(--parl-accent, @con-cyan), 0 .6rem 1.6rem rgba(0, 0, 0, 0.45);
-    border-radius: .9rem;
 }
 /* A LAW THAT PLAYS A CARD (RX36 Live Experiments — «один фреймворк»): the decision is a CARD — a SLOT whose door is
    the hand album + the play composer (the play pick bridge). Empty it is a card-shaped SOCKET at the face's own box

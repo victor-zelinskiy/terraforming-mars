@@ -415,6 +415,9 @@ export default defineComponent({
         'pcard--bill': this.isResolution,
         'pcard--resolution-art': this.isResolution && this.vm.parliament?.sealArt !== true,
         'pcard--resolution-seal': this.isResolution && this.vm.parliament?.sealArt === true,
+        // A PARTY drawn as a card (Turmoil Redux — ONE FRAMEWORK, Р2): the project's anatomy, its art window the
+        // party's seal over its accent field (`partyPremiumVm`).
+        'pcard--party-face': !this.isResolution && this.vm.parliament?.sealArt === true,
         'pcard--unavailable': this.isUnavailable,
         'pcard--selected': this.selected,
         'pcard--cost-mod': this.vm.cost !== undefined && this.vm.cost.delta !== 0,

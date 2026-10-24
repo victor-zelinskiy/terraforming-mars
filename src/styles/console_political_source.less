@@ -64,3 +64,14 @@
 html.console-native .card-container .card-resource-trade-fleet {
     background-image: url(./assets/tiles/trade-fleet.png);
 }
+
+/* ── A PARTY drawn as a CARD (decision Р2): the project face whose art window is the party's field, its seal the charge
+   — whole, never cropped as an illustration (the art-less bill's grammar, `.pcard--resolution-seal`). ── */
+.pcard--party-face .pcard__art {
+    background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--pcard-party-accent, #7fa7ff) 38%, #0b0a12) 0%, #0b0a12 76%);
+}
+.pcard--party-face .pcard__art img {
+    object-fit: contain;
+    padding: 10%;
+    box-sizing: border-box;
+}

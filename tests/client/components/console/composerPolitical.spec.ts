@@ -131,7 +131,7 @@ describe('ConsoleActionComposer — the Industrialists and Unity in the card com
 describe('ConsoleActionComposer — a POLITICAL source (the Reds in the card composer)', () => {
   it('the hero slot holds the party\'s plaque, keyed by the party\'s zoom entry — no card face, no card model', () => {
     const w = factory();
-    expect(w.find('.con-composer__actplaque').exists(), 'the plaque in the hero slot').is.true;
+    expect(w.find('.con-composer__actparty .pcard.pcard--party-face').exists(), 'the party drawn as a CARD in the hero slot (Р2)').is.true;
     expect(w.findComponent({name: 'ConsoleCardFaceLite'}).exists(), 'no card face for a party').is.false;
     const wrap = w.find('.con-composer__actcardwrap');
     expect(wrap.attributes('data-zoom-slot'), 'L3 / X lift the party\'s effect').to.eq('PARTY_Reds');

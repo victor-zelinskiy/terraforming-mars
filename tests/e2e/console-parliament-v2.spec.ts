@@ -1049,7 +1049,7 @@ test.describe('parliament v4 · the parties\' door', () => {
     expect(crumb, `one crumb rooted at the Parliament (${crumb})`).toContain('ПАРЛАМЕНТ');
     expect(crumb).toContain('НАСТРОЙКА');
     await expect(page.locator('.con-cardactions'), 'the action workspace stands inside the Parliament').toHaveCount(1);
-    await expect(page.locator('.con-composer__actplaque .con-pseal'), 'the party plaque is the hero').toHaveCount(1);
+    await expect(page.locator('.con-composer__actparty .pcard--party-face'), 'the party drawn as a CARD is the hero (Р2)').toHaveCount(1);
     await shoot(page, 'door-1080', '30-party-action-from-parliament');
     expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-cardactions').count() === 0, {tries: 3, settleMs: 1000}),
       'B leaves the nested action workspace').toBeTruthy();

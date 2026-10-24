@@ -449,7 +449,7 @@ test.describe('parliament · party actions', () => {
     await focusPartyTile(page, 'Reds');
     await openCardComposerFor(page, 'party:Reds');
     // The hero slot holds the party's plaque (decision Р2) — the card composer's own hero column.
-    await expect(page.locator('.con-composer__actcardwrap .con-composer__actplaque'), 'the party\'s plaque is the hero').toHaveCount(1);
+    await expect(page.locator('.con-composer__actcardwrap .con-composer__actparty .pcard--party-face'), 'the party drawn as a CARD is the hero (Р2)').toHaveCount(1);
     await shoot(page, '08-reds-stage');
     await press(page, 'Enter', 1500); // the cursor opens on the commit row: the draw happens now
     await expect.poll(async () => (await seatOf(request, playerId)).waitingFor?.type, {timeout: 20_000, message: 'the discard prompt stands'}).toBe('card');

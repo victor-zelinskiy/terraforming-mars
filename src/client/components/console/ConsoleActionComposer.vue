@@ -56,14 +56,15 @@
                  hero, and a printed «0» on the face itself. -->
             <transition name="con-actfocus-card" mode="out-in">
               <ConsoleCardFaceLite v-if="heroCardName !== undefined" :key="heroCardName" :name="heroCardName" :card="heroCardModel" />
-              <!-- A POLITICAL source (Turmoil Redux «один фреймворк»): the law's FACE, or the party's PLAQUE — the hero
-                   slot's box, the hero's place, every phase (decision Р2). Its printed mechanics carry the
-                   `data-graphic-node` anchors the ACTION COMMIT's impulse runs over, exactly as a card face does. -->
+              <!-- A POLITICAL source (Turmoil Redux «один фреймворк»): the law's FACE, or the party drawn as a CARD (the
+                   owner's decision Р2 — `partyPremiumVm`: the project anatomy with the party's seal) — the hero slot's
+                   box, the hero's place, every phase. Its printed mechanics carry the `data-graphic-node` anchors the
+                   ACTION COMMIT's impulse runs over, exactly as a card face does. -->
               <div v-else-if="politicalEntry !== undefined && politicalEntry.source.kind === 'law'" :key="sourceKey" class="con-composer__actlaw">
                 <PremiumCard v-if="lawFaceVm !== undefined" :vmOverride="lawFaceVm" :inert="true" />
               </div>
-              <div v-else-if="politicalEntry !== undefined" :key="sourceKey" class="con-composer__actplaque" :style="{'--parl-accent': partyAccentOf(politicalEntry.party)}">
-                <ConsolePartyPlaque :party="politicalEntry.party" size="hero" />
+              <div v-else-if="politicalEntry !== undefined" :key="sourceKey" class="con-composer__actparty" :data-party-face="politicalEntry.party">
+                <PremiumCard v-if="partyFaceVm !== undefined" :vmOverride="partyFaceVm" :inert="true" />
               </div>
             </transition>
           </div>
@@ -949,11 +950,10 @@ import {ComposerEntry, PoliticalActionEntry, isPoliticalActionEntry} from '@/cli
 import {partyEffectZoomEntry, resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
+import {partyPremiumVm} from '@/client/components/premiumCard/partyPremiumVm';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
-import {partyAccent} from '@/client/components/premiumCard/partyEmblems';
-import {ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
+import {ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {PartyName} from '@/common/turmoil/PartyName';
-import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import {discardExchangeRailKey} from '@/client/console/parliament/discardExchangeBeat';
 import {flyRailReward, railRewardPending} from '@/client/console/resourceTransfer/railReward';
@@ -1296,7 +1296,7 @@ const WORKSPACE_REVEAL_ZONE = '[data-embed-slot="workspace-reveal"]';
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ConsoleVariantChoice, ConsoleDeclinePlate, ConsoleColonyLedger, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, PremiumPartyRequirementGlyph, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsoleAmountOperation, ConsolePartyPlaque, PremiumCard, ConsolePlayedReceivingStage},
+  components: {ConsoleVariantChoice, ConsoleDeclinePlate, ConsoleColonyLedger, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, PremiumPartyRequirementGlyph, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsoleAmountOperation, PremiumCard, ConsolePlayedReceivingStage},
   directives: {embedZone: vEmbedZone, stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -1955,6 +1955,11 @@ export default defineComponent({
       return political.source.kind === 'law' ? resolutionZoomEntry(political.source.resolution).name : partyEffectZoomEntry(political.party).name;
     },
     /** The enacted law's face (the hero of a law's action). */
+    /** The party's CARD face (decision Р2) — a party source's hero. */
+    partyFaceVm(): PremiumCardVM | undefined {
+      const political = this.politicalEntry;
+      return political?.source.kind === 'party' ? partyPremiumVm(political.source.party) : undefined;
+    },
     lawFaceVm(): PremiumCardVM | undefined {
       const political = this.politicalEntry;
       const law = political?.source.kind === 'law' ? getResolution(political.source.resolution) : undefined;
@@ -3699,9 +3704,6 @@ export default defineComponent({
         throw new Error(`${this.sourceKey}: a political action asked a step only a card has`);
       }
       return name;
-    },
-    partyAccentOf(party: ReduxParty): string {
-      return partyAccent(party);
     },
     /**
      * THE PAYOUT OF A PARTY DISCARD (Turmoil Redux «один фреймворк» — the Reds' «2 M€ per plant, microbe and animal
