@@ -485,3 +485,21 @@ export async function expectDossierIsRules(page: Page, label = ''): Promise<void
   const groups = await dialog.locator('.con-zoom-rules [data-rules-group]').evaluateAll((els) => els.map((el) => el.getAttribute('data-rules-group') ?? ''));
   expect(groups, `${label} no «ДЛЯ ВАС» block in a resolution's dossier — the viewer's reading is the vote panel's (${groups.join(' · ')})`.trim()).not.toContain('group:you');
 }
+
+/**
+ * «ОДИН ФРЕЙМВОРК» (2026-10-24): the enacted law's standing effect is a GROUP of the effects explorer's grid, and it
+ * LEADS it (decision Р1) — the badge plate (`data-efx-source="law:<id>"`, the kicker «Эффект, пока принята», the card's
+ * name), the law's own printed effect on the tile, the access line. Replaces the old strip over the explorer
+ * (`.con-pfx`). Returns the group, for the spec's own further reads.
+ */
+export async function expectLawLeadsEffects(page: Page, law: {id: string, name: RegExp}): Promise<ReturnType<Page['locator']>> {
+  const group = page.locator('.con-efx__list .con-efx__group').first();
+  await expect(group, 'the explorer\'s grid stands').toBeVisible({timeout: 10_000});
+  const plate = group.locator('.con-efx__plate--political');
+  await expect(plate, 'the LAW leads the explorer').toHaveAttribute('data-efx-source', `law:${law.id}`);
+  await expect(plate.locator('.con-efx__plate-kicker'), 'said for what it is').toHaveText(/Эффект, пока принята/i);
+  await expect(plate.locator('.con-efx__plate-name'), 'titled by the card').toHaveText(law.name);
+  await expect(group.locator('.con-efx__tile .con-efx__graphic').first(), 'the card\'s own printed effect').toBeVisible();
+  await expect(group.locator('[data-efx-access]').first(), 'WHY the seat holds it — the access line').toBeVisible();
+  return group;
+}

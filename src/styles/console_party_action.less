@@ -414,50 +414,6 @@
     &__detail-uses { font-size: .66rem; letter-spacing: .06em; text-transform: uppercase; opacity: .7; }
 }
 
-/* ── The Information workspace's «ЭФФЕКТЫ» zone: the party effects strip ── */
-.con-pfx {
-    display: flex;
-    flex-direction: column;
-    gap: .35rem;
-    padding: .45rem .6rem .5rem;
-    margin-bottom: .5rem;
-    border-radius: .6rem;
-    background: linear-gradient(160deg, rgba(40, 26, 70, 0.5), rgba(14, 10, 24, 0.6));
-    box-shadow: inset 0 0 0 .05rem rgba(139, 106, 216, 0.3);
-
-    &__head { display: flex; align-items: baseline; gap: .8rem; }
-    &__kicker { font-size: .72rem; letter-spacing: .12em; text-transform: uppercase; opacity: .78; }
-    &__sub { font-size: .72rem; opacity: .65; }
-    &__row { display: flex; flex-wrap: wrap; gap: .6rem; }
-    /* TR60 — a party tile at the SCENE's scale: emblem · (name over the printed formula) · why, side by side. */
-    &__item {
-        flex: 1 1 30rem;
-        max-width: 48rem;
-        display: flex; align-items: center; gap: .9rem;
-        padding: .55rem .8rem; border-radius: .5rem;
-        background: rgba(255, 255, 255, 0.03);
-        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08), inset .18rem 0 0 var(--parl-accent, @con-parl-violet);
-        min-width: 0;
-    }
-    /* THE LAW'S ROW — the enacted resolution's passive. It leads the strip and wears the
-       gold seam of the government in power (the Parliament's own mark of the enacted
-       card, `.con-parl__gov--enacted`), so it reads as everyone's law beside the party
-       privileges — never as one more party's perk. Weight, not colour alone: the kicker
-       is tracked caps, the seam is a full frame, the field is a shade warmer. */
-    &__item--resolution {
-        background: linear-gradient(160deg, fade(@con-parl-gold, 9%), rgba(255, 255, 255, 0.03));
-        box-shadow: inset 0 0 0 .07rem fade(@con-parl-gold, 55%), inset .18rem 0 0 var(--parl-accent, @con-parl-violet);
-    }
-    &__law { font-size: .58rem; letter-spacing: .14em; text-transform: uppercase; font-weight: 700; color: @con-parl-gold; }
-    &__emblem { width: 3.4rem; height: 3.4rem; object-fit: contain; flex-shrink: 0; }
-    &__main { flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: .3rem; }
-    &__title { font-size: 1rem; }
-    &__formula { --con-pformula-zoom: calc(0.95 * var(--con-ui-scale, 1)); }
-    &__why { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: .2rem; font-size: .8rem; }
-    &__reason { opacity: .85; &--holds { color: @con-parl-mint; } &--note { opacity: .6; } }
-    &__uses { font-size: .64rem; letter-spacing: .06em; text-transform: uppercase; opacity: .65; }
-}
-
 /* ── The effects explorer: a PARTY-sourced forecast fact draws the party's
    emblem where a card source draws its printed block. ── */
 .con-efx__graphic--party { display: flex; align-items: center; justify-content: center; min-height: 3.6rem; }
@@ -535,13 +491,6 @@ html.con-profile-tv .con-pact--resource {
     .con-pact__card-delta { font-size: 1.2rem; em { font-size: 1.05rem; } }
     .con-pact__res-icon--sm { width: 1.35rem; height: 1.35rem; }
 }
-html.con-profile-tv .con-pfx {
-    &__kicker, &__sub, &__uses { font-size: .85rem; }
-    &__law { font-size: .8rem; }
-    &__title { font-size: 1.15rem; }
-    &__why { font-size: .95rem; }
-}
-
 /* ══ THE ENACTED RESOLUTION'S ACTION — the law as the stage's SOURCE ═══════
    (Open IP Trade, RX24): the same composer chassis, the law's FACE in the
    hero column, and the DECISION column hosting the real hand as the

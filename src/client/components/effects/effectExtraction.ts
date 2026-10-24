@@ -24,6 +24,8 @@ import {
 import {CardRenderSymbolType} from '@/common/cards/render/CardRenderSymbolType';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {EffectSignature} from '@/client/components/effects/effectSummary';
+import {CardEffectSource, PoliticalEffectSource} from '@/client/components/effects/effectSource';
+import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 
 /*
  * Client-side extraction of a card's PASSIVE/ongoing effect graphics, for the
@@ -43,6 +45,8 @@ export type EffectEntry = {
   // Stable v-for key (card name + ordinal — a card can grant several effects).
   // This is the PER-EFFECT selection key in the master-detail overlay.
   key: string;
+  /** The typed SOURCE (`effectSource.ts`) — a card here; a party / a law is a `PoliticalEffectEntry`. */
+  source: CardEffectSource;
   cardName: CardName;
   // The ordinal of this effect within its source card (0 for a single-effect
   // card / an override). Lets the details panel say "effect i of N".
@@ -207,6 +211,11 @@ function collectResultIcons(items: ReadonlyArray<ItemType> | undefined, icons: S
   }
 }
 
+/** The impact signature of one printed effect node (exported for the political entries — the same reading). */
+export function effectSignatureOf(node: ICardRenderEffect): EffectSignature {
+  return effectSignature(node);
+}
+
 function effectSignature(node: ICardRenderEffect): EffectSignature {
   const icons = new Set<string>();
   let discount = false;
@@ -249,12 +258,20 @@ function withSplicedCause(node: ICardRenderEffect, precedingCause: ReadonlyArray
 /** Pull every passive-effect node out of a card's renderData, incl. nested in
  *  a corporation effect box. */
 function collectEffectNodes(cardName: CardName): Array<ICardRenderEffect> {
-  const card = getCard(cardName);
-  const renderData = card?.metadata.renderData;
-  const out: Array<ICardRenderEffect> = [];
+  const renderData = getCard(cardName)?.metadata.renderData;
   if (renderData === undefined || !isICardRenderRoot(renderData)) {
-    return out;
+    return [];
   }
+  return passiveEffectNodesOf(renderData);
+}
+
+/**
+ * Every passive-effect node of a printed ROOT — a card's face, a party's passive graphic, an enacted law's face (one
+ * DSL, one reader: a party / a law is a source of the same effect framework, never a second extraction). An
+ * `action()` node and a one-off payout row are not effects and are never returned.
+ */
+export function passiveEffectNodesOf(renderData: ICardRenderRoot): Array<ICardRenderEffect> {
+  const out: Array<ICardRenderEffect> = [];
   // The most recent ROOT row of cause items (no effect node) — spliced into a
   // following empty-cause effect (the Viral Vectors pattern above).
   let precedingCause: ReadonlyArray<ItemType> | undefined;
@@ -319,7 +336,7 @@ function cardEffectEntries(card: CardModel): Array<EffectEntry> {
   }
   const isCorporation = getCard(cardName)?.type === CardType.CORPORATION;
   const isDisabled = card.isDisabled === true;
-  const base = {cardName, isCorporation, isDisabled};
+  const base = {source: {kind: 'card', name: cardName} as CardEffectSource, cardName, isCorporation, isDisabled};
 
   // Render the card's WHOLE renderData (the raw symbol rows ARE the effect) +
   // its description.
@@ -378,6 +395,41 @@ export function playerEffects(tableau: ReadonlyArray<CardModel>): Array<EffectEn
 export function playerEffectCount(tableau: ReadonlyArray<CardModel>): number {
   return playerEffects(tableau).length;
 }
+
+/**
+ * A PASSIVE EFFECT OF THE PARLIAMENT (Turmoil Redux) — a party's or the enacted law's standing effect as an entry of
+ * the SAME explorer: its printed node, its signature, its rule — plus the badge (`party`, `title`) and the reading of
+ * WHY this seat holds it (`access`: the parliament's own access row, i18n key + params). No `cardName`: a party is not
+ * a card (built by `console/parliament/politicalEffects.ts`).
+ */
+export type PoliticalEffectEntry = {
+  key: string;
+  source: PoliticalEffectSource;
+  effectIndex: number;
+  isCorporation: false;
+  isDisabled: false;
+  effectNode: ICardRenderEffect | undefined;
+  renderRoot: ICardRenderRoot | undefined;
+  text: string | undefined;
+  description: string | undefined;
+  signature: EffectSignature;
+  /** The badge's party — a law wears its own party's emblem and accent. */
+  party: ReduxParty;
+  /** The source's NAME (an i18n key): the party's glossary name, the law's printed name. */
+  title: string;
+  /** WHY this seat holds it — the meta line (`warn` for a law's live restriction, RX42). */
+  access: {key: string, params: ReadonlyArray<string>, tone: 'holds' | 'warn'};
+};
+
+/** Any entry the effects explorer shows — a card's effect or the Parliament's. */
+export type ExplorerEntry = EffectEntry | PoliticalEffectEntry;
+
+export function isPoliticalEntry(entry: ExplorerEntry): entry is PoliticalEffectEntry {
+  return entry.source.kind !== 'card';
+}
+
+/** An empty impact signature — a text-only political effect. */
+export const NO_EFFECT_SIGNATURE: EffectSignature = EMPTY_SIGNATURE;
 
 // One SOURCE (card / corporation) and ALL of its passive effects. The overlay
 // renders one group per source — the source name appears ONCE (no duplication

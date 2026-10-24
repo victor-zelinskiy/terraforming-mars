@@ -452,25 +452,16 @@ for (const preset of PARLIAMENT_PRESETS) {
         // The dossier is two tiers (TR60): the driver walks the zones' own geometry, never a memorised key sequence.
         expect(await focusInfoZone(page, 'effects'), 'the ring reaches the effects zone').toBe(true);
         expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-efx').count() > 0, {tries: 3, settleMs: 1100}), 'the effects explorer opens').toBe(true);
-        await expect(page.locator('.con-pfx'), 'the Parliament strip stands in the explorer').toHaveCount(1, {timeout: 10_000});
+        // «Один фреймворк»: the Parliament's effects are GROUPS of the explorer's own grid (no strip over it any more).
+        await expect(page.locator('.con-efx__list .con-efx__plate--political').first(), 'the Parliament\'s groups stand in the explorer').toBeVisible({timeout: 10_000});
         await settle(page, {timeoutMs: 20_000});
-        // The strip is a BAND above the explorer, and the explorer's columns keep the screen (registry R-31: as a
-        // row sibling the strip pushed the dossier column past the Deck's right edge and stood as a half-empty
-        // plate down the left of 1080).
+        // Every column of the explorer keeps the screen, the political groups included (registry R-31 — the old strip
+        // pushed the dossier column past the Deck's right edge).
         const infoLayout = await page.evaluate(() => {
           const vw = window.innerWidth;
           const vh = window.innerHeight;
           const out: Array<string> = [];
-          const strip = document.querySelector<HTMLElement>('.con-pfx');
-          const efx = document.querySelector<HTMLElement>('.con-efx');
-          if (strip !== null && efx !== null) {
-            const s = strip.getBoundingClientRect();
-            const e = efx.getBoundingClientRect();
-            if (s.bottom > e.top + 1) {
-              out.push(`the strip is not above the explorer (strip bottom ${Math.round(s.bottom)}, explorer top ${Math.round(e.top)})`);
-            }
-          }
-          for (const sel of ['.con-pfx', '.con-pfx__item', '.con-efx__filters', '.con-efx__body', '.con-efx__detail']) {
+          for (const sel of ['.con-efx__filters', '.con-efx__body', '.con-efx__detail', '.con-efx__plate--political']) {
             for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
               const r = el.getBoundingClientRect();
               if (r.width === 0 || r.height === 0) {
@@ -483,7 +474,7 @@ for (const preset of PARLIAMENT_PRESETS) {
           }
           return out;
         });
-        expect(infoLayout, `${preset.id}/${mode} info strip: the strip is a band above the explorer and every column is on screen`).toEqual([]);
+        expect(infoLayout, `${preset.id}/${mode} info effects: every column of the explorer is on screen`).toEqual([]);
         await expectPaintBaseline(page, `${preset.id}/${mode} info strip`, ['.con-info']);
         await shoot(page, preset.id, mode, '08', 'info-parliament-strip');
         if (mode === 'reduced') {

@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {CardResource} from '@/common/CardResource';
 import {Units} from '@/common/Units';
 import {CardModel} from '@/common/models/CardModel';
@@ -21,12 +22,29 @@ const sig = (overrides: Partial<EffectSignature> = {}): EffectSignature =>
   ({icons: [], discount: false, valueModifier: false, valueAsPayment: false, ...overrides});
 
 function entry(overrides: Partial<ExplorerEffectInput> & {cardName: CardName}): ExplorerEffectInput {
+  const {cardName, ...rest} = overrides;
   return {
-    key: `${overrides.cardName}#${overrides.effectIndex ?? 0}`,
+    key: `${cardName}#${overrides.effectIndex ?? 0}`,
+    source: {kind: 'card', name: cardName},
     effectIndex: 0,
     isCorporation: false,
     isDisabled: false,
     signature: sig(),
+    ...rest,
+  };
+}
+
+/** A POLITICAL entry (Turmoil Redux «один фреймворк») — a party's / the law's standing effect, read by its access. */
+function political(source: ExplorerEffectInput['source'], overrides: Partial<ExplorerEffectInput> = {}): ExplorerEffectInput {
+  const key = source.kind === 'party' ? `party:${source.party}` : source.kind === 'law' ? `law:${source.resolution}` : '';
+  return {
+    key: `${key}#${overrides.effectIndex ?? 0}`,
+    source,
+    effectIndex: 0,
+    isCorporation: false,
+    isDisabled: false,
+    signature: sig(),
+    access: {key: 'You have it: the party rules', params: [], tone: 'holds'},
     ...overrides,
   };
 }
@@ -230,6 +248,40 @@ describe('effectsExplorerModel', () => {
       expect(stepEffect(keys, 'c', 1)).to.eq('c');
       expect(stepEffect(keys, 'gone', 1)).to.eq('a');
       expect(stepEffect([], 'a', 1)).to.eq('a');
+    });
+  });
+
+  describe('POLITICAL sources — the Parliament\'s effects are groups of the same grid (one framework)', () => {
+    const greens0 = political({kind: 'party', party: PartyName.GREENS}, {signature: sig({icons: ['megacredits']})});
+    const greens1 = political({kind: 'party', party: PartyName.GREENS}, {effectIndex: 1, key: 'party:Greens#1', signature: sig({icons: ['megacredits']})});
+    const law = political({kind: 'law', resolution: 'forestry-support'}, {signature: sig({icons: ['plants']}), access: {key: 'Available to every player', params: [], tone: 'holds'}});
+    const pets = entry({cardName: CardName.PETS, signature: sig({icons: [CardResource.ANIMAL]})});
+
+    it('a party / the law is grouped by its SOURCE, keeps the entries\' order (the Parliament first) and has no card', () => {
+      const model = buildEffectsBrowseModel({entries: [law, greens0, greens1, pets], tableau: [], stats: undefined, familyFilter: 'all', columns: 2});
+      expect(model.groups.map((g) => g.key)).to.deep.eq(['law:forestry-support', 'party:Greens', 'card:' + CardName.PETS]);
+      expect(model.groups.map((g) => g.cardName)).to.deep.eq([undefined, undefined, CardName.PETS]);
+      expect(model.groups[1].wide, 'two printed blocks → the full row, like a multi-effect card').to.be.true;
+      // The focus rows reach every political tile — the d-pad walks them like cards.
+      expect(model.flatKeys).to.deep.eq([law.key, greens0.key, greens1.key, pets.key]);
+      expect(model.rows.flat()).to.deep.eq([law.key, greens0.key, greens1.key, pets.key]);
+    });
+
+    it('its family is read off the printed signature; its meta is the ACCESS reading — never a statistic, never «loading»', () => {
+      const loading = buildEffectsBrowseModel({entries: [greens0], tableau: [], stats: undefined, familyFilter: 'all', columns: 2});
+      expect(loading.groups[0].tiles[0].family).to.eq('triggers');
+      expect(loading.groups[0].tiles[0].meta).to.deep.eq({kind: 'access', label: 'You have it: the party rules', params: [], tone: 'holds'});
+      const withStats = buildEffectsBrowseModel({entries: [greens0], tableau: [], stats: [], familyFilter: 'all', columns: 2});
+      expect(withStats.groups[0].tiles[0].per, 'a political source keeps no statistic').to.be.undefined;
+      expect(withStats.groups[0].tiles[0].meta.kind).to.eq('access');
+    });
+
+    it('the zone COUNTS them with the cards — one total with the grid, faceted by family', () => {
+      const zone = effectsZoneCounts([law, greens0, greens1, pets], []);
+      expect(zone.total).to.eq(4);
+      const model = buildEffectsBrowseModel({entries: [law, greens0, greens1, pets], tableau: [], stats: undefined, familyFilter: 'all', columns: 2});
+      expect(zone.total, 'the zone never lies about the grid').to.eq(model.total);
+      expect(model.familyChips.find((c) => c.id === 'triggers')?.count).to.eq(4);
     });
   });
 

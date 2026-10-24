@@ -207,6 +207,34 @@ block can be vouched for. Each host owns its OWN `EffectsExplorerUi`
 (`createEffectsExplorerUi` / `forecastExplorerUi(host)`), so two explorers on
 screen never share a cursor.
 
+## The Parliament's effects are GROUPS of this grid («один фреймворк», 2026-10-24)
+
+Turmoil Redux's party and law passives used to stand in a strip OVER the explorer (`ConsolePartyEffectsStrip`, `.con-pfx` —
+deleted): its own visual language, no focus stop, out of the zone's count, no X, no detail layer. Now a political source
+is an ENTRY of the same model (`effectExtraction.PoliticalEffectEntry`; the typed source `effects/effectSource.ts` —
+`card` · `party` · `law`, keyed by `sourceKey`, never a stand-in CardName):
+
+- **One answer to «what does this seat hold from the Parliament»** — `console/parliament/politicalSources.ts` (the law first,
+  the ruling party, then the board's order — decision Р1; the road through `accessRoadOf`; MarsBot holds nothing). The
+  explorer's entries are `politicalEffects.ts` over it: the PRINTED `effect()` nodes of the party's passive graphic / the
+  law's face (`passiveEffectNodesOf` — the card extraction's own reader; a law's one-off payouts are never read), the
+  family off the signature (`effectFamily` with source kind `party` / `resolution`), a caption per block when the printed
+  sentence splits into exactly as many sentences.
+- **The badge, nothing else**: the plate carries the party's emblem, the kicker («ЭФФЕКТ ПАРТИИ» / «ЭФФЕКТ, ПОКА ПРИНЯТА»),
+  the name (`partyNameKey` / the law's printed name) and the accent as an inset edge (`.con-efx__plate--political`,
+  `data-efx-source`). The tile is the ordinary `.con-efx__tile`.
+- **The meta line is the ACCESS reading** (`EffectTileMeta.access`, `[data-efx-access]`) — the parliament's own access row
+  for the road (glossary §5), a law «Доступен всем» or, while it binds somebody (RX42), «Под вето сейчас: …» in the
+  warning ink. A political source keeps no statistic: no `per`, no «За партию» block in the detail layer (honestly absent).
+- **Everything else is shared**: focus rows (`packEffectRows` unchanged), facets, the zone's count
+  (`ConsoleInfoMode.effectsZone` counts the political entries with the cards — the zone never disagrees with the grid),
+  X (`partyEffectZoomEntry` / `resolutionZoomEntry`), the detail layer (hero = `ConsolePartyPlaque size="hero"` / the
+  law's face; the crumb names it via `detail.title`). The host builds the entries (`politicalEntries` prop) — the explorer
+  stays host-agnostic; the forecast mode is untouched.
+- The same sources feed «Информация › ДЕЙСТВИЯ» (`parliament/parliamentActionSources.ts` — ONE builder for the live
+  «Действия карт» and the read-only galleries; another seat's action is `foreign`: public uses, never activatable) and the
+  dossier plate (`withPoliticalActionTiles`).
+
 ## Guards
 
 `tests/events/effectChannelStats.spec.ts` (the split, deferred recovery,
@@ -216,6 +244,9 @@ foreign-nesting, unattributed, actions-stay-clean) ·
 `tests/console/effectStatsStore.spec.ts` ·
 `tests/routes/ApiGameEffectStats.spec.ts` ·
 `tests/client/components/effects/effectFamilyCoverage.spec.ts` (corpus) ·
+`tests/console/politicalSources.spec.ts` (the one answer, the entries, the access reading, the foreign actions) ·
+`tests/client/components/console/ConsoleEffectsExplorerPolitical.spec.ts` (the badge plates, П1 the focus reaches every
+political tile, A → the plaque hero, no «За партию») ·
 e2e `tests/e2e/console-effects-explorer.spec.ts` (three profiles + reduced
 motion; the journey plays Carbon Nanosystems BEFORE Olympus Conference so
 the on-screen statistics are the server's own recorded facts).

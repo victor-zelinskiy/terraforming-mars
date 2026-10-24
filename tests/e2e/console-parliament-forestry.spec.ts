@@ -1,4 +1,5 @@
 import {test, expect, Page} from './consoleTest';
+import {expectLawLeadsEffects} from './parliamentDrive';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
@@ -241,14 +242,8 @@ test.describe('Forestry Support (RX11) · the groves pay, as the water does', ()
     // The dossier is two tiers (TR60): the driver walks the zones' own geometry, never a memorised key sequence.
     expect(await focusInfoZone(page, 'effects'), 'the effects zone takes the focus').toBe(true);
     expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-efx').count() > 0, {tries: 3, settleMs: 1100}), 'the effects explorer opens').toBe(true);
-    const strip = page.locator('.con-pfx');
-    await expect(strip, 'the Parliament strip stands in the explorer').toHaveCount(1, {timeout: 10_000});
-    const lawRow = strip.locator('.con-pfx__item').first();
-    await expect(lawRow, 'the LAW leads the strip').toHaveClass(/con-pfx__item--resolution/);
-    await expect(lawRow).toHaveAttribute('data-resolution', 'RDX_GREENS_FORESTRY_SUPPORT');
-    await expect(lawRow.locator('.con-pfx__law'), 'said for what it is').toHaveText(/Принятая резолюция/i);
-    await expect(lawRow.locator('.con-pfx__title'), 'titled by the card').toHaveText(/Поддержка лесничества/i);
-    await expect(lawRow.locator('.con-pformula__mech'), 'the card\'s own printed graphic').toHaveCount(1);
+    // «Один фреймворк»: the law is a GROUP of the explorer's grid, and it leads it.
+    await expectLawLeadsEffects(page, {id: 'RDX_GREENS_FORESTRY_SUPPORT', name: /Поддержка лесничества/i});
     await settle(page, {timeoutMs: 15_000, notifications: false});
     await shoot(page, '00-effects-strip');
     for (let i = 0; i < 6 && await page.locator('.con-info, .con-efx').count() > 0; i++) {

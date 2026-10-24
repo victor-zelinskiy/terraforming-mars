@@ -12,9 +12,12 @@
     <div v-if="tiles.length > 0" class="con-dacts__grid" :style="{'--dact-cols': columns}">
       <div v-for="t in shown" :key="t.name" class="con-dact" :class="'con-dact--' + t.state"
            :data-dossier-action="t.name" :data-action-state="t.state">
-        <span class="con-dact__art" :style="artStyle(t.name)" aria-hidden="true"></span>
+        <span v-if="t.political !== undefined" class="con-dact__art con-dact__art--party" :style="{'--parl-accent': accentOf(t.political.party)}" aria-hidden="true">
+          <img class="con-dact__emblem" :src="emblemOf(t.political.party)" alt="" />
+        </span>
+        <span v-else class="con-dact__art" :style="artStyle(t.name)" aria-hidden="true"></span>
         <span class="con-dact__mark" aria-hidden="true">{{ MARK[t.state] }}</span>
-        <span class="con-dact__name">{{ $t(t.name) }}</span>
+        <span class="con-dact__name">{{ $t(t.political?.title ?? t.name) }}</span>
       </div>
       <div v-if="hidden > 0" class="con-dact con-dact--more" data-dossier-action-more>
         <span class="con-dact__morenum">+{{ hidden }}</span>
@@ -39,6 +42,8 @@ import {defineComponent, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {DossierActionState, DossierActionTile, dossierActionCounts} from '@/client/console/infoDossierModel';
 import {cardArtUrl, cardArtUrlAtTier, CARD_ART_FALLBACK_URL} from '@/client/cards/cardArt';
+import {ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 
 /** The state's SHAPE — a symbol that reads in every language and without colour. */
 const MARK: Readonly<Record<DossierActionState, string>> = {ready: '▶', blocked: '✕', used: '✓', idle: '○'};
@@ -73,8 +78,14 @@ export default defineComponent({
     },
   },
   methods: {
-    artStyle(name: CardName): Record<string, string> {
-      const url = cardArtUrl(name);
+    emblemOf(party: ReduxParty): string {
+      return partyEmblemUrl(party);
+    },
+    accentOf(party: ReduxParty): string {
+      return partyAccent(party);
+    },
+    artStyle(name: string): Record<string, string> {
+      const url = cardArtUrl(name as CardName);
       return {backgroundImage: `url(${url === undefined ? CARD_ART_FALLBACK_URL : cardArtUrlAtTier(url, 'thumb')})`};
     },
   },

@@ -2,7 +2,8 @@ import {expect} from 'chai';
 import {mount} from '@vue/test-utils';
 import {globalConfig} from '../getLocalVue';
 import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
-import ConsolePartyEffectsStrip from '@/client/components/console/ConsolePartyEffectsStrip.vue';
+import {politicalSources} from '@/client/console/parliament/politicalSources';
+import {politicalEffectEntries} from '@/client/console/parliament/politicalEffects';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {PartyName} from '@/common/turmoil/PartyName';
@@ -224,28 +225,24 @@ describe('ConsolePartyPlaque — the places under the lowered law', () => {
   });
 });
 
-describe('ConsolePartyEffectsStrip — the rule under the kicker names the seat\'s own law', () => {
-  function strip(accessRows: Array<PartyAccessModel>) {
+describe('the effects explorer\'s political group — its meta line names the seat\'s own law', () => {
+  function entriesOf(accessRows: Array<PartyAccessModel>) {
     const model = {
       slots: [], enacted: undefined, rulingParty: PartyName.GREENS, popularSupport: {},
       players: [{color: BLUE, participates: true, lobby: true, reserve: 5, onResolutions: 0, chairman: false, agenda: 0, influence: 0, access: accessRows, partyActionUses: {}, resolutionActionUses: 0}],
       deckSize: 0, discardSize: 0, neutralSupply: 0,
     } as unknown as ParliamentModel;
-    return mount(ConsolePartyEffectsStrip, {...globalConfig, props: {parliament: model, color: BLUE}});
+    return politicalEffectEntries(politicalSources(model, BLUE), {parliament: model, viewerColor: BLUE});
   }
   const printedRows = (): Array<PartyAccessModel> => REDUX_PARTIES.map((p) => access({party: p, ruling: p === PartyName.GREENS, hasEffect: p === PartyName.GREENS, satisfiesRequirement: p === PartyName.GREENS}));
 
-  it('the printed two for a seat without the card; one delegate and the card for the owner — and the owner\'s single-cube row reads the card\'s line', () => {
-    const w = strip(printedRows());
-    expect(w.find('.con-pfx__sub').text()).to.eq('From the Parliament: the ruling party and every party with two of this player\'s delegates');
-    const owner = strip(printedRows().map((a) => (a.party === S ? lowered(1) : {...a, effectDelegates: 1, effectDelegatesBy: SEAT})));
-    expect(owner.find('.con-pfx__sub').text()).to.eq('From the Parliament: the ruling party and every party with one of this player\'s delegates (Council Seat)');
-    const row = owner.find(`.con-pfx__item[data-party="${S}"]`);
-    expect(row.exists()).is.true;
-    expect(row.findAll('.con-pfx__reason').map((r) => r.text())).to.deep.eq([
-      'You have it: one of your delegates is on its resolution (Council Seat: one is enough)',
-      'Card requirement of this party: not met — one delegate opens the effect, the requirement still asks for two',
-    ]);
+  it('the owner\'s single-cube party reads the card\'s line — the same access row the inspector reads (TR36)', () => {
+    expect(entriesOf(printedRows()).some((e) => e.party === S), 'no cube, no effect: the Scientists are not in the explorer').is.false;
+    const owner = entriesOf(printedRows().map((a) => (a.party === S ? lowered(1) : {...a, effectDelegates: 1, effectDelegatesBy: SEAT})));
+    const scientists = owner.find((e) => e.party === S);
+    expect(scientists, 'one delegate under the lowered law holds the effect').is.not.undefined;
+    expect(scientists!.access.key).to.eq('You have it: one of your delegates is on its resolution (${0}: one is enough)');
+    expect(scientists!.access.params).to.deep.eq(['Council Seat']);
   });
 });
 

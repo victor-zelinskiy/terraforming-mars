@@ -1,4 +1,5 @@
 import {test, expect, Page} from './consoleTest';
+import {expectLawLeadsEffects} from './parliamentDrive';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {SpaceBonus} from '../../src/common/boards/SpaceBonus';
@@ -111,14 +112,8 @@ test.describe('Development Craze (RX10) · the law pays a placement twice, visib
     // The dossier is two tiers (TR60): the driver walks the zones' own geometry, never a memorised key sequence.
     expect(await focusInfoZone(page, 'effects'), 'the effects zone takes the focus').toBe(true);
     expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-efx').count() > 0, {tries: 3, settleMs: 1100}), 'the effects explorer opens').toBe(true);
-    const strip = page.locator('.con-pfx');
-    await expect(strip, 'the Parliament strip stands in the explorer').toHaveCount(1, {timeout: 10_000});
-    const law = strip.locator('.con-pfx__item').first();
-    await expect(law, 'the LAW leads the strip').toHaveClass(/con-pfx__item--resolution/);
-    await expect(law).toHaveAttribute('data-resolution', CRAZE_ID);
-    await expect(law.locator('.con-pfx__law'), 'said for what it is').toHaveText(/Принятая резолюция/i);
-    await expect(law.locator('.con-pfx__title'), 'titled by the card').toHaveText(/Строительная лихорадка/i);
-    await expect(law.locator('.con-pformula__mech'), 'the card\'s own printed graphic').toHaveCount(1);
+    // «Один фреймворк»: the law is a GROUP of the explorer's grid, and it leads it.
+    await expectLawLeadsEffects(page, {id: CRAZE_ID, name: /Строительная лихорадка/i});
     await settle(page, {timeoutMs: 15_000, notifications: false});
     await shoot(page, '01-effects-strip');
     // Back to the board home.

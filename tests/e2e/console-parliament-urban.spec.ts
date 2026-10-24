@@ -2,7 +2,7 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, fetchPlayerModel, focusCard, playCardFromHand, press, pressUntil, settle, focusInfoZone} from './consoleStart';
-import {strandedReports} from './parliamentDrive';
+import {expectLawLeadsEffects, strandedReports} from './parliamentDrive';
 
 /**
  * URBAN DEVELOPMENT (Turmoil Redux, RX30) — the ONE e2e of the new mechanic: a
@@ -78,14 +78,10 @@ test.describe(`Urban Development · ${PRESET.id}`, () => {
     // The dossier is two tiers (TR60): the driver walks the zones' own geometry, never a memorised key sequence.
     expect(await focusInfoZone(page, 'effects'), 'the effects zone takes the focus').toBe(true);
     expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-efx').count() > 0, {tries: 3, settleMs: 1100}), 'the effects explorer opens').toBe(true);
-    const strip = page.locator('.con-pfx');
-    await expect(strip, 'the Parliament strip stands in the explorer').toHaveCount(1, {timeout: 10_000});
-    const lawRow = strip.locator('.con-pfx__item').first();
-    await expect(lawRow, 'the LAW leads the strip').toHaveClass(/con-pfx__item--resolution/);
-    await expect(lawRow).toHaveAttribute('data-resolution', URBAN_ID);
-    await expect(lawRow.locator('.con-pfx__title'), 'titled by the card').toHaveText(/Городское развитие|Urban Development/i);
-    // The rule is DRAWN, not left as a blank — the formula carries the card's own graphic.
-    const formula = lawRow.locator('.con-pfx__formula');
+    // «Один фреймворк»: the law is a GROUP of the explorer's grid, and it leads it.
+    const lawRow = await expectLawLeadsEffects(page, {id: URBAN_ID, name: /Городское развитие|Urban Development/i});
+    // The rule is DRAWN, not left as a blank — the tile carries the card's own printed effect.
+    const formula = lawRow.locator('.con-efx__tile .con-efx__graphic').first();
     await expect(formula, 'the law states its rule in graphics').toHaveCount(1);
     // The icons are CSS sprites, so «drawn» is read as «it has painted descendants with a box».
     const painted = await formula.evaluate((el) => Array.from(el.querySelectorAll('*'))

@@ -507,13 +507,13 @@ import {partyActionOf, ReduxParty, ResolutionId} from '@/common/parliament/Parli
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {partyEffectZoomEntry, resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
-import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamentManifest';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
-import {actionRowsOf} from '@/client/console/parliament/actionRows';
-import {accessRoadOf, allianceOf, parliamentPromptBridge, resolutionBillOf, resolutionPlayOf} from '@/client/console/parliament/consoleParliamentModel';
+import {parliamentActionSources as buildParliamentActionSources} from '@/client/console/parliament/parliamentActionSources';
+import {resolutionBillOf, resolutionPlayOf} from '@/client/console/parliament/consoleParliamentModel';
 import {PartyAccessModel} from '@/common/models/ParliamentModel';
 import {beginPartyColonyTrade} from '@/client/console/colonyTrade/colonyTradeEntry';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
@@ -524,7 +524,7 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {findPerformActionCard, findTradeColonyContext} from '@/client/console/turnIntents';
+import {findPerformActionCard} from '@/client/console/turnIntents';
 import {consoleRepeatPickState, resolveConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {consoleRepeatPickUi, setConsoleRepeatPickCommands} from '@/client/console/consoleRepeatPickUi';
 import {translateText} from '@/client/directives/i18n';
@@ -875,66 +875,17 @@ export default defineComponent({
       return this.playerView.game.parliament?.players.find((p) => p.color === color)?.access ?? [];
     },
     parliamentActionSources(): Array<ParliamentActionSource> {
-      const viewer = this.playerView.game.parliament?.viewer;
-      if (viewer === undefined || this.repeat) {
+      // ONE builder for every host of these tiles (`parliament/parliamentActionSources`): the server's verdicts, the
+      // execution gate from the live menu (the prompt bridge; Unity's trade by its marked payment path).
+      if (this.repeat) {
         return [];
       }
-      const bridge = parliamentPromptBridge(this.playerView.waitingFor);
-      // The Unity trade rides the colony TRADE action, never a menu branch of
-      // its own: it is offered exactly when the live trade prompt carries the
-      // payment path marked with the Unity party (`metadata.party`).
-      const trade = findTradeColonyContext(this.playerView.waitingFor);
-      const unityOffered = trade !== undefined && trade.paymentOptions.some((o) => o.metadata?.party === PartyName.UNITY);
-      const out: Array<ParliamentActionSource> = [];
-      for (const action of viewer.partyActions) {
-        if (!action.hasAccess) {
-          continue;
-        }
-        const effect = getPartyEffect(action.party);
-        const offered = action.id === 'unity-trade' ? unityOffered : bridge.actions[action.id] !== undefined;
-        // THE ROAD (TR62): an action held by the alliance names its partner on the plate (the one helper reads it).
-        const access = this.viewerPartyAccess.find((a) => a.party === action.party);
-        const allyVia = accessRoadOf(access) === 'alliance' ? allianceOf(access)?.via : undefined;
-        out.push({
-          party: action.party,
-          actionId: action.id,
-          ...(allyVia !== undefined ? {allyVia} : {}),
-          renderRoot: effect?.actionRenderData ?? effect?.passiveRenderData,
-          rule: effect?.text.action ?? effect?.text.rule ?? '',
-          usesLeft: action.usesLeft,
-          usesPerGeneration: action.usesPerGeneration,
-          available: action.available,
-          reason: action.reason,
-          offered,
-          awaitingInput: this.playerView.waitingFor !== undefined,
-          preview: action.preview,
-        });
-      }
-      // THE ENACTED RESOLUTION'S ACTION (Open IP Trade): the law's own verdict
-      // (`viewer.resolutionAction`), its face's printed action row, offered
-      // exactly when the live menu carries the option with its marker. A seat
-      // outside the parliament holds no law and is not listed.
-      const law = viewer.resolutionAction;
-      if (law !== undefined && law.hasAccess) {
-        const resolution = getResolution(law.resolution);
-        out.push({
-          resolution: law.resolution,
-          party: law.party,
-          name: resolution?.text.name ?? law.resolution,
-          renderRoot: resolution === undefined ? undefined : actionRowsOf(resolution.renderData),
-          rule: resolution?.text.action ?? '',
-          usesLeft: law.usesLeft,
-          usesPerGeneration: law.usesPerGeneration,
-          available: law.available,
-          reason: law.reason,
-          offered: bridge.resolutionAction !== undefined && bridge.resolutionAction.resolution === law.resolution,
-          awaitingInput: this.playerView.waitingFor !== undefined,
-          preview: law.preview,
-          ...(resolution?.actionBill === undefined ? {} : {bill: resolution.actionBill}),
-          ...(law.futile === undefined ? {} : {futile: law.futile}),
-        });
-      }
-      return out;
+      return buildParliamentActionSources({
+        parliament: this.playerView.game.parliament,
+        color: this.playerView.thisPlayer?.color,
+        viewerColor: this.playerView.thisPlayer?.color,
+        waitingFor: this.playerView.waitingFor,
+      });
     },
     /** The focused law's FACE (the dossier's hero for a resolution tile). */
     focusedResolutionVm(): PremiumCardVM | undefined {

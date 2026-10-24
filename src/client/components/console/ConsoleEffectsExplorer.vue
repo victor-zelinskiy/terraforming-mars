@@ -118,12 +118,21 @@
               <div v-if="ftileStatLine(focusedFTile) !== ''" class="con-efx__detail-count">{{ ftileStatLine(focusedFTile) }}</div>
             </template>
             <template v-else-if="focusedGroup !== undefined">
-              <div class="con-efx__detail-name" v-i18n>{{ focusedGroup.cardName }}</div>
+              <div class="con-efx__detail-name" v-i18n>{{ groupTitle(focusedGroup) }}</div>
+              <!-- A PARTY / the LAW (Turmoil Redux «один фреймворк»): its own face stands where a card's would — the
+                   party's emblem over its printed standing effect, the law's face; the badge is the plate's. -->
               <div class="con-efx__detail-cardwrap"
                    data-effect-flow-thumb
-                   :data-zoom-slot="detailUp ? undefined : focusedGroup.cardName">
-                <div :key="focusedGroup.cardName" class="con-efx__detail-card">
+                   :data-zoom-slot="detailUp ? undefined : groupZoomName(focusedGroup)">
+                <div v-if="focusedGroup.cardName !== undefined" :key="focusedGroup.key" class="con-efx__detail-card">
                   <ConsoleCardFaceLite :name="focusedGroup.cardName" :card="liveCard(focusedGroup.cardName)" />
+                </div>
+                <div v-else-if="focusedGroup.source.kind === 'law'" :key="focusedGroup.key" class="con-efx__detail-card con-efx__detail-card--law">
+                  <premium-card-face v-if="lawFaceVm(focusedGroup) !== undefined" :vmOverride="lawFaceVm(focusedGroup)" :lightweight="true" :inert="true" />
+                </div>
+                <div v-else :key="focusedGroup.key" class="con-efx__detail-party" :style="{'--parl-accent': partyAccentOf(focusedGroup)}">
+                  <img class="con-efx__detail-emblem" :src="partyEmblemOf(focusedGroup)" alt="" />
+                  <ConsolePartyFormula class="con-efx__detail-formula" :party="politicalParty(focusedGroup)" :renderRoot="partyPassiveRoot(focusedGroup)" size="wide" />
                 </div>
               </div>
               <span v-if="focusedTile !== undefined"
@@ -250,7 +259,14 @@
                            'con-efx__group--live': groupIsLive(g),
                            'con-efx__group--disabled': g.isDisabled,
                          }">
-                  <div class="con-efx__plate">
+                  <!-- A political source's plate wears the BADGE — the party's emblem, the kicker («ЭФФЕКТ ПАРТИИ» /
+                       «ЭФФЕКТ, ПОКА ПРИНЯТА»), its name, the party's accent on the edge — and nothing else differs. -->
+                  <div v-if="g.cardName === undefined" class="con-efx__plate con-efx__plate--political" :data-efx-source="g.key" :style="{'--parl-accent': partyAccentOf(g)}">
+                    <img class="con-efx__plate-emblem" :src="partyEmblemOf(g)" alt="" />
+                    <span class="con-efx__plate-kicker" v-i18n>{{ g.source.kind === 'law' ? 'Effect while enacted' : 'Party effect' }}</span>
+                    <span class="con-efx__plate-name" v-i18n>{{ groupTitle(g) }}</span>
+                  </div>
+                  <div v-else class="con-efx__plate">
                     <span class="con-efx__plate-name" v-i18n>{{ g.cardName }}</span>
                     <span v-if="plateChip(g) !== undefined" class="con-efx__plate-chip">
                       <span class="con-efx__res-icon" :class="plateChip(g)?.icon" aria-hidden="true"></span>
@@ -259,8 +275,8 @@
                     <!-- A FLEET DOCK with the trade fleet standing on it (TR06 Water
                          Hauling): the card's STATE, not a used action — it never
                          dims like a disabled card. -->
-                    <span v-if="fleetDockedOn(g.cardName) !== undefined" class="con-efx__plate-state" data-efx-fleet-docked>
-                      <ColonyFleetIcon class="con-efx__plate-ship" :color="fleetDockedOn(g.cardName) ?? 'neutral'" />
+                    <span v-if="g.cardName !== undefined && fleetDockedOn(g.cardName) !== undefined" class="con-efx__plate-state" data-efx-fleet-docked>
+                      <ColonyFleetIcon class="con-efx__plate-ship" :color="fleetDockedOn(g.cardName!) ?? 'neutral'" />
                       <span v-i18n>Trade fleet docked · returns next generation</span>
                     </span>
                   </div>
@@ -304,6 +320,10 @@
                         <span v-else-if="tile.meta.kind === 'cardScoped'" class="con-efx__meta-line con-efx__meta-line--scoped">
                           <span v-i18n>{{ tile.meta.label }}</span>
                         </span>
+                        <span v-else-if="tile.meta.kind === 'access'" class="con-efx__meta-line con-efx__meta-line--access"
+                              :class="{'con-efx__meta-line--warn': tile.meta.tone === 'warn'}" data-efx-access>
+                          <span>{{ accessText(tile.meta) }}</span>
+                        </span>
                       </span>
                     </button>
                   </div>
@@ -323,9 +343,16 @@
                   @enter-cancelled="effectsFocusEnterCancelledHook"
                   @leave-cancelled="effectsFocusLeaveCancelledHook">
         <div v-if="detailUp" ref="stageEl" key="stage" class="con-efx__stage">
-          <div class="con-efx__hero" data-effect-focus-card :data-zoom-slot="detailCardName !== '' ? detailCardName : undefined">
+          <div class="con-efx__hero" data-effect-focus-card :data-zoom-slot="detailZoomName">
             <div v-if="detailCardName !== ''" :key="detailCardName" class="con-efx__hero-card">
               <ConsoleCardFaceLite :name="detailCardName" :card="forecastMode ? liveCardOf(detailCardName, detailOwner) : liveCard(detailCardName)" />
+            </div>
+            <!-- A PARTY / the LAW: the party's plaque, the law's face — in the hero's slot, at the hero's place. -->
+            <div v-else-if="detailPolitical !== undefined && detailPolitical.source.kind === 'law'" :key="detailPolitical.key" class="con-efx__hero-card con-efx__hero-card--law">
+              <premium-card-face v-if="lawVmOf(detailPolitical.source.resolution) !== undefined" :vmOverride="lawVmOf(detailPolitical.source.resolution)" :lightweight="true" :inert="true" />
+            </div>
+            <div v-else-if="detailPolitical !== undefined" :key="detailPolitical.key" class="con-efx__hero-plaque">
+              <ConsolePartyPlaque :party="detailPolitical.party" size="hero" />
             </div>
             <!-- A cardless source (a party policy, the cardless discount
                  remainder) keeps the hero column's geometry with its glyph. -->
@@ -375,8 +402,9 @@
                   <div v-else class="con-efx__rule-graphic"><span class="con-efx__graphic-text" v-i18n v-strip-effect-prefix>{{ detailEntry?.text }}</span></div>
                 </div>
                 <p v-if="detailRule !== ''" class="con-efx__rule-text" v-i18n v-strip-effect-prefix>{{ detailRule }}</p>
+                <p v-if="detailPolitical !== undefined" class="con-efx__rule-access" :class="{'con-efx__rule-access--warn': detailPolitical.access.tone === 'warn'}" data-efx-access>{{ accessText({label: detailPolitical.access.key, params: detailPolitical.access.params}) }}</p>
               </div>
-              <div v-if="!forecastMode || detailSummaryAvailable" class="con-efx__summary" :class="{'con-efx__summary--quiet': forecastMode}" data-unfold-item>
+              <div v-if="detailSummaryAvailable" class="con-efx__summary" :class="{'con-efx__summary--quiet': forecastMode}" data-unfold-item>
                 <ConsoleEffectSummary :summary="detailSummary" />
               </div>
             </ConsoleScrollArea>
@@ -403,15 +431,20 @@ import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import type {ICardRenderEffect, ICardRenderRoot} from '@/common/cards/render/Types';
 import {EffectForecast, EffectForecastRecipient, forecastSourceIsCardless} from '@/common/models/EffectForecastModel';
 import {REDUX_PARTIES, ReduxParty} from '@/common/parliament/ParliamentTypes';
-import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
-import {getResolution} from '@/client/parliament/ClientParliamentManifest';
+import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
+import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {getCard} from '@/client/cards/ClientCardManifest';
-import {EffectEntry, playerEffects} from '@/client/components/effects/effectExtraction';
+import {EffectEntry, ExplorerEntry, PoliticalEffectEntry, isPoliticalEntry, playerEffects} from '@/client/components/effects/effectExtraction';
+import {partyEffectZoomEntry, resolutionZoomEntry, ZoomCard} from '@/client/components/card/cardZoomTypes';
+import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
+import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
+import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
+import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 import {EffectRules, effectRules} from '@/client/components/effects/effectDescription';
 import {EffectSummaryViewModel, emptyEffectOverlayStat, getEffectSummary} from '@/client/components/effects/effectSummary';
 import {perEffectStat} from '@/client/components/effects/effectChannels';
@@ -478,7 +511,8 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import PremiumPartyRequirementGlyph from '@/client/components/premiumCard/PremiumPartyRequirementGlyph.vue';
 
-type ExplorerTile = EffectsTileVm<EffectEntry>;
+type ExplorerTile = EffectsTileVm<ExplorerEntry>;
+type ExplorerGroup = EffectsGroupVm<ExplorerEntry>;
 type ScrollAreaRef = InstanceType<typeof ConsoleScrollArea> & {
   scrollByPx: (dy: number) => void,
   ensureVisible: (el: Element) => void,
@@ -516,7 +550,7 @@ type ForecastQuestion = {
 
 export default defineComponent({
   name: 'ConsoleEffectsExplorer',
-  components: {ConsoleScrollArea, ConsoleCardFaceLite, ConsoleEffectSummary, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph, ColonyFleetIcon, PremiumPartyRequirementGlyph},
+  components: {ConsoleScrollArea, ConsoleCardFaceLite, ConsoleEffectSummary, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph, ColonyFleetIcon, PremiumPartyRequirementGlyph, ConsolePartyPlaque, ConsolePartyFormula},
   directives: {stripEffectPrefix},
   props: {
     /** The inspected seat's tableau (or any future host's card set). In the
@@ -524,6 +558,12 @@ export default defineComponent({
     cards: {type: Array as PropType<ReadonlyArray<CardModel>>, required: true},
     /** The seat identity — a change drops the detail layer instantly. */
     color: {type: String, required: true},
+    /**
+     * THE PARLIAMENT'S standing effects of this seat (Turmoil Redux «один фреймворк») — built by the host
+     * (`politicalEffectEntries(politicalSources(…))`), shown as ordinary groups of the grid, FIRST (decision Р1: the law,
+     * the ruling party, then the board's order). Stats mode only.
+     */
+    politicalEntries: {type: Array as PropType<ReadonlyArray<PoliticalEffectEntry>>, default: () => []},
     /** The seat's effect stats (undefined = loading — metas claim nothing). */
     stats: {type: Array as PropType<ReadonlyArray<EffectOverlayStat>>, default: undefined},
     /**
@@ -571,8 +611,8 @@ export default defineComponent({
     forecastMode(): boolean {
       return this.mode === 'forecast';
     },
-    entries(): ReadonlyArray<EffectEntry> {
-      return playerEffects(this.cards);
+    entries(): ReadonlyArray<ExplorerEntry> {
+      return this.forecastMode ? playerEffects(this.cards) : [...this.politicalEntries, ...playerEffects(this.cards)];
     },
     columns(): 1 | 2 {
       // The FORECAST layer stands in a composer's work column — half the
@@ -581,7 +621,7 @@ export default defineComponent({
       // reading measure (two abreast truncated both at 4K).
       return consoleLayoutState.profile === 'handheld' || this.forecastMode ? 1 : 2;
     },
-    model(): EffectsBrowseModel<EffectEntry> {
+    model(): EffectsBrowseModel<ExplorerEntry> {
       return buildEffectsBrowseModel({
         entries: this.entries,
         tableau: this.cards,
@@ -678,7 +718,7 @@ export default defineComponent({
     focusedTile(): ExplorerTile | undefined {
       return this.forecastMode ? undefined : this.tileByKey.get(this.ui.focusKey);
     },
-    focusedGroup(): EffectsGroupVm<EffectEntry> | undefined {
+    focusedGroup(): ExplorerGroup | undefined {
       return this.forecastMode ? undefined : this.model.groups.find((g) => g.tiles.some((t) => t.key === this.ui.focusKey));
     },
     focusedRule(): string {
@@ -720,6 +760,19 @@ export default defineComponent({
     detailCardName(): CardName {
       return this.ui.detail?.cardName ?? ('' as CardName);
     },
+    /** The open dossier's POLITICAL entry (a party / the law), else undefined. */
+    detailPolitical(): PoliticalEffectEntry | undefined {
+      const entry = this.forecastMode ? undefined : this.detailTile?.entry;
+      return entry !== undefined && isPoliticalEntry(entry) ? entry : undefined;
+    },
+    /** The hero's zoom-slot key — the card's name, the party's / the law's zoom entry name, else none. */
+    detailZoomName(): string | undefined {
+      if (this.detailCardName !== '') {
+        return this.detailCardName;
+      }
+      const political = this.detailPolitical;
+      return political === undefined ? undefined : politicalZoomName(political);
+    },
     /** Forecast mode: the seat holding the open dossier's source. */
     detailOwner(): Color | undefined {
       const tile = this.detailFTile;
@@ -727,7 +780,7 @@ export default defineComponent({
     },
     /** The printed effect the open dossier stands on (stats: the tile's
      *  entry; forecast: the ATTRIBUTED one, or none). */
-    detailEntry(): EffectEntry | undefined {
+    detailEntry(): ExplorerEntry | undefined {
       if (this.forecastMode) {
         const tile = this.detailFTile;
         return tile === undefined ? undefined : this.ftileEntry(tile);
@@ -756,24 +809,26 @@ export default defineComponent({
      *  standing forever). */
     detailSummaryAvailable(): boolean {
       if (!this.forecastMode) {
-        return true;
+        // A political source keeps no statistic — the block is honestly absent, never a skeleton standing forever.
+        return this.detailPolitical === undefined;
       }
       const tile = this.detailFTile;
       return tile !== undefined && this.detailEntry !== undefined && this.statsFor(this.ftileOwner(tile)) !== undefined;
     },
     detailSummary(): EffectSummaryViewModel | undefined {
-      const entry = this.detailEntry;
-      if (entry === undefined) {
+      const candidate = this.detailEntry;
+      if (candidate === undefined || isPoliticalEntry(candidate)) {
         return undefined;
       }
+      const entry: EffectEntry = candidate;
       const owner = this.forecastMode ? this.detailOwner : undefined;
       const stats = this.forecastMode ? this.statsFor(owner) : this.stats;
       if (stats === undefined) {
         return undefined; // loading — the skeleton renders, never a fake zero
       }
-      const cardEntries = this.forecastMode ?
+      const cardEntries: ReadonlyArray<EffectEntry> = this.forecastMode ?
         (this.forecastEntries.get(entry.cardName) ?? [entry]) :
-        this.entries.filter((e) => e.cardName === entry.cardName);
+        this.cardEntriesOf(entry.cardName);
       const cardStat = stats.find((s) => s.card === entry.cardName && (s.kind === 'corporation') === entry.isCorporation);
       const per = (!this.forecastMode ? this.detailTile?.per : undefined) ?? perEffectStat(entry, cardEntries, cardStat);
       const sourceKind = entry.isCorporation ? 'corporation' as const : 'card' as const;
@@ -919,14 +974,22 @@ export default defineComponent({
     statsFor(owner: Color | string | undefined): ReadonlyArray<EffectOverlayStat> | undefined {
       return owner === undefined ? undefined : this.statsByColor[owner];
     },
+    /** The card entries of one source card (stats mode). */
+    cardEntriesOf(cardName: CardName): Array<EffectEntry> {
+      return this.entries.filter((e): e is EffectEntry => !isPoliticalEntry(e) && e.cardName === cardName);
+    },
     /** The resolved rule record of one effect (info-group short + full). */
     rulesOf(tile: ExplorerTile | undefined): EffectRules | undefined {
       if (tile === undefined) {
         return undefined;
       }
       const entry = tile.entry;
-      const count = this.entries.filter((e) => e.cardName === entry.cardName).length;
-      return this.rulesOfEntry(entry, count);
+      if (isPoliticalEntry(entry)) {
+        // A party / a law: its printed sentence IS the rule (the catalog's `text.passive`, one per block).
+        const text = entry.description ?? entry.text ?? '';
+        return text === '' ? undefined : {lines: [{kind: 'rule', text}], summary: text, curated: false};
+      }
+      return this.rulesOfEntry(entry, this.cardEntriesOf(entry.cardName).length);
     },
     rulesOfEntry(entry: EffectEntry, count: number): EffectRules | undefined {
       return effectRules({
@@ -940,6 +1003,52 @@ export default defineComponent({
     /** The FULL rule — the dossier's and the detail stage's reading. */
     fullRuleOf(tile: ExplorerTile | undefined): string {
       return this.rulesOf(tile)?.lines[0]?.text ?? tile?.entry.description ?? tile?.entry.text ?? '';
+    },
+    /** A group's NAME key — the card, the party's glossary name, the law's printed name. */
+    groupTitle(g: ExplorerGroup): string {
+      const first = g.tiles[0]?.entry;
+      return first !== undefined && isPoliticalEntry(first) ? first.title : (g.cardName ?? '');
+    },
+    /** A political group's badge party (a law wears its own party). */
+    politicalParty(g: ExplorerGroup): ReduxParty {
+      const first = g.tiles[0]?.entry;
+      return (first !== undefined && isPoliticalEntry(first) ? first.party : REDUX_PARTIES[0]) as ReduxParty;
+    },
+    partyEmblemOf(g: ExplorerGroup): string {
+      return partyEmblemUrl(this.politicalParty(g));
+    },
+    partyAccentOf(g: ExplorerGroup): string {
+      return partyAccent(this.politicalParty(g));
+    },
+    /** The party's PASSIVE root — the dossier column draws only the standing effect (its action lives in «Действия карт»). */
+    partyPassiveRoot(g: ExplorerGroup): ICardRenderRoot | undefined {
+      return g.source.kind === 'party' ? getPartyEffect(g.source.party)?.passiveRenderData : undefined;
+    },
+    lawVmOf(resolution: string): PremiumCardVM | undefined {
+      const law = getResolution(resolution);
+      return law === undefined ? undefined : resolutionPremiumVm(law);
+    },
+    lawFaceVm(g: ExplorerGroup): PremiumCardVM | undefined {
+      return g.source.kind === 'law' ? this.lawVmOf(g.source.resolution) : undefined;
+    },
+    /** A group's zoom-slot key — the card's name, or its zoom entry's name (`PARTY_<party>` / the law's id). */
+    groupZoomName(g: ExplorerGroup): string {
+      if (g.cardName !== undefined) {
+        return g.cardName;
+      }
+      const first = g.tiles[0]?.entry;
+      return first !== undefined && isPoliticalEntry(first) ? politicalZoomName(first) : g.key;
+    },
+    /** What X opens for a group — the live card, the party's effect, the law's face. */
+    groupZoomCard(g: ExplorerGroup): ZoomCard {
+      if (g.cardName !== undefined) {
+        return this.liveCard(g.cardName);
+      }
+      return g.source.kind === 'law' ? resolutionZoomEntry(g.source.resolution) : partyEffectZoomEntry(this.politicalParty(g));
+    },
+    /** The access reading (an i18n key + its params, the names already translated). */
+    accessText(meta: {label: string, params: ReadonlyArray<string>}): string {
+      return meta.params.length > 0 ? translateTextWithParams(meta.label, [...meta.params]) : translateText(meta.label);
     },
     tileOrdinal(tile: ExplorerTile): string {
       return `${translateText('Effect')} ${tile.entry.effectIndex + 1}`;
@@ -961,7 +1070,10 @@ export default defineComponent({
     fleetDockedOn(cardName: CardName): Color | undefined {
       return this.cards.find((c) => c.name === cardName)?.fleetDocked;
     },
-    plateChip(g: EffectsGroupVm<EffectEntry>): {icon: string, count: number} | undefined {
+    plateChip(g: ExplorerGroup): {icon: string, count: number} | undefined {
+      if (g.cardName === undefined) {
+        return undefined;
+      }
       const resourceType = getCard(g.cardName)?.resourceType;
       if (resourceType === undefined) {
         return undefined;
@@ -969,7 +1081,7 @@ export default defineComponent({
       const live = this.liveCard(g.cardName);
       return {icon: iconClassFor(String(resourceType)), count: live.resources ?? 0};
     },
-    groupIsLive(g: EffectsGroupVm<EffectEntry>): boolean {
+    groupIsLive(g: ExplorerGroup): boolean {
       return g.tiles.some((t) => t.key === this.ui.focusKey);
     },
     setFamily(id: EffectFamily | 'all'): void {
@@ -1441,13 +1553,17 @@ export default defineComponent({
       this.descendFocused();
     },
     /** The identity the detail layer opens on for the focused tile. */
-    detailIdentityOf(key: string): {cardName: CardName, effectKey: string} | undefined {
+    detailIdentityOf(key: string): {cardName: CardName, effectKey: string, title?: string} | undefined {
       if (this.forecastMode) {
         const tile = this.ftileByKey.get(key);
         return tile === undefined ? undefined : {cardName: this.ftileCard(tile) ?? ('' as CardName), effectKey: key};
       }
       const tile = this.tileByKey.get(key);
-      return tile === undefined ? undefined : {cardName: tile.entry.cardName, effectKey: key};
+      if (tile === undefined) {
+        return undefined;
+      }
+      // A party / the law has no card: the crumb names it by its own title (the stage tail «ЭФФЕКТЫ · КРАСНЫЕ»).
+      return isPoliticalEntry(tile.entry) ? {cardName: '' as CardName, effectKey: key, title: tile.entry.title} : {cardName: tile.entry.cardName, effectKey: key};
     },
     /** A on a tile — the WORKSPACE DESCEND into the effect dossier. Arming is
      *  SYNCHRONOUS in the press handler (armed rects expire in 1 s). */
@@ -1522,11 +1638,11 @@ export default defineComponent({
       if (groups.length === 0 || at === -1) {
         return;
       }
-      openConsoleCardZoom(groups.map((g) => this.liveCard(g.cardName)), at, undefined, undefined, {
+      openConsoleCardZoom(groups.map((g) => this.groupZoomCard(g)), at, undefined, undefined, {
         contextLabel: 'Effects',
         origin: slotZoomOrigin(
           () => this.$refs.rootEl as HTMLElement,
-          (i) => groups[i]?.cardName ?? '',
+          (i) => (groups[i] === undefined ? '' : this.groupZoomName(groups[i])),
           (i) => {
             const g = groups[i];
             if (g !== undefined) {
@@ -1573,6 +1689,17 @@ export default defineComponent({
     },
     /** X at detail — the hero card fullscreen (one-card list, hero slot). */
     inspectDetail(): void {
+      const political = this.detailPolitical;
+      if (political !== undefined) {
+        // A party's effect / the law's face — the same viewer the Parliament's X opens.
+        const zoomName = politicalZoomName(political);
+        const card = political.source.kind === 'law' ? resolutionZoomEntry(political.source.resolution) : partyEffectZoomEntry(political.party);
+        openConsoleCardZoom([card], 0, undefined, undefined, {
+          contextLabel: 'Effects',
+          origin: slotZoomOrigin(() => this.$refs.rootEl as HTMLElement, () => zoomName),
+        });
+        return;
+      }
       const name = this.ui.detail?.cardName;
       if (name === undefined || name === '') {
         return;
@@ -1585,6 +1712,11 @@ export default defineComponent({
     },
   },
 });
+
+/** The zoom-entry name of a political source — `PARTY_<party>` for a party's effect, the law's id (`cardZoomTypes`). */
+function politicalZoomName(entry: PoliticalEffectEntry): string {
+  return entry.source.kind === 'law' ? resolutionZoomEntry(entry.source.resolution).name : partyEffectZoomEntry(entry.party).name;
+}
 
 /** The «ПОРЯДОК» band names a payout by its resource WORD (i18n keys of the
  *  resource names the console already carries). */

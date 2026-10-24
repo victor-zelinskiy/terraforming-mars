@@ -211,19 +211,16 @@
            «За партию» stats). One component; its detail is a LAYER, so a
            level change is the explorer's own descend phrase. -->
       <div v-else-if="infoModeState.route === 'effects'" key="effects" class="con-info__efxhost" data-info-zone="effects" data-insp-slide>
-        <!-- Turmoil Redux: the PARTY EFFECTS this seat holds stand beside the
-             card effects — the same premium rendering the Parliament uses,
-             each with WHY the seat holds it. Absent without the module. -->
         <!-- TR49 class: what the seat has ARMED for its next card (the public model — a rival's too). -->
         <ConsoleArmedEffectsSection :player="viewed" />
-        <ConsolePartyEffectsStrip v-if="playerView.game.parliament !== undefined"
-                                  :parliament="playerView.game.parliament"
-                                  :color="viewed.color"
-                                  :playerNames="playerNamesByColor" />
+        <!-- Turmoil Redux «один фреймворк»: the PARLIAMENT's standing effects this seat holds (the law, the ruling
+             party, every party held by a road of its own) are GROUPS OF THE SAME GRID — focusable, faceted, counted,
+             X-inspectable — with the party's badge; the meta line reads WHY the seat holds each. -->
         <ConsoleEffectsExplorer ref="effectsView"
                                 :cards="viewed.tableau"
                                 :color="viewed.color"
-                                :stats="effectsStats" />
+                                :stats="effectsStats"
+                                :politicalEntries="effectsPolitical" />
       </div>
 
       <!-- ── «ЭКРАН БОТА» и его вложенные маршруты — the bot's internals
@@ -287,7 +284,10 @@ import {botTableauCards} from '@/client/components/marsbot/marsBotView';
 import {consolePlayedUi} from '@/client/console/consolePlayedUi';
 import ConsolePlayedOverlay from '@/client/components/console/played/ConsolePlayedOverlay.vue';
 import {cardHasAction} from '@/client/components/actions/actionExtraction';
-import {playerEffects} from '@/client/components/effects/effectExtraction';
+import {PoliticalEffectEntry, playerEffects} from '@/client/components/effects/effectExtraction';
+import {politicalSources} from '@/client/console/parliament/politicalSources';
+import {politicalEffectEntries} from '@/client/console/parliament/politicalEffects';
+import {dossierPoliticalActions, parliamentActionSources} from '@/client/console/parliament/parliamentActionSources';
 import {EffectsZoneCounts, effectsZoneCounts, effectsZoneStatsLine} from '@/client/console/effectsExplorerModel';
 import {effectStatsFor, effectStatsVersion, ensureEffectStats} from '@/client/console/effectStatsStore';
 import {effectsExplorerUi, effectsStagePath} from '@/client/console/consoleEffectsExplorer';
@@ -304,7 +304,7 @@ import {
 } from '@/client/console/infoRoute';
 import {buildScoreOverview, maArtSlug, scoreStagePath} from '@/client/console/scoreExplorerModel';
 import {
-  DossierActionTile, dossierActionTiles, DossierCardHistory, dossierCardHistory, DossierEffectFamily, dossierEffectFamilies,
+  DossierActionTile, dossierActionTiles, withPoliticalActionTiles, DossierCardHistory, dossierCardHistory, DossierEffectFamily, dossierEffectFamilies,
   DossierMedallion, dossierMedallions, DossierSealedFacts, dossierSealedFacts,
 } from '@/client/console/infoDossierModel';
 import ConsoleDossierScore from '@/client/components/console/info/ConsoleDossierScore.vue';
@@ -328,7 +328,6 @@ import {
 import ConsoleScoreExplorer from '@/client/components/console/ConsoleScoreExplorer.vue';
 import ConsoleExtrasExplorer from '@/client/components/console/ConsoleExtrasExplorer.vue';
 import ConsoleEffectsExplorer from '@/client/components/console/ConsoleEffectsExplorer.vue';
-import ConsolePartyEffectsStrip from '@/client/components/console/ConsolePartyEffectsStrip.vue';
 import {seatRestricted} from '@/common/models/ParliamentModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import ConsoleArmedEffectsSection from '@/client/components/console/ConsoleArmedEffectsSection.vue';
@@ -365,7 +364,7 @@ export default defineComponent({
   name: 'ConsoleInfoMode',
   components: {
     ConsoleCampaignOverview, ConsoleMarsBotSections, ConsolePlayedOverlay, ConsoleScoreExplorer, ConsoleExtrasExplorer, ConsoleEffectsExplorer,
-    ConsoleInfoParliament, ConsolePartyEffectsStrip, ConsoleArmedEffectsSection, ConsoleWsHead, GamepadGlyph,
+    ConsoleInfoParliament, ConsoleArmedEffectsSection, ConsoleWsHead, GamepadGlyph,
     ConsoleDossierScore, ConsoleDossierSealed, ConsoleDossierCards, ConsoleDossierActions, ConsoleDossierEffects, ConsoleDossierParliament,
     ConsoleInfoActionGallery, ConsoleDossierCampaign,
   },
@@ -650,7 +649,15 @@ export default defineComponent({
           return false;
         }
       };
-      return dossierActionTiles(this.viewed.tableau, hasAction, new Set(this.viewed.actionsThisGeneration ?? []), this.isSelf);
+      const cards = dossierActionTiles(this.viewed.tableau, hasAction, new Set(this.viewed.actionsThisGeneration ?? []), this.isSelf);
+      // The Parliament's actions stand among the seat's actions like cards (the gallery behind the zone lists them too).
+      const political = parliamentActionSources({
+        parliament: this.playerView.game.parliament,
+        color: this.viewed.color,
+        viewerColor: this.playerView.thisPlayer?.color,
+        waitingFor: this.isSelf ? this.playerView.waitingFor : undefined,
+      });
+      return withPoliticalActionTiles(cards, dossierPoliticalActions(political));
     },
     dossierEffects(): ReadonlyArray<DossierEffectFamily> {
       return dossierEffectFamilies(this.effectsZone, this.armedCount);
@@ -696,8 +703,18 @@ export default defineComponent({
     armedCount(): number {
       return this.viewed.armedPlayEffects?.length ?? 0;
     },
+    /** The Parliament's standing effects the inspected seat holds — groups of the explorer's grid, counted in the zone. */
+    effectsPolitical(): ReadonlyArray<PoliticalEffectEntry> {
+      const parliament = this.playerView.game.parliament;
+      return politicalEffectEntries(politicalSources(parliament, this.viewed.color), {
+        parliament,
+        viewerColor: this.playerView.thisPlayer?.color,
+        playerNames: this.playerNamesByColor,
+      });
+    },
     effectsZone(): EffectsZoneCounts {
-      return effectsZoneCounts(playerEffects(this.viewed.tableau), this.viewed.tableau);
+      // ONE count with the grid: a party's / the law's effect is an effect of this seat like a card's (the zone never lies).
+      return effectsZoneCounts([...this.effectsPolitical, ...playerEffects(this.viewed.tableau)], this.viewed.tableau);
     },
     /** The zone's quiet whole-game line («Срабатываний: N · Сэкономлено: M»). */
     effectsZoneNote(): string {
@@ -1162,7 +1179,7 @@ export default defineComponent({
     /** A detail's cascade rows: the known blocks of each detail, else the host's own children (entry / exit choreography). */
     detailRows(host: HTMLElement): Array<HTMLElement> {
       const known = Array.from(host.querySelectorAll<HTMLElement>(
-        '.con-efx__filters, .con-efx__detail, .con-efx__group, .con-efx__empty, .con-pfx, .con-armed-sec, ' +
+        '.con-efx__filters, .con-efx__detail, .con-efx__group, .con-efx__empty, .con-armsec, ' +
         '.con-info__parl-sec, .con-info__empty--big, .con-dgal__tile, .con-dgal__void, .con-dgal__legend'));
       return known.length > 0 ? known : Array.from(host.children) as Array<HTMLElement>;
     },

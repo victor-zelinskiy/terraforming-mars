@@ -311,9 +311,10 @@ describe('parliament glossary — one word per concept (static guard)', () => {
     expect(group.includes('partyNameKeyOf(group.party)') && actions.includes('partyNameKeyOf(focusedTile.party)'), 'the plate and the detail go through the glossary key').to.equal(true);
     const i18n = fs.readFileSync(path.join(ROOT, 'src', 'client', 'directives', 'i18n.ts'), 'utf8');
     expect(/case LogMessageDataType\.PARTY:[\s\S]{0,900}partyNameKey\(/.test(i18n), 'a PARTY token of a rendered message speaks the glossary key').to.equal(true);
-    // The «ЭФФЕКТЫ ПАРТИЙ» strip titles a row by the party (PL-122 — it printed «Ученые» while the Parliament says «Учёные»).
-    const strip = fs.readFileSync(path.join(ROOT, 'src', 'client', 'components', 'console', 'ConsolePartyEffectsStrip.vue'), 'utf8');
-    expect(strip.includes('title: partyNameKey(party)'), 'the effects strip titles a party row by the glossary key').to.equal(true);
+    // The effects explorer titles a party's group by the party (PL-122 — the old strip printed «Ученые» while the
+    // Parliament says «Учёные»; «один фреймворк» moved the title into the explorer's political entries).
+    const effects = fs.readFileSync(path.join(ROOT, 'src', 'client', 'console', 'parliament', 'politicalEffects.ts'), 'utf8');
+    expect(effects.includes('partyNameKey(source.party)'), 'the explorer titles a party group by the glossary key').to.equal(true);
   });
 
   it('THE CLASS: no client file translates a party by its bare upstream key — `$t(x.party)` / `translateText(party)` (PL-109 / PL-110 / PL-122)', () => {

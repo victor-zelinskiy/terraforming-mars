@@ -1114,6 +1114,11 @@ export type ParliamentActionSourceBase = {
   awaitingInput: boolean;
   /** The server's result chips. */
   preview: ReadonlyArray<ActionEffect>;
+  /**
+   * ANOTHER SEAT's action, read in a read-only gallery (Information): only its public uses are known, and it reads
+   * like another seat's card — shown, never activatable («Вы смотрите действия другого игрока»).
+   */
+  foreign?: boolean;
 };
 
 export type PartyActionSource = ParliamentActionSourceBase & {
@@ -1179,6 +1184,11 @@ function parliamentSourceStatus(source: ParliamentActionSourceBase, usedKey: str
     status = 'activated';
     reason = reasonFrom(usedKey, []);
     blocker = AVAILABILITY_BLOCKERS.DOMAIN;
+  } else if (source.foreign === true) {
+    // Another seat's — the same register as another seat's card (`computeActionState`): open information, never ours.
+    status = 'soft';
+    reason = reasonFrom('You are viewing another player\'s actions', []);
+    blocker = AVAILABILITY_BLOCKERS.EXECUTION_GATE;
   } else if (!source.available) {
     status = 'rules';
     reason = reasonFrom(source.reason === '' ? 'Unavailable right now' : source.reason, []);

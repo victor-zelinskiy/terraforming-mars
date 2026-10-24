@@ -1,13 +1,13 @@
 import {mount} from '@vue/test-utils';
 import {expect} from 'chai';
-import {globalConfig} from '../getLocalVue';
 import {Color} from '@/common/Color';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {Resource} from '@/common/Resource';
 import {ParliamentModel, ParliamentPlayerModel, PartyAccessModel} from '@/common/models/ParliamentModel';
 import {REDUX_PARTIES, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
-import ConsolePartyEffectsStrip from '@/client/components/console/ConsolePartyEffectsStrip.vue';
+import {politicalSources} from '@/client/console/parliament/politicalSources';
+import {politicalEffectEntries} from '@/client/console/parliament/politicalEffects';
 import {productionHorizonOn, voteYieldsOf, winSuffixesOf, yieldInfluenceEnters} from '@/client/console/parliament/influenceYieldModel';
 import {resolutionAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {quietRewardPoseOf} from '@/client/console/parliament/quietRewardPose';
@@ -135,15 +135,15 @@ describe('MetalResearchReadings (RX19)', () => {
     expect(pose?.text).eq('Each unit of your steel and titanium is worth 1 M€ more.');
   });
 
-  it('the effects strip LEADS with the law\'s row once enacted — titled by the card, wearing the Industrialists\' accent, drawing the printed graphic', () => {
+  it('the effects explorer LEADS with the law\'s group once enacted — titled by the card, wearing the Industrialists\' badge, drawing its printed effect block', () => {
     const law = metal();
-    const w = mount(ConsolePartyEffectsStrip, {...globalConfig, props: {parliament: enactedModel(), color: BLUE}});
-    const first = w.findAll('.con-pfx__item')[0];
-    expect(first.classes()).includes('con-pfx__item--resolution');
-    expect(first.attributes('data-resolution')).eq(METAL_ID);
-    expect(first.attributes('data-party')).eq(PartyName.INDUSTRIALISTS);
-    expect(first.find('.con-pfx__title').text()).eq(law.text.name);
-    const formula = w.findComponent({name: 'ConsolePartyFormula'});
-    expect(formula.props('renderRoot')).deep.eq(law.renderData);
+    const model = enactedModel();
+    const entries = politicalEffectEntries(politicalSources(model, BLUE), {parliament: model, viewerColor: BLUE});
+    const first = entries[0];
+    expect(first.source).deep.eq({kind: 'law', resolution: METAL_ID});
+    expect(first.party).eq(PartyName.INDUSTRIALISTS);
+    expect(first.title).eq(law.text.name);
+    expect(first.effectNode, 'the law\'s own printed effect() block').is.not.undefined;
+    expect(first.access).deep.eq({key: 'Available to every player', params: [], tone: 'holds'});
   });
 });

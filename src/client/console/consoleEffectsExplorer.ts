@@ -41,8 +41,11 @@ export type EffectsExplorerUi = {
   familyFilter: EffectFamily | 'all';
   /** The section facet (LT/RT) — the forecast mode's facet (the eight groups). */
   sectionFilter: ForecastGroupId | 'all';
-  /** The open effect dossier's identity (undefined = browse). */
-  detail: {cardName: CardName, effectKey: string} | undefined;
+  /**
+   * The open effect dossier's identity (undefined = browse). `cardName` is '' for a cardless source; a PARTY / the
+   * LAW (Turmoil Redux) carries its NAME key in `title` — the crumb names it, never a stand-in card name.
+   */
+  detail: {cardName: CardName, effectKey: string, title?: string} | undefined;
   /** The explorer's live command contract (undefined = not publishing). */
   barCommands: ReadonlyArray<ConsoleCommand> | undefined;
 };
@@ -87,7 +90,7 @@ export function effectsStagePath(): ReadonlyArray<string> {
   const base = translateText('Effects');
   const detail = effectsExplorerUi.detail;
   if (detail !== undefined) {
-    return [base, translateText(detail.cardName)];
+    return [base, translateText(detail.title ?? detail.cardName)];
   }
   return [base];
 }

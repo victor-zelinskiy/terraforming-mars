@@ -15,6 +15,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {EffectCategory, EffectSignature, classifyEffectSignature, curatedCategoryFor} from '@/client/components/effects/effectSummary';
 import {PerEffectStat, perEffectStat} from '@/client/components/effects/effectChannels';
+import {EffectSource, sourceCardName, sourceKey} from '@/client/components/effects/effectSource';
 
 // ── Families ────────────────────────────────────────────────────────────────
 
@@ -70,15 +71,21 @@ const FAMILY_OVERRIDES: Partial<Record<CardName, EffectFamily>> = {
   [CardName.NEPTUNIAN_POWER_CONSULTANTS]: 'triggers',
 };
 
-/** The slice of `effectExtraction.EffectEntry` the model reads (structurally
- *  assignable — the component passes the real entries through unchanged). */
+/** The slice of `effectExtraction.ExplorerEntry` the model reads (structurally
+ *  assignable — the component passes the real entries through unchanged). A
+ *  POLITICAL source (a party, the enacted law — Turmoil Redux «один фреймворк»)
+ *  is an entry of the same model: grouped by its source, classified by its
+ *  printed signature, counted in its family — and read by `access` (WHY the
+ *  seat holds it) instead of a statistic it never keeps. */
 export type ExplorerEffectInput = {
   key: string;
-  cardName: CardName;
+  source: EffectSource;
   effectIndex: number;
   isCorporation: boolean;
   isDisabled: boolean;
   signature: EffectSignature;
+  /** A political entry's access reading (i18n key + params) — its meta line. */
+  access?: {key: string, params: ReadonlyArray<string>, tone: 'holds' | 'warn'};
 };
 
 /**
@@ -93,11 +100,17 @@ export function effectFamily(entry: ExplorerEffectInput, card: CardModel | undef
   if (entry.signature.valueAsPayment) {
     return 'payValue';
   }
-  const curated = curatedCategoryFor(entry.cardName);
+  const cardName = sourceCardName(entry.source);
+  if (cardName === undefined) {
+    // A PARTY / the LAW: the printed signature decides, under its own source kind (no curated card set, no card field).
+    const sourceKind = entry.source.kind === 'party' ? 'party' as const : 'resolution' as const;
+    return CATEGORY_FAMILY[classifyEffectSignature(entry.signature, {sourceKind})];
+  }
+  const curated = curatedCategoryFor(cardName);
   if (curated !== undefined) {
     return CATEGORY_FAMILY[curated];
   }
-  const override = FAMILY_OVERRIDES[entry.cardName];
+  const override = FAMILY_OVERRIDES[cardName];
   if (override !== undefined) {
     return override;
   }
@@ -107,7 +120,7 @@ export function effectFamily(entry: ExplorerEffectInput, card: CardModel | undef
   if (isOnlyEffect && (card?.discount?.length ?? 0) > 0) {
     return 'discounts';
   }
-  const category = classifyEffectSignature(entry.signature, {sourceName: entry.cardName, sourceKind: 'card'});
+  const category = classifyEffectSignature(entry.signature, {sourceKind: 'card'});
   return CATEGORY_FAMILY[category];
 }
 
@@ -119,6 +132,8 @@ export type EffectTileMeta =
   | {kind: 'stat', label: string, value: string, icon?: string}
   | {kind: 'idle', label: string}
   | {kind: 'cardScoped', label: string}
+  /** A political source's honest line — WHY the seat holds it (the parliament's access row; `warn` = a live restriction). */
+  | {kind: 'access', label: string, params: ReadonlyArray<string>, tone: 'holds' | 'warn'}
   | {kind: 'none'};
 
 /**
@@ -177,8 +192,11 @@ export type EffectsTileVm<E extends ExplorerEffectInput> = {
 };
 
 export type EffectsGroupVm<E extends ExplorerEffectInput> = {
+  /** `sourceKey` of the group's source — a card, a party, the law. */
   key: string;
-  cardName: CardName;
+  source: EffectSource;
+  /** The source card (`undefined` for a party / the law — no card face, no live model). */
+  cardName: CardName | undefined;
   isCorporation: boolean;
   isDisabled: boolean;
   /** >1 effect → the group takes the full grid row (tiles abreast). */
@@ -194,7 +212,7 @@ export type EffectsFamilyChip = {
 };
 
 export type EffectsBrowseModel<E extends ExplorerEffectInput> = {
-  /** The visible groups (per SOURCE card, corp-first tableau order preserved). */
+  /** The visible groups (per SOURCE — the entries' order: the Parliament first, then corp-first tableau order). */
   groups: ReadonlyArray<EffectsGroupVm<E>>;
   /** Flat focus order over the visible tiles. */
   flatKeys: ReadonlyArray<string>;
@@ -223,38 +241,49 @@ function cardOf(tableau: ReadonlyArray<CardModel>, name: CardName): CardModel | 
 }
 
 function statOf(stats: ReadonlyArray<EffectOverlayStat> | undefined, entry: ExplorerEffectInput): EffectOverlayStat | undefined {
-  return stats?.find((s) => s.card === entry.cardName && (s.kind === 'corporation') === entry.isCorporation);
+  const cardName = sourceCardName(entry.source);
+  return cardName === undefined ? undefined : stats?.find((s) => s.card === cardName && (s.kind === 'corporation') === entry.isCorporation);
+}
+
+/** A political entry's meta — its access reading, whatever the stats are doing (it keeps none). */
+function accessMeta(entry: ExplorerEffectInput): EffectTileMeta | undefined {
+  return entry.access === undefined ? undefined : {kind: 'access', label: entry.access.key, params: entry.access.params, tone: entry.access.tone};
 }
 
 /** Build the whole browse model in one pass (groups, geometry, facets, counts). */
 export function buildEffectsBrowseModel<E extends ExplorerEffectInput>(input: EffectsBrowseInput<E>): EffectsBrowseModel<E> {
   const {entries, tableau, stats, familyFilter, columns} = input;
-  const byCard = new Map<CardName, Array<E>>();
+  const bySource = new Map<string, Array<E>>();
   for (const entry of entries) {
-    const list = byCard.get(entry.cardName);
+    const key = sourceKey(entry.source);
+    const list = bySource.get(key);
     if (list === undefined) {
-      byCard.set(entry.cardName, [entry]);
+      bySource.set(key, [entry]);
     } else {
       list.push(entry);
     }
   }
   const familyCounts: Partial<Record<EffectFamily, number>> = {};
   const groups: Array<EffectsGroupVm<E>> = [];
-  for (const [cardName, cardEntries] of byCard) {
-    const card = cardOf(tableau, cardName);
-    const cardStat = statOf(stats, cardEntries[0]);
+  for (const [key, sourceEntries] of bySource) {
+    const cardName = sourceCardName(sourceEntries[0].source);
+    const card = cardName === undefined ? undefined : cardOf(tableau, cardName);
+    const cardStat = statOf(stats, sourceEntries[0]);
     const tiles: Array<EffectsTileVm<E>> = [];
-    for (const entry of cardEntries) {
-      const family = effectFamily(entry, card, cardEntries.length === 1);
+    for (const entry of sourceEntries) {
+      const family = effectFamily(entry, card, sourceEntries.length === 1);
       familyCounts[family] = (familyCounts[family] ?? 0) + 1;
-      const per = stats === undefined ? undefined : perEffectStat(entry, cardEntries, cardStat);
+      const political = accessMeta(entry);
+      const per = political !== undefined || stats === undefined || cardName === undefined ?
+        undefined :
+        perEffectStat({...entry, cardName}, sourceEntries, cardStat);
       tiles.push({
         key: entry.key,
         entry,
         family,
         familyLabel: EFFECT_FAMILY_LABEL[family],
         per,
-        meta: effectTileMeta(family, per),
+        meta: political ?? effectTileMeta(family, per),
       });
     }
     const visible = familyFilter === 'all' ? tiles : tiles.filter((t) => t.family === familyFilter);
@@ -262,10 +291,11 @@ export function buildEffectsBrowseModel<E extends ExplorerEffectInput>(input: Ef
       continue;
     }
     groups.push({
-      key: cardName,
+      key,
+      source: sourceEntries[0].source,
       cardName,
-      isCorporation: cardEntries[0].isCorporation,
-      isDisabled: cardEntries[0].isDisabled,
+      isCorporation: sourceEntries[0].isCorporation,
+      isDisabled: sourceEntries[0].isDisabled,
       wide: visible.length > 1,
       tiles: visible,
     });
@@ -360,14 +390,16 @@ export type EffectsZoneCounts = {
  *  readout this replaces counted rows, and its discount predicate was always
  *  true — see the plan). */
 export function effectsZoneCounts(entries: ReadonlyArray<ExplorerEffectInput>, tableau: ReadonlyArray<CardModel>): EffectsZoneCounts {
-  const perCard = new Map<CardName, number>();
+  const perSource = new Map<string, number>();
   for (const entry of entries) {
-    perCard.set(entry.cardName, (perCard.get(entry.cardName) ?? 0) + 1);
+    const key = sourceKey(entry.source);
+    perSource.set(key, (perSource.get(key) ?? 0) + 1);
   }
   const counts: Partial<Record<EffectFamily, number>> = {};
   let disabledCount = 0;
   for (const entry of entries) {
-    const family = effectFamily(entry, cardOf(tableau, entry.cardName), perCard.get(entry.cardName) === 1);
+    const cardName = sourceCardName(entry.source);
+    const family = effectFamily(entry, cardName === undefined ? undefined : cardOf(tableau, cardName), perSource.get(sourceKey(entry.source)) === 1);
     counts[family] = (counts[family] ?? 0) + 1;
     if (entry.isDisabled) {
       disabledCount++;

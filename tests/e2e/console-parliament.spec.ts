@@ -318,12 +318,14 @@ for (const preset of PRESETS) {
       //    is held.
       await openInfo(page);
       await openInfoEffects(page);
-      const strip = page.locator('.con-pfx');
+      // «Один фреймворк»: a held party's STANDING effect is a group of the explorer's grid (its badge plate); a party
+      // whose effect is an action only (Unity, the Industrialists, the Reds) stands in «Действия карт», not here.
       const byDelegates = before.game.parliament.slots[1].party;
       expect(byDelegates, 'the fixture\'s second slot is another party than the ruling one').not.toBe('Greens');
-      await expect(strip, 'the party effects strip stands in the effects route').toHaveCount(1);
-      await expect(strip.locator('.con-pfx__item[data-party="Greens"]'), 'the ruling Greens').toHaveCount(1);
-      await expect(strip.locator(`.con-pfx__item[data-party="${byDelegates}"]`), `${byDelegates}, held by two delegates`).toHaveCount(1);
+      const groups = page.locator('.con-efx__list .con-efx__plate--political');
+      await expect(groups.and(page.locator('[data-efx-source="party:Greens"]')), 'the ruling Greens').toHaveCount(1, {timeout: 10_000});
+      const printsPassive = ['Scientists', 'Mars First'].includes(byDelegates);
+      await expect(groups.and(page.locator(`[data-efx-source="party:${byDelegates}"]`)), `${byDelegates}, held by two delegates`).toHaveCount(printsPassive ? 1 : 0);
       await shoot(page, preset, '06-info-effects');
       expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-info').count() === 0, {tries: 5, settleMs: 900}),
         'B leaves the Information workspace').toBeTruthy();

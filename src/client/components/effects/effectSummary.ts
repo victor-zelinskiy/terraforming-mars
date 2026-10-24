@@ -238,7 +238,7 @@ function isCardResourceIcon(icon: string): boolean {
  * the card-level stat can't say which effect a category belongs to). Mirrors
  * `classifyEffect` but reads what the EFFECT produces, not the card aggregate.
  */
-export function classifyEffectSignature(sig: EffectSignature, ctx: EffectSummaryContext): EffectCategory {
+export function classifyEffectSignature(sig: EffectSignature, ctx: Pick<EffectSummaryContext, 'sourceKind'>): EffectCategory {
   if (sig.valueAsPayment) {
     return 'payment';
   }

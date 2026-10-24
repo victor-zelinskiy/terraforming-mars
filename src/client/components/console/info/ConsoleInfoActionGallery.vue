@@ -14,7 +14,7 @@
     <div v-if="groups.length > 0" class="con-dgal__page" :key="page">
       <div v-for="at in pageIndices" :key="groups[at].key" class="con-dgal__tile"
            :class="{'con-dgal__tile--focused': at === cursor, 'con-dgal__tile--wide': groups[at].tiles.length > 1}"
-           :data-zoom-slot="groups[at].cardName" :data-dgal-index="at">
+           :data-zoom-slot="zoomName(groups[at])" :data-dgal-index="at">
         <ConsoleActionGroupView :group="groups[at]" readonly />
       </div>
     </div>
@@ -45,7 +45,10 @@ import {buildActionEntries} from '@/client/components/actions/actionModel';
 import {buildConsoleActionsModel, ConsoleActionGroup} from '@/client/console/consoleCardActions';
 import {actionPreviewMap} from '@/client/console/actionPreviewStore';
 import {findPerformActionCard} from '@/client/console/turnIntents';
-import {DossierActionState, dossierActionCounts, dossierActionTiles} from '@/client/console/infoDossierModel';
+import {DossierActionState, dossierActionCounts, dossierActionTiles, withPoliticalActionTiles} from '@/client/console/infoDossierModel';
+import {ParliamentActionSource} from '@/client/console/consoleCardActions';
+import {dossierPoliticalActions, parliamentActionSources} from '@/client/console/parliament/parliamentActionSources';
+import {partyEffectZoomEntry, resolutionZoomEntry, ZoomCard} from '@/client/components/card/cardZoomTypes';
 import {cardHasAction} from '@/client/components/actions/actionExtraction';
 import {fitActionCanvases} from '@/client/console/consoleActionCanvasFit';
 import {fitDescTiers} from '@/client/console/descTier';
@@ -77,6 +80,18 @@ export default defineComponent({
     return {MARK, LABEL, ui: infoActionsUi};
   },
   computed: {
+    /**
+     * THE PARLIAMENT'S ACTIONS this seat holds (Turmoil Redux «один фреймворк») — the same sources «Действия карт»
+     * lists, by the same builder: the viewer's own with the server's verdicts, another seat's by its public uses.
+     */
+    parliamentSources(): ReadonlyArray<ParliamentActionSource> {
+      return parliamentActionSources({
+        parliament: this.playerView.game.parliament,
+        color: this.player.color,
+        viewerColor: this.playerView.thisPlayer?.color,
+        waitingFor: this.isSelf ? this.playerView.waitingFor : undefined,
+      });
+    },
     groups(): ReadonlyArray<ConsoleActionGroup> {
       const offered = this.isSelf ?
         new Set((findPerformActionCard(this.playerView.waitingFor)?.model.cards ?? []).map((c) => c.name)) :
@@ -97,7 +112,7 @@ export default defineComponent({
           cardResources.set(c.name, {type, count: c.resources});
         }
       }
-      return buildConsoleActionsModel(entries, previews, cardResources, {availability: 'all', activation: 'all'}, undefined, 2, []).groups;
+      return buildConsoleActionsModel(entries, previews, cardResources, {availability: 'all', activation: 'all'}, undefined, 2, this.parliamentSources).groups;
     },
     /** The legend's counts — the dossier plate's own reading, so the plate and the zone never disagree. */
     counts(): ReadonlyArray<{state: DossierActionState, count: number}> {
@@ -108,7 +123,8 @@ export default defineComponent({
           return false;
         }
       };
-      return dossierActionCounts(dossierActionTiles(this.player.tableau, hasAction, new Set(this.player.actionsThisGeneration ?? []), this.isSelf));
+      const cards = dossierActionTiles(this.player.tableau, hasAction, new Set(this.player.actionsThisGeneration ?? []), this.isSelf);
+      return dossierActionCounts(withPoliticalActionTiles(cards, dossierPoliticalActions(this.parliamentSources)));
     },
     columns(): number {
       return consoleLayoutState.profile === 'handheld' ? 2 : 3;
@@ -239,14 +255,29 @@ export default defineComponent({
         this.inspect();
       }
     },
-    /** The focused card's face in the ONE zoom viewer — physical origin, browsing follows the cursor. */
+    /** A group's zoom-slot key — the card's name, a party's / the law's zoom entry name. */
+    zoomName(g: ConsoleActionGroup): string {
+      if (g.resolutionAction !== undefined) {
+        return resolutionZoomEntry(g.resolutionAction).name;
+      }
+      return g.party !== undefined ? partyEffectZoomEntry(g.party).name : g.cardName;
+    },
+    /** The focused source's face in the ONE zoom viewer — a card, a party's effect, the law's face. */
     inspect(): void {
-      const cards: Array<CardModel> = this.groups.map((g) => this.player.tableau.find((c) => c.name === g.cardName) ?? ({name: g.cardName} as CardModel));
+      const cards: Array<ZoomCard> = this.groups.map((g): ZoomCard => {
+        if (g.resolutionAction !== undefined) {
+          return resolutionZoomEntry(g.resolutionAction);
+        }
+        if (g.party !== undefined) {
+          return partyEffectZoomEntry(g.party);
+        }
+        return this.player.tableau.find((c) => c.name === g.cardName) ?? ({name: g.cardName} as CardModel);
+      });
       openConsoleCardZoom(cards, this.cursor, undefined, undefined, {
         contextLabel: 'Actions',
         origin: slotZoomOrigin(
           () => this.$el as HTMLElement,
-          (i) => this.groups[i]?.cardName ?? '',
+          (i) => (this.groups[i] === undefined ? '' : this.zoomName(this.groups[i])),
           (i) => {
             this.ui.cursor = i;
           },

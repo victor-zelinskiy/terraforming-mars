@@ -2,7 +2,7 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, cinematicBeat, fetchPlayerModel, focusCard, focusInfoZone, press, pressUntil, settle} from './consoleStart';
-import {armLeakWitness, openParliament, strandedReports} from './parliamentDrive';
+import {armLeakWitness, expectLawLeadsEffects, openParliament, strandedReports} from './parliamentDrive';
 
 /**
  * UNMI VETO (Turmoil Redux, RX42) — the ONE e2e of the SECOND REPLACING passive, the one on the RATING: «the player(s)
@@ -167,16 +167,12 @@ for (const preset of PRESETS) {
       await expect(infoRoot, 'the Information mode opens').toHaveCount(1);
       expect(await focusInfoZone(page, 'effects'), 'the effects zone takes the focus').toBe(true);
       expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-efx').count() > 0, {tries: 3, settleMs: 1100}), 'the effects explorer opens').toBe(true);
-      const strip = page.locator('.con-pfx');
-      await expect(strip, 'the Parliament strip stands in the explorer').toHaveCount(1, {timeout: 10_000});
-      const law = strip.locator('.con-pfx__item').first();
-      await expect(law, 'the LAW leads the strip').toHaveClass(/con-pfx__item--resolution/);
-      await expect(law).toHaveAttribute('data-resolution', LAW_ID);
-      await expect(law.locator('.con-pfx__title'), 'titled by the card').toHaveText(/Вето UNMI/i);
-      // The law's row carries its access reason AND the veto's row — both in the `holds` tone; the veto's is the one that names the seats.
-      const bound = law.locator('.con-pfx__reason--holds', {hasText: /Под вето сейчас/i});
-      await expect(bound, 'the row names who is under the veto NOW').toHaveCount(1);
-      await expect(bound, '…the viewer, with the rating').toContainText(/вы \(30\)/i);
+      // «Один фреймворк»: the law is a GROUP of the explorer's grid, and it leads it — its access line, while it binds
+      // somebody, is the WARNING that names the seats (in the warning ink).
+      const law = await expectLawLeadsEffects(page, {id: LAW_ID, name: /Вето UNMI/i});
+      const bound = law.locator('.con-efx__meta-line--warn[data-efx-access]', {hasText: /Под вето сейчас/i});
+      await expect(bound.first(), 'the group names who is under the veto NOW').toBeVisible();
+      await expect(bound.first(), '…the viewer, with the rating').toContainText(/вы \(30\)/i);
       await settle(page, {timeoutMs: 15_000, notifications: false});
       await shoot(page, preset.id, '02-effects-strip');
       for (let i = 0; i < 6 && await page.locator('.con-info, .con-efx').count() > 0; i++) {

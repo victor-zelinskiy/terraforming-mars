@@ -17,6 +17,7 @@ import {ConsoleEndgameCategoryKey, SCORE_CATEGORY_TABLE} from '@/client/console/
 import {ScoreOverviewModel} from '@/client/console/scoreExplorerModel';
 import {EffectFamily, EffectsZoneCounts} from '@/client/console/effectsExplorerModel';
 import {PlayedZones} from '@/client/components/console/consolePlayedModel';
+import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 
 // ── THE SCORE — medallions in the ceremony's order ─────────────────────────
 
@@ -168,7 +169,14 @@ export function dossierCardHistory(zones: PlayedZones, facesPerStack: number, ex
 export type DossierActionState = 'ready' | 'blocked' | 'used' | 'idle';
 
 export type DossierActionTile = {
-  name: CardName;
+  /** The card's name — or a POLITICAL source's key (`party:<party>` / `law:<id>`, see `political`). */
+  name: string;
+  /**
+   * A PARLIAMENT action (Turmoil Redux «один фреймворк»): a party's / the enacted law's action stands among the
+   * seat's actions like a card's — its emblem in the art's place, its NAME key (the party's glossary name, the law's
+   * printed name). Absent for a card.
+   */
+  political?: {party: ReduxParty, title: string};
   state: DossierActionState;
   /** The server's reason (the viewer's own blocked card only). */
   reason?: {message: string, params: ReadonlyArray<string>};
@@ -204,6 +212,38 @@ export function dossierActionTiles(
     }
     tiles.push({name: card.name, state: 'blocked', at, reason: {message: String(reason.message), params: (reason.params ?? []).map(String)}});
   });
+  tiles.sort((a, b) => ACTION_STATE_ORDER[a.state] - ACTION_STATE_ORDER[b.state] || a.at - b.at);
+  return tiles.map(({at: _at, ...tile}) => tile);
+}
+
+/** The slice of a Parliament action source the dossier reads (`console/parliament/parliamentActionSources`). */
+export type DossierPoliticalAction = {
+  key: string;
+  party: ReduxParty;
+  title: string;
+  usesLeft: number;
+  available: boolean;
+  reason: string;
+  /** Another seat's — only its public uses are known. */
+  foreign: boolean;
+};
+
+/**
+ * The Parliament's actions JOINED to the card tiles, in the same state order (a political tile first within a
+ * state — the explorer's reading order): used when spent, `idle` for another seat's, else the viewer's verdict.
+ */
+export function withPoliticalActionTiles(cards: ReadonlyArray<DossierActionTile>, political: ReadonlyArray<DossierPoliticalAction>): ReadonlyArray<DossierActionTile> {
+  const tiles: Array<DossierActionTile & {at: number}> = political.map((p, at) => {
+    const tile = {name: p.key, political: {party: p.party, title: p.title}, at};
+    if (p.usesLeft <= 0) {
+      return {...tile, state: 'used' as const};
+    }
+    if (p.foreign) {
+      return {...tile, state: 'idle' as const};
+    }
+    return p.available ? {...tile, state: 'ready' as const} : {...tile, state: 'blocked' as const, reason: {message: p.reason, params: []}};
+  });
+  cards.forEach((card, i) => tiles.push({...card, at: political.length + i}));
   tiles.sort((a, b) => ACTION_STATE_ORDER[a.state] - ACTION_STATE_ORDER[b.state] || a.at - b.at);
   return tiles.map(({at: _at, ...tile}) => tile);
 }
