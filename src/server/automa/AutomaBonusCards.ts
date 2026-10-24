@@ -35,6 +35,7 @@ import {AutomaResolver} from './AutomaResolver';
 import {AutomaTilePlacer} from './AutomaTilePlacer';
 import {AutomaTurnLog} from './AutomaTurnLog';
 import {humansOf, marsBotOf, pickVictim} from './AutomaUtil';
+import {divertBotRaise} from './BotDivertedTerraforming';
 import {marsBotMapProfile} from './boards/MarsBotMapProfile';
 
 /**
@@ -70,7 +71,9 @@ export function advanceFurthestMartianParameter(game: IGame): boolean {
     // Each branch is one of the four printed actions, so each may be taken
     // over by the corporation (C36) — the ladder still counts as resolved,
     // because the action WAS taken, just converted.
-    if (!AutomaCorporations.replacesParameterRaise(game, GlobalParameter.OXYGEN)) {
+    // …and so may a standing law (RX35, D13 — its M€, no «raised» line).
+    if (!AutomaCorporations.replacesParameterRaise(game, GlobalParameter.OXYGEN) &&
+        !divertBotRaise(game, GlobalParameter.OXYGEN, 1)) {
       game.increaseOxygenLevel(bot, 1);
       game.log('${0} raised ${1} ${2} {step|steps}', (b) => b.player(bot).globalParameter(GlobalParameter.OXYGEN).number(1));
     }

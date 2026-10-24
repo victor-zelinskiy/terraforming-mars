@@ -233,8 +233,9 @@ export class ParliamentHandler {
    * an action fall while it answers true (decision Р5 — the law seats nothing
    * and needs no room), the previews' exit pass strikes the printed units,
    * the futility reader judges by the holders instead of the ceiling. False
-   * for MarsBot and for a seat outside the parliament (the `enactment`
-   * aspect), and during the World Government's phase (nobody «gains» there).
+   * for a seat outside the `restriction` aspect (MarsBot under `'politics'`
+   * IS bound — D13, its unit becomes M€) and during the World Government's
+   * phase (nobody «gains» there).
    * The body lives in `divertedTerraformingGate.ts` (light enough for the
    * engine's lowest doors to import); this is its face in the hub.
    */
@@ -252,8 +253,8 @@ export class ParliamentHandler {
    * replacement's records are the law's own children, and the notification,
    * the journal and the stats name the law). The entries keep out what the
    * law never touches: a lowering, an `unrewarded` move (the entries check
-   * both before asking); this gate keeps out the World Government's phase,
-   * MarsBot and a seat outside the parliament.
+   * both before asking); this gate keeps out the World Government's phase
+   * and a seat outside the `restriction` aspect.
    *
    * `origin` is who produced the unit (a card, a project, a cell, a colony,
    * the final placement) — read off the live event scope when the entry

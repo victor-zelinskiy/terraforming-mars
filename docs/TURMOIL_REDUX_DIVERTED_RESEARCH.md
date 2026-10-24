@@ -19,7 +19,7 @@ when the parameter is at its maximum.**» Задание председател�
 
 | Вопрос | Ответ | Где |
 | --- | --- | --- |
-| «Закон стоит и этот игрок под ним?» | `divertsTerraforming(player)` — принятый хук `divertTerraforming` есть, фаза не SOLAR, `participates(player, 'enactment')` (бот отсечён здесь же) | `src/server/parliament/divertedTerraformingGate.ts` |
+| «Закон стоит и этот игрок под ним?» | `divertsTerraforming(player)` — принятый хук `divertTerraforming` есть, фаза не SOLAR, `participates(player, 'restriction')` (бот под `'politics'` — ПОД законом, D13: его единица = 1 M€; под `'none'` отсечён) | `src/server/parliament/divertedTerraformingGate.ts` |
 | «Заменить эту единицу?» | `divertTerraforming(player, unit, origin?) → boolean` — открывает `withEffectSource(player, {kind: 'resolution', id, owner}, 'terraforming-diverted', …)` и зовёт хук карты; `true` = единица ПЕРЕХВАЧЕНА, вызывающий НЕ мутирует | тот же модуль; фасады `ParliamentHandler.divertsTerraforming / divertTerraforming` |
 | «Что покажет композер?» | `withDivertedTerraforming(player, preview, card?)` — ОДИН выходной проход семейства превью, ПЕРЕД `withImpliedRatings` и `withPreselectAddresses` | `src/server/models/divertedTerraforming.ts` |
 
@@ -142,7 +142,7 @@ data from ${2} are lost» + `recordSkippedEffect` (инвариант 4). Три
 ---
 
 ## 5. Что НЕ заменяется
-Венера; голый РТ (`behavior.tr`, Повестка); понижения; WGT / `unrewarded`; бот (`participates` отсекает); город /
+Венера; голый РТ (`behavior.tr`, Повестка); понижения; WGT / `unrewarded`; бот под `'none'` (под `'politics'` — заменяется на M€, D13); город /
 особый тайл; часть победителя СЛЕДУЮЩЕГО закона (слот меняется до шагов).
 
 ---

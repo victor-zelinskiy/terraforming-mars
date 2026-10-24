@@ -69,6 +69,10 @@ import {CardRenderItemType} from '../../src/common/cards/render/CardRenderItemTy
 import {cast} from '../../src/common/utils/utils';
 import {maxOutOceans, runAllActions, setOxygenLevel, setTemperature} from '../TestingUtils';
 import {testAutomaGame} from '../automa/AutomaTestGame';
+import {AutomaTerraformer} from '../../src/server/automa/AutomaTerraformer';
+import {AutomaTilePlacer} from '../../src/server/automa/AutomaTilePlacer';
+import {pushNearestBonus} from '../../src/server/automa/AutomaNearBonusPush';
+import {hellasSouthPoleUsable} from '../../src/server/automa/AutomaPlacementBonus';
 import {familyOf} from '../../src/client/console/parliament/resolutionFamily';
 
 /**
@@ -604,8 +608,8 @@ describe('DivertedResearch', () => {
       expect(p1.getWaitingFor()).is.undefined;
     });
 
-    it('MarsBot is outside the parliament: its raise terraforms, the human\'s is replaced', () => {
-      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'politics'});
+    it('MarsBot under an older save (`none`) is outside the aspect: its raise terraforms, the human\'s is replaced', () => {
+      const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'none'});
       game.phase = Phase.ACTION;
       game.parliament!.enacted = DIVERTED;
       human.playedCards.push(new Supercomputer());
@@ -635,6 +639,103 @@ describe('DivertedResearch', () => {
       expect(game.getTemperature()).eq(-16);
       expect(p1.terraformRating).greaterThanOrEqual(tr + 2);
       expect(markers(game)).deep.eq([]);
+    });
+  });
+
+  describe('MarsBot under the law (decision D13 — the `restriction` aspect, M€ instead of data)', () => {
+    function bound(options: {board?: BoardName} = {}): [IGame, TestPlayer, IPlayer] {
+      const [game, human, bot] = testAutomaGame({
+        coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'politics',
+        ...(options.board === undefined ? {} : {boardName: options.board}),
+      });
+      game.phase = Phase.ACTION;
+      game.parliament!.enacted = DIVERTED;
+      human.playedCards.push(new Supercomputer());
+      bot.megaCredits = 0;
+      resetDivertedNet();
+      return [game, human, bot];
+    }
+
+    const failedActions = (game: IGame) => game.gameLog.filter((m) => m.message.includes('Failed Action')).length;
+    const raisedLines = (game: IGame) => game.gameLog.filter((m) => m.message === '${0} raised ${1} ${2} {step|steps}').length;
+    const greeneries = (game: IGame) => game.board.spaces.filter((space) => space.tile?.tileType === TileType.GREENERY).length;
+
+    it('the bot is bound — the engine\'s own door replaces its raise: no step, no rating, 1 M€ per step, the law\'s marker, no question', () => {
+      const [game, human, bot] = bound();
+      expect(ParliamentHandler.divertsTerraforming(bot)).is.true;
+      const tr = bot.terraformRating;
+      game.increaseOxygenLevel(bot, 2);
+      expect(game.getOxygenLevel()).eq(0);
+      expect(bot.terraformRating).eq(tr);
+      expect(bot.megaCredits).eq(2);
+      expect(markers(game)).length(1);
+      expect(pendingDivertedData(bot), 'nothing accrues for a landing').eq(0);
+      expect(planetEvents(game)).deep.eq([]);
+      expect(game.gameLog.some((m) => m.message === '${0}: ${1} replaces ${2} step(s) of ${3} with ${4} M€')).is.true;
+      runAllActions(game);
+      expect(human.getWaitingFor(), 'nobody is asked about the bot\'s M€').is.undefined;
+      expect(getParliamentModel(game, human)!.players.find((p) => p.color === bot.color)?.restriction).is.true;
+    });
+
+    it('the track raise is replaced BEFORE the ceiling — at +8 °C too: the law\'s 1 M€, no Failed Action, no «raised» line', () => {
+      const [game, , bot] = bound();
+      AutomaTerraformer.raiseTemperature(game);
+      expect(game.getTemperature()).eq(-30);
+      expect(bot.megaCredits).eq(1);
+      setTemperature(game, MAX_TEMPERATURE);
+      AutomaTerraformer.raiseTemperature(game);
+      expect(bot.megaCredits).eq(2);
+      expect(failedActions(game)).eq(0);
+      expect(raisedLines(game)).eq(0);
+    });
+
+    it('the shared tile placer seats no greenery and no ocean — 1 M€ each, the placer reports the action resolved, the net is never reached', () => {
+      const [game, , bot] = bound();
+      expect(AutomaTilePlacer.placeGreenery(game)).is.true;
+      AutomaTilePlacer.placeOcean(game);
+      expect(greeneries(game)).eq(0);
+      expect(game.board.getOceanSpaces()).length(0);
+      expect(game.getOxygenLevel()).eq(0);
+      expect(bot.megaCredits).eq(2);
+      expect(divertedNetCatches()).eq(0);
+      // The board's nine oceans, seated with the law away (the util loops on `addOcean` until they stand).
+      game.parliament!.enacted = undefined;
+      maxOutOceans(bot);
+      game.parliament!.enacted = DIVERTED;
+      const before = bot.megaCredits;
+      AutomaTilePlacer.placeOcean(game);
+      expect(bot.megaCredits, 'nine oceans and «an ocean» is the law\'s 1 M€, not a Failed Action').eq(before + 1);
+      expect(failedActions(game)).eq(0);
+    });
+
+    it('the near-bonus ladder: the PRINTED two temperature steps are 2 M€; the greenery + oxygen branch is 2 M€; nothing reads «raised»', () => {
+      const [game, , bot] = bound();
+      setTemperature(game, -26);
+      expect(pushNearestBonus(game, 'ocean')).eq('temperature');
+      expect(game.getTemperature()).eq(-26);
+      expect(bot.megaCredits).eq(2);
+      setTemperature(game, MAX_TEMPERATURE);
+      setOxygenLevel(game, 7);
+      expect(pushNearestBonus(game, 'ocean')).eq('oxygen');
+      expect(game.getOxygenLevel()).eq(7);
+      expect(greeneries(game)).eq(0);
+      expect(bot.megaCredits).eq(4);
+      expect(raisedLines(game)).eq(0);
+      expect(divertedNetCatches()).eq(0);
+    });
+
+    it('the Hellas South Pole buys the bot no ocean under the law — the hex is «without rewards» (6 M€ for the law\'s 1 M€)', () => {
+      const [game, , bot] = bound({board: BoardName.HELLAS});
+      bot.megaCredits = 10;
+      expect(hellasSouthPoleUsable(game, bot)).is.false;
+      game.parliament!.enacted = undefined;
+      expect(hellasSouthPoleUsable(game, bot)).is.true;
+    });
+
+    it('the World Government\'s phase still terraforms for the bot', () => {
+      const [game, , bot] = bound();
+      game.phase = Phase.SOLAR;
+      expect(ParliamentHandler.divertsTerraforming(bot)).is.false;
     });
   });
 

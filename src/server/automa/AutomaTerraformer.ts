@@ -4,6 +4,7 @@ import {GlobalParameter} from '../../common/GlobalParameter';
 import {IGame} from '../IGame';
 import {failedAction} from './AutomaFailedAction';
 import {marsBotOf} from './AutomaUtil';
+import {divertBotRaise} from './BotDivertedTerraforming';
 
 /**
  * MarsBot's global-parameter raises. TR follows the normal rules; the
@@ -22,6 +23,11 @@ export class AutomaTerraformer {
     // action the mat gave was replaced, and a replaced action never reaches
     // the question «can this still be raised?».
     if (AutomaCorporations.replacesParameterRaise(game, GlobalParameter.TEMPERATURE)) {
+      return;
+    }
+    // …then a standing law that REPLACES the raise (RX35, D13) — ahead of the
+    // ceiling, so a maxed temperature under it is the law's M€, no Failed Action.
+    if (divertBotRaise(game, GlobalParameter.TEMPERATURE, 1)) {
       return;
     }
     if (game.getTemperature() >= constants.MAX_TEMPERATURE) {

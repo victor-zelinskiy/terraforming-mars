@@ -40,6 +40,7 @@
 import {IPlayer} from '../../IPlayer';
 import {IGame} from '../../IGame';
 import {CardResource} from '../../../common/CardResource';
+import {Resource} from '../../../common/Resource';
 import {ResolutionId} from '../../../common/parliament/ParliamentTypes';
 import {ChoiceContextSource} from '../../../common/models/PlayerInputModel';
 import {message} from '../../logs/MessageBuilder';
@@ -79,6 +80,27 @@ export function logDivertedUnit(game: IGame, player: IPlayer, resolution: Resolu
     game.log('${0}: ${1} replaces ${2} ${3} tile(s) with ${4} data', (b) =>
       b.player(player).resolution(resolution).number(unit.count).tileType(unit.tile === 'greenery' ? TileType.GREENERY : TileType.OCEAN).number(data));
   }
+}
+
+/**
+ * MARSBOT'S REPLACEMENT (decision D13, the owner 2026-10-24): the law binds the
+ * bot like any seat — its unit is not performed — but the bot holds no card
+ * resource, so each datum it would have received is 1 M€ into its stock,
+ * at once (no question to ask, nothing to accrue). Inside the dispatcher's
+ * scope like the data, so the journal and the notification name the law.
+ */
+export function divertIntoBotMegacredits(bot: IPlayer, resolution: ResolutionId, unit: TerraformingUnit): number {
+  const megacredits = dataOfUnit(unit);
+  const game = bot.game;
+  if (unit.kind === 'parameter') {
+    game.log('${0}: ${1} replaces ${2} step(s) of ${3} with ${4} M€', (b) =>
+      b.player(bot).resolution(resolution).number(unit.steps).globalParameter(unit.parameter).number(megacredits));
+  } else {
+    game.log('${0}: ${1} replaces ${2} ${3} tile(s) with ${4} M€', (b) =>
+      b.player(bot).resolution(resolution).number(unit.count).tileType(unit.tile === 'greenery' ? TileType.GREENERY : TileType.OCEAN).number(megacredits));
+  }
+  bot.stock.add(Resource.MEGACREDITS, megacredits);
+  return megacredits;
 }
 
 type Pending = {resolution: ResolutionId, data: number};

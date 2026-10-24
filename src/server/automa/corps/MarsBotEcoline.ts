@@ -5,6 +5,7 @@ import {AutomaTilePlacer} from '../AutomaTilePlacer';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {failedAction} from '../AutomaFailedAction';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
+import {botDivertsTerraforming} from '../BotDivertedTerraforming';
 import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotCorp} from './MarsBotCorp';
 
@@ -77,8 +78,10 @@ function rapidSprouting(game: IGame): BonusCardOutcome {
   const bot = marsBotOf(game);
   bumpCorpStat(game, 'sproutingsPlayed');
 
+  // A law that replaces the greenery (RX35, D13) needs no cell: the plant still becomes «a greenery» — the law's M€.
+  const diverted = botDivertsTerraforming(game);
   if (automa.corpResources >= 1) {
-    if (game.board.getAvailableSpacesForGreenery(bot).length === 0) {
+    if (!diverted && game.board.getAvailableSpacesForGreenery(bot).length === 0) {
       // The action cannot be completed → official Failed Action compensation;
       // the plant stays on the corporation card.
       AutomaTurnLog.setBonusBranch(game, {key: 'No legal space for a greenery'});
@@ -93,7 +96,9 @@ function rapidSprouting(game: IGame): BonusCardOutcome {
     // Standard greenery: tile + oxygen (+TR) through game.addGreenery — the
     // card's "raises oxygen 1 step" is that standard raise.
     AutomaTilePlacer.placeGreenery(game);
-    bumpCorpStat(game, 'greeneries');
+    if (!diverted) {
+      bumpCorpStat(game, 'greeneries');
+    }
     bumpCorpStat(game, 'oxygenSteps', game.getOxygenLevel() - oxygenBefore);
   } else {
     AutomaTurnLog.setBonusBranch(game, {key: 'A plant grows on the corporation card'});

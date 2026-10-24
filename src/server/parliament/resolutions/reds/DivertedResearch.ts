@@ -23,8 +23,15 @@
  *    apiece. Not Venus (not named), not a bare rating (`behavior.tr`, the
  *    Agenda's step, the chair), not a LOWERING, not the World Government's
  *    move nor any `unrewarded` move (nobody «gains» those), not a city or a
- *    special tile, never MarsBot (outside the `enactment` aspect), never a
- *    seat outside the parliament.
+ *    special tile, never a seat outside the parliament.
+ *  · MARSBOT IS BOUND TOO (decision D13, the owner 2026-10-24): the law pays
+ *    the bot nothing (D3), but this passive is a RESTRICTION — it exists to
+ *    drag the game out, and a bot that kept terraforming would void it for
+ *    every human (the `restriction` aspect, RX42's reading). The bot's own
+ *    primitives divert BEFORE the ceiling and the cell, like a human's
+ *    entries (Р5 — a maxed track under the law is no Failed Action), and
+ *    each unit is 1 M€ into its stock at once: it holds no card resource,
+ *    and it is never asked anything.
  *  · «EVEN IF THE PARAMETER IS MAXED»: the replacement stands BEFORE the
  *    ceiling check — 14 % oxygen and «+1 oxygen» is 1 data, nine oceans and
  *    «an ocean» is 1 data (Whales takes no animal: the ocean never reached
@@ -86,7 +93,7 @@ import {BoardFact} from '../../../../common/boards/BoardInformationFacts';
 import {message} from '../../../logs/MessageBuilder';
 import {AddResourcesToCard} from '../../../deferredActions/AddResourcesToCard';
 import {EnactStep, ResolutionDefinition} from '../IResolution';
-import {divertIntoData, logDivertedUnit} from '../DivertedTerraforming';
+import {divertIntoBotMegacredits, divertIntoData, logDivertedUnit} from '../DivertedTerraforming';
 
 export const DIVERTED_RESEARCH_ID: ResolutionId = 'RDX_REDS_DIVERTED_RESEARCH';
 export const DIVERTED_RESEARCH_CODE: ResolutionCode = 'RX35';
@@ -175,7 +182,12 @@ export const DIVERTED_RESEARCH: ResolutionDefinition = {
     // THE REPLACEMENT — inside the dispatcher's scope (the gate and the law's
     // event source are its): the unit is journaled in the family's words and
     // accrued into the ONE accumulator, whose landing asks «where» once.
+    // MarsBot's unit is M€ at once (D13) — no card to hold data, no question.
     divertTerraforming(player, unit) {
+      if (player.isMarsBot === true) {
+        divertIntoBotMegacredits(player, DIVERTED_RESEARCH_ID, unit);
+        return true;
+      }
       logDivertedUnit(player.game, player, DIVERTED_RESEARCH_ID, unit);
       divertIntoData(player, DIVERTED_RESEARCH_ID, unit);
       return true;

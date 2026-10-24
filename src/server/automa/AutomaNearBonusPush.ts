@@ -6,6 +6,7 @@ import {IGame} from '../IGame';
 import {AutomaTilePlacer} from './AutomaTilePlacer';
 import {AutomaTurnLog} from './AutomaTurnLog';
 import {marsBotOf} from './AutomaUtil';
+import {botDivertsTerraforming, divertBotRaise, divertBotTerraforming} from './BotDivertedTerraforming';
 
 /**
  * The «push the parameter that is ALMOST at a bonus» ladder, printed
@@ -79,7 +80,9 @@ export function pushNearestBonus(game: IGame, thirdOption: 'ocean' | 'venus'): N
     // One ACTION, however many steps it prints: a corporation that takes it
     // over skips the whole raise (C36), and the branch still counts as the
     // one the ladder chose.
-    if (!AutomaCorporations.replacesParameterRaise(game, GlobalParameter.TEMPERATURE)) {
+    // …and a standing law may replace it (RX35, D13): the PRINTED two steps, its M€, no «raised» line.
+    if (!AutomaCorporations.replacesParameterRaise(game, GlobalParameter.TEMPERATURE) &&
+        !divertBotRaise(game, GlobalParameter.TEMPERATURE, 2)) {
       game.increaseTemperature(bot, 2); // Clamped internally at completion.
       game.log('${0} raised ${1} ${2} {step|steps}', (b) => b.player(bot).globalParameter(GlobalParameter.TEMPERATURE).number(2));
     }
@@ -87,14 +90,16 @@ export function pushNearestBonus(game: IGame, thirdOption: 'ocean' | 'venus'): N
   }
 
   const oxygenSteps = oxygenStepsToTarget(game);
+  // A law that replaces the greenery needs no cell (RX35 Р5) — the branch is the ladder's all the same.
   if (oxygenSteps !== undefined && oxygenSteps <= 2 &&
-      game.board.getAvailableSpacesForGreenery(bot).length > 0) {
+      (botDivertsTerraforming(game) || game.board.getAvailableSpacesForGreenery(bot).length > 0)) {
     AutomaTurnLog.setBonusBranch(game, {key: 'Oxygen near a bonus step'});
     AutomaTilePlacer.placeGreenery(game); // Raises oxygen 1 step for the greenery.
     // …and the printed «raises oxygen» line on top of the tile is the action
     // a corporation may take over (C36). The GREENERY itself stands: no
     // printed sentence of that card lists «place a greenery tile».
-    if (!AutomaCorporations.replacesParameterRaise(game, GlobalParameter.OXYGEN)) {
+    if (!AutomaCorporations.replacesParameterRaise(game, GlobalParameter.OXYGEN) &&
+        !divertBotRaise(game, GlobalParameter.OXYGEN, 1)) {
       game.increaseOxygenLevel(bot, 1);
       game.log('${0} raised ${1} ${2} {step|steps}', (b) => b.player(bot).globalParameter(GlobalParameter.OXYGEN).number(1));
     }
@@ -120,7 +125,8 @@ export function pushNearestBonus(game: IGame, thirdOption: 'ocean' | 'venus'): N
     AutomaTurnLog.setBonusBranch(game, {key: 'Ocean next to two oceans'});
     // This branch picks the space itself instead of going through the shared
     // placer, so it asks the same question the placer would (C36).
-    if (AutomaCorporations.replacesParameterRaise(game, GlobalParameter.OCEANS)) {
+    if (AutomaCorporations.replacesParameterRaise(game, GlobalParameter.OCEANS) ||
+        divertBotTerraforming(game, {kind: 'tile', tile: 'ocean', count: 1})) {
       return 'ocean';
     }
     const space = AutomaTilePlacer.breakTie(game, oceanTarget);

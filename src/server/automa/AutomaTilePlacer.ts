@@ -22,6 +22,7 @@ import {
   settleMslCuriosity,
 } from './AutomaPlacementBonus';
 import {marsBotOf} from './AutomaUtil';
+import {divertBotTerraforming} from './BotDivertedTerraforming';
 
 /**
  * A tile placed by something other than a printed track icon.
@@ -148,6 +149,13 @@ export class AutomaTilePlacer {
    * are inside here, not in the caller).
    */
   public static placeGreenery(game: IGame, options?: BotTileOptions): boolean {
+    // A standing law that REPLACES the greenery (RX35, D13) takes it before a
+    // cell is asked — no space needed, no Failed Action, no tile: the law's M€
+    // stands instead, and the action counts as resolved (it was performed, as
+    // the law performs it).
+    if (divertBotTerraforming(game, {kind: 'tile', tile: 'greenery', count: 1})) {
+      return true;
+    }
     const bot = marsBotOf(game);
     // Ares: the bot never places ON a hazard (cleanup is a human economic
     // decision — see AutomaAres); identity without Ares.
@@ -291,6 +299,11 @@ export class AutomaTilePlacer {
     // «…or place an ocean» — the ocean action is one of the four a
     // corporation may take over (C36).
     if (AutomaCorporations.replacesParameterRaise(game, GlobalParameter.OCEANS)) {
+      return;
+    }
+    // …then a standing law that REPLACES it (RX35, D13) — ahead of the nine
+    // oceans and the cell, like the greenery above.
+    if (divertBotTerraforming(game, {kind: 'tile', tile: 'ocean', count: 1})) {
       return;
     }
     if (!game.canAddOcean()) {

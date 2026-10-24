@@ -6,6 +6,7 @@ import {SpaceName} from '../../common/boards/SpaceName';
 import {Space} from '../boards/Space';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
+import {botDivertsTerraforming} from './BotDivertedTerraforming';
 
 /**
  * WHAT A PRINTED HEX IS WORTH TO MARSBOT — the ONE source both consumers read,
@@ -50,9 +51,13 @@ export function isHellasSouthPole(game: IGame, space: Space): boolean {
 /**
  * «If there are oceans still available to place and MarsBot has at least 6 MC»
  * — the condition that decides BOTH halves of the South Pole rule.
+ *
+ * Under a law that REPLACES the ocean (RX35, D13) there is no ocean to buy —
+ * 6 M€ would buy the law's 1 M€ — so the hex is the bot's «hex without
+ * rewards» while the law stands.
  */
 export function hellasSouthPoleUsable(game: IGame, bot: IPlayer): boolean {
-  return game.canAddOcean() && bot.megaCredits >= HELLAS_BONUS_OCEAN_COST;
+  return game.canAddOcean() && bot.megaCredits >= HELLAS_BONUS_OCEAN_COST && !botDivertsTerraforming(game);
 }
 
 /**
