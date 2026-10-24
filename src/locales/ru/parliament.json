@@ -1356,5 +1356,13 @@
   "becomes the leading one": "побеждает",
   "keeps the lead": "по-прежнему побеждает",
   "not leading": "не побеждает",
-  "Quest completed": "Задание выполнено"
+  "Quest completed": "Задание выполнено",
+  "Calculation": "Расчёт",
+  "Results · payouts": "Итоги · выплаты",
+  "What the law takes": "Что забирает закон",
+  "Not owed — for the winner of the vote only": "Не положено — только победителю голосования",
+  "Winner of the vote · ${0} votes": "Победитель голосования · голосов: ${0}",
+  "The winner and every seat with influence ${0}+": "Победителю и каждому с влиянием от ${0}",
+  "Influence ${0} — at or over the line ${1}": "Влияние ${0} — не ниже линии ${1}",
+  "Influence ${0} — under the line ${1}": "Влияние ${0} — ниже линии ${1}"
 }

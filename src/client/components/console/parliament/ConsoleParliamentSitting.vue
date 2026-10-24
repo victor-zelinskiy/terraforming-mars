@@ -65,7 +65,7 @@
          ① ВЫПЛАТЫ (a row per seat — a player saw its OWN chips fly and has never been shown anybody
          else's) · ② СТОЛ (what changed and is already out of sight). ── -->
     <section class="con-sit__panel con-sit__panel--results" :class="{'con-sit__panel--on': stage === 'results'}" data-sit-panel="results">
-      <div v-if="results !== undefined" class="con-sit__results" :class="{'con-sit__results--hidden': resultsHidden}" data-sit-results :data-sit-results-hidden="resultsHidden ? '' : undefined">
+      <div v-if="results !== undefined" class="con-sit__results" :class="{'con-sit__results--hidden': resultsHidden, 'con-sit__results--details': detailsOpen}" data-sit-results :data-sit-results-hidden="resultsHidden ? '' : undefined">
         <!-- ⓪ ПРИНЯТА (Парламент v8, the mock `e1`): the card stands over the CHAMBER ROW, so the government under it is out
              of sight — the enacted resolution's face and the party that rules by it lead the card (the law «never what is
              visible elsewhere» holds: the zone that shows them is the one this card covers). -->
@@ -87,7 +87,8 @@
             <span class="con-sit__enacted-rule">{{ $t('rules · everyone\'s') }}</span>
           </span>
         </div>
-        <!-- ① ВЫПЛАТЫ — the panel's main content. A skip names itself with its reason, as on the reward beat. -->
+        <!-- ① ВЫПЛАТЫ — the panel's main content. A skip names itself with its reason, as on the reward beat. X inspects it:
+             «ПОДРОБНОСТИ ВЫПЛАТ», one level deeper on this card. -->
         <div class="con-sit__payouts" data-sit-section="payouts">
           <span class="con-parl__chip-dim con-sit__section-kicker">{{ $t('Payouts') }}</span>
           <span v-if="results.quiet !== undefined" class="con-sit__payout-quiet" data-sit-payout-quiet>{{ $t(results.quiet.kicker) }}</span>
@@ -95,7 +96,7 @@
           <span v-if="results.veto !== undefined" class="con-sit__veto" data-sit-veto>
             <span class="con-sit__veto-kicker">{{ $t('Under the veto') }}</span>
             <span v-for="l in results.veto" :key="l.color" class="con-sit__veto-seat" :data-sit-veto-seat="l.color">
-              <PlayerDelegate :color="l.color" :size="figurePx(18)" :glow="false" />
+              <i class="con-parl__seat-dot" :class="'player_bg_color_' + l.color" aria-hidden="true"></i>
               <b>{{ nameOfColor(l.color) }}</b>
               <span class="con-sit__veto-tr">{{ l.tr }}</span>
             </span>
@@ -104,7 +105,7 @@
                :class="{'con-sit__payout--winner': shownSummary !== undefined && shownSummary.winner.player === row.player}"
                data-sit-payout :data-sit-payout-seat="row.player">
             <span class="con-sit__payout-who">
-              <PlayerDelegate :color="row.player" :size="figurePx(18)" :glow="false" />
+              <i class="con-parl__seat-dot" :class="'player_bg_color_' + row.player" aria-hidden="true"></i>
               <b class="con-sit__payout-name">{{ nameOfColor(row.player) }}</b>
               <!-- The seat that WON the vote wears the crown (the one fact of the row the chips cannot say). -->
               <span v-if="shownSummary !== undefined && shownSummary.winner.player === row.player" class="con-sit__payout-winner" data-sit-payout-winner>
@@ -113,97 +114,8 @@
             </span>
             <span class="con-sit__payout-parts">
               <span v-if="row.parts.length === 0" class="con-parl__chip-dim" data-sit-payout-none>{{ $t('No reward') }}</span>
-              <span v-for="part in row.parts" :key="part.id" class="con-sit__part"
-                    :class="{'con-sit__part--skipped': part.skipped !== undefined, 'con-sit__part--colony': part.colony !== undefined}" :data-sit-part="part.kind"
-                    :data-sit-part-colony="part.colony">
-                <!-- A COLONY-PAID part (Colonial Affairs) leads with its TILE — the panel groups a seat's parts by it,
-                     one planet + name per tile, the parts of that tile following (the ledger's own order). -->
-                <span v-if="part.colony !== undefined && colonyLeads(row.parts, part)" class="con-sit__part-colony" data-sit-part-tile>
-                  <span class="con-sit__part-planet" :class="planetClass(part.colony)" aria-hidden="true"></span>
-                  <b class="con-sit__part-colony-name">{{ $t(part.colony) }}</b>
-                </span>
-                <template v-if="part.skipped !== undefined">
-                  <!-- A LEVEL part at its target (Joint Research) is the rule working, not a skip: the calm
-                       phrase the band printed, then the server's reason. -->
-                  <span v-if="part.none !== undefined" class="con-parl__chip-dim" data-sit-part-none>{{ $t(part.none) }}</span>
-                  <span v-else class="con-parl__chip-dim">{{ $t('Skipped') }} · {{ $t(part.skipped.title) }}</span>
-                  <span class="con-sit__part-reason" data-sit-part-reason>{{ $t(part.skipped.reason) }}</span>
-                </template>
-                <template v-else>
-                  <img v-if="part.party !== undefined" class="con-sit__emblem" :src="emblemUrl(part.party)" alt="" />
-                  <i v-if="part.tile !== undefined" class="con-sit__door-tile" :class="'con-sit__door-tile--' + part.tile" aria-hidden="true"></i>
-                  <!-- THE WINNER'S OWN STEP OF A PARAMETER (Mohole Contest): the parameter's icon, the step it made
-                       (the scales already moved on the board — the row states the step) and the TR it paid the seat. -->
-                  <template v-if="part.parameter !== undefined">
-                    <!-- A placed TILE already draws its world (the door tile above) — one icon per fact. -->
-                    <i v-if="part.tile === undefined" class="con-sit__world-icon" :class="worldUnitClass(part.parameter.id)" aria-hidden="true"></i>
-                    <span class="con-sit__world" data-sit-part-parameter :data-sit-part-param="part.parameter.id" :data-sit-part-steps="part.amount">
-                      <b>{{ part.parameter.before }}{{ worldSuffix(part.parameter.id) }}</b>
-                      <span class="con-parl__chip-dim">→</span>
-                      <b>{{ part.parameter.after }}{{ worldSuffix(part.parameter.id) }}</b>
-                    </span>
-                    <b v-if="part.tr !== undefined && part.tr > 0" class="con-sit__part-stack" data-sit-part-tr>{{ trLabel(part.tr) }}</b>
-                  </template>
-                  <!-- A CITY TIER (Skyscrapers): the stack the cell became, the record's own height. -->
-                  <b v-else-if="part.stack !== undefined" class="con-sit__part-stack" data-sit-part-stack>×{{ part.stack }}</b>
-                  <!-- A TILE that moved no parameter and became no stack (a colony built for free, a city tile): the tile's
-                       own name — a tile has no amount, and the generic tail printed «0» for it. -->
-                  <b v-else-if="part.tile !== undefined" class="con-sit__part-stack" data-sit-part-tile-name>{{ $t(tileLabel(part.tile)) }}</b>
-                  <!-- A STEP OF THE CAREER (Reds Budget): the insignia, the marker's walk «3 → 4», and what the step paid —
-                       the TR, the card it dealt, or the M€ a seat with no hand took instead (MarsBot). -->
-                  <template v-else-if="part.walk !== undefined">
-                    <i class="career-step-glyph con-sit__part-career" aria-hidden="true"></i>
-                    <span class="con-sit__world" data-sit-part-walk :data-sit-part-walk-from="part.walk.from" :data-sit-part-walk-to="part.walk.to">
-                      <b>{{ part.walk.from }}</b>
-                      <span class="con-parl__chip-dim">→</span>
-                      <b>{{ part.walk.to }}</b>
-                    </span>
-                    <b v-if="part.tr !== undefined && part.tr > 0" class="con-sit__part-stack" data-sit-part-tr>{{ trLabel(part.tr) }}</b>
-                    <template v-if="part.megacredits !== undefined && part.megacredits > 0">
-                      <b data-sit-part-megacredits>+{{ part.megacredits }}</b>
-                      <i class="con-sit__part-unit" :class="netUnitClass('megacredits')" aria-hidden="true"></i>
-                      <span class="con-sit__part-reason con-sit__part-reason--wrap">{{ $t('instead of a card') }}</span>
-                    </template>
-                    <template v-else-if="part.drawn !== undefined && part.drawn > 0">
-                      <b data-sit-part-drawn>+{{ part.drawn }}</b>
-                      <i class="con-sit__part-unit" :class="netUnitClass('cards')" aria-hidden="true"></i>
-                    </template>
-                  </template>
-                  <!-- A HUD-side colony bonus reads by its printed description, signed where it prints an amount (a loss is negative). -->
-                  <template v-else-if="part.kind === 'colonyBonus'">
-                    <b v-if="part.unit !== ''">{{ signedAmount(part.amount) }}</b>
-                    <i v-if="part.unit !== ''" class="con-sit__part-unit" :class="partUnitClass(part)" aria-hidden="true"></i>
-                    <span class="con-sit__part-reason" data-sit-part-description>{{ $t(part.description ?? '') }}</span>
-                  </template>
-                  <!-- A card thrown away (Pluto's second half): the discard mark, the card. -->
-                  <template v-else-if="part.kind === 'discard'">
-                    <span class="con-sit__part-discard" aria-hidden="true">⌫</span>
-                    <b>{{ part.amount }}</b>
-                    <i class="con-sit__part-unit" :class="partUnitClass(part)" aria-hidden="true"></i>
-                  </template>
-                  <template v-else>
-                    <!-- Signed: a LEVY is a negative supply part («−10»), read with its sign, never as a skip;
-                         a short seat's take carries the shortfall's reason beside it. -->
-                    <b :class="{'con-sit__part-loss': (part.amount ?? 0) < 0}" :data-sit-part-amount="part.amount">{{ signedAmount(part.amount) }}</b>
-                    <!-- A unit of SEVERAL kinds («data or microbe») draws as ONE unit joined by «or»; every other part its one icon. -->
-                    <ConsoleYieldUnit v-if="part.units !== undefined" :classes="partUnitClasses(part)" extra="con-sit__part-unit" />
-                    <i v-else class="con-sit__part-unit" :class="partUnitClass(part)" aria-hidden="true"></i>
-                    <span v-if="part.note !== undefined" class="con-sit__part-reason" data-sit-part-note>{{ $t(part.note) }}</span>
-                    <!-- A payout SPREAD over several cards names each recipient with its share — the list is the
-                         record's own (`cards`), never a recount; one recipient prints the sum alone. Where the kinds
-                         differ per card, each share wears its card's own icon. -->
-                    <!-- A payout that ASKED NOBODY (Sponsored Projects) says on how many cards it landed, never cut — then
-                         the KINDS it paid, each once (a short list); the names were the receipt's, which showed every face. -->
-                    <span v-if="part.eachCard !== undefined" class="con-sit__part-reason con-sit__part-each" data-sit-part-each :data-sit-part-each-count="part.eachCard">{{ eachCardText(part.eachCard) }}</span>
-                    <span v-if="part.eachCard !== undefined && part.cards !== undefined" class="con-sit__part-cards con-sit__part-cards--kinds" data-sit-part-cards>
-                      <i v-for="kind in eachKinds(part)" :key="kind" class="con-sit__part-unit con-sit__part-unit--card" :class="cardResourceClass(kind)" :data-sit-part-kind="kind" aria-hidden="true"></i>
-                    </span>
-                    <span v-else-if="part.cards !== undefined" class="con-sit__part-cards" data-sit-part-cards>
-                      <span v-for="entry in part.cards" :key="entry.card" class="con-sit__part-card" :data-sit-part-card="entry.card" :data-sit-part-card-resource="entry.resource">{{ $t(entry.card) }} +{{ entry.amount }}<i v-if="(part.units !== undefined || part.eachCard !== undefined) && entry.resource !== undefined" class="con-sit__part-unit con-sit__part-unit--card" :class="cardResourceClass(entry.resource)" aria-hidden="true"></i></span>
-                    </span>
-                  </template>
-                </template>
-              </span>
+              <!-- ONE PART — the one renderer of a payout chip, shared with «ПОДРОБНОСТИ ВЫПЛАТ» (`ConsoleSitPayoutPart`). -->
+              <ConsoleSitPayoutPart v-for="part in row.parts" :key="part.id" :part="part" :leadsColony="part.colony !== undefined && colonyLeads(row.parts, part)" />
               <!-- THE NET of a budget's supply parts («= −3 M€»): the day's balance the chips could not state. -->
               <span v-if="row.net !== undefined" class="con-sit__net" :class="{'con-sit__net--minus': row.net.amount < 0}" data-sit-net :data-sit-net-amount="row.net.amount">
                 <span class="con-sit__net-eq" aria-hidden="true">=</span>
@@ -309,7 +221,7 @@
             <span class="con-parl__chip-dim">{{ $t('Without a free delegate') }}</span>
             <span class="con-sit__chips">
               <span v-for="color in results.table.noDelegate" :key="color" class="con-sit__chip" data-sit-nodelegate :data-sit-nodelegate-seat="color">
-                <PlayerDelegate :color="color" :size="figurePx(18)" :glow="false" /><b class="con-sit__seat-name">{{ nameOfColor(color) }}</b>
+                <i class="con-parl__seat-dot" :class="'player_bg_color_' + color" aria-hidden="true"></i><b class="con-sit__seat-name">{{ nameOfColor(color) }}</b>
               </span>
             </span>
           </div>
@@ -321,11 +233,18 @@
             <span class="con-parl__chip-dim">{{ $t('Still in the sitting') }}</span>
             <span class="con-sit__chips">
               <span v-for="color in othersInSitting" :key="color" class="con-sit__chip" data-sit-in-sitting :data-sit-in-sitting-seat="color">
-                <PlayerDelegate :color="color" :size="figurePx(18)" :glow="false" /><b class="con-sit__seat-name">{{ nameOfColor(color) }}</b>
+                <i class="con-parl__seat-dot" :class="'player_bg_color_' + color" aria-hidden="true"></i><b class="con-sit__seat-name">{{ nameOfColor(color) }}</b>
               </span>
             </span>
           </div>
         </div>
+        <!-- «ПОДРОБНОСТИ ВЫПЛАТ» — ONE LEVEL DEEPER on the same card: the enacted law (the carried object) keeps its column,
+             the payouts / world / next-vote columns RELEASE in place (`--details`), and the table UNFOLDS out of the rect
+             the payouts held, its sections surfacing in turn. X / B fold it back into the block. -->
+        <transition name="con-sitpd">
+          <ConsoleSittingPayoutDetails v-if="detailsOpen && payoutDetails !== undefined" ref="details" class="con-sit__details"
+                                       :details="payoutDetails" :players="playerView.players" :viewerColor="viewerColor" />
+        </transition>
       </div>
     </section>
   </div>
@@ -340,8 +259,10 @@ import {IClientResolution} from '@/common/parliament/IClientResolution';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import ConsoleYieldUnit from '@/client/components/console/parliament/ConsoleYieldUnit.vue';
-import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
+import ConsoleSitPayoutPart from '@/client/components/console/parliament/ConsoleSitPayoutPart.vue';
+import ConsoleSittingPayoutDetails from '@/client/components/console/parliament/ConsoleSittingPayoutDetails.vue';
+import {PayoutDetails, sittingPayoutDetailsOf} from '@/client/console/parliament/payoutDetailsModel';
+import {sittingPayoutDetails} from '@/client/console/parliament/sittingPayoutDetailsState';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
@@ -353,18 +274,16 @@ import {ColonyLedgerReading} from '@/client/console/parliament/colonyLedgerModel
 import {parliamentRewardState, rewardLanded} from '@/client/console/parliament/parliamentRewardBeat';
 import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {playBodyFold, playZoneLayerEnter} from '@/client/console/parliament/parliamentStageMotion';
-import {OWN_KIND_UNIT, ResultsPayoutPart, ResultsReading, resultsReadingOf} from '@/client/console/parliament/parliamentResultsModel';
+import {ResultsPayoutPart, ResultsReading, resultsReadingOf} from '@/client/console/parliament/parliamentResultsModel';
 import {worldParameterUnit} from '@/client/console/parliament/worldMoveModel';
-import {translateTextWithParams} from '@/client/directives/i18n';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {ParameterMoveId} from '@/common/parliament/parameterMove';
-import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 export default defineComponent({
   name: 'ConsoleParliamentSitting',
-  components: {PlayerDelegate, ConsoleColonyLedger, ConsoleTableReceipt, ConsoleYieldUnit},
+  components: {PlayerDelegate, ConsoleColonyLedger, ConsoleTableReceipt, ConsoleSitPayoutPart, ConsoleSittingPayoutDetails},
   props: {
     /** Where the sitting stands on the server (`consoleSittingFlow.sittingPositionOf`). */
     position: {type: Object as PropType<SittingPosition>, required: true},
@@ -459,6 +378,14 @@ export default defineComponent({
         },
       );
     },
+    /** «ПОДРОБНОСТИ ВЫПЛАТ» stands. */
+    detailsOpen(): boolean {
+      return this.mode === 'live' && this.stage === 'results' && sittingPayoutDetails.open;
+    },
+    /** The step's table — built only while it stands (a computed is read lazily). */
+    payoutDetails(): PayoutDetails | undefined {
+      return this.detailsOpen ? sittingPayoutDetailsOf(this.model, this.shownSummary) : undefined;
+    },
     /** The places one party's support row reserves — the plaques' own count, so the two read as one vocabulary. */
     supportPlaces(): number {
       return PARLIAMENT_MAX_POPULAR_SUPPORT;
@@ -490,11 +417,12 @@ export default defineComponent({
     },
   },
   methods: {
+    /** The right stick / ↑↓ inside «ПОДРОБНОСТИ ВЫПЛАТ» — the host's input path drives the step's one scroll area. */
+    scrollDetails(dy: number): void {
+      (this.$refs.details as {scrollBy?: (dy: number) => void} | undefined)?.scrollBy?.(dy);
+    },
     partyNameKey(party: ReduxParty): string {
       return partyNameKey(party);
-    },
-    figurePx(logical: number): number {
-      return delegateFigurePx(logical);
     },
     /** The ledger layer comes back under a step that has left — the drawer phrase, on the zone's own layer. */
     onLedgerEnter(el: Element, done: () => void): void {
@@ -549,19 +477,6 @@ export default defineComponent({
     worldSuffix(parameter: ParameterMoveId): string {
       return worldParameterUnit(parameter);
     },
-    /** «РТ +N» — the winner's own step's rating, in the one phrase every winner reading prints. */
-    trLabel(tr: number): string {
-      return translateTextWithParams('TR +${0}', [String(tr)]);
-    },
-    /** A tile part's own name (the winner's glyph vocabulary). */
-    tileLabel(tile: NonNullable<ResultsPayoutPart['tile']>): string {
-      switch (tile) {
-      case 'ocean': return 'Ocean';
-      case 'greenery': return 'Greenery';
-      case 'colony': return 'Colony';
-      case 'city': return 'City';
-      }
-    },
     planetClass(colony: string): string {
       return colony.replace(' ', '-') + '-background';
     },
@@ -572,33 +487,6 @@ export default defineComponent({
     /** The net's unit — a standard resource's stock sprite (a budget nets M€). */
     netUnitClass(unit: string): string {
       return iconClassFor(unit);
-    },
-    /** The icon family of a payout part — the console's own sprites, the production frame where it is production. */
-    partUnitClass(part: ResultsPayoutPart): string {
-      if (part.unit === '') {
-        return '';
-      }
-      if (part.kind === 'cardResource') {
-        // «One of its own kind» (Sponsored Projects onto cards of several kinds): the face's «?» cube.
-        return part.unit === OWN_KIND_UNIT ? iconClassFor('wild') : iconClassFor(cardResourceKey(part.unit));
-      }
-      return iconClassFor(part.unit) + (part.production ? ' con-iyield__unit--prod' : '');
-    },
-    /** The icons of a part of SEVERAL kinds — one per kind, in the declared order. */
-    partUnitClasses(part: ResultsPayoutPart): Array<string> {
-      return (part.units ?? []).map((unit) => iconClassFor(cardResourceKey(unit)));
-    },
-    /** «на 4 карты» — the count of cards a payout that asked nobody landed on. */
-    eachCardText(count: number): string {
-      return translateTextWithParams('on ${0} card(s)', [String(count)]);
-    },
-    /** The kinds a payout that asked nobody paid, each once, in the cards' order. */
-    eachKinds(part: ResultsPayoutPart): Array<string> {
-      return [...new Set((part.cards ?? []).flatMap((entry) => entry.resource === undefined ? [] : [entry.resource]))];
-    },
-    /** One recipient's own kind (a card-resource share). */
-    cardResourceClass(resource: string): string {
-      return iconClassFor(cardResourceKey(resource));
     },
   },
 });

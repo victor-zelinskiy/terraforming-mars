@@ -24,7 +24,11 @@ export type ParliamentCommandsInput = {
    * B verb's label (from the workspace phase — «Свернуть» past the commit,
    * nothing on the terminal closing page).
    */
-  sitting?: {primary: string | undefined, inspect: boolean, back: string | undefined};
+  /**
+   * `payouts`: «ПОДРОБНОСТИ ВЫПЛАТ» on the results page — `door` (X inspects the payouts, L3 the enacted law — their
+   * source), `open` (the step stands: X / B fold it back, the table scrolls, L3 still the source); absent = no door.
+   */
+  sitting?: {primary: string | undefined, inspect: boolean, back: string | undefined, payouts?: 'door' | 'open'};
   /**
    * «ПРЕДСЕДАТЕЛЬСТВО»: the flow advertises A only once every beat has landed
    * («Закрыть»). While a beat is in flight A means «дожать» — unadvertised, on
@@ -189,7 +193,16 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
     if (sitting?.primary !== undefined) {
       cmds.push({control: 'confirm', label: sitting.primary, highlight: true});
     }
-    if (sitting?.inspect === true) {
+    if (sitting?.payouts === 'open') {
+      cmds.push({control: 'stickScroll', label: 'Scroll', priority: 1});
+    }
+    if (sitting?.payouts === 'open') {
+      cmds.push({control: 'secondary', label: 'Close'});
+      cmds.push({control: 'stickL', label: 'Source', priority: 1});
+    } else if (sitting?.payouts === 'door') {
+      cmds.push({control: 'secondary', label: 'Inspect'});
+      cmds.push({control: 'stickL', label: 'Source', priority: 1});
+    } else if (sitting?.inspect === true) {
       cmds.push({control: 'secondary', label: 'Inspect'});
     }
     if (sitting?.back !== undefined) {

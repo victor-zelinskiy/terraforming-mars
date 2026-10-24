@@ -225,6 +225,9 @@ import ConsoleParliamentSitting from '@/client/components/console/parliament/Con
 import ConsoleParliamentSupportMode from '@/client/components/console/parliament/ConsoleParliamentSupportMode.vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
+import {payoutDetailsAvailable, sittingPayoutDetailsOf} from '@/client/console/parliament/payoutDetailsModel';
+import {resetSittingPayoutDetails, sittingPayoutDetails} from '@/client/console/parliament/sittingPayoutDetailsState';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {backLabelForVerb, backVerbFor} from '@/client/console/consoleWorkspaceFlow';
 import {
@@ -314,6 +317,9 @@ const SUBMIT_SAFETY_MS = 6000;
  * workspace frame of its own — the hand in its discard mode).
  */
 const STAGE_ZONE_SELECTOR = '.con-parl [data-embed-slot="parliament-stage"]';
+
+/** One press of ↑/↓ (or a flick of the right stick) inside «ПОДРОБНОСТИ ВЫПЛАТ» — about one table row (logical px). */
+const PAYOUT_DETAILS_SCROLL_PX = 120;
 
 export default defineComponent({
   name: 'ConsoleParliamentSection',
@@ -626,6 +632,9 @@ export default defineComponent({
           return nested;
         }
       }
+      if (this.payoutDetailsDoor && sittingPayoutDetails.open) {
+        return 'Results · payouts';
+      }
       const step = SITTING_HOSTED_STEPS.has(p.rewardStep) && !this.sittingStepOpen ? 'received' : p.rewardStep;
       const wf = this.pv.waitingFor;
       return sittingStageKey(this.sittingStage, step, wf?.type === 'space' && wf.placementEffect === 'remove');
@@ -639,6 +648,14 @@ export default defineComponent({
     sittingStep(): number | undefined {
       const summary = this.model?.phase?.summary;
       return this.sittingUp && this.sittingStage !== 'verdict' && parliamentHolds.agendaAwaits === undefined ? summary?.agenda?.to : undefined;
+    },
+    /**
+     * «ПОДРОБНОСТИ ВЫПЛАТ»'s DOOR stands: the results page, its card revealed, and a law that paid some seat
+     * (a quiet law has nothing to explain — no door, no cursor).
+     */
+    payoutDetailsDoor(): boolean {
+      return this.sittingStage === 'results' && !this.resultsHidden &&
+        payoutDetailsAvailable(sittingPayoutDetailsOf(this.model, this.model?.phase?.summary));
     },
     /** The sitting's A verb (undefined = A does nothing here). */
     sittingPrimary(): string | undefined {
@@ -655,6 +672,10 @@ export default defineComponent({
     },
     /** The sitting's B verb label — from the workspace phase, so B can never say one thing and do another. */
     sittingBack(): string | undefined {
+      // One logical level inside the results page: the step folds back onto the card.
+      if (this.payoutDetailsDoor && sittingPayoutDetails.open) {
+        return 'Back';
+      }
       return backLabelForVerb(backVerbFor(sittingWorkspacePhase(this.sittingStage, false)));
     },
     winningSlot(): ParliamentSlotVm | undefined {
@@ -980,7 +1001,10 @@ export default defineComponent({
         canVoteNow: this.canVoteNow,
         partyActionStates: this.partyActionStates,
         resolutionAction: this.resolutionActionState,
-        sitting: {primary: this.sittingPrimary, inspect: this.sittingInspectable, back: this.sittingBack},
+        sitting: {
+          primary: this.sittingPrimary, inspect: this.sittingInspectable, back: this.sittingBack,
+          payouts: !this.payoutDetailsDoor ? undefined : sittingPayoutDetails.open ? 'open' : 'door',
+        },
         quest: this.questCommands,
         voteSubjects: this.voteSubjectCount,
         dossier: this.questDossierOpen || this.careerDossierOpen,
@@ -1181,6 +1205,15 @@ export default defineComponent({
     'sittingStage'(stage: SittingStage): void {
       if (parliamentFlow.stage === 'sitting') {
         setWorkspaceFramePhase('parliament', sittingWorkspacePhase(stage, false));
+      }
+      // «ПОДРОБНОСТИ ВЫПЛАТ» belong to the results page alone — leaving it leaves them (never a stale «open»).
+      if (stage !== 'results') {
+        resetSittingPayoutDetails();
+      }
+    },
+    payoutDetailsDoor(on: boolean): void {
+      if (!on) {
+        resetSittingPayoutDetails();
       }
     },
     /**
@@ -1851,6 +1884,9 @@ export default defineComponent({
       if (position === undefined) {
         return;
       }
+      if (this.payoutDetailsDoor && this.handlePayoutDetailsIntent(intent)) {
+        return;
+      }
       switch (consoleActionOf(intent)) {
       case 'primary': {
         if (sittingMotionActive()) {
@@ -1878,6 +1914,47 @@ export default defineComponent({
       default:
         return;
       }
+    },
+    /**
+     * «ПОДРОБНОСТИ ВЫПЛАТ» on the results page — true when the press was its own. The console's inspection grammar
+     * (the owner, 2026-10-24): X INSPECTS the current object — on the results page that is the payouts, so X opens the
+     * step (and X / B fold it back); L3 reads the SOURCE that produced them, the enacted law; A keeps its one meaning,
+     * onward (the sitting closes — from inside the step too). Inside, ↑/↓ and the right stick scroll the table.
+     */
+    handlePayoutDetailsIntent(intent: GamepadIntent): boolean {
+      const details = sittingPayoutDetails;
+      const sitting = this.$refs.sitting as {scrollDetails?: (dy: number) => void} | undefined;
+      if (intent.kind === 'press' && intent.button === 'stickL') {
+        this.inspectSitting();
+        return true;
+      }
+      const action = consoleActionOf(intent);
+      if (!details.open) {
+        if (action === 'inspect') {
+          if (sittingMotionActive()) {
+            finishSittingMotion();
+          }
+          details.open = true;
+          return true;
+        }
+        return false;
+      }
+      if (intent.kind === 'scroll') {
+        sitting?.scrollDetails?.(Math.sign(intent.dy) * PAYOUT_DETAILS_SCROLL_PX * conUiScale());
+        return true;
+      }
+      if (intent.kind === 'nav') {
+        if (intent.dir === 'up' || intent.dir === 'down') {
+          sitting?.scrollDetails?.((intent.dir === 'up' ? -1 : 1) * PAYOUT_DETAILS_SCROLL_PX * conUiScale());
+        }
+        return true;
+      }
+      if (action === 'inspect' || action === 'back') {
+        details.open = false;
+        return true;
+      }
+      // A — onward, as on the card (the sitting's own handler answers the gate).
+      return false;
     },
     /**
      * «ПРЕДСЕДАТЕЛЬСТВО»: A «дожать» while a beat is in flight, A «Закрыть»
