@@ -261,8 +261,9 @@ describe('voteInfoModel — the panel', () => {
     expect(vm.reading.suffixes.length).eq(2);
     const budget = voteInfoBudget(vm);
     expect(budget).deep.include({kickers: 2, readings: 1, facts: 2});
-    // English keys: «For you when enacted» · 2 × «if you win step» · «Greens» · «Your vote» · «from the reserve M€» · «Leader you» · «Winning no yes».
-    expect(budget.words).eq(4 + 2 * 4 + 1 + 2 + 4 + 2 + 3);
+    // English keys: «For you when enacted» · 2 × «if you win step» · «Greens» · «Your vote» · «from the reserve M€» · «Leader you» · «Leading the vote no yes»
+    // (the win fact is «Leading the vote» since 9f3240a1d9 — «побеждает»).
+    expect(budget.words).eq(4 + 2 * 4 + 1 + 2 + 4 + 2 + 5);
   });
 
   it('a lobby delegate is free whatever cost the caller passes', () => {
