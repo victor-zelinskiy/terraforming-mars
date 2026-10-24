@@ -2145,6 +2145,13 @@ export default defineComponent({
           if (key !== undefined) {
             out.push(noteRow(translateText(key)));
           }
+        } else if (s.kind === 'delegateRemoval') {
+          // THE DELEGATE DOOR's own row (TR72): «Делегат — выбор в Парламенте» — whose figure leaves and what it
+          // changes is read on the figure in the Parliament, never guessed here before it is chosen.
+          const key = playDoorNextStepKey({kind: 'parliament', staged: s.staged, mode: 'delegate'});
+          if (key !== undefined) {
+            out.push(noteRow(translateText(key)));
+          }
         } else if (s.kind === 'colonyPick') {
           // THE COLONY DOOR's own row (TR07): «Трек колонии — выбор в «Колониях»» — where the marker lands is
           // read on each tile of the grid, never guessed here before the tile is chosen.

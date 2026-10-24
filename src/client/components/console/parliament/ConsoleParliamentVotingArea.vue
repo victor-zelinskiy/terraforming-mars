@@ -77,8 +77,9 @@
             <div class="con-parl__ribbon" :class="{'con-parl__ribbon--dense': slot.votes.length > DENSE_RIBBON}" :data-votes="slot.totalVotes" :data-parl-vote-ribbon="voteSelecting && flow.slotIndex === i ? '' : undefined">
               <template v-if="slot.votes.length <= DENSE_RIBBON">
                 <span v-for="vote in slot.votes" :key="vote.seq" class="con-parl__vote-cube"
-                      :class="{'con-parl__vote-cube--landed': vote.seq === flow.landedSeq || flow.landedSeqs.includes(vote.seq), 'con-parl__vote-cube--hidden': vote.seq === flow.flightSeq || flow.pendingSeqs.includes(vote.seq) || holds.hiddenCubes.has(slot.instance + '#' + vote.seq), 'con-parl__vote-cube--arrived': rival.arrived.has(slot.instance + '#' + vote.seq), 'con-parl__vote-cube--counted': countedOf(slot, vote.seq)}"
+                      :class="{'con-parl__vote-cube--landed': vote.seq === flow.landedSeq || flow.landedSeqs.includes(vote.seq), 'con-parl__vote-cube--hidden': vote.seq === flow.flightSeq || flow.pendingSeqs.includes(vote.seq) || holds.hiddenCubes.has(slot.instance + '#' + vote.seq), 'con-parl__vote-cube--arrived': rival.arrived.has(slot.instance + '#' + vote.seq), 'con-parl__vote-cube--counted': countedOf(slot, vote.seq), 'con-parl__vote-cube--outgoing': outgoingOf(slot, vote.seq)}"
                       :data-seq="vote.seq"
+                      :data-delegate-outgoing="outgoingOf(slot, vote.seq) ? '' : undefined"
                       :data-landed="vote.seq === flow.landedSeq || flow.landedSeqs.includes(vote.seq) ? '' : undefined"
                       :data-arrived="rival.arrived.has(slot.instance + '#' + vote.seq) ? '' : undefined"
                       :data-counted="countedOf(slot, vote.seq) ? '' : undefined">
@@ -88,7 +89,7 @@
               </template>
               <template v-else>
                 <span v-for="group in ribbonGroups(slot)" :key="group.owner" class="con-parl__vote-stack"
-                      :class="{'con-parl__vote-stack--landed': group.hasSeq(flow.landedSeq) || flow.landedSeqs.some((seq) => group.hasSeq(seq)), 'con-parl__vote-cube--counted': group.seqs.some((seq) => countedOf(slot, seq))}"
+                      :class="{'con-parl__vote-stack--landed': group.hasSeq(flow.landedSeq) || flow.landedSeqs.some((seq) => group.hasSeq(seq)), 'con-parl__vote-cube--counted': group.seqs.some((seq) => countedOf(slot, seq)), 'con-parl__vote-stack--outgoing': group.seqs.some((seq) => outgoingOf(slot, seq))}"
                       :data-seq="group.seqs[group.seqs.length - 1]"
                       :data-counted="group.seqs.some((seq) => countedOf(slot, seq)) ? '' : undefined">
                   <PlayerDelegate v-if="group.owner !== 'neutral'" :color="group.owner" />
@@ -185,6 +186,7 @@ import {
 import {voteDecidedAt} from '@/client/console/parliament/consoleSittingFlow';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {useConsoleViewport} from '@/client/console/composables/useConsoleViewport';
+import {delegateRemovalGhostVote} from '@/client/console/parliament/delegateRemoval';
 
 /**
  * The VOTING AREA tier: the resolution slots (each ONE DOM instance the vote
@@ -209,6 +211,12 @@ export default defineComponent({
     /** The results scene's current focus ('' outside the scene). */
     /** The SITTING's stage on screen ('' outside the sitting) — the renewal lights the refreshed area. */
     sittingStage: {type: String, default: ''},
+    /**
+     * THE DELEGATE MODE's cursor on a bill (TR72): the figure under the cursor — its bill's party and the vote that
+     * would leave (the owner's latest). It takes the cursor and stands «outgoing» (faded, its trace dashed) — a
+     * forecast, never a removal. Undefined elsewhere (the cursor on an area, past the press, outside the mode).
+     */
+    delegateTarget: {type: Object as PropType<{party: string, seq: number} | undefined>, default: undefined},
   },
   data() {
     return {DENSE_RIBBON, PARTY_EFFECT_PLACES};
@@ -276,7 +284,16 @@ export default defineComponent({
      * take away.
      */
     shownSlots(): ReadonlyArray<ParliamentSlotVm> {
-      return this.holds.heldSlots ?? this.view.slots;
+      const slots = this.holds.heldSlots ?? this.view.slots;
+      // A FIGURE TAKEN OFF A BILL (TR72) still stands on its ribbon until it lifts off: the answer already removed its
+      // vote, the ribbon keeps drawing it at its place (and the count with it) until the flight takes it.
+      return slots.map((slot) => {
+        const ghost = delegateRemovalGhostVote(slot.instance);
+        if (ghost === undefined || slot.votes.some((vote) => vote.seq === ghost.seq)) {
+          return slot;
+        }
+        return {...slot, votes: [...slot.votes, ghost].sort((a, b) => a.seq - b.seq), totalVotes: slot.totalVotes + 1};
+      });
     },
     /** The surface's ONE art tier (`parliamentArtTier`) — the same from the overview to the vote row, the same as a proxy's. */
     artTier(): CardArtTier {
@@ -333,6 +350,10 @@ export default defineComponent({
       // says which card wins until the cube that changed it has landed (`rallyWinnerShown`).
       const renewing = rallyWinnerShown() === undefined && (this.holds.freshFaces.size > 0 || this.holds.hiddenCubes.size > 0);
       return winningShownOf(slot, voteDecidedAt(this.model?.phase?.step) || renewing);
+    },
+    /** The DELEGATE mode's cursor stands on this figure (TR72) — the one the press would take. */
+    outgoingOf(slot: ParliamentSlotVm, seq: number): boolean {
+      return this.delegateTarget !== undefined && this.delegateTarget.party === slot.party && this.delegateTarget.seq === seq;
     },
     /** The recount of a card's rally (TR31) has MARKED this neutral cube. */
     countedOf(slot: ParliamentSlotVm, seq: number): boolean {

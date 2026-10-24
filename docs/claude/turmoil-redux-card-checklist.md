@@ -73,6 +73,13 @@
   `cardsToRemove: [CardName.<X>]`, строка `CardName.<X>` долой из `TURMOIL_CARDS_AWAITING_REDUX_REPLACEMENT` и пин «the adapted
   cards» (`replaced`) — тем же диффом. Заменённая классика вне премиум-скоупа и вне dev-пикера НАВСЕГДА (`inPremiumScope`,
   `guaranteedModuleOf` читают реестр). Гарды: `TurmoilReduxCardManifest.spec` § «a number past TR70», `premiumScope.spec`.
+  Замена с НОВОЙ механикой (TR72 Banned Delegate — «снять одного делегата») — это контракт механики, не только регистрация:
+  операции Парламента + общий шаг + маркер + режим Парламента (`docs/TURMOIL_REDUX_BANNED_DELEGATE.md`), и обязательный e2e (§5).
+- **Карта, которая ВЫБИРАЕТ ФИГУРУ ДЕЛЕГАТА на столе** (снять / обменять одного — TR72, впереди TR74 Recruitment): общий шаг
+  `parliament/RemoveDelegate` (строки-цели с серверным прогнозом на `Parliament.withoutDelegate`), ввод `SelectPartyDelegate`
+  (маркер `delegatePrompt`, ответ `{partyName, delegate: {place, owner}}`), staged-дверь `delegateRemoval` → режим Парламента
+  `delegate` (курсор по фигурам, «уходящая» фигура формой, панель над рядом Карьеры, полёт по записи `lastRemoval`). Новая
+  карта — строка `DelegatePromptMeta.source` + слово стадии, не второй режим.
 - **Тестовый режим**: модуль уже в `GUARANTEED_MODULES` (через `PREMIUM_EXPANSIONS`) — карту можно
   гарантировать в первую руку без правок (`docs/DEV_GUARANTEED_CARDS.md`).
 

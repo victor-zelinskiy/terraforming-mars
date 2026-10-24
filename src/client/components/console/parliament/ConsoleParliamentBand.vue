@@ -216,7 +216,7 @@ import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {parliamentPlayerName, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {
-  BandFocus, BandLine, BandQuest, BandRally, BandRewardReading, BandRewardState, bandRewardTakes, BandSitting, BandStanding, BandSupport, BandWalk, parliamentBandLine,
+  BandFocus, BandLine, BandQuest, BandRally, BandRewardReading, BandRewardState, bandRewardTakes, BandSitting, BandDelegate, BandStanding, BandSupport, BandWalk, parliamentBandLine,
 } from '@/client/console/parliament/parliamentBand';
 import {chairmanQuestFlow} from '@/client/console/parliament/consoleChairmanQuest';
 import {agendaWalkFlow} from '@/client/console/parliament/agendaWalk';
@@ -255,6 +255,8 @@ export default defineComponent({
     stage: {type: String as PropType<SittingStage>, default: 'verdict'},
     /** «САНКЦИИ»'s own context — the support-area mode's cursor and its press (undefined outside the mode). */
     support: {type: Object as PropType<BandSupport | undefined>, default: undefined},
+    /** «ИЗГНАНИЕ»'s own context — the delegate mode's cursor and its press (undefined outside the mode, TR72). */
+    delegate: {type: Object as PropType<BandDelegate | undefined>, default: undefined},
     /** «ДЕЛЕГАТЫ»'s own context — a card's rally of neutral delegates, live in this section (undefined outside it). */
     rally: {type: Object as PropType<BandRally | undefined>, default: undefined},
     /** «Зал» v7: the object under the browse cursor — the overview's line reads IT (undefined outside the browse layer). */
@@ -262,7 +264,7 @@ export default defineComponent({
   },
   computed: {
     line(): BandLine {
-      return parliamentBandLine({sitting: this.sitting, quest: this.quest, walk: this.walk, rally: this.rally, support: this.support, standing: this.standing});
+      return parliamentBandLine({sitting: this.sitting, quest: this.quest, walk: this.walk, rally: this.rally, support: this.support, delegate: this.delegate, standing: this.standing});
     },
     /**
      * «КАРЬЕРА»'s own context — a card's walk, live in this section: the seat and the steps LANDED so far.

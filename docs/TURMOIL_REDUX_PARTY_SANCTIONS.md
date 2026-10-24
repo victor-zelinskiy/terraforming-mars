@@ -70,7 +70,8 @@ skippedSupportDiscard(reason?) → {reason, skipped: {label: 'Popular support'}}
 
 ## 3. Клиент — режим выбора области (наследует любая будущая карта «выберите партию»)
 
-**Одна дверь Парламента, режим — признак.** `PlayDoor {kind: 'parliament', staged, mode: 'vote' | 'support'}`;
+**Одна дверь Парламента, режим — признак.** `PlayDoor {kind: 'parliament', staged, mode: 'vote' | 'support' | 'delegate'}`
+(**третий режим — `delegate`**, TR72 «Изгнание делегата»: курсор по ФИГУРАМ на лентах и в областях — `docs/TURMOIL_REDUX_BANNED_DELEGATE.md`);
 `playCommitVerb` → «Выбрать партию», `playDoorNextStepKey` → «Область поддержки — выбор в Парламенте». Staged-хранилище
 держит ту же цель `resolution` (партийный пик) — РЕЖИМ определяется маркером промпта. Мост
 `parliamentPromptBridge` получил `supportPick: {model, meta, card?, staged?}` (живой сильнее staged; staged ==

@@ -6117,6 +6117,31 @@ Redux / классика; скоуп; save/load), `TurmoilReduxCardManifest.spec
 `reimplements`), `devGuaranteedCards.spec`. Своего e2e нет (§5: механики не новые). Чужие красные на момент сдачи: `effectCaption` (Pristar —
 сосед), `cardLore` RU-паритет (`T02` — лор следующей замены, добавлен владельцем без RU).
 
+## TR72 · Banned Delegate:redux («Изгнание делегата») — ВТОРАЯ КАРТА-ЗАМЕНА · РЕЖИМ ПАРЛАМЕНТА «ВЫБОР ДЕЛЕГАТА» — СДАНА 2026-10-24
+
+**Карта** (`turmoilRedux/BannedDelegateRedux.ts`): событие, 0, без меток, требование — председательство (TR12-класс), лицо
+«− [делегат]» в рамке «любой игрок». `cardNumber: 'TR72'`, `reimplements: BANNED_DELEGATE` → арт `T02.webp` (картинка владельца)
+и лор `T02` (строка владельца «You are not welcome in our chambers.» — отдельным первым коммитом; RU «Вам не рады в наших
+палатах.»). Пустой стол → карта не играется, причина названа. Регистрация по шаблону TR71 (манифест + `cardsToRemove`, строка
+долой из hold-back, реестр «AUTHORED»).
+
+**Механика** (новая, общий слой): `Parliament.removeVote` / `removePopularSupport` / `withoutDelegate` / `lastRemoval`; шаг
+`parliament/RemoveDelegate` (строки-цели «один делегат X здесь» + серверный прогноз: голоса, лидер, победитель заседания,
+потерянные эффекты владельца); ввод `SelectPartyDelegate` (`party` + маркер `delegatePrompt`, ответ с адресом
+`{place, owner}`); событие `delegate-removed` (жертва — `target.player`), строка журнала жертвы, враждебная полоса жертвы, семья
+гарда `delegate-attack` (S22). Клиент: дверь `{kind: 'parliament', mode: 'delegate'}` («Выбрать делегата»), мост
+`delegatePick`, `ParliamentStage 'delegate'`, кольцо по фигурам (`delegatePickModel` — пространственное: ряд фигур стола, колонка
+областей слева), фигура «уходит» формой, панель над рядом Карьеры (`ConsoleParliamentDelegateMode`), лента «ИЗГНАНИЕ», полоса,
+полёт фигуры по записи `lastRemoval` (`delegateRemoval` / `delegateRemovalScene`; лента тикает на отрыве, резерв — на касании).
+Контракт — `docs/TURMOIL_REDUX_BANNED_DELEGATE.md`; глоссарий §9-quater.
+
+**Гарды.** `RemoveDelegate.spec` (20), `BannedDelegateRedux.spec` (16), S22 кросс-доставки, `stagedDelegate.spec` (клиент, 17);
+`test:server` 18116 / `test:client` 7688 зелёные (один чужой красный — `voteInfoModel` бюджет слов после «Leading the vote»
+9f3240a1d9 — исправлен отдельным коммитом). e2e `console-banned-delegate` (tv4k; Steam Machine) — 2/2: ничего до A, одна крошка
+«Розыгрыш → Разыграно → Изгнание», один экземпляр Парламента, курсор не двигает ни резолюций, ни плашек, панель печатает прогноз
+сервера, B → композер, ОДИН POST с адресованным хвостом, лента теряет фигуру (5374 мс) раньше, чем резерв её считает (5628 мс),
+полёт виден, сервер согласен, конец на поле; `-locked` — чип руки «Нельзя разыграть player2», `-empty` — названная причина.
+
 ## R07 · Pristar — ЧЕТВЁРТАЯ И ПОСЛЕДНЯЯ КОРПОРАЦИЯ «НА МЕСТЕ» · СПИСОК «НА МЕСТЕ» ПУСТ — СДАНА 2026-10-24
 
 **Карта** (`turmoil/Pristar.ts`): правил не меняли — 53 M€ и −2 РТ декларативно, `onProductionPhase` апстрима байт-в-байт

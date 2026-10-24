@@ -284,6 +284,7 @@ import {cityMoveOffer} from '../../../src/server/boards/cityMove';
 import {SpaceBonus} from '../../../src/common/boards/SpaceBonus';
 import {SpaceId} from '../../../src/common/Types';
 import {PartySanctions} from '../../../src/server/cards/turmoilRedux/PartySanctions';
+import {BannedDelegateRedux} from '../../../src/server/cards/turmoilRedux/BannedDelegateRedux';
 import {hasPartyRequirement} from '../../../src/server/cards/requirements/partyRequirementCards';
 import {TransNeptuneProbe} from '../../../src/server/cards/base/TransNeptuneProbe';
 import {testAutomaGame, testAutomaMultiplayerGame} from '../../automa/AutomaTestGame';
@@ -4051,6 +4052,68 @@ parliamentFixture('party-sanctions', {
     parliament.assertLedger(game);
   },
 });
+
+// ── TR72 · BANNED DELEGATE:redux — the DELEGATE mode, the staged party pick of ONE FIGURE
+//    (docs/TURMOIL_REDUX_BANNED_DELEGATE.md): blue's action phase with the card in hand and 10 M€, blue IN THE CHAIR
+//    (the card's requirement). A QUIET government (the Industrialists by Central Power Grid) and three resolutions:
+//    Mars First (Architecture Award) — blue, red, red: red leads 2–1, and taking red's LATEST hands the lead to blue
+//    (1–1, blue's figure came first); the Greens (Aquifer Contest) — two neutral votes; Unity (Colonization Funding) —
+//    blue ×2 (blue holds Unity's effect by delegates). SYNTHETIC support for the area stops: the Scientists hold 2,
+//    the Reds 1 (no sitting has been held yet — the TR03 / TR12 fixtures' precedent); the ledger stays whole.
+//    `-locked`: red holds the chair (the card refused with the chair's reason). `-empty`: blue in the chair over an
+//    EMPTY table (no vote, no support — the card refused with «no delegates»). The card is the game's own copy. ──
+function bannedDelegateFixture(name: string, chair: 'p1' | 'p2', table: 'full' | 'empty'): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [10, 30],
+    arrange: ({game, p1, p2, parliament}) => {
+      seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+      seatResolution(parliament, 0, ARCHITECTURE_AWARD_ID);
+      seatResolution(parliament, 1, AQUIFER_CONTEST_ID);
+      seatResolution(parliament, 2, COLONIZATION_FUNDING_ID);
+      for (const party of REDUX_PARTIES) {
+        parliament.popularSupport.set(party, 0);
+      }
+      if (table === 'full') {
+        const [mars, greens, unity] = parliament.slots;
+        parliament.placeVote(p1, mars, 'lobby');
+        parliament.placeVote(p2, mars, 'lobby');
+        parliament.placeVote(p2, mars, 'reserve');
+        parliament.addNeutralVote(greens);
+        parliament.addNeutralVote(greens);
+        parliament.placeVote(p1, unity, 'reserve');
+        parliament.placeVote(p1, unity, 'reserve');
+        parliament.popularSupport.set(PartyName.SCIENTISTS, 2);
+        parliament.popularSupport.set(PartyName.REDS, 1);
+      }
+      parliament.chairman = chair === 'p1' ? p1.id : p2.id;
+      moveToDeckTop(game, CardName.BANNED_DELEGATE_REDUX);
+      p1.cardsInHand.push(game.projectDeck.drawPile.pop() as BannedDelegateRedux);
+    },
+    expect: ({game, parliament, p1, p2}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.BANNED_DELEGATE_REDUX);
+      const playable = card !== undefined && p1.canPlay(card);
+      const wantPlayable = chair === 'p1' && table === 'full';
+      const [mars] = parliament.slots;
+      const facts = {
+        playable,
+        chair: parliament.chairman === p1.id ? 'p1' : parliament.chairman === p2.id ? 'p2' : 'none',
+        ruling: parliament.rulingParty(),
+        mars: mars.votes.map((v) => v.owner === p1.id ? 'blue' : v.owner === p2.id ? 'red' : 'neutral').join(','),
+        support: parliament.totalPopularSupport(),
+      };
+      const wantMars = table === 'full' ? 'blue,red,red' : '';
+      if (playable !== wantPlayable || facts.chair !== chair || facts.ruling !== PartyName.INDUSTRIALISTS || facts.mars !== wantMars ||
+          facts.support !== (table === 'full' ? 3 : 0)) {
+        throw new Error(`the ${name} fixture expected playable=${wantPlayable}, the chair ${chair}, the Industrialists ruling, Mars First «${wantMars}» — got ${JSON.stringify(facts)}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+bannedDelegateFixture('banned-delegate', 'p1', 'full');
+bannedDelegateFixture('banned-delegate-locked', 'p2', 'full');
+bannedDelegateFixture('banned-delegate-empty', 'p1', 'empty');
 
 // ── TR23 · HABITAT SCIENCE — «THE LEDGER PAYS» (docs/TURMOIL_REDUX_HABITAT_SCIENCE.md): blue's action phase with the
 //    card IN ITS TABLEAU holding 4 data (the action live, unused) and a colony on each of four tiles whose printed

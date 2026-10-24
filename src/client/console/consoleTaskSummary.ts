@@ -562,6 +562,15 @@ function kindSummary(
         openKey: 'Open the Parliament',
       };
     }
+    // A card's DELEGATE pick (Turmoil Redux TR72 — «remove any delegate»): the Parliament's delegate mode.
+    if (wf?.delegatePrompt !== undefined) {
+      return {
+        kickerKey: 'Parliament',
+        ask: ask(wf, 'Select a delegate to remove from a resolution or a Popular Support area'),
+        returnKey: 'Return to the Parliament',
+        openKey: 'Open the Parliament',
+      };
+    }
     // The Mars Parliament's chairman seat (Turmoil Redux): the quest is done
     // and every delegate stands on a resolution — one of them gives a delegate
     // up. Served inside the Parliament workspace.

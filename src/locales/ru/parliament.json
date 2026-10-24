@@ -1373,5 +1373,13 @@
   "${0} removed a neutral delegate from the Popular Support of ${1} (${2}/${3})": "${0} изгоняет нейтрального делегата из Народной поддержки «${1}» (${2}/${3})",
   "${0} removed a neutral delegate from ${1}": "${0} изгоняет нейтрального делегата с ${1}",
   "${0} removed their own delegate from ${1}": "${0} изгоняет своего делегата с ${1}",
-  "${0} removed a delegate of ${1} from ${2}": "${0} изгоняет делегата игрока ${1} с ${2}"
+  "${0} removed a delegate of ${1} from ${2}": "${0} изгоняет делегата игрока ${1} с ${2}",
+  "Banishment": "Изгнание",
+  "Choose the delegate": "Выбрать делегата",
+  "Delegate — chosen in the Parliament": "Делегат — выбор в Парламенте",
+  "From the resolution «${0}»": "С резолюции «${0}»",
+  "From the Popular Support of «${0}»": "Из народной поддержки «${0}»",
+  "To the reserve of ${0}": "В резерв игрока ${0}",
+  "To the common supply": "В общий запас",
+  "Delegate removed": "Делегат изгнан"
 }

@@ -365,6 +365,7 @@ import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairma
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
 import {seedNeutralRallyHolds} from '@/client/console/parliament/neutralRally';
 import {seedSupportDiscardHolds} from '@/client/console/parliament/supportDiscard';
+import {seedDelegateRemovalHolds} from '@/client/console/parliament/delegateRemoval';
 import {seedRivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {endgameAvailable} from '@/client/components/endgame/endgameState';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
@@ -818,6 +819,8 @@ export default defineComponent({
             seedNeutralRallyHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and a stripped support area (TR12) whose answer arrived through this frame (a parked tail landing later).
             seedSupportDiscardHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+            // …and a figure a card took off the table (TR72) whose record arrived through this frame.
+            seedDelegateRemovalHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and a rival's delegate that arrived through this poll / WS frame (the same block as the apply).
             seedRivalVotes(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and a deck-check verdict's stock reward (TR13) whose answer arrived through this frame.

@@ -270,8 +270,10 @@ export function playChoiceMode(
  *                   is picked in the Parliament's vote mode, hosted inside the
  *                   workspace the card is played from — or a `supportDiscard`
  *                   step (TR12): a party's POPULAR SUPPORT AREA is picked in the
- *                   Parliament's support-area mode. ONE door kind: the Parliament
- *                   is the place either way, the MODE is a feature of it;
+ *                   Parliament's support-area mode — or a `delegateRemoval`
+ *                   step (TR72): ONE FIGURE is picked in the Parliament's
+ *                   delegate mode. ONE door kind: the Parliament is the place
+ *                   either way, the MODE is a feature of it;
  *  · `colonies`   — a `colonyPick` step (Turmoil Redux TR07): the colony TILE is
  *                   picked in the colony grid, hosted inside the workspace the
  *                   card is played from, and confirmed on the tile's stage.
@@ -280,7 +282,7 @@ export function playChoiceMode(
  */
 export type PlayDoor =
   | {kind: 'board', staged: StagedPlacementModel}
-  | {kind: 'parliament', staged: StagedVoteModel, mode: 'vote' | 'support'}
+  | {kind: 'parliament', staged: StagedVoteModel, mode: 'vote' | 'support' | 'delegate'}
   | {kind: 'colonies', staged: StagedColonyModel};
 
 /** The branch's door, if it has one — the FIRST such step (a multi-tile card commits on its first cell). */
@@ -291,6 +293,9 @@ export function playDoorOf(branch: ActionPreviewBranch | undefined): PlayDoor | 
     }
     if (step.kind === 'supportDiscard') {
       return {kind: 'parliament', staged: step.staged, mode: 'support'};
+    }
+    if (step.kind === 'delegateRemoval') {
+      return {kind: 'parliament', staged: step.staged, mode: 'delegate'};
     }
     if (step.kind === 'colonyPick') {
       return {kind: 'colonies', staged: step.staged};
@@ -337,7 +342,7 @@ export function heroRewardEffectsOf(branch: ActionPreviewBranch | undefined): Re
 export function playCommitVerb(door: PlayDoor | undefined): string {
   switch (door?.kind) {
   case 'board': return 'Play on the board';
-  case 'parliament': return door.mode === 'support' ? 'Choose the party' : 'Choose the resolution';
+  case 'parliament': return door.mode === 'support' ? 'Choose the party' : door.mode === 'delegate' ? 'Choose the delegate' : 'Choose the resolution';
   // The colony door's MODE is said by the staged prompt's own marker: a roster pick chooses a TILE (TR10).
   case 'colonies': return door.staged.prompt.rosterChange !== undefined ? 'Choose the tile' : 'Choose the colony';
   default: return 'Play card';
@@ -495,7 +500,8 @@ export function countedPlayForYouAnnotation(why: CountedWhy, t: RowTranslator): 
  */
 export function playDoorNextStepKey(door: PlayDoor | undefined): string | undefined {
   switch (door?.kind) {
-  case 'parliament': return door.mode === 'support' ? 'Popular support area — chosen in the Parliament' : 'Resolution — chosen in the Parliament';
+  case 'parliament': return door.mode === 'support' ? 'Popular support area — chosen in the Parliament' :
+    door.mode === 'delegate' ? 'Delegate — chosen in the Parliament' : 'Resolution — chosen in the Parliament';
   // The colony door's step is named by the staged prompt's own MARKER: a roster pick replaces a tile (TR10), a
   // pick carrying `tileSite` lays a city on a tile (TR22), one carrying `buildSites` builds a colony (TR25), any
   // other moves a track (TR07).

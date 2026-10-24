@@ -77,6 +77,17 @@ export type ParliamentCommandsInput = {
     available: boolean,
   };
   /**
+   * THE DELEGATE MODE (TR72 Banned Delegate:redux, «ИЗГНАНИЕ»): A commits the figure under the cursor — a STAGED
+   * door's flow verb, a live door's «Изгнать делегата»; every stop is a candidate, so A is always lit while a figure
+   * stands; B is «Назад» on a staged door, «Свернуть» on a live one; L3 the card that asks.
+   */
+  delegate?: {
+    staged: boolean,
+    stagedFlow?: 'play' | 'action',
+    source: boolean,
+    available: boolean,
+  };
+  /**
    * «ВАШИ ЭФФЕКТЫ» (Парламент v8 § 6): on the overview's block `count` sources stand (A opens the inner step when
    * there is one). Inside the step (ONE FRAMEWORK С6 — a host): in the ACTIONS zone the tile under the cursor is an
    * action (`use` — whether it can be taken now); in the EFFECTS zone the explorer owns the cursor (`detail` — its
@@ -259,6 +270,25 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
       cmds.push({control: 'stickL', label: 'Source', priority: 1});
     }
     cmds.push(support?.staged === true ? back : {control: 'back', label: 'Minimize'});
+    return cmds;
+  }
+  case 'delegate': {
+    // Past the press the figure is carried home on this stage: a STATUS, never a verb (the support mode's law).
+    if (parliamentFlow.delegateCommitted) {
+      return [{control: 'confirm', label: parliamentFlow.delegateBeat === 'done' ? 'Delegate removed' : 'Performing…', enabled: false}];
+    }
+    const delegate = input.delegate;
+    const cmds: Array<ConsoleCommand> = [
+      {
+        control: 'confirm', label: delegate?.staged === true ? stagedDoorVerb(delegate.stagedFlow) : 'Remove delegate',
+        enabled: delegate?.available === true, highlight: delegate?.available === true,
+      },
+      {control: 'secondary', label: 'Inspect'},
+    ];
+    if (delegate?.source === true) {
+      cmds.push({control: 'stickL', label: 'Source', priority: 1});
+    }
+    cmds.push(delegate?.staged === true ? back : {control: 'back', label: 'Minimize'});
     return cmds;
   }
   // A card's WALK (TR04): the outcome of a play made elsewhere — nothing to confirm (the composer's preview already

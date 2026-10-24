@@ -19830,7 +19830,9 @@ export default defineComponent({
         // Parliament on its own, where the mode serves it just the same.
         // …and a card's SUPPORT-AREA pick met LIVE (TR12 — re-asked, a reload, a play outside the staged boundary)
         // stands the same way: the Parliament's support-area mode, inside the flow that raised it.
-        const partyStep = this.playerView.waitingFor?.votePrompt?.source === 'grant' || this.playerView.waitingFor?.supportPrompt !== undefined;
+        // …and a card's DELEGATE pick met LIVE (TR72) — the Parliament's delegate mode, the same way.
+        const partyStep = this.playerView.waitingFor?.votePrompt?.source === 'grant' || this.playerView.waitingFor?.supportPrompt !== undefined ||
+          this.playerView.waitingFor?.delegatePrompt !== undefined;
         // A CARD's build (TR25) whose stage still stands: the grant's step takes the section's central area, so its
         // door waits for the stage to go HOME — `landColonyBuild` opens it then (never a Parliament over a lit stage).
         if (partyStep && colonyBuildAnswered() && this.colonyFocus.open) {
@@ -22228,7 +22230,7 @@ export default defineComponent({
     settleStagedVote(arm: StagedPlayArm): void {
       const wf = this.playerView.waitingFor;
       // The card's own party question stands LIVE again — its delegate grant (TR03 / TR15) or its area pick (TR12).
-      const reAsked = wf?.type === 'party' && (wf.votePrompt?.source === 'grant' || wf.supportPrompt !== undefined) &&
+      const reAsked = wf?.type === 'party' && (wf.votePrompt?.source === 'grant' || wf.supportPrompt !== undefined || wf.delegatePrompt !== undefined) &&
         wf.choiceContext?.source.kind === 'card' && wf.choiceContext.source.card === arm.cardName;
       if (reAsked) {
         const host = stagedStepHost(arm) ?? 'hand';

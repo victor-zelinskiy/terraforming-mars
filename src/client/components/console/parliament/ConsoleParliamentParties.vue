@@ -51,7 +51,8 @@ import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
-import {parliamentFlow, parliamentSupportUp} from '@/client/console/parliament/consoleParliamentFlow';
+import {parliamentDelegateUp, parliamentFlow, parliamentSupportUp} from '@/client/console/parliament/consoleParliamentFlow';
+import {delegateRemovalSupportStanding} from '@/client/console/parliament/delegateRemoval';
 import {SupportPromptMeta} from '@/common/models/PlayerInputModel';
 import {supportAreaOf} from '@/client/console/parliament/supportPickModel';
 import {supportDiscardStanding} from '@/client/console/parliament/supportDiscard';
@@ -94,6 +95,12 @@ export default defineComponent({
      * «N → 0» or its refusal, the focused candidate outlines the cubes that would leave. Undefined outside the mode.
      */
     supportMeta: {type: Object as PropType<SupportPromptMeta | undefined>, default: undefined},
+    /**
+     * THE DELEGATE MODE's cursor on a support area (TR72): the plaque whose area the figure under the cursor stands
+     * in — it takes the cursor and outlines the ONE figure the press would take. Undefined elsewhere (the cursor on a
+     * bill's figure, past the press, outside the mode).
+     */
+    delegateArea: {type: String as PropType<ReduxParty | undefined>, default: undefined},
   },
   data() {
     return {
@@ -186,6 +193,9 @@ export default defineComponent({
     /** The focused tile's index in `view.parties`: the row's cursor, or the ruler when the government's tile is the focus zone. */
     focusedIndex(): number {
       // The overview's cursor — and the SUPPORT-AREA mode's (TR12), which walks the same six plaques by the same record.
+      if (parliamentDelegateUp()) {
+        return this.delegateArea === undefined ? -1 : this.view.parties.findIndex((p) => p.party === this.delegateArea);
+      }
       if (parliamentFlow.stage !== 'browse' && !parliamentSupportUp()) {
         return -1;
       }
@@ -366,7 +376,7 @@ export default defineComponent({
       // …PLUS the cubes a support-area pick (TR12) emptied that have not LIFTED off this plaque yet, and MINUS the
       // cubes a card's rally (TR31) granted that have not LANDED here yet (each touchdown lands one).
       return Math.max(0, Math.min(3, p.support + (parliamentHolds.support.get(p.party) ?? 0) - (parliamentHolds.supportIncoming.get(p.party) ?? 0) +
-        supportDiscardStanding(p.party) - rallySupportIncoming(p.party) - rivalSupportIncoming(p.party)));
+        supportDiscardStanding(p.party) + delegateRemovalSupportStanding(p.party) - rallySupportIncoming(p.party) - rivalSupportIncoming(p.party)));
     },
     /** The recount's marks on this plaque's places (TR31) — 0 outside a rally. */
     rallyCountedPlaces(party: ReduxParty): number {
@@ -387,6 +397,9 @@ export default defineComponent({
     },
     /** The cubes the FOCUSED candidate would send away — outlined while the pick is open, never past the press. */
     outgoingOf(party: ReduxParty, index: number): number {
+      if (this.delegateArea !== undefined) {
+        return party === this.delegateArea ? 1 : 0;
+      }
       if (index !== this.focusedIndex || parliamentFlow.stage !== 'support' || parliamentFlow.supportCommitted) {
         return 0;
       }

@@ -319,6 +319,21 @@ export type BandSupport = {
 };
 
 /**
+ * «ИЗГНАНИЕ» — the DELEGATE mode (TR72 Banned Delegate:redux): the stage's own word, then the figure under the cursor
+ * (the chosen one past the press) — its owner, and the place it stands in (a bill, or a party's support area). Cyan
+ * until A, amber after it.
+ */
+export type BandDelegate = {
+  stage: string;
+  owner: Color | 'neutral';
+  place: 'resolution' | 'support';
+  party: ReduxParty;
+  /** The bill the figure stands on (absent in a support area). */
+  resolution?: ResolutionId;
+  committed: boolean;
+};
+
+/**
  * «ДЕЛЕГАТЫ» — a card's RALLY of neutral delegates (TR31) shown as the outcome of its play: the votes LANDED so
  * far (a resolution chip each), the areas READ so far (a party chip each — with its named zero when it took
  * none), and — once the recount has begun — the count of neutral delegates in use, growing one mark at a time.
@@ -345,6 +360,8 @@ export type BandContext = {
   rally?: BandRally;
   /** `undefined` outside the support-area mode — a walk that follows it in the same flow outranks it (the walk is the beat on the table then). */
   support?: BandSupport;
+  /** `undefined` outside the delegate mode (TR72). */
+  delegate?: BandDelegate;
   standing: BandStanding;
 };
 
@@ -368,6 +385,9 @@ export function parliamentBandLine(ctx: BandContext): BandLine {
     }
     if (ctx.support !== undefined) {
       return supportLine(ctx.support);
+    }
+    if (ctx.delegate !== undefined) {
+      return delegateLine(ctx.delegate);
     }
     return ctx.quest === undefined ? overviewLine(ctx.standing) : questLine(ctx.quest);
   }
@@ -450,6 +470,27 @@ function supportLine(support: BandSupport): BandLine {
     key: `support:${party ?? ''}:${support.available ? support.leaving : 'x'}:${support.committed ? 'c' : 'o'}`,
     chips,
     committed: support.committed,
+  };
+}
+
+/**
+ * ИЗГНАНИЕ — the delegate mode: whose figure is under the cursor and where it stands («[фигура] player2 · [bill]», or
+ * «[фигура] Нейтральный · [emblem] party · Народная поддержка»). The key follows the cursor (one crossfade per figure)
+ * and the commit, and stands still between them.
+ */
+function delegateLine(delegate: BandDelegate): BandLine {
+  const chips: Array<BandChip> = [{kind: 'player', player: delegate.owner}];
+  if (delegate.place === 'resolution' && delegate.resolution !== undefined) {
+    chips.push({kind: 'resolution', resolution: delegate.resolution, party: delegate.party});
+  } else {
+    chips.push({kind: 'party', party: delegate.party});
+    chips.push({kind: 'label', key: 'Popular support', tone: 'quiet'});
+  }
+  return {
+    kicker: delegate.stage,
+    key: `delegate:${delegate.place}:${delegate.party}:${delegate.owner}:${delegate.committed ? 'c' : 'o'}`,
+    chips,
+    committed: delegate.committed,
   };
 }
 

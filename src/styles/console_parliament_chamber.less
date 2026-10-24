@@ -59,7 +59,9 @@
     --con-parl-palata-w: 34rem;
     --con-parl-opp-col: 12.8rem;
     --con-parl-career-h: 11rem;
-    --con-parl-quest-w: 17.4rem;
+    /* The quest's plate: wide enough for its widest printed condition beside the chair at the formula's scale (the
+       career's twelve tiles give it the room — the owner, 2026-10-24); a still wider one is FITTED, never overlapped. */
+    --con-parl-quest-w: 18.6rem;
     --con-parl-effects-h: 12rem;
     --con-parl-markers-h: 1.35rem;
     --con-parl-infband-h: 1.45rem;
@@ -561,6 +563,75 @@
     &__support { position: absolute; inset: 0; grid-column: auto; grid-row: auto; }
     &--support &__table-tier { opacity: 0; pointer-events: none; transition: opacity calc(200ms * var(--motion-scale, 1)) ease-out; }
 
+    /* «ИЗГНАНИЕ» (TR72 Banned Delegate:redux): the delegate mode's reading stands over the CAREER's row — the bills and
+       the plaques, every figure the cursor walks, stay where they are; the career (the one part of the chamber the pick
+       is not about) recedes under the panel by opacity, its box untouched (nothing above it moves). */
+    &--delegate &__body { position: relative; }
+    &--delegate &__agenda { opacity: 0; pointer-events: none; transition: opacity calc(200ms * var(--motion-scale, 1)) ease-out; }
+    &__delegate {
+        .con-parl-v8-plate();
+        position: absolute;
+        left: .1rem;
+        right: .1rem;
+        bottom: .3rem;
+        height: var(--con-parl-career-h);
+        z-index: 4;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        column-gap: 1.4rem;
+        padding: .7rem 1.2rem;
+        animation: con-parl-delegate-in calc(260ms * var(--motion-scale, 1)) @con-ease-standard both;
+    }
+    &__delegate-stage { position: relative; min-width: 0; height: 100%; }
+    &__delegate-body {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        column-gap: 1.6rem;
+        min-width: 0;
+    }
+    &__delegate-who { display: flex; align-items: center; gap: .9rem; min-width: 0; }
+    /* THE FIGURE THAT LEAVES — drawn by FORM, never by light: faded, its trace dashed amber (the plaques' outgoing
+       grammar). The cursor's ring is on the figure on the table; the panel's figure is its reading. */
+    &__delegate-figure {
+        .pd-footprint(2.4rem);
+        width: 2.4rem; height: 2.6rem;
+        flex-shrink: 0;
+        --pd-foot-rim: fade(@con-amber, 90%);
+        --pd-foot-style: dashed;
+        > .player-delegate { opacity: .45; }
+    }
+    &__delegate-id { display: flex; flex-direction: column; gap: .14rem; min-width: 0; }
+    &__delegate-kicker { color: fade(@con-amber, 90%); opacity: 1; }
+    &__delegate-name { font-size: 1.15rem; font-weight: 800; line-height: 1.1; color: #f2f4f8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    &__delegate-place { display: inline-flex; align-items: center; gap: .4rem; min-width: 0; font-size: .82rem; line-height: 1.2; color: fade(@con-text, 88%); }
+    &__delegate-emblem { width: 1.15rem; height: 1.15rem; flex-shrink: 0; object-fit: contain; }
+    &__delegate-dest { display: inline-flex; align-items: center; gap: .3rem; font-size: .76rem; line-height: 1.2; color: fade(@con-text, 72%); }
+    /* THE ONLY TARGET (composer-preselect): a quiet mark — the figure is shown and marked, never taken without the press. */
+    &__delegate-sole { align-self: flex-start; font-size: .62rem; letter-spacing: .12em; text-transform: uppercase; color: fade(@con-text, 62%); }
+    &__delegate-facts { min-width: 0; align-self: center; }
+    &__delegate-receipt { align-self: center; border-top: none; padding-top: 0; white-space: nowrap; }
+    &__delegate-cta { align-self: center; }
+
+    /* THE RIBBON FIGURE UNDER THE DELEGATE CURSOR — the cursor's own ring (the console grammar's layer, the ONE light),
+       and the figure it would take drawn as LEAVING by form: faded, its trace dashed amber. A forecast, never a removal. */
+    &__vote-cube--outgoing {
+        --pd-foot-rim: fade(@con-amber, 90%);
+        --pd-foot-style: dashed;
+        > .player-delegate { opacity: .4; }
+        .con-cursor-ring(inset 0 0 0 var(--con-focus-ring, .05rem) fade(@con-cyan, 85%), 0 0 var(--con-glow-r, .7rem) fade(@con-cyan, 22%); @radius: .4rem);
+        .con-cursor-on();
+    }
+    &__vote-stack--outgoing {
+        > .player-delegate { opacity: .4; }
+        .con-cursor-ring(inset 0 0 0 var(--con-focus-ring, .05rem) fade(@con-cyan, 85%), 0 0 var(--con-glow-r, .7rem) fade(@con-cyan, 22%); @radius: .3rem);
+        .con-cursor-on();
+        position: relative;
+    }
+
     /* ── THE SWAP'S POSE — the plaques travel between a bench and the dais inside ONE plate: no clip on the path. ── */
     &--swapping &__palata, &--swapping &__opposition { overflow: visible; }
 
@@ -589,7 +660,7 @@
         grid-template-columns: minmax(0, 1fr) auto auto auto auto minmax(0, 1fr);
         grid-template-rows: auto minmax(0, 1fr) auto;
         grid-template-areas: "kick kick kick kick kick kick" ". chair cond arrow step ." "race race race race race race";
-        column-gap: .75rem;
+        column-gap: .6rem;
         row-gap: .3rem;
         align-items: center;
         justify-items: center;
@@ -625,13 +696,15 @@
     /* THE QUEST IS TAKEN: what cannot be had again recedes in place. */
     &__engine-cond, &__engine-arrow { transition: opacity calc(260ms * var(--motion-scale, 1)) ease-out; }
     &__engine--done .con-parl__engine-cond { opacity: .42; }
-    &__engine--done .con-parl__engine-arrow { opacity: .55; stroke: @con-parl-mint; }
+    &__engine--done .con-parl__engine-arrow { opacity: .55; }
     /* THE THRONE — the chair medallion over the holder's NAME (one column of the formula). */
     &__throne { grid-area: chair; display: flex; flex-direction: column; align-items: center; gap: .22rem; min-width: 0; }
+    /* THE CHAIR IS ONE MEMBER OF THE FORMULA, NOT ITS HERO (the owner, 2026-10-24: «кресло непропорционально большое»):
+       the medallion stands at the condition's own height, the seated figure still well above the couch floor. */
     &__chair {
         position: relative;
-        width: 4.1rem;
-        height: 4.1rem;
+        width: 3.3rem;
+        height: 3.3rem;
         display: grid;
         place-items: center;
         border-radius: 50%;
@@ -661,10 +734,10 @@
         &--pulse { animation: con-parl-land-flash calc(900ms * var(--motion-scale, 1)) ease-out both; }
     }
     /* The throne stands BEHIND the seated figure — its crowned back rises over the figure's head. */
-    &__chair-glyph { position: absolute; top: .3rem; left: 50%; width: 2.7rem; height: 2.7rem; margin-left: -1.35rem; fill: @con-parl-gold; opacity: .92; }
-    /* The chairman's DELEGATE seated IN the chair — 44 logical px (`CHAIR_FIGURE`), its base a tenth of its height below
+    &__chair-glyph { position: absolute; top: .24rem; left: 50%; width: 2.2rem; height: 2.2rem; margin-left: -1.1rem; fill: @con-parl-gold; opacity: .92; }
+    /* The chairman's DELEGATE seated IN the chair — 36 logical px (`CHAIR_FIGURE`), its base a tenth of its height below
        the medallion's centre (the quest director's fallback rect is the same box). */
-    &__chair-cube { position: absolute; inset: 0; display: grid; place-items: center; padding-top: calc(var(--pd-host) * .2); --pd-host: 2.2rem; }
+    &__chair-cube { position: absolute; inset: 0; display: grid; place-items: center; padding-top: calc(var(--pd-host) * .2); --pd-host: 1.8rem; }
     &__chair-name {
         max-width: 5.6rem;
         overflow: hidden;
@@ -680,7 +753,9 @@
     }
     &__engine-cond { grid-area: cond; display: flex; align-items: center; justify-content: center; min-width: 0; max-width: 100%; }
     /* The printed condition bare on the plate (no dark tile behind it) at the formula's scale. */
-    &__engine-cond .con-parl__quest-graphic { zoom: var(--con-parl-engine-zoom); padding: 2px 4px; background: none; border: none; box-shadow: none; }
+    /* …times the FIT the plate solves for it (`ConsoleParliamentEngine.fitCondition`, ≤ 1): never wider than the room the
+       chair, the arrow and the reward leave. */
+    &__engine-cond .con-parl__quest-graphic { zoom: calc(var(--con-parl-engine-zoom) * var(--con-parl-engine-fit, 1)); padding: 2px 4px; background: none; border: none; box-shadow: none; }
     &__engine-text { font-family: @con-font-read; font-size: .62rem; line-height: 1.15; max-width: 8.5rem; text-align: center; }
     /* THE STEP IT PAYS — a reward chip in the career's own gold («+1 [career insignia]» — the shared
        `.career-step-glyph`, the very mark the track's head wears), led by a drawn arrow (never a «→» glyph). */
@@ -708,16 +783,17 @@
     &__engine-step--taken .con-parl__engine-step-seal { opacity: 1; }
     &__engine-step-dot { width: .7rem; height: .7rem; border-radius: 50%; box-shadow: 0 0 0 .06rem rgba(0, 0, 0, 0.5); }
     &__engine-step-tick { font-style: normal; font-weight: 800; }
+    /* THE ARROW is the card face's own printed «→» (`.pcard-sym--arrow`: a solid shaft and head cut from one gold
+       plate) — the formula on the plate reads like every formula on a face, never a hairline drawn beside it. */
     &__engine-arrow {
         grid-area: arrow;
-        width: 1.5rem;
-        height: .7rem;
-        fill: none;
-        stroke: fade(@con-parl-gold, 80%);
-        stroke-width: 1.6;
-        stroke-linecap: round;
-        stroke-linejoin: round;
+        display: block;
+        width: 1.25rem;
+        height: .66rem;
+        background: linear-gradient(180deg, #f3dd8f, #b8862f);
+        clip-path: polygon(0 36%, 52% 36%, 52% 6%, 100% 50%, 52% 94%, 52% 64%, 0 64%);
     }
+    &__engine--done .con-parl__engine-arrow { background: linear-gradient(180deg, lighten(@con-parl-mint, 8%), darken(@con-parl-mint, 18%)); }
     &__engine-plus { font-variant-numeric: tabular-nums; }
     &__quest-progress {
         grid-area: race; justify-self: stretch; display: flex; flex-wrap: wrap; justify-content: center; gap: .3rem 1.1rem; min-width: 0;
@@ -1154,9 +1230,10 @@ html.con-profile-handheld .con-parl {
     &__step--influence .con-parl__step-level { font-size: .56rem; }
     &__step-res { &--tr { width: 1.7rem; height: 1.28rem; } &--card { width: 1.15rem; height: 1.62rem; } }
     &__step--next .con-parl__step-node::after { inset: -.16rem; }
-    &__chair { width: 3.3rem; height: 3.3rem; }
-    &__chair-glyph { top: .25rem; width: 2.2rem; height: 2.2rem; margin-left: -1.1rem; }
-    &__chair-cube { --pd-host: 1.8rem; }
+    &__chair { width: 2.7rem; height: 2.7rem; }
+    &__chair-glyph { top: .2rem; width: 1.8rem; height: 1.8rem; margin-left: -.9rem; }
+    &__chair-cube { --pd-host: 1.45rem; }
+    &__engine-arrow { width: 1rem; height: .54rem; }
     &__agenda-dot { width: .66rem; height: .66rem; }
     &__step-cubes { gap: .16rem; }
     &__chair-name { font-size: .5rem; max-width: 4.6rem; }
@@ -1185,7 +1262,7 @@ html.con-profile-tv .con-parl {
     --con-parl-palata-w: 33rem;
     --con-parl-opp-col: 12.6rem;
     --con-parl-career-h: 11.4rem;
-    --con-parl-quest-w: 18.4rem;
+    --con-parl-quest-w: 20.4rem;
     --con-parl-effects-h: 12.4rem;
     --con-parl-slot-rail-h: 2.9rem;
     --con-pseal-row-seal: 2.6rem;
@@ -1210,8 +1287,10 @@ html.con-profile-tv .con-parl {
     &__quest-row { font-size: .8rem; }
     &__engine-text { font-size: .8rem; max-width: 9.5rem; }
     &__engine-step { font-size: 1.1rem; }
-    &__chair { width: 4.4rem; height: 4.4rem; }
-    &__chair-glyph { width: 2.9rem; height: 2.9rem; margin-left: -1.45rem; }
+    &__chair { width: 3.5rem; height: 3.5rem; }
+    &__chair-glyph { top: .26rem; width: 2.35rem; height: 2.35rem; margin-left: -1.175rem; }
+    &__chair-cube { --pd-host: 1.9rem; }
+    &__engine-arrow { width: 1.35rem; height: .72rem; }
     &__chair-name { font-size: .8rem; max-width: 6.4rem; }
     &__engine-step-dot { width: .8rem; height: .8rem; }
     &__engine-pip { width: .7rem; height: .7rem; }
@@ -1691,3 +1770,19 @@ html.con-profile-handheld .con-parl.con-parl--hall .con-parl__vote {
     color: #ffd0c8;
 }
 .con-parl-qd__rung--vetoed .con-parl-qd__rung-res { filter: saturate(.6); opacity: .85; }
+
+/* «ИЗГНАНИЕ» — the panel's entry: it rises out of the career's own row (opacity + a hair of lift), never a pop. */
+@keyframes con-parl-delegate-in {
+    from { opacity: 0; transform: translateY(.4rem); }
+    to { opacity: 1; transform: none; }
+}
+
+/* «ИЗГНАНИЕ» ON THE COUCH — every text on the TV floor (.8rem), the figure at the scene's scale. */
+html.con-profile-tv .con-parl {
+    &__delegate-figure { .pd-footprint(3rem); width: 3rem; height: 3.3rem; }
+    &__delegate-name { font-size: 1.45rem; }
+    &__delegate-place { font-size: 1rem; }
+    &__delegate-emblem { width: 1.4rem; height: 1.4rem; }
+    &__delegate-dest { font-size: .9rem; }
+    &__delegate-sole { font-size: .8rem; }
+}

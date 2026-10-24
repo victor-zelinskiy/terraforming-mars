@@ -1,7 +1,7 @@
 import {reactive} from 'vue';
 import type {StagedReceipt} from '@/client/console/stagedPlay';
 import {Color} from '@/common/Color';
-import {SupportPromptMeta, VoteSupportProjection} from '@/common/models/PlayerInputModel';
+import {DelegatePromptMeta, DelegateTargetProjection, SupportPromptMeta, VoteSupportProjection} from '@/common/models/PlayerInputModel';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {SITTING_SUBJECT_KEY} from '@/client/console/parliament/consoleSittingFlow';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
@@ -165,9 +165,17 @@ export type ParliamentZone = 'voting' | 'government' | 'ruler' | 'parties' | 'ef
  * play («ДЕЛЕГАТЫ», TR31 Nationalist Movement: the Parliament hosted in the
  * hand's zone, the cubes onto the ribbons and the plaques, the recount, the
  * coin, then the surface leaves — `neutralRally`), past the commit and
- * absorbing input exactly as `walk`.
+ * absorbing input exactly as `walk`;
+ * `delegate` — the DELEGATE mode (TR72 Banned Delegate:redux, «ИЗГНАНИЕ»): the
+ * cursor walks the FIGURES on the bills' ribbons and the plaques' support
+ * places, A commits the pick, and the SAME stage plays the answer in place
+ * (`delegateCommitted` — the figure is taken off its place and carried home:
+ * a seat's reserve, the common supply).
  */
-export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'quest' | 'submitting' | 'paying' | 'landed' | 'sitting' | 'walk' | 'support' | 'rally' | 'effects';
+export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'quest' | 'submitting' | 'paying' | 'landed' | 'sitting' | 'walk' | 'support' | 'rally' | 'effects' | 'delegate';
+
+/** The DELEGATE mode's outcome beat ('' before A): the figure carried home · the read · over. */
+export type DelegateBeat = '' | 'sent' | 'flight' | 'read' | 'done';
 
 /** The SUPPORT-AREA mode's outcome beat ('' before A): the cubes leaving the area · the card's Agenda step · the read · over. */
 export type SupportBeat = '' | 'sent' | 'discard' | 'walk' | 'read' | 'done';
@@ -299,6 +307,18 @@ function freshFlow() {
     supportSnapshot: undefined as {party: ReduxParty, current: number} | undefined,
     /** The pick's projection as the mode opened on it — LATCHED: a live door's prompt is gone with its answer. */
     supportMeta: undefined as SupportPromptMeta | undefined,
+    /**
+     * THE DELEGATE MODE (TR72): its stage name (`DELEGATE_STEP_STAGES`), the cursor (an index into the mode's ring —
+     * `delegatePickModel.delegateRing`), the press is in and its answer plays on this very stage, the door is LIVE, the
+     * outcome's beat, the figure the press chose (as the server projected it at the press) and the LATCHED projection.
+     */
+    delegateStage: '',
+    delegateCursor: 0,
+    delegateCommitted: false,
+    delegateLive: false,
+    delegateBeat: '' as DelegateBeat,
+    delegateSnapshot: undefined as DelegateTargetProjection | undefined,
+    delegateMeta: undefined as DelegatePromptMeta | undefined,
   };
 }
 
@@ -364,6 +384,28 @@ export function armSupportPickFlow(cursor: {zone: 'parties' | 'ruler', partyInde
   f.supportSnapshot = undefined;
 }
 
+/**
+ * ARM THE DELEGATE MODE BEFORE THE FIRST RENDER (TR72) — the support mode's twin: the cursor on the ring's first
+ * figure (a cursor, never a selection), the crumb naming `stage` from the first render.
+ */
+export function armDelegatePickFlow(cursor: number, stage: string, live: boolean, meta: DelegatePromptMeta): void {
+  const f = parliamentFlow;
+  f.delegateMeta = meta;
+  f.delegateCursor = Math.max(0, cursor);
+  f.stage = 'delegate';
+  f.delegateStage = stage;
+  f.delegateCommitted = false;
+  f.delegateLive = live;
+  f.delegateBeat = '';
+  f.delegateSnapshot = undefined;
+}
+
+/** The DELEGATE mode stands (its pick, its press in flight, or its answer playing). */
+export function parliamentDelegateUp(): boolean {
+  const f = parliamentFlow;
+  return f.stage === 'delegate' || (f.stage === 'submitting' && f.stageBeforeSubmit === 'delegate');
+}
+
 /** The SUPPORT-AREA mode stands (its pick, its press in flight, or its answer playing). */
 export function parliamentSupportUp(): boolean {
   const f = parliamentFlow;
@@ -423,12 +465,15 @@ export function parliamentCrumbSubject(questLive = false): string {
     return parliamentFlow.stageBeforeSubmit === 'vote' ? 'Voting' :
       parliamentFlow.stageBeforeSubmit === 'sitting' ? SITTING_SUBJECT_KEY :
         parliamentFlow.stageBeforeSubmit === 'quest' ? CHAIRMAN_QUEST_SUBJECT_KEY :
-          parliamentFlow.stageBeforeSubmit === 'support' ? parliamentFlow.supportStage : 'Parliament overview';
+          parliamentFlow.stageBeforeSubmit === 'support' ? parliamentFlow.supportStage :
+            parliamentFlow.stageBeforeSubmit === 'delegate' ? parliamentFlow.delegateStage : 'Parliament overview';
   case 'sitting': return SITTING_SUBJECT_KEY;
   case 'quest': return CHAIRMAN_QUEST_SUBJECT_KEY;
   // The SUPPORT-AREA mode is a mode like the vote: its own name is the subject («ПАРЛАМЕНТ › САНКЦИИ»), and hosted
   // it is handed UP as the host's tail («КАРТЫ В РУКЕ › ПАРТИЙНЫЕ САНКЦИИ › САНКЦИИ»).
   case 'support': return parliamentFlow.supportStage;
+  // …and the DELEGATE mode the same way («КАРТЫ В РУКЕ › ИЗГНАНИЕ ДЕЛЕГАТА › ИЗГНАНИЕ»).
+  case 'delegate': return parliamentFlow.delegateStage;
   // THE INNER STEP «ВАШИ ЭФФЕКТЫ» (Парламент v8 § 6): a place of its own inside the Parliament («ПАРЛАМЕНТ › ВАШИ ЭФФЕКТЫ»).
   case 'effects': return 'Your effects';
   default: return 'Parliament overview';
@@ -469,7 +514,8 @@ export function parliamentCrumbCommitted(questLive = false): boolean {
     (stage === 'seat' && questLive) ||
     // The support-area mode: cyan while its pick is open, amber once A is pressed — or while it serves a LIVE door,
     // which the player must answer (the commit of the flow that raised it is behind them).
-    (stage === 'support' && (parliamentFlow.supportCommitted || parliamentFlow.supportLive));
+    (stage === 'support' && (parliamentFlow.supportCommitted || parliamentFlow.supportLive)) ||
+    (stage === 'delegate' && (parliamentFlow.delegateCommitted || parliamentFlow.delegateLive));
 }
 
 /** The stage's CONTENT identity — a submit keeps the stage it left on screen (busy). */

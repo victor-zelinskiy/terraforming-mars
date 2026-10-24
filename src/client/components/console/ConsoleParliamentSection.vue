@@ -33,6 +33,7 @@
              'con-parl--walk': walkUp,
              'con-parl--rally': rallyUp,
              'con-parl--support': supportUp,
+             'con-parl--delegate': delegateUp,
              ['con-parl--zone-' + flow.zone]: true,
            }"
            ref="rootEl"
@@ -57,6 +58,7 @@
            :aria-hidden="warm ? 'true' : undefined"
            :data-parl-grant-degraded="flow.grantDegraded !== '' ? flow.grantDegraded : undefined"
            :data-parl-support-degraded="supportDegraded !== '' ? supportDegraded : undefined"
+           :data-parl-delegate-degraded="delegateDegraded !== '' ? delegateDegraded : undefined"
            data-motion-panel>
     <!-- EMBEDDED (a step of another workspace — the delegate grant of the Redux
          Venus, hosted inside the colonies): the host draws the crumb (embed
@@ -100,7 +102,7 @@
                It never recedes for a step: the support's cubes land in its sockets. ══ -->
           <div class="con-parl__opposition con-parl__parties-tier" ref="partiesTierEl" data-parl-opposition>
             <ConsoleParliamentParties :view="view" :partyStates="partyStates" :partyActionStates="partyActionStates" :viewerColor="viewerColor"
-                                      :awaitingInput="awaitingInput" :supportMeta="supportUp ? supportMeta : undefined" />
+                                      :awaitingInput="awaitingInput" :supportMeta="supportUp ? supportMeta : undefined" :delegateArea="delegateArea" />
           </div>
           <ConsoleParliamentGovernment :view="view" :model="model" :players="pv.players" :viewerColor="viewerColor"
                                        :agendaVm="agendaVm" :sittingStage="sittingUp ? sittingStage : ''" />
@@ -126,7 +128,7 @@
             <span class="con-parl__mid-kicker con-parl__kicker" aria-hidden="true">{{ $t('Voting table') }}</span>
             <div class="con-parl__mid-band">
               <ConsoleParliamentBand :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor"
-                                     :position="sitting" :sittingUp="sittingUp" :stage="sittingStage" :support="supportBand" :rally="rallyBand" :focus="bandFocus" />
+                                     :position="sitting" :sittingUp="sittingUp" :stage="sittingStage" :support="supportBand" :delegate="delegateBand" :rally="rallyBand" :focus="bandFocus" />
             </div>
           </div>
           <div class="con-parl__bodyzone" data-parl-body>
@@ -135,7 +137,8 @@
                  :data-parl-row-shown="rowParked ? undefined : ''"
                  :aria-hidden="rowParked ? 'true' : undefined">
               <ConsoleParliamentVotingArea :view="view" :model="model" :viewerColor="viewerColor" :viewerParticipates="viewerParticipates"
-                                           :benchWarn="benchWarn" :seatCandidates="seatCandidates" :sittingStage="sittingUp ? sittingStage : ''" />
+                                           :benchWarn="benchWarn" :seatCandidates="seatCandidates" :sittingStage="sittingUp ? sittingStage : ''"
+                                           :delegateTarget="delegateTarget" />
             </div>
             <!-- «САНКЦИИ» (TR12): the support-area mode's reading stands over the TABLE — the bills recede under
                  it (nothing flies to or from them in this flow); the medallions it is about stay in place. -->
@@ -168,6 +171,13 @@
       <ConsoleParliamentAgenda ref="agenda" :view="view" :model="model" :agendaVm="agendaVm" :viewerParticipates="viewerParticipates"
                                :players="pv.players" :viewerColor="viewerColor" :sittingStage="sittingUp ? sittingStage : ''"
                                :sittingStep="sittingStep" :handedOver="sceneHandedOver" />
+      <!-- «ИЗГНАНИЕ» (TR72): the delegate mode's reading stands over the CAREER's row — the one part of the chamber the
+           pick is not about; the bills and the plaques, every figure the cursor walks, stay in view. -->
+      <ConsoleParliamentDelegateMode v-if="delegateUp" ref="delegateMode"
+                                     :view="view" :playerView="pv" :viewerColor="viewerColor" :bridge="bridge"
+                                     :cardReceipt="stagedVote !== undefined ? stagedReceipt : undefined" :stagedFlow="stagedFlow"
+                                     @notice="$emit('notice', $event)" @inspect="$emit('inspect', $event)" @inspect-source="$emit('inspect-source', $event)"
+                                     @send="send($event.response, $event.from)" @flow-complete="$emit('flow-complete', $event)" />
     </div>
 
     <!-- THE CHAIRMAN QUEST'S DOSSIER (Парламент v8 § 7): X on the quest reads the QUEST (the owner's point 5). -->
@@ -223,6 +233,9 @@ import {politicalSources} from '@/client/console/parliament/politicalSources';
 import ConsoleParliamentSeatPick from '@/client/components/console/parliament/ConsoleParliamentSeatPick.vue';
 import ConsoleParliamentSitting from '@/client/components/console/parliament/ConsoleParliamentSitting.vue';
 import ConsoleParliamentSupportMode from '@/client/components/console/parliament/ConsoleParliamentSupportMode.vue';
+import ConsoleParliamentDelegateMode from '@/client/components/console/parliament/ConsoleParliamentDelegateMode.vue';
+import {delegateRing, DelegateStop, delegateStepStageOf, delegateStartIndex} from '@/client/console/parliament/delegatePickModel';
+import {delegateRemovalFlow, registerDelegateRemovalHost} from '@/client/console/parliament/delegateRemoval';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {payoutDetailsAvailable, sittingPayoutDetailsOf} from '@/client/console/parliament/payoutDetailsModel';
@@ -237,7 +250,7 @@ import {
 import {influenceReadingOf} from '@/client/console/parliament/influenceReading';
 import {sittingRiseStood} from '@/client/console/parliament/sittingRise';
 import {
-  armGrantVoteFlow, armSupportPickFlow, consoleParliamentUi, notePlayedSittingStage, parliamentSupportUp, parliamentCrumbCommitted, parliamentCrumbStage, parliamentCrumbSubject, ParliamentStage,
+  armDelegatePickFlow, armGrantVoteFlow, armSupportPickFlow, parliamentDelegateUp, consoleParliamentUi, notePlayedSittingStage, parliamentSupportUp, parliamentCrumbCommitted, parliamentCrumbStage, parliamentCrumbSubject, ParliamentStage,
   parliamentFlow, parliamentSittingUp, parliamentStageKind, parliamentStageUp, parliamentVoteUp, pulseParliamentChair, resetParliamentFlow,
   setParliamentRootEl, sittingSessionKnown, sittingStagePlayed,
 } from '@/client/console/parliament/consoleParliamentFlow';
@@ -280,8 +293,8 @@ import {plaquePlaceSelector} from '@/client/console/parliament/supportDiscardSce
 import {RALLY_COUNT_CHIP_ID} from '@/client/console/parliament/parliamentBand';
 import {registerSupportDiscardHost, supportDiscardFlow} from '@/client/console/parliament/supportDiscard';
 import {supportAreaOf, supportCursorOrder, supportStartParty, supportStepStageOf} from '@/client/console/parliament/supportPickModel';
-import {BandFocus, BandRally, BandSupport} from '@/client/console/parliament/parliamentBand';
-import {SupportPromptMeta} from '@/common/models/PlayerInputModel';
+import {BandDelegate, BandFocus, BandRally, BandSupport} from '@/client/console/parliament/parliamentBand';
+import {DelegatePromptMeta, SupportPromptMeta} from '@/common/models/PlayerInputModel';
 import {
   AGENDA_WALK_READ_MS, AgendaWalkHooks, AgendaWalkLeg, AgendaWalkRecordLike, agendaWalkHoldMs, agendaWalkMotion, deliverAgendaStepReward,
 } from '@/client/console/parliament/agendaWalkDirector';
@@ -327,6 +340,7 @@ export default defineComponent({
     ConsoleWsHead, ConsoleParliamentSeats, ConsoleParliamentGovernment, ConsoleParliamentVotingArea, ConsoleParliamentBand,
     ConsoleParliamentParties, ConsoleParliamentAgenda, ConsoleParliamentVoteMode, ConsoleParliamentSeatPick, ConsoleParliamentSitting, ConsoleParliamentEffects, ConsoleParliamentEffectsStep, ConsoleParliamentQuestDossier, ConsoleParliamentCareerDossier,
     ConsoleParliamentSupportMode,
+    ConsoleParliamentDelegateMode,
   },
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -849,6 +863,73 @@ export default defineComponent({
         committed: f.supportCommitted || f.supportLive || f.stage === 'submitting',
       };
     },
+    /** «ИЗГНАНИЕ» — the DELEGATE mode stands (its pick, its press in flight, or its answer playing — TR72). */
+    delegateUp(): boolean {
+      return parliamentDelegateUp();
+    },
+    /** The delegate pick's projection — the bridge's (live or staged), or the mode's latch past the press. */
+    delegateMeta(): DelegatePromptMeta | undefined {
+      return this.bridge.delegatePick?.meta ?? parliamentFlow.delegateMeta;
+    },
+    /** The mode's ring over the table as it stands — the bills' figures, then the plaques' areas. */
+    delegateRingNow(): Array<DelegateStop> {
+      if (!this.delegateUp) {
+        return [];
+      }
+      const ruler = parliamentHolds.rulerBefore ?? this.view.rulingParty;
+      return delegateRing(this.delegateMeta, {
+        slots: this.view.slots.map((slot) => ({party: slot.party, votes: slot.votes})),
+        areaOrder: supportCursorOrder(this.view.parties.map((p) => p.party), ruler),
+      });
+    },
+    /**
+     * THE FIGURE THE PRESS WOULD TAKE — the cursor's stop while the pick is open, the chosen one while the press is on
+     * the wire; nothing once the answer plays (the flight then owns the figure: it stands on its place until it lifts).
+     */
+    delegateMarked(): DelegateStop | undefined {
+      const f = parliamentFlow;
+      if (!this.delegateUp || f.delegateCommitted) {
+        return undefined;
+      }
+      const snap = f.delegateSnapshot;
+      if (snap !== undefined) {
+        return this.delegateRingNow.find((stop) => stop.target.place === snap.place && stop.target.party === snap.party && stop.target.owner === snap.owner);
+      }
+      return this.delegateRingNow[f.delegateCursor] ?? this.delegateRingNow[0];
+    },
+    delegateTarget(): {party: string, seq: number} | undefined {
+      const stop = this.delegateMarked;
+      return stop?.zone === 'table' && stop.seq !== undefined ? {party: stop.target.party, seq: stop.seq} : undefined;
+    },
+    delegateArea(): ReduxParty | undefined {
+      const stop = this.delegateMarked;
+      return stop?.zone === 'areas' ? stop.target.party as ReduxParty : undefined;
+    },
+    /** A removal's flight that could not be measured — CONFESSED on the root (the probe demands its absence). */
+    delegateDegraded(): string {
+      return delegateRemovalFlow.degraded;
+    },
+    /** «ИЗГНАНИЕ»'s band line: the stage, whose figure, and the place it stands in. */
+    delegateBand(): BandDelegate | undefined {
+      if (!this.delegateUp) {
+        return undefined;
+      }
+      const f = parliamentFlow;
+      const target = f.delegateSnapshot ?? this.delegateMarked?.target;
+      if (target === undefined) {
+        return undefined;
+      }
+      const party = target.party as ReduxParty;
+      const slot = this.view.slots.find((s) => s.party === party);
+      return {
+        stage: f.delegateStage,
+        owner: target.owner,
+        place: target.place,
+        party,
+        ...(target.place === 'resolution' && slot !== undefined ? {resolution: slot.resolutionId} : {}),
+        committed: f.delegateCommitted || f.delegateLive || f.stage === 'submitting',
+      };
+    },
     /** The walk's own beat, published on the root — read by the e2e probe, never by the product. */
     walkBeat(): string {
       return agendaWalkFlow.live ? agendaWalkFlow.beat : '';
@@ -908,7 +989,7 @@ export default defineComponent({
       if (this.voteUp) {
         return false;
       }
-      return parliamentFlow.stage !== 'browse' || this.sittingUp || this.supportUp || this.rallyUp || this.walkUp;
+      return parliamentFlow.stage !== 'browse' || this.sittingUp || this.supportUp || this.delegateUp || this.rallyUp || this.walkUp;
     },
     /**
      * THE READING LINE'S SUBJECT («Зал» v7): the object under the browse cursor — a bill, the ruler, a row of the
@@ -1019,6 +1100,12 @@ export default defineComponent({
           stagedFlow: this.stagedFlow,
           source: this.bridge.supportPick?.card !== undefined,
           available: supportAreaOf(this.supportMeta, parliamentFlow.zone === 'ruler' ? this.view.rulingParty : this.view.parties[parliamentFlow.partyIndex]?.party)?.available === true,
+        },
+        delegate: this.bridge.delegatePick === undefined && !this.delegateUp ? undefined : {
+          staged: this.bridge.delegatePick?.staged === true && !parliamentFlow.delegateCommitted,
+          stagedFlow: this.stagedFlow,
+          source: this.bridge.delegatePick?.card !== undefined,
+          available: this.delegateMarked !== undefined,
         },
         grant: this.bridge.grant === undefined ? undefined : {
           count: this.bridge.grant.count,
@@ -1449,6 +1536,26 @@ export default defineComponent({
       },
     },
     /**
+     * A DELEGATE PICK (TR72 Banned Delegate:redux) — staged (the card's door, hosted in the hand) or live (re-asked, a
+     * reload): the mode opens on it, ARMED before the first render like the support pick. The cursor starts on the
+     * ring's first figure — a cursor, never a selection.
+     */
+    'bridge.delegatePick': {
+      immediate: true,
+      handler(pick: ParliamentPromptBridge['delegatePick']): void {
+        if (pick === undefined || parliamentFlow.stage !== 'browse') {
+          return;
+        }
+        const ruler = parliamentHolds.rulerBefore ?? this.view.rulingParty;
+        const ring = delegateRing(pick.meta, {
+          slots: this.view.slots.map((slot) => ({party: slot.party, votes: slot.votes})),
+          areaOrder: supportCursorOrder(this.view.parties.map((p) => p.party), ruler),
+        });
+        armDelegatePickFlow(Math.max(0, delegateStartIndex(ring)), delegateStepStageOf(pick.meta), pick.staged !== true, pick.meta);
+        setWorkspaceFramePhase('parliament', pick.staged === true ? 'configure' : 'committed');
+      },
+    },
+    /**
      * THE CRUMB, handed UP. Declared LAST on purpose: every `immediate` watcher
      * above that opens a stage at SETUP (the sitting, a seat pick, a delegate
      * grant's vote) has already done so, and the first name this surface
@@ -1480,6 +1587,8 @@ export default defineComponent({
     // «САНКЦИИ» (TR12): the apply block seeds a discard's holds only while this section's support-area mode
     // stands to fly them.
     registerSupportDiscardHost(() => parliamentSupportUp());
+    // «ИЗГНАНИЕ» (TR72): the apply block owes a removal's flight only while the delegate mode stands to fly it.
+    registerDelegateRemovalHost(() => parliamentDelegateUp());
     // A sitting already holding the field at mount (a reload, a restore) has
     // no entrance to play — the overview is parked at once.
     parliamentFlow.sittingField = this.sittingField;
@@ -1568,6 +1677,7 @@ export default defineComponent({
   },
   unmounted() {
     registerSupportDiscardHost(undefined);
+    registerDelegateRemovalHost(undefined);
     setParliamentRootEl(undefined);
     resetParliamentFlow();
   },
@@ -1587,6 +1697,10 @@ export default defineComponent({
         }
         if (f.stageBeforeSubmit === 'support') {
           (this.$refs.supportMode as InstanceType<typeof ConsoleParliamentSupportMode> | undefined)?.answerAfterSubmit();
+          return;
+        }
+        if (f.stageBeforeSubmit === 'delegate') {
+          (this.$refs.delegateMode as InstanceType<typeof ConsoleParliamentDelegateMode> | undefined)?.answerAfterSubmit();
           return;
         }
         if (f.stageBeforeSubmit === 'quest') {
@@ -1813,6 +1927,15 @@ export default defineComponent({
           this.$emit(this.bridge.supportPick?.staged === true ? 'staged-back' : 'collapse');
           return;
         }
+        if (f.stage === 'delegate') {
+          // «ИЗГНАНИЕ» (TR72): the support pick's law — a STAGED door is one reversible level back to the play composer,
+          // a LIVE door «Свернуть», past the press B says nothing.
+          if (f.delegateCommitted) {
+            return;
+          }
+          this.$emit(this.bridge.delegatePick?.staged === true ? 'staged-back' : 'collapse');
+          return;
+        }
         if (f.stage === 'vote') {
           // A STAGED door (a card's own play — nothing sent yet): B is ONE
           // reversible level — back to the play composer, every capture intact.
@@ -1850,6 +1973,9 @@ export default defineComponent({
         return;
       case 'support':
         (this.$refs.supportMode as InstanceType<typeof ConsoleParliamentSupportMode> | undefined)?.handleIntent(intent);
+        return;
+      case 'delegate':
+        (this.$refs.delegateMode as InstanceType<typeof ConsoleParliamentDelegateMode> | undefined)?.handleIntent(intent);
         return;
       case 'seat':
         (this.$refs.seatPick as InstanceType<typeof ConsoleParliamentSeatPick> | undefined)?.handleIntent(intent);
@@ -2751,6 +2877,7 @@ export default defineComponent({
         f.stage = f.stageBeforeSubmit === 'seat' ? 'seat' : f.stageBeforeSubmit;
         f.voteSnapshot = undefined;
         f.supportSnapshot = undefined;
+        f.delegateSnapshot = undefined;
         this.seatFrom = undefined;
         if (f.stage !== 'landed' && f.stage !== 'paying') {
           freezeParliamentFit(false);

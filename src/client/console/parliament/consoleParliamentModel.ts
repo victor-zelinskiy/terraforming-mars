@@ -24,7 +24,7 @@ import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {CardName} from '@/common/cards/CardName';
 import {PartyName} from '@/common/turmoil/PartyName';
-import {PlayerInputModel, SelectPartyModel, SelectPaymentModel, SelectProjectCardToPlayModel, SupportPromptMeta, VoteSupportProjection} from '@/common/models/PlayerInputModel';
+import {PlayerInputModel, SelectPartyModel, SelectPaymentModel, SelectProjectCardToPlayModel, DelegatePromptMeta, DelegateTargetProjection, SupportPromptMeta, VoteSupportProjection} from '@/common/models/PlayerInputModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {ActionEffect, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -1004,7 +1004,34 @@ export type ParliamentPromptBridge = {
    * (the server's own prompt) or staged (the play preview's `supportDiscard` door) — one shape.
    */
   supportPick: SupportPickBridge | undefined;
+  /**
+   * A stand-alone `SelectParty` that picks ONE DELEGATE off the table (`delegatePrompt` — Turmoil Redux TR72 Banned
+   * Delegate:redux): the Parliament's DELEGATE mode serves it, the cursor on the figures. Live or staged — one shape.
+   */
+  delegatePick: DelegatePickBridge | undefined;
 };
+
+/**
+ * A DELEGATE pick as the mode reads it — the support pick's twin for ONE FIGURE: LIVE (the server's prompt — the
+ * plain party answer with its address) or STAGED (the play preview's `delegateRemoval` door, nothing sent: the
+ * ADDRESSED tail of the play batch, `stagedFor`). `meta` is the server's per-figure projection.
+ */
+export type DelegatePickBridge = {
+  model: SelectPartyModel;
+  meta: DelegatePromptMeta;
+  /** The GIVER is a card — the door's L3 «Источник» and the tail's address. */
+  card?: CardName;
+  staged?: boolean;
+};
+
+function delegatePickOf(model: SelectPartyModel, staged: boolean): DelegatePickBridge | undefined {
+  const meta = model.delegatePrompt;
+  if (meta === undefined) {
+    return undefined;
+  }
+  const card = model.choiceContext?.source.kind === 'card' ? model.choiceContext.source.card : undefined;
+  return {model, meta, ...(card === undefined ? {} : {card}), ...(staged ? {staged: true} : {})};
+}
 
 /**
  * A SUPPORT-AREA pick as the mode reads it — the grant's twin for an AREA: LIVE
@@ -1079,7 +1106,7 @@ function grantBridgeOf(model: SelectPartyModel, staged: boolean): GrantBridge | 
  * live grant standing means the server is past whatever was staged.
  */
 export function parliamentPromptBridge(wf: PlayerInputModel | undefined, staged?: StagedVoteModel): ParliamentPromptBridge {
-  const bridge: ParliamentPromptBridge = {vote: undefined, actions: {}, resolutionAction: undefined, seat: undefined, grant: undefined, supportPick: undefined};
+  const bridge: ParliamentPromptBridge = {vote: undefined, actions: {}, resolutionAction: undefined, seat: undefined, grant: undefined, supportPick: undefined, delegatePick: undefined};
   if (wf !== undefined && wf.type === 'party' && wf.votePrompt?.source === 'chairman-seat') {
     bridge.seat = wf;
     return bridge;
@@ -1093,11 +1120,18 @@ export function parliamentPromptBridge(wf: PlayerInputModel | undefined, staged?
     bridge.supportPick = supportPickOf(wf, false);
     return bridge;
   }
+  // …and a LIVE delegate pick (TR72 — re-asked, a reload): the delegate mode serves the server's own prompt.
+  if (wf !== undefined && wf.type === 'party' && wf.delegatePrompt !== undefined) {
+    bridge.delegatePick = delegatePickOf(wf, false);
+    return bridge;
+  }
   // The staged door's ONE store carries either party pick — a resolution (TR03 / TR15) or an area (TR12); its
   // prompt's marker says which, and the mode follows the marker (never a second staged target).
   if (staged !== undefined) {
     if (staged.prompt.supportPrompt !== undefined) {
       bridge.supportPick = supportPickOf(staged.prompt, true);
+    } else if (staged.prompt.delegatePrompt !== undefined) {
+      bridge.delegatePick = delegatePickOf(staged.prompt, true);
     } else {
       bridge.grant = grantBridgeOf(staged.prompt, true);
     }
@@ -1244,6 +1278,21 @@ export function supportPickResponse(bridge: ParliamentPromptBridge, party: Party
     return {type: 'party', partyName: party, stagedFor: pick.card};
   }
   return {type: 'party', partyName: party};
+}
+
+/**
+ * A DELEGATE pick's answer (TR72) — the place's party and the figure's address. LIVE: the stand-alone party prompt.
+ * STAGED: the same answer ADDRESSED to the card (`stagedFor`) — it lands only on that card's own pick. A figure the
+ * prompt does not offer has no answer.
+ */
+export function delegatePickResponse(bridge: ParliamentPromptBridge, target: Pick<DelegateTargetProjection, 'party' | 'place' | 'owner'>): InputResponse | undefined {
+  const pick = bridge.delegatePick;
+  const offered = pick?.meta.targets.some((row) => row.party === target.party && row.place === target.place && row.owner === target.owner) === true;
+  if (pick === undefined || !offered) {
+    return undefined;
+  }
+  const answer: InputResponse = {type: 'party', partyName: target.party, delegate: {place: target.place, owner: target.owner}};
+  return pick.staged === true && pick.card !== undefined ? {...answer, stagedFor: pick.card} : answer;
 }
 
 /** The support the chosen resolution's PARTY would receive under this grant — the server's own row (undefined: the grant pays none). */

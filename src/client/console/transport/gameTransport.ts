@@ -122,6 +122,7 @@ import {seedChairmanQuestHolds} from '@/client/console/parliament/consoleChairma
 import {seedAgendaWalkHolds} from '@/client/console/parliament/agendaWalk';
 import {seedNeutralRallyHolds} from '@/client/console/parliament/neutralRally';
 import {seedSupportDiscardHolds} from '@/client/console/parliament/supportDiscard';
+import {seedDelegateRemovalHolds} from '@/client/console/parliament/delegateRemoval';
 import {clearColonyTrackMove, seedColonyTrackMoveHolds} from '@/client/console/colonyTrade/colonyTrackMove';
 import {
   colonyRosterState, detectColonyRosterChange, disarmColonyRoster, runColonyRosterCeremony, seedColonyRosterHolds,
@@ -706,6 +707,8 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // promised area keeps its cubes on the plaque and the common supply its old count until the mode that confirmed it
   // flies them — ONLY while that mode stands (a hold nobody plays would freeze the area).
   seedSupportDiscardHolds(currentView(), newView);
+  // …and a figure a card took off the table (TR72): its place and its destination held until the flight lands it.
+  seedDelegateRemovalHolds(currentView(), newView);
   // …and a CHOSEN COLONY TRACK's move (TR07 Colony Sponsors — «move its marker to the highest position»):
   // the promised tile held on its old cell until the stage it was confirmed on plays the glide — ONLY while
   // that stage stands (a hold nobody plays would freeze the track).

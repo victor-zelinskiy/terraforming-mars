@@ -105,6 +105,7 @@ import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {supportDiscardPoolHeld} from '@/client/console/parliament/supportDiscard';
+import {delegateRemovalPoolHeld, delegateRemovalReserveHeld} from '@/client/console/parliament/delegateRemoval';
 import {rallyPoolHeld} from '@/client/console/parliament/neutralRally';
 import {rivalPoolHeld} from '@/client/console/parliament/parliamentRivalVotes';
 import {rivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
@@ -155,7 +156,8 @@ export default defineComponent({
         const pendingLobby = holds.lobby.has(p.color);
         // Delegates on their way home: off the enacted card (the enactment's returns) and off a loser (the renewal's).
         const pendingReturns = (holds.returns.get(p.color) ?? 0) + (holds.renewalReturns.get(p.color) ?? 0);
-        const base = Math.max(0, p.reserve - pendingReturns + (pendingLobby ? 1 : 0));
+        // …and a figure a card took off the table (TR72) that is still in the air home: the reserve counts it on its touchdown.
+        const base = Math.max(0, p.reserve - pendingReturns - delegateRemovalReserveHeld(p.color) + (pendingLobby ? 1 : 0));
         // The viewer's places keep PAINTING the delegate that is leaving until
         // its proxy stands over it (`sourceHold`), and keep SAYING its count
         // until it has visibly left (`sourceLeaving`) — by the NUMBER still to
@@ -170,7 +172,7 @@ export default defineComponent({
           reserve: base + (mine && parliamentFlow.sourceLeaving === 'reserve' ? Math.max(1, parliamentFlow.sourceLeavingCount) : 0) + (rival?.reserve ?? 0),
           reserveCubes: base + (mine && parliamentFlow.sourceHold === 'reserve' ? Math.max(1, parliamentFlow.sourceHoldCount) : 0) + (rival?.reserve ?? 0),
           chairman: p.chairman,
-          incoming: pendingReturns,
+          incoming: pendingReturns + delegateRemovalReserveHeld(p.color),
         };
       });
     },
@@ -184,7 +186,7 @@ export default defineComponent({
       // …PLUS the cubes the sitting's support step took that have not lifted yet (`supportPool` — the soft gates: the
       // verdict stands over a supply the pass has already spent).
       return Math.max(0, this.view.neutralSupply - (parliamentHolds.returns.get('neutral') ?? 0) - (parliamentHolds.renewalReturns.get('neutral') ?? 0) -
-        supportDiscardPoolHeld()) + parliamentFlow.supportHeld + rallyPoolHeld() + rivalPoolHeld() + parliamentHolds.supportPool;
+        supportDiscardPoolHeld() - delegateRemovalPoolHeld()) + parliamentFlow.supportHeld + rallyPoolHeld() + rivalPoolHeld() + parliamentHolds.supportPool;
     },
     /** The deck as SHOWN — the renewal's tact moves the piles card by card as each landing happens; the live count otherwise. */
     deckShown(): number {
