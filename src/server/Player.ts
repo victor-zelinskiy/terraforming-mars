@@ -2502,7 +2502,8 @@ export class Player implements IPlayer {
    */
   public milestonePayment(milestone: IMilestone): SelectPaymentDeferred {
     const cost = this.milestoneCost() + ((milestone.name === 'Briber') ? 12 : 0);
-    const reserveUnits = milestone.name === 'Merchant' ? Units.every(2) : Units.EMPTY;
+    // Merchant keeps 2 of each standard resource after paying, Amazonis Planitia's Merchant3 keeps 3 (upstream d0267f8d72).
+    const reserveUnits = milestone.name === 'Merchant' ? Units.every(2) : milestone.name === 'Merchant3' ? Units.every(3) : Units.EMPTY;
     return new SelectPaymentDeferred(this, cost, {
       // Bake the milestone name into the prompt title so the modal
       // shown to the player ("ВЫБЕРИТЕ СПОСОБ ОПЛАТЫ TERRAFORMER")
