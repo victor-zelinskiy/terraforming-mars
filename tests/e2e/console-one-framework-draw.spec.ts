@@ -156,14 +156,15 @@ for (const profile of PROFILES) {
         expect(run.standalone, `${label}: never a standalone reveal (${report})`).toBe(0);
         // The prepared slots ARE the landing rects — for every slot at rest (the one under the cursor is lifted by the
         // cursor grammar, a pose on top of the same place; the A/B above compares it lifted against lifted).
-        if (run.prepared.length === run.landed.length) {
-          run.prepared.forEach((r, i) => {
-            if (run.landed[i].lifted !== true) {
-              expect(near(r, run.landed[i]), `${label}: prepared slot ${i} is the landing rect ±1 px (${report})`).toBe(true);
-            }
-          });
-          expect(run.landed.some((r) => r.lifted !== true), `${label}: at least one slot was measured at rest (${report})`).toBe(true);
-        }
+        // The prepared stage reserves EXACTLY the batch: never a socket for a card that is not coming (the Reds' discard
+        // prompt once sized it by the whole hand — nine sockets for two cards).
+        expect(run.prepared.length, `${label}: the prepared stage holds as many slots as land (${report})`).toBe(run.landed.length);
+        run.prepared.forEach((r, i) => {
+          if (run.landed[i].lifted !== true) {
+            expect(near(r, run.landed[i]), `${label}: prepared slot ${i} is the landing rect ±1 px (${report})`).toBe(true);
+          }
+        });
+        expect(run.landed.some((r) => r.lifted !== true), `${label}: at least one slot was measured at rest (${report})`).toBe(true);
       }
     });
   });

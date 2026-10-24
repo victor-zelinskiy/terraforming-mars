@@ -154,3 +154,23 @@ describe('ConsoleActionComposer — a POLITICAL source (the Reds in the card com
     expect((emitted![0][0] as any).stepResponses).to.deep.eq([]);
   });
 });
+
+describe('ConsoleActionComposer — the prepared draw stage reserves the BATCH, never the discard that follows it', () => {
+  it('the Reds\' answer carries the batch AND the hand discard: the discard\'s candidates are no drawn card (П3)', () => {
+    const hand = ['Trees', 'Lichen', 'Birds', 'Fish', 'Pets', 'Moss', 'Algae', 'Grass', 'Heather'].map((name) => ({name}));
+    const view = {...PLAYER_VIEW, waitingFor: {type: 'card', title: 'discard', cards: hand, min: 2, max: 2, discardPrompt: {}}};
+    const w = mount(ConsoleActionComposer, {
+      ...globalConfig,
+      global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub}},
+      props: {playerView: view, entry: redsEntry(), preview: REDS_PREVIEW, nodeIndex: 0},
+    });
+    expect((w.vm as unknown as {beatRevealedNames: ReadonlyArray<string>}).beatRevealedNames, 'a hand discard is never the draw').to.deep.eq([]);
+    // A card PICK of the drawn cards (a buy) still names them — the prompt's candidates ARE the batch.
+    const buy = mount(ConsoleActionComposer, {
+      ...globalConfig,
+      global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub}},
+      props: {playerView: {...PLAYER_VIEW, waitingFor: {type: 'card', title: 'buy', cards: hand.slice(0, 2), min: 0, max: 2}}, entry: redsEntry(), preview: REDS_PREVIEW, nodeIndex: 0},
+    });
+    expect((buy.vm as unknown as {beatRevealedNames: ReadonlyArray<string>}).beatRevealedNames).to.deep.eq(['Trees', 'Lichen']);
+  });
+});

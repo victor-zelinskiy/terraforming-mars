@@ -2098,10 +2098,14 @@ export default defineComponent({
      *  · a drawn BATCH — the reveal event carries them.
      * Empty until the answer lands, which is exactly when the faces are allowed
      * to exist (the batch flies face-down until then).
+     *
+     * A HAND DISCARD is never the draw (the server's `discardPrompt` marker): the Reds' «draw 2, then discard 2»
+     * answers with the batch AND the discard of the whole hand — read as candidates, the hand's nine cards became
+     * nine sockets of the prepared stage while two cards landed (ONE FRAMEWORK П3 caught it).
      */
     beatRevealedNames(): ReadonlyArray<string> {
-      const wf = this.playerView.waitingFor as {cards?: ReadonlyArray<{name: string}>} | undefined;
-      const fromPrompt = (wf?.cards ?? []).map((c) => c.name).filter((n) => n !== '');
+      const wf = this.playerView.waitingFor as {cards?: ReadonlyArray<{name: string}>, discardPrompt?: unknown} | undefined;
+      const fromPrompt = wf?.discardPrompt !== undefined ? [] : (wf?.cards ?? []).map((c) => c.name).filter((n) => n !== '');
       if (fromPrompt.length > 0) {
         return fromPrompt;
       }
