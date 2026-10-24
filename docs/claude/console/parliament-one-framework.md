@@ -40,8 +40,11 @@ own draw zone, its own result panel (`megacredits − mcBefore`) and three `setT
 
 ### К3 · actions — ONE composer (С2 the Reds · С3 the Scientists, the Industrialists, Unity · С4 the laws)
 A party's or an enacted law's tile in «Действия карт» descends into THE `ConsoleActionComposer`:
-- **hero**: the party's plaque (`ConsolePartyPlaque size="hero"`, decision Р2) / the law's face, in the card hero's
-  box; `data-composer-source="party:<id>" | "law:<id>"`.
+- **hero**: the party drawn as a CARD (the owner's decision Р2, 2026-10-24 — `premiumCard/partyPremiumVm.ts` through
+  `PremiumCard`'s `vmOverride`: the project anatomy, the party's name on the nameplate, its seal whole in the art window
+  — `pcard--party-face` —, its standing effect above its action through the one formula renderer, no cost / tags) or the
+  law's face, in the card hero's box (`.con-composer__actparty` / `__actlaw`); `data-composer-source="party:<id>" |
+  "law:<id>"`. The fullscreen inspector keeps the party's plaque and lore.
 - **rows by the PROMPT's shape, never by the party**: `SelectOption` → commit only (the Reds, Trade Industries) ·
   an `or` card pick → a target row with the sole-candidate seed (the Scientists, Manufacturing Run) · an `and` of
   two `or`s → one row per part, each a palette of the one variant grammar (the Industrialists' «lower → raise»;
