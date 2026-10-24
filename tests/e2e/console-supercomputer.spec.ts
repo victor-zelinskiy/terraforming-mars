@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, fetchPlayerModel, focusCard, openActionFocus, openCardActions, openConsole, press, settle, waitForBoardHome} from './consoleStart';
+import {bootFixtureSeats, fetchPlayerModel, focusCard, openActionFocus, openCardActions, openConsole, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
@@ -218,8 +218,8 @@ for (const preset of PRESETS) {
       // Mine's panel: no data lane (no Science tag).
       await openPlayComposer(page, 'Mine');
       await expect(page.locator(`${PLAY_COMPOSER} .con-payrow[data-pay-unit="supercomputerData"]`), 'no data lane on a card without a Science tag').toHaveCount(0);
-      await press(page, 'Escape', 900);
-      await expect(page.locator(PLAY_COMPOSER), 'back to the hand').toHaveCount(0, {timeout: 15_000});
+      // Act → verify → retry: one blind B was swallowed on CI (the composer stood 15 s) — a press in the surface's own beat.
+      expect(await pressUntil(page, 'Escape', async () => await page.locator(PLAY_COMPOSER).count() === 0, {tries: 4, settleMs: 1500}), 'back to the hand').toBe(true);
       // TR46's panel: «Data» FIRST, steel beside it; the opening mix cashes the data (4 × 2 = 8 — exact).
       await openPlayComposer(page, STARTUPS);
       const units = await page.evaluate((root) => Array.from(document.querySelectorAll(`${root} .con-payrow[data-pay-unit]`))

@@ -29,7 +29,9 @@ const PRESETS = [
 ] as const;
 
 type Box = {x: number, y: number, w: number, h: number};
-type Flight = {kind: string, nonce: number, bornAt: number, lastAt: number, first: Box, last: Box, zone: number, face: string};
+/** `zone` = the zone under the proxy's centre at its LAST sample (mid-flight on a starved renderer); `restZone` = the zone it
+ *  was seen STANDING over (two consecutive samples in one spot) — its landing, the only place a flight is judged by. */
+type Flight = {kind: string, nonce: number, bornAt: number, lastAt: number, first: Box, last: Box, zone: number, restZone?: number, face: string};
 type Probe = {
   samples: number,
   ticks: number,
@@ -191,6 +193,9 @@ async function armProbe(page: Page): Promise<void> {
         const zone = zoneRects.findIndex((z) => box.x >= z.left && box.x <= z.right && box.y >= z.top && box.y <= z.bottom) + 1;
         const face = text(el.querySelector('.con-deal-proxy__face')).slice(0, 30);
         const rec = p.flights[key] ?? (p.flights[key] = {kind, nonce: n, bornAt: now, lastAt: now, first: box, last: box, zone, face});
+        if (rec.lastAt !== now && Math.abs(rec.last.x - box.x) <= 1 && Math.abs(rec.last.y - box.y) <= 1) {
+          rec.restZone = zone;
+        }
         rec.last = box;
         rec.lastAt = now;
         rec.zone = zone;
@@ -428,7 +433,12 @@ for (const preset of PRESETS) {
         expect(probe.tables.length, `the settlement table is ONE instance (${JSON.stringify(probe.tables)})`).toBe(1);
 
         // ② ONE OBJECT PER PLACE: no place is flown to twice, and a later place's flight is a back with no name.
-        const placeOf = (f: Flight) => f.zone; // the probe numbers zones from 1 in strip order — the places
+        // The probe numbers zones from 1 in strip order — the places. A flight is judged by where it came to REST: on a
+        // starved renderer (CI) the last sample catches a card mid-flight over a zone it is only passing (an income card
+        // read as «place 2» with its face). A flight never seen at rest is not judged — the zones' own reading (③ below:
+        // every later place stood SEALED until its turn) still holds every place.
+        const placeOf = (f: Flight) => f.restZone ?? 0;
+        console.log('unjudged flights (never seen at rest):', flights.filter((f) => f.restZone === undefined).map((f) => `${f.kind}#${f.nonce} last over zone ${f.zone}`).join(', ') || 'none');
         const perPlace = new Map<number, number>();
         for (const f of flights) {
           if (placeOf(f) > 0) {

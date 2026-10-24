@@ -295,6 +295,18 @@ for (const profile of PROFILES) {
         await cinematicBeat(page, 700, 'the rival answers and the packet passes');
       }
       await expect(page.locator('.con-draftws__stage--buy .con-cards__slot')).toHaveCount(4, {timeout: 60_000});
+      // The buy is measured once its DEAL is over — its reading row (the wallet plate) is painted then. Four slots stand
+      // from the deal's first frame, so on a slow renderer (CI) a read right after them caught the cards mid-flight
+      // (1070 px, no text at all) and called it the composition (foot 0.775).
+      await expect.poll(() => page.evaluate(() => {
+        let el: Element | null = document.querySelector('[data-draft-wallet]');
+        let o = el === null ? 0 : 1;
+        for (; el !== null; el = el.parentElement) {
+          const cs = getComputedStyle(el);
+          o *= cs.visibility === 'hidden' || cs.display === 'none' ? 0 : Number(cs.opacity);
+        }
+        return o;
+      }), {timeout: 30_000, message: 'the buy\'s wallet plate is painted (its deal is over)'}).toBeGreaterThan(0.9);
       const zero = await cell(page, profile, 'd-buy-0', 'buy');
       const picked = async () => page.locator('.con-draftws__stage--buy .con-cards__slot--picked').count();
       await pressUntil(page, 'Enter', async () => await picked() >= 1, {settleMs: 900});

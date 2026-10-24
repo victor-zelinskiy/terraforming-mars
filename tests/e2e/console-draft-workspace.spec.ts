@@ -590,6 +590,10 @@ test.describe('draft workspace · the between-generations flow', () => {
     //    financial strip + the full drafted set (3 picks + the auto card).
     await expect.poll(async () => (await surface(page)).buy, {timeout: 45_000}).toBeTruthy();
     await settle(page, {timeoutMs: 25_000}); // the rise scene holds release at its end
+    // The reading row (the wallet plate) is painted once the buy's DEAL is over — on a slow renderer (CI) that is
+    // past the console's quiet; read the purchase when it stands, never mid-deal.
+    await expect.poll(async () => (await surface(page)).finstrip, {timeout: 30_000,
+      message: 'the wallet plate stands in the reading row (T10 · CE)'}).toBeTruthy();
     s = await surface(page);
     console.log('[purchase]', JSON.stringify(s));
     expect(s.buySlots, 'the whole drafted set is the purchase row').toBe(4);
