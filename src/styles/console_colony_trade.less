@@ -106,7 +106,7 @@
     /* The live colony — a touch brighter rim, the only zone with actions. */
     &--active::before {
         background: linear-gradient(180deg, fade(@con-mint, 9%), fade(@con-mint, 2%) 72%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 42%), 0 0 1.1rem fade(@con-mint, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 42%);
     }
     /* Not started: its card is not even drawn yet — quiet and inert. (A SETTLEMENT TABLE's sealed place is a real
        card lying there under its seal: it stays nearly fully lit — the seal, not a dim, says «not yet».) */
@@ -316,8 +316,7 @@
 
     &--ready {
         background: linear-gradient(180deg, fade(@con-mint, 13%), rgba(8, 14, 20, 0.5));
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%),
-            0 0 1.1rem fade(@con-mint, 22%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%);
     }
 }
 .con-reveal__closer-note {
@@ -577,7 +576,7 @@
     margin-top: -.08rem;
     border-radius: .1rem;
     background: repeating-linear-gradient(90deg, rgba(190, 205, 220, 0.75) 0 .45rem, transparent .45rem .65rem);
-    box-shadow: 0 0 .4rem rgba(150, 175, 200, 0.25);
+    box-shadow: none;
     pointer-events: none;
 }
 /* A TABLE place's line has ONE height in every state (see the template: a centred zone column whose line came and

@@ -414,7 +414,7 @@
             position: absolute;
             inset: 0;
             border-radius: inherit;
-            box-shadow: inset 0 0 0 .08rem fade(@con-mint, 85%), 0 0 1.3rem fade(@con-mint, 40%);
+            box-shadow: inset 0 0 0 .08rem fade(@con-mint, 85%);
             opacity: 0;
             pointer-events: none;
             animation: cm-launch-breathe calc(2400ms * var(--motion-scale, 1)) ease-in-out infinite;
@@ -600,10 +600,10 @@
     &--you { box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 60%); }
     &--active {
         background: fade(@con-cyan, 10%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 70%), 0 0 .5rem fade(@con-cyan, 22%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 70%);
     }
     &--you.cm-game__player--active {
-        box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 70%), 0 0 .5rem fade(@con-mint, 22%);
+        box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 70%);
     }
 }
 .cm-game__pturn {
@@ -611,7 +611,7 @@
     height: .3rem;
     border-radius: 50%;
     background: @con-mint;
-    box-shadow: 0 0 .3rem fade(@con-mint, 75%);
+    box-shadow: none;
     animation: cm-pulse calc(1600ms * var(--motion-scale, 1)) ease-in-out infinite;
 }
 .cm-game__pcube {
@@ -982,7 +982,7 @@
 
     &--turn {
         background: fade(@con-mint, 16%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 65%), 0 0 .9rem fade(@con-mint, 22%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 65%);
         color: mix(#ffffff, @con-mint, 42%);
     }
     &--ready {
@@ -1060,7 +1060,7 @@
     }
     &--current {
         background: fade(@con-cyan, 20%);
-        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 85%), 0 0 .8rem fade(@con-cyan, 30%);
+        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 85%);
         color: #ffffff;
     }
 }
@@ -1343,7 +1343,7 @@ html.con-profile-handheld {
     height: .7rem;
     border-radius: .1rem;
     background: rgba(110, 140, 170, 0.25);
-    &--on { background: @cm-gold; box-shadow: 0 0 .4rem fade(@cm-gold, 45%); }
+    &--on { background: @cm-gold; box-shadow: none; }
 }
 
 /* ── Friends (profile → friends editor + invite quick-pick) ──────── */
@@ -1532,7 +1532,7 @@ html.con-profile-handheld {
     &--active {
         color: @con-text;
         background: rgba(16, 27, 40, 0.95);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 75%), 0 0 .8rem fade(@con-cyan, 22%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 75%);
     }
     &--flagged::after {
         content: '';
@@ -1543,7 +1543,7 @@ html.con-profile-handheld {
         height: .5rem;
         border-radius: 50%;
         background: @con-amber;
-        box-shadow: 0 0 .4rem fade(@con-amber, 60%);
+        box-shadow: none;
     }
 }
 .cm-create__identity {
@@ -2105,7 +2105,7 @@ html.con-profile-handheld {
     height: .5rem;
     border-radius: 50%;
     background: @con-mint;
-    box-shadow: 0 0 .5rem fade(@con-mint, 70%);
+    box-shadow: none;
     animation: cm-pulse calc(2000ms * var(--motion-scale, 1)) ease-in-out infinite;
 }
 .cm-launch__status-glyph {
@@ -3003,7 +3003,7 @@ html.con-profile-handheld {
     height: 100%;
     border-radius: .2rem;
     background: @con-cyan;
-    box-shadow: 0 0 .5rem fade(@con-cyan, 50%);
+    box-shadow: none;
     transition: width calc(100ms * var(--motion-scale, 1)) ease;
 }
 .cm-admin__saveinfo {

@@ -1689,8 +1689,7 @@ html.console-native {
         border-radius: .045rem;
         background: #08111a;
         box-shadow:
-            inset 0 0 0 .035rem rgba(220, 242, 255, 0.12),
-            0 0 .32rem fade(@con-cyan, 14%);
+            inset 0 0 0 .035rem rgba(220, 242, 255, 0.12);
         transform: translate(-50%, -50%) rotate(45deg);
         animation: con-wsflow-origin-in calc(210ms * var(--motion-scale, 1)) ease-out backwards;
 
@@ -1713,8 +1712,7 @@ html.console-native {
         transform-origin: top center;
         background: currentColor;
         box-shadow:
-            .04rem 0 0 rgba(220, 242, 255, 0.035),
-            0 0 .28rem fade(@con-cyan, 8%);
+            .04rem 0 0 rgba(220, 242, 255, 0.035);
         animation: con-wsflow-stem-in calc(150ms * var(--motion-scale, 1)) ease-out backwards;
     }
     /* STRUCTURAL GUARD: the connector's rise into the first row is licensed
@@ -1746,8 +1744,7 @@ html.console-native {
         transform-origin: left center;
         background: currentColor;
         box-shadow:
-            0 -.04rem 0 rgba(220, 242, 255, 0.035),
-            0 0 .32rem fade(@con-cyan, 9%);
+            0 -.04rem 0 rgba(220, 242, 255, 0.035);
         animation: con-wsflow-run-in calc(190ms * var(--motion-scale, 1)) @con-ease-enter calc(220ms * var(--motion-scale, 1)) backwards;
     }
     /* A small steel/cyan hand-off node is shared by expanded, compact and
@@ -3189,7 +3186,7 @@ html.con-reduced-motion {
         padding: .6rem 1rem .7rem;
         border-radius: .6rem;
         background: @con-glass;
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%), 0 .7rem 2rem rgba(0, 0, 0, 0.5), 0 0 1.5rem fade(@con-cyan, 8%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%), 0 .7rem 2rem rgba(0, 0, 0, 0.5);
         animation: con-rise calc(200ms * var(--motion-scale, 1)) @con-ease-enter;
 
         /* One-shot landing / set-complete acknowledgement. */
@@ -3198,7 +3195,7 @@ html.con-reduced-motion {
         }
         /* The completed set (the rise scene's «НАБОР СОБРАН» beat). */
         &--complete {
-            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%), 0 .7rem 2rem rgba(0, 0, 0, 0.5), 0 0 1.7rem fade(@con-mint, 14%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%), 0 .7rem 2rem rgba(0, 0, 0, 0.5);
         }
     }
     /* The table owns the screen (pick beat / rise): the tray pops ABOVE the
@@ -3212,10 +3209,10 @@ html.con-reduced-motion {
     /* The table owns the screen (pick beat / rise) — the tray is the focal
        object: a slightly stronger rim, no layout change. */
     &--table &__pile {
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 65%), 0 .7rem 2.2rem rgba(0, 0, 0, 0.55), 0 0 1.9rem fade(@con-cyan, 16%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 65%), 0 .7rem 2.2rem rgba(0, 0, 0, 0.55);
     }
     &--table &__pile--complete {
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 75%), 0 .7rem 2.2rem rgba(0, 0, 0, 0.55), 0 0 2rem fade(@con-mint, 20%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 75%), 0 .7rem 2.2rem rgba(0, 0, 0, 0.55);
     }
 
     &__head {
@@ -3311,7 +3308,7 @@ html.con-reduced-motion {
     padding: .7rem 1.3rem .8rem;
     border-radius: .6rem;
     background: @con-glass;
-    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 .7rem 2rem rgba(0, 0, 0, 0.5), 0 0 1.5rem fade(@con-cyan, 8%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 .7rem 2rem rgba(0, 0, 0, 0.5);
     font-family: @con-font;
     animation: con-rise calc(200ms * var(--motion-scale, 1)) @con-ease-enter;
 
@@ -3583,7 +3580,7 @@ html.con-reduced-motion {
         border-radius: 50%;
         font-size: 1.3rem;
         color: @con-mint;
-        box-shadow: inset 0 0 0 .09rem fade(@con-mint, 55%), 0 0 1.2rem fade(@con-mint, 18%);
+        box-shadow: inset 0 0 0 .09rem fade(@con-mint, 55%);
     }
     &__await-title {
         font-size: 1.15rem;
@@ -3678,7 +3675,7 @@ html.con-reduced-motion {
         border-radius: 50%;
         font-size: 1.7rem;
         color: @con-mint;
-        box-shadow: inset 0 0 0 .1rem fade(@con-mint, 60%), 0 0 2rem fade(@con-mint, 22%);
+        box-shadow: inset 0 0 0 .1rem fade(@con-mint, 60%);
     }
     &__done-title {
         font-size: 1.35rem;
@@ -3822,7 +3819,7 @@ html.con-reduced-motion {
             inset: 0;
             border-radius: .6rem;
             pointer-events: none;
-            box-shadow: inset 0 0 0 .07rem fade(@con-mint, 60%), 0 0 1.3rem fade(@con-mint, 20%);
+            box-shadow: inset 0 0 0 .07rem fade(@con-mint, 60%);
             opacity: 0;
         }
         &--pulse::after {
@@ -6863,7 +6860,7 @@ html.con-section-leaving .con-strat {
         &--ready {
             background: fade(@con-hydro-mint, 10%);
             box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 55%);
-            .con-hydro__chip-dot { background: @con-hydro-mint; box-shadow: 0 0 .4rem fade(@con-hydro-mint, 80%); }
+            .con-hydro__chip-dot { background: @con-hydro-mint; box-shadow: none; }
         }
         // Timing states (not your turn / mid-decision) — amber: it will pass.
         &--waiting,
@@ -6947,8 +6944,8 @@ html.con-section-leaving .con-strat {
         transition: background calc(260ms * var(--motion-scale, 1)) ease,
             box-shadow calc(260ms * var(--motion-scale, 1)) ease;
 
-        &--done { background: fade(@con-hydro-aqua, 75%); box-shadow: 0 0 .4rem fade(@con-hydro-aqua, 35%); }
-        &--route { background: fade(@con-hydro-mint, 80%); box-shadow: 0 0 .4rem fade(@con-hydro-mint, 40%); }
+        &--done { background: fade(@con-hydro-aqua, 75%); box-shadow: none; }
+        &--route { background: fade(@con-hydro-mint, 80%); box-shadow: none; }
     }
     &__stop {
         position: relative;
@@ -6981,7 +6978,7 @@ html.con-section-leaving .con-strat {
         }
         &--current {
             background: fade(@con-hydro-aqua, 13%);
-            box-shadow: inset 0 0 0 .1rem fade(@con-hydro-aqua, 80%), 0 0 .8rem fade(@con-hydro-aqua, 25%);
+            box-shadow: inset 0 0 0 .1rem fade(@con-hydro-aqua, 80%);
         }
         &--route,
         &--target {
@@ -6992,7 +6989,7 @@ html.con-section-leaving .con-strat {
            route states which cells reward before the player commits. */
         &--route-paid {
             background: fade(@con-hydro-mint, 9%);
-            box-shadow: inset 0 0 0 .08rem fade(@con-hydro-mint, 75%), 0 0 .6rem fade(@con-hydro-mint, 18%);
+            box-shadow: inset 0 0 0 .08rem fade(@con-hydro-mint, 75%);
         }
         &--route-excl {
             background: fade(@con-hydro-gold, 4%);
@@ -7562,7 +7559,7 @@ html.con-section-leaving .con-strat {
         &--ready {
             background: fade(@con-hydro-mint, 12%);
             box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 60%);
-            .con-hydro__chip-dot { background: @con-hydro-mint; box-shadow: 0 0 .4rem fade(@con-hydro-mint, 80%); }
+            .con-hydro__chip-dot { background: @con-hydro-mint; box-shadow: none; }
         }
         &--todo {
             background: fade(@con-cyan, 10%);
@@ -8225,7 +8222,7 @@ html.con-section-leaving .con-strat {
         border: none;
         border-radius: .6rem;
         background: linear-gradient(180deg, fade(@con-hydro-mint, 26%), fade(@con-hydro-mint, 14%));
-        box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 75%), 0 0 1.1rem fade(@con-hydro-mint, 18%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 75%);
         color: #eafff5;
         font-family: @con-font;
         font-size: .9rem;
@@ -8920,7 +8917,7 @@ html.con-section-leaving .con-strat {
 
         &--on {
             background: fade(@con-hydro-mint, 20%);
-            box-shadow: inset 0 0 0 .07rem fade(@con-hydro-mint, 85%), 0 0 .7rem fade(@con-hydro-mint, 30%);
+            box-shadow: inset 0 0 0 .07rem fade(@con-hydro-mint, 85%);
             color: @con-hydro-mint;
         }
     }
@@ -8928,7 +8925,7 @@ html.con-section-leaving .con-strat {
        option settles back. Both cues are box-shadow/colour (perf-lite keeps
        them), never opacity on the option itself. */
     &__cta--armed {
-        box-shadow: inset 0 0 0 .1rem fade(@con-hydro-mint, 95%), 0 0 1.4rem fade(@con-hydro-mint, 30%);
+        box-shadow: inset 0 0 0 .1rem fade(@con-hydro-mint, 95%);
     }
     &__choice-card--muted {
         background: rgba(14, 22, 33, 0.45);
@@ -9031,7 +9028,7 @@ html.con-section-leaving .con-strat {
     &__travchip--current {
         color: @con-text;
         background: fade(@con-hydro-aqua, 14%);
-        box-shadow: inset 0 0 0 .07rem fade(@con-hydro-aqua, 75%), 0 0 .8rem fade(@con-hydro-aqua, 18%);
+        box-shadow: inset 0 0 0 .07rem fade(@con-hydro-aqua, 75%);
     }
     &__travchip--excl {
         color: fade(@con-text-dim, 80%);
@@ -10780,7 +10777,7 @@ html.console-mode {
 
         &--active {
             background: fade(@con-cyan, 16%);
-            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 78%), 0 0 .7rem fade(@con-cyan, 22%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 78%);
             color: @con-text;
         }
         &--empty { opacity: 0.4; }
@@ -10842,7 +10839,7 @@ html.console-mode {
 
         &--gain {
             background: linear-gradient(180deg, fade(@con-amber, 22%), fade(@con-amber, 10%)), rgba(14, 22, 33, 0.55);
-            box-shadow: inset 0 0 0 .05rem fade(@con-amber, 80%), 0 0 .7rem fade(@con-amber, 18%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-amber, 80%);
             color: #ffe9c4;
         }
         /* THE TABLE'S ANSWER to the sale (TR46): the same weight as the
@@ -10905,7 +10902,7 @@ html.console-mode {
 
             &--gain {
                 background: linear-gradient(180deg, fade(@con-cyan, 20%), fade(@con-cyan, 9%)), rgba(14, 22, 33, 0.55);
-                box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 78%), 0 0 .7rem fade(@con-cyan, 18%);
+                box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 78%);
                 color: #d8f4ff;
             }
             &--zero {
@@ -10956,7 +10953,7 @@ html.console-mode {
         padding: .2rem .65rem;
         border-radius: 49.95rem;
         background: fade(@con-cyan, 16%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 78%), 0 0 .7rem fade(@con-cyan, 22%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 78%);
         color: @con-text;
         white-space: nowrap;
 
@@ -10972,7 +10969,7 @@ html.console-mode {
         border-radius: 50%;
         flex-shrink: 0;
         background: @con-cyan;
-        box-shadow: 0 0 .4rem fade(@con-cyan, 60%);
+        box-shadow: none;
     }
     &__selectfilter--all &__selectfilter-dot {
         background: rgba(150, 175, 205, 0.5);
@@ -12272,7 +12269,7 @@ html.console-mode {
         &--filled { background: rgba(185, 176, 244, 0.55); }
         &--gained {
             background: @con-mint;
-            box-shadow: 0 0 .3rem fade(@con-mint, 40%);
+            box-shadow: none;
         }
     }
     &__when {
@@ -12592,7 +12589,7 @@ html.console-mode {
         padding: .2rem .8rem;
         border-radius: 49.95rem;
         background: fade(#e8c268, 14%);
-        box-shadow: inset 0 0 0 .075rem fade(#e8c268, 80%), 0 0 .7rem fade(#e8c268, 20%);
+        box-shadow: inset 0 0 0 .075rem fade(#e8c268, 80%);
         color: #ffe9b8;
         font-size: .75rem;
         font-weight: 800;
@@ -12857,7 +12854,6 @@ html.console-mode {
         inset: 9%;
         border-radius: 50%;
         box-shadow: 0 0 0 .09rem rgba(246, 232, 198, 0.66),
-            0 0 .8rem fade(@strat-gold, 40%),
             inset 0 0 .6rem fade(@strat-gold, 15%);
         opacity: 0;
         transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
@@ -13022,7 +13018,7 @@ html.console-mode {
         /* Met, but NOT actionable now (turn / money / mid-action): the green
            facts and a moderate mint rim — «yours, waiting», never an error. */
         &--ready {
-            box-shadow: inset 0 0 0 .075rem fade(@con-mint, 85%), 0 0 .8rem fade(@con-mint, 18%);
+            box-shadow: inset 0 0 0 .075rem fade(@con-mint, 85%);
 
             .con-ma__metric-value { color: #d7ffe9; }
             .con-ma__meter i { background: linear-gradient(90deg, fade(@con-mint, 75%), @con-mint); }
@@ -13031,7 +13027,7 @@ html.console-mode {
            gold-white activation light. */
         &--now {
             background: rgba(14, 19, 22, 0.8);
-            box-shadow: inset 0 0 0 .075rem rgba(246, 232, 198, 0.6), 0 0 .9rem fade(@strat-gold, 22%);
+            box-shadow: inset 0 0 0 .075rem rgba(246, 232, 198, 0.6);
 
             .con-ma__metric-value { color: #d7ffe9; }
             .con-ma__meter i { background: linear-gradient(90deg, fade(@con-mint, 75%), @con-mint); }
@@ -13368,7 +13364,7 @@ html.console-mode {
 
         /* award: the current race leader */
         &--leader {
-            box-shadow: inset 0 0 0 .075rem fade(@con-amber, 95%), 0 0 .5rem fade(@con-amber, 30%);
+            box-shadow: inset 0 0 0 .075rem fade(@con-amber, 95%);
         }
         /* milestone: a rival who has reached the threshold too */
         &--ready {
@@ -13446,8 +13442,7 @@ html.console-mode {
        genuinely offered — the strategy rail's own door grammar (the accent
        lives at the ACTION level; award rows stay calm by design). */
     &__slot--next {
-        box-shadow: inset 0 0 0 .075rem fade(@strat-gold, 85%),
-            0 0 .45rem fade(@strat-gold, 45%);
+        box-shadow: inset 0 0 0 .075rem fade(@strat-gold, 85%);
     }
 
     /* ── the LB/RB ARRIVE beat — the new category's content slides in from
@@ -14467,7 +14462,7 @@ html.con-profile-handheld .con-mafocus {
         width: .15rem;
         border-radius: .1rem;
         background: @con-mint;
-        box-shadow: 0 0 .4rem fade(@con-mint, 60%);
+        box-shadow: none;
         /* The commit sweep travels INSIDE the rail — clipped to it, so the
            motif stays «light running the state marker» and never becomes a
            streak floating beside the row. */
@@ -14516,7 +14511,7 @@ html.con-profile-handheld .con-mafocus {
             height: .05rem;
             border-radius: .05rem;
             background: fade(@con-cyan, 45%);
-            box-shadow: 0 0 .35rem fade(@con-cyan, 28%);
+            box-shadow: none;
             pointer-events: none;
         }
     }
@@ -14739,7 +14734,7 @@ html.con-profile-handheld .con-mafocus {
             flex-shrink: 0;
             border-radius: 50%;
             background: currentColor;
-            box-shadow: 0 0 .35rem currentColor;
+            box-shadow: none;
         }
     }
     /* The focused row's PROJECTED RESULT — the shared ActionEffectChip row
@@ -15211,8 +15206,7 @@ html.con-profile-handheld .con-mafocus {
             box-shadow: inset 0 0 0 .06rem rgba(152, 178, 206, 0.42);
         }
         &--next {
-            box-shadow: inset 0 0 0 .06rem fade(@strat-gold, 80%),
-                0 0 .32rem fade(@strat-gold, 45%);
+            box-shadow: inset 0 0 0 .06rem fade(@strat-gold, 80%);
         }
     }
 
@@ -15441,7 +15435,6 @@ html.con-profile-handheld .con-mafocus {
         inset: -6.5%;
         border-radius: 50%;
         box-shadow: 0 0 0 .07rem rgba(246, 232, 198, 0.72),
-            0 0 .5rem fade(@strat-gold, 42%),
             inset 0 0 .4rem fade(@strat-gold, 16%);
         opacity: 0;
         transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
@@ -16415,7 +16408,7 @@ html.con-profile-handheld .con-mafocus {
     height: 1rem;
     border-radius: .1rem;
     background: linear-gradient(180deg, @con-cyan, fade(@con-cyan, 35%));
-    box-shadow: 0 0 .4rem fade(@con-cyan, 45%);
+    box-shadow: none;
 }
 .con-journal__title {
     flex: 1;
@@ -16469,7 +16462,7 @@ html.con-profile-handheld .con-mafocus {
         color: #08131e;
         background: fade(@con-cyan, 85%);
         font-weight: 700;
-        box-shadow: 0 0 .5rem fade(@con-cyan, 35%);
+        box-shadow: none;
     }
 }
 /* Generation stepper — LT ‹ ПОКОЛЕНИЕ N › RT + the honest live badge. */
@@ -16505,7 +16498,7 @@ html.con-profile-handheld .con-mafocus {
     height: .4rem;
     border-radius: 50%;
     background: @con-mint;
-    box-shadow: 0 0 .4rem @con-mint;
+    box-shadow: none;
     animation: con-journal-live calc(1800ms * var(--motion-scale, 1)) ease-in-out infinite;
 
     &--off {
@@ -17056,7 +17049,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         /* Something is claimable behind this command (LB Достижения ①). */
         &--hot {
             .gp-glyph {
-                box-shadow: inset 0 0 0 .05rem fade(@con-mint, 75%), 0 0 .6rem fade(@con-mint, 35%);
+                box-shadow: inset 0 0 0 .05rem fade(@con-mint, 75%);
             }
             .con-cmdbar__label {
                 color: @con-mint;
@@ -17069,7 +17062,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
            only, so the paint baseline keeps the warning. */
         &--danger {
             .gp-glyph {
-                box-shadow: inset 0 0 0 .05rem fade(@sem-danger, 85%), 0 0 .6rem fade(@sem-danger, 40%);
+                box-shadow: inset 0 0 0 .05rem fade(@sem-danger, 85%);
             }
             .con-cmdbar__label {
                 color: #ffb0a6;
@@ -17701,7 +17694,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &--on {
             transform: scaleY(1.75);
             background: fade(@con-cyan, 95%);
-            box-shadow: 0 0 .4rem fade(@con-cyan, 40%);
+            box-shadow: none;
         }
     }
     &__pager-bar {
@@ -17950,7 +17943,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         padding: 1.3rem 1.6rem 1.1rem;
         border-radius: .7rem;
         background: @con-glass;
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%), 0 1.2rem 3.5rem rgba(0, 0, 0, 0.65), 0 0 2.1rem fade(@con-cyan, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%), 0 1.2rem 3.5rem rgba(0, 0, 0, 0.65);
         font-family: @con-font;
         color: @con-text;
         text-align: center;
@@ -22205,8 +22198,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             opacity: 1;
             box-shadow:
                 inset 0 0 0 .05rem fade(@con-text, 20%),
-                0 0 0 .1rem var(--fleet-fill),
-                0 0 .45rem var(--fleet-glow) !important;
+                0 0 0 .1rem var(--fleet-fill);
         }
     }
     /* The dock is the ship-SIZED landing slot (ALWAYS in the DOM — the flight's
@@ -22354,11 +22346,11 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &--passed { background: fade(@con-cyan, 25%); }
         &--marker {
             background: @con-cyan;
-            box-shadow: 0 0 .45rem fade(@con-cyan, 60%);
+            box-shadow: none;
         }
         &--effective {
             background: fade(@con-mint, 55%);
-            box-shadow: 0 0 .4rem fade(@con-mint, 45%);
+            box-shadow: none;
         }
     }
     &__track-pos {
@@ -22518,7 +22510,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         height: .4rem;
         border-radius: 50%;
         background: @con-mint;
-        box-shadow: 0 0 .4rem fade(@con-mint, 70%);
+        box-shadow: none;
     }
     &__status-mark { font-size: .65rem; }
     &__status-text {
@@ -22945,7 +22937,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         height: .45rem;
         border-radius: 50%;
         background: @con-mint;
-        box-shadow: 0 0 .4rem fade(@con-mint, 70%);
+        box-shadow: none;
     }
     /* ═══ HERO — the colony as a physical object ═══ */
     &__hero {
@@ -22991,7 +22983,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         .colony-fleet-icon { width: 2.3rem; height: 2.3rem; }
         &--occupied {
             background: rgba(8, 14, 22, 0.86);
-            box-shadow: inset 0 0 0 .08rem var(--fleet-fill, fade(@con-cyan, 60%)), 0 0 .8rem var(--fleet-glow, fade(@con-cyan, 25%)), 0 .15rem .5rem rgba(0, 0, 0, 0.5);
+            box-shadow: inset 0 0 0 .08rem var(--fleet-fill, fade(@con-cyan, 60%)), 0 .15rem .5rem rgba(0, 0, 0, 0.5);
         }
     }
     &__status {
@@ -23499,7 +23491,7 @@ html.console-mode {
     padding: 1.1rem 1.4rem .8rem;
     border-radius: .7rem;
     background: @con-glass;
-    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 1.2rem 4rem rgba(0, 0, 0, 0.65), 0 0 2rem fade(@con-cyan, 8%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 1.2rem 4rem rgba(0, 0, 0, 0.65);
     font-family: @con-font;
     color: @con-text;
     /* NO entry keyframe: the surface-motion director owns the mount entry
@@ -23776,7 +23768,7 @@ html.console-mode {
         padding: .5rem 1.7rem;
         border-radius: .6rem;
         background: rgba(14, 22, 33, 0.7);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%), 0 0 1.1rem fade(@con-cyan, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%);
     }
     &__stepper-value {
         font-size: 2.3rem;
@@ -23825,7 +23817,7 @@ html.console-mode {
             transform: translateY(-.15rem);
         }
         &--armed {
-            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 85%), 0 0 1.1rem fade(@con-mint, 25%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 85%);
         }
     }
     &__tile-icon {
@@ -23982,7 +23974,7 @@ html.console-mode {
         b { color: @con-amber; font-size: 1.1rem; }
     }
     &__pickcount--ready {
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 65%), 0 0 .7rem fade(@con-mint, 14%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 65%);
         b { color: @con-mint; }
     }
     &__paycost {
@@ -24575,7 +24567,7 @@ html.con-scale-focus-oceans .global-numbers-oceans {
             --con-cursor-zdelay: 0s;
         }
         &--picked {
-            box-shadow: 0 0 0 .1rem fade(@con-mint, 85%), 0 0 1.1rem fade(@con-mint, 22%);
+            box-shadow: 0 0 0 .1rem fade(@con-mint, 85%);
         }
         &--focused&--picked {
             box-shadow: 0 0 0 .1rem fade(@con-mint, 90%), 0 0 0 .2rem fade(@con-cyan, 55%), 0 0 1.5rem fade(@con-mint, 28%);
@@ -24623,7 +24615,7 @@ html.con-scale-focus-oceans .global-numbers-oceans {
         padding: .15rem .7rem;
         border-radius: 49.95rem;
         background: linear-gradient(180deg, fade(@con-mint, 28%), fade(@con-mint, 16%)), @con-glass;
-        box-shadow: inset 0 0 0 .075rem fade(@con-mint, 90%), 0 .2rem .7rem rgba(0, 0, 0, 0.55), 0 0 .9rem fade(@con-mint, 25%);
+        box-shadow: inset 0 0 0 .075rem fade(@con-mint, 90%), 0 .2rem .7rem rgba(0, 0, 0, 0.55);
         color: @con-mint;
         font-size: .7rem;
         font-weight: 800;
@@ -24648,12 +24640,12 @@ html.con-scale-focus-oceans .global-numbers-oceans {
     }
     &__pickband--disabled {
         background: linear-gradient(180deg, fade(@con-red, 26%), fade(@con-red, 12%)), @con-glass;
-        box-shadow: inset 0 0 0 .075rem fade(@con-red, 85%), 0 .2rem .7rem rgba(0, 0, 0, 0.55), 0 0 .8rem fade(@con-red, 18%);
+        box-shadow: inset 0 0 0 .075rem fade(@con-red, 85%), 0 .2rem .7rem rgba(0, 0, 0, 0.55);
         color: #ffd2cc;
     }
     &__pickband--sale {
         background: linear-gradient(180deg, fade(@con-amber, 28%), fade(@con-amber, 14%)), @con-glass;
-        box-shadow: inset 0 0 0 .075rem fade(@con-amber, 90%), 0 .2rem .7rem rgba(0, 0, 0, 0.55), 0 0 .8rem fade(@con-amber, 20%);
+        box-shadow: inset 0 0 0 .075rem fade(@con-amber, 90%), 0 .2rem .7rem rgba(0, 0, 0, 0.55);
         color: #ffe9c4;
     }
     /* ENABLER: this card could open the WAITING one's effect. Deliberately the
@@ -24672,14 +24664,14 @@ html.con-scale-focus-oceans .global-numbers-oceans {
        --warn only annotates it. The full sentence is the status rail's. */
     &__pickband--warn {
         background: linear-gradient(180deg, fade(@con-amber, 26%), fade(@con-amber, 12%)), @con-glass;
-        box-shadow: inset 0 0 0 .075rem fade(@con-amber, 88%), 0 .2rem .7rem rgba(0, 0, 0, 0.55), 0 0 .8rem fade(@con-amber, 18%);
+        box-shadow: inset 0 0 0 .075rem fade(@con-amber, 88%), 0 .2rem .7rem rgba(0, 0, 0, 0.55);
         color: #ffe3b0;
     }
     /* SELECT mode (mandatory hand pick): the picked-card ✓ band in cyan — the
        canonical "selected" accent (distinct from the mint play / amber sale). */
     &__pickband--select {
         background: linear-gradient(180deg, fade(@con-cyan, 30%), fade(@con-cyan, 14%)), @con-glass;
-        box-shadow: inset 0 0 0 .075rem fade(@con-cyan, 92%), 0 .2rem .7rem rgba(0, 0, 0, 0.55), 0 0 .8rem fade(@con-cyan, 22%);
+        box-shadow: inset 0 0 0 .075rem fade(@con-cyan, 92%), 0 .2rem .7rem rgba(0, 0, 0, 0.55);
         color: #d6f3ff;
     }
     /* THE LAYOUT COUNTER (the card-target chassis in distribute mode — the
@@ -24690,7 +24682,7 @@ html.con-scale-focus-oceans .global-numbers-oceans {
     &__pickband--spread {
         gap: .2rem;
         background: linear-gradient(180deg, fade(@con-cyan, 30%), fade(@con-cyan, 14%)), @con-glass;
-        box-shadow: inset 0 0 0 .075rem fade(@con-cyan, 92%), 0 .2rem .7rem rgba(0, 0, 0, 0.55), 0 0 .8rem fade(@con-cyan, 22%);
+        box-shadow: inset 0 0 0 .075rem fade(@con-cyan, 92%), 0 .2rem .7rem rgba(0, 0, 0, 0.55);
         color: #d6f3ff;
         font-variant-numeric: tabular-nums;
     }
@@ -24705,7 +24697,7 @@ html.con-scale-focus-oceans .global-numbers-oceans {
     /* …and the slot wears a quiet outline while it holds units, so the
        layout reads from the row as a whole, not only from the focused card. */
     &__slot--spread > :is(.card-container, .pcard) {
-        box-shadow: 0 0 0 .12rem fade(@con-cyan, 55%), 0 0 1rem fade(@con-cyan, 18%);
+        box-shadow: 0 0 0 .12rem fade(@con-cyan, 55%);
     }
     &__reason {
         position: absolute;
@@ -24796,7 +24788,7 @@ html.con-scale-focus-oceans .global-numbers-oceans {
     }
     &__verdict--go {
         background: fade(@con-mint, 14%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 75%), 0 0 .8rem fade(@con-mint, 16%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 75%);
         color: @con-mint;
         animation: con-verdict-go calc(2200ms * var(--motion-scale, 1)) ease-in-out infinite;
     }
@@ -25008,7 +25000,7 @@ html.console-mode {
    an unplayable card - the fullscreen viewer is never mute. */
 .con-zoom__btn--play {
     background: fade(@con-mint, 12%);
-    box-shadow: inset 0 0 0 .05rem fade(@con-mint, 70%), 0 0 .7rem fade(@con-mint, 12%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-mint, 70%);
     color: #d7ffe9;
 
     &:hover { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 90%), 0 0 .9rem fade(@con-mint, 22%); }
@@ -25097,12 +25089,12 @@ html.console-mode {
 
     &--received {
         background: fade(@con-mint, 14%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 75%), 0 0 .8rem fade(@con-mint, 14%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 75%);
         color: @con-mint;
     }
     &--source {
         background: fade(@con-amber, 14%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 70%), 0 0 .8rem fade(@con-amber, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 70%);
         color: #ffe3b0;
     }
 }
@@ -25233,7 +25225,7 @@ each(@players, {
     padding: .25rem .75rem;
     border-radius: 49.95rem;
     background: rgba(14, 22, 33, 0.72);
-    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%), 0 0 .7rem fade(@con-cyan, 10%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%);
     font-family: @con-font;
 
     &-icon {
@@ -25299,7 +25291,7 @@ each(@players, {
 @con-reject-tags: building, space, science, power, earth, jovian, venus, plant, microbe, animal, city, moon, mars, crime, event, wild, clone;
 each(@con-reject-tags, {
     .con-zoom--reject-@{value} .card-zoom-stage .pcard-tag[data-tag="@{value}"] {
-        box-shadow: 0 0 0 .15rem rgba(224, 61, 61, 0.95), 0 0 .6rem rgba(224, 61, 61, 0.55);
+        box-shadow: 0 0 0 .15rem rgba(224, 61, 61, 0.95);
         &::before {
             background:
                 linear-gradient(-32deg, transparent 45%, #e03d3d 45%, #e03d3d 55%, transparent 55%),
@@ -25580,7 +25572,7 @@ body.con-start-ceremony {
 
         &--active {
             background: fade(@con-cyan, 12%);
-            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 75%), 0 0 .8rem fade(@con-cyan, 16%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 75%);
             color: @con-text;
         }
         &--done {
@@ -25624,7 +25616,7 @@ body.con-start-ceremony {
         b { color: @con-amber; font-size: .94rem; }
 
         &--ready {
-            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 65%), 0 0 .7rem fade(@con-mint, 14%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 65%);
             b { color: @con-mint; }
         }
         /* Blocked RB: the counter IS the step's gating reason — one calm
@@ -26003,14 +25995,14 @@ body.con-start-ceremony {
         padding: .6rem .75rem .55rem;
         border-radius: .6rem;
         background: rgba(14, 22, 33, 0.6);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%), 0 0 .9rem fade(@con-cyan, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%);
     }
     /* SENT, AND THE TABLE IS STILL CONFIRMING. The same plate, one state
        further on: the player's own part is DONE (mint, not cyan — the
        colour carries the state), and there is no CTA at all because
        nothing is asked of them. */
     &__await {
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%), 0 0 .9rem fade(@con-mint, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%);
 
         .con-start__wait-title { color: fade(@con-mint, 95%); }
         .con-start__wait-scan { background: linear-gradient(90deg, transparent, fade(@con-mint, 13%), transparent); }
@@ -26066,7 +26058,7 @@ body.con-start-ceremony {
                 margin-left: -.1rem;
                 border-radius: 50%;
                 background: @con-cyan;
-                box-shadow: 0 0 .3rem fade(@con-cyan, 80%);
+                box-shadow: none;
             }
             &:nth-child(2) { animation-delay: calc(-600ms * var(--motion-scale, 1)); }
             &:nth-child(3) { animation-delay: calc(-1200ms * var(--motion-scale, 1)); }
@@ -26177,7 +26169,7 @@ body.con-start-ceremony {
         padding: .5rem .8rem;
         border-radius: .6rem;
         background: fade(@con-mint, 12%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 70%), 0 0 .9rem fade(@con-mint, 14%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 70%);
         color: @con-mint;
         font-size: .9rem;
         font-weight: 800;
@@ -26227,7 +26219,6 @@ body.con-start-ceremony {
         &--resolved {
             box-shadow:
                 inset 0 0 0 .07rem fade(@con-mint, 60%),
-                0 0 1.1rem fade(@con-mint, 16%),
                 0 .4rem 1.2rem rgba(0, 0, 0, 0.35);
         }
     }
@@ -26663,7 +26654,7 @@ body.con-start-ceremony {
         padding: 1.1rem 1.4rem .7rem;
         border-radius: .7rem;
         background: @con-glass;
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 1.2rem 4rem rgba(0, 0, 0, 0.65), 0 0 2rem fade(@con-cyan, 8%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 1.2rem 4rem rgba(0, 0, 0, 0.65);
     }
     /* The DRAWN reveal is a reward SCENE, not a content-hugging form: a
        stable height makes the header / centre stage / bottom-air structure
@@ -26839,8 +26830,8 @@ body.con-start-ceremony {
         zoom: calc(1.08 * var(--con-ui-scale, 1) * var(--con-reveal-verdict-fit, 1));
         > :is(.card-container, .pcard) { margin: 0; }
 
-        &--met { box-shadow: 0 0 0 .1rem fade(@con-mint, 75%), 0 0 1.3rem fade(@con-mint, 20%); }
-        &--miss { box-shadow: 0 0 0 .1rem fade(@con-red, 65%), 0 0 1.1rem fade(@con-red, 16%); }
+        &--met { box-shadow: 0 0 0 .1rem fade(@con-mint, 75%); }
+        &--miss { box-shadow: 0 0 0 .1rem fade(@con-red, 65%); }
     }
     &__outcome {
         align-self: center;
@@ -26944,7 +26935,7 @@ body.con-start-ceremony {
         height: .12rem;
         border-radius: 49.95rem;
         background: linear-gradient(90deg, fade(@con-cyan, 6%), fade(@con-cyan, 62%));
-        box-shadow: 0 0 .5rem fade(@con-cyan, 26%);
+        box-shadow: none;
 
         &::after {
             content: '';
@@ -27018,8 +27009,8 @@ body.con-start-ceremony {
 
     /* State rings are `box-shadow`, never `filter` — the perf profile cuts
        filters, and a verdict that loses its colour loses its meaning. */
-    &--met { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%), 0 0 1.4rem fade(@con-mint, 8%); }
-    &--miss { box-shadow: inset 0 0 0 .05rem fade(@con-red, 42%), 0 0 1.4rem fade(@con-red, 7%); }
+    &--met { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%); }
+    &--miss { box-shadow: inset 0 0 0 .05rem fade(@con-red, 42%); }
 
     &__head {
         display: flex;
@@ -27210,7 +27201,7 @@ body.con-start-ceremony {
         padding: .4rem 1.3rem;
         border-radius: .6rem;
         background: rgba(14, 22, 33, 0.7);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%), 0 0 1.1rem fade(@con-cyan, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%);
     }
     &__res {
         display: inline-block;
@@ -28293,8 +28284,7 @@ html.console-mode .notifications-layer {
     &--prestige {
         box-shadow:
             inset 0 0 0 .075rem fade(#e8c268, 65%),
-            0 .5rem 1.4rem rgba(0, 0, 0, 0.5),
-            0 0 1.1rem fade(#e8c268, 18%);
+            0 .5rem 1.4rem rgba(0, 0, 0, 0.5);
 
         .con-notif__type { color: #ffe9b8; }
 
@@ -28681,7 +28671,7 @@ body.con-start-barshold .con-status {
            slot's live rect). Ordered after --focused so it wins on the card
            that is by definition also focused. */
         &--armed {
-            box-shadow: 0 0 0 .14rem fade(@con-amber, 92%), 0 0 1.4rem fade(@con-amber, 24%), 0 .6rem 1.4rem rgba(0, 0, 0, 0.45);
+            box-shadow: 0 0 0 .14rem fade(@con-amber, 92%), 0 .6rem 1.4rem rgba(0, 0, 0, 0.45);
             z-index: 2;
         }
         /* The ENABLER TIE — the card that could open the waiting one. A ring
@@ -28974,8 +28964,7 @@ body.con-start-barshold .con-status {
         border-radius: .6rem;
         box-shadow:
             0 1.1rem 2.6rem rgba(0, 0, 0, 0.55),
-            0 0 0 .07rem fade(@con-cyan, 38%),
-            0 0 2.2rem fade(@con-cyan, 12%);
+            0 0 0 .07rem fade(@con-cyan, 38%);
 
         > * { zoom: calc(0.92 * var(--con-ui-scale, 1)); }
     }
@@ -29842,8 +29831,7 @@ body.con-start-barshold .con-status {
         &--armed {
             z-index: 1;
             box-shadow:
-                inset 0 0 0 .06rem fade(@con-cyan, 55%),
-                0 0 1rem fade(@con-cyan, 14%);
+                inset 0 0 0 .06rem fade(@con-cyan, 55%);
         }
     }
     /* The prepared place's inner card outline — reads as "a card belongs
@@ -30061,7 +30049,7 @@ body.con-start-barshold .con-status {
         line-height: 1;
         color: #07130e;
         background: @con-mint;
-        box-shadow: 0 0 0 .055rem #0a1620, 0 0 .28rem fade(@con-mint, 20%);
+        box-shadow: 0 0 0 .055rem #0a1620;
         text-align: center;
         &:empty { display: none; }
     }
@@ -30124,8 +30112,7 @@ body.con-start-barshold .con-status {
             box-shadow:
                 inset 0 0 0 .06rem fade(@con-cyan, 64%),
                 inset 0 .05rem 0 rgba(230, 248, 255, 0.12),
-                0 .14rem .35rem rgba(0, 0, 0, 0.22),
-                0 0 .5rem fade(@con-cyan, 10%);
+                0 .14rem .35rem rgba(0, 0, 0, 0.22);
         }
         &--done {
             color: fade(@con-mint, 91%);
@@ -30135,7 +30122,7 @@ body.con-start-barshold .con-status {
         &--locked { color: rgba(184, 207, 226, 0.7); }
         &--anticipate {
             background: fade(@con-cyan, 7%);
-            box-shadow: inset 0 0 0 .055rem fade(@con-cyan, 48%), 0 0 .5rem fade(@con-cyan, 9%);
+            box-shadow: inset 0 0 0 .055rem fade(@con-cyan, 48%);
         }
     }
     &__item-node {
@@ -30165,8 +30152,7 @@ body.con-start-barshold .con-status {
         background: @con-cyan;
         box-shadow:
             inset .045rem .045rem 0 rgba(255, 255, 255, 0.28),
-            0 0 0 .055rem fade(@con-cyan, 48%),
-            0 0 .48rem fade(@con-cyan, 27%);
+            0 0 0 .055rem fade(@con-cyan, 48%);
         animation: con-jrail-node-acquire calc(300ms * var(--motion-scale, 1)) @con-ease-enter both;
     }
     &__item--done &__item-node {
@@ -30226,7 +30212,7 @@ body.con-start-barshold .con-status {
     }
     &__item--endpoint.con-jrail__item--done &__item-node {
         transform: rotate(45deg);
-        box-shadow: 0 0 0 .05rem fade(@con-mint, 36%), 0 0 .44rem fade(@con-mint, 18%);
+        box-shadow: 0 0 0 .05rem fade(@con-mint, 36%);
     }
 
     /* ONE DIRECTIONAL TRACK LANGUAGE. Leads, step links and the stronger
@@ -30411,8 +30397,7 @@ body.con-start-barshold .con-status {
         background: linear-gradient(90deg, fade(@con-mint, 13%), fade(@con-mint, 7%) 72%, transparent);
         box-shadow:
             inset 0 .05rem 0 fade(@con-mint, 22%),
-            inset 0 -.05rem 0 fade(@con-mint, 28%),
-            0 0 .68rem fade(@con-mint, 9%);
+            inset 0 -.05rem 0 fade(@con-mint, 28%);
     }
     &__terminal-lead {
         position: relative;
@@ -30432,7 +30417,7 @@ body.con-start-barshold .con-status {
             border-radius: 50%;
             background: @con-mint;
             transform: translateY(-50%);
-            box-shadow: 0 0 .3rem fade(@con-mint, 26%);
+            box-shadow: none;
         }
     }
     &__terminal-mark {
@@ -30448,8 +30433,7 @@ body.con-start-barshold .con-status {
         font-weight: 900;
         box-shadow:
             inset .05rem .05rem 0 rgba(255, 255, 255, 0.25),
-            0 0 0 .055rem fade(@con-mint, 38%),
-            0 0 .52rem fade(@con-mint, 24%);
+            0 0 0 .055rem fade(@con-mint, 38%);
         transform: rotate(45deg);
 
         i { font-style: normal; transform: rotate(-45deg); }
@@ -31009,8 +30993,7 @@ body.con-start-barshold .con-status {
     background: @con-glass;
     box-shadow:
         inset 0 0 0 .06rem fade(@con-cyan, 55%),
-        0 .5rem 1.5rem rgba(0, 0, 0, 0.45),
-        0 0 1.1rem fade(@con-cyan, 16%);
+        0 .5rem 1.5rem rgba(0, 0, 0, 0.45);
     animation: con-mandatory-in calc(320ms * var(--motion-scale, 1)) cubic-bezier(.2, .8, .2, 1) both;
 
     &__pulse {
@@ -31174,7 +31157,7 @@ html.con-profile-handheld .con-mandatory {
         padding: 1.3rem 1.6rem 1.1rem;
         border-radius: .7rem;
         background: @con-glass;
-        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 55%), 0 1.2rem 4rem rgba(0, 0, 0, 0.65), 0 0 2.1rem fade(@con-amber, 8%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 55%), 0 1.2rem 4rem rgba(0, 0, 0, 0.65);
         font-family: @con-font;
         color: @con-text;
         text-align: center;
@@ -31252,7 +31235,7 @@ html.con-profile-handheld .con-mandatory {
         padding: 1.3rem 1.6rem 1.1rem;
         border-radius: .7rem;
         background: @con-glass;
-        box-shadow: inset 0 0 0 .05rem fade(@con-red, 60%), 0 1.2rem 4rem rgba(0, 0, 0, 0.7), 0 0 2.4rem fade(@con-red, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-red, 60%), 0 1.2rem 4rem rgba(0, 0, 0, 0.7);
         font-family: @con-font;
         color: @con-text;
         text-align: center;
@@ -32093,7 +32076,7 @@ html.console-mode {
         background: rgba(12, 20, 30, 0.7); box-shadow: inset 0 0 0 .05rem rgba(140, 170, 200, 0.28);
         font-size: .85rem; font-weight: 700;
     }
-    &__player-dot { width: .6rem; height: .6rem; border-radius: 50%; background: currentColor; box-shadow: 0 0 .4rem currentColor; }
+    &__player-dot { width: .6rem; height: .6rem; border-radius: 50%; background: currentColor; box-shadow: none; }
 
     /* ── Filters — two LABELED groups, each carrying its own trigger chips
        (the sanctioned exception to the one-bottom-bar rule). They live in
@@ -35003,7 +34986,7 @@ html.con-profile-tv {
     /* A FIXED height, mirrored by `OWNER_BAR_H` in the sizing module. */
     /* Above the focused card's glow (the slot lifts on z 2): the name is never painted over (PL-170). */
     &__ownerbar { display: flex; align-items: baseline; gap: .45rem; min-width: 0; height: 1.4rem; position: relative; z-index: 3; }
-    &__ownerdot { align-self: center; width: .6rem; height: .6rem; border-radius: 50%; box-shadow: 0 0 .4rem currentColor; }
+    &__ownerdot { align-self: center; width: .6rem; height: .6rem; border-radius: 50%; box-shadow: none; }
     &__ownername {
         font-size: .95rem; font-weight: 800; letter-spacing: .04rem; text-transform: uppercase;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -36110,7 +36093,7 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
             background: fade(@con-mint, 12%);
             box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%);
             .con-cursor-layer(after; {
-                box-shadow: inset 0 0 0 .1rem @con-mint, 0 0 1.3rem fade(@con-mint, 36%);
+                box-shadow: inset 0 0 0 .1rem @con-mint;
                 background: fade(@con-mint, 7%);
             });
         }
@@ -36607,8 +36590,8 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
         transition: box-shadow calc(220ms * var(--motion-scale, 1)) ease;
         > :is(.card-container, .pcard) { margin: 0; zoom: var(--arz); }
 
-        &--met { box-shadow: 0 0 0 .1rem fade(@con-mint, 75%), 0 0 1.3rem fade(@con-mint, 20%); }
-        &--miss { box-shadow: 0 0 0 .1rem fade(@con-red, 65%), 0 0 1.1rem fade(@con-red, 16%); }
+        &--met { box-shadow: 0 0 0 .1rem fade(@con-mint, 75%); }
+        &--miss { box-shadow: 0 0 0 .1rem fade(@con-red, 65%); }
     }
     .con-composer__revealstatus {
         display: inline-flex;
@@ -36737,7 +36720,7 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
    ring around the standing hero card. Geometry-free (paint only), clears
    itself with the lock (rollback included). */
 .con-composer__actcardwrap--committed > .con-composer__actcard {
-    box-shadow: 0 0 0 .1rem fade(@con-cyan, 34%), 0 0 1.1rem fade(@con-cyan, 14%);
+    box-shadow: 0 0 0 .1rem fade(@con-cyan, 34%);
     border-radius: .5rem;
     transition: box-shadow calc(180ms * var(--motion-scale, 1)) ease;
 }
@@ -36812,7 +36795,7 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     transform: translateY(-.3rem) scale(1.006);
 }
 .con-composer__actcardwrap--targetlock > .con-composer__actcard {
-    box-shadow: 0 0 0 .14rem fade(@con-mint, 92%), 0 0 1.2rem fade(@con-mint, 32%);
+    box-shadow: 0 0 0 .14rem fade(@con-mint, 92%);
     border-radius: .5rem;
 }
 .con-composer__actcardwrap--targetfocus.con-composer__actcardwrap--targetlock > .con-composer__actcard {
@@ -36829,7 +36812,7 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     transform: translateY(-.3rem) scale(1.006);
 }
 .con-composer__playcard--targetlock > :is(.card-container, .pcard) {
-    box-shadow: 0 0 0 .14rem fade(@con-mint, 92%), 0 0 1.2rem fade(@con-mint, 32%);
+    box-shadow: 0 0 0 .14rem fade(@con-mint, 92%);
 }
 .con-composer__playcard--targetfocus.con-composer__playcard--targetlock > :is(.card-container, .pcard) {
     box-shadow: 0 0 0 .16rem fade(@con-mint, 98%), 0 0 1.5rem fade(@con-mint, 42%);

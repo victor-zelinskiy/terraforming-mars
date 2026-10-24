@@ -204,12 +204,12 @@ html.con-profile-handheld {
     }
     &--gain &__crest {
         background: linear-gradient(90deg, fade(@prompt-gain, 35%) 0%, @prompt-gain 18%, @prompt-gain 82%, fade(@prompt-gain, 35%) 100%);
-        box-shadow: 0 .15rem 1.3rem fade(@prompt-gain, 26%);
+        box-shadow: none;
     }
     /* A LOSS is hazard tape — the pattern itself says «careful», in greyscale too. */
     &--loss &__crest {
         background: repeating-linear-gradient(-55deg, @prompt-loss 0 .42rem, #2a0d0a .42rem .84rem);
-        box-shadow: 0 .15rem 1.3rem fade(@prompt-loss, 30%);
+        box-shadow: none;
     }
     /* THE SETTLE METER — fills across the crest while the shell holds the deciding presses. */
     &__settle {
@@ -636,7 +636,6 @@ html.con-profile-handheld {
             box-shadow:
                 inset 0 0 0 .08rem fade(@con-heat-warm, 62%),
                 0 0 0 .14rem rgba(6, 10, 14, 0.92),
-                0 0 1.2rem fade(@con-heat-warm, 22%),
                 0 .25rem .75rem rgba(0, 0, 0, 0.5);
         }
         &--pass {

@@ -71,14 +71,14 @@
        tests/e2e/console-payment-panel.spec.ts). Never add a box metric here. */
     &--expanded {
         background: linear-gradient(165deg, rgba(20, 34, 50, 0.8) 0%, rgba(12, 20, 30, 0.7) 100%);
-        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 46%), 0 0 1.2rem fade(@con-cyan, 14%);
+        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 46%);
     }
     /* Cannot be confirmed — a calm red rim on the block, not a scream. */
     &--blocked {
         box-shadow: inset 0 0 0 .05rem fade(@con-red, 52%);
     }
     &--expanded&--blocked {
-        box-shadow: inset 0 0 0 .1rem fade(@con-red, 62%), 0 0 1.2rem fade(@con-red, 12%);
+        box-shadow: inset 0 0 0 .1rem fade(@con-red, 62%);
     }
 
     /* ── Head: title · price · the mode-switch hint ── */

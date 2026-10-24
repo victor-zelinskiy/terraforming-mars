@@ -130,7 +130,7 @@
     padding: .22rem .8rem;
     border-radius: 49.95rem;
     background: linear-gradient(180deg, fade(@con-amber, 17%), fade(@con-amber, 7%)), rgba(12, 20, 30, 0.66);
-    box-shadow: inset 0 0 0 .05rem fade(@con-amber, 62%), 0 0 .8rem fade(@con-amber, 16%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-amber, 62%);
     white-space: nowrap;
     min-width: 0;
 }
@@ -281,11 +281,11 @@ html.con-profile-tv .con-hand__fresh { zoom: ~"calc(1.2 / var(--con-hand-zoom, 0
    select frame (same geometry, so nothing shifts between modes). */
 .con-hand--discard .con-hand__slot--select-picked > :is(.card-container, .pcard) {
     filter: none;
-    box-shadow: 0 0 0 .15rem fade(@con-amber, 86%), 0 0 1rem fade(@con-amber, 40%);
+    box-shadow: 0 0 0 .15rem fade(@con-amber, 86%);
 }
 .con-cards__pickband--discard {
     background: linear-gradient(180deg, fade(@con-amber, 32%), fade(@con-amber, 14%)), @con-glass;
-    box-shadow: inset 0 0 0 .075rem fade(@con-amber, 92%), 0 .2rem .7rem rgba(0, 0, 0, 0.55), 0 0 .8rem fade(@con-amber, 22%);
+    box-shadow: inset 0 0 0 .075rem fade(@con-amber, 92%), 0 .2rem .7rem rgba(0, 0, 0, 0.55);
     color: #ffe6c4;
 }
 /* The verdict bar's discard accent (twin of `--select`, amber). */
@@ -301,6 +301,6 @@ html.con-profile-tv .con-hand__fresh { zoom: ~"calc(1.2 / var(--con-hand-zoom, 0
    viewer's role pill says so in the discard's own tone (the «−1» chip's warm red), never the mint of «received». */
 .con-zoom__status--discarded {
     background: rgba(40, 16, 10, 0.55);
-    box-shadow: inset 0 0 0 .05rem rgba(255, 170, 130, 0.6), 0 0 .8rem rgba(255, 140, 100, 0.12);
+    box-shadow: inset 0 0 0 .05rem rgba(255, 170, 130, 0.6);
     color: #ffd9c2;
 }

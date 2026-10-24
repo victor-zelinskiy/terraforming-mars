@@ -83,13 +83,13 @@
         height: .42rem;
         border-radius: 50%;
         background: @con-cyan;
-        box-shadow: 0 0 .4rem fade(@con-cyan, 70%);
+        box-shadow: none;
     }
     &--landing {
         color: #fff2d0;
         background: fade(@con-amber, 10%);
         box-shadow: inset 0 0 0 .05rem fade(@con-amber, 55%);
-        .con-context__finale-stage-dot { background: @con-amber; box-shadow: 0 0 .4rem fade(@con-amber, 70%); }
+        .con-context__finale-stage-dot { background: @con-amber; box-shadow: none; }
     }
     &--wait .con-context__finale-stage-dot {
         animation: con-finale-pulse calc(1600ms * var(--motion-scale, 1)) ease-in-out infinite;

@@ -20,9 +20,10 @@
     background-image: @con-track-cap;
     box-shadow: 0 0 0 .1rem @con-track-ring, @con-track-shade;
 }
-/* The VIEWER's own disc — the track's accent as a glow (never a colour change of the disc: the colour is the owner's). */
+/* The VIEWER's own disc — a second RING in the track's accent outside the owner's rim (never a colour change of the disc:
+   the colour is the owner's; never a halo — a standing state is a kant, `console-ui.md` § VISUAL RESTRAINT). */
 .con-track-marker-viewer() {
-    box-shadow: 0 0 0 .1rem @con-track-ring, @con-track-shade, 0 0 .4rem rgba(var(--con-track-accent), .8);
+    box-shadow: 0 0 0 .1rem @con-track-ring, @con-track-shade, 0 0 0 .19rem rgba(var(--con-track-accent), .85);
 }
 /* The one-shot SETTLE when a glide has just locked its real disc in — the handoff from the proxy to the track. */
 .con-track-marker-settle() {
@@ -30,7 +31,7 @@
 }
 @keyframes con-track-marker-settle {
     0% { transform: scale(1.5); box-shadow: 0 0 0 .1rem @con-track-ring, @con-track-shade, 0 0 0 .2rem rgba(var(--con-track-accent), .9), 0 0 .9rem rgba(var(--con-track-accent), .9); }
-    100% { transform: scale(1); box-shadow: 0 0 0 .1rem @con-track-ring, @con-track-shade, 0 0 .4rem rgba(var(--con-track-accent), .8); }
+    100% { transform: scale(1); box-shadow: 0 0 0 .1rem @con-track-ring, @con-track-shade, 0 0 0 .19rem rgba(var(--con-track-accent), .85); }
 }
 
 /* THE PROXY in flight — positioned and revealed by the director (x / y / scale / autoAlpha only); its PHASE classes are
