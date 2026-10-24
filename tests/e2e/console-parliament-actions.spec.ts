@@ -474,12 +474,45 @@ test.describe('parliament · party actions', () => {
     await press(page, 'ArrowRight', 250);
     await press(page, 'Enter', 300); // pick a second one
     await armTransferWitness(page);
+    // WHEN the workspace lets go, relative to the press and the answer — a timeline named in the payout's failure.
+    await page.evaluate(() => {
+      const w = window as unknown as {__redsTimeline?: Array<string>};
+      const out: Array<string> = [];
+      w.__redsTimeline = out;
+      const t0 = performance.now();
+      let last = '';
+      const sample = () => {
+        const ready = (window as unknown as {__conReady?: () => {wsDepth?: number, transport?: unknown}}).__conReady?.();
+        const now = [
+          document.querySelector('.con-cardactions') !== null ? 'ws' : '-',
+          document.querySelector('.con-cardactions .con-composer') !== null ? 'comp' : '-',
+          document.querySelector('.con-hand--discard') !== null ? 'hand' : '-',
+          'depth=' + String(ready?.wsDepth ?? '?'),
+          'crumb=' + (document.querySelector('.con-wshead')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60),
+        ].join(' ');
+        if (now !== last) {
+          out.push(Math.round(performance.now() - t0) + 'ms ' + now);
+          last = now;
+        }
+      };
+      const mo = new MutationObserver(sample);
+      mo.observe(document.body, {subtree: true, childList: true});
+      const timer = window.setInterval(sample, 25);
+      window.setTimeout(() => {
+        mo.disconnect();
+        window.clearInterval(timer);
+      }, 20_000);
+      sample();
+    });
     await press(page, 'Period', 1200); // RT — confirm the set
     await expect.poll(async () => (await seatOf(request, playerId)).waitingFor?.type, {timeout: 30_000, message: 'the discard was answered'}).not.toBe('card');
     // What the payout stood on at the answer — named in the failure below (the rail's held reward, the workspace).
     const atAnswer = await page.evaluate(() => {
       const ready = (window as unknown as {__conReady?: () => {railReward?: unknown}}).__conReady?.();
-      return {workspace: document.querySelector('.con-cardactions') !== null, composer: document.querySelector('.con-cardactions .con-composer') !== null, rail: ready?.railReward};
+      return {
+        workspace: document.querySelector('.con-cardactions') !== null, composer: document.querySelector('.con-cardactions .con-composer') !== null, rail: ready?.railReward,
+        timeline: (window as unknown as {__redsTimeline?: Array<string>}).__redsTimeline,
+      };
     });
     // The payout is the ACTION COMMIT's language — a wave off the plaque's printed «2 M€», never a result panel.
     await shoot(page, '10a-reds-payout');
