@@ -21,7 +21,8 @@ import {answerQuestGate} from '../parliament/parliamentArrange';
  * serve — once per viewer. One fact, two texts, three readers:
  *  · the player who completed it — NOTHING (they walked the whole flow);
  *  · the previous chairman — their delegate is back in their reserve;
- *  · everyone else — the office is taken, the generation's quest is closed.
+ *  · everyone else — NO card: the quest's own strip told them the moment it was completed (`questCeremony.ts`, the
+ *    milestone family's remote beat — the owner, 2026-10-24); a second card about the same moment is noise.
  */
 const ANALYTICS_ONLY_TAGS = new Set(['resource-payment', 'payment-bonus', 'colony-track', 'trade-discount', 'global-parameter', 'reveal']);
 
@@ -64,7 +65,7 @@ describe('«ПРЕДСЕДАТЕЛЬСТВО» — the other players\' notificat
     expect(VARIANT_RELEVANCE['chairman']).eq('exempt');
   });
 
-  it('ONE fact, TWO texts: the previous chairman reads their own, everyone else the office change; the actor reads nothing', () => {
+  it('ONE fact, ONE card: the previous chairman reads their own; the actor and the bystanders read nothing (the quest strip told them)', () => {
     const [game, p1, p2, p3] = reduxGame();
     const parliament = game.parliament!;
     parliament.chairman = p2.id;
@@ -86,11 +87,8 @@ describe('«ПРЕДСЕДАТЕЛЬСТВО» — the other players\' notificat
     expect(loser!.typeLabelKey).eq('Chairmanship');
     expect(loser!.kind, 'a fact of the table, not one player\'s routine action').eq('important');
 
-    // EVERYONE ELSE — the group's own header: the office is taken.
-    const bystander = chairmanCard(game, p3.color);
-    expect(bystander, 'a player the event does not touch is told too — the generation\'s quest is closed').is.not.undefined;
-    expect(bystander!.header?.message).eq('${0} takes the chairmanship');
-    expect(bystander!.actor).eq(p1.color);
+    // EVERYONE ELSE — the quest's strip already said it (who completed it, the chairmanship, the Career step).
+    expect(chairmanCard(game, p3.color), 'a bystander gets no second telling of the quest').is.undefined;
   });
 
   it('a SITTING chairman who completes it again: nobody is told they lost anything', () => {
@@ -102,9 +100,7 @@ describe('«ПРЕДСЕДАТЕЛЬСТВО» — the other players\' notificat
     answerQuestGate(game, p1);
     expect(parliament.chairman).eq(p1.id);
 
-    const card = chairmanCard(game, p2.color);
-    expect(card, 'the office did not change hands, but the quest is still closed for the generation').is.not.undefined;
-    expect(card!.header?.message, 'and nobody reads a loss that did not happen').eq('${0} takes the chairmanship');
+    expect(chairmanCard(game, p2.color), 'nobody lost the chair — the quest strip is the whole telling').is.undefined;
     const seated = game.events.events.filter((e) => e.type === 'chairman-seated');
     expect(seated).has.length(1);
     expect(seated[0].target, 'no previous holder ⇒ no addressee for the second text').is.undefined;
@@ -129,7 +125,6 @@ describe('«ПРЕДСЕДАТЕЛЬСТВО» — the other players\' notificat
 
     const loser = chairmanCard(game, p2.color);
     expect(loser!.header?.message).eq('Your delegate left the chairmanship and returned to your reserve');
-    const bystander = chairmanCard(game, p3.color);
-    expect(bystander!.header?.message).eq('${0} takes the chairmanship');
+    expect(chairmanCard(game, p3.color), 'the bystander: the quest strip told it').is.undefined;
   });
 });

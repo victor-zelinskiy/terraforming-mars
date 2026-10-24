@@ -508,7 +508,7 @@ function focusLine(focus: BandFocus): BandLine {
   case 'slot': {
     chips.push({kind: 'resolution', resolution: focus.resolution, party: focus.party});
     if (focus.winning) {
-      chips.push({kind: 'label', key: 'Winning', tone: 'accent'});
+      chips.push({kind: 'label', key: 'Leading the vote', tone: 'accent'});
     }
     chips.push({kind: 'count', key: 'Delegates', amount: focus.votes});
     if (focus.leader !== undefined) {
@@ -557,6 +557,8 @@ function focusLine(focus: BandFocus): BandLine {
     if (focus.completedBy !== undefined) {
       chips.push({kind: 'label', key: 'Completed', tone: 'accent'});
       chips.push({kind: 'player', player: focus.completedBy});
+      // …and it cannot be completed again until the next generation's quest (the server refuses a second completion).
+      chips.push({kind: 'label', key: 'Closed until the next generation', tone: 'quiet'});
     } else if (focus.mine !== undefined && focus.count !== undefined) {
       chips.push({kind: 'label', key: 'Yours', tone: 'quiet'});
       chips.push({kind: 'text', text: focus.mine + '/' + focus.count, tone: 'strong'});
@@ -607,7 +609,7 @@ function overviewLine(standing: BandStanding): BandLine {
     chips.push({kind: 'label', key: 'No resolution is up for a vote', tone: 'quiet'});
     return {kicker: 'Parliament overview', key: 'overview:none', chips, committed: false};
   }
-  chips.push({kind: 'label', key: 'Winning', tone: 'quiet'});
+  chips.push({kind: 'label', key: 'Leading the vote', tone: 'quiet'});
   chips.push({kind: 'resolution', resolution: standing.resolution.resolution, party: standing.resolution.party});
   if (standing.player === undefined) {
     // An untouched vote is honest about itself: the slot order alone stands it up, and nobody wins anything.

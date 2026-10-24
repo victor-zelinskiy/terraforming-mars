@@ -385,8 +385,8 @@ for (const preset of PRESETS) {
       await expect(page.locator(composer), 'the CTA is the play\'s own verb — the rally is an outcome, not a door').toContainText('Разыграть карту');
       const rows = await textOf(page, composer);
       expect(rows, 'the coming stage, named').toContain('Делегаты — нейтральные делегаты в Парламенте');
-      expect(rows, 'Heat Capture: 3 → 4, it becomes the winning one on the tie').toMatch(/Улавливание тепла · 3 → 4 · Принимается — ничья в пользу слота ближе к правительству/);
-      expect(rows, 'Architecture Award: 3 → 4, still not the winning one').toMatch(/Архитектурная премия · 3 → 4 · Всё ещё не принимается/);
+      expect(rows, 'Heat Capture: 3 → 4, it becomes the winning one on the tie').toMatch(/Улавливание тепла · 3 → 4 · Побеждает — ничья в пользу слота ближе к правительству/);
+      expect(rows, 'Architecture Award: 3 → 4, still not the winning one').toMatch(/Архитектурная премия · 3 → 4 · Всё ещё не побеждает/);
       expect(rows, 'the Reds\' area: 1 → 2 of 3').toMatch(/Красные · 1 → 2 из 3/);
       expect(rows, 'Mars First\'s area: the named zero, the quiet register').toMatch(/Марс вперёд · \+0 · область заполнена/);
       expect(rows, 'the count the M€ stands on').toMatch(/В игре 11 → 14/);
@@ -549,7 +549,7 @@ for (const preset of PRESETS) {
       await settle(page);
       await openComposer(page);
       let rows = await textOf(page, composer);
-      expect(rows).toMatch(/Улавливание тепла · 3 → 4 · Принимается/);
+      expect(rows).toMatch(/Улавливание тепла · 3 → 4 · Побеждает/);
       expect(rows).toMatch(/Архитектурная премия · 3 → 4/);
       expect(rows, 'the Reds\' area: the named zero by the SUPPLY').toMatch(/Красные · \+0 · нейтральных не осталось/);
       expect(rows, 'Mars First\'s area: the named zero by its ceiling').toMatch(/Марс вперёд · \+0 · область заполнена/);
@@ -564,7 +564,7 @@ for (const preset of PRESETS) {
       await openComposer(page);
       rows = await textOf(page, composer);
       expect(rows, 'the Reds\' named zero').toMatch(/Красные — резолюции на голосовании нет/);
-      expect(rows, 'Mars First takes the vote and the tie').toMatch(/Архитектурная премия · 3 → 4 · Принимается — ничья/);
+      expect(rows, 'Mars First takes the vote and the tie').toMatch(/Архитектурная премия · 3 → 4 · Побеждает — ничья/);
       expect(rows).not.toMatch(/Улавливание тепла/);
       expect(rows).toMatch(/Красные · 1 → 2 из 3/);
       expect(rows).toMatch(/Марс вперёд · \+0 · область заполнена/);

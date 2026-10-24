@@ -119,6 +119,7 @@ import {
 import {resetStartSetupReveal} from '@/client/components/startGameFlow/startSetupRevealState';
 import {resetScaleBonusClaimsSeen} from '@/client/components/board/scaleBonusClaimState';
 import {observeMaCeremony, resetMaCeremony} from '@/client/components/ma/maCeremonyState';
+import {observeQuestCeremony, resetQuestCeremony} from '@/client/console/parliament/questCeremony';
 import {isPlayerPanelVisible} from '@/client/components/overview/turnHandoffState';
 import {openRevealViewer} from '@/client/components/notifications/revealViewerState';
 import {startRealtimePoller} from '@/client/components/realtime/realtimePoller';
@@ -308,6 +309,8 @@ export default defineComponent({
       // view proves the viewer's OWN armed claim/fund resolved (both shells
       // watch the shared nonce; a lost race / rejection drops the arm).
       observeMaCeremony(this.playerView, now);
+      // 2e) The chairman quest completed by ANOTHER seat — the milestone family's remote strip, in the quest's own style.
+      observeQuestCeremony(this.playerView, now);
       // 3) Root-event feed (async). A1: gate the network fetch on a
       // (gameAge, undoCount) change — the streams can't have grown otherwise, so
       // a re-commit at the same version is a no-op fetch. The 2.2s poller
@@ -365,6 +368,7 @@ export default defineComponent({
         resetNotifications();
         resetTerraformingCelebration(); // same boundary — a different game opened in-session
         resetMaCeremony();
+        resetQuestCeremony();
         resetStartSetupReveal(); // a new game's gen-1 setup must not collide with the old dedup key
         resetMarsBotArchive(); // stale turn scripts belong to the previous game
         // …and the review RENDERS from that archive: left open across the

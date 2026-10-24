@@ -63,6 +63,30 @@
       </div>
     </div>
   </transition>
+  <!-- THE CHAIRMAN QUEST, completed by ANOTHER seat (the owner, 2026-10-24): the same remote strip in the quest's own
+       style — the chair on the Parliament's violet, WHO completed it, and what it gave them (the chairmanship and one
+       step of the Career). One strip at a time: it waits for a milestone / award strip to leave. -->
+  <transition name="con-macere" @after-leave="onQuestGone">
+    <div v-if="questVisible && questEvent !== undefined" class="con-macere con-macere--remote con-macere--quest" aria-hidden="true"
+         data-quest-ceremony :data-quest-ceremony-actor="questEvent.color">
+      <div class="con-macere__strip">
+        <div ref="questStage" class="con-macere__strip-stage con-macere__strip-stage--quest">
+          <PremiumChairGlyph class="con-macere__quest-chair" />
+        </div>
+        <div class="con-macere__strip-body">
+          <div class="con-macere__kicker con-macere__strip-kicker">{{ $t('Chairman quest completed') }}</div>
+          <div class="con-macere__actor con-macere__quest-actor">
+            <span class="con-macere__actor-dot" :class="'player_bg_color_' + questEvent.color"></span>
+            <span class="con-macere__strip-name">{{ questEvent.actorName }}</span>
+          </div>
+          <div class="con-macere__quest-gain">
+            <span>{{ $t('Chairmanship') }}</span>
+            <span class="con-macere__quest-step">+1 <i class="career-step-glyph" aria-hidden="true"></i></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </transition>
 </template>
 
 <script lang="ts">
@@ -75,21 +99,28 @@ import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackM
 import {playCeremonyBurst, CeremonyBurstHandle} from '@/client/console/ceremony/ceremonyFx';
 import {$t} from '@/client/directives/i18n';
 import {flyMaVp} from '@/client/console/scoreCell/maVp';
+import PremiumChairGlyph from '@/client/components/premiumCard/PremiumChairGlyph.vue';
+import {advanceQuestCeremony, questCeremonyState, QuestCeremonyEvent} from '@/client/console/parliament/questCeremony';
 
 /** The own coronation lingers a beat longer than the seal / a rival's beat. */
 const MILESTONE_LIFETIME_MS = 3600;
 const AWARD_LIFETIME_MS = 3000;
 const REMOTE_LIFETIME_MS = 2800;
+/** The quest strip reads a beat longer than a rival's milestone: it names two gains (the chair and a Career step). */
+const QUEST_LIFETIME_MS = 3200;
 const REDUCED_LIFETIME_MS = 1600;
 
 export default defineComponent({
   name: 'ConsoleMaCeremony',
-  components: {MaHeroArt},
+  components: {MaHeroArt, PremiumChairGlyph},
   data() {
     return {
       visible: false,
       hideTimer: undefined as ReturnType<typeof setTimeout> | undefined,
       fx: undefined as CeremonyBurstHandle | undefined,
+      questVisible: false,
+      questTimer: undefined as ReturnType<typeof setTimeout> | undefined,
+      questFx: undefined as CeremonyBurstHandle | undefined,
     };
   },
   computed: {
@@ -98,6 +129,12 @@ export default defineComponent({
     },
     event(): MaCeremonyEvent | undefined {
       return maCeremonyState.current;
+    },
+    questNonce(): number {
+      return questCeremonyState.nonce;
+    },
+    questEvent(): QuestCeremonyEvent | undefined {
+      return questCeremonyState.current;
     },
     displayName(): string {
       return this.event !== undefined ? maDisplayName(this.event.name) : '';
@@ -113,17 +150,25 @@ export default defineComponent({
     nonce() {
       this.showCurrent();
     },
+    questNonce() {
+      this.showQuest();
+    },
   },
   mounted() {
     // A beat queued while no shell was mounted (screen transition) is
     // picked up here instead of stalling the queue forever.
     this.showCurrent();
+    this.showQuest();
   },
   beforeUnmount() {
     if (this.hideTimer !== undefined) {
       clearTimeout(this.hideTimer);
     }
+    if (this.questTimer !== undefined) {
+      clearTimeout(this.questTimer);
+    }
     this.stopFx();
+    this.questFx?.stop();
   },
   methods: {
     $t,
@@ -136,6 +181,10 @@ export default defineComponent({
       // entry object). The claimant advances the queue when its scene
       // settles; presenting here too would put two emblems on screen.
       if (maCeremonyEventEmbedded(this.event)) {
+        return;
+      }
+      // A rival's strip waits for a quest strip standing at the top (one strip at a time; the own cinematic never waits).
+      if (!this.event.own && this.questVisible) {
         return;
       }
       if (this.hideTimer !== undefined) {
@@ -192,6 +241,36 @@ export default defineComponent({
     /** The leave transition finished — hand the stage to the next queued beat. */
     onGone(): void {
       advanceMaCeremony();
+      // A quest beat that waited for this strip takes the top now.
+      this.showQuest();
+    },
+    /** The quest's remote strip — shown only while no milestone / award strip stands at the top. */
+    showQuest(): void {
+      if (this.questEvent === undefined || this.questVisible || this.visible) {
+        return;
+      }
+      this.questVisible = true;
+      void this.$nextTick(() => {
+        const host = this.$refs.questStage as HTMLElement | undefined;
+        if (host !== undefined && host !== null) {
+          this.questFx = playCeremonyBurst({host, accent: 'quest', reduced: prefersReducedMotion(), intensity: 'ping', delayMs: 140});
+        }
+      });
+      this.questTimer = setTimeout(() => {
+        this.questTimer = undefined;
+        this.questVisible = false;
+        this.questFx?.stop();
+        this.questFx = undefined;
+      }, motionMs(prefersReducedMotion() ? REDUCED_LIFETIME_MS : QUEST_LIFETIME_MS));
+    },
+    onQuestGone(): void {
+      advanceQuestCeremony();
+      // A rival's milestone / award strip that waited for this one takes the top now.
+      if (!this.visible) {
+        this.showCurrent();
+      }
+      // Two completions in one commit (never in practice — the quest closes) or a quest strip that waited: next.
+      this.showQuest();
     },
   },
 });

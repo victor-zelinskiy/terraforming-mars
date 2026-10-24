@@ -36,7 +36,10 @@ const TREES = [
 
 /** Glossary canon: EN key → the one RU line. */
 const CANON: Record<string, string> = {
-  'Winning': 'Принимается',
+  // THE TWO FATES OF A LEADING RESOLUTION (the owner, 2026-10-24): on the table it «побеждает» (a forecast — the vote
+  // is still open); in the sitting, once it has WON, it «принимается» (it is being enacted right now).
+  'Leading the vote': 'Побеждает',
+  'Being enacted': 'Принимается',
   'If you win': 'Если победите',
   'if you win': 'если победите',
   'Winning player': 'Победитель голосования',
@@ -194,9 +197,22 @@ const THIRD_PERSON_KEYS: ReadonlyArray<string> = [
 /** The second person in RU (no `` — JS word boundaries are ASCII-only and never fire beside Cyrillic). */
 const SECOND_PERSON = /(^|\s|«)(вы|вас|вам|вами|ваш|ваша|ваше|ваши|ваших|ваше?му|вашей)(\s|,|:|;|»|\.|$)/i;
 
+/** The keys that name the table's LEADING resolution — the one family allowed to say «побеждает» (2026-10-24). */
+const LEADING_KEYS: ReadonlyArray<string> = [
+  'Leading the vote',
+  'Becomes the leading resolution — the tie goes to the slot closer to Enacted',
+  'Becomes the leading resolution',
+  'Stays the leading resolution',
+  'Still not the leading resolution',
+  'leads on the tie',
+  'becomes the leading one',
+  'keeps the lead',
+  'not leading',
+];
+
 /** Retired forms — none may survive in a RU value of the parliament's own file. */
-const BANNED: ReadonlyArray<{pattern: RegExp, why: string}> = [
-  {pattern: /побежда/i, why: 'a RESOLUTION «принимается» / «принята»; only a player is a «победитель голосования» (glossary §1–2)'},
+const BANNED: ReadonlyArray<{pattern: RegExp, why: string, except?: ReadonlyArray<string>}> = [
+  {pattern: /побежда/i, why: 'only the LEADING resolution «побеждает» (its own keys); the player is the «победитель голосования», the won one «принимается» / «принята» (glossary §1–2)', except: LEADING_KEYS},
   {pattern: /при победе/i, why: 'the condition is «если победите» (glossary §2)'},
   {pattern: /победивший игрок/i, why: 'the player is the «победитель голосования» (glossary §2)'},
   // (no `\b` — JS word boundaries are ASCII-only and never fire beside a Cyrillic letter)
@@ -266,7 +282,7 @@ describe('parliament glossary — one word per concept (static guard)', () => {
     const hits: Array<string> = [];
     for (const [key, value] of Object.entries(ru)) {
       for (const b of BANNED) {
-        if (b.pattern.test(value)) {
+        if (b.pattern.test(value) && !(b.except ?? []).includes(key)) {
           hits.push(`«${value}» (${key}) — ${b.why}`);
         }
       }

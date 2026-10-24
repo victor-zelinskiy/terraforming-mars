@@ -35,6 +35,10 @@
                  'con-parl__slot--selected': voteSelecting && flow.slotIndex === i,
                  'con-parl__slot--focus': flow.stage === 'browse' && flow.zone === 'voting' && flow.slotIndex === i,
                  'con-parl__slot--winning': winningShownOf(slot),
+                 // THE SITTING'S VERDICT (the owner, 2026-10-24): the resolution that WON and is being enacted is the table's
+                 // one subject — its card rings strongest, the others recede while the verdict reads.
+                 'con-parl__slot--enacting': sittingWinnerInstance === slot.instance,
+                 'con-parl__slot--outvoted': sittingStage === 'verdict' && sittingWinnerInstance !== undefined && sittingWinnerInstance !== slot.instance,
                  'con-parl__slot--lit': motion.litSlot === slot.instance,
                  'con-parl__slot--awaiting': awaitingDeal(slot),
                  'con-parl__slot--target': (flow.stage === 'seat' || (flow.stage === 'submitting' && flow.stageBeforeSubmit === 'seat')) && flow.slotIndex === i,
@@ -57,9 +61,9 @@
               <!-- THE CROWN («Зал» v7): the table's ONE accent — the winner glyph on the bill's own corner, one form on
                    every profile, the word for assistive tech only. The VERDICT's mark (v4 §2.1) is the same object a
                    step brighter, carrying the seat that won as a cube; it stands only while the verdict is the subject. -->
-              <span v-if="winningShownOf(slot)" class="con-parl__slot-win con-parl__slot-win--glyph" :data-hint="$t('Winning')" :aria-label="$t('Winning')" role="img"></span>
+              <span v-if="winningShownOf(slot)" class="con-parl__slot-win con-parl__slot-win--glyph" :data-hint="$t('Leading the vote')" :aria-label="$t('Leading the vote')" role="img"></span>
               <span v-else-if="sittingWinnerInstance === slot.instance" class="con-parl__slot-win con-parl__slot-win--verdict con-parl__slot-win--glyph"
-                    :data-hint="$t('Winning')" :aria-label="$t('Winning')" role="img" data-parl-slot-verdict>
+                    :data-hint="$t('Being enacted')" :aria-label="$t('Being enacted')" role="img" data-parl-slot-verdict>
                 <PlayerDelegate v-if="sittingWinnerColor !== undefined" class="con-parl__slot-win-cube"
                             :color="sittingWinnerColor === 'neutral' ? 'neutral' : sittingWinnerColor"
                             :steel="sittingWinnerColor === 'neutral'" :size="figurePx(18)" :glow="false" />

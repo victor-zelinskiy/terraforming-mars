@@ -521,7 +521,7 @@ export function voteFactsOf(input: VoteFactsInput): VoteFactsVm {
       unchanged: leaderBefore === leaderAfter, tone: leadTone, note: undefined,
     },
     win: {
-      id: 'win', label: 'Winning',
+      id: 'win', label: 'Leading the vote',
       before: {key: winningBefore ? 'yes' : 'no'}, after: {key: winningAfter ? 'yes' : 'no'},
       unchanged: winningBefore === winningAfter, tone: winTone,
       note: winTone === 'gain' && f?.tieNote === 'slot-priority' ? 'wins the tie: closer to the government' :

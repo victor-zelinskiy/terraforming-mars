@@ -268,7 +268,7 @@ describe('voteInfoBudget — the vote panel never overloads again', () => {
       QUIET_REWARD_KICKER.passive, QUIET_REWARD_KICKER.action,
       suffixWinKey('they'), suffixHintKey('they'), colonyLedgerEmptyKey('they'), '${0} theirs', 'Theirs at influence ${0} — win or not',
       'Only if they win — influence ${0} is below ${1}', 'cities on Mars: ${0}',
-      'from the lobby · free', 'from the reserve', 'Leader', 'Winning', 'Party effect', 'effect is yours', '${0} of ${1}', 'yes', 'no', 'you',
+      'from the lobby · free', 'from the reserve', 'Leader', 'Leading the vote', 'Party effect', 'effect is yours', '${0} of ${1}', 'yes', 'no', 'you',
       'no leader yet', 'the neutral player', 'you (earlier delegate)', 'No card can hold animals', 'No card can hold this resource'];
     const missing = keys.filter((k) => RU[k] === undefined);
     expect(missing, 'untranslated panel keys').to.deep.eq([]);
@@ -283,13 +283,13 @@ describe('voteInfoBudget — the vote panel never overloads again', () => {
     expect(b.words).to.be.at.most(VOTE_INFO_LIMITS.words);
   });
 
-  it('the panel speaks the glossary — a RESOLUTION «принимается», the player «если победите», the effect «ваш» (ПОЛИРОВКА)', () => {
+  it('the panel speaks the glossary — the leading resolution «побеждает», the player «если победите», the effect «ваш» (ПОЛИРОВКА; 2026-10-24)', () => {
     // No `\b`: JS word boundaries are ASCII-only and never fire beside a Cyrillic letter.
-    const banned = [/побежда/i, /при победе/i, /ваш эффект/i, /победивший игрок/i];
-    const keys = [SUFFIX_IF_YOU_WIN, SUFFIX_HINT, 'Winning', 'effect is yours', 'Leader', VOTE_KICKER, READING_KICKER_SEATED];
+    const banned = [/при победе/i, /ваш эффект/i, /победивший игрок/i];
+    const keys = [SUFFIX_IF_YOU_WIN, SUFFIX_HINT, 'Leading the vote', 'effect is yours', 'Leader', VOTE_KICKER, READING_KICKER_SEATED];
     const hits = keys.flatMap((k) => banned.filter((b) => b.test(ru(k))).map((b) => `${k}: «${ru(k)}» matches ${b}`));
     expect(hits, 'retired forms in the panel\'s RU lines').to.deep.eq([]);
-    expect(ru('Winning')).to.eq('Принимается');
+    expect(ru('Leading the vote'), 'the table\'s leader «побеждает» — «принимается» is only the sitting\'s verdict').to.eq('Побеждает');
     expect(ru(SUFFIX_IF_YOU_WIN)).to.eq('если победите');
   });
 });

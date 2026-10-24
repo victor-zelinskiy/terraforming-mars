@@ -147,6 +147,11 @@ function chairmanHeaderFor(header: LogMessage, chain: ReadonlyArray<GameEvent>, 
   } as LogMessage;
 }
 
+/** A chairmanship that is the REWARD of the chairman quest — the same root walks the Career with reason `quest`. */
+function questCausedChairmanship(chain: ReadonlyArray<GameEvent>): boolean {
+  return chain.some((e) => e.type === 'agenda-advanced' && e.impact?.agenda?.reason === 'quest');
+}
+
 /** WHAT fired, off an effect-triggered marker's source: a tableau card, or the enacted resolution. */
 function effectSourceOfMarker(marker: GameEvent | undefined): NotificationEffectSource | undefined {
   const s = marker?.source;
@@ -664,6 +669,12 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
   // the player who completed the quest walked through the whole flow
   // («ПРЕДСЕДАТЕЛЬСТВО»), so a card announcing it to them is a second telling.
   if (variant === 'chairman' && actor !== undefined && actor === viewerColor) {
+    return undefined;
+  }
+  // …and a chairmanship a rival took by COMPLETING THE QUEST was already told to every other seat by the quest's own
+  // strip (`questCeremony.ts`, the milestone family's remote beat) — a second card about the same moment is noise. The
+  // one seat it still reaches is the previous chairman: their delegate left the chair (no silent loss).
+  if (variant === 'chairman' && questCausedChairmanship(chain) && chain.find((e) => e.type === 'chairman-seated')?.target?.player !== viewerColor) {
     return undefined;
   }
   // A PARTY'S EFFECT gained / lost is told to the seat it is about and to nobody else (the owner's default — a

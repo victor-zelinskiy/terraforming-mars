@@ -146,7 +146,7 @@ export function supportSceneOf(
 /** The roll call's i18n key per status — the glossary's wording, one line per case. */
 export function supportStatusKey(status: SupportStatus): string {
   switch (status) {
-  case 'enacted': return 'Winning';
+  case 'enacted': return 'Being enacted';
   case 'lost': return 'Not enacted';
   case 'absent': return 'Not in the vote';
   case 'ruling': return 'Ruling';

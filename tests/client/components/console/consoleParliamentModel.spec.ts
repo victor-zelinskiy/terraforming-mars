@@ -128,7 +128,7 @@ describe('consoleParliamentModel — the vote forecast', () => {
     expect(f?.leadChange).to.eq('take');
     expect(f?.winChange).to.eq('none');
     const keys = voteForecastRows(f).map((r) => r.key);
-    expect(keys[0]).to.eq('Still not the winning resolution');
+    expect(keys[0]).to.eq('Still not the leading resolution');
     expect(keys[1]).to.contain('first delegate came earlier');
     expect(keys).to.include('Unlocks the party effect for you (2 delegates)');
   });
@@ -151,7 +151,7 @@ describe('consoleParliamentModel — the vote forecast', () => {
       expect(compact.every((r, i) => r.key !== full[i].key && r.key.length < full[i].key.length)).to.eq(true);
     }
     const tie = voteForecastRows(voteForecastOf(slot(), me, vote), true).map((r) => r.key);
-    expect(tie).to.deep.eq(['wins on the tie', 'another player leads']);
+    expect(tie).to.deep.eq(['leads on the tie', 'another player leads']);
   });
 });
 

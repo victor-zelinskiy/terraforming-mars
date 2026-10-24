@@ -20,7 +20,7 @@
 import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 
-export type CeremonyAccent = 'gold' | 'medal' | 'terra';
+export type CeremonyAccent = 'gold' | 'medal' | 'terra' | 'quest';
 
 export type CeremonyBurstOptions = {
   /** The positioned stage the burst plays over (rings/sparks radiate from
@@ -62,6 +62,13 @@ const PALETTES: Readonly<Record<CeremonyAccent, Palette>> = {
     ring: 'rgba(159, 180, 232, 0.6)',
     ringGlow: 'rgba(159, 180, 232, 0.32)',
     flash: 'rgba(238, 243, 255, 0.5)',
+  },
+  /** The chairman quest (the Parliament's violet with the chair's gold). */
+  quest: {
+    sparks: ['#efe6ff', '#c3a9ff', '#8b6ad8', '#f2c14e'],
+    ring: 'rgba(139, 106, 216, 0.65)',
+    ringGlow: 'rgba(139, 106, 216, 0.35)',
+    flash: 'rgba(239, 230, 255, 0.5)',
   },
   terra: {
     sparks: ['#d6ffee', '#a8f0d4', '#58d6a6', '#f2c14e'],

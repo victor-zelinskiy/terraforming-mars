@@ -5248,9 +5248,9 @@ export default defineComponent({
             continue;
           }
           const verdict = vote.winningAfter ?
-            (vote.winningBefore ? 'Stays the winning resolution' :
-              vote.tieNote === 'slot-priority' ? 'Becomes the winning resolution — the tie goes to the slot closer to Enacted' : 'Becomes the winning resolution') :
-            'Still not the winning resolution';
+            (vote.winningBefore ? 'Stays the leading resolution' :
+              vote.tieNote === 'slot-priority' ? 'Becomes the leading resolution — the tie goes to the slot closer to Enacted' : 'Becomes the leading resolution') :
+            'Still not the leading resolution';
           rows.push(noteRow(`${resolutionName(vote.resolution)} · ${vote.votesBefore} → ${vote.votesAfter} · ${translateText(verdict)}`));
         }
       }

@@ -85,7 +85,7 @@ describe('supportScene — the support step as objects on screen', () => {
   it('every status has its own word (the glossary\'s), and the four are distinct', () => {
     const keys = (['enacted', 'lost', 'absent', 'ruling'] as const).map(supportStatusKey);
     expect(new Set(keys).size, `four wordings, got ${keys.join(', ')}`).eq(4);
-    expect(supportStatusKey('enacted')).eq('Winning');
+    expect(supportStatusKey('enacted')).eq('Being enacted');
     expect(supportStatusKey('ruling')).eq('Ruling');
   });
 

@@ -9605,6 +9605,52 @@ html.con-profile-large .con-hydro {
         white-space: nowrap;
     }
 
+    /* THE CHAIRMAN QUEST (2026-10-24): the quest's OWN strip — the chair's gold on the Parliament's violet, never the
+       milestone's coronation gold; WHO completed it (dot + name, the strip's large line) and what it gave them. */
+    &--quest {
+        .con-macere__kicker { color: #cdb9ff; }
+        .con-macere__strip {
+            background:
+                radial-gradient(circle at 12% 50%, fade(#8b6ad8, 18%), transparent 62%),
+                rgba(12, 10, 26, 0.9);
+            box-shadow:
+                inset 0 0 0 .05rem fade(#8b6ad8, 62%),
+                0 .7rem 2.2rem rgba(0, 0, 0, 0.55),
+                0 0 1.5rem fade(#8b6ad8, 18%);
+            animation: con-macere-strip-in calc(420ms * var(--motion-scale, 1)) @con-ease-settle both;
+        }
+        .con-macere__strip-stage--quest {
+            display: grid;
+            place-items: center;
+            background:
+                radial-gradient(circle at 50% 45%, fade(#e6c34a, 20%), transparent 66%),
+                rgba(18, 12, 38, 0.82);
+            box-shadow: inset 0 0 0 .05rem fade(#8b6ad8, 55%);
+        }
+        .con-macere__quest-chair { width: 56%; height: 56%; fill: #e6c34a; }
+        .con-macere__quest-actor { font-size: 1rem; }
+        .con-macere__quest-gain {
+            display: inline-flex;
+            align-items: center;
+            gap: .5rem;
+            font-size: .8rem;
+            font-weight: 700;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            color: #e6c34a;
+        }
+        .con-macere__quest-step {
+            display: inline-flex;
+            align-items: center;
+            gap: .22rem;
+            padding: .08rem .45rem;
+            border-radius: 1rem;
+            background: fade(#8b6ad8, 24%);
+            box-shadow: inset 0 0 0 .05rem fade(#8b6ad8, 72%);
+            color: #efe6ff;
+            .career-step-glyph { width: .95rem; height: .95rem; }
+        }
+    }
     /* The award seal is medal-toned (the coronation gold stays milestone-only). */
     &--award {
         .con-macere__halo { background: radial-gradient(circle, fade(@con-ma-medal, 24%), transparent 68%); }

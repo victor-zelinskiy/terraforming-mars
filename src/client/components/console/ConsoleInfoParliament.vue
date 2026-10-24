@@ -115,7 +115,7 @@
             <div class="con-info__parl-row-head">
               <img class="con-info__parl-emblem con-iparl__resemblem" :src="emblemUrl(entry.party)" alt="" />
               <span class="con-info__parl-slot-name con-iparl__resname">{{ $t(nameOf(entry.resolution)) }}</span>
-              <span v-if="entry.winning" class="con-info__parl-win">{{ $t('Winning') }}</span>
+              <span v-if="entry.winning" class="con-info__parl-win">{{ $t('Leading the vote') }}</span>
             </div>
             <ConsoleInfluenceYield v-if="entry.reading.yields.length > 0"
                                    class="con-info__parl-yield"

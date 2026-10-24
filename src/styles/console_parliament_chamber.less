@@ -460,8 +460,27 @@
             &::before { width: 18px; height: 18px; flex: 0 0 auto; }
             &::after { content: attr(aria-label); }
         }
-        &--verdict { background: linear-gradient(180deg, @con-parl-gold-hi, #c4922a); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45), 0 0 34px fade(@con-parl-gold, 55%); }
+        /* TWO FATES, TWO MATERIALS (the owner, 2026-10-24). «ПОБЕЖДАЕТ» — the table's LEADER while the vote is open: a
+           forecast, so it is an OUTLINE (dark plate, gold rim, gold word). «ПРИНИМАЕТСЯ» — the sitting's verdict, the
+           resolution that WON and is being enacted: SOLID gold, a size larger, the glow — the one object the eye goes to. */
+        &:not(&--verdict) {
+            background: rgba(14, 20, 30, 0.94);
+            box-shadow: inset 0 0 0 1.5px fade(@con-parl-gold, 85%), 0 6px 20px rgba(0, 0, 0, 0.45);
+            color: @con-parl-gold-hi;
+        }
+        &--verdict {
+            top: -32px;
+            height: 36px;
+            padding: 0 16px 0 11px;
+            font-size: 13px;
+            background: linear-gradient(180deg, @con-parl-gold-hi, #c4922a);
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45), 0 0 44px fade(@con-parl-gold, 65%);
+        }
     }
+    /* …and the verdict's CARD: the strongest gold ring of the table, while the other cards recede for the verdict's read
+       (opacity only — they stay sources the next beats fly from; restored before the enactment's cubes leave them). */
+    &__slot--enacting &__card { --win-on: 1.6; }
+    &__slot--outvoted { opacity: .55; transition: opacity calc(240ms * var(--motion-scale, 1)) @con-ease-standard; }
     /* THE VOTE RAIL — the medallion with the count (gold on the bill being enacted) and the leader's cube under a
        crown, then the delegates in placement order: one rail, two halves. */
     &__tally {
@@ -592,6 +611,45 @@
         &--closed .con-parl__quest-progress, &--done .con-parl__quest-progress { opacity: .6; }
     }
     &__engine-kicker { .con-parl-v8-kicker(); grid-area: kick; justify-self: start; color: @con-parl-gold; }
+    /* THE QUEST IS TAKEN — the claimed milestone's seal (`con-strat__ownseal`'s grammar): a dark pill on the kicker's line,
+       the completer's dot, the word, the tick; the condition, its arrow and its reward recede (they cannot be had again
+       this generation) under the one word that says so. Zero layout: the seal shares the kicker's cell, the word the
+       condition's. */
+    &__quest-seal {
+        grid-area: kick;
+        justify-self: end;
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        padding: .1rem .5rem .1rem .3rem;
+        border-radius: 1rem;
+        background: rgba(10, 17, 27, 0.6);
+        box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 45%);
+        font-size: .6rem;
+        font-weight: 800;
+        letter-spacing: .1em;
+        line-height: 1;
+        text-transform: uppercase;
+        color: #ffe9c4;
+    }
+    &__quest-seal-dot { flex: none; width: .55rem; height: .55rem; border-radius: 50%; box-shadow: 0 0 0 .05rem rgba(0, 0, 0, 0.5); }
+    &__quest-seal-tick { font-style: normal; color: @con-parl-mint; }
+    &__engine--done .con-parl__engine-cond, &__engine--done .con-parl__engine-arrow, &__engine--done .con-parl__engine-step { opacity: .34; }
+    &__quest-closed {
+        grid-area: cond;
+        z-index: 2;
+        padding: .14rem .55rem;
+        border-radius: .3rem;
+        background: rgba(8, 12, 20, 0.85);
+        box-shadow: inset 0 0 0 .05rem rgba(205, 218, 232, 0.35);
+        font-size: .6rem;
+        font-weight: 800;
+        letter-spacing: .16em;
+        line-height: 1;
+        text-transform: uppercase;
+        color: #dfe6ef;
+        pointer-events: none;
+    }
     &__chair {
         grid-area: chair;
         grid-row: auto;
@@ -1088,6 +1146,9 @@ html.con-profile-handheld .con-parl {
 
 /* ── the TV ladder (10-foot): the same hall at couch type — every WORD at or above the couch floor (.8rem). ── */
 html.con-profile-tv .con-parl {
+    /* The quest's seal and its «closed» word read at the couch floor. */
+    &__quest-seal, &__quest-closed { font-size: .8rem; }
+    &__quest-seal-dot { width: .7rem; height: .7rem; }
     /* П6: the palata gives the TABLE two rem (the opposition column one of them — the longest bench name still has
        room) — the bills grow ≈ 12 % at 4K into the height their column left empty; the enacted face keeps its size. */
     --con-parl-palata-w: 33rem;

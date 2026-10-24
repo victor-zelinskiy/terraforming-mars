@@ -436,7 +436,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-quest] .con-parl__quest-graphic.pcard__mech'), 'the quest condition is a graphic').toHaveCount(1);
       // «Зал» v7: the quest pays a STEP of the track it stands on — «→ +1» at the engine, no words (the reading line names the office).
       await expect(page.locator('[data-parl-quest-reward]'), 'the quest pays one step of the career').toContainText('+1');
-      await expect(page.locator('.con-parl__slot.con-parl__slot--winning .con-parl__slot-win'), 'exactly one card reads «принимается»').toHaveCount(1);
+      await expect(page.locator('.con-parl__slot.con-parl__slot--winning .con-parl__slot-win'), 'exactly one card reads «побеждает»').toHaveCount(1);
       await expect(page.locator('.con-parl__voting--focus'), 'the voting area is ONE focus zone').toHaveCount(1);
       await expectNoRuleProse(page);
       await expectFits(page, preset.id);

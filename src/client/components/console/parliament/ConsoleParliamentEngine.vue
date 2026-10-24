@@ -28,6 +28,15 @@
          plate prints no sentence, so WHICH quest it shows is the attribute `data-parl-quest-text` (the printed text's
          English key — the probes' identity of the quest, language-free). -->
     <span class="con-parl__engine-kicker">{{ $t('Chairman quest') }}</span>
+    <!-- THE QUEST IS TAKEN (the owner, 2026-10-24) — the claimed milestone's seal: who completed it and «ВЫПОЛНЕНО ✓»
+         on the kicker's line, and over the condition the word that says it cannot be completed again this generation
+         (the server refuses a second completion until the next government's quest). The race stays as the score. -->
+    <span v-if="questDoneBy !== undefined" class="con-parl__quest-seal" data-parl-quest-seal :data-parl-quest-seal-by="questDoneBy">
+      <i class="con-parl__quest-seal-dot" :class="'player_bg_color_' + questDoneBy" aria-hidden="true"></i>
+      <span class="con-parl__quest-seal-word">{{ $t('Completed') }}</span>
+      <i class="con-parl__quest-seal-tick" aria-hidden="true">✓</i>
+    </span>
+    <span v-if="questDoneBy !== undefined" class="con-parl__quest-closed" data-parl-quest-closed-mark>{{ $t('Closed') }}</span>
     <!-- THE CHAIR — the office's seat: the chairman's cube stands in it; empty, its silhouette alone. -->
     <span class="con-parl__chair"
           :class="{'con-parl__chair--seated': chairmanShown !== undefined, 'con-parl__chair--won': questShown?.completedBy !== undefined && questShown.completedBy === chairmanShown, 'con-parl__chair--pulse': flow.chairPulse}"
@@ -106,6 +115,10 @@ export default defineComponent({
     return {questPulse: false, PIPS_MAX};
   },
   computed: {
+    /** Who completed the quest standing on the plate — the seal's subject (undefined while it is open). */
+    questDoneBy(): Color | undefined {
+      return this.questShown?.completedBy;
+    },
     flow() {
       return parliamentFlow;
     },

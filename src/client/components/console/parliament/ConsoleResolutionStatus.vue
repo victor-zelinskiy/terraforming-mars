@@ -23,7 +23,7 @@
         <span class="con-rstatus__life-mark" aria-hidden="true"></span>
         <span class="con-rstatus__life-text">{{ $t(entry.lifecycle === 'enacted' ? 'Enacted' : 'Up for the vote') }}</span>
         <!-- The winning tail yields to the vote chip beside the status (its «ПРИНИМАЕТСЯ» row says it, current → projected). -->
-        <span v-if="entry.winning && winningTail" class="con-rstatus__life-tail">· {{ $t('Winning') }}</span>
+        <span v-if="entry.winning && winningTail" class="con-rstatus__life-tail">· {{ $t('Leading the vote') }}</span>
       </span>
     </span>
     <span v-if="status.access !== undefined" class="con-rstatus__cell">

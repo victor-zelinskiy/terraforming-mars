@@ -798,16 +798,16 @@ export function voteForecastRows(forecast: VoteForecastVm | undefined, compact =
   switch (forecast.winChange) {
   case 'become':
     if (forecast.tieNote === 'slot-priority') {
-      out.push({key: compact ? 'wins on the tie' : 'Becomes the winning resolution — the tie goes to the slot closer to Enacted', tone: 'gain'});
+      out.push({key: compact ? 'leads on the tie' : 'Becomes the leading resolution — the tie goes to the slot closer to Enacted', tone: 'gain'});
     } else {
-      out.push({key: compact ? 'becomes the winner' : 'Becomes the winning resolution', tone: 'gain'});
+      out.push({key: compact ? 'becomes the leading one' : 'Becomes the leading resolution', tone: 'gain'});
     }
     break;
   case 'stay':
-    out.push({key: compact ? 'stays the winner' : 'Stays the winning resolution', tone: 'note'});
+    out.push({key: compact ? 'keeps the lead' : 'Stays the leading resolution', tone: 'note'});
     break;
   default:
-    out.push({key: compact ? 'not winning' : 'Still not the winning resolution', tone: 'warn'});
+    out.push({key: compact ? 'not leading' : 'Still not the leading resolution', tone: 'warn'});
   }
   switch (forecast.leadChange) {
   case 'take':
