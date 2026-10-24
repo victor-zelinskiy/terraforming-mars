@@ -83,7 +83,7 @@ import {reactive} from 'vue';
 import {sittingBaselineOf} from './sittingBaseline';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentEnactOutcomeModel, ParliamentPhaseModel} from '@/common/models/ParliamentModel';
-import {boardBeatStoryPending, drainBoardBeatsIfDue} from '@/client/console/boardBeatPark';
+import {boardBeatParkLive, boardBeatStoryPending, drainBoardBeatsIfDue} from '@/client/console/boardBeatPark';
 import {
   leaveWorkspace, pushWorkspaceFrame, resumeStackFromBoard, setWorkspaceFramePhase, stackYieldedToBoard, workspaceFrameHost, workspaceFrameIndex,
   workspaceStackState, yieldStackToBoard,
@@ -325,7 +325,10 @@ export async function runWorldMoveBeat(sitting: string, opts: {
   // ANOTHER SEAT'S TILE that has ALREADY LANDED (nothing of the remote stage is owed — the board was in view when it
   // came) owes no trip: the player watched it land; a yield now would be a blink of the board and straight back.
   const story = moves.filter((o) => !isSeatTileRecord(o) || remoteLandingOwed());
-  if (story.length === 0) {
+  // …and a PLANET story the park no longer holds (the scales already tell the truth on the board — a sitting that came
+  // up past its own net, a reload) owes no trip either: the yield would be a blink of the board and straight back,
+  // with the section caught mid-leave. Its line is still read on the results.
+  if (story.length === 0 || (story.every(isPlanetRecord) && boardBeatParkLive() && !boardBeatStoryPending())) {
     return false;
   }
   if (!yieldStackToBoard()) {

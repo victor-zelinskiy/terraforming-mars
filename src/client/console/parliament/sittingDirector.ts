@@ -631,7 +631,10 @@ function beatSupport(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
   const scene = supportSceneOf(ctx.summary, slots, rulerByCard ? (holds.rulerBefore ?? ctx.view.rulingParty) : undefined);
   const waves = scene.waves.filter((wave) => wave.overflow === true || (holds.supportIncoming.get(wave.party) ?? 0) > 0);
   if (waves.length === 0) {
-    tl.call(() => holds.supportIncoming.clear(), undefined, 0.01);
+    tl.call(() => {
+      holds.supportIncoming.clear();
+      holds.supportPool = 0;
+    }, undefined, 0.01);
     return 0;
   }
   // …and it opens AT ONCE: v3 waited for the stage panel to step out of the way; in v4 the table never left.
@@ -647,6 +650,10 @@ function beatSupport(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
   for (const wave of waves) {
     tl.call(() => {
       sittingMotion.supportWave = wave.status;
+      // The wave lifts off: the supply lets go of the cubes it was still counting for it.
+      if (wave.overflow !== true) {
+        holds.supportPool = Math.max(0, holds.supportPool - (holds.supportIncoming.get(wave.party) ?? 0));
+      }
       launchSupportWave(runState, ctx, wave, k);
     }, undefined, at);
     at += s((wave.cubes.length - 1) * SUPPORT_CUBE_STAGGER_MS + SUPPORT_PARTY_GAP_MS) * k;
@@ -656,6 +663,7 @@ function beatSupport(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
   tl.call(() => {
     holds.rollStatus.clear();
     holds.supportIncoming.clear();
+    holds.supportPool = 0;
     sittingMotion.supportWave = '';
   }, undefined, at);
   return at;

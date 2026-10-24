@@ -351,6 +351,7 @@ import {shouldHoldForOwnerCubePlacement} from '@/client/components/board/cubeDro
 import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
 import {seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
+import {noteSittingRise} from '@/client/console/parliament/sittingRise';
 import {seedRevealRewardHold} from '@/client/console/revealHandoff';
 import {seedActionCommitRail} from '@/client/console/consoleActionCommitRail';
 import {seedColonyRosterHolds} from '@/client/console/colonyRoster/consoleColonyRoster';
@@ -801,6 +802,8 @@ export default defineComponent({
             // the rail is held in the SAME synchronous block as the commit
             // (the transport's `seedRewardHolds` does the same for the
             // viewer's own submit), or the panel flushes a phantom −N chip.
+            // FIRST: a frame that RAN the sitting (another seat's pass) covers the board until the sitting stands.
+            noteSittingRise(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             seedParliamentRewardHold(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and its display holds (v2): the other seat's answer moved the phase — the table as it stood is
             // kept until the director's beats have moved it (the same block as the apply, on THIS path too).

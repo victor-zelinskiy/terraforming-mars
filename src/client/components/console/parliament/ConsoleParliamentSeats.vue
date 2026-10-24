@@ -181,8 +181,10 @@ export default defineComponent({
       // put them in the supply, the pool counts each on its touchdown.
       // …PLUS the cubes a card's RALLY (TR31) took that have not LIFTED yet: the answer already moved them, the
       // bench keeps painting and counting each until its proxy stands over it.
+      // …PLUS the cubes the sitting's support step took that have not lifted yet (`supportPool` — the soft gates: the
+      // verdict stands over a supply the pass has already spent).
       return Math.max(0, this.view.neutralSupply - (parliamentHolds.returns.get('neutral') ?? 0) - (parliamentHolds.renewalReturns.get('neutral') ?? 0) -
-        supportDiscardPoolHeld()) + parliamentFlow.supportHeld + rallyPoolHeld() + rivalPoolHeld();
+        supportDiscardPoolHeld()) + parliamentFlow.supportHeld + rallyPoolHeld() + rivalPoolHeld() + parliamentHolds.supportPool;
     },
     /** The deck as SHOWN — the renewal's tact moves the piles card by card as each landing happens; the live count otherwise. */
     deckShown(): number {

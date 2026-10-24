@@ -110,6 +110,7 @@ import {stagePlayedCardReturns} from '@/client/console/played/playedCardReturn';
 import {seedBonusGainRewardHold} from '@/client/console/startBonusGain';
 import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
 import {seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
+import {noteSittingRise} from '@/client/console/parliament/sittingRise';
 import {seedScaleStepRewardHolds} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
 import {seedScaleStepRatingHold} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {seedParameterSwings} from '@/client/console/scaleSwing/scaleSwingDirector';
@@ -673,6 +674,9 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // resolution just paid this seat, and the viewer's Agenda TR bonus — held on
   // the rail until the sitting's own beat flies them (only while the sitting
   // is on screen; else the counters tick with this very commit).
+  // FIRST: a response that RAN the sitting (the soft gates — the pass carries it) covers the board until the sitting
+  // stands, so what the law did on the board waits for the sitting's own world beat (`sittingRise.ts`).
+  noteSittingRise(currentView(), newView);
   seedParliamentRewardHold(currentView(), newView);
   // …and the sitting's DISPLAY holds (v2): the table as it stood before the
   // barrier opened / the area was refreshed — the tiers keep it until the

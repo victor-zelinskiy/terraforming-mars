@@ -201,6 +201,11 @@ function boardWatchable(): boolean {
   return watchableProbe === undefined || watchableProbe();
 }
 
+/** Is the park LIVE — a shell registered its watchable verdict? Without one the module is inert (desktop / tests). */
+export function boardBeatParkLive(): boolean {
+  return watchableProbe !== undefined;
+}
+
 /** The «board watchable» verdict, for a board scene that must wait for the player's view (TR24's scale-step tokens). */
 export function boardBeatBoardWatchable(): boolean {
   return boardWatchable();

@@ -1705,6 +1705,7 @@ import {
 } from '@/client/console/parliament/hostedParliamentStep';
 import {clearSupportDiscard, promiseSupportDiscard} from '@/client/console/parliament/supportDiscard';
 import {parliamentSittingFlowBeat, parliamentSittingLive, sittingTailPlacementOf} from '@/client/console/parliament/consoleSittingFlow';
+import {sittingRiseOwed} from '@/client/console/parliament/sittingRise';
 import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
 import {getResolution, resolutionName} from '@/client/parliament/ClientParliamentManifest';
@@ -3982,7 +3983,7 @@ export default defineComponent({
         announceGate: this.taskGateHeld,
         // OWNERSHIP, not timing — the prompt belongs to a traversal step whose
         // cell the marker has not settled on yet (see the block's own doc).
-        stageGated: this.hydroQueuedPromptForLaterStep,
+        stageGated: this.hydroQueuedPromptForLaterStep || this.sittingRiseGatesPrompt,
         anyAnimation: isAnimationHoldActive(),
         // The board owes a scale story over a board in plain view (PL-336): a new placement waits for it.
         boardStory: this.boardStoryBeforePlacement,
@@ -5208,6 +5209,21 @@ export default defineComponent({
      */
     parliamentStageTask(): boolean {
       return this.hostTask !== undefined && this.parliamentStagePrompt;
+    },
+    /**
+     * THE SITTING'S OWN ASK WAITS FOR ITS SITTING (the soft gates): the pass that ran the law carries the law's first
+     * ask of this seat — a pick, a take, the winner's build, a tile — in the same response, applied over the board home
+     * BEFORE any stage stands to host it. An ask of the sitting belongs to a step the flow has not reached yet: the
+     * stage gate holds every door to it (the colonies, the host, the board) until the sitting stands — or its rise is
+     * given up (`sittingRise.ts`) — so it opens INSIDE the stage, never as a screen of its own.
+     */
+    sittingRiseGatesPrompt(): boolean {
+      const wf = this.playerView.waitingFor;
+      const phase = this.game.parliament?.phase;
+      if (!sittingRiseOwed() || wf === undefined || phase === undefined || this.game.phase !== Phase.PARLIAMENT) {
+        return false;
+      }
+      return promptSourceResolution(wf) !== undefined || sittingTailPlacementOf(wf, phase, this.thisPlayer?.color);
     },
     /**
      * The same ask by the RAW prompt — not admission-gated: the mandatory
@@ -6474,7 +6490,13 @@ export default defineComponent({
       const own = promptSourceResolution(wf) !== undefined || sittingTailPlacementOf(wf, phase, this.thisPlayer?.color);
       // …and while the sitting is AWAY for another seat's tile (PL-764) the door stays shut: the section is unmounted,
       // but the stage it left is coming back, and the seat's own tile is still read on it first.
-      return own && (consoleParliamentUi.stageStanding || consoleParliamentUi.worldTripHoldsDoor) && !consoleParliamentUi.boardDoorOpen;
+      // …and while the sitting is still on its WAY UP (the soft gates: the pass that ran the law is applied over the board
+      // home — the seat's tile arrives with it, before any stage stands to hold it).
+      // …and from the press that ENTERS the sitting until its stage stands (the frame is in the stack a flush before the
+      // section has mounted — an open door there handed the tile to the board under the arriving sitting).
+      const sittingEntering = workspaceFrameIndex('parliament') !== -1;
+      return own && (consoleParliamentUi.stageStanding || consoleParliamentUi.worldTripHoldsDoor || sittingRiseOwed() || sittingEntering) &&
+        !consoleParliamentUi.boardDoorOpen;
     },
     /**
      * Server-driven placement (SelectSpace) or a client-side board picker.
@@ -8598,6 +8620,9 @@ export default defineComponent({
         this.consoleState.sheet === undefined &&
         !this.workspaceScreenUp &&
         !this.placementActive &&
+        // …and no sitting on its way up (the soft gates): the pass that ran the law is applied over the board home,
+        // and the law's scales wait for the sitting's own world beat (`sittingRise.ts`).
+        !sittingRiseOwed() &&
         // …and the camera at rest, or landing with the instruments already readable: the scale story starts WITH the
         // pullback (the tile language, W6), never after the landing's whole tail.
         planetFocusStoryReady();
@@ -10691,6 +10716,11 @@ export default defineComponent({
     },
     /** P15: the deferred-chip return verb, by what is actually pending. */
     deferReturnLabel(): string {
+      // A PARKED SITTING is what the card brings back (the soft gates: the pass ran the sitting, the player collapsed it
+      // mid-walk) — the law's take it may owe is a step INSIDE it, never the thing the player returns to.
+      if (this.playerView?.game.phase === Phase.PARLIAMENT && workspaceFrameParked('parliament')) {
+        return 'Return to the sitting';
+      }
       return this.startDeferSummary?.returnKey ?? this.activeTaskSummary?.returnKey ?? 'Return to the decision';
     },
     /** The deferred chip's classification chip ("ОПЛАТА" / "ДРАФТ"). */
@@ -20250,14 +20280,21 @@ export default defineComponent({
       }
       // THE PARLIAMENT'S SITTING (Turmoil Redux): the press walks the player
       // INTO the Parliament's sitting flow — the ONE door for the whole
-      // political phase (its gates, the resolution's pick / take are stages of
-      // that flow; nothing auto-enters, exactly like the draft). A PARKED
-      // sitting comes back as it was. The winner's TILE needs no branch — its
-      // placement is admission-held behind this very gate and comes alive on
-      // the board the moment the acknowledge above releases it; the sitting
-      // resumes after the landing (`yieldsToBoard`).
+      // political phase (its pick / take are stages of that flow; nothing
+      // auto-enters, exactly like the draft). A PARKED sitting comes back as
+      // it was. The SITTING'S OWN tile (the law's — the winner's, a seat's, the
+      // engine's tail of the seat's step) is a stage of it too: the press opens
+      // the sitting, and its reward page holds the tile behind «К полю» (sitting
+      // law 4 — the soft gates bring that tile with the very pass that ran the
+      // law, before any stage stood). Only a FOREIGN placement keeps the board:
+      // it comes alive the moment the acknowledge above releases it, and the
+      // sitting resumes after the landing (`yieldsToBoard`).
       if (beat.flow === 'parliament-phase') {
-        if (this.placementActive || this.playerView.waitingFor?.type === 'space') {
+        const wf = this.playerView.waitingFor;
+        const phase = this.game.parliament?.phase;
+        const ownTile = wf?.type === 'space' && phase !== undefined &&
+          (promptSourceResolution(wf) !== undefined || sittingTailPlacementOf(wf, phase, this.thisPlayer?.color));
+        if (!ownTile && (this.placementActive || wf?.type === 'space')) {
           return;
         }
         if (!this.restoreParkedWorkspace('parliament') && !workspaceFrameKnown('parliament')) {

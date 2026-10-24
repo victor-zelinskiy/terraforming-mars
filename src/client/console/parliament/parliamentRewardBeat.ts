@@ -65,6 +65,7 @@ import {generationSceneRisesIntoSitting} from '@/client/console/generationScene/
 import {workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
 import {ParliamentBeat, scheduleParliamentBeat} from './parliamentBeat';
 import {enterWorldBeatSitting, seedWorldMoveBeat} from './parliamentWorldBeat';
+import {sittingRiseOwed} from './sittingRise';
 import {releaseCareerGrantWalks, resetCareerGrantBeat, seedCareerGrantWalks} from './careerGrantBeat';
 import {releaseTableReceipts, resetTableReceiptBeat, seedTableReceipts} from './tableReceiptBeat';
 
@@ -535,9 +536,10 @@ export function seedParliamentRewardHold(before: PlayerViewModel | undefined, af
       queueAgendaBonuses([bonus]);
     }
   }
-  // The receipts / the Career walks are the stage's own scenes — owed only to a stage that stands (or rises with the
-  // scene); a walk merely ahead lets them tick with the commit.
-  const staged = (consoleParliamentUi.stageStanding || generationSceneRisesIntoSitting(after)) && !consoleReducedMotionActive();
+  // The receipts / the Career walks are the stage's own scenes — owed only to a stage that stands, or that this very
+  // response brings up (risen by the scene, or on its way up — `sittingRise.ts`, the soft gates: in a game with a bot
+  // the pass is a staged response and no scene rises, the plate opens the sitting); a walk merely ahead lets them tick.
+  const staged = (consoleParliamentUi.stageStanding || generationSceneRisesIntoSitting(after) || sittingRiseOwed()) && !consoleReducedMotionActive();
   // THE STEPS OF THE CAREER A LAW GRANTED THE SEATS (Reds Budget): every walked seat's marker held on its old step —
   // the reward stage's КАРЬЕРА beat walks them in turn — and the viewer's own paying steps owed BEHIND the winner's
   // (queued after it: the enactment's beat takes the queue's head). Read off the phase's records, never `lastAdvance`.

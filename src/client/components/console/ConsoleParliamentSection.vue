@@ -225,6 +225,7 @@ import {
   ParliamentViewVm, parliamentPromptBridge, PARTY_EFFECT_PLACES, partyActionStateOf, PartyActionStateVm, partyStateOf, PartyStateVm, resolutionActionStateOf, seatResponse,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {influenceReadingOf} from '@/client/console/parliament/influenceReading';
+import {sittingRiseStood} from '@/client/console/parliament/sittingRise';
 import {
   armGrantVoteFlow, armSupportPickFlow, consoleParliamentUi, notePlayedSittingStage, parliamentSupportUp, parliamentCrumbCommitted, parliamentCrumbStage, parliamentCrumbSubject, ParliamentStage,
   parliamentFlow, parliamentSittingUp, parliamentStageKind, parliamentStageUp, parliamentVoteUp, pulseParliamentChair, resetParliamentFlow,
@@ -1073,6 +1074,11 @@ export default defineComponent({
       flush: 'post',
       handler(on: boolean): void {
         consoleParliamentUi.stageStanding = on;
+        // The sitting STANDS: one on its way up no longer covers the board or holds the door — the stage does now (the soft
+        // gates). The same edge as the stage's own, so no frame lies between the two holders.
+        if (on && !this.warm) {
+          sittingRiseStood();
+        }
         // The stage STANDS again: the door the world trip held shut is the stage's again (PL-764). Only on the rising
         // edge — a section re-mounting after the trip reads «not up» for a flush first, and an open door there admitted
         // the seat's own placement under the returning sitting.

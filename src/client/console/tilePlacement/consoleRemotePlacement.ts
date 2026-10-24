@@ -120,6 +120,7 @@ import {workspaceStackActive} from '@/client/console/consoleWorkspaceStack';
 import {playedHeroHolding} from '@/client/console/played/consolePlayedHero';
 import {isDeckDrawActive} from '@/client/console/deckDraw/consoleDeckDraw';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
+import {sittingRiseOwed} from '@/client/console/parliament/sittingRise';
 
 /** A whole queue can legitimately take several seconds (N sequential
  *  flights) — far past that, something stalled and every held tile must
@@ -1461,7 +1462,9 @@ export function remoteLandingOwed(): boolean {
 
 export function boardCovered(): boolean {
   return workspaceStackActive() || playedHeroHolding() || isDeckDrawActive() ||
-    currentRevealEvent() !== undefined;
+    currentRevealEvent() !== undefined ||
+    // …or a sitting on its way up (the soft gates): the law's tile waits for the sitting's own world beat.
+    sittingRiseOwed();
 }
 
 /**

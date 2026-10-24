@@ -17,6 +17,7 @@ import {generationSceneRisesIntoSitting} from '@/client/console/generationScene/
 import {scheduleParliamentBeat} from './parliamentBeat';
 import {probeTick} from '@/client/console/probeTick';
 import {sittingBaselineOf} from './sittingBaseline';
+import {sittingRiseOwed} from './sittingRise';
 
 /*
  * A CARD ANSWERS A CHANGE OF POWER (Turmoil Redux — TR62 Tharsis Alliance: «draw a card when either of those parties
@@ -139,7 +140,7 @@ function presentedAmounts(rating: RulingRatingOwed): {tr?: number, production?: 
  * with the commit.
  */
 export function seedRulingChangeAnswers(before: PlayerViewModel | undefined, after: PlayerViewModel | undefined): void {
-  if (after === undefined || consoleReducedMotionActive() || !(consoleParliamentUi.stageStanding || generationSceneRisesIntoSitting(after))) {
+  if (after === undefined || consoleReducedMotionActive() || !(consoleParliamentUi.stageStanding || generationSceneRisesIntoSitting(after) || sittingRiseOwed())) {
     return;
   }
   for (const {key, answer} of newViewerRulingAnswers(before, after)) {

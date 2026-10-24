@@ -110,6 +110,8 @@ export function seedEnactmentHolds(beforeView: ParliamentViewVm, after: Parliame
   for (const entry of summary.support) {
     if (entry.gained > 0) {
       h.supportIncoming.set(entry.party, (h.supportIncoming.get(entry.party) ?? 0) + entry.gained);
+      // Every gained cube left the neutral supply on the server: the bench keeps counting it until its wave lifts.
+      h.supportPool += entry.gained;
     }
   }
   for (const entry of summary.returned ?? []) {

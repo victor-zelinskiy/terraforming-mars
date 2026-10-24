@@ -43,6 +43,12 @@ export type ParliamentDisplayHolds = {
   /** Popular-support cubes the model has GRANTED that have not reached their party's places yet (party → count; the enactment's support beat lands them). */
   supportIncoming: Map<ReduxParty, number>;
   /**
+   * NEUTRAL CUBES THE SUPPORT STEP TOOK FROM THE SUPPLY that have not left it on screen yet (the soft gates: the pass
+   * runs the whole sitting, so the supply's live count is already the post-support one while the VERDICT stands — and
+   * what the verdict shows has not happened yet). The bench counts them until their wave lifts off.
+   */
+  supportPool: number;
+  /**
    * THE ROLL CALL of the support scene (v3 В3): party → the word its tile shows while the scene runs, in
    * its own reserved state row. A STATUS, never a highlight — the tile's colour and ring never move.
    */
@@ -144,7 +150,7 @@ export type ParliamentDisplayHolds = {
 
 export function emptyParliamentHolds(): ParliamentDisplayHolds {
   return {
-    returns: new Map(), support: new Map(), supportIncoming: new Map(), rollStatus: new Map(), hiddenCubes: new Set(), lobby: new Set(), freshFaces: new Set(),
+    returns: new Map(), support: new Map(), supportIncoming: new Map(), supportPool: 0, rollStatus: new Map(), hiddenCubes: new Set(), lobby: new Set(), freshFaces: new Set(),
     pile: undefined, renewalReturns: new Map(), departed: new Set(), renewalSeeded: false,
     govAwaits: undefined, parked: undefined, heldSlots: undefined, vacated: new Set(), liftedFaces: new Set(), winnerSlot: undefined,
     agendaAwaits: undefined, agendaGrantAwaits: new Map(), chairAwaits: undefined, govBefore: undefined, rulerBefore: undefined, rulerBeforeByCard: undefined, rulerSettling: undefined, questBefore: undefined,
@@ -176,6 +182,7 @@ export function releaseEnactmentHolds(): void {
   const h = parliamentHolds;
   h.returns.clear();
   h.supportIncoming.clear();
+  h.supportPool = 0;
   h.rollStatus.clear();
   h.govAwaits = undefined;
   h.parked = undefined;

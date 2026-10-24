@@ -118,6 +118,7 @@ describe('parliamentSittingSeed — the holds of one response, in the same block
       expect(h.winnerSlot, `${path}: the winner's slot`).eq(A);
       expect(h.agendaAwaits, `${path}: the marker still on its old step`).deep.eq({player: BLUE, from: 2, to: 3});
       expect(Array.from(h.supportIncoming.entries()), `${path}: the support not yet seated`).deep.eq([[PartyName.REDS, 1], [PartyName.MARS, 2]]);
+      expect(h.supportPool, `${path}: the supply still counts the three cubes the support took`).eq(3);
       expect(Array.from(h.returns.entries()), `${path}: the delegate not yet home`).deep.eq([[BLUE, 1]]);
       expect(h.govBefore, `${path}: the old government — the empty seat`).deep.eq({enacted: undefined});
       expect(h.govAwaits, `${path}: the new card's face waits`).eq(A);
