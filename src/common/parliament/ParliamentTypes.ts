@@ -10,6 +10,7 @@ import {PartyName} from '../turmoil/PartyName';
 import {Resource} from '../Resource';
 import {Tag} from '../cards/Tag';
 import {CardResource} from '../CardResource';
+import {Color} from '../Color';
 
 /** The six Redux parties, in the BOARD's left-to-right order. */
 export const REDUX_PARTIES = [
@@ -99,6 +100,25 @@ export const SUPPORT_LIMIT_REASON: Readonly<Record<NonNullable<SupportRoom['limi
 /** The chip icon of a neutral delegate (the dark figure) — and of a player's own. */
 export const NEUTRAL_DELEGATE_ICON = 'neutral-delegate';
 export const DELEGATE_ICON = 'delegate';
+
+/**
+ * WHERE ONE DELEGATE STANDS ON THE TABLE — the two places a card can reach a single cube in (Turmoil
+ * Redux TR72 Banned Delegate:redux: «remove any delegate from a resolution or Popular Support area»):
+ * a RESOLUTION of the voting area (named by its party — the area holds one resolution per party) or a
+ * party's POPULAR SUPPORT area (neutral cubes only). The chairman's seat, the lobby and the enacted
+ * card are not places a delegate is picked from.
+ */
+export type DelegatePlace = 'resolution' | 'support';
+/** Whose cube — a seat's colour, or the neutral player's (the model's spelling, `ParliamentVoteModel.owner`). */
+export type DelegateOwner = Color | 'neutral';
+/**
+ * THE ADDRESS OF ONE DELEGATE — the answer to a delegate pick (`SelectPartyResponse.delegate`, beside
+ * the place's `partyName`). WHICH of the owner's cubes on a resolution is the rule's to say, never the
+ * answer's: their LATEST (`Parliament.removeVote` — the earliest is the tie-breaker and stays).
+ */
+export type DelegateAddress = {place: DelegatePlace, owner: DelegateOwner};
+/** The name a «remove one delegate» effect goes by where it is lost (an empty table) — one label for the forecast and the record. */
+export const DELEGATE_REMOVAL_LABEL = 'Delegate removal';
 /**
  * Own delegates on a party's resolution (rulebook p.7) — TWO numbers that happen to coincide:
  *  · the threshold of the party's EFFECT BY DEFAULT — a card in the tableau may LOWER it for its

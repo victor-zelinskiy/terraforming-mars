@@ -318,7 +318,9 @@ export interface ICard {
    * ONCE, inside `events.withEffect(player, card, 'delegates-discarded')`.
    * Never called for the enacted resolution (`stepEnact`), for a delegate
    * taken back for the chairman's seat (`removeLatestVote` — a move, not a
-   * discard), nor in the final generation (nothing is refreshed).
+   * discard), for a delegate a CARD takes off the table (TR72 Banned
+   * Delegate:redux — `RemoveDelegate`: a ban, not the sitting), nor in the
+   * final generation (nothing is refreshed).
    * First holder: TR02 Political Science (data per delegate).
    */
   onDelegatesDiscarded?(player: IPlayer, count: number, context: {instance: ResolutionInstanceId, resolution: ResolutionId}): void;

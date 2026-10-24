@@ -248,6 +248,10 @@ export function impactChips(impact: EventImpact): Array<JournalImpactChip> {
   if (impact.popularSupport !== undefined && impact.popularSupport.gained !== 0) {
     chips.push({icon: NEUTRAL_DELEGATE_ICON, text: signed(impact.popularSupport.gained)});
   }
+  // ONE delegate a card took off the table (TR72): the figure of whoever owned it — a seat's, or the dark neutral one.
+  if (impact.delegateRemoved !== undefined) {
+    chips.push({icon: impact.delegateRemoved.owner === 'neutral' ? NEUTRAL_DELEGATE_ICON : DELEGATE_ICON, text: signed(-1)});
+  }
   if (impact.cardsDrawn !== undefined && impact.cardsDrawn !== 0) {
     chips.push({icon: 'cards', text: signed(impact.cardsDrawn)});
   }
@@ -674,6 +678,18 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
     if ((e.type === 'popular-support-gained' || e.type === 'popular-support-discarded') && e.impact.popularSupport !== undefined) {
       push(`support|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [],
         political: {kind: 'support', party: e.impact.popularSupport.party, total: e.impact.popularSupport.total}}, impactChips(e.impact));
+      continue;
+    }
+    // ONE DELEGATE OFF THE TABLE (TR72 Banned Delegate:redux): its OWN row, addressed like the placement it undoes —
+    // the resolution it left, or the support area with its stock after it. A SEAT's cube is that seat's row (the
+    // event's victim — `target.player`): the loss is theirs, never the actor's.
+    if (e.type === 'delegate-removed' && e.impact.delegateRemoved !== undefined) {
+      const removed = e.impact.delegateRemoved;
+      const victim = e.target?.player;
+      push(`delegateRemoved|${e.id}`, {source: sourceToChild(e.source), player: victim !== undefined && victim !== rootPlayer ? victim : player, bucket, chips: [],
+        political: removed.place === 'support' || removed.resolution === undefined ?
+          {kind: 'support', party: removed.party, total: removed.total} :
+          {kind: 'resolution', resolution: removed.resolution}}, impactChips(e.impact));
       continue;
     }
     // A card-resource payout a RULE counted (TR21: «for 3 adjacent cities») keeps its reason and its card on a row of its own.

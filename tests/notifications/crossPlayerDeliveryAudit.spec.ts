@@ -36,6 +36,10 @@ import {causeLinesOf} from '../../src/client/components/notifications/notificati
 import {testAutomaGame} from '../automa/AutomaTestGame';
 import {AutomaController} from '../../src/server/automa/AutomaController';
 import {ModularFloodgates} from '../../src/server/cards/delta/ModularFloodgates';
+import {BannedDelegateRedux} from '../../src/server/cards/turmoilRedux/BannedDelegateRedux';
+import {quietResolutionOf, seatResolution} from '../parliament/parliamentArrange';
+import {PartyName} from '../../src/common/turmoil/PartyName';
+import {Payment} from '../../src/common/inputs/Payment';
 
 /**
  * CROSS-PLAYER DELIVERY AUDIT — «игрок обязан узнать, что чужой ход дал или
@@ -870,6 +874,38 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
     expect(victimCards, 'exactly ONE card for the victim — never a twin').has.length(1);
 
     // The ACTOR: their own action carries NO viewer band (no self-notification).
+    expect(deliveredModels(game, builder.color).find((m) => m.correlationId === root!.correlationId)?.viewerImpact).is.undefined;
+  });
+
+  it('S22 — a DELEGATE BANNED (TR72 Banned Delegate:redux): the victim\'s cube leaves the table — one hostile card, the delegate named, the chairman as attacker', () => {
+    [game, builder, owner] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+    game.phase = Phase.ACTION;
+    const parliament = game.parliament!;
+    seatResolution(parliament, 0, quietResolutionOf(PartyName.GREENS));
+    parliament.lobby.clear();
+    parliament.placeVote(owner, parliament.slots[0], 'reserve');
+    parliament.chairman = builder.id;
+    const card = new BannedDelegateRedux();
+    builder.cardsInHand.push(card);
+    builder.playCard(card, Payment.EMPTY);
+    runAllActions(game);
+    builder.process({type: 'party', partyName: PartyName.GREENS, delegate: {place: 'resolution', owner: owner.color}});
+    runAllActions(game);
+    expect(parliament.votesOf(owner, parliament.slots[0])).eq(0);
+
+    const root = game.events.events.find((e) =>
+      e.type === 'action' && e.source !== undefined && 'card' in e.source && e.source.card === card.name);
+    expect(root, 'the play rooted an action event').is.not.undefined;
+    const fact = game.events.events.find((e) => e.type === 'delegate-removed');
+    expect(fact!.target?.player, 'the victim rides the fact').eq(owner.color);
+    expect(fact!.correlationId, 'in the actor\'s chain (the captured deferred context)').eq(root!.correlationId);
+
+    const model = bandOf(deliveredModels(game, owner.color), root!.correlationId);
+    expect(model.sign).eq('negative');
+    expect(model.viewerImpact?.losses).deep.eq([{icon: 'delegate', text: '−1'}]);
+    expect(model.viewerImpact?.attacker).eq(builder.color);
+    expect(model.affects).contains(owner.color);
+    expect(deliveredModels(game, owner.color).filter((m) => m.correlationId === root!.correlationId), 'exactly ONE card').has.length(1);
     expect(deliveredModels(game, builder.color).find((m) => m.correlationId === root!.correlationId)?.viewerImpact).is.undefined;
   });
 });

@@ -31,6 +31,7 @@ import type {SelectResourceTarget} from '../deferredActions/SelectResourceTarget
 import {SelectPaymentDeferred, Options as SelectPaymentOptions} from '../deferredActions/SelectPaymentDeferred';
 import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
 import {DiscardPopularSupport, skippedSupportDiscard} from '../parliament/DiscardPopularSupport';
+import {RemoveDelegate, skippedDelegateRemoval} from '../parliament/RemoveDelegate';
 import {AGENDA_TRACK, DELEGATE_ICON, influenceAtAgenda, NEUTRAL_DELEGATE_ICON, PARLIAMENT_AGENDA_STEPS} from '../../common/parliament/ParliamentTypes';
 import type {ResolutionCountMetricModel} from '../../common/parliament/resolutionCounts';
 import {SelectAmount} from '../inputs/SelectAmount';
@@ -679,6 +680,25 @@ export function supportDiscardStep(card: ICard, step: DiscardPopularSupport): Ac
     return warningNote(lost.reason, {skipped: lost.skipped});
   }
   return {kind: 'supportDiscard', staged: {prompt, sourceCard: card.name}};
+}
+
+/**
+ * THIS PLAY TAKES ONE DELEGATE OFF THE TABLE — declared, not described (Turmoil Redux TR72 Banned
+ * Delegate:redux). The sibling of {@link supportDiscardStep} for ONE FIGURE: the card enters the
+ * Parliament's DELEGATE mode, hosted inside the workspace the card is played from, and the play is committed
+ * there. `step` is the very step the card's `bespokePlay` defers — asked here for the prompt it WOULD raise
+ * (`previewSelectParty`, with the `delegatePrompt` projection of every figure).
+ *
+ * With no figure on the table the card is not playable (`bespokeCanPlay`), so the warning branch below is a
+ * defence for a preview asked anyway: the same label and cause the live step would record.
+ */
+export function delegateRemovalStep(card: ICard, step: RemoveDelegate): ActionPreviewStep {
+  const prompt = step.previewSelectParty();
+  if (prompt === undefined) {
+    const lost = skippedDelegateRemoval();
+    return warningNote(lost.reason, {skipped: lost.skipped});
+  }
+  return {kind: 'delegateRemoval', staged: {prompt, sourceCard: card.name}};
 }
 
 /** The pseudo-icons of the Agenda walk's chips (the client draws a styled badge, as for `tr` / `cards`). */

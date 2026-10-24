@@ -9,6 +9,7 @@ import {MarsBotImpactCause, MarsBotTurn, MarsBotTurnStep} from '@/common/automa/
 import {BonusCardId} from '@/common/automa/AutomaTypes';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {impactChips, JournalImpactChip} from '@/client/components/journal/journalEventChild';
+import {DELEGATE_ICON} from '@/common/parliament/ParliamentTypes';
 
 /**
  * VIEWER-CENTRIC notification semantics — the pure layer that answers, from the
@@ -422,6 +423,17 @@ export function viewerImpactOfChain(chain: ReadonlyArray<GameEvent>, viewer: Col
         rawGains.push(chip);
         causeAccOf(e).rawGains.push(chip);
       }
+    }
+    // THE VIEWER'S DELEGATE TAKEN OFF THE TABLE BY SOMEBODY ELSE (TR72 Banned Delegate:redux): the event is the
+    // ACTOR's (whose effect it was) and the cube's owner rides `target.player` — the viewer's loss «−1 [delegate]»,
+    // the card its cause, the actor the attacker. Read before the owner gate, like the Capital's recount above.
+    if (e.type === 'delegate-removed' && e.target?.player === viewer && e.impact.delegateRemoved !== undefined) {
+      const chip: JournalImpactChip = {icon: DELEGATE_ICON, text: '−1'};
+      rawLosses.push(chip);
+      attacker = attacker ?? actor;
+      lossSource = lossSource ?? e;
+      causeAccOf(e).rawLosses.push(chip);
+      continue;
     }
     if (e.player !== viewer) {
       continue;

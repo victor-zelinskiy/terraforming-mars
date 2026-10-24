@@ -67,9 +67,10 @@ export type AddressableInput = {
   deckPickPrompt?: {source?: ChoiceContextSource},
   /** A placement's own card (`SelectSpace.sourceCard`) — the staged cell's address since TR21. */
   sourceCard?: CardName,
-  /** A party question: only a GRANT or a SUPPORT AREA pick is a card's own; the chairman's seat is nobody's pre-select. */
+  /** A party question: only a GRANT, a SUPPORT AREA pick or a DELEGATE pick is a card's own; the chairman's seat is nobody's pre-select. */
   votePrompt?: {source: string},
   supportPrompt?: unknown,
+  delegatePrompt?: unknown,
   options?: ReadonlyArray<unknown>,
 };
 
@@ -91,7 +92,8 @@ export function roleOf(input: AddressableInput): PreselectRole {
  *    threshold / bonus placement leaves it undefined, which is exactly what
  *    tells the two apart — the staged-cell law of TR21);
  *  · a party question — the card behind a GRANT (`votePrompt.source ===
- *    'grant'`) or a SUPPORT AREA pick (`supportPrompt`); every other party
+ *    'grant'`), a SUPPORT AREA pick (`supportPrompt`) or a DELEGATE pick
+ *    (`delegatePrompt`, TR72); every other party
  *    question (the chairman's seat, a vote) has no card address;
  *  · everything else — `choiceContext`, then `placementContext`,
  *    `discardPrompt`, `deckPickPrompt` (the same precedence as the console's
@@ -107,7 +109,7 @@ function promptSourceOf(input: AddressableInput): ChoiceContextSource | undefine
     return input.sourceCard === undefined ? undefined : {kind: 'card', card: input.sourceCard};
   }
   if (input.type === 'party') {
-    const own = input.votePrompt?.source === 'grant' || input.supportPrompt !== undefined;
+    const own = input.votePrompt?.source === 'grant' || input.supportPrompt !== undefined || input.delegatePrompt !== undefined;
     return own ? input.choiceContext?.source : undefined;
   }
   return input.choiceContext?.source ??

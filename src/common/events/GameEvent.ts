@@ -129,6 +129,14 @@ export type GameEventType =
    */
   | 'popular-support-discarded'
   /**
+   * ONE DELEGATE REMOVED FROM THE TABLE BY A CARD (Turmoil Redux TR72 Banned Delegate:redux — «remove any delegate
+   * from a resolution or Popular Support area»). `player` is whose effect it was; `target.player` the seat whose cube
+   * left (absent for a neutral cube, and for the actor's own — nobody else lost anything); `impact.delegateRemoved`
+   * names the place, the owner, where the cube went and what the place holds now. A seat's cube returns to its
+   * reserve, a neutral one to the common supply. The card rides the event's `source`. Journal-visible, never a delta.
+   */
+  | 'delegate-removed'
+  /**
    * A SEAT GAINED / LOST A PARTY'S EFFECT (Turmoil Redux — PL-112). The law of
    * access (`Parliament.access`) is read live, so until this event nothing
    * told the player that their second cube on a resolution opened the party's

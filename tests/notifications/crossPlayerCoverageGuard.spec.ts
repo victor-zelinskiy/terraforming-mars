@@ -51,7 +51,8 @@ type CrossPlayerFamily =
   | 'table-payout' // one effect touches EVERY player at once (Mons Insurance on-play shape)
   | 'card-draw-payout' // another player DRAWS cards because of the actor (Sponsored Academies)
   | 'track-attack' // move another player's Hydronetwork marker backwards (Corporate Espionage)
-  | 'track-blockade'; // a standing ban on another player's Hydronetwork advancement (Modular Floodgates)
+  | 'track-blockade' // a standing ban on another player's Hydronetwork advancement (Modular Floodgates)
+  | 'delegate-attack'; // take another player's delegate off the Parliament's table (TR72 Banned Delegate:redux)
 
 /** family → the scenario(s) in crossPlayerDeliveryAudit.spec.ts (same dir)
  *  that drive a REAL door and assert the recipient's client-side band. A new
@@ -66,6 +67,7 @@ const FAMILY_PROOF: Record<CrossPlayerFamily, string> = {
   'card-draw-payout': 'S17 (Sponsored Academies: every opponent\'s draw is evented in the actor\'s chain and banded)',
   'track-attack': 'delta-position-changed carries victim + attacker (notificationSemantics.spec track band, tests/cards/delta/CorporateEspionage.spec, tests/delta/deltaMovement.spec)',
   'track-blockade': 'S21 (Modular Floodgates blue-action door: delta-blockade-changed carries victim + attacker, the victim\'s worded band is delivered, the actor gets none)',
+  'delegate-attack': 'S22 (Banned Delegate:redux play: delegate-removed carries the victim, the victim\'s «−1 [delegate]» band is delivered, the actor gets none)',
 };
 
 type Classification =
@@ -129,6 +131,7 @@ const FAMILY_TOKENS: ReadonlyArray<{token: string; family: CrossPlayerFamily}> =
   {token: 'RemoveResourcesFromCard', family: 'card-resource-attack'},
   {token: 'removingPlayer', family: 'card-resource-attack'},
   {token: 'new RemoveResources(', family: 'stock-attack'},
+  {token: 'RemoveDelegate', family: 'delegate-attack'},
 ];
 
 /** Tokens that show the card LOOKS AT the rest of the table. Not proof of a

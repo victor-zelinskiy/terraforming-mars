@@ -474,6 +474,22 @@ export class EventRecorder {
   }
 
   /**
+   * A CARD TOOK ONE DELEGATE OFF THE TABLE (Turmoil Redux TR72 Banned Delegate:redux). `player` is whose effect it
+   * was; `victim` the seat whose cube left — absent for a neutral cube and for the actor's own (nobody else lost
+   * anything), so the event names a target exactly where a rival's notification has an addressee. Written only by
+   * `parliament/RemoveDelegate`.
+   */
+  public recordDelegateRemoved(player: IPlayer, removed: NonNullable<EventImpact['delegateRemoved']>, victim?: Color): void {
+    this.record({
+      type: 'delegate-removed',
+      player: player.color,
+      impact: {delegateRemoved: removed},
+      ...(victim === undefined ? {} : {target: {player: victim}}),
+      visibility: 'journal',
+    });
+  }
+
+  /**
    * A SEAT GAINED / LOST A PARTY'S EFFECT (Turmoil Redux — PL-112). Written
    * only by `Parliament.announceAccessChanges` — the ONE diff of the law of
    * access against its snapshot — inside the root it opens for the line

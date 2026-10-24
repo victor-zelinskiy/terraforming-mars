@@ -78,6 +78,10 @@ describe('cardLore', () => {
       expect(cardLoreSource(CardName.AERIAL_LENSES)).to.eq('Burning the ground to release carbon dioxide.');
       expect(cardLoreSource(CardName.AERIAL_LENSES_REDUX)).to.eq(cardLoreSource(CardName.AERIAL_LENSES));
       expect(cardArtUrl(CardName.AERIAL_LENSES_REDUX), 'and the classic T01 art').to.eq('assets/card-images/T01.webp');
+      // TR72 — the owner's line for the classic T02, borrowed the same way.
+      expect(cardLoreSource(CardName.BANNED_DELEGATE)).to.eq('You are not welcome in our chambers.');
+      expect(cardLoreSource(CardName.BANNED_DELEGATE_REDUX)).to.eq(cardLoreSource(CardName.BANNED_DELEGATE));
+      expect(cardArtUrl(CardName.BANNED_DELEGATE_REDUX), 'and the classic T02 art').to.eq('assets/card-images/T02.webp');
     });
 
     it('resolves every reimplementing card the same way the manifest links them', () => {

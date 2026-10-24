@@ -25,6 +25,7 @@ import {
   supportRoomOf,
 } from '../../common/parliament/ParliamentTypes';
 import type {ParliamentRallyRecord} from './RallyNeutralDelegates';
+import type {ParliamentDelegateRemovalModel} from '../../common/models/ParliamentModel';
 import {ResolutionDefinition} from './resolutions/IResolution';
 import {REDUX_RESOLUTION_CATALOG, RETIRED_RESOLUTION_IDS, ResolutionCatalog} from './resolutions/ResolutionCatalog';
 import {
@@ -37,6 +38,8 @@ import {Random} from '../../common/utils/Random';
 import {Expansion} from '../../common/cards/GameModule';
 
 export type Delegate = PlayerId | 'NEUTRAL';
+/** The server's record of the last removal — the model's shape with the actor as a PlayerId (`ParliamentModel` colours it). */
+export type ParliamentRemovalRecord = Omit<ParliamentDelegateRemovalModel, 'player'> & {player: PlayerId};
 export type Vote = {owner: Delegate; seq: number};
 export type Slot = {instance: ResolutionInstanceId; votes: Array<Vote>};
 
@@ -186,6 +189,12 @@ export class Parliament {
    * Written by ONE function, `RallyNeutralDelegates.applyRally`.
    */
   public lastRally: ParliamentRallyRecord | undefined = undefined;
+  /**
+   * THE LAST DELEGATE A CARD TOOK OFF THE TABLE (Turmoil Redux TR72) — a PRESENTATION record, NOT SERIALIZED
+   * (the law of `lastRally`): the client lifts that one figure off its place once, by `seq`. Written by ONE
+   * function, `RemoveDelegate`.
+   */
+  public lastRemoval: ParliamentRemovalRecord | undefined = undefined;
   public pendingActions: Array<SerializedPendingAction> = [];
   /**
    * THE SNAPSHOT OF ACCESS (PL-112): per seat, the parties whose effect the seat
@@ -459,6 +468,27 @@ export class Parliament {
     copy.slots = this.slots.map((s) => ({instance: s.instance, votes: s.votes.map((vote) => ({...vote}))}));
     copy.enacted = this.enacted;
     copy.voteSeq = this.voteSeq;
+    return copy;
+  }
+
+  /**
+   * THE TABLE WITH ONE DELEGATE GONE — the throwaway twin a delegate pick's forecast reads (TR72): the
+   * `projection` plus what `access` stands on beyond the votes (the grants, the support areas), with ONE cube
+   * of `owner` taken off the party's resolution (`removeVote` — the latest) or out of its support area. Every
+   * rule — `leaderOf`, `winner`, `access` — then runs on the copy; the live table is untouched.
+   */
+  public withoutDelegate(party: ReduxParty, place: 'resolution' | 'support', owner: Delegate): Parliament {
+    const copy = this.projection();
+    copy.grantedEffects = new Map([...this.grantedEffects].map(([id, grants]) => [id, grants.map((grant) => ({...grant}))]));
+    copy.popularSupport = new Map(this.popularSupport);
+    if (place === 'support') {
+      copy.removePopularSupport(party, 1);
+    } else {
+      const slot = copy.slotOf(party);
+      if (slot !== undefined) {
+        copy.removeVote(slot, owner);
+      }
+    }
     return copy;
   }
 
@@ -923,8 +953,20 @@ export class Parliament {
 
   /** Remove the player's LATEST delegate from `slot` (keeps their earliest — the tie-breaker). */
   public removeLatestVote(player: IPlayer, slot: Slot): Vote | undefined {
+    return this.removeVote(slot, player.id);
+  }
+
+  /**
+   * TAKE ONE DELEGATE OF `owner` OFF A RESOLUTION — any seat's or the neutral player's (Turmoil Redux TR72
+   * Banned Delegate:redux; the chairman's seat takes its own through `removeLatestVote`, the same rule). The
+   * LATEST of the owner's cubes leaves: the earliest is the owner's tie-breaker (`leaderOf`) and stays. The
+   * ledger is derived, so the cube leaving the card IS its return — a seat's to its reserve, a neutral one
+   * to the common supply; the leader, the winner and every seat's access re-read the table live. Returns
+   * the vote that left, or `undefined` when the owner has none there.
+   */
+  public removeVote(slot: Slot, owner: Delegate): Vote | undefined {
     for (let i = slot.votes.length - 1; i >= 0; i--) {
-      if (slot.votes[i].owner === player.id) {
+      if (slot.votes[i].owner === owner) {
         return slot.votes.splice(i, 1)[0];
       }
     }
@@ -970,6 +1012,19 @@ export class Parliament {
   public discardPopularSupport(party: ReduxParty): number {
     const count = this.popularSupportOf(party);
     this.popularSupport.set(party, 0);
+    return count;
+  }
+
+  /**
+   * Return up to `n` neutral delegates of a party's support area to the common supply — ONE cube at a time
+   * where `discardPopularSupport` empties the area (Turmoil Redux TR72). The supply is derived, so the area
+   * shrinking IS the return. Returns how many left (fewer than `n` only when the area held fewer).
+   */
+  public removePopularSupport(party: ReduxParty, n: number): number {
+    const count = Math.min(Math.max(0, n), this.popularSupportOf(party));
+    if (count > 0) {
+      this.popularSupport.set(party, this.popularSupportOf(party) - count);
+    }
     return count;
   }
 

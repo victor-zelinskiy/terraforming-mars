@@ -110,8 +110,9 @@ describe('classic Turmoil cards under Turmoil Redux', () => {
       const adapted = [CardName.DIASPORA_MOVEMENT, CardName.GMO_CONTRACT, CardName.PR_OFFICE, CardName.PARLIAMENT_HALL, CardName.RED_TOURISM_WAVE, CardName.SUPPORTED_RESEARCH, CardName.WILDLIFE_DOME, CardName.PUBLIC_CELEBRATIONS, CardName.CULTURAL_METROPOLIS, CardName.EVENT_ANALYSTS, CardName.MARTIAN_MEDIA_CENTER];
       const adaptedCorporations = [CardName.LAKEFRONT_RESORTS, CardName.TERRALABS_RESEARCH, CardName.UTOPIA_INVEST, CardName.PRISTAR];
       const all = [...adapted, ...adaptedCorporations];
-      // Off the list but REPLACED (TR71 Aerial Lenses:redux, 2026-10-24 — the first): never dealt, see «the replacements».
-      const replaced = [CardName.AERIAL_LENSES];
+      // Off the list but REPLACED (TR71 Aerial Lenses:redux, 2026-10-24 — the first; TR72 Banned Delegate:redux the
+      // second): never dealt, see «the replacements».
+      const replaced = [CardName.AERIAL_LENSES, CardName.BANNED_DELEGATE];
       const offTheList = CLASSIC.filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name));
       expect(offTheList).to.have.members([...all, ...replaced]).and.length(all.length + replaced.length);
       expect(offTheList.filter((name) => !TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(name))).to.have.members(all).and.length(all.length);

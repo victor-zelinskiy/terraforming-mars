@@ -185,6 +185,8 @@ const PARLIAMENT_OUTCOME_EVENTS: ReadonlySet<GameEvent['type']> = new Set([
   'delegates-placed', 'neutral-delegates-placed', 'popular-support-gained', 'popular-support-discarded', 'agenda-advanced',
   // T05 Event Analysts — influence beyond the Career: the table's numbers moved for every reading of that seat.
   'influence-changed',
+  // TR72 Banned Delegate:redux — a delegate taken off a resolution or a support area.
+  'delegate-removed',
 ]);
 
 /** A party's effect gained / lost by the seat (PL-112) rides this chain. */

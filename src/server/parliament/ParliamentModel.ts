@@ -245,6 +245,11 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
     const rally = parliament.lastRally;
     model.lastRally = {...rally, player: game.getPlayerById(rally.player).color};
   }
+  if (parliament.lastRemoval !== undefined) {
+    // Written in the model's own shape by its one writer (`RemoveDelegate`); only the seat is a colour here.
+    const removal = parliament.lastRemoval;
+    model.lastRemoval = {...removal, player: game.getPlayerById(removal.player).color};
+  }
   if (viewer !== undefined) {
     model.viewer = {
       vote: voteModel(game, parliament, viewer),

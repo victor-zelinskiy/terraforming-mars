@@ -1364,5 +1364,14 @@
   "Winner of the vote · ${0} votes": "Победитель голосования · голосов: ${0}",
   "The winner and every seat with influence ${0}+": "Победителю и каждому с влиянием от ${0}",
   "Influence ${0} — at or over the line ${1}": "Влияние ${0} — не ниже линии ${1}",
-  "Influence ${0} — under the line ${1}": "Влияние ${0} — ниже линии ${1}"
+  "Influence ${0} — under the line ${1}": "Влияние ${0} — ниже линии ${1}",
+  "Select a delegate to remove from a resolution or a Popular Support area": "Выберите делегата, которого изгоняют с резолюции или из области народной поддержки",
+  "Remove delegate": "Изгнать делегата",
+  "Delegate removal": "Изгнание делегата",
+  "No delegate stands on a resolution or in a Popular Support area": "На резолюциях и в областях народной поддержки нет делегатов",
+  "That delegate is no longer there": "Этого делегата там уже нет",
+  "${0} removed a neutral delegate from the Popular Support of ${1} (${2}/${3})": "${0} изгоняет нейтрального делегата из Народной поддержки «${1}» (${2}/${3})",
+  "${0} removed a neutral delegate from ${1}": "${0} изгоняет нейтрального делегата с ${1}",
+  "${0} removed their own delegate from ${1}": "${0} изгоняет своего делегата с ${1}",
+  "${0} removed a delegate of ${1} from ${2}": "${0} изгоняет делегата игрока ${1} с ${2}"
 }

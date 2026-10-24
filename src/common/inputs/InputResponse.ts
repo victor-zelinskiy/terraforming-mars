@@ -6,6 +6,7 @@ import {PartyName} from '../turmoil/PartyName';
 import {PolicyId} from '../turmoil/Types';
 import {SpaceId} from '../Types';
 import {Units} from '../Units';
+import {DelegateAddress} from '../parliament/ParliamentTypes';
 import {twoWayDifference} from '../utils/utils';
 import {AresGlobalParametersResponse} from './AresGlobalParametersResponse';
 import {Payment} from './Payment';
@@ -149,11 +150,19 @@ export interface SelectPartyResponse {
    * answer (the vote, a colony's grant, the seat) — those replay as before.
    */
   stagedFor?: CardName;
+  /**
+   * A DELEGATE PICK's answer (Turmoil Redux TR72 Banned Delegate:redux — `SelectPartyDelegate`): WHICH cube of the
+   * place `partyName` names — on that party's resolution or in its Popular Support area, and whose. Present on a
+   * delegate pick only; every other party answer carries none (and a delegate pick refuses an answer without it).
+   */
+  delegate?: DelegateAddress;
 }
 
+const SELECT_PARTY_FIELDS: ReadonlyArray<string> = ['type', 'partyName', 'stagedFor', 'delegate'];
+
 export function isSelectPartyResponse(response: InputResponse): response is SelectPartyResponse {
-  return response.type === 'party' &&
-    (matches(response, ['type', 'partyName']) || matches(response, ['type', 'partyName', 'stagedFor']));
+  return response.type === 'party' && 'partyName' in response &&
+    Object.keys(response).every((key) => SELECT_PARTY_FIELDS.includes(key));
 }
 
 export interface SelectDelegateResponse {

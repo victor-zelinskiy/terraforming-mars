@@ -690,6 +690,16 @@ export type ActionPreviewStep =
    */
   | {kind: 'supportDiscard', staged: StagedSupportModel}
   /**
+   * THIS PLAY TAKES ONE DELEGATE OFF THE TABLE — and the delegate is picked in the Parliament, never in the
+   * composer (Turmoil Redux TR72 Banned Delegate:redux: «remove any delegate from a resolution or Popular
+   * Support area»). The staged door's third Parliament sibling (after `delegateGrant` and `supportDiscard`):
+   * the composer's commit becomes a NAVIGATION («Выбрать делегата») into the Parliament's DELEGATE mode,
+   * nothing is sent until the figure is confirmed there, and that confirm posts the one batch with the party
+   * answer — `{partyName, delegate}` — as its ADDRESSED tail (`SelectPartyResponse.stagedFor`). Absent when no
+   * figure stands anywhere — and then the card is not playable at all (its only effect would hit nothing).
+   */
+  | {kind: 'delegateRemoval', staged: StagedDelegateModel}
+  /**
    * THIS PLAY WALKS THE AGENDA MARKER (Turmoil Redux TR04 Minority
    * Representation) — a SHOW step, not a choice: the composer collects
    * nothing for it and the play's one POST carries the walk's record back.
@@ -882,6 +892,17 @@ export type StagedVoteModel = {
  * tail's ADDRESS.
  */
 export type StagedSupportModel = {
+  prompt: SelectPartyModel;
+  sourceCard: CardName;
+};
+
+/**
+ * The staged twin of a card's DELEGATE pick (TR72) — `prompt` is, field for field, the `SelectPartyDelegate`
+ * the commit WILL raise (`RemoveDelegate.previewSelectParty()` — the same title, the `delegatePrompt`
+ * projection of every figure and `choiceContext`), so the staged door and the live one are one prompt read
+ * twice. `sourceCard` is the tail's ADDRESS.
+ */
+export type StagedDelegateModel = {
   prompt: SelectPartyModel;
   sourceCard: CardName;
 };

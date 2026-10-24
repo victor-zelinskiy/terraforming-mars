@@ -15,7 +15,7 @@ import {CardName} from '../cards/CardName';
 import {Tag} from '../cards/Tag';
 import {ColonyName} from '../colonies/ColonyName';
 import {Color, ColorWithNeutral} from '../Color';
-import type {ParliamentPhaseStage, PartyActionId, SupportRoom} from '../parliament/ParliamentTypes';
+import type {DelegateAddress, DelegateOwner, ParliamentPhaseStage, PartyActionId, SupportRoom} from '../parliament/ParliamentTypes';
 import {PayProductionModel} from './PayProductionUnitsModel';
 import {ProductionLossSource} from './ProductionLossSource';
 import {AresData} from '../ares/AresData';
@@ -559,6 +559,47 @@ export type SupportAreaProjection = {
 };
 
 /**
+ * EXPLICIT marker that a `SelectParty` picks ONE DELEGATE off the table (Turmoil Redux TR72 Banned
+ * Delegate:redux — «remove any delegate from a resolution or Popular Support area»). The console's
+ * Parliament reads it (never the title) to open its DELEGATE mode — the cursor walks the FIGURES on
+ * the three resolutions' ledgers and the support areas' stocks, not the slots or the plaques.
+ *
+ * `targets` holds ONE row per pickable figure — «one delegate of `owner` in `place` of `party`»: per
+ * resolution of the voting area one row per owner standing on it (the seats, MarsBot, the neutral
+ * player), per party one row for a non-empty support area (neutral). Each row carries the SERVER's
+ * projection of the answer (`Parliament.withoutDelegate` — the rules run on a throwaway table), so the
+ * client prints «3 → 2», the new leader, the new winner of the sitting and a lost party effect without
+ * computing anything. A field of the forecast is present only when the answer CHANGES it. The prompt's
+ * `parties` are the parties of the rows. The giver rides `choiceContext.source` (the card — and the
+ * staged tail's address). Serialized on `SelectPartyDelegate.toModel` (nesting-safe), never centrally.
+ */
+export type DelegatePromptMeta = {
+  /** What the pick does — `remove`: the cube leaves the table (TR72). */
+  source: 'remove';
+  targets: ReadonlyArray<DelegateTargetProjection>;
+};
+
+/** Who wins the sitting on a table — the resolution's party and its winner (the neutral player when no seat stands on it). */
+export type DelegateWinnerProjection = {party: PartyName, owner: DelegateOwner};
+
+/** One row of `DelegatePromptMeta.targets` — one pickable figure and what taking it does. */
+export type DelegateTargetProjection = DelegateAddress & {
+  party: PartyName;
+  /** The owner's cubes in this place NOW (a resolution: their votes on it; a support area: its stock). */
+  count: number;
+  /** Where the cube goes: a seat's back to its RESERVE, a neutral one to the common SUPPLY. */
+  returnsTo: 'reserve' | 'supply';
+  /** The place's whole count — every vote on the resolution / the area's stock — now → after the answer. */
+  total: {current: number, resulting: number};
+  /** The resolution's LEADER, when the answer changes it (`resulting` absent: nobody leads it any more). */
+  leader?: {current?: DelegateOwner, resulting?: DelegateOwner};
+  /** The WINNER of the coming sitting, when the answer changes it (the resolution, or its winner). */
+  winner?: {current?: DelegateWinnerProjection, resulting?: DelegateWinnerProjection};
+  /** The party effects the cube's OWNER loses by the answer (their own delegates' road, an alliance standing on it). */
+  effectsLost?: ReadonlyArray<PartyName>;
+};
+
+/**
  * EXPLICIT marker that a `SelectPayment` is the BILL of a Turmoil Redux vote
  * from the reserve (the delegate moves only once it is settled). The console
  * hosts the payment INSIDE the vote step it belongs to — and rebuilds that
@@ -733,6 +774,9 @@ export type BaseInputModel = {
   /** Explicit "this SelectParty picks a Turmoil Redux POPULAR SUPPORT AREA"
    *  marker (see {@link SupportPromptMeta}). Serialized on `SelectParty.toModel`. */
   supportPrompt?: SupportPromptMeta;
+  /** Explicit "this SelectParty picks ONE Turmoil Redux DELEGATE off the
+   *  table" marker (see {@link DelegatePromptMeta}). Serialized on `SelectPartyDelegate.toModel`. */
+  delegatePrompt?: DelegatePromptMeta;
   /** Explicit "this SelectPayment settles a Turmoil Redux VOTE from the
    *  reserve" marker (see {@link VotePaymentMeta}). Serialized on `SelectPayment.toModel`. */
   votePayment?: VotePaymentMeta;

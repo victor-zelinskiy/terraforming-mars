@@ -1144,6 +1144,7 @@ export enum CardName {
 
   // Turmoil Redux replacements of classic Turmoil cards (TR71…; `cards/turmoilRedux/classicReplacements.ts`)
   AERIAL_LENSES_REDUX = 'Aerial Lenses:redux',
+  BANNED_DELEGATE_REDUX = 'Banned Delegate:redux',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

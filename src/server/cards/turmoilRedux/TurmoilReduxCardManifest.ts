@@ -71,6 +71,7 @@ import {TharsisAlliance} from './TharsisAlliance';
 import {EdenAlliance} from './EdenAlliance';
 import {PrometheanAlliance} from './PrometheanAlliance';
 import {AerialLensesRedux} from './AerialLensesRedux';
+import {BannedDelegateRedux} from './BannedDelegateRedux';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -81,7 +82,7 @@ import {AerialLensesRedux} from './AerialLensesRedux';
  * (TR01…TR70), shipped ONE AT A TIME like the resolutions were, plus the
  * REPLACEMENTS the set prints for seven classic Turmoil cards
  * (`classicReplacements.ts`: six projects — TR71…TR76 in the registry's order —
- * and the Septem Tribus corporation; TR71 Aerial Lenses authored 2026-10-24).
+ * and the Septem Tribus corporation; TR71 Aerial Lenses and TR72 Banned Delegate authored 2026-10-24).
  * A replacement is registered here under a `:redux`-suffixed name with the
  * classic name in this manifest's `cardsToRemove`; until then the classic card
  * is held back by `cards/turmoil/turmoilReduxAdaptation.ts`. The classic
@@ -348,10 +349,14 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // Redux set reprints; the classic name stands in `cardsToRemove` below. TR71: the classic T01 at the Scientists' plate,
     // 3 M€, a Science tag and no −1 VP; the art and the lore are T01's (`reimplements`).
     [CardName.AERIAL_LENSES_REDUX]: {Factory: AerialLensesRedux},
+    // TR72: the classic T02 under Redux — the chairman takes ANY one delegate off a resolution or a support area (the
+    // Parliament's delegate mode); no «non-leader» clause. Art and lore are T02's (`reimplements`).
+    [CardName.BANNED_DELEGATE_REDUX]: {Factory: BannedDelegateRedux},
   },
   // The classic cards a replacement above stands in for — never dealt into a Redux game (upstream's
   // `GameCards.filterReplacedCards`); a classic-Turmoil game does not load this manifest, so it keeps them.
   cardsToRemove: [
     CardName.AERIAL_LENSES,
+    CardName.BANNED_DELEGATE,
   ],
 });

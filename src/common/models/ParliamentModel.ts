@@ -19,7 +19,7 @@ import type {EventTrigger} from '../events/GameEvent';
 import {ActionEffect} from './ActionPreviewModel';
 import type {ActionFutilityVerdict} from './ActionFutilityModel';
 import type {SelectProjectCardToPlayModel} from './PlayerInputModel';
-import {BotParliamentMode, ParliamentPhaseStep, PartyActionId, QuestDefinition, ReduxParty, ResolutionId, ResolutionInstanceId, AgendaAdvanceReason, AgendaAdvanceStep} from '../parliament/ParliamentTypes';
+import {BotParliamentMode, ParliamentPhaseStep, PartyActionId, QuestDefinition, ReduxParty, ResolutionId, ResolutionInstanceId, AgendaAdvanceReason, AgendaAdvanceStep, DelegateOwner, DelegatePlace} from '../parliament/ParliamentTypes';
 
 /** One delegate on a resolution, in placement order (`seq` is global and monotonic). */
 export type ParliamentVoteModel = {
@@ -740,6 +740,31 @@ export type ParliamentRallyModel = {
   generation: number;
 };
 
+/**
+ * THE LAST DELEGATE A CARD TOOK OFF THE TABLE (Turmoil Redux TR72 Banned Delegate:redux): the place it left —
+ * a resolution (`instance`, and `vote` the very cube's `seq`, so the client lifts THAT figure off the ledger) or
+ * a party's support area — whose it was and where it went. The client plays it ONCE (`seq` is the key) and
+ * derives nothing from the counters' deltas. A presentation record: not serialized, lost on a reload (the
+ * table is not).
+ */
+export type ParliamentDelegateRemovalModel = {
+  seq: number;
+  /** Whose effect it was (the card's player). */
+  player: Color;
+  card?: CardName;
+  place: DelegatePlace;
+  party: ReduxParty;
+  instance?: ResolutionInstanceId;
+  resolution?: ResolutionId;
+  /** The `seq` of the vote that left the resolution (absent for a support cube — the area's cubes are a count). */
+  vote?: number;
+  owner: DelegateOwner;
+  returnsTo: 'reserve' | 'supply';
+  /** What the place holds after it (every vote on the resolution / the area's stock). */
+  total: number;
+  generation: number;
+};
+
 export type ParliamentModel = {
   slots: ReadonlyArray<ParliamentSlotModel>;
   enacted?: ParliamentEnactedModel;
@@ -760,6 +785,8 @@ export type ParliamentModel = {
   lastAdvance?: ParliamentAdvanceModel;
   /** The last rally of neutral delegates by a card (TR31) — played once by `seq`; absent until the first, and after a reload. */
   lastRally?: ParliamentRallyModel;
+  /** The last delegate a card removed (TR72) — played once by `seq`; absent until the first, and after a reload. */
+  lastRemoval?: ParliamentDelegateRemovalModel;
   botMode: BotParliamentMode;
   /** Present on the viewer's own model only. */
   viewer?: {

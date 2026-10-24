@@ -10,7 +10,7 @@ import {AdjacencyVpChange, TileMoveFact} from '../boards/TileMove';
 import {RevealOrigin, RevealResult} from '../logs/RevealLogMeta';
 import {DrawSearchModel} from '../models/CardDrawRevealModel';
 import {PartyName} from '../turmoil/PartyName';
-import {AgendaAdvanceReason, AgendaAdvanceStep} from '../parliament/ParliamentTypes';
+import {AgendaAdvanceReason, AgendaAdvanceStep, DelegateOwner, DelegatePlace} from '../parliament/ParliamentTypes';
 
 /**
  * WHY a card-resource amount is what it is, when a RULE counted it — «1 data
@@ -196,6 +196,12 @@ export type EventImpact = {
    * how many left the area for the common supply — and `total` after it.
    */
   popularSupport?: {party: PartyName; gained: number; total: number};
+  /**
+   * ONE DELEGATE taken off the table by a card (`delegate-removed`, Turmoil Redux TR72): the PLACE it left — a
+   * resolution of the voting area (`resolution` its catalog id) or a party's Popular Support area — whose cube it
+   * was, where it went (a seat's RESERVE / the common SUPPLY) and the place's count after it.
+   */
+  delegateRemoved?: {place: DelegatePlace; party: PartyName; resolution?: string; owner: DelegateOwner; returnsTo: 'reserve' | 'supply'; total: number};
   /**
    * A PARTY'S EFFECT changed hands for the event's seat (`party-effect-gained`
    * / `party-effect-lost`, Turmoil Redux — PL-112): the party and the ROAD the

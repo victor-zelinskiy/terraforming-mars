@@ -51,6 +51,7 @@ export const TURMOIL_REDUX_CLASSIC_REPLACEMENTS: ReadonlyArray<ClassicReplacemen
     changes: 'party Kelvinists → SCIENTISTS (not the Greens the general Kelvinists→Greens rule would give); cost 2 → 3; gains a Science tag; the −1 VP is gone. Same body: remove up to 2 plants from any player, +2 heat production.',
   },
   {
+    // TR72 — AUTHORED 2026-10-24 (`turmoilRedux/BannedDelegateRedux.ts`, `Banned Delegate:redux`).
     classic: CardName.BANNED_DELEGATE, kind: 'project', scan: 'Projects/Replacement - Banned Delegate.png',
     changes: 'still cost 0, event, «requires you to be Chairman»; the target is «any delegate from a resolution or Popular Support area» — no NON-LEADER clause, and the Popular Support areas are in reach.',
   },
