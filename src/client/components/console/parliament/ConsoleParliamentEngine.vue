@@ -28,15 +28,18 @@
          plate prints no sentence, so WHICH quest it shows is the attribute `data-parl-quest-text` (the printed text's
          English key — the probes' identity of the quest, language-free). -->
     <span class="con-parl__engine-kicker">{{ $t('Chairman quest') }}</span>
-    <!-- THE QUEST IS TAKEN (the owner, 2026-10-24) — the claimed milestone's seal: who completed it and «ВЫПОЛНЕНО ✓»
-         on the kicker's line, and over the condition the word that says it cannot be completed again this generation
-         (the server refuses a second completion until the next government's quest). The race stays as the score. -->
+    <!-- THE QUEST IS TAKEN (the owner, 2026-10-24) — the claimed milestone's seal as a STAMP over the condition, its
+         arrow and its reward (all receding — they cannot be had again): who completed it, «ВЫПОЛНЕНО ✓», and under it
+         «закрыто до следующего поколения» (the server refuses a second completion until the next government's quest).
+         It never touches the kicker's line (the 4K frame: a seal there cut «ЗАДАНИЕ ПРЕДСЕДАТЕЛЯ»). The race stays. -->
     <span v-if="questDoneBy !== undefined" class="con-parl__quest-seal" data-parl-quest-seal :data-parl-quest-seal-by="questDoneBy">
-      <i class="con-parl__quest-seal-dot" :class="'player_bg_color_' + questDoneBy" aria-hidden="true"></i>
-      <span class="con-parl__quest-seal-word">{{ $t('Completed') }}</span>
-      <i class="con-parl__quest-seal-tick" aria-hidden="true">✓</i>
+      <span class="con-parl__quest-seal-head">
+        <i class="con-parl__quest-seal-dot" :class="'player_bg_color_' + questDoneBy" aria-hidden="true"></i>
+        <span class="con-parl__quest-seal-word">{{ $t('Completed') }}</span>
+        <i class="con-parl__quest-seal-tick" aria-hidden="true">✓</i>
+      </span>
+      <span class="con-parl__quest-seal-note" data-parl-quest-closed-mark>{{ $t('Closed until the next generation') }}</span>
     </span>
-    <span v-if="questDoneBy !== undefined" class="con-parl__quest-closed" data-parl-quest-closed-mark>{{ $t('Closed') }}</span>
     <!-- THE CHAIR — the office's seat: the chairman's cube stands in it; empty, its silhouette alone. -->
     <span class="con-parl__chair"
           :class="{'con-parl__chair--seated': chairmanShown !== undefined, 'con-parl__chair--won': questShown?.completedBy !== undefined && questShown.completedBy === chairmanShown, 'con-parl__chair--pulse': flow.chairPulse}"

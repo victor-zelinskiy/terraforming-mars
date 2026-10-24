@@ -64,6 +64,10 @@ Flight variables (all 0 / 1 at rest — the proxy at the touchdown is pixel-iden
 `--pd-lift` (px the body stands above its base) · `--pd-tilt` (deg, the lean) · `--pd-grow` (toward the camera) ·
 `--pd-air` (0 → 1, the shadow pales and spreads) · `--pd-squash`.
 
+**A figure is a delegate that VOTES** (the owner, 2026-10-24): WHOSE row / number is marked by the player's DOT
+(`con-parl__seat-dot`, the neutral's steel dot) — the delegates ledger's row and the Career head «Ваше влияние» —
+never by a figure, so every figure on the ledger is one the player can still spend (lobby, reserve, supply).
+
 ## 4. A place is a FOOTPRINT (`.pd-footprint(@fig)`)
 
 The elliptical trace the disc stands in (0.68 × the figure's height wide, its top face 0.17 high). Empty = the trace;
