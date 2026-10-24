@@ -8,6 +8,7 @@
 
 import {execFileSync} from 'node:child_process';
 import {root, versionAtRef, remoteTagVersions, compareVersions, parseVersion} from './version.mjs';
+import {lintPushedRange} from './pushLint.mjs';
 
 const RELEASE_REF = 'refs/heads/main';
 const ZERO = /^0+$/;
@@ -91,6 +92,24 @@ for (const line of input.split('\n')) {
       'release.yml packs the committed version, and vpk refuses a version it has already shipped,',
       'so this push would turn into a red CI a few minutes from now.',
       'Run `npm run push` — it re-derives the version against the remote and amends the tip.',
+    ]);
+  }
+
+  await refuseLintErrors(remoteSha, localSha);
+}
+
+/** The lint of what is being pushed — `scripts/pushLint.mjs` (the committed content, never the working tree). */
+async function refuseLintErrors(remoteSha, localSha) {
+  const base = remoteSha !== undefined && !ZERO.test(remoteSha) && haveCommit(remoteSha) ? remoteSha : undefined;
+  const problems = await lintPushedRange(base, localSha, remoteName);
+  if (problems.length > 0) {
+    const files = [...new Set(problems.map((p) => p.split(':')[0]))];
+    refuse([
+      `lint:server would fail on CI — ${problems.length} error(s) in the pushed commits:`,
+      ...problems.slice(0, 30),
+      ...(problems.length > 30 ? [`… ${problems.length - 30} more`] : []),
+      '',
+      `Fix them (most are autofixable: npx eslint --no-cache --fix ${files.join(' ')}), commit, push again.`,
     ]);
   }
 }

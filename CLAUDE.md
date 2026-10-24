@@ -121,7 +121,7 @@ Both `npm run test:server` and `npm run test:client` run through `scripts/run-te
 
 ### Pushing
 
-**Prefer `npm run push`; a bare `git push origin main` is allowed** (the owner, 2026-10-24). Two clones share `main`; the wrapper fetches, rebases, re-derives the release version against the remote and retries — but it refuses while the shared tree holds ANY uncommitted work, and other sessions' work in progress routinely sits there. Then push bare: the `pre-push` guard still refuses a push that claims an already-released version or is not a fast-forward (a force push on `main` stays impossible). A bare push refused as BEHIND needs a rebase, which needs a clean tree — that case goes back to `npm run push` once the tree is clean (or to the owner). Never `--no-verify`, never `--force`. Rationale: `docs/SHARED_MAIN_WORKFLOW.md`.
+**Prefer `npm run push`; a bare `git push origin main` is allowed** (the owner, 2026-10-24). Two clones share `main`; the wrapper fetches, rebases, re-derives the release version against the remote and retries — but it refuses while the shared tree holds ANY uncommitted work, and other sessions' work in progress routinely sits there. Then push bare: the `pre-push` guard still refuses a push that claims an already-released version, is not a fast-forward (a force push on `main` stays impossible), or carries an ESLint error in its committed files (`scripts/pushLint.mjs` — CI's `lint:server`, caught before it goes red). A bare push refused as BEHIND needs a rebase, which needs a clean tree — that case goes back to `npm run push` once the tree is clean (or to the owner). Never `--no-verify`, never `--force`. Rationale: `docs/SHARED_MAIN_WORKFLOW.md`.
 
 ### Dev servers
 

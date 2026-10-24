@@ -79,7 +79,7 @@ It is applied at three points:
 | --- | --- | --- |
 | `.githooks/pre-commit` → `scripts/bump-version.mjs` | bumps every commit, keeping versions unique per commit within a clone | local refs only — a commit never waits on the network |
 | `scripts/sync-push.mjs` (`npm run push`) | **re-derives after the rebase**, when the commit's position is finally fixed, and amends the tip | `origin/main` + `git ls-remote --tags` |
-| `.githooks/pre-push` → `scripts/check-push.mjs` | refuses the push if the version is already claimed, or if it is not a fast-forward | the sha git is actually pushing to + remote tags |
+| `.githooks/pre-push` → `scripts/check-push.mjs` | refuses the push if the version is already claimed, if it is not a fast-forward, or if the pushed commits carry an ESLint ERROR (`scripts/pushLint.mjs` — the committed content of every changed `src/` / `tests/` file, never the working tree; ~10 s) | the sha git is actually pushing to + remote tags |
 
 The push step is what closes the hole; the guard is the backstop that keeps a manual
 `git push` safe and turns a red CI into an instant local refusal.
