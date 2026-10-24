@@ -5,7 +5,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentModel, ParliamentPhaseModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {
-  detectSittingTransition, heldSittingKey, resetParliamentSittingSeed, seedParliamentSittingHolds, sittingSeededLive,
+  detectSittingTransition, enterParliamentSittingHolds, heldSittingKey, resetParliamentSittingSeed, seedParliamentSittingHolds, sittingSeededLive,
 } from '@/client/console/parliament/parliamentSittingSeed';
 import {sittingBaselineOf} from '@/client/console/parliament/sittingBaseline';
 import {enactmentHeld, parliamentHolds, releaseEnactmentHolds, releaseRenewalHolds, renewalHeld} from '@/client/console/parliament/parliamentDisplayHolds';
@@ -235,5 +235,15 @@ describe('parliamentSittingSeed — the holds of one response, in the same block
     expect(enactmentHeld(), 'the old holds are gone').is.false;
     seedParliamentSittingHolds(view(model({step: 'adjourn', generation: 3, summary: summary({generation: 3, seq: 5})})), view(model(undefined)));
     expect(heldSittingKey(), 'the phase is over').eq('');
+  });
+
+  it('THE SOFT GATES — the new sitting is ENTERED first: holds another seeder sets for the same response survive the sitting seed', () => {
+    const first = view(model({step: 'effects', summary: summary({returned: [{owner: BLUE, count: 1}]})}));
+    expect(enterParliamentSittingHolds(first), 'the key of the response').eq('2:4');
+    // The reward ledger seeds the Career's held marker of this very response…
+    parliamentHolds.agendaGrantAwaits.set(BLUE, {player: BLUE, from: 1, to: 2});
+    // …and the sitting's own seed (same key) must not wipe it.
+    seedParliamentSittingHolds(view(model({step: 'assembly'})), first);
+    expect(parliamentHolds.agendaGrantAwaits.get(BLUE), 'the Career hold survives').deep.eq({player: BLUE, from: 1, to: 2});
   });
 });

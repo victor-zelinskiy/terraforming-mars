@@ -60,11 +60,14 @@ export function noteSittingRise(before: PlayerViewModel | undefined, after: Play
   sittingRiseState.owed = true;
   clearNet();
   if (typeof window !== 'undefined') {
-    net = window.setTimeout(() => {
-      net = undefined;
-      sittingRiseState.owed = false;
-    }, SITTING_RISE_NET_MS);
+    net = window.setTimeout(giveUpRise, SITTING_RISE_NET_MS);
   }
+}
+
+/** The net: a sitting that never stood gives the board back (honestly late — the tiles and scales play on it then). */
+function giveUpRise(): void {
+  net = undefined;
+  sittingRiseState.owed = false;
 }
 
 /** Does a sitting on its way up cover the board right now? */

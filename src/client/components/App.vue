@@ -350,7 +350,7 @@ import {shouldHoldForMarkerPlacement} from '@/client/components/board/markerPlac
 import {shouldHoldForOwnerCubePlacement} from '@/client/components/board/cubeDropState';
 import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
-import {seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
+import {enterParliamentSittingHolds, seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
 import {noteSittingRise} from '@/client/console/parliament/sittingRise';
 import {seedRevealRewardHold} from '@/client/console/revealHandoff';
 import {seedActionCommitRail} from '@/client/console/consoleActionCommitRail';
@@ -804,6 +804,8 @@ export default defineComponent({
             // viewer's own submit), or the panel flushes a phantom −N chip.
             // FIRST: a frame that RAN the sitting (another seat's pass) covers the board until the sitting stands.
             noteSittingRise(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+            // A NEW sitting drops the old holds BEFORE anything of this frame seeds its own (the reward ledger's included).
+            enterParliamentSittingHolds(model as PlayerViewModel);
             seedParliamentRewardHold(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and its display holds (v2): the other seat's answer moved the phase — the table as it stood is
             // kept until the director's beats have moved it (the same block as the apply, on THIS path too).

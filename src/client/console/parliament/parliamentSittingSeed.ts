@@ -212,16 +212,7 @@ export function seedParliamentSittingHolds(before: PlayerViewModel | undefined, 
   seedAllianceSeen(after);
   // A card's RATING answer to the change of power (TR63) is held on the rail for the enactment's tail.
   seedRulingChangeAnswers(before, after);
-  const key = sittingKey(phaseOf(after));
-  if (key !== heldSitting) {
-    // A NEW sitting drops the old holds. The PHASE'S END does not (v3 В1): this very block carries the
-    // sitting's data away, and the surface still stands — latched — for its leave; the section drops
-    // the holds when it unmounts after the phase.
-    if (key !== '') {
-      resetParliamentHolds();
-    }
-    heldSitting = key;
-  }
+  const key = enterParliamentSittingHolds(after);
   if (key === '' || consoleReducedMotionActive()) {
     return;
   }
@@ -245,6 +236,24 @@ export function seedParliamentSittingHolds(before: PlayerViewModel | undefined, 
   if (transition.refresh) {
     seedRenewalHolds(beforeView, afterModel, buildParliamentView(afterModel, viewer, after.players));
   }
+}
+
+/**
+ * A NEW sitting drops the old holds — called FIRST in the apply block (before the reward ledger seeds the holds of
+ * this very response: the soft gates bring the sitting's key and its records in ONE response, so a reset run after
+ * the ledger wiped the Career's held markers it had just set). The PHASE'S END does not (v3 В1): this very block
+ * carries the sitting's data away, and the surface still stands — latched — for its leave; the section drops the
+ * holds when it unmounts after the phase. Idempotent; returns the sitting's key ('' = none).
+ */
+export function enterParliamentSittingHolds(after: PlayerViewModel | undefined): string {
+  const key = sittingKey(phaseOf(after));
+  if (key !== heldSitting) {
+    if (key !== '') {
+      resetParliamentHolds();
+    }
+    heldSitting = key;
+  }
+  return key;
 }
 
 /** The sitting the holds belong to — a diagnostic (the readiness probe), and the test cleanup. */

@@ -25,6 +25,11 @@ const FILES = [
 /** The allowed timers, by file and by the reason written next to them. */
 const ALLOWED: ReadonlyArray<{file: string, marker: string, why: string}> = [
   {
+    file: path.join('src', 'client', 'console', 'parliament', 'sittingRise.ts'),
+    marker: 'SITTING_RISE_NET_MS',
+    why: 'the soft gates: a sitting on its way up that never stands gives the board back — a bound, not a beat',
+  },
+  {
     file: path.join('src', 'client', 'components', 'console', 'ConsoleParliamentSection.vue'),
     marker: 'SUBMIT_SAFETY_MS',
     why: 'the submit safety net — a bound over a silent server, not a beat',
