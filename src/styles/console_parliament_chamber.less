@@ -698,13 +698,16 @@
     &__engine--done .con-parl__engine-cond { opacity: .42; }
     &__engine--done .con-parl__engine-arrow { opacity: .55; }
     /* THE THRONE — the chair medallion over the holder's NAME (one column of the formula). */
-    &__throne { grid-area: chair; display: flex; flex-direction: column; align-items: center; gap: .22rem; min-width: 0; }
+    /* The throne's box IS the medallion: the holder's name hangs UNDER it, out of the row's flow, so the chair stands on
+       the formula's own centre line whether the office is held or not (an empty name's reserved line once lifted the
+       empty chair 22 px above the condition beside it at 4K). */
+    &__throne { grid-area: chair; position: relative; display: flex; flex-direction: column; align-items: center; min-width: 0; }
     /* THE CHAIR IS ONE MEMBER OF THE FORMULA, NOT ITS HERO (the owner, 2026-10-24: «кресло непропорционально большое»):
        the medallion stands at the condition's own height, the seated figure still well above the couch floor. */
     &__chair {
         position: relative;
-        width: 3.3rem;
-        height: 3.3rem;
+        width: 3rem;
+        height: 3rem;
         display: grid;
         place-items: center;
         border-radius: 50%;
@@ -734,11 +737,15 @@
         &--pulse { animation: con-parl-land-flash calc(900ms * var(--motion-scale, 1)) ease-out both; }
     }
     /* The throne stands BEHIND the seated figure — its crowned back rises over the figure's head. */
-    &__chair-glyph { position: absolute; top: .24rem; left: 50%; width: 2.2rem; height: 2.2rem; margin-left: -1.1rem; fill: @con-parl-gold; opacity: .92; }
-    /* The chairman's DELEGATE seated IN the chair — 36 logical px (`CHAIR_FIGURE`), its base a tenth of its height below
+    &__chair-glyph { position: absolute; top: .22rem; left: 50%; width: 2rem; height: 2rem; margin-left: -1rem; fill: @con-parl-gold; opacity: .92; }
+    /* The chairman's DELEGATE seated IN the chair — 34 logical px (`CHAIR_FIGURE`), its base a tenth of its height below
        the medallion's centre (the quest director's fallback rect is the same box). */
-    &__chair-cube { position: absolute; inset: 0; display: grid; place-items: center; padding-top: calc(var(--pd-host) * .2); --pd-host: 1.8rem; }
+    &__chair-cube { position: absolute; inset: 0; display: grid; place-items: center; padding-top: calc(var(--pd-host) * .2); --pd-host: 1.7rem; }
     &__chair-name {
+        position: absolute;
+        top: calc(100% + .22rem);
+        left: 50%;
+        transform: translateX(-50%);
         max-width: 5.6rem;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -1188,7 +1195,7 @@ html.con-profile-handheld .con-parl {
     --con-parl-palata-w: 27.5rem;
     --con-parl-opp-col: 10.6rem;
     --con-parl-career-h: 8.4rem;
-    --con-parl-quest-w: 13.4rem;
+    --con-parl-quest-w: 14rem;
     --con-parl-effects-h: 6.6rem;
     --con-parl-markers-h: 1rem;
     --con-parl-infband-h: 1.15rem;
@@ -1230,9 +1237,13 @@ html.con-profile-handheld .con-parl {
     &__step--influence .con-parl__step-level { font-size: .56rem; }
     &__step-res { &--tr { width: 1.7rem; height: 1.28rem; } &--card { width: 1.15rem; height: 1.62rem; } }
     &__step--next .con-parl__step-node::after { inset: -.16rem; }
-    &__chair { width: 2.7rem; height: 2.7rem; }
-    &__chair-glyph { top: .2rem; width: 1.8rem; height: 1.8rem; margin-left: -.9rem; }
-    &__chair-cube { --pd-host: 1.45rem; }
+    &__chair { width: 2.5rem; height: 2.5rem; }
+    /* The Deck's race stands on ONE line (two seats of four pips wrapped onto a second and rose under the holder's name). */
+    &__quest-progress { column-gap: .6rem; }
+    &__engine-pips { gap: .14rem; }
+    &__engine-pip { width: .5rem; height: .5rem; }
+    &__chair-glyph { top: .18rem; width: 1.65rem; height: 1.65rem; margin-left: -.825rem; }
+    &__chair-cube { --pd-host: 1.35rem; }
     &__engine-arrow { width: 1rem; height: .54rem; }
     &__agenda-dot { width: .66rem; height: .66rem; }
     &__step-cubes { gap: .16rem; }
@@ -1287,9 +1298,9 @@ html.con-profile-tv .con-parl {
     &__quest-row { font-size: .8rem; }
     &__engine-text { font-size: .8rem; max-width: 9.5rem; }
     &__engine-step { font-size: 1.1rem; }
-    &__chair { width: 3.5rem; height: 3.5rem; }
-    &__chair-glyph { top: .26rem; width: 2.35rem; height: 2.35rem; margin-left: -1.175rem; }
-    &__chair-cube { --pd-host: 1.9rem; }
+    &__chair { width: 3.2rem; height: 3.2rem; }
+    &__chair-glyph { top: .24rem; width: 2.15rem; height: 2.15rem; margin-left: -1.075rem; }
+    &__chair-cube { --pd-host: 1.75rem; }
     &__engine-arrow { width: 1.35rem; height: .72rem; }
     &__chair-name { font-size: .8rem; max-width: 6.4rem; }
     &__engine-step-dot { width: .8rem; height: .8rem; }
@@ -1337,7 +1348,9 @@ html:not(.con-profile-handheld) .con-parl--walk, html.con-profile-tv .con-parl--
     position: absolute;
     inset: 0;
     display: grid;
-    grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
+    /* The effects explorer is the larger half: its reading pane AND its tiles stand side by side, and a tile's head
+       («ЭФФЕКТ 1 · ТРИГГЕРЫ») and printed formula must read whole — at .82 / 1.18 a seat with a party action cut both. */
+    grid-template-columns: minmax(0, .62fr) minmax(0, 1.38fr);
     column-gap: 1.2rem;
     padding: .75rem 1.1rem 1rem;
     color: #e9eff7;

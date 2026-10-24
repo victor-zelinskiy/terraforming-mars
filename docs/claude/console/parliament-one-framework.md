@@ -107,6 +107,12 @@ Guard **П0** `tests/console/oneFrameworkGuard.spec.ts` (server runner): none of
 `components/console/parliament/`, the legacy files gone — fails with the list of offenders.
 
 ## Gotchas
+- **A passive printed as N sentences is captioned one per block by splitting the TRANSLATION, never the key**
+  (`politicalEffects.captionsFor` — a half of the English key has no translation: «ВАШИ ЭФФЕКТЫ» read «2 M€ per TR step
+  you gain.» at 4K). The guard `parliamentTextLocalization.spec` § N sentences keeps the RU sentence count equal.
+- **The step's explorer is a WORK COLUMN** (`ConsoleEffectsExplorer workColumn` → one tile per row, as the forecast
+  layer) and the explorer is the larger half (`.con-parl-fxhost` .62 / 1.38): two tiles abreast beside a party action cut
+  the tile's head to «ЭФФЕ…», clipped its formula's coin and crushed its caption to one letter per line.
 - **A rule-DSL description carries its kind prefix inside the key** («Action: Trade for free. …»): `actionRuleText`
   translates the key, and when the key has no translation it translates the BARE sentence (the prefix stripped) —
   Unity's action read in English on the composer. Guard: `tests/console/parliamentTextLocalization.spec.ts` walks

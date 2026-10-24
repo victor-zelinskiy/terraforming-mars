@@ -24,7 +24,7 @@
     The dossier answers the five questions — WHAT / WHY / UNDER WHAT CONDITION
     / TO WHOM / WHEN — from the server's fact; nothing is derived here.
   -->
-  <div ref="rootEl" class="con-efx" :class="{'con-efx--forecast': forecastMode}" role="region" :aria-label="$t('Effects')">
+  <div ref="rootEl" class="con-efx" :class="{'con-efx--forecast': forecastMode, 'con-efx--column': workColumn}" role="region" :aria-label="$t('Effects')">
     <div class="con-efx__stagewrap">
       <div ref="browseEl" class="con-efx__browse" :class="{'con-efx__browse--parked': detailUp}">
         <!-- The facet is BROWSE chrome — it parks with the layer at the
@@ -580,6 +580,12 @@ export default defineComponent({
      * cursor.
      */
     explorerUi: {type: Object as PropType<EffectsExplorerUi>, default: () => effectsExplorerUi},
+    /**
+     * The host stands the explorer in a WORK COLUMN (a share of the band beside another zone — the Parliament's
+     * «ВАШИ ЭФФЕКТЫ» beside its actions): its tiles run one per row, as the forecast layer's do. Two abreast cut the
+     * tile's caption to one letter per line at 4K (the owner's frame of 2026-10-24).
+     */
+    workColumn: {type: Boolean, default: false},
     /** Forecast mode: the server's forecast (rides inside the preview). */
     forecast: {type: Object as PropType<EffectForecast | undefined>, default: undefined},
     /** Forecast mode: every seat of the game — names, colours, live tableaux. */
@@ -620,7 +626,7 @@ export default defineComponent({
       // band, beside the dossier — so its tiles run ONE per row: the printed
       // canvas keeps its size and the caption + the meta chips keep their
       // reading measure (two abreast truncated both at 4K).
-      return consoleLayoutState.profile === 'handheld' || this.forecastMode ? 1 : 2;
+      return consoleLayoutState.profile === 'handheld' || this.forecastMode || this.workColumn ? 1 : 2;
     },
     model(): EffectsBrowseModel<ExplorerEntry> {
       return buildEffectsBrowseModel({

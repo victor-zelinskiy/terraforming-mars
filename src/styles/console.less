@@ -33635,6 +33635,13 @@ html.console-mode {
 
 /* ── The effects explorer in FORECAST MODE — additions only; the chassis
    (`.con-efx` tiles, dossier, stage, motion, fit) is untouched. ── */
+/* A WORK COLUMN (`workColumn` — the Parliament's «ВАШИ ЭФФЕКТЫ» beside its actions): one group per row and one tile
+   per row, each at the column's whole width — two abreast cut the tile's head and crushed its caption at 4K. */
+.con-efx--column {
+    .con-efx__list-body { grid-template-columns: 1fr; }
+    .con-efx__group--wide { grid-column: auto; }
+    .con-efx__slots--pair { grid-template-columns: 1fr; }
+}
 .con-efx--forecast {
     /* ONE tile per row (the model packs the rows the same way): the layer
        stands in half a band beside the dossier, and two abreast left the

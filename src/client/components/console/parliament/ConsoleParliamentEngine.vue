@@ -59,8 +59,9 @@
       <!-- A condition the DSL cannot draw keeps its words: an empty block would be a silent quest. -->
       <span v-else class="con-parl__engine-text">{{ $t(questShown.text) }}</span>
     </div>
-    <!-- THE STEP it pays: into the first stop of the track beside it. -->
-    <svg v-if="questShown !== undefined" class="con-parl__engine-arrow" viewBox="0 0 30 14" aria-hidden="true"><path d="M2 7h24M20 2l6 5-6 5" /></svg>
+    <!-- THE STEP it pays: into the first stop of the track beside it — led by the card face's OWN printed arrow (the
+         solid gold shaft-and-head of `.pcard-sym--arrow`, the «→» every formula on a face reads by), never a hairline. -->
+    <i v-if="questShown !== undefined" class="con-parl__engine-arrow" aria-hidden="true"></i>
     <span v-if="questShown !== undefined" class="con-parl__engine-step"
           :class="{'con-parl__engine-step--kept': viewerIsChairman && questDoneBy === undefined, 'con-parl__engine-step--taken': questDoneBy !== undefined}"
           data-parl-quest-reward aria-hidden="true">
@@ -95,7 +96,7 @@
   </div>
 </template>
 <script lang="ts">
-import {defineComponent, PropType} from 'vue';
+import {defineComponent, markRaw, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
@@ -112,6 +113,13 @@ import {ParliamentQuestVm, ParliamentViewVm} from '@/client/console/parliament/c
 /** A race of up to this many is drawn as pips; a longer one as digits. */
 const PIPS_MAX = 5;
 
+/**
+ * The smallest the condition's graphic may be solved to before it stops reading (a fraction of the plate's own
+ * formula scale). The widest printed condition («3 [heat production]») needs ~0.8 on the Deck; nothing in the catalog
+ * comes near this floor — it exists so a future wider goal reads small rather than vanishing.
+ */
+const ENGINE_FIT_FLOOR = 0.55;
+
 export default defineComponent({
   name: 'ConsoleParliamentEngine',
   components: {PlayerDelegate, PremiumChairGlyph, PremiumMechanicsPanel},
@@ -125,7 +133,12 @@ export default defineComponent({
     focused: {type: Boolean, default: false},
   },
   data() {
-    return {questPulse: false, PIPS_MAX};
+    return {
+      questPulse: false,
+      PIPS_MAX,
+      /** The observer that re-solves the condition's fit when the plate's room changes (raw — never reactive). */
+      fitObs: undefined as ResizeObserver | undefined,
+    };
   },
   computed: {
     /** The chair's medallion paints in the holder's cube palette (`--pt-*`); an empty chair keeps the gold. */
@@ -190,8 +203,15 @@ export default defineComponent({
     questCompletedBy(): Color | undefined {
       return this.view.quest?.completedBy;
     },
+    /** What the condition's graphic depends on — a new quest is a new drawing to fit. */
+    questFitKey(): string {
+      return `${this.questShown?.text ?? ''}|${this.questCount}`;
+    },
   },
   watch: {
+    questFitKey(): void {
+      void this.$nextTick(() => this.fitCondition());
+    },
     questCompletedBy(now: Color | undefined, was: Color | undefined): void {
       if (now !== undefined && was === undefined && parliamentFlow.stage !== 'sitting') {
         // A CSS one-shot (`con-parl-quest-pulse`): the flag is cleared by the animation's own end, never by a timer.
@@ -199,7 +219,55 @@ export default defineComponent({
       }
     },
   },
+  mounted() {
+    if (typeof ResizeObserver !== 'undefined' && this.$el instanceof HTMLElement) {
+      // The plate's box (its column token, the profile) and the fixed members beside the condition (the chair, the
+      // reward chip — a font swap re-measures them): the condition's fit is a function of their sizes, never of its own.
+      this.fitObs = markRaw(new ResizeObserver(() => this.fitCondition()));
+      this.fitObs.observe(this.$el);
+      this.$el.querySelectorAll<HTMLElement>('.con-parl__throne, [data-parl-quest-reward]').forEach((el) => this.fitObs?.observe(el));
+    }
+    this.fitCondition();
+  },
+  beforeUnmount() {
+    this.fitObs?.disconnect();
+    this.fitObs = undefined;
+  },
   methods: {
+    /**
+     * THE CONDITION FITS ITS PLATE — never under the chair (the owner, 2026-10-24: «задания с большим количеством
+     * графики задевают зону кресла»). The formula row is chair · condition · arrow · reward, packed in the middle; the
+     * condition's printed graphic rides the plate's formula scale (`--con-parl-engine-zoom`) times the fit solved here
+     * (`--con-parl-engine-fit`, ≤ 1): the room is the plate's content width minus the chair, the arrow, the reward
+     * and the row's five gaps — all sizes that do not depend on the fit — and the graphic is measured at fit 1 in the
+     * same synchronous block (no frame paints the probe). One coordinate space: every length is a rect, the padding
+     * and the gap scaled by the plate's own rect/layout ratio (an entry's transform scales both alike).
+     */
+    fitCondition(): void {
+      const root = this.$el;
+      if (!(root instanceof HTMLElement)) {
+        return;
+      }
+      const graphic = root.querySelector<HTMLElement>('.con-parl__engine-cond .con-parl__quest-graphic');
+      if (graphic === null || root.offsetWidth === 0) {
+        root.style.removeProperty('--con-parl-engine-fit');
+        return;
+      }
+      root.style.setProperty('--con-parl-engine-fit', '1');
+      const natural = graphic.getBoundingClientRect().width;
+      const rect = root.getBoundingClientRect();
+      const scale = rect.width / root.offsetWidth;
+      const cs = getComputedStyle(root);
+      const inner = (root.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0)) * scale;
+      const gap = (parseFloat(cs.columnGap) || 0) * scale;
+      const width = (sel: string) => root.querySelector<HTMLElement>(sel)?.getBoundingClientRect().width ?? 0;
+      const room = inner - width('.con-parl__throne') - width('.con-parl__engine-arrow') - width('[data-parl-quest-reward]') - 5 * gap;
+      if (natural <= 0 || natural <= room) {
+        return;
+      }
+      const fit = Math.max(ENGINE_FIT_FLOOR, Math.floor((room / natural) * 1000) / 1000);
+      root.style.setProperty('--con-parl-engine-fit', String(fit));
+    },
     /** The bot's row, on a quest its play cannot reach — the server's verdict on the quest, read for the bot seat alone. */
     rowUnreachable(row: {bot: boolean}): boolean {
       return row.bot && this.questShown?.botReachable === false;

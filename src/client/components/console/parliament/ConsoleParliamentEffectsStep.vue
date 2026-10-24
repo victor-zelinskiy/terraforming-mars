@@ -23,7 +23,7 @@
       </div>
     </section>
     <section class="con-parl-fxhost__effects" data-parl-effects-standing>
-      <ConsoleEffectsExplorer ref="explorer" :cards="noCards" :color="color" :politicalEntries="entries" :explorerUi="explorerUi" />
+      <ConsoleEffectsExplorer ref="explorer" :cards="noCards" :color="color" :politicalEntries="entries" :explorerUi="explorerUi" workColumn />
     </section>
   </div>
 </template>

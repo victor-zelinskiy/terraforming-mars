@@ -24,7 +24,7 @@ import {sourceKey} from '@/client/components/effects/effectSource';
 import {accessReasonRows} from '@/client/console/parliament/consoleParliamentModel';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {PoliticalSourceVm} from '@/client/console/parliament/politicalSources';
-import {translateTextWithParams} from '@/client/directives/i18n';
+import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 export type PoliticalEffectsContext = {
   parliament: ParliamentModel | undefined;
@@ -70,7 +70,7 @@ function entriesOf(
   const base = {source: source.source, isCorporation: false as const, isDisabled: false as const, party: source.party, title, access};
   if (nodes.length === 0) {
     // A standing effect with no printed effect() block — its sentence is the graphic (never a silent omission).
-    return passive === undefined ? [] : [{...base, key: `${key}#text`, effectIndex: 0, effectNode: undefined, renderRoot: undefined, text: passive, description: passive, signature: NO_EFFECT_SIGNATURE}];
+    return passive === undefined ? [] : [{...base, key: `${key}#text`, effectIndex: 0, effectNode: undefined, renderRoot: undefined, text: translateText(passive), description: translateText(passive), signature: NO_EFFECT_SIGNATURE}];
   }
   const captions = captionsFor(passive, nodes.length);
   return nodes.map((effectNode, i) => ({
@@ -89,19 +89,25 @@ function entriesOf(
  * The tile captions of an N-block passive: the printed sentence ONE PER BLOCK when it reads as exactly N sentences
  * (the Greens' «2 M€ per TR step… Raising your plant…», Mars First's steel and city card), else the whole sentence on
  * the first block and none beside it — never a guess at which half belongs to which block.
+ *
+ * The WHOLE sentence is the i18n key (English IS the key), so it is translated FIRST and the TRANSLATION is split: a
+ * half of the English sentence has no key of its own, and «ВАШИ ЭФФЕКТЫ» printed «2 M€ per TR step you gain.» on the TV
+ * (the owner's frame, 2026-10-24). A caption leaves here in the player's language — translating it again finds no key
+ * and returns it unchanged.
  */
 function captionsFor(passive: string | undefined, count: number): Array<string | undefined> {
   if (passive === undefined) {
     return new Array(count).fill(undefined);
   }
+  const whole = translateText(passive);
   if (count === 1) {
-    return [passive];
+    return [whole];
   }
-  const sentences = passive.split(/(?<=\.)\s+/).filter((s) => s.trim() !== '');
+  const sentences = whole.split(/(?<=\.)\s+/).filter((s) => s.trim() !== '');
   if (sentences.length === count) {
     return sentences;
   }
-  return [passive, ...new Array(count - 1).fill(undefined)];
+  return [whole, ...new Array(count - 1).fill(undefined)];
 }
 
 /** WHY the seat holds the party — the parliament's own access row for its road (glossary §5). */
