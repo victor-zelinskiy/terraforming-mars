@@ -13387,7 +13387,7 @@ export default defineComponent({
             outcomeClaimed: workspaceOutcomeClaimed(),
             nestedStep: workspaceFrameHasNested('card-actions'),
             lawStepOwed: this.lawStepOwed,
-            payoutOwed: railRewardPending(discardExchangeRailKey(consoleCardActionsUi.draft?.cardName ?? '')),
+            payoutOwed: consoleCardActionsUi.payoutAwaited || railRewardPending(discardExchangeRailKey(consoleCardActionsUi.draft?.cardName ?? '')),
             commitOwnsSurface: isSurfaceAwaitingHandoff() || this.commitFoldOwed || this.pendingCommitDismiss !== undefined,
           })) {
             leaveWorkspace();

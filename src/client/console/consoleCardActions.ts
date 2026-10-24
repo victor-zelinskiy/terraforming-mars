@@ -497,6 +497,14 @@ export const consoleCardActionsUi = reactive({
    * Written by the action composer while the step is open, cleared on its way out.
    */
   targetStage: false,
+  /**
+   * A party's DISCARD was submitted from this workspace and its payout is still on the wire (Turmoil Redux — the Reds):
+   * the transport took the prompt down at the submit, the answer that seeds the payout has not landed. The shell's
+   * voluntary leave respects it (`actionCentreLeave` — `payoutOwed`); the workspace clears it when the answer lands.
+   * `payoutAwaitedAge`: the game's age at the submit — the answer is the next one (module state: a park remounts).
+   */
+  payoutAwaited: false,
+  payoutAwaitedAge: -1,
 });
 
 /** The composer's half of the staged return — taken exactly once, and only by

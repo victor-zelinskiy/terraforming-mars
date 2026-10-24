@@ -402,6 +402,8 @@ import {ActionPreview, PoliticalActionPreview, StagedPlacementModel, StagedVoteM
 import type {ICardRenderEffect} from '@/common/cards/render/Types';
 import {actionPreviewFingerprint, actionPreviewMap, branchOutcomeClaimPlan, ensureActionPreviews, ledgerDraws, politicalActionPreviewOf, previewBranchByIndex} from '@/client/console/actionPreviewStore';
 import {actionCommitRailState, armedRailLandsOnRow} from '@/client/console/consoleActionCommitRail';
+import {railRewardPending} from '@/client/console/resourceTransfer/railReward';
+import {discardExchangeRailKey} from '@/client/console/parliament/discardExchangeBeat';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {paths} from '@/common/app/paths';
@@ -615,8 +617,6 @@ export default defineComponent({
       pendingAfterRail: undefined as number | undefined,
       /** What the hosted HAND step is (set at its rising edge — see the `handStepHosted` watcher). */
       handStepKind: undefined as 'discard' | 'live' | 'pick' | undefined,
-      /** A party's discard was answered and its hand let go — the payout and the conclusion wait for the ANSWER. */
-      discardAnswerOwed: false,
       /**
        * THE PREVIEW THE COMMITTED ACTION WAS COMPOSED AGAINST — latched at the
        * submit, keyed by the variant it belongs to, released when the stage
@@ -1481,13 +1481,21 @@ export default defineComponent({
           // law's live play leaves the same way (the card on the table; a step still owed holds it there). A PICK's
           // return is the stage's own next row — never an ending (it once folded the law's stage under its slot).
           if (kind === 'discard') {
-            // The hosted hand falls at the SUBMIT — the answer (and with it the payout the apply block seeds) is still
-            // on the wire. Flown now, the wave found nothing pending and the flow concluded: the payout was seeded a
-            // moment later with nobody left to fly it (the box's parliament-actions probe). The answer is awaited.
+            // The hosted hand falls at the SUBMIT: the transport takes the prompt DOWN then, and the answer — with the
+            // payout its apply block seeds — is still on the wire. Flown at the fall, the wave found nothing pending and
+            // the flow concluded; the payout was seeded a moment later with nobody left to fly it (the box's
+            // parliament-actions timeline: the hand popped at 11 ms, the whole stack at 54 ms). The ANSWER is the next
+            // view (the game's age moves), never the prompt's absence. A hand that falls while the discard still STANDS
+            // is a park — nothing was answered, nothing is paid.
             if (this.discardStanding) {
-              this.discardAnswerOwed = true;
-            } else {
+              return;
+            }
+            const key = discardExchangeRailKey(this.composer?.cardName ?? '');
+            if (railRewardPending(key)) {
               this.payDiscardAndConclude();
+            } else {
+              consoleCardActionsUi.payoutAwaitedAge = this.playerView.game.gameAge;
+              consoleCardActionsUi.payoutAwaited = true;
             }
           } else if (kind === 'live') {
             void this.$nextTick(() => this.concludeFlow());
@@ -1495,10 +1503,10 @@ export default defineComponent({
         }
       },
     },
-    /** The discard's ANSWER landed (the marker left the prompt): its payout — seeded in that very apply block — flies. */
-    discardStanding(standing: boolean): void {
-      if (!standing && this.discardAnswerOwed) {
-        this.discardAnswerOwed = false;
+    /** The discard's ANSWER landed (a new view): its payout — seeded in that very apply block — flies, then the flow leaves. */
+    'playerView.game.gameAge'(age: number): void {
+      if (consoleCardActionsUi.payoutAwaited && age !== consoleCardActionsUi.payoutAwaitedAge) {
+        consoleCardActionsUi.payoutAwaited = false;
         this.payDiscardAndConclude();
       }
     },
@@ -1746,6 +1754,11 @@ export default defineComponent({
         this.outcomeFlow = {kind: 'ledger'};
       }
     }
+    // A DISCARD ANSWER that landed while this workspace was parked: its payout flies now (the watcher was unmounted).
+    if (consoleCardActionsUi.payoutAwaited && this.playerView.game.gameAge !== consoleCardActionsUi.payoutAwaitedAge) {
+      consoleCardActionsUi.payoutAwaited = false;
+      void this.$nextTick(() => this.payDiscardAndConclude());
+    }
     // A HAND STEP hosted BEFORE this mount (a restore mid-discard): the
     // change-watcher cannot fire true→true, so the zone is republished here — and the step's kind is read, or its
     // answer would end nothing (the discard's payout and the conclusion ride the falling edge).
@@ -1801,6 +1814,8 @@ export default defineComponent({
     // drafts stay; the staged success drops them with the stack.)
     if (!this.repeat && !workspaceFrameKnown('card-actions') && !stackYieldedToBoard()) {
       consoleCardActionsUi.draft = undefined;
+      // …and a payout it awaited goes with it (a park keeps it: the remount pays the answer that landed meanwhile).
+      consoleCardActionsUi.payoutAwaited = false;
     }
     window.removeEventListener('resize', this.onViewportResize);
     if (typeof window.cancelAnimationFrame === 'function') {
