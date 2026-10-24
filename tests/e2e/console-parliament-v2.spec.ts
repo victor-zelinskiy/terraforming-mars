@@ -472,14 +472,30 @@ for (const preset of PRESETS) {
       expect(await parliament(page).getAttribute('data-zone'), '▲ from the quest: your effects').toBe('effects');
       await press(page, 'ArrowUp', 400);
       expect(await parliament(page).getAttribute('data-zone'), '▲ from the effects: the ruler').toBe('ruler');
-      // ── «ВАШИ ЭФФЕКТЫ», the inner step (Парламент v8 § 6): A on the block opens the full list on the chamber's rect —
-      //    the crumb names it, the cursor stands on an entry, B folds it back onto the block.
+      // ── «ВАШИ ЭФФЕКТЫ», the inner step (Парламент v8 § 6; a HOST since ONE FRAMEWORK С6): A on the block opens the
+      //    seat's actions as the «Действия карт» tiles and its standing effects as the effects explorer, on the chamber's
+      //    rect — the crumb names it, ONE cursor stands in the zone that owns it, B folds it back onto the block.
       await press(page, 'ArrowDown', 400);
       expect(await parliament(page).getAttribute('data-zone'), '▼ from the ruler: your effects').toBe('effects');
       expect(await pressUntil(page, 'Enter', async () => await page.locator('[data-parl-fxstep]').count() === 1, {tries: 3, settleMs: 700}), 'A opens the inner step').toBe(true);
       expect((await crumbText(page)).toUpperCase(), 'the crumb names the step').toContain('ВАШИ ЭФФЕКТЫ');
-      await expect(page.locator('[data-parl-effects-step] [data-parl-fx-entry]'), 'every source the block shows').not.toHaveCount(0);
-      await expect(page.locator('[data-parl-effects-step] .con-parl-fx__tile--focus'), 'the cursor stands on ONE entry').toHaveCount(1);
+      const step = page.locator('[data-parl-effects-step]');
+      const actionTiles = await step.locator('[data-parl-fx-entry]').count();
+      const effectTiles = await step.locator('[data-parl-effects-standing] [data-effect-key]').count();
+      expect(actionTiles + effectTiles, 'every source the block shows').toBeGreaterThan(0);
+      const zone = await step.getAttribute('data-parl-effects-zone');
+      expect(zone, 'the step opens on the actions when the seat holds any').toBe(actionTiles > 0 ? 'actions' : 'effects');
+      if (zone === 'actions') {
+        await expect(step.locator('.con-parl-fxhost__tile--focused'), 'the cursor stands on ONE action tile').toHaveCount(1);
+      }
+      if (actionTiles > 0 && effectTiles > 0) {
+        // → crosses into the explorer (its own cursor), ← at its first column comes back.
+        expect(await pressUntil(page, 'ArrowRight', async () => await step.getAttribute('data-parl-effects-zone') === 'effects', {tries: 2, settleMs: 500}),
+          '→ crosses into the effects explorer').toBe(true);
+        await expect(step.locator('.con-parl-fxhost__tile--focused'), 'one cursor on screen, never two').toHaveCount(0);
+        expect(await pressUntil(page, 'ArrowLeft', async () => await step.getAttribute('data-parl-effects-zone') === 'actions', {tries: 3, settleMs: 500}),
+          '← at the explorer\'s first column comes back').toBe(true);
+      }
       await settle(page, {timeoutMs: 8_000});
       await shoot(page, preset.id, '01b-effects-step');
       expect(await pressUntil(page, 'Escape', async () => await page.locator('[data-parl-fxstep]').count() === 0, {tries: 3, settleMs: 700}), 'B folds the step').toBe(true);

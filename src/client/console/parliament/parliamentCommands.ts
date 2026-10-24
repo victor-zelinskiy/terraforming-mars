@@ -74,10 +74,11 @@ export type ParliamentCommandsInput = {
   };
   /**
    * «ВАШИ ЭФФЕКТЫ» (Парламент v8 § 6): on the overview's block `count` sources stand (A opens the inner step when
-   * there is one); inside the step the entry under the cursor is an ACTION (`use` — whether it can be taken now) or a
-   * standing effect (`use` undefined: nothing to take, X reads its source).
+   * there is one). Inside the step (ONE FRAMEWORK С6 — a host): in the ACTIONS zone the tile under the cursor is an
+   * action (`use` — whether it can be taken now); in the EFFECTS zone the explorer owns the cursor (`detail` — its
+   * dossier layer stands).
    */
-  effects?: {count: number, use?: boolean};
+  effects?: {count: number, use?: boolean, zone?: 'actions' | 'effects', detail?: boolean};
   /** A read-only DOSSIER of the hall stands (the chairman quest's): B closes it, nothing else is offered. */
   dossier?: boolean;
 };
@@ -201,6 +202,12 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
   // THE INNER STEP «ВАШИ ЭФФЕКТЫ»: A takes the action under the cursor (the bench's own door), X reads its source, B is
   // one level back to the overview (the cursor on the block).
   case 'effects': {
+    // The EFFECTS zone is the explorer's: A opens an effect's dossier, LB/RB walk the dossiers, X reads the source.
+    if (input.effects?.zone === 'effects') {
+      return input.effects.detail === true ?
+        [{control: 'bumperL', control2: 'bumperR', label: 'Other effects', priority: 1}, {control: 'secondary', label: 'Inspect'}, {control: 'back', label: 'Back'}] :
+        [{control: 'confirm', label: 'Open'}, {control: 'secondary', label: 'Inspect'}, {control: 'back', label: 'Back'}];
+    }
     const use = input.effects?.use;
     const cmds: Array<ConsoleCommand> = [];
     if (use !== undefined) {

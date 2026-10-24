@@ -213,8 +213,6 @@ function freshFlow() {
     partyIndex: 0,
     /** The STOP under the cursor on the career edge (`agenda` zone, 1…12 — «Зал» v7: ◀ ▶ walk the stops). */
     agendaIndex: 1,
-    /** The entry under the cursor in the inner step «ВАШИ ЭФФЕКТЫ» (Парламент v8 § 6) — an entry's key, '' outside it. */
-    effectsCursor: '',
     /** The vote mode's entrance is playing — A is not a confirm yet. */
     voteEntering: false,
     /** The vote mode is folding back — its layer stays visible for the phrase. */

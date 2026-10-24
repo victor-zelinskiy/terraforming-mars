@@ -113,7 +113,8 @@
              the chamber and the table recede under it, the career stays; B folds it back onto the block. -->
         <transition name="con-parl-fxstep">
           <div v-if="flow.stage === 'effects'" class="con-parl__fxstep" data-parl-fxstep>
-            <ConsoleParliamentEffectsStep :model="effectsStepModel" :cursor="flow.effectsCursor" />
+            <ConsoleParliamentEffectsStep ref="effectsStep" :groups="effectsHostGroups" :entries="effectsHostEntries" :color="viewerColor ?? ''"
+                                          :zone="effectsHost.zone" :actionCursor="effectsHost.actionCursor" :explorerUi="effectsExplorerUi" />
           </div>
         </transition>
         <div class="con-parl__mid" data-parl-mid ref="midEl">
@@ -198,7 +199,7 @@ import {StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import {StagedReceipt} from '@/client/console/stagedPlay';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
-import {PartyActionId, ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {PartyActionId, partyActionOf, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ConsoleParliamentSeats from '@/client/components/console/parliament/ConsoleParliamentSeats.vue';
 import ConsoleParliamentGovernment from '@/client/components/console/parliament/ConsoleParliamentGovernment.vue';
@@ -212,7 +213,13 @@ import ConsoleParliamentEffectsStep from '@/client/components/console/parliament
 import ConsoleParliamentQuestDossier from '@/client/components/console/parliament/ConsoleParliamentQuestDossier.vue';
 import ConsoleParliamentCareerDossier from '@/client/components/console/parliament/ConsoleParliamentCareerDossier.vue';
 import {EffectItemsInput, parliamentEffectItems} from '@/client/console/parliament/parliamentEffectsModel';
-import {effectsStepCursorMove, EffectsStepEntry, EffectsStepModel, isEffectsAction, parliamentEffectsStep} from '@/client/console/parliament/parliamentEffectsStepModel';
+import {actionsZoneStep, closeParliamentEffectsHost, openParliamentEffectsHost, parliamentEffectsExplorerUi, parliamentEffectsHost} from '@/client/console/parliament/parliamentEffectsHost';
+import {buildConsoleActionsModel, ConsoleActionGroup} from '@/client/console/consoleCardActions';
+import {actionPreviewMap} from '@/client/console/actionPreviewStore';
+import {parliamentActionSources} from '@/client/console/parliament/parliamentActionSources';
+import {politicalEffectEntries} from '@/client/console/parliament/politicalEffects';
+import {PoliticalEffectEntry} from '@/client/components/effects/effectExtraction';
+import {politicalSources} from '@/client/console/parliament/politicalSources';
 import ConsoleParliamentSeatPick from '@/client/components/console/parliament/ConsoleParliamentSeatPick.vue';
 import ConsoleParliamentSitting from '@/client/components/console/parliament/ConsoleParliamentSitting.vue';
 import ConsoleParliamentSupportMode from '@/client/components/console/parliament/ConsoleParliamentSupportMode.vue';
@@ -278,7 +285,6 @@ import {
 import {ParliamentBeat} from '@/client/console/parliament/parliamentBeat';
 import {finishParliamentFlights, flyDelegate, flySeatDelegate, killParliamentFlights, parliamentFlightsAirborne, placeFigureRect, scheduleHurriedParliamentBeat, setParliamentFlightsHurried} from '@/client/console/parliament/parliamentFlights';
 import {rivalVotes, runRivalVotes, settleRivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
-import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {fitParliamentCards, freezeParliamentFit} from '@/client/console/parliament/parliamentCardFit';
 import {parliamentCommandsOf} from '@/client/console/parliament/parliamentCommands';
 import {ParliamentInspectRequest} from '@/client/console/parliament/parliamentInspect';
@@ -670,16 +676,41 @@ export default defineComponent({
     effectsCount(): number {
       return parliamentEffectItems(this.effectsInput).length;
     },
-    effectsStepModel(): EffectsStepModel {
-      return parliamentEffectsStep(this.effectsInput);
+    /** The step's module state (ONE FRAMEWORK С6) — the zone, the actions cursor; the explorer keeps its own. */
+    effectsHost(): typeof parliamentEffectsHost {
+      return parliamentEffectsHost;
     },
-    /** The step's entry under the cursor (undefined outside the step). */
-    effectsFocused(): EffectsStepEntry | undefined {
-      if (parliamentFlow.stage !== 'effects') {
+    effectsExplorerUi(): typeof parliamentEffectsExplorerUi {
+      return parliamentEffectsExplorerUi;
+    },
+    /**
+     * «ВАШИ ЭФФЕКТЫ» — the seat's Parliament ACTIONS as the «Действия карт» groups: the same sources and builder as the
+     * live workspace and Information's «Действия» (the server's verdicts on each tile), read-only here.
+     */
+    effectsHostGroups(): ReadonlyArray<ConsoleActionGroup> {
+      const sources = parliamentActionSources({
+        parliament: this.pv.game.parliament,
+        color: this.viewerColor,
+        viewerColor: this.viewerColor,
+        waitingFor: this.pv.waitingFor,
+      });
+      return buildConsoleActionsModel([], actionPreviewMap(), new Map(), {availability: 'all', activation: 'all'}, undefined, 2, sources).groups;
+    },
+    /** …and its STANDING EFFECTS as the explorer's political entries (the third host of the effects explorer). */
+    effectsHostEntries(): ReadonlyArray<PoliticalEffectEntry> {
+      const parliament = this.pv.game.parliament;
+      const names: Record<string, string> = {};
+      for (const p of this.pv.players) {
+        names[p.color] = p.name;
+      }
+      return politicalEffectEntries(politicalSources(parliament, this.viewerColor), {parliament, viewerColor: this.viewerColor, playerNames: names});
+    },
+    /** The action group under the step's cursor (undefined outside the actions zone). */
+    effectsFocusedGroup(): ConsoleActionGroup | undefined {
+      if (parliamentFlow.stage !== 'effects' || parliamentEffectsHost.zone !== 'actions') {
         return undefined;
       }
-      const key = parliamentFlow.effectsCursor;
-      return [...this.effectsStepModel.actions, ...this.effectsStepModel.standing].find((e) => e.key === key);
+      return this.effectsHostGroups[parliamentEffectsHost.actionCursor];
     },
     focusedParty(): ParliamentPartyVm | undefined {
       return parliamentFlow.zone === 'ruler' ?
@@ -955,7 +986,9 @@ export default defineComponent({
         dossier: this.questDossierOpen || this.careerDossierOpen,
         effects: {
           count: this.effectsCount,
-          use: isEffectsAction(this.effectsFocused) ? this.effectsFocused.state === 'ready' : undefined,
+          use: this.effectsFocusedGroup === undefined ? undefined : this.effectsFocusedGroup.status === 'available',
+          zone: parliamentFlow.stage === 'effects' ? parliamentEffectsHost.zone : undefined,
+          detail: parliamentEffectsExplorerUi.detail !== undefined,
         },
         support: this.bridge.supportPick === undefined && !this.supportUp ? undefined : {
           staged: this.bridge.supportPick?.staged === true && !parliamentFlow.supportCommitted,
@@ -2122,61 +2155,87 @@ export default defineComponent({
      */
     // ── «ВАШИ ЭФФЕКТЫ», the inner step (Парламент v8 § 6) ──────────────
     openEffectsStep(): void {
-      const model = this.effectsStepModel;
-      const first = model.actions[0] ?? model.standing[0];
-      if (first === undefined) {
-        return;
+      if (openParliamentEffectsHost(this.effectsHostGroups.length, this.effectsHostEntries.length)) {
+        parliamentFlow.stage = 'effects';
       }
-      parliamentFlow.effectsCursor = first.key;
-      parliamentFlow.stage = 'effects';
     },
     closeEffectsStep(): void {
+      closeParliamentEffectsHost();
       parliamentFlow.stage = 'browse';
       parliamentFlow.zone = 'effects';
-      parliamentFlow.effectsCursor = '';
     },
-    /** The DOM tile of a step entry — the descent's origin and the inspector's lift. */
+    /** The DOM tile of an action group of the step — the descent's origin and the inspector's lift. */
     effectsTileOf(key: string): HTMLElement | undefined {
       const root = this.$refs.rootEl as HTMLElement | undefined;
       return root?.querySelector<HTMLElement>('[data-parl-fx-entry="' + key + '"]') ?? undefined;
     },
+    /**
+     * «ВАШИ ЭФФЕКТЫ» (ONE FRAMEWORK С6): the ACTIONS zone is the section's own (↑↓ walk the tiles, → crosses into the
+     * explorer, A is the bench's door, X inspects the source); the EFFECTS zone is the explorer's — every intent goes to
+     * it, and ← at its first column (the cursor did not move) comes back to the actions. B folds the explorer's detail
+     * first, then the step.
+     */
     handleEffectsIntent(intent: GamepadIntent): void {
-      if (intent.kind === 'nav') {
-        const columns = consoleLayoutState.profile === 'handheld' || this.effectsStepModel.standing.length <= 1 ? 1 : 2;
-        parliamentFlow.effectsCursor = effectsStepCursorMove(this.effectsStepModel, parliamentFlow.effectsCursor, intent.dir, columns);
+      const host = parliamentEffectsHost;
+      const groups = this.effectsHostGroups;
+      const entries = this.effectsHostEntries;
+      if (host.zone === 'effects') {
+        const explorer = (this.$refs.effectsStep as InstanceType<typeof ConsoleParliamentEffectsStep> | undefined)?.explorer();
+        if (consoleActionOf(intent) === 'back') {
+          if (explorer?.consumeEffectsBack() !== true) {
+            this.closeEffectsStep();
+          }
+          return;
+        }
+        const before = parliamentEffectsExplorerUi.focusKey;
+        explorer?.handleIntent(intent);
+        if (intent.kind === 'nav' && intent.dir === 'left' && groups.length > 0 && parliamentEffectsExplorerUi.detail === undefined &&
+            parliamentEffectsExplorerUi.focusKey === before) {
+          host.zone = 'actions';
+        }
         return;
       }
-      const entry = this.effectsFocused;
+      if (intent.kind === 'nav') {
+        const next = actionsZoneStep(host.actionCursor, groups.length, entries.length, intent.dir);
+        host.zone = next.zone;
+        host.actionCursor = next.cursor;
+        return;
+      }
+      const group = this.effectsFocusedGroup;
       switch (consoleActionOf(intent)) {
       case 'back':
         this.closeEffectsStep();
         return;
       case 'primary': {
-        if (!isEffectsAction(entry)) {
+        if (group === undefined) {
           return;
         }
-        if (entry.kind === 'law') {
+        if (group.resolutionAction !== undefined) {
           this.openResolutionAction();
           return;
         }
-        const index = this.view.parties.findIndex((p) => p.party === entry.party);
+        const party = group.party;
+        const index = this.view.parties.findIndex((p) => p.party === party);
         const state = this.partyActionStates[index];
-        if (entry.actionId === undefined || state === undefined) {
+        const actionId = party === undefined ? undefined : partyActionOf(party);
+        if (party === undefined || actionId === undefined || state === undefined) {
           return;
         }
-        this.openAction(entry.party, entry.actionId, state, this.effectsTileOf(entry.key));
+        this.openAction(party, actionId, state, this.effectsTileOf(group.key));
         return;
       }
       case 'inspect': {
-        if (entry === undefined) {
+        if (group === undefined) {
           return;
         }
-        const origin = () => this.effectsTileOf(entry.key)?.querySelector<HTMLElement>('.con-parl-fx__seal') ?? null;
-        const law = entry.kind === 'law' ? this.effectsInput.enacted : undefined;
-        const request: ParliamentInspectRequest = law !== undefined ?
-          {kind: 'resolution', ids: [law.resolutionId], index: 0, origin} :
-          {kind: 'party', party: entry.party, origin};
-        this.$emit('inspect', request);
+        const origin = () => this.effectsTileOf(group.key)?.querySelector<HTMLElement>('.con-cardactions__plate-seal, img') ?? null;
+        const law = group.resolutionAction !== undefined ? this.effectsInput.enacted : undefined;
+        const party = group.party ?? group.resolutionParty;
+        if (law !== undefined) {
+          this.$emit('inspect', {kind: 'resolution', ids: [law.resolutionId], index: 0, origin} as ParliamentInspectRequest);
+        } else if (party !== undefined) {
+          this.$emit('inspect', {kind: 'party', party, origin} as ParliamentInspectRequest);
+        }
         return;
       }
       default:

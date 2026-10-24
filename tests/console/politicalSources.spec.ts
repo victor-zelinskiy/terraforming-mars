@@ -38,6 +38,21 @@ function table(opts: {held?: Partial<Record<ReduxParty, Partial<PartyAccessModel
  * «Действия карт», the galleries and the scene's summary read `politicalSources`, in decision Р1's order.
  */
 describe('politicalSources — the one answer', () => {
+  it('the ALLIANCE road (TR62): the held party names its partner, and the action plate carries it (the inner step reads the plate)', () => {
+    const model = table({
+      held: {
+        [PartyName.MARS]: {ruling: true, hasEffect: true, alliances: [{partner: PartyName.REDS, source: 'Tharsis Alliance' as never}]},
+        [PartyName.REDS]: {hasEffect: true, allied: [{via: PartyName.MARS, source: 'Tharsis Alliance' as never, road: 'ruling'}], alliances: [{partner: PartyName.MARS, source: 'Tharsis Alliance' as never}]},
+      },
+    });
+    const reds = politicalSources(model, 'red').find((s) => s.party === PartyName.REDS);
+    expect(reds?.road).eq('alliance');
+    expect(reds?.allyVia).eq(PartyName.MARS);
+    const action = parliamentActionSources({parliament: model, color: 'red', viewerColor: 'red', waitingFor: undefined})
+      .find((s) => !isResolutionActionSource(s) && s.party === PartyName.REDS);
+    expect(action !== undefined && !isResolutionActionSource(action) ? action.allyVia : undefined, 'the plate names the road').eq(PartyName.MARS);
+  });
+
   it('the law first, then the RULING party, then the rest in the board\'s order; a party not held is absent', () => {
     const model = table({
       enacted: FORESTRY_SUPPORT,

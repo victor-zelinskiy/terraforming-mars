@@ -15,7 +15,6 @@ import {
   ParliamentPartyVm, ParliamentSlotVm, ParliamentViewVm, PartyActionStateVm, partyStateOf, voteAccessOf, voteForecastOf,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {parliamentEffectItems} from '@/client/console/parliament/parliamentEffectsModel';
-import {parliamentEffectsStep} from '@/client/console/parliament/parliamentEffectsStepModel';
 import {resolutionStatusOf} from '@/client/console/parliament/resolutionInspectModel';
 import {panelFactsOf, voteFactsOf} from '@/client/console/parliament/voteInfoModel';
 import {getPartyEffect} from '@/client/parliament/ClientParliamentManifest';
@@ -161,16 +160,14 @@ describe('«ВАШИ ЭФФЕКТЫ» — a party held by the alliance is a tile
   }
   const states = (): Array<PartyActionStateVm> => REDUX_PARTIES.map(() => ({kind: 'none'}) as PartyActionStateVm);
 
-  it('the model: the Reds\' tile reads `alliance` with Mars First as `via`; the inner step names the partner and the card', () => {
+  it('the model: the Reds\' tile reads `alliance` with Mars First as `via`', () => {
     // The Reds are ACTION-ONLY: an allied Reds is held as its action (the empty passive is no standing effect).
     const reds = REDUX_PARTIES.map((p) => ({kind: p === R ? 'available' : 'none'}) as PartyActionStateVm);
     const input = {view: view([marsRuling(), redsAllied()]), ruler: M, enacted: undefined, partyActionStates: reds, resolutionActionState: undefined};
     const items = parliamentEffectItems(input);
     expect(items.map((i) => [i.party, i.why, i.via])).to.deep.eq([[M, 'ruling', undefined], [R, 'alliance', M]]);
-    const step = parliamentEffectsStep(input);
-    expect(step.standing.map((e) => e.party), 'the Reds print no passive').to.not.include(R);
-    const redsEntry = step.actions.find((e) => e.party === R)!;
-    expect(redsEntry.whyReading).to.deep.eq({key: 'by the alliance: ${0} · «${1}»', params: ['party name: Mars First', ID]});
+    // ONE FRAMEWORK С6: the inner step's tiles are the «Действия карт» groups — the alliance road rides the plate's
+    // `allyVia` (politicalSources.spec § the alliance road).
   });
 
   it('the tile draws the partner\'s emblem and the link in the WHY slot', () => {

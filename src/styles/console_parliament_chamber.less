@@ -1209,107 +1209,49 @@ html:not(.con-profile-handheld) .con-parl--walk, html.con-profile-tv .con-parl--
     &__chamber--step > &__palata, &__chamber--step > &__mid { opacity: 0; pointer-events: none; transition: opacity calc(200ms * var(--motion-scale, 1)) ease-out; }
     &__fxstep { position: absolute; inset: 0; z-index: 4; }
 }
-.con-parl-fx {
+/* ONE FRAMEWORK С6 — the step is a HOST: the seat's Parliament ACTIONS as the «Действия карт» tiles (the tile's own
+   anatomy — `.con-act-slot-tokens()`, the hosts' one set), its STANDING EFFECTS as the effects explorer (its own
+   chassis). No tile language of the step's own. While the cursor is in the actions zone the explorer's cursor pose is
+   GATED (`--con-cursor-gate: 0` — the cursor grammar's own gate: one cursor on screen, never two). */
+.con-parl-fxhost {
     .con-parl-v8-plate();
+    .con-act-slot-tokens();
     position: absolute;
     inset: 0;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    column-gap: 1.4rem;
+    grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
+    column-gap: 1.2rem;
     padding: .75rem 1.1rem 1rem;
     color: #e9eff7;
-    &__col { display: flex; flex-direction: column; gap: .55rem; min-width: 0; min-height: 0; }
-    /* The seam between the columns rides the ACTIONS column's edge (it moves with the proportions below). */
-    &__col--actions { padding-right: .7rem; margin-right: -.7rem; box-shadow: inset -.05rem 0 0 rgba(150, 180, 210, 0.16); }
-    /* NO ACTION of the viewer's: the column is a narrow strip with its one quiet line in the middle — the standing
-       effects take the step (half a plate of «нет» read as an empty screen). */
     &--no-actions { grid-template-columns: minmax(12rem, .42fr) minmax(0, 1.58fr); }
-    &--no-actions &__list { flex: 1 1 auto; justify-content: center; }
-    &--no-actions &__empty { text-align: center; padding: 0 .6rem; }
-    /* FEW SOURCES (≤ 2): the tiles stand in the middle of their column at the scene's scale — never one small tile
-       pinned to the top-left of an empty plate. */
-    &--sparse &__grid { flex: 1 1 auto; align-content: center; justify-items: center; }
-    &--sparse &__grid > .con-parl-fx__tile { width: min(100%, 36rem); }
-    &--sparse &__list { flex: 1 1 auto; justify-content: center; }
-    &--sparse &__graphic { --con-pformula-zoom: calc(1.7 * var(--con-ui-scale, 1)); padding: .6rem 0; }
-    &--sparse &__tile { gap: .7rem; padding: .9rem 1.1rem .8rem; }
-    &--sparse &__seal { width: 2.4rem; height: 2.4rem; }
-    &--sparse &__name { font-size: .95rem; }
-    &--sparse &__rule { font-size: .78rem; }
-    &__head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0 .1rem; flex-shrink: 0; }
-    &__kicker {
-        .con-parl-v8-kicker();
-        display: inline-flex; align-items: center; gap: .35rem;
-        &--action { color: @con-amber; }
-        &--effect { color: @con-parl-mint; }
+    &__actions {
+        display: flex; flex-direction: column; gap: .55rem; min-width: 0; min-height: 0;
+        padding-right: .7rem; margin-right: -.7rem; box-shadow: inset -.05rem 0 0 rgba(150, 180, 210, 0.16);
     }
-    &__glyph { width: .8rem; height: .8rem; fill: currentColor; &--inf { width: 1rem; height: .5rem; fill: none; stroke: currentColor; stroke-width: 1.6; } }
-    &__sum { font-size: .58rem; letter-spacing: .14em; text-transform: uppercase; color: rgba(205, 218, 232, 0.66); white-space: nowrap; }
-    &__list { display: flex; flex-direction: column; gap: .55rem; min-height: 0; }
-    &__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: min-content; gap: .55rem; min-height: 0; &--one { grid-template-columns: minmax(0, 1fr); } }
-    /* ONE TILE PER SOURCE — the accent crest, the seal with the name and WHY it is yours, the printed graphic, the rule
-       in words, its cadence and state. The cursor on the ONE grammar (`.con-cursor-glow()` — a still tile, no lift). */
+    &__effects { position: relative; display: flex; min-width: 0; min-height: 0; }
+    &__effects > .con-efx { flex: 1; min-width: 0; min-height: 0; }
+    &--zone-actions &__effects { --con-cursor-gate: 0; }
+    &__head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0 .1rem; flex-shrink: 0; }
+    &__kicker { .con-parl-v8-kicker(); display: inline-flex; align-items: center; gap: .35rem; color: @con-amber; font-size: .8rem; }
+    &__glyph { width: .8rem; height: .8rem; fill: currentColor; }
+    &__sum { font-size: .8rem; letter-spacing: .08em; color: rgba(205, 218, 232, 0.66); white-space: nowrap; }
+    &__list { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; gap: .8rem; min-height: 0; }
     &__tile {
         position: relative;
-        display: flex;
-        flex-direction: column;
-        gap: .45rem;
         min-width: 0;
-        padding: .6rem .8rem .55rem;
-        border-radius: .7rem;
-        background: linear-gradient(180deg, rgba(12, 20, 31, 0.94), rgba(8, 13, 21, 0.94));
-        .con-cursor-glow();
-        box-shadow:
-            inset 0 .12rem 0 var(--parl-accent, @con-parl-mint),
-            inset 0 0 0 .05rem rgba(150, 180, 210, calc(.18 * (1 - var(--con-cursor-on)))),
-            inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), var(--con-cursor-on)),
-            0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), calc(.25 * var(--con-cursor-on)));
-        &--focus { .con-cursor-on(); }
-        &--used .con-parl-fx__graphic, &--locked .con-parl-fx__graphic { opacity: .72; }
+        border-radius: .6rem;
+        .con-cursor(0 0 0 var(--con-focus-ring, .14rem) fade(@con-cyan, 85%), 0 .4rem 1.4rem rgba(0, 0, 0, 0.45); @radius: .6rem);
     }
-    &__tilehead { display: flex; align-items: center; gap: .6rem; min-width: 0; }
-    &__seal { width: 1.9rem; height: 1.9rem; flex-shrink: 0; object-fit: contain; }
-    &__title { display: flex; flex-direction: column; gap: .12rem; min-width: 0; }
-    &__name { font-size: .78rem; letter-spacing: .06em; text-transform: uppercase; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    &__why { font-family: @con-font-read; font-size: .6rem; color: rgba(205, 218, 232, 0.66); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    &__graphic {
-        display: flex; justify-content: center; min-width: 0; padding: .3rem 0;
-        --con-pformula-zoom: calc(1.25 * var(--con-ui-scale, 1));
-        .con-pformula { background: none; box-shadow: none; padding: 0; }
-    }
-    &__law { .con-parl-mech-vars(); zoom: calc(1.1 * var(--con-ui-scale, 1)); padding: 2px 4px; background: none; border: none; box-shadow: none; }
-    &__rule { margin: 0; font-family: @con-font-read; font-size: .68rem; line-height: 1.35; color: rgba(233, 239, 247, 0.9); }
-    &__foot { display: flex; align-items: center; justify-content: space-between; gap: .8rem; margin-top: auto; }
-    &__cadence { font-size: .52rem; letter-spacing: .16em; text-transform: uppercase; color: @con-amber; &--effect { color: @con-parl-mint; } }
-    &__state {
-        font-size: .54rem; letter-spacing: .14em; text-transform: uppercase; padding: .12rem .45rem; border-radius: .28rem; white-space: nowrap;
-        &--ready { color: @con-amber; background: fade(@con-amber, 12%); box-shadow: inset 0 0 0 .05rem fade(@con-amber, 55%); }
-        &--used { color: @con-parl-mint; background: fade(@con-parl-mint, 8%); }
-        &--locked { color: rgba(200, 212, 228, 0.62); background: rgba(255, 255, 255, 0.05); }
-    }
-    &__empty { margin: 0; font-family: @con-font-read; font-size: .66rem; color: rgba(205, 218, 232, 0.6); }
+    &__tile--focused { .con-cursor-on(); }
+    &__empty { margin: 0; text-align: center; padding: 0 .6rem; font-family: @con-font-read; font-size: .85rem; color: rgba(205, 218, 232, 0.6); }
 }
-html.con-profile-handheld .con-parl-fx {
-    &--sparse .con-parl-fx__graphic { --con-pformula-zoom: calc(1 * var(--con-ui-scale, 1)); }
-    &--no-actions { grid-template-columns: minmax(9rem, .5fr) minmax(0, 1.5fr); }
+html.con-profile-handheld .con-parl-fxhost {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     column-gap: .9rem;
     padding: .5rem .7rem .7rem;
-    &__grid { grid-template-columns: minmax(0, 1fr); }
-    &__graphic { --con-pformula-zoom: calc(0.62 * var(--con-ui-scale, 1)); }
-    &__rule { font-size: .6rem; }
+    &--no-actions { grid-template-columns: minmax(9rem, .5fr) minmax(0, 1.5fr); }
 }
-html.con-profile-tv .con-parl-fx {
-    &--sparse .con-parl-fx__name { font-size: 1.1rem; }
-    &--sparse .con-parl-fx__rule { font-size: .95rem; }
-    &__kicker { font-size: .8rem; }
-    &__sum { font-size: .8rem; letter-spacing: .08em; }
-    &__name { font-size: .9rem; }
-    &__why { font-size: .8rem; }
-    &__rule { font-size: .85rem; }
-    &__cadence { font-size: .8rem; letter-spacing: .08em; }
-    &__state { font-size: .8rem; letter-spacing: .08em; }
-    &__empty { font-size: .85rem; }
-}
+html.con-profile-tv .con-parl-fxhost { .con-act-slot-tokens-tv(); }
 /* The step UNFOLDS out of the block it was opened from (its lower left, where «ВАШИ ЭФФЕКТЫ» stands) while the chamber
    and the table recede in place; it folds back the same way. Transform + opacity only, on the motion clock. */
 .con-parl__fxstep { transform-origin: 18% 92%; }
