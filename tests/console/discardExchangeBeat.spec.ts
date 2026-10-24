@@ -12,9 +12,9 @@ import {composesInCardComposer} from '@/client/console/consoleCardActions';
 describe('discardExchangeBeat', () => {
   const REDS = {icon: 'megacredits', amount: 2, perTag: [Tag.PLANT, Tag.MICROBE, Tag.ANIMAL]};
   const tags: Partial<Record<string, ReadonlyArray<Tag>>> = {
-    Trees: [Tag.PLANT],
-    Tardigrades: [Tag.MICROBE],
-    Livestock: [Tag.ANIMAL],
+    'Trees': [Tag.PLANT],
+    'Tardigrades': [Tag.MICROBE],
+    'Livestock': [Tag.ANIMAL],
     'Space Elevator': [Tag.SPACE, Tag.BUILDING],
     'Ecology Experts': [Tag.PLANT, Tag.MICROBE],
   };
