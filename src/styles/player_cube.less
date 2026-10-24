@@ -40,8 +40,9 @@
 	width: var(--pc-size);
 	height: var(--pc-size);
 	vertical-align: middle;
-	// colour vars (--pc-top / --pc-left / --pc-right / --pc-edge-hi / --pc-glow
-	// / --pc-symbol) are injected inline by PlayerCube.vue.
+	// colour vars (`--pt-*`) are injected inline by PlayerCube.vue from the ONE
+	// player-token palette (`playerToken/playerTokenPalette.ts`) — the delegate
+	// figure reads the very same set.
 
 	// defs-only SVG (gradients) — zero-size, never lays out, lifted out of the
 	// 3D scene so it doesn't get a phantom 3D position.
@@ -65,7 +66,7 @@
 		inset: -7%;
 		transform: translateY(-20%);
 		border-radius: 50%;
-		background: radial-gradient(closest-side, var(--pc-glow), transparent 72%);
+		background: radial-gradient(closest-side, var(--pt-glow), transparent 72%);
 		opacity: 0.28;
 		filter: blur(calc(var(--pc-size) * 0.09));
 		z-index: 0;
@@ -153,19 +154,19 @@
 	}
 
 	&__face--top {
-		--pc-face: var(--pc-top);
+		--pc-face: var(--pt-top);
 		-webkit-transform: rotateX(90deg) translateZ(var(--pc-half));
 		transform: rotateX(90deg) translateZ(var(--pc-half));
 	}
 
 	&__face--left {
-		--pc-face: var(--pc-left);
+		--pc-face: var(--pt-left);
 		-webkit-transform: translateZ(var(--pc-half));
 		transform: translateZ(var(--pc-half));
 	}
 
 	&__face--right {
-		--pc-face: var(--pc-right);
+		--pc-face: var(--pt-right);
 		-webkit-transform: rotateY(90deg) translateZ(var(--pc-half));
 		transform: rotateY(90deg) translateZ(var(--pc-half));
 	}
@@ -174,17 +175,17 @@
 	// Culled by `backface-visibility` at rest; they come round only while the
 	// cube TUMBLES, so the tumble never shows the void through the shell.
 	&__face--far {
-		--pc-face: var(--pc-far);
+		--pc-face: var(--pt-far);
 		-webkit-transform: rotateY(-90deg) translateZ(var(--pc-half));
 		transform: rotateY(-90deg) translateZ(var(--pc-half));
 	}
 	&__face--back {
-		--pc-face: var(--pc-back);
+		--pc-face: var(--pt-back);
 		-webkit-transform: rotateY(180deg) translateZ(var(--pc-half));
 		transform: rotateY(180deg) translateZ(var(--pc-half));
 	}
 	&__face--bottom {
-		--pc-face: var(--pc-bottom);
+		--pc-face: var(--pt-bottom);
 		-webkit-transform: rotateX(-90deg) translateZ(var(--pc-half));
 		transform: rotateX(-90deg) translateZ(var(--pc-half));
 	}
@@ -226,7 +227,7 @@
 	// becoming a contour.
 	&__bevel {
 		fill: none;
-		stroke: var(--pc-edge-hi);
+		stroke: var(--pt-edge-hi);
 		stroke-width: 1.8;
 		opacity: 0.68;
 		stroke-linecap: round;
@@ -254,7 +255,7 @@
 		font-size: calc(var(--pc-size) * 0.5);
 		font-weight: 700;
 		line-height: 1;
-		color: var(--pc-symbol, #fff);
+		color: var(--pt-symbol, #fff);
 		text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.55);
 		z-index: 3;
 		pointer-events: none;

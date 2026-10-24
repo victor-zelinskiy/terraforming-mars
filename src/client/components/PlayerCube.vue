@@ -1,5 +1,5 @@
 <template>
-  <span class="player-cube" :class="rootClass" :style="styleVars" role="img" :aria-label="color">
+  <span class="player-cube" :class="rootClass" :style="styleVars" role="img" :aria-label="color" :data-player-token="resolvedColor">
     <!-- Per-instance gradient defs (uid-suffixed ids so many cubes on one page
          can't collide). Lifted out of the 3D scene; never lays out. -->
     <svg class="player-cube__defs" width="0" height="0" aria-hidden="true" focusable="false">
@@ -118,71 +118,10 @@
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {getPreferences} from '@/client/utils/PreferencesManager';
+import {tokenStyleVars, tokenSymbol} from '@/client/components/playerToken/playerTokenPalette';
 
 // Per-page unique id source for the gradient defs.
 let pcUid = 0;
-
-type RGB = [number, number, number];
-
-// Base player-token colours. The eight player colours mirror the game palette
-// (`src/styles/variables.less`); `black` is a dark gunmetal so the cube reads
-// as a black token (the UI `player_black` grey is for chips/text, not the
-// physical cube), and `bronze`/`neutral` share one bronze tone.
-const BASE_RGB: Record<Color, RGB> = {
-  red: [153, 17, 0],
-  green: [0, 153, 0],
-  yellow: [170, 170, 0],
-  blue: [0, 102, 255],
-  black: [86, 90, 98],
-  purple: [140, 0, 255],
-  orange: [236, 113, 12],
-  // Pink deepened from the flat UI value (245,116,187) into a richer satin
-  // rose so the cube reads as lacquered acrylic, not a candy sticker — still
-  // unmistakably the pink player.
-  pink: [240, 100, 174],
-  bronze: [176, 121, 71],
-  neutral: [176, 121, 71],
-};
-
-/** The neutral delegate's steel: a cool light alloy — lit top, mid-grey sides. */
-const STEEL_RGB: RGB = [178, 186, 200];
-
-// Colour-blind overlay glyphs (carried over from the legacy sprite overlay).
-const SYMBOL: Record<Color, string> = {
-  red: '▲',
-  blue: '+',
-  black: '∇',
-  yellow: '∗',
-  green: '◆',
-  purple: '◉',
-  orange: '▢',
-  pink: '◈',
-  bronze: '▦',
-  neutral: '★',
-};
-
-function clampByte(n: number): number {
-  return Math.max(0, Math.min(255, Math.round(n)));
-}
-function scaleRgb(c: RGB, f: number): RGB {
-  return [clampByte(c[0] * f), clampByte(c[1] * f), clampByte(c[2] * f)];
-}
-function mixWhite(c: RGB, t: number): RGB {
-  return [
-    clampByte(c[0] + (255 - c[0]) * t),
-    clampByte(c[1] + (255 - c[1]) * t),
-    clampByte(c[2] + (255 - c[2]) * t),
-  ];
-}
-function toRgb(c: RGB): string {
-  return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
-}
-function toRgba(c: RGB, a: number): string {
-  return `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${a})`;
-}
-function luma(c: RGB): number {
-  return 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
-}
 
 export default defineComponent({
   name: 'player-cube',
@@ -251,41 +190,12 @@ export default defineComponent({
     resolvedColor(): Color {
       return this.color ?? 'neutral';
     },
-    base(): RGB {
-      return this.steel ? STEEL_RGB : (BASE_RGB[this.resolvedColor] ?? BASE_RGB.neutral);
-    },
+    // The colour tones come from the ONE player-token palette — the delegate
+    // figure paints with the very same `--pt-*` set; the cube adds its size.
     styleVars(): Record<string, string> {
-      const base = this.base;
-      // Keep the body RICH — the per-face depth gradient + satin sheen supply
-      // the lighting, so the base shades stay saturated (not washed toward
-      // white). DEEPER sides (esp. the right/shadow face) give clear physical
-      // thickness at real board scale (18–28px). The top lift is ADAPTIVE: an
-      // already-light body (pink / yellow) gets barely any whitening so it
-      // reads as deep satin acrylic, not a milky candy chip; a dark body gets a
-      // touch more lift to read as the lit face.
-      const lightBody = luma(base) > 140;
-      const top = mixWhite(base, lightBody ? 0.05 : 0.13);
-      const left = scaleRgb(base, 0.80); // mid side
-      const right = scaleRgb(base, 0.50); // deep shadow side — physical thickness
-      // The three back faces of a SOLID cube: the far side mirrors the mid
-      // side, the back the deep one, the bottom is the darkest — it faces the
-      // ground and comes round only mid-tumble.
-      const far = scaleRgb(base, 0.72);
-      const back = scaleRgb(base, 0.56);
-      const bottom = scaleRgb(base, 0.36);
-      const edgeHi = mixWhite(base, 0.55);
-      const symbol = luma(top) > 150 ? 'rgba(20, 18, 14, 0.92)' : 'rgba(255, 255, 255, 0.95)';
       return {
         '--pc-size': `${this.size}px`,
-        '--pc-top': toRgb(top),
-        '--pc-left': toRgb(left),
-        '--pc-right': toRgb(right),
-        '--pc-far': toRgb(far),
-        '--pc-back': toRgb(back),
-        '--pc-bottom': toRgb(bottom),
-        '--pc-edge-hi': toRgb(edgeHi),
-        '--pc-glow': toRgba(base, 0.55),
-        '--pc-symbol': symbol,
+        ...tokenStyleVars(this.resolvedColor, {steel: this.steel}),
       };
     },
     rootClass(): Record<string, boolean> {
@@ -315,7 +225,7 @@ export default defineComponent({
       return this.overlaySymbol === true;
     },
     symbolGlyph(): string {
-      return this.steel ? '○' : (SYMBOL[this.resolvedColor] ?? SYMBOL.neutral);
+      return tokenSymbol(this.resolvedColor, {steel: this.steel});
     },
   },
   methods: {
