@@ -24,6 +24,7 @@ describe('actionCentreLeavesOnPromptChange', () => {
     expect(actionCentreLeavesOnPromptChange({...base, outcomeClaimed: true})).is.false;
     expect(actionCentreLeavesOnPromptChange({...base, nestedStep: true})).is.false;
     expect(actionCentreLeavesOnPromptChange({...base, lawStepOwed: true})).is.false;
+    expect(actionCentreLeavesOnPromptChange({...base, payoutOwed: true}), 'a party\'s discard payout still owed to the rail').is.false;
   });
 
   it('H6 — while the ACTION COMMIT owns the surface (its handoff stands) the leave is the commit\'s own fold, never this rule', () => {

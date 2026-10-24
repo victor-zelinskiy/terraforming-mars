@@ -30,6 +30,11 @@ export type ActionCentreLeaveFacts = {
   /** A step of the enacted LAW's action the workspace owes (its card landing in the stage, its live play pick). */
   lawStepOwed: boolean,
   /**
+   * A PAYOUT this workspace still owes the rail (a party's discard — the Reds: the answer that seeds it can also hand
+   * the turn on, and the leave tore the plaque the tokens are born on down in the very flush that seeded them).
+   */
+  payoutOwed?: boolean,
+  /**
    * THE ACTION COMMIT STILL OWNS THE SURFACE (BY — H6): its awaiting handoff stands. The commit's own fold closes the
    * workspace — after its tokens have left it (`surfaceClear`) — never this rule in the flush that resolved it.
    */
@@ -38,6 +43,6 @@ export type ActionCentreLeaveFacts = {
 
 /** Does the action centre leave on this prompt change? */
 export function actionCentreLeavesOnPromptChange(facts: ActionCentreLeaveFacts): boolean {
-  return facts.mounted && !facts.menu && !facts.outcomeClaimed && !facts.nestedStep && !facts.lawStepOwed &&
+  return facts.mounted && !facts.menu && !facts.outcomeClaimed && !facts.nestedStep && !facts.lawStepOwed && facts.payoutOwed !== true &&
     !facts.commitOwnsSurface;
 }

@@ -2042,7 +2042,8 @@ import {PatentSaleModel} from '@/common/models/PatentSaleModel';
 import ConsoleResourceTransferLayer from '@/client/components/console/resourceTransfer/ConsoleResourceTransferLayer.vue';
 import {ResourceTransferSpec, mergeTransferSpecs, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {PlayReaction} from '@/client/console/played/receivingStageModel';
-import type {RailReward} from '@/client/console/resourceTransfer/railReward';
+import {railRewardPending, type RailReward} from '@/client/console/resourceTransfer/railReward';
+import {discardExchangeRailKey} from '@/client/console/parliament/discardExchangeBeat';
 import type {DeltaMovementBonusProjection} from '@/common/models/DeltaTrackPreviewModel';
 import {movementBonusTransfers, withMovementBonusOnLastLeg} from '@/client/console/hydroFlow/hydroMovementBonus';
 import {abortResourceTransfers, runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, panelRewardHold, resetCardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -13385,6 +13386,7 @@ export default defineComponent({
             outcomeClaimed: workspaceOutcomeClaimed(),
             nestedStep: workspaceFrameHasNested('card-actions'),
             lawStepOwed: this.lawStepOwed,
+            payoutOwed: railRewardPending(discardExchangeRailKey(consoleCardActionsUi.draft?.cardName ?? '')),
             commitOwnsSurface: isSurfaceAwaitingHandoff() || this.commitFoldOwed || this.pendingCommitDismiss !== undefined,
           })) {
             leaveWorkspace();
