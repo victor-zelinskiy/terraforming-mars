@@ -33806,11 +33806,14 @@ html.console-mode {
    frame: the two states are stacked layers of ONE zone. ── */
 .con-composer__playright,
 .con-composer__actright { position: relative; }
-/* THE PARLIAMENT STEP (Turmoil Redux TR15 — a blue card's action that places a delegate): a LAYER of the
-   decision column, never a row or a swap. The vote mode is teleported into it and owns the column's whole
-   rect (CONTEXT MUST NOT SHRINK WHAT IT IS CONTEXT FOR); the hero column beside it keeps the source card.
-   The zone is always mounted (empty and inert outside the step), so a leaving Parliament always has its
-   room to dissolve in. The setup it covers is PARKED — hidden, never unmounted (B returns to it whole). */
+/* THE PARLIAMENT STEP (Turmoil Redux TR15 — a blue card's action that places a delegate): a LAYER OVER THE WHOLE
+   STAGE (a child of the stage's panel, beside `__actmain`), never a row or a swap. The Parliament is a full
+   workspace — squeezed into the decision column beside a 1.6× hero it read as a cramped strip (the owner's 4K
+   photo, 2026-10-24) — so the vote mode is teleported into this zone and owns the stage's whole rect, as it does
+   in the hand's stage (CONTEXT MUST NOT SHRINK WHAT IT IS CONTEXT FOR). What it covers — the hero column AND the
+   setup — is PARKED: hidden, never unmounted and never re-laid out (B returns to both whole; L3 opens the source
+   card over the step). The zone is always mounted (empty and inert outside the step) at the same geometry, so a
+   leaving Parliament always has its room to dissolve in. */
 .con-composer__parlzone {
     position: absolute; inset: 0;
     z-index: 4;
@@ -33820,13 +33823,13 @@ html.console-mode {
     &--on { pointer-events: auto; }
     > * { flex: 1; min-height: 0; min-width: 0; }
 }
-.con-composer--parlstep .con-composer__actright > :not(.con-composer__parlzone) { visibility: hidden; }
+.con-composer--parlstep .con-composer__actmain { visibility: hidden; }
 /* THE RELEASE IS THE STEP'S ENTRY SEEN FROM BELOW: a CSS animation on the same class flip that publishes the zone, so
    it is committed in the SAME frame as the Parliament's `con-parl-step-in` and starts with it — a scripted fade lagged
    that compositor entry by a main-thread frame or more and the whole Parliament stood over a lit setup. Shorter than
-   the rise (200 vs 240 ms): the setup is gone before the step stands whole. `forwards` holds it at 0 until the
-   composer parks it on this animation's `animationend` (visibility, above). */
-.con-composer--parlrise .con-composer__actright > :not(.con-composer__parlzone) {
+   the rise (200 vs 240 ms): the hero and the setup are gone before the step stands whole. `forwards` holds them at 0
+   until the composer parks them on this animation's `animationend` (visibility, above). */
+.con-composer--parlrise .con-composer__actmain {
     animation: con-composer-setup-release calc(200ms * var(--motion-scale, 1)) ease-out forwards;
 }
 @keyframes con-composer-setup-release {

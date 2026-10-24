@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import {
   bootFixtureSeats, crumbText, fetchPlayerModel, focusCard, openCardActions, placeTile, press, pressUntil, settle, waitForBoardHome, walkFocusUntil,
 } from './consoleStart';
-import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
+import {armTransferWitness, effectiveVisibility, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
 /**
  * LIVE EXPERIMENTS (Turmoil Redux, RX36) — the ONE e2e of an action whose
@@ -545,6 +545,16 @@ for (const preset of PRESETS) {
       expect((await wireOf(request, playerId)).game.gameAge, 'the server\'s change counter stands still').toBe(before.game.gameAge);
       const voteCrumb = (await crumbText(page)).toUpperCase();
       expect(voteCrumb, `one crumb: the menu, the law (${voteCrumb})`).toMatch(/ДЕЙСТВИЯ КАРТ.*ЖИВЫЕ ЭКСПЕРИМЕНТЫ/);
+      // The Parliament is a FULL workspace: it takes the whole stage, the law's face receding under it (never a column
+      // beside the vote — the owner, 2026-10-24).
+      await expect.poll(async () => (await effectiveVisibility(page, `${STAGE} .con-pact__source`)).visible,
+        {timeout: 5_000, message: 'the law\'s face is parked under the step'}).toBe(false);
+      const share = await page.evaluate((stage) => {
+        const parl = document.querySelector(`${stage} [data-embed-slot="action-parliament"] .con-parl`)?.getBoundingClientRect();
+        const host = document.querySelector(stage)?.getBoundingClientRect();
+        return parl === undefined || host === undefined || host.width < 2 ? 0 : parl.width / host.width;
+      }, STAGE);
+      expect(share, 'the Parliament spans the law\'s whole stage').toBeGreaterThan(0.95);
       await shoot(page, preset.id, 'v2-vote-in-stage');
 
       // ── ③ B: the step leaves, the slot as it was, nothing sent.
@@ -558,6 +568,8 @@ for (const preset of PRESETS) {
       await settle(page, {timeoutMs: 20_000});
       await expect(page.locator(`${STAGE} [data-pact-play-name]`), 'the card stands in the slot').toHaveText(/Политическое пожертвование|Political Donation/i);
       await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'the commit is armed again').toHaveCount(1);
+      await expect.poll(async () => (await effectiveVisibility(page, `${STAGE} .con-pact__source`)).visible,
+        {timeout: 5_000, message: 'B brings the law\'s face back where it stood'}).toBe(true);
       expect(posts, 'the round trip sent nothing').toEqual([]);
       await shoot(page, preset.id, 'v3-back-in-stage');
 

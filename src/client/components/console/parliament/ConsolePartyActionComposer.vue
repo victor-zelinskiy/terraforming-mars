@@ -46,6 +46,7 @@
          'con-pact--result': result !== undefined,
          'con-pact--sale': saleStage,
          'con-pact--play': playForm,
+         'con-pact--lawstep': lawStepKind !== undefined,
          'con-pact--resource': resourceForm,
        }]"
        :data-party="party" :data-pact="kind" :data-pact-phase="phase" :data-resolution="resolution"
@@ -437,18 +438,21 @@
              :class="{'con-pact__playstage--up': lawLandingUp && lawStepKind === undefined}" data-pact-landing>
           <ConsolePlayedReceivingStage :playerView="playerView" />
         </div>
-        <!-- THE LAW'S STAGED STEPS (the design rule of 2026-10-20 — a play made through the law keeps every reversible
-             door): the card's delegate (the Parliament's vote mode) or its colony (the grid) opens HERE, a LAYER of
-             the decision column out of the rect the landing let go of; its confirm is the play's one POST, B comes back
-             to the slot as it was. Always rendered in the play form (empty and inert outside the step), so a leaving
-             step always has its zone to dissolve in. -->
-        <template v-if="kind === 'resolution' && playForm">
-          <div class="con-pact__stepzone" :class="{'con-pact__stepzone--on': lawStepKind === 'parliament'}"
-               data-embed-slot="action-parliament"></div>
-          <div class="con-pact__stepzone" :class="{'con-pact__stepzone--on': lawStepKind === 'colonies'}"
-               data-embed-slot="action-colonies"></div>
-        </template>
       </div>
+
+      <!-- THE LAW'S STAGED STEPS (the design rule of 2026-10-20 — a play made through the law keeps every reversible
+           door): the card's delegate (the Parliament's vote mode) or its colony (the grid) opens HERE. Both are FULL
+           workspaces, so each zone is a LAYER OVER THE WHOLE STAGE — the source column (the law's face) and the decision
+           column alike — out of the rect the landing let go of, the law's face receding in place (`--lawstep`; the
+           owner, 2026-10-24: a Parliament squeezed beside a card reads as a strip). Its confirm is the play's one POST,
+           B comes back to the slot — and the law's face — as they were. Always rendered in the play form (empty and
+           inert outside the step) at the same geometry, so a leaving step always has its zone to dissolve in. -->
+      <template v-if="kind === 'resolution' && playForm">
+        <div class="con-pact__stepzone" :class="{'con-pact__stepzone--on': lawStepKind === 'parliament'}"
+             data-embed-slot="action-parliament"></div>
+        <div class="con-pact__stepzone" :class="{'con-pact__stepzone--on': lawStepKind === 'colonies'}"
+             data-embed-slot="action-colonies"></div>
+      </template>
     </template>
 
     <!-- THE FLIGHT LAYER of the execution beat (the Reds, the law): one

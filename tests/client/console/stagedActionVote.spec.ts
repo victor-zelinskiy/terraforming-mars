@@ -441,6 +441,29 @@ describe('ConsoleActionComposer — the vote door of T07 (a declarative action, 
     w.unmount();
   });
 
+  it('the hero is PARKED under the step (the owner, 2026-10-24): no impulse plays over it, and the rail price is drawn into the vote\'s receipt', async () => {
+    enterWorkspace('card-actions');
+    const w = mediaFactory();
+    const vm = w.vm as any;
+    await w.vm.$nextTick();
+    // The vote mode teleported into the composer's stage-wide zone carries the receipt's icon.
+    const icon = document.createElement('i');
+    icon.setAttribute('data-parl-vote-receipt-icon', '');
+    // jsdom lays nothing out — the icon reports the box it would have on screen.
+    icon.getBoundingClientRect = () => ({left: 10, top: 10, right: 30, bottom: 30, width: 20, height: 20, x: 10, y: 10, toJSON: () => ({})}) as DOMRect;
+    (vm.$refs.rootEl as HTMLElement).querySelector('.con-composer__parlzone')!.appendChild(icon);
+    const layersBefore = document.querySelectorAll('.con-commit-layer').length;
+    armStagedPlay({flow: 'action', cardName: CardName.MARTIAN_MEDIA_CENTER, isEvent: false, batch: [], target: {kind: 'resolution', vote: MEDIA_STAGED}, draws: 0, deckCheck: false, yieldedStack: false});
+    markStagedPlayCommitting();
+    await w.vm.$nextTick();
+    const plan = actionCommitState.plan;
+    expect((plan?.rail?.origins[0] as {el?: Element} | undefined)?.el, 'the «−3» M€ is absorbed at the receipt — the price as it stands on screen').to.eq(icon);
+    expect(plan?.source, 'no spawn band on a card nobody sees').to.eq(undefined);
+    expect(document.querySelectorAll('.con-commit-layer').length, 'no impulse layer over the parked card').to.eq(layersBefore);
+    icon.remove();
+    w.unmount();
+  });
+
   it('a CARD-RESOURCE price (TR34\'s mech) arms no rail half — its token is the Parliament\'s own flight', async () => {
     enterWorkspace('card-actions');
     const w = mechFactory();

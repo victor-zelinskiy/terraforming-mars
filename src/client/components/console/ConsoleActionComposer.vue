@@ -778,21 +778,6 @@
       </transition>
       </template><!-- /decision column (non-reveal) -->
 
-      <!-- ── THE PARLIAMENT STEP — the vote mode stands HERE, as a step of this
-           action (`card-actions ⊃ parliament`, one teleported instance): a blue
-           card's action that places a delegate (Turmoil Redux TR15 «3 data →
-           a delegate on a resolution» — a STAGED ACTION VOTE: nothing is sent
-           before the mode's confirm). A LAYER of the decision column, never a
-           swap: the setup lets go IN PLACE while the Parliament rises out of
-           the same rect, and B lets the setup come back to the very variant
-           the player left — this composer never unmounts. The hero column (the
-           source card) stays: the commit's impulse runs its printed row, and
-           its data tick on the card the moment the cube lifts. Always rendered
-           (empty and inert outside the step), so a leaving Parliament always
-           has its zone to dissolve in. -->
-      <div class="con-composer__parlzone" :class="{'con-composer__parlzone--on': parliamentStepOn}"
-           data-embed-slot="action-parliament"></div>
-
       <!-- ── THE LEDGER FLOW'S STEPS (TR23 — «the ledger pays»): the take of a row's drawn card and the hand's
            discard (Pluto's pair) stand HERE, as LAYERS of the decision column over the parked ledger — one
            teleported instance each (the shell's reveal into `workspace-reveal`, the hand frame into
@@ -807,6 +792,27 @@
 
       </div><!-- /__actright -->
       </div><!-- /__actmain -->
+
+      <!-- ── THE PARLIAMENT STEP — the vote mode stands HERE, as a step of this
+           action (`card-actions ⊃ parliament`, one teleported instance): a blue
+           card's action that places a delegate (Turmoil Redux TR15 «3 data →
+           a delegate on a resolution» — a STAGED ACTION VOTE: nothing is sent
+           before the mode's confirm), or the live grant the answer raised. The
+           Parliament is a FULL workspace (the table, the government, the bench,
+           the Career), never a panel that fits beside a card: so its zone is a
+           LAYER OVER THE WHOLE STAGE — the hero column AND the setup let go IN
+           PLACE (one release, neither re-lays out) while the Parliament rises
+           out of the rect they occupied, the colony trade's second door's rule
+           (the owner, 2026-10-24). The source card is not lost: the crumb names
+           it and L3 «Источник» opens it over the step; the price it pays leaves
+           the vote's own locked receipt (`[data-parl-vote-receipt-icon]` — the
+           card's price as the player sees it there). B lets the hero and the
+           setup come back to the very variant the player left — this composer
+           never unmounts. Always rendered (empty and inert outside the step), so
+           a leaving Parliament always has its zone to dissolve in — at the same
+           geometry it stood in. -->
+      <div class="con-composer__parlzone" :class="{'con-composer__parlzone--on': parliamentStepOn}"
+           data-embed-slot="action-parliament"></div>
 
       <!-- ── The reveal FLIGHT layer: the face-down card pulled off the HUD
            deck pile, travelling into the reveal slot (fixed-position proxy —
@@ -3129,10 +3135,9 @@ export default defineComponent({
         }
       },
     },
-    // THE MODE'S A FOR THIS CARD (a staged action vote): the commit is this card's — its beat plays on the hero
-    // (the impulse runs the variant's printed row onto its delegate), the CTA locks, and the capsule keeps the count
-    // the player pressed with until the cube lifts off the reserve. A refusal (the transport's abort battery
-    // cleared `committing` with the arm standing) gives everything back; the flow's end releases the hold.
+    // THE MODE'S A FOR THIS CARD (a staged action vote): the commit is this card's — the CTA locks, and the capsule
+    // keeps the count the player pressed with until the cube lifts off the reserve. A refusal (the transport's abort
+    // battery cleared `committing` with the arm standing) gives everything back; the flow's end releases the hold.
     // The watcher is keyed by the STEP'S KIND (the arm's target is a resolution — `stagedVoteOf`), never by the
     // price's icon: data, mechs and fighters take the same road.
     stagedVoteCommitMine(now: boolean, was: boolean): void {
@@ -3144,11 +3149,15 @@ export default defineComponent({
         if (branch !== undefined) {
           // A price off the CARD (TR15's data, TR34's mech) leaves WITH the cube — the Parliament's own flight, never a
           // rail link of this commit. A price off the RAIL (T07's 3 M€) IS this commit's: its token leaves the row into
-          // the printed cost icon (PL-104), seeded with the answer and flown by the vote's landing BEFORE the cube
-          // (`flyStagedVotePrice`); the delegate is the vote's result, never a link here.
+          // the price as it stands on screen (PL-104), seeded with the answer and flown by the vote's landing BEFORE
+          // the cube (`flyStagedVotePrice`); the delegate is the vote's result, never a link here.
+          // THE HERO IS PARKED under the step (the Parliament took the whole stage): no impulse runs over a card the
+          // player cannot see, and the price stands on the vote's locked RECEIPT — the visible double of the card's
+          // printed cost, which is where a rail price is absorbed.
           const receipt = stagedVoteReceiptOf(branch);
           const railPrice = receipt !== undefined && isStandardResource(receipt.icon);
-          this.playCommitBeat(branch, railPrice ? {resultElsewhere: true} : {spendDepartsElsewhere: true});
+          const standIn = (this.$refs.rootEl as HTMLElement | undefined)?.querySelector('[data-parl-vote-receipt-icon]') ?? undefined;
+          this.playCommitBeat(branch, {...(railPrice ? {resultElsewhere: true} : {spendDepartsElsewhere: true}), heroParked: {price: standIn}});
         }
         return;
       }
@@ -5524,10 +5533,10 @@ export default defineComponent({
       }
       return [];
     },
-    /** The decision column's setup — every layer of it but the Parliament's own zone. */
+    /** What the Parliament takes the stage from — the hero column and the decision column together (its zone is their sibling). */
     setupLayers(): Array<HTMLElement> {
       const root = this.$refs.rootEl as HTMLElement | undefined;
-      return Array.from(root?.querySelectorAll<HTMLElement>('.con-composer__actright > :not(.con-composer__parlzone)') ?? []);
+      return Array.from(root?.querySelectorAll<HTMLElement>('.con-composer__actmain') ?? []);
     },
     cancelSetupFades(): void {
       this.parliamentSetupFades.forEach((fade) => fade.cancel());
@@ -5747,8 +5756,12 @@ export default defineComponent({
      *    press (the reward-wave origins are the live icon rects; the flight must never depend on this stage
      *    outliving the answer). Played by the composer's own confirm — and by a STAGED ACTION VOTE's confirm in
      *    the Parliament standing in this composer (TR15): the press is the mode's A, the beat is this card's.
+     *    `heroParked` — the press is made on a step that took the WHOLE stage (the Parliament): the hero card stands
+     *    under it, unseen, so nothing of the beat may be measured on it (the impulse would play over the step, a token
+     *    would be born on a card nobody sees). The motion is skipped (its latch lands at once) and a price paid off the
+     *    rail is absorbed at `price` — the step's own stand-in for the card's printed cost.
      */
-    playCommitBeat(branch: ActionPreviewBranch, opts: {spendDepartsElsewhere?: boolean, resultElsewhere?: boolean} = {}): void {
+    playCommitBeat(branch: ActionPreviewBranch, opts: {spendDepartsElsewhere?: boolean, resultElsewhere?: boolean, heroParked?: {price: Element | undefined}} = {}): void {
       // BOTH read the captures: a branch whose result is chosen in a step
       // («любой стандартный ресурс») has no chips of its own, so the category
       // and the reward wave are only knowable once the answer is in hand.
@@ -5790,7 +5803,7 @@ export default defineComponent({
         ...stageSpecs,
       ];
       const root = this.$refs.rootEl as HTMLElement | undefined;
-      const wrap = root?.querySelector<HTMLElement>('.con-composer__actcardwrap') ?? undefined;
+      const wrap = opts.heroParked !== undefined ? undefined : root?.querySelector<HTMLElement>('.con-composer__actcardwrap') ?? undefined;
       const anchors = wrap !== undefined ? resolveActionCommitAnchors(wrap, this.actionGraphicNode) : undefined;
       // The ORIGINS ARE OBJECTS (T06 «оба конца живые»): each printed icon is re-measured at its token's birth — the
       // answer may land after the composer moved or folded, and a point cached here would birth a token where the
@@ -5813,10 +5826,13 @@ export default defineComponent({
       // A CARD's spend is absorbed at the result icon (TR29); a PRICE off the RAIL lands on the printed icon of
       // that very cost in the variant's cost cluster (the rail-spend law) — «the plant goes in there».
       const costPoints = railPlan !== undefined && anchors !== undefined ? resolveSpendIconEnds(anchors, railPlan.reward.cause) : [];
+      // …with the hero parked, a rail price is drawn into the step's stand-in for the printed cost (a card's own spend
+      // is the step's flight, never a link here — `spendDepartsElsewhere`).
+      const parkedPrice = opts.heroParked !== undefined ? centreEndOf(opts.heroParked.price) : undefined;
       const railOrigins = railPlan === undefined ? [] : anchors !== undefined ?
         resolveGainIconEnds(anchors, railPlan.reward.cause).map((origin, i) =>
           (spendLinks.has(i) ? (railPlan.reward.cause[i].channel === 'card-resource' ? absorb : (costPoints[i] ?? absorb)) : origin)) :
-        railPlan.reward.cause.map(() => undefined);
+        railPlan.reward.cause.map((spec, i) => (spendLinks.has(i) && spec.channel !== 'card-resource' ? parkedPrice : undefined));
       armActionCommit({
         sourceCard: this.entry.cardName,
         kind,

@@ -13,13 +13,15 @@ import {bootFixture, fetchPlayerModel, focusCard, openActionFocus, openCardActio
  *      в Парламенте», the CTA «Выбрать резолюцию»; its A sends NOTHING (no POST, the server's change counter stands,
  *      the M€ on the rail).
  *   2. ONE flow: the crumb keeps its root and the card's name; the tail reads НАСТРОЙКА → ГОЛОСОВАНИЕ; the Parliament is
- *      the ONE instance, INSIDE «Действия карт»; the column is never empty while the setup hands over.
- *   3. The mode: the locked receipt «Карта · 3 [M€]», the source «из резерва · по карте», no ordinary vote price anywhere
- *      (no «5»); B walks back to the composer, nothing sent; in again.
+ *      the ONE instance, INSIDE «Действия карт»; the stage is never empty while the hero + setup hand over.
+ *   3. The mode takes the WHOLE stage (the owner, 2026-10-24): the source card is parked under it (L3 reads it), the
+ *      Parliament spans the stage; the locked receipt «Карта · 3 [M€]», the source «из резерва · по карте», no ordinary
+ *      vote price anywhere (no «5»); B walks back to the composer with the card on screen again, nothing sent; in again.
  *   4. A is EXACTLY ONE POST (`input-batch`), its tail ADDRESSED to the card.
- *   5. PL-104 → the cube: the «−3» M€ token is born on the rail's M€ row only after the commit's impulse landed (PL-103),
- *      leaves SIDEWAYS, is absorbed on the hero card; the row ticks 20 → 17 on its departure, never before; THEN the cube
- *      lifts off the reserve stack for the card's ribbon; the lobby's socket stands full throughout.
+ *   5. PL-104 → the cube: the «−3» M€ token is born on the rail's M€ row, leaves SIDEWAYS, is absorbed on the vote's
+ *      locked RECEIPT (the card's price as it stands on screen while the card is parked); the row ticks 20 → 17 on its
+ *      departure, never before; THEN the cube lifts off the reserve stack for the card's ribbon; the lobby's socket stands
+ *      full throughout. No commit impulse plays over the parked card (no ring is lit).
  *   6. The server: 17 M€, the viewer's vote on the slot, the action used, the reserve one short, the lobby intact.
  *   7. It ends on the board: no workspace, nothing stranded, no overflow, no page error, no flight confessed a missing rect.
  *   8. The refusals, SHOWN with ONE reason each: 2 M€ «Не хватает 1 M€» · an empty voting area «Нет резолюций на
@@ -41,6 +43,7 @@ const PRESETS = [
 const MC_ROW = '.con-res__row--megacredits';
 const MC_DIGITS = '.con-res__row--megacredits .con-res__digits';
 const HERO = '.con-cardactions .con-composer__actcardwrap';
+const RECEIPT = '[data-parl-vote-receipt-icon]';
 
 type Wire = {
   thisPlayer: {color: string, megacredits: number, actionsThisGeneration: Array<string>, tableau: Array<{name: string}>};
@@ -93,14 +96,14 @@ type Probe = {
   lobbyEmptied: boolean;
   ringAt: number;
   /** The rail's transfer tokens, sample by sample (only samples that hold one). */
-  chips: Array<{t: number, chips: Array<Chip>, beats: Array<{x: number, y: number}>, row?: Rect, hero?: Rect}>;
+  chips: Array<{t: number, chips: Array<Chip>, beats: Array<{x: number, y: number}>, row?: Rect, receipt?: Rect}>;
   /** The M€ digits as read, deduped. */
   mc: Array<[number, string]>;
 };
 
 /** MutationObserver + setInterval — never rAF (headless drives rAF off the compositor: it stops when the screen is quiet). */
 async function armProbe(page: Page, viewer: string): Promise<void> {
-  await page.evaluate(({viewer, card, root, mcRow, mcDigits, hero}) => {
+  await page.evaluate(({viewer, card, root, mcRow, mcDigits, receipt}) => {
     const w = window as unknown as {__t07: Probe};
     const p: Probe = {
       samples: 0, ticks: 0, steps: [], crumbMisses: [], parlOutside: false, parlMax: 0, wsMax: 0, ownHead: false,
@@ -176,7 +179,7 @@ async function armProbe(page: Page, viewer: string): Promise<void> {
       }
       if (tick && ws !== null && document.querySelector('.con-composer__parlzone--on') !== null) {
         const parlSeen = seenOpacity(document.querySelector('.con-composer__parlzone .con-parl'));
-        const setupSeen = Math.max(0, ...Array.from(document.querySelectorAll('.con-composer__actright > :not(.con-composer__parlzone)'))
+        const setupSeen = Math.max(0, ...Array.from(document.querySelectorAll('.con-composer__actmain'))
           .map((el) => seenOpacity(el)));
         if (seenOpacity(ws) > 0.9 && parlSeen < 0.05 && setupSeen < 0.05 && p.gaps.length < 8) {
           p.gaps.push(`${t}ms parl=${parlSeen.toFixed(2)} setup=${setupSeen.toFixed(2)}`);
@@ -218,12 +221,12 @@ async function armProbe(page: Page, viewer: string): Promise<void> {
           const r = el.getBoundingClientRect();
           return {x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2)};
         });
-        p.chips.push({t, chips, beats, row: rect(document.querySelector(mcRow)), hero: rect(document.querySelector(hero))});
+        p.chips.push({t, chips, beats, row: rect(document.querySelector(mcRow)), receipt: rect(document.querySelector(receipt))});
       }
     };
     new MutationObserver(() => sample(false)).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
     window.setInterval(() => sample(true), 30);
-  }, {viewer, card: CARD_RU, root: ROOT_RU, mcRow: MC_ROW, mcDigits: MC_DIGITS, hero: HERO});
+  }, {viewer, card: CARD_RU, root: ROOT_RU, mcRow: MC_ROW, mcDigits: MC_DIGITS, receipt: RECEIPT});
 }
 
 const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__t07: Probe}).__t07);
@@ -252,6 +255,13 @@ const inside = (p: {x: number, y: number}, r: Rect, slack: number) => p.x >= r.l
 
 const voteMode = '.con-cardactions .con-parl--embedded [data-parl-vote-door="card"]';
 const composer = '.con-cardactions .con-composer';
+
+/** The Parliament's width over the stage's — the step takes the WHOLE stage, never the column beside the card. */
+const parliamentShareOfStage = (page: Page) => page.evaluate(() => {
+  const parl = document.querySelector('.con-cardactions .con-composer__parlzone .con-parl')?.getBoundingClientRect();
+  const stage = document.querySelector('.con-cardactions__stagewrap')?.getBoundingClientRect();
+  return parl === undefined || stage === undefined || stage.width < 2 ? 0 : parl.width / stage.width;
+});
 
 const focusedTile = (page: Page) => page.evaluate(() => {
   const tile = document.querySelector('.con-cardactions__tile--focused');
@@ -324,7 +334,11 @@ for (const preset of PRESETS) {
       expect(still.game.gameAge, 'the server\'s change counter stands still').toBe(before.game.gameAge);
       expect(still.thisPlayer.megacredits, 'the M€ are still on the rail').toBe(20);
 
-      // ── 3. the mode: the receipt in M€, the card's source, no ordinary vote price ──
+      // ── 3. the mode takes the WHOLE stage: the card parked under it (L3 reads it), the Parliament the stage's width ──
+      expect((await seen(page, HERO))?.visible, 'the source card is parked under the step — never a column beside the Parliament').toBe(false);
+      expect(await parliamentShareOfStage(page), 'the Parliament spans the whole stage').toBeGreaterThan(0.95);
+      await expect(page.locator('.con-footer'), 'L3 lifts the source').toContainText('Источник');
+      // …the receipt in M€, the card's source, no ordinary vote price ──
       const receipt = page.locator('[data-parl-vote-receipt]');
       await expect(receipt, 'the locked receipt is the card\'s own price').toHaveAttribute('data-receipt-cost', '3');
       await expect(receipt, '…in M€').toHaveAttribute('data-receipt-icon', 'megacredits');
@@ -346,6 +360,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-cardactions .con-composer--parlstep'), 'the setup un-parked').toHaveCount(0, {timeout: 10_000});
       await settle(page);
       await expect(page.locator(`${composer} .con-composer__cta`), 'back on the door').toContainText('Выбрать резолюцию');
+      await expect.poll(async () => (await seen(page, HERO))?.visible, {timeout: 5_000, message: 'B brings the source card back where it stood'}).toBe(true);
       await shot(page, preset.id, 'a3-back');
       expect(posts).toEqual([]);
       expect((await wireOf(request, playerId)).thisPlayer.megacredits, 'the round trip left the M€ on the rail').toBe(20);
@@ -400,7 +415,7 @@ for (const preset of PRESETS) {
       expect(probe.parlMax, 'ONE Parliament instance').toBe(1);
       expect(probe.wsMax, 'never a second workspace band').toBeLessThanOrEqual(1);
       expect(probe.ownHead, 'the embedded Parliament drew no head of its own').toBe(false);
-      expect(probe.gaps, 'the column was never empty while the setup handed over').toEqual([]);
+      expect(probe.gaps, 'the stage was never empty while the hero + setup handed over').toEqual([]);
 
       // ── 5. PL-104 → the cube ──
       const priceBirth = probe.chips.find((s) => s.chips.some((c) => /^mc-3$/.test(c.v)));
@@ -411,8 +426,8 @@ for (const preset of PRESETS) {
       const priceSeen = probe.chips.filter((s) => s.chips.some((c) => c.v === priceChip.v));
       const priceLast = priceSeen[priceSeen.length - 1];
       const lastChip = priceLast.chips.find((c) => c.v === priceChip.v)!;
-      expect(priceLast.hero, 'the hero card was measurable at the absorb').toBeDefined();
-      expect(inside(lastChip, priceLast.hero!, lastChip.w), `the price is absorbed ON the hero card (its printed cost) — ${lastChip.x},${lastChip.y} vs ${JSON.stringify(priceLast.hero)}`).toBe(true);
+      expect(priceLast.receipt, 'the vote\'s receipt was measurable at the absorb').toBeDefined();
+      expect(inside(lastChip, priceLast.receipt!, lastChip.w), `the price is absorbed ON the vote's receipt (the card's price as it stands on screen) — ${lastChip.x},${lastChip.y} vs ${JSON.stringify(priceLast.receipt)}`).toBe(true);
       const rowTop = priceBirth!.row!.t;
       const climbed = priceSeen.flatMap((s) => s.chips.filter((c) => c.v === priceChip.v))
         .filter((c) => c.y < rowTop - priceChip.w && Math.abs(c.x - priceChip.x) < priceChip.w);
@@ -422,8 +437,8 @@ for (const preset of PRESETS) {
       expect(tick17![0], `the row ticked no earlier than the price's birth (${priceBirth!.t})`).toBeGreaterThanOrEqual(priceBirth!.t - 60);
       expect(tick17![0], `…and no later than its absorb (${priceLast.t})`).toBeLessThanOrEqual(priceLast.t + 60);
       expect(probe.mc.filter(([t, v]) => t < priceBirth!.t - 60 && v !== '20'), 'the M€ row read 20 until the price left').toEqual([]);
-      expect(probe.ringAt, `the commit's ring lit (${dump})`).toBeGreaterThanOrEqual(0);
-      expect(priceBirth!.t, `the price token was born AFTER the impulse landed (PL-103 — ring at ${probe.ringAt} ms)`).toBeGreaterThanOrEqual(probe.ringAt - 60);
+      // No impulse over a card nobody sees: the parked hero plays no commit ring (it would light over the Parliament).
+      expect(probe.ringAt, `no commit ring lit over the parked card (${dump})`).toBe(-1);
       const slack = preset.viewport.width / 24;
       const near = (a: {x: number, y: number}, b: Box | undefined) => b !== undefined && dist(a, b) <= Math.max(b.w, b.h) + slack;
       const cube = Object.values(probe.flights).filter((f) => f.n >= 2 && dist(f.first, f.last) > 24 && near(f.first, reserveBox));

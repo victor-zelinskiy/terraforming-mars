@@ -274,13 +274,15 @@
                   </template>
                 </div>
                 <!-- THE RECEIPT of a staged card door: the card's price as the composer settled it — LOCKED here
-                     (the mode cannot change it; B walks back to the composer, which can). -->
+                     (the mode cannot change it; B walks back to the composer, which can). Its icon is the price's
+                     place ON SCREEN while the step holds the stage (the source card is parked under it): a card
+                     resource leaves FROM it for the reserve, a rail price is drawn INTO it. -->
                 <div v-if="voteInfo.vote.receipt !== undefined" class="con-parl__info-receipt" data-parl-vote-receipt data-parl-vote-late
                      :data-receipt-cost="voteInfo.vote.receipt.amount" :data-receipt-icon="voteInfo.vote.receipt.icon">
                   <span class="con-parl__info-receipt-key">{{ $t(cardDoorReceipt) }}</span>
                   <span class="con-parl__info-src-sep" aria-hidden="true">·</span>
                   <b class="con-parl__info-src-num">{{ voteInfo.vote.receipt.amount }}</b>
-                  <i class="con-parl__info-src-mc" :class="receiptIconClass" aria-hidden="true"></i>
+                  <i class="con-parl__info-src-mc" :class="receiptIconClass" aria-hidden="true" data-parl-vote-receipt-icon></i>
                 </div>
                 <!-- The SHARED fact row (ConsoleVoteFactRow) — the same markup the fullscreen inspector's footer prints. -->
                 <div class="con-parl__facts">
@@ -1310,12 +1312,13 @@ export default defineComponent({
     /**
      * THE PRICE LEAVES FIRST (PL-100 — «the resource buys the delegate»: TR15 / TR24 / TR34 / TR35). A staged ACTION
      * door pays with the card's own resource (its receipt — data, a mech, a fighter), and that resource is the cube's
-     * CAUSE: a token of it leaves the hero's capsule (the composer's, standing beside this Parliament — the capsule
-     * ticks the frame the token has visibly left it) and lands on the viewer's RESERVE stack (which answers with its
-     * landed flash), and only then does the cube lift off that very stack. Impulse → price → cube: one chain on the
-     * motion clock, the cube's law intact (it always comes from the reserve). A play's M€ receipt is the payment's
+     * CAUSE: a token of it leaves the price where it stands ON SCREEN and lands on the viewer's RESERVE stack (which
+     * answers with its landed flash), and only then does the cube lift off that very stack. Price → cube: one chain on
+     * the motion clock, the cube's law intact (it always comes from the reserve). Since the Parliament takes the WHOLE
+     * stage (the owner, 2026-10-24) the source card is parked under it, so the price's place on screen is this mode's
+     * own locked RECEIPT («Карта · 3 [data]») — never a capsule nobody can see. A play's M€ receipt is the payment's
      * business and a live door is already paid — no token there; nothing measurable or reduced motion — the cube at
-     * once, the capsule dropping on its lift as it always did (`priceStage` stays `none`, the composer falls back).
+     * once (`priceStage` stays `none`, the composer falls back).
      */
     flyPriceThenDelegates(seqs: ReadonlyArray<number>, me: Color): void {
       const f = parliamentFlow;
@@ -1358,17 +1361,18 @@ export default defineComponent({
         }
       });
     },
-    /** The price token's flight itself (PL-100) — capsule → reserve stack, the cube's launch on its absorption. */
+    /** The price token's flight itself (PL-100) — the receipt → the reserve stack, the cube's launch on its absorption. */
     launchPriceToken(receipt: StagedReceipt, me: Color, launch: () => void): void {
       const f = parliamentFlow;
-      // The hero's capsule in the «Действия карт» composer that hosts this Parliament — the place the resource LEAVES.
-      const capsule = document.querySelector<HTMLElement>('.con-cardactions .con-composer__actcardwrap .pcard__res');
+      // The receipt's icon — the place the resource LEAVES (the card it is spent off is parked under this step).
+      // (Asked of the document: there is ONE Parliament, and this root carries a leading comment — a dev-build fragment.)
+      const from = document.querySelector<HTMLElement>('[data-parl-vote-receipt-icon]');
       const stack = document.querySelector<HTMLElement>(`[data-parl-seat-reserve="${me}"]`);
       f.priceStage = 'flying';
       const id = flyPriceToken({
         iconClass: iconClassFor(receipt.icon),
         amount: receipt.amount,
-        from: rectOf(capsule),
+        from: rectOf(from),
         to: rectOf(stack),
         delayMs: 0,
         onDeparted: () => {
