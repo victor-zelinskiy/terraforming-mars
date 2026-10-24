@@ -1704,6 +1704,7 @@ import {
 } from '@/client/console/parliament/hostedParliamentStep';
 import {clearSupportDiscard, promiseSupportDiscard} from '@/client/console/parliament/supportDiscard';
 import {parliamentSittingFlowBeat, parliamentSittingLive, sittingTailPlacementOf} from '@/client/console/parliament/consoleSittingFlow';
+import {heldSittingKey, sittingSeededLive} from '@/client/console/parliament/parliamentSittingSeed';
 import {sittingRiseOwed} from '@/client/console/parliament/sittingRise';
 import {partyAnnotations, resolutionAnnotations, resolutionPartyAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {resolutionPartyContextKey, resolutionStatusOf, ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
@@ -20143,13 +20144,16 @@ export default defineComponent({
       // engine's tail of the seat's step) is a stage of it too: the press opens
       // the sitting, and its reward page holds the tile behind «К полю» (sitting
       // law 4 — the soft gates bring that tile with the very pass that ran the
-      // law, before any stage stood). Only a FOREIGN placement keeps the board:
-      // it comes alive the moment the acknowledge above releases it, and the
-      // sitting resumes after the landing (`yieldsToBoard`).
+      // law, before any stage stood) — while this session SAW the sitting arrive
+      // (`sittingSeededLive`: its walk is still to play). With no memory of it
+      // (a reload on the tile) the sitting lands in its final poses and the tile
+      // is the board's at once, as is a FOREIGN placement: it comes alive the
+      // moment the acknowledge above releases it, and the sitting resumes after
+      // the landing (`yieldsToBoard`).
       if (beat.flow === 'parliament-phase') {
         const wf = this.playerView.waitingFor;
         const phase = this.game.parliament?.phase;
-        const ownTile = wf?.type === 'space' && phase !== undefined &&
+        const ownTile = wf?.type === 'space' && phase !== undefined && sittingSeededLive(heldSittingKey()) &&
           (promptSourceResolution(wf) !== undefined || sittingTailPlacementOf(wf, phase, this.thisPlayer?.color));
         if (!ownTile && (this.placementActive || wf?.type === 'space')) {
           return;
