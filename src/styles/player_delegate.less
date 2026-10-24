@@ -1,0 +1,210 @@
+// ─────────────────────────────────────────────────────────────────────────
+// THE DELEGATE PIECE — `playerToken/PlayerDelegate.vue` (Turmoil Redux)
+//
+// The card's silhouette as a lacquered STANDEE on a disc base, in its player's
+// cube RGB (the one `--pt-*` set from `playerTokenPalette.ts`) or in steel.
+// The material language is the cube's (`player_cube.less`): a rich satin body,
+// a lit crown falling to a heavy pressed base, a rim catch on the far edge, a
+// whisper of colour glow and a flat CONTACT SHADOW on the table.
+//
+// The shadow is a SIBLING of the body, never part of it: a carried figure
+// lifts its body (`--pd-lift`) while the shadow stays on the floor, spreads
+// and pales with the height (`--pd-air`, 0 → 1) — the gap between the two IS
+// the height. `--pd-tilt` leans the figure from its base (carried by a hand),
+// `--pd-grow` brings it toward the camera. All four are 0 / 1 at rest, so the
+// flight proxy at touchdown is pixel-identical to the figure that
+// materializes under it.
+//
+// NO `filter` anywhere on the piece (the console strips them): every softness
+// rides the gradients themselves.
+// ─────────────────────────────────────────────────────────────────────────
+
+.player-delegate {
+	--pd-size: 24px;
+
+	position: relative;
+	display: inline-block;
+	width: calc(var(--pd-size) * 0.8);
+	height: var(--pd-size);
+	vertical-align: middle;
+	flex: none;
+	// colour vars (`--pt-*`) are injected inline from the ONE player-token
+	// palette — byte for byte the cube's.
+
+	&__defs {
+		position: absolute;
+		width: 0;
+		height: 0;
+		pointer-events: none;
+	}
+
+	// A whisper of the player's colour on the UPPER body only — never a halo
+	// round the base (a lit foot reads as floating).
+	&__glow {
+		position: absolute;
+		left: 4%;
+		right: 4%;
+		top: 0;
+		height: 62%;
+		border-radius: 50%;
+		background: radial-gradient(closest-side, var(--pt-glow), transparent 78%);
+		opacity: 0.22;
+		pointer-events: none;
+		z-index: 0;
+	}
+
+	// THE CONTACT SHADOW — a pressed core under the disc and a narrow halo,
+	// on the table plane. In flight it spreads and pales with `--pd-air`.
+	&__shadow {
+		position: absolute;
+		left: 50%;
+		bottom: calc(var(--pd-size) * 0.01);
+		width: 96%;
+		height: calc(var(--pd-size) * 0.2);
+		transform:
+			translateX(-50%)
+			scale(calc(1 + var(--pd-air, 0) * 0.42), calc(var(--pd-squash, 1) * (1 + var(--pd-air, 0) * 0.3)));
+		opacity: calc(1 - var(--pd-air, 0) * 0.62);
+		background:
+			radial-gradient(ellipse 44% 46% at 50% 46%, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.5) 48%, transparent 72%),
+			radial-gradient(ellipse 66% 74% at 50% 50%, rgba(0, 0, 0, 0.36), rgba(0, 0, 0, 0.1) 56%, transparent 80%);
+		pointer-events: none;
+		z-index: 0;
+	}
+
+	// The body carries every motion of the piece (lift / lean / grow) — the
+	// shadow and the glow stay put on the table.
+	&__body {
+		position: absolute;
+		inset: 0;
+		z-index: 1;
+		transform-origin: 50% 87%;
+		transform:
+			translateY(calc(var(--pd-lift, 0px) * -1))
+			rotate(var(--pd-tilt, 0deg))
+			scale(var(--pd-grow, 1));
+	}
+
+	&__svg {
+		display: block;
+		width: 100%;
+		height: 100%;
+		overflow: visible;
+	}
+
+	&__disc-side {
+		fill: var(--pt-bottom);
+	}
+
+	&__disc-top {
+		fill: var(--pt-right);
+	}
+
+	&__silhouette {
+		fill: var(--pt-top);
+	}
+
+	// Rim catch on the far edge — a material-tinted (never white) light line.
+	&__rim {
+		fill: none;
+		stroke-width: 2.4;
+		opacity: 0.6;
+	}
+
+	&__rim-stop {
+		stop-color: var(--pt-edge-hi);
+	}
+
+	// The cut edge of the standee — a soft dark facet that keeps the
+	// silhouette legible at 18 px on dark glass without becoming a contour.
+	&__edge {
+		fill: none;
+		stroke: rgba(0, 0, 0, 0.42);
+		stroke-width: 1.6;
+		stroke-linejoin: round;
+	}
+
+	&__ao {
+		fill: rgba(0, 0, 0, 0.34);
+	}
+
+	// Colour-blind glyph on the CHEST (the figure's largest flat zone — the
+	// disc is three pixels tall at the floor size). Screen-facing, rides the body.
+	&__symbol {
+		position: absolute;
+		left: 0;
+		right: 0;
+		top: 60%;
+		height: 24%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: calc(var(--pd-size) * 0.26);
+		font-weight: 700;
+		line-height: 1;
+		color: var(--pt-symbol, #fff);
+		text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.55);
+		pointer-events: none;
+	}
+}
+
+// ── Placement — the figure is SET DOWN, never pulsed ───────────────────────
+// It comes down from a hand's height (gravity ease-in), the base touches, the
+// whole figure settles 2 px down and back, and the shadow flattens for one
+// beat at the contact. No scale-pulse: a standee does not breathe.
+@keyframes pd-place {
+	0% {
+		transform: translateY(calc(var(--pd-size) * -0.9)) rotate(-6deg);
+		opacity: 0;
+		animation-timing-function: cubic-bezier(0.4, 0.04, 0.62, 0.4);
+	}
+	52% {
+		transform: translateY(0) rotate(0deg);
+		opacity: 1;
+		animation-timing-function: cubic-bezier(0.3, 0, 0.35, 1);
+	}
+	70% {
+		transform: translateY(2px) rotate(0deg);
+		animation-timing-function: cubic-bezier(0.3, 0, 0.35, 1);
+	}
+	100% {
+		transform: translateY(0) rotate(0deg);
+	}
+}
+
+@keyframes pd-place-shadow {
+	0% {
+		opacity: 0;
+		transform: translateX(-50%) scale(1.42, 1.3);
+		animation-timing-function: cubic-bezier(0.4, 0.04, 0.62, 0.4);
+	}
+	52% {
+		opacity: 1;
+		transform: translateX(-50%) scale(1.06, 0.82);
+	}
+	70% {
+		transform: translateX(-50%) scale(1, 1);
+	}
+	100% {
+		opacity: 1;
+		transform: translateX(-50%) scale(1, 1);
+	}
+}
+
+.player-delegate--animate-in {
+	.player-delegate__body {
+		animation: pd-place calc(620ms * var(--motion-scale, 1)) linear both;
+	}
+	.player-delegate__shadow {
+		animation: pd-place-shadow calc(620ms * var(--motion-scale, 1)) linear both;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.player-delegate--animate-in {
+		.player-delegate__body,
+		.player-delegate__shadow {
+			animation: none;
+		}
+	}
+}

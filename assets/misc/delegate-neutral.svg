@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.6 -1.6 43.2 55.2" width="40" height="52">
+  <!-- Turmoil — THE NEUTRAL DELEGATE, printed: the DARK figure (a card face, a journal / resource chip).
+       The ONE silhouette (`src/client/components/playerToken/delegateGlyph.ts` DELEGATE_PATH, byte for
+       byte — guard `tests/parliament/DelegateGlyphParity.spec.ts`) in a graphite print with a light rim — never a
+       CSS-dimmed copy of the white one (the console strips every `filter`). On the table the neutral
+       delegate is the same standee in steel (`PlayerDelegate` `steel`). -->
+  <defs>
+    <linearGradient id="delegate-neutral-print" x1="0" y1="1.5" x2="0" y2="51.4" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8a8e96"/>
+      <stop offset="0.6" stop-color="#5a5d64"/>
+      <stop offset="1" stop-color="#34363b"/>
+    </linearGradient>
+  </defs>
+  <path d="M20 1.5C27.5 1.5 32.6 6.6 32.6 13C32.6 19.5 25.6 29.6 20 29.6C14.4 29.6 7.4 19.5 7.4 13C7.4 6.6 12.5 1.5 20 1.5ZM.6 38.2A5.2 5.2 0 0 1 5.8 33H34.2A5.2 5.2 0 0 1 39.4 38.2V49.4A2 2 0 0 1 37.4 51.4H2.6A2 2 0 0 1 .6 49.4Z"
+        fill="url(#delegate-neutral-print)" stroke="#d7dbe1" stroke-width="1.8" stroke-linejoin="round" paint-order="stroke"/>
+  <ellipse cx="14.6" cy="8.4" rx="3.9" ry="2.8" transform="rotate(-28 14.6 8.4)" fill="#ffffff" opacity="0.32"/>
+</svg>

@@ -326,10 +326,10 @@ const ITEM_ICON_URL: Partial<Record<CardRenderItemType, string>> = {
   [CardRenderItemType.NO_TAGS]: `${TAGS}/tag-none.png`,
   [CardRenderItemType.DIVERSE_TAG]: `${TAGS}/diverse.png`,
 
-  [CardRenderItemType.DELEGATES]: `${MISC}/delegate.png`,
+  [CardRenderItemType.DELEGATES]: `${MISC}/delegate.svg`,
   // The NEUTRAL delegate (Turmoil Redux TR03 — «add up to 3 neutral delegates»): the dark figure as an
   // asset of its own, never the white one dimmed (the console strips `filter`).
-  [CardRenderItemType.NEUTRAL_DELEGATE]: `${MISC}/neutral-delegate.png`,
+  [CardRenderItemType.NEUTRAL_DELEGATE]: `${MISC}/delegate-neutral.svg`,
   // THE CHAIR — the one mark of the chairmanship (T10; the owner: «заменить креслом везде»), never upstream's bust.
   [CardRenderItemType.CHAIRMAN]: `${MISC}/chair.svg`,
   [CardRenderItemType.INFLUENCE]: `${MISC}/influence.png`,

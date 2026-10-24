@@ -378,11 +378,15 @@ each(@players, {
     background-image: url('./assets/resources/tr.png');
     background-size: 38px 38px;
 }
+/* The delegate — the ONE printed figure (`delegateGlyph.ts`), never a star. */
+.std-icon--delegate {
+    background-image: url('./assets/misc/delegate.svg');
+    background-size: auto 36px;
+}
 /* Excavate / Collusion / generic fallback — no dedicated asset, so we
  * render a CSS-only glyph. Centered in the 44×44 box; cyan with glow
  * matches the other sci-fi accents. */
 .std-icon--excavate,
-.std-icon--delegate,
 .std-icon--generic {
     display: inline-flex;
     align-items: center;
@@ -396,7 +400,6 @@ each(@players, {
     }
 }
 .std-icon--excavate::before  { content: '⛏'; }
-.std-icon--delegate::before  { content: '★'; }
 .std-icon--generic::before   { content: '◆'; }
 
 /* Sell patents — the existing card-cover art (card.png), tilted, with a

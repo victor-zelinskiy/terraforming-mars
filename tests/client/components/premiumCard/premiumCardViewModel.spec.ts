@@ -542,7 +542,7 @@ describe('normalizeRequirement', () => {
     expect(delegates.type).to.eq(RequirementType.DELEGATES_ON_RESOLUTIONS);
     expect(delegates.value).to.eq(3);
     expect(delegates.comparator).to.eq('min');
-    expect(delegates.iconUrl).to.eq('assets/misc/delegate.png');
+    expect(delegates.iconUrl).to.eq('assets/misc/delegate.svg');
     expect(delegates.isBinary).to.eq(false);
     // Never the «exotic type» text fallback: the chip is a picture with a number.
     expect(delegates.label).to.eq(undefined);

@@ -284,7 +284,7 @@ const REQUIREMENT_RENDER: Partial<Record<RequirementType, RequirementRender>> = 
   // THE CHAIR — the ONE mark of the chairmanship (`PremiumChairGlyph`'s drawing as a file, `chair.svg`): the scan's
   // silhouette in the MIN plate reads as the chair every Parliament surface already draws (glossary §4), never upstream's bust.
   [RequirementType.CHAIRMAN]: {value: () => 0, iconUrl: `${MISC}/chair.svg`, binary: true},
-  [RequirementType.PARTY_LEADERS]: {value: (d) => d.partyLeader ?? d.count ?? 1, iconUrl: `${MISC}/delegate.png`},
+  [RequirementType.PARTY_LEADERS]: {value: (d) => d.partyLeader ?? d.count ?? 1, iconUrl: `${MISC}/delegate.svg`},
   // Hydronetwork track progress (Dutch Mountains): the module's own medallion
   // is the ONE established glyph of the track — the same mark the DP cards
   // carry in their expansion corner, so «[Гидросеть] ≥ 4» reads as track
@@ -292,7 +292,7 @@ const REQUIREMENT_RENDER: Partial<Record<RequirementType, RequirementRender>> = 
   [RequirementType.DELTA_POSITION]: {value: (d) => d.deltaPosition ?? d.count ?? 1, iconUrl: 'assets/expansion_icons/expansion_icon_deltaProject.png'},
   // Turmoil Redux (TR02): as printed — the delegate figure and the number. PARTY_LEADERS wears the same
   // icon; the two differ in the rule line and the chip's hint, never in the picture.
-  [RequirementType.DELEGATES_ON_RESOLUTIONS]: {value: (d) => d.delegatesOnResolutions ?? d.count ?? 1, iconUrl: `${MISC}/delegate.png`},
+  [RequirementType.DELEGATES_ON_RESOLUTIONS]: {value: (d) => d.delegatesOnResolutions ?? d.count ?? 1, iconUrl: `${MISC}/delegate.svg`},
   // Turmoil Redux (TR01): the printed «?» disc — the same asset the DIVERSE_TAG item draws (Aridor,
   // Interplanetary Trade: «different tags»); the rule line tells «any one type» apart, the picture is the scan's.
   [RequirementType.TAGS_OF_ONE_TYPE]: {value: (d) => d.tagsOfOneType ?? d.count ?? 1, iconUrl: 'assets/tags/diverse.png'},

@@ -306,7 +306,7 @@ describe('PoliticalScience', () => {
 
     it('the premium chip draws the delegate figure, ≥ 3', () => {
       const chip = normalizeRequirement(card.requirements[0]);
-      expect(chip).deep.include({type: RequirementType.DELEGATES_ON_RESOLUTIONS, value: 3, comparator: 'min', iconUrl: 'assets/misc/delegate.png', isBinary: false});
+      expect(chip).deep.include({type: RequirementType.DELEGATES_ON_RESOLUTIONS, value: 3, comparator: 'min', iconUrl: 'assets/misc/delegate.svg', isBinary: false});
     });
   });
 
