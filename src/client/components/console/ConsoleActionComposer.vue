@@ -10,7 +10,7 @@
        into the reveal result's «Источник» slot on the phase handoff. -->
   <div ref="rootEl" class="con-composer con-composer--stage"
        :class="{'con-composer--ptsel': playedTargetStepOpen, 'con-composer--colonystep': colonyStepOn,
-                'con-composer--parlrise': parliamentStepOn, 'con-composer--parlstep': parliamentSetupParked,
+                'con-composer--parlrise': stageStepOn, 'con-composer--parlstep': parliamentSetupParked,
                 'con-composer--ledgerflow': ledgerPaying || politicalEntry !== undefined, 'con-composer--ledgerstep': ledgerStepOn,
                 'con-composer--ledgerresumed': ledgerPaying && ledgerResumed}"
        :data-colony-ledger-flow="ledgerPaying ? ledgerFlowStage : undefined"
@@ -834,7 +834,6 @@
       <div class="con-composer__ledgerzone" :class="{'con-composer__ledgerzone--on': ledgerStepOn}" data-colony-ledger-zone>
         <div v-if="ledgerPaying" v-embed-zone class="con-composer__ledgerlayer con-composer__revealzone con-composer__revealzone--draw"
              data-outcome-zone data-embed-slot="workspace-reveal"></div>
-        <div class="con-composer__ledgerlayer" data-embed-slot="action-hand"></div>
       </div>
 
       </div><!-- /__actright -->
@@ -860,6 +859,14 @@
            geometry it stood in. -->
       <div class="con-composer__parlzone" :class="{'con-composer__parlzone--on': parliamentStepOn}"
            data-embed-slot="action-parliament"></div>
+      <!-- ── THE HAND STEP — a pick FROM THE HAND (a party's mandatory discard — the Reds; a ledger row's discard —
+           TR23's Pluto; a law's card pick) is the hand ALBUM, and the album takes the WHOLE STAGE the way the
+           Parliament does (the owner, 2026-10-24: «сброс — это выбор карт с руки, всегда берёт всю сцену, карт может
+           быть много»): the hero and the setup let go in place and are parked; the crumb names the card, L3 opens it;
+           when the step leaves they come back where they stood (the Reds' payout flies off the plaque's printed icon,
+           the ledger resumes its walk). Always rendered, empty and inert outside the step. -->
+      <div class="con-composer__handzone" :class="{'con-composer__handzone--on': handStageStepOn}"
+           data-embed-slot="action-hand"></div>
 
       <!-- ── The reveal FLIGHT layer: the face-down card pulled off the HUD
            deck pile, travelling into the reveal slot (fixed-position proxy —
@@ -2349,8 +2356,9 @@ export default defineComponent({
       // A heat price split over Stormcraft's floaters is stated by the split's own chips (`syntheticCost` — `1 → 0`
       // heat, `−2` floaters): the branch's bare «−5 heat» beside them would count the heat twice (TR58).
       const heatSplit = this.allChoices.some((c) => c.kind === 'spendHeat');
-      const out: Array<ActionEffect> = branch.effects.filter((e) => e.direction === 'cost' && !variable.suppressCostIcons.has(e.icon) && !timeline.includes(e) &&
-        !(heatSplit && e.icon === 'heat'));
+      // A cost of NOTHING is no price («Будет списано −0» — Unity's free trade): never printed as one.
+      const out: Array<ActionEffect> = branch.effects.filter((e) => e.direction === 'cost' && e.amount !== 0 && !variable.suppressCostIcons.has(e.icon) &&
+        !timeline.includes(e) && !(heatSplit && e.icon === 'heat'));
       for (const c of this.allChoices) {
         out.push(...this.syntheticCost(c));
       }
@@ -2958,6 +2966,14 @@ export default defineComponent({
     parliamentStepOn(): boolean {
       return this.publishCommands && workspaceFrameHost('parliament') === 'card-actions';
     },
+    /** A pick from the HAND stands as a step of this workspace — the album, on the whole stage (`__handzone`). */
+    handStageStepOn(): boolean {
+      return this.publishCommands && workspaceFrameHost('hand') === 'card-actions';
+    },
+    /** A FULL-STAGE step stands (the Parliament, the hand): the hero and the setup let go and park under it. */
+    stageStepOn(): boolean {
+      return this.parliamentStepOn || this.handStageStepOn;
+    },
     /** The staged ACTION vote of THIS card is past its commit (the mode's A was pressed, the batch is on the wire). */
     stagedVoteCommitMine(): boolean {
       const arm = stagedPlayState.arm;
@@ -3318,6 +3334,18 @@ export default defineComponent({
         }
       },
     },
+    handStageStepOn: {
+      flush: 'post' as const,
+      handler(on: boolean, was: boolean) {
+        if (on) {
+          this.releaseSetupForParliament();
+        } else if (was && !this.parliamentStepOn) {
+          // The album leaves (answered, or B on a reversible pick): the hero and the setup come back where they stood —
+          // a party's payout is born on the plaque's printed icon, a ledger resumes its walk.
+          this.restoreSetupFromParliament();
+        }
+      },
+    },
     parliamentStepOn: {
       flush: 'post' as const,
       handler(on: boolean, was: boolean) {
@@ -3620,6 +3648,10 @@ export default defineComponent({
     if (this.parliamentStepOn) {
       setWorkspaceFrameSlot('card-actions', '[data-embed-slot="action-parliament"]');
       setWorkspaceFrameSourceCard('card-actions', this.sourceKey);
+      this.parliamentSetupParked = true;
+    }
+    // …and a hand step already standing (a restore mid-discard): the album keeps the whole stage, the setup parked.
+    if (this.handStageStepOn) {
       this.parliamentSetupParked = true;
     }
   },
@@ -5905,7 +5937,7 @@ export default defineComponent({
           return;
         }
         root.removeEventListener('animationend', onEnd);
-        if (token === this.parliamentReleaseToken && this.parliamentStepOn) {
+        if (token === this.parliamentReleaseToken && this.stageStepOn) {
           this.parliamentSetupParked = true;
         }
       };

@@ -75,7 +75,17 @@ export const ACTION_RULE_LABEL: Readonly<Record<ActionRuleLine['kind'], string>>
  * every host of card rule text.
  */
 export function actionRuleText(key: string, params?: Array<string>): string {
-  const translated = params !== undefined && params.length > 0 ? translateTextWithParams(key, params) : translateText(key);
+  const translate = (k: string) => params !== undefined && params.length > 0 ? translateTextWithParams(k, params) : translateText(k);
+  let translated = translate(key);
+  // A PRINTED render-DSL sentence carries its kind INSIDE the string («Action: Trade for free. …» — a party's / a law's
+  // action, which has no curated card information): the whole string is no key, so its bare sentence is the key. Never
+  // strip AFTER a missed lookup — that left the English sentence under the RU «ДЕЙСТВИЕ» (the owner's Unity frame).
+  if (translated === key) {
+    const bare = stripKindPrefix(key);
+    if (bare !== key) {
+      translated = translate(bare);
+    }
+  }
   const text = stripKindPrefix(translated);
   return text.length > 0 ? text[0].toLocaleUpperCase() + text.slice(1) : text;
 }

@@ -154,8 +154,10 @@ const UNITY: PartyEffectDefinition = {
     const reason = player.colonies.tradeBlockedReason();
     return reason === undefined ? {available: true} : {available: false, reason};
   },
+  // A FREE trade has no price to print: a «0 M€ trade fee» chip read «Будет списано −0» on every surface (the
+  // owner's frame, 2026-10-24). The trade's own step names where the payment is asked — on the chosen colony.
   preview() {
-    return [{direction: 'cost', icon: 'megacredits', amount: 0, note: 'trade fee'}];
+    return [];
   },
 };
 

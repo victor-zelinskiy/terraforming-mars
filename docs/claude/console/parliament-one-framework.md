@@ -58,7 +58,14 @@ A party's or an enacted law's tile in «Действия карт» descends int
   (the same beat stage, `runBatchArrival` off `.con-deckstack__pile`) — the A/B probe П3 measures the Reds' landed
   slots ≡ AI Central's ±1 px on tv4k and fhd.
 - **the discard is an owed STEP** of `card-actions` (`politicalDiscardOwed` → `owed-step`; the hand layer
-  `action-hand`; crumb «СБРОС КАРТ»), and its payout is a WAVE off the plaque's printed icon, seeded in the apply
+  `action-hand`; crumb «СБРОС КАРТ») that takes the WHOLE STAGE (the owner, 2026-10-24: «сброс — это выбор карт с
+  руки, всегда берёт всю сцену, карт может быть много»): the slot is the composer's own full-stage layer
+  `.con-composer__handzone` (beside `__parlzone`, never inside the ledger's column), the hero and the setup let go
+  and park by the same class flip the Parliament's step uses (`handStageStepOn` → `stageStepOn` →
+  `con-composer--parlrise`) and come back when the album leaves; a ledger's discard (TR23's Pluto) and a law's card
+  pick stand in the same layer. The thrown cards leave through the console's ONE discard cinematic onto the table's
+  pile (`hand-discard` lease) — a MULTI pick arms it in `confirmHandSelect` exactly as a single pick does in
+  `handSelectExecuteSingle` (it did not: the Reds' «any number» hand simply vanished). Its payout is a WAVE off the plaque's printed icon, seeded in the apply
   block from the prompt's own rate × the thrown cards' printed tags (`discardExchangeBeat.ts`) — never a panel,
   never `megacredits − mcBefore` (decision Р3).
 - **the law's steps owe the flow** (`lawStepOwed`: its card landing in the stage — PL-726; its live play pick —
@@ -100,6 +107,12 @@ Guard **П0** `tests/console/oneFrameworkGuard.spec.ts` (server runner): none of
 `components/console/parliament/`, the legacy files gone — fails with the list of offenders.
 
 ## Gotchas
+- **A rule-DSL description carries its kind prefix inside the key** («Action: Trade for free. …»): `actionRuleText`
+  translates the key, and when the key has no translation it translates the BARE sentence (the prefix stripped) —
+  Unity's action read in English on the composer. Guard: `tests/console/parliamentTextLocalization.spec.ts` walks
+  every party's and resolution's printed description and text against the RU locale.
+- **A free action's preview says nothing about money**: Unity's `preview()` is `[]` (the trade's own fee is the
+  colony stage's), and the hero's cost line drops a zero entry — «БУДЕТ СПИСАНО −0 плата за торговлю» is gone.
 - **The bill's address must be stamped explicitly** (`for: {...promptAddressOf(input), source: cause}`): the
   `choiceContext` of a payment is serialized centrally, not by its `toModel`, so the preview's copy had no source.
 - **`paletteOf` needs a part floor of 1** for the Industrialists' rows (two palettes of one production each).

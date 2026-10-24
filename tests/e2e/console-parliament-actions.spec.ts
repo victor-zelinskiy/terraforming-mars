@@ -465,7 +465,7 @@ test.describe('parliament · party actions', () => {
     // The mandatory discard is a HAND STEP of the same workspace: no announce
     // over the board, the hand mounts in the composer's zone, the crumb's
     // tail names the step.
-    await expect(page.locator('.con-cardactions .con-composer__ledgerzone .con-hand--discard'), 'the discard stands inside the action workspace — the composer\'s hand layer').toHaveCount(1, {timeout: 30_000});
+    await expect(page.locator('.con-cardactions .con-composer__handzone .con-hand--discard'), 'the discard stands inside the action workspace — the composer\'s hand layer').toHaveCount(1, {timeout: 30_000});
     await settle(page, {timeoutMs: 15_000});
     expect((await crumbText(page)).toUpperCase()).toContain('СБРОС');
     await expect(page.locator('.con-hand__discard')).toContainText(/Красные/);
@@ -498,6 +498,9 @@ test.describe('parliament · party actions', () => {
           document.querySelector('.con-cardactions') !== null ? 'ws' : '-',
           document.querySelector('.con-cardactions .con-composer') !== null ? 'comp' : '-',
           document.querySelector('.con-hand--discard') !== null ? 'hand' : '-',
+          // THE DISCARD IS SEEN LEAVING: the shared card-discard cinematic's proxies, and the table's one pile held by it.
+          document.querySelector('.con-discard-proxy') !== null ? 'proxy' : '-',
+          document.querySelector('[data-discard-pile-holders*="hand-discard"]') !== null ? 'pile' : '-',
           'depth=' + String(ready?.wsDepth ?? '?'),
           'crumb=' + (document.querySelector('.con-wshead')?.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 60),
         ].join(' ');
@@ -525,6 +528,11 @@ test.describe('parliament · party actions', () => {
         timeline: (window as unknown as {__redsTimeline?: Array<string>}).__redsTimeline,
       };
     });
+    // THE DISCARD PLAYS THE CONSOLE'S ONE DISCARD CINEMATIC (as Pluto's, as Mars University's): the thrown cards fly out
+    // of the album onto the table's pile — never a hand that just vanishes.
+    const timeline = atAnswer.timeline ?? [];
+    expect(timeline.some((line) => line.includes(' proxy ')), `the thrown cards fly (timeline: ${JSON.stringify(timeline)})`).toBe(true);
+    expect(timeline.some((line) => line.includes(' pile ')), `…onto the table's discard pile (timeline: ${JSON.stringify(timeline)})`).toBe(true);
     // The payout is the ACTION COMMIT's language — a wave off the plaque's printed «2 M€», never a result panel.
     await shoot(page, '10a-reds-payout');
     await waitForBoardHome(page, 40);

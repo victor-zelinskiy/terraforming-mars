@@ -135,7 +135,7 @@ for (const profile of PROFILES) {
       await expect(page.locator('.con-cardactions .con-composer[data-composer-source="party:Reds"]'), 'the Reds composed by the card composer').toHaveCount(1);
       await takeRevealCards(page);
       // The mandatory discard closes the flow (two cards, RT) — the hand step stands in the composer's own layer.
-      await expect(page.locator('.con-cardactions .con-composer__ledgerzone .con-hand--discard')).toHaveCount(1, {timeout: 30_000});
+      await expect(page.locator('.con-cardactions .con-composer__handzone .con-hand--discard')).toHaveCount(1, {timeout: 30_000});
       await press(page, 'Enter', 300);
       await press(page, 'ArrowRight', 250);
       await press(page, 'Enter', 300);

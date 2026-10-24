@@ -23838,6 +23838,10 @@ export default defineComponent({
       if (picked.length < model.min || picked.length > model.max) {
         return;
       }
+      // A MULTI discard leaves through the same cinematic as a single one (the Reds' «any number»): armed here,
+      // synchronously, while the picked cards still stand in the album — the single path's `handSelectExecuteSingle` does
+      // the same. A non-discard pick, or a legal empty pick, arms nothing.
+      this.armDiscardScene([...picked] as ReadonlyArray<CardName>);
       this.submitHandSelect([...picked]);
     },
     /** Submit the mandatory hand-select answer. The TOP-LEVEL SelectCard takes

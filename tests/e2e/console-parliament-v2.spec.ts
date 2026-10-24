@@ -1162,7 +1162,7 @@ test.describe('parliament v4 · one execution point, two doors · the Reds in fu
     await expect(page.locator('.con-reveal:not(.con-reveal--embedded)'), 'never a standalone reveal').toHaveCount(0);
     await shoot(page, preset, '45-reds-embedded-reveal');
     await takeRevealCards(page);
-    await expect(page.locator('.con-cardactions .con-composer__ledgerzone .con-hand--discard'), 'the mandatory discard stands inside the action workspace').toHaveCount(1, {timeout: 30_000});
+    await expect(page.locator('.con-cardactions .con-composer__handzone .con-hand--discard'), 'the mandatory discard stands inside the action workspace').toHaveCount(1, {timeout: 30_000});
     await settle(page, {timeoutMs: 15_000});
     expect((await crumbText(page)).toUpperCase()).toContain('СБРОС');
     await shoot(page, preset, '46-reds-hand-step');

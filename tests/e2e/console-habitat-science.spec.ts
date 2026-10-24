@@ -204,8 +204,11 @@ async function armProbe(page: Page): Promise<void> {
           p.revealInZone = true;
         }
       });
+      // The hand (Pluto's discard) takes the WHOLE STAGE — its own layer of the composer (`__handzone`, the owner's
+      // full-stage law of 2026-10-24), never the ledger's column.
+      const handZone = ws?.querySelector('.con-composer__handzone') ?? null;
       document.querySelectorAll('.con-hand').forEach((el) => {
-        if (zone === null || !zone.contains(el)) {
+        if (handZone === null || !handZone.contains(el)) {
           p.handOutside = true;
         } else if (el.classList.contains('con-hand--discard')) {
           p.handDiscardInZone = true;
@@ -230,7 +233,8 @@ async function armProbe(page: Page): Promise<void> {
       //    «empty». Only a surface at 0 with NO fade running, for longer than a fade, is a ledger that did not return.
       if (tick && ws !== null && composer?.hasAttribute('data-colony-ledger-flow') === true && seenOpacity(ws) > 0.9) {
         const surface = seenOpacity(composer.querySelector('.con-composer__actright > .con-composer__surface'));
-        const step = Math.max(seenOpacity(zone?.querySelector('.con-reveal') ?? null), seenOpacity(zone?.querySelector('.con-hand') ?? null));
+        // The take stands in the ledger's column, the hand on the whole stage (its own layer) — either is the step.
+        const step = Math.max(seenOpacity(zone?.querySelector('.con-reveal') ?? null), seenOpacity(handZone?.querySelector('.con-hand') ?? null));
         const parked = composer.classList.contains('con-composer--ledgerstep');
         const surfaceEl = composer.querySelector<HTMLElement>('.con-composer__actright > .con-composer__surface');
         const fading = !parked && surfaceEl !== null && typeof surfaceEl.getAnimations === 'function' &&
@@ -324,6 +328,8 @@ async function storyboard(page: Page, preset: string): Promise<() => Promise<voi
 const composer = '.con-cardactions .con-composer';
 const ledger = `${composer} [data-colony-ledger-scope="card"]`;
 const zone = `${composer} .con-composer__ledgerzone`;
+/** The hand step's layer — over the WHOLE STAGE (a pick from the hand never shares the decision column). */
+const handZone = `${composer} .con-composer__handzone`;
 const rowOf = (colony: string) => `${ledger} [data-colony-row="${colony}"]`;
 const bonusCell = (colony: string) => `${rowOf(colony)} [data-colony-bonus]`;
 
@@ -466,15 +472,15 @@ for (const preset of PRESETS) {
       expect(asked?.source, 'the discard is asked BY THE CARD').toEqual({kind: 'card', card: CARD});
       expect(asked?.colonyRepeat?.colonyName, '…and names the tile').toBe('Pluto');
       expect(asked?.colonyBonus, '…never by the colony workspace\'s marker').toBeUndefined();
-      await expect(page.locator(`${zone} .con-hand`), 'the hand does not open before the pair\'s card is taken').toHaveCount(0);
+      await expect(page.locator(`${handZone} .con-hand`), 'the hand does not open before the pair\'s card is taken').toHaveCount(0);
       await shoot(page, preset.id, '04-take-pluto');
-      const hand = page.locator(`${zone} .con-hand.con-hand--embedded`);
+      const hand = page.locator(`${handZone} .con-hand.con-hand--embedded`);
       await pressOnce(page, 'Enter', async () => await hand.count() === 1,
         async () => await rowActive('Pluto') && await revealCard.count() === 1, 'A takes Pluto\'s card — the hand stands as the «СБРОС» step');
 
-      // ── «СБРОС» — the hand, nested, in the SAME zone ──
+      // ── «СБРОС» — the hand, nested, on the WHOLE STAGE (the composer's hand layer) ──
       await expect(hand, 'in its discard mode').toHaveClass(/con-hand--discard/);
-      await expect(page.locator(`${zone} .con-hand .con-wshead`), 'host-agnostic: no head of its own').toHaveCount(0);
+      await expect(page.locator(`${handZone} .con-hand .con-wshead`), 'host-agnostic: no head of its own').toHaveCount(0);
       await expect(page.locator('.con-hand__discard-src'), 'the header names the tile that demands it').toHaveText(/Плутон/);
       await settle(page, {timeoutMs: 20_000}).catch(() => undefined); // the open episode; the discard's own hold may stand
       const crumb = await crumbText(page);
