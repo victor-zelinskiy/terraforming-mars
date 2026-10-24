@@ -1756,3 +1756,15 @@ dashboard. Накопительный блок «За партию» (актив
 reset), e2e `console-inspect-history.spec.ts` (fhd end-to-end; 4K — скриншоты).
 Scope: только информационная иерархия — flow активации/подтверждения/reveal НЕ
 тронут (следующая итерация ACTION FOCUS).
+
+## Итерация: политические источники на том же каркасе (ОДИН ФРЕЙМВОРК, 2026-10-24)
+
+Действие партии (Красные · Учёные · Индустриалисты · Союз) и действие принятого закона (RX24 Open IP Trade · RX26
+R&D Funding · RX28 Trade Industries · RX36 Live Experiments · RX37 Manufacturing Run) — плитки «Действий карт»
+среди синих карт и открывают ТОТ ЖЕ композер: герой — плашка партии / лицо закона в боксе карты-героя, строки — по
+форме промпта (`SelectOption` · `or`-цель с посевом единственной · `and` из двух `or` · рука · повтор · счёт ·
+обещанный розыгрыш · колонии шагом), ОДИН POST (`politicalBatch.buildPoliticalBatch` вкладывает ответ в опцию
+меню), ACTION COMMIT, одна запись исхода. Превью — серверное `ActionPreview` с источником
+(`/api/action-preview?source=party:<id>|law:<id>`). Партия — бейдж (кикер · эмблема · кромка), не второй
+компонент; `ConsolePartyActionComposer` удалён (гард `oneFrameworkGuard.spec`). Контракт:
+`docs/claude/console/parliament-one-framework.md`.

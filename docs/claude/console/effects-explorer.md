@@ -234,6 +234,16 @@ is an ENTRY of the same model (`effectExtraction.PoliticalEffectEntry`; the type
 - The same sources feed «Информация › ДЕЙСТВИЯ» (`parliament/parliamentActionSources.ts` — ONE builder for the live
   «Действия карт» and the read-only galleries; another seat's action is `foreign`: public uses, never activatable) and the
   dossier plate (`withPoliticalActionTiles`).
+- **THE THIRD HOST — the Parliament's step «ВАШИ ЭФФЕКТЫ»** (ONE FRAMEWORK С6, decision Р4): the step stands on the
+  chamber's rect as a HOST of two shared surfaces — the seat's Parliament ACTIONS as the «Действия карт» groups
+  (`ConsoleActionGroupView readonly`, built by `parliamentActionSources` → `buildConsoleActionsModel`, the A a bench door
+  routed by the section) and the STANDING EFFECTS as this explorer, fed `cards: []` + the political entries, with its OWN
+  `EffectsExplorerUi` (`parliament/parliamentEffectsHost.ts` — `parliamentEffectsExplorerUi`). Two zones, one cursor: in
+  the actions zone the explorer's pose is gated (`--con-cursor-gate: 0` on its column), → crosses in, ← at the
+  explorer's first column (its cursor did not move) comes back; B folds the explorer's detail, then the step. The step's
+  own tile language (`.con-parl-fx__*`) and `parliamentEffectsStepModel.ts` are deleted. Guards
+  `tests/console/parliamentEffectsHost.spec.ts`, `tests/client/components/console/parliamentEffectsStep.spec.ts`, e2e
+  `console-parliament-v2` § the inner step.
 
 ## Guards
 

@@ -29,6 +29,8 @@ action: OPEN_IP_TRADE_ACTION,                                                   
 
 ## 2. Действие резолюции: путь, который повторит следующая карта с действием
 
+> **ЗАМЕНЕНО (ОДИН ФРЕЙМВОРК, 2026-10-24):** строка «тот же компонент `ConsolePartyActionComposer`» читается как общий `ConsoleActionComposer`: герой — лицо закона, ВЫБОР — дверь альбома руки, сцена продажи заменена токеном ACTION COMMIT — см. `docs/claude/console/parliament-one-framework.md`. Ниже — история.
+
 | Слой | Партийное действие | Действие резолюции (этой картой) |
 | --- | --- | --- |
 | маркер промпта | `partyActionPrompt: PartyActionPromptMeta` | **`resolutionActionPrompt: ResolutionActionPromptMeta`** `{resolution, party, stage: 'choose', usesLeft, usesPerGeneration}` — сериализуется на `toModel` `SelectCard` / `SelectOption` / `OrOptions` / `AndOptions` (nesting-safe) |
