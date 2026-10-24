@@ -4,6 +4,7 @@ import {TestPlayer} from '../TestPlayer';
 import {IGame} from '../../src/server/IGame';
 import {IPlayer} from '../../src/server/IPlayer';
 import {Game} from '../../src/server/Game';
+import {SerializedGame} from '../../src/server/SerializedGame';
 import {Parliament} from '../../src/server/parliament/Parliament';
 import {
   REDS_BUDGET, REDS_BUDGET_CODE, REDS_BUDGET_GRANT, REDS_BUDGET_ID, REDS_BUDGET_LEVY, REDS_BUDGET_LEVY_AMOUNT, REDS_BUDGET_MEGACREDITS,
@@ -11,9 +12,7 @@ import {
 } from '../../src/server/parliament/resolutions/reds/RedsBudget';
 import {GREENS_BUDGET} from '../../src/server/parliament/resolutions/greens/GreensBudget';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {
-  answerGate, answerQuestGate, answerStandingGates, endGenerationThroughParliament, gatePromptOf, passToParliament, seatResolution, settleParliamentGates,
-} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, gatePromptOf, passToParliament, seatResolution, settleParliamentGates, sittingOf, sittingOpen, atSittingEnd} from './parliamentArrange';
 import {declaredCountIds, resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {botWinnerRewardKind, botWinsSomething, declaresWinnerPart} from '../../src/server/automa/BotWinnerReward';
@@ -82,10 +81,13 @@ function stage(): [IGame, TestPlayer, TestPlayer, Parliament] {
   return [game, p1, p2, parliament];
 }
 
-/** The generation ends into the sitting, the assembly gate is answered — the law runs whole (nothing asks) and the adjourn gate stands. */
-function toTheAdjournGate(game: IGame): void {
+/**
+ * The generation ends into the sitting, which runs its whole chain at once (the soft gates — nothing of this law
+ * asks): the sitting is finished, its summary is `lastPhase` and every seat holds its confirmation «Закрыть
+ * заседание» while the game already stands in the next generation.
+ */
+function throughTheSitting(game: IGame): void {
   passToParliament(game);
-  answerStandingGates(game, 'assembly');
   runAllActions(game);
 }
 
@@ -178,10 +180,12 @@ describe('RedsBudget', () => {
       // p2 never voted — Agenda 6 (influence 3), no card: the law's step reaches the CARD step 7.
       parliament.agenda.set(p2.id, 6);
       const hand2 = p2.cardsInHand.length;
-      toTheAdjournGate(game);
+      throughTheSitting(game);
       expect(parliament.enacted).eq(BUDGET);
       expect(parliament.rulingParty(), 'the law takes the ENACTED slot before its steps run').eq(PartyName.REDS);
-      expect(parliament.phase?.step).eq('adjourn');
+      expect(parliament.phase, 'the chain ran to its end').is.undefined;
+      expect(gatePromptOf(p1), 'every seat holds its confirmation').is.not.undefined;
+      expect(gatePromptOf(p2)).is.not.undefined;
       // p1: −10 → 5, +5 → 10 M€; the winner's step 2 → 3, then the law's 3 → 4 (a TR step).
       expect(outcomeOf(parliament, p1, LEVY_STEP_KEY)).deep.include({kind: 'stock', amount: -10, owed: 10, before: 15, after: 5});
       const paid1 = outcomeOf(parliament, p1, 'megacredits')!;
@@ -217,8 +221,8 @@ describe('RedsBudget', () => {
     it('the winner walks TWICE in one sitting — its winner\'s step and the law\'s — a consequence of the rules, never a double', () => {
       const [game, p1, , parliament] = stage();
       parliament.agenda.set(p1.id, 4);
-      toTheAdjournGate(game);
-      const summary = parliament.phase!.summary!;
+      throughTheSitting(game);
+      const summary = sittingOf(parliament)!;
       expect(summary.agenda, 'the winner\'s step of the sitting').deep.include({player: p1.id, from: 4, to: 5});
       expect(outcomeOf(parliament, p1, STEP)?.walk, '…and the law\'s, from where the first one stopped').deep.eq({from: 5, to: 6, steps: [{to: 6, bonus: 'tr'}]});
       expect(parliament.agendaOf(p1)).eq(6);
@@ -231,7 +235,7 @@ describe('RedsBudget', () => {
       parliament.agenda.set(p1.id, 2);
       // p2 at 4 (influence 2): the law walks it onto 5 (influence 3) — AFTER the payout.
       parliament.agenda.set(p2.id, 4);
-      toTheAdjournGate(game);
+      throughTheSitting(game);
       expect(outcomeOf(parliament, p2, 'megacredits')).deep.include({amount: 2, influence: 2});
       expect(outcomeOf(parliament, p2, STEP)).deep.include({kind: 'agenda', influence: 2, walk: {from: 4, to: 5, steps: [{to: 5}]}});
       expect(outcomeOf(parliament, p2, STEP)?.tr, 'an influence step pays nothing on the spot').is.undefined;
@@ -242,7 +246,7 @@ describe('RedsBudget', () => {
       const [game, p1, p2, parliament] = stage();
       parliament.agenda.set(p1.id, 2);
       expect(parliament.agendaOf(p2)).eq(0);
-      toTheAdjournGate(game);
+      throughTheSitting(game);
       expect(outcomeOf(parliament, p2, 'megacredits'), 'no tags, no influence yet — a named zero').deep.include(
         {kind: 'skipped', amount: 0, count: 0, influence: 0, reason: REDS_BUDGET_NO_TAGS_REASON});
       expect(game.gameLog.filter((e) => e.message.startsWith('${0} has no space or Mars tags and no influence')), 'p2\'s zero is named').has.length(1);
@@ -256,7 +260,7 @@ describe('RedsBudget', () => {
       parliament.agenda.set(p1.id, 2);
       p2.megaCredits = 4;
       parliament.agenda.set(p2.id, 1);
-      toTheAdjournGate(game);
+      throughTheSitting(game);
       expect(outcomeOf(parliament, p1, LEVY_STEP_KEY)).deep.include({kind: 'stock', amount: -10, owed: 10, before: 15, after: 5});
       expect(outcomeOf(parliament, p2, LEVY_STEP_KEY)).deep.include(
         {kind: 'stock', amount: -4, owed: 10, before: 4, after: 0, reason: levyShortReasonKey(Resource.MEGACREDITS)});
@@ -266,7 +270,7 @@ describe('RedsBudget', () => {
       const [game2, q1, , parl2] = stage();
       parl2.agenda.set(q1.id, 2);
       q1.megaCredits = 0;
-      toTheAdjournGate(game2);
+      throughTheSitting(game2);
       expect(outcomeOf(parl2, q1, LEVY_STEP_KEY)).deep.eq(
         {player: q1.id, step: LEVY_STEP_KEY, part: 'effect', kind: 'skipped', stock: Resource.MEGACREDITS, amount: 0, owed: 10, reason: levyNothingReasonKey(Resource.MEGACREDITS)});
       expect(outcomeOf(parl2, q1, 'megacredits')).deep.include({kind: 'stock', amount: 2, before: 0, after: 2});
@@ -284,7 +288,7 @@ describe('RedsBudget', () => {
       expect(live.cards).deep.eq([CardName.MARS_ARMY_SHIPS, CardName.MECH_SPORTS, CardName.SATELLITES]);
       expect(live.units).deep.eq([2, 1, 1]);
       expect(live.byTag).deep.eq([{tag: Tag.SPACE, count: 2}, {tag: Tag.MARS, count: 2}]);
-      toTheAdjournGate(game);
+      throughTheSitting(game);
       expect(outcomeOf(parliament, p1, 'megacredits')).deep.include({kind: 'stock', amount: 6, count: 4, influence: 2});
     });
 
@@ -293,7 +297,7 @@ describe('RedsBudget', () => {
       parliament.agenda.set(p1.id, 2);
       parliament.agenda.set(p2.id, 12);
       const rating = p2.terraformRating;
-      toTheAdjournGate(game);
+      throughTheSitting(game);
       expect(outcomeOf(parliament, p2, LEVY_STEP_KEY)).deep.include({kind: 'stock', amount: -10});
       expect(outcomeOf(parliament, p2, 'megacredits')).deep.include({kind: 'stock', amount: 5, influence: 5});
       expect(outcomeOf(parliament, p2, STEP)).deep.eq({
@@ -314,10 +318,10 @@ describe('RedsBudget', () => {
       }
       parliament.agenda.set(p1.id, 3);
       parliament.agenda.set(p2.id, 6);
-      toTheAdjournGate(game);
-      expect(parliament.phase?.summary?.winner.player).eq('NEUTRAL');
+      throughTheSitting(game);
+      expect(sittingOf(parliament)?.winner.player).eq('NEUTRAL');
       expect(parliament.enacted).eq(BUDGET);
-      expect(parliament.phase?.summary?.agenda, 'no winner\'s step').is.undefined;
+      expect(sittingOf(parliament)?.agenda, 'no winner\'s step').is.undefined;
       expect(outcomeOf(parliament, p1, STEP)?.walk).deep.eq({from: 3, to: 4, steps: [{to: 4, bonus: 'tr'}]});
       expect(outcomeOf(parliament, p2, STEP)?.walk).deep.eq({from: 6, to: 7, steps: [{to: 7, bonus: 'card'}]});
     });
@@ -326,7 +330,7 @@ describe('RedsBudget', () => {
       const [game, p1, p2, parliament] = stage();
       parliament.agenda.set(p1.id, 2);
       parliament.agenda.set(p2.id, 3);
-      toTheAdjournGate(game);
+      throughTheSitting(game);
       const walks = game.events.events.filter((e) => e.type === 'agenda-advanced' && e.impact.agenda?.reason === 'resolution');
       expect(walks.map((e) => e.player)).deep.eq([p1.color, p2.color]);
       for (const walk of walks) {
@@ -336,12 +340,26 @@ describe('RedsBudget', () => {
       expect(p2.terraformRatingSources.some((s) => s.sourceName === 'Agenda track'), 'the TR segment is the track\'s').is.true;
     });
 
-    it('a reload at the adjourn gate pays nothing twice: no levy, no payout, no step, no second card', () => {
+    it('a reload at the sitting\'s LAST step, or with its confirmations standing, pays nothing twice: no levy, no payout, no step, no second card', () => {
       const [game, p1, p2, parliament] = stage();
       parliament.agenda.set(p1.id, 2);
       parliament.agenda.set(p2.id, 6);
-      toTheAdjournGate(game);
-      expect(gatePromptOf(p1, 'adjourn')).is.not.undefined;
+      // The save at `done` — every step applied, nothing closed yet (where the retired adjourn gate once stood).
+      let save: SerializedGame | undefined;
+      atSittingEnd(game, () => (save = structuredClone(game.serialize())));
+      throughTheSitting(game);
+      expect(save?.parliament?.phase?.step).eq('done');
+      expect(gatePromptOf(p1)).is.not.undefined;
+      // Resumed from `done`, the chain only finishes: the seats stand where the uninterrupted sitting left them.
+      const resumed = Game.deserialize(save!);
+      settleParliamentGates(resumed);
+      const r1 = resumed.getPlayerById(p1.id);
+      const r2 = resumed.getPlayerById(p2.id);
+      expect([r1.megaCredits, r2.megaCredits], 'no levy, no payout a second time').deep.eq([p1.megaCredits, p2.megaCredits]);
+      expect(r2.cardsInHand.length, 'the card step is never dealt twice').eq(p2.cardsInHand.length);
+      expect([resumed.parliament!.agendaOf(r1), resumed.parliament!.agendaOf(r2)]).deep.eq([4, 7]);
+      expect(recordsOf(resumed.parliament!, r2).filter((o) => o.step === STEP)).has.length(1);
+      // …and a reload AFTER the sitting, the confirmations standing: they are re-issued, nothing is paid again.
       const live = reload(game);
       const q1 = live.getPlayerById(p1.id) as TestPlayer;
       const q2 = live.getPlayerById(p2.id) as TestPlayer;
@@ -385,9 +403,9 @@ describe('RedsBudget', () => {
       const before = getParliamentModel(game, p1)!;
       expect(before.players.find((p) => p.color === p1.color)?.counts?.find((c) => c.id === 'spaceMarsTags')).deep.include(
         {count: 2, cards: [CardName.MARS_ARMY_SHIPS], units: [2], byTag: [{tag: Tag.SPACE, count: 1}, {tag: Tag.MARS, count: 1}]});
-      toTheAdjournGate(game);
+      throughTheSitting(game);
       const model = getParliamentModel(game, p1)!;
-      const outcome = model.phase?.outcomes?.find((o) => o.player === p2.color && o.step === STEP);
+      const outcome = (model.phase?.summary ?? model.lastPhase)?.outcomes?.find((o) => o.player === p2.color && o.step === STEP);
       expect(outcome).deep.include({kind: 'agenda', walk: {from: 3, to: 4, steps: [{to: 4, bonus: 'tr'}]}, tr: 1});
       expect(model.lastAdvance).deep.include({player: p2.color, reason: 'resolution', resolution: REDS_BUDGET_ID});
     });
@@ -410,16 +428,19 @@ describe('RedsBudget', () => {
       return table;
     }
 
-    /** The human passes, the bot (an empty deck) passes, the generation ends into the sitting; the assembly gate is answered. */
+    /**
+     * The human passes, the bot (an empty deck) passes, the generation ends into the sitting — which runs its whole
+     * chain at once (nothing asks). The bot's cash and rating are read BEFORE the pass: no gate stops the chain ahead
+     * of the enactment any more, and MarsBot has no production phase to move them in between.
+     */
     function intoTheSitting(t: Table): {cash: number, rating: number} {
       t.game.automa!.actionDeck = [];
+      const before = {cash: t.bot.megaCredits, rating: t.bot.terraformRating};
       t.human.popWaitingFor();
       t.game.playerHasPassed(t.human);
       t.game.playerIsFinishedTakingActions();
-      expect(t.game.phase).eq(Phase.PARLIAMENT);
+      expect(sittingOpen(t.game), 'the sitting has convened').is.true;
       expect(t.bot.getWaitingFor(), 'the bot is never asked').is.undefined;
-      const before = {cash: t.bot.megaCredits, rating: t.bot.terraformRating};
-      answerGate(t.human, 'assembly');
       runAllActions(t.game);
       return before;
     }
@@ -484,22 +505,30 @@ describe('RedsBudget', () => {
         expect(human.color).not.eq(bot.color);
       });
       intoTheSitting(t);
-      expect(t.parliament.phase?.summary?.winner.player).eq(t.bot.id);
-      expect(t.parliament.phase?.summary?.agenda).deep.include({player: t.bot.id, from: 4, to: 5});
+      expect(sittingOf(t.parliament)?.winner.player).eq(t.bot.id);
+      expect(sittingOf(t.parliament)?.agenda).deep.include({player: t.bot.id, from: 4, to: 5});
       expect(botRecords(t).map((o) => `${o.step}:${o.part}:${o.kind}`), 'one record — the law\'s step; no winner record').deep.eq([`${STEP}:effect:agenda`]);
       expect(botRecords(t)[0].walk).deep.eq({from: 5, to: 6, steps: [{to: 6, bonus: 'tr'}]});
       const walks = t.game.events.events.filter((e) => e.type === 'agenda-advanced' && e.player === t.bot.color);
       expect(walks.map((e) => e.impact.agenda?.reason)).deep.eq(['phase', 'resolution']);
     });
 
-    it('the bot\'s step is keyed under ITS seat — a reload at the adjourn gate walks nobody twice', () => {
+    it('the bot\'s step is keyed under ITS seat — a reload at the sitting\'s last step walks nobody twice', () => {
       const t = seated('politics', ({game, parliament, bot}) => {
         parliament.agenda.set(bot.id, 6);
         game.overrideFirstPlayer(bot);
       });
+      // The save at `done` — every step applied, nothing closed yet (where the retired adjourn gate once stood).
+      let keyed: boolean | undefined;
+      let save: SerializedGame | undefined;
+      atSittingEnd(t.game, () => {
+        keyed = t.parliament.phase?.appliedBySeat?.[t.bot.id]?.some((key) => key.endsWith(`:${STEP}`));
+        save = structuredClone(t.game.serialize());
+      });
       intoTheSitting(t);
-      expect(t.parliament.phase?.appliedBySeat?.[t.bot.id]?.some((key) => key.endsWith(`:${STEP}`)), 'the idempotency key lives under the bot').is.true;
-      const live = reload(t.game);
+      expect(keyed, 'the idempotency key lives under the bot').is.true;
+      expect(save?.parliament?.phase?.step).eq('done');
+      const live = Game.deserialize(save!);
       const bot = live.getPlayerById(t.bot.id);
       const human = live.getPlayerById(t.human.id);
       const cash = bot.megaCredits;

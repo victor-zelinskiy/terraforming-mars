@@ -237,7 +237,7 @@ describe('Reds Budget — the readings of the last budget and of the step of the
 
   it('the BAND names whose step plays and what it pays — the bot\'s card step as the M€ it took', () => {
     const base = {
-      stage: 'reward' as const, rewardStep: 'received' as const, beat: 'career' as const, supportWave: '' as const, generation: 3, awaiting: [],
+      stage: 'reward' as const, rewardStep: 'received' as const, beat: 'career' as const, supportWave: '' as const, generation: 3,
       reward: {yields: [], reactions: [], skips: []},
     };
     const line = parliamentBandLine({sitting: {...base, career: {player: BOT, to: 7, bonus: 'card', megacredits: 1}}, standing: {votes: 0}});

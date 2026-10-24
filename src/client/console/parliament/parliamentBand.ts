@@ -120,8 +120,12 @@ export type BandChip =
    * names its reason instead.
    */
   | {kind: 'tracks', steps: number, tiles: ReadonlyArray<ColonyTrackMoveChip>, skipped?: string}
-  /** The seats the phase is still waiting for. */
-  | {kind: 'awaiting', seats: ReadonlyArray<Color>}
+  /**
+   * THE ONE HONEST WAIT OF A SITTING — the enacted law is asking ANOTHER seat (its pick, its take, its tile):
+   * the seats depend on each other there, so the wait names itself. Never a list of seats still reading or
+   * closing their sitting — since the soft gates nobody waits for that.
+   */
+  | {kind: 'asking', seats: ReadonlyArray<Color>}
   /**
    * A PARTY'S POPULAR SUPPORT LEAVING (TR12 Party Sanctions): the party's emblem, the neutral cube and the
    * count that returns to the common supply («[emblem] [cube] −3») — the server's own `current − resulting`.
@@ -266,7 +270,6 @@ export type BandSitting = {
    */
   rulingDraw?: {card: CardName, party: ReduxParty, count?: number, tr?: number, production?: number};
   generation: number;
-  awaiting: ReadonlyArray<Color>;
   summary?: ParliamentPhaseSummaryModel;
   reward: BandRewardReading;
 };
@@ -634,9 +637,9 @@ function verdictLine(sitting: BandSitting): BandLine {
   chips.push({kind: 'label', key: 'Winning player', tone: 'quiet'});
   chips.push({kind: 'player', player: summary.winner.player ?? 'neutral'});
   // WHY THE MARKER IS ABOUT TO MOVE, said BEFORE it does — the one line v4 was missing. It is the RULE
-  // («the winner of the vote advances one step»), not the recorded move: at gate 1 the server has not run
-  // the Agenda step yet, so a chip conditioned on `summary.agenda` would be absent exactly where it is
-  // needed. The neutral player advances nothing, and then nothing is claimed.
+  // («the winner of the vote advances one step»), not the recorded move: the verdict reads the vote, and the
+  // marker's move is the NEXT beat (a law-less old save has no `summary.agenda` at all). The neutral player
+  // advances nothing, and then nothing is claimed.
   const winner = summary.winner.player;
   if (winner !== undefined && winner !== 'neutral') {
     chips.push({kind: 'label', key: 'Agenda step', tone: 'quiet'});
@@ -644,9 +647,6 @@ function verdictLine(sitting: BandSitting): BandLine {
   if (summary.winner.tieBreak !== undefined) {
     chips.push({kind: 'label', key: summary.winner.tieBreak === 'slot-priority' ?
       'Tie broken by the slot order' : 'Tie broken by the earlier delegate', tone: 'quiet'});
-  }
-  if (sitting.awaiting.length > 0 && sitting.rewardStep === 'gate') {
-    chips.push({kind: 'awaiting', seats: sitting.awaiting});
   }
   return {kicker: 'Verdict', key: `verdict:${summary.winner.instance}:${sitting.rewardStep}`, chips, committed: false};
 }
@@ -755,12 +755,9 @@ function rewardLine(sitting: BandSitting): BandLine {
     }
   }
   if (reward.waitingFor !== undefined) {
-    chips.push({kind: 'awaiting', seats: [reward.waitingFor]});
+    chips.push({kind: 'asking', seats: [reward.waitingFor]});
   } else if (chips.length === 0) {
     chips.push({kind: 'label', key: 'Your record is in', tone: 'quiet'});
-  }
-  if (sitting.awaiting.length > 0 && sitting.rewardStep === 'gate') {
-    chips.push({kind: 'awaiting', seats: sitting.awaiting});
   }
   // THE WINNER'S LINE: another seat's part is the only reward here — the tile leads, the seat's own
   // skips follow it (a skipped part still names itself — never a silent loss).
@@ -869,8 +866,5 @@ function renewalLine(sitting: BandSitting): BandLine {
 /** ИТОГИ — the generation's number, as the heading of the panel that stands below. */
 function resultsLine(sitting: BandSitting): BandLine {
   const chips: Array<BandChip> = [{kind: 'count', key: 'Generation', amount: sitting.generation}];
-  if (sitting.awaiting.length > 0 && sitting.rewardStep === 'gate') {
-    chips.push({kind: 'awaiting', seats: sitting.awaiting});
-  }
   return {kicker: 'Results', key: `results:${sitting.generation}:${sitting.rewardStep}`, chips, committed: true};
 }

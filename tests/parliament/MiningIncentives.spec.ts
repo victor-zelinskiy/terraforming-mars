@@ -11,7 +11,7 @@ import {
 import {INDUSTRIALIST_BUDGET_ID} from '../../src/server/parliament/resolutions/industrialists/IndustrialistBudget';
 import {AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, endGenerationThroughParliament, passToParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, passToParliament, seatEnacted, seatResolution, settleParliamentGates, sittingOf} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {Resource} from '../../src/common/Resource';
@@ -324,7 +324,7 @@ describe('MiningIncentives', () => {
       expect(parliament.slots).has.length(3);
       expect(parliament.slots.some((slot) => slot.instance === MINING), 'the enacted card left the area').is.false;
       passToParliament(game);
-      expect(parliament.phase, 'a second sitting convenes').is.not.undefined;
+      expect(sittingOf(parliament)?.generation, 'a second sitting convenes').eq(2);
     });
   });
 

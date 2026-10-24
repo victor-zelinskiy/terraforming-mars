@@ -6,7 +6,7 @@ import {Game} from '../../src/server/Game';
 import {Parliament} from '../../src/server/parliament/Parliament';
 import {AQUIFER_CONTEST, AQUIFER_CONTEST_ANIMALS, AQUIFER_CONTEST_CODE, AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
 import {REDUX_RESOLUTION_CATALOG, ResolutionCatalog} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, answerGate, endGenerationThroughParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Resource} from '../../src/common/Resource';
 import {Phase} from '../../src/common/Phase';
@@ -58,10 +58,11 @@ function stage(): [IGame, TestPlayer, TestPlayer, Parliament] {
 }
 
 /**
- * Every player passes; production → the parliament; the sitting's ASSEMBLY
- * gate is answered for every seat (the harness's stale menus cleared first),
- * so the resolution's own asks stand — or, for a quiet card, the ADJOURN gate
- * is answered too and the phase is over (`parliamentArrange`).
+ * Every player passes (the harness's stale menus cleared first); production
+ * → the parliament, whose chain runs at once (the soft gates), so the
+ * resolution's own asks stand — or, for a quiet card, the chain runs to its
+ * end and every seat's confirmation «Закрыть заседание» is answered too
+ * (`parliamentArrange`).
  */
 function endGeneration(game: IGame): void {
   endGenerationThroughParliament(game);
@@ -444,9 +445,8 @@ describe('AquiferContest', () => {
       game.playerHasPassed(human);
       game.playerIsFinishedTakingActions();
       expect(game.phase).eq(Phase.PARLIAMENT);
-      // The sitting's barrier is ONE human: the bot holds no gate, the human's answer opens the effects.
+      // No gate stands before the effects: the law asks the human at once, the bot is asked nothing.
       expect(bot.getWaitingFor()).is.undefined;
-      answerGate(human, 'assembly');
       expect(cast(human.getWaitingFor(), SelectCard).resourceGainPrompt?.amount).eq(1);
       human.process({type: 'card', cards: [CardName.FISH]});
       expect(bot.getWaitingFor()).is.undefined;

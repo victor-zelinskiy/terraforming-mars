@@ -182,7 +182,7 @@
               <PlayerCube color="neutral" steel :size="cubePx(11)" :glow="false" />
               <b class="con-band__num">−{{ chip.amount }}</b>
             </span>
-            <span v-else-if="chip.kind === 'awaiting'" class="con-band__chip con-band__chip--await" data-parl-band-chip="awaiting" data-sit-awaiting>
+            <span v-else-if="chip.kind === 'asking'" class="con-band__chip con-band__chip--await" data-parl-band-chip="asking" data-sit-asking>
               <span class="con-band__text con-band__text--dim">{{ $t('Waiting for the other seats') }}</span>
               <span v-for="c in chip.seats" :key="c" class="con-band__seat">
                 <PlayerCube :color="c" :size="cubePx(11)" :glow="false" /><span class="con-band__text">{{ nameOfColor(c) }}</span>
@@ -312,7 +312,6 @@ export default defineComponent({
         ...(this.career === undefined ? {} : {career: this.career}),
         ...(rulingChangeDrawState.presenting === undefined ? {} : {rulingDraw: rulingChangeDrawState.presenting}),
         generation: position.generation,
-        awaiting: position.awaiting,
         summary: this.summary,
         reward: this.reward,
       };

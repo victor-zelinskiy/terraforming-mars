@@ -916,6 +916,7 @@ import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPre
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {partyAccent} from '@/client/components/premiumCard/partyEmblems';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {PartyName} from '@/common/turmoil/PartyName';
 import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import {discardExchangeRailKey} from '@/client/console/parliament/discardExchangeBeat';
@@ -926,6 +927,7 @@ import {ActionRules, ACTION_RULE_LABEL, actionRuleText, actionRules} from '@/cli
 import {
   ComposerChoice,
   branchChoices,
+  composeAndResponse,
   preChoices,
   firstMissingChoice,
   spendHeatPlan,
@@ -1330,6 +1332,8 @@ export default defineComponent({
       selectedPos: undefined as number | undefined,
       capturedPre: {} as Record<number, unknown>,
       capturedOption: undefined as unknown,
+      /** A TWO-PART option's answered parts, by part index — `capturedOption` is their composed `and` once all stand. */
+      capturedOptionParts: {} as Record<number, unknown>,
       captured: {} as Record<number, unknown>,
       /** The live ACTION COMMIT episode (killed on unmount / rollback). */
       commitHandle: undefined as ActionCommitMotionHandle | undefined,
@@ -1954,7 +1958,7 @@ export default defineComponent({
         return translateText('Choose an option');
       }
       const missing = firstMissingChoice(this.preview, this.selectedBranch, {
-        pre: this.capturedPre, option: this.capturedOption, steps: this.captured,
+        pre: this.capturedPre, option: this.capturedOption, optionParts: this.capturedOptionParts, steps: this.captured,
       });
       if (missing === undefined) {
         return '';
@@ -2700,8 +2704,18 @@ export default defineComponent({
      * prose could never say WHICH path, and its text is translated in place.
      */
     tradeEntryCard(): CardName | undefined {
+      return this.tradeEntryStep?.card || undefined;
+    },
+    /**
+     * …the whole door: the payment path a CARD or a PARTY powers (Unity's free trade — «один фреймворк»), from the
+     * server's own `colonyTrade` step. Exactly one of the two is set.
+     */
+    tradeEntryStep(): {card: CardName | '', party: PartyName | ''} | undefined {
       const step = this.selectedBranch?.steps.find((s) => s.kind === 'colonyTrade');
-      return step?.kind === 'colonyTrade' ? step.card : undefined;
+      if (step?.kind !== 'colonyTrade') {
+        return undefined;
+      }
+      return step.party !== undefined ? {card: '', party: step.party} : {card: step.card, party: ''};
     },
     /**
      * ── A PLAN DOES NOT WALK THROUGH DOORS ────────────────────────────────
@@ -2726,8 +2740,8 @@ export default defineComponent({
       return this.repeatPickDisabled;
     },
     /** The door this confirm walks through, or none (plan / no such branch). */
-    tradeEntryDoor(): CardName | undefined {
-      return this.navigationDeferred ? undefined : this.tradeEntryCard;
+    tradeEntryDoor(): {card: CardName | '', party: PartyName | ''} | undefined {
+      return this.navigationDeferred ? undefined : this.tradeEntryStep;
     },
     deltaEntryDoor(): DeltaAdvanceOffer | undefined {
       return this.navigationDeferred ? undefined : this.deltaEntryOffer;
@@ -2876,7 +2890,7 @@ export default defineComponent({
     },
     /** The live trade prompt this branch would enter (server-authoritative). */
     tradeEntryContext(): TradeColonyContext | undefined {
-      return this.tradeEntryCard === undefined ?
+      return this.tradeEntryStep === undefined ?
         undefined : findTradeColonyContext(this.playerView.waitingFor);
     },
     /**
@@ -2890,18 +2904,18 @@ export default defineComponent({
       // ON. Asking the live `waitingFor` for a trade while planning a repeat
       // is asking about a prompt that cannot exist yet, and its honest «no»
       // then refused the plan's own confirm — the «Летающая платформа» dead end.
-      const card = this.tradeEntryDoor;
-      if (card === undefined) {
+      const door = this.tradeEntryDoor;
+      if (door === undefined) {
         return undefined;
       }
       const ctx = this.tradeEntryContext;
       if (ctx === undefined) {
         return translateText('Trading is not available right now');
       }
-      if (lockedTradePaymentIndex(ctx.paymentOptions, card) >= 0) {
+      if (lockedTradePaymentIndex(ctx.paymentOptions, door.card, door.party) >= 0) {
         return undefined;
       }
-      const reason = lockedTradePaymentReason(ctx.disabledPayments, card);
+      const reason = lockedTradePaymentReason(ctx.disabledPayments, door.card, door.party);
       return reason !== undefined ? textOf(reason) : translateText('Trading is not available right now');
     },
     /**
@@ -3754,7 +3768,7 @@ export default defineComponent({
         return !this.repeatPickDisabled && this.repeatResult === undefined;
       }
       if (c.scope === 'option') {
-        return this.capturedOption === undefined;
+        return c.index >= 0 ? this.capturedOptionParts[c.index] === undefined : this.capturedOption === undefined;
       }
       return c.scope === 'pre' ? this.capturedPre[c.index] === undefined : this.captured[c.index] === undefined;
     },
@@ -3809,6 +3823,7 @@ export default defineComponent({
       this.capturedPre = {};
       this.captured = {};
       this.capturedOption = undefined;
+      this.capturedOptionParts = {};
       this.amounts = {};
       this.floaters = {};
       this.payCounts = {};
@@ -3900,6 +3915,7 @@ export default defineComponent({
         selectedPos: this.selectedPos,
         capturedPre: {...this.capturedPre},
         capturedOption: this.capturedOption,
+        capturedOptionParts: {...this.capturedOptionParts},
         captured: {...this.captured},
         amounts: {...this.amounts},
         floaters: {...this.floaters},
@@ -3916,6 +3932,7 @@ export default defineComponent({
         selectedPos: number | undefined,
         capturedPre: Record<number, unknown>,
         capturedOption: unknown,
+        capturedOptionParts?: Record<number, unknown>,
         captured: Record<number, unknown>,
         amounts: Record<string, number>,
         floaters: Record<string, number>,
@@ -3932,6 +3949,7 @@ export default defineComponent({
       this.selectedPos = snap.selectedPos;
       this.capturedPre = {...snap.capturedPre};
       this.capturedOption = snap.capturedOption;
+      this.capturedOptionParts = {...(snap.capturedOptionParts ?? {})};
       this.captured = {...snap.captured};
       this.amounts = {...snap.amounts};
       this.floaters = {...snap.floaters};
@@ -4059,6 +4077,16 @@ export default defineComponent({
         } else {
           this.capturedPre[c.index] = response;
         }
+      } else if (c.scope === 'option' && c.index >= 0) {
+        // One PART of a two-part option: the branch's answer is the composed `and`, standing only once every part does.
+        const parts = {...this.capturedOptionParts};
+        if (response === undefined) {
+          delete parts[c.index];
+        } else {
+          parts[c.index] = response;
+        }
+        this.capturedOptionParts = parts;
+        this.capturedOption = composeAndResponse(this.selectedBranch?.optionInput, parts);
       } else if (c.scope === 'option') {
         this.capturedOption = response;
       } else if (response === undefined) {
@@ -5351,6 +5379,7 @@ export default defineComponent({
       // preSteps stay captured (branch-independent).
       this.captured = {};
       this.capturedOption = undefined;
+      this.capturedOptionParts = {};
       this.picks = {};
       this.multiPicks = {};
       this.orDescents = {};
@@ -6007,7 +6036,8 @@ export default defineComponent({
       //    No commit ceremony either: the beat exists to fix the boundary
       //    «настраивал → активировал», and this press crosses no boundary.
       if (this.tradeEntryDoor !== undefined) {
-        this.$emit('colony-trade', {card: this.tradeEntryDoor});
+        const door = this.tradeEntryDoor;
+        this.$emit('colony-trade', door.party !== '' ? {party: door.party} : {card: door.card});
         return;
       }
       // ── THE SAME DOOR, onto the Hydronetwork. Nothing is spent, nothing is

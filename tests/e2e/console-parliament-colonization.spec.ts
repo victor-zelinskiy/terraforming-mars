@@ -241,7 +241,6 @@ test.describe('Colonization Funding · standard-1080', () => {
     await armProbe(page);
     await press(page, 'Enter', 1200);
     await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000}).toBeUndefined();
-    await expect(page.locator('.con-band [data-sit-awaiting]')).toHaveCount(1, {timeout: 15_000});
     const prodBefore = (await readProbe(page)).samples.slice(-1)[0].prod;
     await answerGateAs(request, red, 'assembly');
 

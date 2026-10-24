@@ -6,7 +6,7 @@ import {Parliament} from '../../src/server/parliament/Parliament';
 import {SerializedPhaseSummary, SerializedRenewalEvent} from '../../src/server/parliament/SerializedParliament';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {
-  answerStandingGates, endGenerationThroughParliament, passToParliament, quietResolutionOf, REDS_STAND_IN, SCIENTISTS_STAND_IN, seatResolution,
+  atSittingEnd, endGenerationThroughParliament, passToParliament, quietResolutionOf, REDS_STAND_IN, SCIENTISTS_STAND_IN, seatResolution,
   settleParliamentGates,
 } from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
@@ -234,11 +234,13 @@ function replay(before: Snapshot, summary: SerializedPhaseSummary, parliament: P
   expect(summary.refreshed.map((f) => f.neutralVotes)).deep.eq(summary.refreshed.map((f) => votes.get(f.instance) ?? 0));
 }
 
-/** Answer every standing resolution ask with the plainest legal answer (a winner's tile: the first cell), then walk the gates. */
+/** Answer every standing resolution ask with the plainest legal answer (a winner's tile: the first cell), then close the sitting. */
 function answerAsks(game: IGame): void {
   for (let round = 0; round < 12; round++) {
-    // Only while the PHASE stands: past its end the next generation's own prompts (research, the action menu) are nobody's business here.
+    // Only while the PHASE stands: past its end only the sitting's confirmations are ours to answer — the next
+    // generation's own prompts (research, the action menu) are nobody's business here.
     if (game.parliament?.phase === undefined) {
+      settleParliamentGates(game);
       return;
     }
     let answered = false;
@@ -508,13 +510,14 @@ describe('ParliamentPhase — the renewal JOURNAL (the small deck\'s seven scena
     expect(leave?.kind === 'leave' ? leave.resolution : '').eq(leave?.kind === 'leave' ? parliament.resolutionOf(leave.instance).id : '?');
     const lobby = journal.filter((e) => e.kind === 'lobby').map((e) => e.kind === 'lobby' ? e.player : '');
     expect(lobby).deep.eq([p1.color, p2.color]);
-    // The live sitting carries it too, from the refresh on (the adjourn gate reads it before the phase closes).
+    // The live sitting carries it too, from the refresh on — read at the chain's LAST step, before the phase closes.
     const t2 = table();
     t2.parliament.placeVote(t2.p1, t2.parliament.slots[slotOfParty(t2.parliament, M)], 'lobby');
+    let livePhase: ReturnType<typeof getParliamentModel> | undefined;
+    atSittingEnd(t2.game, () => (livePhase = getParliamentModel(t2.game, t2.p1)));
     passToParliament(t2.game);
-    answerStandingGates(t2.game, 'assembly');
-    expect(t2.parliament.phase?.step).eq('adjourn');
-    const live = getParliamentModel(t2.game, t2.p1)!.phase?.summary?.renewal ?? [];
+    expect(livePhase?.phase?.step).eq('done');
+    const live = livePhase?.phase?.summary?.renewal ?? [];
     expect(live.length).is.greaterThan(0);
     expect(live[0].kind).eq('leave');
   });

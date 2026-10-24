@@ -12,7 +12,7 @@ import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/mar
 import {repeatPlacementBonuses} from '../../src/server/parliament/resolutions/marsFirst/DevelopmentCraze';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {SerializedEnactOutcome} from '../../src/server/parliament/SerializedParliament';
-import {answerGate, endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {
   TILE_GRANT_NO_DESTINATION_REASON, TILE_GRANT_NOT_ELIGIBLE_REASON, tileGrantEligibility, tileGrantStepKey,
 } from '../../src/common/parliament/tileGrant';
@@ -522,7 +522,6 @@ describe('Skyscrapers', () => {
       game.playerIsFinishedTakingActions();
       expect(game.phase).eq(Phase.PARLIAMENT);
       expect(bot.getWaitingFor()).is.undefined;
-      answerGate(human, 'assembly');
       const ask = cast(human.getWaitingFor(), SelectSpace);
       expect(ask.spaces.map((s) => s.id)).deep.eq([mine.id]);
       expect(bot.getWaitingFor()).is.undefined;

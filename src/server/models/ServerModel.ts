@@ -27,7 +27,6 @@ import {FundedAwardModel, AwardScore} from '../../common/models/FundedAwardModel
 import {getTurmoilModel} from '../models/TurmoilModel';
 import {getParliamentModel} from '../parliament/ParliamentModel';
 import {ParliamentHandler} from '../parliament/ParliamentHandler';
-import {parliamentGateAwaiting} from '../parliament/ParliamentPhase';
 import {GameModel} from '../../common/models/GameModel';
 import {MarsBotModel} from '../../common/models/MarsBotModel';
 import {createPathfindersModel} from './PathfindersModel';
@@ -588,14 +587,10 @@ export class Server {
     if (waitingFor.finalGreeneryPrompt !== undefined) {
       model.finalGreeneryPrompt = waitingFor.finalGreeneryPrompt;
     }
-    // A GATE of the Mars Parliament's political phase — always the top-level
-    // prompt. The seats still awaited are read off the phase's per-seat keys
-    // NOW, so the list moves as the others answer (never a counter in memory).
+    // THE CONFIRMATION of a sitting of the Mars Parliament (the soft gates) —
+    // always the top-level prompt; the seat's own close, never a barrier list.
     if (waitingFor.parliamentPhasePrompt !== undefined) {
-      model.parliamentPhasePrompt = {
-        ...waitingFor.parliamentPhasePrompt,
-        awaiting: parliamentGateAwaiting(player.game, waitingFor.parliamentPhasePrompt.stage),
-      };
+      model.parliamentPhasePrompt = {...waitingFor.parliamentPhasePrompt};
     }
     // THE CHAIRMAN-QUEST GATE — also always the top-level prompt. Nothing is
     // derived here: the flow reads the quest, the seat and the marker off the

@@ -44,7 +44,6 @@ function sitting(over: Partial<BandSitting> = {}): BandSitting {
     beat: '',
     supportWave: '',
     generation: 3,
-    awaiting: [],
     summary: summary(),
     reward: NO_REWARD,
     ...over,
@@ -94,14 +93,13 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
       const neutral = line({stage: 'verdict', summary: summary({winner: {...summary().winner, player: 'neutral'}, agenda: undefined})});
       expect(kinds(neutral.chips)).deep.eq(['resolution', 'count', 'label', 'player']);
     });
-    it('a broken TIE names the rule that broke it, and the answered gate lists who is still reading', () => {
+    it('a broken TIE names the rule that broke it — and nobody is listed as «still reading» (the soft gates: nobody waits for that)', () => {
       const band = line({
         stage: 'verdict',
-        rewardStep: 'gate',
-        awaiting: [RED],
+        rewardStep: 'received',
         summary: summary({winner: {...summary().winner, tieBreak: 'slot-priority'}}),
       });
-      expect(kinds(band.chips)).deep.eq(['resolution', 'count', 'label', 'player', 'label', 'label', 'awaiting']);
+      expect(kinds(band.chips)).deep.eq(['resolution', 'count', 'label', 'player', 'label', 'label']);
       expect((band.chips[5] as {key: string}).key).eq('Tie broken by the slot order');
     });
   });
@@ -337,8 +335,8 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
       const withWorld = line({stage: 'reward', rewardStep: 'received', reward: {...NO_REWARD, tile: 'greenery', grant: 'city', world: [{parameter: 'oxygen', before: 5, after: 6, steps: 1, unrewarded: false}]}});
       expect(kinds(withWorld.chips)).deep.eq(['tile', 'grant', 'world']);
     });
-    it('a wait on ANOTHER seat is the line, and a seat with nothing at all still reads', () => {
-      expect(kinds(line({stage: 'reward', reward: {...NO_REWARD, waitingFor: RED}}).chips)).deep.eq(['awaiting']);
+    it('a wait on ANOTHER seat (the law asks it — the one honest wait of a sitting) is the line, and a seat with nothing at all still reads', () => {
+      expect(kinds(line({stage: 'reward', reward: {...NO_REWARD, waitingFor: RED}}).chips)).deep.eq(['asking']);
       const empty = line({stage: 'reward', rewardStep: 'received'});
       expect((empty.chips[0] as {key: string}).key).eq('Your record is in');
     });

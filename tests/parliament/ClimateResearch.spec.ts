@@ -12,7 +12,7 @@ import {AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens
 import {BIODOME_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/BiodomeContest';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, answerGate, endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {Resource} from '../../src/common/Resource';
@@ -64,10 +64,11 @@ function stage(): [IGame, TestPlayer, TestPlayer, Parliament] {
 }
 
 /**
- * Every player passes; production → the parliament; the sitting's ASSEMBLY
- * gate is answered for every seat (the harness's stale menus cleared first),
- * so the resolution's own asks stand — or, for a quiet card, the ADJOURN gate
- * is answered too and the phase is over (`parliamentArrange`).
+ * Every player passes (the harness's stale menus cleared first); production
+ * → the parliament, whose chain runs at once (the soft gates), so the
+ * resolution's own asks stand — or, for a quiet card, the chain runs to its
+ * end and every seat's confirmation «Закрыть заседание» is answered too
+ * (`parliamentArrange`).
  */
 function endGeneration(game: IGame): void {
   endGenerationThroughParliament(game);
@@ -779,9 +780,8 @@ describe('ClimateResearch', () => {
       human.popWaitingFor();
       game.playerHasPassed(human);
       game.playerIsFinishedTakingActions();
-      // The sitting's barrier is ONE human: the bot holds no gate.
+      // No gate stands before the effects; the bot is asked nothing.
       expect(bot.getWaitingFor()).is.undefined;
-      answerGate(human, 'assembly');
       takeAll(human);
       runAllActions(game);
       expect(parliament.participates(bot, 'delegates')).is.false;

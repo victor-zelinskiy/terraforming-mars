@@ -41,6 +41,7 @@
  * every way out. Pure + a reactive record: no DOM, no Vue components, no i18n.
  */
 import {reactive} from 'vue';
+import {sittingBaselineOf} from './sittingBaseline';
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -143,7 +144,7 @@ export function receiptOf(outcome: ParliamentEnactOutcomeModel, generation: numb
  */
 export function detectNewTableReceipts(before: PlayerViewModel | undefined, after: PlayerViewModel): Array<TableReceipt> {
   const phase = phaseOf(after);
-  const was = phaseOf(before);
+  const was = sittingBaselineOf(before, after);
   const viewer = after.thisPlayer?.color;
   if (viewer === undefined || phase === undefined || was === undefined || was.generation !== phase.generation) {
     return [];

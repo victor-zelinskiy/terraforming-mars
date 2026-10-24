@@ -24,7 +24,7 @@ import {Priority} from '../../src/server/deferredActions/Priority';
 import {cast} from '../../src/common/utils/utils';
 import {runAllActions} from '../TestingUtils';
 import {EventSource} from '../../src/common/events/EventSource';
-import {answerQuestGate, questGateOf, passToParliament} from './parliamentArrange';
+import {answerQuestGate, questGateOf, passToParliament, sittingOf, sittingOpen} from './parliamentArrange';
 
 function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
   const [game, p1, p2] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
@@ -189,9 +189,12 @@ describe('the chairman-quest gate', () => {
       parliament.pendingActions.push({kind: 'chairman-quest', player: p1.id});
       expect(ChairmanSeat.questGatePending(parliament, p1)).is.true;
 
+      const generation = game.generation;
       passToParliament(game);
 
       expect(parliament.phase, 'the sitting has not started').is.undefined;
+      expect(parliament.lastPhase, '…nor already run its chain').is.undefined;
+      expect(sittingOpen(game)).is.false;
       expect(game.phase, 'the game is not in the political phase').not.eq(Phase.PARLIAMENT);
       const gate = questGateOf(p1);
       expect(gate, 'the gate stands instead').is.not.undefined;
@@ -199,7 +202,12 @@ describe('the chairman-quest gate', () => {
       p1.process({type: 'option'});
       runAllActions(game);
       expect(parliament.pendingActions).deep.eq([]);
-      expect(parliament.phase, 'and only then the sitting convenes').is.not.undefined;
+      // Only now does the sitting convene — and its chain runs at once (the soft
+      // gates): it stands at a law's own ask, or it has run to its end and every
+      // seat holds «Закрыть заседание» (the game itself may already be in the
+      // next generation). Either way it is the sitting of the generation that ended.
+      expect(sittingOpen(game), 'and only then the sitting convenes').is.true;
+      expect(sittingOf(parliament)?.generation).eq(generation);
     });
   });
 

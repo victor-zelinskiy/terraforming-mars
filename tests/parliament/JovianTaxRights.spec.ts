@@ -12,7 +12,7 @@ import {
 import {COLONY_CONTEST_TITANIUM} from '../../src/server/parliament/resolutions/unity/ColonyContest';
 import {ARCHITECTURE_AWARD_ID, ARCHITECTURE_AWARD_PRODUCTION} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, endGenerationThroughParliament, passToParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, passToParliament, seatEnacted, seatResolution, settleParliamentGates, sittingOf} from './parliamentArrange';
 import {declaredCountIds, resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {questRenderData} from '../../src/server/parliament/quests/questRender';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
@@ -565,7 +565,7 @@ describe('JovianTaxRights', () => {
       expect(parliament.slots).has.length(3);
       expect(parliament.slots.some((slot) => slot.instance === RIGHTS), 'the enacted card left the area').is.false;
       passToParliament(game);
-      expect(parliament.phase, 'a second sitting convenes').is.not.undefined;
+      expect(sittingOf(parliament)?.generation, 'a second sitting convenes').eq(2);
     });
   });
 });

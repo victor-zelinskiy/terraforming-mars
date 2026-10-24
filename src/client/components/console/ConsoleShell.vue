@@ -4808,9 +4808,12 @@ export default defineComponent({
     },
     /**
      * THE PARLIAMENT'S SITTING FRAME (Turmoil Redux) — the draft's lifecycle
-     * contract: a PHASE-anchored root (`Phase.PARLIAMENT`) whose rising edge
-     * opens NOTHING (the flow beat's announce + the player's A stand it up)
-     * and whose falling edge closes it. Read by the frame watcher below.
+     * contract: a PHASE-anchored root whose rising edge opens NOTHING (the flow
+     * beat's announce + the player's A — or the generation scene's rise — stand
+     * it up) and whose falling edge closes it. Live while the sitting stands FOR
+     * THIS SEAT (the server's per-seat `parliament.phase`: the chain running, or
+     * at `done` until the seat's own «Закрыть заседание») — never the game's
+     * phase, which has moved on to the next generation by then.
      */
     parliamentSittingFrameLive(): boolean {
       return parliamentSittingLive(this.playerView);
@@ -5720,16 +5723,18 @@ export default defineComponent({
      */
     mandatoryFlowBeats(): ReadonlyArray<MandatoryFlowBeat> {
       const out: Array<MandatoryFlowBeat> = [];
-      const draft = draftMandatoryFlowBeat(this.playerView);
-      if (draft !== undefined) {
-        out.push(draft);
-      }
-      // THE PARLIAMENT'S SITTING (Turmoil Redux): the political phase, announced
-      // once per generation — its two gates and every ask of the enacted
-      // resolution ride this ONE beat (`consoleSittingFlow`).
+      // THE PARLIAMENT'S SITTING (Turmoil Redux) comes FIRST — the rules' order: it stands between the production and
+      // the next generation's research. Announced once per sitting; every ask of the enacted resolution and the one
+      // confirmation ride this ONE beat (`consoleSittingFlow`). Since the soft gates the next generation already runs
+      // on the server while this seat reads its sitting, and the draft's beat derives nothing until the seat closes
+      // it (`betweenGenResearchLive`) — so the draft can never rise over an open sitting.
       const sitting = parliamentSittingFlowBeat(this.playerView);
       if (sitting !== undefined) {
         out.push(sitting);
+      }
+      const draft = draftMandatoryFlowBeat(this.playerView);
+      if (draft !== undefined) {
+        out.push(draft);
       }
       return out;
     },

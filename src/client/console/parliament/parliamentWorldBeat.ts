@@ -80,6 +80,7 @@
  * has ALREADY landed (the board was in view) owes no trip at all.
  */
 import {reactive} from 'vue';
+import {sittingBaselineOf} from './sittingBaseline';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentEnactOutcomeModel, ParliamentPhaseModel} from '@/common/models/ParliamentModel';
 import {boardBeatStoryPending, drainBoardBeatsIfDue} from '@/client/console/boardBeatPark';
@@ -175,7 +176,7 @@ function isWorldStoryRecord(outcome: ParliamentEnactOutcomeModel): boolean {
  */
 export function detectNewWorldMoves(before: PlayerViewModel | undefined, after: PlayerViewModel): Array<ParliamentEnactOutcomeModel> {
   const phase = phaseOf(after);
-  const was = phaseOf(before);
+  const was = sittingBaselineOf(before, after);
   if (phase === undefined || was === undefined || was.generation !== phase.generation) {
     return [];
   }

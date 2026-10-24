@@ -5,8 +5,9 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentModel, ParliamentPhaseModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {
-  detectSittingTransition, heldSittingKey, resetParliamentSittingSeed, seedParliamentSittingHolds,
+  detectSittingTransition, heldSittingKey, resetParliamentSittingSeed, seedParliamentSittingHolds, sittingSeededLive,
 } from '@/client/console/parliament/parliamentSittingSeed';
+import {sittingBaselineOf} from '@/client/console/parliament/sittingBaseline';
 import {enactmentHeld, parliamentHolds, releaseEnactmentHolds, releaseRenewalHolds, renewalHeld} from '@/client/console/parliament/parliamentDisplayHolds';
 
 /*
@@ -60,6 +61,35 @@ describe('parliamentSittingSeed — the holds of one response, in the same block
     expect(detectSittingTransition(undefined, at('effects')), 'a first view (a reload)').deep.eq({barrier: false, refresh: false});
     expect(detectSittingTransition(at('assembly', 1), at('effects', 2)), 'another generation').deep.eq({barrier: false, refresh: false});
     expect(detectSittingTransition(at('assembly'), view(model({step: 'adjourn', final: true}))), 'the final phase refreshes nothing').deep.eq({barrier: true, refresh: false});
+  });
+
+  /*
+   * THE SOFT GATES: the server runs the whole chain in ONE response, so the view before it has NO sitting — the
+   * action phase of the same generation, the table as it stood. That view is the baseline (an empty sitting); a
+   * view of another generation, or none, is not (a reload lands in the final poses).
+   */
+  it('THE SOFT GATES — from a view with NO sitting yet (the same generation): the chain and the refresh in one response; nothing from another generation or a first view', () => {
+    const table = (generation: number) => ({...view(model(undefined)), game: {generation, parliament: model(undefined)}} as unknown as PlayerViewModel);
+    const sitting = (step: ParliamentPhaseModel['step'], over: Partial<ParliamentPhaseModel> = {}) =>
+      ({...view(model({step, ...over})), game: {generation: 3, parliament: model({step, ...over})}} as unknown as PlayerViewModel);
+    // The seat's sitting at its END (the per-seat `done` — the next generation, 3, already runs around it).
+    expect(detectSittingTransition(table(2), sitting('done')), 'a quiet law: the chain AND the refresh').deep.eq({barrier: true, refresh: true});
+    expect(detectSittingTransition(table(2), sitting('done', {final: true})), 'the final sitting refreshes nothing').deep.eq({barrier: true, refresh: false});
+    expect(sittingBaselineOf(table(2), sitting('done'))).deep.eq({generation: 2, final: false, step: 'winner'});
+    expect(detectSittingTransition(table(1), sitting('done')), 'a view of another generation is no baseline').deep.eq({barrier: false, refresh: false});
+    expect(detectSittingTransition(undefined, sitting('done')), 'a first view (a reload)').deep.eq({barrier: false, refresh: false});
+    // The law asks: the chain stops at the effects — the refresh comes with the response after the last ask.
+    const effects = {...view(model({step: 'effects'})), game: {generation: 2, parliament: model({step: 'effects'})}} as unknown as PlayerViewModel;
+    expect(detectSittingTransition(table(2), effects)).deep.eq({barrier: true, refresh: false});
+    expect(detectSittingTransition(effects, sitting('done')), 'the last ask answered: the refresh').deep.eq({barrier: false, refresh: true});
+    // SEED: the holds are the table as it stood, and the session remembers it SAW this chain arrive (the walk opens on the verdict).
+    seedParliamentSittingHolds(table(2), sitting('done'));
+    expect(enactmentHeld()).is.true;
+    expect(parliamentHolds.heldSlots?.map((s) => s.instance)).deep.eq([A, B, C]);
+    expect(sittingSeededLive(heldSittingKey())).is.true;
+    resetParliamentSittingSeed();
+    seedParliamentSittingHolds(undefined, sitting('done'));
+    expect(sittingSeededLive(heldSittingKey()), 'a reload: nothing seen arriving').is.false;
   });
 
   it('THE BARRIER OPENED — the same seeds for the OWN submit and the POLL: the table as voted is held (the winner in its slot), the Agenda move, the support, the returns, the OLD government', () => {

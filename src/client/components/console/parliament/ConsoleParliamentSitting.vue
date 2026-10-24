@@ -313,6 +313,18 @@
               </span>
             </span>
           </div>
+          <!-- ЕЩЁ В ЗАСЕДАНИИ (the soft gates, decision Р2) — a quiet FACT, never a wait: the seats that have not
+               closed this sitting yet (the server's record, `ParliamentModel.sitting`). Nobody waits for them here —
+               the confirmation admits the viewer to the next generation on its own; they meet again only at the
+               barriers they share (the draft round, the research). No verb, no motion, no timer. -->
+          <div v-if="othersInSitting.length > 0" class="con-sit__row con-sit__in-sitting" data-sit-row="results-in-sitting">
+            <span class="con-parl__chip-dim">{{ $t('Still in the sitting') }}</span>
+            <span class="con-sit__chips">
+              <span v-for="color in othersInSitting" :key="color" class="con-sit__chip" data-sit-in-sitting :data-sit-in-sitting-seat="color">
+                <PlayerCube :color="color" :size="cubePx(11)" :glow="false" /><b class="con-sit__seat-name">{{ nameOfColor(color) }}</b>
+              </span>
+            </span>
+          </div>
         </div>
       </div>
     </section>
@@ -392,6 +404,13 @@ export default defineComponent({
     }
   },
   computed: {
+    /** The OTHER seats that have not closed this sitting yet — the record's fact for the quiet line (never the viewer). */
+    othersInSitting(): ReadonlyArray<Color> {
+      if (this.mode !== 'live') {
+        return [];
+      }
+      return (this.model?.sitting?.pending ?? []).filter((color) => color !== this.viewerColor);
+    },
     /** Any of the planet's moves was made with nobody credited — the line says so ONCE, not per move. */
     planetUnrewarded(): boolean {
       return (this.results?.planet ?? []).some((move) => move.unrewarded && move.skipped === undefined && move.steps !== 0);

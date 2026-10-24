@@ -110,6 +110,12 @@ import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirect
 const VERDICT_LIGHT_MS = 220;
 const VERDICT_PULSE_MS = 180;
 const VERDICT_BADGE_MS = 260;
+/**
+ * THE VERDICT'S READ (the soft gates, decision Р1): the verdict is a page of the director — no gate stands at it any
+ * more, so the reading the gate used to give it is the page's own tail (the storyboard's ~3 s stage with the light,
+ * the pulse and the badge). A position on the beat's own timeline — A «дожать» ends it with the beat.
+ */
+const VERDICT_READ_MS = 2200;
 /** The pause between the enactment's beats — the next starts only once the previous has LANDED. */
 const BEAT_GAP_MS = 250;
 /**
@@ -396,7 +402,8 @@ function beatVerdict(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: num
   if (rows.length > 0) {
     descendCascade(tl, rows, s(VERDICT_BADGE_MS) * k, s(120) * k, at);
   }
-  return at + s(VERDICT_BADGE_MS) * k + (rows.length > 1 ? s(120) * k : 0);
+  // The read: the verdict stands lit on the table before the walk turns to the enactment.
+  return at + s(VERDICT_BADGE_MS) * k + (rows.length > 1 ? s(120) * k : 0) + s(VERDICT_READ_MS) * k;
 }
 
 // ── ПРИНЯТИЕ · ПОВЕСТКА ────────────────────────────────────────────────────

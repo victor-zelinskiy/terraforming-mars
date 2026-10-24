@@ -612,7 +612,12 @@ export type ActionPreviewStep =
    * entry points one action), so this step never promises a path that isn't
    * there.
    */
-  | {kind: 'colonyTrade', card: CardName}
+  | {kind: 'colonyTrade', card: CardName, party?: undefined}
+  /**
+   * …and the same door opened by a PARTY's action (Turmoil Redux «один фреймворк» — Unity's free trade): the trade's
+   * payment path is the PARTY's (`OptionMetadata.party`), never a card's. One door, two kinds of source.
+   */
+  | {kind: 'colonyTrade', party: ReduxParty, card?: undefined}
   /**
    * THIS BRANCH *IS* A MOVE ON THE HYDRONETWORK — it does not run a track of
    * its own, it enters the ONE Delta Project workspace and commits there.

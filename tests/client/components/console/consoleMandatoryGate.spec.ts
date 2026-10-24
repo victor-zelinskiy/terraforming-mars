@@ -84,8 +84,8 @@ describe('consoleMandatoryGate (the mandatory announcement gate)', () => {
       expect(pick).to.deep.eq(sitting);
       const ocean = mandatoryBeatFor({task: {kind: 'space'}, taskKey: 'space|ocean', forcedReaction: false, resolutionPrompt: true, flows: [sitting]});
       expect(ocean).to.deep.eq(sitting);
-      // The gate prompt itself is not an interruptive TASK — the flow beat is what represents it.
-      expect(mandatoryBeatFor({task: {kind: 'parliamentPhase', stage: 'assembly'}, taskKey: 'option|gate', forcedReaction: false, flows: [sitting]})).to.deep.eq(sitting);
+      // The confirmation itself is not an interruptive TASK — the flow beat is what represents it.
+      expect(mandatoryBeatFor({task: {kind: 'parliamentPhase', stage: 'close'}, taskKey: 'option|close', forcedReaction: false, flows: [sitting]})).to.deep.eq(sitting);
       // …acknowledged once at the open, the SAME key stays acknowledged through every ask of the phase.
       acknowledgeMandatoryBeat(sitting.key);
       expect(isMandatoryBeatHeld(pick)).to.be.false;

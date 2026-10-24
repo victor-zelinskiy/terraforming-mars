@@ -156,7 +156,6 @@ test.describe('Joint Research · standard-1080', () => {
       // ── GATE 1: A on the verdict; red answers over the API — the effects run by themselves.
       expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined,
         {tries: 4, settleMs: 1500}), 'A answers the assembly gate').toBe(true);
-      await expect(page.locator('.con-band [data-sit-awaiting]')).toHaveCount(1, {timeout: 15_000});
       await answerGateAs(request, red, 'assembly');
 
       // ── THE TAKE stands INSIDE the stage's own zone with THREE cards — and the band explains the number.

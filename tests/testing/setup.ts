@@ -52,4 +52,8 @@ export function setTestGameLoader(gameLoader: IGameLoader) {
   gameLoaderUnderTest = gameLoader;
 }
 GameLoader.getInstance = () => gameLoaderUnderTest;
+// THE SOFT GATES' TRAP (docs/claude/console/parliament-soft-gates.md К6): a prompt written over a sitting's
+// confirmation — or the confirmation over a standing prompt — THROWS in the specs (read lazily by
+// `Player.setWaitingFor`), so a publisher of the next generation that forgot `holdsSittingAck` fails a spec.
+process.env.TM_STRICT_PROMPTS = '1';
 globalInitialize();

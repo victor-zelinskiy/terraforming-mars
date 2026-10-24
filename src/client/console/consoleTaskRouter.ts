@@ -110,13 +110,14 @@ export type ConsoleTask =
    */
   | {kind: 'party'}
   /**
-   * THE SITTING'S GATE (Turmoil Redux — docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md
-   * §3): the political phase asks EVERY participant to confirm the verdict
-   * and the enactment (`assembly`) and, later, the refreshed area (`adjourn`).
-   * A plain `option` on the wire, routed off the server's own
+   * THE SITTING'S CONFIRMATION (Turmoil Redux, the soft gates —
+   * docs/claude/console/parliament-soft-gates.md): ONE prompt of the seat at
+   * the sitting's end, «Закрыть заседание» (`close`) — never a barrier: the
+   * next generation already runs and this seat is admitted to it on its
+   * answer. A plain `option` on the wire, routed off the server's own
    * `parliamentPhasePrompt` marker — never its title. Served INSIDE the
-   * Parliament workspace's sitting flow («ПАРЛАМЕНТ › ЗАСЕДАНИЕ › …»): A on the
-   * flow's last page is the answer, byte-identical to the historical radio UI.
+   * Parliament workspace's sitting flow («ПАРЛАМЕНТ › ЗАСЕДАНИЕ › ИТОГИ»): A on
+   * the results is the answer.
    */
   | {kind: 'parliamentPhase', stage: ParliamentPhaseStage}
   /**

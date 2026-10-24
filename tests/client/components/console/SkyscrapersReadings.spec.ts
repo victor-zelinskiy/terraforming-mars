@@ -192,7 +192,7 @@ describe('SkyscrapersReadings (RX20)', () => {
     it('the band: a `grant` chip on the reward line for a tier owed or placed — never for a skipped seat (its skip chip says that)', () => {
       const line = parliamentBandLine({
         sitting: {
-          stage: 'reward', rewardStep: 'placement', beat: '', supportWave: '', generation: 3, awaiting: [],
+          stage: 'reward', rewardStep: 'placement', beat: '', supportWave: '', generation: 3,
           summary: {generation: 3, final: false, winner: {instance: SKY, resolution: SKY_ID, party: PartyName.MARS, votes: 2, player: BLUE}, support: [], enacted: {instance: SKY, resolution: SKY_ID, party: PartyName.MARS}, refreshed: [], lobbyRefilled: []},
           reward: {yields: [], reactions: [], skips: [], grant: 'city'},
         },

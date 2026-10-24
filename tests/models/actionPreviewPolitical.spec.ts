@@ -59,15 +59,19 @@ describe('politicalActionPreview', () => {
     expect(used?.branches[0].unavailableReason).eq('This party action was already used this generation');
   });
 
-  it('the Scientists: a choice — a branch per kind with a holder, each carrying its card pick', () => {
+  it('the Scientists: a choice — a branch per kind with a holder, each carrying its card pick; a kind with none SHOWN refused', () => {
     const [, p1, , parliament] = reduxGame();
     parliament.grantPartyEffect(p1, PartyName.SCIENTISTS, 'test');
     const tardigrades = new Tardigrades();
     p1.playedCards.push(tardigrades);
     const preview = politicalActionPreview(p1, {kind: 'party', party: PartyName.SCIENTISTS});
     expect(preview?.answer).eq('or');
-    expect(preview?.branches).has.length(1);
-    const [branch] = preview!.branches;
+    expect(preview?.branches).has.length(2);
+    const [branch, refused] = preview!.branches;
+    // The data branch has no holder: shown, disabled, with the reason — after the live one (runtime indices intact).
+    expect(refused.available).is.false;
+    expect(refused.index).eq(-1);
+    expect(JSON.stringify(refused.unavailableReason)).contains('No card of yours can hold ${0}');
     expect(branch.index).eq(0);
     expect(branch.optionInput?.type).eq('card');
     expect(branch.effects).deep.eq([{direction: 'gain', icon: 'microbe', amount: 2, note: 'to a card'}]);
@@ -87,6 +91,17 @@ describe('politicalActionPreview', () => {
     const input = preview!.branches[0].optionInput;
     expect(input?.type).eq('and');
     expect(input?.type === 'and' ? input.options.map((o) => o.type) : []).deep.eq(['or', 'or']);
+  });
+
+  it('Unity: the action RIDES the colony trade — one branch whose step is the trade\'s door, pinned to the party', () => {
+    const [, p1, , parliament] = reduxGame();
+    parliament.grantPartyEffect(p1, PartyName.UNITY, 'test');
+    const preview = politicalActionPreview(p1, {kind: 'party', party: PartyName.UNITY});
+    expect(preview?.branches).has.length(1);
+    const [branch] = preview!.branches;
+    expect(branch.available).is.true;
+    expect(branch.optionInput).is.undefined;
+    expect(branch.steps).deep.eq([{kind: 'colonyTrade', party: PartyName.UNITY}]);
   });
 
   it('a party without access previews blocked with its reason; a party without an action previews nothing', () => {

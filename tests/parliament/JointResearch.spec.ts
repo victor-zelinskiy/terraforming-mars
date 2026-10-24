@@ -8,7 +8,7 @@ import {
   JOINT_RESEARCH, JOINT_RESEARCH_AT_TARGET_REASON, JOINT_RESEARCH_CODE, JOINT_RESEARCH_DRAW, JOINT_RESEARCH_HAND_BASE, JOINT_RESEARCH_ID,
 } from '../../src/server/parliament/resolutions/scientists/JointResearch';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates, answerGate} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates, sittingOf} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {CardName} from '../../src/common/cards/CardName';
@@ -438,7 +438,7 @@ describe('JointResearch', () => {
       runAllActions(copy);
       expect(c1.cardsInHand, '3 + 1 + the same 4').has.length(8);
       expect(c1.pendingCardIntakes).is.empty;
-      const record = copy.parliament?.phase?.summary?.outcomes?.find((o) => o.player === c1.id && o.step === 'draw');
+      const record = sittingOf(copy.parliament!)?.outcomes?.find((o) => o.player === c1.id && o.step === 'draw');
       expect(record).deep.include({amount: 4, drawn: 4, target: 7});
       expect(record?.total, 'as read at the step').deep.eq({before: 3, after: 7});
       settleParliamentGates(copy);
@@ -603,7 +603,6 @@ describe('JointResearch', () => {
       game.playerHasPassed(human);
       game.playerIsFinishedTakingActions();
       expect(bot.getWaitingFor()).is.undefined;
-      answerGate(human, 'assembly');
       expect(takePrompt(human)?.cards, '7 − 2').has.length(5);
       takeAll(human);
       runAllActions(game);

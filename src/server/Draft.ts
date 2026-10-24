@@ -88,7 +88,11 @@ export abstract class Draft {
     for (const [player, draftHand] of zip([...participants], arrays)) {
       player.draftHand = draftHand;
       player.needsToDraft = true;
-      this.askPlayerToDraft(player, false);
+      // THE SOFT GATES: a seat still reading the last sitting is DEALT its packet like everyone (the deal's order is
+      // the RNG's), but asked only on its own confirmation (`admit`) — the round's barrier waits for it as for anyone.
+      if (!this.holdsSittingAck(player)) {
+        this.askPlayerToDraft(player, false);
+      }
     }
     if (save) {
       this.game.save();
@@ -113,6 +117,10 @@ export abstract class Draft {
     const anybodyStillNeedsToDraft = players.some((p) => p.needsToDraft);
 
     for (const player of players) {
+      // A seat that still owes the sitting's confirmation got it re-issued FIRST (`Game.deserialize`); its pick waits for it.
+      if (this.holdsSittingAck(player)) {
+        continue;
+      }
       if (player.needsToDraft) {
         this.askPlayerToDraft(player, false);
       } else if (anybodyStillNeedsToDraft) {
@@ -123,6 +131,22 @@ export abstract class Draft {
     if (!anybodyStillNeedsToDraft) {
       this.endRound();
     }
+  }
+
+  /**
+   * THE SOFT GATES' DOOR into the draft: a seat dealt its packet while it still
+   * read the last sitting is asked its pick now, on its own confirmation
+   * (`IGame.admitToGeneration`). Never over a standing prompt.
+   */
+  public admit(player: IPlayer): void {
+    if (player.needsToDraft === true && player.getWaitingFor() === undefined && !this.holdsSittingAck(player)) {
+      this.askPlayerToDraft(player, false);
+    }
+  }
+
+  /** Does the seat still owe the last sitting's confirmation (the soft gates)? */
+  private holdsSittingAck(player: IPlayer): boolean {
+    return this.game.parliament?.holdsSittingAck(player.id) ?? false;
   }
 
   /** The player this player is taking their cards from when everybody passes their draft hands */

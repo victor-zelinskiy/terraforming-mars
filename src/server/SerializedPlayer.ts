@@ -78,6 +78,8 @@ export interface SerializedPlayer extends DeprecatedFields{
   dealtProjectCards: Array<CardName>;
   deltaProject?: DeltaProjectPlayerModel;
   draftedCards: Array<CardName>;
+  /** The research deal waiting for its buy (`IPlayer.researchHand`); absent when empty and on older saves. */
+  researchHand?: Array<CardName>;
   draftHand: Array<CardName>,
   energy: number;
   energyProduction: number;

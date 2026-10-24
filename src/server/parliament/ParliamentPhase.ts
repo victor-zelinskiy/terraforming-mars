@@ -2,37 +2,33 @@
  * THE POLITICAL PHASE — the parliament's end-of-generation steps (rulebook
  * pp.10–12), as a RESUMABLE driver.
  *
- * Steps: winner → ASSEMBLY → agenda → support → enact → effects → refresh →
- * lobby → ADJOURN → done (the final generation: … → effects → ADJOURN → done).
- * Every operation has an idempotency key recorded in `phase.applied` (a
- * per-seat one under its player in `phase.appliedBySeat`), the
- * effects step keeps a per-player cursor and the pending step key, and the
- * whole progress is game state (`Parliament.phase`) — so a game saved while a
- * resolution asks a player something reloads INTO that question: no reward
- * is paid twice, none is lost, nothing is re-randomized (`Game.deserialize`
- * → `ParliamentPhase.resume`).
+ * Steps: winner → agenda → support → enact → effects → refresh → lobby →
+ * done (the final generation: … → effects → done). Every operation has an
+ * idempotency key recorded in `phase.applied` (a per-seat one under its
+ * player in `phase.appliedBySeat`), the effects step keeps a per-player
+ * cursor and the pending step key, and the whole progress is game state
+ * (`Parliament.phase`) — so a game saved while a resolution asks a player
+ * something reloads INTO that question: no reward is paid twice, none is
+ * lost, nothing is re-randomized (`Game.deserialize` →
+ * `ParliamentPhase.resume`).
  *
- * THE SITTING'S TWO GATES (docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md §3; the
- * first one MOVED by «Заседание v2» — docs/TURMOIL_REDUX_PARLIAMENT_SITTING_V2.md):
- * `assembly` stands right after the VERDICT and BEFORE anything changes —
- * every participant confirms the verdict, and only then the winner's Agenda
- * moves, the support is granted, the law is enacted and pays. Everything a
- * player sees at the gate is still the table as it was voted: the marker on
- * its old step, the winning card in its slot, the previous government. The
- * RULES are untouched — the winner's Agenda still moves strictly before the
- * support, the enactment and the rewards, in one chain of `drive()` after the
- * barrier; the gate only moves the MOMENT the players are asked. A save from
- * before this order (its `assembly` standing after the enactment) resumes
- * correctly: `agenda` / `support` / `enact` are idempotent by their keys and
- * find themselves already done. `adjourn` stands after the lobby (after the
- * effects in the final generation) — every participant confirms the
- * refreshed area, and only then the next generation begins. A gate is one `SelectOption` per participant
- * (the `parliamentPhasePrompt` marker), the barrier is the per-seat key —
- * never a counter in memory — so a clone, a reload and a doubled answer are
- * safe by construction, and a resume re-issues only to the seats without
- * the key. The phase's whole journal is ONE group (`political-phase`):
- * every step's scope, every gate's answer and every resolution's prompt
- * joins the convening's root (see `convene`).
+ * THE SOFT GATES (docs/claude/console/parliament-soft-gates.md — the two
+ * barrier gates of docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md §3 are RETIRED):
+ * the phase asks nobody but the questions of the enacted law, which are
+ * asked seat by seat and hold it — the seats depend on each other there.
+ * Every other step runs in ONE chain of `drive()`, in the rules' order (the
+ * winner's Agenda strictly before the support, the enactment and the
+ * rewards), and everything a player is shown afterwards is the summary's
+ * RECORD. At `done` the phase writes who still has to CLOSE the sitting
+ * (`SittingAcks`) and asks each of those seats ONE confirmation — a prompt
+ * of the seat, not of the phase: the next generation begins at once, and a
+ * seat is admitted to it on its own answer. The final sitting alone waits
+ * for every confirmation (the final greeneries follow it). A save from
+ * before (its step `assembly` or `adjourn`) resumes into the next step
+ * and re-issues no old gate — the keys make every step idempotent. The
+ * phase's whole journal is ONE group (`political-phase`): every step's
+ * scope, every resolution's prompt and every confirmation's answer joins
+ * the convening's root (see `convene`).
  *
  * Two modes: the ordinary end of generation (all steps) and the FINAL one
  * (project decision Q1: the winner is enacted and its effect applied, the
@@ -42,24 +38,20 @@
  * The phase runs under `Phase.PARLIAMENT`: tiles get owners and bonuses,
  * global parameters pay TR (unlike `Phase.SOLAR`), and action-phase card
  * hooks stay quiet. `activePlayer` is NOT reassigned to whoever is asked — a
- * prompt (a gate's or a resolution's) goes straight to that player's
+ * prompt (a resolution's or the confirmation) goes straight to that player's
  * `setWaitingFor`.
  */
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {PlayerId} from '../../common/Types';
-import {Color} from '../../common/Color';
 import {Phase} from '../../common/Phase';
 import {Resource} from '../../common/Resource';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {EventTrigger} from '../../common/events/GameEvent';
 import {
-  PARLIAMENT_MAX_POPULAR_SUPPORT, PARLIAMENT_VOTING_SLOTS, ParliamentPhaseStage, ReduxParty, REDUX_PARTIES, ResolutionId, ResolutionInstanceId,
+  PARLIAMENT_MAX_POPULAR_SUPPORT, PARLIAMENT_VOTING_SLOTS, ReduxParty, REDUX_PARTIES, ResolutionId, ResolutionInstanceId,
 } from '../../common/parliament/ParliamentTypes';
 import {CapturedEventContext} from '../events/EventRecorder';
-import {SelectOption} from '../inputs/SelectOption';
-import {message} from '../logs/MessageBuilder';
-import {PlayerInput} from '../PlayerInput';
 import {Parliament, Slot, Vote} from './Parliament';
 import {EnactContext, EnactOutcome, EnactStep, hasImmediateSteps, immediateStepsOf, ResolutionDefinition} from './resolutions/IResolution';
 import {
@@ -72,6 +64,7 @@ import {botWinnerRewardPlan, declaresWinnerPass, NO_BOT_EXECUTOR_REASON, payBotW
 import {payBotTileGrant} from '../automa/BotTileGrant';
 import {payAgendaGrant} from './resolutions/ResolutionAgendaGrant';
 import {SeatGrantDeed, seatGrantsOf} from './resolutions/SeatGrants';
+import {SittingAcks} from './SittingAcks';
 
 /**
  * THE HANDLE OF A WORLD STEP — the seat the engine's parameter API is handed
@@ -127,7 +120,7 @@ export class ParliamentPhase {
    * ONE JOURNAL GROUP FOR THE WHOLE SITTING. The convening line is the
    * group's header; every step's own scope JOINS it (the recorder coalesces a
    * nested action inside a `political-phase` scope exactly as inside a bot
-   * turn); the gates and the resolution's prompts capture it, so an answer —
+   * turn); the resolution's prompts and the confirmation capture it, so an answer —
    * after a reload too — stays in the chain. The live scope is open only for
    * the header line: everything after runs under a REJOINED context of the
    * same root (`rootContext`), which is how a continuation after an input
@@ -232,7 +225,7 @@ export class ParliamentPhase {
     return drained ? 'drained' : 'waiting';
   }
 
-  /** The step machine: every case advances the persisted step; a gate or an ask returns `undefined` (waiting); `done` returns the finish. */
+  /** The step machine: every case advances the persisted step; an ask returns `undefined` (waiting); `done` returns the finish (or waits — the final barrier). */
   private drive(): {final: boolean} | undefined {
     for (;;) {
       const p = this.parliament.phase;
@@ -244,14 +237,10 @@ export class ParliamentPhase {
       switch (p.step) {
       case 'winner':
         this.stepWinner();
-        p.step = 'assembly';
+        p.step = 'agenda';
         break;
       case 'assembly':
-        // GATE 1 stands BEFORE the table changes (v2): the verdict is the only
-        // fact the summary carries here; everything after it runs in ONE chain.
-        if (this.stepGate('assembly') === 'waiting') {
-          return undefined;
-        }
+        // LEGACY: a save standing at the retired verdict gate goes on — the old gate is re-issued to nobody.
         p.step = 'agenda';
         break;
       case 'agenda':
@@ -272,7 +261,7 @@ export class ParliamentPhase {
         if (this.stepEffects() === 'waiting') {
           return undefined;
         }
-        p.step = p.final ? 'adjourn' : 'refresh';
+        p.step = p.final ? 'done' : 'refresh';
         break;
       case 'refresh':
         this.stepRefresh();
@@ -280,12 +269,10 @@ export class ParliamentPhase {
         break;
       case 'lobby':
         this.stepLobby();
-        p.step = 'adjourn';
+        p.step = 'done';
         break;
       case 'adjourn':
-        if (this.stepGate('adjourn') === 'waiting') {
-          return undefined;
-        }
+        // LEGACY: a save standing at the retired closing gate goes on — the confirmation is asked at `done`.
         p.step = 'done';
         break;
       case 'done':
@@ -489,61 +476,6 @@ export class ParliamentPhase {
         }
       }
     }
-  }
-
-  // ───────────────────────── the gates: assembly · adjourn ─────────────────────────
-
-  /**
-   * A GATE: every participant without the gate's key gets ONE prompt; the
-   * answer writes the key and saves; the LAST answer moves the phase on. The
-   * barrier is the per-seat keys (a clone, a reload or a doubled answer are
-   * safe by construction — no counter in memory); a resume re-issues only to
-   * the seats still without the key and never writes over a standing prompt.
-   * `activePlayer` is untouched — the prompt goes to the seat itself.
-   */
-  private stepGate(stage: ParliamentPhaseStage): 'waiting' | 'done' {
-    const p = this.progress;
-    const pending = parliamentGatePending(this.game, this.parliament, stage);
-    if (pending.length === 0) {
-      return 'done';
-    }
-    const key = gateKey(stage, p.generation);
-    for (const seat of pending) {
-      const standing = seat.getWaitingFor();
-      if (standing !== undefined) {
-        // Already issued (a resume re-entered the gate) — or a foreign prompt
-        // stands, which the engine's own flow never leaves here (the queue
-        // drains, pausing on its prompts, before a gate is reached). Never
-        // written over: the seat is asked when the gate is next entered —
-        // every continuation of the phase re-enters it, and a seat freed by
-        // its own prompt's callback comes back through `continue()`.
-        if (!isGatePrompt(standing, stage, p.generation)) {
-          console.warn(`[parliament] ${seat.color} holds a "${standing.type}" prompt at the ${stage} gate — the gate waits for it`);
-        }
-        continue;
-      }
-      seat.setWaitingFor(this.gatePrompt(stage), () => this.onGateAnswered(seat, stage, key));
-    }
-    this.game.save();
-    return 'waiting';
-  }
-
-  private onGateAnswered(seat: IPlayer, stage: ParliamentPhaseStage, key: string): void {
-    this.markSeatApplied(seat.id, key);
-    this.game.save();
-    if (parliamentGatePending(this.game, this.parliament, stage).length === 0) {
-      this.continue();
-    }
-  }
-
-  /** The gate's prompt — a bare confirm carrying the structural marker; the title is for the journal and a plain renderer, never for detection. */
-  private gatePrompt(stage: ParliamentPhaseStage): PlayerInput {
-    const p = this.progress;
-    const title = stage === 'assembly' ?
-      message('The Mars Parliament of generation ${0} is in session: the verdict', (b) => b.number(p.generation)) :
-      message('The Mars Parliament of generation ${0} adjourns', (b) => b.number(p.generation));
-    return new SelectOption(title, 'Continue')
-      .markParliamentPhase({stage, generation: p.generation, final: p.final, seq: p.summary?.seq ?? 0});
   }
 
   // ───────────────────────── step 3b: the enacted resolution's effects ─────────────────────────
@@ -1145,8 +1077,16 @@ export class ParliamentPhase {
 
   // ───────────────────────── done ─────────────────────────
 
-  /** Close the sitting: the summary becomes `lastPhase` and joins the history; the caller reports the end OUTSIDE the sitting's journal context. */
-  private finish(): {final: boolean} {
+  /**
+   * Close the sitting: the summary becomes `lastPhase` and joins the history,
+   * the RECORD of the seats still to close it is written and each of them is
+   * asked its confirmation (`SittingAcks`). The ordinary sitting returns at
+   * once — the caller reports the end OUTSIDE the sitting's journal context
+   * and the next generation begins while the seats read; the FINAL one waits
+   * (`undefined`): its last confirmation moves the game to the final
+   * greeneries.
+   */
+  private finish(): {final: boolean} | undefined {
     const p = this.progress;
     const summary = p.summary;
     this.parliament.lastPhase = summary;
@@ -1157,7 +1097,10 @@ export class ParliamentPhase {
     this.parliament.phase = undefined;
     this.parliament.announceAccessChanges(this.game);
     this.parliament.assertLedger(this.game);
-    return {final};
+    const owed = SittingAcks.open(this.game, this.parliament, summary, final);
+    SittingAcks.issuePending(this.game);
+    this.game.save();
+    return owed && final ? undefined : {final};
   }
 }
 
@@ -1173,33 +1116,6 @@ function ownersOf(votes: ReadonlyArray<Vote>): Array<{owner: SerializedDelegateO
     }
   }
   return returned;
-}
-
-/** The per-seat key a gate writes (`assembly:<generation>` / `adjourn:<generation>`). */
-export function gateKey(stage: ParliamentPhaseStage, generation: number): string {
-  return `${stage}:${generation}`;
-}
-
-/** The participants whose answer to `stage`'s gate the phase still waits for — from the save's own keys, never a counter. */
-export function parliamentGatePending(game: IGame, parliament: Parliament, stage: ParliamentPhaseStage): Array<IPlayer> {
-  const p = parliament.phase;
-  if (p === undefined) {
-    return [];
-  }
-  const key = gateKey(stage, p.generation);
-  return parliament.participants(game, 'prompts').filter((seat) => !(p.appliedBySeat?.[seat.id] ?? []).includes(key));
-}
-
-/** …as colours, for the wire (the gate marker's `awaiting`, the phase model). Empty outside a political phase. */
-export function parliamentGateAwaiting(game: IGame, stage: ParliamentPhaseStage): Array<Color> {
-  const parliament = game.parliament;
-  return parliament === undefined ? [] : parliamentGatePending(game, parliament, stage).map((seat) => seat.color);
-}
-
-/** Is `input` the gate prompt of `stage` for `generation` — by the structural marker, never the title? */
-export function isGatePrompt(input: PlayerInput, stage: ParliamentPhaseStage, generation: number): boolean {
-  const marker = input.parliamentPhasePrompt;
-  return marker !== undefined && marker.stage === stage && marker.generation === generation;
 }
 
 /** Neutral or player — the shape the summary carries. */

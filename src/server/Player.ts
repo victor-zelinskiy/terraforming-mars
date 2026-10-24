@@ -74,6 +74,7 @@ import {calculateVictoryPoints} from './game/calculateVictoryPoints';
 import {TRSourceEntry, TRSourceType, VictoryPointsBreakdown} from '../common/game/VictoryPointsBreakdown';
 import {ParliamentHandler} from './parliament/ParliamentHandler';
 import {withRatingVetoWatch} from './parliament/ratingVetoGate';
+import {isSittingAckPrompt, SittingAcks} from './parliament/SittingAcks';
 import {fromToEventSource} from './events/fromToEventSource';
 import {Supercapacitors} from './cards/promo/Supercapacitors';
 import {CanAffordOptions, CardAction, CardDrawReveal, IPlayer, PendingCardIntake, PlayabilityOptions, RevealedCard, CardDrawSearchOutcome, RequirementBonusEntry, GlobalWaiverProbe} from './IPlayer';
@@ -352,6 +353,13 @@ export class Player implements IPlayer {
   public playedCards: PlayedCards = new PlayedCards();
   public draftedCards: Array<IProjectCard> = [];
   public draftHand: Array<IProjectCard> = [];
+  /**
+   * THE RESEARCH DEAL waiting for its buy (`drawResearch` → `askResearch`):
+   * the cards stay HERE, serialized, until the purchase answers — a seat
+   * dealt while it still reads the last sitting (the soft gates) is asked
+   * later, and a save in between must neither lose nor re-deal them.
+   */
+  public researchHand: Array<IProjectCard> = [];
   /**
    * The BASE price of buying one card to hand: 3 M€, replaced by the
    * corporation that redefines it (Polyphemos 5, Terralabs 1). This is the
@@ -1269,18 +1277,36 @@ export class Player implements IPlayer {
   }
 
   public runResearchPhase(): void {
-    if (!this.game.gameOptions.draftVariant || this.game.isSoloMode()) {
-      this.draftedCards = newStandardDraft(this.game).draw(this);
-    }
+    this.drawResearch();
+    this.askResearch();
+  }
 
+  /**
+   * THE RESEARCH DEAL, apart from its question (the soft gates): every seat
+   * is dealt at the phase's start in seat order (the RNG's order); the buy is
+   * asked by `askResearch` — at once, or on the seat's confirmation of the
+   * last sitting.
+   */
+  public drawResearch(): void {
+    if (!this.game.gameOptions.draftVariant || this.game.isSoloMode()) {
+      this.researchHand = newStandardDraft(this.game).draw(this);
+      this.draftedCards = [];
+    } else {
+      this.researchHand = copyAndClear(this.draftedCards);
+    }
+  }
+
+  /** Ask the research buy over the dealt cards (`researchHand`, emptied by the answer). */
+  public askResearch(): void {
     // If there are 4 cards to choose from, choose 4. If there are 5 because of Mars maths or Luna Project Office,
     // choose 4. If there are fewer cards because of an exhausted draw pile, draw whatever is available.
-    let selectable = this.draftedCards.length;
+    let selectable = this.researchHand.length;
     if (this.playedCards.has(CardName.MARS_MATHS) && !this.playedCards.has(CardName.LUNA_PROJECT_OFFICE)) {
       selectable = Math.min(selectable, 4);
     }
 
-    const cards = copyAndClear(this.draftedCards);
+    // The deal itself — the corruption swap below edits it in place, so a save keeps what is on offer now.
+    const cards = this.researchHand;
 
     const chooseCardsToBuy = () => {
       // TODO(kberg): Using .execute to rely on directly calling setWaitingFor is not great.
@@ -1295,6 +1321,7 @@ export class Player implements IPlayer {
       const saved = action.cb;
       action.cb = ((response) => {
         saved(response);
+        this.researchHand = [];
         this.game.playerIsFinishedWithResearchPhase(this);
         return undefined;
       });
@@ -3305,6 +3332,11 @@ export class Player implements IPlayer {
         waitingFor.process(input, this);
       this.defer(followUp);
       waitingForCb();
+      // A slot freed by its own answer: a seat that still owes the last sitting's confirmation (a foreign prompt
+      // stood when the sitting ended) is asked it now — the soft gates never write over a standing prompt.
+      if (this.waitingFor === undefined) {
+        SittingAcks.offer(this);
+      }
     } catch (err) {
       this.setWaitingFor(waitingFor, waitingForCb);
       // A REFUSED submit restores the SAME logical prompt — keep its identity,
@@ -3337,7 +3369,10 @@ export class Player implements IPlayer {
   public setWaitingFor(input: PlayerInput, cb: () => void = () => {}): void {
     if (this.waitingFor !== undefined) {
       const message = `Overwriting waitingFor ${this.waitingFor.type} with ${input?.type}`;
-      if (THROW_STATE_ERRORS) {
+      // THE SOFT GATES' TRAP: a prompt written over a sitting's confirmation (or the confirmation over a standing
+      // prompt) is a publisher that forgot `holdsSittingAck` — a desync, never a warning. The specs make it throw.
+      const strict = process.env.TM_STRICT_PROMPTS !== undefined && (isSittingAckPrompt(this.waitingFor) || isSittingAckPrompt(input));
+      if (THROW_STATE_ERRORS || strict) {
         throw new Error(message);
       } else {
         console.warn(message);
@@ -3474,6 +3509,7 @@ export class Player implements IPlayer {
       ceoCardsInHand: Array.from(this.ceoCardsInHand).map(toName),
       playedCards: this.playedCards.serialize(),
       draftedCards: this.draftedCards.map(toName),
+      ...(this.researchHand.length === 0 ? {} : {researchHand: this.researchHand.map(toName)}),
       // The BASE price only (see SerializedPlayer.cardCost) — tableau modifiers
       // are re-derived on load, so they can never be baked in twice.
       cardCost: this.baseCardCost,
@@ -3640,6 +3676,7 @@ export class Player implements IPlayer {
     player.ceoCardsInHand = new Set(ceosFromJSON(d.ceoCardsInHand));
     player.playedCards.deserialize(d.playedCards);
     player.draftedCards = cardsFromJSON(d.draftedCards);
+    player.researchHand = cardsFromJSON(d.researchHand ?? []);
     player.autopass = d.autoPass ?? false;
     player.preservationProgram = d.preservationProgram ?? false;
     // TODO(kberg): remove ?? 0 by 2026-11-01

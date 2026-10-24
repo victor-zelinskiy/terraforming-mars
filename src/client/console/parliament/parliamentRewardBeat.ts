@@ -24,7 +24,8 @@
  *
  * Two honesties:
  *  · a wave plays only when the sitting is ON SCREEN at the seed (the stage
- *    zone stands). A parked / absent Parliament gets no hold and no owed beat:
+ *    zone stands — or the seat's generation scene rises into it: the soft gates
+ *    bring the whole chain with the production). A parked / absent Parliament gets no hold and no owed beat:
  *    the counter ticks at once with its ordinary delta chip — the reward is
  *    announced where the player is looking, never withheld from them — and the
  *    stage reads «Получено» when they come back. A reward beat never REPLAYS
@@ -50,6 +51,7 @@
  * Pure + a reactive record; no DOM, no Vue components, no i18n.
  */
 import {reactive} from 'vue';
+import {sittingBaselineOf} from './sittingBaseline';
 import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentEnactOutcomeModel, ParliamentPhaseModel} from '@/common/models/ParliamentModel';
@@ -59,6 +61,8 @@ import {beginPanelRewardHold, releasePanelRewardHold} from '@/client/console/res
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {consoleParliamentUi} from './consoleParliamentFlow';
+import {generationSceneRisesIntoSitting} from '@/client/console/generationScene/generationScene';
+import {workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
 import {ParliamentBeat, scheduleParliamentBeat} from './parliamentBeat';
 import {enterWorldBeatSitting, seedWorldMoveBeat} from './parliamentWorldBeat';
 import {releaseCareerGrantWalks, resetCareerGrantBeat, seedCareerGrantWalks} from './careerGrantBeat';
@@ -138,7 +142,31 @@ export const parliamentRewardState = reactive({
   tileReceipt: undefined as {sitting: string, outcome: ParliamentEnactOutcomeModel} | undefined,
   /** The section is SHOWING the receipt — the reward beat dwells on the pose (cleared with the beat). */
   receiptShowing: false,
+  /**
+   * THE WALK IS STILL AHEAD (the soft gates): the records were seeded while no stage stood — the whole chain rode a
+   * response the seat received on the board (the last pass was another seat's), and the plate / the generation scene
+   * will open the sitting. The rail holds them meanwhile, but their animation holds claim NO foreground until the
+   * stage stands (the plate itself must come up); the rising edge then arms the registry's ceiling as ever.
+   */
+  awaitingStage: false,
 });
+
+/**
+ * IS THIS SITTING'S WALK STILL AHEAD OF THE SEAT? — the stage stands, the seat's generation scene rises into it, or
+ * (the soft gates) the seat's sitting stands for it and no Parliament frame is up yet: the plate or the scene opens
+ * it, and the walk plays what this response paid. The ledger's seeders read it as «on screen».
+ */
+export function sittingWalkAhead(after: PlayerViewModel | undefined): boolean {
+  if (consoleParliamentUi.stageStanding || generationSceneRisesIntoSitting(after)) {
+    return true;
+  }
+  return after?.game.parliament?.phase !== undefined && !workspaceFrameKnown('parliament');
+}
+
+/** The owed records claim the foreground — always once a stage stands; not while the walk is merely ahead. */
+function claimsForeground(): boolean {
+  return consoleParliamentUi.stageStanding || !parliamentRewardState.awaitingStage;
+}
 
 /**
  * A REWARD OWED OR IN THE AIR HOLDS THE FOREGROUND — from the very block
@@ -154,7 +182,7 @@ export const parliamentRewardState = reactive({
  * wedge net (v2 — no wall clock of the ledger's own): its `expire` releases
  * the counters honestly and names what was still in the air.
  */
-registerAnimationHoldSupplier('parliament-reward-owed', () => parliamentRewardPending(), {
+registerAnimationHoldSupplier('parliament-reward-owed', () => parliamentRewardPending() && claimsForeground(), {
   diagnose: () => ({
     sitting: parliamentRewardState.sitting,
     owed: parliamentRewardState.owed.map((r) => r.key),
@@ -201,7 +229,7 @@ function flushAgendaAnswers(why: RewardReleaseReason | string): void {
 }
 
 /** The Agenda bonuses ride the same law: held until each step's own landing, bounded by the registry's ceiling alone. */
-registerAnimationHoldSupplier('parliament-agenda-bonus-owed', () => parliamentAgendaBonusHeld(), {
+registerAnimationHoldSupplier('parliament-agenda-bonus-owed', () => parliamentAgendaBonusHeld() && claimsForeground(), {
   diagnose: () => ({
     sitting: parliamentRewardState.sitting,
     bonuses: parliamentRewardState.agendaBonuses.map((bonus) => ({kind: bonus.kind, step: bonus.step, generation: bonus.generation})),
@@ -268,7 +296,7 @@ export function sittingKeyOf(view: PlayerViewModel | undefined): string {
 export function detectNewViewerRewards(before: PlayerViewModel | undefined, after: PlayerViewModel): Array<OwedReward> {
   const viewer = after.thisPlayer?.color;
   const phase = phaseOf(after);
-  const was = phaseOf(before);
+  const was = sittingBaselineOf(before, after);
   if (viewer === undefined || phase === undefined || was === undefined || was.generation !== phase.generation) {
     return [];
   }
@@ -301,7 +329,7 @@ export function detectNewViewerRewards(before: PlayerViewModel | undefined, afte
 export function detectNewViewerTile(before: PlayerViewModel | undefined, after: PlayerViewModel): ParliamentEnactOutcomeModel | undefined {
   const viewer = after.thisPlayer?.color;
   const phase = phaseOf(after);
-  const was = phaseOf(before);
+  const was = sittingBaselineOf(before, after);
   if (viewer === undefined || phase === undefined || was === undefined || was.generation !== phase.generation) {
     return undefined;
   }
@@ -322,8 +350,8 @@ export function takeTileReceipt(sitting: string): ParliamentEnactOutcomeModel | 
 /**
  * DETECT (pure): the viewer's Agenda step bonus this response RECORDED — the
  * phase's summary names the winner's step and its bonus (a TR step or a CARD
- * step); new when the previous view had no phase of this generation or no
- * agenda move yet.
+ * step); new when the baseline (`sittingBaselineOf` — the view before, with
+ * no sitting yet, or the same sitting short of its Agenda move) had none.
  */
 export function detectAgendaBonus(before: PlayerViewModel | undefined, after: PlayerViewModel): AgendaBonusOwed | undefined {
   const viewer = after.thisPlayer?.color;
@@ -332,8 +360,8 @@ export function detectAgendaBonus(before: PlayerViewModel | undefined, after: Pl
   if (viewer === undefined || phase === undefined || agenda === undefined || agenda.player !== viewer || (agenda.bonus !== 'tr' && agenda.bonus !== 'card')) {
     return undefined;
   }
-  const was = phaseOf(before);
-  if (before === undefined || (was !== undefined && was.generation === phase.generation && was.summary?.agenda !== undefined)) {
+  const was = sittingBaselineOf(before, after);
+  if (was === undefined || was.summary?.agenda !== undefined) {
     return undefined;
   }
   return agenda.bonus === 'tr' ?
@@ -450,6 +478,7 @@ function enterSitting(key: string): void {
   parliamentRewardState.landed = [];
   parliamentRewardState.tileReceipt = undefined;
   parliamentRewardState.receiptShowing = false;
+  parliamentRewardState.awaitingStage = false;
 }
 
 /**
@@ -479,7 +508,12 @@ export function seedParliamentRewardHold(before: PlayerViewModel | undefined, af
     parliamentRewardState.tileReceipt = {sitting: key, outcome: tile};
   }
   const fresh = detectNewViewerRewards(before, after);
-  const onScreen = consoleParliamentUi.stageStanding && !consoleReducedMotionActive();
+  // ON SCREEN — the stage stands, or the walk is still AHEAD of the seat (`sittingWalkAhead` — the soft gates: the whole
+  // chain rides one response, which the seat may receive on the board; the scene or the plate opens the sitting next).
+  const onScreen = sittingWalkAhead(after) && !consoleReducedMotionActive();
+  if (onScreen && !consoleParliamentUi.stageStanding) {
+    parliamentRewardState.awaitingStage = true;
+  }
   if (fresh.length > 0 || tile !== undefined) {
     trail('seed', {key, fresh: fresh.map((r) => r.key), tile: tile?.kind, onScreen});
   }
@@ -501,17 +535,20 @@ export function seedParliamentRewardHold(before: PlayerViewModel | undefined, af
       queueAgendaBonuses([bonus]);
     }
   }
+  // The receipts / the Career walks are the stage's own scenes — owed only to a stage that stands (or rises with the
+  // scene); a walk merely ahead lets them tick with the commit.
+  const staged = (consoleParliamentUi.stageStanding || generationSceneRisesIntoSitting(after)) && !consoleReducedMotionActive();
   // THE STEPS OF THE CAREER A LAW GRANTED THE SEATS (Reds Budget): every walked seat's marker held on its old step —
   // the reward stage's КАРЬЕРА beat walks them in turn — and the viewer's own paying steps owed BEHIND the winner's
   // (queued after it: the enactment's beat takes the queue's head). Read off the phase's records, never `lastAdvance`.
-  const career = seedCareerGrantWalks(key, before, after, onScreen);
+  const career = seedCareerGrantWalks(key, before, after, staged);
   if (career.length > 0) {
     trail('seed-career', {key, steps: career.map((bonus) => `${bonus.kind}:${bonus.step}`)});
     queueAgendaBonuses(career);
   }
   // A CARD PAYOUT THAT ASKED NOBODY (Sponsored Projects): the receipt of the table — the seat's receiving cards in the
   // zone, their capsules and points held until each token lands. Read off the phase's records, never a prompt.
-  seedTableReceipts(key, before, after, onScreen);
+  seedTableReceipts(key, before, after, staged);
 }
 
 /** The director takes what is owed — the records are in the air from here (their holds still stand). */

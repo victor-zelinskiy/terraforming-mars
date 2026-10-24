@@ -11,7 +11,7 @@ import {
 import {AQUIFER_CONTEST, AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
 import {ARCHITECTURE_AWARD, ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, answerGate, endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {QuestTracker} from '../../src/server/parliament/quests/QuestTracker';
 import {PartyName} from '../../src/common/turmoil/PartyName';
@@ -73,10 +73,11 @@ function stage(): [IGame, TestPlayer, TestPlayer, Parliament] {
 }
 
 /**
- * Every player passes; production → the parliament; the sitting's ASSEMBLY
- * gate is answered for every seat (the harness's stale menus cleared first),
- * so the resolution's own asks stand — or, for a quiet card, the ADJOURN gate
- * is answered too and the phase is over (`parliamentArrange`).
+ * Every player passes (the harness's stale menus cleared first); production
+ * → the parliament, whose chain runs at once (the soft gates), so the
+ * resolution's own asks stand — or, for a quiet card, the chain runs to its
+ * end and every seat's confirmation «Закрыть заседание» is answered too
+ * (`parliamentArrange`).
  */
 function endGeneration(game: IGame): void {
   endGenerationThroughParliament(game);
@@ -705,9 +706,8 @@ describe('BiodomeContest', () => {
       game.playerHasPassed(human);
       game.playerIsFinishedTakingActions();
       expect(game.phase).eq(Phase.PARLIAMENT);
-      // The sitting's barrier is ONE human: the bot holds no gate, the human's answer opens the effects.
+      // No gate stands before the effects: the law asks the human at once, the bot is asked nothing.
       expect(bot.getWaitingFor()).is.undefined;
-      answerGate(human, 'assembly');
       const ask = cast(human.getWaitingFor(), SelectSpace);
       expect(bot.getWaitingFor()).is.undefined;
       human.process({type: 'space', spaceId: ask.spaces[0].id});

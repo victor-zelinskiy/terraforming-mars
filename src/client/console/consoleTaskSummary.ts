@@ -573,13 +573,14 @@ function kindSummary(
     };
 
   case 'parliamentPhase':
-    // THE SITTING'S GATE (Turmoil Redux): the whole political phase is one
-    // announced flow — the plate says the Parliament is in session, the A
-    // verb opens the sitting, the return verb comes back to the same stage.
-    // The server's own title carries the generation and the gate's meaning.
+    // THE SITTING'S CONFIRMATION (Turmoil Redux, the soft gates): the whole
+    // sitting is one announced flow — the plate says the Parliament is in
+    // session (the seat has not read its sitting yet: the walk is still ahead),
+    // the A verb opens the sitting, the return verb comes back to the same
+    // stage. The server's own title carries the generation.
     return {
       kickerKey: 'Parliament',
-      ask: ask(wf, task.stage === 'adjourn' ? 'The Parliament adjourns' : 'The Parliament is in session'),
+      ask: ask(wf, 'The Parliament is in session'),
       returnKey: 'Return to the sitting',
       openKey: 'Open the sitting',
     };

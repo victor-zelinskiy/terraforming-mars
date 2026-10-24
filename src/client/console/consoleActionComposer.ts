@@ -310,7 +310,12 @@ export function branchChoices(branch: ActionPreviewBranch | undefined): Array<Co
     return [];
   }
   const out: Array<ComposerChoice> = [];
-  if (branch.optionInput !== undefined) {
+  const parts = branch.optionInput === undefined ? undefined : andOptionParts(branch.optionInput);
+  if (parts !== undefined) {
+    // A TWO-PART pick answered as ONE response (the Industrialists' «lower one, raise one»): each part is its own row
+    // of the composer, and the branch's answer is composed once every part is answered (`composeAndResponse`).
+    parts.forEach((part, k) => out.push({id: `option#${k}`, scope: 'option', index: k, kind: choiceKind(part), input: part}));
+  } else if (branch.optionInput !== undefined) {
     out.push({id: 'option', scope: 'option', index: -1, kind: choiceKind(branch.optionInput), input: branch.optionInput});
   }
   branch.steps.forEach((step, i) => {
@@ -388,6 +393,8 @@ export type ComposerCaptures = {
   pre: Readonly<Record<number, unknown>>;
   /** The branch optionInput's RAW response (un-wrapped). */
   option: unknown | undefined;
+  /** A TWO-PART option's answered parts (`andOptionParts`), by part index — `option` is their composed answer. */
+  optionParts?: Readonly<Record<number, unknown>>;
   /** By branch.steps index. */
   steps: Readonly<Record<number, unknown>>;
 };
@@ -491,7 +498,7 @@ export function firstMissingChoice(
   }
   const all = branchChoices(branch);
   return all.find((c) =>
-    (c.scope === 'option' && captures.option === undefined) ||
+    (c.scope === 'option' && (c.index >= 0 ? captures.optionParts?.[c.index] === undefined : captures.option === undefined)) ||
     (c.scope === 'step' && captures.steps[c.index] === undefined));
 }
 
@@ -764,6 +771,33 @@ export function orderedPreResponses(
     }
   });
   return out;
+}
+
+// ── a TWO-PART pick — an AndOptions of picks, answered as ONE response ───────
+
+/**
+ * The parts of an `and` option the composer asks as rows of their own — `undefined` for anything else. Only an
+ * `and` whose every part is a PICK the composer opens (an `or` / a card / a player); the spend-heat `and` keeps its
+ * own dial (`spendHeatPlan`).
+ */
+export function andOptionParts(input: PlayerInputModel): ReadonlyArray<PlayerInputModel> | undefined {
+  if (input.type !== 'and') {
+    return undefined;
+  }
+  const and = input as AndOptionsModel;
+  if (and.spendHeatPrompt !== undefined || and.options.length === 0) {
+    return undefined;
+  }
+  return and.options.every((o) => o.type === 'or' || o.type === 'card' || o.type === 'player') ? and.options : undefined;
+}
+
+/** The ONE `and` response once EVERY part is answered (order load-bearing: the parts' own), else `undefined`. */
+export function composeAndResponse(input: PlayerInputModel | undefined, parts: Readonly<Record<number, unknown>>): unknown | undefined {
+  const list = input === undefined ? undefined : andOptionParts(input);
+  if (list === undefined || !list.every((_, k) => parts[k] !== undefined)) {
+    return undefined;
+  }
+  return {type: 'and' as const, responses: list.map((_, k) => parts[k])};
 }
 
 // ── spend-heat (Stormcraft) — the AndOptions of two SelectAmounts ────────────

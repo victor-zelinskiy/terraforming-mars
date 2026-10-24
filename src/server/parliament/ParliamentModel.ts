@@ -18,7 +18,6 @@ import {VotePromptMeta} from '../../common/models/PlayerInputModel';
 import {PARTY_EFFECT_DELEGATES, REDUX_PARTIES, ReduxParty, ResolutionInstanceId} from '../../common/parliament/ParliamentTypes';
 import {Delegate, Parliament, PARTY_ACTION_USES_PER_GENERATION, Slot} from './Parliament';
 import {PARTY_EFFECTS} from './parties/PartyEffects';
-import {parliamentGateAwaiting} from './ParliamentPhase';
 import {SerializedEnactOutcome, SerializedPhaseSummary} from './SerializedParliament';
 import {Resource} from '../../common/Resource';
 import {declaredCountIds, declaredSequelProductions, declaredStockReads, declaresColonyBonuses, declaresHandLevel, resolutionCount} from './resolutions/ResolutionCounts';
@@ -169,9 +168,6 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
       // The sitting SO FAR, in the one shape the finished phase leaves behind.
       phase.summary = summaryModel(game, parliament, p.summary);
     }
-    if (p.step === 'assembly' || p.step === 'adjourn') {
-      phase.awaiting = parliamentGateAwaiting(game, p.step);
-    }
     if (p.effects?.pending !== undefined) {
       const asked = game.getPlayerById(p.effects.pending.player);
       phase.pending = {player: asked.color, key: p.effects.pending.key};
@@ -185,8 +181,8 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
       // (no `pending`), the engine's own follow-up now waits for the seat the step ran for — the reaction
       // window (`scan`) names that seat and that step. Published under the same `pending`, so every other
       // seat reads the honest wait («blue is placing») and the seat itself reads a step of the sitting, never
-      // an ask from nowhere. A gate prompt is never a tail (the step would not be `effects`); a stale menu of
-      // the harness has no place here either — only a prompt that is not the phase's own gate counts.
+      // an ask from nowhere. The confirmation is never a tail (it is asked at `done`); a stale menu of the
+      // harness has no place here either — only a prompt that is not the sitting's confirmation counts.
       const asked = game.getPlayerById(p.effects.scan.player);
       const wf = asked.getWaitingFor();
       if (wf !== undefined && wf.parliamentPhasePrompt === undefined) {
@@ -198,12 +194,35 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
       phase.outcomes = outcomes;
     }
     model.phase = phase;
+  } else if (viewer !== undefined && parliament.holdsSittingAck(viewer.id) && parliament.lastPhase !== undefined &&
+    parliament.lastPhase.seq === parliament.sittingAcks?.seq) {
+    // THE VIEWER'S SITTING STANDS (the soft gates): the chain is over on the server, but THIS seat has not closed
+    // it — so for this seat the sitting is at its last step, `done`, with the finished summary, until its own
+    // «Закрыть заседание» answers (the record says so; a reload says so). Every other seat — and this one, once
+    // it has closed — reads no phase: the next generation is theirs.
+    const summary = parliament.lastPhase;
+    const phase: ParliamentPhaseModel = {
+      generation: summary.generation,
+      final: summary.final,
+      step: 'done',
+      winner: {instance: summary.winner.instance, player: summary.winner.player === undefined ? undefined : colorOf(game, summary.winner.player)},
+      summary: summaryModel(game, parliament, summary),
+    };
+    const outcomes = outcomeModels(game, summary.outcomes);
+    if (outcomes !== undefined) {
+      phase.outcomes = outcomes;
+    }
+    model.phase = phase;
   }
   if (parliament.lastPhase !== undefined) {
     model.lastPhase = summaryModel(game, parliament, parliament.lastPhase);
   }
   if (parliament.phaseHistory.length > 0) {
     model.phaseHistory = parliament.phaseHistory.map((summary) => summaryModel(game, parliament, summary));
+  }
+  if (parliament.sittingAcks !== undefined) {
+    const acks = parliament.sittingAcks;
+    model.sitting = {generation: acks.generation, seq: acks.seq, final: acks.final, pending: acks.pending.map((id) => game.getPlayerById(id).color)};
   }
   if (parliament.lastAdvance !== undefined) {
     const advance = parliament.lastAdvance;

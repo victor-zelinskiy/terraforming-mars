@@ -1,5 +1,13 @@
 # The Parliament sitting — the console contract (after «Заседание v4», 2026-09-21)
 
+> **THE SOFT GATES (2026-10-24) — `docs/claude/console/parliament-soft-gates.md`.** Both barrier gates are gone: the
+> server runs the whole chain in ONE response and stops only at the law's own asks; the sitting ends with ONE
+> confirmation, «Закрыть заседание», a prompt of the SEAT (the next generation already runs; the seat is admitted to it
+> on its answer). For a seat that has not closed it the server reads its sitting at `done` (the finished summary). The
+> walk starts on the VERDICT (a page of the director — read, then on) and its one stop is the RESULTS. «Two presses of
+> A per generation» below is now ONE; «gate 1 / the assembly gate» reads «the verdict page», «gate 2 / the adjourn
+> gate» reads «the confirmation».
+
 > **v4 — СТОЛ и ЧТЕНИЕ, split IN TIME.** The middle tier is either the TABLE (the verdict, the Agenda, the
 > support, the enactment and the physical part of the results — no panel at all, everything read on objects) or
 > a READING panel (the reward, the results card), and the panel takes the row's place once, by an explicit

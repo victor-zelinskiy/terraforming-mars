@@ -15,7 +15,7 @@ import {declaredCountIds, holdersCount, resolutionCount} from '../../src/server/
 import {EnactContext, EnactOutcome} from '../../src/server/parliament/resolutions/IResolution';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {SerializedEnactOutcome} from '../../src/server/parliament/SerializedParliament';
-import {endGenerationThroughParliament, seatResolution, settleParliamentGates, answerGate} from './parliamentArrange';
+import {endGenerationThroughParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {CardName} from '../../src/common/cards/CardName';
@@ -445,7 +445,6 @@ describe('SponsoredProjects', () => {
       const humanFish = countOn(human, CardName.FISH);
       const botFish = countOn(bot, CardName.FISH);
       expect(humanFish, 'the human\'s Fish still holds an animal').gte(1);
-      answerGate(human, 'assembly');
       takeAll(human);
       runAllActions(game);
       expect(bot.getWaitingFor()).is.undefined;

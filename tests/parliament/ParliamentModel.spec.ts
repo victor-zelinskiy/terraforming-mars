@@ -7,7 +7,8 @@ import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {Server} from '../../src/server/models/ServerModel';
 import {TEST_CHOICE_RESOLUTION_ID} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {Phase} from '../../src/common/Phase';
-import {answerGate, answerStandingGates, passToParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerGate, atSittingEnd, passToParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {ParliamentModel as ParliamentWireModel} from '../../src/common/models/ParliamentModel';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {PoliticalScience} from '../../src/server/cards/turmoilRedux/PoliticalScience';
 import {CardName} from '../../src/common/cards/CardName';
@@ -23,68 +24,77 @@ function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
 }
 
 /**
- * THE SITTING ON THE WIRE (Э1): the phase model carries the summary SO FAR in
- * the one shape a finished phase leaves behind, names the seats a gate still
- * waits for, tells every other seat what kind of answer the asked seat owes,
- * and the gate marker's `awaiting` is computed when the model is built.
+ * THE SITTING ON THE WIRE (Э1, the soft gates): the phase model carries the
+ * summary SO FAR in the one shape a finished phase leaves behind and tells
+ * every other seat what kind of answer the asked seat owes; once the chain
+ * has run, `sitting` names the seats that have not closed it yet — a FACT for
+ * the results page, never a list anybody waits on — and the confirmation's
+ * marker is the seat's own close, no `awaiting`.
  */
 describe('ParliamentModel — the sitting', () => {
-  it('phase.summary is the sitting SO FAR in the shape of lastPhase; awaiting names the seats a gate waits for; the history rides the model', () => {
+  it('phase.summary is the sitting SO FAR in the shape of lastPhase; `sitting` names the seats still to close it; the history rides the model', () => {
     const [game, p1, p2, parliament] = reduxGame();
     seatResolution(parliament, 0, ARCHITECTURE_AWARD_ID); // asks nothing
     parliament.placeVote(p1, parliament.slots[0], 'lobby');
+    // The LIVE model at the sitting's last step — the whole chain applied, nothing closed yet.
+    let live: ParliamentWireModel | undefined;
+    atSittingEnd(game, () => (live = getParliamentModel(game, p1)));
     passToParliament(game);
-    const assembly = getParliamentModel(game, p1)!;
-    expect(assembly.phase?.step).eq('assembly');
-    expect(assembly.phase?.awaiting).has.members([p1.color, p2.color]);
-    const summary = assembly.phase?.summary;
-    expect(summary, 'the summary is on the wire from the first step on').is.not.undefined;
+    const summary = live?.phase?.summary;
+    expect(live?.phase?.step).eq('done');
+    expect(summary, 'the summary is on the wire while the phase runs').is.not.undefined;
     expect(summary?.generation).eq(1);
     expect(summary?.seq).eq(1);
     expect(summary?.correlationId).is.a('number');
     expect(summary?.winner.player).eq(p1.color);
-    // v2: the gate stands BEFORE the table changes — the summary names the card that WILL be enacted; the
-    // government is still the old one, the Agenda has not moved, nothing is refreshed.
     expect(summary?.enacted.instance).eq(summary?.winner.instance);
-    expect(parliament.enacted, 'the government is untouched at the gate').is.undefined;
-    expect(summary?.agenda, 'no Agenda step at the gate').is.undefined;
-    expect(summary?.refreshed, 'not refreshed yet').deep.eq([]);
-    answerGate(p1, 'assembly');
-    expect(getParliamentModel(game, p1)?.phase?.awaiting).deep.eq([p2.color]);
-    answerGate(p2, 'assembly');
-    const adjourn = getParliamentModel(game, p2)!;
-    expect(adjourn.phase?.step).eq('adjourn');
-    expect(adjourn.phase?.awaiting).has.members([p1.color, p2.color]);
-    expect(adjourn.phase?.summary?.refreshed.length).is.greaterThan(0);
-    expect(adjourn.phase?.summary?.lobbyRefilled, 'p1 spent the free delegate and got it back; p2 never left the lobby').deep.eq([p1.color]);
+    expect(summary?.agenda).deep.include({player: p1.color, from: 0, to: 1});
+    expect(summary?.refreshed.length).is.greaterThan(0);
+    expect(summary?.lobbyRefilled, 'p1 spent the free delegate and got it back; p2 never left the lobby').deep.eq([p1.color]);
+    expect(live?.sitting, 'nobody owes a confirmation while the phase runs').is.undefined;
+    // The chain is over — but for a seat that has not closed it the sitting STANDS at its last step, with the
+    // finished summary: the same keys the live one had. A seat that closed reads no phase (and no spectator does).
+    const closing = getParliamentModel(game, p2)!;
+    expect(closing.phase?.step).eq('done');
+    expect(closing.phase?.generation).eq(1);
+    expect(Object.keys(closing.phase!.summary!).sort()).deep.eq(Object.keys(summary!).sort());
+    expect(closing.phase?.summary?.seq).eq(1);
+    expect(getParliamentModel(game)?.phase, 'no seat, no sitting of its own').is.undefined;
+    expect(closing.sitting).deep.eq({generation: 1, seq: 1, final: false, pending: [p1.color, p2.color]});
+    answerGate(p1);
+    expect(getParliamentModel(game, p1)?.phase, 'p1 closed: the next generation is p1\'s').is.undefined;
+    expect(getParliamentModel(game, p2)?.phase?.step, 'p2 still reads its sitting').eq('done');
+    expect(getParliamentModel(game, p2)?.sitting?.pending, 'the list is the record\'s, moving as the seats close').deep.eq([p2.color]);
     settleParliamentGates(game);
     const done = getParliamentModel(game, p1)!;
     expect(done.phase).is.undefined;
+    expect(done.sitting).is.undefined;
     // ONE shape in three modes: the finished summary has exactly the keys the last in-progress one had.
-    expect(Object.keys(done.lastPhase!).sort()).deep.eq(Object.keys(adjourn.phase!.summary!).sort());
+    expect(Object.keys(done.lastPhase!).sort()).deep.eq(Object.keys(summary!).sort());
     expect(done.lastPhase?.seq).eq(1);
     expect(done.lastPhase?.correlationId).eq(summary?.correlationId);
     expect(done.phaseHistory?.map((s) => s.seq)).deep.eq([1]);
     expect(done.phaseHistory?.[0]).deep.eq(done.lastPhase);
   });
 
-  it('pending.input tells every OTHER seat what kind of answer the asked seat owes; the gate marker carries `awaiting` computed at model time', () => {
+  it('pending.input tells every OTHER seat what kind of answer the asked seat owes; the confirmation\'s marker is the seat\'s own close', () => {
     const [game, p1, p2, parliament] = reduxGame();
     seatResolution(parliament, 0, TEST_CHOICE_RESOLUTION_ID);
     parliament.placeVote(p1, parliament.slots[0], 'lobby');
     passToParliament(game);
-    const gate = (seat: TestPlayer) => Server.getPlayerModel(seat).waitingFor?.parliamentPhasePrompt;
-    expect(gate(p2)).deep.include({stage: 'assembly', generation: 1, final: false, seq: 1});
-    expect(gate(p2)?.awaiting).has.members([p1.color, p2.color]);
-    answerGate(p1, 'assembly');
-    expect(gate(p2)?.awaiting, 'the list moves as the others answer').deep.eq([p2.color]);
-    answerGate(p2, 'assembly');
-    // The effects: p1 is asked a choice — p2's model says who and what kind, never the step's wording.
+    // No gate before the effects: p1 is asked a choice at once — p2's model says who and what kind, never the step's wording.
     const other = getParliamentModel(game, p2)!;
     expect(other.phase?.step).eq('effects');
     expect(other.phase?.pending).deep.eq({player: p1.color, key: 'choose-plant-or-heat', input: 'or'});
-    expect(other.phase?.awaiting, 'no gate stands during the effects').is.undefined;
     expect(Server.getPlayerModel(p2).waitingFor).is.undefined;
+    for (const id of [p1.id, p2.id]) {
+      const seat = game.getPlayerById(id);
+      seat.process({type: 'or', index: 0, response: {type: 'option'}});
+      seat.process({type: 'or', index: 1, response: {type: 'option'}});
+    }
+    const close = (seat: TestPlayer) => Server.getPlayerModel(seat).waitingFor?.parliamentPhasePrompt;
+    expect(close(p2)).deep.eq({stage: 'close', generation: 1, final: false, seq: 1});
+    expect(close(p1)).deep.eq({stage: 'close', generation: 1, final: false, seq: 1});
   });
 
   it('a `card-effect` of the renewal journal reaches the wire with the seat as a COLOR, the card, the resource and the count (TR02)', () => {
@@ -97,10 +107,9 @@ describe('ParliamentModel — the sitting', () => {
     parliament.placeVote(p1, parliament.slots[1], 'lobby');
     const loser = parliament.slots[1].instance;
     passToParliament(game);
-    answerStandingGates(game, 'assembly');
     const model = getParliamentModel(game, p2)!;
-    expect(model.phase?.step).eq('adjourn');
-    const journal = model.phase?.summary?.renewal ?? [];
+    expect(model.phase?.step, 'the chain is over; p2 still reads its sitting').eq('done');
+    const journal = model.lastPhase?.renewal ?? [];
     const effect = journal.find((e) => e.kind === 'card-effect');
     expect(effect).deep.eq({kind: 'card-effect', player: p1.color, card: CardName.POLITICAL_SCIENCE, resource: CardResource.DATA, count: 1, instance: loser});
     // …right after the leave of the very card p1's delegate stood on.

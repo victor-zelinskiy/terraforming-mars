@@ -1129,7 +1129,7 @@ export default defineComponent({
     },
     /** …hosted by the UNITY party door specifically (the party composer's zone). */
     unityStepHosted(): boolean {
-      return this.colonyStepHosted && this.composer?.party === PartyName.UNITY;
+      return this.colonyStepHosted && this.legacyPartyOf === PartyName.UNITY;
     },
     /**
      * The stage marker goes AMBER only past the commit boundary. A hosted
@@ -2635,11 +2635,19 @@ export default defineComponent({
      * server marks it used and the reconciler retires the frame — which is also
      * why a stale step can never survive a reload.
      */
-    onComposerColonyTrade(payload: {card: CardName}): void {
+    onComposerColonyTrade(payload: {card?: CardName, party?: PartyName}): void {
       if (this.composer === undefined || workspaceFrameMounted('colonies')) {
         return;
       }
-      beginCardColonyTrade(payload.card);
+      // A card's payment path, or a PARTY's (Unity's free trade — the one-framework door): the same trade, the path
+      // pinned by the option's own metadata.
+      if (payload.party !== undefined) {
+        beginPartyColonyTrade(payload.party);
+      } else if (payload.card !== undefined) {
+        beginCardColonyTrade(payload.card);
+      } else {
+        return;
+      }
       pushWorkspaceFrame({
         kind: 'colonies', subject: '', stage: 'Colony selection', phase: 'browse',
         // `always` — a place the player WALKED to, which is exactly what this

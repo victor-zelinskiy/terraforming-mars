@@ -1,10 +1,10 @@
 import {expect} from 'chai';
-import {Phase} from '../../src/common/Phase';
 import {TileType} from '../../src/common/TileType';
 import {ResolutionId} from '../../src/common/parliament/ParliamentTypes';
 import {TILE_GRANT_NO_DESTINATION_REASON, TILE_GRANT_NOT_ELIGIBLE_REASON, tileGrantStepKey} from '../../src/common/parliament/tileGrant';
 import {winnerParameterStepKey} from '../../src/common/parliament/winnerReward';
 import {Game} from '../../src/server/Game';
+import {SerializedGame} from '../../src/server/SerializedGame';
 import {IGame} from '../../src/server/IGame';
 import {IPlayer} from '../../src/server/IPlayer';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
@@ -25,7 +25,7 @@ import {SerializedEnactOutcome} from '../../src/server/parliament/SerializedParl
 import {testAutomaGame} from '../automa/AutomaTestGame';
 import {TestPlayer} from '../TestPlayer';
 import {addCity, maxOutOceans, runAllActions, setOxygenLevel, setTemperature} from '../TestingUtils';
-import {answerGate, gatePromptOf, REDS_STAND_IN, seatResolution} from './parliamentArrange';
+import {answerGate, atSittingEnd, gatePromptOf, REDS_STAND_IN, seatResolution, sittingOf, sittingOpen} from './parliamentArrange';
 import {ColonyName} from '../../src/common/colonies/ColonyName';
 
 /**
@@ -59,14 +59,13 @@ function botWinsTheVote(t: Table): void {
   t.human.popWaitingFor();
   t.game.playerHasPassed(t.human);
   t.game.playerIsFinishedTakingActions();
-  expect(t.game.phase).eq(Phase.PARLIAMENT);
-  expect(t.parliament.phase?.step).eq('assembly');
-  expect(t.parliament.phase?.summary?.winner.player).eq(t.bot.id);
+  // No gate stands after the verdict: the chain has run up to the law's first ask, or to its end.
+  expect(sittingOf(t.parliament)?.winner.player).eq(t.bot.id);
 }
 
 /** Walk the sitting to its end, answering the human's own asks; the bot must never hold a prompt. */
 function throughTheSitting(t: Table): void {
-  for (let guard = 0; guard < 12 && t.game.phase === Phase.PARLIAMENT; guard++) {
+  for (let guard = 0; guard < 12 && sittingOpen(t.game); guard++) {
     expect(t.bot.getWaitingFor(), 'the bot is never asked').is.undefined;
     const wf = t.human.getWaitingFor();
     if (gatePromptOf(t.human) !== undefined) {
@@ -156,8 +155,8 @@ describe('BotWinnerReward — the bot as the winning player', () => {
     it('the marker moves; a TR step pays a TR; the bot is never asked', () => {
       const t = seated(COLONIZATION_FUNDING_ID);
       t.parliament.agenda.set(t.bot.id, 1); // the next step (2) is a TR step
-      botWinsTheVote(t);
       const tr = t.bot.terraformRating;
+      botWinsTheVote(t);
       throughTheSitting(t);
       expect(t.parliament.agendaOf(t.bot)).eq(2);
       expect(t.bot.terraformRating).eq(tr + 1);
@@ -168,9 +167,9 @@ describe('BotWinnerReward — the bot as the winning player', () => {
     it('a CARD step pays 1 M€ instead (RB-A p.11) — the bot has no hand', () => {
       const t = seated(COLONIZATION_FUNDING_ID);
       t.parliament.agenda.set(t.bot.id, 6); // the next step (7) is a card
-      botWinsTheVote(t);
       const mc = t.bot.megaCredits;
       const hand = t.bot.cardsInHand.length;
+      botWinsTheVote(t);
       throughTheSitting(t);
       expect(t.parliament.agendaOf(t.bot)).eq(7);
       expect(t.bot.megaCredits).eq(mc + 1);
@@ -182,8 +181,8 @@ describe('BotWinnerReward — the bot as the winning player', () => {
     it('a law that pays every seat (Colonization Funding): the human is paid, the bot is not, the bot\'s Agenda still moved', () => {
       // The human's share is per influence (+ per space city): one step of the Agenda gives it influence 1.
       const t = seated(COLONIZATION_FUNDING_ID, ({parliament, human}) => parliament.agenda.set(human.id, 1));
-      botWinsTheVote(t);
       const humanProduction = t.human.production.megacredits;
+      botWinsTheVote(t);
       throughTheSitting(t);
       expect(t.parliament.agendaOf(t.bot)).eq(1);
       expect(t.parliament.agendaOf(t.human)).eq(1);
@@ -200,7 +199,7 @@ describe('BotWinnerReward — the bot as the winning player', () => {
       t.human.popWaitingFor();
       t.game.playerHasPassed(t.human);
       t.game.playerIsFinishedTakingActions();
-      expect(t.parliament.phase?.summary?.winner.player).eq('NEUTRAL');
+      expect(sittingOf(t.parliament)?.winner.player).eq('NEUTRAL');
       const oceans = t.game.board.getOceanSpaces().length;
       throughTheSitting(t);
       expect(t.game.board.getOceanSpaces().length).eq(oceans);
@@ -212,9 +211,9 @@ describe('BotWinnerReward — the bot as the winning player', () => {
   describe('RX01 Aquifer Contest — an ocean by the bot\'s own placement', () => {
     it('the bot places the ocean (its TR, the record under the card\'s key, part winner); the human\'s share is its own', () => {
       const t = seated(AQUIFER_CONTEST_ID);
-      botWinsTheVote(t);
       const tr = t.bot.terraformRating;
       const oceans = t.game.board.getOceanSpaces().length;
+      botWinsTheVote(t);
       throughTheSitting(t);
       expect(t.game.board.getOceanSpaces().length).eq(oceans + 1);
       // The ocean's TR (+1) and the Agenda's first step (influence — no bonus).
@@ -233,8 +232,8 @@ describe('BotWinnerReward — the bot as the winning player', () => {
 
     it('no ocean tile left → «ПРОПУЩЕНО · океан» with the reason, nothing else', () => {
       const t = seated(AQUIFER_CONTEST_ID, ({human}) => maxOutOceans(human));
-      botWinsTheVote(t);
       const tr = t.bot.terraformRating;
+      botWinsTheVote(t);
       throughTheSitting(t);
       expect(t.bot.terraformRating).eq(tr);
       expect(t.bot.megaCredits).eq(0);
@@ -245,9 +244,9 @@ describe('BotWinnerReward — the bot as the winning player', () => {
   describe('RX03 Biodome Contest — a greenery by the bot\'s own placement', () => {
     it('the greenery lands (the bot\'s), oxygen +1, TR +2 (the oxygen and the tile itself)', () => {
       const t = seated(BIODOME_CONTEST_ID);
-      botWinsTheVote(t);
       const tr = t.bot.terraformRating;
       const oxygen = t.game.getOxygenLevel();
+      botWinsTheVote(t);
       throughTheSitting(t);
       expect(t.game.getOxygenLevel()).eq(oxygen + 1);
       expect(t.bot.terraformRating).eq(tr + 2);
@@ -260,8 +259,8 @@ describe('BotWinnerReward — the bot as the winning player', () => {
 
     it('at the oxygen maximum the tile still lands and still pays its own TR', () => {
       const t = seated(BIODOME_CONTEST_ID, ({game}) => setOxygenLevel(game, 14));
-      botWinsTheVote(t);
       const tr = t.bot.terraformRating;
+      botWinsTheVote(t);
       throughTheSitting(t);
       expect(t.game.getOxygenLevel()).eq(14);
       expect(t.bot.terraformRating).eq(tr + 1);
@@ -275,9 +274,9 @@ describe('BotWinnerReward — the bot as the winning player', () => {
       // 2 M€): the flip may land anywhere the deal put a tile, so the exception is taken off the table, never assumed
       // away (a new card in the Redux deck once moved the flip onto it — TR29).
       const t = seated(COLONY_CONTEST_ID, ({game}) => game.colonies.filter((colony) => colony.name === ColonyName.EUROPA).forEach((colony) => (colony.isActive = false)));
-      botWinsTheVote(t);
       const cubes = () => t.game.colonies.reduce((sum, colony) => sum + colony.colonies.filter((id) => id === t.bot.id).length, 0);
       expect(cubes()).eq(0);
+      botWinsTheVote(t);
       throughTheSitting(t);
       expect(cubes()).eq(1);
       const [record] = botRecords(t);
@@ -298,8 +297,8 @@ describe('BotWinnerReward — the bot as the winning player', () => {
   describe('RX23 Mohole Contest — two steps of temperature, rewarded', () => {
     it('the temperature rises 2 steps, the bot gains 2 TR, the record measures the rating', () => {
       const t = seated(MOHOLE_CONTEST_ID, ({game}) => setTemperature(game, -10));
-      botWinsTheVote(t);
       const tr = t.bot.terraformRating;
+      botWinsTheVote(t);
       throughTheSitting(t);
       expect(t.game.getTemperature()).eq(-6);
       expect(t.bot.terraformRating).eq(tr + 2);
@@ -354,7 +353,7 @@ describe('BotWinnerReward — the bot as the winning player', () => {
       t.human.popWaitingFor();
       t.game.playerHasPassed(t.human);
       t.game.playerIsFinishedTakingActions();
-      expect(t.parliament.phase?.summary?.winner.player).eq(t.human.id);
+      expect(sittingOf(t.parliament)?.winner.player).eq(t.human.id);
     }
 
     it('NOT the winner, influence 2 → the bot gets its tier all the same (the recipients rule), in its place in the order', () => {
@@ -384,12 +383,16 @@ describe('BotWinnerReward — the bot as the winning player', () => {
   });
 
   describe('recovery', () => {
-    it('a save at the ASSEMBLY gate resumes and pays the bot once; a save resumed INTO the effects again pays nothing twice', () => {
+    it('a save at the sitting\'s LAST step resumes and pays the bot once; a save resumed INTO the effects again pays nothing twice', () => {
       const t = seated(AQUIFER_CONTEST_ID);
-      botWinsTheVote(t);
       const oceans = t.game.board.getOceanSpaces().length;
-      // Reload at the gate: the pass has not run.
-      const live = Game.deserialize(structuredClone(t.game.serialize()));
+      // The save at `done` — the chain ran, nothing is closed yet (the retired assembly gate is no stop any more).
+      let save: SerializedGame | undefined;
+      atSittingEnd(t.game, () => (save = structuredClone(t.game.serialize())));
+      botWinsTheVote(t);
+      throughTheSitting(t);
+      expect(save?.parliament?.phase?.step).eq('done');
+      const live = Game.deserialize(save!);
       const parliament = live.parliament!;
       const human = live.getPlayerById(t.human.id) as TestPlayer;
       const bot = live.getPlayerById(t.bot.id);
@@ -420,8 +423,8 @@ describe('BotWinnerReward — the bot as the winning player', () => {
         maxOutOceans(human);
         expect(game.gameIsOver()).is.true;
       });
-      botWinsTheVote(t);
       const tr = t.bot.terraformRating;
+      botWinsTheVote(t);
       throughTheSitting(t);
       expect(t.parliament.lastPhase?.final).is.true;
       // The greenery lands at the oxygen maximum and pays its own TR — the reward is paid before the final greeneries.

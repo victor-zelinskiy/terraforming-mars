@@ -13,8 +13,10 @@ import {beginPanelRewardHold, releasePanelRewardHold, runResourceTransfers} from
 import {rectOf} from './parliamentFlights';
 import {allianceImpulsesSettled} from './allianceImpulse';
 import {consoleParliamentUi} from './consoleParliamentFlow';
+import {generationSceneRisesIntoSitting} from '@/client/console/generationScene/generationScene';
 import {scheduleParliamentBeat} from './parliamentBeat';
 import {probeTick} from '@/client/console/probeTick';
+import {sittingBaselineOf} from './sittingBaseline';
 
 /*
  * A CARD ANSWERS A CHANGE OF POWER (Turmoil Redux — TR62 Tharsis Alliance: «draw a card when either of those parties
@@ -86,7 +88,7 @@ function rulingAnswerKey(generation: number, answer: ParliamentRulingAnswerModel
 export function newViewerRulingAnswers(before: PlayerViewModel | undefined, after: PlayerViewModel): Array<{key: string, answer: ParliamentRulingAnswerModel}> {
   const viewer = after.thisPlayer?.color;
   const phase = after.game.parliament?.phase;
-  const was = before?.game.parliament?.phase;
+  const was = sittingBaselineOf(before, after);
   if (viewer === undefined || phase === undefined || was === undefined || was.generation !== phase.generation) {
     return [];
   }
@@ -137,7 +139,7 @@ function presentedAmounts(rating: RulingRatingOwed): {tr?: number, production?: 
  * with the commit.
  */
 export function seedRulingChangeAnswers(before: PlayerViewModel | undefined, after: PlayerViewModel | undefined): void {
-  if (after === undefined || consoleReducedMotionActive() || !consoleParliamentUi.stageStanding) {
+  if (after === undefined || consoleReducedMotionActive() || !(consoleParliamentUi.stageStanding || generationSceneRisesIntoSitting(after))) {
     return;
   }
   for (const {key, answer} of newViewerRulingAnswers(before, after)) {

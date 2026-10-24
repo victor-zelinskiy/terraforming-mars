@@ -12,6 +12,7 @@ import {
   clearPanelRewardHold, heldProduction, heldStock, panelRewardHold,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {activeAnimationHoldLabels, isAnimationHoldActive} from '@/client/components/presentation/animationHold';
+import {enterWorkspace, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
 import {
   agendaCardOwed, detectAgendaBonus, detectNewViewerRewards, detectNewViewerTile, flushAgendaBonus, flushParliamentRewards, markAgendaBonusLanded, markAgendaCardLifted,
   markRewardLanded, parliamentAgendaBonusHeld, parliamentParksReveal,
@@ -34,10 +35,12 @@ function outcome(over: Partial<ParliamentEnactOutcomeModel> & {kind: ParliamentE
   return {player: BLUE, step: 'grant', part: 'effect', ...over} as ParliamentEnactOutcomeModel;
 }
 
-function view(phase: {generation: number, seq?: number, outcomes?: Array<ParliamentEnactOutcomeModel>, agenda?: {player: string, from: number, to: number, bonus?: 'tr' | 'card'}} | undefined, viewer = BLUE): PlayerViewModel {
+/** A view; `undefined` is the action phase of generation `generation` with NO sitting yet (the soft gates' baseline). */
+function view(phase: {generation: number, seq?: number, outcomes?: Array<ParliamentEnactOutcomeModel>, agenda?: {player: string, from: number, to: number, bonus?: 'tr' | 'card'}} | undefined, viewer = BLUE, generation = phase?.generation ?? 3): PlayerViewModel {
   return {
     thisPlayer: {color: viewer},
     game: {
+      generation,
       parliament: phase === undefined ? {} : {
         phase: {
           generation: phase.generation, final: false, step: 'effects', outcomes: phase.outcomes ?? [],
@@ -53,11 +56,13 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     resetParliamentRewards();
     clearPanelRewardHold();
     resetConsoleParliamentUi();
+    resetWorkspaceStack();
   });
   after(() => {
     resetParliamentRewards();
     clearPanelRewardHold();
     resetConsoleParliamentUi();
+    resetWorkspaceStack();
   });
 
   it('a record\'s key is structural: seat · step · part · kind (a reaction shares its cause\'s step)', () => {
@@ -207,7 +212,7 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     markAgendaBonusLanded();
     expect(parliamentParksReveal({type: 'agenda'}), 'released at the landing — the cover scene may lift it now').is.false;
     // A TR step never parks a batch.
-    seedParliamentRewardHold(view(undefined), view({generation: 4, seq: 8, agenda: {player: BLUE, from: 1, to: 2, bonus: 'tr'}}));
+    seedParliamentRewardHold(view(undefined, BLUE, 4), view({generation: 4, seq: 8, agenda: {player: BLUE, from: 1, to: 2, bonus: 'tr'}}));
     expect(parliamentParksReveal({type: 'agenda'})).is.false;
     expect(heldStock(RATING_RAIL_KEY)).eq(1);
   });
@@ -239,8 +244,9 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     expect(panelRewardHold.active).is.false;
   });
 
-  it('SEED with the sitting OFF SCREEN (parked / absent): no hold, nothing owed — the counter ticks with the commit and the record reads «landed»; the Agenda bonus too', () => {
+  it('SEED with the sitting OFF SCREEN (its frame up but not standing — parked, collapsed): no hold, nothing owed — the counter ticks with the commit and the record reads «landed»; the Agenda bonus too', () => {
     consoleParliamentUi.stageStanding = false;
+    enterWorkspace('parliament', {anchor: {type: 'always'}});
     const before = view({generation: 3, seq: 7});
     const record = outcome({kind: 'stock', stock: Resource.PLANTS, amount: 4, step: 'b'});
     seedParliamentRewardHold(before, view({generation: 3, seq: 7, outcomes: [record], agenda: {player: BLUE, from: 1, to: 2, bonus: 'tr'}}));
@@ -249,6 +255,27 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     expect(rewardLanded(record)).is.true;
     expect(heldStock(RATING_RAIL_KEY), 'no track on screen to fly the bonus on — the rating ticks with the commit').eq(0);
     expect(parliamentRewardState.agendaBonuses).deep.eq([]);
+  });
+
+  /* THE SOFT GATES: the whole sitting rides ONE response, which the seat may receive on the board (the last pass was
+   * another seat's) — no stage stands, no Parliament frame is up yet, the plate / the generation scene opens it next.
+   * The walk is AHEAD: the rail holds what it paid, but those holds claim no foreground until the stage stands (the
+   * plate itself must come up) — the stage's rising edge claims it, and arms the registry's ceiling. */
+  it('SEED with the walk still AHEAD (no stage, no frame): the rail is held and the records owed, claiming NO foreground until the stage stands', () => {
+    consoleParliamentUi.stageStanding = false;
+    const record = outcome({kind: 'stock', stock: Resource.PLANTS, amount: 4, step: 'b'});
+    seedParliamentRewardHold(view(undefined), view({generation: 3, seq: 7, outcomes: [record], agenda: {player: BLUE, from: 1, to: 2, bonus: 'tr'}}));
+    expect(parliamentRewardPending(), 'owed to the walk').is.true;
+    expect(heldStock('plants')).eq(4);
+    expect(heldStock(RATING_RAIL_KEY), 'the Agenda step\'s rating waits for its glide').eq(1);
+    expect(parliamentRewardState.awaitingStage).is.true;
+    const held = (label: string) => activeAnimationHoldLabels().some((l) => l.startsWith(label));
+    expect(held('parliament-reward-owed'), 'the plate may come up').is.false;
+    expect(held('parliament-agenda-bonus-owed')).is.false;
+    consoleParliamentUi.stageStanding = true;
+    expect(held('parliament-reward-owed'), 'the stage stands: the owed wave claims the foreground').is.true;
+    flushParliamentRewards('reset');
+    flushAgendaBonus('reset');
   });
 
   it('a new sitting drops what the old one still owed (its holds released), and the phase\'s end clears the ledger', () => {

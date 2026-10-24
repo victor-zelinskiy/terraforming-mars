@@ -14,7 +14,7 @@ import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/mar
 import {HEAT_CAPTURE_ID} from '../../src/server/parliament/resolutions/reds/HeatCapture';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {ParliamentHandler} from '../../src/server/parliament/ParliamentHandler';
-import {answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates, gatePromptOf} from './parliamentArrange';
 import {questRenderData} from '../../src/server/parliament/quests/questRender';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {SerializedEnactOutcome} from '../../src/server/parliament/SerializedParliament';
@@ -464,7 +464,9 @@ describe('MetalResearch', () => {
       human.popWaitingFor();
       game.playerHasPassed(human);
       game.playerIsFinishedTakingActions();
-      expect(game.phase).eq(Phase.PARLIAMENT);
+      // The law asks nobody here, so the sitting has run its whole chain at once (the soft gates):
+      expect(parliament.lastPhase, 'the sitting has run').is.not.undefined;
+      expect(gatePromptOf(human), 'the human holds its confirmation').is.not.undefined;
       expect(bot.getWaitingFor(), 'the bot is never asked a political question').is.undefined;
       settleParliamentGates(game);
       expect(parliament.phase, 'nothing of this card asks anything — the sitting closes on its own').is.undefined;

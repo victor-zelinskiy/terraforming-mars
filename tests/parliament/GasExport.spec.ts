@@ -8,7 +8,7 @@ import {
   GAS_EXPORT, GAS_EXPORT_CODE, GAS_EXPORT_ID, GAS_EXPORT_MEGACREDITS, GAS_EXPORT_OXYGEN, GAS_EXPORT_VENUS,
 } from '../../src/server/parliament/resolutions/reds/GasExport';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {endGenerationThroughParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {endGenerationThroughParliament, seatResolution, settleParliamentGates, gatePromptOf} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {Resource} from '../../src/common/Resource';
@@ -381,7 +381,9 @@ describe('GasExport', () => {
       human.popWaitingFor();
       game.playerHasPassed(human);
       game.playerIsFinishedTakingActions();
-      expect(game.phase).eq(Phase.PARLIAMENT);
+      // The law asks nobody here, so the sitting has run its whole chain at once (the soft gates):
+      expect(parliament.lastPhase, 'the sitting has run').is.not.undefined;
+      expect(gatePromptOf(human), 'the human holds its confirmation').is.not.undefined;
       expect(bot.getWaitingFor(), 'the bot is never asked a political question').is.undefined;
       settleParliamentGates(game);
       expect(parliament.phase, 'nothing of this card asks anything — the sitting closes on its own').is.undefined;

@@ -18,7 +18,7 @@ import {SCIENTISTS_BUDGET, SCIENTISTS_BUDGET_MEGACREDITS} from '../../src/server
 import {UNITY_BUDGET, UNITY_BUDGET_MEGACREDITS} from '../../src/server/parliament/resolutions/unity/UnityBudget';
 import {AQUIFER_CONTEST_ANIMALS} from '../../src/server/parliament/resolutions/greens/AquiferContest';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerGate, answerQuestGate, endGenerationThroughParliament, gatePromptOf, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, gatePromptOf, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {declaredCountIds, declaredStockReads, resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {questRenderData} from '../../src/server/parliament/quests/questRender';
 import {PartyName} from '../../src/common/turmoil/PartyName';
@@ -281,9 +281,9 @@ describe('GreensBudget', () => {
       expect(resourcesOn(p1, CardName.TARDIGRADES)).eq(3);
       expect(resourcesOn(p1, CardName.FISH), 'the animals stayed where they landed').eq(2);
       // …then p2: its own levy, its own influence, and both portions NAMED and forfeited — no holder, no question:
-      // the whole effects step is over and the ADJOURN gate is what both seats hold now.
+      // the whole effects step is over, the chain has run to its end and both seats hold the confirmation now.
       expect(p2.getWaitingFor(), 'no holder — no question').is.not.instanceOf(SelectCard);
-      expect(gatePromptOf(p2, 'adjourn'), 'the sitting moved on to its second gate').is.not.undefined;
+      expect(gatePromptOf(p2), 'the sitting ran to its end — «Закрыть заседание» stands').is.not.undefined;
       const levy2 = outcomeOf(parliament, p2, LEVY_STEP_KEY)!;
       const paid2 = outcomeOf(parliament, p2, 'megacredits')!;
       expect(levy2).deep.include({kind: 'stock', amount: -10, owed: 10, before: 20 + income2, after: 10 + income2});
@@ -566,8 +566,8 @@ describe('GreensBudget', () => {
       expect(one.tableau.get(CardName.TARDIGRADES)?.resourceCount).eq(3);
       expect(one.tableau.get(CardName.GHG_PRODUCING_BACTERIA)?.resourceCount ?? 0).eq(0);
       expect(() => one.process({type: 'card', cards: [CardName.GHG_PRODUCING_BACTERIA]})).to.throw();
-      expect(one.getWaitingFor(), 'nothing more is asked of p1 — the adjourn gate stands').is.not.instanceOf(SelectCard);
-      expect(gatePromptOf(one, 'adjourn')).is.not.undefined;
+      expect(one.getWaitingFor(), 'nothing more is asked of p1 — the sitting\'s confirmation stands').is.not.instanceOf(SelectCard);
+      expect(gatePromptOf(one)).is.not.undefined;
       settleParliamentGates(live);
       expect(live.parliament!.phase).is.undefined;
       settleParliamentGates(live);
@@ -775,9 +775,8 @@ describe('GreensBudget', () => {
       game.playerHasPassed(human);
       game.playerIsFinishedTakingActions();
       expect(game.phase).eq(Phase.PARLIAMENT);
-      // The sitting's barrier is ONE human: the bot holds no gate, the human's answer opens the effects.
+      // No gate stands before the effects: the law asks the human at once, the bot is asked nothing.
       expect(bot.getWaitingFor()).is.undefined;
-      answerGate(human, 'assembly');
       expect(pickOf(human)).deep.include({resource: 'animal', amount: 2});
       human.process({type: 'card', cards: [CardName.FISH]});
       expect(bot.getWaitingFor()).is.undefined;

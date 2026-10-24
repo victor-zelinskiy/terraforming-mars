@@ -8,7 +8,7 @@ import {MOHOLE_CONTEST, MOHOLE_CONTEST_CODE, MOHOLE_CONTEST_HEAT, MOHOLE_CONTEST
 import {GAS_EXPORT, GAS_EXPORT_ID} from '../../src/server/parliament/resolutions/reds/GasExport';
 import {WINNER_STEP_AT_MAXIMUM_REASON, winnerParameterStep} from '../../src/server/parliament/resolutions/WinnerParameterStep';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {endGenerationThroughParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {endGenerationThroughParliament, seatResolution, settleParliamentGates, gatePromptOf} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {Resource} from '../../src/common/Resource';
@@ -411,7 +411,9 @@ describe('MoholeContest', () => {
       human.popWaitingFor();
       game.playerHasPassed(human);
       game.playerIsFinishedTakingActions();
-      expect(game.phase).eq(Phase.PARLIAMENT);
+      // The law asks nobody here, so the sitting has run its whole chain at once (the soft gates):
+      expect(parliament.lastPhase, 'the sitting has run').is.not.undefined;
+      expect(gatePromptOf(human), 'the human holds its confirmation').is.not.undefined;
       expect(bot.getWaitingFor(), 'the bot is never asked a political question').is.undefined;
       settle(game);
       expect(parliament.phase, 'nothing of this card asks anything here — the sitting closes on its own').is.undefined;

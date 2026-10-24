@@ -285,6 +285,14 @@ export interface IGame extends Logger {
   /** Initiates the first research phase, which is when a player chooses their starting hand, corps and preludes. */
   gotoInitialResearchPhase(): void;
   gotoResearchPhase(): void;
+  /**
+   * THE SOFT GATES' ADMISSION: `player` closed the last sitting — give it the
+   * first prompt of what the game already runs (the World Government's step it
+   * owes, its draft pick, its research buy), or nothing when there is none yet.
+   */
+  admitToGeneration(player: IPlayer): void;
+  /** Where the game goes once the Mars Parliament has resolved (the final greeneries, or the next generation). */
+  continueAfterParliamentPhase(final: boolean): void;
   save(): void;
   /**
    * Emit a realtime "game state advanced" invalidation WITHOUT persisting.

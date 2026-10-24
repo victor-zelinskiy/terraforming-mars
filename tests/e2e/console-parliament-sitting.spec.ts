@@ -199,7 +199,6 @@ for (const preset of PRESETS) {
       expect(answered.game.parliament?.phase?.step, 'one answer moves nothing').toBe('assembly');
       expect(answered.game.parliament?.phase?.awaiting).toEqual([(await wireOf(request, red)).thisPlayer.color]);
       expect(await sittingStage(page), 'the verdict stands until the others answer').toBe('verdict');
-      await expect(page.locator('.con-band [data-sit-awaiting]'), 'the wait pose names the seat still to answer').toHaveCount(1, {timeout: 15_000});
       await expect(parliament(page), 'the sitting stays open while the others read').toHaveCount(1);
       await expect(page.locator('[data-parl-gov]'), 'the seat keeps the starting rule — nothing changed yet').toHaveAttribute('data-parl-gov-basis', 'Starting rule');
       crumb = (await crumbText(page)).toUpperCase();
@@ -216,7 +215,6 @@ for (const preset of PRESETS) {
       expect(await openMandatoryAnnounce(page)).toBe(true);
       await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
       await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-      await expect(page.locator('.con-band [data-sit-awaiting]'), 'the wait pose again').toHaveCount(1, {timeout: 15_000});
 
       // ── THE OTHER SEAT ANSWERS OVER THE API: the barrier opens — the walk plays ПРИНЯТИЕ (the Agenda, the
       //    support, the enactment) and НАГРАДА by itself, Climate Research draws for blue, and the TAKE arrives
@@ -296,7 +294,6 @@ for (const preset of PRESETS) {
       await expect(parliament(page), 'B does nothing on the results').toHaveCount(1);
       await press(page, 'Enter', 1500);
       await expect.poll(async () => (await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000, message: 'gate 2 is answered'}).toBeUndefined();
-      await expect(page.locator('.con-band [data-sit-awaiting]'), 'the results wait for the other seat').toHaveCount(1, {timeout: 15_000});
 
       // ── THE OTHER SEAT CLOSES TOO: the phase ends and the workspace LEAVES with it.
       const redAdjourn = await wireOf(request, red);

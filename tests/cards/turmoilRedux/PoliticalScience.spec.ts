@@ -4,6 +4,7 @@ import {testGame} from '../../TestGame';
 import {TestPlayer} from '../../TestPlayer';
 import {IGame} from '../../../src/server/IGame';
 import {Game} from '../../../src/server/Game';
+import {SerializedGame} from '../../../src/server/SerializedGame';
 import {Parliament} from '../../../src/server/parliament/Parliament';
 import {ParliamentHandler} from '../../../src/server/parliament/ParliamentHandler';
 import {ChairmanSeat} from '../../../src/server/parliament/quests/ChairmanSeat';
@@ -27,7 +28,7 @@ import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {IProjectCard} from '../../../src/server/cards/IProjectCard';
 import {cast} from '../../../src/common/utils/utils';
 import {normalizeRequirement} from '../../../src/client/components/premiumCard/premiumCardViewModel';
-import {answerStandingGates, endGenerationThroughParliament, passToParliament, quietResolutionOf, seatResolution} from '../../parliament/parliamentArrange';
+import {answerStandingGates, atSittingEnd, endGenerationThroughParliament, passToParliament, quietResolutionOf, seatResolution} from '../../parliament/parliamentArrange';
 import {formatMessage, maxOutOceans, runAllActions, setOxygenLevel, setTemperature} from '../../TestingUtils';
 
 /**
@@ -197,9 +198,10 @@ describe('PoliticalScience', () => {
       parliament.placeVote(p1, parliament.slots[0], 'reserve');
       expect(parliament.winner()?.player).eq(p2.id);
       passToParliament(game);
-      expect(parliament.phase?.final).is.true;
-      answerStandingGates(game, 'assembly');
-      answerStandingGates(game, 'adjourn');
+      // The final sitting runs its chain at once too, and stays a barrier: the confirmations stand before the greeneries.
+      expect(parliament.phase).is.undefined;
+      expect(parliament.sittingAcks?.final).is.true;
+      answerStandingGates(game);
       expect(parliament.phase).is.undefined;
       expect(parliament.lastPhase?.final).is.true;
       expect(parliament.votesOf(p1), 'p1\'s delegates still stand on the loser').eq(2);
@@ -246,16 +248,20 @@ describe('PoliticalScience', () => {
   describe('rule 10 — a reload mid-sitting never collects twice', () => {
     it('a save whose cursor is set back to the refresh step re-enters it as applied: the data and the journal stand', () => {
       const {game, p1, parliament, card} = collectionTable();
+      // The sitting runs its whole chain at once (the soft gates): the save is taken at its LAST step, the refresh
+      // already applied and nothing closed yet.
+      let serialized: SerializedGame | undefined;
+      atSittingEnd(game, () => (serialized = structuredClone(game.serialize())));
       passToParliament(game);
-      answerStandingGates(game, 'assembly');
-      expect(parliament.phase?.step).eq('adjourn');
+      expect(parliament.phase, 'the chain ran to its end').is.undefined;
       expect(card.resourceCount).eq(3);
-      const serialized = structuredClone(game.serialize());
-      serialized.parliament!.phase!.step = 'refresh';
-      const live = Game.deserialize(serialized);
+      expect(serialized?.parliament?.phase?.step).eq('done');
+      serialized!.parliament!.phase!.step = 'refresh';
+      const live = Game.deserialize(serialized!);
       const again = live.getPlayerById(p1.id);
       const reloadedCard = again.playedCards.get(CardName.POLITICAL_SCIENCE) as IProjectCard;
-      expect(live.parliament?.phase?.step, 'driven on from the refresh cursor to the adjourn gate').eq('adjourn');
+      expect(live.parliament?.phase, 'driven on from the refresh cursor to the end of the sitting').is.undefined;
+      expect(live.parliament?.lastPhase?.generation).eq(parliament.lastPhase?.generation);
       expect(reloadedCard.resourceCount).eq(3);
       expect(cardEffects(live.parliament!).map((e) => e.count)).deep.eq([2, 1]);
     });

@@ -415,6 +415,8 @@ export interface IPlayer {
   draftHand: Array<IProjectCard>;
   /** Cards this player has already chosen during this draft round */
   draftedCards: Array<IProjectCard>;
+  /** The research deal waiting for its buy (the soft gates: dealt at the phase's start, asked on admission). */
+  researchHand: Array<IProjectCard>;
   /** true when this player is drafting, false when player is not, undefined when there is no draft phase. */
   needsToDraft?: boolean;
 
@@ -662,6 +664,10 @@ export interface IPlayer {
   convertEnergyToHeat(amount: number): void;
 
   runResearchPhase(): void;
+  /** The research deal alone (into `researchHand`) — the soft gates ask the buy apart. */
+  drawResearch(): void;
+  /** The research buy over `researchHand`. */
+  askResearch(): void;
   getCardCost(card: IProjectCard): number;
   /** `getCardCost` itemized: the printed cost, the final cost and every
    *  card / corporation / party discount by source (read-only). */

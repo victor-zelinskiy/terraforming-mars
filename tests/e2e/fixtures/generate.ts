@@ -31,6 +31,7 @@ import {addCity, addGreenery, addOcean, maxOutOceans, runAllActions, setOxygenLe
 import {SelectCard} from '../../../src/server/inputs/SelectCard';
 import {PartyName} from '../../../src/common/turmoil/PartyName';
 import {Tardigrades} from '../../../src/server/cards/base/Tardigrades';
+import {AICentral} from '../../../src/server/cards/base/AICentral';
 import {Research} from '../../../src/server/cards/base/Research';
 import {Tag} from '../../../src/common/cards/Tag';
 import {Trees} from '../../../src/server/cards/base/Trees';
@@ -1014,31 +1015,86 @@ finaleRichFixture('finale-rich-2p', 2);
 // ONE BUILDER for every parliament fixture (the sitting rework, Э1): a 2-seat
 // Redux table through the real start flow, the resolution SEATED (never
 // assumed from the deal — `parliamentArrange`), the votes, the Agenda and the
-// rest of the table arranged by the spec, then DRIVEN to the requested stop:
+// rest of the table arranged by the spec, then DRIVEN to the requested stop
+// (the SOFT GATES — docs/claude/console/parliament-soft-gates.md: the sitting
+// runs in ONE chain, stopping only at the law's own asks, and ends in ONE
+// confirmation per seat, a prompt of the SEAT):
 //   vote      — the action phase, the vote up (the browse layer, the vote mode);
-//   assembly  — every seat passed: the VERDICT is known and NOTHING ELSE has
-//               changed yet («Заседание v2»: the gate stands before the
-//               Agenda step, the support, the enactment and the rewards — the
-//               winner is still in its slot with its delegates, the government
-//               is the previous one), and the ASSEMBLY gate stands for both
-//               seats (nobody answered — «the viewer answered, the other did
-//               not» is one API press away);
-//   effects   — the assembly gate answered by both: the enacted resolution's
-//               FIRST ask stands (or the phase went on, for a card that asks nothing);
-//   adjourn   — the effects answered with the plainest legal answers (a pick:
+//   pass      — ONE PASS AWAY: every seat but blue (the seat the dev loader
+//               opens) has passed, blue holds its action menu — its pass is the
+//               spec's own opening press (`passOnScreen`), and the WHOLE sitting
+//               rides that one response, which the client receives from the
+//               table as it stood (the walk plays from the verdict, every hold
+//               seeded). The fixtures of this stop keep their historical
+//               `-assembly` file names (the table, not the moment, is the name);
+//   effects   — every seat passed: the enacted resolution's FIRST ask stands (or
+//               the sitting is over, for a card that asks nothing);
+//   close     — the asks answered with the plainest legal answers (a pick:
 //               every card of a take / the first candidate; a placement: a
-//               quiet cell; a choice: the first branch), the area refreshed,
-//               the lobby refilled, and the ADJOURN gate stands for both seats;
-//   done      — the adjourn gate answered, research answered with empty picks:
-//               generation 2's action phase, the sitting in `lastPhase` and
-//               in the history.
+//               quiet cell; a choice: the first branch): the sitting is over,
+//               every seat holds its confirmation «Закрыть заседание» and the
+//               next generation already runs around it (`-adjourn` file names);
+//   done      — the confirmations answered, research answered with empty picks:
+//               generation 2's action phase, the sitting in `lastPhase` and in
+//               the history.
 // The dev loader opens the FIRST seat of the generation order: blue (p1) in
 // generation 1, the seat that opened generation 2 in a `done` fixture.
 
 /** `seats` is EVERY seat in generation order; `p1` / `p2` are its first two, named for the two-seat tables most fixtures are. */
 type ParliamentTable = {game: IGame; p1: TestPlayer; p2: TestPlayer; seats: ReadonlyArray<TestPlayer>; parliament: Parliament};
 
-type ParliamentStop = 'vote' | 'assembly' | 'effects' | 'adjourn' | 'done';
+type ParliamentStop = 'vote' | 'pass' | 'effects' | 'close' | 'done';
+
+/**
+ * ONE PASS AWAY (the `pass` stop): every seat but the first of the generation order passes; that seat — the one the
+ * dev loader opens — holds its action menu, and its pass is the spec's. Refuses a table that did not get there.
+ */
+function passAllButViewer(game: IGame, name: string): void {
+  const viewer = viewerOf(game);
+  for (const seat of game.playersInGenerationOrder.filter((p) => p !== viewer)) {
+    if (seat.getWaitingFor() !== undefined) {
+      seat.clearWaitingFor();
+    }
+    game.playerHasPassed(seat);
+    game.playerIsFinishedTakingActions();
+  }
+  expectOnePassAway(game, name);
+  void viewer;
+}
+
+/** The table stands ONE PASS AWAY from its sitting: the action phase, the viewer's menu up, every other human seat passed. */
+function expectOnePassAway(game: IGame, name: string): void {
+  const viewer = viewerOf(game);
+  const others = game.playersInGenerationOrder.filter((p) => p !== viewer);
+  const menu = viewer.getWaitingFor();
+  if (game.phase !== Phase.ACTION || game.parliament?.phase !== undefined || !(menu instanceof OrOptions) ||
+      // MarsBot passes on its own turn (an EMPTY deck): the human's pass hands it that turn.
+      others.some((seat) => seat.isMarsBot !== true && !game.hasPassedThisActionPhase(seat))) {
+    throw new Error(`${name}: expected the table one pass away from the sitting, got ${game.phase} / ${game.parliament?.phase?.step ?? 'no sitting'} / ${menu?.type ?? 'no menu'}`);
+  }
+}
+
+/** The seat the dev loader opens: the first HUMAN of the generation order (a bot may lead it — PL-764). */
+function viewerOf(game: IGame): IPlayer {
+  const viewer = game.playersInGenerationOrder.find((p) => p.isMarsBot !== true);
+  if (viewer === undefined) {
+    throw new Error('a table without a human seat');
+  }
+  return viewer;
+}
+
+/** The viewer's own pass (a dry run of the `pass` stop): the whole sitting runs in it. */
+function passTheViewer(game: IGame): void {
+  const viewer = viewerOf(game);
+  viewer.clearWaitingFor();
+  game.playerHasPassed(viewer);
+  game.playerIsFinishedTakingActions();
+}
+
+/** The M€ a seat's production phase pays it (TR + M€ production) — a `pass` fixture sets the money AT the sitting net of it. */
+function productionIncomeOf(player: TestPlayer): number {
+  return player.terraformRating + player.production.megacredits;
+}
 
 type ParliamentFixtureSpec = {
   /** The contested card, seated in `slot` (0 by default — closest to the government). */
@@ -1212,25 +1268,21 @@ function parliamentFixture(name: string, spec: ParliamentFixtureSpec): Parliamen
   });
   spec.arrange?.(table);
   runAllActions(game);
-  if (spec.stopAt !== 'vote') {
+  if (spec.stopAt === 'pass') {
+    passAllButViewer(game, name);
+  } else if (spec.stopAt !== 'vote') {
     passToParliament(game);
-    if (parliament.phase?.step !== 'assembly') {
-      throw new Error(`${name}: expected the assembly gate, got ${parliament.phase?.step ?? 'no phase'}`);
-    }
   }
-  if (spec.stopAt === 'effects' || spec.stopAt === 'adjourn' || spec.stopAt === 'done') {
-    answerStandingGates(game, 'assembly');
-  }
-  if (spec.stopAt === 'adjourn' || spec.stopAt === 'done') {
+  if (spec.stopAt === 'close' || spec.stopAt === 'done') {
     answerEffects(game, name);
-    if (parliament.phase?.step !== 'adjourn') {
-      throw new Error(`${name}: expected the adjourn gate, got ${parliament.phase?.step ?? 'no phase'}`);
+    if (parliament.phase !== undefined || parliament.sittingAcks === undefined) {
+      throw new Error(`${name}: expected the sitting's confirmations, got ${parliament.phase?.step ?? (parliament.sittingAcks === undefined ? 'no record' : '?')}`);
     }
   }
   if (spec.stopAt === 'done') {
-    answerStandingGates(game, 'adjourn');
-    if (parliament.phase !== undefined) {
-      throw new Error(`${name}: the sitting did not close (step ${parliament.phase.step})`);
+    answerStandingGates(game);
+    if (parliament.phase !== undefined || parliament.sittingAcks !== undefined) {
+      throw new Error(`${name}: the sitting did not close (step ${parliament.phase?.step ?? 'a confirmation owed'})`);
     }
     for (const player of seats) {
       if (player.getWaitingFor() instanceof SelectCard) {
@@ -1320,7 +1372,7 @@ parliamentFixture('parliament-actions', {
       parliament.grantPartyEffect(p1, party, 'Fixture');
     }
     p1.production.add(Resource.ENERGY, 1);
-    p1.playedCards.push(new Tardigrades());
+    p1.playedCards.push(new Tardigrades(), new AICentral());
     p1.cardsInHand.push(new Trees(), new Fish(), new AdaptedLichen());
   },
 });
@@ -1345,11 +1397,11 @@ const aquiferTable = (stopAt: ParliamentStop, expect?: (table: ParliamentTable) 
 // The overview, the vote mode and the fullscreen inspector read the influence-scaled payout from this table.
 parliamentFixture('parliament-aquifer-vote', aquiferTable('vote'));
 // The sitting has just convened: the verdict is known, the table untouched, the ASSEMBLY gate stands for both seats.
-parliamentFixture('parliament-aquifer-assembly', aquiferTable('assembly'));
+parliamentFixture('parliament-aquifer-assembly', aquiferTable('pass'));
 // …the SAME gate with SIX animal holders in blue's tableau: the recipient picker stands on six candidates —
 // the Deck's «picker on 6» composition (docs/TURMOIL_REDUX_PARLIAMENT_FINISH.md § Э8).
 parliamentFixture('parliament-aquifer-assembly-six', {
-  ...aquiferTable('assembly'),
+  ...aquiferTable('pass'),
   arrange: ({p1, p2}) => {
     p1.playedCards.push(new Fish(), new Pets(), new Birds(), new Livestock(), new Predators(), new SmallAnimals());
     p2.playedCards.push(new Birds());
@@ -1368,8 +1420,8 @@ parliamentFixture('parliament-aquifer-enact', aquiferTable('effects', ({p1}) => 
   }
 }));
 // Every payout made (blue's animals, the winner's ocean, red's animals), the area refreshed: the ADJOURN gate stands for both seats.
-parliamentFixture('parliament-aquifer-adjourn', aquiferTable('adjourn', ({parliament, p1}) => {
-  const outcomes = parliament.phase?.summary?.outcomes ?? [];
+parliamentFixture('parliament-aquifer-adjourn', aquiferTable('close', ({parliament, p1}) => {
+  const outcomes = (parliament.phase?.summary ?? parliament.lastPhase)?.outcomes ?? [];
   if (!outcomes.some((o) => o.player === p1.id && o.kind === 'ocean') || !outcomes.some((o) => o.player === p1.id && o.kind === 'reaction')) {
     throw new Error(`the parliament-aquifer-adjourn fixture expected blue's ocean and the Greens' answer to it, got ${JSON.stringify(outcomes)}`);
   }
@@ -1433,8 +1485,8 @@ const architectureTable = (stopAt: ParliamentStop, expect?: (table: ParliamentTa
   },
   expect,
 });
-parliamentFixture('parliament-architecture-assembly', architectureTable('assembly'));
-parliamentFixture('parliament-architecture-adjourn', architectureTable('adjourn'));
+parliamentFixture('parliament-architecture-assembly', architectureTable('pass'));
+parliamentFixture('parliament-architecture-adjourn', architectureTable('close'));
 // ── «Итоги: честность» — the SUPPORT STOCK. The same table, except that UNITY has been collecting
 //    neutral delegates for two generations already, and every Unity card lies at the BOTTOM of the deck:
 //    the refresh (three slots, drawn from the top) deals other parties first, so it never deals Unity a
@@ -1445,7 +1497,7 @@ parliamentFixture('parliament-architecture-adjourn', architectureTable('adjourn'
 //    catalog grew and the fixture silently stopped proving it — so the deck is now ARRANGED, never
 //    assumed.) ──
 const supportStockTable = (): ParliamentFixtureSpec => {
-  const base = architectureTable('assembly');
+  const base = architectureTable('pass');
   return {
     ...base,
     arrange: (table) => {
@@ -1475,9 +1527,9 @@ parliamentFixture('parliament-support-stock', supportStockTable());
 //    and the deal moves those cubes onto the re-dealt cards. Architecture asks nothing, so ONE A plays the
 //    whole walk: enactment → reward → RENEWAL → results. ──
 parliamentFixture('parliament-renewal-assembly', {
-  ...architectureTable('assembly'),
+  ...architectureTable('pass'),
   arrange: (table) => {
-    architectureTable('assembly').arrange?.(table);
+    architectureTable('pass').arrange?.(table);
     const {parliament, p1, p2} = table;
     parliament.placeVote(p2, parliament.slots[1], 'reserve');
     let greens = parliament.slots.findIndex((s) => parliament.resolutionOf(s.instance).party === PartyName.GREENS);
@@ -1506,9 +1558,9 @@ parliamentFixture('parliament-renewal-assembly', {
 //    ONE A plays the walk: both blue cubes fly home, the data token rises over blue's reserve, the journal carries
 //    `card-effect` count 2 right after the Greens' leave. ──
 parliamentFixture('political-science-assembly', {
-  ...architectureTable('assembly'),
+  ...architectureTable('pass'),
   arrange: (table) => {
-    architectureTable('assembly').arrange?.(table);
+    architectureTable('pass').arrange?.(table);
     const {parliament, p1, p2} = table;
     p1.playedCards.push(new PoliticalScience());
     parliament.placeVote(p2, parliament.slots[1], 'reserve');
@@ -4146,8 +4198,8 @@ const powerGridTable = (stopAt: ParliamentStop, expect?: (table: ParliamentTable
   },
   expect,
 });
-parliamentFixture('parliament-powergrid-assembly', powerGridTable('assembly'));
-parliamentFixture('parliament-powergrid-adjourn', powerGridTable('adjourn'));
+parliamentFixture('parliament-powergrid-assembly', powerGridTable('pass'));
+parliamentFixture('parliament-powergrid-adjourn', powerGridTable('close'));
 parliamentFixture('parliament-powergrid-recap', powerGridTable('done', (table) => {
   const {parliament, p2} = table;
   const outcomes = parliament.lastPhase?.outcomes ?? [];
@@ -4285,7 +4337,7 @@ const cloudTable = (stopAt: ParliamentStop, expect?: (table: ParliamentTable) =>
   expect: (table) => {
     const {parliament, p1, p2} = table;
     // Before the enactment the Greens rule by the starting rule and hold no card; past it, Unity rules BY THE CARD.
-    const unityRules = stopAt === 'effects' || stopAt === 'adjourn' || stopAt === 'done';
+    const unityRules = stopAt === 'effects' || stopAt === 'close' || stopAt === 'done';
     if (unityRules ? parliament.rulingParty() !== PartyName.UNITY :
       (parliament.rulingParty() !== PartyName.GREENS || parliament.partiesInVotingArea().includes(PartyName.GREENS))) {
       throw new Error(`the parliament-cloud fixture (${stopAt}) expected ${unityRules ? 'Unity ruling by its card' : 'the Greens ruling by the starting rule with no card on the table'}, got ${parliament.rulingParty()}`);
@@ -4301,7 +4353,7 @@ const cloudTable = (stopAt: ParliamentStop, expect?: (table: ParliamentTable) =>
 // The vote: the face with its Venus dependency, the two-tag formula, blue's reading «2 tags + 1 → 3 (+1 if you win)».
 parliamentFixture('parliament-cloud-vote', cloudTable('vote'));
 // The sitting has just convened on a four-party table: the ASSEMBLY gate stands for both seats.
-parliamentFixture('parliament-cloud-assembly', cloudTable('assembly'));
+parliamentFixture('parliament-cloud-assembly', cloudTable('pass'));
 // The political phase STOPPED INSIDE blue's LAYOUT: Cloud Development won with blue's delegate (Agenda 2 → 3 =
 // influence 2), the phase asks BLUE to lay 4 floaters over Dirigibles and Jovian Lanterns; red's
 // single-holder pick (3 floaters onto Atmo Collectors) follows.
@@ -4360,7 +4412,7 @@ const colonialTable = (stopAt: ParliamentStop, expect?: (table: ParliamentTable)
 // The vote: the face, the LEDGER in the vote panel (the multiplier by influence, a row per tile, «×4 if you win»).
 parliamentFixture('parliament-colonial-vote', colonialTable('vote'));
 // The sitting has just convened: the ASSEMBLY gate stands for both seats — the e2e walks the whole reward stage from here.
-parliamentFixture('parliament-colonial-assembly', colonialTable('assembly'));
+parliamentFixture('parliament-colonial-assembly', colonialTable('pass'));
 
 // ── RX09 · COLONY CONTEST — the winner's FREE COLONY as the sitting's own step. Blue's delegate on the card, blue at
 //    Agenda step 2 (the winner's step → 3 = influence 2: 2 titanium), red at step 1 (influence 1: 1 titanium). The
@@ -4394,7 +4446,7 @@ const colonyContestTable = (stopAt: ParliamentStop): ParliamentFixtureSpec => ({
     }
   },
 });
-parliamentFixture('parliament-colony-assembly', colonyContestTable('assembly'));
+parliamentFixture('parliament-colony-assembly', colonyContestTable('pass'));
 
 // ── RX10 · DEVELOPMENT CRAZE (Mars First) — the first LIVE PASSIVE, ENACTED: the sitting is over, red (the seat
 //    that opens generation 2 — the seat the loader opens) won it with the free delegate and holds 30 M€, enough for a
@@ -4499,7 +4551,7 @@ const gasExportTable = (stopAt: ParliamentStop): ParliamentFixtureSpec => ({
   },
 });
 // The sitting has just convened: the ASSEMBLY gate stands for both seats — the e2e walks the world beat from here.
-parliamentFixture('parliament-gas-assembly', gasExportTable('assembly'));
+parliamentFixture('parliament-gas-assembly', gasExportTable('pass'));
 
 // ── RX29 · UNITY BUDGET (Unity — «lose 12 M€; M€ = Earth + Venus + Jovian tags + influence; every colony track +2»):
 //    the FOURTH budget and the first law that moves the COLONY TABLE. The card alone in the first voting slot with
@@ -4526,9 +4578,12 @@ const unityBudgetTable = (stopAt: ParliamentStop): ParliamentFixtureSpec => ({
   },
   expect: ({game, p1, parliament}) => {
     const positions = game.colonies.map((c) => `${c.name}:${c.trackPosition}`);
-    const expected = [`${ColonyName.LUNA}:2`, `${ColonyName.CALLISTO}:4`, `${ColonyName.CERES}:5`, `${ColonyName.IO}:6`];
+    // ONE PASS before the sitting the generation's own step has not run yet: the table stands as arranged.
+    const expected = stopAt === 'pass' || stopAt === 'vote' ?
+      [`${ColonyName.LUNA}:1`, `${ColonyName.CALLISTO}:3`, `${ColonyName.CERES}:4`, `${ColonyName.IO}:6`] :
+      [`${ColonyName.LUNA}:2`, `${ColonyName.CALLISTO}:4`, `${ColonyName.CERES}:5`, `${ColonyName.IO}:6`];
     if (JSON.stringify(positions) !== JSON.stringify(expected)) {
-      throw new Error(`the parliament-unity fixture (${stopAt}) expected the table at ${expected.join(', ')} after the generation's own step, got ${positions.join(', ')}`);
+      throw new Error(`the parliament-unity fixture (${stopAt}) expected the table at ${expected.join(', ')}, got ${positions.join(', ')}`);
     }
     if (!p1.tableau.has(CardName.LUNA_GOVERNOR) || !p1.tableau.has(CardName.JOVIAN_LANTERNS)) {
       throw new Error(`the parliament-unity fixture (${stopAt}) expected blue to hold Luna Governor and Jovian Lanterns`);
@@ -4539,7 +4594,7 @@ const unityBudgetTable = (stopAt: ParliamentStop): ParliamentFixtureSpec => ({
   },
 });
 // The sitting has just convened: the ASSEMBLY gate stands for both seats — the e2e walks the colony-table beat from here.
-parliamentFixture('parliament-unity-assembly', unityBudgetTable('assembly'));
+parliamentFixture('parliament-unity-assembly', unityBudgetTable('pass'));
 
 // ── RX34 · GREENS BUDGET (the Greens — «lose 10 M€; M€ = plant + microbe + animal tags + influence; each player adds
 //    2 animals to any card and 3 microbes to any card»): the FIFTH budget, and the first law that asks ONE seat TWO
@@ -4575,7 +4630,7 @@ const greensBudgetTable = (stopAt: ParliamentStop): ParliamentFixtureSpec => ({
 // The vote: the panel reads the net line, the three-tag breakdown and the two portions as rows of their own.
 parliamentFixture('parliament-greens-vote', greensBudgetTable('vote'));
 // The sitting has just convened: the ASSEMBLY gate stands for both seats — the e2e walks the two picks from here.
-parliamentFixture('parliament-greens-assembly', greensBudgetTable('assembly'));
+parliamentFixture('parliament-greens-assembly', greensBudgetTable('pass'));
 
 // ── RX14 · HEAT CAPTURE (the Reds — «2 M€ per influence; temperature −2, nobody's TR; 3 M€ off a Building
 //    tag while enacted»). Two moments of ONE journey:
@@ -4595,7 +4650,7 @@ parliamentFixture('parliament-mohole-assembly', {
   resolution: MOHOLE_CONTEST_ID,
   votes: [0],
   agenda: [2, 1],
-  stopAt: 'assembly',
+  stopAt: 'pass',
   arrange: ({game}) => {
     setTemperature(game, -4);
   },
@@ -4616,7 +4671,7 @@ parliamentFixture('parliament-heat-assembly', {
   resolution: HEAT_CAPTURE_ID,
   votes: [0],
   agenda: [2, 1],
-  stopAt: 'assembly',
+  stopAt: 'pass',
   arrange: ({game}) => {
     setTemperature(game, -20);
   },
@@ -4903,7 +4958,7 @@ parliamentFixture('parliament-water-assembly', {
   resolution: WATER_EXPORT_ID,
   votes: [0],
   agenda: [2, 1],
-  stopAt: 'assembly',
+  stopAt: 'pass',
   arrange: ({p2}) => {
     addOcean(p2);
   },
@@ -5106,7 +5161,7 @@ parliamentFixture('parliament-rdfunding-enacted', {
 //    · the ASSEMBLY — RED's delegate wins (blue keeps influence 2, so the sitting pays blue exactly the vote's
 //      numbers: −10, then +7, then +4 production — net −3), every seat passed, the assembly gate standing for
 //      both. The production phase has paid the income before the sitting: blue holds 40 + 20 = 60 M€ at the levy.
-function budgetTable(stopAt: 'vote' | 'assembly'): ParliamentFixtureSpec {
+function budgetTable(stopAt: 'vote' | 'pass'): ParliamentFixtureSpec {
   return {
     resolution: INDUSTRIALIST_BUDGET_ID,
     votes: [stopAt === 'vote' ? 0 : 1],
@@ -5135,7 +5190,7 @@ function budgetTable(stopAt: 'vote' | 'assembly'): ParliamentFixtureSpec {
   };
 }
 parliamentFixture('parliament-budget-vote', budgetTable('vote'));
-parliamentFixture('parliament-budget-assembly', budgetTable('assembly'));
+parliamentFixture('parliament-budget-assembly', budgetTable('pass'));
 // …and the SAME vote at a FULL table — SIX seats, the worst case of the LEDGER OF OUTCOMES (the row of
 // chips under the reading: six seats × two parts each, the levy netted into the first). Every seat is
 // genuinely different, so the row has something to compare: Agenda steps 4 · 1 · 6 · 2 · 8 · 3 and
@@ -5180,7 +5235,7 @@ parliamentFixture('parliament-budget-vote-six', {
 //      every player» — no forecast, no influence cluster, never added to the money);
 //    · the ASSEMBLY — RED's delegate wins (blue keeps influence 2, so the sitting pays blue exactly the vote's
 //      numbers: −10, then +5, then the two cards to take), every seat passed, the assembly gate standing for both.
-function scientistsBudgetTable(stopAt: 'vote' | 'assembly'): ParliamentFixtureSpec {
+function scientistsBudgetTable(stopAt: 'vote' | 'pass'): ParliamentFixtureSpec {
   return {
     resolution: SCIENTISTS_BUDGET_ID,
     votes: [stopAt === 'vote' ? 0 : 1],
@@ -5207,7 +5262,7 @@ function scientistsBudgetTable(stopAt: 'vote' | 'assembly'): ParliamentFixtureSp
   };
 }
 parliamentFixture('parliament-scibudget-vote', scientistsBudgetTable('vote'));
-parliamentFixture('parliament-scibudget-assembly', scientistsBudgetTable('assembly'));
+parliamentFixture('parliament-scibudget-assembly', scientistsBudgetTable('pass'));
 
 // ── RX17 · JOVIAN TAX RIGHTS (Unity — «titanium = influence; +1 M€ production per colony, max 5»): the SIXTH count —
 //    the seat's CUBES on the colony tiles, the engine's own list. Blue: Agenda 5 (influence 3 — a win takes the marker
@@ -5218,7 +5273,7 @@ parliamentFixture('parliament-scibudget-assembly', scientistsBudgetTable('assemb
 //      not a term of it; the fullscreen names the tiles («Луна ×2 · Титан · Миранда»);
 //    · the ASSEMBLY — RED's delegate wins (blue keeps influence 3, so the sitting pays blue exactly the vote's numbers:
 //      +3 titanium into the supply, then +4 M€ production), every seat passed, the assembly gate standing for both.
-function jovianTable(stopAt: 'vote' | 'assembly'): ParliamentFixtureSpec {
+function jovianTable(stopAt: 'vote' | 'pass'): ParliamentFixtureSpec {
   return {
     resolution: JOVIAN_TAX_RIGHTS_ID,
     votes: [stopAt === 'vote' ? 0 : 1],
@@ -5251,7 +5306,7 @@ function jovianTable(stopAt: 'vote' | 'assembly'): ParliamentFixtureSpec {
   };
 }
 parliamentFixture('parliament-jovian-vote', jovianTable('vote'));
-parliamentFixture('parliament-jovian-assembly', jovianTable('assembly'));
+parliamentFixture('parliament-jovian-assembly', jovianTable('pass'));
 
 // ── RX18 · MEDICAL DATABASE (the Scientists — «1 data or microbe resource per science tag + influence, each on any
 //    card»): the distributing family over TWO KINDS of unit — the recipients are the holders of data AND of microbes at
@@ -5310,7 +5365,7 @@ parliamentFixture('parliament-metal-assembly', {
   resolution: METAL_RESEARCH_ID,
   votes: [0],
   agenda: [2, 1],
-  stopAt: 'assembly',
+  stopAt: 'pass',
   arrange: ({p1, p2}) => {
     p1.steel = 3;
     p1.titanium = 2;
@@ -5465,7 +5520,7 @@ function setHandTo(game: IGame, player: TestPlayer, n: number): void {
     player.cardsInHand.push(game.projectDeck.drawOrThrow(game));
   }
 }
-function researchTable(stopAt: 'vote' | 'assembly' | 'effects', blueHand = 5): ParliamentFixtureSpec {
+function researchTable(stopAt: 'vote' | 'pass' | 'effects', blueHand = 5): ParliamentFixtureSpec {
   return {
     resolution: JOINT_RESEARCH_ID,
     votes: [stopAt === 'vote' ? 0 : 1],
@@ -5502,11 +5557,11 @@ function researchTable(stopAt: 'vote' | 'assembly' | 'effects', blueHand = 5): P
   };
 }
 parliamentFixture('parliament-research-vote', researchTable('vote'));
-parliamentFixture('parliament-research-assembly', researchTable('assembly'));
+parliamentFixture('parliament-research-assembly', researchTable('pass'));
 parliamentFixture('parliament-research-enact', researchTable('effects'));
 // …and the VIEWER at its target: blue with NINE cards at target 8 — the sitting's reward beat reads the calm
 // zero («up to 8 · 9 in hand → no draw needed») on the band, and nothing flies.
-parliamentFixture('parliament-research-full', researchTable('assembly', 9));
+parliamentFixture('parliament-research-full', researchTable('pass', 9));
 
 // ── RX25 · PLANT BAN — the LEVEL pointed DOWN: every seat is cut to 2 + influence
 //    plants. Blue at Agenda 3 (influence 2 → limit 4) with SEVEN plants (−3 — the
@@ -5515,7 +5570,7 @@ parliamentFixture('parliament-research-full', researchTable('assembly', 9));
 //    limit, so its zero names itself. The vote: blue's delegate leads it. The
 //    sitting: RED's delegate wins it, so blue keeps influence 2 and is cut by
 //    exactly the number the vote panel promised. ──
-function banTable(stopAt: 'vote' | 'assembly'): ParliamentFixtureSpec {
+function banTable(stopAt: 'vote' | 'pass'): ParliamentFixtureSpec {
   return {
     resolution: PLANT_BAN_ID,
     votes: [stopAt === 'vote' ? 0 : 1],
@@ -5535,19 +5590,17 @@ function banTable(stopAt: 'vote' | 'assembly'): ParliamentFixtureSpec {
         }
         return;
       }
-      // The ASSEMBLY gate stands BEFORE the effects, so the plants are still untouched — the
-      // client's own walk is what plays the cut, and that walk is the spec's subject.
-      if (parliament.phase?.step !== 'assembly') {
-        throw new Error(`the parliament-ban-assembly fixture expected the assembly gate, got ${parliament.phase?.step}`);
-      }
+      // ONE PASS AWAY: the plants are still untouched — the client's own walk is what plays the cut, and that walk
+      // is the spec's subject.
+      void parliament;
       if (p1.plants !== 7) {
-        throw new Error(`the parliament-ban-assembly fixture expected blue to still hold 7 plants at the gate, got ${p1.plants}`);
+        throw new Error(`the parliament-ban-assembly fixture expected blue to still hold 7 plants one pass before the sitting, got ${p1.plants}`);
       }
     },
   };
 }
 parliamentFixture('parliament-ban-vote', banTable('vote'));
-parliamentFixture('parliament-ban-assembly', banTable('assembly'));
+parliamentFixture('parliament-ban-assembly', banTable('pass'));
 
 // ── RX03 · BIODOME CONTEST — a 2-seat table with the card alone in the first
 //    voting slot and blue's free delegate on it: blue at Agenda step 2
@@ -5573,7 +5626,7 @@ const biodomeTable = (oxygen: number, temperature: number, stopAt: ParliamentSto
 // +2 TR), the plants read «+2 now, +4 if you win» for blue and «+6» for red.
 parliamentFixture('parliament-biodome-vote', biodomeTable(5, -14, 'vote'));
 // The sitting has just convened: the ASSEMBLY gate stands for both seats — the plants and the greenery are still to come.
-parliamentFixture('parliament-biodome-assembly', biodomeTable(7, -2, 'assembly'));
+parliamentFixture('parliament-biodome-assembly', biodomeTable(7, -2, 'pass'));
 // The political phase STOPPED INSIDE blue's greenery placement: Biodome Contest
 // won with blue's delegate (Agenda 2 → 3 = influence 2), blue's 4 plants already
 // landed (3 → 7) and the winner's greenery is asked — oxygen 7 % → 8 % raises
@@ -5591,9 +5644,9 @@ parliamentFixture('parliament-biodome-enact', biodomeTable(7, -2, 'effects', {
   },
 }));
 // The greenery placed (a quiet cell), the free ocean too, red paid: the ADJOURN gate stands for both seats.
-parliamentFixture('parliament-biodome-adjourn', biodomeTable(7, -2, 'adjourn', {
+parliamentFixture('parliament-biodome-adjourn', biodomeTable(7, -2, 'close', {
   expect: ({parliament, p1}) => {
-    const outcomes = parliament.phase?.summary?.outcomes ?? [];
+    const outcomes = (parliament.phase?.summary ?? parliament.lastPhase)?.outcomes ?? [];
     if (!outcomes.some((o) => o.player === p1.id && o.kind === 'greenery')) {
       throw new Error(`the parliament-biodome-adjourn fixture expected blue's greenery, got ${JSON.stringify(outcomes)}`);
     }
@@ -5654,7 +5707,7 @@ parliamentFixture('parliament-biodome-nocell', biodomeTable(5, -14, 'vote', {
 }));
 // THE SAME table at the ASSEMBLY gate: the sitting's reward page reads the winner's greenery as a SKIP (no legal cell)
 // before the record, and the record's own skip plate after it.
-parliamentFixture('parliament-biodome-nocell-assembly', biodomeTable(5, -14, 'assembly', {
+parliamentFixture('parliament-biodome-nocell-assembly', biodomeTable(5, -14, 'pass', {
   arrange: ({game, p1, p2}) => {
     for (const space of game.board.getSpaces(SpaceType.LAND)) {
       if (space.tile === undefined) {
@@ -5711,7 +5764,7 @@ parliamentFixture('parliament-climate-vote-raise', climateTable(4, 1, 'vote', {a
 // the political phase pays the step's card with the summary — the sitting's enactment glide lands on a card step.
 parliamentFixture('parliament-climate-cardstep', climateTable(4, 1, 'vote', {agenda: [6, 1]}));
 // The sitting has just convened: the ASSEMBLY gate stands for both seats — the raise, the Greens' answer and the draw are still to come.
-parliamentFixture('parliament-climate-assembly', climateTable(4, 2, 'assembly'));
+parliamentFixture('parliament-climate-assembly', climateTable(4, 2, 'pass'));
 // The political phase STOPPED INSIDE blue's mandatory TAKE of the cards
 // Climate Research drew. Blue's heat production was raised 4 → 6 (influence
 // 2), the ruling Greens answered with +2 M€ production, and two project cards
@@ -5732,9 +5785,9 @@ parliamentFixture('parliament-climate-enact', climateTable(4, 2, 'effects', {
 }));
 // Both seats raised and both took their cards; the area refreshed: the ADJOURN
 // gate stands for both seats, the Greens' answer recorded under each raise.
-parliamentFixture('parliament-climate-adjourn', climateTable(4, 2, 'adjourn', {
+parliamentFixture('parliament-climate-adjourn', climateTable(4, 2, 'close', {
   expect: ({parliament, p1, p2}) => {
-    const outcomes = parliament.phase?.summary?.outcomes ?? [];
+    const outcomes = (parliament.phase?.summary ?? parliament.lastPhase)?.outcomes ?? [];
     for (const seat of [p1, p2]) {
       if (!outcomes.some((o) => o.player === seat.id && o.kind === 'reaction' && o.step === 'heat-production')) {
         throw new Error(`the parliament-climate-adjourn fixture expected the Greens' answer for ${seat.color}, got ${JSON.stringify(outcomes)}`);
@@ -5913,20 +5966,25 @@ const familyTable = (resolution: ResolutionId, stopAt: ParliamentStop): Parliame
     p1.playedCards.push(new Fish(), new Pets());
     p2.playedCards.push(new Birds());
   },
-  expect: ({parliament}) => {
-    // At the vote the card stands in the first slot; at the assembly gate (v2: before anything changes) it is
-    // the summary's WINNER and still stands in that very slot — the government has not changed yet.
+  expect: ({game, parliament}) => {
+    // At the vote — and one pass before the sitting — the card stands in the first slot; the pass (dry-run on a copy)
+    // makes it the sitting's WINNER from that very slot.
     const seated = parliament.slots[0]?.instance;
-    const won = stopAt === 'vote' || parliament.phase?.summary?.winner.instance === seated;
+    let won = stopAt === 'vote';
+    if (!won) {
+      const copy = Game.deserialize(structuredClone(game.serialize()));
+      passTheViewer(copy);
+      won = (copy.parliament?.phase?.summary ?? copy.parliament?.lastPhase)?.winner.instance === seated;
+    }
     if (seated !== resolutionInstanceId(resolution, 0) || !won) {
       throw new Error(`the family fixture expected ${resolution} ${stopAt === 'vote' ? 'in the first slot' : 'winning from the first slot'}, got ${seated}`);
     }
   },
 });
 parliamentFixture('parliament-devpassive-vote', familyTable(DEV_PASSIVE_RESOLUTION_ID, 'vote'));
-parliamentFixture('parliament-devpassive-assembly', familyTable(DEV_PASSIVE_RESOLUTION_ID, 'assembly'));
+parliamentFixture('parliament-devpassive-assembly', familyTable(DEV_PASSIVE_RESOLUTION_ID, 'pass'));
 parliamentFixture('parliament-devaction-vote', familyTable(DEV_ACTION_RESOLUTION_ID, 'vote'));
-parliamentFixture('parliament-devaction-assembly', familyTable(DEV_ACTION_RESOLUTION_ID, 'assembly'));
+parliamentFixture('parliament-devaction-assembly', familyTable(DEV_ACTION_RESOLUTION_ID, 'pass'));
 
 // ── parliament-seat: the viewer COMPLETED the chairman quest while every one
 //    of their seven delegates stands on a resolution — the seat must be taken
@@ -6211,25 +6269,22 @@ function botDeckOf(first: AutomaState['actionDeck'][number]): AutomaState['actio
   write(name, t.game);
 }
 
-// ── parliament-bot-win: a SOLO table (the human + the bot) at the assembly gate with the bot's free
+// ── parliament-bot-win: a SOLO table (the human + the bot) ONE PASS AWAY from the sitting with the bot's free
 //    delegate alone on Aquifer Contest — the bot is the WINNING PLAYER, its ★ is an ocean paid by
 //    declaration (D4), and the human is a spectator of the whole sitting. The bot's deck is EMPTY,
-//    so its one turn is a pass and the generation ends on the human's pass. ──
+//    so its one turn is a pass and the generation ends on the human's pass — the spec's own press. ──
 {
   const name = 'parliament-bot-win';
   const t = botTable(name, 1);
-  const [human] = t.humans;
   seatResolution(t.parliament, 0, AQUIFER_CONTEST_ID);
   t.parliament.placeVote(t.bot, t.parliament.slots[0], 'lobby');
   t.automa.actionDeck = [];
-  human.clearWaitingFor();
-  t.game.playerHasPassed(human);
-  t.game.playerIsFinishedTakingActions();
-  if (t.game.phase !== Phase.PARLIAMENT || t.parliament.phase?.step !== 'assembly') {
-    throw new Error(`${name}: expected the assembly gate, got ${t.game.phase} / ${t.parliament.phase?.step ?? 'no phase'}`);
-  }
-  if (t.parliament.phase.summary?.winner.player !== t.bot.id) {
-    throw new Error(`${name}: the bot is not the winning player (${t.parliament.phase.summary?.winner.player})`);
+  expectOnePassAway(t.game, name);
+  // The verdict, dry-run on a copy: the bot wins the vote.
+  const copy = Game.deserialize(structuredClone(t.game.serialize()));
+  passTheViewer(copy);
+  if (copy.parliament?.lastPhase?.winner.player !== t.bot.id) {
+    throw new Error(`${name}: the bot is not the winning player (${copy.parliament?.lastPhase?.winner.player})`);
   }
   write(name, t.game);
 }
@@ -6242,11 +6297,11 @@ function botDeckOf(first: AutomaState['actionDeck'][number]): AutomaState['actio
 //    console-parliament-marsfirst-budget.spec.ts:
 //    · `-vote` — blue's action phase with 34 M€: the vote panel reads the net, the two-tag breakdown, the city row
 //      with Mars First's answer, and the bot's chip with the tile alone;
-//    · `-bot` — the ASSEMBLY gate with 20 M€ at the sitting: −12 → 8, +4 → 12, then blue's city (asked), then the
+//    · `-bot` — ONE PASS AWAY with 20 M€ at the sitting: −12 → 8, +4 → 12, then blue's city (asked), then the
 //      bot's city by its own rule;
-//    · `-botfirst` (PL-764) — the same gate with the BOT first in the order: the bot's city is placed by the law in the
+//    · `-botfirst` (PL-764) — the same table with the BOT first in the order: the bot's city is placed by the law in the
 //      very response that asks blue for its own, so the sitting steps aside for it BEFORE blue's door. ──
-function marsFirstBudgetBotTable(name: string, stopAt: 'vote' | 'assembly' | 'assembly-bot-first'): void {
+function marsFirstBudgetBotTable(name: string, stopAt: 'vote' | 'pass' | 'pass-bot-first'): void {
   const t = botTable(name, 1);
   const [human] = t.humans;
   seatResolution(t.parliament, 0, MARS_FIRST_BUDGET_ID);
@@ -6274,30 +6329,27 @@ function marsFirstBudgetBotTable(name: string, stopAt: 'vote' | 'assembly' | 'as
     write(name, t.game);
     return;
   }
-  human.clearWaitingFor();
-  t.game.playerHasPassed(human);
-  t.game.playerIsFinishedTakingActions();
-  if (t.game.phase !== Phase.PARLIAMENT || t.parliament.phase?.step !== 'assembly') {
-    throw new Error(`${name}: expected the assembly gate, got ${t.game.phase} / ${t.parliament.phase?.step ?? 'no phase'}`);
-  }
-  if (t.parliament.phase.summary?.winner.player !== human.id) {
-    throw new Error(`${name}: blue is not the winning player (${t.parliament.phase.summary?.winner.player})`);
-  }
-  if (stopAt === 'assembly-bot-first') {
+  expectOnePassAway(t.game, name);
+  if (stopAt === 'pass-bot-first') {
     // THE BOT FIRST (PL-764): «clockwise from the First Player» — the law's seat loop walks the bot's grant before blue's.
     t.game.overrideFirstPlayer(t.bot);
   }
-  const firstSeat = stopAt === 'assembly-bot-first' ? t.bot.id : human.id;
+  const firstSeat = stopAt === 'pass-bot-first' ? t.bot.id : human.id;
   if (t.game.playersInGenerationOrder[0].id !== firstSeat) {
-    throw new Error(`${name}: ${stopAt === 'assembly-bot-first' ? 'the bot' : 'blue'} must place first (the order is ${t.game.playersInGenerationOrder.map((p) => p.color).join(' · ')})`);
+    throw new Error(`${name}: ${stopAt === 'pass-bot-first' ? 'the bot' : 'blue'} must place first (the order is ${t.game.playersInGenerationOrder.map((p) => p.color).join(' · ')})`);
   }
-  // The money AT the sitting (the production phase has paid its income already): 20 M€ — −12 → 8, then +4 → 12.
-  human.megaCredits = 20;
+  // The money AT the sitting — the production phase pays its income on the pass: 20 M€ there — −12 → 8, then +4 → 12.
+  human.megaCredits = 20 - productionIncomeOf(human);
+  const copy = Game.deserialize(structuredClone(t.game.serialize()));
+  passTheViewer(copy);
+  if ((copy.parliament?.phase?.summary ?? copy.parliament?.lastPhase)?.winner.player !== human.id) {
+    throw new Error(`${name}: blue is not the winning player (${(copy.parliament?.phase?.summary ?? copy.parliament?.lastPhase)?.winner.player})`);
+  }
   write(name, t.game);
 }
 marsFirstBudgetBotTable('parliament-marsfirst-budget-vote', 'vote');
-marsFirstBudgetBotTable('parliament-marsfirst-budget-bot', 'assembly');
-marsFirstBudgetBotTable('parliament-marsfirst-budget-botfirst', 'assembly-bot-first');
+marsFirstBudgetBotTable('parliament-marsfirst-budget-bot', 'pass');
+marsFirstBudgetBotTable('parliament-marsfirst-budget-botfirst', 'pass-bot-first');
 
 // ── RX39 · REDS BUDGET with MarsBot at the table (decisions D3 + D11) — a SOLO table (blue + the bot under `'politics'`)
 //    with a NEUTRAL winner (nobody takes the winner's step of the sitting, so each marker walks the LAW's step alone),
@@ -6307,9 +6359,9 @@ marsFirstBudgetBotTable('parliament-marsfirst-budget-botfirst', 'assembly-bot-fi
 //    ONE journey, for console-parliament-reds-budget.spec.ts:
 //    · `-vote` — blue's action phase with 15 M€: the vote panel reads the net (−10 + 4), the two-tag breakdown, the
 //      Career row with blue's next node (② · +1 TR) and the win's two, and the bot's chip with the STEP alone;
-//    · `-bot` — the ASSEMBLY gate with 15 M€ at the sitting: −10 → 5, +4 → 9, then blue's step 1 → 2 (+1 TR), then the
+//    · `-bot` — ONE PASS AWAY with 15 M€ at the sitting: −10 → 5, +4 → 9, then blue's step 1 → 2 (+1 TR), then the
 //      bot's 6 → 7 (+1 M€) — every beat in turn. ──
-function redsBudgetBotTable(name: string, stopAt: 'vote' | 'assembly'): void {
+function redsBudgetBotTable(name: string, stopAt: 'vote' | 'pass'): void {
   const t = botTable(name, 1);
   const [human] = t.humans;
   seatResolution(t.parliament, 0, REDS_BUDGET_ID);
@@ -6328,14 +6380,14 @@ function redsBudgetBotTable(name: string, stopAt: 'vote' | 'assembly'): void {
     write(name, t.game);
     return;
   }
-  human.clearWaitingFor();
-  t.game.playerHasPassed(human);
-  t.game.playerIsFinishedTakingActions();
-  if (t.game.phase !== Phase.PARLIAMENT || t.parliament.phase?.step !== 'assembly') {
-    throw new Error(`${name}: expected the assembly gate, got ${t.game.phase} / ${t.parliament.phase?.step ?? 'no phase'}`);
-  }
-  if (t.parliament.phase.summary?.winner.player !== 'NEUTRAL' || t.parliament.resolutionOf(t.parliament.phase.summary.winner.instance).id !== REDS_BUDGET_ID) {
-    throw new Error(`${name}: the budget must win with a neutral winner (${t.parliament.phase.summary?.winner.player})`);
+  expectOnePassAway(t.game, name);
+  {
+    const copy = Game.deserialize(structuredClone(t.game.serialize()));
+    passTheViewer(copy);
+    const sitting = copy.parliament?.phase?.summary ?? copy.parliament?.lastPhase;
+    if (sitting?.winner.player !== 'NEUTRAL' || copy.parliament?.resolutionOf(sitting.winner.instance).id !== REDS_BUDGET_ID) {
+      throw new Error(`${name}: the budget must win with a neutral winner (${sitting?.winner.player})`);
+    }
   }
   if (t.game.playersInGenerationOrder[0].id !== human.id) {
     throw new Error(`${name}: blue must walk first (the order is ${t.game.playersInGenerationOrder.map((p) => p.color).join(' · ')})`);
@@ -6343,12 +6395,12 @@ function redsBudgetBotTable(name: string, stopAt: 'vote' | 'assembly'): void {
   if (t.parliament.influence(human) !== 1 || t.parliament.agendaOf(t.bot) !== 6) {
     throw new Error(`${name}: expected blue at influence 1 and the bot on Agenda 6`);
   }
-  // The money AT the sitting (the production phase has paid its income already): 15 M€ — −10 → 5, then +4 → 9.
-  human.megaCredits = 15;
+  // The money AT the sitting — the production phase pays its income on the pass: 15 M€ there — −10 → 5, then +4 → 9.
+  human.megaCredits = 15 - productionIncomeOf(human);
   write(name, t.game);
 }
 redsBudgetBotTable('parliament-reds-budget-vote', 'vote');
-redsBudgetBotTable('parliament-reds-budget-bot', 'assembly');
+redsBudgetBotTable('parliament-reds-budget-bot', 'pass');
 
 // ── RX40 · SPONSORED PROJECTS (the Scientists — «draw cards equal to your Influence; add 1 resource to each of your cards
 //    that already has a resource»): the first card payout that ASKS NOBODY, shown by the RECEIPT OF THE TABLE. Blue
@@ -6357,7 +6409,7 @@ redsBudgetBotTable('parliament-reds-budget-bot', 'assembly');
 //    nothing. Red (Teractor) at Agenda 0 = influence 0: no cards (named), its Pets 1 → 2 by its own payout. Stops at the
 //    ASSEMBLY gate for console-parliament-sponsored.spec.ts (the verdict → the take → the receipt → the results). ──
 // The same table at the VOTE (`-vote`, blue's delegate still in the lobby): the panel reads both payouts before A.
-function sponsoredProjectsTable(name: string, stopAt: 'vote' | 'assembly'): void {
+function sponsoredProjectsTable(name: string, stopAt: 'vote' | 'pass'): void {
   parliamentFixture(name, {
     resolution: SPONSORED_PROJECTS_ID,
     votes: stopAt === 'vote' ? [] : [0],
@@ -6388,7 +6440,7 @@ function sponsoredProjectsTable(name: string, stopAt: 'vote' | 'assembly'): void
     },
   });
 }
-sponsoredProjectsTable('parliament-sponsored-assembly', 'assembly');
+sponsoredProjectsTable('parliament-sponsored-assembly', 'pass');
 sponsoredProjectsTable('parliament-sponsored-vote', 'vote');
 // …and the RECEIPT'S DENSITY: the same sitting with EIGHT receiving cards on blue's table (the corporation and seven
 // holders of four kinds) — the row must read in ONE line, the faces smaller and closer, nothing scrolled or cut.
@@ -6396,7 +6448,7 @@ parliamentFixture('parliament-sponsored-eight', {
   resolution: SPONSORED_PROJECTS_ID,
   votes: [0],
   agenda: [2, 0],
-  stopAt: 'assembly',
+  stopAt: 'pass',
   options: {customCorporationsList: [CardName.ARKLIGHT, CardName.TERACTOR]},
   arrange: ({p1, p2}) => {
     const arklight = p1.playedCards.get(CardName.ARKLIGHT);
@@ -6426,7 +6478,7 @@ parliamentFixture('parliament-sponsored-eight', {
 //    long NAMED skip the results plate must print whole (PL-796). `-vote` stops at the vote (blue's delegate in the
 //    lobby: the panel reads the kinds before A); `-assembly` at the ASSEMBLY gate with blue's delegate on the card (the
 //    verdict → the production wave → the results) for console-parliament-tax-breaks.spec.ts. ──
-function taxBreaksTable(name: string, stopAt: 'vote' | 'assembly'): void {
+function taxBreaksTable(name: string, stopAt: 'vote' | 'pass'): void {
   const vote = stopAt === 'vote';
   parliamentFixture(name, {
     resolution: TAX_BREAKS_ID,
@@ -6456,7 +6508,7 @@ function taxBreaksTable(name: string, stopAt: 'vote' | 'assembly'): void {
   });
 }
 taxBreaksTable('parliament-tax-breaks-vote', 'vote');
-taxBreaksTable('parliament-tax-breaks-assembly', 'assembly');
+taxBreaksTable('parliament-tax-breaks-assembly', 'pass');
 
 // ── RX42 · UNMI VETO (the Reds — «draw cards = influence; while enacted, the player(s) with the highest terraform rating
 //    ignore any rating they would gain»): the SECOND REPLACING passive, on the RATING alone. ENACTED: the sitting is
@@ -8000,7 +8052,7 @@ floatingBiodomesFixture('floating-biodomes-maxo2', 'maxo2');
 type TharsisAllianceTable = 'journey' | 'dormant' | 'council' | 'enact';
 function tharsisAllianceFixture(name: string, at: TharsisAllianceTable): void {
   parliamentFixture(name, {
-    stopAt: at === 'enact' ? 'assembly' : 'vote',
+    stopAt: at === 'enact' ? 'pass' : 'vote',
     megacredits: [24, 30],
     options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
     arrange: ({game, p1, p2, parliament}) => {
@@ -8071,7 +8123,7 @@ function tharsisAllianceFixture(name: string, at: TharsisAllianceTable): void {
         const copy = Game.deserialize(structuredClone(game.serialize()));
         const blue = copy.getPlayerById(p1.id);
         const hand = blue.cardsInHand.length;
-        answerStandingGates(copy, 'assembly');
+        passTheViewer(copy);
         runAllActions(copy);
         facts.enacted = copy.parliament!.rulingParty();
         facts.drawn = blue.cardsInHand.length - hand;
@@ -8102,7 +8154,7 @@ tharsisAllianceFixture('tharsis-alliance-enact', 'enact');
 //    Every table is refused unless its DRY RUN (on a copy) reaches the state the name promises. ──
 function edenAllianceFixture(name: string, at: 'journey' | 'enact'): void {
   parliamentFixture(name, {
-    stopAt: at === 'enact' ? 'assembly' : 'vote',
+    stopAt: at === 'enact' ? 'pass' : 'vote',
     megacredits: [24, 30],
     options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
     arrange: ({game, p1, p2, parliament}) => {
@@ -8143,7 +8195,7 @@ function edenAllianceFixture(name: string, at: 'journey' | 'enact'): void {
       } else {
         // THE DRY RUN of the sitting: answer the gates — Unity enacted, blue's rating +1, the Greens blue's by the alliance.
         const tr = blue.terraformRating;
-        answerStandingGates(copy, 'assembly');
+        passTheViewer(copy);
         runAllActions(copy);
         facts.enacted = copy.parliament!.rulingParty();
         facts.tr = blue.terraformRating - tr;
@@ -8171,7 +8223,7 @@ edenAllianceFixture('eden-alliance-enact', 'enact');
 //    Every table is refused unless its DRY RUN (on a copy) reaches the state the name promises. ──
 function prometheanAllianceFixture(name: string, at: 'journey' | 'enact'): void {
   parliamentFixture(name, {
-    stopAt: at === 'enact' ? 'assembly' : 'vote',
+    stopAt: at === 'enact' ? 'pass' : 'vote',
     megacredits: [24, 30],
     options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
     arrange: ({game, p1, p2, parliament}) => {
@@ -8214,7 +8266,7 @@ function prometheanAllianceFixture(name: string, at: 'journey' | 'enact'): void 
       } else {
         // THE DRY RUN of the sitting: answer the gates — the Scientists enacted, blue's M€ production +2.
         const prod = blue.production.megacredits;
-        answerStandingGates(copy, 'assembly');
+        passTheViewer(copy);
         runAllActions(copy);
         facts.enacted = copy.parliament!.rulingParty();
         facts.production = blue.production.megacredits - prod;

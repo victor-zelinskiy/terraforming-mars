@@ -56,6 +56,7 @@ export function partyRequirementCardsInGame(game: IGame): number {
     player.cardsInHand.forEach(visit);
     player.dealtProjectCards.forEach(visit);
     player.draftedCards.forEach(visit);
+    player.researchHand.forEach(visit);
     player.draftHand.forEach(visit);
     player.removedFromPlayCards.forEach(visit);
     player.tableau.asArray().forEach(visit);

@@ -11,7 +11,7 @@ import {SelectSpace} from '../../src/server/inputs/SelectSpace';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {CENTRAL_POWER_GRID_ID} from '../../src/server/parliament/resolutions/industrialists/CentralPowerGrid';
 import {COLONIZATION_FUNDING_ID} from '../../src/server/parliament/resolutions/unity/ColonizationFunding';
-import {answerGate, gatePromptOf, seatResolution} from '../parliament/parliamentArrange';
+import {answerGate, gatePromptOf, seatResolution, sittingOpen} from '../parliament/parliamentArrange';
 import {TestPlayer} from '../TestPlayer';
 import {runAllActions} from '../TestingUtils';
 import {testAutomaGame} from './AutomaTestGame';
@@ -48,9 +48,9 @@ function revealOf(turn: MarsBotTurn): Extract<MarsBotTurnStep, {kind: 'reveal'}>
   return reveal;
 }
 
-/** Walk the sitting (gates and the human's own asks) until the next generation's research. */
+/** Walk the sitting (the law's asks of the human, then its confirmation «Закрыть заседание») until it is closed and the next generation's research stands. */
 function throughTheSitting(game: IGame, human: TestPlayer): void {
-  for (let guard = 0; guard < 12 && game.phase === Phase.PARLIAMENT; guard++) {
+  for (let guard = 0; guard < 12 && sittingOpen(game); guard++) {
     const wf = human.getWaitingFor();
     if (gatePromptOf(human) !== undefined) {
       answerGate(human);
@@ -65,6 +65,7 @@ function throughTheSitting(game: IGame, human: TestPlayer): void {
     }
     runAllActions(game);
   }
+  expect(sittingOpen(game), 'the sitting is closed').is.false;
   expect(game.phase).eq(Phase.RESEARCH);
 }
 

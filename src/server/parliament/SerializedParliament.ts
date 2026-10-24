@@ -510,6 +510,31 @@ export type SerializedPendingAction =
  */
 export type SerializedInfluenceBonus = {amount: number; source?: string};
 
+/**
+ * THE SOFT GATES' RECORD — who has not closed sitting `generation` yet
+ * (docs/claude/console/parliament-soft-gates.md). Written by the phase's
+ * `finish()` (every seat of the aspect `prompts` — MarsBot never), a seat
+ * leaves `pending` by ITS OWN answer to «Закрыть заседание», and the record
+ * goes when nothing is owed. It outlives the phase on purpose: the next
+ * generation already runs while a seat still reads its sitting, and every
+ * publisher of that seat's first prompt of N+1 (the draft pick, the research
+ * buy, the World Government's step) asks `Parliament.holdsSittingAck` first —
+ * so a reload re-issues the confirmation FIRST and admits the seat on its
+ * answer. Keyed by player id in a list (`Cloner.replacePlayerIds` remaps it).
+ */
+export type SerializedSittingAcks = {
+  generation: number;
+  /** The sitting's `SerializedPhaseSummary.seq` — the client's anchor of the walk the confirmation closes. */
+  seq: number;
+  /** The FINAL sitting: the confirmation is a barrier (the final greeneries wait for every seat). */
+  final: boolean;
+  /** The sitting's journal root — the confirmation's answer joins it. */
+  correlationId?: number;
+  pending: Array<PlayerId>;
+  /** The World Government's step waits for the first player's confirmation (solar phase); cleared by the step's answer. */
+  owedWorldStep?: boolean;
+};
+
 /** The road a seat holds a party's effect by (`SerializedParliament.partyEffectAccess`) — the event's own vocabulary. */
 export type {PartyEffectBasis};
 
@@ -542,6 +567,8 @@ export type SerializedParliament = {
   phaseSeq?: number;
   /** The finished sittings, oldest first, at most `PARLIAMENT_PHASE_HISTORY_CAP`; absent on older saves and until the first. */
   phaseHistory?: Array<SerializedPhaseSummary>;
+  /** The seats that have not CLOSED the last sitting yet (the soft gates); absent when nobody owes it and on older saves. */
+  sittingAcks?: SerializedSittingAcks;
   lastAdvance?: SerializedAdvance;
   pendingActions?: Array<SerializedPendingAction>;
   botMode: BotParliamentMode;

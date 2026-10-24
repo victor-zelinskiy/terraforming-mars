@@ -4,16 +4,19 @@ import {test, expect} from './consoleTest';
 import {fetchPlayerModel, sendPlayerInput} from './consoleStart';
 
 /**
- * THE SITTING'S GATES OVER THE LIVE API (Э1 acceptance, docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md §3):
- * a real two-seat game booted through the dev door INSIDE the assembly gate —
- * both seats hold the `parliamentPhasePrompt{assembly}` marker; the first
- * answer moves NOTHING (the phase still stands, the other seat still holds its
- * gate, the awaited list shrinks to one); the second answer moves the phase
- * on to the effects. No browser: the server's own model is the witness.
+ * THE SOFT GATES OVER THE LIVE API (docs/claude/console/parliament-soft-gates.md — П1 · П3): a real two-seat
+ * game booted through the dev door ONE PASS before its sitting (red has passed, blue holds its menu). Blue's
+ * pass runs the whole chain up to the law's own ask (Climate Research: each seat TAKES the cards it drew — the
+ * one place the seats depend on each other); once the asks are answered the sitting is over, the next generation
+ * already runs, and each seat holds ONE confirmation. A confirmation admits ITS seat alone (blue's research buy);
+ * the other seat is neither waited for nor written over; a doubled answer is refused. No browser: the server's own
+ * model is the witness.
  */
-type GateModel = {
-  waitingFor?: {type: string; promptId?: number; parliamentPhasePrompt?: {stage: string; generation: number; final: boolean; seq: number; awaiting: Array<string>}};
-  game: {phase: string; generation: number; parliament?: {phase?: {step: string; awaiting?: Array<string>; summary?: {seq?: number; correlationId?: number}}}};
+type Model = {
+  waitingFor?: {type: string; promptId?: number; title?: unknown; cards?: Array<{name: string}>; buyMode?: boolean;
+    parliamentPhasePrompt?: {stage: string; generation: number; final: boolean; seq: number}};
+  game: {phase: string; generation: number;
+    parliament?: {phase?: {step: string; generation: number; pending?: {player: string}}; sitting?: {generation: number; seq: number; final: boolean; pending: Array<string>}}};
   thisPlayer: {color: string};
 };
 
@@ -26,50 +29,62 @@ async function loadFixtureSeats(request: Parameters<typeof fetchPlayerModel>[0],
   return model.players.map((p) => p.id);
 }
 
-test.describe('the parliament sitting · the assembly gate over the API', () => {
-  test('both seats hold the assembly gate; one answer moves nothing, the second moves the phase to the effects', async ({request}) => {
+const modelOf = async (request: Parameters<typeof fetchPlayerModel>[0], id: string): Promise<Model> => await fetchPlayerModel(request, id) as unknown as Model;
+
+test.describe('the parliament sitting · the soft gates over the API', () => {
+  test('one pass runs the chain to the law\'s ask; then ONE confirmation per seat, each admitting its own seat alone', async ({request}) => {
     test.setTimeout(120_000);
     const [blue, red] = await loadFixtureSeats(request, 'parliament-climate-assembly');
-    const before = await Promise.all([blue, red].map((id) => fetchPlayerModel(request, id) as Promise<GateModel>));
-    for (const model of before) {
-      expect(model.game.phase, 'the political phase is on').toBe('parliament');
-      expect(model.game.parliament?.phase?.step).toBe('assembly');
-      const marker = model.waitingFor?.parliamentPhasePrompt;
-      expect(marker, `${model.thisPlayer.color} holds the gate`).toBeTruthy();
-      expect(marker).toMatchObject({stage: 'assembly', generation: 1, final: false, seq: 1});
-      expect(marker?.awaiting.sort()).toEqual(before.map((m) => m.thisPlayer.color).sort());
-      expect(model.game.parliament?.phase?.summary?.seq, 'the sitting is numbered on the wire').toBe(1);
-      expect(typeof model.game.parliament?.phase?.summary?.correlationId).toBe('number');
-    }
-    // The FIRST answer — blue's, with the prompt's own identity stamp.
-    const after1 = await sendPlayerInput(request, blue, {type: 'option', promptId: before[0].waitingFor?.promptId} as never) as unknown as GateModel;
-    expect(after1.game.phase).toBe('parliament');
-    expect(after1.game.parliament?.phase?.step, 'one answer moves nothing').toBe('assembly');
-    expect(after1.waitingFor, 'the answered seat holds nothing').toBeUndefined();
-    const redStill = await fetchPlayerModel(request, red) as unknown as GateModel;
-    expect(redStill.waitingFor?.parliamentPhasePrompt?.stage, 'the other seat still holds its gate').toBe('assembly');
-    expect(redStill.waitingFor?.parliamentPhasePrompt?.awaiting).toEqual([redStill.thisPlayer.color]);
-    expect(after1.game.parliament?.phase?.awaiting, 'the phase model names who is awaited').toEqual([redStill.thisPlayer.color]);
-    // The SECOND answer — red's: the barrier opens, the enacted resolution pays.
-    const after2 = await sendPlayerInput(request, red, {type: 'option', promptId: redStill.waitingFor?.promptId} as never) as unknown as GateModel;
-    expect(after2.game.parliament?.phase?.step, 'the second answer moves the phase on').not.toBe('assembly');
-    expect(['effects', 'refresh', 'lobby', 'adjourn']).toContain(after2.game.parliament?.phase?.step);
-    // Climate Research asks blue to take the cards it drew — the effects are running.
-    const blueNow = await fetchPlayerModel(request, blue) as unknown as GateModel;
-    expect(blueNow.waitingFor?.type).toBe('card');
+    const start = await modelOf(request, blue);
+    expect(start.game.phase, 'one pass before the sitting').toBe('action');
+    expect(start.game.parliament?.phase, 'no sitting yet').toBeUndefined();
+    // BLUE PASSES: production, then the sitting — up to the law's own ask (blue takes first, in seat order).
+    const menu = start.waitingFor as unknown as {options?: Array<unknown>};
+    const passAt = (menu.options ?? []).findIndex((o) => JSON.stringify(o).includes('Pass for this generation'));
+    expect(passAt, 'blue holds its menu with the pass').toBeGreaterThanOrEqual(0);
+    await sendPlayerInput(request, blue, {type: 'or', index: passAt, response: {type: 'option'}, promptId: start.waitingFor?.promptId} as never);
+    let blueNow = await modelOf(request, blue);
+    expect(blueNow.game.phase, 'the law asks: the political phase holds').toBe('parliament');
+    expect(blueNow.game.parliament?.phase?.step).toBe('effects');
+    expect(blueNow.waitingFor?.type, 'no gate after the verdict — the take stands at once').toBe('card');
     expect(blueNow.waitingFor?.parliamentPhasePrompt).toBeUndefined();
-  });
-
-  test('a doubled answer is refused as stale and moves nothing', async ({request}) => {
-    test.setTimeout(120_000);
-    const [blue, red] = await loadFixtureSeats(request, 'parliament-architecture-assembly');
-    const model = await fetchPlayerModel(request, blue) as unknown as GateModel;
-    const stamp = model.waitingFor?.promptId;
-    await sendPlayerInput(request, blue, {type: 'option', promptId: stamp} as never);
-    const again = await request.post(`/player/input?id=${blue}`, {data: {type: 'option', promptId: stamp}});
-    expect(again.ok(), 'the same stamp again is refused').toBeFalsy();
-    const redModel = await fetchPlayerModel(request, red) as unknown as GateModel;
-    expect(redModel.game.parliament?.phase?.step).toBe('assembly');
-    expect(redModel.waitingFor?.parliamentPhasePrompt?.awaiting).toEqual([redModel.thisPlayer.color]);
+    // The take, then red's (the wait on the other seat is the one honest wait — П3).
+    for (const seat of [blue, red]) {
+      for (let round = 0; round < 4; round++) {
+        const m = await modelOf(request, seat);
+        if (m.waitingFor?.type !== 'card' || m.waitingFor.parliamentPhasePrompt !== undefined) {
+          break;
+        }
+        await sendPlayerInput(request, seat, {type: 'card', cards: (m.waitingFor.cards ?? []).map((c) => c.name), promptId: m.waitingFor.promptId} as never);
+      }
+    }
+    // THE SITTING IS OVER — and generation 2 already runs around both confirmations.
+    blueNow = await modelOf(request, blue);
+    let redNow = await modelOf(request, red);
+    expect(blueNow.game.generation, 'the next generation does not wait for the confirmations').toBe(2);
+    for (const m of [blueNow, redNow]) {
+      expect(m.waitingFor?.parliamentPhasePrompt, `${m.thisPlayer.color} holds its confirmation`).toMatchObject({stage: 'close', generation: 1, final: false});
+      expect(m.game.parliament?.phase?.step, `${m.thisPlayer.color} still reads its own sitting`).toBe('done');
+      expect(m.game.parliament?.sitting?.pending.sort()).toEqual([blueNow.thisPlayer.color, redNow.thisPlayer.color].sort());
+    }
+    // BLUE CLOSES: blue — and only blue — is admitted (its research buy); red is untouched.
+    const closePrompt = blueNow.waitingFor?.promptId;
+    await sendPlayerInput(request, blue, {type: 'option', promptId: closePrompt} as never);
+    blueNow = await modelOf(request, blue);
+    redNow = await modelOf(request, red);
+    expect(blueNow.waitingFor?.type, 'blue is admitted to generation 2: its research buy').toBe('card');
+    expect(blueNow.waitingFor?.parliamentPhasePrompt).toBeUndefined();
+    expect(blueNow.game.parliament?.phase, 'blue\'s sitting is closed — no phase on its wire').toBeUndefined();
+    expect(redNow.waitingFor?.parliamentPhasePrompt?.stage, 'red still reads its sitting — nobody waits for it, nobody writes over it').toBe('close');
+    expect(redNow.game.parliament?.sitting?.pending).toEqual([redNow.thisPlayer.color]);
+    // A DOUBLED close (the stale prompt id) is refused and changes nothing.
+    const doubled = await request.post(`/player/input?id=${blue}`, {data: {type: 'option', promptId: closePrompt}});
+    expect(doubled.ok(), 'a second «Закрыть заседание» is refused').toBe(false);
+    expect((await modelOf(request, blue)).waitingFor?.type, 'the buy still stands').toBe('card');
+    // RED CLOSES: the record goes, red is admitted too.
+    await sendPlayerInput(request, red, {type: 'option', promptId: redNow.waitingFor?.promptId} as never);
+    redNow = await modelOf(request, red);
+    expect(redNow.waitingFor?.type).toBe('card');
+    expect(redNow.game.parliament?.sitting, 'nothing owed').toBeUndefined();
   });
 });

@@ -11,7 +11,7 @@ import {
 } from '../../src/server/parliament/resolutions/unity/ColonialAffairs';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {immediateStepsOf} from '../../src/server/parliament/resolutions/IResolution';
-import {answerGate, answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates, gatePromptOf} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {CardName} from '../../src/common/cards/CardName';
@@ -549,9 +549,10 @@ describe('ColonialAffairs', () => {
       human.popWaitingFor();
       game.playerHasPassed(human);
       game.playerIsFinishedTakingActions();
-      expect(game.phase).eq(Phase.PARLIAMENT);
+      // The law asks nobody here, so the sitting has run its whole chain at once (the soft gates):
+      expect(parliament.lastPhase, 'the sitting has run').is.not.undefined;
+      expect(gatePromptOf(human), 'the human holds its confirmation').is.not.undefined;
       expect(bot.getWaitingFor()).is.undefined;
-      answerGate(human, 'assembly');
       runAllActions(game);
       const outcomes = parliament.phase?.summary?.outcomes ?? parliament.lastPhase?.outcomes ?? [];
       expect(outcomes.some((o) => o.player === bot.id), 'no record for the bot — its cube pays nothing').is.false;

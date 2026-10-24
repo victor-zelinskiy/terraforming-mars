@@ -271,18 +271,24 @@ export type NeutralDelegate = 'NEUTRAL';
 /** The parliament's end-of-generation steps, in order (see ParliamentPhase). */
 export type ParliamentPhaseStep =
   | 'winner' // determine the winning resolution + the winning player
-  | 'assembly' // GATE 1 (v2: BEFORE anything changes): every participant confirms the verdict (one prompt each; the barrier is the per-seat key)
+  | 'assembly' // LEGACY (a save from before the soft gates): the old verdict gate — resumes straight into 'agenda', asks nobody
   | 'agenda' // advance the winner's Agenda marker (+ the step's bonus)
   | 'support' // popular support for the absent / non-winning parties
   | 'enact' // the winner takes the ENACTED slot (delegates return, old card discarded)
   | 'effects' // the enacted resolution's immediate effects, player by player
   | 'refresh' // discard the two losers, deal three fresh resolutions, seat the neutral votes
   | 'lobby' // every player's free delegate returns to the lobby
-  | 'adjourn' // GATE 2: every participant confirms the refreshed area (in the final phase: right after the effects)
-  | 'done';
+  | 'adjourn' // LEGACY (a save from before the soft gates): the old closing gate — resumes straight into 'done', asks nobody
+  | 'done'; // the sitting is over: the record of the seats still to CLOSE it is written (`SerializedParliament.sittingAcks`)
 
-/** The two GATES of the political phase — the steps that wait for every participant's confirmation. */
-export type ParliamentPhaseStage = Extract<ParliamentPhaseStep, 'assembly' | 'adjourn'>;
+/**
+ * THE ONE CONFIRMATION OF A SITTING — «Закрыть заседание» (the soft gates,
+ * docs/claude/console/parliament-soft-gates.md): a PROMPT OF THE SEAT, never a
+ * barrier of the phase. The server keeps the record of the seats that have not
+ * closed sitting N and admits such a seat to generation N+1 only on its own
+ * answer; the final sitting alone stays a barrier (the final greeneries follow).
+ */
+export type ParliamentPhaseStage = 'close';
 
 /**
  * How MarsBot takes part in the parliament (docs/TURMOIL_REDUX_MARSBOT.md §9):

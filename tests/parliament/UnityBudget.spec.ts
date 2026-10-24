@@ -14,7 +14,7 @@ import {
 } from '../../src/server/parliament/resolutions/industrialists/IndustrialistBudget';
 import {SCIENTISTS_BUDGET, SCIENTISTS_BUDGET_LEVY, SCIENTISTS_BUDGET_MEGACREDITS} from '../../src/server/parliament/resolutions/scientists/ScientistsBudget';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, endGenerationThroughParliament, passToParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, passToParliament, seatResolution, settleParliamentGates, sittingOf} from './parliamentArrange';
 import {declaredCountIds, declaredStockReads, resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {questRenderData} from '../../src/server/parliament/quests/questRender';
 import {PartyName} from '../../src/common/turmoil/PartyName';
@@ -686,7 +686,7 @@ describe('UnityBudget', () => {
       expect(parliament.slots).has.length(3);
       expect(parliament.slots.some((slot) => slot.instance === BUDGET), 'the enacted card left the area').is.false;
       passToParliament(game);
-      expect(parliament.phase, 'a second sitting convenes').is.not.undefined;
+      expect(sittingOf(parliament)?.generation, 'a second sitting convenes').eq(2);
     });
   });
 });

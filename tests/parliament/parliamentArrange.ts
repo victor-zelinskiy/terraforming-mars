@@ -12,6 +12,7 @@ import {COLONIZATION_FUNDING_ID} from '../../src/server/parliament/resolutions/u
 import {HEAT_CAPTURE_ID} from '../../src/server/parliament/resolutions/reds/HeatCapture';
 import {DEV_COMPOUND_RESOLUTION_ID, DEV_SCIENCE_RESOLUTION_ID} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {runAllActions} from '../TestingUtils';
+import {SerializedPhaseSummary} from '../../src/server/parliament/SerializedParliament';
 
 /**
  * THE VOTING AREA, ARRANGED BY THE SPEC — never assumed from the deal.
@@ -195,27 +196,62 @@ export const REDS_STAND_IN: ResolutionId = DEV_COMPOUND_RESOLUTION_ID;
 export const SCIENTISTS_STAND_IN: ResolutionId = DEV_SCIENCE_RESOLUTION_ID;
 
 /*
- * THE SITTING'S GATES, DRIVEN BY A SPEC. The political phase waits TWICE for
- * every participant (`assembly` before the effects, `adjourn` before the next
- * generation — docs/TURMOIL_REDUX_PARLIAMENT_ASSEMBLY.md §3); a spec whose
- * subject is a resolution walks them here and keeps reading the resolution's
- * own asks as before. Detection is the server's marker, never a title.
+ * THE SITTING'S CONFIRMATION, DRIVEN BY A SPEC (the soft gates —
+ * docs/claude/console/parliament-soft-gates.md). The phase runs its steps in
+ * one chain and asks nobody but the law's own questions; at its end every
+ * participant holds ONE confirmation, «Закрыть заседание» — a prompt of the
+ * seat, and the seat's first prompt of the next generation waits for it. A
+ * spec whose subject is a resolution answers the law's asks as before and
+ * closes the sitting here. Detection is the server's marker, never a title.
  */
 
-/** The GATE prompt `player` holds (by the marker), if any — of `stage` when given. */
+/** The CONFIRMATION prompt `player` holds (by the marker), if any. */
 export function gatePromptOf(player: IPlayer, stage?: ParliamentPhaseStage): PlayerInput | undefined {
   const wf = player.getWaitingFor();
   const marker = wf?.parliamentPhasePrompt;
   return marker !== undefined && (stage === undefined || marker.stage === stage) ? wf : undefined;
 }
 
-/** Answer the gate `player` holds — the one press the sitting's stage sends. Throws when none stands. */
+/** Answer the confirmation `player` holds — the one press «Закрыть заседание» sends. Throws when none stands. */
 export function answerGate(player: IPlayer, stage?: ParliamentPhaseStage): void {
   const gate = gatePromptOf(player, stage);
   if (gate === undefined) {
-    throw new Error(`${player.color} holds no ${stage ?? 'parliament'} gate (waitingFor: ${player.getWaitingFor()?.type ?? 'nothing'})`);
+    throw new Error(`${player.color} holds no ${stage ?? 'parliament'} confirmation (waitingFor: ${player.getWaitingFor()?.type ?? 'nothing'})`);
   }
   player.process({type: 'option'});
+}
+
+/** The sitting's summary — live while the law still asks, `lastPhase` once its chain has run (the soft gates: nothing stops between). */
+export function sittingOf(parliament: Parliament): SerializedPhaseSummary | undefined {
+  return parliament.phase?.summary ?? parliament.lastPhase;
+}
+
+/** Is the sitting still OPEN — its chain running (a law's ask) or a seat still to close it? A driver loop's condition. */
+export function sittingOpen(game: IGame): boolean {
+  return game.parliament?.phase !== undefined || game.parliament?.sittingAcks !== undefined;
+}
+
+/**
+ * THE SITTING'S LAST STEP, CAUGHT — the stand-in of the retired adjourn gate
+ * for a spec that must stand INSIDE the finished chain (a reload at `done`, the
+ * live summary of a whole sitting). `fn` runs ONCE, at `finish()`, the instant
+ * before the phase hands its summary to the history: the phase is still in
+ * progress (`step: 'done'`, every step applied), nothing is closed yet.
+ */
+export function atSittingEnd(game: IGame, fn: () => void): void {
+  const parliament = game.parliament;
+  if (parliament === undefined) {
+    throw new Error('not a Turmoil Redux game');
+  }
+  const record = parliament.recordPhase.bind(parliament);
+  let fired = false;
+  parliament.recordPhase = (summary) => {
+    if (!fired) {
+      fired = true;
+      fn();
+    }
+    record(summary);
+  };
 }
 
 /*
@@ -241,7 +277,7 @@ export function answerQuestGate(game: IGame, player: IPlayer): void {
   runAllActions(game);
 }
 
-/** Answer every standing gate once, in generation order; how many were answered. */
+/** Answer every standing confirmation once, in generation order; how many were answered. */
 export function answerStandingGates(game: IGame, stage?: ParliamentPhaseStage): number {
   let answered = 0;
   for (const player of game.playersInGenerationOrder) {
@@ -254,9 +290,10 @@ export function answerStandingGates(game: IGame, stage?: ParliamentPhaseStage): 
 }
 
 /**
- * Walk the gates: answer every standing gate until none stands — past
- * `assembly` the resolution's own asks stand (the spec answers those), past
- * `adjourn` the phase is over. A non-gate prompt is never answered here.
+ * Close the sitting for every seat: answer every standing confirmation until
+ * none stands — while the law asks, its own question stands instead (the spec
+ * answers those); once closed, each seat holds its first prompt of the next
+ * generation. A non-confirmation prompt is never answered here.
  */
 export function settleParliamentGates(game: IGame): void {
   for (let round = 0; round < 8; round++) {
@@ -264,7 +301,7 @@ export function settleParliamentGates(game: IGame): void {
       return;
     }
   }
-  throw new Error('the parliament gates did not settle in 8 rounds');
+  throw new Error('the sitting\'s confirmations did not settle in 8 rounds');
 }
 
 /**
@@ -272,14 +309,17 @@ export function settleParliamentGates(game: IGame): void {
  * prompt in the engine (the pass IS its answer), but the harness leaves one
  * standing — the action menu of the seat handed the turn after another
  * passed, the research pick of a generation a spec skipped by setting the
- * phase — so it is cleared BEFORE the pass: a prompt standing at the assembly
- * gate would make the gate wait for it. A political phase still in progress
- * (its adjourn gate unanswered) is a spec's mistake, named here rather than
- * as the driver's «already in progress».
+ * phase — so it is cleared BEFORE the pass: a prompt standing when the
+ * sitting ends would make its confirmation wait for it. A political phase
+ * still in progress, or a sitting a seat has not closed, is a spec's mistake,
+ * named here rather than as the driver's «already in progress».
  */
 export function passToParliament(game: IGame): void {
   if (game.parliament?.phase !== undefined) {
-    throw new Error(`a political phase is still in progress (step ${game.parliament.phase.step}) — settle its gates before ending the next generation`);
+    throw new Error(`a political phase is still in progress (step ${game.parliament.phase.step}) — answer its asks before ending the next generation`);
+  }
+  if (game.parliament?.sittingAcks !== undefined) {
+    throw new Error(`the sitting of generation ${game.parliament.sittingAcks.generation} is not closed by every seat — settle its confirmations before ending the next generation`);
   }
   for (const player of game.playersInGenerationOrder) {
     if (player.getWaitingFor() !== undefined) {
@@ -290,7 +330,7 @@ export function passToParliament(game: IGame): void {
   }
 }
 
-/** Pass everyone and walk the gates: the resolution's first ask stands, or the phase is over (a quiet card). */
+/** Pass everyone and close the sitting: the resolution's first ask stands, or the sitting is closed by every seat (a quiet card). */
 export function endGenerationThroughParliament(game: IGame): void {
   passToParliament(game);
   settleParliamentGates(game);

@@ -14,7 +14,7 @@ import {
 import {SCIENTISTS_BUDGET, SCIENTISTS_BUDGET_DRAW, SCIENTISTS_BUDGET_MEGACREDITS} from '../../src/server/parliament/resolutions/scientists/ScientistsBudget';
 import {MIGRATION_FUNDING_MEGACREDITS} from '../../src/server/parliament/resolutions/marsFirst/MigrationFunding';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, endGenerationThroughParliament, passToParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, passToParliament, seatResolution, settleParliamentGates, sittingOf} from './parliamentArrange';
 import {declaredCountIds, resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {questRenderData} from '../../src/server/parliament/quests/questRender';
 import {PartyName} from '../../src/common/turmoil/PartyName';
@@ -534,10 +534,9 @@ describe('UrbanResearch', () => {
       human.popWaitingFor();
       game.playerHasPassed(human);
       game.playerIsFinishedTakingActions();
-      runAllActions(game);
-      settleParliamentGates(game);   // the assembly gate, then the effects run
-      takeEverything(game);          // …and the one human seat takes its card
-      settleParliamentGates(game);   // the adjourn gate
+      runAllActions(game);           // the sitting runs at once, up to the law's own ask
+      takeEverything(game);          // …the one human seat takes its card
+      settleParliamentGates(game);   // …and closes the sitting («Закрыть заседание»)
       expect(parliament.phase).is.undefined;
       expect(game.generation).eq(2);
       const outcomes = parliament.lastPhase?.outcomes ?? [];
@@ -606,7 +605,7 @@ describe('UrbanResearch', () => {
       expect(parliament.slots).has.length(3);
       expect(parliament.slots.some((slot) => slot.instance === RESEARCH_LAW), 'the enacted card left the area').is.false;
       passToParliament(game);
-      expect(parliament.phase, 'a second sitting convenes').is.not.undefined;
+      expect(sittingOf(parliament)?.generation, 'a second sitting convenes').eq(2);
     });
   });
 });

@@ -169,7 +169,7 @@
       <span class="con-status__gen" :class="{'con-status__gen--final': finalGeneration}">
         <span class="con-status__gen-label">{{ $t('GEN.') }}</span>
         <span class="con-status__value">
-          <ConsoleFlipValue :value="game.generation" :accent="finalGeneration ? 'gold' : 'cyan'" @flip-end="onGenerationFlipEnd" />
+          <ConsoleFlipValue :value="shownGeneration" :accent="finalGeneration ? 'gold' : 'cyan'" @flip-end="onGenerationFlipEnd" />
         </span>
       </span>
       <!-- GENERIC PENDING-EVENTS SIGNAL — a PERMANENT compact HUD instrument
@@ -421,6 +421,14 @@ export default defineComponent({
      *  sidebar gauge uses) — Temperature + Oxygen + Oceans ONLY. */
     progress(): TerraformingProgress {
       return terraformingProgress(this.game);
+    },
+    /**
+     * THE GENERATION THIS SEAT IS IN (Turmoil Redux, the soft gates): the sitting's while the seat has not closed it —
+     * the next generation already runs around it on the server, and the counter flips at the seat's own
+     * «Закрыть заседание» (`presentedGeneration` — the server's per-seat sitting, never a client memory).
+     */
+    shownGeneration(): number {
+      return this.game.parliament?.phase?.generation ?? this.game.generation;
     },
     /** This generation is authoritatively the game's last one. */
     finalGeneration(): boolean {

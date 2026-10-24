@@ -111,9 +111,15 @@ export function draftBuyInput(view: PlayerViewModel): SelectCardModel | undefine
  * `generation >= 2` is load-bearing: the initial-cards selection ALSO runs in
  * phase RESEARCH (generation 1) and must stay the start workspace's business.
  * The INITIALDRAFTING phase (pre-game packet draft) keeps its own flow too.
+ *
+ * …and a seat whose SITTING still stands (Turmoil Redux, the soft gates — the
+ * server's per-seat `parliament.phase` until its «Закрыть заседание»): its
+ * packet is dealt and its research is owed, but the seat reads its sitting
+ * first — the server asks it nothing of the next generation before the close,
+ * and the draft never rises over the sitting.
  */
 export function betweenGenResearchLive(view: PlayerViewModel): boolean {
-  if (view.game.generation < 2) {
+  if (view.game.generation < 2 || view.game.parliament?.phase !== undefined) {
     return false;
   }
   if (view.game.phase === Phase.DRAFTING) {

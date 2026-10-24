@@ -33,7 +33,13 @@
  *                    the draft workspace itself (the owner's decision 6а: the
  *                    purchase rises from the scene) — the mandatory announce of
  *                    that flow is acknowledged by the scene, under the scene's
- *                    own hold, so no plate can appear in the gap.
+ *                    own hold, so no plate can appear in the gap. Under Turmoil
+ *                    Redux the SITTING stands between the income and the draft
+ *                    (the rules' order), and since the soft gates its whole
+ *                    chain rides this very response: the scene then rises into
+ *                    the SITTING instead (its walk was seeded in the same block
+ *                    — `generationSceneRisesIntoSitting`), and the counter does
+ *                    not flip until the seat closes it (`presentedGeneration`).
  *
  * The scene holds the foreground from its first beat to its conclusion
  * (`registerAnimationHoldSupplier` — the next prompt, the feed and the bot's
@@ -59,6 +65,7 @@ import {acknowledgeMandatoryBeat} from '@/client/console/consoleMandatoryGate';
 import {surfaceClear} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {enterWorkspace, workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
 import {betweenGenResearchLive, draftMandatoryFlowBeat} from '@/client/console/draft/consoleDraftFlow';
+import {parliamentSittingFlowBeat, presentedGeneration} from '@/client/console/parliament/consoleSittingFlow';
 
 /** The rail-reward key of the income wave (one scene at a time). */
 export const GENERATION_INCOME_KEY = 'generation-income';
@@ -88,7 +95,7 @@ export const generationSceneState = reactive({
   /** Why the last scene ended ('' after a full phrase) — diagnostics. */
   lastEnd: '',
   /** The flow the scene stood up at its conclusion (the e2e witness), '' when none. */
-  rose: '' as '' | 'draft',
+  rose: '' as '' | 'draft' | 'parliament',
 });
 
 /** Replays of one record (the same view re-fetched) never re-animate. */
@@ -135,7 +142,8 @@ export function detectGenerationScene(prev: PlayerViewModel | undefined, next: P
   if (prev === undefined || armed !== undefined || generationSceneState.phase !== 'idle') {
     return undefined;
   }
-  const flipTo = next !== undefined && prev.game.generation < next.game.generation ? next.game.generation : undefined;
+  // The PRESENTED generation: a seat whose sitting still stands is in its sitting's generation — no flip yet.
+  const flipTo = next !== undefined && presentedGeneration(prev) < presentedGeneration(next) ? presentedGeneration(next) : undefined;
   armed = {color: mine.color, generation: mine.record.generation, flipTo, record: mine.record, dedupeKey};
   return armed;
 }
@@ -143,6 +151,17 @@ export function detectGenerationScene(prev: PlayerViewModel | undefined, next: P
 /** The armed scene (between the detect and the conclusion), if any. */
 export function armedGenerationScene(): GenerationSceneEvent | undefined {
   return armed;
+}
+
+/**
+ * WILL THE SCENE RISE INTO THE SITTING? — the seat's own scene is armed and the
+ * seat's sitting stands in `view` (the soft gates: the whole chain rides the
+ * response that brings the production). The sitting's seeders read it as «on
+ * screen»: the walk is the very next thing this seat sees, so its wave is owed
+ * there, never ticked under the scene. Read in the apply block, after the detect.
+ */
+export function generationSceneRisesIntoSitting(view: PlayerViewModel | undefined): boolean {
+  return armed !== undefined && view !== undefined && armed.color === view.thisPlayer?.color && parliamentSittingFlowBeat(view) !== undefined;
 }
 
 /**
@@ -377,7 +396,16 @@ function concludeGenerationScene(view: PlayerViewModel | undefined): void {
   }
   generationSceneState.phase = 'rise';
   try {
-    if (view !== undefined && betweenGenResearchLive(view) && !workspaceFrameKnown('draft') &&
+    // THE SITTING FIRST (the rules' order — production → the parliament → the next generation's research): its
+    // whole chain arrived with this response, and the seat reads it before the draft can rise for it.
+    const sitting = view === undefined ? undefined : parliamentSittingFlowBeat(view);
+    if (sitting !== undefined) {
+      if (!workspaceFrameKnown('parliament')) {
+        acknowledgeMandatoryBeat(sitting.key);
+        enterWorkspace('parliament', {anchor: {type: 'phase', phase: Phase.PARLIAMENT}});
+        generationSceneState.rose = 'parliament';
+      }
+    } else if (view !== undefined && betweenGenResearchLive(view) && !workspaceFrameKnown('draft') &&
         (view.game.phase === Phase.RESEARCH || view.game.phase === Phase.DRAFTING)) {
       const beat = draftMandatoryFlowBeat(view);
       if (beat !== undefined) {

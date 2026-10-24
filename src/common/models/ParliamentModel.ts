@@ -539,6 +539,13 @@ export type ParliamentEnactOutcomeModel = {
   actor?: Color;
 };
 
+/**
+ * THE SITTING AS THIS SEAT STANDS IN IT. While the political phase runs it is
+ * the phase itself (every seat alike); once its chain is over, a seat that has
+ * not CLOSED it yet (the soft gates — `ParliamentModel.sitting`) still reads
+ * its sitting here at `step: 'done'` with the finished summary, until its own
+ * confirmation answers — the next generation already runs around it.
+ */
 export type ParliamentPhaseModel = {
   generation: number;
   final: boolean;
@@ -553,8 +560,20 @@ export type ParliamentPhaseModel = {
    * a later review read one form. Filled from the first step on.
    */
   summary?: ParliamentPhaseSummaryModel;
-  /** A GATE step (`assembly` / `adjourn`): the participants whose answer the phase still waits for. */
-  awaiting?: ReadonlyArray<Color>;
+};
+
+/**
+ * THE SOFT GATES' RECORD on the wire — the seats that have not CLOSED the last
+ * sitting yet (`SerializedSittingAcks`). A FACT for the results page's quiet
+ * note and the probes, never an «ожидание»: nobody waits for these seats but
+ * the barriers they belong to (the draft round, the research, the final
+ * sitting). Absent when nobody owes it.
+ */
+export type ParliamentSittingAcksModel = {
+  generation: number;
+  seq: number;
+  final: boolean;
+  pending: ReadonlyArray<Color>;
 };
 
 /**
@@ -736,6 +755,8 @@ export type ParliamentModel = {
   lastPhase?: ParliamentPhaseSummaryModel;
   /** The finished sittings, oldest first (the last 24 — the protocol's source; absent until the first). */
   phaseHistory?: ReadonlyArray<ParliamentPhaseSummaryModel>;
+  /** Who has not closed the last sitting yet (the soft gates); absent when nobody owes it. */
+  sitting?: ParliamentSittingAcksModel;
   lastAdvance?: ParliamentAdvanceModel;
   /** The last rally of neutral delegates by a card (TR31) — played once by `seq`; absent until the first, and after a reload. */
   lastRally?: ParliamentRallyModel;

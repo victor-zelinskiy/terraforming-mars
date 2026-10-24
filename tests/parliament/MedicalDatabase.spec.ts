@@ -8,7 +8,7 @@ import {
   MEDICAL_DATABASE, MEDICAL_DATABASE_CODE, MEDICAL_DATABASE_ID, MEDICAL_DATABASE_KINDS, MEDICAL_DATABASE_RESOURCES,
 } from '../../src/server/parliament/resolutions/scientists/MedicalDatabase';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerGate, answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates, sittingOf, atSittingEnd} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {CardName} from '../../src/common/cards/CardName';
@@ -282,7 +282,7 @@ describe('MedicalDatabase', () => {
       expect(outcome?.cards).deep.eq([{card: CardName.TARDIGRADES, amount: 3, resource: CardResource.MICROBE}, {card: 'Data Vault', amount: 1, resource: CardResource.DATA}]);
       expect(outcome?.counted).deep.eq([CardName.RESEARCH, 'Data Vault']);
       expect(outcome?.countedUnits).deep.eq([2, 1]);
-      expect((parliament.phase?.summary?.outcomes ?? []).filter((o) => o.player === p1.id && o.step === 'resources'), 'exactly one record').has.length(1);
+      expect((sittingOf(parliament)?.outcomes ?? []).filter((o) => o.player === p1.id && o.step === 'resources'), 'exactly one record').has.length(1);
       // The journal: one addition line per card, each naming the CARD's resource and the resolution.
       const added = game.gameLog.filter((entry) => entry.message === '${0} added ${1} ${2} to ${3} from ${4}');
       expect(added.map((e) => e.data.find((d) => d.type === LogMessageDataType.CARD)?.value)).deep.eq([CardName.TARDIGRADES, 'Data Vault']);
@@ -533,8 +533,13 @@ describe('MedicalDatabase', () => {
       endGeneration(game);
       let phase = getParliamentModel(game, p2)?.phase;
       expect(phase?.pending).deep.eq({player: p1.color, key: 'resources', input: 'and'});
+      // The answer is the sitting's last ask: its chain runs on to the end at once
+      // (the soft gates), so the LIVE phase is read at its last step.
+      atSittingEnd(game, () => {
+        phase = getParliamentModel(game, p2)?.phase;
+      });
       distribute(p1, cast(p1.getWaitingFor(), AndOptions), {[CardName.TARDIGRADES]: 1, 'Data Vault': 3});
-      phase = getParliamentModel(game, p2)?.phase;
+      expect(phase?.step).eq('done');
       expect(phase?.outcomes?.[0]).deep.include({
         player: p1.color, step: 'resources', part: 'effect', effect: 'resources', kind: 'cardResource', amount: 4, influence: 1, count: 3,
       });
@@ -556,7 +561,6 @@ describe('MedicalDatabase', () => {
       game.playerIsFinishedTakingActions();
       expect(game.phase).eq(Phase.PARLIAMENT);
       expect(bot.getWaitingFor()).is.undefined;
-      answerGate(human, 'assembly');
       expect(cast(human.getWaitingFor(), SelectCard).resourceGainPrompt?.amount).eq(2);
       human.process({type: 'card', cards: [CardName.GHG_PRODUCING_BACTERIA]});
       runAllActions(game);

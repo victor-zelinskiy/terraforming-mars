@@ -4,7 +4,6 @@ import * as path from 'path';
 import {Game} from '../../src/server/Game';
 import {SerializedGame} from '../../src/server/SerializedGame';
 import {Phase} from '../../src/common/Phase';
-import {parliamentGatePending} from '../../src/server/parliament/ParliamentPhase';
 
 /**
  * E2E FIXTURES LOAD GUARD — every fixture must deserialize against the
@@ -41,20 +40,20 @@ describe('e2e fixtures load', () => {
         expect(game.activePlayer.getWaitingFor(),
           'the resumed game must be asking its active player something').is.not.undefined;
       }
-      // A fixture saved INSIDE a gate of the political phase resumes it: every
-      // participant without the gate's key holds the gate prompt (by the
-      // server's marker, never a title), the seats that answered hold nothing.
+      // THE SOFT GATES: a fixture whose sitting a seat has not closed yet (a
+      // fixture saved at a legacy gate resumes its chain straight into that
+      // state) gives every seat of the record its confirmation FIRST (by the
+      // server's marker, never a title) — and gives such a seat nothing of the
+      // next generation; a seat that closed holds no confirmation.
       const parliament = game.parliament;
-      const step = parliament?.phase?.step;
-      if (game.phase === Phase.PARLIAMENT && parliament !== undefined && (step === 'assembly' || step === 'adjourn')) {
-        const pending = parliamentGatePending(game, parliament, step);
-        expect(pending.length, 'a gate fixture still waits for someone').to.be.greaterThan(0);
+      const acks = parliament?.sittingAcks;
+      if (parliament !== undefined && acks !== undefined && parliament.phase === undefined) {
         for (const seat of parliament.participants(game, 'prompts')) {
           const marker = seat.getWaitingFor()?.parliamentPhasePrompt;
-          if (pending.includes(seat)) {
-            expect(marker?.stage, `${seat.color} holds the ${step} gate`).to.eq(step);
+          if (acks.pending.includes(seat.id)) {
+            expect(marker?.stage, `${seat.color} holds the confirmation of the sitting`).to.eq('close');
           } else {
-            expect(marker, `${seat.color} answered already`).is.undefined;
+            expect(marker, `${seat.color} closed the sitting already`).is.undefined;
           }
         }
       }

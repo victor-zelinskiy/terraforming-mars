@@ -29,7 +29,7 @@ import {ResolutionDefinition} from './resolutions/IResolution';
 import {REDUX_RESOLUTION_CATALOG, RETIRED_RESOLUTION_IDS, ResolutionCatalog} from './resolutions/ResolutionCatalog';
 import {
   PARLIAMENT_PHASE_HISTORY_CAP, PARLIAMENT_SAVE_VERSION, PartyEffectBasis, SerializedAdvance, SerializedParliament, SerializedPendingAction,
-  SerializedPhaseProgress, SerializedPhaseSummary, SerializedQuest, SerializedSlot,
+  SerializedPhaseProgress, SerializedPhaseSummary, SerializedQuest, SerializedSittingAcks, SerializedSlot,
 } from './SerializedParliament';
 import {IncompatibleParliamentSaveError} from './ParliamentErrors';
 import {BotParliamentPolicy, botParliamentPolicy} from './BotParliamentPolicy';
@@ -170,6 +170,11 @@ export class Parliament {
   public phaseSeq = 0;
   /** The finished sittings, oldest first, at most `PARLIAMENT_PHASE_HISTORY_CAP` (the protocol's source). */
   public phaseHistory: Array<SerializedPhaseSummary> = [];
+  /**
+   * THE SOFT GATES' RECORD — the seats that have not CLOSED the last sitting
+   * yet (`SerializedSittingAcks`; `parliament/SittingAcks.ts` writes and answers it).
+   */
+  public sittingAcks: SerializedSittingAcks | undefined = undefined;
   /** The last Agenda advance (mid-generation quest or the phase) — the client presents it once by `seq`. */
   public lastAdvance: SerializedAdvance | undefined = undefined;
   /**
@@ -1021,6 +1026,17 @@ export class Parliament {
     }
   }
 
+  /**
+   * Does `player` still owe the confirmation of the last sitting? The ONE
+   * question every publisher of a seat's first prompt of the next generation
+   * asks (the draft pick, the research buy, the World Government's step): such
+   * a seat is admitted on its own answer (`SittingAcks.answer`), nobody else
+   * waits for it.
+   */
+  public holdsSittingAck(player: PlayerId): boolean {
+    return this.sittingAcks?.pending.includes(player) ?? false;
+  }
+
   // ───────────────────────── serialization ─────────────────────────
 
   public serialize(): SerializedParliament {
@@ -1055,6 +1071,7 @@ export class Parliament {
       lastPhase: this.lastPhase === undefined ? undefined : JSON.parse(JSON.stringify(this.lastPhase)),
       phaseSeq: this.phaseSeq,
       phaseHistory: this.phaseHistory.length === 0 ? undefined : JSON.parse(JSON.stringify(this.phaseHistory)),
+      sittingAcks: this.sittingAcks === undefined ? undefined : {...this.sittingAcks, pending: [...this.sittingAcks.pending]},
       lastAdvance: this.lastAdvance === undefined ? undefined : {...this.lastAdvance},
       pendingActions: this.pendingActions.length > 0 ? this.pendingActions.map((action) => ({...action})) : undefined,
       botMode: this.botMode,
@@ -1146,6 +1163,7 @@ export class Parliament {
     // The history: a sitting that names a retired card is dropped (as `lastPhase` is), the cap re-applied.
     parliament.phaseSeq = d.phaseSeq ?? 0;
     parliament.phaseHistory = (d.phaseHistory ?? []).filter((summary) => !summaryNamesAny(summary, retired)).slice(-PARLIAMENT_PHASE_HISTORY_CAP);
+    parliament.sittingAcks = d.sittingAcks === undefined ? undefined : {...d.sittingAcks, pending: [...d.sittingAcks.pending]};
     // A save from before TR04 recorded ONE step and no `steps`: the walk is that step.
     parliament.lastAdvance = d.lastAdvance === undefined ? undefined : {
       ...d.lastAdvance,

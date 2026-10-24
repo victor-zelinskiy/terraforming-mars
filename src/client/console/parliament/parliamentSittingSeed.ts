@@ -12,19 +12,24 @@
  * pre-v2 sitting had, where the server applied everything before the gate
  * and the client «played it back».
  *
- * WHAT IS DETECTED (pure, against two views of the same sitting):
- *  · THE BARRIER OPENED — `before` stood at the verdict (`winner` /
- *    `assembly`), `after` is past it: the enactment's holds — the table as it
- *    was voted (`heldSlots` + the winner's slot), the Agenda move not yet
- *    made, the support not yet seated, the delegates not yet home, the OLD
- *    government (card · ruling party · quest) — and, when the same response
- *    already refreshed the area (a resolution that asks nothing), the
- *    renewal's holds on top;
- *  · THE REFRESH ARRIVED — `before` stood in the effects, `after` past them:
- *    the renewal's holds (the losers' table kept, the fresh faces hidden, the
- *    neutral cubes not yet seated, the lobby not yet refilled).
- * A first view (no `before`) or a new generation seeds NOTHING: a reload has
- * no old state to move from — it lands in the final poses.
+ * WHAT IS DETECTED (pure, against the response's BASELINE — `sittingBaselineOf`:
+ * the same sitting in `before`, or, since the soft gates run the whole chain
+ * in ONE response, the view of the same generation with no sitting yet — the
+ * table as it stood):
+ *  · THE CHAIN RAN PAST THE VERDICT — the baseline stood before it (no
+ *    sitting yet, or a legacy `winner` / `assembly`), `after` is past it:
+ *    the enactment's holds — the table as it was voted (`heldSlots` + the
+ *    winner's slot), the Agenda move not yet made, the support not yet
+ *    seated, the delegates not yet home, the OLD government (card · ruling
+ *    party · quest) — and, when the same response already refreshed the area
+ *    (a law that asks nothing), the renewal's holds on top; the park of a
+ *    card's answer to the change of power opens with them (its batch rides
+ *    this very response — `rulingChangeDraw.ts`);
+ *  · THE REFRESH ARRIVED — the baseline stood in the effects, `after` past
+ *    them: the renewal's holds (the losers' table kept, the fresh faces
+ *    hidden, the neutral cubes not yet seated, the lobby not yet refilled).
+ * A first view (no `before`) or a view of another generation seeds NOTHING:
+ * a reload has no old state to move from — it lands in the final poses.
  *
  * The holds are MODULE state (they outlive the section — a collapsed or a
  * yielded sitting resumes its walk with them); a new sitting drops what the
@@ -39,9 +44,18 @@ import {buildParliamentView, ParliamentViewVm} from './consoleParliamentModel';
 import {preloadResolutionArt} from './parliamentArtTier';
 import {parliamentHolds, resetParliamentHolds} from './parliamentDisplayHolds';
 import {verdictStandsAt} from './consoleSittingFlow';
+import {sittingBaselineOf} from './sittingBaseline';
+import {openRulingChangePark} from './rulingChangeDraw';
 
 /** The sitting the holds belong to (`generation:seq`) — a new sitting drops the old holds. */
 let heldSitting = '';
+/** The sitting whose chain this session SAW arrive (its holds seeded from the table as it stood) — its walk starts on the verdict. */
+let liveSitting = '';
+
+/** Did this session see `key`'s chain arrive (the holds seeded)? The section then opens on the verdict; a reload opens in the final poses. */
+export function sittingSeededLive(key: string): boolean {
+  return key !== '' && liveSitting === key;
+}
 
 function phaseOf(view: PlayerViewModel | undefined): ParliamentPhaseModel | undefined {
   return view?.game.parliament?.phase;
@@ -56,7 +70,7 @@ const AFTER_REFRESH: ReadonlySet<string> = new Set(['refresh', 'lobby', 'adjourn
 
 /** What ONE response moved the sitting across — the transitions the walk has beats for. */
 export type SittingTransition = {
-  /** The assembly barrier opened in this response: the Agenda / support / enactment happened. */
+  /** The chain ran past the verdict in this response: the Agenda / support / enactment happened. */
   barrier: boolean;
   /** The voting area was refreshed in this response (the losers left, fresh cards were dealt, the lobby refilled). */
   refresh: boolean;
@@ -64,9 +78,9 @@ export type SittingTransition = {
 
 /** DETECT (pure): which transitions `after` carries relative to `before` — none across a generation or from a first view. */
 export function detectSittingTransition(before: PlayerViewModel | undefined, after: PlayerViewModel): SittingTransition {
-  const was = phaseOf(before);
+  const was = sittingBaselineOf(before, after);
   const now = phaseOf(after);
-  if (was === undefined || now === undefined || was.generation !== now.generation) {
+  if (was === undefined || now === undefined) {
     return {barrier: false, refresh: false};
   }
   const barrier = verdictStandsAt(was.step) && AFTER_BARRIER.has(now.step);
@@ -219,6 +233,9 @@ export function seedParliamentSittingHolds(before: PlayerViewModel | undefined, 
   const beforeView = buildParliamentView(beforeModel, viewer, before?.players ?? after.players);
   if (transition.barrier) {
     seedEnactmentHolds(beforeView, afterModel);
+    liveSitting = key;
+    // A CARD'S ANSWER TO THE CHANGE OF POWER (TR62) rides THIS response and is owed to the enactment's tail.
+    openRulingChangePark(key);
   } else if (transition.refresh && parliamentHolds.heldSlots === undefined) {
     // The refresh arrived on its own (after the effects): the losers' table is kept as it stood.
     parliamentHolds.heldSlots = beforeView.slots;
@@ -235,6 +252,7 @@ export function heldSittingKey(): string {
 
 export function resetParliamentSittingSeed(): void {
   heldSitting = '';
+  liveSitting = '';
   resetParliamentHolds();
   // …and the park of a card's answer to a change of power (TR62) — it belongs to the same sitting — and what the viewer
   // has been shown of the alliance (a new game seeds it again from its first view).

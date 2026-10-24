@@ -8,7 +8,7 @@ import {
   CLOUD_DEVELOPMENT, CLOUD_DEVELOPMENT_CODE, CLOUD_DEVELOPMENT_FLOATERS, CLOUD_DEVELOPMENT_ID,
 } from '../../src/server/parliament/resolutions/unity/CloudDevelopment';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerGate, answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates, sittingOf, atSittingEnd} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {CardName} from '../../src/common/cards/CardName';
@@ -362,7 +362,7 @@ describe('CloudDevelopment', () => {
       expect(outcome?.cards).deep.eq([{card: CardName.FLOATING_HABS, amount: 2, resource: CardResource.FLOATER}, {card: CardName.ATMO_COLLECTORS, amount: 1, resource: CardResource.FLOATER}]);
       expect(outcome?.counted).deep.eq([CardName.FLOATING_HABS, CardName.DIRIGIBLES]);
       expect(outcome?.countedUnits).deep.eq([1, 1]);
-      expect((parliament.phase?.summary?.outcomes ?? []).filter((o) => o.player === p1.id && o.step === 'floaters'), 'exactly one record').has.length(1);
+      expect((sittingOf(parliament)?.outcomes ?? []).filter((o) => o.player === p1.id && o.step === 'floaters'), 'exactly one record').has.length(1);
       // The journal: one addition line per card, each naming the resolution, and the calculation.
       const added = game.gameLog.filter((entry) => entry.message === '${0} added ${1} ${2} to ${3} from ${4}');
       expect(added.map((e) => e.data.find((d) => d.type === LogMessageDataType.CARD)?.value)).deep.eq([CardName.FLOATING_HABS, CardName.ATMO_COLLECTORS]);
@@ -598,8 +598,13 @@ describe('CloudDevelopment', () => {
       endGeneration(game);
       let phase = getParliamentModel(game, p2)?.phase;
       expect(phase?.pending).deep.eq({player: p1.color, key: 'floaters', input: 'and'});
+      // The answer is the sitting's last ask: its chain runs on to the end at once
+      // (the soft gates), so the LIVE phase is read at its last step.
+      atSittingEnd(game, () => {
+        phase = getParliamentModel(game, p2)?.phase;
+      });
       distribute(p1, cast(p1.getWaitingFor(), AndOptions), {[CardName.FLOATING_HABS]: 1, [CardName.JOVIAN_LANTERNS]: 2});
-      phase = getParliamentModel(game, p2)?.phase;
+      expect(phase?.step).eq('done');
       expect(phase?.outcomes?.[0]).deep.include({
         player: p1.color, step: 'floaters', part: 'effect', effect: 'floaters', kind: 'cardResource', resource: 'Floater', amount: 3, influence: 1, count: 2,
       });
@@ -620,7 +625,6 @@ describe('CloudDevelopment', () => {
       game.playerIsFinishedTakingActions();
       expect(game.phase).eq(Phase.PARLIAMENT);
       expect(bot.getWaitingFor()).is.undefined;
-      answerGate(human, 'assembly');
       expect(cast(human.getWaitingFor(), SelectCard).resourceGainPrompt?.amount).eq(2);
       human.process({type: 'card', cards: [CardName.DIRIGIBLES]});
       runAllActions(game);

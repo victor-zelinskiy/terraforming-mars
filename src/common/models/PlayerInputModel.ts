@@ -619,28 +619,24 @@ export type ResolutionActionPromptMeta = {
 }
 
 /**
- * EXPLICIT marker that a `SelectOption` is one of the two GATES of the Mars
- * Parliament's political phase (Turmoil Redux): `assembly` — every
- * participant confirms the verdict and the enactment BEFORE the enacted
- * resolution pays; `adjourn` — every participant confirms the refreshed
- * voting area before the next generation. The console routes the prompt to
- * the sitting flow by THIS marker, never by its title. `awaiting` is filled
- * centrally at model time (`ServerModel.getWaitingFor`) from the phase's own
- * per-seat keys, so it moves as the others answer — the barrier lives in the
- * save, never in a counter.
+ * EXPLICIT marker that a `SelectOption` is THE CONFIRMATION of a sitting of
+ * the Mars Parliament (Turmoil Redux, the soft gates): «Закрыть заседание» —
+ * ONE prompt of the seat after the sitting's last step, the seat's own close
+ * of the walk it watched. It is NOT a barrier: the next generation already
+ * runs, and the server admits this seat to it on its answer (the final
+ * sitting alone waits for every seat). The console routes the prompt to the
+ * sitting flow by THIS marker, never by its title.
  */
 export type ParliamentPhasePromptMeta = {
   stage: ParliamentPhaseStage;
   generation: number;
   final: boolean;
-  /** The sitting's monotonic number (`SerializedPhaseSummary.seq`). */
+  /** The sitting's monotonic number (`SerializedPhaseSummary.seq`) — the walk the confirmation closes is `lastPhase` of this seq. */
   seq: number;
-  /** Colours of the participants whose answer the phase still waits for (the viewer included until they answer). */
-  awaiting: ReadonlyArray<Color>;
 }
 
-/** The half of the gate marker the SERVER input carries; `awaiting` is derived when the model is built. */
-export type ParliamentPhaseMarker = Omit<ParliamentPhasePromptMeta, 'awaiting'>;
+/** The marker as the SERVER input carries it — the same shape on the wire. */
+export type ParliamentPhaseMarker = ParliamentPhasePromptMeta;
 
 /**
  * THE CHAIRMAN-QUEST GATE (Turmoil Redux) — «задание председателя выполнено».

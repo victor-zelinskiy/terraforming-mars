@@ -12,7 +12,7 @@ import {CENTRAL_POWER_GRID_PRODUCTION} from '../../src/server/parliament/resolut
 import {GENEROUS_FUNDING_MEGACREDITS} from '../../src/server/parliament/resolutions/greens/GenerousFunding';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, endGenerationThroughParliament, passToParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, passToParliament, seatEnacted, seatResolution, settleParliamentGates, sittingOf} from './parliamentArrange';
 import {declaredCountIds, declaredStockReads, resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {questRenderData} from '../../src/server/parliament/quests/questRender';
 import {PartyName} from '../../src/common/turmoil/PartyName';
@@ -689,7 +689,7 @@ describe('IndustrialistBudget', () => {
       expect(parliament.slots).has.length(3);
       expect(parliament.slots.some((slot) => slot.instance === BUDGET), 'the enacted card left the area').is.false;
       passToParliament(game);
-      expect(parliament.phase, 'a second sitting convenes').is.not.undefined;
+      expect(sittingOf(parliament)?.generation, 'a second sitting convenes').eq(2);
     });
   });
 });

@@ -276,7 +276,6 @@ for (const preset of PARLIAMENT_PRESETS) {
         await armProbe(page);
         await press(page, 'Enter', 1200);
         await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000}).toBeUndefined();
-        await expect(page.locator('.con-band [data-sit-awaiting]')).toHaveCount(1, {timeout: 15_000});
         const rowBefore: Record<string, {prod: string, stock: string}> = (await readProbe(page)).samples.slice(-1)[0].rail;
         await answerGateAs(request, red, 'assembly');
 
@@ -496,7 +495,7 @@ for (const preset of PARLIAMENT_PRESETS) {
           const redWire = await parliamentWire(request, red);
           if (redWire.waitingFor?.type === 'card') {
             await expect.poll(() => sittingStep(page), {timeout: 20_000}).toBe('waiting');
-            await expect(page.locator('.con-band [data-sit-awaiting]'), 'the band waits on the other seat (v5: the wait is a chip of the band)').toHaveCount(1);
+            await expect(page.locator('.con-band [data-sit-asking]'), 'the band waits on the other seat — the law asks it (the one honest wait of a sitting)').toHaveCount(1);
             await expectParliamentFits(page, `${preset.id} ${c.rx} waiting`);
             await shoot(page, preset.id, `${c.rx}-07b-waiting`);
             await answerAsksAs(request, red);

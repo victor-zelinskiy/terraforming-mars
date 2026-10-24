@@ -58,7 +58,7 @@ import {Research} from '../../src/server/cards/base/Research';
 import {Luna} from '../../src/server/colonies/Luna';
 import {Callisto} from '../../src/server/colonies/Callisto';
 import {runAllActions} from '../TestingUtils';
-import {answerStandingGates, passToParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {passToParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {politicalActionPreview} from '../../src/server/models/politicalActionPreview';
 
 /*
@@ -168,9 +168,9 @@ type Run = {
 
 /**
  * ONE ENACTMENT of `definition` on a three-seat Redux table, driven through
- * the real phase (the gates walked, every ask answered with its plainest
+ * the real phase (every ask answered with its plainest
  * legal answer — every card of a take, the first candidate, the first cell,
- * the first branch). `winner: 'player'` seats the first seat's delegate on
+ * the first branch; the sitting closed by every seat at the end). `winner: 'player'` seats the first seat's delegate on
  * the card (its Agenda step is part of the run: the seat is arranged one
  * position back, so it reads `influence` at the payout); `'neutral'` leaves
  * every seat at exactly `influence`. `reload` re-deserializes the game inside
@@ -204,7 +204,6 @@ function enact(definition: ResolutionDefinition, opts: {influence: number; table
   }
   runAllActions(game);
   passToParliament(game);
-  answerStandingGates(game, 'assembly');
   const prompts: Array<SeenPrompt> = [];
   for (let round = 0; round < 40; round++) {
     let answered = false;

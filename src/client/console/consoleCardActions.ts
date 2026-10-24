@@ -1164,8 +1164,11 @@ export function isResolutionActionSource(source: ParliamentActionSource): source
  * composer composes — the same `ConsoleActionComposer`, its outcome zone, its ACTION COMMIT, its steps. Grows slice by
  * slice (С2 the Reds) and is deleted together with the party composer (С5), when every party and law is one.
  */
+/** The parties whose action the card composer composes today (С2 the Reds; С3 the Scientists, the Industrialists, Unity). */
+const ONE_FRAMEWORK_PARTIES: ReadonlySet<PartyName> = new Set([PartyName.REDS, PartyName.SCIENTISTS, PartyName.INDUSTRIALISTS, PartyName.UNITY]);
+
 export function composesInCardComposer(party: PartyName | undefined, resolution: ResolutionId | undefined): boolean {
-  return resolution === undefined && party === PartyName.REDS;
+  return resolution === undefined && party !== undefined && ONE_FRAMEWORK_PARTIES.has(party);
 }
 
 /** The party / resolution KEY helpers live in `parliament/partyActionKey.ts` (the claim

@@ -61,6 +61,7 @@ import {OCEAN_TILES, TileType} from '../common/TileType';
 import {Turmoil} from './turmoil/Turmoil';
 import {Parliament} from './parliament/Parliament';
 import {ParliamentHandler} from './parliament/ParliamentHandler';
+import {SittingAcks} from './parliament/SittingAcks';
 import {caughtAtNet} from './parliament/resolutions/DivertedTerraforming';
 import {ParliamentPhase} from './parliament/ParliamentPhase';
 import {ChairmanSeat} from './parliament/quests/ChairmanSeat';
@@ -1098,16 +1099,36 @@ export class Game implements IGame, Logger {
     }
     this.phase = Phase.RESEARCH;
     this.researchedPlayers.clear();
+    // A FRESH phase deals afresh: a deal no answer ever took (a spec that skipped the buy) is not this generation's.
+    for (const player of this.players) {
+      player.researchHand = [];
+    }
     this.save();
-    this.players.forEach((player) => {
-      // MarsBot does not draw-4-and-buy — it builds an action deck instead (below,
-      // after the human drew: the official order).
-      if (player.isMarsBot) {
-        return;
+    this.runResearchPhase();
+  }
+
+  /**
+   * The research phase's body — fresh (`gotoResearchPhase`) or picked up from a
+   * save (`deserialize`). Every human seat not yet done is DEALT first, in seat
+   * order (a seat whose deal a save kept is not dealt twice), then ASKED — except
+   * a seat that still owes the last sitting's confirmation: it is asked on its
+   * answer (`admitToGeneration`), and the phase's barrier waits for it.
+   */
+  private runResearchPhase(): void {
+    const humans = this.players.filter((player) => !player.isMarsBot && !this.researchedPlayers.has(player.id));
+    // MarsBot does not draw-4-and-buy — it builds an action deck instead (below,
+    // after the human drew: the official order).
+    for (const player of humans) {
+      if (player.researchHand.length === 0) {
+        player.drawResearch();
       }
-      player.runResearchPhase();
-    });
-    if (this.automa !== undefined) {
+    }
+    for (const player of humans) {
+      if (this.parliament?.holdsSittingAck(player.id) !== true) {
+        player.askResearch();
+      }
+    }
+    if (this.automa !== undefined && !this.researchedPlayers.has(marsBotOf(this).id)) {
       // In the draft variant AutomaDraft already built the action deck from the
       // bot's drafted cards before entering this phase.
       if (!this.gameOptions.draftVariant) {
@@ -1115,6 +1136,24 @@ export class Game implements IGame, Logger {
       }
       this.researchedPlayers.add(marsBotOf(this).id);
     }
+  }
+
+  public admitToGeneration(player: IPlayer): void {
+    if (player.getWaitingFor() !== undefined || this.parliament?.holdsSittingAck(player.id) === true) {
+      return;
+    }
+    if (this.phase === Phase.SOLAR && this.parliament?.sittingAcks?.owedWorldStep === true && player.id === this.first.id) {
+      this.worldGovernmentTerraforming();
+    } else if (this.phase === Phase.DRAFTING) {
+      (this.automa !== undefined ? newAutomaDraft(this) : newStandardDraft(this)).admit(player);
+    } else if (this.phase === Phase.RESEARCH && !player.isMarsBot && !this.researchedPlayers.has(player.id)) {
+      if (player.researchHand.length === 0) {
+        player.drawResearch();
+      }
+      player.askResearch();
+    }
+    // Any other phase (the World Government's step a seat does not owe, the generation's turn-over) has no prompt
+    // for the seat yet: the publisher that comes next asks `holdsSittingAck` itself and finds it admitted.
   }
 
   private gotoDraftPhase(): void {
@@ -1505,8 +1544,21 @@ export class Game implements IGame, Logger {
 
   public worldGovernmentTerraforming(): void {
     const player = this.first;
+    const acks = this.parliament?.sittingAcks;
+    if (acks !== undefined && acks.pending.includes(player.id)) {
+      // THE SOFT GATES: the first player still reads the sitting — the step is OWED (a record, so a reload keeps
+      // it) and asked on that seat's confirmation; the generation waits for it, as it always waited for this step.
+      acks.owedWorldStep = true;
+      this.save();
+      return;
+    }
     const input = this.worldGovernmentTerraformingInput(player);
     player.setWaitingFor(input, () => {
+      const parliament = this.parliament;
+      if (parliament?.sittingAcks?.owedWorldStep === true) {
+        delete parliament.sittingAcks.owedWorldStep;
+        SittingAcks.settle(parliament);
+      }
       this.gotoEndGeneration();
     });
   }
@@ -3259,11 +3311,21 @@ export class Game implements IGame, Logger {
     // already-started game back to gotoInitialResearchPhase() on reload, which
     // prompts nobody (the human already picked) — a RESEARCH-phase deadlock with
     // no waitingFor (both chips read «ГОТОВ»). Guard on human corp-pickers only.
+    // THE SOFT GATES: a seat that has not closed the last sitting is asked its confirmation FIRST — before the draft,
+    // the research or the World Government's step is restored, each of which leaves that seat to its answer.
+    if (game.parliament?.phase === undefined) {
+      SittingAcks.issuePending(game);
+    }
     if (game.phase === Phase.PARLIAMENT && game.parliament?.phase !== undefined) {
       // The Mars Parliament was mid-resolution when the game was saved (a
       // resolution asked a player something): pick the phase up at its
       // persisted step — nothing is paid twice, nothing is re-randomized.
       ParliamentHandler.resumePhase(game, (final) => game.continueAfterParliamentPhase(final));
+    } else if (game.phase === Phase.PARLIAMENT && game.parliament?.sittingAcks?.final === true) {
+      // The FINAL sitting's barrier: its confirmations stand (re-issued above); the last one moves on.
+    } else if (game.phase === Phase.SOLAR && game.parliament?.sittingAcks?.owedWorldStep === true) {
+      // The World Government's step is owed to the first player's confirmation — or asked, if it already came.
+      game.admitToGeneration(game.first);
     } else if (game.generation === 1 && players.some((p) => p.isMarsBot !== true &&
         (p.playedCards.filter(isICorporationCard).length < expectedCorporationCount(p) ||
          campaignSetupExtrasOwed(p)))) {
@@ -3291,7 +3353,13 @@ export class Game implements IGame, Logger {
         newStandardDraft(game).restoreDraft();
       }
     } else if (game.phase === Phase.RESEARCH) {
-      game.gotoResearchPhase();
+      if (game.parliament !== undefined) {
+        // THE SOFT GATES save mid-research (a seat's close of its sitting): picked up, never restarted — a seat
+        // already done stays done, a deal a save kept is not dealt twice.
+        game.runResearchPhase();
+      } else {
+        game.gotoResearchPhase();
+      }
     } else if (game.phase === Phase.PRODUCTION) {
       if (game.gameIsOver() && game.isDoneWithFinalProduction()) {
         game.takeNextFinalGreeneryAction();

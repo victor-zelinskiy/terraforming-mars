@@ -40,6 +40,7 @@
  * record: no DOM, no Vue components, no i18n, no timers.
  */
 import {reactive} from 'vue';
+import {sittingBaselineOf} from './sittingBaseline';
 import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentEnactOutcomeModel, ParliamentPhaseModel} from '@/common/models/ParliamentModel';
@@ -91,7 +92,7 @@ function recordKey(outcome: ParliamentEnactOutcomeModel): string {
  */
 export function detectNewCareerWalks(before: PlayerViewModel | undefined, after: PlayerViewModel): Array<CareerWalkOwed> {
   const phase = phaseOf(after);
-  const was = phaseOf(before);
+  const was = sittingBaselineOf(before, after);
   if (phase === undefined || was === undefined || was.generation !== phase.generation) {
     return [];
   }

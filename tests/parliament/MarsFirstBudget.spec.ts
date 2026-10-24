@@ -12,7 +12,7 @@ import {
 import {GREENS_BUDGET} from '../../src/server/parliament/resolutions/greens/GreensBudget';
 import {SKYSCRAPERS_GRANT} from '../../src/server/parliament/resolutions/marsFirst/Skyscrapers';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerGate, answerQuestGate, endGenerationThroughParliament, gatePromptOf, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, gatePromptOf, seatResolution, settleParliamentGates, sittingOpen} from './parliamentArrange';
 import {declaredCountIds, resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {botWinnerRewardKind, botWinsSomething, declaresWinnerPart} from '../../src/server/automa/BotWinnerReward';
@@ -253,7 +253,7 @@ describe('MarsFirstBudget', () => {
         `${p1.id}:${LEVY_STEP_KEY}`, `${p1.id}:megacredits`, `${p1.id}:${CITY}`,
         `${p2.id}:${LEVY_STEP_KEY}`, `${p2.id}:megacredits`, `${p2.id}:${CITY}`,
       ]);
-      expect(gatePromptOf(p1, 'adjourn')).is.not.undefined;
+      expect(gatePromptOf(p1)).is.not.undefined;
       settleParliamentGates(game);
       expect(parliament.phase).is.undefined;
       settleParliamentGates(game);
@@ -318,7 +318,7 @@ describe('MarsFirstBudget', () => {
         expect(outcomeOf(parliament, player, CITY), player.color).deep.include({kind: 'skipped', reason: TILE_GRANT_NO_SPACE_REASON});
       }
       expect(game.gameLog.filter((e) => e.message === '${0} has no legal space for a city tile — the city tile from ${1} is skipped')).has.length(2);
-      expect(parliament.phase, 'nothing asked — the walk went through both gates to the end').is.undefined;
+      expect(parliament.phase, 'nothing asked — the chain ran to its end and the sitting is closed').is.undefined;
       expect(game.generation).eq(2);
     });
 
@@ -433,16 +433,20 @@ describe('MarsFirstBudget', () => {
       return table;
     }
 
-    /** The human passes, the bot (an empty deck) passes, the generation ends into the sitting; the assembly gate is answered. */
+    /**
+     * The human passes, the bot (an empty deck) passes, the generation ends into the sitting — which runs at once
+     * up to the human's city (or, nothing asked, to its end). The bot's cash is read BEFORE the pass: the chain no
+     * longer stops ahead of the enactment, and MarsBot has no production phase to move it in between.
+     */
     function intoTheSitting(t: Table): number {
       t.game.automa!.actionDeck = [];
+      const botCash = t.bot.megaCredits;
       t.human.popWaitingFor();
       t.game.playerHasPassed(t.human);
       t.game.playerIsFinishedTakingActions();
-      expect(t.game.phase).eq(Phase.PARLIAMENT);
+      // The sitting has convened: its chain stands at the human's city, or — no legal cell, nothing asked — it has run to its end.
+      expect(sittingOpen(t.game), 'the sitting has convened').is.true;
       expect(t.bot.getWaitingFor(), 'the bot is never asked').is.undefined;
-      const botCash = t.bot.megaCredits;
-      answerGate(t.human, 'assembly');
       return botCash;
     }
 

@@ -10,6 +10,7 @@ import {TestPlayer} from '../../TestPlayer';
 import {testAutomaGame} from '../../automa/AutomaTestGame';
 import {IGame} from '../../../src/server/IGame';
 import {Game} from '../../../src/server/Game';
+import {SerializedGame} from '../../../src/server/SerializedGame';
 import {Parliament} from '../../../src/server/parliament/Parliament';
 import {getParliamentModel} from '../../../src/server/parliament/ParliamentModel';
 import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
@@ -26,7 +27,7 @@ import {CardRenderSymbolType} from '../../../src/common/cards/render/CardRenderS
 import {Message} from '../../../src/common/logs/Message';
 import {Payment} from '../../../src/common/inputs/Payment';
 import {formatMessage, runAllActions} from '../../TestingUtils';
-import {passToParliament, quietResolutionOf, seatEnacted, seatResolution, settleParliamentGates} from '../../parliament/parliamentArrange';
+import {atSittingEnd, passToParliament, quietResolutionOf, seatEnacted, seatResolution, settleParliamentGates} from '../../parliament/parliamentArrange';
 
 /**
  * TR64 — PROMETHEAN ALLIANCE: the law of access's fourth road (TR62's class) over the last pair [Scientists,
@@ -193,9 +194,13 @@ describe('PrometheanAlliance', () => {
       const t = owned();
       cubes(t, t.p2, S, 3);
       const prod = t.p1.production.megacredits;
+      // The sitting runs its whole chain at once (the soft gates): the save is taken at its LAST step — the
+      // enactment and its hook already behind it, nothing closed yet — and the resumed chain only finishes.
+      let save: SerializedGame | undefined;
+      atSittingEnd(t.game, () => (save = structuredClone(t.game.serialize())));
       passToParliament(t.game);
-      expect(t.parliament.phase?.step).eq('assembly');
-      const game = Game.deserialize(structuredClone(t.game.serialize()));
+      expect(save?.parliament?.phase?.step, 'saved inside the sitting').eq('done');
+      const game = Game.deserialize(save!);
       settleParliamentGates(game);
       expect(game.parliament!.rulingParty()).eq(S);
       expect(game.getPlayerById(t.p1.id).production.megacredits).eq(prod + 2);

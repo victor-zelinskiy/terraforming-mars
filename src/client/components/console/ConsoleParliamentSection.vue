@@ -235,6 +235,7 @@ import {
 } from '@/client/console/parliament/parliamentRewardBeat';
 import {TableReceipt, tableReceiptState, tableReceiptsOwed} from '@/client/console/parliament/tableReceiptBeat';
 import {deliverRulingChangeDraws, openRulingChangePark} from '@/client/console/parliament/rulingChangeDraw';
+import {sittingSeededLive} from '@/client/console/parliament/parliamentSittingSeed';
 import {
   parliamentWorldBeatState, runTrackMoveBeat, runWorldMoveBeat, seatTileOwed, takeWorldReceipt, trackMoveOwed, worldMoveOwed, worldReceiptOwed,
 } from '@/client/console/parliament/parliamentWorldBeat';
@@ -1796,10 +1797,12 @@ export default defineComponent({
       }
     },
     /**
-     * THE SITTING'S GRAMMAR (v2): A on the VERDICT answers gate 1 — the whole
-     * chain follows with no press; A on the reward's PLACEMENT step is the ONE
-     * door to the board («К полю»); A on the RESULTS answers gate 2; A during a
-     * beat = «дожать» (never a skipped stage); X inspects the enacted
+     * THE SITTING'S GRAMMAR (the soft gates): the walk turns every page from the
+     * VERDICT on by itself — nothing to press until the results; A on the
+     * reward's PLACEMENT step is the ONE door to the board («К полю»); A on the
+     * RESULTS answers the confirmation («Закрыть заседание» — the seat's own
+     * close, its door into the next generation); A during a beat = «дожать»
+     * (never a skipped stage); X inspects the enacted
      * resolution; B obeys the workspace phase — «свернуть» past the commit
      * (the whole stack parks, the board-home card restores this very page),
      * nothing on the terminal results page.
@@ -1816,10 +1819,6 @@ export default defineComponent({
           return;
         }
         const stage = this.sittingStage;
-        if (stage === 'verdict' && position.gateStanding) {
-          this.send({type: 'option'}, 'sitting');
-          return;
-        }
         if (stage === 'reward' && position.rewardStep === 'placement' && this.sittingPrimary !== undefined) {
           this.$emit('to-board');
           return;
@@ -2261,10 +2260,12 @@ export default defineComponent({
     /**
      * THE OPENING (the section mounts with the sitting standing, or the stage
      * unfolds over the browse layer): where the walk starts and what it plays.
-     *  · at the VERDICT (gate 1) — the verdict page; its light plays once;
-     *  · past the barrier with NO memory of this sitting (a reload inside the
-     *    sequence): the step's last page in its final poses — nothing replays,
-     *    the holds are dropped;
+     *  · a sitting whose chain this session SAW arrive (the transport seeded its
+     *    holds from the table as it stood — `sittingSeededLive`) and that no
+     *    page of has played yet: the VERDICT page, and the walk goes on from it;
+     *  · with NO memory of this sitting (a reload inside the sequence): the
+     *    step's last page in its final poses — nothing replays, the holds are
+     *    dropped;
      *  · past the barrier with a memory (a collapsed sitting coming back, the
      *    frame back from the board): the first unplayed page, with the holds
      *    the transport seeded while the section was away — the walk goes on
@@ -2273,10 +2274,11 @@ export default defineComponent({
     planOpening(position: SittingPosition): void {
       const key = this.sittingKey;
       const played = (stage: SittingStage) => sittingStagePlayed(key, stage);
-      if (verdictStandsAt(position.step)) {
+      if (verdictStandsAt(position.step) || (sittingSeededLive(key) && !sittingSessionKnown(key))) {
         parliamentFlow.sittingPage = 0;
-        // A CARD'S ANSWER TO THE CHANGE OF POWER (TR62) is owed to the enactment's tail: its batch arrives with the
-        // answer to this very gate and must wait for the seals to change places (`rulingChangeDraw.ts`).
+        // A CARD'S ANSWER TO THE CHANGE OF POWER (TR62) is owed to the enactment's tail: its batch rides the response
+        // that brought the chain and waits for the seals to change places (`rulingChangeDraw.ts` — the seed opened
+        // the park in that response's apply block; opening it again is idempotent).
         openRulingChangePark(key);
         return;
       }
@@ -2313,7 +2315,7 @@ export default defineComponent({
       }
       const key = this.sittingKey;
       // THE LEDGER'S READ IS OWED ACROSS A STEP CHANGE (Colonial Affairs): the last hosted step's answer carries the
-      // server straight to the adjourn gate, and the walk would re-seat past the reward page — the page whose ledger
+      // server straight to the sitting's end, and the walk would re-seat past the reward page — the page whose ledger
       // now reads what every step paid. A step that was open a flush ago (`stepOpenMirror` — the post-flush door
       // watcher has not run yet) and is open no more seats the walk on the reward page first, like a tile's receipt.
       const ledgerRead = this.sittingLedger !== undefined && this.stepOpenMirror && !this.sittingStepOpen;
@@ -2321,7 +2323,7 @@ export default defineComponent({
         this.ledgerReadOwed = true;
       }
       // A hosted FRAME still standing IN THE OPEN ZONE (the colonies of the winner's free colony — the server moved
-      // to the adjourn gate the moment the pick was answered, the cube is still flying) seats the walk on the
+      // to the sitting's end the moment the pick was answered, the cube is still flying) seats the walk on the
       // reward page too: the step is where the player is, and the page holds until the frame has left. The door
       // must have been OPEN (`stepOpenMirror`): the frame is pushed the moment its prompt is admitted — in the very
       // update that brings the enactment — and a frame merely PUSHED must not skip the enactment's own beats.

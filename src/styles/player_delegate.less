@@ -270,6 +270,8 @@
 	--pd-foot-style: dashed;
 	--pd-foot-fill: radial-gradient(closest-side, fade(@rim, 26%), fade(@rim, 8%));
 	&::before { animation: pd-foot-breathe calc(900ms * var(--motion-scale, 1)) ease-in-out infinite alternate; }
+	// An ambient loop joins the fx-lite stop-list: the trace rests at its full frame (the dash still tells the forecast).
+	html.con-fx-lite &::before { animation: none; opacity: 1; }
 }
 
 // THE TOUCHDOWN — ONE contact ring off the trace (≤ 240 ms) and the figure

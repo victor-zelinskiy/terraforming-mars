@@ -1,5 +1,5 @@
 import {expect, Page, APIRequestContext} from './consoleTest';
-import {fetchPlayerModel, openQuickWheel, press, pressUntil, sendPlayerInput, settle} from './consoleStart';
+import {fetchPlayerModel, openQuickWheel, press, sendPlayerInput, settle} from './consoleStart';
 
 /*
  * THE PARLIAMENT'S SHARED E2E DRIVER (Turmoil Redux) — the readers and the
@@ -19,13 +19,17 @@ export type ParliamentPreset = typeof PARLIAMENT_PRESETS[number];
 export type ParliamentWire = {
   waitingFor?: {
     type: string; promptId?: number; cards?: Array<{name: string}>; options?: Array<{title: string | {message: string}}>;
-    parliamentPhasePrompt?: {stage: string; awaiting: Array<string>};
+    /** THE SITTING'S CONFIRMATION («Закрыть заседание», the soft gates) — the seat's own close, never a barrier list. */
+    parliamentPhasePrompt?: {stage: string; generation?: number; final?: boolean; seq?: number};
     /** The shared distribution's marker (an `and` of one amount per holder): N units over the listed holders. */
     cardResourceDistributionPrompt?: {amount: number; cardResource: string; cards: Array<{name: string}>};
   };
   game: {
     phase: string; generation: number;
-    parliament?: {rulingParty?: string; phase?: {step: string; awaiting?: Array<string>; pending?: {player: string}; outcomes?: Array<Record<string, unknown>>;
+    parliament?: {rulingParty?: string;
+      /** The seats that have not closed the last sitting yet (the soft gates) — a fact, never a wait. */
+      sitting?: {generation: number; seq: number; final: boolean; pending: Array<string>};
+      phase?: {step: string; generation?: number; pending?: {player: string}; outcomes?: Array<Record<string, unknown>>;
       summary?: {
         agenda?: {player: string; from: number; to: number; bonus?: string}; winner: {player?: string; instance?: string}; refreshed: Array<unknown>;
         support?: Array<{party: string; gained: number; total: number}>;
@@ -46,7 +50,7 @@ export async function sittingStage(page: Page): Promise<string> {
   return (await page.locator('.con-parl').getAttribute('data-sitting-stage')) ?? '';
 }
 
-/** The reward stage's step for this seat (`reading` · `choice` · `intake` · `placement` · `waiting` · `received` · `gate`). */
+/** The reward stage's step for this seat (`reading` · `choice` · `intake` · `placement` · `waiting` · `received`). */
 export async function sittingStep(page: Page): Promise<string> {
   return (await page.locator('.con-sit').getAttribute('data-sit-step')) ?? '';
 }
@@ -62,28 +66,15 @@ const SITTING_STAGE_ORDER = ['verdict', 'enact', 'reward', 'renewal', 'results']
 const RETIRED_SITTING_STAGES: Record<string, string> = {closing: 'results'};
 
 /**
- * Bring the sitting to `stage` («Заседание v2»): the enactment and the reward turn BY THEMSELVES — A answers
- * only the verdict (gate 1) and the results (gate 2). On the verdict A is pressed once, with a positive witness
- * (the stage left the verdict, or the verdict shows its wait pose — the other seats have not answered yet);
- * then the walk is awaited until it has reached — or passed — `stage`. False when it never gets there: a
- * spec that needs the enactment must first let the OTHER seats answer gate 1 (`answerGateAs`).
+ * Bring the sitting to `stage` (the soft gates): every page from the VERDICT on turns BY ITSELF — the walk plays the
+ * whole sitting from its records, and the one press of a sitting is «Закрыть заседание» on the results
+ * (`closeSitting`). The walk is awaited until it has reached — or passed — `stage`. False when it never gets there
+ * (a law asking ANOTHER seat holds the reward page: let that seat answer — `answerAsksAs`).
  */
 export async function turnTo(page: Page, stage: string, timeout = 60_000): Promise<boolean> {
   const target = RETIRED_SITTING_STAGES[stage] ?? stage;
   const rank = (s: string) => SITTING_STAGE_ORDER.indexOf(s);
   const reached = async () => rank(await sittingStage(page)) >= rank(target);
-  if (await reached()) {
-    return true;
-  }
-  // v5: the wait on the other seats is a chip of the READING BAND — the sitting's own surface carries
-  // no readings at all now.
-  const waiting = () => page.locator('.con-band [data-sit-awaiting]').count();
-  if (await sittingStage(page) === 'verdict' && await waiting() === 0) {
-    const pressed = await pressUntil(page, 'Enter', async () => await sittingStage(page) !== 'verdict' || await waiting() > 0, {tries: 4, settleMs: 1100});
-    if (!pressed) {
-      return false;
-    }
-  }
   try {
     await expect.poll(reached, {timeout}).toBe(true);
     return true;
@@ -92,43 +83,89 @@ export async function turnTo(page: Page, stage: string, timeout = 60_000): Promi
   }
 }
 
-/** Answer a standing PARLIAMENT GATE for `seat` over the API (the other seat of a two-seat fixture). */
-export async function answerGateAs(request: APIRequestContext, seat: string, stage: 'assembly' | 'adjourn'): Promise<void> {
+/**
+ * THE VIEWER'S OWN PASS, on screen — the quick wheel's «Пас» (↓) and its confirm (A), as a player does it. Through the
+ * viewer's OWN submit: the response that carries the whole sitting (the soft gates — a `pass` fixture is one pass
+ * away from it) is the transport's, so the generation scene plays and rises into the sitting. act → verify (the
+ * SERVER: the viewer's action menu is gone) → retry only while the menu provably still stands.
+ */
+export async function passOnScreen(page: Page, request: APIRequestContext, viewer: string): Promise<void> {
+  const menuStands = async () => {
+    const wf = (await parliamentWire(request, viewer)).waitingFor;
+    return wf?.type === 'or' && JSON.stringify(wf).includes('Pass for this generation');
+  };
+  await expect.poll(menuStands, {timeout: 30_000, message: 'the viewer holds its action menu with the pass'}).toBe(true);
+  const confirm = page.locator('.con-confirm');
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (await confirm.count() === 0) {
+      await openQuickWheel(page);
+      await press(page, 'ArrowDown', 700);
+    }
+    await expect(confirm, 'the pass always confirms').toHaveCount(1, {timeout: 10_000});
+    await press(page, 'Enter', 600);
+    try {
+      await expect.poll(async () => !(await menuStands()), {timeout: 15_000}).toBe(true);
+      return;
+    } catch {
+      // still standing 15 s after the press: it was swallowed — press again
+    }
+  }
+  expect(await menuStands(), 'the viewer\'s pass landed').toBe(false);
+}
+
+/** The seat's CONFIRMATION of its sitting stands («Закрыть заседание» — the server's marker). */
+async function confirmationStands(request: APIRequestContext, seat: string): Promise<boolean> {
+  return (await parliamentWire(request, seat)).waitingFor?.parliamentPhasePrompt?.stage === 'close';
+}
+
+/** CLOSE THE SITTING for `seat` over the API (the other seat of a two-seat fixture) — its own «Закрыть заседание». */
+export async function closeSittingAs(request: APIRequestContext, seat: string): Promise<void> {
+  await expect.poll(() => confirmationStands(request, seat), {timeout: 30_000, message: `${seat} holds the confirmation of its sitting`}).toBe(true);
   const wire = await parliamentWire(request, seat);
-  expect(wire.waitingFor?.parliamentPhasePrompt?.stage, `${seat} stands at the ${stage} gate`).toBe(stage);
   await sendPlayerInput(request, seat, {type: 'option', promptId: wire.waitingFor?.promptId} as never);
 }
 
 /**
- * A PARLIAMENT GATE ANSWERED FROM THE VIEWER'S OWN SCREEN — A on the verdict (gate 1, `assembly`) or on the
- * results (gate 2, `adjourn`): act → verify → retry, where the verify is the SERVER's record and it is given the
- * time a loaded runner needs.
+ * THE CONFIRMATION ANSWERED FROM THE VIEWER'S OWN SCREEN — A on the results («Закрыть заседание»): act → verify →
+ * retry, where the verify is the SERVER's record and it is given the time a loaded runner needs.
  *
  * Both halves were paid for. A blind `press(Enter)` is swallowed whenever a beat still holds the pad (the Deck, a
- * loaded runner), and the miss surfaced a minute later as «the generation never advanced». And the hand-rolled
+ * loaded runner), and the miss surfaced a minute later as «the generation never advanced». And a hand-rolled
  * `pressUntil(Enter, …, {settleMs: 1500})` re-pressed whenever the answer took longer than its settle: the SECOND
- * A landed on whatever the first one had opened — on a loaded 4K runner, the distribution layout the sitting
- * teleports in, which the next line then found «not empty» (console-parliament-gallery § DISTRIBUTION). So the
- * gate must STAND before the press, and a retry happens only while it provably still stands 10 s later.
+ * A landed on whatever the first one had opened. So the confirmation must STAND before the press, and a retry happens
+ * only while it provably still stands 10 s later.
  */
-export async function answerGateOnScreen(page: Page, request: APIRequestContext, viewer: string, stage: 'assembly' | 'adjourn'): Promise<void> {
-  const standing = async () => (await parliamentWire(request, viewer)).waitingFor?.parliamentPhasePrompt?.stage === stage;
-  await expect.poll(standing, {timeout: 30_000, message: `the viewer stands at the ${stage} gate`}).toBe(true);
+export async function closeSitting(page: Page, request: APIRequestContext, viewer: string): Promise<void> {
+  await expect.poll(() => confirmationStands(request, viewer), {timeout: 30_000, message: 'the viewer holds the confirmation of its sitting'}).toBe(true);
   for (let attempt = 0; attempt < 3; attempt++) {
     await press(page, 'Enter', 400);
     try {
-      await expect.poll(async () => !(await standing()), {timeout: 10_000}).toBe(true);
+      await expect.poll(async () => !(await confirmationStands(request, viewer)), {timeout: 10_000}).toBe(true);
       return;
     } catch {
       // still standing 10 s after the press: it was swallowed — press again
     }
   }
-  expect(await standing(), `A on the screen answers the viewer's ${stage} gate`).toBe(false);
+  expect(await confirmationStands(request, viewer), 'A on the results closes the viewer\'s sitting').toBe(false);
 }
 
-/** GATE 2 from the results page («Закрыть заседание») — `answerGateOnScreen` at the adjourn gate. */
-export async function closeSitting(page: Page, request: APIRequestContext, viewer: string): Promise<void> {
-  await answerGateOnScreen(page, request, viewer, 'adjourn');
+/**
+ * ⚠ TRANSITIONAL (the soft gates' first commit — removed by the e2e migration that follows it): the two barrier
+ * gates are gone, so «answer gate 1» has nothing to answer and «answer gate 2» is the seat's confirmation. These
+ * keep the not-yet-migrated specs COMPILING; the specs themselves still open their sitting at a live verdict that no
+ * longer exists and are the migration's worklist (docs/claude/console/parliament-soft-gates.md § e2e).
+ */
+export async function answerGateAs(request: APIRequestContext, seat: string, stage: 'assembly' | 'adjourn'): Promise<void> {
+  if (stage === 'adjourn') {
+    await closeSittingAs(request, seat);
+  }
+}
+
+/** ⚠ TRANSITIONAL — see `answerGateAs`: the verdict is a page of the director now; the results' A is `closeSitting`. */
+export async function answerGateOnScreen(page: Page, request: APIRequestContext, viewer: string, stage: 'assembly' | 'adjourn'): Promise<void> {
+  if (stage === 'adjourn') {
+    await closeSitting(page, request, viewer);
+  }
 }
 
 /** Answer `seat`'s standing resolution asks over the API with the plainest legal answer until none stands (a card take: every card; a pick: the first). */

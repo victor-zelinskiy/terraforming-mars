@@ -25,6 +25,7 @@ import {SelectCard} from '../inputs/SelectCard';
 import {AndOptions} from '../inputs/AndOptions';
 import {ParliamentHandler} from '../parliament/ParliamentHandler';
 import {partyActionModel, resolutionActionModel} from '../parliament/ParliamentModel';
+import {PARTY_EFFECTS} from '../parliament/parties/PartyEffects';
 import {REDUX_PARTIES, ReduxParty} from '../../common/parliament/ParliamentTypes';
 import {
   ActionEffect,
@@ -65,6 +66,19 @@ export function politicalActionPreview(player: IPlayer, source: PoliticalActionS
   let prompt: PlayerInput | undefined;
   if (source.kind === 'party') {
     model = partyActionModel(parliament, player, source.party);
+    // A party action that RIDES the colony trade (Unity's free trade — no prompt of its own, the trade's payment path
+    // is the party's): ONE branch whose step is the trade's door, the payment path pinned to the party. Nothing is
+    // asked here; the colony and the confirm are the trade's own.
+    if (model?.available === true && PARTY_EFFECTS[source.party].actionInput === undefined) {
+      return {source, answer: 'option', kind: 'bespoke', branches: [{
+        index: -1,
+        title: '',
+        available: true,
+        renderKeys: [],
+        effects: model.preview,
+        steps: [{kind: 'colonyTrade', party: source.party}],
+      }]};
+    }
     prompt = model?.available === true ? ParliamentHandler.partyActionPrompt(player, source.party) : undefined;
   } else {
     const law = resolutionActionModel(parliament, player);

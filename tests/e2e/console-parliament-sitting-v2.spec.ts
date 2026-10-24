@@ -244,7 +244,6 @@ for (const preset of PARLIAMENT_PRESETS) {
       await shoot(page, preset.id, '06-results');
       await press(page, 'Enter', 1200);
       await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000}).toBeUndefined();
-      await expect(page.locator('.con-band [data-sit-awaiting]'), 'the results wait for the other seat').toHaveCount(1, {timeout: 15_000});
       // …and the wait adds NO row: the answered gate keeps the card inside the tier too.
       await expectParliamentFits(page, `${preset.id} results · waiting`);
       await expectWholeOrNone('results · waiting');

@@ -24,7 +24,7 @@
 import {CardResource} from '../../common/CardResource';
 import {Message} from '../../common/logs/Message';
 import {ActionEffect} from '../../common/models/ActionPreviewModel';
-import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
+import {ChoiceContextSource, DisabledOptionModel} from '../../common/models/PlayerInputModel';
 import {message} from '../logs/MessageBuilder';
 import {IPlayer} from '../IPlayer';
 import {BasePlayerInput} from '../PlayerInput';
@@ -63,9 +63,16 @@ export function resourceToOwnCardChoice(player: IPlayer, yields: ReadonlyArray<R
     .setButtonLabel(opts.buttonLabel);
   opts.mark(options);
   options.markChoiceContext({source: opts.source, trigger: opts.trigger, mode: 'effect-choice'});
+  // A kind no card of the seat can hold is SHOWN, disabled with its reason (never hidden) — display only, the
+  // live options keep their runtime indices.
+  const refused: Array<DisabledOptionModel> = [];
   for (const outcome of yields) {
     const cards = player.getResourceCards(outcome.resource);
     if (cards.length === 0) {
+      refused.push({
+        title: message('Add ${0} ${1} to a card', (b) => b.number(outcome.amount).string(outcome.resource)),
+        reason: message('No card of yours can hold ${0}', (b) => b.string(outcome.resource)),
+      });
       continue;
     }
     const pick = new SelectCard(
@@ -88,7 +95,7 @@ export function resourceToOwnCardChoice(player: IPlayer, yields: ReadonlyArray<R
   if (options.options.length === 0) {
     throw new InputError(opts.noHolder);
   }
-  return options;
+  return options.setDisabledOptions(refused);
 }
 
 /**

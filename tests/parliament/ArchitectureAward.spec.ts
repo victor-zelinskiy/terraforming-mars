@@ -78,10 +78,11 @@ function stage(): [IGame, TestPlayer, TestPlayer, Parliament] {
 }
 
 /**
- * Every player passes; production → the parliament; the sitting's ASSEMBLY
- * gate is answered for every seat (the harness's stale menus cleared first),
- * so the resolution's own asks stand — or, for a quiet card, the ADJOURN gate
- * is answered too and the phase is over (`parliamentArrange`).
+ * Every player passes (the harness's stale menus cleared first); production
+ * → the parliament, whose chain runs at once (the soft gates), so the
+ * resolution's own asks stand — or, for a quiet card, the chain runs to its
+ * end and every seat's confirmation «Закрыть заседание» is answered too
+ * (`parliamentArrange`).
  */
 function endGeneration(game: IGame): void {
   endGenerationThroughParliament(game);
