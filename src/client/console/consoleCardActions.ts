@@ -1168,7 +1168,8 @@ export function isResolutionActionSource(source: ParliamentActionSource): source
 const ONE_FRAMEWORK_PARTIES: ReadonlySet<PartyName> = new Set([PartyName.REDS, PartyName.SCIENTISTS, PartyName.INDUSTRIALISTS, PartyName.UNITY]);
 
 export function composesInCardComposer(party: PartyName | undefined, resolution: ResolutionId | undefined): boolean {
-  return resolution === undefined && party !== undefined && ONE_FRAMEWORK_PARTIES.has(party);
+  // С4: every enacted LAW's action too — the source is the law, its party a badge.
+  return resolution !== undefined || (party !== undefined && ONE_FRAMEWORK_PARTIES.has(party));
 }
 
 /** The party / resolution KEY helpers live in `parliament/partyActionKey.ts` (the claim

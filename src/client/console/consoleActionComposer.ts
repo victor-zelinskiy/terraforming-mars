@@ -60,7 +60,7 @@ export type ComposerChoice = {
   scope: ComposerScope;
   /** Index within its source list (preSteps / steps); -1 for the optionInput. */
   index: number;
-  kind: 'spendHeat' | 'amount' | 'card' | 'player' | 'or' | 'payment' | 'other';
+  kind: 'spendHeat' | 'amount' | 'card' | 'player' | 'or' | 'payment' | 'lawPlay' | 'other';
   input: PlayerInputModel;
   /** Signed per-target delta for a card-target step ("2 → 4 on the card"). */
   amount?: number;
@@ -334,6 +334,10 @@ export function branchChoices(branch: ActionPreviewBranch | undefined): Array<Co
       });
     } else if (step.kind === 'spendHeat') {
       out.push({id: `step#${i}`, scope: 'step', index: i, kind: 'spendHeat', input: step.input});
+    } else if (step.kind === 'lawPlay') {
+      // A LAW THAT PLAYS A CARD (RX36): the play is a SLOT — the hand album + the play composer answer it (the pick
+      // bridge), its composed result is the step's capture; the result rides the commit after every other step.
+      out.push({id: `step#${i}`, scope: 'step', index: i, kind: 'lawPlay', input: step.play.input});
     }
   });
   return out;
@@ -414,7 +418,7 @@ export function canConfirm(
   if (branch.optionInput !== undefined && captures.option === undefined) {
     return false;
   }
-  return branch.steps.every((step, i) => step.kind !== 'input' || captures.steps[i] !== undefined);
+  return branch.steps.every((step, i) => (step.kind !== 'input' && step.kind !== 'lawPlay') || captures.steps[i] !== undefined);
 }
 
 /** The first missing decision (the honest disabled-confirm reason). */
@@ -771,6 +775,22 @@ export function orderedPreResponses(
     }
   });
   return out;
+}
+
+// ── a RATE per card — the pick decides the total ─────────────────────────────
+
+/**
+ * A branch whose chips are a RATE «per card» (Open IP Trade RX24: 1 card → 3 M€ + 1 card, any number of cards) read
+ * as the TOTAL once the pick is made: each «per card» chip times the count of cards the branch's own pick answered.
+ * With no pick yet (or a branch with no rate) the branch is returned as it is — the formula reads the rate.
+ */
+export function perCardTotals(branch: ActionPreviewBranch, optionResponse: unknown): ActionPreviewBranch {
+  const picked = (optionResponse as {type?: string, cards?: ReadonlyArray<unknown>} | undefined);
+  const count = picked?.type === 'card' ? picked.cards?.length ?? 0 : 0;
+  if (count === 0 || !branch.effects.some((e) => e.note === 'per card')) {
+    return branch;
+  }
+  return {...branch, effects: branch.effects.map((e) => e.note === 'per card' ? {...e, amount: e.amount * count, note: undefined} : e)};
 }
 
 // ── a TWO-PART pick — an AndOptions of picks, answered as ONE response ───────

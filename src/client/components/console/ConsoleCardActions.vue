@@ -342,6 +342,7 @@
                                @committing="onComposerCommitting"
                                @staged-placement="onComposerStagedPlacement"
                                @staged-vote="onComposerStagedVote"
+                               @staged-law-play="onComposerStagedLawPlay"
                                @colony-trade="onComposerColonyTrade"
                                @delta-advance="onComposerDeltaAdvance"
                                @cancel="onComposerCancel"
@@ -458,7 +459,7 @@ import {actionRuleText} from '@/client/components/actions/actionDescription';
 import {fitActionCanvases} from '@/client/console/consoleActionCanvasFit';
 import {fitDescTiers} from '@/client/console/descTier';
 import {resolveDetailFit} from '@/client/console/consoleDetailFit';
-import {buildActionBatch, buildPoliticalActionBatch, repeatActionResponses} from '@/client/console/consoleActionComposer';
+import {buildActionBatch, repeatActionResponses} from '@/client/console/consoleActionComposer';
 import type {StagedReceipt} from '@/client/console/stagedPlay';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {browseCommandRun, focusKicker, ActionFlowDraft} from '@/client/console/consoleActionFlow';
@@ -530,7 +531,9 @@ import {findPerformActionCard} from '@/client/console/turnIntents';
 import {consoleRepeatPickState, resolveConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {consoleRepeatPickUi, setConsoleRepeatPickCommands} from '@/client/console/consoleRepeatPickUi';
 import {translateText} from '@/client/directives/i18n';
-import {consolePlayPickState, lawPlayLandingOf} from '@/client/console/consolePlayPick';
+import {ConsolePlayPickResult, LawPlayDetail, consolePlayPickState, lawPlayLandingOf} from '@/client/console/consolePlayPick';
+import {buildPoliticalBatch} from '@/client/console/politicalBatch';
+import type {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 
 /**
@@ -553,6 +556,14 @@ const LEDGER_DISCARD_STAGE = 'Discarding';
 /** The open stage: a card's action (`cardName` + variant) or a PARTY's (`party` set; `cardName` is then the party's tile key). */
 /** …or the ENACTED RESOLUTION's action (`resolution` set beside its party; `cardName` is then the law's tile key). */
 type ComposerContext = ActionFlowDraft & {party?: ReduxParty, resolution?: ResolutionId};
+/** What the card composer hands a POLITICAL commit (a party's or a law's): its answers, a copied action, a law's play. */
+type PoliticalConfirmPayload = {
+  branchIndex: number;
+  optionResponse: unknown;
+  stepResponses: ReadonlyArray<unknown>;
+  repeat?: ConsoleRepeatPickResult;
+  lawPlay?: ConsolePlayPickResult;
+};
 
 /** How long a party submit may stay unanswered before the stage gives the player back their hands. */
 const PARTY_SUBMIT_SAFETY_MS = 6000;
@@ -1203,14 +1214,17 @@ export default defineComponent({
       if (c === undefined || party === undefined) {
         return undefined;
       }
-      const source = this.parliamentActionSources.find((s) => !isResolutionActionSource(s) && s.party === party);
+      const law = c.resolution;
+      const source = this.parliamentActionSources.find((s) => law !== undefined ?
+        isResolutionActionSource(s) && s.resolution === law :
+        !isResolutionActionSource(s) && s.party === party);
       const root = source?.renderRoot;
       if (source === undefined || root === undefined) {
         return undefined;
       }
       return {
         group: {key: c.cardName, nodes: [{key: c.cardName + '#0', actionNode: actionNodeOf(root), renderRoot: root, text: undefined}]},
-        source: {kind: 'party', party},
+        source: law !== undefined ? {kind: 'law', resolution: law} : {kind: 'party', party},
         key: c.cardName,
         party,
         isCorporation: false,
@@ -2710,7 +2724,7 @@ export default defineComponent({
     },
     /** Assemble + submit the byte-identical batch (revalidated at submit time,
      *  mirroring PlayerHome.submitCardActionBatch's re-walk). */
-    onComposerConfirm(payload: {branchIndex: number, branchFor?: PreselectAddress, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, repeat?: ConsoleRepeatPickResult, stageReward?: DeltaRewardDraft}): void {
+    onComposerConfirm(payload: {branchIndex: number, branchFor?: PreselectAddress, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, repeat?: ConsoleRepeatPickResult, stageReward?: DeltaRewardDraft, lawPlay?: ConsolePlayPickResult}): void {
       const comp = this.composer;
       if (comp === undefined) {
         return;
@@ -2932,37 +2946,109 @@ export default defineComponent({
      * outcome is claimed under the source's key exactly like a card's (the draw lands in THIS stage's draw zone — the
      * server names the party as the batch's source), and the batch rides the same submit as a card's.
      */
-    confirmPoliticalAction(comp: ComposerContext, payload: {branchIndex: number, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>}): void {
-      const party = comp.party;
-      const actionId = party === undefined ? undefined : partyActionOf(party);
-      const menu = actionId === undefined ? undefined : parliamentPromptBridge(this.playerView.waitingFor).actions[actionId];
+    confirmPoliticalAction(comp: ComposerContext, payload: PoliticalConfirmPayload): void {
       const preview = this.composerPreview;
-      if (menu === undefined || preview === undefined || !('answer' in preview)) {
+      const batch = this.politicalBatchOf(comp, payload);
+      if (preview === undefined || !('answer' in preview) || batch === undefined) {
         // The prompt moved on while composing (the action was used, the turn ended) — nothing is submitted.
-        console.warn('Party action: the menu option is not in the waitingFor tree');
+        console.warn('Political action: the menu option is not in the waitingFor tree');
         this.closeComposer();
         return;
       }
+      if (batch.length === 0) {
+        return;
+      }
       this.committedPreview = {cardName: comp.cardName, nodeIndex: comp.nodeIndex, preview};
-      const batch = buildPoliticalActionBatch({
-        menuIndex: menu.menuIndex,
+      // THE OUTCOME CLAIM — by the branch's own preview (the Reds' «draw 2»). A LAW's draw sized by the PICK it answers
+      // (Open IP Trade: a card per card discarded — the prompt's own exchange marker); a copied action's draws are the
+      // COPY's (R&D Funding repeating «Центр ИИ» — the chosen card's cached preview, scope 'chain').
+      const answeredCards = [payload.optionResponse, ...payload.stepResponses]
+        .filter((r): r is {type: 'card', cards: ReadonlyArray<CardName>} => (r as {type?: string} | undefined)?.type === 'card')
+        .flatMap((r) => r.cards);
+      const branch = previewBranchByIndex(preview, payload.branchIndex);
+      const exchange = branch?.optionInput?.type === 'card' ? (branch.optionInput as SelectCardModel).discardPrompt?.exchange : undefined;
+      if (payload.repeat !== undefined) {
+        const plan = branchOutcomeClaimPlan(this.previewMap.get(payload.repeat.chosenCard), payload.repeat.composed.branchIndex);
+        if (plan.kinds.length > 0) {
+          claimWorkspaceOutcome('card-actions', payload.repeat.chosenCard, [...plan.kinds], payload.repeat.nodeIndex, plan.expectedCards, 'chain');
+          this.outcomeFlow = {kind: 'pending'};
+        }
+      } else if (exchange?.draw !== undefined && exchange.draw > 0 && answeredCards.length > 0) {
+        claimWorkspaceOutcome('card-actions', comp.cardName, ['draw'], comp.nodeIndex, exchange.draw * answeredCards.length, 'card');
+        this.outcomeFlow = {kind: 'pending'};
+      } else if (payload.lawPlay === undefined) {
+        const plan = branchOutcomeClaimPlan(preview, payload.branchIndex, answeredCards);
+        if (plan.kinds.length > 0) {
+          claimWorkspaceOutcome('card-actions', comp.cardName, [...plan.kinds], comp.nodeIndex, plan.expectedCards, 'card');
+          this.outcomeFlow = {kind: 'pending'};
+        }
+      }
+      // A LAW THAT PLAYS A CARD (RX36): the host arms the card's landing in this stage off the slot it stands in.
+      this.$emit('submit-batch', batch, this.lawPlayDetailOf(comp, payload));
+    },
+    /**
+     * THE ONE BATCH of a political commit: the menu's own option (found by the server's marker — the prompt bridge,
+     * never a title) answered by the preview's `answer`, then — a COPIED action (R&D Funding RX26): the pick is the
+     * card, the copy's own answers behind it; a LAW'S PLAY (RX36): the card addressed to the law, its own answers.
+     * `undefined` when the option is no longer in the tree.
+     */
+    politicalBatchOf(comp: ComposerContext, payload: PoliticalConfirmPayload): Array<unknown> | undefined {
+      const preview = this.composerPreview;
+      if (preview === undefined || !('answer' in preview)) {
+        return undefined;
+      }
+      const bridge = parliamentPromptBridge(this.playerView.waitingFor);
+      const law = comp.resolution;
+      const actionId = law === undefined && comp.party !== undefined ? partyActionOf(comp.party) : undefined;
+      const menuIndex = law !== undefined ?
+        (bridge.resolutionAction?.resolution === law ? bridge.resolutionAction.menuIndex : undefined) :
+        (actionId === undefined ? undefined : bridge.actions[actionId]?.menuIndex);
+      if (menuIndex === undefined) {
+        return undefined;
+      }
+      return buildPoliticalBatch({
+        menuIndex,
         answer: preview.answer,
         branchIndex: payload.branchIndex,
         optionResponse: payload.optionResponse,
         stepResponses: payload.stepResponses,
+        ...(payload.repeat !== undefined ? {repeat: payload.repeat} : {}),
+        ...(payload.lawPlay !== undefined && law !== undefined ? {lawPlay: {resolution: law, play: payload.lawPlay}} : {}),
       });
-      if (batch.length === 0) {
+    },
+    /**
+     * A law's play detail for the host (the landing's promise and the law's own price), `undefined` otherwise. The
+     * price is the M€ the bill really takes: the payment the composer collected for it (Helion's heat pays part of it
+     * and leaves the M€ row alone), else the preview's own price chip (a bill paid in M€ alone asks nothing).
+     */
+    lawPlayDetailOf(comp: ComposerContext, payload: PoliticalConfirmPayload): LawPlayDetail | undefined {
+      const play = payload.lawPlay;
+      if (play === undefined || comp.resolution === undefined) {
+        return undefined;
+      }
+      const paid = payload.stepResponses
+        .map((r) => r as {type?: string, payment?: {megacredits?: number}})
+        .find((r) => r.type === 'payment');
+      const preview = this.composerPreview;
+      const bill = paid !== undefined ? paid.payment?.megacredits ?? 0 :
+        preview?.branches[0]?.effects.find((e) => e.direction === 'cost' && e.icon === 'megacredits')?.amount ?? 0;
+      return {play, lawBill: {resolution: comp.resolution, megacredits: bill}};
+    },
+    /**
+     * A LAW'S PLAY WITH A REVERSIBLE DOOR (RX36 — the design rule of 2026-10-20), composed in the card composer: nothing
+     * is sent here — the shell plays the landing ritual in this stage and opens the door (the cell, the delegate, the
+     * colony); THAT door's confirm is the one POST, B comes back to this very stage.
+     */
+    onComposerStagedLawPlay(payload: PoliticalConfirmPayload): void {
+      const comp = this.composer;
+      if (comp?.resolution === undefined) {
         return;
       }
-      const answeredCards = payload.stepResponses
-        .filter((r): r is {type: 'card', cards: ReadonlyArray<CardName>} => (r as {type?: string} | undefined)?.type === 'card')
-        .flatMap((r) => r.cards);
-      const plan = branchOutcomeClaimPlan(preview, payload.branchIndex, answeredCards);
-      if (plan.kinds.length > 0) {
-        claimWorkspaceOutcome('card-actions', comp.cardName, [...plan.kinds], comp.nodeIndex, plan.expectedCards, 'card');
-        this.outcomeFlow = {kind: 'pending'};
+      const batch = this.politicalBatchOf(comp, payload);
+      if (batch === undefined || batch.length === 0) {
+        return;
       }
-      this.$emit('submit-batch', batch);
+      this.$emit('staged-law-play', batch, this.lawPlayDetailOf(comp, payload));
     },
     /**
      * STAGED PLACEMENT (docs/TILE_PLAY_STAGED_COMMIT.md): the composer's
@@ -3113,7 +3199,10 @@ export default defineComponent({
       if (resolution !== undefined) {
         if (!this.repeat) {
           consoleCardActionsUi.draft = {cardName: tile.cardName, nodeIndex: 0};
-          consoleCardActionsUi.partyFlow = {party, resolution, stage: 'setup'};
+          // ONE FRAMEWORK (С4): the card composer composes the law's action — no party flow record of its own.
+          if (!composesInCardComposer(party, resolution)) {
+            consoleCardActionsUi.partyFlow = {party, resolution, stage: 'setup'};
+          }
           setWorkspaceFrameSubject('card-actions', this.resolutionNameOf(resolution) ?? resolution);
         }
         this.composer = {cardName: tile.cardName, nodeIndex: 0, party, resolution};

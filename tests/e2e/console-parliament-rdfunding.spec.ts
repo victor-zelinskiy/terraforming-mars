@@ -165,18 +165,20 @@ test.describe(`R&D Funding · ${PRESET.id}`, () => {
     await expect(page.locator('.con-cardactions__plate', {hasText: /Финансирование исследований/i}), 'the plate names the law').toHaveCount(1);
     await focusLawTile(page);
     await settle(page, {timeoutMs: 10_000});
-    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-pact--resolution').count() > 0, {tries: 3, settleMs: 1100}),
+    // «Один фреймворк» (С4): THE card composer composes the law's action — Viron's repeat slot, the law's face the hero.
+    const STAGE = `.con-cardactions .con-composer[data-composer-source="law:${LAW}"]`;
+    expect(await pressUntil(page, 'Enter', async () => await page.locator(STAGE).count() > 0, {tries: 3, settleMs: 1100}),
       'A opens the law\'s stage').toBeTruthy();
-    const slot = page.locator('.con-pact--resolution [data-pact-repeat-slot]');
+    const slot = page.locator(`${STAGE} [data-composer-repeat-slot]`);
     await expect(slot, 'the repeat stands as a SLOT').toHaveCount(1, {timeout: 20_000});
-    await expect(page.locator('.con-pact--resolution .con-pact__card'), 'and never as a picker of its own').toHaveCount(0);
-    await expect(page.locator('.con-pact--resolution .con-pact__hero--bill .pcard'), 'the law\'s face is the hero').toBeVisible();
-    await expect(page.locator('.con-pact--resolution .con-pact__handzone'), 'the hand is NOT the decision here — nothing is spent').toHaveCount(0);
+    await expect(page.locator(`${STAGE} [data-composer-target-row]`), 'and never as a picker of its own').toHaveCount(0);
+    await expect(page.locator(`${STAGE} .con-composer__actlaw .pcard`), 'the law\'s face is the hero').toBeVisible();
+    await expect(page.locator('.con-cardactions .con-hand'), 'the hand is NOT the decision here — nothing is spent').toHaveCount(0);
     await settle(page, {timeoutMs: 15_000});
     const crumb = (await crumbText(page)).toUpperCase();
     expect(crumb, `one crumb: the menu, the law, the stage (${crumb})`).toContain('ДЕЙСТВИЯ КАРТ');
     expect(crumb).toContain('ФИНАНСИРОВАНИЕ ИССЛЕДОВАНИЙ');
-    expect(await page.locator('[data-pact-cta][data-pact-ready]').count(), 'an empty slot arms nothing').toBe(0);
+    expect(await page.locator(`${STAGE} .con-composer__cta--ready`).count(), 'an empty slot arms nothing').toBe(0);
     await shoot(page, '02-repeat-slot-empty');
 
     // ── ③ A ON THE SLOT opens the SHARED pick: the ДЕЙСТВИЯ КАРТ list in repeat
@@ -193,11 +195,11 @@ test.describe(`R&D Funding · ${PRESET.id}`, () => {
 
     // ── ④ THE CHOICE LANDS IN THE SLOT — A = «Выбрать», never «Выполнить».
     expect(await pressUntil(page, 'Enter',
-      async () => await page.locator('.con-cardactions').count() === 1 && await page.locator('[data-pact-repeat-name]').count() === 1,
+      async () => await page.locator('.con-cardactions').count() === 1 && await page.locator('[data-composer-repeat-name]').count() === 1,
       {tries: 6, settleMs: 900}), 'the pick resolves back into the law\'s slot').toBeTruthy();
     expect(resourcesOf(await wireOf(request, playerId), REPEATED),
       'and nothing was performed by choosing').toBe(microbesBefore);
-    await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'only now is the commit ready').toHaveCount(1);
+    await expect(page.locator(`${STAGE} .con-composer__cta--ready`), 'only now is the commit ready').toHaveCount(1);
     await shoot(page, '04-slot-filled');
 
     // ── ⑤ THE SECOND PRESS COMMITS.

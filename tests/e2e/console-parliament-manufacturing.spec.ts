@@ -28,7 +28,10 @@ const OUT = path.resolve('screenshots', 'parliament-manufacturing');
 const LAW = 'RDX_INDUSTRIALISTS_MANUFACTURING_RUN';
 const MECHS = 'Construction Mechs';
 const FLOATERS = 'Titan Shuttles';
-const STAGE = '.con-pact--resolution';
+/** «Один фреймворк» (С4): the law's action is composed by THE card composer — its source on the root. */
+const STAGE = `.con-cardactions .con-composer[data-composer-source="law:${LAW}"]`;
+const VARIANT = `${STAGE} .con-composer__branches .con-vchoice__opt`;
+const READY = `${STAGE} .con-composer__cta--ready`;
 
 const PRESETS = [
   {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'},
@@ -120,19 +123,18 @@ async function composeUse(page: Page, variant: number, card: string): Promise<vo
   await openCardActions(page);
   await focusLawTile(page);
   expect(await pressUntil(page, 'Enter', async () => await page.locator(STAGE).count() > 0, {tries: 3, settleMs: 1100}), 'A opens the law\'s stage').toBeTruthy();
-  await expect(page.locator(`${STAGE} [data-pact-opt]`).first(), 'the stage stands').toBeVisible({timeout: 20_000});
+  await expect(page.locator(VARIANT).first(), 'the stage stands').toBeVisible({timeout: 20_000});
   await settle(page, {timeoutMs: 15_000});
   for (let i = 0; i < variant; i++) {
     await press(page, 'ArrowRight', 200);
   }
-  // The witness is the ANSWERED row, never «the card is listed»: the target row previews the kind under the cursor
-  // before any press, so a press swallowed by the stage's entry would pass a weaker witness.
-  expect(await pressUntil(page, 'Enter', async () => await page.locator(`${STAGE} [data-pact-row="0"].con-pact__row--answered`).count() > 0,
+  // The witness is the ANSWERED variant (its seal), never «the card is listed».
+  expect(await pressUntil(page, 'Enter', async () => await page.locator(`${VARIANT}.con-vchoice__opt--selected`).count() > 0,
     {tries: 4, settleMs: 700}), 'A picks the variant').toBeTruthy();
-  await expect(page.locator(`${STAGE} [data-pact-card="${card}"]`), `the variant's holders include ${card}`).toHaveCount(1);
+  await expect(page.locator(`${STAGE} [data-composer-card="${card}"]`).first(), `the variant's holder is ${card}`).toBeAttached();
   // ONE holder of the kind is SEEDED (T14 · CC) — the commit is ready at once and `pressUntil` presses nothing; two
   // holders would take the player's A on the card.
-  expect(await pressUntil(page, 'Enter', async () => await page.locator(`${STAGE} [data-pact-cta][data-pact-ready]`).count() > 0, {tries: 3, settleMs: 700}),
+  expect(await pressUntil(page, 'Enter', async () => await page.locator(READY).count() > 0, {tries: 3, settleMs: 700}),
     'the card is chosen (seeded, or A on it): the commit is ready').toBeTruthy();
 }
 
@@ -158,24 +160,25 @@ for (const preset of PRESETS) {
 
       // ── ② THE STAGE: «РЕСУРС» with three variants, then «КАРТА-ЦЕЛЬ» for the mech: Construction Mechs 0 → 1.
       expect(await pressUntil(page, 'Enter', async () => await page.locator(STAGE).count() > 0, {tries: 3, settleMs: 1100}), 'A opens the law\'s stage').toBeTruthy();
-      await expect(page.locator(`${STAGE} [data-pact-opt]`), 'three kinds held — three variants').toHaveCount(3, {timeout: 20_000});
+      await expect(page.locator(VARIANT), 'three kinds held — three variants').toHaveCount(3, {timeout: 20_000});
       await settle(page, {timeoutMs: 15_000});
       const crumb = (await crumbText(page)).toUpperCase();
       expect(crumb, `one crumb: the menu, the law (${crumb})`).toContain('ДЕЙСТВИЯ КАРТ');
       expect(crumb).toContain('СЕРИЙНЫЙ ВЫПУСК');
-      expect(await page.locator(`${STAGE} [data-pact-cta][data-pact-ready]`).count(), 'nothing chosen — the commit dims').toBe(0);
+      expect(await page.locator(READY).count(), 'nothing chosen — the commit dims').toBe(0);
       await shoot(page, preset.id, '02-law-stage-three-variants');
       await press(page, 'ArrowRight', 200);
       await press(page, 'ArrowRight', 200);
-      expect(await pressUntil(page, 'Enter', async () => await page.locator(`${STAGE} [data-pact-row="0"].con-pact__row--answered`).count() > 0,
+      expect(await pressUntil(page, 'Enter', async () => await page.locator(`${VARIANT}.con-vchoice__opt--selected`).count() > 0,
         {tries: 4, settleMs: 700}), 'A picks the mech').toBeTruthy();
-      await expect(page.locator(`${STAGE} [data-pact-card="${MECHS}"]`), 'the mech\'s holders').toHaveCount(1);
-      await expect(page.locator(`${STAGE} [data-pact-card="${MECHS}"] .con-pact__card-delta`), 'current → resulting').toContainText(/0\s*→\s*1/);
+      await expect(page.locator(`${STAGE} [data-composer-card="${MECHS}"]`).first(), 'the mech\'s holder').toBeAttached();
+      await expect(page.locator(`${STAGE} [data-composer-target-row]`).first(), 'current → resulting').toContainText(/0\s*→\s*1/);
       await settle(page, {timeoutMs: 10_000});
       await shoot(page, preset.id, '03-mech-targets');
       // Construction Mechs is the mech's ONLY holder — SEEDED and marked (T14 · CC), the commit ready at once.
-      await expect(page.locator(`${STAGE} .con-pact__card--picked[data-pact-card="${MECHS}"] [data-seeded-mark]`), 'the sole holder, marked').toHaveCount(1);
-      expect(await pressUntil(page, 'Enter', async () => await page.locator(`${STAGE} [data-pact-cta][data-pact-ready]`).count() > 0, {tries: 3, settleMs: 700}),
+      await expect(page.locator(`${STAGE} [data-seeded="sole"]`), 'the sole holder, seeded').toHaveCount(1);
+      await expect(page.locator(`${STAGE} [data-seeded-mark]`).first(), 'and marked').toBeAttached();
+      expect(await pressUntil(page, 'Enter', async () => await page.locator(READY).count() > 0, {tries: 3, settleMs: 700}),
         'the card is chosen: the commit is ready').toBeTruthy();
 
       // ── ③ THE COMMIT: the token is born on the law's face and lands ON the card (never the satellite under the glass).

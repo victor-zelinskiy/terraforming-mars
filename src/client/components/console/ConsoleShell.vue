@@ -2131,7 +2131,7 @@ import {deferredDiscardKey, freshCardsForDeferredDiscard} from '@/client/console
 import {consoleRepeatPickState, cancelConsoleRepeatPick, enterConsoleRepeatPick, resetConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {
   beginLawPlayLanding, clearLawPlayDraft, consolePlayPickState, cancelConsolePlayPick, endLawPlayLanding, lawPlayLandingOf, lawPlayStagedDoor,
-  resetConsolePlayPick, resolveConsolePlayPick,
+  resetConsolePlayPick, resolveConsolePlayPick, type LawPlayDetail,
 } from '@/client/console/consolePlayPick';
 import {resolutionTileKey} from '@/client/console/parliament/partyActionKey';
 import {hydroAdvanceBatch, hydroAdvanceResponses, hydroAdvanceTail, HydroAdvancePayload} from '@/client/console/consoleHydroAdvance';
@@ -8238,6 +8238,10 @@ export default defineComponent({
       if (lawPlayLandingOf() !== undefined && workspaceFrameMounted('card-actions')) {
         return true;
       }
+      // …and the LAW'S LIVE PLAY composed in the card composer («один фреймворк»): the card pick the bill raised.
+      if (this.lawLivePlayStepOwed) {
+        return true;
+      }
       const flow = consoleCardActionsUi.partyFlow;
       if (flow === undefined) {
         return false;
@@ -8308,8 +8312,12 @@ export default defineComponent({
     lawLivePlayStepOwed(): boolean {
       const flow = consoleCardActionsUi.partyFlow;
       const play = resolutionPlayOf(this.playerView.waitingFor);
-      return flow !== undefined && flow.resolution !== undefined && play !== undefined && play.resolution === flow.resolution &&
-        workspaceFrameMounted('card-actions');
+      if (play === undefined || !workspaceFrameMounted('card-actions')) {
+        return false;
+      }
+      // The legacy record, or — the card composer («один фреймворк») — the descent the workspace carries is the law's.
+      return (flow !== undefined && flow.resolution === play.resolution) ||
+        consoleCardActionsUi.draft?.cardName === resolutionTileKey(play.resolution);
     },
     /** The crumb tail an OWED step already carries (see `followUpStepOwed`). */
     followUpStepStageKey(): string {
@@ -17084,55 +17092,7 @@ export default defineComponent({
      * (the Reds' draw presents as the ordinary reveal once the flow has left).
      */
     onCardActionsSubmitParty(response: InputResponse | ReadonlyArray<InputResponse>, detail?: PartyConfirmDetail): void {
-      // A LAW THAT PLAYS A CARD (RX36 Live Experiments): the card LEAVES FROM THE SLOT it stands in on the law's stage
-      // and lands as any play does — the scene armed before the batch, on the composer's own promise (its gains, its
-      // rail half, the table's answer, its price paid with card resources). No visual success before the server's word.
-      const play = detail?.play;
-      if (play !== undefined && !isPlayedHeroActive()) {
-        const isEvent = getCard(play.cardName)?.type === CardType.EVENT;
-        // THE LAW'S PRICE IS A DEPARTURE OF ITS OWN (PL-725): one answer charges the law's 6 M€ and the card's price,
-        // and one «−17» told neither. The law's token leaves the rail FIRST, into the printed cost on the law's face (the
-        // stage's hero); the card's price is then the commit's ordinary chip at the landing. Every other check of the
-        // scene that reads the M€ row counts the law's price as a known move of the same answer.
-        const billMc = detail?.lawBill?.megacredits ?? 0;
-        const mcRow = railRowKey({channel: 'stock', resource: 'megacredits'});
-        const withBill = (reward: RailReward | undefined): RailReward | undefined => reward === undefined || billMc <= 0 ? reward :
-          {...reward, known: {...(reward.known ?? {}), [mcRow]: (reward.known?.[mcRow] ?? 0) - billMc}};
-        const billKnown: Record<string, number> = {...(play.scene.known ?? {})};
-        // The table's answer on the rail (the ruling party's M€) rides the same response — a known move of the bill too.
-        for (const spec of play.scene.rail?.reactions ?? []) {
-          if (spec.channel === 'stock') {
-            const row = railRowKey(spec);
-            billKnown[row] = (billKnown[row] ?? 0) + (spec.direction === 'loss' ? -spec.amount : spec.amount);
-          }
-        }
-        // THE CARD LANDS IN THE LAW'S STAGE (PL-726): the scene's `workspace` host — the stage's decision column becomes
-        // the receiving stage, the workspace folds only once the scene has told its story (`lawPlayFoldOwed`). A table the
-        // player had open by hand keeps the classic scenery.
-        const inStage = workspaceFrameMounted('card-actions') && !this.playedOpen && detail?.lawBill !== undefined;
-        if (inStage && detail?.lawBill !== undefined) {
-          beginLawPlayLanding({card: play.cardName, resolution: detail.lawBill.resolution});
-        }
-        armPlayedHero(play.cardName, isEvent, {
-          manualTableOpen: this.playedOpen,
-          sourceSelector: '[data-pact-play-face]',
-          rewards: play.scene.rewards,
-          reactions: play.scene.reactions,
-          rail: withBill(play.scene.rail),
-          spends: withBill(play.scene.spends),
-          targetSpends: play.scene.targetSpends,
-          price: playCardPriceReward(play.payment, [...(play.scene.rewards ?? []), ...(play.scene.reactions ?? []).map((r) => r.spec)]),
-          ...(billMc > 0 ? {
-            bill: {
-              reward: {cause: [{channel: 'stock', resource: 'megacredits', amount: billMc, direction: 'loss'}], reactions: [], known: billKnown},
-              targetSelector: '.con-pact--resolution .con-pact__hero',
-            },
-          } : {}),
-          host: inStage ? 'workspace' : 'overlay',
-          sourceFace: {lightweight: true},
-          landingFace: {lightweight: true, model: 'tableau'},
-        });
-      }
+      this.armLawPlayLanding(detail);
       // A BATCH when the commit carries more than its own answer: an enacted
       // resolution's repeat takes the copied action's composed pre-selects
       // with it (`[<the menu branch's card pick>, ...the copy's own answers]`),
@@ -17161,7 +17121,63 @@ export default defineComponent({
         }
       }, AWAITING_SAFETY_MS + 500);
     },
-    onCardActionsSubmitBatch(responses: ReadonlyArray<unknown>): void {
+    /**
+     * A LAW THAT PLAYS A CARD (RX36 Live Experiments): the card LEAVES FROM THE SLOT it stands in on the law's stage
+     * and lands as any play does — the scene armed before the batch, on the composer's own promise (its gains, its
+     * rail half, the table's answer, its price paid with card resources). No visual success before the server's word.
+     * Asked by every road a law's commit takes (the card composer's `submit-batch` — «один фреймворк»).
+     */
+    armLawPlayLanding(detail: LawPlayDetail | undefined): void {
+      const play = detail?.play;
+      if (play !== undefined && !isPlayedHeroActive()) {
+        const isEvent = getCard(play.cardName)?.type === CardType.EVENT;
+        // THE LAW'S PRICE IS A DEPARTURE OF ITS OWN (PL-725): one answer charges the law's 6 M€ and the card's price,
+        // and one «−17» told neither. The law's token leaves the rail FIRST, into the printed cost on the law's face (the
+        // stage's hero); the card's price is then the commit's ordinary chip at the landing. Every other check of the
+        // scene that reads the M€ row counts the law's price as a known move of the same answer.
+        const billMc = detail?.lawBill?.megacredits ?? 0;
+        const mcRow = railRowKey({channel: 'stock', resource: 'megacredits'});
+        const withBill = (reward: RailReward | undefined): RailReward | undefined => reward === undefined || billMc <= 0 ? reward :
+          {...reward, known: {...(reward.known ?? {}), [mcRow]: (reward.known?.[mcRow] ?? 0) - billMc}};
+        const billKnown: Record<string, number> = {...(play.scene.known ?? {})};
+        // The table's answer on the rail (the ruling party's M€) rides the same response — a known move of the bill too.
+        for (const spec of play.scene.rail?.reactions ?? []) {
+          if (spec.channel === 'stock') {
+            const row = railRowKey(spec);
+            billKnown[row] = (billKnown[row] ?? 0) + (spec.direction === 'loss' ? -spec.amount : spec.amount);
+          }
+        }
+        // THE CARD LANDS IN THE LAW'S STAGE (PL-726): the scene's `workspace` host — the stage's decision column becomes
+        // the receiving stage, the workspace folds only once the scene has told its story (`lawPlayFoldOwed`). A table the
+        // player had open by hand keeps the classic scenery.
+        const inStage = workspaceFrameMounted('card-actions') && !this.playedOpen && detail?.lawBill !== undefined;
+        if (inStage && detail?.lawBill !== undefined) {
+          beginLawPlayLanding({card: play.cardName, resolution: detail.lawBill.resolution});
+        }
+        armPlayedHero(play.cardName, isEvent, {
+          manualTableOpen: this.playedOpen,
+          sourceSelector: '[data-law-play-face], [data-pact-play-face]',
+          rewards: play.scene.rewards,
+          reactions: play.scene.reactions,
+          rail: withBill(play.scene.rail),
+          spends: withBill(play.scene.spends),
+          targetSpends: play.scene.targetSpends,
+          price: playCardPriceReward(play.payment, [...(play.scene.rewards ?? []), ...(play.scene.reactions ?? []).map((r) => r.spec)]),
+          ...(billMc > 0 ? {
+            bill: {
+              reward: {cause: [{channel: 'stock', resource: 'megacredits', amount: billMc, direction: 'loss'}], reactions: [], known: billKnown},
+              targetSelector: '.con-cardactions .con-composer__actlaw, .con-pact--resolution .con-pact__hero',
+            },
+          } : {}),
+          host: inStage ? 'workspace' : 'overlay',
+          sourceFace: {lightweight: true},
+          landingFace: {lightweight: true, model: 'tableau'},
+        });
+      }
+    },
+    onCardActionsSubmitBatch(responses: ReadonlyArray<unknown>, lawPlay?: LawPlayDetail): void {
+      // A LAW'S PLAY (RX36) composed in the card composer: its card's landing is armed before the batch.
+      this.armLawPlayLanding(lawPlay);
       // A DEPLOY (Modular Floodgates variant B) in the batch: remember whom,
       // so the flow's completion opens the Hydronetwork execution surface
       // instead of concluding to the board. A refused batch never completes,
@@ -22586,7 +22602,7 @@ export default defineComponent({
      * cell on the board (the stage steps aside), the delegate or the colony as a step INSIDE the law's stage. That
      * door's confirm is the one POST of the law's batch; B walks back to the law's stage with its slot as it was.
      */
-    onCardActionsStagedLawPlay(response: InputResponse | ReadonlyArray<InputResponse>, detail?: PartyConfirmDetail): void {
+    onCardActionsStagedLawPlay(response: InputResponse | ReadonlyArray<InputResponse> | ReadonlyArray<unknown>, detail?: LawPlayDetail): void {
       const play = detail?.play;
       const law = detail?.lawBill;
       const door = lawPlayStagedDoor(play);
@@ -22640,7 +22656,7 @@ export default defineComponent({
       armPlayedHero(arm.cardName, arm.isEvent, {
         manualTableOpen: this.playedOpen,
         host: 'workspace',
-        sourceSelector: '[data-pact-play-face]',
+        sourceSelector: '[data-law-play-face], [data-pact-play-face]',
         sourceFace: {lightweight: true},
         // No reveal happens here (the proxy IS the landed card until the door takes over).
         landingFace: {lightweight: true, model: 'none'},

@@ -15,14 +15,15 @@ import {openColoniesSection} from './cardTradeDoor';
  *     tile prints the PRICE FOR THIS SEAT — the server's own chip, the discount
  *     taken (12 − 4 at influence 2 → 8), the influence and the discount as its
  *     basis, «можно титаном» as its note;
- *   · A opens the law's stage: the law's FACE is the hero, there is no pick
- *     and no hand — the stage states the price and its arithmetic
- *     («ДЕЙСТВИЯ КАРТ › ТОРГОВАЯ ИНДУСТРИЯ › НАСТРОЙКА»), A is «Купить флот»;
- *   · the answer raises the BILL, and the bill is the NEXT STAGE of the same
- *     flow («› ОПЛАТА»): the payment host stands INSIDE the stage, with a
- *     titanium lane the player can dial; nothing is granted yet;
- *   · one titanium in, A settles the bill: the fleet arrives (1 → 2), the
- *     stage reads it for a beat, and the flow LEAVES;
+ *   · A opens THE card composer («один фреймворк», С4): the law's FACE is the
+ *     hero, there is no pick and no hand — the formula states the price and
+ *     the fleet it buys (1 → 2) («ДЕЙСТВИЯ КАРТ › ТОРГОВАЯ ИНДУСТРИЯ ›
+ *     НАСТРОЙКА»);
+ *   · the BILL is a step of the composer — the ONE payment panel, collected
+ *     BEFORE the commit, with a titanium lane the player can dial;
+ *   · A commits ONE POST (the option and the bill's payment): the fleet
+ *     arrives (1 → 2) and the flow LEAVES — the server never stands on the
+ *     bill;
  *   · the server agrees: the fleet is 2, the use is spent, the titanium left
  *     the supply; the colonies screen shows the second ship; the menu lists
  *     the law's tile as ACTIVATED.
@@ -83,7 +84,7 @@ test.afterEach(async ({page}, testInfo) => {
   const evidence = await page.evaluate(() => {
     const w = window as unknown as {__conReady?: () => unknown};
     return {ready: w.__conReady?.(), taskHosts: document.querySelectorAll('.con-task-host').length,
-      bill: document.querySelector('[data-pact-bill]') !== null, phase: document.querySelector('.con-pact--resolution')?.getAttribute('data-pact-phase')};
+      composer: document.querySelector('.con-cardactions .con-composer')?.getAttribute('data-composer-source') ?? null};
   }).catch(() => undefined);
   if (evidence !== undefined) {
     const file = testInfo.outputPath('tradeind-evidence.json');
@@ -122,31 +123,22 @@ test.describe(`Trade Industries · ${PRESET.id}`, () => {
       let last = '';
       const sample = () => {
         w.__fleetProbe.samples++;
-        const pact = document.querySelector('.con-pact--resolution');
+        const composer = document.querySelector('.con-cardactions .con-composer');
         const state = [
           document.querySelector('.con-cardactions') !== null ? 'ws' : '-',
-          pact === null ? 'nopact' : `pact:${pact.getAttribute('data-pact-phase')}`,
-          document.querySelector('[data-pact-bill]') !== null ? 'bill' : '-',
-          document.querySelector('[data-pact-result-fleet]') !== null ? 'RESULT' : '-',
+          composer === null ? 'nocomposer' : `composer:${composer.getAttribute('data-composer-source')}`,
           document.querySelectorAll('.con-task-host').length + 'host',
-          JSON.stringify((window as unknown as {__conReady?: () => {partyFlow?: unknown}}).__conReady?.()?.partyFlow),
           Array.from(document.querySelectorAll('.con-wshead')).map((h) => (h.textContent ?? '').replace(/\s+/g, ' ').trim()).join('|'),
         ].join(' ');
         if (state !== last) {
           last = state;
           w.__fleetProbe.timeline.push(`${Math.round(performance.now())} ${state}`);
         }
-        if (w.__fleetProbe.seenAt !== 0) {
-          return;
+        // A standalone payment band would be the bill asked AFTER the press — never in the one framework.
+        if (w.__fleetProbe.seenAt === 0 && document.querySelector('.con-task-host:not(.con-task-host--embedded)') !== null) {
+          w.__fleetProbe.seenAt = Math.round(performance.now());
+          w.__fleetProbe.crumb = Array.from(document.querySelectorAll('.con-wshead')).map((h) => h.textContent ?? '').join(' | ');
         }
-        const el = document.querySelector('[data-pact-result-fleet]');
-        if (el === null) {
-          return;
-        }
-        w.__fleetProbe.seenAt = Math.round(performance.now());
-        w.__fleetProbe.to = document.querySelector('[data-pact-fleet-to]')?.textContent?.trim() ?? '';
-        w.__fleetProbe.wsUp = document.querySelector('.con-cardactions') !== null;
-        w.__fleetProbe.crumb = Array.from(document.querySelectorAll('.con-wshead')).map((h) => h.textContent ?? '').join(' | ');
       };
       new MutationObserver(sample).observe(document.body, {childList: true, subtree: true, characterData: true, attributes: true});
       setInterval(sample, 40);
@@ -166,44 +158,35 @@ test.describe(`Trade Industries · ${PRESET.id}`, () => {
     await shoot(page, '01-action-menu-price');
 
     // ── ② THE PRICE STAGE: the law's face is the hero, no pick, no hand — the price and its arithmetic, A is the verb.
-    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-pact--resolution').count() > 0, {tries: 3, settleMs: 1100}),
-      'A opens the law\'s stage').toBeTruthy();
-    await expect(page.locator('.con-pact--resolution [data-pact-price]'), 'the price row').toHaveCount(1, {timeout: 20_000});
-    await expect(page.locator('.con-pact--resolution .con-pact__handzone'), 'no hand step — nothing is picked').toHaveCount(0);
-    await expect(page.locator('.con-pact--resolution [data-pact-repeat-slot]'), 'no repeat slot either').toHaveCount(0);
-    await expect(page.locator('.con-pact--resolution .con-pact__hero--bill .pcard'), 'the law\'s face is the hero').toBeVisible();
+    const STAGE = `.con-cardactions .con-composer[data-composer-source="law:${LAW}"]`;
+    expect(await pressUntil(page, 'Enter', async () => await page.locator(STAGE).count() > 0, {tries: 3, settleMs: 1100}),
+      'A opens the law\'s composer').toBeTruthy();
+    await expect(page.locator(`${STAGE} .con-composer__actlaw .pcard`), 'the law\'s face is the hero').toBeVisible({timeout: 20_000});
+    await expect(page.locator('.con-cardactions .con-hand'), 'no hand step — nothing is picked').toHaveCount(0);
+    await expect(page.locator(`${STAGE} [data-composer-repeat-slot]`), 'no repeat slot either').toHaveCount(0);
     await settle(page, {timeoutMs: 15_000});
-    const line = (await page.locator('[data-pact-price-line]').textContent() ?? '').replace(/\s+/g, ' ');
-    expect(line, `the arithmetic line names the price, the printed sum, the discount and the influence (${line})`).toMatch(/8/);
-    expect(line).toMatch(/12/);
-    expect(line).toMatch(/4/);
+    const formula = (await page.locator(STAGE).textContent() ?? '').replace(/\s+/g, ' ');
+    expect(formula, `the formula names the discounted price (${formula})`).toMatch(/8/);
+    expect(formula, `and the fleet it buys, 1 → 2 (${formula})`).toMatch(/1\s*→\s*2/);
     let crumb = (await crumbText(page)).toUpperCase();
     expect(crumb, `one crumb: the menu, the law, the stage (${crumb})`).toContain('ДЕЙСТВИЯ КАРТ');
     expect(crumb).toContain('ТОРГОВАЯ ИНДУСТРИЯ');
-    await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'a confirm is ready by standing').toHaveCount(1);
-    await expect(page.locator('[data-pact-cta] .con-pact__cta-label'), 'the server\'s own verb').toHaveText(/Купить флот/i);
     await shoot(page, '02-price-stage');
 
     // ── ③ A COMMITS — and the answer is the BILL, hosted INSIDE the stage as its next stage; nothing granted yet.
-    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-pact--resolution [data-pact-bill]').count() > 0, {tries: 3, settleMs: 1200}),
-      'the confirm raises the bill in the stage').toBeTruthy();
-    const host = page.locator('.con-pact--resolution [data-embed-slot="action-bill"] .con-task-host');
-    await expect(host, 'the payment host stands INSIDE the stage').toHaveCount(1, {timeout: 20_000});
+    // THE BILL is a step of the composer — the ONE payment panel, collected BEFORE the commit.
+    const titaniumLane = page.locator(`${STAGE} .con-payrow[data-pay-unit="titanium"]`);
+    await expect(titaniumLane, 'the titanium lane is offered in the composer\'s payment panel').toHaveCount(1, {timeout: 20_000});
     await expect(page.locator('.con-task-host:not(.con-task-host--embedded)'), 'never a standalone payment band').toHaveCount(0);
-    const titaniumLane = host.locator('.con-payrow[data-pay-unit="titanium"]');
-    await expect(titaniumLane, 'the titanium lane is offered').toHaveCount(1);
-    await settle(page, {timeoutMs: 15_000});
-    crumb = (await crumbText(page)).toUpperCase();
-    expect(crumb, `the crumb only gained a tail (${crumb})`).toContain('ТОРГОВАЯ ИНДУСТРИЯ');
-    expect(crumb).toContain('ОПЛАТА');
     const mid = await wireOf(request, playerId);
-    expect(mid.waitingFor?.type, 'the server waits on the bill').toBe('payment');
-    expect(mid.waitingFor?.resolutionActionPrompt, 'stamped with the law\'s marker at stage pay').toMatchObject({resolution: LAW, stage: 'pay'});
-    expect(mid.thisPlayer.fleetSize, 'NOTHING is granted before the bill is settled').toBe(1);
+    expect(mid.thisPlayer.fleetSize, 'NOTHING is granted before the commit').toBe(1);
     expect(mid.game.parliament?.viewer?.resolutionAction?.usesLeft, 'and the use is not spent').toBe(1);
-    // Dial ONE titanium into the bill (RB on the focused lane), then settle it with A.
-    expect(await pressUntil(page, 'KeyE', async () => (await titaniumLane.getAttribute('class') ?? '').includes('con-payrow--live'), {tries: 3, settleMs: 500}),
-      'RB puts one titanium into the bill').toBeTruthy();
+    // Dial ONE titanium into the bill (RB on the lone payment dial) — the panel may already cover it by default.
+    if (!(await titaniumLane.getAttribute('class') ?? '').includes('con-payrow--live')) {
+      expect(await pressUntil(page, 'KeyE', async () => (await titaniumLane.getAttribute('class') ?? '').includes('con-payrow--live'), {tries: 3, settleMs: 500}),
+        'RB puts one titanium into the bill').toBeTruthy();
+    }
+    await expect(page.locator(`${STAGE} .con-composer__cta--ready`), 'the commit is ready with the bill paid').toHaveCount(1);
     await shoot(page, '03-bill-with-titanium');
 
     // ── ④ THE CLOSING BEAT reads the fleet (1 → 2) INSIDE the stage, then the flow LEAVES on its own.
@@ -211,23 +194,13 @@ test.describe(`Trade Industries · ${PRESET.id}`, () => {
     //    answer — so the witness is armed BEFORE the press (MutationObserver + setInterval, never rAF) and
     //    read from its samples: the stage must be seen reading «1 → 2» while the workspace still stands.
     const readProbe = () => page.evaluate(() => (window as unknown as {__fleetProbe: {seenAt: number, to: string, wsUp: boolean, crumb: string, samples: number, timeline: Array<string>}}).__fleetProbe);
-    await press(page, 'Enter', 250);
-    // Best effort — the beat may still be on screen for the frame.
-    if (await page.locator('[data-pact-result-fleet]').count() > 0) {
-      await shoot(page, '04-fleet-result');
-    }
-    await expect.poll(async () => (await wireOf(request, playerId)).thisPlayer.fleetSize, {timeout: 30_000, message: 'A settles the bill and the fleet arrives'}).toBe(2);
-    const seen = await expect.poll(async () => (await readProbe()).seenAt, {timeout: 15_000, message: 'the stage read the fleet that arrived'}).toBeGreaterThan(0)
-      .then(() => true, () => false);
-    if (!seen) {
-      const failed = await readProbe();
-      throw new Error(`the stage never read the fleet that arrived — timeline:\n${failed.timeline.join('\n')}\nconsole:\n${pageLogs.slice(-60).join('\n')}`);
-    }
+    expect(await pressUntil(page, 'Enter', async () => (await wireOf(request, playerId)).thisPlayer.fleetSize === 2, {tries: 3, settleMs: 2500}),
+      'A commits ONE POST — the option and the bill — and the fleet arrives').toBeTruthy();
+    await shoot(page, '04-fleet-committed');
     const probe = await readProbe();
-    expect(probe.to, 'the reading names the count after').toBe('2');
-    expect(probe.wsUp, 'read INSIDE the workspace, before the flow left').toBe(true);
-    expect(probe.crumb.toUpperCase(), `the crumb still named the law at the reading (${probe.crumb})`).toContain('ТОРГОВАЯ ИНДУСТРИЯ');
+    expect(probe.seenAt, `the bill was never asked after the press (timeline:\n${probe.timeline.join('\n')}\nconsole:\n${pageLogs.slice(-60).join('\n')})`).toBe(0);
     expect(probe.samples, 'the probe was alive').toBeGreaterThan(5);
+    crumb = (await crumbText(page)).toUpperCase();
     await waitForBoardHome(page, 40);
     await expect(page.locator('.con-cardactions'), 'a finished flow leaves the workspace').toHaveCount(0);
     await settle(page, {timeoutMs: 20_000});

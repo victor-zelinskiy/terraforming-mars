@@ -475,16 +475,46 @@
                 <div v-if="repeatPickDisabled" class="con-composer__row-value">
                   <span class="con-composer__row-empty">↳ {{ $t('The action to repeat is chosen after confirming') }}</span>
                 </div>
-                <div v-else-if="repeatResult !== undefined" class="con-composer__repeatpick">
+                <div v-else-if="repeatResult !== undefined" class="con-composer__repeatpick" data-composer-repeat-slot>
                   <div class="con-composer__repeatpick-graphic card-container" v-i18n v-strip-action-prefix>
                     <CardRenderEffectBoxComponent v-if="repeatNode !== undefined && repeatNode.actionNode !== undefined" :effectData="repeatNode.actionNode" />
                     <CardRenderData v-else-if="repeatNode !== undefined && repeatNode.renderRoot !== undefined" :renderData="repeatNode.renderRoot" />
                     <span v-else class="con-composer__graphic-text">{{ repeatNode !== undefined ? repeatNode.text : '' }}</span>
                   </div>
-                  <span class="con-composer__repeatpick-name">{{ $t(repeatResult.chosenCard) }}</span>
+                  <span class="con-composer__repeatpick-name" data-composer-repeat-name>{{ $t(repeatResult.chosenCard) }}</span>
                 </div>
-                <div v-else class="con-composer__row-value">
+                <div v-else class="con-composer__row-value" data-composer-repeat-slot>
                   <span class="con-composer__row-empty">{{ $t('Choose an action to repeat') }}…</span>
+                </div>
+              </template>
+              <!-- A LAW THAT PLAYS A CARD (RX36 Live Experiments): the decision is a SLOT — «which card, and how» is
+                   answered by the hand album with the play composer one level deeper (`consolePlayPick`), hosted as a
+                   step of this stage; the composed card stands here with its price and rides THIS commit. -->
+              <template v-else-if="item.choice.kind === 'lawPlay'">
+                <div class="con-composer__row-label">{{ $t('Card') }}</div>
+                <div class="con-composer__playslot" :class="{'con-composer__playslot--filled': lawPlayResultOf(item.choice) !== undefined}"
+                     data-law-play-slot :data-law-play-card="lawPlayResultOf(item.choice)?.cardName">
+                  <template v-if="lawPlayResultOf(item.choice) !== undefined">
+                    <span class="con-composer__playslot-face" data-law-play-face :data-zoom-slot="lawPlayResultOf(item.choice)?.cardName">
+                      <ConsoleCardFaceLite :name="lawPlayResultOf(item.choice)!.cardName" :card="lawPlayCardModel(item.choice)" :lightweight="true" />
+                    </span>
+                    <span class="con-composer__playslot-read">
+                      <b class="con-composer__playslot-name" data-law-play-name>{{ $t(lawPlayResultOf(item.choice)!.cardName) }}</b>
+                      <span class="con-composer__playslot-cost"><ActionEffectChip :effect="lawPlayCostChip(item.choice)" /></span>
+                      <span v-if="lawPlayOpenedByLaw(item.choice)" class="con-composer__playslot-eased" data-law-play-eased>✓ {{ lawPlayThanksText }}</span>
+                      <span class="con-composer__playslot-total" data-law-play-total>{{ lawPlayTotalLine(item.choice) }}</span>
+                    </span>
+                  </template>
+                  <!-- EMPTY: the card's PLACE already stands (a card-shaped socket at the face's own size), so filling
+                       the slot swaps what stands in it and moves nothing. -->
+                  <template v-else>
+                    <span class="con-composer__playslot-socket" aria-hidden="true">
+                      <span class="con-composer__playslot-socket-icon resource_icon resource_icon--cards"></span>
+                    </span>
+                    <span class="con-composer__playslot-read">
+                      <span class="con-composer__row-empty">{{ $t('Choose a card from your hand to play') }}…</span>
+                    </span>
+                  </template>
                 </div>
               </template>
               <template v-else-if="item.choice.kind === 'amount'">
@@ -794,6 +824,12 @@
            `action-hand`), never a swap of the column. A layer stack in ONE cell: a departing step paints through
            its leave beside the returning ledger. Always rendered (empty and inert outside a step), so a step always
            has its zone before its teleport looks for it. ── -->
+      <!-- ── A LAW'S CARD LANDS IN THIS STAGE (RX36, PL-726): past the commit the decision column IS the receiving
+           tableau — the hand composer's own stage (`ConsolePlayedReceivingStage`) as a LAYER over the column, mounted
+           in the hidden prewarm window and shown from the card's lift to the workspace's leave. ── -->
+      <div v-if="lawLandingMounted" class="con-composer__playstage" :class="{'con-composer__playstage--up': lawLandingUp}" data-law-landing>
+        <ConsolePlayedReceivingStage :playerView="playerView" />
+      </div>
       <div class="con-composer__ledgerzone" :class="{'con-composer__ledgerzone--on': ledgerStepOn}" data-colony-ledger-zone>
         <div v-if="ledgerPaying" v-embed-zone class="con-composer__ledgerlayer con-composer__revealzone con-composer__revealzone--draw"
              data-outcome-zone data-embed-slot="workspace-reveal"></div>
@@ -928,6 +964,7 @@ import {
   ComposerChoice,
   branchChoices,
   composeAndResponse,
+  perCardTotals,
   preChoices,
   firstMissingChoice,
   spendHeatPlan,
@@ -997,6 +1034,7 @@ import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
 import {ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, centreEndOf, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconEnds, resolveResultIcon, resolveSpendIconEnds, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
 import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {gsap} from 'gsap';
+import {motionMs} from '@/client/components/motion/motionTokens';
 import {vueRoot} from '@/client/components/vueRoot';
 import ConsoleColonyLedger from '@/client/components/console/parliament/ConsoleColonyLedger.vue';
 import {cardColonyLedgerOf, COLONY_LEDGER_KICKER, ColonyLedgerReading} from '@/client/console/parliament/colonyLedgerModel';
@@ -1054,6 +1092,11 @@ import {isSurfaceAwaitingHandoff} from '@/client/console/surfaceMotion/surfaceMo
 import {enterConsoleHandPick, isHandCardSelection, isCardSelectionWithin} from '@/client/console/consoleHandPick';
 import {orOptionDoor} from '@/client/console/handPickRouting';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
+import {ConsolePlayPickResult, enterConsolePlayPick, lawPlayDraftOf, lawPlayLandingOf, lawPlayStagedDoor, rememberLawPlay} from '@/client/console/consolePlayPick';
+import {playedHeroLandingPrewarm, playedHeroLandingUp, playedHeroState} from '@/client/console/played/consolePlayedHero';
+import ConsolePlayedReceivingStage from '@/client/components/console/played/ConsolePlayedReceivingStage.vue';
+import {EASING_KEYS} from '@/client/console/requirementEasingText';
+import type {SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import {
   DeltaRewardDraft, deltaRewardCommitSpecs, deltaRewardDraftOf, deltaRewardPreviewView,
   deltaRewardStepResponse, enterDeltaRewardPick,
@@ -1252,7 +1295,7 @@ const WORKSPACE_REVEAL_ZONE = '[data-embed-slot="workspace-reveal"]';
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ConsoleVariantChoice, ConsoleDeclinePlate, ConsoleColonyLedger, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, PremiumPartyRequirementGlyph, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsoleAmountOperation, ConsolePartyPlaque, PremiumCard},
+  components: {ConsoleVariantChoice, ConsoleDeclinePlate, ConsoleColonyLedger, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, PremiumPartyRequirementGlyph, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsoleAmountOperation, ConsolePartyPlaque, PremiumCard, ConsolePlayedReceivingStage},
   directives: {embedZone: vEmbedZone, stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -1304,7 +1347,7 @@ export default defineComponent({
      */
     repeatPickDisabled: {type: Boolean, default: false},
   },
-  emits: ['confirm', 'committing', 'staged-placement', 'staged-vote', 'colony-trade', 'delta-advance', 'cancel', 'inspect-source', 'reveal-ack', 'commands', 'ledger-done'],
+  emits: ['confirm', 'committing', 'staged-placement', 'staged-vote', 'staged-law-play', 'colony-trade', 'delta-advance', 'cancel', 'inspect-source', 'reveal-ack', 'commands', 'ledger-done'],
   data() {
     return {
       /** The decision column that stops re-centring once the player presses (`settledColumn.ts`). */
@@ -1334,6 +1377,8 @@ export default defineComponent({
       capturedOption: undefined as unknown,
       /** A TWO-PART option's answered parts, by part index — `capturedOption` is their composed `and` once all stand. */
       capturedOptionParts: {} as Record<number, unknown>,
+      /** A LAW's card landing in this stage rose (RX36): the receiving stage stays standing to the workspace's leave. */
+      lawLandingLatched: false,
       captured: {} as Record<number, unknown>,
       /** The live ACTION COMMIT episode (killed on unmount / rollback). */
       commitHandle: undefined as ActionCommitMotionHandle | undefined,
@@ -1868,7 +1913,7 @@ export default defineComponent({
       // Every NON-repeat input step must be captured (the repeat step rides the
       // `repeat` payload, so it is never a plain captured step).
       return branch.steps.every((step, i) =>
-        step.kind !== 'input' || step.repeatAction === true || this.captured[i] !== undefined);
+        (step.kind !== 'input' && step.kind !== 'lawPlay') || (step.kind === 'input' && step.repeatAction === true) || this.captured[i] !== undefined);
     },
     /**
      * The hero card's LIVE model, carrying the count the player should SEE.
@@ -1913,6 +1958,39 @@ export default defineComponent({
       const political = this.politicalEntry;
       const law = political?.source.kind === 'law' ? getResolution(political.source.resolution) : undefined;
       return law === undefined ? undefined : resolutionPremiumVm(law);
+    },
+    /** The law's printed name (an i18n key) — a political source that is a LAW names itself by it; `undefined` otherwise. */
+    lawNameKey(): string | undefined {
+      const political = this.politicalEntry;
+      return political?.source.kind === 'law' ? getResolution(political.source.resolution)?.text.name : undefined;
+    },
+    /** A LAW's card is landing in THIS stage (RX36, PL-726) — the shell armed the scene's `workspace` host. */
+    lawLanding(): boolean {
+      const law = this.politicalEntry?.source.kind === 'law' ? this.politicalEntry.source.resolution : undefined;
+      return law !== undefined && lawPlayLandingOf(law) !== undefined && playedHeroState.host === 'workspace';
+    },
+    /** The receiving stage is MOUNTED — the hidden prewarm window included (after A nothing heavy happens first). */
+    lawLandingMounted(): boolean {
+      return this.lawLandingLatched || (this.lawLanding && (playedHeroLandingPrewarm() || playedHeroLandingUp()));
+    },
+    /** The receiving stage is ON SCREEN — from the card's lift to the workspace's leave. */
+    lawLandingUp(): boolean {
+      return this.lawLandingLatched || (this.lawLanding && playedHeroLandingUp());
+    },
+    /** A STAGED door of THIS law's play stands as a step INSIDE this stage — the Parliament (a delegate) or the colonies. */
+    lawStepHosted(): boolean {
+      return this.lawNameKey !== undefined && this.publishCommands &&
+        (workspaceFrameHost('parliament') === 'card-actions' || workspaceFrameHost('colonies') === 'card-actions');
+    },
+    /** «✓ благодаря: <закон>» — the law's printed name through the class's one key. */
+    lawPlayThanksText(): string {
+      return this.lawNameKey === undefined ? '' : translateTextWithParams(EASING_KEYS.thanksTo, [translateText(this.lawNameKey)]);
+    },
+    /** The composed play standing in the selected branch's law play slot (RX36), or `undefined`. */
+    lawPlayCaptured(): ConsolePlayPickResult | undefined {
+      const branch = this.selectedBranch;
+      const at = branch?.steps.findIndex((s) => s.kind === 'lawPlay') ?? -1;
+      return at < 0 ? undefined : this.captured[at] as ConsolePlayPickResult | undefined;
     },
     heroCardModel(): CardModel | undefined {
       const model = this.heroCardName === undefined ? undefined : this.thisPlayer.tableau.find((c) => c.name === this.heroCardName);
@@ -2246,8 +2324,13 @@ export default defineComponent({
     heroTimeline(): {effect: ActionEffect, moves: ReadonlyArray<number>, parts: ReadonlyArray<ActionEffect>} | undefined {
       return capsuleTimelineReading(this.selectedBranch);
     },
-    heroCost(): ReadonlyArray<ActionEffect> {
+    /** The selected branch as the formula and the commit read it — a RATE «per card» summed over the pick (RX24). */
+    totalsBranch(): ActionPreviewBranch | undefined {
       const branch = this.selectedBranch;
+      return branch === undefined ? undefined : perCardTotals(branch, this.capturedOption);
+    },
+    heroCost(): ReadonlyArray<ActionEffect> {
+      const branch = this.totalsBranch;
       if (branch === undefined) {
         return this.commonCost;
       }
@@ -2264,7 +2347,7 @@ export default defineComponent({
       return out;
     },
     heroGain(): ReadonlyArray<ActionEffect> {
-      const branch = this.selectedBranch;
+      const branch = this.totalsBranch;
       if (branch === undefined) {
         // The good every price buys is the action's: «Вы получите» states it before a price is chosen (TR58).
         return this.commonGain;
@@ -3025,6 +3108,31 @@ export default defineComponent({
     },
   },
   watch: {
+    /** THE LAW'S CARD ROSE (RX36): the decision column lets go in place under the receiving stage — the stage stands. */
+    lawLandingUp(now: boolean): void {
+      if (!now || this.lawLandingLatched) {
+        return;
+      }
+      this.lawLandingLatched = true;
+      const surface = this.$refs.surfaceEl as HTMLElement | undefined;
+      if (surface !== undefined) {
+        gsap.killTweensOf(surface);
+        gsap.to(surface, {autoAlpha: 0, duration: motionMs(110) / 1000, ease: 'power1.in'});
+      }
+    },
+    /** The scene was refused before it ever rose (the shell drops the landing on `failed`): the setup stands again. */
+    lawLanding(now: boolean, was: boolean): void {
+      if (was && !now && playedHeroState.phase === 'failed') {
+        this.restoreLawSetup();
+      }
+    },
+    /** B out of a law's STAGED step (nothing was sent): the slot comes back as it was — the card in it, the commit armed. */
+    lawStepHosted(now: boolean, was: boolean): void {
+      const arm = stagedPlayState.arm;
+      if (was && !now && !stagedPlayState.committing && arm?.flow !== 'law') {
+        this.restoreLawSetup();
+      }
+    },
     /** PL-473: the step's full-tier art is decoded while the cursor stands on its row, never in the press's frames. */
     targetWarmNames(names: string): void {
       if (names !== '') {
@@ -3657,6 +3765,10 @@ export default defineComponent({
       return this.branches[pos];
     },
     branchTitle(b: ActionPreviewBranch): string {
+      // A title carrying its params (a Message — «Add ${0} ${1} to a card») is rendered WITH them (PL-160).
+      if (typeof b.title !== 'string') {
+        return textOf(b.title);
+      }
       const raw = branchTitleText(b);
       return raw !== '' ? translateText(raw) : '';
     },
@@ -3970,6 +4082,16 @@ export default defineComponent({
       }
     },
     seedChoice(c: ComposerChoice): void {
+      // A LAW'S PLAY SLOT comes back with its stage (RX36 — a remount after B out of a staged cell, a park): the play
+      // the player composed is kept OUTSIDE the stage (`rememberLawPlay`) and re-seated here.
+      if (c.kind === 'lawPlay') {
+        const step = this.selectedBranch?.steps[c.index];
+        const kept = step?.kind === 'lawPlay' ? lawPlayDraftOf(step.resolution) : undefined;
+        if (kept !== undefined && this.captured[c.index] === undefined) {
+          this.captureFor(c, kept);
+        }
+        return;
+      }
       if (c.kind === 'amount') {
         const m = this.amountModel(c);
         const def = m.maxByDefault ? m.max : m.min;
@@ -4666,6 +4788,11 @@ export default defineComponent({
       }
     },
     openChoice(c: ComposerChoice): void {
+      // A LAW'S PLAY SLOT (RX36) → the hand album + the play composer (`consolePlayPick`), hosted as a step here.
+      if (c.kind === 'lawPlay') {
+        this.openLawPlayPick(c);
+        return;
+      }
       // Viron's "repeat an already-used action" pick → the ДЕЙСТВИЯ КАРТ list
       // surface ADAPTED for repeat mode (`consoleRepeatPick`): the player picks
       // the action AND composes it there, returning the composed responses.
@@ -4748,7 +4875,10 @@ export default defineComponent({
         buttonLabel: model.buttonLabel || 'Take action',
         candidates: model.cards.map((cd) => cd.name),
         disabled,
-        source: {kicker: 'Repeat action', card: this.cardOrThrow()},
+        // A LAW (R&D Funding RX26) is in nobody's tableau: it states itself through its printed name (the crumb of a
+        // hosted pick comes from the stack — the label is only the standalone fallback).
+        source: this.heroCardName !== undefined ? {kicker: 'Repeat action', card: this.heroCardName} :
+          {kicker: 'Resolution action', label: this.lawNameKey ?? this.sourceKey},
         prior: this.repeatResult !== undefined ?
           {chosenCard: this.repeatResult.chosenCard, nodeIndex: this.repeatResult.nodeIndex} : undefined,
       }, (result) => {
@@ -4768,6 +4898,58 @@ export default defineComponent({
      * beside the capture (`stageRewardDraft`) for the claim/specs the wire
      * response cannot carry back out.
      */
+    /** The law's SETUP stands again (a refused scene, B out of a staged step): the slot as it was, nothing latched. */
+    restoreLawSetup(): void {
+      this.lawLandingLatched = false;
+      const surface = this.$refs.surfaceEl as HTMLElement | undefined;
+      if (surface !== undefined) {
+        gsap.killTweensOf(surface);
+        gsap.set(surface, {clearProps: 'opacity,visibility'});
+      }
+      this.landCursor();
+    },
+    /** The composed play standing in a law's play slot, or `undefined` (its capture is the result itself). */
+    lawPlayResultOf(c: ComposerChoice): ConsolePlayPickResult | undefined {
+      return c.kind === 'lawPlay' ? this.captured[c.index] as ConsolePlayPickResult | undefined : undefined;
+    },
+    /** The chosen card as the LAW reads it — the promised pick's model (its requirement under the law's waiver). */
+    lawPlayCardModel(c: ComposerChoice): CardModel | undefined {
+      const name = this.lawPlayResultOf(c)?.cardName;
+      return name === undefined ? undefined : (c.input as SelectProjectCardToPlayModel).cards.find((card) => card.name === name);
+    },
+    /** The law is what lets the chosen card through (a global requirement met ONLY thanks to the waiver). */
+    lawPlayOpenedByLaw(c: ComposerChoice): boolean {
+      return this.lawPlayCardModel(c)?.requirementEasing?.some((e) => e.decisive) === true;
+    },
+    lawPlayCostChip(c: ComposerChoice): ActionEffect {
+      return {direction: 'cost', icon: 'megacredits', amount: this.lawPlayResultOf(c)?.cost ?? 0};
+    },
+    /** «6 M€ for the law + 4 M€ for the card = 10 M€» — the law's bill (its preview chip) and the card's charged price. */
+    lawPlayTotalLine(c: ComposerChoice): string {
+      const result = this.lawPlayResultOf(c);
+      const bill = this.selectedBranch?.effects.find((e) => e.direction === 'cost' && e.icon === 'megacredits')?.amount ?? 0;
+      const card = result?.cost ?? 0;
+      return translateTextWithParams('${0} M€ for the law + ${1} M€ for the card = ${2} M€', [String(bill), String(card), String(bill + card)]);
+    },
+    /**
+     * Hand «which card, and how» to the album + the play composer (`consolePlayPick`) — a STEP of this stage
+     * (`card-actions ⊃ hand`); the composed play lands back in the slot and rides THIS commit. This composer stays
+     * MOUNTED behind the step, so the callback survives.
+     */
+    openLawPlayPick(c: ComposerChoice): void {
+      const step = this.selectedBranch?.steps[c.index];
+      if (step?.kind !== 'lawPlay' || this.submitting) {
+        return;
+      }
+      enterConsolePlayPick({input: step.play.input, reserve: step.play.reserve, resolution: step.resolution, stage: 'Selection'}, (result) => {
+        const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
+        this.captureFor(cur, result);
+        // Kept OUTSIDE the stage too: a staged door yields the stage away and a park remounts it — the slot comes back.
+        rememberLawPlay(step.resolution, result);
+        this.landCursor();
+        this.scrollFocused();
+      });
+    },
     openStageRewardPick(c: ComposerChoice): void {
       const model = c.input as DeltaStageRewardInputModel;
       enterDeltaRewardPick({
@@ -5887,7 +6069,10 @@ export default defineComponent({
      *    would be born on a card nobody sees). The motion is skipped (its latch lands at once) and a price paid off the
      *    rail is absorbed at `price` — the step's own stand-in for the card's printed cost.
      */
-    playCommitBeat(branch: ActionPreviewBranch, opts: {spendDepartsElsewhere?: boolean, resultElsewhere?: boolean, heroParked?: {price: Element | undefined}} = {}): void {
+    playCommitBeat(pressed: ActionPreviewBranch, opts: {spendDepartsElsewhere?: boolean, resultElsewhere?: boolean, heroParked?: {price: Element | undefined}} = {}): void {
+      // A RATE «per card» is flown as the pick's TOTAL (Open IP Trade RX24 — 3 M€ per card discarded): the rail checks
+      // the sum against the views, never the rate.
+      const branch = perCardTotals(pressed, this.capturedOption);
       // BOTH read the captures: a branch whose result is chosen in a step
       // («любой стандартный ресурс») has no chips of its own, so the category
       // and the reward wave are only knowable once the answer is in hand.
@@ -6071,6 +6256,19 @@ export default defineComponent({
         });
         return;
       }
+      // ── A LAW'S PLAY WITH A REVERSIBLE DOOR (RX36 — the design rule of 2026-10-20): the composed card carries a
+      //    cell / a delegate / a colony of its own. Nothing is sent and no commit beat plays: the shell plays the
+      //    landing ritual in this stage and opens the door; THAT door's confirm is the one POST, B returns here.
+      const lawPlay = this.lawPlayCaptured;
+      if (lawPlay !== undefined && lawPlayStagedDoor(lawPlay) !== undefined && this.publishCommands) {
+        this.$emit('staged-law-play', {
+          branchIndex: branch.index,
+          optionResponse: this.capturedOption,
+          stepResponses: orderedStepResponses(branch, this.captured),
+          lawPlay,
+        });
+        return;
+      }
       this.submitting = true;
       // STAGED PLACEMENT (docs/TILE_PLAY_STAGED_COMMIT.md): a branch whose Mars
       // placement the SERVER marked stage-able hands the screen to the BOARD
@@ -6143,6 +6341,8 @@ export default defineComponent({
           plannedStepResponses(branch, this.captured) :
           orderedStepResponses(branch, this.captured),
         repeat: this.repeatPickDisabled ? undefined : this.repeatResult,
+        // A LAW'S PLAY (RX36): the composed card — it rides behind every other step.
+        lawPlay: this.lawPlayCaptured,
         // The captured stage-reward claim WITH its composed repeat (the wire
         // response cannot carry the composition back out) — the confirm's
         // claim derivation reads it structurally.

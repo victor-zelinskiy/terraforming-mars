@@ -114,6 +114,15 @@ export type ConsolePlayPickResult = {
   composed?: ConsolePlayPickComposed;
 };
 
+/**
+ * What a LAW's play hands the host at its commit (RX36): the composed card (the landing's promise) and the law's own
+ * price — the host flies the law's token off the rail into the law's printed cost before the card's own shipment.
+ */
+export type LawPlayDetail = {
+  play?: ConsolePlayPickResult;
+  lawBill?: {resolution: ResolutionId, megacredits: number};
+};
+
 /** The law's composed play kept OUTSIDE the stage (a staged cell yields the stage away, a park remounts it). */
 export type ConsoleLawPlayDraft = {
   resolution: ResolutionId;

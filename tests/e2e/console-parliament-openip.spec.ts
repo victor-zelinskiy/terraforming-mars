@@ -6,37 +6,30 @@ import {
 } from './consoleStart';
 
 /**
- * OPEN IP TRADE (Turmoil Redux, RX24) — the ONE e2e of the new mechanic: the
- * FIRST resolution with an ACTION, and the action as ONE FLOW through the
- * action workspace — a member of the party-action family, opened from
- * «Действия карт», its stages going IN TURN:
+ * OPEN IP TRADE (Turmoil Redux, RX24) — the FIRST resolution with an ACTION, and since «один фреймворк» (С4) the
+ * action is composed by THE card actions' composer, its stages IN TURN:
  *
- *   · the LAW stands in the action menu as a source beside the cards (its
- *     party's seal, its own kicker, its printed action row);
- *   · A opens the law's stage: the law's FACE is the hero, and the SELECTION
- *     is the REAL HAND standing as a step of the same stage («ДЕЙСТВИЯ КАРТ ›
- *     ОТКРЫТАЯ ТОРГОВЛЯ ПАТЕНТАМИ › ВЫБОР»); two cards picked read
- *     «2 → +6 M€ · +2 карты» in the pick's own running summary;
- *   · RT commits: the picked cards feed the TRADE TERMINAL (the patent sale's
- *     own scene, at the law's rate), the +6 M€ chip is born at the terminal
- *     (VISIBLE) and lands on the M€ cell of the rail (VISIBLE), and the
- *     counter ticks at its touchdown — never before;
- *   · the DRAW follows the chip: the two cards come off the HUD pile into
- *     the same stage's OUTCOME zone only AFTER the terminal has retracted
- *     («› ДОБОР КАРТ»), are taken into the hand, and the flow LEAVES;
- *   · the server agrees: hand −2 +2, M€ +6, the action spent; the menu lists
- *     the law's tile as ACTIVATED.
+ *   · the LAW stands in the action menu as a source beside the cards (its party's seal, its own kicker, its printed
+ *     action row);
+ *   · A opens the composer: the law's FACE is the hero («ДЕЙСТВИЯ КАРТ › ОТКРЫТАЯ ТОРГОВЛЯ ПАТЕНТАМИ › НАСТРОЙКА»);
+ *     the pick is the REAL HAND (a card from the hand is chosen in the hand — the album, the discard skin); two
+ *     cards picked read «2 → +6 M€ · +2 карты» in the pick's own running summary, and the formula reads the TOTAL;
+ *   · A on the commit row: the ACTION COMMIT — the +6 M€ token is born on the law's PRINTED face (VISIBLE) and lands on
+ *     the M€ cell of the rail (VISIBLE), the counter ticking at its touchdown — never before;
+ *   · the DRAW follows: the two cards land in the composer's own draw zone («› ДОБОР КАРТ»), never a standalone
+ *     reveal, are taken into the hand, and the flow LEAVES;
+ *   · the server agrees: hand −2 +2, M€ +6, the action spent; the menu lists the law's tile as ACTIVATED.
  *
- * The probe samples on a clock of its own (`setInterval`, never rAF) and every
- * sample carries what it saw: the order of the stages is asserted over the
- * samples, the visibility of the source and the target at every beat too.
+ * The probe samples on a clock of its own (`setInterval`, never rAF) and every sample carries what it saw: the order
+ * of the stages is asserted over the samples, the visibility of the source and the target at every beat too.
  *
- * Fixture `parliament-openip-enacted` (the law enacted, red opening
- * generation 2 with a hand to pick from). Screens under screenshots/parliament-openip/.
+ * Fixture `parliament-openip-enacted` (the law enacted, red opening generation 2 with a hand to pick from).
+ * Screens under screenshots/parliament-openip/.
  */
 const OUT_ROOT = path.resolve('screenshots', 'parliament-openip');
 const PRESET = {id: 'standard-1080', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'} as const;
 const LAW = 'RDX_SCIENTISTS_OPEN_IP_TRADE';
+const STAGE = `.con-cardactions .con-composer[data-composer-source="law:${LAW}"]`;
 
 async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT_ROOT, {recursive: true});
@@ -54,24 +47,20 @@ type Rect = {x: number, y: number, w: number, h: number};
 type Chip = {id: string, x: number, y: number, res: string, amt: string};
 type Sample = {
   t: number,
-  phase: string,
-  handStep: boolean,
-  saleHero: boolean,
-  terminalVisible: boolean,
-  saleProxies: number,
+  album: boolean,
+  hero: Rect | undefined,
+  heroVisible: boolean,
   chips: Array<Chip>,
-  slit: Rect | undefined,
   cell: Rect | undefined,
   cellVisible: boolean,
   stock: string,
   deltas: number,
   reveal: boolean,
-  beatProxies: number,
 };
 type Probe = {samples: Array<Sample>};
 
 async function armProbe(page: Page): Promise<void> {
-  await page.evaluate(() => {
+  await page.evaluate((stage) => {
     const w = window as unknown as {__openipProbe: Probe};
     w.__openipProbe = {samples: []};
     const rectOf = (el: Element | null): Rect | undefined => {
@@ -82,9 +71,7 @@ async function armProbe(page: Page): Promise<void> {
       return r.width < 2 ? undefined : {x: r.left, y: r.top, w: r.width, h: r.height};
     };
     // VISIBLE: a non-zero rect, a non-zero EFFECTIVE opacity (an ancestor fades its children by fading itself), and
-    // — for an object the player can point at — nothing over its centre. The sale's stage is a `pointer-events: none`
-    // layer, which the hit-test is blind to (it never answers such an element), so the terminal is judged by its paint
-    // alone (`hitTest: false`).
+    // — for an object the player can point at — nothing over its centre.
     const visible = (el: Element | null, hitTest = true): boolean => {
       if (el === null) {
         return false;
@@ -112,26 +99,21 @@ async function armProbe(page: Page): Promise<void> {
         const res = icon === null ? 'megacredits' : (Array.from(icon.classList).find((c) => c.startsWith('resource_icon--')) ?? '').replace('resource_icon--', '');
         return {id: `${el.dataset.transferId ?? '?'}:${res}`, x: r.left + r.width / 2, y: r.top + r.height / 2, res, amt: el.textContent?.trim() ?? ''};
       });
-      const pact = document.querySelector('.con-pact--resolution');
       const row = document.querySelector('.con-res__row--megacredits');
       const cell = row?.querySelector('.con-res__stockwrap') ?? null;
-      const terminal = document.querySelector('.con-sale-hero__terminal');
+      const hero = document.querySelector(`${stage} .con-composer__actlaw`);
       w.__openipProbe.samples.push({
         t: Math.round(performance.now()),
-        phase: pact?.getAttribute('data-pact-phase') ?? '',
-        handStep: visible(document.querySelector('.con-pact--resolution .con-pact__handzone--inline .con-hand')),
-        saleHero: document.querySelector('.con-sale-hero') !== null,
-        terminalVisible: visible(terminal, false),
-        saleProxies: document.querySelectorAll('.con-sale-hero__proxy').length,
+        album: visible(document.querySelector('.con-hand'), false),
+        hero: rectOf(hero),
+        heroVisible: visible(hero, false),
         chips,
-        slit: rectOf(document.querySelector('.con-sale-hero__slit')),
         cell: rectOf(cell),
         cellVisible: visible(cell),
         // The digits alone: the delta chip's own «+6» rides inside the same node while it ticks.
         stock: (row?.querySelector('.con-res__digits')?.textContent?.trim() ?? '').replace(/[^0-9].*$/s, ''),
         deltas: row?.querySelectorAll('.delta-chip').length ?? 0,
-        reveal: document.querySelector('.con-cardactions .con-pact__revealzone .con-reveal') !== null,
-        beatProxies: document.querySelectorAll('.con-pact__fly .con-deal-proxy').length,
+        reveal: document.querySelector(`${stage} .con-composer__revealzone--draw .con-reveal`) !== null,
       });
       if (w.__openipProbe.samples.length > 9000) {
         w.__openipProbe.samples.splice(0, 1500);
@@ -139,7 +121,7 @@ async function armProbe(page: Page): Promise<void> {
     };
     sample();
     setInterval(sample, 40);
-  });
+  }, STAGE);
 }
 const readProbe = (page: Page): Promise<Probe> => page.evaluate(() => (window as unknown as {__openipProbe: Probe}).__openipProbe);
 
@@ -191,7 +173,7 @@ async function focusLawTile(page: Page): Promise<void> {
 test.describe(`Open IP Trade · ${PRESET.id}`, () => {
   test.use({viewport: PRESET.viewport});
 
-  test('the law\'s action is ONE flow: the pick on the real hand, the sale\'s chip on the rail, the draw after the chip, the tile spent', async ({page, request}) => {
+  test('the law\'s action is ONE flow in the card composer: the pick in the hand, the commit\'s token on the rail, the draw after it, the tile spent', async ({page, request}) => {
     test.setTimeout(420_000);
     const {playerId} = await bootFixtureSeats(page, request, 'parliament-openip-enacted', {query: PRESET.query});
     const before = await wireOf(request, playerId);
@@ -210,19 +192,17 @@ test.describe(`Open IP Trade · ${PRESET.id}`, () => {
     await settle(page, {timeoutMs: 10_000});
     await shoot(page, '01-action-menu-law');
 
-    // ── ② THE SELECTION STEP: the law's face is the hero, the REAL hand stands beside it, the crumb names the stage.
-    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-pact--resolution').count() > 0, {tries: 3, settleMs: 1100}),
-      'A opens the law\'s stage').toBeTruthy();
-    const hand = page.locator('.con-pact--resolution .con-pact__handzone--inline .con-hand');
-    await expect(hand, 'the hand stands as a step INSIDE the stage').toHaveCount(1, {timeout: 20_000});
-    await expect(page.locator('.con-pact--resolution .con-pact__hero--bill .pcard'), 'the law\'s face is the hero').toBeVisible();
+    // ── ② THE COMPOSER: the law's face is the hero, the crumb names the law; A on the pick opens the REAL hand.
+    expect(await pressUntil(page, 'Enter', async () => await page.locator(STAGE).count() > 0, {tries: 3, settleMs: 1100}),
+      'A opens the law\'s composer').toBeTruthy();
+    await expect(page.locator(`${STAGE} .con-composer__actlaw .pcard`), 'the law\'s face is the hero').toBeVisible({timeout: 20_000});
     await settle(page, {timeoutMs: 15_000});
     let crumb = (await crumbText(page)).toUpperCase();
-    expect(crumb, `one crumb: the menu, the law, the stage (${crumb})`).toContain('ДЕЙСТВИЯ КАРТ');
+    expect(crumb, `one crumb: the menu, the law (${crumb})`).toContain('ДЕЙСТВИЯ КАРТ');
     expect(crumb).toContain('ОТКРЫТАЯ ТОРГОВЛЯ ПАТЕНТАМИ');
-    expect(crumb).toContain('ВЫБОР');
-    // Nothing picked: the summary reads zero and the confirm is not lit.
-    await expect(page.locator('.con-hand__salebar--select'), 'the running summary stands').toHaveCount(1);
+    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-hand__salebar--select').count() > 0, {tries: 3, settleMs: 1100}),
+      'A on the pick row opens the hand (a card from the hand is chosen in the hand)').toBeTruthy();
+    await settle(page, {timeoutMs: 15_000});
     // Pick two cards: A on the focused card, one hop right, A again.
     await press(page, 'Enter', 400);
     await press(page, 'ArrowRight', 300);
@@ -232,20 +212,23 @@ test.describe(`Open IP Trade · ${PRESET.id}`, () => {
     await expect(page.locator('.con-hand__salebar--select .con-hand__salebar-item--gain').first(), 'the sum: +6 M€').toContainText('+6');
     await expect(page.locator('.con-hand__salebar--select [data-hand-sale-cards]'), 'the sum: +2 cards').toContainText('+2');
     await shoot(page, '02-selection-two-picked');
+    // RT confirms the set: back on the composer, the commit row ready.
+    expect(await pressUntil(page, 'Period', async () => await page.locator(`${STAGE} .con-composer__cta--ready`).count() > 0, {tries: 3, settleMs: 900}),
+      'RT confirms the pick — the composer stands ready').toBeTruthy();
+    await settle(page, {timeoutMs: 10_000});
+    await shoot(page, '02b-composer-ready');
 
-    // ── ③ RT COMMITS: the sale's scene takes the picked cards; the chip is born at the terminal and lands on the rail.
-    expect(await pressUntil(page, 'Period', async () => await page.locator('.con-sale-hero').count() > 0, {tries: 3, settleMs: 700}),
-      'RT commits into the terminal').toBeTruthy();
-    await expect.poll(async () => (await wireOf(request, playerId)).game.parliament?.viewer?.resolutionAction?.usesLeft, {timeout: 30_000,
-      message: 'the action is spent at the commit'}).toBe(0);
+    // ── ③ A COMMITS: the ACTION COMMIT — the token is born on the law's face and lands on the rail.
+    expect(await pressUntil(page, 'Enter', async () => (await wireOf(request, playerId)).game.parliament?.viewer?.resolutionAction?.usesLeft === 0,
+      {tries: 3, settleMs: 2500}), 'A commits the action').toBeTruthy();
     await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.chips.some((c) => c.res === 'megacredits')), {timeout: 30_000,
-      message: 'the payout chip flies'}).toBe(true);
-    await shoot(page, '03-sale-chip');
+      message: 'the payout token flies'}).toBe(true);
+    await shoot(page, '03-commit-token');
     await expect.poll(async () => (await wireOf(request, playerId)).thisPlayer.megacredits, {timeout: 60_000,
       message: 'the server paid 3 M€ per card'}).toBe(before.thisPlayer.megacredits + 6);
 
-    // ── ④ THE DRAW follows the chip: the cards come off the pile into the stage's zone, and the reveal presents there.
-    const reveal = page.locator('.con-cardactions .con-pact__revealzone .con-reveal');
+    // ── ④ THE DRAW follows: the cards land in the composer's own draw zone.
+    const reveal = page.locator(`${STAGE} .con-composer__revealzone--draw .con-reveal`);
     await expect(reveal, 'the drawn cards present INSIDE the stage').toHaveCount(1, {timeout: 60_000});
     await settle(page, {timeoutMs: 20_000});
     crumb = (await crumbText(page)).toUpperCase();
@@ -256,40 +239,29 @@ test.describe(`Open IP Trade · ${PRESET.id}`, () => {
 
     // ── THE PROBE: the stages went IN TURN, and every beat had a VISIBLE source and target.
     const samples = (await readProbe(page)).samples;
-    const firstHand = samples.find((s) => s.handStep);
-    expect(firstHand, 'the hand step was on screen').toBeTruthy();
-    const firstSale = samples.find((s) => s.saleHero);
-    expect(firstSale, 'the sale scene played').toBeTruthy();
-    expect(firstSale!.t, 'the sale came after the selection').toBeGreaterThan(firstHand!.t);
-    const withProxies = samples.find((s) => s.saleProxies > 0 && s.handStep);
-    expect(withProxies, 'the cards lifted off the hand while the hand was still on screen (the proxies stand over live slots)').toBeTruthy();
+    const firstAlbum = samples.find((s) => s.album);
+    expect(firstAlbum, 'the hand was on screen for the pick').toBeTruthy();
     const chipSamples = samples.filter((s) => s.chips.some((c) => c.res === 'megacredits'));
-    expect(chipSamples.length, 'the M€ chip was sampled in flight').toBeGreaterThan(0);
+    expect(chipSamples.length, 'the M€ token was sampled in flight').toBeGreaterThan(0);
     const born = chipSamples[0];
-    expect(born.terminalVisible, 'the chip was born over a VISIBLE terminal').toBe(true);
+    expect(born.t, 'the commit came after the pick').toBeGreaterThan(firstAlbum!.t);
+    expect(born.heroVisible, 'the token was born over a VISIBLE law face').toBe(true);
     const bornChip = born.chips.find((c) => c.res === 'megacredits')!;
-    expect(bornChip.amt, 'the chip carries the law\'s payout').toContain('6');
-    expect(inside(bornChip, born.slit, 60), 'the chip is born at the terminal\'s slit').toBe(true);
+    expect(bornChip.amt, 'the token carries the law\'s payout').toContain('6');
+    expect(inside(bornChip, born.hero, 40), 'the token is born on the law\'s printed face').toBe(true);
     const landed = chipSamples[chipSamples.length - 1];
     const landedChip = landed.chips.find((c) => c.res === 'megacredits')!;
-    expect(landed.cellVisible, 'the chip lands on a VISIBLE M€ cell').toBe(true);
-    expect(inside(landedChip, landed.cell, 24), 'the chip ends on the M€ cell of the rail').toBe(true);
-    // The counter ticks at the touchdown, never before: no sample with the chip in the air shows the new number.
+    expect(landed.cellVisible, 'the token lands on a VISIBLE M€ cell').toBe(true);
+    expect(inside(landedChip, landed.cell, 24), 'the token ends on the M€ cell of the rail').toBe(true);
+    // The counter ticks at the touchdown, never before: no sample with the token in the air shows the new number.
     const target = String(before.thisPlayer.megacredits + 6);
     const early = chipSamples.filter((s) => s.stock === target && !inside(s.chips.find((c) => c.res === 'megacredits')!, s.cell, 24));
-    expect(early, 'the counter never shows +6 while the chip is still flying').toEqual([]);
+    expect(early, 'the counter never shows +6 while the token is still flying').toEqual([]);
     expect(samples.some((s) => s.stock === target), 'the counter reads the paid number').toBe(true);
-    // The draw waited for the chip: the pull off the pile (the beat proxies) and the reveal came after the sale ended.
-    const lastSale = [...samples].reverse().find((s) => s.saleHero)!;
-    const firstBeat = samples.find((s) => s.beatProxies > 0);
     const firstReveal = samples.find((s) => s.reveal)!;
-    expect(firstReveal.t, 'the reveal presented after the terminal retracted').toBeGreaterThan(lastSale.t);
-    if (firstBeat !== undefined) {
-      expect(firstBeat.t, 'the pull off the pile started after the terminal retracted').toBeGreaterThan(lastSale.t);
-    }
-    expect(firstReveal.t, 'the reveal presented after the chip landed').toBeGreaterThan(landed.t);
+    expect(firstReveal.t, 'the draw presented after the token was born').toBeGreaterThan(born.t);
     test.info().annotations.push({type: 'timing', description:
-      `hand ${firstHand!.t} · sale ${firstSale!.t} · chip born ${born.t} · landed ${landed.t} · terminal gone ${lastSale.t} · pull ${firstBeat?.t ?? '—'} · reveal ${firstReveal.t}`});
+      `album ${firstAlbum!.t} · token born ${born.t} · landed ${landed.t} · reveal ${firstReveal.t}`});
 
     // ── ⑤ THE TAKE ends the flow: the workspace leaves, the hand is back where it was, the tile reads spent.
     await takeRevealCards(page);

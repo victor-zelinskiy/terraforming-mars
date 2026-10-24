@@ -37,8 +37,7 @@ function forecastWith(source: EventSource): EffectForecast {
 
 function mountExplorer(forecast: EffectForecast) {
   return mount(ConsoleEffectsExplorer, {
-    // `premium-card-face` (a law's face in the political groups) is an ASYNC GLOBAL of the app — stubbed here.
-    global: {...globalConfig.global, stubs: {...(globalConfig.global as {stubs?: object}).stubs, 'premium-card-face': true}},
+    global: globalConfig.global,
     props: {
       cards: [],
       color: BLUE,

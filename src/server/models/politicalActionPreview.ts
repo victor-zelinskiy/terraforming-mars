@@ -26,10 +26,15 @@ import {AndOptions} from '../inputs/AndOptions';
 import {ParliamentHandler} from '../parliament/ParliamentHandler';
 import {partyActionModel, resolutionActionModel} from '../parliament/ParliamentModel';
 import {PARTY_EFFECTS} from '../parliament/parties/PartyEffects';
+import {actionBillPrice} from '../../common/parliament/actionBill';
+import {paymentStep} from '../cards/actionPreviews';
+import {promptAddressOf} from '../../common/inputs/preselectAddress';
+import {SelectCardModel} from '../../common/models/PlayerInputModel';
 import {REDUX_PARTIES, ReduxParty} from '../../common/parliament/ParliamentTypes';
 import {
   ActionEffect,
   ActionPreviewBranch,
+  ActionPreviewStep,
   PoliticalActionAnswer,
   PoliticalActionPreview,
   PoliticalActionSource,
@@ -94,7 +99,9 @@ export function politicalActionPreview(player: IPlayer, source: PoliticalActionS
   if (prompt === undefined) {
     return {source, answer: 'option', kind: 'bespoke', branches: [blockedBranch(model)]};
   }
-  const {answer, branches} = branchesOf(player, prompt, model.preview);
+  const shaped = source.kind === 'law' ? lawShape(player, source.resolution, prompt, branchesOf(player, prompt, model.preview)) :
+    branchesOf(player, prompt, model.preview);
+  const {answer, branches} = shaped;
   const futile = source.kind === 'law' ? resolutionActionModel(parliament, player)?.futile : undefined;
   return {
     source,
@@ -102,6 +109,54 @@ export function politicalActionPreview(player: IPlayer, source: PoliticalActionS
     kind: 'bespoke',
     branches: futile !== undefined && branches.length === 1 && branches[0].available ? [{...branches[0], futile}] : branches,
   };
+}
+
+/**
+ * THE LAW'S OWN STEPS, read off its declarations (never its name):
+ *  · a REPEAT pick (R&D Funding RX26 — the prompt's `repeatActionPrompt` marker) is the card composer's repeat SLOT
+ *    (Viron's `repeatAction` step) — its answer is the pick inside the menu option, the copy's answers behind it;
+ *  · a declared BILL (`actionBill` — Trade Industries RX28, Live Experiments RX36) the answer defers is a payment
+ *    STEP — the live `SelectPaymentDeferred` the settlement raises, addressed to the law, absent when it auto-pays;
+ *  · a card PLAY (`action.playModel` — RX36) is the play SLOT, after the bill.
+ */
+function lawShape(
+  player: IPlayer,
+  resolution: string,
+  prompt: PlayerInput,
+  shaped: {answer: PoliticalActionAnswer, branches: Array<ActionPreviewBranch>},
+): {answer: PoliticalActionAnswer, branches: Array<ActionPreviewBranch>} {
+  const parliament = player.game.parliament;
+  const enacted = parliament?.enactedDefinition();
+  if (parliament === undefined || enacted === undefined || enacted.id !== resolution || shaped.branches.length !== 1) {
+    return shaped;
+  }
+  const [branch] = shaped.branches;
+  if (prompt instanceof SelectCard && branch.optionInput?.type === 'card' && (branch.optionInput as SelectCardModel).repeatActionPrompt === true) {
+    const {optionInput, ...rest} = branch;
+    return {answer: 'direct', branches: [{...rest, steps: [{kind: 'input', input: optionInput, repeatAction: true}]}]};
+  }
+  if (!(prompt instanceof SelectOption)) {
+    return shaped;
+  }
+  const steps: Array<ActionPreviewStep> = [];
+  const bill = enacted.actionBill;
+  if (bill !== undefined) {
+    const price = actionBillPrice(bill, parliament.influence(player)).price;
+    const cause = {kind: 'resolution' as const, resolution};
+    const pay = paymentStep(player, price, {canUseTitanium: bill.titanium, cause});
+    if (pay !== undefined && pay.kind === 'input') {
+      // Addressed to the LAW: the live prompt is marked with its cause centrally (`getWaitingFor`), a bare
+      // `toModel` is not — the address is the cause the settlement raises it with.
+      steps.push({...pay, for: {...promptAddressOf(pay.input), source: cause}});
+    }
+  }
+  // The play slot — unless the bill ASKS a payment of its own (Helion's heat, Luna's titanium — PL-727): the card is
+  // then asked LIVE after the bill, hosted in the same stage (nothing about the play is pre-collectable).
+  const play = enacted.action?.playModel?.(player);
+  if (play !== undefined && !play.billAsks) {
+    steps.push({kind: 'lawPlay', resolution, play});
+  }
+  return steps.length === 0 ? shaped : {answer: shaped.answer, branches: [{...branch, steps}]};
 }
 
 /** The action is not offered: one branch, disabled, with the parliament's own reason — and the chips it would pay. */

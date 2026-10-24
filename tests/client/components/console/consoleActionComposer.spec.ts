@@ -9,6 +9,7 @@ import {
   andOptionParts,
   composeAndResponse,
   firstMissingChoice,
+  perCardTotals,
   preChoices,
   canConfirm,
   spendHeatPlan,
@@ -174,6 +175,22 @@ describe('consoleActionComposer', () => {
     });
     it('a direct prompt with no answer builds nothing (the gate never lets it through)', () => {
       expect(buildPoliticalActionBatch({menuIndex: 0, answer: 'direct', branchIndex: -1, optionResponse: undefined, stepResponses: []})).to.deep.eq([]);
+    });
+  });
+
+  // A RATE «per card» (Open IP Trade RX24): the formula and the commit read the pick's TOTAL, never the rate.
+  describe('perCardTotals', () => {
+    const RATE = {index: -1, title: '', available: true, renderKeys: [], steps: [], effects: [
+      {direction: 'cost', icon: 'cards', amount: 1, note: 'per card'},
+      {direction: 'gain', icon: 'megacredits', amount: 3, note: 'per card'},
+      {direction: 'gain', icon: 'cards', amount: 1, note: 'per card'},
+    ]} as unknown as ActionPreviewBranch;
+    it('no pick yet: the rate stands as it is', () => {
+      expect(perCardTotals(RATE, undefined)).to.eq(RATE);
+    });
+    it('three cards picked: every rate times three, the «per card» note gone', () => {
+      const totals = perCardTotals(RATE, {type: 'card', cards: ['A', 'B', 'C']});
+      expect(totals.effects.map((e) => [e.icon, e.amount, e.note])).to.deep.eq([['cards', 3, undefined], ['megacredits', 9, undefined], ['cards', 3, undefined]]);
     });
   });
 

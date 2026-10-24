@@ -33,8 +33,9 @@ import {armTransferWitness, effectiveVisibility, endsOverGlass, transferTrail, t
  *     the stage's decision column, «Действия карт» stands through the landing and
  *     leaves only after it; the standalone table never opens.
  *   · THE BILL THAT ASKS (PL-727). With Helion's heat the bill is a payment of its
- *     own: no slot (nothing pre-collectable), the bill INSIDE the stage, then the
- *     card asked live — the album hosted IN the same stage, never over the board.
+ *     own: no slot (nothing pre-collectable) — the bill is the composer's payment
+ *     step, collected before the ONE commit, then the card asked live — the album
+ *     hosted IN the same stage, never over the board.
  *   · EVERY REVERSIBLE DOOR STANDS (the design rule of 2026-10-20). A card whose
  *     play keeps a step it can still take back keeps it through the law: the
  *     law's commit SENDS NOTHING for Mangrove (its greenery's cell — the board
@@ -53,7 +54,9 @@ const LAW = 'RDX_SCIENTISTS_LIVE_EXPERIMENTS';
 const OPENED = 'Grass';
 const ANYWAY = 'Adapted Lichen';
 const PARTY = 'Martian Media Center';
-const STAGE = '.con-pact--resolution';
+/** «Один фреймворк» (С4): the law's action is composed by THE card composer — its source on the root. */
+const STAGE = `.con-cardactions .con-composer[data-composer-source="law:${LAW}"]`;
+const READY = `${STAGE} .con-composer__cta--ready`;
 /** The staged cell's card (a greenery on an ocean area, «+4 °C» — opened by the law at −30 °C) and the staged vote's. */
 const CELL_CARD = 'Mangrove';
 const VOTE_CARD = 'Political Donation';
@@ -162,7 +165,7 @@ const boardPlacing = (page: Page) => page.evaluate(() => /размещение �
  * The witness of ONE press: a blind retry would land on the opened door (a cell lock, a vote).
  */
 const lawCommitTaken = (page: Page, door?: string) => page.evaluate((sel) =>
-  (sel !== '' && document.querySelector(sel) !== null) || document.querySelector('.con-pact [data-pact-landing]') !== null ||
+  (sel !== '' && document.querySelector(sel) !== null) || document.querySelector('[data-law-landing]') !== null ||
   document.querySelector('.con-played-hero__proxy') !== null || /размещение тайла/i.test(document.querySelector('.con-context')?.textContent ?? ''), door ?? '');
 
 /** From the board home: «Действия карт» → the law's stage → the album → `card` → its composer → A: the play in the SLOT. */
@@ -173,7 +176,7 @@ async function fillLawSlot(page: Page, card: string): Promise<void> {
   await focusLawTile(page);
   expect(await pressUntil(page, 'Enter', async () => await page.locator(STAGE).count() > 0, {tries: 3, settleMs: 1100}),
     'A opens the law\'s stage').toBeTruthy();
-  await expect(page.locator(`${STAGE} [data-pact-play-slot]`), 'the decision is a SLOT').toHaveCount(1, {timeout: 20_000});
+  await expect(page.locator(`${STAGE} [data-law-play-slot]`), 'the decision is a SLOT').toHaveCount(1, {timeout: 20_000});
   await settle(page, {timeoutMs: 15_000});
   expect(await pressUntil(page, 'Enter', async () => await page.locator(`${STAGE} .con-hand`).count() > 0, {tries: 4, settleMs: 1200}),
     'A on the slot stands the album up inside the stage').toBeTruthy();
@@ -182,10 +185,10 @@ async function fillLawSlot(page: Page, card: string): Promise<void> {
   expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-composer--play').count() > 0, {tries: 3, settleMs: 1200}),
     'A opens the play composer').toBeTruthy();
   await settle(page, {timeoutMs: 20_000});
-  expect(await pressUntil(page, 'Enter', async () => await page.locator('[data-pact-play-name]').count() > 0, {tries: 5, settleMs: 1200}),
+  expect(await pressUntil(page, 'Enter', async () => await page.locator('[data-law-play-name]').count() > 0, {tries: 5, settleMs: 1200}),
     'the composer\'s confirm lands the play back in the slot').toBeTruthy();
   await settle(page, {timeoutMs: 20_000});
-  await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'the commit is ready').toHaveCount(1);
+  await expect(page.locator(READY), 'the commit is ready').toHaveCount(1);
 }
 
 type LiveSample = {t: number, mc: string, chip: string, up: boolean, recv: boolean, ws: boolean, table: boolean, hand: boolean, setup: boolean, bill: string, host: string, phase: string};
@@ -223,13 +226,13 @@ async function armLiveProbe(page: Page): Promise<void> {
         t: Math.round(performance.now() - t0),
         mc: lead,
         chip: digits.slice(lead.length),
-        up: document.querySelector('.con-pact [data-pact-landing].con-pact__playstage--up') !== null,
-        recv: document.querySelector('.con-pact [data-pact-landing] .con-recv') !== null,
+        up: document.querySelector('[data-law-landing].con-composer__playstage--up') !== null,
+        recv: document.querySelector('[data-law-landing] .con-recv') !== null,
         ws: document.querySelector('.con-cardactions') !== null,
         table: document.querySelector('.con-played') !== null,
         hand: document.querySelector('.con-cardactions .con-hand') !== null,
-        // The law's SETUP (its rule line) still painted in the stage — it must let go under the landing.
-        setup: Array.from(document.querySelectorAll('.con-pact .con-pact__rule')).some((el) => painted(el)),
+        // The law's SETUP (the composer's decision surface) still painted in the stage — it must let go under the landing.
+        setup: Array.from(document.querySelectorAll('.con-cardactions .con-composer__surface')).some((el) => painted(el)),
         bill: ready?.playedHero?.bill ?? '',
         host: ready?.playedHero?.host ?? '',
         phase: ready?.playedHero?.phase ?? '',
@@ -285,15 +288,15 @@ for (const preset of PRESETS) {
       // ── ② THE LAW'S STAGE: the price, the SLOT empty, the commit dim.
       expect(await pressUntil(page, 'Enter', async () => await page.locator(STAGE).count() > 0, {tries: 3, settleMs: 1100}),
         'A opens the law\'s stage').toBeTruthy();
-      const slot = page.locator(`${STAGE} [data-pact-play-slot]`);
+      const slot = page.locator(`${STAGE} [data-law-play-slot]`);
       await expect(slot, 'the decision is a SLOT').toHaveCount(1, {timeout: 20_000});
-      await expect(page.locator(`${STAGE} [data-pact-price]`), 'the law\'s price reads always').toBeVisible();
-      await expect(page.locator(`${STAGE} .con-pact__repeatslot-empty`), 'empty, it invites').toBeVisible();
+      await expect(page.locator(`${STAGE} .con-composer__hero-side`).first(), 'the law\'s price reads always').toBeVisible();
+      await expect(page.locator(`${STAGE} .con-composer__playslot-socket`), 'empty, it invites').toBeVisible();
       await settle(page, {timeoutMs: 15_000});
       const crumb = (await crumbText(page)).toUpperCase();
       expect(crumb, `one crumb: the menu, the law (${crumb})`).toContain('ДЕЙСТВИЯ КАРТ');
       expect(crumb).toContain('ЖИВЫЕ ЭКСПЕРИМЕНТЫ');
-      expect(await page.locator('[data-pact-cta][data-pact-ready]').count(), 'an empty slot arms nothing').toBe(0);
+      expect(await page.locator(READY).count(), 'an empty slot arms nothing').toBe(0);
       await shoot(page, preset.id, '02-law-stage-empty-slot');
 
       // ── ③ A ON THE SLOT: the ALBUM stands up as a step of the stage, over the law's PROMISE.
@@ -324,14 +327,14 @@ for (const preset of PRESETS) {
       expect(reqRow.text, 'it names the law').toMatch(/Живые эксперименты/i);
       await shoot(page, preset.id, '04-composer-requirement-waived');
       const sentBefore = (await wireOf(request, playerId)).thisPlayer.megacredits;
-      expect(await pressUntil(page, 'Enter', async () => await page.locator('[data-pact-play-name]').count() > 0, {tries: 5, settleMs: 1200}),
+      expect(await pressUntil(page, 'Enter', async () => await page.locator('[data-law-play-name]').count() > 0, {tries: 5, settleMs: 1200}),
         'the composer\'s confirm lands the play back in the slot').toBeTruthy();
       expect((await wireOf(request, playerId)).thisPlayer.megacredits, 'and nothing was sent').toBe(sentBefore);
       await settle(page, {timeoutMs: 20_000});
-      await expect(page.locator('[data-pact-play-name]'), 'the slot names the card').toHaveText(/Трава|Grass/i);
-      await expect(page.locator('[data-pact-play-eased]'), '«✓ благодаря закону»').toContainText(/Живые эксперименты/i);
-      await expect(page.locator('[data-pact-play-total]'), 'the TOTAL: the law\'s 6 and the card\'s 11').toContainText(/6 M€.*11 M€.*17 M€/);
-      await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'only now is the commit ready').toHaveCount(1);
+      await expect(page.locator('[data-law-play-name]'), 'the slot names the card').toHaveText(/Трава|Grass/i);
+      await expect(page.locator('[data-law-play-eased]'), '«✓ благодаря закону»').toContainText(/Живые эксперименты/i);
+      await expect(page.locator('[data-law-play-total]'), 'the TOTAL: the law\'s 6 and the card\'s 11').toContainText(/6 M€.*11 M€.*17 M€/);
+      await expect(page.locator(READY), 'only now is the commit ready').toHaveCount(1);
       await expect(page.locator('.con-composer--play'), 'the composer has left').toHaveCount(0);
       await shoot(page, preset.id, '05-slot-filled-total');
 
@@ -403,24 +406,19 @@ for (const preset of PRESETS) {
       await focusLawTile(page);
       expect(await pressUntil(page, 'Enter', async () => await page.locator(STAGE).count() > 0, {tries: 3, settleMs: 1100}),
         'A opens the law\'s stage').toBeTruthy();
-      await expect(page.locator(`${STAGE} [data-pact-price]`), 'the price reads').toBeVisible({timeout: 20_000});
-      await expect(page.locator(`${STAGE} [data-pact-play-slot]`), 'no slot: nothing to pre-collect').toHaveCount(0);
-      await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'a confirm is complete by standing').toHaveCount(1);
+      await expect(page.locator(`${STAGE} .con-composer__hero-side`).first(), 'the price reads').toBeVisible({timeout: 20_000});
+      await expect(page.locator(`${STAGE} [data-law-play-slot]`), 'no slot: nothing to pre-collect').toHaveCount(0);
+      // THE BILL is the composer's payment step (the ONE payment panel, heat dialable) — collected before the commit.
+      await expect(page.locator(`${STAGE} .con-payrow[data-pay-unit="heat"]`), 'the heat lane stands in the composer').toHaveCount(1, {timeout: 20_000});
+      await expect(page.locator(READY), 'a confirm is complete by standing').toHaveCount(1);
       await settle(page, {timeoutMs: 15_000});
       await shoot(page, preset.id, 'h1-stage-confirm');
 
-      // ── ② A: the BILL stands INSIDE the stage (the payment host in its zone), nothing granted yet.
-      expect(await pressUntil(page, 'Enter', async () => await page.locator(`${STAGE} [data-pact-bill]`).count() > 0, {tries: 3, settleMs: 1200}),
-        'the confirm raises the bill in the stage').toBeTruthy();
-      await expect(page.locator(`${STAGE} [data-embed-slot="action-bill"] .con-task-host`), 'the payment host stands INSIDE the stage').toHaveCount(1, {timeout: 20_000});
+      // ── ② A COMMITS ONE POST (the option and the bill) → the card is asked LIVE: the album stands IN the law's
+      //    stage, never over the board; the server never stood on the bill.
+      expect(await pressUntil(page, 'Enter', async () => (await wireOf(request, playerId)).waitingFor?.type === 'projectCard', {tries: 3, settleMs: 2500}),
+        'A commits the law with its bill').toBeTruthy();
       await expect(page.locator('.con-task-host:not(.con-task-host--embedded)'), 'never a standalone payment band').toHaveCount(0);
-      const mid = await wireOf(request, playerId);
-      expect(mid.waitingFor?.resolutionActionPrompt, 'the server waits on the bill').toMatchObject({resolution: LAW, stage: 'pay'});
-      await settle(page, {timeoutMs: 15_000});
-      await shoot(page, preset.id, 'h2-bill');
-
-      // ── ③ A SETTLES THE BILL → the card is asked LIVE: the album stands IN the law's stage, never over the board.
-      await press(page, 'Enter', 300);
       await untilServer(request, playerId, (m) => m.waitingFor?.type === 'projectCard' && m.waitingFor.resolutionActionPrompt?.stage === 'play',
         'the law\'s live card pick');
       await expect(page.locator('.con-cardactions .con-hand'), 'the album stands inside «Действия карт»').toHaveCount(1, {timeout: 30_000});
@@ -466,8 +464,8 @@ for (const preset of PRESETS) {
 
       // ── ① the play composed into the slot: the law's 6 + Mangrove's 12.
       await fillLawSlot(page, CELL_CARD);
-      await expect(page.locator('[data-pact-play-name]'), 'the slot names the card').toHaveText(/Мангров|Mangrove/i);
-      await expect(page.locator('[data-pact-play-total]'), 'the TOTAL').toContainText(/6 M€.*12 M€.*18 M€/);
+      await expect(page.locator('[data-law-play-name]'), 'the slot names the card').toHaveText(/Мангров|Mangrove/i);
+      await expect(page.locator('[data-law-play-total]'), 'the TOTAL').toContainText(/6 M€.*12 M€.*18 M€/);
       expect(posts, 'composing sends nothing').toEqual([]);
       await shoot(page, preset.id, 's1-slot-mangrove');
 
@@ -493,11 +491,11 @@ for (const preset of PRESETS) {
         await press(page, 'Escape', 300);
         await expect.poll(backTaken, {timeout: 3_000}).toBe(true).catch(() => undefined);
       }
-      await expect(page.locator(`${STAGE} [data-pact-play-name]`), 'B gives the law\'s stage back with the card in the slot')
+      await expect(page.locator(`${STAGE} [data-law-play-name]`), 'B gives the law\'s stage back with the card in the slot')
         .toHaveText(/Мангров|Mangrove/i, {timeout: 20_000});
       await settle(page, {timeoutMs: 20_000});
-      await expect(page.locator('[data-pact-play-total]'), 'the total survived the round trip').toContainText(/18 M€/);
-      await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'the commit is armed again').toHaveCount(1);
+      await expect(page.locator('[data-law-play-total]'), 'the total survived the round trip').toContainText(/18 M€/);
+      await expect(page.locator(READY), 'the commit is armed again').toHaveCount(1);
       const backCrumb = (await crumbText(page)).toUpperCase();
       expect(backCrumb, `the crumb is the law's again (${backCrumb})`).toMatch(/ДЕЙСТВИЯ КАРТ.*ЖИВЫЕ ЭКСПЕРИМЕНТЫ/);
       expect(posts, 'the round trip sent nothing').toEqual([]);
@@ -531,7 +529,7 @@ for (const preset of PRESETS) {
 
       // ── ① the play composed into the slot: the law's 6 + the donation's 4.
       await fillLawSlot(page, VOTE_CARD);
-      await expect(page.locator('[data-pact-play-total]'), 'the TOTAL').toContainText(/6 M€.*4 M€.*10 M€/);
+      await expect(page.locator('[data-law-play-total]'), 'the TOTAL').toContainText(/6 M€.*4 M€.*10 M€/);
       await shoot(page, preset.id, 'v1-slot-donation');
 
       // ── ② THE LAW'S CTA SENDS NOTHING: the Parliament's vote mode rises INSIDE the law's stage (one instance).
@@ -547,7 +545,7 @@ for (const preset of PRESETS) {
       expect(voteCrumb, `one crumb: the menu, the law (${voteCrumb})`).toMatch(/ДЕЙСТВИЯ КАРТ.*ЖИВЫЕ ЭКСПЕРИМЕНТЫ/);
       // The Parliament is a FULL workspace: it takes the whole stage, the law's face receding under it (never a column
       // beside the vote — the owner, 2026-10-24).
-      await expect.poll(async () => (await effectiveVisibility(page, `${STAGE} .con-pact__source`)).visible,
+      await expect.poll(async () => (await effectiveVisibility(page, `${STAGE} .con-composer__actcardwrap`)).visible,
         {timeout: 5_000, message: 'the law\'s face is parked under the step'}).toBe(false);
       const share = await page.evaluate((stage) => {
         const parl = document.querySelector(`${stage} [data-embed-slot="action-parliament"] .con-parl`)?.getBoundingClientRect();
@@ -566,9 +564,9 @@ for (const preset of PRESETS) {
       }
       await expect(page.locator('.con-parl'), 'the step left').toHaveCount(0, {timeout: 15_000});
       await settle(page, {timeoutMs: 20_000});
-      await expect(page.locator(`${STAGE} [data-pact-play-name]`), 'the card stands in the slot').toHaveText(/Политическое пожертвование|Political Donation/i);
-      await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'the commit is armed again').toHaveCount(1);
-      await expect.poll(async () => (await effectiveVisibility(page, `${STAGE} .con-pact__source`)).visible,
+      await expect(page.locator(`${STAGE} [data-law-play-name]`), 'the card stands in the slot').toHaveText(/Политическое пожертвование|Political Donation/i);
+      await expect(page.locator(READY), 'the commit is armed again').toHaveCount(1);
+      await expect.poll(async () => (await effectiveVisibility(page, `${STAGE} .con-composer__actcardwrap`)).visible,
         {timeout: 5_000, message: 'B brings the law\'s face back where it stood'}).toBe(true);
       expect(posts, 'the round trip sent nothing').toEqual([]);
       await shoot(page, preset.id, 'v3-back-in-stage');
@@ -610,12 +608,10 @@ for (const preset of PRESETS) {
       await focusLawTile(page);
       expect(await pressUntil(page, 'Enter', async () => await page.locator(STAGE).count() > 0, {tries: 3, settleMs: 1100}),
         'A opens the law\'s stage').toBeTruthy();
-      await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'a confirm is complete by standing').toHaveCount(1, {timeout: 20_000});
+      await expect(page.locator(READY), 'a confirm is complete by standing — the bill is the composer\'s own step').toHaveCount(1, {timeout: 20_000});
       await settle(page, {timeoutMs: 15_000});
-      expect(await pressUntil(page, 'Enter', async () => await page.locator(`${STAGE} [data-pact-bill]`).count() > 0, {tries: 3, settleMs: 1200}),
-        'the confirm raises the bill in the stage').toBeTruthy();
-      await settle(page, {timeoutMs: 15_000});
-      await press(page, 'Enter', 300);
+      expect(await pressUntil(page, 'Enter', async () => (await wireOf(request, playerId)).waitingFor?.type === 'projectCard', {tries: 3, settleMs: 2500}),
+        'A commits the law with its bill').toBeTruthy();
       await untilServer(request, playerId, (m) => m.waitingFor?.type === 'projectCard' && m.waitingFor.resolutionActionPrompt?.stage === 'play',
         'the law\'s live card pick');
       await expect(page.locator('.con-cardactions .con-hand'), 'the album stands inside «Действия карт»').toHaveCount(1, {timeout: 30_000});

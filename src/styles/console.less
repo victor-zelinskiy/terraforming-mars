@@ -33902,6 +33902,63 @@ html.console-mode {
     box-shadow: inset 0 0 0 .1rem var(--parl-accent, @con-cyan), 0 .6rem 1.6rem rgba(0, 0, 0, 0.45);
     border-radius: .9rem;
 }
+/* A LAW THAT PLAYS A CARD (RX36 Live Experiments — «один фреймворк»): the decision is a CARD — a SLOT whose door is
+   the hand album + the play composer (the play pick bridge). Empty it is a card-shaped SOCKET at the face's own box
+   (filling it swaps what stands there and moves nothing); FILLED it stands the card's own face at the album's density
+   beside its name, its price, «✓ благодаря …» when the law is what lets it through, and the press's whole price. */
+.con-composer__playslot {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: .55rem .9rem;
+    border-radius: .6rem;
+    background: rgba(255, 255, 255, .04);
+    box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, .12);
+    --con-composer-play-zoom: calc(0.6 * var(--con-ui-scale, 1));
+    &--filled { background: fade(@con-mint, 6%); box-shadow: inset 0 0 0 .07rem fade(@con-mint, 55%); }
+}
+.con-composer__playslot-face { flex: 0 0 auto; zoom: var(--con-composer-play-zoom); }
+.con-composer__playslot-socket {
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    width: calc(320px * var(--con-composer-play-zoom));  /* keep-px — the px-authored premium face */
+    height: calc(460px * var(--con-composer-play-zoom)); /* keep-px */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: .55rem;
+    border: .1rem dashed fade(@con-cyan, 45%);
+    background: rgba(255, 255, 255, .025);
+}
+.con-composer__playslot-socket-icon { width: 2.4rem; height: 2.4rem; background-size: contain; background-repeat: no-repeat; background-position: center; opacity: .55; }
+.con-composer__playslot-read { display: flex; flex-direction: column; align-items: flex-start; gap: .35rem; min-width: 0; }
+.con-composer__playslot-name { font-size: 1.05rem; font-weight: 800; letter-spacing: .01em; color: @con-text; }
+.con-composer__playslot-cost { display: inline-flex; align-items: center; gap: .3rem; }
+.con-composer__playslot-eased { font-size: .78rem; font-weight: 700; color: @con-mint; }
+.con-composer__playslot-total { font-size: .92rem; font-weight: 700; font-variant-numeric: tabular-nums; color: @con-text; }
+html.con-profile-tv {
+    .con-composer__playslot { --con-composer-play-zoom: calc(0.72 * var(--con-ui-scale, 1)); gap: 1.4rem; padding: .7rem 1.1rem; }
+    .con-composer__playslot-read { gap: .55rem; }
+    .con-composer__playslot-name { font-size: 1.6rem; }
+    .con-composer__playslot-cost { zoom: 1.35; }
+    .con-composer__playslot-eased { font-size: 1.05rem; }
+    .con-composer__playslot-total { font-size: 1.15rem; }
+}
+/* …AND ITS CARD LANDS IN THIS STAGE (PL-726): the receiving stage is a LAYER over the decision column — mounted
+   hidden from the commit's arm (layout, stack geometry and arts ride the round trip), `--up` reveals it while the
+   setup releases in place underneath; the law's face in the hero column stays as the play's source. */
+.con-composer__playstage {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: stretch;
+    min-width: 0;
+    min-height: 0;
+    z-index: 2;
+    visibility: hidden;
+    pointer-events: none;
+    &--up { visibility: visible; }
+}
 /* PAST THE PRESS THE SURFACE KEEPS EVERY BLOCK: the decision rows stay as the receipt of what was chosen (the
    target a row's resource goes to) and the commit dock stays in place, reading the flow — so the ledger does not
    move a pixel between «promised» and «paying» (it is the wave's source and the player's place). The dock's

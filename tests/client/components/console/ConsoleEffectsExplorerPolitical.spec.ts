@@ -41,7 +41,7 @@ const PETS = {name: CardName.PETS, resources: 2} as CardModel;
 function mountExplorer(ui: EffectsExplorerUi) {
   const parliament = model();
   return mount(ConsoleEffectsExplorer, {
-    global: {...globalConfig.global, stubs: {...(globalConfig.global as {stubs?: object}).stubs, 'premium-card-face': true}},
+    global: globalConfig.global,
     props: {
       cards: [PETS],
       color: BLUE,
@@ -73,7 +73,7 @@ describe('ConsoleEffectsExplorer — the Parliament\'s effects are groups of the
     const ui = createEffectsExplorerUi();
     const w = mountExplorer(ui);
     await w.vm.$nextTick();
-    const keys = w.findAll('[data-effect-key]').map((t) => t.attributes('data-effect-key'));
+    const keys = w.findAll('[data-effect-key]').map((t) => t.attributes('data-effect-key') ?? '');
     const visited = new Set<string>([ui.focusKey]);
     const explorer = w.vm as unknown as {handleIntent: (i: GamepadIntent) => void};
     for (let i = 0; i < keys.length * 3; i++) {

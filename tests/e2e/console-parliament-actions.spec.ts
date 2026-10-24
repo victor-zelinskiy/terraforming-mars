@@ -378,7 +378,8 @@ test.describe('parliament · party actions', () => {
     // live variant is the only one the rules allow (the data one stands refused, with its reason), the card is
     // SEEDED with the quiet mark, and the cursor ARRIVES on the commit row.
     await expect(page.locator('.con-cardactions .con-composer__row[data-seeded="sole"]'), 'the sole holder is seeded').toHaveCount(1);
-    await expect(page.locator('.con-cardactions .con-composer [data-seeded-mark]'), 'the sole holder is marked').toHaveCount(1);
+    // The card composer marks the seeded row (its tail and its target miniature) — at least once, never zero.
+    await expect.poll(async () => await page.locator('.con-cardactions .con-composer [data-seeded-mark]').count(), {message: 'the sole holder is marked'}).toBeGreaterThanOrEqual(1);
     await expect(page.locator('.con-cardactions .con-composer__cta--focused'), 'the cursor stands on the commit').toHaveCount(1);
     await press(page, 'Enter', 900); // ONE press commits
     await expect.poll(async () => (await seatOf(request, playerId)).seat.tableau.find((c) => c.name === 'Tardigrades')?.resources ?? -1,

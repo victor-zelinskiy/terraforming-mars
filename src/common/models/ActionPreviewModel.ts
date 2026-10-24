@@ -15,6 +15,7 @@ import {CardVictoryPointsDetail} from '../game/VictoryPointsBreakdown';
 import type {RevealCheckIcon} from './RevealResultModel';
 import type {DrawSearchModel} from './CardDrawRevealModel';
 import type {ReduxParty, ResolutionId, ResolutionInstanceId} from '../parliament/ParliamentTypes';
+import type {ResolutionPlayModel} from './ParliamentModel';
 import type {ResolutionCountMetricModel} from '../parliament/resolutionCounts';
 import type {MarsTileExclusion, MarsTileKind} from '../boards/marsTileCensus';
 import type {SpaceId} from '../Types';
@@ -618,6 +619,13 @@ export type ActionPreviewStep =
    * payment path is the PARTY's (`OptionMetadata.party`), never a card's. One door, two kinds of source.
    */
   | {kind: 'colonyTrade', party: ReduxParty, card?: undefined}
+  /**
+   * A LAW WHOSE ACTION PLAYS A CARD (Turmoil Redux RX36 Live Experiments — «один фреймворк»): the card pick the bill's
+   * settlement raises, PROMISED in the live prompt's own shape (`ResolutionPlayModel`). The composer answers it as a
+   * SLOT — the hand album with the play composer one level deeper (`consolePlayPick`) — and the composed play rides
+   * the action's ONE commit, after the bill's payment.
+   */
+  | {kind: 'lawPlay', resolution: ResolutionId, play: ResolutionPlayModel}
   /**
    * THIS BRANCH *IS* A MOVE ON THE HYDRONETWORK — it does not run a track of
    * its own, it enters the ONE Delta Project workspace and commits there.

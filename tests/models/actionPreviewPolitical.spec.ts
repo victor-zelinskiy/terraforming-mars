@@ -11,7 +11,16 @@ import {parsePoliticalActionSource, politicalActionPreview} from '../../src/serv
 import {seatEnacted} from '../parliament/parliamentArrange';
 import {OPEN_IP_TRADE_ID} from '../../src/server/parliament/resolutions/scientists/OpenIpTrade';
 import {TRADE_INDUSTRIES_ID} from '../../src/server/parliament/resolutions/unity/TradeIndustries';
-import {runAllActions} from '../TestingUtils';
+import {RD_FUNDING_ID} from '../../src/server/parliament/resolutions/scientists/RdFunding';
+import {LIVE_EXPERIMENTS_ID} from '../../src/server/parliament/resolutions/scientists/LiveExperiments';
+import {Grass} from '../../src/server/cards/base/Grass';
+import {CardName} from '../../src/common/cards/CardName';
+import {runAllActions, setTemperature} from '../TestingUtils';
+import {cast} from '../../src/common/utils/utils';
+import {OrOptions} from '../../src/server/inputs/OrOptions';
+import {InputResponse} from '../../src/common/inputs/InputResponse';
+import {Payment} from '../../src/common/inputs/Payment';
+import {parkedBatchTailLength, replayBatch} from '../../src/server/inputs/deferredInputBatch';
 import {PlayerInput} from '../../src/server/PlayerInput';
 
 function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
@@ -127,5 +136,76 @@ describe('politicalActionPreview', () => {
     const fleet = politicalActionPreview(p1, {kind: 'law', resolution: TRADE_INDUSTRIES_ID});
     expect(fleet?.answer).eq('option');
     expect(fleet?.branches[0].available).is.true;
+    // M€ alone pays the bill without asking — no step (the live path auto-pays).
+    expect(fleet?.branches[0].steps, 'no titanium — the bill asks nothing').deep.eq([]);
+  });
+
+  it('Trade Industries with titanium: the bill is a PAYMENT step addressed to the law (the live SelectPaymentDeferred)', () => {
+    const [, p1, , parliament] = reduxGame();
+    seatEnacted(parliament, TRADE_INDUSTRIES_ID);
+    p1.megaCredits = 30;
+    p1.titanium = 3;
+    const fleet = politicalActionPreview(p1, {kind: 'law', resolution: TRADE_INDUSTRIES_ID});
+    const [step] = fleet!.branches[0].steps;
+    expect(step?.kind).eq('input');
+    expect(step?.kind === 'input' ? step.input.type : undefined).eq('payment');
+    expect(step?.kind === 'input' ? step.for : undefined).deep.eq({role: 'payment', source: {kind: 'resolution', resolution: TRADE_INDUSTRIES_ID}});
+  });
+
+  it('ONE POST — Trade Industries\' [menu option, the bill\'s payment] lands in one replay, the bill never asked again', () => {
+    const [, p1, , parliament] = reduxGame();
+    seatEnacted(parliament, TRADE_INDUSTRIES_ID);
+    p1.megaCredits = 30;
+    p1.titanium = 3;
+    const fleets = p1.colonies.getFleetSize();
+    const preview = politicalActionPreview(p1, {kind: 'law', resolution: TRADE_INDUSTRIES_ID})!;
+    const [step] = preview.branches[0].steps;
+    p1.takeAction();
+    const menu = cast(p1.getWaitingFor(), OrOptions);
+    const index = menu.options.findIndex((o) => o.resolutionActionPrompt !== undefined);
+    expect(index).gte(0);
+    const price = (step.kind === 'input' ? (step.input as {amount: number}).amount : 0);
+    const batch: Array<InputResponse> = [
+      {type: 'or', index, response: {type: 'option'}},
+      {type: 'payment', payment: {...Payment.EMPTY, megacredits: price}, ...(step.kind === 'input' && step.for !== undefined ? {for: step.for} : {})} as InputResponse,
+    ];
+    replayBatch(p1, batch);
+    expect(p1.colonies.getFleetSize(), 'the fleet is bought').eq(fleets + 1);
+    expect(p1.megaCredits).eq(30 - price);
+    expect(parkedBatchTailLength(p1)).eq(0);
+    expect(p1.getWaitingFor()?.type, 'the bill is never asked again').not.eq('payment');
+  });
+
+  it('R&D Funding: the repeat pick is the card composer\'s repeat SLOT — no option input, one repeatAction step', () => {
+    const [game, p1, , parliament] = reduxGame();
+    seatEnacted(parliament, RD_FUNDING_ID);
+    const tardigrades = new Tardigrades();
+    p1.playedCards.push(tardigrades);
+    tardigrades.action(p1);
+    runAllActions(game);
+    p1.actionsThisGeneration.add(tardigrades.name);
+    const repeat = politicalActionPreview(p1, {kind: 'law', resolution: RD_FUNDING_ID});
+    expect(repeat?.answer).eq('direct');
+    const [branch] = repeat!.branches;
+    expect(branch.optionInput).is.undefined;
+    expect(branch.steps).has.length(1);
+    const [step] = branch.steps;
+    expect(step.kind === 'input' ? step.repeatAction : undefined).is.true;
+    expect(step.kind === 'input' ? (step.input as {cards: Array<{name: string}>}).cards.map((c) => c.name) : []).deep.eq([tardigrades.name]);
+  });
+
+  it('Live Experiments: the play is a SLOT step carrying the promised pick (the law\'s play model)', () => {
+    const [game, p1, , parliament] = reduxGame();
+    seatEnacted(parliament, LIVE_EXPERIMENTS_ID);
+    setTemperature(game, -30);
+    p1.megaCredits = 20;
+    p1.cardsInHand = [new Grass()];
+    const live = politicalActionPreview(p1, {kind: 'law', resolution: LIVE_EXPERIMENTS_ID});
+    expect(live?.answer).eq('option');
+    const steps = live!.branches[0].steps;
+    expect(steps.map((s) => s.kind)).deep.eq(['lawPlay']);
+    const play = steps[0].kind === 'lawPlay' ? steps[0].play : undefined;
+    expect(play?.reserve).eq(6);
+    expect(play?.input.cards.map((c) => c.name)).deep.eq([CardName.GRASS]);
   });
 });
