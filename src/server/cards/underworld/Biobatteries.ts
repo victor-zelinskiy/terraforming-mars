@@ -44,7 +44,10 @@ export class Biobatteries extends Card implements IProjectCard {
   public override bespokePlay(player: IPlayer) {
     const powerTags = player.tags.count(Tag.POWER, 'raw') + 1; // including this
     const microbeTags = player.tags.count(Tag.MICROBE, 'raw') + 1; // including this
-    const wildTags = player.tags.count(Tag.WILD, 'raw');
+    // Not 'raw': a wild tag that is not printed (the Turmoil Redux Scientists'
+    // party effect) is a wild tag too. The two counts above stay 'raw', so
+    // each wild tag is distributed exactly once, here.
+    const wildTags = player.tags.count(Tag.WILD);
 
     // `asMicrobeTags` is how many wild tags count as microbe tags; the rest count as power tags.
     const distribute = (asMicrobeTags: number) => {

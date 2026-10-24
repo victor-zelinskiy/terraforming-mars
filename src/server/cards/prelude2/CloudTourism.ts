@@ -46,7 +46,10 @@ export class CloudTourism extends ActionCard {
     if (player.tableau.has(CardName.EARTH_EMBASSY)) {
       counts.earth += player.tags.count(Tag.MOON, 'raw');
     }
-    let wildTags = player.tags.count(Tag.WILD, 'raw');
+    // Not 'raw': a wild tag that is not printed (the Turmoil Redux Scientists'
+    // party effect) is a wild tag too. The counts above stay 'raw', so each
+    // wild tag is distributed exactly once, here.
+    let wildTags = player.tags.count(Tag.WILD);
     while (wildTags > 0) {
       if (counts.earth < counts.venus) {
         counts.earth++;

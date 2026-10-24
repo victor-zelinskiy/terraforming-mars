@@ -4,6 +4,7 @@ import {testGame} from '../../TestGame';
 import {runAllActions} from '../../TestingUtils';
 import {EarthEmbassy} from '../../../src/server/cards/moon/EarthEmbassy';
 import {cast} from '../../../src/common/utils/utils';
+import {PartyName} from '../../../src/common/turmoil/PartyName';
 
 describe('CloudTourism', () => {
   const playTests = [
@@ -60,6 +61,18 @@ describe('CloudTourism', () => {
       cast(player.popWaitingFor(), undefined);
     });
   }
+
+  it('play, the Turmoil Redux Scientists\' wild tag pairs like a printed one', () => {
+    const card = new CloudTourism();
+    const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+
+    player.tagsForTest = {earth: 2, venus: 0};
+    game.parliament!.grantPartyEffect(player, PartyName.SCIENTISTS, 'test');
+    cast(card.play(player), undefined);
+    runAllActions(game);
+
+    expect(player.production.megacredits, '2 Earth · this Venus + the wild tag as Venus').eq(2);
+  });
 
   it('action', () => {
     const card = new CloudTourism();

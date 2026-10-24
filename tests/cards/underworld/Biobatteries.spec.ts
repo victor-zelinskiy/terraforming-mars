@@ -8,6 +8,7 @@ import {ResearchNetwork} from '../../../src/server/cards/prelude/ResearchNetwork
 import {ResearchCoordination} from '../../../src/server/cards/prelude/ResearchCoordination';
 import {cast} from '../../../src/common/utils/utils';
 import {SelectAmount} from '../../../src/server/inputs/SelectAmount';
+import {PartyName} from '../../../src/common/turmoil/PartyName';
 
 describe('Biobatteries', () => {
   it('play', () => {
@@ -44,6 +45,24 @@ describe('Biobatteries', () => {
 
     expect(player.stock.energy).eq(3);
     expect(tardigrades.resourceCount).eq(3);
+  });
+
+  it('play, the Turmoil Redux Scientists\' wild tag is distributed like a printed one', () => {
+    const card = new Biobatteries();
+    const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+    const tardigrades = new Tardigrades(); // microbe tag and holds microbes.
+    player.playedCards.push(tardigrades);
+    player.playedCards.push(new EnergyTapping()); // Energy tag
+    game.parliament!.grantPartyEffect(player, PartyName.SCIENTISTS, 'test');
+
+    const selectAmount = cast(card.play(player), SelectAmount);
+    expect(selectAmount.max, 'the party wild tag, no printed one').eq(1);
+
+    selectAmount.process({type: 'amount', amount: 1});
+    runAllActions(game);
+
+    expect(player.stock.energy, '1 microbe tag + this + the wild tag').eq(3);
+    expect(tardigrades.resourceCount, '1 power tag + this').eq(2);
   });
 
   it('play, with wild tags, but no microbe cards', () => {
