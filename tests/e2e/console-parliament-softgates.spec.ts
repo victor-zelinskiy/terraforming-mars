@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {test, expect, Page} from './consoleTest';
-import {bootFixtureSeats} from './consoleStart';
+import {bootFixtureSeats, openConsole, pressUntil} from './consoleStart';
 import {closeSitting, closeSittingAs, enterSittingByPass, parliament, parliamentWire, turnTo} from './parliamentDrive';
 
 /**
@@ -53,7 +53,7 @@ const samplesOf = (page: Page): Promise<Array<Sample>> => page.evaluate(() => (w
 test.describe(`the soft gates · ${TV.id}`, () => {
   test.use({viewport: TV.viewport});
 
-  test('one pass → the whole sitting walks by itself under its holds → «Закрыть заседание» flips the counter and admits blue alone', async ({page, request}) => {
+  test('one pass → the whole sitting walks by itself under its holds → «Закрыть заседание» flips the counter and admits blue alone', async ({page, request, context}) => {
     test.setTimeout(600_000);
     const {playerId: blue, seats} = await bootFixtureSeats(page, request, 'parliament-architecture-assembly', {query: TV.query});
     const red = seats[1];
@@ -102,6 +102,22 @@ test.describe(`the soft gates · ${TV.id}`, () => {
     const stillRed = await parliamentWire(request, red);
     expect(stillRed.waitingFor?.parliamentPhasePrompt?.stage, 'red still reads its sitting — nobody waited for it').toBe('close');
     await shoot(page, '04-blue-admitted-red-in-sitting');
+    // Blue's own strip names where red IS — still in its sitting, never the phase-derived «Покупка карт».
+    await expect(page.locator('.con-status__player[data-color="red"] .con-status__pstatus'), 'red reads ЗАСЕДАНИЕ on the strip of blue').toContainText(/заседание/i, {timeout: 10_000});
+
+    // ── THE SECOND CLIENT: red opens its console NOW — it lands on its own sitting's RESULTS (the server's step for it is
+    // `done`), while blue's screen is in the next generation's research. Both frames side by side are the soft gates.
+    const redPage = await context.newPage();
+    await openConsole(redPage, red, TV.query);
+    if (await parliament(redPage).count() === 0) {
+      expect(await pressUntil(redPage, 'Enter', async () => await parliament(redPage).count() > 0, {tries: 4, settleMs: 1500}),
+        'A on the plate of red opens its sitting').toBe(true);
+    }
+    expect(await turnTo(redPage, 'results', 60_000), 'red lands on the results of its own sitting').toBe(true);
+    await expect(redPage.locator('.con-status__gen .con-status__value'), 'the counter of red still reads the generation of its sitting').toHaveText('1');
+    await shoot(page, '05-A-research');
+    await shoot(redPage, '05-B-sitting');
+    await redPage.close();
 
     // ── RED CLOSES over the API: red is admitted; the record goes.
     await closeSittingAs(request, red);
