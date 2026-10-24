@@ -46,7 +46,7 @@
               <svg class="con-parl__effects-crown" viewBox="0 0 24 16" aria-hidden="true"><path d="M2 13 3.5 4l5 4.5L12 1.5l3.5 7L20.5 4 22 13z" /><rect x="2" y="13.6" width="20" height="2" rx="1" /></svg>
             </template>
             <template v-else-if="item.why === 'delegates'">
-              <span v-for="n in 2" :key="n" class="con-parl__effects-place" aria-hidden="true"><PlayerCube v-if="viewerColor !== undefined" :color="viewerColor" :size="cubePx(9)" :glow="false" /></span>
+              <span v-for="n in 2" :key="n" class="con-parl__effects-place" aria-hidden="true"><PlayerDelegate v-if="viewerColor !== undefined" :color="viewerColor" :size="figurePx(18)" :glow="false" /></span>
             </template>
             <!-- TR62: BY THE ALLIANCE — the PARTNER's small emblem with the link beside it (the badge of the seals). -->
             <template v-else-if="item.why === 'alliance' && item.via !== undefined">
@@ -71,7 +71,7 @@
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
-import PlayerCube from '@/client/components/PlayerCube.vue';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
@@ -79,11 +79,11 @@ import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHold
 import {ParliamentViewVm, PartyActionStateVm} from '@/client/console/parliament/consoleParliamentModel';
 import {EffectItem, effectsTileSize, EffectsTileSize, EffectWhy, parliamentEffectItems} from '@/client/console/parliament/parliamentEffectsModel';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
-import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
+import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 
 export default defineComponent({
   name: 'ConsoleParliamentEffects',
-  components: {ConsolePartyFormula, PlayerCube, PremiumMechanicsPanel},
+  components: {ConsolePartyFormula, PlayerDelegate, PremiumMechanicsPanel},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
@@ -118,8 +118,8 @@ export default defineComponent({
     },
   },
   methods: {
-    cubePx(px: number): number {
-      return Math.round(conLogicalPx(px));
+    figurePx(logical: number): number {
+      return delegateFigurePx(logical);
     },
     whyKey(why: EffectWhy): string {
       switch (why) {

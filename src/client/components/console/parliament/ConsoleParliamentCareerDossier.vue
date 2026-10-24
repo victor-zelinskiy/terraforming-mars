@@ -8,7 +8,7 @@
       <div class="con-parl-qd__race">
         <div v-for="seat in seats" :key="seat.color" class="con-parl-qd__row con-parl-qd__row--seat"
              :class="{'con-parl-qd__row--me': seat.color === viewerColor}" :data-parl-cd-seat="seat.color">
-          <PlayerCube :color="seat.color" :size="cubePx(14)" :glow="false" />
+          <PlayerDelegate :color="seat.color" :size="figurePx(21)" :glow="false" />
           <span class="con-parl-qd__row-name">{{ seat.name }}</span>
           <span class="con-parl-qd__row-step">{{ stepText(seat.agenda) }}</span>
           <!-- The seat's FINAL influence (the server's) with what stands beyond the Career beside it (T05) — the rungs on
@@ -27,14 +27,14 @@
       <span class="con-parl-qd__kicker con-parl-qd__kicker--gold"><i class="career-step-glyph" aria-hidden="true"></i>{{ $t('Agenda track') }}</span>
       <div class="con-parl-qd__ladder">
         <div class="con-parl-qd__rung con-parl-qd__rung--start">
-          <span class="con-parl-qd__rung-cubes"><PlayerCube v-for="c in view.agendaStart" :key="c" :color="c" :size="cubePx(15)" :glow="false" /></span>
+          <span class="con-parl-qd__rung-cubes"><PlayerDelegate v-for="c in view.agendaStart" :key="c" :color="c" :size="figurePx(22)" :glow="false" /></span>
           <span class="con-parl-qd__rung-label">{{ $t('Career start') }}</span>
         </div>
         <div v-for="step in view.agenda" :key="step.index" class="con-parl-qd__rung"
              :class="['con-parl-qd__rung--' + step.step.kind, {'con-parl-qd__rung--vetoed': vetoedRungs.has(step.index)}]"
              :data-parl-cd-step="step.index" :data-parl-cd-vetoed="vetoedRungs.has(step.index) ? 'tr' : undefined">
           <span class="con-parl-qd__rung-n">{{ step.index }}</span>
-          <span class="con-parl-qd__rung-cubes"><PlayerCube v-for="c in step.cubes" :key="c" :color="c" :size="cubePx(15)" :glow="false" /></span>
+          <span class="con-parl-qd__rung-cubes"><PlayerDelegate v-for="c in step.cubes" :key="c" :color="c" :size="figurePx(22)" :glow="false" /></span>
           <span v-if="step.step.kind === 'influence'" class="con-parl-qd__coin con-parl-qd__coin--rung"><i class="con-parl-qd__coin-glyph" aria-hidden="true"></i><b>{{ step.step.influence }}</b></span>
           <i v-else-if="step.step.kind === 'tr'" class="con-parl-qd__rung-res resource_icon resource_icon--rating" aria-hidden="true"></i>
           <i v-else class="con-parl-qd__rung-res con-parl-qd__rung-res--card resource_icon resource_icon--cards" aria-hidden="true"></i>
@@ -64,16 +64,16 @@
 import {defineComponent, PropType} from 'vue';
 import {seatRestricted} from '@/common/models/ParliamentModel';
 import {Color} from '@/common/Color';
-import PlayerCube from '@/client/components/PlayerCube.vue';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import ConsoleInfluenceMod from '@/client/components/console/parliament/ConsoleInfluenceMod.vue';
 import {InfluenceReading, influenceReadingOf} from '@/client/console/parliament/influenceReading';
-import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
+import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {ParliamentAgendaStepVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 export default defineComponent({
   name: 'ConsoleParliamentCareerDossier',
-  components: {PlayerCube, ConsoleInfluenceMod},
+  components: {PlayerDelegate, ConsoleInfluenceMod},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
@@ -118,8 +118,8 @@ export default defineComponent({
       }
       return translateText(step.step.kind === 'tr' ? '+1 TR' : '+1 card');
     },
-    cubePx(logical: number): number {
-      return conLogicalPx(logical);
+    figurePx(logical: number): number {
+      return delegateFigurePx(logical);
     },
   },
 });

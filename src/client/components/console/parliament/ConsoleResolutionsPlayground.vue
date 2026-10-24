@@ -156,7 +156,7 @@
         <span class="con-rxpg__control"><span class="con-rxpg__ckey">{{ $t('Context') }}</span><b data-rxpg-context>{{ $t(contextLabel) }}</b></span>
         <span class="con-rxpg__control">
           <span class="con-rxpg__ckey">{{ $t('Test player') }}</span>
-          <PlayerCube v-if="viewerColor !== undefined" :color="viewerColor" :size="14" :glow="false" />
+          <PlayerDelegate v-if="viewerColor !== undefined" :color="viewerColor" :size="14" :glow="false" />
           <b :data-rxpg-player="viewerColor ?? 'spectator'">{{ $t(viewerLabel) }}</b>
         </span>
         <span v-if="viewerSeatIndex !== undefined" class="con-rxpg__control">
@@ -167,7 +167,7 @@
         </span>
         <span class="con-rxpg__control">
           <span class="con-rxpg__ckey">{{ $t('Winner of the vote') }}</span>
-          <PlayerCube v-if="winnerColor !== undefined" :color="winnerColor" :size="14" :glow="false" />
+          <PlayerDelegate v-if="winnerColor !== undefined" :color="winnerColor" :size="14" :glow="false" />
           <b :data-rxpg-winner="winnerColor ?? 'neutral'">{{ winnerLabel }}</b>
         </span>
         <span v-if="pickerEffect !== undefined" class="con-rxpg__control"><span class="con-rxpg__ckey">{{ $t('No eligible card') }}</span><b data-rxpg-norecipient>{{ noRecipient ? '✓' : '—' }}</b></span>
@@ -251,7 +251,7 @@
                  class="con-rxpg__seat"
                  :class="{'con-rxpg__seat--viewer': row.viewer}"
                  :data-rxpg-seat="row.color">
-              <PlayerCube :color="row.color" :size="12" :glow="false" />
+              <PlayerDelegate :color="row.color" :size="12" :glow="false" />
               <span class="con-rxpg__seat-name">{{ $t(row.label) }}</span>
               <i v-if="row.winner" class="con-rxpg__seat-star" aria-hidden="true"></i>
               <ConsoleInfluenceYield :yields="row.yields" :levy="row.levy" :formula="false" :oneNumber="context === 'proposal'" size="compact" />
@@ -272,14 +272,14 @@
             </div>
             <div v-if="questView.completedBy === undefined" class="con-parl__quest-progress" data-rxpg-quest-progress>
               <span v-for="row in questView.rows" :key="row.color" class="con-parl__quest-row" :class="{'con-parl__quest-row--me': row.color === viewerColor}" :data-rxpg-quest-row="row.color">
-                <PlayerCube :color="row.color" :size="12" :glow="false" />
+                <PlayerDelegate :color="row.color" :size="12" :glow="false" />
                 <b class="con-parl__tick">{{ row.value }}</b><span class="con-parl__quest-of">/{{ selected.quest.count }}</span>
               </span>
             </div>
             <div v-else class="con-parl__quest-foot">
               <span class="con-parl__quest-reward">
                 <span class="con-parl__quest-reward-kicker">{{ $t('Won by') }}</span>
-                <PlayerCube :color="questView.completedBy ?? 'neutral'" :size="12" :glow="false" />
+                <PlayerDelegate :color="questView.completedBy ?? 'neutral'" :size="12" :glow="false" />
                 <b>{{ $t(questView.completedLabel) }}</b>
               </span>
               <span class="con-parl__chair">
@@ -299,7 +299,7 @@
                  :class="{'con-rxpg__tableau--viewer': row.viewer}"
                  :data-rxpg-hand-of="row.color">
               <span class="con-rxpg__tableau-who">
-                <PlayerCube :color="row.color" :size="12" :glow="false" />
+                <PlayerDelegate :color="row.color" :size="12" :glow="false" />
                 <span class="con-rxpg__seat-name">{{ $t(row.label) }}</span>
                 <i class="con-rxpg__prodterm-unit" :class="levelUnitClass" aria-hidden="true"></i>
                 <b data-rxpg-hand>{{ row.hand }}</b>
@@ -321,7 +321,7 @@
                  :class="{'con-rxpg__tableau--viewer': row.viewer}"
                  :data-rxpg-metric-of="row.color">
               <span class="con-rxpg__tableau-who">
-                <PlayerCube :color="row.color" :size="12" :glow="false" />
+                <PlayerDelegate :color="row.color" :size="12" :glow="false" />
                 <span class="con-rxpg__seat-name">{{ $t(row.label) }}</span>
                 <PremiumCountGlyph v-if="countGlyph !== undefined" class="con-rxpg__tableau-glyph" :glyph="countGlyph" />
                 <b data-rxpg-count>{{ row.count }}</b>
@@ -354,7 +354,7 @@
                  :data-rxpg-colonies-of="row.color"
                  :data-rxpg-colonies-count="row.count">
               <span class="con-rxpg__tableau-who">
-                <PlayerCube :color="row.color" :size="12" :glow="false" />
+                <PlayerDelegate :color="row.color" :size="12" :glow="false" />
                 <span class="con-rxpg__seat-name">{{ $t(row.label) }}</span>
                 <PremiumCountGlyph v-if="countGlyph !== undefined" class="con-rxpg__tableau-glyph" :glyph="countGlyph" />
                 <b data-rxpg-count>{{ row.count }}</b>
@@ -366,7 +366,7 @@
                       :data-rxpg-colony="cube.name"
                       :data-rxpg-past-cap="cube.pastCap ? 'true' : 'false'">
                   <span class="con-rxpg__colony-planet" :class="planetClassOf(cube.name)" aria-hidden="true"></span>
-                  <PlayerCube :color="row.color" :size="9" :glow="false" />
+                  <PlayerDelegate :color="row.color" :size="9" :glow="false" />
                   <span class="con-rxpg__colony-name">{{ $t(cube.name) }}</span>
                 </span>
                 <span v-if="row.cubes.length === 0" class="con-rxpg__dim">{{ $t('No colonies') }}</span>
@@ -384,7 +384,7 @@
                  :class="{'con-rxpg__tableau--viewer': row.viewer}"
                  :data-rxpg-production-of="row.color">
               <span class="con-rxpg__tableau-who">
-                <PlayerCube :color="row.color" :size="12" :glow="false" />
+                <PlayerDelegate :color="row.color" :size="12" :glow="false" />
                 <span class="con-rxpg__seat-name">{{ $t(row.label) }}</span>
                 <PremiumCountGlyph v-if="countGlyph !== undefined" class="con-rxpg__tableau-glyph" :glyph="countGlyph" />
                 <b data-rxpg-count>{{ row.count }}</b>
@@ -410,7 +410,7 @@
                  :class="{'con-rxpg__tableau--viewer': row.viewer}"
                  :data-rxpg-cells-of="row.color">
               <span class="con-rxpg__tableau-who">
-                <PlayerCube :color="row.color" :size="12" :glow="false" />
+                <PlayerDelegate :color="row.color" :size="12" :glow="false" />
                 <span class="con-rxpg__seat-name">{{ $t(row.label) }}</span>
                 <PremiumCountGlyph v-if="countGlyph !== undefined" class="con-rxpg__tableau-glyph" :glyph="countGlyph" />
                 <b data-rxpg-count>{{ row.count }}</b>
@@ -442,7 +442,7 @@
                  :class="{'con-rxpg__tableau--viewer': row.viewer}"
                  :data-rxpg-tableau="row.color">
               <span class="con-rxpg__tableau-who">
-                <PlayerCube :color="row.color" :size="12" :glow="false" />
+                <PlayerDelegate :color="row.color" :size="12" :glow="false" />
                 <span class="con-rxpg__seat-name">{{ $t(row.label) }}</span>
                 <PremiumCountGlyph v-if="countGlyph !== undefined" class="con-rxpg__tableau-glyph" :glyph="countGlyph" />
                 <b data-rxpg-count>{{ row.count }}</b>
@@ -649,7 +649,7 @@ const ACTION_HANDS: ReadonlyArray<number> = [0, 1, 4];
 const BILL_INFLUENCES: ReadonlyArray<number> = [0, 3, 6];
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import PlayerCube from '@/client/components/PlayerCube.vue';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
 import ConsolePartyReaction from '@/client/components/console/parliament/ConsolePartyReaction.vue';
 import ConsoleWinnerReward from '@/client/components/console/parliament/ConsoleWinnerReward.vue';
@@ -2024,7 +2024,7 @@ function scenarioState(index: number) {
 export default defineComponent({
   name: 'ConsoleResolutionsPlayground',
   components: {
-    PremiumCard, GamepadGlyph, PlayerCube, ConsoleInfluenceYield, ConsoleColonyLedger, ConsoleResolutionStatus, ConsoleResolutionAside, ConsoleCardRulesPanel,
+    PremiumCard, GamepadGlyph, PlayerDelegate, ConsoleInfluenceYield, ConsoleColonyLedger, ConsoleResolutionStatus, ConsoleResolutionAside, ConsoleCardRulesPanel,
     ConsoleSourceDock, ConsolePlayedTargetStep, PremiumMechanicsPanel, PremiumCountGlyph, ConsoleWinnerReward, ConsoleTileGrant, ConsoleAgendaGrant, ConsolePartyReaction, ActionEffectChip,
   },
   props: {

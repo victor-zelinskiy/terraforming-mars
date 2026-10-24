@@ -290,7 +290,7 @@ test.describe('«Итоги: честность» — панель, поддер
     const stated = await page.locator('[data-sit-nodelegate]').evaluateAll((els) => els.map((el) => ({
       seat: el.getAttribute('data-sit-nodelegate-seat') ?? '',
       name: (el.querySelector('.con-sit__seat-name')?.textContent ?? '').trim(),
-      cube: el.querySelector('.player-cube') !== null,
+      cube: el.querySelector('[data-player-token]') !== null,
     })));
     expect(stated.map((c) => c.seat), `the exception names exactly the voteless seats (server: ${voteless.join(',') || 'none'})`)
       .toEqual(voteless);

@@ -20,7 +20,9 @@
 // ─────────────────────────────────────────────────────────────────────────
 
 .player-delegate {
-	--pd-size: 24px;
+	// The HOST sizes the figure (`--pd-host` on the place it stands in); the
+	// floor is 18 logical px. A `size` prop writes `--pd-size` inline instead.
+	--pd-size: var(--pd-host, .9rem);
 
 	position: relative;
 	display: inline-block;
@@ -208,3 +210,102 @@
 		}
 	}
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// THE DELEGATE'S PLACE IS A FOOTPRINT — `.pd-footprint()`
+//
+// Every place a delegate stands in (a lobby socket, a reserve pile, a ribbon
+// slot, a threshold place, a support place, the chair) is the SAME object: an
+// elliptical TRACE on the table, the size of the figure's disc, where the
+// figure's base stands. An empty place IS the trace; a filled one is the
+// figure standing IN it (the disc covers the trace exactly). The place sizes
+// the figure (`--pd-host`) so the trace, the figure and the box live in one
+// rule and scale with the profile's rem.
+//
+// A state speaks through the trace's own variables, never a box around the
+// figure: `--pd-foot-rim` (the edge), `--pd-foot-style` (solid / dashed — the
+// dash, not a colour alone, tells a forecast from an empty place),
+// `--pd-foot-fill`, `--pd-foot-glow`. The touchdown is `.pd-footprint-landed()`:
+// one contact ring off the trace and the figure settling 2 px — never a pulse.
+// ─────────────────────────────────────────────────────────────────────────
+.pd-footprint(@fig: .9rem) {
+	--pd-host: @fig;
+	position: relative;
+	display: inline-flex;
+	align-items: flex-end;
+	justify-content: center;
+	background: none;
+	box-shadow: none;
+	border-radius: 0;
+
+	// The trace: the disc's own footprint (0.68 × the figure's height wide,
+	// its top face 0.17 high, 0.045 off the floor of the box).
+	&::before {
+		content: '';
+		position: absolute;
+		left: 50%;
+		bottom: calc(var(--pd-host) * 0.045);
+		width: calc(var(--pd-host) * 0.68);
+		height: calc(var(--pd-host) * 0.17);
+		box-sizing: border-box;
+		transform: translateX(-50%);
+		border-radius: 50%;
+		border: .06rem var(--pd-foot-style, solid) var(--pd-foot-rim, rgba(205, 218, 232, 0.36));
+		background: var(--pd-foot-fill, radial-gradient(closest-side, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.26)));
+		box-shadow: var(--pd-foot-glow, none);
+		pointer-events: none;
+		z-index: 0;
+	}
+
+	> .player-delegate {
+		position: relative;
+		z-index: 1;
+	}
+}
+
+// The trace a delegate is about to take (a forecast, never a placement): the
+// dashed mint edge and a calm breath of the trace's fill — compositor-only.
+.pd-footprint-target(@rim: #5fe3b4) {
+	--pd-foot-rim: fade(@rim, 90%);
+	--pd-foot-style: dashed;
+	--pd-foot-fill: radial-gradient(closest-side, fade(@rim, 26%), fade(@rim, 8%));
+	&::before { animation: pd-foot-breathe calc(900ms * var(--motion-scale, 1)) ease-in-out infinite alternate; }
+}
+
+// THE TOUCHDOWN — ONE contact ring off the trace (≤ 240 ms) and the figure
+// settling 2 px down and back. A one-shot, ended by its own animationend.
+.pd-footprint-landed(@ring: #5fe3b4) {
+	&::after {
+		content: '';
+		position: absolute;
+		left: 50%;
+		bottom: calc(var(--pd-host) * 0.045);
+		width: calc(var(--pd-host) * 0.68);
+		height: calc(var(--pd-host) * 0.17);
+		box-sizing: border-box;
+		border-radius: 50%;
+		border: .08rem solid @ring;
+		opacity: 0;
+		pointer-events: none;
+		z-index: 2;
+		animation: pd-foot-contact calc(240ms * var(--motion-scale, 1)) cubic-bezier(.2, .7, .3, 1) 1 both;
+	}
+	> .player-delegate { animation: pd-settle calc(280ms * var(--motion-scale, 1)) cubic-bezier(.3, 0, .35, 1) 1; }
+}
+
+@keyframes pd-foot-breathe {
+	from { opacity: .55; }
+	to { opacity: 1; }
+}
+
+@keyframes pd-foot-contact {
+	from { opacity: .95; transform: translateX(-50%) scale(.82); }
+	to { opacity: 0; transform: translateX(-50%) scale(1.5); }
+}
+
+@keyframes pd-settle {
+	0% { transform: translateY(0); }
+	38% { transform: translateY(.1rem); }
+	100% { transform: translateY(0); }
+}
+

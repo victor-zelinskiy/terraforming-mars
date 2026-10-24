@@ -44,7 +44,7 @@ const panelOf = (page: Page) => page.evaluate(() => {
     kicker: (kicker?.textContent ?? '').replace(/\s+/g, ' ').trim(),
     kickerSubject: kicker?.getAttribute('data-parl-kicker-subject') ?? null,
     kickerName: kicker?.querySelector('[data-parl-kicker-name]')?.textContent?.trim() ?? null,
-    kickerCubes: kicker?.querySelectorAll('.player-cube').length ?? 0,
+    kickerCubes: kicker?.querySelectorAll('[data-player-token]').length ?? 0,
     amounts: Array.from(document.querySelectorAll<HTMLElement>('[data-parl-vote-reading] [data-yield-context="estimate"]'))
       .map((el) => el.getAttribute('data-yield-amount')),
     influences: Array.from(document.querySelectorAll<HTMLElement>('[data-parl-vote-reading] [data-yield-context="estimate"]'))

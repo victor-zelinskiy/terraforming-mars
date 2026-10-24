@@ -10,7 +10,7 @@ import {resetRivalVotes, rivalVotes, seedRivalVotes, settleRivalVotes} from '@/c
 /**
  * ANOTHER SEAT'S DELEGATE ARRIVES — the SEED (the pure half): which cubes of a
  * response fly, from which place, and when nothing flies at all. The flight
- * itself is the sitting's own `flyCube`; the e2e watches it land.
+ * itself is the sitting's own `flyDelegate`; the e2e watches it land.
  */
 const BLUE = 'blue' as Color;
 const RED = 'red' as Color;

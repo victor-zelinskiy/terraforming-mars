@@ -90,7 +90,8 @@ let pdUid = 0;
  * a resolution's ribbon what it read on the card.
  *
  * Props mirror `PlayerCube` so a seat swaps one tag for the other. `size` is
- * the figure's HEIGHT in px (its box is 0.8 × size wide). Never put a CSS
+ * the figure's HEIGHT in px (its box is 0.8 × size wide); without it the place
+ * sizes the figure (`--pd-host`, floor `.9rem` = 18 logical px). Never put a CSS
  * `filter` on the piece (the console strips them; the shadow and the glow are
  * flat siblings that carry their own softness).
  */
@@ -103,10 +104,14 @@ export default defineComponent({
       type: String as unknown as PropType<Color | undefined>,
       required: true,
     },
-    // The figure's height in px (its box is 0.8 × size wide).
+    // The figure's height in px (its box is 0.8 × size wide). Absent → the
+    // HOST sizes it: the place it stands in declares `--pd-host` (a socket,
+    // a ribbon slot, a plaque's place), so the place, its footprint and the
+    // figure live in ONE stylesheet and scale with the profile's rem. The
+    // floor is 18 logical px (`.9rem`).
     size: {
-      type: Number,
-      default: 24,
+      type: Number as PropType<number | undefined>,
+      default: undefined,
     },
     // A whisper of the player's colour behind the upper body.
     glow: {
@@ -149,10 +154,8 @@ export default defineComponent({
       return this.color ?? 'neutral';
     },
     styleVars(): Record<string, string> {
-      return {
-        '--pd-size': `${this.size}px`,
-        ...tokenStyleVars(this.resolvedColor, {steel: this.steel}),
-      };
+      const vars = tokenStyleVars(this.resolvedColor, {steel: this.steel});
+      return this.size === undefined ? vars : {'--pd-size': `${this.size}px`, ...vars};
     },
     rootClass(): Record<string, boolean> {
       return {

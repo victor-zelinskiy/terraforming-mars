@@ -130,8 +130,7 @@ async function armProbe(page: Page): Promise<void> {
         // face-up (the enacted card's, a loser's) carries no transform at all until its turn begins — both ARE
         // face-up. A face-down birth (a deal) is written as rotateY(180) on the tick the proxy is born.
         const rotY = m !== null ? Number(m[1]) : (inner !== null ? 0 : undefined);
-        const cube = el.querySelector<HTMLElement>('.player-cube');
-        const color = cube === null ? '' : (Array.from(cube.classList).find((c) => c.startsWith('player-cube--') || c.startsWith('cube-')) ?? cube.className.toString().slice(0, 40));
+        const color = el.querySelector<HTMLElement>('[data-player-token]')?.getAttribute('data-player-token') ?? '';
         const cs = getComputedStyle(el);
         return {
           id: el.getAttribute('data-parl-flight') ?? '', body: el.getAttribute('data-parl-flight-body') ?? 'cube',

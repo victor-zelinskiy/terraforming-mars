@@ -300,7 +300,7 @@
         .alliance-link-glyph(.5rem; 0rem; 0rem; #ffd27a; .065rem);
     }
     &__effects-crown { display: block; width: .9rem; height: .62rem; fill: @con-parl-gold; }
-    &__effects-place { display: inline-flex; align-items: center; justify-content: center; width: .7rem; height: .7rem; border-radius: .16rem; background: rgba(0, 0, 0, 0.3); box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 50%); }
+    &__effects-place { .pd-footprint(.9rem); width: .74rem; height: .9rem; --pd-foot-rim: fade(@con-parl-mint, 50%); }
     &__effects-formula {
         flex: 1 1 auto;
         min-height: 0;
@@ -609,7 +609,8 @@
         &--pulse { animation: con-parl-land-flash calc(900ms * var(--motion-scale, 1)) ease-out both; }
     }
     &__chair-glyph { width: 1.6rem; height: 1.6rem; fill: @con-parl-gold; opacity: .92; }
-    &__chair-cube { position: absolute; inset: 0; display: grid; place-items: center; }
+    /* The chairman's DELEGATE seated IN the chair (the chair stays the one mark of the office; the figure is who holds it). */
+    &__chair-cube { position: absolute; inset: 0; display: grid; place-items: end center; padding-bottom: .5rem; --pd-host: 1.2rem; }
     &__engine-cond { grid-area: cond; display: flex; align-items: center; justify-content: center; min-width: 0; max-width: 100%; }
     /* The printed condition bare on the plate (no dark tile behind it) at the formula's scale. */
     &__engine-cond .con-parl__quest-graphic { zoom: var(--con-parl-engine-zoom); padding: 2px 4px; background: none; border: none; box-shadow: none; }
@@ -897,15 +898,8 @@
         .con-pseal__action--used { color: @con-parl-mint; }
         .con-pseal__state { align-self: start; height: 1rem; gap: .35rem; }
         .con-pseal__support { margin-left: 0; gap: .2rem; }
-        /* THE SUPPORT SOCKETS read as the delegate's own silhouette (a dashed hex), never a square box. */
-        .con-pseal__support-place {
-            width: .95rem;
-            height: .95rem;
-            border-radius: 0;
-            box-shadow: none;
-            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M10 2 17 6v8l-7 4-7-4V6z' fill='rgba(0,0,0,0.35)' stroke='rgba(205,218,232,0.4)' stroke-width='1.2' stroke-dasharray='2 1.6'/%3E%3C/svg%3E") center / contain no-repeat;
-            &--on { background: none; box-shadow: none; }
-        }
+        /* THE SUPPORT PLACES are the delegate's own footprint (the trace its disc stands in), never a square box. */
+        .con-pseal__support-place { width: .8rem; height: .95rem; --pd-host: .95rem; }
         /* THE ACCESS RING — the two printed places as the seal's two half-arcs, mint when a delegate of the viewer's
            stands on the party (a void place — TR36 — keeps its room unpainted). Out of the state row's flow: the row
            keeps its height, the places keep their elements and hooks. */
@@ -930,6 +924,8 @@
             box-shadow: none;
             transition: border-color calc(240ms * var(--motion-scale, 1)) ease-out;
             > * { display: none; }
+            /* The arcs ARE the places here — no footprint trace inside the ring. */
+            &::before { content: none; }
             &:nth-child(1) { clip-path: polygon(0 0, 46% 0, 46% 100%, 0 100%); }
             &:nth-child(2) { clip-path: polygon(54% 0, 100% 0, 100% 100%, 54% 100%); }
             &--on { border-color: @con-parl-mint; box-shadow: none; }
@@ -1071,7 +1067,7 @@ html.con-profile-handheld .con-parl {
     .con-pseal--row .con-pseal__action { width: 1rem; height: 1rem; font-size: .6rem; }
     .con-pseal--row .con-pseal__name { font-size: .56rem; }
     .con-pseal--row .con-pseal__state { height: .72rem; }
-    .con-pseal--row .con-pseal__support-place { width: .7rem; height: .7rem; }
+    .con-pseal--row .con-pseal__support-place { width: .74rem; height: .9rem; --pd-host: .9rem; }
     .con-pseal--row .con-pseal__places { left: calc(.35rem - .22rem); width: calc(var(--con-pseal-row-seal) + .44rem); height: calc(var(--con-pseal-row-seal) + .44rem); }
     .con-pseal--row .con-pseal__place { border-width: .11rem; }
     .con-pseal--ruler { padding: .8rem .1rem .2rem; row-gap: .2rem; }
@@ -1593,13 +1589,11 @@ html.con-profile-handheld .con-parl.con-parl--hall {
     &__places-label { flex: 1 1 auto; min-width: 0; font-size: .58rem; letter-spacing: .12em; text-transform: uppercase; color: rgba(205, 218, 232, 0.78); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     &__sockets { display: inline-flex; gap: .3rem; }
     &__socket {
-        width: 1.25rem;
+        .pd-footprint(1.1rem);
+        width: 1.1rem;
         height: 1.25rem;
-        border-radius: .3rem;
-        display: grid;
-        place-items: center;
-        box-shadow: inset 0 0 0 .07rem rgba(170, 195, 220, 0.4);
-        &--on { box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 70%); }
+        --pd-foot-rim: rgba(170, 195, 220, 0.4);
+        &--on { --pd-foot-rim: fade(@con-parl-mint, 70%); }
         &--void { visibility: hidden; }
     }
     &__count { font-size: .9rem; font-weight: 400; font-variant-numeric: tabular-nums; color: #f2f5fa; }
@@ -1620,41 +1614,24 @@ html.con-profile-handheld .con-paccess {
     .con-paccess__state { font-size: .66rem; }
 }
 
-/* THE SUPPORT SOCKET IS ONE SILHOUETTE IN EVERY HOST (Парламент v8 П5): the benches drew the delegate's dashed hex while the
-   ruler on the dais and the vote panel's «НАРОДНАЯ ПОДДЕРЖКА» kept the square «checkbox» the plan retired — one object,
-   one shape. An EMPTY place is the silhouette; a FILLED one is the cube with no frame around it; a forecast place
-   (`--incoming`, the dashed outline) and a recounted / leaving cube keep their own marks. */
-.con-pseal__support-place:not(.con-pseal__support-place--on):not(.con-pseal__support-place--incoming) {
-    border-radius: 0;
-    box-shadow: none;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M10 2 17 6v8l-7 4-7-4V6z' fill='rgba(0,0,0,0.35)' stroke='rgba(205,218,232,0.4)' stroke-width='1.2' stroke-dasharray='2 1.6'/%3E%3C/svg%3E") center / contain no-repeat;
-}
-.con-pseal__support-place--on:not(.con-pseal__support-place--counted):not(.con-pseal__support-place--outgoing) {
-    background: none;
-    box-shadow: none;
-}
-/* …and the FORECAST place (`--incoming`, a place the press being decided will fill) is the same silhouette drawn in the
-   cursor's cyan, its dash denser — the dash, not the colour alone, tells it from an empty socket. */
-.con-pseal__support-place--incoming:not(.con-pseal__support-place--on) {
-    border-radius: 0;
-    box-shadow: none;
-    outline: none;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M10 2 17 6v8l-7 4-7-4V6z' fill='rgba(106,176,230,0.14)' stroke='rgba(106,176,230,0.95)' stroke-width='1.4' stroke-dasharray='1.6 1.2'/%3E%3C/svg%3E") center / contain no-repeat;
-}
+/* THE SUPPORT PLACE IS ONE FOOTPRINT IN EVERY HOST (Парламент v8 П5 → the delegate figure): the benches, the ruler on
+   the dais and the vote panel's «НАРОДНАЯ ПОДДЕРЖКА» all draw the same `.pd-footprint()` trace (`console_party_plaque.less`)
+   — an EMPTY place is the trace; a FILLED one is the figure standing in it; a forecast place (`--incoming`) the dashed
+   cyan trace; a recounted / leaving figure keeps its own mark. One object, one shape. */
 /* THE HALL VOTE's «НАРОДНАЯ ПОДДЕРЖКА» reads at the party box's scale (П5): the box is a fixed 5.4rem row, so the
    places and the numbers take the room it has instead of a 0.72rem strip in its corner. */
 .con-parl.con-parl--hall .con-parl__vote {
     .con-parl__info-support { gap: .2rem; }
     .con-parl__info-support-row { height: 1.45rem; gap: .55rem; }
     .con-parl__info-support-places { gap: .28rem; }
-    .con-parl__info-support-places .con-pseal__support-place { width: 1.15rem; height: 1.15rem; }
+    .con-parl__info-support-places .con-pseal__support-place { width: 1rem; height: 1.15rem; --pd-host: 1.1rem; }
     .con-parl__info-support-num { font-size: .95rem; b { font-size: 1.2rem; } }
     .con-parl__info-support-tail { height: .95rem; line-height: .95rem; font-size: .7rem; }
 }
 html.con-profile-tv .con-parl.con-parl--hall .con-parl__vote .con-parl__info-support-tail { font-size: .8rem; }
 html.con-profile-handheld .con-parl.con-parl--hall .con-parl__vote {
     .con-parl__info-support-row { height: 1.1rem; }
-    .con-parl__info-support-places .con-pseal__support-place { width: .85rem; height: .85rem; }
+    .con-parl__info-support-places .con-pseal__support-place { width: .76rem; height: .9rem; --pd-host: .9rem; }
     .con-parl__info-support-num { font-size: .78rem; b { font-size: .95rem; } }
     .con-parl__info-support-tail { font-size: .6rem; }
 }

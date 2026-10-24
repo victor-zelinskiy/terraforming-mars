@@ -34,11 +34,11 @@
       </div>
       <div class="con-dparl__delegates" data-parl-zone-delegates>
         <span class="con-dparl__token" :class="{'con-dparl__token--empty': !reading.delegates.lobby}" data-parl-zone-token="lobby">
-          <span class="con-dparl__socket"><PlayerCube v-if="reading.delegates.lobby" :color="color" :size="cubePx" :glow="false" /></span>
+          <span class="con-dparl__socket"><PlayerDelegate v-if="reading.delegates.lobby" :color="color" :size="figurePx" :glow="false" /></span>
           <span class="con-dparl__tokenlabel">{{ $t('Lobby') }}</span>
         </span>
         <span class="con-dparl__token" data-parl-zone-token="reserve">
-          <span class="con-dparl__socket"><PlayerCube :color="color" :size="cubePx" :glow="false" /><b class="con-dparl__times">×{{ reading.delegates.reserve }}</b></span>
+          <span class="con-dparl__socket"><PlayerDelegate :color="color" :size="figurePx" :glow="false" /><b class="con-dparl__times">×{{ reading.delegates.reserve }}</b></span>
           <span class="con-dparl__tokenlabel">{{ $t('Reserve') }}</span>
         </span>
         <span class="con-dparl__token con-dparl__token--slots" data-parl-zone-token="slots">
@@ -64,15 +64,15 @@ import {PARLIAMENT_AGENDA_STEPS, ReduxParty} from '@/common/parliament/Parliamen
 import {SeatParliamentReadingVm, BOT_PARLIAMENT_NOTE, BOT_POLITICS_NOTE} from '@/client/console/parliament/seatParliamentReading';
 import {dossierLadder, DossierLadderPip} from '@/client/console/infoDossierModel';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
-import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import PlayerCube from '@/client/components/PlayerCube.vue';
+import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import ConsoleInfluenceMod from '@/client/components/console/parliament/ConsoleInfluenceMod.vue';
 import PremiumChairGlyph from '@/client/components/premiumCard/PremiumChairGlyph.vue';
 
 
 export default defineComponent({
   name: 'ConsoleDossierParliament',
-  components: {PlayerCube, PremiumChairGlyph, ConsoleInfluenceMod},
+  components: {PlayerDelegate, PremiumChairGlyph, ConsoleInfluenceMod},
   props: {
     reading: {type: Object as PropType<SeatParliamentReadingVm>, required: true},
     color: {type: String as PropType<Color>, required: true},
@@ -96,9 +96,9 @@ export default defineComponent({
       return next.kind === 'tr' ? 'resource_icon resource_icon--rating' :
         next.kind === 'card' ? 'resource_icon resource_icon--cards' : 'con-dparl__nexticon--influence';
     },
-    /** The cube's pixel size at the scene's scale (PlayerCube is px-authored). */
-    cubePx(): number {
-      return Math.round(20 * conUiScale());
+    /** The figure's height at the scene's scale — the Information's size (28 logical). */
+    figurePx(): number {
+      return delegateFigurePx(28);
     },
   },
   methods: {

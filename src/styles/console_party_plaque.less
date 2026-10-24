@@ -221,19 +221,17 @@
     /* A place past the viewer's OWN threshold (TR36 lowered it to one) is VOID — hidden, its room kept (the support
        sockets' idiom), so a law changing under a standing cube lights a place and moves nothing. The lit state is a beat. */
     &__place {
-        width: .8rem; height: .8rem; border-radius: .18rem;
-        display: inline-flex; align-items: center; justify-content: center;
-        background: rgba(0, 0, 0, 0.4);
-        box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 45%);
-        transition: box-shadow calc(240ms * var(--motion-scale, 1)) @con-ease-standard;
-        &--on { box-shadow: inset 0 0 0 .06rem fade(@con-parl-mint, 55%); }
+        .pd-footprint(.9rem);
+        width: .78rem; height: .9rem;
+        --pd-foot-rim: fade(@con-cyan, 45%);
+        &--on { --pd-foot-rim: fade(@con-parl-mint, 60%); }
         &--void { visibility: hidden; }
     }
     &__places-count { margin-left: .12rem; font-size: .62rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
     /* THE REASON (the focused tile whose action cannot be taken): one short
        amber line in the foot — the state's ring and badge stay. */
     &__reason { flex: 1 1 auto; min-width: 0; font-size: .56rem; line-height: 1.15; letter-spacing: .03em; text-transform: uppercase; white-space: normal; color: @con-amber; &--dim { color: fade(@con-text, 80%); } }
-    /* POPULAR SUPPORT — three places closing the foot; a steel cube per supporter. */
+    /* POPULAR SUPPORT — three places closing the foot; a steel figure per supporter. */
     &__support {
         display: inline-flex;
         gap: .1rem;
@@ -247,32 +245,32 @@
         &--void { visibility: hidden; }
     }
     &__support-place {
-        width: .72rem; height: .72rem; border-radius: .15rem;
-        display: inline-flex; align-items: center; justify-content: center;
-        background: rgba(0, 0, 0, 0.4);
-        box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.3);
-        &--on { box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.55); }
-        /* THE RECOUNT'S MARK (TR31): a standing cube the count has reached — one class flip, its one-shot pulse, a ring that stays for the read. */
+        .pd-footprint(.9rem);
+        width: .74rem; height: .9rem;
+        --pd-foot-rim: rgba(205, 218, 232, 0.36);
+        &--on { --pd-foot-rim: rgba(205, 218, 232, 0.55); }
+        /* THE RECOUNT'S MARK (TR31): a standing figure the count has reached — one class flip, its trace's one-shot swell, a ring that stays for the read. */
         &--counted {
-            box-shadow: inset 0 0 0 .08rem fade(#5fe3b4, 75%), 0 0 .35rem fade(#5fe3b4, 35%);
-            animation: con-pseal-support-counted calc(360ms * var(--motion-scale, 1)) ease-out both;
+            --pd-foot-rim: fade(#5fe3b4, 85%);
+            --pd-foot-glow: 0 0 .35rem fade(#5fe3b4, 40%);
+            &::before { animation: con-pseal-support-counted calc(360ms * var(--motion-scale, 1)) ease-out both; }
         }
-        /* A PLACE THE PRESS BEING DECIDED WILL FILL (the vote mode's support block): a hollow DASHED outline —
-           a forecast, never a cube; the dash is what tells it from an empty socket without any colour. */
-        &--incoming { background: transparent; box-shadow: none; outline: .06rem dashed fade(@con-cyan, 85%); outline-offset: -.06rem; }
+        /* A PLACE THE PRESS BEING DECIDED WILL FILL (the vote mode's support block): a DASHED trace in the cursor's
+           cyan — a forecast, never a figure; the dash is what tells it from an empty place without any colour. */
+        &--incoming { .pd-footprint-target(@con-cyan); }
         /* AN EMPTY PLACE THAT CAN NEVER FILL (the ruler's, beside a stock that still stands): its room, no paint. */
         &--void { visibility: hidden; }
         /* THE TOUCHDOWN (v3 В3, law 1): the ONE socket that received the cube answers — its material goes
            denser for a beat and settles. A one-shot ended by its own animationend: no pulse, no repeat,
            and nothing around it moves. */
-        &--landed { animation: con-pseal-support-land calc(280ms * var(--motion-scale, 1)) @con-ease-standard 1; }
-        /* A STANDING CUBE THE PRESS BEING DECIDED WOULD SEND AWAY (TR12 «САНКЦИИ», the cursor on a candidate): the
-           cube fades and the place wears a DASHED outline — the incoming place's grammar read backwards; the dash,
-           not a colour, is what tells it from a cube that stays. */
-        &--outgoing { outline: .06rem dashed fade(@con-amber, 90%); outline-offset: -.06rem; .player-cube { opacity: .38; } }
-        /* THE LIFT-OFF (TR12): the ONE place whose cube just left for the common supply answers once — its
-           material thins and settles empty. A one-shot ended by its own animationend; nothing around it moves. */
-        &--left { animation: con-pseal-support-left calc(280ms * var(--motion-scale, 1)) @con-ease-standard 1; }
+        &--landed { .pd-footprint-landed(#e2e8f0); }
+        /* A STANDING FIGURE THE PRESS BEING DECIDED WOULD SEND AWAY (TR12 «САНКЦИИ», the cursor on a candidate): the
+           figure fades and its trace goes DASHED amber — the incoming place's grammar read backwards; the dash, not a
+           colour, is what tells it from a figure that stays. */
+        &--outgoing { --pd-foot-rim: fade(@con-amber, 90%); --pd-foot-style: dashed; .player-delegate { opacity: .38; } }
+        /* THE LIFT-OFF (TR12): the ONE place whose figure just left for the common supply answers once — its trace
+           thins and settles empty. A one-shot ended by its own animationend; nothing around it moves. */
+        &--left::before { animation: con-pseal-support-left calc(280ms * var(--motion-scale, 1)) @con-ease-standard 1; }
     }
     /* THE SUPPORT-AREA MODE's reading (TR12 «САНКЦИИ») in the state row's place: a candidate's «3 → 0» in the
        roll call's tracked accent, a refused area's ONE reason in the quiet register (never amber — an empty
@@ -394,26 +392,21 @@
 html.con-fx-lite .con-pseal--roll-enacted .con-pseal__seal,
 html.con-fx-lite .con-pseal--roll-lost .con-pseal__seal,
 html.con-fx-lite .con-pseal--roll-absent .con-pseal__seal { animation: none; }
-/* The support socket's one-shot answer: the material densifies and settles (v3 В3). */
-@keyframes con-pseal-support-land {
-    0% { box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.55); }
-    38% { box-shadow: inset 0 0 0 .1rem rgba(226, 232, 240, 0.95), 0 0 .5rem rgba(200, 212, 230, 0.35); }
-    100% { box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.55); }
-}
-html.con-fx-lite .con-pseal__support-place--landed { animation: none; }
-/* …and the lift-off's (TR12): the place lets its cube go and thins for a beat before it reads empty. */
+/* The support place's one-shot answer is the touchdown's own (`.pd-footprint-landed`, v3 В3). */
+html.con-fx-lite .con-pseal__support-place--landed { &::after, .player-delegate { animation: none; } }
+/* …and the lift-off's (TR12): the trace lets its figure go and thins for a beat before it reads empty. */
 @keyframes con-pseal-support-left {
-    0% { box-shadow: inset 0 0 0 .1rem rgba(226, 232, 240, 0.85); }
-    100% { box-shadow: inset 0 0 0 .06rem rgba(200, 205, 215, 0.3); }
+    0% { opacity: 1; transform: translateX(-50%) scale(1.18); }
+    100% { opacity: 1; transform: translateX(-50%) scale(1); }
 }
-html.con-fx-lite .con-pseal__support-place--left { animation: none; }
-/* …and the recount's touch (TR31): the socket lifts and brightens for a beat, settling into its counted ring. */
+html.con-fx-lite .con-pseal__support-place--left::before { animation: none; }
+/* …and the recount's touch (TR31): the trace swells once and settles into its counted ring. */
 @keyframes con-pseal-support-counted {
-    0% { transform: scale(1); box-shadow: inset 0 0 0 .08rem fade(#5fe3b4, 75%), 0 0 .35rem fade(#5fe3b4, 35%); }
-    40% { transform: scale(1.16); box-shadow: inset 0 0 0 .12rem #5fe3b4, 0 0 .9rem fade(#5fe3b4, 65%); }
-    100% { transform: scale(1); box-shadow: inset 0 0 0 .08rem fade(#5fe3b4, 75%), 0 0 .35rem fade(#5fe3b4, 35%); }
+    0% { transform: translateX(-50%) scale(1); }
+    40% { transform: translateX(-50%) scale(1.3); }
+    100% { transform: translateX(-50%) scale(1); }
 }
-html.con-fx-lite .con-pseal__support-place--counted { animation: none; }
+html.con-fx-lite .con-pseal__support-place--counted::before { animation: none; }
 /* …and the held WORD's entry (PL-109, TR36): «ЭФФЕКТ ВАШ» surfaces and settles — one shot, opacity and transform only. */
 @keyframes con-pseal-held-in {
     from { opacity: 0; transform: translateX(-.25rem); }

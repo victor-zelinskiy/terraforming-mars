@@ -60,9 +60,9 @@
               <span v-if="winningShownOf(slot)" class="con-parl__slot-win con-parl__slot-win--glyph" :data-hint="$t('Winning')" :aria-label="$t('Winning')" role="img"></span>
               <span v-else-if="sittingWinnerInstance === slot.instance" class="con-parl__slot-win con-parl__slot-win--verdict con-parl__slot-win--glyph"
                     :data-hint="$t('Winning')" :aria-label="$t('Winning')" role="img" data-parl-slot-verdict>
-                <PlayerCube v-if="sittingWinnerColor !== undefined" class="con-parl__slot-win-cube"
+                <PlayerDelegate v-if="sittingWinnerColor !== undefined" class="con-parl__slot-win-cube"
                             :color="sittingWinnerColor === 'neutral' ? 'neutral' : sittingWinnerColor"
-                            :steel="sittingWinnerColor === 'neutral'" :size="cubePx(11)" :glow="false" />
+                            :steel="sittingWinnerColor === 'neutral'" :size="figurePx(18)" :glow="false" />
               </span>
             </div>
             <!-- THE DELEGATE RIBBON — every delegate on the card, in placement
@@ -78,8 +78,8 @@
                       :data-landed="vote.seq === flow.landedSeq || flow.landedSeqs.includes(vote.seq) ? '' : undefined"
                       :data-arrived="rival.arrived.has(slot.instance + '#' + vote.seq) ? '' : undefined"
                       :data-counted="countedOf(slot, vote.seq) ? '' : undefined">
-                  <PlayerCube v-if="vote.owner !== 'neutral'" :color="vote.owner" :size="cubePx(RIBBON_CUBE)" />
-                  <PlayerCube v-else color="neutral" steel :size="cubePx(RIBBON_CUBE)" />
+                  <PlayerDelegate v-if="vote.owner !== 'neutral'" :color="vote.owner" />
+                  <PlayerDelegate v-else color="neutral" steel />
                 </span>
               </template>
               <template v-else>
@@ -87,8 +87,8 @@
                       :class="{'con-parl__vote-stack--landed': group.hasSeq(flow.landedSeq) || flow.landedSeqs.some((seq) => group.hasSeq(seq)), 'con-parl__vote-cube--counted': group.seqs.some((seq) => countedOf(slot, seq))}"
                       :data-seq="group.seqs[group.seqs.length - 1]"
                       :data-counted="group.seqs.some((seq) => countedOf(slot, seq)) ? '' : undefined">
-                  <PlayerCube v-if="group.owner !== 'neutral'" :color="group.owner" :size="cubePx(RIBBON_CUBE)" />
-                  <PlayerCube v-else color="neutral" steel :size="cubePx(RIBBON_CUBE)" />
+                  <PlayerDelegate v-if="group.owner !== 'neutral'" :color="group.owner" />
+                  <PlayerDelegate v-else color="neutral" steel />
                   <b>×{{ group.count }}</b>
                 </span>
               </template>
@@ -108,8 +108,8 @@
                   <b :key="'t' + tallyOf(slot, i).votes" class="con-parl__tally-num con-parl__tick" :aria-label="tallyOf(slot, i).votes + ' ' + delegatesWord(tallyOf(slot, i).votes)">{{ tallyOf(slot, i).votes }}</b>
                 </span>
                 <span v-if="tallyOf(slot, i).leader !== undefined" class="con-parl__tally-row con-parl__tally-row--leader" data-parl-leader :aria-label="$t('Leader')">
-                  <PlayerCube v-if="tallyOf(slot, i).leader !== 'neutral'" :color="tallyOf(slot, i).leader" :size="cubePx(12)" :glow="false" />
-                  <PlayerCube v-else color="neutral" steel :size="cubePx(12)" :glow="false" />
+                  <PlayerDelegate v-if="tallyOf(slot, i).leader !== 'neutral'" :color="tallyOf(slot, i).leader" :size="figurePx(18)" :glow="false" />
+                  <PlayerDelegate v-else color="neutral" steel :size="figurePx(18)" :glow="false" />
                 </span>
                 <!-- No leader: the fact row's own dash (P-02: «0 делегатов · Лидера пока нет · Делегатов пока нет» said it three times). -->
                 <span v-else class="con-parl__tally-row con-parl__tally-row--none" aria-hidden="true">—</span>
@@ -127,7 +127,7 @@
                     <span v-for="n in PARTY_EFFECT_PLACES" :key="n" class="con-parl__place"
                           :class="{'con-parl__place--on': n <= tallyOf(slot, i).mine && n <= slot.viewerEffectDelegates, 'con-parl__place--void': n > slot.viewerEffectDelegates}"
                           :data-parl-place-void="n > slot.viewerEffectDelegates ? '' : undefined">
-                      <PlayerCube v-if="n <= tallyOf(slot, i).mine && n <= slot.viewerEffectDelegates" :color="viewerColor" :size="cubePx(10)" :glow="false" />
+                      <PlayerDelegate v-if="n <= tallyOf(slot, i).mine && n <= slot.viewerEffectDelegates" :color="viewerColor" :size="figurePx(18)" :glow="false" />
                     </span>
                   </span>
                 </span>
@@ -161,11 +161,11 @@ import {Color} from '@/common/Color';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {PARLIAMENT_VOTING_SLOTS, ReduxParty} from '@/common/parliament/ParliamentTypes';
-import PlayerCube from '@/client/components/PlayerCube.vue';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
-import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
+import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {consoleParliamentUi, parliamentFlow, parliamentSlotsCarried, parliamentVoteSelecting} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
@@ -176,7 +176,7 @@ import {CardArtTier} from '@/client/cards/cardArt';
 import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {PARTY_EFFECT_PLACES, ParliamentSlotVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
 import {
-  DENSE_RIBBON, placeShownOn, RIBBON_CUBE, RibbonGroup, ribbonGroupsOf, tallyShownOf, winningShownOf,
+  DENSE_RIBBON, placeShownOn, RibbonGroup, ribbonGroupsOf, tallyShownOf, winningShownOf,
 } from '@/client/console/parliament/parliamentVoteView';
 import {voteDecidedAt} from '@/client/console/parliament/consoleSittingFlow';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
@@ -189,7 +189,7 @@ import {useConsoleViewport} from '@/client/console/composables/useConsoleViewpor
  */
 export default defineComponent({
   name: 'ConsoleParliamentVotingArea',
-  components: {PlayerCube},
+  components: {PlayerDelegate},
   setup() {
     const {isHandheld, isTv} = useConsoleViewport();
     return {isHandheld, isTv};
@@ -207,7 +207,7 @@ export default defineComponent({
     sittingStage: {type: String, default: ''},
   },
   data() {
-    return {DENSE_RIBBON, PARTY_EFFECT_PLACES, RIBBON_CUBE};
+    return {DENSE_RIBBON, PARTY_EFFECT_PLACES};
   },
   computed: {
     /**
@@ -293,8 +293,8 @@ export default defineComponent({
     },
   },
   methods: {
-    cubePx(logical: number): number {
-      return conLogicalPx(logical);
+    figurePx(logical: number): number {
+      return delegateFigurePx(logical);
     },
     /** «N delegates» with the language's own plural forms. */
     delegatesWord(n: number): string {

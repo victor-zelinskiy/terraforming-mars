@@ -56,7 +56,7 @@
                 <i v-else-if="step.kind === 'tr'" class="con-iparl__rungicon resource_icon resource_icon--rating"></i>
                 <i v-else class="con-iparl__rungicon resource_icon resource_icon--cards"></i>
               </span>
-              <span class="con-iparl__rungmark"><PlayerCube v-if="i + 1 === reading.agenda.position" :color="reading.color" :size="cubePx" :glow="false" /></span>
+              <span class="con-iparl__rungmark"><PlayerDelegate v-if="i + 1 === reading.agenda.position" :color="reading.color" :size="figurePx" :glow="false" /></span>
             </span>
           </div>
           <div v-if="reading.agenda.next !== undefined" class="con-iparl__next">
@@ -70,11 +70,11 @@
         <h4 class="con-info__parl-title">{{ $t('Delegates') }}</h4>
         <div class="con-iparl__tokens">
           <span class="con-iparl__token" :class="{'con-iparl__token--empty': !reading.delegates.lobby}">
-            <span class="con-iparl__socket"><PlayerCube v-if="reading.delegates.lobby" :color="reading.color" :size="cubePx" :glow="false" /></span>
+            <span class="con-iparl__socket"><PlayerDelegate v-if="reading.delegates.lobby" :color="reading.color" :size="figurePx" :glow="false" /></span>
             <span class="con-iparl__tokenlabel">{{ $t('In the lobby') }}</span>
           </span>
           <span class="con-iparl__token">
-            <span class="con-iparl__socket"><PlayerCube :color="reading.color" :size="cubePx" :glow="false" /><b>×{{ reading.delegates.reserve }}</b></span>
+            <span class="con-iparl__socket"><PlayerDelegate :color="reading.color" :size="figurePx" :glow="false" /><b>×{{ reading.delegates.reserve }}</b></span>
             <span class="con-iparl__tokenlabel">{{ $t('Reserve') }}</span>
           </span>
           <span class="con-iparl__token">
@@ -100,7 +100,7 @@
           <span v-for="slot in reading.delegates.onSlots" :key="slot.instance" class="con-info__parl-slot con-iparl__slot" :data-parl-info-slot="slot.instance">
             <img class="con-info__parl-emblem con-iparl__slotemblem" :src="emblemUrl(slot.party)" alt="" />
             <span class="con-info__parl-slot-name">{{ $t(nameOf(slot.resolution)) }}</span>
-            <PlayerCube :color="reading.color" :size="cubePx" :glow="false" />
+            <PlayerDelegate :color="reading.color" :size="figurePx" :glow="false" />
             <b class="con-info__parl-slot-votes">×{{ slot.votes }}</b>
             <span v-if="slot.leads" class="con-info__parl-lead">{{ $t('Leader') }}</span>
           </span>
@@ -157,9 +157,9 @@ import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {SeatParliamentReadingVm, BOT_PARLIAMENT_NOTE, BOT_POLITICS_NOTE} from '@/client/console/parliament/seatParliamentReading';
 import {dossierLadder} from '@/client/console/infoDossierModel';
-import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import ConsoleInfluenceYield from '@/client/components/console/parliament/ConsoleInfluenceYield.vue';
-import PlayerCube from '@/client/components/PlayerCube.vue';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import ConsoleInfluenceMod from '@/client/components/console/parliament/ConsoleInfluenceMod.vue';
 import PremiumChairGlyph from '@/client/components/premiumCard/PremiumChairGlyph.vue';
 import {translateTextWithParams} from '@/client/directives/i18n';
@@ -169,7 +169,7 @@ const OTHER_SOURCE = 'other';
 
 export default defineComponent({
   name: 'ConsoleInfoParliament',
-  components: {ConsoleInfluenceYield, PlayerCube, PremiumChairGlyph, ConsoleInfluenceMod},
+  components: {ConsoleInfluenceYield, PlayerDelegate, PremiumChairGlyph, ConsoleInfluenceMod},
   props: {
     reading: {type: Object as PropType<SeatParliamentReadingVm>, required: true},
   },
@@ -200,8 +200,9 @@ export default defineComponent({
       case 'card': return 'Card';
       }
     },
-    cubePx(): number {
-      return Math.round(20 * conUiScale());
+    /** The figure's height — the Information's size (28 logical). */
+    figurePx(): number {
+      return delegateFigurePx(28);
     },
   },
   methods: {

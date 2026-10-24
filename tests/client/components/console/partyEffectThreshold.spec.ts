@@ -188,7 +188,7 @@ describe('ConsolePartyPlaque — the places under the lowered law', () => {
       places: all.length,
       on: all.filter((p) => p.classes().includes('con-pseal__place--on')).map((p) => Number(p.attributes('data-pseal-place'))),
       void: all.filter((p) => p.classes().includes('con-pseal__place--void')).map((p) => Number(p.attributes('data-pseal-place'))),
-      cubes: block.findAllComponents({name: 'PlayerCube'}).length,
+      cubes: block.findAllComponents({name: 'player-delegate'}).length,
       word: w.find('.con-pseal__state-text').exists() ? w.find('.con-pseal__state-text').text() : '',
       held: w.find('.con-pseal__state-text--held').exists(),
     };

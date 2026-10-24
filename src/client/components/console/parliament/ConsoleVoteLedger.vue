@@ -19,7 +19,7 @@
           :data-ledger-seat="chip.color"
           :data-ledger-you="chip.you ? 'true' : undefined"
           :data-ledger-subject="chip.color === subject ? 'true' : undefined">
-      <PlayerCube :color="chip.color" :size="cube" :glow="false" />
+      <PlayerDelegate :color="chip.color" :size="cube" :glow="false" />
       <span v-if="chip.you" class="con-vledger__you">{{ $t(youWord) }}</span>
       <!-- A seat this card does nothing for says so with a dash — never an empty cube the eye reads as «unknown». -->
       <span v-if="chip.parts.length === 0" class="con-vledger__none" aria-hidden="true">—</span>
@@ -44,7 +44,7 @@ import {Color} from '@/common/Color';
 import {YieldIcon, yieldIconClasses} from '@/client/console/parliament/influenceYieldModel';
 import {LedgerChipVm, LedgerPart, ledgerPartText} from '@/client/console/parliament/voteLedgerModel';
 import ConsoleYieldUnit from '@/client/components/console/parliament/ConsoleYieldUnit.vue';
-import PlayerCube from '@/client/components/PlayerCube.vue';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 
 /** The one word the row prints — the viewer's own chip (the same key the facts use for the viewer). */
@@ -52,7 +52,7 @@ const YOU_WORD = 'you';
 
 export default defineComponent({
   name: 'ConsoleVoteLedger',
-  components: {ConsoleYieldUnit, PlayerCube},
+  components: {ConsoleYieldUnit, PlayerDelegate},
   props: {
     chips: {type: Array as PropType<ReadonlyArray<LedgerChipVm>>, required: true},
     /**

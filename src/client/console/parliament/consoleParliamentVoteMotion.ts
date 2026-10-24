@@ -44,6 +44,7 @@ import {gsap} from 'gsap';
 import {consoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {DelegateFlightPose, delegateFlightMs, delegateFlightPose, FlightPoint, planDelegateFlight} from '@/client/console/parliament/delegateFlightPose';
 import {
   guardedDescend,
   killDescendEpisode,
@@ -99,7 +100,7 @@ const CARRY_BACK_AT_MS = 40;
 const REFIT_MS = 300;
 /** The pressed block's own answer, before anything moves. */
 const COMMIT_MS = 120;
-/** The delegate's glide: the fraction of the path past which the cube has visibly LEFT its source … */
+/** The delegate's glide: the fraction of the path past which the figure has visibly LEFT its source … */
 const DEPARTED_AT = 0.1;
 /** … and the fraction at which it has visibly ARRIVED (the eased tail past it is snapped). */
 const TOUCHDOWN_AT = 0.985;
@@ -540,7 +541,7 @@ export function parkParliamentBody(root: Element | null | undefined): void {
   }
 }
 
-// ── the delegate's flight (a cube from its place on the zone onto the card) ──
+// ── the delegate's flight (a figure from its place on the zone onto the card) ──
 
 export type CubeFlightHandle = {
   /** Abort: the proxy vanishes, the callbacks never fire. */
@@ -549,9 +550,9 @@ export type CubeFlightHandle = {
 };
 
 export type CubeFlightArgs = {
-  /** The proxy element (a PlayerCube host, body-level fixed). */
+  /** The proxy element (a PlayerDelegate host, body-level fixed). */
   proxy: HTMLElement;
-  /** The SOURCE cube's rect — the proxy is born exactly over it. */
+  /** The SOURCE figure's rect — the proxy is born exactly over it (standing on its base). */
   from: Rect;
   /** The DESTINATION place's rect — the proxy lands exactly on it. */
   to: Rect;
@@ -559,7 +560,7 @@ export type CubeFlightArgs = {
   onLifted?: () => void;
   /** Called once the proxy has visibly LEFT its source (the source's own words — a note, a count — may change now). */
   onDeparted?: () => void;
-  /** Called at touchdown (the real cube materializes under the proxy; the proxy is removed a frame later by the caller). */
+  /** Called at touchdown (the real figure materializes under the proxy; the proxy is removed a frame later by the caller). */
   onLanded: () => void;
   durationMs?: number;
   /** A small arc off the surface (0 = a straight glide). */
@@ -573,103 +574,52 @@ export type CubeFlightArgs = {
   leadInS?: number;
 };
 
-// ── THE CUBE FLIGHT — a physical object leaving a surface and landing on one ──
-/** How much the cube GROWS at the top of its lift — volume coming toward the camera, never «a bigger sprite». */
-const CUBE_LIFT_SCALE = 1.55;
-/** The lift-off ends here (of the flight's progress); the carry begins. */
-const CUBE_LIFT_END = 0.26;
-/** The gravity descent begins here; the cube is over its place by then. */
-const CUBE_DROP_START = 0.7;
-/** The mid-air nod's amplitude (a tilt toward the travel, resolved by the touchdown). */
-const CUBE_NOD_DEG = 22;
-/** The flight's length follows its DISTANCE — a hop to the next socket and a crossing of the screen are not one tempo. */
-const CUBE_FLIGHT_MIN_MS = 560;
-const CUBE_FLIGHT_MAX_MS = 960;
-const CUBE_FLIGHT_PER_PX = 0.32;
-
-/** The duration of a cube flight over `distancePx` (screen px), bounded on both sides. */
-export function cubeFlightMs(distancePx: number): number {
-  return Math.round(Math.min(CUBE_FLIGHT_MAX_MS, Math.max(CUBE_FLIGHT_MIN_MS, CUBE_FLIGHT_MIN_MS + distancePx * CUBE_FLIGHT_PER_PX)));
-}
-
-const clamp01 = (v: number): number => Math.max(0, Math.min(1, v));
-const easeOutCubic = (t: number): number => 1 - Math.pow(1 - t, 3);
-const easeInQuad = (t: number): number => t * t;
-const easeInOutCubic = (t: number): number => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+// ── THE DELEGATE FLIGHT — a figure TAKEN off its footprint, CARRIED, SET DOWN in another ──
 
 /**
- * The cube's HEIGHT above the surface over the flight (0 = on it, 1 = at the
- * lift's top): a quick lift (ease-out — the cube is pushed off), a held
- * cruise, a GRAVITY descent (ease-in — it falls onto its place).
+ * ONE delegate figure travels from a real place to a real place — as a
+ * STANDEE carried by a hand (`delegateFlightPose.ts` is the physics):
+ *   · TAKEN — on the frame it stands over its source (`onLifted`: the real
+ *     figure may vanish, its footprint shows) it rises, leans into the way it
+ *     is going and comes toward the camera; its shadow stays on the table;
+ *   · CARRIED — the base travels the straight line between the footprints
+ *     (the shadow rides it on the table), the body an arc above it, the lean
+ *     held, no spin — the gap between the body and its shadow IS the height;
+ *   · SET DOWN — gravity brings the body onto its base, the lean resolves,
+ *     the shadow gathers under the disc; `onLanded` fires the frame they meet
+ *     (the real figure materializes under a proxy at rest, pixel-identical).
+ * The proxy's ROOT stands on the ground point (its transform origin is its
+ * base); the body's lift / lean / growth and the shadow's air ride the
+ * figure's own `--pd-*` variables (`player_delegate.less`). Reduced motion:
+ * the plain glide. The length follows the distance unless the caller fixes it
+ * (the sitting's figures share one tempo).
  */
-function cubeLiftEnvelope(p: number): number {
-  if (p < CUBE_LIFT_END) {
-    return easeOutCubic(p / CUBE_LIFT_END);
-  }
-  if (p < CUBE_DROP_START) {
-    return 1;
-  }
-  return 1 - easeInQuad((p - CUBE_DROP_START) / (1 - CUBE_DROP_START));
-}
-
-/**
- * ONE delegate cube travels from a real place to a real place — AS A CUBE.
- * The proxy matches the source's box on its first frame (same size, same
- * material — the caller renders the same SOLID PlayerCube at the source's
- * logical size), then the flight is three beats on one clock:
- *   · LIFT-OFF — the cube rises off its place and GROWS (volume coming toward
- *     the camera), its contact shadow lets go, its glow brightens;
- *   · THE CARRY — it travels the line on a rising-then-falling arc scaled to
- *     the distance and TUMBLES once about its vertical axis with a nod that
- *     peaks mid-air (the six faces come round — a die, not a sprite);
- *   · THE DESCENT — gravity brings it onto the destination's box at the
- *     destination's scale, the tumble resolves to the rest pose, the shadow
- *     re-attaches, and `onLanded` fires the frame it touches (the real cube
- *     materializes under a proxy that is pixel-identical to it).
- * Reduced motion: the plain half-speed glide. The duration follows the
- * distance unless the caller fixes one.
- */
-export function runDelegateCubeFlight(args: CubeFlightArgs): CubeFlightHandle {
+export function runDelegateFlight(args: CubeFlightArgs): CubeFlightHandle {
   if (consoleReducedMotionActive()) {
     return runProxyFlight(args);
   }
   const {proxy, from, to} = args;
-  const size = proxy.offsetWidth || from.width;
-  const tall = proxy.offsetHeight || from.height;
-  const startScale = from.width / size;
-  const endScale = to.width / size;
-  const start = {x: from.left + from.width / 2 - size / 2, y: from.top + from.height / 2 - tall / 2};
-  const end = {x: to.left + to.width / 2 - size / 2, y: to.top + to.height / 2 - tall / 2};
-  const dist = Math.hypot(end.x - start.x, end.y - start.y);
-  const dur = s(args.durationMs ?? cubeFlightMs(dist));
-  const cube = proxy.querySelector<HTMLElement>('.player-cube');
-  const shadow = proxy.querySelector<HTMLElement>('.player-cube__shadow');
-  const glow = proxy.querySelector<HTMLElement>('.player-cube__glow');
-  // The LIFT is in the object's own units (its height), the ARC in the
-  // travel's: a cube crossing the screen rises higher than one hopping to the
-  // next socket, and neither flies flat.
-  const lift = Math.max(descendPx(8), from.height * 1.1);
-  const arc = args.arcPx ?? Math.min(Math.max(dist * 0.2, from.height * 0.6), descendPx(110));
-  // The travel runs from the lift's second half to the descent's first half:
-  // the cube leaves the ground before it goes anywhere and hangs over its
-  // place before it settles onto it.
-  const travelFrom = CUBE_LIFT_END * 0.45;
-  const travelTo = CUBE_DROP_START + (1 - CUBE_DROP_START) * 0.55;
-  const setPose = (tumbleY: number, tumbleX: number): void => {
-    cube?.style.setProperty('--pc-tumble-y', `${tumbleY.toFixed(2)}deg`);
-    cube?.style.setProperty('--pc-tumble-x', `${tumbleX.toFixed(2)}deg`);
+  const figure = proxy.querySelector<HTMLElement>('.player-delegate') ?? proxy;
+  const boxW = proxy.offsetWidth || from.width;
+  const boxH = proxy.offsetHeight || from.height;
+  const base = (r: Rect): FlightPoint => ({x: r.left + r.width / 2, y: r.top + r.height});
+  const dist = Math.hypot(base(to).x - base(from).x, base(to).y - base(from).y);
+  const durMs = motionMs(args.durationMs ?? delegateFlightMs(dist));
+  const plan = planDelegateFlight({from: base(from), fromHeight: from.height, to: base(to), toHeight: to.height, durationMs: durMs, unitPx: descendPx(1)});
+  const write = (pose: DelegateFlightPose): void => {
+    gsap.set(proxy, {x: pose.ground.x - boxW / 2, y: pose.ground.y - boxH, scale: pose.scale});
+    figure.style.setProperty('--pd-lift', `${(pose.liftPx / Math.max(0.01, pose.scale)).toFixed(2)}px`);
+    figure.style.setProperty('--pd-tilt', `${pose.tiltDeg.toFixed(2)}deg`);
+    figure.style.setProperty('--pd-grow', pose.grow.toFixed(4));
+    figure.style.setProperty('--pd-air', pose.air.toFixed(4));
   };
-  const groundPose = (): void => {
-    setPose(0, 0);
-    if (shadow !== null) {
-      shadow.style.opacity = '';
-    }
-    if (glow !== null) {
-      glow.style.opacity = '';
+  const rest = (): void => {
+    for (const v of ['--pd-lift', '--pd-tilt', '--pd-grow', '--pd-air']) {
+      figure.style.removeProperty(v);
     }
   };
-  gsap.set(proxy, {x: start.x, y: start.y, scale: startScale, transformOrigin: '50% 50%', autoAlpha: 1});
-  groundPose();
+  gsap.set(proxy, {transformOrigin: '50% 100%', autoAlpha: 1});
+  write(delegateFlightPose(plan, 0, boxH));
   let landed = false;
   let departed = false;
   const land = () => {
@@ -677,8 +627,8 @@ export function runDelegateCubeFlight(args: CubeFlightArgs): CubeFlightHandle {
       return;
     }
     landed = true;
-    groundPose();
-    gsap.set(proxy, {x: end.x, y: end.y, scale: endScale});
+    write(delegateFlightPose(plan, 1, boxH));
+    rest();
     args.onLanded();
   };
   const prog = {p: 0};
@@ -687,36 +637,22 @@ export function runDelegateCubeFlight(args: CubeFlightArgs): CubeFlightHandle {
   const leadIn = Math.max(0.02, args.leadInS ?? 0.02);
   tl.to(prog, {
     p: 1,
-    duration: dur,
+    duration: durMs / 1000,
     ease: 'none',
     onUpdate: () => {
-      const p = prog.p;
-      const u = easeInOutCubic(clamp01((p - travelFrom) / (travelTo - travelFrom)));
-      if (!departed && u >= DEPARTED_AT) {
-        departed = true;
-        args.onDeparted?.();
-      }
       if (landed) {
         return;
       }
-      if (p >= TOUCHDOWN_AT) {
+      const pose = delegateFlightPose(plan, prog.p, boxH);
+      if (!departed && pose.travel >= DEPARTED_AT) {
+        departed = true;
+        args.onDeparted?.();
+      }
+      if (prog.p >= TOUCHDOWN_AT) {
         land();
         return;
       }
-      const h = cubeLiftEnvelope(p);
-      const x = start.x + (end.x - start.x) * u;
-      const y = start.y + (end.y - start.y) * u - lift * h - Math.sin(u * Math.PI) * arc;
-      const scale = (startScale + (endScale - startScale) * u) * (1 + (CUBE_LIFT_SCALE - 1) * h);
-      gsap.set(proxy, {x, y, scale});
-      // ONE full turn over the carry, resolved exactly at the rest pose, and a
-      // nod that peaks mid-air — the faces come round while the cube is high.
-      setPose(360 * u, -CUBE_NOD_DEG * Math.sin(u * Math.PI));
-      if (shadow !== null) {
-        shadow.style.opacity = String(1 - 0.85 * h);
-      }
-      if (glow !== null) {
-        glow.style.opacity = String(0.28 + 0.5 * h);
-      }
+      write(pose);
     },
     onComplete: () => {
       if (!departed) {
@@ -731,6 +667,7 @@ export function runDelegateCubeFlight(args: CubeFlightArgs): CubeFlightHandle {
     kill: () => {
       tl.kill();
       gsap.set(proxy, {autoAlpha: 0});
+      rest();
       if (!landed) {
         landed = true;
       }

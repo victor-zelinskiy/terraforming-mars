@@ -89,7 +89,7 @@ import {
 } from './parliamentRewardBeat';
 import {
   CUBE_FLIGHT_MS, DEAL_FLIGHT_MS, DEAL_STAGGER_MS, dealResolutionCard, dropFlight, ENACT_MOVE_MS, finishParliamentFlights, flightEl, flightRegistered,
-  flyCardOffTable, flyCube, killParliamentFlights, LEAVE_CARRY_MS, LEAVE_TURN_LEAD_MS, nextFlightId, placeCubeRect, pushCardFlight, rectOf,
+  flyCardOffTable, flyDelegate, killParliamentFlights, LEAVE_CARRY_MS, LEAVE_TURN_LEAD_MS, nextFlightId, placeFigureRect, pushCardFlight, rectOf,
   registerFlightHandle, RESHUFFLE_MS, riseToken, runReshuffle, scheduleHurriedParliamentBeat, setParliamentFlightsHurried, TOKEN_RISE_MS,
 } from './parliamentFlights';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -496,7 +496,7 @@ const SUPPORT_SETTLE_MS = 170;
 /** Where a support cube comes FROM, as a place on screen (v3 В3) — never the centre of the screen. */
 function supportSourceRect(root: HTMLElement, source: SupportSource, to: Rect | undefined): Rect | undefined {
   if (source.from === 'supply') {
-    return placeCubeRect(root, '[data-parl-neutral-cube]');
+    return placeFigureRect(root, '[data-parl-neutral-cube]');
   }
   const selector = source.from === 'ribbon' ?
     `.con-parl__slot[data-instance="${source.instance}"] .con-parl__ribbon` :
@@ -583,12 +583,12 @@ function launchSupportWave(runState: StageRun, ctx: SittingDirectorContext, wave
         holds.supportIncoming.set(wave.party, left);
       }
     };
-    const id = flyCube('neutral', from, to, n * SUPPORT_CUBE_STAGGER_MS * k, () => {
+    const id = flyDelegate('neutral', from, to, n * SUPPORT_CUBE_STAGGER_MS * k, () => {
       landed();
       if (wave.overflow === true && from !== undefined && to !== undefined) {
         // FULL: the places answer as full and the cube goes home — the discard is shown, never merely logged.
         answerSupportPlace(root, wave.party, index);
-        const back = flyCube('neutral', to, from, 0, () => undefined);
+        const back = flyDelegate('neutral', to, from, 0, () => undefined);
         if (back !== undefined) {
           runState.flights.add(back);
         }
@@ -808,13 +808,13 @@ function beatEnactMove(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: n
     const card = governmentCardRect(root);
     let i = 0;
     for (const [owner, count] of Array.from(holds.returns.entries())) {
-      const to = placeCubeRect(root, owner === 'neutral' ? '[data-parl-neutral-cube]' : `[data-parl-seat-reserve="${owner}"]`);
+      const to = placeFigureRect(root, owner === 'neutral' ? '[data-parl-neutral-cube]' : `[data-parl-seat-reserve="${owner}"]`);
       const from = card === undefined || to === undefined ? undefined :
         {left: card.left + card.width / 2 - to.width / 2, top: card.top + card.height / 2 - to.height / 2, width: to.width, height: to.height};
       for (let n = 0; n < count; n++) {
         const delay = i * RETURN_STAGGER_MS * k;
         i++;
-        const id = flyCube(owner, from, to, delay, () => {
+        const id = flyDelegate(owner, from, to, delay, () => {
           const left = (holds.returns.get(owner) ?? 0) - 1;
           if (left <= 0) {
             holds.returns.delete(owner);
@@ -1523,7 +1523,7 @@ function launchLeaveReturns(
     let inFlight = entry.count;
     const owned = answers.filter((a) => a.player === entry.owner);
     const seqs = (held?.votes ?? []).filter((v) => v.owner === entry.owner).map((v) => v.seq).slice(0, entry.count);
-    const to = placeCubeRect(root, entry.owner === 'neutral' ? '[data-parl-neutral-cube]' : `[data-parl-seat-reserve="${entry.owner}"]`);
+    const to = placeFigureRect(root, entry.owner === 'neutral' ? '[data-parl-neutral-cube]' : `[data-parl-seat-reserve="${entry.owner}"]`);
     for (let n = 0; n < entry.count; n++) {
       const seq = seqs[n];
       const key = seq === undefined ? undefined : `${event.instance}#${seq}`;
@@ -1552,7 +1552,7 @@ function launchLeaveReturns(
           }
         }
       };
-      const id = flyCube(entry.owner, from, to, delay, landed, {onLifted: () => {
+      const id = flyDelegate(entry.owner, from, to, delay, landed, {onLifted: () => {
         if (key !== undefined) {
           holds.hiddenCubes.add(key);
         }
@@ -1590,7 +1590,7 @@ function answersOfLeave(journal: ReadonlyArray<ParliamentRenewalEventModel>, ind
  * measurable → confessed (`noteDegraded`), never silently skipped.
  */
 function launchCardEffectToken(runState: StageRun, ctx: SittingDirectorContext, event: CardEffectEvent): void {
-  const over = placeCubeRect(ctx.root, `[data-parl-seat-reserve="${event.player}"]`);
+  const over = placeFigureRect(ctx.root, `[data-parl-seat-reserve="${event.player}"]`);
   const id = riseToken({
     iconClass: iconClassFor(cardResourceIconKey(event.resource)), amount: event.count, over, delayMs: 0,
     onLanded: () => {
@@ -1749,10 +1749,10 @@ function launchSupportSeat(runState: StageRun, ctx: SittingDirectorContext, even
     // The socket this cube leaves: the topmost one the plaque still shows.
     const shown = holds.support.get(event.party) ?? 0;
     const place = Math.max(1, shown - i);
-    const from = placeCubeRect(root, `[data-parl-support="${event.party}"] [data-support-place="${place}"]`);
+    const from = placeFigureRect(root, `[data-parl-support="${event.party}"] [data-support-place="${place}"]`);
     const delay = i * SEAT_STAGGER_MS * k;
     i++;
-    const id = flyCube('neutral', from, to, delay, () => {
+    const id = flyDelegate('neutral', from, to, delay, () => {
       holds.hiddenCubes.delete(key);
     }, {onLifted: () => {
       const left = (holds.support.get(event.party) ?? 0) - 1;
@@ -1774,9 +1774,9 @@ function launchSupportSeat(runState: StageRun, ctx: SittingDirectorContext, even
 function launchLobby(runState: StageRun, ctx: SittingDirectorContext, event: Extract<ParliamentRenewalEventModel, {kind: 'lobby'}>): void {
   const root = ctx.root;
   const holds = parliamentHolds;
-  const from = placeCubeRect(root, `[data-parl-seat-reserve="${event.player}"]`);
-  const to = placeCubeRect(root, `[data-parl-seat-lobby="${event.player}"]`);
-  const id = flyCube(event.player, from, to, 0, () => holds.lobby.delete(event.player));
+  const from = placeFigureRect(root, `[data-parl-seat-reserve="${event.player}"]`);
+  const to = placeFigureRect(root, `[data-parl-seat-lobby="${event.player}"]`);
+  const id = flyDelegate(event.player, from, to, 0, () => holds.lobby.delete(event.player));
   if (id === undefined) {
     noteDegraded(`lobby delegate of ${event.player}`);
   } else {

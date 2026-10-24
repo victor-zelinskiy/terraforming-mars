@@ -8,8 +8,9 @@ import {addCard3DTurn, FACE_DOWN_DEG, FACE_UP_DEG, readCard3DInner, setCard3DFac
 import {DEAL_TURN_GLINT} from '@/client/console/cardDeal/premiumTurn';
 import {ParliamentBeat, scheduleParliamentBeat} from './parliamentBeat';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
-import {CubeFlightHandle, Rect, runCardDealFlight, runDelegateCubeFlight, runTokenFlight} from './consoleParliamentVoteMotion';
-import {RIBBON_CUBE} from './parliamentVoteView';
+import {cssLengthPx} from '@/client/console/cssUnits';
+import {CubeFlightHandle, Rect, runCardDealFlight, runDelegateFlight, runTokenFlight} from './consoleParliamentVoteMotion';
+import {RIBBON_FIGURE} from './parliamentVoteView';
 
 /** An element's rect as a plain `Rect`, or undefined when it is not laid out. */
 export function rectOf(el: Element | null | undefined): Rect | undefined {
@@ -18,27 +19,44 @@ export function rectOf(el: Element | null | undefined): Rect | undefined {
 }
 
 /**
- * A cube-sized rect ON a place of the delegates zone: the top cube of a
- * stack when one stands there, else the place's centre at the zone's cube
- * size — so a landing proxy is always the size of the cube that will
- * materialize under it, never the size of the socket around it.
+ * A FIGURE-sized rect ON a place of the delegates zone: the front figure of a
+ * pile when one stands there, else the figure the place's FOOTPRINT would
+ * hold — its own host size (`--pd-host`), standing on the place's floor and
+ * centred on it. A landing proxy is always the size of the figure that will
+ * materialize under it, never the size of the box around the footprint.
  */
-export function placeCubeRect(root: HTMLElement, selector: string): Rect | undefined {
+export function placeFigureRect(root: HTMLElement, selector: string): Rect | undefined {
   const place = root.querySelector<HTMLElement>(selector);
   if (place === null) {
     return undefined;
   }
-  const cube = place.querySelector<HTMLElement>('.con-parl__stack-cube:last-child .player-cube') ?? place.querySelector<HTMLElement>('.player-cube');
-  const r = (cube ?? place).getBoundingClientRect();
+  const figure = place.querySelector<HTMLElement>('.con-parl__stack-cube:last-child .player-delegate') ?? place.querySelector<HTMLElement>('.player-delegate');
+  const r = (figure ?? place).getBoundingClientRect();
   if (r.width < 2) {
     return undefined;
   }
-  if (cube !== null) {
+  if (figure !== null) {
     return {left: r.left, top: r.top, width: r.width, height: r.height};
   }
-  const size = conLogicalPx(RIBBON_CUBE);
-  return {left: r.left + r.width / 2 - size / 2, top: r.top + r.height / 2 - size / 2, width: size, height: size};
+  // An EMPTY footprint: the figure it would hold, at the place's own host size — standing on the place's floor,
+  // centred on its footprint.
+  const height = hostFigureHeight(place) ?? conLogicalPx(RIBBON_FIGURE);
+  const width = height * 0.8;
+  return {left: r.left + r.width / 2 - width / 2, top: r.top + r.height - height, width, height};
 }
+
+/** The place's own figure height — its `--pd-host` (read unresolved, resolved by `cssLengthPx`). */
+function hostFigureHeight(place: HTMLElement): number | undefined {
+  if (typeof getComputedStyle === 'undefined') {
+    return undefined;
+  }
+  const raw = getComputedStyle(place).getPropertyValue('--pd-host').trim();
+  const h = raw === '' ? 0 : cssLengthPx(raw, 0);
+  return h > 1 ? h : undefined;
+}
+
+/** @deprecated The cube is gone from the Parliament — `placeFigureRect`. Kept for one sitting's worth of callers. */
+export const placeCubeRect = placeFigureRect;
 
 /*
  * THE PARLIAMENT'S FLIGHTS — the specifications of every proxy the workspace
@@ -56,7 +74,7 @@ export function placeCubeRect(root: HTMLElement, selector: string): Rect | undef
  * never wall-clock timers.
  */
 
-/** A delegate cube in flight — its colour and its logical size. */
+/** A delegate FIGURE in flight — its colour and its height (px). */
 export type FlightSpec = {id: string, color: Color | 'neutral', size: number};
 /**
  * A card on its way — sized to the face it stands in for (the proxy scales
@@ -80,7 +98,7 @@ export type TokenFlightSpec = {id: string, iconClass: string, amount: number, /*
 /** THE ALLIANCE'S IMPULSE (TR62): one bead of light in the PARTNER's accent. */
 export type SparkFlightSpec = {id: string, accent: string};
 
-/** A delegate cube's flight (the enactment's returns home, the seat pick's delegate to the chair). */
+/** A delegate figure's flight at the sitting's one tempo (the enactment's returns home, the seat pick's delegate to the chair). */
 export const CUBE_FLIGHT_MS = 480;
 /** One dealt card's flight (the deck's top → its slot). */
 export const DEAL_FLIGHT_MS = 560;
@@ -489,22 +507,24 @@ export function flyPriceToken(args: {
 }
 
 /**
- * ONE cube from a real rect to a real rect (a sitting beat, the seat). The
- * proxy is born at the source's size and lands at the destination's.
- * Returns the flight's id — undefined when there is nothing measurable (the
- * caller settles the display holds itself). The id is known at BIRTH: the
- * element registers on the next render, so a caller that tracks the flight
- * (the director's «дожать») must not wait for the element to exist.
+ * ONE delegate FIGURE from a real place to a real place — the one entry of
+ * every delegate the Parliament moves (a vote, a rival's vote, the lobby's
+ * refill, a return home, a support cube, the chair): taken, carried, set down
+ * (`runDelegateFlight`). The proxy is born at the source's height and lands
+ * at the destination's. Returns the flight's id — undefined when there is
+ * nothing measurable (the caller settles the display holds itself). The id
+ * is known at BIRTH: the element registers on the next render, so a caller
+ * that tracks the flight (the director's «дожать») must not wait for it.
  */
-export function flyCube(color: Color | 'neutral', from: Rect | undefined, to: Rect | undefined, delayMs: number, onLanded: () => void,
-  opts: {/** The proxy stands over the source (the real cube may hide now — the frame it LEAVES its place). */ onLifted?: () => void} = {}): string | undefined {
+export function flyDelegate(color: Color | 'neutral', from: Rect | undefined, to: Rect | undefined, delayMs: number, onLanded: () => void,
+  opts: {/** The proxy stands over the source (the real figure may hide now — the frame it LEAVES its place). */ onLifted?: () => void} = {}): string | undefined {
   if (from === undefined || to === undefined || typeof window === 'undefined' || consoleReducedMotionActive()) {
     opts.onLifted?.();
     onLanded();
     return undefined;
   }
   const id = nextFlightId('f');
-  const size = Math.max(8, Math.round(Math.min(from.width, from.height)));
+  const size = Math.max(8, Math.round(from.height));
   pushCubeFlight({id, color, size});
   void nextTick(() => {
     const proxy = flightEls[id];
@@ -521,15 +541,15 @@ export function flyCube(color: Color | 'neutral', from: Rect | undefined, to: Re
       if (flightEls[id] === undefined) {
         return;
       }
-      const handle = runDelegateCubeFlight({
+      const handle = runDelegateFlight({
         proxy,
         from,
         to,
-        // ONE tempo for the sitting's cubes (the support scene's rhythm — a cube
+        // ONE tempo for the sitting's figures (the support scene's rhythm — one
         // every 90 ms, a wave every 180 ms — is written against it, and only the
-        // receiving socket may answer at a time: distance-paced flights landed
-        // out of launch order and two sockets answered at once). The vote's
-        // own cube paces by its distance (`cubeFlightMs`).
+        // receiving place may answer at a time: distance-paced flights landed
+        // out of launch order and two places answered at once). The vote's
+        // own figure paces by its distance (`delegateFlightMs`).
         durationMs: CUBE_FLIGHT_MS,
         onLifted: opts.onLifted,
         onLanded: () => {
@@ -544,6 +564,9 @@ export function flyCube(color: Color | 'neutral', from: Rect | undefined, to: Re
   return id;
 }
 
+/** @deprecated The cube is gone from the Parliament — `flyDelegate`. Kept for one sitting's worth of callers. */
+export const flyCube = flyDelegate;
+
 /** The chairman's delegate leaves the card it was taken from and settles on the seat mark of the ledger (`onLanded` pulses the chair). */
 export function flySeatDelegate(root: HTMLElement | undefined, color: Color | undefined, from: Rect | undefined, onLanded: () => void): void {
   if (root === undefined || color === undefined || from === undefined) {
@@ -552,8 +575,9 @@ export function flySeatDelegate(root: HTMLElement | undefined, color: Color | un
   }
   const chair = root.querySelector<HTMLElement>(`[data-parl-seat-chair="${color}"]`);
   const r = chair?.getBoundingClientRect();
-  const to = r === undefined || r.width < 2 ? undefined : {left: r.left, top: r.top, width: r.height, height: r.height};
-  if (flyCube(color, from, to, 0, onLanded) === undefined) {
+  // The figure SITS IN the chair: its height is the chair mark's, its base on the mark's floor, centred.
+  const to = r === undefined || r.width < 2 ? undefined : {left: r.left + r.width / 2 - r.height * 0.4, top: r.top, width: r.height * 0.8, height: r.height};
+  if (flyDelegate(color, from, to, 0, onLanded) === undefined) {
     onLanded();
   }
 }

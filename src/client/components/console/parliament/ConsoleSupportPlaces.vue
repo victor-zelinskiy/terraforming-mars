@@ -31,19 +31,19 @@
           :data-support-incoming="n > filled && n <= filled + incoming ? '' : undefined"
           :data-support-outgoing="n <= filled && n > filled - outgoing ? '' : undefined"
           :data-support-counted="n <= counted ? '' : undefined">
-      <PlayerCube v-if="n <= filled" color="neutral" steel :size="cubePx" :glow="false" />
+      <PlayerDelegate v-if="n <= filled" color="neutral" steel :glow="false" />
     </span>
   </span>
 </template>
 
 <script lang="ts">
 import {defineComponent} from 'vue';
-import PlayerCube from '@/client/components/PlayerCube.vue';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import {PARLIAMENT_MAX_POPULAR_SUPPORT} from '@/common/parliament/ParliamentTypes';
 
 export default defineComponent({
   name: 'ConsoleSupportPlaces',
-  components: {PlayerCube},
+  components: {PlayerDelegate},
   props: {
     /** Neutral delegates standing in the area now (0–3). */
     filled: {type: Number, required: true},
@@ -52,7 +52,6 @@ export default defineComponent({
     /** Standing cubes the press being decided would SEND AWAY (counted from the last place) — drawn as outlines. */
     outgoing: {type: Number, default: 0},
     /** The cube's size in device px (the host's own profile). */
-    cubePx: {type: Number, required: true},
     /** The EMPTY places keep their room but draw nothing — they can never fill (the ruling party's — see the plaque). */
     voidEmpty: {type: Boolean, default: false},
     /**

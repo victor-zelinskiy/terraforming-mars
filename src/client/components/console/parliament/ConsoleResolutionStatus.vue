@@ -39,7 +39,7 @@
                A place is a fixed box, so a reserve line needs no cube inside. -->
           <span v-if="entry.access.places && viewerColor !== undefined" class="con-rstatus__places" aria-hidden="true">
             <span v-for="n in entry.access.threshold" :key="n" class="con-rstatus__place" :class="{'con-rstatus__place--on': n <= entry.access.mine}">
-              <PlayerCube v-if="i === 0 && n <= entry.access.mine" :color="viewerColor" :size="cubePx" :glow="false" :shadow="false" />
+              <PlayerDelegate v-if="i === 0 && n <= entry.access.mine" :color="viewerColor" :size="figurePx" :glow="false" :shadow="false" />
             </span>
             <span class="con-rstatus__count">{{ Math.min(entry.access.mine, entry.access.threshold) }}/{{ entry.access.threshold }}</span>
           </span>
@@ -58,14 +58,14 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
-import PlayerCube from '@/client/components/PlayerCube.vue';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import {ResolutionStatusVm} from '@/client/console/parliament/resolutionInspectModel';
-import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {translateText} from '@/client/directives/i18n';
 
 export default defineComponent({
   name: 'ConsoleResolutionStatus',
-  components: {PlayerCube},
+  components: {PlayerDelegate},
   props: {
     status: {type: Object as PropType<ResolutionStatusVm>, required: true},
     /** The viewer's colour — their own cubes in the places. */
@@ -84,8 +84,8 @@ export default defineComponent({
     entries(): ReadonlyArray<ResolutionStatusVm> {
       return [this.status, ...this.reserve];
     },
-    cubePx(): number {
-      return Math.round(11 * conUiScale());
+    figurePx(): number {
+      return delegateFigurePx(18);
     },
   },
   methods: {

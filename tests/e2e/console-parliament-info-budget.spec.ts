@@ -38,7 +38,7 @@ const ZONES: Array<[string, string]> = [
   ['agenda', '.con-parl__agenda'],
 ];
 const ICON_SELECTOR = [
-  '.pcard-ic', '.resource_icon', '.player-cube', 'img', 'svg', '.con-pseal__support-place', '.con-pseal__emblem',
+  '.pcard-ic', '.resource_icon', '[data-player-token]', 'img', 'svg', '.con-pseal__support-place', '.con-pseal__emblem',
   '.con-parl__step-node', '.con-parl__step-res', '[class*="__cube"]', '[class*="__pip"]', '[class*="__socket"]',
 ].join(', ');
 

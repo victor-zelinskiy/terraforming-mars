@@ -21,7 +21,7 @@
              reads it as a sum — «= [insignia] level +bonus» — the level being the track's, the modifier the cards'
              (`influenceReading.ts`: one reading, one grammar). Nothing is added up here. -->
         <span v-if="view.viewer !== undefined" class="con-parl__agenda-me" :aria-label="$t('Your influence')" data-parl-influence-head>
-          <PlayerCube :color="view.viewer.color" :size="cubePx(12)" :glow="false" />
+          <PlayerDelegate :color="view.viewer.color" :size="figurePx(18)" :glow="false" />
           <span v-if="shown.viewerReading.bonus > 0" class="con-parl__agenda-me-label">{{ $t('Your influence') }}</span>
           <i class="con-parl__inf-icon" aria-hidden="true"></i>
           <b :key="'ai' + shown.viewerInfluence" class="con-parl__tick" data-parl-influence>{{ shown.viewerInfluence }}</b>
@@ -47,7 +47,7 @@
             <span v-for="color in shown.start" :key="color" class="con-parl__agenda-cube"
                   :class="{'con-parl__agenda-cube--hidden': cubeHidden(color, 0)}"
                   :data-agenda-cube="color">
-              <PlayerCube :color="color" :size="cubePx(15)" :glow="false" />
+              <PlayerDelegate :color="color" :size="figurePx(22)" :glow="false" />
             </span>
           </span>
         </div>
@@ -71,7 +71,7 @@
             <span v-for="color in step.cubes" :key="color" class="con-parl__agenda-cube"
                   :class="{'con-parl__agenda-cube--hidden': cubeHidden(color, step.index)}"
                   :data-agenda-cube="color">
-              <PlayerCube :color="color" :size="cubePx(15)" :glow="false" />
+              <PlayerDelegate :color="color" :size="figurePx(22)" :glow="false" />
             </span>
           </span>
         </div>
@@ -90,7 +90,7 @@
        Parliament's track: from the step it left to the step it reached. -->
   <Teleport to="body">
     <div v-if="agendaFlight !== undefined" class="con-parl__flight con-parl__flight--agenda" ref="agendaFlightEl" aria-hidden="true">
-      <PlayerCube :color="agendaFlight.color" :size="cubePx(15)" :glow="false" />
+      <PlayerDelegate :color="agendaFlight.color" :size="figurePx(22)" :glow="false" />
     </div>
   </Teleport>
 </template>
@@ -99,11 +99,11 @@ import {defineComponent, markRaw, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {AGENDA_TRACK, influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
-import PlayerCube from '@/client/components/PlayerCube.vue';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import ConsoleParliamentEngine from '@/client/components/console/parliament/ConsoleParliamentEngine.vue';
 import ConsoleInfluenceMod from '@/client/components/console/parliament/ConsoleInfluenceMod.vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
+import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {HydroMarkerDirectorHandle, runHydroMarkerGlide} from '@/client/console/hydroMarker/hydroMarkerDirector';
@@ -125,7 +125,7 @@ import {agendaWalkFlow, releaseAgendaWalkHolds} from '@/client/console/parliamen
  */
 export default defineComponent({
   name: 'ConsoleParliamentAgenda',
-  components: {PlayerCube, ConsoleParliamentEngine, ConsoleInfluenceMod},
+  components: {PlayerDelegate, ConsoleParliamentEngine, ConsoleInfluenceMod},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     /** The seats (the engine's race names them) and the viewer — the engine's own props, threaded through. */
@@ -288,8 +288,8 @@ export default defineComponent({
     this.stopAgendaGlide();
   },
   methods: {
-    cubePx(logical: number): number {
-      return conLogicalPx(logical);
+    figurePx(logical: number): number {
+      return delegateFigurePx(logical);
     },
     /** ONE held walk applied to a reading: the seat's cube carried back to `from`, the viewer's own influence and level with it. */
     heldAgendaVm(vm: AgendaVm, hold: AgendaAwaits): AgendaVm {

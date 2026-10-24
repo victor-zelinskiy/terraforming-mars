@@ -13,13 +13,13 @@
          :class="{'con-parl__seat--me': seat.color === viewerColor}"
          :data-parl-seat="seat.color">
       <span class="con-parl__seat-ident">
-        <PlayerCube :color="seat.color" :size="cubePx(11)" :glow="false" />
+        <PlayerDelegate :color="seat.color" :size="figurePx(18)" :glow="false" />
         <span class="con-parl__seat-name">{{ seat.name }}</span>
       </span>
       <span class="con-parl__seat-place" :class="{'con-parl__seat-place--source': seatSourceOf(seat) === 'lobby'}" data-parl-seat-place="lobby" :aria-label="$t('Lobby')">
         <span class="con-parl__seat-obj">
           <span class="con-parl__socket con-parl__socket--seat" :class="{'con-parl__socket--empty': !seat.lobby}" :data-parl-seat-lobby="seat.color">
-            <PlayerCube v-if="seat.lobby" :color="seat.color" :size="cubePx(RIBBON_CUBE)" :glow="false" />
+            <PlayerDelegate v-if="seat.lobby" :color="seat.color" :glow="false" />
           </span>
         </span>
       </span>
@@ -36,7 +36,7 @@
                is (never a timer, never a caption: the row already names the seat). -->
           <span :key="'st' + seat.color + landFlashOf(seat.color)" class="con-parl__stack con-parl__stack--seat" :class="{'con-parl__stack--empty': seat.reserveCubes === 0, 'con-parl__stack--landed': landFlashOf(seat.color) > 0}" :data-parl-seat-reserve="seat.color" :data-count="seat.reserveCubes" :data-parl-seat-landed="landFlashOf(seat.color) > 0 ? landFlashOf(seat.color) : undefined">
             <span v-for="n in Math.min(seat.reserveCubes, 3)" :key="n" class="con-parl__stack-cube" :data-stack="n">
-              <PlayerCube :color="seat.color" :size="cubePx(RIBBON_CUBE)" :glow="false" />
+              <PlayerDelegate :color="seat.color" :glow="false" />
             </span>
           </span>
           <b :key="'sr' + seat.reserve" class="con-parl__seat-count con-parl__tick">×{{ seat.reserve }}</b>
@@ -45,7 +45,7 @@
     </div>
     <div class="con-parl__seat con-parl__seat--neutral" data-parl-neutral-pool>
       <span class="con-parl__seat-ident">
-        <PlayerCube color="neutral" steel :size="cubePx(11)" :glow="false" />
+        <PlayerDelegate color="neutral" steel :size="figurePx(18)" :glow="false" />
         <span class="con-parl__seat-name">{{ $t('Neutral') }}</span>
       </span>
       <!-- A SOURCE, marked like the viewer's own place, while the vote mode's door also pays the selected
@@ -54,7 +54,7 @@
         <span class="con-parl__seat-obj">
           <span class="con-parl__stack con-parl__stack--seat" :class="{'con-parl__stack--empty': neutralSupplyShown === 0}" data-parl-neutral-cube :data-count="neutralSupplyShown">
             <span v-for="n in Math.min(neutralSupplyShown, 3)" :key="n" class="con-parl__stack-cube" :data-stack="n">
-              <PlayerCube color="neutral" steel :size="cubePx(RIBBON_CUBE)" :glow="false" />
+              <PlayerDelegate color="neutral" steel :glow="false" />
             </span>
           </span>
           <b :key="'n' + neutralSupplyShown" class="con-parl__seat-count con-parl__tick">×{{ neutralSupplyShown }}</b>
@@ -99,8 +99,8 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
-import PlayerCube from '@/client/components/PlayerCube.vue';
-import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
+import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {supportDiscardPoolHeld} from '@/client/console/parliament/supportDiscard';
@@ -108,7 +108,7 @@ import {rallyPoolHeld} from '@/client/console/parliament/neutralRally';
 import {rivalPoolHeld} from '@/client/console/parliament/parliamentRivalVotes';
 import {rivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
 import {ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
-import {BenchSource, RIBBON_CUBE, seatSourceOf} from '@/client/console/parliament/parliamentVoteView';
+import {BenchSource, seatSourceOf} from '@/client/console/parliament/parliamentVoteView';
 
 /** A pile's edges beneath its top back: none for one card, one for a few, two for a stack. */
 function pileLayers(n: number): number {
@@ -126,7 +126,7 @@ type SeatRow = {color: Color, name: string, lobby: boolean, reserve: number, res
  */
 export default defineComponent({
   name: 'ConsoleParliamentSeats',
-  components: {PlayerCube},
+  components: {PlayerDelegate},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
@@ -137,7 +137,6 @@ export default defineComponent({
   },
   data() {
     return {
-      RIBBON_CUBE,
       /** Per seat: how many returning delegates have LANDED on its reserve this mount (each landing re-keys the stack for its ring). */
       landFlash: {} as Record<string, number>,
     };
@@ -229,8 +228,8 @@ export default defineComponent({
     },
   },
   methods: {
-    cubePx(logical: number): number {
-      return conLogicalPx(logical);
+    figurePx(logical: number): number {
+      return delegateFigurePx(logical);
     },
     landFlashOf(color: Color): number {
       return this.landFlash[color] ?? 0;

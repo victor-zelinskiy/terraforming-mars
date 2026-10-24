@@ -85,8 +85,7 @@ async function armProbe(page: Page): Promise<void> {
       }
       const proxies: Array<Proxy> = Array.from(document.querySelectorAll<HTMLElement>('[data-parl-flight]')).map((el) => {
         const r = el.getBoundingClientRect();
-        const cube = el.querySelector<HTMLElement>('.player-cube');
-        const color = cube === null ? '' : (Array.from(cube.classList).find((c) => c.startsWith('player-cube--') || c.startsWith('cube-')) ?? cube.className.toString().slice(0, 40));
+        const color = el.querySelector<HTMLElement>('[data-player-token]')?.getAttribute('data-player-token') ?? '';
         const cs = getComputedStyle(el);
         return {
           id: el.getAttribute('data-parl-flight') ?? '', body: el.getAttribute('data-parl-flight-body') ?? 'cube', color,

@@ -29,7 +29,7 @@
       <span class="con-paccess__sockets">
         <span v-for="n in places" :key="n" class="con-paccess__socket"
               :class="{'con-paccess__socket--on': n <= mine, 'con-paccess__socket--void': n > threshold}">
-          <PlayerCube v-if="n <= mine && viewer !== undefined" :color="viewer" :size="cubePx(13)" :glow="false" />
+          <PlayerDelegate v-if="n <= mine && viewer !== undefined" :color="viewer" :size="figurePx(19)" :glow="false" />
         </span>
       </span>
       <b class="con-paccess__count">{{ mine }} / {{ threshold }}</b>
@@ -43,9 +43,9 @@ import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {ParliamentModel, PartyAccessModel} from '@/common/models/ParliamentModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
-import PlayerCube from '@/client/components/PlayerCube.vue';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
-import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
+import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {AccessReasonRow, accessReasonRows, accessRoadOf, allianceOf, effectDelegatesOf, PARTY_EFFECT_PLACES} from '@/client/console/parliament/consoleParliamentModel';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -54,7 +54,7 @@ export type PartyAccessTone = 'rules' | 'holds' | 'allied' | 'lacks';
 
 export default defineComponent({
   name: 'ConsolePartyAccessPanel',
-  components: {PlayerCube},
+  components: {PlayerDelegate},
   props: {
     party: {type: String as PropType<ReduxParty>, required: true},
     parliament: {type: Object as PropType<ParliamentModel | undefined>, default: undefined},
@@ -130,8 +130,8 @@ export default defineComponent({
     rowText(row: AccessReasonRow): string {
       return row.params.length === 0 ? translateText(row.key) : translateTextWithParams(row.key, row.params.map((p) => translateText(p)));
     },
-    cubePx(logical: number): number {
-      return conLogicalPx(logical);
+    figurePx(logical: number): number {
+      return delegateFigurePx(logical);
     },
   },
 });

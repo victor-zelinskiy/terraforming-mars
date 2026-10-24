@@ -33,11 +33,16 @@
    the slot's seam); a PARTY is a material — its accent as the plaque's seam,
    the emblem, the card's seal; PERSONAL ACCESS to an effect is mint.
 
-   TOKENS OF THE DELEGATE. One visual system for every delegate: a player's
-   is their PlayerCube, a neutral one the same cube in steel. PLACES are
-   sockets (`__socket`, `__place`, `__support-place`): filled = a delegate
-   stands there, hollow = the place is free. Every cube is sized in JS by
-   `cubePx()` (logical px × the ui scale) — no second zoom channel here.
+   TOKENS OF THE DELEGATE. One visual system for every delegate: a FIGURE —
+   the card's silhouette as a standee on a disc base (`PlayerDelegate`), in
+   its player's cube RGB or, for a neutral one, in steel. PLACES are
+   FOOTPRINTS (`__socket`, `__place`, `__support-place`, the ribbon's
+   `__vote-cube`, the reserve `__stack`, the chair — `.pd-footprint()`):
+   an elliptical trace where the figure's base stands; empty = the trace,
+   filled = the figure standing IN it. A place sizes its figure in rem
+   (`--pd-host`, floor .9rem = 18 logical px); a chip beside a name sizes it
+   in JS (`delegateFigurePx`). The cube stays the mark of OWNERSHIP (a city, a
+   colony, a milestone) — never a delegate's.
    ══════════════════════════════════════════════════════════════════════════ */
 
 @con-parl-violet: #8b6ad8;
@@ -194,21 +199,15 @@
     }
 
     &__chip-dim { opacity: .62; letter-spacing: .04em; text-transform: uppercase; font-size: .64rem; }
-    /* A SOCKET — a delegate's place: filled or free. */
+    /* A SOCKET — a delegate's place: its footprint, filled or free. */
     &__socket {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
+        .pd-footprint(1.1rem);
         width: 1.25rem;
         height: 1.25rem;
-        border-radius: .3rem;
-        background: rgba(0, 0, 0, 0.42);
-        box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.26);
-        transition: box-shadow calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
-        &--empty { box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.1); background: rgba(0, 0, 0, 0.28); }
-        &--small { width: 1.05rem; height: 1.05rem; border-radius: .24rem; }
-        /* The zone's lobby socket — the ledger's cube (the ribbon's size) in a snug frame. */
-        &--seat { width: 1.15rem; height: 1.15rem; border-radius: .28rem; }
+        &--empty { --pd-foot-rim: rgba(205, 218, 232, 0.18); }
+        &--small { width: 1.05rem; height: 1.05rem; --pd-host: .95rem; }
+        /* The zone's lobby socket — the ledger's figure in its snug footprint. */
+        &--seat { width: 1.15rem; height: 1.15rem; --pd-host: 1.05rem; }
     }
     /* A number that just CHANGED ticks once (keyed on its value). */
     &__tick { display: inline-block; animation: con-parl-tick calc(420ms * var(--motion-scale, 1)) @con-ease-standard both; }
@@ -316,7 +315,7 @@
     &__support-kicker { opacity: .75; }
     &__support-row { display: flex; align-items: center; justify-content: center; gap: 1.2rem; min-width: 0; }
     &__support-places { gap: .28rem; }
-    &__support-places .con-pseal__support-place { width: 1.6rem; height: 1.6rem; border-radius: .3rem; }
+    &__support-places .con-pseal__support-place { width: 1.3rem; height: 1.6rem; --pd-host: 1.5rem; }
     &__support-num { display: inline-flex; align-items: baseline; gap: .45rem; font-size: 2.5rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
     &__support-after { color: @con-parl-silver; }
     &__support-rule, &__support-reason { max-width: 34rem; font-size: .84rem; line-height: 1.3; color: fade(@con-text, 86%); }
@@ -775,7 +774,7 @@
         align-self: center;
         .pcard { will-change: transform; }
     }
-    /* THE DELEGATE RIBBON — cubes in placement order (the order the tie rule reads). */
+    /* THE DELEGATE RIBBON — figures in placement order (the order the tie rule reads). */
     &__ribbon {
         grid-area: ribbon;
         display: flex;
@@ -791,30 +790,28 @@
         background: rgba(0, 0, 0, 0.32);
     }
     &__vote-cube {
-        display: inline-flex; width: 1.3rem; height: 1.3rem; align-items: center; justify-content: center;
-        border-radius: .3rem;
+        .pd-footprint(1.15rem);
+        width: 1.3rem; height: 1.3rem;
         &--hidden { visibility: hidden; }
-        &--landed { animation: con-parl-land calc(420ms * var(--motion-scale, 1)) @con-ease-standard both; }
+        /* THE TOUCHDOWN — the figure is SET DOWN: one contact ring off its trace, a 2 px settle. Never a pulse. */
+        &--landed { .pd-footprint-landed(); }
         /* ANOTHER SEAT'S cube that just ARRIVED (`parliamentRivalVotes`): the touchdown's settle after its flight —
            and, under reduced motion, the crossfade it appears with (never a blink). */
-        &--arrived { animation: con-parl-arrive calc(420ms * var(--motion-scale, 1)) @con-ease-standard both; }
+        &--arrived > .player-delegate { animation: con-parl-arrive calc(420ms * var(--motion-scale, 1)) @con-ease-standard both; }
         /* THE RECOUNT'S MARK (TR31 — «M€ per neutral delegate in use»): one class flip the moment the count reaches
            this cube — its own one-shot pulse, then a ring that stays for the read (the mark is a STATE, readable
            without the pulse; coupled motion is one class, never a JS chase). */
         &--counted {
-            box-shadow: inset 0 0 0 .08rem fade(@con-parl-mint, 75%), 0 0 .35rem fade(@con-parl-mint, 35%);
-            animation: con-parl-counted calc(360ms * var(--motion-scale, 1)) @con-ease-standard both;
+            --pd-foot-rim: fade(@con-parl-mint, 85%);
+            --pd-foot-glow: 0 0 .35rem fade(@con-parl-mint, 40%);
+            &::before { animation: con-parl-counted calc(360ms * var(--motion-scale, 1)) @con-ease-standard both; }
         }
         /* THE PLACE the arriving delegate takes — hollow (a forecast, never a
            placement) until it lands: an outline and a breathing ghost only. */
-        &--place {
-            background: rgba(0, 0, 0, 0.2);
-            box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 65%);
-            position: relative;
-            &::after { content: ''; position: absolute; inset: .22rem; border-radius: .14rem; border: .06rem dashed fade(@con-parl-mint, 70%); animation: con-parl-ghost calc(900ms * var(--motion-scale, 1)) @con-ease-standard infinite alternate; }
-        }
+        &--place { .pd-footprint-target(@con-parl-mint); }
     }
     &__vote-stack {
+        --pd-host: 1.05rem;
         display: inline-flex; align-items: center; gap: .12rem; padding: .05rem .3rem .05rem .15rem; border-radius: .3rem;
         background: rgba(255, 255, 255, 0.05);
         font-size: .7rem;
@@ -874,17 +871,15 @@
         &--held b { color: @con-parl-mint; }
     }
     &__tally-key { flex: 0 0 auto; font-size: .56rem; letter-spacing: .1em; text-transform: uppercase; opacity: .62; }
-    /* The party-effect THRESHOLD as places: the viewer's own cubes, hollow = still needed. A place past the viewer's OWN
+    /* The party-effect THRESHOLD as places: the viewer's own figures, a bare footprint = still needed. A place past the viewer's OWN
        threshold (TR36 lowered it to one) is VOID — hidden, its room kept, so the row's geometry never moves (the plaque's
        support-socket idiom). The lit state is a transition, not a cut: the cube lands and the place answers over one beat. */
     &__places { display: inline-flex; align-items: center; gap: .14rem; }
     &__place {
-        display: inline-flex; align-items: center; justify-content: center;
-        width: .85rem; height: .85rem; border-radius: .2rem;
-        background: rgba(0, 0, 0, 0.4);
-        box-shadow: inset 0 0 0 .06rem fade(@con-parl-mint, 45%);
-        transition: box-shadow calc(240ms * var(--motion-scale, 1)) @con-ease-standard;
-        &--on { box-shadow: inset 0 0 0 .06rem fade(@con-parl-mint, 65%); }
+        .pd-footprint(.9rem);
+        width: .8rem; height: .92rem;
+        --pd-foot-rim: fade(@con-parl-mint, 45%);
+        &--on { --pd-foot-rim: fade(@con-parl-mint, 70%); }
         &--void { visibility: hidden; }
     }
     &__slot--mine &__tally-row--leader b { color: @con-parl-mint; }
@@ -983,7 +978,7 @@
     /* THE LANDING RING — the reserve place lights in the frame a returning delegate touches down
        (the stack is re-keyed on the landing; the ring plays once on mount and ends on its own
        animationend — a one-shot feedback animation, box-shadow allowed). */
-    &__stack--landed { animation: con-parl-stack-land calc(560ms * var(--motion-scale, 1)) @con-ease-standard both; }
+    &__stack--landed { .pd-footprint-landed(@con-parl-gold); }
     &__seat-obj { display: inline-flex; align-items: center; gap: .18rem; }
     /* The count keeps ONE width across «×5 → ×7» (the console font has no tabular figures: the seats
        zone moved 2 px on the TV between two sitting pages — the stability probe). */
@@ -1084,34 +1079,33 @@
     &__txn { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); gap: .25rem .8rem; padding: .4rem .6rem; border-radius: .5rem; background: rgba(0,0,0,.35); align-content: start; }
     &__txn-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .1rem .5rem; font-size: .78rem; min-width: 0; b { font-size: .86rem; } }
     &__txn-val { display: inline-flex; align-items: center; gap: .3rem; min-width: 0; b { overflow: hidden; text-overflow: ellipsis; } }
-    /* THE RESERVE STACK — up to three cubes, offset like a pile; the top one is the source. */
+    /* THE RESERVE STACK — up to three figures standing one behind the other on the pile's own footprint; the last
+       is the source. The trace is the pile's: one ellipse under the whole group. */
     &__stack {
-        position: relative;
-        display: inline-flex;
-        align-items: flex-end;
+        .pd-footprint(1.3rem);
+        justify-content: flex-start;
         width: 2.5rem;
         height: 1.6rem;
-        border-radius: .34rem;
-        background: rgba(0, 0, 0, 0.42);
-        box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.26);
-        &--empty { box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.1); background: rgba(0, 0, 0, 0.28); }
+        &::before { width: 86%; }
+        &--empty { --pd-foot-rim: rgba(205, 218, 232, 0.18); }
     }
     &__stack-cube {
         position: absolute;
-        left: .38rem;
-        bottom: .1rem;
+        left: .3rem;
+        bottom: 0;
         display: inline-flex;
-        &[data-stack="2"] { transform: translate(.34rem, -.14rem); }
-        &[data-stack="3"] { transform: translate(.68rem, -.28rem); }
+        z-index: 1;
+        &[data-stack="2"] { transform: translate(.3rem, -.1rem); }
+        &[data-stack="3"] { transform: translate(.6rem, -.2rem); }
     }
     /* The zone's stack — the same pile at the ledger's size. */
     &__stack--seat {
+        --pd-host: 1.05rem;
         width: 1.9rem;
         height: 1.15rem;
-        border-radius: .28rem;
-        .con-parl__stack-cube { left: .2rem; bottom: .12rem; }
-        .con-parl__stack-cube[data-stack="2"] { transform: translate(.3rem, -.1rem); }
-        .con-parl__stack-cube[data-stack="3"] { transform: translate(.6rem, -.2rem); }
+        .con-parl__stack-cube { left: .14rem; bottom: 0; }
+        .con-parl__stack-cube[data-stack="2"] { transform: translate(.26rem, -.08rem); }
+        .con-parl__stack-cube[data-stack="3"] { transform: translate(.52rem, -.16rem); }
     }
     /* ══ THE AGENDA — a read-only SCALE, never a row of buttons ═════════
        One rail across the plate, the steps as NODES on it, the players'
@@ -1581,10 +1575,6 @@ html.con-profile-handheld .con-band {
     35% { color: @con-parl-gold; }
     100% { color: inherit; }
 }
-@keyframes con-parl-ghost {
-    from { opacity: .35; }
-    to { opacity: 1; }
-}
 @keyframes con-parl-step-in {
     from { opacity: 0; }
 }
@@ -1592,26 +1582,18 @@ html.con-profile-handheld .con-band {
     from { transform: translateY(-.3rem); opacity: .2; }
     to { transform: none; opacity: 1; }
 }
-/* THE TOUCHDOWN — the cube arrives by its flight at exactly this size, so the
-   settle starts at rest and reads as an impact: a squash, a small rebound. */
-@keyframes con-parl-land {
-    from { transform: scale(1); }
-    30% { transform: scale(.86); }
-    65% { transform: scale(1.08); }
-    to { transform: scale(1); }
-}
-/* A RIVAL'S CUBE ARRIVED — the same settle as the viewer's touchdown, with the crossfade the cube appears by when
-   no flight brought it (reduced motion, an unmeasurable table): opacity and scale on one clock, never a blink. */
+/* A RIVAL'S FIGURE ARRIVED with no flight to bring it (reduced motion, an unmeasurable table): it fades in and is SET
+   DOWN the last hair — opacity and a short drop on one clock, never a blink, never a scale pulse. */
 @keyframes con-parl-arrive {
-    from { opacity: 0; transform: scale(.6); }
-    45% { opacity: 1; transform: scale(1.08); }
-    to { opacity: 1; transform: scale(1); }
+    from { opacity: 0; transform: translateY(-.3rem); }
+    60% { opacity: 1; transform: translateY(.06rem); }
+    to { opacity: 1; transform: none; }
 }
-/* THE RECOUNT'S MARK (TR31): the cube is touched by the count — a short lift and a brighter ring, settling into the state ring. */
+/* THE RECOUNT'S MARK (TR31): the figure's trace is touched by the count — it swells once and settles into its ring. */
 @keyframes con-parl-counted {
-    from { transform: scale(1); box-shadow: inset 0 0 0 .08rem fade(@con-parl-mint, 75%), 0 0 .35rem fade(@con-parl-mint, 35%); }
-    40% { transform: scale(1.18); box-shadow: inset 0 0 0 .12rem @con-parl-mint, 0 0 .9rem fade(@con-parl-mint, 65%); }
-    to { transform: scale(1); box-shadow: inset 0 0 0 .08rem fade(@con-parl-mint, 75%), 0 0 .35rem fade(@con-parl-mint, 35%); }
+    from { transform: translateX(-50%) scale(1); }
+    40% { transform: translateX(-50%) scale(1.3); }
+    to { transform: translateX(-50%) scale(1); }
 }
 html.con-fx-lite .con-parl__vote-cube--counted { animation: none; }
 @keyframes con-parl-land-flash {
@@ -1720,9 +1702,9 @@ html.con-profile-handheld .con-parl {
     &__tally-unit { font-size: .5rem; }
     &__tally-key { font-size: .48rem; }
     &__tally-row { font-size: .62rem; gap: .15rem; b { font-size: .78rem; } }
-    &__place { width: .7rem; height: .7rem; }
+    &__place { width: .74rem; height: .9rem; }
     &__ribbon { padding: .1rem .25rem; gap: .12rem; }
-    &__vote-cube { width: 1.05rem; height: 1.05rem; }
+    &__vote-cube { width: 1.05rem; height: 1.05rem; --pd-host: .95rem; }
     &__tally-line { height: 1rem; gap: .5rem; }
     &__tally-line--mine { height: .85rem; }
     &__tally-held { font-size: .46rem; }
@@ -1735,8 +1717,8 @@ html.con-profile-handheld .con-parl {
     &__seat-name { max-width: 3.4rem; }
     &__seat-key { font-size: .38rem; }
     &__seat-count { font-size: .6rem; }
-    &__socket { width: 1.05rem; height: 1.05rem; &--small { width: .85rem; height: .85rem; } &--seat { width: 1rem; height: 1rem; } }
-    &__stack--seat { width: 1.6rem; height: 1rem; .con-parl__stack-cube { left: .14rem; bottom: .1rem; } .con-parl__stack-cube[data-stack="2"] { transform: translate(.24rem, -.08rem); } .con-parl__stack-cube[data-stack="3"] { transform: translate(.48rem, -.16rem); } }
+    &__socket { width: 1.05rem; height: 1.05rem; --pd-host: .95rem; &--small { width: .85rem; height: .9rem; --pd-host: .9rem; } &--seat { width: 1rem; height: 1rem; --pd-host: .92rem; } }
+    &__stack--seat { --pd-host: .92rem; width: 1.6rem; height: 1rem; .con-parl__stack-cube { left: .1rem; bottom: 0; } .con-parl__stack-cube[data-stack="2"] { transform: translate(.22rem, -.07rem); } .con-parl__stack-cube[data-stack="3"] { transform: translate(.44rem, -.14rem); } }
     &__parties { gap: .25rem; }
     &__party > .con-pseal {
         padding: .22rem .32rem .24rem .3rem;
@@ -1748,9 +1730,9 @@ html.con-profile-handheld .con-parl {
         .con-pseal__action-mark { width: .62rem; height: .62rem; font-size: .4rem; }
         .con-pseal__state { font-size: .48rem; height: 1.3rem; }
         .con-pseal__state-text { font-size: .46rem; }
-        .con-pseal__place { width: .6rem; height: .6rem; }
+        .con-pseal__place { width: .74rem; height: .9rem; --pd-host: .9rem; }
         .con-pseal__places-count { font-size: .52rem; }
-        .con-pseal__support-place { width: .54rem; height: .54rem; }
+        .con-pseal__support-place { width: .74rem; height: .9rem; --pd-host: .9rem; }
     }
     &__stage { padding: .4rem .55rem; gap: .3rem; }
     &__stage-title { font-size: .92rem; }
@@ -1758,7 +1740,7 @@ html.con-profile-handheld .con-parl {
     &__stage-body { gap: .5rem; }
     &__txn { gap: .15rem .5rem; padding: .3rem .45rem; }
     &__txn-row { font-size: .68rem; b { font-size: .76rem; } }
-    &__stack { width: 1.7rem; height: 1.3rem; }
+    &__stack { width: 1.7rem; height: 1.3rem; --pd-host: 1.1rem; }
     &__agenda { padding: .2rem .45rem .18rem; gap: .08rem; }
     &__agenda-me { font-size: .64rem; b { font-size: .78rem; } }
     &__step-label { font-size: .48rem; }
@@ -1924,13 +1906,8 @@ html.con-profile-tv .con-parl--walk {
     .con-parl__step-res--inf { width: 1.7rem; height: 1.7rem; }
 }
 
-/* The reserve place's landing ring (A.3): a gold ring that swells and fades, once. */
-@keyframes con-parl-stack-land {
-    0% { box-shadow: 0 0 0 0 fade(@con-parl-gold, 0%); }
-    30% { box-shadow: 0 0 0 .22rem fade(@con-parl-gold, 70%), 0 0 .8rem fade(@con-parl-gold, 45%); }
-    100% { box-shadow: 0 0 0 .1rem fade(@con-parl-gold, 0%); }
-}
-html.con-reduced-motion .con-parl__stack--landed { animation: none; }
+/* The reserve place's landing (A.3): the pile's trace answers with ONE gold contact ring (`.pd-footprint-landed`). */
+html.con-reduced-motion .con-parl__stack--landed { &::after, .player-delegate { animation: none; } }
 @media (prefers-reduced-motion: reduce) {
-    .con-parl__stack--landed { animation: none; }
+    .con-parl__stack--landed { &::after, .player-delegate { animation: none; } }
 }

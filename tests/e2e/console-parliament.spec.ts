@@ -376,7 +376,7 @@ for (const preset of PRESETS) {
       const v1 = slots(page).nth(0);
       await expect(v1).toHaveClass(/con-parl__slot--winning/);
       await expect(v1.locator('.con-parl__slot-win')).toHaveCount(1);
-      await expect(v1.locator('[data-parl-leader] .player-cube'), 'who personally leads it').toHaveCount(1);
+      await expect(v1.locator('[data-parl-leader] [data-player-token]'), 'who personally leads it').toHaveCount(1);
       // A crowded ribbon folds into per-owner stacks.
       await expect(v1.locator('.con-parl__vote-stack')).not.toHaveCount(0);
       // No vote is possible — the mode still opens for READING; its confirm names why, and A on it says so once.
@@ -489,7 +489,7 @@ for (const preset of PRESETS) {
         await expect(stage(page), 'no results scene').toHaveCount(0);
         expect((await crumbText(page)).toUpperCase(), 'the overview names itself').toContain('ОБЗОР');
         await expect(page.locator('[data-parl-gov] .con-parl__gov-card .pcard')).toHaveCount(1);
-        await expect(page.locator('.con-parl__step[data-step="1"] .player-cube')).not.toHaveCount(0);
+        await expect(page.locator('.con-parl__step[data-step="1"] [data-player-token]')).not.toHaveCount(0);
         const dealt = (await parliamentModel(request, playerId)).game.parliament.slots.length;
         expect(dealt, 'the refresh dealt a fresh area').toBeGreaterThan(0);
         await expect(slots(page)).toHaveCount(dealt);

@@ -8,7 +8,7 @@
       <span class="con-parl-qd__kicker con-parl-qd__kicker--gold">{{ $t('Chairman seat') }}</span>
       <span class="con-parl-qd__seat" :class="{'con-parl-qd__seat--held': chairman !== undefined}">
         <PremiumChairGlyph class="con-parl-qd__chair-glyph" />
-        <span v-if="chairman !== undefined" class="con-parl-qd__seat-cube"><PlayerCube :color="chairman" :size="cubePx(18)" :glow="false" /></span>
+        <span v-if="chairman !== undefined" class="con-parl-qd__seat-cube"><PlayerDelegate :color="chairman" :size="figurePx(26)" :glow="false" /></span>
       </span>
       <span class="con-parl-qd__holder">{{ chairman === undefined ? $t('The seat is vacant') : nameOf(chairman) }}</span>
       <div class="con-parl-qd__note">
@@ -36,7 +36,7 @@
         <div v-for="row in rows" :key="row.color" class="con-parl-qd__row"
              :class="{'con-parl-qd__row--me': row.color === viewerColor, 'con-parl-qd__row--won': quest?.completedBy === row.color}"
              :data-parl-qd-row="row.color">
-          <PlayerCube :color="row.color" :size="cubePx(14)" :glow="false" />
+          <PlayerDelegate :color="row.color" :size="figurePx(21)" :glow="false" />
           <span class="con-parl-qd__row-name">{{ nameOf(row.color) }}</span>
           <span v-if="row.bot && quest?.botReachable === false" class="con-parl-qd__row-off">✕</span>
           <template v-else>
@@ -70,18 +70,18 @@
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import PlayerCube from '@/client/components/PlayerCube.vue';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import PremiumChairGlyph from '@/client/components/premiumCard/PremiumChairGlyph.vue';
 import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
 import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mechanicsModel';
 import {PARLIAMENT_GRAPHIC} from '@/client/components/premiumCard/resolutionPremiumVm';
-import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
+import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {ParliamentQuestVm, ParliamentViewVm, parliamentPlayerName, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 export default defineComponent({
   name: 'ConsoleParliamentQuestDossier',
-  components: {PlayerCube, PremiumChairGlyph, PremiumMechanicsPanel},
+  components: {PlayerDelegate, PremiumChairGlyph, PremiumMechanicsPanel},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},
@@ -119,8 +119,8 @@ export default defineComponent({
     nameOf(color: Color): string {
       return parliamentPlayerName(this.players, color);
     },
-    cubePx(logical: number): number {
-      return conLogicalPx(logical);
+    figurePx(logical: number): number {
+      return delegateFigurePx(logical);
     },
   },
 });

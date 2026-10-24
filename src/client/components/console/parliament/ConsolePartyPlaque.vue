@@ -116,7 +116,7 @@
         <span v-for="n in placesCount" :key="n" class="con-pseal__place"
               :class="{'con-pseal__place--on': n <= (state?.delegates ?? 0) && n <= liveCount, 'con-pseal__place--void': n > liveCount, 'con-pseal__place--ally': state?.ring === 'allied' && n <= liveCount}"
               :data-pseal-place="n" :data-pseal-place-void="n > liveCount ? '' : undefined">
-          <PlayerCube v-if="n <= (state?.delegates ?? 0) && n <= liveCount" :color="viewerColor" :size="placeCubePx" :glow="false" />
+          <PlayerDelegate v-if="n <= (state?.delegates ?? 0) && n <= liveCount" :color="viewerColor" :glow="false" />
         </span>
         <!-- THE BORROWED RING (TR62): both arcs lit in the PARTNER's accent, the link at the seam — the effect and the
              cards are the viewer's through the other party, never by cubes of their own and never by the crown. -->
@@ -159,7 +159,7 @@
            off the enacted card, lagging the swap exactly as `ruling` does), and the sitting's support
            wave lands there. -->
       <ConsoleSupportPlaces v-if="support !== undefined"
-                            :filled="support" :outgoing="supportOutgoing" :counted="supportCounted" :cubePx="supportCubePx" :voidEmpty="ruling && rulesByCard"
+                            :filled="support" :outgoing="supportOutgoing" :counted="supportCounted" :voidEmpty="ruling && rulesByCard"
                             :data-support="support" :data-parl-support="party"
                             :data-support-void="ruling && rulesByCard && support <= 0 ? '' : undefined" />
     </div>
@@ -173,10 +173,9 @@ import {Color} from '@/common/Color';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 import ConsoleSupportPlaces from '@/client/components/console/parliament/ConsoleSupportPlaces.vue';
-import PlayerCube from '@/client/components/PlayerCube.vue';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {PARTY_EFFECT_PLACES, PartyActionStateVm, PartyStateVm} from '@/client/console/parliament/consoleParliamentModel';
-import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 /**
@@ -191,7 +190,7 @@ const PSEAL_NAME_LONG_WORD = 11;
 
 export default defineComponent({
   name: 'ConsolePartyPlaque',
-  components: {ConsolePartyFormula, ConsoleSupportPlaces, PlayerCube},
+  components: {ConsolePartyFormula, ConsoleSupportPlaces, PlayerDelegate},
   props: {
     party: {type: String as PropType<ReduxParty>, required: true},
     size: {type: String as PropType<PartyPlaqueSize>, default: 'tile'},
@@ -290,12 +289,6 @@ export default defineComponent({
     /** …and how many of them are LIVE for this viewer — the state's own threshold (the model's number, never a constant here). */
     liveCount(): number {
       return Math.max(1, Math.min(PARTY_EFFECT_PLACES, this.state?.effectDelegates ?? PARTY_EFFECT_PLACES));
-    },
-    placeCubePx(): number {
-      return Math.round((this.size === 'tile' || this.size === 'row' ? 9 : 11) * conUiScale());
-    },
-    supportCubePx(): number {
-      return Math.round((this.size === 'tile' || this.size === 'row' ? 9 : 11) * conUiScale());
     },
     /**
      * ONE short word where a word says more than the places: the ruling

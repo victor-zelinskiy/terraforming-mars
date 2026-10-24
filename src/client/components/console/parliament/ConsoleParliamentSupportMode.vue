@@ -30,7 +30,7 @@
         <div class="con-parl__support-area">
           <span class="con-parl__info-kicker con-parl__support-kicker">{{ $t('Popular support') }}</span>
           <span class="con-parl__support-row">
-            <ConsoleSupportPlaces class="con-parl__support-places" :filled="placesFilled" :outgoing="placesOutgoing" :cubePx="cubePx(12)" />
+            <ConsoleSupportPlaces class="con-parl__support-places" :filled="placesFilled" :outgoing="placesOutgoing" />
             <span v-if="reading.available" class="con-parl__support-num" data-parl-support-num>
               <b>{{ reading.current }}</b><span class="con-parl__fact-arrow" aria-hidden="true">→</span><b class="con-parl__support-after">{{ reading.resulting }}</b>
             </span>
@@ -79,7 +79,6 @@ import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/party
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
-import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {setWorkspaceFramePhase} from '@/client/console/consoleWorkspaceStack';
 import {translateText} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -217,9 +216,7 @@ export default defineComponent({
     accentOf(party: ReduxParty): string {
       return partyAccent(party);
     },
-    cubePx(logical: number): number {
-      return conLogicalPx(logical);
-    },
+
     /** Seat the cursor on `party` — the ruler is its own zone, the five of the row the `parties` zone (the overview's record). */
     moveTo(party: ReduxParty | undefined): void {
       if (party === undefined) {

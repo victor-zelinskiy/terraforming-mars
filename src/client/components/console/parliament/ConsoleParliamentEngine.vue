@@ -35,7 +35,7 @@
           @animationend="onChairPulseEnd">
       <PremiumChairGlyph class="con-parl__chair-glyph" />
       <span v-if="chairmanShown !== undefined" class="con-parl__chair-cube" :data-parl-seat-chair="chairmanShown">
-        <PlayerCube :color="chairmanShown" :size="cubePx(13)" />
+        <PlayerDelegate :color="chairmanShown" />
       </span>
     </span>
     <!-- THE CONDITION — its printed graphic (the ONE drawing the face, the dossier and this block share). -->
@@ -57,7 +57,7 @@
             :class="{'con-parl__quest-row--me': row.color === viewerColor, 'con-parl__quest-row--close': row.value > 0 && row.value >= questCount - 1, 'con-parl__quest-row--unreachable': rowUnreachable(row)}"
             :data-parl-quest-unreachable="rowUnreachable(row) ? '' : undefined"
             :data-parl-quest-value="row.value">
-        <PlayerCube :color="row.color" :size="cubePx(11)" :glow="false" />
+        <PlayerDelegate :color="row.color" :size="figurePx(18)" :glow="false" />
         <!-- MARSBOT'S ROW, on a quest its play cannot reach: a struck mark, never a race that cannot happen (the dossier says why). -->
         <span v-if="rowUnreachable(row)" class="con-parl__quest-unreachable" aria-hidden="true">✕</span>
         <template v-else-if="questCount <= PIPS_MAX">
@@ -77,12 +77,12 @@
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import PlayerCube from '@/client/components/PlayerCube.vue';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import PremiumChairGlyph from '@/client/components/premiumCard/PremiumChairGlyph.vue';
 import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
 import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mechanicsModel';
 import {PARLIAMENT_GRAPHIC} from '@/client/components/premiumCard/resolutionPremiumVm';
-import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
+import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {parliamentFlow, settleParliamentChairPulse, settleParliamentQuestPulse} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {ParliamentQuestVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
@@ -92,7 +92,7 @@ const PIPS_MAX = 5;
 
 export default defineComponent({
   name: 'ConsoleParliamentEngine',
-  components: {PlayerCube, PremiumChairGlyph, PremiumMechanicsPanel},
+  components: {PlayerDelegate, PremiumChairGlyph, PremiumMechanicsPanel},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
@@ -179,8 +179,8 @@ export default defineComponent({
         settleParliamentChairPulse();
       }
     },
-    cubePx(logical: number): number {
-      return conLogicalPx(logical);
+    figurePx(logical: number): number {
+      return delegateFigurePx(logical);
     },
   },
 });

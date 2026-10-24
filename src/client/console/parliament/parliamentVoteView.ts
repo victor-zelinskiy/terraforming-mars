@@ -17,7 +17,7 @@ export type BenchSource = 'lobby' | 'reserve' | 'none';
 /** A ribbon past this many delegates collapses into per-owner stacks. */
 export const DENSE_RIBBON = 12;
 /** ONE cube size for every delegate on a card and on the bench (logical px) — the flight scales by 1. */
-export const RIBBON_CUBE = 15;
+export const RIBBON_FIGURE = 23;
 
 /** The bench's marked source: the place the next delegate leaves, or none when there is nothing to send. */
 export function benchSourceOf(view: ParliamentViewVm, snapshot: VoteSnapshot | undefined): BenchSource {

@@ -117,7 +117,7 @@ async function armCubeProbe(page: Page): Promise<void> {
     };
     const sample = (clock: 'task' | 'mo') => {
       const cubes = Array.from(document.querySelectorAll<HTMLElement>('.con-parl__vote-cube[data-seq]')).map((el) => ({
-        seq: Number(el.dataset.seq), owner: el.querySelector('.player-cube')?.getAttribute('aria-label') ?? '',
+        seq: Number(el.dataset.seq), owner: el.querySelector('[data-player-token]')?.getAttribute('data-player-token') ?? '',
         hidden: el.classList.contains('con-parl__vote-cube--hidden'), arrived: el.hasAttribute('data-arrived'),
       }));
       const lobby: Record<string, boolean> = {};
@@ -226,7 +226,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       // ── THE TABLE READS THE BOT: the tally column, the leader badge, the «Принимается» badge.
       const slot = page.locator(`.con-parl__slot[data-instance="${vote.instance}"]`);
       await expect(slot.locator('[data-parl-tally] .con-parl__tally-total'), 'the tally counts one delegate').toContainText('1');
-      await expect(slot.locator(`[data-parl-leader] .player-cube[aria-label="${bot.color}"]`), 'the leader badge carries the bot\'s cube').toHaveCount(1);
+      await expect(slot.locator(`[data-parl-leader] [data-player-token="${bot.color}"]`), 'the leader badge carries the bot\'s delegate').toHaveCount(1);
       await expect(slot.locator('.con-parl__slot-win'), 'the card reads «Принимается»').toHaveCount(1);
       const after = await wireOf(request, playerId);
       expect(after.game.parliament?.slots.find((s) => s.instance === vote.instance)?.leader, 'the server names the bot as the leader').toBe(bot.color);
@@ -342,7 +342,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       // ── THE VERDICT names the bot as the winning player.
       const band = page.locator('.con-band');
       await expect(band, 'the verdict line').toContainText(/Победитель голосования|Winning player/);
-      await expect(band.locator(`[data-parl-band-chip="player"] .player-cube[aria-label="${bot.color}"]`), 'with the bot\'s cube').toHaveCount(1);
+      await expect(band.locator(`[data-parl-band-chip="player"] [data-player-token="${bot.color}"]`), 'with the bot\'s token').toHaveCount(1);
       await expectParliamentFits(page, `${preset.id} verdict`);
       await shoot(page, preset.id, '05-sitting-verdict');
 
@@ -387,7 +387,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       const red = seats[1];
 
       await openParliament(page);
-      const questRow = page.locator('[data-parl-quest-progress] .con-parl__quest-row').filter({has: page.locator(`.player-cube[aria-label="${bot.color}"]`)});
+      const questRow = page.locator('[data-parl-quest-progress] .con-parl__quest-row').filter({has: page.locator(`[data-player-token="${bot.color}"]`)});
       await expect(questRow, 'the bot\'s row in the race').toHaveCount(1);
       await expect(questRow, 'reads 1/2 — a reachable quest, never «недостижимо»').toContainText('1/2');
       await expect(questRow.locator('.con-parl__quest-unreachable')).toHaveCount(0);

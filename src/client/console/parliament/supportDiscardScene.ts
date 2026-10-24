@@ -12,12 +12,12 @@
  * without a measured source and destination: a miss is CONFESSED (the caller
  * publishes it on the section root) and the cube simply lands.
  *
- * Every proxy rides the shell-mounted flight layer (`flyCube`): born invisible,
+ * Every proxy rides the shell-mounted flight layer (`flyDelegate`): born invisible,
  * positioned on the next tick (law 14), its stagger a beat on the motion clock.
  */
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {flyCube, placeCubeRect} from './parliamentFlights';
+import {flyDelegate, placeFigureRect} from './parliamentFlights';
 import {SUPPORT_CUBE_STAGGER_MS} from './consoleParliamentModel';
 import {supportDiscardOrder} from './supportPickModel';
 
@@ -66,14 +66,14 @@ export function flySupportDiscard(root: HTMLElement, party: ReduxParty, count: n
     return ids;
   }
   const reduced = typeof window === 'undefined' || consoleReducedMotionActive();
-  const to = placeCubeRect(root, '[data-parl-neutral-cube]');
+  const to = placeFigureRect(root, '[data-parl-neutral-cube]');
   let remaining = order.length;
   order.forEach((place, i) => {
-    const from = placeCubeRect(root, plaquePlaceSelector(party, place));
+    const from = placeFigureRect(root, plaquePlaceSelector(party, place));
     if (!reduced && (from === undefined || to === undefined)) {
       hooks.onDegraded(from === undefined ? `discard: ${party} place ${place} has no measurable cube` : 'discard: the neutral supply has no measurable place');
     }
-    const id = flyCube('neutral', from, to, i * SUPPORT_CUBE_STAGGER_MS, () => {
+    const id = flyDelegate('neutral', from, to, i * SUPPORT_CUBE_STAGGER_MS, () => {
       hooks.onLanded();
       remaining--;
       if (remaining === 0) {

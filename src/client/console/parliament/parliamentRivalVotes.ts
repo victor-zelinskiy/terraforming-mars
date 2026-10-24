@@ -7,7 +7,7 @@
  * there. This beat gives the arrival the same physics as the viewer's own
  * vote: the cube LEAVES that seat's place on the delegates zone (its lobby
  * socket when the free delegate went, else the top of its reserve stack) and
- * LANDS on its place in the card's ribbon (`flyCube` — the sitting's own cube
+ * LANDS on its place in the card's ribbon (`flyDelegate` — the sitting's own cube
  * flight); two in one response go one after another, in placement order.
  *
  * …AND A RIVAL'S CARD THAT RALLIES NEUTRAL DELEGATES (Turmoil Redux TR31
@@ -49,7 +49,7 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {parliamentFlow, parliamentRootEl} from './consoleParliamentFlow';
 import {parliamentHolds} from './parliamentDisplayHolds';
-import {flyCube, placeCubeRect} from './parliamentFlights';
+import {flyDelegate, placeFigureRect} from './parliamentFlights';
 import {plaquePlaceSelector} from './supportDiscardScene';
 
 /** A rival seat's delegate onto a ribbon, or — a rival's card's rally (TR31) — a NEUTRAL cube onto a ribbon or into a plaque's socket. */
@@ -275,13 +275,13 @@ export function runRivalVotes(): void {
   const root = parliamentRootEl();
   const next = rivalVotes.queue[0];
   rivalVotes.flying = next;
-  const from = root === undefined ? undefined : placeCubeRect(root, next.source === 'pool' ? '[data-parl-neutral-cube]' :
+  const from = root === undefined ? undefined : placeFigureRect(root, next.source === 'pool' ? '[data-parl-neutral-cube]' :
     next.source === 'lobby' ? `[data-parl-seat-lobby="${next.owner}"]` : `[data-parl-seat-reserve="${next.owner}"]`);
-  const to = root === undefined ? undefined : placeCubeRect(root, next.kind === 'vote' ?
+  const to = root === undefined ? undefined : placeFigureRect(root, next.kind === 'vote' ?
     `.con-parl__slot[data-instance="${next.instance}"] [data-seq="${next.seq}"]` :
     plaquePlaceSelector(next.party, next.place));
-  // `flyCube` settles the holds itself when nothing is measurable (it calls both continuations at once).
-  flyCube(next.owner, from, to, 0, () => landed(next), {onLifted: () => lifted(next)});
+  // `flyDelegate` settles the holds itself when nothing is measurable (it calls both continuations at once).
+  flyDelegate(next.owner, from, to, 0, () => landed(next), {onLifted: () => lifted(next)});
 }
 
 /** Nothing is owed any more: every queued cube is simply where the model says (the section left, the hold expired). */

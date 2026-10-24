@@ -20,16 +20,16 @@
     <span class="con-parl__fact-val">
       <template v-if="!fact.unchanged">
         <template v-if="fact.id === 'lead'">
-          <PlayerCube v-if="fact.before.cube !== undefined && fact.before.cube !== 'neutral'" :color="fact.before.cube" :size="cubePx" :glow="false" />
-          <PlayerCube v-else-if="fact.before.cube === 'neutral'" color="neutral" steel :size="cubePx" :glow="false" />
+          <PlayerDelegate v-if="fact.before.cube !== undefined && fact.before.cube !== 'neutral'" :color="fact.before.cube" :size="figurePx" :glow="false" />
+          <PlayerDelegate v-else-if="fact.before.cube === 'neutral'" color="neutral" steel :size="figurePx" :glow="false" />
           <span v-else class="con-parl__fact-none">—</span>
         </template>
         <b v-else>{{ text(fact.before) }}</b>
         <span class="con-parl__fact-arrow" aria-hidden="true">→</span>
       </template>
       <template v-if="fact.after.cube !== undefined">
-        <PlayerCube v-if="fact.after.cube !== 'neutral'" :color="fact.after.cube" :size="cubePx" :glow="false" />
-        <PlayerCube v-else color="neutral" steel :size="cubePx" :glow="false" />
+        <PlayerDelegate v-if="fact.after.cube !== 'neutral'" :color="fact.after.cube" :size="figurePx" :glow="false" />
+        <PlayerDelegate v-else color="neutral" steel :size="figurePx" :glow="false" />
       </template>
       <b :class="{'con-parl__fact-after': !fact.unchanged}">{{ text(fact.after) }}</b>
     </span>
@@ -38,17 +38,17 @@
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
-import PlayerCube from '@/client/components/PlayerCube.vue';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import {FactValue, factValueText, VoteFactVm} from '@/client/console/parliament/voteInfoModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 export default defineComponent({
   name: 'ConsoleVoteFactRow',
-  components: {PlayerCube},
+  components: {PlayerDelegate},
   props: {
     fact: {type: Object as PropType<VoteFactVm>, required: true},
     /** The cube's size in device px (the host's profile scale). */
-    cubePx: {type: Number, required: true},
+    figurePx: {type: Number, required: true},
   },
   methods: {
     /** One side of the fact as words (a seat's NAME is a display string, never a key). */

@@ -54,9 +54,11 @@ describe('PlayerDelegate', () => {
     expect(w.classes()).to.include.members(['player-delegate--neutral', 'player-delegate--steel', 'player-delegate--solid']);
   });
 
-  it('size is the figure\'s height', () => {
+  it('size is the figure\'s height; without it the HOST place sizes the figure (no inline size)', () => {
     const w = mount(PlayerDelegate, {...globalConfig, props: {color: 'red', size: 18}});
     expect((w.element as HTMLElement).style.getPropertyValue('--pd-size')).eq('18px');
+    const hosted = mount(PlayerDelegate, {...globalConfig, props: {color: 'red'}});
+    expect((hosted.element as HTMLElement).style.getPropertyValue('--pd-size')).eq('');
   });
 
   it('the shadow is a SIBLING of the body (it stays on the table in flight), and both can be dropped', () => {

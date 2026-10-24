@@ -429,7 +429,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-parl-seats] .con-parl__seat[data-parl-seat]'), 'the delegates zone: one group per player').toHaveCount(2);
       // PARITY (R-20): two seats keep the strip as it was — the waiting seat still says its word.
       await expect(page.locator('.con-status__player:not(.con-status__player--active) .con-status__pstatus-text'), 'two seats: the waiting word stays').not.toHaveCount(0);
-      await expect(page.locator(`[data-parl-seat-lobby="${before.players[0].color}"] .player-cube, [data-parl-seat-lobby="${before.players[1].color}"] .player-cube`),
+      await expect(page.locator(`[data-parl-seat-lobby="${before.players[0].color}"] [data-player-token], [data-parl-seat-lobby="${before.players[1].color}"] [data-player-token]`),
         'a free delegate stands in a lobby socket').not.toHaveCount(0);
       // «Зал» v7: the quest is the ENGINE at the head of the career edge — its condition is the printed graphic there.
       await expect(page.locator('[data-parl-quest] .con-parl__quest-graphic.pcard__mech'), 'the quest condition is a graphic').toHaveCount(1);
@@ -565,7 +565,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-wshead [data-parl-zone]'), 'the zone stays on the head line inside the mode (one instance)').toHaveCount(1);
       await expect(page.locator('.con-parl__vote [data-parl-zone]'), '…and never travels into the layer').toHaveCount(0);
       expect(await headGeometry(), 'the crumb reserve, the zone and every seat group keep their exact screen coordinates in the mode').toEqual(headBefore);
-      await expect(page.locator('.con-parl__seat--me [data-parl-seat-lobby] .player-cube'), 'the viewer\'s free delegate stands in their lobby socket on the zone').toHaveCount(1);
+      await expect(page.locator('.con-parl__seat--me [data-parl-seat-lobby] [data-player-token]'), 'the viewer\'s free delegate stands in their lobby socket on the zone').toHaveCount(1);
       await expect(page.locator('.con-parl__seat--me [data-parl-seat-place="lobby"].con-parl__seat-place--source'), 'the viewer\'s lobby is marked as the source').toHaveCount(1);
       await expect(page.locator('[data-parl-vote-source]'), 'the delegate\'s real source').toContainText(/лобби/i);
       // The plate carries the verb alone (registry R-14); the price is the «ВАШ ГОЛОС» row's and the plate's own attribute.
@@ -707,7 +707,7 @@ for (const preset of PRESETS) {
 
       // ── The overview after the vote: the ledger reads the empty lobby socket.
       await openParliament(page);
-      await expect(page.locator(`[data-parl-seat-lobby="${me}"] .player-cube`), 'the viewer\'s lobby socket is empty now').toHaveCount(0);
+      await expect(page.locator(`[data-parl-seat-lobby="${me}"] [data-player-token]`), 'the viewer\'s lobby socket is empty now').toHaveCount(0);
       await expect(page.locator('.con-parl__slot').nth(0)).toHaveAttribute('data-votes', String(slot0.totalVotes + 1));
       await expectOneOfEach(page, after, `${preset.id} after the vote`);
       await expectFits(page, `${preset.id} after`);
@@ -734,7 +734,7 @@ test.describe('parliament v4 · the paid vote · the bill inside the mode · the
     await expect(page.locator(`.con-parl__party[data-party="${party0}"][data-party-state="progress"]`), 'the party reads «1 of 2»').toHaveCount(1);
     await expect(page.locator(`.con-parl__party[data-party="${party0}"] .con-pseal__place--on`), 'one of the two places holds the viewer\'s cube').toHaveCount(1);
     await expect(page.locator(`.con-parl__party[data-party="${before.parl.slots[1].party}"][data-party-state="delegates"]`), 'the second card\'s party is held').toHaveCount(1);
-    await expect(page.locator(`[data-parl-seat-lobby="${before.color}"] .player-cube`), 'the lobby socket is empty').toHaveCount(0);
+    await expect(page.locator(`[data-parl-seat-lobby="${before.color}"] [data-player-token]`), 'the lobby socket is empty').toHaveCount(0);
     await expectFits(page, preset);
     await shoot(page, preset, '10-browse');
 
@@ -744,7 +744,7 @@ test.describe('parliament v4 · the paid vote · the bill inside the mode · the
     await expect(voteMode(page)).toHaveCount(1);
     await settle(page, {timeoutMs: 8_000});
     expect(await selectedInstance(page)).toBe(slot0.instance);
-    await expect(page.locator(`.con-wshead [data-parl-seat-lobby="${before.color}"] .player-cube`), 'the viewer\'s lobby socket on the head line is empty').toHaveCount(0);
+    await expect(page.locator(`.con-wshead [data-parl-seat-lobby="${before.color}"] [data-player-token]`), 'the viewer\'s lobby socket on the head line is empty').toHaveCount(0);
     await expect(page.locator(`.con-wshead [data-parl-seat-reserve="${before.color}"] .con-parl__stack-cube`), 'the reserve stack on the head line shows its cubes').not.toHaveCount(0);
     await expect(page.locator('.con-parl__seat--me [data-parl-seat-place="reserve"].con-parl__seat-place--source'), 'the reserve is marked as the source').toHaveCount(1);
     await expect(page.locator('[data-parl-vote-source]')).toContainText(/резерва/i);
@@ -929,7 +929,7 @@ test.describe('parliament v4 · a crowded table · the vote that is not possible
     expect(model.parl.viewer?.vote.available, 'no delegate of the viewer is left to send').toBe(false);
     const preset = 'dense-1080';
     // Neutral delegates and players' delegates: one system — cubes; the neutral ones in steel.
-    await expect(page.locator('.con-parl__ribbon .player-cube--steel, .con-parl__vote-stack .player-cube--steel'), 'neutral delegates read as steel cubes').not.toHaveCount(0);
+    await expect(page.locator('.con-parl__ribbon .player-delegate--steel, .con-parl__vote-stack .player-delegate--steel'), 'neutral delegates stand as steel figures').not.toHaveCount(0);
     await expect(page.locator('.con-parl__slot.con-parl__slot--winning'), 'one winning card').toHaveCount(1);
     await expect(page.locator('[data-parl-gov] .con-parl__gov-card .pcard'), 'the enacted card is the government\'s main object').toHaveCount(1);
     await expect(page.locator('[data-parl-seats] .con-parl__seat[data-parl-seat]'), 'five groups on the zone — one per seat').toHaveCount(5);

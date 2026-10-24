@@ -21,7 +21,7 @@
       </div>
       <div class="con-parl__txn-row">
         <span class="con-parl__chip-dim">{{ $t('Chairman seat') }}</span>
-        <span class="con-parl__txn-val"><PlayerCube v-if="viewerColor !== undefined" :color="viewerColor" :size="cubePx(12)" /><b>{{ $t('yours') }}</b></span>
+        <span class="con-parl__txn-val"><PlayerDelegate v-if="viewerColor !== undefined" :color="viewerColor" :size="figurePx(18)" /><b>{{ $t('yours') }}</b></span>
       </div>
     </div>
   </div>
@@ -33,11 +33,11 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
-import PlayerCube from '@/client/components/PlayerCube.vue';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
-import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
+import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {parliamentFlow, parliamentRootEl} from '@/client/console/parliament/consoleParliamentFlow';
 import {ParliamentSlotVm, ParliamentViewVm, resolutionTitleOf} from '@/client/console/parliament/consoleParliamentModel';
 import {ParliamentInspectRequest, slotFaceOf} from '@/client/console/parliament/parliamentInspect';
@@ -53,7 +53,7 @@ import type {Rect} from '@/client/console/parliament/consoleParliamentVoteMotion
  */
 export default defineComponent({
   name: 'ConsoleParliamentSeatPick',
-  components: {PlayerCube, GamepadGlyph},
+  components: {PlayerDelegate, GamepadGlyph},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     /** The focused candidate slot. */
@@ -69,8 +69,8 @@ export default defineComponent({
     },
   },
   methods: {
-    cubePx(logical: number): number {
-      return conLogicalPx(logical);
+    figurePx(logical: number): number {
+      return delegateFigurePx(logical);
     },
     resolutionTitle(id: string): string {
       return resolutionTitleOf(this.view, id);

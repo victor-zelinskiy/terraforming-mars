@@ -9,7 +9,7 @@
  *                    reached, and the step's own bonus follows its arrival.
  *
  * NOTHING HERE IS NEW MOTION. The marker's glide is `ConsoleParliamentAgenda`'s
- * (the shared hydro marker director), the cubes are `parliamentFlights.flyCube`,
+ * (the shared hydro marker director), the delegates are `parliamentFlights.flyDelegate`,
  * the TR chip and the card cover are the sitting's own reward ledger
  * (`parliamentRewardBeat`) — this file only orders them and waits for each to
  * land before the next starts.
@@ -29,7 +29,6 @@
  *    order — never a skipped landing, never a proxy left in the air.
  */
 import {Color} from '@/common/Color';
-import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -38,7 +37,8 @@ import {parliamentFlow, pulseParliamentChair, pulseParliamentQuest} from './cons
 import {parliamentHolds} from './parliamentDisplayHolds';
 import {chairmanQuestFlow} from './consoleChairmanQuest';
 import {flushAgendaBonus, markAgendaBonusLanded, takeAgendaBonus} from './parliamentRewardBeat';
-import {CUBE_FLIGHT_MS, finishParliamentFlights, flyCube, placeCubeRect, rectOf} from './parliamentFlights';
+import {CUBE_FLIGHT_MS, finishParliamentFlights, flyDelegate, placeFigureRect, rectOf} from './parliamentFlights';
+import {CHAIR_FIGURE, delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {ParliamentBeat, scheduleParliamentBeat} from './parliamentBeat';
 import {Rect} from './consoleParliamentVoteMotion';
 
@@ -100,29 +100,32 @@ function schedule(baseMs: number, fn: () => void): void {
   state.beats.push(beat);
 }
 
-/** The chair's cube-sized rect — the seat itself, whether or not a delegate stands in it. */
+/**
+ * The chair's FIGURE-sized rect — the delegate seated in it when one is, else
+ * the figure the chair would seat (24 logical px, standing on the seat's floor
+ * at the chair's centre), whether or not a delegate stands there.
+ */
 function chairRect(root: HTMLElement): Rect | undefined {
   const chair = root.querySelector<HTMLElement>('[data-parl-chair]');
   if (chair === null) {
     return undefined;
   }
-  const cube = chair.querySelector<HTMLElement>('.con-parl__chair-cube .player-cube') ?? chair.querySelector<HTMLElement>('.con-parl__chair-cube');
-  const onCube = rectOf(cube);
-  if (onCube !== undefined) {
-    return onCube;
+  const seated = rectOf(chair.querySelector<HTMLElement>('.con-parl__chair-cube .player-delegate'));
+  if (seated !== undefined) {
+    return seated;
   }
-  const empty = chair.querySelector<HTMLElement>('.con-parl__chair-empty') ?? chair;
-  const r = empty.getBoundingClientRect();
+  const r = chair.getBoundingClientRect();
   if (r.width < 2) {
     return undefined;
   }
-  const size = conLogicalPx(12);
-  return {left: r.left, top: r.top + r.height / 2 - size / 2, width: size, height: size};
+  const height = delegateFigurePx(CHAIR_FIGURE);
+  const width = height * 0.8;
+  return {left: r.left + r.width / 2 - width / 2, top: r.top + r.height / 2 - height * 0.4, width, height};
 }
 
 /** The place the new chairman's delegate leaves — its own reserve stack or its lobby socket. */
 function sourceRect(root: HTMLElement, color: Color, source: 'reserve' | 'lobby'): Rect | undefined {
-  return placeCubeRect(root, source === 'lobby' ? `[data-parl-seat-lobby="${color}"]` : `[data-parl-seat-reserve="${color}"]`);
+  return placeFigureRect(root, source === 'lobby' ? `[data-parl-seat-lobby="${color}"]` : `[data-parl-seat-reserve="${color}"]`);
 }
 
 // ── the run ─────────────────────────────────────────────────────────────────
@@ -215,11 +218,11 @@ function beatSeat(): void {
   const outgoing = change.from;
   let lead = SEAT_LEAD_MS;
   if (outgoing !== undefined) {
-    const home = placeCubeRect(root, `[data-parl-seat-reserve="${outgoing}"]`);
+    const home = placeFigureRect(root, `[data-parl-seat-reserve="${outgoing}"]`);
     lead = SEAT_HANDOVER_MS;
     // The chair lets go at the LAUNCH: the real cube hides under the proxy.
     parliamentHolds.chairAwaits = {from: undefined, to: change.to};
-    flyCube(outgoing, seat, home, 0, () => {
+    flyDelegate(outgoing, seat, home, 0, () => {
       // …and the reserve's count ticks where the eye is: on the touchdown.
       parliamentHolds.returns.delete(outgoing);
     });
@@ -232,7 +235,7 @@ function beatSeat(): void {
     parliamentFlow.sourceLeaving = chairmanQuestFlow.seatSource;
   }
   const from = sourceRect(root, color, chairmanQuestFlow.seatSource);
-  flyCube(color, from, seat, lead, () => {
+  flyDelegate(color, from, seat, lead, () => {
     parliamentHolds.chairAwaits = undefined;
     pulseParliamentChair();
     schedule(BEAT_GAP_MS, () => beatAgenda());

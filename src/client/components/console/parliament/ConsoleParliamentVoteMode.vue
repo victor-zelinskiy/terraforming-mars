@@ -74,7 +74,7 @@
                     <template v-if="voteInfo.reading.subject !== undefined">
                       <span>{{ subjectKicker.before }}</span>
                       <span class="con-parl__socket con-parl__socket--small con-parl__info-kicker-cube">
-                        <PlayerCube :color="voteInfo.reading.subject.color" :size="cubePx(11)" :glow="false" />
+                        <PlayerDelegate :color="voteInfo.reading.subject.color" :size="figurePx(18)" :glow="false" />
                       </span>
                       <b class="con-parl__info-kicker-name" data-parl-kicker-name>{{ voteInfo.reading.subject.name }}</b>
                       <span>{{ subjectKicker.after }}</span>
@@ -226,7 +226,7 @@
                   <span class="con-parl__info-kicker con-parl__info-support-kicker">{{ $t(supportKicker) }}</span>
                   <span class="con-parl__info-support-row">
                     <ConsoleSupportPlaces class="con-parl__info-support-places"
-                                          :filled="voteInfo.support.places.filled" :incoming="voteInfo.support.places.incoming" :cubePx="cubePx(10)" />
+                                          :filled="voteInfo.support.places.filled" :incoming="voteInfo.support.places.incoming" />
                     <!-- `current → resulting`, and the left number is the area AS IT STANDS: it ticks with each
                          neutral cube's touchdown, and a fact that does not change (a full area, the landed
                          result) is ONE value. -->
@@ -256,7 +256,7 @@
                   <span class="con-parl__info-kicker con-parl__info-kicker--inline" data-parl-kicker="vote" data-parl-vote-late>{{ $t(voteInfo.vote.kicker) }}</span>
                   <template v-if="voteInfo.vote.source !== 'none'">
                     <span class="con-parl__socket con-parl__socket--small">
-                      <PlayerCube v-if="viewerColor !== undefined" :color="viewerColor" :size="cubePx(12)" :glow="false" />
+                      <PlayerDelegate v-if="viewerColor !== undefined" :color="viewerColor" :size="figurePx(18)" :glow="false" />
                     </span>
                     <span class="con-parl__info-src-text" data-parl-vote-late :data-parl-vote-count="voteInfo.vote.count">
                       <!-- A CARD's own door (TR03): «из резерва · по карте» — the delegate is free, the card is what is paid for. -->
@@ -286,7 +286,7 @@
                 </div>
                 <!-- The SHARED fact row (ConsoleVoteFactRow) — the same markup the fullscreen inspector's footer prints. -->
                 <div class="con-parl__facts">
-                  <ConsoleVoteFactRow v-for="fact in voteInfo.vote.facts" :key="fact.id" :fact="fact" :cubePx="cubePx(11)" data-parl-vote-late />
+                  <ConsoleVoteFactRow v-for="fact in voteInfo.vote.facts" :key="fact.id" :fact="fact" :figurePx="figurePx(18)" data-parl-vote-late />
                 </div>
               </div>
             </div>
@@ -335,13 +335,13 @@ import ConsolePartyReaction from '@/client/components/console/parliament/Console
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 import ConsoleVoteFactRow from '@/client/components/console/parliament/ConsoleVoteFactRow.vue';
 import ConsoleSupportPlaces from '@/client/components/console/parliament/ConsoleSupportPlaces.vue';
-import PlayerCube from '@/client/components/PlayerCube.vue';
+import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
-import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
+import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {ParliamentBeat, scheduleParliamentBeat} from '@/client/console/parliament/parliamentBeat';
 import {descendWorkspaceFrame, foldWorkspaceFrame, setWorkspaceFramePhase, workspaceFrameHasNested} from '@/client/console/consoleWorkspaceStack';
@@ -363,11 +363,11 @@ import {
 } from '@/client/console/parliament/consoleParliamentFlow';
 import {fitParliamentCards, freezeParliamentFit} from '@/client/console/parliament/parliamentCardFit';
 import {
-  dropFlight, dropFlightsWithPrefix, flightEl, flyCube, flyPriceToken, nextFlightId, placeCubeRect, pushCubeFlight, rectOf, registerFlightHandle,
+  dropFlight, dropFlightsWithPrefix, flightEl, flyDelegate, flyPriceToken, nextFlightId, placeFigureRect, pushCubeFlight, rectOf, registerFlightHandle,
 } from '@/client/console/parliament/parliamentFlights';
 import {
   emptyVoteRects, killParliamentVoteMotion, measureVoteRects, parkParliamentBody, playParliamentVoteEnter, playParliamentVoteLeave, Rect,
-  restoreParliamentBody, runDelegateCubeFlight,
+  restoreParliamentBody, runDelegateFlight,
 } from '@/client/console/parliament/consoleParliamentVoteMotion';
 import {
   grantResponse, grantSupportOf, ParliamentPromptBridge, parliamentPlayerName, ParliamentSlotVm, ParliamentTileVm, ParliamentViewVm, resolutionTitleOf, voteForecastOf,
@@ -406,7 +406,7 @@ export default defineComponent({
   name: 'ConsoleParliamentVoteMode',
   components: {
     ConsoleInfluenceYield, ConsoleColonyLedger, ConsoleTileGrant, ConsoleAgendaGrant, ConsoleVoteLedger, ConsolePartyFormula, ConsolePartyReaction, ConsoleVoteFactRow,
-    ConsoleSupportPlaces, PlayerCube, GamepadGlyph,
+    ConsoleSupportPlaces, PlayerDelegate, GamepadGlyph,
   },
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
@@ -912,8 +912,8 @@ export default defineComponent({
     tracksLabel(steps: number): string {
       return translateTextWithParams(COLONY_TRACK_SUMMARY_KEY, [String(steps)]);
     },
-    cubePx(logical: number): number {
-      return conLogicalPx(logical);
+    figurePx(logical: number): number {
+      return delegateFigurePx(logical);
     },
     emblemUrl(party: ReduxParty): string {
       return partyEmblemUrl(party);
@@ -1409,7 +1409,7 @@ export default defineComponent({
           this.flyDelegates(seqs, index + 1, color);
         }
       };
-      if (!this.flyDelegate(seq, color, next)) {
+      if (!this.flyOwnDelegate(seq, color, next)) {
         // No flight (reduced motion, nothing measurable): the cubes are simply there.
         f.sourceHold = undefined;
         f.sourceLeaving = undefined;
@@ -1440,7 +1440,7 @@ export default defineComponent({
         return;
       }
       const reduced = typeof window === 'undefined' || consoleReducedMotionActive();
-      const from = placeCubeRect(root, '[data-parl-neutral-cube]');
+      const from = placeFigureRect(root, '[data-parl-neutral-cube]');
       let remaining = count;
       for (let n = 0; n < count; n++) {
         const placeEl = root.querySelector<HTMLElement>(`[data-parl-vote-support] [data-support-place="${support.current + n + 1}"]`);
@@ -1449,7 +1449,7 @@ export default defineComponent({
           f.grantDegraded = from === undefined ? 'support: the neutral supply has no measurable place' : 'support: the party block has no measurable place';
           console.warn(`[parliament] grant: ${f.grantDegraded} — settled without a flight`);
         }
-        const id = flyCube('neutral', from, to, n * SUPPORT_CUBE_STAGGER_MS, () => {
+        const id = flyDelegate('neutral', from, to, n * SUPPORT_CUBE_STAGGER_MS, () => {
           f.supportLanded = Math.min(count, f.supportLanded + 1);
           this.answerSupportPlace(placeEl);
           remaining--;
@@ -1478,8 +1478,8 @@ export default defineComponent({
         el.addEventListener('animationend', () => el.classList.remove('con-pseal__support-place--landed'), {once: true});
       });
     },
-    /** One cube's flight — `onLanded` is the caller's continuation (the next cube, or the landed read). */
-    flyDelegate(seq: number, color: Color, onLanded: () => void): boolean {
+    /** The viewer's own delegate's flight, paced by its distance — `onLanded` is the caller's continuation (the next figure, or the landed read). */
+    flyOwnDelegate(seq: number, color: Color, onLanded: () => void): boolean {
       const root = parliamentRootEl();
       const f = parliamentFlow;
       if (root === undefined || typeof window === 'undefined' || consoleReducedMotionActive()) {
@@ -1489,16 +1489,16 @@ export default defineComponent({
       // now (the zone has moved with the mode; nothing here remembers the
       // overview's coordinates).
       const fromLobby = this.voteSource === 'lobby';
-      const sourceCube = fromLobby ?
-        root.querySelector<HTMLElement>(`[data-parl-seat-lobby="${color}"] .player-cube`) :
-        root.querySelector<HTMLElement>(`[data-parl-seat-reserve="${color}"] .con-parl__stack-cube:last-child .player-cube`);
+      const sourceFigure = fromLobby ?
+        root.querySelector<HTMLElement>(`[data-parl-seat-lobby="${color}"] .player-delegate`) :
+        root.querySelector<HTMLElement>(`[data-parl-seat-reserve="${color}"] .con-parl__stack-cube:last-child .player-delegate`);
       const place = root.querySelector<HTMLElement>(`.con-parl__slot[data-instance] [data-seq="${seq}"]`);
-      // The proxy lands on the CUBE's own box — the ribbon's place is a wider socket drawn around it.
-      const target = place?.querySelector<HTMLElement>('.player-cube') ?? place;
-      if (sourceCube === null || target === null || target === undefined) {
+      // The proxy lands on the FIGURE's own box — the ribbon's place is a wider footprint box drawn around it.
+      const target = place?.querySelector<HTMLElement>('.player-delegate') ?? place;
+      if (sourceFigure === null || target === null || target === undefined) {
         return false;
       }
-      const fr = sourceCube.getBoundingClientRect();
+      const fr = sourceFigure.getBoundingClientRect();
       const tr = target.getBoundingClientRect();
       if (fr.width < 2 || tr.width < 2) {
         return false;
@@ -1506,7 +1506,7 @@ export default defineComponent({
       const from: Rect = {left: fr.left, top: fr.top, width: fr.width, height: fr.height};
       const to: Rect = {left: tr.left, top: tr.top, width: tr.width, height: tr.height};
       const id = nextFlightId('vote');
-      const size = Math.round(fr.width);
+      const size = Math.round(fr.height);
       pushCubeFlight({id, color, size});
       void this.$nextTick(() => {
         const proxy = flightEl(id);
@@ -1520,22 +1520,22 @@ export default defineComponent({
           onLanded();
           return;
         }
-        const handle = runDelegateCubeFlight({
+        const handle = runDelegateFlight({
           proxy,
           from,
           to,
-          // The distance sets the tempo (`cubeFlightMs`); VOTE_FLIGHT_MS stays the
+          // The distance sets the tempo (`delegateFlightMs`); VOTE_FLIGHT_MS stays the
           // nominal figure the landing hold is budgeted against.
           durationMs: undefined,
           onLifted: () => {
-            // The proxy stands exactly over the source cube: THAT cube may vanish now (the next one, if any, stays).
+            // The proxy stands exactly over the source figure: THAT figure may vanish now (the next one, if any, stays).
             f.sourceHoldCount = Math.max(0, f.sourceHoldCount - 1);
             if (f.sourceHoldCount === 0) {
               f.sourceHold = undefined;
             }
           },
           onDeparted: () => {
-            // The cube has visibly left its place: the socket's note / the stack's count may say so now.
+            // The figure has visibly left its place: the footprint's note / the pile's count may say so now.
             f.sourceLeavingCount = Math.max(0, f.sourceLeavingCount - 1);
             if (f.sourceLeavingCount === 0) {
               f.sourceLeaving = undefined;

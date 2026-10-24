@@ -213,7 +213,7 @@ const ledgerOf = (page: Page) => page.evaluate(() => {
   return Array.from(row.querySelectorAll<HTMLElement>('[data-ledger-seat]')).map((chip) => ({
     seat: chip.getAttribute('data-ledger-seat'),
     you: chip.getAttribute('data-ledger-you') === 'true',
-    cubes: chip.querySelectorAll('.player-cube').length,
+    cubes: chip.querySelectorAll('[data-player-token]').length,
     parts: Array.from(chip.querySelectorAll<HTMLElement>('[data-ledger-part]')).map((part) => ({
       key: part.getAttribute('data-ledger-part'),
       tone: part.getAttribute('data-ledger-tone'),
@@ -257,7 +257,7 @@ const panelSignature = (page: Page) => page.locator('[data-parl-vote-surface]').
     readings: q('[data-yield-context]').map((r) => [r.getAttribute('data-yield-context'), r.getAttribute('data-yield-influence'), r.getAttribute('data-yield-amount'), r.getAttribute('data-yield-total-after')]),
     suffixes: q('[data-parl-vote-suffix]').map((s) => [s.getAttribute('data-parl-vote-suffix'), s.getAttribute('data-suffix-step')]),
     facts: q('[data-parl-fact]').map((f) => [f.getAttribute('data-parl-fact'), f.getAttribute('data-parl-fact-tone')]),
-    cubes: q('.player-cube').map((c) => c.className),
+    cubes: q('[data-player-token]').map((c) => c.className),
     cta: q('[data-parl-cta]').map((c) => c.className),
   });
 });
