@@ -1487,11 +1487,11 @@ export default defineComponent({
             // parliament-actions timeline: the hand popped at 11 ms, the whole stack at 54 ms). The ANSWER is the next
             // view (the game's age moves), never the prompt's absence. A hand that falls while the discard still STANDS
             // is a park — nothing was answered, nothing is paid.
-            if (this.discardStanding) {
+            // (The shell arms the await at the submit itself — `submitHandSelect` —, before the takedown moves anything.)
+            if (this.discardStanding || consoleCardActionsUi.payoutAwaited) {
               return;
             }
-            const key = discardExchangeRailKey(this.composer?.cardName ?? '');
-            if (railRewardPending(key)) {
+            if (railRewardPending(discardExchangeRailKey(this.composer?.cardName ?? ''))) {
               this.payDiscardAndConclude();
             } else {
               consoleCardActionsUi.payoutAwaitedAge = this.playerView.game.gameAge;

@@ -474,6 +474,17 @@ test.describe('parliament · party actions', () => {
     await press(page, 'ArrowRight', 250);
     await press(page, 'Enter', 300); // pick a second one
     await armTransferWitness(page);
+    // WHICH verb of the workspace stack let go (the stack's own trace — `__wsTrace`, the verb's name survives the build).
+    const stackTrace: Array<string> = [];
+    page.on('console', (msg) => {
+      const text = msg.text();
+      if (text.startsWith('[ws-stack]')) {
+        stackTrace.push(text.split('\n')[0]);
+      }
+    });
+    await page.evaluate(() => {
+      (window as unknown as {__wsTrace?: boolean}).__wsTrace = true;
+    });
     // WHEN the workspace lets go, relative to the press and the answer — a timeline named in the payout's failure.
     await page.evaluate(() => {
       const w = window as unknown as {__redsTimeline?: Array<string>};
@@ -523,7 +534,7 @@ test.describe('parliament · party actions', () => {
     const witness = await transferWitness(page);
     if (paid > 0) {
       const born = witness.births.filter((e) => e.value === '+2');
-      expect(born.length, `one «+2» token per paying tag (trail:\n${transferTrail(witness)}\nat the answer: ${JSON.stringify(atAnswer)})`).toBe(paid / 2);
+      expect(born.length, `one «+2» token per paying tag (trail:\n${transferTrail(witness)}\nat the answer: ${JSON.stringify(atAnswer)}\nthe stack's verbs: ${JSON.stringify(stackTrace)})`).toBe(paid / 2);
       expect(born.every((e) => e.under === 'hero'), `born on the plaque standing in the hero slot (trail:\n${transferTrail(witness)})`).toBe(true);
       const landed = witness.landings.filter((e) => born.some((b) => b.id === e.id));
       expect(landed.every((e) => e.under === 'rail:megacredits'), `landed on the M€ row (trail:\n${transferTrail(witness)})`).toBe(true);

@@ -1432,6 +1432,7 @@ export function truncateWorkspaceStack(depth: number): void {
   if (keep === workspaceStackState.frames.length) {
     return;
   }
+  traceVerb('truncate:' + keep + ' drops ' + workspaceStackState.frames.slice(keep).map((f) => f.kind + '/' + f.anchor.type).join(','));
   workspaceStackState.frames.splice(keep);
 }
 

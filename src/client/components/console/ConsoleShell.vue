@@ -8236,6 +8236,10 @@ export default defineComponent({
      * draft carries (structural: the marker and the draft, never a title, never a flow record of its own). A step of
      * `card-actions` the conclusion holds for (`owed-step`) until the hand opens in the composer's zone.
      */
+    /** A party discard's PAYOUT is still owed to this workspace — awaited from the submit, or held on the rail. */
+    politicalPayoutOwed(): boolean {
+      return consoleCardActionsUi.payoutAwaited || railRewardPending(discardExchangeRailKey(consoleCardActionsUi.draft?.cardName ?? ''));
+    },
     politicalDiscardOwed(): boolean {
       const marker = this.playerView.waitingFor?.partyActionPrompt;
       return marker !== undefined && marker.stage === 'discard' &&
@@ -8758,6 +8762,7 @@ export default defineComponent({
       return [
         workspaceFrameHasNested(kind) ? 'nested' : '',
         (this.followUpStepOwed && workspaceHostForStep() === kind) || (kind === 'card-actions' && this.politicalDiscardOwed) ? 'owed-step' : '',
+        kind === 'card-actions' && this.politicalPayoutOwed ? 'payout' : '',
         kind === 'hand' && hostedStepOwedTo('hand') ? 'step-owed' : '',
         kind === 'hand' ? hostedStepLiveBeat('hand') : '',
         workspaceOutcomeState.host === kind && workspaceOutcomeClaimed() ?
@@ -13387,7 +13392,7 @@ export default defineComponent({
             outcomeClaimed: workspaceOutcomeClaimed(),
             nestedStep: workspaceFrameHasNested('card-actions'),
             lawStepOwed: this.lawStepOwed,
-            payoutOwed: consoleCardActionsUi.payoutAwaited || railRewardPending(discardExchangeRailKey(consoleCardActionsUi.draft?.cardName ?? '')),
+            payoutOwed: this.politicalPayoutOwed,
             commitOwnsSurface: isSurfaceAwaitingHandoff() || this.commitFoldOwed || this.pendingCommitDismiss !== undefined,
           })) {
             leaveWorkspace();
@@ -20356,7 +20361,11 @@ export default defineComponent({
         // …and a walk PLAYING inside it: the marker moving, a chip in the air, the read.
         // …and a LEDGER still paying inside it (TR23 — «all your colony bonuses»):
         // the rows in turn, a take, a discard, the read — the flow's own body.
-        outcomeLive: mine || (kind === 'hand' && hostedStepLiveIn('hand')) || (kind === 'card-actions' && colonyBonusPayoutLive()),
+        // …and a PARTY DISCARD'S PAYOUT (the Reds): awaited from the submit (the transport took the prompt down, so the
+        // discard's `owed-step` let go and the conclusion owed since the draw's take FIRED — the box's stack trace:
+        // `closeWorkspaceRoot:card-actions` before the answer) or held on the rail until its wave has flown.
+        outcomeLive: mine || (kind === 'hand' && hostedStepLiveIn('hand')) ||
+          (kind === 'card-actions' && (colonyBonusPayoutLive() || this.politicalPayoutOwed)),
         // The second half of a pick-then-pay and a DRAW & SELECT still standing
         // in our zone are both this activation, still being answered — and so
         // is any prompt this FRAME earned the right to serve.
@@ -23835,6 +23844,14 @@ export default defineComponent({
      *  the BARE {type:'card', cards} (no OR wrapping) — byte-identical to the
      *  desktop hand-select overlay's `onHandSelect`. */
     submitHandSelect(cards: ReadonlyArray<string>): void {
+      // A PARTY'S DISCARD owed to the action workspace (the Reds): the transport takes the prompt DOWN at this submit,
+      // and the prompt change would let the voluntary action centre leave before the answer — the one that seeds the
+      // payout its plaque flies. The await is armed HERE, before anything moves (`payoutOwed`; the workspace pays and
+      // leaves when the next view lands).
+      if (this.politicalDiscardOwed) {
+        consoleCardActionsUi.payoutAwaitedAge = this.playerView.game.gameAge;
+        consoleCardActionsUi.payoutAwaited = true;
+      }
       this.consoleState.select.selected = [];
       this.consoleState.select.suitableOnly = true;
       // A DISCARD keeps the hand open: the cinematic seizes the cards out of
