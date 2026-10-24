@@ -41,7 +41,6 @@ const TAG = process.env.TM_E2E_SHOTS_TAG ?? 'after';
 const AFTER = TAG !== 'before';
 const PLAY = '.con-composer--play';
 const ACTION = '.con-cardactions .con-composer';
-const PACT = '.con-pact';
 
 const TV = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&consoleProfile=tv'} as const;
 const FHD = {id: 'fhd', viewport: {width: 1920, height: 1080}, query: '&consoleProfile=auto'} as const;
@@ -171,8 +170,8 @@ async function openActionComposerOf(page: Page, card: string): Promise<void> {
   await expect(page.locator(ACTION), 'the action composer stands').toBeVisible();
 }
 
-/** «Действия карт» → a PARTY's tile (steered by geometry) → its composer. */
-async function openPartyComposerOf(page: Page, party: string, kind: string): Promise<void> {
+/** «Действия карт» → a PARTY's tile (steered by geometry) → its composer — THE card composer («один фреймворк»). */
+async function openPartyComposerOf(page: Page, party: string): Promise<void> {
   await openCardActions(page);
   const focused = () => page.evaluate(() => {
     const tile = document.querySelector('.con-cardactions__tile--focused');
@@ -200,10 +199,11 @@ async function openPartyComposerOf(page: Page, party: string, kind: string): Pro
     await walkFocusUntil(page, async () => await focused() === party, focused, 30);
   }
   expect(await focused(), `never focused the «${party}» party tile`).toBe(party);
-  for (let i = 0; i < 3 && await page.locator(`${PACT}[data-pact="${kind}"]`).count() === 0; i++) {
+  const composer = `${ACTION}[data-composer-source="party:${party}"]`;
+  for (let i = 0; i < 3 && await page.locator(composer).count() === 0; i++) {
     await press(page, 'Enter', 1100);
   }
-  await expect(page.locator(`${PACT}[data-pact="${kind}"]`), 'the party composer stands').toHaveCount(1);
+  await expect(page.locator(composer), 'the card composer stands for the party').toHaveCount(1);
   await settle(page, {timeoutMs: 8_000});
 }
 
@@ -446,12 +446,12 @@ test.describe('the composer pre-select', () => {
     await bootFixtureSeats(page, request, 'parliament-actions', {query: TV.query});
     await settle(page);
     const posts = watchPosts(page);
-    await openPartyComposerOf(page, 'Scientists', 'scientists');
-    const open = await cursorAt(page, PACT);
-    const s = await seeds(page, PACT);
-    const picked = await page.locator(`${PACT} .con-pact__card--picked`).count();
+    await openPartyComposerOf(page, 'Scientists');
+    const open = await cursorAt(page, ACTION);
+    const s = await seeds(page, ACTION);
+    const picked = await page.locator(`${ACTION} .con-composer__row[data-seeded="sole"]`).count();
     await shoot(page, TV, 'g-01-open');
-    const move = await pressesToMove(page, PACT, posts);
+    const move = await pressesToMove(page, ACTION, posts);
     const table = {cell: 'G', open, seeds: s, picked, move};
     write(TV, 'G', table);
     if (!AFTER) {

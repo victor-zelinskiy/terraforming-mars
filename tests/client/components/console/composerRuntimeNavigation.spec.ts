@@ -89,7 +89,8 @@ describe('runtime-navigation steps — a plan defers the door', () => {
     vm.selectedPos = 1;
     await w.vm.$nextTick();
     expect(vm.tradeEntryCard, 'the branch declares its trade').to.equal('Titan Floating Launch-Pad');
-    expect(vm.tradeEntryDoor, 'and it IS the door while activating').to.equal('Titan Floating Launch-Pad');
+    // The door names its payment path — a CARD's here (a party's for Unity, «один фреймворк»).
+    expect(vm.tradeEntryDoor, 'and it IS the door while activating').to.deep.equal({card: 'Titan Floating Launch-Pad', party: ''});
     // No `waitingFor` → the server is offering no trade → the door is refused,
     // honestly and with the server's own words. This is the CORRECT behaviour
     // for an activation; it was the bug for a plan.

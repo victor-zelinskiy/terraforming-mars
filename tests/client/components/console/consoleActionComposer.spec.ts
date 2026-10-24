@@ -6,6 +6,9 @@ import {
   buildActionBatch,
   buildPoliticalActionBatch,
   branchChoices,
+  andOptionParts,
+  composeAndResponse,
+  firstMissingChoice,
   preChoices,
   canConfirm,
   spendHeatPlan,
@@ -171,6 +174,36 @@ describe('consoleActionComposer', () => {
     });
     it('a direct prompt with no answer builds nothing (the gate never lets it through)', () => {
       expect(buildPoliticalActionBatch({menuIndex: 0, answer: 'direct', branchIndex: -1, optionResponse: undefined, stepResponses: []})).to.deep.eq([]);
+    });
+  });
+
+  // A TWO-PART pick (the Industrialists' «lower one production, raise one»): an AndOptions of picks is asked as ONE
+  // row per part, and the branch's answer is composed once every part is answered — never a part on its own.
+  describe('a two-part option (AndOptions of picks)', () => {
+    const or = (n: number): PlayerInputModel => ({type: 'or', title: 'pick', options: Array.from({length: n}, () => ({type: 'option', title: 'x'}))} as unknown as PlayerInputModel);
+    const AND = {type: 'and', title: 'Shift', options: [or(3), or(2)]} as unknown as PlayerInputModel;
+    const branch = {index: -1, title: '', available: true, renderKeys: [], effects: [], steps: [], optionInput: AND} as unknown as ActionPreviewBranch;
+
+    it('the parts of an and of picks — and nothing for a spend-heat and or an and with a non-pick part', () => {
+      expect(andOptionParts(AND)?.length).to.eq(2);
+      expect(andOptionParts({...AND, spendHeatPrompt: {amount: 4}} as unknown as PlayerInputModel)).to.eq(undefined);
+      expect(andOptionParts({type: 'and', title: 't', options: [or(2), AMOUNT_INPUT]} as unknown as PlayerInputModel)).to.eq(undefined);
+      expect(andOptionParts(or(2))).to.eq(undefined);
+    });
+    it('the branch asks one row per part, scoped to the option with the part\'s index', () => {
+      expect(branchChoices(branch).map((c) => [c.id, c.scope, c.index, c.kind])).to.deep.eq([['option#0', 'option', 0, 'or'], ['option#1', 'option', 1, 'or']]);
+    });
+    it('the answer stands only once EVERY part is answered, in the parts\' own order', () => {
+      const a = {type: 'or', index: 2, response: {type: 'option'}};
+      const b = {type: 'or', index: 0, response: {type: 'option'}};
+      expect(composeAndResponse(AND, {0: a})).to.eq(undefined);
+      expect(composeAndResponse(AND, {1: b, 0: a})).to.deep.eq({type: 'and', responses: [a, b]});
+    });
+    it('the first missing decision is the first unanswered PART', () => {
+      const a = {type: 'or', index: 2, response: {type: 'option'}};
+      const missing = firstMissingChoice(undefined, branch, {pre: {}, option: undefined, optionParts: {0: a}, steps: {}});
+      expect(missing?.id).to.eq('option#1');
+      expect(canConfirm({branches: [branch]}, branch, {pre: {}, option: composeAndResponse(AND, {0: a}), steps: {}})).to.eq(false);
     });
   });
 

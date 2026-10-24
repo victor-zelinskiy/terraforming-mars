@@ -576,10 +576,12 @@ for (const preset of PARLIAMENT_PRESETS) {
           await press(page, dir, 300);
         }
         expect(await focusedParty(), 'the Industrialists tile is focused').toBe('Industrialists');
-        expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-pact[data-pact="industrialists"]').count() > 0, {tries: 3, settleMs: 1100}), 'A opens the party composer').toBe(true);
+        // «Один фреймворк»: THE card composer composes the party's action.
+        const composer = '.con-cardactions .con-composer[data-composer-source="party:Industrialists"]';
+        expect(await pressUntil(page, 'Enter', async () => await page.locator(composer).count() > 0, {tries: 3, settleMs: 1100}), 'A opens the composer').toBe(true);
         await settle(page, {timeoutMs: 20_000});
-        await expectParliamentFits(page, `${preset.id}/${mode} party composer`, '.con-pact');
-        await expectPaintBaseline(page, `${preset.id}/${mode} party composer`, ['.con-cardactions', '.con-pact']);
+        await expectParliamentFits(page, `${preset.id}/${mode} party composer`, composer);
+        await expectPaintBaseline(page, `${preset.id}/${mode} party composer`, ['.con-cardactions', composer]);
         await shoot(page, preset.id, mode, '24', 'party-action-composer');
         if (mode === 'reduced') {
           await expectReducedQuiet(page, `${preset.id} party composer`);

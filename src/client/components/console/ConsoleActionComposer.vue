@@ -2524,7 +2524,10 @@ export default defineComponent({
      * standard resource — «which resource» asked as ONE row of six tiles, not six sentences.
      */
     subPalette(): boolean {
-      return this.sub?.kind === 'list' && paletteOf(this.listHeroes.map((hero) => ({hero})));
+      // A PART of a two-part pick (the Industrialists' «which production») is a palette BY CONSTRUCTION — the host's own
+      // floor (`paletteOf` § min): one decreasable production is still «which production», not a sentence.
+      const part = this.subChoice?.scope === 'option' && this.subChoice.index >= 0;
+      return this.sub?.kind === 'list' && paletteOf(this.listHeroes.map((hero) => ({hero})), part ? 1 : 3);
     },
     paletteKicker(): string {
       return translateTextWithParams('One of ${0}', [String(this.listItems.length)]);

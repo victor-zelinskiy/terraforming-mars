@@ -115,13 +115,14 @@ for (const preset of PROFILES) {
       // walk the row until one opens (a refusal is the product speaking, never a missed key).
       let opened = false;
       for (let i = 0; i < 6 && !opened; i++) {
-        opened = await pressUntil(page, 'Enter', async () => await page.locator('.con-pact').count() > 0, {tries: 2, settleMs: 1100});
+        // «Один фреймворк»: a party's action opens THE card composer (its source on the root).
+        opened = await pressUntil(page, 'Enter', async () => await page.locator('.con-cardactions .con-composer[data-composer-source^="party:"]').count() > 0, {tries: 2, settleMs: 1100});
         if (!opened) {
           await press(page, 'ArrowRight', 500);
         }
       }
       expect(opened, 'A on a party with a live action opens its workspace inside the Parliament').toBe(true);
-      await scene(page, preset.id, '09-party-action', '.con-pact');
+      await scene(page, preset.id, '09-party-action', '.con-cardactions .con-composer');
     });
 
     test('награда с ВЫБОРОМ карты (Биокуполы)', async ({page, request}) => {

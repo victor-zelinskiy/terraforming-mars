@@ -55,7 +55,8 @@ const parliament = (page: Page) => page.locator('.con-parl');
 const voteMode = (page: Page) => page.locator('.con-parl__vote.con-parl__vote--up');
 /** Парламент v8 (§ 5, the HALL): the vote mode never carries the bills — they stay on the table, in their homes. */
 const rowSlots = (page: Page) => page.locator('.con-parl__slot-home .con-parl__slot');
-const pact = (page: Page, kind: string) => page.locator(`.con-pact[data-pact="${kind}"]`);
+/** «Один фреймворк»: a party's action is composed by THE card composer — its source stamped on the root. */
+const cardComposer = (page: Page, party: string) => page.locator(`.con-cardactions .con-composer[data-composer-source="party:${party}"]`);
 
 /** Open the Parliament from the wheel (RT → down). */
 async function openParliament(page: Page): Promise<void> {
@@ -1024,14 +1025,15 @@ test.describe('parliament v4 · the parties\' door', () => {
     await bootFixtureSeats(page, request, 'parliament-actions', {query: '&consoleProfile=auto'});
     await openParliament(page);
     await focusParty(page, 'Scientists');
-    expect(await pressUntil(page, 'Enter', async () => await pact(page, 'scientists').count() > 0, {tries: 3, settleMs: 1200}),
+    // «Один фреймворк»: THE card composer, its source on the root.
+    expect(await pressUntil(page, 'Enter', async () => await cardComposer(page, 'Scientists').count() > 0, {tries: 3, settleMs: 1200}),
       'A on the party opens its composer').toBeTruthy();
     await settle(page, {timeoutMs: 10_000});
     const crumb = (await crumbText(page)).toUpperCase();
     expect(crumb, `one crumb rooted at the Parliament (${crumb})`).toContain('ПАРЛАМЕНТ');
     expect(crumb).toContain('НАСТРОЙКА');
     await expect(page.locator('.con-cardactions'), 'the action workspace stands inside the Parliament').toHaveCount(1);
-    await expect(page.locator('.con-pact .con-pseal--hero'), 'the party plaque is the hero').toHaveCount(1);
+    await expect(page.locator('.con-composer__actplaque .con-pseal'), 'the party plaque is the hero').toHaveCount(1);
     await shoot(page, 'door-1080', '30-party-action-from-parliament');
     expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-cardactions').count() === 0, {tries: 3, settleMs: 1000}),
       'B leaves the nested action workspace').toBeTruthy();
@@ -1055,18 +1057,25 @@ test.describe('parliament v4 · one execution point, two doors · the Reds in fu
     await openCardActions(page);
     await focusPartyTile(page, 'Industrialists');
     const before = (await seatOf(request, playerId)).seat;
-    expect(await pressUntil(page, 'Enter', async () => await pact(page, 'industrialists').count() > 0, {tries: 3, settleMs: 1100})).toBeTruthy();
+    expect(await pressUntil(page, 'Enter', async () => await cardComposer(page, 'Industrialists').count() > 0, {tries: 3, settleMs: 1100})).toBeTruthy();
     await settle(page, {timeoutMs: 8_000});
     expect((await crumbText(page)).toUpperCase()).toContain('ДЕЙСТВИЯ КАРТ');
-    await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'the commit row is not ready before the decisions').toHaveCount(0);
+    const missing = page.locator('.con-cardactions .con-composer__row--missing');
+    await expect(missing, 'the commit row is not ready before the decisions — both parts open').toHaveCount(2);
+    await expect(page.locator('.con-cardactions .con-composer__cta--ready'), 'the commit is held').toHaveCount(0);
     await shoot(page, preset, '40-industrialists-open');
-    await press(page, 'Enter', 500);
-    await expect(page.locator('.con-pact__opts .con-vchoice__opt--selected')).toHaveCount(1);
-    await press(page, 'Enter', 500);
-    await expect(page.locator('.con-pact__opts .con-vchoice__opt--selected')).toHaveCount(2);
-    const total = (await page.locator('[data-pact-total]').textContent() ?? '').replace(/\s+/g, ' ');
-    expect(total, `the total reads the net result of one pool (${total})`).toMatch(/→/);
-    await expect(page.locator('[data-pact-cta][data-pact-ready]'), 'the commit row is ready now').toHaveCount(1);
+    const sublist = page.locator('.con-cardactions .con-composer__sublist');
+    for (const left of [1, 0]) {
+      expect(await pressUntil(page, 'Enter', async () => await sublist.count() > 0, {tries: 3, settleMs: 900}), 'A opens the part').toBeTruthy();
+      // The rows are not rendered while a pick list stands — «answered» is the list closed AND the count.
+      expect(await pressUntil(page, 'Enter', async () => await sublist.count() === 0 && await missing.count() === left, {tries: 3, settleMs: 900}),
+        'A answers the part').toBeTruthy();
+    }
+    // Each answered part keeps its pool's `current → resulting` on its collapsed row (the card composer's reading).
+    const impacts = await page.locator('.con-cardactions .con-composer__row-impact').allTextContents();
+    expect(impacts.length, `both parts read their change (${impacts.join(' | ')})`).toBe(2);
+    expect(impacts.every((t) => /→/.test(t)), `every part reads current → resulting (${impacts.join(' | ')})`).toBe(true);
+    await expect(page.locator('.con-cardactions .con-composer__cta--ready'), 'the commit row is ready now').toHaveCount(1);
     await shoot(page, preset, '41-industrialists-total');
     await press(page, 'Enter', 900);
     const usesOf = async (id: string) => (await seatOf(request, playerId)).parl.viewer?.partyActions.find((a) => a.id === id)?.usesLeft;
@@ -1079,13 +1088,13 @@ test.describe('parliament v4 · one execution point, two doors · the Reds in fu
     // ── SCIENTISTS from the Parliament — the flow ends back in the Parliament ──
     await openParliament(page);
     await focusParty(page, 'Scientists');
-    expect(await pressUntil(page, 'Enter', async () => await pact(page, 'scientists').count() > 0, {tries: 3, settleMs: 1200})).toBeTruthy();
+    expect(await pressUntil(page, 'Enter', async () => await cardComposer(page, 'Scientists').count() > 0, {tries: 3, settleMs: 1200})).toBeTruthy();
     await settle(page, {timeoutMs: 8_000});
     expect((await crumbText(page)).toUpperCase()).toContain('ПАРЛАМЕНТ');
-    // One kind held and ONE holder (Tardigrades) — nothing to decide (T14 · CC): the variant and the card are seeded, the
-    // card marked, the cursor on the commit row; ONE press commits.
-    await expect(page.locator('.con-pact__opts .con-vchoice__opt--selected, .con-pact__card--picked')).toHaveCount(2);
-    await expect(page.locator('[data-pact-cta].con-pact__cta--focus'), 'the cursor stands on the commit').toHaveCount(1);
+    // One kind held and ONE holder (Tardigrades) — nothing to decide (T14 · CC): the card is seeded and marked, the
+    // cursor on the commit row; ONE press commits.
+    await expect(page.locator('.con-cardactions .con-composer__row[data-seeded="sole"]')).toHaveCount(1);
+    await expect(page.locator('.con-cardactions .con-composer__cta--focused'), 'the cursor stands on the commit').toHaveCount(1);
     await shoot(page, preset, '42-scientists-from-parliament');
     await press(page, 'Enter', 900);
     await expect.poll(async () => (await seatOf(request, playerId)).seat.tableau.find((c) => c.name === 'Tardigrades')?.resources ?? -1, {timeout: 20_000}).toBe(2);

@@ -44,7 +44,6 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 const parliament = (page: Page) => page.locator('.con-parl');
-const pact = (page: Page, kind: string) => page.locator(`.con-pact[data-pact="${kind}"]`);
 
 type Seat = {
   megacredits: number;
@@ -128,13 +127,6 @@ async function focusPartyTile(page: Page, party: string): Promise<void> {
   expect(await focused(), `never focused the «${party}» party tile (trail: ${trail.join(' ')})`).toBe(party);
 }
 
-/** A on a focused party tile: the party composer descends into the stage. */
-async function openPartyComposer(page: Page, kind: string): Promise<void> {
-  expect(await pressUntil(page, 'Enter', async () => await pact(page, kind).count() > 0, {tries: 3, settleMs: 1100}),
-    `A must open the «${kind}» party composer`).toBeTruthy();
-  await settle(page, {timeoutMs: 8_000});
-}
-
 /**
  * «ОДИН ФРЕЙМВОРК»: a party whose action the CARD composer composes (the Reds, С2) opens THE `.con-composer` with its
  * source on the root (`data-composer-source="party:<party>"`) — never the party composer.
@@ -156,12 +148,12 @@ async function passSeat(request: APIRequestContext, playerId: string): Promise<v
   await sendPlayerInput(request, playerId, {type: 'or', index, response: {type: 'option'}});
 }
 
-/** The party composer fits: nothing of it leaves the viewport; the commit row and every decision row stand inside it. */
+/** The composer fits: nothing of it leaves the viewport; the commit row and every decision row stand inside it. */
 async function expectComposerFits(page: Page, label: string): Promise<void> {
   const problems = await page.evaluate(() => {
     const out: Array<string> = [];
-    const root = document.querySelector('.con-pact')?.getBoundingClientRect();
-    const cta = document.querySelector('[data-pact-cta]')?.getBoundingClientRect();
+    const root = document.querySelector('.con-cardactions .con-composer')?.getBoundingClientRect();
+    const cta = document.querySelector('.con-cardactions .con-composer__cta')?.getBoundingClientRect();
     if (root === undefined || cta === undefined) {
       return ['missing composer / commit row'];
     }
@@ -171,7 +163,7 @@ async function expectComposerFits(page: Page, label: string): Promise<void> {
     if (cta.bottom > root.bottom + 1 || cta.top < root.top - 1) {
       out.push(`commit row ${Math.round(cta.top)}..${Math.round(cta.bottom)} outside the composer ${Math.round(root.top)}..${Math.round(root.bottom)}`);
     }
-    for (const row of Array.from(document.querySelectorAll<HTMLElement>('.con-pact__row'))) {
+    for (const row of Array.from(document.querySelectorAll<HTMLElement>('.con-cardactions .con-composer__row'))) {
       const r = row.getBoundingClientRect();
       if (r.bottom > root.bottom + 1 || r.top < root.top - 1) {
         out.push(`a decision row runs past the composer (${Math.round(r.top)}..${Math.round(r.bottom)})`);
@@ -179,7 +171,7 @@ async function expectComposerFits(page: Page, label: string): Promise<void> {
     }
     return out;
   });
-  expect(problems, `${label}: the party action composer fits`).toEqual([]);
+  expect(problems, `${label}: the action composer fits`).toEqual([]);
 }
 
 /**
@@ -237,7 +229,7 @@ for (const preset of [
       await bootFixtureSeats(page, request, 'parliament-actions', {query: preset.query});
       await openParliament(page);
       await focusParty(page, 'Scientists');
-      expect(await pressUntil(page, 'Enter', async () => await pact(page, 'scientists').count() > 0, {tries: 3, settleMs: 1100})).toBeTruthy();
+      await openCardComposerFor(page, 'party:Scientists');
       await settle(page, {timeoutMs: 10_000});
       // ONE crumb, rooted where the player came from; the same composer.
       expect((await crumbText(page)).toUpperCase()).toContain('ПАРЛАМЕНТ');
@@ -278,22 +270,36 @@ test.describe('parliament · Industrialists palette · tv4k', () => {
     await bootFixtureSeats(page, request, 'parliament-actions', {query: '&consoleProfile=tv'});
     await openCardActions(page);
     await focusPartyTile(page, 'Industrialists');
-    await openPartyComposer(page, 'industrialists');
+    await openCardComposerFor(page, 'party:Industrialists');
     await settle(page, {timeoutMs: 15_000});
     const dir = path.resolve('screenshots', 'parliament-actions', 'tv-4k');
     fs.mkdirSync(dir, {recursive: true});
     await page.screenshot({path: path.join(dir, '02-industrialists-stage.png')});
-    const rows = await page.evaluate(() => Array.from(document.querySelectorAll('.con-pact__opts')).map((group) => {
-      const tiles = Array.from(group.querySelectorAll<HTMLElement>('.con-vchoice__opt'));
+    // «Один фреймворк»: the two parts are two rows of the CARD composer, each opening its own pick — read each palette
+    // where it opens (A on the row), answer it, and the cursor moves on to the next row by the one cursor rule.
+    await expect(page.locator('.con-cardactions .con-composer__row[data-choice-kind="or"]'), 'two rows — the decrease, the increase').toHaveCount(2);
+    const readPalette = () => page.evaluate(() => {
+      const group = document.querySelector('.con-cardactions .con-composer__sublist');
+      const tiles = Array.from(group?.querySelectorAll<HTMLElement>('.con-vchoice__opt') ?? []);
       return {
-        palette: group.classList.contains('con-vchoice--palette'),
+        palette: group?.classList.contains('con-vchoice--palette') ?? false,
         tops: [...new Set(tiles.map((t) => t.offsetTop))].length,
-        plates: group.querySelectorAll('.con-vchoice__heroplate--prod').length,
+        plates: group?.querySelectorAll('.con-vchoice__heroplate--prod').length ?? 0,
         figures: tiles.map((t) => t.querySelector('[data-vchoice-figure]')?.textContent?.trim() ?? ''),
         tiles: tiles.length,
       };
-    }));
-    expect(rows.length, 'two rows — the decrease, the increase').toBe(2);
+    });
+    const rows: Array<Awaited<ReturnType<typeof readPalette>>> = [];
+    for (let i = 0; i < 2; i++) {
+      expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-cardactions .con-composer__sublist').count() > 0, {tries: 3, settleMs: 900}),
+        `A on row ${i + 1} opens its pick`).toBeTruthy();
+      await settle(page, {timeoutMs: 8_000});
+      rows.push(await readPalette());
+      await page.screenshot({path: path.join(dir, `02-industrialists-palette-${i + 1}.png`)});
+      expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-cardactions .con-composer__sublist').count() === 0, {tries: 3, settleMs: 900}),
+        `A answers row ${i + 1}`).toBeTruthy();
+      await settle(page, {timeoutMs: 8_000});
+    }
     for (const [i, row] of rows.entries()) {
       expect(row.palette, `row ${i + 1} is a palette`).toBe(true);
       expect(row.tops, `row ${i + 1} stands on one line`).toBe(1);
@@ -325,19 +331,26 @@ test.describe('parliament · party actions', () => {
     await shoot(page, '01-action-menu-parties');
     await expectPartyTilesLegible(page, 'standard-1080');
     const before = (await seatOf(request, playerId)).seat;
-    await openPartyComposer(page, 'industrialists');
+    await openCardComposerFor(page, 'party:Industrialists');
     const crumb = (await crumbText(page)).toUpperCase();
     expect(crumb, `one crumb: the action menu, the party (${crumb})`).toContain('ДЕЙСТВИЯ КАРТ');
     expect(crumb).toContain('ИНДУСТРИАЛИСТЫ');
     await shoot(page, '02-industrialists-stage');
-    await press(page, 'Enter', 500); // pick the decrease under the cursor → the cursor moves to the increase row
-    await expect(page.locator('.con-pact__opts .con-vchoice__opt--selected')).toHaveCount(1);
+    const missingRows = page.locator('.con-cardactions .con-composer__row--missing');
+    const sublist = page.locator('.con-cardactions .con-composer__sublist');
+    // The rows are not rendered while a pick list stands — «answered» is the list closed AND the count.
+    const answeredDownTo = (left: number) => async () => await sublist.count() === 0 && await missingRows.count() === left;
+    await expect(missingRows, 'both parts open').toHaveCount(2);
+    // A opens the decrease's pick, A answers it → the cursor moves on to the increase row (the one cursor rule).
+    expect(await pressUntil(page, 'Enter', async () => await sublist.count() > 0, {tries: 3, settleMs: 900}), 'A opens the decrease').toBeTruthy();
+    expect(await pressUntil(page, 'Enter', answeredDownTo(1), {tries: 3, settleMs: 900}), 'A answers the decrease').toBeTruthy();
     // X inspects the SOURCE (the party's banner) over the stage — the pick survives it.
     await openZoomViewer(page);
     await closeZoomViewer(page);
-    await expect(page.locator('.con-pact__opts .con-vchoice__opt--selected'), 'inspecting the party keeps the pick made').toHaveCount(1);
-    await press(page, 'Enter', 500); // pick the increase → the cursor lands on the commit row
-    await expect(page.locator('.con-pact__opts .con-vchoice__opt--selected')).toHaveCount(2);
+    await expect(missingRows, 'inspecting the party keeps the pick made').toHaveCount(1);
+    expect(await pressUntil(page, 'Enter', async () => await sublist.count() > 0, {tries: 3, settleMs: 900}), 'A opens the increase').toBeTruthy();
+    expect(await pressUntil(page, 'Enter', answeredDownTo(0), {tries: 3, settleMs: 900}), 'A answers the increase').toBeTruthy();
+    await expect(page.locator('.con-cardactions .con-composer__cta--focused'), 'the cursor lands on the commit row').toHaveCount(1);
     await shoot(page, '03-industrialists-picked');
     await press(page, 'Enter', 900); // commit
     await expect.poll(async () => await usesLeft(request, playerId, 'industrialists-shift'), {timeout: 20_000, message: 'the Industrialists action is spent'}).toBe(0);
@@ -355,18 +368,18 @@ test.describe('parliament · party actions', () => {
     await focusParty(page, 'Scientists');
     await expect(page.locator('.con-parl__party--focus[data-party="Scientists"] .con-pseal'), 'the focused plaque').toHaveCount(1);
     await shoot(page, '04-parliament-party-focus');
-    expect(await pressUntil(page, 'Enter', async () => await pact(page, 'scientists').count() > 0, {tries: 3, settleMs: 1100}),
-      'A on the party opens its action workspace inside the Parliament').toBeTruthy();
+    await openCardComposerFor(page, 'party:Scientists');
     await expect(page.locator('.con-cardactions')).toHaveCount(1);
     expect((await crumbText(page)).toUpperCase(), 'one crumb rooted at the Parliament').toContain('ПАРЛАМЕНТ');
     await settle(page, {timeoutMs: 8_000});
     await expectComposerFits(page, 'standard-1080');
     await shoot(page, '05-scientists-stage');
     // ONE kind held (Tardigrades' microbes) and ONE holder — nothing to decide (T14 · CC «ЕДИНСТВЕННАЯ ЦЕЛЬ»): the
-    // variant AND the card are SEEDED, the card wears the quiet mark, and the cursor ARRIVES on the commit row.
-    await expect(page.locator('.con-pact__opts .con-vchoice__opt--selected, .con-pact__card--picked')).toHaveCount(2);
-    await expect(page.locator('.con-pact__card--picked [data-seeded-mark]'), 'the sole holder is marked').toHaveCount(1);
-    await expect(page.locator('[data-pact-cta].con-pact__cta--focus'), 'the cursor stands on the commit').toHaveCount(1);
+    // live variant is the only one the rules allow (the data one stands refused, with its reason), the card is
+    // SEEDED with the quiet mark, and the cursor ARRIVES on the commit row.
+    await expect(page.locator('.con-cardactions .con-composer__row[data-seeded="sole"]'), 'the sole holder is seeded').toHaveCount(1);
+    await expect(page.locator('.con-cardactions .con-composer [data-seeded-mark]'), 'the sole holder is marked').toHaveCount(1);
+    await expect(page.locator('.con-cardactions .con-composer__cta--focused'), 'the cursor stands on the commit').toHaveCount(1);
     await press(page, 'Enter', 900); // ONE press commits
     await expect.poll(async () => (await seatOf(request, playerId)).seat.tableau.find((c) => c.name === 'Tardigrades')?.resources ?? -1,
       {timeout: 20_000, message: 'Tardigrades received 2 microbes'}).toBe(2);
@@ -400,8 +413,11 @@ test.describe('parliament · party actions', () => {
     expect(await pressUntil(page, 'Comma', async () => await page.locator('.con-cardactions__tile[data-action-party="Unity"]').count() > 0, {tries: 3, settleMs: 700}),
       'LT returns to the actions still to take').toBeTruthy();
     await focusPartyTile(page, 'Unity');
+    // «Один фреймворк»: the card composer first (the plaque, the verb «Выбрать колонию»), then its door into the trade.
+    await openCardComposerFor(page, 'party:Unity');
+    await shoot(page, '06b-unity-composer');
     expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-colonies').count() > 0, {tries: 3, settleMs: 1200}),
-      'A on the Unity tile opens the colony workspace inside the action menu').toBeTruthy();
+      'A on the commit opens the colony workspace inside the action menu').toBeTruthy();
     await settle(page, {timeoutMs: 15_000});
     expect((await crumbText(page)).toUpperCase(), 'one crumb: the action menu, the party, the trade').toContain('ДЕЙСТВИЯ КАРТ');
     await shoot(page, '06-unity-colonies-nested');
@@ -418,6 +434,11 @@ test.describe('parliament · party actions', () => {
     expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-colonies').count() === 0, {tries: 5, settleMs: 900}),
       'B walks the trade back out').toBeTruthy();
     expect(await usesLeft(request, playerId, 'unity-trade'), 'nothing was spent — the trade was not committed').toBe(1);
+    await settle(page, {timeoutMs: 10_000});
+    // …one level: back on the composer, the party's plaque still the hero; one more B returns to the action grid.
+    await expect(page.locator('.con-cardactions .con-composer[data-composer-source="party:Unity"]'), 'B is one level — the composer stands').toHaveCount(1);
+    expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-cardactions .con-composer').count() === 0, {tries: 4, settleMs: 900}),
+      'B again returns to the action grid').toBeTruthy();
     await settle(page, {timeoutMs: 10_000});
 
     // ── REDS: ONE workspace from the draw to the payout ──

@@ -16,7 +16,8 @@ const PROFILES = [
   {id: 'fhd', viewport: {width: 1920, height: 1080}, query: ''},
 ] as const;
 
-type Rect = {w: number, h: number, top: number, left: number};
+/** `lifted`: the slot under the cursor — the cursor grammar LIFTS it (a scale + a rise), so its rect is not its rest. */
+type Rect = {w: number, h: number, top: number, left: number, lifted?: boolean};
 type DrawSample = {landed: Array<Rect>, prepared: Array<Rect>, standalone: number, samples: number};
 
 const OUT = path.resolve('screenshots', 'one-framework');
@@ -47,13 +48,15 @@ async function focusActionTile(page: Page, selector: string): Promise<void> {
 /** Arm the sampler (MutationObserver + a 16 ms interval — never rAF): the prepared beat slots, the landed slots, any standalone reveal. */
 async function armDrawSampler(page: Page): Promise<void> {
   await page.evaluate(() => {
-    const w = window as unknown as {__oneFw?: {landed: Array<{w: number, h: number, top: number, left: number}>, prepared: Array<{w: number, h: number, top: number, left: number}>, standalone: number, samples: number}, __oneFwStop?: () => void};
+    type R = {w: number, h: number, top: number, left: number, lifted?: boolean};
+    const w = window as unknown as {__oneFw?: {landed: Array<R>, prepared: Array<R>, standalone: number, samples: number}, __oneFwStop?: () => void};
     w.__oneFwStop?.();
-    const rec = {landed: [] as Array<{w: number, h: number, top: number, left: number}>, prepared: [] as Array<{w: number, h: number, top: number, left: number}>, standalone: 0, samples: 0};
+    const rec = {landed: [] as Array<R>, prepared: [] as Array<R>, standalone: 0, samples: 0};
     w.__oneFw = rec;
-    const rectOf = (el: Element) => {
+    const rectOf = (el: Element): R => {
       const r = el.getBoundingClientRect();
-      return {w: Math.round(r.width), h: Math.round(r.height), top: Math.round(r.top), left: Math.round(r.left)};
+      const lifted = el.classList.contains('con-cards__slot--focused');
+      return {w: Math.round(r.width), h: Math.round(r.height), top: Math.round(r.top), left: Math.round(r.left), ...(lifted ? {lifted} : {})};
     };
     const sample = () => {
       rec.samples++;
@@ -151,8 +154,15 @@ for (const profile of PROFILES) {
       }
       for (const [label, run] of [['ai-central', central], ['reds', reds]] as const) {
         expect(run.standalone, `${label}: never a standalone reveal (${report})`).toBe(0);
+        // The prepared slots ARE the landing rects — for every slot at rest (the one under the cursor is lifted by the
+        // cursor grammar, a pose on top of the same place; the A/B above compares it lifted against lifted).
         if (run.prepared.length === run.landed.length) {
-          run.prepared.forEach((r, i) => expect(near(r, run.landed[i]), `${label}: prepared slot ${i} is the landing rect ±1 px (${report})`).toBe(true));
+          run.prepared.forEach((r, i) => {
+            if (run.landed[i].lifted !== true) {
+              expect(near(r, run.landed[i]), `${label}: prepared slot ${i} is the landing rect ±1 px (${report})`).toBe(true);
+            }
+          });
+          expect(run.landed.some((r) => r.lifted !== true), `${label}: at least one slot was measured at rest (${report})`).toBe(true);
         }
       }
     });

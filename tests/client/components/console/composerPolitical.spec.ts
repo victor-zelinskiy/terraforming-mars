@@ -46,13 +46,87 @@ const REDS_PREVIEW: PoliticalActionPreview = {
   }],
 };
 
-function factory() {
+function factory(entry: PoliticalActionEntry = redsEntry(), preview: PoliticalActionPreview = REDS_PREVIEW) {
   return mount(ConsoleActionComposer, {
     ...globalConfig,
     global: {...globalConfig.global, stubs: {'GamepadGlyph': GlyphStub}},
-    props: {playerView: PLAYER_VIEW, entry: redsEntry(), preview: REDS_PREVIEW, nodeIndex: 0},
+    props: {playerView: PLAYER_VIEW, entry, preview, nodeIndex: 0},
   });
 }
+
+function partyEntry(party: PartyName): PoliticalActionEntry {
+  const root = getPartyEffect(party as never)!.actionRenderData!;
+  return {
+    group: {key: `PARTY_${party}`, nodes: [{key: `PARTY_${party}#0`, actionNode: actionNodeOf(root), renderRoot: root, text: undefined}]},
+    source: {kind: 'party', party: party as never},
+    key: `PARTY_${party}`,
+    party: party as never,
+    isCorporation: false,
+    state: {status: 'available', activatable: true, reasons: [], softReason: undefined},
+  };
+}
+
+const pick = (titles: Array<string>) => ({type: 'or', title: 'pick', options: titles.map((title) => ({type: 'option', title}))});
+
+describe('ConsoleActionComposer — the Industrialists and Unity in the card composer (С3)', () => {
+  it('the Industrialists\' two-part pick is two rows, and the commit waits for both', () => {
+    const preview: PoliticalActionPreview = {
+      source: {kind: 'party', party: PartyName.INDUSTRIALISTS as never},
+      answer: 'direct',
+      kind: 'bespoke',
+      branches: [{
+        index: -1, title: 'Shift', available: true, renderKeys: [], effects: [], steps: [],
+        optionInput: {type: 'and', title: 'Shift', options: [pick(['Decrease steel production']), pick(['Increase megacredits production 2 steps', 'Increase energy production 2 steps'])]} as never,
+      }],
+    };
+    const w = factory(partyEntry(PartyName.INDUSTRIALISTS), preview);
+    const vm = w.vm as any;
+    expect(vm.allChoices.map((c: any) => c.id)).to.deep.eq(['option#0', 'option#1']);
+    expect(vm.canConfirm).to.eq(false);
+    vm.captureFor(vm.allChoices[0], {type: 'or', index: 0, response: {type: 'option'}});
+    expect(vm.canConfirm, 'one part answered is not an answer').to.eq(false);
+    vm.captureFor(vm.allChoices[1], {type: 'or', index: 1, response: {type: 'option'}});
+    expect(vm.capturedOption).to.deep.eq({type: 'and', responses: [{type: 'or', index: 0, response: {type: 'option'}}, {type: 'or', index: 1, response: {type: 'option'}}]});
+  });
+
+  it('the Industrialists\' parts are answered through their own pick lists (A on a tile), the rows read the answer', async () => {
+    const preview: PoliticalActionPreview = {
+      source: {kind: 'party', party: PartyName.INDUSTRIALISTS as never},
+      answer: 'direct',
+      kind: 'bespoke',
+      branches: [{
+        index: -1, title: 'Shift', available: true, renderKeys: [], effects: [], steps: [],
+        optionInput: {type: 'and', title: 'Shift', options: [pick(['Decrease steel production']), pick(['Increase megacredits production 2 steps', 'Increase energy production 2 steps'])]} as never,
+      }],
+    };
+    const w = factory(partyEntry(PartyName.INDUSTRIALISTS), preview);
+    const vm = w.vm as any;
+    for (const id of ['option#0', 'option#1']) {
+      vm.sub = {kind: 'list', choiceId: id, index: 0};
+      await w.vm.$nextTick();
+      expect(vm.listItems.length, `${id} lists its options`).to.be.greaterThan(0);
+      vm.pickListItem(0);
+      await w.vm.$nextTick();
+      expect(vm.sub, `${id} answered closes the list`).to.eq(undefined);
+    }
+    expect(vm.capturedOption).to.deep.eq({type: 'and', responses: [{type: 'or', index: 0, response: {type: 'option'}}, {type: 'or', index: 0, response: {type: 'option'}}]});
+    expect(vm.canConfirm).to.eq(true);
+  });
+
+  it('Unity\'s branch is the trade\'s door, its payment path the PARTY\'s — the verb names the colony, nothing is composed here', () => {
+    const preview: PoliticalActionPreview = {
+      source: {kind: 'party', party: PartyName.UNITY as never},
+      answer: 'option',
+      kind: 'bespoke',
+      branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: [{kind: 'colonyTrade', party: PartyName.UNITY as never}]}],
+    };
+    const w = factory(partyEntry(PartyName.UNITY), preview);
+    const vm = w.vm as any;
+    expect(vm.tradeEntryStep).to.deep.eq({card: '', party: PartyName.UNITY});
+    expect(vm.tradeEntryCard).to.eq(undefined);
+    expect(vm.commitVerbKey).to.eq('Choose a colony');
+  });
+});
 
 describe('ConsoleActionComposer — a POLITICAL source (the Reds in the card composer)', () => {
   it('the hero slot holds the party\'s plaque, keyed by the party\'s zoom entry — no card face, no card model', () => {
