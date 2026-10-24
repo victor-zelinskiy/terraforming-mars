@@ -1,9 +1,7 @@
 import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import {Tag} from '@/common/cards/Tag';
-import {PartyName} from '@/common/turmoil/PartyName';
 import {discardExchangeRailKey, discardExchangeSpecs} from '@/client/console/parliament/discardExchangeBeat';
-import {composesInCardComposer} from '@/client/console/consoleCardActions';
 
 /*
  * «ОДИН ФРЕЙМВОРК» — a party discard's payout is a WAVE off the printed icon, never a panel computed as
@@ -34,9 +32,7 @@ describe('discardExchangeBeat', () => {
     expect(discardExchangeSpecs(['Trees'] as Array<CardName>, {icon: 'megacredits', amount: 3}, tagsOf)).to.deep.eq([]);
   });
 
-  it('the rail key is the source\'s; the one-framework set holds the Reds (С2)', () => {
+  it('the rail key is the source\'s', () => {
     expect(discardExchangeRailKey('PARTY_Reds')).to.eq('discard-exchange:PARTY_Reds');
-    expect(composesInCardComposer(PartyName.REDS, undefined)).is.true;
-    expect(composesInCardComposer(PartyName.REDS, 'RDX_X'), 'a law is the law\'s, not the party\'s').is.false;
   });
 });

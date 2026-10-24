@@ -254,7 +254,7 @@ export async function expectParliamentFits(page: Page, label: string, rootSelect
       // composer's two columns (the chairman's seat pick renders inside `.con-parl__stage`, listed above). NOT the playground's
       // catalog as a whole: it is a list that grows with every shipped resolution inside the stand's own scroll area — its
       // pieces are measured, its height is not a claim.
-      ' .con-mandatory, .con-mandatory__body, .con-zoom-asidecol, .con-zoom-sidecol, .con-zoom__bar, .con-pact__source, .con-pact__main';
+      ' .con-mandatory, .con-mandatory__body, .con-zoom-asidecol, .con-zoom-sidecol, .con-zoom__bar';
     const scoped = root.matches(blocks) ? [root as HTMLElement] : [];
     for (const el of [...scoped, ...Array.from(root.querySelectorAll<HTMLElement>(blocks))]) {
       const r = el.getBoundingClientRect();

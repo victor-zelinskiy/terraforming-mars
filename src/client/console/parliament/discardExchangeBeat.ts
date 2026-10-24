@@ -18,7 +18,7 @@ import {CardName} from '@/common/cards/CardName';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {RailReward, railRewardPending, seedRailReward} from '@/client/console/resourceTransfer/railReward';
-import {composesInCardComposer, consoleCardActionsUi, partyTileKey} from '@/client/console/consoleCardActions';
+import {consoleCardActionsUi, partyTileKey} from '@/client/console/consoleCardActions';
 
 /** The rail key of a political source's discard payout. */
 export function discardExchangeRailKey(sourceKey: string): string {
@@ -62,7 +62,7 @@ export function seedPoliticalDiscardExchange(before: PlayerViewModel | undefined
     return;
   }
   const sourceKey = partyTileKey(marker.party);
-  if (!composesInCardComposer(marker.party, undefined) || consoleCardActionsUi.draft?.cardName !== sourceKey) {
+  if (consoleCardActionsUi.draft?.cardName !== sourceKey) {
     return;
   }
   const kept = new Set(after.cardsInHand.map((c) => c.name));

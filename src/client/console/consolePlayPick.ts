@@ -29,7 +29,7 @@
  *
  * THE LAW'S LANDING (PL-726): the card the law's commit plays lands INSIDE the
  * law's stage — the played-hero scene's `workspace` host, its receiving stage
- * mounted in the stage's decision column (`ConsolePartyActionComposer`), the
+ * mounted in the stage's decision column (`ConsoleActionComposer`), the
  * workspace folding only once the scene has told its story. `landing` is the
  * one fact every reader asks: the composer (mount the stage), the shell (owe
  * the fold, end the scene's way), the conclusion policy (the flow still owes).

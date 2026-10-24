@@ -11,7 +11,7 @@ import {ActionCentreLeaveFacts, actionCentreLeavesOnPromptChange} from '../../sr
  */
 describe('actionCentreLeavesOnPromptChange', () => {
   const base: ActionCentreLeaveFacts = {
-    mounted: true, menu: false, outcomeClaimed: false, nestedStep: false, partyFlowOwed: false, commitOwnsSurface: false,
+    mounted: true, menu: false, outcomeClaimed: false, nestedStep: false, lawStepOwed: false, commitOwnsSurface: false,
   };
 
   it('a prompt that moved off the menu takes the voluntary centre down (another surface serves it)', () => {
@@ -23,7 +23,7 @@ describe('actionCentreLeavesOnPromptChange', () => {
     expect(actionCentreLeavesOnPromptChange({...base, mounted: false})).is.false;
     expect(actionCentreLeavesOnPromptChange({...base, outcomeClaimed: true})).is.false;
     expect(actionCentreLeavesOnPromptChange({...base, nestedStep: true})).is.false;
-    expect(actionCentreLeavesOnPromptChange({...base, partyFlowOwed: true})).is.false;
+    expect(actionCentreLeavesOnPromptChange({...base, lawStepOwed: true})).is.false;
   });
 
   it('H6 — while the ACTION COMMIT owns the surface (its handoff stands) the leave is the commit\'s own fold, never this rule', () => {

@@ -3,7 +3,7 @@
  *
  * THE ACTION CENTRE IS A VOLUNTARY SURFACE — it leaves when the server's prompt moves off the action menu (a sub-prompt,
  * another player's turn), so its surface never overlaps the one that serves the new prompt. One exception per fact that
- * makes the new prompt THIS workspace's own business: its claimed outcome, a step hosted inside it, a party flow it owes —
+ * makes the new prompt THIS workspace's own business: its claimed outcome, a step hosted inside it, a law's step it owes —
  * and (T09, ledger BY — H6) ITS OWN COMMITTED PHRASE.
  *
  * The field report (the owner, Steam Machine, solo against MarsBot): Electro Catapult's workspace «folds early, the card
@@ -27,8 +27,8 @@ export type ActionCentreLeaveFacts = {
   outcomeClaimed: boolean,
   /** A step stands inside the workspace (a SelectColony follow-up — the colonies hosted around it). */
   nestedStep: boolean,
-  /** A party / resolution flow the workspace owes (a law's bill, its closing beat). */
-  partyFlowOwed: boolean,
+  /** A step of the enacted LAW's action the workspace owes (its card landing in the stage, its live play pick). */
+  lawStepOwed: boolean,
   /**
    * THE ACTION COMMIT STILL OWNS THE SURFACE (BY — H6): its awaiting handoff stands. The commit's own fold closes the
    * workspace — after its tokens have left it (`surfaceClear`) — never this rule in the flush that resolved it.
@@ -38,6 +38,6 @@ export type ActionCentreLeaveFacts = {
 
 /** Does the action centre leave on this prompt change? */
 export function actionCentreLeavesOnPromptChange(facts: ActionCentreLeaveFacts): boolean {
-  return facts.mounted && !facts.menu && !facts.outcomeClaimed && !facts.nestedStep && !facts.partyFlowOwed &&
+  return facts.mounted && !facts.menu && !facts.outcomeClaimed && !facts.nestedStep && !facts.lawStepOwed &&
     !facts.commitOwnsSurface;
 }

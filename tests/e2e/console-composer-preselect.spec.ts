@@ -103,14 +103,14 @@ async function cursorAt(page: Page, root: string): Promise<string> {
     if (host.querySelector('.con-ptsel, .con-composer__sub-head') !== null) {
       return 'step';
     }
-    if (host.querySelector('.con-composer__cta--focused, .con-pact__cta--focus') !== null) {
+    if (host.querySelector('.con-composer__cta--focused') !== null) {
       return 'cta';
     }
     const tile = host.querySelector('.con-vchoice__opt--focused');
     if (tile !== null) {
       return `variant:${tile.getAttribute('data-vchoice-index') ?? tile.getAttribute('data-branch-pos') ?? '?'}`;
     }
-    const row = host.querySelector('.con-composer__row--focused, .con-pact__row--focus');
+    const row = host.querySelector('.con-composer__row--focused');
     if (row !== null) {
       const kind = row.getAttribute('data-choice-kind');
       return `row:${kind ?? (row.textContent ?? '').replace(/\s+/g, ' ').trim().slice(0, 28)}`;

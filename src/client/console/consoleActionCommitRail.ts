@@ -232,12 +232,12 @@ function capsuleEnd(card: CardName): TransferEnd | undefined {
 }
 
 /**
- * A card standing in a row of the action workspace's composer — the card action's (`.con-composer`) or the
- * parliament's (`.con-pact`: the Scientists' party action and Manufacturing Run's law put a resource on the card the
- * player chose in their «КАРТА-ЦЕЛЬ» row — PL-427, the class the TR53 director closes for every composer).
+ * A card standing in a row of the action workspace's composer (`.con-composer` — a card's action, a party's, a law's:
+ * the Scientists' party action and Manufacturing Run's law put a resource on the card the player chose in their
+ * «КАРТА-ЦЕЛЬ» row — PL-427, the class the TR53 director closes for every composer).
  */
 function composerCardSelector(esc: string): string {
-  return `.con-cardactions .con-composer [data-composer-card="${esc}"], .con-cardactions .con-pact [data-composer-card="${esc}"]`;
+  return `.con-cardactions .con-composer [data-composer-card="${esc}"]`;
 }
 
 /** A card standing in one of the composer's rows (a spend's chosen SOURCE, a reward's chosen TARGET) — its own capsule, else its face — as an OBJECT end. */

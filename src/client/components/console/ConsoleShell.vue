@@ -445,7 +445,6 @@
                             :blockedReason="actionBlockedReason"
                             @blocked="showNotice"
                             @submit-batch="onCardActionsSubmitBatch"
-                            @submit-party="onCardActionsSubmitParty"
                             @staged-placement="onCardActionsStagedPlacement"
                             @staged-vote="onCardActionsStagedVote"
                             @staged-law-play="onCardActionsStagedLawPlay"
@@ -1599,7 +1598,7 @@ import {Message} from '@/common/logs/Message';
 import {Payment} from '@/common/inputs/Payment';
 import {ColonyBonusCollectMeta, ColonyBonusDiscardMeta, DiscardPromptMeta, PlacementEffect, SelectCardModel, SelectColonyModel, SelectOptionModel, SelectPaymentModel, SelectProjectCardToPlayModel, SelectSpaceModel} from '@/common/models/PlayerInputModel';
 import ConsoleCardActions from '@/client/components/console/ConsoleCardActions.vue';
-import {composesInCardComposer, consoleCardActionsUi, partyTileKey, resetCardActionsFilter} from '@/client/console/consoleCardActions';
+import {consoleCardActionsUi, partyTileKey, politicalSourceKey, resetCardActionsFilter} from '@/client/console/consoleCardActions';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
 import {MilestoneName} from '@/common/ma/MilestoneName';
 import {AwardName} from '@/common/ma/AwardName';
@@ -1713,14 +1712,13 @@ import {seatRestricted} from '@/common/models/ParliamentModel';
 import {PristarMark, pristarMarkOf} from '@/client/console/railMarks';
 import ConsoleResolutionAside from '@/client/components/console/parliament/ConsoleResolutionAside.vue';
 import ConsolePartyAccessPanel from '@/client/components/console/parliament/ConsolePartyAccessPanel.vue';
-import type {PartyConfirmDetail} from '@/client/components/console/parliament/ConsolePartyActionComposer.vue';
 import {winnerRewardTableOf} from '@/client/console/parliament/winnerRewardModel';
 import {tileRemovalTableOf} from '@/client/console/parliament/tileRemovalModel';
 import {WinnerRewardTable} from '@/common/parliament/winnerReward';
 import {ParliamentEnactOutcomeModel} from '@/common/models/ParliamentModel';
 import {enactedLevyOf, enactedYieldsOf, voteLevyOf, voteYieldsOf} from '@/client/console/parliament/influenceYieldModel';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
-import {grantSupportOf, parliamentPromptBridge, resolutionBillOf, resolutionPlayOf} from '@/client/console/parliament/consoleParliamentModel';
+import {grantSupportOf, parliamentPromptBridge, resolutionPlayOf} from '@/client/console/parliament/consoleParliamentModel';
 import {supportReadingOf, SupportReadingVm} from '@/client/console/parliament/voteInfoModel';
 import {InfluenceYield} from '@/common/parliament/influenceScaling';
 import ConsoleInfoMode from '@/client/components/console/ConsoleInfoMode.vue';
@@ -5179,14 +5177,6 @@ export default defineComponent({
       if (this.parliamentStageTask && !consoleParliamentUi.fieldStanding && !this.consoleState.task.deferred) {
         return true;
       }
-      // …and a PAID LAW'S BILL (Trade Industries) belongs inside the action
-      // workspace's own stage: held until the composer has published its zone
-      // (post-flush, one tick after the bill arrives) — never a standalone
-      // band that then teleports away.
-      if (this.hostTask?.kind === 'payment' && this.partyBillStanding && !workspaceFrameParked('card-actions') &&
-          consoleCardActionsUi.billZone === '' && !this.consoleState.task.deferred) {
-        return true;
-      }
       return this.taskBelongsToWorkspace &&
         (workspaceOutcomeZone() === '' || workspaceOutcomeBeatPending());
     },
@@ -5270,17 +5260,6 @@ export default defineComponent({
       // A CLIENT-HOSTED PICK (RX35's «where» of a replaced unit): the door that promised it hosts it in its own zone.
       if (this.pendingClientPick !== undefined) {
         return this.pendingClientPick.zone;
-      }
-      // A PAID LAW'S BILL (Turmoil Redux — Trade Industries: «pay 12 M€ to
-      // gain an extra trade fleet»): the confirm the player pressed in the
-      // action workspace deferred this payment, so it is the NEXT STAGE of
-      // that very flow («› ОПЛАТА») and the party composer hosts it in its
-      // own zone — found by the server's marker (`resolutionActionPrompt` at
-      // stage `pay`), never a title. A PARKED workspace has no zone on
-      // screen: the host then rises on its own, and the restore re-homes it.
-      if (this.hostTask?.kind === 'payment' && this.partyBillStanding && !workspaceFrameParked('card-actions') &&
-          consoleCardActionsUi.billZone !== '') {
-        return consoleCardActionsUi.billZone;
       }
       // A PAID VOTE's bill (Turmoil Redux — the delegate from the reserve):
       // the vote step hosts it in its own zone, so paying is one more row of
@@ -8233,87 +8212,21 @@ export default defineComponent({
         !this.admits('followUp');
     },
     /**
-     * THE BILL OF THE LAW THIS WORKSPACE COMMITTED stands in `view` (Turmoil
-     * Redux — Trade Industries): the party flow record names the law, the
-     * server's top-level payment carries that law's marker at stage `pay`, and
-     * the action workspace is on screen to host it. Read by the awaiting
-     * handoff's resolution (the answer is a STEP, never a dismiss) — inside the
-     * `playerView` watcher `this.playerView` IS the incoming view.
+     * THE ACTION WORKSPACE STILL OWES THE ENACTED LAW'S ACTION A STEP (Turmoil Redux, RX36): its card is landing in this
+     * stage (PL-726 — the workspace folds on the scene's own `closing`, never on the answer), or the law's LIVE PLAY
+     * (PL-727 — the card pick a bill with a payment of its own raised after it) stands. Structural: the landing record
+     * and the server's marker, never a title. (A party's discard is `politicalDiscardOwed` — an `owed-step`.)
      */
-    partyBillStanding(): boolean {
-      const flow = consoleCardActionsUi.partyFlow;
-      const bill = resolutionBillOf(this.playerView.waitingFor);
-      return flow !== undefined && flow.resolution !== undefined && bill !== undefined && bill.resolution === flow.resolution &&
-        workspaceFrameMounted('card-actions');
+    lawStepOwed(): boolean {
+      return (lawPlayLandingOf() !== undefined && workspaceFrameMounted('card-actions')) || this.lawLivePlayStepOwed;
     },
     /**
-     * THE ACTION WORKSPACE'S PARTY FLOW STILL OWES SOMETHING (Turmoil Redux):
-     * the Reds' mandatory discard — the server's own `partyActionPrompt`
-     * marker at stage `discard`, for the party this workspace committed —
-     * is standing (before the hand step opens, or while it stands), or the
-     * flow's closing payout beat is playing. Structural: the marker and the
-     * module flow record, never a title.
-     */
-    partyFlowOwed(): boolean {
-      // THE LAW'S CARD IS LANDING IN THIS STAGE (RX36, PL-726): the flow owes the scene its story — the workspace folds
-      // on the scene's own `closing`, never on the answer. Read before the record: the record may already be gone.
-      if (lawPlayLandingOf() !== undefined && workspaceFrameMounted('card-actions')) {
-        return true;
-      }
-      // …and the LAW'S LIVE PLAY composed in the card composer («один фреймворк»): the card pick the bill raised.
-      if (this.lawLivePlayStepOwed) {
-        return true;
-      }
-      const flow = consoleCardActionsUi.partyFlow;
-      if (flow === undefined) {
-        return false;
-      }
-      if (flow.stage === 'result') {
-        return true;
-      }
-      // THE LAW'S SALE (Open IP Trade): the terminal is still working or the
-      // chip still flying — the workspace stays for the draw that follows.
-      if (flow.resolution !== undefined && flow.stage === 'committed' && isPatentSaleActive()) {
-        return true;
-      }
-      // THE LAW'S LIVE PLAY (RX36, PL-727): a bill that asked a payment of its own raised the card pick AFTER it — the
-      // flow's next step, hosted here (the hand album in the stage), never a standalone hand over the board.
-      if (flow.resolution !== undefined && flow.stage === 'committed' && resolutionPlayOf(this.playerView.waitingFor)?.resolution === flow.resolution) {
-        return true;
-      }
-      // THE LAW'S BILL (Trade Industries): the payment the commit deferred
-      // stands — the server's marker at stage `pay`, for the law this
-      // workspace committed — and the fleet waits on it.
-      if (flow.resolution !== undefined && flow.stage === 'committed' && resolutionBillOf(this.playerView.waitingFor)?.resolution === flow.resolution) {
-        return true;
-      }
-      // …AND A PAID LAW'S FLOW OWES ITS CLOSING BEAT from the commit to the
-      // beat: the bill's answer rides the next response (the transport takes
-      // the prompt down at the submit), so between the submit and the answer
-      // NOTHING structural says «still in flight» — and the answer that ENDS
-      // THE TURN (the fleet was the seat's last action) left the workspace on
-      // the spot, before the host's own watcher could play the beat. The
-      // record carries `fleetBefore` from the commit; the host's own bounded
-      // await (`awaitFleetResult`) ends the flow honestly when no fleet came.
-      if (flow.resolution !== undefined && flow.stage === 'committed' && flow.fleetBefore !== undefined) {
-        return true;
-      }
-      const marker = this.playerView.waitingFor?.partyActionPrompt;
-      return flow.stage === 'committed' && marker !== undefined && marker.stage === 'discard' && marker.party === flow.party;
-    },
-    /**
-     * THE REDS' DISCARD IS OWED TO THIS LIVE ACTION WORKSPACE (Turmoil Redux):
-     * the party record is past its commit, the server's marker names the
-     * discard for that party, and the frame is on screen (a parked one comes
-     * back through the restore). What `armPartyDiscardStep` and
+     * THE REDS' DISCARD IS OWED TO THIS LIVE ACTION WORKSPACE (Turmoil Redux): the party's discard is owed to the card
+     * composer that committed it (`politicalDiscardOwed`) and the hand prompt stands. What `armPartyDiscardStep` and
      * `openPartyDiscardStep` act on.
      */
     partyDiscardStepOwed(): boolean {
-      const flow = consoleCardActionsUi.partyFlow;
-      const marker = this.playerView.waitingFor?.partyActionPrompt;
-      const legacy = flow !== undefined && flow.stage === 'committed' && marker !== undefined &&
-        marker.stage === 'discard' && marker.party === flow.party && workspaceFrameMounted('card-actions');
-      return (legacy || this.politicalDiscardOwed) && taskFor(this.playerView)?.kind === 'handSelect';
+      return this.politicalDiscardOwed && taskFor(this.playerView)?.kind === 'handSelect';
     },
     /**
      * «ОДИН ФРЕЙМВОРК» (Turmoil Redux): the discard a party's action OWES after its draw, owed to the CARD composer
@@ -8323,7 +8236,7 @@ export default defineComponent({
      */
     politicalDiscardOwed(): boolean {
       const marker = this.playerView.waitingFor?.partyActionPrompt;
-      return marker !== undefined && marker.stage === 'discard' && composesInCardComposer(marker.party, undefined) &&
+      return marker !== undefined && marker.stage === 'discard' &&
         consoleCardActionsUi.draft?.cardName === partyTileKey(marker.party) && workspaceFrameMounted('card-actions');
     },
     /**
@@ -8332,13 +8245,9 @@ export default defineComponent({
      * that frame, never as a screen of its own over the board.
      */
     lawLivePlayStepOwed(): boolean {
-      const flow = consoleCardActionsUi.partyFlow;
       const play = resolutionPlayOf(this.playerView.waitingFor);
-      if (play === undefined || !workspaceFrameMounted('card-actions')) {
-        return false;
-      }
-      // The legacy record, or — the card composer («один фреймворк») — the descent the workspace carries is the law's.
-      return (flow !== undefined && flow.resolution === play.resolution) ||
+      // The descent the workspace carries is the law's (the card composer — «один фреймворк»).
+      return play !== undefined && workspaceFrameMounted('card-actions') &&
         consoleCardActionsUi.draft?.cardName === resolutionTileKey(play.resolution);
     },
     /** The crumb tail an OWED step already carries (see `followUpStepOwed`). */
@@ -8855,7 +8764,7 @@ export default defineComponent({
         task?.kind ?? '',
         this.taskBelongsToWorkspace ? 'task-ws' : '',
         this.deckPickBelongsToWorkspace ? 'pick-ws' : '',
-        kind === 'card-actions' && this.partyFlowOwed ? 'party-owed' : '',
+        kind === 'card-actions' && this.lawStepOwed ? 'law-step' : '',
         workspaceFrameParked(kind) ? 'parked' : '',
         // …AND THE BOARD-BEAT PARK'S OWN STATE. A play that raised a global
         // parameter seeds the park (`noteBoardScaleAdvance`), and the park can
@@ -12428,7 +12337,6 @@ export default defineComponent({
           }
           if (!workspaceFrameKnown('card-actions')) {
             consoleCardActionsUi.draft = undefined;
-            consoleCardActionsUi.partyFlow = undefined;
           }
           clearStagedPlay();
         } else {
@@ -13121,15 +13029,6 @@ export default defineComponent({
             gameAge: newView.game.gameAge,
             undoCount: newView.game.undoCount,
             revealArrived: lr !== undefined && `${lr.action}|${lr.revealed.name}` !== this.dismissedRevealKey,
-            // A PAID LAW'S BILL (Turmoil Redux — Trade Industries): the answer to
-            // the party composer's confirm is the payment it deferred, hosted
-            // as the flow's next stage in the very composer that is holding
-            // the stage. Structural (the server's marker for the law this
-            // workspace committed), and decisive on its own — the deferral
-            // moves no game age, so without it the stage would sit «in flight»
-            // for the whole safety window and then be DISMISSED under the
-            // bill it hosts.
-            stepArrived: this.partyBillStanding,
           }, typeof performance !== 'undefined' ? performance.now() : Date.now());
           if (resolution.kind !== 'hold') {
             // An outcome CLAIMED by an open workspace stays IN-FRAME: the
@@ -13485,7 +13384,7 @@ export default defineComponent({
             menu: taskFor(this.playerView)?.kind === 'actionMenu',
             outcomeClaimed: workspaceOutcomeClaimed(),
             nestedStep: workspaceFrameHasNested('card-actions'),
-            partyFlowOwed: this.partyFlowOwed,
+            lawStepOwed: this.lawStepOwed,
             commitOwnsSurface: isSurfaceAwaitingHandoff() || this.commitFoldOwed || this.pendingCommitDismiss !== undefined,
           })) {
             leaveWorkspace();
@@ -17115,43 +17014,6 @@ export default defineComponent({
     // It owns the whole flow (list · inspector · composer) and builds the
     // byte-identical activation batch itself; the shell only POSTs + closes.
     /**
-     * A PARTY ACTION composed in the action menu (Turmoil Redux): the server's
-     * own nested response, through the ONE transport funnel. The workspace
-     * keeps its stage as the executing beat and concludes on the answer — no
-     * awaiting handoff, no claim: a party action never draws into its stage
-     * (the Reds' draw presents as the ordinary reveal once the flow has left).
-     */
-    onCardActionsSubmitParty(response: InputResponse | ReadonlyArray<InputResponse>, detail?: PartyConfirmDetail): void {
-      this.armLawPlayLanding(detail);
-      // A BATCH when the commit carries more than its own answer: an enacted
-      // resolution's repeat takes the copied action's composed pre-selects
-      // with it (`[<the menu branch's card pick>, ...the copy's own answers]`),
-      // exactly as a card's repeat does behind its activate. One response is
-      // still one submit — the batch route is the same funnel, not a second.
-      if (Array.isArray(response)) {
-        this.submitBatch(response);
-      } else {
-        submitInput(response as InputResponse);
-      }
-      // AWAITING HANDOFF — the same resolution a card action's batch rides: the
-      // server's answer decides the next scene. A claimed draw (the Reds) stays
-      // IN-FRAME as the workspace's own next stage; a plain reward (the
-      // Industrialists' production shift, the Scientists' resources) resolves as
-      // the ordinary dismiss — the commit beat's reward wave flies OUT of the
-      // party's printed formula into the rail, and the workspace folds under it
-      // (into the Parliament it was opened from, or to the board).
-      beginAwaitingHandoff('action-composer', {
-        gameAge: this.playerView.game.gameAge,
-        undoCount: this.playerView.game.undoCount,
-      });
-      const startedAt = surfaceMotionState.awaiting?.startedAt;
-      window.setTimeout(() => {
-        if (surfaceMotionState.awaiting !== undefined && surfaceMotionState.awaiting.startedAt === startedAt) {
-          clearAwaitingHandoff();
-        }
-      }, AWAITING_SAFETY_MS + 500);
-    },
-    /**
      * A LAW THAT PLAYS A CARD (RX36 Live Experiments): the card LEAVES FROM THE SLOT it stands in on the law's stage
      * and lands as any play does — the scene armed before the batch, on the composer's own promise (its gains, its
      * rail half, the table's answer, its price paid with card resources). No visual success before the server's word.
@@ -17186,7 +17048,7 @@ export default defineComponent({
         }
         armPlayedHero(play.cardName, isEvent, {
           manualTableOpen: this.playedOpen,
-          sourceSelector: '[data-law-play-face], [data-pact-play-face]',
+          sourceSelector: '[data-law-play-face]',
           rewards: play.scene.rewards,
           reactions: play.scene.reactions,
           rail: withBill(play.scene.rail),
@@ -17196,7 +17058,7 @@ export default defineComponent({
           ...(billMc > 0 ? {
             bill: {
               reward: {cause: [{channel: 'stock', resource: 'megacredits', amount: billMc, direction: 'loss'}], reactions: [], known: billKnown},
-              targetSelector: '.con-cardactions .con-composer__actlaw, .con-pact--resolution .con-pact__hero',
+              targetSelector: '.con-cardactions .con-composer__actlaw',
             },
           } : {}),
           host: inStage ? 'workspace' : 'overlay',
@@ -19737,14 +19599,7 @@ export default defineComponent({
       // question a play's own card asked is a stage of that play, not the end
       // of the screen it was made in (the discard it opens, and the card that
       // discard buys, are still inside this workspace).
-      //
-      // …and for a PAID LAW'S BILL (Turmoil Redux — Trade Industries): the
-      // payment is the next stage of the action committed in the action
-      // workspace, hosted in its own zone; its answer brings the fleet the
-      // stage still has to read. Closing the layers at the submit tore that
-      // workspace down under the bill (the flow record went with it), and
-      // the fleet arrived with nothing on screen saying so.
-      if (!this.taskBelongsToWorkspace && this.effectDecisionEmbedTarget === undefined && !this.partyBillStanding) {
+      if (!this.taskBelongsToWorkspace && this.effectDecisionEmbedTarget === undefined) {
         closeConsoleLayers();
       }
       this.consoleState.task.deferred = false;
@@ -20508,12 +20363,9 @@ export default defineComponent({
         // invisible behind a finished stage.
         ownsPrompt: (mine && (this.taskBelongsToWorkspace || this.deckPickBelongsToWorkspace)) ||
           (servedPromptHolds && task !== undefined && frameServing(task.kind)?.kind === kind) ||
-          // A PARTY FLOW still owes a step (Turmoil Redux): the Reds' mandatory
-          // discard is a prompt the server raises AFTER the draw — a step of
-          // the action the player committed in this workspace — and the
-          // payout's closing beat is the flow's own last word. Neither is a
-          // prompt this frame «serves» by registry, so they are named here.
-          (kind === 'card-actions' && this.partyFlowOwed),
+          // THE ENACTED LAW'S ACTION still owes a step (Turmoil Redux, RX36): its card landing in the stage, or the live
+          // play pick a bill with a payment of its own raised after it — neither a prompt this frame «serves» by registry.
+          (kind === 'card-actions' && this.lawStepOwed),
         parked: workspaceFrameParked(kind),
       });
       if (conclusion.verdict === 'hold') {
@@ -22693,7 +22545,7 @@ export default defineComponent({
       armPlayedHero(arm.cardName, arm.isEvent, {
         manualTableOpen: this.playedOpen,
         host: 'workspace',
-        sourceSelector: '[data-law-play-face], [data-pact-play-face]',
+        sourceSelector: '[data-law-play-face]',
         sourceFace: {lightweight: true},
         // No reveal happens here (the proxy IS the landed card until the door takes over).
         landingFace: {lightweight: true, model: 'none'},
@@ -22824,7 +22676,7 @@ export default defineComponent({
         }
         const law = arm.lawRestore?.resolution;
         if (law !== undefined) {
-          consoleCardActionsUi.stagedReturn = {cardName: resolutionTileKey(law) as CardName, nodeIndex: 0, composer: undefined};
+          consoleCardActionsUi.stagedReturn = {cardName: politicalSourceKey(resolutionTileKey(law)), nodeIndex: 0, composer: undefined};
         }
         if (arm.yieldedStack) {
           resumeStackFromBoard();
@@ -22911,7 +22763,6 @@ export default defineComponent({
         }
         if (!workspaceFrameKnown('card-actions')) {
           consoleCardActionsUi.draft = undefined;
-          consoleCardActionsUi.partyFlow = undefined;
         }
         clearStagedPlay();
         return;

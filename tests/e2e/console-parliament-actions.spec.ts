@@ -129,13 +129,12 @@ async function focusPartyTile(page: Page, party: string): Promise<void> {
 
 /**
  * «ОДИН ФРЕЙМВОРК»: a party whose action the CARD composer composes (the Reds, С2) opens THE `.con-composer` with its
- * source on the root (`data-composer-source="party:<party>"`) — never the party composer.
+ * source on the root (`data-composer-source="party:<party>"`).
  */
 async function openCardComposerFor(page: Page, source: string): Promise<void> {
   const composer = page.locator(`.con-cardactions .con-composer[data-composer-source="${source}"]`);
   expect(await pressUntil(page, 'Enter', async () => await composer.count() > 0, {tries: 3, settleMs: 1100}),
     `A must open the card composer of «${source}»`).toBeTruthy();
-  await expect(page.locator('.con-pact'), 'no party composer beside it').toHaveCount(0);
   await settle(page, {timeoutMs: 8_000});
 }
 

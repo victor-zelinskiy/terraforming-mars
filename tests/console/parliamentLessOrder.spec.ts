@@ -25,7 +25,6 @@ const PARLIAMENT_FAMILY = [
   'console_party_plaque',
   'console_parliament_chamber',
   'console_resolution_face',
-  'console_party_action',
   'console_resolution_inspect',
   'console_influence_yield',
   'console_parliament_sitting',

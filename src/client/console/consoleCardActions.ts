@@ -51,7 +51,6 @@ import {resourceScoring, accumulatedVp} from '@/client/components/additionalReso
 import {AVAILABILITY_BLOCKERS, turnGateBlocker} from '@/common/availability/AvailabilityBlocker';
 import {ICardRenderRoot} from '@/common/cards/render/Types';
 import {PartyActionId, ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
-import {PartyName} from '@/common/turmoil/PartyName';
 import {partyOfTileKey, partyTileKey, resolutionOfTileKey, resolutionTileKey} from '@/client/console/parliament/partyActionKey';
 import {ResolutionActionBill} from '@/common/parliament/actionBill';
 
@@ -493,60 +492,12 @@ export const consoleCardActionsUi = reactive({
    */
   openWith: undefined as {party: ReduxParty, resolution?: ResolutionId, resume?: boolean} | undefined,
   /**
-   * THE PARTY FLOW this workspace owns (Turmoil Redux) — set when a party's
-   * composer opens, advanced at its commit, cleared when the flow ends.
-   * Module state because the shell reads it: the Reds' mandatory discard is a
-   * prompt the server raises AFTER the draw, and «this workspace still owes a
-   * step» has to be answerable by the conclusion policy while the composer
-   * that started it is still standing (or parked).
-   */
-  partyFlow: undefined as ConsolePartyFlow | undefined,
-  /**
-   * THE BILL ZONE of a paid law's stage (Turmoil Redux — Trade Industries):
-   * the selector of the composer's `[data-embed-slot="action-bill"]`, published
-   * by the composer POST-FLUSH once the zone is in the DOM and retracted by
-   * it on the way out (embed rule 4). The shell's payment host teleports into
-   * it — and a selector computed from the prompt alone was the bug: the
-   * shell's `<Teleport>` is patched BEFORE the composer's subtree in the very
-   * flush the bill arrives in, so a target named at once did not exist yet
-   * and Vue dropped the host outright (a payment nobody could see or answer).
-   */
-  billZone: '',
-  /**
    * THE COMPOSER'S TARGET STEP of a GAIN pick stands (TR56 «КУДА ЛЯЖЕТ», decision 6): «put N on ANY card» asks WHERE,
    * and the crumb's tail names that stage — «ДЕЙСТВИЯ КАРТ › <карта> › ЦЕЛЬ» — instead of the setup it is a level of.
    * Written by the action composer while the step is open, cleared on its way out.
    */
   targetStage: false,
 });
-
-/** The stage a party action's flow is in — see `consoleCardActionsUi.partyFlow`. */
-export type ConsolePartyFlow = {
-  party: ReduxParty;
-  /** A PARTY's action — or, with `resolution`, the enacted LAW's action (the same family: one record, one policy). */
-  actionId?: PartyActionId;
-  resolution?: ResolutionId;
-  /** `setup` — composing; `committed` — sent (the Reds' draw is out, the discard owed; the law's sale and draw in
-   *  flight); `result` — the closing beat. */
-  stage: 'setup' | 'committed' | 'result';
-  /** The viewer's M€ at the commit (or at a resume) — the payout beat reads the difference. Module state, so a
-   *  park / a reload-resume (which remount the workspace) do not lose it. */
-  mcBefore?: number;
-  /**
-   * A PAID law's commit (Trade Industries — the fleet is the gain): the viewer's fleets and titanium at the
-   * commit, so the closing beat can state what arrived and what left once the bill is settled. Present only
-   * for a commit whose composer promised a fleet; its presence is what tells the host to play the fleet beat
-   * instead of concluding on the answer.
-   */
-  fleetBefore?: number;
-  titaniumBefore?: number;
-  /**
-   * THE LAW'S LIVE PLAY (RX36 Live Experiments, PL-727): the bill asked a payment of its own and the card pick came
-   * AFTER it — hosted in this stage as a hand step. Set when the bill leaves with the play standing; the step's leave
-   * (the card played) ends the flow.
-   */
-  livePlay?: boolean;
-};
 
 /** The composer's half of the staged return — taken exactly once, and only by
  *  the composer the return names. */
@@ -1159,19 +1110,6 @@ export function isResolutionActionSource(source: ParliamentActionSource): source
   return (source as ResolutionActionSource).resolution !== undefined;
 }
 
-/**
- * THE ONE-FRAMEWORK MIGRATION'S SET (Turmoil Redux, 2026-10-24): the political sources whose action the card actions'
- * composer composes — the same `ConsoleActionComposer`, its outcome zone, its ACTION COMMIT, its steps. Grows slice by
- * slice (С2 the Reds) and is deleted together with the party composer (С5), when every party and law is one.
- */
-/** The parties whose action the card composer composes today (С2 the Reds; С3 the Scientists, the Industrialists, Unity). */
-const ONE_FRAMEWORK_PARTIES: ReadonlySet<PartyName> = new Set([PartyName.REDS, PartyName.SCIENTISTS, PartyName.INDUSTRIALISTS, PartyName.UNITY]);
-
-export function composesInCardComposer(party: PartyName | undefined, resolution: ResolutionId | undefined): boolean {
-  // С4: every enacted LAW's action too — the source is the law, its party a badge.
-  return resolution !== undefined || (party !== undefined && ONE_FRAMEWORK_PARTIES.has(party));
-}
-
 /** The party / resolution KEY helpers live in `parliament/partyActionKey.ts` (the claim
  *  predicate reads them too); re-exported here for the action-centre callers. */
 export {partyOfTileKey, partyTileKey, resolutionOfTileKey, resolutionTileKey};
@@ -1218,12 +1156,22 @@ function parliamentSourceStatus(source: ParliamentActionSourceBase, usedKey: str
   return {status, reason, blocker};
 }
 
+/**
+ * THE ONE DOOR where a political source's tile key (`PARTY_<party>` / `RESOLUTION_<id>`) enters the workspace's
+ * `cardName`-typed fields (the tile, the composer, the descent draft, the staged return). The key is NOT a card name —
+ * every reader that must tell the two apart asks `partyOfTileKey` / `resolutionOfTileKey`; no other site casts it
+ * (guard `oneFrameworkGuard.spec`).
+ */
+export function politicalSourceKey(key: string): CardName {
+  return key as CardName;
+}
+
 export function buildPartyTile(source: PartyActionSource): ConsoleActionTile {
   const {status, reason, blocker} = parliamentSourceStatus(source, 'This party action was already used this generation');
   const key = partyTileKey(source.party);
   return {
     key: key + '#0',
-    cardName: key as CardName,
+    cardName: politicalSourceKey(key),
     nodeIndex: 0,
     node: {key: key + '#0', actionNode: undefined, renderRoot: source.renderRoot, text: source.renderRoot === undefined ? source.rule : undefined},
     status,
@@ -1262,7 +1210,7 @@ export function buildResolutionTile(source: ResolutionActionSource): ConsoleActi
   const paid = source.bill !== undefined;
   return {
     key: key + '#0',
-    cardName: key as CardName,
+    cardName: politicalSourceKey(key),
     nodeIndex: 0,
     node: {key: key + '#0', actionNode: undefined, renderRoot: source.renderRoot, text: source.renderRoot === undefined ? source.rule : undefined},
     status,

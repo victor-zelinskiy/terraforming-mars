@@ -17,7 +17,6 @@ const ROOT = path.resolve(__dirname, '..', '..', 'src', 'client', 'components', 
 const COMPOSERS = [
   {file: 'ConsolePlayCardConfirm.vue', handWritten: /this\.focusIdx\s*=\s*this\.ctaIndex\b/g},
   {file: 'ConsoleActionComposer.vue', handWritten: /this\.focusIdx\s*=\s*this\.ctaIndex\b/g},
-  {file: path.join('parliament', 'ConsolePartyActionComposer.vue'), handWritten: /this\.cursorRow\s*=\s*this\.ctaRow\b/g},
 ] as const;
 
 describe('the ONE cursor rule of the composers (T14 · CC)', () => {

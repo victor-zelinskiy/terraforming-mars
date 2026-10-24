@@ -167,7 +167,6 @@ export async function armTransferWitness(page: Page): Promise<void> {
       // The LAW's face — the hero of a resolution action's stage: the law's own price is absorbed into its printed cost
       // (PL-725 — RX36's bill). `law-face`.
       ['law-face', '.con-cardactions .con-composer__actlaw'],
-      ['law-face', '.con-pact--resolution .con-pact__hero'],
       // The SITTING's carrier card — on its hero slot, or standing (carried) in the government — a law's reward wave (a
       // production, a supply payout) is born on its printed graphic (RX41: the M€ production token). `law`.
       ['law', '[data-parl-sit-hero] .pcard, .con-parl [data-parl-gov] .con-parl__gov-card .pcard, .con-parl [data-parl-gov-carry] .pcard'],

@@ -162,7 +162,7 @@ describe('politicalActionPreview', () => {
     const [step] = preview.branches[0].steps;
     p1.takeAction();
     const menu = cast(p1.getWaitingFor(), OrOptions);
-    const index = menu.options.findIndex((o) => o.resolutionActionPrompt !== undefined);
+    const index = menu.options.findIndex((o) => (o as {resolutionActionPrompt?: unknown}).resolutionActionPrompt !== undefined);
     expect(index).gte(0);
     const price = (step.kind === 'input' ? (step.input as {amount: number}).amount : 0);
     const batch: Array<InputResponse> = [
@@ -191,7 +191,7 @@ describe('politicalActionPreview', () => {
     expect(branch.steps).has.length(1);
     const [step] = branch.steps;
     expect(step.kind === 'input' ? step.repeatAction : undefined).is.true;
-    expect(step.kind === 'input' ? (step.input as {cards: Array<{name: string}>}).cards.map((c) => c.name) : []).deep.eq([tardigrades.name]);
+    expect(step.kind === 'input' ? (step.input as unknown as {cards: Array<{name: string}>}).cards.map((c) => c.name) : []).deep.eq([tardigrades.name]);
   });
 
   it('Live Experiments: the play is a SLOT step carrying the promised pick (the law\'s play model)', () => {

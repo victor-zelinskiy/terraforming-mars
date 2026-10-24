@@ -89,19 +89,14 @@ describe('the law of the fold — source guard', () => {
       .to.match(/this\.commitFoldOwed = true;\s*\n\s*this\.pendingCommitDismiss = finishDismiss;/);
   });
 
-  it('a party flow does not conclude on the ANSWER while the commit owns the surface — it ends on the commit\'s release', () => {
-    // The Industrialists (parliament-actions / parliament-v2): the answer's `gameAge` watcher concluded the flow a tick
-    // after the shell parked the commit's dismissal, and the reward wave was then born off a `.pcard-prod` already gone.
+  it('a party\'s / a law\'s flow does not conclude on the ANSWER — it ends through the card composer\'s ACTION COMMIT', () => {
+    // The Industrialists (parliament-actions / parliament-v2): the party composer's answer watcher (`gameAge`) once
+    // concluded the flow a tick after the shell parked the commit's dismissal, and the reward wave was then born off a
+    // `.pcard-prod` already gone. ONE FRAMEWORK (С5): a political action is the card composer's, so its ending is the
+    // commit's own fold (the shell's `Promise.all([rail.foldable, waveLeft])` above) — no answer watcher of its own.
     const actions = read('src/client/components/console/ConsoleCardActions.vue');
-    const signature = '    \'playerView.game.gameAge\'(age: number): void {';
-    const at = actions.indexOf(signature);
-    expect(at, 'the answer\'s watcher is in the source').gte(0);
-    const watcher = actions.slice(at, actions.indexOf('\n    },\n', at));
-    const asks = watcher.indexOf('if (actionCommitOwnsEnding(surfaceMotionState.awaiting !== undefined)) {');
-    expect(asks, 'the answer asks the commit before it concludes').gte(0);
-    expect(asks, 'asked BEFORE the conclusion it defers').lt(watcher.lastIndexOf('void this.$nextTick(() => this.concludeFlow());'));
-    expect(actions, 'the deferred conclusion runs on the commit\'s release')
-      .to.match(/actionCommitLive\(live: boolean\): void \{\s*\n\s*if \(!live && this\.concludeAfterCommit\) \{/);
+    expect(actions, 'no answer watcher of a party flow').not.to.include('\'playerView.game.gameAge\'(age: number): void {');
+    expect(actions, 'no deferred conclusion of a party flow').not.to.match(/concludeAfterCommit|concludeAfterRail|partySubmitting/);
   });
 
   it('the play scene\'s stage asks the law before it closes', () => {

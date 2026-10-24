@@ -33,7 +33,6 @@ import {notificationsSettled} from '@/client/components/notifications/notificati
 import {InputEchoSnapshot, inputEchoSnapshot} from '@/client/console/inputEcho';
 import {parliamentRewardDiag} from '@/client/console/parliament/parliamentRewardBeat';
 import {boardCardBonusDiag} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
-import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {colonyTrackWaveDiag} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {railRewardDiag} from '@/client/console/resourceTransfer/railReward';
 import {actionCommitRailState} from '@/client/console/consoleActionCommitRail';
@@ -58,8 +57,6 @@ export type ConsoleReadinessSnapshot = {
   parliamentReward: ReturnType<typeof parliamentRewardDiag>;
   /** The board-card-bonus scene (cover lifts) — its phase, its source and why its last scene ended. */
   cardBonus: ReturnType<typeof boardCardBonusDiag>;
-  /** The action workspace's PARTY FLOW record (Turmoil Redux) — what a party's / a law's action still owes. */
-  partyFlow: {party: string, resolution?: string, stage: string, fleetBefore?: number} | undefined;
   /** A law's WAVE over every colony track (Turmoil Redux, Unity Budget) — on stage, and how the last one ended. */
   colonyTrackWave: ReturnType<typeof colonyTrackWaveDiag>;
   /** The rewards still held ON THE RAIL (a gain shown arriving — `railReward.ts`) and the last one that degraded, by name. */
@@ -105,10 +102,6 @@ export function consoleReadinessSnapshot(): ConsoleReadinessSnapshot {
       draining: boardBeatParkState.draining, held: Object.keys(boardBeatParkState.heldParams ?? {}).join(','),
       rating: scaleStepRatingState.phase,
       owed: presentationLedgerSnapshot().stories.map((s) => ({id: s.id, ageMs: s.ageMs, why: s.why})),
-    },
-    partyFlow: consoleCardActionsUi.partyFlow === undefined ? undefined : {
-      party: consoleCardActionsUi.partyFlow.party, resolution: consoleCardActionsUi.partyFlow.resolution,
-      stage: consoleCardActionsUi.partyFlow.stage, fleetBefore: consoleCardActionsUi.partyFlow.fleetBefore,
     },
     at: Date.now(),
   };
