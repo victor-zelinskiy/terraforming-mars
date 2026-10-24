@@ -256,8 +256,9 @@ export type MarsBotTurnStep =
   | {kind: 'log', message: LogMessage, cause?: MarsBotStepCause, role?: MarsBotLogRole}
   /**
    * A DELEGATE OF THE BOT SENT to a resolution (Turmoil Redux): by Party
-   * Politics (a free one — the lobby's, else the reserve's) or by Lobbying
-   * (a paid one from the reserve, `cost` M€). `rules` is the TRAIL of the
+   * Politics or by Lobbying (the human's vote — the lobby's free delegate,
+   * else one from the reserve for `cost` M€), or by an effect's grant (the
+   * reserve, free). `rules` is the TRAIL of the
    * priority list — every rule that narrowed the choice, in order, the last
    * being the one that decided; `deficit` is how many delegates of the bot
    * (this one included) make it the winning player of that card, absent when

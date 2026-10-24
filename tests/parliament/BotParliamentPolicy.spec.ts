@@ -98,7 +98,7 @@ describe('BotParliamentPolicy', () => {
       const parliament = game.parliament!;
       expect(parliament.lobby.has(bot.id)).is.false;
       expect(parliament.reserve(bot)).eq(0);
-      expect(parliament.canVote(bot)).deep.eq({ok: false, reason: 'MarsBot takes no part in the parliament', source: 'none', cost: 0});
+      expect(parliament.canVote(bot)).deep.eq({ok: false, reason: 'MarsBot takes no part in the parliament', code: 'no-seat', source: 'none', cost: 0});
       expect(parliament.hasPartyEffect(bot, PartyName.GREENS)).is.false;
       expect(parliament.participants(game, 'delegates').map((p) => p.id)).deep.eq([human.id]);
       expect(() => parliament.assertLedger(game)).not.to.throw();

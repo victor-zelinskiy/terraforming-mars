@@ -6172,7 +6172,8 @@ function botDeckOf(first: AutomaState['actionDeck'][number]): AutomaState['actio
 }
 
 // ── parliament-bot-lobby: Fish (cost 9 — divisible by 9) on top of the bot's deck, the bot with
-//    20 M€: its next turn plays the card and LOBBIES with TWO paid delegates in one turn (D6). ──
+//    20 M€: its next turn plays the card and LOBBIES with TWO delegates in one turn (D6) — at the
+//    human's price (D12): the lobby's free one first, then one from the reserve for 5 M€. ──
 {
   const name = 'parliament-bot-lobby';
   const t = botTable(name, 2);

@@ -14,7 +14,7 @@ import {PartyName} from '../../common/turmoil/PartyName';
 import type {SkippedEffect} from '../cards/actionPreviews';
 import {Parliament} from './Parliament';
 import {QuestTracker} from './quests/QuestTracker';
-import {placeBotDelegate} from '../automa/AutomaPolitics';
+import {placeBotGrantDelegate} from '../automa/AutomaPolitics';
 import type {ICard} from '../cards/ICard';
 
 /** What the step adds to the bare «add N delegates to a resolution». */
@@ -226,12 +226,12 @@ export class PlaceDelegatesOnResolution extends DeferredAction<undefined> {
       game.log('${0} has only ${1} of the ${2} delegates in reserve', (b) => b.player(player).number(count).number(this.quantity));
     }
     // MARSBOT NEVER RECEIVES A PARLIAMENT PROMPT (docs/TURMOIL_REDUX_MARSBOT.md §2): a delegate grant to the
-    // bot is placed on the spot — free, from the reserve, every delegate by the bot's own vote rules (a fresh
-    // choice per cube, the same door as Party Politics and Lobbying: the journal, the turn step, the ledger).
+    // bot is placed on the spot — free, from the reserve, like the human's grant (never the lobby), every
+    // delegate by the bot's own chooser (a fresh choice per cube; the journal, the turn step, the ledger).
     if (player.isMarsBot) {
       this.payPrice();
       for (let i = 0; i < count; i++) {
-        placeBotDelegate(game, player, 'reserve', {paid: false});
+        placeBotGrantDelegate(game, player);
       }
       return undefined;
     }

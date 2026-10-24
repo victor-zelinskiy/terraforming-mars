@@ -21,8 +21,9 @@ import {
  *       tally column, the leader badge and the «Принимается» badge read the
  *       bot; the turn card names the bonus card.
  *   (2) LOBBYING WITH TWO DELEGATES IN ONE TURN — the second cube leaves only
- *       once the first has landed (one after another, never two in the air),
- *       from the reserve stack once the lobby is spent; the bot paid 10 M€.
+ *       once the first has landed (one after another, never two in the air);
+ *       the human's price (D12): the first off the LOBBY socket, free, the
+ *       second off the reserve stack once the lobby is spent, for 5 M€.
  *   (3) THE TURN REVIEW — the lobbying chain names the rule and the delegates.
  *   (4) THE SITTING FOR THE SPECTATOR — the bot won the vote: the verdict
  *       names it as the winning player, the results carry its ocean as a row
@@ -237,7 +238,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       expect(await strandedReports(page)).toEqual([]);
     });
 
-    test(`(2)+(3) Lobbying with two delegates in one turn — one after another, both from the reserve; the turn review names the rule (${preset.id})`, async ({page, request}) => {
+    test(`(2)+(3) Lobbying with two delegates in one turn — one after another, the lobby's free one first, then the reserve; the turn review names the rule (${preset.id})`, async ({page, request}) => {
       test.setTimeout(300_000);
       // `botTheater=1`: the turn card auto-expands into the review the moment it is DELIVERED — after the arrival beat, since delivery waits for holds.
       const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-bot-lobby', {query: `${preset.query}&botTheater=1`});
@@ -269,15 +270,20 @@ for (const preset of PARLIAMENT_PRESETS) {
       const secondCube = (st: CubeSample) => st.cubes.find((c) => c.seq === votes[1].seq);
       expect(task.slice(0, first.arrivedAt).filter((st) => secondCube(st) !== undefined && secondCube(st)?.hidden === false).length,
         'the second cube never shows before the first has landed').toBe(0);
-      // THE SOURCES: a PAID delegate is a reserve delegate (the lobby's is the free one, B21's) — both cubes leave
-      // the reserve stack, which drops by two; the lobby socket stays filled.
+      // THE SOURCES — the human's rule of the vote (D12): the FIRST cube is the lobby's free one, the SECOND leaves
+      // the reserve stack once the lobby is spent. The lobby socket was painted until the first proxy stood over it
+      // (one 16 ms sample of slack for the frame straddle, as in (1)) and is empty at rest; the reserve drops by one.
+      expect(task[0].lobby[bot.color], 'the lobby socket painted before the flight').toBe(true);
+      expect(task.slice(0, first.firstFlying + 1).some((st) => st.lobby[bot.color]), 'the lobby socket painted up to the first flight').toBe(true);
       expect(task[0].reserve[bot.color], 'the reserve stack painted before the flight').toBe(reserveBefore);
-      expect(task[task.length - 1].lobby[bot.color], 'the free delegate stays in the lobby').toBe(true);
-      expect(task[task.length - 1].reserve[bot.color], 'the reserve paid both delegates').toBe(reserveBefore - 2);
-      // THE PRICE: two paid delegates, 5 M€ each.
+      expect(task.slice(0, first.arrivedAt + 1).every((st) => st.reserve[bot.color] === reserveBefore),
+        'the reserve stack untouched by the first (free) delegate').toBe(true);
+      expect(task[task.length - 1].lobby[bot.color], 'the lobby socket empty at rest — the free delegate went first').toBe(false);
+      expect(task[task.length - 1].reserve[bot.color], 'the reserve paid the second delegate only').toBe(reserveBefore - 1);
+      // THE PRICE (the unit spec pins the M€): the lobby's delegate is free, the reserve's costs 5 M€.
       const after = await wireOf(request, playerId);
-      expect(botSeatOf(after).reserve).toBe(reserveBefore - 2);
-      expect(botSeatOf(after).lobby).toBe(true);
+      expect(botSeatOf(after).reserve).toBe(reserveBefore - 1);
+      expect(botSeatOf(after).lobby).toBe(false);
       await expectParliamentFits(page, `${preset.id} overview after the lobbying`);
       await shoot(page, preset.id, '03-lobby-after');
 

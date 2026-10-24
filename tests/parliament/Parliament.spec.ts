@@ -111,6 +111,8 @@ describe('Parliament', () => {
       const availability = parliament.canVote(p1);
       expect(availability.ok).is.false;
       expect(availability.source).eq('reserve');
+      // The refusal is TYPED — the bot's door reads the code, never the prompt's text.
+      expect(availability).deep.include({code: 'not-enough-mc'});
       parliament.assertLedger(game);
     });
 

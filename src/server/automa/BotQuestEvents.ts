@@ -20,7 +20,7 @@
  *    Enceladus microbes, Pluto Redux data), the floater pool for floaters
  *    (Titan, the Venus board's cells, Invasive Species).
  * Tiles, TR and delegates need no adapter: the engine reports them by ACTOR
- * (`Game.addTile`, `increaseTerraformRating`, `placeBotDelegate`).
+ * (`Game.addTile`, `increaseTerraformRating`, `castBotVote` / `placeBotGrantDelegate`).
  *
  * WHAT COUNTS is the tracker's rule, not this module's: `QuestTracker.eligible`
  * accepts the bot's deed only under ITS OWN TURN (the `automa-turn` root) —

@@ -118,10 +118,13 @@ export type EffectDelegates = {count: number; source?: CardName};
 /** One alliance a seat's tableau declares — the two parties and the card (TR62). */
 export type PartyAlliance = {parties: Readonly<[ReduxParty, ReduxParty]>; source: CardName};
 
+/** Why a vote cannot be cast — typed, so a caller that is not a prompt (MarsBot) never reads the reason's text. */
+export type VoteRefusal = 'no-seat' | 'no-resolution' | 'no-delegate' | 'not-enough-mc';
+
 export type VoteAvailability =
   | {ok: true; source: 'lobby' | 'reserve'; cost: number}
   /** `source` names the path that WOULD apply (reserve when only the money is missing). */
-  | {ok: false; reason: string; source: 'lobby' | 'reserve' | 'none'; cost: number};
+  | {ok: false; reason: string; code: VoteRefusal; source: 'lobby' | 'reserve' | 'none'; cost: number};
 
 export type AgendaAdvance = {from: number; to: number; bonus?: 'tr' | 'card'};
 
@@ -859,21 +862,27 @@ export class Parliament {
 
   // ───────────────────────── voting ─────────────────────────
 
+  /**
+   * THE RULE OF THE VOTE (R p.7) — the lobby's free delegate first, then one
+   * from the reserve for `PARLIAMENT_VOTE_COST`. ONE rule for every seat: the
+   * human's vote action asks it, and so does MarsBot's (`castBotVote` — its
+   * own rules only decide WHEN it votes, never from where or at what price).
+   */
   public canVote(player: IPlayer): VoteAvailability {
     if (!this.participates(player, 'delegates')) {
-      return {ok: false, reason: 'MarsBot takes no part in the parliament', source: 'none', cost: 0};
+      return {ok: false, reason: 'MarsBot takes no part in the parliament', code: 'no-seat', source: 'none', cost: 0};
     }
     if (this.slots.length === 0) {
-      return {ok: false, reason: 'No resolution is up for a vote', source: 'none', cost: 0};
+      return {ok: false, reason: 'No resolution is up for a vote', code: 'no-resolution', source: 'none', cost: 0};
     }
     if (this.lobby.has(player.id)) {
       return {ok: true, source: 'lobby', cost: 0};
     }
     if (this.reserve(player) <= 0) {
-      return {ok: false, reason: 'All your delegates are in play', source: 'none', cost: PARLIAMENT_VOTE_COST};
+      return {ok: false, reason: 'All your delegates are in play', code: 'no-delegate', source: 'none', cost: PARLIAMENT_VOTE_COST};
     }
     if (!player.canAfford(PARLIAMENT_VOTE_COST)) {
-      return {ok: false, reason: 'Not enough M€ to send a delegate from the reserve', source: 'reserve', cost: PARLIAMENT_VOTE_COST};
+      return {ok: false, reason: 'Not enough M€ to send a delegate from the reserve', code: 'not-enough-mc', source: 'reserve', cost: PARLIAMENT_VOTE_COST};
     }
     return {ok: true, source: 'reserve', cost: PARLIAMENT_VOTE_COST};
   }

@@ -7,6 +7,7 @@ import {Phase} from '../../src/common/Phase';
 import {PARLIAMENT_VOTE_COST} from '../../src/common/parliament/ParliamentTypes';
 import {Game} from '../../src/server/Game';
 import {IGame} from '../../src/server/IGame';
+import {IPlayer} from '../../src/server/IPlayer';
 import {LOBBYING_DIVISOR, LOBBYING_DOUBLE_DIVISOR, lobbyingDelegates} from '../../src/server/automa/AutomaLobbying';
 import {SolarLogistics} from '../../src/server/cards/promo/SolarLogistics';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
@@ -19,11 +20,12 @@ import {testAutomaGame} from './AutomaTestGame';
 
 /**
  * LOBBYING (docs/TURMOIL_REDUX_MARSBOT.md §3.2): a played project card whose cost
- * is divisible by 3 sends ONE paid delegate from the reserve after the card
- * resolved; divisible by 9 — two. The probe cards are REAL ones of the Redux
- * table's decks (probed, never assumed): Gene Repair 12 · Aquifer Pumping 18 ·
- * Predators 14 · Indentured Workers 0 · Micro-Mills 3 (no tags) · Big Asteroid
- * 27 (a Space EVENT — Solar Logistics' trigger).
+ * is divisible by 3 sends ONE delegate after the card resolved; divisible by 9 —
+ * two. Each delegate is the HUMAN'S vote (§3.0, D12): the lobby's free one while
+ * it is there, else one from the reserve for 5 M€. The probe cards are REAL ones
+ * of the Redux table's decks (probed, never assumed): Gene Repair 12 · Aquifer
+ * Pumping 18 · Predators 14 · Indentured Workers 0 · Micro-Mills 3 (no tags) ·
+ * Big Asteroid 27 (a Space EVENT — Solar Logistics' trigger).
  */
 function reduxBot(seed = 0) {
   return testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: 'politics', seed});
@@ -60,29 +62,34 @@ function lobbyingLines(game: IGame): number {
   return game.gameLog.filter((m) => m.message === '${0} lobbies: the cost of ${1} (${2} M€) is divisible by ${3}').length;
 }
 
-describe('Lobbying (Turmoil Redux) — the bot\'s paid delegates', () => {
+/** The bot's free delegate already spent this generation (the lobby empty, the reserve full — a legal ledger). */
+function spendLobby(game: IGame, bot: IPlayer): void {
+  game.parliament!.lobby.delete(bot.id);
+}
+
+describe('Lobbying (Turmoil Redux) — the bot\'s further votes, at the human\'s price', () => {
   it('the knobs and the arithmetic: 0 divides; 9 doubles', () => {
     expect(LOBBYING_DIVISOR).eq(3);
     expect(LOBBYING_DOUBLE_DIVISOR).eq(9);
     expect([0, 1, 3, 9, 12, 14, 18, 21, 27].map(lobbyingDelegates)).deep.eq([2, 0, 1, 2, 1, 0, 2, 1, 2]);
   });
 
-  it('cost 12 → ONE delegate from the RESERVE for 5 M€ — the lobby\'s free delegate is not touched', () => {
+  it('cost 12 → ONE delegate, and it is the LOBBY\'S free one — nothing paid while the free delegate stands there (D12)', () => {
     const [game, human, bot] = reduxBot();
     const parliament = game.parliament!;
     arrange(game, human, 20);
     const turn = botPlays(game, human, CardName.GENE_REPAIR);
-    expect(bot.megaCredits).eq(20 - PARLIAMENT_VOTE_COST);
-    expect(parliament.lobby.has(bot.id), 'the free delegate stays in the lobby').is.true;
-    expect(parliament.reserve(bot)).eq(5);
+    expect(bot.megaCredits, 'the free delegate costs nothing').eq(20);
+    expect(parliament.lobby.has(bot.id), 'the lobby is spent first').is.false;
+    expect(parliament.reserve(bot)).eq(6);
     expect(parliament.votesOf(bot)).eq(1);
     expect(parliament.winner()?.player).eq(bot.id);
     expect(lobbyingLines(game)).eq(1);
     const votes = voteSteps(turn);
     expect(votes).has.length(1);
-    expect(votes[0]).deep.include({source: 'reserve', cost: PARLIAMENT_VOTE_COST, slot: 0, winsNow: true, deficit: 1});
+    expect(votes[0]).deep.include({source: 'lobby', cost: 0, slot: 0, winsNow: true, deficit: 1});
     expect(votes[0].cause).deep.eq({kind: 'lobbying'});
-    expect(votes[0].message?.message).eq('${0} sent a delegate from the reserve to ${1}');
+    expect(votes[0].message?.message).eq('${0} sent the free delegate from the lobby to ${1}');
     // The card itself was played once, as ever: its tag advanced the track and it went to the played pile.
     expect(game.automa!.playedPile).deep.eq([CardName.GENE_REPAIR]);
     // The lobbying comes AFTER the tags — the trail of steps says so.
@@ -91,18 +98,35 @@ describe('Lobbying (Turmoil Redux) — the bot\'s paid delegates', () => {
     parliament.assertLedger(game);
   });
 
-  it('cost 18 → TWO delegates, 5 M€ each, the list re-read for the second: it stacks the card the first one won', () => {
+  it('cost 12 with the lobby already spent → ONE delegate from the RESERVE for 5 M€', () => {
+    const [game, human, bot] = reduxBot();
+    const parliament = game.parliament!;
+    arrange(game, human, 20);
+    spendLobby(game, bot);
+    const turn = botPlays(game, human, CardName.GENE_REPAIR);
+    expect(bot.megaCredits).eq(20 - PARLIAMENT_VOTE_COST);
+    expect(parliament.reserve(bot)).eq(6);
+    expect(parliament.votesOf(bot)).eq(1);
+    const votes = voteSteps(turn);
+    expect(votes).has.length(1);
+    expect(votes[0]).deep.include({source: 'reserve', cost: PARLIAMENT_VOTE_COST, slot: 0, winsNow: true});
+    expect(votes[0].message?.message).eq('${0} sent a delegate from the reserve to ${1}');
+    parliament.assertLedger(game);
+  });
+
+  it('cost 18 → TWO delegates: the lobby\'s free one, then one from the reserve for 5 M€ — the list re-read for the second, it stacks the card the first one won', () => {
     const [game, human, bot] = reduxBot();
     const parliament = game.parliament!;
     arrange(game, human, 20);
     const turn = botPlays(game, human, CardName.AQUIFER_PUMPING);
-    expect(bot.megaCredits).eq(20 - 2 * PARLIAMENT_VOTE_COST);
-    expect(parliament.reserve(bot)).eq(4);
+    expect(bot.megaCredits).eq(20 - PARLIAMENT_VOTE_COST);
+    expect(parliament.lobby.has(bot.id)).is.false;
+    expect(parliament.reserve(bot)).eq(5);
     expect(parliament.votesOf(bot, parliament.slots[0])).eq(2);
     const votes = voteSteps(turn);
     expect(votes).has.length(2);
-    expect(votes[0]).deep.include({slot: 0, rules: ['win-now', 'nearest-slot'], winsNow: true});
-    expect(votes[1]).deep.include({slot: 0, rules: ['win-now'], winsNow: true});
+    expect(votes[0]).deep.include({source: 'lobby', cost: 0, slot: 0, rules: ['win-now', 'nearest-slot'], winsNow: true});
+    expect(votes[1]).deep.include({source: 'reserve', cost: PARLIAMENT_VOTE_COST, slot: 0, rules: ['win-now'], winsNow: true});
     expect(lobbyingLines(game)).eq(1);
     parliament.assertLedger(game);
   });
@@ -118,22 +142,23 @@ describe('Lobbying (Turmoil Redux) — the bot\'s paid delegates', () => {
     expect(refusals(turn)).deep.eq([]);
   });
 
-  it('cost 0 divides by 9 → two delegates (the rule\'s own arithmetic: 0 is a multiple of everything)', () => {
+  it('cost 0 divides by 9 → two delegates (the rule\'s own arithmetic: 0 is a multiple of everything) — the lobby\'s free, then 5 M€', () => {
     const [game, human, bot] = reduxBot();
     arrange(game, human, 20);
     const turn = botPlays(game, human, CardName.INDENTURED_WORKERS);
     expect(voteSteps(turn)).has.length(2);
-    expect(bot.megaCredits).eq(10);
+    expect(bot.megaCredits).eq(20 - PARLIAMENT_VOTE_COST);
   });
 
-  it('4 M€ → «not enough M€»: a line with the reason, no delegate, nothing spent', () => {
+  it('4 M€ and the lobby spent → «not enough M€»: a line with the reason, no delegate, nothing spent', () => {
     const [game, human, bot] = reduxBot();
     const parliament = game.parliament!;
     arrange(game, human, 4);
+    spendLobby(game, bot);
     const turn = botPlays(game, human, CardName.GENE_REPAIR);
     expect(bot.megaCredits).eq(4);
     expect(parliament.votesOf(bot)).eq(0);
-    expect(parliament.reserve(bot)).eq(6);
+    expect(parliament.reserve(bot)).eq(7);
     expect(lobbyingLines(game), 'the trigger is announced').eq(1);
     expect(voteSteps(turn)).deep.eq([]);
     expect(refusals(turn)).has.length(1);
@@ -141,17 +166,29 @@ describe('Lobbying (Turmoil Redux) — the bot\'s paid delegates', () => {
     expect(refusals(turn)[0].message?.message).eq('${0} cannot lobby: not enough M€ for a delegate (${1} M€)');
   });
 
-  it('with 7 M€ and a cost divisible by 9: the first delegate is paid, the second refused — and the refusal names the money', () => {
+  it('0 M€ with the lobby\'s cube → the free delegate still goes: the price is the source\'s, and the lobby costs nothing', () => {
     const [game, human, bot] = reduxBot();
-    arrange(game, human, 7);
+    const parliament = game.parliament!;
+    arrange(game, human, 0);
+    const turn = botPlays(game, human, CardName.GENE_REPAIR);
+    expect(bot.megaCredits).eq(0);
+    expect(parliament.votesOf(bot)).eq(1);
+    expect(voteSteps(turn)[0]).deep.include({source: 'lobby', cost: 0});
+    expect(refusals(turn)).deep.eq([]);
+  });
+
+  it('with 4 M€ and a cost divisible by 9: the lobby\'s free delegate goes, the reserve one is refused — and the refusal names the money', () => {
+    const [game, human, bot] = reduxBot();
+    arrange(game, human, 4);
     const turn = botPlays(game, human, CardName.AQUIFER_PUMPING);
-    expect(bot.megaCredits).eq(2);
+    expect(bot.megaCredits).eq(4);
     expect(voteSteps(turn)).has.length(1);
+    expect(voteSteps(turn)[0]).deep.include({source: 'lobby', cost: 0});
     expect(refusals(turn)).has.length(1);
     expect(refusals(turn)[0].reason).eq('not-enough-mc');
   });
 
-  it('an empty RESERVE → «no delegate left in the reserve», nothing spent', () => {
+  it('an empty RESERVE with the lobby\'s cube still there → lobbying sends THAT one (the first revision refused while it stood idle)', () => {
     const [game, human, bot] = reduxBot();
     const parliament = game.parliament!;
     arrange(game, human, 20);
@@ -162,9 +199,26 @@ describe('Lobbying (Turmoil Redux) — the bot\'s paid delegates', () => {
     expect(parliament.lobby.has(bot.id)).is.true;
     const turn = botPlays(game, human, CardName.GENE_REPAIR);
     expect(bot.megaCredits).eq(20);
-    expect(parliament.lobby.has(bot.id), 'the lobby delegate is Party Politics\' — never lobbying\'s').is.true;
+    expect(parliament.lobby.has(bot.id), 'the free delegate went').is.false;
+    expect(parliament.votesOf(bot)).eq(7);
+    expect(voteSteps(turn)[0]).deep.include({source: 'lobby', cost: 0});
+    expect(refusals(turn)).deep.eq([]);
+    parliament.assertLedger(game);
+  });
+
+  it('no delegate anywhere (the lobby and the reserve both empty) → «no delegate left to send», nothing spent', () => {
+    const [game, human, bot] = reduxBot();
+    const parliament = game.parliament!;
+    arrange(game, human, 20);
+    for (let i = 0; i < 7; i++) {
+      parliament.placeVote(bot, parliament.slots[i % 3], parliament.lobby.has(bot.id) ? 'lobby' : 'reserve');
+    }
+    expect(parliament.reserve(bot)).eq(0);
+    expect(parliament.lobby.has(bot.id)).is.false;
+    const turn = botPlays(game, human, CardName.GENE_REPAIR);
+    expect(bot.megaCredits).eq(20);
     expect(refusals(turn)[0]).deep.include({reason: 'no-delegate'});
-    expect(refusals(turn)[0].message?.message).eq('${0} cannot lobby: no delegate left in the reserve');
+    expect(refusals(turn)[0].message?.message).eq('${0} cannot lobby: no delegate left to send');
   });
 
   it('an EMPTY voting area → «no resolution is up for a vote»', () => {
@@ -198,8 +252,8 @@ describe('Lobbying (Turmoil Redux) — the bot\'s paid delegates', () => {
     const turn = botPlays(game, human, CardName.MICRO_MILLS);
     expect(turn.steps.some((s) => s.kind === 'failed' && s.reason === 'no-tags')).is.true;
     expect(voteSteps(turn)).has.length(1);
-    // +5 M€ of the Failed Action, −5 M€ of the delegate.
-    expect(bot.megaCredits).eq(20);
+    // +5 M€ of the Failed Action; the delegate is the lobby's free one.
+    expect(bot.megaCredits).eq(25);
     expect(game.parliament!.votesOf(bot)).eq(1);
   });
 
@@ -218,8 +272,8 @@ describe('Lobbying (Turmoil Redux) — the bot\'s paid delegates', () => {
     }));
     const turn = botPlays(game, human, CardName.BIG_ASTEROID);
     expect(voteSteps(turn)).has.length(2);
-    // The spec's default corporation is C01 Credicor: +4 M€ for a card of 20+ M€ — then two delegates at 5 M€ each.
-    expect(bot.megaCredits).eq(20 + 4 - 2 * PARLIAMENT_VOTE_COST);
+    // The spec's default corporation is C01 Credicor: +4 M€ for a card of 20+ M€ — then two delegates: the lobby's free, one at 5 M€.
+    expect(bot.megaCredits).eq(20 + 4 - PARLIAMENT_VOTE_COST);
     expect(anyPlayer, 'one play, one reaction').eq(1);
     expect(human.pendingCardIntakes, 'Solar Logistics: one intake for one space event').has.length(1);
   });
@@ -232,9 +286,9 @@ describe('Lobbying (Turmoil Redux) — the bot\'s paid delegates', () => {
     const parliament = reloaded.parliament!;
     const loadedBot = reloaded.getPlayerById(bot.id);
     expect(parliament.votesOf(loadedBot)).eq(2);
-    expect(parliament.reserve(loadedBot)).eq(4);
-    expect(parliament.lobby.has(loadedBot.id)).is.true;
-    expect(loadedBot.megaCredits).eq(10);
+    expect(parliament.reserve(loadedBot)).eq(5);
+    expect(parliament.lobby.has(loadedBot.id)).is.false;
+    expect(loadedBot.megaCredits).eq(20 - PARLIAMENT_VOTE_COST);
     expect(() => parliament.assertLedger(reloaded)).not.to.throw();
     const lastTurn = reloaded.automa!.lastTurn!;
     expect(voteSteps(lastTurn)).has.length(2);

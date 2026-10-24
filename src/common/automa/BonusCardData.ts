@@ -99,9 +99,10 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
     name: 'Party Politics',
     // Turmoil Redux (docs/TURMOIL_REDUX_MARSBOT.md §3.1): the printed classic
     // card sends a delegate into a PARTY and flips for a paid second one; in
-    // Redux the delegate goes on a RESOLUTION, free, and the paid delegates
+    // Redux the delegate goes on a RESOLUTION at the human's price (the lobby's
+    // free one, else the reserve for 5 M€ — §3.0, D12), and the further votes
     // come from Lobbying (the bot's played project cards) instead.
-    text: 'MarsBot sends a free delegate (from the lobby, else the reserve) to the resolution where it is closest to winning the vote. Returns to the action deck every generation.',
+    text: 'MarsBot sends a delegate — the free one from the lobby, else one from the reserve for 5 M€ — to the resolution where it is closest to winning the vote. Returns to the action deck every generation.',
   },
   [BonusCardId.B22_SETTLERS]: {name: 'Settlers', text: 'Arcadian Communities: MarsBot claims a non-reserved area with one of its player markers, preferring the space beside the most ocean-reserved ones. Recurs into the action deck every generation.'},
   [BonusCardId.B23_RAPID_SPROUTING]: {name: 'Rapid Sprouting', text: 'Ecoline: a plant grows on the corporation card, or the grown plant becomes a greenery raising oxygen 1 step. Recurs into the action deck every generation.'},
@@ -373,7 +374,7 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
     return {
       name,
       lines: [
-        {icon: 'delegate', text: 'MarsBot sends a free delegate (from the lobby, else the reserve) to a resolution up for the vote'},
+        {icon: 'delegate', text: 'MarsBot sends a delegate to a resolution up for the vote — the free one from the lobby, else one from the reserve for 5 M€'},
         {text: 'It picks the card where the delegate makes it the winning player, else the card it is closest to winning', muted: true},
       ],
       fate: {kind: 'recurring', text: 'Returns to the action deck every generation'},

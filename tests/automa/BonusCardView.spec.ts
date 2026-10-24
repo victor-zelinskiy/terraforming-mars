@@ -234,12 +234,13 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
     expect(buildBonusCardView(BonusCardId.B27_BUILD_BUILD_BUILD, VENUS)).deep.eq(view);
   });
 
-  it('B21 Party Politics (Turmoil Redux): one free delegate by the chooser\'s list, a RECURRING card', () => {
+  it('B21 Party Politics (Turmoil Redux): one delegate by the chooser\'s list at the human\'s price, a RECURRING card', () => {
     const view = buildBonusCardView(BonusCardId.B21_PARTY_POLITICS, BASE);
     expect(view.name).eq('Party Politics');
     expect(view.lines).has.length(2);
     expect(view.lines[0]).to.deep.include({icon: 'delegate'});
-    expect(view.lines[0].text).to.include('free delegate');
+    // The face states the vote's own price (D12): the lobby's free delegate, else the reserve for 5 M€.
+    expect(view.lines[0].text).to.include('the free one from the lobby, else one from the reserve for 5 M€');
     expect(view.lines[1].muted).is.true;
     expect(view.fate.kind).eq('recurring');
     expect(buildBonusCardView(BonusCardId.B21_PARTY_POLITICS, VENUS)).deep.eq(view);
