@@ -57,8 +57,7 @@
                 inset .14rem 0 0 var(--seat, #8fb3d6),
                 inset 0 .06rem 0 rgba(255, 255, 255, 0.08),
                 inset 0 -.06rem 0 rgba(0, 0, 0, 0.55),
-                0 0 0 .06rem fade(@con-cyan, 70%),
-                0 0 .6rem fade(@con-cyan, 18%);
+                0 0 0 .06rem fade(@con-cyan, 70%);
         }
         &--active {
             background:
@@ -68,16 +67,14 @@
                 inset .14rem 0 0 var(--seat, #8fb3d6),
                 inset 0 .06rem 0 rgba(255, 255, 255, 0.1),
                 inset 0 -.06rem 0 rgba(0, 0, 0, 0.55),
-                0 0 0 .06rem fade(@con-mint, 72%),
-                0 0 .9rem fade(@con-mint, 26%);
+                0 0 0 .06rem fade(@con-mint, 72%);
         }
         &--active&--me {
             box-shadow:
                 inset .14rem 0 0 var(--seat, #8fb3d6),
                 inset 0 .06rem 0 rgba(255, 255, 255, 0.1),
                 inset 0 -.06rem 0 rgba(0, 0, 0, 0.55),
-                0 0 0 .06rem fade(@con-mint, 80%),
-                0 0 1rem fade(@con-mint, 32%);
+                0 0 0 .06rem fade(@con-mint, 80%);
         }
         &--attention {
             background:
@@ -85,8 +82,7 @@
                 linear-gradient(180deg, rgba(54, 42, 20, 0.95), rgba(30, 22, 10, 0.96));
             box-shadow:
                 inset .14rem 0 0 var(--seat, #8fb3d6),
-                0 0 0 .06rem fade(@con-amber, 78%),
-                0 0 .9rem fade(@con-amber, 26%);
+                0 0 0 .06rem fade(@con-amber, 78%);
         }
     }
     &__pname { color: #eef4fb; }
@@ -105,8 +101,7 @@
             background: linear-gradient(180deg, rgba(10, 40, 32, 0.82), rgba(6, 26, 20, 0.7));
             box-shadow:
                 inset 0 .07rem .14rem rgba(0, 0, 0, 0.7),
-                0 0 0 .05rem fade(@con-mint, 62%),
-                0 0 .55rem fade(@con-mint, 25%);
+                0 0 0 .05rem fade(@con-mint, 62%);
         }
         &--ready { color: fade(@con-mint, 82%); }
         &--passed { color: fade(@con-amber, 80%); }
@@ -169,14 +164,12 @@
         inset .14rem 0 0 var(--seat, #8fb3d6),
         inset 0 .06rem 0 rgba(255, 255, 255, 0.1),
         inset 0 -.06rem 0 rgba(0, 0, 0, 0.55),
-        0 0 0 .06rem fade(@con-mint, 72%),
-        0 0 .9rem fade(@con-mint, 26%);
+        0 0 0 .06rem fade(@con-mint, 72%);
 }
 .con-status__player--active.con-status__player--me {
     box-shadow:
         inset .14rem 0 0 var(--seat, #8fb3d6),
         inset 0 .06rem 0 rgba(255, 255, 255, 0.1),
         inset 0 -.06rem 0 rgba(0, 0, 0, 0.55),
-        0 0 0 .06rem fade(@con-mint, 80%),
-        0 0 1rem fade(@con-mint, 32%);
+        0 0 0 .06rem fade(@con-mint, 80%);
 }

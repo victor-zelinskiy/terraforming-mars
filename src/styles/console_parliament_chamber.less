@@ -166,9 +166,9 @@
         padding: .5rem .9rem .55rem .6rem;
         border-radius: .8rem;
         overflow: hidden;
-        background:
-            radial-gradient(90% 70% at 22% 30%, color-mix(in srgb, var(--parl-accent, @con-parl-gold) 22%, transparent), transparent 70%),
-            linear-gradient(180deg, fade(@con-parl-gold, 7%), fade(@con-parl-gold, 1.5%));
+        /* A raised plinth by MATERIAL — a faint warm glass and its gold kant; no light pooled behind the ruler (the
+           premium-restraint law: the seal and the enacted card ARE the subject, a halo behind them is noise). */
+        background: linear-gradient(180deg, fade(@con-parl-gold, 5%), fade(@con-parl-gold, 1.5%));
         --con-cursor-on: 0;
         box-shadow: inset 0 0 0 .06rem fade(@con-parl-gold, 32%), inset 0 .07rem 0 rgba(255, 236, 180, 0.12);
     }
@@ -229,12 +229,12 @@
         gap: .45rem;
         min-width: 0;
         overflow: hidden;
-        background: linear-gradient(180deg, fade(@con-parl-mint, 7.5%), fade(@con-parl-mint, 1.5%));
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.008));
         /* THE PANEL'S CURSOR on the ONE grammar (`.con-cursor-glow()` — a fixed plate, no lift): its mint hairline and
            the cursor's ring + halo are ONE list scaled by `--con-cursor-on`. */
         .con-cursor-glow();
         box-shadow:
-            inset 0 0 0 .05rem fade(@con-parl-mint, 32%),
+            inset 0 0 0 .05rem rgba(140, 170, 200, 0.2),
             inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), var(--con-cursor-on)),
             0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), calc(.25 * var(--con-cursor-on)));
         &--focus { .con-cursor-on(); }
@@ -340,7 +340,7 @@
         position: absolute; right: -.4rem; bottom: -.32rem; width: 1.1rem; height: 1.1rem; border-radius: .32rem;
         display: grid; place-items: center; background: #101722;
         svg { width: .66rem; height: .66rem; fill: currentColor; }
-        &--ready { color: @con-amber; box-shadow: inset 0 0 0 .06rem @con-amber, 0 0 .6rem fade(@con-amber, 40%); }
+        &--ready { color: @con-amber; box-shadow: inset 0 0 0 .06rem @con-amber; }
         &--used { color: @con-parl-mint; box-shadow: inset 0 0 0 .05rem fade(@con-parl-mint, 60%); }
         &--locked { color: rgba(205, 218, 232, 0.4); box-shadow: inset 0 0 0 .05rem rgba(200, 212, 228, 0.25); }
     }
@@ -390,7 +390,7 @@
     /* The voting plate dissolves into the table plate (the table IS the plate now); its cursor is the bill's. */
     &__voting {
         padding: .2rem .6rem 1rem;
-        background: radial-gradient(40% 55% at 50% 45%, fade(@con-parl-gold, 7%), transparent 70%);
+        background: none;
         box-shadow: none;
         border-radius: 0 0 .9rem .9rem;
         &--focus { --con-cursor-on: 0; }
@@ -450,7 +450,7 @@
         padding: 0 13px 0 9px;
         border-radius: 9px;
         background: linear-gradient(180deg, @con-parl-gold-hi, #c4922a);
-        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45), 0 0 28px fade(@con-parl-gold, 35%);
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
         color: #23170a;
         font-size: 11px;
         letter-spacing: .12em;
@@ -474,7 +474,7 @@
             padding: 0 16px 0 11px;
             font-size: 13px;
             background: linear-gradient(180deg, @con-parl-gold-hi, #c4922a);
-            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45), 0 0 44px fade(@con-parl-gold, 65%);
+            box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
         }
     }
     /* …and the verdict's CARD: the strongest gold ring of the table, while the other cards recede for the verdict's read
@@ -516,7 +516,7 @@
         box-shadow: inset 0 0 0 .07rem rgba(200, 215, 230, 0.35);
     }
     &__tally-num { font-size: 1.3rem; font-weight: 400; color: #fff; }
-    &__slot--winning &__tally-total { background: radial-gradient(circle at 35% 30%, @con-parl-gold-hi, #b9862a); box-shadow: 0 0 1rem fade(@con-parl-gold, 40%); }
+    &__slot--winning &__tally-total { background: radial-gradient(circle at 35% 30%, @con-parl-gold-hi, #b9862a); box-shadow: none; }
     &__slot--winning &__tally-num { color: #22170a; }
     &__tally-row--leader {
         position: relative;
@@ -599,14 +599,14 @@
         padding: .55rem .8rem .6rem;
         border-radius: .75rem;
         overflow: hidden;
-        background: linear-gradient(180deg, fade(@con-parl-gold, 9%), fade(@con-parl-gold, 2%));
+        background: linear-gradient(180deg, fade(@con-parl-gold, 4%), fade(@con-parl-gold, 1%));
         .con-cursor-glow();
         box-shadow:
             inset 0 0 0 .06rem rgba(230, 195, 74, calc(.4 * (1 - var(--con-cursor-on)))),
             inset 0 0 0 calc(var(--con-focus-ring) * 1.2 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), var(--con-cursor-on)),
             0 0 calc(var(--con-glow-r) * 1.25 * var(--con-cursor-on)) rgba(red(@con-cyan), green(@con-cyan), blue(@con-cyan), calc(.25 * var(--con-cursor-on)));
         &--focus { .con-cursor-on(); }
-        &--done { background: linear-gradient(180deg, fade(@con-parl-mint, 9%), fade(@con-parl-mint, 2%)); }
+        &--done { background: linear-gradient(180deg, fade(@con-parl-mint, 4%), fade(@con-parl-mint, 1%)); }
         &--closed { background: rgba(0, 0, 0, 0.26); }
         &--closed .con-parl__quest-progress, &--done .con-parl__quest-progress { opacity: .6; }
     }
@@ -647,8 +647,7 @@
             box-shadow:
                 inset 0 0 0 .1rem var(--pt-edge-hi),
                 inset 0 -.35rem .7rem rgba(0, 0, 0, 0.35),
-                0 0 0 .08rem rgba(0, 0, 0, 0.55),
-                0 0 1.1rem var(--pt-glow);
+                0 0 0 .08rem rgba(0, 0, 0, 0.55);
         }
         &--seated .con-parl__chair-glyph { opacity: .5; fill: #f2dc93; }
         /* WON: the quest's winner holds the office — a mint ring outside the holder's rim. */
@@ -657,8 +656,7 @@
             box-shadow:
                 inset 0 0 0 .1rem var(--pt-edge-hi),
                 inset 0 -.35rem .7rem rgba(0, 0, 0, 0.35),
-                0 0 0 .12rem @con-parl-mint,
-                0 0 1.1rem var(--pt-glow);
+                0 0 0 .12rem @con-parl-mint;
         }
         &--pulse { animation: con-parl-land-flash calc(900ms * var(--motion-scale, 1)) ease-out both; }
     }
@@ -852,10 +850,10 @@
     &__step--start &__step-label { font-size: .46rem; letter-spacing: .18em; color: rgba(205, 218, 232, 0.5); }
     /* The viewer's reached tiles read mint; the tile they stand on is lit; the NEXT tile wears the invitation ring. */
     &__step--passed &__step-node { box-shadow: inset 0 0 0 .06rem fade(@con-parl-mint, 40%), inset 0 .06rem 0 rgba(220, 238, 255, 0.1), 0 .4rem 1rem rgba(0, 0, 0, 0.4); }
-    &__step--here &__step-node { background: linear-gradient(180deg, rgba(28, 66, 56, 0.98), rgba(12, 30, 26, 0.98)); box-shadow: inset 0 0 0 .08rem fade(@con-parl-mint, 80%), inset 0 .06rem 0 rgba(220, 238, 255, 0.1), 0 0 1rem fade(@con-parl-mint, 22%); }
-    &__step--next &__step-node { box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 75%), inset 0 .06rem 0 rgba(220, 238, 255, 0.1), 0 0 1.1rem fade(@con-parl-mint, 25%); }
+    &__step--here &__step-node { background: linear-gradient(180deg, rgba(28, 66, 56, 0.98), rgba(12, 30, 26, 0.98)); box-shadow: inset 0 0 0 .08rem fade(@con-parl-mint, 80%), inset 0 .06rem 0 rgba(220, 238, 255, 0.1); }
+    &__step--next &__step-node { box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 75%), inset 0 .06rem 0 rgba(220, 238, 255, 0.1); }
     &__step--next &__step-node::after { inset: -.2rem; border-radius: .7rem; border: .06rem dashed fade(@con-parl-mint, 55%); }
-    &__step--lit &__step-node, &__step--segment &__step-node { box-shadow: inset 0 0 0 .08rem fade(@con-parl-gold, 85%), inset 0 .06rem 0 rgba(255, 236, 180, 0.2), 0 0 1.2rem fade(@con-parl-gold, 35%); }
+    &__step--lit &__step-node, &__step--segment &__step-node { box-shadow: inset 0 0 0 .08rem fade(@con-parl-gold, 85%), inset 0 .06rem 0 rgba(255, 236, 180, 0.2); }
     /* The rewards at the tile's scale: the TR plate, the card, and the influence MEDALLION with its level inside. */
     &__step-res {
         &--tr { width: 2rem; height: 1.5rem; }
@@ -873,7 +871,7 @@
         align-items: center;
         justify-content: center;
         background: radial-gradient(circle at 40% 35%, #fbe9ac, #c99a2e 70%);
-        box-shadow: 0 0 1rem fade(@con-parl-gold, 35%), inset 0 0 0 .06rem rgba(80, 55, 10, 0.5), inset 0 -.12rem .2rem rgba(80, 55, 10, 0.25);
+        box-shadow: inset 0 0 0 .06rem rgba(80, 55, 10, 0.5), inset 0 -.12rem .2rem rgba(80, 55, 10, 0.25);
         .con-parl__step-res--inf { width: 48%; height: 48%; margin-top: 0; }
     }
     &__step--influence &__step-level {
@@ -955,7 +953,7 @@
         line-height: 1;
         b { font-weight: 400; font-variant-numeric: tabular-nums; }
     }
-    &__inf-band--mine &__inf-band-chip { background: #10261f; box-shadow: inset 0 0 0 .07rem @con-parl-mint, 0 0 .8rem fade(@con-parl-mint, 35%); }
+    &__inf-band--mine &__inf-band-chip { background: #10261f; box-shadow: inset 0 0 0 .07rem @con-parl-mint; }
     /* UNDER A BONUS (Event Analysts …): the span prints the FINAL influence in a soft green — the number is lifted, the
        tone says so by weight of colour on a quiet plate, never a «+N» tab on the scale (the head reads the sum). */
     &__inf-band-chip--buffed b { color: #9be8b0; }
@@ -989,7 +987,7 @@
         .con-pseal__head { align-self: end; height: 1.25rem; gap: .4rem; }
         .con-pseal__name { font-size: .64rem; font-weight: 400; letter-spacing: .02em; }
         .con-pseal__action { position: absolute; right: .55rem; bottom: .32rem; width: 1.4rem; height: 1.4rem; border-radius: .38rem; font-size: .8rem; }
-        .con-pseal__action--available { color: @con-amber; background: fade(@con-amber, 12%); box-shadow: inset 0 0 0 .06rem fade(@con-amber, 80%), 0 0 .9rem fade(@con-amber, 30%); }
+        .con-pseal__action--available { color: @con-amber; background: fade(@con-amber, 12%); box-shadow: inset 0 0 0 .06rem fade(@con-amber, 80%); }
         .con-pseal__action--used { color: @con-parl-mint; }
         .con-pseal__state { align-self: start; height: 1rem; gap: .35rem; }
         .con-pseal__support { margin-left: 0; gap: .2rem; }
@@ -1043,8 +1041,8 @@
         }
     }
     &--row&--absent .con-pseal__emblem { opacity: .62; }
-    &--row&--alliance .con-pseal__seal { border-radius: 50%; box-shadow: 0 0 1.1rem color-mix(in srgb, var(--pseal-ally-accent, @con-parl-mint) 45%, transparent); }
-    &--row&--delegates .con-pseal__seal, &--row&--granted .con-pseal__seal { border-radius: 50%; box-shadow: 0 0 1.1rem fade(@con-parl-mint, 45%); }
+    &--row&--alliance .con-pseal__seal { border-radius: 50%; box-shadow: none; }
+    &--row&--delegates .con-pseal__seal, &--row&--granted .con-pseal__seal { border-radius: 50%; box-shadow: none; }
     /* THE RULER on the dais: the seal LARGE in a gold ring under the crown, the name, the ribbon «ПРАВИТ». */
     &--ruler {
         grid-template-columns: minmax(0, 1fr);
@@ -1064,7 +1062,7 @@
             width: var(--con-pseal-ruler-seal, 5.2rem);
             height: var(--con-pseal-ruler-seal, 5.2rem);
             border-radius: 50%;
-            box-shadow: 0 0 2.4rem color-mix(in srgb, var(--pseal-accent) 45%, transparent), 0 .6rem 1.4rem rgba(0, 0, 0, 0.55);
+            box-shadow: 0 .6rem 1.4rem rgba(0, 0, 0, 0.55);
             /* THE CROWN over the seal — the office, drawn once. */
             &::before {
                 content: '';
@@ -1333,7 +1331,7 @@ html.con-profile-tv .con-parl-fxhost { .con-act-slot-tokens-tv(); }
         align-items: center;
         border-radius: 1rem;
         background: linear-gradient(180deg, rgba(46, 38, 18, 0.97), rgba(18, 15, 9, 0.98));
-        box-shadow: inset 0 0 0 .1rem fade(@con-parl-gold, 70%), 0 1.2rem 2.6rem rgba(0, 0, 0, 0.55), 0 0 2.4rem fade(@con-parl-gold, 18%);
+        box-shadow: inset 0 0 0 .1rem fade(@con-parl-gold, 70%), 0 1.2rem 2.6rem rgba(0, 0, 0, 0.55);
     }
     &__kicker {
         .con-parl-v8-kicker();
@@ -1424,7 +1422,7 @@ html.con-profile-tv .con-parl-qd {
         position: relative; display: inline-flex; align-items: center; justify-content: center; flex-direction: column;
         width: 1.7rem; height: 1.7rem; border-radius: 50%;
         background: radial-gradient(circle at 40% 35%, #fbe9ac, #c99a2e 70%);
-        box-shadow: 0 0 .6rem fade(@con-parl-gold, 30%), inset 0 0 0 .05rem rgba(80, 55, 10, 0.5);
+        box-shadow: inset 0 0 0 .05rem rgba(80, 55, 10, 0.5);
         b { font-size: .5rem; line-height: 1; color: #3a2608; font-weight: 400; margin-top: 2%; }
         &--rung { width: 2.6rem; height: 2.6rem; b { font-size: .7rem; } }
     }
@@ -1594,7 +1592,7 @@ html.con-profile-handheld .con-parl.con-parl--hall {
         display: grid;
         place-items: center;
         background: radial-gradient(circle at 40% 35%, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.35));
-        box-shadow: inset 0 0 0 .12rem var(--paccess-accent), 0 0 1rem var(--paccess-tint);
+        box-shadow: inset 0 0 0 .12rem var(--paccess-accent);
     }
     &__seal { width: 74%; height: 74%; object-fit: contain; }
     &--lacks &__seal { opacity: .7; }

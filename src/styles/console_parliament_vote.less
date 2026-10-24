@@ -16,7 +16,7 @@
         background: rgba(14, 22, 33, 0.6);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.25);
         transition: box-shadow calc(160ms * var(--motion-scale, 1)) @con-ease-standard, background-color calc(160ms * var(--motion-scale, 1)) @con-ease-standard;
-        &--ready { background: fade(@con-parl-mint, 9%); box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 70%), 0 0 .9rem fade(@con-parl-mint, 14%); }
+        &--ready { background: fade(@con-parl-mint, 9%); box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 70%); }
         &--blocked { color: @con-amber; box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%); .con-parl__cta-label { font-size: .8rem; font-weight: 600; white-space: normal; line-height: 1.2; } }
         &--busy { opacity: .8; }
         &--done { background: fade(@con-parl-mint, 14%); box-shadow: inset 0 0 0 .07rem fade(@con-parl-mint, 80%); }

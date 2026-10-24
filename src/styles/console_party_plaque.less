@@ -65,7 +65,7 @@
         background: radial-gradient(circle at 50% 35%, #2c2618 0%, #0d0b07 100%);
         box-shadow: 0 0 0 .06rem rgba(4, 4, 8, 0.92), inset 0 0 0 .06rem rgba(255, 210, 122, 0.85);
         .alliance-link-glyph(66%; 17%; 17%; #ffd27a; max(1px, .075rem));
-        &--active { box-shadow: 0 0 0 .06rem rgba(4, 4, 8, 0.92), inset 0 0 0 .06rem rgba(255, 210, 122, 0.95), 0 0 .55rem rgba(255, 210, 122, 0.5); }
+        &--active { box-shadow: 0 0 0 .06rem rgba(4, 4, 8, 0.92), inset 0 0 0 .06rem rgba(255, 210, 122, 0.95); }
         &--dormant {
             background: rgba(10, 12, 18, 0.88);
             box-shadow: 0 0 0 .06rem rgba(4, 4, 8, 0.92), inset 0 0 0 .06rem rgba(160, 174, 190, 0.5);
@@ -114,7 +114,7 @@
         background: rgba(0, 0, 0, 0.35);
         box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.14);
         color: fade(@con-text, 50%);
-        &--available { color: #0d1a14; background: @con-parl-mint; box-shadow: 0 0 .6rem fade(@con-parl-mint, 45%); }
+        &--available { color: #0d1a14; background: @con-parl-mint; box-shadow: none; }
         &--used { color: fade(@con-text, 45%); background: rgba(0, 0, 0, 0.45); box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.1); }
         &--not-now { color: @con-amber; background: fade(@con-amber, 8%); box-shadow: inset 0 0 0 .06rem fade(@con-amber, 70%); }
         &--blocked { color: fade(@con-text, 55%); }
@@ -306,13 +306,13 @@
         outline-offset: .14rem;
         animation: con-pseal-roll-mark calc(320ms * var(--motion-scale, 1)) @con-ease-standard 1;
     }
-    &--roll-enacted &__seal { outline: .1rem solid fade(@con-parl-gold, 92%); box-shadow: 0 0 .9rem fade(@con-parl-gold, 40%); }
+    &--roll-enacted &__seal { outline: .1rem solid fade(@con-parl-gold, 92%); box-shadow: none; }
     &--roll-lost &__seal { outline: .09rem dashed fade(@con-cyan, 88%); }
     &--roll-absent &__seal { outline: .09rem dotted fade(@con-parl-silver, 85%); }
 
     /* ── STATE RINGS — the console's state colours, never the player's. ── */
-    &--ruling &__ring, &--ruling-default &__ring { border-color: @con-parl-gold; box-shadow: 0 0 .5rem fade(@con-parl-gold, 45%); }
-    &--delegates &__ring, &--granted &__ring { border-color: @con-parl-mint; box-shadow: 0 0 .5rem fade(@con-parl-mint, 40%); }
+    &--ruling &__ring, &--ruling-default &__ring { border-color: @con-parl-gold; box-shadow: none; }
+    &--delegates &__ring, &--granted &__ring { border-color: @con-parl-mint; box-shadow: none; }
     &--progress &__ring, &--in-area &__ring { border-color: fade(@con-cyan, 75%); border-style: dashed; }
     /* A party outside the vote: its ring is dark and its foot silent — the
        identity and the mechanic stay confidently readable (a player needs

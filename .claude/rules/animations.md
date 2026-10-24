@@ -14,7 +14,7 @@ paths:
 ## One motion system — no hand-rolled durations
 `src/client/components/motion/motionTokens.ts` is the single source of animation speed. JS timings resolve through **`motionMs(base)`**, CSS animations through **`calc(<base>ms * var(--motion-scale, 1))`**, easing from **`MOTION_EASE`**. Presets `calm|standard|swift` (`?motion=`, `tm_motion_speed`); rAF loops use `createFrameGate` (`?motionFps=`). `prefers-reduced-motion` is a separate overriding axis and must be honoured.
 
-Taste: Ark Nova (BGA) feel — short easings, subtle scale/glow, no hard pop-ins, calm by default. Never introduce flashy motion just because something changed.
+Taste: Ark Nova (BGA) feel — short easings, subtle scale, no hard pop-ins, calm by default. Never introduce flashy motion just because something changed. **Light is not a default accent**: a glow may mark a ONE-SHOT event the player must not miss and must end on its own; a standing state is never a halo and never a breathing loop (CLAUDE.md invariant 15, `console-ui.md` § VISUAL RESTRAINT, guard `glowRestraintGuard.spec.ts`).
 
 ## Animation holds — never a timer, never an ad-hoc gate
 Every CRITICAL animation is a first-class foreground occupant via `presentation/animationHold.ts`:
