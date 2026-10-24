@@ -638,13 +638,14 @@
         border: none;
         background: radial-gradient(circle at 40% 32%, fade(@con-parl-gold, 22%), rgba(0, 0, 0, 0.3));
         box-shadow: inset 0 0 0 .08rem fade(@con-parl-gold, 65%);
-        /* SEATED: the medallion takes the holder's cube colour — a lit disc, a rim and a halo in --pt-*. */
+        /* SEATED: the medallion takes the holder's cube colour — a lit disc, a rim and a halo in --pt-* (full colours:
+           `tokenStyleVars` writes `rgb(…)`, so a translucent tone is a `color-mix`, never `rgba(var(…))`). */
         &--seated {
             background:
                 radial-gradient(circle at 50% 78%, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0) 46%),
-                radial-gradient(circle at 42% 30%, rgba(var(--pt-base), 0.42), rgba(var(--pt-bottom), 0.55) 72%, rgba(0, 0, 0, 0.55));
+                radial-gradient(circle at 42% 30%, color-mix(in srgb, var(--pt-base) 42%, transparent), color-mix(in srgb, var(--pt-bottom) 55%, transparent) 72%, rgba(0, 0, 0, 0.55));
             box-shadow:
-                inset 0 0 0 .1rem rgb(var(--pt-edge-hi)),
+                inset 0 0 0 .1rem var(--pt-edge-hi),
                 inset 0 -.35rem .7rem rgba(0, 0, 0, 0.35),
                 0 0 0 .08rem rgba(0, 0, 0, 0.55),
                 0 0 1.1rem var(--pt-glow);
@@ -654,7 +655,7 @@
         &--won { box-shadow: inset 0 0 0 .08rem @con-parl-mint; }
         &--seated&--won {
             box-shadow:
-                inset 0 0 0 .1rem rgb(var(--pt-edge-hi)),
+                inset 0 0 0 .1rem var(--pt-edge-hi),
                 inset 0 -.35rem .7rem rgba(0, 0, 0, 0.35),
                 0 0 0 .12rem @con-parl-mint,
                 0 0 1.1rem var(--pt-glow);
@@ -731,7 +732,6 @@
         &--won .con-parl__quest-frac { color: @con-parl-mint; opacity: 1; font-weight: 700; }
         &--won .con-parl__engine-pip--on { background: @con-parl-mint; box-shadow: inset 0 0 0 .06rem @con-parl-mint; }
     }
-    &__quest-won { font-style: normal; font-weight: 800; color: @con-parl-mint; }
     &__quest-frac { font-weight: 400; font-variant-numeric: tabular-nums; opacity: .85; }
     &__engine-pips { display: inline-flex; gap: .2rem; }
     &__engine-pip { width: .62rem; height: .62rem; border-radius: 50%; box-shadow: inset 0 0 0 .06rem fade(@con-parl-gold, 70%); &--on { background: @con-parl-gold; } }

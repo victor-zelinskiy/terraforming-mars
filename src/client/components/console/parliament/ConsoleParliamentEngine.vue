@@ -90,7 +90,6 @@
         <template v-else>
           <b :key="row.value" class="con-parl__tick">{{ row.value }}</b><span class="con-parl__quest-of">/{{ questCount }}</span>
         </template>
-        <i v-if="row.color === questDoneBy" class="con-parl__quest-won" aria-hidden="true">✓</i>
       </span>
     </div>
   </div>
