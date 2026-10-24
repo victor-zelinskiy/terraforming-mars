@@ -570,3 +570,17 @@ describe('the action commit\'s rail rule — a DIRECT TR of a branch flies to th
     });
   });
 });
+
+describe('a DRAW that also pays a stock (ONE FRAMEWORK — Open IP Trade)', () => {
+  const branch = {
+    index: -1, title: 'sale', available: true, renderKeys: [], steps: [],
+    effects: [{direction: 'gain', icon: 'megacredits', amount: 6}, {direction: 'gain', icon: 'cards', amount: 2}],
+  } as unknown as ActionPreviewBranch;
+  it('the stock rides the half\'s LAST link beside the deck\'s cards; with no flag a draw keeps no result link', () => {
+    const plan = commitRailPlan({key: 'RESOLUTION_X'}, branch, {}, [], {resultElsewhere: true, stockBesideDraw: true});
+    expect(plan?.reward.cause).deep.eq([{channel: 'stock', resource: 'megacredits', amount: 6}]);
+    expect(plan?.links).deep.eq([[0]]);
+    expect(plan?.reward.known, 'the chain carries the M€ row — never a known move beside it').not.to.have.property('stock:megacredits');
+    expect(commitRailPlan({key: 'RESOLUTION_X'}, branch, {}, [], {resultElsewhere: true}), 'a plain draw: nothing on the rail').is.undefined;
+  });
+});

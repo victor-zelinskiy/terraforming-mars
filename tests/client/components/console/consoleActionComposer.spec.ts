@@ -9,6 +9,7 @@ import {
   andOptionParts,
   composeAndResponse,
   firstMissingChoice,
+  optionPickAsStep,
   perCardTotals,
   preChoices,
   canConfirm,
@@ -191,6 +192,25 @@ describe('consoleActionComposer', () => {
     it('three cards picked: every rate times three, the «per card» note gone', () => {
       const totals = perCardTotals(RATE, {type: 'card', cards: ['A', 'B', 'C']});
       expect(totals.effects.map((e) => [e.icon, e.amount, e.note])).to.deep.eq([['cards', 3, undefined], ['megacredits', 9, undefined], ['cards', 3, undefined]]);
+    });
+  });
+
+  // A political branch's «onto a card» pick IS its option (the Scientists, Manufacturing Run): the commit reads it as
+  // the step it is, so the gain's token lands on the picked card — never the satellite.
+  describe('optionPickAsStep', () => {
+    const PICK = {type: 'card', title: 'card', cards: [{name: 'Construction Mechs'}], min: 1, max: 1} as unknown as PlayerInputModel;
+    const BRANCH = {index: 2, title: 'mech', available: true, renderKeys: [], steps: [], optionInput: PICK,
+      effects: [{direction: 'gain', icon: 'mech', amount: 1, note: 'to a card'}]} as unknown as ActionPreviewBranch;
+    it('appends the option as the gain\'s card step, its answer at that index', () => {
+      const answer = {type: 'card', cards: ['Construction Mechs']};
+      const read = optionPickAsStep(BRANCH, {}, answer);
+      expect(read.branch.steps).to.deep.eq([{kind: 'input', input: PICK, cardResource: 'mech', amount: 1}]);
+      expect(read.captured).to.deep.eq({0: answer});
+    });
+    it('no card answer, no «to a card» gain, or no option — returned as it is', () => {
+      expect(optionPickAsStep(BRANCH, {}, undefined).branch).to.eq(BRANCH);
+      const noGain = {...BRANCH, effects: []} as unknown as ActionPreviewBranch;
+      expect(optionPickAsStep(noGain, {}, {type: 'card', cards: ['X']}).branch).to.eq(noGain);
     });
   });
 

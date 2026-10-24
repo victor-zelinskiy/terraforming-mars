@@ -964,6 +964,7 @@ import {
   ComposerChoice,
   branchChoices,
   composeAndResponse,
+  optionPickAsStep,
   perCardTotals,
   preChoices,
   firstMissingChoice,
@@ -5499,6 +5500,12 @@ export default defineComponent({
           [...(this.multiPicks[c.id] ?? [])] as Array<CardName> :
           (this.picks[c.id] !== undefined ? [this.picks[c.id] as CardName] : []));
       const gain = c.multiSelect?.revealGain;
+      // A per-CARD exchange the server declares on the discard (Open IP Trade: «per card discarded: +3 M€ AND draw a
+      // card») drives the album's running sum, the server's own rate — never a per-TAG one (the Reds' recycle counts
+      // the thrown cards' tags; the album's header counts it on its own).
+      const exchange = model.discardPrompt?.exchange;
+      const perCard = exchange !== undefined && exchange.perTag === undefined ?
+        {icon: exchange.icon, amount: exchange.amount, ...(exchange.draw !== undefined ? {cards: exchange.draw} : {})} : undefined;
       enterConsoleHandPick({
         title: model.title,
         buttonLabel: model.buttonLabel || 'Select',
@@ -5507,7 +5514,7 @@ export default defineComponent({
         min: model.min ?? 1,
         max: model.max ?? 1,
         selected: prior,
-        gainPerCard: gain !== undefined ? {icon: gain.resource, amount: gain.amount} : undefined,
+        gainPerCard: gain !== undefined ? {icon: gain.resource, amount: gain.amount} : perCard,
         // The pick surface names the operation it serves — the player keeps
         // the WHY while the focus stage waits hidden underneath.
         source: this.handPickSource(),
@@ -6090,7 +6097,11 @@ export default defineComponent({
     playCommitBeat(pressed: ActionPreviewBranch, opts: {spendDepartsElsewhere?: boolean, resultElsewhere?: boolean, heroParked?: {price: Element | undefined}} = {}): void {
       // A RATE «per card» is flown as the pick's TOTAL (Open IP Trade RX24 — 3 M€ per card discarded): the rail checks
       // the sum against the views, never the rate.
-      const branch = perCardTotals(pressed, this.capturedOption);
+      // …and a political branch's card pick IS its option (the Scientists' / Manufacturing Run's «onto a card»): the
+      // commit reads it as the step it is, so the token lands on the card the row shows — never the satellite.
+      const asStep = optionPickAsStep(perCardTotals(pressed, this.capturedOption), this.captured, this.capturedOption);
+      const branch = asStep.branch;
+      const stepAnswers = asStep.captured;
       // BOTH read the captures: a branch whose result is chosen in a step
       // («любой стандартный ресурс») has no chips of its own, so the category
       // and the reward wave are only knowable once the answer is in hand.
@@ -6107,7 +6118,7 @@ export default defineComponent({
       // it answers no deck (a draw is a row's step, several beats away): the impulse runs the printed row, lands
       // on the result's own text, and the ledger's first row takes the weight.
       const ledgerBranch = branch.colonyBonuses !== undefined;
-      const baseKind = ledgerBranch ? 'generic' : commitKindForBranch(branch, this.captured);
+      const baseKind = ledgerBranch ? 'generic' : commitKindForBranch(branch, stepAnswers);
       const kind = ledgerBranch ? 'generic' : stageFollowUp === 'draw' || stageFollowUp === 'reuse-action' ? 'draw' :
         (baseKind === 'generic' && stageSpecs.length > 0 ? 'resources' : baseKind);
       // THE RAIL HALF (PL-001 for actions): a direct TR, a capsule timeline's two movements, the table's answer —
@@ -6119,16 +6130,17 @@ export default defineComponent({
       // …and a DRAW's own SPEND off the card (PL-201 — TR46's «all the data», TR02's 3 data, Aerial Mappers' floater) rides
       // it too, with no result link: the capsule's token leaves on its own beat, the deck answers the result.
       const railPlan = ledgerBranch ? undefined :
-        commitRailPlan(this.commitSource, branch, this.captured,
+        commitRailPlan(this.commitSource, branch, stepAnswers,
           kind === 'draw' ? [] : reactionRailSpecs(forecastForFixedBranch(this.preview?.forecast, this.selectedPos ?? -1)?.facts), {
             preSteps: this.preview?.preSteps,
             preResponses: this.capturedPre,
             ownCard: (name) => this.thisPlayer.tableau.some((c) => c.name === name),
             departsElsewhere: opts.spendDepartsElsewhere === true,
             resultElsewhere: kind === 'draw' || opts.resultElsewhere === true,
+            stockBesideDraw: kind === 'draw',
           });
       const specs = ledgerBranch ? [] : [
-        ...(railPlan !== undefined ? commitWaveSpecs(this.commitSource, branch, this.captured, railPlan) : commitRewardSpecs(this.commitSource, branch, this.captured)),
+        ...(railPlan !== undefined ? commitWaveSpecs(this.commitSource, branch, stepAnswers, railPlan) : commitRewardSpecs(this.commitSource, branch, stepAnswers)),
         ...stageSpecs,
       ];
       const root = this.$refs.rootEl as HTMLElement | undefined;

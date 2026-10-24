@@ -615,6 +615,8 @@ export default defineComponent({
       pendingAfterRail: undefined as number | undefined,
       /** What the hosted HAND step is (set at its rising edge — see the `handStepHosted` watcher). */
       handStepKind: undefined as 'discard' | 'live' | 'pick' | undefined,
+      /** A party's discard was answered and its hand let go — the payout and the conclusion wait for the ANSWER. */
+      discardAnswerOwed: false,
       /**
        * THE PREVIEW THE COMMITTED ACTION WAS COMPOSED AGAINST — latched at the
        * submit, keyed by the variant it belongs to, released when the stage
@@ -1090,6 +1092,10 @@ export default defineComponent({
     playPickCard(): string {
       return (consolePlayPickState.active || this.livePlayStanding) && workspaceFrameDescended('hand') ? workspaceFrameSubject('hand') : '';
     },
+    /** A party's mandatory DISCARD is the standing prompt (the server's marker — never a title). */
+    discardStanding(): boolean {
+      return this.playerView.waitingFor?.partyActionPrompt?.stage === 'discard';
+    },
     /** THE LAW'S LIVE PLAY stands (RX36, PL-727): the card pick a bill with a payment of its own raised after it. */
     livePlayStanding(): boolean {
       const law = this.composer?.resolution;
@@ -1475,13 +1481,26 @@ export default defineComponent({
           // law's live play leaves the same way (the card on the table; a step still owed holds it there). A PICK's
           // return is the stage's own next row — never an ending (it once folded the law's stage under its slot).
           if (kind === 'discard') {
-            const ref = this.$refs.composerRef as InstanceType<typeof ConsoleActionComposer> | undefined;
-            void (ref?.flyDiscardExchange() ?? Promise.resolve()).then(() => this.concludeFlow());
+            // The hosted hand falls at the SUBMIT — the answer (and with it the payout the apply block seeds) is still
+            // on the wire. Flown now, the wave found nothing pending and the flow concluded: the payout was seeded a
+            // moment later with nobody left to fly it (the box's parliament-actions probe). The answer is awaited.
+            if (this.discardStanding) {
+              this.discardAnswerOwed = true;
+            } else {
+              this.payDiscardAndConclude();
+            }
           } else if (kind === 'live') {
             void this.$nextTick(() => this.concludeFlow());
           }
         }
       },
+    },
+    /** The discard's ANSWER landed (the marker left the prompt): its payout — seeded in that very apply block — flies. */
+    discardStanding(standing: boolean): void {
+      if (!standing && this.discardAnswerOwed) {
+        this.discardAnswerOwed = false;
+        this.payDiscardAndConclude();
+      }
     },
     // The server's answer to a CLAIMED deck-check confirm: pipe the reveal
     // payload into the stage's reveal phase (the shell suppresses the standalone
@@ -2871,6 +2890,11 @@ export default defineComponent({
         setWorkspaceFrameSubject('card-actions', resolution !== undefined ? this.resolutionNameOf(resolution) ?? resolution : party);
       }
       this.composer = {cardName: tile.cardName, nodeIndex: 0, party, resolution};
+    },
+    /** A party's discard is answered: its payout flies off the plaque's printed icon (checked against the views), then the flow LEAVES. */
+    payDiscardAndConclude(): void {
+      const ref = this.$refs.composerRef as InstanceType<typeof ConsoleActionComposer> | undefined;
+      void (ref?.flyDiscardExchange() ?? Promise.resolve()).then(() => this.concludeFlow());
     },
     onComposerCommitting(on: boolean): void {
       this.composerExecuting = on && !this.repeat;

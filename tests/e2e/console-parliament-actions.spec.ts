@@ -476,6 +476,11 @@ test.describe('parliament · party actions', () => {
     await armTransferWitness(page);
     await press(page, 'Period', 1200); // RT — confirm the set
     await expect.poll(async () => (await seatOf(request, playerId)).waitingFor?.type, {timeout: 30_000, message: 'the discard was answered'}).not.toBe('card');
+    // What the payout stood on at the answer — named in the failure below (the rail's held reward, the workspace).
+    const atAnswer = await page.evaluate(() => {
+      const ready = (window as unknown as {__conReady?: () => {railReward?: unknown}}).__conReady?.();
+      return {workspace: document.querySelector('.con-cardactions') !== null, composer: document.querySelector('.con-cardactions .con-composer') !== null, rail: ready?.railReward};
+    });
     // The payout is the ACTION COMMIT's language — a wave off the plaque's printed «2 M€», never a result panel.
     await shoot(page, '10a-reds-payout');
     await waitForBoardHome(page, 40);
@@ -485,7 +490,7 @@ test.describe('parliament · party actions', () => {
     const witness = await transferWitness(page);
     if (paid > 0) {
       const born = witness.births.filter((e) => e.value === '+2');
-      expect(born.length, `one «+2» token per paying tag (trail:\n${transferTrail(witness)})`).toBe(paid / 2);
+      expect(born.length, `one «+2» token per paying tag (trail:\n${transferTrail(witness)}\nat the answer: ${JSON.stringify(atAnswer)})`).toBe(paid / 2);
       expect(born.every((e) => e.under === 'hero'), `born on the plaque standing in the hero slot (trail:\n${transferTrail(witness)})`).toBe(true);
       const landed = witness.landings.filter((e) => born.some((b) => b.id === e.id));
       expect(landed.every((e) => e.under === 'rail:megacredits'), `landed on the M€ row (trail:\n${transferTrail(witness)})`).toBe(true);

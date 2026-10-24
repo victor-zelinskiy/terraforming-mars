@@ -599,6 +599,12 @@ export type SpendContext = {
    * carries the spends that leave the card BEFORE it and no result link (PL-201, TR46).
    */
   resultElsewhere?: boolean;
+  /**
+   * The result hosted elsewhere is a DRAW that also PAYS a stock (Open IP Trade's sale: +3 M€ AND a card per card
+   * thrown): the cards are the deck's, the stock is the rail's — the claimed path flies no wave («a draw's reward is
+   * the cards»), so without this the M€ ticked with no cause on screen. Its tokens ride the half's LAST link.
+   */
+  stockBesideDraw?: boolean;
 };
 
 /** The card a captured `{type: 'card', cards: [X]}` answer picked. */
@@ -830,11 +836,15 @@ export function commitRailPlan(
   // A DRAW's result is the DECK's (the workspace hosts the cards — PL-201, TR46 «all the data → the deck»): the chain
   // carries only what leaves the card before it, never a result link of its own.
   const resultHere = spend.resultElsewhere !== true;
+  const besideDraw = !resultHere && spend.stockBesideDraw === true ?
+    commitRewardSpecs(source, branch, stepResponses).filter((spec) =>
+      (spec.channel === 'stock' || spec.channel === 'production') && spec.direction !== 'loss') :
+    [];
   const onCard = resultHere && spends.length === 0 && timeline === undefined && spend.departsElsewhere !== true ?
     commitRewardSpecs(source, branch, stepResponses).filter((spec) =>
       spec.channel === 'card-resource' && spec.targetCard !== undefined && spec.direction !== 'loss') :
     [];
-  if (tr.length === 0 && timeline === undefined && spends.length === 0 && onCard.length === 0) {
+  if (tr.length === 0 && timeline === undefined && spends.length === 0 && onCard.length === 0 && besideDraw.length === 0) {
     return undefined;
   }
   const cause: Array<ResourceTransferSpec> = [];
@@ -848,7 +858,7 @@ export function commitRailPlan(
   }
   // A SPEND first, each its own link; the result — the branch's own gains the wave would have flown — is the LAST
   // link, beside the TR: it is born where the spend was absorbed.
-  const result = !resultHere ? [] : spends.length > 0 ? commitRewardSpecs(source, branch, stepResponses) : onCard;
+  const result = !resultHere ? besideDraw : spends.length > 0 ? commitRewardSpecs(source, branch, stepResponses) : onCard;
   for (const spec of spends) {
     spendLinks.push(cause.length);
     links.push([cause.length]);

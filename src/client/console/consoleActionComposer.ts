@@ -793,6 +793,28 @@ export function perCardTotals(branch: ActionPreviewBranch, optionResponse: unkno
   return {...branch, effects: branch.effects.map((e) => e.note === 'per card' ? {...e, amount: e.amount * count, note: undefined} : e)};
 }
 
+/**
+ * THE OPTION'S CARD PICK IS THE GAIN'S TARGET (ONE FRAMEWORK — the Scientists' party action, Manufacturing Run's law):
+ * a political branch carries its «put the resource on a card» pick as the branch's OPTION input, never as a step, so
+ * the commit's reward reader (`extractPlayRewards` — a gain's target is a STEP's picked card) found no target and the
+ * token rode the shell's wave into the satellite. Read here as the step it is: the option input appended as a card
+ * step of the branch's own «to a card» gain, its answer at that index. Anything else is returned as it is.
+ */
+export function optionPickAsStep(
+  branch: ActionPreviewBranch, captured: Readonly<Record<number, unknown>>, optionResponse: unknown,
+): {branch: ActionPreviewBranch, captured: Readonly<Record<number, unknown>>} {
+  const picked = optionResponse as {type?: string} | undefined;
+  const gain = branch.effects.find((e) => e.direction === 'gain' && e.note === 'to a card');
+  if (branch.optionInput?.type !== 'card' || picked?.type !== 'card' || gain === undefined) {
+    return {branch, captured};
+  }
+  const at = branch.steps.length;
+  return {
+    branch: {...branch, steps: [...branch.steps, {kind: 'input', input: branch.optionInput, cardResource: gain.icon, amount: gain.amount}]},
+    captured: {...captured, [at]: optionResponse},
+  };
+}
+
 // ── a TWO-PART pick — an AndOptions of picks, answered as ONE response ───────
 
 /**
