@@ -9,8 +9,8 @@ import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
  */
 export const DELEGATE_FIGURE_FLOOR = 18;
 
-/** The chairman's delegate seated in the chair (logical px) — `--pd-host: 1.2rem` on `.con-parl__chair-cube`. */
-export const CHAIR_FIGURE = 24;
+/** The chairman's delegate seated in the chair (logical px) — `--pd-host: 2.2rem` on `.con-parl__chair-cube` (the owner, 2026-10-24: the office reads at a glance). */
+export const CHAIR_FIGURE = 44;
 
 /** A figure's height (logical px, 1080-logical) as real px at the profile's scale — never under the floor. */
 export function delegateFigurePx(logical: number): number {

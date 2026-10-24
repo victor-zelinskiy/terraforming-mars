@@ -387,7 +387,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       const red = seats[1];
 
       await openParliament(page);
-      const questRow = page.locator('[data-parl-quest-progress] .con-parl__quest-row').filter({has: page.locator(`[data-player-token="${bot.color}"]`)});
+      const questRow = page.locator(`[data-parl-quest-progress] [data-parl-quest-row="${bot.color}"]`);
       await expect(questRow, 'the bot\'s row in the race').toHaveCount(1);
       await expect(questRow, 'reads 1/2 — a reachable quest, never «недостижимо»').toContainText('1/2');
       await expect(questRow.locator('.con-parl__quest-unreachable')).toHaveCount(0);

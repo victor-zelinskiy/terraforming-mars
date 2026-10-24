@@ -56,17 +56,19 @@ No `filter` anywhere.
 | Lobby socket `__socket--seat` · reserve pile `__stack--seat` | 1.05rem — handheld .92rem |
 | Threshold places `__place`, plaque `con-pseal__place`, support places `con-pseal__support-place`, effects / status places | .9rem (the floor) |
 | Support mode panel | 1.5rem · vote panel's support block 1.1rem |
-| The chair | 1.2rem (24, `CHAIR_FIGURE`) |
+| The chair | 2.2rem (44, `CHAIR_FIGURE`) — seated in a medallion in the holder's cube colour, the name under it |
 | Information › Парламент, the dossier | 28 (JS) |
-| Chips: seat ident, leader, fact rows, ledger, Agenda, dossiers | 18–26 (JS) |
+| Chips: leader, fact rows, dossiers | 18–26 (JS) |
 
 Flight variables (all 0 / 1 at rest — the proxy at the touchdown is pixel-identical to the figure under it):
 `--pd-lift` (px the body stands above its base) · `--pd-tilt` (deg, the lean) · `--pd-grow` (toward the camera) ·
 `--pd-air` (0 → 1, the shadow pales and spreads) · `--pd-squash`.
 
 **A figure is a delegate that VOTES** (the owner, 2026-10-24): WHOSE row / number is marked by the player's DOT
-(`con-parl__seat-dot`, the neutral's steel dot) — the delegates ledger's row and the Career head «Ваше влияние» —
-never by a figure, so every figure on the ledger is one the player can still spend (lobby, reserve, supply).
+(`con-parl__seat-dot`, the neutral's steel dot) — the delegates ledger's row, the Career head «Ваше влияние», the
+chairman quest's race rows — never by a figure, so every figure on the ledger is one the player can still spend (lobby,
+reserve, supply). A player's PLACE on the Career is THE TRACK MARKER's disc (`docs/claude/console/track-marker.md`), the
+Hydronetwork's own language — never a figure either.
 
 ## 4. A place is a FOOTPRINT (`.pd-footprint(@fig)`)
 

@@ -27,28 +27,31 @@
     <!-- Парламент v8: the quest is a PLATE at the head of the career row — its kicker names it (X reads the dossier). The
          plate prints no sentence, so WHICH quest it shows is the attribute `data-parl-quest-text` (the printed text's
          English key — the probes' identity of the quest, language-free). -->
-    <span class="con-parl__engine-kicker">{{ $t('Chairman quest') }}</span>
-    <!-- THE QUEST IS TAKEN (the owner, 2026-10-24) — the claimed milestone's seal as a STAMP over the condition, its
-         arrow and its reward (all receding — they cannot be had again): who completed it, «ВЫПОЛНЕНО ✓», and under it
-         «закрыто до следующего поколения» (the server refuses a second completion until the next government's quest).
-         It never touches the kicker's line (the 4K frame: a seal there cut «ЗАДАНИЕ ПРЕДСЕДАТЕЛЯ»). The race stays. -->
-    <span v-if="questDoneBy !== undefined" class="con-parl__quest-seal" data-parl-quest-seal :data-parl-quest-seal-by="questDoneBy">
-      <span class="con-parl__quest-seal-head">
-        <i class="con-parl__quest-seal-dot" :class="'player_bg_color_' + questDoneBy" aria-hidden="true"></i>
-        <span class="con-parl__quest-seal-word">{{ $t('Completed') }}</span>
-        <i class="con-parl__quest-seal-tick" aria-hidden="true">✓</i>
-      </span>
-      <span class="con-parl__quest-seal-note" data-parl-quest-closed-mark>{{ $t('Closed until the next generation') }}</span>
+    <!-- THE QUEST IS TAKEN (the owner, 2026-10-24: «сама композиция переходит в форму "выполнено"» — no stamp laid over
+         it): the plate's OWN parts change their form, each in its own cell — the kicker's word turns into «ЗАДАНИЕ
+         ВЫПОЛНЕНО ✓» (two words in ONE grid cell, a crossfade), the reward it paid is SEALED in the claimed milestone's
+         grammar (the completer's dot + ✓ where «+1 ★» stood, same chip, same box), the condition and its arrow recede
+         (they cannot be had again), the completer's race row is the score that won. «Закрыто до следующего поколения»
+         is the band's line under the cursor and the dossier's (X). -->
+    <span class="con-parl__engine-kicker" :class="{'con-parl__engine-kicker--done': questDoneBy !== undefined}">
+      <span class="con-parl__engine-kicker-word" :aria-hidden="questDoneBy !== undefined ? 'true' : undefined">{{ $t('Chairman quest') }}</span>
+      <span class="con-parl__engine-kicker-word con-parl__engine-kicker-word--done" data-parl-quest-done-word
+            :aria-hidden="questDoneBy === undefined ? 'true' : undefined">{{ $t('Quest completed') }}<i class="con-parl__engine-kicker-tick" aria-hidden="true">✓</i></span>
     </span>
-    <!-- THE CHAIR — the office's seat: the chairman's cube stands in it; empty, its silhouette alone. -->
-    <span class="con-parl__chair"
-          :class="{'con-parl__chair--seated': chairmanShown !== undefined, 'con-parl__chair--won': questShown?.completedBy !== undefined && questShown.completedBy === chairmanShown, 'con-parl__chair--pulse': flow.chairPulse}"
-          data-parl-chair
-          @animationend="onChairPulseEnd">
-      <PremiumChairGlyph class="con-parl__chair-glyph" />
-      <span v-if="chairmanShown !== undefined" class="con-parl__chair-cube" :data-parl-seat-chair="chairmanShown">
-        <PlayerDelegate :color="chairmanShown" />
+    <!-- THE CHAIR — the office's seat, the chairman SEATED in it at the plate's own scale (the owner, 2026-10-24: «сразу
+         понятно, какой игрок председатель»): the medallion rimmed and lit in the holder's cube colour, the throne behind
+         the figure, the holder's NAME under it (colour is never the only carrier). Empty: the throne alone. -->
+    <span class="con-parl__throne" :style="chairVars">
+      <span class="con-parl__chair"
+            :class="{'con-parl__chair--seated': chairmanShown !== undefined, 'con-parl__chair--won': questShown?.completedBy !== undefined && questShown.completedBy === chairmanShown, 'con-parl__chair--pulse': flow.chairPulse}"
+            data-parl-chair
+            @animationend="onChairPulseEnd">
+        <PremiumChairGlyph class="con-parl__chair-glyph" />
+        <span v-if="chairmanShown !== undefined" class="con-parl__chair-cube" :data-parl-seat-chair="chairmanShown">
+          <PlayerDelegate :color="chairmanShown" />
+        </span>
       </span>
+      <span class="con-parl__chair-name" :class="{'con-parl__chair-name--empty': chairmanName === ''}" data-parl-chair-name>{{ chairmanName === '' ? '\u00a0' : chairmanName }}</span>
     </span>
     <!-- THE CONDITION — its printed graphic (the ONE drawing the face, the dossier and this block share). -->
     <div v-if="questShown !== undefined" class="con-parl__engine-cond">
@@ -58,18 +61,24 @@
     </div>
     <!-- THE STEP it pays: into the first stop of the track beside it. -->
     <svg v-if="questShown !== undefined" class="con-parl__engine-arrow" viewBox="0 0 30 14" aria-hidden="true"><path d="M2 7h24M20 2l6 5-6 5" /></svg>
-    <span v-if="questShown !== undefined" class="con-parl__engine-step" :class="{'con-parl__engine-step--kept': viewerIsChairman}" data-parl-quest-reward aria-hidden="true">
-      <span class="con-parl__engine-plus">+1</span>
-      <i class="career-step-glyph" aria-hidden="true"></i>
+    <span v-if="questShown !== undefined" class="con-parl__engine-step"
+          :class="{'con-parl__engine-step--kept': viewerIsChairman && questDoneBy === undefined, 'con-parl__engine-step--taken': questDoneBy !== undefined}"
+          data-parl-quest-reward aria-hidden="true">
+      <span class="con-parl__engine-step-pay"><span class="con-parl__engine-plus">+1</span><i class="career-step-glyph" aria-hidden="true"></i></span>
+      <span class="con-parl__engine-step-seal" data-parl-quest-seal :data-parl-quest-seal-by="questDoneBy">
+        <i class="con-parl__engine-step-dot" :class="questDoneBy !== undefined ? 'player_bg_color_' + questDoneBy : ''"></i><i class="con-parl__engine-step-tick">✓</i>
+      </span>
     </span>
     <!-- THE RACE — one row per seat, the count as pips (a long count as digits). CLOSED or WON it is the final
          score at the same size (the block's geometry never moves under the government's beats). -->
     <div v-if="questRows.length > 0" class="con-parl__quest-progress" data-parl-quest-progress>
       <span v-for="row in questRows" :key="row.color" class="con-parl__quest-row"
-            :class="{'con-parl__quest-row--me': row.color === viewerColor, 'con-parl__quest-row--close': row.value > 0 && row.value >= questCount - 1, 'con-parl__quest-row--unreachable': rowUnreachable(row)}"
+            :class="{'con-parl__quest-row--me': row.color === viewerColor, 'con-parl__quest-row--close': row.value > 0 && row.value >= questCount - 1, 'con-parl__quest-row--unreachable': rowUnreachable(row), 'con-parl__quest-row--won': row.color === questDoneBy, 'con-parl__quest-row--behind': questDoneBy !== undefined && row.color !== questDoneBy}"
+            :data-parl-quest-row="row.color"
             :data-parl-quest-unreachable="rowUnreachable(row) ? '' : undefined"
             :data-parl-quest-value="row.value">
-        <PlayerDelegate :color="row.color" :size="figurePx(18)" :glow="false" />
+        <!-- WHOSE row — the player's DOT (a figure is a delegate that VOTES, never a row's owner). -->
+        <i class="con-parl__seat-dot" :class="'player_bg_color_' + row.color" aria-hidden="true"></i>
         <!-- MARSBOT'S ROW, on a quest its play cannot reach: a struck mark, never a race that cannot happen (the dossier says why). -->
         <span v-if="rowUnreachable(row)" class="con-parl__quest-unreachable" aria-hidden="true">✕</span>
         <template v-else-if="questCount <= PIPS_MAX">
@@ -81,6 +90,7 @@
         <template v-else>
           <b :key="row.value" class="con-parl__tick">{{ row.value }}</b><span class="con-parl__quest-of">/{{ questCount }}</span>
         </template>
+        <i v-if="row.color === questDoneBy" class="con-parl__quest-won" aria-hidden="true">✓</i>
       </span>
     </div>
   </div>
@@ -94,7 +104,8 @@ import PremiumChairGlyph from '@/client/components/premiumCard/PremiumChairGlyph
 import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
 import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mechanicsModel';
 import {PARLIAMENT_GRAPHIC} from '@/client/components/premiumCard/resolutionPremiumVm';
-import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
+import {tokenStyleVars} from '@/client/components/playerToken/playerTokenPalette';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {parliamentFlow, settleParliamentChairPulse, settleParliamentQuestPulse} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {ParliamentQuestVm, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
@@ -118,6 +129,16 @@ export default defineComponent({
     return {questPulse: false, PIPS_MAX};
   },
   computed: {
+    /** The chair's medallion paints in the holder's cube palette (`--pt-*`); an empty chair keeps the gold. */
+    chairVars(): Record<string, string> {
+      return this.chairmanShown === undefined ? {} : tokenStyleVars(this.chairmanShown);
+    },
+    /** The holder's display label under the chair ('' while the chair is empty — the slot keeps its line). */
+    chairmanName(): string {
+      const color = this.chairmanShown;
+      const player = color === undefined ? undefined : this.players.find((p) => p.color === color);
+      return player === undefined ? '' : participantDisplayName(player);
+    },
     /** Who completed the quest standing on the plate — the seal's subject (undefined while it is open). */
     questDoneBy(): Color | undefined {
       return this.questShown?.completedBy;
@@ -194,9 +215,6 @@ export default defineComponent({
       if (event.animationName === 'con-parl-land-flash') {
         settleParliamentChairPulse();
       }
-    },
-    figurePx(logical: number): number {
-      return delegateFigurePx(logical);
     },
   },
 });

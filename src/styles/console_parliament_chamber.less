@@ -610,59 +610,75 @@
         &--closed { background: rgba(0, 0, 0, 0.26); }
         &--closed .con-parl__quest-progress, &--done .con-parl__quest-progress { opacity: .6; }
     }
-    &__engine-kicker { .con-parl-v8-kicker(); grid-area: kick; justify-self: start; color: @con-parl-gold; }
-    /* THE QUEST IS TAKEN — the claimed milestone's seal (`con-strat__ownseal`'s grammar) as a STAMP over the condition,
-       its arrow and its reward (row 2, columns cond → step), which recede under it: the completer's dot, «ВЫПОЛНЕНО ✓»,
-       and the quiet line that it is closed until the next generation. Zero layout: the stamp shares their cells. */
-    &__quest-seal {
-        grid-row: 2;
-        grid-column: 3 / 6;
-        z-index: 2;
-        display: inline-flex;
-        flex-direction: column;
-        align-items: center;
-        gap: .18rem;
-        max-width: 100%;
-        padding: .22rem .6rem .26rem;
-        border-radius: .45rem;
-        background: rgba(8, 12, 20, 0.88);
-        box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 50%), 0 .3rem 1rem rgba(0, 0, 0, 0.45);
-        pointer-events: none;
+    /* The kicker's cell holds TWO words — «ЗАДАНИЕ ПРЕДСЕДАТЕЛЯ» and «ЗАДАНИЕ ВЫПОЛНЕНО ✓» — stacked in one grid cell and
+       crossfaded (never a mount: the line's box never moves). */
+    &__engine-kicker { .con-parl-v8-kicker(); grid-area: kick; justify-self: start; display: grid; color: @con-parl-gold; }
+    &__engine-kicker-word {
+        grid-area: ~"1 / 1";
+        white-space: nowrap;
+        transition: opacity calc(260ms * var(--motion-scale, 1)) ease-out;
+        &--done { color: @con-parl-mint; opacity: 0; }
     }
-    &__quest-seal-head {
-        display: inline-flex;
-        align-items: center;
-        gap: .32rem;
-        font-size: .7rem;
-        font-weight: 800;
-        letter-spacing: .12em;
-        line-height: 1;
-        text-transform: uppercase;
-        color: #ffe9c4;
-    }
-    &__quest-seal-dot { flex: none; width: .6rem; height: .6rem; border-radius: 50%; box-shadow: 0 0 0 .05rem rgba(0, 0, 0, 0.5); }
-    &__quest-seal-tick { font-style: normal; color: @con-parl-mint; }
-    &__quest-seal-note { font-size: .56rem; line-height: 1.15; text-align: center; color: rgba(205, 218, 232, 0.82); }
-    &__engine--done .con-parl__engine-cond, &__engine--done .con-parl__engine-arrow, &__engine--done .con-parl__engine-step { opacity: .3; }
+    &__engine-kicker--done .con-parl__engine-kicker-word { opacity: 0; }
+    &__engine-kicker--done .con-parl__engine-kicker-word--done { opacity: 1; }
+    &__engine-kicker-tick { font-style: normal; margin-left: .35em; }
+    /* THE QUEST IS TAKEN: what cannot be had again recedes in place. */
+    &__engine-cond, &__engine-arrow { transition: opacity calc(260ms * var(--motion-scale, 1)) ease-out; }
+    &__engine--done .con-parl__engine-cond { opacity: .42; }
+    &__engine--done .con-parl__engine-arrow { opacity: .55; stroke: @con-parl-mint; }
+    /* THE THRONE — the chair medallion over the holder's NAME (one column of the formula). */
+    &__throne { grid-area: chair; display: flex; flex-direction: column; align-items: center; gap: .22rem; min-width: 0; }
     &__chair {
-        grid-area: chair;
-        grid-row: auto;
         position: relative;
-        width: 3.2rem;
-        height: 3.2rem;
+        width: 4.1rem;
+        height: 4.1rem;
         display: grid;
         place-items: center;
         border-radius: 50%;
         border: none;
-        background: radial-gradient(circle at 40% 35%, fade(@con-parl-gold, 22%), rgba(0, 0, 0, 0.25));
+        background: radial-gradient(circle at 40% 32%, fade(@con-parl-gold, 22%), rgba(0, 0, 0, 0.3));
         box-shadow: inset 0 0 0 .08rem fade(@con-parl-gold, 65%);
-        &--seated .con-parl__chair-glyph { opacity: .3; }
+        /* SEATED: the medallion takes the holder's cube colour — a lit disc, a rim and a halo in --pt-*. */
+        &--seated {
+            background:
+                radial-gradient(circle at 50% 78%, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0) 46%),
+                radial-gradient(circle at 42% 30%, rgba(var(--pt-base), 0.42), rgba(var(--pt-bottom), 0.55) 72%, rgba(0, 0, 0, 0.55));
+            box-shadow:
+                inset 0 0 0 .1rem rgb(var(--pt-edge-hi)),
+                inset 0 -.35rem .7rem rgba(0, 0, 0, 0.35),
+                0 0 0 .08rem rgba(0, 0, 0, 0.55),
+                0 0 1.1rem var(--pt-glow);
+        }
+        &--seated .con-parl__chair-glyph { opacity: .5; fill: #f2dc93; }
+        /* WON: the quest's winner holds the office — a mint ring outside the holder's rim. */
         &--won { box-shadow: inset 0 0 0 .08rem @con-parl-mint; }
+        &--seated&--won {
+            box-shadow:
+                inset 0 0 0 .1rem rgb(var(--pt-edge-hi)),
+                inset 0 -.35rem .7rem rgba(0, 0, 0, 0.35),
+                0 0 0 .12rem @con-parl-mint,
+                0 0 1.1rem var(--pt-glow);
+        }
         &--pulse { animation: con-parl-land-flash calc(900ms * var(--motion-scale, 1)) ease-out both; }
     }
-    &__chair-glyph { width: 1.6rem; height: 1.6rem; fill: @con-parl-gold; opacity: .92; }
-    /* The chairman's DELEGATE seated IN the chair (the chair stays the one mark of the office; the figure is who holds it). */
-    &__chair-cube { position: absolute; inset: 0; display: grid; place-items: end center; padding-bottom: .5rem; --pd-host: 1.2rem; }
+    /* The throne stands BEHIND the seated figure — its crowned back rises over the figure's head. */
+    &__chair-glyph { position: absolute; top: .3rem; left: 50%; width: 2.7rem; height: 2.7rem; margin-left: -1.35rem; fill: @con-parl-gold; opacity: .92; }
+    /* The chairman's DELEGATE seated IN the chair — 44 logical px (`CHAIR_FIGURE`), its base a tenth of its height below
+       the medallion's centre (the quest director's fallback rect is the same box). */
+    &__chair-cube { position: absolute; inset: 0; display: grid; place-items: center; padding-top: calc(var(--pd-host) * .2); --pd-host: 2.2rem; }
+    &__chair-name {
+        max-width: 5.6rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: .6rem;
+        font-weight: 800;
+        letter-spacing: .08em;
+        line-height: 1.1;
+        text-transform: uppercase;
+        color: #eef2f7;
+        &--empty { visibility: hidden; }
+    }
     &__engine-cond { grid-area: cond; display: flex; align-items: center; justify-content: center; min-width: 0; max-width: 100%; }
     /* The printed condition bare on the plate (no dark tile behind it) at the formula's scale. */
     &__engine-cond .con-parl__quest-graphic { zoom: var(--con-parl-engine-zoom); padding: 2px 4px; background: none; border: none; box-shadow: none; }
@@ -677,8 +693,22 @@
         background: fade(@con-parl-gold, 10%);
         box-shadow: inset 0 0 0 .06rem fade(@con-parl-gold, 55%);
         color: @con-parl-gold; font-size: .95rem; line-height: 1; white-space: nowrap;
+        transition: background-color calc(260ms * var(--motion-scale, 1)) ease-out, box-shadow calc(260ms * var(--motion-scale, 1)) ease-out;
         &--kept { color: @con-parl-mint; background: fade(@con-parl-mint, 10%); box-shadow: inset 0 0 0 .06rem fade(@con-parl-mint, 55%); }
+        /* TAKEN — the claimed milestone's owner seal in the chip's own box: the completer's dot and the tick. */
+        &--taken { color: @con-parl-mint; background: rgba(10, 17, 27, 0.55); box-shadow: inset 0 0 0 .06rem fade(@con-parl-mint, 60%); }
     }
+    &__engine-step { display: inline-grid; }
+    &__engine-step-pay, &__engine-step-seal {
+        grid-area: ~"1 / 1";
+        display: inline-flex; align-items: center; justify-content: center; gap: .2rem;
+        transition: opacity calc(260ms * var(--motion-scale, 1)) ease-out;
+    }
+    &__engine-step-seal { opacity: 0; gap: .3rem; }
+    &__engine-step--taken .con-parl__engine-step-pay { opacity: 0; }
+    &__engine-step--taken .con-parl__engine-step-seal { opacity: 1; }
+    &__engine-step-dot { width: .7rem; height: .7rem; border-radius: 50%; box-shadow: 0 0 0 .06rem rgba(0, 0, 0, 0.5); }
+    &__engine-step-tick { font-style: normal; font-weight: 800; }
     &__engine-arrow {
         grid-area: arrow;
         width: 1.5rem;
@@ -694,7 +724,14 @@
         grid-area: race; justify-self: stretch; display: flex; flex-wrap: wrap; justify-content: center; gap: .3rem 1.1rem; min-width: 0;
         padding-top: .4rem; border-top: .05rem solid fade(@con-parl-gold, 18%);
     }
-    &__quest-row { display: inline-flex; align-items: center; gap: .4rem; padding: 0; font-size: .6rem; color: #e3eaf3; background: none; box-shadow: none; }
+    &__quest-row {
+        display: inline-flex; align-items: center; gap: .4rem; padding: 0; font-size: .6rem; color: #e3eaf3; background: none; box-shadow: none;
+        transition: opacity calc(260ms * var(--motion-scale, 1)) ease-out;
+        &--behind { opacity: .45; }
+        &--won .con-parl__quest-frac { color: @con-parl-mint; opacity: 1; font-weight: 700; }
+        &--won .con-parl__engine-pip--on { background: @con-parl-mint; box-shadow: inset 0 0 0 .06rem @con-parl-mint; }
+    }
+    &__quest-won { font-style: normal; font-weight: 800; color: @con-parl-mint; }
     &__quest-frac { font-weight: 400; font-variant-numeric: tabular-nums; opacity: .85; }
     &__engine-pips { display: inline-flex; gap: .2rem; }
     &__engine-pip { width: .62rem; height: .62rem; border-radius: 50%; box-shadow: inset 0 0 0 .06rem fade(@con-parl-gold, 70%); &--on { background: @con-parl-gold; } }
@@ -771,12 +808,13 @@
         &:last-of-type::after { display: none; }
     }
     &__step--passed::after, &__step--here::after { border-color: fade(@con-parl-mint, 70%); }
+    /* The markers — THE TRACK MARKER's discs, side by side at the row's middle (a ring apart, never touching). */
     &__step-cubes {
         grid-row: 1;
         display: flex;
         justify-content: center;
-        align-items: flex-end;
-        gap: .08rem;
+        align-items: center;
+        gap: .22rem;
         height: 100%;
         padding: 0;
     }
@@ -1118,8 +1156,12 @@ html.con-profile-handheld .con-parl {
     &__step--influence .con-parl__step-level { font-size: .56rem; }
     &__step-res { &--tr { width: 1.7rem; height: 1.28rem; } &--card { width: 1.15rem; height: 1.62rem; } }
     &__step--next .con-parl__step-node::after { inset: -.16rem; }
-    &__chair { width: 2.8rem; height: 2.8rem; }
-    &__chair-glyph { width: 1.4rem; height: 1.4rem; }
+    &__chair { width: 3.3rem; height: 3.3rem; }
+    &__chair-glyph { top: .25rem; width: 2.2rem; height: 2.2rem; margin-left: -1.1rem; }
+    &__chair-cube { --pd-host: 1.8rem; }
+    &__agenda-dot { width: .66rem; height: .66rem; }
+    &__step-cubes { gap: .16rem; }
+    &__chair-name { font-size: .5rem; max-width: 4.6rem; }
     &__kicker { font-size: .6rem; }
     &__slot-win { font-size: 11px; } /* keep-px: card px inside the face's zoom */
     /* The row's padding yields the .18rem the support line needs to hold an 18 px figure (the box never moves). */
@@ -1140,9 +1182,6 @@ html.con-profile-handheld .con-parl {
 
 /* ── the TV ladder (10-foot): the same hall at couch type — every WORD at or above the couch floor (.8rem). ── */
 html.con-profile-tv .con-parl {
-    /* The quest's seal and its «closed» word read at the couch floor. */
-    &__quest-seal-head, &__quest-seal-note { font-size: .8rem; }
-    &__quest-seal-dot { width: .7rem; height: .7rem; }
     /* П6: the palata gives the TABLE two rem (the opposition column one of them — the longest bench name still has
        room) — the bills grow ≈ 12 % at 4K into the height their column left empty; the enacted face keeps its size. */
     --con-parl-palata-w: 33rem;
@@ -1173,8 +1212,10 @@ html.con-profile-tv .con-parl {
     &__quest-row { font-size: .8rem; }
     &__engine-text { font-size: .8rem; max-width: 9.5rem; }
     &__engine-step { font-size: 1.1rem; }
-    &__chair { width: 3.4rem; height: 3.4rem; }
-    &__chair-glyph { width: 1.7rem; height: 1.7rem; }
+    &__chair { width: 4.4rem; height: 4.4rem; }
+    &__chair-glyph { width: 2.9rem; height: 2.9rem; margin-left: -1.45rem; }
+    &__chair-name { font-size: .8rem; max-width: 6.4rem; }
+    &__engine-step-dot { width: .8rem; height: .8rem; }
     &__engine-pip { width: .7rem; height: .7rem; }
     &__tally-num { font-size: 1.4rem; }
     &__slot-win { font-size: 11px; } /* keep-px: card px inside the face's zoom — the base ladder's rem would double it */

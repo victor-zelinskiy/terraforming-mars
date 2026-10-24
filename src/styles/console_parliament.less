@@ -1230,6 +1230,16 @@
     }
     &__step-cubes { display: flex; align-items: flex-start; justify-content: center; gap: .08rem; width: 100%; height: 100%; padding-top: .06rem; box-sizing: border-box; }
     &__agenda-cube { display: inline-flex; &--hidden { visibility: hidden; } }
+    /* THE CAREER MARKER — THE TRACK MARKER's disc (console_track_marker.less, the Hydronetwork's own language) in the
+       career's gold; the gliding proxy is the same disc wearing the director's phases. */
+    &__agenda-dot {
+        --con-track-accent: 230, 195, 74;
+        .con-track-marker(.8rem);
+        &--viewer { .con-track-marker-viewer(); }
+        &--settle { .con-track-marker-settle(); }
+        &--proxy { position: relative; .con-track-proxy-body(.8rem); }
+        .con-track-proxy-phases();
+    }
     /* The head's «next step» chip draws the same symbols at chip size. */
     /* In the HEAD's chip the two stand SIDE BY SIDE (v3 В4): there is room on the line, and a badge over a 1rem
        glyph reads as a circled number again — the very thing the track stopped doing. */

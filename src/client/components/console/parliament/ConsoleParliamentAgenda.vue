@@ -48,7 +48,7 @@
             <span v-for="color in shown.start" :key="color" class="con-parl__agenda-cube"
                   :class="{'con-parl__agenda-cube--hidden': cubeHidden(color, 0)}"
                   :data-agenda-cube="color">
-              <PlayerDelegate :color="color" :size="figurePx(22)" :glow="false" />
+              <i class="con-parl__agenda-dot" :class="dotClass(color, 0)" aria-hidden="true" @animationend="onDotSettleEnd($event, color, 0)"></i>
             </span>
           </span>
         </div>
@@ -75,7 +75,7 @@
             <span v-for="color in step.cubes" :key="color" class="con-parl__agenda-cube"
                   :class="{'con-parl__agenda-cube--hidden': cubeHidden(color, step.index)}"
                   :data-agenda-cube="color">
-              <PlayerDelegate :color="color" :size="figurePx(22)" :glow="false" />
+              <i class="con-parl__agenda-dot" :class="dotClass(color, step.index)" aria-hidden="true" @animationend="onDotSettleEnd($event, color, step.index)"></i>
             </span>
           </span>
         </div>
@@ -91,11 +91,12 @@
       </div>
     </div>
   </div>
-  <!-- THE AGENDA MARKER in motion — the Hydronetwork's marker director on the
-       Parliament's track: from the step it left to the step it reached. -->
+  <!-- THE AGENDA MARKER in motion — THE TRACK MARKER (console_track_marker.less): the Hydronetwork's disc and its
+       director on the Parliament's track, the director's phases written onto the disc — from the step it left to the
+       step it reached. -->
   <Teleport to="body">
     <div v-if="agendaFlight !== undefined" class="con-parl__flight con-parl__flight--agenda" ref="agendaFlightEl" aria-hidden="true">
-      <PlayerDelegate :color="agendaFlight.color" :size="figurePx(22)" :glow="false" />
+      <i class="con-parl__agenda-dot con-parl__agenda-dot--proxy" :class="['player_bg_color_' + agendaFlight.color, 'con-parl__agenda-dot--' + agendaPhase]"></i>
     </div>
   </Teleport>
 </template>
@@ -104,14 +105,12 @@ import {defineComponent, markRaw, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {ParliamentModel} from '@/common/models/ParliamentModel';
 import {AGENDA_TRACK, influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
-import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import ConsoleParliamentEngine from '@/client/components/console/parliament/ConsoleParliamentEngine.vue';
 import ConsoleInfluenceMod from '@/client/components/console/parliament/ConsoleInfluenceMod.vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
-import {HydroMarkerDirectorHandle, runHydroMarkerGlide} from '@/client/console/hydroMarker/hydroMarkerDirector';
+import {HydroMarkerDirectorHandle, MarkerPhaseName, runHydroMarkerGlide} from '@/client/console/hydroMarker/hydroMarkerDirector';
 import {consoleParliamentUi, parliamentFlow, parliamentRootEl, parliamentSupportUp} from '@/client/console/parliament/consoleParliamentFlow';
 import {AgendaAwaits, parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {sittingMotion} from '@/client/console/parliament/sittingDirector';
@@ -130,7 +129,7 @@ import {agendaWalkFlow, releaseAgendaWalkHolds} from '@/client/console/parliamen
  */
 export default defineComponent({
   name: 'ConsoleParliamentAgenda',
-  components: {PlayerDelegate, ConsoleParliamentEngine, ConsoleInfluenceMod},
+  components: {ConsoleParliamentEngine, ConsoleInfluenceMod},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     /** The seats (the engine's race names them) and the viewer — the engine's own props, threaded through. */
@@ -151,6 +150,10 @@ export default defineComponent({
       agendaPulseStep: undefined as number | undefined,
       /** The marker in motion along the Agenda track (a body-level proxy). */
       agendaFlight: undefined as {color: Color} | undefined,
+      /** The director's phase of the gliding disc (charge · glide · arrive · lock · pulse) — the proxy's paint. */
+      agendaPhase: 'charge' as MarkerPhaseName,
+      /** The real disc that has just been locked in — its one-shot settle (cleared by the animation's own end). */
+      agendaSettle: undefined as {color: Color, step: number} | undefined,
       /** The real cube the gliding proxy stands in for at its DESTINATION — hidden until the lock. */
       agendaHidden: undefined as {color: Color, step: number} | undefined,
       /** The real cube the proxy LIFTED OFF (the held marker on its old step) — hidden from the launch. */
@@ -305,8 +308,17 @@ export default defineComponent({
     bandInfluence(band: {level: number, mine: boolean}): number {
       return band.mine ? this.shown.viewerInfluence : band.level + this.influenceBuff;
     },
-    figurePx(logical: number): number {
-      return delegateFigurePx(logical);
+    /** A disc's paint: the owner's colour, the viewer's accent glow, the settle of a disc just locked in. */
+    dotClass(color: Color, step: number): Array<string | Record<string, boolean>> {
+      return ['player_bg_color_' + color, {
+        'con-parl__agenda-dot--viewer': color === this.viewerColor,
+        'con-parl__agenda-dot--settle': this.agendaSettle !== undefined && this.agendaSettle.color === color && this.agendaSettle.step === step,
+      }];
+    },
+    onDotSettleEnd(event: AnimationEvent, color: Color, step: number): void {
+      if (event.animationName === 'con-track-marker-settle' && this.agendaSettle?.color === color && this.agendaSettle.step === step) {
+        this.agendaSettle = undefined;
+      }
     },
     /** ONE held walk applied to a reading: the seat's cube carried back to `from`, the viewer's own influence and level with it. */
     heldAgendaVm(vm: AgendaVm, hold: AgendaAwaits): AgendaVm {
@@ -408,6 +420,7 @@ export default defineComponent({
       const held = hold !== undefined && hold.player === color && hold.from === record.from && hold.to === record.to;
       this.agendaHidden = {color, step: record.to};
       this.agendaFlight = {color};
+      this.agendaPhase = 'charge';
       consoleParliamentUi.agendaSettling = true;
       this.agendaGlideHoldMs = agendaWalkHoldMs(record);
       this.agendaGlideHold = beginAnimationHold('parliament-agenda-glide', {maxHoldMs: this.agendaGlideHoldMs});
@@ -473,7 +486,9 @@ export default defineComponent({
             to,
             reduced,
             skipCharge: !leg.charge,
-            onPhase: () => undefined,
+            onPhase: (phase) => {
+              this.agendaPhase = phase;
+            },
           });
           // RAW on purpose: the director's callbacks compare identities (`this.agendaGlide === handle`) — a reactive proxy never equals its raw object.
           this.agendaGlide = markRaw(handle);
@@ -487,6 +502,9 @@ export default defineComponent({
               parliamentHolds.agendaAwaits = undefined;
               this.agendaLifted = undefined;
               this.agendaHidden = undefined;
+              if (!reduced) {
+                this.agendaSettle = {color, step: leg.to};
+              }
             } else {
               // The marker STANDS on this step now: the hold moves with it — the tier draws the cube here and reads
               // the influence at this step's level — while the proxy still covers it until the next leg lifts.

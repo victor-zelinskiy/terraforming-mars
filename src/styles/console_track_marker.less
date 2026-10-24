@@ -1,0 +1,65 @@
+/* ══ THE TRACK MARKER — ONE premium language for a player's place on a TRACK (the owner, 2026-10-24: «точки в том же
+   языке, что на гидросети … единый премиум язык»). Two tracks speak it — the Hydronetwork's stops and the Parliament's
+   Career — and ONE director moves both (`console/hydroMarker/hydroMarkerDirector.ts`: charge · glide · arrive · lock ·
+   release). A track names only its ACCENT (`--con-track-accent`, an «r, g, b» triplet, set on the marker's own host and
+   on its proxy) and its disc SIZE; the disc, the viewer's mark, the proxy's phases and the settle are written HERE once —
+   a change here changes both tracks.
+   The disc is the OWNER's colour (`player_bg_color_*` paints the background) under a lit cap and a firm dark ring. It is
+   never a delegate: a figure is a delegate that VOTES (`docs/claude/console/parliament-delegate-figure.md` § 3). ══ */
+
+@con-track-ring: rgba(8, 14, 22, 0.9);
+@con-track-cap: radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0) 56%);
+@con-track-shade: inset 0 -.08rem .12rem rgba(0, 0, 0, 0.3);
+
+/* The resting disc on its stop / step. */
+.con-track-marker(@size: .65rem) {
+    flex: none;
+    width: @size;
+    height: @size;
+    border-radius: 50%;
+    background-image: @con-track-cap;
+    box-shadow: 0 0 0 .1rem @con-track-ring, @con-track-shade;
+}
+/* The VIEWER's own disc — the track's accent as a glow (never a colour change of the disc: the colour is the owner's). */
+.con-track-marker-viewer() {
+    box-shadow: 0 0 0 .1rem @con-track-ring, @con-track-shade, 0 0 .4rem rgba(var(--con-track-accent), .8);
+}
+/* The one-shot SETTLE when a glide has just locked its real disc in — the handoff from the proxy to the track. */
+.con-track-marker-settle() {
+    animation: con-track-marker-settle calc(680ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes con-track-marker-settle {
+    0% { transform: scale(1.5); box-shadow: 0 0 0 .1rem @con-track-ring, @con-track-shade, 0 0 0 .2rem rgba(var(--con-track-accent), .9), 0 0 .9rem rgba(var(--con-track-accent), .9); }
+    100% { transform: scale(1); box-shadow: 0 0 0 .1rem @con-track-ring, @con-track-shade, 0 0 .4rem rgba(var(--con-track-accent), .8); }
+}
+
+/* THE PROXY in flight — positioned and revealed by the director (x / y / scale / autoAlpha only); its PHASE classes are
+   the director's `onPhase` (`--charge` · `--glide` · `--arrive` · `--lock` · `--pulse`) written onto the proxy root —
+   the BODY on the proxy, the PHASES on the block whose modifier the phase class is. */
+.con-track-proxy-body(@size: .75rem) {
+    width: @size;
+    height: @size;
+    border-radius: 50%;
+    background-image: @con-track-cap;
+    box-shadow: 0 0 0 .1rem rgba(8, 14, 22, 0.95), @con-track-shade, 0 0 .5rem rgba(var(--con-track-accent), .75);
+}
+/* The phases — called on the element whose class the director's phase modifier extends (after the body: same weight). */
+.con-track-proxy-phases() {
+    /* CHARGE: a bright ready aura before the lift. */
+    &--charge { box-shadow: 0 0 0 .1rem rgba(8, 14, 22, 0.95), @con-track-shade, 0 0 .7rem rgba(var(--con-track-accent), .95); }
+    /* GLIDE: a subtle motion trail behind the travelling disc. */
+    &--glide::after {
+        content: '';
+        position: absolute;
+        inset: -.05rem;
+        border-radius: 50%;
+        box-shadow: 0 0 .6rem .15rem rgba(var(--con-track-accent), .45);
+    }
+    /* LOCK / PULSE: the seat — a crisp confirmation ring. */
+    &--lock, &--pulse { box-shadow: 0 0 0 .1rem rgba(8, 14, 22, 0.95), @con-track-shade, 0 0 0 .15rem rgba(var(--con-track-accent), .7), 0 0 .8rem rgba(var(--con-track-accent), .8); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .con-hydro__stop-marker--settle, .con-parl__agenda-dot--settle { animation: none; }
+    .con-hydromarker--glide::after, .con-parl__agenda-dot--glide::after { box-shadow: none; }
+}

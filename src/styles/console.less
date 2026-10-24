@@ -7119,15 +7119,15 @@ html.con-section-leaving .con-strat {
         align-items: center;
         justify-content: center;
     }
+    /* THE TRACK MARKER (console_track_marker.less) — the one language the Career speaks too; the Hydronetwork names
+       its accent (aqua) and its size. */
     &__stop-marker {
-        width: .65rem;
-        height: .65rem;
-        border-radius: 50%;
-        box-shadow: 0 0 0 .1rem rgba(8, 14, 22, 0.9);
-        &--viewer { box-shadow: 0 0 0 .1rem rgba(8, 14, 22, 0.9), 0 0 .4rem fade(@con-hydro-aqua, 80%); }
+        --con-track-accent: 79, 201, 216;
+        .con-track-marker(.65rem);
+        &--viewer { .con-track-marker-viewer(); }
         /* One-shot settle glow when the advance-glide just locked its real
            marker in here — the handoff from the flown proxy to the board. */
-        &--settle { animation: con-hydromarker-settle calc(680ms * var(--motion-scale, 1)) @con-ease-enter; }
+        &--settle { .con-track-marker-settle(); }
     }
     /* ── ESPIONAGE GHOSTS — a PROJECTED destination token, structurally
        distinct from a real marker: hollow (the player colour survives as the
