@@ -29,6 +29,7 @@ import {endGenerationThroughParliament, seatResolution, settleParliamentGates} f
 import {CLIMATE_RESEARCH_ID} from '../../src/server/parliament/resolutions/greens/ClimateResearch';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
+import {DeltaProjectExpansion} from '../../src/server/delta/DeltaProjectExpansion';
 
 function reduxGame(): [IGame, TestPlayer, TestPlayer, Parliament] {
   const [game, p1, p2] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
@@ -156,6 +157,24 @@ describe('Party effects', () => {
       expect(p1.tags.count(Tag.SCIENCE, 'raw')).eq(0);
       expect(p1.tags.count(Tag.SCIENCE, 'award')).eq(0);
       expect(p1.tags.multipleCount([Tag.SCIENCE, Tag.EARTH])).eq(1);
+    });
+
+    it('the wild tag IS a wild tag: counted as one, it fills a Hydronetwork path tag, and the МЕТКИ zone states it with its party', () => {
+      const [game, p1, , parliament] = reduxGame();
+      expect(game.tags, 'the party can grant a wild tag, so the cell is in play').to.include(Tag.WILD);
+      expect(p1.tags.count(Tag.WILD)).eq(0);
+      expect(DeltaProjectExpansion.missingTagCount(p1, 1), 'no building tag, no wild tag').eq(1);
+      expect(ParliamentHandler.tagBonuses(p1)).deep.eq([]);
+
+      parliament.grantPartyEffect(p1, PartyName.SCIENTISTS, 'test');
+      expect(p1.tags.count(Tag.WILD), 'an action counts it').eq(1);
+      expect(p1.tags.count(Tag.WILD, 'raw'), 'the printed count stays printed').eq(0);
+      expect(p1.tags.count(Tag.WILD, 'award')).eq(0);
+      expect(p1.tags.playerHas([Tag.SCIENCE])).is.true;
+      expect(DeltaProjectExpansion.missingTagCount(p1, 1), 'the wild tag covers the building tag').eq(0);
+      expect(DeltaProjectExpansion.missingPathTags(p1, 1)).deep.eq([]);
+      expect(DeltaProjectExpansion.missingTagCount(p1, 2), 'one wild tag covers one path tag only').eq(1);
+      expect(ParliamentHandler.tagBonuses(p1)).deep.eq([{tag: Tag.WILD, amount: 1, party: PartyName.SCIENTISTS}]);
     });
 
     it('offer the action only with a card that can hold data or microbes; one prompt, mutation on its answer, one use', () => {

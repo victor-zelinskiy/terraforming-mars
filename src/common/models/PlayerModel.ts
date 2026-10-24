@@ -31,7 +31,8 @@ import {ResolutionId} from '../parliament/ParliamentTypes';
 /**
  * A TAG COUNT ADDITION THAT IS NOT PRINTED ANYWHERE — how many more of `tag`
  * the seat has than its cards show, while a standing rule says so (Turmoil
- * Redux, R&D Funding: Science tags equal to your influence).
+ * Redux, R&D Funding: Science tags equal to your influence; the Scientists'
+ * party effect: one wild tag).
  *
  * It rides its OWN field and never touches `tags`, which stays the PRINTED
  * count (`Tags.countAllTags` — `'raw'`): a zone that folded the addition into
@@ -44,9 +45,12 @@ export type TagBonusModel = {
   tag: Tag;
   /** Always > 0 — an entry that adds nothing is simply absent. */
   amount: number;
+} & (
   /** The standing law that grants it, named where the addition is inspected. */
-  resolution: ResolutionId;
-};
+  {resolution: ResolutionId, party?: undefined} |
+  /** …or the party effect the seat holds (the Scientists' wild tag). */
+  {party: PartyName, resolution?: undefined}
+);
 
 export interface ViewModel {
   game: GameModel;

@@ -400,8 +400,9 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {Tag as CardTag} from '@/common/cards/Tag';
 import Tag from '@/client/components/Tag.vue';
-import {consoleTagEntries, ConsoleTagCell, ConsoleTagEntry, NO_TAG_CELL} from '@/client/components/console/consoleTagMatrix';
+import {consoleTagEntries, ConsoleTagBonus, ConsoleTagCell, ConsoleTagEntry, NO_TAG_CELL} from '@/client/components/console/consoleTagMatrix';
 import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
+import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {ResolutionId} from '@/common/parliament/ParliamentTypes';
 
 /**
@@ -409,7 +410,7 @@ import {ResolutionId} from '@/common/parliament/ParliamentTypes';
  * serves it at all (`na` — a dash, never a lying 0), and the ADDITION a
  * standing law makes to it right now.
  */
-type ConsoleTagMatrixCell = {tag: ConsoleTagCell, count: number, na: boolean, bonus?: {amount: number, resolution: string}};
+type ConsoleTagMatrixCell = {tag: ConsoleTagCell, count: number, na: boolean, bonus?: ConsoleTagBonus};
 import {marsBotStandardRows, marsBotTagEntries, MarsBotExtrasContext} from '@/client/components/console/marsBotRailModel';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
@@ -819,13 +820,21 @@ export default defineComponent({
         this.gameTags, this.effectivePlayer.tags, this.effectivePlayer.noTagsCount, this.effectivePlayer.tagBonuses);
     },
     /**
-     * The standing law behind the «+N» additions in the matrix, named. Empty
-     * when nothing adds anything (every game without such a law) and for the
-     * bot seat, which holds no law. One law stands at a time, so one name.
+     * The sources behind the «+N» additions in the matrix, named. Empty when
+     * nothing adds anything (every game without such a rule) and for the bot
+     * seat, which holds neither a law nor a party effect. One law stands at a
+     * time, and the Scientists' wild tag may stand beside it — each source
+     * once, joined.
      */
     tagBonusLaw(): string {
-      const bonus = this.matrixEntries.find((e) => e.bonus !== undefined)?.bonus;
-      return bonus === undefined ? '' : translateText(resolutionName(bonus.resolution as ResolutionId));
+      const names: Array<string> = [];
+      for (const e of this.matrixEntries) {
+        const name = e.bonus === undefined ? undefined : this.bonusSourceName(e.bonus);
+        if (name !== undefined && !names.includes(name)) {
+          names.push(name);
+        }
+      }
+      return names.join(' · ');
     },
     /** The dedicated MarsBot presentation is active (inspecting the bot seat). */
     botMode(): boolean {
@@ -1142,11 +1151,24 @@ export default defineComponent({
      * «+2 от закона «Финансирование исследований»» — the one sentence the
      * addition is read by, in the hint and in the aria label alike.
      */
-    bonusNote(bonus: {amount: number, resolution: string}): string {
+    bonusNote(bonus: ConsoleTagBonus): string {
+      if (bonus.party !== undefined) {
+        return translateTextWithParams('+${0} from the party effect «${1}»', [
+          String(bonus.amount),
+          translateText(partyNameKey(bonus.party)),
+        ]);
+      }
       return translateTextWithParams('+${0} from the law «${1}»', [
         String(bonus.amount),
         translateText(resolutionName(bonus.resolution as ResolutionId)),
       ]);
+    },
+    /** The addition's source in the lawnote: the law's name, or «Эффект партии «Учёные»». */
+    bonusSourceName(bonus: ConsoleTagBonus): string | undefined {
+      if (bonus.party !== undefined) {
+        return translateTextWithParams('Party effect «${0}»', [translateText(partyNameKey(bonus.party))]);
+      }
+      return bonus.resolution === undefined ? undefined : translateText(resolutionName(bonus.resolution as ResolutionId));
     },
     /**
      * The MC badge's full accessible sentence: per fact «Сталь: 1 ед. = 3 M€

@@ -463,7 +463,7 @@ describe('ScientistsBudget', () => {
       parliament.agenda.set(p1.id, agendaForInfluence(2));
       expect(parliament.enactedDefinition()?.id, 'the law stands').eq(RD_FUNDING_ID);
       expect(ParliamentHandler.tagBonus(p1, Tag.SCIENCE), 'the law grants 1 per influence').eq(2);
-      expect(ParliamentHandler.tagBonuses(p1), 'and the tag zone names it').deep.eq([{tag: Tag.SCIENCE, amount: 2, resolution: RD_FUNDING_ID}]);
+      expect(ParliamentHandler.tagBonuses(p1)[0], 'and the tag zone names it').deep.eq({tag: Tag.SCIENCE, amount: 2, resolution: RD_FUNDING_ID});
       // The two modes, side by side: an ACTION sees the addition (and the Scientists' ruling wild tag), an enactment does not.
       expect(p1.tags.count(Tag.SCIENCE, 'default'), 'printed 2 + wild 1 + bonus 2').eq(5);
       expect(RESOLUTION_TAG_COUNTING_MODE).eq('raw');

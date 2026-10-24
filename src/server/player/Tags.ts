@@ -123,10 +123,12 @@ export class Tags {
 
       if (tag !== Tag.WILD) {
         tagCount += this.rawCount(Tag.WILD, includeEvents);
-        // Turmoil Redux: the Scientists' extra wild tag — like a printed wild
-        // tag, it counts when playing cards and actions, never for awards.
-        tagCount += ParliamentHandler.wildTags(this.player);
       }
+      // Turmoil Redux: the Scientists' extra wild tag — like a printed wild
+      // tag, it counts when playing cards and actions, never for awards. It
+      // IS a wild tag, so a count OF wild tags sees it too (the
+      // Hydronetwork filling a missing path tag, `playerHas`).
+      tagCount += ParliamentHandler.wildTags(this.player);
       // Turmoil Redux: the ENACTED LAW's extra tags (R&D Funding: Science
       // tags equal to your influence). It lives HERE, beside the wild tag,
       // because the printed sentence is «when taking actions» — MINUS the

@@ -79,6 +79,8 @@ const RDF = resolutionInstanceId(RD_FUNDING_ID, 0);
  * unlike this card's tags it DOES count for a milestone.
  */
 const RULING_WILD = 1;
+/** …and how the МЕТКИ zone states it: on the wild cell, naming the party. */
+const RULING_WILD_BONUS = {tag: Tag.WILD, amount: RULING_WILD, party: PartyName.SCIENTISTS};
 
 function reduxGame(players: 2 | 3 = 2): [IGame, TestPlayer, TestPlayer, Parliament] {
   const [game, p1, p2] = testGame(players, {turmoilReduxExpansion: true, coloniesExtension: true});
@@ -299,9 +301,9 @@ describe('RdFunding', () => {
     it('is stated as a LIST for the surfaces that must name it — one entry, the tag, the amount and the law', () => {
       const [, p1, , parliament] = enacted();
       setInfluence(parliament, p1, 2);
-      expect(ParliamentHandler.tagBonuses(p1)).deep.eq([{tag: Tag.SCIENCE, amount: 2, resolution: RD_FUNDING_ID}]);
+      expect(ParliamentHandler.tagBonuses(p1)).deep.eq([{tag: Tag.SCIENCE, amount: 2, resolution: RD_FUNDING_ID}, RULING_WILD_BONUS]);
       setInfluence(parliament, p1, 0);
-      expect(ParliamentHandler.tagBonuses(p1), 'influence 0 states nothing').is.empty;
+      expect(ParliamentHandler.tagBonuses(p1), 'influence 0 states nothing of the law — the ruling party wild tag stays').deep.eq([RULING_WILD_BONUS]);
     });
 
     it('…and the PLAYER MODEL carries it beside the printed counts, never inside them', () => {
@@ -312,8 +314,8 @@ describe('RdFunding', () => {
 
       const model = Server.getPlayer(p1, true);
       expect(model.tags[Tag.SCIENCE], 'the printed count is the printed count').eq(2);
-      expect(model.tagBonuses).deep.eq([{tag: Tag.SCIENCE, amount: 2, resolution: RD_FUNDING_ID}]);
-      expect(Server.getPlayer(p2, true).tagBonuses, 'a seat at influence 0 states nothing').is.empty;
+      expect(model.tagBonuses).deep.eq([{tag: Tag.SCIENCE, amount: 2, resolution: RD_FUNDING_ID}, RULING_WILD_BONUS]);
+      expect(Server.getPlayer(p2, true).tagBonuses, 'a seat at influence 0 states nothing of the law').deep.eq([RULING_WILD_BONUS]);
 
       parliament.enacted = resolutionInstanceId(METAL_RESEARCH_ID, 0);
       expect(Server.getPlayer(p1, true).tagBonuses, 'and the addition leaves with the law').is.empty;
@@ -343,10 +345,12 @@ describe('RdFunding', () => {
     it('playerHas counts the granted tag as showing, like legacy Turmoil own science hook', () => {
       const [, p1, , parliament] = enacted();
       p1.playedCards.push(new Tardigrades()); // a microbe tag, no science
+      // Three tags asked: the microbe is printed and the ruling wild tag stands
+      // for one more — the law's science tag is the third.
       setInfluence(parliament, p1, 0);
-      expect(p1.tags.playerHas([Tag.SCIENCE, Tag.MICROBE])).is.false;
+      expect(p1.tags.playerHas([Tag.SCIENCE, Tag.MICROBE, Tag.PLANT])).is.false;
       setInfluence(parliament, p1, 1);
-      expect(p1.tags.playerHas([Tag.SCIENCE, Tag.MICROBE])).is.true;
+      expect(p1.tags.playerHas([Tag.SCIENCE, Tag.MICROBE, Tag.PLANT])).is.true;
     });
 
     it('the Scientists own WILD tag keeps counting exactly as before, and the two stack', () => {
@@ -357,7 +361,8 @@ describe('RdFunding', () => {
       // wild tag — this card changed nothing about it.
       expect(ParliamentHandler.wildTags(p2), 'the party wild tag is untouched by this card').eq(RULING_WILD);
       expect(p2.tags.count(Tag.SCIENCE), 'printed + wild + law, all three').eq(2 + RULING_WILD + 2);
-      expect(p2.tags.count(Tag.WILD), 'and the wild COUNT itself is the printed one').eq(0);
+      expect(p2.tags.count(Tag.WILD), 'and the wild COUNT is the party wild tag — a wild tag like a printed one').eq(RULING_WILD);
+      expect(p2.tags.count(Tag.WILD, 'raw'), 'while the printed count stays printed').eq(0);
       expect(p2.tags.count(Tag.SCIENCE, 'award'), 'neither reaches an award').eq(2);
     });
   });

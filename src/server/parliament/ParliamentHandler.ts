@@ -460,28 +460,40 @@ export class ParliamentHandler {
   /**
    * …and the SAME additions as a LIST, for the surfaces that must STATE them
    * (the console's МЕТКИ zone prints «+N» beside the printed digit and names
-   * the law). One entry per tag the standing law raises, in `ALL_TAGS` order;
+   * the law). One entry per tag the standing law raises, in `ALL_TAGS` order,
+   * then one per party effect granting a wild tag ({@link wildTags});
    * empty when nothing raises anything. Deliberately built from the same one
    * function the counts read — a zone that computed its own «+N» would be a
    * second reading of the rule, free to drift from the price of a card.
    */
   public static tagBonuses(player: IPlayer): Array<TagBonusModel> {
     const parliament = player.game?.parliament;
-    const enacted = parliament?.enactedDefinition();
-    const bonus = enacted?.passive?.tagBonus;
-    if (parliament === undefined || enacted === undefined || bonus === undefined || !parliament.participates(player, 'enactment')) {
+    if (parliament === undefined) {
       return [];
     }
-    // ONE influence read for the whole list (the per-tag query would walk the
-    // tableau once per tag while building a model for every seat).
-    const influence = parliament.influence(player);
     const entries: Array<TagBonusModel> = [];
-    for (const tag of ALL_TAGS) {
-      const amount = Math.max(0, bonus(player, tag, influence));
-      if (amount > 0) {
-        entries.push({tag, amount, resolution: enacted.id});
+    const enacted = parliament.enactedDefinition();
+    const bonus = enacted?.passive?.tagBonus;
+    if (enacted !== undefined && bonus !== undefined && parliament.participates(player, 'enactment')) {
+      // ONE influence read for the whole list (the per-tag query would walk the
+      // tableau once per tag while building a model for every seat).
+      const influence = parliament.influence(player);
+      for (const tag of ALL_TAGS) {
+        const amount = Math.max(0, bonus(player, tag, influence));
+        if (amount > 0) {
+          entries.push({tag, amount, resolution: enacted.id});
+        }
       }
     }
+    // The party effects' wild tag (the Scientists), from the SAME per-effect
+    // reading `wildTags` sums for `Tags.count` — the МЕТКИ zone states it
+    // beside the printed wild digit and names the party.
+    ParliamentHandler.forEachEffect(player, parliament, (party, effect) => {
+      const amount = effect.wildTags?.(player) ?? 0;
+      if (amount > 0) {
+        entries.push({tag: Tag.WILD, amount, party});
+      }
+    });
     return entries;
   }
 

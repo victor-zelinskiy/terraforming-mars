@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {Tag} from '@/common/cards/Tag';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {CONSOLE_TAG_ORDER, NO_TAG_CELL, consoleAvailableTags, consoleTagEntries} from '@/client/components/console/consoleTagMatrix';
 
 /** The printed tags a plain base-game deck yields (no wild / clone / expansion planets). */
@@ -136,6 +137,16 @@ describe('consoleTagMatrix', () => {
         BASE_GAME_TAGS, {} as Partial<Record<Tag, number>>, 3,
         [{tag: NO_TAG_CELL, amount: 2, resolution: LAW}] as never);
       expect(entries.find((e) => e.tag === NO_TAG_CELL)?.bonus).to.be.undefined;
+    });
+
+    it('a PARTY effect is a source too — the Scientists\' wild tag rides the wild cell and names its party, beside a law', () => {
+      const entries = consoleTagEntries(
+        [...BASE_GAME_TAGS, Tag.WILD], {[Tag.WILD]: 0, [Tag.SCIENCE]: 2} as Partial<Record<Tag, number>>, 0,
+        [{tag: Tag.SCIENCE, amount: 1, resolution: LAW}, {tag: Tag.WILD, amount: 1, party: PartyName.SCIENTISTS}]);
+      const wild = entries.find((e) => e.tag === Tag.WILD)!;
+      expect(wild.count, 'the printed count is untouched').to.eq(0);
+      expect(wild.bonus).to.deep.eq({amount: 1, party: PartyName.SCIENTISTS});
+      expect(entries.find((e) => e.tag === Tag.SCIENCE)!.bonus).to.deep.eq({amount: 1, resolution: LAW});
     });
   });
 });

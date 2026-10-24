@@ -288,7 +288,17 @@ export class DeltaProjectExpansion {
         missing++;
       }
     }
-    return Math.max(0, missing - player.tags.count(Tag.WILD, 'raw'));
+    return Math.max(0, missing - DeltaProjectExpansion.wildTagCount(player));
+  }
+
+  /**
+   * The wild tags that fill a missing path tag: the printed ones AND the
+   * Scientists' party wild tag (Turmoil Redux) — a temporary wild tag is a
+   * wild tag. The path tags themselves stay `'raw'`, or every wild would be
+   * counted once per lacking tag on top of this.
+   */
+  private static wildTagCount(player: IPlayer): number {
+    return player.tags.count(Tag.WILD, 'default');
   }
 
   /**
@@ -324,7 +334,7 @@ export class DeltaProjectExpansion {
         }
       }
     }
-    const wilds = player.tags.count(Tag.WILD, 'raw');
+    const wilds = DeltaProjectExpansion.wildTagCount(player);
     const covered = Math.min(lacking.length, wilds);
     return {
       requiredTags,

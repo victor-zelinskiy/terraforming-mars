@@ -45,13 +45,17 @@ export interface ConsoleTagEntry {
   count: number;
   /**
    * What a standing rule ADDS to it right now (`PublicPlayerModel.tagBonuses`
-   * — Turmoil Redux's R&D Funding: Science tags by influence), and WHICH rule.
-   * Absent when nothing adds anything, which is the normal case. The matrix
-   * prints the two apart: `count` is the truth about the tableau, `bonus` the
-   * truth about this moment, and folding them would answer neither question.
+   * — Turmoil Redux's R&D Funding: Science tags by influence; the Scientists'
+   * party effect: a wild tag), and WHICH rule. Absent when nothing adds
+   * anything, which is the normal case. The matrix prints the two apart:
+   * `count` is the truth about the tableau, `bonus` the truth about this
+   * moment, and folding them would answer neither question.
    */
-  bonus?: {amount: number, resolution: string};
+  bonus?: ConsoleTagBonus;
 }
+
+/** An addition and its ONE named source — a law or a party effect. */
+export type ConsoleTagBonus = {amount: number, resolution?: string, party?: string};
 
 /** Canonical display order — fixed for the whole game, never resorted. */
 export const CONSOLE_TAG_ORDER: ReadonlyArray<ConsoleTagCell> = [
@@ -105,7 +109,13 @@ export function consoleTagEntries(
     return {
       tag,
       count: (tag === NO_TAG_CELL ? noTagsCount : counts?.[tag]) ?? 0,
-      ...(bonus !== undefined && bonus.amount > 0 ? {bonus: {amount: bonus.amount, resolution: bonus.resolution}} : {}),
+      ...(bonus !== undefined && bonus.amount > 0 ? {bonus: bonusOf(bonus)} : {}),
     };
   });
+}
+
+function bonusOf(bonus: TagBonusModel): ConsoleTagBonus {
+  return bonus.party !== undefined ?
+    {amount: bonus.amount, party: bonus.party} :
+    {amount: bonus.amount, resolution: bonus.resolution};
 }

@@ -330,7 +330,10 @@ export class Game implements IGame, Logger {
       }
     });
 
-    this.tags = tags;
+    // Turmoil Redux: the Scientists' party effect grants a wild tag, so the
+    // tag is in play even when no deck prints one. Added here, not at
+    // creation, so a save from before this rule gains the cell too.
+    this.tags = gameOptions.turmoilReduxExpansion && !tags.includes(Tag.WILD) ? [...tags, Tag.WILD] : tags;
   }
 
   private setFirstPlayer(first: IPlayer) {
