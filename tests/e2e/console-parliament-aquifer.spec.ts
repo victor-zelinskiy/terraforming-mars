@@ -5,7 +5,7 @@ import {
   bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openMandatoryAnnounce, openQuickWheel, openZoomViewer, placeTile,
   placementState, press, pressUntil, sendPlayerInput, settle, waitForBoardHome,
 } from './consoleStart';
-import {answerGateAs, closeSitting, expectDossierIsRules, hotVerb, sittingStep, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {closeSittingAs, closeSitting, expectDossierIsRules, hotVerb, sittingStep, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * AQUIFER CONTEST (Turmoil Redux, RX01) — the first REAL resolution, end to
@@ -310,7 +310,7 @@ for (const preset of PRESETS) {
       await waitSittingAtRest(page, 30_000);
       expect(await turnTo(page, 'results'), 'the results page').toBe(true);
       await closeSitting(page, request, playerId);
-      await answerGateAs(request, red, 'adjourn');
+      await closeSittingAs(request, red);
       await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
       const after = await wireOf(request, playerId);
       expect(after.game.oceans, 'one ocean on Mars').toBe(1);

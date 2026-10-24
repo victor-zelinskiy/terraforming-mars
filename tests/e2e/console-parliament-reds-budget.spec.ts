@@ -1,10 +1,9 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, fetchPlayerModel, openMandatoryAnnounce, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, fetchPlayerModel, pressUntil, settle} from './consoleStart';
 import {
-  answerGateOnScreen, armLeakWitness, closeSitting, expectParliamentFits, mandatoryPlate, openParliament, parliament, sittingStage, strandedReports,
-  waitSittingAtRest,
+  armLeakWitness, closeSitting, enterSittingByPass, expectParliamentFits, openParliament, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 
 /**
@@ -274,7 +273,8 @@ for (const preset of PRESETS) {
       }
 
       // ════════════════ PART 2 · THE SITTING ════════════════
-      const {playerId} = await bootFixtureSeats(page, request, 'parliament-reds-budget-bot', {query: preset.query, landing: 'prompt'});
+      // The table stands ONE PASS before its sitting (the soft gates): the bot has passed, blue holds its action menu.
+      const {playerId} = await bootFixtureSeats(page, request, 'parliament-reds-budget-bot', {query: preset.query});
       await armLeakWitness(page);
       const before = await wireOf(request, playerId);
       const blue = before.thisPlayer.color;
@@ -282,16 +282,10 @@ for (const preset of PRESETS) {
       expect(agendaOf(before, blue), 'blue on Agenda 1').toBe(1);
       expect(agendaOf(before, bot.color), 'the bot on Agenda 6').toBe(6);
 
-      await expect(mandatoryPlate(page), 'the sitting is announced').toHaveCount(1, {timeout: 30_000});
-      expect(await openMandatoryAnnounce(page)).toBe(true);
-      await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-      await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-      await waitSittingAtRest(page, 30_000);
-
-      // ── GATE 1: A on the verdict — the whole chain runs by itself (nothing asks; the bot is never asked).
+      // ── THE PASS — the whole chain runs by itself (nothing asks; the bot is never asked).
       await armProbe(page, {blue, bot: bot.color});
       const cast = await recordFrames(page);
-      await answerGateOnScreen(page, request, playerId, 'assembly');
+      await enterSittingByPass(page, request, playerId);
 
       // ── THE RECORDS, in the seat order: blue's levy · payout · step, then the bot's step alone.
       await expect.poll(async () => outcomesOf(await wireOf(request, playerId)).filter((o) => o.kind !== 'reaction')

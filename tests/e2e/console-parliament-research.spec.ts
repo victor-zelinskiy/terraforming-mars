@@ -2,10 +2,10 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, pressUntil, settle,
+  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openZoomViewer, pressUntil, settle,
 } from './consoleStart';
 import {
-  answerGateAs, armLeakWitness, expectDossierIsRules, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest,
+  armLeakWitness, enterSittingByPass, expectDossierIsRules, expectParliamentFits, openParliament, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 
 /**
@@ -61,6 +61,45 @@ const readingsIn = (page: Page, scope: string) => page.evaluate((sel) => {
     none: el.querySelector('[data-yield-none]') !== null,
   }));
 }, scope) as Promise<Array<Reading>>;
+
+/**
+ * THE BAND ON THE REWARD BEAT, sampled on a task clock (`setInterval`, never rAF): the walk turns a quiet reward page
+ * by itself (the soft gates), so a one-shot read after a poll for the stage can land on the results already.
+ */
+type BandSample = {readings: Array<Reading>, none: string, lost: number, amber: number, take: number};
+async function armBandSampler(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const w = window as unknown as {__bandSamples?: Array<unknown>};
+    const samples: Array<unknown> = [];
+    w.__bandSamples = samples;
+    window.setInterval(() => {
+      if (document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') !== 'reward') {
+        return;
+      }
+      const band = document.querySelector<HTMLElement>('[data-parl-sit-yield]');
+      if (band === null) {
+        return;
+      }
+      samples.push({
+        readings: Array.from(band.querySelectorAll<HTMLElement>('[data-yield-context]')).map((el) => ({
+          effect: el.closest<HTMLElement>('[data-yield-effect]')?.getAttribute('data-yield-effect') ?? null,
+          context: el.getAttribute('data-yield-context'),
+          target: el.getAttribute('data-yield-target'),
+          level: el.querySelector<HTMLElement>('[data-yield-in="level"]')?.getAttribute('data-yield-level') ?? null,
+          amount: el.getAttribute('data-yield-amount'),
+          skipped: el.getAttribute('data-yield-skipped'),
+          none: el.querySelector('[data-yield-none]') !== null,
+        })),
+        none: (band.querySelector('[data-yield-none]')?.textContent ?? '').trim(),
+        lost: band.querySelectorAll('.con-iyield__out--lost').length,
+        amber: band.querySelectorAll('.con-iyield__reading--skipped').length,
+        take: document.querySelectorAll('.con-extdraw').length,
+      });
+    }, 40);
+  });
+}
+const bandSamples = (page: Page): Promise<Array<BandSample>> =>
+  page.evaluate(() => (window as unknown as {__bandSamples?: Array<BandSample>}).__bandSamples ?? []);
 
 type Outcome = {player: string, step: string, kind: string, amount?: number, drawn?: number, influence?: number, target?: number, total?: {before: number, after: number}, reason?: string};
 type Wire = {
@@ -142,21 +181,12 @@ test.describe('Joint Research · standard-1080', () => {
 
     // ════════════════ PART 2 · THE SITTING — the take inside the stage, exactly three cards, the zero seat named ════════════════
     {
-      const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-research-assembly', {query: '&consoleProfile=auto', landing: 'prompt'});
-      const red = seats[1];
+      // The table stands ONE PASS before its sitting (the soft gates): the viewer's own pass carries the whole sitting.
+      const {playerId} = await bootFixtureSeats(page, request, 'parliament-research-assembly', {query: '&consoleProfile=auto'});
       await armLeakWitness(page);
-      await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-      expect(await openMandatoryAnnounce(page)).toBe(true);
-      await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-      await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-      await waitSittingAtRest(page, 30_000);
       const before = await wireOf(request, playerId);
       expect(before.thisPlayer.cardsInHandNbr, 'the fixture\'s hand').toBe(5);
-
-      // ── GATE 1: A on the verdict; red answers over the API — the effects run by themselves.
-      expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined,
-        {tries: 4, settleMs: 1500}), 'A answers the assembly gate').toBe(true);
-      await answerGateAs(request, red, 'assembly');
+      await enterSittingByPass(page, request, playerId);
 
       // ── THE TAKE stands INSIDE the stage's own zone with THREE cards — and the band explains the number.
       const take = page.locator('.con-extdraw');
@@ -221,29 +251,25 @@ test.describe('Joint Research · standard-1080', () => {
 
     // ════════════════ PART 3 · THE ZERO ON THE BAND — a seat at its target reads calmly, nothing flies ════════════════
     {
-      const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-research-full', {query: '&consoleProfile=auto', landing: 'prompt'});
-      const red = seats[1];
+      // The table stands ONE PASS before its sitting (the soft gates): nine in hand at target 8 — nothing to take.
+      const {playerId} = await bootFixtureSeats(page, request, 'parliament-research-full', {query: '&consoleProfile=auto'});
       await armLeakWitness(page);
-      await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-      expect(await openMandatoryAnnounce(page)).toBe(true);
-      await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-      await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-      await waitSittingAtRest(page, 30_000);
       expect((await wireOf(request, playerId)).thisPlayer.cardsInHandNbr, 'nine in hand at target 8').toBe(9);
-      expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined,
-        {tries: 4, settleMs: 1500}), 'A answers the assembly gate').toBe(true);
-      await answerGateAs(request, red, 'assembly');
-      // The band's reward line: «up to 8 · 9 in hand → no draw needed» — the calm zero, on the reward beat.
-      await expect.poll(() => sittingStage(page), {timeout: 60_000}).toBe('reward');
-      const bandYield = page.locator('[data-parl-sit-yield]');
-      await expect(bandYield).toHaveCount(1, {timeout: 20_000});
-      await expect.poll(() => readingsIn(page, '[data-parl-sit-yield]'), {timeout: 20_000}).toEqual([
+      await armBandSampler(page);
+      await enterSittingByPass(page, request, playerId);
+      // The band's reward line: «up to 8 · 9 in hand → no draw needed» — the calm zero, on the reward beat. The walk
+      // turns a quiet reward page by itself, so the beat is read off the sampler, never one late look.
+      await expect.poll(async () => (await bandSamples(page)).some((s) => s.readings.length > 0), {timeout: 60_000,
+        message: 'the band read the reward beat'}).toBe(true);
+      const onReward = (await bandSamples(page)).filter((s) => s.readings.length > 0);
+      const settled = onReward[onReward.length - 1];
+      expect(settled.readings).toEqual([
         {effect: 'draw', context: expect.stringMatching(/resolving|applied/), target: '8', level: '9', amount: '0', skipped: 'Already at the target hand size', none: true},
       ]);
-      await expect(bandYield.locator('[data-yield-none]'), 'the result slot says it calmly').toHaveText(NO_DRAW_NEEDED);
-      await expect(bandYield.locator('.con-iyield__out--lost'), 'never a struck amount').toHaveCount(0);
-      await expect(bandYield.locator('.con-iyield__reading--skipped'), 'never the forfeit\'s amber').toHaveCount(0);
-      await expect(page.locator('.con-extdraw'), 'no take for a seat that needs none').toHaveCount(0);
+      expect(settled.none, 'the result slot says it calmly').toMatch(NO_DRAW_NEEDED);
+      expect(onReward.filter((s) => s.lost > 0), 'never a struck amount').toEqual([]);
+      expect(onReward.filter((s) => s.amber > 0), 'never the forfeit\'s amber').toEqual([]);
+      expect(onReward.filter((s) => s.take > 0), 'no take for a seat that needs none').toEqual([]);
       await shoot(page, '11-band-none');
       expect((await wireOf(request, playerId)).thisPlayer.cardsInHandNbr, 'the hand did not move').toBe(9);
       expect(await strandedReports(page), 'nothing stranded').toEqual([]);

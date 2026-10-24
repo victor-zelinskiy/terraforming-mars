@@ -1,9 +1,10 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, crumbText, openMandatoryAnnounce, placementState, placeTile, press, settle} from './consoleStart';
+import {bootFixtureSeats, crumbText, placementState, placeTile, press, settle} from './consoleStart';
 import {
-  answerGateAs, armLeakWitness, expectParliamentFits, hotVerb, mandatoryPlate, parliament, PARLIAMENT_PRESETS, parliamentWire, sittingStage, sittingStep, strandedReports, waitSittingAtRest,
+  armLeakWitness, closeSitting, closeSittingAs, enterSittingByPass, expectParliamentFits, hotVerb, parliament, PARLIAMENT_PRESETS, parliamentWire,
+  sittingStage, sittingStep, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 import {armSittingProbe, beatOrder, beatStart, readSittingProbe} from './parliamentDriveV2';
 
@@ -45,48 +46,38 @@ for (const preset of PARLIAMENT_PRESETS) {
 
     test('ONE A: ПОВЕСТКА → ПОДДЕРЖКА → ПРИНЯТИЕ → the wave, nothing early; «К полю» is the only door to the tile; the RESULTS are one stage', async ({page, request}) => {
       test.setTimeout(480_000);
-      const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-biodome-assembly', {query: preset.query, landing: 'prompt'});
+      // ONE PASS before its sitting (the soft gates): red has passed, blue holds its action menu.
+      const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-biodome-assembly', {query: preset.query});
       const red = seats[1];
       await armLeakWitness(page);
       const before = await parliamentWire(request, playerId);
-      expect(before.game.parliament?.phase?.step).toBe('assembly');
+      expect(before.game.parliament?.phase, 'no sitting yet').toBeUndefined();
       const viewer = before.thisPlayer.color;
-      const summary = before.game.parliament?.phase?.summary;
-      expect(summary?.winner.player, 'the viewer won the vote').toBe(viewer);
-      const agenda = summary?.agenda;
-      expect(agenda, 'v2: no Agenda step at the gate').toBeUndefined();
-      const plantsBefore = before.thisPlayer.plants;
 
-      // ── The plate, A opens the sitting on its VERDICT: the table exactly as voted.
-      await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-      expect(await openMandatoryAnnounce(page)).toBe(true);
-      await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-      await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-      await waitSittingAtRest(page, 20_000);
-      const winnerInstance = summary?.winner.instance ?? '';
-      await expect(page.locator(`.con-parl__slot--lit[data-instance="${winnerInstance}"]`), 'the winning card lights IN ITS SLOT').toHaveCount(1);
-      await expect(page.locator(`.con-parl__slots .con-parl__slot[data-instance="${winnerInstance}"] .con-parl__ribbon [data-seq]`), 'its delegate is still on it').not.toHaveCount(0);
-      await expect(page.locator('[data-parl-gov-empty]'), 'the government is the previous one (the empty seat)').toHaveCount(1);
-      // v8: the dais prints no basis line — the basis is the government's own attribute.
-      await expect(page.locator('[data-parl-gov]')).toHaveAttribute('data-parl-gov-basis', 'Starting rule');
-      await expect(page.locator('[data-parl-ruler] .con-parl__party[data-party="Greens"]'), 'the ruling party\'s tile stands in the government').toHaveCount(1);
-      await expect(page.locator('.con-parl__parties .con-parl__party'), 'five opposition tiles in the row').toHaveCount(5);
-      const markerBefore = await page.locator(`[data-agenda-markers] [data-agenda-cube="${viewer}"]`).first().evaluate((el) => el.closest('[data-agenda-markers]')?.getAttribute('data-agenda-markers'));
-      const influenceBefore = await page.locator('[data-parl-influence]').textContent();
-      const questBefore = await page.locator('[data-parl-quest]').getAttribute('data-parl-quest-text');
-      expect(await hotVerb(page)).toMatch(/Продолжить|Continue/i);
-      await expectParliamentFits(page, `${preset.id} verdict`);
-      await shoot(page, preset.id, '01-verdict');
-
-      // ── The OTHER seat answers first over the API: the viewer's A is the LAST answer (the own-submit path).
-      await answerGateAs(request, red, 'assembly');
-      expect((await parliamentWire(request, playerId)).game.parliament?.phase?.step, 'one answer moves nothing').toBe('assembly');
-
-      // ── ONE A. Then the walk: ПОВЕСТКА → ПОДДЕРЖКА → ПРИНЯТИЕ → the wave.
+      // ── ONE PASS. The whole sitting rides it; it comes up on its VERDICT and the walk turns every page by itself:
+      //    ПОВЕСТКА → ПОДДЕРЖКА → ПРИНЯТИЕ → the wave. The player presses nothing.
+      await enterSittingByPass(page, request, playerId);
       await armSittingProbe(page);
       const t0 = Date.now();
-      await press(page, 'Enter', 300);
-      await expect.poll(async () => (await parliamentWire(request, playerId)).game.parliament?.phase?.step, {timeout: 20_000}).not.toBe('assembly');
+      const summary = (await parliamentWire(request, playerId)).game.parliament?.phase?.summary;
+      expect(summary?.winner.player, 'the viewer won the vote').toBe(viewer);
+      const winnerInstance = summary?.winner.instance ?? '';
+
+      // ── THE VERDICT, read off the samples (the page turns by itself): the table exactly as voted.
+      await expect.poll(async () => (await readSittingProbe(page)).samples.some((st) => st.stage !== '' && st.stage !== 'verdict'), {timeout: 30_000,
+        message: 'the verdict turns by itself'}).toBe(true);
+      const verdict = (await readSittingProbe(page)).samples.filter((st) => st.stage === 'verdict');
+      expect(verdict.length, 'the verdict page was sampled').toBeGreaterThan(0);
+      expect(verdict.some((st) => st.litSlot === winnerInstance), 'the winning card lights IN ITS SLOT').toBe(true);
+      expect(verdict.every((st) => st.govEmpty), 'the government is the previous one (the empty seat)').toBe(true);
+      expect(verdict.every((st) => st.ruler === 'Greens'), 'the ruling party\'s tile stands in the government').toBe(true);
+      expect(verdict.every((st) => !st.slots.split('|').some((h) => h.endsWith('!'))), 'no slot vacated on the verdict — the table as voted').toBe(true);
+      expect(verdict.every((st) => !/Продолжить|Continue/i.test(st.hot)), 'the verdict asks no press — the director turns it').toBe(true);
+      const markerBefore = verdict[0].markers[viewer];
+      const influenceBefore = verdict[0].influence;
+      const questBefore = verdict[0].questText;
+      await shoot(page, preset.id, '01-sitting-up');
+
       await expect.poll(async () => (await readSittingProbe(page)).samples.some((s) => s.chips.length > 0), {timeout: 40_000, message: 'the wave left the card'}).toBe(true);
       const waveAt = Date.now() - t0;
       await waitSittingAtRest(page, 40_000);
@@ -94,7 +85,7 @@ for (const preset of PARLIAMENT_PRESETS) {
       const s = probe.samples;
       expect(s.length, 'the sampler lived').toBeGreaterThan(50);
       const order = beatOrder(s);
-      console.log(`[${preset.id}] beats: ${order.join(' → ')} · the wave ${waveAt} ms after A`);
+      console.log(`[${preset.id}] beats: ${order.join(' → ')} · the wave ${waveAt} ms after the sitting came up`);
       // The beats, in the server's order — every one that the summary has a fact for.
       const after = await parliamentWire(request, playerId);
       const sum = after.game.parliament?.phase?.summary;
@@ -105,7 +96,8 @@ for (const preset of PARLIAMENT_PRESETS) {
       expected.push('support', 'enact');
       expect(order.filter((b) => expected.includes(b)), 'ПОВЕСТКА → ПОДДЕРЖКА → ПРИНЯТИЕ, in turn').toEqual(expected);
       expect(s.some((st) => st.stage === 'enact'), 'the enactment page was on screen').toBe(true);
-      expect(waveAt, `the wave came within the budget (${waveAt} ms)`).toBeLessThan(preset.id === 'tv-4k' ? 12_000 : 9_000);
+      // From the sitting's rise: the verdict's own read (the director's page) comes first, then the walk.
+      expect(waveAt, `the wave came within the budget (${waveAt} ms)`).toBeLessThan(preset.id === 'tv-4k' ? 14_500 : 11_500);
 
       // ── NOTHING EARLY. Every witness of the new state appears only from its own beat on.
       const agendaAt = beatStart(s, 'agenda');
@@ -149,7 +141,9 @@ for (const preset of PARLIAMENT_PRESETS) {
         restAt--;
       }
       const landedIndex = plantsChip[restAt].i;
-      const tickAt = s.findIndex((st) => st.rail.plants.stock !== '' && st.rail.plants.stock !== String(plantsBefore));
+      // The plants the chip lands on: the rail as it read when the sitting came up (the pass paid the production first).
+      const plantsBefore = s[0].rail.plants.stock;
+      const tickAt = s.findIndex((st) => st.rail.plants.stock !== '' && st.rail.plants.stock !== plantsBefore);
       expect(tickAt, 'the plants counter ticked').toBeGreaterThan(0);
       expect(tickAt, 'the counter never moved before the chip left the card').toBeGreaterThanOrEqual(first.i);
       const lag = s[tickAt].t - s[landedIndex].t;
@@ -202,8 +196,8 @@ for (const preset of PARLIAMENT_PRESETS) {
       await expect.poll(async () => (await readSittingProbe(page)).samples.some((st) => st.parl && st.stage === 'reward' && st.step !== 'placement'), {timeout: 30_000, message: 'the reward page\'s «received» pose on the way back'}).toBe(true);
       await shoot(page, preset.id, '05-received');
 
-      // ── THE RESULTS, one stage: the renewal's beats, then the card; ONE A closes the sitting.
-      await expect.poll(async () => (await parliamentWire(request, playerId)).game.parliament?.phase?.step, {timeout: 60_000}).toBe('adjourn');
+      // ── THE RESULTS, one stop: the renewal's beats, then the card; ONE A — «Закрыть заседание» — closes the sitting.
+      await expect.poll(async () => (await parliamentWire(request, playerId)).game.parliament?.phase?.step, {timeout: 60_000}).toBe('done');
       await expect.poll(() => sittingStage(page), {timeout: 60_000}).toBe('results');
       await waitSittingAtRest(page, 40_000);
       await expect(page.locator('[data-sit-results]'), 'the results card').toHaveCount(1);
@@ -242,15 +236,11 @@ for (const preset of PARLIAMENT_PRESETS) {
       };
       await expectWholeOrNone('results');
       await shoot(page, preset.id, '06-results');
-      await press(page, 'Enter', 1200);
-      await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000}).toBeUndefined();
-      // …and the wait adds NO row: the answered gate keeps the card inside the tier too.
-      await expectParliamentFits(page, `${preset.id} results · waiting`);
-      await expectWholeOrNone('results · waiting');
-      await shoot(page, preset.id, '06b-results-waiting');
-      await answerGateAs(request, red, 'adjourn');
-      await expect.poll(async () => (await parliamentWire(request, playerId)).game.phase, {timeout: 60_000}).not.toBe('parliament');
-      await expect(parliament(page), 'the sitting leaves with the phase').toHaveCount(0, {timeout: 30_000});
+      // The close admits the viewer alone — nobody waits for the other seat, so the results never stand in a «waiting» pose.
+      await closeSitting(page, request, playerId);
+      await expect(parliament(page), 'the sitting leaves with its close').toHaveCount(0, {timeout: 30_000});
+      expect((await parliamentWire(request, red)).waitingFor?.parliamentPhasePrompt?.stage, 'red still reads its own sitting').toBe('close');
+      await closeSittingAs(request, red);
       expect(await strandedReports(page)).toEqual([]);
       await shoot(page, preset.id, '07-after');
     });

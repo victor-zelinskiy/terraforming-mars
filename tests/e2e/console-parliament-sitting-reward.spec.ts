@@ -3,8 +3,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixtureSeats, crumbText, openMandatoryAnnounce, placementState, placeTile, press, pressUntil, settle} from './consoleStart';
 import {
-  answerAsksAs, answerGateAs, armLeakWitness, expectParliamentFits, hotVerb, mandatoryPlate, parliament, PARLIAMENT_PRESETS, parliamentWire,
-  passAs, sittingStage, sittingStep, strandedReports, turnTo, waitSittingAtRest,
+  answerAsksAs, armLeakWitness, awaitSittingUp, enterSittingByPass, expectParliamentFits, hotVerb, mandatoryPlate, parliament, PARLIAMENT_PRESETS,
+  parliamentWire, passAs, sittingStage, sittingStep, strandedReports, turnTo, waitSittingAtRest,
 } from './parliamentDrive';
 
 
@@ -252,32 +252,24 @@ for (const preset of PARLIAMENT_PRESETS) {
     for (const c of CASES) {
       test(`${c.rx}: «this payout» → the wave from the card → the counter ticks on contact → «received» → the follow-up in turn (${c.follow})`, async ({page, request}) => {
         test.setTimeout(420_000);
-        const {playerId, seats} = await bootFixtureSeats(page, request, c.fixture, {query: preset.query, landing: 'prompt'});
+        // ONE PASS before its sitting (the soft gates): red has passed, blue holds its action menu.
+        const {playerId, seats} = await bootFixtureSeats(page, request, c.fixture, {query: preset.query});
         const red = seats[1];
         await armLeakWitness(page);
         const before = await parliamentWire(request, playerId);
-        expect(before.game.parliament?.phase?.step).toBe('assembly');
+        expect(before.game.parliament?.phase, 'no sitting yet').toBeUndefined();
         const viewer = before.thisPlayer.color;
-        const iWin = before.game.parliament?.phase?.summary?.winner.player === viewer;
 
-        // ── The sitting, walked to its reward page: the reading says «this payout» BEFORE the record.
-        await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-        expect(await openMandatoryAnnounce(page)).toBe(true);
-        await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-        await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-        await settle(page, {timeoutMs: 20_000});
-        // v2: the verdict is the ONE page before the barrier — the reading of what is coming stands on the REWARD page
-        // the director turns by itself; it is read from the probe's samples below («this payout» before the record).
-        expect(await sittingStep(page)).toBe('reading');
-        await expectParliamentFits(page, `${preset.id} ${c.rx} verdict`);
-        await shoot(page, preset.id, `${c.rx}-01-verdict`);
-
-        // ── A answers gate 1; the wait pose; the OTHER seat answers last over the API — the effects run.
+        // ── THE PASS runs the sitting; the walk turns its pages by itself: the reading says «this payout» BEFORE the record.
         await armProbe(page);
-        await press(page, 'Enter', 1200);
-        await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000}).toBeUndefined();
-        const rowBefore: Record<string, {prod: string, stock: string}> = (await readProbe(page)).samples.slice(-1)[0].rail;
-        await answerGateAs(request, red, 'assembly');
+        await enterSittingByPass(page, request, playerId);
+        const iWin = (await parliamentWire(request, playerId)).game.parliament?.phase?.summary?.winner.player === viewer;
+        // The rail AS THE VERDICT READ IT — the generation's income (the pass ran the production phase) already landed.
+        await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.stage === 'verdict'), {timeout: 20_000, message: 'the verdict was sampled'}).toBe(true);
+        const verdictSample = (await readProbe(page)).samples.find((s) => s.stage === 'verdict')!;
+        const rowBefore: Record<string, {prod: string, stock: string}> = verdictSample.rail;
+        // A tick is looked for from the verdict on (time, not index — the sampler sheds its oldest samples).
+        const railFromT = verdictSample.t;
 
         if (c.waves.length > 0) {
           // ── THE WAVE: chips born on the card's own graphic, travelling to their rows; the counter ticks on contact.
@@ -295,7 +287,8 @@ for (const preset of PARLIAMENT_PRESETS) {
           const ownIds = new Set<string>();
           let ownLanded = 0;
           for (const wv of own) {
-            const track = Array.from(tracks.values()).find((tr) => tr[0].c.res === wv.res);
+            // The LAW's chip — born from the verdict on (the pass's production income flies the same rows before it).
+            const track = Array.from(tracks.values()).find((tr) => tr[0].c.res === wv.res && tr[0].s.t >= railFromT);
             expect(track, `a ${wv.res} chip flew`).toBeDefined();
             ownIds.add(track![0].c.id);
             const first = track![0];
@@ -316,7 +309,7 @@ for (const preset of PARLIAMENT_PRESETS) {
               .toBeGreaterThan(Math.min(preset.viewport.height * 0.2, chord * 0.85));
             // THE COUNTER TICKS ON CONTACT: the row's value changes within a few samples of the chip's LANDING frame.
             const was = rowBefore[wv.res][field];
-            const tickAt = probe.samples.findIndex((s) => s.rail[wv.res][field] !== was);
+            const tickAt = probe.samples.findIndex((s) => s.t >= railFromT && s.rail[wv.res][field] !== was);
             const landedAt = landingIndex(track!, REST_SLACK_PX);
             ownLanded = Math.max(ownLanded, landedAt);
             expect(tickAt, `the ${wv.res} ${field} counter ticked (was «${was}»)`).toBeGreaterThan(0);
@@ -377,7 +370,7 @@ for (const preset of PARLIAMENT_PRESETS) {
           for (const wv of c.waves) {
             const field = wv.channel === 'production' ? 'prod' : 'stock';
             const was = rowBefore[wv.res][field];
-            const tickAt = probe.samples.findIndex((s) => s.rail[wv.res][field] !== was);
+            const tickAt = probe.samples.findIndex((s) => s.t >= railFromT && s.rail[wv.res][field] !== was);
             expect(firstTake, `the take DEALT only after the ${wv.res} chip had landed (take @${firstTake}, tick @${tickAt})`).toBeGreaterThanOrEqual(tickAt);
           }
           await expect(page.locator('.con-extdraw__source'), 'no second source dock beside the carrier').toBeHidden();
@@ -522,7 +515,7 @@ for (const preset of PARLIAMENT_PRESETS) {
           for (const wv of c.waves) {
             const field = wv.channel === 'production' ? 'prod' : 'stock';
             const was = rowBefore[wv.res][field];
-            const tickAt = probe.samples.findIndex((s) => s.rail[wv.res][field] !== was);
+            const tickAt = probe.samples.findIndex((s) => s.t >= railFromT && s.rail[wv.res][field] !== was);
             expect(firstRenewal, `the renewal entered only after the ${wv.res} chip had landed (renewal @${firstRenewal}, tick @${tickAt})`).toBeGreaterThanOrEqual(tickAt);
           }
           await shoot(page, preset.id, `${c.rx}-06-results`);
@@ -598,29 +591,20 @@ test.describe('the Agenda step\'s TR bonus (standard-1080)', () => {
     await passAs(request, red);
     const t0 = Date.now();
     const since = () => `${((Date.now() - t0) / 1000).toFixed(1)} s after the phase began`;
-    await expect.poll(async () => (await parliamentWire(request, playerId)).game.parliament?.phase?.step, {timeout: 30_000}).toBe('assembly');
-    // THE GATE STANDS BEFORE THE CHANGES («Заседание v2»): at `assembly` the Agenda has NOT moved and nothing
-    // is paid yet — this test predates that order and read the summary here, where it is legitimately empty.
-    const atGate = await parliamentWire(request, playerId);
-    expect(atGate.game.parliament?.phase?.summary?.agenda, 'the Agenda moves only PAST the gate').toBeUndefined();
-    expect(atGate.thisPlayer.terraformRating, 'nothing is paid before the gate').toBe(trBefore);
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    console.log(`[tr-bonus] the plate stands ${since()}`);
-    // THE HOLD: the HUD still says the old rating while the plate stands.
-    await expect(page.locator('.con-res .con-score__value--tr')).toHaveText(String(trBefore));
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    console.log(`[tr-bonus] the sitting opened ${since()}`);
-    await waitSittingAtRest(page);
-    await expect(page.locator('.con-res .con-score__value--tr'), 'still held at the verdict').toHaveText(String(trBefore));
-    await answerGateAs(request, red, 'assembly');
-    expect(await turnTo(page, 'enact')).toBe(true);
-    console.log(`[tr-bonus] the enactment page ${since()}`);
-    // …and past the gate the server has moved the marker and paid: the step it reached is a TR step.
+    // THE LAST PASS RAN THE SITTING (the soft gates): the server has moved the marker and paid — the step it reached is
+    // a TR step — while the viewer's screen has not shown any of it yet.
     await expect.poll(async () => (await parliamentWire(request, playerId)).game.parliament?.phase?.summary?.agenda?.bonus,
       {timeout: 30_000}).toBe('tr');
     const wire = await parliamentWire(request, playerId);
-    expect(wire.thisPlayer.terraformRating, 'the server paid the rating past the gate').toBe(trBefore + 1);
+    expect(wire.thisPlayer.terraformRating, 'the server paid the rating with the pass').toBe(trBefore + 1);
+    await awaitSittingUp(page);
+    console.log(`[tr-bonus] the sitting is up ${since()}`);
+    expect(await turnTo(page, 'enact')).toBe(true);
+    console.log(`[tr-bonus] the enactment page ${since()}`);
+    // THE HOLD: the HUD said the old rating while the plate stood and the verdict was read (the samples).
+    const held = (await readProbe(page)).samples.filter((s) => s.plate || s.stage === 'verdict');
+    expect(held.length, 'the plate / the verdict was sampled').toBeGreaterThan(0);
+    expect(held.every((s) => s.tr === String(trBefore)), `still held through the plate and the verdict (${[...new Set(held.map((s) => s.tr))].join(',')})`).toBe(true);
     // The glide, then the chip: the rating ticks on the chip's contact.
     await expect(page.locator('.con-res .con-score__value--tr')).toHaveText(String(trBefore + 1), {timeout: 20_000});
     await waitSittingAtRest(page, 20_000);
@@ -660,26 +644,18 @@ test.describe('the Agenda step\'s TR bonus (standard-1080)', () => {
     await passAs(request, red);
     const t0 = Date.now();
     const since = () => `${((Date.now() - t0) / 1000).toFixed(1)} s after the phase began`;
-    await expect.poll(async () => (await parliamentWire(request, playerId)).game.parliament?.phase?.step, {timeout: 30_000}).toBe('assembly');
-    // The gate stands BEFORE the changes (v2): nothing is dealt at `assembly`.
-    const atGate = await parliamentWire(request, playerId);
-    expect(atGate.game.parliament?.phase?.summary?.agenda, 'the Agenda moves only PAST the gate').toBeUndefined();
-    expect(atGate.thisPlayer.cardsInHandNbr, 'nothing is dealt before the gate').toBe(handBefore);
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    console.log(`[card-bonus] the plate stands ${since()}`);
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    console.log(`[card-bonus] the sitting opened ${since()}`);
-    await waitSittingAtRest(page);
-    // THE PARK: nothing presented the card while the plate stood or the verdict was read — the dock still says the old total.
-    expect(await page.locator('[data-hand-total]').getAttribute('data-hand-total'), 'the dock holds the old total through the verdict').toBe(String(handBefore));
-    await answerGateAs(request, red, 'assembly');
-    expect(await turnTo(page, 'enact')).toBe(true);
-    console.log(`[card-bonus] the enactment page ${since()}`);
-    // …and past the gate the step the marker reached is a CARD step, and the server has dealt it.
+    // THE LAST PASS RAN THE SITTING (the soft gates): the step the marker reached is a CARD step, and the server has dealt it.
     await expect.poll(async () => (await parliamentWire(request, playerId)).game.parliament?.phase?.summary?.agenda?.bonus,
       {timeout: 30_000}).toBe('card');
-    expect((await parliamentWire(request, playerId)).thisPlayer.cardsInHandNbr, 'the server dealt the card past the gate').toBe(handBefore + 1);
+    expect((await parliamentWire(request, playerId)).thisPlayer.cardsInHandNbr, 'the server dealt the card with the pass').toBe(handBefore + 1);
+    await awaitSittingUp(page);
+    console.log(`[card-bonus] the sitting is up ${since()}`);
+    expect(await turnTo(page, 'enact')).toBe(true);
+    console.log(`[card-bonus] the enactment page ${since()}`);
+    // THE PARK: nothing presented the card while the plate stood or the verdict was read — the dock said the old total.
+    const parked = (await readProbe(page)).samples.filter((s) => s.plate || s.stage === 'verdict');
+    expect(parked.length, 'the plate / the verdict was sampled').toBeGreaterThan(0);
+    expect(parked.every((s) => s.hand === String(handBefore)), 'the dock holds the old total through the plate and the verdict').toBe(true);
     // The glide lands on the card step → the cover lifts off it → the card opens over the sitting → A takes it to the dock.
     await expect(page.locator('.con-reveal, dialog.con-zoom[open]'), 'the step\'s card is presented after the glide').toHaveCount(1, {timeout: 30_000});
     await shoot(page, 'standard-1080', 'RX05-card-bonus-reveal');
@@ -707,7 +683,9 @@ test.describe('the Agenda step\'s TR bonus (standard-1080)', () => {
     // The reveal overlay MOUNTS veiled under the scene; the CARD itself is SHOWN (the scene unveiled — since TR57 the lone
     // reward card is the standalone scene and the fullscreen viewer is X's) only once the cover has lifted.
     expect(firstShown, 'the card is shown only after the lift (the viewer, or the scene unveiled)').toBeGreaterThanOrEqual(firstCover);
-    expect(firstPlate, 'the plate came first — nothing presented the card over it').toBeLessThan(firstCover);
+    if (firstPlate >= 0) {
+      expect(firstPlate, 'the plate came first — nothing presented the card over it').toBeLessThan(firstCover);
+    }
     expect(firstReveal, 'nothing presented the card before the enactment page').toBeGreaterThan(firstEnact);
     expect(handTick, 'the dock ticked after the card was taken').toBeGreaterThan(firstShown);
     expect(['enact', 'reward', 'results'], 'the walk went on by itself (v2)').toContain(await sittingStage(page));

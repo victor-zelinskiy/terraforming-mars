@@ -276,34 +276,16 @@ describe('e2e driver guard', () => {
     });
   });
 
-  describe('⑥ a parliament gate is answered through answerGateOnScreen', () => {
+  describe('⑥ a sitting\'s confirmation is answered through closeSitting', () => {
     /**
-     * THE HAND-ROLLED GATE ANSWER re-presses A whenever the server has not answered within its settle, and the
-     * SECOND A lands on whatever the first one opened (a loaded 4K runner: the distribution layout the sitting
-     * teleports in, then found «not empty» — console-parliament-gallery § DISTRIBUTION). `answerGateOnScreen`
-     * (parliamentDrive.ts) waits for the gate to STAND and re-presses only while it provably still stands 10 s
-     * later. These counts are FROZEN at 2026-09-30 and may only fall: a migrated site is locked in by lowering its
-     * number here in the same diff, and a new spec gets 0.
+     * THE HAND-ROLLED ANSWER re-presses A whenever the server has not answered within its settle, and the SECOND A
+     * lands on whatever the first one opened (a loaded 4K runner: the distribution layout the sitting teleports in,
+     * then found «not empty» — console-parliament-gallery § DISTRIBUTION). `closeSitting` (parliamentDrive.ts) waits
+     * for the seat's confirmation to STAND and re-presses only while it provably still stands 10 s later. The soft
+     * gates retired the two barrier gates (2026-10-24) and the migration took every hand-rolled site with them: the
+     * frozen list is EMPTY and may stay so — a new spec gets 0.
      */
-    const FROZEN: Readonly<Record<string, number>> = {
-      'console-parliament-ban.spec.ts': 1,
-      'console-parliament-budget.spec.ts': 1,
-      'console-parliament-colonial.spec.ts': 1,
-      'console-parliament-colony.spec.ts': 1,
-      'console-parliament-gas.spec.ts': 1,
-      'console-parliament-greens.spec.ts': 1,
-      'console-parliament-heat.spec.ts': 1,
-      'console-parliament-jovian.spec.ts': 1,
-      'console-parliament-metal.spec.ts': 1,
-      'console-parliament-mohole.spec.ts': 1,
-      'console-parliament-research.spec.ts': 2,
-      'console-parliament-results-honesty.spec.ts': 1,
-      'console-parliament-unity.spec.ts': 1,
-      'console-parliament-water.spec.ts': 1,
-      'console-parliament-zone-v5-regression.spec.ts': 2,
-      'console-parliament-zone-v5.spec.ts': 2,
-      'console-resolution-face.spec.ts': 2,
-    };
+    const FROZEN: Readonly<Record<string, number>> = {};
     const HAND_ROLLED = /pressUntil\(\s*page,\s*'Enter',[^;]*?parliamentPhasePrompt\s*===\s*undefined/gs;
 
     it('no spec grows a hand-rolled gate answer, and every migration is locked in', () => {
@@ -323,7 +305,7 @@ describe('e2e driver guard', () => {
           fell.push(`${file}: deleted`);
         }
       }
-      expect(grown, 'answer a parliament gate with answerGateOnScreen (parliamentDrive.ts), never a hand-rolled ' +
+      expect(grown, 'answer a sitting\'s confirmation with closeSitting (parliamentDrive.ts), never a hand-rolled ' +
         `pressUntil(Enter) — its retry lands a second A on what the first one opened:\n  ${grown.join('\n  ')}`).to.deep.equal([]);
       expect(fell, `a migrated site must be LOCKED IN — lower its FROZEN count in this guard:\n  ${fell.join('\n  ')}`).to.deep.equal([]);
     });

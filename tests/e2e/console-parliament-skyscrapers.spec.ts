@@ -5,7 +5,7 @@ import {
   bootFixtureSeats, closeZoomViewer, commitFocusedSpace, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, placementState, press,
   pressUntil, sendPlayerInput, settle, walkToSpace, focusInfoZone,
 } from './consoleStart';
-import {answerGateAs, closeSitting, armLeakWitness, mandatoryPlate, parliament, strandedReports, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {closeSittingAs, closeSitting, armLeakWitness, mandatoryPlate, parliament, strandedReports, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * SKYSCRAPERS (Turmoil Redux, RX20) — the ONE e2e of the card, on one profile:
@@ -331,7 +331,7 @@ test.describe(`Skyscrapers · ${PRESET.id}`, () => {
     await expect(page.locator(`[data-sit-payout-seat="${redBefore.thisPlayer.color}"] .con-sit__part--skipped`), 'and red\'s named skip').toHaveCount(1);
     await shoot(page, '08-results');
     await closeSitting(page, request, playerId);
-    await answerGateAs(request, red, 'adjourn');
+    await closeSittingAs(request, red);
     await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
     await settle(page, {timeoutMs: 30_000});
 

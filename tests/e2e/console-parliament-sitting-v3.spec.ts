@@ -1,6 +1,6 @@
 import {test, expect, Page} from './consoleTest';
-import {bootFixtureSeats, openMandatoryAnnounce, press, settle} from './consoleStart';
-import {answerGateAs, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, waitSittingAtRest} from './parliamentDrive';
+import {bootFixtureSeats, settle} from './consoleStart';
+import {enterSittingByPass, openParliament, parliamentWire, sittingStage, waitSittingAtRest} from './parliamentDrive';
 
 
 /**
@@ -26,7 +26,7 @@ type V3Sample = {
   /** The government's accent, and the party of the tile standing in its slot — the two must never disagree. */
   accent: string, rulerTile: string, accentOf: Record<string, string>,
   /** The enacted card's own slug and the quest's text — the caption may never move before its object. */
-  card: string, quest: string,
+  card: string, quest: string, questClosed: boolean,
   row: Array<string>, support: Record<string, number>,
   lit: number, landed: number, landedAt: Array<string>, flights: Array<Flight>,
   supply: Rect | undefined, cards: Record<string, Rect>, ribbons: Record<string, Rect>,
@@ -83,6 +83,7 @@ async function armV3Probe(page: Page): Promise<void> {
         accentOf,
         card: Array.from(root.querySelector('.con-parl__gov-card .pcard')?.classList ?? []).find((c) => c.startsWith('pcard--rdx-')) ?? '',
         quest: root.querySelector('[data-parl-quest]')?.getAttribute('data-parl-quest-text') ?? '',
+        questClosed: root.querySelector('[data-parl-quest][data-parl-quest-closed]') !== null,
         row: Array.from(root.querySelectorAll<HTMLElement>('.con-parl__parties .con-parl__party')).map((el) => el.getAttribute('data-party') ?? ''),
         support,
         lit: root.querySelectorAll('.con-parl__party--lit').length,
@@ -118,21 +119,14 @@ test.describe('the sitting v3 (standard-1080)', () => {
   test('THE GOVERNMENT CHANGES AS ONE SET: the accent never precedes the tile, the quest never precedes its card, the plaques change places and the support rides along', async ({page, request}) => {
     test.setTimeout(300_000);
     // Architecture Award: RED wins from the middle slot and the government changes (the Greens' starting rule → Mars First).
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-architecture-assembly', {query: '&consoleProfile=auto', landing: 'prompt'});
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await waitSittingAtRest(page, 20_000);
-
-    // THE VERDICT already states the CHAIRMANSHIP's outcome (v3 В2): the generation is over, so the quest
-    // block reads closed — the enactment then has nothing left to add to it.
-    await expect(page.locator('[data-parl-quest][data-parl-quest-closed]'), 'the quest reads closed at the verdict').toHaveCount(1);
-
+    // ONE PASS before its sitting (the soft gates): the pass runs it, the walk turns the verdict by itself.
+    const {playerId} = await bootFixtureSeats(page, request, 'parliament-architecture-assembly', {query: '&consoleProfile=auto'});
     await armV3Probe(page);
-    await answerGateAs(request, seats[1], 'assembly');
-    await press(page, 'Enter', 400);
-    await expect.poll(async () => (await parliamentWire(request, playerId)).game.parliament?.phase?.step, {timeout: 40_000}).not.toBe('assembly');
+    await enterSittingByPass(page, request, playerId);
+    // THE VERDICT already states the CHAIRMANSHIP's outcome (v3 В2): the generation is over, so the quest
+    // block reads closed — the enactment then has nothing left to add to it. (Sampled: the page turns by itself.)
+    await expect.poll(async () => (await readV3(page)).samples.some((x) => x.stage === 'verdict' && x.questClosed), {timeout: 20_000,
+      message: 'the quest reads closed at the verdict'}).toBe(true);
     await expect.poll(() => sittingStage(page), {timeout: 40_000}).not.toBe('verdict');
     await waitSittingAtRest(page, 40_000);
     await settle(page, {timeoutMs: 20_000});
@@ -171,17 +165,10 @@ test.describe('the sitting v3 (standard-1080)', () => {
 
   test('НАРОДНАЯ ПОДДЕРЖКА is one scene: every cube is the server\'s own, it comes from a PLACE, and only the receiving socket answers', async ({page, request}) => {
     test.setTimeout(300_000);
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-climate-assembly', {query: '&consoleProfile=auto', landing: 'prompt'});
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await waitSittingAtRest(page, 20_000);
-    // The support step runs PAST the barrier (v2's order), so the record does not exist yet at the verdict:
-    // arm first, open the barrier, and read the server's own payment once it has been made.
+    // ONE PASS before its sitting (the soft gates): arm first, the pass runs it, read the server's own payment after.
+    const {playerId} = await bootFixtureSeats(page, request, 'parliament-climate-assembly', {query: '&consoleProfile=auto'});
     await armV3Probe(page);
-    await answerGateAs(request, seats[1], 'assembly');
-    await press(page, 'Enter', 400);
+    await enterSittingByPass(page, request, playerId);
     await expect.poll(() => sittingStage(page), {timeout: 40_000}).not.toBe('verdict');
     await waitSittingAtRest(page, 40_000);
     const wire = await parliamentWire(request, playerId);

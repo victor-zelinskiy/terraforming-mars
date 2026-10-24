@@ -1,6 +1,6 @@
 import {test, expect, Page} from './consoleTest';
-import {bootFixtureSeats, openMandatoryAnnounce, press, pressUntil, settle} from './consoleStart';
-import {answerGateAs, focusParliamentZone, openParliament, parliament, PARLIAMENT_PRESETS, parliamentWire, parliamentZone, sittingStage, waitSittingAtRest} from './parliamentDrive';
+import {bootFixtureSeats, press, pressUntil, settle} from './consoleStart';
+import {enterSittingByPass, focusParliamentZone, openParliament, parliament, PARLIAMENT_PRESETS, parliamentWire, parliamentZone, sittingStage, waitSittingAtRest} from './parliamentDrive';
 
 /*
  * THE BROWSE LAYER IS STILL WHILE THE PLAYER POINTS (ПОЛИРОВКА — the registry's
@@ -207,11 +207,11 @@ for (const preset of PARLIAMENT_PRESETS) {
       test.setTimeout(300_000);
       // Architecture Award: RED wins from the middle slot and the government CHANGES (the Greens' starting rule →
       // Mars First) — the plaques change places, the row's five boxes must not.
-      const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-architecture-assembly', {query: preset.query, landing: 'prompt'});
-      expect(await openMandatoryAnnounce(page), 'A opens the sitting').toBe(true);
-      await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
+      // ONE PASS before its sitting (the soft gates): the base is the OVERVIEW the player stands in one pass before —
+      // the same tiers the sitting walks over (the band is there in every mode, at one height).
+      const {playerId} = await bootFixtureSeats(page, request, 'parliament-architecture-assembly', {query: preset.query});
+      await openParliament(page);
       await waitSittingAtRest(page, 30_000);
-      expect(await sittingStage(page)).toBe('verdict');
       // The tiers, the opposition row and the RULER'S SLOT (the tile's box — the party in it changes with the
       // government, the box must not). The stage itself is not in the list: on the Deck the results pose takes the
       // Agenda track whole by its own rule (guarded by the v2 probe's «whole or none»).
@@ -250,17 +250,16 @@ for (const preset of PARLIAMENT_PRESETS) {
       const rulingRow = () => page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-parl__ruling > *'))
         .map((el) => `${el.className.toString().split(' ')[0]}:${el.getBoundingClientRect().width.toFixed(2)}`).join(' '));
       const rulingBefore = await rulingRow();
-      // The other seat answers first; the viewer's A is the last answer — the walk plays the whole chain.
-      await answerGateAs(request, seats[1], 'assembly');
-      await press(page, 'Enter', 400);
-      await expect.poll(async () => (await parliamentWire(request, playerId)).game.parliament?.phase?.step, {timeout: 30_000}).toBe('adjourn');
+      // The viewer's own pass runs the sitting — the walk plays the whole chain.
+      await enterSittingByPass(page, request, playerId);
+      await expect.poll(async () => (await parliamentWire(request, playerId)).game.parliament?.phase?.step, {timeout: 30_000}).toBe('done');
       await expect.poll(() => sittingStage(page), {timeout: 60_000}).toBe('results');
       await waitSittingAtRest(page, 40_000);
       const trail: Array<string> = [];
       const moved = diff(base, await settledTiers());
       trail.push(`results: moved=${moved.length}`);
       trail.push(`the government row: ${rulingBefore} → ${await rulingRow()}`);
-      expect(moved, `${preset.id} · after the walk (the government changed) — the tiers and the row's five boxes keep their places\n${trail.join('\n')}`).toEqual([]);
+      expect(moved, `${preset.id} · from the overview through the walk (the government changed) — the tiers and the row's five boxes keep their places\n${trail.join('\n')}`).toEqual([]);
       await expect(page.locator('[data-parl-ruler] .con-parl__party[data-party="Mars First"]'), 'Mars First rules').toHaveCount(1);
       await expect(page.locator('.con-parl__parties .con-parl__party[data-party="Greens"]'), 'the Greens are back in the row').toHaveCount(1);
       expect(await sittingStage(page)).toBe('results');

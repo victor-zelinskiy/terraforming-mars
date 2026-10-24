@@ -1,8 +1,8 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, fetchPlayerModel, openMandatoryAnnounce, press, pressUntil} from './consoleStart';
-import {answerAsksAs, answerGateAs} from './parliamentDrive';
+import {bootFixtureSeats, fetchPlayerModel, press, pressUntil} from './consoleStart';
+import {answerAsksAs, enterSittingByPass} from './parliamentDrive';
 
 /**
  * THE PARLIAMENT'S SITTING — the MOTION half (Э4 of
@@ -47,7 +47,7 @@ type Wire = {
 const wireOf = async (request: APIRequestContext, id: string): Promise<Wire> => await fetchPlayerModel(request, id) as unknown as Wire;
 
 type ProxySample = {id: string, body: string, face: string, x: number, y: number, rotY: number | undefined, filter: string};
-type Sample = {t: number, motion: string, stage: string, holds: Array<string>, proxies: Array<ProxySample>, dealing: number, govAwaiting: boolean, rowShown: boolean, reading: boolean, deck: number, faces: Record<string, number>, resultsHidden: boolean};
+type Sample = {t: number, motion: string, stage: string, holds: Array<string>, proxies: Array<ProxySample>, dealing: number, govAwaiting: boolean, lit: number, govCard: number, rowShown: boolean, reading: boolean, deck: number, faces: Record<string, number>, resultsHidden: boolean};
 type Probe = {samples: Array<Sample>};
 
 /** THE PROBE — armed BEFORE the press. `setInterval` + `MutationObserver`, never rAF. */
@@ -100,6 +100,8 @@ async function armProbe(page: Page): Promise<void> {
         proxies,
         dealing: document.querySelectorAll('.con-parl__card--dealing').length,
         govAwaiting: document.querySelector('.con-parl__gov-card--awaiting') !== null,
+        lit: document.querySelectorAll('.con-parl__slot--lit').length,
+        govCard: document.querySelectorAll('.con-parl__gov-card').length,
         // СТОЛ и ЧТЕНИЕ (v4): the row's own marker and the presence of a reading panel — the peek is retired.
         rowShown: document.querySelector('[data-parl-row-shown]') !== null,
         reading: (() => {
@@ -169,36 +171,34 @@ async function waitAtRest(page: Page, timeout = 12_000): Promise<void> {
 test.describe('the sitting — the director\'s beats (standard-1080)', () => {
   test.use({viewport: {width: 1920, height: 1080}});
 
-  test('ВЕРДИКТ → ПРИНЯТИЕ (v2): the winner\'s slot lit, nothing in the air; ONE A (the last answer) plays ПОВЕСТКА → ПОДДЕРЖКА → ПРИНЯТИЕ — a card that travels, cubes that travel, the table in full view, the touchdown, the holds released', async ({page, request}) => {
+  test('ВЕРДИКТ → ПРИНЯТИЕ (soft gates): the winner\'s slot lit, nothing in the air; the PASS plays ПОВЕСТКА → ПОДДЕРЖКА → ПРИНЯТИЕ — a card that travels, cubes that travel, the table in full view, the touchdown, the holds released', async ({page, request}) => {
     test.setTimeout(240_000);
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-climate-assembly', {query: '&consoleProfile=auto', landing: 'prompt'});
+    // ONE PASS before its sitting (the soft gates): red has passed, blue holds its action menu.
+    const {playerId} = await bootFixtureSeats(page, request, 'parliament-climate-assembly', {query: '&consoleProfile=auto'});
     const before = await wireOf(request, playerId);
-    expect(before.game.parliament?.phase?.step).toBe('assembly');
-    await expect(page.locator('.con-mandatory')).toHaveCount(1, {timeout: 30_000});
+    expect(before.game.parliament?.phase, 'no sitting yet').toBeUndefined();
     await armProbe(page);
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(page.locator('.con-parl')).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => stageAttr(page), {timeout: 15_000}).toBe('verdict');
-    // ── THE VERDICT: the winner's slot is LIT where it won; nothing has changed yet, nothing flies but light.
-    await expect(page.locator('.con-parl__slot--lit'), 'the winner\'s slot is lit').toHaveCount(1, {timeout: 10_000});
-    expect(await page.locator('.con-parl__gov-card').count(), 'no enacted card in the government yet').toBe(0);
-    await shoot(page, '01-verdict-lit');
-    await waitAtRest(page);
-    const afterVerdict = await readProbe(page);
-    const verdictSpan = motionSpan(afterVerdict.samples, 'verdict');
-    expect(verdictSpan, `the verdict's beats span ${verdictSpan} ms (budget ≤ 1.5 s)`).toBeLessThan(1500);
-    expect(afterVerdict.samples.filter((s) => s.motion === 'verdict').every((s) => s.proxies.length === 0), 'nothing flies at the verdict').toBe(true);
-
-    // ── THE OTHER SEAT ANSWERS FIRST; the viewer's A is the LAST answer — the barrier opens and the walk plays
-    //    ПОВЕСТКА → ПОДДЕРЖКА → ПРИНЯТИЕ by itself: the card TRAVELS into the government, the delegates go home, the tier peeks.
-    await answerGateAs(request, seats[1], 'assembly');
-    const mark = afterVerdict.samples.length;
-    await press(page, 'Enter', 400);
+    // ── THE PASS runs the sitting; the VERDICT is a page the director turns by itself — read on the samples.
+    await enterSittingByPass(page, request, playerId);
     await expect.poll(() => stageAttr(page), {timeout: 20_000}).toBe('enact');
     await expect.poll(() => motionAttr(page), {timeout: 10_000}).toBe('enact');
     await shoot(page, '02-enact-in-flight');
     await waitAtRest(page, 30_000);
     const afterEnact = await readProbe(page);
+    // ── THE VERDICT: the winner's slot is LIT where it won; nothing has changed yet, nothing flies but light.
+    const verdictSamples = afterEnact.samples.filter((s) => s.stage === 'verdict');
+    expect(verdictSamples.length, 'the verdict was sampled').toBeGreaterThan(0);
+    expect(verdictSamples.some((s) => s.lit === 1), 'the winner\'s slot is lit').toBe(true);
+    expect(verdictSamples.every((s) => s.govCard === 0), 'no enacted card in the government yet').toBe(true);
+    const verdictSpan = motionSpan(afterEnact.samples, 'verdict');
+    // The light's beats ≤ 1.5 s PLUS the director's own read of the page (the soft gates, Р1 — `VERDICT_READ_MS` 2.2 s
+    // at ×1; the verdict no longer waits on a gate, the walk turns it): ≤ 3.7 s whatever the run's motion scale.
+    expect(verdictSpan, `the verdict's beats + its read span ${verdictSpan} ms (budget ≤ 3.7 s)`).toBeLessThan(3700);
+    expect(afterEnact.samples.filter((s) => s.motion === 'verdict').every((s) => s.proxies.length === 0), 'nothing flies at the verdict').toBe(true);
+    // ── …and NOTHING PRESSED, the walk plays ПОВЕСТКА → ПОДДЕРЖКА → ПРИНЯТИЕ by itself: the card TRAVELS into the
+    //    government, the delegates go home.
+    const mark = afterEnact.samples.findIndex((s) => s.stage !== '' && s.stage !== 'verdict');
+    expect(mark, 'the walk left the verdict').toBeGreaterThan(0);
     const enactSamples = afterEnact.samples.slice(mark);
     const enactSpan = motionSpan(enactSamples, 'enact');
     expect(enactSpan, `the enactment's three beats span ${enactSpan} ms (budget 4.2–5.2 s: Agenda 0.9–1.1 + support 1.0–1.4 + enactment 1.8–2.2, ≥ 250 ms apart)`).toBeGreaterThan(3000);
@@ -230,9 +230,9 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
     // …and once the physical part is over the READING panel takes the row's place (the reward's own stage).
     await expect(page.locator('[data-parl-reading]'), 'the reading panel took the tier for the reward').toHaveCount(1, {timeout: 10_000});
     await shoot(page, '03-enact-rest');
-    // The one A answered gate 1; the walk went on to the reward by itself — the resolution's take stands there.
+    // The walk went on to the reward by itself — the resolution's take stands there (no gate was ever asked).
     const after = await wireOf(request, playerId);
-    expect(after.waitingFor?.parliamentPhasePrompt, 'gate 1 answered by the one A').toBeUndefined();
+    expect(after.waitingFor?.parliamentPhasePrompt, 'no confirmation before the take').toBeUndefined();
     expect(after.waitingFor?.type, 'the take stands after the walk').toBe('card');
   });
 
@@ -240,20 +240,14 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
     test.setTimeout(300_000);
     // The refresh arrives LIVE (the holds are seeded from the poll frame that carries it): the viewer takes its
     // cards, the other seat answers its own over the API, and the adjourn's response deals the fresh resolutions.
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-climate-assembly', {query: '&consoleProfile=auto', landing: 'prompt'});
-    await expect(page.locator('.con-mandatory')).toHaveCount(1, {timeout: 30_000});
+    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-climate-assembly', {query: '&consoleProfile=auto'});
     await armProbe(page);
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(page.locator('.con-parl')).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => stageAttr(page), {timeout: 15_000}).toBe('verdict');
-    await waitAtRest(page);
-    await answerGateAs(request, seats[1], 'assembly');
-    await press(page, 'Enter', 400);
+    await enterSittingByPass(page, request, playerId);
     await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw--embedded'), 'the take stands').toHaveCount(1, {timeout: 60_000});
     await waitAtRest(page, 30_000);
     expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-extdraw').count() === 0, {tries: 8, settleMs: 2200}), 'the take is taken').toBe(true);
     await answerAsksAs(request, seats[1]);
-    await expect.poll(async () => (await wireOf(request, playerId)).game.parliament?.phase?.step, {timeout: 60_000}).toBe('adjourn');
+    await expect.poll(async () => (await wireOf(request, playerId)).game.parliament?.phase?.step, {timeout: 60_000}).toBe('done');
     const summary = (await wireOf(request, playerId)).game.parliament?.phase?.summary as (NonNullable<Wire['game']['parliament']>['phase'] extends infer P ? (P extends {summary?: infer S} ? S : never) : never) & {renewal?: Array<{kind: string, size?: number}>} | undefined;
     // «Обновление»: EVERY dealt card is dealt — a loser dealt straight back from the reshuffled discard left the table
     // and comes back the whole way; the old «it never left» exception (P-22 / P-28) is gone.
@@ -333,21 +327,16 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
     expect(renewal.some((s) => s.resultsHidden), 'no results card stands on the renewal page').toBe(false);
     expect(probe.samples.find((s) => s.stage === 'results')?.resultsHidden, 'the card was hidden when its page opened').toBe(true);
     await expect(page.locator('[data-sit-results-hidden]'), 'the results card revealed at rest').toHaveCount(0);
-    expect((await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt?.stage, 'gate 2 stands until A').toBe('adjourn');
+    expect((await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt?.stage, 'the seat\'s confirmation stands until A').toBe('close');
     await shoot(page, '11-results-rest');
   });
 
   test('«ДОЖАТЬ»: A during a beat drives the walk to its resting poses — no stage skipped, nothing answered by the hurry', async ({page, request}) => {
     test.setTimeout(240_000);
-    // Architecture Award asks nothing: the barrier's response carries the enactment AND the refresh — one A, the whole walk.
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-architecture-assembly', {query: '&consoleProfile=auto', landing: 'prompt'});
-    await expect(page.locator('.con-mandatory')).toHaveCount(1, {timeout: 30_000});
+    // Architecture Award asks nothing: the pass carries the whole sitting — the walk plays it all.
+    const {playerId} = await bootFixtureSeats(page, request, 'parliament-architecture-assembly', {query: '&consoleProfile=auto'});
     await armProbe(page);
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect.poll(() => stageAttr(page), {timeout: 15_000}).toBe('verdict');
-    await waitAtRest(page);
-    await answerGateAs(request, seats[1], 'assembly');
-    await press(page, 'Enter', 400);
+    await enterSittingByPass(page, request, playerId);
     await expect.poll(() => motionAttr(page), {timeout: 20_000}).toBe('enact');
     await press(page, 'Enter', 60);
     await expect.poll(() => stageAttr(page), {timeout: 40_000}).toBe('results');
@@ -361,22 +350,18 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
     const probe = await readProbe(page);
     const order = probe.samples.map((s) => s.motion).filter((m) => m !== '').filter((m, i, all) => i === 0 || all[i - 1] !== m);
     expect(order.join(' → '), 'no stage skipped by the hurry').toMatch(/verdict → enact → reward → renewal → results$/);
-    expect((await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt?.stage, 'nothing was answered by the hurry').toBe('adjourn');
+    expect((await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt?.stage, 'nothing was answered by the hurry').toBe('close');
     expect(probe.samples[probe.samples.length - 1].holds, 'every sitting hold released at rest').toEqual([]);
     await shoot(page, '12-hurried-rest');
   });
 
-  test('REDUCED MOTION: the same stages, ONE A, nothing ever in the air, the walk at once', async ({page, request}) => {
+  test('REDUCED MOTION: the same stages, no press, nothing ever in the air, the walk at once', async ({page, request}) => {
     test.setTimeout(180_000);
     await page.emulateMedia({reducedMotion: 'reduce'});
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-climate-assembly', {query: '&consoleProfile=auto', landing: 'prompt'});
-    await expect(page.locator('.con-mandatory')).toHaveCount(1, {timeout: 30_000});
+    const {playerId} = await bootFixtureSeats(page, request, 'parliament-climate-assembly', {query: '&consoleProfile=auto'});
     await armProbe(page);
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect.poll(() => stageAttr(page), {timeout: 15_000}).toBe('verdict');
-    await answerGateAs(request, seats[1], 'assembly');
+    await enterSittingByPass(page, request, playerId);
     const t0 = Date.now();
-    await press(page, 'Enter', 300);
     await expect.poll(() => stageAttr(page), {timeout: 15_000}).toBe('reward');
     await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw--embedded'), 'the take stands').toHaveCount(1, {timeout: 20_000});
     const walkMs = Date.now() - t0;
@@ -384,8 +369,8 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
     expect(probe.samples.every((s) => s.proxies.length === 0), 'nothing in the air under reduced motion').toBe(true);
     expect(probe.samples.every((s) => s.holds.length === 0), 'no sitting hold under reduced motion').toBe(true);
     expect(await page.locator('.con-parl__gov-card--awaiting').count(), 'the poses are final at once').toBe(0);
-    expect(walkMs, `the whole walk (the round trip included) took ${walkMs} ms`).toBeLessThan(6_000);
-    expect((await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt, 'gate 1 answered by the one A').toBeUndefined();
+    expect(walkMs, `the whole walk took ${walkMs} ms from the sitting's rise`).toBeLessThan(6_000);
+    expect((await wireOf(request, playerId)).waitingFor?.parliamentPhasePrompt, 'no confirmation before the take').toBeUndefined();
     await shoot(page, '20-reduced-reward');
     await page.emulateMedia({reducedMotion: null});
   });
@@ -393,15 +378,10 @@ test.describe('the sitting — the director\'s beats (standard-1080)', () => {
   test('PERF-LITE: the same beats, transform/opacity only — no filter on any proxy', async ({page, request}) => {
     test.setTimeout(180_000);
     await page.addInitScript(() => window.localStorage.setItem('tm_console_fx_lite', '1'));
-    const {seats} = await bootFixtureSeats(page, request, 'parliament-climate-assembly', {query: '&consoleProfile=auto', landing: 'prompt'});
+    const {playerId} = await bootFixtureSeats(page, request, 'parliament-climate-assembly', {query: '&consoleProfile=auto'});
     expect(await page.evaluate(() => document.documentElement.classList.contains('con-fx-lite')), 'fx-lite is on').toBe(true);
-    await expect(page.locator('.con-mandatory')).toHaveCount(1, {timeout: 30_000});
     await armProbe(page);
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect.poll(() => stageAttr(page), {timeout: 15_000}).toBe('verdict');
-    await waitAtRest(page);
-    await answerGateAs(request, seats[1], 'assembly');
-    await press(page, 'Enter', 400);
+    await enterSittingByPass(page, request, playerId);
     await expect.poll(() => motionAttr(page), {timeout: 20_000}).toBe('enact');
     await waitAtRest(page, 30_000);
     const probe = await readProbe(page);

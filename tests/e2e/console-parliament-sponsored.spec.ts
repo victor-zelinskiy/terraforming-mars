@@ -1,10 +1,10 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, fetchPlayerModel, openMandatoryAnnounce, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, fetchPlayerModel, pressUntil, settle} from './consoleStart';
 import {
-  answerGateAs, answerGateOnScreen, armLeakWitness, closeSitting, expectParliamentFits, mandatoryPlate, openParliament, parliament, sittingStage,
-  strandedReports, waitSittingAtRest,
+  armLeakWitness, closeSitting, closeSittingAs, enterSittingByPass, expectParliamentFits, openParliament, sittingStage, strandedReports,
+  waitSittingAtRest,
 } from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
@@ -164,15 +164,11 @@ test.afterEach(async ({page}, testInfo) => {
 });
 
 /** Bring the sitting to its take: the announce, the verdict's A (red over the API), the take standing in the stage. */
+/** Boot the table ONE PASS before its sitting (the soft gates): red has passed, blue holds its action menu. */
 async function toTheTake(page: Page, request: APIRequestContext, fixture: 'parliament-sponsored-assembly' | 'parliament-sponsored-eight', query: string): Promise<{playerId: string, red: string}> {
-  const {playerId, seats} = await bootFixtureSeats(page, request, fixture, {query, landing: 'prompt'});
+  const {playerId, seats} = await bootFixtureSeats(page, request, fixture, {query});
   const red = seats[1];
   await armLeakWitness(page);
-  await expect(mandatoryPlate(page), 'the sitting is announced').toHaveCount(1, {timeout: 30_000});
-  expect(await openMandatoryAnnounce(page)).toBe(true);
-  await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-  await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-  await waitSittingAtRest(page, 30_000);
   return {playerId, red};
 }
 
@@ -212,8 +208,8 @@ for (const preset of PRESETS) {
 
       await armProbe(page);
       const cast = await recordFrames(page);
-      await answerGateOnScreen(page, request, playerId, 'assembly');
-      await answerGateAs(request, red, 'assembly');
+      // The pass carries the whole sitting — up to the take of this seat.
+      await enterSittingByPass(page, request, playerId);
 
       // ① THE TAKE stands INSIDE the stage's own zone — two cards (influence 2), withheld until taken.
       const take = page.locator('.con-extdraw');
@@ -319,15 +315,15 @@ for (const preset of PRESETS) {
       expect(resourcesOn(redWire.thisPlayer.tableau, 'Pets'), 'red\'s Pets: its own payout').toBe(2);
       expect(await strandedReports(page), 'nothing stranded').toEqual([]);
       await closeSitting(page, request, playerId);
-      await answerGateAs(request, red, 'adjourn');
+      await closeSittingAs(request, red);
       await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
     });
 
     test(`eight receiving faces read in ONE row inside the pane — nothing cut, nothing scrolled (${preset.id})`, async ({page, request}) => {
       test.setTimeout(480_000);
-      const {playerId, red} = await toTheTake(page, request, 'parliament-sponsored-eight', preset.query);
-      await answerGateOnScreen(page, request, playerId, 'assembly');
-      await answerGateAs(request, red, 'assembly');
+      const {playerId} = await toTheTake(page, request, 'parliament-sponsored-eight', preset.query);
+      // The pass carries the whole sitting — up to the take of this seat.
+      await enterSittingByPass(page, request, playerId);
       await expect(page.locator('.con-extdraw'), 'the take').toHaveCount(1, {timeout: 90_000});
       expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-extdraw').count() === 0, {tries: 6, settleMs: 1800}), 'taken').toBe(true);
       const receipt = page.locator('[data-sit-receipt]');

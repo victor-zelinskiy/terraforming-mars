@@ -2,11 +2,11 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixtureSeats, commitFocusedSpace, crumbText, fetchPlayerModel, openConsole, openMandatoryAnnounce, placementState, press, pressUntil, settle, walkToSpace,
+  bootFixtureSeats, commitFocusedSpace, crumbText, fetchPlayerModel, openConsole, placementState, press, pressUntil, settle, walkToSpace,
 } from './consoleStart';
 import {
-  answerGateOnScreen, armLeakWitness, closeSitting, expectParliamentFits, hotVerb, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, sittingStep,
-  strandedReports, waitSittingAtRest,
+  armLeakWitness, closeSitting, enterSittingByPass, expectParliamentFits, hotVerb, openParliament, parliament, parliamentWire, sittingStage,
+  sittingStep, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 
 /**
@@ -302,7 +302,8 @@ for (const preset of PRESETS) {
       }
 
       // ════════════════ PART 2 · THE SITTING ════════════════
-      const {playerId} = await bootFixtureSeats(page, request, 'parliament-marsfirst-budget-bot', {query: preset.query, landing: 'prompt'});
+      // The table stands ONE PASS before its sitting (the soft gates): the bot has passed, blue holds its action menu.
+      const {playerId} = await bootFixtureSeats(page, request, 'parliament-marsfirst-budget-bot', {query: preset.query});
       await armLeakWitness(page);
       const before = await wireOf(request, playerId);
       const blue = before.thisPlayer.color;
@@ -326,16 +327,10 @@ for (const preset of PRESETS) {
       expect(blueCell, 'a bonus cell for blue, away from the bot\'s site').toBeDefined();
       const bonus = before.game.spaces.find((s) => s.id === blueCell)!.bonus;
 
-      await expect(mandatoryPlate(page), 'the sitting is announced').toHaveCount(1, {timeout: 30_000});
-      expect(await openMandatoryAnnounce(page)).toBe(true);
-      await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-      await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-      await waitSittingAtRest(page, 30_000);
-      await shoot(page, preset.id, '02-verdict');
-
-      // ── GATE 1: A on the verdict — the effects run by themselves (the bot is never asked).
+      // ── THE PASS — the effects run by themselves (the bot is never asked).
       await armProbe(page, {bot: site!, blue: blueCell!});
-      await answerGateOnScreen(page, request, playerId, 'assembly');
+      await enterSittingByPass(page, request, playerId);
+      await shoot(page, preset.id, '02-sitting-up');
 
       // ── ① THE MONEY FIRST: −12, then +4 (building 2 + Mars 1 + influence 1) — recorded before the city is asked.
       await expect.poll(async () => {
@@ -480,7 +475,7 @@ for (const preset of PRESETS) {
     test(`PL-764 · the bot FIRST: the sitting steps aside for the bot's city BEFORE blue's door, and blue's tile waits behind it (${preset.id})`, async ({page, request}) => {
       test.setTimeout(600_000);
       // The load door lists the seats in GENERATION order — the bot first here — so the viewer is found, never assumed.
-      const {seats} = await bootFixtureSeats(page, request, 'parliament-marsfirst-budget-botfirst', {query: preset.query, landing: 'prompt'});
+      const {seats} = await bootFixtureSeats(page, request, 'parliament-marsfirst-budget-botfirst', {query: preset.query});
       const seatWires = await Promise.all(seats.map(async (id) => ({id, wire: await wireOf(request, id)})));
       const playerId = seatWires.find((s) => s.wire.players.find((p) => p.color === s.wire.thisPlayer.color)?.isMarsBot !== true)!.id;
       if (playerId !== seats[0]) {
@@ -498,16 +493,10 @@ for (const preset of PRESETS) {
       const site = free.find((id) => greeneries.every((g) => near[g]?.includes(id)));
       expect(site, 'the bot\'s site — the cell beside all three greeneries').toBeDefined();
 
-      await expect(mandatoryPlate(page), 'the sitting is announced').toHaveCount(1, {timeout: 30_000});
-      expect(await openMandatoryAnnounce(page)).toBe(true);
-      await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-      await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-      await waitSittingAtRest(page, 30_000);
-
-      // ── GATE 1: the law runs — the bot's city FIRST (its place in the order), then blue is asked for its own.
+      // ── THE PASS: the law runs — the bot's city FIRST (its place in the order), then blue is asked for its own.
       await armProbe(page, {bot: site!, blue: '__none__'});
       const cast = await recordFrames(page);
-      await answerGateOnScreen(page, request, playerId, 'assembly');
+      await enterSittingByPass(page, request, playerId);
       await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.type, {timeout: 60_000, message: 'blue\'s city is asked'}).toBe('space');
       const asked = await wireOf(request, playerId);
       const order = outcomesOf(asked).filter((o) => o.kind !== 'reaction').map((o) => `${o.player === blue ? 'blue' : 'bot'}:${o.step}`);
@@ -529,7 +518,9 @@ for (const preset of PRESETS) {
       const from = (i0: number, pick: (s: Sample) => boolean) => probe.samples.findIndex((s, i) => i >= i0 && pick(s));
       const botAt = from(0, (s) => s.botCity);
       const remoteAt = from(0, (s) => s.remote);
-      const awayAt = from(0, (s) => !s.parl);
+      // «Away» is counted from the sitting's rise — the samples before the pass are the board home, not a step aside.
+      const upAt = from(0, (s) => s.parl);
+      const awayAt = upAt < 0 ? -1 : from(upAt, (s) => !s.parl);
       const backAt = awayAt < 0 ? -1 : from(awayAt, (s) => s.parl);
       {
         let lastKey = '';

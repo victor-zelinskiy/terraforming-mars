@@ -1,8 +1,8 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, pressUntil, settle} from './consoleStart';
-import {answerGateAs, armLeakWitness, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
+import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, settle} from './consoleStart';
+import {armLeakWitness, enterSittingByPass, inspectWinningBill, parliament, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * GAS EXPORT (Turmoil Redux, RX12) — the ONE e2e of the new mechanic: an
@@ -84,24 +84,18 @@ test.describe(`Gas Export · ${PRESET.id}`, () => {
 
   test('the seat is paid, the sitting steps aside, both scales travel with no TR anywhere, and the results name the planet', async ({page, request}) => {
     test.setTimeout(600_000);
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-gas-assembly', {query: PRESET.query, landing: 'prompt'});
-    const red = seats[1];
+    // The table stands ONE PASS before its sitting (the soft gates): the law leads the vote, the viewer holds its menu.
+    const {playerId} = await bootFixtureSeats(page, request, 'parliament-gas-assembly', {query: PRESET.query});
     await armLeakWitness(page);
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await waitSittingAtRest(page, 30_000);
 
     const before = await wireOf(request, playerId);
     expect(before.game.oxygenLevel, 'the fixture stands at oxygen 5 %').toBe(5);
     expect(before.game.venusScaleLevel, '…and Venus 10 %').toBe(10);
-    await shoot(page, '01-verdict');
 
     // ── ⓪ THE INSPECTION SAYS WHAT WILL HAPPEN TO THE WORLD, in the server's own numbers — the one
     // surface that can, before anything moves (the vote panel's own reading is «для вас», and the
-    // planet is nobody's).
-    await openZoomViewer(page);
+    // planet is nobody's). Read on the table, as voted, one pass before the sitting.
+    await inspectWinningBill(page);
     const rules = page.locator('dialog.con-zoom[open] .con-zoom-sidecol');
     await expect(rules).toContainText(/Что делает с планетой|What it does to the planet/);
     await expect(rules).toContainText(/Кислород: 5% → 4%|Oxygen: 5% → 4%/);
@@ -112,12 +106,10 @@ test.describe(`Gas Export · ${PRESET.id}`, () => {
     await closeZoomViewer(page);
     await settle(page, {timeoutMs: 15_000});
 
+    // ── THE PASS carries the whole sitting; it comes up and turns its pages by itself.
+    await enterSittingByPass(page, request, playerId);
     await armProbe(page);
-
-    // ── GATE 1: A on the verdict; red answers over the API. Everything after this turns by itself.
-    expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined,
-      {tries: 4, settleMs: 1500}), 'A answers the assembly gate').toBe(true);
-    await answerGateAs(request, red, 'assembly');
+    await shoot(page, '01-sitting-up');
 
     // ── ① THE SEAT IS PAID FIRST: 2 M€ per influence, influence 2 → +4, and the record says so.
     await expect.poll(async () => {
@@ -158,7 +150,7 @@ test.describe(`Gas Export · ${PRESET.id}`, () => {
     await waitSittingAtRest(page, 60_000);
     await shoot(page, '03-back-from-the-board');
 
-    // …and the RESULTS carry the planet line. Red answers its own gate so the sitting can reach them.
+    // …and the RESULTS carry the planet line.
     await expect.poll(() => sittingStage(page), {timeout: 90_000, message: 'the walk reaches the results'}).toBe('results');
     const planet = page.locator('[data-sit-section="planet"] [data-sit-planet]');
     await expect(planet, 'one line member per world move').toHaveCount(2);

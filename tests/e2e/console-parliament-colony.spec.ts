@@ -1,9 +1,9 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, crumbText, fetchPlayerModel, openMandatoryAnnounce, placeTile, placementState, press, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, crumbText, fetchPlayerModel, placementState, placeTile, press, pressUntil, settle} from './consoleStart';
 import {
-  answerGateAs, closeSitting, armLeakWitness, expectParliamentFits, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest,
+  armLeakWitness, closeSitting, closeSittingAs, enterSittingByPass, expectParliamentFits, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 
 /**
@@ -50,7 +50,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 
 type Outcome = {player: string, step: string, kind: string, part?: string, amount?: number, colony?: string, reason?: string};
 type Wire = {
-  thisPlayer: {color: string, titanium: number, tableau: Array<{name: string, resources?: number}>},
+  thisPlayer: {color: string, titanium: number, titaniumProduction: number, tableau: Array<{name: string, resources?: number}>},
   game: {generation: number, phase: string, oceans: number, parliament: {phase?: {step: string, outcomes?: Array<Outcome>}, lastPhase?: {outcomes?: Array<Outcome>}}},
   waitingFor?: {type?: string, parliamentPhasePrompt?: unknown},
 };
@@ -187,22 +187,14 @@ async function focusColonyTile(page: Page, name: string): Promise<void> {
   expect(await focused.count(), `could not focus ${name} on the embedded grid`).toBeGreaterThan(0);
 }
 
-/** Boot the fixture, open the sitting, answer gate 1 for both seats — the reward stage begins. */
+/** Boot the fixture ONE PASS before its sitting (the soft gates) and pass on screen — the walk runs to the reward stage by itself. */
 async function openRewardStage(page: Page, request: APIRequestContext): Promise<{playerId: string, red: string, before: Wire}> {
-  const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-colony-assembly', {query: PRESET.query, landing: 'prompt'});
+  const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-colony-assembly', {query: PRESET.query});
   const red = seats[1];
   await armLeakWitness(page);
-  await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-  expect(await openMandatoryAnnounce(page)).toBe(true);
-  await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-  await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-  await waitSittingAtRest(page, 30_000);
-  await waitSittingAtRest(page, 30_000);
   const before = await wireOf(request, playerId);
   await armProbe(page);
-  expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
-    'A answers the assembly gate').toBe(true);
-  await answerGateAs(request, red, 'assembly');
+  await enterSittingByPass(page, request, playerId);
   return {playerId, red, before};
 }
 
@@ -309,7 +301,8 @@ test.describe(`Colony Contest · ${PRESET.id}`, () => {
     // The server's truth: the record names the tile, the floaters landed on a holder, the titanium is in.
     const mid = await wireOf(request, playerId);
     expect(mid.game.parliament.phase?.outcomes?.find((o) => o.player === seat && o.kind === 'colony')).toMatchObject({part: 'winner', colony: 'Titan'});
-    expect(mid.thisPlayer.titanium - before.thisPlayer.titanium, '2 titanium for influence 2').toBe(2);
+    // The pass paid the production phase first (titanium production), then the law its 2.
+    expect(mid.thisPlayer.titanium - before.thisPlayer.titanium - before.thisPlayer.titaniumProduction, '2 titanium for influence 2').toBe(2);
     const floaters = mid.thisPlayer.tableau.filter((c) => c.name === 'Atmo Collectors' || c.name === 'Jovian Lanterns').map((c) => c.resources ?? 0);
     expect(Math.max(...floaters), 'Titan\'s 3 floaters on the chosen holder').toBe(3);
     // The probe's laws: no two live bodies, a continuous crumb, a still band, nothing stranded.
@@ -323,12 +316,17 @@ test.describe(`Colony Contest · ${PRESET.id}`, () => {
     expect(gridSamples.every((s) => s.hero), 'the hero stood through the step').toBe(true);
     const bandHeights = Array.from(new Set(probe.samples.map((s) => s.bandH).filter((h) => h > 0)));
     expect(Math.max(...bandHeights) - Math.min(...bandHeights), `the band kept its height (${bandHeights.join(', ')})`).toBeLessThanOrEqual(1);
-    expect(probe.samples.filter((s) => s.bodyEmpty).length, 'the body zone never stood empty').toBe(0);
+    // From the moment the body FIRST stands: the probe is armed before the pass now (the soft gates), so it also sees the
+    // section's own mount, whose first flushes (microtask samples mid-patch — law 17) precede any painted body.
+    const bodyStoodAt = probe.samples.findIndex((s) => s.stage !== '' && !s.bodyEmpty);
+    const empties = probe.samples.filter((s, i) => bodyStoodAt >= 0 && i > bodyStoodAt && s.bodyEmpty);
+    const firstParl = probe.samples.find((s) => s.stage !== '')?.t ?? 0;
+    expect(empties.length, `the body zone never stood empty (${empties.map((s) => `${s.stage}/${s.step} +${Math.round(s.t - firstParl)}ms`).join(' · ')})`).toBe(0);
     expect(await strandedReports(page), 'nothing stranded').toEqual([]);
 
-    // ── GATE 2 closes the sitting; the next generation opens.
+    // ── «Закрыть заседание» for both seats: the viewer on screen, red over the API — the next generation runs.
     await closeSitting(page, request, playerId);
-    await answerGateAs(request, red, 'adjourn');
+    await closeSittingAs(request, red);
     await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
     const after = await wireOf(request, playerId);
     const mine = after.game.parliament.lastPhase?.outcomes?.filter((o) => o.player === seat) ?? [];
@@ -363,7 +361,7 @@ test.describe(`Colony Contest · ${PRESET.id}`, () => {
     expect(mid.game.oceans - before.game.oceans, 'the ocean is on the board').toBe(1);
     expect(await strandedReports(page), 'nothing stranded').toEqual([]);
     await closeSitting(page, request, playerId);
-    await answerGateAs(request, red, 'adjourn');
+    await closeSittingAs(request, red);
     await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
     await settle(page, {timeoutMs: 30_000});
   });

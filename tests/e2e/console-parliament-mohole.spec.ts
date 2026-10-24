@@ -2,9 +2,9 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, placeTile, placementState, pressUntil, settle,
+  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, placementState, placeTile, settle,
 } from './consoleStart';
-import {answerGateAs, closeSitting, armLeakWitness, expectDossierIsRules, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {armLeakWitness, closeSitting, closeSittingAs, enterSittingByPass, expectDossierIsRules, inspectWinningBill, mandatoryPlate, parliament, strandedReports, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * MOHOLE CONTEST (Turmoil Redux, RX23) — the ONE e2e of the new mechanic: a
@@ -40,7 +40,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 type Outcome = {player?: string, step: string, part?: string, kind: string, amount?: number, unrewarded?: boolean, tr?: number, influence?: number,
   parameter?: {id: string, before: number, after: number}};
 type Wire = {
-  thisPlayer: {color: string, heat: number, terraformRating: number, megacredits: number},
+  thisPlayer: {color: string, heat: number, heatProduction: number, energy: number, terraformRating: number, megacredits: number},
   game: {temperature: number, oceans: number, generation: number,
     parliament?: {enacted?: {resolution: string}, phase?: {step?: string, pending?: {player: string, key: string, input?: string}, outcomes?: Array<Outcome>}, lastPhase?: {outcomes?: Array<Outcome>}}},
   waitingFor?: {type?: string, placementContext?: {source?: {kind: string, name?: string}}},
@@ -98,23 +98,19 @@ test.describe(`Mohole Contest · ${PRESET.id}`, () => {
   test('the winner raises the temperature to 0 °C and is REWARDED: the heat lands, the marker glides with the TR chip, the ocean is placed inside the sitting, the results name the step', async ({page, request}) => {
     test.setTimeout(900_000);
 
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-mohole-assembly', {query: PRESET.query, landing: 'prompt'});
+    // The table stands ONE PASS before its sitting (the soft gates): the law leads the vote, the viewer holds its menu.
+    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-mohole-assembly', {query: PRESET.query});
     const red = seats[1];
     await armLeakWitness(page);
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await waitSittingAtRest(page, 30_000);
 
     const before = await wireOf(request, playerId);
     expect(before.game.temperature, 'the fixture stands at −4 °C').toBe(-4);
     expect(before.game.oceans, 'no ocean yet').toBe(0);
-    await shoot(page, '01-verdict');
 
     // ── ⓪ THE INSPECTION reads the winner's part — the printed text alone (texts 2026-10-23): the recipient, the
     //      step, its TR and what the track pays on the way are the sitting's reading, never a row of the dossier.
-    await openZoomViewer(page);
+    //      Read on the table, as voted, one pass before the sitting.
+    await inspectWinningBill(page);
     const zoom = page.locator('dialog.con-zoom[open]');
     const rules = zoom.locator('.con-zoom-sidecol');
     await expect(rules).toContainText(/Победителю голосования|For the winner of the vote/);
@@ -125,12 +121,10 @@ test.describe(`Mohole Contest · ${PRESET.id}`, () => {
     await closeZoomViewer(page);
     await settle(page, {timeoutMs: 15_000});
 
+    // ── THE PASS carries the whole sitting; it comes up and turns its pages by itself.
+    await enterSittingByPass(page, request, playerId);
     await armProbe(page);
-
-    // ── GATE 1: A on the verdict; red answers over the API. Everything after this turns by itself.
-    expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined,
-      {tries: 4, settleMs: 1500}), 'A answers the assembly gate').toBe(true);
-    await answerGateAs(request, red, 'assembly');
+    await shoot(page, '01-sitting-up');
 
     // ── ① THE SEAT IS PAID ITS HEAT FIRST: 3 per influence, influence 2 → +6 — recorded, and the wave to the rail.
     await expect.poll(async () => {
@@ -207,13 +201,14 @@ test.describe(`Mohole Contest · ${PRESET.id}`, () => {
     await expect(page.locator('[data-sit-section="planet"]'), 'a rewarded step of the winner is never the planet line').toHaveCount(0);
     await shoot(page, '05-results');
     await closeSitting(page, request, playerId);
-    await answerGateAs(request, red, 'adjourn');
+    await closeSittingAs(request, red);
     await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
 
     const after = await wireOf(request, playerId);
     expect(after.game.temperature).toBe(0);
     expect(after.game.oceans, 'the ocean of 0 °C is on Mars').toBe(1);
-    expect(after.thisPlayer.heat - before.thisPlayer.heat, '3 × influence 2').toBe(6);
+    // The pass paid the production phase first (heat production + the energy turned to heat), then the law its 6.
+    expect(after.thisPlayer.heat - before.thisPlayer.heat - before.thisPlayer.heatProduction - before.thisPlayer.energy, '3 × influence 2').toBe(6);
     // +2 for the steps, +1 for the ocean, and at most the Agenda step's own bonus on top.
     expect(after.thisPlayer.terraformRating - before.thisPlayer.terraformRating).toBeGreaterThanOrEqual(3);
     expect(after.thisPlayer.terraformRating - before.thisPlayer.terraformRating).toBeLessThanOrEqual(4);

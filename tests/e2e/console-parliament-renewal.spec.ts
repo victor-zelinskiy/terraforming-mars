@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
-import {bootFixtureSeats, cinematicBeat, crumbText, openMandatoryAnnounce, press} from './consoleStart';
-import {answerGateAs, expectRailHonest, mandatoryPlate, parliamentWire, sittingStage, waitSittingAtRest} from './parliamentDrive';
+import {bootFixtureSeats, cinematicBeat, crumbText} from './consoleStart';
+import {enterSittingByPass, expectRailHonest, parliamentWire, sittingStage, waitSittingAtRest} from './parliamentDrive';
 
 
 /**
@@ -257,26 +257,15 @@ test.describe('«ОБНОВЛЕНИЕ» — the renewal is a tact, and every obj
 
   test('scenario 2: an empty deck — the losers leave (delegates home first), the discard turns over, both are dealt back, the support seats off the plaques, the panel opens after the last landing', async ({page, request}) => {
     test.setTimeout(300_000);
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-renewal-assembly', {query: '&consoleProfile=auto', landing: 'prompt'});
+    // ONE PASS before its sitting (the soft gates): red has passed, blue holds its action menu.
+    const {playerId} = await bootFixtureSeats(page, request, 'parliament-renewal-assembly', {query: '&consoleProfile=auto'});
     const before = await parliamentWire(request, playerId);
-    expect(before.game.parliament?.phase?.step).toBe('assembly');
+    expect(before.game.parliament?.phase, 'no sitting yet').toBeUndefined();
     const viewer = before.thisPlayer.color;
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
     await armProbe(page);
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(page.locator('.con-parl')).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await waitSittingAtRest(page);
-    // The table as voted: the two losers are on screen, blue's delegate on the Greens' card.
-    const tableBefore = await readProbe(page);
-    const seenBefore = tableBefore.samples[tableBefore.samples.length - 1];
-    expect(seenBefore.slots.length, 'three cards as voted').toBe(3);
-    const neutralSupplyAtVerdict = seenBefore.supply;
-    await shoot(page, '00-verdict');
-
-    // ONE A (the other seat answered first): the whole walk plays by itself.
-    await answerGateAs(request, seats[1], 'assembly');
-    await press(page, 'Enter', 400);
+    // ONE PASS: the whole walk plays by itself.
+    await enterSittingByPass(page, request, playerId);
+    await shoot(page, '00-sitting-up');
     await expect.poll(() => sittingStage(page), {timeout: 90_000}).toBe('renewal');
     // A FILM STRIP of the tact for the report (the probe below is the evidence; these are the owner's frames).
     // The probe is NOT read mid-tact: hauling thousands of samples out of the page takes seconds and would
@@ -288,6 +277,13 @@ test.describe('«ОБНОВЛЕНИЕ» — the renewal is a tact, and every obj
     await expect.poll(() => sittingStage(page), {timeout: 60_000}).toBe('results');
     await waitSittingAtRest(page, 30_000);
     await shoot(page, '05-results');
+    // The table as voted, read on the VERDICT page (the director turns it by itself — the probe is read only now, never
+    // mid-tact): the two losers are on screen, blue's delegate on the Greens' card.
+    const tableBefore = await readProbe(page);
+    const seenBefore = tableBefore.samples.find((s) => s.stage === 'verdict');
+    expect(seenBefore, 'the verdict page was sampled').toBeDefined();
+    expect(seenBefore!.slots.length, 'three cards as voted').toBe(3);
+    const neutralSupplyAtVerdict = seenBefore!.supply;
 
     const wire = await parliamentWire(request, playerId);
     const summary = wire.game.parliament?.phase?.summary as (typeof wire.game.parliament extends undefined ? never : {renewal?: Journal, refreshed: Array<{instance: string, party: string, neutralVotes: number}>}) | undefined;
@@ -497,6 +493,6 @@ test.describe('«ОБНОВЛЕНИЕ» — the renewal is a tact, and every obj
     expect((await crumbText(page)).toUpperCase()).toMatch(/ИТОГИ|RESULTS/);
     expect(restSample.deck, 'the deck at rest is the live count').toBe(wire.game.parliament === undefined ? -1 : (wire.game.parliament as unknown as {deckSize: number}).deckSize);
     await expectRailHonest(page, 'the results band', '.con-band');
-    expect(wire.waitingFor?.parliamentPhasePrompt?.stage, 'gate 2 stands until A').toBe('adjourn');
+    expect(wire.waitingFor?.parliamentPhasePrompt?.stage, 'the seat\'s confirmation stands until A').toBe('close');
   });
 });

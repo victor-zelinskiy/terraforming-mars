@@ -1,9 +1,9 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openZoomViewer, press, pressUntil, settle} from './consoleStart';
 import {
-  answerGateAs, armLeakWitness, expectDossierIsRules, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, passAs, sittingStage, strandedReports, waitSittingAtRest,
+  armLeakWitness, awaitSittingUp, expectDossierIsRules, expectParliamentFits, openParliament, parliament, parliamentWire, passAs, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 
 /**
@@ -226,23 +226,14 @@ test.describe('Colonization Funding · standard-1080', () => {
     await press(page, 'Escape', 900);
     expect(await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 4, settleMs: 1000}), 'back on the board').toBe(true);
 
-    // ── THE GENERATION ENDS over the API: both seats pass — the political phase starts, the announce opens.
+    // ── THE GENERATION ENDS over the API: both seats pass — the whole sitting rides red's pass and comes up on this screen;
+    // the walk turns its pages by itself (the soft gates — no gate to answer).
     await passAs(request, playerId);
     await expect.poll(async () => (await parliamentWire(request, red)).waitingFor?.type, {timeout: 20_000}).toBe('or');
     await passAs(request, red);
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await settle(page, {timeoutMs: 20_000});
-    await shoot(page, '04-verdict');
-
-    // ── A answers gate 1; the other seat answers last over the API — the effects run.
+    await awaitSittingUp(page);
     await armProbe(page);
-    await press(page, 'Enter', 1200);
-    await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000}).toBeUndefined();
-    const prodBefore = (await readProbe(page)).samples.slice(-1)[0].prod;
-    await answerGateAs(request, red, 'assembly');
+    await shoot(page, '04-sitting-up');
 
     // ── THE WAVE: the +6 chip born inside the carrier card's mechanic, landing on the M€ production cell.
     // The Agenda step's TR bonus flies first (a chip of ПРИНЯТИЕ); the wave this spec is about is the M€ chip on the REWARD page.
@@ -264,6 +255,8 @@ test.describe('Colonization Funding · standard-1080', () => {
     const track = Array.from(tracks.values()).find((tr) => tr[0].c.res === 'megacredits');
     expect(track, 'a M€ production chip flew').toBeDefined();
     const first = track![0];
+    // The production the chip lands on: the cell as it read the sample before the chip was born.
+    const prodBefore = probe.samples[Math.max(0, first.i - 1)].prod;
     const last = track![track!.length - 1];
     expect(first.c.amt, 'the chip carries the paid amount').toContain('6');
     // The SOURCE was visible when the chip was born, and the chip was born inside it.
@@ -278,7 +271,7 @@ test.describe('Colonization Funding · standard-1080', () => {
     const chord = cc === undefined ? Infinity : Math.hypot(cc.x - first.c.x, cc.y - first.c.y);
     expect(travel, `the chip TRAVELLED (${Math.round(travel)} px; icon → cell ${Math.round(chord)} px)`).toBeGreaterThan(Math.min(1080 * 0.2, chord * 0.85));
     // THE COUNTER TICKS ON CONTACT — in the landing's frame, never before the chip left the card, with its delta chip.
-    const tickAt = probe.samples.findIndex((s) => s.prod !== prodBefore);
+    const tickAt = probe.samples.findIndex((s, i) => i >= first.i && s.prod !== prodBefore);
     const landedAt = landingIndex(track!, REST_SLACK_PX);
     expect(tickAt, `the M€ production counter ticked (was «${prodBefore}»)`).toBeGreaterThan(0);
     const tickLag = probe.samples[tickAt].t - probe.samples[landedAt].t;

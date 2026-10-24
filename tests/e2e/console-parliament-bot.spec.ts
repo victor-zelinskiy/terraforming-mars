@@ -1,9 +1,9 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, fetchPlayerModel, openMandatoryAnnounce, press, sendPlayerInput, settle} from './consoleStart';
+import {bootFixtureSeats, fetchPlayerModel, press, sendPlayerInput, settle} from './consoleStart';
 import {
-  armLeakWitness, expectParliamentFits, hotVerb, mandatoryPlate, openParliament, parliament, PARLIAMENT_PRESETS, sittingStage, strandedReports,
+  armLeakWitness, closeSitting, enterSittingByPass, expectParliamentFits, hotVerb, openParliament, parliament, PARLIAMENT_PRESETS, sittingStage, strandedReports,
   waitSittingAtRest,
 } from './parliamentDrive';
 
@@ -305,19 +305,20 @@ for (const preset of PARLIAMENT_PRESETS) {
 
     test(`(4) the sitting for the spectator — the bot is the winning player, its ocean is a row of the results, never «Ваша награда», the tile lands after the sitting (${preset.id})`, async ({page, request}) => {
       test.setTimeout(420_000);
-      const {playerId} = await bootFixtureSeats(page, request, 'parliament-bot-win', {query: preset.query, landing: 'prompt'});
+      // The table stands ONE PASS before its sitting (the soft gates): the bot's delegates lead the vote.
+      const {playerId} = await bootFixtureSeats(page, request, 'parliament-bot-win', {query: preset.query});
       await armLeakWitness(page);
       const before = await wireOf(request, playerId);
       const bot = botSeatOf(before);
-      expect(before.game.parliament?.phase?.step).toBe('assembly');
-      expect(before.game.parliament?.phase?.summary?.winner.player, 'the bot won the vote').toBe(bot.color);
+      expect(before.game.phase, 'one pass before the sitting').toBe('action');
       const ocean = page.locator('.board-space [class*="board-space-tile--ocean"]');
       expect(await ocean.count(), 'no ocean on the board before the sitting').toBe(0);
 
       // A probe over the band and the panel: the words the spectator is shown, and the remote tile stage.
-      await page.evaluate(() => {
-        const w = window as unknown as {__botSit: {texts: Set<string>, remote: boolean}};
-        w.__botSit = {texts: new Set(), remote: false};
+      // …and the VERDICT page's own reading (the walk turns it by itself — the soft gates — so it is sampled, never read late).
+      await page.evaluate((botColor) => {
+        const w = window as unknown as {__botSit: {texts: Set<string>, remote: boolean, verdictBot: boolean}};
+        w.__botSit = {texts: new Set(), remote: false, verdictBot: false};
         const sample = () => {
           for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-band, .con-sit__panel--on'))) {
             w.__botSit.texts.add((el.textContent ?? '').replace(/\s+/g, ' ').trim());
@@ -325,30 +326,28 @@ for (const preset of PARLIAMENT_PRESETS) {
           if (document.querySelector('.con-tileplace__tile--remote') !== null) {
             w.__botSit.remote = true;
           }
+          if (document.querySelector('.con-parl')?.getAttribute('data-sitting-stage') === 'verdict' &&
+              document.querySelector(`.con-band [data-parl-band-chip="player"] [data-player-token="${botColor}"]`) !== null) {
+            w.__botSit.verdictBot = true;
+          }
         };
-        new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, characterData: true});
+        new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, characterData: true, attributes: true});
         window.setInterval(sample, 50);
-      });
+      }, bot.color);
       const readSit = () => page.evaluate(() => {
-        const w = window as unknown as {__botSit: {texts: Set<string>, remote: boolean}};
-        return {texts: Array.from(w.__botSit.texts), remote: w.__botSit.remote};
+        const w = window as unknown as {__botSit: {texts: Set<string>, remote: boolean, verdictBot: boolean}};
+        return {texts: Array.from(w.__botSit.texts), remote: w.__botSit.remote, verdictBot: w.__botSit.verdictBot};
       });
 
-      await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-      expect(await openMandatoryAnnounce(page)).toBe(true);
-      await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-      await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-      await waitSittingAtRest(page, 20_000);
-      // ── THE VERDICT names the bot as the winning player.
-      const band = page.locator('.con-band');
-      await expect(band, 'the verdict line').toContainText(/Победитель голосования|Winning player/);
-      await expect(band.locator(`[data-parl-band-chip="player"] [data-player-token="${bot.color}"]`), 'with the bot\'s token').toHaveCount(1);
-      await expectParliamentFits(page, `${preset.id} verdict`);
-      await shoot(page, preset.id, '05-sitting-verdict');
-
-      // ── A answers the one gate; the walk plays to the results (the bot never holds a gate).
-      await press(page, 'Enter', 800);
+      // ── ONE PASS: the whole sitting rides it; the walk plays to the results by itself (the bot never holds a confirmation).
+      await enterSittingByPass(page, request, playerId);
+      expect((await wireOf(request, playerId)).game.parliament?.phase?.summary?.winner.player, 'the bot won the vote').toBe(bot.color);
+      await shoot(page, preset.id, '05-sitting-up');
       await expect.poll(() => sittingStage(page), {timeout: 90_000}).toBe('results');
+      // ── THE VERDICT named the bot as the winning player, with its token.
+      const verdictRead = await readSit();
+      expect(verdictRead.texts.some((t) => /Победитель голосования|Winning player/.test(t)), 'the verdict line').toBe(true);
+      expect(verdictRead.verdictBot, 'with the bot\'s token on the verdict page').toBe(true);
       await waitSittingAtRest(page, 40_000);
       await expect(page.locator('[data-sit-results-hidden]')).toHaveCount(0);
       const botRow = page.locator(`[data-sit-payout][data-sit-payout-seat="${bot.color}"]`);
@@ -365,10 +364,9 @@ for (const preset of PARLIAMENT_PRESETS) {
       await expectParliamentFits(page, `${preset.id} results`);
       await shoot(page, preset.id, '06-sitting-results');
 
-      // ── The sitting leaves with the phase; the bot's ocean lands on the board through the remote stage.
-      await press(page, 'Enter', 1200);
-      await expect.poll(async () => (await wireOf(request, playerId)).game.phase, {timeout: 60_000}).not.toBe('parliament');
-      await expect(parliament(page), 'the sitting leaves with the phase').toHaveCount(0, {timeout: 30_000});
+      // ── «Закрыть заседание»: the sitting leaves; the bot's ocean lands on the board through the remote stage.
+      await closeSitting(page, request, playerId);
+      await expect(parliament(page), 'the sitting leaves with its close').toHaveCount(0, {timeout: 30_000});
       await expect(ocean, 'the bot\'s ocean stands on the board').toHaveCount(1, {timeout: 40_000});
       await settle(page, {timeoutMs: 20_000});
       expect((await readSit()).remote, 'the tile came through the remote stage').toBe(true);

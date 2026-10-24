@@ -1,19 +1,19 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, openMandatoryAnnounce, press, settle} from './consoleStart';
+import {bootFixtureSeats, press, settle} from './consoleStart';
 import {
-  answerGateAs, closeSitting, armLeakWitness, expectParliamentFits, hotVerb, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest,
+  armLeakWitness, awaitSittingUp, closeSitting, closeSittingAs, expectParliamentFits, hotVerb, openParliament, parliament, parliamentWire, passAs,
+  sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 import {armSittingProbe, beatOrder, beatStart, readSittingProbe} from './parliamentDriveV2';
 
 
 /**
- * «ЗАСЕДАНИЕ v2» — the SPECTATOR's path: the viewer answers the gate FIRST («Ожидание»), the other seat
- * answers later over the API, and the viewer's client learns the whole chain through the POLL / WS
- * frame — the same walk, the same seeds, the same beats as for an own submit (the pre-v2 door was closed
- * on exactly this path: the wave never flew for a record that arrived while the section's stage read
- * `submitting`). Architecture Award: RED wins from the middle slot, the government CHANGES (the Greens'
+ * «ЗАСЕДАНИЕ v2» — the SPECTATOR's path (the soft gates): the pass that runs the sitting is NOT this client's own
+ * submit — it is sent over the API — so the viewer's client learns the whole chain through the POLL / WS frame:
+ * the same walk, the same seeds, the same beats as for an own submit (the pre-v2 door was closed on exactly this
+ * path: the wave never flew for a record that arrived while the section's stage read `submitting`). Architecture Award: RED wins from the middle slot, the government CHANGES (the Greens'
  * starting rule → Mars First), blue is paid +1 M€ production — the plaques change places by a FLIP, the
  * opposition row never moves, the wave flies for the spectator.
  */
@@ -27,37 +27,35 @@ async function shoot(page: Page, name: string): Promise<void> {
 test.describe('the sitting v2 · the spectator (standard-1080)', () => {
   test.use({viewport: {width: 1920, height: 1080}});
 
-  test('the viewer answers first; the other seat\'s answer arrives by the poll: the beats play from the diffs, the government changes by a FLIP, the wave flies', async ({page, request}) => {
+  test('the pass that runs the sitting arrives by the poll: the beats play from the diffs, the government changes by a FLIP, the wave flies', async ({page, request}) => {
     test.setTimeout(420_000);
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-architecture-assembly', {query: '&consoleProfile=auto', landing: 'prompt'});
+    // ONE PASS before its sitting (the soft gates): red has passed, blue holds its action menu.
+    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-architecture-assembly', {query: '&consoleProfile=auto'});
     const red = seats[1];
     await armLeakWitness(page);
     const before = await parliamentWire(request, playerId);
-    expect(before.game.parliament?.phase?.step).toBe('assembly');
+    expect(before.game.parliament?.phase, 'no sitting yet').toBeUndefined();
     const redColor = (await parliamentWire(request, red)).thisPlayer.color;
-    expect(before.game.parliament?.phase?.summary?.winner.player, 'RED won the vote').toBe(redColor);
-    const mcProdBefore = before.thisPlayer.megaCreditProduction;
+    const mcProdBefore = before.thisPlayer.megacreditProduction;
 
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await waitSittingAtRest(page, 20_000);
+    // The overview as it stands before the sitting: the Greens rule by the starting rule, five opposition tiles.
+    await openParliament(page);
     await expect(page.locator('[data-parl-ruler] .con-parl__party[data-party="Greens"]'), 'the Greens rule by the starting rule').toHaveCount(1);
     const tilesBefore = await page.locator('.con-parl__parties .con-parl__party').evaluateAll((els) => els.map((el) => el.getAttribute('data-party')));
     expect(tilesBefore, 'five opposition tiles, the Greens not among them').toHaveLength(5);
     expect(tilesBefore).not.toContain('Greens');
+    for (let i = 0; i < 4 && await parliament(page).count() > 0; i++) {
+      await press(page, 'Escape', 900);
+    }
+    await expect(parliament(page), 'back on the board').toHaveCount(0, {timeout: 15_000});
 
-    // ── The viewer answers FIRST: the wait pose, the stage stays the verdict.
+    // ── THE PASS OVER THE API — not this client's submit: the chain runs on the server, the client learns it by the
+    //    socket / the poll, and the sitting comes up on this screen.
     await armSittingProbe(page);
-    await press(page, 'Enter', 800);
-    await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000}).toBeUndefined();
-    expect(await sittingStage(page)).toBe('verdict');
-    expect((await parliamentWire(request, playerId)).game.parliament?.phase?.step, 'one answer moves nothing').toBe('assembly');
-    await shoot(page, '01-waiting');
-
-    // ── The OTHER seat answers over the API: the chain runs on the server; the viewer's client learns it by the poll.
-    await answerGateAs(request, red, 'assembly');
+    await passAs(request, playerId);
+    await awaitSittingUp(page);
+    expect((await parliamentWire(request, playerId)).game.parliament?.phase?.summary?.winner.player, 'RED won the vote').toBe(redColor);
+    await shoot(page, '01-sitting-up');
     await expect.poll(async () => (await readSittingProbe(page)).samples.some((s) => s.chips.length > 0), {timeout: 60_000, message: 'the wave left the card for the spectator'}).toBe(true);
     await waitSittingAtRest(page, 40_000);
     const s = (await readSittingProbe(page)).samples;
@@ -124,10 +122,8 @@ test.describe('the sitting v2 · the spectator (standard-1080)', () => {
     await expectParliamentFits(page, 'remote results');
     await shoot(page, '03-results');
     await closeSitting(page, request, playerId);
-    await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000}).toBeUndefined();
-    await answerGateAs(request, red, 'adjourn');
-    await expect.poll(async () => (await parliamentWire(request, playerId)).game.phase, {timeout: 60_000}).not.toBe('parliament');
-    await expect(parliament(page), 'the sitting leaves with the phase').toHaveCount(0, {timeout: 30_000});
+    await expect(parliament(page), 'the sitting leaves with its close').toHaveCount(0, {timeout: 30_000});
+    await closeSittingAs(request, red);
     await settle(page, {timeoutMs: 20_000});
     expect(await strandedReports(page)).toEqual([]);
   });

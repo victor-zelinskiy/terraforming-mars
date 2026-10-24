@@ -2,10 +2,10 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle,
+  bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openZoomViewer, press, pressUntil, settle,
 } from './consoleStart';
 import {
-  answerGateAs, armLeakWitness, closeSitting, expectDossierIsRules, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest,
+  armLeakWitness, closeSitting, closeSittingAs, enterSittingByPass, expectDossierIsRules, expectParliamentFits, openParliament, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 
 /**
@@ -71,7 +71,7 @@ type Outcome = {
   countedByTag?: Array<{tag: string, count: number}>, before?: number, after?: number,
 };
 type Wire = {
-  thisPlayer: {color: string, megacredits: number, tableau: Array<{name: string, resources?: number}>},
+  thisPlayer: {color: string, megacredits: number, megacreditProduction: number, terraformRating: number, tableau: Array<{name: string, resources?: number}>},
   game: {generation: number, parliament: {phase?: {step: string, outcomes?: Array<Outcome>}, lastPhase?: {outcomes?: Array<Outcome>}}},
   waitingFor?: {type?: string, cards?: Array<{name: string}>},
 };
@@ -248,23 +248,17 @@ test.describe('Greens Budget · standard-1080', () => {
     }
 
     // ════════════════ PART 2 · THE SITTING — the money first, then two questions to one seat, in turn ════════════════
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-greens-assembly', {query: '&consoleProfile=auto', landing: 'prompt'});
+    // The table stands ONE PASS before its sitting (the soft gates): the viewer's own pass carries the whole sitting.
+    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-greens-assembly', {query: '&consoleProfile=auto'});
     const red = seats[1];
     await armLeakWitness(page);
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await waitSittingAtRest(page, 30_000);
     const before = await wireOf(request, playerId);
     const blue = before.thisPlayer.color;
-    await shoot(page, '04-verdict');
-
-    // ── GATE 1: A on the verdict; red answers over the API — the effects run by themselves.
+    // The same pass pays the production phase before the sitting: M€ production + TR.
+    const income = before.thisPlayer.megacreditProduction + before.thisPlayer.terraformRating;
+    await enterSittingByPass(page, request, playerId);
     await armProbe(page);
-    expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined,
-      {tries: 4, settleMs: 1500}), 'A answers the assembly gate').toBe(true);
-    await answerGateAs(request, red, 'assembly');
+    await shoot(page, '04-sitting-up');
 
     // ── ① THE MONEY IS SETTLED FIRST: −10 leaves the rail, +7 comes back — and the server already holds the animals' question.
     await expect.poll(async () => {
@@ -278,7 +272,7 @@ test.describe('Greens Budget · standard-1080', () => {
     expect(paidRecord.amount).toBe((paidRecord.count ?? 0) + 2);
     expect(paidRecord.countedByTag?.map((e) => e.tag), 'the breakdown rides the record in the printed rule\'s order').toEqual(['plant', 'microbe', 'animal']);
     const paid = paidRecord.amount ?? 0;
-    const netMc = String(before.thisPlayer.megacredits - 10 + paid);
+    const netMc = String(before.thisPlayer.megacredits + income - 10 + paid);
 
     // ── ② THE ANIMALS' PICKER stands inside the Parliament's stage: two holders, the crumb continuous, the M€ already netted.
     await expect.poll(async () => sorted((await readProbe(page)).samples.slice(-1)[0]?.slots ?? []), {timeout: 60_000, message: 'the animals\' picker shows Fish and Pets'}).toEqual(ANIMAL_HOLDERS);
@@ -354,7 +348,7 @@ test.describe('Greens Budget · standard-1080', () => {
     expect(mine[2]).toMatchObject({kind: 'cardResource', amount: 2, card: animalCard});
     expect(mine[3]).toMatchObject({kind: 'cardResource', amount: 3, card: microbeCard});
     expect(mine[1].before, 'the payout landed on what the levy LEFT').toBe(mine[0].after);
-    expect(wire.thisPlayer.megacredits - before.thisPlayer.megacredits, 'the day\'s balance').toBe(paid - 10);
+    expect(wire.thisPlayer.megacredits - before.thisPlayer.megacredits - income, 'the day\'s balance').toBe(paid - 10);
     expect(wire.thisPlayer.tableau.find((c) => c.name === microbeCard)?.resources).toBe(3);
     expect(wire.thisPlayer.tableau.find((c) => c.name === animalCard)?.resources, 'the animals stayed where they landed').toBe(2);
     const others = (wire.game.parliament.phase?.outcomes ?? wire.game.parliament.lastPhase?.outcomes ?? []).filter((o) => o.player !== blue);
@@ -384,9 +378,10 @@ test.describe('Greens Budget · standard-1080', () => {
     await shoot(page, '07-results-four-parts');
     expect(await strandedReports(page), 'nothing stranded').toEqual([]);
 
-    // ── The generation moves on: A on the results answers the viewer's gate, red answers over the API.
+    // ── «Закрыть заседание»: A on the results admits the viewer to the next generation; red closes its own over the API.
     await closeSitting(page, request, playerId);
-    await answerGateAs(request, red, 'adjourn');
-    await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
+    await expect.poll(async () => (await wireOf(request, playerId)).game.parliament.phase, {timeout: 30_000, message: 'the viewer has left its sitting'}).toBeUndefined();
+    expect((await wireOf(request, playerId)).game.generation, 'the next generation runs').toBe(2);
+    await closeSittingAs(request, red);
   });
 });

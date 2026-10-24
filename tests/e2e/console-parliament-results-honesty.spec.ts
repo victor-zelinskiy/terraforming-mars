@@ -1,10 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
-import {bootFixture, bootFixtureSeats, openMandatoryAnnounce, press, pressUntil, settle} from './consoleStart';
+import {bootFixture, bootFixtureSeats, settle} from './consoleStart';
 import {
-  answerGateAs, expectParliamentFits, expectRailHonest, mandatoryPlate, openParliament, parliament, parliamentWire,
-  PARLIAMENT_PRESETS, sittingStage, waitSittingAtRest,
+  closeSitting, closeSittingAs, enterSittingByPass, expectParliamentFits, expectRailHonest, openParliament, PARLIAMENT_PRESETS, parliamentWire,
+  sittingStage, waitSittingAtRest,
 } from './parliamentDrive';
 
 
@@ -191,20 +191,14 @@ function summaryOf(wire: Awaited<ReturnType<typeof parliamentWire>>): SittingSum
 
 type HonestyFixture = 'parliament-architecture-assembly' | 'parliament-support-stock';
 
+/** Boot the table ONE PASS before its sitting (the soft gates): the other seat has passed, the viewer holds its menu. */
 async function openSitting(page: Page, request: Parameters<typeof bootFixtureSeats>[1], fixture: HonestyFixture, query = '&consoleProfile=auto') {
-  const boot = await bootFixtureSeats(page, request, fixture, {query, landing: 'prompt'});
-  await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-  expect(await openMandatoryAnnounce(page)).toBe(true);
-  await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-  await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-  await waitSittingAtRest(page, 20_000);
-  return boot;
+  return await bootFixtureSeats(page, request, fixture, {query});
 }
 
-/** The last answer opens gate 1 and the walk plays itself; come back when everything is at rest. */
-async function runWalk(page: Page, request: Parameters<typeof bootFixtureSeats>[1], seat: string): Promise<void> {
-  await answerGateAs(request, seat, 'assembly');
-  await press(page, 'Enter', 400);
+/** The viewer's pass runs the sitting and the walk plays itself; come back when everything is at rest on the results. */
+async function runWalk(page: Page, request: Parameters<typeof bootFixtureSeats>[1], viewer: string): Promise<void> {
+  await enterSittingByPass(page, request, viewer);
   await expect.poll(() => sittingStage(page), {timeout: 40_000}).not.toBe('verdict');
   await waitSittingAtRest(page, 60_000);
   await expect.poll(() => sittingStage(page), {timeout: 60_000}).toBe('results');
@@ -217,9 +211,9 @@ test.describe('«Итоги: честность» — панель, поддер
 
   test('И1+И3 · ДВЕ СЕКЦИИ, и правительство не пересказано; строки лобби нет, есть исключение', async ({page, request}) => {
     test.setTimeout(300_000);
-    const {playerId, seats} = await openSitting(page, request, 'parliament-architecture-assembly');
+    const {playerId} = await openSitting(page, request, 'parliament-architecture-assembly');
     await armHonestyProbe(page);
-    await runWalk(page, request, seats[1]);
+    await runWalk(page, request, playerId);
     await shoot(page, 'honesty-results');
 
     // ① THE CARD STANDS OVER THE CHAMBER (v8 `e1`) and carries the government's facts ITSELF — the same law the
@@ -319,12 +313,11 @@ test.describe('«Итоги: честность» — панель, поддер
     expect((before.game.parliament as unknown as {enacted?: string}).enacted, 'generation 1: nothing is enacted yet — the ruler rules by the STARTING RULE')
       .toBeUndefined();
 
-    await runWalk(page, request, seats[1]);
+    await runWalk(page, request, playerId);
     // Close the sitting and walk back into the overview: the parties row is parked behind the results
     // panel while it stands, and «its stock reads in the row» is a claim about a row the player can see.
-    await answerGateAs(request, seats[1], 'adjourn');
-    expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined,
-      {tries: 5, settleMs: 1500}), 'A answers the adjourn gate').toBe(true);
+    await closeSittingAs(request, seats[1]);
+    await closeSitting(page, request, playerId);
     await settle(page, {timeoutMs: 30_000});
     await openParliament(page);
     await settle(page, {timeoutMs: 20_000});
@@ -368,8 +361,8 @@ test.describe('«Итоги: честность» — панель, поддер
 
   test('И2 · ПОДДЕРЖКА ЧЕСТНА: места равны запасу сервера, правителя в строке нет, свежие отличимы, ничего не срезано', async ({page, request}) => {
     test.setTimeout(300_000);
-    const {playerId, seats} = await openSitting(page, request, 'parliament-support-stock');
-    await runWalk(page, request, seats[1]);
+    const {playerId} = await openSitting(page, request, 'parliament-support-stock');
+    await runWalk(page, request, playerId);
     await shoot(page, 'honesty-support-stock');
 
     const wire = await parliamentWire(request, playerId);
@@ -427,10 +420,10 @@ test.describe('«Итоги: честность» — панель, поддер
 
   test('И5 · ОБМЕН МЕСТАМИ: гнёзда меняются в кадре прибытия, ни одного кадра в чужом состоянии', async ({page, request}) => {
     test.setTimeout(300_000);
-    const {playerId, seats} = await openSitting(page, request, 'parliament-architecture-assembly');
+    const {playerId} = await openSitting(page, request, 'parliament-architecture-assembly');
     const rulerBefore = (await parliamentWire(request, playerId)).game.parliament?.rulingParty;
     await armHonestyProbe(page);
-    await runWalk(page, request, seats[1]);
+    await runWalk(page, request, playerId);
     // THE PARTY THAT RULES BY CARD after this walk — the server's own answer. The government's basis line is no
     // witness for a TILE: it turns the moment the new card lands on its seat, while the starting-rule ruler still
     // stands in the slot (sockets rightly shown) until its own FLIP — «by card» there named the wrong object.
@@ -445,7 +438,9 @@ test.describe('«Итоги: честность» — панель, поддер
     // ① AT REST the sockets are hidden on exactly the tile standing in the government WHEN IT RULES BY AN ENACTED CARD,
     //    and nowhere else. Before the first enactment the Greens rule by the STARTING RULE and keep their sockets
     //    (RX06, 2026-09-22 — a starting-rule ruler can hold support; the Cloud spec pins it).
-    const settled = full.filter((s) => !s.swapping);
+    // (A frame with EVERY plaque's sockets hidden is the section itself not painted yet — `visibility` inherits, and the
+    //  sitting that rises out of the generation scene stands hidden for a beat; no tile is in any state there.)
+    const settled = full.filter((s) => !s.swapping && s.tiles.some((t) => !t.socketsHidden));
     const hides = (_s: HonestySample, t: TileSample) => t.inSlot && t.party === byCard;
     const wrongAtRest = settled.filter((s) => s.tiles.some((t) => t.socketsHidden !== hides(s, t)));
     expect(wrongAtRest.map((s) => `${s.stage}: ` + s.tiles.filter((t) => t.socketsHidden !== hides(s, t))
@@ -488,8 +483,8 @@ for (const preset of PARLIAMENT_PRESETS.filter((p) => p.id !== 'standard-1080'))
 
     test('И6 · панель из двух секций вмещается, ни одна строка не срезана', async ({page, request}) => {
       test.setTimeout(300_000);
-      const {seats} = await openSitting(page, request, 'parliament-support-stock', preset.query);
-      await runWalk(page, request, seats[1]);
+      const {playerId} = await openSitting(page, request, 'parliament-support-stock', preset.query);
+      await runWalk(page, request, playerId);
       await shoot(page, `honesty-results-${preset.id}`);
 
       const sections = await page.locator('[data-sit-section]').evaluateAll((els) => els.map((el) => el.getAttribute('data-sit-section')));

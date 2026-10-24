@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
-import {bootFixtureSeats, openMandatoryAnnounce, press, settle} from './consoleStart';
-import {answerGateAs, mandatoryPlate, parliament, parliamentWire, PARLIAMENT_PRESETS, sittingStage, waitSittingAtRest} from './parliamentDrive';
+import {bootFixtureSeats, settle} from './consoleStart';
+import {enterSittingByPass, PARLIAMENT_PRESETS, parliamentWire, sittingStage, waitSittingAtRest} from './parliamentDrive';
 
 
 /**
@@ -310,21 +310,19 @@ function tileFailures(frames: Array<V4Sample>): Array<string> {
   return bad;
 }
 
-/** Drive the fixture to the sitting's verdict, armed and at rest. */
+/**
+ * Boot the table ONE PASS before its sitting, ARM the probe and pass on screen (the soft gates): the sitting comes up
+ * on its walk — the verdict is a page the director turns by itself, so it is read on the samples, never late.
+ */
 async function openSitting(page: Page, request: Parameters<typeof bootFixtureSeats>[1], fixture: 'parliament-architecture-assembly' | 'parliament-climate-assembly', query: string) {
-  const boot = await bootFixtureSeats(page, request, fixture, {query, landing: 'prompt'});
-  await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-  expect(await openMandatoryAnnounce(page)).toBe(true);
-  await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-  await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-  await waitSittingAtRest(page, 20_000);
+  const boot = await bootFixtureSeats(page, request, fixture, {query});
+  await armV4Probe(page);
+  await enterSittingByPass(page, request, boot.playerId);
   return boot;
 }
 
-/** The last answer opens gate 1 and the walk plays itself; come back when everything is at rest. */
-async function runWalk(page: Page, request: Parameters<typeof bootFixtureSeats>[1], seat: string): Promise<void> {
-  await answerGateAs(request, seat, 'assembly');
-  await press(page, 'Enter', 400);
+/** The walk plays itself (nothing is pressed between the verdict and the results); come back when everything is at rest. */
+async function runWalk(page: Page): Promise<void> {
   await expect.poll(() => sittingStage(page), {timeout: 40_000}).not.toBe('verdict');
   await waitSittingAtRest(page, 60_000);
   await settle(page, {timeoutMs: 20_000});
@@ -335,10 +333,9 @@ test.describe('«Заседание v4» — СТОЛ и ЧТЕНИЕ (standard-
 
   test('Г-П1 · СТОЛ: все шесть плиток видны и не перекрыты в каждом кадре Повестки, Поддержки и Принятия', async ({page, request}) => {
     test.setTimeout(300_000);
-    const {playerId, seats} = await openSitting(page, request, 'parliament-architecture-assembly', '&consoleProfile=auto');
-    await armV4Probe(page);
+    const {playerId} = await openSitting(page, request, 'parliament-architecture-assembly', '&consoleProfile=auto');
     await shoot(page, '01-verdict-table');
-    await runWalk(page, request, seats[1]);
+    await runWalk(page);
 
     const s = (await readV4(page)).samples;
     expect(s.length, 'the sampler ran (a dead probe passes everything)').toBeGreaterThan(40);
@@ -386,9 +383,8 @@ test.describe('«Заседание v4» — СТОЛ и ЧТЕНИЕ (standard-
 
   test('Г-П2 · ПОДДЕРЖКА: каждый куб вышел из ВИДИМОГО места, сел в ВИДИМЫЙ сокет и между ними было движение', async ({page, request}) => {
     test.setTimeout(300_000);
-    const {playerId, seats} = await openSitting(page, request, 'parliament-climate-assembly', '&consoleProfile=auto');
-    await armV4Probe(page);
-    await runWalk(page, request, seats[1]);
+    const {playerId} = await openSitting(page, request, 'parliament-climate-assembly', '&consoleProfile=auto');
+    await runWalk(page);
 
     const wire = await parliamentWire(request, playerId);
     const record = (wire.game.parliament?.phase?.summary?.support ?? []);
@@ -451,9 +447,8 @@ test.describe('«Заседание v4» — СТОЛ и ЧТЕНИЕ (standard-
 
   test('Г-П3 · ПРИНЯТИЕ: обмен плиток ФИЗИЧЕСКИЙ — оба объекта видны всю дорогу, и ни в одном кадре содержимое слота не менялось без движения', async ({page, request}) => {
     test.setTimeout(300_000);
-    const {seats} = await openSitting(page, request, 'parliament-architecture-assembly', '&consoleProfile=auto');
-    await armV4Probe(page);
-    await runWalk(page, request, seats[1]);
+    await openSitting(page, request, 'parliament-architecture-assembly', '&consoleProfile=auto');
+    await runWalk(page);
 
     // TICKS ONLY (see `V4Sample.src`): the swap is a FLIP — the tile is re-parented by the patch and its inverse
     // transform is written in the `nextTick` microtask that follows, so a MutationObserver sample legitimately
@@ -510,9 +505,8 @@ test.describe('«Заседание v4» — СТОЛ и ЧТЕНИЕ (standard-
 
   test('Г-П5 · ЧТЕНИЕ приходит ПОСЛЕ стола: панели нет ни в одном физическом кадре, и она разворачивается на месте ряда', async ({page, request}) => {
     test.setTimeout(300_000);
-    const {seats} = await openSitting(page, request, 'parliament-architecture-assembly', '&consoleProfile=auto');
-    await armV4Probe(page);
-    await runWalk(page, request, seats[1]);
+    await openSitting(page, request, 'parliament-architecture-assembly', '&consoleProfile=auto');
+    await runWalk(page);
 
     const s = (await readV4(page)).samples;
     // ① NOT ONE FRAME of the physical beats (nor of the results' physical part) has a reading panel.
@@ -570,12 +564,13 @@ for (const preset of PARLIAMENT_PRESETS) {
 
     test('Г-П4: карта внутри блока, шапка не обрезана, высота блока правителя не зависит от партии', async ({page, request}) => {
       test.setTimeout(300_000);
-      const {seats} = await openSitting(page, request, 'parliament-architecture-assembly', preset.query);
-      await armV4Probe(page);
-      await expect.poll(async () => (await readV4(page)).samples.length, {timeout: 10_000}).toBeGreaterThan(2);
-      const atVerdict = (await readV4(page)).samples.slice(-1)[0];
+      await openSitting(page, request, 'parliament-architecture-assembly', preset.query);
+      await expect.poll(async () => (await readV4(page)).samples.some((x) => x.stage === 'verdict'), {timeout: 20_000, message: 'the verdict was sampled'}).toBe(true);
+      // The verdict's LAST frame: the government's room settles a beat after the section's mount (law 16 — the quest's
+      // zoomed graphic takes its size on the next frame), and the sampler is armed before the pass, so it sees the mount.
+      const atVerdict = (await readV4(page)).samples.filter((x) => x.stage === 'verdict').slice(-1)[0];
       await shoot(page, `06-geometry-${preset.id}-verdict`);
-      await runWalk(page, request, seats[1]);
+      await runWalk(page);
       const s = (await readV4(page)).samples;
       const rest = s[s.length - 1];
       await shoot(page, `07-geometry-${preset.id}-rest`);

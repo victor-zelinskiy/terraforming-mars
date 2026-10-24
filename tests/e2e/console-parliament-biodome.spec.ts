@@ -5,7 +5,7 @@ import {
   bootFixture, bootFixtureSeats, closeZoomViewer, commitFocusedSpace, crumbText, fetchPlayerModel, openMandatoryAnnounce, openQuickWheel,
   openZoomViewer, placeTile, placementState, press, pressUntil, settle, waitForBoardHome, walkToSpace,
 } from './consoleStart';
-import {answerGateAs, expectDossierIsRules, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {closeSittingAs, expectDossierIsRules, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * BIODOME CONTEST (Turmoil Redux, RX03) — «plants for everyone by influence +
@@ -338,7 +338,7 @@ for (const preset of PRESETS) {
       await waitSittingAtRest(page, 30_000);
       expect(await turnTo(page, 'results'), 'the results page').toBe(true);
       await press(page, 'Enter', 1200);
-      await answerGateAs(request, seats[1], 'adjourn');
+      await closeSittingAs(request, seats[1]);
       await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
       const after = await wireOf(request, playerId);
       expect(after.game.oceans).toBe(1);
@@ -385,7 +385,7 @@ for (const preset of PRESETS) {
       await waitSittingAtRest(page, 30_000);
       expect(await turnTo(page, 'results'), 'the results page').toBe(true);
       await press(page, 'Enter', 1200);
-      await answerGateAs(request, seats[1], 'adjourn');
+      await closeSittingAs(request, seats[1]);
       await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
       const after = await wireOf(request, playerId);
       expect(after.game.oxygenLevel).toBe(14);

@@ -1,9 +1,9 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openZoomViewer, pressUntil, settle} from './consoleStart';
 import {
-  answerGateAs, answerGateOnScreen, armLeakWitness, closeSitting, expectDossierIsRules, expectParliamentFits, mandatoryPlate, openParliament, parliament, sittingStage,
+  armLeakWitness, closeSitting, closeSittingAs, enterSittingByPass, expectDossierIsRules, expectParliamentFits, openParliament, sittingStage,
   strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
@@ -214,23 +214,20 @@ for (const preset of PRESETS) {
 
     test(`the enactment: ONE production token from the law to the rail, the cell ticking 2 → 7 on its touchdown; the results +5 (${preset.id})`, async ({page, request}) => {
       test.setTimeout(600_000);
-      const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-tax-breaks-assembly', {query: preset.query, landing: 'prompt'});
+      // The table stands ONE PASS before its sitting (the soft gates): red has passed, blue holds its action menu.
+      const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-tax-breaks-assembly', {query: preset.query});
       const red = seats[1];
       await armLeakWitness(page);
-      await expect(mandatoryPlate(page), 'the sitting is announced').toHaveCount(1, {timeout: 30_000});
-      expect(await openMandatoryAnnounce(page)).toBe(true);
-      await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-      await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-      await waitSittingAtRest(page, 30_000);
       const before = await wireOf(request, playerId);
       expect(before.thisPlayer.megacreditProduction, 'blue\'s M€ production before the law').toBe(2);
       const redBefore = await wireOf(request, red);
 
+      // The pass carries the whole sitting (the production phase's income lands before it comes up); the law's wave is
+      // witnessed from the sitting on.
+      await enterSittingByPass(page, request, playerId);
       await armProbe(page);
       await armTransferWitness(page);
       const cast = await recordFrames(page);
-      await answerGateOnScreen(page, request, playerId, 'assembly');
-      await answerGateAs(request, red, 'assembly');
 
       // ② THE WAVE: the production token leaves the law and lands on the rail's M€ production cell.
       await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.chips > 0), {timeout: 60_000, message: 'the wave left the law'}).toBe(true);
@@ -306,7 +303,7 @@ for (const preset of PRESETS) {
       expect(redEnd.thisPlayer.megacreditProduction, 'red: a holder at 0 is no type, influence 0 — nothing').toBe(redBefore.thisPlayer.megacreditProduction);
       expect(await strandedReports(page), 'nothing stranded').toEqual([]);
       await closeSitting(page, request, playerId);
-      await answerGateAs(request, red, 'adjourn');
+      await closeSittingAs(request, red);
       await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
     });
 

@@ -1,9 +1,9 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openZoomViewer, press, pressUntil, settle} from './consoleStart';
 import {
-  answerGateAs, armLeakWitness, expectDossierIsRules, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, passAs, sittingStage, strandedReports, waitSittingAtRest,
+  armLeakWitness, awaitSittingUp, expectDossierIsRules, expectParliamentFits, openParliament, parliament, parliamentWire, passAs, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 
 /**
@@ -248,23 +248,14 @@ test.describe('Migration Funding · standard-1080', () => {
     await press(page, 'Escape', 900);
     expect(await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 4, settleMs: 1000}), 'back on the board').toBe(true);
 
-    // ── THE GENERATION ENDS over the API: both seats pass — the political phase starts, the announce opens.
+    // ── THE GENERATION ENDS over the API: both seats pass — the whole sitting rides red's pass and comes up on this screen;
+    // the walk turns its pages by itself (the soft gates — no gate to answer).
     await passAs(request, playerId);
     await expect.poll(async () => (await parliamentWire(request, red)).waitingFor?.type, {timeout: 20_000}).toBe('or');
     await passAs(request, red);
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await settle(page, {timeoutMs: 20_000});
-    await shoot(page, '04-verdict');
-
-    // ── A answers gate 1; the other seat answers last over the API — the effects run.
+    await awaitSittingUp(page);
     await armProbe(page);
-    await press(page, 'Enter', 1200);
-    await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000}).toBeUndefined();
-    const stockBefore = (await readProbe(page)).samples.slice(-1)[0].stock;
-    await answerGateAs(request, red, 'assembly');
+    await shoot(page, '04-sitting-up');
 
     // ── THE WAVE: the +14 chip born inside the carrier card's mechanic, landing on the M€ cell of the rail.
     await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.stage === 'reward' && s.chips.some((c) => c.res === 'megacredits')),
@@ -273,6 +264,7 @@ test.describe('Migration Funding · standard-1080', () => {
     await shoot(page, '05-reward-wave');
     await waitSittingAtRest(page, 30_000);
     const probe = await readProbe(page);
+    const stockBefore = probe.samples[0]?.stock ?? '';
     const firstReading = probe.samples.findIndex((s) => s.stage === 'reward' && s.contexts.length > 0);
     expect(firstReading, 'the reward page read what was coming').toBeGreaterThanOrEqual(0);
     expect(probe.samples[firstReading].contexts.every((ctx) => ctx === 'resolving'), `«this payout» before the record, got ${probe.samples[firstReading].contexts.join(',')}`).toBe(true);
@@ -307,7 +299,7 @@ test.describe('Migration Funding · standard-1080', () => {
     const baseline = digitsOf(probe.samples[first.i].stock);
     const tickAt = probe.samples.findIndex((s, i) => i >= first.i && digitsOf(s.stock) !== baseline);
     const landedAt = landingIndex(track!, REST_SLACK_PX);
-    expect(tickAt, `the M€ counter ticked (was «${baseline}» when the chip was born; «${stockBefore}» at the verdict)`).toBeGreaterThan(0);
+    expect(tickAt, `the M€ counter ticked (was «${baseline}» when the chip was born; «${stockBefore}» as the sitting came up)`).toBeGreaterThan(0);
     const tickLag = probe.samples[tickAt].t - probe.samples[landedAt].t;
     expect(tickLag, `the tick rides the touchdown (${Math.round(tickLag)} ms after the rest)`).toBeGreaterThanOrEqual(-TICK_WINDOW_BEFORE_MS);
     expect(tickLag, `the tick rides the touchdown (${Math.round(tickLag)} ms after the rest)`).toBeLessThanOrEqual(TICK_WINDOW_AFTER_MS);

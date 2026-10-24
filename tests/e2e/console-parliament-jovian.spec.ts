@@ -2,9 +2,9 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, pressUntil, settle,
+  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openZoomViewer, pressUntil, settle,
 } from './consoleStart';
-import {answerGateAs, armLeakWitness, expectDossierIsRules, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
+import {armLeakWitness, enterSittingByPass, expectDossierIsRules, expectParliamentFits, openParliament, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * JOVIAN TAX RIGHTS (Turmoil Redux, RX17) — the ONE e2e of the card's new
@@ -63,7 +63,7 @@ const readingsIn = (page: Page, scope: string) => page.evaluate((sel) => {
 
 type Outcome = {player: string, step: string, kind: string, amount?: number, count?: number, influence?: number, countedColonies?: Array<string>, uncapped?: number, before?: number, after?: number, reason?: string};
 type Wire = {
-  thisPlayer: {color: string, titanium: number, megaCreditProduction?: number},
+  thisPlayer: {color: string, titanium: number, megaCreditProduction?: number, titaniumProduction?: number},
   game: {parliament: {phase?: {step: string, outcomes?: Array<Outcome>}, lastPhase?: {outcomes?: Array<Outcome>}}},
 };
 const wireOf = async (request: APIRequestContext, id: string): Promise<Wire> => await fetchPlayerModel(request, id) as unknown as Wire;
@@ -258,23 +258,13 @@ test.describe('Jovian Tax Rights · standard-1080', () => {
     }
 
     // ════════════════ PART 2 · THE SITTING — the titanium lands first, the production step follows ════════════════
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-jovian-assembly', {query: '&consoleProfile=auto', landing: 'prompt'});
-    const red = seats[1];
+    // The table stands ONE PASS before its sitting (the soft gates): the viewer's own pass carries the whole sitting.
+    const {playerId} = await bootFixtureSeats(page, request, 'parliament-jovian-assembly', {query: '&consoleProfile=auto'});
     await armLeakWitness(page);
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await waitSittingAtRest(page, 30_000);
     const before = await wireOf(request, playerId);
-    await shoot(page, '04-verdict');
-
-    // ── GATE 1: A on the verdict; red answers over the API — the effects run by themselves.
+    await enterSittingByPass(page, request, playerId);
     await armProbe(page);
-    expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined,
-      {tries: 4, settleMs: 1500}), 'A answers the assembly gate').toBe(true);
-    const titaniumBefore = (await readProbe(page)).samples.slice(-1)[0].titanium;
-    await answerGateAs(request, red, 'assembly');
+    await shoot(page, '04-sitting-up');
 
     // ── THE TWO WAVES of the viewer's seat: a titanium gain IN, then a production step IN.
     await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.stage === 'reward' && s.chips.some((c) => c.kind === 'stock')),
@@ -298,6 +288,8 @@ test.describe('Jovian Tax Rights · standard-1080', () => {
 
     // ① THE TITANIUM: born inside the card's printed mechanic (visible), reads «+3», lands on the TITANIUM cell (visible), ticking on contact.
     const gainFirst = gain[0];
+    // The titanium the chip lands on: the cell as it read the sample before the chip was born (the pass paid the income first).
+    const titaniumBefore = probe.samples[Math.max(0, gainFirst.i - 1)].titanium;
     expect(gainFirst.c.amt, 'the chip carries the paid amount').toContain('+3');
     expect(gainFirst.s.mechVisible, 'the card\'s mechanic was VISIBLE when the chip was born').toBe(true);
     expect(inside({x: gainFirst.c.x, y: gainFirst.c.y}, gainFirst.s.mech, 8), `the titanium is BORN inside the card's printed mechanic (${JSON.stringify({chip: [gainFirst.c.x, gainFirst.c.y], mech: gainFirst.s.mech})})`).toBe(true);
@@ -331,7 +323,7 @@ test.describe('Jovian Tax Rights · standard-1080', () => {
     expect(mine[0]).toMatchObject({kind: 'stock', amount: 3, influence: 3});
     expect(mine[1]).toMatchObject({kind: 'production', amount: 4, count: 4, uncapped: 4});
     expect(mine[1].countedColonies).toEqual(['Luna', 'Luna', 'Titan', 'Miranda']);
-    expect(wire.thisPlayer.titanium - before.thisPlayer.titanium, 'the titanium is in the supply').toBe(3);
+    expect(wire.thisPlayer.titanium - before.thisPlayer.titanium - (before.thisPlayer.titaniumProduction ?? 0), 'the titanium is in the supply (past the production phase the pass paid first)').toBe(3);
 
     // ── THE RESULTS read the two parts signed — «+3 · +4», no skip, no net.
     await expect.poll(() => sittingStage(page), {timeout: 90_000}).toBe('results');

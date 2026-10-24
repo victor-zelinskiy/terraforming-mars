@@ -1,5 +1,5 @@
 import {expect, Page, APIRequestContext} from './consoleTest';
-import {fetchPlayerModel, openMandatoryAnnounce, openQuickWheel, press, sendPlayerInput, settle, waitForBoardHome} from './consoleStart';
+import {fetchPlayerModel, openMandatoryAnnounce, openQuickWheel, openZoomViewer, press, sendPlayerInput, settle, waitForBoardHome} from './consoleStart';
 
 /*
  * THE PARLIAMENT'S SHARED E2E DRIVER (Turmoil Redux) — the readers and the
@@ -35,7 +35,7 @@ export type ParliamentWire = {
         support?: Array<{party: string; gained: number; total: number}>;
       }}};
   };
-  thisPlayer: {color: string; cardsInHandNbr: number; terraformRating: number; plants: number; heatProduction: number; megaCreditProduction: number};
+  thisPlayer: {color: string; cardsInHandNbr: number; terraformRating: number; plants: number; heatProduction: number; megacreditProduction: number};
 };
 
 export const parliamentWire = async (request: APIRequestContext, id: string): Promise<ParliamentWire> =>
@@ -135,6 +135,15 @@ export async function passOnScreen(page: Page, request: APIRequestContext, viewe
  */
 export async function enterSittingByPass(page: Page, request: APIRequestContext, viewer: string): Promise<void> {
   await passOnScreen(page, request, viewer);
+  await awaitSittingUp(page);
+}
+
+/**
+ * The sitting COMES UP on the viewer's screen — risen by the generation scene, or behind its plate (opened here) —
+ * after the pass that started it, whoever made it (the viewer on screen — `enterSittingByPass` — or the last seat over
+ * the API, when the sitting reaches this screen by the poll / the socket).
+ */
+export async function awaitSittingUp(page: Page): Promise<void> {
   await expect.poll(async () => await parliament(page).count() > 0 || await mandatoryPlate(page).count() > 0,
     {timeout: 60_000, message: 'the sitting comes up after the pass (risen by the scene, or its plate)'}).toBe(true);
   if (await parliament(page).count() === 0) {
@@ -177,25 +186,6 @@ export async function closeSitting(page: Page, request: APIRequestContext, viewe
     }
   }
   expect(await confirmationStands(request, viewer), 'A on the results closes the viewer\'s sitting').toBe(false);
-}
-
-/**
- * ⚠ TRANSITIONAL (the soft gates' first commit — removed by the e2e migration that follows it): the two barrier
- * gates are gone, so «answer gate 1» has nothing to answer and «answer gate 2» is the seat's confirmation. These
- * keep the not-yet-migrated specs COMPILING; the specs themselves still open their sitting at a live verdict that no
- * longer exists and are the migration's worklist (docs/claude/console/parliament-soft-gates.md § e2e).
- */
-export async function answerGateAs(request: APIRequestContext, seat: string, stage: 'assembly' | 'adjourn'): Promise<void> {
-  if (stage === 'adjourn') {
-    await closeSittingAs(request, seat);
-  }
-}
-
-/** ⚠ TRANSITIONAL — see `answerGateAs`: the verdict is a page of the director now; the results' A is `closeSitting`. */
-export async function answerGateOnScreen(page: Page, request: APIRequestContext, viewer: string, stage: 'assembly' | 'adjourn'): Promise<void> {
-  if (stage === 'adjourn') {
-    await closeSitting(page, request, viewer);
-  }
 }
 
 /** Answer `seat`'s standing resolution asks over the API with the plainest legal answer until none stands (a card take: every card; a pick: the first). */
@@ -433,6 +423,31 @@ export async function focusParliamentZone(page: Page, zone: ParliamentFocusZone)
     await press(page, key, 400);
   }
   expect(await parliamentZone(page), `the ${zone} zone is the focus zone (${trail.join(' ') || 'no move'})`).toBe(zone);
+}
+
+/**
+ * INSPECT THE WINNING BILL BEFORE THE SITTING (the soft gates): the verdict is a page the director turns by itself, so
+ * a spec that reads the law «as voted» (its inspector's world part, its reading for the seat) reads it on the TABLE,
+ * one pass before the sitting — the Parliament opened from the wheel, the cursor walked onto the bill that leads the
+ * vote, X. Leaves the inspector open; `closeZoomViewer` + `enterSittingByPass` (which steps out of the Parliament)
+ * continue the journey.
+ */
+export async function inspectWinningBill(page: Page): Promise<void> {
+  await openParliament(page);
+  await focusParliamentZone(page, 'voting');
+  const onWinner = page.locator('.con-parl__slot--focus.con-parl__slot--winning');
+  for (let i = 0; i < 6 && await onWinner.count() === 0; i++) {
+    const dir = await page.evaluate(() => {
+      const slots = Array.from(document.querySelectorAll('.con-parl__slot[data-instance]'));
+      const at = slots.findIndex((el) => el.classList.contains('con-parl__slot--focus'));
+      const to = slots.findIndex((el) => el.classList.contains('con-parl__slot--winning'));
+      return to === -1 ? 'none' : (to > at ? 'ArrowRight' : 'ArrowLeft');
+    });
+    expect(dir, 'a bill leads the vote on the table').not.toBe('none');
+    await press(page, dir, 400);
+  }
+  await expect(onWinner, 'the cursor stands on the bill that leads the vote').toHaveCount(1);
+  await openZoomViewer(page);
 }
 
 /** The party under the cursor in the opposition column (its `data-party`), '' when the cursor stands elsewhere. */

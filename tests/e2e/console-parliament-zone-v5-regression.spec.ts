@@ -1,10 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
-import {bootFixture, bootFixtureSeats, openMandatoryAnnounce, openZoomViewer, closeZoomViewer, press, pressUntil, settle} from './consoleStart';
+import {bootFixture, bootFixtureSeats, closeZoomViewer, openZoomViewer, press, pressUntil, settle} from './consoleStart';
 import {
-  answerGateAs, expectParliamentFits, focusParliamentZone, mandatoryPlate, openParliament, parliament, parliamentWire,
-  sittingStage, waitSittingAtRest,
+  enterSittingByPass, expectParliamentFits, focusParliamentZone, openParliament, parliament, parliamentWire, sittingStage, waitSittingAtRest,
 } from './parliamentDrive';
 
 /**
@@ -127,15 +126,10 @@ for (const preset of PROFILES) {
 
     test('награда с ВЫБОРОМ карты (Биокуполы)', async ({page, request}) => {
       test.setTimeout(360_000);
-      const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-biodome-assembly', {query: preset.query, landing: 'prompt'});
-      await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-      expect(await openMandatoryAnnounce(page)).toBe(true);
-      await expect.poll(() => sittingStage(page), {timeout: 20_000}).toBe('verdict');
-      await waitSittingAtRest(page, 20_000);
-      await scene(page, preset.id, '10-biodome-verdict');
-      expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined,
-        {tries: 4, settleMs: 1500}), 'A answers the assembly gate').toBe(true);
-      await answerGateAs(request, seats[1], 'assembly');
+      // ONE PASS before its sitting (the soft gates): the verdict is a page the walk turns by itself — its frame is
+      // the gallery's (`console-parliament-gallery`); here the reward that follows it.
+      const {playerId} = await bootFixtureSeats(page, request, 'parliament-biodome-assembly', {query: preset.query});
+      await enterSittingByPass(page, request, playerId);
       await expect.poll(() => sittingStage(page), {timeout: 60_000}).not.toBe('verdict');
       await waitSittingAtRest(page, 60_000);
       await scene(page, preset.id, '11-biodome-reward');
@@ -143,14 +137,8 @@ for (const preset of PROFILES) {
 
     test('награда с ТАЙЛОМ (Конкурс водоносных пластов)', async ({page, request}) => {
       test.setTimeout(360_000);
-      const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-aquifer-assembly', {query: preset.query, landing: 'prompt'});
-      await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-      expect(await openMandatoryAnnounce(page)).toBe(true);
-      await expect.poll(() => sittingStage(page), {timeout: 20_000}).toBe('verdict');
-      await waitSittingAtRest(page, 20_000);
-      expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined,
-        {tries: 4, settleMs: 1500}), 'A answers the assembly gate').toBe(true);
-      await answerGateAs(request, seats[1], 'assembly');
+      const {playerId} = await bootFixtureSeats(page, request, 'parliament-aquifer-assembly', {query: preset.query});
+      await enterSittingByPass(page, request, playerId);
       // v5: the winner's TILE reads as a chip of the BAND, beside the payout — whatever step of the reward the
       // seat happens to be standing in (this resolution also asks a card pick). The DOOR's own verb stays on
       // the command bar, and the board is never live before the press.

@@ -2,9 +2,9 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusCard, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle, focusInfoZone,
+  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusCard, press, pressUntil, settle, focusInfoZone,
 } from './consoleStart';
-import {answerGateAs, armLeakWitness, expectLawLeadsEffects, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
+import {armLeakWitness, enterSittingByPass, expectLawLeadsEffects, inspectWinningBill, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * METAL RESEARCH (Turmoil Redux, RX19) — the ONE e2e of the new mechanic: a
@@ -40,7 +40,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 
 type Outcome = {player?: string, step: string, part?: string, kind: string, amount?: number};
 type Wire = {
-  thisPlayer: {color: string, steel: number, titanium: number, steelValue: number, titaniumValue: number},
+  thisPlayer: {color: string, steel: number, titanium: number, steelValue: number, titaniumValue: number, steelProduction: number, titaniumProduction: number},
   cardsInHand?: Array<{name: string, calculatedCost?: number}>,
   game: {parliament?: {enacted?: {resolution: string}, phase?: {outcomes?: Array<Outcome>}, lastPhase?: {outcomes?: Array<Outcome>}}},
 };
@@ -77,24 +77,19 @@ test.describe(`Metal Research · ${PRESET.id}`, () => {
     test.setTimeout(900_000);
 
     // ════════════════ PART 1 · THE SITTING — the value badges move with the law ════════════════
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-metal-assembly', {query: PRESET.query, landing: 'prompt'});
-    const red = seats[1];
+    // The table stands ONE PASS before its sitting (the soft gates): the law leads the vote, the viewer holds its menu.
+    const {playerId} = await bootFixtureSeats(page, request, 'parliament-metal-assembly', {query: PRESET.query});
     await armLeakWitness(page);
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await waitSittingAtRest(page, 30_000);
 
     const before = await wireOf(request, playerId);
     expect([before.thisPlayer.steelValue, before.thisPlayer.titaniumValue], 'the base values before the enactment').toEqual([2, 3]);
     // ── ⓪ THE BADGES BEFORE: «2» on steel, «3» on titanium — the rail restates the model's live value.
     await expect.poll(() => badgeText(page, 'steel'), {timeout: 15_000, message: 'the steel badge reads the base 2'}).toBe('2');
     await expect.poll(() => badgeText(page, 'titanium'), {timeout: 15_000, message: 'the titanium badge reads the base 3'}).toBe('3');
-    await shoot(page, '01-verdict-badges-2-3');
+    await shoot(page, '01-badges-2-3');
 
-    // ── ① THE INSPECTION states the passive as its own block: what the law does while it stands.
-    await openZoomViewer(page);
+    // ── ① THE INSPECTION states the passive as its own block: what the law does while it stands (on the table, as voted).
+    await inspectWinningBill(page);
     const rules = page.locator('dialog.con-zoom[open] .con-zoom-sidecol');
     await expect(rules).toContainText(/на 1 M€ больше|1 M€ more/);
     await expect(rules).toContainText(/по 1 стали и 1 титану|1 steel and 1 titanium/);
@@ -102,15 +97,13 @@ test.describe(`Metal Research · ${PRESET.id}`, () => {
     await closeZoomViewer(page);
     await settle(page, {timeoutMs: 15_000});
 
-    // ── GATE 1: A on the verdict; red answers over the API. Everything after this turns by itself.
-    expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined,
-      {tries: 4, settleMs: 1500}), 'A answers the assembly gate').toBe(true);
-    await answerGateAs(request, red, 'assembly');
+    // ── THE PASS carries the whole sitting (and the production phase before it); the walk turns its pages by itself.
+    await enterSittingByPass(page, request, playerId);
 
     // ── ② THE SEAT IS PAID ITS TWO PARTS: influence 2 → 2 steel AND 2 titanium, two records.
     await expect.poll(async () => {
       const wire = await wireOf(request, playerId);
-      const outcomes = [...(wire.game.parliament?.phase?.outcomes ?? []), ...(wire.game.parliament?.lastPhase?.outcomes ?? [])];
+      const outcomes = wire.game.parliament?.phase?.outcomes ?? wire.game.parliament?.lastPhase?.outcomes ?? [];
       const mine = outcomes.filter((o) => o.player === before.thisPlayer.color && o.kind === 'stock');
       return mine.map((o) => `${o.step}:${o.amount}`).join(',');
     }, {timeout: 60_000, message: 'the seat\'s own steel and titanium are recorded, one record each'}).toBe('steel:2,titanium:2');
@@ -123,8 +116,9 @@ test.describe(`Metal Research · ${PRESET.id}`, () => {
     await expect.poll(() => badgeText(page, 'steel'), {timeout: 60_000, message: 'the steel badge moved 2 → 3 with the law'}).toBe('3');
     await expect.poll(() => badgeText(page, 'titanium'), {timeout: 60_000, message: 'the titanium badge moved 3 → 4 with the law'}).toBe('4');
     const mid = await wireOf(request, playerId);
-    expect(mid.thisPlayer.steel - before.thisPlayer.steel, 'the supply grew by the payout, not by the value').toBe(2);
-    expect(mid.thisPlayer.titanium - before.thisPlayer.titanium).toBe(2);
+    // The same pass paid the production phase first: the supply grew by the production, then by the payout — never by the value.
+    expect(mid.thisPlayer.steel - before.thisPlayer.steel - before.thisPlayer.steelProduction, 'the supply grew by the payout, not by the value').toBe(2);
+    expect(mid.thisPlayer.titanium - before.thisPlayer.titanium - before.thisPlayer.titaniumProduction).toBe(2);
     await shoot(page, '03-badges-3-4-under-the-law');
 
     // …the sitting walks to its results on its own; nothing is stranded.

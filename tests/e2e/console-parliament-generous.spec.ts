@@ -1,9 +1,9 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openZoomViewer, press, pressUntil, settle} from './consoleStart';
 import {
-  answerGateAs, armLeakWitness, expectDossierIsRules, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, passAs, sittingStage, strandedReports, waitSittingAtRest,
+  armLeakWitness, awaitSittingUp, expectDossierIsRules, expectParliamentFits, openParliament, parliament, parliamentWire, passAs, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 
 /**
@@ -233,23 +233,14 @@ test.describe('Generous Funding · standard-1080', () => {
     await press(page, 'Escape', 900);
     expect(await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 4, settleMs: 1000}), 'back on the board').toBe(true);
 
-    // ── THE GENERATION ENDS over the API: both seats pass — the political phase starts, the announce opens.
+    // ── THE GENERATION ENDS over the API: both seats pass — the whole sitting rides red's pass and comes up on this screen;
+    // the walk turns its pages by itself (the soft gates — no gate to answer).
     await passAs(request, playerId);
     await expect.poll(async () => (await parliamentWire(request, red)).waitingFor?.type, {timeout: 20_000}).toBe('or');
     await passAs(request, red);
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await settle(page, {timeoutMs: 20_000});
-    await shoot(page, '04-verdict');
-
-    // ── A answers gate 1; the other seat answers last over the API — the effects run.
+    await awaitSittingUp(page);
     await armProbe(page);
-    await press(page, 'Enter', 1200);
-    await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000}).toBeUndefined();
-    const stockBefore = (await readProbe(page)).samples.slice(-1)[0].stock;
-    await answerGateAs(request, red, 'assembly');
+    await shoot(page, '04-sitting-up');
 
     // ── THE WAVE: the +8 chip born inside the carrier card's mechanic, landing on the M€ cell of the rail.
     await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.stage === 'reward' && s.chips.some((c) => c.res === 'megacredits')),
@@ -270,6 +261,8 @@ test.describe('Generous Funding · standard-1080', () => {
     const track = Array.from(tracks.values()).find((tr) => tr[0].c.res === 'megacredits' && tr[0].s.stage === 'reward');
     expect(track, 'a M€ chip flew on the reward page').toBeDefined();
     const first = track![0];
+    // The M€ the chip lands on: the cell as it read the sample before the chip was born.
+    const stockBefore = probe.samples[Math.max(0, first.i - 1)].stock;
     const last = track![track!.length - 1];
     expect(first.c.amt, 'the chip carries the paid amount').toContain('8');
     // The SOURCE was visible when the chip was born, and the chip was born inside it.
@@ -286,7 +279,7 @@ test.describe('Generous Funding · standard-1080', () => {
     // THE COUNTER TICKS ON CONTACT — in the landing's frame, never before the chip left the card, with its delta chip.
     // The digits span also hosts the ±N delta chip (the production phase's income chip may still stand there
     // when the probe is armed) — the VALUE is the leading integer, never the raw text.
-    const tickAt = probe.samples.findIndex((s) => digitsOf(s.stock) !== digitsOf(stockBefore));
+    const tickAt = probe.samples.findIndex((s, i) => i >= first.i && digitsOf(s.stock) !== digitsOf(stockBefore));
     const landedAt = landingIndex(track!, REST_SLACK_PX);
     expect(tickAt, `the M€ counter ticked (was «${stockBefore}»)`).toBeGreaterThan(0);
     const tickLag = probe.samples[tickAt].t - probe.samples[landedAt].t;

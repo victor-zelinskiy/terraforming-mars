@@ -1,6 +1,6 @@
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, openMandatoryAnnounce, press, pressUntil, settle} from './consoleStart';
-import {answerGateAs, focusParliamentZone, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, waitSittingAtRest} from './parliamentDrive';
+import {closeSitting, closeSittingAs, enterSittingByPass, focusParliamentZone, mandatoryPlate, openParliament, parliament, sittingStage, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * THE PARLIAMENT LEAVES AS ONE SURFACE (v2 § Б5, v3 § В1). From the flow's end to the root's unmount every
@@ -154,8 +154,9 @@ test.describe('the parliament leaves as one surface (standard-1080)', () => {
     await expectWholeLeave(page, landedAt, 'the vote\'s end');
   });
 
-  test('the sitting\'s end: the phase is over — the stage leaves WITH the frame, every block standing, never folding to browse first', async ({page, request}) => {
+  test('the sitting\'s end: «Закрыть заседание» — the stage leaves WITH the frame, every block standing, never folding to browse first', async ({page, request}) => {
     test.setTimeout(300_000);
+    // The sitting is over and both confirmations stand (the soft gates): the seat's own close is the sitting's end for it.
     const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-architecture-adjourn', {query: '&consoleProfile=auto', landing: 'prompt'});
     const red = seats[1];
     await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
@@ -163,11 +164,10 @@ test.describe('the parliament leaves as one surface (standard-1080)', () => {
     await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
     await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('results');
     await waitSittingAtRest(page, 30_000);
-    await press(page, 'Enter', 1200);
-    await expect.poll(async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt, {timeout: 20_000}).toBeUndefined();
     await armLeaveProbe(page);
-    await answerGateAs(request, red, 'adjourn');
-    await expect(parliament(page), 'the sitting leaves with the phase').toHaveCount(0, {timeout: 60_000});
+    await closeSitting(page, request, playerId);
+    await expect(parliament(page), 'the sitting leaves with its close').toHaveCount(0, {timeout: 60_000});
+    await closeSittingAs(request, red);
     const s = (await readLeave(page)).samples;
     const gone = s.findIndex((x) => !x.root);
     expect(gone, 'the root left').toBeGreaterThan(0);
@@ -177,14 +177,11 @@ test.describe('the parliament leaves as one surface (standard-1080)', () => {
     await expectWholeLeave(page, 0, 'the sitting\'s end');
   });
 
-  test('B «свернуть» on the verdict: the whole surface parks as one motion, every block standing', async ({page, request}) => {
+  test('B «свернуть» during the walk: the whole surface parks as one motion, every block standing', async ({page, request}) => {
     test.setTimeout(240_000);
-    await bootFixtureSeats(page, request, 'parliament-climate-assembly', {query: '&consoleProfile=auto', landing: 'prompt'});
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await waitSittingAtRest(page, 20_000);
+    // ONE PASS before its sitting (the soft gates): the pass brings the sitting up and its walk begins — B parks it mid-walk.
+    const {playerId} = await bootFixtureSeats(page, request, 'parliament-climate-assembly', {query: '&consoleProfile=auto'});
+    await enterSittingByPass(page, request, playerId);
     await armLeaveProbe(page);
     await press(page, 'Escape', 200);
     await expect(parliament(page), 'the workspace parked').toHaveCount(0, {timeout: 20_000});

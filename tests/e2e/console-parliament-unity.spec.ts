@@ -1,9 +1,9 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, settle} from './consoleStart';
 import {
-  answerGateAs, armLeakWitness, expectParliamentFits, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest,
+  armLeakWitness, enterSittingByPass, expectParliamentFits, inspectWinningBill, parliament, sittingStage, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 
 /**
@@ -55,7 +55,7 @@ type Outcome = {
   tracks?: Array<{colony: string, before: number, after: number}>,
 };
 type Wire = {
-  thisPlayer: {color: string, megacredits: number},
+  thisPlayer: {color: string, megacredits: number, megacreditProduction: number, terraformRating: number},
   game: {colonies: Array<{name: string, trackPosition: number}>, parliament?: {phase?: {outcomes?: Array<Outcome>}, lastPhase?: {outcomes?: Array<Outcome>}}},
   waitingFor?: {type?: string, parliamentPhasePrompt?: unknown},
 };
@@ -169,38 +169,35 @@ test.describe(`Unity Budget · ${PRESET.id}`, () => {
 
   test('the seat is paid, the colonies stand INSIDE the sitting, every marker glides in a wave, the frame leaves and the results name every track', async ({page, request}) => {
     test.setTimeout(600_000);
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-unity-assembly', {query: PRESET.query, landing: 'prompt'});
-    const red = seats[1];
+    // The table stands ONE PASS before its sitting (the soft gates): the generation's own colony step has not run yet —
+    // every active track stands one cell lower (Io at its end), and the pass moves them up before the law reads them.
+    const {playerId} = await bootFixtureSeats(page, request, 'parliament-unity-assembly', {query: PRESET.query});
     await armLeakWitness(page);
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await waitSittingAtRest(page, 30_000);
 
     const before = await wireOf(request, playerId);
     for (const name of TILES) {
-      expect(before.game.colonies.find((c) => c.name === name)?.trackPosition, `the fixture stands with ${name} at ${BEFORE[name]}`).toBe(BEFORE[name]);
+      const pass = name === 'Io' ? BEFORE[name] : BEFORE[name] - 1;
+      expect(before.game.colonies.find((c) => c.name === name)?.trackPosition, `the fixture stands with ${name} at ${pass}, one pass away`).toBe(pass);
     }
-    await shoot(page, '01-verdict');
+    // The same pass pays the production phase before the sitting: M€ production + TR.
+    const income = before.thisPlayer.megacreditProduction + before.thisPlayer.terraformRating;
 
-    // ── ⓪ THE INSPECTION SAYS WHAT WILL HAPPEN TO THE TABLE, tile by tile, in the server's own numbers.
-    await openZoomViewer(page);
+    // ── ⓪ THE INSPECTION SAYS WHAT WILL HAPPEN TO THE TABLE, tile by tile, in the server's own numbers — read on the
+    // table as it stands now (the generation's own step is not the law's).
+    await inspectWinningBill(page);
     const rules = page.locator('dialog.con-zoom[open] .con-zoom-sidecol');
     await expect(rules).toContainText(/Что делает со столом колоний|What it does to the colony table/);
-    await expect(rules).toContainText(/Луна: 2 → 4|Luna: 2 → 4/);
-    await expect(rules).toContainText(/Церера: 5 → 6|Ceres: 5 → 6/);
+    await expect(rules).toContainText(/Луна: 1 → 3|Luna: 1 → 3/);
+    await expect(rules).toContainText(/Церера: 4 → 6|Ceres: 4 → 6/);
     await expect(rules).toContainText(/Ио: трек на максимуме|Io: track at its maximum/);
     await shoot(page, '01b-inspect-table');
     await closeZoomViewer(page);
     await settle(page, {timeoutMs: 15_000});
 
+    // ── THE PASS carries the whole sitting; it comes up and turns its pages by itself.
+    await enterSittingByPass(page, request, playerId);
     await armProbe(page);
-
-    // ── GATE 1: A on the verdict; red answers over the API. Everything after this turns by itself.
-    expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined,
-      {tries: 4, settleMs: 1500}), 'A answers the assembly gate').toBe(true);
-    await answerGateAs(request, red, 'assembly');
+    await shoot(page, '01-sitting-up');
 
     // ── ① THE SEAT IS PAID FIRST: −12, then the payout by the seat's OWN count and influence (the deal is not
     // reproducible — a corporation may print an Earth or a Jovian tag — so the number is the SERVER's record, checked
@@ -216,7 +213,7 @@ test.describe(`Unity Budget · ${PRESET.id}`, () => {
     expect(paidRecord.count ?? 0, 'Luna Governor (2 Earth) + Jovian Lanterns (1) are counted, at least').toBeGreaterThanOrEqual(3);
     expect(paidRecord.influence, 'the winner\'s Agenda step 2 → 3 = influence 2').toBe(2);
     expect(paid, 'the payout is the count plus the influence, no cap').toBe((paidRecord.count ?? 0) + (paidRecord.influence ?? 0));
-    const net = String(before.thisPlayer.megacredits - 12 + paid);
+    const net = String(before.thisPlayer.megacredits + income - 12 + paid);
     await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.mc === net), {timeout: 60_000,
       message: `the M€ counter reads the net ${net} after the two chips`}).toBe(true);
     // …and the server has moved the whole table already — the screen is what holds it back.

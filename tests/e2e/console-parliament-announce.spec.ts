@@ -53,7 +53,7 @@ for (const preset of PARLIAMENT_PRESETS) {
 
     test('the plate covers no board space, stands on the shared chassis position and says the sitting once', async ({page, request}) => {
       test.setTimeout(180_000);
-      await bootFixtureSeats(page, request, 'parliament-climate-assembly', {query: preset.query, landing: 'prompt'});
+      await bootFixtureSeats(page, request, 'parliament-climate-adjourn', {query: preset.query, landing: 'prompt'});
       await expect(mandatoryPlate(page), 'the sitting is announced').toBeVisible({timeout: 30_000});
       await settle(page, {timeoutMs: 20_000});
       const m = await measure(page);

@@ -1,9 +1,9 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, closeZoomViewer, openMandatoryAnnounce, openZoomViewer, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, closeZoomViewer, openZoomViewer, pressUntil, settle} from './consoleStart';
 import {
-  answerAsksAs, answerGateAs, focusParliamentZone, mandatoryPlate, openParliament, parliament, PARLIAMENT_PRESETS, parliamentWire, sittingStage, waitSittingAtRest,
+  answerAsksAs, enterSittingByPass, focusParliamentZone, openParliament, PARLIAMENT_PRESETS, sittingStage, waitSittingAtRest,
 } from './parliamentDrive';
 
 /**
@@ -333,21 +333,14 @@ for (const preset of PARLIAMENT_PRESETS) {
       await shoot(page, preset.id, '04-government');
     });
 
-    test('the sitting: the verdict and the hero of the payout', async ({page, request}) => {
+    test('the sitting: the hero of the payout', async ({page, request}) => {
       test.setTimeout(420_000);
-      const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-aquifer-assembly', {query: preset.query, landing: 'prompt'});
-      await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-      expect(await openMandatoryAnnounce(page)).toBe(true);
-      await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-      await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-      await waitSittingAtRest(page, 30_000);
-      await expectFaces(page, `${preset.id} verdict`, '.con-parl', 3);
-      await shoot(page, preset.id, '05-verdict');
+      // ONE PASS before its sitting (the soft gates): the pass runs it, the walk turns the verdict by itself (the table
+      // as voted is the overview's — the bills stood there one pass before), the enacted card flies to its hero slot.
+      const {playerId} = await bootFixtureSeats(page, request, 'parliament-aquifer-assembly', {query: preset.query});
       await armFlightWitness(page);
       const enactedInTheAir = shootInTheAir(page, preset.id, '05b-enacted-in-the-air', 'face');
-      expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
-        'A answers the assembly gate').toBe(true);
-      await answerGateAs(request, seats[1], 'assembly');
+      await enterSittingByPass(page, request, playerId);
       // THE HERO OF THE PAYOUT — the enacted card carried beside the recipient zone (it FLEW from its slot to get here).
       await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-task'), 'the pick stands').toHaveCount(1, {timeout: 40_000});
       await waitSittingAtRest(page, 30_000);
@@ -366,17 +359,10 @@ for (const preset of PARLIAMENT_PRESETS) {
       // A RELOAD lands on the final poses (nothing replays), so the deal is only ever seen inside one session:
       // the whole sitting of a resolution that asks nothing (Architecture Award) — verdict → … → the results,
       // where the losers leave and the fresh card comes off the pile.
-      const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-architecture-assembly', {query: preset.query, landing: 'prompt'});
-      await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-      expect(await openMandatoryAnnounce(page)).toBe(true);
-      await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-      await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-      await waitSittingAtRest(page, 30_000);
+      const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-architecture-assembly', {query: preset.query});
       await armFlightWitness(page);
       const dealInTheAir = shootInTheAir(page, preset.id, '07a-deal-in-the-air', 'back');
-      expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
-        'A answers the assembly gate').toBe(true);
-      await answerGateAs(request, seats[1], 'assembly');
+      await enterSittingByPass(page, request, playerId);
       await answerAsksAs(request, seats[1]);
       await expect.poll(() => sittingStage(page), {timeout: 90_000}).toBe('results');
       await waitSittingAtRest(page, 60_000);

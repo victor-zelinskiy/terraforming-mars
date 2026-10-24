@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
-import {bootFixtureSeats, cinematicBeat, openMandatoryAnnounce, press} from './consoleStart';
-import {answerGateAs, mandatoryPlate, parliamentWire, sittingStage, waitSittingAtRest} from './parliamentDrive';
+import {bootFixtureSeats, cinematicBeat} from './consoleStart';
+import {enterSittingByPass, parliamentWire, sittingStage, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * TR02 POLITICAL SCIENCE — a CARD ANSWERS A LEAVE of the renewal (docs/TURMOIL_REDUX_POLITICAL_SCIENCE.md).
@@ -162,21 +162,15 @@ test.describe('TR02 Political Science · the renewal\'s card-effect (standard-10
 
   test('blue\'s two delegates fly home off the Greens\' loser; the data token «+2» rises over blue\'s reserve after the last landing; the band names the card; the server holds 2 data', async ({page, request}) => {
     test.setTimeout(300_000);
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'political-science-assembly', {query: '&consoleProfile=auto', landing: 'prompt'});
+    // The table stands ONE PASS before its sitting (the soft gates): the viewer's own pass carries the whole sitting.
+    const {playerId} = await bootFixtureSeats(page, request, 'political-science-assembly', {query: '&consoleProfile=auto'});
     const before = await parliamentWire(request, playerId);
-    expect(before.game.parliament?.phase?.step).toBe('assembly');
+    expect(before.game.phase, 'one pass before the sitting').toBe('action');
     const viewer = before.thisPlayer.color;
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
     await armProbe(page);
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(page.locator('.con-parl')).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await waitSittingAtRest(page);
-    await shoot(page, '00-verdict');
-
-    // ONE A (the other seat answered first): the whole walk plays by itself.
-    await answerGateAs(request, seats[1], 'assembly');
-    await press(page, 'Enter', 400);
+    // ONE pass, no gate: the whole walk plays by itself.
+    await enterSittingByPass(page, request, playerId);
+    await shoot(page, '00-sitting-up');
     await expect.poll(() => sittingStage(page), {timeout: 90_000}).toBe('renewal');
     for (let frame = 1; frame <= 6; frame++) {
       await shoot(page, `01-tact-${frame}`);
@@ -221,9 +215,16 @@ test.describe('TR02 Political Science · the renewal\'s card-effect (standard-10
     expect(home?.rect, 'the loser stood in its slot before the tact').toBeDefined();
     const cubes = ids(tact, 'cube').filter((id) => {
       const tr = track(tact, id);
-      return tr.length > 0 && tr[0].p.color.includes(viewer) && home?.rect !== undefined && dist(tr[0].p, center(home.rect)) < home.rect.h * 0.9;
+      // Born ON the loser — its ribbon under the card, never above it (the lobby's refill leaves the reserve over the table).
+      return tr.length > 0 && tr[0].p.color.includes(viewer) && home?.rect !== undefined && dist(tr[0].p, center(home.rect)) < home.rect.h * 0.9 && tr[0].p.y > home.rect.y;
     });
-    expect(cubes.length, `both of ${viewer}'s cubes flew off the loser`).toBe(2);
+    const trailOf = (id: string) => {
+      const tr = track(tact, id);
+      const first = tr[0];
+      const last = tr[tr.length - 1];
+      return `${id}: ${Math.round(first.p.x)},${Math.round(first.p.y)} → ${Math.round(last.p.x)},${Math.round(last.p.y)} t ${Math.round(first.s.t)}–${Math.round(last.s.t)}`;
+    };
+    expect(cubes.length, `both of ${viewer}'s cubes flew off the loser (${cubes.map(trailOf).join(' | ')}; loser at ${JSON.stringify(home?.rect)})`).toBe(2);
     let lastLanding = 0;
     for (const id of cubes) {
       const tr = track(tact, id);

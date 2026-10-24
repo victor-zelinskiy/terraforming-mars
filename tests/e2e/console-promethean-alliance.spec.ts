@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, fetchPlayerModel, focusCard, openMandatoryAnnounce, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
-import {answerGateAs, answerGateOnScreen, armLeakWitness, mandatoryPlate, openParliament, parliament, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
+import {bootFixtureSeats, fetchPlayerModel, focusCard, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
+import {armLeakWitness, enterSittingByPass, openParliament, strandedReports, waitSittingAtRest} from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
 /**
@@ -136,14 +136,10 @@ for (const preset of PRESETS) {
 
     test(`B: the enactment of the Scientists — the production token from their seal to the M€ row, the band names it (${preset.id})`, async ({page, request}) => {
       test.setTimeout(420_000);
-      const {playerId, seats} = await bootFixtureSeats(page, request, 'promethean-alliance-enact', {query: preset.query, landing: 'prompt'});
+      // The table stands ONE PASS before its sitting (the soft gates): the viewer's own pass carries the whole sitting.
+      const {playerId} = await bootFixtureSeats(page, request, 'promethean-alliance-enact', {query: preset.query});
       const before = await wireOf(request, playerId);
       const prod = before.thisPlayer.megacreditProduction;
-      await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-      expect(await openMandatoryAnnounce(page)).toBe(true);
-      await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-      await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-      await waitSittingAtRest(page, 30_000);
       await armTransferWitness(page);
       // The scene's own facts across the enactment (MutationObserver + setInterval — never rAF): the reveal surfaces, the
       // band's line, and the production the plate SHOWS while the token is in the air.
@@ -175,8 +171,7 @@ for (const preset of PRESETS) {
         new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true});
         window.setInterval(sample, 30);
       }, PROD);
-      await answerGateOnScreen(page, request, playerId, 'assembly');
-      await answerGateAs(request, seats[1], 'assembly');
+      await enterSittingByPass(page, request, playerId);
       if (process.env.TM_E2E_STORYBOARD === '1') {
         fs.mkdirSync(path.join(OUT, preset.id), {recursive: true});
         for (let frame = 0; frame < 28; frame++) {

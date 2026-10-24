@@ -1,10 +1,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
-import {bootFixture, bootFixtureSeats, openMandatoryAnnounce, press, pressUntil, settle} from './consoleStart';
+import {bootFixture, bootFixtureSeats, pressUntil, settle} from './consoleStart';
 import {
-  answerAsksAs, answerGateAs, expectRailHonest, mandatoryPlate, openParliament, parliament, parliamentWire,
-  PARLIAMENT_PRESETS, sittingStage, waitSittingAtRest,
+  answerAsksAs, closeSitting, closeSittingAs, enterSittingByPass, expectRailHonest, openParliament, PARLIAMENT_PRESETS, parliamentWire, sittingStage,
+  waitSittingAtRest,
 } from './parliamentDrive';
 
 
@@ -157,20 +157,15 @@ async function readV5(page: Page): Promise<V5Probe> {
   return await page.evaluate(() => (window as unknown as {__v5: V5Probe}).__v5);
 }
 
+/** Boot the table ONE PASS before its sitting and pass on screen (the soft gates): the sitting comes up on its walk. */
 async function openSitting(page: Page, request: Parameters<typeof bootFixtureSeats>[1], fixture: 'parliament-architecture-assembly' | 'parliament-climate-assembly', query: string) {
-  const boot = await bootFixtureSeats(page, request, fixture, {query, landing: 'prompt'});
-  await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-  expect(await openMandatoryAnnounce(page)).toBe(true);
-  await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-  await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-  await waitSittingAtRest(page, 20_000);
+  const boot = await bootFixtureSeats(page, request, fixture, {query});
+  await enterSittingByPass(page, request, boot.playerId);
   return boot;
 }
 
-/** The last answer opens gate 1 and the walk plays itself; come back when everything is at rest. */
-async function runWalk(page: Page, request: Parameters<typeof bootFixtureSeats>[1], seat: string): Promise<void> {
-  await answerGateAs(request, seat, 'assembly');
-  await press(page, 'Enter', 400);
+/** The walk plays itself (nothing is pressed between the verdict and the results); come back when everything is at rest. */
+async function runWalk(page: Page): Promise<void> {
   await expect.poll(() => sittingStage(page), {timeout: 40_000}).not.toBe('verdict');
   await waitSittingAtRest(page, 60_000);
   await settle(page, {timeoutMs: 20_000});
@@ -187,7 +182,7 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
     test.setTimeout(300_000);
     const {playerId, seats} = await openSitting(page, request, 'parliament-architecture-assembly', '&consoleProfile=auto');
     await armV5Probe(page);
-    await runWalk(page, request, seats[1]);
+    await runWalk(page);
 
     const all = ticks((await readV5(page)).samples);
     expect(all.length, 'the sampler ran (a dead probe passes everything)').toBeGreaterThan(40);
@@ -219,9 +214,8 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
     expect(shifted.length, 'neither the body nor the Agenda moved when the line changed').toBe(0);
 
     // …AND IN THE OVERVIEW IT STANDS IN THE SAME PLACE. Close the sitting, walk back in.
-    await answerGateAs(request, seats[1], 'adjourn');
-    expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined,
-      {tries: 5, settleMs: 1500}), 'A answers the adjourn gate').toBe(true);
+    await closeSittingAs(request, seats[1]);
+    await closeSitting(page, request, playerId);
     await settle(page, {timeoutMs: 30_000});
     await openParliament(page);
     const overview = await page.evaluate(() => {
@@ -238,9 +232,9 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
 
   test('П3 · РЯД ВИДЕН ТАМ, ГДЕ РАБОТАЕТ: все шесть плиток открыты на Повестке, поддержке, принятии и обновлении', async ({page, request}) => {
     test.setTimeout(300_000);
-    const {seats} = await openSitting(page, request, 'parliament-architecture-assembly', '&consoleProfile=auto');
+    await openSitting(page, request, 'parliament-architecture-assembly', '&consoleProfile=auto');
     await armV5Probe(page);
-    await runWalk(page, request, seats[1]);
+    await runWalk(page);
 
     const all = ticks((await readV5(page)).samples);
     // The beats that MOVE something on the table: the Agenda, the support, the enactment, and the renewal.
@@ -254,12 +248,9 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
 
   test('П2+П4 · ТЕЛО МЕНЯЕТСЯ ДВАЖДЫ И ФИЗИЧНО: ряд вниз, новое тело из-под ленты, ни одного пустого кадра', async ({page, request}) => {
     test.setTimeout(420_000);
-    const {playerId, seats} = await openSitting(page, request, 'parliament-climate-assembly', '&consoleProfile=auto');
+    const {seats} = await openSitting(page, request, 'parliament-climate-assembly', '&consoleProfile=auto');
     await armV5Probe(page);
-    // Gate 1: the viewer answers, then the other seat — the walk plays and the enacted resolution's TAKE opens.
-    expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined,
-      {tries: 4, settleMs: 1500}), 'A answers the assembly gate').toBe(true);
-    await answerGateAs(request, seats[1], 'assembly');
+    // The pass ran the sitting: the walk plays and the enacted resolution's TAKE opens.
     await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw--embedded'), 'the take stands').toHaveCount(1, {timeout: 60_000});
     await waitSittingAtRest(page, 30_000);
     await shoot(page, 'p2-step-body');
@@ -333,7 +324,7 @@ test.describe('«Заседание v5» — ЛЕНТА и ТЕЛО (standard-10
     test.setTimeout(300_000);
     const {playerId, seats} = await openSitting(page, request, 'parliament-architecture-assembly', '&consoleProfile=auto');
     await armV5Probe(page);
-    await runWalk(page, request, seats[1]);
+    await runWalk(page);
     await expect.poll(() => sittingStage(page), {timeout: 40_000}).toBe('results');
     await waitSittingAtRest(page, 60_000);
     await settle(page, {timeoutMs: 20_000});

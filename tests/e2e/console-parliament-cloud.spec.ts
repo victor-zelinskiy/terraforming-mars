@@ -5,7 +5,7 @@ import {
   bootFixture, bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle,
   waitForBoardHome,
 } from './consoleStart';
-import {answerAsksAs, answerGateAs, closeSitting, expectDossierIsRules, expectParliamentFits, openParliament, PARLIAMENT_PRESETS, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {answerAsksAs, closeSittingAs, closeSitting, expectDossierIsRules, expectParliamentFits, openParliament, PARLIAMENT_PRESETS, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * CLOUD DEVELOPMENT (Turmoil Redux, RX06) — the first DISTRIBUTED payout, the
@@ -366,7 +366,7 @@ for (const preset of PARLIAMENT_PRESETS) {
         `the band kept its height through the layout, the commit and the results (${zone.bandHeights.join(', ')})`).toBe(true);
       expect(zone.emptyBodyFrames, 'the body zone never stood empty').toBe(0);
       await closeSitting(page, request, playerId);
-      await answerGateAs(request, red, 'adjourn');
+      await closeSittingAs(request, red);
       await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
 
       // ── THE RECORD: the viewer's list of recipients, red's single card, the Greens paid as ABSENT (the literal rule).

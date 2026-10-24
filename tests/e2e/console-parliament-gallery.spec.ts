@@ -3,8 +3,9 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {bootFixture, bootFixtureSeats, closeZoomViewer, openCardActions, openMandatoryAnnounce, openZoomViewer, placeTile, press, pressUntil, settle, focusInfoZone} from './consoleStart';
 import {
-  answerAsksAs, answerGateAs, answerGateOnScreen, expectInspectorFooterWhole, expectParliamentFits, expectRailHonest, focusParliamentZone, mandatoryPlate, openParliament,
-  parliament, PARLIAMENT_PRESETS, ParliamentPreset, parliamentWire, sittingStage, sittingStep, waitSittingAtRest,
+  answerAsksAs, closeSitting, closeSittingAs, enterSittingByPass, expectInspectorFooterWhole, expectParliamentFits, expectRailHonest,
+  focusParliamentZone, mandatoryPlate, openParliament, parliament, PARLIAMENT_PRESETS, ParliamentPreset, parliamentWire, sittingStage, sittingStep,
+  waitSittingAtRest,
 } from './parliamentDrive';
 
 
@@ -247,21 +248,15 @@ for (const preset of PARLIAMENT_PRESETS) {
 
       test('the SITTING: announce → verdict → enactment → reward (wave · take · source inspect) → results', async ({page, request}) => {
         test.setTimeout(420_000);
-        const {playerId, seats} = await bootFor(page, request, preset, mode, 'parliament-climate-assembly', 'prompt');
+        // ONE PASS before its sitting (the soft gates): the pass runs it and the walk turns its pages by itself — the
+        // verdict is a page the director reads (photographed as it stands, never posed: a pose waits for rest, and the
+        // page turns at rest); no gate, so no gate-wait frame.
+        const {playerId, seats} = await bootFor(page, request, preset, mode, 'parliament-climate-assembly', 'board');
         const red = seats[1];
-        await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-        await pose(page, preset, mode, '10', 'sitting-announce', '.con-mandatory');
-        expect(await openMandatoryAnnounce(page)).toBe(true);
-        await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-        await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-        await waitSittingAtRest(page, 30_000);
-        await pose(page, preset, mode, '11', 'sitting-verdict');
-        await waitSittingAtRest(page, 30_000);
-        await waitSittingAtRest(page, 30_000);
-        // A on the last reward page answers the assembly gate — act → verify → retry (a blind press was swallowed once under reduced motion).
-        await answerGateOnScreen(page, request, playerId, 'assembly');
-        await pose(page, preset, mode, '14', 'sitting-verdict-gate-wait');
-        await answerGateAs(request, red, 'assembly');
+        await enterSittingByPass(page, request, playerId);
+        if (await sittingStage(page) === 'verdict') {
+          await shoot(page, preset.id, mode, '11', 'sitting-verdict');
+        }
         await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw--embedded'), 'the take stands').toHaveCount(1, {timeout: 40_000});
         await waitSittingAtRest(page, 30_000);
         await expectRailHonest(page, `${preset.id}/${mode} take rail`, '.con-extdraw__status');
@@ -291,17 +286,9 @@ for (const preset of PARLIAMENT_PRESETS) {
 
       test('the REWARD variants: the pick (choice), the waiting line, the winner tile (placement) and the skip plate', async ({page, request}) => {
         test.setTimeout(420_000);
-        const {playerId, seats} = await bootFor(page, request, preset, mode, 'parliament-aquifer-assembly', 'prompt');
+        const {playerId, seats} = await bootFor(page, request, preset, mode, 'parliament-aquifer-assembly', 'board');
         const red = seats[1];
-        await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-        expect(await openMandatoryAnnounce(page)).toBe(true);
-        await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-        await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-        await waitSittingAtRest(page, 30_000);
-        await waitSittingAtRest(page, 30_000);
-        // A on the last reward page answers the assembly gate — act → verify → retry (a blind press was swallowed once under reduced motion).
-        await answerGateOnScreen(page, request, playerId, 'assembly');
-        await answerGateAs(request, red, 'assembly');
+        await enterSittingByPass(page, request, playerId);
         await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-task'), 'the pick stands').toHaveCount(1, {timeout: 40_000});
         await waitSittingAtRest(page, 30_000);
         await pose(page, preset, mode, '20', 'sitting-reward-pick');
@@ -337,22 +324,18 @@ for (const preset of PARLIAMENT_PRESETS) {
       //    and, after it, Unity in power for the first time (its tile in the government, its sockets void).
       test('the REWARD variant: the DISTRIBUTION — the layout over two holders inside the sitting, then Unity in power', async ({page, request}) => {
         test.setTimeout(420_000);
-        const {playerId, seats} = await bootFor(page, request, preset, mode, 'parliament-cloud-assembly', 'prompt');
+        const {playerId, seats} = await bootFor(page, request, preset, mode, 'parliament-cloud-assembly', 'board');
         const red = seats[1];
-        await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-        expect(await openMandatoryAnnounce(page)).toBe(true);
-        await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-        await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-        await waitSittingAtRest(page, 30_000);
-        await waitSittingAtRest(page, 30_000);
-        // Generation 1 of a four-party table: the Greens rule by the STARTING RULE and hold no card — their sockets are DRAWN in the government.
+        // Generation 1 of a four-party table, ONE PASS before its sitting: the Greens rule by the STARTING RULE and hold no
+        // card — their sockets are DRAWN in the government (read on the overview: the verdict is a page the walk turns).
+        await openParliament(page);
         const rulerBefore = page.locator('[data-parl-ruler-slot] .con-parl__party[data-party]');
         await expect(rulerBefore).toHaveAttribute('data-party', 'Greens');
         await expect(rulerBefore.locator('[data-parl-support]'), 'a ruler without a card keeps its sockets').toHaveCount(1);
         await expect(rulerBefore.locator('[data-support-void]')).toHaveCount(0);
-        await pose(page, preset, mode, '23', 'sitting-verdict-four-parties');
-        await answerGateOnScreen(page, request, playerId, 'assembly');
-        await answerGateAs(request, red, 'assembly');
+        await pose(page, preset, mode, '23', 'overview-four-parties');
+        expect(await pressUntil(page, 'Escape', async () => await parliament(page).count() === 0, {tries: 4, settleMs: 900}), 'B closes the Parliament').toBe(true);
+        await enterSittingByPass(page, request, playerId);
         await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-task'), 'the layout stands inside the sitting').toHaveCount(1, {timeout: 40_000});
         await waitSittingAtRest(page, 30_000);
         await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] [data-spread-blocked]'), 'opens with everything still to place').toHaveCount(1);
@@ -374,8 +357,8 @@ for (const preset of PARLIAMENT_PRESETS) {
         await waitSittingAtRest(page, 30_000);
         await pose(page, preset, mode, '24c', 'sitting-results-distribution');
         // UNITY IN POWER: close the sitting, open the Parliament — the Unity tile in the government, its sockets void.
-        await answerGateAs(request, red, 'adjourn');
-        await answerGateOnScreen(page, request, playerId, 'adjourn');
+        await closeSittingAs(request, red);
+        await closeSitting(page, request, playerId);
         await settle(page, {timeoutMs: 30_000});
         await openParliament(page);
         const ruler = page.locator('[data-parl-ruler-slot] .con-parl__party[data-party]');
@@ -484,17 +467,8 @@ for (const preset of PARLIAMENT_PRESETS) {
 
       test('the PICK on SIX candidates (the recipient picker with six animal holders)', async ({page, request}) => {
         test.setTimeout(300_000);
-        const {playerId, seats} = await bootFor(page, request, preset, mode, 'parliament-aquifer-assembly-six', 'prompt');
-        const red = seats[1];
-        await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-        expect(await openMandatoryAnnounce(page)).toBe(true);
-        await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-        await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-        await waitSittingAtRest(page, 30_000);
-        await waitSittingAtRest(page, 30_000);
-        // A on the last reward page answers the assembly gate — act → verify → retry (a blind press was swallowed once under reduced motion).
-        await answerGateOnScreen(page, request, playerId, 'assembly');
-        await answerGateAs(request, red, 'assembly');
+        const {playerId} = await bootFor(page, request, preset, mode, 'parliament-aquifer-assembly-six', 'board');
+        await enterSittingByPass(page, request, playerId);
         await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-task'), 'the pick stands').toHaveCount(1, {timeout: 40_000});
         await expect(page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-task .con-cards__slot'), 'six candidates').toHaveCount(6, {timeout: 20_000});
         await waitSittingAtRest(page, 30_000);
@@ -655,18 +629,11 @@ for (const preset of PARLIAMENT_PRESETS) {
           {kind: 'action', fixture: 'parliament-devaction-assembly', nn: '33', kicker: /Действие, пока принята|Action while enacted/i},
         ] as const;
         for (const family of families) {
-          const {playerId, seats} = await bootFor(page, request, preset, mode, family.fixture, 'prompt');
-          const red = seats[1];
-          await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-          expect(await openMandatoryAnnounce(page)).toBe(true);
-          await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-          await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-          await waitSittingAtRest(page, 30_000);
-          await waitSittingAtRest(page, 30_000);
-          // v2: A answers gate 1 first; the other seat answers last — the walk plays, and the REWARD page (turned by the
-          // director, about a second for a quiet card) carries its quiet pose: no reading pretends a payout; the stage
-          // says what OUTLIVES the enactment, and for an action, where it lives. Read in ONE sample the moment it stands —
-          // captured IN THE PAGE by an observer armed before the press: under reduced motion the quiet page stands
+          const {playerId} = await bootFor(page, request, preset, mode, family.fixture, 'board');
+          // ONE PASS before its sitting (the soft gates): the walk plays, and the REWARD page (turned by the director,
+          // about a second for a quiet card) carries its quiet pose: no reading pretends a payout; the stage says what
+          // OUTLIVES the enactment, and for an action, where it lives. Read in ONE sample the moment it stands —
+          // captured IN THE PAGE by an observer armed before the pass: under reduced motion the quiet page stands
           // ~0.9 s, and a Node-side poll whose interval grows to 1 s walked straight past it into the results.
           await page.evaluate(() => {
             const w = window as unknown as {__quietPose?: unknown};
@@ -702,25 +669,28 @@ for (const preset of PARLIAMENT_PRESETS) {
             });
             mo.observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['data-parl-band-quiet', 'class']});
           });
-          await answerGateOnScreen(page, request, playerId, 'assembly');
-          await answerGateAs(request, red, 'assembly');
+          await enterSittingByPass(page, request, playerId);
+          // REDUCED MOTION has no walk to turn (law 2 — the resting poses at once): a sitting that asks nothing stands on
+          // its RESULTS straight away, where the family is named again (below) — there is no reward page to read.
           const seen: {quiet: {kind: string | null, kicker: string, text: string, where: number, contexts: number, part: string} | null} = {quiet: null};
-          await expect.poll(async () => {
-            seen.quiet = await page.evaluate(() => ((window as unknown as {__quietPose?: unknown}).__quietPose ?? null) as never);
-            return seen.quiet !== null;
-          }, {timeout: 60_000, message: `${family.kind}: the REWARD stage carries its quiet pose`}).toBe(true);
-          const q = seen.quiet!;
-          expect(q.kind, `${family.kind}: the pose names its kind`).toBe(family.kind);
-          expect(q.kicker).toMatch(family.kicker);
-          expect(q.contexts, `${family.kind}: no reading pretends a payout`).toBe(0);
-          expect(q.where, 'an action names its address, a passive needs none').toBe(family.kind === 'action' ? 1 : 0);
-          // v5: there is no declaration under the kicker at all — the band carries no prose, and the card's own
-          // wording stands on the enacted face in the government (frames 32–33 of the earlier runs fixed the
-          // wording itself; the line that carried it is gone).
-          expect(q.text, 'the band prints no prose').toBe('');
-          // The government plaque titles the enacted card's graphic by its PART — an action is not an effect (frame 33 of the first run).
-          expect(q.part, `${family.kind}: «ВАШИ ЭФФЕКТЫ» names the law's part`).toBe(family.kind === 'action' ? 'action' : 'effect');
-          await shoot(page, preset.id, mode, family.nn, `family-${family.kind}-walk`);
+          if (mode !== 'reduced') {
+            await expect.poll(async () => {
+              seen.quiet = await page.evaluate(() => ((window as unknown as {__quietPose?: unknown}).__quietPose ?? null) as never);
+              return seen.quiet !== null;
+            }, {timeout: 60_000, message: `${family.kind}: the REWARD stage carries its quiet pose`}).toBe(true);
+            const q = seen.quiet!;
+            expect(q.kind, `${family.kind}: the pose names its kind`).toBe(family.kind);
+            expect(q.kicker).toMatch(family.kicker);
+            expect(q.contexts, `${family.kind}: no reading pretends a payout`).toBe(0);
+            expect(q.where, 'an action names its address, a passive needs none').toBe(family.kind === 'action' ? 1 : 0);
+            // v5: there is no declaration under the kicker at all — the band carries no prose, and the card's own
+            // wording stands on the enacted face in the government (frames 32–33 of the earlier runs fixed the
+            // wording itself; the line that carried it is gone).
+            expect(q.text, 'the band prints no prose').toBe('');
+            // The government plaque titles the enacted card's graphic by its PART — an action is not an effect (frame 33 of the first run).
+            expect(q.part, `${family.kind}: «ВАШИ ЭФФЕКТЫ» names the law's part`).toBe(family.kind === 'action' ? 'action' : 'effect');
+            await shoot(page, preset.id, mode, family.nn, `family-${family.kind}-walk`);
+          }
           // Nothing to pay: the adjourn arrives in the same response — the RESULTS card names the family again.
           await expect.poll(() => sittingStage(page), {timeout: 60_000}).toBe('results');
           await waitSittingAtRest(page, 30_000);
@@ -736,22 +706,19 @@ for (const preset of PARLIAMENT_PRESETS) {
 
       test('the SKIP: the winner\'s greenery with no legal cell — read as a skip before the record, the skip plate after it', async ({page, request}) => {
         test.setTimeout(300_000);
-        const {playerId, seats} = await bootFor(page, request, preset, mode, 'parliament-biodome-nocell-assembly', 'prompt');
-        const red = seats[1];
-        await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-        expect(await openMandatoryAnnounce(page)).toBe(true);
-        await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-        await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-        await waitSittingAtRest(page, 30_000);
-        await waitSittingAtRest(page, 30_000);
-        // A on the last reward page answers the assembly gate — act → verify → retry (a blind press was swallowed once under reduced motion).
-        await answerGateOnScreen(page, request, playerId, 'assembly');
-        await answerGateAs(request, red, 'assembly');
+        const {playerId} = await bootFor(page, request, preset, mode, 'parliament-biodome-nocell-assembly', 'board');
+        await enterSittingByPass(page, request, playerId);
         // The record arrives with the skip: the plate names the lost tile and its reason. Photographed the moment it stands
         // (the page holds through the plants' wave, then the results enter).
         // v5: a skip names itself with its reason in the reading BAND — the sitting's own surface carries no
-        // readings, and law 4 (never a silent loss) is unchanged.
-        await expect(page.locator('.con-band__chip--skip'), 'the skip names the lost tile').toHaveCount(1, {timeout: 40_000});
+        // readings, and law 4 (never a silent loss) is unchanged. REDUCED MOTION has no walk (law 2 — the resting poses
+        // at once): the sitting stands on its RESULTS, whose payout row names the skip with its reason.
+        if (mode === 'reduced') {
+          await expect.poll(() => sittingStage(page), {timeout: 40_000}).toBe('results');
+          await expect(page.locator('.con-sit .con-sit__part--skipped'), 'the results name the lost tile').not.toHaveCount(0, {timeout: 20_000});
+        } else {
+          await expect(page.locator('.con-band__chip--skip'), 'the skip names the lost tile').toHaveCount(1, {timeout: 40_000});
+        }
         // THE TABLE UNDER THE PLATE: a card dealt straight back from the reshuffled discard never left — its face
         // stays (P-28: the fresh-face hold hid both cards of the table for the whole read).
         const hiddenFaces = await page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-parl__slot[data-instance]')).filter((slot) => {
@@ -762,7 +729,10 @@ for (const preset of PARLIAMENT_PRESETS) {
           const cs = getComputedStyle(face);
           return face.getBoundingClientRect().height < 2 || cs.visibility === 'hidden' || cs.opacity === '0' || slot.querySelector('.con-parl__card--dealing') !== null;
         }).map((slot) => slot.getAttribute('data-instance')));
-        expect(hiddenFaces, `${preset.id}/${mode}: every card on the table keeps its face under the skip plate`).toEqual([]);
+        if (mode !== 'reduced') {
+          // (Reduced motion stands on the results panel, which takes the table's tier — no plate over a table to read.)
+          expect(hiddenFaces, `${preset.id}/${mode}: every card on the table keeps its face under the skip plate`).toEqual([]);
+        }
         await expectParliamentFits(page, `${preset.id}/${mode} sitting-reward-skip`);
         await expectPaintBaseline(page, `${preset.id}/${mode} sitting-reward-skip`);
         await shoot(page, preset.id, mode, '27b', 'sitting-reward-skip-plate');

@@ -2,12 +2,11 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusCard, openCardActions, openConsole, openMandatoryAnnounce, openZoomViewer, press, pressUntil,
-  reloadConsole, settle, waitForBoardHome,
+  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusCard, openCardActions, openConsole, openZoomViewer, press, pressUntil, reloadConsole,
+  settle, waitForBoardHome,
 } from './consoleStart';
 import {
-  answerGateAs, answerGateOnScreen, armLeakWitness, focusParliamentZone, focusParty, mandatoryPlate, openParliament, parliament, sittingStage,
-  strandedReports, waitSittingAtRest,
+  armLeakWitness, enterSittingByPass, focusParliamentZone, focusParty, openParliament, parliament, strandedReports, waitSittingAtRest,
 } from './parliamentDrive';
 
 /**
@@ -347,15 +346,10 @@ for (const preset of PRESETS) {
 
     test(`F: the enactment of Mars First deals the alliance's card from the deck into the dock — never a reveal (${preset.id})`, async ({page, request}) => {
       test.setTimeout(420_000);
-      const {playerId, seats} = await bootFixtureSeats(page, request, 'tharsis-alliance-enact', {query: preset.query, landing: 'prompt'});
-      const red = seats[1];
+      // The table stands ONE PASS before its sitting (the soft gates): the viewer's own pass carries the whole sitting.
+      const {playerId} = await bootFixtureSeats(page, request, 'tharsis-alliance-enact', {query: preset.query});
       const before = await wireOf(request, playerId);
       const hand = before.cardsInHand?.length ?? 0;
-      await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-      expect(await openMandatoryAnnounce(page)).toBe(true);
-      await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-      await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-      await waitSittingAtRest(page, 30_000);
       // A probe of the reveal surfaces across the enactment (MutationObserver + setInterval — never rAF).
       await page.evaluate(() => {
         const w = window as unknown as {__tr62: {reveal: boolean, proxies: number, samples: number, bandWithCard: boolean, bandWhileFlying: boolean}};
@@ -379,9 +373,8 @@ for (const preset of PRESETS) {
         new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true});
         window.setInterval(sample, 40);
       });
-      await answerGateOnScreen(page, request, playerId, 'assembly');
-      await answerGateAs(request, red, 'assembly');
-      // THE STORYBOARD of the enactment (TM_E2E_STORYBOARD=1, acceptance on the GPU): the tact from the gate's answer to
+      await enterSittingByPass(page, request, playerId);
+      // THE STORYBOARD of the enactment (TM_E2E_STORYBOARD=1, acceptance on the GPU): the tact from the pass to
       // the card's touchdown in the dock — the seals changing places, then the card off the deck under the band's line.
       if (process.env.TM_E2E_STORYBOARD === '1') {
         // Back to back, as JPEG (a 4K PNG costs more than the card's whole flight): the frames are evidence, not art.

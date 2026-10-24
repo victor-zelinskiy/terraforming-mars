@@ -1,9 +1,9 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, fetchPlayerModel, openMandatoryAnnounce, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, fetchPlayerModel, pressUntil, settle} from './consoleStart';
 import {
-  answerGateAs, armLeakWitness, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, strandedReports,
+  armLeakWitness, enterSittingByPass, expectParliamentFits, openParliament, sittingStage, strandedReports,
   waitSittingAtRest,
 } from './parliamentDrive';
 
@@ -238,24 +238,14 @@ test.describe('Plant Ban · standard-1080', () => {
     }
 
     // ════════════════ PART 2 · THE SITTING — the plants leave the rail for the law ════════════════
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-ban-assembly', {query: '&consoleProfile=auto', landing: 'prompt'});
-    const red = seats[1];
+    // The table stands ONE PASS before its sitting (the soft gates): the viewer's own pass carries the whole sitting.
+    const {playerId} = await bootFixtureSeats(page, request, 'parliament-ban-assembly', {query: '&consoleProfile=auto'});
     await armLeakWitness(page);
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await waitSittingAtRest(page, 30_000);
     const before = await wireOf(request, playerId);
-    expect(before.thisPlayer.plants, 'the viewer holds seven plants at the gate').toBe(7);
-    await shoot(page, '03-verdict');
-
-    // ── GATE 1: A on the verdict; red answers over the API — the effects run by themselves.
+    expect(before.thisPlayer.plants, 'the viewer holds seven plants one pass before the sitting (no plant production)').toBe(7);
+    await enterSittingByPass(page, request, playerId);
     await armProbe(page);
-    expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined,
-      {tries: 4, settleMs: 1500}), 'A answers the assembly gate').toBe(true);
-    const plantsBefore = (await readProbe(page)).samples.slice(-1)[0].plants;
-    await answerGateAs(request, red, 'assembly');
+    await shoot(page, '03-sitting-up');
 
     // ── THE ONE WAVE of the viewer's seat, and it goes OUT.
     await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.stage === 'reward' && s.chips.some((c) => c.dir === 'loss')),
@@ -284,6 +274,8 @@ test.describe('Plant Ban · standard-1080', () => {
     // THE CUT: born on the plant cell (VISIBLE), reads «−3», travels, lands inside the card's printed mechanic
     // (VISIBLE) — the levy's address walked backwards, over a resource that is not M€.
     const first = loss[0];
+    // The plants the cut leaves from: the cell as it read the sample before the chip was born.
+    const plantsBefore = probe.samples[Math.max(0, first.i - 1)].plants;
     const landedAt = landingIndex(loss, REST_SLACK_PX);
     const last = loss[loss.length - 1];
     expect(first.c.amt, 'the chip carries the loss with its sign').toContain('−3');

@@ -4,7 +4,7 @@ import * as path from 'node:path';
 import {
   bootFixtureSeats, closeZoomViewer, crumbText, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle,
 } from './consoleStart';
-import {answerAsksAs, answerGateAs, closeSitting, expectParliamentFits, openParliament, turnTo, waitSittingAtRest} from './parliamentDrive';
+import {answerAsksAs, closeSittingAs, closeSitting, expectParliamentFits, openParliament, turnTo, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * MEDICAL DATABASE (Turmoil Redux, RX18) — the ONE e2e of the card's new
@@ -301,7 +301,7 @@ test.describe('Medical Database · standard-1080', () => {
     expect(await turnTo(page, 'results'), 'the results page').toBe(true);
     await shoot(page, '07-results');
     await closeSitting(page, request, playerId);
-    await answerGateAs(request, red, 'adjourn');
+    await closeSittingAs(request, red);
     await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
 
     // ════════════════ PART 3 · THE RECORD ════════════════

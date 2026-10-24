@@ -2,9 +2,9 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openMandatoryAnnounce, openZoomViewer, pressUntil, settle,
+  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, openZoomViewer, pressUntil, settle,
 } from './consoleStart';
-import {answerGateAs, armLeakWitness, expectDossierIsRules, expectParliamentFits, mandatoryPlate, openParliament, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
+import {armLeakWitness, enterSittingByPass, expectDossierIsRules, expectParliamentFits, openParliament, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * INDUSTRIALIST BUDGET (Turmoil Redux, RX15) — the ONE e2e of the family's new
@@ -63,7 +63,7 @@ const readingsIn = (page: Page, scope: string) => page.evaluate((sel) => {
 type Outcome = {player: string, step: string, kind: string, amount?: number, owed?: number, count?: number, influence?: number,
   countedByResource?: Array<{resource: string, count: number}>, before?: number, after?: number, reason?: string};
 type Wire = {
-  thisPlayer: {color: string, megacredits: number, megaCreditProduction?: number},
+  thisPlayer: {color: string, megacredits: number, megacreditProduction?: number, terraformRating: number},
   game: {parliament: {phase?: {step: string, outcomes?: Array<Outcome>}, lastPhase?: {outcomes?: Array<Outcome>}}},
 };
 const wireOf = async (request: APIRequestContext, id: string): Promise<Wire> => await fetchPlayerModel(request, id) as unknown as Wire;
@@ -271,23 +271,13 @@ test.describe('Industrialist Budget · standard-1080', () => {
     }
 
     // ════════════════ PART 2 · THE SITTING — the outflow first, the payout back, the production last ════════════════
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-budget-assembly', {query: '&consoleProfile=auto', landing: 'prompt'});
-    const red = seats[1];
+    // The table stands ONE PASS before its sitting (the soft gates): the viewer's own pass carries the whole sitting.
+    const {playerId} = await bootFixtureSeats(page, request, 'parliament-budget-assembly', {query: '&consoleProfile=auto'});
     await armLeakWitness(page);
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await waitSittingAtRest(page, 30_000);
     const before = await wireOf(request, playerId);
-    await shoot(page, '04-verdict');
-
-    // ── GATE 1: A on the verdict; red answers over the API — the effects run by themselves.
+    await enterSittingByPass(page, request, playerId);
     await armProbe(page);
-    expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined,
-      {tries: 4, settleMs: 1500}), 'A answers the assembly gate').toBe(true);
-    const stockBefore = (await readProbe(page)).samples.slice(-1)[0].stock;
-    await answerGateAs(request, red, 'assembly');
+    await shoot(page, '04-sitting-up');
 
     // ── THE THREE WAVES of the viewer's seat: a loss OUT, a gain IN, a production step IN.
     await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.stage === 'reward' && s.chips.some((c) => c.dir === 'loss')),
@@ -312,6 +302,8 @@ test.describe('Industrialist Budget · standard-1080', () => {
 
     // ① THE LEVY: born on the M€ cell (visible), reads «−10», lands inside the card's printed mechanic (visible) — the address walked backwards.
     const lossFirst = loss[0];
+    // The M€ the levy leaves from: the cell as it read the sample before the chip was born (the pass paid the income first).
+    const stockBefore = probe.samples[Math.max(0, lossFirst.i - 1)].stock;
     const lossLandedAt = landingIndex(loss, REST_SLACK_PX);
     const lossLast = loss[loss.length - 1];
     expect(lossFirst.c.amt, 'the chip carries the levy with its sign').toContain('−10');
@@ -365,7 +357,9 @@ test.describe('Industrialist Budget · standard-1080', () => {
     expect(mine[1].countedByResource).toEqual([{resource: 'steel', count: 2}, {resource: 'titanium', count: 1}, {resource: 'energy', count: 2}]);
     expect(mine[2]).toMatchObject({kind: 'production', amount: 4});
     expect(mine[1].before, 'the payout landed on what the levy LEFT').toBe(mine[0].after);
-    expect(wire.thisPlayer.megacredits - before.thisPlayer.megacredits, 'the day\'s balance').toBe(-3);
+    // The same pass paid the production phase first (M€ production + TR), then the sitting's −10 · +7.
+    const income = (before.thisPlayer.megacreditProduction ?? 0) + before.thisPlayer.terraformRating;
+    expect(wire.thisPlayer.megacredits - before.thisPlayer.megacredits - income, 'the day\'s balance').toBe(-3);
 
     // ── THE RESULTS read the parts signed and the NET: «−10 · +7 · +4 = −3».
     await expect.poll(() => sittingStage(page), {timeout: 90_000}).toBe('results');

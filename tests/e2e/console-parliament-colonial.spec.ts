@@ -1,9 +1,9 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, crumbText, fetchPlayerModel, openMandatoryAnnounce, press, pressUntil, settle} from './consoleStart';
+import {bootFixtureSeats, crumbText, fetchPlayerModel, press, pressUntil, settle} from './consoleStart';
 import {
-  answerAsksAs, answerGateAs, closeSitting, armLeakWitness, expectParliamentFits, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports,
+  answerAsksAs, armLeakWitness, closeSitting, closeSittingAs, enterSittingByPass, expectParliamentFits, sittingStage, strandedReports,
   waitSittingAtRest,
 } from './parliamentDrive';
 
@@ -180,22 +180,15 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
 
   test('the ledger is the body; the wave leaves the rows; the layout, the pick, the take and the DISCARD stand inside the sitting in turn; the results by tile', async ({page, request}) => {
     test.setTimeout(600_000);
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-colonial-assembly', {query: PRESET.query, landing: 'prompt'});
+    // The table stands ONE PASS before its sitting (the soft gates): the viewer's own pass carries the chain — the
+    // enactment's beats, then the REWARD page — and the walk turns its pages by itself.
+    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-colonial-assembly', {query: PRESET.query});
     const red = seats[1];
     await armLeakWitness(page);
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await waitSittingAtRest(page, 30_000);
-    await waitSittingAtRest(page, 30_000);
     const before = await wireOf(request, playerId);
+    await enterSittingByPass(page, request, playerId);
+    // Armed once the sitting is up: the pass paid the production phase first, and its M€ tick is not the ledger's.
     await armProbe(page);
-
-    // ── GATE 1: A on the verdict; red answers over the API. The chain runs: the enactment's beats, then the REWARD page.
-    expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined, {tries: 4, settleMs: 1500}),
-      'A answers the assembly gate').toBe(true);
-    await answerGateAs(request, red, 'assembly');
 
     // ── ① THE LEDGER IS THE BODY of the reward stage — the hero on the left, a row per tile, × 3.
     await expect(page.locator(`${LEDGER} [data-colony-ledger]`), 'the ledger stands in the stage').toBeVisible({timeout: 60_000});
@@ -233,9 +226,12 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
         `the first chip is born on Luna's bonus cell (chip ${firstMc.x.toFixed(0)},${firstMc.y.toFixed(0)} vs cell ${JSON.stringify(firstMc.cell)})`).toBe(true);
     }
     const lastChipT = Math.max(...mcChips.map((c) => c.t));
-    // The rail paints «committed − held» until the touchdown: the baseline is what the rail showed at the verdict.
-    const mcBase = probe.samples.find((s) => s.mc !== '')?.mc ?? '';
-    const tickSample = probe.samples.find((s) => s.mc !== mcBase && s.mc !== '');
+    // The rail paints «committed − held» until the touchdown: the baseline is what the rail showed as the first chip was
+    // born (the pass paid the production phase before the sitting — that income is not the ledger's tick).
+    const mcBase = [...probe.samples].reverse().find((s) => s.t < firstMc.t && s.mc !== '')?.mc ?? '';
+    const tickSample = probe.samples.find((s) => s.t >= firstMc.t && s.mc !== mcBase && s.mc !== '');
+    const earlier = probe.samples.filter((s) => s.t < firstMc.t && s.mc !== '');
+    test.info().annotations.push({type: 'mc before the ledger', description: [...new Set(earlier.map((s) => s.mc))].join(' → ')});
     expect(tickSample, 'the M€ counter ticked').not.toBe(undefined);
     expect(tickSample!.t, `the tick (${tickSample!.mc}) came with the touchdown, never before the chips were in the air (tick ${tickSample!.t.toFixed(0)} vs first chip ${firstMc.t.toFixed(0)})`).toBeGreaterThan(firstMc.t);
     const receivedSample = probe.samples.find((s) => s.rows.Luna?.state === 'received');
@@ -246,10 +242,13 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
     expect(strays, 'no M€ chip is still crossing the stage once the row reads received').toEqual([]);
     void lastChipT;
     // ── ③ THE DELTA CHIP ON THE M€ ROW obeys the anchor law in every sample it was seen in.
-    const deltas = probe.samples.map((s) => s.mcDelta).filter((d): d is NonNullable<Sample['mcDelta']> => d !== undefined);
+    // The LEDGER's own chip — from its first token on (the pass ran the production phase first: the income's chip on the
+    // same row belongs to the generation scene and to its own guard, `console-delta-chip-anchor`).
+    const deltas = probe.samples.filter((s) => s.t >= firstMc.t).map((s) => s.mcDelta).filter((d): d is NonNullable<Sample['mcDelta']> => d !== undefined);
+    const worst = (key: 'overDigits' | 'outsideRow') => deltas.reduce((m, d) => Math.max(m, d[key]), 0);
     expect(deltas.length, 'the M€ row showed its delta chip').toBeGreaterThan(0);
-    expect(deltas.every((d) => d.overDigits <= 1), `the delta chip never covered the digits (${JSON.stringify(deltas.slice(0, 3))})`).toBe(true);
-    expect(deltas.every((d) => d.outsideRow <= 1), `the delta chip stayed inside the row (${JSON.stringify(deltas.slice(0, 3))})`).toBe(true);
+    expect(deltas.every((d) => d.overDigits <= 1), `the delta chip never covered the digits (worst ${worst('overDigits')} px)`).toBe(true);
+    expect(deltas.every((d) => d.outsideRow <= 1), `the delta chip stayed inside the row (worst ${worst('outsideRow')} px)`).toBe(true);
     await shoot(page, '02-luna-received');
 
     // ── ④ THE DISTRIBUTION — Titan's three floaters over two holders, INSIDE the sitting: the ledger yields, «РАСКЛАДКА».
@@ -367,9 +366,9 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
     await expectParliamentFits(page, `${PRESET.id} results`);
     await shoot(page, '07-results');
 
-    // ── GATE 2 closes the sitting; the next generation opens.
+    // ── «Закрыть заседание» for both seats: the viewer on screen, red over the API — the next generation runs.
     await closeSitting(page, request, playerId);
-    await answerGateAs(request, red, 'adjourn');
+    await closeSittingAs(request, red);
     await expect.poll(async () => (await wireOf(request, playerId)).game.generation, {timeout: 60_000}).toBe(2);
     const after = await wireOf(request, playerId);
     const mine = after.game.parliament.lastPhase?.outcomes?.filter((o) => o.player === after.thisPlayer.color) ?? [];

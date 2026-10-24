@@ -2,10 +2,10 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixtureSeats, closeZoomViewer, commitFocusedSpace, crumbText, fetchPlayerModel, focusCard, openConsole, openMandatoryAnnounce, openZoomViewer,
-  placementState, press, pressUntil, settle, walkToSpace,
+  bootFixtureSeats, closeZoomViewer, commitFocusedSpace, crumbText, fetchPlayerModel, focusCard, openConsole, placementState, press, pressUntil,
+  settle, walkToSpace,
 } from './consoleStart';
-import {answerGateAs, armLeakWitness, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
+import {armLeakWitness, enterSittingByPass, inspectWinningBill, mandatoryPlate, parliament, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
 import {expectSeeThrough, expectUncovers} from './peekWitness';
 
 /**
@@ -228,24 +228,20 @@ test.describe(`Water Export · ${PRESET.id}`, () => {
     page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 
     // ════════════════ PART 1 · THE SITTING — a world step that ASKS ════════════════
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-water-assembly', {query: PRESET.query, landing: 'prompt'});
+    // The table stands ONE PASS before its sitting (the soft gates): red has passed, blue holds its action menu.
+    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-water-assembly', {query: PRESET.query});
     const red = seats[1];
     await armLeakWitness(page);
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await waitSittingAtRest(page, 30_000);
 
     const before = await wireOf(request, playerId);
     expect(before.game.oceans, 'the fixture stands with ONE ocean').toBe(1);
     const oceanCell = before.game.spaces.find((s) => s.tileType === OCEAN);
     expect(oceanCell, 'the ocean is on the board').toBeTruthy();
     const oceanId = oceanCell!.id;
-    await shoot(page, '01-verdict');
 
-    // ── ⓪ THE INSPECTION states the world part in the board's numbers, and the passive as its own block.
-    await openZoomViewer(page);
+    // ── ⓪ THE INSPECTION states the world part in the board's numbers, and the passive as its own block — on the
+    //      table, as voted, one pass before the sitting.
+    await inspectWinningBill(page);
     const rules = page.locator('dialog.con-zoom[open] .con-zoom-sidecol');
     await expect(rules).toContainText(/Что делает с планетой|What it does to the planet/);
     await expect(rules).toContainText(/Океаны: 1 → 0|Oceans: 1 → 0/);
@@ -259,16 +255,12 @@ test.describe(`Water Export · ${PRESET.id}`, () => {
     redPage.on('pageerror', (e) => console.log('[red pageerror]', e.message));
     await openConsole(redPage, red, PRESET.query);
     await settle(redPage, {timeoutMs: 20_000});
-    await enterSittingAs(redPage);
-    await expect.poll(() => sittingStage(redPage), {timeout: 15_000}).toBe('verdict');
-    await waitSittingAtRest(redPage, 30_000);
     await armProbe(page, oceanId);
     await armProbe(redPage, oceanId);
 
-    // ── GATE 1: A on the verdict; red answers over the API. Everything after this turns by itself.
-    expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined,
-      {tries: 4, settleMs: 1500}), 'A answers the assembly gate').toBe(true);
-    await answerGateAs(request, red, 'assembly');
+    // ── THE PASS carries the whole sitting — up to the law's question; on red's client it comes up by the socket.
+    await enterSittingByPass(page, request, playerId);
+    await enterSittingAs(redPage);
 
     // ── ① THE SEATS ARE PAID FIRST: 2 M€ per influence, influence 2 → +4.
     await expect.poll(async () => {

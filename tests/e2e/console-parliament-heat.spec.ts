@@ -2,9 +2,9 @@ import {test, expect, Page, APIRequestContext} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
-  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusCard, openMandatoryAnnounce, openZoomViewer, press, pressUntil, settle, focusInfoZone,
+  bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusCard, press, pressUntil, settle, focusInfoZone,
 } from './consoleStart';
-import {answerGateAs, armLeakWitness, expectLawLeadsEffects, mandatoryPlate, parliament, parliamentWire, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
+import {armLeakWitness, enterSittingByPass, expectLawLeadsEffects, inspectWinningBill, parliament, sittingStage, strandedReports, waitSittingAtRest} from './parliamentDrive';
 
 /**
  * HEAT CAPTURE (Turmoil Redux, RX14) — the ONE e2e of the new mechanic: a law
@@ -112,21 +112,15 @@ test.describe(`Heat Capture · ${PRESET.id}`, () => {
     test.setTimeout(900_000);
 
     // ════════════════ PART 1 · THE SITTING — RX12's world tact with the temperature ════════════════
-    const {playerId, seats} = await bootFixtureSeats(page, request, 'parliament-heat-assembly', {query: PRESET.query, landing: 'prompt'});
-    const red = seats[1];
+    // The table stands ONE PASS before its sitting (the soft gates): the law leads the vote, the viewer holds its menu.
+    const {playerId} = await bootFixtureSeats(page, request, 'parliament-heat-assembly', {query: PRESET.query});
     await armLeakWitness(page);
-    await expect(mandatoryPlate(page)).toHaveCount(1, {timeout: 30_000});
-    expect(await openMandatoryAnnounce(page)).toBe(true);
-    await expect(parliament(page)).toHaveCount(1, {timeout: 20_000});
-    await expect.poll(() => sittingStage(page), {timeout: 15_000}).toBe('verdict');
-    await waitSittingAtRest(page, 30_000);
 
     const before = await wireOf(request, playerId);
     expect(before.game.temperature, 'the fixture stands at −20 °C').toBe(-20);
-    await shoot(page, '01-verdict');
 
-    // ── ⓪ THE INSPECTION says what will happen to the world, in the server's own numbers.
-    await openZoomViewer(page);
+    // ── ⓪ THE INSPECTION says what will happen to the world, in the server's own numbers — on the table, as voted.
+    await inspectWinningBill(page);
     const rules = page.locator('dialog.con-zoom[open] .con-zoom-sidecol');
     await expect(rules).toContainText(/Что делает с планетой|What it does to the planet/);
     await expect(rules).toContainText(/Температура: -20°C → -24°C|Temperature: -20°C → -24°C/);
@@ -136,12 +130,10 @@ test.describe(`Heat Capture · ${PRESET.id}`, () => {
     await closeZoomViewer(page);
     await settle(page, {timeoutMs: 15_000});
 
+    // ── THE PASS carries the whole sitting; it comes up and turns its pages by itself.
+    await enterSittingByPass(page, request, playerId);
     await armProbe(page);
-
-    // ── GATE 1: A on the verdict; red answers over the API. Everything after this turns by itself.
-    expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, playerId)).waitingFor?.parliamentPhasePrompt === undefined,
-      {tries: 4, settleMs: 1500}), 'A answers the assembly gate').toBe(true);
-    await answerGateAs(request, red, 'assembly');
+    await shoot(page, '01-sitting-up');
 
     // ── ① THE SEAT IS PAID FIRST: 2 M€ per influence, influence 2 → +4.
     await expect.poll(async () => {
