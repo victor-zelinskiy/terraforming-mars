@@ -553,7 +553,7 @@ describe('normalizeRequirement', () => {
     expect(influence.type).to.eq(RequirementType.INFLUENCE);
     expect(influence.value).to.eq(1);
     expect(influence.comparator).to.eq('max');
-    expect(influence.iconUrl).to.eq('assets/misc/influence.png');
+    expect(influence.iconUrl).to.eq('assets/misc/influence.svg');
     expect(influence.isBinary).to.eq(false);
     expect(influence.label).to.eq(undefined);
     expect(normalizeRequirement({influence: 2}).comparator, 'the floor form').to.eq('min');

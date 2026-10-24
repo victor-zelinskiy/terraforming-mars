@@ -152,16 +152,22 @@ for (const preset of PROFILES) {
       await expect(head.locator('[data-parl-influence-sum] [data-inf-mod]')).toHaveText('+1');
       await expect(head.locator('[data-inf-mod]').first(), 'the tab names its giver').toHaveAttribute('data-hint', /Анализ событий/);
       await expect(head, 'the head says what the number is').toContainText(/Ваше влияние/i);
-      // The viewer's span: the ring on LEVEL 2, the chip prints 3 with the tab; the other spans their levels.
+      // The SCALE prints the FINAL influence everywhere (the owner, 2026-10-24): the viewer's span 3 on the ring of LEVEL 2,
+      // every other span its level + 1, every ★ coin its level + 1 — green, never a «+1» tab on the scale.
       const mine = page.locator('.con-parl__inf-band--mine');
       await expect(mine).toHaveAttribute('data-parl-inf-band', '2');
       await expect(mine.locator('[data-parl-inf-band-value]')).toHaveText('3');
-      await expect(mine.locator('[data-inf-mod]')).toHaveText('+1');
+      await expect(mine.locator('[data-inf-mod]')).toHaveCount(0);
       const otherSpans = await page.locator('.con-parl__inf-band:not(.con-parl__inf-band--mine)').evaluateAll((els) =>
         els.map((el) => [el.getAttribute('data-parl-inf-band'), el.querySelector('[data-parl-inf-band-value]')?.textContent?.trim(), el.querySelector('[data-inf-mod]') !== null]));
       for (const [level, value, mod] of otherSpans) {
-        expect([value, mod], `a span of another level names its level (${level})`).toEqual([level, false]);
+        expect([value, mod], `a span prints its level + the bonus (${level})`).toEqual([String(Number(level) + 1), false]);
       }
+      const coins = await page.locator('.con-parl__step--influence .con-parl__step-level').evaluateAll((els) =>
+        els.map((el) => [el.textContent?.trim(), el.classList.contains('con-parl__step-level--buffed')]));
+      expect(coins.length).toBeGreaterThan(3);
+      expect(coins.every(([, buffed]) => buffed), 'every coin is marked lifted').toBe(true);
+      expect(coins[0][0], 'the first ★ step votes with 2').toBe('2');
       await shot(page, preset.id, 'B-track');
 
       // The band on the track: the own stop's LEVEL 2, the count «Влияние 3 +1».

@@ -13,7 +13,9 @@
          :class="{'con-parl__seat--me': seat.color === viewerColor}"
          :data-parl-seat="seat.color">
       <span class="con-parl__seat-ident">
-        <PlayerDelegate :color="seat.color" :size="figurePx(18)" :glow="false" />
+        <!-- WHOSE row: the player's DOT, never a figure — every figure on this ledger is a PHYSICAL delegate (the
+             lobby's, the reserve's), so the player counts what is left at a glance (the owner, 2026-10-24). -->
+        <span class="con-parl__seat-dot" :class="'player_bg_color_' + seat.color" aria-hidden="true"></span>
         <span class="con-parl__seat-name">{{ seat.name }}</span>
       </span>
       <span class="con-parl__seat-place" :class="{'con-parl__seat-place--source': seatSourceOf(seat) === 'lobby', 'con-parl__seat-place--carrying': carryingFrom(seat.color) === 'lobby'}" data-parl-seat-place="lobby" :data-parl-carrying="carryingFrom(seat.color) === 'lobby' ? '' : undefined" :aria-label="$t('Lobby')">
@@ -45,7 +47,7 @@
     </div>
     <div class="con-parl__seat con-parl__seat--neutral" data-parl-neutral-pool>
       <span class="con-parl__seat-ident">
-        <PlayerDelegate color="neutral" steel :size="figurePx(18)" :glow="false" />
+        <span class="con-parl__seat-dot con-parl__seat-dot--steel" aria-hidden="true"></span>
         <span class="con-parl__seat-name">{{ $t('Neutral') }}</span>
       </span>
       <!-- A SOURCE, marked like the viewer's own place, while the vote mode's door also pays the selected
@@ -100,7 +102,6 @@
 import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
-import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSize';
 import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {supportDiscardPoolHeld} from '@/client/console/parliament/supportDiscard';
@@ -228,9 +229,6 @@ export default defineComponent({
     },
   },
   methods: {
-    figurePx(logical: number): number {
-      return delegateFigurePx(logical);
-    },
     landFlashOf(color: Color): number {
       return this.landFlash[color] ?? 0;
     },

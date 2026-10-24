@@ -298,7 +298,7 @@ const REQUIREMENT_RENDER: Partial<Record<RequirementType, RequirementRender>> = 
   [RequirementType.TAGS_OF_ONE_TYPE]: {value: (d) => d.tagsOfOneType ?? d.count ?? 1, iconUrl: 'assets/tags/diverse.png'},
   // Turmoil Redux (TR04): the influence badge — the SAME asset the Agenda track's node and every resolution's
   // payout formula draw (`con-parl__inf-icon`), so «influence» is one symbol everywhere; `max` draws the bar.
-  [RequirementType.INFLUENCE]: {value: (d) => d.influence ?? d.count ?? 1, iconUrl: `${MISC}/influence.png`},
+  [RequirementType.INFLUENCE]: {value: (d) => d.influence ?? d.count ?? 1, iconUrl: `${MISC}/influence.svg`},
   // Turmoil Redux (TR10): the game's clock has no icon — the scan prints the plate as TEXT, «GEN 4+», and so
   // does the face: the label (the endgame's own «Gen» key) and the number with a «+» for the floor.
   [RequirementType.GENERATION]: {value: (d) => d.generation ?? d.count ?? 1, label: 'Gen', plain: true},

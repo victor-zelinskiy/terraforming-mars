@@ -941,6 +941,9 @@
     &__deck--discard { opacity: .62; }
     &__seat-place--discard { margin-left: .1rem; }
     &__seat-ident { display: inline-flex; align-items: center; gap: .3rem; min-width: 0; font-size: .7rem; font-weight: 600; }
+    /* WHOSE row — the player's dot (the status strip's own mark), never a figure: the ledger's figures are all PHYSICAL. */
+    &__seat-dot { flex: none; width: .62rem; height: .62rem; border-radius: 50%; box-shadow: 0 0 0 .06rem rgba(0, 0, 0, 0.45), 0 0 .3rem rgba(0, 0, 0, 0.5); }
+    &__seat-dot--steel { background: linear-gradient(160deg, #d8dde6, #8f97a4); }
     &__seat-name { max-width: 4.4rem; overflow: hidden; text-overflow: ellipsis; }
     /* The cap is for free PLAYER names; the neutral supply's word is fixed and never cut
        (host class doubled: it must outrank the profile ladders' own caps). */
@@ -1223,7 +1226,7 @@
         background-position: center;
         &--tr { width: 1.02rem; height: .76rem; }
         &--card { width: .8rem; height: 1.14rem; border-radius: .08rem; box-shadow: 0 0 0 .05rem rgba(255, 255, 255, 0.3); }
-        &--inf { width: .92rem; height: .92rem; background-image: url(./assets/misc/influence.png); }
+        &--inf { width: .92rem; height: .92rem; background-image: url(./assets/misc/influence.svg); }
     }
     &__step-cubes { display: flex; align-items: flex-start; justify-content: center; gap: .08rem; width: 100%; height: 100%; padding-top: .06rem; box-sizing: border-box; }
     &__agenda-cube { display: inline-flex; &--hidden { visibility: hidden; } }
@@ -1374,7 +1377,7 @@
     &__emblem { width: .95rem; height: .95rem; object-fit: contain; flex-shrink: 0; }
     &__unit { display: inline-block; width: 1rem; height: 1rem; background-size: contain; background-repeat: no-repeat; background-position: center; }
     /* An INFLUENCE step's chip (TR04's walk): the badge with its level in one disc — the track node's own asset. */
-    &__unit--inf { background-image: url(./assets/misc/influence.png); }
+    &__unit--inf { background-image: url(./assets/misc/influence.svg); }
     &__bonus { display: inline-flex; align-items: center; gap: .16rem; b { font-size: .8rem; font-weight: 800; } }
     /* A Career rating the law REFUSED (RX42): the «+1» struck in the Reds' red — the marker moved, the rating did not come. */
     &__bonus--vetoed b { text-decoration: line-through; text-decoration-thickness: .12em; text-decoration-color: rgba(255, 96, 84, 0.95); color: #ffd0c8; }
@@ -1626,7 +1629,7 @@ html.con-fx-lite .con-parl__vote-cube--counted { animation: none; }
         display: inline-block;
         width: 1rem;
         height: 1rem;
-        background: url(./assets/misc/influence.png) center / contain no-repeat;
+        background: url(./assets/misc/influence.svg) center / contain no-repeat;
         flex-shrink: 0;
     }
     &__step--influence &__step-node { position: relative; }

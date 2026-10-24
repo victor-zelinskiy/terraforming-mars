@@ -802,6 +802,8 @@
         line-height: 1;
         font-variant-numeric: tabular-nums;
     }
+    /* …the coin under a bonus prints the FINAL influence in deep green on the gold (the light green would not read there). */
+    &__step--influence &__step-level--buffed { color: #0d5c2b; font-weight: 700; }
     /* THE INFLUENCE RULER (П6 — the owner's note: the gold bar was heavy and named only the viewer's span) — a span per
        ★ level under the tiles it covers, drawn as a DIMENSION LINE: a hairline with its two end ticks, and in its middle
        the chip «[influence] N» that EVERY span carries (the chip's own plate cuts the line). Quiet gold; the START's
@@ -864,7 +866,10 @@
         b { font-weight: 400; font-variant-numeric: tabular-nums; }
     }
     &__inf-band--mine &__inf-band-chip { background: #10261f; box-shadow: inset 0 0 0 .07rem @con-parl-mint, 0 0 .8rem fade(@con-parl-mint, 35%); }
-    &__inf-band-glyph { display: inline-block; width: .8rem; height: .8rem; background: url(./assets/misc/influence.png) center / contain no-repeat; }
+    /* UNDER A BONUS (Event Analysts …): the span prints the FINAL influence in a soft green — the number is lifted, the
+       tone says so by weight of colour on a quiet plate, never a «+N» tab on the scale (the head reads the sum). */
+    &__inf-band-chip--buffed b { color: #9be8b0; }
+    &__inf-band-glyph { display: inline-block; width: .8rem; height: .8rem; background: url(./assets/misc/influence.svg) center / contain no-repeat; }
     &__inf-band--l0 &__inf-band-glyph { opacity: .4; }
 }
 
@@ -1386,7 +1391,7 @@ html.con-profile-tv .con-parl-qd {
         &--rung { width: 2.6rem; height: 2.6rem; b { font-size: .7rem; } }
     }
     /* The glyph in the coin's upper half, the level CLEAR of it in the lower — never a digit over the rosette's foot. */
-    &__coin-glyph { display: block; width: 46%; height: 46%; background: url(./assets/misc/influence.png) center / contain no-repeat; }
+    &__coin-glyph { display: block; width: 46%; height: 46%; background: url(./assets/misc/influence.svg) center / contain no-repeat; }
     &__ladder {
         align-self: stretch;
         display: grid;

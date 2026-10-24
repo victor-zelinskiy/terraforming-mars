@@ -42,7 +42,7 @@ describe('the final influence on the Career track (T05)', () => {
     return mount(ConsoleParliamentAgenda, {...globalConfig, props: {view: vm, model: m, agendaVm: agendaViewOf(vm), viewerParticipates: true}});
   }
 
-  it('the head reads «3 = [insignia] 2 +1» and the viewer\'s span prints 3 with the modifier; every other span its level', () => {
+  it('the head reads «3 = [insignia] 2 +1»; every span and every coin of the scale prints the FINAL influence (level + 1), green, no tab', () => {
     const wrapper = mountAgenda([seat(BLUE, 3, 3, EVENT_ANALYSTS), seat(RED, 5, 3)]);
     expect(wrapper.find('[data-parl-influence]').text()).eq('3');
     expect(wrapper.find('[data-parl-influence-track]').text()).eq('2');
@@ -53,13 +53,21 @@ describe('the final influence on the Career track (T05)', () => {
     const mine = wrapper.find('.con-parl__inf-band--mine');
     expect(mine.attributes('data-parl-inf-band'), 'the ring stays on the LEVEL\'s span').eq('2');
     expect(mine.find('[data-parl-inf-band-value]').text()).eq('3');
-    expect(mine.find('[data-inf-mod]').text()).eq('+1');
+    expect(mine.find('[data-inf-mod]').exists(), 'the scale carries no «+N» tab — the head reads the sum').is.false;
     const others = wrapper.findAll('.con-parl__inf-band:not(.con-parl__inf-band--mine)');
     expect(others.length).greaterThan(3);
     for (const band of others) {
-      expect(band.find('[data-parl-inf-band-value]').text(), 'another span names its own level').eq(band.attributes('data-parl-inf-band'));
+      expect(band.find('[data-parl-inf-band-value]').text(), 'another span prints its level + the bonus').eq(String(Number(band.attributes('data-parl-inf-band')) + 1));
+      expect(band.find('[data-parl-inf-band-value]').attributes('data-parl-inf-band-buffed'), 'the lifted number is marked').eq('');
       expect(band.find('[data-inf-mod]').exists()).is.false;
     }
+    const coins = wrapper.findAll('.con-parl__step-level');
+    expect(coins.length).greaterThan(3);
+    for (const coin of coins) {
+      expect(coin.classes(), 'a coin under a bonus is green').to.include('con-parl__step-level--buffed');
+      expect(coin.text()).eq(coin.attributes('data-parl-step-influence'));
+    }
+    expect(coins.map((c) => c.text())[0], 'the first ★ step (level 1) votes with 2').eq('2');
     wrapper.unmount();
   });
 
@@ -69,6 +77,9 @@ describe('the final influence on the Career track (T05)', () => {
     expect(wrapper.find('[data-parl-influence-sum]').exists()).is.false;
     expect(wrapper.find('[data-inf-mod]').exists()).is.false;
     expect(wrapper.find('.con-parl__inf-band--mine [data-parl-inf-band-value]').text()).eq('2');
+    expect(wrapper.find('[data-parl-inf-band-buffed]').exists(), 'no bonus — no lifted number').is.false;
+    expect(wrapper.find('.con-parl__step-level--buffed').exists()).is.false;
+    expect(wrapper.findAll('.con-parl__step-level').map((c) => c.text())[0], 'the first ★ step reads its own level').eq('1');
     wrapper.unmount();
   });
 });

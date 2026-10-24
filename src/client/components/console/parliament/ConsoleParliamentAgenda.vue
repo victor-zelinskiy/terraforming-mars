@@ -21,7 +21,8 @@
              reads it as a sum — «= [insignia] level +bonus» — the level being the track's, the modifier the cards'
              (`influenceReading.ts`: one reading, one grammar). Nothing is added up here. -->
         <span v-if="view.viewer !== undefined" class="con-parl__agenda-me" :aria-label="$t('Your influence')" data-parl-influence-head>
-          <PlayerDelegate :color="view.viewer.color" :size="figurePx(18)" :glow="false" />
+          <!-- WHOSE number: the player's dot (a figure on the table is always a physical delegate). -->
+          <span class="con-parl__seat-dot" :class="'player_bg_color_' + view.viewer.color" aria-hidden="true"></span>
           <span v-if="shown.viewerReading.bonus > 0" class="con-parl__agenda-me-label">{{ $t('Your influence') }}</span>
           <i class="con-parl__inf-icon" aria-hidden="true"></i>
           <b :key="'ai' + shown.viewerInfluence" class="con-parl__tick" data-parl-influence>{{ shown.viewerInfluence }}</b>
@@ -63,7 +64,10 @@
              :data-step="step.index"
              @animationend="onStepPulseEnd($event, step.index)">
           <span class="con-parl__step-node">
-            <template v-if="step.step.kind === 'influence'"><span class="con-parl__step-medal"><i class="con-parl__step-res con-parl__step-res--inf" aria-hidden="true"></i><span class="con-parl__step-level">{{ step.step.influence }}</span></span></template>
+            <!-- THE COIN prints what the VIEWER votes with at this step: the level plus the bonus they keep beyond the Career
+                 (Event Analysts …) — the FINAL number, soft green while a bonus lifts it (the owner, 2026-10-24: never «2+1» on
+                 the scale; the head alone reads the composition). -->
+            <template v-if="step.step.kind === 'influence'"><span class="con-parl__step-medal"><i class="con-parl__step-res con-parl__step-res--inf" aria-hidden="true"></i><span class="con-parl__step-level" :class="{'con-parl__step-level--buffed': influenceBuff > 0}" :data-parl-step-influence="step.step.influence + influenceBuff">{{ step.step.influence + influenceBuff }}</span></span></template>
             <template v-else-if="step.step.kind === 'tr'"><i class="con-parl__step-res con-parl__step-res--tr resource_icon resource_icon--rating" aria-hidden="true"></i></template>
             <template v-else><i class="con-parl__step-res con-parl__step-res--card resource_icon resource_icon--cards" aria-hidden="true"></i></template>
           </span>
@@ -79,9 +83,10 @@
               :class="['con-parl__inf-band--l' + band.level, {'con-parl__inf-band--mine': band.mine}]"
               :style="{gridColumn: band.from + 1 + ' / ' + (band.to + 2)}"
               :data-parl-inf-band="band.level" data-budget-scale="influence">
-          <!-- The viewer's span prints the viewer's FINAL influence with its modifier (T05) — the ring stays on the
-               LEVEL's span (a cell of the track); every other span names its level. -->
-          <span class="con-parl__inf-band-chip"><i class="con-parl__inf-band-glyph" aria-hidden="true"></i><b :data-parl-inf-band-value="band.mine ? shown.viewerInfluence : band.level">{{ band.mine ? shown.viewerInfluence : band.level }}</b><ConsoleInfluenceMod v-if="band.mine" :reading="shown.viewerReading" /></span>
+          <!-- Every span prints the influence the VIEWER votes with inside it — the level plus the bonus beyond the Career,
+               the FINAL number (soft green while a bonus lifts it, no «+N» tab on the scale — the head reads the sum). The
+               viewer's own span prints the server's total; the ring stays on the LEVEL's span (a cell of the track). -->
+          <span class="con-parl__inf-band-chip" :class="{'con-parl__inf-band-chip--buffed': influenceBuff > 0}"><i class="con-parl__inf-band-glyph" aria-hidden="true"></i><b :data-parl-inf-band-value="bandInfluence(band)" :data-parl-inf-band-buffed="influenceBuff > 0 ? '' : undefined">{{ bandInfluence(band) }}</b></span>
         </span>
       </div>
     </div>
@@ -194,6 +199,14 @@ export default defineComponent({
      * ★ step to the step before the next ★ — and the span the viewer's marker stands in is ringed. Derived from
      * `AGENDA_TRACK` alone, so a reworked track re-draws its band by itself.
      */
+    /**
+     * THE BONUS THE VIEWER KEEPS BEYOND THE CAREER (Event Analysts and its kin — `influenceReading.ts`): the same at
+     * every step, so the track's coins and spans print the FINAL influence the viewer votes with there. 0 for a seat that
+     * is not on the track (the track then reads its own levels).
+     */
+    influenceBuff(): number {
+      return this.viewerParticipates ? Math.max(0, this.shown.viewerReading.bonus) : 0;
+    },
     influenceBands(): ReadonlyArray<{level: number, from: number, to: number, mine: boolean}> {
       const marks: Array<{level: number, at: number}> = [];
       AGENDA_TRACK.forEach((step, i) => {
@@ -288,6 +301,10 @@ export default defineComponent({
     this.stopAgendaGlide();
   },
   methods: {
+    /** The influence the viewer votes with inside a span: their own span the server's total, any other its level + the bonus. */
+    bandInfluence(band: {level: number, mine: boolean}): number {
+      return band.mine ? this.shown.viewerInfluence : band.level + this.influenceBuff;
+    },
     figurePx(logical: number): number {
       return delegateFigurePx(logical);
     },
