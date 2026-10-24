@@ -1121,6 +1121,12 @@ function negativeChips(e: GameEvent): Array<JournalImpactChip> {
 
 /** A negative event the VIEWER suffered FROM ANOTHER PLAYER (not a cost/own-spend). */
 function isViewerVictimEvent(e: GameEvent, viewer: Color): boolean {
+  // A DELEGATE TAKEN OFF THE TABLE (TR72) is the ACTOR's event and its victim rides `target.player` — the reverse
+  // of a steal's shape this diff reads (`player` the victim, `target` the thief). Its victim's band is the root
+  // card's (`viewerImpactOfChain`); read here it made the ACTOR «robbed» by the seat they banished.
+  if (e.type === 'delegate-removed') {
+    return false;
+  }
   if (e.player !== viewer) {
     return false;
   }

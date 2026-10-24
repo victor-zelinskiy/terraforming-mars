@@ -232,6 +232,11 @@ export function delegateFactsOf(reading: DelegateReadingVm, names: DelegateFactN
     case 'leader':
       return [{id: 'lead', label: 'Leader', before: ownerValue(line.current), after: ownerValue(line.resulting), unchanged: false, tone: 'keep', note: undefined}];
     case 'winner':
+      // The SAME resolution keeps winning and only its winner changes: the row names the seats («player2 → player1»),
+      // never «R → R» (the resolution reads in the band and on the bill).
+      if (line.current !== undefined && line.resulting !== undefined && line.current.party === line.resulting.party) {
+        return [{id: 'win', label: 'Leading the vote', before: ownerValue(line.current.owner), after: ownerValue(line.resulting.owner), unchanged: false, tone: 'keep', note: undefined}];
+      }
       return [{id: 'win', label: 'Leading the vote', before: winnerValue(line.current), after: winnerValue(line.resulting), unchanged: false, tone: 'keep', note: undefined}];
     case 'effects':
       return line.parties.map((party): VoteFactVm => ({

@@ -907,5 +907,12 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
     expect(model.affects).contains(owner.color);
     expect(deliveredModels(game, owner.color).filter((m) => m.correlationId === root!.correlationId), 'exactly ONE card').has.length(1);
     expect(deliveredModels(game, builder.color).find((m) => m.correlationId === root!.correlationId)?.viewerImpact).is.undefined;
+    // …and NO standalone hostile twin on either side: the actor is never «robbed» by the seat they banished (the
+    // event's shape is the reverse of a steal's), the victim's story is the root card above.
+    const events = game.events.events.filter((e) => !(e.tags ?? []).some((t) => ANALYTICS_ONLY_TAGS.has(t)));
+    for (const viewer of [builder.color, owner.color]) {
+      const neg = diffNegativeNotifications({events, seen: new Set(), viewerColor: viewer, generation: game.getGeneration(), createdAt: 1000});
+      expect(neg.models, `no standalone hostile card for ${viewer}`).has.length(0);
+    }
   });
 });

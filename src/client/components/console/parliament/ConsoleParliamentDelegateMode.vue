@@ -205,7 +205,7 @@ export default defineComponent({
         translateText('To the common supply');
     },
     figure(): number {
-      return delegateFigurePx(34);
+      return delegateFigurePx(52);
     },
     factFigure(): number {
       return delegateFigurePx(18);

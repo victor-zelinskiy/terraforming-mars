@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixture, cinematicBeat, fetchPlayerModel, focusCard, press, settle} from './consoleStart';
+import {bootFixture, fetchPlayerModel, focusCard, press, settle} from './consoleStart';
 
 /**
  * TR72 «ИЗГНАНИЕ ДЕЛЕГАТА» (Banned Delegate:redux) — THE DELEGATE MODE, the staged party pick of ONE FIGURE
@@ -316,7 +316,9 @@ for (const preset of PRESETS) {
         await expect.poll(() => posts.length, {timeout: 3_000}).toBeGreaterThan(0).catch(() => undefined);
       }
       expect(posts.map((p) => new URL(p.url).pathname), 'the play is ONE batch POST').toEqual(['/player/input-batch']);
-      await cinematicBeat(page, 700, 'a frame of the figure in the air — the acceptance frame only, never a witness');
+      // The acceptance frame of the figure IN THE AIR (a state, never a duration) — absent if the flight already landed.
+      await expect.poll(() => page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-parl__flight:not(.con-parl__flight--agenda)'))
+        .some((el) => getComputedStyle(el).visibility !== 'hidden' && el.getBoundingClientRect().width > 2)), {timeout: 8_000, intervals: [16]}).toBe(true).catch(() => undefined);
       await shoot(page, preset.id, '06-flight');
       const sent = JSON.parse(posts[0].body) as {responses?: Array<Record<string, unknown>>} | Array<Record<string, unknown>>;
       const responses = Array.isArray(sent) ? sent : sent.responses ?? [];

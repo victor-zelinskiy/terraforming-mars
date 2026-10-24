@@ -156,6 +156,13 @@ describe('the DELEGATE mode (TR72)', () => {
       expect(delegateFactsOf(area, names).map((f) => [f.id, f.label])).deep.eq([['votes', 'Popular support']]);
     });
 
+    it('the SAME resolution keeps winning with another winner: the row names the seats, never «R → R»', () => {
+      const one = delegateRing({source: 'remove', targets: [target(G, 'resolution', RED, {winner: {current: {party: G, owner: RED}, resulting: {party: G, owner: BLUE}}})]}, TABLE);
+      const names = {owner: (o: Color | 'neutral') => (o === 'neutral' ? 'Neutral' : o), resolution: (p: PartyName) => `${p} law`};
+      const win = delegateFactsOf(delegateReadingOf(one[0], one.length)!, names).find((f) => f.id === 'win')!;
+      expect([win.before.key, win.after.key, win.after.cube]).deep.eq([RED, BLUE, BLUE]);
+    });
+
     it('the ONLY figure on the table is marked — shown and marked, never taken without the press', () => {
       const one = delegateRing({source: 'remove', targets: [target(M, 'support', 'neutral')]}, TABLE);
       expect(delegateReadingOf(one[0], one.length)?.sole).is.true;
