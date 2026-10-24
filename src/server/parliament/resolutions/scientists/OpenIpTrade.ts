@@ -102,7 +102,7 @@ export function tradePatents(player: IPlayer, cards: ReadonlyArray<IProjectCard>
   player.stock.add(Resource.MEGACREDITS, megacredits, {log: false, from: {resolution: OPEN_IP_TRADE_ID}});
   const owed = OPEN_IP_TRADE_CARDS_PER_CARD * discarded;
   const before = player.cardsInHand.length;
-  player.drawCard(owed);
+  player.drawCard(owed, {source: {type: 'resolution', resolution: OPEN_IP_TRADE_ID}});
   const drawn = player.cardsInHand.length - before;
   player.game.log('${0} discarded ${1} card(s) for ${2}: gains ${3} M€ and draws ${4} card(s)', (b) =>
     b.player(player).number(discarded).resolution(OPEN_IP_TRADE_ID).number(megacredits).number(drawn));

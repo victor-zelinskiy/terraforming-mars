@@ -8,6 +8,7 @@ import {CardName} from '../../common/cards/CardName';
 import {isIActionCard} from '../cards/ICard';
 import {actionPreview} from '../models/actionPreview';
 import {effectForecastForAction} from '../models/effectForecast';
+import {parsePoliticalActionSource, politicalActionPreview} from '../models/politicalActionPreview';
 
 /**
  * READ-ONLY preview of a played action card's activation, fetched by the client
@@ -15,6 +16,10 @@ import {effectForecastForAction} from '../models/effectForecast';
  * per-branch choice steps so the player makes every choice INSIDE the modal,
  * before the final submit. This handler is GET-only and NEVER mutates game state
  * — `actionPreview()` only reads + builds plain models.
+ *
+ * A POLITICAL action (Turmoil Redux — a party's action, the enacted law's) is asked by `source=party:<party>` /
+ * `source=law:<id>` instead of `card`: the same shape, built over the prompt the action menu nests
+ * (`models/politicalActionPreview.ts`), so the card actions' composer reads it the way it reads a blue card.
  */
 export class ActionPreview extends Handler {
   public static readonly INSTANCE = new ActionPreview();
@@ -26,8 +31,14 @@ export class ActionPreview extends Handler {
   public override async get(req: Request, res: Response, ctx: Context): Promise<void> {
     const playerId = ctx.url.searchParams.get('id');
     const cardName = ctx.url.searchParams.get('card');
-    if (playerId === null || cardName === null) {
+    const rawSource = ctx.url.searchParams.get('source');
+    if (playerId === null || (cardName === null && rawSource === null)) {
       responses.badRequest(req, res, 'missing id or card parameter');
+      return;
+    }
+    const political = rawSource === null ? undefined : parsePoliticalActionSource(rawSource);
+    if (rawSource !== null && political === undefined) {
+      responses.badRequest(req, res, 'invalid source parameter');
       return;
     }
     if (!isPlayerId(playerId)) {
@@ -43,6 +54,16 @@ export class ActionPreview extends Handler {
       const player = game.getPlayerById(playerId);
       if (!this.isUser(player.user, ctx)) {
         responses.notAuthorized(req, res);
+        return;
+      }
+      if (political !== undefined) {
+        const preview = politicalActionPreview(player, political);
+        if (preview === undefined) {
+          // Expired subject (the law was replaced, the party lost its action) — see `responses.noPreview`.
+          responses.noPreview(res, 'political action not found');
+          return;
+        }
+        responses.writeJson(res, ctx, preview);
         return;
       }
       const card = player.tableau.get(cardName as CardName);

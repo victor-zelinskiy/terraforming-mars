@@ -58,7 +58,8 @@ import {Research} from '../../src/server/cards/base/Research';
 import {Luna} from '../../src/server/colonies/Luna';
 import {Callisto} from '../../src/server/colonies/Callisto';
 import {runAllActions} from '../TestingUtils';
-import {answerStandingGates, passToParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerStandingGates, passToParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {politicalActionPreview} from '../../src/server/models/politicalActionPreview';
 
 /*
  * THE RESOLUTION AUTHOR'S CONTRACT, ENFORCED OVER THE CATALOG (plan §5.4).
@@ -928,6 +929,26 @@ describe('ResolutionContract — the author\'s contract over the catalog', () =>
         const failures = checkSeam(definition);
         expect(failures, failures.join('\n')).deep.eq([]);
       });
+
+      if (definition.action !== undefined) {
+        // ONE FRAMEWORK (2026-10-24): the enacted law's action is previewed in the card action's own shape, over the
+        // prompt the menu nests — the card actions' composer reads it the way it reads a blue card. Offered or not, the
+        // preview names its source and every branch is either takeable or says why not (never a silent dead branch).
+        it('9 · THE SEAM: the enacted action previews in the card action\'s shape — its source typed, every branch takeable or reasoned', () => {
+          const [game, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+          game.phase = Phase.ACTION;
+          seatEnacted(game.parliament!, definition.id);
+          player.megaCredits = 60;
+          player.cardsInHand = [new Trees(), new Research()];
+          player.playedCards.push(new Tardigrades(), new Birds());
+          const preview = politicalActionPreview(player, {kind: 'law', resolution: definition.id});
+          expect(preview, 'the enacted action has a preview').is.not.undefined;
+          expect(preview?.source).deep.eq({kind: 'law', resolution: definition.id});
+          expect(preview?.branches.length, 'at least one branch').greaterThan(0);
+          const silent = preview!.branches.filter((b) => !b.available && b.unavailableReason === undefined);
+          expect(silent, 'a dead branch without a reason').deep.eq([]);
+        });
+      }
     });
   }
 

@@ -20,7 +20,7 @@ import {PartyName} from '../../common/turmoil/PartyName';
 import type {EventImpact} from '../../common/events/EventImpact';
 import {
   AGENDA_TRACK, AgendaStep, BotParliamentMode, influenceAtAgenda, PARLIAMENT_AGENDA_STEPS, PARLIAMENT_DELEGATES_PER_PLAYER,
-  PARLIAMENT_NEUTRAL_DELEGATES, PARLIAMENT_VOTE_COST, PARLIAMENT_VOTING_SLOTS, ParliamentAspect, PARTY_ACTION_OWNER,
+  PARLIAMENT_NEUTRAL_DELEGATES, PARLIAMENT_VOTE_COST, PARLIAMENT_VOTING_SLOTS, ParliamentAspect, PARTY_ACTION_OWNER, PARTY_ACTION_USES_PER_GENERATION,
   PARTY_EFFECT_DELEGATES, PartyActionId, QuestDefinition, ReduxParty, REDUX_PARTIES, ResolutionId, ResolutionInstanceId, STARTER_QUEST, SupportRoom,
   supportRoomOf,
 } from '../../common/parliament/ParliamentTypes';
@@ -1217,8 +1217,8 @@ export function compatibleWith(expansions: Readonly<Record<Expansion, boolean>>)
   return (definition) => (definition.compatibility ?? []).every((expansion) => expansions[expansion] === true);
 }
 
-/** Every party action is once per generation in iteration 0 (rulebook p.3–5). */
-export const PARTY_ACTION_USES_PER_GENERATION = 1;
+// The ONE per-generation limit of a party action lives in `common` (the prompts and the catalog read it too).
+export {PARTY_ACTION_USES_PER_GENERATION};
 
 export function isReduxPartyName(party: PartyName): party is ReduxParty {
   return (REDUX_PARTIES as ReadonlyArray<PartyName>).includes(party);

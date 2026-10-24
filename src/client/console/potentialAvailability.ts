@@ -69,8 +69,10 @@ export function wheelPotentialCounts(input: WheelCountsInput): WheelCounts {
     // cards (Turmoil Redux), so its badge counts both — each number the
     // server's own verdict.
     cardActions: Math.max(0, p.cardActions) + Math.max(0, p.partyActions ?? 0),
-    // A party action is never «for nothing» (the parliament's own verdict); only card actions can be.
-    futileCardActions: Math.max(0, Math.min(p.futileCardActions ?? 0, p.cardActions)),
+    // …and the «for nothing» ones of BOTH, each by the server's own verdict (one framework: a law's action that would
+    // change nothing is painted like a blue card's).
+    futileCardActions: Math.max(0, Math.min(p.futileCardActions ?? 0, p.cardActions)) +
+      Math.max(0, Math.min(p.futilePartyActions ?? 0, p.partyActions ?? 0)),
     // A category absent from this game shows nothing at all rather than a 0.
     hydro: input.hasHydro ? Math.max(0, p.hydroAdvance) : 0,
     trade: input.hasColonies ? Math.max(0, p.colonyTrades) : 0,

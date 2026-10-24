@@ -442,12 +442,25 @@ export function availablePartyActionCount(player: IPlayer): number {
 }
 
 /**
+ * Of those, the ones that would change NOTHING right now — the enacted law's proven verdict (`futile`, the one its
+ * action preview carries). A party action carries no such verdict today. The card actions' `futileCardActions` twin.
+ */
+export function futilePartyActionCount(player: IPlayer): number {
+  const parliament = player.game?.parliament;
+  if (parliament === undefined) {
+    return 0;
+  }
+  const law = resolutionActionModel(parliament, player);
+  return law?.available === true && law.futile !== undefined ? 1 : 0;
+}
+
+/**
  * THE ENACTED RESOLUTION'S ACTION for the viewer (Turmoil Redux — Open IP
  * Trade): the party action model's twin. Undefined while no enacted law has
  * an action; otherwise the same verdict ladder as a party's — access (the
  * seat participates), the uses left, the action's own gate with its reason.
  */
-function resolutionActionModel(parliament: Parliament, viewer: IPlayer): ResolutionActionModel | undefined {
+export function resolutionActionModel(parliament: Parliament, viewer: IPlayer): ResolutionActionModel | undefined {
   const enacted = parliament.enactedDefinition();
   const action = enacted?.action;
   if (enacted === undefined || action === undefined) {
@@ -501,37 +514,48 @@ function resolutionActionModel(parliament: Parliament, viewer: IPlayer): Resolut
 function partyActionModels(parliament: Parliament, viewer: IPlayer): Array<PartyActionModel> {
   const models: Array<PartyActionModel> = [];
   for (const party of REDUX_PARTIES) {
-    const definition = PARTY_EFFECTS[party];
-    if (definition.actionId === undefined) {
-      continue;
+    const model = partyActionModel(parliament, viewer, party);
+    if (model !== undefined) {
+      models.push(model);
     }
-    const hasAccess = parliament.hasPartyEffect(viewer, party);
-    const usesLeft = parliament.partyActionUsesLeft(viewer, party);
-    let available = hasAccess && usesLeft > 0;
-    let reason: PartyActionModel['reason'] = '';
-    if (!hasAccess) {
-      reason = 'You do not have this party\'s effect';
-    } else if (usesLeft <= 0) {
-      reason = 'This party action was already used this generation';
-    } else {
-      const verdict = definition.canAct?.(viewer);
-      if (verdict !== undefined && verdict.available === false) {
-        available = false;
-        reason = verdict.reason;
-      }
-    }
-    models.push({
-      id: definition.actionId,
-      party,
-      hasAccess,
-      usesLeft,
-      usesPerGeneration: PARTY_ACTION_USES_PER_GENERATION,
-      available,
-      reason,
-      preview: definition.preview?.(viewer) ?? [],
-    });
   }
   return models;
+}
+
+/**
+ * ONE party's action for the viewer — access, uses, the server's verdict with its reason, the result chips — or
+ * `undefined` for a party without an action. The model's list and the action PREVIEW read this one verdict.
+ */
+export function partyActionModel(parliament: Parliament, viewer: IPlayer, party: ReduxParty): PartyActionModel | undefined {
+  const definition = PARTY_EFFECTS[party];
+  if (definition.actionId === undefined) {
+    return undefined;
+  }
+  const hasAccess = parliament.hasPartyEffect(viewer, party);
+  const usesLeft = parliament.partyActionUsesLeft(viewer, party);
+  let available = hasAccess && usesLeft > 0;
+  let reason: PartyActionModel['reason'] = '';
+  if (!hasAccess) {
+    reason = 'You do not have this party\'s effect';
+  } else if (usesLeft <= 0) {
+    reason = 'This party action was already used this generation';
+  } else {
+    const verdict = definition.canAct?.(viewer);
+    if (verdict !== undefined && verdict.available === false) {
+      available = false;
+      reason = verdict.reason;
+    }
+  }
+  return {
+    id: definition.actionId,
+    party,
+    hasAccess,
+    usesLeft,
+    usesPerGeneration: PARTY_ACTION_USES_PER_GENERATION,
+    available,
+    reason,
+    preview: definition.preview?.(viewer) ?? [],
+  };
 }
 
 function summaryModel(game: IGame, parliament: Parliament, summary: SerializedPhaseSummary): ParliamentPhaseSummaryModel {

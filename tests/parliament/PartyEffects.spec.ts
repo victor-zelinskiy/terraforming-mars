@@ -242,8 +242,13 @@ describe('Party effects', () => {
       p1.megaCredits = 0;
       const confirm = cast(partyAction(p1, PartyName.REDS), SelectOption);
       expect(confirm.partyActionPrompt?.stage).eq('confirm');
+      // The prompt names its source structurally — the card actions' own choice context (the Industrialists' shape).
+      expect(confirm.choiceContext?.source).deep.eq({kind: 'party', party: PartyName.REDS});
       const deck = game.projectDeck.drawPile.length;
       confirm.cb(undefined);
+      // The drawn batch NAMES its party explicitly — the claim of the card-actions workspace keys on it, the way a
+      // card's draw names its card.
+      expect(p1.cardDrawReveals.map((reveal) => reveal.source)).deep.eq([{type: 'party', party: PartyName.REDS}]);
       // COMMITTED: two cards drawn, the use spent, the discard owed.
       expect(p1.cardsInHand).has.length(6);
       expect(game.projectDeck.drawPile.length).eq(deck - 2);
@@ -255,6 +260,7 @@ describe('Party effects', () => {
       expect(discard.config.max).eq(2);
       expect(discard.partyActionPrompt?.stage).eq('discard');
       expect(discard.discardPrompt?.source).deep.eq({kind: 'party', party: PartyName.REDS});
+      expect(discard.choiceContext?.source).deep.eq({kind: 'party', party: PartyName.REDS});
 
       // RELOAD before answering: nothing is drawn again and the discard is still owed.
       const restored = Game.deserialize(structuredClone(game.serialize()));

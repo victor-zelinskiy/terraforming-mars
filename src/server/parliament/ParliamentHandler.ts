@@ -16,7 +16,6 @@ import {SelectPaymentDeferred} from '../deferredActions/SelectPaymentDeferred';
 import {Priority} from '../deferredActions/Priority';
 import {message} from '../logs/MessageBuilder';
 import {Resource} from '../../common/Resource';
-import {PartyName} from '../../common/turmoil/PartyName';
 import {Tile} from '../Tile';
 import {ALL_TAGS, Tag} from '../../common/cards/Tag';
 import {Space} from '../boards/Space';
@@ -96,36 +95,43 @@ export class ParliamentHandler {
 
   /** The party ACTIONS the player may take right now (Unity's rides the colony trade action instead). */
   public static partyActionOptions(player: IPlayer): Array<PlayerInput> {
-    const parliament = player.game?.parliament;
-    if (parliament === undefined) {
-      return [];
-    }
     const options: Array<PlayerInput> = [];
     for (const party of REDUX_PARTIES) {
-      const definition = PARTY_EFFECTS[party];
-      if (definition.actionId === undefined || definition.actionInput === undefined) {
-        continue;
+      const prompt = ParliamentHandler.partyActionPrompt(player, party);
+      if (prompt !== undefined) {
+        options.push(prompt);
       }
-      if (!parliament.hasPartyEffect(player, party)) {
-        continue;
-      }
-      const usesLeft = parliament.partyActionUsesLeft(player, party);
-      if (usesLeft <= 0) {
-        continue;
-      }
-      if (definition.canAct?.(player).available === false) {
-        continue;
-      }
-      const meta: PartyActionPromptMeta = {
-        party,
-        actionId: definition.actionId,
-        stage: party === PartyName.REDS ? 'confirm' : 'choose',
-        usesLeft,
-        usesPerGeneration: PARTY_ACTION_USES_PER_GENERATION,
-      };
-      options.push(definition.actionInput(player, parliament, meta));
     }
     return options;
+  }
+
+  /**
+   * THE ONE PROMPT of `party`'s action, exactly as the action menu nests it — or `undefined` while the action is not
+   * offered (no access, no use left, the action's own gate closed, or an action that rides another menu entry: Unity's
+   * trade). Building it changes nothing (the commit contract); the menu and the action PREVIEW
+   * (`models/politicalActionPreview.ts`) read this one tree, so the preview is a promise of the prompt's own form.
+   */
+  public static partyActionPrompt(player: IPlayer, party: ReduxParty): PlayerInput | undefined {
+    const parliament = player.game?.parliament;
+    const definition = PARTY_EFFECTS[party];
+    if (parliament === undefined || definition.actionId === undefined || definition.actionInput === undefined) {
+      return undefined;
+    }
+    if (!parliament.hasPartyEffect(player, party)) {
+      return undefined;
+    }
+    const usesLeft = parliament.partyActionUsesLeft(player, party);
+    if (usesLeft <= 0 || definition.canAct?.(player).available === false) {
+      return undefined;
+    }
+    const meta: PartyActionPromptMeta = {
+      party,
+      actionId: definition.actionId,
+      stage: definition.actionStage ?? 'choose',
+      usesLeft,
+      usesPerGeneration: PARTY_ACTION_USES_PER_GENERATION,
+    };
+    return definition.actionInput(player, parliament, meta);
   }
 
   /**
@@ -139,15 +145,25 @@ export class ParliamentHandler {
    * resolutionAction`), so a blocked action is shown disabled, never hidden.
    */
   public static resolutionActionOptions(player: IPlayer): Array<PlayerInput> {
+    const prompt = ParliamentHandler.resolutionActionPrompt(player);
+    return prompt === undefined ? [] : [prompt];
+  }
+
+  /**
+   * THE ONE PROMPT of the enacted law's action, exactly as the action menu nests it — or `undefined` while it is not
+   * offered (no action, not a participant, no use left, its gate closed). The party prompt's twin
+   * (`partyActionPrompt`): the menu and the action PREVIEW read this one tree.
+   */
+  public static resolutionActionPrompt(player: IPlayer): PlayerInput | undefined {
     const parliament = player.game?.parliament;
     const enacted = parliament?.enactedDefinition();
     const action = enacted?.action;
     if (parliament === undefined || enacted === undefined || action === undefined || !parliament.participates(player, 'enactment')) {
-      return [];
+      return undefined;
     }
     const usesLeft = parliament.resolutionActionUsesLeft(player);
     if (usesLeft <= 0 || action.canAct(player).available === false) {
-      return [];
+      return undefined;
     }
     const meta: ResolutionActionPromptMeta = {
       resolution: enacted.id,
@@ -156,7 +172,7 @@ export class ParliamentHandler {
       usesLeft,
       usesPerGeneration: action.usesPerGeneration(player),
     };
-    return [action.execute(player, parliament, meta)];
+    return action.execute(player, parliament, meta);
   }
 
   /**

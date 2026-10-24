@@ -1,7 +1,7 @@
 import {IPlayer} from '../IPlayer';
 import {PotentialActionsModel} from '../../common/models/PotentialActionsModel';
 import {DeltaProjectExpansion} from '../delta/DeltaProjectExpansion';
-import {availablePartyActionCount} from '../parliament/ParliamentModel';
+import {availablePartyActionCount, futilePartyActionCount} from '../parliament/ParliamentModel';
 import {actionFutility} from './actionFutility';
 
 /**
@@ -34,6 +34,7 @@ export function potentialActions(player: IPlayer): PotentialActionsModel {
   // verdict per action, the very one the action menu lists them by.
   if (player.game.parliament !== undefined) {
     model.partyActions = availablePartyActionCount(player);
+    model.futilePartyActions = futilePartyActionCount(player);
   }
   return model;
 }

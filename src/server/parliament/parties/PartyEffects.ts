@@ -35,7 +35,7 @@ import {IProjectCard} from '../../cards/IProjectCard';
 import {ActionEffect} from '../../../common/models/ActionPreviewModel';
 import {PartyActionPromptMeta} from '../../../common/models/PlayerInputModel';
 import {drawGain, productionChange} from '../../cards/actionPreviews';
-import {PartyActionId, ReduxParty} from '../../../common/parliament/ParliamentTypes';
+import {PARTY_ACTION_USES_PER_GENERATION, PartyActionId, ReduxParty} from '../../../common/parliament/ParliamentTypes';
 import {PartyReaction, PartyTileAnswer} from '../../../common/parliament/partyReactions';
 import {IClientPartyEffect} from '../../../common/parliament/IClientResolution';
 import {InputError} from '../../inputs/InputError';
@@ -68,6 +68,12 @@ export interface PartyEffectDefinition {
   passiveRenderData: ICardRenderRoot;
   actionRenderData?: ICardRenderRoot;
   actionId?: PartyActionId;
+  /**
+   * The menu prompt's BEAT (`PartyActionPromptMeta.stage`), declared by the definition beside the prompt it builds:
+   * `confirm` — the prompt is a bare commit (the answer IS the action — the Reds' draw); `choose` (default) — the
+   * prompt asks a pick before the commit. Never derived from the party's name.
+   */
+  actionStage?: 'confirm' | 'choose';
   /**
    * The passive's reactions DECLARED (`partyReactions.ts`) — the same rule the
    * hooks below run, in a form a surface can state BEFORE it happens: the
@@ -102,6 +108,8 @@ export interface PartyEffectDefinition {
 }
 
 const REDS_TAGS: ReadonlyArray<Tag> = [Tag.PLANT, Tag.MICROBE, Tag.ANIMAL];
+/** The «why this prompt» line of both Reds prompts (the confirm and the discard) — their choice context's trigger. */
+const REDS_TRIGGER = 'The Reds\' action';
 export const REDS_MEGACREDITS_PER_TAG = 2;
 export const GREENS_MEGACREDITS_PER_TR = 2;
 export const SCIENTISTS_RESOURCES_PER_USE = 2;
@@ -340,6 +348,7 @@ const INDUSTRIALISTS: PartyEffectDefinition = {
 const REDS: PartyEffectDefinition = {
   party: PartyName.REDS,
   actionId: 'reds-recycle',
+  actionStage: 'confirm',
   text: {
     rule: 'Action: draw 2 cards, then discard 2 cards, once per generation. Gain 2 M€ per plant, microbe and animal tag discarded.',
     action: 'Draw 2 cards, then discard any 2 cards from hand. Gain 2 M€ per plant, microbe and animal tag discarded.',
@@ -366,9 +375,12 @@ const REDS: PartyEffectDefinition = {
     return new SelectOption('Draw 2 cards, then discard 2 cards (Reds)', 'Draw')
       .withMetadata({kind: 'generic', icon: 'cards', amount: 2, effects: [drawGain(2), {direction: 'cost', icon: 'cards', amount: 2, note: 'discard'}]})
       .markPartyActionPrompt(meta)
+      .markChoiceContext({source: {kind: 'party', party: PartyName.REDS}, trigger: REDS_TRIGGER})
       .andThen(() => {
         runPartyAction(player, parliament, PartyName.REDS, () => {
-          player.drawCard(2);
+          // The batch NAMES its party explicitly (a card's draw names its card — `Executor`): the reveal's source is the
+          // action's own, never inferred from whatever scope happens to stand.
+          player.drawCard(2, {source: {type: 'party', party: PartyName.REDS}});
           parliament.pendingActions.push({kind: 'reds-recycle', player: player.id, countAction: false});
           // Deferred INSIDE the scope so the discard prompt keeps the action's chain.
           player.defer(() => redsDiscardPrompt(player, parliament));
@@ -397,7 +409,7 @@ export function redsDiscardPrompt(player: IPlayer, parliament: Parliament): Play
     actionId: 'reds-recycle',
     stage: 'discard',
     usesLeft: parliament.partyActionUsesLeft(player, PartyName.REDS),
-    usesPerGeneration: 1,
+    usesPerGeneration: PARTY_ACTION_USES_PER_GENERATION,
   };
   if (count === 0) {
     // Nothing to discard (an empty deck drew nothing): the action simply ends.
@@ -411,6 +423,7 @@ export function redsDiscardPrompt(player: IPlayer, parliament: Parliament): Play
     {min: count, max: count})
     .markDiscardPrompt({min: count, max: count, source: {kind: 'party', party: PartyName.REDS}, exchange: {icon: 'megacredits', amount: REDS_MEGACREDITS_PER_TAG, perTag: REDS_TAGS}})
     .markPartyActionPrompt(meta)
+    .markChoiceContext({source: {kind: 'party', party: PartyName.REDS}, trigger: REDS_TRIGGER})
     .andThen((cards) => {
       finishRedsRecycle(player, parliament, pending, cards);
       return undefined;
@@ -489,7 +502,7 @@ export function toClientPartyEffect(definition: PartyEffectDefinition): IClientP
   }
   if (definition.actionId !== undefined) {
     out.actionId = definition.actionId;
-    out.usesPerGeneration = 1;
+    out.usesPerGeneration = PARTY_ACTION_USES_PER_GENERATION;
   }
   if (definition.reactions !== undefined) {
     out.reactions = definition.reactions;

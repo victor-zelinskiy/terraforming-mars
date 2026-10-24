@@ -210,6 +210,16 @@ describe('wheel potential counts', () => {
     expect(wheelPotentialCounts({potential: projection({cardActions: 1}), handTotal: 7, hasColonies: true, hasHydro: true}).cardActions).to.eq(1);
   });
 
+  it('…and its «for nothing» count sums BOTH families by the server\'s verdicts, each clamped to what it counts (one framework)', () => {
+    const counts = wheelPotentialCounts({
+      potential: projection({cardActions: 2, futileCardActions: 1, partyActions: 1, futilePartyActions: 1}), handTotal: 7, hasColonies: true, hasHydro: true,
+    });
+    expect(counts.futileCardActions).to.eq(2);
+    expect(wheelPotentialCounts({
+      potential: projection({cardActions: 2, partyActions: 1, futilePartyActions: 5}), handTotal: 7, hasColonies: true, hasHydro: true,
+    }).futileCardActions, 'never more than the party actions counted').to.eq(1);
+  });
+
   it('a category absent from this game shows nothing', () => {
     const counts = wheelPotentialCounts({
       potential: projection(), handTotal: 7, hasColonies: false, hasHydro: false,

@@ -15,6 +15,8 @@ import {DIVERTED_RESEARCH_ID} from '../../src/server/parliament/resolutions/reds
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
+import {potentialActions} from '../../src/server/models/potentialActions';
+import {politicalActionPreview} from '../../src/server/models/politicalActionPreview';
 import {QuestTracker} from '../../src/server/parliament/quests/QuestTracker';
 import {questRenderData} from '../../src/server/parliament/quests/questRender';
 import {armedPlayEffectsOf} from '../../src/server/cards/armedPlayEffects';
@@ -315,6 +317,13 @@ describe('LiveExperiments', () => {
       const model = getParliamentModel(game, p1)!.viewer!.resolutionAction!;
       expect(model.available).is.true;
       expect(model.futile).deep.eq({kind: 'zero-yield', reason: LIVE_EXPERIMENTS_FUTILE_REASON});
+      // ONE FRAMEWORK: the same verdict rides the action's preview branch and the wheel's «for nothing» count — the law
+      // is read and painted the way a blue card is.
+      const preview = politicalActionPreview(p1, {kind: 'law', resolution: model.resolution});
+      expect(preview?.branches[0].futile).deep.eq({kind: 'zero-yield', reason: LIVE_EXPERIMENTS_FUTILE_REASON});
+      const potential = potentialActions(p1);
+      expect(potential.partyActions).eq(1);
+      expect(potential.futilePartyActions).eq(1);
     });
 
     it('the gate is READ-ONLY: the probe restores everything (the save before = the save after)', () => {

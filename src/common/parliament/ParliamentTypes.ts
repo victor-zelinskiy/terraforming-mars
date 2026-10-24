@@ -45,6 +45,8 @@ export const PARLIAMENT_DELEGATES_PER_PLAYER = 7;
 export const PARLIAMENT_NEUTRAL_DELEGATES = 14;
 /** M€ per delegate placed from the reserve once the lobby delegate is spent. */
 export const PARLIAMENT_VOTE_COST = 5;
+/** Every party action is once per generation (rulebook pp.3–5) — the ONE number the parliament, the prompts and the catalog read. */
+export const PARTY_ACTION_USES_PER_GENERATION = 1;
 export const PARLIAMENT_VOTING_SLOTS = 3;
 export const PARLIAMENT_MAX_POPULAR_SUPPORT = 3;
 /**

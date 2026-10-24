@@ -11,6 +11,8 @@ import {ApiGameBoardCellPreview} from '../../src/server/routes/ApiGameBoardCellP
 import {Ants} from '../../src/server/cards/base/Ants';
 import {Aridor} from '../../src/server/cards/colonies/Aridor';
 import {CardName} from '../../src/common/cards/CardName';
+import {GameOptions} from '../../src/server/game/GameOptions';
+import {PartyName} from '../../src/common/turmoil/PartyName';
 
 /**
  * THE PREVIEW FAMILY'S ANSWER CONTRACT.
@@ -46,10 +48,10 @@ describe('preview routes answer 204 for an expired subject', () => {
     res = new MockResponse();
   });
 
-  async function freshGame() {
+  async function freshGame(options: Partial<GameOptions> = {}) {
     const player = TestPlayer.BLUE.newPlayer();
     const player2 = TestPlayer.RED.newPlayer();
-    const game = Game.newInstance('game-id', [player, player2], player, 'spectatorid');
+    const game = Game.newInstance('game-id', [player, player2], player, 'spectatorid', options);
     await scaffolding.ctx.gameLoader.add(game);
     return {game, player, player2};
   }
@@ -77,6 +79,24 @@ describe('preview routes answer 204 for an expired subject', () => {
       await scaffolding.get(ActionPreview.INSTANCE, res);
       expect(res.statusCode).eq(statusCode.ok);
       expect(JSON.parse(res.content).card).eq(CardName.ANTS);
+    });
+
+    it('a POLITICAL source (Turmoil Redux): 200 for a party with an action, 204 for a law that is not enacted, 400 for a malformed source', async () => {
+      const {player} = await freshGame({turmoilReduxExpansion: true, coloniesExtension: true});
+      scaffolding.url = `/api/action-preview?id=${player.id}&source=party:${PartyName.REDS}`;
+      await scaffolding.get(ActionPreview.INSTANCE, res);
+      expect(res.statusCode).eq(statusCode.ok);
+      expect(JSON.parse(res.content).source).deep.eq({kind: 'party', party: PartyName.REDS});
+
+      res = new MockResponse();
+      scaffolding.url = `/api/action-preview?id=${player.id}&source=law:no-such-law`;
+      await scaffolding.get(ActionPreview.INSTANCE, res);
+      expectNoPreview('political action not found');
+
+      res = new MockResponse();
+      scaffolding.url = `/api/action-preview?id=${player.id}&source=Reds`;
+      await scaffolding.get(ActionPreview.INSTANCE, res);
+      expect(res.statusCode).eq(statusCode.badRequest);
     });
 
     it('404 for an unknown player — an ADDRESS error still shouts', async () => {

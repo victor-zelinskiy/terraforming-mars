@@ -53,6 +53,12 @@ export type PotentialActionsModel = {
    * the count neutral instead of «go» when nothing else is left, and the pass warning names only the useful ones.
    */
   futileCardActions?: number;
+  /**
+   * Of `partyActions`, how many would change NOTHING right now — the political action's own proven verdict (the enacted
+   * law's `ResolutionAction.futility`, the one its preview carries). The card actions' twin: a party / law action is
+   * counted and painted by the same rule as a blue card (one framework). Absent → 0.
+   */
+  futilePartyActions?: number;
 };
 
 /** An all-zero projection — the shape a client can safely default to. */

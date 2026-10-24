@@ -117,6 +117,37 @@ export type ActionPreview = {
 };
 
 /**
+ * WHOSE action a preview describes when it is not a played card (Turmoil Redux): a PARTY's action or the ENACTED
+ * LAW's. A typed source, never a stand-in card name — the card actions' composer, its outcome claim and its commit read
+ * the source by this shape.
+ */
+export type PoliticalActionSource = {kind: 'party', party: ReduxParty} | {kind: 'law', resolution: ResolutionId};
+
+/**
+ * WHERE THE BRANCH'S ANSWER LANDS (a political action's prompt IS the action menu's option — there is no «perform an
+ * action from a played card» pick in front of it, so the answer nests INSIDE the menu option instead of following it):
+ *  - `option` — the prompt is a bare commit (`SelectOption` — the Reds' draw, Trade Industries' fleet): the answer is
+ *    `{type: 'option'}`;
+ *  - `or`     — the prompt is a choice between branches (`OrOptions` — the Scientists' kinds): the answer is
+ *    `{type: 'or', index: branch.index, response: <the branch's input answer> | {type: 'option'}}`;
+ *  - `direct` — the prompt is ITSELF the input (`AndOptions` — the Industrialists' two productions; `SelectCard` —
+ *    Open IP Trade's sale, R&D Funding's repeat): the answer is that input's own response, and the lone branch carries
+ *    the prompt as its `optionInput`.
+ */
+export type PoliticalActionAnswer = 'option' | 'or' | 'direct';
+
+/**
+ * THE PREVIEW OF A POLITICAL ACTION — the card action's `ActionPreview` with the source typed instead of a card:
+ * the SAME branches / steps / futility verdicts (built by `server/models/politicalActionPreview.ts` over the very
+ * prompt the action menu nests), so the card actions' composer reads a party and a law the way it reads a blue card.
+ * `answer` says how the branch's answer nests inside the menu option.
+ */
+export type PoliticalActionPreview = Omit<ActionPreview, 'card' | 'isCorporation' | 'cardResource' | 'cardVictoryPoints' | 'arms'> & {
+  source: PoliticalActionSource;
+  answer: PoliticalActionAnswer;
+};
+
+/**
  * One at-a-glance EFFECT of a branch — a cost the player pays or a gain they get,
  * rendered as a premium chip (icon + `current → resulting` + unit). This is the
  * "maximum information before submit" layer: the player sees exactly what changes
