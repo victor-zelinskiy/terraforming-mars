@@ -489,7 +489,8 @@ for (const preset of PRESETS) {
         await expect(stage(page), 'no results scene').toHaveCount(0);
         expect((await crumbText(page)).toUpperCase(), 'the overview names itself').toContain('ОБЗОР');
         await expect(page.locator('[data-parl-gov] .con-parl__gov-card .pcard')).toHaveCount(1);
-        await expect(page.locator('.con-parl__step[data-step="1"] [data-player-token]')).not.toHaveCount(0);
+        // The Career's markers are the track-marker discs since a65bf87b42 — a seat's marker is `[data-agenda-cube]`, never a figure.
+        await expect(page.locator('.con-parl__step[data-step="1"] [data-agenda-cube]')).not.toHaveCount(0);
         const dealt = (await parliamentModel(request, playerId)).game.parliament.slots.length;
         expect(dealt, 'the refresh dealt a fresh area').toBeGreaterThan(0);
         await expect(slots(page)).toHaveCount(dealt);
