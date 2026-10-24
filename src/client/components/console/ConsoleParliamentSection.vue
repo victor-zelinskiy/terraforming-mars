@@ -2385,9 +2385,9 @@ export default defineComponent({
       return settled && !this.rewardPending && !parliamentRewardState.receiptShowing &&
         !this.ledgerReadOwed && !this.stepFrameNested && !this.sittingStepOpen && !this.tableReceiptOwed;
     },
-    /** May the walk leave `stage` by itself? The enactment always; the reward once nothing of this seat's is open there. */
+    /** May the walk leave `stage` by itself? The verdict (read — the soft gates), the enactment and the renewal always; the reward once nothing of this seat's is open there. */
     mayLeave(stage: SittingStage, position: SittingPosition): boolean {
-      if (stage === 'enact' || stage === 'renewal') {
+      if (stage === 'verdict' || stage === 'enact' || stage === 'renewal') {
         return true;
       }
       if (stage === 'reward') {

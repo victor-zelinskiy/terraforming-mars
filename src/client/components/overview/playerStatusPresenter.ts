@@ -153,6 +153,13 @@ const PRESENTATIONS: Record<ActionLabel, StatusPresentation> = {
     textKey: 'Greenery',
     showCounter: false,
   },
+  // THE SOFT GATES: the seat is still in its Parliament sitting (its confirmation stands) — named by where it is.
+  'sitting': {
+    category: 'active',
+    glyph: 'dot',
+    textKey: 'Sitting',
+    showCounter: false,
+  },
   // ─── positive idle ───────────────────────────────────────────────
   'ready': {
     category: 'ready',

@@ -136,6 +136,11 @@ export function actionLabelForPlayer(
     if (player.waitingForKind === 'finalgreenery') {
       return 'finalgreenery';
     }
+    // THE SOFT GATES: the seat's confirmation of its sitting stands — the game's phase is already the next
+    // generation's, so the phase-derived label would say «ПОКУПКА КАРТ» of a seat that is still in the Parliament.
+    if (player.waitingForKind === 'sitting') {
+      return 'sitting';
+    }
     // A card-granted BONUS action (Head Start) outranks the phase: the player
     // is acting on the BOARD while `game.phase` still says PRELUDES, so the
     // phase-derived «ФАЗА ПРОЛОГОВ» would describe the wrong thing on every

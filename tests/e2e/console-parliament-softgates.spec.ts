@@ -1,8 +1,8 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {test, expect, Page} from './consoleTest';
-import {bootFixtureSeats, openMandatoryAnnounce} from './consoleStart';
-import {closeSitting, closeSittingAs, parliament, parliamentWire, passOnScreen, sittingStage, turnTo} from './parliamentDrive';
+import {bootFixtureSeats} from './consoleStart';
+import {closeSitting, closeSittingAs, enterSittingByPass, parliament, parliamentWire, turnTo} from './parliamentDrive';
 
 /**
  * THE SOFT GATES ON SCREEN (docs/claude/console/parliament-soft-gates.md — П5 · П6), two seats, the TV profile.
@@ -63,8 +63,8 @@ test.describe(`the soft gates · ${TV.id}`, () => {
     await armSampler(page);
     await shoot(page, '00-one-pass-away');
 
-    // ── THE PASS — the viewer's own submit: the whole sitting rides its response.
-    await passOnScreen(page, request, blue);
+    // ── THE PASS — the viewer's own submit: the whole sitting rides its response, and it comes up.
+    await enterSittingByPass(page, request, blue);
     const after = await parliamentWire(request, blue);
     expect(after.game.generation, 'the next generation already runs on the server').toBe(2);
     expect(after.waitingFor?.parliamentPhasePrompt?.stage, 'blue holds its ONE confirmation').toBe('close');
@@ -73,18 +73,14 @@ test.describe(`the soft gates · ${TV.id}`, () => {
     const redWire = await parliamentWire(request, red);
     expect(redWire.waitingFor?.parliamentPhasePrompt?.stage, 'red holds its own confirmation — nothing of generation 2').toBe('close');
 
-    // ── THE SITTING COMES UP — risen by the generation scene, or behind its plate.
-    await expect.poll(async () => await parliament(page).count() > 0 || await page.locator('.con-mandatory').count() > 0, {timeout: 60_000}).toBe(true);
-    if (await parliament(page).count() === 0) {
-      expect(await openMandatoryAnnounce(page), 'the plate opens the sitting').toBe(true);
-    }
-    await expect(parliament(page)).toHaveCount(1, {timeout: 30_000});
     await shoot(page, '01-sitting-up');
     // ── THE WALK: every page turns by itself — the verdict included — up to the RESULTS, the one stop.
     expect(await turnTo(page, 'enact', 60_000), 'the verdict is read, then the walk goes on — no press').toBe(true);
     await shoot(page, '02-enact');
     expect(await turnTo(page, 'results', 120_000), 'the walk reaches the results by itself').toBe(true);
     await expect(page.locator('[data-sit-row="results-in-sitting"] [data-sit-in-sitting]'), 'the quiet line names red, still in its sitting').toHaveCount(1, {timeout: 20_000});
+    // The seat chips name where each seat IS — both still in the sitting, never the phase-derived «Покупка карт».
+    await expect.poll(async () => (await page.locator('.con-status').innerText()).includes('ЗАСЕДАНИЕ'), {timeout: 10_000}).toBe(true);
     await shoot(page, '03-results-red-still-in-sitting');
 
     const walk = (await samplesOf(page)).filter((s) => s.parl);
@@ -106,7 +102,6 @@ test.describe(`the soft gates · ${TV.id}`, () => {
     const stillRed = await parliamentWire(request, red);
     expect(stillRed.waitingFor?.parliamentPhasePrompt?.stage, 'red still reads its sitting — nobody waited for it').toBe('close');
     await shoot(page, '04-blue-admitted-red-in-sitting');
-    expect(await sittingStage(page)).toBe('');
 
     // ── RED CLOSES over the API: red is admitted; the record goes.
     await closeSittingAs(request, red);

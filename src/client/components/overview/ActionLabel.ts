@@ -44,6 +44,9 @@ export type ActionLabel =
   | 'globalsupport'    // World Government Terraforming — picking which global
                        // parameter to bump as the "world government" (SOLAR phase).
   | 'delegate'         // Turmoil delegate placement / party choice prompt.
+  | 'sitting'          // The seat still reads its Parliament sitting (the soft gates: its confirmation
+                       // «Закрыть заседание» stands — the server's `waitingForKind: 'sitting'`) while the
+                       // next generation already runs around it. Active pose, no counter.
   | 'finalgreenery'    // The seat holds the FINAL GREENERY prompt (the server's
                        // `waitingForKind: 'finalgreenery'` — its structural marker):
                        // it is turning leftover plants into greeneries, one at a

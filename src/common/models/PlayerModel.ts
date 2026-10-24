@@ -350,4 +350,4 @@ export type MaCostsModel = {
 };
 
 /** The distinguishable cross-phase prompt kinds a seat's chip names (see `PublicPlayerModel.waitingForKind`). */
-export type WaitingForKind = 'globalsupport' | 'delegate' | 'finalgreenery';
+export type WaitingForKind = 'globalsupport' | 'delegate' | 'finalgreenery' | 'sitting';

@@ -1,5 +1,5 @@
 import {expect, Page, APIRequestContext} from './consoleTest';
-import {fetchPlayerModel, openQuickWheel, press, sendPlayerInput, settle} from './consoleStart';
+import {fetchPlayerModel, openMandatoryAnnounce, openQuickWheel, press, sendPlayerInput, settle, waitForBoardHome} from './consoleStart';
 
 /*
  * THE PARLIAMENT'S SHARED E2E DRIVER (Turmoil Redux) — the readers and the
@@ -95,10 +95,23 @@ export async function passOnScreen(page: Page, request: APIRequestContext, viewe
     return wf?.type === 'or' && JSON.stringify(wf).includes('Pass for this generation');
   };
   await expect.poll(menuStands, {timeout: 30_000, message: 'the viewer holds its action menu with the pass'}).toBe(true);
+  // The quick wheel is a board-home instrument: a fixture may open on a workspace (the Parliament's overview) first —
+  // B «На поле» takes it down (act → verify → retry), then the board home settles.
+  for (let i = 0; i < 4 && await parliament(page).count() > 0; i++) {
+    await press(page, 'Escape', 900);
+  }
+  await expect(parliament(page), 'the Parliament steps aside for the board before the pass').toHaveCount(0, {timeout: 15_000});
+  await waitForBoardHome(page);
   const confirm = page.locator('.con-confirm');
+  // «Пас» is the BASIC wheel's (LT — Comma) ↓ slot; on a quick wheel the direction press IS the activation.
+  const wheel = page.locator('.con-quick');
+  const passSlot = page.locator('.con-quick [data-quick-id="pass"]');
   for (let attempt = 0; attempt < 3; attempt++) {
     if (await confirm.count() === 0) {
-      await openQuickWheel(page);
+      for (let i = 0; i < 6 && await wheel.count() === 0; i++) {
+        await press(page, 'Comma', 700);
+      }
+      await expect(passSlot, 'the basic wheel offers the pass').toHaveCount(1, {timeout: 10_000});
       await press(page, 'ArrowDown', 700);
     }
     await expect(confirm, 'the pass always confirms').toHaveCount(1, {timeout: 10_000});
@@ -111,6 +124,23 @@ export async function passOnScreen(page: Page, request: APIRequestContext, viewe
     }
   }
   expect(await menuStands(), 'the viewer\'s pass landed').toBe(false);
+}
+
+/**
+ * ENTER THE SITTING THE WAY A PLAYER DOES (the soft gates): a `pass` fixture (the `-assembly` tables) stands ONE PASS
+ * before its sitting — the viewer passes on screen (`passOnScreen`), the whole sitting rides that response, and it
+ * comes up: risen by the generation scene, or behind its plate (opened here). Returns once the Parliament stands; the
+ * walk then plays from the VERDICT by itself. A wire read BEFORE this call is the table as it stood before the
+ * sitting AND before the production phase (the pass pays the income too).
+ */
+export async function enterSittingByPass(page: Page, request: APIRequestContext, viewer: string): Promise<void> {
+  await passOnScreen(page, request, viewer);
+  await expect.poll(async () => await parliament(page).count() > 0 || await mandatoryPlate(page).count() > 0,
+    {timeout: 60_000, message: 'the sitting comes up after the pass (risen by the scene, or its plate)'}).toBe(true);
+  if (await parliament(page).count() === 0) {
+    expect(await openMandatoryAnnounce(page), 'the plate opens the sitting').toBe(true);
+  }
+  await expect(parliament(page)).toHaveCount(1, {timeout: 30_000});
 }
 
 /** The seat's CONFIRMATION of its sitting stands («Закрыть заседание» — the server's marker). */

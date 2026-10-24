@@ -115,6 +115,11 @@ function detectWaitingForKind(input: PlayerInput | undefined): WaitingForKind | 
   if (input.finalGreeneryPrompt !== undefined) {
     return 'finalgreenery';
   }
+  // THE SOFT GATES: the seat still reads its sitting (its confirmation «Закрыть заседание» stands) while the next
+  // generation already runs around it — its chip reads «ЗАСЕДАНИЕ», never the phase-derived «ПОКУПКА КАРТ».
+  if (input.parliamentPhasePrompt !== undefined) {
+    return 'sitting';
+  }
   // NB: a card-granted BONUS action is deliberately NOT a kind here. It is a
   // whole TURN, not one prompt — the player plays a card and the next three
   // prompts are a payment, a placement and a triggered effect, none of which
