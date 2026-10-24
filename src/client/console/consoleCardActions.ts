@@ -51,6 +51,7 @@ import {resourceScoring, accumulatedVp} from '@/client/components/additionalReso
 import {AVAILABILITY_BLOCKERS, turnGateBlocker} from '@/common/availability/AvailabilityBlocker';
 import {ICardRenderRoot} from '@/common/cards/render/Types';
 import {PartyActionId, ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {partyOfTileKey, partyTileKey, resolutionOfTileKey, resolutionTileKey} from '@/client/console/parliament/partyActionKey';
 import {ResolutionActionBill} from '@/common/parliament/actionBill';
 
@@ -549,7 +550,7 @@ export type ConsolePartyFlow = {
 
 /** The composer's half of the staged return — taken exactly once, and only by
  *  the composer the return names. */
-export function takeStagedActionComposerDraft(cardName: CardName, nodeIndex: number): unknown {
+export function takeStagedActionComposerDraft(cardName: CardName | string, nodeIndex: number): unknown {
   const r = consoleCardActionsUi.stagedReturn;
   if (r === undefined || r.cardName !== cardName || r.nodeIndex !== nodeIndex) {
     return undefined;
@@ -1156,6 +1157,15 @@ export type ParliamentActionSource = PartyActionSource | ResolutionActionSource;
 
 export function isResolutionActionSource(source: ParliamentActionSource): source is ResolutionActionSource {
   return (source as ResolutionActionSource).resolution !== undefined;
+}
+
+/**
+ * THE ONE-FRAMEWORK MIGRATION'S SET (Turmoil Redux, 2026-10-24): the political sources whose action the card actions'
+ * composer composes — the same `ConsoleActionComposer`, its outcome zone, its ACTION COMMIT, its steps. Grows slice by
+ * slice (С2 the Reds) and is deleted together with the party composer (С5), when every party and law is one.
+ */
+export function composesInCardComposer(party: PartyName | undefined, resolution: ResolutionId | undefined): boolean {
+  return resolution === undefined && party === PartyName.REDS;
 }
 
 /** The party / resolution KEY helpers live in `parliament/partyActionKey.ts` (the claim

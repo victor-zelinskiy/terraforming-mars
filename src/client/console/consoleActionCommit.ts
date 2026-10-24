@@ -101,7 +101,8 @@ export type ActionCommitRail = {
  * resolved; `sourcePoint` the same measured once (a caller with no element).
  */
 export type ActionCommitPlan = {
-  sourceCard: CardName;
+  /** The action's source KEY — a card's name, or a political source's key (`ActionCommitSource`). */
+  sourceCard: string;
   kind: ActionCommitKind;
   specs: ReadonlyArray<ResourceTransferSpec>;
   origins: ReadonlyArray<TransferEndLike | undefined>;
@@ -555,9 +556,26 @@ export function actionKnownRailMoves(
   return known;
 }
 
-/** The rail reward's owner key of one card's action commit. */
-export function actionCommitRailKey(card: CardName): string {
+/** The rail reward's owner key of one action commit — a card's, or a political source's (its key). */
+export function actionCommitRailKey(card: CardName | string): string {
   return `action-commit:${card}`;
+}
+
+/**
+ * WHO an action commit belongs to: a CARD (its name — also the HOLDER of every «on this card» chip), or a POLITICAL
+ * source's key (Turmoil Redux «один фреймворк» — a party / the enacted law holds no resource, so nothing of its lands
+ * «on this card», and nothing is taken off it). Never a stand-in card name.
+ */
+export type ActionCommitSource = CardName | {key: string};
+
+/** The card holding the source's own resources — `undefined` for a political source. */
+export function commitHolderOf(source: ActionCommitSource): CardName | undefined {
+  return typeof source === 'string' ? source : undefined;
+}
+
+/** The source's key (the rail key, the claim key, the DOM address). */
+export function commitKeyOf(source: ActionCommitSource): string {
+  return typeof source === 'string' ? source : source.key;
 }
 
 /**
@@ -637,7 +655,7 @@ function sourceStepsOf(branch: ActionPreviewBranch, stepResponses: Readonly<Reco
  * note is somebody else's statement.
  */
 export function spendLinkSpecs(
-  cardName: CardName,
+  cardName: CardName | undefined,
   branch: ActionPreviewBranch | undefined,
   stepResponses: Readonly<Record<number, unknown>> = {},
   ctx: SpendContext = {},
@@ -698,7 +716,9 @@ export function spendLinkSpecs(
       continue;
     }
     if (e.note === 'on this card') {
-      out.push({channel: 'card-resource', resource: e.icon, amount: e.amount, targetCard: cardName, direction: 'loss'});
+      if (cardName !== undefined) {
+        out.push({channel: 'card-resource', resource: e.icon, amount: e.amount, targetCard: cardName, direction: 'loss'});
+      }
       continue;
     }
     if (e.note !== undefined) {
@@ -784,15 +804,17 @@ function sameTransfer(a: ResourceTransferSpec, b: ResourceTransferSpec): boolean
  * branch has nothing the rail must hold.
  */
 export function commitRailPlan(
-  cardName: CardName,
+  source: ActionCommitSource,
   branch: ActionPreviewBranch | undefined,
   stepResponses: Readonly<Record<number, unknown>>,
   promisedReactions: ReadonlyArray<ResourceTransferSpec>,
   spend: SpendContext = {},
 ): Omit<ActionCommitRail, 'origins' | 'ring'> | undefined {
+  const cardName = commitHolderOf(source);
   const tr = actionRailTrSpecs(branch, stepResponses);
   const reactions = withoutScaleStepAnswers(branch, stepResponses, tr, promisedReactions);
-  const timeline = capsuleTimeline(branch);
+  // A capsule timeline is a card's own (its resource lands on it, then leaves it): a political source has none.
+  const timeline = cardName === undefined ? undefined : capsuleTimeline(branch);
   const spends = spendLinkSpecs(cardName, branch, stepResponses, spend);
   // A GAIN ON A CARD STANDING IN THE COMPOSER with nothing spent before it (PL-063 — Security Fleet's fighter, Titan
   // Air-scrapping's floaters, Earth Army Contract at 0; PL-162 — Aerial Mappers' floater onto the card the TARGET
@@ -809,7 +831,7 @@ export function commitRailPlan(
   // carries only what leaves the card before it, never a result link of its own.
   const resultHere = spend.resultElsewhere !== true;
   const onCard = resultHere && spends.length === 0 && timeline === undefined && spend.departsElsewhere !== true ?
-    commitRewardSpecs(cardName, branch, stepResponses).filter((spec) =>
+    commitRewardSpecs(source, branch, stepResponses).filter((spec) =>
       spec.channel === 'card-resource' && spec.targetCard !== undefined && spec.direction !== 'loss') :
     [];
   if (tr.length === 0 && timeline === undefined && spends.length === 0 && onCard.length === 0) {
@@ -818,7 +840,7 @@ export function commitRailPlan(
   const cause: Array<ResourceTransferSpec> = [];
   const links: Array<Array<number>> = [];
   const spendLinks: Array<number> = [];
-  if (timeline !== undefined) {
+  if (timeline !== undefined && cardName !== undefined) {
     cause.push({channel: 'card-resource', resource: timeline.gain.icon, amount: timeline.gain.amount, targetCard: cardName});
     links.push([0]);
     cause.push({channel: 'card-resource', resource: timeline.spend.icon, amount: timeline.spend.amount, targetCard: cardName, direction: 'loss'});
@@ -826,7 +848,7 @@ export function commitRailPlan(
   }
   // A SPEND first, each its own link; the result — the branch's own gains the wave would have flown — is the LAST
   // link, beside the TR: it is born where the spend was absorbed.
-  const result = !resultHere ? [] : spends.length > 0 ? commitRewardSpecs(cardName, branch, stepResponses) : onCard;
+  const result = !resultHere ? [] : spends.length > 0 ? commitRewardSpecs(source, branch, stepResponses) : onCard;
   for (const spec of spends) {
     spendLinks.push(cause.length);
     links.push([cause.length]);
@@ -848,7 +870,7 @@ export function commitRailPlan(
       (spec.targetCard === cardName || spec.direction === 'loss' || spends.length > 0 || onCard.includes(spec)))
     .map((spec) => spec.targetCard as CardName))];
   return {
-    key: actionCommitRailKey(cardName),
+    key: actionCommitRailKey(commitKeyOf(source)),
     reward: {cause, reactions: [...reactions], known, ...(vp.some((v) => v !== 0) ? {vp} : {})},
     links,
     holdsSurface: timeline !== undefined || spends.length > 0 || onCard.length > 0,
@@ -1076,13 +1098,14 @@ function withoutChainRows(known: Record<string, number>, chain: ReadonlyArray<Re
  * the chain's last one — never a second chip.
  */
 export function commitWaveSpecs(
-  cardName: CardName,
+  source: ActionCommitSource,
   branch: ActionPreviewBranch | undefined,
   stepResponses: Readonly<Record<number, unknown>>,
   rail?: {reward: {cause: ReadonlyArray<ResourceTransferSpec>}},
 ): Array<ResourceTransferSpec> {
-  const specs = commitRewardSpecs(cardName, branch, stepResponses);
-  const timeline = capsuleTimeline(branch);
+  const cardName = commitHolderOf(source);
+  const specs = commitRewardSpecs(source, branch, stepResponses);
+  const timeline = cardName === undefined ? undefined : capsuleTimeline(branch);
   const carried = (spec: ResourceTransferSpec) => rail?.reward.cause.some((held) => sameTransfer(held, spec)) === true;
   return specs.filter((spec) => !carried(spec) &&
     !(timeline !== undefined && spec.channel === 'card-resource' && spec.targetCard === cardName && spec.resource === timeline.gain.icon));
@@ -1100,7 +1123,7 @@ export function commitWaveSpecs(
  * satellite — never a silent counter jump with no flight.
  */
 export function commitRewardSpecs(
-  cardName: CardName,
+  source: ActionCommitSource,
   branch: ActionPreviewBranch | undefined,
   stepResponses: Readonly<Record<number, unknown>>,
 ): Array<ResourceTransferSpec> {
@@ -1108,7 +1131,7 @@ export function commitRewardSpecs(
     return [];
   }
   const all = extractPlayRewards({
-    cardName,
+    cardName: commitHolderOf(source),
     effects: branch.effects ?? [],
     steps: branch.steps ?? [],
     stepResponses,

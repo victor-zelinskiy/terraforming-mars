@@ -36,7 +36,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardInfoGroup} from '@/common/cards/CardInformation';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {nodeGraphicToken} from '@/common/cards/render/cardGraphicIds';
-import {ActionGroup, actionNodeDescription} from '@/client/components/actions/actionExtraction';
+import {ActionGroup, actionNodeDescription, ActionNodesGroup} from '@/client/components/actions/actionExtraction';
 import {stripKindPrefix} from '@/client/components/cardAnnotations/annotationModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
@@ -174,12 +174,13 @@ function linesOf(group: CardInfoGroup): Array<ActionRuleLine> {
  * @param fallback   an already-localized last resort (the preview branch's
  *                   title) for a card that carries neither source
  */
-export function actionRules(group: ActionGroup, nodeIndex: number, fallback?: string): ActionRules | undefined {
+export function actionRules(group: ActionNodesGroup, nodeIndex: number, fallback?: string): ActionRules | undefined {
   const node = nodeIndex < 0 ? undefined : group.nodes[nodeIndex];
   if (node === undefined) {
     return undefined;
   }
-  const info = infoGroupForNode(group.cardName, node, nodeIndex, group.nodes.length);
+  // A political source (a party / the law) has no card info: its printed action sentence / the fallback speaks.
+  const info = group.cardName === undefined ? undefined : infoGroupForNode(group.cardName, node, nodeIndex, group.nodes.length);
   const lines = info === undefined ? [] : linesOf(info);
   if (lines.length === 0) {
     const printed = actionNodeDescription(node);

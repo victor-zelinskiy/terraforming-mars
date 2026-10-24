@@ -32,12 +32,11 @@
 import {CardName} from '@/common/cards/CardName';
 import {PreselectAddress, addressed} from '@/common/inputs/preselectAddress';
 import {Message} from '@/common/logs/Message';
-import {
-  ActionPreview,
+import {ActionPreview,
   ActionPreviewBranch,
   ActionPreviewStep,
-  TabbedTargetsStep,
-} from '@/common/models/ActionPreviewModel';
+  PoliticalActionAnswer,
+  TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 import {
   AndOptionsModel,
   OrOptionsModel,
@@ -191,7 +190,13 @@ export function soleMarkKeys(seed: SoleSeed, fromHand: boolean): {mark: string, 
  * the SOURCE of a spend taken from a card the player chooses (TR29 — «spend 1
  * fighter from ANY of your cards») reads `current → resulting` per candidate.
  */
-export function preChoices(preview: ActionPreview | undefined): Array<ComposerChoice> {
+/**
+ * What the composer's pure helpers read of a preview — a card's `ActionPreview` or a political source's
+ * (`PoliticalActionPreview`, Turmoil Redux «один фреймворк»): the same steps, the same branches.
+ */
+export type ComposerPreview = Pick<ActionPreview, 'branches' | 'preSteps'>;
+
+export function preChoices(preview: ComposerPreview | undefined): Array<ComposerChoice> {
   const out: Array<ComposerChoice> = [];
   (preview?.preSteps ?? []).forEach((step, i) => {
     if (step.kind === 'spendHeat') {
@@ -208,7 +213,7 @@ export function preChoices(preview: ActionPreview | undefined): Array<ComposerCh
 
 /** The preview step a choice answers — a card-level step (`pre`) or the selected branch's (`step`); none for the option. */
 export function stepOfChoice(
-  preview: ActionPreview | undefined,
+  preview: ComposerPreview | undefined,
   branch: ActionPreviewBranch | undefined,
   choice: Pick<ComposerChoice, 'scope' | 'index'>,
 ): ActionPreviewStep | undefined {
@@ -388,7 +393,7 @@ export type ComposerCaptures = {
 };
 
 export function canConfirm(
-  preview: ActionPreview | undefined,
+  preview: ComposerPreview | undefined,
   branch: ActionPreviewBranch | undefined,
   captures: ComposerCaptures,
 ): boolean {
@@ -472,7 +477,7 @@ export function runtimeNavigationSteps(
  */
 
 export function firstMissingChoice(
-  preview: ActionPreview | undefined,
+  preview: ComposerPreview | undefined,
   branch: ActionPreviewBranch | undefined,
   captures: ComposerCaptures,
 ): ComposerChoice | undefined {
@@ -544,6 +549,38 @@ export function buildActionBatch(args: ActionBatchArgs): Array<unknown> {
     responses.push(r);
   }
   return responses;
+}
+
+/**
+ * THE BATCH OF A POLITICAL ACTION (Turmoil Redux «один фреймворк»): a party's / the enacted law's prompt IS the action
+ * menu's option — no «perform an action from a played card» pick stands in front of it — so the branch's answer nests
+ * INSIDE that option (`{type: 'or', index: menuIndex, response: <answer>}`), by the preview's `answer`: a bare commit
+ * answers `{type: 'option'}`, a choice `{type: 'or', index: branch, response}`, a direct input its own response. The
+ * steps the commit raises follow, as a card's do. Byte-identical to what the party composer sent. Empty when a direct
+ * prompt has no answer yet (the composer's gate never lets that through).
+ */
+export function buildPoliticalActionBatch(args: {
+  menuIndex: number,
+  answer: PoliticalActionAnswer,
+  branchIndex: number,
+  optionResponse: unknown | undefined,
+  stepResponses: ReadonlyArray<unknown>,
+}): Array<unknown> {
+  let inner: unknown;
+  switch (args.answer) {
+  case 'option':
+    inner = {type: 'option' as const};
+    break;
+  case 'or':
+    inner = {type: 'or' as const, index: args.branchIndex, response: args.optionResponse ?? {type: 'option' as const}};
+    break;
+  default:
+    inner = args.optionResponse;
+  }
+  if (inner === undefined) {
+    return [];
+  }
+  return [{type: 'or' as const, index: args.menuIndex, response: inner}, ...args.stepResponses];
 }
 
 /**
@@ -717,7 +754,7 @@ export function tabbedStepsOf(branch: ActionPreviewBranch | undefined): Array<{i
 
 /** Collect captured preStep responses in preSteps order. */
 export function orderedPreResponses(
-  preview: ActionPreview,
+  preview: ComposerPreview,
   pre: Readonly<Record<number, unknown>>,
 ): Array<unknown> {
   const out: Array<unknown> = [];

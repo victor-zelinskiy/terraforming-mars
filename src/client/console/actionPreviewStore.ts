@@ -31,7 +31,7 @@
 
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
-import {ActionPreview} from '@/common/models/ActionPreviewModel';
+import {ActionPreview, PoliticalActionPreview} from '@/common/models/ActionPreviewModel';
 import {AllColonyBonusesModel} from '@/common/models/ColonyBonusLedgerModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {paths} from '@/common/app/paths';
@@ -40,6 +40,8 @@ import {fetchPreview} from '@/client/utils/previewFetch';
 import {buildActionEntries} from '@/client/components/actions/actionModel';
 import {findPerformActionCard} from '@/client/console/turnIntents';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
+import {isResolutionActionSource, partyTileKey, resolutionTileKey} from '@/client/console/consoleCardActions';
+import {parliamentActionSources} from '@/client/console/parliament/parliamentActionSources';
 
 export const actionPreviewStore = reactive({
   /** The version the LATEST ensure() asked about. */
@@ -51,6 +53,13 @@ export const actionPreviewStore = reactive({
    * already re-requested, replaced the moment its answer lands.
    */
   versions: {} as Record<string, string>,
+  /**
+   * THE PARLIAMENT'S ACTIONS (Turmoil Redux «один фреймворк»): a party's / the enacted law's action previewed in the
+   * card action's own shape (`/api/action-preview?source=…`), keyed by the source's tile key — the same version
+   * law, the same per-entry freshness, the same fallback as a card's.
+   */
+  politicalPreviews: {} as Record<string, PoliticalActionPreview | undefined>,
+  politicalVersions: {} as Record<string, string>,
 });
 
 /** Requests queued OR on the wire (per card) — ensure() never double-fetches. */
@@ -66,7 +75,10 @@ const inflight = new Set<string>();
  * writes arrive in a few flushes instead of N.
  */
 const MAX_CONCURRENT_PREVIEW_FETCHES = 4;
-type PreviewFetchJob = {cardName: CardName, key: string, url: string};
+/** `cardName` is the STORE key: a card's name, or a political source's tile key (`political`). */
+type PreviewFetchJob = {cardName: string, key: string, url: string, political?: PoliticalWire};
+/** A political job's wire source and its fallback shape. */
+type PoliticalWire = {source: PoliticalActionPreview['source']};
 const fetchQueue: Array<PreviewFetchJob> = [];
 let activeFetches = 0;
 /** In-flight aborts — a key change cancels stale requests at the socket, so
@@ -97,6 +109,23 @@ function runPreviewFetch(job: PreviewFetchJob): void {
   // request and an abort all arrive here as `undefined` — and all four end this
   // entry's grace period identically. The key guard makes the abort case a
   // no-op, since an abort only ever follows a key change.
+  if (job.political !== undefined) {
+    const wire = job.political;
+    fetchPreview<PoliticalActionPreview>(job.url, controller !== undefined ? {signal: controller.signal} : undefined)
+      .then((p) => {
+        done();
+        if (actionPreviewStore.key === job.key) {
+          if (p !== undefined) {
+            actionPreviewStore.politicalPreviews[job.cardName] = p;
+            actionPreviewStore.politicalVersions[job.cardName] = job.key;
+          } else {
+            seedPoliticalFallback(job.cardName, wire.source, job.key);
+          }
+        }
+        pumpPreviewFetches();
+      });
+    return;
+  }
   fetchPreview<ActionPreview>(job.url, controller !== undefined ? {signal: controller.signal} : undefined)
     .then((p) => {
       done();
@@ -105,7 +134,7 @@ function runPreviewFetch(job: PreviewFetchJob): void {
           actionPreviewStore.previews[job.cardName] = p;
           actionPreviewStore.versions[job.cardName] = job.key;
         } else {
-          seedFallback(job.cardName, job.key);
+          seedFallback(job.cardName as CardName, job.key);
         }
       }
       pumpPreviewFetches();
@@ -192,6 +221,20 @@ function seedFallback(cardName: CardName, key: string): void {
   actionPreviewStore.versions[cardName] = key;
 }
 
+/** The political twin of `seedFallback`: a lost request leaves ONE confirm branch, never a stale verdict. */
+function seedPoliticalFallback(storeKey: string, source: PoliticalActionPreview['source'], key: string): void {
+  if (actionPreviewStore.politicalVersions[storeKey] === key && actionPreviewStore.politicalPreviews[storeKey] !== undefined) {
+    return;
+  }
+  actionPreviewStore.politicalPreviews[storeKey] = {
+    source,
+    answer: 'option',
+    kind: 'dynamic',
+    branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: []}],
+  };
+  actionPreviewStore.politicalVersions[storeKey] = key;
+}
+
 /**
  * Make sure every action source's preview is cached (or on the wire) for the
  * CURRENT game state. Called by the shell when the RT wheel opens (the
@@ -246,7 +289,40 @@ export function ensureActionPreviews(playerView: PlayerViewModel): void {
       '&card=' + encodeURIComponent(cardName);
     fetchQueue.push({cardName, key, url});
   }
+  // THE PARLIAMENT'S ACTIONS the viewer holds (Turmoil Redux «один фреймворк») — the same queue, the same version law.
+  const political = parliamentActionSources({
+    parliament: playerView.game.parliament,
+    color: playerView.thisPlayer.color,
+    viewerColor: playerView.thisPlayer.color,
+    waitingFor: playerView.waitingFor,
+  });
+  const livePolitical = new Set<string>();
+  for (const source of political) {
+    const law = isResolutionActionSource(source);
+    const storeKey = law ? resolutionTileKey(source.resolution) : partyTileKey(source.party);
+    livePolitical.add(storeKey);
+    if (actionPreviewStore.politicalVersions[storeKey] === key || inflight.has(storeKey)) {
+      continue;
+    }
+    inflight.add(storeKey);
+    const wire = law ? `law:${source.resolution}` : `party:${source.party}`;
+    const url = apiUrl(paths.API_ACTION_PREVIEW) +
+      '?id=' + encodeURIComponent(playerView.id) +
+      '&source=' + encodeURIComponent(wire);
+    fetchQueue.push({cardName: storeKey, key, url, political: {source: law ? {kind: 'law', resolution: source.resolution} : {kind: 'party', party: source.party}}});
+  }
+  for (const cached of Object.keys(actionPreviewStore.politicalPreviews)) {
+    if (!livePolitical.has(cached)) {
+      delete actionPreviewStore.politicalPreviews[cached];
+      delete actionPreviewStore.politicalVersions[cached];
+    }
+  }
   pumpPreviewFetches();
+}
+
+/** A political source's cached preview, by its tile key (undefined while on the wire / not held). */
+export function politicalActionPreviewOf(storeKey: string): PoliticalActionPreview | undefined {
+  return actionPreviewStore.politicalPreviews[storeKey];
 }
 
 /**
@@ -262,7 +338,7 @@ export function ensureActionPreviews(playerView: PlayerViewModel): void {
  * `tests/console/previewBranchLookupGuard.spec.ts`).
  */
 export function previewBranchByIndex(
-  preview: ActionPreview | undefined, branchIndex: number,
+  preview: Pick<ActionPreview, 'branches'> | undefined, branchIndex: number,
 ): ActionPreview['branches'][number] | undefined {
   return preview?.branches.find((b) => b.index === branchIndex);
 }
@@ -280,7 +356,7 @@ export function previewBranchByIndex(
  * branch by subscript — one recipe, one lookup, so they can no longer drift.
  */
 export function branchOutcomeClaimPlan(
-  preview: ActionPreview | undefined, branchIndex: number,
+  preview: Pick<ActionPreview, 'branches'> | undefined, branchIndex: number,
   /**
    * The cards the composer's own steps ANSWERED (its `card` responses): a candidate's own tail is the SERVER's
    * (`resourceGainPrompt.extraByCard` — TR53 Frontier Labs draws a card unless the chosen card's resource is
@@ -346,6 +422,8 @@ export function resetActionPreviews(): void {
   actionPreviewStore.key = '';
   actionPreviewStore.previews = {};
   actionPreviewStore.versions = {};
+  actionPreviewStore.politicalPreviews = {};
+  actionPreviewStore.politicalVersions = {};
   inflight.clear();
   fetchQueue.length = 0;
   abortActiveFetches();

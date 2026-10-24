@@ -352,11 +352,11 @@
         <!-- A PARTY ACTION (Turmoil Redux): the shared party composer stands
              in the same stage — same descend phrase, same command bar, and its
              confirm is the server's own nested response. -->
-        <ConsolePartyActionComposer v-else-if="composer !== undefined && composer.party !== undefined"
+        <ConsolePartyActionComposer v-else-if="composer !== undefined && legacyPartyOf !== undefined"
                                     ref="partyComposerRef"
                                     class="con-cardactions__pact"
                                     :playerView="playerView"
-                                    :party="composer.party"
+                                    :party="legacyPartyOf"
                                     :resolution="composer.resolution"
                                     :submitting="partySubmitting"
                                     :handStep="handStepHosted"
@@ -415,9 +415,9 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {CardResource} from '@/common/CardResource';
-import {ActionPreview, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
+import {ActionPreview, PoliticalActionPreview, StagedPlacementModel, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import type {ICardRenderEffect} from '@/common/cards/render/Types';
-import {actionPreviewFingerprint, actionPreviewMap, branchOutcomeClaimPlan, ensureActionPreviews, ledgerDraws, previewBranchByIndex} from '@/client/console/actionPreviewStore';
+import {actionPreviewFingerprint, actionPreviewMap, branchOutcomeClaimPlan, ensureActionPreviews, ledgerDraws, politicalActionPreviewOf, previewBranchByIndex} from '@/client/console/actionPreviewStore';
 import {actionCommitRailState, armedRailLandsOnRow} from '@/client/console/consoleActionCommitRail';
 import {actionCommitOwnsEnding, actionCommitState} from '@/client/console/consoleActionCommit';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
@@ -428,12 +428,13 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePanelUi';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
-import {buildActionEntries, ActionEntry, ActionFilterState} from '@/client/components/actions/actionModel';
+import {buildActionEntries, ActionEntry, ActionFilterState, ComposerEntry, PoliticalActionEntry} from '@/client/components/actions/actionModel';
 import {buildActionInspectHistory} from '@/client/components/actions/actionInspectHistory';
 import {
   actionWorkspaceRestorePlan,
   buildConsoleActionsModel,
   buildParliamentTile,
+  composesInCardComposer,
   isResolutionActionSource,
   ParliamentActionSource,
   partyOfTileKey,
@@ -457,7 +458,7 @@ import {actionRuleText} from '@/client/components/actions/actionDescription';
 import {fitActionCanvases} from '@/client/console/consoleActionCanvasFit';
 import {fitDescTiers} from '@/client/console/descTier';
 import {resolveDetailFit} from '@/client/console/consoleDetailFit';
-import {buildActionBatch, repeatActionResponses} from '@/client/console/consoleActionComposer';
+import {buildActionBatch, buildPoliticalActionBatch, repeatActionResponses} from '@/client/console/consoleActionComposer';
 import type {StagedReceipt} from '@/client/console/stagedPlay';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {browseCommandRun, focusKicker, ActionFlowDraft} from '@/client/console/consoleActionFlow';
@@ -513,7 +514,8 @@ import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewMode
 import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
 import {parliamentActionSources as buildParliamentActionSources} from '@/client/console/parliament/parliamentActionSources';
-import {resolutionBillOf, resolutionPlayOf} from '@/client/console/parliament/consoleParliamentModel';
+import {parliamentPromptBridge, resolutionBillOf, resolutionPlayOf} from '@/client/console/parliament/consoleParliamentModel';
+import {actionNodeOf} from '@/client/console/parliament/actionRows';
 import {PartyAccessModel} from '@/common/models/ParliamentModel';
 import {beginPartyColonyTrade} from '@/client/console/colonyTrade/colonyTradeEntry';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
@@ -673,7 +675,7 @@ export default defineComponent({
        * it is the record of what was sent, and it must not move under a result
        * it has already produced.
        */
-      committedPreview: undefined as {cardName: CardName, nodeIndex: number, preview: ActionPreview} | undefined,
+      committedPreview: undefined as {cardName: CardName, nodeIndex: number, preview: ActionPreview | PoliticalActionPreview} | undefined,
       /** The composer SENT the action and its phrase is still playing (the composer's own `committing` — a staged
        *  placement locks its CTA and sends nothing, so the lock is not the fact). The crumb's tail and the B verb read it. */
       composerExecuting: false,
@@ -1181,14 +1183,51 @@ export default defineComponent({
     nextStepText(): string {
       return this.focusedTile === undefined ? '' : this.stepNoteFor(this.focusedTile);
     },
-    composerEntry(): ActionEntry | undefined {
-      const c = this.composer;
-      return c === undefined ? undefined : this.entries.find((e) => e.cardName === c.cardName);
-    },
-    composerPreview(): ActionPreview | undefined {
+    composerEntry(): ComposerEntry | undefined {
       const c = this.composer;
       if (c === undefined) {
         return undefined;
+      }
+      if (c.party !== undefined && composesInCardComposer(c.party, c.resolution)) {
+        return this.politicalComposerEntry;
+      }
+      return this.entries.find((e) => e.cardName === c.cardName);
+    },
+    /**
+     * A POLITICAL source's entry for the card composer (Turmoil Redux «один фреймворк»): its printed action row as the
+     * group, its typed source, its tile key — read off the ONE builder of the Parliament's action sources.
+     */
+    politicalComposerEntry(): PoliticalActionEntry | undefined {
+      const c = this.composer;
+      const party = c?.party;
+      if (c === undefined || party === undefined) {
+        return undefined;
+      }
+      const source = this.parliamentActionSources.find((s) => !isResolutionActionSource(s) && s.party === party);
+      const root = source?.renderRoot;
+      if (source === undefined || root === undefined) {
+        return undefined;
+      }
+      return {
+        group: {key: c.cardName, nodes: [{key: c.cardName + '#0', actionNode: actionNodeOf(root), renderRoot: root, text: undefined}]},
+        source: {kind: 'party', party},
+        key: c.cardName,
+        party,
+        isCorporation: false,
+        state: {status: source.available ? (source.offered ? 'available' : 'soft') : 'rules', activatable: source.available && source.offered, reasons: [], softReason: undefined},
+      };
+    },
+    composerPreview(): ActionPreview | PoliticalActionPreview | undefined {
+      const c = this.composer;
+      if (c === undefined) {
+        return undefined;
+      }
+      if (c.party !== undefined && composesInCardComposer(c.party, c.resolution)) {
+        const latched = this.committedPreview;
+        if (latched !== undefined && latched.cardName === c.cardName) {
+          return latched.preview;
+        }
+        return politicalActionPreviewOf(c.cardName);
       }
       // A COMMITTED variant keeps the preview it was composed against (see
       // `committedPreview`). Keyed on the variant, so the Viron repeat-reveal
@@ -1211,6 +1250,9 @@ export default defineComponent({
       const c = this.composer;
       if (c === undefined) {
         return undefined;
+      }
+      if (c.party !== undefined && composesInCardComposer(c.party, c.resolution)) {
+        return this.politicalComposerEntry?.group.nodes[0]?.actionNode;
       }
       const entry = this.entries.find((e) => e.cardName === c.cardName);
       return entry?.group.nodes[c.nodeIndex]?.actionNode;
@@ -1316,16 +1358,29 @@ export default defineComponent({
     partyFlow() {
       return consoleCardActionsUi.partyFlow;
     },
+    /**
+     * The composer standing is the PARTY composer — a political source the card composer does not compose yet (the
+     * one-framework migration's set, `composesInCardComposer`). A source it does compose is a card for every guard of
+     * this workspace: its entry, its preview, its claim, its outcome zone.
+     */
+    legacyParty(): boolean {
+      return this.legacyPartyOf !== undefined;
+    },
+    /** …its party (the template's prop), else undefined. */
+    legacyPartyOf(): ReduxParty | undefined {
+      const c = this.composer;
+      return c?.party !== undefined && !composesInCardComposer(c.party, c.resolution) ? c.party : undefined;
+    },
     /** Past the party action's commit: sent, or its outcome / discard / payout still on stage. */
     partyCommitted(): boolean {
       const flow = this.partyFlow;
-      return this.composer?.party !== undefined && flow !== undefined && flow.party === this.composer.party &&
+      return this.legacyParty && flow !== undefined && flow.party === this.composer?.party &&
         (this.partySubmitting || flow.stage !== 'setup');
     },
     /** THIS workspace claimed the party action's drawn batch (the Reds' draw). */
     partyOutcomeOn(): boolean {
-      return this.composer?.party !== undefined && workspaceOutcomeState.host === 'card-actions' &&
-        workspaceOutcomeState.sourceCard === this.composer.cardName;
+      return this.legacyParty && workspaceOutcomeState.host === 'card-actions' &&
+        workspaceOutcomeState.sourceCard === this.composer?.cardName;
     },
     revealSignal(): string {
       if (this.outcomeFlow?.kind !== 'deck-check' || this.outcomeFlow.payload !== undefined) {
@@ -1378,7 +1433,7 @@ export default defineComponent({
             workspaceOutcomeState.kinds.includes('draw')) {
           this.outcomeFlow = {kind: 'pending'};
           // The batch may already be here (the answer beat the rail): the draw stage opens the way `drawSignal` would.
-          if (this.drawSignal !== 0 && this.composer !== undefined && this.composer.party === undefined) {
+          if (this.drawSignal !== 0 && this.composer !== undefined && !this.legacyParty) {
             this.outcomeFlow = {kind: 'draw'};
             if (!workspaceOutcomeBeatPending()) {
               markWorkspaceOutcomePresenting();
@@ -1516,8 +1571,8 @@ export default defineComponent({
     // The composer's card left the action set (prompt moved on) → close it.
     // (A PARTY stage has no card entry by construction — its own composer
     // folds when the server stops offering the action.)
-    composerEntry(entry: ActionEntry | undefined) {
-      if (this.composer !== undefined && this.composer.party === undefined && entry === undefined) {
+    composerEntry(entry: ComposerEntry | undefined) {
+      if (this.composer !== undefined && !this.legacyParty && entry === undefined) {
         this.closeComposer();
       }
     },
@@ -1565,7 +1620,7 @@ export default defineComponent({
         // A RESOURCE ONTO THE CARD THE PLAYER CHOSE (the Scientists, Manufacturing Run RX37 — PL-427): its token is
         // still flying to that card's miniature IN this stage (the commit's rail half, seeded in the apply block). The
         // flow ends once the half is over — every way out bumps `ended` — never under the token.
-        if (this.composer?.party !== undefined && actionCommitRailState.phase !== 'idle') {
+        if (this.legacyParty && actionCommitRailState.phase !== 'idle') {
           this.concludeAfterRail = actionCommitRailState.ended;
           return;
         }
@@ -1632,6 +1687,14 @@ export default defineComponent({
           this.partyDiscardAge = this.playerView.game.gameAge;
         } else if (was) {
           setWorkspaceFrameSlot('card-actions', this.unityStepHosted ? '[data-embed-slot="action-colonies"]' : '');
+          // ONE FRAMEWORK: a party's mandatory discard was answered in the card composer's zone — its payout flies off
+          // the plaque's printed icon (held by the transport, checked against the views), then the flow LEAVES
+          // through the one guarded conclusion.
+          if (!this.legacyParty && this.composer?.party !== undefined) {
+            const ref = this.$refs.composerRef as InstanceType<typeof ConsoleActionComposer> | undefined;
+            void (ref?.flyDiscardExchange() ?? Promise.resolve()).then(() => this.concludeFlow());
+            return;
+          }
           if (this.composer?.party !== undefined && this.composer.resolution === undefined && this.partyFlow?.stage === 'committed') {
             this.awaitPartyResult();
           }
@@ -1710,7 +1773,7 @@ export default defineComponent({
         // announced over the board).
         // (A batch that arrives while the unit still flies to the chosen ROW's card — TR53 — waits for the rail
         // half's end: the stage would replace the row the token lands on. `railHalvesEnded` opens it.)
-        if (id !== 0 && this.pendingAfterRail === undefined && this.composer !== undefined && this.composer.party === undefined &&
+        if (id !== 0 && this.pendingAfterRail === undefined && this.composer !== undefined && !this.legacyParty &&
             (this.outcomeFlow === undefined || this.outcomeFlow.kind === 'pending')) {
           this.outcomeFlow = {kind: 'draw'};
           // The EXECUTION BEAT owes its minimum time from the CONFIRM.
@@ -1769,7 +1832,7 @@ export default defineComponent({
     'partyCommands': {
       deep: true,
       handler(cmds: ReadonlyArray<ConsoleCommand>): void {
-        if (this.composer?.party !== undefined && !this.repeat) {
+        if (this.legacyParty && !this.repeat) {
           setPanelCommands('cardActions', cmds);
         }
       },
@@ -2119,7 +2182,7 @@ export default defineComponent({
         }
       }
       if (this.composer !== undefined) {
-        if (this.composer.party !== undefined) {
+        if (this.legacyParty) {
           if (this.partyResult !== undefined) {
             if (intent.kind === 'press' && consoleActionOf(intent) === 'primary') {
               this.finishPartyResult();
@@ -2671,6 +2734,10 @@ export default defineComponent({
         });
         return;
       }
+      if (comp.party !== undefined && composesInCardComposer(comp.party, comp.resolution)) {
+        this.confirmPoliticalAction(comp, payload);
+        return;
+      }
       const perform = findPerformActionCard(this.playerView.waitingFor);
       if (perform === undefined) {
         // The prompt moved on while composing — nothing is submitted.
@@ -2852,6 +2919,44 @@ export default defineComponent({
       this.$emit('submit-batch', batch);
     },
     /**
+     * THE COMMIT OF A POLITICAL ACTION in the card composer (Turmoil Redux «один фреймворк»): the menu's own option,
+     * found by the server's marker (the prompt bridge — never a title), answered by the preview's `answer`; the
+     * outcome is claimed under the source's key exactly like a card's (the draw lands in THIS stage's draw zone — the
+     * server names the party as the batch's source), and the batch rides the same submit as a card's.
+     */
+    confirmPoliticalAction(comp: ComposerContext, payload: {branchIndex: number, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>}): void {
+      const party = comp.party;
+      const actionId = party === undefined ? undefined : partyActionOf(party);
+      const menu = actionId === undefined ? undefined : parliamentPromptBridge(this.playerView.waitingFor).actions[actionId];
+      const preview = this.composerPreview;
+      if (menu === undefined || preview === undefined || !('answer' in preview)) {
+        // The prompt moved on while composing (the action was used, the turn ended) — nothing is submitted.
+        console.warn('Party action: the menu option is not in the waitingFor tree');
+        this.closeComposer();
+        return;
+      }
+      this.committedPreview = {cardName: comp.cardName, nodeIndex: comp.nodeIndex, preview};
+      const batch = buildPoliticalActionBatch({
+        menuIndex: menu.menuIndex,
+        answer: preview.answer,
+        branchIndex: payload.branchIndex,
+        optionResponse: payload.optionResponse,
+        stepResponses: payload.stepResponses,
+      });
+      if (batch.length === 0) {
+        return;
+      }
+      const answeredCards = payload.stepResponses
+        .filter((r): r is {type: 'card', cards: ReadonlyArray<CardName>} => (r as {type?: string} | undefined)?.type === 'card')
+        .flatMap((r) => r.cards);
+      const plan = branchOutcomeClaimPlan(preview, payload.branchIndex, answeredCards);
+      if (plan.kinds.length > 0) {
+        claimWorkspaceOutcome('card-actions', comp.cardName, [...plan.kinds], comp.nodeIndex, plan.expectedCards, 'card');
+        this.outcomeFlow = {kind: 'pending'};
+      }
+      this.$emit('submit-batch', batch);
+    },
+    /**
      * STAGED PLACEMENT (docs/TILE_PLAY_STAGED_COMMIT.md): the composer's
      * placement-bearing branch hands the screen to the BOARD instead of
      * submitting. This surface only assembles the byte-identical batch (same
@@ -3007,6 +3112,16 @@ export default defineComponent({
         return;
       }
       const actionId = partyActionOf(party);
+      if (composesInCardComposer(party, undefined)) {
+        // ONE FRAMEWORK: the card composer composes this party's action — the same descent, the same stage, its own
+        // flow phases (no party record: the composer's claim, outcome and steps are a card's).
+        if (!this.repeat) {
+          consoleCardActionsUi.draft = {cardName: tile.cardName, nodeIndex: 0};
+          setWorkspaceFrameSubject('card-actions', party);
+        }
+        this.composer = {cardName: tile.cardName, nodeIndex: 0, party};
+        return;
+      }
       if (!this.repeat && actionId !== undefined) {
         consoleCardActionsUi.draft = {cardName: tile.cardName, nodeIndex: 0};
         consoleCardActionsUi.partyFlow = {party, actionId, stage: 'setup'};

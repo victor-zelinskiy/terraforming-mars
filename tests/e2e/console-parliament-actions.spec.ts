@@ -1,4 +1,5 @@
 import {test, expect, Page, APIRequestContext} from './consoleTest';
+import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {
@@ -131,6 +132,18 @@ async function focusPartyTile(page: Page, party: string): Promise<void> {
 async function openPartyComposer(page: Page, kind: string): Promise<void> {
   expect(await pressUntil(page, 'Enter', async () => await pact(page, kind).count() > 0, {tries: 3, settleMs: 1100}),
     `A must open the «${kind}» party composer`).toBeTruthy();
+  await settle(page, {timeoutMs: 8_000});
+}
+
+/**
+ * «ОДИН ФРЕЙМВОРК»: a party whose action the CARD composer composes (the Reds, С2) opens THE `.con-composer` with its
+ * source on the root (`data-composer-source="party:<party>"`) — never the party composer.
+ */
+async function openCardComposerFor(page: Page, source: string): Promise<void> {
+  const composer = page.locator(`.con-cardactions .con-composer[data-composer-source="${source}"]`);
+  expect(await pressUntil(page, 'Enter', async () => await composer.count() > 0, {tries: 3, settleMs: 1100}),
+    `A must open the card composer of «${source}»`).toBeTruthy();
+  await expect(page.locator('.con-pact'), 'no party composer beside it').toHaveCount(0);
   await settle(page, {timeoutMs: 8_000});
 }
 
@@ -413,14 +426,17 @@ test.describe('parliament · party actions', () => {
     }
     const beforeReds = (await seatOf(request, playerId)).seat;
     await focusPartyTile(page, 'Reds');
-    await openPartyComposer(page, 'reds');
+    await openCardComposerFor(page, 'party:Reds');
+    // The hero slot holds the party's plaque (decision Р2) — the card composer's own hero column.
+    await expect(page.locator('.con-composer__actcardwrap .con-composer__actplaque'), 'the party\'s plaque is the hero').toHaveCount(1);
     await shoot(page, '08-reds-stage');
     await press(page, 'Enter', 1500); // the cursor opens on the commit row: the draw happens now
     await expect.poll(async () => (await seatOf(request, playerId)).waitingFor?.type, {timeout: 20_000, message: 'the discard prompt stands'}).toBe('card');
     // The action is spent AT THE DRAW — no way back to a second free draw.
     expect(await usesLeft(request, playerId, 'reds-recycle'), 'the Reds action is spent at the draw').toBe(0);
-    // The drawn cards present INSIDE the workspace, in the composer's zone — never a standalone reveal.
-    await expect(page.locator('.con-cardactions .con-pact__revealzone .con-reveal'), 'the drawn cards land in the composer zone').toHaveCount(1, {timeout: 20_000});
+    // The drawn cards present INSIDE the workspace, in the card composer's own DRAW ZONE (the one «Центр ИИ» uses) —
+    // never a standalone reveal.
+    await expect(page.locator('.con-cardactions .con-composer__revealzone--draw .con-reveal'), 'the drawn cards land in the composer\'s draw zone').toHaveCount(1, {timeout: 20_000});
     await settle(page, {timeoutMs: 15_000});
     await expect(page.locator('.con-reveal:not(.con-reveal--embedded)')).toHaveCount(0);
     await shoot(page, '09-reds-drawn');
@@ -428,7 +444,7 @@ test.describe('parliament · party actions', () => {
     // The mandatory discard is a HAND STEP of the same workspace: no announce
     // over the board, the hand mounts in the composer's zone, the crumb's
     // tail names the step.
-    await expect(page.locator('.con-cardactions .con-pact__handzone .con-hand--discard'), 'the discard stands inside the action workspace').toHaveCount(1, {timeout: 30_000});
+    await expect(page.locator('.con-cardactions .con-composer__ledgerzone .con-hand--discard'), 'the discard stands inside the action workspace — the composer\'s hand layer').toHaveCount(1, {timeout: 30_000});
     await settle(page, {timeoutMs: 15_000});
     expect((await crumbText(page)).toUpperCase()).toContain('СБРОС');
     await expect(page.locator('.con-hand__discard')).toContainText(/Красные/);
@@ -436,14 +452,24 @@ test.describe('parliament · party actions', () => {
     await press(page, 'Enter', 300); // pick the focused card
     await press(page, 'ArrowRight', 250);
     await press(page, 'Enter', 300); // pick a second one
+    await armTransferWitness(page);
     await press(page, 'Period', 1200); // RT — confirm the set
     await expect.poll(async () => (await seatOf(request, playerId)).waitingFor?.type, {timeout: 30_000, message: 'the discard was answered'}).not.toBe('card');
-    // The payout beat closes the flow; then it leaves.
-    await expect(page.locator('[data-pact-result]'), 'the closing beat reads the payout').toHaveCount(1, {timeout: 20_000});
+    // The payout is the ACTION COMMIT's language — a wave off the plaque's printed «2 M€», never a result panel.
     await shoot(page, '10a-reds-payout');
     await waitForBoardHome(page, 40);
     await expect(page.locator('.con-cardactions')).toHaveCount(0);
     const afterReds = (await seatOf(request, playerId)).seat;
+    const paid = afterReds.megacredits - beforeReds.megacredits;
+    const witness = await transferWitness(page);
+    if (paid > 0) {
+      const born = witness.births.filter((e) => e.value === '+2');
+      expect(born.length, `one «+2» token per paying tag (trail:\n${transferTrail(witness)})`).toBe(paid / 2);
+      expect(born.every((e) => e.under === 'hero'), `born on the plaque standing in the hero slot (trail:\n${transferTrail(witness)})`).toBe(true);
+      const landed = witness.landings.filter((e) => born.some((b) => b.id === e.id));
+      expect(landed.every((e) => e.under === 'rail:megacredits'), `landed on the M€ row (trail:\n${transferTrail(witness)})`).toBe(true);
+    }
+    expect(endsOverGlass(witness), 'no end of a flight over glass').toEqual([]);
     expect(afterReds.cardsInHandNbr, 'drew 2, discarded 2').toBe(beforeReds.cardsInHandNbr);
     expect(afterReds.megacredits, 'the payout never takes money').toBeGreaterThanOrEqual(beforeReds.megacredits);
     expect(await usesLeft(request, playerId, 'reds-recycle')).toBe(0);

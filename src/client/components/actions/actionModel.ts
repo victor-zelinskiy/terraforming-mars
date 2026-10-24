@@ -7,7 +7,9 @@ import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {ActionFutility} from '@/common/models/ActionFutilityModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
-import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
+import {ActionGroup, ActionNodesGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
+import {PoliticalEffectSource} from '@/client/components/effects/effectSource';
+import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {ActionState, ActionStateInput, computeActionState} from '@/client/components/actions/actionPlayability';
 
 /*
@@ -28,6 +30,29 @@ export type ActionEntry = {
    */
   futility?: ActionFutility;
 };
+
+/**
+ * A POLITICAL action source in the card actions' composer (Turmoil Redux «один фреймворк», 2026-10-24) — a party's /
+ * the enacted law's action: its PRINTED action row as the group (`ActionNodesGroup`, no card behind it), its typed
+ * source, its KEY (the tile / claim / DOM address — never a CardName), the badge party (a law wears its own party).
+ * The composer reads it where it reads a card's `ActionEntry`; a reader that needs a card answers «nothing».
+ */
+export type PoliticalActionEntry = {
+  group: ActionNodesGroup;
+  source: PoliticalEffectSource;
+  key: string;
+  party: ReduxParty;
+  isCorporation: false;
+  state: ActionState;
+  futility?: ActionFutility;
+};
+
+/** What the card actions' composer composes — a card's action or a political source's. */
+export type ComposerEntry = ActionEntry | PoliticalActionEntry;
+
+export function isPoliticalActionEntry(entry: ComposerEntry): entry is PoliticalActionEntry {
+  return (entry as Partial<PoliticalActionEntry>).source !== undefined;
+}
 
 export type AvailabilityFilter = 'all' | 'available' | 'unavailable';
 export type ActivationFilter = 'all' | 'dormant' | 'activated';

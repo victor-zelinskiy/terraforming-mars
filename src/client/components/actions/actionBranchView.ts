@@ -6,7 +6,7 @@ import {ActionPreviewBranch} from '@/common/models/ActionPreviewModel';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
 import {CardRenderSymbolType} from '@/common/cards/render/CardRenderSymbolType';
 import {ICardRenderEffect, ItemType, isICardRenderEffect, isICardRenderItem, isICardRenderProductionBox, isICardRenderSymbol, isICardRenderTile} from '@/common/cards/render/Types';
-import {ActionGroup, actionNodeDescription, branchActionNode} from '@/client/components/actions/actionExtraction';
+import {ActionGroup, ActionNodesGroup, actionNodeDescription, branchActionNode} from '@/client/components/actions/actionExtraction';
 import {assignBranchNodes, bestBranchNode, branchNodeOverlapScore} from '@/client/components/actions/actionBranchNodes';
 
 /*
@@ -63,7 +63,7 @@ export function stripNodeOr(node: GroupNode): GroupNode {
 }
 
 export function branchNodeIndexForBranch(
-  group: ActionGroup,
+  group: ActionNodesGroup,
   branches: ReadonlyArray<ActionPreviewBranch>,
   branchIndex: number,
 ): number | undefined {
@@ -88,7 +88,7 @@ export function branchNodeIndexForBranch(
 }
 
 export function branchPositionsForNode(
-  group: ActionGroup,
+  group: ActionNodesGroup,
   branches: ReadonlyArray<ActionPreviewBranch>,
   nodeIndex: number,
 ): ReadonlyArray<number> {
@@ -111,7 +111,7 @@ export function branchPositionsForNode(
 }
 
 export function branchPositionForNode(
-  group: ActionGroup,
+  group: ActionNodesGroup,
   branches: ReadonlyArray<ActionPreviewBranch>,
   nodeIndex: number,
 ): number | undefined {
@@ -337,8 +337,8 @@ function printedBranchRows(
 }
 
 export function buildBranchViews(
-  cardName: CardName,
-  group: ActionGroup,
+  cardName: CardName | string,
+  group: ActionNodesGroup,
   branches: ReadonlyArray<ActionPreviewBranch>,
 ): ReadonlyArray<BranchView> {
   const nodes = group.nodes;
@@ -424,7 +424,7 @@ function reasonKey(r: BranchReason): string {
 }
 
 export function nodeAvailability(
-  group: ActionGroup,
+  group: ActionNodesGroup,
   branches: ReadonlyArray<ActionPreviewBranch>,
   nodeIndex: number,
 ): NodeAvailability {

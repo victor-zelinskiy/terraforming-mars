@@ -96,9 +96,9 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<s
   {row: '30 out-of-scope: delegate', wf: {type: 'delegate', title: 'Select delegate'}, expect: {kind: 'unknown', inputType: 'delegate'}},
   {row: '30b out-of-scope: classic party (no marker)', wf: {type: 'party', title: 'Select party'}, expect: {kind: 'unknown', inputType: 'party'}},
   {row: '30b2 parliament seat pick (marker)', wf: {type: 'party', title: 'Select party', votePrompt: {source: 'chairman-seat', cost: 0}}, expect: {kind: 'party'}},
-  // THE SITTING'S GATES (Turmoil Redux): a plain option on the wire, classified by the server's own marker — never the title.
-  {row: '30c parliament assembly gate (marker)', wf: {type: 'option', title: 'The Mars Parliament of generation 2 is in session: the verdict', parliamentPhasePrompt: {stage: 'assembly', generation: 2, final: false, seq: 1, awaiting: ['blue']}}, expect: {kind: 'parliamentPhase', stage: 'assembly'}},
-  {row: '30d parliament adjourn gate (marker)', wf: {type: 'option', title: 'The Mars Parliament of generation 2 adjourns', parliamentPhasePrompt: {stage: 'adjourn', generation: 2, final: false, seq: 1, awaiting: []}}, expect: {kind: 'parliamentPhase', stage: 'adjourn'}},
+  // THE SITTING'S CONFIRMATION (Turmoil Redux, the soft gates): a plain option on the wire, classified by the server's own marker — never the title.
+  {row: '30c parliament confirmation (marker)', wf: {type: 'option', title: 'The Mars Parliament of generation 2 adjourns', parliamentPhasePrompt: {stage: 'close', generation: 2, final: false, seq: 1}}, expect: {kind: 'parliamentPhase', stage: 'close'}},
+  {row: '30d parliament FINAL confirmation (marker)', wf: {type: 'option', title: 'The Mars Parliament of generation 9 adjourns', parliamentPhasePrompt: {stage: 'close', generation: 9, final: true, seq: 9}}, expect: {kind: 'parliamentPhase', stage: 'close'}},
   {row: '30e chairman-quest gate (marker, never the title)', wf: {type: 'option', title: 'You completed the chairman quest', chairmanQuestPrompt: {generation: 3}}, expect: {kind: 'chairmanQuest'}},
   {row: '30c out-of-scope: globalEvent', wf: {type: 'globalEvent', title: 'Select event'}, expect: {kind: 'unknown', inputType: 'globalEvent'}},
   {row: '30d out-of-scope: underworld token', wf: {type: 'claimedUndergroundToken', title: 'Select token'}, expect: {kind: 'unknown', inputType: 'claimedUndergroundToken'}},
@@ -366,6 +366,11 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
         placementContext: {cancellable: true}} as unknown as PlayerInputModel;
       expect(followUpStepStage('colony', resolutionColony)).to.eq('Colonies');
       expect(followUpStepStage('colony', projectColony)).to.eq('Colony selection');
+      // A PARTY ACTION's mandatory discard (the Reds' «then discard 2») is a step of the action that drew the cards —
+      // «СБРОС КАРТ», keyed on the marker's family, never on the party (one framework).
+      const partyDiscard = {type: 'card', title: 'discard', buttonLabel: 'Discard', cards: [],
+        partyActionPrompt: {party: 'Reds', actionId: 'reds-recycle', stage: 'discard', usesLeft: 0, usesPerGeneration: 1}} as unknown as PlayerInputModel;
+      expect(followUpStepStage('handSelect', partyDiscard)).to.eq('Card discard');
       expect(taskServedByHost(view({type: 'and', title: 'lay', options: [], cardResourceDistributionPrompt: {amount: 3, cardResource: 'floater', cards: []}}))?.kind, 'the host serves the layout').to.eq('cardSelect');
     });
 

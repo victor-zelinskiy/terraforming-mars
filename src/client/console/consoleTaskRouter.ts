@@ -440,8 +440,17 @@ export function followUpStepStage(kind: TaskKind | undefined, wf?: PlayerInputMo
   if (kind === 'party' && wf?.supportPrompt !== undefined) {
     return partyStepStageOf(wf);
   }
+  // …and a PARTY ACTION's mandatory discard (the Reds' «then discard 2» — `partyActionPrompt.stage === 'discard'`): a
+  // step of the action that drew the cards, under the stage word the hand publishes for it («СБРОС КАРТ» — the
+  // glossary reserves it for this tail). Keyed on the marker's FAMILY, never on the party.
+  if (kind === 'handSelect' && wf?.partyActionPrompt?.stage === 'discard') {
+    return PARTY_DISCARD_STEP_STAGE;
+  }
   return FOLLOW_UP_STEP_STAGES[kind];
 }
+
+/** The crumb tail of a party action's mandatory discard (glossary §5 — «СБРОС КАРТ», the Reds' tail). */
+export const PARTY_DISCARD_STEP_STAGE = 'Card discard';
 
 /**
  * Kinds served by the full-screen START SCENE (T5): the `initialCards`

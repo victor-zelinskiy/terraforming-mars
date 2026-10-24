@@ -588,8 +588,11 @@ function easeInOut(k: number): number {
 // ── play-reward EXTRACTION (the played-card client) ─────────────────────────
 
 export type ExtractPlayRewardsArgs = {
-  /** The played card (the target of an `'on this card'` gain). */
-  cardName: CardName;
+  /**
+   * The played card (the target of an `'on this card'` gain) — `undefined` for a source that holds no resource
+   * (a party / the enacted law: Turmoil Redux «один фреймворк»), whose chips never land «on this card».
+   */
+  cardName: CardName | undefined;
   /** The SELECTED branch's preview chips (costs + gains). */
   effects: ReadonlyArray<ActionEffect>;
   /** The selected branch's steps (card-target picks carry `cardResource`). */
@@ -717,7 +720,9 @@ export function extractPlayRewards(args: ExtractPlayRewardsArgs): Array<Resource
     } else if (e.note === undefined && e.unit === undefined && isStandardResource(e.icon)) {
       out.push({channel: 'stock', resource: e.icon, amount: e.amount});
     } else if (e.note === 'on this card' && e.icon !== 'resources') {
-      out.push({channel: 'card-resource', resource: e.icon, amount: e.amount, targetCard: args.cardName});
+      if (args.cardName !== undefined) {
+        out.push({channel: 'card-resource', resource: e.icon, amount: e.amount, targetCard: args.cardName});
+      }
     } else if (e.note === 'to a card' && e.icon !== 'resources') {
       const target = claimTargetStep(e.icon);
       if (target.declined) {

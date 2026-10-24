@@ -389,6 +389,13 @@ export type ActionGroup = {
 };
 
 /**
+ * The slice of an action group the composer's helpers read — a card's group, or a POLITICAL source's printed action
+ * row (Turmoil Redux «один фреймворк»: a party's / the enacted law's action has no card behind it — `cardName` absent,
+ * so no card's curated caption is looked up; its own printed sentence speaks).
+ */
+export type ActionNodesGroup = Pick<ActionGroup, 'key' | 'nodes'> & {cardName?: CardName};
+
+/**
  * The player's actions grouped by SOURCE card, preserving the corp-first,
  * tableau order of `playerActions` (a card's nodes are consecutive there, so
  * Map insertion order groups them correctly). One group = one activatable card.

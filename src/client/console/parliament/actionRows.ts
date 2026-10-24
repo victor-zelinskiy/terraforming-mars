@@ -1,4 +1,4 @@
-import {ICardRenderRoot, ItemType, isICardRenderEffect} from '@/common/cards/render/Types';
+import {ICardRenderEffect, ICardRenderRoot, ItemType, isICardRenderEffect} from '@/common/cards/render/Types';
 import {effectKindOf} from '@/client/components/premiumCard/mechanicsModel';
 
 /** A `b.action(...)` box — the `→` delimiter; a `b.effect(...)` box draws `:`. */
@@ -19,6 +19,22 @@ function isActionBox(item: ItemType): boolean {
  * whole. A face with no action row keeps its whole formula: an honest
  * fallback, never a blank canvas.
  */
+/**
+ * THE ACTION NODE of a printed political face (a party's / the law's): its one `→` box — the «selected variant» the
+ * ACTION COMMIT's impulse runs over (`data-graphic-node`), exactly as a card's action node. Undefined for a face with
+ * no action row.
+ */
+export function actionNodeOf(root: ICardRenderRoot): ICardRenderEffect | undefined {
+  for (const row of root.rows) {
+    for (const item of row) {
+      if (isICardRenderEffect(item) && effectKindOf(item) === 'action') {
+        return item;
+      }
+    }
+  }
+  return undefined;
+}
+
 export function actionRowsOf(root: ICardRenderRoot): ICardRenderRoot {
   const rows = root.rows
     .filter((row) => row.some(isActionBox))

@@ -128,7 +128,7 @@
                   <ConsoleCardFaceLite :name="focusedGroup.cardName" :card="liveCard(focusedGroup.cardName)" />
                 </div>
                 <div v-else-if="focusedGroup.source.kind === 'law'" :key="focusedGroup.key" class="con-efx__detail-card con-efx__detail-card--law">
-                  <premium-card-face v-if="lawFaceVm(focusedGroup) !== undefined" :vmOverride="lawFaceVm(focusedGroup)" :lightweight="true" :inert="true" />
+                  <PremiumCard v-if="lawFaceVm(focusedGroup) !== undefined" :vmOverride="lawFaceVm(focusedGroup)" :lightweight="true" :inert="true" />
                 </div>
                 <div v-else :key="focusedGroup.key" class="con-efx__detail-party" :style="{'--parl-accent': partyAccentOf(focusedGroup)}">
                   <img class="con-efx__detail-emblem" :src="partyEmblemOf(focusedGroup)" alt="" />
@@ -349,7 +349,7 @@
             </div>
             <!-- A PARTY / the LAW: the party's plaque, the law's face — in the hero's slot, at the hero's place. -->
             <div v-else-if="detailPolitical !== undefined && detailPolitical.source.kind === 'law'" :key="detailPolitical.key" class="con-efx__hero-card con-efx__hero-card--law">
-              <premium-card-face v-if="lawVmOf(detailPolitical.source.resolution) !== undefined" :vmOverride="lawVmOf(detailPolitical.source.resolution)" :lightweight="true" :inert="true" />
+              <PremiumCard v-if="lawVmOf(detailPolitical.source.resolution) !== undefined" :vmOverride="lawVmOf(detailPolitical.source.resolution)" :lightweight="true" :inert="true" />
             </div>
             <div v-else-if="detailPolitical !== undefined" :key="detailPolitical.key" class="con-efx__hero-plaque">
               <ConsolePartyPlaque :party="detailPolitical.party" size="hero" />
@@ -445,6 +445,7 @@ import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPre
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
+import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import {EffectRules, effectRules} from '@/client/components/effects/effectDescription';
 import {EffectSummaryViewModel, emptyEffectOverlayStat, getEffectSummary} from '@/client/components/effects/effectSummary';
 import {perEffectStat} from '@/client/components/effects/effectChannels';
@@ -550,7 +551,7 @@ type ForecastQuestion = {
 
 export default defineComponent({
   name: 'ConsoleEffectsExplorer',
-  components: {ConsoleScrollArea, ConsoleCardFaceLite, ConsoleEffectSummary, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph, ColonyFleetIcon, PremiumPartyRequirementGlyph, ConsolePartyPlaque, ConsolePartyFormula},
+  components: {ConsoleScrollArea, ConsoleCardFaceLite, ConsoleEffectSummary, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph, ColonyFleetIcon, PremiumPartyRequirementGlyph, ConsolePartyPlaque, ConsolePartyFormula, PremiumCard},
   directives: {stripEffectPrefix},
   props: {
     /** The inspected seat's tableau (or any future host's card set). In the

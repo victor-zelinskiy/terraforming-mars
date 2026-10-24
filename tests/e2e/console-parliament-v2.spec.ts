@@ -1125,17 +1125,19 @@ test.describe('parliament v4 · one execution point, two doors · the Reds in fu
     await openCardActions(page);
     const beforeReds = (await seatOf(request, playerId)).seat;
     await focusPartyTile(page, 'Reds');
-    expect(await pressUntil(page, 'Enter', async () => await pact(page, 'reds').count() > 0, {tries: 3, settleMs: 1100})).toBeTruthy();
+    // «Один фреймворк»: the Reds' action is composed by THE card composer (its source on the root), never the party's.
+    const redsComposer = page.locator('.con-cardactions .con-composer[data-composer-source="party:Reds"]');
+    expect(await pressUntil(page, 'Enter', async () => await redsComposer.count() > 0, {tries: 3, settleMs: 1100})).toBeTruthy();
     await settle(page, {timeoutMs: 8_000});
     await shoot(page, preset, '44-reds-open');
     await press(page, 'Enter', 1500);
     await expect.poll(async () => await usesOf('reds-recycle'), {timeout: 20_000, message: 'the Reds action is spent at the draw'}).toBe(0);
-    await expect(page.locator('.con-cardactions .con-pact__revealzone .con-reveal'), 'the drawn cards land in the composer zone').toHaveCount(1, {timeout: 20_000});
+    await expect(page.locator('.con-cardactions .con-composer__revealzone--draw .con-reveal'), 'the drawn cards land in the composer\'s draw zone').toHaveCount(1, {timeout: 20_000});
     await settle(page, {timeoutMs: 15_000});
     await expect(page.locator('.con-reveal:not(.con-reveal--embedded)'), 'never a standalone reveal').toHaveCount(0);
     await shoot(page, preset, '45-reds-embedded-reveal');
     await takeRevealCards(page);
-    await expect(page.locator('.con-cardactions .con-pact__handzone .con-hand--discard'), 'the mandatory discard stands inside the action workspace').toHaveCount(1, {timeout: 30_000});
+    await expect(page.locator('.con-cardactions .con-composer__ledgerzone .con-hand--discard'), 'the mandatory discard stands inside the action workspace').toHaveCount(1, {timeout: 30_000});
     await settle(page, {timeoutMs: 15_000});
     expect((await crumbText(page)).toUpperCase()).toContain('СБРОС');
     await shoot(page, preset, '46-reds-hand-step');
@@ -1144,7 +1146,7 @@ test.describe('parliament v4 · one execution point, two doors · the Reds in fu
     await press(page, 'Enter', 300);
     await press(page, 'Period', 1200);
     await expect.poll(async () => (await seatOf(request, playerId)).waitingFor?.type, {timeout: 30_000}).not.toBe('card');
-    await expect(page.locator('[data-pact-result]'), 'the closing beat reads the payout').toHaveCount(1, {timeout: 20_000});
+    // The payout is a wave off the plaque's printed icon (the ACTION COMMIT's language) — never a result panel.
     await shoot(page, preset, '47-reds-payout');
     await waitForBoardHome(page, 40);
     await expect(page.locator('.con-cardactions')).toHaveCount(0);

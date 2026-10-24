@@ -4,6 +4,7 @@ import {ActionPreview, ActionPreviewBranch} from '@/common/models/ActionPreviewM
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {
   buildActionBatch,
+  buildPoliticalActionBatch,
   branchChoices,
   preChoices,
   canConfirm,
@@ -148,6 +149,28 @@ describe('consoleActionComposer', () => {
         stepResponses: [{type: 'payment', payment: {}}],
       });
       expect(batch).to.deep.eq([...prefix, {type: 'payment', payment: {}}]);
+    });
+  });
+
+  // ONE FRAMEWORK (Turmoil Redux, 2026-10-24): a party's / the law's prompt IS the action menu's option, so the
+  // branch's answer nests INSIDE it — byte-identical to what the party composer sent.
+  describe('buildPoliticalActionBatch (the answer nests inside the menu option)', () => {
+    it('a bare commit (the Reds\' draw) answers the option inside the menu branch', () => {
+      expect(buildPoliticalActionBatch({menuIndex: 4, answer: 'option', branchIndex: -1, optionResponse: undefined, stepResponses: []}))
+        .to.deep.eq([{type: 'or', index: 4, response: {type: 'option'}}]);
+    });
+    it('a choice (the Scientists\' kinds) answers the branch and its card pick inside the menu branch', () => {
+      const pick = {type: 'card', cards: ['Tardigrades']};
+      expect(buildPoliticalActionBatch({menuIndex: 2, answer: 'or', branchIndex: 1, optionResponse: pick, stepResponses: []}))
+        .to.deep.eq([{type: 'or', index: 2, response: {type: 'or', index: 1, response: pick}}]);
+    });
+    it('a direct input (the Industrialists\' two productions) answers itself; the commit\'s raised steps follow', () => {
+      const and = {type: 'and', responses: [{type: 'or', index: 0, response: {type: 'option'}}, {type: 'or', index: 1, response: {type: 'option'}}]};
+      expect(buildPoliticalActionBatch({menuIndex: 0, answer: 'direct', branchIndex: -1, optionResponse: and, stepResponses: [{type: 'payment', payment: {}}]}))
+        .to.deep.eq([{type: 'or', index: 0, response: and}, {type: 'payment', payment: {}}]);
+    });
+    it('a direct prompt with no answer builds nothing (the gate never lets it through)', () => {
+      expect(buildPoliticalActionBatch({menuIndex: 0, answer: 'direct', branchIndex: -1, optionResponse: undefined, stepResponses: []})).to.deep.eq([]);
     });
   });
 

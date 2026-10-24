@@ -11,10 +11,11 @@
   <div ref="rootEl" class="con-composer con-composer--stage"
        :class="{'con-composer--ptsel': playedTargetStepOpen, 'con-composer--colonystep': colonyStepOn,
                 'con-composer--parlrise': parliamentStepOn, 'con-composer--parlstep': parliamentSetupParked,
-                'con-composer--ledgerflow': ledgerPaying, 'con-composer--ledgerstep': ledgerStepOn,
+                'con-composer--ledgerflow': ledgerPaying || politicalEntry !== undefined, 'con-composer--ledgerstep': ledgerStepOn,
                 'con-composer--ledgerresumed': ledgerPaying && ledgerResumed}"
        :data-colony-ledger-flow="ledgerPaying ? ledgerFlowStage : undefined"
        :data-colony-ledger-degraded="ledgerDegraded ? '' : undefined"
+       :data-composer-source="politicalEntry !== undefined ? (politicalEntry.source.kind === 'party' ? 'party:' + politicalEntry.source.party : 'law:' + politicalEntry.source.resolution) : undefined"
        role="region" :aria-label="$t('Action setup')" data-motion-surface="action-composer">
     <div class="con-composer__panel con-composer__panel--act con-composer__panel--stage" data-motion-panel>
       <!-- ── Two columns: the SOURCE CARD (the hero anchor — it physically
@@ -39,8 +40,8 @@
                'con-composer__actcardwrap--targetfocus': selfTargetFocused,
                'con-composer__actcardwrap--targetlock': selfTargetLocked,
              }"
-             :data-motion-anchor="'card:' + entry.cardName"
-             :data-zoom-slot="entry.cardName"
+             :data-motion-anchor="'card:' + sourceKey"
+             :data-zoom-slot="zoomSlotKey"
              :data-commit-link="commitRailLink"
              data-ptsel-source
              data-action-focus-card>
@@ -54,7 +55,16 @@
                  a bare number, a full-width «N на этой карте» plate below the
                  hero, and a printed «0» on the face itself. -->
             <transition name="con-actfocus-card" mode="out-in">
-              <ConsoleCardFaceLite :key="entry.cardName" :name="entry.cardName" :card="heroCardModel" />
+              <ConsoleCardFaceLite v-if="heroCardName !== undefined" :key="heroCardName" :name="heroCardName" :card="heroCardModel" />
+              <!-- A POLITICAL source (Turmoil Redux «один фреймворк»): the law's FACE, or the party's PLAQUE — the hero
+                   slot's box, the hero's place, every phase (decision Р2). Its printed mechanics carry the
+                   `data-graphic-node` anchors the ACTION COMMIT's impulse runs over, exactly as a card face does. -->
+              <div v-else-if="politicalEntry !== undefined && politicalEntry.source.kind === 'law'" :key="sourceKey" class="con-composer__actlaw">
+                <PremiumCard v-if="lawFaceVm !== undefined" :vmOverride="lawFaceVm" :inert="true" />
+              </div>
+              <div v-else-if="politicalEntry !== undefined" :key="sourceKey" class="con-composer__actplaque" :style="{'--parl-accent': partyAccentOf(politicalEntry.party)}">
+                <ConsolePartyPlaque :party="politicalEntry.party" size="hero" />
+              </div>
             </transition>
           </div>
         </div>
@@ -531,7 +541,7 @@
                                           :asker="colonyAskerOf(item.choice)"
                                           :payload="targetRowPayload(item.choice)"
                                           :candidates="playedTargetInputFor(item.choice)?.cards ?? []"
-                                          :sourceCard="entry.cardName"
+                                          :sourceCard="heroCardName"
                                           :result="playedTargetResult(item.choice)"
                                           :resultModel="targetRowModel(item.choice)"
                                           :tag="targetRowTag(item.choice)"
@@ -888,7 +898,7 @@ import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {Message} from '@/common/logs/Message';
 import {CardModel} from '@/common/models/CardModel';
 import {SpendableResource} from '@/common/inputs/Spendable';
-import {ActionPreview, ActionPreviewBranch, ActionEffect, StagedVoteModel} from '@/common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionEffect, PoliticalActionPreview, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import {ActionFutilityVerdict} from '@/common/models/ActionFutilityModel';
 import {gainAtParameterLimit} from '@/client/components/actions/actionEffectReading';
 import {DELEGATE_ICON} from '@/common/parliament/ParliamentTypes';
@@ -899,7 +909,17 @@ import {STAGED_STEP_RELEASE_MS, StagedReceipt, stagedPlayState, stagedVoteOf} fr
 import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {preloadResolutionArt} from '@/client/console/parliament/parliamentArtTier';
 import {DeltaBlockadeInputModel, DeltaStageRewardInputModel, PlayerInputModel, SelectAmountModel, SelectCardModel, SelectPaymentModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
-import {ActionEntry} from '@/client/components/actions/actionModel';
+import {ComposerEntry, PoliticalActionEntry, isPoliticalActionEntry} from '@/client/components/actions/actionModel';
+import {partyEffectZoomEntry, resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
+import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
+import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
+import {partyAccent} from '@/client/components/premiumCard/partyEmblems';
+import {ReduxParty} from '@/common/parliament/ParliamentTypes';
+import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
+import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
+import {discardExchangeRailKey} from '@/client/console/parliament/discardExchangeBeat';
+import {flyRailReward, railRewardPending} from '@/client/console/resourceTransfer/railReward';
 import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
 import {BranchView as PrintedBranchView, branchPositionsForNode, branchSetAvailability, branchTitleText, buildBranchViews, stripNodeOr} from '@/client/components/actions/actionBranchView';
 import {ActionRules, ACTION_RULE_LABEL, actionRuleText, actionRules} from '@/client/components/actions/actionDescription';
@@ -969,7 +989,7 @@ import {markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeArrivalFlown, markW
 import {requestDiscardStream} from '@/client/console/deckDraw/consoleDeckDraw';
 import {setWorkspaceFrameSlot, setWorkspaceFrameSourceCard, workspaceFrameHost, workspaceFrameKnown, workspaceStackRootKind} from '@/client/console/consoleWorkspaceStack';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import {actionCommitState, armActionCommit, capsuleTimelineReading, commitKindForBranch, commitRailPlan, commitRewardSpecs, commitWaveSpecs, markActionCommitSettled} from '@/client/console/consoleActionCommit';
+import {ActionCommitSource, actionCommitState, armActionCommit, capsuleTimelineReading, commitKindForBranch, commitRailPlan, commitRewardSpecs, commitWaveSpecs, markActionCommitSettled} from '@/client/console/consoleActionCommit';
 import {actionCommitRailHoldsCapsule, actionCommitRailState} from '@/client/console/consoleActionCommitRail';
 import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
 import {ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, centreEndOf, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconEnds, resolveResultIcon, resolveSpendIconEnds, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
@@ -1230,12 +1250,13 @@ const WORKSPACE_REVEAL_ZONE = '[data-embed-slot="workspace-reveal"]';
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ConsoleVariantChoice, ConsoleDeclinePlate, ConsoleColonyLedger, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, PremiumPartyRequirementGlyph, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsoleAmountOperation},
+  components: {ConsoleVariantChoice, ConsoleDeclinePlate, ConsoleColonyLedger, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleForecastRow, ConsoleForecastReactions, ConsoleEffectsExplorer, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, PremiumPartyRequirementGlyph, ConsoleHydroGains, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleComposerTargetRow, ConsoleAmountOperation, ConsolePartyPlaque, PremiumCard},
   directives: {embedZone: vEmbedZone, stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
-    entry: {type: Object as PropType<ActionEntry>, required: true},
-    preview: {type: Object as PropType<ActionPreview | undefined>, default: undefined},
+    /** A card's action, or a POLITICAL source's (a party / the enacted law — Turmoil Redux «один фреймворк»). */
+    entry: {type: Object as PropType<ComposerEntry>, required: true},
+    preview: {type: Object as PropType<ActionPreview | PoliticalActionPreview | undefined>, default: undefined},
     nodeIndex: {type: Number, required: true},
     /**
      * The SELECTED variant's render node — the ACTION COMMIT's content-token
@@ -1856,8 +1877,41 @@ export default defineComponent({
      * value until the reward lands, so the model is passed with
      * `displayedStoredCount` — the one value that already encodes that pause.
      */
+    /** The POLITICAL source this composer composes (a party's / the law's action), else undefined. */
+    politicalEntry(): PoliticalActionEntry | undefined {
+      return isPoliticalActionEntry(this.entry) ? this.entry : undefined;
+    },
+    /**
+     * The action's SOURCE KEY — the card's name, or the party's / the law's tile key: the DOM address, the claim key,
+     * the rail key, the staged arm's key. Never looked up as a card.
+     */
+    sourceKey(): string {
+      return isPoliticalActionEntry(this.entry) ? this.entry.key : this.entry.cardName;
+    },
+    /** The hero CARD — undefined for a political source (no card face, no live model, no resource on it). */
+    heroCardName(): CardName | undefined {
+      return isPoliticalActionEntry(this.entry) ? undefined : this.entry.cardName;
+    },
+    /** Who the ACTION COMMIT belongs to: a card (its holder too), or a political source's key (holds nothing). */
+    commitSource(): ActionCommitSource {
+      return isPoliticalActionEntry(this.entry) ? {key: this.entry.key} : this.entry.cardName;
+    },
+    /** The hero's zoom-slot key — the card's name, the party's effect / the law's zoom entry name (L3 lifts THIS slot). */
+    zoomSlotKey(): string {
+      const political = this.politicalEntry;
+      if (political === undefined) {
+        return this.sourceKey;
+      }
+      return political.source.kind === 'law' ? resolutionZoomEntry(political.source.resolution).name : partyEffectZoomEntry(political.party).name;
+    },
+    /** The enacted law's face (the hero of a law's action). */
+    lawFaceVm(): PremiumCardVM | undefined {
+      const political = this.politicalEntry;
+      const law = political?.source.kind === 'law' ? getResolution(political.source.resolution) : undefined;
+      return law === undefined ? undefined : resolutionPremiumVm(law);
+    },
     heroCardModel(): CardModel | undefined {
-      const model = this.thisPlayer.tableau.find((c) => c.name === this.entry.cardName);
+      const model = this.heroCardName === undefined ? undefined : this.thisPlayer.tableau.find((c) => c.name === this.heroCardName);
       if (model === undefined || this.storedResource === undefined) {
         return model;
       }
@@ -1866,8 +1920,12 @@ export default defineComponent({
     /** The live stored resource on the SOURCE card (the pool most spend-branches
      *  consume) — the gain beat's baseline and the flight's subject. */
     storedResource(): {icon: string, count: number} | undefined {
-      const model = this.thisPlayer.tableau.find((c) => c.name === this.entry.cardName);
-      const type = getCard(this.entry.cardName)?.resourceType;
+      const name = this.heroCardName;
+      if (name === undefined) {
+        return undefined; // a political source holds no resource
+      }
+      const model = this.thisPlayer.tableau.find((c) => c.name === name);
+      const type = getCard(name)?.resourceType;
       if (model?.resources === undefined || type === undefined) {
         return undefined;
       }
@@ -2034,8 +2092,8 @@ export default defineComponent({
       }
       // A CAPSULE TIMELINE in the air (TR28): the model already holds the result (c − 1); the capsule reads what
       // has physically happened — c until the fighter lands, c + 1 until two leave, then c − 1. Never below zero.
-      if (actionCommitRailHoldsCapsule(this.entry.cardName)) {
-        return Math.max(0, live - heldCardCapsule(this.entry.cardName));
+      if (actionCommitRailHoldsCapsule(this.sourceKey)) {
+        return Math.max(0, live - heldCardCapsule(this.sourceKey));
       }
       return live;
     },
@@ -2344,7 +2402,7 @@ export default defineComponent({
       return this.branchViews.map((v) => v.printed);
     },
     branchViews(): ReadonlyArray<PrintedBranchView> {
-      return buildBranchViews(this.entry.cardName, this.entry.group, this.branches);
+      return buildBranchViews(this.sourceKey, this.entry.group, this.branches);
     },
     /**
      * THE GOOD EVERY PRICE BUYS (TR58 — «3 [plant] OR 5 [heat] → 3 [floater]*»): the card's «OR» stands on the price
@@ -2692,7 +2750,7 @@ export default defineComponent({
     },
     /** THIS composer's action is being paid (the module record names its card). OWNER only. */
     ledgerPaying(): boolean {
-      return this.publishCommands && colonyBonusPayoutOf(this.entry.cardName);
+      return this.publishCommands && colonyBonusPayoutOf(this.sourceKey);
     },
     /**
      * THE SURFACE KEEPS ITS BOX WHILE THE LEDGER PAYS. The press folds the chosen target's card block into its
@@ -2752,9 +2810,13 @@ export default defineComponent({
     ledgerDrawOn(): boolean {
       return this.ledgerPaying && workspaceOutcomeState.host === 'card-actions' && workspaceOutcomeState.stage === 'presenting';
     },
-    /** The hand stands in the hand layer (Pluto's discard — `card-actions ⊃ hand`). */
+    /**
+     * The hand stands in the hand layer — Pluto's discard (`card-actions ⊃ hand`), or a PARTY action's mandatory
+     * discard (Turmoil Redux «один фреймворк» — the Reds' «then discard 2»): the same layer of the decision column,
+     * the same release of the surface under it.
+     */
     ledgerHandOn(): boolean {
-      return this.ledgerPaying && workspaceFrameHost('hand') === 'card-actions';
+      return (this.ledgerPaying || this.politicalEntry !== undefined) && workspaceFrameHost('hand') === 'card-actions';
     },
     /** A STEP of the payout has the column: the ledger is parked under it (and comes back after it). */
     ledgerStepOn(): boolean {
@@ -2789,7 +2851,7 @@ export default defineComponent({
     /** The staged ACTION vote of THIS card is past its commit (the mode's A was pressed, the batch is on the wire). */
     stagedVoteCommitMine(): boolean {
       const arm = stagedPlayState.arm;
-      return stagedPlayState.committing && arm?.flow === 'action' && arm.cardName === this.entry.cardName &&
+      return stagedPlayState.committing && arm?.flow === 'action' && arm.cardName === this.sourceKey &&
         stagedVoteOf(arm) !== undefined;
     },
     /**
@@ -2888,7 +2950,7 @@ export default defineComponent({
      * undefined when no half stands.
      */
     commitRailLink(): string | undefined {
-      if (actionCommitRailState.card !== this.entry.cardName || actionCommitRailState.phase === 'idle') {
+      if (actionCommitRailState.card !== this.sourceKey || actionCommitRailState.phase === 'idle') {
         return undefined;
       }
       return actionCommitRailState.link >= 0 ? String(actionCommitRailState.link) : actionCommitRailState.phase;
@@ -3125,7 +3187,7 @@ export default defineComponent({
       flush: 'post' as const,
       handler(on: boolean, was: boolean) {
         setWorkspaceFrameSlot('card-actions', on ? '[data-embed-slot="action-parliament"]' : '');
-        setWorkspaceFrameSourceCard('card-actions', on ? this.entry.cardName : '');
+        setWorkspaceFrameSourceCard('card-actions', on ? this.sourceKey : '');
         if (on) {
           this.releaseSetupForParliament();
         } else if (was && !this.stagedVoteSent) {
@@ -3164,7 +3226,7 @@ export default defineComponent({
       if (was && !now) {
         this.stagedVoteCapsuleHeld = undefined;
         const arm = stagedPlayState.arm;
-        if (stagedVoteOf(arm) !== undefined && arm?.cardName === this.entry.cardName) {
+        if (stagedVoteOf(arm) !== undefined && arm?.cardName === this.sourceKey) {
           this.stagedVoteSent = false;
           this.submitting = false;
         }
@@ -3184,7 +3246,7 @@ export default defineComponent({
         // the activation, not the browse frame), which is exactly why the
         // guest used to carve out a special case for it. Published here, the
         // guest asks one question of every host — see `workspaceStepSourceCard`.
-        setWorkspaceFrameSourceCard('card-actions', on ? this.entry.cardName : '');
+        setWorkspaceFrameSourceCard('card-actions', on ? this.sourceKey : '');
       },
     },
     /**
@@ -3400,7 +3462,7 @@ export default defineComponent({
     // whole chain below it renders nowhere (embed rule 4's gap, permanent).
     if (this.colonyStepOn) {
       setWorkspaceFrameSlot('card-actions', '[data-embed-slot="action-colonies"]');
-      setWorkspaceFrameSourceCard('card-actions', this.entry.cardName);
+      setWorkspaceFrameSourceCard('card-actions', this.sourceKey);
     }
     // …and a LEDGER PAYOUT already running for this card (a restored park): the frozen ledger is the record's own
     // rows' order, the draw layer's zone is republished if the walk stands on a draw row, and the walk is re-asked.
@@ -3422,7 +3484,7 @@ export default defineComponent({
     // setup comes back already parked — there is no release to replay.
     if (this.parliamentStepOn) {
       setWorkspaceFrameSlot('card-actions', '[data-embed-slot="action-parliament"]');
-      setWorkspaceFrameSourceCard('card-actions', this.entry.cardName);
+      setWorkspaceFrameSourceCard('card-actions', this.sourceKey);
       this.parliamentSetupParked = true;
     }
   },
@@ -3482,6 +3544,38 @@ export default defineComponent({
     }
   },
   methods: {
+    /**
+     * The hero CARD where only a card can stand (the repeat pick's / a Hydronetwork pick's / the hand album's source):
+     * those steps are a card's alone — a political source's preview never asks them — so reaching one without a card
+     * is a broken invariant, said out loud, never a stand-in name.
+     */
+    cardOrThrow(): CardName {
+      const name = this.heroCardName;
+      if (name === undefined) {
+        throw new Error(`${this.sourceKey}: a political action asked a step only a card has`);
+      }
+      return name;
+    },
+    partyAccentOf(party: ReduxParty): string {
+      return partyAccent(party);
+    },
+    /**
+     * THE PAYOUT OF A PARTY DISCARD (Turmoil Redux «один фреймворк» — the Reds' «2 M€ per plant, microbe and animal
+     * tag»): every token the transport held (`discardExchangeBeat.ts`, the rate × the thrown cards' printed tags,
+     * checked against the views) is born on the PRINTED M€ icon of the plaque standing in the hero slot and lands on
+     * its rail row, the row ticking on the touchdown. Resolves once every row has ticked — at once when nothing was
+     * held (no paying tag: the server's journal names the skip).
+     */
+    flyDiscardExchange(): Promise<void> {
+      const key = discardExchangeRailKey(this.sourceKey);
+      if (!railRewardPending(key)) {
+        return Promise.resolve();
+      }
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const wrap = root?.querySelector<HTMLElement>('.con-composer__actcardwrap') ?? undefined;
+      const anchors = wrap !== undefined ? resolveActionCommitAnchors(wrap, this.actionGraphicNode) : undefined;
+      return flyRailReward(key, (spec) => (anchors === undefined ? undefined : resolveGainIconEnds(anchors, [spec])[0])).then(() => undefined);
+    },
     // The composer ⇄ «Эффекты» layer transition hooks (the descend phrase).
     forecastFocusEnterHook,
     forecastFocusLeaveHook,
@@ -3818,7 +3912,7 @@ export default defineComponent({
       };
     },
     applyStagedComposerSnapshot(): void {
-      const snap = takeStagedActionComposerDraft(this.entry.cardName, this.nodeIndex) as {
+      const snap = takeStagedActionComposerDraft(this.sourceKey, this.nodeIndex) as {
         selectedPos: number | undefined,
         capturedPre: Record<number, unknown>,
         capturedOption: unknown,
@@ -4109,7 +4203,7 @@ export default defineComponent({
       if (standard !== undefined) {
         return standard;
       }
-      const onCard = this.preview?.cardResource;
+      const onCard = this.preview !== undefined && 'cardResource' in this.preview ? this.preview.cardResource : undefined;
       // Both sides normalized: a hook may pass the raw `CardResource` value
       // ('Floater') or the already-normalised icon key ('floater').
       if (scope !== 'production' && onCard !== undefined && cardResourceKey(String(onCard.type)) === cardResourceKey(icon)) {
@@ -4623,7 +4717,7 @@ export default defineComponent({
         buttonLabel: model.buttonLabel || 'Take action',
         candidates: model.cards.map((cd) => cd.name),
         disabled,
-        source: {kicker: 'Repeat action', card: this.entry.cardName},
+        source: {kicker: 'Repeat action', card: this.cardOrThrow()},
         prior: this.repeatResult !== undefined ?
           {chosenCard: this.repeatResult.chosenCard, nodeIndex: this.repeatResult.nodeIndex} : undefined,
       }, (result) => {
@@ -4646,7 +4740,7 @@ export default defineComponent({
     openStageRewardPick(c: ComposerChoice): void {
       const model = c.input as DeltaStageRewardInputModel;
       enterDeltaRewardPick({
-        source: this.entry.cardName,
+        source: this.cardOrThrow(),
         claimable: model.claimable,
         prior: this.stageRewardDraft ?? deltaRewardDraftOf(this.captured[c.index]),
       }, (draft) => {
@@ -4667,7 +4761,7 @@ export default defineComponent({
     openBlockadePick(c: ComposerChoice): void {
       const model = c.input as DeltaBlockadeInputModel;
       enterDeltaBlockadePick({
-        source: this.entry.cardName,
+        source: this.cardOrThrow(),
         projection: model.projection,
         prior: deltaBlockadeResponseOf(this.captured[c.index])?.target,
       }, (draft) => {
@@ -4704,7 +4798,7 @@ export default defineComponent({
         return;
       }
       enterDeltaRewardPick({
-        source: this.entry.cardName,
+        source: this.cardOrThrow(),
         claimable: [offer.toPosition],
         advanceFrom: offer.fromPosition,
         prior: deltaAdvancePlanDraftOf(this.captured[c.index]),
@@ -4923,7 +5017,7 @@ export default defineComponent({
         // The card whose action this is — «Обстрел кометами» adds its asteroid
         // to ANY card, and it is one. That candidate becomes a HANDLE pointing
         // at the hero slot instead of a second full-size copy of the same card.
-        sourceCardName: this.entry.cardName,
+        sourceCardName: this.heroCardName,
         typeOf: (name) => getCard(name)?.type,
         // A NEGATIVE delta means the step takes FROM the chosen card, which is
         // what makes «your own card» a warning rather than the ordinary target.
@@ -5098,7 +5192,7 @@ export default defineComponent({
       // stays a receipt while THIS commit's rail half is still in the air (PL-430, TR53): the answer clears
       // `submitting`, and the row whose miniature the unit lands on vanished one link before the landing.
       if (result !== undefined && (this.submitting ||
-          (actionCommitRailState.card === this.entry.cardName && actionCommitRailState.phase !== 'idle'))) {
+          (actionCommitRailState.card === this.sourceKey && actionCommitRailState.phase !== 'idle'))) {
         return result;
       }
       // Judged against ITS OWN choice's candidates — a second played-card pick of the same composer has others.
@@ -5185,7 +5279,7 @@ export default defineComponent({
         gainPerCard: gain !== undefined ? {icon: gain.resource, amount: gain.amount} : undefined,
         // The pick surface names the operation it serves — the player keeps
         // the WHY while the focus stage waits hidden underneath.
-        source: {kicker: 'Action setup', card: this.entry.cardName},
+        source: {kicker: 'Action setup', card: this.cardOrThrow()},
         // The server's own DISCARD marker, raw (the album's discard skin), and a pre-select leaves nothing.
         discard: model.discardPrompt,
         leaving: 'none',
@@ -5233,9 +5327,9 @@ export default defineComponent({
       const asks = facts.filter((f) => f.certainty === 'asks');
       const honest: Array<HonestFollowUp> = asks.filter((f) => f.preselect === undefined).map((f) => ({card: f.source.name, role: '*'}));
       if (afterConfirmSteps(branch).length > 0) {
-        honest.push({card: this.entry.cardName, role: '*'});
+        honest.push({card: this.sourceKey, role: '*'});
       }
-      armPostCommitWitness(this.entry.cardName, asks.map((f) => f.source.name), honest);
+      armPostCommitWitness(this.sourceKey, asks.map((f) => f.source.name), honest);
     },
     /** A click on a variant tile — the same SELECT as A on it (never a commit). */
     pickBranchAt(index: number): void {
@@ -5699,7 +5793,7 @@ export default defineComponent({
     /** A chips row's wave: born on the row's printed bonus, landing on the rail — the counter ticks on the touchdown. */
     flyLedgerRow(row: PayoutRow): void {
       const root = this.$refs.rootEl as HTMLElement | undefined;
-      const card = this.entry.cardName;
+      const card = this.sourceKey;
       const landed = (): void => {
         row.state = 'paid';
         markPayoutRowLanded(row.colony);
@@ -5790,7 +5884,7 @@ export default defineComponent({
       // …and a DRAW's own SPEND off the card (PL-201 — TR46's «all the data», TR02's 3 data, Aerial Mappers' floater) rides
       // it too, with no result link: the capsule's token leaves on its own beat, the deck answers the result.
       const railPlan = ledgerBranch ? undefined :
-        commitRailPlan(this.entry.cardName, branch, this.captured,
+        commitRailPlan(this.commitSource, branch, this.captured,
           kind === 'draw' ? [] : reactionRailSpecs(forecastForFixedBranch(this.preview?.forecast, this.selectedPos ?? -1)?.facts), {
             preSteps: this.preview?.preSteps,
             preResponses: this.capturedPre,
@@ -5799,7 +5893,7 @@ export default defineComponent({
             resultElsewhere: kind === 'draw' || opts.resultElsewhere === true,
           });
       const specs = ledgerBranch ? [] : [
-        ...(railPlan !== undefined ? commitWaveSpecs(this.entry.cardName, branch, this.captured, railPlan) : commitRewardSpecs(this.entry.cardName, branch, this.captured)),
+        ...(railPlan !== undefined ? commitWaveSpecs(this.commitSource, branch, this.captured, railPlan) : commitRewardSpecs(this.commitSource, branch, this.captured)),
         ...stageSpecs,
       ];
       const root = this.$refs.rootEl as HTMLElement | undefined;
@@ -5834,7 +5928,7 @@ export default defineComponent({
           (spendLinks.has(i) ? (railPlan.reward.cause[i].channel === 'card-resource' ? absorb : (costPoints[i] ?? absorb)) : origin)) :
         railPlan.reward.cause.map((spec, i) => (spendLinks.has(i) && spec.channel !== 'card-resource' ? parkedPrice : undefined));
       armActionCommit({
-        sourceCard: this.entry.cardName,
+        sourceCard: this.sourceKey,
         kind,
         specs,
         origins,

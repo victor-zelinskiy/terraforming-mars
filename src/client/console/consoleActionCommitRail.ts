@@ -83,14 +83,15 @@ export type ActionCommitRailPhase = 'idle' | 'seeded' | 'flying';
 
 export const actionCommitRailState = reactive({
   /** The card whose rail half is held ('' when none). */
-  card: '' as CardName | '',
+  /** The commit's source KEY — a card's name, or a political source's key (`ActionCommitSource`). */
+  card: '' as string,
   phase: 'idle' as ActionCommitRailPhase,
   /** The link in the air (−1 between links / when none) — the e2e probe's reading of the order. */
   link: -1,
   /** The half holds this card's CAPSULE (a timeline): the composer's hero reads the held capsule. */
   capsule: false,
   /** The cards whose capsule the half holds — the hero and the composer rows' miniatures read `heldCardCapsule` then. */
-  capsules: [] as Array<CardName>,
+  capsules: [] as Array<string>,
   /** A spend that could not be born on its card's own face and fell back to the satellite — named. */
   fallback: '',
   /** Why the last half ended early ('' after a full flight) — diagnostics. */

@@ -1599,7 +1599,7 @@ import {Message} from '@/common/logs/Message';
 import {Payment} from '@/common/inputs/Payment';
 import {ColonyBonusCollectMeta, ColonyBonusDiscardMeta, DiscardPromptMeta, PlacementEffect, SelectCardModel, SelectColonyModel, SelectOptionModel, SelectPaymentModel, SelectProjectCardToPlayModel, SelectSpaceModel} from '@/common/models/PlayerInputModel';
 import ConsoleCardActions from '@/client/components/console/ConsoleCardActions.vue';
-import {consoleCardActionsUi, resetCardActionsFilter} from '@/client/console/consoleCardActions';
+import {composesInCardComposer, consoleCardActionsUi, partyTileKey, resetCardActionsFilter} from '@/client/console/consoleCardActions';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
 import {MilestoneName} from '@/common/ma/MilestoneName';
 import {AwardName} from '@/common/ma/AwardName';
@@ -8280,9 +8280,20 @@ export default defineComponent({
     partyDiscardStepOwed(): boolean {
       const flow = consoleCardActionsUi.partyFlow;
       const marker = this.playerView.waitingFor?.partyActionPrompt;
-      return flow !== undefined && flow.stage === 'committed' && marker !== undefined &&
-        marker.stage === 'discard' && marker.party === flow.party &&
-        workspaceFrameMounted('card-actions') && taskFor(this.playerView)?.kind === 'handSelect';
+      const legacy = flow !== undefined && flow.stage === 'committed' && marker !== undefined &&
+        marker.stage === 'discard' && marker.party === flow.party && workspaceFrameMounted('card-actions');
+      return (legacy || this.politicalDiscardOwed) && taskFor(this.playerView)?.kind === 'handSelect';
+    },
+    /**
+     * «ОДИН ФРЕЙМВОРК» (Turmoil Redux): the discard a party's action OWES after its draw, owed to the CARD composer
+     * that committed it — the server's own marker at stage `discard`, for the party whose key the workspace's descent
+     * draft carries (structural: the marker and the draft, never a title, never a flow record of its own). A step of
+     * `card-actions` the conclusion holds for (`owed-step`) until the hand opens in the composer's zone.
+     */
+    politicalDiscardOwed(): boolean {
+      const marker = this.playerView.waitingFor?.partyActionPrompt;
+      return marker !== undefined && marker.stage === 'discard' && composesInCardComposer(marker.party, undefined) &&
+        consoleCardActionsUi.draft?.cardName === partyTileKey(marker.party) && workspaceFrameMounted('card-actions');
     },
     /**
      * THE LAW'S LIVE PLAY IS A STEP OF THE ACTION WORKSPACE (RX36, PL-727): a bill with a payment of its own raised the
@@ -8797,7 +8808,7 @@ export default defineComponent({
       const task = taskFor(this.playerView);
       return [
         workspaceFrameHasNested(kind) ? 'nested' : '',
-        this.followUpStepOwed && workspaceHostForStep() === kind ? 'owed-step' : '',
+        (this.followUpStepOwed && workspaceHostForStep() === kind) || (kind === 'card-actions' && this.politicalDiscardOwed) ? 'owed-step' : '',
         kind === 'hand' && hostedStepOwedTo('hand') ? 'step-owed' : '',
         kind === 'hand' ? hostedStepLiveBeat('hand') : '',
         workspaceOutcomeState.host === kind && workspaceOutcomeClaimed() ?
@@ -20420,7 +20431,9 @@ export default defineComponent({
         // …and a WALK this hand owes (TR04): promised by the play's preview and
         // not yet played — the record on its way, or the landing ritual still
         // telling its story before the Parliament takes the zone.
-        owedStep: (this.followUpStepOwed && workspaceHostForStep() === kind) || (kind === 'hand' && hostedStepOwedTo('hand')),
+        owedStep: (this.followUpStepOwed && workspaceHostForStep() === kind) || (kind === 'hand' && hostedStepOwedTo('hand')) ||
+          // …and the discard a party's action owes to the card composer that committed it (the one-framework door).
+          (kind === 'card-actions' && this.politicalDiscardOwed),
         // …and a walk PLAYING inside it: the marker moving, a chip in the air, the read.
         // …and a LEDGER still paying inside it (TR23 — «all your colony bonuses»):
         // the rows in turn, a take, a discard, the read — the flow's own body.
