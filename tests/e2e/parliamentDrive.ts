@@ -354,10 +354,22 @@ export async function armLeakWitness(page: Page): Promise<void> {
     const w = window as unknown as {__stranded: Array<string>};
     w.__stranded = [];
     const orig = console.warn.bind(console);
+    const t0 = performance.now();
     console.warn = (...args: Array<unknown>) => {
       const text = args.map(String).join(' ');
       if (text.includes('STRANDED PROMPT')) {
-        w.__stranded.push(text);
+        // A red names the MOMENT, not just the fact: which surfaces stood, the frames, the holds, the transport.
+        type Ready = {wsFrames?: Array<string>, holds?: Array<string>, transport?: {waitingForType?: string, requestInProgress?: boolean}};
+        const ready = (window as unknown as {__conReady?: () => Ready}).__conReady?.();
+        const count = (sel: string) => document.querySelectorAll(sel).length;
+        const at = {
+          t: Math.round(performance.now() - t0),
+          extdraw: count('.con-extdraw'), reveal: count('.con-reveal'), parl: count('.con-parl'), task: count('.con-task'),
+          page: document.querySelector('.con-parl')?.getAttribute('data-sitting-page') ?? '',
+          beat: document.querySelector('.con-parl')?.getAttribute('data-sitting-beat') ?? '',
+          frames: ready?.wsFrames, holds: ready?.holds, wf: ready?.transport?.waitingForType, inFlight: ready?.transport?.requestInProgress,
+        };
+        w.__stranded.push(`${text} @ ${JSON.stringify(at)}`);
       }
       orig(...args);
     };

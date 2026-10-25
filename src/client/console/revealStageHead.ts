@@ -59,6 +59,13 @@ export type RevealStageHeadInput = {
   cellBonuses?: ReadonlyArray<SpaceBonus>;
   /** The host already STANDS the source card beside the cards (a workspace's hero / source seat). */
   sourceOnStage: boolean;
+  /**
+   * EMBEDDED, and the batch came from an object the hosting workspace does NOT carry: a party's or a law's passive
+   * answering the press (Urban Development's «+1 card» on a building play — hosted in the PLAY's workspace since the
+   * chain claim took them, 2026-10-25). The workspace stands the played card on stage, not the law, so the head must
+   * name the law: an embedded stage never says less than the scene it replaced.
+   */
+  foreignSource?: boolean;
   /** A translated name for a source this module has no words of its own for (a party's action, a law). */
   fallbackName?: string;
   /**
@@ -132,7 +139,7 @@ export function revealStageHead(o: RevealStageHeadInput): RevealStageHead {
     };
   }
   const badges: Array<RevealHeadBadge> = [];
-  if (o.host === 'scene' && !o.sourceOnStage) {
+  if ((o.host === 'scene' && !o.sourceOnStage) || (o.host === 'embedded' && o.foreignSource === true)) {
     const reading = revealSourceReading(o.source, o.cellBonuses, o.fallbackName);
     if (reading !== undefined) {
       badges.push({kind: 'source', reading});

@@ -55,7 +55,7 @@ type Wire = {
     spaces: Array<{id: string, tileType?: number}>,
     parliament?: {phase?: {step: string, pending?: {player: string, key: string, input?: string}, outcomes?: Array<Outcome>}, lastPhase?: {outcomes?: Array<Outcome>}},
   },
-  waitingFor?: {type?: string, spaces?: Array<string>, placementType?: string, placementEffect?: string, placementContext?: {source?: {kind: string, resolution?: string}}},
+  waitingFor?: {type?: string, parliamentPhasePrompt?: {early?: boolean}, spaces?: Array<string>, placementType?: string, placementEffect?: string, placementContext?: {source?: {kind: string, resolution?: string}}},
 };
 const wireOf = async (request: APIRequestContext, id: string): Promise<Wire> => await fetchPlayerModel(request, id) as unknown as Wire;
 
@@ -276,8 +276,11 @@ test.describe(`Water Export · ${PRESET.id}`, () => {
     expect(asked.waitingFor?.spaces, 'ONE candidate — still a question (no auto-select)').toEqual([oceanId]);
     expect(asked.waitingFor?.placementContext?.source).toMatchObject({kind: 'resolution', resolution: WATER_ID});
     expect(asked.game.parliament?.phase?.pending, 'published as the phase\'s pending question').toMatchObject({player: before.thisPlayer.color, key: 'oceanRemoval', input: 'space'});
+    // Red is asked NOTHING by the law — at most the EARLY close («раннее закрытие», soft gates § 6): a seat the law does
+    // not ask may close its sitting while the law asks another seat. Never a question of the law's own.
     const redWire = await wireOf(request, red);
-    expect(redWire.waitingFor?.type, 'red waits — the sitting stops at the question').toBeUndefined();
+    expect(redWire.waitingFor === undefined || redWire.waitingFor.parliamentPhasePrompt?.early === true,
+      `red waits — the sitting stops at the question; red holds nothing but the early close (${JSON.stringify(redWire.waitingFor?.type)})`).toBe(true);
 
     // ── ③ THE DOOR: the sitting names the step and A takes the player to the board — the pick is theirs.
     await waitSittingAtRest(page, 60_000);

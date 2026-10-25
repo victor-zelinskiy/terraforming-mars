@@ -70,7 +70,10 @@ function cursoredKey(r: FocusWitnessReport): string | undefined {
 }
 
 async function arrivalBeat(page: Page): Promise<void> {
-  // The arrival is a ≈ 180 ms beat AFTER the surface is ready — no hold carries it (a cursor never blocks input).
+  // The arrival is a ≈ 180 ms beat AFTER the surface is ready — no hold carries it (a cursor never blocks input). Its
+  // START is the surface letting go of `[data-cursor-pending]` (cursorArrival.ts), which on a starved CI renderer can
+  // outlast any fixed pause: the colonies' witness once stopped before the gate opened and saw no ring at all.
+  await page.waitForFunction(() => document.querySelector('[data-cursor-pending]') === null, undefined, {timeout: 10_000}).catch(() => undefined);
   await cinematicBeat(page, 700, 'the cursor arrival plays out after the surface settles');
 }
 

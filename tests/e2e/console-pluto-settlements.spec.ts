@@ -31,7 +31,9 @@ const PRESETS = [
 type Box = {x: number, y: number, w: number, h: number};
 /** `zone` = the zone under the proxy's centre at its LAST sample (mid-flight on a starved renderer); `restZone` = the zone it
  *  was seen STANDING over (two consecutive samples in one spot) — its landing, the only place a flight is judged by. */
-type Flight = {kind: string, nonce: number, bornAt: number, lastAt: number, first: Box, last: Box, zone: number, restZone?: number, face: string};
+type Flight = {kind: string, nonce: number, bornAt: number, lastAt: number, first: Box, last: Box, zone: number, restZone?: number, face: string,
+  /** The SEALED place this cover is addressed to (`data-sealed-place` — the product's own statement, never geometry). */
+  sealed?: number};
 type Probe = {
   samples: number,
   ticks: number,
@@ -193,6 +195,10 @@ async function armProbe(page: Page): Promise<void> {
         const zone = zoneRects.findIndex((z) => box.x >= z.left && box.x <= z.right && box.y >= z.top && box.y <= z.bottom) + 1;
         const face = text(el.querySelector('.con-deal-proxy__face')).slice(0, 30);
         const rec = p.flights[key] ?? (p.flights[key] = {kind, nonce: n, bornAt: now, lastAt: now, first: box, last: box, zone, face});
+        const sealedAttr = el.getAttribute('data-sealed-place');
+        if (sealedAttr !== null && sealedAttr !== '') {
+          rec.sealed = Number(sealedAttr);
+        }
         if (rec.lastAt !== now && Math.abs(rec.last.x - box.x) <= 1 && Math.abs(rec.last.y - box.y) <= 1) {
           rec.restZone = zone;
         }
@@ -437,8 +443,23 @@ for (const preset of PRESETS) {
         // starved renderer (CI) the last sample catches a card mid-flight over a zone it is only passing (an income card
         // read as «place 2» with its face). A flight never seen at rest is not judged — the zones' own reading (③ below:
         // every later place stood SEALED until its turn) still holds every place.
-        const placeOf = (f: Flight) => f.restZone ?? 0;
+        // THE FIRST DEAL IS READ BY ITS ADDRESS, never by geometry: the trade deals every cover at once — the income, place 1's
+        // card and every later place's SEALED back — while the bonus zones are still ENTERING (their reading carries «~»).
+        // On CI's software renderer the zones' entrance runs late against the covers, so a zone rect measured at a cover's
+        // rest is a rect still sliding in (run 40194963188: an income card read as «place 2» with its face, a sealed back
+        // read as «no zone»). The product STATES each sealed cover's place (`data-sealed-place`); a faced cover of that deal
+        // is a drawn card (income / place 1) and is never a sealed place's. Every LATER flight is still judged by where it
+        // came to rest — that is the «a card already on the table never flies again» half.
+        const firstDeal = flights.filter((f) => f.kind === 'trade');
+        const dealEnd = firstDeal.length === 0 ? -1 : Math.min(...firstDeal.map((f) => f.lastAt));
+        const inFirstDeal = (f: Flight) => f.kind === 'trade' && f.bornAt <= dealEnd;
+        const placeOf = (f: Flight) => f.sealed ?? (inFirstDeal(f) ? 0 : f.restZone ?? 0);
         console.log('unjudged flights (never seen at rest):', flights.filter((f) => f.restZone === undefined).map((f) => `${f.kind}#${f.nonce} last over zone ${f.zone}`).join(', ') || 'none');
+        console.log('sealed covers (place ← nonce):', flights.filter((f) => f.sealed !== undefined).map((f) => `${f.sealed}←${f.kind}#${f.nonce} «${f.face}»`).join(', ') || 'none');
+        // A later place is dealt AT MOST one sealed back (a door with no deal lays it with the table — none flies).
+        for (let place = 2; place <= scenario.cubes; place++) {
+          expect(flights.filter((f) => f.sealed === place).length, `sealed place ${place} was dealt one back at most`).toBeLessThanOrEqual(1);
+        }
         const perPlace = new Map<number, number>();
         for (const f of flights) {
           if (placeOf(f) > 0) {

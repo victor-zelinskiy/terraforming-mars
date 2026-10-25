@@ -792,6 +792,25 @@ export function workspaceClaimsDrawReveal(source: CardDrawRevealSource | undefin
 }
 
 /**
+ * A PARLIAMENT source the live claim hosts only through its CHAIN — a party's or a law's passive answering the press
+ * (`workspaceClaimsDrawReveal` above), not the party / law whose own action the workspace carries. Such a batch stands
+ * in a workspace whose stage shows another object (the played card), so its head has to NAME where the cards came
+ * from (`revealStageHead` · `foreignSource`). Cards, colonies and the board keep their own readings.
+ */
+export function revealSourceForeignToClaim(source: CardDrawRevealSource | undefined): boolean {
+  if (workspaceOutcomeState.sourceCard === '' || source === undefined) {
+    return false;
+  }
+  if (source.type === 'party') {
+    return partyTileKey(source.party) !== workspaceOutcomeState.sourceCard;
+  }
+  if (source.type === 'resolution') {
+    return resolutionTileKey(source.resolution) !== workspaceOutcomeState.sourceCard;
+  }
+  return false;
+}
+
+/**
  * Does the live claim answer for a batch of THIS source, whatever its shape —
  * the ONE join of the two batch-claim predicates. Every witness that asks «is
  * this batch ours?» (the serving probe's batch half, the reconciler's pending

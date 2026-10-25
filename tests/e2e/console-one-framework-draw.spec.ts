@@ -76,6 +76,9 @@ async function armDrawSampler(page: Page): Promise<void> {
     const mo = new MutationObserver(sample);
     mo.observe(document.body, {childList: true, subtree: true, attributes: true});
     w.__oneFwStop = () => {
+      // The READ is a sample too: the last timer tick can predate the pose's final frame (a starved renderer measured
+      // the lift at 973 px of its 977).
+      sample();
       window.clearInterval(timer);
       mo.disconnect();
     };
@@ -136,10 +139,23 @@ for (const profile of PROFILES) {
       await takeRevealCards(page);
       // The mandatory discard closes the flow (two cards, RT) — the hand step stands in the composer's own layer.
       await expect(page.locator('.con-cardactions .con-composer__handzone .con-hand--discard')).toHaveCount(1, {timeout: 30_000});
-      await press(page, 'Enter', 300);
-      await press(page, 'ArrowRight', 250);
-      await press(page, 'Enter', 300);
-      await press(page, 'Period', 1200);
+      await settle(page, {timeoutMs: 15_000});
+      // act → verify → retry (tests.md): A toggles the focused card (✓ = `--select-picked`), the d-pad moves on, RT
+      // confirms the pair. Four blind presses lost one to the album's own arrival on a starved renderer.
+      const handZone = page.locator('.con-cardactions .con-composer__handzone .con-hand--discard');
+      const picked = async (): Promise<number> => await handZone.locator('.con-hand__slot--select-picked').count();
+      for (let i = 0; i < 12 && await picked() < 2; i++) {
+        const focusedDone = await handZone.locator('.con-hand__slot--selected:is(.con-hand__slot--select-picked, .con-hand__slot--select-disabled)').count() > 0;
+        if (focusedDone) {
+          await press(page, 'ArrowRight', 300);
+        } else {
+          await pressUntil(page, 'Enter', async () => await handZone.locator('.con-hand__slot--selected.con-hand__slot--select-picked').count() > 0,
+            {tries: 2, settleMs: 900});
+        }
+      }
+      expect(await picked(), 'two cards picked for the discard').toBe(2);
+      expect(await pressUntil(page, 'Period', async () => await waitingType(request, playerId) !== 'card', {tries: 3, settleMs: 3000}),
+        'RT answers the discard').toBe(true);
       await expect.poll(() => waitingType(request, playerId), {timeout: 30_000, message: 'the discard was answered'}).not.toBe('card');
       await waitForBoardHome(page, 40);
 
@@ -150,7 +166,13 @@ for (const profile of PROFILES) {
       expect(central.landed.length, `AI Central landed two slots (${report})`).toBe(2);
       expect(reds.landed.length, `the Reds landed two slots (${report})`).toBe(2);
       for (let i = 0; i < 2; i++) {
-        expect(near(reds.landed[i], central.landed[i]), `slot ${i}: the Reds' rect equals AI Central's ±1 px (${report})`).toBe(true);
+        // THE PLACE, never the pose: the slot under the cursor wears the cursor's lift (×1.045, eased in once the stage
+        // lets go of its arrival gate) — a sample may catch it anywhere on that ease (935 / 954 / 973 / 977 px at 4K on
+        // the software renderer). A lifted slot is compared by its PREPARED place, which the loop below pins to the
+        // landing rect of every slot at rest.
+        const lifted = reds.landed[i].lifted === true || central.landed[i].lifted === true;
+        const [a, b] = lifted ? [reds.prepared[i], central.prepared[i]] : [reds.landed[i], central.landed[i]];
+        expect(near(a, b), `slot ${i}: the Reds' ${lifted ? 'prepared place' : 'rect'} equals AI Central's ±1 px (${report})`).toBe(true);
       }
       for (const [label, run] of [['ai-central', central], ['reds', reds]] as const) {
         expect(run.standalone, `${label}: never a standalone reveal (${report})`).toBe(0);

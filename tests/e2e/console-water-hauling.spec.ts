@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, fetchPlayerModel, placeTile, press, reloadConsole, sendPlayerInput, settle, waitForBoardHome} from './consoleStart';
+import {bootFixtureSeats, fetchPlayerModel, placeTile, press, pressUntil, reloadConsole, sendPlayerInput, settle, waitForBoardHome} from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
 import {dockKeys, dockStatusLines, docksApart, enterDocks, tileSizes} from './fleetDockDriver';
 
@@ -255,8 +255,9 @@ for (const preset of PRESETS) {
           posts.push({url: req.url(), body: req.postData() ?? ''});
         }
       });
-      await press(page, 'Enter', 900);
-      await expect(page.locator('.con-fleetdock'), 'A opened the dock\'s stage').toHaveCount(1, {timeout: 10_000});
+      // act → verify → retry (tests.md): the card's return from the viewer can still own the press that follows it.
+      expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-fleetdock').count() > 0, {tries: 3, settleMs: 2500}),
+        'A opened the dock\'s stage').toBe(true);
       await settle(page, {timeoutMs: 15_000});
       expect(await page.locator('.con-ws').count(), 'one workspace — the stage is inside it').toBe(1);
       const crumb = ((await page.locator('.con-colonies .con-wshead').textContent()) ?? '').toUpperCase();

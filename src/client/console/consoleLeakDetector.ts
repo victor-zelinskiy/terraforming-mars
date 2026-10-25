@@ -37,8 +37,10 @@ import {isAnimationHoldActive} from '@/client/components/presentation/animationH
 import {isConsoleHandPickActive} from '@/client/console/consoleHandPick';
 import {decisionPromptStamp, effectDecisionState} from '@/client/console/effectDecision/effectDecisionState';
 import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
+import {sittingRiseOwed} from '@/client/console/parliament/sittingRise';
+import {promptSourceResolution} from '@/client/console/promptSource';
 import {resetForegroundWatchdog, runForegroundWatchdog} from '@/client/console/consoleForegroundWatchdog';
-import {stackServes, workspaceStackCollapsed, workspaceSurfacesFor} from '@/client/console/consoleWorkspaceStack';
+import {stackServes, workspaceFrameKnown, workspaceStackCollapsed, workspaceSurfacesFor} from '@/client/console/consoleWorkspaceStack';
 
 /** Any of these rendered = SOME surface is serving the prompt. */
 const SERVING_SURFACES: ReadonlyArray<string> = [
@@ -472,6 +474,18 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
   // the chip status) and opens only on the player's press (B). While held the
   // prompt legitimately has no open surface; the announcement / chip serve it.
   if (isMandatoryGateHeld()) {
+    clearStranded();
+    return;
+  }
+  // THE SITTING HOSTS ITS LAW'S QUESTIONS (`WORKSPACE_KINDS.parliament`: «a pick, a take, a tile are STEPS of the
+  // sitting: hosted in its stage zone, never served by name»). A question the enacted law asks this seat has no
+  // surface of its own until the sitting's walk reaches its stop — before the frame stands it is held by the
+  // `stage-gate` block while the sitting RISES (`sittingRise.ts`, bounded by `SITTING_RISE_NET_MS`), and once the
+  // frame stands the walk plays the beats in front of it and opens the step at its page (bounded by the sitting's own
+  // stage ceilings). On a slow renderer either window outlasts the confirm streak (CI run 40194963188: RX40's take,
+  // «externalDraw has NO serving surface» over a standing Parliament at rest between beats). A parked sitting is the
+  // park's case below; a law's question with no sitting rising or known still strands as usual.
+  if (promptSourceResolution(wf) !== undefined && (sittingRiseOwed() || workspaceFrameKnown('parliament'))) {
     clearStranded();
     return;
   }

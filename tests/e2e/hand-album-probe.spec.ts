@@ -144,6 +144,13 @@ function readAlbum(page: Page) {
       selY: selRect === undefined ? 0 : Math.round(selRect.top),
       selOnScreen: selRect !== undefined && selRect.left >= -2 &&
         selRect.right <= window.innerWidth + 2,
+      // THE CURSOR'S POSE IS PART OF THE BOX: the focused card's lift arrives only once the surface lets go of
+      // `[data-cursor-pending]` (TR58), and runs on the cursor's clock. On a starved renderer two reads 120 ms apart
+      // can agree while a frame simply did not advance — so «at rest» also asks the gate and the running animations.
+      // (an ambient loop never ends and is not motion of the box — only finite animations count).
+      selAtRest: document.querySelector('[data-cursor-pending]') === null && sel !== null &&
+        ![...sel.getAnimations({subtree: true}), ...(sel.parentElement?.getAnimations() ?? [])]
+          .some((a) => a.playState === 'running' && a.effect?.getTiming().iterations !== Infinity),
       indicator: ind?.innerText.replace(/\s+/g, ' ').trim() ?? '',
       // BOTH edges always render (the composition must not shift when a
       // side goes away) — availability is the `--off` modifier.
@@ -188,7 +195,7 @@ async function readSettledAlbum(page: Page): Promise<Awaited<ReturnType<typeof r
     // its final size several frames before its final transform, so settling
     // on the size alone hands back a card that is still travelling (it read
     // as «the focused card is not on the active page»).
-    if (now.selW > 0 && now.selOnScreen && same(now, prev)) {
+    if (now.selW > 0 && now.selOnScreen && now.selAtRest && same(now, prev)) {
       return now;
     }
     prev = now;

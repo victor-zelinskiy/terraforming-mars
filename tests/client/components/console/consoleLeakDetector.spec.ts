@@ -6,8 +6,9 @@ import {setMandatoryGateHeld, resetMandatoryGate} from '@/client/console/console
 import {expireActiveAnimationHolds, resetAnimationHoldsForTest} from '@/client/components/presentation/animationHold';
 import {resetGovScaleFocus} from '@/client/console/consoleGovScaleFocus';
 import {resetConsoleHandPick} from '@/client/console/consoleHandPick';
-import {resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
+import {enterWorkspace, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {sittingRiseState, sittingRiseStood} from '@/client/console/parliament/sittingRise';
 
 /*
  * «UNSERVED» IS ONLY A FACT ONCE NOTHING ELSE CLAIMS THE FOREGROUND. Every
@@ -87,6 +88,60 @@ describe('consoleLeakDetector — stranded-guard debounce', () => {
     expect(leakDetectorState.stranded).to.not.eq(undefined);
     runLeakDetection(undefined);
     expect(leakDetectorState.stranded).to.eq(undefined);
+  });
+});
+
+describe('consoleLeakDetector — a sitting ON ITS WAY UP holds its own questions', () => {
+  beforeEach(idleForeground);
+  afterEach(() => {
+    sittingRiseStood();
+    clearForeground();
+  });
+
+  /** A question the LAW asks this seat (RX40's take): the `stage-gate` block holds it until the Parliament stands. */
+  function lawQuestionView(): PlayerViewModel {
+    return {
+      waitingFor: {type: 'card', title: 'Take the cards', buttonLabel: 'Take', cards: [{name: 'Birds'}],
+        choiceContext: {source: {kind: 'resolution', resolution: 'RDX_GREENS_AQUIFER_CONTEST'}}},
+      cardsInHand: [],
+      thisPlayer: {selfReplicatingRobotsCards: []},
+    } as unknown as PlayerViewModel;
+  }
+
+  it('a law\'s question held while the sitting rises is never stranded (CI: RX40\'s take, a slow renderer)', () => {
+    sittingRiseState.owed = true;
+    const view = lawQuestionView();
+    runLeakDetection(view);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded, 'the stage-gate holds it on purpose').to.eq(undefined);
+  });
+
+  it('…only the law\'s own question: an ordinary prompt still strands while the sitting rises', () => {
+    sittingRiseState.owed = true;
+    const view = handSelectView();
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded, 'not the sitting\'s question → judged as usual').to.not.eq(undefined);
+  });
+
+  it('…and while the SITTING STANDS its walk hosts the question until its stop (CI: RX40\'s take between beats)', () => {
+    enterWorkspace('parliament', {anchor: {type: 'always'}});
+    const view = lawQuestionView();
+    runLeakDetection(view);
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded, 'the sitting hosts its law\'s question').to.eq(undefined);
+  });
+
+  it('with no sitting rising or standing, the law\'s question with no surface strands as usual (regression fence)', () => {
+    sittingRiseState.owed = true;
+    const view = lawQuestionView();
+    runLeakDetection(view);
+    sittingRiseStood();
+    runLeakDetection(view);
+    runLeakDetection(view);
+    expect(leakDetectorState.stranded, 'no sitting + unserved → stranded').to.not.eq(undefined);
   });
 });
 

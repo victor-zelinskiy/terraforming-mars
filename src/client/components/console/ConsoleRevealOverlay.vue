@@ -593,7 +593,7 @@ import ConsoleRevealVerdict from '@/client/components/console/foundation/Console
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {availabilityContextFor, buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
 import {focusKicker} from '@/client/console/consoleActionFlow';
-import {setWorkspaceOutcomePhase, workspaceClaimsColonyReveal, workspaceClaimsDrawReveal, workspaceOutcomeArrivalPending, workspaceOutcomeState, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
+import {revealSourceForeignToClaim, setWorkspaceOutcomePhase, workspaceClaimsColonyReveal, workspaceClaimsDrawReveal, workspaceOutcomeArrivalPending, workspaceOutcomeState, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
 import {
   DrawnCardEntry, closeAndReleaseEvent, currentRevealEvent, holdRevealForFollowUp, markAllTaken,
@@ -1056,6 +1056,8 @@ export default defineComponent({
         source: this.drawnSource,
         cellBonuses: this.sourceCellBonuses,
         sourceOnStage: this.sourceSeat,
+        // reactive through the claim's own state (`workspaceOutcomeState.sourceCard`)
+        foreignSource: this.embedded && revealSourceForeignToClaim(this.drawnSource),
         fallbackName: this.sourceFallbackName,
         discarded: this.batchDiscarded,
       });

@@ -47,6 +47,16 @@ describe('revealStageHead — the words of «вы получили карты»,
     expect(revealStageHead(input({source: {type: 'card', cardName: CardName.BIRDS}, sourceOnStage: true})).badges.map((b) => b.kind)).deep.eq(['received']);
   });
 
+  it('…but a LAW\'S answer hosted in a PLAY\'S workspace is named — the stage carries the played card, not the law', () => {
+    const law = input({host: 'embedded', cards: 1, source: {type: 'resolution', resolution: 'RDX_URBAN'}, cellBonuses: undefined, fallbackName: 'Городское развитие'});
+    expect(revealStageHead(law).badges.map((b) => b.kind), 'not foreign: the workspace carries it').deep.eq([]);
+    const head = revealStageHead({...law, foreignSource: true});
+    expect(head.titleKey).eq('Card received');
+    expect(head.badges).deep.eq([{kind: 'source', reading: {labelKey: 'Source', nameKey: '', nameText: 'Городское развитие', icons: [], inspectable: false}}]);
+    // A scene keeps its own rule — `foreignSource` is the embedded host's statement alone.
+    expect(revealStageHead({...law, host: 'scene', sourceOnStage: true, foreignSource: true}).badges).deep.eq([]);
+  });
+
   it('a batch the RULES discarded (К-5) says so — never «Получена карта», no count; the source stays', () => {
     const head = revealStageHead(input({cards: 1, discarded: true, source: {type: 'colony', colonyName: ColonyName.PLUTO}}));
     expect(head.titleKey).eq('Discarded: no other card in hand');
