@@ -577,7 +577,15 @@
         border-radius: var(--con-chip-c-radius, .5rem);
         max-width: 100%;
     }
-    &--palette &__body .action-effect-chip__icon.action-effect-chip__icon { display: none; }
+    &--palette &__body .action-effect-chip__icon.action-effect-chip__icon,
+    &--palette &__body .action-effect-chip__prod.action-effect-chip__prod { display: none; }
+    /* …and the reading SHRINKS with its tile, never past it: a word that does not fit is cut by the tile's own box (the
+       production's word is gone — the hero plate says it), the digits keep their tabular width. */
+    &--palette &__body .action-effect-chip.action-effect-chip {
+        min-width: 0;
+        overflow: hidden;
+        justify-content: center;
+    }
     &--palette &__reason {
         padding: .15rem .4rem .17rem .32rem;
         font-size: .62rem;
@@ -640,8 +648,10 @@ html.con-profile-tv .con-vchoice__seal::after { font-size: 1.05rem; }
 /* The palette on the couch: the hero at the scene's ×1.7 (`--vchoice-print-zoom`), the number on the title step, a
    wider cap (six tiles of 8.5rem fill a 4K decision column's middle, never its whole width). Every rule names the
    palette — the generic TV tile rules above out-rank a bare `.con-vchoice--palette` one. */
-html.con-profile-tv .con-vchoice--palette { gap: .6rem; }
-html.con-profile-tv .con-vchoice--palette .con-vchoice__opt { max-width: 8.5rem; gap: .35rem; padding: .85rem .35rem .75rem; }
+/* (2026-10-25, the owner's Industrialists photo) the couch tile is a TOKEN at the scene's scale, not a HUD cell: the plate
+   ≈ the formula's own chips ×2, a cap that lets two or three of them hold the decision column's middle. */
+html.con-profile-tv .con-vchoice--palette { gap: .8rem; --vchoice-hero: 2.6rem; }
+html.con-profile-tv .con-vchoice--palette .con-vchoice__opt { min-width: 4.6rem; max-width: 11rem; gap: .5rem; padding: 1.05rem .6rem .9rem; }
 html.con-profile-tv .con-vchoice--palette .con-vchoice__figure { font-size: var(--con-t-title); }
 html.con-profile-tv .con-vchoice--palette .con-vchoice__kicker { font-size: var(--con-t-caption); min-height: 1.8rem; }
 html.con-profile-tv .con-vchoice--palette .con-vchoice__emblem { width: 1.75rem; height: 1.75rem; }

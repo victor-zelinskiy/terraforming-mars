@@ -22,6 +22,7 @@
  */
 
 import {reactive} from 'vue';
+import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {CardModel} from '@/common/models/CardModel';
 import {createCursorArrival, trackCursorArrival} from '@/client/console/cursorArrival';
 
@@ -115,3 +116,12 @@ export const handRevealState = reactive({
 export function handRevealBusy(): boolean {
   return handRevealState.phase === 'opening' || handRevealState.phase === 'closing';
 }
+
+/*
+ * THE HAND'S OPENING IS A NAMED SCENE (2026-10-25). Every pick from the hand now OPENS the hand physically (the Reds'
+ * discard, a sitting's discard, the patent sale — `openHandWithReveal`), and A is deliberately waited out while the
+ * copies fly dock → album (`handleSectionConfirm`). A flight that names no hold is invisible to everything that asks
+ * «is the console quiet?» — the feed popped a card over the flying copies, and a driver's press landed in the swallowed
+ * window. The opening is a notification-only hold for exactly its own phase; the ceiling guards a phase that sticks.
+ */
+registerAnimationHoldSupplier('hand-open', () => handRevealState.phase === 'opening', {scope: 'notification-only', maxHoldMs: 6000});

@@ -331,6 +331,9 @@ test.describe(`Colonial Affairs · ${PRESET.id}`, () => {
       throw new Error(`${(error as Error).message}\n[hand boxes]\n${boxes}`);
     }
     const handBefore = (await wireOf(request, playerId)).cardsInHand?.length ?? -1;
+    // The hand OPENS physically (dock → album, a named `hand-open` hold): A waits that scene out by design, so the press
+    // is made once the album has settled.
+    await settle(page, {timeoutMs: 15_000});
     await press(page, 'Enter', 600);
     await expect(page.locator('.con-discard-proxy'), 'the card physically leaves the hand for the pile').toHaveCount(1, {timeout: 15_000});
     await expect.poll(async () => (await wireOf(request, playerId)).cardsInHand?.length ?? -1, {timeout: 30_000}).toBe(handBefore - 1);

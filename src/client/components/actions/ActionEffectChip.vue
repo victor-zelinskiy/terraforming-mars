@@ -36,6 +36,14 @@
          a capped reading renders as a bare «1 → 1 · нет эффекта» with no word
          about WHAT did not change. -->
     <span v-if="isVictoryPoints" class="action-effect-chip__vp" v-i18n>VP</span>
+    <!-- A PRODUCTION reads in the face's own print (2026-10-25 — the owner's «производство» running out of its tile):
+         the resource on the riveted bronze plate every card prints, never the resource plus a word. A pool the server
+         leaves open («lower ANY production») is the printed «?» on the same plate. The plate IS the pool — the note's
+         word goes (it answered «which pool» and the plate answers it in the game's own language). -->
+    <span v-else-if="productionPlate" class="action-effect-chip__prod" data-chip-prod :data-chip-prod-icon="wildProduction ? 'wild' : effect.icon" aria-hidden="true">
+      <img v-if="wildProduction" class="action-effect-chip__icon action-effect-chip__icon--wild" :src="wildUrl" alt="" draggable="false" />
+      <span v-else class="action-effect-chip__icon" :class="iconClass"></span>
+    </span>
     <span v-else-if="iconClass !== ''" class="action-effect-chip__icon" :class="iconClass" aria-hidden="true"></span>
 
     <span class="action-effect-chip__value">
@@ -67,7 +75,7 @@
          badge above is spelled out for. -->
     <!-- A note with PARAMS is a sentence about this chip's number (TR42: «2 набора по 5 РТ сверх 20» on the
          Agenda chip — why the walk is this long); a plain note is vocabulary («на эту карту»). -->
-    <span v-if="effect.note" class="action-effect-chip__note" :class="{'action-effect-chip__note--sentence': effect.noteParams !== undefined}" v-i18n="effect.noteParams">{{ effect.note }}</span>
+    <span v-if="effect.note && !productionPlate" class="action-effect-chip__note" :class="{'action-effect-chip__note--sentence': effect.noteParams !== undefined}" v-i18n="effect.noteParams">{{ effect.note }}</span>
     <span v-if="noEffect" class="action-effect-chip__note action-effect-chip__note--noeffect" v-i18n>no effect</span>
     <!-- A UNIT A LAW REPLACES (Turmoil Redux RX35 — `effect.diverted`): the printed value stays, STRUCK in the Reds'
          own red (never a grey «disabled»), and the tail says what it becomes — «→ +N [data]» on one of the player's
@@ -121,6 +129,7 @@
 import {defineComponent, PropType} from 'vue';
 import {ActionEffect, ActionEffectBasis} from '@/common/models/ActionPreviewModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {wildIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
 import {divertedChip, gainHasNoEffect, vetoedChip, victoryPointsSteady} from '@/client/components/actions/actionEffectReading';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {translateTextWithParams} from '@/client/directives/i18n';
@@ -163,6 +172,17 @@ export default defineComponent({
   computed: {
     iconClass(): string {
       return iconClassFor(this.effect.icon);
+    },
+    /** A production change (the server's `note: 'production'`) — drawn on the printed bronze plate. */
+    productionPlate(): boolean {
+      return this.effect.note === 'production' && this.effect.icon !== 'vp';
+    },
+    /** «ANY production» — the server names no single pool (`resources`), or nothing the sprite set can draw. */
+    wildProduction(): boolean {
+      return this.productionPlate && (this.effect.icon === 'resources' || this.effect.icon === 'production' || this.iconClass === '');
+    },
+    wildUrl(): string {
+      return wildIconUrl();
     },
     /** The unit is REPLACED by a standing law (RX35): struck, with the data it becomes beside it. */
     diverted(): boolean {
@@ -362,6 +382,38 @@ export default defineComponent({
   /* Normalise the three sprite families to a single box (mirrors
      .modal-input__option-icon) so resource / param / card-resource icons align. */
   transform: scale(1);
+}
+
+// THE PRODUCTION PLATE — the face's own riveted bronze frame (`.pcard-prod`, the palette's hero plate), the resource
+// inside it a step smaller: «[▣ M€] 5 → 7» reads «M€ production 5 → 7» in the card's print, with no word to run out of
+// the box. The «?» of «any production» sits on the same plate.
+.action-effect-chip__prod {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  isolation: isolate;
+  /* The PLATE IS A BACKING, never a box: the chip's line is laid out by the ICON (whatever size the host gives it), so
+     a chip with a plate is exactly as tall as its neighbours; the plate paints behind it and the resource sits a step
+     smaller on it (a transform — no layout). */
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    z-index: -1;
+    border-radius: 4px;
+    background:
+      radial-gradient(circle at 3px 3px, rgba(255, 235, 200, 0.5) 0 0.8px, transparent 1.2px),
+      radial-gradient(circle at calc(100% - 3px) 3px, rgba(255, 235, 200, 0.5) 0 0.8px, transparent 1.2px),
+      radial-gradient(circle at 3px calc(100% - 3px), rgba(255, 235, 200, 0.5) 0 0.8px, transparent 1.2px),
+      radial-gradient(circle at calc(100% - 3px) calc(100% - 3px), rgba(255, 235, 200, 0.5) 0 0.8px, transparent 1.2px),
+      linear-gradient(180deg, #7c5c3b 0%, #5d4128 55%, #47301c 100%);
+    box-shadow:
+      inset 0 0 0 1px #2e1e10,
+      inset 0 1px 0 rgba(255, 235, 200, 0.28),
+      inset 0 -2px 3px rgba(20, 12, 5, 0.55);
+  }
+  > .action-effect-chip__icon { transform: scale(0.74); }
+  > .action-effect-chip__icon--wild { object-fit: contain; }
 }
 
 // The REPLACEMENT tail («→ +N [data]») — the chip's brightest voice: the data is what the player gets.

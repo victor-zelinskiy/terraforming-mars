@@ -971,6 +971,7 @@ import {
   ComposerChoice,
   branchChoices,
   composeAndResponse,
+  formulaFollowingParts,
   optionPickAsStep,
   perCardTotals,
   preChoices,
@@ -2363,7 +2364,7 @@ export default defineComponent({
       for (const c of this.allChoices) {
         out.push(...this.syntheticCost(c));
       }
-      return out;
+      return formulaFollowingParts(out, this.answeredPartChips, 'cost');
     },
     heroGain(): ReadonlyArray<ActionEffect> {
       const branch = this.totalsBranch;
@@ -2377,10 +2378,27 @@ export default defineComponent({
       for (const c of this.allChoices) {
         out.push(...this.syntheticGain(c));
       }
+      out.splice(0, out.length, ...formulaFollowingParts(out, this.answeredPartChips, 'gain'));
       if (branch.reveal !== undefined) {
         // The kept card (TR13) first, then the printed reward — the SAME
         // reading the verdict states after the reveal.
         out.push(...revealPreviewReading(branch.reveal).gains);
+      }
+      return out;
+    },
+    /** The chips of every ANSWERED part of a two-part pick — the option the player chose, read by the server. */
+    answeredPartChips(): ReadonlyArray<ActionEffect> {
+      const out: Array<ActionEffect> = [];
+      for (const c of this.allChoices) {
+        if (c.scope !== 'option' || c.index < 0 || c.input.type !== 'or') {
+          continue;
+        }
+        const answer = this.capturedOptionParts[c.index] as {type?: string, index?: number} | undefined;
+        if (answer?.type !== 'or' || answer.index === undefined) {
+          continue;
+        }
+        const item = buildOrItems(c.input as OrOptionsModel).find((it) => it.optionIndex === answer.index);
+        out.push(...(item?.chips ?? []));
       }
       return out;
     },

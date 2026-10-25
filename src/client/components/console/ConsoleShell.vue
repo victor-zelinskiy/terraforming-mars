@@ -17006,7 +17006,8 @@ export default defineComponent({
           this.armStdpStepOrigin();
           setWorkspaceFrameSubject('standard-projects', 'Patent sale');
           setWorkspaceFramePhase('standard-projects', 'configure');
-          this.openHandWorkspace();
+          // The sale picks FROM the hand: the hand opens physically (dock → album), as every hand pick does.
+          void this.openHandWithReveal({keepTask: true});
           // The crumb's tail is the HAND STEP's own stage name, handed up:
           // «СТАНДАРТНЫЕ ПРОЕКТЫ › ПРОДАЖА ПАТЕНТОВ › ВЫБОР КАРТ».
           setWorkspaceFrameStage('hand', 'Card selection');
@@ -19941,7 +19942,9 @@ export default defineComponent({
             !workspaceFrameKnown('card-actions') && !workspaceFrameKnown('hand')) {
           this.resumePartyActionWorkspace(marker.party);
         }
-        this.openHandWorkspace();
+        // A MANDATORY pick from the hand OPENS the hand — the cards lift out of the dock into the album (the owner,
+        // 2026-10-25: a pick whose cards just appear while the fan stays docked breaks the physics of the cards).
+        void this.openHandWithReveal({keepTask: true});
         // …and the step's stage name is the crumb's tail («… › КРАСНЫЕ ›
         // СБРОС КАРТ»), handed up like every hosted step's.
         if (marker !== undefined && marker.stage === 'discard' && workspaceFrameHost('hand') === 'card-actions') {
@@ -20059,7 +20062,9 @@ export default defineComponent({
         this.focusFirstSelectableHandCard();
         return;
       }
-      this.openHandWorkspace();
+      // A DISCARD OPENS THE REAL HAND (the owner, 2026-10-25 — «принцип физичности карт»): the cards lift out of the
+      // dock they lie in into the album, never an album of copies over a dock that stays full.
+      void this.openHandWithReveal({keepTask: true});
       if (workspaceFrameHost('hand') === 'card-actions') {
         setWorkspaceFrameStage('hand', 'Discarding');
       }
@@ -20092,7 +20097,8 @@ export default defineComponent({
         this.focusFirstSelectableHandCard();
         return;
       }
-      this.openHandWorkspace();
+      // The Reds' discard opens the REAL hand: the dock → album flight every other hand pick plays (2026-10-25).
+      void this.openHandWithReveal({keepTask: true});
       if (workspaceFrameHost('hand') === 'card-actions') {
         setWorkspaceFrameStage('hand', 'Card discard');
       }

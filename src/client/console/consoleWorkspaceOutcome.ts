@@ -767,13 +767,19 @@ export function workspaceClaimsDrawReveal(source: CardDrawRevealSource | undefin
   // the server names the party whose action drew, and the action centre's
   // party stage claims under the party's own key. Same law as a card: the
   // server's attribution and the claim's key are one name.
+  //
+  // …AND A PARTY'S OR A LAW'S PASSIVE ANSWERING THE PRESS IS THE PRESS'S CHAIN (2026-10-25 — the owner's «parliament
+  // behaves unlike the rest of the UI» sweep): Mars First's «a city → draw 1 card» fires inside a card play / a
+  // standard project and the server names the PARTY as the draw's source. A 'chain' claim answers for every effect the
+  // press woke (a triggered CARD effect already rides it), so the party's answer is hosted where the press was made —
+  // keyed on the party alone it belonged to nobody and rose as a full-bleed reveal over the workspace.
   if (source.type === 'party') {
-    return partyTileKey(source.party) === workspaceOutcomeState.sourceCard;
+    return partyTileKey(source.party) === workspaceOutcomeState.sourceCard || workspaceOutcomeState.scope === 'chain';
   }
   // THE ENACTED RESOLUTION'S action drew (Open IP Trade): the server names the
-  // law, the action centre's stage claims under the law's own key.
+  // law, the action centre's stage claims under the law's own key (a law's passive answering a press rides the chain).
   if (source.type === 'resolution') {
-    return resolutionTileKey(source.resolution) === workspaceOutcomeState.sourceCard;
+    return resolutionTileKey(source.resolution) === workspaceOutcomeState.sourceCard || workspaceOutcomeState.scope === 'chain';
   }
   if (source.type !== 'card') {
     return false;

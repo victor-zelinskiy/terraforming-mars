@@ -32,7 +32,8 @@
 import {CardName} from '@/common/cards/CardName';
 import {PreselectAddress, addressed} from '@/common/inputs/preselectAddress';
 import {Message} from '@/common/logs/Message';
-import {ActionPreview,
+import {ActionEffect,
+  ActionPreview,
   ActionPreviewBranch,
   ActionPreviewStep,
   PoliticalActionAnswer,
@@ -831,6 +832,35 @@ export function andOptionParts(input: PlayerInputModel): ReadonlyArray<PlayerInp
     return undefined;
   }
   return and.options.every((o) => o.type === 'or' || o.type === 'card' || o.type === 'player') ? and.options : undefined;
+}
+
+/**
+ * THE FORMULA FOLLOWS THE PARTS (2026-10-25 — the owner's Industrialists photo: «Будет списано −1 производство» and
+ * «Вы получите [M€] +2 производство» stood unchanged while the player picked heat and energy). The branch's own chips
+ * are the server's GENERIC reading of a two-part pick («lower any production 1», «raise M€ or energy 2»); once a part is
+ * answered, the chips of the option the player chose — the server's own `current → resulting` for THAT pool — take the
+ * place of the generic chip that read the same move (same direction, same pool kind — the `note`). A part's chip with
+ * nothing to replace joins the side; the rest stay generic until their part is answered. Pure, order-preserving.
+ */
+export function formulaFollowingParts(
+  generic: ReadonlyArray<ActionEffect>, answered: ReadonlyArray<ActionEffect>, direction: ActionEffect['direction'],
+): Array<ActionEffect> {
+  const out = [...generic];
+  const replaced = new Set<number>();
+  for (const chip of answered) {
+    if (chip.direction !== direction) {
+      continue;
+    }
+    const at = out.findIndex((g, i) => !replaced.has(i) && g.direction === direction && (g.note ?? '') === (chip.note ?? ''));
+    if (at === -1) {
+      out.push(chip);
+      replaced.add(out.length - 1);
+    } else {
+      out[at] = chip;
+      replaced.add(at);
+    }
+  }
+  return out;
 }
 
 /** The ONE `and` response once EVERY part is answered (order load-bearing: the parts' own), else `undefined`. */

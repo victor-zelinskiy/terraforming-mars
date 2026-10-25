@@ -109,6 +109,16 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
     expect(workspaceClaimsRevealSource({type: 'colony', colonyName: 'Triton'} as CardDrawRevealSource)).to.eq(false);
   });
 
+  it('a PARTY\'s or a LAW\'s passive answering the press rides a CHAIN claim; a non-chain claim keeps the key match (2026-10-25)', () => {
+    // Mars First's «a city → draw 1» inside a card play: the server names the PARTY as the draw's source.
+    claimWorkspaceOutcome('hand', AI_CENTRAL, ['draw', 'pick', 'effect'], 0, 0, 'chain');
+    expect(workspaceClaimsRevealSource({type: 'party', party: 'Mars First'} as CardDrawRevealSource), 'chain: the party answered the press').to.eq(true);
+    expect(workspaceClaimsRevealSource({type: 'resolution', resolution: 'RDX_X'} as CardDrawRevealSource), 'chain: the law answered the press').to.eq(true);
+    resetWorkspaceOutcome();
+    claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw', 'pick']);
+    expect(workspaceClaimsRevealSource({type: 'party', party: 'Mars First'} as CardDrawRevealSource), 'a card\'s own action does not own a party\'s draw').to.eq(false);
+  });
+
   it('a campaign-sourced reveal is never claimed (the legacy row flies its cards itself — no reveal batch exists)', () => {
     claimWorkspaceOutcome('start', 'Project legacy', ['draw', 'pick', 'effect'], 0, 2, 'chain');
     expect(workspaceClaimsDrawReveal({type: 'campaign'})).to.eq(false);

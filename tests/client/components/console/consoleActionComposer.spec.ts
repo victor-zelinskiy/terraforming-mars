@@ -8,6 +8,7 @@ import {
   branchChoices,
   andOptionParts,
   composeAndResponse,
+  formulaFollowingParts,
   firstMissingChoice,
   optionPickAsStep,
   perCardTotals,
@@ -241,6 +242,24 @@ describe('consoleActionComposer', () => {
       const missing = firstMissingChoice(undefined, branch, {pre: {}, option: undefined, optionParts: {0: a}, steps: {}});
       expect(missing?.id).to.eq('option#1');
       expect(canConfirm({branches: [branch]}, branch, {pre: {}, option: composeAndResponse(AND, {0: a}), steps: {}})).to.eq(false);
+    });
+  });
+
+  describe('the formula follows the answered parts (2026-10-25)', () => {
+    const genericCost = {direction: 'cost', icon: 'resources', amount: 1, note: 'production'} as const;
+    const genericGain = {direction: 'gain', icon: 'megacredits', amount: 2, note: 'production'} as const;
+    it('an answered part replaces the generic chip that read the same move', () => {
+      const heat = {direction: 'cost', icon: 'heat', amount: 1, current: 5, resulting: 4, note: 'production'} as const;
+      expect(formulaFollowingParts([genericCost], [heat], 'cost')).to.deep.eq([heat]);
+    });
+    it('a part of the other direction leaves the side untouched, the generic chip stays until its part is answered', () => {
+      const energy = {direction: 'gain', icon: 'energy', amount: 2, current: 0, resulting: 2, note: 'production'} as const;
+      expect(formulaFollowingParts([genericCost], [energy], 'cost')).to.deep.eq([genericCost]);
+      expect(formulaFollowingParts([genericGain], [energy], 'gain')).to.deep.eq([energy]);
+    });
+    it('a chip with nothing to replace joins the side; a stock chip never replaces a production one', () => {
+      const stock = {direction: 'gain', icon: 'megacredits', amount: 3} as const;
+      expect(formulaFollowingParts([genericGain], [stock], 'gain')).to.deep.eq([genericGain, stock]);
     });
   });
 
