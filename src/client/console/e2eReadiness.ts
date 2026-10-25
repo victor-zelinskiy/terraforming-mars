@@ -28,7 +28,7 @@
  */
 import {activeAnimationHoldLabels} from '@/client/components/presentation/animationHold';
 import {transportDiagFacts} from '@/client/console/transport/gameTransport';
-import {stackYieldedToBoard, workspaceStackDepth} from '@/client/console/consoleWorkspaceStack';
+import {stackYieldedToBoard, workspaceStackDepth, workspaceStackState} from '@/client/console/consoleWorkspaceStack';
 import {notificationsSettled} from '@/client/components/notifications/notificationState';
 import {InputEchoSnapshot, inputEchoSnapshot} from '@/client/console/inputEcho';
 import {parliamentRewardDiag} from '@/client/console/parliament/parliamentRewardBeat';
@@ -50,6 +50,8 @@ export type ConsoleReadinessSnapshot = {
   holds: Array<string>;
   transport: ReturnType<typeof transportDiagFacts>;
   wsDepth: number;
+  /** The stack's frames, outermost first: `kind:phase` + `/overlay` · `/nested` · `@<slot>` — «who stands inside whom» as a fact. */
+  wsFrames: Array<string>;
   /** The workspace stack stands ASIDE for a board placement (its frames wait to come back at the same depth). */
   wsYielded: boolean;
   notificationsSettled: boolean;
@@ -84,6 +86,7 @@ export function consoleReadinessSnapshot(): ConsoleReadinessSnapshot {
     holds: activeAnimationHoldLabels(),
     transport: transportDiagFacts(),
     wsDepth: workspaceStackDepth(),
+    wsFrames: workspaceStackState.frames.map((f) => f.kind + ':' + f.phase + (f.overlay ? '/overlay' : '') + (f.nested ? '/nested' : '') + (f.slot !== '' ? '@' + f.slot : '')),
     wsYielded: stackYieldedToBoard(),
     notificationsSettled: notificationsSettled(),
     parliamentReward: parliamentRewardDiag(),

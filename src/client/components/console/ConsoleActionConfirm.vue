@@ -63,6 +63,10 @@
         <p v-if="body !== ''" class="con-confirm__body">
           <span class="con-confirm__body-mark" aria-hidden="true">⚠</span>{{ $t(body) }}
         </p>
+        <!-- …and the tile a standing law REPLACES (RX35 — the plants' greenery): NOT placed, said in words. -->
+        <p v-for="(w, i) in tileWarnings" :key="'tile' + i" class="con-confirm__body" data-confirm-diverted-tile>
+          <span class="con-confirm__body-mark" aria-hidden="true">⚠</span>{{ w.title }} · {{ w.reason }}
+        </p>
 
         <!-- WHAT THE PASS LEAVES UNUSED (the desktop PassConfirmContent parity set) — named, never a bare «are you
              sure»: each is a row of its own under one quiet heading. -->
@@ -99,6 +103,7 @@ import ConsoleForecastLayer from '@/client/components/console/ConsoleForecastLay
 import ConsolePromptHead from '@/client/components/console/foundation/ConsolePromptHead.vue';
 import {ForecastSeat} from '@/client/components/console/ConsoleEffectsExplorer.vue';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
+import {DivertedTileWarning, divertedTileWarnings} from '@/client/components/actions/divertedTileWarning';
 import {EffectForecast} from '@/common/models/EffectForecastModel';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -157,6 +162,10 @@ export default defineComponent({
     },
     consequenceKey(): string {
       return 'You will take no more actions this generation.';
+    },
+    /** The tiles the standing law takes (RX35) — read off the server's mark on the formula's own chips. */
+    tileWarnings(): Array<DivertedTileWarning> {
+      return divertedTileWarnings(this.effects);
     },
     /** The plate's tier — content decides: the operation and its answer are a compact confirm (`s`); a LIST of what
      *  the pass leaves unused is reading width (`m`). */

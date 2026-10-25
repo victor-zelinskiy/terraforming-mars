@@ -207,18 +207,10 @@
           <span class="con-tagmx__title">{{ $t('Tags') }}</span>
           <span class="con-tagmx__rule" aria-hidden="true"></span>
         </div>
-        <!-- THE SOURCE of the «+N» additions below. The console has ONE detail
-             surface and no hover popovers, so the name stands in the open for
-             as long as the law does — a mint «+2» with no author would be a
-             bonus from nowhere, and the shared mint is what ties the two. It
-             takes its own line because the head's is already spent: squeezed
-             in beside «МЕТКИ» the name ellipsised to «ФИНАНСИРОВ…» at 1080,
-             which names nothing. The line exists only while such a law does. -->
-        <div v-if="tagBonusLaw !== ''" class="con-tagmx__lawnote" data-tag-bonus-law>{{ tagBonusLaw }}</div>
         <div class="con-tagmx__grid">
           <div v-for="t in matrixEntries" :key="t.tag"
                class="con-tagmx__cell"
-               :class="{'con-tagmx__cell--zero': t.count === 0 && !t.na, 'con-tagmx__cell--na': t.na}"
+               :class="{'con-tagmx__cell--zero': cellCount(t) === 0 && !t.na, 'con-tagmx__cell--na': t.na}"
                :data-tag-cell="t.tag"
                :aria-label="cellAria(t)">
             <!-- The medalwrap takes over the medal's flex role in the cell's
@@ -248,24 +240,31 @@
                 :wide="tagVpFor(t.tag)!.wide"
                 :label="tagVpAria(tagVpFor(t.tag)!)"
                 :scopeKey="player.color" />
+              <!-- THE SOURCE of an addition a standing rule makes (the
+                   Scientists' wild tag, R&D Funding's science tags): the
+                   party's own emblem pinned to the medallion's upper-left
+                   corner — the VP shield's mirror, the same badge grammar as a
+                   card's cost badge. The digit below is the count that is
+                   COUNTED right now; the emblem says why it is more than the
+                   cards print (the aria label says how much). No line of text:
+                   the rail has no room for one. -->
+              <img v-if="t.bonus !== undefined && bonusEmblem(t.bonus) !== undefined"
+                   class="con-tagmx__src"
+                   :src="bonusEmblem(t.bonus)"
+                   alt=""
+                   aria-hidden="true"
+                   :data-tag-bonus="t.tag"
+                   :data-tag-bonus-source="bonusSourceKey(t.bonus)" />
             </span>
             <span class="con-tagmx__numwrap">
-              <span class="con-tagmx__num">{{ t.na ? '—' : t.count }}</span>
-              <!-- THE ADDITION a standing law makes, beside the printed digit
-                   and never instead of it: the player must be able to read
-                   «what I have played» and «what is counted right now» at the
-                   same time. It appears only while the law stands, and the
-                   cell's own hint names the law (`bonusHint`). -->
-              <span v-if="t.bonus !== undefined"
-                    class="con-tagmx__bonus"
-                    :data-tag-bonus="t.tag">+{{ t.bonus.amount }}</span>
+              <span class="con-tagmx__num">{{ t.na ? '—' : cellCount(t) }}</span>
             </span>
             <!-- The tag's ±N chip is a BADGE on the cell's own corner (over the medallion's shoulder — the
                  delta-chip anchor law): the count line below is too narrow on every profile to stand a
                  chip beside the digits. -->
             <AnimatedMetricValue
               v-if="epoch !== '' && !t.na"
-              :value="t.count"
+              :value="cellCount(t)"
               :metricKey="'tag.' + t.tag"
               :scopeKey="player.color"
               :epoch="epoch"
@@ -401,8 +400,10 @@ import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {Tag as CardTag} from '@/common/cards/Tag';
 import Tag from '@/client/components/Tag.vue';
 import {consoleTagEntries, ConsoleTagBonus, ConsoleTagCell, ConsoleTagEntry, NO_TAG_CELL} from '@/client/components/console/consoleTagMatrix';
-import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
+import {getResolution, resolutionName} from '@/client/parliament/ClientParliamentManifest';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
+import {requirementPartyEmblem} from '@/client/components/premiumCard/partyEmblems';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {ResolutionId} from '@/common/parliament/ParliamentTypes';
 
 /**
@@ -819,23 +820,6 @@ export default defineComponent({
       return consoleTagEntries(
         this.gameTags, this.effectivePlayer.tags, this.effectivePlayer.noTagsCount, this.effectivePlayer.tagBonuses);
     },
-    /**
-     * The sources behind the «+N» additions in the matrix, named. Empty when
-     * nothing adds anything (every game without such a rule) and for the bot
-     * seat, which holds neither a law nor a party effect. One law stands at a
-     * time, and the Scientists' wild tag may stand beside it — each source
-     * once, joined.
-     */
-    tagBonusLaw(): string {
-      const names: Array<string> = [];
-      for (const e of this.matrixEntries) {
-        const name = e.bonus === undefined ? undefined : this.bonusSourceName(e.bonus);
-        if (name !== undefined && !names.includes(name)) {
-          names.push(name);
-        }
-      }
-      return names.join(' · ');
-    },
     /** The dedicated MarsBot presentation is active (inspecting the bot seat). */
     botMode(): boolean {
       return this.automa !== undefined;
@@ -1142,10 +1126,20 @@ export default defineComponent({
       if (entry.na) {
         return name + ': ' + this.$t('not tracked');
       }
-      const printed = name + ': ' + entry.count;
+      const counted = name + ': ' + this.cellCount(entry);
       // The addition NAMES its source — a number that appeared from nowhere is
       // exactly the thing this rail must never show.
-      return entry.bonus === undefined ? printed : printed + ' · ' + this.bonusNote(entry.bonus);
+      return entry.bonus === undefined ? counted : counted + ' · ' + this.bonusNote(entry.bonus);
+    },
+    /**
+     * The digit a cell shows: the count that is COUNTED right now — the
+     * printed tags plus what a standing rule adds (the Scientists' wild tag,
+     * R&D Funding's science tags). The source is the emblem on the medallion,
+     * so «0 +1» never needs to be printed: a cell the rule raises is a
+     * collected cell, lit like one.
+     */
+    cellCount(entry: ConsoleTagMatrixCell): number {
+      return entry.count + (entry.bonus?.amount ?? 0);
     },
     /**
      * «+2 от закона «Финансирование исследований»» — the one sentence the
@@ -1163,12 +1157,24 @@ export default defineComponent({
         translateText(resolutionName(bonus.resolution as ResolutionId)),
       ]);
     },
-    /** The addition's source in the lawnote: the law's name, or «Эффект партии «Учёные»». */
-    bonusSourceName(bonus: ConsoleTagBonus): string | undefined {
+    /**
+     * The party an addition comes from: the party effect's own party, or the
+     * party of the law that grants it (R&D Funding is a Scientists law).
+     */
+    bonusParty(bonus: ConsoleTagBonus): string | undefined {
       if (bonus.party !== undefined) {
-        return translateTextWithParams('Party effect «${0}»', [translateText(partyNameKey(bonus.party))]);
+        return bonus.party;
       }
-      return bonus.resolution === undefined ? undefined : translateText(resolutionName(bonus.resolution as ResolutionId));
+      return bonus.resolution === undefined ? undefined : getResolution(bonus.resolution as ResolutionId)?.party;
+    },
+    /** The source party's emblem for the medallion's corner badge. */
+    bonusEmblem(bonus: ConsoleTagBonus): string | undefined {
+      const party = this.bonusParty(bonus);
+      return party === undefined ? undefined : requirementPartyEmblem(party as PartyName);
+    },
+    /** The e2e / probe hook: the party effect's party, else the law's id. */
+    bonusSourceKey(bonus: ConsoleTagBonus): string {
+      return bonus.party ?? bonus.resolution ?? '';
     },
     /**
      * The MC badge's full accessible sentence: per fact «Сталь: 1 ед. = 3 M€

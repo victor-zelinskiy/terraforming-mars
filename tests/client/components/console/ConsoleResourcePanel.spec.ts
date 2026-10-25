@@ -4,6 +4,7 @@ import {expect} from 'chai';
 import ConsoleResourcePanel from '@/client/components/console/ConsoleResourcePanel.vue';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Tag} from '@/common/cards/Tag';
+import {PartyName} from '@/common/turmoil/PartyName';
 import {tagLabel} from '@/client/cards/tagLabel';
 import {CardName} from '@/common/cards/CardName';
 import {CONSOLE_TAG_ORDER, NO_TAG_CELL} from '@/client/components/console/consoleTagMatrix';
@@ -157,14 +158,14 @@ describe('ConsoleResourcePanel — МЕТКИ tag matrix', () => {
 });
 
 /**
- * THE ADDITION A STANDING LAW MAKES (Turmoil Redux — R&D Funding: Science tags
- * equal to your influence). The zone keeps printing the PRINTED count: the
- * addition is a second, differently-shaped number beside it, and the law that
- * grants it is NAMED in the open (the console has one detail surface and no
- * hover popovers, so a «+2» whose author only a tooltip knew would be a bonus
- * from nowhere).
+ * THE ADDITION A STANDING RULE MAKES (Turmoil Redux — R&D Funding: Science
+ * tags equal to your influence; the Scientists' party effect: one wild tag).
+ * The owner's grammar (2026-10-25): the cell's digit is the count COUNTED
+ * right now, and the source is the party's EMBLEM pinned to the medallion's
+ * corner — no «0 +1», no line of text over the matrix (the rail has no room
+ * for one). The aria sentence still names the source and the amount.
  */
-describe('ConsoleResourcePanel — the law tag addition', () => {
+describe('ConsoleResourcePanel — the tag addition', () => {
   const LAW = 'RDX_SCIENTISTS_RD_FUNDING';
   // The unit runner mounts with no locale loaded, so a translated string IS
   // its English key here (the RU wording is the locale file's own guard).
@@ -175,34 +176,39 @@ describe('ConsoleResourcePanel — the law tag addition', () => {
       {tagBonuses: [{tag, amount, resolution: LAW}]});
   }
 
-  it('prints «+N» BESIDE the printed digit, never instead of it', () => {
+  it('the digit is the counted total, and the source party emblem stands on the medallion', () => {
     const w = mountWithLaw(2);
     const cell = w.find('[data-tag-cell="science"]');
-    expect(cell.find('.con-tagmx__num').text(), 'the printed count stands').to.eq('2');
-    expect(cell.find('.con-tagmx__bonus').text()).to.eq('+2');
+    expect(cell.find('.con-tagmx__num').text(), 'printed 2 + the law 2').to.eq('4');
+    const badge = cell.find('.con-tagmx__src');
+    expect(badge.exists()).to.be.true;
+    expect(badge.attributes('src')).to.contain('scientists');
+    expect(badge.attributes('data-tag-bonus-source')).to.eq(LAW);
   });
 
-  it('no other cell carries one, and no cell carries one without a law', () => {
+  it('a party effect on a cell with no printed tag LIGHTS it — «0 +1» is a collected cell', () => {
+    const w = mountWith({} as Partial<Record<Tag, number>>, [...BASE_GAME_TAGS, Tag.WILD],
+      {tagBonuses: [{tag: Tag.WILD, amount: 1, party: PartyName.SCIENTISTS}]});
+    const cell = w.find('[data-tag-cell="wild"]');
+    expect(cell.find('.con-tagmx__num').text()).to.eq('1');
+    expect(cell.classes(), 'never dimmed as «not collected»').not.to.include('con-tagmx__cell--zero');
+    expect(cell.find('.con-tagmx__src').attributes('data-tag-bonus-source')).to.eq(PartyName.SCIENTISTS);
+  });
+
+  it('no other cell carries a badge, and no cell carries one without a rule', () => {
     const w = mountWithLaw(2);
-    expect(w.find('[data-tag-cell="space"] .con-tagmx__bonus').exists()).to.be.false;
-    expect(w.findAll('.con-tagmx__bonus')).to.have.length(1);
+    expect(w.find('[data-tag-cell="space"] .con-tagmx__src').exists()).to.be.false;
+    expect(w.findAll('.con-tagmx__src')).to.have.length(1);
 
     const plain = mountWith({[Tag.SCIENCE]: 2} as Partial<Record<Tag, number>>);
-    expect(plain.findAll('.con-tagmx__bonus')).to.have.length(0);
-    expect(plain.find('[data-tag-bonus-law]').exists()).to.be.false;
-  });
-
-  it('NAMES the law in the head, where it costs the matrix no vertical room', () => {
-    const w = mountWithLaw(2);
-    const note = w.find('[data-tag-bonus-law]');
-    expect(note.exists()).to.be.true;
-    expect(note.text()).to.eq(LAW_NAME);
+    expect(plain.findAll('.con-tagmx__src')).to.have.length(0);
+    expect(plain.find('[data-tag-cell="science"] .con-tagmx__num').text()).to.eq('2');
   });
 
   it('the cell own sentence carries the addition and its source', () => {
     const w = mountWithLaw(2);
     const label = w.find('[data-tag-cell="science"]').attributes('aria-label') ?? '';
-    expect(label).to.contain('2');
+    expect(label).to.contain('4');
     expect(label, 'the law is named, never a bare «+2»').to.contain(LAW_NAME);
   });
 
@@ -225,8 +231,7 @@ describe('ConsoleResourcePanel — the law tag addition', () => {
         } as never,
       },
     });
-    expect(w.findAll('.con-tagmx__bonus')).to.have.length(0);
-    expect(w.find('[data-tag-bonus-law]').exists()).to.be.false;
+    expect(w.findAll('.con-tagmx__src')).to.have.length(0);
   });
 });
 

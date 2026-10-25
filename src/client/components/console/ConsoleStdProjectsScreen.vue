@@ -146,6 +146,9 @@
                      the DOOR of the R3 «Эффекты» layer (PL-066). -->
                 <ConsoleForecastDoor :reaction="focusedReaction" :canOpen="forecastCanOpen" :pulse="forecastPulse" @open="openForecastLayer()" />
                 <span v-if="nextStepKey !== undefined" class="con-stdp__context-next">› {{ $t(nextStepKey) }}</span>
+                <!-- The project's tile is REPLACED by the standing law (RX35): it is NOT placed — the struck chip alone
+                     let a player expect a cell. The law and the data are the chip's hint and the next step's words. -->
+                <span v-for="w in focusedTileWarnings" :key="'tile:' + w.title" class="con-stdp__context-warning" data-stdp-diverted-tile>⚠ {{ w.title }}</span>
                 <!-- The project changes NOTHING right now — the server's verdict supersedes the per-chip warnings
                      (it says more, and the two never stand together). -->
                 <span v-if="focusedFutile !== undefined" class="con-stdp__context-futile" data-stdp-context-futile>○ {{ $t(focusedFutile) }} · {{ $t('the action will change nothing') }}</span>
@@ -213,6 +216,7 @@ import {
   StdProjectCommitPhase, stdProjectCommitState,
 } from '@/client/console/consoleStdProjectCommit';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
+import {DivertedTileWarning, divertedTileWarnings} from '@/client/components/actions/divertedTileWarning';
 import {Warning} from '@/common/cards/Warning';
 import {warningText} from '@/client/components/card/cardWarnings';
 import {setWorkspaceFrameSlot, workspaceStackCrumb} from '@/client/console/consoleWorkspaceStack';
@@ -291,6 +295,10 @@ export default defineComponent({
      */
     focusedChips(): ReadonlyArray<ActionEffect> {
       return this.focused?.preview?.effects ?? [];
+    },
+    /** The tile the standing law takes from the focused project (RX35 — Greenery / Aquifer): NOT placed, in words. */
+    focusedTileWarnings(): Array<DivertedTileWarning> {
+      return divertedTileWarnings(this.focusedChips);
     },
     /** Chip identity for the crossfade — icon + note is what makes two chips
      *  the SAME statement across a focus change (the M€ chip stays put while

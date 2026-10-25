@@ -9,12 +9,11 @@ import {
  * R&D FUNDING (Turmoil Redux, RX26) — the ONE e2e of the new mechanics: a law
  * that gives NOTHING at its enactment and everything while it stands.
  *
- *   · THE PASSIVE IS VISIBLE AND NAMED. The МЕТКИ zone keeps printing the
- *     PRINTED science count and states the law's addition BESIDE it — a mint
- *     «+N» — with the law named in the zone's own head. A player must be able
- *     to read «what I have played» and «what is counted right now» at once,
- *     and a «+2» whose author lived only in a tooltip would be a bonus from
- *     nowhere (this console has no hover popovers).
+ *   · THE PASSIVE IS VISIBLE AND SOURCED. The МЕТКИ zone's science digit is
+ *     the count the law makes (printed + the addition) and the law's party —
+ *     the Scientists — wears the medallion's corner as an emblem badge (the
+ *     owner's grammar, 2026-10-25: no «+N», no line of text in the rail); the
+ *     cell's own sentence names the law and the amount.
  *   · THE ACTION IS A SLOT, AND THE PICK IS THE SHARED ONE. «Which of my
  *     already-used actions» has ONE surface in this console — the ДЕЙСТВИЯ
  *     КАРТ list in repeat mode, reached through the bridge Viron, Project
@@ -44,7 +43,7 @@ type Wire = {
   thisPlayer: {
     color: string,
     tags: Record<string, number>,
-    tagBonuses?: ReadonlyArray<{tag: string, amount: number, resolution: string}>,
+    tagBonuses?: ReadonlyArray<{tag: string, amount: number, resolution?: string, party?: string}>,
     tableau: ReadonlyArray<{name: string, resources?: number}>,
   },
   game: {parliament?: {
@@ -83,53 +82,10 @@ async function focusLawTile(page: Page): Promise<void> {
   expect(await focused(), 'never focused the law\'s tile').toBe(LAW);
 }
 
-/**
- * THE LAW'S NAME over the МЕТКИ matrix (PL-097): never cut — no overflow in its
- * own box, inside the matrix's column, and the matrix's last row still whole
- * above the zone's bottom (the second line is paid by the grid, which re-solves
- * its rows into the height left). `lines` is the rendered line count.
- */
-async function lawNoteFit(page: Page): Promise<{whole: boolean, lines: number, text: string, box: string}> {
-  return page.locator('[data-tag-bonus-law]').evaluate((el) => {
-    const cs = getComputedStyle(el);
-    const r = el.getBoundingClientRect();
-    const zone = el.closest('.con-tagmx')?.getBoundingClientRect();
-    const cells = Array.from(el.closest('.con-tagmx')?.querySelectorAll('.con-tagmx__cell') ?? []);
-    const lastBottom = Math.max(...cells.map((c) => c.getBoundingClientRect().bottom));
-    const lineHeight = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.1;
-    const whole = el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1 &&
-      zone !== undefined && r.left >= zone.left - 1 && r.right <= zone.right + 1 && lastBottom <= zone.bottom + 1;
-    return {
-      whole, lines: Math.round(r.height / lineHeight), text: (el.textContent ?? '').trim(),
-      box: `${Math.round(r.width)}x${Math.round(r.height)} sw=${el.scrollWidth} cw=${el.clientWidth} zone=${zone === undefined ? '-' : `${Math.round(zone.left)}..${Math.round(zone.right)}/${Math.round(zone.bottom)}`} last=${Math.round(lastBottom)}`,
-    };
-  });
-}
-
-/** The narrow rail (PL-097): 1280 × 800 handheld — the name wraps whole, it is never an ellipsis. */
-const DECK = {id: 'deck-800', viewport: {width: 1280, height: 800}, query: '&consoleProfile=handheld'} as const;
-
-test.describe(`R&D Funding · ${DECK.id}`, () => {
-  test.use({viewport: DECK.viewport});
-
-  test('PL-097 — the law\'s name over the МЕТКИ matrix stands WHOLE in the Deck\'s rail: a second line, never an ellipsis', async ({page, request}) => {
-    test.setTimeout(240_000);
-    await bootFixtureSeats(page, request, 'parliament-rdfunding-enacted', {query: DECK.query});
-    await waitForBoardHome(page, 40);
-    await settle(page, {timeoutMs: 20_000});
-    await expect(page.locator('[data-tag-bonus-law]'), 'the head names the law').toHaveText(/Финансирование исследований/i);
-    const note = await lawNoteFit(page);
-    expect(note.whole, `the law's name stands whole in the narrow rail (${JSON.stringify(note)})`).toBe(true);
-    expect(note.lines, `it takes a second line rather than an ellipsis (${JSON.stringify(note)})`).toBeLessThanOrEqual(2);
-    await expect(page.locator('[data-tag-cell="science"] .con-tagmx__bonus'), 'the addition still stands beside the count').toBeVisible();
-    await shoot(page, `deck-01-tag-zone-law`);
-  });
-});
-
 test.describe(`R&D Funding · ${PRESET.id}`, () => {
   test.use({viewport: PRESET.viewport});
 
-  test('the law is READ on the tag zone and WORKED from the table: «+N» beside the printed count, the repeat picked and run, the use spent', async ({page, request}) => {
+  test('the law is READ on the tag zone and WORKED from the table: the counted total and the party emblem, the repeat picked and run, the use spent', async ({page, request}) => {
     test.setTimeout(420_000);
     const {playerId} = await bootFixtureSeats(page, request, 'parliament-rdfunding-enacted', {query: PRESET.query});
     const before = await wireOf(request, playerId);
@@ -145,19 +101,17 @@ test.describe(`R&D Funding · ${PRESET.id}`, () => {
     const microbesBefore = resourcesOf(before, REPEATED);
     expect(microbesBefore, 'the candidate already ran once this generation').toBe(1);
 
-    // ── ① THE TAG ZONE: the printed count, the addition beside it, the law named.
+    // ── ① THE TAG ZONE: the COUNTED total on the digit, the source party's emblem on the medallion
+    // (the owner's grammar, 2026-10-25 — no «+N» beside the digit, no law's name over the matrix).
     await waitForBoardHome(page, 40);
     await settle(page, {timeoutMs: 20_000});
     const cell = page.locator('[data-tag-cell="science"]');
-    await expect(cell.locator('.con-tagmx__num'), 'the PRINTED count keeps printing').toHaveText(String(printed));
-    await expect(cell.locator('.con-tagmx__bonus'), 'the law\'s addition stands beside it').toHaveText(`+${added}`);
-    await expect(page.locator('[data-tag-bonus-law]'), 'and the head names the law').toHaveText(/Финансирование исследований/i);
-    // No other cell gained anything: the addition belongs to ONE tag.
-    await expect(page.locator('.con-tagmx__bonus'), 'exactly one cell carries an addition').toHaveCount(1);
-    expect((await cell.getAttribute('aria-label') ?? ''), 'the cell\'s own sentence names the law too').toMatch(/Финансирование исследований/i);
-    const note = await lawNoteFit(page);
-    expect(note.whole, `the law's name stands whole (${JSON.stringify(note)})`).toBe(true);
-    expect(note.lines, `where it fits, the name is the ONE line it always was (${JSON.stringify(note)})`).toBe(1);
+    await expect(cell.locator('.con-tagmx__num'), 'the digit is the count the law makes').toHaveText(String(printed + added));
+    await expect(cell.locator('.con-tagmx__src'), 'the party of the law wears the medallion').toHaveAttribute('data-tag-bonus-source', LAW);
+    // The addition belongs to ONE tag: no other cell carries the LAW's badge (the ruling Scientists' own
+    // wild tag may wear theirs on the wild cell — that one is the party effect, not this law).
+    await expect(page.locator(`.con-tagmx__src[data-tag-bonus-source="${LAW}"]`), 'exactly one cell carries the addition of the law').toHaveCount(1);
+    expect((await cell.getAttribute('aria-label') ?? ''), 'the own sentence of the cell names the law').toMatch(/Финансирование исследований/i);
     await shoot(page, '01-tag-zone-addition');
 
     // ── ② THE LAW'S STAGE: the repeat is a SLOT, empty and inviting.

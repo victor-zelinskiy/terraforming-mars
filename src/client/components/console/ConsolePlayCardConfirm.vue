@@ -760,6 +760,7 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {cardHasAction, playerActionGroups, ActionGroup} from '@/client/components/actions/actionExtraction';
 import {stripNodeOr} from '@/client/components/actions/actionBranchView';
 import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
+import {divertedTileWarnings} from '@/client/components/actions/divertedTileWarning';
 import {cardHasPassiveEffect} from '@/client/components/effects/effectExtraction';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
@@ -2085,6 +2086,8 @@ export default defineComponent({
             icon: w.effect === undefined && w.icon !== '' ? iconClassFor(w.icon) : '',
           });
         }
+        // A tile the standing law REPLACES (RX35) is NOT placed — said in words, never by the strike alone.
+        out.push(...divertedTileWarnings(b.effects));
       }
       // The merged up-to-N pick (Astra) explicitly answered EMPTY: legal
       // (min 0) but easy to do by accident — the branch's emptyWarning makes

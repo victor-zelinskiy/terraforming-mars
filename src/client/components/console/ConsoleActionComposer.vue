@@ -1076,6 +1076,7 @@ import {playerResourceValue} from '@/client/components/modalInputs/playerResourc
 import {targetImpactRows, targetImpactText, targetImpactIsLoss} from '@/client/components/modalInputs/targetImpactRows';
 import {RATING_RAIL_KEY, cardResourceKey, isStandardResource} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
+import {divertedTileWarnings} from '@/client/components/actions/divertedTileWarning';
 import {translateMessage, translateText, translateTextWithParams, translateCardName} from '@/client/directives/i18n';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {Color} from '@/common/Color';
@@ -2443,13 +2444,15 @@ export default defineComponent({
     // Skipped-effect warnings for the selected branch, via the SAME shared
     // derivation the desktop modal + the play composer use.
     skippedWarnings(): Array<{title: string, reason: string, effect?: ActionEffect, icon: string}> {
-      return skippedEffectViews(this.selectedBranch?.steps).map((w) => ({
+      return [...skippedEffectViews(this.selectedBranch?.steps).map((w) => ({
         title: w.title !== '' ? translateText(w.title) : '',
         reason: translateText(w.reason),
         effect: w.effect,
         // Only a chip-less warning needs the bare fallback sprite.
         icon: w.effect === undefined && w.icon !== '' ? iconClassFor(w.icon) : '',
-      }));
+      })),
+      // …and a tile the standing law REPLACES (RX35) is NOT placed — said in words, never by the strike alone.
+      ...divertedTileWarnings(this.selectedBranch?.effects)];
     },
     afterNotes(): Array<NextStepRow> {
       const branch = this.selectedBranch;

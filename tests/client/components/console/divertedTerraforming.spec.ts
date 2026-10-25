@@ -13,6 +13,8 @@ import {buildFinalGreenery, finaleYieldKey, YIELD_DATA, YIELD_TR} from '@/client
 import {promptReceiveFamily} from '@/client/console/cardReceive/promptReceive';
 import {isDivertedPick, isResolutionAsk} from '@/client/console/consoleMandatoryGate';
 import {followUpStepStage} from '@/client/console/consoleTaskRouter';
+import {divertedTileWarnings} from '@/client/components/actions/divertedTileWarning';
+import ConsoleActionConfirm from '@/client/components/console/ConsoleActionConfirm.vue';
 
 /*
  * A UNIT A LAW REPLACES (Turmoil Redux RX35 Diverted Research) — the client's readings of the server's ONE exit
@@ -67,6 +69,22 @@ describe('divertedTerraforming — the client readings of a replaced unit (RX35)
       expect(lost.find('.action-effect-chip--diverted-lost').exists(), 'the loss').to.eq(true);
       expect(lost.find('.action-effect-chip__diverted-lost').exists()).to.eq(true);
       lost.unmount();
+    });
+  });
+
+  describe('the tile is NOT placed — said in words (the owner, 2026-10-25)', () => {
+    it('one warning per struck TILE chip, never for a struck step; the title names the tile, the reason the law and the data', () => {
+      const ws = divertedTileWarnings([{direction: 'cost', icon: 'megacredits', amount: 23}, struck('oxygen', 1), struck('greenery', 1), struck('oceans', 2, true)]);
+      expect(ws.map((w) => w.title)).to.deep.eq(['The greenery tile will NOT be placed', 'The ocean tiles will NOT be placed']);
+      expect(ws[0].reason).to.contain('1').and.not.contain('${');
+      expect(ws[1].reason, 'the lost data is named too').to.not.eq(ws[0].reason);
+      expect(divertedTileWarnings([{direction: 'gain', icon: 'greenery', amount: 1}]), 'no law, no warning').to.deep.eq([]);
+    });
+
+    it('the wheel\'s plant conversion says it under its formula', () => {
+      const w = mount(ConsoleActionConfirm, {...globalConfig, props: {kind: 'convertPlants', effects: [{direction: 'cost', icon: 'plants', amount: 8}, struck('greenery', 1)]}});
+      expect(w.find('[data-confirm-diverted-tile]').text()).to.contain('The greenery tile will NOT be placed');
+      w.unmount();
     });
   });
 

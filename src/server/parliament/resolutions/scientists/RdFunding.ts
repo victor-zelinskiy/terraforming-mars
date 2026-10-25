@@ -27,11 +27,11 @@
  *    gate, a behaviour counter — and are absent from `'raw'`, `'award'` and
  *    `'milestone'` (claiming a milestone records an achievement; it is not
  *    an action taken — pinned by its own spec).
- *  · THE PRINTED COUNT STAYS PRINTED. The МЕТКИ zone reads `countAllTags`
- *    (`'raw'`), and it keeps reading it: the addition is STATED beside the
- *    printed digit (`ParliamentHandler.tagBonuses` → the model's
- *    `tagBonuses`), never folded into it. A player must be able to see both
- *    «what I have printed» and «what will be counted now».
+ *  · THE PRINTED COUNT STAYS PRINTED in the model: `countAllTags` (`'raw'`)
+ *    never carries the law, and the addition rides its own field
+ *    (`ParliamentHandler.tagBonuses` → the model's `tagBonuses`). The МЕТКИ
+ *    zone shows the counted total on the digit and the law's party emblem on
+ *    the medallion (the owner's grammar, 2026-10-25).
  *  · THE ACTION IS VIRON'S MECHANISM, not a second reading of it. Which cards
  *    may be repeated is the ONE shared list (`repeatableActionCards`) Viron
  *    and Project Inspection now ask too: an action already USED this

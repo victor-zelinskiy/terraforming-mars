@@ -35,11 +35,11 @@ import {ResolutionId} from '../parliament/ParliamentTypes';
  * party effect: one wild tag).
  *
  * It rides its OWN field and never touches `tags`, which stays the PRINTED
- * count (`Tags.countAllTags` — `'raw'`): a zone that folded the addition into
- * the digit would leave the player unable to tell «what I have played» from
- * «what will be counted right now», and the two answer different questions
- * (an award counts the printed one, a card requirement the raised one). The
- * source is NAMED, so the addition can never appear as a bonus from nowhere.
+ * count (`Tags.countAllTags` — `'raw'`): an award counts the printed one, a
+ * card requirement the raised one. The console's МЕТКИ zone shows the RAISED
+ * count on the digit and the source party's emblem on the medallion (the
+ * owner's grammar, 2026-10-25) — the source is NAMED, so the addition can
+ * never appear as a bonus from nowhere.
  */
 export type TagBonusModel = {
   tag: Tag;

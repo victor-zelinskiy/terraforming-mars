@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
-import {gainAtParameterLimit, gainHasNoEffect, victoryPointsSteady} from '@/client/components/actions/actionEffectReading';
+import {divertedTileOf, gainAtParameterLimit, gainHasNoEffect, victoryPointsSteady} from '@/client/components/actions/actionEffectReading';
 
 /*
  * «N → N» READS TWO WAYS (the owner's decision of 2026-10-15): a parameter at its limit is a wasted step («no
@@ -40,5 +40,13 @@ describe('actionEffectReading', () => {
     const cost: ActionEffect = {direction: 'cost', icon: 'oxygen', amount: 1, current: 14, resulting: 14};
     expect(gainHasNoEffect(cost)).to.eq(false);
     expect(gainAtParameterLimit(cost)).to.eq(false);
+  });
+
+  it('a TILE the law replaces is named by kind (RX35 — the composers say «NOT placed»); a struck step or a plain tile is not', () => {
+    const mark = {resolution: 'RDX_REDS_DIVERTED_RESEARCH', data: 1};
+    expect(divertedTileOf({direction: 'gain', icon: 'greenery', amount: 1, diverted: mark})).to.eq('greenery');
+    expect(divertedTileOf({direction: 'gain', icon: 'oceans', amount: 2, diverted: {...mark, data: 2}})).to.eq('ocean');
+    expect(divertedTileOf({direction: 'gain', icon: 'oxygen', amount: 1, diverted: mark}), 'a scale step is struck, not «not placed»').to.eq(undefined);
+    expect(divertedTileOf({direction: 'gain', icon: 'greenery', amount: 1}), 'no law, no warning').to.eq(undefined);
   });
 });

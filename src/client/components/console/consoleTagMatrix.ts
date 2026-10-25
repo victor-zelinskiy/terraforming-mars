@@ -47,9 +47,9 @@ export interface ConsoleTagEntry {
    * What a standing rule ADDS to it right now (`PublicPlayerModel.tagBonuses`
    * — Turmoil Redux's R&D Funding: Science tags by influence; the Scientists'
    * party effect: a wild tag), and WHICH rule. Absent when nothing adds
-   * anything, which is the normal case. The matrix prints the two apart:
-   * `count` is the truth about the tableau, `bonus` the truth about this
-   * moment, and folding them would answer neither question.
+   * anything, which is the normal case. `count` stays the truth about the
+   * tableau; the panel's digit is `count + bonus` (what is counted right now)
+   * and the bonus's SOURCE is the party emblem on the medallion.
    */
   bonus?: ConsoleTagBonus;
 }

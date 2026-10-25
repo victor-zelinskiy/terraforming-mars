@@ -7824,8 +7824,11 @@ export default defineComponent({
       // …and STANDING: a stage that RECEDED under the resolution's discard step (colony polish 1 — it stays
       // mounted, the settlement table parked in its zone) is not the surface the player drives. The hand owns the
       // pad, the bar and B until the room is handed back; the stage takes them again the instant it returns.
+      // …and the same while the PARLIAMENT's vote step stands in the section's zone (the Redux Venus trade's delegate
+      // cells: the trade stage waits for its income under the vote — the vote owns the pad, the bar and B).
       return workspaceFrameMounted('colonies') && this.colonyFocus.open &&
-        !(colonyResolutionUi.discardStage && workspaceFrameKnown('hand'));
+        !(colonyResolutionUi.discardStage && workspaceFrameKnown('hand')) &&
+        workspaceFrameHost('parliament') !== 'colonies';
     },
     /**
      * THE ACT BEHIND THE DOSSIER'S A (X = «Осмотреть»): the same derivation

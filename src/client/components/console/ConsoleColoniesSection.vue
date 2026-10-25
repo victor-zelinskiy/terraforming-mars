@@ -1202,9 +1202,13 @@ export default defineComponent({
     focusOutcomeZone(): boolean {
       return this.revealEmbedActive && this.focusState.open;
     },
-    /** The resolution's discard step owns the room and the stage waits under it (see the stage's `receded`). */
+    /**
+     * A full-stage step owns the room and the stage waits under it (see the stage's `receded`): the resolution's
+     * discard, or the Parliament's vote step a trade's delegate cells pay (the Redux Venus — the trade stage stands
+     * until its income is answered, so it must recede, never paint through the vote).
+     */
     focusStageReceded(): boolean {
-      return this.resolutionUi.discardStage && !this.resolutionParked && this.focusState.open;
+      return this.focusState.open && !this.resolutionParked && (this.resolutionUi.discardStage || this.parliamentStepHosted);
     },
     /**
      * THE ONE SLOT SELECTOR. Two elements can host the follow-up — the focus

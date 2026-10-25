@@ -4881,33 +4881,6 @@ each(@players, {
         height: .05rem;
         background: linear-gradient(90deg, fade(@con-action-gold, 40%), transparent);
     }
-    /* The law behind the «+N» cells — its own line under the head, in the
-       same mint as the additions it explains (the colour is what ties the
-       two). It exists only while such a law stands: the grid below is a flex
-       child that re-solves its rows into whatever height is left, so the line
-       costs the matrix nothing it cannot absorb. A NAME WRAPS, it is never cut
-       (PL-097, the owner's decision 2026-10-08): the Deck's rail is ~135 px
-       and «Финансирование исследований» needs 163 — an ellipsis there named
-       the law only by luck, while the matrix below had height to spare. Where
-       the name fits (fhd, 4K) the line is the one line it always was; a word
-       longer than the rail breaks rather than overflow. */
-    &__lawnote {
-        flex: 0 0 auto;
-        min-width: 0;
-        max-width: 100%;
-        white-space: normal;
-        overflow-wrap: break-word;
-        margin: -.25rem 0 .35rem;
-        font-size: .55rem;
-        line-height: 1.1;
-        /* A NAME, not a label: sentence case (the law's own printed name) is
-           ~20 % narrower than tracked caps — fewer lines where it must wrap,
-           one where it need not. */
-        letter-spacing: 0;
-        font-weight: 700;
-        color: @con-mint;
-    }
-
     &__grid {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
@@ -4970,6 +4943,24 @@ each(@players, {
     &__vp {
         top: calc(var(--valbadge-size, 1rem) * -.14);
         right: calc(var(--valbadge-size, 1rem) * -.32);
+    }
+    /* The SOURCE of an addition (the owner, 2026-10-25): the party's emblem
+       as a corner badge on the medallion — upper-left, the VP shield's
+       mirror, so the two never meet and the delta chip (the cell's upper
+       right) keeps its lane. The emblem PNG is itself a finished badge (navy
+       disc, gold rim): no frame of ours around it, no glow — one dark contact
+       shadow so it sits ON the medallion rather than in it. Absolute: the
+       cell's box never moves when a rule starts or stops. */
+    &__src {
+        position: absolute;
+        z-index: 2;
+        top: calc(var(--valbadge-size, 1rem) * -.14);
+        left: calc(var(--valbadge-size, 1rem) * -.32);
+        width: calc(var(--valbadge-size, 1rem) * 1.1);
+        height: calc(var(--valbadge-size, 1rem) * 1.1);
+        border-radius: 50%;
+        box-shadow: 0 .05rem .14rem rgba(0, 0, 0, 0.7);
+        pointer-events: none;
     }
 
     /* The medallion (Tag.vue root = legacy px .tag-count) re-seated in rem:
@@ -5040,20 +5031,6 @@ each(@players, {
             0 0 0 .06rem rgba(8, 12, 19, 0.95),
             0 0 0 .11rem fade(#b98b52, 75%),
             0 .1rem .25rem .1rem rgba(0, 0, 0, 0.5);
-    }
-    /* THE ADDITION a standing law makes — beside the printed digit, never in
-       place of it, and unmistakably a different KIND of number: smaller,
-       mint, with its own «+». The printed count keeps its weight and colour,
-       so «what I have played» and «what is counted right now» read as two
-       facts at a glance. It carries no layout of its own when absent. */
-    &__bonus {
-        font-size: calc(var(--ct-num) * .72);
-        line-height: 1;
-        font-weight: 700;
-        letter-spacing: 0;
-        font-variant-numeric: tabular-nums;
-        color: @con-mint;
-        text-shadow: 0 0 .3rem fade(@con-mint, 45%);
     }
     &__num {
         font-size: var(--ct-num);

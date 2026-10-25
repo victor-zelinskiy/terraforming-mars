@@ -24,6 +24,22 @@ export function divertedChip(effect: ActionEffect): boolean {
 }
 
 /**
+ * THE TILE A LAW TAKES — a replaced chip whose unit is a greenery or an ocean TILE (RX35: «each Greenery and Ocean
+ * tile you would gain»). Unlike a struck scale step, a struck tile is the surprise of the law: the card prints a
+ * placement and NO cell is asked — so every composer names it in words (the owner, 2026-10-25), never by the strike
+ * alone. Undefined for every other chip.
+ */
+export function divertedTileOf(effect: ActionEffect): 'greenery' | 'ocean' | undefined {
+  if (!divertedChip(effect)) {
+    return undefined;
+  }
+  if (effect.icon === 'greenery') {
+    return 'greenery';
+  }
+  return effect.icon === 'oceans' || effect.icon === 'ocean' ? 'ocean' : undefined;
+}
+
+/**
  * A chip whose RATING a LAW REFUSES (Turmoil Redux RX42 UNMI Veto — `ActionEffect.vetoed`): the seat is first by
  * terraform rating, the printed rating is not gained and nothing stands in its place. The reader draws it STRUCK in
  * the same register as a replaced unit, with no tail — never «no effect», never «at maximum».
