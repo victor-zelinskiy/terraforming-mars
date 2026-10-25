@@ -12,6 +12,7 @@ import {PartyName} from '@/common/turmoil/PartyName';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {requirementPartyEmblem} from '@/client/components/premiumCard/partyEmblems';
+import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
 
 /** The measurement unit implied by a reason's message (°C / % / none). */
 export function reasonUnit(r: UnplayableReason): string {
@@ -68,8 +69,43 @@ function chairmanNowText(now: NonNullable<UnplayableReason['chairmanNow']>): str
   return now === 'vacant' ? translateText('the chair is vacant') : translateTextWithParams('chairman now: ${0}', [now.name]);
 }
 
+/**
+ * THE LEADERSHIP REQUIREMENT'S «NOW» (Turmoil Redux — TR73 Political Alliance the first): WHERE the player leads,
+ * and for every other resolution of the voting area how many delegates are missing, who leads it and how a tie
+ * falls — so the player never counts the cubes on the table. Every number is the server's
+ * (`UnplayableReason.leadership` — `Parliament.leaderOf` on the table and on its projection); the names are the
+ * resolutions' own (`resolutionName`). «Вы лидируете: «А» · на «Б» не хватает делегатов: 1 (лидирует Синий; ничьей
+ * мало — первый делегат соперника раньше)».
+ */
+export function leadershipNowText(leadership: NonNullable<UnplayableReason['leadership']>): string {
+  const quoted = (id: string) => `«${translateText(resolutionName(id))}»`;
+  const led = leadership.leading.map((row) => row.tie === 'yours' ?
+    `${quoted(row.resolution)} (${translateText('won on the tie — your first delegate is earlier')})` :
+    quoted(row.resolution));
+  const parts = [led.length === 0 ? translateText('you lead no resolution') : translateTextWithParams('you lead: ${0}', [led.join(', ')])];
+  for (const row of leadership.trailing) {
+    const notes: Array<string> = [];
+    if (row.leader === 'neutral') {
+      notes.push(translateText('neutral delegates only'));
+    } else if (row.leader !== undefined) {
+      notes.push(translateTextWithParams('leads: ${0}', [row.leader.name]));
+    }
+    if (row.tie === 'theirs') {
+      notes.push(translateText('a tie is not enough — the rival\'s first delegate is earlier'));
+    } else if (row.tie === 'yours') {
+      notes.push(translateText('a tie is enough — your first delegate is earlier'));
+    }
+    const line = translateTextWithParams('${0}: delegates short ${1}', [quoted(row.resolution), String(row.short)]);
+    parts.push(notes.length === 0 ? line : `${line} (${notes.join('; ')})`);
+  }
+  return parts.join(' · ');
+}
+
 /** The chairmanship's mark — THE CHAIR, the same one the card's requirement plate prints (`premiumCardViewModel`). */
 const CHAIRMAN_EMBLEM = 'assets/misc/chair.svg';
+
+/** Leadership — TWO delegate figures (TR73's MIN plate: «the leader on two resolutions»), never the single one TR02 prints. */
+const LEADERSHIP_EMBLEM = 'assets/misc/delegate-pair.svg';
 
 /**
  * A COUNTED reason whose subject has a GLYPH of its own on the card's plate (Turmoil Redux TR68 — «a card with a
@@ -79,6 +115,8 @@ const CHAIRMAN_EMBLEM = 'assets/misc/chair.svg';
 const COUNT_MESSAGE_EMBLEMS: Readonly<Record<string, string>> = {
   'Requires ${0} played cards with requirements': 'assets/misc/card-requirement.svg',
   'Requires ${0} or less played cards with requirements': 'assets/misc/card-requirement.svg',
+  // Turmoil Redux (TR73) — «[two figures] 1/2»: the LEADERSHIP badge, the pair of delegate figures the MIN plate prints.
+  'Requires leading ${0} resolution(s) at once': LEADERSHIP_EMBLEM,
 };
 
 /**
@@ -127,6 +165,9 @@ export function unplayableReasonLine(r: UnplayableReason): string {
   }
   if (r.chairmanNow !== undefined) {
     return `${unplayableReasonText(r)} · ${chairmanNowText(r.chairmanNow)}`;
+  }
+  if (r.leadership !== undefined) {
+    return `${unplayableReasonText(r)} · ${leadershipNowText(r.leadership)}`;
   }
   const text = unplayableReasonText(r);
   return r.current === undefined ? text : `${text} · ${unplayableReasonNow(r)}`;
@@ -185,6 +226,8 @@ const COUNT_MESSAGE_LABELS: Readonly<Record<string, string>> = {
   // asking excluded (the server's `playedCardsWithRequirements`).
   'Requires ${0} played cards with requirements': 'Cards with requirements',
   'Requires ${0} or less played cards with requirements': 'Cards with requirements',
+  // Turmoil Redux (TR73) — «Лидерство 1/2» (the rail drops the word beside its two-figure badge).
+  'Requires leading ${0} resolution(s) at once': 'Leadership',
 };
 
 /** The compact counter's label (an English i18n key), or undefined when the

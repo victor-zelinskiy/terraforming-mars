@@ -1145,6 +1145,7 @@ export enum CardName {
   // Turmoil Redux replacements of classic Turmoil cards (TR71…; `cards/turmoilRedux/classicReplacements.ts`)
   AERIAL_LENSES_REDUX = 'Aerial Lenses:redux',
   BANNED_DELEGATE_REDUX = 'Banned Delegate:redux',
+  POLITICAL_ALLIANCE_REDUX = 'Political Alliance:redux',
   SPONSORED_MOHOLE_REDUX = 'Sponsored Mohole:redux',
   // The PRINTED name (the scan says «Septem»); the classic enum keeps upstream's `SEPTUM_TRIBUS` spelling.
   SEPTEM_TRIBUS_REDUX = 'Septem Tribus:redux',

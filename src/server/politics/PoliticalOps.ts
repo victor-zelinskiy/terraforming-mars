@@ -18,12 +18,30 @@ import {IGame} from '../IGame';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {CardName} from '../../common/cards/CardName';
 import {Turmoil} from '../turmoil/Turmoil';
-import {normalizeReduxParty, PARTY_EFFECT_DELEGATES} from '../../common/parliament/ParliamentTypes';
+import {normalizeReduxParty, PARTY_EFFECT_DELEGATES, ReduxParty, ResolutionId} from '../../common/parliament/ParliamentTypes';
 import {isReduxPartyName, Parliament} from '../parliament/Parliament';
 import {PlaceDelegatesOnResolution} from '../parliament/PlaceDelegatesOnResolution';
 import {SendDelegateToArea} from '../deferredActions/SendDelegateToArea';
 
 export type PoliticalDelegate = IPlayer | 'NEUTRAL';
+
+/**
+ * WHO LEADS ONE RESOLUTION OF THE VOTING AREA, read for one player (Turmoil Redux TR73 Political Alliance — «the
+ * highest number of delegates on 2 resolutions at once»): the leader now (`Parliament.leaderOf` — neutrals never lead,
+ * a tie goes to the earlier first delegate) and, when it is not the player, the fewest delegates of theirs that would
+ * make it theirs (`Parliament.delegatesToLead`). `tie` reads the tie honestly: `yours` — the player's first delegate
+ * is the earlier, so drawing level is enough (or is what holds their lead); `theirs` — the player stands level now
+ * and loses it on the first delegate.
+ */
+export type ResolutionLeadership = {
+  resolution: ResolutionId;
+  party: ReduxParty;
+  leader: PoliticalDelegate | undefined;
+  mine: boolean;
+  /** Delegates short of the lead — 0 when the player leads. */
+  short: number;
+  tie?: 'yours' | 'theirs';
+};
 
 /** How a card's delegates land (`PoliticalOps.placeDelegates`). */
 export type PlaceDelegatesOptions = {
@@ -99,6 +117,12 @@ export interface PoliticalOps {
   hasPartyEffect(player: IPlayer, party: PartyName): boolean;
   /** How many parties `player` leads (classic party leaders / Redux resolution leaders). */
   partiesLedBy(player: IPlayer): number;
+  /**
+   * …and the same reading TOLD, resolution by resolution (TR73 — the hand's «you lead «X»; 1 delegate short on
+   * «Y»»). Redux: every slot of the voting area, the leader by `leaderOf` — the very reading `partiesLedBy` counts.
+   * Classic: `undefined` — its requirement keeps upstream's line.
+   */
+  leadershipStanding(player: IPlayer): ReadonlyArray<ResolutionLeadership> | undefined;
   delegatesInReserve(player: IPlayer): number;
   delegatesOf(player: IPlayer, party: PartyName): number;
   /**
@@ -206,6 +230,29 @@ export class ReduxPoliticalOps implements PoliticalOps {
   public partiesLedBy(player: IPlayer): number {
     return this.parliament.slots.filter((slot) => this.parliament.leaderOf(slot)?.owner === player.id).length;
   }
+  public leadershipStanding(player: IPlayer): ReadonlyArray<ResolutionLeadership> {
+    return this.parliament.slots.map((slot) => {
+      const definition = this.parliament.resolutionOf(slot.instance);
+      const now = this.parliament.leaderOf(slot);
+      const leader = now === undefined ? undefined : (now.owner === 'NEUTRAL' ? 'NEUTRAL' : this.game.getPlayerById(now.owner));
+      const row: ResolutionLeadership = {resolution: definition.id, party: definition.party, leader, mine: now?.owner === player.id, short: 0};
+      if (row.mine) {
+        if (now?.tieBreak !== undefined) {
+          row.tie = 'yours';
+        }
+        return row;
+      }
+      const reach = this.parliament.delegatesToLead(player.id, slot);
+      row.short = reach.count;
+      const own = this.parliament.votesOf(player, slot);
+      if (now !== undefined && now.owner !== 'NEUTRAL' && own > 0 && own === now.votes) {
+        row.tie = 'theirs';
+      } else if (reach.leader.tieBreak !== undefined) {
+        row.tie = 'yours';
+      }
+      return row;
+    });
+  }
   public delegatesInReserve(player: IPlayer): number {
     return this.parliament.reserve(player);
   }
@@ -277,6 +324,9 @@ export class ClassicPoliticalOps implements PoliticalOps {
   public hasPartyEffect(_player: IPlayer, party: PartyName): boolean {
     // Classic Turmoil has no per-player party effects: only the ruling policy applies.
     return this.turmoil.rulingParty.name === party;
+  }
+  public leadershipStanding(): undefined {
+    return undefined;
   }
   public partiesLedBy(player: IPlayer): number {
     return this.turmoil.parties.filter((party) => party.partyLeader === player).length;

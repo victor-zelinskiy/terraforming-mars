@@ -95,7 +95,7 @@ function collectRequirementReasons(player: IPlayer, card: IProjectCard, out: Arr
     }
     // A PARTY / CHAIRMAN reason restates its rule only in its NAMED form (Turmoil Redux); the classic engine's
     // faceless «a specific political situation» says half of it, and hiding the rule there would be a lie.
-    const key = reason.message === POLITICAL_SITUATION.message ? undefined : requirementBlockId(req, ordinal);
+    const key = reason.message === POLITICAL_SITUATION.message || reason.message === CLASSIC_LEADERS_MESSAGE ? undefined : requirementBlockId(req, ordinal);
     if (key !== undefined) {
       reason.requirementKey = key;
     }
@@ -142,6 +142,9 @@ const FULLY_RESTATED_REQUIREMENTS: ReadonlySet<RequirementType> = new Set([
   // «Requires you to be the chairman» — the whole printed rule, in its NAMED Redux form only (TR12; the
   // classic line keeps no key — see the caller).
   RequirementType.CHAIRMAN,
+  // «Requires leading 2 resolutions at once» — the whole printed rule line, in its NAMED Redux form only (TR73; the
+  // classic «party leader(s)» line keeps no key — see the caller).
+  RequirementType.PARTY_LEADERS,
 ]);
 
 /**
@@ -316,7 +319,8 @@ function requirementReason(req: CardRequirement, player: IPlayer, card: IProject
     // hand counter's «≤» marker); no card prints it yet.
     return {type: 'count', message: max ? 'Requires ${0} or less played cards with requirements' : 'Requires ${0} played cards with requirements', params: [String(required)], current};
   case RequirementType.PARTY_LEADERS:
-    return {type: 'party', message: 'Requires ${0} party leader(s)', params: [String(required)], current};
+    return leadershipRequirementReason(player, required, current) ??
+      {type: 'party', message: CLASSIC_LEADERS_MESSAGE, params: [String(required)], current};
   case RequirementType.PARTY:
     return partyRequirementReason(player, req as PartyRequirement) ?? POLITICAL_SITUATION;
   case RequirementType.CHAIRMAN:
@@ -325,6 +329,9 @@ function requirementReason(req: CardRequirement, player: IPlayer, card: IProject
     return {type: 'generic', message: 'Card requirement not met', current};
   }
 }
+
+/** The classic engine's party-leaders line — upstream's; it names no resolution, so it restates no Redux rule. */
+const CLASSIC_LEADERS_MESSAGE = 'Requires ${0} party leader(s)';
 
 /** The classic engine's political requirements (and the chairman, everywhere): upstream's faceless line. */
 const POLITICAL_SITUATION: UnplayableReason = {type: 'party', message: 'Requires a specific political situation'};
@@ -391,6 +398,36 @@ function chairmanRequirementReason(player: IPlayer): UnplayableReason | undefine
     chairmanNow: holder === undefined || holder === 'NEUTRAL' ? 'vacant' : {name: holder.name, color: holder.color},
   };
 }
+
+/**
+ * THE LEADERSHIP REQUIREMENT, NAMED (Turmoil Redux — TR73 Political Alliance is the set's first): a COUNT («now 1 of
+ * 2» — the hand's compact counter), and WHERE — the resolutions led, and for each other one who leads it and how many
+ * delegates the player is short, a tie read honestly. The rows are the facade's (`leadershipStanding` — the very
+ * `leaderOf` reading `partiesLedBy` counts for `satisfies`); `undefined` on the classic engine, whose line stays
+ * upstream's.
+ */
+function leadershipRequirementReason(player: IPlayer, required: number, current: number | undefined): UnplayableReason | undefined {
+  const rows = player.game.politics?.leadershipStanding(player);
+  if (rows === undefined) {
+    return undefined;
+  }
+  return {
+    type: 'count',
+    message: LEADERSHIP_REQUIREMENT_REASON,
+    params: [String(required)],
+    current,
+    leadership: {
+      leading: rows.filter((row) => row.mine).map((row) => (row.tie === 'yours' ? {resolution: row.resolution, tie: 'yours' as const} : {resolution: row.resolution})),
+      trailing: rows.filter((row) => !row.mine).map((row) => {
+        const leader = row.leader === undefined ? undefined : row.leader === 'NEUTRAL' ? 'neutral' as const : {name: row.leader.name, color: row.leader.color};
+        return {resolution: row.resolution, short: row.short, ...(leader === undefined ? {} : {leader}), ...(row.tie === undefined ? {} : {tie: row.tie})};
+      }),
+    },
+  };
+}
+
+/** The named leadership requirement's template — `${0}` the resolutions the rule asks to lead at once. */
+export const LEADERSHIP_REQUIREMENT_REASON = 'Requires leading ${0} resolution(s) at once';
 
 /** The named chairman requirement's text — the scan's own sentence. */
 export const CHAIRMAN_REQUIREMENT_REASON = 'Requires you to be the chairman';

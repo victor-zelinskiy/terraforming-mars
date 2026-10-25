@@ -453,6 +453,26 @@ export class Parliament {
     return tied ? {owner: best.owner, votes: best.votes, tieBreak: 'earlier-delegate'} : {owner: best.owner, votes: best.votes};
   }
 
+  /**
+   * HOW FAR `owner` IS FROM LEADING `slot` (Turmoil Redux TR73 Political Alliance's «now»): the fewest delegates of
+   * theirs that, placed now, make them its leader — and the leader they would then be. Never a second count: each
+   * candidate cube goes onto a `projection` and `leaderOf` decides (a tie goes to the earlier first delegate, neutrals
+   * never lead). 0 when they lead already. Pure — the live table is untouched.
+   */
+  public delegatesToLead(owner: PlayerId, slot: Slot): {count: number; leader: Leader} {
+    const index = this.slots.indexOf(slot);
+    const copy = this.projection();
+    const twin = copy.slots[index] ?? {instance: slot.instance, votes: slot.votes.map((vote) => ({...vote}))};
+    // One cube past every other seat's whole count always leads, so the loop ends by `votes.length + 1`.
+    for (let count = 0; ; count++) {
+      const leader = copy.leaderOf(twin);
+      if (leader !== undefined && leader.owner === owner) {
+        return {count, leader};
+      }
+      twin.votes.push({owner, seq: ++copy.voteSeq});
+    }
+  }
+
   /** The resolution that would be enacted now, and who wins it (rulebook p.8, p.10). */
   public winner(): WinnerVerdict | undefined {
     return this.winnerAmong(this.slots);

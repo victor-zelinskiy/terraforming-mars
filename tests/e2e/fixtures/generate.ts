@@ -241,6 +241,7 @@ import {PoliticalScience} from '../../../src/server/cards/turmoilRedux/Political
 import {PoliticalDonation} from '../../../src/server/cards/turmoilRedux/PoliticalDonation';
 import {Mangrove} from '../../../src/server/cards/base/Mangrove';
 import {MinorityRepresentation} from '../../../src/server/cards/turmoilRedux/MinorityRepresentation';
+import {PoliticalAllianceRedux} from '../../../src/server/cards/turmoilRedux/PoliticalAllianceRedux';
 import {NATIONALIST_MOVEMENT_PARTIES, NATIONALIST_MOVEMENT_PRINT, NationalistMovement} from '../../../src/server/cards/turmoilRedux/NationalistMovement';
 import {RedTechConvention} from '../../../src/server/cards/turmoilRedux/RedTechConvention';
 import {Payment} from '../../../src/common/inputs/Payment';
@@ -1666,6 +1667,60 @@ parliamentFixture('minority-representation', {
     parliament.assertLedger(game);
   },
 });
+// ── TR73 · POLITICAL ALLIANCE:redux — the LEADERSHIP requirement («the highest number of delegates on 2 resolutions at
+//    once»; ties to the earlier first delegate, neutrals never lead) and one Agenda step. Blue's action phase, 10 M€, the
+//    card in hand; blue on step 1 (the walk's step ② pays a TR — the Greens rule by the starting rule and answer it with
+//    +2 M€), red on 3. The voting area: Central Power Grid · Architecture Award · Colonization Funding, every slot
+//    cleared and arranged by hand (blue's cubes from the RESERVE — the free lobby delegate stays for the vote):
+//      `political-alliance-locked` — slot 0 blue ×2 (blue leads) · slot 1 red, THEN blue (a tie lost on the first
+//        delegate) · slot 2 two neutrals (no player leads). Blue leads ONE: the hand's chip reads «1/2»; blue's free vote
+//        on slot 1 makes it two.
+//      `political-alliance` — slot 0 blue ×2 against red ×1 · slot 1 two neutrals and one of blue's (neutrals never
+//        lead) · slot 2 red ×1. Blue leads TWO: the card plays. ──
+function politicalAllianceFixture(name: string, arrange: (table: ParliamentTable) => void, leads: number): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [10, 30],
+    agenda: [1, 3],
+    arrange: (table) => {
+      const {parliament, p1} = table;
+      seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
+      seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+      seatResolution(parliament, 2, COLONIZATION_FUNDING_ID);
+      for (const slot of parliament.slots) {
+        slot.votes = [];
+      }
+      arrange(table);
+      p1.cardsInHand.push(new PoliticalAllianceRedux());
+    },
+    expect: ({game, parliament, p1, p2}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.POLITICAL_ALLIANCE_REDUX);
+      const led = game.politics?.partiesLedBy(p1);
+      if (card === undefined || p1.canPlay(card) !== (leads >= 2) || led !== leads || parliament.agendaOf(p1) !== 1 || parliament.agendaOf(p2) !== 3 ||
+          parliament.rulingParty() !== PartyName.GREENS || !parliament.lobby.has(p1.id)) {
+        throw new Error(`${name}: expected blue leading ${leads} (playable=${leads >= 2}), on step 1 with the lobby delegate, the Greens ruling — got led=${led} playable=${card !== undefined && p1.canPlay(card)} agenda=${parliament.agendaOf(p1)}/${parliament.agendaOf(p2)} ruling=${parliament.rulingParty()} lobby=${parliament.lobby.has(p1.id)}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+politicalAllianceFixture('political-alliance-locked', ({parliament, p1, p2}) => {
+  parliament.placeVote(p1, parliament.slots[0], 'reserve');
+  parliament.placeVote(p1, parliament.slots[0], 'reserve');
+  parliament.placeVote(p2, parliament.slots[1], 'reserve');
+  parliament.placeVote(p1, parliament.slots[1], 'reserve');
+  parliament.addNeutralVote(parliament.slots[2]);
+  parliament.addNeutralVote(parliament.slots[2]);
+}, 1);
+politicalAllianceFixture('political-alliance', ({parliament, p1, p2}) => {
+  parliament.placeVote(p1, parliament.slots[0], 'reserve');
+  parliament.placeVote(p2, parliament.slots[0], 'reserve');
+  parliament.placeVote(p1, parliament.slots[0], 'reserve');
+  parliament.addNeutralVote(parliament.slots[1]);
+  parliament.addNeutralVote(parliament.slots[1]);
+  parliament.placeVote(p1, parliament.slots[1], 'reserve');
+  parliament.placeVote(p2, parliament.slots[2], 'reserve');
+}, 2);
 // ── TR37 · RED LAWYERS — TR04's printed walk WITHOUT the influence ceiling: the card for which a CARD step in the
 //    MIDDLE of a walk became reachable (docs/TURMOIL_REDUX_MINORITY_REPRESENTATION.md §7 — the gap this closes).
 //    Blue's action phase, the card in hand (off the real deck), 10 M€; the Greens rule BY THE STARTING RULE (so the

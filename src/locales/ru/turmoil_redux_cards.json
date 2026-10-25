@@ -236,5 +236,6 @@
     "Effect: When you win on a resolution, place your cube on its party's banner.": "Эффект: когда вы побеждаете на резолюции, поставьте свой куб на знамя её партии.",
     "Effect: You gain the effect of every party whose banner holds your cube — in addition to the ruling party and to the parties where you have 2 delegates.": "Эффект: вы получаете эффект каждой партии, на знамени которой стоит ваш куб, — вдобавок к правящей партии и к партиям, где у вас 2 делегата.",
     "Place your cube on the banner of any party": "Поставьте свой куб на знамя любой партии",
-    "After confirming, choose the party whose banner takes your cube.": "После подтверждения выберите партию, на знамя которой встанет ваш куб."
+    "After confirming, choose the party whose banner takes your cube.": "После подтверждения выберите партию, на знамя которой встанет ваш куб.",
+    "Requires that you have the highest number of delegates on 2 resolutions at once. (Ties are broken by who put a delegate in first, and Neutral delegates don't count.) Advance your Agenda marker 1 step.": "Требует, чтобы у вас было больше всех делегатов сразу на 2 резолюциях (при равенстве лидирует тот, чей делегат пришёл первым; нейтральные делегаты не учитываются). Продвиньте маркер Карьеры на 1 шаг."
 }

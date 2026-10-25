@@ -72,6 +72,7 @@ import {EdenAlliance} from './EdenAlliance';
 import {PrometheanAlliance} from './PrometheanAlliance';
 import {AerialLensesRedux} from './AerialLensesRedux';
 import {BannedDelegateRedux} from './BannedDelegateRedux';
+import {PoliticalAllianceRedux} from './PoliticalAllianceRedux';
 import {SponsoredMoholeRedux} from './SponsoredMoholeRedux';
 import {SeptemTribusRedux} from './SeptemTribusRedux';
 
@@ -356,6 +357,10 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // TR72: the classic T02 under Redux — the chairman takes ANY one delegate off a resolution or a support area (the
     // Parliament's delegate mode); no «non-leader» clause. Art and lore are T02's (`reimplements`).
     [CardName.BANNED_DELEGATE_REDUX]: {Factory: BannedDelegateRedux},
+    // TR73: the classic X09 under Redux — 2 M€, «the highest number of delegates on 2 resolutions at once» (the
+    // facade's `partiesLedBy`, ties by the earlier first delegate, neutrals never lead) and one Agenda step instead of the
+    // TR. Art and lore are X09's (`reimplements`).
+    [CardName.POLITICAL_ALLIANCE_REDUX]: {Factory: PoliticalAllianceRedux},
     // TR75 (the fifth registry row — authored third): the classic T13 at the printed Greens' plate, still 5 M€, a Building
     // tag and +2 heat production, plus 1 VP. Art and lore are T13's (`reimplements`).
     [CardName.SPONSORED_MOHOLE_REDUX]: {Factory: SponsoredMoholeRedux},
@@ -371,6 +376,7 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
   cardsToRemove: [
     CardName.AERIAL_LENSES,
     CardName.BANNED_DELEGATE,
+    CardName.POLITICAL_ALLIANCE,
     CardName.SPONSORED_MOHOLE,
     CardName.SEPTUM_TRIBUS,
   ],

@@ -5,8 +5,10 @@ import {Resource} from '../../src/common/Resource';
 import {Tag} from '../../src/common/cards/Tag';
 import {CardName} from '../../src/common/cards/CardName';
 import {MAX_TEMPERATURE} from '../../src/common/constants';
-import {CHAIRMAN_REQUIREMENT_REASON, PARTY_REQUIREMENT_REASON, unplayableReasons} from '../../src/server/models/unplayableReasons';
+import {CHAIRMAN_REQUIREMENT_REASON, LEADERSHIP_REQUIREMENT_REASON, PARTY_REQUIREMENT_REASON, unplayableReasons} from '../../src/server/models/unplayableReasons';
 import {BannedDelegate} from '../../src/server/cards/turmoil/BannedDelegate';
+import {PoliticalAlliance} from '../../src/server/cards/turmoil/PoliticalAlliance';
+import {PoliticalAllianceRedux} from '../../src/server/cards/turmoilRedux/PoliticalAllianceRedux';
 import {fakeCard} from '../TestingUtils';
 import {CardRequirementDescriptor} from '../../src/common/cards/CardRequirementDescriptor';
 import {MartianCensus} from '../../src/server/cards/turmoilRedux/MartianCensus';
@@ -409,6 +411,85 @@ describe('unplayableReasons', () => {
         player.megaCredits = 100;
         const reasons = unplayableReasons(player, new BannedDelegate()).filter((r) => r.type === 'party');
         expect(reasons).deep.eq([{type: 'party', message: 'Requires a specific political situation', requirement: true}]);
+      });
+    });
+
+    /*
+     * THE LEADERSHIP REQUIREMENT (Turmoil Redux — TR73 Political Alliance the first): a COUNT («now 1 of 2») and
+     * WHERE — the resolutions led, and for each other one who leads it and how many delegates short, a tie read
+     * honestly. Only that named form restates the rule (`req:Party leader`); the classic line addresses nothing.
+     */
+    describe('a LEADERSHIP requirement', () => {
+      function redux() {
+        const [game, player, other] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+        const parliament = game.parliament!;
+        ([PartyName.GREENS, PartyName.MARS, PartyName.INDUSTRIALISTS] as const).forEach((party, i) => seatResolution(parliament, i, quietResolutionOf(party)));
+        player.megaCredits = 100;
+        return {player, other, parliament, reason: () => unplayableReasons(player, new PoliticalAllianceRedux())};
+      }
+
+      it('nothing led: the count «0 of 2», every resolution trailing, the rules-block address', () => {
+        const t = redux();
+        const [reason] = t.reason();
+        expect(reason).deep.include({
+          type: 'count', message: LEADERSHIP_REQUIREMENT_REASON, params: ['2'], current: 0, requirement: true, requirementKey: 'req:Party leader',
+        });
+        // Empty slots: one delegate leads — no leader to name.
+        expect(reason.leadership?.leading).deep.eq([]);
+        expect(reason.leadership?.trailing.map((row) => row.short)).deep.eq([1, 1, 1]);
+        expect(reason.leadership?.trailing[0].leader).is.undefined;
+      });
+
+      it('one led, one lost on a TIE (their first delegate earlier), one held by neutrals only', () => {
+        const t = redux();
+        const [a, b, c] = t.parliament.slots;
+        t.parliament.placeVote(t.player, a, 'reserve');
+        t.parliament.placeVote(t.other, b, 'reserve');
+        t.parliament.placeVote(t.player, b, 'reserve');
+        t.parliament.addNeutralVote(c);
+        t.parliament.addNeutralVote(c);
+        const [reason] = t.reason();
+        expect(reason.current).eq(1);
+        expect(reason.leadership?.leading).deep.eq([{resolution: t.parliament.resolutionOf(a.instance).id}]);
+        expect(reason.leadership?.trailing).deep.eq([
+          {resolution: t.parliament.resolutionOf(b.instance).id, short: 1, leader: {name: t.other.name, color: t.other.color}, tie: 'theirs'},
+          // Neutral delegates never lead among players: one of mine is enough.
+          {resolution: t.parliament.resolutionOf(c.instance).id, short: 1, leader: 'neutral'},
+        ]);
+      });
+
+      it('behind with the EARLIER first delegate: drawing level is enough (`tie: yours`)', () => {
+        const t = redux();
+        const b = t.parliament.slots[1];
+        t.parliament.placeVote(t.player, b, 'reserve');
+        t.parliament.placeVote(t.other, b, 'reserve');
+        t.parliament.placeVote(t.other, b, 'reserve');
+        const row = t.reason()[0].leadership?.trailing.find((r) => r.resolution === t.parliament.resolutionOf(b.instance).id);
+        expect(row).deep.include({short: 1, tie: 'yours'});
+      });
+
+      it('a lead won on the tie is named as such', () => {
+        const t = redux();
+        const a = t.parliament.slots[0];
+        t.parliament.placeVote(t.player, a, 'reserve');
+        t.parliament.placeVote(t.other, a, 'reserve');
+        expect(t.reason()[0].leadership?.leading).deep.eq([{resolution: t.parliament.resolutionOf(a.instance).id, tie: 'yours'}]);
+      });
+
+      it('two led: no reason at all', () => {
+        const t = redux();
+        t.parliament.placeVote(t.player, t.parliament.slots[0], 'reserve');
+        t.parliament.placeVote(t.player, t.parliament.slots[1], 'reserve');
+        expect(t.reason()).deep.eq([]);
+      });
+
+      it('the CLASSIC engine keeps upstream\'s line and addresses no rules block', () => {
+        const [/* game */, player] = testGame(2, {turmoilExtension: true});
+        player.megaCredits = 100;
+        const reasons = unplayableReasons(player, new PoliticalAlliance()).filter((r) => r.message === 'Requires ${0} party leader(s)');
+        expect(reasons).has.lengthOf(1);
+        expect(reasons[0].requirementKey).is.undefined;
+        expect(reasons[0].leadership).is.undefined;
       });
     });
 

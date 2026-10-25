@@ -58,10 +58,10 @@ export const TURMOIL_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
  * (TR71 `Aerial Lenses:redux` — the first replacement; the template for the rows below); Banned
  * Delegate left the same day (TR72 `Banned Delegate:redux` — the Parliament's delegate mode); Sponsored
  * Mohole left 2026-10-25 (TR75 `Sponsored Mohole:redux` — numbered by its registry row, authored third), and
- * the Septem Tribus corporation the same day (TR77 `Septem Tribus:redux` — the cubes on the parties' banners).
+ * the Septem Tribus corporation the same day (TR77 `Septem Tribus:redux` — the cubes on the parties' banners), and
+ * Political Alliance the same day too (TR73 `Political Alliance:redux` — the leadership requirement, one Agenda step).
  */
 export const TURMOIL_CARDS_AWAITING_REDUX_REPLACEMENT: ReadonlyArray<CardName> = [
-  CardName.POLITICAL_ALLIANCE, // → leader of 2 resolutions → 1 Agenda step (cost 2)
   CardName.RECRUITMENT, // → a NEUTRAL delegate on a resolution ↔ your own from the reserve
   CardName.VOTE_OF_NO_CONFIDENCE, // → ≥1 influence; unseat the CURRENT chairman → 1 Agenda step
 ];

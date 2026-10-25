@@ -3,6 +3,7 @@ import {Resource} from '../Resource';
 import {PartyName} from '../turmoil/PartyName';
 import {Color} from '../Color';
 import {CardName} from './CardName';
+import {ResolutionId} from '../parliament/ParliamentTypes';
 
 /**
  * A single, structured reason a project card in hand can't be played right
@@ -109,6 +110,19 @@ export interface UnplayableReason {
    * upstream's faceless line.
    */
   chairmanNow?: {name: string; color: Color} | 'vacant';
+  /**
+   * For the LEADERSHIP requirement, NAMED (Turmoil Redux — TR73 Political Alliance: «the highest number of delegates
+   * on 2 resolutions at once»): the resolutions of the voting area the player leads now, and for every other one who
+   * leads it (a seat's name and colour, `neutral` — only neutral delegates stand there, none — empty) and how many of
+   * the player's delegates would make it theirs. `tie` reads a tie honestly — `yours`: the player's first delegate is
+   * the earlier, so drawing level is enough (on a led row: the lead IS a won tie); `theirs`: the player stands level
+   * and loses it on the first delegate. `current` is the led count, `params[0]` the printed number. Every number is
+   * the server's (`PoliticalOps.leadershipStanding` — `Parliament.leaderOf` on the table and on its projection).
+   */
+  leadership?: {
+    leading: ReadonlyArray<{resolution: ResolutionId; tie?: 'yours'}>;
+    trailing: ReadonlyArray<{resolution: ResolutionId; leader?: {name: string; color: Color} | 'neutral'; short: number; tie?: 'yours' | 'theirs'}>;
+  };
   /** The player's current value, shown as a muted "now: N" badge. */
   current?: number;
   /**

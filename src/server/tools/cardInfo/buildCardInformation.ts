@@ -305,6 +305,15 @@ function requirementBlock(descriptor: CardRequirementDescriptor, dup: number, no
     en = `Requires ${descriptor.party} to be ruling or that you have 2 delegates on its resolution.`;
     break;
   }
+  case RequirementType.PARTY_LEADERS: {
+    // Turmoil Redux (TR73 Political Alliance — the scan's «the highest number of delegates on N resolutions at
+    // once»): the LEADER of a resolution of the Voting Area. Only Redux cards reach here (the classic Turmoil cards
+    // are out of the premium scope); the tie-break and the neutrals stay in the printed description. The hand's
+    // reason (`unplayableReasons` → `LEADERSHIP_REQUIREMENT_REASON`) restates it with the resolutions led now.
+    const n = descriptor.partyLeader ?? descriptor.count ?? 1;
+    en = `Requires that you lead ${enCount(n, 'resolution', 'resolutions')} in the Voting Area at once.`;
+    break;
+  }
   case RequirementType.CHAIRMAN: {
     // Turmoil Redux (TR12 — the set's first): the scan's own sentence. The hand's reason
     // (`unplayableReasons` → `CHAIRMAN_REQUIREMENT_REASON`) restates it with who holds the seat now.

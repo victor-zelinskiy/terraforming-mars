@@ -6,6 +6,7 @@ import {statusCode} from '../../src/common/http/statusCode';
 import {DeckCompositionModel} from '../../src/common/models/DeckCompositionModel';
 import {clearDeckCompositionMemo} from '../../src/server/deckComposition';
 import {creatorConfig} from '../server/creatorConfig';
+import {TURMOIL_REDUX_CARD_MANIFEST} from '../../src/server/cards/turmoilRedux/TurmoilReduxCardManifest';
 
 describe('ApiDeckComposition', () => {
   let scaffolding: RouteTestScaffolding;
@@ -57,7 +58,8 @@ describe('ApiDeckComposition', () => {
     expect(model.extras.resolutions).greaterThan(0);
     // No Venus Next in this set: the Redux cards that need it stay out — the contribution is what is DEALT.
     expect(model.contributions.turmoilRedux?.projects).eq((model.projects.byModule.turmoilRedux ?? 0) + (model.projects.byModule.turmoil ?? 0));
-    expect(model.projects.byModule.turmoilRedux).lessThan(70);
+    // …measured against the module's own project cards (the printed 70 + the replacements authored so far), never a literal.
+    expect(model.projects.byModule.turmoilRedux).lessThan(Object.keys(TURMOIL_REDUX_CARD_MANIFEST.projectCards).length);
     expect(model.contributions.colonies?.projects).greaterThan(0);
   });
 });

@@ -60,6 +60,13 @@ export type NormalizedRequirement = {
    */
   plain: boolean;
   /**
+   * PRINTED AS A TALLY, the way the scan prints it — the icon ONCE PER UNIT,
+   * no operator and no number (Turmoil Redux TR73 Political Alliance: two
+   * delegate figures = «the leader on two resolutions»). Only a small count
+   * tallies (≤ 3); a larger one keeps the formula «[icon] ≥ N».
+   */
+  tally: boolean;
+  /**
    * THE REQUIREMENT UNDER A MODIFIER (TR49 class) — the server's reading of
    * this printed requirement for the VIEWER (`CardModel.requirementEasing`,
    * own hand only): the bound the modifiers make of the printed one, or
@@ -273,7 +280,10 @@ const TILES = 'assets/tiles';
 const RES = 'assets/resources';
 const MISC = 'assets/misc';
 
-type RequirementRender = {value: (d: CardRequirementDescriptor) => number, iconUrl?: string, suffix?: '%' | '°C', binary?: boolean, label?: string, plain?: boolean};
+type RequirementRender = {value: (d: CardRequirementDescriptor) => number, iconUrl?: string, suffix?: '%' | '°C', binary?: boolean, label?: string, plain?: boolean, tally?: boolean};
+
+/** The largest count a TALLY requirement prints figure by figure (`NormalizedRequirement.tally`). */
+const MAX_TALLY = 3;
 
 const REQUIREMENT_RENDER: Partial<Record<RequirementType, RequirementRender>> = {
   [RequirementType.OXYGEN]: {value: (d) => d.oxygen ?? 0, iconUrl: `${GLOBALS}/oxygen.png`, suffix: '%'},
@@ -295,14 +305,17 @@ const REQUIREMENT_RENDER: Partial<Record<RequirementType, RequirementRender>> = 
   // THE CHAIR — the ONE mark of the chairmanship (`PremiumChairGlyph`'s drawing as a file, `chair.svg`): the scan's
   // silhouette in the MIN plate reads as the chair every Parliament surface already draws (glossary §4), never upstream's bust.
   [RequirementType.CHAIRMAN]: {value: () => 0, iconUrl: `${MISC}/chair.svg`, binary: true},
-  [RequirementType.PARTY_LEADERS]: {value: (d) => d.partyLeader ?? d.count ?? 1, iconUrl: `${MISC}/delegate.svg`},
+  // LEADERSHIP (Turmoil Redux TR73 — «the highest number of delegates on 2 resolutions at once»): as printed, the
+  // delegate figure ONCE PER RESOLUTION led — two figures, no number. TR02 «N delegates on resolutions» prints «N
+  // [figure]»: the two kinds share the figure and part by its count, as the scans do.
+  [RequirementType.PARTY_LEADERS]: {value: (d) => d.partyLeader ?? d.count ?? 1, iconUrl: `${MISC}/delegate.svg`, tally: true},
   // Hydronetwork track progress (Dutch Mountains): the module's own medallion
   // is the ONE established glyph of the track — the same mark the DP cards
   // carry in their expansion corner, so «[Гидросеть] ≥ 4» reads as track
   // progress and can never be mistaken for an energy price or an action count.
   [RequirementType.DELTA_POSITION]: {value: (d) => d.deltaPosition ?? d.count ?? 1, iconUrl: 'assets/expansion_icons/expansion_icon_deltaProject.png'},
   // Turmoil Redux (TR02): as printed — the delegate figure and the number. PARTY_LEADERS wears the same
-  // icon; the two differ in the rule line and the chip's hint, never in the picture.
+  // figure as a TALLY (two figures, TR73) — the two kinds differ in the picture as the scans do.
   [RequirementType.DELEGATES_ON_RESOLUTIONS]: {value: (d) => d.delegatesOnResolutions ?? d.count ?? 1, iconUrl: `${MISC}/delegate.svg`},
   // Turmoil Redux (TR01): the printed «?» disc — the same asset the DIVERSE_TAG item draws (Aridor,
   // Interplanetary Trade: «different tags»); the rule line tells «any one type» apart, the picture is the scan's.
@@ -335,10 +348,11 @@ export function normalizeRequirement(descriptor: CardRequirementDescriptor): Nor
   // meaning as a text label (never silently dropped).
   const label = (render === undefined) ? type : (render.label ?? descriptor.text ?? undefined);
   const plain = render?.plain === true;
+  const value = render?.value(descriptor) ?? descriptor.count ?? 1;
   return {
     type,
     comparator: descriptor.max === true ? 'max' : 'min',
-    value: render?.value(descriptor) ?? descriptor.count ?? 1,
+    value,
     suffix: plain && descriptor.max !== true ? '+' : render?.suffix ?? '',
     iconUrl,
     tag: descriptor.tag,
@@ -348,6 +362,7 @@ export function normalizeRequirement(descriptor: CardRequirementDescriptor): Nor
     all: descriptor.all === true,
     label,
     plain,
+    tally: render?.tally === true && descriptor.max !== true && value >= 1 && value <= MAX_TALLY,
   };
 }
 

@@ -57,8 +57,9 @@ export const TURMOIL_REDUX_CLASSIC_REPLACEMENTS: ReadonlyArray<ClassicReplacemen
     changes: 'still cost 0, event, «requires you to be Chairman»; the target is «any delegate from a resolution or Popular Support area» — no NON-LEADER clause, and the Popular Support areas are in reach.',
   },
   {
+    // TR73 — AUTHORED 2026-10-25 (`turmoilRedux/PoliticalAllianceRedux.ts`, `Political Alliance:redux`) — the fifth authored.
     classic: CardName.POLITICAL_ALLIANCE, kind: 'project', scan: 'Projects/Replacement - Political Alliance.png',
-    changes: 'cost 4 → 2; requirement «the highest number of delegates on 2 resolutions at once» (ties by who put a delegate in first, neutral delegates do not count — `PoliticalOps.partiesLedBy` is this reading); reward +1 TR → advance the Agenda marker 1 step. Invented lore already in `docs/claude/turmoil-redux-invented-lore.md`.',
+    changes: 'cost 4 → 2; requirement «the highest number of delegates on 2 resolutions at once» (ties by who put a delegate in first, neutral delegates do not count — `PoliticalOps.partiesLedBy` is this reading); reward +1 TR → advance the Agenda marker 1 step. Lore: the owner\'s quote for the classic X09 (the invented line in `docs/claude/turmoil-redux-invented-lore.md` is not used).',
   },
   {
     classic: CardName.RECRUITMENT, kind: 'project', scan: 'Projects/Replacement - Recruitment.png',

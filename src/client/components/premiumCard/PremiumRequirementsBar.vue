@@ -23,6 +23,13 @@
               <PremiumModifierMarks :sources="req.easing?.sources ?? []" />
             </span>
           </template>
+          <!-- a TALLY requirement (TR73 «lead 2 resolutions»): the figure printed once per unit — no operator, no
+               number — as the scan prints it -->
+          <template v-else-if="req.tally">
+            <span v-for="n in req.value" :key="n" class="pcard-req__socket" data-req-tally>
+              <span class="pcard-req__icon" :style="iconStyle(req)"></span>
+            </span>
+          </template>
           <!-- formula requirement: [icon] [≥/≤] [value][suffix] — one expression -->
           <template v-else>
             <span v-if="req.iconUrl !== undefined" class="pcard-req__socket" :class="socketClass(req)">
@@ -149,6 +156,7 @@ export default defineComponent({
       const state = this.stateOf(req);
       return {
         'pcard-req--binary': req.isBinary,
+        'pcard-req--tally': req.tally,
         'pcard-req--eased': state === 'eased',
         'pcard-req--waived': state === 'waived',
         'pcard-req--allied': state === 'allied',

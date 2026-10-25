@@ -154,6 +154,8 @@
     "Requires ${0} played cards with requirements": "Требуется разыгранных карт с требованиями: ${0}",
     "Requires ${0} or less played cards with requirements": "Требуется не больше ${0} разыгранных карт с требованиями",
     "Cards with requirements": "Карты с требованиями",
+    "Requires leading ${0} resolution(s) at once": "Требуется лидировать сразу на ${0} {резолюции|резолюциях|резолюциях}",
+    "Leadership": "Лидерство",
     "Requires generation ${0} or less": "Требуется поколение не позже ${0}",
     "Requires ${0} resource type(s)": "Требуется типов ресурсов: ${0}",
     "Requires a habitat rate of ${0}": "Требуется рейтинг колоний: ${0}",

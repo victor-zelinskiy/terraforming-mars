@@ -2,6 +2,12 @@ import {expect} from 'chai';
 import {unplayableReasonChip, unplayableReasonCompact, unplayableReasonEmblem, unplayableReasonLine, unplayableReasonText} from '@/client/components/handCards/unplayableReasonFormat';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
+import {resolutionName} from '@/client/parliament/ClientParliamentManifest';
+
+// Three real resolutions of the catalog (the client never imports a resolution module — the ids are data).
+const AQUIFER_CONTEST_ID = 'RDX_GREENS_AQUIFER_CONTEST';
+const ARCHITECTURE_AWARD_ID = 'RDX_MARS_ARCHITECTURE_AWARD';
+const CENTRAL_POWER_GRID_ID = 'RDX_INDUSTRIALISTS_CENTRAL_POWER_GRID';
 
 /**
  * THE COMPACT COUNTER FORM of an unplayable reason («<label> <now>/<bound>») —
@@ -47,6 +53,35 @@ describe('unplayableReasonFormat — the compact counter form', () => {
     expect(unplayableReasonLine(floor)).eq('Requires 5 played cards with requirements · Now: 4');
     const ceiling: UnplayableReason = {type: 'count', message: 'Requires ${0} or less played cards with requirements', params: ['2'], current: 3, requirement: true};
     expect(unplayableReasonCompact(ceiling)).eq('3/≤2');
+  });
+
+  /*
+   * THE LEADERSHIP REQUIREMENT (Turmoil Redux — TR73 Political Alliance the first): on a rail the TWO-figure badge
+   * and the counter («[two figures] 1/2»); the line names where the player leads, and for every other resolution how
+   * many delegates are short, who leads it and how a tie falls — the server's numbers, the resolutions' own names.
+   */
+  it('«leadership» (TR73) reads as the two-figure badge and the counter; the line says WHERE', () => {
+    const reason: UnplayableReason = {
+      type: 'count', message: 'Requires leading ${0} resolution(s) at once', params: ['2'], current: 1, requirement: true,
+      leadership: {
+        leading: [{resolution: AQUIFER_CONTEST_ID}],
+        trailing: [
+          {resolution: ARCHITECTURE_AWARD_ID, short: 1, leader: {name: 'Rival', color: 'red'}, tie: 'theirs'},
+          {resolution: CENTRAL_POWER_GRID_ID, short: 1, leader: 'neutral'},
+        ],
+      },
+    };
+    expect(unplayableReasonEmblem(reason)).eq('assets/misc/delegate-pair.svg');
+    expect(unplayableReasonCompact(reason)).eq('1/2');
+    expect(unplayableReasonChip([reason])).deep.eq({emblem: 'assets/misc/delegate-pair.svg', text: '1/2'});
+    const q = (id: string) => '«' + resolutionName(id) + '»';
+    expect(unplayableReasonLine(reason)).eq(
+      'Requires leading 2 resolution(s) at once · you lead: ' + q(AQUIFER_CONTEST_ID) +
+      ' · ' + q(ARCHITECTURE_AWARD_ID) + ': delegates short 1 (leads: Rival; a tie is not enough — the rival\'s first delegate is earlier)' +
+      ' · ' + q(CENTRAL_POWER_GRID_ID) + ': delegates short 1 (neutral delegates only)');
+    const none: UnplayableReason = {...reason, current: 0, leadership: {leading: [], trailing: [{resolution: AQUIFER_CONTEST_ID, short: 1, tie: 'yours'}]}};
+    expect(unplayableReasonLine(none)).eq('Requires leading 2 resolution(s) at once · you lead no resolution · ' +
+      q(AQUIFER_CONTEST_ID) + ': delegates short 1 (a tie is enough — your first delegate is earlier)');
   });
 
   /*

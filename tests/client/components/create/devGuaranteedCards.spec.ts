@@ -142,10 +142,10 @@ describe('devGuaranteedCards', () => {
       for (const name of adapted) {
         expect(TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name), name).to.be.false;
       }
-      // A card awaiting its Redux replacement (Political Alliance) and a REPLACED one (Aerial Lenses, Banned Delegate,
-      // Sponsored Mohole — off the list since TR71 / TR72 / TR75) are dealt to no Redux table — offered nowhere; the replacement itself is offered
+      // A card awaiting its Redux replacement (Recruitment) and a REPLACED one (Aerial Lenses, Banned Delegate, Political
+      // Alliance, Sponsored Mohole — off the list since TR71 / TR72 / TR73 / TR75) are dealt to no Redux table — offered nowhere; the replacement itself is offered
       // under Redux.
-      for (const classic of [CardName.POLITICAL_ALLIANCE, CardName.AERIAL_LENSES, CardName.BANNED_DELEGATE, CardName.SPONSORED_MOHOLE]) {
+      for (const classic of [CardName.RECRUITMENT, CardName.AERIAL_LENSES, CardName.BANNED_DELEGATE, CardName.POLITICAL_ALLIANCE, CardName.SPONSORED_MOHOLE]) {
         expect(named).to.not.include(classic);
         for (const module of GUARANTEED_MODULES) {
           expect(guaranteedPickRows(module.id, new Set()).some((row) => row.kind === 'card' && row.entry.name === classic),
@@ -155,6 +155,7 @@ describe('devGuaranteedCards', () => {
       expect(named).to.include(CardName.AERIAL_LENSES_REDUX);
       expect(named).to.include(CardName.BANNED_DELEGATE_REDUX);
       expect(named).to.include(CardName.SPONSORED_MOHOLE_REDUX);
+      expect(named).to.include(CardName.POLITICAL_ALLIANCE_REDUX);
       // TR77 — the replacement CORPORATION is offered under Redux; the classic R15 nowhere.
       expect(named).to.include(CardName.SEPTEM_TRIBUS_REDUX);
       for (const module of GUARANTEED_MODULES) {

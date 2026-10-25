@@ -40,6 +40,8 @@ describe('i18n', () => {
     expect(translateCardName('Aerial Lenses:redux')).eq('Воздушные линзы');
     (window as any)._translations = {'Sponsored Mohole': 'Грант на скважину'};
     expect(translateCardName('Sponsored Mohole:redux')).eq('Грант на скважину');
+    (window as any)._translations = {'Political Alliance': 'Политический союз'};
+    expect(translateCardName('Political Alliance:redux')).eq('Политический союз');
     expect(logs).deep.eq([]);
   });
 

@@ -548,6 +548,19 @@ describe('normalizeRequirement', () => {
     expect(delegates.label).to.eq(undefined);
   });
 
+  it('«leadership» (Turmoil Redux, TR73) is a TALLY — the delegate figure once per resolution led, no operator, no number', () => {
+    const leaders = normalizeRequirement({partyLeader: 2});
+    expect(leaders.type).to.eq(RequirementType.PARTY_LEADERS);
+    expect(leaders.value).to.eq(2);
+    expect(leaders.iconUrl).to.eq('assets/misc/delegate.svg');
+    expect(leaders.tally, 'two figures, as the scan prints them').to.eq(true);
+    expect(leaders.isBinary).to.eq(false);
+    // TR02 shares the figure and keeps its formula «[figure] ≥ 3» — the two kinds differ in the picture.
+    expect(normalizeRequirement({delegatesOnResolutions: 3}).tally).to.eq(false);
+    // A count too large to tally keeps the formula.
+    expect(normalizeRequirement({partyLeader: 4}).tally).to.eq(false);
+  });
+
   it('«influence» (Turmoil Redux, TR04) draws the influence badge with the bar — the track\'s own symbol, «max 1» as printed', () => {
     const influence = normalizeRequirement({influence: 1, max: true});
     expect(influence.type).to.eq(RequirementType.INFLUENCE);

@@ -44,7 +44,8 @@ function delegatePath(): string {
 }
 
 describe('the delegate — ONE silhouette on the card and on the table', () => {
-  for (const file of ['assets/misc/delegate.svg', 'assets/misc/delegate-neutral.svg']) {
+  // `delegate-pair.svg` (TR73's leadership badge) draws the ONE path once and USES it twice.
+  for (const file of ['assets/misc/delegate.svg', 'assets/misc/delegate-neutral.svg', 'assets/misc/delegate-pair.svg']) {
     it(`${file} prints DELEGATE_PATH, byte for byte`, () => {
       const paths = [...read(file).matchAll(/<path[^>]*\sd="([^"]+)"/g)].map((m) => m[1]);
       expect(paths, 'the file draws ONE path').has.lengthOf(1);
