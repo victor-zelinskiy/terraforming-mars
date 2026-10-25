@@ -18,6 +18,14 @@
  * The final sitting is the one barrier left: the final greeneries follow it
  * and they ask the seats in turn — its last confirmation moves the game on.
  *
+ * THE EARLY CLOSE: while the chain waits on ANOTHER seat's question, a seat
+ * nothing is asked of may close its sitting at once (`offerEarly` — the same
+ * confirmation, marked `early`). It leaves the record before it is written:
+ * `done` asks it nothing and the next generation admits it at once. A
+ * question the law asks it later SUPERSEDES the early close (`Player` drops
+ * an unanswered one silently) and comes as an ordinary prompt; the close is
+ * offered again once that question is answered.
+ *
  * Never a counter in memory, never a clock, never the browser: the answer is
  * the seat's, the record is the server's.
  */
@@ -29,6 +37,7 @@ import {message} from '../logs/MessageBuilder';
 import {CapturedEventContext} from '../events/EventRecorder';
 import {Parliament} from './Parliament';
 import {SerializedPhaseSummary, SerializedSittingAcks} from './SerializedParliament';
+import {PlayerId} from '../../common/Types';
 
 export class SittingAcks {
   /**
@@ -36,8 +45,9 @@ export class SittingAcks {
    * the confirmation. Nothing owed (a table without a human) writes nothing.
    * Returns whether anybody owes it.
    */
-  public static open(game: IGame, parliament: Parliament, summary: SerializedPhaseSummary | undefined, final: boolean): boolean {
-    const pending = parliament.participants(game, 'prompts').map((seat) => seat.id);
+  public static open(game: IGame, parliament: Parliament, summary: SerializedPhaseSummary | undefined, final: boolean,
+    closedEarly: ReadonlyArray<PlayerId> = []): boolean {
+    const pending = parliament.participants(game, 'prompts').map((seat) => seat.id).filter((id) => !closedEarly.includes(id));
     if (summary === undefined || pending.length === 0) {
       parliament.sittingAcks = undefined;
       return false;
@@ -116,6 +126,57 @@ export class SittingAcks {
     game.admitToGeneration(player);
   }
 
+  /**
+   * THE EARLY CLOSE — offered to every seat of the aspect `prompts` that has not closed yet and whose slot is FREE
+   * (nothing is asked of it right now), while the sitting runs and waits on another seat. Never over a standing
+   * prompt; a seat asked later loses the offer to that question (`Player.setWaitingFor`) and is offered it again
+   * after its answer (the phase calls this after every pause).
+   */
+  public static offerEarly(game: IGame, parliament: Parliament, context: CapturedEventContext | undefined): void {
+    const p = parliament.phase;
+    if (p === undefined) {
+      return;
+    }
+    const closed = p.closedEarly ?? [];
+    for (const seat of parliament.participants(game, 'prompts')) {
+      if (closed.includes(seat.id) || seat.getWaitingFor() !== undefined) {
+        continue;
+      }
+      const prompt = new SelectOption(message('Nothing is asked of you in the sitting of generation ${0}', (b) => b.number(p.generation)), 'Close the sitting')
+        .markParliamentPhase({stage: 'close', generation: p.generation, final: p.final, seq: p.summary?.seq ?? 0, early: true});
+      game.events.runWithContext(context, () => {
+        seat.setWaitingFor(prompt, () => SittingAcks.answerEarly(seat, p.generation, context));
+      });
+    }
+  }
+
+  /** The seat closed its sitting EARLY: it is written out of the record to come — the sitting runs on without it. */
+  private static answerEarly(player: IPlayer, generation: number, context: CapturedEventContext | undefined): void {
+    const game = player.game;
+    const p = game.parliament?.phase;
+    if (p === undefined || p.generation !== generation) {
+      return;
+    }
+    const closed = (p.closedEarly ??= []);
+    if (closed.includes(player.id)) {
+      return;
+    }
+    closed.push(player.id);
+    game.events.runWithContext(context, () => {
+      game.log('${0} closed the sitting', (b) => b.player(player));
+    });
+    game.save();
+  }
+
+  /** At the sitting's end every unanswered early close goes — `done` writes the record and asks its own confirmation. */
+  public static withdrawEarly(game: IGame): void {
+    for (const seat of game.players) {
+      if (isEarlySittingAck(seat.getWaitingFor())) {
+        seat.clearWaitingFor();
+      }
+    }
+  }
+
   /** The record goes when nothing is owed any more — no seat's confirmation, no World Government step. */
   public static settle(parliament: Parliament): void {
     const acks = parliament.sittingAcks;
@@ -123,6 +184,11 @@ export class SittingAcks {
       parliament.sittingAcks = undefined;
     }
   }
+}
+
+/** Is `input` the EARLY close of a sitting still running — superseded silently by any question the seat is asked? */
+export function isEarlySittingAck(input: PlayerInput | undefined): boolean {
+  return input?.parliamentPhasePrompt?.stage === 'close' && input.parliamentPhasePrompt.early === true;
 }
 
 /** Is `input` the confirmation of a sitting — by the structural marker, never the title? */

@@ -12,7 +12,7 @@ import {AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens
 import {BIODOME_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/BiodomeContest';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates, questionOf} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {Resource} from '../../src/common/Resource';
@@ -485,7 +485,7 @@ describe('ClimateResearch', () => {
       p2.production.override({heat: 4});
       endGeneration(game);
       expect(takePrompt(p1)?.cards, '5 + 1 = 6 → 2').has.length(2);
-      expect(p2.getWaitingFor(), 'p2 waits its turn').is.undefined;
+      expect(questionOf(p2), 'p2 waits its turn').is.undefined;
       takeAll(p1);
       runAllActions(game);
       expect(takePrompt(p2)?.cards, '4 + 2 = 6 → 2').has.length(2);

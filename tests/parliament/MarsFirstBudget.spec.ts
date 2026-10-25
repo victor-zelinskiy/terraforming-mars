@@ -12,7 +12,7 @@ import {
 import {GREENS_BUDGET} from '../../src/server/parliament/resolutions/greens/GreensBudget';
 import {SKYSCRAPERS_GRANT} from '../../src/server/parliament/resolutions/marsFirst/Skyscrapers';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, endGenerationThroughParliament, gatePromptOf, seatResolution, settleParliamentGates, sittingOpen} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, gatePromptOf, seatResolution, settleParliamentGates, sittingOpen, questionOf} from './parliamentArrange';
 import {declaredCountIds, resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {botWinnerRewardKind, botWinsSomething, declaresWinnerPart} from '../../src/server/automa/BotWinnerReward';
@@ -224,7 +224,7 @@ describe('MarsFirstBudget', () => {
       expect(ask1.spaces.map((s) => s.id)).deep.eq(game.board.getAvailableSpacesForType(p1, 'city').map((s) => s.id));
       expect(ask1.placementContext?.source).deep.eq({kind: 'resolution', resolution: MARS_FIRST_BUDGET_ID});
       expect(ask1.placementContext?.cancellable, 'Р2: the city is mandatory').is.not.true;
-      expect(p2.getWaitingFor(), 'the next seat waits for the whole of p1\'s part').is.undefined;
+      expect(questionOf(p2), 'the next seat waits for the whole of p1\'s part').is.undefined;
       expect(recordsOf(parliament, p2), 'p2 has paid nothing yet').deep.eq([]);
       const x = quietCell(game);
       const steel1 = p1.steel;

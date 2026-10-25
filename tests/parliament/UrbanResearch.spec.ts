@@ -14,7 +14,7 @@ import {
 import {SCIENTISTS_BUDGET, SCIENTISTS_BUDGET_DRAW, SCIENTISTS_BUDGET_MEGACREDITS} from '../../src/server/parliament/resolutions/scientists/ScientistsBudget';
 import {MIGRATION_FUNDING_MEGACREDITS} from '../../src/server/parliament/resolutions/marsFirst/MigrationFunding';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, endGenerationThroughParliament, passToParliament, seatResolution, settleParliamentGates, sittingOf} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, passToParliament, seatResolution, settleParliamentGates, sittingOf, questionOf} from './parliamentArrange';
 import {declaredCountIds, resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {questRenderData} from '../../src/server/parliament/quests/questRender';
 import {PartyName} from '../../src/common/turmoil/PartyName';
@@ -304,7 +304,7 @@ describe('UrbanResearch', () => {
       expect(ask?.externalDrawPrompt?.cause).deep.eq({kind: 'resolution', resolution: URBAN_RESEARCH_ID, effect: 'draw'});
       expect(ask?.choiceContext?.source).deep.eq({kind: 'resolution', resolution: URBAN_RESEARCH_ID});
       expect(outcomeOf(parliament, p1, 'megacredits'), 'the money waits behind this seat\'s own take').is.undefined;
-      expect(p2.getWaitingFor(), 'p2 waits its turn').is.undefined;
+      expect(questionOf(p2), 'p2 waits its turn').is.undefined;
       const cash1 = p1.megaCredits;
       takeAll(p1);
       runAllActions(game);

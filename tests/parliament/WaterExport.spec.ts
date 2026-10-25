@@ -13,7 +13,7 @@ import {
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {ParliamentHandler} from '../../src/server/parliament/ParliamentHandler';
-import {endGenerationThroughParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {endGenerationThroughParliament, seatResolution, settleParliamentGates, questionOf} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {Resource} from '../../src/common/Resource';
@@ -277,7 +277,7 @@ describe('WaterExport', () => {
       expect(prompt?.placementType).eq('ocean-removal');
       expect(prompt?.tileType).eq(TileType.OCEAN);
       expect(prompt?.placementContext).deep.include({cancellable: false, source: {kind: 'resolution', resolution: WATER_EXPORT_ID}});
-      expect(p2.getWaitingFor(), 'the other seat WAITS — the sitting stops at the question').is.undefined;
+      expect(questionOf(p2), 'the other seat WAITS — the sitting stops at the question').is.undefined;
     });
 
     it('ONE removable ocean is still a QUESTION — never an auto-pick (invariant 3)', () => {
@@ -338,7 +338,7 @@ describe('WaterExport', () => {
       expect(parliament.phase?.summary?.winner.player, 'red won the vote').eq(p2.id);
       expect(parliament.votesOf(p1, parliament.slots[0]), 'blue holds nothing on the card').eq(0);
       expect(removalPromptOf(p1), 'the FIRST PLAYER is asked, whoever won').is.not.undefined;
-      expect(p2.getWaitingFor()).is.undefined;
+      expect(questionOf(p2)).is.undefined;
     });
 
     it('…and it follows the POSITION, not the seat: with red first in generation order, red is asked', () => {
@@ -347,7 +347,7 @@ describe('WaterExport', () => {
       endGenerationThroughParliament(game);
       expect(parliament.phase?.summary?.winner.player, 'blue won the vote').eq(p1.id);
       expect(removalPromptOf(p2), 'red — first in generation order — is asked').is.not.undefined;
-      expect(p1.getWaitingFor()).is.undefined;
+      expect(questionOf(p1)).is.undefined;
       expect(worldStepHandle(game)).eq(p2);
     });
 

@@ -125,12 +125,35 @@ export type BandChip =
    * the seats depend on each other there, so the wait names itself. Never a list of seats still reading or
    * closing their sitting — since the soft gates nobody waits for that.
    */
-  | {kind: 'asking', seats: ReadonlyArray<Color>}
+  | {kind: 'asking', seats: ReadonlyArray<Color>, what?: string, viewer?: AskingViewer, lead?: true}
   /**
    * A PARTY'S POPULAR SUPPORT LEAVING (TR12 Party Sanctions): the party's emblem, the neutral cube and the
    * count that returns to the common supply («[emblem] [cube] −3») — the server's own `current − resulting`.
    */
   | {kind: 'supportDelta', party: ReduxParty, amount: number};
+
+/**
+ * WHAT THE WAIT MEANS FOR THIS SEAT (the soft gates): its part of the law is still ahead — it MAY be asked — or it is
+ * done and nothing more is asked of it. The server's own reading (`ParliamentPhaseModel.ahead`), never a guess.
+ */
+export type AskingViewer = 'ahead' | 'done';
+
+/** WHAT the asked seat is answering, in one word — by the prompt's input TYPE (the server's `pending.input`), never its title. */
+export function askingWhatKey(input: string | undefined): string | undefined {
+  switch (input) {
+  case 'space':
+    return 'Tile placement';
+  case 'card':
+    return 'Choosing cards';
+  case 'colony':
+    return 'Choosing a colony';
+  case 'or':
+  case 'option':
+    return 'Choice';
+  default:
+    return undefined;
+  }
+}
 
 /** THE LINE: one kicker, one ordered set of chips, and the identity its crossfade is keyed on. */
 export type BandLine = {
@@ -192,6 +215,10 @@ export type BandRewardReading = {
   state?: BandRewardState;
   /** The effects are asking ANOTHER seat. */
   waitingFor?: Color;
+  /** …answering WHAT (its prompt's input type — `pending.input`). */
+  waitingInput?: string;
+  /** …and what the wait means for THIS seat (its part ahead, or done). */
+  waitingViewer?: AskingViewer;
   /**
    * THE WINNER'S PART IS ANOTHER SEAT'S, and this seat has no part of its own on the line (a skip at
    * most): the line is the WINNER'S reward, led by the tile, and never calls itself «ваша награда»
@@ -798,7 +825,23 @@ function rewardLine(sitting: BandSitting): BandLine {
     }
   }
   if (reward.waitingFor !== undefined) {
-    chips.push({kind: 'asking', seats: [reward.waitingFor]});
+    const what = askingWhatKey(reward.waitingInput);
+    const asking: BandChip = {kind: 'asking', seats: [reward.waitingFor],
+      ...(what === undefined ? {} : {what}),
+      ...(reward.waitingViewer === undefined ? {} : {viewer: reward.waitingViewer})};
+    // THE WAIT TAKES THE LINE once the seat's own payout has LANDED (the soft gates — the players' report of
+    // 2026-10-25): its numbers already stand on the rail, and beside them the wait was cut to «ОЖ… р · ВЫ…» on a 4K
+    // strip — the one fact the seat needs now (WHO decides, WHAT, and whether anything is still asked of it) read
+    // nowhere. The band crossfades to it like to any other line; while the chips still fly it rides beside them.
+    if (chips.length === 0 || reward.state === 'Received' || reward.state === 'Taken') {
+      return {
+        kicker: 'Waiting for the other seats',
+        key: `reward:waiting:${reward.waitingFor}:${what ?? ''}:${reward.waitingViewer ?? ''}`,
+        chips: [{...asking, lead: true}],
+        committed: true,
+      };
+    }
+    chips.push(asking);
   } else if (chips.length === 0) {
     chips.push({kind: 'label', key: 'Your record is in', tone: 'quiet'});
   }

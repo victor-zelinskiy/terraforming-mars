@@ -356,8 +356,8 @@ describe('ParliamentPhase', () => {
       const ask1 = cast(one.getWaitingFor(), OrOptions);
       expect(ask1.options).has.length(2);
       expect(ask1.choiceContext?.source).deep.eq({kind: 'resolution', resolution: TEST_CHOICE_RESOLUTION_ID});
-      // p2 is NOT asked yet — the effect visits the players in order.
-      expect(live.getPlayerById(p2.id).getWaitingFor()).is.undefined;
+      // p2 is NOT asked yet — the effect visits the players in order; it holds only the EARLY close of its sitting.
+      expect(live.getPlayerById(p2.id).getWaitingFor()?.parliamentPhasePrompt).deep.include({stage: 'close', early: true});
       // Answer: plants.
       one.process({type: 'or', index: 0, response: {type: 'option'}});
       expect(one.plants).eq(1);
@@ -746,6 +746,90 @@ describe('ParliamentPhase', () => {
       researchOf(p2);
       p2.process({type: 'card', cards: []});
       expect(game.phase).eq(Phase.ACTION);
+    });
+
+    describe('THE EARLY CLOSE — a seat nothing is asked of is never held in a sitting that waits on another seat', () => {
+      /** The test law asks p1 twice, then p2 twice — p1's delegate wins. */
+      function stage(): [IGame, TestPlayer, TestPlayer, Parliament] {
+        const [game, p1, p2, parliament] = reduxGame();
+        seatResolution(parliament, 0, TEST_CHOICE_RESOLUTION_ID);
+        parliament.placeVote(p1, parliament.slots[0], 'lobby');
+        return [game, p1, p2, parliament];
+      }
+      const answerAsks = (player: IPlayer) => {
+        player.process({type: 'or', index: 0, response: {type: 'option'}});
+        player.process({type: 'or', index: 1, response: {type: 'option'}});
+      };
+
+      it('while the law asks p1, p2 holds the EARLY close; its answer writes it out of the record to come — the law still asks it its own part, and at the end it is admitted at once', () => {
+        const [game, p1, p2, parliament] = stage();
+        passToParliament(game);
+        expect(parliament.phase?.effects?.pending?.player).eq(p1.id);
+        expect(marker(p2), 'the early close').deep.eq({stage: 'close', generation: 1, final: false, seq: 1, early: true});
+        expect(marker(p1), 'the asked seat holds its question, never the close').is.undefined;
+        // The wire: the waiting seat reads whose part is still ahead — p1's (asked) and its own.
+        expect(getParliamentModel(game, p2)?.phase?.ahead).has.members([p1.color, p2.color]);
+        answerGate(p2);
+        expect(parliament.phase?.closedEarly).deep.eq([p2.id]);
+        expect(getParliamentModel(game, p2)?.phase?.closed).deep.eq([p2.color]);
+        expect(p2.getWaitingFor(), 'closed: nothing is offered again').is.undefined;
+        expect(game.gameLog.filter((m) => m.message === '${0} closed the sitting')).has.length(1);
+        // p1 answers; the law then asks p2 its own part — an ordinary question, the close is not offered back.
+        answerAsks(p1);
+        expect(parliament.phase?.effects?.pending?.player).eq(p2.id);
+        expect(p2.getWaitingFor()).is.instanceOf(OrOptions);
+        expect(marker(p1), 'p1 waits on p2 now: the early close is offered to it').deep.include({stage: 'close', early: true});
+        expect(getParliamentModel(game, p1)?.phase?.ahead, 'p1\'s part is done').deep.eq([p2.color]);
+        answerAsks(p2);
+        // The end: p1's unanswered early close is withdrawn and the record asks it the confirmation; p2 owes nothing.
+        expect(parliament.phase).is.undefined;
+        expect(parliament.sittingAcks?.pending).deep.eq([p1.id]);
+        expect(marker(p1)).deep.eq({stage: 'close', generation: 1, final: false, seq: 1});
+        expect(researchOf(p2), 'p2 closed early: admitted the moment the generation began').is.not.undefined;
+        expect(game.gameLog.filter((m) => m.message === '${0} closed the sitting'), 'p2 closed once').has.length(1);
+        answerGate(p1);
+        expect(parliament.sittingAcks).is.undefined;
+      });
+
+      it('a question SUPERSEDES an unanswered early close silently (nothing written over, nothing thrown), and the close comes back after the answer', () => {
+        const [game, p1, p2, parliament] = stage();
+        passToParliament(game);
+        const early = p2.getWaitingFor();
+        expect(early?.parliamentPhasePrompt?.early).is.true;
+        answerAsks(p1);
+        // p2 never answered its early close: the law's question took the slot.
+        expect(parliament.phase?.effects?.pending?.player).eq(p2.id);
+        expect(p2.getWaitingFor()).is.instanceOf(OrOptions);
+        expect(parliament.phase?.closedEarly ?? [], 'superseded is not closed').deep.eq([]);
+        answerAsks(p2);
+        // The end: both owe the ordinary confirmation (neither closed early).
+        expect(parliament.phase).is.undefined;
+        expect(parliament.sittingAcks?.pending).has.members([p1.id, p2.id]);
+        for (const seat of [p1, p2]) {
+          expect(marker(seat)).deep.eq({stage: 'close', generation: 1, final: false, seq: 1});
+        }
+        settleParliamentGates(game);
+        expect(parliament.sittingAcks).is.undefined;
+      });
+
+      it('a reload keeps it: the early closer stays out, the waiting seat is offered the close again, the asked seat keeps its question', () => {
+        const [game, p1, p2] = stage();
+        passToParliament(game);
+        answerGate(p2);
+        let live = reload(game);
+        expect(live.parliament?.phase?.closedEarly).deep.eq([p2.id]);
+        expect(live.getPlayerById(p2.id).getWaitingFor(), 'closed before the reload: nothing offered').is.undefined;
+        expect(live.getPlayerById(p1.id).getWaitingFor()).is.instanceOf(OrOptions);
+        answerAsks(live.getPlayerById(p1.id));
+        live = reload(live);
+        expect(marker(live.getPlayerById(p1.id)), 'p1 waits on p2 after the reload: offered again').deep.include({stage: 'close', early: true});
+        answerGate(live.getPlayerById(p1.id));
+        answerAsks(live.getPlayerById(p2.id));
+        expect(live.parliament?.phase).is.undefined;
+        expect(live.parliament?.sittingAcks, 'both closed early: nothing is owed at the end').is.undefined;
+        expect(researchOf(live.getPlayerById(p1.id))).is.not.undefined;
+        expect(researchOf(live.getPlayerById(p2.id))).is.not.undefined;
+      });
     });
 
     it('…with 3 seats: each answer admits its own seat alone; the research waits for the last one', () => {

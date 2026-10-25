@@ -555,6 +555,17 @@ export type ParliamentPhaseModel = {
   /** The effect's outcomes recorded SO FAR (the enactment stage reads them live). */
   outcomes?: ReadonlyArray<ParliamentEnactOutcomeModel>;
   /**
+   * THE SEATS THAT CLOSED THIS SITTING EARLY (the early confirmation — the chain waited on another seat and nothing
+   * was asked of them): the sitting no longer holds them; a question the law asks one later comes as an ordinary
+   * prompt. Absent when nobody has.
+   */
+  closed?: ReadonlyArray<Color>;
+  /**
+   * THE SEATS WHOSE PART OF THE LAW IS STILL AHEAD (a step of their plan not yet applied — it MAY ask): the waiting
+   * page tells a seat «you may still be asked» or «your part is done». Read off the effects' own plan, never guessed.
+   */
+  ahead?: ReadonlyArray<Color>;
+  /**
    * The sitting's summary SO FAR — the SAME shape a finished phase leaves in
    * `lastPhase` (and the history keeps), so the live sitting, the closing and
    * a later review read one form. Filled from the first step on.

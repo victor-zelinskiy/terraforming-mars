@@ -27,6 +27,7 @@ import {ownColonyBonuses} from '../colonies/allColonyBonuses';
 import {worldMoveForecast} from '../models/effectForecast';
 import {ratingLeaders} from './ratingVetoGate';
 import {ResolutionDefinition} from './resolutions/IResolution';
+import {ParliamentPhase} from './ParliamentPhase';
 
 function colorOf(game: IGame, delegate: Delegate): Color | 'neutral' {
   return delegate === 'NEUTRAL' ? 'neutral' : game.getPlayerById(delegate).color;
@@ -192,6 +193,13 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
     const outcomes = outcomeModels(game, p.summary?.outcomes);
     if (outcomes !== undefined) {
       phase.outcomes = outcomes;
+    }
+    if ((p.closedEarly ?? []).length > 0) {
+      phase.closed = (p.closedEarly ?? []).map((id) => game.getPlayerById(id).color);
+    }
+    const ahead = ParliamentPhase.seatsAhead(game, parliament);
+    if (ahead.size > 0) {
+      phase.ahead = [...ahead].map((id) => game.getPlayerById(id).color);
     }
     model.phase = phase;
   } else if (viewer !== undefined && parliament.holdsSittingAck(viewer.id) && parliament.lastPhase !== undefined &&

@@ -674,6 +674,12 @@ export type ParliamentPhasePromptMeta = {
   final: boolean;
   /** The sitting's monotonic number (`SerializedPhaseSummary.seq`) — the walk the confirmation closes is `lastPhase` of this seq. */
   seq: number;
+  /**
+   * THE EARLY CLOSE: offered WHILE the sitting still runs, to a seat nothing is asked of right now (the chain waits
+   * on another seat's question). Answering it lets the seat leave — it is admitted the moment the sitting ends; a
+   * question the law asks it later supersedes it as an ordinary prompt. Absent on the sitting-end confirmation.
+   */
+  early?: boolean;
 }
 
 /** The marker as the SERVER input carries it — the same shape on the wire. */

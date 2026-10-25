@@ -18,7 +18,7 @@ import {SCIENTISTS_BUDGET, SCIENTISTS_BUDGET_MEGACREDITS} from '../../src/server
 import {UNITY_BUDGET, UNITY_BUDGET_MEGACREDITS} from '../../src/server/parliament/resolutions/unity/UnityBudget';
 import {AQUIFER_CONTEST_ANIMALS} from '../../src/server/parliament/resolutions/greens/AquiferContest';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, endGenerationThroughParliament, gatePromptOf, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, gatePromptOf, seatResolution, settleParliamentGates, questionOf} from './parliamentArrange';
 import {declaredCountIds, declaredStockReads, resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {questRenderData} from '../../src/server/parliament/quests/questRender';
 import {PartyName} from '../../src/common/turmoil/PartyName';
@@ -266,7 +266,7 @@ describe('GreensBudget', () => {
       expect(animals.cards).deep.eq([CardName.FISH]);
       expect(animals.prompt.choiceContext?.source).deep.eq({kind: 'resolution', resolution: GREENS_BUDGET_ID});
       expect(animals.prompt.choiceContext?.mode).eq('reward');
-      expect(p2.getWaitingFor(), 'the next seat waits for the whole of p1\'s part').is.undefined;
+      expect(questionOf(p2), 'the next seat waits for the whole of p1\'s part').is.undefined;
       p1.process({type: 'card', cards: [CardName.FISH]});
       expect(resourcesOn(p1, CardName.FISH)).eq(2);
       // THE SECOND QUESTION follows the first's ANSWER: 3 microbes onto ONE card, picked apart.
@@ -275,7 +275,7 @@ describe('GreensBudget', () => {
       expect(microbes.amount).eq(3);
       expect(microbes.cards).deep.eq([CardName.TARDIGRADES]);
       expect(microbes.prompt.choiceContext?.source).deep.eq({kind: 'resolution', resolution: GREENS_BUDGET_ID});
-      expect(p2.getWaitingFor(), 'still waiting — two questions to one seat').is.undefined;
+      expect(questionOf(p2), 'still waiting — two questions to one seat').is.undefined;
       p1.process({type: 'card', cards: [CardName.TARDIGRADES]});
       runAllActions(game);
       expect(resourcesOn(p1, CardName.TARDIGRADES)).eq(3);
@@ -511,13 +511,13 @@ describe('GreensBudget', () => {
       p2.playedCards.push(new Fish(), new Tardigrades());
       endGeneration(game);
       expect(pickOf(p1).resource).eq('animal');
-      expect(p2.getWaitingFor()).is.undefined;
+      expect(questionOf(p2)).is.undefined;
       p1.process({type: 'card', cards: [CardName.FISH]});
       expect(pickOf(p1).resource, 'the second question stands for the SAME seat').eq('microbe');
-      expect(p2.getWaitingFor(), 'p2 still waits').is.undefined;
+      expect(questionOf(p2), 'p2 still waits').is.undefined;
       p1.process({type: 'card', cards: [CardName.TARDIGRADES]});
       runAllActions(game);
-      expect(p1.getWaitingFor(), 'p1 is done').is.undefined;
+      expect(questionOf(p1), 'p1 is done').is.undefined;
       expect(pickOf(p2).resource, 'now p2 is asked — animals first').eq('animal');
       p2.process({type: 'card', cards: [CardName.FISH]});
       expect(pickOf(p2).resource).eq('microbe');
@@ -590,7 +590,7 @@ describe('GreensBudget', () => {
       const live = reload(game);
       const one = live.getPlayerById(p1.id) as TestPlayer;
       const two = live.getPlayerById(p2.id) as TestPlayer;
-      expect(one.getWaitingFor(), 'p1 owes nothing more').is.undefined;
+      expect(questionOf(one), 'p1 owes nothing more').is.undefined;
       expect([resourcesOn(one, CardName.FISH), resourcesOn(one, CardName.TARDIGRADES)]).deep.eq([2, 3]);
       expect(pickOf(two).resource).eq('animal');
       two.process({type: 'card', cards: [CardName.FISH]});

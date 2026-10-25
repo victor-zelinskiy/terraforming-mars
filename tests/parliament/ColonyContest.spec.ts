@@ -10,7 +10,7 @@ import {
 } from '../../src/server/parliament/resolutions/unity/ColonyContest';
 import {COLONIZATION_FUNDING} from '../../src/server/parliament/resolutions/unity/ColonizationFunding';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates, questionOf} from './parliamentArrange';
 import {questRenderData} from '../../src/server/parliament/quests/questRender';
 import {getParliamentModel} from '../../src/server/parliament/ParliamentModel';
 import {SerializedEnactOutcome} from '../../src/server/parliament/SerializedParliament';
@@ -218,7 +218,7 @@ describe('ColonyContest', () => {
       });
       expect(outcomesOf(parliament, p1).map((o) => o.step), 'the titanium was paid before the question').deep.eq(['titanium']);
       expect(getParliamentModel(game, p2)?.phase?.pending).deep.eq({player: p1.color, key: 'colony', input: 'colony'});
-      expect(p2.getWaitingFor(), 'the other seat waits — nothing is asked of it').is.undefined;
+      expect(questionOf(p2), 'the other seat waits — nothing is asked of it').is.undefined;
     });
 
     it('the answer builds the colony FOR FREE — the cube on the tile, no M€ spent, no fleet used — with the tile\'s own build bonus (Luna: +2 M€ production); the record names the tile, the journal the resolution; the phase goes on', () => {

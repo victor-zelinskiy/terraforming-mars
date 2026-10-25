@@ -8,7 +8,7 @@ import {
   MEDICAL_DATABASE, MEDICAL_DATABASE_CODE, MEDICAL_DATABASE_ID, MEDICAL_DATABASE_KINDS, MEDICAL_DATABASE_RESOURCES,
 } from '../../src/server/parliament/resolutions/scientists/MedicalDatabase';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates, sittingOf, atSittingEnd} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates, sittingOf, atSittingEnd, questionOf} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {CardName} from '../../src/common/cards/CardName';
@@ -354,7 +354,7 @@ describe('MedicalDatabase', () => {
       endGeneration(game);
       const ask1 = cast(p1.getWaitingFor(), AndOptions);
       expect(ask1.cardResourceDistributionPrompt?.amount, 'the winner\'s Agenda step counts').eq(2);
-      expect(p2.getWaitingFor(), 'players are visited in order').is.undefined;
+      expect(questionOf(p2), 'players are visited in order').is.undefined;
       distribute(p1, ask1, {[CardName.GHG_PRODUCING_BACTERIA]: 1, [CardName.TARDIGRADES]: 1});
       runAllActions(game);
       const ask2 = cast(p2.getWaitingFor(), AndOptions);
@@ -480,7 +480,7 @@ describe('MedicalDatabase', () => {
       one = live.getPlayerById(p1.id) as TestPlayer;
       const two = live.getPlayerById(p2.id) as TestPlayer;
       expect(storedOn(one, CardName.GHG_PRODUCING_BACTERIA)).eq(2);
-      expect(one.getWaitingFor(), 'p1 owes nothing more').is.undefined;
+      expect(questionOf(one), 'p1 owes nothing more').is.undefined;
       const pick = cast(two.getWaitingFor(), SelectCard);
       expect(pick.resourceGainPrompt?.amount).eq(2);
       expect(pick.resourceGainPrompt?.cardResource).is.undefined;

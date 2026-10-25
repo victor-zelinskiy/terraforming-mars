@@ -146,6 +146,15 @@ export type SittingPosition = {
    * a press — and it holds the reward page exactly as the tile would (a step is owed until it is placed).
    */
   tail?: boolean;
+  /**
+   * THE EARLY CLOSE stands for the viewer (the soft gates): the chain waits on another seat and nothing is asked of
+   * this one — A on the reward page closes its sitting now; a question the law asks it later comes as a prompt.
+   */
+  earlyClose?: true;
+  /** The viewer CLOSED this sitting early and the law asks it a question now — a fresh beat (it stands in no sitting otherwise). */
+  closed?: true;
+  /** The viewer's part of the law is still AHEAD (a step of its plan not yet applied — it MAY be asked). */
+  askedLater?: true;
 };
 
 /** The viewer's own resolution-sourced ask, by its structural markers — never a title. */
@@ -268,6 +277,10 @@ export function sittingPositionOf(
   const gateStanding = gate !== undefined && sittingGatePromptOf(wf) === gate;
   const tail = sittingTailPlacementOf(wf, phase, viewer);
   const ask = sittingAskOf(wf) ?? (tail ? 'placement' : undefined);
+  // A seat that CLOSED this sitting early stands in it no more — unless the law asks it a question now (the soft gates).
+  if (ask === undefined && (phase.closed ?? []).includes(viewer)) {
+    return undefined;
+  }
   const pending = phase.pending;
   const waitingFor = phase.step === 'effects' && pending !== undefined && pending.player !== viewer ?
     {player: pending.player, input: pending.input} : undefined;
@@ -283,6 +296,7 @@ export function sittingPositionOf(
   } else {
     rewardStep = 'waiting';
   }
+  const early = phase.step !== 'done' && wf?.parliamentPhasePrompt?.stage === 'close' && wf.parliamentPhasePrompt.early === true;
   return {
     generation: phase.generation,
     final: phase.final,
@@ -293,6 +307,9 @@ export function sittingPositionOf(
     rewardStep,
     waitingFor,
     ...(tail ? {tail: true} : {}),
+    ...(early ? {earlyClose: true} : {}),
+    ...((phase.closed ?? []).includes(viewer) ? {closed: true} : {}),
+    ...((phase.ahead ?? []).includes(viewer) ? {askedLater: true} : {}),
   };
 }
 
@@ -443,7 +460,11 @@ export function sittingPrimaryKey(position: SittingPosition, page: number): stri
   case 'reward':
     // The resolution's own tile waits behind the door for the player's press; the engine's TAIL (the 0 °C
     // ocean of the winner's step) waits behind it for the WALK — nothing to press.
-    return position.rewardStep === 'placement' && position.tail !== true ? 'Onto the board' : undefined;
+    if (position.rewardStep === 'placement' && position.tail !== true) {
+      return 'Onto the board';
+    }
+    // THE EARLY CLOSE (the soft gates): the chain waits on another seat and nothing is asked of this one — A closes.
+    return position.earlyClose === true ? 'Close the sitting' : undefined;
   case 'results':
     return position.gate === 'close' && position.gateStanding ? 'Close the sitting' : undefined;
   default:
@@ -464,6 +485,11 @@ export function parliamentSittingFlowBeat(view: PlayerViewModel): MandatoryFlowB
   const position = sittingPositionOf(view.game.parliament, view.waitingFor, view.thisPlayer?.color);
   if (position === undefined) {
     return undefined;
+  }
+  // A seat that CLOSED the sitting early stands in it only while the law asks it a question (`sittingPositionOf`): that
+  // is a FRESH beat — its own key, so the plate announces it anew and A opens the sitting on that very step.
+  if (position.closed === true) {
+    return {key: `parliament:gen${position.generation}:ask`, taskKind: 'parliamentPhase', flow: 'parliament-phase'};
   }
   return {key: `parliament:gen${position.generation}`, taskKind: 'parliamentPhase', flow: 'parliament-phase'};
 }

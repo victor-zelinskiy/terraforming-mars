@@ -2026,6 +2026,11 @@ export default defineComponent({
         }
         if (stage === 'results' && position.gateStanding) {
           this.send({type: 'option'}, 'sitting');
+          return;
+        }
+        // THE EARLY CLOSE (the soft gates): the chain waits on another seat, nothing is asked of this one — A leaves.
+        if (stage === 'reward' && position.earlyClose === true && !this.sittingStepOpen) {
+          this.send({type: 'option'}, 'sitting');
         }
         return;
       }

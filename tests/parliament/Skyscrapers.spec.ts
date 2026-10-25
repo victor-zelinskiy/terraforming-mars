@@ -12,7 +12,7 @@ import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/mar
 import {repeatPlacementBonuses} from '../../src/server/parliament/resolutions/marsFirst/DevelopmentCraze';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
 import {SerializedEnactOutcome} from '../../src/server/parliament/SerializedParliament';
-import {endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {endGenerationThroughParliament, seatEnacted, seatResolution, settleParliamentGates, questionOf} from './parliamentArrange';
 import {
   TILE_GRANT_NO_DESTINATION_REASON, TILE_GRANT_NOT_ELIGIBLE_REASON, tileGrantEligibility, tileGrantStepKey,
 } from '../../src/common/parliament/tileGrant';
@@ -359,11 +359,11 @@ describe('Skyscrapers', () => {
       parliament.agenda.set(p2.id, agendaForInfluence(3));
       endGeneration(game);
       cast(p1.getWaitingFor(), SelectSpace);
-      expect(p2.getWaitingFor(), 'p2 waits for the winner').is.undefined;
+      expect(questionOf(p2), 'p2 waits for the winner').is.undefined;
       expect(parliament.phase?.effects?.pending).deep.eq({player: p1.id, key: SKYSCRAPERS_STEP_KEY});
       p1.process({type: 'space', spaceId: city1.id});
       runAllActions(game);
-      expect(p1.getWaitingFor()).is.undefined;
+      expect(questionOf(p1)).is.undefined;
       cast(p2.getWaitingFor(), SelectSpace);
       expect(parliament.phase?.effects?.pending).deep.eq({player: p2.id, key: SKYSCRAPERS_STEP_KEY});
       p2.process({type: 'space', spaceId: city2.id});

@@ -472,6 +472,11 @@ export type SerializedPhaseProgress = {
   worldState?: Record<string, unknown>;
   /** The summary being assembled (copied to `lastPhase` when the phase completes). */
   summary?: SerializedPhaseSummary;
+  /**
+   * The seats that CLOSED the sitting EARLY (the early confirmation — `SittingAcks.offerEarly`): they owe no
+   * confirmation at `done` and are admitted to the next generation the moment it begins. Absent on older saves.
+   */
+  closedEarly?: Array<PlayerId>;
 };
 
 /**

@@ -212,6 +212,15 @@ export function gatePromptOf(player: IPlayer, stage?: ParliamentPhaseStage): Pla
   return marker !== undefined && (stage === undefined || marker.stage === stage) ? wf : undefined;
 }
 
+/**
+ * The QUESTION a seat holds — its prompt, never the sitting's EARLY close (the soft gates: a seat nothing is asked of
+ * while the law waits on another holds that courtesy, and any question supersedes it). «Not asked yet» is this.
+ */
+export function questionOf(player: IPlayer): PlayerInput | undefined {
+  const wf = player.getWaitingFor();
+  return wf?.parliamentPhasePrompt?.early === true ? undefined : wf;
+}
+
 /** Answer the confirmation `player` holds — the one press «Закрыть заседание» sends. Throws when none stands. */
 export function answerGate(player: IPlayer, stage?: ParliamentPhaseStage): void {
   const gate = gatePromptOf(player, stage);
@@ -281,7 +290,10 @@ export function answerQuestGate(game: IGame, player: IPlayer): void {
 export function answerStandingGates(game: IGame, stage?: ParliamentPhaseStage): number {
   let answered = 0;
   for (const player of game.playersInGenerationOrder) {
-    if (gatePromptOf(player, stage) !== undefined) {
+    // The sitting-END confirmation only: an EARLY close (the chain still waits on another seat) is the seat's own
+    // choice to leave early — a spec takes it with `answerGate` when that is its subject.
+    const gate = gatePromptOf(player, stage);
+    if (gate !== undefined && gate.parliamentPhasePrompt?.early !== true) {
       answerGate(player, stage);
       answered++;
     }

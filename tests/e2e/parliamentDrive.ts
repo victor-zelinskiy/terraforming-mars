@@ -20,7 +20,7 @@ export type ParliamentWire = {
   waitingFor?: {
     type: string; promptId?: number; cards?: Array<{name: string}>; options?: Array<{title: string | {message: string}}>;
     /** THE SITTING'S CONFIRMATION («Закрыть заседание», the soft gates) — the seat's own close, never a barrier list. */
-    parliamentPhasePrompt?: {stage: string; generation?: number; final?: boolean; seq?: number};
+    parliamentPhasePrompt?: {stage: string; generation?: number; final?: boolean; seq?: number; early?: boolean};
     /** The shared distribution's marker (an `and` of one amount per holder): N units over the listed holders. */
     cardResourceDistributionPrompt?: {amount: number; cardResource: string; cards: Array<{name: string}>};
   };
@@ -29,7 +29,7 @@ export type ParliamentWire = {
     parliament?: {rulingParty?: string;
       /** The seats that have not closed the last sitting yet (the soft gates) — a fact, never a wait. */
       sitting?: {generation: number; seq: number; final: boolean; pending: Array<string>};
-      phase?: {step: string; generation?: number; pending?: {player: string}; outcomes?: Array<Record<string, unknown>>;
+      phase?: {step: string; generation?: number; pending?: {player: string}; outcomes?: Array<Record<string, unknown>>; closed?: Array<string>;
       summary?: {
         agenda?: {player: string; from: number; to: number; bonus?: string}; winner: {player?: string; instance?: string}; refreshed: Array<unknown>;
         support?: Array<{party: string; gained: number; total: number}>;

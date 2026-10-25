@@ -317,6 +317,31 @@ describe('consoleSittingFlow — the political phase as ONE flow (v2)', () => {
       expect(parliamentSittingLive(view(phase({step: 'done'}), close(), 4)), 'live while the confirmation stands').is.true;
       expect(parliamentSittingLive(view(undefined, undefined))).is.false;
     });
+    it('THE EARLY CLOSE: while the law asks another seat, the viewer\'s early close stands — A on the reward page closes; the server says whether its part is still ahead', () => {
+      const earlyClose = {...close(), parliamentPhasePrompt: {stage: 'close', generation: 3, final: false, seq: 1, early: true}} as unknown as PlayerInputModel;
+      const waiting = phase({step: 'effects', pending: {player: RED, key: 'k', input: 'card'}, ahead: [RED]});
+      const position = sittingPositionOf(model(waiting), earlyClose, BLUE)!;
+      expect(position.earlyClose).is.true;
+      expect(position.gate, 'never the sitting-end confirmation').is.undefined;
+      expect(position.rewardStep).eq('waiting');
+      expect(position.askedLater, 'its part is done').is.undefined;
+      expect(sittingPrimaryKey(position, position.pages.indexOf('reward'))).eq('Close the sitting');
+      const ahead = sittingPositionOf(model({...waiting, ahead: [RED, BLUE]}), earlyClose, BLUE)!;
+      expect(ahead.askedLater, 'the server reads its part still ahead').is.true;
+      // Without the early close (the seat holds nothing yet), A on the reward page offers nothing.
+      expect(sittingPrimaryKey(sittingPositionOf(model(waiting), undefined, BLUE)!, 2)).is.undefined;
+    });
+    it('a seat that CLOSED early is held by nothing — the beat is gone; a question of the law is a FRESH beat of its own key', () => {
+      const closed = phase({step: 'effects', pending: {player: RED, key: 'k'}, closed: [BLUE]});
+      expect(sittingPositionOf(model(closed), undefined, BLUE), 'nothing asked: the seat stands in no sitting').is.undefined;
+      expect(sittingPositionOf(model(closed), pick(), BLUE)?.closed, 'asked: back in it, marked closed').is.true;
+      expect(parliamentSittingFlowBeat(view(closed, undefined)), 'nothing asked: no plate, no frame').is.undefined;
+      expect(parliamentSittingLive(view(closed, undefined))).is.false;
+      expect(parliamentSittingFlowBeat(view(phase({step: 'effects', closed: [BLUE]}), pick()))?.key, 'its own question').eq('parliament:gen3:ask');
+      expect(parliamentSittingFlowBeat(view(phase({step: 'effects', closed: [BLUE]}), tile()))?.key).eq('parliament:gen3:ask');
+      // Another seat's early close changes nothing for the viewer.
+      expect(parliamentSittingFlowBeat(view(phase({step: 'effects', closed: [RED]}), undefined))?.key).eq('parliament:gen3');
+    });
     it('the PRESENTED generation is the sitting\'s until the seat closes it — the counter flips at the seat\'s own «Закрыть заседание»', () => {
       expect(presentedGeneration(view(phase({step: 'done'}), close(), 4))).eq(3);
       expect(presentedGeneration(view(undefined, undefined, 4))).eq(4);

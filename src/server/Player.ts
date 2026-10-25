@@ -74,7 +74,7 @@ import {calculateVictoryPoints} from './game/calculateVictoryPoints';
 import {TRSourceEntry, TRSourceType, VictoryPointsBreakdown} from '../common/game/VictoryPointsBreakdown';
 import {ParliamentHandler} from './parliament/ParliamentHandler';
 import {withRatingVetoWatch} from './parliament/ratingVetoGate';
-import {isSittingAckPrompt, SittingAcks} from './parliament/SittingAcks';
+import {isEarlySittingAck, isSittingAckPrompt, SittingAcks} from './parliament/SittingAcks';
 import {fromToEventSource} from './events/fromToEventSource';
 import {Supercapacitors} from './cards/promo/Supercapacitors';
 import {CanAffordOptions, CardAction, CardDrawReveal, IPlayer, PendingCardIntake, PlayabilityOptions, RevealedCard, CardDrawSearchOutcome, RequirementBonusEntry, GlobalWaiverProbe} from './IPlayer';
@@ -3367,6 +3367,11 @@ export class Player implements IPlayer {
   }
 
   public setWaitingFor(input: PlayerInput, cb: () => void = () => {}): void {
+    // THE EARLY CLOSE of a sitting still running is a courtesy, never a question: anything the seat is asked supersedes
+    // it (the sitting offers it again after the answer — `SittingAcks.offerEarly`).
+    if (isEarlySittingAck(this.waitingFor)) {
+      this.clearWaitingFor();
+    }
     if (this.waitingFor !== undefined) {
       const message = `Overwriting waitingFor ${this.waitingFor.type} with ${input?.type}`;
       // THE SOFT GATES' TRAP: a prompt written over a sitting's confirmation (or the confirmation over a standing
@@ -3414,7 +3419,7 @@ export class Player implements IPlayer {
    * This was only built for the Philares/Final Greenery case. Might not work elsewhere.
    */
   public setWaitingForSafely(input: PlayerInput, cb: () => void = () => {}): void {
-    if (this.waitingFor === undefined) {
+    if (this.waitingFor === undefined || isEarlySittingAck(this.waitingFor)) {
       this.setWaitingFor(input, cb);
     } else {
       const savedcb = this.waitingForCb;

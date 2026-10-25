@@ -11,7 +11,7 @@ import {
 } from '../../src/server/parliament/resolutions/scientists/OpenIpTrade';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, endGenerationThroughParliament, quietWinnerIndex, seatEnacted, seatQuiet, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, quietWinnerIndex, seatEnacted, seatQuiet, seatResolution, settleParliamentGates, questionOf} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {CardName} from '../../src/common/cards/CardName';
@@ -219,7 +219,7 @@ describe('OpenIpTrade', () => {
       expect(ask?.choiceContext?.source).deep.eq({kind: 'resolution', resolution: OPEN_IP_TRADE_ID});
       expect(game.projectDeck.drawPile.length, 'withheld: the deck lost it, the hand has not gained it').eq(deckBefore - 1);
       expect(p1.cardsInHand).has.length(3);
-      expect(p2.getWaitingFor(), 'p2 waits its turn').is.undefined;
+      expect(questionOf(p2), 'p2 waits its turn').is.undefined;
       takeAll(p1);
       runAllActions(game);
       expect(p1.cardsInHand).has.length(4);

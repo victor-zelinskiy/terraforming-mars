@@ -18,7 +18,7 @@ import {MEDICAL_DATABASE_RESOURCES} from '../../src/server/parliament/resolution
 import {RD_FUNDING_ID} from '../../src/server/parliament/resolutions/scientists/RdFunding';
 import {ARCHITECTURE_AWARD_ID} from '../../src/server/parliament/resolutions/marsFirst/ArchitectureAward';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, endGenerationThroughParliament, passToParliament, seatEnacted, seatResolution, settleParliamentGates, sittingOf} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, passToParliament, seatEnacted, seatResolution, settleParliamentGates, sittingOf, questionOf} from './parliamentArrange';
 import {declaredCountIds, declaredStockReads, resolutionCount} from '../../src/server/parliament/resolutions/ResolutionCounts';
 import {questRenderData} from '../../src/server/parliament/quests/questRender';
 import {ParliamentHandler} from '../../src/server/parliament/ParliamentHandler';
@@ -260,7 +260,7 @@ describe('ScientistsBudget', () => {
       expect(ask?.cards).has.length(2);
       expect(ask?.externalDrawPrompt?.cause).deep.eq({kind: 'resolution', resolution: SCIENTISTS_BUDGET_ID, effect: 'draw'});
       expect(ask?.choiceContext?.source).deep.eq({kind: 'resolution', resolution: SCIENTISTS_BUDGET_ID});
-      expect(p2.getWaitingFor(), 'p2 waits its turn').is.undefined;
+      expect(questionOf(p2), 'p2 waits its turn').is.undefined;
       takeAll(p1);
       runAllActions(game);
       expect(p1.cardsInHand).has.length(2);

@@ -337,6 +337,23 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
     });
     it('a wait on ANOTHER seat (the law asks it — the one honest wait of a sitting) is the line, and a seat with nothing at all still reads', () => {
       expect(kinds(line({stage: 'reward', reward: {...NO_REWARD, waitingFor: RED}}).chips)).deep.eq(['asking']);
+      // …and it says WHAT the asked seat answers (by its input type) and what the wait means for THIS seat (the soft gates).
+      expect(line({stage: 'reward', reward: {...NO_REWARD, waitingFor: RED, waitingInput: 'card', waitingViewer: 'done'}}).chips[0])
+        .deep.eq({kind: 'asking', seats: [RED], what: 'Choosing cards', viewer: 'done', lead: true});
+      expect(line({stage: 'reward', reward: {...NO_REWARD, waitingFor: RED, waitingInput: 'space', waitingViewer: 'ahead'}}).chips[0])
+        .deep.eq({kind: 'asking', seats: [RED], what: 'Tile placement', viewer: 'ahead', lead: true});
+      expect(line({stage: 'reward', reward: {...NO_REWARD, waitingFor: RED, waitingInput: 'payment'}}).chips[0], 'an input with no word names none')
+        .deep.eq({kind: 'asking', seats: [RED], lead: true});
+    });
+    it('THE WAIT TAKES THE LINE once the payout has landed — beside flying chips it rides after them', () => {
+      const yields = [{context: 'applied', amount: 2, effect: {id: 'x', unit: {kind: 'cards'}, perInfluence: 1, recipient: 'each'}} as never];
+      const flying = line({stage: 'reward', reward: {...NO_REWARD, yields, state: 'This payout', waitingFor: RED, waitingInput: 'card', waitingViewer: 'done'}});
+      expect(kinds(flying.chips), 'the wave still flies: the formula, then the wait').deep.eq(['yield', 'asking']);
+      expect(flying.kicker).eq('Your reward');
+      const landed = line({stage: 'reward', reward: {...NO_REWARD, yields, state: 'Received', waitingFor: RED, waitingInput: 'card', waitingViewer: 'done'}});
+      expect(landed.kicker, 'the kicker says the wait').eq('Waiting for the other seats');
+      expect(landed.chips).deep.eq([{kind: 'asking', seats: [RED], what: 'Choosing cards', viewer: 'done', lead: true}]);
+      expect(landed.key, 'a line of its own — the band crossfades to it').not.eq(flying.key);
       const empty = line({stage: 'reward', rewardStep: 'received'});
       expect((empty.chips[0] as {key: string}).key).eq('Your record is in');
     });

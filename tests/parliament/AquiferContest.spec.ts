@@ -6,7 +6,7 @@ import {Game} from '../../src/server/Game';
 import {Parliament} from '../../src/server/parliament/Parliament';
 import {AQUIFER_CONTEST, AQUIFER_CONTEST_ANIMALS, AQUIFER_CONTEST_CODE, AQUIFER_CONTEST_ID} from '../../src/server/parliament/resolutions/greens/AquiferContest';
 import {REDUX_RESOLUTION_CATALOG, ResolutionCatalog} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates, questionOf} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Resource} from '../../src/common/Resource';
 import {Phase} from '../../src/common/Phase';
@@ -126,12 +126,12 @@ describe('AquiferContest', () => {
       expect(ask1.choiceContext?.source).deep.eq({kind: 'resolution', resolution: AQUIFER_CONTEST_ID});
       expect(ask1.choiceContext?.mode).eq('reward');
       expect(ask1.cards.map((c) => c.name)).deep.eq([CardName.FISH]);
-      expect(p2.getWaitingFor(), 'players are visited in order').is.undefined;
+      expect(questionOf(p2), 'players are visited in order').is.undefined;
       p1.process({type: 'card', cards: [CardName.FISH]});
       expect(animalsOn(p1, CardName.FISH)).eq(1);
       // The winner's own steps follow its payout: the ocean comes before p2 is visited.
       const ocean = cast(p1.getWaitingFor(), SelectSpace);
-      expect(p2.getWaitingFor(), 'p2 waits for the winner\'s ocean').is.undefined;
+      expect(questionOf(p2), 'p2 waits for the winner\'s ocean').is.undefined;
       p1.process({type: 'space', spaceId: ocean.spaces[0].id});
       runAllActions(game);
 
@@ -399,7 +399,7 @@ describe('AquiferContest', () => {
       const two = live.getPlayerById(p2.id) as TestPlayer;
       expect(one.tableau.get(CardName.FISH)?.resourceCount).eq(1);
       expect(one.getWaitingFor(), 'p1 owes the ocean, not a second pick').is.instanceOf(SelectSpace);
-      expect(two.getWaitingFor(), 'p2 waits for p1').is.undefined;
+      expect(questionOf(two), 'p2 waits for p1').is.undefined;
       const ocean = cast(one.getWaitingFor(), SelectSpace);
       one.process({type: 'space', spaceId: ocean.spaces[0].id});
       runAllActions(live);

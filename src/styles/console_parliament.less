@@ -1335,6 +1335,10 @@
         line-height: 1.1;
         /* The SECONDARY members give their width after the kicker and before anything printed on an object. */
         &--quiet, &--skip, &--await { flex: 1 1 0; min-width: 0; max-width: max-content; }
+        /* THE WAIT AS THE LINE'S SUBJECT: the seat and WHAT it decides stand whole; only the viewer's own reading
+           («вас больше ни о чём не спросят» — the bar's «Закрыть заседание» says it too) yields, in its own box. */
+        &--lead { flex: 0 1 auto; max-width: none; }
+        &--lead .con-band__seat, &--lead .con-band__text--keep { flex-shrink: 0; }
         /* A RESOLUTION'S NAME yields with them, in its OWN box (an ellipsis on the name, never an ancestor's cut): the
            Deck's focus line on a slot («Открытая торговля патентами · Принимается · Делегаты 0 · Ваши 0/2») ran 100 px
            past the strip and lost the counts — the numbers are what the line is for. Its emblem stays. */

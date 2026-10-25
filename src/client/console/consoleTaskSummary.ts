@@ -587,8 +587,11 @@ function kindSummary(
     // session (the seat has not read its sitting yet: the walk is still ahead),
     // the A verb opens the sitting, the return verb comes back to the same
     // stage. The server's own title carries the generation.
+    // …and once a seat has CLOSED its sitting early, the beat comes back only with a QUESTION of the law: the plate
+    // then names it — «ПАРЛАМЕНТ · ВАШ ХОД» over the server's own question — and A opens the sitting on that step.
     return {
-      kickerKey: 'Parliament',
+      kickerKey: wf !== undefined && wf.parliamentPhasePrompt === undefined && promptSourceResolution(wf) !== undefined ?
+        'Parliament · your turn' : 'Parliament',
       ask: ask(wf, 'The Parliament is in session'),
       returnKey: 'Return to the sitting',
       openKey: 'Open the sitting',

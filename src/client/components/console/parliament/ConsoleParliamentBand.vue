@@ -182,11 +182,18 @@
               <PlayerDelegate color="neutral" steel :size="figurePx(18)" :glow="false" />
               <b class="con-band__num">−{{ chip.amount }}</b>
             </span>
-            <span v-else-if="chip.kind === 'asking'" class="con-band__chip con-band__chip--await" data-parl-band-chip="asking" data-sit-asking>
-              <span class="con-band__text con-band__text--dim">{{ $t('Waiting for the other seats') }}</span>
+            <span v-else-if="chip.kind === 'asking'" class="con-band__chip con-band__chip--await" :class="{'con-band__chip--lead': chip.lead}"
+                  data-parl-band-chip="asking" data-sit-asking>
+              <!-- A chip that IS the line's subject (the kicker already says «Ожидание») does not say it twice. -->
+              <span v-if="chip.lead !== true" class="con-band__text con-band__text--dim">{{ $t('Waiting for the other seats') }}</span>
               <span v-for="c in chip.seats" :key="c" class="con-band__seat">
                 <PlayerDelegate :color="c" :size="figurePx(18)" :glow="false" /><span class="con-band__text">{{ nameOfColor(c) }}</span>
               </span>
+              <!-- WHAT the asked seat answers (by its prompt's input type) and what the wait means for THIS seat (the soft
+                   gates: its part ahead — it may still be asked — or done; A on the bar then closes the sitting). -->
+              <span v-if="chip.what !== undefined" class="con-band__text con-band__text--dim con-band__text--keep" data-sit-asking-what>· {{ $t(chip.what) }}</span>
+              <span v-if="chip.viewer !== undefined" class="con-band__text con-band__text--dim" :data-sit-asking-viewer="chip.viewer">
+                · {{ $t(chip.viewer === 'ahead' ? 'You may still be asked' : 'Nothing more is asked of you') }}</span>
             </span>
           </template>
         </span>
@@ -512,11 +519,15 @@ export default defineComponent({
       if (yields.length === 0 && quiet !== undefined) {
         out.quiet = {kicker: quiet.kicker, kind: quiet.kind};
       }
-      if (this.stateKey !== undefined) {
-        out.state = this.stateKey;
+      if (this.payoutState !== undefined) {
+        out.state = this.payoutState;
       }
       if (position?.waitingFor !== undefined) {
         out.waitingFor = position.waitingFor.player;
+        if (position.waitingFor.input !== undefined) {
+          out.waitingInput = position.waitingFor.input;
+        }
+        out.waitingViewer = position.askedLater === true ? 'ahead' : 'done';
       }
       return out;
     },
@@ -597,9 +608,18 @@ export default defineComponent({
     /**
      * ONE WORD OF STATE beside the kicker, on the reward beat only: «эта
      * выплата» while the numbers are what the law is about to pay, «получено»
-     * once every chip has landed. Absent everywhere else.
+     * once every chip has landed. Absent everywhere else — and once THE WAIT HAS TAKEN THE LINE (the payout landed, the
+     * law asks another seat): «получено» beside «ОЖИДАНИЕ» would name a reward the line no longer shows (the rail reads
+     * it). Read off the line, which is built from `payoutState` — never from this word, or the two chase each other.
      */
     stateKey(): BandRewardState | undefined {
+      if (this.line.chips.some((chip) => chip.kind === 'asking' && chip.lead === true)) {
+        return undefined;
+      }
+      return this.payoutState;
+    },
+    /** The payout's own two moments («эта выплата» → «получено», a cut's pair) — an INPUT of the line. */
+    payoutState(): BandRewardState | undefined {
       const position = this.position;
       if (position === undefined || !this.sittingUp || this.stage !== 'reward') {
         return undefined;

@@ -8,7 +8,7 @@ import {
   CLOUD_DEVELOPMENT, CLOUD_DEVELOPMENT_CODE, CLOUD_DEVELOPMENT_FLOATERS, CLOUD_DEVELOPMENT_ID,
 } from '../../src/server/parliament/resolutions/unity/CloudDevelopment';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates, sittingOf, atSittingEnd} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates, sittingOf, atSittingEnd, questionOf} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {CardName} from '../../src/common/cards/CardName';
@@ -409,7 +409,7 @@ describe('CloudDevelopment', () => {
       endGeneration(game);
       const ask1 = cast(p1.getWaitingFor(), AndOptions);
       expect(ask1.cardResourceDistributionPrompt?.amount, 'the winner\'s Agenda step counts').eq(2);
-      expect(p2.getWaitingFor(), 'players are visited in order').is.undefined;
+      expect(questionOf(p2), 'players are visited in order').is.undefined;
       distribute(p1, ask1, {[CardName.DIRIGIBLES]: 1, [CardName.ATMO_COLLECTORS]: 1});
       runAllActions(game);
       const ask2 = cast(p2.getWaitingFor(), AndOptions);
@@ -531,7 +531,7 @@ describe('CloudDevelopment', () => {
       one = live.getPlayerById(p1.id) as TestPlayer;
       const two = live.getPlayerById(p2.id) as TestPlayer;
       expect(floatersOn(one, CardName.DIRIGIBLES)).eq(2);
-      expect(one.getWaitingFor(), 'p1 owes nothing more').is.undefined;
+      expect(questionOf(one), 'p1 owes nothing more').is.undefined;
       expect(cast(two.getWaitingFor(), SelectCard).resourceGainPrompt?.amount).eq(1);
       two.process({type: 'card', cards: [CardName.ATMO_COLLECTORS]});
       runAllActions(live);

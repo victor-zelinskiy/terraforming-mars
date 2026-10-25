@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, openConsole, pressUntil} from './consoleStart';
-import {closeSitting, closeSittingAs, enterSittingByPass, parliament, parliamentWire, turnTo} from './parliamentDrive';
+import {answerAsksAs, closeSitting, closeSittingAs, enterSittingByPass, parliament, parliamentWire, turnTo} from './parliamentDrive';
 
 /**
  * THE SOFT GATES ON SCREEN (docs/claude/console/parliament-soft-gates.md — П5 · П6), two seats, the TV profile.
@@ -52,6 +52,47 @@ const samplesOf = (page: Page): Promise<Array<Sample>> => page.evaluate(() => (w
 
 test.describe(`the soft gates · ${TV.id}`, () => {
   test.use({viewport: TV.viewport});
+
+  test('THE EARLY CLOSE: blue answered its own part and waits on red — the band says what red decides and that nothing more is asked of blue; A closes, the sitting leaves, no plate; red answers → blue is admitted at once', async ({page, request}) => {
+    test.setTimeout(600_000);
+    // Climate Research asks every seat a take, blue first: after blue's take the chain waits on red's.
+    const {playerId: blue, seats} = await bootFixtureSeats(page, request, 'parliament-climate-assembly', {query: TV.query});
+    const red = seats[1];
+    await enterSittingByPass(page, request, blue);
+    const take = page.locator('.con-parl [data-embed-slot="parliament-stage"] .con-extdraw--embedded');
+    await expect(take, 'blue\'s own take stands in the sitting').toHaveCount(1, {timeout: 60_000});
+    expect(await pressUntil(page, 'Enter', async () => await page.locator('.con-extdraw').count() === 0, {tries: 8, settleMs: 2200}), 'blue takes its cards').toBe(true);
+    // Red is asked now; blue holds only the EARLY close of its sitting (the server's marker).
+    await expect.poll(async () => (await parliamentWire(request, blue)).waitingFor?.parliamentPhasePrompt?.early, {timeout: 30_000,
+      message: 'blue holds the early close while the law asks red'}).toBe(true);
+    const asking = page.locator('.con-parl [data-sit-asking]');
+    await expect(asking, 'the band names the wait on red').toHaveCount(1, {timeout: 30_000});
+    await expect(asking.locator('[data-sit-asking-what]'), 'what red decides').toHaveText(/Выбор карт|Choosing cards/i);
+    await expect(asking.locator('[data-sit-asking-viewer="done"]'), 'nothing more is asked of blue').toHaveCount(1);
+    // The payout has landed — the WAIT takes the line: «ОЖИДАНИЕ» as the kicker, red's name and what it decides WHOLE.
+    await expect(page.locator('.con-band__kicker'), 'the line is the wait').toHaveText(/Ожидание|Waiting/i, {timeout: 20_000});
+    await expect(page.locator('.con-band [data-parl-band-state]'), 'no «получено» beside the wait — the rail reads the payout').toHaveCount(0);
+    const cut = await asking.evaluate((chip) => [...chip.querySelectorAll('.con-band__seat .con-band__text, [data-sit-asking-what]')]
+      .filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.textContent?.trim()));
+    expect(cut, 'nothing of WHO decides and WHAT is cut').toEqual([]);
+    await expect(page.locator('.con-cmdbar'), 'A closes the sitting').toContainText(/Закрыть заседание|Close the sitting/i);
+    await shoot(page, '10-early-close-waiting');
+    // A — blue's sitting closes on the spot: the Parliament leaves and nothing stands on the board home.
+    expect(await pressUntil(page, 'Enter', async () => (await parliamentWire(request, blue)).game.parliament?.phase?.closed?.includes('blue') === true,
+      {tries: 3, settleMs: 2500}), 'A closes blue\'s sitting early').toBe(true);
+    await expect(parliament(page), 'the sitting left with its close').toHaveCount(0, {timeout: 30_000});
+    await expect(page.locator('.con-mandatory'), 'no plate holds blue: nothing is asked of it').toHaveCount(0, {timeout: 10_000});
+    expect((await parliamentWire(request, blue)).waitingFor, 'blue holds no prompt while red decides').toBeUndefined();
+    await shoot(page, '11-early-close-board');
+    // Red answers its take: the sitting ends — blue owes no confirmation and is admitted to the next generation at once.
+    await answerAsksAs(request, red);
+    await expect.poll(async () => {
+      const wf = (await parliamentWire(request, blue)).waitingFor;
+      return wf !== undefined && wf.parliamentPhasePrompt === undefined;
+    }, {timeout: 60_000, message: 'blue\'s first prompt of the next generation, with no confirmation before it'}).toBe(true);
+    expect((await parliamentWire(request, blue)).game.parliament?.sitting?.pending ?? [], 'blue is not in the record').not.toContain('blue');
+    await closeSittingAs(request, red);
+  });
 
   test('one pass → the whole sitting walks by itself under its holds → «Закрыть заседание» flips the counter and admits blue alone', async ({page, request, context}) => {
     test.setTimeout(600_000);

@@ -86,7 +86,8 @@ describe('ParliamentModel — the sitting', () => {
     const other = getParliamentModel(game, p2)!;
     expect(other.phase?.step).eq('effects');
     expect(other.phase?.pending).deep.eq({player: p1.color, key: 'choose-plant-or-heat', input: 'or'});
-    expect(Server.getPlayerModel(p2).waitingFor).is.undefined;
+    // …and p2 is asked NOTHING — it holds only the EARLY close of its sitting (the soft gates).
+    expect(Server.getPlayerModel(p2).waitingFor?.parliamentPhasePrompt).deep.include({stage: 'close', early: true});
     for (const id of [p1.id, p2.id]) {
       const seat = game.getPlayerById(id);
       seat.process({type: 'or', index: 0, response: {type: 'option'}});

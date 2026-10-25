@@ -192,6 +192,7 @@ export class ParliamentPhase {
   /** Drive the phase until a step waits — deferred work first, the whole run inside the sitting's journal context. */
   private continue(): void {
     if (this.drainDeferred() === 'waiting') {
+      this.offerEarlyCloses();
       return;
     }
     const finished = this.game.events.runWithContext(this.rootContext(), () => this.drive());
@@ -199,7 +200,64 @@ export class ParliamentPhase {
       // Reported OUTSIDE the sitting's context: what follows (the final
       // greeneries, the next generation) is not the parliament's business.
       this.onDone(finished.final);
+    } else {
+      this.offerEarlyCloses();
     }
+  }
+
+  /**
+   * THE CHAIN WAITS ON A SEAT: every OTHER seat nothing is asked of may close its sitting now (`SittingAcks.offerEarly`)
+   * — never held on a screen that only says «waiting». Only while the phase still runs (the final barrier's own wait
+   * at `done` is the record's confirmation, not this).
+   */
+  private offerEarlyCloses(): void {
+    if (this.parliament.phase === undefined) {
+      return;
+    }
+    SittingAcks.offerEarly(this.game, this.parliament, this.rootContext());
+    this.game.save();
+  }
+
+  /**
+   * THE SEATS WHOSE PART OF THE LAW IS STILL AHEAD — a seat with a step of its plan (its own, the winner's) not yet
+   * applied, and the world-step handle while a world step is. READ-ONLY: the same plan the effects step walks
+   * (`immediateStepsOf`, the winner's steps, the idempotency keys), never a second rule. A step ahead MAY ask; the
+   * waiting seat reads «you may still be asked» from it, never a promise.
+   */
+  public static seatsAhead(game: IGame, parliament: Parliament): ReadonlySet<PlayerId> {
+    return new ParliamentPhase(game, parliament, () => undefined).seatsStillAhead();
+  }
+
+  private seatsStillAhead(): Set<PlayerId> {
+    const out = new Set<PlayerId>();
+    const p = this.parliament.phase;
+    if (p === undefined || p.summary === undefined || !STEPS_BEFORE_THE_EFFECTS_END.has(p.step)) {
+      return out;
+    }
+    const instance = p.summary.winner.instance;
+    const definition = this.parliament.resolutionOf(instance);
+    const winnerId = p.summary.winner.player;
+    const winner = winnerId === undefined || winnerId === 'NEUTRAL' ? undefined : this.game.getPlayerById(winnerId);
+    const deeds = seatGrantsOf(definition);
+    const winnerSteps = definition.winnerSteps ?? [];
+    const unapplied = (player: IPlayer, stepKey: string) =>
+      !this.seatApplied(player.id, `effect:${p.generation}:${instance}:${stepKey}`, `effect:${p.generation}:${instance}:${player.id}:${stepKey}`);
+    for (const player of this.parliament.participants(this.game, deeds.length === 0 ? 'enactment' : 'seat-grant')) {
+      if (!this.parliament.participates(player, 'enactment')) {
+        continue;
+      }
+      const steps = [
+        ...immediateStepsOf(definition, player, this.parliament, this.game),
+        ...(winner !== undefined && winner.id === player.id ? winnerSteps : []),
+      ];
+      if (steps.some((step) => unapplied(player, step.key))) {
+        out.add(player.id);
+      }
+    }
+    if ((definition.worldSteps ?? []).some((step) => !this.applied(`world:${p.generation}:${instance}:${step.key}`))) {
+      out.add(worldStepHandle(this.game).id);
+    }
+    return out;
   }
 
   /**
@@ -1094,10 +1152,13 @@ export class ParliamentPhase {
       this.parliament.recordPhase(summary);
     }
     const final = p.final;
+    const closedEarly = p.closedEarly ?? [];
     this.parliament.phase = undefined;
     this.parliament.announceAccessChanges(this.game);
     this.parliament.assertLedger(this.game);
-    const owed = SittingAcks.open(this.game, this.parliament, summary, final);
+    // The early closes still standing go: the record is written now, and a seat that closed early owes it nothing.
+    SittingAcks.withdrawEarly(this.game);
+    const owed = SittingAcks.open(this.game, this.parliament, summary, final, closedEarly);
     SittingAcks.issuePending(this.game);
     this.game.save();
     return owed && final ? undefined : {final};
@@ -1117,6 +1178,9 @@ function ownersOf(votes: ReadonlyArray<Vote>): Array<{owner: SerializedDelegateO
   }
   return returned;
 }
+
+/** The steps up to (and including) the effects — a seat's part of the law can still be ahead only there. */
+const STEPS_BEFORE_THE_EFFECTS_END: ReadonlySet<string> = new Set(['winner', 'assembly', 'agenda', 'support', 'enact', 'effects']);
 
 /** Neutral or player — the shape the summary carries. */
 export type PhaseWinnerOwner = PartyName | 'NEUTRAL';

@@ -8,7 +8,7 @@ import {
   JOINT_RESEARCH, JOINT_RESEARCH_AT_TARGET_REASON, JOINT_RESEARCH_CODE, JOINT_RESEARCH_DRAW, JOINT_RESEARCH_HAND_BASE, JOINT_RESEARCH_ID,
 } from '../../src/server/parliament/resolutions/scientists/JointResearch';
 import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/ResolutionCatalog';
-import {answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates, sittingOf} from './parliamentArrange';
+import {answerQuestGate, endGenerationThroughParliament, seatResolution, settleParliamentGates, sittingOf, questionOf} from './parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Phase} from '../../src/common/Phase';
 import {CardName} from '../../src/common/cards/CardName';
@@ -196,7 +196,7 @@ describe('JointResearch', () => {
       expect(game.projectDeck.drawPile.length).eq(deckBefore - 4);
       expect(p1.cardsInHand, 'not in the hand until taken').has.length(3);
       expect(p1.pendingCardIntakes).has.length(1);
-      expect(p2.getWaitingFor(), 'p2 waits its turn').is.undefined;
+      expect(questionOf(p2), 'p2 waits its turn').is.undefined;
       const taken = takeAll(p1);
       runAllActions(game);
       expect(p1.cardsInHand, '3 + 4').has.length(7);
@@ -295,7 +295,7 @@ describe('JointResearch', () => {
       endGeneration(game);
       const first = takePrompt(p1)!.cards.map((c) => c.name);
       expect(first.slice().sort(), 'the top three').deep.eq(pile.slice(-3).sort());
-      expect(p2.getWaitingFor(), 'the next seat is not asked while one still owes a take').is.undefined;
+      expect(questionOf(p2), 'the next seat is not asked while one still owes a take').is.undefined;
       takeAll(p1);
       runAllActions(game);
       const second = takePrompt(p2)!.cards.map((c) => c.name);
