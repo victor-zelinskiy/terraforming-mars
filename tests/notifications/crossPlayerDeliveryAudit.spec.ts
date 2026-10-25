@@ -37,6 +37,7 @@ import {testAutomaGame} from '../automa/AutomaTestGame';
 import {AutomaController} from '../../src/server/automa/AutomaController';
 import {ModularFloodgates} from '../../src/server/cards/delta/ModularFloodgates';
 import {BannedDelegateRedux} from '../../src/server/cards/turmoilRedux/BannedDelegateRedux';
+import {VoteOfNoConfidenceRedux} from '../../src/server/cards/turmoilRedux/VoteOfNoConfidenceRedux';
 import {quietResolutionOf, seatResolution} from '../parliament/parliamentArrange';
 import {PartyName} from '../../src/common/turmoil/PartyName';
 import {Payment} from '../../src/common/inputs/Payment';
@@ -914,5 +915,34 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
       const neg = diffNegativeNotifications({events, seen: new Set(), viewerColor: viewer, generation: game.getGeneration(), createdAt: 1000});
       expect(neg.models, `no standalone hostile card for ${viewer}`).has.length(0);
     }
+  });
+
+  it('S23 — the CHAIRMAN UNSEATED (TR76 Vote Of No Confidence:redux): the delegate of the previous holder goes home — ONE card for them, in the chain of the actor; the actor gets none', () => {
+    [game, builder, owner] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+    game.phase = Phase.ACTION;
+    const parliament = game.parliament!;
+    seatResolution(parliament, 0, quietResolutionOf(PartyName.GREENS));
+    parliament.agenda.set(builder.id, 1);
+    parliament.chairman = owner.id;
+    const card = new VoteOfNoConfidenceRedux();
+    builder.cardsInHand.push(card);
+    builder.megaCredits = 10;
+    builder.playCard(card, Payment.of({megacredits: 5}));
+    runAllActions(game);
+    expect(parliament.chairman).eq(builder.id);
+
+    const root = game.events.events.find((e) =>
+      e.type === 'action' && e.source !== undefined && 'card' in e.source && e.source.card === card.name);
+    expect(root, 'the play rooted an action event').is.not.undefined;
+    const fact = game.events.events.find((e) => e.type === 'chairman-seated');
+    expect(fact!.target?.player, 'the previous holder rides the fact').eq(owner.color);
+    expect(fact!.correlationId, 'in the chain of the actor').eq(root!.correlationId);
+
+    const victimCards = deliveredModels(game, owner.color).filter((m) => m.correlationId === root!.correlationId);
+    expect(victimCards, 'exactly ONE card for the previous chairman — never a twin').has.length(1);
+    expect(victimCards[0].variant).eq('chairman');
+    expect(victimCards[0].header.message, 'their delegate is back in their reserve — practical, never a loss statement')
+      .eq('Your delegate left the chairmanship and returned to your reserve');
+    expect(deliveredModels(game, builder.color).filter((m) => m.correlationId === root!.correlationId), 'the actor walked the flow — no card of it').has.length(0);
   });
 });

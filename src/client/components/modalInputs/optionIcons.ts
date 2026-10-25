@@ -32,6 +32,8 @@ const GLOBAL_PARAMETER_ICONS: ReadonlySet<string> = new Set(['temperature', 'ven
 const RESOURCE_ICON_ALIASES: Readonly<Record<string, string>> = {
   'tr': 'rating', 'rating': 'rating', 'cards': 'cards', 'delegate': 'delegate', 'neutral-delegate': 'neutral-delegate',
   'agenda': 'agenda-step', 'influence': 'influence',
+  // `chair` (Turmoil Redux TR76): the CHAIRMAN'S SEAT — the very chair the requirement plate and the hall's seat print.
+  'chair': 'chair',
   // `colony-tile` (Turmoil Redux TR07): the printed COLONY TILE pill — the journal's «a track moved» chip.
   'colony-tile': 'colony-tile',
   // A free TRADE (TR66 Automated Convoys' role, its target-step tag — PL-219): the printed trade fleet, the card faces' own art.

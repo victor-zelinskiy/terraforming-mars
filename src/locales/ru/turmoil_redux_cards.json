@@ -238,5 +238,6 @@
     "Place your cube on the banner of any party": "Поставьте свой куб на знамя любой партии",
     "After confirming, choose the party whose banner takes your cube.": "После подтверждения выберите партию, на знамя которой встанет ваш куб.",
     "Requires that you have the highest number of delegates on 2 resolutions at once. (Ties are broken by who put a delegate in first, and Neutral delegates don't count.) Advance your Agenda marker 1 step.": "Требует, чтобы у вас было больше всех делегатов сразу на 2 резолюциях (при равенстве лидирует тот, чей делегат пришёл первым; нейтральные делегаты не учитываются). Продвиньте маркер Карьеры на 1 шаг.",
-    "Exchange one NEUTRAL delegate on a resolution with one of your own from the reserve.": "Обменяйте одного нейтрального делегата на резолюции на одного своего из резерва."
+    "Exchange one NEUTRAL delegate on a resolution with one of your own from the reserve.": "Обменяйте одного нейтрального делегата на резолюции на одного своего из резерва.",
+    "Requires that you have at least 1 Influence. Remove the current Chairman and move your own delegate (from the reserve) there instead. Advance your Agenda marker 1 step.": "Требует, чтобы у вас было не менее 1 влияния. Снимите текущего председателя и посадите на его место своего делегата (из резерва). Продвиньте маркер Карьеры на 1 шаг."
 }

@@ -67,6 +67,12 @@ type SeatResult = 'seated' | 'asking';
  */
 export type AgendaWalkCause = {reason: 'quest'} | {reason: 'phase'} | {reason: 'card', card: CardName} | {reason: 'resolution', resolution: ResolutionId};
 
+/**
+ * Why the chair cannot be TAKEN by an unseat (TR76): it is empty (`vacant`), it is already the player's (`self`), or
+ * the player's reserve is empty (`reserve`).
+ */
+export type UnseatBlocker = 'vacant' | 'self' | 'reserve';
+
 /** What ONE walk did: where it started, where it ended, and EVERY step it took in order, each with the bonus that step paid. */
 export type AgendaWalk = {from: number; to: number; steps: ReadonlyArray<AgendaAdvanceStep>};
 
@@ -382,6 +388,48 @@ export class ChairmanSeat {
     parliament.pendingActions.push({kind: 'chairman-seat', player: player.id, ...(previous === undefined ? {} : {previous})});
     player.defer(() => ChairmanSeat.seatPrompt(player, parliament), Priority.DEFAULT);
     return 'asking';
+  }
+
+  /**
+   * THE FIRST BLOCKER of an UNSEAT (TR76 Vote Of No Confidence:redux — «remove the current Chairman and move your own
+   * delegate (from the reserve) there instead»), in the order the printed sentence needs them: somebody to remove (an
+   * empty chair has no «current Chairman»), somebody ELSE (removing yourself to sit back down changes nothing the card
+   * prints), a delegate in the reserve (the printed «from the reserve» — never the lobby, never a resolution).
+   * `undefined` = the unseat can happen now. ONE reading for the card's gate, the hand's reason and the play.
+   */
+  public static unseatBlocker(player: IPlayer, parliament: Parliament): UnseatBlocker | undefined {
+    if (parliament.chairman === undefined) {
+      return 'vacant';
+    }
+    if (parliament.chairman === player.id) {
+      return 'self';
+    }
+    return parliament.reserve(player) > 0 ? undefined : 'reserve';
+  }
+
+  /**
+   * UNSEAT THE CURRENT CHAIRMAN AND SIT DOWN FROM THE RESERVE (TR76) — `seat()`'s first two branches and nothing else:
+   * the outgoing delegate (a player's, MarsBot's — whoever holds the chair) leaves the seat and is back in its owner's
+   * reserve by derivation (`Parliament.reserve` counts the chair out), the new one comes OUT OF THE RESERVE. Never the
+   * lobby, never a resolution, never a pick (`pendingActions` is not touched), never the quest (the quest is the
+   * generation's, not the office-holder's). The same lines, the same record (`chairman-seated {previous}`) the quest's
+   * seating writes — the caller owns the journal root (a card's play). Throws on a blocked unseat: the gate is the
+   * caller's (`unseatBlocker`), and a play that passed it cannot reach here otherwise.
+   */
+  public static unseatAndSeatFromReserve(player: IPlayer, parliament: Parliament): {previous: Color} {
+    const blocker = ChairmanSeat.unseatBlocker(player, parliament);
+    if (blocker !== undefined || parliament.chairman === undefined) {
+      throw new Error(`The chairman cannot be unseated (${blocker})`);
+    }
+    const game = player.game;
+    const holder = game.getPlayerById(parliament.chairman);
+    game.log('The delegate of ${0} leaves the chairman seat', (b) => b.player(holder));
+    // ONE assignment moves both cubes: the reserve is derived (7 − votes − chair − lobby), so the outgoing owner's
+    // count grows and the new chairman's shrinks by this very write.
+    parliament.chairman = player.id;
+    game.log('${0} becomes the chairman (delegate from the reserve)', (b) => b.player(player));
+    game.events.recordChairmanSeated(player, holder.color);
+    return {previous: holder.color};
   }
 
   /** The prompt of a pending seat (also rebuilt after a reload). */

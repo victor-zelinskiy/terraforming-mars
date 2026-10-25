@@ -593,5 +593,7 @@
     "Remove any delegate from a resolution or Popular Support area.": "Изгоните любого делегата с резолюции или из области народной поддержки.",
     "As your first action, place your cube on the banner of any party.": "Первое действие: поставьте свой куб на знамя любой партии.",
     "Win a resolution: your cube on its party's banner": "Победа на резолюции: ваш куб на знамя её партии",
-    "Cube on a banner: its effect, not its requirement": "Куб на знамени: эффект, не требование"
+    "Cube on a banner: its effect, not its requirement": "Куб на знамени: эффект, не требование",
+    "Requires that you have at least 1 Influence.": "Требуется не менее 1 влияния.",
+    "Remove the current Chairman and seat your own delegate from the reserve there instead.": "Снимите текущего председателя и посадите на его место своего делегата из резерва."
 }

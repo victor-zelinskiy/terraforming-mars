@@ -112,8 +112,8 @@ describe('classic Turmoil cards under Turmoil Redux', () => {
       const all = [...adapted, ...adaptedCorporations];
       // Off the list but REPLACED (TR71 Aerial Lenses:redux, 2026-10-24 — the first; TR72 Banned Delegate:redux the
       // second, TR75 Sponsored Mohole:redux the third, the corporation TR77 Septem Tribus:redux the fourth, TR73 Political
-      // Alliance:redux the fifth, TR74 Recruitment:redux the sixth): never dealt, see «the replacements».
-      const replaced = [CardName.AERIAL_LENSES, CardName.BANNED_DELEGATE, CardName.POLITICAL_ALLIANCE, CardName.RECRUITMENT, CardName.SPONSORED_MOHOLE, CardName.SEPTUM_TRIBUS];
+      // Alliance:redux the fifth, TR74 Recruitment:redux the sixth, TR76 Vote Of No Confidence:redux the seventh and last): never dealt, see «the replacements».
+      const replaced = [CardName.AERIAL_LENSES, CardName.BANNED_DELEGATE, CardName.POLITICAL_ALLIANCE, CardName.RECRUITMENT, CardName.SPONSORED_MOHOLE, CardName.VOTE_OF_NO_CONFIDENCE, CardName.SEPTUM_TRIBUS];
       const offTheList = CLASSIC.filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name));
       expect(offTheList).to.have.members([...all, ...replaced]).and.length(all.length + replaced.length);
       expect(offTheList.filter((name) => !TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(name))).to.have.members(all).and.length(all.length);
@@ -145,25 +145,12 @@ describe('classic Turmoil cards under Turmoil Redux', () => {
     });
 
     it('answers only for a Redux table without the classic engine', () => {
-      // The in-place rows are gone (2026-10-24): a held-back card is now one awaiting its Redux replacement.
-      const held = TURMOIL_CARDS_AWAITING_REDUX_REPLACEMENT[0];
-      expect(isTurmoilCardHeldBackUnderRedux(held, options(REDUX))).is.true;
-      expect(isTurmoilCardHeldBackUnderRedux(held, options(CLASSIC_ON))).is.false;
-      expect(isTurmoilCardHeldBackUnderRedux(held, options(NEITHER))).is.false;
-      expect(isTurmoilCardHeldBackUnderRedux(held, options({turmoilReduxExpansion: true, turmoilExtension: true}))).is.false;
+      // The list is EMPTY since TR76 (2026-10-25): nothing is held back on any table any more.
+      expect(TURMOIL_CARDS_AWAITING_REDUX_REPLACEMENT).is.empty;
+      for (const name of CLASSIC) {
+        expect(isTurmoilCardHeldBackUnderRedux(name, options(REDUX)), name).is.false;
+      }
       expect(isTurmoilCardHeldBackUnderRedux(CardName.EVA_MECHS, options(REDUX))).is.false;
-    });
-
-    // The dev road onto a Redux table before a card's row goes: the guaranteed
-    // cards are added AFTER the filter, exactly like a card of a module that is off.
-    it('a held-back card can still be forced in as a guaranteed card', () => {
-      // T07 took the last in-place project row and R07 Pristar the last corporation row (2026-10-24): a card still
-      // held back is one awaiting its Redux replacement — the same filter keeps it out. No corporation is held back any
-      // more (Septem Tribus crossed as TR77, 2026-10-25), so only a project is forced.
-      const project = [...TURMOIL_CARDS_HELD_BACK_UNDER_REDUX].find((name) => PROJECTS.includes(name));
-      expect(project).is.not.undefined;
-      const cards = new GameCards(options({...REDUX, customProjectCards: [project!]}));
-      expect(cards.getProjectCards().map(toName)).to.contain(project);
     });
   });
 

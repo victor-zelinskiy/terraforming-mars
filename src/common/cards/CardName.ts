@@ -1148,6 +1148,8 @@ export enum CardName {
   POLITICAL_ALLIANCE_REDUX = 'Political Alliance:redux',
   RECRUITMENT_REDUX = 'Recruitment:redux',
   SPONSORED_MOHOLE_REDUX = 'Sponsored Mohole:redux',
+  // Upstream's enum spells «Of» (the RU name is keyed so); the scan's «of» lives only in the descriptions.
+  VOTE_OF_NO_CONFIDENCE_REDUX = 'Vote Of No Confidence:redux',
   // The PRINTED name (the scan says «Septem»); the classic enum keeps upstream's `SEPTUM_TRIBUS` spelling.
   SEPTEM_TRIBUS_REDUX = 'Septem Tribus:redux',
 

@@ -74,6 +74,7 @@ import {AerialLensesRedux} from './AerialLensesRedux';
 import {BannedDelegateRedux} from './BannedDelegateRedux';
 import {PoliticalAllianceRedux} from './PoliticalAllianceRedux';
 import {RecruitmentRedux} from './RecruitmentRedux';
+import {VoteOfNoConfidenceRedux} from './VoteOfNoConfidenceRedux';
 import {SponsoredMoholeRedux} from './SponsoredMoholeRedux';
 import {SeptemTribusRedux} from './SeptemTribusRedux';
 
@@ -369,6 +370,11 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // TR75 (the fifth registry row — authored third): the classic T13 at the printed Greens' plate, still 5 M€, a Building
     // tag and +2 heat production, plus 1 VP. Art and lore are T13's (`reimplements`).
     [CardName.SPONSORED_MOHOLE_REDUX]: {Factory: SponsoredMoholeRedux},
+    // TR76 (the sixth registry row — the LAST replacement authored): the classic T16 under Redux — still 5 M€, an event;
+    // «at least 1 influence» (TR04's kind), the CURRENT chairman — whoever holds the seat — leaves it and the player's own
+    // delegate sits down from the reserve (`ChairmanSeat.unseatAndSeatFromReserve`), then one Agenda step instead of the
+    // TR. Art and lore are T16's (`reimplements`).
+    [CardName.VOTE_OF_NO_CONFIDENCE_REDUX]: {Factory: VoteOfNoConfidenceRedux},
   },
   // The set's REPLACEMENT CORPORATION (TR77 — the first number past the six project replacements): the classic R15 at
   // 40 M€ with the wild tag, the M€-per-party action gone, the cubes on the parties' banners instead (a grant of the
@@ -384,6 +390,7 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     CardName.POLITICAL_ALLIANCE,
     CardName.RECRUITMENT,
     CardName.SPONSORED_MOHOLE,
+    CardName.VOTE_OF_NO_CONFIDENCE,
     CardName.SEPTUM_TRIBUS,
   ],
 });

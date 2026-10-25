@@ -52,7 +52,8 @@ type CrossPlayerFamily =
   | 'card-draw-payout' // another player DRAWS cards because of the actor (Sponsored Academies)
   | 'track-attack' // move another player's Hydronetwork marker backwards (Corporate Espionage)
   | 'track-blockade' // a standing ban on another player's Hydronetwork advancement (Modular Floodgates)
-  | 'delegate-attack'; // take another player's delegate off the Parliament's table (TR72 Banned Delegate:redux)
+  | 'delegate-attack' // take another player's delegate off the Parliament's table (TR72 Banned Delegate:redux)
+  | 'chairman-unseat'; // send the CURRENT chairman's delegate home and take the seat (TR76 Vote Of No Confidence:redux)
 
 /** family → the scenario(s) in crossPlayerDeliveryAudit.spec.ts (same dir)
  *  that drive a REAL door and assert the recipient's client-side band. A new
@@ -68,6 +69,7 @@ const FAMILY_PROOF: Record<CrossPlayerFamily, string> = {
   'track-attack': 'delta-position-changed carries victim + attacker (notificationSemantics.spec track band, tests/cards/delta/CorporateEspionage.spec, tests/delta/deltaMovement.spec)',
   'track-blockade': 'S21 (Modular Floodgates blue-action door: delta-blockade-changed carries victim + attacker, the victim\'s worded band is delivered, the actor gets none)',
   'delegate-attack': 'S22 (Banned Delegate:redux play: delegate-removed carries the victim, the victim\'s «−1 [delegate]» band is delivered, the actor gets none)',
+  'chairman-unseat': 'S23 (Vote Of No Confidence:redux play: chairman-seated carries the previous holder, their «your delegate returned to your reserve» card is delivered once, the actor gets none)',
 };
 
 type Classification =
@@ -132,6 +134,7 @@ const FAMILY_TOKENS: ReadonlyArray<{token: string; family: CrossPlayerFamily}> =
   {token: 'removingPlayer', family: 'card-resource-attack'},
   {token: 'new RemoveResources(', family: 'stock-attack'},
   {token: 'RemoveDelegate', family: 'delegate-attack'},
+  {token: 'unseatAndSeatFromReserve', family: 'chairman-unseat'},
 ];
 
 /** Tokens that show the card LOOKS AT the rest of the table. Not proof of a

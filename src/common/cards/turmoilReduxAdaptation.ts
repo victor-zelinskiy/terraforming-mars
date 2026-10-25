@@ -63,7 +63,6 @@ export const TURMOIL_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
  * Recruitment as well (TR74 `Recruitment:redux` — TR72's figure pick as an EXCHANGE: a neutral cube on a bill for your own).
  */
 export const TURMOIL_CARDS_AWAITING_REDUX_REPLACEMENT: ReadonlyArray<CardName> = [
-  CardName.VOTE_OF_NO_CONFIDENCE, // → ≥1 influence; unseat the CURRENT chairman → 1 Agenda step
 ];
 
 /** The one set `GameCards` (through the server predicate) and `inPremiumScope` read: every classic Turmoil card not yet adapted. */

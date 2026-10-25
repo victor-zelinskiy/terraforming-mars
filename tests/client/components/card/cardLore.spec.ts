@@ -94,6 +94,10 @@ describe('cardLore', () => {
       expect(cardLoreSource(CardName.RECRUITMENT)).to.eq('Join us, and your voice will be heard.');
       expect(cardLoreSource(CardName.RECRUITMENT_REDUX)).to.eq(cardLoreSource(CardName.RECRUITMENT));
       expect(cardArtUrl(CardName.RECRUITMENT_REDUX), 'and the classic T11 art').to.eq('assets/card-images/T11.webp');
+      // TR76 — the owner's line for the classic T16, borrowed the same way (the last replacement).
+      expect(cardLoreSource(CardName.VOTE_OF_NO_CONFIDENCE)).to.eq('The Chairman continues to disappoint - we need new leadership to face the current crisis.');
+      expect(cardLoreSource(CardName.VOTE_OF_NO_CONFIDENCE_REDUX)).to.eq(cardLoreSource(CardName.VOTE_OF_NO_CONFIDENCE));
+      expect(cardArtUrl(CardName.VOTE_OF_NO_CONFIDENCE_REDUX), 'and the classic T16 art').to.eq('assets/card-images/T16.webp');
       // TR77 — the replacement CORPORATION borrows the classic R15's printed quote and its art (imported 2026-10-25).
       expect(cardLoreSource(CardName.SEPTEM_TRIBUS_REDUX)).to.eq(cardLoreSource(CardName.SEPTUM_TRIBUS));
       expect(cardLoreSource(CardName.SEPTUM_TRIBUS)).to.match(/^Septem Tribus is a secret society/);

@@ -74,6 +74,9 @@ export const TURMOIL_REDUX_CLASSIC_REPLACEMENTS: ReadonlyArray<ClassicReplacemen
     changes: 'party Kelvinists → GREENS (printed, what the general rule gives anyway); still cost 5, Building tag, +2 heat production; gains 1 VP.',
   },
   {
+    // TR76 — AUTHORED 2026-10-25 (`turmoilRedux/VoteOfNoConfidenceRedux.ts`, `Vote Of No Confidence:redux`) — the LAST
+    // replacement authored: the quest's seating without its lobby / resolution branches (`ChairmanSeat.unseatAndSeatFromReserve`)
+    // + TR04's walk, one journal group.
     classic: CardName.VOTE_OF_NO_CONFIDENCE, kind: 'project', scan: 'Projects/Replacement - Vote of No Confidence.png',
     changes: 'still cost 5, event; requirement «a party leader + a NEUTRAL chairman» → «at least 1 influence»; removes the CURRENT chairman whoever holds the seat (a player\'s delegate too) and seats your own from the reserve; reward +1 TR → advance the Agenda marker 1 step.',
   },

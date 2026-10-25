@@ -44,6 +44,9 @@ describe('i18n', () => {
     expect(translateCardName('Political Alliance:redux')).eq('Политический союз');
     (window as any)._translations = {'Recruitment': 'Вербовка'};
     expect(translateCardName('Recruitment:redux')).eq('Вербовка');
+    // Upstream's capital «Of» is the key the RU name is filed under (`turmoil_cards.json`).
+    (window as any)._translations = {'Vote Of No Confidence': 'Вотум недоверия'};
+    expect(translateCardName('Vote Of No Confidence:redux')).eq('Вотум недоверия');
     expect(logs).deep.eq([]);
   });
 
