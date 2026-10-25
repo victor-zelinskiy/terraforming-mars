@@ -5,6 +5,7 @@ import {DelegatePromptMeta, DelegateTargetProjection, SupportPromptMeta, VoteSup
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {SITTING_SUBJECT_KEY} from '@/client/console/parliament/consoleSittingFlow';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
+import {disarmAccessToldOnStage} from './accessToldOnStage';
 
 /*
  * THE PARLIAMENT WORKSPACE'S FLOW STATE (Turmoil Redux) — two records.
@@ -172,7 +173,16 @@ export type ParliamentZone = 'voting' | 'government' | 'ruler' | 'parties' | 'ef
  * (`delegateCommitted` — the figure is taken off its place and carried home:
  * a seat's reserve, the common supply).
  */
-export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'quest' | 'submitting' | 'paying' | 'landed' | 'sitting' | 'walk' | 'support' | 'rally' | 'effects' | 'delegate';
+export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'quest' | 'submitting' | 'paying' | 'landed' | 'sitting' | 'walk' | 'support' | 'rally' | 'effects' | 'delegate' |
+  /** THE ACCESS SCENE (2026-10-25): the vote landed the delegate that won a party's effect — the hall plays it. */
+  'access';
+
+/**
+ * THE ACCESS SCENE's beat ('' — none): the bill's figures COUNT the threshold · the vote layer lets go of the hall ·
+ * the party's seal TRAVELS from the delegate into «ВАШИ ЭФФЕКТЫ» · it LANDED (the tile, the head, the bench answer) and
+ * is read · done (the flow leaves).
+ */
+export type AccessBeat = '' | 'count' | 'return' | 'flight' | 'landed' | 'done';
 
 /** The DELEGATE mode's outcome beat ('' before A): the figure carried home · the read · over. */
 export type DelegateBeat = '' | 'sent' | 'flight' | 'read' | 'done';
@@ -236,6 +246,15 @@ function freshFlow() {
     voteSubject: undefined as Color | undefined,
     /** The vote's numbers at the submit (undefined = not sent yet). */
     voteSnapshot: undefined as VoteSnapshot | undefined,
+    /**
+     * THE PARTY WHOSE EFFECT THIS VOTE IS EXPECTED TO WIN (armed at the submit off the viewer's own access: not held,
+     * the press reaches the threshold). Every surface that would TELL the gain on its own (the bench's one-shot) waits
+     * for the scene instead; cleared with the flow.
+     */
+    accessExpected: undefined as ReduxParty | undefined,
+    /** THE ACCESS SCENE playing: the party it is about and its beat. */
+    accessParty: undefined as ReduxParty | undefined,
+    accessBeat: '' as AccessBeat,
     /** The bench keeps painting the source cube until its proxy stands over it. */
     sourceHold: undefined as 'lobby' | 'reserve' | undefined,
     /** …and the bench's WORDS (the lobby's note, the reserve's count) follow the cube only once it has visibly left its place. */
@@ -333,6 +352,7 @@ export const parliamentFlow = reactive(freshFlow());
 export const BODY_SWAP_MS = 400;
 
 export function resetParliamentFlow(): void {
+  disarmAccessToldOnStage();
   Object.assign(parliamentFlow, freshFlow());
 }
 
@@ -457,9 +477,12 @@ export function parliamentCrumbSubject(questLive = false): string {
   // advances. Stand-alone (a reload into the pending pick) it is the overview's.
   case 'seat':
     return questLive ? CHAIRMAN_QUEST_SUBJECT_KEY : 'Parliament overview';
+  // THE ACCESS SCENE ('access') is the vote's own outcome: the subject stays «ГОЛОСОВАНИЕ», the tail advances to
+  // «ЭФФЕКТ ПАРТИИ».
   case 'vote':
   case 'paying':
   case 'landed':
+  case 'access':
     return 'Voting';
   case 'submitting':
     return parliamentFlow.stageBeforeSubmit === 'vote' ? 'Voting' :
@@ -499,6 +522,7 @@ export function parliamentCrumbStage(sittingTail: string, questTail = ''): strin
   case 'walk': return AGENDA_WALK_STAGE_KEY;
   // A card's rally of neutral delegates (TR31): one word, «ДЕЛЕГАТЫ» — the same key the hosted frame is pushed with.
   case 'rally': return NEUTRAL_RALLY_STAGE_KEY;
+  case 'access': return 'Party effect';
   default: return '';
   }
 }
@@ -510,7 +534,7 @@ export const NEUTRAL_RALLY_STAGE_KEY = 'Delegates';
 
 export function parliamentCrumbCommitted(questLive = false): boolean {
   const stage = parliamentFlow.stage;
-  return stage === 'submitting' || stage === 'landed' || stage === 'paying' || stage === 'sitting' || stage === 'quest' || stage === 'walk' || stage === 'rally' ||
+  return stage === 'submitting' || stage === 'landed' || stage === 'access' || stage === 'paying' || stage === 'sitting' || stage === 'quest' || stage === 'walk' || stage === 'rally' ||
     (stage === 'seat' && questLive) ||
     // The support-area mode: cyan while its pick is open, amber once A is pressed — or while it serves a LIVE door,
     // which the player must answer (the commit of the flow that raised it is behind them).

@@ -243,6 +243,32 @@
     }
     &__effects-head { display: flex; justify-content: space-between; align-items: center; padding: 0 .2rem; flex-shrink: 0; }
     &__effects-kicker { .con-parl-v8-kicker(); color: @con-parl-mint; }
+    /* THE ACCESS SCENE's word on the zone's head: «✓ ЭФФЕКТ ПАРТИИ ПОЛУЧЕН» — the same kicker, a step brighter, with
+       the check the seals already use; it enters once (rise + fade) and stands until the flow leaves. */
+    &__effects-kicker--won {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        color: #9ff5d2;
+        animation: con-parl-effects-won calc(420ms * var(--motion-scale, 1)) @con-ease-standard both;
+    }
+    &__effects-check { width: .9rem; height: .9rem; flex-shrink: 0; }
+    /* The tile the scene is bringing in: its PLACE stands (the grid never re-flows under the seal) as an empty socket —
+       a dashed kant in the party's accent, nothing inside — until the seal lands in it. */
+    &__effects-row--arriving {
+        background: rgba(255, 255, 255, 0.012);
+        box-shadow: inset 0 0 0 .07rem color-mix(in srgb, var(--parl-accent, @con-parl-mint) 45%, transparent);
+        > * { visibility: hidden; }
+    }
+    /* …and on the touchdown it UNFOLDS from the seal's corner (a one-shot), its mint kant marking the gain for the read
+       (material, never a halo — the state is the kant, the event the one-shot). */
+    &__effects-row--won {
+        box-shadow: inset 0 .12rem 0 var(--parl-accent, @con-parl-mint), inset 0 0 0 .08rem fade(@con-parl-mint, 70%);
+        transform-origin: 1.2rem 1.2rem;
+        animation: con-parl-effects-unfold calc(460ms * var(--motion-scale, 1)) @con-ease-standard both;
+        .con-parl__effects-place { animation: con-parl-effects-place calc(520ms * var(--motion-scale, 1)) @con-ease-standard both; }
+        .con-parl__effects-place + .con-parl__effects-place { animation-delay: calc(110ms * var(--motion-scale, 1)); }
+    }
     &__effects-sum { display: inline-flex; gap: .7rem; }
     &__effects-sum-item {
         display: inline-flex; align-items: center; gap: .25rem; font-size: .7rem; color: @con-parl-mint;
@@ -1798,4 +1824,27 @@ html.con-profile-tv .con-parl {
     &__delegate-emblem { width: 1.4rem; height: 1.4rem; }
     &__delegate-dest { font-size: .9rem; }
     &__delegate-sole { font-size: .8rem; }
+}
+
+/* ── THE ACCESS SCENE's one-shots (2026-10-25) ── */
+@keyframes con-parl-effects-won {
+    from { opacity: 0; transform: translateY(.35rem); }
+    to { opacity: 1; transform: none; }
+}
+@keyframes con-parl-effects-unfold {
+    from { opacity: 0; transform: scale(.9); }
+    60% { opacity: 1; }
+    to { opacity: 1; transform: none; }
+}
+@keyframes con-parl-effects-place {
+    from { opacity: 0; transform: translateY(.3rem) scale(.7); }
+    to { opacity: 1; transform: none; }
+}
+html.con-fx-lite .con-parl__effects-kicker--won,
+html.con-fx-lite .con-parl__effects-row--won,
+html.con-fx-lite .con-parl__effects-row--won .con-parl__effects-place { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+    .con-parl__effects-kicker--won,
+    .con-parl__effects-row--won,
+    .con-parl__effects-row--won .con-parl__effects-place { animation: none; }
 }

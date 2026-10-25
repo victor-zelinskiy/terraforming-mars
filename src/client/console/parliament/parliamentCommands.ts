@@ -314,5 +314,9 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
   case 'landed':
     // The landing beat is a STATUS, not a verb: the bar echoes the CTA (busy until the cube lands) and offers nothing until the flow leaves.
     return [{control: 'confirm', label: parliamentVoteInFlight() || parliamentSupportInFlight() ? 'Performing…' : 'Delegate placed', enabled: false}];
+  case 'access':
+    // THE ACCESS SCENE (2026-10-25) — the seal travelling into «ВАШИ ЭФФЕКТЫ»: a STATUS (what the hall is telling),
+    // never a verb; the flow leaves by itself once it has been read.
+    return [{control: 'confirm', label: parliamentFlow.accessBeat === 'landed' || parliamentFlow.accessBeat === 'done' ? 'Party effect gained' : 'Performing…', enabled: false}];
   }
 }

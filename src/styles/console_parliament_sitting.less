@@ -690,3 +690,60 @@ html.con-profile-tv .con-receipt {
 .con-sit__veto-seat { display: inline-flex; align-items: center; gap: .3rem; }
 .con-sit__veto-tr { font-weight: 800; }
 html.con-profile-tv .con-sit__veto { font-size: .92rem; }
+
+/* ══ ОДНА РАМА (2026-10-25 — the owner's 4K frame of «ЗАСЕДАНИЕ › НАГРАДА»: «визуал парламента построен как чужеродный
+   элемент … если сравнить с workspace «карты в руке», «действия карт», «колонии» — там интерфейс более цельный»). The
+   diagnosis was material, not layout: every other workspace stands on ONE opaque stage surface (`.con-stage-surface()`
+   — the room) and puts its working matter on ONE quiet plane (`.con-stage-plate()`); the Parliament floated its plates
+   over the board's starfield, and its reward stage was a violet box holding a second violet box holding a reading
+   centred in a void, with the reading line as a pill over an empty strip of the table's plate. The law here:
+     1. THE ROOM — the Parliament's root is the workspace stage surface (the same paint as «Колонии» / «Действия карт»);
+     2. THE FIELD POSE IS THE ROOM CLEARED — the stage that takes the floor for the reward wears the room's own paint
+        (flat — no ring, no radius, no drop): the hall recedes and the workspace stands, nothing «arrived» over it;
+     3. ONE PLANE FOR THE WORK — the zone is no box; what is READ (the ledger, the receipt) stands on the stage plate,
+        what is PICKED (the take's cards) stands on the floor, exactly as in «Действия карт»;
+     4. NO PARLIAMENT-ONLY TINT — violet stays an ACCENT (a hairline, the influence glyph), never a wash. ══ */
+.con-parl:not(.con-parl--embedded) {
+    .con-stage-surface();
+}
+/* The non-field stage (a reward with nothing hosted, the seat pick) is a plate of the workspace's own family. */
+.con-parl .con-parl__stage {
+    .con-stage-plate();
+    background:
+        linear-gradient(90deg, transparent 8%, rgba(150, 200, 240, 0.16) 50%, transparent 92%) no-repeat top center / 100% .06rem,
+        linear-gradient(168deg, rgb(17, 26, 39) 0%, rgb(11, 17, 27) 60%, rgb(8, 13, 21) 100%);
+}
+/* THE FIELD POSE — the room cleared (the room's own paint, opaque, flat): the hall under it is gone, not boxed. */
+.con-parl .con-parl__stage.con-parl__stage--field {
+    border-radius: 0;
+    background: linear-gradient(180deg, rgb(9, 15, 23), rgb(7, 12, 19) 46%, rgb(5, 9, 15));
+    box-shadow: none;
+    padding: .2rem 0 .3rem;
+}
+/* …the table's plate does not stand behind the cleared floor (its empty head strip read as a stray bar). */
+.con-parl--sitting-field .con-parl__mid {
+    background: none;
+    box-shadow: none;
+}
+/* …and the reading line is the STAGE'S HEAD there: no pill of its own — the line stands on the room like the head of
+   «Действия карт»'s stage. */
+.con-parl--sitting-field .con-parl__mid-band > .con-band {
+    background: none;
+    box-shadow: none;
+    padding-left: 0;
+}
+.con-sit__zone {
+    background: none;
+    box-shadow: none;
+    border-radius: 0;
+}
+/* WHAT IS READ stands on the stage plate, sized by its content — the ledger is a dossier of the payout, not a field. */
+.con-sit__ledgerpane > .con-cledger {
+    .con-stage-plate();
+    padding: 1rem 1.4rem 1.1rem;
+}
+/* THE STAGE'S HEAD at the stage's scale: in the field pose the reading line is the head of a workspace stage («Ваша
+   награда · Эта выплата · 3 → ×3» over the take / the ledger — «Получены карты · ПОЛУЧЕНО 2» on «Действия карт»), so
+   its line reads a step up on the couch; the BAND'S BOX keeps its height (the geometry probes pin it — only its ink
+   grows, and only as far as the box holds it: ×1.2 of a 1.95rem band at 4K; the 1080 line already fills its box). */
+html.con-profile-tv .con-parl--sitting-field .con-parl__mid-band > .con-band .con-band__line { zoom: 1.2; }

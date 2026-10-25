@@ -1,17 +1,17 @@
 /*
  * THE CARD FACE OF A PARTY (Turmoil Redux — ONE FRAMEWORK, the owner's decision Р2 of 2026-10-24).
  *
- * A party's action is composed by THE card composer, and its hero is a CARD: the party drawn in the PROJECT card's
- * anatomy («это то же самое действие, что у синей карты, — только с печатью партии»). The face is built HERE from the
- * client parliament manifest and handed to `PremiumCard` through `vmOverride` (the one sanctioned entry for a face
- * outside the card manifest — the resolutions' and the MarsBot corporations' precedent):
+ * A party's action is composed by THE card composer, and its hero is a CARD. Since 2026-10-25 that card is the party's
+ * OWN anatomy — THE CHARTER (`PremiumPartyFace`, theme `charter`; the owner: «не повтор проектных карточек … свой
+ * неповторимый НАСТОЛЬНЫЙ дизайн, логотипу не должно быть отдано так много места»), the project anatomy with the seal in
+ * its art window (Р2 of 2026-10-24) retired. The face is built HERE from the client parliament manifest and handed to
+ * `PremiumCard` through `vmOverride` (the one sanctioned entry for a face outside the card manifest — the resolutions'
+ * and the MarsBot corporations' precedent):
  *
- *   · the nameplate carries the party's NAME (`partyNameKey`), never a card name;
- *   · the art window carries the party's SEAL over its accent field (`sealArt` — the emblem whole, never cropped as
- *     an illustration; `pcard--party-face`);
- *   · the rules block prints the party's own render data through the ONE formula renderer — its standing effect
- *     above, its action below, exactly as a blue card prints an effect and an action; the action's nodes carry the
- *     `data-graphic-node` anchors the ACTION COMMIT's impulse runs over;
+ *   · the banner carries the party's NAME (`partyNameKey`) under its crest, never a card name;
+ *   · the clauses print the party's own render data through the ONE formula renderer — its standing effect, then its
+ *     action, each under its label (`charter`); the action's nodes carry the `data-graphic-node` anchors the ACTION
+ *     COMMIT's impulse runs over (the combined `mechanics` stays the face's whole formula for every other reader);
  *   · no cost, no tags, no requirement — a party is played by nobody.
  *
  * No fictitious project card is created: `name` is the party's tile KEY (a key, never a CardName in the manifest).
@@ -39,13 +39,21 @@ export function partyPremiumVm(party: ReduxParty): PremiumCardVM | undefined {
   if (effect === undefined) {
     return undefined;
   }
-  const rows = [...printedRows(effect.passiveRenderData), ...printedRows(effect.actionRenderData)];
+  const passive = printedRows(effect.passiveRenderData);
+  const action = printedRows(effect.actionRenderData);
+  const rows = [...passive, ...action];
   const root: ICardRenderRoot = {...(effect.actionRenderData ?? effect.passiveRenderData), is: 'root', rows};
+  // THE CLAUSES — each its own mechanics over the SAME row references (never copies): the face prints the standing
+  // effect and the action under their own labels, and the commit's `data-graphic-node` tokens still resolve.
+  const clause = (part: ICardRenderRoot['rows']) => {
+    const clauseRoot: ICardRenderRoot = {...root, rows: part};
+    return part.length === 0 ? undefined : buildMechanics(clauseRoot, PARLIAMENT_GRAPHIC);
+  };
   return {
     name: `PARTY_${party}` as CardName,
     slug: `party-${party.toLowerCase().replace(/\s+/g, '-')}`,
     type: CardType.ACTIVE,
-    theme: 'azure',
+    theme: 'charter',
     title: partyNameKey(party),
     tags: [],
     tagCluster: tagClusterPlan(0),
@@ -59,6 +67,7 @@ export function partyPremiumVm(party: ReduxParty): PremiumCardVM | undefined {
       emblemUrl: partyEmblemUrl(party),
       accent: partyAccent(party),
       sealArt: true,
+      charter: {effect: clause(passive), action: clause(action)},
     },
   };
 }

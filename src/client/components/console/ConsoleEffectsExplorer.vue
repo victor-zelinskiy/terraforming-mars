@@ -130,9 +130,9 @@
                 <div v-else-if="focusedGroup.source.kind === 'law'" :key="focusedGroup.key" class="con-efx__detail-card con-efx__detail-card--law">
                   <PremiumCard v-if="lawFaceVm(focusedGroup) !== undefined" :vmOverride="lawFaceVm(focusedGroup)" :lightweight="true" :inert="true" />
                 </div>
-                <div v-else :key="focusedGroup.key" class="con-efx__detail-party" :style="{'--parl-accent': partyAccentOf(focusedGroup)}">
-                  <img class="con-efx__detail-emblem" :src="partyEmblemOf(focusedGroup)" alt="" />
-                  <ConsolePartyFormula class="con-efx__detail-formula" :party="politicalParty(focusedGroup)" :renderRoot="partyPassiveRoot(focusedGroup)" size="wide" />
+                <!-- A PARTY: its CHARTER (2026-10-25) — the face the composer's hero and the inspector draw. -->
+                <div v-else :key="focusedGroup.key" class="con-efx__detail-card con-efx__detail-card--party" :style="{'--parl-accent': partyAccentOf(focusedGroup)}">
+                  <PremiumCard v-if="partyFaceVm(focusedGroup) !== undefined" :vmOverride="partyFaceVm(focusedGroup)" :lightweight="true" :inert="true" />
                 </div>
               </div>
               <span v-if="focusedTile !== undefined"
@@ -351,8 +351,8 @@
             <div v-else-if="detailPolitical !== undefined && detailPolitical.source.kind === 'law'" :key="detailPolitical.key" class="con-efx__hero-card con-efx__hero-card--law">
               <PremiumCard v-if="lawVmOf(detailPolitical.source.resolution) !== undefined" :vmOverride="lawVmOf(detailPolitical.source.resolution)" :lightweight="true" :inert="true" />
             </div>
-            <div v-else-if="detailPolitical !== undefined" :key="detailPolitical.key" class="con-efx__hero-plaque">
-              <ConsolePartyPlaque :party="detailPolitical.party" size="hero" />
+            <div v-else-if="detailPolitical !== undefined" :key="detailPolitical.key" class="con-efx__hero-card con-efx__hero-card--party">
+              <PremiumCard v-if="partyVmOf(detailPolitical.party) !== undefined" :vmOverride="partyVmOf(detailPolitical.party)" :lightweight="true" :inert="true" />
             </div>
             <!-- A cardless source (a party policy, the cardless discount
                  remainder) keeps the hero column's geometry with its glyph. -->
@@ -432,7 +432,7 @@ import type {ICardRenderEffect, ICardRenderRoot} from '@/common/cards/render/Typ
 import {EffectForecast, EffectForecastRecipient, forecastSourceIsCardless} from '@/common/models/EffectForecastModel';
 import {REDUX_PARTIES, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
-import {getPartyEffect, getResolution} from '@/client/parliament/ClientParliamentManifest';
+import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
@@ -442,9 +442,8 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {EffectEntry, ExplorerEntry, PoliticalEffectEntry, isPoliticalEntry, playerEffects} from '@/client/components/effects/effectExtraction';
 import {partyEffectZoomEntry, resolutionZoomEntry, ZoomCard} from '@/client/components/card/cardZoomTypes';
 import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
+import {partyPremiumVm} from '@/client/components/premiumCard/partyPremiumVm';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
-import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
-import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import {EffectRules, effectRules} from '@/client/components/effects/effectDescription';
 import {EffectSummaryViewModel, emptyEffectOverlayStat, getEffectSummary} from '@/client/components/effects/effectSummary';
@@ -551,7 +550,7 @@ type ForecastQuestion = {
 
 export default defineComponent({
   name: 'ConsoleEffectsExplorer',
-  components: {ConsoleScrollArea, ConsoleCardFaceLite, ConsoleEffectSummary, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph, ColonyFleetIcon, PremiumPartyRequirementGlyph, ConsolePartyPlaque, ConsolePartyFormula, PremiumCard},
+  components: {ConsoleScrollArea, ConsoleCardFaceLite, ConsoleEffectSummary, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph, ColonyFleetIcon, PremiumPartyRequirementGlyph, PremiumCard},
   directives: {stripEffectPrefix},
   props: {
     /** The inspected seat's tableau (or any future host's card set). In the
@@ -1027,13 +1026,16 @@ export default defineComponent({
     partyAccentOf(g: ExplorerGroup): string {
       return partyAccent(this.politicalParty(g));
     },
-    /** The party's PASSIVE root — the dossier column draws only the standing effect (its action lives in «Действия карт»). */
-    partyPassiveRoot(g: ExplorerGroup): ICardRenderRoot | undefined {
-      return g.source.kind === 'party' ? getPartyEffect(g.source.party)?.passiveRenderData : undefined;
-    },
     lawVmOf(resolution: string): PremiumCardVM | undefined {
       const law = getResolution(resolution);
       return law === undefined ? undefined : resolutionPremiumVm(law);
+    },
+    /** A party's CHARTER (`partyPremiumVm`) — the one face a party wears wherever a card would stand. */
+    partyVmOf(party: ReduxParty | undefined): PremiumCardVM | undefined {
+      return party === undefined ? undefined : partyPremiumVm(party);
+    },
+    partyFaceVm(g: ExplorerGroup): PremiumCardVM | undefined {
+      return g.source.kind === 'party' ? this.partyVmOf(g.source.party) : undefined;
     },
     lawFaceVm(g: ExplorerGroup): PremiumCardVM | undefined {
       return g.source.kind === 'law' ? this.lawVmOf(g.source.resolution) : undefined;

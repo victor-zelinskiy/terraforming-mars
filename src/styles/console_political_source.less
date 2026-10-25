@@ -33,10 +33,6 @@
         .con-pformula__mech .pcard__mech { padding: 0; }
     }
     &__tile--party .con-cardactions__canvas { justify-content: center; }
-    &__detail-party { display: flex; flex-direction: column; align-items: center; gap: .4rem; padding: .3rem 0 .5rem; }
-    &__detail-emblem { width: 5.2rem; height: 5.2rem; object-fit: contain; }
-    &__detail-formula { --con-pformula-zoom: calc(0.66 * var(--con-ui-scale, 1)); }
-    &__detail-party-note { font-size: .7rem; opacity: .7; text-align: center; }
     &__detail-uses { font-size: .66rem; letter-spacing: .06em; text-transform: uppercase; opacity: .7; }
 }
 
@@ -65,13 +61,4 @@ html.console-native .card-container .card-resource-trade-fleet {
     background-image: url(./assets/tiles/trade-fleet.png);
 }
 
-/* ── A PARTY drawn as a CARD (decision Р2): the project face whose art window is the party's field, its seal the charge
-   — whole, never cropped as an illustration (the art-less bill's grammar, `.pcard--resolution-seal`). ── */
-.pcard--party-face .pcard__art {
-    background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--pcard-party-accent, #7fa7ff) 38%, #0b0a12) 0%, #0b0a12 76%);
-}
-.pcard--party-face .pcard__art img {
-    object-fit: contain;
-    padding: 10%;
-    box-sizing: border-box;
-}
+/* (A PARTY drawn as a card wears its own CHARTER face since 2026-10-25 — `console_party_face.less`.) */

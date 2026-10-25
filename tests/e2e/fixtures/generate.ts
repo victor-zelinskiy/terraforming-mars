@@ -1466,6 +1466,24 @@ parliamentFixture('parliament-architecture-vote', {
   },
 });
 
+// ── THE ACCESS EDGE (the access scene, 2026-10-25): blue holds ONE delegate on the Mars First bill — placed from its
+//    RESERVE, so the lobby's free delegate is still blue's — and does not hold the Mars First effect: its next vote
+//    there (free) is the one that crosses the threshold, and the hall plays the gain («ВАШИ ЭФФЕКТЫ» receives the seal). ──
+parliamentFixture('parliament-access-edge', {
+  resolution: ARCHITECTURE_AWARD_ID,
+  agenda: [4, 5],
+  stopAt: 'vote',
+  arrange: ({p1, parliament}) => {
+    parliament.placeVote(p1, parliament.slots[0], 'reserve');
+  },
+  expect: ({p1, parliament}) => {
+    const access = parliament.access(p1, PartyName.MARS);
+    if (access.hasEffect || access.delegates !== 1) {
+      throw new Error(`parliament-access-edge: expected blue one delegate short of Mars First, got ${JSON.stringify(access)}`);
+    }
+  },
+});
+
 // ── RX02 — the sitting: RED's delegate wins Architecture Award (Agenda 4 → 5 =
 //    influence 3) from the MIDDLE slot (its move to the government is a real
 //    journey) and every seat is paid by its own tableau and influence: red

@@ -21,12 +21,13 @@
                      :resource="corpEntry.resource" large />
   </div>
 
-  <!-- A Turmoil Redux PARTY — its own subject in the viewer: the party
-       PLAQUE (seal · name · printed mechanic), px-authored and zoomed by the
-       viewer exactly like a card face, never a card silhouette stretched
-       around an emblem. The rules panel beside it is the shared one. -->
-  <div v-else-if="partyEntry !== undefined" class="card-zoom-card card-zoom-card--party">
-    <ConsolePartyPlaque :party="partyEntry.partyEffect" size="full" :formula="true" />
+  <!-- A Turmoil Redux PARTY — its own subject in the viewer: the party's
+       CHARTER (`PremiumPartyFace` — the faction card: banner · crest · name ·
+       clauses · the law of access), the SAME face the action composer's hero
+       wears, zoomed by the viewer exactly like a card face. The rules panel
+       beside it is the shared one. -->
+  <div v-else-if="partyVm !== undefined" class="card-zoom-card card-zoom-card--premium card-zoom-card--party">
+    <premium-card-face :vmOverride="partyVm" tier="full" :inert="true" />
   </div>
 
   <!-- A Turmoil Redux RESOLUTION — the parliament family's premium face,
@@ -55,7 +56,7 @@ import {ClientCard} from '@/common/cards/ClientCard';
 import {ZoomCard, BonusZoomEntry, MarsBotCorpZoomEntry, PartyEffectZoomEntry, isBonusZoom, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom} from './cardZoomTypes';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {resolutionPremiumVmById} from '@/client/components/premiumCard/resolutionPremiumVm';
-import ConsolePartyPlaque from '@/client/components/console/parliament/ConsolePartyPlaque.vue';
+import {partyPremiumVm} from '@/client/components/premiumCard/partyPremiumVm';
 import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
 import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
 import {isPremiumFaceType} from '@/client/components/premiumCard/premiumCardTheme';
@@ -67,7 +68,6 @@ export default defineComponent({
   components: {
     BonusCardFace,
     MarsBotCorpFace,
-    ConsolePartyPlaque,
   },
   props: {
     card: {
@@ -96,6 +96,11 @@ export default defineComponent({
     /** A Turmoil Redux PARTY entry, or undefined otherwise. */
     partyEntry(): PartyEffectZoomEntry | undefined {
       return isPartyEffectZoom(this.card) ? this.card : undefined;
+    },
+    /** A party entry as its CHARTER's view-model (the composer hero's own face), or undefined otherwise. */
+    partyVm(): PremiumCardVM | undefined {
+      const entry = this.partyEntry;
+      return entry === undefined ? undefined : partyPremiumVm(entry.partyEffect);
     },
     /** A resolution entry as a premium view-model, or undefined otherwise. */
     parliamentVm(): PremiumCardVM | undefined {

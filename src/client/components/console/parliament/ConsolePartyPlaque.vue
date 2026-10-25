@@ -26,9 +26,6 @@
 
       · `tile` — the Parliament's parties row (the mechanic in the centre);
       · `hero` — the action composer's source column;
-      · `full` — the fullscreen inspector's subject (px-authored, zoomed by
-        the viewer exactly like a card face; the same anatomy, so the tile
-        morphs into it as ONE object);
       · `aside` — the party BESIDE a resolution in the fullscreen inspector:
         the tile's anatomy at reading size (rem-authored like the tile), the
         viewer's state replaced by ONE context line the host hands in
@@ -99,7 +96,7 @@
          says the ONE reason instead of the state (the ring and the badge keep
          saying the state) — the reason stands where the eye already is, and
          the row never reserves an empty line for it. -->
-    <div v-if="state !== undefined && size !== 'full'" class="con-pseal__state" :class="['con-pseal__state--' + state.tone, {'con-pseal__state--reason': reason !== ''}]" :data-state-kind="state.kind">
+    <div v-if="state !== undefined" class="con-pseal__state" :class="['con-pseal__state--' + state.tone, {'con-pseal__state--reason': reason !== ''}]" :data-state-kind="state.kind">
       <!-- THE SUPPORT-AREA MODE (TR12 «САНКЦИИ») takes the same reserved row: a candidate reads what the press
            leaves in its area («3 → 0»), a refused one its ONE reason — the server's own row, nothing computed. -->
       <span v-if="pick !== undefined" class="con-pseal__pick" :class="{'con-pseal__pick--refused': !pick.available}"
@@ -181,9 +178,10 @@ import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 /**
  * `row` and `ruler` are the MEDALLION sizes of «Зал» v7 (the overview's party object: the seal, the name, the
  * viewer's places, the support — no formula, the dossier prints it); `tile` was the plaque row of v2–v6 and
- * stays for the playground; `hero` / `full` / `aside` are the composer's and the dossier's faces.
+ * stays for the playground; `hero` / `aside` are the dossier's faces (the fullscreen subject and every card slot wear the
+ * party's CHARTER — `PremiumPartyFace`, 2026-10-25).
  */
-export type PartyPlaqueSize = 'tile' | 'hero' | 'full' | 'aside' | 'row' | 'ruler';
+export type PartyPlaqueSize = 'tile' | 'hero' | 'aside' | 'row' | 'ruler';
 
 /** The seal name's LENGTH TIER: a word longer than this (11 letters — «Марс вперёд» wraps by its space) is a long word. */
 const PSEAL_NAME_LONG_WORD = 11;

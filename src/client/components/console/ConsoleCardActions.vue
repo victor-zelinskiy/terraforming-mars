@@ -200,11 +200,10 @@
                    count instead of a printed 0 (see ConsoleCardFaceLite). -->
               <ConsoleCardFaceLite :name="focusedTile.cardName" :card="focusedCardModel" />
             </div>
-            <!-- A PARTY source (Turmoil Redux): its emblem and the SAME printed
-                 formula the party's banner, the Parliament and the inspector draw. -->
-            <div v-else class="con-cardactions__detail-party" :key="focusedTile.cardName" :style="{'--parl-accent': partyAccentOf(focusedTile.party)}">
-              <img class="con-cardactions__detail-emblem" :src="partyEmblemOf(focusedTile.party)" alt="" />
-              <ConsolePartyFormula class="con-cardactions__detail-formula" :party="focusedTile.party" size="wide" />
+            <!-- A PARTY source (Turmoil Redux): its CHARTER — the same face the composer's hero and the inspector
+                 draw (2026-10-25), standing where a card's face stands: one object from the menu to the commit. -->
+            <div v-else class="con-cardactions__detail-bill con-cardactions__detail-party" :key="focusedTile.cardName" :style="{'--parl-accent': partyAccentOf(focusedTile.party)}">
+              <premium-card-face v-if="focusedPartyVm !== undefined" :vmOverride="focusedPartyVm" :lightweight="true" :inert="true" />
               <span class="con-cardactions__detail-uses">{{ sourceUsesText(focusedTile) }}</span>
             </div>
           </div>
@@ -482,17 +481,17 @@ import {DeltaRewardDraft, deltaRewardClaimPlan} from '@/client/console/hydroFlow
 import {armColonyBonusPayout, COLONY_LEDGER_STAGE, colonyBonusPayoutOf, payoutDiscardDue, payoutRowsOf, payoutUntaken} from '@/client/console/colonyLedger/colonyBonusPayout';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import ConsoleActionComposer, {ComposerOutcome} from '@/client/components/console/ConsoleActionComposer.vue';
-import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 import ConsoleActionGroupView from '@/client/components/console/ConsoleActionGroupView.vue';
 import {actionReasonText, sourceUsesText, TILE_STATUS_HEADING, TILE_VERDICT_MARK, TileVerdict, tileVerdict} from '@/client/console/actionTileView';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {partyActionOf, ReduxParty, ResolutionId} from '@/common/parliament/ParliamentTypes';
 import {partyEffectZoomEntry, resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
-import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
+import {partyAccent} from '@/client/components/premiumCard/partyEmblems';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
+import {partyPremiumVm} from '@/client/components/premiumCard/partyPremiumVm';
 import {parliamentActionSources as buildParliamentActionSources} from '@/client/console/parliament/parliamentActionSources';
 import {parliamentPromptBridge, resolutionPlayOf} from '@/client/console/parliament/consoleParliamentModel';
 import {actionNodeOf} from '@/client/console/parliament/actionRows';
@@ -547,7 +546,7 @@ type PoliticalConfirmPayload = {
 
 export default defineComponent({
   name: 'ConsoleCardActions',
-  components: {ConsoleActionComposer, ConsolePartyFormula, ConsoleActionGroupView, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleWsHead, ActionEffectChip, GamepadGlyph},
+  components: {ConsoleActionComposer, ConsoleActionGroupView, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleWsHead, ActionEffectChip, GamepadGlyph},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /**
@@ -845,6 +844,11 @@ export default defineComponent({
       });
     },
     /** The focused law's FACE (the dossier's hero for a resolution tile). */
+    /** The focused PARTY source's charter (`partyPremiumVm`) — the composer hero's own face. */
+    focusedPartyVm(): PremiumCardVM | undefined {
+      const party = this.focusedTile?.party;
+      return party === undefined ? undefined : partyPremiumVm(party);
+    },
     focusedResolutionVm(): PremiumCardVM | undefined {
       const id = this.focusedTile?.resolutionAction;
       const resolution = id === undefined ? undefined : getResolution(id);
@@ -2845,9 +2849,6 @@ export default defineComponent({
       this.closeComposer();
     },
     // ── PARTY ACTIONS (Turmoil Redux) ────────────────────────────────────
-    partyEmblemOf(party: ReduxParty): string {
-      return partyEmblemUrl(party);
-    },
     partyAccentOf(party: ReduxParty): string {
       return partyAccent(party);
     },

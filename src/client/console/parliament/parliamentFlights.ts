@@ -94,6 +94,8 @@ export type CardFlightSpec = {id: string, width: number, height: number, face?: 
 export type TokenFlightSpec = {id: string, iconClass: string, amount: number, /** «+» (a yield) by default; «−» for a PRICE leaving. */ sign?: string};
 /** THE ALLIANCE'S IMPULSE (TR62): one bead of light in the PARTNER's accent. */
 export type SparkFlightSpec = {id: string, accent: string};
+/** A PARTY'S SEAL on its way (the access scene, 2026-10-25): the party's own emblem as a disc. */
+export type SealFlightSpec = {id: string, emblemUrl: string};
 
 /** A delegate figure's flight at the sitting's one tempo (the enactment's returns home, the seat pick's delegate to the chair). */
 export const CUBE_FLIGHT_MS = 480;
@@ -112,12 +114,16 @@ export const PRICE_FLIGHT_MS = 460;
 export const PRICE_ABSORB_MS = 160;
 /** The alliance's impulse from the partner's seal to the ally's (TR62) — one short travel, the ally answers on arrival. */
 export const ALLIANCE_SPARK_MS = 560;
+/** The party's seal lifting off the delegate that won it and travelling into «ВАШИ ЭФФЕКТЫ» (the access scene). */
+export const ACCESS_SEAL_RISE_MS = 300;
+export const ACCESS_SEAL_FLIGHT_MS = 640;
 
 export const parliamentFlights = reactive({
   flights: [] as Array<FlightSpec>,
   cardFlights: [] as Array<CardFlightSpec>,
   tokenFlights: [] as Array<TokenFlightSpec>,
   sparkFlights: [] as Array<SparkFlightSpec>,
+  sealFlights: [] as Array<SealFlightSpec>,
 });
 
 /** The proxy elements and the running handles, by flight id (DOM handles — never reactive). */
@@ -244,6 +250,10 @@ export function pushSparkFlight(spec: SparkFlightSpec): void {
   parliamentFlights.sparkFlights.push(spec);
 }
 
+export function pushSealFlight(spec: SealFlightSpec): void {
+  parliamentFlights.sealFlights.push(spec);
+}
+
 export function dropFlight(id: string): void {
   flightBeats[id]?.beat.kill();
   delete flightBeats[id];
@@ -254,6 +264,7 @@ export function dropFlight(id: string): void {
   parliamentFlights.cardFlights = parliamentFlights.cardFlights.filter((f) => f.id !== id);
   parliamentFlights.tokenFlights = parliamentFlights.tokenFlights.filter((f) => f.id !== id);
   parliamentFlights.sparkFlights = parliamentFlights.sparkFlights.filter((f) => f.id !== id);
+  parliamentFlights.sealFlights = parliamentFlights.sealFlights.filter((f) => f.id !== id);
 }
 
 /** Drop every flight whose id starts with `prefix` (the vote's landing clears its own delegate flights). */
@@ -343,6 +354,80 @@ export function sendAllianceSpark(args: {from: Rect | undefined, to: Rect | unde
       probeTick(() => tl.resume());
     });
     tl.to(proxy, {scale: 0.55, autoAlpha: 0, duration: dur * 0.22, ease: 'power2.in'}, lit + dur);
+    let ended = false;
+    const end = () => {
+      if (ended) {
+        return;
+      }
+      ended = true;
+      landed();
+      probeTick(() => dropFlight(id));
+    };
+    tl.eventCallback('onComplete', end);
+    runHandle(id, {tween: tl, kill: () => {
+      tl.kill();
+      gsap.set(proxy, {autoAlpha: 0});
+      end();
+    }});
+  });
+}
+
+/**
+ * THE PARTY'S SEAL TRAVELS TO THE VIEWER (the access scene — the owner, 2026-10-25: «получение эффекта партии должно
+ * обыгрываться на самом workspace … связь визуально с тем делегатом»). The delegate that just crossed the threshold
+ * is the CAUSE, the new tile in «ВАШИ ЭФФЕКТЫ» the EFFECT, and one object carries the one into the other: the party's
+ * seal is born ON that delegate (invisible, a third of its size), lifts a hand's width off it (read: «this delegate won
+ * the seal»), travels on a shallow arc to the tile's seal place and settles into it — both ends painted (`addPause`,
+ * the law of the visible ends of a flight). `onLanded` is the touchdown (the tile answers there), the proxy dissolves
+ * into the tile a beat later. Nothing measurable or reduced motion: `onLanded` at once (the tile answers in place).
+ */
+export function flyAccessSeal(args: {from: Rect | undefined, to: Rect | undefined, emblemUrl: string, onLanded: () => void}): void {
+  const {from, to} = args;
+  if (from === undefined || to === undefined || typeof window === 'undefined' || consoleReducedMotionActive()) {
+    args.onLanded();
+    return;
+  }
+  const id = nextFlightId('access-seal');
+  pushSealFlight({id, emblemUrl: args.emblemUrl});
+  void nextTick(() => {
+    const proxy = flightEls[id];
+    if (proxy === null || proxy === undefined) {
+      dropFlight(id);
+      args.onLanded();
+      return;
+    }
+    // The proxy is laid out at the TILE's seal size: it lands 1:1, and is born a third of that on the delegate.
+    const size = Math.max(to.width, to.height, conLogicalPx(24));
+    gsap.set(proxy, {width: size, height: size});
+    const cx0 = from.left + from.width / 2;
+    const cy0 = from.top + from.height / 2;
+    const x0 = cx0 - size / 2;
+    const y0 = cy0 - size / 2;
+    const lift = Math.max(size * 1.1, from.height * 0.9);
+    const x1 = to.left + to.width / 2 - size / 2;
+    const y1 = to.top + to.height / 2 - size / 2;
+    const rise = consoleMotionMs(ACCESS_SEAL_RISE_MS) / 1000;
+    const travel = consoleMotionMs(ACCESS_SEAL_FLIGHT_MS) / 1000;
+    const tl = gsap.timeline();
+    let landedOnce = false;
+    const landed = () => {
+      if (!landedOnce) {
+        landedOnce = true;
+        args.onLanded();
+      }
+    };
+    tl.set(proxy, {x: x0, y: y0, scale: 0.34, autoAlpha: 0, transformOrigin: '50% 50%'}, 0);
+    tl.addPause(0, () => probeTick(() => tl.resume()));
+    tl.to(proxy, {autoAlpha: 1, scale: 0.86, y: y0 - lift, duration: rise, ease: 'power3.out'}, 0);
+    // the travel: x on a steady glide, y on a shallow arc (up, then down into the tile)
+    tl.to(proxy, {x: x1, scale: 1, duration: travel, ease: 'power2.inOut'}, rise);
+    tl.to(proxy, {y: Math.min(y0 - lift, y1) - size * 0.6, duration: travel * 0.45, ease: 'sine.out'}, rise);
+    tl.to(proxy, {y: y1, duration: travel * 0.55, ease: 'sine.in'}, rise + travel * 0.45);
+    tl.addPause(rise + travel, () => {
+      landed();
+      probeTick(() => tl.resume());
+    });
+    tl.to(proxy, {autoAlpha: 0, duration: travel * 0.3, ease: 'power1.in'}, rise + travel);
     let ended = false;
     const end = () => {
       if (ended) {

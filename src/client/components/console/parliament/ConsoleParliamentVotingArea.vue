@@ -357,7 +357,19 @@ export default defineComponent({
     },
     /** The recount of a card's rally (TR31) has MARKED this neutral cube. */
     countedOf(slot: ParliamentSlotVm, seq: number): boolean {
-      return rallyMarked(rallyVoteKey(slot.instance, seq));
+      return rallyMarked(rallyVoteKey(slot.instance, seq)) || this.accessCounted(slot, seq);
+    },
+    /**
+     * THE ACCESS SCENE's COUNT (2026-10-25): the viewer's delegates on the bill whose party their vote just won are
+     * touched by the count — the recount's own mark (the trace's ring + its one-shot swell), held for the scene: «these
+     * two won the effect». The seal that travels into «ВАШИ ЭФФЕКТЫ» is born on the last of them.
+     */
+    accessCounted(slot: ParliamentSlotVm, seq: number): boolean {
+      const f = parliamentFlow;
+      if (f.accessParty === undefined || f.accessParty !== slot.party || f.accessBeat === '' || this.viewerColor === undefined) {
+        return false;
+      }
+      return slot.votes.some((vote) => vote.seq === seq && vote.owner === this.viewerColor);
     },
     partyNameKey(party: PartyName): string {
       return partyNameKey(party);

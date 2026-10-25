@@ -93,7 +93,7 @@ describe('ConsoleEffectsExplorer — the Parliament\'s effects are groups of the
     (w.vm as unknown as {handleIntent: (i: GamepadIntent) => void}).handleIntent({kind: 'press', button: 'confirm'});
     await w.vm.$nextTick();
     expect(ui.detail).deep.include({cardName: '', effectKey: 'party:Greens#0', title: 'party name: Greens'});
-    expect(w.find('.con-efx__hero-plaque').exists(), 'the party\'s plaque stands in the hero\'s slot').is.true;
+    expect(w.find('.con-efx__hero-card--party .pcard--charter').exists(), 'the party\'s CHARTER stands in the hero\'s slot').is.true;
     expect(w.find('.con-efx__hero').attributes('data-zoom-slot'), 'X has a face to open').eq('PARTY_Greens');
     expect(w.find('.con-efx__rule-access').exists(), 'WHY the seat holds it').is.true;
     expect(w.find('.con-efx__summary').exists(), 'a political source keeps no statistic — no skeleton standing forever').is.false;

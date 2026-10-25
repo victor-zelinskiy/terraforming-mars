@@ -341,46 +341,7 @@
         .con-pseal__formula { --con-pformula-zoom: var(--con-parl-hero-formula-zoom, calc(0.78 * var(--con-ui-scale, 1))); justify-self: center; }
     }
 
-    /* ── FULL — the fullscreen inspector's subject. PX-AUTHORED (keep-px:
-       the viewer sizes it with the same `zoom` it gives a card face). The
-       seal yields room to the MECHANIC, which is what the player reads. ── */
-    &--full {
-        width: 360px;   /* keep-px */
-        min-height: 430px; /* keep-px */
-        box-sizing: border-box;
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-rows: auto auto minmax(0, 1fr);
-        grid-template-areas: "seal" "head" "formula";
-        justify-items: center;
-        row-gap: 12px;
-        padding: 22px 20px 22px;
-        border-radius: 14px;
-        text-align: center;
-        background:
-            radial-gradient(70% 45% at 50% 22%, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 70%),
-            linear-gradient(170deg, #201d33 0%, #100e1a 100%);
-        box-shadow:
-            inset 0 0 0 2px rgba(201, 198, 214, 0.35),
-            inset 0 0 0 5px rgba(0, 0, 0, 0.35),
-            inset 0 -6px 0 var(--pseal-accent),
-            0 18px 40px rgba(0, 0, 0, 0.55);
-        .con-pseal__seal { width: 150px; height: 150px; }
-        .con-pseal__ring { inset: -6px; border-width: 4px; }
-        .con-pseal__head { justify-content: center; gap: 10px; }
-        .con-pseal__name { flex: 0 1 auto; font-size: 24px; letter-spacing: .06em; white-space: normal; color: #f6f3ec; }
-        .con-pseal__action { width: 28px; height: 28px; border-radius: 7px; font-size: 16px; }
-        .con-pseal__action-mark { width: 14px; height: 14px; right: -5px; bottom: -5px; font-size: 9px; }
-        .con-pseal__formula {
-            --con-pformula-zoom: 1.12;
-            justify-self: center;
-            align-self: center;
-            padding: 8px 10px;
-            border-radius: 10px;
-            background: rgba(0, 0, 0, 0.32);
-            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
-        }
-        .con-pseal__support, .con-pseal__state { display: none; }
-    }
+    /* (FULL — the fullscreen inspector's subject — retired 2026-10-25: the inspector shows the party's CHARTER.) */
 }
 
 /* The roll call's mark arrives with one breath of the seal (Парламент v8 Р2). */

@@ -233,7 +233,9 @@ export default defineComponent({
       // THE ALLIANCE (TR62): a party gained by the alliance road answers only when the impulse from its PARTNER's
       // seal ARRIVES — «реагирует только то, чего коснулись»: the partner's change is the cause, the ally its effect.
       const allied = gainedAll.find((p) => accessRoadOf(this.accessOf(p)) === 'alliance');
-      const gained = gainedAll.find((p) => p !== allied);
+      // THE ACCESS SCENE (2026-10-25): a gain the viewer's own vote is winning is answered when its SEAL LANDS in
+      // «ВАШИ ЭФФЕКТЫ» (`accessBeat`, below) — under the vote layer the one-shot would play to nobody.
+      const gained = gainedAll.find((p) => p !== allied && p !== parliamentFlow.accessExpected);
       const lost = [...before].find((p) => !after.has(p)) as ReduxParty | undefined;
       // CSS one-shots (`con-parl-access-gain` / `-lost`): each flag is cleared
       // by its own animation's end, never by a timer guessing its length.
@@ -241,6 +243,11 @@ export default defineComponent({
       this.accessLost = lost;
       if (allied !== undefined) {
         this.playOwedAllianceImpulses();
+      }
+    },
+    'flow.accessBeat'(beat: string): void {
+      if (beat === 'landed' && parliamentFlow.accessParty !== undefined) {
+        this.accessPulse = parliamentFlow.accessParty;
       }
     },
     usedKey(now: string, was: string): void {

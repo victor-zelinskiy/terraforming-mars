@@ -12,7 +12,12 @@
        data-parl-effects
        :data-parl-effects-count="items.length">
     <div class="con-parl__effects-head">
-      <span class="con-parl__effects-kicker">{{ $t('Your effects') }}</span>
+      <!-- THE ACCESS SCENE (2026-10-25): the zone's own head says what just happened — «Эффект партии получен» — from
+           the seal's touchdown to the leave; keyed, so the change is its own one-shot entry (never a blink of text). -->
+      <span v-if="accessWon" key="won" class="con-parl__effects-kicker con-parl__effects-kicker--won" data-parl-effects-won>
+        <svg class="con-parl__effects-check" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.4 6.5 12 13 4.6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" /></svg>{{ $t('Party effect gained') }}
+      </span>
+      <span v-else key="kicker" class="con-parl__effects-kicker">{{ $t('Your effects') }}</span>
       <span class="con-parl__effects-sum">
         <span v-if="readyActions > 0" class="con-parl__effects-sum-item con-parl__effects-sum-item--action" data-parl-effects-ready="">
           <svg class="con-parl__effects-bolt" viewBox="0 0 16 16" aria-hidden="true"><path d="M9.6 1 3.4 9.1h3.9L6.2 15l6.4-8.4H8.6z" /></svg><b>{{ readyActions }}</b>
@@ -25,8 +30,13 @@
     <div class="con-parl__effects-grid" :style="{'--con-parl-effects-n': String(Math.min(items.length, size === 's' ? 3 : items.length))}">
       <div v-for="item in items" :key="item.key"
            class="con-parl__effects-row"
-           :class="['con-parl__effects-row--' + item.why, {'con-parl__effects-row--law': item.kind === 'law'}]"
+           :class="['con-parl__effects-row--' + item.why, {
+             'con-parl__effects-row--law': item.kind === 'law',
+             'con-parl__effects-row--arriving': arriving(item),
+             'con-parl__effects-row--won': won(item),
+           }]"
            :data-party="item.party"
+           :data-parl-effects-arrival="arriving(item) ? 'arriving' : won(item) ? 'won' : undefined"
            :style="{'--parl-accent': partyAccent(item.party)}">
         <div class="con-parl__effects-tilehead">
           <span class="con-parl__effects-seal">
@@ -76,6 +86,7 @@ import ConsolePartyFormula from '@/client/components/console/parliament/ConsoleP
 import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
+import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {ParliamentViewVm, PartyActionStateVm} from '@/client/console/parliament/consoleParliamentModel';
 import {EffectItem, effectsTileSize, EffectsTileSize, EffectWhy, parliamentEffectItems} from '@/client/console/parliament/parliamentEffectsModel';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
@@ -110,6 +121,10 @@ export default defineComponent({
     size(): EffectsTileSize {
       return effectsTileSize(this.items.length);
     },
+    /** The access scene's seal has landed in this zone (the head says so until the flow leaves). */
+    accessWon(): boolean {
+      return parliamentFlow.accessParty !== undefined && (parliamentFlow.accessBeat === 'landed' || parliamentFlow.accessBeat === 'done');
+    },
     readyActions(): number {
       return this.items.filter((i) => i.action === 'ready').length;
     },
@@ -118,6 +133,15 @@ export default defineComponent({
     },
   },
   methods: {
+    /** The tile the access scene is bringing in: its place is RESERVED (an empty socket) until the seal lands in it. */
+    arriving(item: EffectItem): boolean {
+      const f = parliamentFlow;
+      return item.kind === 'party' && f.accessParty === item.party && (f.accessBeat === 'count' || f.accessBeat === 'return' || f.accessBeat === 'flight');
+    },
+    /** …and the tile it brought in: unfolded on the touchdown, its kant marking the gain through the read. */
+    won(item: EffectItem): boolean {
+      return item.kind === 'party' && this.accessWon && parliamentFlow.accessParty === item.party;
+    },
     figurePx(logical: number): number {
       return delegateFigurePx(logical);
     },

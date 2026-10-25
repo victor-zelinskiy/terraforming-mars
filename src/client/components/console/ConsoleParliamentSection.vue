@@ -986,7 +986,8 @@ export default defineComponent({
     bandShown(): boolean {
       // The VOTE MODE is read on its own panel (v8 § 5): the table's head stays its calm kicker — the overview's
       // reading line («ОБЗОР · принимается …») under a vote would name the browse layer the player has left.
-      if (this.voteUp) {
+      // …and the ACCESS SCENE is read on the chamber itself (the seal travelling into «ВАШИ ЭФФЕКТЫ»): no reading line either.
+      if (this.voteUp || parliamentFlow.stage === 'access') {
         return false;
       }
       return parliamentFlow.stage !== 'browse' || this.sittingUp || this.supportUp || this.delegateUp || this.rallyUp || this.walkUp;
@@ -1816,7 +1817,7 @@ export default defineComponent({
       }
       // A beat in flight absorbs input by phase; a hosted step owns the pad
       // while it stands in the sitting's zone (the shell routes to it first).
-      if (f.stage === 'submitting' || f.stage === 'landed' || f.stage === 'paying' || (f.stage === 'sitting' && this.sittingStepOpen)) {
+      if (f.stage === 'submitting' || f.stage === 'landed' || f.stage === 'paying' || f.stage === 'access' || (f.stage === 'sitting' && this.sittingStepOpen)) {
         return;
       }
       if (f.stage === 'browse') {

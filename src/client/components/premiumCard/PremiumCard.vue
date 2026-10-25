@@ -19,6 +19,12 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
                            :titleTier="titleTier"
                            :artTier="artTier"
                            :showCode="showCardNumber" />
+    <!-- A PARTY is neither a project nor a bill: its own face — the charter — in the same root. -->
+    <PremiumPartyFace v-else-if="isCharter"
+                      :vm="vm"
+                      :title="translatedTitle"
+                      :titleTier="titleTier"
+                      :showCode="showCardNumber" />
     <template v-else>
       <div class="pcard__body" aria-hidden="true"></div>
       <div class="pcard__rim" aria-hidden="true"></div>
@@ -142,6 +148,7 @@ import PremiumCardArt from './PremiumCardArt.vue';
 import PremiumCorpIdentity from './PremiumCorpIdentity.vue';
 import PremiumMechanicsPanel from './PremiumMechanicsPanel.vue';
 import PremiumResolutionFace from './PremiumResolutionFace.vue';
+import PremiumPartyFace from './PremiumPartyFace.vue';
 import PremiumVpBadge from './PremiumVpBadge.vue';
 import {cardNumberDisplayState} from './cardNumberDisplay';
 import {PCARD_FLEET_DOCK_KEY, PremiumFleetDockFace} from './premiumFleetDock';
@@ -199,6 +206,7 @@ export default defineComponent({
     PremiumCorpIdentity,
     PremiumMechanicsPanel,
     PremiumResolutionFace,
+    PremiumPartyFace,
     PremiumVpBadge,
   },
   props: {
@@ -390,6 +398,10 @@ export default defineComponent({
     isResolution(): boolean {
       return this.vm.type === CardType.RESOLUTION;
     },
+    /** A Turmoil Redux party drawn as a card — the charter (`PremiumPartyFace`), never the project anatomy. */
+    isCharter(): boolean {
+      return this.vm.theme === 'charter';
+    },
     /** The identity-band role word («CEO» → «ДИРЕКТОР») — an existing key. */
     ceoWord(): string {
       return translateText('CEO');
@@ -417,7 +429,8 @@ export default defineComponent({
         'pcard--resolution-seal': this.isResolution && this.vm.parliament?.sealArt === true,
         // A PARTY drawn as a card (Turmoil Redux — ONE FRAMEWORK, Р2): the project's anatomy, its art window the
         // party's seal over its accent field (`partyPremiumVm`).
-        'pcard--party-face': !this.isResolution && this.vm.parliament?.sealArt === true,
+        'pcard--party-face': !this.isResolution && (this.isCharter || this.vm.parliament?.sealArt === true),
+        'pcard--charter': this.isCharter,
         'pcard--unavailable': this.isUnavailable,
         'pcard--selected': this.selected,
         'pcard--cost-mod': this.vm.cost !== undefined && this.vm.cost.delta !== 0,
@@ -426,7 +439,7 @@ export default defineComponent({
         // runs down to the bottom inner border and the corner anchors overlay
         // it — see `.pcard--no-mech` in premium_card.less. A resolution has
         // its own anatomy and never takes this pose.
-        'pcard--no-mech': this.vm.mechanics.textOnly && !this.isResolution,
+        'pcard--no-mech': this.vm.mechanics.textOnly && !this.isResolution && !this.isCharter,
       };
       if (this.vm.vp !== undefined) {
         classes['pcard--vp-' + vpVariantOf(this.vm.vp)] = true;
@@ -460,7 +473,7 @@ export default defineComponent({
       if (this.vm.parliament?.accent !== undefined) {
         vars['--pcard-party-accent'] = this.vm.parliament.accent;
       }
-      if (this.isResolution && this.vm.parliament !== undefined) {
+      if ((this.isResolution || this.isCharter) && this.vm.parliament !== undefined) {
         vars['--pcard-party-emblem'] = `url(${this.vm.parliament.emblemUrl})`;
       }
       return vars;

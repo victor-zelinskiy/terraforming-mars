@@ -531,7 +531,6 @@ body.con-zoom-open .con-journal {
         padding-left: .35rem;
     }
 }
-
 /* ── Root frame (overscan-safe) ──────────────────────────────────── */
 /* ═══ THE HUD FRAME — ONE height for BOTH horizontal rails ═══════════════
    The top status strip and the bottom command bar are the two horizontal
@@ -33034,10 +33033,6 @@ html.console-mode {
     &__meta-line--warn { color: fade(@con-amber, 94%); }
     /* The dossier column's face of a party: its emblem over its printed STANDING effect (the action is «Действия
        карт»'s); the law's face rides the card's own box. */
-    &__detail-party { display: flex; flex-direction: column; align-items: center; gap: .35rem; padding: .2rem 0 .4rem; }
-    &__detail-emblem { width: 4.4rem; height: 4.4rem; object-fit: contain; }
-    &__detail-formula { --con-pformula-zoom: calc(0.66 * var(--con-ui-scale, 1)); }
-    &__hero-plaque { position: relative; }
     &__rule-access {
         margin: 0;
         font-size: .82rem;

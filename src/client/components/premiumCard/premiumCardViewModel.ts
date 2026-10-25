@@ -208,6 +208,11 @@ export type PremiumCardVM = {
      * flag and replaces the image; the window's geometry never changes.
      */
     sealArt?: boolean;
+    /**
+     * A PARTY's charter (`PremiumPartyFace`, theme `charter`): its standing EFFECT and its ACTION as two printed clauses,
+     * each its own mechanics over the SAME render-node references as `mechanics` (the commit's anchors survive).
+     */
+    charter?: {effect?: MechanicsVM, action?: MechanicsVM};
   };
 };
 

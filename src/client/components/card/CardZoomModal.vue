@@ -235,11 +235,10 @@ import dialogPolyfill from 'dialog-polyfill';
 // a legacy card is `.card-container.filterDiv`, an Automa bonus card is
 // `.mb-face`. All scoped to the viewer's own card so a stray board `.mb-face`
 // is never measured.
-// …and a Turmoil Redux PARTY is the plaque (`.con-pseal--full`, px-authored
-// like a face, sized by the same zoom).
-const STAGE_CARD_SELECTOR = '.card-zoom-stage .card-zoom-card :is(.card-container.filterDiv, .pcard), .card-zoom-stage .card-zoom-card :is(.mb-face, .con-pseal--full)';
-const PRELOAD_CARD_SELECTOR = '.card-zoom-preload .card-zoom-card :is(.card-container.filterDiv, .pcard), .card-zoom-preload .card-zoom-card :is(.mb-face, .con-pseal--full)';
-const CARD_EL_SELECTOR = '.card-container.filterDiv, .pcard, .mb-face, .con-pseal--full';
+// (A Turmoil Redux PARTY is a `.pcard` too since 2026-10-25 — its charter face.)
+const STAGE_CARD_SELECTOR = '.card-zoom-stage .card-zoom-card :is(.card-container.filterDiv, .pcard), .card-zoom-stage .card-zoom-card .mb-face';
+const PRELOAD_CARD_SELECTOR = '.card-zoom-preload .card-zoom-card :is(.card-container.filterDiv, .pcard), .card-zoom-preload .card-zoom-card .mb-face';
+const CARD_EL_SELECTOR = '.card-container.filterDiv, .pcard, .mb-face';
 
 type Refs = {
   dialog: HTMLDialogElement;

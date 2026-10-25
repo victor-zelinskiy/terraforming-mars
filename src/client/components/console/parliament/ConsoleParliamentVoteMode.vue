@@ -303,7 +303,7 @@
                'con-parl__cta--ready': canVoteNow && flow.stage === 'vote',
                'con-parl__cta--blocked': !canVoteNow && flow.stage === 'vote',
                'con-parl__cta--busy': flow.stage === 'submitting' || flow.stage === 'paying' || (flow.stage === 'landed' && (voteInFlight || supportInFlight)),
-               'con-parl__cta--done': flow.stage === 'landed' && !voteInFlight && !supportInFlight,
+               'con-parl__cta--done': (flow.stage === 'landed' && !voteInFlight && !supportInFlight) || flow.stage === 'access',
              }"
              data-parl-vote-item data-parl-cta @click="submitVote()">
           <GamepadGlyph v-if="flow.stage === 'vote' && canVoteNow" control="confirm" class="con-parl__cta-glyph" />
@@ -345,6 +345,7 @@ import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSi
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {ParliamentBeat, scheduleParliamentBeat} from '@/client/console/parliament/parliamentBeat';
 import {descendWorkspaceFrame, foldWorkspaceFrame, setWorkspaceFramePhase, workspaceFrameHasNested} from '@/client/console/consoleWorkspaceStack';
+import {armAccessToldOnStage, disarmAccessToldOnStage} from '@/client/console/parliament/accessToldOnStage';
 import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {COLONY_TRACK_SUMMARY_KEY} from '@/client/console/parliament/colonyTrackModel';
 import {TILE_REMOVAL_COST_NOTE_KEY, TILE_REMOVAL_SUMMARY_KEY} from '@/client/console/parliament/tileRemovalModel';
@@ -363,14 +364,14 @@ import {
 } from '@/client/console/parliament/consoleParliamentFlow';
 import {fitParliamentCards, freezeParliamentFit} from '@/client/console/parliament/parliamentCardFit';
 import {
-  dropFlight, dropFlightsWithPrefix, flightEl, flyDelegate, flyPriceToken, nextFlightId, placeFigureRect, pushCubeFlight, rectOf, registerFlightHandle,
+  dropFlight, dropFlightsWithPrefix, flightEl, flyAccessSeal, flyDelegate, flyPriceToken, nextFlightId, placeFigureRect, pushCubeFlight, rectOf, registerFlightHandle,
 } from '@/client/console/parliament/parliamentFlights';
 import {
   emptyVoteRects, killParliamentVoteMotion, measureVoteRects, parkParliamentBody, playParliamentVoteEnter, playParliamentVoteLeave, Rect,
   restoreParliamentBody, runDelegateFlight,
 } from '@/client/console/parliament/consoleParliamentVoteMotion';
 import {
-  grantResponse, grantSupportOf, ParliamentPromptBridge, parliamentPlayerName, ParliamentSlotVm, ParliamentTileVm, ParliamentViewVm, resolutionTitleOf, voteForecastOf,
+  effectDelegatesOf, grantResponse, grantSupportOf, ParliamentPromptBridge, parliamentPlayerName, ParliamentSlotVm, ParliamentTileVm, ParliamentViewVm, resolutionTitleOf, voteForecastOf,
   SUPPORT_CUBE_STAGGER_MS, VoteForecastVm, voteResponse, voteVerbOf, VoteVerbVm,
 } from '@/client/console/parliament/consoleParliamentModel';
 import {
@@ -383,6 +384,10 @@ import {ParliamentInspectRequest, slotFaceOf} from '@/client/console/parliament/
 
 /** The delegate's landing beat (the cube settles, the counters tick, the landed reading is READ) — then the flow leaves as ONE surface. */
 const VOTE_LANDING_MS = 700;
+/** THE ACCESS SCENE's beats: the count on the bill · the guard on the vote layer's leave · the read of the landed seal. */
+const ACCESS_COUNT_MS = 520;
+const ACCESS_RETURN_GUARD_MS = 1100;
+const ACCESS_READ_MS = 1700;
 
 /** The neutral cubes of a grant's support leave the supply one after another — the support scene's own rhythm (law 12: a cube every ≥ 90 ms). */
 
@@ -446,6 +451,9 @@ export default defineComponent({
       landingBeat: undefined as ParliamentBeat | undefined,
       landingHold: undefined as AnimationHold | undefined,
       flightHold: undefined as AnimationHold | undefined,
+      /** THE ACCESS SCENE's own hold and its running beat (the count, the read). */
+      accessHold: undefined as AnimationHold | undefined,
+      accessBeatHandle: undefined as ParliamentBeat | undefined,
       /** The reading's own frame is watched for a change of ITS room (a profile, the panel) — the fit's other trigger. */
       readingRoomObserver: undefined as ResizeObserver | undefined,
     };
@@ -669,7 +677,7 @@ export default defineComponent({
     voteFacts(): VoteFactsVm {
       const slot = this.voteSlot;
       const snap = parliamentFlow.voteSnapshot;
-      const landed = parliamentFlow.stage === 'landed';
+      const landed = parliamentFlow.stage === 'landed' || parliamentFlow.stage === 'access';
       return voteFactsOf({
         slot,
         party: this.view.parties.find((p) => p.party === slot?.party),
@@ -689,6 +697,8 @@ export default defineComponent({
       case 'paying': return translateText('Pay for the delegate');
       // «placed» only once the cube has landed — the answer's arrival is not the delegate's.
       case 'landed': return translateText(this.voteInFlight || this.supportInFlight ? 'Performing…' : (several ? 'Delegates placed' : 'Delegate placed'));
+      // The access scene's leave keeps the landed reading on the panel while it lets go of the chamber.
+      case 'access': return translateText(several ? 'Delegates placed' : 'Delegate placed');
       default:
         if (!this.canVoteNow) {
           return this.voteBlockedText;
@@ -993,6 +1003,9 @@ export default defineComponent({
       this.clearLanding();
       freezeParliamentFit(false);
       f.voteSnapshot = undefined;
+      // Nothing was won here (a B before the commit, a refused press): no gain is owed a scene.
+      f.accessExpected = undefined;
+      disarmAccessToldOnStage();
       this.resetSubject();
       f.sourceHold = undefined;
       f.sourceLeaving = undefined;
@@ -1191,6 +1204,15 @@ export default defineComponent({
         ...(railPrice ? {railPrice: true as const} : {}),
         ...(support === undefined ? {} : {support}),
       };
+      // THE PARTY'S EFFECT THIS PRESS WILL WIN (the access scene): the viewer does not hold it and the press reaches the
+      // viewer's own threshold. Armed BEFORE the response — the feed builds its card when the response is ingested,
+      // before the hall has played the moment (`accessToldOnStage.ts`).
+      const access = this.view.viewer?.access.find((a) => a.party === slot.party);
+      const reaches = access !== undefined && !access.hasEffect && access.delegates + (grant?.count ?? 1) >= effectDelegatesOf(access);
+      parliamentFlow.accessExpected = reaches ? slot.party : undefined;
+      if (reaches) {
+        armAccessToldOnStage(slot.party);
+      }
       // FROM THE PRESS TO THE FLOW'S END nothing but text, the confirm's state and the cube's flight may change:
       // the card fit is FROZEN (a re-fit under the flight jumped the scene it measured — § Б5).
       freezeParliamentFit(true);
@@ -1578,8 +1600,118 @@ export default defineComponent({
       // the vote layer, the cards and the zone inside it (v2, § Б5: a separate fade of the layer before the
       // frame left a frame with an empty body under a live crumb). The counters keep the landed reading
       // until the unmount (`landedSeq` stands); the fit stays frozen through the leave.
+      // …UNLESS THIS DELEGATE WON A PARTY'S EFFECT: the hall plays that moment before the flow leaves (the access scene).
+      const won = parliamentFlow.accessExpected;
+      if (won !== undefined && this.view.viewer?.access.some((a) => a.party === won && a.hasEffect) === true) {
+        this.playAccessScene(won);
+        return;
+      }
       this.landingHold?.release();
       this.landingHold = undefined;
+      this.$emit('flow-complete', 'vote');
+    },
+    /**
+     * THE ACCESS SCENE (the owner, 2026-10-25: «момент, когда игрок располагает второго делегата в партию и получает её
+     * эффект — workspace просто закрывается и игрок получает слабую нотификацию; надо, чтобы получение эффекта партии
+     * обыгрывалось на самом workspace … и связь визуально с тем делегатом»). Four beats on the motion clock, one hold
+     * over all of them (the feed waits; the input is absorbed — the frame's phase is a beat in flight):
+     *   COUNT  — the viewer's delegates on the bill are touched by the count (the recount's mark): «these two won it»;
+     *   RETURN — the vote layer lets go of the chamber (the same phrase B plays), «ВАШИ ЭФФЕКТЫ» stands on screen with
+     *            the new tile's place reserved;
+     *   FLIGHT — the party's SEAL is born on the delegate that crossed the threshold and travels into that place;
+     *   LANDED — the tile unfolds, the zone's head says «Эффект партии получен», the party's bench answers; a read;
+     * then the flow leaves as ever. The crumb's tail names the stage («… › ГОЛОСОВАНИЕ › ЭФФЕКТ ПАРТИИ»).
+     */
+    playAccessScene(party: ReduxParty): void {
+      const f = parliamentFlow;
+      f.accessParty = party;
+      f.accessBeat = 'count';
+      setWorkspaceFramePhase('parliament', 'executing');
+      this.accessHold = beginAnimationHold('parliament-access-scene', {maxHoldMs: 9000});
+      this.landingHold?.release();
+      this.landingHold = undefined;
+      this.accessBeatHandle = scheduleParliamentBeat(ACCESS_COUNT_MS, () => this.accessReturn());
+    },
+    accessReturn(): void {
+      const f = parliamentFlow;
+      if (f.accessParty === undefined) {
+        return;
+      }
+      f.accessBeat = 'return';
+      const root = parliamentRootEl();
+      freezeParliamentFit(false);
+      this.resetSubject();
+      f.sourceHold = undefined;
+      f.sourceLeaving = undefined;
+      let flown = false;
+      const fly = () => {
+        if (!flown) {
+          flown = true;
+          this.accessFly();
+        }
+      };
+      if (root === undefined || this.sceneHandedOver) {
+        f.stage = 'access';
+        restoreParliamentBody(root);
+        void this.$nextTick(fly);
+        return;
+      }
+      // The same leave B plays (measure the vote layout, let the slots go home, animate them from where they were) —
+      // into the scene's own stage, which the hall paints as the chamber with no cursor and which absorbs every press.
+      killParliamentVoteMotion(root);
+      const before = measureVoteRects(root, {viewer: this.viewerColor, mode: 'vote'});
+      f.voteLeaving = true;
+      f.stage = 'access';
+      void this.$nextTick(() => {
+        fitParliamentCards();
+        playParliamentVoteLeave({
+          root,
+          viewer: this.viewerColor,
+          before,
+          done: () => {
+            f.voteLeaving = false;
+            fly();
+          },
+        });
+      });
+      // A leave that never reports its end (nothing measurable) must not strand the scene.
+      this.accessBeatHandle = scheduleParliamentBeat(ACCESS_RETURN_GUARD_MS, fly);
+    },
+    accessFly(): void {
+      const f = parliamentFlow;
+      const party = f.accessParty;
+      if (party === undefined) {
+        return;
+      }
+      f.accessBeat = 'flight';
+      void this.$nextTick(() => {
+        const root = parliamentRootEl();
+        const seq = f.landedSeq;
+        const from = root === undefined || seq === undefined ? undefined : placeFigureRect(root, `.con-parl__slot[data-instance] [data-seq="${seq}"]`);
+        const to = rectOf(root?.querySelector(`.con-parl__effects-row[data-party="${party}"] .con-parl__effects-seal`));
+        flyAccessSeal({from, to, emblemUrl: partyEmblemUrl(party), onLanded: () => this.accessLanded()});
+      });
+    },
+    accessLanded(): void {
+      const f = parliamentFlow;
+      if (f.accessParty === undefined || f.accessBeat === 'landed' || f.accessBeat === 'done') {
+        return;
+      }
+      f.accessBeat = 'landed';
+      this.accessBeatHandle?.kill();
+      this.accessBeatHandle = scheduleParliamentBeat(ACCESS_READ_MS, () => this.accessDone());
+    },
+    accessDone(): void {
+      const f = parliamentFlow;
+      if (f.accessParty === undefined) {
+        return;
+      }
+      // The tile, the head and the counted delegates KEEP their landed reading through the leave (the surface leaves
+      // frozen and whole — law 13); the flow's reset clears them with the rest of the flow.
+      f.accessBeat = 'done';
+      this.accessHold?.release();
+      this.accessHold = undefined;
+      disarmAccessToldOnStage();
       this.$emit('flow-complete', 'vote');
     },
     clearLanding(): void {
@@ -1605,6 +1737,11 @@ export default defineComponent({
       f.sourceLeavingCount = 0;
       dropFlightsWithPrefix('price');
       f.priceStage = 'none';
+      this.accessBeatHandle?.kill();
+      this.accessBeatHandle = undefined;
+      this.accessHold?.release();
+      this.accessHold = undefined;
+      dropFlightsWithPrefix('access-seal');
     },
   },
 });

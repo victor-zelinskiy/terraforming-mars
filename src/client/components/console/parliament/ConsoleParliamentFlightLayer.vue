@@ -62,6 +62,14 @@
          :ref="(el) => setFlightEl(f.id, el as HTMLElement | null)"
          :data-parl-flight="f.id"
          data-parl-flight-body="spark"></div>
+    <!-- THE PARTY'S SEAL (the access scene): the emblem itself, from the delegate that won it into «ВАШИ ЭФФЕКТЫ». -->
+    <div v-for="f in flights.sealFlights" :key="f.id"
+         class="con-parl__flight con-parl__flight--seal"
+         :ref="(el) => setFlightEl(f.id, el as HTMLElement | null)"
+         :data-parl-flight="f.id"
+         data-parl-flight-body="seal">
+      <img class="con-parl__flight-seal" :src="f.emblemUrl" alt="" draggable="false" />
+    </div>
   </div>
 </template>
 <script lang="ts">

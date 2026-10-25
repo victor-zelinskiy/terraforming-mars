@@ -25,8 +25,12 @@ export const MAX_GOV_ZOOM = 1.0;
 /** …and the EMPTY outline (no bill enacted yet) stops here — a prepared place, never a void the size of the column. */
 export const MAX_GOV_EMPTY_ZOOM = 0.62;
 export const MIN_GOV_ZOOM = 0.2;
-/** The payout stage's carried card — the scene's hero, beside the recipient zone. */
-export const MAX_ENACT_ZOOM = 1.05;
+/**
+ * The payout stage's carried card — the scene's hero, beside the recipient zone. ОДНА РАМА (2026-10-25): the composer
+ * hero's own scale (×1.6 the couch's ui-scale — `con-composer--stage`), so «ЗАСЕДАНИЕ › НАГРАДА» and «ДЕЙСТВИЯ КАРТ ›
+ * … › ДОБОР КАРТ» hold their source card at ONE size; the column's height and share still bound it.
+ */
+export const MAX_ENACT_ZOOM = 1.6;
 /** …and at most this share of the layer's width (the recipient zone is the decision). */
 export const ENACT_HERO_SHARE = 0.3;
 /** The vote row's cards (the cap — `MAX_VOTE_ZOOM` — lives in `parliamentArtTier.ts`: the art tier is decided by it). */

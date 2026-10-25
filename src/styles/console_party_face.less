@@ -1,0 +1,264 @@
+/* ══ THE FACE OF A PARTY — «THE CHARTER» (`PremiumPartyFace`, theme `charter`) ═══════════════════════════════════
+   The Parliament's third printed object beside the project card and the bill (2026-10-25). Not a project (nobody plays
+   it — no gold frame, no nameplate, no cost, no art window) and not a bill (no page, no fold): the FACTION'S CHARTER of a
+   board game, read from across the room by its outline and its colour:
+
+     the BOARD     a stiff tile with all four corners cut — the outline alone tells it from the other two objects;
+     the BANNER    the party's dyed cloth across the head, cut in a pennant's chevron and hemmed in gold;
+     the CREST     the emblem, a modest seal on the banner (≈ a quarter of the width — never the face's subject);
+     the NAME      vellum caps on the dye, under the crest;
+     the CLAUSES   «∞ ЭФФЕКТ» / «⚡ ДЕЙСТВИЕ», engraved labels over the ONE formula renderer;
+     the FOOT      the law of access printed as marks (crown / two delegates) + the expansion stamp.
+
+   Ranks for the zoom range (the composer hero at ×1.6·scale, the inspector larger): MASSES (the board, the banner's dye,
+   the crest) read at a glance; VOICES (the name, the formulas) from reading size; FINE PRINT (the labels, the keyline,
+   the access marks, the watermark) low in contrast and small in area. px-authored in the face's 320×460 design box
+   (hosts zoom `.pcard`). Console-safe: gradients, clip-path and box-shadow only — no `filter`, no glow, no motion. ══ */
+.pcard--charter {
+    --charter-party: var(--pcard-party-accent, #8b6ad8);
+    --charter-gold: #d9b878;
+    --charter-gold-hi: #f2d795;
+    --charter-gold-deep: #8a6a35;
+    --charter-vellum: #f1ecf8;
+    --charter-ink: #c9c6d6;
+    /* the cut outline — shared by the board and the state overlay (14px chamfers) */
+    --charter-outline: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px);
+    border-radius: 0;
+    &.pcard--mech-sparse    { --pcard-mech-icon: 36px; --pcard-mech-font: 21px; }
+    &.pcard--mech-normal    { --pcard-mech-icon: 32px; --pcard-mech-font: 19px; }
+    &.pcard--mech-dense     { --pcard-mech-icon: 27px; --pcard-mech-font: 16.5px; }
+    &.pcard--mech-veryDense { --pcard-mech-icon: 23px; --pcard-mech-font: 14.5px; }
+    .pcard__state { border-radius: 0; clip-path: var(--charter-outline); }
+}
+
+/* The sheet is the board's EDGE (a gold-silver rim one pixel wide), the board its face inside it. */
+.pcard-charter__sheet {
+    position: absolute;
+    inset: 0;
+    clip-path: var(--charter-outline);
+    background: linear-gradient(160deg, #6d6680 0%, #3a3548 40%, #57506a 100%);
+}
+.pcard-charter__board {
+    position: absolute;
+    inset: 1.5px;
+    clip-path: polygon(13.4px 0, calc(100% - 13.4px) 0, 100% 13.4px, 100% calc(100% - 13.4px), calc(100% - 13.4px) 100%, 13.4px 100%, 0 calc(100% - 13.4px), 0 13.4px);
+    background: linear-gradient(180deg, #1c1a27 0%, #15131e 48%, #0f0e16 100%);
+}
+/* The printed keyline a finger's width inside the cut outline — the same chamfer, drawn as a hairline pair of corners
+   would be moiré at ×0.3, so it is ONE inset box with its own clip (the cuts print as the board's, slightly shorter). */
+.pcard-charter__keyline {
+    position: absolute;
+    inset: 5px;
+    clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px);
+    box-shadow: inset 0 0 0 1px rgba(201, 198, 214, 0.16);
+    pointer-events: none;
+}
+
+/* ── the banner: the party's dyed cloth, cut as a pennant, hemmed in gold ── */
+.pcard-charter__banner {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 150px;
+    /* the hem: a gold edge one step wider than the cloth, cut the same way */
+    background: linear-gradient(180deg, var(--charter-gold-hi), var(--charter-gold) 60%, var(--charter-gold-deep));
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 16px), 50% 100%, 0 calc(100% - 16px));
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 0 0 2.5px 0;
+        clip-path: polygon(0 0, 100% 0, 100% calc(100% - 16px), 50% 100%, 0 calc(100% - 16px));
+        /* the DYE: the party's colour as a mass, deepened toward the hem; the cloth's weave is a soft vertical shade,
+           never a fine pattern (moiré at ×0.3) */
+        background:
+            linear-gradient(90deg, rgba(0, 0, 0, 0.22), transparent 18% 82%, rgba(0, 0, 0, 0.22)),
+            linear-gradient(180deg,
+                color-mix(in srgb, var(--charter-party) 58%, #0c0b13) 0%,
+                color-mix(in srgb, var(--charter-party) 44%, #0c0b13) 62%,
+                color-mix(in srgb, var(--charter-party) 30%, #0c0b13) 100%);
+    }
+}
+/* THE CREST — the emblem as a seal on the dye: ~a quarter of the face's width, centred over the name. */
+.pcard-charter__crest {
+    position: absolute;
+    left: 50%;
+    top: 12px;
+    width: 76px;
+    height: 76px;
+    margin-left: -38px;
+    max-width: none;
+    object-fit: contain;
+    border-radius: 50%;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+}
+.pcard-charter__title {
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    top: 92px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    container-type: inline-size;
+}
+/* VELLUM caps on the dye: the project plate's engraved-gold lettering is not this material. */
+.pcard--charter .pcard-charter__title span {
+    background: none;
+    -webkit-background-clip: border-box;
+    background-clip: border-box;
+    color: var(--charter-vellum);
+    filter: none;
+    text-shadow: none;
+    text-transform: uppercase;
+    -webkit-line-clamp: 2;
+    line-height: 1.05;
+}
+.pcard--charter .pcard__title--t1 span { font-size: 23px; --pcard-title-size: 23px; --pcard-title-cw: 0.74; letter-spacing: .08em; }
+.pcard--charter .pcard__title--t2 span { font-size: 20px; --pcard-title-size: 20px; --pcard-title-cw: 0.74; letter-spacing: .06em; }
+.pcard--charter .pcard__title--t3 span { font-size: 17px; --pcard-title-size: 17px; --pcard-title-cw: 0.74; letter-spacing: .05em; }
+.pcard--charter .pcard__title--t4 span { font-size: 15px; --pcard-title-size: 15px; --pcard-title-cw: 0.72; letter-spacing: .03em; }
+
+/* ── the clauses ── */
+.pcard-charter__clauses {
+    position: absolute;
+    left: 14px;
+    right: 14px;
+    top: 164px;
+    bottom: 54px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-evenly;
+    gap: 6px;
+}
+/* THE WATERMARK — the crest pressed into the board under the clauses (fine print). */
+.pcard-charter__clauses::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 170px;
+    height: 170px;
+    margin: -85px 0 0 -85px;
+    background: var(--pcard-party-emblem) center / contain no-repeat;
+    opacity: .04;
+    pointer-events: none;
+}
+.pcard-charter__clause {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    min-height: 0;
+    /* THE PRINTED RULE BOX — a tabletop card's ability frame: a hairline box, the board a shade darker inside it, the
+       label set INTO its top edge like a legend (never a heading floating above an unframed formula). */
+    padding: 18px 8px 14px;
+    border-radius: 6px;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.26));
+    /* the box speaks the cards' own category language: an ACTION's rim is gold, an EFFECT's blue (the rules panel's
+       «ЭФФЕКТ» / «ДЕЙСТВИЕ» chips, every project card's frames) — and it IS that frame: the formula's own printed
+       frame inside it is dropped, one frame per clause */
+    box-shadow: inset 0 0 0 1px var(--charter-clause-rim), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    --charter-clause-rim: var(--pcard-effect-rim, rgba(90, 169, 230, 0.5));
+    &--action { --charter-clause-rim: var(--pcard-action-rim, rgba(242, 215, 149, 0.45)); }
+}
+.pcard-charter__clause .pcard-effect {
+    background: none;
+    border-color: transparent;
+    box-shadow: none;
+}
+/* the legend: «⚡ ДЕЙСТВИЕ» on the box's top edge, the board's own colour behind it so the edge stops at its letters */
+.pcard-charter__label {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    transform: translate(-50%, -50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 9px;
+    height: 16px;
+    background: #17151f;
+    font-size: 11.5px;
+    font-weight: 800;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: rgba(214, 210, 228, 0.82);
+}
+.pcard-charter__clause--action .pcard-charter__label { color: var(--charter-gold-hi); }
+.pcard-charter__glyph {
+    flex: 0 0 auto;
+    width: 12px;
+    height: 12px;
+    fill: var(--charter-gold);
+}
+.pcard-charter__glyph--effect {
+    width: 20px;
+    height: 10px;
+    fill: none;
+    stroke: var(--charter-gold);
+}
+.pcard-charter__label-text { flex: 0 0 auto; }
+/* the formula stands in the box itself — the project face's inset plate is not this material */
+.pcard-charter__clause .pcard__mech {
+    position: relative;
+    padding: 0;
+    gap: 6px;
+    background: none;
+    border: none;
+    box-shadow: none;
+    align-items: center;
+}
+.pcard-charter__clause .pcard-mech-group { justify-content: center; }
+.pcard-charter__clause .pcard-mech-group + .pcard-mech-group { border-top: none; padding-top: 0; }
+/* A SINGLE clause (most parties print one): its box owns the board's middle, the formula a step larger. */
+.pcard-charter__clauses[data-charter-clauses="1"] {
+    justify-content: center;
+    .pcard-charter__clause { flex: 1 1 auto; margin: 6px 0 2px; padding: 22px 8px 18px; }
+    .pcard__mech { zoom: 1.1; }
+}
+/* TWO clauses share the middle evenly, a legend's height apart. */
+.pcard-charter__clauses[data-charter-clauses="2"] { gap: 16px; justify-content: center; }
+
+/* ── the foot: the law of access as marks, the stamp ── */
+.pcard-charter__foot {
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    bottom: 10px;
+    height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(90deg, transparent, rgba(201, 198, 214, 0.22) 18% 82%, transparent) top / 100% 1px no-repeat;
+}
+/* «[crown] / [delegate][delegate]» — the ruling party, or two of your delegates on its bill: fine print, silver. */
+.pcard-charter__access {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    opacity: .78;
+}
+.pcard-charter__crown { width: 20px; height: 14px; fill: var(--charter-gold); }
+.pcard-charter__slash { font-size: 15px; font-weight: 700; color: rgba(201, 198, 214, 0.6); }
+.pcard-charter__seat {
+    display: inline-flex;
+    align-items: flex-end;
+    justify-content: center;
+    width: 18px;
+    height: 22px;
+    img { width: 16px; height: 20px; object-fit: contain; }
+}
+.pcard-charter__stamp {
+    position: absolute;
+    right: 0;
+    bottom: 3px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.pcard-charter__stamp .pcard__code { margin-left: 0; color: rgba(201, 198, 214, 0.5); }

@@ -13,6 +13,7 @@ import {announcedElsewhere} from './notificationContentPolicy';
 import {importanceForRoot, lossCausesOf, viewerImpactOfChain, ViewerImpactMeta} from './notificationSemantics';
 import {NotificationKind, NotificationVariant, NotificationModel, NotificationPillGroup, NotificationSkippedLine, NotificationEasedLine, NegativeScope, NotificationEffectSource, NOTIFICATION_PRIORITY, NOTIFICATION_TTL, COALESCE_THRESHOLD} from './notificationTypes';
 import {LogMessageType} from '@/common/logs/LogMessageType';
+import {consumeAccessToldOnStage} from '@/client/console/parliament/accessToldOnStage';
 
 /**
  * PURE notification mappers — turn the structured journal stream + the client's
@@ -683,6 +684,14 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
   // rival reads another seat's access in the journal; the enactment, everyone's, is the sitting's own telling).
   if (variant === 'party-effect' && actor !== viewerColor) {
     return undefined;
+  }
+  // …and a GAIN the viewer's own vote won in the HALL was told there (the access scene — the seal travelled from the
+  // delegate into «ВАШИ ЭФФЕКТЫ», `accessToldOnStage.ts`): a card on the board would tell the same moment twice.
+  if (variant === 'party-effect') {
+    const gained = chain.find((e) => e.type === 'party-effect-gained');
+    if (gained !== undefined && gained.impact?.partyEffect?.basis === 'delegates' && consumeAccessToldOnStage(gained.impact.partyEffect.party)) {
+      return undefined;
+    }
   }
 
   // The viewer's own typed deltas inside this chain (empty when they ARE the

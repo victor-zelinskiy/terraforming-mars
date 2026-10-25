@@ -22,7 +22,9 @@ import {CardType} from '@/common/cards/CardType';
  * inner rim, glow, mechanics panel tint) via `pcard--theme-<t>` CSS classes
  * in premium_card.less — gold frame / cost / VP elements stay shared.
  */
-export type PremiumTheme = 'emerald' | 'azure' | 'crimson' | 'prelude' | 'corporation' | 'standard' | 'ceo' | 'resolution';
+export type PremiumTheme = 'emerald' | 'azure' | 'crimson' | 'prelude' | 'corporation' | 'standard' | 'ceo' | 'resolution' |
+  /** A Turmoil Redux PARTY drawn as a card — its own anatomy (the charter, `PremiumPartyFace`); never by card type. */
+  'charter';
 
 const THEME_BY_TYPE: Partial<Record<CardType, PremiumTheme>> = {
   [CardType.AUTOMATED]: 'emerald',
