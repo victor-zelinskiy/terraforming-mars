@@ -6211,3 +6211,35 @@ Redux-манифеста; классика R15 в `cardsToRemove`; в hold-back 
 причина руки `effectOnly`. Консоль: гнёзда на плашке и Хартии, режим Парламента `banner` в стадии первого действия (кадр
 сцены над стартом), полёт куба, сцена доступа (лента молчит), бит заседания «куб на знамя» (после хода принятия —
 отклонение от 7а записано в доке), фразы дороги «куб на знамени». Док: `docs/TURMOIL_REDUX_SEPTEM_TRIBUS.md`.
+
+## TR73 · Political Alliance:redux («Политический союз») — ПЯТАЯ КАРТА-ЗАМЕНА · НОВЫЙ ВИД ТРЕБОВАНИЯ НА ЛИЦЕ: ЛИДЕРСТВО — СДАНА 2026-10-25
+
+**Карта** (`turmoilRedux/PoliticalAllianceRedux.ts`, `3fec4601cf`): событие, 2 (было 4), без меток и ПО; требование
+`{partyLeader: 2}` — «больше всех делегатов на 2 резолюциях сразу (ничья — кто поставил делегата первым; нейтральные не
+считаются)»: движок УЖЕ считал ровно так (`partiesLedBy` → `Parliament.leaderOf`) — закреплено спеком, не переписано;
+награда — ОДИН шаг Карьеры по тропе TR04 (`walkAgenda` синхронно, `agendaWalkForecast`, `cardPlayPreview`). TR73 по строке
+реестра; `reimplements: POLITICAL_ALLIANCE` → арт X09 (импортирован) и лор ВЛАДЕЛЬЦА X09 («I think we can both benefit from this
+arrangement.» → «Думаю, эта договорённость выгодна нам обоим.», `44a18e0ef6`); придуманная строка реестра лора не использована.
+
+**Тропа вида** (впервые `PARTY_LEADERS` под Redux): `Parliament.delegatesToLead` (куб за кубом на `projection`, тот же `leaderOf`)
++ `PoliticalOps.leadershipStanding` (лидер, моё ли, сколько не хватает, ничья `yours`/`theirs`); причина-СЧЁТ «Requires leading
+${0} resolution(s) at once» + `UnplayableReason.leadership` (классика — прежняя строка без ключа правила); `FULLY_RESTATED`; строка
+правил; клиент — плита MIN ТАЛЛИ (две фигуры, `NormalizedRequirement.tally`), счётчик руки «[две фигуры] 1/2»
+(`delegate-pair.svg` — один путь, `<use>` дважды), метка «Лидерство», полная строка «вы лидируете: «А» · на «Б» не хватает 1
+делегата (лидирует X; ничьей мало — первый делегат соперника раньше) · на «В» … (только нейтральные делегаты)» (RU — группы
+множественного числа). Глоссарий: «лидирует» — слово ИГРОКА на резолюции; «побеждает» остаётся словом резолюции.
+
+**Гарды.** `PoliticalAllianceRedux.spec` (17: печать; (а)–(з) — больше / ничья в обе стороны / нейтральные / только нейтральные /
+принятая не в области / бот — обычный соперник / названная причина / TR70 не вейвит; живое чтение; шаг 1 → 2 с РТ синхронно, превью =
+исполнение, конец трека; раздача; скоуп; save/load), `unplayableReasons.spec` § LEADERSHIP (6), `unplayableReasonFormat.spec`,
+`premiumCardViewModel.spec` (талли), `DelegateGlyphParity` (+ пара), `requirementProse` (новый субъект); пины замены. Попутно
+`ApiDeckComposition.spec`: граница колоды Redux без Венеры — из манифеста, не литерал 70 (упал на четвёртой сданной замене).
+`test:server` 18225 — красный был только этот литерал.
+
+**e2e** `console-political-alliance.spec.ts` (tv4k; фикстуры `political-alliance-locked` / `political-alliance`): A — две фигуры на
+плите, арт X09, чип и бар «[две фигуры] 1/2», полноэкранный «где», `--mine` на ведомом слоте, бесплатный голос на ничейный слот → сервер
+снимает отказ, чип уходит, `--mine` ×2; B — композер «1 → 2» + РТ + «Карьера — маркер пройдёт 1 шаг», один POST, ходьба в руке, доска,
+сервер согласен; C — reduced motion (сцена ходьбы НЕ ставится — `seedAgendaWalk`; сервер шагает, поток уходит на доску).
+Прогон на Steam Machine из worktree коммита (соседский WIP в общем дереве не компилировался): спек 3/3 + канарейка; регрессия
+20/20 (political-recognition, minority-representation, card-availability, hand-chip-scale, martian-census, political-think-tank,
+septem-tribus, political-science, tv-profile-screens). Кадры — `screenshots/political-alliance/tv4k/`.

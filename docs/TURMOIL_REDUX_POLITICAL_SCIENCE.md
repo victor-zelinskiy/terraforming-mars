@@ -102,7 +102,7 @@ onDelegatesDiscarded?(player: IPlayer, count: number, context: {instance: Resolu
 | 5 | `server/cards/Card.ts` | `populateCount` → `?? requirement.delegatesOnResolutions` |
 | 6 | `server/tools/cardInfo/buildCardInformation.ts` | `Requires ${enCount(n, 'delegate', 'delegates')} of yours on resolutions in the Voting Area.` (ветка `max` симметрична) |
 | 7 | `server/models/unplayableReasons.ts` | `{type: 'count', message: 'Requires ${0} delegate(s) on resolutions', params, current}` + `FULLY_RESTATED_REQUIREMENTS` |
-| 8 | клиент | `premiumCardViewModel.REQUIREMENT_RENDER` → `assets/misc/delegate.png` + число (как напечатано; `PARTY_LEADERS` носит ту же иконку — различие в строке правил); `unplayableReasonFormat.COUNT_MESSAGE_LABELS` → `'On resolutions'` (существующий ключ «На резолюциях») — компактный счётчик руки «На резолюциях 1/3» |
+| 8 | клиент | `premiumCardViewModel.REQUIREMENT_RENDER` → `assets/misc/delegate.png` + число (как напечатано; `PARTY_LEADERS` с TR73 печатает ту же фигуру ТАЛЛИ — по фигуре на резолюцию, без числа: `docs/TURMOIL_REDUX_MINORITY_REPRESENTATION.md` §5); `unplayableReasonFormat.COUNT_MESSAGE_LABELS` → `'On resolutions'` (существующий ключ «На резолюциях») — компактный счётчик руки «На резолюциях 1/3» |
 
 Гарды, которые узнали сами: `requirementProse.spec.ts` (субъект `/delegates? of yours on resolutions/i`),
 `cardInformation.spec.ts`, `premiumCardViewModel.spec.ts`, `unplayableReasonFormat.spec.ts` (новый), спек тропы

@@ -249,6 +249,18 @@ PL-118), розыгрыш законен (решение владельца 3, T
 2/≤1»), min `'Requires ${0} influence'`; `FULLY_RESTATED_REQUIREMENTS`; клиент `REQUIREMENT_RENDER` — бейдж
 `assets/misc/influence.png` (тот же, что у узла трека и формул резолюций); `COUNT_MESSAGE_LABELS` → «Влияние».
 
+**Вид PARTY_LEADERS под Redux (TR73 Political Alliance, 2026-10-25)** — точки 1–5 существовали (классика); вид впервые
+носит карта Redux, и тропа достроена: счёт — фасад `partiesLedBy` = `Parliament.leaderOf` по слотам области голосования
+(нейтральные не лидируют, ничья — у кого `firstSeq` раньше: ровно печатная оговорка скана); ПРОЕКЦИЯ ЛИДЕРСТВА —
+`PoliticalOps.leadershipStanding` (по слоту: лидер сейчас, мой ли, сколько делегатов не хватает — `Parliament.delegatesToLead`
+ставит кубы на `projection` и спрашивает тот же `leaderOf`, второго счёта нет; ничья `yours` / `theirs`); причина —
+СЧЁТ `'Requires leading ${0} resolution(s) at once'` + `UnplayableReason.leadership {leading, trailing}` (классика — прежняя
+строка без ключа правила); `FULLY_RESTATED_REQUIREMENTS`; строка правил «Requires that you lead N resolutions in the Voting
+Area at once.»; клиент — плита MIN печатает фигуру ПО РАЗУ НА РЕЗОЛЮЦИЮ (`NormalizedRequirement.tally`, ≤ 3, без числа —
+TR02 «N [фигура]» и TR73 «две фигуры» различаются картинкой, как на сканах), эмблема счётчика руки — две фигуры
+(`assets/misc/delegate-pair.svg`: ОДИН путь делегата, `<use>` дважды — гард `DelegateGlyphParity`), метка «Лидерство»,
+полная строка называет ГДЕ (`leadershipNowText`). Спеки: `unplayableReasons.spec` § LEADERSHIP, `PoliticalAllianceRedux.spec`.
+
 ## 6. Переименование (коммит 0)
 
 Только RU-значения; EN-ключи стоят. `parliament.json`: 17 строк («Повестка» → «Карьера» во всех формах; `Agenda

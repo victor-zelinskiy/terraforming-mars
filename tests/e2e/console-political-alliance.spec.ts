@@ -20,7 +20,7 @@ import {focusParliamentZone, openParliament} from './parliamentDrive';
  *      reads the walk «1 → 2», its TR and the coming stage; A is ONE POST; the walk plays inside the hand and the flow
  *      ends on the board; the server agrees (2 M€ paid, the Greens' +2 M€ for the walked TR, the marker on 2, ONE
  *      record); the Parliament still marks both led slots.
- *   C. The same play under REDUCED MOTION ends on the board with the same server state.
+ *   C. The same play under REDUCED MOTION — no walk scene is staged — ends on the board with the same server state.
  *
  * Fixtures: tests/e2e/fixtures/generate.ts § TR73. Screenshots under screenshots/political-alliance/.
  */
@@ -90,7 +90,7 @@ async function waitFlowLeft(page: Page): Promise<void> {
 }
 
 /** The hand → the card → its composer → A (one POST) → the walk inside the hand → the board. */
-async function playThroughWalk(page: Page, posts: Array<string>, preset: string, shots: boolean): Promise<void> {
+async function playThroughWalk(page: Page, posts: Array<string>, preset: string, shots: boolean, walks = true): Promise<void> {
   await openHand(page);
   expect(await focusCard(page, CARD, 24), `never focused «${CARD}»`).toBeTruthy();
   await press(page, 'Enter', 1200);
@@ -112,7 +112,9 @@ async function playThroughWalk(page: Page, posts: Array<string>, preset: string,
   }
   expect(posts.length, 'the play is ONE POST').toBe(1);
   expect(posts[0], 'the POST is the card\'s play').toContain(CARD);
-  await page.locator('.con-hand .con-parl--embedded[data-walk-beat]').waitFor({timeout: 40_000});
+  if (walks) {
+    await page.locator('.con-hand .con-parl--embedded[data-walk-beat]').waitFor({timeout: 40_000});
+  }
   if (shots) {
     await shoot(page, preset, 'b-walk');
   }
@@ -236,7 +238,8 @@ for (const preset of PRESETS) {
       const posts = watchPosts(page);
       const playerId = await bootFixture(page, request, 'political-alliance', {query: preset.query});
       const before = await wireOf(request, playerId);
-      await playThroughWalk(page, posts, preset.id, false);
+      // Reduced motion stages no walk (`agendaWalk.seedAgendaWalk` holds nothing): the server walks, the flow ends on the board.
+      await playThroughWalk(page, posts, preset.id, false, false);
       await expectServerAfterPlay(request, playerId, before);
     });
   });
