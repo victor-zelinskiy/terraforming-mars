@@ -2307,7 +2307,8 @@ export default defineComponent({
      */
     playWalkSeat(onSeated: () => void): void {
       const root = this.$refs.rootEl as HTMLElement | undefined;
-      const seat = agendaWalkFlow.owed?.seat;
+      const owed = agendaWalkFlow.owed;
+      const seat = owed?.seat;
       const beat = (ms: number, fn: () => void): void => {
         this.walkSeatBeats.push(scheduleHurriedParliamentBeat(ms, fn));
       };
@@ -2318,7 +2319,7 @@ export default defineComponent({
         agendaWalkFlow.beat = 'walk';
         beat(CHAIRMAN_QUEST_BUDGET.gap, onSeated);
       };
-      if (root === undefined || seat === undefined || !agendaWalkFlow.live) {
+      if (root === undefined || owed === undefined || seat === undefined || !agendaWalkFlow.live) {
         parliamentHolds.chairAwaits = undefined;
         parliamentFlow.sourceHold = undefined;
         parliamentFlow.sourceLeaving = undefined;
@@ -2326,7 +2327,7 @@ export default defineComponent({
         return;
       }
       this.walkHold?.release();
-      this.walkHold = beginAnimationHold('parliament-agenda-walk', {maxHoldMs: agendaWalkHoldMs(agendaWalkFlow.owed!) + CHAIRMAN_QUEST_BUDGET.seatRead + CHAIRMAN_QUEST_BUDGET.seat + CHAIRMAN_QUEST_BUDGET.gap});
+      this.walkHold = beginAnimationHold('parliament-agenda-walk', {maxHoldMs: agendaWalkHoldMs(owed) + CHAIRMAN_QUEST_BUDGET.seatRead + CHAIRMAN_QUEST_BUDGET.seat + CHAIRMAN_QUEST_BUDGET.gap});
       setParliamentFlightsHurried(false);
       // THE LEAD: the chair is READ with its holder before anything moves — the pose rises through its own entry, and a
       // cube lifting off inside that fade is a beat the player never saw start (the law «ни один такт не начинается,
