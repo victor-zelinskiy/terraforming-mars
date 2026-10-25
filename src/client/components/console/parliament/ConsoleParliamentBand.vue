@@ -236,6 +236,7 @@ import {quietRewardPoseOf, SittingPosition, SittingStage} from '@/client/console
 import {enactedLevyOf, enactedYieldsOf, resolvingLevyOf, resolvingYieldsOf} from '@/client/console/parliament/influenceYieldModel';
 import {LevyReading} from '@/common/parliament/resolutionLevy';
 import {parliamentRewardState, rewardLanded} from '@/client/console/parliament/parliamentRewardBeat';
+import {parliamentWorldBeatState} from '@/client/console/parliament/parliamentWorldBeat';
 import {sittingMotion} from '@/client/console/parliament/sittingDirector';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {PartyReactionReading, partyReactionsOf, viewerHasSeat} from '@/client/console/parliament/partyReactionModel';
@@ -528,6 +529,9 @@ export default defineComponent({
           out.waitingInput = position.waitingFor.input;
         }
         out.waitingViewer = position.askedLater === true ? 'ahead' : 'done';
+        if (parliamentRewardState.receiptShowing || parliamentWorldBeatState.receiptShowing) {
+          out.receiptRead = true;
+        }
       }
       return out;
     },

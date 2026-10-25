@@ -220,6 +220,11 @@ export type BandRewardReading = {
   /** …and what the wait means for THIS seat (its part ahead, or done). */
   waitingViewer?: AskingViewer;
   /**
+   * A RECEIPT IS BEING READ on this page (the winner's tile back from the board, the planet's move): the reward line
+   * stands for that read — the wait takes the line only after it (law 4: «получено» is read before the walk goes on).
+   */
+  receiptRead?: boolean;
+  /**
    * THE WINNER'S PART IS ANOTHER SEAT'S, and this seat has no part of its own on the line (a skip at
    * most): the line is the WINNER'S reward, led by the tile, and never calls itself «ваша награда»
    * (docs/TURMOIL_REDUX_MARSBOT.md §8.6 — a bot's win draws the spectator no reward of theirs; the
@@ -833,7 +838,7 @@ function rewardLine(sitting: BandSitting): BandLine {
     // 2026-10-25): its numbers already stand on the rail, and beside them the wait was cut to «ОЖ… р · ВЫ…» on a 4K
     // strip — the one fact the seat needs now (WHO decides, WHAT, and whether anything is still asked of it) read
     // nowhere. The band crossfades to it like to any other line; while the chips still fly it rides beside them.
-    if (chips.length === 0 || reward.state === 'Received' || reward.state === 'Taken') {
+    if (reward.receiptRead !== true && (chips.length === 0 || reward.state === 'Received' || reward.state === 'Taken')) {
       return {
         kicker: 'Waiting for the other seats',
         key: `reward:waiting:${reward.waitingFor}:${what ?? ''}:${reward.waitingViewer ?? ''}`,

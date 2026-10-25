@@ -354,6 +354,10 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
       expect(landed.kicker, 'the kicker says the wait').eq('Waiting for the other seats');
       expect(landed.chips).deep.eq([{kind: 'asking', seats: [RED], what: 'Choosing cards', viewer: 'done', lead: true}]);
       expect(landed.key, 'a line of its own — the band crossfades to it').not.eq(flying.key);
+      // …but never over a RECEIPT being read (the winner's tile back from the board): «получено» is read first.
+      const reading = line({stage: 'reward', reward: {...NO_REWARD, yields, state: 'Received', waitingFor: RED, receiptRead: true}});
+      expect(reading.kicker).eq('Your reward');
+      expect(kinds(reading.chips)).deep.eq(['yield', 'asking']);
       const empty = line({stage: 'reward', rewardStep: 'received'});
       expect((empty.chips[0] as {key: string}).key).eq('Your record is in');
     });
