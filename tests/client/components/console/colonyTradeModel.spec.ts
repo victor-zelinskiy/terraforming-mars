@@ -6,7 +6,7 @@ import {CardResource} from '@/common/CardResource';
 import {Resource} from '@/common/Resource';
 import {ColonyTradeManifestModel} from '@/common/models/ColonyTradeManifestModel';
 import {
-  benefitCardCount, benefitTransferSpec, colonyTradeHeldSpecs, incomeTransferSpecs,
+  benefitCardCount, benefitTransferSpec, bonusHandsOverCard, colonyTradeHeldSpecs, incomeTransferSpecs,
   ownBonusTransferSpecs, revealWaveForIndex, trackAdvancePlan, trackGlidePlan, trackWavePlan, TRACK_WAVE_BREATH_MS, TRACK_WAVE_READ_MS, TRACK_WAVE_STAGGER_MS, TRADE_COVER_STAGGER_MS,
   TRADE_FAN_LEAD_MS, TRADE_FAN_STAGGER_MS, TRADE_WAVE_GAP_MS,
   tradeCoverPlan, tradeCoverPlanBudgetMs, tradeRoleForIndex, viewerBonusCubes,
@@ -28,6 +28,14 @@ function manifest(over: Partial<ColonyTradeManifestModel> = {}): ColonyTradeMani
 }
 
 describe('colonyTradeModel', () => {
+  it('the bonus wave HANDS OVER only when it pays a card the income did not', () => {
+    const floater = (targetCard?: CardName) => ({channel: 'card-resource' as const, resource: 'floater', amount: 1, targetCard});
+    expect(bonusHandsOverCard([floater(CardName.DIRIGIBLES)], [floater(CardName.FLOATING_HABS)])).eq(true);
+    expect(bonusHandsOverCard([floater(CardName.DIRIGIBLES)], [floater(CardName.DIRIGIBLES)])).eq(false);
+    expect(bonusHandsOverCard([{channel: 'stock', resource: 'titanium', amount: 3}], [{channel: 'stock', resource: 'titanium', amount: 1}])).eq(false);
+    expect(bonusHandsOverCard([{channel: 'stock', resource: 'titanium', amount: 3}], [floater(CardName.DIRIGIBLES)])).eq(true);
+  });
+
   it('maps grants to transfer specs (stock / production / card-resource / none)', () => {
     expect(benefitTransferSpec({benefit: ColonyBenefit.GAIN_RESOURCES, quantity: 3, resource: Resource.TITANIUM}))
       .deep.eq({channel: 'stock', resource: 'titanium', amount: 3});

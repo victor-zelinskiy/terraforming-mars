@@ -56,8 +56,12 @@
             geometry (the action height) from submit time. It paints NOTHING:
             a claim that turns out to have nothing to present must leave no
             trace, and a zone that dressed itself on ownership alone is what
-            stood as an empty dimmed box over Луна's finished trade. */
-         'con-colfocus--claimed': outcomeZone,
+            stood as an empty dimmed box over Луна's finished trade.
+            …and it GROWS the panel to the band only for a claim that will STAND something in the zone (a card
+            payout — `draw` — or a question re-asked live, presenting): a Titan trade claims `pick` only in case
+            its pre-collected target is re-asked, and growing for that slid the whole stage — the planet, the berth
+            the fleet was landing on — under the flight (the owner's 2026-10-25 «компоновка дергается»). */
+         'con-colfocus--claimed': claimGrows,
          /* READINESS — a payout is genuinely STANDING in the zone, so the
             working area is handed over. It comes BACK the moment the payout
             leaves (see `workingAreaYielded`): the closing beat — the track
@@ -124,13 +128,17 @@
                  fleet while the stage is up (same data key as the tile's
                  dock; the directors prefer the stage's match). -->
             <span class="con-colfocus__orbit"
-                  :data-fleet-berth="colony.name"
                   :class="[
                     colony.visitor !== undefined ? ['con-colfocus__orbit--occupied', 'fleet-hue--' + colony.visitor] : [],
                     {'con-colfocus__orbit--just-docked': fleetJustDockedHere},
                   ]"
                   aria-hidden="true">
-              <ColonyFleetIcon v-if="colony.visitor !== undefined" :color="colony.visitor" />
+              <!-- THE SLOT is the docked ship's own box — the flight's landing anchor, PIXEL-PERFECT: the proxy settles
+                   at exactly this size, so the real ship materializes in the rect it already fills (the ring around it
+                   is larger; landing on the ring's box and fading into a smaller ship was a visible size snap). -->
+              <span class="con-colfocus__orbit-slot" :data-fleet-berth="colony.name">
+                <ColonyFleetIcon v-if="colony.visitor !== undefined" :color="colony.visitor" />
+              </span>
             </span>
             <!-- THE ORBIT of a planet that has not docked yet (the roster's projection pose) — a dashed ring
                  around the DISC itself (inside it: a circle, never the wrap's box), closed by the ceremony's
@@ -173,9 +181,12 @@
             <span class="con-colfocus__bonusmult-label">{{ $t('Your colonies here') }}</span>
             <b>×{{ bonusMath.count }}</b>
           </div>
-          <div v-if="!bonusMode && visitorLine !== ''" class="con-colfocus__fleetline">
-            <ColonyFleetIcon v-if="colony.visitor !== undefined" :color="colony.visitor" />
-            <span>{{ visitorLine }}</span>
+          <!-- Past the press the line keeps what it said AT the press (`heldFleetLine`): the fleet docking under the
+               trade would otherwise add «Здесь стоит ваш флот» to the centred column and lift the planet — and the
+               berth the ship is settling into — by half a line (the ship on the berth says it already). -->
+          <div v-if="!bonusMode && fleetLineView.text !== ''" class="con-colfocus__fleetline">
+            <ColonyFleetIcon v-if="fleetLineView.color !== undefined" :color="fleetLineView.color" />
+            <span>{{ fleetLineView.text }}</span>
           </div>
         </div>
         <!-- The honest verdict, under the identity it judges — never a
@@ -192,27 +203,42 @@
              trade here?» is not the question the player was brought here to
              answer, and a red «✕ Здесь стоит ваш флот» over a reward they are
              owed is the screen refusing something nobody asked for. -->
-        <!-- …and in the CITY act (TR22) its BOX outlives the commit, unpainted (`--reserved`): the hero column is
-             centred, so a chip that vanished at the press dropped the planet — and the seat the piece is about to
-             land on — by its own height. The place a thing lands on does not move under it. -->
-        <div v-if="(!pastCommit && !commitLatched && !bonusMode) || cityVerdictReserved"
-             class="con-colfocus__verdict"
-             :class="[presentAvailable || cityVerdictReserved ? 'con-colfocus__verdict--ok' :
-               (blockTone === 'warning' ? 'con-colfocus__verdict--notnow' : 'con-colfocus__verdict--no'),
-                      {'con-colfocus__verdict--reserved': cityVerdictReserved}]"
+        <!-- …and in EVERY act its BOX outlives the commit, unpainted (`--reserved`), with the words it had at the
+             press (`heldVerdict`): the hero column is centred, so a chip that vanished at the press dropped the planet —
+             and the orbital berth the trade fleet is landing on, the seat a city lands on — by half its height, and a
+             verdict re-worded under a frozen stage re-wrapped it. The place a thing lands on does not move under it
+             (the TR22 city first, the trade's own landing since 2026-10-25). -->
+        <!-- THE VERDICT'S SEAT carries the resolution context past the press as a FLOAT under it (`--float`): the
+             column is centred, and a source chip arriving in flow lifted the planet and its berth by half its height
+             while the fleet was descending onto it. In the BONUS composition the context leads, in flow. -->
+        <div v-if="!bonusMode" class="con-colfocus__verdictseat">
+        <div class="con-colfocus__verdict"
+             :class="['con-colfocus__verdict--' + verdictView.tone, {'con-colfocus__verdict--reserved': verdictReserved}]"
              data-unfold-late>
-          <template v-if="presentAvailable || cityVerdictReserved">
-            <span class="con-coltile__status-dot" aria-hidden="true"></span>
-            <span>{{ $t(city !== undefined ? 'Can place the city here' : roster !== undefined ? roster.verbKey : intent === 'build' ? 'Build here' : intent === 'track' ? 'Can select' : intent === 'pick' ? (pickLabel || 'Can select') : 'Trade available') }}</span>
-          </template>
           <!-- The turn gate is not a refusal: every trade rule is satisfied and
                the colony would take the fleet — it is simply not this player's
                moment. Amber ⏳, never the red ✕ that reads as «эта колония вас
                не принимает». (AvailabilityBlocker: tone 'warning'.) -->
-          <template v-else>
-            <span aria-hidden="true">{{ blockTone === 'warning' ? '⏳' : '✕' }}</span>
-            <span>{{ blockReason !== '' ? $t(blockReason) : $t('Trade unavailable') }}</span>
-          </template>
+          <span v-if="verdictView.tone === 'ok'" class="con-coltile__status-dot" aria-hidden="true"></span>
+          <span v-else aria-hidden="true">{{ verdictView.tone === 'notnow' ? '⏳' : '✕' }}</span>
+          <span>{{ $t(verdictView.text) }}</span>
+        </div>
+        <div v-if="presentedContext !== undefined" class="con-colfocus__srcctx con-colfocus__srcctx--float">
+          <span class="con-colfocus__srcchip">
+            <span class="con-colfocus__srcchip-mark" aria-hidden="true">◈</span>
+            <span>{{ $t('Source') }}</span>
+          </span>
+          <span class="con-colfocus__srcctx-role"
+                :class="{'con-colfocus__srcctx-role--bonus': presentedContext.bonus}">
+            {{ $t(presentedContext.roleKey) }}
+          </span>
+          <span v-if="presentedContext.traderLine !== ''" class="con-colfocus__srcctx-trader">
+            <span v-if="presentedContext.traderColor !== ''"
+                  :class="'con-status__dot player_bg_color_' + presentedContext.traderColor"
+                  aria-hidden="true"></span>
+            <span>{{ presentedContext.traderLine }}</span>
+          </span>
+        </div>
         </div>
         <!-- ═══ THE RESOLUTION CONTEXT — past the commit the colony IS the
              SOURCE of what the player is receiving. A calm chip under the
@@ -225,8 +251,7 @@
              something else — it is the WHY of the whole surface, so it leads
              (`--lead`: the role reads as the title, the trigger as its
              subtitle, on their own plate). -->
-        <div v-if="presentedContext !== undefined" class="con-colfocus__srcctx"
-             :class="{'con-colfocus__srcctx--lead': bonusMode}">
+        <div v-if="bonusMode && presentedContext !== undefined" class="con-colfocus__srcctx con-colfocus__srcctx--lead">
           <span class="con-colfocus__srcchip">
             <span class="con-colfocus__srcchip-mark" aria-hidden="true">◈</span>
             <span>{{ $t('Source') }}</span>
@@ -482,7 +507,8 @@
                                   :landings="landings.by"
                                   :players="players"
                                   :leaving="cardlandReleased"
-                                  :rail="intent === 'build'" />
+                                  :rail="intent === 'build'"
+                                  :activeRole="cardlandActiveRole" />
 
       <!-- (The reward package answers «what happens if I confirm now?» — a
            question the BONUS composition does not pose: nothing is being
@@ -800,7 +826,7 @@ import {ColonyName} from '@/common/colonies/ColonyName';
 import {Color} from '@/common/Color';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {SelectOptionModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
-import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
+import {ColonyTradeFollowUpRole, ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {Message} from '@/common/logs/Message';
 import {SpendableResource} from '@/common/inputs/Spendable';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
@@ -961,6 +987,10 @@ const CARDLAND_LEAVE_MS = 300;
  *  step — entered from the trade's own confirm, ONLY while the server model
  *  admits at least two valid energy/steel mixes (`minSteel < maxSteel`). */
 type Sub = undefined | 'lanes' | 'track' | 'targets' | 'mix';
+/** The hero's verdict: its tone and its words (an English key). */
+type StageVerdict = {tone: 'ok' | 'notnow' | 'no', text: string};
+/** The hero's visitor line: its words and the fleet's colour. */
+type StageFleetLine = {text: string, color: Color | undefined};
 type NoticeRow = {tone: 'warn' | 'info', iconClass: string, text: string};
 type Focusable = {zone: 'pay' | 'step', index: number};
 /**
@@ -1160,6 +1190,10 @@ export default defineComponent({
        * «Здесь стоит ваш флот» flash over a payout the fleet just earned.
        */
       commitLatched: false,
+      /** The verdict as it read AT THE PRESS — its reserved box keeps these words (and so its height). */
+      heldVerdict: undefined as StageVerdict | undefined,
+      /** The visitor line as it read AT THE PRESS (the fleet docking under the trade adds nothing to the column). */
+      heldFleetLine: undefined as StageFleetLine | undefined,
       /** The last non-empty resolution context — held through the close so
        *  the hero keeps naming the SOURCE role to the final frame. */
       heldContext: undefined as {roleKey: string, bonus: boolean, traderColor: string, traderLine: string} | undefined,
@@ -1530,8 +1564,32 @@ export default defineComponent({
       return Math.min(this.presented.trackPosition, this.trackMax);
     },
     /** THE CITY ACT past its commit: the verdict's box stays (unpainted) so the hero column — the seat — stands still. */
-    cityVerdictReserved(): boolean {
-      return this.city !== undefined && !this.bonusMode && (this.pastCommit || this.commitLatched);
+    /** The visitor line as it reads — the press-time words past the commit (see the template). */
+    fleetLineView(): StageFleetLine {
+      if (this.verdictReserved && this.heldFleetLine !== undefined) {
+        return this.heldFleetLine;
+      }
+      return {text: this.visitorLine, color: this.colony.visitor};
+    },
+    /** Past the press the verdict's box stays, unpainted — in every act (see the template). */
+    verdictReserved(): boolean {
+      return !this.bonusMode && (this.pastCommit || this.commitLatched);
+    },
+    /** The verdict the live props state (an English key + its tone). */
+    liveVerdict(): StageVerdict {
+      if (this.presentAvailable) {
+        return {
+          tone: 'ok',
+          text: this.city !== undefined ? 'Can place the city here' : this.roster !== undefined ? this.roster.verbKey :
+            this.intent === 'build' ? 'Build here' : this.intent === 'track' ? 'Can select' :
+              this.intent === 'pick' ? (this.pickLabel || 'Can select') : 'Trade available',
+        };
+      }
+      return {tone: this.blockTone === 'warning' ? 'notnow' : 'no', text: this.blockReason !== '' ? this.blockReason : 'Trade unavailable'};
+    },
+    /** What the verdict's box holds: the press-time words past the commit (so its height cannot change), else live. */
+    verdictView(): StageVerdict {
+      return this.verdictReserved && this.heldVerdict !== undefined ? this.heldVerdict : this.liveVerdict;
     },
     /** How many colonies stand here — the ONE number the reset rule reads. */
     builtCount(): number {
@@ -1575,6 +1633,14 @@ export default defineComponent({
         return -1;
       }
       return b.phase === 'landed' || b.phase === 'done' ? b.slotIndex : -1;
+    },
+    /**
+     * The claim GROWS the panel to the band (`--claimed`): only one that will stand something in the zone — a card
+     * payout (`draw`), or whatever is presenting there now. A `pick`-only claim (the reward's target may be re-asked)
+     * keeps the action height until the question genuinely stands.
+     */
+    claimGrows(): boolean {
+      return this.outcomeZone && (this.workspaceOutcomeState.kinds.includes('draw') || this.workspaceOutcomeState.stage === 'presenting');
     },
     /** This colony's marker is mid-glide — the resting marker yields to the
      *  flying proxy (the overview tile's `--marker-gliding` contract, now
@@ -2068,6 +2134,17 @@ export default defineComponent({
      * land) and yields the moment a CARD payout takes the area over
      * (`workingAreaYielded` — the covers' scene outranks it).
      */
+    /**
+     * The act whose wave is in the air on THIS colony's trade — the receiving card it pays stands forward
+     * (the transaction's own beat: the income wave, then the bonus wave; '' between and after).
+     */
+    cardlandActiveRole(): ColonyTradeFollowUpRole | '' {
+      const t = this.colonyTradeState;
+      if (!t.active || t.colonyName !== this.colony.name) {
+        return '';
+      }
+      return t.beat === 'income' ? 'tradeReward' : t.beat === 'bonus' ? 'colonyBonus' : '';
+    },
     cardlandVisible(): boolean {
       // The snapshot IS the proof of «past the commit» (it is taken at the
       // boundary and cleared at the release), so this must NOT re-ask
@@ -2496,6 +2573,7 @@ export default defineComponent({
       this.heldView = undefined;
       this.pinnedConfig = undefined;
       this.commitLatched = false;
+      this.heldVerdict = undefined;
       this.heldContext = undefined;
       this.presentedTargets = [];
       this.cardlandReleased = false;
@@ -3487,6 +3565,8 @@ export default defineComponent({
      * the live props. Nothing of a move was shown, so nothing is undone.
      */
     releasePresentation(): void {
+      this.heldVerdict = undefined;
+      this.heldFleetLine = undefined;
       this.heldView = undefined;
       this.pinnedConfig = undefined;
       this.commitLatched = false;
@@ -3494,6 +3574,9 @@ export default defineComponent({
       this.syncUiMirror();
     },
     holdPresentation(): void {
+      // The verdict's words at the press — its box outlives the commit with exactly these (no re-wrap, no shift).
+      this.heldVerdict = this.liveVerdict;
+      this.heldFleetLine = {text: this.visitorLine, color: this.colony.visitor};
       // Arm the outcome origin while the configuration surface still stands —
       // its rect is what the follow-up's zone will unfold from.
       // The WORKING AREA is what hands over — the identity column stays, so

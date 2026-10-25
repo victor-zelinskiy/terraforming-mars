@@ -130,6 +130,16 @@ export function ownBonusTransferSpecs(manifest: ColonyTradeManifestModel, viewer
 }
 
 /**
+ * The bonus wave pays a card the income wave did NOT (Titan: the income's floaters onto one card, a settlement's
+ * floater onto another) — the receiving scene then HANDS OVER between the waves: the second card stands forward
+ * BEFORE its first token is born, so the player sees where the next wave is going.
+ */
+export function bonusHandsOverCard(income: ReadonlyArray<ResourceTransferSpec>, bonus: ReadonlyArray<ResourceTransferSpec>): boolean {
+  const paid = new Set(income.map((spec) => spec.targetCard).filter((c) => c !== undefined));
+  return bonus.some((spec) => spec.targetCard !== undefined && !paid.has(spec.targetCard));
+}
+
+/**
  * The panel REWARD-HOLD seed: every metric amount of the viewer's own trade
  * rewards (income + own colony bonuses), MERGED per metric — the panel must
  * hide the whole pending amount from the moment the view commits until the

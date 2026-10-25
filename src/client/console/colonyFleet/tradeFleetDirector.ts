@@ -24,6 +24,13 @@
  *   DOCK     — the final descent onto the berth, PIXEL-PERFECT (position +
  *              size + angle of the real docked ship), then the colony ack.
  *
+ * THE BERTH IS A LIVE END (the owner's 2026-10-25 «встаёт не плавно, а
+ * дергается»): the berth is re-read (`resolveTo`) through the last half of the
+ * transit — the difference RAMPED in, never a jerk — and every frame of the
+ * dock descent, so a stage that settles a few pixels under the flight (a
+ * panel growing for its payout, a font landing) is followed, and the proxy's
+ * last frame is exactly where the real ship materializes.
+ *
  * Contracts (mirror the deal/exit directors): transform/opacity only (the
  * ship element geometry is fixed — GSAP moves a composite layer); durations
  * through motionMs(); `skip()` is idempotent and always tears down; a safety
@@ -57,8 +64,10 @@ export type RunFleetArgs = {
   ship: HTMLElement,
   /** Launch rect (the fleet pad's ship slot) — screen coords. */
   from: DOMRect,
-  /** Berth rect (the target colony's dock slot) — screen coords. */
+  /** Berth rect (the target colony's dock slot) — screen coords, as measured at the launch. */
   to: DOMRect,
+  /** The berth NOW (the same element, re-measured) — the live end; absent = the launch rect stands. */
+  resolveTo?: () => DOMRect | undefined,
   reduced: boolean,
   /** Phase → controller (injected to keep the graph acyclic). */
   onPhase: (phase: FleetPhaseName) => void,
@@ -80,6 +89,11 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
 
   const from = centre(args.from);
   const to = centre(args.to);
+  /** The berth's centre and width NOW — the live end (the launch rect when it cannot be read). */
+  const liveTo = (): {at: Point, w: number} => {
+    const r = args.resolveTo?.();
+    return r === undefined || r.width < 2 || r.height < 2 ? {at: to, w: args.to.width} : {at: centre(r), w: r.width};
+  };
   const ctrl = launchArcControl(from, to);
   // The launch starts from the TOP fleet dock, so the arc's "up" bow can
   // push the apex above the viewport — clamp it on-screen so the ship never
@@ -90,6 +104,8 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
   let killed = false;
   let dockCb: (() => void) | undefined;
   let approachReached = false;
+  /** The dock descent (a progress tween over a plain object — killed with the flight). */
+  let landTween: gsap.core.Tween | undefined;
 
   // The ship is centred on its own box; position by its centre.
   const shipW = ship.offsetWidth || 46;
@@ -142,8 +158,16 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
     onUpdate: () => {
       const p = prog.p;
       const mt = 1 - p;
-      const x = mt * mt * from.x + 2 * mt * p * ctrl.x + p * p * to.x;
-      const y = mt * mt * from.y + 2 * mt * p * ctrl.y + p * p * to.y;
+      // The END is live over the second half: the berth's drift since the launch is ramped in (zero at the
+      // midpoint, whole at the arrival), so the hull follows a berth that moved without a single jump.
+      let end = to;
+      if (args.resolveTo !== undefined && p > 0.5) {
+        const k = smoothstep(0.5, 1, p);
+        const live = liveTo().at;
+        end = {x: to.x + (live.x - to.x) * k, y: to.y + (live.y - to.y) * k};
+      }
+      const x = mt * mt * from.x + 2 * mt * p * ctrl.x + p * p * end.x;
+      const y = mt * mt * from.y + 2 * mt * p * ctrl.y + p * p * end.y;
       const heading = reduced ? 0 : arcHeadingDeg(from, ctrl, to, p);
       const rot = reduced ? 0 : heading * smoothstep(0, 0.12, p) * (1 - smoothstep(0.78, 1, p));
       const hump = Math.sin(p * Math.PI);
@@ -182,17 +206,38 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
     // landing, resolve the gate: the caller commits, the REAL docked ship
     // materializes in this exact rect UNDER the still-visible proxy, and
     // only then does `release()` crossfade the proxy out.
-    const land = gsap.timeline({
+    // The descent aims at the berth AS IT STANDS ON EVERY FRAME (the live end): from the pose the hover left the
+    // hull in, onto the slot's centre and size now — so its last frame IS the rect the real ship paints in.
+    const x0 = Number(gsap.getProperty(ship, 'x')) || 0;
+    const y0 = Number(gsap.getProperty(ship, 'y')) || 0;
+    const r0 = Number(gsap.getProperty(ship, 'rotation')) || 0;
+    const s0 = Number(gsap.getProperty(ship, 'scale')) || dockScale;
+    const ease = gsap.parseEase(reduced ? 'power1.out' : 'power2.inOut');
+    const settle = {p: 0};
+    const poseAt = (k: number) => {
+      const live = liveTo();
+      const scaleEnd = live.w > 8 ? live.w / shipW : dockScale;
+      const e = ease(k);
+      gsap.set(ship, {
+        x: x0 + (live.at.x - half - x0) * e,
+        y: y0 + (live.at.y - halfH - y0) * e,
+        rotation: r0 * (1 - e),
+        scale: s0 + (scaleEnd - s0) * e,
+        transformOrigin: '50% 50%',
+      });
+    };
+    landTween = gsap.to(settle, {
+      p: 1,
+      duration: s(t.dockMs),
+      ease: 'none',
+      onUpdate: () => poseAt(settle.p),
       onComplete: () => {
+        poseAt(1);
         args.onPhase('ack');
         const cb = dockCb;
         dockCb = undefined;
         cb?.();
       },
-    });
-    land.to(ship, {
-      x: to.x - half, y: to.y - halfH, rotation: 0, scale: dockScale,
-      duration: s(t.dockMs), ease: 'power2.inOut',
     });
   }
 
@@ -250,6 +295,7 @@ export function runTradeFleetFlight(args: RunFleetArgs): TradeFleetDirectorHandl
       killed = true;
       clearSafety();
       tl.kill();
+      landTween?.kill();
       gsap.killTweensOf(ship);
       gsap.set(ship, {autoAlpha: 0});
       const cb = dockCb;

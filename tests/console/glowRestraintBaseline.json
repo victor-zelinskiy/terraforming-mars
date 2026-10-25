@@ -1,5 +1,5 @@
 {
-  "console.less": 77,
+  "console.less": 75,
   "console_bot_attack.less": 1,
   "console_card_deal.less": 3,
   "console_card_discard.less": 1,
@@ -8,7 +8,6 @@
   "console_colony_trade.less": 2,
   "console_endgame.less": 6,
   "console_final_greenery.less": 3,
-  "console_fleet_dock.less": 1,
   "console_menu.less": 19,
   "console_parliament.less": 1,
   "console_payment.less": 1,

@@ -1070,6 +1070,21 @@ html.con-profile-tv {
         &__fleetline { font-size: var(--con-t-caption); }
         &__verdict { font-size: var(--con-t-secondary); }
         --colfocus-rail-w: 18.5rem;
+        /* The receiving cards at the couch scene's scale (the box is 36.5rem tall here): the card a protagonist,
+           its two reading lines at the floor. */
+        &__cardland {
+            --con-cardland-zoom: calc(1 * var(--con-ui-scale, 1));
+            &[data-cardland-count='2'] { --con-cardland-zoom: calc(.9 * var(--con-ui-scale, 1)); }
+            &[data-cardland-count='3'] { --con-cardland-zoom: calc(.7 * var(--con-ui-scale, 1)); }
+        }
+        &__cardland--rail {
+            --con-cardland-zoom: calc(.82 * var(--con-ui-scale, 1));
+            &[data-cardland-count='2'] { --con-cardland-zoom: calc(.5 * var(--con-ui-scale, 1)); }
+            &[data-cardland-count='3'] { --con-cardland-zoom: calc(.36 * var(--con-ui-scale, 1)); }
+        }
+        &__landroles { min-height: 1.5rem; }
+        &__landrole { font-size: var(--con-t-floor); line-height: 1.5rem; }
+        &__landmeta { font-size: var(--con-t-secondary); }
         &__rsec-label { font-size: var(--con-t-floor); }
         &__rrow { font-size: var(--con-t-secondary); }
         &__rowners { font-size: var(--con-t-caption); }

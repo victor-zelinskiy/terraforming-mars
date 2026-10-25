@@ -150,7 +150,25 @@ export type ColonyTradePresentedTarget = {
   /** The count BEFORE the trade — the honest baseline the counter is frozen
    *  at until the chip physically lands. */
   before: number;
+  /**
+   * WHO PAYS WHAT onto this card, in the order the waves fly (the trade's income, then the colony bonus): one part
+   * per act. A card that receives from both is ONE face with two parts; the resolution scene names each, and lifts
+   * the card whose part is landing NOW. Absent = one part (`role`, `amount`).
+   */
+  parts?: ReadonlyArray<{role: ColonyTradeFollowUpRole, amount: number}>;
 };
+
+/** One more act onto a presented card — the same act again (two bonus cubes) adds to its own part. */
+function addPart(parts: ReadonlyArray<{role: ColonyTradeFollowUpRole, amount: number}>, role: ColonyTradeFollowUpRole, amount: number): Array<{role: ColonyTradeFollowUpRole, amount: number}> {
+  return parts.some((p) => p.role === role) ?
+    parts.map((p) => (p.role === role ? {role, amount: p.amount + amount} : p)) :
+    [...parts, {role, amount}];
+}
+
+/** A presented target's parts — its own, or the one its role and amount make. */
+export function presentedTargetParts(t: ColonyTradePresentedTarget): ReadonlyArray<{role: ColonyTradeFollowUpRole, amount: number}> {
+  return t.parts ?? [{role: t.role, amount: t.amount}];
+}
 
 export type ColonyTradeDestinationsInput = {
   /** The interactive steps (the stage's `tradeSteps` output). */
@@ -203,6 +221,7 @@ export function colonyTradeCardDestinations(input: ColonyTradeDestinationsInput)
         ...prior,
         amount: prior.amount + row.amount,
         icon: prior.icon !== '' ? prior.icon : row.icon,
+        parts: addPart(presentedTargetParts(prior), row.role, row.amount),
       };
       return;
     }

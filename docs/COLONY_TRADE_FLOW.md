@@ -270,6 +270,46 @@ stage's presented scene.
   (fixture `venus-trade`): the chip lands on a STANDING card, the covers rise
   only after that card has left, no picker after the confirm, the 8 % card
   waits for the board.
+- **THE RECEIVING CARD IS THE PROTAGONIST, AND TWO CARDS ARE PAID IN TURN (2026-10-25,
+  the owner: «карта выглядит слишком мелкой… не проработан кейс, когда бонус и торговля
+  начисляют ресурсы на разные карты»).** ① The scene's zoom ladder stands the card at the
+  main box's height less its two reading lines (`--con-cardland-zoom`: .8 / .72 / .56 of the
+  ui scale for 1 / 2 / 3 cards; TV 1 / .9 / .7; the build's rail .62 / .38 / .26, TV .82 /
+  .5 / .36) — it was .52, a third of the box. ② Every card names WHO PAYS IT
+  (`ColonyTradePresentedTarget.parts` — set only when two acts pay ONE card,
+  `presentedTargetParts` otherwise derives the one part): «ТОРГОВАЯ НАГРАДА +2 ⟨floater⟩»,
+  «БОНУС КОЛОНИИ +1 ⟨floater⟩», both lines on a merged face; under the card «было → стало»,
+  «стало» turning mint once true. ③ When the two acts pay DIFFERENT cards the waves go in
+  turn and the scene says which card is receiving NOW — `activeRole` is read off the
+  transaction's own beat (`colonyTradeState.beat`: `income` → `tradeReward`, `bonus` →
+  `colonyBonus`), the receiving card stands forward (`--receiving`, a hair up), the other
+  waits a step back (`--waiting`: opacity .46, scale .955 — compositor-only, never a glow),
+  both level once everything has landed (`data-landcell-state`). ④ The HAND-OVER is a beat
+  of its own: when the bonus pays a card the income did not (`bonusHandsOverCard`), the
+  beat turns to `bonus` FIRST and the bonus's first token is born only after
+  `RECEIVING_HANDOVER_MS` (the pose transition + a read) — the next wave is seen going
+  somewhere new. ⑤ A card whose whole payment landed wears a KANT (`--done`), never the old
+  standing mint halo; the contact is the one-shot flash.
+- **THE FLEET LANDS ON A STILL STAGE (2026-10-25, «встаёт не плавно, а дергается… компоновка
+  сдвигается на несколько пикселей»).** The hero column is CENTRED, so anything that arrives
+  in it after the press lifts the planet and its berth by half its own height — the probe
+  caught two more (−72 px and −33 px at 4K): the «Источник» context chip now FLOATS under
+  the verdict (`__verdictseat` + `__srcctx--float`, absolute; the bonus composition keeps it
+  leading in flow), and the visitor line keeps its press-time words (`heldFleetLine` — the
+  docked ship on the berth already says «your fleet is here»). Five more causes, each removed: the verdict chip left at
+  the press and the centred hero column dropped by half its height (its box is now RESERVED
+  past the commit in every act, with the words it had at the press — `heldVerdict`); the
+  panel grew to the band for every claim (`--claimed` now only for a draw, or once the
+  outcome is presenting); the berth was the 1.9rem ring while the docked icon painted
+  inside its own box (`data-fleet-berth` now sits on `.con-colfocus__orbit-slot`, exactly
+  the docked ship's box); the flight aimed at a rect measured at the launch (the berth is a
+  LIVE END — re-read over the transit's second half, the drift ramped in, and every frame of
+  the descent, `tradeFleetDirector` `resolveTo`); the hero ship's livery and the occupied
+  plate popped at the handoff (the layer switches the proxy to the docked `icon` mode at
+  `dock` with a 300 ms livery crossfade; the plate comes in by a 260 ms material transition
+  and stands with no halo). Probe: `tests/e2e/console-colony-titan-split.spec.ts` (fixture
+  `titan-split-trade` — the planet / berth / surface boxes ±1 px from the press to the dock,
+  the proxy's last frame on the slot, the two cards ≥ half the scene, the order of the turn).
 
 ## The STAGED BOT PATH (the field-report root cause — read before touching)
 

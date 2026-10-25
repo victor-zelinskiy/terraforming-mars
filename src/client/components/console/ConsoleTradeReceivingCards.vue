@@ -9,6 +9,16 @@
     touchdown (`presentedTargetModel` over the transfer framework's one landing
     tally): «было → прилетел → стало», never a number that silently changed.
 
+    THE CARD IS THE PROTAGONIST (the owner, 2026-10-25: «карта выглядит слишком
+    мелкой»): it stands at the scene's scale, and every card names WHO PAYS IT —
+    the trade's income, the colony bonus, or both on one face (`parts`). When
+    the two acts pay DIFFERENT cards (Titan: the income's floaters onto one
+    card, a settlement's floater onto another) the waves fly IN TURN and the
+    scene says which card is receiving NOW (`activeRole` — the transaction's own
+    beat): that card stands forward, the other waits a step back, by opacity
+    and a hair of scale (never a glow); once everything has landed both stand
+    level for the read.
+
     The stage owns WHEN the scene stands and when it leaves (`leaving`); this
     component owns how it reads. The root keeps the colony stage's class: one
     design, positioned by its stage.
@@ -18,11 +28,29 @@
              'con-colfocus__cardland--leaving': leaving,
              'con-colfocus__cardland--rail': rail,
            }"
-           :data-cardland-count="targets.length">
+           :data-cardland-count="targets.length"
+           :data-cardland-active="activeRole !== '' && !settled ? activeRole : undefined">
     <div v-for="t in targets" :key="t.card"
          class="con-colfocus__landcell"
-         :class="{'con-colfocus__landcell--landed': landedOf(t) > 0}"
-         :data-played-key="t.card">
+         :class="{
+           'con-colfocus__landcell--landed': landedOf(t) > 0,
+           'con-colfocus__landcell--done': landedOf(t) >= t.amount,
+           'con-colfocus__landcell--receiving': cellState(t) === 'receiving',
+           'con-colfocus__landcell--waiting': cellState(t) === 'waiting',
+         }"
+         :data-played-key="t.card"
+         :data-landcell-state="cellState(t)">
+      <!-- WHO PAYS THIS CARD — one line per act, the act's own name and what it lays here. -->
+      <div class="con-colfocus__landroles">
+        <span v-for="part in partsOf(t)" :key="part.role"
+              class="con-colfocus__landrole"
+              :class="'con-colfocus__landrole--' + part.role"
+              :data-landrole="part.role">
+          <span class="con-colfocus__landrole-name">{{ $t(roleLabel(part.role)) }}</span>
+          <b class="con-colfocus__landrole-amount">+{{ part.amount }}</b>
+          <i v-if="t.icon !== ''" :class="iconClass(t.icon)" aria-hidden="true"></i>
+        </span>
+      </div>
       <div class="con-colfocus__landcard">
         <ConsoleCardFaceLite :name="t.card" :card="modelOf(t)" />
         <!-- Re-keyed per touchdown: each landed chip replays the one-shot
@@ -32,7 +60,11 @@
       </div>
       <div class="con-colfocus__landmeta">
         <i v-if="t.icon !== ''" :class="iconClass(t.icon)" aria-hidden="true"></i>
-        <em>{{ t.before }} → {{ t.before + t.amount }}</em>
+        <span class="con-colfocus__landcount">
+          <span>{{ t.before }}</span>
+          <span class="con-colfocus__landarrow" aria-hidden="true">→</span>
+          <b>{{ t.before + t.amount }}</b>
+        </span>
       </div>
     </div>
   </section>
@@ -42,9 +74,17 @@
 import {defineComponent, PropType} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
+import {ColonyTradeFollowUpRole} from '@/common/models/ColonyTradePreviewModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {ColonyTradePresentedTarget, presentedTargetModel} from '@/client/console/colonyTrade/colonyTradeTargetStep';
+import {ColonyTradePresentedTarget, presentedTargetModel, presentedTargetParts} from '@/client/console/colonyTrade/colonyTradeTargetStep';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
+
+/** The act that pays a card, in the player's words. */
+const ROLE_LABEL: Readonly<Record<ColonyTradeFollowUpRole, string>> = {
+  tradeReward: 'Trade reward',
+  colonyBonus: 'Colony bonus',
+  buildBonus: 'Colony placement bonus',
+};
 
 export default defineComponent({
   name: 'ConsoleTradeReceivingCards',
@@ -60,10 +100,34 @@ export default defineComponent({
     leaving: {type: Boolean, default: false},
     /** The rail variant (a build: the card stands in the summary column). */
     rail: {type: Boolean, default: false},
+    /** The act whose wave is landing NOW ('' = none in the air) — the card it pays stands forward. */
+    activeRole: {type: String as PropType<ColonyTradeFollowUpRole | ''>, default: ''},
+  },
+  computed: {
+    /** Everything has landed: the scene is read level, nothing waits. */
+    settled(): boolean {
+      return this.targets.every((t) => this.landedOf(t) >= t.amount);
+    },
   },
   methods: {
     landedOf(t: ColonyTradePresentedTarget): number {
       return this.landings[t.card] ?? 0;
+    },
+    partsOf(t: ColonyTradePresentedTarget): ReadonlyArray<{role: ColonyTradeFollowUpRole, amount: number}> {
+      return presentedTargetParts(t);
+    },
+    /**
+     * Who stands forward. Only a scene of SEVERAL cards orders them (one card is always the subject), and only
+     * while a wave is in the air: the card the landing act pays receives, the others wait a step back.
+     */
+    cellState(t: ColonyTradePresentedTarget): 'receiving' | 'waiting' | 'idle' {
+      if (this.targets.length < 2 || this.activeRole === '' || this.settled) {
+        return 'idle';
+      }
+      return this.partsOf(t).some((p) => p.role === this.activeRole) ? 'receiving' : 'waiting';
+    },
+    roleLabel(role: ColonyTradeFollowUpRole): string {
+      return ROLE_LABEL[role];
     },
     modelOf(t: ColonyTradePresentedTarget): CardModel {
       const live = this.players.flatMap((p) => p.tableau).find((c) => c.name === t.card);

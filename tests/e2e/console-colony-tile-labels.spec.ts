@@ -14,11 +14,12 @@ import {ColonyName} from '../../src/common/colonies/ColonyName';
  *
  * A CORPUS, not a sample: the label's room is what the VALUE leaves, and the value changes with the marker (one digit
  * or two, a levy, a composite «[Venus] + 2 [floaters]»), so every colony the game knows is laid out at every one of
- * the seven positions, seven tiles at a time (the densest table) with the «ПРИЧАЛЫ» column standing (the narrowest
- * grid). Claims: every label WHOLE (its text fits its own box), every value INSIDE its cell. Failures name the colony,
- * the position, the cell and the shortfall in px.
+ * the seven positions, seven tiles at a time (the densest table) with the «ПРИЧАЛЫ» group standing (the grid
+ * solved together with it — the smallest tiles; the dock tiles are not colonies and are not read here). Claims:
+ * every label WHOLE (its text fits its own box), every value INSIDE its cell. Failures name the colony, the
+ * position, the cell and the shortfall in px.
  *
- * Fixture `aurora-station` (it carries a dock: the column stands). Heavy on 4K: `--workers=1`.
+ * Fixture `aurora-station` (it carries a dock: the group stands). Heavy on 4K: `--workers=1`.
  */
 
 const PROFILES = [
@@ -56,7 +57,7 @@ async function openColonies(page: Page): Promise<void> {
 }
 
 /** Every cell of every tile: the label's shortfall (scroll − client, px) and whether the value stands inside its cell. */
-const readCells = (page: Page): Promise<Array<Cell>> => page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-colonies .con-coltile')).flatMap((tile) => {
+const readCells = (page: Page): Promise<Array<Cell>> => page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-colonies__grid .con-coltile')).flatMap((tile) => {
   const colony = (tile.getAttribute('data-test') ?? tile.querySelector('[data-test^="con-colony-"]')?.getAttribute('data-test') ?? '').replace('con-colony-', '');
   return Array.from(tile.querySelectorAll<HTMLElement>('.con-coltile__cell')).map((cell, i) => {
     const label = cell.querySelector<HTMLElement>('.con-coltile__cell-label');

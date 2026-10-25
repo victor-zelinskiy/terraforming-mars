@@ -1,33 +1,36 @@
 <template>
   <!--
     THE FLEET-DOCK STAGE — a trade whose fleet goes to a CARD (Turmoil Redux
-    TR06 Water Hauling and its sisters). The colony focus stage's neighbour in
-    the same region, opened by the same descend phrase (the same hooks: it
-    publishes the marks they read — the surface, the edge, the carried object),
-    and it never titles itself: the crumb above reads «КОЛОНИИ › ПЕРЕВОЗКА ВОДЫ
-    › ТОРГОВЛЯ», the stage hands its tail up.
+    TR06 Water Hauling and its sisters). ONE MORE DIRECTION OF THE TRADE (the
+    owner, 2026-10-25): it stands on the colony trade stage's own materials and
+    in its own grammar — the same surface, the same three columns, the same
+    words — so walking from a colony to a dock changes the SUBJECT, never the
+    screen. It never titles itself: the crumb above reads «КОЛОНИИ › ПЕРЕВОЗКА
+    ВОДЫ › ТОРГОВЛЯ».
 
-    Two columns. The HERO is the card itself — the full premium face, because
-    the ▲ of its printed effect is where the fleet lands and the row the card
-    answers with. The WORK column is the trade: the payment paths (the SAME rows
-    and the SAME model as the colony stage — `ConsoleTradePayRows` /
-    `tradePayModel`), the M€ payment and the Delta Works mix through the shared
-    payment panel, and the RESULT — only the server's chips (the reward's
-    `current → resulting`, the TR step, the fleet leaving the supply), what the
-    TABLE answers to that reward («⚡ сработает» — the forecast engine's own
-    facts, named before the press) and the next step's note when the reward
-    raises one. No track, no settlements, no colony income: the colony takes
-    no part.
+      HERO     the card itself where the colony stage stands its planet — the
+               full premium face (the ▲ of its printed effect is where the
+               fleet lands), a laconic line of what the dock does (the card's
+               own curated short) and the honest verdict under it. Its size is
+               SOLVED BEFORE the stage mounts (the room the section measured at
+               the press): the tile's face FLIPs into a box that is already its
+               final size, never into one that re-fits a frame later.
+      MAIN     «СПОСОБ ОПЛАТЫ» — the SAME rows and the SAME model as the colony
+               stage (`ConsoleTradePayRows` / `tradePayModel`), the M€ payment,
+               the Delta Works mix and the reward's «КУДА» row.
+      RESULT   «ИТОГ ТОРГОВЛИ» — the colony stage's summary rail: «ВАШ ИТОГ»
+               (only the server's chips, as the rail's own rows), what the
+               TABLE answers («⚡ сработает» — the R3 «Эффекты» door), the trade
+               fleet leaving the supply, the payment, and the next step's note.
 
-    A reward that LANDS ON A CARD (TR27 Aurora Station: 2 floaters onto a Venus
-    card) names its card before the press: a «КУДА» row (the colony stage's own
-    reading — `ConsoleTradeTargetValue`) and, with several holders, the trade's
-    TARGET STEP one level deeper (`ConsoleTradeTargetStep` — the colony stage's
-    own host of the shared selector; the dock itself stands in it as «ЭТА
-    КАРТА»). The choice is a press and rides the trade's ONE POST. Past the
-    commit the receiving card stands on the stage (`ConsoleTradeReceivingCards`
-    — the colony stage's own presentation), or the tokens land on the hero
-    itself, its counter frozen until they touch down.
+    The verbs are the colony trade's: A selects (a path, the payment, the
+    target), X trades, L3 lifts the card into the viewer, R3 the effects.
+
+    A reward that LANDS ON A CARD (TR27 Aurora Station) names its card before
+    the press («КУДА» — `ConsoleTradeTargetValue`) and, with several holders,
+    descends into the trade's TARGET STEP (`ConsoleTradeTargetStep` — the
+    colony stage's own host). Past the commit the receiving card stands on the
+    stage (`ConsoleTradeReceivingCards`), or the tokens land on the hero itself.
   -->
   <div ref="rootEl"
        class="con-fleetdock"
@@ -39,132 +42,131 @@
          'con-fleetdock--carding': presentedTargets.length > 0,
          'con-fleetdock--claimed': outcomeZone && claimPresenting,
        }"
-       data-unfold-surface
        data-forecast-host
        :data-fleet-dock-stage="card"
        :data-fleet-dock-category="presentPlan.category"
        :data-fleet-dock-degraded="rewardDegraded"
        :data-fleet-dock-scene="scene.phase">
-    <span class="con-fleetdock__edge" data-unfold-edge aria-hidden="true"></span>
+    <div class="con-colfocus__surface con-fleetdock__surface" data-unfold-surface>
+      <span class="con-colfocus__edge" data-unfold-edge aria-hidden="true"></span>
 
-    <div class="con-fleetdock__hero" ref="heroEl">
-      <!-- The CARRIED object: the dock tile's face grows into this one (the
-           descend hooks FLIP `data-colony-focus-planet` — the stage's carried
-           identity, whatever the subject is). -->
-      <!-- The carried box is UNZOOMED (a FLIP's translate inside a CSS `zoom`
-           would be scaled by it); the face inside it takes the zoom. -->
-      <!-- `data-played-key`: a reward that lands on the dock ITSELF (TR27 with one holder) aims at this face's own
-           counter — the destination ladder's fleet-dock rung (`consoleResourceTransfer.targetPointFor`). -->
-      <div class="con-fleetdock__card" ref="cardEl" data-colony-focus-planet data-fleet-dock-hero :data-played-key="card">
-        <div class="con-fleetdock__face" :style="{'--con-fleetdock-zoom': String(heroZoom)}">
-          <ConsoleCardFaceLite :name="card" :card="heroModel" />
-        </div>
-      </div>
-    </div>
-
-    <div class="con-fleetdock__main" ref="mainEl">
-      <ConsoleScrollArea class="con-fleetdock__scroll" ref="scroll" data-forecast-browse>
-        <!-- THE ONE REASON a refused dock is not a destination — the server's,
-             through the colony ladder. Nothing else replaces the work column:
-             the rows below stay readable (the player sees the trade's
-             structure), they just accept no press. -->
-        <div v-if="!presentAvailable && blockReason !== ''"
-             class="con-fleetdock__verdict"
-             :class="'con-fleetdock__verdict--' + blockTone"
-             data-unfold-item data-fleet-dock-verdict>
-          <span aria-hidden="true">{{ blockTone === 'warning' ? '○' : '✕' }}</span>
-          <span>{{ $t(blockReason) }}</span>
-        </div>
-
-        <!-- SUB: the M€ lanes — the SHARED payment panel, expanded. -->
-        <div v-if="sub === 'lanes' && paymentView !== undefined" class="con-fleetdock__sub" data-unfold-item>
-          <ConsolePaymentPanel :view="paymentView"
-                               mode="expanded"
-                               hint-mode="none"
-                               :focus-unit="payFocusUnit"
-                               :flash-nonce="payFlashNonce" />
-        </div>
-        <!-- SUB: the Delta Works composition — the same panel, the bumpers dial. -->
-        <div v-else-if="sub === 'mix' && energyMixInfo !== undefined" class="con-fleetdock__sub" data-unfold-item>
-          <ConsolePaymentPanel :view="tradeMixView"
-                               mode="compact"
-                               hint-mode="none"
-                               title-key="Payment mix"
-                               :source-card="energyMixInfo.card"
-                               :flash-nonce="mixFlashNonce" />
-        </div>
-        <div v-else class="con-fleetdock__config" data-unfold-item>
-          <ConsoleTradePayRows ref="payRows"
-                               :heading="visibleRows.length + visibleDisabled.length > 0 || held !== undefined"
-                               :rows="visibleRows"
-                               :disabled="visibleDisabled"
-                               :chosenIndex="payIdx"
-                               :lockedIndex="lockedPayIdx"
-                               :focusedIndex="focusedPayIndex"
-                               :energyIndex="energyEntryIdx"
-                               :energyMixLive="energyMixLive"
-                               :mix="payRowMix"
-                               :mixAdjustable="tradeMixAdjustable"
-                               :held="held !== undefined ? held.entry : undefined" />
-          <!-- The M€ path's own payment (heat, Helion, …) — one step row, A opens it. -->
-          <div v-if="paymentStep !== undefined && held === undefined"
-               class="con-colfocus__steprow"
-               :class="{
-                 'con-colfocus__steprow--focused': focusedZone === 'payment',
-                 'con-colfocus__steprow--missing': paymentView !== undefined && !paymentView.status.ok,
-               }"
-               data-fleet-dock-payment>
-            <div class="con-colfocus__steprow-label">{{ $t('Payment') }}</div>
-            <div class="con-colfocus__steprow-value"><span>{{ paymentSummary }}</span></div>
-          </div>
-          <!-- «КУДА» — the card the reward lands on. With several holders it is a decision (a cursor stop; A
-               descends into the target step, nothing pre-chosen); with one it is a statement (the holder named
-               with its «n → n + k», no stop). The colony stage's own reading. -->
-          <div v-if="targetRow !== undefined"
-               class="con-colfocus__steprow"
-               :class="{
-                 'con-colfocus__steprow--focused': focusedZone === 'target',
-                 'con-colfocus__steprow--missing': targetRow.missing,
-               }"
-               data-fleet-dock-target
-               :data-fleet-dock-target-card="targetRow.card ?? ''">
-            <div class="con-colfocus__steprow-label">{{ $t('Trade reward target') }}</div>
-            <div class="con-colfocus__steprow-value">
-              <ConsoleTradeTargetValue :iconClass="targetRow.iconClass"
-                                       :card="targetRow.card"
-                                       :impact="targetRow.impact"
-                                       :changeable="focusedZone === 'target' && targetRow.pickable && held === undefined" />
-            </div>
+      <!-- ═══ HERO — the card as the physical object ═══ -->
+      <section class="con-colfocus__hero con-fleetdock__hero">
+        <!-- The CARRIED object: the dock tile's face grows into this one (the descend hooks FLIP
+             `data-colony-focus-planet` — the stage's carried identity, whatever the subject is). The carried box
+             is UNZOOMED (a FLIP's translate inside a CSS `zoom` would be scaled by it); the face inside takes the
+             zoom. `data-played-key`: a reward that lands on the dock ITSELF (TR27 with one holder) aims at this
+             face's own counter. `data-zoom-slot`: L3 lifts THIS card into the viewer. -->
+        <div class="con-fleetdock__card" ref="cardEl" data-colony-focus-planet data-fleet-dock-hero
+             :data-played-key="card" :data-zoom-slot="card">
+          <div class="con-fleetdock__face" :style="{'--con-fleetdock-zoom': String(heroZoom)}">
+            <ConsoleCardFaceLite :name="card" :card="heroModel" />
           </div>
         </div>
+        <div v-if="shortRule !== ''" class="con-colfocus__idmeta" data-unfold-late>
+          <div class="con-colfocus__desc" data-fleet-dock-desc>{{ shortRule }}</div>
+        </div>
+        <!-- THE HONEST VERDICT under the identity it judges — a pre-commit judgement, gone at the press. A refused
+             dock names ONE reason (`[data-fleet-dock-verdict]`); the rows stay readable, they accept no press.
+             Past the press its BOX stays, unpainted (`--reserved`): the hero column is centred, so a verdict that left
+             the layout dropped the card by half its height — under the flight landing on its ▲ and the tokens born
+             on its printed icons (85 px at 4K). The place a thing lands on does not move under it. -->
+        <div class="con-colfocus__verdict"
+             :class="[presentAvailable ? 'con-colfocus__verdict--ok' :
+               (blockTone === 'warning' ? 'con-colfocus__verdict--notnow' : 'con-colfocus__verdict--no'),
+                      {'con-colfocus__verdict--reserved': held !== undefined}]"
+             :data-fleet-dock-verdict="presentAvailable ? undefined : ''"
+             data-unfold-late>
+          <template v-if="presentAvailable">
+            <span class="con-coltile__status-dot" aria-hidden="true"></span>
+            <span>{{ $t('Trade available') }}</span>
+          </template>
+          <template v-else>
+            <span aria-hidden="true">{{ blockTone === 'warning' ? '⏳' : '✕' }}</span>
+            <span>{{ blockReason !== '' ? $t(blockReason) : $t('Trade unavailable') }}</span>
+          </template>
+        </div>
+      </section>
 
-        <!-- ═══ RESULT — what this trade does, from the SERVER only ═══ -->
-        <section class="con-fleetdock__result" data-unfold-item data-fleet-dock-result>
-          <div class="con-colfocus__sec-title">{{ $t('Result') }}</div>
-          <div class="con-fleetdock__chips" data-unfold-late>
-            <ActionEffectChip v-for="(chip, i) in resultChips" :key="'e' + i" :effect="chip" />
-            <!-- WHAT THE TABLE ANSWERS to the reward (the ruling Greens' M€ on a TR step) — the composers' own
-                 «⚡ сработает» group, on the chips' line: read BEFORE the press, never a surprise after it. And, as
-                 on every composer, the group is the DOOR of the R3 «Эффекты» layer (the key rides it, a click
-                 opens it): the whole answer — the eight groups, the five-question dossier — stands one level
-                 deeper INSIDE this stage, never as a surface over it (PL-060). -->
-            <ConsoleForecastDoor :reaction="presentReaction" :canOpen="forecastCanOpen" :pulse="forecastPulse" @open="openForecastLayer()" />
-          </div>
-          <div v-for="note in followUpNotes" :key="note" class="con-fleetdock__note" data-unfold-late data-fleet-dock-note>{{ $t(note) }}</div>
+      <!-- ═══ MAIN — the trade's configuration ═══ -->
+      <div class="con-colfocus__main con-fleetdock__main" ref="mainEl">
+        <section class="con-colfocus__config con-fleetdock__config" data-unfold-item>
+          <!-- ── THE «ЭФФЕКТЫ» LAYER (R3) — a LEVEL of this stage, the composers' own (PL-060): the configuration
+               PARKS in place, the explorer unfolds out of the «⚡ сработает» door on the result rail, B / R3 fold it
+               back with the chosen path intact; the crumb gains «· ЭФФЕКТЫ». ── -->
+          <ConsoleForecastLayer ref="forecastLayer"
+                                host="dock"
+                                :forecast="forecast"
+                                :cards="thisPlayer?.tableau ?? []"
+                                :color="thisPlayer?.color ?? ''"
+                                :players="players"
+                                :statsByColor="forecastStatsByColor" />
+          <!-- SUB: the M€ lanes — the SHARED payment panel, expanded. -->
+          <template v-if="sub === 'lanes' && paymentView !== undefined">
+            <ConsolePaymentPanel :view="paymentView"
+                                 mode="expanded"
+                                 hint-mode="none"
+                                 :focus-unit="payFocusUnit"
+                                 :flash-nonce="payFlashNonce" />
+          </template>
+          <!-- SUB: the Delta Works composition — the same panel, the bumpers dial, X trades. -->
+          <template v-else-if="sub === 'mix' && energyMixInfo !== undefined">
+            <ConsolePaymentPanel :view="tradeMixView"
+                                 mode="compact"
+                                 hint-mode="none"
+                                 title-key="Payment mix"
+                                 :source-card="energyMixInfo.card"
+                                 :flash-nonce="mixFlashNonce" />
+          </template>
+          <ConsoleScrollArea v-else class="con-colfocus__configscroll con-fleetdock__scroll" ref="scroll" data-forecast-browse>
+            <ConsoleTradePayRows ref="payRows"
+                                 :heading="visibleRows.length + visibleDisabled.length > 0 || held !== undefined"
+                                 :rows="visibleRows"
+                                 :disabled="visibleDisabled"
+                                 :chosenIndex="payIdx"
+                                 :lockedIndex="lockedPayIdx"
+                                 :focusedIndex="focusedPayIndex"
+                                 :energyIndex="energyEntryIdx"
+                                 :energyMixLive="energyMixLive"
+                                 :mix="payRowMix"
+                                 :mixAdjustable="tradeMixAdjustable"
+                                 :held="held !== undefined ? held.entry : undefined" />
+            <template v-if="(paymentStep !== undefined && held === undefined) || targetRow !== undefined">
+              <div class="con-colfocus__sec-title con-colfocus__sec-title--steps">{{ $t('Your choices') }}</div>
+              <!-- The M€ path's own payment (heat, Helion, …) — one step row, A opens it. -->
+              <div v-if="paymentStep !== undefined && held === undefined"
+                   class="con-colfocus__steprow"
+                   :class="{
+                     'con-colfocus__steprow--focused': focusedZone === 'payment',
+                     'con-colfocus__steprow--missing': paymentView !== undefined && !paymentView.status.ok,
+                   }"
+                   data-fleet-dock-payment>
+                <div class="con-colfocus__steprow-label">{{ $t('Payment') }}</div>
+                <div class="con-colfocus__steprow-value"><span>{{ paymentSummary }}</span></div>
+              </div>
+              <!-- «КУДА» — the card the reward lands on. With several holders it is a decision (a cursor stop; A
+                   descends into the target step, nothing pre-chosen); with one it is a statement (the holder named
+                   with its «n → n + k», no stop). The colony stage's own reading. -->
+              <div v-if="targetRow !== undefined"
+                   class="con-colfocus__steprow"
+                   :class="{
+                     'con-colfocus__steprow--focused': focusedZone === 'target',
+                     'con-colfocus__steprow--missing': targetRow.missing,
+                   }"
+                   data-fleet-dock-target
+                   :data-fleet-dock-target-card="targetRow.card ?? ''">
+                <div class="con-colfocus__steprow-label">{{ $t('Trade reward target') }}</div>
+                <div class="con-colfocus__steprow-value">
+                  <ConsoleTradeTargetValue :iconClass="targetRow.iconClass"
+                                           :card="targetRow.card"
+                                           :impact="targetRow.impact"
+                                           :changeable="focusedZone === 'target' && targetRow.pickable && held === undefined" />
+                </div>
+              </div>
+            </template>
+          </ConsoleScrollArea>
         </section>
-      </ConsoleScrollArea>
-
-      <!-- ── THE «ЭФФЕКТЫ» LAYER (R3) — a LEVEL of this stage, the composers' own (PL-060): the work column above
-           PARKS in place, the explorer unfolds out of the «⚡ сработает» door, B / R3 fold it back with the chosen path,
-           the payment and the cursor intact. The crumb gains «· ЭФФЕКТЫ» (`ConsoleForecastLayer` — one chassis for every
-           stage that opens the layer). ── -->
-      <ConsoleForecastLayer ref="forecastLayer"
-                            host="dock"
-                            :forecast="forecast"
-                            :cards="thisPlayer?.tableau ?? []"
-                            :color="thisPlayer?.color ?? ''"
-                            :players="players"
-                            :statsByColor="forecastStatsByColor" />
+      </div>
 
       <!-- THE TARGET STEP — one level deeper in the same flow (the colony stage's own host). -->
       <ConsoleTradeTargetStep v-if="sub === 'targets' && targetStepModel !== undefined"
@@ -184,8 +186,52 @@
       <!-- A QUESTION RE-ASKED LIVE (the pre-collected target went stale, or the tail was parked) is THIS card's —
            its source is the dock — and it is answered here, inside the colonies workspace, never as a band over it
            (the claim's zone — the colony stage's selector). -->
-      <section v-if="outcomeZone" v-embed-zone class="con-fleetdock__outcome"
+      <section v-if="outcomeZone" v-embed-zone class="con-colfocus__outcome con-fleetdock__outcome"
                data-outcome-zone data-embed-slot="colonies-focus-reveal"></section>
+
+      <!-- ═══ RESULT — «ИТОГ ТОРГОВЛИ», from the SERVER only ═══ -->
+      <section class="con-colfocus__result con-fleetdock__result" data-unfold-item data-fleet-dock-result>
+        <div class="con-colfocus__sec-title" data-unfold-late>{{ $t('Trade outcome') }}</div>
+        <div class="con-colfocus__rsec con-colfocus__rsec--lead con-fleetdock__gains">
+          <div class="con-colfocus__rsec-label" data-unfold-late>{{ $t(presentAvailable ? 'Your total' : 'On the current level') }}</div>
+          <div v-for="(row, i) in gainRows" :key="'g' + i"
+               class="con-colfocus__rrow con-colfocus__rrow--gain con-colfocus__rrow--big"
+               :data-fleet-dock-gain="row.icon">
+            <span class="con-colfocus__rvalue">
+              <b>{{ row.amount < 0 ? '−' + (-row.amount) : '+' + row.amount }}</b>
+              <span class="con-colfocus__rglyph con-colfocus__rglyph--lg" :class="{'con-colfocus__rglyph--prod': row.production}">
+                <i v-if="row.iconClass !== ''" :class="row.iconClass" aria-hidden="true"></i>
+                <span v-else class="con-colfocus__rlabel">{{ $t(row.label) }}</span>
+              </span>
+            </span>
+            <em v-if="row.reading !== ''" data-unfold-late>{{ row.reading }}</em>
+          </div>
+          <div v-if="gainRows.length === 0" class="con-colfocus__muted" data-unfold-late>{{ $t('No reward at this level') }}</div>
+          <!-- WHAT THE TABLE ANSWERS to the reward (the ruling Greens' M€ on a TR step) — the composers' own
+               «⚡ сработает» group, and the DOOR of the R3 «Эффекты» layer (PL-060): read BEFORE the press. -->
+          <div class="con-fleetdock__chips">
+            <ConsoleForecastDoor :reaction="presentReaction" :canOpen="forecastCanOpen" :pulse="forecastPulse" @open="openForecastLayer()" />
+          </div>
+        </div>
+        <!-- THE FLEET — the unit is NAMED (PL-008): the ship, «2 → 1», «Торговый флот». -->
+        <div class="con-colfocus__rsec con-fleetdock__fleet" data-unfold-late data-fleet-dock-fleet>
+          <div class="con-colfocus__rsec-label">{{ $t('Trade fleet') }}</div>
+          <div class="con-colfocus__rrow con-colfocus__rrow--cost">
+            <ColonyFleetIcon v-if="viewerColor !== undefined" class="con-fleetdock__fleeticon" :color="viewerColor" />
+            <b>−1</b>
+            <em>{{ fleetRow.current }} → {{ fleetRow.resulting }}</em>
+          </div>
+        </div>
+        <div v-if="payRowsOut.length > 0" class="con-colfocus__rsec con-colfocus__rsec--pay con-fleetdock__pay" data-unfold-late data-fleet-dock-pay>
+          <div class="con-colfocus__rsec-label">{{ $t('Payment') }}</div>
+          <div v-for="(row, k) in payRowsOut" :key="'c' + k" class="con-colfocus__rrow con-colfocus__rrow--cost">
+            <i v-if="row.iconClass !== ''" :class="row.iconClass" aria-hidden="true"></i>
+            <b>−{{ row.amount }}</b>
+            <em v-if="row.reading !== ''">{{ row.reading }}</em>
+          </div>
+        </div>
+        <div v-for="note in followUpNotes" :key="note" class="con-fleetdock__note con-colfocus__rsec" data-unfold-late data-fleet-dock-note>{{ $t(note) }}</div>
+      </section>
     </div>
   </div>
 </template>
@@ -221,7 +267,7 @@ import {
 } from '@/client/console/colonyTrade/tradePayModel';
 import {cardColonyTradeCard, lockedTradePaymentIndex, partyColonyTradeParty} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {
-  fleetDockCardTarget, FleetDockCardTarget, fleetDockEffectNode, fleetDockScenePlan, FleetDockScenePlan, printedRewardUnits, tradeKnownRailMoves,
+  fleetDockCardTarget, FleetDockCardTarget, fleetDockEffectDescription, fleetDockEffectNode, fleetDockScenePlan, FleetDockScenePlan, printedRewardUnits, tradeKnownRailMoves,
 } from '@/client/console/colonyTrade/fleetDockModel';
 import {
   ColonyTradePresentedTarget, buildColonyTradeTargetModel, openTradeTargetFocus, presentedTargetModel,
@@ -251,13 +297,14 @@ import {
 } from '@/client/console/consoleActionCommitMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
-import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
+import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleTradePayRows from '@/client/components/console/ConsoleTradePayRows.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
-import ConsoleForecastReactions from '@/client/components/console/ConsoleForecastReactions.vue';
 import ConsoleTradeTargetStep from '@/client/components/console/ConsoleTradeTargetStep.vue';
+import {effectRuleText, effectRules} from '@/client/components/effects/effectDescription';
+import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import ConsoleTradeTargetValue from '@/client/components/console/ConsoleTradeTargetValue.vue';
 import ConsoleTradeReceivingCards from '@/client/components/console/ConsoleTradeReceivingCards.vue';
 
@@ -275,6 +322,24 @@ function payIconClass(icon: string): string {
 /** The card's design size (`.pcard` at zoom 1). */
 const CARD_W = 320;
 const CARD_H = 460;
+/**
+ * THE HERO CARD'S WIDTH, per profile (rem — the colony stage's hero column holds it with its air: 12rem / 16.5rem).
+ * The size is SOLVED, never re-fitted after the mount: the descend FLIPs the tile's face into this box in the very
+ * task the stage is inserted, so a box that re-sized a frame later was the «карта причала скачет» of the owner's walk.
+ */
+const HERO_CARD_W_REM: Readonly<Record<string, number>> = {tv: 15.2, handheld: 8.6};
+const HERO_CARD_W_REM_DEFAULT = 11;
+/** What the hero column holds under the card (the laconic line, the verdict, the gaps, the surface's padding), rem. */
+const HERO_RESERVE_REM = 8.4;
+/** A rem in screen px on the live profile (1rem = 20 logical px). */
+function remPx(): number {
+  return 20 * conUiScale();
+}
+
+/** A row of the summary rail («ИТОГ ТОРГОВЛИ») — the colony stage's own row reading. */
+type RailRow = {icon: string, iconClass: string, label: string, amount: number, production: boolean, reading: string};
+/** A row of the rail's «ОПЛАТА». */
+type PayOutRow = {iconClass: string, amount: number, reading: string};
 /** The colony stage's own read (`ConsoleColonyFocusStage` CARDLAND_READ_MS) — one rhythm for «the card answered». */
 const DOCK_READ_MS = 680;
 /** The card's departure beat (the colony stage's CARDLAND_LEAVE_MS). */
@@ -304,7 +369,7 @@ export default defineComponent({
   name: 'ConsoleFleetDockStage',
   directives: {embedZone: vEmbedZone},
   components: {
-    ActionEffectChip, ConsoleScrollArea, ConsolePaymentPanel, ConsoleTradePayRows, ConsoleCardFaceLite, ConsoleForecastReactions,
+    ColonyFleetIcon, ConsoleScrollArea, ConsolePaymentPanel, ConsoleTradePayRows, ConsoleCardFaceLite,
     ConsoleTradeTargetStep, ConsoleTradeTargetValue, ConsoleTradeReceivingCards, ConsoleForecastDoor, ConsoleForecastLayer,
   },
   props: {
@@ -338,6 +403,11 @@ export default defineComponent({
     outcomeZone: {type: Boolean, default: false},
     /** The viewer's versioned view — the reacting seats' effect stats the layer's «За партию» block asks for. */
     statsView: {type: Object as PropType<VersionedView | undefined>, default: undefined},
+    /**
+     * The height of the room the stage stands in, measured by the section AT THE PRESS (px; 0 = unknown) — what
+     * caps the hero card on a short host BEFORE the first frame (the stage then follows its own box).
+     */
+    roomHeight: {type: Number, default: 0},
   },
   emits: ['confirm', 'cancel', 'inspect', 'flow-complete'],
   data() {
@@ -369,7 +439,11 @@ export default defineComponent({
       /** The one-shot COMMIT flare on the «⚡ сработает» group. */
       forecastPulse: false,
       railReward: railRewardState,
-      heroZoom: 1,
+      /** The room's height — the press-time measurement until the stage's own box answers (a resize of the host). */
+      roomH: this.roomHeight,
+      layout: consoleLayoutState,
+      /** The payment rows pinned at the commit boundary (the answer takes the options away under the receipt). */
+      heldPay: undefined as ReadonlyArray<PayOutRow> | undefined,
       cardLeaving: false,
       scene: fleetDockSceneState,
       fleet: tradeFleetState,
@@ -382,10 +456,97 @@ export default defineComponent({
       /** The «сработает» group's commit flare (a plain handle — never the tween itself in reactive data). */
       pulseCall: undefined as {kill: () => void} | undefined,
       sceneMotion: undefined as ActionCommitMotionHandle | undefined,
-      stopFitObs: undefined as (() => void) | undefined,
+      stopRoomObs: undefined as (() => void) | undefined,
     };
   },
   computed: {
+    /**
+     * THE HERO'S ZOOM — the profile's card width, capped by the room's height (the hero column holds the card,
+     * the laconic line and the verdict). Pure arithmetic over known numbers, so the face mounts at its final size.
+     */
+    heroZoom(): number {
+      const rem = remPx();
+      const width = (HERO_CARD_W_REM[this.layout.profile] ?? HERO_CARD_W_REM_DEFAULT) * rem;
+      const capH = this.roomH > 0 ? this.roomH - HERO_RESERVE_REM * rem : Infinity;
+      const w = Math.min(width, capH * CARD_W / CARD_H);
+      return Math.max(0.3, Math.floor((w / CARD_W) * 1000) / 1000);
+    },
+    /** What the dock does, in one calm line — the card's own curated short (`effect-short`), never a truncation. */
+    shortRule(): string {
+      const renderData = getCard(this.card)?.metadata.renderData;
+      const rules = effectRules({
+        cardName: this.card, effectIndex: 0, effectNode: fleetDockEffectNode(renderData),
+        description: fleetDockEffectDescription(renderData), text: undefined,
+      }, 1);
+      return rules === undefined ? '' : effectRuleText(rules.summary);
+    },
+    /** «ВАШ ИТОГ» — the server's reward chips as the colony rail's rows (the fleet has its own section). */
+    gainRows(): ReadonlyArray<RailRow> {
+      return this.resultChips.filter((chip) => chip.icon !== TRADE_FLEET_ICON).map((chip): RailRow => {
+        const cls = iconClassFor(chip.icon);
+        const reading = chip.current !== undefined && chip.resulting !== undefined ?
+          `${chip.current} → ${chip.resulting}` :
+          (chip.note !== undefined && chip.note !== 'production' ? translateText(chip.note) : '');
+        return {
+          icon: chip.icon,
+          iconClass: cls === '' ? '' : cls + ' con-task__opt-res',
+          label: chip.icon === 'vp' ? 'VP' : chip.icon,
+          amount: chip.direction === 'cost' ? -chip.amount : chip.amount,
+          production: chip.note === 'production',
+          reading,
+        };
+      });
+    },
+    /** The trade fleet leaving the supply — the result's own chip (pinned with it past the commit). */
+    fleetRow(): {current: number, resulting: number} {
+      const chip = this.resultChips.find((c) => c.icon === TRADE_FLEET_ICON);
+      return {current: chip?.current ?? this.freeFleets, resulting: chip?.resulting ?? Math.max(0, this.freeFleets - 1)};
+    },
+    /**
+     * «ОПЛАТА» — what the chosen path takes off the rail: the Delta Works composition, the M€ path's own payment,
+     * or the path's fee as the server priced it (`current → resulting`). Pinned at the commit. A card door's bare
+     * pick pays nothing here (its fee was the card's).
+     */
+    payRowsOut(): ReadonlyArray<PayOutRow> {
+      if (this.heldPay !== undefined) {
+        return this.heldPay;
+      }
+      if (this.pickMode || !this.available) {
+        return [];
+      }
+      const icon = (unit: string): string => {
+        const cls = iconClassFor(unit);
+        return cls === '' ? '' : cls + ' con-task__opt-res';
+      };
+      const mix = this.payRowMix;
+      if (mix !== undefined) {
+        return [{unit: 'energy', amount: mix.energy}, {unit: 'steel', amount: mix.steel}]
+          .filter((r) => r.amount > 0)
+          .map((r) => ({iconClass: icon(r.unit), amount: r.amount, reading: ''}));
+      }
+      const view = this.paymentView;
+      if (view !== undefined) {
+        return view.rows.filter((row) => row.used > 0).map((row) => ({
+          iconClass: icon(row.unit), amount: row.used, reading: `${row.available} → ${Math.max(0, row.available - row.used)}`,
+        }));
+      }
+      const meta = this.options[this.payIdx]?.metadata;
+      const resource = meta?.resource;
+      if (meta?.icon === undefined || resource === undefined) {
+        return [];
+      }
+      return [{iconClass: icon(meta.icon), amount: Math.max(0, resource.current - resource.resulting), reading: `${resource.current} → ${resource.resulting}`}];
+    },
+    /** X — the trade's commit (the colony stage's verb): «Торговать», or the gateway to the Delta Works mix. */
+    confirmVerb(): {label: string, enabled: boolean} {
+      if (this.sub === 'lanes' || this.sub === 'targets') {
+        return {label: 'Confirm trade', enabled: false};
+      }
+      if (this.sub === 'mix') {
+        return {label: 'Confirm trade', enabled: this.canConfirm};
+      }
+      return {label: this.tradeMixAdjustable ? 'Continue to payment' : 'Confirm trade', enabled: this.canConfirm};
+    },
     /** Past the commit the stage is a RECEIPT: the live props flip under it (the trade is spent). */
     presentAvailable(): boolean {
       return this.held !== undefined || this.available;
@@ -631,13 +792,16 @@ export default defineComponent({
       }
       return this.paymentView === undefined || this.paymentView.status.ok;
     },
-    /** What A does on the cursor's row — the bar reads the label the stage publishes. */
+    /**
+     * What A does on the cursor's row — the colony trade's grammar: A SELECTS (another path, the payment, the
+     * reward's card), it never trades; X does (`confirmVerb`). The bar reads the label the stage publishes.
+     */
     primary(): {label: string, enabled: boolean, commits: boolean} {
       if (this.sub === 'lanes') {
         return {label: 'Done', enabled: this.paymentView?.status.ok === true, commits: false};
       }
       if (this.sub === 'mix') {
-        return {label: 'Trade', enabled: this.canConfirm, commits: true};
+        return {label: 'Select', enabled: false, commits: false};
       }
       if (this.sub === 'targets') {
         return {label: 'Select', enabled: true, commits: false};
@@ -649,10 +813,7 @@ export default defineComponent({
       if (focused?.zone === 'target') {
         return {label: 'Select', enabled: this.targetStepModel !== undefined, commits: false};
       }
-      if (focused?.zone === 'pay' && focused.index !== this.payIdx) {
-        return {label: 'Select', enabled: true, commits: false};
-      }
-      return {label: this.tradeMixAdjustable ? 'Continue to payment' : 'Trade', enabled: this.canConfirm, commits: !this.tradeMixAdjustable};
+      return {label: 'Select', enabled: focused?.zone === 'pay' && focused.index !== this.payIdx && this.lockedPayIdx < 0, commits: false};
     },
     /** THE RESULT — the server's chips (pinned past the commit) + the fleet leaving the supply. */
     resultChips(): ReadonlyArray<ActionEffect> {
@@ -740,6 +901,12 @@ export default defineComponent({
         this.syncUiMirror();
       },
     },
+    confirmVerb: {
+      deep: true,
+      handler(): void {
+        this.syncUiMirror();
+      },
+    },
     sub(): void {
       this.syncUiMirror();
       // The step is one level DEEPER in the same flow — only the crumb's tail advances, and B walks it back.
@@ -806,6 +973,8 @@ export default defineComponent({
       fleetDockUi.primaryLabel = this.primary.label;
       fleetDockUi.primaryEnabled = this.primary.enabled && this.held === undefined;
       fleetDockUi.primaryCommits = this.primary.commits;
+      fleetDockUi.confirmLabel = this.confirmVerb.label;
+      fleetDockUi.confirmEnabled = this.confirmVerb.enabled && this.held === undefined;
       fleetDockUi.answered = this.held !== undefined;
       fleetDockUi.forecastAvailable = this.forecastCanOpen;
       fleetDockUi.forecastOpen = this.fxOpen;
@@ -833,6 +1002,13 @@ export default defineComponent({
       }
       if (intent.kind === 'press' && intent.button === 'stickR') {
         this.openForecastLayer();
+        return;
+      }
+      // L3 — the card itself, lifted into the viewer out of the hero (X is the trade's verb here, as on a colony).
+      if (intent.kind === 'press' && intent.button === 'stickL') {
+        if (this.sub === undefined) {
+          this.$emit('inspect');
+        }
         return;
       }
       if (intent.kind === 'nav') {
@@ -927,10 +1103,8 @@ export default defineComponent({
         this.onPrimary();
         return;
       case 'inspect':
-        // X = «Осмотреть» — the card (the shell opens the shared viewer over the stage).
-        if (this.sub === undefined) {
-          this.$emit('inspect');
-        }
+        // X = «Подтвердить торговлю» — the colony trade's commit verb (the card is L3's).
+        this.onConfirm();
         return;
       case 'prevSection':
         this.adjustTradeMix(-1);
@@ -955,10 +1129,24 @@ export default defineComponent({
       }
     },
     /**
+     * X — THE TRADE (the colony stage's commit verb): with several valid Delta Works mixes it is first the
+     * gateway to the composition, where X trades. Dead while a sub-step that is not the mix owns the pad.
+     */
+    onConfirm(): void {
+      if (this.sub === 'lanes' || this.sub === 'targets' || !this.canConfirm) {
+        return;
+      }
+      if (this.sub === undefined && this.tradeMixAdjustable) {
+        this.sub = 'mix';
+        return;
+      }
+      this.emitConfirm();
+    },
+    /**
      * A — ONE verb whose meaning follows the cursor, and a choice is a press:
      * on another payment path it SELECTS it (the cursor alone selects nothing),
-     * on the payment row it opens the M€ payment, on the chosen path it TRADES
-     * (or opens the Delta Works composition when several mixes are valid).
+     * on the payment row it opens the M€ payment, on the «КУДА» row the target
+     * step. It never trades — X does.
      */
     onPrimary(): void {
       if (this.sub === 'lanes') {
@@ -968,9 +1156,6 @@ export default defineComponent({
         return;
       }
       if (this.sub === 'mix') {
-        if (this.canConfirm) {
-          this.emitConfirm();
-        }
         return;
       }
       const focused = this.focused;
@@ -987,16 +1172,7 @@ export default defineComponent({
       }
       if (focused?.zone === 'pay' && focused.index !== this.payIdx && this.lockedPayIdx < 0) {
         this.payIdx = focused.index;
-        return;
       }
-      if (!this.canConfirm) {
-        return;
-      }
-      if (this.tradeMixAdjustable) {
-        this.sub = 'mix';
-        return;
-      }
-      this.emitConfirm();
     },
     emitConfirm(): void {
       const captures: Record<number, unknown> = {};
@@ -1044,12 +1220,14 @@ export default defineComponent({
       }
       const plan = this.scenePlan;
       const chips = this.resultChips;
+      const pay = this.payRowsOut;
       this.heldTarget = target;
       this.heldCounts = counts;
       this.held = {entry: entry === undefined ? undefined : (mix !== undefined ? {...entry, mix} : entry)};
       this.heldChips = chips;
       this.heldPlan = plan;
       this.heldReaction = this.presentReaction;
+      this.heldPay = pay;
       armFleetDockScene({card: this.card, plan: this.heldPlan, known});
       this.sub = undefined;
       this.syncUiMirror();
@@ -1062,6 +1240,7 @@ export default defineComponent({
       this.heldChips = undefined;
       this.heldPlan = undefined;
       this.heldReaction = undefined;
+      this.heldPay = undefined;
       disarmFleetDockScene(this.card);
       this.syncUiMirror();
     },
@@ -1146,20 +1325,6 @@ export default defineComponent({
         const node = (this.$refs.payRows as {focusedEl?: () => HTMLElement | undefined} | undefined)?.focusedEl?.();
         (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
       });
-    },
-    /** The hero face is as large as its column allows (never larger than the composer's hero). */
-    measureFit(): void {
-      const hero = this.$refs.heroEl as HTMLElement | undefined;
-      if (hero === undefined || hero === null) {
-        return;
-      }
-      const w = hero.clientWidth;
-      const h = hero.clientHeight;
-      if (w <= 0 || h <= 0) {
-        return;
-      }
-      const zoom = Math.min(w / CARD_W, h / CARD_H);
-      this.heroZoom = Math.max(0.3, Math.round(zoom * 1000) / 1000);
     },
     // ── THE SCENE (`fleetDockScene.ts`) — ANSWER → REWARD → READ → LEAVE → CONCLUDE, the slot by category ──
     playScene(): void {
@@ -1256,16 +1421,22 @@ export default defineComponent({
     setFleetDockStageCard(this.card);
     setColonyFocusStage('Trading');
     this.seedPaymentDefault();
-    this.measureFit();
-    const hero = this.$refs.heroEl as HTMLElement | undefined;
-    if (hero !== undefined && hero !== null) {
-      this.stopFitObs = useResizeObserver(hero, () => this.measureFit()).stop;
+    // The ROOM follows the stage's own box from here on (a host that resizes) — the first answer is the
+    // press-time measurement's, so nothing re-fits under the entrance.
+    const root = this.$refs.rootEl as HTMLElement | undefined;
+    if (root !== undefined && root !== null) {
+      this.stopRoomObs = useResizeObserver(root, () => {
+        const h = root.clientHeight;
+        if (h > 0 && Math.abs(h - this.roomH) >= 1) {
+          this.roomH = h;
+        }
+      }).stop;
     }
     this.focusIdx = Math.max(0, this.focusables.findIndex((f) => f.zone === 'pay' && f.index === this.payIdx));
     this.syncUiMirror();
   },
   beforeUnmount() {
-    this.stopFitObs?.();
+    this.stopRoomObs?.();
     this.sceneMotion?.kill();
     this.sceneCall?.kill();
     this.sceneCall = undefined;
@@ -1284,6 +1455,7 @@ export default defineComponent({
     fleetDockUi.sub = '';
     fleetDockUi.primaryEnabled = false;
     fleetDockUi.primaryCommits = false;
+    fleetDockUi.confirmEnabled = false;
     fleetDockUi.answered = false;
     fleetDockUi.forecastAvailable = false;
     fleetDockUi.forecastOpen = false;

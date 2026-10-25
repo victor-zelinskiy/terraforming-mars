@@ -12,7 +12,7 @@
   -->
   <div class="con-fleet-layer" aria-hidden="true">
     <div v-if="tradeFleetState.active" ref="ship" class="con-fleet-ship">
-      <ColonyFleetIcon :color="tradeFleetState.color || 'blue'" mode="hero" :state="shipState" />
+      <ColonyFleetIcon :color="tradeFleetState.color || 'blue'" :mode="shipMode" :state="shipState" />
     </div>
   </div>
 </template>
@@ -64,6 +64,14 @@ export default defineComponent({
     return {tradeFleetState};
   },
   computed: {
+    /**
+     * The proxy's PRESENTATION: the hero's livery in the air, the docked ship's own livery for the descent — the
+     * paints cross over on the descent's clock (`console_trade_fleet.less`), so the last frame of the proxy and
+     * the first frame of the real ship are the same picture and the hand-off is invisible.
+     */
+    shipMode(): 'hero' | 'icon' {
+      return tradeFleetState.phase === 'dock' || tradeFleetState.phase === 'ack' ? 'icon' : 'hero';
+    },
     /** Map the controller phase → the ship's engine state. */
     shipState(): FleetShipState {
       switch (tradeFleetState.phase) {
@@ -108,9 +116,10 @@ export default defineComponent({
       // MISSING element, so a focus-stage berth that exists but has collapsed
       // (a fold in flight) would win the query and the ship would dock at
       // nothing while the visible tile berth was never tried.
+      const berth = () => (target?.kind === 'card' ? this.cardBerthEl(target.card) : this.berthEl(target?.colonyName ?? ''));
       const [from, to] = await Promise.all([
         stableRect(() => document.querySelector<HTMLElement>('[data-fleet-launch]')),
-        stableRect(() => (target?.kind === 'card' ? this.cardBerthEl(target.card) : this.berthEl(target?.colonyName ?? ''))),
+        stableRect(berth),
       ]);
       if (!tradeFleetState.active) {
         setTradeFleetLaunchPending(false);
@@ -127,6 +136,8 @@ export default defineComponent({
         ship,
         from,
         to,
+        // THE LIVE END: the berth re-read through the arrival — the stage may settle under the flight.
+        resolveTo: () => berth()?.getBoundingClientRect(),
         reduced: tradeFleetState.reducedMotion,
         onPhase: (phase: FleetPhaseName) => setTradeFleetPhase(phase),
       });

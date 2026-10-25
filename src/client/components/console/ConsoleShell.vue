@@ -9621,17 +9621,22 @@ export default defineComponent({
             {control: 'back', label: 'Back'},
           ];
         }
+        // THE COLONY TRADE'S GRAMMAR (the owner, 2026-10-25 — a dock is one more direction of the trade): the Delta
+        // Works mix dials on the bumpers and X trades; on the rows A SELECTS, X trades, L3 lifts the card itself into
+        // the viewer (unless the trade came through a card's door — then L3 is that SOURCE, the shell's own branch).
         if (fleetDockUi.sub === 'mix') {
           return [
             {control: 'bumperL', control2: 'bumperR', label: 'Payment mix', priority: 2},
-            {control: 'confirm', label: 'Trade', enabled: fleetDockUi.primaryEnabled, highlight: fleetDockUi.primaryEnabled},
+            {control: 'secondary', label: 'Confirm trade', enabled: fleetDockUi.confirmEnabled, highlight: fleetDockUi.confirmEnabled},
             {control: 'back', label: 'Back'},
           ];
         }
         return [
-          {control: 'confirm', label: fleetDockUi.primaryLabel, enabled: fleetDockUi.primaryEnabled,
-            highlight: fleetDockUi.primaryEnabled && fleetDockUi.primaryCommits},
-          {control: 'secondary', label: 'Inspect'},
+          {control: 'confirm', label: fleetDockUi.primaryLabel, enabled: fleetDockUi.primaryEnabled},
+          {control: 'secondary', label: fleetDockUi.confirmLabel, enabled: fleetDockUi.confirmEnabled, highlight: fleetDockUi.confirmEnabled},
+          this.contextualSourceCard !== undefined ?
+            {control: 'stickL' as const, label: 'Source'} :
+            {control: 'stickL' as const, label: 'Inspect card'},
           // R3 — the «Эффекты» layer (the table's answer to the reward), only when the forecast has something to show.
           ...(fleetDockUi.forecastAvailable ? [{control: 'stickR' as const, label: 'Effects'}] : []),
           {control: 'back', label: 'Back'},
@@ -16014,13 +16019,14 @@ export default defineComponent({
         // 2D stepping over the premium tile grid (layout-aware columns).
         const count = this.coloniesForRail.length;
         const cols = colonyGridCols(colonyGridLayout(count, this.colonyPick !== undefined), count);
-        // …and the «ПРИЧАЛЫ» column to its right: ▶ from a row's last tile
-        // enters it, ◀ returns to that very tile (`colonyCursorStep`).
+        // …and the «ПРИЧАЛЫ» group beside it — a column right of the grid (▶ from a row's last tile enters it, ◀
+        // returns) or a row under it (▼ from the last row, ▲ returns), as the section's fit placed it
+        // (`colonyCursorStep`).
         const next = colonyCursorStep(dir, {
           zone: colonyDockCursor.active ? 'docks' : 'grid',
           index: this.consoleState.colonyIndex,
           dock: colonyDockCursor.index,
-        }, count, cols, this.colonyDocks.length, colonyNavStep);
+        }, count, cols, this.colonyDocks.length, colonyNavStep, colonyDockCursor.placement);
         this.consoleState.colonyIndex = next.index;
         colonyDockCursor.active = next.zone === 'docks';
         colonyDockCursor.index = next.dock;
@@ -18566,7 +18572,14 @@ export default defineComponent({
     /** X on a dock (its tile, or its stage): the card itself, in the shared viewer — the live model, the fleet on its ▲. */
     inspectFleetDock(card: CardName): void {
       const model = this.thisPlayer.tableau.find((c) => c.name === card);
-      openConsoleCardZoom([model ?? {name: card}], 0);
+      // THE CARD IS LIFTED, never re-drawn (physical causality): from the dock's own stage it rises out of the hero,
+      // on the overview out of its tile — the viewer holds that very slot empty while the card is in the player's
+      // hands and lands it back there on close.
+      const host = this.colonyFocusOpen && this.colonyFocus.dock === card ? '.con-fleetdock' : '.con-colonies__docks';
+      const key = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(card) : card.replace(/"/g, '\\"');
+      openConsoleCardZoom([model ?? {name: card}], 0, undefined, undefined, {
+        origin: {kind: 'physical', resolve: () => document.querySelector<HTMLElement>(`${host} [data-zoom-slot="${key}"]`)},
+      });
     },
     /**
      * THE DOCK'S SCENE IS OVER (the card answered, read, left): the workspace

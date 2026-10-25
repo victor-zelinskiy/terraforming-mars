@@ -169,6 +169,10 @@ export const fleetDockUi = reactive({
   primaryEnabled: false,
   /** A on the chosen path commits the trade — the bar lights it. */
   primaryCommits: false,
+  /** X's label — the trade's commit (the colony stage's verb): «Подтвердить торговлю» / «Продолжить к оплате». */
+  confirmLabel: 'Confirm trade',
+  /** X trades right now (every decision is in and the server offers the dock). */
+  confirmEnabled: false,
   /**
    * PAST THE PRESS: the stage is its own receipt and its scene is in flight (the shell accepted the confirm —
    * `holdPresentation` — until the workspace leaves or a refusal gives the stage back). The bar is a STATUS then,
@@ -186,6 +190,8 @@ export function resetFleetDockUi(): void {
   fleetDockUi.primaryLabel = 'Trade';
   fleetDockUi.primaryEnabled = false;
   fleetDockUi.primaryCommits = false;
+  fleetDockUi.confirmLabel = 'Confirm trade';
+  fleetDockUi.confirmEnabled = false;
   fleetDockUi.answered = false;
   fleetDockUi.forecastAvailable = false;
   fleetDockUi.forecastOpen = false;
@@ -199,8 +205,13 @@ export function resetFleetDockUi(): void {
 export const colonyDockCursor = reactive({
   /** The cursor stands on a dock (not on a colony tile). */
   active: false,
-  /** The dock under the cursor (the column's order). */
+  /** The dock under the cursor (the group's order). */
   index: 0,
+  /**
+   * Where the docks group stands beside the grid — the section's fit decides it (`side` | `below`), and the
+   * d-pad walks the group along THAT axis (`fleetDockModel.colonyCursorStep`).
+   */
+  placement: 'side' as 'side' | 'below',
 });
 
 export function resetColonyDockCursor(): void {

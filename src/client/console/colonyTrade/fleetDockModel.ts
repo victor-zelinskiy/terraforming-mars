@@ -36,7 +36,7 @@ import {FLEET_DOCK_BUSY_REASON} from '@/common/colonies/fleetDock';
 import {colonyTradeReason, ColonyTradeReason} from '@/client/console/colonyTradeReason';
 import {CardComponent} from '@/common/cards/render/CardComponent';
 import {CardRenderItemType} from '@/common/cards/render/CardRenderItemType';
-import {ICardRenderEffect, isICardRenderEffect, isICardRenderItem, isICardRenderRoot} from '@/common/cards/render/Types';
+import {ICardRenderEffect, ItemType, isICardRenderEffect, isICardRenderItem, isICardRenderRoot} from '@/common/cards/render/Types';
 
 /** One dock of the column. */
 export type FleetDockView = {
@@ -190,12 +190,28 @@ export type ColonyCursor = {zone: 'grid' | 'docks', index: number, dock: number}
 export type GridStep = (dir: ColonyNavDir, index: number, count: number, cols: number) => number;
 
 /**
- * One d-pad step over the overview: the colony grid, plus the docks column to
- * its right. ▶ from the LAST tile of a row (its last column, or the row's
- * last tile in an incomplete row) enters the column at the row's height
- * (clamped); ◀ from the column returns to the very tile it left; ↑/↓ walk the
- * column (the edge is felt, no wrap); ▶ in the column stays. With no colony on
- * the rail the cursor lives in the column; with no dock it never leaves the grid.
+ * WHERE THE DOCKS STAND beside the colony grid — the section's fit decides it
+ * from the measured room (whichever placement lets the tiles be larger):
+ * `side` — a column of dock tiles right of the grid; `below` — a row under it.
+ * Either way the group stands a step APART from the colonies (its own caption
+ * and seam), in the colonies' own tile size.
+ */
+export type FleetDockPlacement = 'side' | 'below';
+
+/**
+ * One d-pad step over the overview: the colony grid, plus the docks group.
+ *
+ * `side` (the column right of the grid): ▶ from the LAST tile of a row (its
+ * last column, or the row's last tile in an incomplete row) enters the column
+ * at the row's height (clamped); ◀ from the column returns to the very tile it
+ * left; ↑/↓ walk the column (the edge is felt, no wrap); ▶ in the column stays.
+ *
+ * `below` (the row under the grid): ▼ from a tile of the LAST row enters the
+ * row at the dock nearest that tile's place in its row; ▲ returns to the very
+ * tile it left; ◀/▶ walk the row (the edge is felt); ▼ in the row stays.
+ *
+ * With no colony on the rail the cursor lives in the group; with no dock it
+ * never leaves the grid.
  */
 export function colonyCursorStep(
   dir: ColonyNavDir,
@@ -204,27 +220,93 @@ export function colonyCursorStep(
   cols: number,
   dockCount: number,
   gridStep: GridStep,
+  placement: FleetDockPlacement = 'side',
 ): ColonyCursor {
   if (dockCount <= 0) {
     return {zone: 'grid', index: gridStep(dir, cursor.index, count, cols), dock: 0};
   }
+  // The group's own axis walks it; the axis back toward the grid leaves it.
+  const along: ReadonlyArray<ColonyNavDir> = placement === 'side' ? ['up', 'down'] : ['left', 'right'];
+  const home: ColonyNavDir = placement === 'side' ? 'left' : 'up';
+  const away: ColonyNavDir = placement === 'side' ? 'right' : 'down';
   if (cursor.zone === 'docks' || count <= 0) {
     const dock = Math.min(dockCount - 1, Math.max(0, cursor.dock));
-    if (dir === 'left' && count > 0) {
+    if (dir === home && count > 0) {
       return {zone: 'grid', index: cursor.index, dock};
     }
-    if (dir === 'up' || dir === 'down') {
-      return {zone: 'docks', index: cursor.index, dock: Math.min(dockCount - 1, Math.max(0, dock + (dir === 'down' ? 1 : -1)))};
+    if (along.includes(dir)) {
+      const step = dir === 'down' || dir === 'right' ? 1 : -1;
+      return {zone: 'docks', index: cursor.index, dock: Math.min(dockCount - 1, Math.max(0, dock + step))};
     }
     return {zone: 'docks', index: cursor.index, dock};
   }
   const safeCols = Math.max(1, cols);
-  const rowEnd = cursor.index % safeCols === safeCols - 1 || cursor.index >= count - 1;
-  if (dir === 'right' && rowEnd) {
-    const row = Math.floor(cursor.index / safeCols);
-    return {zone: 'docks', index: cursor.index, dock: Math.min(dockCount - 1, row)};
+  const row = Math.floor(cursor.index / safeCols);
+  if (dir === away) {
+    if (placement === 'side') {
+      const rowEnd = cursor.index % safeCols === safeCols - 1 || cursor.index >= count - 1;
+      if (rowEnd) {
+        return {zone: 'docks', index: cursor.index, dock: Math.min(dockCount - 1, row)};
+      }
+    } else if (row === Math.floor(Math.max(0, count - 1) / safeCols)) {
+      // The LAST row: the dock under the tile's place in its own (centred) row.
+      const rowLen = Math.max(1, Math.min(safeCols, count - row * safeCols));
+      const column = cursor.index - row * safeCols;
+      const dock = Math.min(dockCount - 1, Math.floor(((column + 0.5) / rowLen) * dockCount));
+      return {zone: 'docks', index: cursor.index, dock};
+    }
   }
   return {zone: 'grid', index: gridStep(dir, cursor.index, count, cols), dock: cursor.dock};
+}
+
+// ── THE GROUP'S FIT — the grid and the docks solved TOGETHER ────────────────
+
+/** The measured room and the tile chassis, in screen px (the caller resolves rem through the profile scale). */
+export type DockFitInput = {
+  availW: number,
+  availH: number,
+  /** The colony grid's columns / rows (its count layout). */
+  cols: number,
+  rows: number,
+  docks: number,
+  baseW: number,
+  baseH: number,
+  colGap: number,
+  rowGap: number,
+  /** A tile group's own padding (the grid's, which the docks group shares), both sides summed. */
+  padX: number,
+  padY: number,
+  /** Zoom-rounding room, per group. */
+  slack: number,
+  /** The air between the grid and the docks group. */
+  groupGap: number,
+  /** The docks group's caption («ПРИЧАЛЫ») with its own gap to the tiles. */
+  caption: number,
+};
+
+/**
+ * ONE TILE SIZE FOR THE WHOLE SURFACE — the largest uniform tile scale at
+ * which the colony grid AND the docks group fit the room, and where the group
+ * stands for it: a COLUMN right of the grid (`side` — the grid narrower by one
+ * tile) or a ROW under it (`below` — one tile row taller). Both are tried; the
+ * larger tile wins, a near tie (≤ 2 %) goes to `side` (the group reads «aside»
+ * without breaking the grid's own composition). Unclamped: the caller bounds it.
+ */
+export function planDockFit(i: DockFitInput): {scale: number, placement: FleetDockPlacement} {
+  const n = Math.max(1, i.docks);
+  const cols = Math.max(1, i.cols);
+  const rows = Math.max(1, i.rows);
+  const sideW = (i.availW - 2 * i.padX - (cols - 1) * i.colGap - i.groupGap - 2 * i.slack) / ((cols + 1) * i.baseW);
+  const sideH = Math.min(
+    (i.availH - i.padY - (rows - 1) * i.rowGap) / (rows * i.baseH),
+    (i.availH - i.padY - i.caption - (n - 1) * i.rowGap) / (n * i.baseH));
+  const belowW = Math.min(
+    (i.availW - i.padX - (cols - 1) * i.colGap - i.slack) / (cols * i.baseW),
+    (i.availW - i.padX - (n - 1) * i.colGap - i.slack) / (n * i.baseW));
+  const belowH = (i.availH - 2 * i.padY - (rows - 1) * i.rowGap - i.groupGap - i.caption) / ((rows + 1) * i.baseH);
+  const side = Math.min(sideW, sideH);
+  const below = Math.min(belowW, belowH);
+  return side >= below * 0.98 ? {scale: side, placement: 'side'} : {scale: below, placement: 'below'};
 }
 
 // ── THE PRINTED ROW — where the card ANSWERS ────────────────────────────────
@@ -248,6 +330,30 @@ export function fleetDockEffectNode(renderData: CardComponent | undefined): ICar
     }
   }
   return undefined;
+}
+
+/**
+ * WHAT THE TRADE GIVES, in the card's own print — the RESULT half of the
+ * printed «▲* : [reward]» (the row after the colon: the ocean, the rating,
+ * Aurora's two floaters and its M€ production), the face's own nodes for
+ * `PremiumMechNode`. The dock tile's «ТОРГОВАТЬ» cell prints it where a
+ * colony prints its track's reward; a JSON `null` slot (the client export
+ * keeps them) is no node. Empty when the face prints no trade row.
+ */
+export function fleetDockPrintedReward(renderData: CardComponent | undefined): Array<ItemType> {
+  const node = fleetDockEffectNode(renderData);
+  if (node === undefined || node.rows.length < 2) {
+    return [];
+  }
+  // (A string in that row is the effect's own DSL description — the rule, never a printed node.)
+  return (node.rows[node.rows.length - 1] ?? []).filter((item) => item !== null && item !== undefined && typeof item !== 'string');
+}
+
+/** The dock effect's own DSL description (the string the builder appends to its result row), when the face carries it. */
+export function fleetDockEffectDescription(renderData: CardComponent | undefined): string | undefined {
+  const node = fleetDockEffectNode(renderData);
+  const last = node?.rows[node.rows.length - 1] ?? [];
+  return last.find((item): item is string => typeof item === 'string');
 }
 
 // ── THE REWARD'S CATEGORY — how a trade with the card ENDS ──────────────────

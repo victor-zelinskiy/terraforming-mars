@@ -5,6 +5,7 @@ import {
   bootFixtureSeats, fetchPlayerModel, openConsole, openInfoPlayedTable, placeTile, press, pressUntil, pressUntilVisible, settle, waitForBoardHome,
   walkFocusUntil,
 } from './consoleStart';
+import {dockKeys, dockStatusLines, docksApart, enterDocks, focusDockCard, focusedDock, tileSizes} from './fleetDockDriver';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
 
 /**
@@ -130,24 +131,6 @@ const tileScale = (page: Page) => settled(page, () => page.evaluate(() => {
   return host === null ? '' : host.style.getPropertyValue('--coltile-scale').trim();
 }));
 
-/**
- * The docks' status lines as they are PAINTED: the pill against the COLUMN that clips it, and the text against its
- * own box. Both are needed — a line longer than the column once widened its own tile, so the text «fitted» its box
- * (306 / 306) while the column cut the sentence at both ends («арте · вернётся в следующ», PL-016).
- */
-const statusLines = (page: Page) => page.evaluate(() => {
-  const col = document.querySelector('.con-colonies__docks')?.getBoundingClientRect();
-  return Array.from(document.querySelectorAll<HTMLElement>('.con-fleetdock-tile__status')).map((pill) => {
-    const r = pill.getBoundingClientRect();
-    const text = pill.querySelector<HTMLElement>('.con-fleetdock-tile__status-text');
-    return {
-      text: (text?.textContent ?? '').trim(),
-      insideColumn: col !== undefined && r.width > 0 && r.left >= col.left - 0.5 && r.right <= col.right + 0.5,
-      whole: text !== null && text.scrollWidth <= text.clientWidth + 1,
-    };
-  });
-});
-
 /** The planet tiles' boxes, settled. */
 const tileRects = (page: Page) => settled(page, () => page.evaluate(() => Array.from(document.querySelectorAll('.con-colonies__slot')).map((el) => {
   const r = el.getBoundingClientRect();
@@ -170,32 +153,9 @@ async function settledRect(page: Page, selector: string, needle = ''): Promise<R
   return {l, t, r, b};
 }
 
-/** The dock the cursor stands on ('' while it is in the grid). */
-const focusedDock = (page: Page) => page.evaluate(() =>
-  document.querySelector('.con-colonies__dockslot--focused [data-fleet-dock]')?.getAttribute('data-fleet-dock') ?? '');
 /** The planet tile the cursor stands on ('' while it is in the column). */
 const focusedTile = (page: Page) => page.evaluate(() =>
   document.querySelector('.con-colonies__slot--focused [data-test^="con-colony-"], .con-coltile--focused[data-test^="con-colony-"]')?.getAttribute('data-test') ?? '');
-
-/** Walk ▶ into the docks column — one press at a time, each verified by the cursor itself. */
-async function enterDocks(page: Page): Promise<void> {
-  for (let i = 0; i < 6 && await focusedDock(page) === ''; i++) {
-    await press(page, 'ArrowRight', 350);
-  }
-  expect(await focusedDock(page), 'the cursor stands in the docks column').not.toBe('');
-}
-
-/** Stand the cursor on ONE dock: enter the column, then ↑ / ↓ until its card is the focused one. */
-async function focusDock(page: Page, card: string): Promise<void> {
-  await enterDocks(page);
-  for (let i = 0; i < 4 && await focusedDock(page) !== card; i++) {
-    await press(page, 'ArrowDown', 350);
-  }
-  for (let i = 0; i < 4 && await focusedDock(page) !== card; i++) {
-    await press(page, 'ArrowUp', 350);
-  }
-  expect(await focusedDock(page), `the cursor stands on «${card}»`).toBe(card);
-}
 
 type Chip = {x: number, y: number, w: number, h: number};
 type Sample = {
@@ -344,33 +304,44 @@ for (const preset of PRESETS) {
         'in tableau order').toEqual([LINER, HAULING]);
       expect(await page.locator('[data-fleet-dock-status="free"]').count(), 'both docks are free').toBe(2);
       const scaleTwo = await tileScale(page);
-      expect(scaleTwo, 'the second dock takes NOTHING from the planet grid (the column is a width token)').toBe(scaleOne);
+      // THE DOCKS ARE TILES OF THE COLONY FAMILY (the owner, 2026-10-25): ONE size for the whole surface, the group a
+      // step apart — the fit solves the grid and the group together, so a second dock may cost the grid a little.
       console.log(`[${preset.id}] --coltile-scale: one dock ${scaleOne} · two docks ${scaleTwo}`);
-      expect(await statusLines(page), 'each status line reads whole, inside its column').toEqual([
-        {text: 'Причал свободен', insideColumn: true, whole: true},
-        {text: 'Причал свободен', insideColumn: true, whole: true},
+      const sizes = await tileSizes(page);
+      expect(new Set([...sizes.colonies, ...sizes.docks]).size, `ONE tile size — ${JSON.stringify(sizes)}`).toBe(1);
+      expect(Number(scaleTwo), 'the second dock costs the grid at most a step').toBeGreaterThanOrEqual(Number(scaleOne) * 0.85);
+      expect(await docksApart(page), 'the group stands inside the layer, clear of the grid').toEqual({measured: true, inside: true, clear: true});
+      expect(await dockStatusLines(page), 'each status line reads whole, inside its tile').toEqual([
+        {text: 'Причал свободен', insideTile: true, whole: true},
+        {text: 'Причал свободен', insideTile: true, whole: true},
       ]);
+      const keys = await dockKeys(page);
       const grid0 = await tileRects(page);
       await enterDocks(page);
-      expect(await focusedDock(page), '▶ from the first row enters the column at that row\'s height').toBe(LINER);
-      expect(await tileRects(page), 'walking into the column moves no planet tile').toEqual(grid0);
-      await press(page, 'ArrowLeft', 350);
-      expect(await focusedDock(page), '◀ leaves the column').toBe('');
+      const firstIn = await focusedDock(page);
+      expect([LINER, HAULING], 'the cursor entered the group').toContain(firstIn);
+      expect(await tileRects(page), 'walking into the group moves no planet tile').toEqual(grid0);
+      await press(page, keys.back, 350);
+      expect(await focusedDock(page), 'the way back leaves the group').toBe('');
       const edgeTile = await focusedTile(page);
-      expect(edgeTile, 'the cursor is back on a planet tile — the row\'s last').not.toBe('');
-      await press(page, 'ArrowRight', 350);
-      expect(await focusedDock(page), '▶ from that tile enters the column again').toBe(LINER);
-      await press(page, 'ArrowDown', 350);
-      expect(await focusedDock(page), '↓ walks to the second dock').toBe(HAULING);
-      await press(page, 'ArrowDown', 350);
+      expect(edgeTile, 'the cursor is back on a planet tile').not.toBe('');
+      await press(page, keys.into, 350);
+      expect(await focusedDock(page), 'the way in from that tile enters the group again').toBe(firstIn);
+      for (let i = 0; i < 3; i++) {
+        await press(page, keys.prev, 350);
+      }
+      expect(await focusedDock(page), 'the group starts with the liner (tableau order), the edge felt').toBe(LINER);
+      await press(page, keys.next, 350);
+      expect(await focusedDock(page), 'the group\'s own axis walks to the second dock').toBe(HAULING);
+      await press(page, keys.next, 350);
       expect(await focusedDock(page), '…and the edge is felt (no wrap)').toBe(HAULING);
-      await press(page, 'ArrowLeft', 350);
-      expect(await focusedTile(page), '◀ returns to the very tile the cursor left, whichever dock it walked to').toBe(edgeTile);
-      await press(page, 'ArrowRight', 350);
-      await press(page, 'ArrowUp', 350);
-      await press(page, 'ArrowUp', 350);
-      expect(await focusedDock(page), '↑ walks back and stops at the top').toBe(LINER);
-      await focusDock(page, LINER);
+      await press(page, keys.back, 350);
+      expect(await focusedTile(page), 'the way back returns to the very tile the cursor left, whichever dock it walked to').toBe(edgeTile);
+      await press(page, keys.into, 350);
+      await press(page, keys.prev, 350);
+      await press(page, keys.prev, 350);
+      expect(await focusedDock(page), 'walking back stops at the first dock').toBe(LINER);
+      await focusDockCard(page, LINER);
       await shoot(page, preset.id, '01-overview-two-docks');
 
       // ── 2. The liner's stage.
@@ -403,7 +374,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-fleetdock [data-forecast-layer] .con-efx--forecast'), 'the effects explorer in its forecast mode').toHaveCount(1);
       await expect(page.locator('.con-colonies .con-wshead'), 'the crumb gains «· ЭФФЕКТЫ»').toContainText(/ЭФФЕКТЫ/i);
       await expect(page.locator('.con-fleetdock [data-forecast-layer] [data-forecast-group="receive"]'), 'the Greens\' 2 M€ stand as a tile of «Вы получите»').toHaveCount(1);
-      expect(await page.locator('.con-fleetdock [data-forecast-browse] [data-fleet-dock-result]').count(), 'the work column is PARKED under the layer, never unmounted').toBe(1);
+      expect(await page.locator('.con-fleetdock [data-forecast-browse] .con-colfocus__payrow').count(), 'the work column is PARKED under the layer, never unmounted').toBeGreaterThan(0);
       await settle(page, {timeoutMs: 15_000});
       await shoot(page, preset.id, '02b-liner-effects-layer');
       expect(await pressUntil(page, 'Escape', async () => await page.locator('.con-fleetdock [data-forecast-layer]').count() === 0, {tries: 3, settleMs: 1100}),
@@ -421,10 +392,10 @@ for (const preset of PRESETS) {
       expect(ratingCell, 'the rail\'s rating cell is measurable').toBeDefined();
       await shoot(page, preset.id, '02-liner-stage');
 
-      // ── 3–5. A → one POST, the flight, the card's answer, the token, the rail, the workspace leaves.
+      // ── 3–5. X → one POST (the colony trade's verb), the flight, the card's answer, the token, the rail, the workspace leaves.
       await armProbe(page, LINER);
       const stopLinerStory = await storyboard(page, preset.id, 'liner');
-      await press(page, 'Enter', 200);
+      await press(page, 'KeyX', 200);
       await expect.poll(async () => (await wireOf(request, playerId)).thisPlayer.terraformRating, {timeout: 30_000, message: 'the server paid the TR'}).toBe(N + 1);
       await expect.poll(() => page.locator('.con-ws').count(), {timeout: 45_000, message: 'the workspace left'}).toBe(0);
       await settle(page, {timeoutMs: 30_000});
@@ -433,7 +404,7 @@ for (const preset of PRESETS) {
       const samples = probe.samples;
       console.log(`[${preset.id}] N=${N} trIcon=${JSON.stringify(trIcon)} rating=${JSON.stringify(ratingCell)}\n${trail(samples)}`);
       expect(probe.ticks, 'the probe was alive').toBeGreaterThan(10);
-      expect(posts.length, 'A sent EXACTLY ONE request').toBe(1);
+      expect(posts.length, 'X sent EXACTLY ONE request').toBe(1);
       expect(posts[0].body, 'the destination is the card').toContain(`"fleetDock":"${LINER}"`);
       expect(posts[0].body, 'no colony is named').not.toContain('colonyName');
 
@@ -506,14 +477,14 @@ for (const preset of PRESETS) {
       await expect(page.locator(`.con-colonies__docks [data-fleet-dock="${LINER}"] .pcard-fleet .colony-fleet-icon`), 'the ship stands on the liner\'s ▲').toHaveCount(1);
       await expect(page.locator(`.con-colonies__docks [data-fleet-dock="${HAULING}"][data-fleet-dock-status="free"]`), 'the other dock is still free').toHaveCount(1);
       await expect(page.locator(`.con-colonies__docks [data-fleet-dock="${HAULING}"] .pcard-fleet .colony-fleet-icon`), 'no ship on it').toHaveCount(0);
-      expect(await statusLines(page), 'the taken dock says so in ITS OWN width — the column cuts nothing').toEqual([
-        {text: 'Флот на карте', insideColumn: true, whole: true},
-        {text: 'Причал свободен', insideColumn: true, whole: true},
+      expect(await dockStatusLines(page), 'the taken dock says so in ITS OWN tile — nothing cuts it').toEqual([
+        {text: 'Флот на карте', insideTile: true, whole: true},
+        {text: 'Причал свободен', insideTile: true, whole: true},
       ]);
       // The cursor came back on a destination the open trade offers — never on the dock that is taken.
       expect(await focusedDock(page), 'the cursor does not stand on the taken dock').not.toBe(LINER);
       await shoot(page, preset.id, '04-overview-one-taken');
-      await focusDock(page, HAULING);
+      await focusDockCard(page, HAULING);
       await press(page, 'Enter', 900);
       await expect(page.locator(`.con-fleetdock[data-fleet-dock-stage="${HAULING}"]`), 'the other dock\'s stage').toHaveCount(1, {timeout: 10_000});
       await settle(page, {timeoutMs: 15_000});
@@ -521,7 +492,7 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-fleet-dock-note]'), 'the reward\'s next step is named').toHaveCount(1);
       await armProbe(page, HAULING);
       const stopHaulingStory = await storyboard(page, preset.id, 'hauling');
-      await press(page, 'Enter', 200);
+      await press(page, 'KeyX', 200);
       await expect.poll(() => page.locator('.con-board--placing').count(), {timeout: 45_000, message: 'the ocean\'s placement is up'}).toBe(1);
       await stopHaulingStory();
       const second = (await readProbe(page)).samples;

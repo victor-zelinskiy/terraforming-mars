@@ -59,7 +59,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {TradeReceiptBase} from '@/client/console/colonyTrade/colonyTradeReceipt';
 import {settlementClaimsBatch} from '@/client/console/colonyTrade/settlementTable';
 import {
-  ColonyTradeTargets, benefitCardCount, colonyTradeHeldSpecs, incomeTransferSpecs,
+  ColonyTradeTargets, benefitCardCount, bonusHandsOverCard, colonyTradeHeldSpecs, incomeTransferSpecs,
   ownBonusTransferSpecs, viewerBonusCubes,
   trackAdvancePlan, trackGlidePlan, TrackGlidePlan, TRACK_SETTLE_MS, trackWavePlan, TrackWavePlan, TrackMoveRhythm,
 } from '@/client/console/colonyTrade/colonyTradeModel';
@@ -70,6 +70,12 @@ import {
  * 6-cell sweep + the settle) and short enough never to read as a stall.
  */
 const TRACK_ADVANCE_SAFETY_MS = 1800;
+
+/**
+ * The receiving scene's hand-over between two waves that pay DIFFERENT cards — the pose transition of
+ * `.con-colfocus__landcell` (280 ms) plus a short read of the new subject before its first token is born.
+ */
+const RECEIVING_HANDOVER_MS = 340;
 
 /**
  * The transaction's phases:
@@ -803,7 +809,13 @@ export async function runColonyTradeRewards(): Promise<void> {
   }
   const bonus = ownBonusTransferSpecs(manifest, viewer, ctx.targets);
   if (bonus.length > 0) {
-    if (income.length > 0) {
+    if (income.length > 0 && bonusHandsOverCard(income, bonus)) {
+      // TWO CARDS, TWO WAVES: the beat turns FIRST — the bonus's card stands forward, the income's steps back —
+      // and the bonus's first token is born only once that hand-over has played (the receiving scene's own pose
+      // transition), so the next wave is seen going somewhere new, never landing on a card still in the shade.
+      colonyTradeState.beat = 'bonus';
+      await pause(motionMs(RECEIVING_HANDOVER_MS));
+    } else if (income.length > 0) {
       await pause(motionMs(TRANSFER_RESIDUAL_PAUSE_MS));
     }
     colonyTradeState.beat = 'bonus';

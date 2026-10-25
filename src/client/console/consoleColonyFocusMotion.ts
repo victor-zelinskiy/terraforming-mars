@@ -212,14 +212,15 @@ function browseOf(el: Element): HTMLElement | null {
   return rootOf(el)?.querySelector<HTMLElement>('.con-colonies__browse') ?? null;
 }
 
-/** The pressed tile in the browse grid (the unfold's origin). */
+/** The pressed tile in the browse grid (the unfold's origin) — a colony's, or a DOCK's (a tile of the same family). */
 function tileOf(el: Element): HTMLElement | null {
-  return rootOf(el)?.querySelector<HTMLElement>('.con-colonies__slot--focused .con-coltile') ?? null;
+  return rootOf(el)?.querySelector<HTMLElement>(
+    '.con-colonies__slot--focused .con-coltile, .con-colonies__dockslot--focused .con-coltile') ?? null;
 }
 
-/** The tile's planet medallion — the carried subject's browse twin. */
+/** The tile's carried subject's browse twin — the planet medallion, or the dock's CARD. */
 function tilePlanetOf(el: Element): HTMLElement | null {
-  return tileOf(el)?.querySelector<HTMLElement>('.con-coltile__planet-berth') ?? null;
+  return tileOf(el)?.querySelector<HTMLElement>('.con-coltile__planet-berth, [data-fleet-dock-face]') ?? null;
 }
 
 /** The tile's OWN content — released in place, never carried. */
@@ -227,7 +228,7 @@ function tileContentOf(el: Element): Array<HTMLElement> {
   const tile = tileOf(el);
   return tile === null ?
     [] :
-    Array.from(tile.querySelectorAll<HTMLElement>('.con-coltile__head, .con-coltile__mid, .con-coltile__rows, .con-coltile__status'));
+    Array.from(tile.querySelectorAll<HTMLElement>('.con-coltile__head, .con-coltile__mid, .con-coltile__rows, .con-coltile__dockreward, .con-coltile__status'));
 }
 
 function surfaceOf(el: Element): HTMLElement | null {
@@ -239,7 +240,8 @@ function neighbourTilesOf(el: Element): Array<HTMLElement> {
   const root = rootOf(el);
   return root === null ?
     [] :
-    Array.from(root.querySelectorAll<HTMLElement>('.con-colonies__slot:not(.con-colonies__slot--focused) .con-coltile'));
+    Array.from(root.querySelectorAll<HTMLElement>(
+      '.con-colonies__slot:not(.con-colonies__slot--focused) .con-coltile, .con-colonies__dockslot:not(.con-colonies__dockslot--focused) .con-coltile'));
 }
 
 function surfaceEdgeOf(el: Element): HTMLElement | null {
@@ -558,7 +560,7 @@ const ENTRY_RAIL_MS = 200;
  * the same task as the mount, so nothing secondary is painted before its beat.
  */
 export function colonyEntryCascade(tl: gsap.core.Timeline, root: HTMLElement, atS: number): number {
-  const slots = Array.from(root.querySelectorAll<HTMLElement>('.con-colonies__slot'));
+  const slots = Array.from(root.querySelectorAll<HTMLElement>('.con-colonies__slot, .con-colonies__dockslot, .con-colonies__docks-title'));
   const rail = root.querySelector<HTMLElement>('.con-colonies__rail');
   if (slots.length === 0 && rail === null) {
     return 0;
@@ -624,7 +626,7 @@ export function playColonyStepEntry(root: HTMLElement): void {
     return;
   }
   const stage = root.querySelector<HTMLElement>('.con-colonies__stagewrap');
-  const tiles = Array.from(root.querySelectorAll<HTMLElement>('.con-colonies__slot'));
+  const tiles = Array.from(root.querySelectorAll<HTMLElement>('.con-colonies__slot, .con-colonies__dockslot, .con-colonies__docks-title'));
   const rail = root.querySelector<HTMLElement>('.con-colonies__rail');
   const toolbar = root.querySelector<HTMLElement>('.con-colonies__toolbar');
   if (stage === null && tiles.length === 0 && rail === null) {

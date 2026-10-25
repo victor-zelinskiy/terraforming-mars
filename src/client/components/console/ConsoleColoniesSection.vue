@@ -91,7 +91,8 @@
           <!-- The premium tile grid. The scroller + `margin: auto` wrapper is
                the anti-clip contract: content centres when it fits and scrolls
                FROM THE TOP when it doesn't. -->
-          <div class="con-colonies__body">
+          <div class="con-colonies__body" ref="body"
+               :class="docks.length > 0 ? ['con-colonies__body--docks', 'con-colonies__body--docks-' + docksPlacement] : []">
           <div class="con-colonies__scroll" ref="scroll">
             <div class="con-colonies__grid" ref="grid" :style="gridStyle">
               <div v-for="(colony, i) in colonies"
@@ -114,23 +115,29 @@
           </div>
           <!-- «ПРИЧАЛЫ» — the viewer's FLEET DOCKS (Turmoil Redux TR06 Water
                Hauling and its sisters: a card that is a destination of the trade
-               action). NOT a slot of the planet grid — the grid's layouts are
-               designed per tile count — but a narrow column of its own at the
-               right edge, under the fleet dock in the header: «your ships, and
-               where else they go». Stands only while the viewer owns a dock; a
-               rival's dock never stands here (only its owner may trade with it).
-               The tile IS the card (the premium face, the fleet on its ▲). -->
-          <aside v-if="docks.length > 0" class="con-colonies__docks" ref="docksCol" data-colonies-docks
-                 :style="{'--con-dock-zoom': String(dockZoom)}">
+               action). ONE MORE DIRECTION OF THE TRADE, drawn as TILES of the
+               colony family (the owner, 2026-10-25): the same chassis, the same
+               size (`--coltile-scale` — the fit solves the grid and the group
+               together), standing a step APART from the colonies under their own
+               caption — a column right of the grid or a row under it, whichever
+               lets the tiles be larger (`docksPlacement`, solved by `fit`). NOT a
+               slot of the planet grid (its layouts are designed per tile count).
+               Stands only while the viewer owns a dock; a rival's dock never
+               stands here (only its owner may trade with it). -->
+          <aside v-if="docks.length > 0" class="con-colonies__docks"
+                 :class="'con-colonies__docks--' + docksPlacement"
+                 ref="docksGroup" data-colonies-docks :data-docks-placement="docksPlacement">
             <div class="con-colonies__docks-title">{{ $t('Docks') }}</div>
-            <div v-for="(dock, i) in docks"
-                 :key="dock.card"
-                 class="con-colonies__dockslot"
-                 :class="{'con-colonies__dockslot--focused': dockCursorOn && i === dockCursor.index}"
-                 :ref="dockCursorOn && i === dockCursor.index ? 'selectedDock' : undefined">
-              <ConsoleFleetDockTile :dock="dock"
-                                    :status="dockTileStatus(dock)"
-                                    :focused="dockCursorOn && i === dockCursor.index" />
+            <div class="con-colonies__docks-tiles">
+              <div v-for="(dock, i) in docks"
+                   :key="dock.card"
+                   class="con-colonies__dockslot"
+                   :class="{'con-colonies__dockslot--focused': dockCursorOn && i === dockCursor.index}"
+                   :ref="dockCursorOn && i === dockCursor.index ? 'selectedDock' : undefined">
+                <ConsoleFleetDockTile :dock="dock"
+                                      :status="dockTileStatus(dock)"
+                                      :focused="dockCursorOn && i === dockCursor.index" />
+              </div>
             </div>
           </aside>
           </div>
@@ -422,6 +429,7 @@
                     @enter-cancelled="onFocusEnterCancelled" @leave-cancelled="onFocusLeaveCancelled">
           <ConsoleFleetDockStage v-if="focusState.open && focusState.dock !== '' && focusDockView !== undefined"
                                  ref="dockStage"
+                                 :roomHeight="dockRoomH"
                                  :card="focusDockView.card"
                                  :model="focusDockView.model"
                                  :available="focusDockAvailable"
@@ -506,7 +514,7 @@ import {fetchColonyTradePreview, fetchFleetDockPreview} from '@/client/component
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {FleetDockPreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {
-  FleetDockReasonInput, FleetDockTileStatus, FleetDockView, fleetDockReason, fleetDockTileStatus,
+  FleetDockPlacement, FleetDockReasonInput, FleetDockTileStatus, FleetDockView, fleetDockReason, fleetDockTileStatus, planDockFit,
 } from '@/client/console/colonyTrade/fleetDockModel';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {buildBenefitAt, ColonyMetadata, colonyCardResources} from '@/common/colonies/ColonyMetadata';
@@ -635,6 +643,12 @@ const COL_GAP = 18;
 const ROW_GAP = 16;
 const GRID_PAD_X = 36; // 18 each side
 const GRID_PAD_Y = 26; // 10 top + 16 bottom
+/** The air between the colony grid and the «ПРИЧАЛЫ» group — MUST match `.con-colonies__body--docks` (1.4rem). */
+const DOCKS_GAP = 28;
+/** The group's caption height when it cannot be measured yet (the fit reads the real one). */
+const DOCKS_CAPTION = 18;
+/** With docks the tiles may step a little smaller: the group is real content, never a scroll target. */
+const MIN_DOCKED_TILE_SCALE = 0.6;
 /** Rounding room (logical px): CSS `zoom` quantizes every tile to whole
  *  device pixels, so a planned N-across row can render 2–3px wider than
  *  `N × baseW × scale` — without slack the LAST tile flex-wraps to an
@@ -783,8 +797,10 @@ export default defineComponent({
       /** The dock stage's server preview (`?dock=`), re-asked on every state move. */
       dockPreview: undefined as FleetDockPreviewModel | undefined,
       dockPreviewSeq: 0,
-      /** The docks column's card zoom (solved by `fit` from the column's own room). */
-      dockZoom: 0.5,
+      /** Where the docks group stands beside the grid (solved by `fit` — whichever lets the tiles be larger). */
+      docksPlacement: 'side' as FleetDockPlacement,
+      /** The stage's room, measured at the dock's press — the hero card is solved against it BEFORE the stage mounts. */
+      dockRoomH: 0,
     };
   },
   computed: {
@@ -1763,6 +1779,12 @@ export default defineComponent({
     'focusState.dock'(card: string) {
       this.dockPreview = undefined;
       if (card !== '') {
+        // Every door into the dock's stage (a press, a restore, a prompt) solves its hero against the room BEFORE
+        // the stage renders (a `pre` watcher: the stage mounts in the update this one precedes).
+        const room = (this.$el as HTMLElement | null)?.querySelector<HTMLElement>('.con-colonies__stagewrap')?.clientHeight ?? 0;
+        if (room > 0) {
+          this.dockRoomH = room;
+        }
         void this.loadDockPreview(card);
       }
     },
@@ -1897,7 +1919,6 @@ export default defineComponent({
      * real box) — never a second copy of the seat's own CSS width.
      */
     fit(): void {
-      this.fitDocks();
       const scroll = this.$refs.scroll as HTMLElement | null | undefined;
       const root = this.$el as HTMLElement | null | undefined;
       const count = this.colonies.length;
@@ -1939,8 +1960,12 @@ export default defineComponent({
         this.scheduleFit();
         return;
       }
-      const availW = scroll.clientWidth;
-      const availH = scroll.clientHeight;
+      // With DOCKS the grid's scroller is content-sized (the grid and the docks group are ONE centred composition),
+      // so the room is the BODY's — the region both share; without them the scroller IS the body.
+      const body = this.$refs.body as HTMLElement | null | undefined;
+      const room = this.docks.length > 0 && body !== undefined && body !== null ? body : scroll;
+      const availW = room.clientWidth;
+      const availH = room.clientHeight;
       if (availW <= 0 || availH <= 0) {
         return; // not laid out yet / JSDOM / parked behind the focus stage
       }
@@ -1962,9 +1987,27 @@ export default defineComponent({
       //  a padding on this surface's own root — see `seatReserveStyle` — so
       //  `scroll.clientWidth` is the room that is really free. One reserve,
       //  read by the grid and by the focus stage alike.)
-      const scaleW = (availW - GRID_PAD_X * s - (cols - 1) * COL_GAP * s - slack) / (cols * baseW);
-      const scaleH = (availH - GRID_PAD_Y * s - (rows - 1) * ROW_GAP * s) / (rows * baseH);
-      const scale = Math.max(MIN_TILE_SCALE, Math.min(MAX_TILE_SCALE, Math.min(scaleW, scaleH)));
+      let scale: number;
+      if (this.docks.length > 0) {
+        // THE DOCKS ARE TILES OF THE SAME SIZE: the grid and the group are solved together, and the group stands
+        // where the tiles come out larger (a column beside the grid, or a row under it — `planDockFit`).
+        const group = this.$refs.docksGroup as HTMLElement | null | undefined;
+        const title = group?.querySelector<HTMLElement>('.con-colonies__docks-title');
+        const groupGap = group === undefined || group === null ? 0 : parseFloat(getComputedStyle(group).rowGap) || 0;
+        const plan = planDockFit({
+          availW, availH, cols, rows, docks: this.docks.length, baseW, baseH,
+          colGap: COL_GAP * s, rowGap: ROW_GAP * s, padX: GRID_PAD_X * s, padY: GRID_PAD_Y * s, slack,
+          groupGap: DOCKS_GAP * s,
+          caption: (title?.offsetHeight ?? DOCKS_CAPTION * s) + groupGap,
+        });
+        scale = Math.max(MIN_DOCKED_TILE_SCALE, Math.min(MAX_TILE_SCALE, plan.scale));
+        this.docksPlacement = plan.placement;
+        colonyDockCursor.placement = plan.placement;
+      } else {
+        const scaleW = (availW - GRID_PAD_X * s - (cols - 1) * COL_GAP * s - slack) / (cols * baseW);
+        const scaleH = (availH - GRID_PAD_Y * s - (rows - 1) * ROW_GAP * s) / (rows * baseH);
+        scale = Math.max(MIN_TILE_SCALE, Math.min(MAX_TILE_SCALE, Math.min(scaleW, scaleH)));
+      }
       this.tileScale = Math.round(scale * 1000) / 1000;
       // The cap gets the SAME slack on top — zoom-rounded tiles need the
       // room, and a whole extra column would need ~baseW, so the planned
@@ -2159,6 +2202,8 @@ export default defineComponent({
         return r === undefined || r.width < 10 ? undefined : {left: r.left, top: r.top, width: r.width, height: r.height};
       };
       armColonyFocusOrigin(rectOf(tile), rectOf(face));
+      // The stage stands in the stagewrap (absolute, inset 0): its height is the room the hero card is solved in.
+      this.dockRoomH = (this.$el as HTMLElement | null)?.querySelector<HTMLElement>('.con-colonies__stagewrap')?.clientHeight ?? 0;
       openFleetDockFocus(dock.card);
     },
     /** The shell ACCEPTED the dock's confirm — the stage becomes its own receipt. */
@@ -2168,45 +2213,6 @@ export default defineComponent({
     /** A refused submit gives the dock's stage back as it was. */
     releaseDockStage(): void {
       (this.$refs.dockStage as InstanceType<typeof ConsoleFleetDockStage> | undefined)?.releasePresentation();
-    },
-    /**
-     * THE DOCKS COLUMN'S FIT — the cards take the column's WIDTH and share its
-     * HEIGHT (one face per dock, a status line under each); the column's width
-     * is a token, so the planet grid's own fit measures what is left.
-     */
-    fitDocks(): void {
-      const col = this.$refs.docksCol as HTMLElement | undefined;
-      const n = this.docks.length;
-      if (col === undefined || col === null || n === 0) {
-        return;
-      }
-      const w = col.clientWidth;
-      const h = col.clientHeight;
-      if (w <= 0 || h <= 0) {
-        return;
-      }
-      // EVERY term of the column is measured: its own padding (`clientHeight` includes it), the title, and per dock
-      // the status line AND the tile's gap between face and status; the face's NATURAL box is its rendered box over
-      // the zoom it was rendered at. Two of those were missing and the third was a literal (460 — the face is ≈467):
-      // with three docks at 4K the last status line hung 22 px out of the column and was cut by its clip.
-      const colStyle = getComputedStyle(col);
-      const padY = (parseFloat(colStyle.paddingTop) || 0) + (parseFloat(colStyle.paddingBottom) || 0);
-      const title = col.querySelector<HTMLElement>('.con-colonies__docks-title')?.offsetHeight ?? 0;
-      const status = col.querySelector<HTMLElement>('.con-fleetdock-tile__status')?.offsetHeight ?? 0;
-      const tile = col.querySelector<HTMLElement>('.con-fleetdock-tile');
-      const tileGap = tile === null ? 0 : parseFloat(getComputedStyle(tile).rowGap) || 0;
-      const gap = parseFloat(colStyle.rowGap) || 0;
-      // (The zoom it was rendered at is read off the face itself, never `dockZoom`: a fit re-run before the patch
-      // would divide the old box by the new zoom.)
-      const faceEl = col.querySelector<HTMLElement>('.con-fleetdock-tile__face');
-      const face = faceEl?.getBoundingClientRect();
-      const rendered = faceEl === null ? NaN : parseFloat(getComputedStyle(faceEl).zoom);
-      const measured = face !== undefined && face.width > 0 && face.height > 0 && rendered > 0;
-      const naturalW = face !== undefined && measured ? face.width / rendered : 320;
-      const naturalH = face !== undefined && measured ? face.height / rendered : 460;
-      const perH = (h - padY - title - n * (status + tileGap + gap)) / n;
-      const zoom = Math.min(w / naturalW, perH / naturalH);
-      this.dockZoom = Math.max(0.2, Math.floor(zoom * 1000) / 1000);
     },
     scrollSelectedIntoView(): void {
       const slot = this.$refs.selectedSlot as HTMLElement | Array<HTMLElement> | undefined;
@@ -2552,9 +2558,10 @@ export default defineComponent({
       playColonyStepEntry(this.$el as HTMLElement);
     }
     // Foundation: VueUse-managed listeners (no raw add/removeEventListener).
-    const scroll = this.$refs.scroll as HTMLElement | undefined;
-    if (scroll !== undefined) {
-      this.stopResizeObs = useResizeObserver(scroll, () => this.scheduleFit()).stop;
+    // The BODY is the room the fit solves (the grid's scroller is content-sized beside a docks group).
+    const room = (this.$refs.body ?? this.$refs.scroll) as HTMLElement | undefined;
+    if (room !== undefined) {
+      this.stopResizeObs = useResizeObserver(room, () => this.scheduleFit()).stop;
     }
     this.stopResize = useEventListener(window, 'resize', this.scheduleFit);
     // Embed rule 4, second half: a REMOUNT under a live claim (the Pluto

@@ -3,6 +3,7 @@ import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, fetchPlayerModel, placeTile, press, reloadConsole, sendPlayerInput, settle, waitForBoardHome} from './consoleStart';
 import {armLeakWitness, strandedReports} from './parliamentDrive';
+import {dockKeys, dockStatusLines, docksApart, enterDocks, tileSizes} from './fleetDockDriver';
 
 /**
  * TR06 «ПЕРЕВОЗКА ВОДЫ» — A TRADE WHOSE DESTINATION IS A CARD
@@ -104,13 +105,10 @@ async function tileRects(page: Page): Promise<Array<string>> {
   return last.split(' ');
 }
 
-/** Walk ▶ into the docks column — one press at a time, each verified by the cursor itself. */
+/** Walk into the «ПРИЧАЛЫ» group — the driver reads where the fit placed it (a column or a row). */
 async function focusDock(page: Page): Promise<void> {
-  const focused = page.locator('.con-colonies__dockslot--focused');
-  for (let i = 0; i < 6 && await focused.count() === 0; i++) {
-    await press(page, 'ArrowRight', 350);
-  }
-  await expect(focused, 'the cursor stands on the dock').toHaveCount(1);
+  await enterDocks(page);
+  await expect(page.locator('.con-colonies__dockslot--focused'), 'the cursor stands on the dock').toHaveCount(1);
 }
 
 type Box = {x: number, y: number, w: number};
@@ -218,15 +216,37 @@ for (const preset of PRESETS) {
 
       // ── 1. The overview ───────────────────────────────────────────────────
       await openColonies(page);
-      await expect(page.locator(`.con-colonies__docks [data-fleet-dock="${DOCK}"]`), 'the docks column stands with the card').toHaveCount(1);
+      await expect(page.locator(`.con-colonies__docks [data-fleet-dock="${DOCK}"]`), 'the docks group stands with the card').toHaveCount(1);
       expect(await page.locator('[data-fleet-dock-status="free"]').count(), 'the dock is free').toBe(1);
+      // THE DOCK IS ONE MORE TILE (the owner, 2026-10-25): the colony tile's chassis and size, a step apart.
+      await expect(page.locator(`.con-colonies__docks .con-coltile.con-coltile--dock[data-fleet-dock="${DOCK}"]`), 'a tile of the colony family').toHaveCount(1);
+      const sizes = await tileSizes(page);
+      expect(new Set([...sizes.colonies, ...sizes.docks]).size, `ONE tile size for the colonies and the dock — ${JSON.stringify(sizes)}`).toBe(1);
+      expect(await docksApart(page), 'the group stands inside the layer, clear of the grid').toEqual({measured: true, inside: true, clear: true});
+      await expect(page.locator(`[data-fleet-dock="${DOCK}"] [data-fleet-dock-reward] .pcard-mi`), 'the «ТОРГОВАТЬ» cell prints what the trade gives').not.toHaveCount(0);
+      expect(await dockStatusLines(page), 'the status line reads whole, inside its tile').toEqual([{text: 'Причал свободен', insideTile: true, whole: true}]);
       const grid0 = await tileRects(page);
       expect(grid0.length, 'the planet grid stands').toBeGreaterThanOrEqual(3);
       await focusDock(page);
       const grid1 = await tileRects(page);
-      expect(grid1, 'walking into the column moves no planet tile').toEqual(grid0);
+      expect(grid1, 'walking into the group moves no planet tile').toEqual(grid0);
       await expect(page.locator('[data-colonies-dock-rail]'), 'the rail speaks for the focused dock').toHaveCount(1);
       await shoot(page, preset.id, '01-overview-dock');
+      // X on the dock LIFTS THE CARD ITSELF out of its tile (physical: the tile's card place is held while it is up).
+      const zoom = page.locator('dialog.con-zoom[open]');
+      for (let tries = 0; tries < 3 && await zoom.count() === 0; tries++) {
+        await press(page, 'KeyX', 1500);
+      }
+      await expect(zoom, 'X opens the card fullscreen').toHaveCount(1, {timeout: 8000});
+      await expect(page.locator('.con-colonies__docks .con-zoom-hold'), 'the card left its tile — not a second copy').toHaveCount(1, {timeout: 4000});
+      await shoot(page, preset.id, '01b-dock-card-zoom');
+      for (let tries = 0; tries < 3 && await zoom.count() > 0; tries++) {
+        await page.keyboard.press('Escape');
+        await zoom.waitFor({state: 'detached', timeout: 8000}).catch(() => { /* dropped — retry */ });
+      }
+      await expect(zoom).toHaveCount(0, {timeout: 8000});
+      await expect(page.locator('.con-zoom-hold'), 'the card came back to its tile').toHaveCount(0, {timeout: 6000});
+      await expect(page.locator('.con-colonies__dockslot--focused'), 'the cursor still stands on the dock').toHaveCount(1);
 
       // ── 2. The stage ──────────────────────────────────────────────────────
       const posts: Array<{url: string, body: string}> = [];
@@ -243,6 +263,12 @@ for (const preset of PRESETS) {
       expect(crumb, 'the crumb names the card').toContain(DOCK_RU);
       expect(crumb, 'the crumb keeps its root').toContain('КОЛОНИИ');
       await expect(page.locator('.con-fleetdock [data-fleet-dock-hero] .pcard'), 'the hero is the card\'s own face').toHaveCount(1);
+      // THE COLONY TRADE'S MATERIALS: the same surface and columns, the laconic line under the card, the verdict.
+      await expect(page.locator('.con-fleetdock .con-colfocus__surface .con-colfocus__hero [data-fleet-dock-hero]'), 'the card stands where a colony stands its planet').toHaveCount(1);
+      await expect(page.locator('.con-fleetdock [data-fleet-dock-desc]'), 'a laconic line of what the dock does').toHaveCount(1);
+      await expect(page.locator('.con-fleetdock .con-colfocus__result [data-fleet-dock-result], .con-fleetdock .con-colfocus__result[data-fleet-dock-result]'), '«ИТОГ ТОРГОВЛИ» is the summary rail').toHaveCount(1);
+      const barX = page.locator('.con-cmdbar .con-cmdbar__cmd', {hasText: /Подтвердить торговлю/i});
+      await expect(barX, 'X trades — the colony trade\'s verb').toHaveCount(1);
       await expect(page.locator('.con-fleetdock .con-colfocus__payrow').first(), 'the payment paths stand').toBeVisible();
       const result = ((await page.locator('[data-fleet-dock-result]').textContent()) ?? '').replace(/\s+/g, ' ');
       expect(result, `the result reads the oceans and the fleets — got «${result}»`).toMatch(/2\s*→\s*1/);
@@ -255,9 +281,13 @@ for (const preset of PRESETS) {
       expect(berth, 'the card\'s ▲ berth is measurable').toBeDefined();
       await shoot(page, preset.id, '02-dock-stage');
 
-      // ── 3–5. A → one POST, the flight, the scene, the workspace leaves ────
+      // A on the chosen path SELECTS nothing more — it never trades.
+      await press(page, 'Enter', 600);
+      expect(posts, 'A sent nothing').toEqual([]);
+
+      // ── 3–5. X → one POST, the flight, the scene, the workspace leaves ────
       await armProbe(page);
-      await press(page, 'Enter', 200);
+      await press(page, 'KeyX', 200);
       await expect.poll(() => page.locator('.con-board--placing').count(), {timeout: 45_000, message: 'the ocean\'s placement is up'}).toBe(1);
       await shoot(page, preset.id, '03-placement');
       const probe = await readProbe(page);
@@ -266,7 +296,7 @@ for (const preset of PRESETS) {
       console.log(`[${preset.id}] pad=${JSON.stringify(pad)} berth=${JSON.stringify(berth)}\n` +
         samples.slice(0, 60).map((s) => `${s.t} ship=${JSON.stringify(s.ship)} scene=${s.scene} stage=${+s.stage} mark=${+s.mark} ws=${s.ws} holds=${s.holds}`).join('\n'));
       expect(probe.ticks, 'the probe was alive').toBeGreaterThan(10);
-      expect(posts.length, 'A sent EXACTLY ONE request').toBe(1);
+      expect(posts.length, 'X sent EXACTLY ONE request').toBe(1);
       expect(posts[0].body, 'the destination is the card').toContain(`"fleetDock":"${DOCK}"`);
       expect(posts[0].body, 'no colony is named').not.toContain('colonyName');
 
@@ -352,11 +382,12 @@ for (const preset of PRESETS) {
         }
       });
       await press(page, 'Enter', 600);
-      expect(posts, 'A on a refused dock sends nothing').toEqual([]);
+      await press(page, 'KeyX', 600);
+      expect(posts, 'neither A nor X on a refused dock sends anything').toEqual([]);
       await press(page, 'Escape', 900);
       await expect(page.locator('.con-fleetdock'), 'B folds back to the overview').toHaveCount(0, {timeout: 10_000});
-      // ◀ back to the grid: a colony is offered to the second fleet.
-      await press(page, 'ArrowLeft', 400);
+      // Back to the grid: a colony is offered to the second fleet.
+      await press(page, (await dockKeys(page)).back, 400);
       const tradeable = await wireOf(request, playerId);
       expect(tradeable.thisPlayer.tradesThisGeneration).toBe(1);
       await press(page, 'Enter', 900);

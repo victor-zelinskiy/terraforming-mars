@@ -16,7 +16,7 @@ import {colonyNavStep} from '@/client/console/consoleColoniesModel';
 import {
   ColonyCursor, DOCK_DOCKED_KEY, DOCK_DOCKED_SHORT_KEY, DOCK_FREE_KEY, FleetDockReasonInput, colonyCursorStep, fleetDockEffectNode,
   fleetDockOwnBlock, fleetDockReason, fleetDockRewardCategory, fleetDockScenePlan, fleetDockTileLabel, fleetDockTileStatus, fleetDockViews,
-  reactionRailSpecs, tradeKnownRailMoves, cardTargetTokens, printedRewardUnits,
+  reactionRailSpecs, tradeKnownRailMoves, cardTargetTokens, printedRewardUnits, planDockFit, fleetDockPrintedReward, DockFitInput,
 } from '@/client/console/colonyTrade/fleetDockModel';
 import {CardResource} from '@/common/CardResource';
 
@@ -145,6 +145,101 @@ describe('fleetDockModel — the «ПРИЧАЛЫ» column (TR06 Water Hauling)'
 
     it('an incomplete last row: its last tile is a row end (5 colonies, 3 + 2)', () => {
       expect(colonyCursorStep('right', at('grid', 4), 5, 3, 1, colonyNavStep)).deep.eq(at('docks', 4, 0));
+    });
+  });
+
+  describe('colonyCursorStep — the docks as a ROW under the grid (`below`)', () => {
+    const at = (zone: ColonyCursor['zone'], index: number, dock = 0): ColonyCursor => ({zone, index, dock});
+    // Five colonies, 3 + 2; the docks stand under them.
+    const step = (dir: 'up' | 'down' | 'left' | 'right', cursor: ColonyCursor, docks = 2) =>
+      colonyCursorStep(dir, cursor, 5, 3, docks, colonyNavStep, 'below');
+
+    it('▼ from the LAST row enters the row under the tile\'s own place; a higher row walks the grid', () => {
+      expect(step('down', at('grid', 3))).deep.eq(at('docks', 3, 0));
+      expect(step('down', at('grid', 4))).deep.eq(at('docks', 4, 1));
+      expect(step('down', at('grid', 0))).deep.eq(at('grid', 3));
+      expect(step('down', at('grid', 4), 1)).deep.eq(at('docks', 4, 0));
+    });
+
+    it('▶ at a row end walks the grid (the group is not to the side); ▲ returns to the VERY tile', () => {
+      expect(step('right', at('grid', 2))).deep.eq(at('grid', colonyNavStep('right', 2, 5, 3)));
+      expect(step('up', at('docks', 4, 1))).deep.eq(at('grid', 4, 1));
+    });
+
+    it('◀ / ▶ walk the row with the edge felt; ▼ stays', () => {
+      expect(step('right', at('docks', 3, 0))).deep.eq(at('docks', 3, 1));
+      expect(step('right', at('docks', 3, 1))).deep.eq(at('docks', 3, 1));
+      expect(step('left', at('docks', 3, 0))).deep.eq(at('docks', 3, 0));
+      expect(step('down', at('docks', 3, 0))).deep.eq(at('docks', 3, 0));
+    });
+  });
+
+  describe('planDockFit — ONE tile size for the grid and the docks group', () => {
+    // The 1080 opening's room around a 5-colony table (3 + 2), in px at ui-scale 1.
+    const base: DockFitInput = {
+      availW: 1650, availH: 900, cols: 3, rows: 2, docks: 1, baseW: 366, baseH: 214,
+      colGap: 18, rowGap: 16, padX: 36, padY: 26, slack: 12, groupGap: 28, caption: 24,
+    };
+    const fits = (i: DockFitInput, r: {scale: number, placement: 'side' | 'below'}): boolean => {
+      const k = r.scale;
+      if (r.placement === 'side') {
+        const w = 2 * i.padX + (i.cols + 1) * i.baseW * k + (i.cols - 1) * i.colGap + i.groupGap;
+        const h = Math.max(i.padY + i.rows * i.baseH * k + (i.rows - 1) * i.rowGap, i.padY + i.caption + i.docks * i.baseH * k + (i.docks - 1) * i.rowGap);
+        return w <= i.availW + 0.5 && h <= i.availH + 0.5;
+      }
+      const w = Math.max(i.padX + i.cols * i.baseW * k + (i.cols - 1) * i.colGap, i.padX + i.docks * i.baseW * k + (i.docks - 1) * i.colGap);
+      const h = 2 * i.padY + (i.rows + 1) * i.baseH * k + (i.rows - 1) * i.rowGap + i.groupGap + i.caption;
+      return w <= i.availW + 0.5 && h <= i.availH + 0.5;
+    };
+
+    it('a wide 3-column table puts the docks UNDER it (one more row costs less than one more column)', () => {
+      const plan = planDockFit(base);
+      expect(plan.placement).eq('below');
+      expect(fits(base, plan)).is.true;
+    });
+
+    it('a 2 × 2 table, height-bound, puts them BESIDE it', () => {
+      const input = {...base, cols: 2, rows: 2};
+      const plan = planDockFit(input);
+      expect(plan.placement).eq('side');
+      expect(fits(input, plan)).is.true;
+    });
+
+    it('whichever it picks, it is the LARGER tile of the two and it fits — three docks too', () => {
+      for (const docks of [1, 2, 3]) {
+        for (const [cols, rows] of [[1, 1], [2, 1], [3, 1], [2, 2], [3, 2]]) {
+          const input = {...base, cols, rows, docks};
+          const plan = planDockFit(input);
+          expect(fits(input, plan), `${cols}×${rows}, ${docks} docks`).is.true;
+          const other = plan.placement === 'side' ? 'below' : 'side';
+          // The other placement's own best is never larger by more than the tie margin.
+          let lo = 0;
+          let hi = 3;
+          for (let n = 0; n < 40; n++) {
+            const mid = (lo + hi) / 2;
+            if (fits(input, {scale: mid, placement: other})) {
+              lo = mid;
+            } else {
+              hi = mid;
+            }
+          }
+          expect(plan.scale, `${cols}×${rows}, ${docks} docks`).to.be.at.least(lo * 0.98 - 1e-3);
+        }
+      }
+    });
+  });
+
+  describe('fleetDockPrintedReward — what the trade gives, in the card\'s own print', () => {
+    it('the RESULT half of «▲* : [reward]» — the ocean, the rating, Aurora\'s floaters and production', () => {
+      const types = (name: CardName) => fleetDockPrintedReward(getCard(name)?.metadata.renderData)
+        .map((n) => (isICardRenderItem(n) ? n.type : (n as {is?: string} | undefined)?.is));
+      expect(types(CardName.WATER_HAULING)).deep.eq([CardRenderItemType.OCEANS]);
+      expect(types(CardName.UNMI_LINER)).deep.eq([CardRenderItemType.TR]);
+      expect(types(CardName.AURORA_STATION)).deep.eq([CardRenderItemType.RESOURCE, CardRenderItemType.RESOURCE, 'production-box']);
+    });
+
+    it('a face with no trade row prints nothing', () => {
+      expect(fleetDockPrintedReward(getCard(CardName.ALGAE)?.metadata.renderData)).deep.eq([]);
     });
   });
 

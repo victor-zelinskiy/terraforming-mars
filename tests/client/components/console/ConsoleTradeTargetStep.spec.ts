@@ -81,7 +81,8 @@ describe('ConsoleTradeReceivingCards — the receiving card, frozen until its to
       props: {targets, landings: {}, players, leaving: false},
     });
     expect(wrapper.find('.face-stub').attributes('data-res'), 'the live 3 is not shown before a token lands').to.eq('1');
-    expect(wrapper.find('.con-colfocus__landmeta em').text()).to.eq('1 → 3');
+    expect(wrapper.find('.con-colfocus__landcount').text().replace(/\s+/g, '')).to.eq('1→3');
+    expect(wrapper.find('[data-landrole="tradeReward"]').text(), 'the card names WHO pays it, and how much').to.contain('+2');
     expect(wrapper.find('[data-played-key="Floating Habs"]').exists(), 'the destination ladder\'s anchor').to.eq(true);
   });
 
@@ -96,5 +97,45 @@ describe('ConsoleTradeReceivingCards — the receiving card, frozen until its to
     expect(wrapper.find('.con-colfocus__landflash').exists()).to.eq(true);
     await wrapper.setProps({leaving: true});
     expect(wrapper.find('section.con-colfocus__cardland').classes()).to.include('con-colfocus__cardland--leaving');
+  });
+
+  it('a card both acts pay is ONE face with two named parts', () => {
+    const players = [{color: 'blue', tableau: [card('Floating Habs', 1)]}] as unknown as ReadonlyArray<PublicPlayerModel>;
+    const targets = [{
+      card: 'Floating Habs', role: 'tradeReward', icon: 'floater', amount: 3, before: 1,
+      parts: [{role: 'tradeReward', amount: 2}, {role: 'colonyBonus', amount: 1}],
+    }] as never;
+    const wrapper = mount(ConsoleTradeReceivingCards, {
+      global: {...globalConfig.global, stubs: STUBS},
+      props: {targets, landings: {}, players, leaving: false, activeRole: 'tradeReward'},
+    });
+    expect(wrapper.findAll('.con-colfocus__landcell')).to.have.length(1);
+    expect(wrapper.find('[data-landrole="tradeReward"]').text()).to.contain('+2');
+    expect(wrapper.find('[data-landrole="colonyBonus"]').text()).to.contain('+1');
+    expect(wrapper.find('.con-colfocus__landcell').attributes('data-landcell-state'), 'one card is always the subject').to.eq('idle');
+  });
+
+  it('two cards paid by two acts: the one being paid NOW stands forward, the other waits; level once all landed', async () => {
+    const players = [{color: 'blue', tableau: [card('Floating Habs', 1), card('Dirigibles', 0)]}] as unknown as ReadonlyArray<PublicPlayerModel>;
+    const targets = [
+      {card: 'Floating Habs', role: 'tradeReward', icon: 'floater', amount: 2, before: 1},
+      {card: 'Dirigibles', role: 'colonyBonus', icon: 'floater', amount: 1, before: 0},
+    ] as never;
+    const wrapper = mount(ConsoleTradeReceivingCards, {
+      global: {...globalConfig.global, stubs: STUBS},
+      props: {targets, landings: {}, players, leaving: false, activeRole: 'tradeReward'},
+    });
+    const state = (name: string) => wrapper.find(`[data-played-key="${name}"]`).attributes('data-landcell-state');
+    expect(state('Floating Habs')).to.eq('receiving');
+    expect(state('Dirigibles')).to.eq('waiting');
+    expect(wrapper.find('section.con-colfocus__cardland').attributes('data-cardland-active')).to.eq('tradeReward');
+    await wrapper.setProps({landings: {'Floating Habs': 2}, activeRole: 'colonyBonus'});
+    expect(state('Floating Habs')).to.eq('waiting');
+    expect(state('Dirigibles')).to.eq('receiving');
+    expect(wrapper.find('[data-played-key="Floating Habs"]').classes()).to.include('con-colfocus__landcell--done');
+    await wrapper.setProps({landings: {'Floating Habs': 2, 'Dirigibles': 1}});
+    expect(state('Floating Habs')).to.eq('idle');
+    expect(state('Dirigibles')).to.eq('idle');
+    expect(wrapper.find('section.con-colfocus__cardland').attributes('data-cardland-active')).to.eq(undefined);
   });
 });

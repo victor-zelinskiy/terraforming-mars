@@ -20433,17 +20433,36 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
            docked ship's own plate in the owner's hue. */
         background: transparent;
         box-shadow: inset 0 0 0 .05rem fade(@con-text, 14%);
+        /* The plate COMES IN under the landed ship (the server's commit flips the class while the proxy still covers
+           the slot) — a short material change on the descent's clock, never a pop. */
+        transition:
+            background-color calc(260ms * var(--motion-scale, 1)) ease,
+            box-shadow calc(260ms * var(--motion-scale, 1)) ease;
 
         .colony-fleet-icon { width: 1.9rem; height: 1.9rem; }
+        /* OCCUPIED is a STANDING state — drawn by MATERIAL (a dark plate, the owner's kant), never a halo
+           (VISUAL RESTRAINT: the old outer glow in the owner's hue lit the planet's limb for the whole visit). */
         &--occupied {
             background: rgba(8, 14, 22, 0.85);
-            box-shadow: inset 0 0 0 .08rem var(--fleet-fill, fade(@con-cyan, 60%)), 0 0 .8rem var(--fleet-glow, fade(@con-cyan, 25%)), 0 .15rem .5rem rgba(0, 0, 0, 0.5);
+            box-shadow: inset 0 0 0 .08rem var(--fleet-fill, fade(@con-cyan, 60%)), 0 .15rem .5rem rgba(0, 0, 0, 0.5);
         }
         /* Arrival acknowledgment: the berth ring flares once as the flown
            proxy hands off to the real docked ship (one-shot, owner-hue). */
         &--just-docked {
             animation: con-colfocus-dock-ack calc(700ms * var(--motion-scale, 1)) ease-out;
         }
+    }
+    /* THE LANDING SLOT — exactly the docked ship's box (`data-fleet-berth`): the flight settles the proxy at this
+       rect's centre AND size, so the real ship paints where the proxy already is. */
+    &__orbit-slot {
+        width: 1.9rem;
+        height: 1.9rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+
+        .colony-fleet-icon { width: 100%; height: 100%; }
     }
     &__state {
         padding: .14rem .6rem;
@@ -21492,6 +21511,23 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         gap: .3rem;
         margin-top: .35rem;
     }
+    /* The verdict's seat: the verdict in flow, the past-the-press context FLOATING under it — zero layout, so the
+       centred column (the planet, its berth) never moves when the context arrives. */
+    &__verdictseat {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        max-width: 100%;
+    }
+    &__srcctx--float {
+        position: absolute;
+        top: 100%;
+        left: 50%;
+        width: max-content;
+        max-width: var(--colfocus-hero-w);
+        transform: translateX(-50%);
+    }
     &__srcchip {
         display: inline-flex;
         align-items: center;
@@ -21701,10 +21737,12 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
         /* The faces are the premium px design box; the cell's zoom scales it
            into the rem layout (multiplied by the profile scale by contract).
-           A pair shares the room at a step down; three or more step again. */
-        --con-cardland-zoom: calc(.52 * var(--con-ui-scale, 1));
-        &[data-cardland-count='2'] { --con-cardland-zoom: calc(.44 * var(--con-ui-scale, 1)); }
-        &[data-cardland-count='3'] { --con-cardland-zoom: calc(.36 * var(--con-ui-scale, 1)); }
+           THE CARD IS THE PROTAGONIST (the owner, 2026-10-25: «карта выглядит слишком мелкой» — at .52 it stood
+           a third of the main box's height): one card takes the box's height less its two reading lines, a pair
+           and three step down only as far as the box's WIDTH demands. */
+        --con-cardland-zoom: calc(.8 * var(--con-ui-scale, 1));
+        &[data-cardland-count='2'] { --con-cardland-zoom: calc(.72 * var(--con-ui-scale, 1)); }
+        &[data-cardland-count='3'] { --con-cardland-zoom: calc(.56 * var(--con-ui-scale, 1)); }
     }
     /* ── THE DEPARTURE — a beat of its own, never a crossfade with the
        returning working area. The card steps BACK (away from the reader) and
@@ -21721,17 +21759,68 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         left: auto;
         right: 1rem;
         width: var(--colfocus-rail-w);
-        --con-cardland-zoom: calc(.36 * var(--con-ui-scale, 1));
-        &[data-cardland-count='2'] { --con-cardland-zoom: calc(.3 * var(--con-ui-scale, 1)); }
+        --con-cardland-zoom: calc(.62 * var(--con-ui-scale, 1));
+        &[data-cardland-count='2'] { --con-cardland-zoom: calc(.38 * var(--con-ui-scale, 1)); }
         &[data-cardland-count='3'] { --con-cardland-zoom: calc(.26 * var(--con-ui-scale, 1)); }
     }
+    /* A RECEIVING CELL: who pays it · the card · its count. When two acts pay DIFFERENT cards the waves go in
+       turn and the card being paid NOW stands forward, the other a step back — opacity and a hair of scale
+       (compositor-only, never a glow); level again once everything has landed. */
     &__landcell {
         display: flex;
         flex-direction: column;
         align-items: center;
         gap: .4rem;
         min-width: 0;
+        transform-origin: 50% 60%;
+        transition:
+            opacity calc(240ms * var(--motion-scale, 1)) ease,
+            transform calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.2, 1);
     }
+    &__landcell--waiting {
+        opacity: .46;
+        transform: scale(.955);
+    }
+    &__landcell--receiving { transform: translateY(-.2rem); }
+    /* WHO PAYS THIS CARD — the act's name in tracked caps, its own amount and glyph; a card both acts pay
+       carries both lines. One reserved height for one line, so a single-role cell and a double one keep the
+       cards on one baseline. */
+    &__landroles {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: .2rem .7rem;
+        min-height: 1.2rem;
+        max-width: 100%;
+    }
+    &__landrole {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        min-width: 0;
+        font-size: .66rem;
+        line-height: 1.2rem;
+        white-space: nowrap;
+        color: fade(#dfeaf6, 72%);
+        transition: color calc(240ms * var(--motion-scale, 1)) ease;
+
+        .con-task__opt-res { width: 1rem; height: 1rem; }
+    }
+    &__landrole-name {
+        font-weight: 700;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    &__landrole-amount {
+        font-weight: 800;
+        color: @con-mint;
+        font-variant-numeric: tabular-nums;
+    }
+    /* The act whose wave is in the air names itself in full ink — the same moment the card stands forward. */
+    &__cardland[data-cardland-active='tradeReward'] &__landrole--tradeReward,
+    &__cardland[data-cardland-active='colonyBonus'] &__landrole--colonyBonus { color: #eef5fc; }
     &__landcard {
         position: relative;
         zoom: var(--con-cardland-zoom);
@@ -21750,9 +21839,10 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         pointer-events: none;
         animation: con-colfocus-landflash calc(560ms * var(--motion-scale, 1)) ease-out both;
     }
-    /* The landed card answers the contact — a settle accent, not a jump. */
-    &__landcell--landed &__landcard > :is(.card-container, .pcard) {
-        box-shadow: 0 0 0 .14rem fade(@con-mint, 72%), 0 0 1.2rem fade(@con-mint, 30%);
+    /* A card whose whole payment has landed wears a KANT — material, never a halo (VISUAL RESTRAINT: the old
+       mint glow stood for the whole read); the contact itself is the one-shot flash above. */
+    &__landcell--done &__landcard > :is(.card-container, .pcard) {
+        box-shadow: 0 0 0 .14rem fade(@con-mint, 72%);
         transition: box-shadow calc(260ms * var(--motion-scale, 1)) ease;
     }
     /* ── «На карту(ы):» — WHERE the card-resource total lands, under the
@@ -21790,21 +21880,38 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         color: fade(#dfeaf6, 88%);
         font-weight: 700;
     }
+    /* «было → стало» under the card — the count the capsule will read; «стало» turns mint once it is TRUE. */
     &__landmeta {
         display: inline-flex;
         align-items: center;
-        gap: .4rem;
-        font-size: .78rem;
+        gap: .45rem;
+        font-size: .92rem;
         font-weight: 700;
         color: fade(#dfeaf6, 90%);
+        font-variant-numeric: tabular-nums;
 
         em { font-style: normal; color: @con-mint; font-weight: 800; }
+        .con-task__opt-res { width: 1.25rem; height: 1.25rem; }
     }
+    &__landcount {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .35rem;
+
+        b {
+            font-weight: 800;
+            color: fade(#dfeaf6, 62%);
+            transition: color calc(240ms * var(--motion-scale, 1)) ease;
+        }
+    }
+    &__landarrow { color: fade(#dfeaf6, 46%); }
+    &__landcell--done &__landcount b { color: @con-mint; }
     @media (prefers-reduced-motion: reduce) {
         &--targeting &__main,
         &--targeting &__result,
         &--carding &__main { transition: none; }
         &__landflash { animation: none; }
+        &__landcell { transition: none; }
         &__cardland { transition: none; animation: none; }
         &__cardland--leaving { transform: none; }
     }

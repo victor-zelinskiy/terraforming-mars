@@ -1,6 +1,7 @@
 import * as path from 'path';
 import {test, expect, Page} from './consoleTest';
 import {bootFixtureSeats, press, pressUntil, settle} from './consoleStart';
+import {dockKeys} from './fleetDockDriver';
 
 /**
  * THE TABLE'S ANSWER HAS A DOOR ON EVERY STAGE (PL-066, 2026-10-06) — the «⚡ сработает» group a composer draws is the
@@ -33,16 +34,16 @@ async function openColonies(page: Page): Promise<void> {
 
 /**
  * Stand the cursor on ONE colony tile — the overview's own ring, verified by the focused tile itself. The ring has
- * a SECOND zone (the «ПРИЧАЛЫ» column: ▶ from a row's last tile enters it, ◀ returns), so the walk snakes the grid
- * row by row and steps back out of the column whenever no planet tile is focused.
+ * a SECOND zone (the «ПРИЧАЛЫ» group — a column beside the grid or a row under it), so the walk snakes the grid
+ * row by row and steps back out of the group whenever no planet tile is focused.
  */
 async function focusTile(page: Page, target: string): Promise<void> {
   const focused = page.locator(`.con-coltile--focused[data-test="con-colony-${target}"]`);
-  const anyTile = page.locator('.con-coltile--focused');
+  const anyTile = page.locator('.con-colonies__slot--focused');
   const snake = ['ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowRight', 'ArrowUp', 'ArrowUp', 'ArrowLeft', 'ArrowLeft'];
   for (let i = 0; i < snake.length * 2 && await focused.count() === 0; i++) {
     if (await anyTile.count() === 0) {
-      await press(page, 'ArrowLeft', 320);
+      await press(page, (await dockKeys(page)).back, 320);
       continue;
     }
     await press(page, snake[i % snake.length], 320);
