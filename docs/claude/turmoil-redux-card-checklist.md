@@ -21,15 +21,16 @@
   Mohole, Vote of No Confidence — и корпорация Septem Tribus; реестр `turmoilRedux/classicReplacements.ts`,
   сканы `…/TM Turmoil Redux/Projects/Replacement - <Имя>.png` и `…/Corporations/Corporation - Septem Tribus.png`)
   — у них ДРУГОЙ контракт: класс в Redux-манифесте под `:redux`-именем (`CardName.X_REDUX = 'X:redux'`, прецедент
-  `Deimos Down:promo` / `Capital:ares`), классическое имя — в `cardsToRemove` Redux-манифеста, и ТЕМ ЖЕ диффом
-  строка карты уходит из hold-back-списка `turmoil/turmoilReduxAdaptation.ts` (гард
-  `tests/cards/turmoil/TurmoilCardsUnderRedux.spec.ts` требует всё три). Под классическим именем гард манифеста
-  карту не пускает. Сканы печатают «TR00» — номер-ключ выбирает контракт (TR01–TR70 заняты).
+  `Deimos Down:promo` / `Capital:ares`), классическое имя — в `cardsToRemove` Redux-манифеста (гард
+  `tests/cards/turmoil/TurmoilReplacementsUnderRedux.spec.ts`). Под классическим именем гард манифеста
+  карту не пускает. Сканы печатают «TR00» — номер-ключ выбирает контракт (TR01–TR70 заняты). **ВСЕ СЕМЬ СДАНЫ
+  (TR71–TR77, последняя — TR76 Vote Of No Confidence, 2026-10-25).**
   Контракт и ворклист 22 классических карт Turmoil под Redux — `docs/TURMOIL_REDUX_CLASSIC_CARDS.md`.
-- [ ] **Классическая карта «на месте» входит в премиум-скоуп, ПОКИДАЯ hold-back-список** (`src/common/cards/turmoilReduxAdaptation.ts`,
-  T04 2026-10-21): `inPremiumScope` = «модули ∪ (`turmoil` − список)», так что удаление строки одновременно раздаёт карту на стол
-  Redux и вводит её во все гарды §3 — они печатают работу; пин адаптированных в `TurmoilCardsUnderRedux.spec` обновить тем же
-  диффом. Политика — только через `game.politics` (Executor уже на фасаде: `placeDelegates` / `addInfluenceBonus`).
+- [ ] **Классический Turmoil — ЧАСТЬ Redux (22 / 22, 2026-10-25).** Модуль `turmoil` в премиум-скоупе ЦЕЛИКОМ, кроме
+  заменённой классики (реестр замен — единственный список); временного hold-back-списка больше нет (история —
+  `docs/TURMOIL_REDUX_CLASSIC_CARDS.md`). Новая классическая карта с апстрим-синком роняет пин состава манифеста в
+  `TurmoilReplacementsUnderRedux.spec`, пока её не классифицируют: адаптировать на месте (политика — только через
+  `game.politics`) или завести строку замены. Политика — только через фасад (Executor: `placeDelegates` / `addInfluenceBonus`).
 - [ ] Новая механика? (новый ресурс карт, новая платёжная единица, новый вид требования) — сначала её
   инфраструктура сквозным контрактом (образец меха: `docs/TURMOIL_REDUX_EVA_MECHS.md` §2–§3), потом карта.
 
