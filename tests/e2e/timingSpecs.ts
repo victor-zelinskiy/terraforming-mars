@@ -25,6 +25,7 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   'console-flight-paint.spec.ts', // T12 / CA stand: the paint of every token sampled on its whole path (birth · approach · touchdown) against the rail, the strip and the plaques — motion itself
   'console-composer-preselect.spec.ts', // T14 / CC stand: the commit's ARRIVAL sampled (focus witness) and presses INSIDE the arrival window — motion itself
   'console-staged-board-clarity.spec.ts', // T15 / CD stand: B pressed INSIDE the staged ritual's windows (0 · 400 · 1200 · 2100 ms) and the bar's «Возвращаемся…» sampled while a hold owes it — motion itself
+  'console-vote-of-no-confidence.spec.ts', // TR76 stand: the chair EMPTY between the two figures, red's reserve ticking on its touchdown before blue sits, the marker's step only after — the order of motion itself
   'console-martian-media-center.spec.ts', // T07 / CH stand: the «−3» M€ token's birth on the row, its SIDEWAYS path and absorb, the row's tick on the departure and the cube's lift AFTER the absorb — motion itself
   'console-utopia-invest.spec.ts', // R33 stand: the production price's token off the badge BEFORE the +4 (the badge's tick on the departure, the stock's on the touchdown) and an A inside the sole variant's commit arrival — motion itself
   'console-finale-podium.spec.ts', // T08 «the count arrives as light»: the ignition cascade's stagger, the hurry's share of a natural category, the ranking / crowning FLIPs at the full pace — motion itself

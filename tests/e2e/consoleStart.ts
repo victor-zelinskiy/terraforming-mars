@@ -2963,6 +2963,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // TR74 Recruitment:redux: neutral cubes on two bills (Mars First ×2 alone; the Greens one, then blue's), red on Unity,
   // support Scientists 2; `-locked` no neutral cube on a bill, `-no-reserve` blue's reserve empty.
   'recruitment' | 'recruitment-locked' | 'recruitment-no-reserve' |
+  // TR76 Vote Of No Confidence:redux — the chair, then the Career, as the outcome of a play; the four blockers.
+  'vonc' | 'vonc-locked' | 'vonc-vacant' | 'vonc-self' | 'vonc-no-reserve' |
   'parliament' | 'parliament-actions' | 'parliament-recap' |
   'parliament-dense' | 'parliament-seat' | 'parliament-paid' | 'parliament-aquifer-vote' | 'parliament-aquifer-enact' |
   'parliament-architecture-vote' | 'parliament-access-edge' | 'septem-tribus' | 'septem-win' | 'parliament-architecture-recap' | 'parliament-cloud-vote' | 'parliament-cloud-assembly' | 'parliament-cloud-enact' |

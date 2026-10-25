@@ -287,6 +287,7 @@ import {SpaceId} from '../../../src/common/Types';
 import {PartySanctions} from '../../../src/server/cards/turmoilRedux/PartySanctions';
 import {BannedDelegateRedux} from '../../../src/server/cards/turmoilRedux/BannedDelegateRedux';
 import {RecruitmentRedux} from '../../../src/server/cards/turmoilRedux/RecruitmentRedux';
+import {VoteOfNoConfidenceRedux} from '../../../src/server/cards/turmoilRedux/VoteOfNoConfidenceRedux';
 import {hasPartyRequirement} from '../../../src/server/cards/requirements/partyRequirementCards';
 import {TransNeptuneProbe} from '../../../src/server/cards/base/TransNeptuneProbe';
 import {testAutomaGame, testAutomaMultiplayerGame} from '../../automa/AutomaTestGame';
@@ -4252,6 +4253,68 @@ function recruitmentFixture(name: string, table: 'full' | 'no-neutral' | 'no-res
 recruitmentFixture('recruitment', 'full');
 recruitmentFixture('recruitment-locked', 'no-neutral');
 recruitmentFixture('recruitment-no-reserve', 'no-reserve');
+
+// ── TR76 · VOTE OF NO CONFIDENCE:redux — «КРЕСЛО → КАРЬЕРА» as the OUTCOME of a play (docs/TURMOIL_REDUX_VOTE_OF_NO_
+//    CONFIDENCE.md): blue's action phase with the card in hand and 10 M€, blue on Career step 1 (influence 1 — the MIN
+//    plate met; the walk's step ② pays a TR the starting-rule Greens answer with +2 M€), red on step 3. A QUIET table —
+//    no enacted card, three quiet resolutions, no support — so the chair and the track are the only objects that move.
+//      `vonc` — RED in the chair: the card plays (red's cube home to red's reserve, blue's own from the reserve).
+//      `vonc-locked` — blue on step 0 (influence 0): the hand's chip «Влияние 0/1».
+//      `vonc-vacant` — nobody in the chair: «Снимать некого: председателя нет».
+//      `vonc-self` — BLUE in the chair: «Вы уже председатель».
+//      `vonc-no-reserve` — red in the chair, every delegate of blue's on the table or in the lobby: TR03's reserve reason.
+//    The card is the game's own copy. ──
+function voteOfNoConfidenceFixture(name: string, setup: 'red-chair' | 'influence-0' | 'vacant' | 'self' | 'no-reserve'): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [10, 30],
+    agenda: [setup === 'influence-0' ? 0 : 1, 3],
+    arrange: ({game, p1, p2, parliament}) => {
+      seatResolution(parliament, 0, CENTRAL_POWER_GRID_ID);
+      seatResolution(parliament, 1, ARCHITECTURE_AWARD_ID);
+      seatResolution(parliament, 2, COLONIZATION_FUNDING_ID);
+      for (const party of REDUX_PARTIES) {
+        parliament.popularSupport.set(party, 0);
+      }
+      for (const slot of parliament.slots) {
+        slot.votes = [];
+      }
+      parliament.chairman = setup === 'vacant' ? undefined : setup === 'self' ? p1.id : p2.id;
+      if (setup === 'no-reserve') {
+        while (parliament.reserve(p1) > 0) {
+          parliament.placeVote(p1, parliament.slots[2], 'reserve');
+        }
+      }
+      moveToDeckTop(game, CardName.VOTE_OF_NO_CONFIDENCE_REDUX);
+      p1.cardsInHand.push(game.projectDeck.drawPile.pop() as VoteOfNoConfidenceRedux);
+    },
+    expect: ({game, parliament, p1, p2}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.VOTE_OF_NO_CONFIDENCE_REDUX);
+      const facts = {
+        playable: card !== undefined && p1.canPlay(card),
+        chair: parliament.chairman === p1.id ? 'p1' : parliament.chairman === p2.id ? 'p2' : 'none',
+        influence: parliament.influence(p1),
+        reserve: parliament.reserve(p1),
+        ruling: parliament.rulingParty(),
+      };
+      const want = {
+        playable: setup === 'red-chair',
+        chair: setup === 'vacant' ? 'none' : setup === 'self' ? 'p1' : 'p2',
+        influence: setup === 'influence-0' ? 0 : 1,
+      };
+      if (facts.playable !== want.playable || facts.chair !== want.chair || facts.influence !== want.influence ||
+          (setup === 'no-reserve') !== (facts.reserve === 0) || facts.ruling !== PartyName.GREENS) {
+        throw new Error(`the ${name} fixture expected ${JSON.stringify(want)}, the Greens ruling — got ${JSON.stringify(facts)}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+voteOfNoConfidenceFixture('vonc', 'red-chair');
+voteOfNoConfidenceFixture('vonc-locked', 'influence-0');
+voteOfNoConfidenceFixture('vonc-vacant', 'vacant');
+voteOfNoConfidenceFixture('vonc-self', 'self');
+voteOfNoConfidenceFixture('vonc-no-reserve', 'no-reserve');
 
 // ── TR23 · HABITAT SCIENCE — «THE LEDGER PAYS» (docs/TURMOIL_REDUX_HABITAT_SCIENCE.md): blue's action phase with the
 //    card IN ITS TABLEAU holding 4 data (the action live, unused) and a colony on each of four tiles whose printed
