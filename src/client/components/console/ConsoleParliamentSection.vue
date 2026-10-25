@@ -974,6 +974,7 @@ export default defineComponent({
       return {
         stage: f.delegateStage,
         owner: target.owner,
+        ...(target.arrives === undefined ? {} : {arrives: target.arrives.owner}),
         place: target.place,
         party,
         ...(target.place === 'resolution' && slot !== undefined ? {resolution: slot.resolutionId} : {}),
@@ -993,7 +994,6 @@ export default defineComponent({
       return agendaWalkFlow.owed !== undefined && agendaWalkFlow.owed.host === 'hand' && this.embedded && !this.warm ? agendaWalkFlow.owed.seq : 0;
     },
     /** «ДЕЛЕГАТЫ» — a card's rally of neutral delegates is the section's subject (the rally pose stands, TR31). */
-        ...(target.arrives === undefined ? {} : {arrives: target.arrives.owner}),
     rallyUp(): boolean {
       return parliamentFlow.stage === 'rally';
     },
@@ -1186,6 +1186,7 @@ export default defineComponent({
           stagedFlow: this.stagedFlow,
           source: this.bridge.delegatePick?.card !== undefined,
           available: this.delegateMarked !== undefined,
+          exchange: this.delegateMeta?.source === 'exchange',
         },
         grant: this.bridge.grant === undefined ? undefined : {
           count: this.bridge.grant.count,
@@ -1205,7 +1206,6 @@ export default defineComponent({
       return (this.model?.players ?? []).filter((p) => p.participates).length;
     },
     /** X on the sitting inspects the enacted resolution — the object every stage is about. */
-          exchange: this.delegateMeta?.source === 'exchange',
     sittingInspectable(): boolean {
       return this.model?.phase?.summary?.enacted !== undefined && !this.sittingStepOpen;
     },

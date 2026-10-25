@@ -264,9 +264,9 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
     }
     const support = input.support;
     const cmds: Array<ConsoleCommand> = [
+      {control: 'dpad', label: 'Party choice', priority: 1},
       {
         control: 'confirm', label: support?.staged === true ? stagedDoorVerb(support.stagedFlow) : 'Select',
-      {control: 'dpad', label: 'Party choice', priority: 1},
         enabled: support?.available === true, highlight: support?.available === true,
       },
       {control: 'secondary', label: 'Inspect'},
@@ -283,11 +283,11 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
       return [{control: 'confirm', label: parliamentFlow.bannerBeat === 'done' || parliamentFlow.bannerBeat === 'read' ? 'Cube placed' : 'Performing…', enabled: false}];
     }
     const banner = input.banner;
-    const cmds: Array<ConsoleCommand> = [
-      {control: 'confirm', label: 'Place cube', enabled: banner?.available === true, highlight: banner?.available === true},
     // THE D-PAD CHOOSES THE PARTY (the owner, 2026-10-25): the bar says so first — the plaques are the mode's only stops.
-      {control: 'secondary', label: 'Inspect'},
+    const cmds: Array<ConsoleCommand> = [
       {control: 'dpad', label: 'Party choice', priority: 1},
+      {control: 'confirm', label: 'Place cube', enabled: banner?.available === true, highlight: banner?.available === true},
+      {control: 'secondary', label: 'Inspect'},
     ];
     if (banner?.source === true) {
       cmds.push({control: 'stickL', label: 'Source', priority: 1});
@@ -298,11 +298,11 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
   }
   case 'delegate': {
     // Past the press the figure is carried home on this stage: a STATUS, never a verb (the support mode's law).
+    const delegate = input.delegate;
     if (parliamentFlow.delegateCommitted) {
       const done = delegate?.exchange === true ? 'Delegate recruited' : 'Delegate removed';
       return [{control: 'confirm', label: parliamentFlow.delegateBeat === 'done' ? done : 'Performing…', enabled: false}];
     }
-    const delegate = input.delegate;
     const cmds: Array<ConsoleCommand> = [
       {
         control: 'confirm', label: delegate?.staged === true ? stagedDoorVerb(delegate.stagedFlow) : delegate?.exchange === true ? 'Recruit delegate' : 'Remove delegate',

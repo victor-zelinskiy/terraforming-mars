@@ -368,8 +368,6 @@ export type BandDelegate = {
 };
 
 /**
- * «ДЕЛЕГАТЫ» — a card's RALLY of neutral delegates (TR31) shown as the outcome of its play: the votes LANDED so
-/**
  * «ЗНАМЯ» — the BANNER mode (Septem Tribus:redux, the first action): the stage's own word, then what the d-pad is for
  * («выберите партию — ваш куб встанет на её знамя») while the pick is open — the plaques are the mode's only stops and
  * the line says so where the eye is; past the press, the party that takes the cube. Cyan until A, amber after it.
@@ -380,6 +378,8 @@ export type BandBanner = {
   committed: boolean;
 };
 
+/**
+ * «ДЕЛЕГАТЫ» — a card's RALLY of neutral delegates (TR31) shown as the outcome of its play: the votes LANDED so
  * far (a resolution chip each), the areas READ so far (a party chip each — with its named zero when it took
  * none), and — once the recount has begun — the count of neutral delegates in use, growing one mark at a time.
  * The chips grow one touchdown at a time, never as a batch; the number ticks in place.
@@ -407,10 +407,10 @@ export type BandContext = {
   support?: BandSupport;
   /** `undefined` outside the delegate mode (TR72). */
   delegate?: BandDelegate;
-  standing: BandStanding;
-};
   /** `undefined` outside the banner mode (Septem Tribus:redux). */
   banner?: BandBanner;
+  standing: BandStanding;
+};
 
 /** The support wave's own rule — the ONE statement of what is being paid and to whom. */
 function supportRuleKey(wave: '' | SupportStatus): string {
@@ -430,11 +430,11 @@ export function parliamentBandLine(ctx: BandContext): BandLine {
     if (ctx.rally !== undefined) {
       return rallyLine(ctx.rally);
     }
-    if (ctx.support !== undefined) {
-      return supportLine(ctx.support);
     if (ctx.banner !== undefined) {
       return bannerLine(ctx.banner);
     }
+    if (ctx.support !== undefined) {
+      return supportLine(ctx.support);
     }
     if (ctx.delegate !== undefined) {
       return delegateLine(ctx.delegate);
@@ -524,8 +524,6 @@ function supportLine(support: BandSupport): BandLine {
 }
 
 /**
- * ИЗГНАНИЕ — the delegate mode: whose figure is under the cursor and where it stands («[фигура] player2 · [bill]», or
-/**
  * ЗНАМЯ — the banner mode: the instruction while the pick is open (one key — the line stands still while the cursor
  * walks: the panel reads the plaque under it), the chosen party once the press is in.
  */
@@ -541,6 +539,8 @@ function bannerLine(banner: BandBanner): BandLine {
   };
 }
 
+/**
+ * ИЗГНАНИЕ — the delegate mode: whose figure is under the cursor and where it stands («[фигура] player2 · [bill]», or
  * «[фигура] Нейтральный · [emblem] party · Народная поддержка»). The key follows the cursor (one crossfade per figure)
  * and the commit, and stands still between them.
  */
@@ -548,6 +548,9 @@ function delegateLine(delegate: BandDelegate): BandLine {
   const chips: Array<BandChip> = [{kind: 'player', player: delegate.owner}];
   if (delegate.place === 'resolution' && delegate.resolution !== undefined) {
     chips.push({kind: 'resolution', resolution: delegate.resolution, party: delegate.party});
+    if (delegate.arrives !== undefined) {
+      chips.push({kind: 'label', key: 'in its place', tone: 'quiet'}, {kind: 'player', player: delegate.arrives});
+    }
   } else {
     chips.push({kind: 'party', party: delegate.party});
     chips.push({kind: 'label', key: 'Popular support', tone: 'quiet'});
@@ -580,9 +583,6 @@ function questLine(quest: BandQuest): BandLine {
     chips.push({kind: 'agenda', to: move.to, bonus: move.bonus});
     return {kicker: 'Agenda track', key: `quest:agenda:${player ?? ''}:${move.to}`, chips, committed: true};
   }
-    if (delegate.arrives !== undefined) {
-      chips.push({kind: 'label', key: 'in its place', tone: 'quiet'}, {kind: 'player', player: delegate.arrives});
-    }
   if (quest.beat === 'seat') {
     if (player !== undefined) {
       chips.push({kind: 'player', player});
