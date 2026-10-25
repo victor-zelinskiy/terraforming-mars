@@ -6243,3 +6243,33 @@ ${0} resolution(s) at once» + `UnplayableReason.leadership` (классика �
 Прогон на Steam Machine из worktree коммита (соседский WIP в общем дереве не компилировался): спек 3/3 + канарейка; регрессия
 20/20 (political-recognition, minority-representation, card-availability, hand-chip-scale, martian-census, political-think-tank,
 septem-tribus, political-science, tv-profile-screens). Кадры — `screenshots/political-alliance/tv4k/`.
+
+## TR74 · Recruitment:redux («Вербовка») — ШЕСТАЯ КАРТА-ЗАМЕНА · РЕЖИМ TR72 КАК ОБМЕН — СДАНА 2026-10-25
+
+**Карта** (`turmoilRedux/RecruitmentRedux.ts`, `8e725b27bf`): событие, 2, без меток, без требования; лицо скана «− [нейтральная
+фигура]* + [своя фигура]». TR74 по строке реестра (сдана шестой — параллельно с TR73 соседа); `reimplements: RECRUITMENT` → арт T11
+(импортирован) и лор ВЛАДЕЛЬЦА T11 — строке добавлена точка («Join us, and your voice will be heard.», гард пунктуации лора) и RU
+«Присоединяйтесь — и ваш голос будет услышан.» (`a9394e0ace`). Регистрация по шаблону; в hold-back остался только VoNC.
+
+**Механика — ни второго режима, ни второго ввода** (`docs/TURMOIL_REDUX_BANNED_DELEGATE.md` §6): `RemoveDelegate {source:
+'exchange'}` — цели `exchangeTargetsOf` (нейтральные кубы на резолюциях области голосования; без «не-лидера»; ни областей, ни кубов
+мест), прогноз после ОБОИХ ходов (`arrives`, `effectsGained`, лидер / победитель), две причины по порядку (стол → резерв, ключ
+TR03) одной функцией `previewSkip()`, ответ — одна операция (нейтральный → запас, свой из резерва даром ПОСЛЕДНИМ; пустой резерв /
+ушедший куб = именованный пропуск, ничего не двигается), два факта журнала, `lastRemoval.exchange`. Клиент (`d3ce9f3c08`): стадия
+«ОБМЕН» (не «ВЕРБОВКА» — эхо имени карты), панель «уходит / приходит» + «ВАШИ ДЕЛЕГАТЫ 1 → 2 · ЭФФЕКТ ПАРТИИ → Получено», лента
+«… на его место · [своя]», полоса «Завербовать делегата», ДВА полёта одной фразой (`flyExchangedDelegate`, холды
+`delegateExchangeArrival` / `delegateExchangeReserveStanding`).
+
+**Гарды.** `RemoveDelegate.spec` § exchange (13), `RecruitmentRedux.spec` (16), `stagedDelegate.spec` § exchange (7), глоссарий
+(«Обмен», «Завербовать делегата», «Делегат завербован»); `test:server` 18261 / `test:client` 7737 зелёные. e2e (Steam Machine,
+tv4k) `console-recruitment` 3/3: одна крошка «Розыгрыш → Разыграно → Обмен», курсор только по двум нейтральным фигурам, стол не
+двигается, панель — обе половины и прогноз сервера, ОДИН адресованный POST, ходы по очереди (лента 2→1 на 8373 мс, запас +1 на
+8641, резерв −1 на 8671, лента 1→2 на 8944 — motion ×0.5), сервер согласен, конец на поле; обе причины названы; reduced motion —
+ничего не летит. Регрессия 50/50 (+2 давних пропуска): canary, banned-delegate, political-donation, party-sanctions,
+parliament-stability, vote-fit / -geometry / -rivals, septem-tribus, tv-profile-screens. Кадры — `screenshots/recruit/tv/`.
+
+**Найдено прогоном и исправлено** (`bc01947d53`): (1) строка «приходит» печатала английский ключ с «0» — правка шла через JS
+template literal и `${0}` интерполировался в ИСХОДНИК (гард сырых шаблонов такое не видит); (2) после A панель говорила
+«Единственная цель» — `sole` считался по кольцу, которое УЖЕ изменил ответ (касалось и TR72: последняя фигура → пустое кольцо);
+чтение снимка — не курсор, `sole: false`. **Процесс:** частичные коммиты через приватный индекс с `git apply --unidiff-zero`
+сдвинули вставки в общих файлах Парламента (мои и соседа TR77) — исправлено `c6c055c917` (три файла = рабочее дерево).
