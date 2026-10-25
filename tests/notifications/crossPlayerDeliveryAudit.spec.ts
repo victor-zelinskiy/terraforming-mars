@@ -940,8 +940,9 @@ describe('cross-player delivery audit (the viewer hears about foreign actions)',
 
     const victimCards = deliveredModels(game, owner.color).filter((m) => m.correlationId === root!.correlationId);
     expect(victimCards, 'exactly ONE card for the previous chairman — never a twin').has.length(1);
-    expect(victimCards[0].variant).eq('chairman');
-    expect(victimCards[0].header.message, 'their delegate is back in their reserve — practical, never a loss statement')
+    const [victimCard] = victimCards;
+    expect(victimCard?.variant).eq('chairman');
+    expect(victimCard?.header?.message, 'their delegate is back in their reserve — practical, never a loss statement')
       .eq('Your delegate left the chairmanship and returned to your reserve');
     expect(deliveredModels(game, builder.color).filter((m) => m.correlationId === root!.correlationId), 'the actor walked the flow — no card of it').has.length(0);
   });
