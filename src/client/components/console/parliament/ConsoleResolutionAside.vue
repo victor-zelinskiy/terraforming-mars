@@ -107,6 +107,7 @@ export default defineComponent({
         access: seat.access.find((a) => a.party === this.party),
         actionId,
         action: model.viewer?.partyActions.find((a) => a.party === this.party),
+        bannerCubes: [],
       };
       const state = partyActionStateOf(vm, this.canActNow);
       return state.kind === 'none' ? undefined : state;

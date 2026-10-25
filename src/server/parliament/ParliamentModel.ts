@@ -628,6 +628,13 @@ function summaryModel(game: IGame, parliament: Parliament, summary: SerializedPh
       ...(answer.production === undefined ? {} : {production: {...answer.production}}),
     }));
   }
+  if (summary.bannerCubes !== undefined) {
+    model.bannerCubes = summary.bannerCubes.map((cube) => ({
+      player: game.getPlayerById(cube.player).color,
+      party: cube.party as ReduxParty,
+      card: cube.card,
+    }));
+  }
   if (summary.discarded !== undefined) {
     model.discarded = summary.discarded.map((instance) => {
       const definition = parliament.resolutionOf(instance);

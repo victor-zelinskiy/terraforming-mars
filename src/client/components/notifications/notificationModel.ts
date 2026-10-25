@@ -188,6 +188,8 @@ const PARLIAMENT_OUTCOME_EVENTS: ReadonlySet<GameEvent['type']> = new Set([
   'influence-changed',
   // TR72 Banned Delegate:redux — a delegate taken off a resolution or a support area.
   'delegate-removed',
+  // Septem Tribus:redux — a cube put on a party's banner (the party's effect is the seat's while it stands).
+  'banner-cube-placed',
 ]);
 
 /** A party's effect gained / lost by the seat (PL-112) rides this chain. */

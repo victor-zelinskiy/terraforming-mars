@@ -579,6 +579,36 @@ export type DelegatePromptMeta = {
   targets: ReadonlyArray<DelegateTargetProjection>;
 };
 
+/**
+ * EXPLICIT marker that a `SelectParty` puts the player's own CUBE on a party's BANNER (Turmoil Redux
+ * Septem Tribus:redux — «place 1 of your cubes on the banner of any party»). A cube on a banner IS a grant of
+ * that party's EFFECT (`Parliament.grantPartyEffect`, source = the card) — never its requirement (FAQ p.19).
+ * The console's Parliament reads the marker (never the title) to open its BANNER mode: the cursor walks the six
+ * party plaques, nothing moves.
+ *
+ * `parties` holds ONE row per party of the parliament, in the table's order — the SERVER's projection:
+ * `hasCube` (the player's cube already stands there — refused with its `reason`: one cube per banner),
+ * `hasEffect` (the player holds the party's effect by another road right now — the cube is still placed: it
+ * outlives that road), `available`. The prompt's `parties` are exactly the available rows. The giver rides
+ * `choiceContext.source`. Serialized on `SelectParty.toModel` (nesting-safe), never centrally.
+ */
+export type BannerPromptMeta = {
+  /** Why the cube is placed — `first-action`: the corporation's mandatory first action. */
+  source: 'first-action';
+  parties: ReadonlyArray<BannerPartyProjection>;
+};
+
+/** One party's row of `BannerPromptMeta.parties`. */
+export type BannerPartyProjection = {
+  party: PartyName;
+  available: boolean;
+  hasCube: boolean;
+  /** The player holds the party's effect by another road right now (it rules, delegates, an alliance). */
+  hasEffect: boolean;
+  /** The ONE reason a refused banner is refused (an English i18n key). Absent on a candidate. */
+  reason?: string;
+};
+
 /** Who wins the sitting on a table — the resolution's party and its winner (the neutral player when no seat stands on it). */
 export type DelegateWinnerProjection = {party: PartyName, owner: DelegateOwner};
 
@@ -783,6 +813,9 @@ export type BaseInputModel = {
   /** Explicit "this SelectParty picks ONE Turmoil Redux DELEGATE off the
    *  table" marker (see {@link DelegatePromptMeta}). Serialized on `SelectPartyDelegate.toModel`. */
   delegatePrompt?: DelegatePromptMeta;
+  /** Explicit "this SelectParty puts the player's CUBE on a party's BANNER"
+   *  marker (see {@link BannerPromptMeta}). Serialized on `SelectParty.toModel`. */
+  bannerPrompt?: BannerPromptMeta;
   /** Explicit "this SelectPayment settles a Turmoil Redux VOTE from the
    *  reserve" marker (see {@link VotePaymentMeta}). Serialized on `SelectPayment.toModel`. */
   votePayment?: VotePaymentMeta;

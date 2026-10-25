@@ -26,7 +26,7 @@ function access(party: ReduxParty, over: Partial<PartyAccessModel> = {}): PartyA
 }
 
 function partyVm(party: ReduxParty, ruling: boolean): ParliamentPartyVm {
-  return {party, effect: getPartyEffect(party), rule: 'r', support: 0, inArea: false, ruling, access: undefined, actionId: undefined, action: undefined};
+  return {party, effect: getPartyEffect(party), rule: 'r', support: 0, inArea: false, ruling, access: undefined, actionId: undefined, action: undefined, bannerCubes: []};
 }
 
 function view(ruler: ReduxParty, held: ReadonlyArray<PartyAccessModel>, enacted?: ParliamentViewVm['enacted']): ParliamentViewVm {

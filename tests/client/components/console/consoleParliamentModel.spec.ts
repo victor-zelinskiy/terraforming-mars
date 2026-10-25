@@ -31,7 +31,7 @@ function access(over: Partial<PartyAccessModel> = {}): PartyAccessModel {
 function party(over: Partial<ParliamentPartyVm> = {}): ParliamentPartyVm {
   return {
     party: PartyName.GREENS, effect: getPartyEffect(PartyName.GREENS), rule: 'r', support: 0, inArea: false, ruling: false,
-    access: undefined, actionId: undefined, action: undefined, ...over,
+    access: undefined, actionId: undefined, action: undefined, bannerCubes: [], ...over,
   };
 }
 

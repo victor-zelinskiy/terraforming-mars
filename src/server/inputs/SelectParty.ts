@@ -36,6 +36,9 @@ export class SelectParty extends BasePlayerInput<PartyName> {
     if (this.supportPrompt !== undefined) {
       model.supportPrompt = this.supportPrompt;
     }
+    if (this.bannerPrompt !== undefined) {
+      model.bannerPrompt = this.bannerPrompt;
+    }
     return model;
   }
 

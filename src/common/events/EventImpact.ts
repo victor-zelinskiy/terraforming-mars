@@ -201,6 +201,8 @@ export type EventImpact = {
    * resolution of the voting area (`resolution` its catalog id) or a party's Popular Support area — whose cube it
    * was, where it went (a seat's RESERVE / the common SUPPLY) and the place's count after it.
    */
+  /** A CUBE PUT ON A PARTY'S BANNER (`banner-cube-placed`, Septem Tribus:redux): the party whose effect it grants. */
+  bannerCube?: {party: PartyName};
   delegateRemoved?: {place: DelegatePlace; party: PartyName; resolution?: string; owner: DelegateOwner; returnsTo: 'reserve' | 'supply'; total: number};
   /**
    * A PARTY'S EFFECT changed hands for the event's seat (`party-effect-gained`

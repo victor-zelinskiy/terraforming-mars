@@ -824,6 +824,42 @@
   pointer-events: none;
 }
 
+/* «YOUR CUBE ON A PARTY'S BANNER» (PremiumBannerCubeGlyph — Turmoil Redux Septem Tribus:redux): the owner's wild-party
+   pill at its own 256×184 proportion, the player's white cube seated over its lower-left corner (the scan's mark). The
+   cube is MATERIAL — a white block, an inset hairline edge, a one-pixel drop line under it; no halo (invariant 15), no
+   `filter` (the console strips it). `--pbcube-size` is the pill's height. */
+.pbcube {
+  --pbcube-h: var(--pbcube-size, calc(var(--pcard-mech-icon, 24px) * 1.3));
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  height: var(--pbcube-h);
+  aspect-ratio: 256 / 184;
+  vertical-align: middle;
+}
+.pbcube.pcard-ic {
+  width: auto;
+  height: var(--pbcube-h);
+  background: none;
+  filter: none;
+}
+.pbcube__pill {
+  position: absolute;
+  inset: 0;
+  background: url(./assets/misc/wild-party.png) center / contain no-repeat;
+}
+.pbcube__cube {
+  position: absolute;
+  left: -4%;
+  bottom: -6%;
+  width: calc(var(--pbcube-h) * 0.44);
+  height: calc(var(--pbcube-h) * 0.44);
+  box-sizing: border-box;
+  border-radius: 18%;
+  background: linear-gradient(180deg, #ffffff 0%, #f1f3f5 60%, #d9dde2 100%);
+  box-shadow: inset 0 0 0 1px rgba(40, 46, 56, 0.55), 0 1px 0 rgba(20, 24, 30, 0.45);
+}
+
 /* ONE NAMED PARTY's SEAL (Turmoil Redux TR62 — «[Mars First] = [Reds]», «[Mars First][Reds] RULING : [card]»): the
    party's emblem from the one table (`partyEmblems.ts`), a round badge a step larger than a mechanics icon (the scan's
    seals lead their rows). A STACKED seal overlaps the one before it by a third — the scan's pair — and carries the

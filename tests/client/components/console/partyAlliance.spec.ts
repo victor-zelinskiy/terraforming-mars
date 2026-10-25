@@ -52,7 +52,7 @@ const marsRuling = () => access(M, {ruling: true, hasEffect: true, satisfiesRequ
 const redsDormant = () => access(R, {alliances: [{partner: M, source: ID}]});
 
 function party(p: ReduxParty, a: PartyAccessModel | undefined, over: Partial<ParliamentPartyVm> = {}): ParliamentPartyVm {
-  return {party: p, effect: getPartyEffect(p), rule: 'r', support: 0, inArea: true, ruling: a?.ruling ?? false, access: a, actionId: undefined, action: undefined, ...over};
+  return {party: p, effect: getPartyEffect(p), rule: 'r', support: 0, inArea: true, ruling: a?.ruling ?? false, access: a, actionId: undefined, action: undefined, bannerCubes: [], ...over};
 }
 
 function slotVm(over: Partial<ParliamentSlotVm> = {}): ParliamentSlotVm {

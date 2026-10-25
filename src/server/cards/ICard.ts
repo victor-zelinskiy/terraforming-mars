@@ -349,6 +349,21 @@ export interface ICard {
    */
   onRulingPartyChanged?(player: IPlayer, next: ReduxParty, previous: ReduxParty): void;
   /**
+   * Turmoil Redux — a hook the SITTING calls for the WINNING PLAYER of the
+   * winning resolution («when you win on a resolution» — rulebook p.8: the
+   * player with the most delegates on it). Called at the ENACTMENT
+   * (`ParliamentPhase.stepEnact`), right after the resolution took the ENACTED
+   * slot and the ruling-party hooks ran — so what the hook opens for its owner
+   * is read against the new power (a cube on the new ruling party's banner is
+   * no access news: the party rules). ONCE per sitting, for every card of the
+   * winner's tableau carrying the hook, inside `events.withEffect(player, card,
+   * 'resolution-won')` and under the step's own `enact:` key (a reload
+   * mid-sitting never calls it twice). Never for the NEUTRAL player's win, and
+   * never for a seat outside the PARTY-EFFECTS aspect (MarsBot). First holder:
+   * Septem Tribus:redux (a cube on the won resolution's party's banner).
+   */
+  onResolutionWon?(player: IPlayer, context: {instance: ResolutionInstanceId, resolution: ResolutionId, party: ReduxParty}): void;
+  /**
    * THIS CARD IS A FLEET DOCK (Turmoil Redux — TR06 Water Hauling, TR26 UNMI
    * Liner, TR27 Aurora Station: «once per generation, when you trade, you can
    * send the trade fleet to this card to …»): a DESTINATION of its owner's

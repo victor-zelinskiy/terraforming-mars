@@ -57,14 +57,13 @@ export const TURMOIL_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
  * classic name stands in the Redux manifest's `cardsToRemove`. Aerial Lenses left 2026-10-24
  * (TR71 `Aerial Lenses:redux` — the first replacement; the template for the rows below); Banned
  * Delegate left the same day (TR72 `Banned Delegate:redux` — the Parliament's delegate mode); Sponsored
- * Mohole left 2026-10-25 (TR75 `Sponsored Mohole:redux` — numbered by its registry row, authored third).
+ * Mohole left 2026-10-25 (TR75 `Sponsored Mohole:redux` — numbered by its registry row, authored third), and
+ * the Septem Tribus corporation the same day (TR77 `Septem Tribus:redux` — the cubes on the parties' banners).
  */
 export const TURMOIL_CARDS_AWAITING_REDUX_REPLACEMENT: ReadonlyArray<CardName> = [
   CardName.POLITICAL_ALLIANCE, // → leader of 2 resolutions → 1 Agenda step (cost 2)
   CardName.RECRUITMENT, // → a NEUTRAL delegate on a resolution ↔ your own from the reserve
   CardName.VOTE_OF_NO_CONFIDENCE, // → ≥1 influence; unseat the CURRENT chairman → 1 Agenda step
-  // Also `compatibility: 'turmoil'` without a `politics` mark — `isCompatibleWith` keeps it out on its own.
-  CardName.SEPTUM_TRIBUS, // → 40 M€, banner cubes grant party effects (`grantPartyEffect`)
 ];
 
 /** The one set `GameCards` (through the server predicate) and `inPremiumScope` read: every classic Turmoil card not yet adapted. */

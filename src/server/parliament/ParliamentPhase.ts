@@ -65,6 +65,7 @@ import {payBotTileGrant} from '../automa/BotTileGrant';
 import {payAgendaGrant} from './resolutions/ResolutionAgendaGrant';
 import {SeatGrantDeed, seatGrantsOf} from './resolutions/SeatGrants';
 import {SittingAcks} from './SittingAcks';
+import {isBannerCubeSource} from '../../common/parliament/bannerCubes';
 
 /**
  * THE HANDLE OF A WORLD STEP — the seat the engine's parameter API is handed
@@ -500,6 +501,7 @@ export class ParliamentPhase {
     this.game.log('Resolution ${0} is enacted', (b) => b.resolution(definition.id));
     this.game.log('${0} is now the ruling party — every player has its effect', (b) => b.partyName(definition.party));
     this.fireRulingPartyChanged(definition.party, previousRuling);
+    this.fireResolutionWon(instance, definition.id, definition.party);
     if (!p.final) {
       parliament.setQuestFromEnacted(p.generation + 1);
       this.game.log('Chairman quest for generation ${0}: ${1}', (b) => b.number(p.generation + 1).string(definition.text.quest));
@@ -531,6 +533,36 @@ export class ParliamentPhase {
         const answer = rulingAnswerOf(player, card.name, next, before);
         if (answer !== undefined) {
           (this.summary.rulingAnswers ??= []).push(answer);
+        }
+      }
+    }
+  }
+
+  /**
+   * THE WINNER'S CARDS ANSWER THE WIN (`ICard.onResolutionWon` — Septem Tribus:redux). The winning PLAYER only —
+   * never the neutral player, never a seat outside the party effects (MarsBot) — every card of their tableau
+   * carrying the hook, ONCE, under the card's own effect scope; inside the step's own `enact:` key, so a reload
+   * mid-sitting never calls it twice. A banner cube the hook places is MEASURED into the summary (a banner grant
+   * that was not there before) — the client's «куб на знамя» beat reads that record, never a re-derivation.
+   */
+  private fireResolutionWon(instance: ResolutionInstanceId, resolution: ResolutionId, party: ReduxParty): void {
+    const winnerId = this.summary.winner.player;
+    if (winnerId === undefined || winnerId === 'NEUTRAL') {
+      return;
+    }
+    const player = this.game.getPlayerById(winnerId);
+    if (!this.parliament.participates(player, 'party-effects')) {
+      return;
+    }
+    for (const card of player.tableau) {
+      if (card.onResolutionWon === undefined) {
+        continue;
+      }
+      const before = new Set((this.parliament.grantedEffects.get(player.id) ?? []).map((g) => `${g.party}|${g.source}`));
+      this.game.events.withEffect(player, card, 'resolution-won', () => card.onResolutionWon?.(player, {instance, resolution, party}));
+      for (const grant of this.parliament.grantedEffects.get(player.id) ?? []) {
+        if (!before.has(`${grant.party}|${grant.source}`) && isBannerCubeSource(grant.source)) {
+          (this.summary.bannerCubes ??= []).push({player: player.id, party: grant.party, card: card.name});
         }
       }
     }

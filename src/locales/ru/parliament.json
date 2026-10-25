@@ -1387,5 +1387,11 @@
   "From the Popular Support of «${0}»": "Из народной поддержки «${0}»",
   "To the reserve of ${0}": "В резерв игрока ${0}",
   "To the common supply": "В общий запас",
-  "Delegate removed": "Делегат изгнан"
+  "Delegate removed": "Делегат изгнан",
+    "Select a party to place your cube on its banner": "Выберите партию — ваш куб встанет на её знамя",
+    "Place cube": "Поставить куб",
+    "Party banner": "Знамя партии",
+    "Your cube already stands on this banner": "Ваш куб уже стоит на этом знамени",
+    "Your cube already stands on every banner": "Ваш куб уже стоит на всех знамёнах",
+    "${0} places a cube on the banner of ${1}": "${0} ставит куб на знамя партии «${1}»"
 }

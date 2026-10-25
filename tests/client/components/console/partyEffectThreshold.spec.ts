@@ -47,7 +47,7 @@ function lowered(delegates: number, over: Partial<PartyAccessModel> = {}): Party
 }
 
 function party(over: Partial<ParliamentPartyVm> = {}): ParliamentPartyVm {
-  return {party: S, effect: getPartyEffect(S), rule: 'r', support: 0, inArea: true, ruling: false, access: undefined, actionId: undefined, action: undefined, ...over};
+  return {party: S, effect: getPartyEffect(S), rule: 'r', support: 0, inArea: true, ruling: false, access: undefined, actionId: undefined, action: undefined, bannerCubes: [], ...over};
 }
 
 function slotVm(over: Partial<ParliamentSlotVm> = {}): ParliamentSlotVm {

@@ -140,7 +140,7 @@ function cardDoorPanel(resolution: IClientResolution, row: VoteSupportProjection
     isWinning: false, tiePriority: 1, viewerVotes: mine, viewerEffectDelegates: 2, projection,
   };
   const party: ParliamentPartyVm = {
-    party: resolution.party, effect: getPartyEffect(resolution.party), rule: undefined, support: row.current, inArea: true, ruling: false, access, actionId: undefined, action: undefined,
+    party: resolution.party, effect: getPartyEffect(resolution.party), rule: undefined, support: row.current, inArea: true, ruling: false, access, actionId: undefined, action: undefined, bannerCubes: [],
   };
   const facts = voteFactsOf({
     slot, party, viewer: BLUE, forecast: voteForecastOf(slot, BLUE, model.viewer?.vote), snapshot: undefined, landed: false,

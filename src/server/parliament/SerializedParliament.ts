@@ -404,6 +404,20 @@ export type SerializedPhaseSummary = {
    * when no card answered and on a save from before this field.
    */
   rulingAnswers?: Array<SerializedRulingAnswer>;
+  /**
+   * THE CUBES THE SITTING PUT ON BANNERS (`ICard.onResolutionWon` — Septem Tribus:redux): the winner's card,
+   * the party of the won resolution, MEASURED around the hook — a grant of a banner source that was not there
+   * before. A cube already standing writes nothing (the client's beat is skipped, nothing blinks). Absent when
+   * no cube was placed and on a save from before this field.
+   */
+  bannerCubes?: Array<SerializedBannerCube>;
+};
+
+/** ONE cube a sitting put on a party's banner (see `SerializedPhaseSummary.bannerCubes`). */
+export type SerializedBannerCube = {
+  player: PlayerId;
+  party: PartyName;
+  card: CardName;
 };
 
 /** ONE card's measured answer to a change of power (see `SerializedPhaseSummary.rulingAnswers`). */

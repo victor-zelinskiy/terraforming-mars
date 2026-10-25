@@ -110,7 +110,7 @@ function tableFor(resolution: IClientResolution, agenda: number, edge: boolean, 
     isWinning: false, tiePriority: 1, viewerVotes: mine, viewerEffectDelegates: 2, projection,
   };
   const party: ParliamentPartyVm = {
-    party: resolution.party, effect: getPartyEffect(resolution.party), rule: undefined, support: 0, inArea: true, ruling: false, access, actionId: undefined, action: undefined,
+    party: resolution.party, effect: getPartyEffect(resolution.party), rule: undefined, support: 0, inArea: true, ruling: false, access, actionId: undefined, action: undefined, bannerCubes: [],
   };
   return {model, slot, party, projection};
 }

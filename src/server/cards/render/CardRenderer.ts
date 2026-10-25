@@ -261,6 +261,14 @@ abstract class Builder<T> {
   }
 
   /**
+   * Turmoil Redux Septem Tribus:redux: «YOUR CUBE ON A PARTY'S BANNER» — the printed wild-party pill with the
+   * player's cube in its corner. The ONLY way to print a banner cube: never `delegates()`, never `partyRequirement()`.
+   */
+  public bannerCube(options?: ItemOptions): this {
+    return this._appendToRow(new CardRenderItem(CardRenderItemType.BANNER_CUBE, -1, options));
+  }
+
+  /**
    * Turmoil Redux: ONE NAMED PARTY's seal — its emblem plate (TR62 Tharsis
    * Alliance: «[Mars First] = [Reds]»). `stacked` overlaps the seal before it
    * (the scan's pair); `text` is the caption printed under the pair («RULING»).

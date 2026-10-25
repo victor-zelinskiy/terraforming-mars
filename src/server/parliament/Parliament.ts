@@ -79,6 +79,9 @@ export type WinnerVerdict = {
   playerTieBreak?: 'earlier-delegate';
 };
 
+/** Every card name — a grant's `source` that is one is logged as a card token. */
+const CARD_NAME_VALUES: ReadonlySet<string> = new Set(Object.values(CardName));
+
 /** Every reason a player holds a party's effect — each one stands on its own. */
 export type PartyAccess = {
   party: ReduxParty;
@@ -751,7 +754,12 @@ export class Parliament {
       } else if (gained && basis === 'alliance' && ally !== undefined) {
         game.log('${0} gains the ${1} party effect — allied with ${2} (${3})', (b) => b.player(player).partyName(party).partyName(ally.via).cardName(ally.source));
       } else if (gained) {
-        game.log('${0} gains the ${1} party effect — granted by ${2}', (b) => b.player(player).partyName(party).string(grant?.source ?? ''));
+        // A CARD's grant (Septem Tribus:redux) names the card as a card token — the journal's chip, the RU name.
+        game.log('${0} gains the ${1} party effect — granted by ${2}', (b) => {
+          const source = grant?.source ?? '';
+          b.player(player).partyName(party);
+          return CARD_NAME_VALUES.has(source) ? b.cardName(source as CardName) : b.string(source);
+        });
       } else if (basis === 'delegates') {
         game.log('${0} loses the ${1} party effect: fewer than ${2} delegate(s) on its resolution', (b) => b.player(player).partyName(party).number(delegates));
       } else if (basis === 'alliance' && ally !== undefined) {

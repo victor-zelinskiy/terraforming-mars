@@ -42,6 +42,8 @@
       <span class="pcard-pseal__disc" :style="{backgroundImage: `url(${partySeal.url})`}"></span>
       <span v-if="partySeal.caption !== undefined" class="pcard-pseal__caption">{{ $t(partySeal.caption) }}</span>
     </span>
+    <!-- your cube on a party's banner (Septem Tribus:redux) — the wild-party pill with the cube in its corner -->
+    <PremiumBannerCubeGlyph v-else-if="isBannerCube" class="pcard-ic pcard-ic--banner-cube" data-banner-cube-glyph="true" />
     <!-- a card that HOLDS resources (TR53) — the white card with its three cubes -->
     <PremiumResourceCardGlyph v-else-if="isResourceCard" class="pcard-ic pcard-ic--resource-card" :wild="resourceCardWild" />
     <!-- image icons -->
@@ -162,6 +164,7 @@ import NomadToken from '@/client/components/NomadToken.vue';
 import PremiumVpCardGlyph from './PremiumVpCardGlyph.vue';
 import PremiumResourceCardGlyph from './PremiumResourceCardGlyph.vue';
 import PremiumPartyRequirementGlyph from './PremiumPartyRequirementGlyph.vue';
+import PremiumBannerCubeGlyph from './PremiumBannerCubeGlyph.vue';
 import PremiumFleetMark from './PremiumFleetMark.vue';
 
 type CorpBoxLike = {rows: Array<Array<ItemType>>};
@@ -173,7 +176,7 @@ type CorpBoxLike = {rows: Array<Array<ItemType>>};
  */
 export default defineComponent({
   name: 'PremiumMechNode',
-  components: {PlayerCube, NomadToken, PremiumVpCardGlyph, PremiumPartyRequirementGlyph, PremiumResourceCardGlyph, PremiumFleetMark},
+  components: {PlayerCube, NomadToken, PremiumVpCardGlyph, PremiumPartyRequirementGlyph, PremiumBannerCubeGlyph, PremiumResourceCardGlyph, PremiumFleetMark},
   props: {
     node: {
       type: [Object, String] as unknown as () => ItemType,
@@ -294,6 +297,10 @@ export default defineComponent({
     },
     isPartyRequirement(): boolean {
       return this.mechIcon?.kind === 'partyRequirement';
+    },
+    /** «Your cube on a party's banner» (Septem Tribus:redux). */
+    isBannerCube(): boolean {
+      return this.mechIcon?.kind === 'bannerCube';
     },
     /** The requirement plate alone (RX36 — «a card with ANY requirement»). */
     isRequirementPlate(): boolean {

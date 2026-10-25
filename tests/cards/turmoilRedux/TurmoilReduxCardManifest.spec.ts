@@ -54,31 +54,36 @@ describe('TurmoilReduxCardManifest', () => {
   const reduxCards = cardsOf(TURMOIL_REDUX_CARD_MANIFEST);
 
   describe('card id namespace', () => {
-    it('every Turmoil Redux project card carries a TR## card number (TR01…TR70, the replacements TR71…TR76)', () => {
+    it('every Turmoil Redux card carries a TR## card number (TR01…TR70, the project replacements TR71…TR76, the corporation TR77)', () => {
       expect(reduxCards).is.not.empty;
       for (const {name, card} of reduxCards) {
         expect(card.metadata.cardNumber, `${name} must declare a cardNumber`).is.not.undefined;
         expect(card.metadata.cardNumber, `${name} must use the TR## namespace`).to.match(/^TR\d{2}$/);
         const n = Number(card.metadata.cardNumber?.slice(2));
-        expect(n, `${name}: the printed set runs TR01…TR70, its six project replacements TR71…TR76`).to.be.within(1, 76);
+        expect(n, `${name}: the printed set runs TR01…TR70, its six project replacements TR71…TR76, its corporation TR77`).to.be.within(1, 77);
       }
     });
 
     // The six project replacements' scans all print the placeholder «TR00»; the
-    // contract numbers them TR71…TR76 in the order of the replacement registry.
+    // contract numbers them TR71…TR76 in the order of the replacement registry,
+    // and the replacement CORPORATION (its scan prints no number) TR77.
     // A number past TR70 is therefore never an ordinary card's: it is the
     // replacement of exactly the registry row it counts to, and it borrows that
     // classic card's art and lore (`reimplements`) instead of keying its own.
     it('a number past TR70 is a replacement\'s — the registry row it counts to, reimplementing that classic card', () => {
       const projectRows = TURMOIL_REDUX_CLASSIC_REPLACEMENTS.filter((row) => row.kind === 'project');
       expect(projectRows).to.have.lengthOf(6);
+      // The registry's rows in NUMBER order: the six projects, then the corporation.
+      const rows = [...projectRows, ...TURMOIL_REDUX_CLASSIC_REPLACEMENTS.filter((row) => row.kind === 'corporation')];
+      expect(rows).to.have.lengthOf(7);
       for (const {name, card} of reduxCards) {
         const n = Number(card.metadata.cardNumber?.slice(2));
         if (n <= 70) {
           expect(card.metadata.reimplements, `${name} (${card.metadata.cardNumber}) is an ordinary card of the set — no reimplements`).is.undefined;
           continue;
         }
-        const row = projectRows[n - 71];
+        const row = rows[n - 71];
+        expect(row.kind === 'corporation', `${name} (${card.metadata.cardNumber}): a corporation row takes a corporation`).eq(card.type === CardType.CORPORATION);
         expect(card.metadata.reimplements, `${name} (${card.metadata.cardNumber}) must reimplement ${row.classic}`).eq(row.classic);
         expect(name, `the replacement of ${row.classic} is registered as "${row.classic}:redux"`).eq(`${row.classic}:redux`);
         expect(replacementCardNumber(row.classic)).eq(card.metadata.cardNumber);
@@ -178,9 +183,13 @@ describe('TurmoilReduxCardManifest', () => {
       expect(off.getPreludeCards().map(toName)).to.have.members(on.getPreludeCards().map(toName));
       const offCorporations = off.getCorporationCards().map(toName);
       const addedCorporations = on.getCorporationCards().map(toName).filter((n) => !offCorporations.includes(n));
+      // …and the module's OWN corporations (TR77 Septem Tribus:redux — the replacement of the classic R15).
+      const reduxCorporations = new Set<CardName>(CardManifest.keys(TURMOIL_REDUX_CARD_MANIFEST.corporationCards));
       for (const n of addedCorporations) {
-        expect(classicCorporations.has(n) && !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(n), `${n} may join only as an adapted classic Turmoil corporation`).is.true;
+        const adapted = classicCorporations.has(n) && !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(n);
+        expect(adapted || reduxCorporations.has(n), `${n} may join only as an adapted classic Turmoil corporation or the module's own`).is.true;
       }
+      expect(addedCorporations).to.include.members([...reduxCorporations]);
     });
 
     // The card is resolvable by name whatever the options — deserializing a

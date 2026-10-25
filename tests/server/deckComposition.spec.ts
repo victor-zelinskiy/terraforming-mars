@@ -56,7 +56,9 @@ describe('deckCompositionOf — the creator\'s decks, counted by the server', ()
     const c = compositionOf(creatorConfig(['corpera', 'prelude', 'venus', 'colonies', 'promo', 'turmoilRedux']));
     expect(c.projects.byModule.turmoilRedux).eq(Object.keys(TURMOIL_REDUX_CARD_MANIFEST.projectCards).length);
     // The printed 70 + the replacements authored so far (TR71 Aerial Lenses:redux the first) — each removes its classic card.
-    expect(c.projects.byModule.turmoilRedux).eq(70 + TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.size);
+    // The PROJECT replacements authored so far (the corporation TR77 is Redux's corporation, counted below).
+    const projectReplacements = [...TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove].filter((name) => name in TURMOIL_CARD_MANIFEST.projectCards).length;
+    expect(c.projects.byModule.turmoilRedux).eq(70 + projectReplacements);
     // The classic project cards adapted so far — counted from the hold-back list, never a literal (T04 Diaspora
     // Movement, T06 GMO Contract, …): each adaptation deals one more. A REPLACED classic card (off the list once its
     // replacement crossed) is removed by `cardsToRemove` — never dealt.
@@ -75,9 +77,12 @@ describe('deckCompositionOf — the creator\'s decks, counted by the server', ()
     // The adapted classic cards are PROJECTS — counted in Redux's projects, never a category of their own.
     // The adapted classic CORPORATIONS (R38 Lakefront Resorts, R14 Terralabs Research) are dealt as Redux's corporations —
     // counted from the hold-back list as well, never a literal.
-    const adaptedCorporations = Object.keys(TURMOIL_CARD_MANIFEST.corporationCards).filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name as CardName)).length;
+    // …plus Redux's own corporations (TR77 Septem Tribus:redux — its classic R15 is removed by `cardsToRemove`).
+    const adaptedCorporations = Object.keys(TURMOIL_CARD_MANIFEST.corporationCards)
+      .filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name as CardName) && !TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.has(name as CardName)).length +
+      Object.keys(TURMOIL_REDUX_CARD_MANIFEST.corporationCards).length;
     expect(adaptedCorporations).greaterThanOrEqual(2);
-    expect(c.contributions.turmoilRedux).deep.eq({projects: 70 + TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.size + adaptedClassic, corporations: adaptedCorporations, preludes: 0, colonies: additions, resolutions: c.extras.resolutions});
+    expect(c.contributions.turmoilRedux).deep.eq({projects: 70 + projectReplacements + adaptedClassic, corporations: adaptedCorporations, preludes: 0, colonies: additions, resolutions: c.extras.resolutions});
     expect(c.contributions.colonies?.colonies).eq(pool.length - additions);
   });
 

@@ -20,6 +20,7 @@
  * available iff its option is PRESENT in the server's menu
  * (`ParliamentModel.viewer` carries the honest reason when it is not).
  */
+import {isBannerCubeSource} from '@/common/parliament/bannerCubes';
 import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {CardName} from '@/common/cards/CardName';
@@ -83,6 +84,12 @@ export type ParliamentPartyVm = {
   access: PartyAccessModel | undefined;
   actionId: PartyActionId | undefined;
   action: PartyActionModel | undefined;
+  /**
+   * THE CUBES ON THIS PARTY'S BANNER (Septem Tribus:redux — a card grant of the party's effect drawn as the seat's
+   * cube): the colours of every seat whose cube stands there, in seat order. A public fact of the table — every
+   * viewer sees every seat's cube. Empty when none.
+   */
+  bannerCubes: ReadonlyArray<Color>;
 };
 
 export type ParliamentTileVm = {
@@ -233,6 +240,7 @@ export function buildParliamentView(model: ParliamentModel, viewer: Color | unde
       access: viewerAccess.get(party),
       actionId,
       action: actionId === undefined ? undefined : actionsById.get(actionId),
+      bannerCubes: model.players.filter((p) => hasBannerCube(p.access.find((a) => a.party === party))).map((p) => p.color),
     };
   });
 
@@ -442,9 +450,17 @@ export function heldByDelegates(access: PartyAccessModel | undefined): boolean {
   return access?.byDelegates === true;
 }
 
-/** The cards that GRANT the effect (a future Septem Tribus) — named by the surfaces that explain it. */
+/** The cards that GRANT the effect (Septem Tribus:redux's banner cube, …) — named by the surfaces that explain it. */
 export function grantSourcesOf(access: PartyAccessModel | undefined): ReadonlyArray<string> {
   return access?.granted ?? [];
+}
+
+/**
+ * THE SEAT'S CUBE STANDS ON THIS PARTY'S BANNER (Septem Tribus:redux): a grant whose source the table draws as a cube
+ * (`common/parliament/bannerCubes.ts`). The card road then reads «ваш куб на знамени», never the generic «выдан».
+ */
+export function hasBannerCube(access: PartyAccessModel | undefined): boolean {
+  return (access?.granted ?? []).some(isBannerCubeSource);
 }
 
 /** THE ALLIANCE THAT HOLDS for this party (TR62): its partner stands by its printed road. */

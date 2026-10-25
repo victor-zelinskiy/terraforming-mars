@@ -137,7 +137,9 @@ export type JournalChildVM = {
     /** A colony TILE's track moved by a card effect (`colony-track-moved`, TR07): the tile, 0-based before → after. */
     | {kind: 'colonyTrack'; colony: ColonyName; before: number; after: number}
     /** THE COLONY ROSTER changed (`colony-roster-changed`): a tile entered, left, or was replaced in its slot. */
-    | {kind: 'colonyRoster'; change: ColonyRosterChange};
+    | {kind: 'colonyRoster'; change: ColonyRosterChange}
+    /** A CUBE ON A PARTY'S BANNER (`banner-cube-placed`, Septem Tribus:redux): the party whose effect it grants. */
+    | {kind: 'banner'; party: PartyName};
   /**
    * An effect that could NOT apply (`effect-skipped`): WHICH (`label`), WHY
    * (`reason`), and the magnitude lost as a chip of its own. Deliberately
@@ -690,6 +692,13 @@ export function buildEventChildren(events: ReadonlyArray<GameEvent>, rootId: num
         political: removed.place === 'support' || removed.resolution === undefined ?
           {kind: 'support', party: removed.party, total: removed.total} :
           {kind: 'resolution', resolution: removed.resolution}}, impactChips(e.impact));
+      continue;
+    }
+    // A CUBE ON A BANNER (Septem Tribus:redux): its OWN row under the card — the label names the banner's party
+    // («Знамя партии · Учёные»); no chip: nothing was paid or gained in a stock, the party's effect is its own row.
+    if (e.type === 'banner-cube-placed' && e.impact.bannerCube !== undefined) {
+      push(`banner|${e.id}`, {source: sourceToChild(e.source), player, bucket, chips: [],
+        political: {kind: 'banner', party: e.impact.bannerCube.party}}, []);
       continue;
     }
     // A card-resource payout a RULE counted (TR21: «for 3 adjacent cities») keeps its reason and its card on a row of its own.

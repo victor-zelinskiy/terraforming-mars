@@ -165,7 +165,7 @@ function slotVm(over: Partial<ParliamentSlotVm> = {}): ParliamentSlotVm {
 }
 
 function partyVm(over: Partial<ParliamentPartyVm> = {}): ParliamentPartyVm {
-  return {party: PartyName.GREENS, effect: getPartyEffect(PartyName.GREENS), rule: 'r', support: 0, inArea: true, ruling: false, access: undefined, actionId: undefined, action: undefined, ...over};
+  return {party: PartyName.GREENS, effect: getPartyEffect(PartyName.GREENS), rule: 'r', support: 0, inArea: true, ruling: false, access: undefined, actionId: undefined, action: undefined, bannerCubes: [], ...over};
 }
 
 function projection(over: Partial<VoteProjectionModel> = {}): VoteProjectionModel {

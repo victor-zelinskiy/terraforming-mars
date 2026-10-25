@@ -111,8 +111,9 @@ describe('classic Turmoil cards under Turmoil Redux', () => {
       const adaptedCorporations = [CardName.LAKEFRONT_RESORTS, CardName.TERRALABS_RESEARCH, CardName.UTOPIA_INVEST, CardName.PRISTAR];
       const all = [...adapted, ...adaptedCorporations];
       // Off the list but REPLACED (TR71 Aerial Lenses:redux, 2026-10-24 — the first; TR72 Banned Delegate:redux the
-      // second, TR75 Sponsored Mohole:redux the third): never dealt, see «the replacements».
-      const replaced = [CardName.AERIAL_LENSES, CardName.BANNED_DELEGATE, CardName.SPONSORED_MOHOLE];
+      // second, TR75 Sponsored Mohole:redux the third, the corporation TR77 Septem Tribus:redux the fourth): never dealt,
+      // see «the replacements».
+      const replaced = [CardName.AERIAL_LENSES, CardName.BANNED_DELEGATE, CardName.SPONSORED_MOHOLE, CardName.SEPTUM_TRIBUS];
       const offTheList = CLASSIC.filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name));
       expect(offTheList).to.have.members([...all, ...replaced]).and.length(all.length + replaced.length);
       expect(offTheList.filter((name) => !TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(name))).to.have.members(all).and.length(all.length);
@@ -157,8 +158,8 @@ describe('classic Turmoil cards under Turmoil Redux', () => {
     // cards are added AFTER the filter, exactly like a card of a module that is off.
     it('a held-back card can still be forced in as a guaranteed card', () => {
       // T07 took the last in-place project row and R07 Pristar the last corporation row (2026-10-24): a card still
-      // held back is one awaiting its Redux replacement — the same filter keeps it out. The one held-back
-      // corporation (Septem Tribus) is also kept out by its `compatibility: 'turmoil'`, so only a project is forced.
+      // held back is one awaiting its Redux replacement — the same filter keeps it out. No corporation is held back any
+      // more (Septem Tribus crossed as TR77, 2026-10-25), so only a project is forced.
       const project = [...TURMOIL_CARDS_HELD_BACK_UNDER_REDUX].find((name) => PROJECTS.includes(name));
       expect(project).is.not.undefined;
       const cards = new GameCards(options({...REDUX, customProjectCards: [project!]}));

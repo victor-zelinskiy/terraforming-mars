@@ -73,6 +73,7 @@ import {PrometheanAlliance} from './PrometheanAlliance';
 import {AerialLensesRedux} from './AerialLensesRedux';
 import {BannedDelegateRedux} from './BannedDelegateRedux';
 import {SponsoredMoholeRedux} from './SponsoredMoholeRedux';
+import {SeptemTribusRedux} from './SeptemTribusRedux';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -84,7 +85,8 @@ import {SponsoredMoholeRedux} from './SponsoredMoholeRedux';
  * REPLACEMENTS the set prints for seven classic Turmoil cards
  * (`classicReplacements.ts`: six projects — TR71…TR76 in the registry's order —
  * and the Septem Tribus corporation; TR71 Aerial Lenses and TR72 Banned Delegate authored 2026-10-24, TR75 Sponsored
- * Mohole 2026-10-25 — the number is the registry row, not the order of authoring).
+ * Mohole 2026-10-25 — the number is the registry row, not the order of authoring; the corporation TR77 Septem
+ * Tribus the same day).
  * A replacement is registered here under a `:redux`-suffixed name with the
  * classic name in this manifest's `cardsToRemove`; until then the classic card
  * is held back by `cards/turmoil/turmoilReduxAdaptation.ts`. The classic
@@ -358,11 +360,18 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // tag and +2 heat production, plus 1 VP. Art and lore are T13's (`reimplements`).
     [CardName.SPONSORED_MOHOLE_REDUX]: {Factory: SponsoredMoholeRedux},
   },
+  // The set's REPLACEMENT CORPORATION (TR77 — the first number past the six project replacements): the classic R15 at
+  // 40 M€ with the wild tag, the M€-per-party action gone, the cubes on the parties' banners instead (a grant of the
+  // party's effect — `parliament/PlaceBannerCube`). Art and lore are R15's (`reimplements`). The module's first corporation.
+  corporationCards: {
+    [CardName.SEPTEM_TRIBUS_REDUX]: {Factory: SeptemTribusRedux},
+  },
   // The classic cards a replacement above stands in for — never dealt into a Redux game (upstream's
   // `GameCards.filterReplacedCards`); a classic-Turmoil game does not load this manifest, so it keeps them.
   cardsToRemove: [
     CardName.AERIAL_LENSES,
     CardName.BANNED_DELEGATE,
     CardName.SPONSORED_MOHOLE,
+    CardName.SEPTUM_TRIBUS,
   ],
 });

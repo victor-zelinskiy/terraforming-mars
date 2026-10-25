@@ -50,6 +50,12 @@ export enum CardRenderItemType {
    */
   PARTY_SEAL = 'party-seal',
   /**
+   * Turmoil Redux Septem Tribus:redux: «YOUR CUBE ON A PARTY'S BANNER» — the printed purple wild-party pill («?»:
+   * any party) with the player's white cube seated in its lower-left corner. The object of the rule is the CUBE on
+   * the banner (a grant of that party's effect), never a delegate and never a party requirement.
+   */
+  BANNER_CUBE = 'banner-cube',
+  /**
    * A CARD THAT PRINTS A VP ICON (and, through `secondaryTag`, the tag it
    * prints): the card cover with the tag's bubble and the VP plate in its
    * corner — Turmoil Redux's «Building card with a VP icon» (Architecture

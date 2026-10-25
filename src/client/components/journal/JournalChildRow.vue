@@ -178,6 +178,8 @@
               class="journal-child-row__tile journal-em">{{ colonyTrackLabel(vm.political.colony, vm.political.before, vm.political.after) }}</span>
         <span v-else-if="vm.political !== undefined && vm.political.kind === 'colonyRoster'"
               class="journal-child-row__tile journal-em" data-journal-colony-roster>{{ colonyRosterLabel(vm.political.change) }}</span>
+        <span v-else-if="vm.political !== undefined && vm.political.kind === 'banner'"
+              class="journal-child-row__tile journal-em" data-journal-banner>{{ bannerLabel(vm.political.party) }}</span>
         <span v-else-if="vm.political !== undefined"
               class="journal-child-row__tile journal-em">{{ supportLabel(vm.political.party, vm.political.total) }}</span>
       </span>
@@ -301,6 +303,10 @@ export default defineComponent({
     /** «за 3 соседних города» — the count the rule paid by; the unit's plural group agrees with it. */
     basisLabel(count: number, unitKey: string): string {
       return translateTextWithParams('for ${0} ${1}', [String(count), translateText(unitKey)]);
+    },
+    /** «Знамя партии · Учёные» — the banner the seat's cube now stands on (Septem Tribus:redux). */
+    bannerLabel(party: PartyName): string {
+      return `${translateText('Party banner')} · ${translateText(partyNameKey(party))}`;
     },
     /** «Народная поддержка · Зелёные · 3/3» — the area named by its party, with what it holds out of its ceiling. */
     supportLabel(party: PartyName, total: number): string {

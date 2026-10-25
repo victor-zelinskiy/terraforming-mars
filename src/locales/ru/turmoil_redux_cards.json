@@ -231,5 +231,10 @@
     "${0} gains 2 M€ production: ${1} is the new ruling party (${2})": "${0} повышает производство M€ на 2: к власти пришла партия «${1}» («${2}»)",
     "Requires the Scientists to be ruling or that you have 2 delegates there. Remove up to 2 plants from any player. Increase your heat production 2 steps.": "Требует, чтобы «Учёные» были у власти или у вас было 2 делегата на их резолюции. Уберите до 2 растений у любого игрока. Увеличьте производство тепла на 2 шага.",
     "Requires the Greens to be ruling or that you have 2 delegates there. Increase your heat production 2 steps.": "Требует, чтобы «Зелёные» были у власти или у вас было 2 делегата на их резолюции. Увеличьте производство тепла на 2 шага.",
-    "Requires you to be Chairman. Remove any delegate from a resolution or Popular Support area.": "Требует, чтобы вы были председателем. Изгоните любого делегата с резолюции или из области народной поддержки."
+    "Requires you to be Chairman. Remove any delegate from a resolution or Popular Support area.": "Требует, чтобы вы были председателем. Изгоните любого делегата с резолюции или из области народной поддержки.",
+    "You start with 40 M€. As your first action, place your cube on the banner of any party.": "Вы начинаете с 40 M€. Первое действие: поставьте свой куб на знамя любой партии.",
+    "Effect: When you win on a resolution, place your cube on its party's banner.": "Эффект: когда вы побеждаете на резолюции, поставьте свой куб на знамя её партии.",
+    "Effect: You gain the effect of every party whose banner holds your cube — in addition to the ruling party and to the parties where you have 2 delegates.": "Эффект: вы получаете эффект каждой партии, на знамени которой стоит ваш куб, — вдобавок к правящей партии и к партиям, где у вас 2 делегата.",
+    "Place your cube on the banner of any party": "Поставьте свой куб на знамя любой партии",
+    "After confirming, choose the party whose banner takes your cube.": "После подтверждения выберите партию, на знамя которой встанет ваш куб."
 }

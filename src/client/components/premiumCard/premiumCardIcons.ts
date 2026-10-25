@@ -62,6 +62,8 @@ export type MechIconSpec =
    * WILD «?» instead of its cubes (RX41 Tax Breaks: «a KIND of resource on your cards», the item's secondary mark).
    */
   | {kind: 'resourceCard', wild?: true}
+  /** «Your cube on a party's banner» (Turmoil Redux Septem Tribus:redux) — `PremiumBannerCubeGlyph`. */
+  | {kind: 'bannerCube'}
   | {kind: 'glyph', glyph: string};
 
 const RES = 'assets/resources';
@@ -655,6 +657,9 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
     }
     return {kind: 'partySeal', party, url, ...(item.stacked === true ? {stacked: true} : {}), ...(item.innerText === undefined ? {} : {caption: item.innerText})};
   }
+  case CardRenderItemType.BANNER_CUBE:
+    // «Your cube on a party's banner» (Septem Tribus:redux): the wild-party pill with the player's cube in its corner.
+    return {kind: 'bannerCube'};
   case CardRenderItemType.PARTY_REQUIREMENT:
     // «A card with a requirement of ANY party» (TR13): the requirements plate
     // in miniature with the wild-party pill — drawn, never a party plate.

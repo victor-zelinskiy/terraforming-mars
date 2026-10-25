@@ -28,7 +28,8 @@ import {CardName} from './CardName';
  * CARD NUMBERS — the six project scans all print the placeholder «TR00». The
  * replacements take `TR71…TR76` IN THE ORDER OF THE PROJECT ROWS BELOW (Aerial
  * Lenses TR71 … Vote of No Confidence TR76; the manifest guard pins that a number
- * past TR70 belongs to exactly this row). Art and lore are the CLASSIC card's,
+ * past TR70 belongs to exactly this row); the corporation (its scan prints no
+ * number) takes TR77. Art and lore are the CLASSIC card's,
  * borrowed through `metadata.reimplements` (`cardArt.ts` `artKey`, `cardLore.ts`
  * `cardLoreSource`) — the illustration and the printed quote are the same; the
  * classic card number (`T01`…) keys both files.
@@ -74,6 +75,8 @@ export const TURMOIL_REDUX_CLASSIC_REPLACEMENTS: ReadonlyArray<ClassicReplacemen
     changes: 'still cost 5, event; requirement «a party leader + a NEUTRAL chairman» → «at least 1 influence»; removes the CURRENT chairman whoever holds the seat (a player\'s delegate too) and seats your own from the reserve; reward +1 TR → advance the Agenda marker 1 step.',
   },
   {
+    // TR77 — AUTHORED 2026-10-25 (`turmoilRedux/SeptemTribusRedux.ts`, `Septem Tribus:redux`) — the corporation row,
+    // numbered past the six project rows.
     classic: CardName.SEPTUM_TRIBUS, kind: 'corporation', scan: 'Corporations/Corporation - Septem Tribus.png',
     changes: '36 → 40 M€, Wild tag kept; the M€-per-party action is gone. First action: place 1 player cube on the BANNER of any party. Effect: when you win on a resolution, place your cube on its party\'s banner; you gain the effect of every party whose banner holds at least 1 of your cubes — in addition to the ruling party and the 2-delegate road (the `grantPartyEffect` reserve of `PoliticalOps`; the requirement reading never counts it — FAQ p.19).',
   },
@@ -88,11 +91,17 @@ export const FIRST_REPLACEMENT_CARD_NUMBER = 71;
 
 /**
  * The `TR##` number a replacement of `classic` carries: TR71 + its index among
- * the PROJECT rows (registry order). Undefined for the corporation and for a
+ * the PROJECT rows (registry order), and the CORPORATION the first number past
+ * them (TR77 — decided 2026-10-25: one prefix, one namespace). Undefined for a
  * card that is not replaced.
  */
 export function replacementCardNumber(classic: CardName): string | undefined {
   const projects = TURMOIL_REDUX_CLASSIC_REPLACEMENTS.filter((row) => row.kind === 'project');
   const index = projects.findIndex((row) => row.classic === classic);
-  return index < 0 ? undefined : `TR${FIRST_REPLACEMENT_CARD_NUMBER + index}`;
+  if (index >= 0) {
+    return `TR${FIRST_REPLACEMENT_CARD_NUMBER + index}`;
+  }
+  const corporations = TURMOIL_REDUX_CLASSIC_REPLACEMENTS.filter((row) => row.kind === 'corporation');
+  const corp = corporations.findIndex((row) => row.classic === classic);
+  return corp < 0 ? undefined : `TR${FIRST_REPLACEMENT_CARD_NUMBER + projects.length + corp}`;
 }

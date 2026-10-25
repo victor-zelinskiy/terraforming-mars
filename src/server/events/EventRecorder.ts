@@ -490,6 +490,15 @@ export class EventRecorder {
   }
 
   /**
+   * THE SEAT PUT ITS CUBE ON A PARTY'S BANNER (Turmoil Redux Septem Tribus:redux). Written only where the cube's
+   * grant is made (`parliament/PlaceBannerCube`, the card's `onResolutionWon`) — once per cube: a banner already
+   * holding the seat's cube records nothing.
+   */
+  public recordBannerCube(player: IPlayer, party: PartyName): void {
+    this.record({type: 'banner-cube-placed', player: player.color, impact: {bannerCube: {party}}, visibility: 'journal'});
+  }
+
+  /**
    * A SEAT GAINED / LOST A PARTY'S EFFECT (Turmoil Redux — PL-112). Written
    * only by `Parliament.announceAccessChanges` — the ONE diff of the law of
    * access against its snapshot — inside the root it opens for the line

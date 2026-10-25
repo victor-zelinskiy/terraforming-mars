@@ -1146,6 +1146,8 @@ export enum CardName {
   AERIAL_LENSES_REDUX = 'Aerial Lenses:redux',
   BANNED_DELEGATE_REDUX = 'Banned Delegate:redux',
   SPONSORED_MOHOLE_REDUX = 'Sponsored Mohole:redux',
+  // The PRINTED name (the scan says «Septem»); the classic enum keeps upstream's `SEPTUM_TRIBUS` spelling.
+  SEPTEM_TRIBUS_REDUX = 'Septem Tribus:redux',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

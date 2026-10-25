@@ -155,6 +155,12 @@ describe('devGuaranteedCards', () => {
       expect(named).to.include(CardName.AERIAL_LENSES_REDUX);
       expect(named).to.include(CardName.BANNED_DELEGATE_REDUX);
       expect(named).to.include(CardName.SPONSORED_MOHOLE_REDUX);
+      // TR77 — the replacement CORPORATION is offered under Redux; the classic R15 nowhere.
+      expect(named).to.include(CardName.SEPTEM_TRIBUS_REDUX);
+      for (const module of GUARANTEED_MODULES) {
+        expect(guaranteedPickRows(module.id, new Set()).some((row) => row.kind === 'card' && row.entry.name === CardName.SEPTUM_TRIBUS),
+          `${module.id} · ${CardName.SEPTUM_TRIBUS}`).to.be.false;
+      }
       // …and a restored pick of an adapted card survives the prune.
       const p = picks();
       toggleGuaranteedCard(p, CardName.DIASPORA_MOVEMENT);

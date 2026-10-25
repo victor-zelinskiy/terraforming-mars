@@ -137,6 +137,13 @@ export type GameEventType =
    */
   | 'delegate-removed'
   /**
+   * THE SEAT'S CUBE ON A PARTY'S BANNER (Turmoil Redux Septem Tribus:redux — the first action, or a resolution won):
+   * a GRANT of that party's effect (`Parliament.grantPartyEffect`, the card as the source) — never its requirement.
+   * `impact.bannerCube` names the party. The card rides the event's `source`. Journal-visible, never a delta; the
+   * access it opens (when the party does not rule) is its own `party-effect-gained` beside it.
+   */
+  | 'banner-cube-placed'
+  /**
    * A SEAT GAINED / LOST A PARTY'S EFFECT (Turmoil Redux — PL-112). The law of
    * access (`Parliament.access`) is read live, so until this event nothing
    * told the player that their second cube on a resolution opened the party's
@@ -260,6 +267,7 @@ export type EventTrigger =
   | 'delta-advance' // one committed advance on the Delta Project («Гидросеть») track
   | 'delegates-discarded' // Turmoil Redux: the sitting's refresh sent the player's delegates home off an UNENACTED resolution
   | 'ruling-party-changed' // Turmoil Redux: the sitting's enactment put a NEW party in power (TR62 Tharsis Alliance draws a card)
+  | 'resolution-won' // Turmoil Redux: the player won on the enacted resolution (Septem Tribus:redux puts a cube on its party's banner)
   /**
    * Turmoil Redux: the enacted law REPLACED a terraforming unit the seat was about to gain — a scale step or a
    * greenery / ocean tile — with something else BEFORE the engine performed it (RX35 Diverted Research: 1 data

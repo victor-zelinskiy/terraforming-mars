@@ -3,7 +3,7 @@ import {Message} from '../common/logs/Message';
 import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
-import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, ResourceGainPromptMeta, CardResourceDistributionMeta, VenusBonusPromptMeta, SpendHeatPromptMeta, VotePromptMeta, SupportPromptMeta, DelegatePromptMeta, VotePaymentMeta, PartyActionPromptMeta, ResolutionActionPromptMeta, ParliamentPhaseMarker, ChairmanQuestPromptMeta} from '../common/models/PlayerInputModel';
+import {PlayerInputModel, StartGamePromptMeta, BonusActionPromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, ResourceGainPromptMeta, CardResourceDistributionMeta, VenusBonusPromptMeta, SpendHeatPromptMeta, VotePromptMeta, SupportPromptMeta, DelegatePromptMeta, BannerPromptMeta, VotePaymentMeta, PartyActionPromptMeta, ResolutionActionPromptMeta, ParliamentPhaseMarker, ChairmanQuestPromptMeta} from '../common/models/PlayerInputModel';
 import {BotAttackPromptMeta} from '../common/models/BotAttackPromptModel';
 import {ExternalDrawTakeMeta} from '../common/models/ExternalDrawPromptModel';
 import {DeltaBonusPromptMeta} from '../common/models/DeltaBonusPromptModel';
@@ -165,6 +165,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public votePrompt: VotePromptMeta | undefined;
   public supportPrompt: SupportPromptMeta | undefined;
   public delegatePrompt: DelegatePromptMeta | undefined;
+  public bannerPrompt: BannerPromptMeta | undefined;
   public votePayment: VotePaymentMeta | undefined;
   public partyActionPrompt: PartyActionPromptMeta | undefined;
   public resolutionActionPrompt: ResolutionActionPromptMeta | undefined;
@@ -382,6 +383,13 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
    *  `parliament/RemoveDelegate` — the one producer. See {@link DelegatePromptMeta}. */
   public markDelegatePrompt(meta: DelegatePromptMeta): this {
     this.delegatePrompt = meta;
+    return this;
+  }
+
+  /** Mark this `SelectParty` as the placement of the player's CUBE on a party's BANNER (chainable) — Septem
+   *  Tribus:redux. Built by `parliament/PlaceBannerCube` — the one producer. See {@link BannerPromptMeta}. */
+  public markBannerPrompt(meta: BannerPromptMeta): this {
+    this.bannerPrompt = meta;
     return this;
   }
 

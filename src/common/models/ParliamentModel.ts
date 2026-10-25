@@ -644,7 +644,16 @@ export type ParliamentPhaseSummaryModel = {
    * answer). Absent when no card answered.
    */
   rulingAnswers?: ReadonlyArray<ParliamentRulingAnswerModel>;
+  /**
+   * THE CUBES THE SITTING PUT ON BANNERS (Septem Tribus:redux — `ICard.onResolutionWon`): whose cube, the party
+   * of the won resolution, the card. The client plays ONE beat per entry at the enactment («куб на знамя»); a
+   * cube that already stood is not here. Absent when none was placed.
+   */
+  bannerCubes?: ReadonlyArray<ParliamentBannerCubeModel>;
 };
+
+/** ONE cube a sitting put on a party's banner. */
+export type ParliamentBannerCubeModel = {player: Color; party: ReduxParty; card: CardName};
 
 /** ONE card's answer to a change of power: whose, which card, the party that came to power, what it measured. */
 export type ParliamentRulingAnswerModel = {
