@@ -51,6 +51,8 @@ const BEAT_GAP_MS = 250;
 const SEAT_HANDOVER_MS = 300;
 /** …and, with no outgoing delegate, after a short lead in which its place marks itself. */
 const SEAT_LEAD_MS = 180;
+/** A card that TAKES the chair (TR76): the risen pose reads the chair with its holder before the handover starts. */
+const SEAT_READ_MS = 420;
 
 export type ChairmanQuestDirectorContext = {
   root: HTMLElement;
@@ -411,4 +413,5 @@ export const CHAIRMAN_QUEST_BUDGET = {
   gap: BEAT_GAP_MS,
   seat: SEAT_HANDOVER_MS + CUBE_FLIGHT_MS,
   seatLead: SEAT_LEAD_MS,
+  seatRead: SEAT_READ_MS,
 } as const;

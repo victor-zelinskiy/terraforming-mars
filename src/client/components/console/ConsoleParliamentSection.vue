@@ -2326,9 +2326,16 @@ export default defineComponent({
         return;
       }
       this.walkHold?.release();
-      this.walkHold = beginAnimationHold('parliament-agenda-walk', {maxHoldMs: agendaWalkHoldMs(agendaWalkFlow.owed!) + CHAIRMAN_QUEST_BUDGET.seat + CHAIRMAN_QUEST_BUDGET.gap});
+      this.walkHold = beginAnimationHold('parliament-agenda-walk', {maxHoldMs: agendaWalkHoldMs(agendaWalkFlow.owed!) + CHAIRMAN_QUEST_BUDGET.seatRead + CHAIRMAN_QUEST_BUDGET.seat + CHAIRMAN_QUEST_BUDGET.gap});
       setParliamentFlightsHurried(false);
-      playChairHandover({root, change: seat, viewer: this.viewerColor, source: 'reserve', beat, onSeated: seated});
+      // THE LEAD: the chair is READ with its holder before anything moves — the pose rises through its own entry, and a
+      // cube lifting off inside that fade is a beat the player never saw start (the law «ни один такт не начинается,
+      // пока сцена не видна»). On the walk's hurriable clock: A «дожать» cuts it like every other wait.
+      beat(CHAIRMAN_QUEST_BUDGET.seatRead, () => {
+        if (agendaWalkFlow.live) {
+          playChairHandover({root, change: seat, viewer: this.viewerColor, source: 'reserve', beat, onSeated: seated});
+        }
+      });
     },
     /** The walk the answer carried becomes the section's subject (the band grows its chips, the conclusion reads it live). */
     startOwedWalk(beat: 'seat' | 'walk' = 'walk'): void {
