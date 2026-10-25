@@ -898,23 +898,40 @@ export class Parliament {
   // ───────────────────────── voting ─────────────────────────
 
   /**
-   * THE RULE OF THE VOTE (R p.7) — the lobby's free delegate first, then one
-   * from the reserve for `PARLIAMENT_VOTE_COST`. ONE rule for every seat: the
-   * human's vote action asks it, and so does MarsBot's (`castBotVote` — its
-   * own rules only decide WHEN it votes, never from where or at what price).
+   * WHERE A VOTE'S DELEGATE COMES FROM (R p.7) — the lobby's free delegate
+   * first, then the reserve. ONE rule for every seat: the human's vote asks it
+   * through `canVote` (which adds the reserve's price), and MarsBot's vote asks
+   * it directly (`castBotVote` — its delegates cost it nothing, D14; its own
+   * rules only decide WHEN and HOW MANY).
    */
-  public canVote(player: IPlayer): VoteAvailability {
+  public voteSource(player: IPlayer): {ok: true; source: 'lobby' | 'reserve'} | {ok: false; reason: string; code: Exclude<VoteRefusal, 'not-enough-mc'>} {
     if (!this.participates(player, 'delegates')) {
-      return {ok: false, reason: 'MarsBot takes no part in the parliament', code: 'no-seat', source: 'none', cost: 0};
+      return {ok: false, reason: 'MarsBot takes no part in the parliament', code: 'no-seat'};
     }
     if (this.slots.length === 0) {
-      return {ok: false, reason: 'No resolution is up for a vote', code: 'no-resolution', source: 'none', cost: 0};
+      return {ok: false, reason: 'No resolution is up for a vote', code: 'no-resolution'};
     }
     if (this.lobby.has(player.id)) {
-      return {ok: true, source: 'lobby', cost: 0};
+      return {ok: true, source: 'lobby'};
     }
     if (this.reserve(player) <= 0) {
-      return {ok: false, reason: 'All your delegates are in play', code: 'no-delegate', source: 'none', cost: PARLIAMENT_VOTE_COST};
+      return {ok: false, reason: 'All your delegates are in play', code: 'no-delegate'};
+    }
+    return {ok: true, source: 'reserve'};
+  }
+
+  /**
+   * THE HUMAN'S VOTE — `voteSource`, plus the reserve's price
+   * (`PARLIAMENT_VOTE_COST`; the lobby's delegate is free).
+   */
+  public canVote(player: IPlayer): VoteAvailability {
+    const from = this.voteSource(player);
+    if (!from.ok) {
+      const cost = from.code === 'no-delegate' ? PARLIAMENT_VOTE_COST : 0;
+      return {ok: false, reason: from.reason, code: from.code, source: 'none', cost};
+    }
+    if (from.source === 'lobby') {
+      return {ok: true, source: 'lobby', cost: 0};
     }
     if (!player.canAfford(PARLIAMENT_VOTE_COST)) {
       return {ok: false, reason: 'Not enough M€ to send a delegate from the reserve', code: 'not-enough-mc', source: 'reserve', cost: PARLIAMENT_VOTE_COST};

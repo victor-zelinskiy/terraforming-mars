@@ -1590,7 +1590,12 @@
   "corpResources": 0,
   "corpStats": {},
   "corpBapGeneration": 1,
-  "corpRoundStartGeneration": 0
+  "corpRoundStartGeneration": 0,
+  "lobbyMandate": {
+   "generation": 1,
+   "card": 0,
+   "sent": 0
+  }
  },
  "parliament": {
   "version": 1,

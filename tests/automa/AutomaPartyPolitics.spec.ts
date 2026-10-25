@@ -2,7 +2,6 @@ import {expect} from 'chai';
 import {BonusCardId} from '../../src/common/automa/AutomaTypes';
 import {MarsBotTurn, MarsBotTurnStep} from '../../src/common/automa/MarsBotTurn';
 import {Phase} from '../../src/common/Phase';
-import {PARLIAMENT_VOTE_COST} from '../../src/common/parliament/ParliamentTypes';
 import {IGame} from '../../src/server/IGame';
 import {resolveBonusCard, routeBonusCard} from '../../src/server/automa/AutomaBonusCards';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
@@ -22,8 +21,13 @@ function reduxBot(mode: 'none' | 'politics' = 'politics') {
   return testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: mode});
 }
 
-/** The human ends the turn WITHOUT passing → the bot resolves exactly ONE card and `lastTurn` is that turn. */
+/**
+ * The human ends the turn WITHOUT passing → the bot resolves exactly ONE card and `lastTurn` is that turn.
+ * The generation's lobbying mandate is pinned to 0 (D14) — Party Politics' delegate is the subject here, and a
+ * drawn mandate would catch up on the deck's last card beside it.
+ */
 function botTakesOneTurn(game: IGame, human: TestPlayer): MarsBotTurn {
+  game.automa!.lobbyMandate = {generation: game.generation, card: 0, sent: 0};
   human.popWaitingFor();
   game.playerIsFinishedTakingActions();
   runAllActions(game);
@@ -113,7 +117,7 @@ describe('B21 Party Politics (Turmoil Redux)', () => {
     });
   });
 
-  describe('the effect — ONE delegate by the chooser\'s list, at the human\'s price (the lobby free, the reserve 5 M€)', () => {
+  describe('the effect — ONE delegate by the chooser\'s list, at the human\'s source (the lobby first, then the reserve), free', () => {
     it('the lobby first, and for free: the free delegate lands on the chosen card, the M€ untouched, the ledger whole', () => {
       const [game, human, bot] = reduxBot();
       const parliament = game.parliament!;
@@ -156,7 +160,7 @@ describe('B21 Party Politics (Turmoil Redux)', () => {
       expect(parliament.questProgressOf(bot)).eq(0);
     });
 
-    it('the lobby already spent (Lobbying took it) → a delegate from the RESERVE for 5 M€ — the human\'s price, never a bot privilege (D12)', () => {
+    it('the lobby already spent (Lobbying took it) → a delegate from the RESERVE, FREE — the bot\'s M€ are its late score (D14)', () => {
       const [game, human, bot] = reduxBot();
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
@@ -167,27 +171,23 @@ describe('B21 Party Politics (Turmoil Redux)', () => {
       const turn = botTakesOneTurn(game, human);
       expect(parliament.votesOf(bot)).eq(1);
       expect(parliament.reserve(bot)).eq(6);
-      expect(bot.megaCredits).eq(20 - PARLIAMENT_VOTE_COST);
-      expect(voteSteps(turn)[0]).deep.include({source: 'reserve', cost: PARLIAMENT_VOTE_COST});
+      expect(bot.megaCredits).eq(20);
+      expect(voteSteps(turn)[0]).deep.include({source: 'reserve', cost: 0});
       expect(game.gameLog.some((m) => m.message === '${0} sent a delegate from the reserve to ${1}')).is.true;
       parliament.assertLedger(game);
     });
 
-    it('the lobby spent and under 5 M€ → a named refusal «not enough M€», nothing placed, never a Failed Action', () => {
+    it('0 M€ and the lobby spent → the reserve delegate still goes: no price, so no «not enough M€» refusal', () => {
       const [game, human, bot] = reduxBot();
       const parliament = game.parliament!;
       game.playerIsFinishedWithResearchPhase(human);
       parliament.lobby.delete(bot.id);
-      bot.megaCredits = 4;
+      bot.megaCredits = 0;
       game.automa!.actionDeck = [{kind: 'bonus', id: B21}];
       const turn = botTakesOneTurn(game, human);
-      expect(parliament.votesOf(bot)).eq(0);
-      expect(bot.megaCredits, 'nothing spent, no Failed Action money').eq(4);
-      expect(voteSteps(turn)).deep.eq([]);
-      expect(refusals(turn)).has.length(1);
-      expect(refusals(turn)[0]).deep.include({reason: 'not-enough-mc', cause: {kind: 'bonus'}});
-      expect(refusals(turn)[0].message?.message).eq('${0} cannot send a delegate: not enough M€ for one from the reserve (${1} M€)');
-      expect(revealOf(turn).resolution?.branch?.key).eq('Not enough M€ to send a delegate from the reserve');
+      expect(parliament.votesOf(bot)).eq(1);
+      expect(bot.megaCredits).eq(0);
+      expect(refusals(turn)).deep.eq([]);
       expect(turn.steps.some((s) => s.kind === 'failed')).is.false;
       parliament.assertLedger(game);
     });

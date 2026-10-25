@@ -35,6 +35,10 @@ type Table = {game: IGame; human: TestPlayer; bot: IPlayer; parliament: Parliame
 function table(mode: 'none' | 'politics' = 'politics'): Table {
   const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: mode});
   game.playerIsFinishedWithResearchPhase(human);
+  // The generation's lobbying mandate pinned to 0 (D14) — a quest test never depends on the draw.
+  if (game.automa !== undefined) {
+    game.automa.lobbyMandate = {generation: game.generation, card: 0, sent: 0};
+  }
   return {game, human, bot, parliament: game.parliament!};
 }
 
@@ -149,10 +153,10 @@ describe('BotQuestEvents — the bot\'s deeds count toward the chairman quest', 
     expect(t.parliament.quest?.completedBy).eq(t.bot.id);
   });
 
-  it('DELEGATES: four through lobbying (two cards of cost 18) complete «send 4 delegates»', () => {
+  it('DELEGATES: four through lobbying (a mandate of ALL, two a turn) complete «send 4 delegates»', () => {
     const t = table();
     ask(t, {kind: 'delegates'}, 4);
-    t.bot.megaCredits = 20;
+    t.game.automa!.lobbyMandate = {generation: t.game.generation, card: 'all', sent: 0};
     botPlays(t, CardName.AQUIFER_PUMPING);
     expect(progress(t)).eq(2);
     botPlays(t, CardName.AQUIFER_PUMPING);

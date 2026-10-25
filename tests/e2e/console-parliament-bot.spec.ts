@@ -22,8 +22,9 @@ import {
  *       bot; the turn card names the bonus card.
  *   (2) LOBBYING WITH TWO DELEGATES IN ONE TURN — the second cube leaves only
  *       once the first has landed (one after another, never two in the air);
- *       the human's price (D12): the first off the LOBBY socket, free, the
- *       second off the reserve stack once the lobby is spent, for 5 M€.
+ *       the human's source (D12): the first off the LOBBY socket, the second
+ *       off the reserve stack once the lobby is spent — both free (D14; the
+ *       fixture pins the generation's mandate to ALL).
  *   (3) THE TURN REVIEW — the lobbying chain names the rule and the delegates.
  *   (4) THE SITTING FOR THE SPECTATOR — the bot won the vote: the verdict
  *       names it as the winning player, the results carry its ocean as a row
@@ -279,8 +280,8 @@ for (const preset of PARLIAMENT_PRESETS) {
       expect(task.slice(0, first.arrivedAt + 1).every((st) => st.reserve[bot.color] === reserveBefore),
         'the reserve stack untouched by the first (free) delegate').toBe(true);
       expect(task[task.length - 1].lobby[bot.color], 'the lobby socket empty at rest — the free delegate went first').toBe(false);
-      expect(task[task.length - 1].reserve[bot.color], 'the reserve paid the second delegate only').toBe(reserveBefore - 1);
-      // THE PRICE (the unit spec pins the M€): the lobby's delegate is free, the reserve's costs 5 M€.
+      expect(task[task.length - 1].reserve[bot.color], 'the reserve gave the second delegate only').toBe(reserveBefore - 1);
+      // Both delegates are free for the bot (D14 — the unit spec pins the M€); only the source differs.
       const after = await wireOf(request, playerId);
       expect(botSeatOf(after).reserve).toBe(reserveBefore - 1);
       expect(botSeatOf(after).lobby).toBe(false);

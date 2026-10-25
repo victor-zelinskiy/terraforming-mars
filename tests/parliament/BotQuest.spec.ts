@@ -36,6 +36,10 @@ type Table = {game: IGame; human: TestPlayer; bot: IPlayer; parliament: Parliame
 function table(mode: 'none' | 'politics' = 'politics'): Table {
   const [game, human, bot] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, botParliamentMode: mode});
   game.playerIsFinishedWithResearchPhase(human);
+  // The generation's lobbying mandate pinned to 0 (D14) — a quest test never depends on the draw.
+  if (game.automa !== undefined) {
+    game.automa.lobbyMandate = {generation: game.generation, card: 0, sent: 0};
+  }
   return {game, human, bot, parliament: game.parliament!};
 }
 
@@ -111,7 +115,7 @@ describe('BotQuest — the chairman quest and MarsBot', () => {
       botPlays(t, CardName.AQUIFER_PUMPING);
       expect(t.parliament.quest?.completedBy).eq(t.bot.id);
       expect(t.parliament.chairman).eq(t.bot.id);
-      expect(t.parliament.reserve(t.bot)).eq(5); // lobby 1 + chair 1 + reserve 5 (a paid delegate went to a card: 18 M€? no — the bot had 0 M€)
+      expect(t.parliament.reserve(t.bot)).eq(5); // lobby 1 + chair 1 + reserve 5 (the mandate is 0: no delegate went to a card)
       expect(t.parliament.pendingActions).deep.eq([]);
       expect(t.bot.getWaitingFor()).is.undefined;
       expect(t.parliament.agendaOf(t.bot)).eq(1);

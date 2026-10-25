@@ -1,98 +1,135 @@
 /*
- * LOBBYING — the bot's further votes (Turmoil Redux, docs/TURMOIL_REDUX_MARSBOT.md §3.2).
+ * LOBBYING — the bot's further votes (Turmoil Redux, docs/TURMOIL_REDUX_MARSBOT.md
+ * §3.2, the owner's decision D14 of 2026-10-25).
  *
- * «Each time MarsBot plays a PROJECT CARD in its turn whose cost is divisible
- * by 3 (0 divides), after the card resolved it lobbies: one delegate onto the
- * resolution of the chooser's list; a cost divisible by 9 — two delegates
- * (the list re-read for each). No delegate, or no 5 M€ for a reserve one —
- * the lobbying does not happen (a journal line with the reason, never a
- * Failed Action). Bonus cards never lobby.»
+ * HOW MANY: the generation's hidden MANDATE (`LobbyMandate.ts` — a card off a
+ * deck of 33: none in ~30 % of the generations, ALL the bot's delegates in
+ * ~3 %). WHEN: after every card the bot resolves — a project card whose cost
+ * is divisible by 3 sends one delegate of the mandate (the official generator,
+ * taken from the card the bot ALREADY played: no extra reveal, a full
+ * explanation «EVA Mechs, cost 12 — divisible by 3 → a delegate on …»), and
+ * whatever the cards still in the action deck could no longer carry at two a
+ * turn is sent NOW. AT WHAT PRICE: none — the bot's M€ are its late score and a
+ * resolution never pays it (D14); FROM WHERE: the human's rule, the lobby
+ * first (`castBotVote`, D12). Never more than two of the bot's delegates a
+ * turn, Party Politics' own included.
  *
- * Each delegate is the HUMAN'S vote (`castBotVote` → `Parliament.canVote`,
- * §3.0 — D12): the lobby's free delegate when it is still there, else one
- * from the reserve for 5 M€. Lobbying decides WHEN and HOW MANY — never the
- * price: the first revision kept the lobby for Party Politics and charged
- * every lobbied delegate, so the bot paid while its free one stood idle.
+ * The action deck is hidden from the human (`MarsBotModel.actionDeckSize` is
+ * a number) and so is the mandate — until the bot's last card of the
+ * generation, when the mandate is told in the journal («… 2 delegates, 2
+ * sent»), so the turn review explains the generation after the fact.
  *
- * The randomness is the OFFICIAL generator («the flipped card's price is
- * evenly divisible by 3», RB-C p.6) taken from the card the bot ALREADY
- * played: no extra reveal, a full explanation («EVA Mechs, cost 12 — divisible
- * by 3 → a delegate on …»), and the action deck is hidden from the human
- * (`MarsBotModel.actionDeckSize` is a number) — so until the bot's last card
- * the human never knows whether one more is coming. It is a RIDER of the
- * controller's project-card branch, after the tags and before the played
- * pile: inside the same turn and the same journal group, under its own
- * cause (`lobbying`) so the review reads it as the turn's own step.
+ * It is a RIDER of the controller, after the card resolved, inside the same
+ * turn and the same journal group, under its own cause (`lobbying`). It is NOT
+ * a second resolution of the card: the card was played once (the human
+ * reactors fired once), a Failed Action does not cancel it (the card was
+ * played, its cost is printed), and a card a BONUS card resolved (R&D's draw)
+ * is that card's effect — the controller's branch is the one door.
  *
- * It is NOT a second resolution of the card and not a reveal: the card was
- * played once (the human reactors fired once, `AutomaHumanTagReactions`), a
- * Failed Action does not cancel it (the card was played, its cost is
- * printed), and a card a BONUS card resolved (R&D's draw) is that card's
- * effect — the controller's branch is the one door.
- *
- * The knobs: `LOBBYING_DIVISOR` / `LOBBYING_DOUBLE_DIVISOR` (softer: 4/8 or
- * 5/10); the delegate's price is the shared `PARLIAMENT_VOTE_COST`. The
- * share of the real project deck each divisor selects is MEASURED and
- * printed by `tests/automa/AutomaLobbying.spec.ts` § measured.
+ * The knobs live in `LobbyMandate.ts`: the mandate deck, the divisor, the
+ * delegates a turn. The share of the real project deck the divisor selects is
+ * MEASURED and printed by `tests/automa/AutomaLobbying.spec.ts` § measured.
  */
-import {PARLIAMENT_VOTE_COST} from '../../common/parliament/ParliamentTypes';
 import {IGame} from '../IGame';
 import {IPlayer} from '../IPlayer';
 import {IProjectCard} from '../cards/IProjectCard';
-import {VoteRefusal} from '../parliament/Parliament';
-import {castBotVote} from './AutomaPolitics';
+import {BonusCardId} from '../../common/automa/AutomaTypes';
+import {AutomaActionCard} from './AutomaState';
+import {BotVoteRefusal, castBotVote} from './AutomaPolitics';
 import {AutomaTurnLog} from './AutomaTurnLog';
 import {marsBotOf} from './AutomaUtil';
-
-export const LOBBYING_DIVISOR = 3;
-export const LOBBYING_DOUBLE_DIVISOR = 9;
-
-/** How many delegates a played card of `cost` lobbies with: 2 by the double divisor, 1 by the divisor, else 0. */
-export function lobbyingDelegates(cost: number): number {
-  if (cost % LOBBYING_DOUBLE_DIVISOR === 0) {
-    return 2;
-  }
-  return cost % LOBBYING_DIVISOR === 0 ? 1 : 0;
-}
+import {
+  drawLobbyMandate, LOBBYING_DIVISOR, LobbyMandate, lobbyingThisTurn, lobbyingTrigger, mandateSize, turnCapacity,
+} from './LobbyMandate';
 
 export class AutomaLobbying {
-  /** The rider: called by the controller once the played project card resolved. */
-  public static afterProjectCard(game: IGame, card: IProjectCard): void {
+  /** The generation's mandate — drawn on the bot's first check of the generation, kept for its turns. */
+  public static mandateOf(game: IGame): LobbyMandate {
+    const automa = game.automa;
+    if (automa === undefined) {
+      throw new Error('Not an automa game');
+    }
+    if (automa.lobbyMandate === undefined || automa.lobbyMandate.generation !== game.generation) {
+      automa.lobbyMandate = {generation: game.generation, card: drawLobbyMandate(game), sent: 0};
+    }
+    return automa.lobbyMandate;
+  }
+
+  /** The rider: called by the controller once the turn's card resolved (`card` — the played project card, if any). */
+  public static afterTurnCard(game: IGame, entry: AutomaActionCard, card: IProjectCard | undefined): void {
     const parliament = game.parliament;
-    if (parliament === undefined) {
+    const automa = game.automa;
+    if (parliament === undefined || automa === undefined) {
       return;
     }
     const bot = marsBotOf(game);
     if (!parliament.participates(bot, 'delegates')) {
       return;
     }
-    const count = lobbyingDelegates(card.cost);
-    if (count === 0) {
-      return;
-    }
+    const mandate = AutomaLobbying.mandateOf(game);
     const previous = AutomaTurnLog.getCause(game);
     AutomaTurnLog.setCause(game, {kind: 'lobbying'});
     try {
       game.events.withSource({kind: 'parliament'}, () => {
-        game.log('${0} lobbies: the cost of ${1} (${2} M€) is divisible by ${3}', (b) =>
-          b.player(bot).card(card).number(card.cost).number(count === 2 ? LOBBYING_DOUBLE_DIVISOR : LOBBYING_DIVISOR));
-        for (let i = 0; i < count; i++) {
-          const vote = castBotVote(game, bot);
-          if (!vote.placed) {
-            logRefusal(game, bot, vote.refusal);
-            AutomaTurnLog.note(game, {kind: 'vote-refused', reason: vote.refusal}, {consumeLog: true});
-            return;
-          }
+        AutomaLobbying.lobby(game, bot, mandate, entry, card);
+        if (automa.actionDeck.length === 0) {
+          AutomaLobbying.tellMandate(game, bot, mandate);
         }
       });
     } finally {
       AutomaTurnLog.setCause(game, previous);
     }
   }
+
+  private static lobby(game: IGame, bot: IPlayer, mandate: LobbyMandate, entry: AutomaActionCard, card: IProjectCard | undefined): void {
+    if (mandate.lapsed === true) {
+      return;
+    }
+    const left = mandateSize(mandate.card) - mandate.sent;
+    const trigger = card !== undefined && lobbyingTrigger(card.cost);
+    const {count, byTrigger, byMandate} = lobbyingThisTurn({
+      left,
+      trigger,
+      partyPolitics: entry.kind === 'bonus' && entry.id === BonusCardId.B21_PARTY_POLITICS,
+      ahead: turnCapacity(game.automa?.actionDeck ?? []),
+    });
+    if (count === 0) {
+      return;
+    }
+    // Each reason is said: the played card's cost, and the mandate's catch-up beside it.
+    if (byTrigger > 0 && card !== undefined) {
+      game.log('${0} lobbies: the cost of ${1} (${2} M€) is divisible by ${3}', (b) =>
+        b.player(bot).card(card).number(card.cost).number(LOBBYING_DIVISOR));
+    }
+    if (byMandate > 0) {
+      game.log('${0} lobbies: its mandate for this generation', (b) => b.player(bot));
+    }
+    for (let i = 0; i < count; i++) {
+      const vote = castBotVote(game, bot);
+      if (!vote.placed) {
+        logRefusal(game, bot, vote.refusal);
+        AutomaTurnLog.note(game, {kind: 'vote-refused', reason: vote.refusal}, {consumeLog: true});
+        // The mandate lapses — a refusal is said ONCE, never again on every turn left.
+        mandate.lapsed = true;
+        return;
+      }
+      mandate.sent++;
+    }
+  }
+
+  /** The generation's last card: the hidden mandate is told, so the review explains the generation. */
+  private static tellMandate(game: IGame, bot: IPlayer, mandate: LobbyMandate): void {
+    if (mandate.card === 'all') {
+      game.log('${0} reveals its lobbying mandate for this generation: all its delegates, ${1} sent', (b) => b.player(bot).number(mandate.sent));
+    } else {
+      game.log('${0} reveals its lobbying mandate for this generation: ${1} delegate(s), ${2} sent', (b) =>
+        b.player(bot).number(mandate.card as number).number(mandate.sent));
+    }
+  }
 }
 
 /** The lobbying's own journal line for each way its vote can be refused. */
-function logRefusal(game: IGame, bot: IPlayer, refusal: VoteRefusal): void {
+function logRefusal(game: IGame, bot: IPlayer, refusal: BotVoteRefusal): void {
   switch (refusal) {
   case 'no-seat':
     // Unreachable past the rider's own seat check; named anyway, so no refusal is ever silent.
@@ -103,9 +140,6 @@ function logRefusal(game: IGame, bot: IPlayer, refusal: VoteRefusal): void {
     return;
   case 'no-delegate':
     game.log('${0} cannot lobby: no delegate left to send', (b) => b.player(bot));
-    return;
-  case 'not-enough-mc':
-    game.log('${0} cannot lobby: not enough M€ for a delegate (${1} M€)', (b) => b.player(bot).number(PARLIAMENT_VOTE_COST));
     return;
   }
 }

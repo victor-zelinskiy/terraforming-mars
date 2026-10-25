@@ -5,6 +5,7 @@ import {BonusCardId, DifficultyLevel} from '../../common/automa/AutomaTypes';
 import {MarsBotCorpId, MarsBotCorpResource, MarsBotCorpStats} from '../../common/automa/MarsBotCorpData';
 import {MarsBotTurn} from '../../common/automa/MarsBotTurn';
 import type {MarsBotTurnRecording} from './AutomaTurnLog';
+import type {LobbyMandate} from './LobbyMandate';
 import {GameOptions} from '../game/GameOptions';
 import {MarsBotBoard} from './MarsBotBoard';
 import {marsBotMapProfile} from './boards/MarsBotMapProfile';
@@ -77,6 +78,8 @@ export type SerializedAutomaState = {
   /** Corporation track cubes already triggered, keyed `trackIndex:position`
    *  (absent = none). A regressed track never re-arms a spent cube (RB-B). */
   corpCubesTriggered?: Array<string>;
+  /** Turmoil Redux: the generation's lobbying mandate (D14). Absent = not drawn yet — drawn at the bot's first lobbying check. */
+  lobbyMandate?: LobbyMandate;
 };
 
 /**
@@ -161,6 +164,12 @@ export class AutomaState {
    * — only their spent state is game state.
    */
   public corpCubesTriggered: Set<string> = new Set();
+  /**
+   * Turmoil Redux: the generation's LOBBYING MANDATE (`LobbyMandate.ts`, D14) —
+   * hidden information, like the action deck: never sent to a client model.
+   * A mandate of an earlier generation is stale and is redrawn.
+   */
+  public lobbyMandate: LobbyMandate | undefined = undefined;
   /** The typed script of the last resolved turn (feeds the client turn theater). */
   public lastTurn: MarsBotTurn | undefined = undefined;
   /**
@@ -253,6 +262,9 @@ export class AutomaState {
     if (this.turnHistory.length > 0) {
       result.turnHistory = [...this.turnHistory];
     }
+    if (this.lobbyMandate !== undefined) {
+      result.lobbyMandate = {...this.lobbyMandate};
+    }
     return result;
   }
 
@@ -296,6 +308,7 @@ export class AutomaState {
     // the honest reading for a game that had no round-start box.
     state.corpRoundStartGeneration = d.corpRoundStartGeneration ?? 0;
     state.corpCubesTriggered = new Set(d.corpCubesTriggered ?? []);
+    state.lobbyMandate = d.lobbyMandate !== undefined ? {...d.lobbyMandate} : undefined;
     return state;
   }
 }

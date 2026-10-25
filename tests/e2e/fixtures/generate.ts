@@ -292,7 +292,7 @@ import {BonusCardId} from '../../../src/common/automa/AutomaTypes';
 import {Phase} from '../../../src/common/Phase';
 import {IPlayer} from '../../../src/server/IPlayer';
 import {AutomaState} from '../../../src/server/automa/AutomaState';
-import {lobbyingDelegates} from '../../../src/server/automa/AutomaLobbying';
+import {lobbyingTrigger} from '../../../src/server/automa/LobbyMandate';
 import {botQuestReachable} from '../../../src/common/parliament/botQuestPath';
 import {botQuestTableOf} from '../../../src/server/automa/BotQuestEvents';
 import {armedPlayEffectsOf} from '../../../src/server/cards/armedPlayEffects';
@@ -6200,6 +6200,9 @@ function botTable(name: string, humans: 1 | 2): BotTable {
   for (const seat of seats) {
     seat.megaCredits = 40;
   }
+  // THE LOBBYING MANDATE IS PINNED (D14): the bot's further delegates come from a hidden card drawn per generation,
+  // and a scenario must never depend on that draw — none here; a scenario about lobbying pins its own.
+  automa.lobbyMandate = {generation: game.generation, card: 0, sent: 0};
   return {game, humans: seats, bot, parliament, automa};
 }
 
@@ -6292,17 +6295,18 @@ function botDeckOf(first: AutomaState['actionDeck'][number]): AutomaState['actio
   write(name, t.game);
 }
 
-// ── parliament-bot-lobby: Fish (cost 9 — divisible by 9) on top of the bot's deck, the bot with
-//    20 M€: its next turn plays the card and LOBBIES with TWO delegates in one turn (D6) — at the
-//    human's price (D12): the lobby's free one first, then one from the reserve for 5 M€. ──
+// ── parliament-bot-lobby: Fish (cost 9 — divisible by 3) on top of the bot's deck and the mandate ALL (D14): two cards
+//    after Fish can carry four more, so its next turn LOBBIES with TWO delegates at once — the card's trigger and the
+//    mandate's catch-up — the lobby's free one first, then one from the reserve (free too). ──
 {
   const name = 'parliament-bot-lobby';
   const t = botTable(name, 2);
   seatResolution(t.parliament, 0, AQUIFER_CONTEST_ID);
   t.bot.megaCredits = 20;
-  if (lobbyingDelegates(new Fish().cost) !== 2) {
-    throw new Error(`${name}: Fish (${new Fish().cost} M€) must lobby with two delegates`);
+  if (!lobbyingTrigger(new Fish().cost)) {
+    throw new Error(`${name}: Fish (${new Fish().cost} M€) must trigger lobbying`);
   }
+  t.automa.lobbyMandate = {generation: t.game.generation, card: 'all', sent: 0};
   t.automa.actionDeck = botDeckOf({kind: 'project', name: CardName.FISH});
   redOnTheMove(t, name);
   runAllActions(t.game);

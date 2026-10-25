@@ -137,9 +137,9 @@ export class AutomaController {
       // human play would trigger them.
       AutomaHumanTagReactions.onBotCardResolved(game, card);
       AutomaResolver.resolveProjectCard(game, card);
-      // Turmoil Redux: a played card whose cost is divisible by 3 LOBBIES —
-      // the bot's paid delegate(s), after the tags and inside the same turn.
-      AutomaLobbying.afterProjectCard(game, card);
+      // Turmoil Redux: the generation's lobbying mandate paces its delegates
+      // over the bot's turns — a cost divisible by 3 sends one (D14).
+      AutomaLobbying.afterTurnCard(game, entry, card);
       automa.playedPile.push(entry.name);
     } else {
       // The bonus card is NAMED — «разыграл бонусную карту» with no name made
@@ -158,6 +158,8 @@ export class AutomaController {
         outcome === 'return-to-deck' ? 'reshuffled' :
           (automa.recurringBonusCards.includes(entry.id) ? 'recurring' : 'discarded');
       AutomaTurnLog.setBonusFate(game, fate);
+      // A bonus card never triggers lobbying, but the mandate may still owe a catch-up on this turn.
+      AutomaLobbying.afterTurnCard(game, entry, undefined);
     }
 
     automa.revealedCard = undefined;
