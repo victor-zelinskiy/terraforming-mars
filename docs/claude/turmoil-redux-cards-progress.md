@@ -6175,3 +6175,25 @@ crossfade 240 мс (motion-scale), reduced motion — без перехода; �
 РТ, без +6; G — размер ≥ 12 px и цифры чисты на fhd / Deck. Регрессия (Steam Machine, рядом шла игра владельца): сцена поколения
 A–E, шапка счёта, вето UNMI, контракт и материал рельса, бот C36, TV-экраны — зелёные. Раскадровка 4K — `screenshots/pristar/tv/`.
 Бот C36 не тронут; коллизия по `original` — пин в `AutomaCorporations`.
+
+## TR75 · Sponsored Mohole:redux («Грант на скважину») — ТРЕТЬЯ КАРТА-ЗАМЕНА (по сдаче; номер — по реестру) — СДАНА 2026-10-25
+
+**Карта** (`turmoilRedux/SponsoredMoholeRedux.ts`): зелёная, 5, Здание, **1 ПО** (у классики не было); требование — ПЕЧАТНЫЕ
+«Зелёные» (`{party: GREENS}` прямо — совпадает с общим Кельвинисты → Зелёные, но не через `normalizeReduxParty`);
+`behavior: {production: {heat: 2}}`, `victoryPoints: 1` — ни строки bespoke, ни одной новой механики. Лицо: плита производства с
+двумя теплом, ПО-щит «1», плита Зелёных (эмблема Redux). **Номер TR75, не TR73**: третья по сдаче, но пятая проектная строка
+реестра (`replacementCardNumber`) — TR73 Political Alliance и TR74 Recruitment ещё ждут; не «исправлять». `reimplements:
+SPONSORED_MOHOLE` → арт `T13.webp` (картинка владельца; на скане — Kim Stanley Robinson, Bennett) и лор `T13` (строка владельца
+«Getting the World Government as a partner.» в 9bdd6e4a1c; RU «Мировое правительство — в партнёрах.» — 7791685015, соседом,
+CI краснел без RU). RU описания — новый ключ «…2 steps.» (`turmoil_redux_cards.json`; сосед «…3 steps.» — другая карта, не тронут);
+RU-имя — классическое через откат суффикса (пин `i18n.spec`); `card_info` — аудит чист.
+
+**Механизм — по шаблону TR71, без расхождений в коде**: `CardName`, манифест + `cardsToRemove`, реестр «AUTHORED», строка долой из
+`TURMOIL_CARDS_AWAITING_REDUX_REPLACEMENT`, пины `replaced` (`TurmoilCardsUnderRedux`), `devGuaranteedCards`, `cardLore` (T13), `i18n`.
+Счётные пины (`deckComposition`, `PoliticalThinkTank`) прочли `cardsToRemove` сами. **Одно уточнение шаблона СПЕКА** (§3.2 п.8
+`TURMOIL_REDUX_CLASSIC_CARDS.md`): без принятой резолюции у власти Зелёные (свод p.8) — для карты Зелёных столы «без дороги»
+принимают резолюцию Единства, а «Зелёные по умолчанию → играется с первого поколения» — своё правило.
+
+**Гарды.** `SponsoredMoholeRedux.spec` (18: печать; требование — 0/1/2 из 2, `partyOffVote`, Зелёные по умолчанию, Зелёные у власти,
+Учёные у власти — не дорога, грант — не дорога, TR70-вейвер; розыгрыш — +2 пр. тепла без запроса, ПО 1 в счёте карт (не РТ),
+метка Здания, превью = исполнение; раздача — Redux / классика; скоуп; save/load). Своего e2e нет (§5).
