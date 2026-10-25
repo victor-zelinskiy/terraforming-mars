@@ -75,14 +75,19 @@ describe('supportPickModel — the ring, the readings, the order the cubes leave
     expect(supportStartParty(META, supportCursorOrder(parties, I))).eq(S);
   });
 
-  it('◀ ▶ walk the ring and clamp at its ends; ▲ climbs to the ruler, ▼ comes back onto the row', () => {
+  it('the d-pad follows the hall: ▲ ▼ walk the opposition COLUMN, ▶ crosses to the dais, ◀ comes back to the bench left', () => {
     const order = supportCursorOrder(parties, I);
-    expect(supportCursorStep(order, I, S, 'right')).eq(M);
-    expect(supportCursorStep(order, I, PartyName.UNITY, 'left'), 'a wall, never a wrap').eq(PartyName.UNITY);
-    expect(supportCursorStep(order, I, I, 'right'), 'the ruler ends the ring').eq(I);
-    expect(supportCursorStep(order, I, S, 'up')).eq(I);
-    expect(supportCursorStep(order, I, I, 'down')).eq(PartyName.REDS);
-    expect(supportCursorStep(order, I, S, 'down'), '▼ on the row moves nothing').eq(S);
+    expect(supportCursorStep(order, I, S, 'down')).eq(M);
+    expect(supportCursorStep(order, I, S, 'up')).eq(PartyName.GREENS);
+    expect(supportCursorStep(order, I, PartyName.UNITY, 'up'), 'a wall, never a wrap').eq(PartyName.UNITY);
+    expect(supportCursorStep(order, I, PartyName.REDS, 'down'), 'a wall, never a wrap').eq(PartyName.REDS);
+    expect(supportCursorStep(order, I, S, 'left'), '◀ on the column is a wall').eq(S);
+    expect(supportCursorStep(order, I, S, 'right'), '▶ crosses to the ruler on the dais').eq(I);
+    expect(supportCursorStep(order, I, I, 'left', M), '◀ from the dais returns to the bench the cursor left').eq(M);
+    expect(supportCursorStep(order, I, I, 'left'), '…else the bench level with the dais').eq(S);
+    for (const dir of ['up', 'down', 'right'] as const) {
+      expect(supportCursorStep(order, I, I, dir), `the dais is one stop (${dir})`).eq(I);
+    }
   });
 
   it('a candidate reads «N → 0» and the cubes that would leave; a refused area its ONE reason, nothing leaving', () => {
@@ -200,18 +205,18 @@ describe('the support-area mode in the flow record, the crumb and the bar', () =
     expect(parliamentCrumbCommitted()).eq(true);
   });
 
-  it('STAGED: A «Разыграть карту» · X «Осмотреть» · L3 «Источник» · B «Назад»; a refused area dims A', () => {
+  it('STAGED: ✚ «Выбор партии» · A «Разыграть карту» · X «Осмотреть» · L3 «Источник» · B «Назад»; a refused area dims A', () => {
     armSupportPickFlow({zone: 'parties', partyIndex: 3}, 'Sanctions', false, META);
     expect(parliamentCommandsOf(input({staged: true, available: true})).map((c) => [c.control, c.label, c.enabled !== false])).deep.eq([
-      ['confirm', 'Play card', true], ['secondary', 'Inspect', true], ['stickL', 'Source', true], ['back', 'Back', true],
+      ['dpad', 'Party choice', true], ['confirm', 'Play card', true], ['secondary', 'Inspect', true], ['stickL', 'Source', true], ['back', 'Back', true],
     ]);
-    expect(parliamentCommandsOf(input({staged: true, available: false}))[0].enabled).eq(false);
+    expect(parliamentCommandsOf(input({staged: true, available: false})).find((c) => c.control === 'confirm')?.enabled).eq(false);
   });
 
   it('LIVE: A «Выбрать» · B «Свернуть»; past A the bar is a STATUS — never «На поле» over an absorbed beat', () => {
     armSupportPickFlow({zone: 'parties', partyIndex: 3}, 'Sanctions', true, META);
     const live = parliamentCommandsOf(input({staged: false, available: true}));
-    expect(live[0].label).eq('Select');
+    expect(live.find((c) => c.control === 'confirm')?.label).eq('Select');
     expect(live[live.length - 1]).deep.eq({control: 'back', label: 'Minimize'});
     parliamentFlow.supportCommitted = true;
     expect(parliamentCommandsOf(input({staged: false, available: true}))).deep.eq([{control: 'confirm', label: 'Performing…', enabled: false}]);

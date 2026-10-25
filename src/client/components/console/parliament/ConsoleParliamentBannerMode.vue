@@ -1,11 +1,13 @@
 <template>
   <!-- ══ THE BANNER MODE («ЗНАМЯ», Turmoil Redux Septem Tribus:redux) — the Parliament picks the PARTY whose banner
        takes the viewer's cube (the first action). The objects are the six party PLAQUES where they stand: the cursor
-       walks them (the support mode's ring) and nothing moves; the plaque under the cursor wears the GHOST of the cube in
-       its banner socket. THIS panel is the reading of that plaque, in the voting area's own rect (the bills recede under
-       it — nothing flies to or from them). A places the cube; the answer plays on this very stage: the cube is carried
-       from the viewer's seat into the socket, then — when the cube opened the party's effect — the party's seal travels
-       into «ВАШИ ЭФФЕКТЫ» (the access scene), and the surface leaves whole. ══ -->
+       walks them as the hall lays them out (▲ ▼ the opposition's column, ▶ ◀ the dais — `supportCursorStep`) and
+       nothing moves; the plaque under the cursor wears the GHOST of the cube in its banner socket. THIS panel is the
+       reading of that plaque — what the cube opens, the party's clauses with their GRAPHIC and words, the FAQ — in the
+       voting area's own rect (the bills recede under it). A places the cube; the answer plays on this very stage: the
+       CORPORATION stands up in the table's cell and the cube leaves its printed glyph for the socket (`bannerCubeStage`),
+       then — when the cube opened the party's effect — the party's seal travels into «ВАШИ ЭФФЕКТЫ» (the access
+       scene), and the surface leaves whole. ══ -->
   <div class="con-parl__support con-parl__banner"
        :class="{
          'con-parl__support--committed': flow.bannerCommitted,
@@ -24,22 +26,33 @@
           <img class="con-parl__support-emblem" :src="emblemOf(reading.party)" alt="" />
           <b class="con-parl__support-name">{{ $t(partyNameKey(reading.party)) }}</b>
         </div>
-        <div class="con-parl__support-area">
-          <span class="con-parl__info-kicker con-parl__support-kicker">{{ $t('Party banner') }}</span>
-          <!-- THE SOCKET, as it will stand: the GHOST of the viewer's cube (a dashed contour + a pale cube — the grammar
-               of an arriving place, no light) before the press; the cube itself once it has landed. -->
-          <span class="con-parl__support-row con-parl__banner-row">
-            <span class="con-parl__banner-socket" :class="{'con-parl__banner-socket--ghost': !landed, 'con-parl__banner-socket--seated': landed}" data-parl-banner-socket>
-              <PlayerCube v-if="viewerColor !== undefined" :color="viewerColor" :size="20" :glow="false" :shadow="false" />
-            </span>
-            <span v-if="reading.available" class="con-parl__banner-consequence" data-parl-banner-consequence>{{ $t(consequenceKey) }}</span>
+        <!-- WHAT THE CUBE OPENS — the SOCKET as it will stand (the ghost of the viewer's cube before the press: a dashed
+             contour + a pale cube, the grammar of an arriving place, no light; the cube itself once it has landed) and
+             the consequence in one line; a refused banner names its ONE reason instead. -->
+        <span class="con-parl__support-row con-parl__banner-row">
+          <span class="con-parl__banner-socket" :class="{'con-parl__banner-socket--ghost': !landed, 'con-parl__banner-socket--seated': landed}" data-parl-banner-socket>
+            <PlayerCube v-if="viewerColor !== undefined" :color="viewerColor" :size="20" :glow="false" :shadow="false" />
           </span>
-          <!-- THE PARTY'S STANDING EFFECT — what the cube gives (the party's own rule, never a paraphrase). -->
-          <span v-if="ruleKey !== ''" class="con-parl__banner-rule" data-parl-banner-rule>{{ $t(ruleKey) }}</span>
-          <span v-if="!reading.available" class="con-parl__support-reason" data-parl-banner-reason>{{ $t(reading.reason ?? 'Your cube already stands on this banner') }}</span>
-          <!-- THE FAQ (rulebook p.19): the cube gives the EFFECT, never the party's requirement. -->
-          <span class="con-parl__support-rule con-parl__banner-faq" data-parl-banner-faq>{{ $t(faqKey) }}</span>
+          <span v-if="reading.available" class="con-parl__banner-consequence" data-parl-banner-consequence>{{ $t(consequenceKey) }}</span>
+          <span v-else class="con-parl__support-reason con-parl__banner-reason" data-parl-banner-reason>{{ $t(reading.reason ?? 'Your cube already stands on this banner') }}</span>
+        </span>
+        <!-- WHAT THE PARTY DOES — its clauses as the Charter prints them: each under its engraved label, the GRAPHIC at
+             reading size (the ONE formula renderer) with its words beside it (the party's own text, never a paraphrase). -->
+        <div class="con-parl__banner-clauses" :data-banner-clauses="clauses.length">
+          <section v-for="clause in clauses" :key="clause.kind" class="con-parl__banner-clause" :class="'con-parl__banner-clause--' + clause.kind" :data-banner-clause="clause.kind">
+            <span class="con-parl__banner-clause-label">
+              <svg v-if="clause.kind === 'action'" viewBox="0 0 16 16" aria-hidden="true"><path d="M9.6 1 3.4 9.1h3.9L6.2 15l6.4-8.4H8.6z" /></svg>
+              <svg v-else viewBox="0 0 24 12" aria-hidden="true"><path d="M6 1.5C3 1.5 1.2 3.6 1.2 6S3 10.5 6 10.5c3.6 0 8.4-9 12-9 3 0 4.8 2.1 4.8 4.5S21 10.5 18 10.5c-3.6 0-8.4-9-12-9z" fill="none" stroke-width="1.7" /></svg>
+              {{ $t(clause.kind === 'action' ? 'Action' : 'Effect') }}
+            </span>
+            <div v-if="clause.root !== undefined" class="con-parl__banner-clause-formula" data-banner-clause-graphic>
+              <ConsolePartyFormula :party="reading.party" :renderRoot="clause.root" size="wide" />
+            </div>
+            <span v-if="clause.text !== undefined" class="con-parl__banner-clause-text">{{ $t(clause.text) }}</span>
+          </section>
         </div>
+        <!-- THE FAQ (rulebook p.19): the cube gives the EFFECT, never the party's requirement. -->
+        <span class="con-parl__support-rule con-parl__banner-faq" data-parl-banner-faq>{{ $t(faqKey) }}</span>
       </div>
     </transition>
     </div>
@@ -65,6 +78,11 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {BannerPromptMeta} from '@/common/models/PlayerInputModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import PlayerCube from '@/client/components/PlayerCube.vue';
+import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
+import {ICardRenderRoot} from '@/common/cards/render/Types';
+import {buildMechanics} from '@/client/components/premiumCard/mechanicsModel';
+import {PARLIAMENT_GRAPHIC} from '@/client/components/premiumCard/resolutionPremiumVm';
+import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {AnimationHold, beginAnimationHold} from '@/client/components/presentation/animationHold';
@@ -79,6 +97,7 @@ import {ParliamentBeat, scheduleParliamentBeat} from '@/client/console/parliamen
 import {parliamentFlow, parliamentRootEl} from '@/client/console/parliament/consoleParliamentFlow';
 import {freezeParliamentFit} from '@/client/console/parliament/parliamentCardFit';
 import {flyAccessSeal, rectOf} from '@/client/console/parliament/parliamentFlights';
+import {abortBannerCubeStage, playBannerCubeStage} from '@/client/console/parliament/bannerCubeStage';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {parliamentBrowseInspectRequest} from '@/client/console/parliament/parliamentNavigation';
 import {bannerCubesOn, bannerPickResponse, ParliamentPromptBridge, ParliamentViewVm} from '@/client/console/parliament/consoleParliamentModel';
@@ -97,7 +116,7 @@ const BANNER_READ_MS = 640;
  */
 export default defineComponent({
   name: 'ConsoleParliamentBannerMode',
-  components: {GamepadGlyph, PlayerCube},
+  components: {ConsolePartyFormula, GamepadGlyph, PlayerCube},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -113,6 +132,8 @@ export default defineComponent({
       beat: undefined as ParliamentBeat | undefined,
       /** The cube has touched down in the plaque's socket (the panel's socket shows it seated). */
       landed: false,
+      /** The corporation's stage, while it still stands (the flow leaves only once the card has gone back down). */
+      stageDone: undefined as Promise<unknown> | undefined,
     };
   },
   computed: {
@@ -140,10 +161,30 @@ export default defineComponent({
     consequenceKey(): string {
       return this.reading === undefined ? '' : bannerConsequenceKey(this.reading);
     },
-    /** The party's standing effect in its own words (the manifest's rule) — what the cube gives. */
-    ruleKey(): string {
+    /**
+     * WHAT THE CUBE GIVES — the party's clauses as the Charter prints them: its standing EFFECT and its ACTION, each its
+     * own graphic (the manifest's render roots) with the party's own words for it. A clause with no GRAPHIC (an action-only
+     * party's empty passive — Unity) is not drawn: «no printed effect» under a label would be a clause that says nothing.
+     */
+    clauses(): Array<{kind: 'effect' | 'action', root?: ICardRenderRoot, text?: string}> {
       const party = this.reading?.party;
-      return party === undefined ? '' : (getPartyEffect(party)?.text.rule ?? '');
+      const effect = party === undefined ? undefined : getPartyEffect(party);
+      if (effect === undefined) {
+        return [];
+      }
+      const graphic = (root: ICardRenderRoot | undefined): ICardRenderRoot | undefined =>
+        root !== undefined && !buildMechanics(root, PARLIAMENT_GRAPHIC).textOnly ? root : undefined;
+      const out: Array<{kind: 'effect' | 'action', root?: ICardRenderRoot, text?: string}> = [];
+      const passive = graphic(effect.passiveRenderData);
+      const passiveText = effect.text.passive ?? (effect.actionRenderData === undefined ? effect.text.rule : undefined);
+      if (passive !== undefined || passiveText !== undefined) {
+        out.push({kind: 'effect', ...(passive === undefined ? {} : {root: passive}), ...(passiveText === undefined ? {} : {text: passiveText})});
+      }
+      if (effect.actionRenderData !== undefined) {
+        const action = graphic(effect.actionRenderData);
+        out.push({kind: 'action', ...(action === undefined ? {} : {root: action}), text: effect.text.action ?? effect.text.rule});
+      }
+      return out;
     },
     ctaReady(): boolean {
       return !parliamentFlow.bannerCommitted && this.reading?.available === true;
@@ -158,6 +199,13 @@ export default defineComponent({
       }
       return translateText('Place cube');
     },
+  },
+  mounted() {
+    // The corporation that stands up at the press paints its art from its first frame (decoded now, not at the rise).
+    const card = this.bridge.bannerPick?.card;
+    if (card !== undefined) {
+      preloadPremiumCardArt([card], ['full', 'thumb']);
+    }
   },
   beforeUnmount() {
     this.stopOutcome();
@@ -192,7 +240,8 @@ export default defineComponent({
         return;
       }
       if (intent.kind === 'nav') {
-        this.moveTo(supportCursorStep(this.order, this.ruler, this.cursor, intent.dir));
+        // The bench the cursor left keeps its place in `partyIndex` while the dais is focused — ◀ returns there.
+        this.moveTo(supportCursorStep(this.order, this.ruler, this.cursor, intent.dir, this.view.parties[parliamentFlow.partyIndex]?.party));
         return;
       }
       if (intent.kind === 'press' && intent.button === 'stickL') {
@@ -262,7 +311,11 @@ export default defineComponent({
       }
       this.playOutcome(party, viewer);
     },
-    /** LANDED: the cube is carried from the viewer's seat into the plaque's socket, then (an effect opened) the seal. */
+    /**
+     * LANDED: the CORPORATION stands up in the table's cell and the cube leaves its printed on-play glyph for the plaque's
+     * socket (`bannerCubeStage` — the sitting's own phrase); then (an effect opened) the seal. With no card to stand
+     * up (a door with no source) the cube is carried from the viewer's seat, as before.
+     */
     playOutcome(party: ReduxParty, viewer: Color): void {
       const f = parliamentFlow;
       f.stage = 'banner';
@@ -277,13 +330,24 @@ export default defineComponent({
           this.afterCube(party);
           return;
         }
-        landBannerCube(party, viewer, this.seatRect(viewer), () => {
-          this.landed = true;
-          this.afterCube(party);
+        const card = this.latchedCard;
+        if (card === undefined) {
+          landBannerCube(party, viewer, this.seatRect(viewer), () => {
+            this.landed = true;
+            this.afterCube(party);
+          });
+          return;
+        }
+        this.stageDone = playBannerCubeStage([{party, color: viewer, card}], {
+          origin: 'play',
+          onLanded: () => {
+            this.landed = true;
+            this.afterCube(party);
+          },
         });
       }));
     },
-    /** The cube's source: the viewer's own seat on the bench (its colour is its place), a cube-sized rect at its head. */
+    /** The cube's source when no card stands up: the viewer's own seat on the bench (its colour is its place). */
     seatRect(color: Color): Rect | undefined {
       const root = parliamentRootEl();
       const seat = rectOf(root?.querySelector(`[data-parl-seat="${color}"]`));
@@ -324,7 +388,8 @@ export default defineComponent({
       this.beat?.kill();
       this.beat = scheduleParliamentBeat(BANNER_READ_MS, () => {
         this.beat = undefined;
-        this.finish();
+        // The surface leaves whole: never under a corporation still going back down into the table.
+        void (this.stageDone ?? Promise.resolve()).then(() => this.finish());
       });
     },
     finish(): void {
@@ -343,6 +408,7 @@ export default defineComponent({
     },
     /** Cut every beat (the section unmounts): the held cube is shown, the hold lets go. */
     stopOutcome(): void {
+      abortBannerCubeStage();
       this.beat?.kill();
       this.beat = undefined;
       const party = parliamentFlow.bannerSnapshot?.party;

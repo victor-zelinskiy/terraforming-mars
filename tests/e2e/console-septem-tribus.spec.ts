@@ -22,7 +22,7 @@ const PRESET = {id: 'tv4k', viewport: {width: 3840, height: 2160}, query: '&cons
 const OUT = path.resolve('screenshots', 'septem', 'tv');
 const SEPTEM = 'Septem Tribus:redux';
 
-type CubeSample = {t: number, flight: boolean, seated: boolean, holds: string};
+type CubeSample = {t: number, flight: boolean, seated: boolean, holds: string, stage: string, origin?: {x: number, y: number}, card?: {l: number, t: number, r: number, b: number}};
 
 async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT, {recursive: true});
@@ -40,6 +40,19 @@ async function armCubeProbe(page: Page, party: string, color: string): Promise<v
         flight: document.querySelector('[data-banner-cube-flight]') !== null,
         seated: document.querySelector(`.con-pseal[data-party="${p}"] [data-banner-cube="${c}"]`) !== null,
         holds: (w.__conReady?.().holds ?? []).join(' '),
+        // THE CORPORATION'S STAGE: its phase, the face's box, and where a cube in the air stands at that instant.
+        stage: document.querySelector('[data-banner-stage]')?.getAttribute('data-banner-stage-phase') ?? '',
+        ...(() => {
+          const face = document.querySelector('[data-banner-stage] .pcard')?.getBoundingClientRect();
+          // A flight proxy is born INVISIBLE (law 14) and positioned a tick later: only a painted cube says where it is.
+          const el = document.querySelector<HTMLElement>('[data-banner-cube-flight]');
+          const painted = el !== null && getComputedStyle(el).visibility !== 'hidden' && Number(getComputedStyle(el).opacity) > 0.05;
+          const cube = painted ? el.getBoundingClientRect() : undefined;
+          return {
+            ...(face === undefined ? {} : {card: {l: face.left, t: face.top, r: face.right, b: face.bottom}}),
+            ...(cube === undefined ? {} : {origin: {x: cube.left + cube.width / 2, y: cube.top + cube.height / 2}}),
+          };
+        })(),
       });
     };
     new MutationObserver(sample).observe(document.body, {subtree: true, childList: true, attributes: true});
@@ -102,7 +115,33 @@ test.describe('Septem Tribus:redux · the cubes on the parties\' banners', () =>
     expect((await crumbText(page)).toUpperCase(), 'the crumb: the start\'s flow, one level deeper').toMatch(/СТАРТ ПАРТИИ.*ЗНАМЯ/);
     await expect(page.locator('[data-banner-cube-ghost]'), 'the plaque under the cursor wears the ghost of the cube').toHaveCount(1);
     await expect(page.locator('[data-parl-banner-faq]'), 'the FAQ line stands in the reading').toHaveCount(1);
-    const party = await page.locator('[data-parl-banner-reading]').getAttribute('data-banner-party');
+    // THE READING DRAWS THE PARTY'S GRAPHIC beside its words (the owner, 2026-10-25): every clause has its formula.
+    const clauses = page.locator('[data-parl-banner-reading]:not(.con-parl-xfade-leave-active) [data-banner-clause]');
+    expect(await clauses.count(), 'the reading prints the clauses of the party').toBeGreaterThan(0);
+    // THE BAR SAYS WHAT THE D-PAD IS FOR, and the band names the mode instead of «ГОЛОСОВАНИЕ».
+    await expect(page.locator('.con-cmdbar'), 'the bar offers the party choice on the d-pad').toContainText(/Выбор партии/i);
+    // THE D-PAD FOLLOWS THE HALL: ▼ walks the opposition column, ▶ crosses to the dais, ◀ returns to the bench left.
+    // The reading CROSSFADES between plaques: the one ARRIVING (never the one leaving) is the plaque under the cursor.
+    const readParty = async (): Promise<string | null> =>
+      page.locator('[data-parl-banner-reading]:not(.con-parl-xfade-leave-active)').first().getAttribute('data-banner-party');
+    const top = await readParty();
+    await page.keyboard.press('ArrowDown');
+    await expect.poll(readParty, {message: '▼ walks DOWN the opposition column'}).not.toBe(top);
+    const second = await readParty();
+    // …and a party WITH a printed graphic draws it in the reading (the second bench — the first may be Unity, whose
+    // action prints words only).
+    await shoot(page, '02b-banner-second');
+    expect(await page.locator('[data-parl-banner-reading]:not(.con-parl-xfade-leave-active) [data-banner-clause-graphic] .pcard-mech-group').count(),
+      'the reading draws the graphic of the party').toBeGreaterThan(0);
+    const benchY = async (p: string | null) => (await page.locator(`.con-parl__opposition .con-pseal[data-party="${p}"]`).first().boundingBox())?.y ?? 0;
+    expect(await benchY(second), 'the bench under the cursor stands BELOW the one it left').toBeGreaterThan(await benchY(top));
+    await page.keyboard.press('ArrowRight');
+    await expect.poll(async () => page.locator('.con-parl').getAttribute('data-zone'), {message: '▶ crosses to the ruler on the dais'}).toBe('ruler');
+    await page.keyboard.press('ArrowLeft');
+    await expect.poll(readParty, {message: '◀ comes back to the bench the cursor left'}).toBe(second);
+    await page.keyboard.press('ArrowUp');
+    await expect.poll(readParty, {message: '▲ walks back up'}).toBe(top);
+    const party = await readParty();
     expect(party, 'the reading names the banner under the cursor').toBeTruthy();
     const before = await grantsOf(request, playerId);
     expect(before.cubes, 'nothing is placed before A').toEqual([]);
@@ -110,6 +149,9 @@ test.describe('Septem Tribus:redux · the cubes on the parties\' banners', () =>
 
     await armCubeProbe(page, party!, before.color);
     await page.keyboard.press('Enter');
+    // THE FRAME OF THE SCENE: the corporation stands in the table cell while its cube is in the air.
+    await page.locator('[data-banner-stage][data-banner-stage-phase="carry"]').waitFor({state: 'attached', timeout: 20_000});
+    await shoot(page, '02c-corporation-rises');
     await expect(page.locator(`.con-pseal[data-party="${party}"] [data-banner-cube="${before.color}"]`).first(),
       'the cube is seated in the plaque\'s socket').toHaveCount(1, {timeout: 20_000});
     await shoot(page, '03-cube-seated');
@@ -120,6 +162,15 @@ test.describe('Septem Tribus:redux · the cubes on the parties\' banners', () =>
     expect(tFlight, 'the cube FLEW (a proxy in the air)').not.toBe(undefined);
     expect(tSeated, 'the cube was seated').not.toBe(undefined);
     expect(tFlight!, 'nothing stands in the socket before the flight').toBeLessThanOrEqual(tSeated!);
+    // THE CORPORATION ROSE FIRST, and the cube was BORN ON IT (its printed glyph), never on the bench.
+    const firstFlight = samples.find((s) => s.flight && s.origin !== undefined);
+    const tStage = samples.find((s) => s.stage !== '')?.t;
+    expect(tStage, 'the corporation stood up in the table cell').not.toBe(undefined);
+    expect(tStage!, 'before the cube left it').toBeLessThanOrEqual(tFlight!);
+    expect(firstFlight?.card, 'the card stands while the cube leaves').not.toBe(undefined);
+    const o = firstFlight!.origin!;
+    const c = firstFlight!.card!;
+    expect(o.x >= c.l && o.x <= c.r && o.y >= c.t && o.y <= c.b, `the cube is born on the card (${o.x.toFixed(0)},${o.y.toFixed(0)} in ${JSON.stringify(c)})`).toBe(true);
 
     const after = await grantsOf(request, playerId);
     expect(after.cubes, 'the server holds the grant — one cube, on the chosen banner').toEqual([party]);
@@ -149,10 +200,26 @@ test.describe('Septem Tribus:redux · the cubes on the parties\' banners', () =>
     expect(before.cubes, 'the fixture: no cube on any banner yet').toEqual([]);
     await page.evaluate(() => {
       const w = window as unknown as {__bannerBeat: {flight: boolean, hold: boolean}, __conReady?: () => {holds?: Array<string>}};
-      w.__bannerBeat = {flight: false, hold: false};
+      w.__bannerBeat = {flight: false, hold: false, stage: false, bornOnCard: false, phases: [] as Array<string>} as never;
       const sample = () => {
-        if (document.querySelector('[data-banner-cube-flight]') !== null) {
-          w.__bannerBeat.flight = true;
+        const beat = w.__bannerBeat as unknown as {flight: boolean, stage: boolean, bornOnCard: boolean, phases: Array<string>};
+        const phase = document.querySelector('[data-banner-stage]')?.getAttribute('data-banner-stage-phase');
+        if (phase !== undefined && phase !== null && beat.phases[beat.phases.length - 1] !== phase) {
+          beat.phases.push(phase);
+          beat.stage = true;
+        }
+        // Born INVISIBLE and positioned a tick later (law 14): the birth is the first PAINTED sample.
+        const el = document.querySelector<HTMLElement>('[data-banner-cube-flight]');
+        const painted = el !== null && getComputedStyle(el).visibility !== 'hidden' && Number(getComputedStyle(el).opacity) > 0.05;
+        const cube = painted ? el.getBoundingClientRect() : undefined;
+        if (cube !== undefined) {
+          if (!beat.flight) {
+            const face = document.querySelector('[data-banner-stage] .pcard')?.getBoundingClientRect();
+            const x = cube.left + cube.width / 2;
+            const y = cube.top + cube.height / 2;
+            beat.bornOnCard = face !== undefined && x >= face.left && x <= face.right && y >= face.top && y <= face.bottom;
+          }
+          beat.flight = true;
         }
         if ((w.__conReady?.().holds ?? []).some((h) => h.includes('parliament-sitting:enact/banner'))) {
           w.__bannerBeat.hold = true;
@@ -162,14 +229,21 @@ test.describe('Septem Tribus:redux · the cubes on the parties\' banners', () =>
       window.setInterval(sample, 40);
     });
     await enterSittingByPass(page, request, playerId);
+    await page.locator('[data-banner-stage][data-banner-stage-phase="carry"]').waitFor({state: 'attached', timeout: 90_000});
+    await shoot(page, '05a-sitting-corporation-rises');
     await expect.poll(async () => (await grantsOf(request, playerId)).cubes.length, {timeout: 60_000, message: 'the server places the cube at the enactment'}).toBe(1);
     const won = (await grantsOf(request, playerId)).cubes[0];
     await expect(page.locator(`.con-pseal[data-party="${won}"] [data-banner-cube="${before.color}"]`).first(),
       'the new ruler\'s banner carries the cube once its beat has landed').toHaveCount(1, {timeout: 60_000});
     await waitSittingAtRest(page, 30_000);
     await shoot(page, '05-sitting-cube');
-    const beat = await page.evaluate(() => (window as unknown as {__bannerBeat: {flight: boolean, hold: boolean}}).__bannerBeat);
+    const beat = await page.evaluate(() => (window as unknown as {__bannerBeat: {flight: boolean, hold: boolean, stage: boolean, bornOnCard: boolean, phases: Array<string>}}).__bannerBeat);
+    test.info().annotations.push({type: 'banner stage', description: beat.phases.join(' → ')});
+    expect(beat.stage, 'the corporation stood up in the table cell').toBe(true);
+    expect(beat.phases, 'rise → stand → carry → read → sink').toEqual(['rise', 'stand', 'carry', 'read', 'sink']);
     expect(beat.flight, 'the cube FLEW in the sitting').toBe(true);
+    expect(beat.bornOnCard, 'the cube was born on the corporation card').toBe(true);
+    await expect(page.locator('[data-banner-stage]'), 'the card went back down — the table returns').toHaveCount(0);
     expect(beat.hold, 'under its own hold «parliament-sitting:enact/banner»').toBe(true);
     await closeSitting(page, request, playerId);
   });

@@ -369,6 +369,17 @@ export type BandDelegate = {
 
 /**
  * «ДЕЛЕГАТЫ» — a card's RALLY of neutral delegates (TR31) shown as the outcome of its play: the votes LANDED so
+/**
+ * «ЗНАМЯ» — the BANNER mode (Septem Tribus:redux, the first action): the stage's own word, then what the d-pad is for
+ * («выберите партию — ваш куб встанет на её знамя») while the pick is open — the plaques are the mode's only stops and
+ * the line says so where the eye is; past the press, the party that takes the cube. Cyan until A, amber after it.
+ */
+export type BandBanner = {
+  stage: string;
+  party: ReduxParty | undefined;
+  committed: boolean;
+};
+
  * far (a resolution chip each), the areas READ so far (a party chip each — with its named zero when it took
  * none), and — once the recount has begun — the count of neutral delegates in use, growing one mark at a time.
  * The chips grow one touchdown at a time, never as a batch; the number ticks in place.
@@ -398,6 +409,8 @@ export type BandContext = {
   delegate?: BandDelegate;
   standing: BandStanding;
 };
+  /** `undefined` outside the banner mode (Septem Tribus:redux). */
+  banner?: BandBanner;
 
 /** The support wave's own rule — the ONE statement of what is being paid and to whom. */
 function supportRuleKey(wave: '' | SupportStatus): string {
@@ -419,6 +432,9 @@ export function parliamentBandLine(ctx: BandContext): BandLine {
     }
     if (ctx.support !== undefined) {
       return supportLine(ctx.support);
+    if (ctx.banner !== undefined) {
+      return bannerLine(ctx.banner);
+    }
     }
     if (ctx.delegate !== undefined) {
       return delegateLine(ctx.delegate);
@@ -509,6 +525,22 @@ function supportLine(support: BandSupport): BandLine {
 
 /**
  * ИЗГНАНИЕ — the delegate mode: whose figure is under the cursor and where it stands («[фигура] player2 · [bill]», or
+/**
+ * ЗНАМЯ — the banner mode: the instruction while the pick is open (one key — the line stands still while the cursor
+ * walks: the panel reads the plaque under it), the chosen party once the press is in.
+ */
+function bannerLine(banner: BandBanner): BandLine {
+  const chips: Array<BandChip> = banner.committed && banner.party !== undefined ?
+    [{kind: 'party', party: banner.party}] :
+    [{kind: 'label', key: 'Select a party to place your cube on its banner', tone: 'quiet'}];
+  return {
+    kicker: banner.stage,
+    key: banner.committed ? `banner:c:${banner.party ?? ''}` : 'banner:o',
+    chips,
+    committed: banner.committed,
+  };
+}
+
  * «[фигура] Нейтральный · [emblem] party · Народная поддержка»). The key follows the cursor (one crossfade per figure)
  * and the commit, and stands still between them.
  */

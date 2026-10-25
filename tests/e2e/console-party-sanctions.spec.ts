@@ -214,8 +214,8 @@ const plaqueBoxes = (page: Page) => page.evaluate(async () => {
   return last;
 });
 
-/** Walk the cursor to `party` — one press at a time, each VERIFIED by the cursor itself (never a blind count). */
-async function moveCursorTo(page: Page, party: string, dir: 'ArrowRight' | 'ArrowLeft'): Promise<void> {
+/** Walk the cursor to `party` down / up the opposition COLUMN (the hall's own geometry) — one press at a time, each VERIFIED by the cursor itself (never a blind count). */
+async function moveCursorTo(page: Page, party: string, dir: 'ArrowDown' | 'ArrowUp'): Promise<void> {
   for (let step = 0; step < 8; step++) {
     const at = await cursorParty(page);
     if (at === party) {
@@ -305,10 +305,10 @@ for (const preset of PRESETS) {
       await expect(page.locator(`.con-parl__party[data-party="${SCIENTISTS}"] [data-pseal-pick]`), 'the Scientists read «1 → 0»').toHaveText(/1\s*→\s*0/);
       await expect(page.locator('.con-parl__party[data-party="Unity"] [data-pseal-pick]'), 'an empty area names its reason').toContainText('Область пуста');
       const ring0 = await plaqueBoxes(page);
-      await moveCursorTo(page, MARS, 'ArrowRight');
+      await moveCursorTo(page, MARS, 'ArrowDown');
       await expect(page.locator('[data-parl-support-reading]'), 'the panel reads the cursor\'s area').toHaveAttribute('data-support-current', '3');
       await expect(page.locator(`[data-parl-support="${MARS}"] [data-support-outgoing]`), 'the cubes that would leave are outlined').toHaveCount(3);
-      await moveCursorTo(page, 'Unity', 'ArrowLeft');
+      await moveCursorTo(page, 'Unity', 'ArrowUp');
       await expect(page.locator('[data-parl-support-reading]'), 'an empty area is refused').not.toHaveAttribute('data-support-available', '');
       expect(await plaqueBoxes(page), 'walking the cursor moved no plaque').toBe(ring0);
       expect(posts, 'walking the plaques sends nothing').toEqual([]);
@@ -331,7 +331,7 @@ for (const preset of PRESETS) {
 
       // ── 4. in again; A on Mars First is the play's ONE POST, addressed to the card ──
       await chooseParty(page);
-      await moveCursorTo(page, MARS, 'ArrowRight');
+      await moveCursorTo(page, MARS, 'ArrowDown');
       for (let attempt = 0; attempt < 3 && posts.length === 0; attempt++) {
         await press(page, 'Enter', 300);
         await expect.poll(() => posts.length, {timeout: 3_000}).toBeGreaterThan(0).catch(() => undefined);

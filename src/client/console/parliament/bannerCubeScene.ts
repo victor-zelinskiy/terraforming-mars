@@ -6,6 +6,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {flyBannerCube, rectOf} from './parliamentFlights';
 import {Rect} from './consoleParliamentVoteMotion';
 import {bannerCubesOn} from './consoleParliamentModel';
+import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 
 /*
  * THE CUBE ON THE BANNER — SEEN ARRIVING (Septem Tribus:redux).
@@ -22,8 +23,15 @@ import {bannerCubesOn} from './consoleParliamentModel';
  *  · `bannerCubesShown(party, cubes)` — what a surface draws: the table's cubes minus the held ones.
  */
 
-/** How long a seeded cube may wait for its flight before it is simply shown (a scene that never played). */
+/** How long the first action's cube may wait for its flight before it is simply shown (a scene that never played). */
 export const BANNER_CUBE_HOLD_MAX_MS = 9_000;
+/**
+ * …and a cube the SITTING owes: the walk reaches its beat only after the Agenda, the support and the enactment have
+ * played (and only once the player looks at the Parliament), so the first action's bound shipped the beat SKIPPED —
+ * the cube was shown unflown before its turn came (the owner, 2026-10-25: «по факту куб появился»). The sitting
+ * releases what it still owes itself when the enactment settles; this is the net under a sitting nobody watched.
+ */
+export const BANNER_CUBE_SITTING_HOLD_MAX_MS = 60_000;
 
 export const bannerCubeState = reactive({
   /** `party|color` of every cube whose landing is still owed. */
@@ -51,7 +59,7 @@ export function bannerCubeJustLanded(party: ReduxParty, color: Color): boolean {
   return bannerCubeState.landed[keyOf(party, color)] === true;
 }
 
-export function holdBannerCube(party: ReduxParty, color: Color): void {
+export function holdBannerCube(party: ReduxParty, color: Color, netMs: number = BANNER_CUBE_HOLD_MAX_MS): void {
   const key = keyOf(party, color);
   bannerCubeState.held[key] = true;
   const net = nets.get(key);
@@ -62,11 +70,11 @@ export function holdBannerCube(party: ReduxParty, color: Color): void {
   const showUnflown = () => {
     nets.delete(key);
     if (bannerCubeState.held[key] === true) {
-      console.warn(`[banner-cube] ${key} was held ${BANNER_CUBE_HOLD_MAX_MS} ms with no flight — shown without one`);
+      console.warn(`[banner-cube] ${key} was held ${netMs} ms with no flight — shown without one`);
       releaseBannerCube(party, color);
     }
   };
-  nets.set(key, setTimeout(showUnflown, BANNER_CUBE_HOLD_MAX_MS));
+  nets.set(key, setTimeout(showUnflown, netMs));
 }
 
 export function releaseBannerCube(party: ReduxParty, color: Color, landed = false): void {
@@ -112,16 +120,25 @@ export function seedBannerCubeHolds(before: PlayerViewModel | undefined, after: 
   // first action) simply stands: holding it would hide it until the net.
   const viewer = before?.thisPlayer?.color;
   const ownAnswer = before?.waitingFor?.bannerPrompt !== undefined;
-  const sitting = new Set((now.phase?.summary?.bannerCubes ?? now.lastPhase?.bannerCubes ?? []).map((c) => keyOf(c.party, c.player)));
+  const record = now.phase?.summary?.bannerCubes ?? now.lastPhase?.bannerCubes ?? [];
+  const sitting = new Set(record.map((c) => keyOf(c.party, c.player)));
+  let warm = false;
   const old = cubeKeysOf(was);
   for (const key of cubeKeysOf(now)) {
     if (old.has(key)) {
       continue;
     }
     const [party, color] = key.split('|') as [ReduxParty, Color];
-    if (sitting.has(key) || (ownAnswer && color === viewer)) {
+    if (sitting.has(key)) {
+      holdBannerCube(party, color, BANNER_CUBE_SITTING_HOLD_MAX_MS);
+      warm = true;
+    } else if (ownAnswer && color === viewer) {
       holdBannerCube(party, color);
     }
+  }
+  // The card that will stand up for the sitting's cube paints its art from its first frame (decoded now, not at the rise).
+  if (warm) {
+    preloadPremiumCardArt(Array.from(new Set(record.map((c) => c.card))), ['full', 'thumb']);
   }
 }
 
@@ -151,6 +168,14 @@ export function landBannerCube(party: ReduxParty, color: Color, from: Rect | und
     releaseBannerCube(party, color, true);
     onLanded();
   });
+}
+
+/** Every cube still owed its flight is shown where it stands (the sitting's enactment settled without its beat). */
+export function releaseHeldBannerCubes(): void {
+  for (const key of Object.keys(bannerCubeState.held)) {
+    const [party, color] = key.split('|') as [ReduxParty, Color];
+    releaseBannerCube(party, color);
+  }
 }
 
 /** The socket's seat answer ended (its `animationend`): a plaque mounted later shows the cube at rest. */

@@ -64,7 +64,8 @@
  * wall-clock timer anywhere (`parliamentNoTimers.spec.ts`).
  */
 import {gsap} from 'gsap';
-import {bannerCubeHeld, bannerCubeTargetRect, landBannerCube, releaseBannerCube} from './bannerCubeScene';
+import {bannerCubeHeld, releaseBannerCube, releaseHeldBannerCubes} from './bannerCubeScene';
+import {abortBannerCubeStage, BANNER_STAGE_TOTAL_MS, playBannerCubeStage} from './bannerCubeStage';
 import {nextTick, reactive} from 'vue';
 import {Color} from '@/common/Color';
 import {ParliamentModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
@@ -89,7 +90,7 @@ import {
   takeOwedRewards,
 } from './parliamentRewardBeat';
 import {
-  BANNER_CUBE_FLIGHT_MS, CUBE_FLIGHT_MS, DEAL_FLIGHT_MS, DEAL_STAGGER_MS, dealResolutionCard, dropFlight, ENACT_MOVE_MS, finishParliamentFlights, flightEl, flightRegistered,
+  CUBE_FLIGHT_MS, DEAL_FLIGHT_MS, DEAL_STAGGER_MS, dealResolutionCard, dropFlight, ENACT_MOVE_MS, finishParliamentFlights, flightEl, flightRegistered,
   flyCardOffTable, flyDelegate, killParliamentFlights, LEAVE_CARRY_MS, LEAVE_TURN_LEAD_MS, nextFlightId, placeFigureRect, pushCardFlight, rectOf,
   registerFlightHandle, RESHUFFLE_MS, riseToken, runReshuffle, scheduleHurriedParliamentBeat, setParliamentFlightsHurried, TOKEN_RISE_MS,
 } from './parliamentFlights';
@@ -1365,36 +1366,37 @@ function bannerCubesOwed(ctx: SittingDirectorContext): boolean {
 }
 
 /**
- * «КУБ НА ЗНАМЯ» — each cube the record names is carried from its seat's place on the bench (its colour is its place —
- * the first action's source too) into the socket of the party's banner: «взял → понёс → поставил», no flash, the
- * socket answering once on contact. A cube with nothing measurable is released in place (the same numbers, no flight).
+ * «КУБ НА ЗНАМЯ» — the cube is the work of a CARD, so the CARD stands up first (the owner, 2026-10-25): the
+ * corporation rises in the voting table's own cell (the bills recede under it), its printed effect fixes, the cube is
+ * born on the card's printed cube glyph and carried onto the banner of the party that has just come to power, one read,
+ * and the card goes back down — the table returns as it was (`bannerCubeStage.playBannerCubeStage`, one phrase per cube
+ * of the record, in its order). The run is AT REST only once the last card has gone back down; a kill (or the stage's
+ * ceiling) shows every cube where it stands and takes the card away at once.
  */
 function beatBanner(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
   const cubes = (ctx.summary.bannerCubes ?? []).filter((cube) => bannerCubeHeld(cube.party, cube.player));
-  let at = 0;
-  for (const cube of cubes) {
-    runState.pending++;
-    let landed = false;
-    const done = (): void => {
-      if (!landed) {
-        landed = true;
-        runState.pending = Math.max(0, runState.pending - 1);
-      }
-    };
-    runState.kills.push(() => {
-      releaseBannerCube(cube.party, cube.player);
-      done();
-    });
-    tl.call(() => {
-      const seat = rectOf(ctx.root.querySelector(`[data-parl-seat="${cube.player}"]`));
-      const target = bannerCubeTargetRect(cube.party);
-      const size = target?.height ?? 20;
-      const from = seat === undefined ? undefined : {left: seat.left + size * 0.2, top: seat.top + seat.height / 2 - size / 2, width: size, height: size};
-      landBannerCube(cube.party, cube.player, from, done);
-    }, undefined, at);
-    at += s(BANNER_CUBE_FLIGHT_MS + 120) * k;
+  if (cubes.length === 0) {
+    return 0;
   }
-  return at;
+  runState.pending++;
+  let over = false;
+  const done = (): void => {
+    if (!over) {
+      over = true;
+      runState.pending = Math.max(0, runState.pending - 1);
+    }
+  };
+  runState.kills.push(() => {
+    abortBannerCubeStage();
+    for (const cube of cubes) {
+      releaseBannerCube(cube.party, cube.player);
+    }
+    done();
+  });
+  tl.call(() => {
+    void playBannerCubeStage(cubes.map((cube) => ({party: cube.party, color: cube.player, card: cube.card})), {origin: 'effect'}).then(done);
+  }, undefined, 0);
+  return s(BANNER_STAGE_TOTAL_MS) * k * cubes.length;
 }
 
 function beatReceipt(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
@@ -2025,6 +2027,9 @@ function settleStagePoses(stage: SittingStage): void {
   case 'enact':
     sittingMotion.litSlot = '';
     releaseEnactmentHolds();
+    // …and a cube still owed its banner stands there now (its card's stage, if any, goes with it).
+    abortBannerCubeStage();
+    releaseHeldBannerCubes();
     flushAgendaBonus('stage-settled', 'phase');
     break;
   case 'reward':

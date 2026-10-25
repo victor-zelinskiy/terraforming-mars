@@ -60,27 +60,41 @@ export function supportStartParty(meta: SupportPromptMeta | undefined, order: Re
 }
 
 /**
- * THE D-PAD over the ring: ◀ ▶ walk it (clamped at both ends — a wall, never a
- * wrap that would jump across the screen), ▲ climbs to the ruler's tile (it
- * stands above the row), ▼ comes back down onto the row's last plaque.
+ * THE D-PAD over the plaques AS THEY STAND (Парламент v8 «Пленарный зал» — the browse ring's own geometry,
+ * `parliamentNavigation.navigateParliamentZones`): the opposition is a COLUMN of benches left of the dais, so ▲ ▼
+ * walk the column (clamped — a wall, never a wrap that would jump across the hall); ▶ crosses from the column to the
+ * ruler on the dais, ◀ comes back onto the bench the cursor left (`lastBench` — else the column's middle, the bench
+ * level with the dais). On the dais ▲ ▼ and ▶ are walls: the ruler is one stop. The cursor moves only where the eye
+ * already looks — a step never lands on a plaque the arrow did not point at.
  */
-export function supportCursorStep(order: ReadonlyArray<ReduxParty>, ruler: ReduxParty, at: ReduxParty | undefined, dir: 'left' | 'right' | 'up' | 'down'): ReduxParty | undefined {
+export function supportCursorStep(
+  order: ReadonlyArray<ReduxParty>, ruler: ReduxParty, at: ReduxParty | undefined, dir: 'left' | 'right' | 'up' | 'down', lastBench?: ReduxParty,
+): ReduxParty | undefined {
   if (order.length === 0) {
     return undefined;
   }
-  const index = at === undefined ? -1 : order.indexOf(at);
-  if (dir === 'up') {
-    return order.includes(ruler) ? ruler : at;
-  }
-  if (dir === 'down') {
-    if (at !== ruler) {
+  const column = order.filter((party) => party !== ruler);
+  const onDais = at === ruler && order.includes(ruler);
+  if (onDais) {
+    if (dir !== 'left' || column.length === 0) {
       return at;
     }
-    const row = order.filter((party) => party !== ruler);
-    return row[row.length - 1] ?? at;
+    return lastBench !== undefined && column.includes(lastBench) ? lastBench : column[Math.floor((column.length - 1) / 2)];
   }
-  const next = index + (dir === 'right' ? 1 : -1);
-  return order[Math.max(0, Math.min(order.length - 1, next))];
+  const index = at === undefined ? -1 : column.indexOf(at);
+  if (index === -1) {
+    return column[0] ?? at;
+  }
+  switch (dir) {
+  case 'up':
+    return column[Math.max(0, index - 1)];
+  case 'down':
+    return column[Math.min(column.length - 1, index + 1)];
+  case 'right':
+    return order.includes(ruler) ? ruler : at;
+  case 'left':
+    return at;
+  }
 }
 
 /**

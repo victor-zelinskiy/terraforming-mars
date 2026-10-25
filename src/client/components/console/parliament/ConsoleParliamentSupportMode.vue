@@ -238,7 +238,8 @@ export default defineComponent({
         return;
       }
       if (intent.kind === 'nav') {
-        this.moveTo(supportCursorStep(this.order, this.ruler, this.cursor, intent.dir));
+        // The bench the cursor left keeps its place in `partyIndex` while the dais is focused — ◀ returns there.
+        this.moveTo(supportCursorStep(this.order, this.ruler, this.cursor, intent.dir, this.view.parties[parliamentFlow.partyIndex]?.party));
         return;
       }
       if (intent.kind === 'press' && intent.button === 'stickL') {

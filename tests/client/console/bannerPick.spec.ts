@@ -17,8 +17,10 @@ import {
   BANNER_CUBE_FAQ_KEY, bannerConsequenceKey, bannerReadingOf, bannerStartParty, bannerStepStageOf,
 } from '@/client/console/parliament/bannerPickModel';
 import {
-  bannerCubeHeld, bannerCubesShown, releaseBannerCube, resetBannerCubeScene, seedBannerCubeHolds,
+  bannerCubeHeld, bannerCubesShown, releaseBannerCube, releaseHeldBannerCubes, resetBannerCubeScene, seedBannerCubeHolds,
 } from '@/client/console/parliament/bannerCubeScene';
+import {abortBannerCubeStage, bannerCubeStage, bannerCubeStageUp, playBannerCubeStage} from '@/client/console/parliament/bannerCubeStage';
+import {parliamentBandLine} from '@/client/console/parliament/parliamentBand';
 import {supportCursorOrder} from '@/client/console/parliament/supportPickModel';
 import {partyStepStageOf, taskFor} from '@/client/console/consoleTaskRouter';
 
@@ -140,10 +142,55 @@ describe('consoleParliamentFlow — the banner mode\'s crumb and bar', () => {
     const base = {stage: 'banner'} as unknown as Parameters<typeof parliamentCommandsOf>[0];
     const cmds = parliamentCommandsOf({...base, banner: {committed: false, source: true, available: true}} as never);
     expect(cmds.map((c) => c.label)).deep.include.members(['Place cube', 'Inspect', 'Source', 'Minimize']);
+    // The d-pad chooses the party, and the bar says so FIRST (the owner, 2026-10-25: it read as no choice at all).
+    expect(cmds[0]).deep.include({control: 'dpad', label: 'Party choice'});
     expect(cmds.find((c) => c.control === 'confirm')).deep.include({enabled: true});
     parliamentFlow.bannerCommitted = true;
     const busy = parliamentCommandsOf({...base, banner: {committed: true, source: true, available: false}} as never);
     expect(busy).deep.eq([{control: 'confirm', label: 'Performing…', enabled: false}]);
+  });
+});
+
+describe('parliamentBand — the banner mode line', () => {
+  it('while the pick is open the line says what the d-pad is for, and stands still as the cursor walks; past A it names the party, amber', () => {
+    const open = parliamentBandLine({banner: {stage: 'Banner', party: undefined, committed: false}, standing: {} as never});
+    expect(open.kicker).eq('Banner');
+    expect(open.chips).deep.eq([{kind: 'label', key: 'Select a party to place your cube on its banner', tone: 'quiet'}]);
+    expect(open.committed).is.false;
+    const placed = parliamentBandLine({banner: {stage: 'Banner', party: S, committed: true}, standing: {} as never});
+    expect(placed.chips).deep.eq([{kind: 'party', party: S}]);
+    expect(placed.committed).is.true;
+    expect(placed.key).not.eq(open.key);
+  });
+});
+
+describe('bannerCubeStage — the corporation rises and the cube leaves it', () => {
+  afterEach(() => {
+    abortBannerCubeStage();
+    resetBannerCubeScene();
+  });
+
+  it('the stage stands the card in the table cell for its cube; a cut shows the cube where it stands and takes the card away', async () => {
+    const before = view(model({red: []}), bannerPrompt());
+    seedBannerCubeHolds(before, view(model({red: [S]}), undefined));
+    expect(bannerCubeHeld(S, 'red')).is.true;
+    const run = playBannerCubeStage([{party: S, color: 'red', card: CORP}], {origin: 'play'});
+    expect(bannerCubeStageUp()).is.true;
+    expect(bannerCubeStage).deep.include({card: CORP, color: 'red', party: S, origin: 'play', phase: 'rise'});
+    abortBannerCubeStage();
+    expect(await run).eq('aborted');
+    expect(bannerCubeStageUp()).is.false;
+    expect(bannerCubeHeld(S, 'red'), 'a cut never keeps the cube hidden').is.false;
+  });
+
+  it('a sitting that settles without its beat shows every cube still owed', () => {
+    const before = view(model({red: [], blue: []}), undefined, 'blue');
+    const afterModel = model({red: [S], blue: []});
+    (afterModel as unknown as {phase: unknown}).phase = {summary: {bannerCubes: [{player: 'red', party: S, card: CORP}]}};
+    seedBannerCubeHolds(before, view(afterModel, undefined, 'blue'));
+    expect(bannerCubeHeld(S, 'red')).is.true;
+    releaseHeldBannerCubes();
+    expect(bannerCubeHeld(S, 'red')).is.false;
   });
 });
 

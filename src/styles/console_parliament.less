@@ -341,8 +341,37 @@
         }
     }
     &__banner-consequence { font-size: 1.15rem; font-weight: 700; letter-spacing: .02em; color: @con-text; }
-    &__banner-rule { max-width: 34rem; align-self: center; text-align: center; font-size: .9rem; line-height: 1.3; color: fade(@con-text, 90%); }
-    &__banner-faq { font-size: .8rem; color: fade(@con-text, 66%); }
+    &__banner-faq { font-size: .8rem; color: fade(@con-text, 66%); text-align: center; align-self: center; }
+    /* THE PARTY'S CLAUSES — what the cube gives, as the Charter prints it: each under its engraved label («∞ ЭФФЕКТ»,
+       «⚡ ДЕЙСТВИЕ»), the GRAPHIC at reading size (the ONE formula renderer — the plaque's, the Charter's) and its words
+       beside it. Side by side when the party has both, one centred plate when it has one. */
+    &__banner-clauses { display: flex; justify-content: center; align-items: stretch; gap: .8rem; min-width: 0; }
+    &__banner-clause {
+        flex: 1 1 0;
+        max-width: 26rem;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .45rem;
+        padding: .65rem .9rem .75rem;
+        border-radius: .6rem;
+        background: rgba(0, 0, 0, 0.3);
+        box-shadow: inset 0 0 0 .05rem fade(@con-parl-silver, 22%);
+        text-align: center;
+    }
+    &__banner-clause-label {
+        display: inline-flex; align-items: center; gap: .4rem;
+        font-size: .74rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: fade(@con-parl-gold, 92%);
+        svg { width: 1rem; height: .9rem; fill: currentColor; stroke: currentColor; }
+    }
+    &__banner-clause--effect &__banner-clause-label svg { width: 1.3rem; fill: none; }
+    &__banner-clause-formula {
+        display: flex; align-items: center; justify-content: center; min-height: 0; max-width: 100%;
+        --con-pformula-zoom: calc(1.25 * var(--con-ui-scale, 1));
+        .con-pformula { background: none; box-shadow: none; padding: 0; }
+    }
+    &__banner-clause-text { font-size: .9rem; line-height: 1.3; color: fade(@con-text, 90%); }
     &__toolbar {
         flex-shrink: 0;
         display: flex;
@@ -1979,4 +2008,74 @@ html.con-profile-tv .con-parl--walk {
 html.con-reduced-motion .con-parl__stack--landed { &::after, .player-delegate { animation: none; } }
 @media (prefers-reduced-motion: reduce) {
     .con-parl__stack--landed { &::after, .player-delegate { animation: none; } }
+}
+
+/* ══ THE CORPORATION RISES, THE CUBE LEAVES IT (Septem Tribus:redux — `ConsoleBannerCubeStage`, `bannerCubeStage.ts`).
+   The card stands in the voting table's cell over the receded bills: it comes UP out of the table (rise), its printed
+   effect fixes (stand — a transform press, no light), the cube leaves its glyph, one read, and it goes back down (sink).
+   Raised by size and a contact shadow only (invariant 15); transform / opacity only. ══ */
+.con-bstage {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    /* THE TABLE STEPS BACK under the card: a veil of the workspace's own plate over the cell (the bills and the mode's
+       reading stay mounted and measured — their opacity belongs to the vote's motions, never to this beat), in with
+       the rise, out with the sink. */
+    &::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: .75rem;
+        background: linear-gradient(168deg, rgb(17, 26, 39) 0%, rgb(11, 17, 27) 60%, rgb(8, 13, 21) 100%);
+        opacity: .97;
+    }
+    &--rise::before { animation: con-bstage-veil calc(300ms * var(--motion-scale, 1)) ease-out both; }
+    &--sink::before { animation: con-bstage-veil calc(320ms * var(--motion-scale, 1)) ease-in reverse both; }
+    &__lift {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .7rem;
+        transform-origin: 50% 100%;
+    }
+    &__face {
+        zoom: var(--bstage-zoom, 1);
+        border-radius: 14px;
+        box-shadow: 0 22px 46px rgba(0, 0, 0, 0.62), 0 4px 10px rgba(0, 0, 0, 0.5);
+        :is(.card-container, .pcard) { margin: 0; }
+    }
+    &__caption { display: flex; flex-direction: column; align-items: center; gap: .25rem; white-space: nowrap; }
+    &__kicker { font-size: .72rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; color: fade(@con-amber, 92%); }
+    &__line { display: inline-flex; align-items: center; gap: .55rem; }
+    &__cube { display: inline-flex; .player-cube { zoom: calc(1.25 * var(--con-ui-scale, 1)); } }
+    &__arrow { font-size: 1.1rem; opacity: .7; }
+    &__emblem { width: 1.9rem; height: 1.9rem; object-fit: contain; }
+    &__party { font-size: 1.2rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    &--rise &__lift { animation: con-bstage-rise calc(460ms * var(--motion-scale, 1)) cubic-bezier(.2, .8, .25, 1) both; }
+    &--stand&--from-effect .pcard-mech-group--corp-effect, &--stand&--from-play .pcard-mech-group--plain {
+        animation: con-bstage-fix calc(260ms * var(--motion-scale, 1)) ease-out 1;
+    }
+    &--sink &__lift { animation: con-bstage-sink calc(320ms * var(--motion-scale, 1)) cubic-bezier(.4, 0, .8, .4) both; }
+}
+@keyframes con-bstage-veil {
+    from { opacity: 0; }
+    to { opacity: .97; }
+}
+@keyframes con-bstage-rise {
+    from { opacity: 0; transform: translateY(2.4rem) scale(.92); }
+    to { opacity: 1; transform: none; }
+}
+@keyframes con-bstage-sink {
+    from { opacity: 1; transform: none; }
+    to { opacity: 0; transform: translateY(1.6rem) scale(.95); }
+}
+@keyframes con-bstage-fix {
+    0% { transform: scale(1); }
+    45% { transform: scale(1.06); }
+    100% { transform: scale(1); }
 }

@@ -266,6 +266,7 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
     const cmds: Array<ConsoleCommand> = [
       {
         control: 'confirm', label: support?.staged === true ? stagedDoorVerb(support.stagedFlow) : 'Select',
+      {control: 'dpad', label: 'Party choice', priority: 1},
         enabled: support?.available === true, highlight: support?.available === true,
       },
       {control: 'secondary', label: 'Inspect'},
@@ -284,7 +285,9 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
     const banner = input.banner;
     const cmds: Array<ConsoleCommand> = [
       {control: 'confirm', label: 'Place cube', enabled: banner?.available === true, highlight: banner?.available === true},
+    // THE D-PAD CHOOSES THE PARTY (the owner, 2026-10-25): the bar says so first — the plaques are the mode's only stops.
       {control: 'secondary', label: 'Inspect'},
+      {control: 'dpad', label: 'Party choice', priority: 1},
     ];
     if (banner?.source === true) {
       cmds.push({control: 'stickL', label: 'Source', priority: 1});

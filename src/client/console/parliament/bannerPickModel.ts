@@ -69,10 +69,10 @@ export function bannerReadingOf(meta: BannerPromptMeta | undefined, party: Redux
 /**
  * WHAT THE CUBE OPENS — the reading's one consequence line, by the server's facts: a party whose effect is not the
  * viewer's yet → «you gain its effect»; a party the viewer holds by another road (it rules, delegates) → the cube
- * keeps the effect once that road is gone.
+ * keeps the effect for good, whatever happens to that road.
  */
 export function bannerConsequenceKey(reading: BannerReadingVm): string {
   return reading.hasEffect ?
-    'Its effect is already yours — the cube keeps it when that road is gone' :
+    'Its effect is already yours — the cube keeps it for good' :
     'You gain this party\'s effect';
 }

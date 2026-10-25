@@ -34,6 +34,7 @@
              'con-parl--rally': rallyUp,
              'con-parl--support': supportUp || bannerUp,
              'con-parl--banner': bannerUp,
+             'con-parl--banner-stage': bannerStageUp,
              'con-parl--delegate': delegateUp,
              ['con-parl--zone-' + flow.zone]: true,
            }"
@@ -130,7 +131,7 @@
             <span class="con-parl__mid-kicker con-parl__kicker" aria-hidden="true">{{ $t('Voting table') }}</span>
             <div class="con-parl__mid-band">
               <ConsoleParliamentBand :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor"
-                                     :position="sitting" :sittingUp="sittingUp" :stage="sittingStage" :support="supportBand" :delegate="delegateBand" :rally="rallyBand" :focus="bandFocus" />
+                                     :position="sitting" :sittingUp="sittingUp" :stage="sittingStage" :support="supportBand" :banner="bannerBand" :delegate="delegateBand" :rally="rallyBand" :focus="bandFocus" />
             </div>
           </div>
           <div class="con-parl__bodyzone" data-parl-body>
@@ -156,6 +157,9 @@
                                          :view="view" :playerView="pv" :viewerColor="viewerColor" :bridge="bridge"
                                          @notice="$emit('notice', $event)" @inspect="$emit('inspect', $event)" @inspect-source="$emit('inspect-source', $event)"
                                          @send="send($event.response, $event.from)" @flow-complete="$emit('flow-complete', $event)" />
+            <!-- THE CORPORATION RISES (Septem Tribus:redux): the card whose effect puts a cube on a banner stands up in the
+                 table's own cell — the first action's answer and the sitting's «куб на знамя» alike — and the cube leaves it. -->
+            <ConsoleBannerCubeStage />
             <transition :css="false" @enter="onStageEnter" @leave="onStageLeave" @enter-cancelled="onStageEnterCancelled" @leave-cancelled="onStageLeaveCancelled">
               <div v-if="stageKind === 'seat' || stageKind === 'sitting'" v-show="stagePanelUp" class="con-parl__stage" :class="['con-parl__stage--' + stageKind, {'con-parl__stage--field': flow.sittingField}]" :data-parl-stage="stageKind" data-parl-reading>
                 <ConsoleParliamentSeatPick v-if="stageKind === 'seat' && focusedSlot !== undefined" ref="seatPick"
@@ -242,6 +246,8 @@ import ConsoleParliamentSeatPick from '@/client/components/console/parliament/Co
 import ConsoleParliamentSitting from '@/client/components/console/parliament/ConsoleParliamentSitting.vue';
 import ConsoleParliamentSupportMode from '@/client/components/console/parliament/ConsoleParliamentSupportMode.vue';
 import ConsoleParliamentBannerMode from '@/client/components/console/parliament/ConsoleParliamentBannerMode.vue';
+import ConsoleBannerCubeStage from '@/client/components/console/parliament/ConsoleBannerCubeStage.vue';
+import {bannerCubeStageUp} from '@/client/console/parliament/bannerCubeStage';
 import {bannerReadingOf, bannerStartParty, bannerStepStageOf} from '@/client/console/parliament/bannerPickModel';
 import ConsoleParliamentDelegateMode from '@/client/components/console/parliament/ConsoleParliamentDelegateMode.vue';
 import {delegateRing, DelegateStop, delegateStepStageOf, delegateStartIndex} from '@/client/console/parliament/delegatePickModel';
@@ -303,7 +309,7 @@ import {plaquePlaceSelector} from '@/client/console/parliament/supportDiscardSce
 import {RALLY_COUNT_CHIP_ID} from '@/client/console/parliament/parliamentBand';
 import {registerSupportDiscardHost, supportDiscardFlow} from '@/client/console/parliament/supportDiscard';
 import {supportAreaOf, supportCursorOrder, supportStartParty, supportStepStageOf} from '@/client/console/parliament/supportPickModel';
-import {BandDelegate, BandFocus, BandRally, BandSupport} from '@/client/console/parliament/parliamentBand';
+import {BandBanner, BandDelegate, BandFocus, BandRally, BandSupport} from '@/client/console/parliament/parliamentBand';
 import {BannerPromptMeta, DelegatePromptMeta, SupportPromptMeta} from '@/common/models/PlayerInputModel';
 import {
   AGENDA_WALK_READ_MS, AgendaWalkHooks, AgendaWalkLeg, AgendaWalkRecordLike, agendaWalkHoldMs, agendaWalkMotion, deliverAgendaStepReward,
@@ -351,6 +357,7 @@ export default defineComponent({
     ConsoleParliamentParties, ConsoleParliamentAgenda, ConsoleParliamentVoteMode, ConsoleParliamentSeatPick, ConsoleParliamentSitting, ConsoleParliamentEffects, ConsoleParliamentEffectsStep, ConsoleParliamentQuestDossier, ConsoleParliamentCareerDossier,
     ConsoleParliamentSupportMode,
     ConsoleParliamentBannerMode,
+    ConsoleBannerCubeStage,
     ConsoleParliamentDelegateMode,
   },
   props: {
@@ -874,6 +881,18 @@ export default defineComponent({
         committed: f.supportCommitted || f.supportLive || f.stage === 'submitting',
       };
     },
+    /** The corporation stands in the table's cell, its cube leaving it (Septem Tribus:redux) — the bills recede under it. */
+    bannerStageUp(): boolean {
+      return bannerCubeStageUp();
+    },
+    /** «ЗНАМЯ»'s band line: the stage word, the instruction while the pick is open, the chosen party past the press. */
+    bannerBand(): BandBanner | undefined {
+      if (!this.bannerUp) {
+        return undefined;
+      }
+      const f = parliamentFlow;
+      return {stage: bannerStepStageOf(this.bannerMeta) || 'Banner', party: f.bannerSnapshot?.party, committed: f.bannerCommitted};
+    },
     /** «ЗНАМЯ» — the BANNER mode stands (its pick, its press in flight, or its answer playing — Septem Tribus:redux). */
     bannerUp(): boolean {
       return parliamentBannerUp();
@@ -1019,10 +1038,10 @@ export default defineComponent({
       // The VOTE MODE is read on its own panel (v8 § 5): the table's head stays its calm kicker — the overview's
       // reading line («ОБЗОР · принимается …») under a vote would name the browse layer the player has left.
       // …and the ACCESS SCENE is read on the chamber itself (the seal travelling into «ВАШИ ЭФФЕКТЫ»): no reading line either.
-      if (this.voteUp || parliamentFlow.stage === 'access' || this.bannerUp) {
+      if (this.voteUp || parliamentFlow.stage === 'access') {
         return false;
       }
-      return parliamentFlow.stage !== 'browse' || this.sittingUp || this.supportUp || this.delegateUp || this.rallyUp || this.walkUp;
+      return parliamentFlow.stage !== 'browse' || this.sittingUp || this.supportUp || this.bannerUp || this.delegateUp || this.rallyUp || this.walkUp;
     },
     /**
      * THE READING LINE'S SUBJECT («Зал» v7): the object under the browse cursor — a bill, the ruler, a row of the
