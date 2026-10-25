@@ -6,24 +6,47 @@ import {Priority} from '../deferredActions/Priority';
 import {recordSkippedEffect} from '../deferredActions/skippedEffect';
 import {DelegateTarget, SelectPartyDelegate} from '../inputs/SelectPartyDelegate';
 import {
-  ChoiceContextSource, DelegateTargetProjection, DelegateWinnerProjection, SelectPartyModel,
+  ChoiceContextSource, DelegatePromptMeta, DelegateTargetProjection, DelegateWinnerProjection, SelectPartyModel,
 } from '../../common/models/PlayerInputModel';
 import {
-  DELEGATE_REMOVAL_LABEL, DelegateOwner, PARLIAMENT_MAX_POPULAR_SUPPORT, REDUX_PARTIES, ReduxParty,
+  DELEGATE_EXCHANGE_LABEL, DELEGATE_REMOVAL_LABEL, DelegateOwner, PARLIAMENT_MAX_POPULAR_SUPPORT, REDUX_PARTIES, ReduxParty,
 } from '../../common/parliament/ParliamentTypes';
 import {PartyName} from '../../common/turmoil/PartyName';
 import type {SkippedEffect} from '../cards/actionPreviews';
 import {Delegate, Parliament, ParliamentRemovalRecord, WinnerVerdict} from './Parliament';
+import {QuestTracker} from './quests/QuestTracker';
 import {CardName} from '../../common/cards/CardName';
 
 /** The prompt's title — an English i18n key (the journal text; the console reads the marker, never this). */
 export const REMOVE_DELEGATE_TITLE = 'Select a delegate to remove from a resolution or a Popular Support area';
 
+/** The exchange's title (TR74 Recruitment) — the same kind of key. */
+export const EXCHANGE_DELEGATE_TITLE = 'Select a neutral delegate on a resolution to exchange for one of your own';
+
 /** Why the card cannot be played at all — no cube stands anywhere the card reaches (the hand's named reason). */
 export const NO_DELEGATE_ON_TABLE_REASON = 'No delegate stands on a resolution or in a Popular Support area';
 
+/** Why an exchange cannot be made — the table half: no NEUTRAL cube stands on a resolution up for a vote. */
+export const NO_NEUTRAL_ON_RESOLUTION_REASON = 'No neutral delegate stands on a resolution';
+
+/** …and the player's half: nothing in the reserve to send (the key TR03 Political Donation's reason already speaks). */
+export const NO_DELEGATE_IN_RESERVE_REASON = 'No delegate in your reserve';
+
 /** Why a picked cube was not taken — it left its place between the pick and the answer (a reload, a sibling effect). */
 export const DELEGATE_GONE_REASON = 'That delegate is no longer there';
+
+/** What the step does to the figure it picks — the marker's own word (`DelegatePromptMeta.source`). */
+export type DelegatePickSource = DelegatePromptMeta['source'];
+
+export type RemoveDelegateOptions = {
+  /**
+   * `remove` (the default — TR72): the cube leaves the table. `exchange` (TR74 Recruitment:redux — «exchange one
+   * NEUTRAL delegate on a resolution with one of your own from the reserve»): only the neutral figures on the voting
+   * area's resolutions are targets, and the answer is ONE operation of two moves — the neutral cube to the common
+   * supply, the player's own from the reserve onto the same resolution (free: a grant, never a vote).
+   */
+  source?: DelegatePickSource;
+};
 
 /**
  * What a lost «remove one delegate» is NAMED by — the one description the after-the-fact record (and any
@@ -31,6 +54,11 @@ export const DELEGATE_GONE_REASON = 'That delegate is no longer there';
  */
 export function skippedDelegateRemoval(reason: string = NO_DELEGATE_ON_TABLE_REASON): {reason: string, skipped: SkippedEffect} {
   return {reason, skipped: {label: DELEGATE_REMOVAL_LABEL}};
+}
+
+/** The same for an exchange (TR74) — its own label, the reason by what blocked it. */
+export function skippedDelegateExchange(reason: string): {reason: string, skipped: SkippedEffect} {
+  return {reason, skipped: {label: DELEGATE_EXCHANGE_LABEL}};
 }
 
 /**
@@ -59,16 +87,97 @@ export function skippedDelegateRemoval(reason: string = NO_DELEGATE_ON_TABLE_REA
  * with the `delegatePrompt` projection of every figure (the forecast runs on `Parliament.withoutDelegate`,
  * a throwaway table: «3 → 2», the new leader, the new winner of the sitting, the owner's lost effects).
  *
+ * THE EXCHANGE (`{source: 'exchange'}` — TR74 Recruitment:redux): the same pick with a narrower set and a
+ * second move. Targets — one row per resolution with a NEUTRAL cube on it (no «non-leader» clause, never a
+ * support area); the row's forecast reads the table after BOTH moves (`arrives`: the player's delegates there
+ * now → after, `effectsGained`: a party effect the second delegate opens). Playable ⇔ such a row exists ∧ the
+ * reserve holds a cube — two named reasons, the table's first. The answer: the latest neutral cube leaves for
+ * the common supply and the player's own from the RESERVE (free — never the lobby, never M€) stands on the
+ * same resolution LAST (a new `seq`: a tie it makes is judged by the rule, the earlier first delegate). One
+ * journal line, two typed facts (the neutral cube gone — nobody's loss; the player's delegate placed), one
+ * presentation record carrying both figures (`exchange.vote`).
+ *
  * Priority: `GAIN_RESOURCE_OR_PRODUCTION`, the delegate steps' own slot (`PlaceDelegatesOnResolution`,
  * `DiscardPopularSupport`).
  */
 export class RemoveDelegate extends DeferredAction<undefined> {
+  /** What the pick does to the figure (`remove` unless the card exchanges it). */
+  public readonly source: DelegatePickSource;
+
   constructor(
     player: IPlayer,
     /** The giver — the card being played (the prompt's `choiceContext.source`, the staged tail's address). */
     public readonly cause: ChoiceContextSource,
+    options: RemoveDelegateOptions = {},
   ) {
     super(player, Priority.GAIN_RESOURCE_OR_PRODUCTION);
+    this.source = options.source ?? 'remove';
+  }
+
+  /**
+   * THE EXCHANGE'S FIGURES (TR74) — one row per resolution of the voting area with a neutral cube on it, in the
+   * table's order, each with the server's projection of the exchange (the neutral cube gone AND the player's
+   * own on the bill). PURE.
+   */
+  public static exchangeTargetsOf(player: IPlayer, parliament: Parliament): Array<DelegateTargetProjection> {
+    const out: Array<DelegateTargetProjection> = [];
+    for (const slot of parliament.slots) {
+      const count = slot.votes.filter((vote) => vote.owner === 'NEUTRAL').length;
+      if (count > 0) {
+        out.push(RemoveDelegate.projectExchange(player, parliament, parliament.resolutionOf(slot.instance).party, count, slot.votes.length));
+      }
+    }
+    return out;
+  }
+
+  /** One exchange row: the neutral figure leaves, the player's own arrives — and what the table reads after both. */
+  private static projectExchange(player: IPlayer, parliament: Parliament, party: ReduxParty, count: number, total: number): DelegateTargetProjection {
+    const row: DelegateTargetProjection = {
+      party: party as PartyName,
+      place: 'resolution',
+      owner: 'neutral',
+      count,
+      returnsTo: 'supply',
+      total: {current: total, resulting: total},
+    };
+    const after = parliament.withoutDelegate(party, 'resolution', 'NEUTRAL');
+    const slotBefore = parliament.slotOf(party);
+    const slotAfter = after.slotOf(party);
+    // The player's cube lands LAST on the throwaway table — the very order `placeVote` gives the live one.
+    slotAfter?.votes.push({owner: player.id, seq: ++after.voteSeq});
+    const mine = slotBefore === undefined ? 0 : parliament.votesOf(player, slotBefore);
+    row.arrives = {owner: player.color, count: {current: mine, resulting: mine + 1}};
+    RemoveDelegate.forecastVerdicts(player.game, parliament, after, party, row);
+    const gained = REDUX_PARTIES.filter((p) => parliament.accessBasis(player, p) === undefined && after.accessBasis(player, p) !== undefined);
+    if (gained.length > 0) {
+      row.effectsGained = gained.map((p) => p as PartyName);
+    }
+    return row;
+  }
+
+  /** The leader of the party's bill and the winner of the sitting, before → after — written only when they change. */
+  private static forecastVerdicts(game: IGame, parliament: Parliament, after: Parliament, party: ReduxParty, row: DelegateTargetProjection): void {
+    const colour = (delegate: Delegate): DelegateOwner => delegate === 'NEUTRAL' ? 'neutral' : game.getPlayerById(delegate).color;
+    const slotBefore = parliament.slotOf(party);
+    const slotAfter = after.slotOf(party);
+    const leaderBefore = slotBefore === undefined ? undefined : parliament.leaderOf(slotBefore)?.owner;
+    const leaderAfter = slotAfter === undefined ? undefined : after.leaderOf(slotAfter)?.owner;
+    if (leaderBefore !== leaderAfter) {
+      row.leader = {
+        ...(leaderBefore === undefined ? {} : {current: colour(leaderBefore)}),
+        ...(leaderAfter === undefined ? {} : {resulting: colour(leaderAfter)}),
+      };
+    }
+    const winner = (table: Parliament, verdict: WinnerVerdict | undefined): DelegateWinnerProjection | undefined =>
+      verdict === undefined ? undefined : {party: table.resolutionOf(verdict.instance).party as PartyName, owner: colour(verdict.player)};
+    const winnerBefore = winner(parliament, parliament.winner());
+    const winnerAfter = winner(after, after.winner());
+    if (winnerBefore?.party !== winnerAfter?.party || winnerBefore?.owner !== winnerAfter?.owner) {
+      row.winner = {
+        ...(winnerBefore === undefined ? {} : {current: winnerBefore}),
+        ...(winnerAfter === undefined ? {} : {resulting: winnerAfter}),
+      };
+    }
   }
 
   /**
@@ -117,26 +226,7 @@ export class RemoveDelegate extends DeferredAction<undefined> {
       return row; // support is not a vote: no leader, no winner, nobody's access moves
     }
     const after = parliament.withoutDelegate(party, place, owner);
-    const slotBefore = parliament.slotOf(party);
-    const slotAfter = after.slotOf(party);
-    const leaderBefore = slotBefore === undefined ? undefined : parliament.leaderOf(slotBefore)?.owner;
-    const leaderAfter = slotAfter === undefined ? undefined : after.leaderOf(slotAfter)?.owner;
-    if (leaderBefore !== leaderAfter) {
-      row.leader = {
-        ...(leaderBefore === undefined ? {} : {current: colour(leaderBefore)}),
-        ...(leaderAfter === undefined ? {} : {resulting: colour(leaderAfter)}),
-      };
-    }
-    const winner = (table: Parliament, verdict: WinnerVerdict | undefined): DelegateWinnerProjection | undefined =>
-      verdict === undefined ? undefined : {party: table.resolutionOf(verdict.instance).party as PartyName, owner: colour(verdict.player)};
-    const winnerBefore = winner(parliament, parliament.winner());
-    const winnerAfter = winner(after, after.winner());
-    if (winnerBefore?.party !== winnerAfter?.party || winnerBefore?.owner !== winnerAfter?.owner) {
-      row.winner = {
-        ...(winnerBefore === undefined ? {} : {current: winnerBefore}),
-        ...(winnerAfter === undefined ? {} : {resulting: winnerAfter}),
-      };
-    }
+    RemoveDelegate.forecastVerdicts(game, parliament, after, party, row);
     if (owner !== 'NEUTRAL') {
       const seat = game.getPlayerById(owner);
       const lost = REDUX_PARTIES.filter((p) => parliament.accessBasis(seat, p) !== undefined && after.accessBasis(seat, p) === undefined);
@@ -147,18 +237,61 @@ export class RemoveDelegate extends DeferredAction<undefined> {
     return row;
   }
 
-  /** The parliament and its figures — or nothing to ask (no parliament, or no cube anywhere the card reaches). */
+  /** The figures this step offers on `parliament` — every figure for a removal, the neutral ones on bills for an exchange. */
+  private targetsOn(parliament: Parliament): Array<DelegateTargetProjection> {
+    return this.source === 'exchange' ?
+      RemoveDelegate.exchangeTargetsOf(this.player, parliament) :
+      RemoveDelegate.targetsOf(this.player.game, parliament);
+  }
+
+  /**
+   * WHY THE STEP ASKS NOTHING — the ONE named blocker (judged in order: the table, then the reserve), or
+   * `undefined` when it asks. Without a Parliament there is no step at all (`undefined` too — nothing to name).
+   */
+  private blocker(parliament: Parliament, targets: ReadonlyArray<DelegateTargetProjection>): string | undefined {
+    if (this.source === 'exchange') {
+      if (targets.length === 0) {
+        return NO_NEUTRAL_ON_RESOLUTION_REASON;
+      }
+      return parliament.reserve(this.player) <= 0 ? NO_DELEGATE_IN_RESERVE_REASON : undefined;
+    }
+    return targets.length === 0 ? NO_DELEGATE_ON_TABLE_REASON : undefined;
+  }
+
+  /** The parliament and its figures — or nothing to ask (no parliament, or a named blocker). */
   private offer(): {parliament: Parliament, targets: Array<DelegateTargetProjection>} | undefined {
     const parliament = this.player.game.parliament;
     if (parliament === undefined) {
       return undefined;
     }
-    const targets = RemoveDelegate.targetsOf(this.player.game, parliament);
-    return targets.length > 0 ? {parliament, targets} : undefined;
+    const targets = this.targetsOn(parliament);
+    return this.blocker(parliament, targets) === undefined ? {parliament, targets} : undefined;
+  }
+
+  /**
+   * READ-ONLY: what the step would LOSE, named — the same description `execute()` records when it asks nothing
+   * (the play preview's warning, the card's unplayable reason). `undefined` when it asks, or when the game has no
+   * Parliament (no step to lose).
+   */
+  public previewSkip(): {reason: string, skipped: SkippedEffect} | undefined {
+    const parliament = this.player.game.parliament;
+    if (parliament === undefined) {
+      return undefined;
+    }
+    const reason = this.blocker(parliament, this.targetsOn(parliament));
+    if (reason === undefined) {
+      return undefined;
+    }
+    return this.source === 'exchange' ? skippedDelegateExchange(reason) : skippedDelegateRemoval(reason);
   }
 
   /** The marked prompt, without its answer — the one construction both the live ask and its read-only twin use. */
   private prompt(targets: ReadonlyArray<DelegateTargetProjection>): SelectPartyDelegate {
+    if (this.source === 'exchange') {
+      // Nobody's loss: the neutral cube is the common supply's, the player gains a delegate — a reward, not an attack.
+      return new SelectPartyDelegate(EXCHANGE_DELEGATE_TITLE, 'Recruit delegate', {source: 'exchange', targets})
+        .markChoiceContext({source: this.cause, mode: 'reward'});
+    }
     return new SelectPartyDelegate(REMOVE_DELEGATE_TITLE, 'Remove delegate', {source: 'remove', targets})
       .markChoiceContext({source: this.cause, mode: 'attack'});
   }
@@ -185,8 +318,8 @@ export class RemoveDelegate extends DeferredAction<undefined> {
     const player = this.player;
     const offer = this.offer();
     if (offer === undefined) {
-      if (player.game.parliament !== undefined) {
-        const lost = skippedDelegateRemoval();
+      const lost = this.previewSkip();
+      if (lost !== undefined) {
         recordSkippedEffect(player, lost.reason, lost.skipped);
       }
       return undefined;
@@ -197,12 +330,60 @@ export class RemoveDelegate extends DeferredAction<undefined> {
     // order goes — decided on the spot, deterministic.
     if (player.isMarsBot) {
       const first = targets[0];
-      this.remove(parliament, {party: first.party, place: first.place, owner: first.owner});
+      this.take(parliament, {party: first.party, place: first.place, owner: first.owner});
       return undefined;
     }
     return this.prompt(targets).andThen((target) => {
-      this.remove(parliament, target);
+      this.take(parliament, target);
       return undefined;
+    });
+  }
+
+  private take(parliament: Parliament, target: DelegateTarget): void {
+    if (this.source === 'exchange') {
+      this.exchange(parliament, target);
+    } else {
+      this.remove(parliament, target);
+    }
+  }
+
+  /**
+   * THE EXCHANGE (TR74): the neutral figure leaves the bill for the common supply and the player's own from the
+   * reserve stands in its place — ONE operation, re-read at the answer: an empty reserve, or a neutral cube gone
+   * meanwhile, is the named skip and NOTHING moves (never half an exchange).
+   */
+  private exchange(parliament: Parliament, target: DelegateTarget): void {
+    const player = this.player;
+    const game = player.game;
+    if (target.place !== 'resolution' || target.owner !== 'neutral') {
+      throw new Error(`An exchange takes a neutral delegate on a resolution, not ${target.owner} in ${target.place}`);
+    }
+    const slot = parliament.slotOf(target.party as ReduxParty);
+    if (parliament.reserve(player) <= 0) {
+      const lost = skippedDelegateExchange(NO_DELEGATE_IN_RESERVE_REASON);
+      recordSkippedEffect(player, lost.reason, lost.skipped);
+      return;
+    }
+    const gone = slot === undefined ? undefined : parliament.removeVote(slot, 'NEUTRAL');
+    if (slot === undefined || gone === undefined) {
+      const lost = skippedDelegateExchange(DELEGATE_GONE_REASON);
+      recordSkippedEffect(player, lost.reason, lost.skipped);
+      return;
+    }
+    const own = parliament.placeVote(player, slot, 'reserve');
+    const definition = parliament.resolutionOf(slot.instance);
+    const resolution = definition.id;
+    const total = slot.votes.length;
+    game.log('${0} exchanged a neutral delegate on ${1} for one of their own', (b) => b.player(player).resolution(resolution));
+    // Two typed facts, the journal's two rows: the neutral cube gone (nobody's loss — no victim) and the delegate placed.
+    game.events.recordDelegateRemoved(player, {place: 'resolution', party: target.party, resolution, owner: 'neutral', returnsTo: 'supply', total});
+    game.events.recordDelegatesPlaced(player, 1, resolution);
+    // An ordinary delegate sent to a resolution — a chairman quest of «send N delegates» counts it (TR03's law).
+    QuestTracker.report(player, {kind: 'delegates', amount: 1});
+    const card = this.cause.kind === 'card' ? this.cause.card : undefined;
+    this.writeRecord(parliament, {
+      place: 'resolution', party: definition.party, owner: 'neutral', returnsTo: 'supply', total, card,
+      instance: slot.instance, resolution, vote: gone.seq, exchange: {vote: own.seq},
     });
   }
 

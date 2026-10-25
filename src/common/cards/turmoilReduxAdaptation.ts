@@ -59,10 +59,10 @@ export const TURMOIL_CARDS_TO_ADAPT_IN_PLACE: ReadonlyArray<CardName> = [
  * Delegate left the same day (TR72 `Banned Delegate:redux` — the Parliament's delegate mode); Sponsored
  * Mohole left 2026-10-25 (TR75 `Sponsored Mohole:redux` — numbered by its registry row, authored third), and
  * the Septem Tribus corporation the same day (TR77 `Septem Tribus:redux` — the cubes on the parties' banners), and
- * Political Alliance the same day too (TR73 `Political Alliance:redux` — the leadership requirement, one Agenda step).
+ * Political Alliance the same day too (TR73 `Political Alliance:redux` — the leadership requirement, one Agenda step), and
+ * Recruitment as well (TR74 `Recruitment:redux` — TR72's figure pick as an EXCHANGE: a neutral cube on a bill for your own).
  */
 export const TURMOIL_CARDS_AWAITING_REDUX_REPLACEMENT: ReadonlyArray<CardName> = [
-  CardName.RECRUITMENT, // → a NEUTRAL delegate on a resolution ↔ your own from the reserve
   CardName.VOTE_OF_NO_CONFIDENCE, // → ≥1 influence; unseat the CURRENT chairman → 1 Agenda step
 ];
 

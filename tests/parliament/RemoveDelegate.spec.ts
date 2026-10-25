@@ -4,7 +4,8 @@ import {TestPlayer} from '../TestPlayer';
 import {IGame} from '../../src/server/IGame';
 import {Parliament} from '../../src/server/parliament/Parliament';
 import {
-  DELEGATE_GONE_REASON, NO_DELEGATE_ON_TABLE_REASON, REMOVE_DELEGATE_TITLE, RemoveDelegate,
+  DELEGATE_GONE_REASON, EXCHANGE_DELEGATE_TITLE, NO_DELEGATE_IN_RESERVE_REASON, NO_DELEGATE_ON_TABLE_REASON, NO_NEUTRAL_ON_RESOLUTION_REASON,
+  REMOVE_DELEGATE_TITLE, RemoveDelegate,
 } from '../../src/server/parliament/RemoveDelegate';
 import {SelectPartyDelegate} from '../../src/server/inputs/SelectPartyDelegate';
 import {Server} from '../../src/server/models/ServerModel';
@@ -12,7 +13,7 @@ import {ChoiceContextSource, DelegateTargetProjection, SelectPartyModel} from '.
 import {CardName} from '../../src/common/cards/CardName';
 import {Phase} from '../../src/common/Phase';
 import {PartyName} from '../../src/common/turmoil/PartyName';
-import {DELEGATE_REMOVAL_LABEL, PARLIAMENT_DELEGATES_PER_PLAYER, REDUX_PARTIES} from '../../src/common/parliament/ParliamentTypes';
+import {DELEGATE_EXCHANGE_LABEL, DELEGATE_REMOVAL_LABEL, PARLIAMENT_DELEGATES_PER_PLAYER, REDUX_PARTIES} from '../../src/common/parliament/ParliamentTypes';
 import {cast} from '../../src/common/utils/utils';
 import {fakeCard, runAllActions} from '../TestingUtils';
 import {quietResolutionOf, seatResolution} from './parliamentArrange';
@@ -314,6 +315,205 @@ describe('RemoveDelegate — one delegate leaves the table', () => {
       runAllActions(t.game);
       expect(t.p2.getWaitingFor()).is.undefined;
       expect(t.parliament.votesOf(t.p1, t.parliament.slots[0])).eq(0);
+    });
+  });
+});
+
+/**
+ * THE EXCHANGE (`{source: 'exchange'}` — Turmoil Redux TR74 Recruitment:redux): the same pick narrowed to the NEUTRAL
+ * figures on the bills, and a second move — the player's own delegate from the reserve onto the same bill.
+ */
+describe('RemoveDelegate — the exchange (a neutral delegate for one of your own)', () => {
+  const EXCHANGE = {source: 'exchange'} as const;
+
+  function askExchange(t: Table): SelectPartyDelegate {
+    t.game.defer(new RemoveDelegate(t.p1, GIVER, EXCHANGE));
+    runAllActions(t.game);
+    return cast(t.p1.getWaitingFor(), SelectPartyDelegate);
+  }
+
+  describe('the figures', () => {
+    it('ONLY the neutral cubes on the bills — never a seat\'s, never a support area', () => {
+      const t = table();
+      t.parliament.addNeutralVote(t.parliament.slots[0]);
+      const targets = RemoveDelegate.exchangeTargetsOf(t.p1, t.parliament);
+      expect(targets.map((r) => [r.place, r.party, r.owner, r.count, r.returnsTo])).deep.eq([
+        ['resolution', G, 'neutral', 1, 'supply'],
+        ['resolution', M, 'neutral', 2, 'supply'],
+      ]);
+    });
+
+    it('the forecast reads the table after BOTH moves: the votes stay, my delegates 0 → 1, the neutral lead passes to me', () => {
+      const t = table();
+      const mars = row(RemoveDelegate.exchangeTargetsOf(t.p1, t.parliament), M, 'resolution', 'neutral');
+      expect(mars.total).deep.eq({current: 2, resulting: 2});
+      expect(mars.arrives).deep.eq({owner: t.p1.color, count: {current: 0, resulting: 1}});
+      // A bill of neutral cubes alone is led by the neutral player; after the exchange p1 is its only seat.
+      expect(mars.leader).deep.eq({current: 'neutral', resulting: t.p1.color});
+      expect(mars.effectsGained).is.undefined;
+      expect(mars.effectsLost).is.undefined;
+    });
+
+    it('a SECOND delegate of mine opens the party\'s effect — the forecast names it', () => {
+      const t = table();
+      t.parliament.placeVote(t.p1, t.parliament.slots[1], 'reserve');
+      const mars = row(RemoveDelegate.exchangeTargetsOf(t.p1, t.parliament), M, 'resolution', 'neutral');
+      expect(mars.arrives?.count).deep.eq({current: 1, resulting: 2});
+      expect(mars.effectsGained).deep.eq([M]);
+      expect(mars.leader, 'p1 led it already').is.undefined;
+    });
+
+    it('the exchange is free of the «non-leader» clause, and a tie it makes goes to the EARLIER first delegate', () => {
+      const t = table();
+      const mars = t.parliament.slots[1];
+      t.parliament.removeVote(mars, 'NEUTRAL');
+      t.parliament.placeVote(t.p2, mars, 'reserve'); // Mars First: neutral, p2 — p2 leads.
+      const target = row(RemoveDelegate.exchangeTargetsOf(t.p1, t.parliament), M, 'resolution', 'neutral');
+      expect(target.leader, 'p1 lands LAST: 1–1 stays p2\'s').is.undefined;
+      askExchange(t);
+      t.p1.process({type: 'party', partyName: M, delegate: {place: 'resolution', owner: 'neutral'}});
+      runAllActions(t.game);
+      expect(t.parliament.leaderOf(mars)?.owner).eq(t.p2.id);
+      expect(mars.votes.map((v) => v.owner)).deep.eq([t.p2.id, t.p1.id]);
+    });
+  });
+
+  describe('the prompt', () => {
+    it('a party prompt marked `delegatePrompt {source: exchange}`, the giver as a reward', () => {
+      const t = table();
+      const prompt = askExchange(t);
+      expect(prompt.title).eq(EXCHANGE_DELEGATE_TITLE);
+      const model = Server.getWaitingFor(t.p1, prompt) as SelectPartyModel;
+      expect(model.delegatePrompt?.source).eq('exchange');
+      expect(model.delegatePrompt?.targets).deep.eq(RemoveDelegate.exchangeTargetsOf(t.p1, t.parliament));
+      expect(model.parties).deep.eq([M]);
+      expect(model.choiceContext).deep.eq({source: GIVER, mode: 'reward'});
+    });
+
+    it('PREVIEW = EXECUTION, and asking the twin changes nothing', () => {
+      const t = table();
+      const before = JSON.stringify(t.parliament.serialize());
+      const twin = new RemoveDelegate(t.p1, GIVER, EXCHANGE).previewSelectParty();
+      expect(JSON.stringify(t.parliament.serialize())).eq(before);
+      const live = Server.getWaitingFor(t.p1, askExchange(t)) as SelectPartyModel;
+      expect(twin?.delegatePrompt).deep.eq(live.delegatePrompt);
+      expect(twin?.title).eq(live.title);
+      expect(twin?.choiceContext).deep.eq(live.choiceContext);
+    });
+
+    it('refuses a seat\'s cube and a support cube — they are not on offer', () => {
+      const t = table();
+      t.parliament.popularSupport.set(G, 1);
+      askExchange(t);
+      expect(() => t.p1.process({type: 'party', partyName: G, delegate: {place: 'resolution', owner: t.p2.color}})).to.throw(/Invalid delegate/);
+      expect(() => t.p1.process({type: 'party', partyName: M, delegate: {place: 'support', owner: 'neutral'}})).to.throw(/Invalid delegate/);
+    });
+
+    it('two named blockers, the table\'s first: no neutral on a bill, then an empty reserve', () => {
+      const t = table();
+      const exchange = new RemoveDelegate(t.p1, GIVER, EXCHANGE);
+      expect(exchange.previewSkip()).is.undefined;
+      while (t.parliament.reserve(t.p1) > 0) {
+        t.parliament.placeVote(t.p1, t.parliament.slots[2], 'reserve');
+      }
+      expect(exchange.previewSkip()).deep.eq({reason: NO_DELEGATE_IN_RESERVE_REASON, skipped: {label: DELEGATE_EXCHANGE_LABEL}});
+      t.parliament.slots[1].votes.length = 0;
+      expect(exchange.previewSkip()?.reason, 'the table speaks first').eq(NO_NEUTRAL_ON_RESOLUTION_REASON);
+      expect(exchange.previewSelectParty()).is.undefined;
+      t.game.defer(exchange);
+      runAllActions(t.game);
+      expect(t.p1.getWaitingFor()).is.undefined;
+      const skipped = t.game.events.events.find((e) => e.type === 'effect-skipped');
+      expect(skipped?.impact.skipped).deep.eq({label: DELEGATE_EXCHANGE_LABEL, reason: NO_NEUTRAL_ON_RESOLUTION_REASON});
+    });
+  });
+
+  describe('the answer', () => {
+    it('ONE operation: the latest neutral cube to the supply, mine from the reserve onto the same bill LAST', () => {
+      const t = table();
+      const mars = t.parliament.slots[1];
+      const neutralSeqs = mars.votes.map((v) => v.seq);
+      const supply = t.parliament.neutralSupply();
+      const reserve = t.parliament.reserve(t.p1);
+      const lobby = t.parliament.lobby.has(t.p1.id);
+      const mc = t.p1.megaCredits;
+      askExchange(t);
+      t.p1.process({type: 'party', partyName: M, delegate: {place: 'resolution', owner: 'neutral'}});
+      runAllActions(t.game);
+      expect(mars.votes.map((v) => v.owner)).deep.eq(['NEUTRAL', t.p1.id]);
+      expect(mars.votes[0].seq, 'the EARLIER neutral cube stays').eq(neutralSeqs[0]);
+      expect(mars.votes[1].seq).gt(Math.max(...neutralSeqs));
+      expect(t.parliament.neutralSupply()).eq(supply + 1);
+      expect(t.parliament.reserve(t.p1)).eq(reserve - 1);
+      expect(t.parliament.lobby.has(t.p1.id), 'the lobby is never spent').eq(lobby);
+      expect(t.p1.megaCredits, 'free — a grant, never a vote').eq(mc);
+      t.parliament.assertLedger(t.game);
+    });
+
+    it('one journal line, two typed facts (nobody\'s loss · my delegate placed), the record carrying both figures', () => {
+      const t = table();
+      const mars = t.parliament.slots[1];
+      const latestNeutral = mars.votes[mars.votes.length - 1].seq;
+      askExchange(t);
+      t.p1.process({type: 'party', partyName: M, delegate: {place: 'resolution', owner: 'neutral'}});
+      runAllActions(t.game);
+      expect(t.game.gameLog.filter((l) => l.message === '${0} exchanged a neutral delegate on ${1} for one of their own')).has.lengthOf(1);
+      const removed = t.game.events.events.find((e) => e.type === 'delegate-removed');
+      expect(removed?.target, 'a neutral cube is nobody\'s loss').is.undefined;
+      expect(removed?.impact.delegateRemoved).deep.include({place: 'resolution', party: M, owner: 'neutral', returnsTo: 'supply', total: 2});
+      const placed = t.game.events.events.find((e) => e.type === 'delegates-placed');
+      expect(placed?.player).eq(t.p1.color);
+      expect(placed?.impact.delegates?.count).eq(1);
+      const mine = mars.votes.find((v) => v.owner === t.p1.id)!;
+      expect(t.parliament.lastRemoval).deep.include({
+        player: t.p1.id, card: CARD, place: 'resolution', party: M, owner: 'neutral', returnsTo: 'supply', total: 2,
+        vote: latestNeutral, exchange: {vote: mine.seq},
+      });
+    });
+
+    it('a second delegate there: the party\'s effect is mine, and the access diff announces it', () => {
+      const t = table();
+      t.parliament.placeVote(t.p1, t.parliament.slots[1], 'reserve');
+      askExchange(t);
+      t.p1.process({type: 'party', partyName: M, delegate: {place: 'resolution', owner: 'neutral'}});
+      runAllActions(t.game);
+      expect(t.parliament.access(t.p1, M).byDelegates).is.true;
+    });
+
+    it('an empty reserve at the answer, or the neutral cube gone: the named skip, and NOTHING moves', () => {
+      const t = table();
+      askExchange(t);
+      while (t.parliament.reserve(t.p1) > 0) {
+        t.parliament.placeVote(t.p1, t.parliament.slots[2], 'reserve');
+      }
+      const before = t.parliament.slots[1].votes.map((v) => v.seq);
+      t.p1.process({type: 'party', partyName: M, delegate: {place: 'resolution', owner: 'neutral'}});
+      runAllActions(t.game);
+      expect(t.parliament.slots[1].votes.map((v) => v.seq), 'never half an exchange').deep.eq(before);
+      expect(t.game.events.events.find((e) => e.type === 'effect-skipped')?.impact.skipped)
+        .deep.eq({label: DELEGATE_EXCHANGE_LABEL, reason: NO_DELEGATE_IN_RESERVE_REASON});
+
+      const u = table();
+      askExchange(u);
+      u.parliament.slots[1].votes.length = 0;
+      const reserve = u.parliament.reserve(u.p1);
+      u.p1.process({type: 'party', partyName: M, delegate: {place: 'resolution', owner: 'neutral'}});
+      runAllActions(u.game);
+      expect(u.parliament.reserve(u.p1)).eq(reserve);
+      expect(u.game.events.events.find((e) => e.type === 'effect-skipped')?.impact.skipped)
+        .deep.eq({label: DELEGATE_EXCHANGE_LABEL, reason: DELEGATE_GONE_REASON});
+    });
+
+    it('never calls the sitting\'s `onDelegatesDiscarded`', () => {
+      const t = table();
+      let calls = 0;
+      t.p1.playedCards.push(fakeCard({onDelegatesDiscarded: () => {
+        calls++;
+      }}));
+      askExchange(t);
+      t.p1.process({type: 'party', partyName: M, delegate: {place: 'resolution', owner: 'neutral'}});
+      runAllActions(t.game);
+      expect(calls).eq(0);
     });
   });
 });

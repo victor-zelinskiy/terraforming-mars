@@ -782,6 +782,13 @@ export type ParliamentDelegateRemovalModel = {
   returnsTo: 'reserve' | 'supply';
   /** What the place holds after it (every vote on the resolution / the area's stock). */
   total: number;
+  /**
+   * AN EXCHANGE (Turmoil Redux TR74 Recruitment:redux): the card's player's own delegate that came from their reserve
+   * and took the neutral figure's place on the same resolution — `vote` is its `seq` (the last on the bill). The
+   * client plays it as the SECOND move of the same phrase: the neutral figure carried to the supply, then this one
+   * set down from the reserve stack. `total` above already counts it.
+   */
+  exchange?: {vote: number};
   generation: number;
 };
 

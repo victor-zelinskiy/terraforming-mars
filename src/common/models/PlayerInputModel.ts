@@ -574,8 +574,12 @@ export type SupportAreaProjection = {
  * staged tail's address). Serialized on `SelectPartyDelegate.toModel` (nesting-safe), never centrally.
  */
 export type DelegatePromptMeta = {
-  /** What the pick does — `remove`: the cube leaves the table (TR72). */
-  source: 'remove';
+  /**
+   * What the pick does — `remove`: the cube leaves the table (TR72); `exchange`: a NEUTRAL cube on a resolution leaves
+   * for the common supply and one of the player's own from the reserve takes its place (TR74 Recruitment — the targets
+   * are the neutral figures on the voting area's resolutions only, each row carrying `arrives`).
+   */
+  source: 'remove' | 'exchange';
   targets: ReadonlyArray<DelegateTargetProjection>;
 };
 
@@ -627,6 +631,14 @@ export type DelegateTargetProjection = DelegateAddress & {
   winner?: {current?: DelegateWinnerProjection, resulting?: DelegateWinnerProjection};
   /** The party effects the cube's OWNER loses by the answer (their own delegates' road, an alliance standing on it). */
   effectsLost?: ReadonlyArray<PartyName>;
+  /**
+   * AN EXCHANGE'S SECOND HALF (`source: 'exchange'`, TR74): the player's own figure that takes the place — whose it is
+   * and the player's delegates on the resolution now → after. `total` then stays (one leaves, one arrives); `leader` /
+   * `winner` read the table after BOTH moves.
+   */
+  arrives?: {owner: Color, count: {current: number, resulting: number}};
+  /** The party effects the ARRIVING figure's owner gains by the answer (an exchange only — a second delegate). */
+  effectsGained?: ReadonlyArray<PartyName>;
 };
 
 /**

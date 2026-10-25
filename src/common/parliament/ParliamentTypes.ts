@@ -119,6 +119,8 @@ export type DelegateOwner = Color | 'neutral';
 export type DelegateAddress = {place: DelegatePlace, owner: DelegateOwner};
 /** The name a «remove one delegate» effect goes by where it is lost (an empty table) — one label for the forecast and the record. */
 export const DELEGATE_REMOVAL_LABEL = 'Delegate removal';
+/** The same for «exchange a neutral delegate on a resolution for one of your own» (TR74 Recruitment). */
+export const DELEGATE_EXCHANGE_LABEL = 'Delegate exchange';
 /**
  * Own delegates on a party's resolution (rulebook p.7) — TWO numbers that happen to coincide:
  *  · the threshold of the party's EFFECT BY DEFAULT — a card in the tableau may LOWER it for its

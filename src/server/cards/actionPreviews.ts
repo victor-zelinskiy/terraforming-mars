@@ -689,13 +689,15 @@ export function supportDiscardStep(card: ICard, step: DiscardPopularSupport): Ac
  * there. `step` is the very step the card's `bespokePlay` defers — asked here for the prompt it WOULD raise
  * (`previewSelectParty`, with the `delegatePrompt` projection of every figure).
  *
+ * The same door serves the EXCHANGE (TR74 Recruitment — `{source: 'exchange'}`, the marker tells them apart).
+ *
  * With no figure on the table the card is not playable (`bespokeCanPlay`), so the warning branch below is a
  * defence for a preview asked anyway: the same label and cause the live step would record.
  */
 export function delegateRemovalStep(card: ICard, step: RemoveDelegate): ActionPreviewStep {
   const prompt = step.previewSelectParty();
   if (prompt === undefined) {
-    const lost = skippedDelegateRemoval();
+    const lost = step.previewSkip() ?? skippedDelegateRemoval();
     return warningNote(lost.reason, {skipped: lost.skipped});
   }
   return {kind: 'delegateRemoval', staged: {prompt, sourceCard: card.name}};

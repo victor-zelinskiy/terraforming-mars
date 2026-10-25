@@ -62,6 +62,8 @@ export const TURMOIL_REDUX_CLASSIC_REPLACEMENTS: ReadonlyArray<ClassicReplacemen
     changes: 'cost 4 → 2; requirement «the highest number of delegates on 2 resolutions at once» (ties by who put a delegate in first, neutral delegates do not count — `PoliticalOps.partiesLedBy` is this reading); reward +1 TR → advance the Agenda marker 1 step. Lore: the owner\'s quote for the classic X09 (the invented line in `docs/claude/turmoil-redux-invented-lore.md` is not used).',
   },
   {
+    // TR74 — AUTHORED 2026-10-25 (`turmoilRedux/RecruitmentRedux.ts`, `Recruitment:redux`) — the sixth authored: TR72's
+    // figure pick with `{source: 'exchange'}` (`parliament/RemoveDelegate`), no second mode, no second input.
     classic: CardName.RECRUITMENT, kind: 'project', scan: 'Projects/Replacement - Recruitment.png',
     changes: 'still cost 2, event; «exchange one NEUTRAL delegate on a resolution with one of your own from the reserve» — no NON-LEADER clause, resolutions only (never a Popular Support area).',
   },

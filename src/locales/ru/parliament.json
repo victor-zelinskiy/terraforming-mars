@@ -1411,5 +1411,14 @@
   "You have it: your cube stands on its banner": "Доступен · ваш куб на знамени",
   "already yours: your cube on the banner": "уже ваш: куб на знамени",
   "your cube on its banner gives the effect, not this requirement": "ваш куб на знамени даёт эффект, но не это требование",
-  "you hold its effect, not this requirement": "доступен · только эффект, не требование"
+  "you hold its effect, not this requirement": "доступен · только эффект, не требование",
+  "Select a neutral delegate on a resolution to exchange for one of your own": "Выберите нейтрального делегата на резолюции — его место займёт ваш",
+  "Recruit delegate": "Завербовать делегата",
+  "Delegate exchange": "Вербовка делегата",
+  "No neutral delegate stands on a resolution": "На резолюциях нет нейтральных делегатов",
+  "${0} exchanged a neutral delegate on ${1} for one of their own": "${0} заменяет нейтрального делегата на ${1} своим",
+  "Exchange": "Обмен",
+  "Your delegate from the reserve → onto «${0}»": "Ваш делегат из резерва → на «${0}»",
+  "Delegate recruited": "Делегат завербован",
+  "in its place": "на его место"
 }

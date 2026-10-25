@@ -73,6 +73,7 @@ import {PrometheanAlliance} from './PrometheanAlliance';
 import {AerialLensesRedux} from './AerialLensesRedux';
 import {BannedDelegateRedux} from './BannedDelegateRedux';
 import {PoliticalAllianceRedux} from './PoliticalAllianceRedux';
+import {RecruitmentRedux} from './RecruitmentRedux';
 import {SponsoredMoholeRedux} from './SponsoredMoholeRedux';
 import {SeptemTribusRedux} from './SeptemTribusRedux';
 
@@ -361,6 +362,10 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // facade's `partiesLedBy`, ties by the earlier first delegate, neutrals never lead) and one Agenda step instead of the
     // TR. Art and lore are X09's (`reimplements`).
     [CardName.POLITICAL_ALLIANCE_REDUX]: {Factory: PoliticalAllianceRedux},
+    // TR74: the classic T11 under Redux — still 2 M€, an event: a NEUTRAL cube on a resolution leaves for the supply and
+    // the player's own from the reserve takes its place (TR72's figure pick, `{source: 'exchange'}`); no «non-leader»
+    // clause, never a support area. Art and lore are T11's (`reimplements`).
+    [CardName.RECRUITMENT_REDUX]: {Factory: RecruitmentRedux},
     // TR75 (the fifth registry row — authored third): the classic T13 at the printed Greens' plate, still 5 M€, a Building
     // tag and +2 heat production, plus 1 VP. Art and lore are T13's (`reimplements`).
     [CardName.SPONSORED_MOHOLE_REDUX]: {Factory: SponsoredMoholeRedux},
@@ -377,6 +382,7 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     CardName.AERIAL_LENSES,
     CardName.BANNED_DELEGATE,
     CardName.POLITICAL_ALLIANCE,
+    CardName.RECRUITMENT,
     CardName.SPONSORED_MOHOLE,
     CardName.SEPTUM_TRIBUS,
   ],
