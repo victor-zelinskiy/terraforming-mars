@@ -46,25 +46,28 @@ What it does, in order:
    when that snapshot exists, else the shared `build/` — minus `build/tests` and the source maps
    (190 MB nobody opens in a run). Extraneous files under those roots are deleted. `node_modules` is
    never touched; it is re-installed inside the container only when `package-lock.json`'s hash changed.
-3. **run** — in one of **K = 2 SLOTS** (`~/tm-e2e/slots/<i>`, one `flock` each; `TM_E2E_SLOTS`
-   overrides): two sessions run SIDE BY SIDE, a third waits for a slot (up to 30 min, and says so).
-   **`--exclusive`** takes ALL slots — for a timing / storyboard claim, whose numbers a neighbour's run
-   would contaminate (the owner's call 2026-10-21: one run at a time was too strict for a dedicated box;
-   one run at a time for a TIMING is the whole point of it). The run goes inside the `e2e` distrobox:
-   `TM_E2E_GPU=1 TM_E2E_HOST=steam-machine TM_E2E_SLOT=<slot i/K | exclusive> TM_E2E_HEAD=<laptop HEAD>
+3. **run** — holding as many **WORKER TOKENS** as it runs workers, out of a **BUDGET of 6**
+   (`~/tm-e2e/slots/<i>`, one `flock` each; `TM_E2E_BUDGET` overrides; 2026-10-25): three default runs
+   of two workers go SIDE BY SIDE, a one-worker storyboard costs one token, and a run that cannot get its
+   tokens waits (all-or-nothing, never sitting on a partial grab; up to 30 min, and says so).
+   **`--exclusive`** takes EVERY token, in index order, holding the ones it has while it waits — for a
+   timing / storyboard claim, whose numbers a neighbour's run would contaminate (the owner's call
+   2026-10-21: one run at a time was too strict for a dedicated box; one run at a time for a TIMING is
+   the whole point of it). The run goes inside the `e2e` distrobox:
+   `TM_E2E_GPU=1 TM_E2E_HOST=steam-machine TM_E2E_SLOT=<tokens i,j of 6 | exclusive> TM_E2E_HEAD=<laptop HEAD>
    TM_E2E_ROOT=../builds/<task> npx playwright test <args>` with the task's own `test-results/` and
    `playwright-report/` (`TM_E2E_OUTPUT_DIR` / `TM_E2E_REPORT_DIR`, read by `playwright.config.ts`),
    output streamed to your terminal. The serve root `~/tm-e2e/builds/<task>/` carries `assets`, `tests`
    and `node_modules` as links to the mirror — the laptop's `e2e:snapshot` layout, mirrored. Before the
-   slot is released the results are packed into `results.tar` there.
+   tokens are released the results are packed into `results.tar` there.
 4. **results** — that archive into `.e2e-remote/<task>/` (`test-results/`, `playwright-report/`,
    `.last-exit`), the run's new `screenshots/**` files into the laptop's `screenshots/` (the same paths
    a local run writes). The `build` annotation of every test reads
-   `build <sha> (<time>) from ../builds/<task> · HEAD <sha> · host steam-machine (slot 1/2 | exclusive)`
+   `build <sha> (<time>) from ../builds/<task> · HEAD <sha> · host steam-machine (tokens 0,1 of 6 | exclusive)`
    — a timing read beside a neighbour's run says so.
 
 **Exit codes.** 0 / 1 are Playwright's own. **2 / 3 / 4 mean the run did NOT happen**: 2 = the host is
-unreachable, no mirror, no build, a sync failure, or Playwright never started; 3 = no slot (or, for
+unreachable, no mirror, no build, a sync failure, or Playwright never started; 3 = not its tokens (or, for
 `--exclusive`, not the whole box) in 30 min; 4 = the owner set `DO_NOT_DISTURB`. On any of them an
 agent STOPS and ASKS the owner — never a silent fallback to a laptop run.
 
@@ -94,7 +97,7 @@ so nothing here needs `sudo` on the host and nothing is lost to an update:
 | the mirror | `~/tm-e2e/repo/` | `assets/` + the package files + its own `node_modules` (`ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci`, stamped `node_modules/.tm-lock-sha`) — the only things SHARED by every task |
 | the tasks | `~/tm-e2e/builds/<task>/` | per task, the run's cwd: `src/`, `tests/`, `package*.json`, `tsconfig.json`, `playwright.config.ts` (synced copies), `build/` (synced), `assets` + `node_modules` → links to the mirror, `test-results/`, `playwright-report/`, `screenshots/`, `.run-start`, `.last-exit`, `results.tar` (transient); a task idle for 14 days is pruned by the next run. Sources are per task because Playwright re-reads the harness whenever it restarts a worker (after every failure) — a neighbour's sync into a shared `tests/` once turned a running baseline red in minutes |
 | browsers | `~/.cache/ms-playwright/` | `npx playwright install chromium --with-deps` inside the container ONCE at setup (the `--with-deps` apt step needs a terminal for sudo); the wrapper's install branch runs `npx playwright install chromium` without it — the Chromium that matches the installed Playwright (1.64 → 156, the engine Electron 45 ships) |
-| per-run files | `~/tm-e2e/slots/<i>` (the K slot locks), `~/tm-e2e/runs/<task>-<id>.{outer,inner}.sh` (removed on exit) | written by the wrapper |
+| per-run files | `~/tm-e2e/slots/<i>` (the worker-token locks, budget 6), `~/tm-e2e/runs/<task>-<id>.{outer,inner}.sh` (removed on exit) | written by the wrapper |
 
 Re-provisioning from scratch = the table top to bottom; the wrapper's `npm ci` branch rebuilds
 `node_modules` + browsers by itself whenever the lock hash differs.
@@ -132,8 +135,10 @@ headless) can go through the GPU; the headless shell cannot open `chrome://gpu` 
   a red without pulling: `ssh steam-machine 'sed -n "/# Error details/,/# Page snapshot/p"
   ~/tm-e2e/builds/<task>/test-results/<test-dir>/error-context.md'` — the error is there while the run is still
   going.
-- **Whole-suite runs: `--exclusive --workers=4`** for the functional list (4 workers measured clean; 8 = load
-  23 / 12 threads, CPU 98 %), the timing list as its own run (`--exclusive --workers=2`, reds re-judged at 1).
+- **Whole-suite runs: `--workers=4`** for the functional list (4 tokens — one default run of two still fits
+  beside it; 4 workers measured clean, 8 = load 23 / 12 threads, CPU 98 %), the timing list as its own run
+  (`--exclusive --workers=2`, reds re-judged at 1). The budget of 6 sits between those two measurements and
+  is not itself measured yet — lower `TM_E2E_BUDGET` if a 4 + 2 load reads past the knee.
 
 - **Windows' built-in `ssh.exe` uploads a file-backed stdin at ~2 MB/s; Git's MSYS `ssh` at 42–64 MB/s**
   (40 MB: 18–22 s against 0.6–0.9 s). The wrapper prefers `C:\Program Files\Git\usr\bin\ssh.exe` (or the
@@ -175,12 +180,20 @@ headless) can go through the GPU; the headless shell cannot open `chrome://gpu` 
   install, says so loudly, leaves the stamp unchanged and retries next run; the bump's author runs
   `npm install` on the laptop. And the run's markers (`.run-start`, `.last-exit`) are reset BEFORE the
   install block — a failed install once reported exit 0 with the previous run's screenshots.
-- Two sessions run side by side in the two slots; a timing / storyboard claim is `--exclusive` and
-  waits for the box to empty — its annotation then reads `exclusive`, a shared run's `slot i/2`. Raise
-  `TM_E2E_SLOTS` only on measurement (the speed-up plan's phase 0: the worker-scaling curve).
+- Sessions run side by side on the worker budget; a timing / storyboard claim is `--exclusive` and
+  waits for the box to empty — its annotation then reads `exclusive`, a shared run's `tokens i,j of 6`.
+  Move `TM_E2E_BUDGET` only on measurement (the speed-up plan's phase 0: the worker-scaling curve).
+- **A TOKEN MUST NEVER REACH THE RUN'S PROCESS TREE** (2026-10-24 → 25: token 0 held for a day by a
+  container's `conmon`). The outer shell held its slot fds open while `distrobox enter` STARTED the stopped
+  container; conmon inherited the fd and lives as long as the container — a lock with no run behind it.
+  Every shared run fitted into the one slot left and every `--exclusive` run exited 3. Three guards now:
+  the container is started (`podman start`) before any token is taken, the run is launched from a subshell
+  that closes every token fd (the outer shell alone holds them), and a token locked only by processes that
+  are not a run (no `runs/*.sh`, no Playwright) is HEALED — a fresh file moved over it, the leaked
+  descriptor keeping the old inode, nobody killed («token N was held by a LEAKED descriptor…» in the log).
 - **A run whose lock changed goes EXCLUSIVE by itself.** `npm ci` rebuilds the SHARED mirror's
   `node_modules` — the one every task links — so an install beside a neighbour's run would cut that run's
-  workers off their modules mid-flight. The outer script compares the lock stamp BEFORE taking a slot and,
+  workers off their modules mid-flight. The outer script compares the lock stamp BEFORE taking a token and,
   on a mismatch, takes all of them («the lock changed — the install needs the whole box»), installs, then
   runs; its annotation reads `exclusive`. A neighbour who sees the wait simply waits — the install is a
   few minutes, once per dependency change.

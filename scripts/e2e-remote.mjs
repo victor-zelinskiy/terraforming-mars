@@ -28,33 +28,36 @@
  *      laptop's snapshots exist for. Extraneous files under the synced roots are
  *      deleted; `node_modules` is never touched — re-installed only when
  *      `package-lock.json` changed;
- *   3. run — in ONE of K SLOTS (`~/tm-e2e/slots/<i>`, `flock` each; K = 2 —
- *      the box has 12 threads and 15 GB, two runs of two 4K workers leave
- *      headroom; `TM_E2E_SLOTS` overrides) so two sessions run SIDE BY SIDE,
- *      or — `--exclusive` — holding ALL slots, for a timing / storyboard claim
- *      whose numbers a neighbour's run would contaminate (the owner's call
- *      2026-10-21: one run at a time was too strict for a dedicated box; one
- *      run at a time for a TIMING is the whole point of the box). A run with
- *      no slot in 30 min gives up (exit 3) and says so. Inside the `e2e`
+ *   3. run — holding as many WORKER TOKENS as it runs workers, out of a
+ *      BUDGET of 6 (`~/tm-e2e/slots/<i>`, one `flock` each; `TM_E2E_BUDGET`
+ *      overrides) — so three default runs of two go SIDE BY SIDE and a
+ *      one-worker storyboard costs one token; or — `--exclusive` — holding
+ *      EVERY token, for a timing / storyboard claim whose numbers a
+ *      neighbour's run would contaminate. A token leaked to a process with
+ *      no run behind it HEALS (a fresh file moved over it), and the run's
+ *      process tree never sees a token's fd (a container's conmon carried
+ *      one away for a day, 2026-10-24). A run with no tokens in 30 min gives
+ *      up (exit 3) and says so. Inside the `e2e`
  *      distrobox (Ubuntu 24.04 — the only place Playwright's Chromium has its
  *      libraries; SteamOS's root is read-only): `TM_E2E_GPU=1
  *      TM_E2E_ROOT=../builds/<task> npx playwright test <args>` with the
  *      task's own output + report dirs, output streamed; the results are
- *      packed into `results.tar` BEFORE the slot is released;
+ *      packed into `results.tar` BEFORE the tokens are released;
  *   4. results — `test-results/` and `playwright-report/` into
  *      `.e2e-remote/<task>/`, the run's new `screenshots/**` files into the
  *      laptop's `screenshots/` (the same paths a local run writes).
  *
  * The exit code is Playwright's. A host that cannot be reached exits 2, no
- * slot obtained in 30 min exits 3, the owner's DO_NOT_DISTURB exits 4 — each
+ * tokens obtained in 30 min exits 3, the owner's DO_NOT_DISTURB exits 4 — each
  * says so in one line. THE RULE FOR AN AGENT: never fall back to a local run
  * silently on 2/3/4 — ask the owner (memory `e2e-only-on-steam-machine`).
  *
  * Env: TM_E2E_REMOTE_HOST (ssh alias, default `steam-machine`),
- * TM_E2E_ROOT (an explicit build root), TM_E2E_SLOTS (the box's slot count),
- * every TM_E2E_* flag except the local-only ones is forwarded (TM_E2E_GPU
- * defaults to 1 — that is the point). Default workers: 2 per run (two runs
- * share the box). A storyboard / timing claim: `--exclusive --workers=1`.
+ * TM_E2E_ROOT (an explicit build root), TM_E2E_BUDGET (the box's worker
+ * tokens), every TM_E2E_* flag except the local-only ones is forwarded
+ * (TM_E2E_GPU defaults to 1 — that is the point). Default workers: 2 per run
+ * (three runs share the box). A storyboard / timing claim:
+ * `--exclusive --workers=1`.
  */
 import {spawnSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
@@ -106,7 +109,25 @@ const pwArgs = argv.slice(1).filter((a) => a !== '--exclusive');
 if (!pwArgs.some((a) => a.startsWith('--workers'))) {
   pwArgs.push('--workers=2');
 }
-const SLOTS = Math.max(1, Number(process.env.TM_E2E_SLOTS ?? 2) || 2);
+/**
+ * THE BOX'S WORKER BUDGET: a run holds as many TOKENS as it runs workers (`--workers=N` / `-j N`), so three
+ * default runs of two go side by side and a one-worker storyboard costs one. 6 of 12 threads: 4 workers
+ * measured load 3–12 (2026-10-22), 8 measured load 23 — past the knee. A worker count the wrapper cannot
+ * read (a percentage) takes the whole budget.
+ */
+const BUDGET = Math.max(1, Number(process.env.TM_E2E_BUDGET ?? 6) || 6);
+const workersAsked = (() => {
+  for (let i = 0; i < pwArgs.length; i++) {
+    const a = pwArgs[i];
+    const m = /^(?:--workers|-j)=(.+)$/.exec(a);
+    const v = m ? m[1] : (a === '--workers' || a === '-j') ? pwArgs[i + 1] : undefined;
+    if (v !== undefined) {
+      return /^\d+$/.test(v) ? Number(v) : BUDGET;
+    }
+  }
+  return BUDGET;
+})();
+const NEED = Math.min(BUDGET, Math.max(1, workersAsked));
 /** This task's own build + output + report dirs on the host — never shared with another session's run. */
 const TASK_DIR = `${REMOTE_BUILDS}/${task}`;
 
@@ -155,7 +176,7 @@ if (flags.has('GAME-RUNNING')) {
   log(`the game is RUNNING on ${HOST} — running beside it${exclusive ? '; this TIMING shares the GPU with the game — say so with its numbers' : ''}`);
 }
 if (flags.has('RUN-IN-PROGRESS')) {
-  log(`another e2e run is in progress on ${HOST} — ${exclusive ? `this EXCLUSIVE run waits for the box to empty (up to ${LOCK_WAIT_S / 60} min)` : `this one takes a free slot of ${SLOTS}, or waits for one (up to ${LOCK_WAIT_S / 60} min)`}`);
+  log(`another e2e run is in progress on ${HOST} — ${exclusive ? `this EXCLUSIVE run waits for the box to empty (up to ${LOCK_WAIT_S / 60} min)` : `this one takes ${NEED} of the ${BUDGET} worker tokens beside it, or waits for them (up to ${LOCK_WAIT_S / 60} min)`}`);
 }
 
 function res255(res) {
@@ -405,13 +426,16 @@ mkdir -p ${REMOTE_HOME}/runs
 cat > ${innerPath} <<'TM_INNER'
 ${inner}TM_INNER
 trap 'rm -f ${innerPath} ${outerPath}' EXIT
-# THE SLOTS: K lock files, one flock each (fds 10…). A SHARED run takes the first free one, polling
-# every 2 s up to the deadline; an EXCLUSIVE run takes ALL of them in order (holding the first while
-# waiting for the rest is what keeps a timing run from starving behind a stream of shared ones).
-mkdir -p ${REMOTE_HOME}/slots
-SLOTS=${SLOTS}
+# THE WORKER TOKENS: BUDGET lock files (\`slots/<i>\`), one flock each on fd 10+i. A run holds as many
+# tokens as it runs workers. A SHARED run takes what it needs ALL-OR-NOTHING (it never sits on a partial
+# grab, so it can never deadlock anybody); an EXCLUSIVE run takes EVERY token IN INDEX ORDER, holding
+# the ones it has while it waits for the rest — that is what keeps a timing run from starving behind a
+# stream of shared ones, and the fixed order keeps two exclusive runs from deadlocking each other.
+SLOTDIR=${REMOTE_HOME}/slots
+mkdir -p $SLOTDIR
+BUDGET=${BUDGET}
+NEED=${NEED}
 DEADLINE=$((SECONDS + ${LOCK_WAIT_S}))
-SLOT=""
 EXCL=${exclusive ? '1' : '0'}
 # A changed lock means \`npm ci\` in the SHARED mirror — it deletes the node_modules every running
 # task links, so the install may only happen with the box EMPTY: such a run goes exclusive whatever
@@ -420,29 +444,77 @@ if [ "$(cat ${REMOTE_REPO}/node_modules/.tm-lock-sha 2>/dev/null)" != ${shq(lock
   echo "[e2e:remote] the lock changed — the install needs the whole box: this run goes EXCLUSIVE"
   EXCL=1
 fi
-if [ "$EXCL" = 1 ]; then
-  for i in $(seq 0 $((SLOTS - 1))); do
-    eval "exec $((10 + i))>${REMOTE_HOME}/slots/$i"
-    if ! flock -n $((10 + i)); then
-      echo "[e2e:remote] EXCLUSIVE run — waiting for slot $i of $SLOTS to free (up to $(( (DEADLINE - SECONDS) / 60 )) min)…"
-      flock -w $((DEADLINE - SECONDS)) $((10 + i)) || { echo "[e2e:remote] gave up waiting for the box"; exit 3; }
+[ "$EXCL" = 1 ] && NEED=$BUDGET
+# THE CONTAINER IS UP BEFORE ANY TOKEN IS TAKEN. A \`distrobox enter\` that has to START the container
+# leaves its \`conmon\` alive for the container's whole life — and conmon inherits every open fd of the
+# shell that started it. With a token's fd open that is a lock held by nothing (2026-10-24 04:06 → the
+# 25th: token 0 held by conmon, every shared run squeezed into ONE slot, every --exclusive run exit 3).
+podman start ${CONTAINER} >/dev/null 2>&1 || true
+# A LEAKED TOKEN HEALS: a token file locked by processes none of which is a run (no outer/inner script of
+# \`runs/\`, no Playwright) gets a FRESH file moved over it — the leaked descriptor keeps the old inode and
+# nobody is killed. Asked at the start and every ~minute of a wait.
+heal_tokens() {
+  for i in $(seq 0 $((BUDGET - 1))); do
+    f=$SLOTDIR/$i
+    [ -e "$f" ] || : > "$f"
+    flock -n "$f" true 2>/dev/null && continue
+    legit=""; leak=""
+    for p in /proc/[0-9]*; do
+      for fd in "$p"/fd/*; do
+        [ "$(readlink "$fd" 2>/dev/null)" = "$f" ] || continue
+        cmd=$(tr '\\0' ' ' < "$p/cmdline" 2>/dev/null)
+        case "$cmd" in
+          *tm-e2e/runs/*|*playwright*) legit=1 ;;
+          *) leak="pid \${p#/proc/} \${cmd%% *}" ;;
+        esac
+      done
+    done 2>/dev/null
+    if [ -z "$legit" ] && [ -n "$leak" ]; then
+      echo "[e2e:remote] token $i was held by a LEAKED descriptor ($leak — no run behind it): the token file is replaced"
+      : > "$f.heal.$$" && mv -f "$f.heal.$$" "$f"
     fi
+  done
+}
+HELD=""
+NHELD=0
+take() { # take token $1 non-blocking; 0 = taken
+  eval "exec $((10 + $1))>>$SLOTDIR/$1"
+  if flock -n $((10 + $1)); then HELD="$HELD $1"; NHELD=$((NHELD + 1)); return 0; fi
+  eval "exec $((10 + $1))>&-"
+  return 1
+}
+drop_all() {
+  for i in $HELD; do eval "exec $((10 + i))>&-"; done
+  HELD=""; NHELD=0
+}
+heal_tokens
+TRIES=0
+if [ "$EXCL" = 1 ]; then
+  for i in $(seq 0 $((BUDGET - 1))); do
+    until take $i; do
+      [ $TRIES = 0 ] && echo "[e2e:remote] EXCLUSIVE run — waiting for the box to empty (up to $(( (DEADLINE - SECONDS) / 60 )) min)…"
+      TRIES=$((TRIES + 1))
+      [ $((TRIES % 30)) = 0 ] && heal_tokens
+      [ $SECONDS -ge $DEADLINE ] && { echo "[e2e:remote] gave up waiting for the box"; exit 3; }
+      sleep 2
+    done
   done
   SLOT="exclusive"
 else
-  while [ -z "$SLOT" ]; do
-    for i in $(seq 0 $((SLOTS - 1))); do
-      eval "exec $((10 + i))>${REMOTE_HOME}/slots/$i"
-      if flock -n $((10 + i)); then SLOT="slot $((i + 1))/$SLOTS"; break; fi
-      eval "exec $((10 + i))>&-"
+  while :; do
+    for i in $(seq 0 $((BUDGET - 1))); do
+      [ $NHELD -ge $NEED ] && break
+      take $i
     done
-    if [ -z "$SLOT" ]; then
-      [ -z "$WAITED" ] && echo "[e2e:remote] every slot of $SLOTS is BUSY — waiting for one (up to $(( (DEADLINE - SECONDS) / 60 )) min)…"
-      WAITED=1
-      [ $SECONDS -ge $DEADLINE ] && { echo "[e2e:remote] gave up waiting for a slot"; exit 3; }
-      sleep 2
-    fi
+    [ $NHELD -ge $NEED ] && break
+    drop_all
+    [ $TRIES = 0 ] && echo "[e2e:remote] fewer than $NEED of $BUDGET worker tokens are free — waiting (up to $(( (DEADLINE - SECONDS) / 60 )) min)…"
+    TRIES=$((TRIES + 1))
+    [ $((TRIES % 30)) = 0 ] && heal_tokens
+    [ $SECONDS -ge $DEADLINE ] && { echo "[e2e:remote] gave up waiting for worker tokens"; exit 3; }
+    sleep 2
   done
+  SLOT="tokens$(echo $HELD | tr ' ' ',' | sed 's/^/ /') of $BUDGET"
 fi
 echo "[e2e:remote] $SLOT — running ${shq(task)} on $(cat /etc/hostname 2>/dev/null) · load $(cut -d' ' -f1-3 /proc/loadavg)"
 # The task's serve root: its own build beside LINKS to what the server reads relative to its cwd
@@ -456,15 +528,20 @@ mkdir -p ${TASK_DIR} && ln -sfn ../../repo/assets ${TASK_DIR}/assets && ln -sfn 
 find ${REMOTE_BUILDS} -mindepth 1 -maxdepth 1 -type d -mtime +14 -exec rm -rf {} + 2>/dev/null
 # The sleep inhibitor is best-effort: over ssh polkit answers «Interactive authentication required»
 # unless the owner adds a rule, and the Gaming Mode idle sleep is a Steam setting anyway (Never).
-INHIBIT=""
+INHIBIT=()
 if systemd-inhibit --what=sleep:idle --who=tm-e2e --why=probe --mode=block true 2>/dev/null; then
-  INHIBIT="systemd-inhibit --what=sleep:idle --who=tm-e2e --why=${shq(`e2e ${task}`)} --mode=block"
+  INHIBIT=(systemd-inhibit --what=sleep:idle --who=tm-e2e "--why=e2e ${task}" --mode=block)
 else
   echo "[e2e:remote] (no sleep inhibitor over ssh — the Steam Machine's idle sleep must be set to Never)"
 fi
-$INHIBIT distrobox enter ${CONTAINER} -- bash ${innerPath} "$SLOT"
+# The run's process tree NEVER sees a token's fd: this shell holds the tokens for exactly as long as the
+# run lives, and a process that outlives the run (a container's conmon) cannot carry one away.
+(
+  for i in $HELD; do eval "exec $((10 + i))>&-"; done
+  exec "\${INHIBIT[@]}" distrobox enter ${CONTAINER} -- bash ${innerPath} "$SLOT"
+)
 code=$?
-# Pack the results WHILE STILL HOLDING THE SLOT — a waiting run starts the moment it is released.
+# Pack the results WHILE STILL HOLDING THE TOKENS — a waiting run starts the moment they are released.
 rm -f ${TASK_DIR}/results.tar
 # TRACES STAY ON THE BOX unless asked for (TM_E2E_PULL_TRACES=1): a 4K trace is 100–300 MB, the HTML report
 # embeds a second copy of each, and the first full baseline packed 20 GB — 12.7 of it traces — past what the
