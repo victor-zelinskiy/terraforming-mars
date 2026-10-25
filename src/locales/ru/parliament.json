@@ -1424,7 +1424,5 @@
   "in its place": "на его место",
   "There is no chairman to remove": "Снимать некого: председателя нет",
   "You are already the chairman": "Вы уже председатель",
-  "unseats ${0}": "снимает: ${0}",
-  "leaves the chair": "покидает кресло",
-  "in the chair": "в кресле"
+  "unseats ${0}": "снимает: ${0}"
 }

@@ -472,10 +472,11 @@ export function parliamentBandLine(ctx: BandContext): BandLine {
 function walkLine(walk: BandWalk): BandLine {
   const seat = walk.seat;
   if (seat !== undefined) {
-    // «[X] покидает кресло · [вы] в кресле» — one phrase for the office, then the walk's steps after it on the same line.
+    // The quest's own line for the office (glossary §4): the new chairman, then the outgoing delegate's own fact — where
+    // it GOES, never what was lost — and the walk's steps after it on the same line.
     const chips: Array<BandChip> = [
-      {kind: 'player', player: seat.from}, {kind: 'label', key: 'leaves the chair', tone: 'quiet'},
-      {kind: 'player', player: walk.player}, {kind: 'label', key: 'in the chair', tone: 'quiet'},
+      {kind: 'player', player: walk.player},
+      {kind: 'label', key: 'The delegate returns to the reserve', tone: 'quiet'}, {kind: 'player', player: seat.from},
     ];
     for (const step of walk.landed) {
       chips.push(walkStepChip(step));
