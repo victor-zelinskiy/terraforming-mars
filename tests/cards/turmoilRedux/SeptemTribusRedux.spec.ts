@@ -12,7 +12,6 @@ import {SelectParty} from '../../../src/server/inputs/SelectParty';
 import {getParliamentModel} from '../../../src/server/parliament/ParliamentModel';
 import {DEFAULT_GAME_OPTIONS, GameOptions} from '../../../src/server/game/GameOptions';
 import {replacementCardNumber} from '../../../src/common/cards/turmoilReduxReplacements';
-import {TURMOIL_CARDS_HELD_BACK_UNDER_REDUX} from '../../../src/common/cards/turmoilReduxAdaptation';
 import {bannerPartiesOf} from '../../../src/common/parliament/bannerCubes';
 import {CardName} from '../../../src/common/cards/CardName';
 import {CardType} from '../../../src/common/cards/CardType';
@@ -104,7 +103,6 @@ describe('SeptemTribusRedux', () => {
     expect((card as unknown as {action?: unknown}).action, 'the classic M€-per-party action is gone').is.undefined;
     expect(TURMOIL_REDUX_CARD_MANIFEST.corporationCards[ID], 'the Redux manifest\'s corporation').is.not.undefined;
     expect(TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.has(CardName.SEPTUM_TRIBUS)).is.true;
-    expect(TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(CardName.SEPTUM_TRIBUS), 'off the hold-back list').is.false;
   });
 
   describe('the first action — a cube on ANY banner', () => {

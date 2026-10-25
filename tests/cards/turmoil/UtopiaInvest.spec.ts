@@ -11,7 +11,7 @@ import {CardName} from '../../../src/common/cards/CardName';
 import {CardType} from '../../../src/common/cards/CardType';
 import {Tag} from '../../../src/common/cards/Tag';
 import {Resource} from '../../../src/common/Resource';
-import {isTurmoilCardHeldBackUnderRedux} from '../../../src/server/cards/turmoil/turmoilReduxAdaptation';
+import {GameCards} from '../../../src/server/GameCards';
 import {actionPreview} from '../../../src/server/models/actionPreview';
 import {actionUnavailableReasons} from '../../../src/server/models/actionUnavailableReasons';
 import {potentialActions} from '../../../src/server/models/potentialActions';
@@ -74,9 +74,9 @@ describe('UtopiaInvest — on a Turmoil Redux table', () => {
     expect(c.actionBehavior?.or?.autoSelect).is.not.true;
   });
 
-  it('rule 1 — Turmoil Redux deals it: no longer held back; the play gives 40 M€ and +1 steel / titanium production', () => {
+  it('rule 1 — Turmoil Redux deals it; the play gives 40 M€ and +1 steel / titanium production', () => {
     const {game, p1} = table();
-    expect(isTurmoilCardHeldBackUnderRedux(CardName.UTOPIA_INVEST, game.gameOptions)).is.false;
+    expect(new GameCards(game.gameOptions).getCorporationCards().map((c) => c.name), 'a Redux table deals it').to.include(CardName.UTOPIA_INVEST);
     expect(p1.playedCards.corporations().map((c) => c.name)).deep.eq([CardName.UTOPIA_INVEST]);
     expect(p1.megaCredits).eq(40);
     expect(p1.production.steel).eq(1);

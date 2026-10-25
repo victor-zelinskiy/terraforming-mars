@@ -1,6 +1,5 @@
 import {CardName} from './CardName';
 import {GameModule} from './GameModule';
-import {TURMOIL_CARDS_HELD_BACK_UNDER_REDUX} from './turmoilReduxAdaptation';
 import {TURMOIL_REDUX_REPLACED_CLASSIC_NAMES} from './turmoilReduxReplacements';
 
 /**
@@ -10,19 +9,18 @@ import {TURMOIL_REDUX_REPLACED_CLASSIC_NAMES} from './turmoilReduxReplacements';
  * guard and every source-side catalogue; a hand-written module list anywhere else fails
  * `tests/cards/premiumScope.spec.ts`.
  *
- * The scope is a MODULE list with ONE card-level exception: the classic Turmoil module
- * joins card by card. Its cards play beside Turmoil Redux (rulebook p.12), and each is
- * adapted in its own task (`docs/TURMOIL_REDUX_CLASSIC_CARDS.md`); a card still in the
- * hold-back list (`turmoilReduxAdaptation.ts`) is neither dealt to a Redux table nor in
- * scope, and leaving the list does both at once — the worklist and the scope are one
- * object. A classic card the Redux set REPLACES (`turmoilReduxReplacements.ts`) stays out
- * for good: its `:redux` replacement is the card a Redux table deals and covers. Widening to a whole new module is the expansion-adaptation procedure
+ * The scope is a MODULE list with ONE card-level exception: the classic Turmoil module is
+ * PART of Turmoil Redux (rulebook p.12 — its cards play beside the set; all 22 adapted by
+ * 2026-10-25, `docs/TURMOIL_REDUX_CLASSIC_CARDS.md`) and is in scope WHOLE, minus the
+ * classic cards the Redux set REPLACES (`turmoilReduxReplacements.ts`): those never reach a
+ * Redux table — their `:redux` replacement is the card a Redux table deals and covers.
+ * Widening to a whole new module is the expansion-adaptation procedure
  * (`docs/claude/expansion-adaptation-checklist.md`): add its key HERE, then let the
  * guards print the work.
  */
 export const PREMIUM_SCOPE_MODULES: ReadonlyArray<GameModule> = [
   'base', 'corpera', 'promo', 'venus', 'colonies', 'prelude', 'ares', 'deltaProject', 'turmoilRedux',
-  // Card by card — `inPremiumScope` drops the cards still held back.
+  // Classic Turmoil — part of Redux; `inPremiumScope` drops the classic cards the Redux set replaces.
   'turmoil',
 ];
 
@@ -39,7 +37,7 @@ export type PremiumScopeSubject = {readonly module: GameModule, readonly name: C
 /**
  * Is `card` covered? `modules` narrows or widens the module list for a subsystem whose
  * scope differs and says why at its call site (the face's CEOs, a console path not yet
- * open to a module); the classic Turmoil card's own exception holds whatever the list.
+ * open to a module); the replaced classic Turmoil card's exception holds whatever the list.
  */
 export function inPremiumScope(card: PremiumScopeSubject, modules: ReadonlyArray<GameModule> = PREMIUM_SCOPE_MODULES): boolean {
   if (!modules.includes(card.module)) {
@@ -48,8 +46,7 @@ export function inPremiumScope(card: PremiumScopeSubject, modules: ReadonlyArray
   if (card.module !== 'turmoil') {
     return true;
   }
-  // A REPLACED classic card never reaches a Redux table — not while its row holds it back, not after its
-  // `:redux` replacement took over (`cardsToRemove`); the replacement is the Redux card in scope.
-  const name = card.name as CardName;
-  return !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name) && !TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(name);
+  // A REPLACED classic card never reaches a Redux table — its `:redux` replacement took over (`cardsToRemove`) and
+  // is the Redux card in scope.
+  return !TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(card.name as CardName);
 }

@@ -27,7 +27,6 @@ import {UNDERWORLD_CARD_MANIFEST} from './cards/underworld/UnderworldCardManifes
 import {DELTA_PROJECT_CARD_MANIFEST} from './cards/delta/DeltaProjectCardManifest';
 import {TURMOIL_REDUX_CARD_MANIFEST} from './cards/turmoilRedux/TurmoilReduxCardManifest';
 import {isCardBannedForAutoma} from './automa/AutomaBans';
-import {isTurmoilCardHeldBackUnderRedux} from './cards/turmoil/turmoilReduxAdaptation';
 
 /**
  * Returns the cards available to a game based on its `GameOptions`.
@@ -57,10 +56,11 @@ export class GameCards {
       [gameOptions.venusNextExtension, VENUS_CARD_MANIFEST],
       [gameOptions.coloniesExtension, COLONIES_CARD_MANIFEST],
       // Classic Turmoil's cards play beside Turmoil Redux too (rulebook p.12
-      // shuffles the official expansion's cards in, Septem Tribus excepted) —
-      // but only the ADAPTED ones reach a Redux deck: `filterHeldBackUnderRedux`
-      // below holds the rest (`cards/turmoil/turmoilReduxAdaptation.ts`, the
-      // worklist). The manifest's global events never ride this class.
+      // shuffles the official expansion's cards in) — every one adapted to the
+      // Mars Parliament since 2026-10-25, the seven the Redux set REPLACES kept
+      // out by the Redux manifest's `cardsToRemove` (`filterReplacedCards`;
+      // `common/cards/turmoilReduxReplacements.ts`). The manifest's global
+      // events never ride this class.
       [gameOptions.turmoilExtension || gameOptions.turmoilReduxExpansion, TURMOIL_CARD_MANIFEST],
       [gameOptions.aresExtension, ARES_CARD_MANIFEST],
       [gameOptions.promoCardsOption, PROMO_CARD_MANIFEST],
@@ -159,18 +159,7 @@ export class GameCards {
 
     cards = this.filterBannedCards(cards);
     cards = this.filterReplacedCards(cards);
-    cards = this.filterHeldBackUnderRedux(cards);
     return cards;
-  }
-
-  /**
-   * Remove the classic Turmoil cards not yet adapted to the Mars Parliament
-   * from a Turmoil Redux game. TEMPORARY — goes with the hold-back list in
-   * `cards/turmoil/turmoilReduxAdaptation.ts` once every card has crossed.
-   * Runs before the custom lists are added, so a guaranteed card still wins.
-   */
-  private filterHeldBackUnderRedux<T extends ICard>(cards: Array<T>): Array<T> {
-    return cards.filter((card) => !isTurmoilCardHeldBackUnderRedux(card.name, this.gameOptions));
   }
 
   /* Remove cards excluded by choice in game options */

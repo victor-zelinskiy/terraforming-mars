@@ -11,7 +11,7 @@ import {CardResource} from '../../../src/common/CardResource';
 import {Units} from '../../../src/common/Units';
 import {ratingVetoed} from '../../../src/server/parliament/ratingVetoGate';
 import {UNMI_VETO_ID} from '../../../src/server/parliament/resolutions/reds/UnmiVeto';
-import {isTurmoilCardHeldBackUnderRedux} from '../../../src/server/cards/turmoil/turmoilReduxAdaptation';
+import {GameCards} from '../../../src/server/GameCards';
 import {Server} from '../../../src/server/models/ServerModel';
 import {seatEnacted} from '../../parliament/parliamentArrange';
 import {finishGeneration, runAllActions} from '../../TestingUtils';
@@ -74,9 +74,9 @@ describe('Pristar — on a Turmoil Redux table', () => {
     expect(c.metadata.infoText?.map((line) => line.text)).deep.eq(['No TR gained this generation: +1 preservation, 6 M€']);
   });
 
-  it('rule 1 — Turmoil Redux deals it: no longer held back; the play gives 53 M€ and lowers the TR to 18', () => {
+  it('rule 1 — Turmoil Redux deals it; the play gives 53 M€ and lowers the TR to 18', () => {
     const {game, p1, p2, card} = table();
-    expect(isTurmoilCardHeldBackUnderRedux(CardName.PRISTAR, game.gameOptions)).is.false;
+    expect(new GameCards(game.gameOptions).getCorporationCards().map((c) => c.name), 'a Redux table deals it').to.include(CardName.PRISTAR);
     expect(p1.playedCards.corporations().map((c) => c.name)).deep.eq([CardName.PRISTAR]);
     expect(p1.megaCredits).eq(53);
     expect(p1.terraformRating).eq(p2.terraformRating - 2);

@@ -3,22 +3,16 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {CardName} from '../../src/common/cards/CardName';
 import {PREMIUM_FACE_SCOPE_MODULES, PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
-import {
-  TURMOIL_CARDS_AWAITING_REDUX_REPLACEMENT,
-  TURMOIL_CARDS_HELD_BACK_UNDER_REDUX,
-  TURMOIL_CARDS_TO_ADAPT_IN_PLACE,
-} from '../../src/common/cards/turmoilReduxAdaptation';
 import {TURMOIL_REDUX_REPLACED_CLASSIC_NAMES} from '../../src/common/cards/turmoilReduxReplacements';
 import {TURMOIL_CARD_MANIFEST} from '../../src/server/cards/turmoil/TurmoilCardManifest';
-import * as serverList from '../../src/server/cards/turmoil/turmoilReduxAdaptation';
 
 /**
  * THE PREMIUM SCOPE IS ONE DEFINITION (T04 Diaspora Movement — the first classic
  * Turmoil card adapted in place). The scope is a module list with one card-level
- * exception: the classic Turmoil module joins card by card, through the hold-back
- * list — the worklist and the scope are one object, so a card enters every premium
- * guard the moment its row leaves the list. A hand-written module list anywhere in
- * `src/` or `tests/` would let a guard drift from the rule; this spec refuses one.
+ * exception: the classic Turmoil module is PART of Turmoil Redux (all 22 adapted by
+ * 2026-10-25) and is in scope whole, minus the classic cards the Redux set REPLACES
+ * (the replacement registry). A hand-written module list anywhere in `src/` or
+ * `tests/` would let a guard drift from the rule; this spec refuses one.
  */
 describe('premium scope', () => {
   it('the modules: the premium nine plus the classic Turmoil module; the face adds the CEOs', () => {
@@ -27,32 +21,26 @@ describe('premium scope', () => {
     expect(PREMIUM_FACE_SCOPE_MODULES).deep.eq([...PREMIUM_SCOPE_MODULES, 'ceo']);
   });
 
-  it('a classic Turmoil card still in the hold-back list is OUT of scope', () => {
-    for (const name of TURMOIL_CARDS_HELD_BACK_UNDER_REDUX) {
-      expect(inPremiumScope({module: 'turmoil', name}), name).is.false;
-    }
-  });
-
-  it('a classic Turmoil card that left the list is IN scope — the scope is exactly «the manifest minus the list minus the replaced»', () => {
+  it('the classic Turmoil module is in scope WHOLE, minus the replaced classic cards — «the manifest minus the replaced»', () => {
     const manifest = Object.keys(TURMOIL_CARD_MANIFEST.projectCards).concat(Object.keys(TURMOIL_CARD_MANIFEST.corporationCards));
     const inScope = manifest.filter((name) => inPremiumScope({module: 'turmoil', name}));
-    expect(inScope).deep.eq(manifest.filter((name) =>
-      !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name as CardName) && !TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(name as CardName)));
-    expect(inPremiumScope({module: 'turmoil', name: 'A card that left the list'})).is.true;
+    expect(inScope).deep.eq(manifest.filter((name) => !TURMOIL_REDUX_REPLACED_CLASSIC_NAMES.has(name as CardName)));
+    expect(inScope, '11 projects + 4 corporations adapted in place').has.length(15);
+    expect(inPremiumScope({module: 'turmoil', name: 'A classic card not replaced'})).is.true;
   });
 
-  // A REPLACED classic card never reaches a Redux table, whichever way it is kept out (its row, or — once its
-  // `:redux` replacement is authored — the Redux manifest's `cardsToRemove`): it is never in scope, the replacement is.
-  it('a replaced classic Turmoil card is OUT of scope for good — off the list too (TR71 Aerial Lenses:redux is the first)', () => {
+  // A REPLACED classic card never reaches a Redux table (the Redux manifest's `cardsToRemove`): it is never in scope,
+  // its `:redux` replacement is.
+  it('a replaced classic Turmoil card is OUT of scope for good; its replacement is in (TR71…TR77)', () => {
     for (const name of TURMOIL_REDUX_REPLACED_CLASSIC_NAMES) {
       expect(inPremiumScope({module: 'turmoil', name}), name).is.false;
     }
-    expect(TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(CardName.AERIAL_LENSES), 'Aerial Lenses left the list').is.false;
     expect(inPremiumScope({module: 'turmoilRedux', name: CardName.AERIAL_LENSES_REDUX})).is.true;
+    expect(inPremiumScope({module: 'turmoilRedux', name: CardName.VOTE_OF_NO_CONFIDENCE_REDUX})).is.true;
   });
 
-  it('the list is read for the classic Turmoil module ONLY — another module\'s card is never held back by a name', () => {
-    for (const name of TURMOIL_CARDS_HELD_BACK_UNDER_REDUX) {
+  it('the exception is read for the classic Turmoil module ONLY — another module card is never kept out by a name', () => {
+    for (const name of TURMOIL_REDUX_REPLACED_CLASSIC_NAMES) {
       expect(inPremiumScope({module: 'turmoilRedux', name}), `turmoilRedux · ${name}`).is.true;
       expect(inPremiumScope({module: 'base', name}), `base · ${name}`).is.true;
     }
@@ -64,16 +52,8 @@ describe('premium scope', () => {
     expect(inPremiumScope({module: 'ceo', name: CardName.ASIMOV}, PREMIUM_FACE_SCOPE_MODULES)).is.true;
     const narrowed = PREMIUM_SCOPE_MODULES.filter((m) => m !== 'ares');
     expect(inPremiumScope({module: 'ares', name: CardName.CAPITAL_ARES}, narrowed)).is.false;
-    // The hold-back list is EMPTY since TR76 (2026-10-25): the Turmoil exception left is the replaced classic card.
-    expect(TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.size).eq(0);
     expect(inPremiumScope({module: 'turmoil', name: CardName.VOTE_OF_NO_CONFIDENCE}, narrowed)).is.false;
-    expect(inPremiumScope({module: 'turmoil', name: 'A card that left the list'}, narrowed)).is.true;
-  });
-
-  it('the names live in `common`; the server file re-exports the SAME arrays (no second list)', () => {
-    expect(serverList.TURMOIL_CARDS_TO_ADAPT_IN_PLACE).eq(TURMOIL_CARDS_TO_ADAPT_IN_PLACE);
-    expect(serverList.TURMOIL_CARDS_AWAITING_REDUX_REPLACEMENT).eq(TURMOIL_CARDS_AWAITING_REDUX_REPLACEMENT);
-    expect(serverList.TURMOIL_CARDS_HELD_BACK_UNDER_REDUX).eq(TURMOIL_CARDS_HELD_BACK_UNDER_REDUX);
+    expect(inPremiumScope({module: 'turmoil', name: CardName.DIASPORA_MOVEMENT}, narrowed)).is.true;
   });
 
   describe('no hand-written premium module list outside `premiumScope.ts`', function() {

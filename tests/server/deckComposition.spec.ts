@@ -14,7 +14,6 @@ import {REDUX_RESOLUTION_CATALOG} from '../../src/server/parliament/resolutions/
 import {compatibleWith} from '../../src/server/parliament/Parliament';
 import {GameCards} from '../../src/server/GameCards';
 import {TURMOIL_CARD_MANIFEST} from '../../src/server/cards/turmoil/TurmoilCardManifest';
-import {TURMOIL_CARDS_HELD_BACK_UNDER_REDUX} from '../../src/common/cards/turmoilReduxAdaptation';
 import {isTurmoilReduxAddition} from '../../src/common/colonies/AllColonies';
 import {ColonyDealer} from '../../src/server/colonies/ColonyDealer';
 import {ConstRandom} from '../../src/common/utils/Random';
@@ -59,12 +58,12 @@ describe('deckCompositionOf — the creator\'s decks, counted by the server', ()
     // The PROJECT replacements authored so far (the corporation TR77 is Redux's corporation, counted below).
     const projectReplacements = [...TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove].filter((name) => name in TURMOIL_CARD_MANIFEST.projectCards).length;
     expect(c.projects.byModule.turmoilRedux).eq(70 + projectReplacements);
-    // The classic project cards adapted so far — counted from the hold-back list, never a literal (T04 Diaspora
-    // Movement, T06 GMO Contract, …): each adaptation deals one more. A REPLACED classic card (off the list once its
-    // replacement crossed) is removed by `cardsToRemove` — never dealt.
+    // The classic project cards — part of Redux since 2026-10-25: every one but the six the set replaces (removed by
+    // `cardsToRemove` — never dealt). 17 printed − 6 replaced = 11.
     const adaptedClassic = Object.keys(TURMOIL_CARD_MANIFEST.projectCards)
-      .filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name as CardName) && !TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.has(name as CardName)).length;
-    expect(adaptedClassic).greaterThanOrEqual(2);
+      .filter((name) => !TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.has(name as CardName)).length;
+    expect(adaptedClassic).eq(11);
+    expect(projectReplacements, 'TR71…TR76').eq(6);
     expect(c.projects.byModule.turmoil, 'the classic cards adapted so far').eq(adaptedClassic);
     expect(c.extras.resolutions).eq(REDUX_RESOLUTION_CATALOG.dealtInstances(compatibleWith(gameOptionsFromNewGameConfig(creatorConfig(['venus', 'colonies', 'turmoilRedux']), RandomBoardOption.ALL).expansions)).length);
     expect(c.extras.colonies?.inPlay, '2 seats: 2 + 2 + 1').eq(5);
@@ -75,13 +74,13 @@ describe('deckCompositionOf — the creator\'s decks, counted by the server', ()
     expect(additions).greaterThan(0);
     expect(c.extras.colonies).deep.include({pool: pool.length, byExpansion: {colonies: pool.length - additions, turmoilRedux: additions}});
     // The adapted classic cards are PROJECTS — counted in Redux's projects, never a category of their own.
-    // The adapted classic CORPORATIONS (R38 Lakefront Resorts, R14 Terralabs Research) are dealt as Redux's corporations —
-    // counted from the hold-back list as well, never a literal.
+    // The classic CORPORATIONS adapted in place (R38 Lakefront Resorts, R14 Terralabs Research, R33 Utopia Invest, R07
+    // Pristar) are dealt as Redux's corporations.
     // …plus Redux's own corporations (TR77 Septem Tribus:redux — its classic R15 is removed by `cardsToRemove`).
     const adaptedCorporations = Object.keys(TURMOIL_CARD_MANIFEST.corporationCards)
-      .filter((name) => !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name as CardName) && !TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.has(name as CardName)).length +
+      .filter((name) => !TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.has(name as CardName)).length +
       Object.keys(TURMOIL_REDUX_CARD_MANIFEST.corporationCards).length;
-    expect(adaptedCorporations).greaterThanOrEqual(2);
+    expect(adaptedCorporations, '4 classic + TR77').eq(5);
     expect(c.contributions.turmoilRedux).deep.eq({projects: 70 + projectReplacements + adaptedClassic, corporations: adaptedCorporations, preludes: 0, colonies: additions, resolutions: c.extras.resolutions});
     expect(c.contributions.colonies?.colonies).eq(pool.length - additions);
   });

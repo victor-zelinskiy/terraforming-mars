@@ -91,10 +91,10 @@ import {SeptemTribusRedux} from './SeptemTribusRedux';
  * Mohole 2026-10-25 — the number is the registry row, not the order of authoring; the corporation TR77 Septem
  * Tribus the same day).
  * A replacement is registered here under a `:redux`-suffixed name with the
- * classic name in this manifest's `cardsToRemove`; until then the classic card
- * is held back by `cards/turmoil/turmoilReduxAdaptation.ts`. The classic
- * Turmoil manifest itself joins a Redux deck since 2026-10-21 (`GameCards`),
- * card by card as that hold-back list empties.
+ * classic name in this manifest's `cardsToRemove` — all seven authored by
+ * 2026-10-25 (TR76 Vote Of No Confidence the last). The classic Turmoil manifest
+ * itself joins a Redux deck since 2026-10-21 (`GameCards`) — whole since
+ * 2026-10-25, the replaced classic cards kept out by `cardsToRemove`.
  *
  * CARD NUMBER NAMESPACE — `TR##`, zero-padded to two digits (TR01…TR70; the
  * replacements TR71…TR76, whose scans print the placeholder «TR00» — each one

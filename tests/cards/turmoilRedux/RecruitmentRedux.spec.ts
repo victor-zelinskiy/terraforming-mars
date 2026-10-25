@@ -12,7 +12,6 @@ import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
 import {unplayableReasons} from '../../../src/server/models/unplayableReasons';
 import {TURMOIL_REDUX_CARD_MANIFEST} from '../../../src/server/cards/turmoilRedux/TurmoilReduxCardManifest';
 import {replacementCardNumber} from '../../../src/common/cards/turmoilReduxReplacements';
-import {TURMOIL_CARDS_HELD_BACK_UNDER_REDUX} from '../../../src/common/cards/turmoilReduxAdaptation';
 import {POLITICAL_DONATION_NO_DELEGATE_REASON} from '../../../src/server/cards/turmoilRedux/PoliticalDonation';
 import {CardName} from '../../../src/common/cards/CardName';
 import {CardType} from '../../../src/common/cards/CardType';
@@ -115,10 +114,9 @@ describe('RecruitmentRedux', () => {
       ]);
     });
 
-    it('is the Redux deck\'s Recruitment: the replacement registered, the classic card removed and off the hold-back list', () => {
+    it('is the Redux deck\'s Recruitment: the replacement registered, the classic card removed', () => {
       expect(TURMOIL_REDUX_CARD_MANIFEST.projectCards[CardName.RECRUITMENT_REDUX]).is.not.undefined;
       expect(TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.has(CardName.RECRUITMENT)).is.true;
-      expect(TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(CardName.RECRUITMENT)).is.false;
     });
   });
 

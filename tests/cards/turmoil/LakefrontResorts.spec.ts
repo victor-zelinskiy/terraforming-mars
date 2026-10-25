@@ -16,7 +16,7 @@ import {LakeMarineris} from '../../../src/server/cards/base/LakeMarineris';
 import {Priority} from '../../../src/server/deferredActions/Priority';
 import {cardPlayPreview} from '../../../src/server/models/cardPlayPreview';
 import {effectForecastForPlay} from '../../../src/server/models/effectForecast';
-import {isTurmoilCardHeldBackUnderRedux} from '../../../src/server/cards/turmoil/turmoilReduxAdaptation';
+import {GameCards} from '../../../src/server/GameCards';
 import {GameEvent} from '../../../src/common/events/GameEvent';
 import {CardName} from '../../../src/common/cards/CardName';
 import {CardType} from '../../../src/common/cards/CardType';
@@ -108,9 +108,9 @@ describe('LakefrontResorts — on a Turmoil Redux table', () => {
     ]);
   });
 
-  it('rule 1 — Turmoil Redux deals it: no longer held back; the play gives 54 M€', () => {
+  it('rule 1 — Turmoil Redux deals it; the play gives 54 M€', () => {
     const {game, p1} = table();
-    expect(isTurmoilCardHeldBackUnderRedux(CardName.LAKEFRONT_RESORTS, game.gameOptions)).is.false;
+    expect(new GameCards(game.gameOptions).getCorporationCards().map((c) => c.name), 'a Redux table deals it').to.include(CardName.LAKEFRONT_RESORTS);
     expect(p1.playedCards.corporations().map((c) => c.name)).deep.eq([CardName.LAKEFRONT_RESORTS]);
     expect(p1.megaCredits).eq(54);
   });

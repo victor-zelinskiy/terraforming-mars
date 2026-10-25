@@ -12,7 +12,6 @@ import {CardType} from '../../../src/common/cards/CardType';
 import {DEFAULT_GAME_OPTIONS, GameOptions} from '../../../src/server/game/GameOptions';
 import {toName} from '../../../src/common/utils/utils';
 import {TURMOIL_CARD_MANIFEST} from '../../../src/server/cards/turmoil/TurmoilCardManifest';
-import {TURMOIL_CARDS_HELD_BACK_UNDER_REDUX} from '../../../src/server/cards/turmoil/turmoilReduxAdaptation';
 import {replacementCardNumber, TURMOIL_REDUX_CLASSIC_REPLACEMENTS, TURMOIL_REDUX_REPLACED_CLASSIC_NAMES} from '../../../src/server/cards/turmoilRedux/classicReplacements';
 
 /**
@@ -169,16 +168,16 @@ describe('TurmoilReduxCardManifest', () => {
         expect(offNames, `${name} must not be dealt with Turmoil Redux off`).to.not.contain(name);
       }
       // Turning the module on may only ADD its own cards and the classic Turmoil
-      // cards already ADAPTED to the parliament (rulebook p.12 — the classic
-      // manifest rides along, its unadapted cards held back; pinned card by card
-      // in tests/cards/turmoil/TurmoilCardsUnderRedux.spec.ts) — never remove or
+      // cards (rulebook p.12 — the classic manifest rides along, PART of Redux since
+      // 2026-10-25, the replaced cards kept out by `cardsToRemove`; pinned in
+      // tests/cards/turmoil/TurmoilReplacementsUnderRedux.spec.ts) — never remove or
       // replace anything, and never introduce a card neither manifest registers.
       const classicProjects = new Set<CardName>(CardManifest.keys(TURMOIL_CARD_MANIFEST.projectCards));
       const classicCorporations = new Set<CardName>(CardManifest.keys(TURMOIL_CARD_MANIFEST.corporationCards));
       const added = on.getProjectCards().map(toName).filter((n) => !offNames.includes(n));
       expect(added.filter((n) => !classicProjects.has(n))).to.have.members(dealtProjectNames);
       for (const n of added.filter((n) => classicProjects.has(n))) {
-        expect(TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(n), `${n} is a classic Turmoil card still on the hold-back list`).is.false;
+        expect(TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.has(n), `${n} is a classic Turmoil card the Redux set replaces`).is.false;
       }
       expect(off.getPreludeCards().map(toName)).to.have.members(on.getPreludeCards().map(toName));
       const offCorporations = off.getCorporationCards().map(toName);
@@ -186,7 +185,7 @@ describe('TurmoilReduxCardManifest', () => {
       // …and the module's OWN corporations (TR77 Septem Tribus:redux — the replacement of the classic R15).
       const reduxCorporations = new Set<CardName>(CardManifest.keys(TURMOIL_REDUX_CARD_MANIFEST.corporationCards));
       for (const n of addedCorporations) {
-        const adapted = classicCorporations.has(n) && !TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(n);
+        const adapted = classicCorporations.has(n) && !TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove.has(n);
         expect(adapted || reduxCorporations.has(n), `${n} may join only as an adapted classic Turmoil corporation or the module's own`).is.true;
       }
       expect(addedCorporations).to.include.members([...reduxCorporations]);

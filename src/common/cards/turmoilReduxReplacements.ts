@@ -8,22 +8,21 @@ import {CardName} from './CardName';
  * Tribus corporation card from it. It is not compatible with Turmoil Redux, and
  * is thus replaced in this expansion»).
  *
- * The classic card of every row is NEVER dealt into a Redux game. Until its
- * replacement is authored the hold-back list (`turmoilReduxAdaptation.ts`) keeps
- * it out; once it is, the Redux manifest's `cardsToRemove` takes over — upstream's
+ * The classic card of every row is NEVER dealt into a Redux game: the Redux
+ * manifest's `cardsToRemove` keeps it out (the temporary hold-back list that did
+ * it before a replacement was authored is gone since 2026-10-25) — upstream's
  * own shape for a same-name reprint (Promo's `Deimos Down:promo` over `Deimos
  * Down`, Ares' `Capital:ares` over `Capital`): the replacement is registered under
  * a `:redux`-suffixed `CardName` (`translateText` / `translateCardName` fall back
  * to the classic card's localized name; the journal chips cut the suffix), the
  * plain name stays the classic card's (guard: `TurmoilReduxCardManifest.spec` §
- * reserved), and the classic name goes into `cardsToRemove` in the same diff that
- * removes it from the hold-back list (guard: `tests/cards/turmoil/
- * TurmoilCardsUnderRedux.spec.ts`).
+ * reserved), and the classic name stands in `cardsToRemove` (guard: `tests/cards/
+ * turmoil/TurmoilReplacementsUnderRedux.spec.ts`).
  *
  * The rows live in `common` because the PREMIUM SCOPE reads them on both sides
  * (`premiumScope.ts`): a replaced classic card never reaches a Redux table, so it
- * never enters the scope — not while held back, not after its row has left the
- * hold-back list. The server re-exports them from `cards/turmoilRedux/classicReplacements.ts`.
+ * never enters the scope. The server re-exports them from
+ * `cards/turmoilRedux/classicReplacements.ts`.
  *
  * CARD NUMBERS — the six project scans all print the placeholder «TR00». The
  * replacements take `TR71…TR76` IN THE ORDER OF THE PROJECT ROWS BELOW (Aerial

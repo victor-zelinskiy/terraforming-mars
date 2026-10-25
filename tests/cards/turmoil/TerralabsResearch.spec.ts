@@ -19,7 +19,7 @@ import {QuantumResearch} from '../../../src/server/cards/delta/QuantumResearch';
 import {Polyphemos} from '../../../src/server/cards/colonies/Polyphemos';
 import {campaignStartingBudget} from '../../../src/server/campaign/CampaignMissionSetup';
 import {Server} from '../../../src/server/models/ServerModel';
-import {isTurmoilCardHeldBackUnderRedux} from '../../../src/server/cards/turmoil/turmoilReduxAdaptation';
+import {GameCards} from '../../../src/server/GameCards';
 import {CardName} from '../../../src/common/cards/CardName';
 import {CardType} from '../../../src/common/cards/CardType';
 import {Tag} from '../../../src/common/cards/Tag';
@@ -99,9 +99,9 @@ describe('TerralabsResearch — on a Turmoil Redux table', () => {
     expect(c.metadata.infoText?.map((line) => line.text)).deep.eq(['Cards to hand cost 1 M€, starting hand included']);
   });
 
-  it('rule 1 — Turmoil Redux deals it: no longer held back; the play gives 14 M€ and lowers the TR to 19', () => {
+  it('rule 1 — Turmoil Redux deals it; the play gives 14 M€ and lowers the TR to 19', () => {
     const {game, p1, p2} = table();
-    expect(isTurmoilCardHeldBackUnderRedux(CardName.TERRALABS_RESEARCH, game.gameOptions)).is.false;
+    expect(new GameCards(game.gameOptions).getCorporationCards().map((c) => c.name), 'a Redux table deals it').to.include(CardName.TERRALABS_RESEARCH);
     expect(p1.playedCards.corporations().map((c) => c.name)).deep.eq([CardName.TERRALABS_RESEARCH]);
     expect(p1.megaCredits).eq(14);
     expect(p1.terraformRating).eq(p2.terraformRating - 1);

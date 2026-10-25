@@ -3,7 +3,6 @@ import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {GameModule} from '@/common/cards/GameModule';
 import {getCardOrThrow} from '@/client/cards/ClientCardManifest';
-import {TURMOIL_CARDS_HELD_BACK_UNDER_REDUX} from '@/common/cards/turmoilReduxAdaptation';
 import {PREMIUM_EXPANSIONS} from '@/client/components/create/premium/createGameMeta';
 import type {GuaranteedCardPicks} from '@/client/components/create/premium/createGameState';
 import {
@@ -132,16 +131,14 @@ describe('devGuaranteedCards', () => {
       expect(named('deltaProject')).to.not.include(CardName.DELTA_PROJECT);
     });
 
-    it('lists the classic Turmoil cards ADAPTED to Redux under Turmoil Redux, and never a held-back one', () => {
+    it('lists the classic Turmoil cards under Turmoil Redux (part of the set), and never a replaced one', () => {
       const named = guaranteedPickRows('turmoilRedux', new Set())
         .flatMap((row) => row.kind === 'card' ? [row.entry.name] : []);
-      // Adapted classic cards (off the hold-back list) — dealt only with Redux, so picked there.
+      // The classic cards — dealt only with Redux, so picked there: all 15 adapted in place (the 7 replaced are not).
       const adapted = named.filter((name) => getCardOrThrow(name).module === 'turmoil');
       expect(adapted).to.include(CardName.DIASPORA_MOVEMENT);
       expect(adapted).to.include(CardName.EVENT_ANALYSTS);
-      for (const name of adapted) {
-        expect(TURMOIL_CARDS_HELD_BACK_UNDER_REDUX.has(name), name).to.be.false;
-      }
+      expect(adapted, 'the 11 classic projects + the 4 classic corporations adapted in place').has.length(15);
       // A REPLACED classic card (Aerial Lenses, Banned Delegate, Political Alliance, Recruitment, Sponsored Mohole, Vote of No
       // Confidence — TR71…TR76) is dealt to no Redux table — offered nowhere; the replacement itself is offered under Redux.
       for (const classic of [CardName.VOTE_OF_NO_CONFIDENCE, CardName.AERIAL_LENSES, CardName.BANNED_DELEGATE, CardName.POLITICAL_ALLIANCE, CardName.RECRUITMENT, CardName.SPONSORED_MOHOLE]) {

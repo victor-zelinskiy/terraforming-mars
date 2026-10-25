@@ -19,7 +19,7 @@ import {
 /**
  * THE PARTY'S DECKS, COUNTED BEFORE THE PARTY EXISTS (T04 «the deck is visible before
  * launch»). Read-only and pure over `GameOptions`: it builds the decks the way
- * `Game.newInstance` builds them — `GameCards` (banned, replaced, held back under Redux,
+ * `Game.newInstance` builds them — `GameCards` (banned, replaced,
  * Automa-banned, the two-corporation variant's Merger, the guaranteed cards), the prelude
  * deck only with the Prelude expansion (the deal's own condition), the colony pool of
  * `ColonyDealer` and the Parliament's resolution deck — and counts them. No game, no
@@ -33,7 +33,8 @@ import {
 
 /**
  * The modules whose cards a creator toggle brings. Every toggle prints its own module; Turmoil
- * Redux also brings the classic Turmoil cards adapted to it (`turmoilReduxAdaptation.ts` —
+ * Redux also brings the classic Turmoil cards — part of the set since 2026-10-25 (every one
+ * adapted in place, or kept out where the set prints a replacement, `turmoilReduxReplacements.ts`;
  * on a creator table they are dealt only with Redux), so they count as its projects.
  */
 const ORIGIN_MODULES: Readonly<Record<Expansion, ReadonlyArray<GameModule>>> = {
