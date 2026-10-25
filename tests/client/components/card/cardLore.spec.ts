@@ -82,6 +82,10 @@ describe('cardLore', () => {
       expect(cardLoreSource(CardName.BANNED_DELEGATE)).to.eq('You are not welcome in our chambers.');
       expect(cardLoreSource(CardName.BANNED_DELEGATE_REDUX)).to.eq(cardLoreSource(CardName.BANNED_DELEGATE));
       expect(cardArtUrl(CardName.BANNED_DELEGATE_REDUX), 'and the classic T02 art').to.eq('assets/card-images/T02.webp');
+      // TR75 — the owner's line for the classic T13, borrowed the same way (numbered by its registry row, authored third).
+      expect(cardLoreSource(CardName.SPONSORED_MOHOLE)).to.eq('Getting the World Government as a partner.');
+      expect(cardLoreSource(CardName.SPONSORED_MOHOLE_REDUX)).to.eq(cardLoreSource(CardName.SPONSORED_MOHOLE));
+      expect(cardArtUrl(CardName.SPONSORED_MOHOLE_REDUX), 'and the classic T13 art').to.eq('assets/card-images/T13.webp');
     });
 
     it('resolves every reimplementing card the same way the manifest links them', () => {

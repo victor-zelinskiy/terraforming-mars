@@ -72,6 +72,7 @@ import {EdenAlliance} from './EdenAlliance';
 import {PrometheanAlliance} from './PrometheanAlliance';
 import {AerialLensesRedux} from './AerialLensesRedux';
 import {BannedDelegateRedux} from './BannedDelegateRedux';
+import {SponsoredMoholeRedux} from './SponsoredMoholeRedux';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -82,7 +83,8 @@ import {BannedDelegateRedux} from './BannedDelegateRedux';
  * (TR01…TR70), shipped ONE AT A TIME like the resolutions were, plus the
  * REPLACEMENTS the set prints for seven classic Turmoil cards
  * (`classicReplacements.ts`: six projects — TR71…TR76 in the registry's order —
- * and the Septem Tribus corporation; TR71 Aerial Lenses and TR72 Banned Delegate authored 2026-10-24).
+ * and the Septem Tribus corporation; TR71 Aerial Lenses and TR72 Banned Delegate authored 2026-10-24, TR75 Sponsored
+ * Mohole 2026-10-25 — the number is the registry row, not the order of authoring).
  * A replacement is registered here under a `:redux`-suffixed name with the
  * classic name in this manifest's `cardsToRemove`; until then the classic card
  * is held back by `cards/turmoil/turmoilReduxAdaptation.ts`. The classic
@@ -352,11 +354,15 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // TR72: the classic T02 under Redux — the chairman takes ANY one delegate off a resolution or a support area (the
     // Parliament's delegate mode); no «non-leader» clause. Art and lore are T02's (`reimplements`).
     [CardName.BANNED_DELEGATE_REDUX]: {Factory: BannedDelegateRedux},
+    // TR75 (the fifth registry row — authored third): the classic T13 at the printed Greens' plate, still 5 M€, a Building
+    // tag and +2 heat production, plus 1 VP. Art and lore are T13's (`reimplements`).
+    [CardName.SPONSORED_MOHOLE_REDUX]: {Factory: SponsoredMoholeRedux},
   },
   // The classic cards a replacement above stands in for — never dealt into a Redux game (upstream's
   // `GameCards.filterReplacedCards`); a classic-Turmoil game does not load this manifest, so it keeps them.
   cardsToRemove: [
     CardName.AERIAL_LENSES,
     CardName.BANNED_DELEGATE,
+    CardName.SPONSORED_MOHOLE,
   ],
 });

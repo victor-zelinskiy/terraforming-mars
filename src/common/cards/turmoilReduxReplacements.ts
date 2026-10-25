@@ -64,6 +64,8 @@ export const TURMOIL_REDUX_CLASSIC_REPLACEMENTS: ReadonlyArray<ClassicReplacemen
     changes: 'still cost 2, event; «exchange one NEUTRAL delegate on a resolution with one of your own from the reserve» — no NON-LEADER clause, resolutions only (never a Popular Support area).',
   },
   {
+    // TR75 — AUTHORED 2026-10-25 (`turmoilRedux/SponsoredMoholeRedux.ts`, `Sponsored Mohole:redux`) — the third authored,
+    // numbered by THIS row (TR73 / TR74 above are still to come).
     classic: CardName.SPONSORED_MOHOLE, kind: 'project', scan: 'Projects/Replacement - Sponsored Mohole.png',
     changes: 'party Kelvinists → GREENS (printed, what the general rule gives anyway); still cost 5, Building tag, +2 heat production; gains 1 VP.',
   },

@@ -230,5 +230,6 @@
     "Gain 2 M€ production each time the Scientists or the Industrialists become the ruling party": "+2 к производству M€ всякий раз, когда «Учёные» или «Индустриалисты» приходят к власти",
     "${0} gains 2 M€ production: ${1} is the new ruling party (${2})": "${0} повышает производство M€ на 2: к власти пришла партия «${1}» («${2}»)",
     "Requires the Scientists to be ruling or that you have 2 delegates there. Remove up to 2 plants from any player. Increase your heat production 2 steps.": "Требует, чтобы «Учёные» были у власти или у вас было 2 делегата на их резолюции. Уберите до 2 растений у любого игрока. Увеличьте производство тепла на 2 шага.",
+    "Requires the Greens to be ruling or that you have 2 delegates there. Increase your heat production 2 steps.": "Требует, чтобы «Зелёные» были у власти или у вас было 2 делегата на их резолюции. Увеличьте производство тепла на 2 шага.",
     "Requires you to be Chairman. Remove any delegate from a resolution or Popular Support area.": "Требует, чтобы вы были председателем. Изгоните любого делегата с резолюции или из области народной поддержки."
 }
