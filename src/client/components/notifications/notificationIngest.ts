@@ -157,8 +157,10 @@ export function applyNotificationDiff(input: NotificationDiffInput): void {
   // The highest event id of each chain in THIS payload — the ledger's unit
   // of «newer than what the previous session processed».
   const maxEventIdByCorr = new Map<number, number>();
+  let maxEventIdInPayload = 0;
   for (const e of events) {
     maxEventIdByCorr.set(e.correlationId, Math.max(maxEventIdByCorr.get(e.correlationId) ?? 0, e.id));
+    maxEventIdInPayload = Math.max(maxEventIdInPayload, e.id);
   }
   // ── THE ATOMIC PRESENTATION GATE (created → prepared → queued) ────────
   // A model whose chain is still open waits in PREPARING (rebuilt above on
@@ -189,7 +191,13 @@ export function applyNotificationDiff(input: NotificationDiffInput): void {
     // in PREPARING, release when the events catch up (bounded by the
     // ceiling, so a genuinely event-less log group still presents — with a
     // warn — rather than never).
-    const eventsMissing = corrId !== undefined && !maxEventIdByCorr.has(corrId);
+    //
+    // …AND A SKEW IS ONLY POSSIBLE WHILE THE EVENTS READ PRE-DATES THE CHAIN. A chain's id IS its root event's id
+    // (ids only grow), so a payload already carrying an event NEWER than the chain's root was read after that root
+    // existed: if none of the chain's events is in it, the chain has none to wait for — release, never hold to the
+    // ceiling (field 2026-10-25: «correlation 1172 stayed open for over 90000ms … held by unknown» — a header whose
+    // chain held no event at all). A payload older than the root still holds, as the guard always did.
+    const eventsMissing = corrId !== undefined && !maxEventIdByCorr.has(corrId) && corrId > maxEventIdInPayload;
     if (corrId !== undefined && (openCorrelations.has(corrId) || eventsMissing)) {
       if (eventsMissing) {
         skewHeldIds.add(corrId);

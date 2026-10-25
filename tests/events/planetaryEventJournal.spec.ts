@@ -61,6 +61,29 @@ describe('Ares planetary-event journal coverage', () => {
     expect(game.board.spaces.filter((s) => s.tile?.tileType === TileType.EROSION_SEVERE).length).to.eq(2);
   });
 
+  /* Field 2026-10-25 («correlation 1172 stayed open for over 90000ms … held by unknown»): Nuclear Zone raised the
+   * temperature, the planetary event opened its root INSIDE the card play's scope, and that root's own event was
+   * stamped with the PLAY's chain while its log line carried the event's id — a journal header whose chain held no
+   * event, which the notification feed's stream-skew guard held for its whole ceiling. */
+  it('a planetary event NESTED in a card play heads its own chain: its log\'s correlationId names an event of the stream', () => {
+    [game, player] = testGame(2, {aresExtension: true});
+    const lands = game.board.spaces.filter((s) => s.spaceType === SpaceType.LAND && s.tile === undefined).slice(0, 2);
+    lands.forEach((s) => {
+      s.tile = {tileType: TileType.EROSION_MILD, protectedHazard: false};
+    });
+    setTemperature(game, -6);
+    game.events.beginAction(player, {kind: 'card', card: 'Nuclear Zone' as never, owner: player.color}, {category: 'card-play'});
+    const playRoot = game.events.captureContext()?.rootId;
+    game.increaseTemperature(player, 1); // −6 → −4, inside the play
+    game.events.endScope();
+    const intensify = game.gameLog.find((m) => m.category === 'planetary-event' && m.message.includes('intensify'));
+    expect(intensify?.correlationId, 'the planetary event is a root of its own').to.be.a('number');
+    expect(intensify?.correlationId).to.not.eq(playRoot);
+    const root = game.events.events.find((e) => e.id === intensify!.correlationId);
+    expect(root?.category, 'the chain\'s root event is the planetary event\'s own').to.eq('planetary-event');
+    expect(root?.correlationId, 'and it heads that chain — never the play\'s').to.eq(root?.id);
+  });
+
   it('no leak: a non-Ares game emits no planetary-event', () => {
     [game, player] = testGame(2);
     for (let n = 0; n < 6; n++) {

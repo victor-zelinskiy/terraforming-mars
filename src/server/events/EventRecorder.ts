@@ -258,6 +258,13 @@ export class EventRecorder {
     const root = this.emit(
       {type: 'action', source, player: player?.color, impact: {}, visibility: opts?.visibility ?? 'journal', tags: source?.kind === 'corporation' ? ['corporation'] : undefined, category: opts?.category},
       this.current);
+    // THE ROOT HEADS ITS OWN CHAIN. Opened inside another (non-coalescing) scope — an Ares planetary event inside the
+    // card play that raised the temperature — `emit` stamped the PARENT's chain on it, while every log and event the
+    // scope records below carries `root.id`: the journal then had a header whose chain held no event at all (a
+    // planetary event writes one log line), and the notification feed held that header for its whole 90 s ceiling
+    // («correlation 1172 stayed open … held by unknown», field 2026-10-25). The same shape `beginCopiedAction` and
+    // `ensureTriggerMarker` already use.
+    root.correlationId = root.id;
     this.stack.push({rootId: root.id, parentId: root.id, source, playerColor: player?.color, kind: 'action', trigger: undefined, triggerEmitted: true, rootLogEmitted: false, category: opts?.category});
   }
 

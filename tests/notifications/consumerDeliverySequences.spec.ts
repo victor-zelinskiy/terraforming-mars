@@ -331,6 +331,32 @@ describe('consumer delivery sequences (real ingest across real update boundaries
     assertRoverBand(rootId, ownerA.color, actorB.color);
   });
 
+  /* G1's guard has a precise limit: a skew is possible only while the events read PRE-DATES the chain (a chain's id IS
+   * its root event's id). A payload already carrying a NEWER event was read after that root: a header whose chain
+   * holds no event there has none coming — release, never the 90 s ceiling (field 2026-10-25, «correlation 1172 stayed
+   * open … held by unknown» — a planetary event nested in a card play, its root event stamped with the play's chain). */
+  it('G1b — a header with NO events in a payload NEWER than its root is not a skew: it is not held to the ceiling', () => {
+    const [game, viewer, actor] = testGame(2);
+    freshConsumer();
+    let now = 1_000;
+    const pre = snapshot(game, viewer);
+    ingest(pre.view, pre, now);
+    game.events.beginAction(actor, {kind: 'card', card: CardName.RESEARCH_OUTPOST, owner: actor.color}, {category: 'card-play'});
+    game.log('${0} played ${1}', (b) => b.player(actor).cardName(CardName.RESEARCH_OUTPOST));
+    const root = game.events.captureContext()!.rootId!;
+    game.events.endScope();
+    // A LATER chain of another seat: its events are newer than the first chain's root.
+    game.events.beginAction(viewer, {kind: 'card', card: CardName.ROVER_CONSTRUCTION, owner: viewer.color}, {category: 'card-play'});
+    viewer.stock.add('megacredits' as never, 2);
+    game.events.endScope();
+    const post = snapshot(game, viewer);
+    // The first chain's events are absent from the payload (what the field's header-only chain looked like).
+    const events = post.events.filter((e) => e.correlationId !== root);
+    expect(events.some((e) => e.id > root), 'the payload carries an event newer than the root of the header').to.eq(true);
+    ingest(post.view, {messages: post.messages, events, openEventCorrelations: post.openEventCorrelations}, now += 1_000);
+    expect(notificationState.preparing.has(root), 'not held as a skew — no event of this chain can still be on its way').to.eq(false);
+  });
+
   it('G2 — a STALE view open-set with fresh streams must not bypass the atomic gate (the open-set rides the events read)', () => {
     const {ownerA, actorB, rootId, preplay, midPrompt, settled} = corpFirstActionScenario();
     freshConsumer();
