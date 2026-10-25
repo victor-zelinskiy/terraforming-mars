@@ -333,6 +333,8 @@ for (const preset of PRESETS) {
       await expect.poll(() => page.evaluate(() => Array.from(document.querySelectorAll<HTMLElement>('.con-parl__flight:not(.con-parl__flight--agenda)'))
         .some((el) => getComputedStyle(el).visibility !== 'hidden' && el.getBoundingClientRect().width > 2)), {timeout: 8_000, intervals: [16]}).toBe(true).catch(() => undefined);
       await shoot(page, preset.id, '04-flight');
+      await expect(page.locator('[data-parl-delegate-reading][data-delegate-sole]'),
+        'past the press the reading is the CHOSEN figure — no cursor mark, even though the answer left a ring of one').toHaveCount(0);
       const sent = JSON.parse(posts[0].body) as {responses?: Array<Record<string, unknown>>} | Array<Record<string, unknown>>;
       const responses = Array.isArray(sent) ? sent : sent.responses ?? [];
       expect(responses[responses.length - 1], 'the tail is the FIGURE, addressed to the card').toMatchObject(

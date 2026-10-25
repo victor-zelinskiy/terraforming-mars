@@ -173,8 +173,11 @@ export default defineComponent({
     reading(): DelegateReadingVm | undefined {
       const snap = parliamentFlow.delegateSnapshot;
       // Past the press the reading is the CHOSEN figure as the server projected it at the press.
+      // Past the press the reading is the CHOSEN figure, not a cursor: «Единственная цель» is a cursor's mark — never
+      // derived from the ring the ANSWER has already reshaped (an exchange that took one of two figures left a ring of one).
       if (snap !== undefined) {
-        return delegateReadingOf({zone: snap.place === 'support' ? 'areas' : 'table', target: snap}, Math.max(1, this.ring.length));
+        const chosen = delegateReadingOf({zone: snap.place === 'support' ? 'areas' : 'table', target: snap}, this.ring.length);
+        return chosen === undefined ? undefined : {...chosen, sole: false};
       }
       return delegateReadingOf(this.cursorStop, this.ring.length);
     },
@@ -219,7 +222,7 @@ export default defineComponent({
         return '';
       }
       const name = this.view.slots.find((slot) => slot.party === r.party)?.resolution?.text.name;
-      return translateTextWithParams('Your delegate from the reserve → onto «0»', [translateText(name ?? partyNameKey(r.party))]);
+      return translateTextWithParams('Your delegate from the reserve → onto «${0}»', [translateText(name ?? partyNameKey(r.party))]);
     },
     /** The pick EXCHANGES the figure (TR74) rather than removing it — the verbs follow the marker. */
     exchange(): boolean {
