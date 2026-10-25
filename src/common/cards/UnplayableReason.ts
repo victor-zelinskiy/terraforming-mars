@@ -95,6 +95,12 @@ export interface UnplayableReason {
    */
   alliedVia?: {party: PartyName; card: CardName};
   /**
+   * …and the player HOLDS that party's EFFECT by a road the requirement never counts (rulebook FAQ p.19): `banner` —
+   * their cube stands on its banner (Septem Tribus:redux); `effect` — another grant or a lowered threshold (TR36). The
+   * line then says the effect is not the favour, so a player reading «эффект ваш» elsewhere is never left guessing.
+   */
+  effectOnly?: 'banner' | 'effect';
+  /**
    * For the CHAIRMAN requirement, NAMED (Turmoil Redux — TR12 Party Sanctions
    * is the set's first): who holds the chairman's seat right now — a seat's
    * name and colour, or `vacant`. The line reads «председатель сейчас: …» /

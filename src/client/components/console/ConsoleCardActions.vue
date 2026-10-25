@@ -493,7 +493,7 @@ import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewMode
 import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
 import {partyPremiumVm} from '@/client/components/premiumCard/partyPremiumVm';
 import {parliamentActionSources as buildParliamentActionSources} from '@/client/console/parliament/parliamentActionSources';
-import {parliamentPromptBridge, resolutionPlayOf} from '@/client/console/parliament/consoleParliamentModel';
+import {bannerCubesOn, parliamentPromptBridge, resolutionPlayOf} from '@/client/console/parliament/consoleParliamentModel';
 import {actionNodeOf} from '@/client/console/parliament/actionRows';
 import {PartyAccessModel} from '@/common/models/ParliamentModel';
 import {beginPartyColonyTrade} from '@/client/console/colonyTrade/colonyTradeEntry';
@@ -847,7 +847,7 @@ export default defineComponent({
     /** The focused PARTY source's charter (`partyPremiumVm`) — the composer hero's own face. */
     focusedPartyVm(): PremiumCardVM | undefined {
       const party = this.focusedTile?.party;
-      return party === undefined ? undefined : partyPremiumVm(party);
+      return party === undefined ? undefined : partyPremiumVm(party, {bannerCubes: bannerCubesOn(this.playerView.game.parliament, party)});
     },
     focusedResolutionVm(): PremiumCardVM | undefined {
       const id = this.focusedTile?.resolutionAction;

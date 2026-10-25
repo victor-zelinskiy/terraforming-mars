@@ -71,8 +71,11 @@ function hostFigureHeight(place: HTMLElement): number | undefined {
  * never wall-clock timers.
  */
 
-/** A delegate FIGURE in flight — its colour and its height (px). */
-export type FlightSpec = {id: string, color: Color | 'neutral', size: number};
+/**
+ * A delegate FIGURE in flight — its colour and its height (px). `shape: 'cube'` flies the PLAYER'S CUBE instead (Septem
+ * Tribus:redux — a cube onto a party's banner: a player's cube, never a delegate figure).
+ */
+export type FlightSpec = {id: string, color: Color | 'neutral', size: number, shape?: 'cube'};
 /**
  * A card on its way — sized to the face it stands in for (the proxy scales
  * into it). With a `face` it is a PHYSICAL card body (the Card3DInner
@@ -117,6 +120,8 @@ export const ALLIANCE_SPARK_MS = 560;
 /** The party's seal lifting off the delegate that won it and travelling into «ВАШИ ЭФФЕКТЫ» (the access scene). */
 export const ACCESS_SEAL_RISE_MS = 300;
 export const ACCESS_SEAL_FLIGHT_MS = 640;
+/** A player's cube from its source onto a party's banner (Septem Tribus:redux) — one calm carry, no flash. */
+export const BANNER_CUBE_FLIGHT_MS = 720;
 
 export const parliamentFlights = reactive({
   flights: [] as Array<FlightSpec>,
@@ -642,6 +647,46 @@ export function flyDelegate(color: Color | 'neutral', from: Rect | undefined, to
       runHandle(id, handle);
     };
     scheduleLaunch(id, delayMs, fire);
+  });
+  return id;
+}
+
+/**
+ * THE PLAYER'S CUBE ONTO A PARTY'S BANNER (Septem Tribus:redux — the first action, a resolution won): the SAME carry a
+ * delegate flies («взял → понёс → поставил», `runDelegateFlight`), the body a player CUBE. Born at the source's size,
+ * set down in the banner's socket. Returns the flight's id — undefined when nothing is measurable or motion is reduced
+ * (`onLanded` then runs at once: the same numbers, no flight).
+ */
+export function flyBannerCube(color: Color, from: Rect | undefined, to: Rect | undefined, onLanded: () => void): string | undefined {
+  if (from === undefined || to === undefined || typeof window === 'undefined' || consoleReducedMotionActive()) {
+    onLanded();
+    return undefined;
+  }
+  const id = nextFlightId('bc');
+  const size = Math.max(8, Math.round(to.height));
+  pushCubeFlight({id, color, size, shape: 'cube'});
+  void nextTick(() => {
+    const proxy = flightEls[id];
+    if (proxy === null || proxy === undefined) {
+      dropFlight(id);
+      onLanded();
+      return;
+    }
+    gsap.set(proxy, {autoAlpha: 0});
+    scheduleLaunch(id, 0, () => {
+      delete flightBeats[id];
+      if (flightEls[id] === undefined) {
+        return;
+      }
+      runHandle(id, runDelegateFlight({
+        proxy, from, to,
+        durationMs: BANNER_CUBE_FLIGHT_MS,
+        onLanded: () => {
+          onLanded();
+          probeTick(() => dropFlight(id));
+        },
+      }));
+    });
   });
   return id;
 }

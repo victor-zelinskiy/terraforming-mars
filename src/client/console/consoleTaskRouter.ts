@@ -25,6 +25,7 @@ import {ParliamentPhaseStage} from '@/common/parliament/ParliamentTypes';
 import {isDivertedPick} from '@/client/console/consoleMandatoryGate';
 import {promptSourceResolution} from '@/client/console/promptSource';
 import {supportStepStageOf} from '@/client/console/parliament/supportPickModel';
+import {bannerStepStageOf} from '@/client/console/parliament/bannerPickModel';
 import {delegateStepStageOf} from '@/client/console/parliament/delegatePickModel';
 
 /**
@@ -356,6 +357,10 @@ export const DELEGATE_GRANT_STEP_STAGE = 'Voting';
  * frame and the live door's.
  */
 export function partyStepStageOf(prompt: PlayerInputModel | undefined): string {
+  // …and Septem Tribus:redux's BANNER pick (the first action's cube — «ЗНАМЯ»).
+  if (prompt?.bannerPrompt !== undefined) {
+    return bannerStepStageOf(prompt.bannerPrompt);
+  }
   if (prompt?.delegatePrompt !== undefined) {
     // …and a card's DELEGATE pick (TR72 — «ИЗГНАНИЕ», by what the pick does to the figure).
     return delegateStepStageOf(prompt.delegatePrompt);
@@ -443,7 +448,7 @@ export function followUpStepStage(kind: TaskKind | undefined, wf?: PlayerInputMo
   }
   // …and a card's SUPPORT-AREA pick (TR12 Party Sanctions, `supportPrompt`): the Parliament's support-area mode,
   // inside the flow that raised it, under that mode's own word.
-  if (kind === 'party' && (wf?.supportPrompt !== undefined || wf?.delegatePrompt !== undefined)) {
+  if (kind === 'party' && (wf?.supportPrompt !== undefined || wf?.delegatePrompt !== undefined || wf?.bannerPrompt !== undefined)) {
     return partyStepStageOf(wf);
   }
   // …and a PARTY ACTION's mandatory discard (the Reds' «then discard 2» — `partyActionPrompt.stage === 'discard'`): a
@@ -819,7 +824,8 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
     // classic-Turmoil party prompt (no marker) stays the honest guard.
     // …and a card's DELEGATE pick (TR72, `delegatePrompt`): the Parliament's delegate mode serves it — a live door
     // (re-asked, a reload) stands on the same section kind as the chairman seat.
-    if (wf.votePrompt !== undefined || wf.delegatePrompt !== undefined) {
+    // …and Septem Tribus:redux's BANNER pick (`bannerPrompt` — the first action's cube): the Parliament's banner mode.
+    if (wf.votePrompt !== undefined || wf.delegatePrompt !== undefined || wf.bannerPrompt !== undefined) {
       return {kind: 'party'};
     }
     return {kind: 'unknown', inputType: wf.type};

@@ -5542,6 +5542,15 @@ export default defineComponent({
      * press's own answer, while rows ahead of it are still paying: OWED keeps it
      * from being announced or opened anywhere else, DUE is what opens the hand.
      */
+    /**
+     * SEPTEM TRIBUS:REDUX's BANNER STEP IS DUE — the first action's answer raised the `bannerPrompt` while the START
+     * workspace is the live host and no Parliament stands yet. The step opens on this signal's RISING edge (the
+     * foreground's falling edge never comes: the first action's own submit is not a foreground beat).
+     */
+    bannerStepDue(): boolean {
+      return this.playerView.waitingFor?.bannerPrompt !== undefined && workspaceHostForStep() === 'start' &&
+        !workspaceFrameKnown('parliament') && !this.consoleState.task.deferred && this.admits('followUp');
+    },
     ledgerDiscardStepDue(): boolean {
       return this.ledgerDiscardStepOwed &&
         payoutDiscardDue({waitingFor: this.playerView.waitingFor, untaken: payoutUntaken, inFlight: false});
@@ -11681,6 +11690,12 @@ export default defineComponent({
       }
     },
     /** The payout's discard has come DUE (the pair's card is taken, the row pays): the hand opens as the action's step. */
+    bannerStepDue(due: boolean): void {
+      const task = taskFor(this.playerView);
+      if (due && task?.kind === 'party') {
+        this.openShellTaskSurface(task);
+      }
+    },
     ledgerDiscardStepDue(due: boolean): void {
       if (due && !this.consoleForegroundBusy && !this.consoleState.task.deferred) {
         this.openLedgerDiscardStep();
@@ -19835,8 +19850,25 @@ export default defineComponent({
         // …and a card's SUPPORT-AREA pick met LIVE (TR12 — re-asked, a reload, a play outside the staged boundary)
         // stands the same way: the Parliament's support-area mode, inside the flow that raised it.
         // …and a card's DELEGATE pick met LIVE (TR72) — the Parliament's delegate mode, the same way.
+        // SEPTEM TRIBUS:REDUX's FIRST ACTION — «a cube on the banner of any party» — is a STEP of «ПЕРВОЕ ДЕЙСТВИЕ»
+        // (the Vitor precedent, one branch up): the Parliament frame is PUSHED on the start workspace, takes the whole
+        // scene (the start row's `frameSteps: {parliament: 'scene'}`) and the nesting is stated in the HEADER
+        // («СТАРТ ПАРТИИ › SEPTEM TRIBUS › ЗНАМЯ»), past the commit (B = «Свернуть»).
+        if (this.playerView.waitingFor?.bannerPrompt !== undefined && workspaceHostForStep() === 'start' && !workspaceFrameKnown('parliament')) {
+          this.consoleState.task.deferred = false;
+          pushWorkspaceFrame({
+            kind: 'parliament',
+            subject: consoleStartState.firstAct.corp ?? '',
+            stage: partyStepStageOf(this.playerView.waitingFor),
+            phase: 'committed',
+            serves: ['party'],
+            anchor: {type: 'prompt', promptType: 'party'},
+            sourceCard: consoleStartState.firstAct.corp ?? '',
+          });
+          return;
+        }
         const partyStep = this.playerView.waitingFor?.votePrompt?.source === 'grant' || this.playerView.waitingFor?.supportPrompt !== undefined ||
-          this.playerView.waitingFor?.delegatePrompt !== undefined;
+          this.playerView.waitingFor?.delegatePrompt !== undefined || this.playerView.waitingFor?.bannerPrompt !== undefined;
         // A CARD's build (TR25) whose stage still stands: the grant's step takes the section's central area, so its
         // door waits for the stage to go HOME — `landColonyBuild` opens it then (never a Parliament over a lit stage).
         if (partyStep && colonyBuildAnswered() && this.colonyFocus.open) {

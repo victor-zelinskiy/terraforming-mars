@@ -67,7 +67,8 @@ satisfiesRequirement: ruling || delegates >= PARTY_EFFECT_DELEGATES; // ТРЕБ
 резерв под Septem Tribus. «Достаточно одного» — ЧИСЛО: грантами его пришлось бы переписывать на каждое размещение,
 снятие и уход резолюции. Порог читается из табло в той же функции, где считают `byDelegates`, состояния не добавляет,
 save/load не трогает; плейсхолдер `'Council Seat'` у грантов в тестах и фикстуре `parliament-dense` переименован в
-`'Septem Tribus'`.
+`'Septem Tribus'`. **Резерв занят (2026-10-25): TR77 Septem Tribus:redux** — куб на знамени = грант с источником-картой
+(`docs/TURMOIL_REDUX_SEPTEM_TRIBUS.md`).
 
 ### 2.4 Клиент — ОДИН читатель (гард `parliamentThresholdGuard.spec.ts`)
 `consoleParliamentModel.ts` экспортирует `PARTY_EFFECT_PLACES` (печатные ДВА места — рисуются всегда, в потоке),

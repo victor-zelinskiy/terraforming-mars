@@ -351,6 +351,7 @@ import {shouldHoldForOwnerCubePlacement} from '@/client/components/board/cubeDro
 import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
 import {enterParliamentSittingHolds, seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
+import {seedBannerCubeHolds} from '@/client/console/parliament/bannerCubeScene';
 import {noteSittingRise} from '@/client/console/parliament/sittingRise';
 import {seedRevealRewardHold} from '@/client/console/revealHandoff';
 import {seedActionCommitRail} from '@/client/console/consoleActionCommitRail';
@@ -811,6 +812,8 @@ export default defineComponent({
             // …and its display holds (v2): the other seat's answer moved the phase — the table as it stood is
             // kept until the director's beats have moved it (the same block as the apply, on THIS path too).
             seedParliamentSittingHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+            // …and a cube that appeared on a party's BANNER (Septem Tribus:redux) — held until its flight lands.
+            seedBannerCubeHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and «ПРЕДСЕДАТЕЛЬСТВО»'s (a quest gate answered through a poll / WS frame).
             seedChairmanQuestHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and «КАРЬЕРА»'s (a card's walk whose answer arrived through a poll / WS frame — the same block as the apply).

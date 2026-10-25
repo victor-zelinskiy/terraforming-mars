@@ -1,4 +1,7 @@
 import {IPlayer} from '../IPlayer';
+import {PartyName} from '../../common/turmoil/PartyName';
+import {REDUX_PARTIES, ReduxParty} from '../../common/parliament/ParliamentTypes';
+import {isBannerCubeSource} from '../../common/parliament/bannerCubes';
 import {IGame} from '../IGame';
 import {IProjectCard} from '../cards/IProjectCard';
 import {CardRequirements} from '../cards/requirements/CardRequirements';
@@ -350,7 +353,22 @@ function partyRequirementReason(player: IPlayer, req: PartyRequirement): Unplaya
     ...(standing.onVote ? {} : {partyOffVote: true}),
     // THE ALLIANCE's second road (TR62): the table allies this party with another, so its printed road would do too.
     ...(standing.alliance === undefined ? {} : {alliedVia: {party: standing.alliance.partner, card: standing.alliance.source}}),
+    // FAQ p.19 — the EFFECT is the player's (a banner cube, a grant, a lowered threshold) but the requirement is not.
+    ...effectOnlyOf(player, standing.party),
   };
+}
+
+/** The player holds the party's EFFECT while its requirement stays unmet — named by its road (a banner cube first). */
+function effectOnlyOf(player: IPlayer, party: PartyName): {effectOnly?: 'banner' | 'effect'} {
+  const parliament = player.game.parliament;
+  if (parliament === undefined || !(REDUX_PARTIES as ReadonlyArray<PartyName>).includes(party)) {
+    return {};
+  }
+  const access = parliament.access(player, party as ReduxParty);
+  if (!access.hasEffect || access.satisfiesRequirement) {
+    return {};
+  }
+  return {effectOnly: access.granted.some(isBannerCubeSource) ? 'banner' : 'effect'};
 }
 
 /**

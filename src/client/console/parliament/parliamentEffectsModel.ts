@@ -1,7 +1,7 @@
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {buildMechanics, MechanicsVM} from '@/client/components/premiumCard/mechanicsModel';
 import {PARLIAMENT_GRAPHIC} from '@/client/components/premiumCard/resolutionPremiumVm';
-import {accessRoadBesidesRuling, accessRoadOf, alliancePartnerOf, ParliamentViewVm, PartyActionStateVm} from './consoleParliamentModel';
+import {accessRoadBesidesRuling, accessRoadOf, alliancePartnerOf, hasBannerCube, ParliamentViewVm, PartyActionStateVm} from './consoleParliamentModel';
 
 /*
  * «ВАШИ ЭФФЕКТЫ» (Парламент v8 «Пленарный зал», docs/TURMOIL_REDUX_PARLIAMENT_V8_PLAN.md § 6) — the pure half of the
@@ -12,7 +12,7 @@ import {accessRoadBesidesRuling, accessRoadOf, alliancePartnerOf, ParliamentView
  */
 
 /** WHY the viewer holds a source — the tile's one mark (`alliance` — TR62: through the partner party `via`). */
-export type EffectWhy = 'ruling' | 'delegates' | 'alliance' | 'granted' | 'law';
+export type EffectWhy = 'ruling' | 'delegates' | 'alliance' | 'granted' | 'banner' | 'law';
 /** An action's state on a tile: usable now, spent this generation, or held but not usable now. */
 export type EffectActionState = 'ready' | 'used' | 'locked';
 
@@ -95,7 +95,8 @@ export function parliamentEffectItems(input: EffectItemsInput): Array<EffectItem
     if (shown === undefined) {
       continue;
     }
-    const why: EffectWhy = shown === 'delegates' ? 'delegates' : shown === 'alliance' ? 'alliance' : 'granted';
+    // A grant that is the viewer's cube on the party's banner (Septem Tribus:redux) says so — `banner`, never the generic grant.
+    const why: EffectWhy = shown === 'delegates' ? 'delegates' : shown === 'alliance' ? 'alliance' : hasBannerCube(access) ? 'banner' : 'granted';
     const item = partyItem(access.party, why);
     const via = why === 'alliance' ? alliancePartnerOf(access) : undefined;
     if (item !== undefined) {

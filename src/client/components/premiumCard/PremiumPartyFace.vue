@@ -28,6 +28,14 @@ the fullscreen inspector — keeps zooming / measuring / inspecting one `.pcard`
       <div class="pcard-charter__banner">
         <img class="pcard-charter__crest pcard__party-emblem" :src="emblemUrl" alt="" draggable="false" />
         <div class="pcard-charter__title pcard__title" :class="'pcard__title--t' + titleTier"><span>{{ title }}</span></div>
+        <!-- THE CUBES ON THE BANNER (Septem Tribus:redux): one inset socket per seat whose cube stands on this party's
+             banner, in seat order, sewn into the cloth's upper corner — a player's colour appears only as a cube.
+             Material only (an inset hairline in a dark socket); nothing reserved when there is none. -->
+        <span v-if="bannerCubes.length > 0" class="pcard-charter__cubes" :data-charter-banner-cubes="bannerCubes.join(' ')">
+          <span v-for="color in bannerCubes" :key="color" class="pcard-charter__cube" :data-charter-banner-cube="color">
+            <PlayerCube :color="color" :size="20" :glow="false" :shadow="false" />
+          </span>
+        </span>
       </div>
       <div class="pcard-charter__clauses" :data-charter-clauses="clauses.length">
         <section v-for="clause in clauses" :key="clause.kind" class="pcard-charter__clause" :class="'pcard-charter__clause--' + clause.kind" :data-charter-clause="clause.kind">
@@ -64,12 +72,14 @@ import {MechanicsVM} from './mechanicsModel';
 import {TitleTier} from './titleFit';
 import {expansionIconUrl} from './premiumCardIcons';
 import PremiumMechanicsPanel from './PremiumMechanicsPanel.vue';
+import PlayerCube from '@/client/components/PlayerCube.vue';
+import {Color} from '@/common/Color';
 
 type Clause = {kind: 'effect' | 'action', mechanics: MechanicsVM};
 
 export default defineComponent({
   name: 'PremiumPartyFace',
-  components: {PremiumMechanicsPanel},
+  components: {PremiumMechanicsPanel, PlayerCube},
   props: {
     vm: {type: Object as () => PremiumCardVM, required: true},
     /** The translated title and its length tier (the host face already derived both). */
@@ -81,6 +91,10 @@ export default defineComponent({
   computed: {
     emblemUrl(): string {
       return this.vm.parliament?.emblemUrl ?? '';
+    },
+    /** The seats whose cube stands on this party's banner (Septem Tribus:redux), handed in by the host. */
+    bannerCubes(): ReadonlyArray<Color> {
+      return this.vm.parliament?.bannerCubes ?? [];
     },
     delegateUrl(): string {
       return 'assets/misc/delegate.svg';

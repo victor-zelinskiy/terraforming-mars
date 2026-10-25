@@ -377,7 +377,9 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
     // scene, and the nesting is stated in the HEADER («СТАРТ ПАРТИИ › ВИТОР ›
     // НАГРАДЫ»). The tiles keep the exact full-scene composition of the
     // standalone screen — that is the point of the scene handover.
-    frameSteps: {awards: 'scene'},
+    // The PARLIAMENT — Septem Tribus:redux's first action («a cube on the banner of any party») — takes the scene the
+    // same way («СТАРТ ПАРТИИ › SEPTEM TRIBUS › ЗНАМЯ»).
+    frameSteps: {awards: 'scene', parliament: 'scene'},
   },
   // The DRAFT workspace — a PHASE-anchored root like 'start': it IS the
   // between-generations sequence (picks → waits → research buy → done) and

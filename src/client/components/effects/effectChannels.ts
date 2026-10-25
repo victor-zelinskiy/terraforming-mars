@@ -49,6 +49,9 @@ const CURATED_EFFECT_CHANNELS: Partial<Record<CardName, ReadonlyArray<ReadonlyAr
   [CardName.THARSIS_ALLIANCE]: [[], ['ruling-party-changed']],
   [CardName.EDEN_ALLIANCE]: [[], ['ruling-party-changed']],
   [CardName.PROMETHEAN_ALLIANCE]: [[], ['ruling-party-changed']],
+  // Septem Tribus:redux — #0 «win a resolution → your cube on its party's banner» (onResolutionWon → 'resolution-won');
+  // #1 «a cube on a banner → that party's effect» is the LAW OF ACCESS (a grant — nothing tallies).
+  [CardName.SEPTEM_TRIBUS_REDUX]: [['resolution-won'], []],
 };
 
 /**

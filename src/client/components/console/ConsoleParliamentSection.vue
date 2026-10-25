@@ -32,7 +32,8 @@
              'con-parl--sitting-field': flow.sittingField,
              'con-parl--walk': walkUp,
              'con-parl--rally': rallyUp,
-             'con-parl--support': supportUp,
+             'con-parl--support': supportUp || bannerUp,
+             'con-parl--banner': bannerUp,
              'con-parl--delegate': delegateUp,
              ['con-parl--zone-' + flow.zone]: true,
            }"
@@ -68,13 +69,13 @@
          own. Never a second header. -->
     <ConsoleWsHead v-if="!embedded"
                    class="con-parl__head"
-                   root="Parliament"
-                   emblem="parliament"
-                   wheelAnchor="parliament"
-                   :subject="crumbSubject"
+                   :root="headRoot"
+                   :emblem="sceneStepOfStart ? undefined : 'parliament'"
+                   :wheelAnchor="sceneStepOfStart ? undefined : 'parliament'"
+                   :subject="headSubject"
                    :subjectRaw="false"
-                   :stage="crumbStage"
-                   :committed="crumbCommitted">
+                   :stage="headStage"
+                   :committed="headCommitted">
       <template #trailing>
         <ConsoleParliamentSeats :view="view" :viewerColor="viewerColor" :benchSource="benchSource" :benchWarn="benchWarn" :neutralSource="neutralSource" />
       </template>
@@ -102,7 +103,8 @@
                It never recedes for a step: the support's cubes land in its sockets. ══ -->
           <div class="con-parl__opposition con-parl__parties-tier" ref="partiesTierEl" data-parl-opposition>
             <ConsoleParliamentParties :view="view" :partyStates="partyStates" :partyActionStates="partyActionStates" :viewerColor="viewerColor"
-                                      :awaitingInput="awaitingInput" :supportMeta="supportUp ? supportMeta : undefined" :delegateArea="delegateArea" />
+                                      :awaitingInput="awaitingInput" :supportMeta="supportUp ? supportMeta : undefined" :delegateArea="delegateArea"
+                                      :bannerGhost="bannerGhost" />
           </div>
           <ConsoleParliamentGovernment :view="view" :model="model" :players="pv.players" :viewerColor="viewerColor"
                                        :agendaVm="agendaVm" :sittingStage="sittingUp ? sittingStage : ''" />
@@ -148,6 +150,12 @@
                                           @notice="$emit('notice', $event)" @inspect="$emit('inspect', $event)" @inspect-source="$emit('inspect-source', $event)"
                                           @send="send($event.response, $event.from)" @flow-complete="$emit('flow-complete', $event)"
                                           @play-walk="playSupportWalk($event)" />
+            <!-- «ЗНАМЯ» (Septem Tribus:redux): the banner mode's reading stands over the TABLE the same way — the cursor
+                 walks the plaques, the one under it wears the ghost of the viewer's cube. -->
+            <ConsoleParliamentBannerMode v-if="bannerUp" ref="bannerMode"
+                                         :view="view" :playerView="pv" :viewerColor="viewerColor" :bridge="bridge"
+                                         @notice="$emit('notice', $event)" @inspect="$emit('inspect', $event)" @inspect-source="$emit('inspect-source', $event)"
+                                         @send="send($event.response, $event.from)" @flow-complete="$emit('flow-complete', $event)" />
             <transition :css="false" @enter="onStageEnter" @leave="onStageLeave" @enter-cancelled="onStageEnterCancelled" @leave-cancelled="onStageLeaveCancelled">
               <div v-if="stageKind === 'seat' || stageKind === 'sitting'" v-show="stagePanelUp" class="con-parl__stage" :class="['con-parl__stage--' + stageKind, {'con-parl__stage--field': flow.sittingField}]" :data-parl-stage="stageKind" data-parl-reading>
                 <ConsoleParliamentSeatPick v-if="stageKind === 'seat' && focusedSlot !== undefined" ref="seatPick"
@@ -233,6 +241,8 @@ import {politicalSources} from '@/client/console/parliament/politicalSources';
 import ConsoleParliamentSeatPick from '@/client/components/console/parliament/ConsoleParliamentSeatPick.vue';
 import ConsoleParliamentSitting from '@/client/components/console/parliament/ConsoleParliamentSitting.vue';
 import ConsoleParliamentSupportMode from '@/client/components/console/parliament/ConsoleParliamentSupportMode.vue';
+import ConsoleParliamentBannerMode from '@/client/components/console/parliament/ConsoleParliamentBannerMode.vue';
+import {bannerReadingOf, bannerStartParty, bannerStepStageOf} from '@/client/console/parliament/bannerPickModel';
 import ConsoleParliamentDelegateMode from '@/client/components/console/parliament/ConsoleParliamentDelegateMode.vue';
 import {delegateRing, DelegateStop, delegateStepStageOf, delegateStartIndex} from '@/client/console/parliament/delegatePickModel';
 import {delegateRemovalFlow, registerDelegateRemovalHost} from '@/client/console/parliament/delegateRemoval';
@@ -250,7 +260,7 @@ import {
 import {influenceReadingOf} from '@/client/console/parliament/influenceReading';
 import {sittingRiseStood} from '@/client/console/parliament/sittingRise';
 import {
-  armDelegatePickFlow, armGrantVoteFlow, armSupportPickFlow, parliamentDelegateUp, consoleParliamentUi, notePlayedSittingStage, parliamentSupportUp, parliamentCrumbCommitted, parliamentCrumbStage, parliamentCrumbSubject, ParliamentStage,
+  armDelegatePickFlow, armGrantVoteFlow, armSupportPickFlow, armBannerPickFlow, parliamentBannerUp, parliamentDelegateUp, consoleParliamentUi, notePlayedSittingStage, parliamentSupportUp, parliamentCrumbCommitted, parliamentCrumbStage, parliamentCrumbSubject, ParliamentStage,
   parliamentFlow, parliamentSittingUp, parliamentStageKind, parliamentStageUp, parliamentVoteUp, pulseParliamentChair, resetParliamentFlow,
   setParliamentRootEl, sittingSessionKnown, sittingStagePlayed,
 } from '@/client/console/parliament/consoleParliamentFlow';
@@ -294,7 +304,7 @@ import {RALLY_COUNT_CHIP_ID} from '@/client/console/parliament/parliamentBand';
 import {registerSupportDiscardHost, supportDiscardFlow} from '@/client/console/parliament/supportDiscard';
 import {supportAreaOf, supportCursorOrder, supportStartParty, supportStepStageOf} from '@/client/console/parliament/supportPickModel';
 import {BandDelegate, BandFocus, BandRally, BandSupport} from '@/client/console/parliament/parliamentBand';
-import {DelegatePromptMeta, SupportPromptMeta} from '@/common/models/PlayerInputModel';
+import {BannerPromptMeta, DelegatePromptMeta, SupportPromptMeta} from '@/common/models/PlayerInputModel';
 import {
   AGENDA_WALK_READ_MS, AgendaWalkHooks, AgendaWalkLeg, AgendaWalkRecordLike, agendaWalkHoldMs, agendaWalkMotion, deliverAgendaStepReward,
 } from '@/client/console/parliament/agendaWalkDirector';
@@ -310,7 +320,7 @@ import {
 import {BenchSource, benchSourceOf, benchWarnOf} from '@/client/console/parliament/parliamentVoteView';
 import {
   setWorkspaceFramePhase, setWorkspaceFrameSlot, setWorkspaceFrameStage, setWorkspaceFrameSubject, workspaceFrameAnchor,
-  workspaceFrameHasNested, workspaceFrameRenders, workspaceHostYieldsScene, workspaceStackCrumb,
+  workspaceFrameHasNested, workspaceFrameHost, workspaceFrameRenders, workspaceHostYieldsScene, workspaceStackCrumb,
 } from '@/client/console/consoleWorkspaceStack';
 import {translateText} from '@/client/directives/i18n';
 import {promptIdentityKey} from '@/client/console/turnIntents';
@@ -340,6 +350,7 @@ export default defineComponent({
     ConsoleWsHead, ConsoleParliamentSeats, ConsoleParliamentGovernment, ConsoleParliamentVotingArea, ConsoleParliamentBand,
     ConsoleParliamentParties, ConsoleParliamentAgenda, ConsoleParliamentVoteMode, ConsoleParliamentSeatPick, ConsoleParliamentSitting, ConsoleParliamentEffects, ConsoleParliamentEffectsStep, ConsoleParliamentQuestDossier, ConsoleParliamentCareerDossier,
     ConsoleParliamentSupportMode,
+    ConsoleParliamentBannerMode,
     ConsoleParliamentDelegateMode,
   },
   props: {
@@ -863,6 +874,26 @@ export default defineComponent({
         committed: f.supportCommitted || f.supportLive || f.stage === 'submitting',
       };
     },
+    /** «ЗНАМЯ» — the BANNER mode stands (its pick, its press in flight, or its answer playing — Septem Tribus:redux). */
+    bannerUp(): boolean {
+      return parliamentBannerUp();
+    },
+    /** The banner pick's projection — the bridge's, or the mode's latch past the press. */
+    bannerMeta(): BannerPromptMeta | undefined {
+      return this.bridge.bannerPick?.meta ?? parliamentFlow.bannerMeta;
+    },
+    /**
+     * THE GHOST OF THE VIEWER'S CUBE on the plaque under the banner mode's cursor — the cube as it will stand, before
+     * the press (a dashed contour + a pale cube, the arriving-place grammar); nothing on a refused banner, nothing past A.
+     */
+    bannerGhost(): {party: ReduxParty, color: Color} | undefined {
+      const f = parliamentFlow;
+      if (!this.bannerUp || f.bannerCommitted || f.stage !== 'banner' || this.viewerColor === undefined) {
+        return undefined;
+      }
+      const party = f.zone === 'ruler' ? (parliamentHolds.rulerBefore ?? this.view.rulingParty) : this.view.parties[f.partyIndex]?.party;
+      return bannerReadingOf(this.bannerMeta, party)?.available === true && party !== undefined ? {party, color: this.viewerColor} : undefined;
+    },
     /** «ИЗГНАНИЕ» — the DELEGATE mode stands (its pick, its press in flight, or its answer playing — TR72). */
     delegateUp(): boolean {
       return parliamentDelegateUp();
@@ -987,7 +1018,7 @@ export default defineComponent({
       // The VOTE MODE is read on its own panel (v8 § 5): the table's head stays its calm kicker — the overview's
       // reading line («ОБЗОР · принимается …») under a vote would name the browse layer the player has left.
       // …and the ACCESS SCENE is read on the chamber itself (the seal travelling into «ВАШИ ЭФФЕКТЫ»): no reading line either.
-      if (this.voteUp || parliamentFlow.stage === 'access') {
+      if (this.voteUp || parliamentFlow.stage === 'access' || this.bannerUp) {
         return false;
       }
       return parliamentFlow.stage !== 'browse' || this.sittingUp || this.supportUp || this.delegateUp || this.rallyUp || this.walkUp;
@@ -1056,6 +1087,29 @@ export default defineComponent({
     crumbSubject(): string {
       return parliamentCrumbSubject(chairmanQuestFlow.live);
     },
+    /**
+     * A SCENE STEP OF THE START (Septem Tribus:redux's first action — the start row hands the Parliament the whole
+     * scene): the head is the STACK's crumb («СТАРТ ПАРТИИ › SEPTEM TRIBUS › ЗНАМЯ», the ConsoleMaScreen precedent),
+     * and the frame publishes only its stage — the corporation stays the subject.
+     */
+    sceneStepOfStart(): boolean {
+      return workspaceFrameHost('parliament') === 'start';
+    },
+    stackCrumb(): ReturnType<typeof workspaceStackCrumb> {
+      return this.sceneStepOfStart ? workspaceStackCrumb() : undefined;
+    },
+    headRoot(): string {
+      return this.stackCrumb?.root ?? 'Parliament';
+    },
+    headSubject(): string {
+      return this.stackCrumb !== undefined ? (this.stackCrumb.subject?.text ?? '') : this.crumbSubject;
+    },
+    headStage(): string {
+      return this.stackCrumb !== undefined ? (this.stackCrumb.stage ?? '') : this.crumbStage;
+    },
+    headCommitted(): boolean {
+      return this.stackCrumb?.committed ?? this.crumbCommitted;
+    },
     crumbStage(): string {
       return parliamentCrumbStage(this.sittingTail, this.questTail);
     },
@@ -1068,7 +1122,7 @@ export default defineComponent({
      * ВЕНЕРА › ГОЛОСОВАНИЕ», the root and the card never restarting.
      */
     frameCrumb(): {subject: string, stage: string} {
-      if (this.embedded) {
+      if (this.embedded || this.sceneStepOfStart) {
         return {subject: '', stage: this.crumbStage !== '' ? this.crumbStage : this.crumbSubject};
       }
       return {subject: this.crumbSubject, stage: this.crumbStage};
@@ -1101,6 +1155,11 @@ export default defineComponent({
           stagedFlow: this.stagedFlow,
           source: this.bridge.supportPick?.card !== undefined,
           available: supportAreaOf(this.supportMeta, parliamentFlow.zone === 'ruler' ? this.view.rulingParty : this.view.parties[parliamentFlow.partyIndex]?.party)?.available === true,
+        },
+        banner: this.bridge.bannerPick === undefined && !this.bannerUp ? undefined : {
+          committed: parliamentFlow.bannerCommitted,
+          source: this.bridge.bannerPick?.card !== undefined,
+          available: this.bannerGhost !== undefined,
         },
         delegate: this.bridge.delegatePick === undefined && !this.delegateUp ? undefined : {
           staged: this.bridge.delegatePick?.staged === true && !parliamentFlow.delegateCommitted,
@@ -1537,6 +1596,26 @@ export default defineComponent({
       },
     },
     /**
+     * A BANNER PICK (Septem Tribus:redux — the first action's cube): the mode opens on it, ARMED before the first
+     * render like the support pick; the cursor starts on the ring's first banner on offer — a cursor, never a selection.
+     * Mandatory and LIVE: the frame stands past its commit (B «Свернуть»).
+     */
+    'bridge.bannerPick': {
+      immediate: true,
+      handler(pick: ParliamentPromptBridge['bannerPick']): void {
+        if (pick === undefined || parliamentFlow.stage !== 'browse') {
+          return;
+        }
+        const ruler = parliamentHolds.rulerBefore ?? this.view.rulingParty;
+        const order = supportCursorOrder(this.view.parties.map((p) => p.party), ruler);
+        const start = bannerStartParty(pick.meta, order);
+        const index = start === undefined ? 0 : this.view.parties.findIndex((p) => p.party === start);
+        armBannerPickFlow({zone: start !== undefined && start === ruler ? 'ruler' : 'parties', partyIndex: Math.max(0, index)},
+          bannerStepStageOf(pick.meta), pick.meta);
+        setWorkspaceFramePhase('parliament', 'committed');
+      },
+    },
+    /**
      * A DELEGATE PICK (TR72 Banned Delegate:redux) — staged (the card's door, hosted in the hand) or live (re-asked, a
      * reload): the mode opens on it, ARMED before the first render like the support pick. The cursor starts on the
      * ring's first figure — a cursor, never a selection.
@@ -1568,7 +1647,10 @@ export default defineComponent({
       immediate: true,
       deep: true,
       handler(crumb: {subject: string, stage: string}): void {
-        setWorkspaceFrameSubject('parliament', crumb.subject);
+        // A scene step of the START carries the corporation as its subject (pushed by the shell) — never overwritten.
+        if (!this.sceneStepOfStart) {
+          setWorkspaceFrameSubject('parliament', crumb.subject);
+        }
         setWorkspaceFrameStage('parliament', crumb.stage);
       },
     },
@@ -1698,6 +1780,10 @@ export default defineComponent({
         }
         if (f.stageBeforeSubmit === 'support') {
           (this.$refs.supportMode as InstanceType<typeof ConsoleParliamentSupportMode> | undefined)?.answerAfterSubmit();
+          return;
+        }
+        if (f.stageBeforeSubmit === 'banner') {
+          (this.$refs.bannerMode as InstanceType<typeof ConsoleParliamentBannerMode> | undefined)?.answerAfterSubmit();
           return;
         }
         if (f.stageBeforeSubmit === 'delegate') {
@@ -1928,6 +2014,14 @@ export default defineComponent({
           this.$emit(this.bridge.supportPick?.staged === true ? 'staged-back' : 'collapse');
           return;
         }
+        if (f.stage === 'banner') {
+          // «ЗНАМЯ»: the first action is mandatory and already confirmed — B «Свернуть» (the whole hosting stack parks);
+          // past the press a beat is in flight and B says nothing.
+          if (!f.bannerCommitted) {
+            this.$emit('collapse');
+          }
+          return;
+        }
         if (f.stage === 'delegate') {
           // «ИЗГНАНИЕ» (TR72): the support pick's law — a STAGED door is one reversible level back to the play composer,
           // a LIVE door «Свернуть», past the press B says nothing.
@@ -1977,6 +2071,9 @@ export default defineComponent({
         return;
       case 'delegate':
         (this.$refs.delegateMode as InstanceType<typeof ConsoleParliamentDelegateMode> | undefined)?.handleIntent(intent);
+        return;
+      case 'banner':
+        (this.$refs.bannerMode as InstanceType<typeof ConsoleParliamentBannerMode> | undefined)?.handleIntent(intent);
         return;
       case 'seat':
         (this.$refs.seatPick as InstanceType<typeof ConsoleParliamentSeatPick> | undefined)?.handleIntent(intent);

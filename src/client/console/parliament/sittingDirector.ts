@@ -64,6 +64,7 @@
  * wall-clock timer anywhere (`parliamentNoTimers.spec.ts`).
  */
 import {gsap} from 'gsap';
+import {bannerCubeHeld, bannerCubeTargetRect, landBannerCube, releaseBannerCube} from './bannerCubeScene';
 import {nextTick, reactive} from 'vue';
 import {Color} from '@/common/Color';
 import {ParliamentModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
@@ -88,7 +89,7 @@ import {
   takeOwedRewards,
 } from './parliamentRewardBeat';
 import {
-  CUBE_FLIGHT_MS, DEAL_FLIGHT_MS, DEAL_STAGGER_MS, dealResolutionCard, dropFlight, ENACT_MOVE_MS, finishParliamentFlights, flightEl, flightRegistered,
+  BANNER_CUBE_FLIGHT_MS, CUBE_FLIGHT_MS, DEAL_FLIGHT_MS, DEAL_STAGGER_MS, dealResolutionCard, dropFlight, ENACT_MOVE_MS, finishParliamentFlights, flightEl, flightRegistered,
   flyCardOffTable, flyDelegate, killParliamentFlights, LEAVE_CARRY_MS, LEAVE_TURN_LEAD_MS, nextFlightId, placeFigureRect, pushCardFlight, rectOf,
   registerFlightHandle, RESHUFFLE_MS, riseToken, runReshuffle, scheduleHurriedParliamentBeat, setParliamentFlightsHurried, TOKEN_RISE_MS,
 } from './parliamentFlights';
@@ -211,7 +212,7 @@ export const sittingMotion = reactive({
    * The beat of the stage that is playing ('' at rest / a one-beat stage) — `career`: the reward stage's walks of the Career;
    * `receipt`: the receipt of the table (Sponsored Projects — a card payout that asked nobody).
    */
-  beat: '' as '' | 'agenda' | 'support' | 'enact' | 'career' | 'receipt',
+  beat: '' as '' | 'agenda' | 'support' | 'enact' | 'banner' | 'career' | 'receipt',
   /**
    * …and WHICH WAVE of the support beat is in the air ('' between waves). The two waves obey two different
    * rules — the parties nobody spoke for take from the supply, the unenacted resolutions send their own —
@@ -1358,6 +1359,44 @@ function receiptLandingOf(root: HTMLElement, card: string): TransferPoint | unde
  * ticking on its own touchdown · READ · RETURN → the receipt leaves (the zone's fold) and the walk goes on. A run
  * driven to its end («дожать») or aborted releases every held counter at once.
  */
+/** The sitting's record names a cube still held off its banner (its flight is owed — Septem Tribus:redux). */
+function bannerCubesOwed(ctx: SittingDirectorContext): boolean {
+  return (ctx.summary.bannerCubes ?? []).some((cube) => bannerCubeHeld(cube.party, cube.player));
+}
+
+/**
+ * «КУБ НА ЗНАМЯ» — each cube the record names is carried from its seat's place on the bench (its colour is its place —
+ * the first action's source too) into the socket of the party's banner: «взял → понёс → поставил», no flash, the
+ * socket answering once on contact. A cube with nothing measurable is released in place (the same numbers, no flight).
+ */
+function beatBanner(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
+  const cubes = (ctx.summary.bannerCubes ?? []).filter((cube) => bannerCubeHeld(cube.party, cube.player));
+  let at = 0;
+  for (const cube of cubes) {
+    runState.pending++;
+    let landed = false;
+    const done = (): void => {
+      if (!landed) {
+        landed = true;
+        runState.pending = Math.max(0, runState.pending - 1);
+      }
+    };
+    runState.kills.push(() => {
+      releaseBannerCube(cube.party, cube.player);
+      done();
+    });
+    tl.call(() => {
+      const seat = rectOf(ctx.root.querySelector(`[data-parl-seat="${cube.player}"]`));
+      const target = bannerCubeTargetRect(cube.party);
+      const size = target?.height ?? 20;
+      const from = seat === undefined ? undefined : {left: seat.left + size * 0.2, top: seat.top + seat.height / 2 - size / 2, width: size, height: size};
+      landBannerCube(cube.party, cube.player, from, done);
+    }, undefined, at);
+    at += s(BANNER_CUBE_FLIGHT_MS + 120) * k;
+  }
+  return at;
+}
+
 function beatReceipt(tl: gsap.core.Timeline, ctx: SittingDirectorContext, k: number, runState: StageRun): number {
   if (!tableReceiptsOwed()) {
     return 0;
@@ -2017,7 +2056,7 @@ function settleStagePoses(stage: SittingStage): void {
  * (naturally, by «дожать», or by the ceiling). `build` adds the beat's calls
  * and returns the storyboard's arithmetic (seconds).
  */
-function runBeat(stage: SittingStage, beat: '' | 'agenda' | 'support' | 'enact' | 'career' | 'receipt', compact: boolean,
+function runBeat(stage: SittingStage, beat: '' | 'agenda' | 'support' | 'enact' | 'banner' | 'career' | 'receipt', compact: boolean,
   build: (tl: gsap.core.Timeline, runState: StageRun) => number, bounds: {ceilingMs?: number} = {}): Promise<void> {
   const master = gsap.timeline({paused: true});
   const runState: StageRun = {stage, master, hold: {release: () => undefined}, flights: new Set(), pending: 0, kills: [], finished: false};
@@ -2142,6 +2181,14 @@ export async function playSittingStage(stage: SittingStage, beats: ReadonlyArray
       }
       if (stagePlaying === stage) {
         await runBeat(stage, 'enact', opts.compact, (tl, r) => beatEnactMove(tl, ctx, k, r));
+      }
+      // …THEN «КУБ НА ЗНАМЯ» (Septem Tribus:redux): the winner's cube is carried from their seat onto the banner of the
+      // party that has just come to power — the record's own cubes, one flight each; nothing when none is owed.
+      if (stagePlaying === stage && bannerCubesOwed(ctx)) {
+        await gap(BEAT_GAP_MS);
+        if (stagePlaying === stage) {
+          await runBeat(stage, 'banner', opts.compact, (tl, r) => beatBanner(tl, ctx, k, r));
+        }
       }
       break;
     case 'reward':

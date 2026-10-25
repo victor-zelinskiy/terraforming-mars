@@ -1,7 +1,7 @@
 import {reactive} from 'vue';
 import type {StagedReceipt} from '@/client/console/stagedPlay';
 import {Color} from '@/common/Color';
-import {DelegatePromptMeta, DelegateTargetProjection, SupportPromptMeta, VoteSupportProjection} from '@/common/models/PlayerInputModel';
+import {DelegatePromptMeta, DelegateTargetProjection, SupportPromptMeta, BannerPromptMeta, VoteSupportProjection} from '@/common/models/PlayerInputModel';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {SITTING_SUBJECT_KEY} from '@/client/console/parliament/consoleSittingFlow';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
@@ -172,8 +172,12 @@ export type ParliamentZone = 'voting' | 'government' | 'ruler' | 'parties' | 'ef
  * places, A commits the pick, and the SAME stage plays the answer in place
  * (`delegateCommitted` — the figure is taken off its place and carried home:
  * a seat's reserve, the common supply).
+ * `banner` — the BANNER mode (Septem Tribus:redux, «ЗНАМЯ»): the cursor walks the six party plaques (the support
+ * mode's ring), the plaque under it wears the GHOST of the viewer's cube in its banner socket, A places the cube, and
+ * the SAME stage plays the answer in place (`bannerCommitted` — the cube carried from the viewer's seat into the
+ * socket, then the party's seal into «ВАШИ ЭФФЕКТЫ» when the cube opened an effect).
  */
-export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'quest' | 'submitting' | 'paying' | 'landed' | 'sitting' | 'walk' | 'support' | 'rally' | 'effects' | 'delegate' |
+export type ParliamentStage = 'browse' | 'vote' | 'seat' | 'quest' | 'submitting' | 'paying' | 'landed' | 'sitting' | 'walk' | 'support' | 'rally' | 'effects' | 'delegate' | 'banner' |
   /** THE ACCESS SCENE (2026-10-25): the vote landed the delegate that won a party's effect — the hall plays it. */
   'access';
 
@@ -186,6 +190,9 @@ export type AccessBeat = '' | 'count' | 'return' | 'flight' | 'landed' | 'done';
 
 /** The DELEGATE mode's outcome beat ('' before A): the figure carried home · the read · over. */
 export type DelegateBeat = '' | 'sent' | 'flight' | 'read' | 'done';
+
+/** The BANNER mode's outcome beat ('' before A): the cube carried onto the banner · the seal into «ВАШИ ЭФФЕКТЫ» · the read · over. */
+export type BannerBeat = '' | 'sent' | 'flight' | 'seal' | 'read' | 'done';
 
 /** The SUPPORT-AREA mode's outcome beat ('' before A): the cubes leaving the area · the card's Agenda step · the read · over. */
 export type SupportBeat = '' | 'sent' | 'discard' | 'walk' | 'read' | 'done';
@@ -338,6 +345,16 @@ function freshFlow() {
     delegateBeat: '' as DelegateBeat,
     delegateSnapshot: undefined as DelegateTargetProjection | undefined,
     delegateMeta: undefined as DelegatePromptMeta | undefined,
+    /**
+     * THE BANNER MODE (Septem Tribus:redux): its stage name (`BANNER_STEP_STAGES`), the press is in and its answer
+     * plays on this very stage, the outcome's beat, the party the press chose, and the LATCHED projection (the live
+     * prompt is gone with its answer).
+     */
+    bannerStage: '',
+    bannerCommitted: false,
+    bannerBeat: '' as BannerBeat,
+    bannerSnapshot: undefined as {party: ReduxParty} | undefined,
+    bannerMeta: undefined as BannerPromptMeta | undefined,
   };
 }
 
@@ -420,6 +437,28 @@ export function armDelegatePickFlow(cursor: number, stage: string, live: boolean
   f.delegateSnapshot = undefined;
 }
 
+/**
+ * ARM THE BANNER MODE BEFORE THE FIRST RENDER (Septem Tribus:redux) — the support mode's twin over the same ring: the
+ * cursor on the first banner on offer (a cursor, never a selection), the crumb naming `stage` from the first render.
+ */
+export function armBannerPickFlow(cursor: {zone: 'parties' | 'ruler', partyIndex: number}, stage: string, meta: BannerPromptMeta): void {
+  const f = parliamentFlow;
+  f.bannerMeta = meta;
+  f.zone = cursor.zone;
+  f.partyIndex = Math.max(0, cursor.partyIndex);
+  f.stage = 'banner';
+  f.bannerStage = stage;
+  f.bannerCommitted = false;
+  f.bannerBeat = '';
+  f.bannerSnapshot = undefined;
+}
+
+/** The BANNER mode stands (its pick, its press in flight, or its answer playing). */
+export function parliamentBannerUp(): boolean {
+  const f = parliamentFlow;
+  return f.stage === 'banner' || (f.stage === 'submitting' && f.stageBeforeSubmit === 'banner');
+}
+
 /** The DELEGATE mode stands (its pick, its press in flight, or its answer playing). */
 export function parliamentDelegateUp(): boolean {
   const f = parliamentFlow;
@@ -489,7 +528,8 @@ export function parliamentCrumbSubject(questLive = false): string {
       parliamentFlow.stageBeforeSubmit === 'sitting' ? SITTING_SUBJECT_KEY :
         parliamentFlow.stageBeforeSubmit === 'quest' ? CHAIRMAN_QUEST_SUBJECT_KEY :
           parliamentFlow.stageBeforeSubmit === 'support' ? parliamentFlow.supportStage :
-            parliamentFlow.stageBeforeSubmit === 'delegate' ? parliamentFlow.delegateStage : 'Parliament overview';
+            parliamentFlow.stageBeforeSubmit === 'delegate' ? parliamentFlow.delegateStage :
+              parliamentFlow.stageBeforeSubmit === 'banner' ? parliamentFlow.bannerStage : 'Parliament overview';
   case 'sitting': return SITTING_SUBJECT_KEY;
   case 'quest': return CHAIRMAN_QUEST_SUBJECT_KEY;
   // The SUPPORT-AREA mode is a mode like the vote: its own name is the subject («ПАРЛАМЕНТ › САНКЦИИ»), and hosted
@@ -497,6 +537,8 @@ export function parliamentCrumbSubject(questLive = false): string {
   case 'support': return parliamentFlow.supportStage;
   // …and the DELEGATE mode the same way («КАРТЫ В РУКЕ › ИЗГНАНИЕ ДЕЛЕГАТА › ИЗГНАНИЕ»).
   case 'delegate': return parliamentFlow.delegateStage;
+  // …and the BANNER mode («СТАРТ ПАРТИИ › SEPTEM TRIBUS › ЗНАМЯ» — the first action's step).
+  case 'banner': return parliamentFlow.bannerStage;
   // THE INNER STEP «ВАШИ ЭФФЕКТЫ» (Парламент v8 § 6): a place of its own inside the Parliament («ПАРЛАМЕНТ › ВАШИ ЭФФЕКТЫ»).
   case 'effects': return 'Your effects';
   default: return 'Parliament overview';
@@ -539,7 +581,9 @@ export function parliamentCrumbCommitted(questLive = false): boolean {
     // The support-area mode: cyan while its pick is open, amber once A is pressed — or while it serves a LIVE door,
     // which the player must answer (the commit of the flow that raised it is behind them).
     (stage === 'support' && (parliamentFlow.supportCommitted || parliamentFlow.supportLive)) ||
-    (stage === 'delegate' && (parliamentFlow.delegateCommitted || parliamentFlow.delegateLive));
+    (stage === 'delegate' && (parliamentFlow.delegateCommitted || parliamentFlow.delegateLive)) ||
+    // The banner mode serves a LIVE, mandatory prompt (the first action's confirm is behind the player): amber from the start.
+    stage === 'banner';
 }
 
 /** The stage's CONTENT identity — a submit keeps the stage it left on screen (busy). */

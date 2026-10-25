@@ -19,7 +19,9 @@ own draw zone, its own result panel (`megacredits − mcBefore`) and three `setT
   resolution}`, `sourceKey()` (`card:<name>` · `party:<id>` · `law:<id>`).
 - `console/parliament/politicalSources.ts` — ONE answer to «what does this seat hold from the Parliament» (law →
   ruling party → the board's order — decision Р1; the access road via `accessRoadOf`). The explorer, «Действия карт»,
-  Information's galleries all read it.
+  Information's galleries all read it. The `card` road whose grant is the seat's CUBE ON THE BANNER (TR77 Septem
+  Tribus:redux — `hasBannerCube`) reads «Доступен · ваш куб на знамени» on the meta line (`accessReasonRows`), never the
+  generic «выдан источником».
 - The action workspace still carries a political tile key (`PARTY_<party>` / `RESOLUTION_<id>`) in its
   `cardName`-typed fields (the tile, the composer, the descent draft, the staged return). It enters them through ONE
   door, `consoleCardActions.politicalSourceKey(key)`; every reader that must tell the two apart asks

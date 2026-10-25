@@ -15,7 +15,12 @@
        card is born face-up. Never `opacity` on the body (it flattens the 3D). -->
   <div class="con-parl-flightlayer" aria-hidden="true">
     <div v-for="f in flights.flights" :key="f.id" class="con-parl__flight" :ref="(el) => setFlightEl(f.id, el as HTMLElement | null)" :data-parl-flight="f.id">
-      <PlayerDelegate v-if="f.color !== 'neutral'" :color="f.color" :size="f.size" solid />
+      <!-- A PLAYER'S CUBE onto a party's banner (Septem Tribus:redux): the cube itself, its body lifting off the floor
+           by the same carry variables a figure reads (`--pd-lift` / `--pd-tilt` / `--pd-grow`). -->
+      <span v-if="f.shape === 'cube' && f.color !== 'neutral'" class="con-parl__flight-cube" data-parl-flight-body="cube" :data-banner-cube-flight="f.color">
+        <PlayerCube :color="f.color" :size="f.size" :glow="false" :shadow="false" />
+      </span>
+      <PlayerDelegate v-else-if="f.color !== 'neutral'" :color="f.color" :size="f.size" solid />
       <PlayerDelegate v-else color="neutral" steel :size="f.size" solid />
     </div>
     <div v-for="f in flights.cardFlights" :key="f.id"
@@ -75,6 +80,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
+import PlayerCube from '@/client/components/PlayerCube.vue';
 import {parliamentFlights, setFlightEl} from '@/client/console/parliament/parliamentFlights';
 import {parliamentArtTier} from '@/client/console/parliament/parliamentArtTier';
 import {CardArtTier} from '@/client/cards/cardArt';
@@ -82,7 +88,7 @@ import {CardArtTier} from '@/client/cards/cardArt';
 /** The proxies of the Parliament's flights, rendered by the SHELL from the flight module's reactive specs. */
 export default defineComponent({
   name: 'ConsoleParliamentFlightLayer',
-  components: {PlayerDelegate},
+  components: {PlayerDelegate, PlayerCube},
   computed: {
     flights() {
       return parliamentFlights;

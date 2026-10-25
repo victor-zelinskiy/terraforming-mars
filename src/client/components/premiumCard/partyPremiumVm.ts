@@ -17,6 +17,7 @@
  * No fictitious project card is created: `name` is the party's tile KEY (a key, never a CardName in the manifest).
  */
 import {CardName} from '@/common/cards/CardName';
+import {Color} from '@/common/Color';
 import {CardType} from '@/common/cards/CardType';
 import {ICardRenderRoot} from '@/common/cards/render/Types';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
@@ -33,8 +34,11 @@ function printedRows(root: ICardRenderRoot | undefined): ICardRenderRoot['rows']
   return (root?.rows ?? []).filter((row) => row.length > 0);
 }
 
-/** The card face of a party — `undefined` for a party the manifest does not know. */
-export function partyPremiumVm(party: ReduxParty): PremiumCardVM | undefined {
+/**
+ * The card face of a party — `undefined` for a party the manifest does not know. `bannerCubes` — the seats whose cube
+ * stands on the party's banner (Septem Tribus:redux), handed in by a host that knows the table; absent = none drawn.
+ */
+export function partyPremiumVm(party: ReduxParty, opts: {bannerCubes?: ReadonlyArray<Color>} = {}): PremiumCardVM | undefined {
   const effect = getPartyEffect(party);
   if (effect === undefined) {
     return undefined;
@@ -68,6 +72,7 @@ export function partyPremiumVm(party: ReduxParty): PremiumCardVM | undefined {
       accent: partyAccent(party),
       sealArt: true,
       charter: {effect: clause(passive), action: clause(action)},
+      ...(opts.bannerCubes === undefined || opts.bannerCubes.length === 0 ? {} : {bannerCubes: opts.bannerCubes}),
     },
   };
 }

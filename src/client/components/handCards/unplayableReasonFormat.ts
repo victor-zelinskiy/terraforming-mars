@@ -49,7 +49,10 @@ function partyReasonLine(r: UnplayableReason & {party: PartyName}): string {
   const road = r.partyOffVote === true ?
     translateText('the resolution of that party is not up for a vote') :
     translateTextWithParams('your delegates on the resolution of that party: ${0} of ${1}', [String(r.current ?? 0), r.params?.[1] ?? '2']);
-  const line = `${translateTextWithParams('${0} does not hold power', [party])} · ${road}`;
+  const base = `${translateTextWithParams('${0} does not hold power', [party])} · ${road}`;
+  // FAQ p.19 — the player HOLDS the party's effect (a cube on its banner, a grant) but that is not its favour.
+  const line = r.effectOnly === undefined ? base :
+    `${base} · ${translateText(r.effectOnly === 'banner' ? 'your cube on its banner gives the effect, not this requirement' : 'you hold its effect, not this requirement')}`;
   // THE ALLIANCE's second road (TR62): the table allies this party — the partner's printed road would do too.
   const ally = r.alliedVia;
   return ally === undefined ? line :

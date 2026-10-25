@@ -63,6 +63,10 @@
               <span class="con-parl__effects-ally" :style="{backgroundImage: `url(${emblemUrl(item.via)})`}" :data-parl-effects-via="item.via" aria-hidden="true"></span>
               <span class="con-parl__effects-link" aria-hidden="true"></span>
             </template>
+            <!-- Septem Tribus:redux: the viewer's CUBE ON THE BANNER — the cube itself, never a card mark. -->
+            <span v-else-if="item.why === 'banner' && viewerColor !== undefined" class="con-parl__effects-cube" data-parl-effects-banner-cube aria-hidden="true">
+              <PlayerCube :color="viewerColor" :size="12" :glow="false" :shadow="false" />
+            </span>
             <i v-else-if="item.why === 'granted'" class="con-parl__card-mark resource_icon resource_icon--cards" aria-hidden="true"></i>
             <i v-else class="con-parl__card-mark resource_icon resource_icon--cards" aria-hidden="true"></i>
           </span>
@@ -82,6 +86,7 @@ import {defineComponent, PropType} from 'vue';
 import {Color} from '@/common/Color';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
+import PlayerCube from '@/client/components/PlayerCube.vue';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 import PremiumMechanicsPanel from '@/client/components/premiumCard/PremiumMechanicsPanel.vue';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
@@ -94,7 +99,7 @@ import {delegateFigurePx} from '@/client/components/playerToken/delegateFigureSi
 
 export default defineComponent({
   name: 'ConsoleParliamentEffects',
-  components: {ConsolePartyFormula, PlayerDelegate, PremiumMechanicsPanel},
+  components: {ConsolePartyFormula, PlayerDelegate, PlayerCube, PremiumMechanicsPanel},
   props: {
     view: {type: Object as PropType<ParliamentViewVm>, required: true},
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
@@ -150,6 +155,7 @@ export default defineComponent({
       case 'ruling': return 'for everyone';
       case 'delegates': return 'Your effect';
       case 'granted': return 'Your effect · granted by a card';
+      case 'banner': return 'Your effect · your cube on the banner';
       case 'alliance': return 'Your effect · by the alliance';
       default: return 'Resolution effect';
       }

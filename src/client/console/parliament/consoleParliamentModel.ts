@@ -25,7 +25,7 @@ import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {CardName} from '@/common/cards/CardName';
 import {PartyName} from '@/common/turmoil/PartyName';
-import {PlayerInputModel, SelectPartyModel, SelectPaymentModel, SelectProjectCardToPlayModel, DelegatePromptMeta, DelegateTargetProjection, SupportPromptMeta, VoteSupportProjection} from '@/common/models/PlayerInputModel';
+import {PlayerInputModel, SelectPartyModel, SelectPaymentModel, SelectProjectCardToPlayModel, DelegatePromptMeta, BannerPromptMeta, DelegateTargetProjection, SupportPromptMeta, VoteSupportProjection} from '@/common/models/PlayerInputModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {ActionEffect, StagedVoteModel} from '@/common/models/ActionPreviewModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -240,7 +240,7 @@ export function buildParliamentView(model: ParliamentModel, viewer: Color | unde
       access: viewerAccess.get(party),
       actionId,
       action: actionId === undefined ? undefined : actionsById.get(actionId),
-      bannerCubes: model.players.filter((p) => hasBannerCube(p.access.find((a) => a.party === party))).map((p) => p.color),
+      bannerCubes: bannerCubesOn(model, party),
     };
   });
 
@@ -463,6 +463,12 @@ export function hasBannerCube(access: PartyAccessModel | undefined): boolean {
   return (access?.granted ?? []).some(isBannerCubeSource);
 }
 
+/** The seats whose cube stands on `party`'s banner, in seat order — a public fact of the table (every viewer reads it). */
+export function bannerCubesOn(model: ParliamentModel | undefined, party: ReduxParty): Array<Color> {
+  // Defensive on purpose: the apply block seeds from every view, and a partial model (an older fixture) has no rows.
+  return (model?.players ?? []).filter((p) => hasBannerCube((p.access ?? []).find((a) => a.party === party))).map((p) => p.color);
+}
+
 /** THE ALLIANCE THAT HOLDS for this party (TR62): its partner stands by its printed road. */
 export function allianceOf(access: PartyAccessModel | undefined): PartyAllianceRoadModel | undefined {
   return access?.allied?.[0];
@@ -565,7 +571,9 @@ function partyStateCore(p: ParliamentPartyVm, enactedEmpty: boolean): PartyState
     return {kind: 'alliance', label: 'Your effect · by the alliance: ${0}', params: [alliancePartnerName(access)], tone: 'mint', held: true, delegates, effectDelegates};
   }
   if (road === 'card') {
-    return {kind: 'granted', label: 'Your effect · granted by a card', params: [], tone: 'mint', held: true, delegates, effectDelegates};
+    // Septem Tribus:redux — the grant IS the viewer's cube on the party's banner: the road says so in its own words.
+    const label = hasBannerCube(access) ? 'Your effect · your cube on the banner' : 'Your effect · granted by a card';
+    return {kind: 'granted', label, params: [], tone: 'mint', held: true, delegates, effectDelegates};
   }
   if (p.inArea) {
     if (delegates > 0) {
@@ -668,7 +676,10 @@ export function accessReasonRows(
       {key: 'You have it by the alliance: two of your delegates on the resolution of ${0} (${1})', params: [partner, allianceCard], tone: 'holds'});
   }
   for (const grant of grantSourcesOf(access)) {
-    out.push({key: 'You have it: granted by ${0}', params: [grant], tone: 'holds'});
+    // A banner cube (Septem Tribus:redux) reads as the cube it is — never a source's name on a sentence of its own.
+    out.push(isBannerCubeSource(grant) ?
+      {key: 'You have it: your cube stands on its banner', params: [], tone: 'holds'} :
+      {key: 'You have it: granted by ${0}', params: [grant], tone: 'holds'});
   }
   if (out.length === 0) {
     if (access.delegates > 0) {
@@ -794,7 +805,8 @@ export function voteAccessOf(slot: ParliamentSlotVm | undefined, party: Parliame
   if (road !== undefined && road !== 'delegates') {
     return {
       threshold, before, after, heldByOther: true,
-      reason: road === 'ruling' ? 'already yours: the party rules' : road === 'alliance' ? 'already yours: by the alliance' : 'already yours: granted by a card',
+      reason: road === 'ruling' ? 'already yours: the party rules' : road === 'alliance' ? 'already yours: by the alliance' :
+        hasBannerCube(access) ? 'already yours: your cube on the banner' : 'already yours: granted by a card',
     };
   }
   return {threshold, before, after, heldByOther: false, reason: undefined};
@@ -1025,7 +1037,30 @@ export type ParliamentPromptBridge = {
    * Delegate:redux): the Parliament's DELEGATE mode serves it, the cursor on the figures. Live or staged — one shape.
    */
   delegatePick: DelegatePickBridge | undefined;
+  /**
+   * A stand-alone `SelectParty` that puts the viewer's CUBE on a party's BANNER (`bannerPrompt` — Septem
+   * Tribus:redux's first action): the Parliament's BANNER mode serves it, the cursor on the party plaques. LIVE only
+   * (the first action's confirm is the commit that raised it).
+   */
+  bannerPick: BannerPickBridge | undefined;
 };
+
+/** A BANNER pick as the mode reads it — the server's prompt and its per-party projection, the giver when it is a card. */
+export type BannerPickBridge = {
+  model: SelectPartyModel;
+  meta: BannerPromptMeta;
+  card?: CardName;
+};
+
+function bannerPickOf(model: SelectPartyModel): BannerPickBridge | undefined {
+  const meta = model.bannerPrompt;
+  if (meta === undefined) {
+    return undefined;
+  }
+  const source = model.choiceContext?.source;
+  const card = source?.kind === 'card' || source?.kind === 'corporation' ? source.card : undefined;
+  return {model, meta, ...(card === undefined ? {} : {card})};
+}
 
 /**
  * A DELEGATE pick as the mode reads it — the support pick's twin for ONE FIGURE: LIVE (the server's prompt — the
@@ -1122,7 +1157,12 @@ function grantBridgeOf(model: SelectPartyModel, staged: boolean): GrantBridge | 
  * live grant standing means the server is past whatever was staged.
  */
 export function parliamentPromptBridge(wf: PlayerInputModel | undefined, staged?: StagedVoteModel): ParliamentPromptBridge {
-  const bridge: ParliamentPromptBridge = {vote: undefined, actions: {}, resolutionAction: undefined, seat: undefined, grant: undefined, supportPick: undefined, delegatePick: undefined};
+  const bridge: ParliamentPromptBridge = {vote: undefined, actions: {}, resolutionAction: undefined, seat: undefined, grant: undefined, supportPick: undefined, delegatePick: undefined, bannerPick: undefined};
+  // A BANNER pick (Septem Tribus:redux — the first action's cube): the banner mode serves the server's own prompt.
+  if (wf !== undefined && wf.type === 'party' && wf.bannerPrompt !== undefined) {
+    bridge.bannerPick = bannerPickOf(wf);
+    return bridge;
+  }
   if (wf !== undefined && wf.type === 'party' && wf.votePrompt?.source === 'chairman-seat') {
     bridge.seat = wf;
     return bridge;
@@ -1292,6 +1332,15 @@ export function supportPickResponse(bridge: ParliamentPromptBridge, party: Party
   }
   if (pick.staged === true && pick.card !== undefined) {
     return {type: 'party', partyName: party, stagedFor: pick.card};
+  }
+  return {type: 'party', partyName: party};
+}
+
+/** A BANNER pick's answer — the plain party response (the prompt is live; a party it does not offer has no answer). */
+export function bannerPickResponse(bridge: ParliamentPromptBridge, party: PartyName): InputResponse | undefined {
+  const pick = bridge.bannerPick;
+  if (pick === undefined || !pick.model.parties.includes(party)) {
+    return undefined;
   }
   return {type: 'party', partyName: party};
 }

@@ -54,8 +54,8 @@ export class SeptemTribusRedux extends CorporationCard implements ICorporationCa
         description: 'You start with 40 M€. As your first action, place your cube on the banner of any party.',
         infoText: [
           {text: 'As your first action, place your cube on the banner of any party.'},
-          {kind: 'effect-short', text: 'Win a resolution: your cube on its party\'s banner'},
-          {kind: 'effect-short', text: 'A cube on a banner: that party\'s effect (not the card requirement)'},
+          {kind: 'effect-short', text: 'Win a resolution: your cube on its party\'s banner', tokens: ['(vote-winner,banner-cube)']},
+          {kind: 'effect-short', text: 'Cube on a banner: its effect, not its requirement', tokens: ['(banner-cube,text)']},
         ],
         renderData: CardRenderer.builder((b) => {
           b.br.br;

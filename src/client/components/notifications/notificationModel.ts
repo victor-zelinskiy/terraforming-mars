@@ -691,7 +691,10 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
   // delegate into «ВАШИ ЭФФЕКТЫ», `accessToldOnStage.ts`): a card on the board would tell the same moment twice.
   if (variant === 'party-effect') {
     const gained = chain.find((e) => e.type === 'party-effect-gained');
-    if (gained !== undefined && gained.impact?.partyEffect?.basis === 'delegates' && consumeAccessToldOnStage(gained.impact.partyEffect.party)) {
+    // …and a gain the viewer's CUBE opened on a party's banner (Septem Tribus:redux — the `card` road): the banner mode
+    // plays the same scene in the hall.
+    const basis = gained?.impact?.partyEffect?.basis;
+    if (gained !== undefined && (basis === 'delegates' || basis === 'card') && consumeAccessToldOnStage(gained.impact?.partyEffect?.party)) {
       return undefined;
     }
   }

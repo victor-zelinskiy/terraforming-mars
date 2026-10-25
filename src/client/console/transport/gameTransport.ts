@@ -110,6 +110,7 @@ import {stagePlayedCardReturns} from '@/client/console/played/playedCardReturn';
 import {seedBonusGainRewardHold} from '@/client/console/startBonusGain';
 import {seedParliamentRewardHold} from '@/client/console/parliament/parliamentRewardBeat';
 import {enterParliamentSittingHolds, seedParliamentSittingHolds} from '@/client/console/parliament/parliamentSittingSeed';
+import {seedBannerCubeHolds} from '@/client/console/parliament/bannerCubeScene';
 import {noteSittingRise} from '@/client/console/parliament/sittingRise';
 import {seedScaleStepRewardHolds} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
 import {seedScaleStepRatingHold} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
@@ -686,6 +687,9 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // director's beats have moved every object. The SAME block as the commit,
   // or the new state paints for a frame before its beat.
   seedParliamentSittingHolds(currentView(), newView);
+  // …and a cube that appeared on a party's BANNER (Septem Tribus:redux — the first action, a won resolution): held
+  // off the plaques until its flight lands in the socket (`bannerCubeScene.ts`).
+  seedBannerCubeHolds(currentView(), newView);
   // …and «ПРЕДСЕДАТЕЛЬСТВО»'s own (the chairman quest's gate answer): the
   // office and the Agenda step the answer produced, held until their beats
   // have moved them. Seeded LAST — the reward ledger's own `enterSitting('')`

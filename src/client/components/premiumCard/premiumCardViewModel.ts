@@ -8,6 +8,7 @@
  * Chain:  CardModel + ClientCard  →  buildPremiumCardViewModel  →  PremiumCard.vue
  */
 
+import {Color} from '@/common/Color';
 import {CardModel} from '@/common/models/CardModel';
 import {ClientCard} from '@/common/cards/ClientCard';
 import {CardName} from '@/common/cards/CardName';
@@ -213,6 +214,11 @@ export type PremiumCardVM = {
      * each its own mechanics over the SAME render-node references as `mechanics` (the commit's anchors survive).
      */
     charter?: {effect?: MechanicsVM, action?: MechanicsVM};
+    /**
+     * THE CUBES ON THE PARTY'S BANNER (Septem Tribus:redux) — every seat whose cube stands on this party's banner, in
+     * seat order; the charter seats them on its pennant. Handed in by a host that knows the table (`partyPremiumVm`).
+     */
+    bannerCubes?: ReadonlyArray<Color>;
   };
 };
 

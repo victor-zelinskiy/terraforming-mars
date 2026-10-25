@@ -99,6 +99,14 @@ the workspace onto the standing stage — the entry watcher is `immediate` and
 plays the same emerge on the fresh dock. The deployment latch counts
 `corpFirstAction` beside `startSequence`.
 
+**A first action whose answer is asked in the PARLIAMENT** (TR77 Septem Tribus:redux, 2026-10-25 — «a cube on the
+banner of any party»): the confirm submits the or-option as ever; the server's follow-up is a `SelectParty` marked
+`bannerPrompt`, and the shell PUSHES a Parliament frame on the start workspace (the Vitor awards precedent, one branch
+up in the `party` task route): subject = the corporation, stage «ЗНАМЯ», phase `committed`, the start row's
+`frameSteps: {parliament: 'scene'}` handing it the whole scene. The banner mode plays the cube's carry and leaves by its
+own hand; `onParliamentFlowComplete` pops the hosted frame and the stage's leave runs off the ledger as for any first
+action. Contract: `docs/TURMOIL_REDUX_SEPTEM_TRIBUS.md` §3.
+
 ## The COMPLETION BARRIER (`startBoardExcursion.ts`)
 
 The pre-existing architectural bug: the workspace yields to a board placement

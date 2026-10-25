@@ -552,6 +552,15 @@ function kindSummary(
         openKey: 'Open the vote',
       };
     }
+    // Septem Tribus:redux's BANNER pick (the first action): the Parliament's banner mode, the cube onto a party's banner.
+    if (wf?.bannerPrompt !== undefined) {
+      return {
+        kickerKey: 'Parliament',
+        ask: ask(wf, 'Select a party to place your cube on its banner'),
+        returnKey: 'Return to the Parliament',
+        openKey: 'Open the Parliament',
+      };
+    }
     // A card's SUPPORT-AREA pick (Turmoil Redux TR12 — «discard all neutral delegates from ONE area»): the
     // Parliament's support-area mode, served inside the flow that raised it; the server's title names the act.
     if (wf?.supportPrompt !== undefined) {

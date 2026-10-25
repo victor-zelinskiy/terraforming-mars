@@ -65,6 +65,8 @@ export type ParliamentCommandsInput = {
     /** The giver is a CARD: L3 «Источник» opens it over the mode (X belongs to the selected resolution). */
     source?: boolean,
   };
+  /** «ЗНАМЯ» (Septem Tribus:redux): the press is in · the giver is a card (L3) · the banner under the cursor is on offer. */
+  banner?: {committed: boolean, source: boolean, available: boolean};
   /**
    * THE SUPPORT-AREA MODE (TR12 Party Sanctions, «САНКЦИИ»): A commits the pick of the plaque under the cursor —
    * a STAGED door's flow verb («Разыграть карту»), a live door's «Выбрать» — lit only on an area on offer (a
@@ -270,6 +272,23 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
       cmds.push({control: 'stickL', label: 'Source', priority: 1});
     }
     cmds.push(support?.staged === true ? back : {control: 'back', label: 'Minimize'});
+    return cmds;
+  }
+  case 'banner': {
+    // Past the press the cube is carried onto the banner on this stage: a STATUS, never a verb (the support mode's law).
+    if (parliamentFlow.bannerCommitted) {
+      return [{control: 'confirm', label: parliamentFlow.bannerBeat === 'done' || parliamentFlow.bannerBeat === 'read' ? 'Cube placed' : 'Performing…', enabled: false}];
+    }
+    const banner = input.banner;
+    const cmds: Array<ConsoleCommand> = [
+      {control: 'confirm', label: 'Place cube', enabled: banner?.available === true, highlight: banner?.available === true},
+      {control: 'secondary', label: 'Inspect'},
+    ];
+    if (banner?.source === true) {
+      cmds.push({control: 'stickL', label: 'Source', priority: 1});
+    }
+    // The first action is mandatory and its confirm is behind the player: «Свернуть» parks the whole stack.
+    cmds.push({control: 'back', label: 'Minimize'});
     return cmds;
   }
   case 'delegate': {

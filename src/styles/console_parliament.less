@@ -322,6 +322,27 @@
     &__support-reason { text-transform: uppercase; letter-spacing: .1em; font-size: .72rem; color: fade(@con-text, 66%); }
     &__support-receipt { align-self: center; border-top: none; padding-top: 0; }
     &__support-cta { margin-top: auto; }
+    /* «ЗНАМЯ» (Septem Tribus:redux) — the banner mode's reading: the SOCKET as it will stand (the ghost of the viewer's
+       cube before A — a dashed contour, the cube pale; the cube seated once it has landed), what the cube opens, the
+       party's printed effect, the FAQ line. Material only — no halo (invariant 15). */
+    &__banner-row { gap: 1rem; }
+    &__banner-socket {
+        display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+        width: 3.2rem; height: 3.2rem; border-radius: .5rem;
+        background: rgba(8, 9, 14, 0.9);
+        box-shadow: inset 0 0 0 .06rem rgba(226, 214, 186, 0.6);
+        .player-cube { zoom: calc(2.2 * var(--con-ui-scale, 1)); }
+        &--ghost {
+            background: transparent;
+            box-shadow: none;
+            outline: .08rem dashed fade(@con-amber, 70%);
+            outline-offset: -.08rem;
+            .player-cube { opacity: .42; }
+        }
+    }
+    &__banner-consequence { font-size: 1.15rem; font-weight: 700; letter-spacing: .02em; color: @con-text; }
+    &__banner-rule { max-width: 34rem; align-self: center; text-align: center; font-size: .9rem; line-height: 1.3; color: fade(@con-text, 90%); }
+    &__banner-faq { font-size: .8rem; color: fade(@con-text, 66%); }
     &__toolbar {
         flex-shrink: 0;
         display: flex;
@@ -1511,6 +1532,17 @@ html.con-profile-handheld .con-band {
     align-items: center;
     justify-content: center;
     will-change: transform;
+}
+/* A PLAYER'S CUBE onto a party's banner (Septem Tribus:redux): the cube's BODY carries the lift / lean / grow the
+   delegate carry writes on the proxy — the same three variables, so the cube is taken, carried and set down exactly as
+   a figure is. No halo: the cube is its own material (invariant 15). */
+.con-parl__flight-cube {
+    display: block;
+    transform-origin: 50% 87%;
+    transform:
+        translateY(calc(var(--pd-lift, 0px) * -1))
+        rotate(var(--pd-tilt, 0deg))
+        scale(var(--pd-grow, 1));
 }
 /* A DEALT RESOLUTION on its way: the bill's back at the slot's size (the
    proxy is scaled down onto the pile and grows), a card's own shadow. The back

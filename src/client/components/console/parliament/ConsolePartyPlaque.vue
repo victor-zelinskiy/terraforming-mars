@@ -61,6 +61,21 @@
            an outline; `active` (the alliance holds) is lit gold. Absolute in the seal's own box: it moves nothing, it
            rides with the seal to the dais and into the vote, and it is never a focus stop. -->
       <span v-if="state?.ally !== undefined" class="con-pseal__ally" :class="'con-pseal__ally--' + state.ally.badge" aria-hidden="true"></span>
+      <!-- THE BANNER CUBES (Septem Tribus:redux — a seat's cube on this party's banner = the party's EFFECT for that seat):
+           one inset socket per seat in the seal's lower-RIGHT corner (the alliance badge's mirror), each holding the
+           seat's own cube — a player's colour appears only as a cube. Absolute in the seal's box: it moves nothing, it
+           rides the medallion everywhere. Material only (an inset hairline, no halo — invariant 15). A cube whose
+           landing is still in the air (the first action, the sitting's beat) is held back until its flight touches down. -->
+      <span v-if="shownBannerCubes.length > 0 || bannerGhost !== undefined" class="con-pseal__banner" :data-pseal-banner="shownBannerCubes.join(' ')" aria-hidden="true">
+        <span v-for="color in shownBannerCubes" :key="color" class="con-pseal__banner-socket" :data-banner-cube="color" :class="{'con-pseal__banner-socket--landed': justLanded(color)}" @animationend="onSeated(color)">
+          <PlayerCube :color="color" :size="14" :glow="false" :shadow="false" />
+        </span>
+        <!-- THE GHOST (the banner mode's cursor): the viewer's cube as it WILL stand — a dashed contour, a pale cube; the
+             arriving-place grammar, never a light. -->
+        <span v-if="bannerGhost !== undefined" class="con-pseal__banner-socket con-pseal__banner-socket--ghost" data-banner-cube-ghost>
+          <PlayerCube :color="bannerGhost" :size="14" :glow="false" :shadow="false" />
+        </span>
+      </span>
     </div>
     <div class="con-pseal__head">
       <span class="con-pseal__name" :class="{'con-pseal__name--long': longName}" :data-pseal-name-long="longName ? 'true' : undefined">{{ $t(partyNameKey(party)) }}</span>
@@ -171,6 +186,8 @@ import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import ConsolePartyFormula from '@/client/components/console/parliament/ConsolePartyFormula.vue';
 import ConsoleSupportPlaces from '@/client/components/console/parliament/ConsoleSupportPlaces.vue';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
+import PlayerCube from '@/client/components/PlayerCube.vue';
+import {bannerCubeJustLanded, bannerCubesShown, forgetBannerCubeLanding} from '@/client/console/parliament/bannerCubeScene';
 import {partyAccent, partyEmblemUrl} from '@/client/components/premiumCard/partyEmblems';
 import {PARTY_EFFECT_PLACES, PartyActionStateVm, PartyStateVm} from '@/client/console/parliament/consoleParliamentModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -188,9 +205,13 @@ const PSEAL_NAME_LONG_WORD = 11;
 
 export default defineComponent({
   name: 'ConsolePartyPlaque',
-  components: {ConsolePartyFormula, ConsoleSupportPlaces, PlayerDelegate},
+  components: {ConsolePartyFormula, ConsoleSupportPlaces, PlayerDelegate, PlayerCube},
   props: {
     party: {type: String as PropType<ReduxParty>, required: true},
+    /** The seats whose cube stands on this party's BANNER (Septem Tribus:redux — `ParliamentPartyVm.bannerCubes`). */
+    bannerCubes: {type: Array as PropType<ReadonlyArray<Color>>, default: () => []},
+    /** The banner mode's GHOST — the viewer's cube as it will stand here (Septem Tribus:redux's pick, before A). */
+    bannerGhost: {type: String as PropType<Color | undefined>, default: undefined},
     size: {type: String as PropType<PartyPlaqueSize>, default: 'tile'},
     /** The viewer's access state (undefined = a plain identity plaque). */
     state: {type: Object as PropType<PartyStateVm | undefined>, default: undefined},
@@ -247,11 +268,22 @@ export default defineComponent({
     this.heldAtMount = this.state?.held === true;
   },
   methods: {
+    /** The socket's ONE answer on the touchdown of a cube that just flew in (a one-shot, never a standing state). */
+    justLanded(color: Color): boolean {
+      return bannerCubeJustLanded(this.party, color);
+    },
+    onSeated(color: Color): void {
+      forgetBannerCubeLanding(this.party, color);
+    },
     partyNameKey(party: string): string {
       return partyNameKey(party);
     },
   },
   computed: {
+    /** The banner's cubes as drawn: the table's, minus one whose landing is still in the air (`bannerCubeScene`). */
+    shownBannerCubes(): Array<Color> {
+      return bannerCubesShown(this.party, this.bannerCubes);
+    },
     accent(): string {
       return partyAccent(this.party);
     },
@@ -308,7 +340,7 @@ export default defineComponent({
       // «Зал» v7: a MEDALLION row says «yours» by its mint ring, its plate and its filled places — the words stay
       // for the plaque's larger sizes (the dossier, the composer) and for the reading line.
       case 'delegates': return this.size === 'row' ? '' : translateText('Your effect');
-      case 'granted': return this.size === 'row' ? '' : translateText('Your effect · granted by a card');
+      case 'granted': return this.size === 'row' ? '' : translateText(state.label);
       // TR62 — the BORROWED effect: the row says it by its ring (the partner's accent, the link); the larger faces name the partner.
       case 'alliance': return this.size === 'row' ? '' : translateTextWithParams(state.label, [...state.params]);
       default: return '';

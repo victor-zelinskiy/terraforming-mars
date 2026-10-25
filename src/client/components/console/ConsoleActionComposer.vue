@@ -957,6 +957,7 @@ import {ComposerEntry, PoliticalActionEntry, isPoliticalActionEntry} from '@/cli
 import {partyEffectZoomEntry, resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {resolutionPremiumVm} from '@/client/components/premiumCard/resolutionPremiumVm';
+import {bannerCubesOn} from '@/client/console/parliament/consoleParliamentModel';
 import {partyPremiumVm} from '@/client/components/premiumCard/partyPremiumVm';
 import {PremiumCardVM} from '@/client/components/premiumCard/premiumCardViewModel';
 import {ResolutionId} from '@/common/parliament/ParliamentTypes';
@@ -1967,7 +1968,11 @@ export default defineComponent({
     /** The party's CARD face (decision Р2) — a party source's hero. */
     partyFaceVm(): PremiumCardVM | undefined {
       const political = this.politicalEntry;
-      return political?.source.kind === 'party' ? partyPremiumVm(political.source.party) : undefined;
+      if (political?.source.kind !== 'party') {
+        return undefined;
+      }
+      const party = political.source.party;
+      return partyPremiumVm(party, {bannerCubes: bannerCubesOn(this.playerView.game.parliament, party)});
     },
     lawFaceVm(): PremiumCardVM | undefined {
       const political = this.politicalEntry;

@@ -27,6 +27,8 @@
           <!-- «Зал» v7: the MEDALLION — the ruler's in the government (`ruler`), the five of the column as ROWS; no formula
                on the overview (the dossier prints it, the reading line names the state). -->
           <ConsolePartyPlaque :party="p.party"
+                              :bannerCubes="p.bannerCubes"
+                              :bannerGhost="bannerGhost?.party === p.party ? bannerGhost.color : undefined"
                               :size="p.party === rulerShown ? 'ruler' : 'row'"
                               :state="shownStates[i]"
                               :actionState="partyActionStates[i]"
@@ -101,6 +103,8 @@ export default defineComponent({
      * bill's figure, past the press, outside the mode).
      */
     delegateArea: {type: String as PropType<ReduxParty | undefined>, default: undefined},
+    /** THE BANNER MODE's ghost (Septem Tribus:redux): the viewer's cube as it will stand on the plaque under the cursor. */
+    bannerGhost: {type: Object as PropType<{party: ReduxParty, color: Color} | undefined>, default: undefined},
   },
   data() {
     return {

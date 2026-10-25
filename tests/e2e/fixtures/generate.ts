@@ -6927,6 +6927,41 @@ parliamentFixture('receive-colony', {
   },
 });
 
+// ── THE SPLIT TRADE — «the trade and its colony bonus pay DIFFERENT cards» (the owner's 2026-10-25 polish of the
+//    receiving scene): blue's action phase with a cube of its own on Titan (the marker on cell 4 — the income is
+//    2 floaters) and TWO floater holders (Dirigibles 1, Aerial Mappers 0), 3 energy and a free fleet. Blue's own
+//    trade asks two targets before the press — the income's card and the bonus cube's card — and the scene pays
+//    them in turn. Luna beside it. A quiet government (the Industrialists by Central Power Grid). ──
+parliamentFixture('titan-split-trade', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  arrange: ({game, p1, parliament}) => {
+    seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+    const luna = new Luna();
+    const titan = new Titan();
+    for (const colony of [luna, titan]) {
+      colony.isActive = true;
+    }
+    game.colonies = [luna, titan];
+    titan.colonies.push(p1.id);
+    titan.trackPosition = 3;
+    const dirigibles = new Dirigibles();
+    dirigibles.resourceCount = 1;
+    p1.playedCards.push(dirigibles, new AerialMappers());
+    p1.energy = 3;
+  },
+  expect: ({game, p1, parliament}) => {
+    const titan = game.colonies.find((c) => c.name === ColonyName.TITAN);
+    if (titan === undefined || !titan.colonies.includes(p1.id) || titan.trackPosition !== 3 || game.activePlayer.id !== p1.id ||
+        !(p1.getWaitingFor() instanceof OrOptions) || p1.energy !== 3 || p1.colonies.freeTradeFleets() < 1 ||
+        p1.playedCards.get(CardName.DIRIGIBLES)?.resourceCount !== 1 || p1.playedCards.get(CardName.AERIAL_MAPPERS) === undefined ||
+        parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
+      throw new Error(`the titan-split-trade fixture expected blue on the move with a cube on Titan (marker 3), 3 energy, a free fleet and two floater holders — got active=${game.activePlayer.color} titan=${titan?.trackPosition} energy=${p1.energy}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
 // ── TR55 · NUCLEAR WARHEAD UTILIZATION («Утилизация ядерных боеголовок») and the iteration «ЯЧЕЙКА ПО — КАЖДОЕ ОЧКО ИЗ
 //    СВОЕЙ ПРИЧИНЫ» (docs/claude/prompts/project-tr55-nuclear-warhead-utilization.md, docs/claude/console/score-cell.md).
 //    Blue's action phase, the Industrialists RULING (Central Power Grid enacted), TR55 in hand with 20 M€: the play's
@@ -9034,5 +9069,56 @@ parliamentFixture('pristar-veto', {
       throw new Error(`pristar-veto: expected red first by rating 30 / 27 with the flag down, got ${p2.terraformRating} / ${p1.terraformRating}`);
     }
     expectViewerOpensGeneration(table, p2, 'pristar-veto');
+  },
+});
+
+// ── TR77 SEPTEM TRIBUS:REDUX — the cubes on the parties' banners (a GRANT of the party's effect, never its requirement). ──
+//    `septem-tribus`: blue IS Septem Tribus (its first action spent by the builder — the cube already on the Scientists'
+//    banner): the Scientists' plaque carries blue's cube, «ВАШИ ЭФФЕКТЫ» reads «куб на знамени», the action phase is live.
+//    `septem-win`: blue leads the vote on a resolution of a party that does NOT rule, one pass before its sitting — the
+//    sitting's «КУБ НА ЗНАМЯ» beat carries blue's cube onto the banner of the party that has just come to power.
+function septemArrange({p1}: ParliamentTable): void {
+  p1.pendingInitialActions = [];
+}
+const SEPTEM_TABLE = {customCorporationsList: [CardName.SEPTEM_TRIBUS_REDUX, REDUX_TABLE_CORPORATIONS[1]]};
+
+parliamentFixture('septem-tribus', {
+  stopAt: 'vote',
+  options: SEPTEM_TABLE,
+  arrange: (table) => {
+    septemArrange(table);
+    table.parliament.grantPartyEffect(table.p1, PartyName.SCIENTISTS, CardName.SEPTEM_TRIBUS_REDUX);
+  },
+  expect: ({p1, parliament}) => {
+    const access = parliament.access(p1, PartyName.SCIENTISTS);
+    if (!p1.playedCards.has(CardName.SEPTEM_TRIBUS_REDUX) || !access.hasEffect || access.satisfiesRequirement || !access.granted.includes(CardName.SEPTEM_TRIBUS_REDUX)) {
+      throw new Error(`septem-tribus: expected blue on Septem Tribus with its cube on the Scientists' banner (effect, no requirement), got ${JSON.stringify(access)}`);
+    }
+  },
+});
+
+parliamentFixture('septem-win', {
+  stopAt: 'pass',
+  options: SEPTEM_TABLE,
+  arrange: (table) => {
+    septemArrange(table);
+    const {p1, parliament} = table;
+    const slot = parliament.slots.find((s) => parliament.resolutionOf(s.instance).party !== PartyName.GREENS);
+    if (slot === undefined) {
+      throw new Error('septem-win: no resolution of a party that does not rule');
+    }
+    parliament.placeVote(p1, slot, 'lobby');
+    parliament.placeVote(p1, slot, 'reserve');
+    parliament.placeVote(p1, slot, 'reserve');
+  },
+  expect: ({p1, parliament}) => {
+    const verdict = parliament.winner();
+    const party = verdict === undefined ? undefined : parliament.resolutionOf(verdict.instance).party;
+    if (verdict?.player !== p1.id || party === undefined || party === parliament.rulingParty()) {
+      throw new Error(`septem-win: expected blue to win a resolution of a party that does not rule, got ${JSON.stringify(verdict)} (${party})`);
+    }
+    if ((parliament.grantedEffects.get(p1.id) ?? []).length !== 0) {
+      throw new Error('septem-win: expected no cube on any banner yet');
+    }
   },
 });

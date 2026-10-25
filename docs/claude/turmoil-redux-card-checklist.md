@@ -80,6 +80,13 @@
   (маркер `delegatePrompt`, ответ `{partyName, delegate: {place, owner}}`), staged-дверь `delegateRemoval` → режим Парламента
   `delegate` (курсор по фигурам, «уходящая» фигура формой, панель над рядом Карьеры, полёт по записи `lastRemoval`). Новая
   карта — строка `DelegatePromptMeta.source` + слово стадии, не второй режим.
+- **Корпорация-замена с первым действием в Парламенте** (TR77 Septem Tribus:redux, `docs/TURMOIL_REDUX_SEPTEM_TRIBUS.md`):
+  номер — первый после проектных строк реестра, регистрация в `corporationCards` + `cardsToRemove`; `initialAction` откладывает
+  общий шаг (`PlaceBannerCube` — `SelectParty` с маркером `bannerPrompt`), консоль пушит кадр Парламента над стартом
+  (`frameSteps: {parliament: 'scene'}`), режим `banner`. Грант эффекта партии, который стол рисует кубом, — строка
+  `BANNER_CUBE_SOURCES`; ответ карты на победу в заседании — `ICard.onResolutionWon` в файле карты. Счётные пины колоды
+  (`deckComposition.spec`) считают проектные замены отдельно от корпорации. Два эффекта у корпорации — запись в
+  `effectChannels.ts` (гард `effectFamilyCoverage`).
 - **Тестовый режим**: модуль уже в `GUARANTEED_MODULES` (через `PREMIUM_EXPANSIONS`) — карту можно
   гарантировать в первую руку без правок (`docs/DEV_GUARANTEED_CARDS.md`).
 
