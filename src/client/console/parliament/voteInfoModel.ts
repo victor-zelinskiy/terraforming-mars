@@ -229,7 +229,7 @@ export type FactValue = {
 };
 
 /** `votes` / `effect` — the DELEGATE mode's own rows (TR72: a bill's count, the owner's lost effect), the same row markup. */
-export type VoteFactId = 'lead' | 'win' | 'access' | 'ally' | 'votes' | 'effect';
+export type VoteFactId = 'lead' | 'win' | 'access' | 'ally' | 'votes' | 'effect' | 'own' | 'gained';
 
 export type VoteFactVm = {
   id: VoteFactId;

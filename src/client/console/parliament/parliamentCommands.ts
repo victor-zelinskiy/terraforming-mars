@@ -88,6 +88,8 @@ export type ParliamentCommandsInput = {
     stagedFlow?: 'play' | 'action',
     source: boolean,
     available: boolean,
+    /** The pick EXCHANGES the figure (TR74 Recruitment — the marker's `exchange`): the verbs are the recruiter's. */
+    exchange?: boolean,
   };
   /**
    * «ВАШИ ЭФФЕКТЫ» (Парламент v8 § 6): on the overview's block `count` sources stand (A opens the inner step when
@@ -294,12 +296,13 @@ export function parliamentCommandsOf(input: ParliamentCommandsInput): Array<Cons
   case 'delegate': {
     // Past the press the figure is carried home on this stage: a STATUS, never a verb (the support mode's law).
     if (parliamentFlow.delegateCommitted) {
-      return [{control: 'confirm', label: parliamentFlow.delegateBeat === 'done' ? 'Delegate removed' : 'Performing…', enabled: false}];
+      const done = delegate?.exchange === true ? 'Delegate recruited' : 'Delegate removed';
+      return [{control: 'confirm', label: parliamentFlow.delegateBeat === 'done' ? done : 'Performing…', enabled: false}];
     }
     const delegate = input.delegate;
     const cmds: Array<ConsoleCommand> = [
       {
-        control: 'confirm', label: delegate?.staged === true ? stagedDoorVerb(delegate.stagedFlow) : 'Remove delegate',
+        control: 'confirm', label: delegate?.staged === true ? stagedDoorVerb(delegate.stagedFlow) : delegate?.exchange === true ? 'Recruit delegate' : 'Remove delegate',
         enabled: delegate?.available === true, highlight: delegate?.available === true,
       },
       {control: 'secondary', label: 'Inspect'},

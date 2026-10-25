@@ -77,7 +77,7 @@
             <div class="con-parl__ribbon" :class="{'con-parl__ribbon--dense': slot.votes.length > DENSE_RIBBON}" :data-votes="slot.totalVotes" :data-parl-vote-ribbon="voteSelecting && flow.slotIndex === i ? '' : undefined">
               <template v-if="slot.votes.length <= DENSE_RIBBON">
                 <span v-for="vote in slot.votes" :key="vote.seq" class="con-parl__vote-cube"
-                      :class="{'con-parl__vote-cube--landed': vote.seq === flow.landedSeq || flow.landedSeqs.includes(vote.seq), 'con-parl__vote-cube--hidden': vote.seq === flow.flightSeq || flow.pendingSeqs.includes(vote.seq) || holds.hiddenCubes.has(slot.instance + '#' + vote.seq), 'con-parl__vote-cube--arrived': rival.arrived.has(slot.instance + '#' + vote.seq), 'con-parl__vote-cube--counted': countedOf(slot, vote.seq), 'con-parl__vote-cube--outgoing': outgoingOf(slot, vote.seq)}"
+                      :class="{'con-parl__vote-cube--landed': vote.seq === flow.landedSeq || flow.landedSeqs.includes(vote.seq), 'con-parl__vote-cube--hidden': vote.seq === flow.flightSeq || flow.pendingSeqs.includes(vote.seq) || holds.hiddenCubes.has(slot.instance + '#' + vote.seq) || arrivalSeqOf(slot) === vote.seq, 'con-parl__vote-cube--arrived': rival.arrived.has(slot.instance + '#' + vote.seq), 'con-parl__vote-cube--counted': countedOf(slot, vote.seq), 'con-parl__vote-cube--outgoing': outgoingOf(slot, vote.seq)}"
                       :data-seq="vote.seq"
                       :data-delegate-outgoing="outgoingOf(slot, vote.seq) ? '' : undefined"
                       :data-landed="vote.seq === flow.landedSeq || flow.landedSeqs.includes(vote.seq) ? '' : undefined"
@@ -186,7 +186,7 @@ import {
 import {voteDecidedAt} from '@/client/console/parliament/consoleSittingFlow';
 import {partyNameKey} from '@/client/console/parliament/partyNames';
 import {useConsoleViewport} from '@/client/console/composables/useConsoleViewport';
-import {delegateRemovalGhostVote} from '@/client/console/parliament/delegateRemoval';
+import {delegateExchangeArrival, delegateRemovalGhostVote} from '@/client/console/parliament/delegateRemoval';
 
 /**
  * The VOTING AREA tier: the resolution slots (each ONE DOM instance the vote
@@ -287,12 +287,26 @@ export default defineComponent({
       const slots = this.holds.heldSlots ?? this.view.slots;
       // A FIGURE TAKEN OFF A BILL (TR72) still stands on its ribbon until it lifts off: the answer already removed its
       // vote, the ribbon keeps drawing it at its place (and the count with it) until the flight takes it.
+      // …and AN EXCHANGE's arriving figure (TR74) is on the model before it is set down: the ribbon keeps its place
+      // (drawn hidden — the flight measures it) but the bill does not COUNT it until the touchdown.
       return slots.map((slot) => {
         const ghost = delegateRemovalGhostVote(slot.instance);
-        if (ghost === undefined || slot.votes.some((vote) => vote.seq === ghost.seq)) {
-          return slot;
+        const arrival = delegateExchangeArrival(slot.instance);
+        let shown: ParliamentSlotVm = slot;
+        if (ghost !== undefined && !slot.votes.some((vote) => vote.seq === ghost.seq)) {
+          shown = {...shown, votes: [...shown.votes, ghost].sort((a, b) => a.seq - b.seq), totalVotes: shown.totalVotes + 1};
         }
-        return {...slot, votes: [...slot.votes, ghost].sort((a, b) => a.seq - b.seq), totalVotes: slot.totalVotes + 1};
+        if (arrival !== undefined && slot.votes.some((vote) => vote.seq === arrival.seq)) {
+          const before = parliamentFlow.delegateSnapshot?.leader;
+          shown = {
+            ...shown,
+            totalVotes: Math.max(0, shown.totalVotes - 1),
+            viewerVotes: arrival.owner === this.viewerColor ? Math.max(0, shown.viewerVotes - 1) : shown.viewerVotes,
+            // The lead the exchange moves is the server's forecast of the press — until the figure lands it is the old one.
+            ...(before === undefined ? {} : {leader: before.current}),
+          };
+        }
+        return shown;
       });
     },
     /** The surface's ONE art tier (`parliamentArtTier`) — the same from the overview to the vote row, the same as a proxy's. */
@@ -314,6 +328,10 @@ export default defineComponent({
     },
   },
   methods: {
+    /** The exchange's arriving vote on this bill (TR74) — drawn hidden until its figure is set down. */
+    arrivalSeqOf(slot: ParliamentSlotVm): number | undefined {
+      return delegateExchangeArrival(slot.instance)?.seq;
+    },
     figurePx(logical: number): number {
       return delegateFigurePx(logical);
     },

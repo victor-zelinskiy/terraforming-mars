@@ -105,7 +105,7 @@ import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
 import {parliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {supportDiscardPoolHeld} from '@/client/console/parliament/supportDiscard';
-import {delegateRemovalPoolHeld, delegateRemovalReserveHeld} from '@/client/console/parliament/delegateRemoval';
+import {delegateExchangeReserveStanding, delegateRemovalPoolHeld, delegateRemovalReserveHeld} from '@/client/console/parliament/delegateRemoval';
 import {rallyPoolHeld} from '@/client/console/parliament/neutralRally';
 import {rivalPoolHeld} from '@/client/console/parliament/parliamentRivalVotes';
 import {rivalVotes} from '@/client/console/parliament/parliamentRivalVotes';
@@ -157,7 +157,8 @@ export default defineComponent({
         // Delegates on their way home: off the enacted card (the enactment's returns) and off a loser (the renewal's).
         const pendingReturns = (holds.returns.get(p.color) ?? 0) + (holds.renewalReturns.get(p.color) ?? 0);
         // …and a figure a card took off the table (TR72) that is still in the air home: the reserve counts it on its touchdown.
-        const base = Math.max(0, p.reserve - pendingReturns - delegateRemovalReserveHeld(p.color) + (pendingLobby ? 1 : 0));
+        // An exchange's own figure (TR74) stands in the reserve until it is taken off the stack.
+        const base = Math.max(0, p.reserve - pendingReturns - delegateRemovalReserveHeld(p.color) + delegateExchangeReserveStanding(p.color) + (pendingLobby ? 1 : 0));
         // The viewer's places keep PAINTING the delegate that is leaving until
         // its proxy stands over it (`sourceHold`), and keep SAYING its count
         // until it has visibly left (`sourceLeaving`) — by the NUMBER still to

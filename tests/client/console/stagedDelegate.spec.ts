@@ -16,10 +16,13 @@ import {
   delegateStepStageOf, DelegateTableVm,
 } from '@/client/console/parliament/delegatePickModel';
 import {
-  delegateRemovalFlow, delegateRemovalGhostVote, delegateRemovalPoolHeld, delegateRemovalReserveHeld, delegateRemovalSupportStanding,
-  landRemovedDelegate, liftRemovedDelegate, registerDelegateRemovalHost, seedDelegateRemovalHolds, settleDelegateRemoval,
+  delegateExchangeArrival, delegateExchangeReserveStanding, delegateRemovalFlow, delegateRemovalGhostVote, delegateRemovalPoolHeld,
+  delegateRemovalReserveHeld, delegateRemovalSupportStanding, landExchangedDelegate, landRemovedDelegate, liftExchangedDelegate, liftRemovedDelegate,
+  registerDelegateRemovalHost, seedDelegateRemovalHolds, settleDelegateRemoval,
 } from '@/client/console/parliament/delegateRemoval';
-import {removalDestinationSelector, removalSourceSelector, ribbonFigureSelector} from '@/client/console/parliament/delegateRemovalScene';
+import {
+  exchangeDestinationSelector, exchangeSourceSelector, removalDestinationSelector, removalSourceSelector, ribbonFigureSelector,
+} from '@/client/console/parliament/delegateRemovalScene';
 import {playCommitVerb, playDoorNextStepKey, playDoorOf} from '@/client/console/consolePlayCardComposer';
 import {partyStepStageOf} from '@/client/console/consoleTaskRouter';
 import {parliamentBandLine} from '@/client/console/parliament/parliamentBand';
@@ -274,5 +277,113 @@ describe('the DELEGATE mode (TR72)', () => {
       expect(ribbonFigureSelector('g-1', 3)).eq('[data-instance="g-1"] .con-parl__ribbon [data-seq="3"]');
       expect(removalDestinationSelector({owner: RED, returnsTo: 'reserve'})).eq('[data-parl-seat-reserve="red"]');
     });
+  });
+});
+
+/**
+ * THE EXCHANGE (Turmoil Redux TR74 Recruitment:redux — `delegatePrompt.source: 'exchange'`): the SAME mode, ring, bridge and
+ * door; what differs is read off the marker — the stage word, the verbs, the reading's own count («Ваши делегаты 1 → 2»,
+ * the effect GAINED), the band's second figure, and the flight's second move (the player's own figure from the reserve
+ * onto the bill, held on both ends).
+ */
+describe('the DELEGATE mode — the exchange (TR74)', () => {
+  const EXCHANGE: DelegatePromptMeta = {
+    source: 'exchange',
+    targets: [
+      target(G, 'resolution', 'neutral', {total: {current: 3, resulting: 3}, arrives: {owner: BLUE, count: {current: 0, resulting: 1}}}),
+      target(M, 'resolution', 'neutral', {count: 2, total: {current: 3, resulting: 3}, leader: {current: 'neutral', resulting: BLUE},
+        arrives: {owner: BLUE, count: {current: 1, resulting: 2}}, effectsGained: [M]}),
+    ],
+  };
+  const EX_TABLE: DelegateTableVm = {
+    slots: [
+      {party: G, votes: [{owner: RED, seq: 1}, {owner: RED, seq: 2}, {owner: 'neutral', seq: 3}]},
+      {party: M, votes: [{owner: 'neutral', seq: 4}, {owner: BLUE, seq: 5}, {owner: 'neutral', seq: 6}]},
+    ],
+    areaOrder: [PartyName.UNITY, G, PartyName.SCIENTISTS, M, PartyName.REDS, I],
+  };
+  const names = {owner: (o: Color | 'neutral') => String(o), resolution: () => undefined};
+
+  afterEach(() => {
+    resetParliamentFlow();
+    settleDelegateRemoval();
+    delegateRemovalFlow.seenSeq = 0;
+    registerDelegateRemovalHost(undefined);
+  });
+
+  it('the stage word is the exchange\'s own — never the card\'s name again', () => {
+    expect(delegateStepStageOf(EXCHANGE)).eq('Exchange');
+  });
+
+  it('the ring walks the neutral figures the server offers — the LATEST neutral cube of each bill', () => {
+    const ring = delegateRing(EXCHANGE, EX_TABLE);
+    expect(ring.map((stop) => [stop.target.party, stop.seq])).deep.eq([[G, 3], [M, 6]]);
+  });
+
+  it('the reading: my delegates on the bill (the count that moves), the lead, the effect GAINED — never «votes 3 → 3»', () => {
+    const ring = delegateRing(EXCHANGE, EX_TABLE);
+    const reading = delegateReadingOf(ring[1], ring.length)!;
+    expect(reading.arrives).eq(BLUE);
+    expect(reading.returnsTo).eq('supply');
+    expect(reading.lines.map((l) => l.kind)).deep.eq(['own', 'leader', 'gained']);
+    const facts = delegateFactsOf(reading, names);
+    expect(facts.map((f) => [f.id, f.label, f.before.key, f.after.key])).deep.eq([
+      ['own', 'Your delegates', '1', '2'],
+      ['lead', 'Leader', 'neutral', BLUE],
+      ['gained', 'Party effect', 'party name: Mars First', 'Gained'],
+    ]);
+    expect(delegateReadingOf(ring[0], 1)?.sole, 'a single offer is marked').is.true;
+  });
+
+  it('the bar speaks the recruiter\'s verbs; past the press a status of its own', () => {
+    armDelegatePickFlow(0, 'Exchange', true, EXCHANGE);
+    const base = {view: emptyParliamentView(), canVoteNow: false, partyActionStates: []};
+    const live = parliamentCommandsOf({...base, delegate: {staged: false, source: true, available: true, exchange: true}});
+    expect(live[0].label).eq('Recruit delegate');
+    const staged = parliamentCommandsOf({...base, delegate: {staged: true, stagedFlow: 'play', source: true, available: true, exchange: true}});
+    expect(staged[0].label, 'a staged door still plays the card').eq('Play card');
+    parliamentFlow.delegateCommitted = true;
+    parliamentFlow.delegateBeat = 'done';
+    expect(parliamentCommandsOf({...base, delegate: {staged: false, source: true, available: true, exchange: true}}).map((c) => c.label)).deep.eq(['Delegate recruited']);
+  });
+
+  it('the band names both halves: the neutral figure, its bill, «in its place», my figure', () => {
+    const line = parliamentBandLine({delegate: {stage: 'Exchange', owner: 'neutral', arrives: BLUE, place: 'resolution', party: M, resolution: 'r' as never, committed: false}, standing: {} as never});
+    expect(line.kicker).eq('Exchange');
+    expect(line.chips.map((c) => c.kind)).deep.eq(['player', 'resolution', 'label', 'player']);
+    expect(line.chips[3]).deep.eq({kind: 'player', player: BLUE});
+  });
+
+  it('the flight: the neutral figure stands, then mine — the bill does not draw mine until it lands, my reserve counts it until it lifts', () => {
+    registerDelegateRemovalHost(() => true);
+    const record = removal(11, {player: BLUE, owner: 'neutral', returnsTo: 'supply', party: M, instance: 'm-1', vote: 6, exchange: {vote: 7}});
+    seedDelegateRemovalHolds(view(), view(record));
+    expect(delegateRemovalGhostVote('m-1')).deep.eq({owner: 'neutral', seq: 6});
+    expect(delegateRemovalPoolHeld()).eq(1);
+    expect(delegateExchangeArrival('m-1')).deep.eq({owner: BLUE, seq: 7});
+    expect(delegateExchangeArrival('g-1')).is.undefined;
+    expect(delegateExchangeReserveStanding(BLUE)).eq(1);
+    expect(delegateExchangeReserveStanding(RED)).eq(0);
+    expect(delegateRemovalReserveHeld(BLUE), 'the neutral figure goes to the supply, not to my reserve').eq(0);
+    // The first move: the neutral figure lifts, lands in the supply.
+    liftRemovedDelegate();
+    landRemovedDelegate();
+    expect(delegateRemovalPoolHeld()).eq(0);
+    expect(delegateExchangeArrival('m-1'), 'mine is not on the bill yet').deep.eq({owner: BLUE, seq: 7});
+    // The second move: mine lifts off the reserve stack, lands on the bill.
+    liftExchangedDelegate();
+    expect(delegateExchangeReserveStanding(BLUE)).eq(0);
+    expect(delegateExchangeArrival('m-1')).deep.eq({owner: BLUE, seq: 7});
+    landExchangedDelegate();
+    expect(delegateExchangeArrival('m-1')).is.undefined;
+    expect(exchangeSourceSelector(record)).eq('[data-parl-seat-reserve="blue"]');
+    expect(exchangeDestinationSelector(record)).eq('[data-instance="m-1"] .con-parl__ribbon [data-seq="7"]');
+  });
+
+  it('a removal record carries no exchange: no arrival is held', () => {
+    registerDelegateRemovalHost(() => true);
+    seedDelegateRemovalHolds(view(), view(removal(12)));
+    expect(delegateExchangeArrival('g-1')).is.undefined;
+    expect(delegateExchangeReserveStanding(RED)).eq(0);
   });
 });

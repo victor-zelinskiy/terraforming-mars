@@ -2960,6 +2960,9 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // TR72 Banned Delegate:redux: blue in the chair over a table of figures (Mars First blue · red · red, the Greens
   // neutral ×2, Unity blue ×2, support Scientists 2 · Reds 1); `-locked` red holds the chair, `-empty` an empty table.
   'banned-delegate' | 'banned-delegate-locked' | 'banned-delegate-empty' |
+  // TR74 Recruitment:redux: neutral cubes on two bills (Mars First ×2 alone; the Greens one, then blue's), red on Unity,
+  // support Scientists 2; `-locked` no neutral cube on a bill, `-no-reserve` blue's reserve empty.
+  'recruitment' | 'recruitment-locked' | 'recruitment-no-reserve' |
   'parliament' | 'parliament-actions' | 'parliament-recap' |
   'parliament-dense' | 'parliament-seat' | 'parliament-paid' | 'parliament-aquifer-vote' | 'parliament-aquifer-enact' |
   'parliament-architecture-vote' | 'parliament-access-edge' | 'septem-tribus' | 'septem-win' | 'parliament-architecture-recap' | 'parliament-cloud-vote' | 'parliament-cloud-assembly' | 'parliament-cloud-enact' |

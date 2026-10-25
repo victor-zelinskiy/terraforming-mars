@@ -30,6 +30,9 @@ import {partyNameKey} from './partyNames';
  */
 export const DELEGATE_STEP_STAGES: Readonly<Record<DelegatePromptMeta['source'], string>> = {
   remove: 'Banishment',
+  // TR74 Recruitment's exchange — «ВЕРБОВКА › ОБМЕН»: the stage names what the pick does, never the card's own name
+  // again (the card IS «Вербовка»; «ВЕРБОВКА › ВЕРБОВКА» is a stutter, not a step).
+  exchange: 'Exchange',
 };
 
 export function delegateStepStageOf(meta: DelegatePromptMeta | undefined): string {
@@ -149,10 +152,14 @@ export function delegateCursorStep(ring: ReadonlyArray<DelegateStop>, at: number
 /** One line of the forecast — present only when the answer changes it (the server's rule). */
 export type DelegateForecastLine =
   | {kind: 'votes', current: number, resulting: number}
+  /** An exchange (TR74): the player's own delegates on the bill — the votes there stay, so THIS is the number that moves. */
+  | {kind: 'own', current: number, resulting: number}
   | {kind: 'support', current: number, resulting: number}
   | {kind: 'leader', current?: DelegateOwner, resulting?: DelegateOwner}
   | {kind: 'winner', current?: DelegateWinnerProjection, resulting?: DelegateWinnerProjection}
-  | {kind: 'effects', parties: ReadonlyArray<PartyName>};
+  | {kind: 'effects', parties: ReadonlyArray<PartyName>}
+  /** An exchange's second delegate opens a party's effect for the player. */
+  | {kind: 'gained', parties: ReadonlyArray<PartyName>};
 
 /** THE READING of the figure under the cursor — the panel's whole content. */
 export type DelegateReadingVm = {
@@ -164,6 +171,8 @@ export type DelegateReadingVm = {
   returnsTo: 'reserve' | 'supply';
   /** The figure under the cursor is the ONLY one the card can take (composer-preselect: shown and marked, never applied). */
   sole: boolean;
+  /** An EXCHANGE (TR74): whose figure takes the place — the second half of the one operation. Absent on a removal. */
+  arrives?: Color;
   lines: ReadonlyArray<DelegateForecastLine>;
 };
 
@@ -172,11 +181,15 @@ export function delegateReadingOf(stop: DelegateStop | undefined, ringSize: numb
     return undefined;
   }
   const t = stop.target;
-  const lines: Array<DelegateForecastLine> = [
-    t.place === 'resolution' ?
+  const lines: Array<DelegateForecastLine> = [];
+  if (t.arrives !== undefined) {
+    // AN EXCHANGE: one figure leaves, one arrives — the bill's count stays; the player's own count is what moves.
+    lines.push({kind: 'own', current: t.arrives.count.current, resulting: t.arrives.count.resulting});
+  } else {
+    lines.push(t.place === 'resolution' ?
       {kind: 'votes', current: t.total.current, resulting: t.total.resulting} :
-      {kind: 'support', current: t.total.current, resulting: t.total.resulting},
-  ];
+      {kind: 'support', current: t.total.current, resulting: t.total.resulting});
+  }
   if (t.leader !== undefined) {
     lines.push({kind: 'leader', ...(t.leader.current === undefined ? {} : {current: t.leader.current}), ...(t.leader.resulting === undefined ? {} : {resulting: t.leader.resulting})});
   }
@@ -186,7 +199,13 @@ export function delegateReadingOf(stop: DelegateStop | undefined, ringSize: numb
   if (t.effectsLost !== undefined && t.effectsLost.length > 0) {
     lines.push({kind: 'effects', parties: t.effectsLost});
   }
-  return {place: t.place, party: t.party, owner: t.owner, count: t.count, returnsTo: t.returnsTo, sole: ringSize === 1, lines};
+  if (t.effectsGained !== undefined && t.effectsGained.length > 0) {
+    lines.push({kind: 'gained', parties: t.effectsGained});
+  }
+  return {
+    place: t.place, party: t.party, owner: t.owner, count: t.count, returnsTo: t.returnsTo, sole: ringSize === 1, lines,
+    ...(t.arrives === undefined ? {} : {arrives: t.arrives.owner}),
+  };
 }
 
 /** The bill's figure under the cursor (`instance`-free: a bill is its party) — the ribbon's «уходит» mark. */
@@ -229,6 +248,12 @@ export function delegateFactsOf(reading: DelegateReadingVm, names: DelegateFactN
         before: {key: String(line.current), raw: true}, after: {key: String(line.resulting), raw: true},
         unchanged: false, tone: 'keep', note: undefined,
       }];
+    case 'own':
+      return [{
+        id: 'own', label: 'Your delegates',
+        before: {key: String(line.current), raw: true}, after: {key: String(line.resulting), raw: true},
+        unchanged: false, tone: 'keep', note: undefined,
+      }];
     case 'leader':
       return [{id: 'lead', label: 'Leader', before: ownerValue(line.current), after: ownerValue(line.resulting), unchanged: false, tone: 'keep', note: undefined}];
     case 'winner':
@@ -241,6 +266,10 @@ export function delegateFactsOf(reading: DelegateReadingVm, names: DelegateFactN
     case 'effects':
       return line.parties.map((party): VoteFactVm => ({
         id: 'effect', label: 'Party effect', before: {key: partyNameKey(party)}, after: {key: 'Lost'}, unchanged: false, tone: 'keep', note: undefined,
+      }));
+    case 'gained':
+      return line.parties.map((party): VoteFactVm => ({
+        id: 'gained', label: 'Party effect', before: {key: partyNameKey(party)}, after: {key: 'Gained'}, unchanged: false, tone: 'keep', note: undefined,
       }));
     }
   });

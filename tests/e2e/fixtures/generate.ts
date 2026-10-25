@@ -286,6 +286,7 @@ import {SpaceBonus} from '../../../src/common/boards/SpaceBonus';
 import {SpaceId} from '../../../src/common/Types';
 import {PartySanctions} from '../../../src/server/cards/turmoilRedux/PartySanctions';
 import {BannedDelegateRedux} from '../../../src/server/cards/turmoilRedux/BannedDelegateRedux';
+import {RecruitmentRedux} from '../../../src/server/cards/turmoilRedux/RecruitmentRedux';
 import {hasPartyRequirement} from '../../../src/server/cards/requirements/partyRequirementCards';
 import {TransNeptuneProbe} from '../../../src/server/cards/base/TransNeptuneProbe';
 import {testAutomaGame, testAutomaMultiplayerGame} from '../../automa/AutomaTestGame';
@@ -4187,6 +4188,70 @@ function bannedDelegateFixture(name: string, chair: 'p1' | 'p2', table: 'full' |
 bannedDelegateFixture('banned-delegate', 'p1', 'full');
 bannedDelegateFixture('banned-delegate-locked', 'p2', 'full');
 bannedDelegateFixture('banned-delegate-empty', 'p1', 'empty');
+
+// ── TR74 · RECRUITMENT:redux — the DELEGATE mode as an EXCHANGE (`delegatePrompt.source: 'exchange'`,
+//    docs/TURMOIL_REDUX_BANNED_DELEGATE.md §6): blue's action phase with the card in hand and 10 M€. A QUIET government
+//    (the Industrialists by Central Power Grid) and three resolutions: Mars First (Architecture Award) — two neutral
+//    votes, nobody else (no «non-leader» clause: a target); the Greens (Aquifer Contest) — a neutral vote, THEN blue's
+//    (exchanging the neutral cube gives blue a SECOND delegate there: the Greens' effect is GAINED); Unity (Colonization
+//    Funding) — red ×1 (a seat's cube: never a target). SYNTHETIC support: the Scientists hold 2 (neutral cubes in an
+//    AREA — never a target either). `-locked`: no neutral cube on any bill (Mars First red, the Greens blue; the area
+//    keeps its 2) — the card refused with «no neutral delegate on a resolution». `-no-reserve`: the full table, but
+//    every delegate of blue's already on Unity — refused with TR03's «no delegate in your reserve». The card is the
+//    game's own copy. ──
+function recruitmentFixture(name: string, table: 'full' | 'no-neutral' | 'no-reserve'): void {
+  parliamentFixture(name, {
+    stopAt: 'vote',
+    megacredits: [10, 30],
+    arrange: ({game, p1, p2, parliament}) => {
+      seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+      seatResolution(parliament, 0, ARCHITECTURE_AWARD_ID);
+      seatResolution(parliament, 1, AQUIFER_CONTEST_ID);
+      seatResolution(parliament, 2, COLONIZATION_FUNDING_ID);
+      for (const party of REDUX_PARTIES) {
+        parliament.popularSupport.set(party, 0);
+      }
+      for (const slot of parliament.slots) {
+        slot.votes = [];
+      }
+      const [mars, greens, unity] = parliament.slots;
+      if (table === 'no-neutral') {
+        parliament.placeVote(p2, mars, 'reserve');
+        parliament.placeVote(p1, greens, 'reserve');
+      } else {
+        parliament.addNeutralVote(mars);
+        parliament.addNeutralVote(mars);
+        parliament.addNeutralVote(greens);
+        parliament.placeVote(p1, greens, 'reserve');
+      }
+      parliament.placeVote(p2, unity, 'reserve');
+      if (table === 'no-reserve') {
+        while (parliament.reserve(p1) > 0) {
+          parliament.placeVote(p1, unity, 'reserve');
+        }
+      }
+      parliament.popularSupport.set(PartyName.SCIENTISTS, 2);
+      moveToDeckTop(game, CardName.RECRUITMENT_REDUX);
+      p1.cardsInHand.push(game.projectDeck.drawPile.pop() as RecruitmentRedux);
+    },
+    expect: ({game, parliament, p1, p2}) => {
+      const card = p1.cardsInHand.find((c) => c.name === CardName.RECRUITMENT_REDUX);
+      const playable = card !== undefined && p1.canPlay(card);
+      const owners = (i: number) => parliament.slots[i].votes.map((v) => v.owner === p1.id ? 'blue' : v.owner === p2.id ? 'red' : 'neutral').join(',');
+      const facts = {playable, ruling: parliament.rulingParty(), mars: owners(0), greens: owners(1), reserve: parliament.reserve(p1),
+        support: parliament.popularSupportOf(PartyName.SCIENTISTS), greensEffect: parliament.access(p1, PartyName.GREENS).byDelegates};
+      const want = {playable: table === 'full', mars: table === 'no-neutral' ? 'red' : 'neutral,neutral', greens: table === 'no-neutral' ? 'blue' : 'neutral,blue'};
+      if (facts.playable !== want.playable || facts.ruling !== PartyName.INDUSTRIALISTS || facts.mars !== want.mars || facts.greens !== want.greens ||
+          (table === 'no-reserve') !== (facts.reserve === 0) || facts.support !== 2 || facts.greensEffect) {
+        throw new Error(`the ${name} fixture expected ${JSON.stringify(want)}, the Industrialists ruling, Scientists' support 2, blue without the Greens' effect — got ${JSON.stringify(facts)}`);
+      }
+      parliament.assertLedger(game);
+    },
+  });
+}
+recruitmentFixture('recruitment', 'full');
+recruitmentFixture('recruitment-locked', 'no-neutral');
+recruitmentFixture('recruitment-no-reserve', 'no-reserve');
 
 // ── TR23 · HABITAT SCIENCE — «THE LEDGER PAYS» (docs/TURMOIL_REDUX_HABITAT_SCIENCE.md): blue's action phase with the
 //    card IN ITS TABLEAU holding 4 data (the action live, unused) and a colony on each of four tiles whose printed

@@ -974,6 +974,7 @@ export default defineComponent({
       return agendaWalkFlow.owed !== undefined && agendaWalkFlow.owed.host === 'hand' && this.embedded && !this.warm ? agendaWalkFlow.owed.seq : 0;
     },
     /** «ДЕЛЕГАТЫ» — a card's rally of neutral delegates is the section's subject (the rally pose stands, TR31). */
+        ...(target.arrives === undefined ? {} : {arrives: target.arrives.owner}),
     rallyUp(): boolean {
       return parliamentFlow.stage === 'rally';
     },
@@ -1185,6 +1186,7 @@ export default defineComponent({
       return (this.model?.players ?? []).filter((p) => p.participates).length;
     },
     /** X on the sitting inspects the enacted resolution — the object every stage is about. */
+          exchange: this.delegateMeta?.source === 'exchange',
     sittingInspectable(): boolean {
       return this.model?.phase?.summary?.enacted !== undefined && !this.sittingStepOpen;
     },

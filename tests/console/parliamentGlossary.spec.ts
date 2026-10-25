@@ -152,6 +152,11 @@ const CANON: Record<string, string> = {
   'Requires you to be the chairman': 'Требуется быть председателем',
   'chairman now: ${0}': 'председатель сейчас: ${0}',
   'the chair is vacant': 'кресло свободно',
+  // THE EXCHANGE (TR74 Recruitment — glossary § 9-quater): the stage names what the pick DOES («ОБМЕН»), never the card's
+  // own name again; the verb is the recruiter's, the neutral cube leaves «в общий запас», mine comes «из резерва».
+  'Exchange': 'Обмен',
+  'Recruit delegate': 'Завербовать делегата',
+  'Delegate recruited': 'Делегат завербован',
   'Turmoil Redux requires Colonies': '«Кризис: Возвращение» требует дополнение «Колонии»',
   // THE RATING VETO (RX42 UNMI Veto — glossary § «Вето»): the seat first by rating is «первый по РТ» / «наибольший РТ»
   // — never «лидер» (the glossary's leader is the vote's); the state is «под вето»; the law's RU name keeps «UNMI».

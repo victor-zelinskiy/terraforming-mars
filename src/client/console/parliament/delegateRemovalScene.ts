@@ -48,3 +48,29 @@ export function flyRemovedDelegate(root: HTMLElement, record: ParliamentDelegate
   }
   return flyDelegate(record.owner, from, to, 0, () => hooks.onLanded(), {onLifted: () => hooks.onLifted()});
 }
+
+/** Where an exchange's own figure is taken from — the player's reserve stack on the bench. */
+export function exchangeSourceSelector(record: Pick<ParliamentDelegateRemovalModel, 'player'>): string {
+  return `[data-parl-seat-reserve="${record.player}"]`;
+}
+
+/** Where it is set down — its own vote on the bill (drawn hidden until the touchdown, so it is measurable). */
+export function exchangeDestinationSelector(record: ParliamentDelegateRemovalModel): string | undefined {
+  return record.instance === undefined || record.exchange === undefined ? undefined : ribbonFigureSelector(record.instance, record.exchange.vote);
+}
+
+/**
+ * THE EXCHANGE'S SECOND MOVE (TR74 Recruitment): the player's own figure off their reserve stack onto the bill the
+ * neutral one has just left — TR03's grant flight, the same carry. The reserve ticks on the LIFT-OFF, the bill on the
+ * TOUCHDOWN. A miss is confessed and the figure simply lands. Returns the flight's id, or undefined when it landed at once.
+ */
+export function flyExchangedDelegate(root: HTMLElement, record: ParliamentDelegateRemovalModel, hooks: DelegateRemovalHooks): string | undefined {
+  const target = exchangeDestinationSelector(record);
+  const from = placeFigureRect(root, exchangeSourceSelector(record));
+  const to = target === undefined ? undefined : placeFigureRect(root, target);
+  if (from === undefined || to === undefined) {
+    hooks.onDegraded(from === undefined ? `exchange: the reserve of ${record.player} has no measurable place` :
+      `exchange: the arriving figure on ${record.party} has no measurable place`);
+  }
+  return flyDelegate(record.player, from, to, 0, () => hooks.onLanded(), {onLifted: () => hooks.onLifted()});
+}

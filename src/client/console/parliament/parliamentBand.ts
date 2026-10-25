@@ -358,6 +358,8 @@ export type BandSupport = {
 export type BandDelegate = {
   stage: string;
   owner: Color | 'neutral';
+  /** AN EXCHANGE (TR74): the player whose own delegate takes the figure's place — the line names both halves. */
+  arrives?: Color;
   place: 'resolution' | 'support';
   party: ReduxParty;
   /** The bill the figure stands on (absent in a support area). */
@@ -546,6 +548,9 @@ function questLine(quest: BandQuest): BandLine {
     chips.push({kind: 'agenda', to: move.to, bonus: move.bonus});
     return {kicker: 'Agenda track', key: `quest:agenda:${player ?? ''}:${move.to}`, chips, committed: true};
   }
+    if (delegate.arrives !== undefined) {
+      chips.push({kind: 'label', key: 'in its place', tone: 'quiet'}, {kind: 'player', player: delegate.arrives});
+    }
   if (quest.beat === 'seat') {
     if (player !== undefined) {
       chips.push({kind: 'player', player});

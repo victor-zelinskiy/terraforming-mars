@@ -13,7 +13,8 @@
        }"
        data-parl-delegate-mode
        :data-delegate-beat="flow.delegateBeat || undefined"
-       :data-delegate-staged="staged ? '' : undefined">
+       :data-delegate-staged="staged ? '' : undefined"
+       :data-delegate-source="meta?.source">
     <div class="con-parl__delegate-stage">
       <transition name="con-parl-xfade">
         <div v-if="reading !== undefined" :key="readingKey" class="con-parl__delegate-body"
@@ -37,6 +38,12 @@
               </span>
               <span class="con-parl__delegate-dest" data-parl-delegate-dest>
                 <span class="con-parl__fact-arrow" aria-hidden="true">→</span>{{ destLine }}
+              </span>
+              <!-- AN EXCHANGE (TR74): the second half of the one operation — the player's own figure comes from the reserve
+                   and takes the place. Its own row, its own figure: «уходит» above, «приходит» here. -->
+              <span v-if="reading.arrives !== undefined" class="con-parl__delegate-arrive" data-parl-delegate-arrives :data-delegate-arrives="reading.arrives">
+                <PlayerDelegate class="con-parl__delegate-arrive-figure" :color="reading.arrives" :size="factFigure" :glow="false" />
+                <span>{{ arriveLine }}</span>
               </span>
               <span v-if="reading.sole" class="con-parl__delegate-sole" data-seeded-mark>{{ $t('The only target') }}</span>
             </span>
@@ -102,9 +109,10 @@ import {
   delegateCursorStep, delegateFactsOf, DelegateReadingVm, delegateReadingOf, delegateRing, DelegateStop, delegateStopKey, DelegateTableVm,
 } from '@/client/console/parliament/delegatePickModel';
 import {
-  delegateRemovalFlow, delegateRemovalSupportStanding, landRemovedDelegate, liftRemovedDelegate, settleDelegateRemoval,
+  delegateRemovalFlow, delegateRemovalSupportStanding, landExchangedDelegate, landRemovedDelegate, liftExchangedDelegate, liftRemovedDelegate,
+  settleDelegateRemoval,
 } from '@/client/console/parliament/delegateRemoval';
-import {flyRemovedDelegate} from '@/client/console/parliament/delegateRemovalScene';
+import {flyExchangedDelegate, flyRemovedDelegate} from '@/client/console/parliament/delegateRemovalScene';
 import {supportCursorOrder} from '@/client/console/parliament/supportPickModel';
 import {parliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 
@@ -204,6 +212,19 @@ export default defineComponent({
         translateTextWithParams('To the reserve of ${0}', [this.ownerName(r.owner)]) :
         translateText('To the common supply');
     },
+    /** AN EXCHANGE's arriving row: «Ваш делегат из резерва → на «R»». */
+    arriveLine(): string {
+      const r = this.reading;
+      if (r === undefined || r.arrives === undefined) {
+        return '';
+      }
+      const name = this.view.slots.find((slot) => slot.party === r.party)?.resolution?.text.name;
+      return translateTextWithParams('Your delegate from the reserve → onto «0»', [translateText(name ?? partyNameKey(r.party))]);
+    },
+    /** The pick EXCHANGES the figure (TR74) rather than removing it — the verbs follow the marker. */
+    exchange(): boolean {
+      return this.meta?.source === 'exchange';
+    },
     figure(): number {
       return delegateFigurePx(52);
     },
@@ -221,9 +242,9 @@ export default defineComponent({
     },
     ctaText(): string {
       if (parliamentFlow.delegateCommitted) {
-        return translateText(parliamentFlow.delegateBeat === 'done' ? 'Delegate removed' : 'Performing…');
+        return translateText(parliamentFlow.delegateBeat !== 'done' ? 'Performing…' : this.exchange ? 'Delegate recruited' : 'Delegate removed');
       }
-      return translateText(this.staged ? stagedDoorVerb(this.stagedFlow) : 'Remove delegate');
+      return translateText(this.staged ? stagedDoorVerb(this.stagedFlow) : this.exchange ? 'Recruit delegate' : 'Remove delegate');
     },
   },
   beforeUnmount() {
@@ -377,14 +398,44 @@ export default defineComponent({
             dropFlight(this.flight);
             this.flight = undefined;
           }
+          if (owed.exchange !== undefined) {
+            // AN EXCHANGE: the same phrase goes on at once — the player's own figure from the reserve onto the place.
+            this.flyArrival();
+            return;
+          }
           settleDelegateRemoval();
           this.afterFlight();
         },
-        onDegraded: (why) => {
-          delegateRemovalFlow.degraded = why;
-          console.warn(`[parliament] ${why} — settled without a flight`);
-        },
+        onDegraded: (why) => this.confess(why),
       });
+    },
+    /** THE EXCHANGE'S SECOND MOVE (TR74): the player's figure off their reserve stack, set down where the neutral one stood. */
+    flyArrival(): void {
+      const owed = delegateRemovalFlow.owed;
+      const root = parliamentRootEl();
+      if (owed === undefined || root === undefined) {
+        settleDelegateRemoval();
+        this.afterFlight();
+        return;
+      }
+      this.flight = flyExchangedDelegate(root, owed, {
+        onLifted: () => liftExchangedDelegate(),
+        onLanded: () => {
+          landExchangedDelegate();
+          if (this.flight !== undefined) {
+            dropFlight(this.flight);
+            this.flight = undefined;
+          }
+          settleDelegateRemoval();
+          this.afterFlight();
+        },
+        onDegraded: (why) => this.confess(why),
+      });
+    },
+    /** A flight that could not be measured — CONFESSED on the section root, then the figure simply lands. */
+    confess(why: string): void {
+      delegateRemovalFlow.degraded = why;
+      console.warn(`[parliament] ${why} — settled without a flight`);
     },
     /** The figure is home: the table without it is READ, then the flow ends by its own hand. */
     afterFlight(): void {

@@ -17,6 +17,11 @@
  *    plays freezes the table for good — then the table reads the server at once.
  *  · THE FLIGHT (`delegateRemovalScene.ts`) — «взял → понёс → поставил»: from its place on the ribbon / the plaque
  *    to its owner's reserve stack or the neutral supply on the bench.
+ *  · AN EXCHANGE (TR74 Recruitment — the record's `exchange.vote`) is ONE phrase of TWO moves: the neutral figure is
+ *    carried to the supply, then the player's own is taken off their reserve stack and set down on the SAME bill.
+ *    Two more holds keep the second figure honest: the bill does not draw it until it is SET DOWN (`arriving` —
+ *    released on its touchdown) and the reserve still counts it until it is TAKEN (`reserveStanding` — released on
+ *    its lift-off). The bill's count therefore reads n → n−1 (the neutral leaves) → n (mine lands).
  *
  * Pure + a reactive record: no DOM, no i18n, no timers.
  */
@@ -34,6 +39,10 @@ export const delegateRemovalFlow = reactive({
   standing: false,
   /** The destination does not count the figure yet (the touchdown releases it). */
   toDest: false,
+  /** AN EXCHANGE: the player's own figure is not on the bill yet (its touchdown releases it). */
+  arriving: false,
+  /** AN EXCHANGE: the player's own figure still stands in their reserve (its lift-off releases it). */
+  reserveStanding: false,
   /** Why the flight could not be flown (no measurable place) — '' when it flew. CONFESSED on the section root. */
   degraded: '',
   /** The last record this session has seen — a record is played once (an echo frame, a reload's first frame never replay it). */
@@ -69,6 +78,8 @@ export function seedDelegateRemovalHolds(before: PlayerViewModel | undefined, af
   delegateRemovalFlow.owed = record;
   delegateRemovalFlow.standing = true;
   delegateRemovalFlow.toDest = true;
+  delegateRemovalFlow.arriving = record.exchange !== undefined;
+  delegateRemovalFlow.reserveStanding = record.exchange !== undefined;
   delegateRemovalFlow.degraded = '';
 }
 
@@ -107,6 +118,34 @@ export function delegateRemovalPoolHeld(): number {
   return owed !== undefined && delegateRemovalFlow.toDest && owed.returnsTo === 'supply' ? 1 : 0;
 }
 
+/**
+ * AN EXCHANGE's arriving figure on the bill of `instance` — the vote the model already has and the ribbon must not
+ * draw yet (`{owner, seq}`), until the figure is set down. `undefined` outside an owed exchange.
+ */
+export function delegateExchangeArrival(instance: string): {owner: Color, seq: number} | undefined {
+  const owed = delegateRemovalFlow.owed;
+  if (owed === undefined || !delegateRemovalFlow.arriving || owed.exchange === undefined || owed.instance !== instance) {
+    return undefined;
+  }
+  return {owner: owed.player, seq: owed.exchange.vote};
+}
+
+/** A seat's reserve still counts the exchange's own figure (1 until it is taken off the stack). */
+export function delegateExchangeReserveStanding(color: Color): number {
+  const owed = delegateRemovalFlow.owed;
+  return owed !== undefined && delegateRemovalFlow.reserveStanding && owed.exchange !== undefined && owed.player === color ? 1 : 0;
+}
+
+/** The exchange's own figure LIFTED off the reserve stack: the reserve ticks. */
+export function liftExchangedDelegate(): void {
+  delegateRemovalFlow.reserveStanding = false;
+}
+
+/** The exchange's own figure LANDED on the bill: the ribbon draws it, the bill counts it. */
+export function landExchangedDelegate(): void {
+  delegateRemovalFlow.arriving = false;
+}
+
 /** The figure LIFTED off its place (the proxy stands over it): the place stops drawing it, the count ticks. */
 export function liftRemovedDelegate(): void {
   delegateRemovalFlow.standing = false;
@@ -122,4 +161,6 @@ export function settleDelegateRemoval(): void {
   delegateRemovalFlow.owed = undefined;
   delegateRemovalFlow.standing = false;
   delegateRemovalFlow.toDest = false;
+  delegateRemovalFlow.arriving = false;
+  delegateRemovalFlow.reserveStanding = false;
 }
