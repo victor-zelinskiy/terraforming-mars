@@ -4,11 +4,8 @@ import {testGame} from '../../TestGame';
 import {TestPlayer} from '../../TestPlayer';
 import {LunaTradeFederation} from '../../../src/server/cards/moon/LunaTradeFederation';
 import {MoonExpansion} from '../../../src/server/moon/MoonExpansion';
-// import {IMoonData} from '../../../src/server/moon/IMoonData';
-// import {fakeCard, runAllActions} from '../../TestingUtils';
 import {fakeCard, runAllActions} from '../../TestingUtils';
 import {Units} from '../../../src/common/Units';
-// import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
 import {Tag} from '../../../src/common/cards/Tag';
 
 describe('LunaTradeFederation', () => {
@@ -16,7 +13,6 @@ describe('LunaTradeFederation', () => {
   let player: TestPlayer;
   let player2: TestPlayer;
   let lunaTradeFederation: LunaTradeFederation;
-  // let moonData: IMoonData;
 
   beforeEach(() => {
     [game, player, player2] = testGame(2, {moonExpansion: true});
@@ -32,24 +28,6 @@ describe('LunaTradeFederation', () => {
     expect(player.canUseTitaniumAsMegacredits).is.true;
   });
 
-  // it('initialAction', () => {
-  //   player.playedCards.push(lunaTradeFederation);
-  //   player.production.override(Units.EMPTY);
-  //   expect(moonData.miningRate).eq(0);
-  //   expect(player.terraformRating).eq(20);
-
-  //   player.runInitialAction(lunaTradeFederation);
-
-  //   runAllActions(game);
-  //   const selectSpace = cast(player.popWaitingFor(), SelectSpace);
-  //   selectSpace.cb(moonData.moon.getSpaceOrThrow('m02'));
-  //   runAllActions(game);
-
-  //   expect(moonData.miningRate).eq(1);
-  //   expect(player.terraformRating).eq(21);
-  //   expect(player.production.asUnits()).deep.eq(Units.of({titanium: 1}));
-  // });
-
   it('onTilePlaced', () => {
     player.playedCards.push(lunaTradeFederation);
 
@@ -63,7 +41,6 @@ describe('LunaTradeFederation', () => {
     expect(player.production.asUnits()).deep.eq(Units.of({titanium: 1}));
 
     MoonExpansion.addMineTile(player2, 'm10');
-    // expect(player.production.asUnits()).deep.eq(Units.of({titanium: 2}));
     expect(player.production.asUnits()).deep.eq(Units.of({titanium: 1}));
   });
 
