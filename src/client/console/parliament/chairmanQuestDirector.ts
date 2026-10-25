@@ -214,6 +214,30 @@ function beatSeat(): void {
     return;
   }
   chairmanQuestFlow.beat = 'seat';
+  playChairHandover({
+    root, change, viewer: state.ctx.viewer, source: chairmanQuestFlow.seatSource,
+    beat: (ms, fn) => schedule(ms, fn),
+    onSeated: () => schedule(BEAT_GAP_MS, () => beatAgenda()),
+  });
+}
+
+/**
+ * THE OFFICE CHANGES HANDS — ONE phrase, shared by the quest's «ПРЕДСЕДАТЕЛЬСТВО» and a card that unseats the
+ * chairman (TR76 Vote Of No Confidence:redux, hosted by the hand — `agendaWalk.ts` `seat`). The outgoing delegate
+ * leaves the chair for its owner's reserve and the seat reads EMPTY from the moment it lifts off — then the new one
+ * leaves its own place and sits down («кресло освобождается первым»). The counters (the outgoing owner's reserve) tick
+ * on the touchdown, never on the packet that carried the change; the chair answers once, on the new cube's touchdown.
+ * `beat` is the caller's clock (its waits are the caller's to kill or hurry); `onSeated` fires after the landing.
+ */
+export function playChairHandover(opts: {
+  root: HTMLElement;
+  change: {from: Color | undefined, to: Color};
+  viewer: Color | undefined;
+  source: 'reserve' | 'lobby';
+  beat: (baseMs: number, fn: () => void) => void;
+  onSeated: () => void;
+}): void {
+  const {root, change, viewer, source, beat} = opts;
   const seat = chairRect(root);
   const outgoing = change.from;
   let lead = SEAT_LEAD_MS;
@@ -230,17 +254,17 @@ function beatSeat(): void {
   // The new delegate's place keeps PAINTING it (`sourceHold`) and keeps
   // SAYING its count (`sourceLeaving`) until it has visibly left.
   const color = change.to;
-  if (color === state.ctx.viewer) {
-    parliamentFlow.sourceHold = chairmanQuestFlow.seatSource;
-    parliamentFlow.sourceLeaving = chairmanQuestFlow.seatSource;
+  if (color === viewer) {
+    parliamentFlow.sourceHold = source;
+    parliamentFlow.sourceLeaving = source;
   }
-  const from = sourceRect(root, color, chairmanQuestFlow.seatSource);
+  const from = sourceRect(root, color, source);
   flyDelegate(color, from, seat, lead, () => {
     parliamentHolds.chairAwaits = undefined;
     pulseParliamentChair();
-    schedule(BEAT_GAP_MS, () => beatAgenda());
+    opts.onSeated();
   });
-  schedule(lead, () => {
+  beat(lead, () => {
     parliamentFlow.sourceHold = undefined;
     parliamentFlow.sourceLeaving = undefined;
   });

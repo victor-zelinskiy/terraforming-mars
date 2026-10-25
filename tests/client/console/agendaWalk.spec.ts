@@ -6,7 +6,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentAdvanceModel, ParliamentModel} from '@/common/models/ParliamentModel';
 import {markerTimings} from '@/client/console/hydroMarker/hydroMarkerModel';
 import {
-  agendaWalkBonuses, agendaWalkFlow, agendaWalkHostFor, answersPerRatingStep, agendaWalkLiveIn, agendaWalkOwedTo, agendaWalkReactions, detectAgendaWalk, dropAgendaWalkPromise,
+  agendaWalkBonuses, agendaWalkFlow, agendaWalkHostFor, agendaWalkSeatOf, answersPerRatingStep, agendaWalkLiveIn, agendaWalkOwedTo, agendaWalkReactions, detectAgendaWalk, dropAgendaWalkPromise,
   promiseAgendaWalk, questBeforeWalk, releaseAgendaWalkHolds, releaseAgendaWalkQuest, resetAgendaWalkFlow, seedAgendaWalkHolds,
 } from '@/client/console/parliament/agendaWalk';
 import {heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -25,10 +25,10 @@ import {abortBoardCardBonus, boardCardBonusState, resetBoardCardBonus} from '@/c
 import {drawnCardsState, reconcileDrawnCards} from '@/client/components/drawnCards/drawnCardsState';
 import {releaseInFlight} from '@/client/console/handDock/handDeliveryState';
 import {CardModel} from '@/common/models/CardModel';
-import {parliamentCrumbCommitted, parliamentCrumbStage, parliamentFlow, resetParliamentFlow} from '@/client/console/parliament/consoleParliamentFlow';
+import {parliamentCrumbCommitted, parliamentCrumbStage, parliamentFlow, resetParliamentFlow, WALK_SEAT_STAGE_KEY} from '@/client/console/parliament/consoleParliamentFlow';
 import {descendWorkspaceFrame, enterWorkspace, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
 import {agendaWalkForYouAnnotation, agendaWalkNextRows, agendaWalkWhy, agendaWalkWhyRow, branchHostsParliamentStep, heroRewardEffectsOf, nextRowText, playCommitVerb, playDoorOf, RowTranslator} from '@/client/console/consolePlayCardComposer';
-import {AGENDA_WALK_STEP_STAGE} from '@/client/console/consoleTaskRouter';
+import {AGENDA_WALK_SEAT_STEP_STAGE, AGENDA_WALK_STEP_STAGE} from '@/client/console/consoleTaskRouter';
 import {ActionPreviewBranch, AgendaWalkModel} from '@/common/models/ActionPreviewModel';
 import {thresholdBreakdown} from '@/common/parliament/resolutionCounts';
 
@@ -277,6 +277,46 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
       promiseAgendaWalk(CARD, 'hand');
       dropAgendaWalkPromise();
       expect(agendaWalkOwedTo('hand')).is.false;
+    });
+
+    describe('TR76 — the play took the CHAIR before its walk («КРЕСЛО» → «КАРЬЕРА»)', () => {
+      /** The same walk, with the chair passing from `from` (or nobody) to `to` in the very response. */
+      function seatPair(from: Color | undefined, to: Color | undefined) {
+        const {before, after} = pair();
+        (before.game.parliament as {chairman?: Color}).chairman = from;
+        (after.game.parliament as {chairman?: Color}).chairman = to;
+        return {before, after};
+      }
+      const seatOf = (from: Color | undefined, to: Color | undefined) => {
+        const {before, after} = seatPair(from, to);
+        return agendaWalkSeatOf(before, after);
+      };
+
+      it('a rival unseated for the viewer: the hand seeds the chair on its previous holder and the return of the outgoing delegate; the owed walk carries the seat', () => {
+        handDescended();
+        const {before, after} = seatPair(RED, BLUE);
+        expect(agendaWalkSeatOf(before, after)).deep.eq({from: RED, to: BLUE});
+        seedAgendaWalkHolds(before, after);
+        expect(agendaWalkFlow.owed?.seat).deep.eq({from: RED, to: BLUE});
+        expect(parliamentHolds.chairAwaits, 'the chair keeps its previous holder until the beat lifts the cube').deep.eq({from: RED, to: BLUE});
+        expect(parliamentHolds.returns.get(RED), 'the outgoing reserve keeps its old count until the touchdown').eq(1);
+        expect(parliamentHolds.agendaAwaits, 'the walk is held as before').deep.eq({player: BLUE, from: 1, to: 3});
+        releaseAgendaWalkHolds('unmount');
+        expect(parliamentHolds.chairAwaits).is.undefined;
+        expect(parliamentHolds.returns.has(RED)).is.false;
+      });
+
+      it('no seat beat: a chair taken from NOBODY, kept by the viewer, taken by a rival, or a Parliament standing on its own (its watcher plays only the walk)', () => {
+        expect(seatOf(undefined, BLUE), 'from an empty chair').is.undefined;
+        expect(seatOf(BLUE, BLUE), 'kept').is.undefined;
+        expect(seatOf(BLUE, RED), 'to a rival').is.undefined;
+        enterWorkspace('parliament', {anchor: {type: 'always'}});
+        const {before, after} = seatPair(RED, BLUE);
+        seedAgendaWalkHolds(before, after);
+        expect(agendaWalkFlow.owed?.host).eq('parliament');
+        expect(agendaWalkFlow.owed?.seat).is.undefined;
+        expect(parliamentHolds.chairAwaits).is.undefined;
+      });
     });
 
     it('RELEASE lets every hold go at once (the section unmounts, the motion is cut) and forgets the walk', () => {
@@ -625,6 +665,13 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
       expect(parliamentCrumbStage('', '')).eq('Agenda track');
       expect(parliamentCrumbStage('', '')).eq(AGENDA_WALK_STEP_STAGE);
       expect(parliamentCrumbCommitted()).is.true;
+    });
+
+    it('TR76 — a walk whose play took the chair names that beat first: «КРЕСЛО», the key the hosted frame is pushed with', () => {
+      parliamentFlow.stage = 'walk';
+      expect(parliamentCrumbStage('', '', WALK_SEAT_STAGE_KEY)).eq('Seat');
+      expect(WALK_SEAT_STAGE_KEY).eq(AGENDA_WALK_SEAT_STEP_STAGE);
+      expect(parliamentCrumbStage('', '', ''), 'once the delegate sits down').eq(AGENDA_WALK_STEP_STAGE);
     });
 
     it('the SHOW step is not a door: the CTA stays «Play card», the play submits as any other', () => {

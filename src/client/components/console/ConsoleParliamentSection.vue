@@ -266,7 +266,7 @@ import {
 import {influenceReadingOf} from '@/client/console/parliament/influenceReading';
 import {sittingRiseStood} from '@/client/console/parliament/sittingRise';
 import {
-  armDelegatePickFlow, armGrantVoteFlow, armSupportPickFlow, armBannerPickFlow, parliamentBannerUp, parliamentDelegateUp, consoleParliamentUi, notePlayedSittingStage, parliamentSupportUp, parliamentCrumbCommitted, parliamentCrumbStage, parliamentCrumbSubject, ParliamentStage,
+  armDelegatePickFlow, armGrantVoteFlow, armSupportPickFlow, armBannerPickFlow, parliamentBannerUp, parliamentDelegateUp, consoleParliamentUi, notePlayedSittingStage, parliamentSupportUp, parliamentCrumbCommitted, parliamentCrumbStage, parliamentCrumbSubject, WALK_SEAT_STAGE_KEY, ParliamentStage,
   parliamentFlow, parliamentSittingUp, parliamentStageKind, parliamentStageUp, parliamentVoteUp, pulseParliamentChair, resetParliamentFlow,
   setParliamentRootEl, sittingSessionKnown, sittingStagePlayed,
 } from '@/client/console/parliament/consoleParliamentFlow';
@@ -291,7 +291,7 @@ import {
   armChairmanQuestFlow, chairmanQuestFlow, chairmanQuestGateOf, chairmanQuestStageKey, releaseChairmanQuestHolds, resetChairmanQuestFlow,
 } from '@/client/console/parliament/consoleChairmanQuest';
 import {
-  chairmanQuestBeatActive, finishChairmanQuestBeats, killChairmanQuestBeats, noteChairmanQuestAnswer, startChairmanQuestBeats,
+  chairmanQuestBeatActive, finishChairmanQuestBeats, killChairmanQuestBeats, noteChairmanQuestAnswer, playChairHandover, startChairmanQuestBeats, CHAIRMAN_QUEST_BUDGET,
 } from '@/client/console/parliament/chairmanQuestDirector';
 import {SittingBeat, sittingBeats} from '@/client/console/parliament/sittingBeats';
 import {
@@ -435,6 +435,8 @@ export default defineComponent({
       /** «КАРЬЕРА»: the walk's animation hold (sized to the walk) and the read beat after the last landing. */
       walkHold: undefined as AnimationHold | undefined,
       walkReadBeat: undefined as ParliamentBeat | undefined,
+      /** «КРЕСЛО» (TR76): the seat beat's own waits — killed with the walk, fired at once by «дожать». */
+      walkSeatBeats: [] as Array<ParliamentBeat>,
       /** «ДЕЛЕГАТЫ»: the rally's animation hold (sized to its cubes and marks) and the phrase in flight. */
       rallyHold: undefined as AnimationHold | undefined,
       rallyHandle: undefined as NeutralRallyHandle | undefined,
@@ -1131,7 +1133,8 @@ export default defineComponent({
       return this.stackCrumb?.committed ?? this.crumbCommitted;
     },
     crumbStage(): string {
-      return parliamentCrumbStage(this.sittingTail, this.questTail);
+      // A card walk that took the chair first (TR76) names that beat «КРЕСЛО» before «КАРЬЕРА» — the quest's own words.
+      return parliamentCrumbStage(this.sittingTail, this.questTail, agendaWalkFlow.live && agendaWalkFlow.beat === 'seat' ? WALK_SEAT_STAGE_KEY : '');
     },
     /**
      * WHAT THIS FRAME PUBLISHES TO THE STACK'S CRUMB. Standalone, the mode is
@@ -2281,15 +2284,56 @@ export default defineComponent({
      * clock; the whole walk holds an animation hold sized to its steps.
      */
     openWalkFlow(): void {
-      this.startOwedWalk();
+      const seat = agendaWalkFlow.owed?.seat;
+      this.startOwedWalk(seat === undefined ? 'walk' : 'seat');
       parliamentFlow.zone = 'government';
+      if (seat !== undefined) {
+        // The new chairman's delegate leaves the RESERVE (printed «from the reserve»): its stack keeps painting it and
+        // saying its count from the first frame of the pose until it has visibly left (the handover clears both).
+        parliamentFlow.sourceHold = 'reserve';
+        parliamentFlow.sourceLeaving = 'reserve';
+      }
       this.openStage('walk');
-      void this.$nextTick(() => probeTick(() => this.playOwedWalk(() => this.endWalkFlow())));
+      void this.$nextTick(() => probeTick(() => (seat === undefined ?
+        this.playOwedWalk(() => this.endWalkFlow()) :
+        this.playWalkSeat(() => this.playOwedWalk(() => this.endWalkFlow())))));
+    },
+    /**
+     * «КРЕСЛО» (TR76 Vote Of No Confidence:redux) — the office the play took, BEFORE the walk it pays for (the quest's
+     * order: причина раньше следствия). The quest's own phrase (`playChairHandover`): the outgoing delegate goes home to
+     * its owner's reserve first, then the player's own leaves the reserve stack and sits down; the chair answers on the
+     * touchdown, and only then does the crumb's tail advance to «КАРЬЕРА» and the marker walk. The waits ride the
+     * hurriable clock (A = «дожать»); a section with nothing to measure lets the beat go and walks at once.
+     */
+    playWalkSeat(onSeated: () => void): void {
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const seat = agendaWalkFlow.owed?.seat;
+      const beat = (ms: number, fn: () => void): void => {
+        this.walkSeatBeats.push(scheduleHurriedParliamentBeat(ms, fn));
+      };
+      const seated = (): void => {
+        if (!agendaWalkFlow.live) {
+          return;
+        }
+        agendaWalkFlow.beat = 'walk';
+        beat(CHAIRMAN_QUEST_BUDGET.gap, onSeated);
+      };
+      if (root === undefined || seat === undefined || !agendaWalkFlow.live) {
+        parliamentHolds.chairAwaits = undefined;
+        parliamentFlow.sourceHold = undefined;
+        parliamentFlow.sourceLeaving = undefined;
+        seated();
+        return;
+      }
+      this.walkHold?.release();
+      this.walkHold = beginAnimationHold('parliament-agenda-walk', {maxHoldMs: agendaWalkHoldMs(agendaWalkFlow.owed!) + CHAIRMAN_QUEST_BUDGET.seat + CHAIRMAN_QUEST_BUDGET.gap});
+      setParliamentFlightsHurried(false);
+      playChairHandover({root, change: seat, viewer: this.viewerColor, source: 'reserve', beat, onSeated: seated});
     },
     /** The walk the answer carried becomes the section's subject (the band grows its chips, the conclusion reads it live). */
-    startOwedWalk(): void {
+    startOwedWalk(beat: 'seat' | 'walk' = 'walk'): void {
       agendaWalkFlow.live = true;
-      agendaWalkFlow.beat = 'walk';
+      agendaWalkFlow.beat = beat;
       agendaWalkFlow.landed = [];
     },
     /**
@@ -2367,6 +2411,9 @@ export default defineComponent({
     /** The owed walk is over: its hold lets go, its read beat is cut, the flow reads «done». */
     finishOwedWalk(): void {
       setParliamentFlightsHurried(false);
+      for (const beat of this.walkSeatBeats.splice(0)) {
+        beat.kill();
+      }
       this.walkReadBeat?.kill();
       this.walkReadBeat = undefined;
       this.walkHold?.release();

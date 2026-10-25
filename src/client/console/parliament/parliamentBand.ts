@@ -334,6 +334,11 @@ export type BandQuest = {
  */
 export type BandWalk = {
   player: Color;
+  /**
+   * The CHAIR the same play took first (TR76 Vote Of No Confidence:redux): whose delegate left it, and `beat` —
+   * `seat` while the office changes hands («КРЕСЛО»), `walk` once the delegate has sat down («КАРЬЕРА»).
+   */
+  seat?: {from: Color, beat: 'seat' | 'walk'};
   landed: ReadonlyArray<{to: number, bonus?: 'tr' | 'card', level?: number, vetoed?: true, influence?: InfluenceReading}>;
 };
 
@@ -465,14 +470,32 @@ export function parliamentBandLine(ctx: BandContext): BandLine {
  * re-crossfaded the unchanged line on every landing.
  */
 function walkLine(walk: BandWalk): BandLine {
+  const seat = walk.seat;
+  if (seat !== undefined) {
+    // «[X] покидает кресло · [вы] в кресле» — one phrase for the office, then the walk's steps after it on the same line.
+    const chips: Array<BandChip> = [
+      {kind: 'player', player: seat.from}, {kind: 'label', key: 'leaves the chair', tone: 'quiet'},
+      {kind: 'player', player: walk.player}, {kind: 'label', key: 'in the chair', tone: 'quiet'},
+    ];
+    for (const step of walk.landed) {
+      chips.push(walkStepChip(step));
+    }
+    // Keyed on the beat: the kicker «КРЕСЛО» → «КАРЬЕРА» crossfades the line ONCE, the steps then grow in place.
+    return {kicker: seat.beat === 'seat' ? 'Seat' : 'Agenda track', key: `walk:${walk.player}:${seat.beat}`, chips, committed: true};
+  }
   const chips: Array<BandChip> = [{kind: 'player', player: walk.player}];
   for (const step of walk.landed) {
-    chips.push({
-      kind: 'agenda', to: step.to, ...(step.level === undefined ? {} : {level: step.level}), ...(step.bonus === undefined ? {} : {bonus: step.bonus}),
-      ...(step.vetoed === true ? {vetoed: true as const} : {}), ...(step.influence === undefined ? {} : {influence: step.influence}),
-    });
+    chips.push(walkStepChip(step));
   }
   return {kicker: 'Agenda track', key: `walk:${walk.player}`, chips, committed: true};
+}
+
+/** One LANDED step of a walk as its chip — an influence step with the level it set, a paying step with its bonus. */
+function walkStepChip(step: BandWalk['landed'][number]): BandChip {
+  return {
+    kind: 'agenda', to: step.to, ...(step.level === undefined ? {} : {level: step.level}), ...(step.bonus === undefined ? {} : {bonus: step.bonus}),
+    ...(step.vetoed === true ? {vetoed: true as const} : {}), ...(step.influence === undefined ? {} : {influence: step.influence}),
+  };
 }
 
 /**

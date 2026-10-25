@@ -1974,7 +1974,7 @@ import {resetRevealHandoff} from '@/client/console/revealHandoff';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 import {generationSceneState, resetGenerationScene} from '@/client/console/generationScene/generationScene';
 import {openRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
-import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, DELEGATE_GRANT_STEP_STAGE, AGENDA_WALK_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE, partyStepStageOf} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, promptOutranksStartScene, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow, DELEGATE_GRANT_STEP_STAGE, AGENDA_WALK_STEP_STAGE, AGENDA_WALK_SEAT_STEP_STAGE, NEUTRAL_RALLY_STEP_STAGE, partyStepStageOf} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
 import ConsoleBotAttack from '@/client/components/console/ConsoleBotAttack.vue';
@@ -22010,7 +22010,8 @@ export default defineComponent({
     /** The hosted step's frame already stands on the hand (entered from the commit, or the late road) — never twice. */
     hostedStepEntered(): boolean {
       const stage = workspaceFrameKnown('parliament') ? workspaceFrameStage('parliament') : '';
-      return workspaceFrameHost('parliament') === 'hand' && (stage === AGENDA_WALK_STEP_STAGE || stage === NEUTRAL_RALLY_STEP_STAGE);
+      return workspaceFrameHost('parliament') === 'hand' &&
+        (stage === AGENDA_WALK_STEP_STAGE || stage === AGENDA_WALK_SEAT_STEP_STAGE || stage === NEUTRAL_RALLY_STEP_STAGE);
     },
     async enterHostedParliamentStep(kind: HostedParliamentStepKind): Promise<void> {
       // ONE entrance for both hosted outcomes (TR04's walk, TR31's rally): the record owed to the hand, not yet live.
@@ -22023,7 +22024,8 @@ export default defineComponent({
       pushWorkspaceFrame({
         kind: 'parliament',
         subject: '',
-        stage: kind === 'walk' ? AGENDA_WALK_STEP_STAGE : NEUTRAL_RALLY_STEP_STAGE,
+        // A walk whose play took the CHAIR first (TR76) opens on that beat — «КРЕСЛО», then «КАРЬЕРА» (the section's crumb).
+        stage: kind === 'walk' ? (agendaWalkFlow.owed?.seat === undefined ? AGENDA_WALK_STEP_STAGE : AGENDA_WALK_SEAT_STEP_STAGE) : NEUTRAL_RALLY_STEP_STAGE,
         phase: 'executing',
         serves: [],
         anchor: {type: 'always'},

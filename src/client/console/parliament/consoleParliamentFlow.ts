@@ -553,7 +553,7 @@ export function parliamentCrumbSubject(questLive = false): string {
  * STAGE the sitting publishes (`sittingTail` — verdict, enactment, reward, a
  * hosted choice / take / placement, renewal, closing).
  */
-export function parliamentCrumbStage(sittingTail: string, questTail = ''): string {
+export function parliamentCrumbStage(sittingTail: string, questTail = '', walkTail = ''): string {
   const stage = parliamentFlow.stage === 'submitting' ? parliamentFlow.stageBeforeSubmit : parliamentFlow.stage;
   switch (stage) {
   case 'paying': return 'Payment';
@@ -561,7 +561,8 @@ export function parliamentCrumbStage(sittingTail: string, questTail = ''): strin
   case 'sitting': return sittingTail;
   case 'quest': return questTail;
   // A card's walk: the track's own name is the stage («КАРЬЕРА»), the same key the tier's kicker prints.
-  case 'walk': return AGENDA_WALK_STAGE_KEY;
+  // …unless the same play took the CHAIR first (TR76): that beat is «КРЕСЛО» (`walkTail`), the walk's after it.
+  case 'walk': return walkTail !== '' ? walkTail : AGENDA_WALK_STAGE_KEY;
   // A card's rally of neutral delegates (TR31): one word, «ДЕЛЕГАТЫ» — the same key the hosted frame is pushed with.
   case 'rally': return NEUTRAL_RALLY_STAGE_KEY;
   case 'access': return 'Party effect';
@@ -571,6 +572,11 @@ export function parliamentCrumbStage(sittingTail: string, questTail = ''): strin
 
 /** The crumb tail of a card's walk of the Agenda track — the track's own name (the tier's kicker, the band's). */
 export const AGENDA_WALK_STAGE_KEY = 'Agenda track';
+/**
+ * The crumb tail of the CHAIR a card took before its walk (TR76 Vote Of No Confidence:redux) — «КРЕСЛО», the glossary's
+ * word for the office's step (§4), the same key the seat pick prints.
+ */
+export const WALK_SEAT_STAGE_KEY = 'Seat';
 /** The crumb tail of a card's rally of neutral delegates (TR31) — one word; the band's kicker is «Neutral delegates». */
 export const NEUTRAL_RALLY_STAGE_KEY = 'Delegates';
 

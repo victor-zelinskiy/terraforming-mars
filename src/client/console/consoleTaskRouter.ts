@@ -379,6 +379,13 @@ export function partyStepStageOf(prompt: PlayerInputModel | undefined): string {
 export const AGENDA_WALK_STEP_STAGE = 'Agenda track';
 
 /**
+ * …and its FIRST beat when the same play took the CHAIR (TR76 Vote Of No Confidence:redux — «remove the current
+ * Chairman, seat your own from the reserve, advance 1 step»): «КРЕСЛО», the glossary's word for the office's step (§4).
+ * The section's crumb advances it to `AGENDA_WALK_STEP_STAGE` once the delegate has sat down.
+ */
+export const AGENDA_WALK_SEAT_STEP_STAGE = 'Seat';
+
+/**
  * …and of a hosted RALLY OF NEUTRAL DELEGATES (Turmoil Redux TR31 Nationalist
  * Movement — a card that places neutral cubes by being played): «ДЕЛЕГАТЫ»,
  * one word (owner's decision 3) — the stage, never an echo of the root's noun

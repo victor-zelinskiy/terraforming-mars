@@ -286,8 +286,10 @@ export default defineComponent({
         return undefined;
       }
       const player = flow.owed.player;
+      const seat = flow.owed.seat;
       return {
         player,
+        ...(seat === undefined ? {} : {seat: {from: seat.from, beat: flow.beat === 'seat' ? 'seat' as const : 'walk' as const}}),
         landed: flow.landed.map((step) => step.bonus === undefined ?
           {to: step.to, level: influenceAtAgenda(step.to), ...this.influenceOn(player, step.to)} : {to: step.to, bonus: step.bonus}),
       };

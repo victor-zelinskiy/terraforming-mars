@@ -119,6 +119,18 @@ describe('parliamentBand — the reading band says the REASON, in objects', () =
       expect(new Set([none.key, one.key, two.key]).size,
         'the line stands for the whole walk — a landing grows a chip, never re-crossfades the line (PL-119)').eq(1);
     });
+    it('TR76 — the play took the CHAIR first: «КРЕСЛО» with «[X] покидает кресло · [вы] в кресле», then «КАРЬЕРА» growing its steps — one crossfade between', () => {
+      const seat = parliamentBandLine({standing: {votes: 0}, walk: {player: BLUE, seat: {from: RED, beat: 'seat'}, landed: []}});
+      expect(seat.kicker).eq('Seat');
+      expect(seat.chips).deep.eq([
+        {kind: 'player', player: RED}, {kind: 'label', key: 'leaves the chair', tone: 'quiet'},
+        {kind: 'player', player: BLUE}, {kind: 'label', key: 'in the chair', tone: 'quiet'},
+      ]);
+      const walked = parliamentBandLine({standing: {votes: 0}, walk: {player: BLUE, seat: {from: RED, beat: 'walk'}, landed: [{to: 2, bonus: 'tr'}]}});
+      expect(walked.kicker).eq('Agenda track');
+      expect(walked.chips[4]).deep.eq({kind: 'agenda', to: 2, bonus: 'tr'});
+      expect(seat.key, 'the beat change crossfades the line once').not.eq(walked.key);
+    });
     it('«ДЕЛЕГАТЫ» (TR31) outranks the overview the same way: the neutral cube, the landed votes, the read areas, the count', () => {
       const rally = parliamentBandLine({standing: {votes: 2, player: RED, resolution: {resolution: ARCHITECTURE, party: PartyName.MARS}}, rally: {votes: [{resolution: ARCHITECTURE, party: PartyName.MARS}], support: [{party: PartyName.REDS, gained: 0, limit: 'supply'}], counted: 11}});
       expect(rally.kicker).eq('Neutral delegates');

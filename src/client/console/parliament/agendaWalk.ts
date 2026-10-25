@@ -48,6 +48,7 @@ import {verifyRailReward} from '@/client/console/resourceTransfer/railReward';
 import {parliamentHolds} from './parliamentDisplayHolds';
 import {buildParliamentView, ParliamentQuestVm} from './consoleParliamentModel';
 import {AgendaBonusOwed, flushAgendaBonus, queueAgendaBonuses, RATING_RAIL_KEY} from './parliamentRewardBeat';
+import {detectChairmanChange} from './consoleChairmanQuest';
 
 /**
  * THE TABLE'S ANSWER to the walk's TR step, promised at the press (PL-002):
@@ -74,15 +75,27 @@ export type AgendaWalkRecord = {
   steps: ReadonlyArray<AgendaAdvanceStep>;
 };
 
+/**
+ * THE OFFICE THE SAME PLAY TOOK, before the walk it pays for (TR76 Vote Of No Confidence:redux — «remove the current
+ * Chairman and move your own delegate (from the reserve) there instead. Advance your Agenda marker 1 step»): the
+ * chair changed hands to the VIEWER in the very response that carried the viewer's card walk. Read off the two views
+ * (`detectChairmanChange` — the quest's own detector), never off the card's name: any play that seats the player and
+ * walks the marker is this one phrase, «КРЕСЛО» then «КАРЬЕРА» (the quest's order — the office before its reward).
+ */
+export type AgendaWalkSeat = {from: Color, to: Color};
+
 /** The walk the answer carried for the viewer's own card, and who is to play it. */
 export type OwedAgendaWalk = AgendaWalkRecord & {
   seq: number;
   card: CardName | undefined;
   generation: number;
   host: AgendaWalkHost;
+  /** The chair the same play took — its beat («КРЕСЛО») plays before the walk's. */
+  seat?: AgendaWalkSeat;
 };
 
-export type AgendaWalkBeat = '' | 'walk' | 'read' | 'done';
+/** `seat` — the office changes hands (the beat before the walk, only when the play took the chair). */
+export type AgendaWalkBeat = '' | 'seat' | 'walk' | 'read' | 'done';
 
 export const agendaWalkFlow = reactive({
   /**
@@ -267,15 +280,38 @@ export function seedAgendaWalkHolds(before: PlayerViewModel | undefined, after: 
     return;
   }
   const record: AgendaWalkRecord = {player: advance.player, from: advance.from, to: advance.to, steps: advance.steps};
+  // The КРЕСЛО beat is the HAND's step (the walk pose plays it before the walk); a Parliament standing on its own glides
+  // the record with its tier's watcher and shows the new chairman as the view does — nothing would consume a seat hold.
+  const seat = host === 'hand' ? agendaWalkSeatOf(before, after) : undefined;
   flushAgendaBonus('re-seed');
+  if (seat !== undefined) {
+    // The chair keeps its previous holder until the КРЕСЛО beat lifts the cube off it, and the outgoing owner's
+    // reserve keeps its old count until the cube touches it — the quest's own holds (`seedChairmanQuestHolds`).
+    parliamentHolds.chairAwaits = seat;
+    parliamentHolds.returns.set(seat.from, (parliamentHolds.returns.get(seat.from) ?? 0) + 1);
+  }
   parliamentHolds.agendaAwaits = {player: record.player, from: record.from, to: record.to};
   queueAgendaBonuses(agendaWalkBonuses(record, after.game.generation, agendaWalkReactions(record, rail, before, after)));
   // …and the chairman quest a step's TR moved keeps its old face until the walk's rewards have landed.
   parliamentHolds.questWalkBefore = questBeforeWalk(before, after);
-  agendaWalkFlow.owed = {...record, seq: advance.seq, card: advance.card, generation: after.game.generation, host};
+  agendaWalkFlow.owed = {...record, seq: advance.seq, card: advance.card, generation: after.game.generation, host, ...(seat === undefined ? {} : {seat})};
   agendaWalkFlow.live = false;
   agendaWalkFlow.beat = '';
   agendaWalkFlow.landed = [];
+}
+
+/**
+ * THE SEAT THE WALK'S PLAY TOOK (pure): the chair passed from ANOTHER seat to the viewer in this response — the walk's
+ * owner (`detectAgendaWalk` already proved the walk is the viewer's own card). A chair taken from nobody (never by the
+ * printed «remove the current Chairman») or kept by the viewer is no beat.
+ */
+export function agendaWalkSeatOf(before: PlayerViewModel | undefined, after: PlayerViewModel): AgendaWalkSeat | undefined {
+  const change = detectChairmanChange(before, after);
+  const viewer = after.thisPlayer?.color;
+  if (change === undefined || change.from === undefined || viewer === undefined || change.to !== viewer) {
+    return undefined;
+  }
+  return {from: change.from, to: change.to};
 }
 
 /**
@@ -307,8 +343,13 @@ export function releaseAgendaWalkQuest(): void {
 
 /** Every hold this flow seeded, released at once (the flow ends, the section unmounts, the motion is cut). */
 export function releaseAgendaWalkHolds(why: string): void {
+  const seat = agendaWalkFlow.owed?.seat;
   if (agendaWalkFlow.owed !== undefined) {
     parliamentHolds.agendaAwaits = undefined;
+  }
+  if (seat !== undefined) {
+    parliamentHolds.chairAwaits = undefined;
+    parliamentHolds.returns.delete(seat.from);
   }
   releaseAgendaWalkQuest();
   flushAgendaBonus(why);
