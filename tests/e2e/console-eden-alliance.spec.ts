@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {bootFixtureSeats, fetchPlayerModel, focusCard, press, pressUntil, settle, waitForBoardHome} from './consoleStart';
-import {armLeakWitness, enterSittingByPass, openParliament, strandedReports, waitSittingAtRest} from './parliamentDrive';
+import {armLeakWitness, awaitSittingUp, enterSittingByPass, openParliament, passAs, strandedReports, waitSittingAtRest} from './parliamentDrive';
 import {armTransferWitness, endsOverGlass, transferTrail, transferWitness} from './transferWitness';
 
 /**
@@ -203,6 +203,47 @@ for (const preset of PRESETS) {
       await expect.poll(() => page.locator('.con-res .con-score__cell--tr .con-score__value').first().textContent().then((s) => (s ?? '').trim()), {timeout: 20_000})
         .toBe(String(tr + 1));
       expect(await strandedReports(page)).toEqual([]);
+    });
+
+    /* THE FIELD CASE (2026-10-24 / 25): blue has PASSED and red's pass is the last, so the whole sitting reaches blue's
+     * screen by the poll / the socket — no scene rises, the PLATE is the only door in. The rating owed to the enactment's
+     * tail was a BLOCKING claim from the seed, the plate waits for a free foreground: ~22 s of an empty board, then
+     * «the foreground claimed to be busy with NOTHING rendered — expired animation:ruling-change-rating-owed». The claim
+     * now stands only with the stage: the plate comes up at once, and the rating still flies at the enactment's tail. */
+    test(`C: red passes LAST — the sitting arrives by the poll, the plate comes up at once, the rating still flies from Unity's seal (${preset.id})`, async ({page, request}) => {
+      test.setTimeout(420_000);
+      const warns: Array<string> = [];
+      page.on('console', (m) => {
+        const text = m.text();
+        if (/\[console-foreground-watchdog\]|\[ruling-change-draw\]|force-released by the safety ceiling/.test(text)) {
+          warns.push(text.slice(0, 260));
+        }
+      });
+      const {playerId, seats} = await bootFixtureSeats(page, request, 'eden-alliance-enact-remote', {query: preset.query});
+      const before = await wireOf(request, playerId);
+      const tr = before.thisPlayer.terraformRating;
+      await settle(page);
+      await armTransferWitness(page);
+      const passedAt = Date.now();
+      await passAs(request, seats[1]);
+      await awaitSittingUp(page);
+      const upMs = Date.now() - passedAt;
+      console.log(`[TR63 remote ${preset.id}] red's pass → the Parliament stands: ${upMs} ms`);
+      expect(upMs, 'the plate came up and opened the sitting — no wait on a hold its stage would release').toBeLessThan(15_000);
+      await expect.poll(async () => (await transferWitness(page)).landings.some((l) => l.under === 'rail:tr'), {timeout: 60_000, message: 'the rating token landed'})
+        .toBe(true);
+      const witness = await transferWitness(page);
+      const born = witness.births.find((b) => b.under === `seal:${UNITY}`);
+      expect(born, `the rating token is born on Unity's seal:
+${transferTrail(witness)}`).toBeDefined();
+      await waitSittingAtRest(page, 30_000);
+      const after = await wireOf(request, playerId);
+      expect(after.thisPlayer.terraformRating, 'the server: ONE rating for the change of power').toBe(tr + 1);
+      await expect.poll(() => page.locator('.con-res .con-score__cell--tr .con-score__value').first().textContent().then((t) => (t ?? '').trim()), {timeout: 20_000})
+        .toBe(String(tr + 1));
+      expect(warns, 'no watchdog recovery, no untold enactment, no ceiling').toEqual([]);
+      expect(await strandedReports(page)).toEqual([]);
+      await shoot(page, preset.id, '04-enact-remote');
     });
   });
 }

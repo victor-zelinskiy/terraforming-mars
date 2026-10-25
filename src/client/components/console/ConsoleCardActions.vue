@@ -402,7 +402,7 @@ import type {ICardRenderEffect} from '@/common/cards/render/Types';
 import {actionPreviewFingerprint, actionPreviewMap, branchOutcomeClaimPlan, ensureActionPreviews, ledgerDraws, politicalActionPreviewOf, previewBranchByIndex} from '@/client/console/actionPreviewStore';
 import {actionCommitRailState, armedRailLandsOnRow} from '@/client/console/consoleActionCommitRail';
 import {railRewardPending} from '@/client/console/resourceTransfer/railReward';
-import {discardExchangeRailKey} from '@/client/console/parliament/discardExchangeBeat';
+import {discardExchangeRailKey, releaseDiscardExchange} from '@/client/console/parliament/discardExchangeBeat';
 import {gameStateVersion} from '@/client/console/gameStateVersion';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {paths} from '@/common/app/paths';
@@ -1817,6 +1817,8 @@ export default defineComponent({
     // (Frames merely YIELDED to the board — a staged cell of a play made in this stage, RX36 — come back on B: their
     // drafts stay; the staged success drops them with the stack.)
     if (!this.repeat && !workspaceFrameKnown('card-actions') && !stackYieldedToBoard()) {
+      // …and a payout seeded for this composer and not flown yet: its one flyer is leaving for good — the rows tick now.
+      releaseDiscardExchange(consoleCardActionsUi.draft?.cardName, 'composer-closed');
       consoleCardActionsUi.draft = undefined;
       // …and a payout it awaited goes with it (a park keeps it: the remount pays the answer that landed meanwhile).
       consoleCardActionsUi.payoutAwaited = false;

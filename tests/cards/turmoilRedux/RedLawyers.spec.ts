@@ -171,7 +171,7 @@ describe('RedLawyers', () => {
       expect(t.p1.cardsInHand.length, 'the hand grew by the card step\'s card (the played card left it)').eq(hand - 1 + 1);
       const drawn = t.p1.cardDrawReveals.slice(reveals);
       expect(drawn, 'ONE reveal batch, the Agenda\'s own source').has.lengthOf(1);
-      expect(drawn[0].source).deep.eq({type: 'agenda'});
+      expect(drawn[0].source, 'named by the step whose bonus drew it').deep.eq({type: 'agenda', step: 7});
       expect(drawn[0].cards).has.lengthOf(1);
       expect(t.p1.megaCredits, '20 − 5 for the card; no TR step, so nothing from the Greens').eq(15);
       expect([...t.p1.tableau].map((c) => c.name)).includes(CardName.RED_LAWYERS);
@@ -192,7 +192,7 @@ describe('RedLawyers', () => {
       expect(t.parliament.agendaOf(t.p1)).eq(7);
       expect(t.p1.terraformRating).eq(tr + 1);
       expect(t.p1.cardsInHand.length).eq(hand);
-      expect(t.p1.cardDrawReveals.at(-1)?.source).deep.eq({type: 'agenda'});
+      expect(t.p1.cardDrawReveals.at(-1)?.source).deep.eq({type: 'agenda', step: 7});
       expect(t.p1.megaCredits, '20 − 5 for the card + 2 from the Greens for the TR').eq(17);
       expect(t.parliament.lastAdvance?.steps).deep.eq([{to: 6, bonus: 'tr'}, {to: 7, bonus: 'card'}]);
       expect(walkLines(t.game, at)).deep.eq([ADVANCE, TR_LINE, ADVANCE, DRAW_LINE]);

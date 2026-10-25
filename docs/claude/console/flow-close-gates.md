@@ -313,7 +313,50 @@ two that MATCH it (a board-home freeze ending near a 35 s ceiling, with both
 chips stale), and every recovery now names itself, so a recurrence carries its
 own diagnosis.
 
+## Iteration 7 (2026-10-25 — a hold whose CONSUMER is not standing, a ghost verdict read once, a park read over the wrong batch)
+
+Field exports of 2026-10-24 and 2026-10-25 (TV, LAN two humans + MarsBot, Turmoil Redux): «экран завис» in four
+shapes, each a wait whose release edge could not come. One class behind all four: **a wait owned by a surface that is
+not on screen, or read over facts that are not its own.**
+
+1. **A blocking hold seeded for a stage that is not standing deadlocks the plate that opens it.** When another seat
+   passes last, the whole sitting arrives by poll / WS and the plate is the only door in; the plate's first appearance
+   waits for a free foreground. `ruling-change-rating-owed` (TR63 Eden / TR64 Promethean — the alliance's TR at the
+   enactment's tail) and `parliament-table-receipt` (RX40) were BLOCKING from the seed, so the plate waited for the
+   rating and the rating for the stage the plate opens: ~22 s of an empty board, then the foreground watchdog, then
+   «the sitting 9:9 never told its enactment». Both now claim the foreground only while their consumer stands
+   (`rulingRatingClaimsForeground` / `tableReceiptClaimsForeground` — the stage, or the delivery / receipt already on
+   screen; the parliament ledger's `awaitingStage` law), and a sitting no stage will tell releases them honestly
+   (`releaseOrphanRulingRatings` on the phase's end, the section's unmount and the park's net; `releaseUntoldRulingRatings`
+   on a re-read / an enactment already told; `releaseOrphanTableReceipts` on the phase's end).
+2. **The stall net read its ghost verdict ONCE, against a clock that started at the first owe — with a hand copy of the
+   conclusion's holds.** The Reds' «draw 2, discard» owes the conclusion from the draw's take; the player spent 16 s
+   in the album; the answer ended the turn; in that very flush the net read «8 s owed, nothing served» — its copy of
+   the holds had no `payout` — and tore «Действия карт» down under the payout the answer had just seeded. The rail
+   then held `discard-exchange:PARTY_Reds` (phase `held` — never flown) to the 35 s ceiling. Now: `stuckWorkspaceIsGhost`
+   carries the card composer's own holds (discard owed · payout awaited / held · colony ledger · law step), the force
+   needs the ghost verdict CONTINUOUSLY for `OWED_CONCLUSION_GHOST_CONFIRM_MS` (2.5 s) on top of the 8 s, and the payout
+   is released by the owner that leaves (`releaseDiscardExchange` — the composer's genuine close, the net's teardown).
+3. **A card step's park was read over ANY card step of the walk.** TR42 at TR 45 walks ⑥ TR · ⑦ CARD · ⑧ · ⑨ TR · ⑩
+   CARD; ⑩'s unlifted entry kept ⑦'s batch parked while ⑦'s cover lifted — the scene had no slot to land in, degraded,
+   no «Взять» was offered, and the walk waited for a touchdown that could not come (the Parliament frozen inside the
+   hand; the case read «the last action of the turn» only because the field play happened to be one). The server names
+   the step on the batch (`CardDrawRevealSource {type: 'agenda', step}`), and the park, the delivery, the scene's match
+   and the layer's self-arm all read it. A LIFTED card step whose batch no longer stands before the player is held
+   again by the ledger (`parliamentAgendaBonusHeld`), so the registry's ceiling bounds it — it was the one entry with no
+   net at all.
+
+Should the turn wait for the step cards to be taken? No: the draw is instant and asks nothing; holding the turn for a
+presentation would be a rules change. The presentation is the client's and must finish whatever the server does next.
+
 ## Guards
+
+Iteration 7: `partyAlliance.spec` § the rating claims the foreground only while its consumer stands,
+`SponsoredProjectsReadings.spec` § a receipt claims the foreground only while the stage stands,
+`tests/console/discardExchangeBeat.spec.ts` § releaseDiscardExchange, `agendaWalk.spec` § TWO card steps / a LIFTED
+card step, `parliamentRewardBeat.spec` § A CARD STEP'S COVER LIFTS, `RedLawyers.spec` (the step on the source); e2e
+`console-green-allegiance` § the field walk (`green-allegiance-field`: TR 45 from ⑤, two card steps, the turn's last
+action).
 
 `tests/client/components/console/consoleHydroFlow.spec.ts` § the flow-close
 witnesses (lying/heal semantics, install/uninstall), `consoleHydroMarker.spec`

@@ -1047,7 +1047,8 @@ finaleRichFixture('finale-rich-2p', 2);
 /** `seats` is EVERY seat in generation order; `p1` / `p2` are its first two, named for the two-seat tables most fixtures are. */
 type ParliamentTable = {game: IGame; p1: TestPlayer; p2: TestPlayer; seats: ReadonlyArray<TestPlayer>; parliament: Parliament};
 
-type ParliamentStop = 'vote' | 'pass' | 'effects' | 'close' | 'done';
+/** `pass-other`: the VIEWER has passed and the other seat's pass is the last — the sitting reaches the viewer by the poll / the socket. */
+type ParliamentStop = 'vote' | 'pass' | 'pass-other' | 'effects' | 'close' | 'done';
 
 /**
  * ONE PASS AWAY (the `pass` stop): every seat but the first of the generation order passes; that seat — the one the
@@ -1274,6 +1275,12 @@ function parliamentFixture(name: string, spec: ParliamentFixtureSpec): Parliamen
   runAllActions(game);
   if (spec.stopAt === 'pass') {
     passAllButViewer(game, name);
+  } else if (spec.stopAt === 'pass-other') {
+    passTheViewer(game);
+    const last = game.playersInGenerationOrder.find((p) => p !== viewerOf(game) && p.isMarsBot !== true);
+    if (game.phase !== Phase.ACTION || game.parliament?.phase !== undefined || last === undefined || !(last.getWaitingFor() instanceof OrOptions)) {
+      throw new Error(`${name}: expected the viewer passed and the other seat one pass away from the sitting, got ${game.phase} / ${last?.getWaitingFor()?.type ?? 'no menu'}`);
+    }
   } else if (spec.stopAt !== 'vote') {
     passToParliament(game);
   }
@@ -1957,7 +1964,7 @@ parliamentFixture('plasma-fans-play', {
 //    ordinary play, the zero NAMED; `-long` TR 45 on step 0 → the longest walk of the set (five steps, two TR answers).
 //    Red sits at TERACTOR (its Earth discount is red's own — blue pays the printed 2), blue at Thorgate, both without a
 //    first action. The dry run plays the card for real on a copy: the record the console will play, step by step. ──
-function greenAllegianceFixture(name: string, rating: number, from: number, steps: ReadonlyArray<{to: number, bonus?: 'tr' | 'card'}>): void {
+function greenAllegianceFixture(name: string, rating: number, from: number, steps: ReadonlyArray<{to: number, bonus?: 'tr' | 'card'}>, opts: {actionsTaken?: number} = {}): void {
   parliamentFixture(name, {
     stopAt: 'vote',
     megacredits: [10, 30],
@@ -1968,6 +1975,10 @@ function greenAllegianceFixture(name: string, rating: number, from: number, step
       seatResolution(parliament, 1, quietResolutionOf(PartyName.SCIENTISTS));
       seatResolution(parliament, 2, quietResolutionOf(PartyName.MARS));
       p1.setTerraformRating(rating);
+      if (opts.actionsTaken !== undefined) {
+        // The loader re-primes the menu from the counter: the play is the turn's LAST action, the turn passes to red.
+        p1.actionsTakenThisRound = opts.actionsTaken;
+      }
       moveToDeckTop(game, CardName.GREEN_ALLEGIANCE);
       p1.cardsInHand.push(game.projectDeck.drawPile.pop() as IProjectCard);
     },
@@ -1988,10 +1999,11 @@ function greenAllegianceFixture(name: string, rating: number, from: number, step
         red: p2.playedCards.corporations()[0]?.name,
         steps: JSON.stringify(walked?.steps ?? []),
         reason: walked?.reason ?? 'none',
+        actionsTaken: p1.actionsTakenThisRound,
       };
       const expected = {
         playable: true, cost: 2, rating, agenda: `${from}/3`, ruling: PartyName.GREENS, greens: true, red: CardName.TERACTOR,
-        steps: JSON.stringify(steps), reason: steps.length > 0 ? 'card' : 'none',
+        steps: JSON.stringify(steps), reason: steps.length > 0 ? 'card' : 'none', actionsTaken: opts.actionsTaken ?? 0,
       };
       if (JSON.stringify(facts) !== JSON.stringify(expected)) {
         throw new Error(`the ${name} fixture expected ${JSON.stringify(expected)} — got ${JSON.stringify(facts)}`);
@@ -2003,6 +2015,10 @@ function greenAllegianceFixture(name: string, rating: number, from: number, step
 greenAllegianceFixture('green-allegiance', 33, 1, [{to: 2, bonus: 'tr'}, {to: 3}]);
 greenAllegianceFixture('green-allegiance-zero', 23, 1, []);
 greenAllegianceFixture('green-allegiance-long', 45, 0, [{to: 1}, {to: 2, bonus: 'tr'}, {to: 3}, {to: 4, bonus: 'tr'}, {to: 5}]);
+// `-field`: THE FIELD WALK of 2026-10-25 — TR 45 from step 5, two CARD steps (⑦, ⑩) and two rating steps (⑥, ⑨), played
+// as the turn's LAST action (the turn passes to red the moment it lands — no prompt for blue during the walk).
+greenAllegianceFixture('green-allegiance-field', 45, 5,
+  [{to: 6, bonus: 'tr'}, {to: 7, bonus: 'card'}, {to: 8}, {to: 9, bonus: 'tr'}, {to: 10, bonus: 'card'}], {actionsTaken: 1});
 // ── TR44 · AQUATIC RESEARCH STATION — TWO TILES ON ONE CELL (`common/boards/cellPieces.ts`): the STAND the picture is
 //    judged on — blue's city OVER an ocean beside every neighbour it must be told from. Blue's action phase, the Greens
 //    ruling by the STARTING RULE (nothing enacted — generation 1), Ares ON (an Ocean City needs the module). Tharsis,
@@ -8455,9 +8471,9 @@ tharsisAllianceFixture('tharsis-alliance-enact', 'enact');
 //                              the enactment raises blue's rating by one, and the Greens (blue's by the alliance now)
 //                              answer the rating with their M€.
 //    Every table is refused unless its DRY RUN (on a copy) reaches the state the name promises. ──
-function edenAllianceFixture(name: string, at: 'journey' | 'enact'): void {
+function edenAllianceFixture(name: string, at: 'journey' | 'enact' | 'enact-remote'): void {
   parliamentFixture(name, {
-    stopAt: at === 'enact' ? 'pass' : 'vote',
+    stopAt: at === 'enact' ? 'pass' : at === 'enact-remote' ? 'pass-other' : 'vote',
     megacredits: [24, 30],
     options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
     arrange: ({game, p1, p2, parliament}) => {
@@ -8485,7 +8501,7 @@ function edenAllianceFixture(name: string, at: 'journey' | 'enact'): void {
         unityHeld: parliament.access(p1, U).hasEffect,
       };
       // In hand Unity is not blue's yet; on the table the card already opens it through the ruling Greens.
-      let ok = facts.ruling === G && facts.parties === [U, PartyName.REDS, PartyName.SCIENTISTS].join(',') && facts.unityHeld === (at === 'enact');
+      let ok = facts.ruling === G && facts.parties === [U, PartyName.REDS, PartyName.SCIENTISTS].join(',') && facts.unityHeld === (at !== 'journey');
       const copy = Game.deserialize(structuredClone(game.serialize()));
       const blue = copy.getPlayerById(p1.id);
       if (at === 'journey') {
@@ -8498,7 +8514,15 @@ function edenAllianceFixture(name: string, at: 'journey' | 'enact'): void {
       } else {
         // THE DRY RUN of the sitting: answer the gates — Unity enacted, blue's rating +1, the Greens blue's by the alliance.
         const tr = blue.terraformRating;
-        passTheViewer(copy);
+        if (at === 'enact-remote') {
+          // …the LAST pass is red's: the sitting reaches blue's screen by the poll / the socket, the plate opens it.
+          const red = copy.playersInGenerationOrder.find((seat) => seat.id !== blue.id && seat.isMarsBot !== true)!;
+          red.clearWaitingFor();
+          copy.playerHasPassed(red);
+          copy.playerIsFinishedTakingActions();
+        } else {
+          passTheViewer(copy);
+        }
         runAllActions(copy);
         facts.enacted = copy.parliament!.rulingParty();
         facts.tr = blue.terraformRating - tr;
@@ -8514,6 +8538,9 @@ function edenAllianceFixture(name: string, at: 'journey' | 'enact'): void {
 }
 edenAllianceFixture('eden-alliance', 'journey');
 edenAllianceFixture('eden-alliance-enact', 'enact');
+// `-remote`: blue has PASSED and red's pass is the last (field 2026-10-24 / 25): the whole sitting reaches blue's screen by
+// the poll / the socket and the plate opens it — the rating owed to the enactment's tail may not hold the plate down.
+edenAllianceFixture('eden-alliance-enact-remote', 'enact-remote');
 
 // ── TR64 · PROMETHEAN ALLIANCE — the last pair, the Scientists = the Industrialists, and a PRODUCTION answer to a change
 //    of power (docs/TURMOIL_REDUX_PROMETHEAN_ALLIANCE.md). The Greens rule by the starting rule; the voting area is

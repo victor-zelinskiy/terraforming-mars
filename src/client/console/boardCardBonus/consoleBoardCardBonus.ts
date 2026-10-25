@@ -104,7 +104,8 @@ export function revealMatchesSource(
     return revealSource?.type === 'colony' && revealSource.colonyName === sceneSource.colonyName;
   }
   if (sceneSource.kind === 'agenda-step') {
-    return isAgendaReveal(revealSource);
+    // …the batch of THIS step (a walk's two card steps are two batches); a legacy source without `step` matches any.
+    return revealSource?.type === 'agenda' && (revealSource.step === undefined || revealSource.step === sceneSource.step);
   }
   return isVenusScaleReveal(revealSource);
 }

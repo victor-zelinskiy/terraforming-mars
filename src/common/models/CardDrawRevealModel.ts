@@ -82,8 +82,12 @@ export type CardDrawRevealSource =
   | {type: 'party', party: PartyName}
   /** Turmoil Redux: the ENACTED RESOLUTION'S ACTION drew them (Open IP Trade's «a card per card discarded»). */
   | {type: 'resolution', resolution: string}
-  /** Turmoil Redux: the Agenda track's card step (the chairman quest / the political phase advanced a marker). */
-  | {type: 'agenda'}
+  /**
+   * Turmoil Redux: the Agenda track's card step (the chairman quest / the political phase / a card advanced a marker).
+   * `step` — the track step whose bonus drew it (absent on a batch from before the field existed): one walk can cross
+   * several card steps, and each batch is parked and presented on its OWN node.
+   */
+  | {type: 'agenda', step?: number}
   /**
    * Turmoil Redux: a CARD answered a CHANGE OF POWER at the sitting's enactment (TR62 Tharsis Alliance — «draw a card
    * when either of those parties becomes ruling»): `party` is the new ruling party. Its one honest presentation is the

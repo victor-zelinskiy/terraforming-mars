@@ -115,7 +115,7 @@ export class ChairmanSeat {
           break;
         }
         game.log('${0} advances on the Agenda track to step ${1}', (b) => b.player(player).number(advance.to));
-        const vetoed = ChairmanSeat.payStep(player, advance.bonus);
+        const vetoed = ChairmanSeat.payStep(player, advance.bonus, advance.to);
         taken.push({
           to: advance.to,
           ...(advance.bonus === undefined ? {} : {bonus: advance.bonus}),
@@ -156,7 +156,7 @@ export class ChairmanSeat {
    * rating step was VETOED (RX42: the funnel refuses the whole event for a seat first by rating — read off the same
    * gate the funnel reads, so the record and the refusal can never disagree; the law's own line replaces the track's).
    */
-  private static payStep(player: IPlayer, bonus: 'tr' | 'card' | undefined): boolean {
+  private static payStep(player: IPlayer, bonus: 'tr' | 'card' | undefined, step: number): boolean {
     const game = player.game;
     if (bonus === 'tr') {
       const vetoed = ratingVetoed(player);
@@ -171,8 +171,9 @@ export class ChairmanSeat {
         player.stock.add(Resource.MEGACREDITS, 1, {log: false});
         game.log('${0} gains 1 M€ from the Agenda track instead of a card', (b) => b.player(player));
       } else {
-        // The Agenda's own source: the console lifts the card off the track step.
-        player.drawCard(1, {source: {type: 'agenda'}});
+        // The Agenda's own source: the console lifts the card off the track step — named by the STEP, so a walk with two
+        // card steps (TR42 at TR 45: steps 7 and 10) parks and presents each batch on its own node, never one for both.
+        player.drawCard(1, {source: {type: 'agenda', step}});
       }
     }
     return false;

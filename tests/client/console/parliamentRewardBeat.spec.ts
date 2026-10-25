@@ -6,6 +6,8 @@ import {PartyName} from '@/common/turmoil/PartyName';
 import {Resource} from '@/common/Resource';
 import {CardResource} from '@/common/CardResource';
 import {CardName} from '@/common/cards/CardName';
+import {CardModel} from '@/common/models/CardModel';
+import {reconcileDrawnCards} from '@/client/components/drawnCards/drawnCardsState';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {consoleParliamentUi, resetConsoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
 import {
@@ -375,8 +377,11 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     expect(agendaCardOwed(7), '…but the step is still owed — the card has not landed').is.true;
     expect(parliamentAgendaBonusHeld(), 'the TR step still holds').is.true;
     markAgendaBonusLanded(9);
-    expect(parliamentAgendaBonusHeld(), 'a lifted card step alone holds nothing — the take is the player\'s, never a beat on a clock').is.false;
+    expect(parliamentAgendaBonusHeld(), 'a lifted step whose batch stands for nobody is held again — its ceiling nets a take that cannot come').is.true;
+    reconcileDrawnCards([{id: 71, source: {type: 'agenda', step: 7}, cards: [{name: CardName.FISH} as CardModel]}]);
+    expect(parliamentAgendaBonusHeld(), 'a lifted card step whose batch stands alone holds nothing — the take is the player\'s, never a beat on a clock').is.false;
     expect(parliamentRewardState.agendaBonuses.map((b) => b.step), 'the entry stands').deep.eq([7]);
+    reconcileDrawnCards([]);
     markAgendaCardLifted(7);
     markAgendaCardLifted(11);
     expect(parliamentRewardState.agendaBonuses.filter((b) => b.lifted).length, 'a second lift and an unknown step are no-ops').eq(1);

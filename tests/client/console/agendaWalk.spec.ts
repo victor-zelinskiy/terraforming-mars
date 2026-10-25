@@ -112,6 +112,11 @@ function agendaBatch(name: CardName, id = 41): void {
   reconcileDrawnCards([{id, source: {type: 'agenda'}, cards: [{name} as CardModel]}]);
 }
 
+/** A walk across TWO card steps: one batch per step, each named by its step (the server's `source.step`). */
+function agendaBatches(batches: ReadonlyArray<{step: number, name: CardName, id: number}>): void {
+  reconcileDrawnCards(batches.map(({step, name, id}) => ({id, source: {type: 'agenda', step}, cards: [{name} as CardModel]})));
+}
+
 /** The hand the card was played from, with its descent standing (the composer's home). */
 function handDescended(): void {
   enterWorkspace('hand', {anchor: {type: 'always'}});
@@ -511,6 +516,51 @@ describe('«КАРЬЕРА» — a card\'s walk of the Agenda track (the pure ha
       } finally {
         parl.remove();
       }
+    });
+
+    /* THE FIELD WALK (2026-10-25 — TR42 «Верность Зелёным» at TR 45, steps 6 → 10: ⑦ a card, ⑩ a card): the park was read
+     * over «ANY card step not lifted», so step ⑩'s entry kept step ⑦'s batch parked while ⑦'s cover was lifting — the
+     * scene found no slot to land in, degraded, no «Взять» was ever offered, and the walk waited for a touchdown that
+     * could not come (the Parliament frozen). The park and the delivery are scoped to the batch's own STEP. */
+    it('TWO card steps: each batch is parked and presented on its own step — the lift of 7 frees its batch while 10 stays parked', () => {
+      const parl = trackOnScreen();
+      try {
+        agendaBatches([{step: 7, name: CardName.FISH, id: 51}, {step: 10, name: CardName.BIRDS, id: 52}]);
+        queueAgendaBonuses([
+          {generation: 3, player: BLUE, step: 7, kind: 'card'},
+          {generation: 3, player: BLUE, step: 9, kind: 'tr', spec: {channel: 'stock', resource: RATING_RAIL_KEY, amount: 1}},
+          {generation: 3, player: BLUE, step: 10, kind: 'card'},
+        ]);
+        expect(parliamentParksReveal({type: 'agenda', step: 7}), 'before the lock both are parked').is.true;
+        expect(parliamentParksReveal({type: 'agenda', step: 10})).is.true;
+        let done = 0;
+        deliverAgendaStepReward(root(), 3, 7, () => done++);
+        expect(boardCardBonusState.source).deep.eq({kind: 'agenda-step', step: 7, landed: true});
+        abortBoardCardBonus('instant', 'no-source-icon');
+        expect(parliamentParksReveal({type: 'agenda', step: 7}), '⑦ lifted: its batch is free to be taken').is.false;
+        expect(parliamentParksReveal({type: 'agenda', step: 10}), '⑩ is still ahead of the marker').is.true;
+        expect(done).eq(0);
+        releaseInFlight(CardName.BIRDS);
+        expect(done, 'the card of 10 is not the touchdown of 7').eq(0);
+        releaseInFlight(CardName.FISH);
+        expect(done).eq(1);
+        expect(parliamentRewardState.agendaBonuses.map((b) => b.step), 'only ⑨ and ⑩ are still owed').deep.eq([9, 10]);
+        // ⑩'s delivery takes ⑩'s batch, never the first agenda batch in the queue.
+        let done10 = 0;
+        deliverAgendaStepReward(root(), 3, 10, () => done10++);
+        expect(boardCardBonusState.source).deep.eq({kind: 'agenda-step', step: 10, landed: true});
+        releaseInFlight(CardName.BIRDS);
+        expect(done10).eq(1);
+      } finally {
+        parl.remove();
+      }
+    });
+
+    it('a LIFTED card step whose batch no longer stands for the player is held again — the registry ceiling bounds a take that cannot come', () => {
+      queueAgendaBonuses([{generation: 3, player: BLUE, step: 7, kind: 'card', lifted: true}]);
+      expect(parliamentAgendaBonusHeld(), 'no batch of ⑦ before the player: nothing takes it — the ledger holds (and its ceiling nets it)').is.true;
+      agendaBatches([{step: 7, name: CardName.FISH, id: 61}]);
+      expect(parliamentAgendaBonusHeld(), 'the batch stands: the take belongs to the player, the ledger stands down').is.false;
     });
 
     it('a flush (the section unmounts, the motion is cut) ends the wait honestly', () => {

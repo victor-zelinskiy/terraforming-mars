@@ -14,9 +14,11 @@ import {EACH_CARD_LIST_MAX, OWN_KIND_UNIT, resultsPayoutPart} from '@/client/con
 import {resolutionAnnotations} from '@/client/console/parliament/parliamentAnnotations';
 import {sittingFieldOf} from '@/client/console/parliament/consoleSittingFlow';
 import {
-  detectNewTableReceipts, endTableReceipt, markReceiptSpecLanded, planReceiptRow, receiptArtTiers, receiptOf, releaseTableReceipts, resetTableReceiptBeat, seedTableReceipts,
-  tableReceiptState, tableReceiptsOwed, takeTableReceipt,
+  detectNewTableReceipts, endTableReceipt, markReceiptSpecLanded, planReceiptRow, receiptArtTiers, receiptOf, releaseOrphanTableReceipts, releaseTableReceipts,
+  resetTableReceiptBeat, seedTableReceipts, tableReceiptClaimsForeground, tableReceiptState, tableReceiptsOwed, takeTableReceipt,
 } from '@/client/console/parliament/tableReceiptBeat';
+import {consoleParliamentUi, resetConsoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
+import {activeAnimationHoldLabels} from '@/client/components/presentation/animationHold';
 import {clearPanelRewardHold, panelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {holdersReadingOf} from '@/client/console/parliament/voteInfoModel';
@@ -211,6 +213,26 @@ describe('Sponsored Projects — the readings of a payout that asked nobody, and
     seedTableReceipts('3:4', liveView(BLUE, []), liveView(BLUE, [resourcesRecord(BLUE, THREE)]), true);
     seedTableReceipts('4:5', liveView(BLUE, [], 4), liveView(BLUE, [], 4), true);
     expect(tableReceiptsOwed(), 'a new sitting drops what the old one owed').is.false;
+  });
+
+  /* THE CONSUMER LAW — the ruling-change rating's deadlock, the same shape (field 2026-10-24 / 25): a receipt seeded
+   * while the sitting is merely AHEAD of the seat (the plate opens it) must not hold down the plate itself. */
+  it('a receipt claims the foreground only while the stage stands (or it is on screen); a sitting gone with no stage releases it', () => {
+    const held = () => activeAnimationHoldLabels().some((l) => l.startsWith('parliament-table-receipt'));
+    resetConsoleParliamentUi();
+    seedTableReceipts('3:4', liveView(BLUE, []), liveView(BLUE, [resourcesRecord(BLUE, THREE)]), true);
+    expect(tableReceiptsOwed(), 'owed to the walk the plate opens').is.true;
+    expect(tableReceiptClaimsForeground(), 'no stage — the plate must be free to come up').is.false;
+    expect(held()).is.false;
+    consoleParliamentUi.stageStanding = true;
+    expect(held(), 'the stage stands: the receipt claims the foreground').is.true;
+    releaseOrphanTableReceipts();
+    expect(tableReceiptsOwed(), 'a standing stage keeps what it will play').is.true;
+    consoleParliamentUi.stageStanding = false;
+    releaseOrphanTableReceipts();
+    expect(tableReceiptsOwed()).is.false;
+    expect(Object.keys(panelRewardHold.capsule), 'released, never leaked').deep.eq([]);
+    resetConsoleParliamentUi();
   });
 
   it('THE FIELD stands for an owed receipt on the reward page — and nowhere else', () => {

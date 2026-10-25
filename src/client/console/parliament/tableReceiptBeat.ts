@@ -53,6 +53,7 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {claimVpShares, dropVpClaim, releaseVpShares} from '@/client/console/scoreCell/vpShareLedger';
 import {ART_THUMB_MAX_CSS_WIDTH, CardArtTier, preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {consoleParliamentUi} from './consoleParliamentFlow';
 
 /** ONE card of the receipt: the card, the kind it took (the server's), what it held BEFORE, the units and its points' move. */
 export type ReceiptCard = {
@@ -204,6 +205,23 @@ export function tableReceiptsOwed(): boolean {
   return tableReceiptState.owed.length > 0 || tableReceiptState.showing !== undefined;
 }
 
+/**
+ * A receipt CLAIMS THE FOREGROUND only while its consumer stands — the sitting's stage (the reward page that plays it)
+ * or a receipt already on screen. Seeded while the sitting is merely AHEAD of the seat (the soft gates: the chain
+ * arrived by poll / WS, the plate opens the sitting), a blocking claim would hold down the very plate that opens it —
+ * the rating answer's deadlock (`rulingChangeDraw.rulingRatingClaimsForeground`), the same law.
+ */
+export function tableReceiptClaimsForeground(): boolean {
+  return tableReceiptsOwed() && (tableReceiptState.showing !== undefined || consoleParliamentUi.stageStanding);
+}
+
+/** The sitting is over and no stage will play what is owed: the counters tick now, honestly late. */
+export function releaseOrphanTableReceipts(): void {
+  if (!consoleParliamentUi.stageStanding && tableReceiptState.showing === undefined && tableReceiptState.owed.length > 0) {
+    releaseTableReceipts();
+  }
+}
+
 /** The director takes the NEXT receipt and stands it in the zone (its pane enters). */
 export function takeTableReceipt(): TableReceipt | undefined {
   const receipt = tableReceiptState.owed.shift();
@@ -273,7 +291,7 @@ export function resetTableReceiptBeat(): void {
  * next ask (another seat's take, the adjourn gate) waits on the presentation until the last token has landed. The
  * registry's ceiling is the one wedge net; its `expire` releases the counters honestly.
  */
-registerAnimationHoldSupplier('parliament-table-receipt', () => tableReceiptsOwed(), {
+registerAnimationHoldSupplier('parliament-table-receipt', tableReceiptClaimsForeground, {
   diagnose: () => ({
     sitting: tableReceiptState.sitting,
     owed: tableReceiptState.owed.map((r) => r.key),

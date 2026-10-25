@@ -262,9 +262,11 @@ export default defineComponent({
           armBoardCardBonus(sp?.tileType === undefined ?
             {kind: 'board-cell', spaceId} : {kind: 'board-tile', spaceId});
         } else if (isAgendaReveal(e.source)) {
-          // The step the card came from: a walk of several steps (TR04) may pass its card step before its last.
+          // The step the card came from — the batch names it (a walk of several steps may cross two card steps); a legacy
+          // batch falls back to the walk's first card step.
           const advance = this.playerView.game.parliament?.lastAdvance;
-          armBoardCardBonus({kind: 'agenda-step', step: advance?.steps.find((s) => s.bonus === 'card')?.to ?? advance?.to ?? 0});
+          const named = e.source?.type === 'agenda' ? e.source.step : undefined;
+          armBoardCardBonus({kind: 'agenda-step', step: named ?? advance?.steps.find((s) => s.bonus === 'card')?.to ?? advance?.to ?? 0});
         } else {
           armBoardCardBonus({kind: 'venus-scale'});
         }

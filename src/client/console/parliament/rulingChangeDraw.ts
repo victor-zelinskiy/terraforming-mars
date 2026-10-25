@@ -140,6 +140,10 @@ function presentedAmounts(rating: RulingRatingOwed): {tr?: number, production?: 
  * with the commit.
  */
 export function seedRulingChangeAnswers(before: PlayerViewModel | undefined, after: PlayerViewModel | undefined): void {
+  // The sitting is over: a rating no stage is telling has nowhere left to be told.
+  if (after !== undefined && after.game.parliament?.phase === undefined) {
+    releaseOrphanRulingRatings('phase-end');
+  }
   if (after === undefined || consoleReducedMotionActive() || !(consoleParliamentUi.stageStanding || generationSceneRisesIntoSitting(after) || sittingRiseOwed())) {
     return;
   }
@@ -165,9 +169,40 @@ export function releaseRulingRatings(why: string): void {
   }
 }
 
+/**
+ * THE RATING CLAIMS THE FOREGROUND ONLY WHILE ITS CONSUMER STANDS — the sitting's stage (whose enactment's tail
+ * delivers it) or the delivery in flight. Seeded while the sitting is merely AHEAD of the seat (the soft gates: the
+ * last pass was another seat's, the whole chain arrived by poll / WS, the plate opens the sitting), a blocking claim
+ * deadlocked the plate itself — the plate waits for a free foreground, the rating waits for the stage the plate opens
+ * (field 2026-10-24 / 25: ~22 s of an empty board, «the foreground claimed to be busy with NOTHING rendered», then
+ * «the sitting 9:9 never told its enactment»). The parliament ledger's own law (`parliamentRewardBeat`'s
+ * `awaitingStage`): the rows stay held for the walk, the claim stands up with the stage.
+ */
+export function rulingRatingClaimsForeground(): boolean {
+  return rulingChangeDrawState.ratings.length > 0 && (consoleParliamentUi.stageStanding || rulingChangeDrawState.delivering);
+}
+
+/**
+ * The tail will never be told for these ratings — the sitting is gone (or was re-read past its enactment) and no stage
+ * stands to deliver them: the counters tick now, honestly late, never held for a walk that cannot come.
+ */
+export function releaseOrphanRulingRatings(why: string): void {
+  if (!consoleParliamentUi.stageStanding) {
+    releaseUntoldRulingRatings(why);
+  }
+}
+
+/** The stage stands but will not tell the tail again (a re-read, a told enactment): owed ratings tick now — unless in flight. */
+export function releaseUntoldRulingRatings(why: string): void {
+  // A delivery in flight owns its rows: its touchdowns release them (a second release would double-tick a counter).
+  if (!rulingChangeDrawState.delivering) {
+    releaseRulingRatings(why);
+  }
+}
+
 // A rating owed to the tail holds the foreground — the next prompt waits for its own story. Bounded by the registry's
 // ceiling, whose `expire` releases the counters honestly.
-registerAnimationHoldSupplier('ruling-change-rating-owed', () => rulingChangeDrawState.ratings.length > 0, {
+registerAnimationHoldSupplier('ruling-change-rating-owed', rulingRatingClaimsForeground, {
   diagnose: () => rulingChangeDrawState.ratings.map((owed) => owed.key),
   expire: () => releaseRulingRatings('ceiling'),
 });
@@ -208,6 +243,8 @@ function releaseUntoldPark(key: string): void {
   if (rulingChangeDrawState.owedKey === key && !rulingChangeDrawState.delivering) {
     console.warn(`[ruling-change-draw] the sitting ${key} never told its enactment — the batch takes the ordinary road`);
     rulingChangeDrawState.owedKey = undefined;
+    // …and a rating owed to that same tail, with no stage to tell it, ticks with the batch.
+    releaseOrphanRulingRatings('untold');
   }
 }
 

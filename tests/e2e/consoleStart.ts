@@ -2806,7 +2806,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   // TR63 Eden Alliance: the Greens ruling by the starting rule, the voting area [Unity · the Reds · the Scientists] (quiet
   // cards, red's cube on the Scientists). `eden-alliance` — TR63 in hand; `-enact` — TR63 on the table, the sitting's
   // first gate with Unity winning (red 3 cubes) (docs/TURMOIL_REDUX_EDEN_ALLIANCE.md).
-  'eden-alliance' | 'eden-alliance-enact' |
+  'eden-alliance' | 'eden-alliance-enact' | 'eden-alliance-enact-remote' |
   // TR64 Promethean Alliance: the Greens ruling by the starting rule, the voting area [the Scientists · the Reds · Unity]
   // (quiet cards, red's cube on Unity). `promethean-alliance` — TR64 in hand, TWO of blue's cubes on the Scientists;
   // `-enact` — TR64 on the table, the sitting's first gate with the Scientists winning (red 3 cubes)
@@ -2891,6 +2891,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'green-allegiance' |
   'green-allegiance-zero' |
   'green-allegiance-long' |
+  'green-allegiance-field' |
   'canyon-carving' |
   // TR44 Aquatic Research Station — two tiles on one cell: the STAND (blue's city over the ocean on 33 beside red's
   // Ocean City on 32, a plain ocean on 34, a plain city on 42, a stack of two on 24 — Ares on).

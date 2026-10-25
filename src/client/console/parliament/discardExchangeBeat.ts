@@ -17,7 +17,7 @@ import {Tag} from '@/common/cards/Tag';
 import {CardName} from '@/common/cards/CardName';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {RailReward, railRewardPending, seedRailReward} from '@/client/console/resourceTransfer/railReward';
+import {RailReward, railRewardPending, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
 import {consoleCardActionsUi, partyTileKey} from '@/client/console/consoleCardActions';
 
 /** The rail key of a political source's discard payout. */
@@ -78,4 +78,17 @@ export function seedPoliticalDiscardExchange(before: PlayerViewModel | undefined
 /** A payout of this source is held and owed its flight. */
 export function discardExchangeOwed(sourceKey: string): boolean {
   return railRewardPending(discardExchangeRailKey(sourceKey));
+}
+
+/**
+ * THE OWNER LEAVES — a payout nobody will fly any more (the card composer that committed the party's action is closing
+ * for good, or the shell's stall net is tearing its workspace down) is released: the rows tick now, honestly late.
+ * The seed holds a BLOCKING rail entry, and the composer is its ONE flyer — left standing, an unflown seed froze the
+ * next prompt, the feed and the bot until the registry's 35 s ceiling (field 2026-10-24 / 25: «"rail-reward" held for
+ * over 35000ms … discard-exchange:PARTY_Reds … phase "held"»). Idempotent; a key with no entry is a no-op.
+ */
+export function releaseDiscardExchange(sourceKey: string | undefined, why: string): void {
+  if (sourceKey !== undefined && sourceKey !== '' && railRewardPending(discardExchangeRailKey(sourceKey))) {
+    releaseRailReward(discardExchangeRailKey(sourceKey), why);
+  }
 }

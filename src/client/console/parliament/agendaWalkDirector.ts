@@ -296,7 +296,10 @@ export function deliverAgendaStepReward(root: HTMLElement, generation: number | 
  * released at once, honestly — the standard draw presents what there is.
  */
 function deliverAgendaCardStep(step: number, done: () => void): void {
-  const batch = pendingRevealEvents().find((e) => isAgendaReveal(e.source) && e.cards.length > 0);
+  // THIS step's batch: a walk with two card steps deals two batches, each named by its step (a legacy batch with no
+  // step is any step's).
+  const batch = pendingRevealEvents().find((e) => isAgendaReveal(e.source) && e.cards.length > 0 &&
+    (e.source?.type !== 'agenda' || e.source.step === undefined || e.source.step === step));
   if (batch === undefined || !agendaTrackOnScreen() || consoleReducedMotionActive() || boardCardBonusState.active) {
     markAgendaBonusLanded(step);
     done();

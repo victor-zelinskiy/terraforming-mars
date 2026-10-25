@@ -52,6 +52,7 @@
  */
 import {reactive} from 'vue';
 import {sittingBaselineOf} from './sittingBaseline';
+import {pendingRevealEvents} from '@/client/components/drawnCards/drawnCardsState';
 import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ParliamentEnactOutcomeModel, ParliamentPhaseModel} from '@/common/models/ParliamentModel';
@@ -67,7 +68,7 @@ import {ParliamentBeat, scheduleParliamentBeat} from './parliamentBeat';
 import {enterWorldBeatSitting, seedWorldMoveBeat} from './parliamentWorldBeat';
 import {sittingRiseOwed} from './sittingRise';
 import {releaseCareerGrantWalks, resetCareerGrantBeat, seedCareerGrantWalks} from './careerGrantBeat';
-import {releaseTableReceipts, resetTableReceiptBeat, seedTableReceipts} from './tableReceiptBeat';
+import {releaseOrphanTableReceipts, releaseTableReceipts, resetTableReceiptBeat, seedTableReceipts} from './tableReceiptBeat';
 
 /** The rail's key for the terraform rating (the score cell) — the transfer model's own (`resourceTransferModel.ts`), re-exported for the parliament's seeders. */
 export {RATING_RAIL_KEY};
@@ -200,7 +201,19 @@ registerAnimationHoldSupplier('parliament-reward-owed', () => parliamentRewardPe
  * net, so the ledger stands down there and the scene's own holds take over.
  */
 export function parliamentAgendaBonusHeld(): boolean {
-  return parliamentRewardState.agendaBonuses.some((bonus) => bonus.kind !== 'card' || bonus.lifted !== true) || answering.size > 0;
+  return parliamentRewardState.agendaBonuses.some((bonus) => bonus.kind !== 'card' || bonus.lifted !== true || !agendaCardBeforeThePlayer(bonus.step)) ||
+    answering.size > 0;
+}
+
+/**
+ * A LIFTED card step is in the player's hands only while its batch still STANDS for them (the cover scene, the viewer
+ * waiting for «Взять»). A lifted step with no batch of its own left standing is in nobody's hands — the card is flying
+ * into the dock (a real motion, ended by its touchdown), or the batch went somewhere it can never be taken from — and
+ * the ledger holds it again, so the registry's ceiling bounds a walk that waits for a take that cannot come (a lifted
+ * card step was the one entry with no net at all).
+ */
+function agendaCardBeforeThePlayer(step: number): boolean {
+  return pendingRevealEvents().some((e) => e.source?.type === 'agenda' && (e.source.step === undefined || e.source.step === step));
 }
 
 /**
@@ -497,6 +510,8 @@ export function seedParliamentRewardHold(before: PlayerViewModel | undefined, af
     // No live phase: whatever the last sitting still owed is over.
     enterSitting('');
     enterWorldBeatSitting('');
+    // …and a receipt of the table no stage will play (the sitting was never opened): its counters tick now.
+    releaseOrphanTableReceipts();
     return;
   }
   enterSitting(key);
@@ -647,8 +662,16 @@ export function agendaCardOwed(step: number): boolean {
  * scoped to the batch it parks, never «the reveal»; bounded by the idle net
  * (then the standard draw presents it).
  */
-export function parliamentParksReveal(source: {type?: string} | undefined): boolean {
-  return source?.type === 'agenda' && parliamentRewardState.agendaBonuses.some((bonus) => bonus.kind === 'card' && bonus.lifted !== true);
+export function parliamentParksReveal(source: {type?: string, step?: number} | undefined): boolean {
+  if (source?.type !== 'agenda') {
+    return false;
+  }
+  // …SCOPED TO THE BATCH'S OWN STEP: a walk may cross two card steps (TR42 at TR 45 — steps 7 and 10), and a park read
+  // over «any card step not lifted» kept step 7's batch parked by step 10's entry while step 7's cover was lifting —
+  // the scene found no slot to land in, degraded, and the walk waited for a «Взять» that never came (field
+  // 2026-10-25: the Career frozen with the Parliament up). A batch from before the step was named keeps the blanket park.
+  const step = source.step;
+  return parliamentRewardState.agendaBonuses.some((bonus) => bonus.kind === 'card' && bonus.lifted !== true && (step === undefined || bonus.step === step));
 }
 
 /** This record's chip has landed (or the record never had a wave to wait for). */

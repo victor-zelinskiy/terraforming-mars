@@ -2044,7 +2044,7 @@ import ConsoleResourceTransferLayer from '@/client/components/console/resourceTr
 import {ResourceTransferSpec, mergeTransferSpecs, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {PlayReaction} from '@/client/console/played/receivingStageModel';
 import {railRewardPending, type RailReward} from '@/client/console/resourceTransfer/railReward';
-import {discardExchangeRailKey} from '@/client/console/parliament/discardExchangeBeat';
+import {discardExchangeRailKey, releaseDiscardExchange} from '@/client/console/parliament/discardExchangeBeat';
 import type {DeltaMovementBonusProjection} from '@/common/models/DeltaTrackPreviewModel';
 import {movementBonusTransfers, withMovementBonusOnLastLeg} from '@/client/console/hydroFlow/hydroMovementBonus';
 import {abortResourceTransfers, runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, panelRewardHold, resetCardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -2347,6 +2347,14 @@ const REVEAL_EXIT_BARRIER_NET_MS = 4000;
  * hangs earned — see `docs/claude/console/flow-close-gates.md` § THE STALL NET.
  */
 const OWED_CONCLUSION_FORCE_MS = 8000;
+/**
+ * …AND THE GHOST VERDICT ITSELF MUST HOLD THIS LONG, CONTINUOUSLY, before the force. The escalation clock above runs
+ * from the FIRST owe — which can be a legitimate hold the player spent 16 s in (the Reds' discard album) — so a verdict
+ * read once, in the very flush an answer lands, tore the workspace down under the payout that answer had just seeded
+ * (field 2026-10-24 / 25: «card-actions … could not dismiss for 18s … signal: ||payout||», then the rail held 35 s).
+ * A transient (a flush between the answer and its flyer) never survives this window; a real ghost always does.
+ */
+const OWED_CONCLUSION_GHOST_CONFIRM_MS = 2500;
 
 /** The shared hold-to-confirm key of the finale's irreversible stop (PL-296). */
 const FINALE_FINISH_HOLD = 'final-greenery-finish';
@@ -2705,6 +2713,9 @@ export default defineComponent({
       /** Epoch ms the CURRENT owed conclusion was armed — the escalation clock
        *  for `retryOwedConclusion`'s force phase (0 = nothing owed). */
       owedConclusionSince: 0,
+      /** Epoch ms the force phase FIRST read the owed workspace as a ghost — reset the moment it reads otherwise (the
+       *  continuous grace, `OWED_CONCLUSION_GHOST_CONFIRM_MS`; 0 = not a ghost on the last read). */
+      owedConclusionGhostSince: 0,
       /** The armed entry's BOUNDED WAIT (COLONY_BONUS_ENTRY_WAIT_MS) — the net
        *  under «entered, and nothing ever arrived». */
       colonyEntryWaitTimer: undefined as number | undefined,
@@ -20482,11 +20493,13 @@ export default defineComponent({
         // kind (or a first owe) starts the clock now.
         if (this.owedConclusion?.kind !== kind || this.owedConclusionSince === 0) {
           this.owedConclusionSince = Date.now();
+          this.owedConclusionGhostSince = 0;
         }
         this.owedConclusion = {kind, servedPromptHolds};
       } else if (this.owedConclusion?.kind === kind) {
         this.owedConclusion = undefined;
         this.owedConclusionSince = 0;
+        this.owedConclusionGhostSince = 0;
       }
       return done;
     },
@@ -20507,11 +20520,13 @@ export default defineComponent({
       if (!workspaceFrameKnown(owed.kind)) {
         this.owedConclusion = undefined;
         this.owedConclusionSince = 0;
+        this.owedConclusionGhostSince = 0;
         return;
       }
       if (workspaceOutcomeState.host === owed.kind && workspaceOutcomeState.stage === 'awaiting') {
         this.owedConclusion = undefined;
         this.owedConclusionSince = 0;
+        this.owedConclusionGhostSince = 0;
         return;
       }
       // ── SOFT PHASE: reconcile the claim off-response, then re-ask the
@@ -20529,6 +20544,7 @@ export default defineComponent({
       if (this.concludeWorkspaceFlow(owed.kind, owed.servedPromptHolds)) {
         this.owedConclusion = undefined;
         this.owedConclusionSince = 0;
+        this.owedConclusionGhostSince = 0;
         return;
       }
       // ── FORCE PHASE: a flow that REPORTED FINISHED and still cannot dismiss
@@ -20537,9 +20553,17 @@ export default defineComponent({
       //    soft re-ask can cure it (the hold is a phantom claim / a serving
       //    echo the funnel keeps refusing), so the authority to tear it down
       //    lives here: the workspace-scope analogue of `recoverStalledForeground`.
+      if (!this.stuckWorkspaceIsGhost(owed.kind)) {
+        this.owedConclusionGhostSince = 0;
+        return;
+      }
+      const now = Date.now();
+      if (this.owedConclusionGhostSince === 0) {
+        this.owedConclusionGhostSince = now;
+      }
       if (this.owedConclusionSince > 0 &&
-          Date.now() - this.owedConclusionSince >= OWED_CONCLUSION_FORCE_MS &&
-          this.stuckWorkspaceIsGhost(owed.kind)) {
+          now - this.owedConclusionSince >= OWED_CONCLUSION_FORCE_MS &&
+          now - this.owedConclusionGhostSince >= OWED_CONCLUSION_GHOST_CONFIRM_MS) {
         this.forceRecoverStuckWorkspace(owed.kind);
       }
     },
@@ -20557,6 +20581,11 @@ export default defineComponent({
         !this.workspaceOutcomeServingNow && // no live prompt/batch it serves
         !this.followUpStepOwed && // no second effect still owed a door
         !(kind === 'hand' && (hostedStepOwedTo('hand') || hostedStepLiveIn('hand'))) && // no walk / rally owed or playing (TR04 / TR31)
+        // …and none of the card composer's OWN holds of the guarded conclusion: a party's discard still owed, its payout
+        // awaited or held on the rail (its one flyer is this workspace — tearing it down stranded the wave), a colony
+        // ledger still paying (TR23), the enacted law's step (RX36). The conclusion holds on each of them by name; a
+        // ghost check that forgot one called a working flow a phantom (the Reds' payout, field 2026-10-24 / 25).
+        !(kind === 'card-actions' && (this.politicalDiscardOwed || this.politicalPayoutOwed || colonyBonusPayoutLive() || this.lawStepOwed)) &&
         !this.placementActive &&
         this.consoleRevealMode === undefined &&
         !currentRevealEvent() &&
@@ -20580,9 +20609,14 @@ export default defineComponent({
       if (workspaceOutcomeState.host === kind) {
         releaseWorkspaceOutcome('workspace-stall-recovery', {force: true});
       }
+      // …and what the torn-down workspace owned on the rail: a party discard's payout its composer will never fly now.
+      if (kind === 'card-actions') {
+        releaseDiscardExchange(consoleCardActionsUi.draft?.cardName, 'workspace-stall-recovery');
+      }
       resetConsoleActionComposerUi();
       this.owedConclusion = undefined;
       this.owedConclusionSince = 0;
+      this.owedConclusionGhostSince = 0;
       if (workspaceFrameAnchor(kind)?.type === 'phase') {
         goBoardHome();
       } else {

@@ -274,7 +274,7 @@ import {
   parliamentRewardPending, parliamentRewardState, releaseParliamentRewards, takeTileReceipt,
 } from '@/client/console/parliament/parliamentRewardBeat';
 import {TableReceipt, tableReceiptState, tableReceiptsOwed} from '@/client/console/parliament/tableReceiptBeat';
-import {deliverRulingChangeDraws, openRulingChangePark} from '@/client/console/parliament/rulingChangeDraw';
+import {deliverRulingChangeDraws, openRulingChangePark, releaseOrphanRulingRatings, releaseUntoldRulingRatings} from '@/client/console/parliament/rulingChangeDraw';
 import {sittingSeededLive} from '@/client/console/parliament/parliamentSittingSeed';
 import {
   parliamentWorldBeatState, runTrackMoveBeat, runWorldMoveBeat, seatTileOwed, takeWorldReceipt, trackMoveOwed, worldMoveOwed, worldReceiptOwed,
@@ -1776,6 +1776,9 @@ export default defineComponent({
     consoleParliamentUi.voteStanding = false;
     consoleParliamentUi.stageStanding = false;
     consoleParliamentUi.fieldStanding = false;
+    // …and a rating owed to the enactment's tail (TR63), under the same law as the rewards above: never held for a
+    // stage that is gone (a delivery in flight finishes its own touchdowns).
+    releaseOrphanRulingRatings('unmount');
     // The zone's host retracts its frame slot unconditionally (the embed contract): a nested frame
     // pointed at a destroyed node would mount outside the document.
     setWorkspaceFrameSlot('parliament', '');
@@ -2738,9 +2741,15 @@ export default defineComponent({
         // moves) must not hold it hidden for ever.
         sittingMotion.resultsRevealed = true;
         resetParliamentHolds();
+        // …and a rating owed to the enactment's tail (TR63) has no tail left to ride: it ticks now.
+        releaseUntoldRulingRatings('re-read');
         parliamentRewardState.receiptShowing = false;
         parliamentFlow.sittingPage = position.pages.length - 1;
         return;
+      }
+      // Past an enactment this session already told: the tail will not replay — an owed rating ticks now.
+      if (played('enact')) {
+        releaseUntoldRulingRatings('enact-told');
       }
       const receipt = takeTileReceipt(key);
       // …and the WORLD's own receipt: the frame is back from the board and the

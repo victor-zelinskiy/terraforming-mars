@@ -8,7 +8,13 @@ import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {ParliamentModel, ParliamentRulingAnswerModel, ParliamentSlotModel, PartyAccessModel} from '@/common/models/ParliamentModel';
-import {newViewerRulingAnswers, ratingAnswerSpecs} from '@/client/console/parliament/rulingChangeDraw';
+import {
+  newViewerRulingAnswers, ratingAnswerSpecs, releaseOrphanRulingRatings, releaseUntoldRulingRatings, resetRulingChangeDraw, rulingChangeDrawState,
+  rulingRatingClaimsForeground, seedRulingChangeAnswers,
+} from '@/client/console/parliament/rulingChangeDraw';
+import {consoleParliamentUi, resetConsoleParliamentUi} from '@/client/console/parliament/consoleParliamentFlow';
+import {clearPanelRewardHold, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {activeAnimationHoldLabels} from '@/client/components/presentation/animationHold';
 import {REDUX_PARTIES, ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {
   accessReasonRows, accessRingOf, accessRoadOf, allianceBadgeOf, allianceOf, alliancePairOf, alliancePartnerOf, allianceSourceOf, emptyParliamentView,
@@ -289,6 +295,71 @@ describe('a card\'s RATING answer to a change of power (TR63 — `rulingChangeDr
     });
     expect(ratingAnswerSpecs({player: BLUE, card: ID, party: M, cards: 1})).is.undefined;
   });
+  /* THE CONSUMER LAW (field 2026-10-24 / 25 — «the foreground claimed to be busy with NOTHING rendered — expired
+   * animation:ruling-change-rating-owed», then «the sitting 9:9 never told its enactment»): the sitting arrived by poll
+   * (another seat passed last), no stage stood, and a BLOCKING claim held down the very plate that opens the sitting.
+   * The rows stay held for the walk; the claim stands up with the stage; a sitting no stage will tell releases them. */
+  describe('the rating claims the foreground only while its consumer stands', () => {
+    const held = () => activeAnimationHoldLabels().some((l) => l.startsWith('ruling-change-rating-owed'));
+    const noPhase = {thisPlayer: {color: BLUE}, game: {parliament: {}}} as unknown as PlayerViewModel;
+    beforeEach(() => {
+      resetRulingChangeDraw();
+      clearPanelRewardHold();
+      resetConsoleParliamentUi();
+    });
+    afterEach(() => {
+      resetRulingChangeDraw();
+      clearPanelRewardHold();
+      resetConsoleParliamentUi();
+    });
+
+    it('a stage that stands: the rows are held and the hold claims the foreground; the stage leaving lets the plate come up', () => {
+      consoleParliamentUi.stageStanding = true;
+      seedRulingChangeAnswers(viewOf(3, undefined), viewOf(3, [eden]));
+      expect(rulingChangeDrawState.ratings.length).eq(1);
+      expect(heldStock('rating'), 'the rating waits for its token').eq(1);
+      expect(rulingRatingClaimsForeground()).is.true;
+      expect(held()).is.true;
+      consoleParliamentUi.stageStanding = false;
+      expect(held(), 'no stage — nothing to wait FOR, the plate must be free to come up').is.false;
+      expect(heldStock('rating'), 'the rows stay held for the walk the plate opens').eq(1);
+      consoleParliamentUi.stageStanding = true;
+      expect(held(), 'the stage is back: the claim stands up with it').is.true;
+    });
+
+    it('the delivery in flight claims the foreground whatever the stage does', () => {
+      consoleParliamentUi.stageStanding = true;
+      seedRulingChangeAnswers(viewOf(3, undefined), viewOf(3, [eden]));
+      consoleParliamentUi.stageStanding = false;
+      rulingChangeDrawState.delivering = true;
+      expect(rulingRatingClaimsForeground()).is.true;
+      releaseOrphanRulingRatings('test');
+      releaseUntoldRulingRatings('test');
+      expect(rulingChangeDrawState.ratings.length, 'a delivery owns its rows — no second release').eq(1);
+      rulingChangeDrawState.delivering = false;
+    });
+
+    it('the sitting is over with no stage: the counters tick now; a standing stage keeps them for its tail', () => {
+      consoleParliamentUi.stageStanding = true;
+      seedRulingChangeAnswers(viewOf(3, undefined), viewOf(3, [eden]));
+      seedRulingChangeAnswers(viewOf(3, [eden]), noPhase);
+      expect(rulingChangeDrawState.ratings.length, 'the stage still stands (latched for its leave) — its tail is owed').eq(1);
+      consoleParliamentUi.stageStanding = false;
+      seedRulingChangeAnswers(viewOf(3, [eden]), noPhase);
+      expect(rulingChangeDrawState.ratings.length).eq(0);
+      expect(heldStock('rating'), 'released, never leaked').eq(0);
+      expect(held()).is.false;
+    });
+
+    it('a re-read past the enactment releases what its tail would have told', () => {
+      consoleParliamentUi.stageStanding = true;
+      seedRulingChangeAnswers(viewOf(3, undefined), viewOf(3, [eden]));
+      releaseUntoldRulingRatings('enact-told');
+      expect(rulingChangeDrawState.ratings.length).eq(0);
+      expect(heldStock('rating')).eq(0);
+    });
+  });
+
   it('TR64: a PRODUCTION answer is a production token born on the same seal; a lowered production holds nothing', () => {
     const promethean: ParliamentRulingAnswerModel = {player: BLUE, card: CardName.PROMETHEAN_ALLIANCE, party: PartyName.SCIENTISTS, production: {megacredits: 2}};
     expect(ratingAnswerSpecs(promethean)).deep.eq({

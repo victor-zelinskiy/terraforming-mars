@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
-import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusCard, openConsole, openZoomViewer, press, settle} from './consoleStart';
+import {bootFixtureSeats, closeZoomViewer, fetchPlayerModel, focusCard, openConsole, openZoomViewer, press, pressUntil, settle} from './consoleStart';
 import {openParliament} from './parliamentDrive';
 
 /**
@@ -670,5 +670,46 @@ for (const preset of PRESETS) {
         expect(probe.proxy.length, `the marker was seen gliding (${dump})`).toBeGreaterThan(5);
       });
     }
+
+    /* THE FIELD WALK (2026-10-25): TR 45 from ⑤ — ⑥ TR · ⑦ CARD · ⑧ · ⑨ TR · ⑩ CARD — played as the turn's LAST action,
+     * so the turn is red's the moment the play lands and blue has no prompt for the whole walk. Two card steps in one
+     * walk: the park was read over «any card step not lifted», so ⑩'s entry held ⑦'s batch parked while ⑦'s cover was
+     * lifting — no «Взять» was ever offered and the Parliament froze inside the hand. Each card is now taken in its own
+     * scene, the walk goes on to ⑩, and the board comes back with both cards in the hand and no hold force-released. */
+    test(`TR 45 from ⑤ as the LAST action — two card steps, each card taken in its own scene, the walk finishes while the turn is red's (${preset.id})`, async ({page, request}) => {
+      test.setTimeout(480_000);
+      const run = witness(page);
+      const {playerId} = await bootFixtureSeats(page, request, 'green-allegiance-field', {query: preset.query});
+      const before = await wireOf(request, playerId);
+      const viewer = before.thisPlayer.color;
+      const me = (wire: Wire) => wire.game.parliament.players.find((p) => p.color === viewer)!;
+      expect([me(before).agenda, before.thisPlayer.terraformRating], 'the fixture: blue on step 5, TR 45').toEqual([5, 45]);
+
+      await focusInHand(page);
+      await openComposer(page);
+      await pressA(page, run);
+      await page.locator('.con-hand .con-parl--embedded[data-walk-beat]').waitFor({timeout: 40_000});
+      const mid = await fetchPlayerModel(request, playerId) as unknown as {waitingFor?: unknown};
+      expect(mid.waitingFor, 'the play was the last action of the turn — blue has no prompt during the walk').toBeUndefined();
+
+      for (const step of [7, 10]) {
+        await expect(page.locator('.con-reveal--scene:not(.con-reveal--bonus-held):not(.con-reveal--bonus-veiled) [data-zoom-slot]'),
+          `the card of step ${step} stands in its own scene, ready to be taken`).toHaveCount(1, {timeout: 45_000});
+        await shoot(page, preset.id, `30-field-take-${step}`);
+        expect(await pressUntil(page, 'Enter', async () => await page.locator('dialog.con-zoom[open], .con-reveal').count() === 0, {tries: 6, settleMs: 1500}),
+          `A takes the card of step ${step}`).toBe(true);
+      }
+      await waitFlowLeft(page);
+
+      const after = await wireOf(request, playerId);
+      expect(me(after).agenda, 'five steps: ⑤ → ⑩').toBe(10);
+      expect(after.thisPlayer.terraformRating, 'two walked TR').toBe(47);
+      expect(after.thisPlayer.cardsInHandNbr, 'the played card left, the two step cards arrived').toBe(before.thisPlayer.cardsInHandNbr - 1 + 2);
+      expect(after.game.parliament.lastAdvance?.steps).toEqual([{to: 6, bonus: 'tr'}, {to: 7, bonus: 'card'}, {to: 8}, {to: 9, bonus: 'tr'}, {to: 10, bonus: 'card'}]);
+      expect(run.posts.length, 'the play was ONE POST — the takes acknowledge, they submit no input').toBe(1);
+      expect(run.holdWarnings, 'no animation hold was force-released by its ceiling').toEqual([]);
+      expect(run.pageErrors).toEqual([]);
+      await shoot(page, preset.id, '31-field-home');
+    });
   });
 }
