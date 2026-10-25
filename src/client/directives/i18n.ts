@@ -144,7 +144,9 @@ export type TranslateTextOptions = {
 let translated: Set<string> | undefined;
 export function translateText(englishText: string, options?: TranslateTextOptions): string {
   const lang = getPreferences().lang;
-  const translations: {[key: string]: string} | undefined = (window as any)._translations;
+  // A pure view-model translated under the SERVER runner (no DOM — `politicalEffects.captionsFor`, tests/console/**)
+  // has no translation table: the English key is the honest answer there, exactly as for `lang === 'en'`.
+  const translations: {[key: string]: string} | undefined = typeof window === 'undefined' ? undefined : (window as any)._translations;
   if (lang === 'en' || translations === undefined) {
     return englishText;
   }
