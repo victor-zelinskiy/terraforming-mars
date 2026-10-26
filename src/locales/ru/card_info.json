@@ -5,6 +5,7 @@
     "1 VP for each hydroelectric resource on this card.": "1 ПО за каждый гидроресурс на этой карте.",
     "1 VP for each preservation on this card.": "1 ПО за каждое сбережение на этой карте.",
     "1 VP per 3 floaters on this card.": "1 ПО за каждые 3 аэростата на этой карте.",
+    "1 VP per 4 data on this card.": "1 ПО за каждые 4 данных на этой карте.",
     "3 M€ per completed parameter": "3 M€ за каждый завершённый параметр",
     "A card here may be played as if from hand, with its cost reduced by the number of resources on it.": "Здешние карты можно разыгрывать по аналогии с картами с руки, уменьшая их стоимость на число здешних ресурсов.",
     "Action: Place a community (player marker) on a non-reserved area next to one of your tiles or marked areas.": "Действие: разместите поселение (маркер игрока) на незарезервированной зоне рядом с одним из ваших тайлов или отмеченных зон.",
@@ -388,6 +389,7 @@
     "Start with 42 M€.": "Начните с 42 М€.",
     "Start with 44 M€.": "Начните с 44 М€.",
     "Start with 45 M€.": "Начните с 45 М€.",
+    "Start with 46 M€.": "Начните с 46 М€.",
     "Start with 47 M€.": "Начните с 47 М€.",
     "Start with 48 M€.": "Начните с 48 М€.",
     "Start with 50 M€.": "Начните с 50 М€.",
@@ -602,5 +604,7 @@
     "Place your cube on each adjacent non-reserved area. Only you can place tiles there.": "Положите свой куб на каждую соседнюю незарезервированную клетку. Строить там можете только вы.",
     "Tile on your marked area: 3 data or a card": "Тайл на вашем участке: 3 данных или карта",
     "Green tile card played: +6 heat, +1 M€ prod": "Зелёная карта с тайлом: +6 тепла, +1 пр. M€",
-    "Pay 12 heat to draw 2 cards": "12 тепла → 2 карты"
+    "Pay 12 heat to draw 2 cards": "12 тепла → 2 карты",
+    "As your first action, increase your TR 2 steps.": "Первым действием повысьте свой РТ на 2.",
+    "Each TR step you gain: +1 data here": "Каждый шаг вашего РТ: +1 данные на эту карту"
 }

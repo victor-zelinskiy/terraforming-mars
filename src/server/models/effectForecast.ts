@@ -37,7 +37,7 @@ import {
 import {EffectForecastContext, EffectForecastGrant, EffectForecastTile} from '../cards/EffectForecastContext';
 import {cardResourceGain, cardResourceIcon, drawGain, globalGain, globalParameterStepSize, oceanGain, productionChange, stockGain, trGain} from '../cards/actionPreviews';
 import {divertedDataOf} from './divertedTerraforming';
-import {vetoedStepsOf} from './vetoedRating';
+import {tileRatingEvents, vetoedStepsOf} from './vetoedRating';
 import {ratingVetoed} from '../parliament/ratingVetoGate';
 import * as forecast from '../cards/effectForecastPreviews';
 import {GREENS_MEGACREDITS_PER_TR} from '../parliament/parties/PartyEffects';
@@ -291,38 +291,77 @@ export function grantOfEffect(effect: ActionEffect): EffectForecastGrant | undef
 }
 
 /**
+ * THE RATING AN OPERATION PAYS ITS ACTOR — the ONE arithmetic of «the seat gains N rating steps», read by EVERY
+ * answer to a rating gain: the ruling Greens' 2 M€ per step (`partyFacts`) and every card that answers one
+ * (`ratingRaiseFacts` — TR81 Lotus Innovations' data per step). Two readers, one sum, so the two facts of one raise
+ * can never disagree.
+ *
+ * A SCALE STEP IS A TR STEP for the raiser: `now` is the explicit `tr` grants (a struck chip — RX35, RX42 — is no
+ * grant) PLUS every `global` grant's steps (the steps the ceiling leaves — `scaleStepsOf`; an ocean chip counts its
+ * tiles) PLUS what the bonus steps the raise crosses grant (`scaleBonusPass`'s extra — Venus 16 %'s rating, oxygen
+ * 8 %'s temperature step), all paid with the press. A chip that merely RESTATES a scale's own TR beside the scale
+ * (`ActionEffect.implied`) is no grant, so nothing is counted twice; the greenery revision's own TR arrives as an
+ * explicit chip beside the oxygen and is honestly a second step. `placed` is what the TILES the operation places
+ * carry, paid after the placement — an ocean's step, a greenery's oxygen step where the scale has room and the Redux
+ * tile's own (`tileRatingEvents` — the veto pass's reading of a tile, so the promise and the judgement count the same
+ * events). THE RATING VETO (RX42): a seat first by rating gains nothing at all; a seat below the top gains until it is
+ * first and the exit pass struck the rest — an explicit struck chip already made no grant, an IMPLIED one restates a
+ * step the grants count, and the funnel judges the tiles' steps LAST, so they are the first to go. Read-only.
+ */
+export type OperationRating = {now: number, placed: number};
+
+export function ratingStepsOf(
+  player: IPlayer,
+  grants: ReadonlyArray<EffectForecastGrant>,
+  effects: ReadonlyArray<ActionEffect> = [],
+  tiles: ReadonlyArray<EffectForecastTile> = [],
+): OperationRating {
+  if (ratingVetoed(player)) {
+    return {now: 0, placed: 0};
+  }
+  const raised = grants.reduce((sum, g) => sum + (g.kind === 'tr' ? g.amount : g.kind === 'global' ? g.steps : 0), 0);
+  const placed = tiles.reduce((sum, tile) => {
+    // The veto pass's own kinds (`tileKindOfStep`): a plain greenery, a plain ocean — a special tile carries no scale.
+    const kind = tile.tileType === TileType.GREENERY ? 'greenery' :
+      tile.tileType !== undefined && BASE_OCEAN_TILES.has(tile.tileType) ? 'ocean' : undefined;
+    return kind === undefined ? sum : sum + tile.count * tileRatingEvents(player, kind).reduce((s, n) => s + n, 0);
+  }, 0);
+  const struck = effects.reduce((sum, e) => sum + (e.implied === true ? (e.vetoed?.steps ?? 0) : 0), 0);
+  const placedStruck = Math.min(placed, struck);
+  return {now: Math.max(0, raised - (struck - placedStruck)), placed: placed - placedStruck};
+}
+
+/**
  * TURMOIL REDUX — the PARTY EFFECTS the acting seat holds react to its own
  * operation exactly like a card in its tableau would: the Greens to the TR it
  * gains and to its plant / heat production steps, Mars First to the tiles it
  * places on Mars. Read from the SAME predicates the live hooks read
  * (`Parliament.hasPartyEffect`, `PARTY_EFFECTS`); the source is the party
- * (cardless — the client never resolves it to a card). A SCALE STEP IS A TR
- * STEP for the raiser (temperature, oxygen, Venus — and an ocean tile), so the
- * Greens' TR count is the explicit `tr` grants PLUS every `global` grant's
- * steps (the steps the ceiling leaves — `scaleStepsOf`): an asteroid's degree,
- * a standard aquifer's tile, a card's Venus step all name their 2 M€ before
- * the press. A chip that merely RESTATES a scale's own TR beside the scale
- * (`ActionEffect.implied`) is no grant, so nothing is counted twice; the
- * greenery revision's own TR arrives as an explicit chip beside the oxygen
- * and is honestly a second step.
+ * (cardless — the client never resolves it to a card). The Greens' TR count is
+ * THE operation's rating (`ratingStepsOf` — the one arithmetic the rating's
+ * card reactors read too): an asteroid's degree, a standard aquifer's tile, a
+ * card's Venus step all name their 2 M€ before the press, and a tile the play
+ * places names its 2 M€ for after the placement (deferred, like Mars First's).
  */
 function partyFacts(player: IPlayer, grants: ReadonlyArray<EffectForecastGrant>, tiles: ReadonlyArray<EffectForecastTile>, effects: ReadonlyArray<ActionEffect> = []): Array<EffectForecastFact> {
   const parliament = player.game.parliament;
   if (parliament === undefined || !parliament.participates(player, 'party-effects')) {
     return [];
   }
-  // THE RATING VETO (RX42): a seat first by rating gains NO rating from this operation — the Greens have nothing to
-  // pay for; a seat below the top gains until it is first, and the exit pass struck the rest (`vetoed` on the chips).
-  const vetoedRating = ratingVetoed(player) ? Number.POSITIVE_INFINITY : vetoedStepsOf(effects);
   const facts: Array<EffectForecastFact> = [];
   const partySource = (party: PartyName, channel: EffectForecastSource['channel']): EffectForecastSource =>
     ({kind: 'party', name: party, owner: player.color, channel});
   if (parliament.hasPartyEffect(player, PartyName.GREENS)) {
-    const tr = Math.max(0, grants.reduce((sum, g) => sum + (g.kind === 'tr' ? g.amount : g.kind === 'global' ? g.steps : 0), 0) - vetoedRating);
-    if (tr > 0) {
+    const rating = ratingStepsOf(player, grants, effects, tiles);
+    if (rating.now > 0) {
       facts.push(forecast.exact(partySource(PartyName.GREENS, 'tr-increase'),
-        [stockGain(player, Resource.MEGACREDITS, GREENS_MEGACREDITS_PER_TR * tr)],
+        [stockGain(player, Resource.MEGACREDITS, GREENS_MEGACREDITS_PER_TR * rating.now)],
         'The Greens pay 2 M€ per TR step you gain', {id: 'greens-tr'}));
+    }
+    if (rating.placed > 0) {
+      facts.push(forecast.deferred(partySource(PartyName.GREENS, 'tr-increase'),
+        [stockGain(player, Resource.MEGACREDITS, GREENS_MEGACREDITS_PER_TR * rating.placed)],
+        'The Greens pay 2 M€ per TR step you gain', {id: 'greens-tr-placed'}));
     }
     const steps = grants.reduce((sum, g) => sum + (g.kind === 'production' && (g.resource === Resource.PLANTS || g.resource === Resource.HEAT) ? g.amount : 0), 0);
     if (steps > 0) {
@@ -506,6 +545,72 @@ function scaleRaiseFacts(
     }
   }
   return facts;
+}
+
+/** A placed tile's rating lands after its placement — the cascade's inheritance for the `placed` half of the pass. */
+const AFTER_PLACEMENT: GrantInheritance = {certainty: 'deferred', timing: 'after-placement'};
+
+/**
+ * THE RATING PASS — the operation's rating (`ratingStepsOf`, the SAME sum the Greens are paid on) offered as ONE
+ * `tr` grant to the reactors the live engine calls for it: `Player.increaseTerraformRating` walks EVERY seat's
+ * tableau in generation order and asks `onIncreaseTerraformRatingByAnyPlayer(cardOwner, raiser, steps)` under the
+ * card's effect scope (`tr-increase`) — whoever raised, so a rival's reactor is asked too and answers for itself
+ * (TR81 Lotus Innovations pays only on its owner's own rating; a «whenever anyone gains TR» card on a rival's table
+ * would answer the raiser's gain). Each fact addressed to its reactor's owner: the press's own steps as they are
+ * (`exact`), a placed tile's step after its placement (`deferred` — the cell is not chosen yet, and an ocean the
+ * board has no room for was never counted). A reactor with the live hook and no twin is ONE honest `unknown` per
+ * card. A WORLD move (PL-052) raises nobody's rating: nothing at all. Read-only.
+ */
+function ratingRaiseFacts(
+  raiser: IPlayer,
+  card: ICard | undefined,
+  rating: OperationRating,
+  ctx: EffectForecastContext,
+): Array<EffectForecastFact> {
+  if (ctx.world === true || (rating.now <= 0 && rating.placed <= 0)) {
+    return [];
+  }
+  const facts: Array<EffectForecastFact> = [];
+  const unknownNamed = new Set<string>();
+  for (const owner of raiser.game.playersInGenerationOrder) {
+    for (const reactor of reactorsOf(owner, raiser, card)) {
+      if (reactor.onIncreaseTerraformRatingByAnyPlayer === undefined) {
+        continue;
+      }
+      if (reactor.grantForecast === undefined) {
+        const key = `${owner.color}|${reactor.name}`;
+        if (!unknownNamed.has(key)) {
+          unknownNamed.add(key);
+          facts.push(unknownFor(reactor, owner, raiser, 'tr-increase', 'This card reacts to the gain, but its result is not described'));
+        }
+        continue;
+      }
+      if (rating.now > 0) {
+        for (const fact of reactor.grantForecast(owner, raiser, {kind: 'tr', amount: rating.now}, ctx)) {
+          facts.push(addressed(fact, raiser, owner, undefined));
+        }
+      }
+      if (rating.placed > 0) {
+        for (const fact of reactor.grantForecast(owner, raiser, {kind: 'tr', amount: rating.placed}, ctx)) {
+          facts.push(addressed(fact, raiser, owner, AFTER_PLACEMENT));
+        }
+      }
+    }
+  }
+  return facts;
+}
+
+/** The rating pass AND what answers it (the reactors' own gains cascade like any first-order fact's — a data → its readers). */
+function ratingFacts(
+  raiser: IPlayer,
+  card: ICard | undefined,
+  grants: ReadonlyArray<EffectForecastGrant>,
+  effects: ReadonlyArray<ActionEffect>,
+  tiles: ReadonlyArray<EffectForecastTile>,
+  ctx: EffectForecastContext,
+): Array<EffectForecastFact> {
+  const first = ratingRaiseFacts(raiser, card, ratingStepsOf(raiser, grants, effects, tiles), ctx);
+  return first.length === 0 ? first : [...first, ...cascadeFacts(raiser, card, first, ctx)];
 }
 
 /**
@@ -1182,18 +1287,25 @@ function buildForecast(player: IPlayer, card: ICard, preview: ActionPreview, ope
   }
   // Turmoil Redux: the acting seat's PARTY EFFECTS answer its own grants and
   // tiles — the branch-independent ones in `facts`, an option's own inside it.
+  // Then the RATING it gains, on the same sum, to every seat's rating reactors
+  // (the live funnel's order: the party first, then the tableaus — TR81).
+  // A lone branch the rules refuse places nothing (the tile pass's own rule).
+  const liveTiles = single && branches[0]?.available === false ? [] : sharedTiles;
   facts.push(
-    ...partyFacts(player, ownGrants, sharedTiles, single ? ownEffects : []),
-    ...resolutionFacts(player, ownGrants, sharedTiles, single ? ownEffects : []));
+    ...partyFacts(player, ownGrants, liveTiles, single ? ownEffects : []),
+    ...resolutionFacts(player, ownGrants, liveTiles, single ? ownEffects : []),
+    ...ratingFacts(player, card, ownGrants, single ? ownEffects : [], liveTiles, ctx));
   if (!single) {
     for (let pos = 0; pos < branches.length; pos++) {
       const branch = branches[pos];
       if (!branch.available) {
         continue;
       }
+      const branchTiles = ownTilesOf(perBranchTiles[pos], sharedTiles);
       const own = [
-        ...partyFacts(player, branchGrants[pos] ?? [], ownTilesOf(perBranchTiles[pos], sharedTiles), branch.effects),
-        ...resolutionFacts(player, branchGrants[pos] ?? [], ownTilesOf(perBranchTiles[pos], sharedTiles), branch.effects),
+        ...partyFacts(player, branchGrants[pos] ?? [], branchTiles, branch.effects),
+        ...resolutionFacts(player, branchGrants[pos] ?? [], branchTiles, branch.effects),
+        ...ratingFacts(player, card, branchGrants[pos] ?? [], branch.effects, branchTiles, {...baseCtx, tiles: perBranchTiles[pos], branchPos: pos}),
       ];
       if (own.length > 0) {
         const list = byBranch[pos] ?? (byBranch[pos] = []);
@@ -1260,7 +1372,11 @@ export function rewardReactionFacts(
   const facts = [...bonuses.facts, ...grantFacts(player, player, card, grants, ctx)];
   facts.push(...cascadeFacts(player, card, facts, ctx));
   if (!world) {
-    facts.push(...partyFacts(player, grants, [], effects), ...resolutionFacts(player, grants, [], effects));
+    facts.push(
+      ...partyFacts(player, grants, [], effects),
+      ...resolutionFacts(player, grants, [], effects),
+      // The rating the reward pays (a standard asteroid's degree, a trade's +1 TR), to the rating reactors (TR81).
+      ...ratingFacts(player, card, grants, effects, [], ctx));
   }
   facts.push(...colonyBuiltFacts(player, card, opts.coloniesBuilt ?? 0, ctx));
   return stripTouchedPools(facts.map((fact) => stampHosts(fact, card)), effects, card);
@@ -1378,4 +1494,7 @@ export const FORECAST_HOOK_PAIRS: ReadonlyArray<{live: keyof ICard, forecast: ke
   {live: 'onPatentsSold', forecast: 'patentsSoldForecast'},
   // A step of the Career (Turmoil Redux): the walk a PLAY makes — the table's answer per step (TR78 Arwind Inc.).
   {live: 'onAgendaStep', forecast: 'agendaStepForecast'},
+  // A rating gain is a `tr` grant — the operation's rating (`ratingStepsOf`, the Greens' own sum), every seat's
+  // «whenever a player gains TR» (TR81 Lotus Innovations).
+  {live: 'onIncreaseTerraformRatingByAnyPlayer', forecast: 'grantForecast'},
 ];

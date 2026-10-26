@@ -37,7 +37,9 @@ export const TURMOIL_REDUX_NEW_CORPORATIONS: ReadonlyArray<ReduxCorporationRow> 
   // TR80 — AUTHORED 2026-10-26 (`turmoilRedux/HartlanHeating.ts`): a green card that places a tile → 6 heat + 1 M€
   // production (the printed class `cards/cardPlacesTile.ts`); 12 heat → 2 cards.
   {name: 'Hartlan Heating', scan: 'Corporations/Corporation - Hartlan Heating.png', authored: CardName.HARTLAN_HEATING},
-  {name: 'Lotus Innovations', scan: 'Corporations/Corporation - Lotus Innovations.png'},
+  // TR81 — AUTHORED 2026-10-26 (`turmoilRedux/LotusInnovations.ts`): +2 TR as the first action; a data here for every
+  // step of the owner's rating (the first action's two included); 1 VP per 4 data.
+  {name: 'Lotus Innovations', scan: 'Corporations/Corporation - Lotus Innovations.png', authored: CardName.LOTUS_INNOVATIONS},
   {name: 'Proteus', scan: 'Corporations/Corporation - Proteus.png'},
   {name: 'The Deimos Group', scan: 'Corporations/Corporation - The Deimos Group.png'},
   {name: 'Titan Holdings', scan: 'Corporations/Corporation - Titan Holdings.png'},

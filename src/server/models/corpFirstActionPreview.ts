@@ -4,6 +4,7 @@ import {CardName} from '../../common/cards/CardName';
 import {ICorporationCard} from '../cards/corporation/ICorporationCard';
 import {ActionPreview} from '../../common/models/ActionPreviewModel';
 import {effectsForBehavior, stepsForBehavior} from './actionPreview';
+import {effectForecastForAction} from './effectForecast';
 
 /**
  * READ-ONLY preview of a corporation's MANDATORY FIRST ACTION — the
@@ -41,7 +42,15 @@ export function previewableFirstActionCorp(player: IPlayer, name: CardName): ICo
 
 export function corpFirstActionPreview(player: IPlayer, corp: ICorporationCard): ActionPreview {
   // The family's exit pass: every step addressed to its own prompt (`preselectAddresses.ts`).
-  return withPreselectAddresses(corpFirstActionPreviewOf(player, corp));
+  const preview = withPreselectAddresses(corpFirstActionPreviewOf(player, corp));
+  // THE EFFECT FORECAST rides INSIDE the preview (the forecast's law 8 — the same route, the same version key, zero
+  // new fetch): what the table answers to the first action, by the engine every other door reads — the rating the
+  // action gains offered to the rating reactors (TR81 Lotus Innovations: «including from this» — the corporation is
+  // already in the tableau when its own first action raises the rating), a city's tile reactors, the parties. A
+  // first action plays no card, so it is asked as an OPERATION of the corporation (the action form: no card-played
+  // fan-out, no discount, no payment value). Absent when nothing answers — «absent = nothing reacts» stays one test.
+  const forecast = effectForecastForAction(player, corp, preview);
+  return forecast.facts.length > 0 || forecast.byBranch !== undefined ? {...preview, forecast} : preview;
 }
 
 function corpFirstActionPreviewOf(player: IPlayer, corp: ICorporationCard): ActionPreview {

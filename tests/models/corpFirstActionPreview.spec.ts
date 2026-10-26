@@ -1,4 +1,5 @@
 import {expect} from 'chai';
+import {CardName} from '../../src/common/cards/CardName';
 import {ALL_MODULE_MANIFESTS} from '../../src/server/cards/AllManifests';
 import {GameModule} from '../../src/common/cards/GameModule';
 import {ICorporationCard} from '../../src/server/cards/corporation/ICorporationCard';
@@ -14,6 +15,7 @@ import {Aridor} from '../../src/server/cards/colonies/Aridor';
 import {ArcadianCommunities} from '../../src/server/cards/promo/ArcadianCommunities';
 import {PolderTechDutch} from '../../src/server/cards/promo/PolderTechDutch';
 import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
+import {LotusInnovations} from '../../src/server/cards/turmoilRedux/LotusInnovations';
 
 // Modules whose corporations flow through the console's dedicated first-action
 // confirm modal today. Widen alongside the other preview SCOPE sets when an
@@ -79,6 +81,22 @@ describe('corpFirstActionPreview', () => {
 
     const poseidon = corpFirstActionPreview(player, new Poseidon());
     expect(poseidon.branches[0].steps.some((s) => s.kind === 'boardPlacement' && s.placementType === 'colony')).is.true;
+  });
+
+  it('the EFFECT FORECAST rides the preview (law 8): the rating a first action gains, answered by the rating reactors — absent when nothing answers', () => {
+    const [/* game */, player] = testGame(2, {turmoilReduxExpansion: true, coloniesExtension: true});
+    // TR81 Lotus Innovations: «+2 TR, including from this» — the corporation is already in the tableau.
+    const lotus = new LotusInnovations();
+    player.playedCards.push(lotus);
+    const preview = corpFirstActionPreview(player, lotus);
+    expect(preview.kind, 'declarative — never the fallback').eq('declarative');
+    expect(preview.branches[0].effects.map((e) => [e.direction, e.icon, e.amount])).deep.eq([['gain', 'tr', 2]]);
+    const facts = preview.forecast?.facts.filter((f) => f.source.name === CardName.LOTUS_INNOVATIONS) ?? [];
+    expect(facts.map((f) => [f.certainty, f.effects.map((e) => [e.icon, e.amount])])).deep.eq([['exact', [['data', 2]]]]);
+
+    // A first action nothing answers carries no forecast at all («absent = nothing reacts»).
+    const [/* game */, other] = testGame(2);
+    expect(corpFirstActionPreview(other, new Inventrix()).forecast).is.undefined;
   });
 
   it('bespoke corps supply a co-located hook — never a mute dynamic branch', () => {

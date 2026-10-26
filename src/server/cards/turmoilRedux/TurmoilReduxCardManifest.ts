@@ -80,6 +80,7 @@ import {SeptemTribusRedux} from './SeptemTribusRedux';
 import {ArwindInc} from './ArwindInc';
 import {FerrusAcademy} from './FerrusAcademy';
 import {HartlanHeating} from './HartlanHeating';
+import {LotusInnovations} from './LotusInnovations';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -396,6 +397,10 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // pays 6 heat + 1 M€ production after the play (`onCardPlayed` + its forecast twin on the same predicate); the action
     // trades 12 heat for 2 cards, declaratively.
     [CardName.HARTLAN_HEATING]: {Factory: HartlanHeating},
+    // TR81 — the FOURTH new corporation: +2 TR as its first action, a data on itself for EVERY step of its owner's
+    // rating (`onIncreaseTerraformRatingByAnyPlayer` + its twin on the forecast's rating pass — `ratingStepsOf`, the
+    // Greens' own sum), 1 VP per 4 data.
+    [CardName.LOTUS_INNOVATIONS]: {Factory: LotusInnovations},
   },
   // The classic cards a replacement above stands in for — never dealt into a Redux game (upstream's
   // `GameCards.filterReplacedCards`); a classic-Turmoil game does not load this manifest, so it keeps them.

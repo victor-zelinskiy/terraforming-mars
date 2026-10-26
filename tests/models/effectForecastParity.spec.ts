@@ -40,6 +40,7 @@ import {Herbivores} from '../../src/server/cards/base/Herbivores';
 import {VectorComputations} from '../../src/server/cards/turmoilRedux/VectorComputations';
 import {SpinInducingAsteroid} from '../../src/server/cards/venusNext/SpinInducingAsteroid';
 import {NitrogenRichAsteroid} from '../../src/server/cards/base/NitrogenRichAsteroid';
+import {ReleaseOfInertGases} from '../../src/server/cards/base/ReleaseOfInertGases';
 import {Poseidon} from '../../src/server/cards/colonies/Poseidon';
 import {MiningColony} from '../../src/server/cards/colonies/MiningColony';
 import {NuclearZone} from '../../src/server/cards/base/NuclearZone';
@@ -122,10 +123,12 @@ function tilePlayOnly(card: ICard): boolean {
  * Vector Computations is the pool's DATA grant: its own play puts 2 data on itself (TR18 Martian Fiber).
  * Spin-Inducing Asteroid is the pool's VENUS raise (2 steps — Aphrodite, TR24 Venusian Census) and
  * Nitrogen-Rich Asteroid its TEMPERATURE raise (Homeostasis Bureau): a scale step is a `global` grant.
+ * Release of Inert Gases is the pool's EXPLICIT rating (+2 TR, no scale): the rating pass's `tr` grant on its own
+ * (TR81 Lotus Innovations — the scale raisers above reach it too, a scale step being a rating step).
  */
 const TRIGGERS: ReadonlyArray<new () => IProjectCard> = [
   Research, NitriteReducingBacteria, Bushes, Pets, ImportedNitrogen, IoMiningIndustries, NoctisFarming, Livestock,
-  VectorComputations, SpinInducingAsteroid, NitrogenRichAsteroid,
+  VectorComputations, SpinInducingAsteroid, NitrogenRichAsteroid, ReleaseOfInertGases,
 ];
 
 /** Extra STATES of a reactor that flip its answer (the same predicates the live hook reads). */
@@ -249,8 +252,9 @@ describe('effect-forecast ↔ execution parity', function() {
       if (colonyOnly(probe)) {
         continue;
       }
-      // «Any player plays» and «the scale is raised, whoever raised it» both pay a FOREIGN owner.
-      const foreignToo = probe.onCardPlayedByAnyPlayer !== undefined || probe.onGlobalParameterRaised !== undefined;
+      // «Any player plays», «the scale is raised, whoever raised it» and «any player gains TR» all ask a FOREIGN owner.
+      const foreignToo = probe.onCardPlayedByAnyPlayer !== undefined || probe.onGlobalParameterRaised !== undefined ||
+        probe.onIncreaseTerraformRatingByAnyPlayer !== undefined;
       const variants = [{label: 'default', arrange: undefined as ((r: ICard) => void) | undefined}, ...(VARIANTS[probe.name] ?? [])];
       for (const variant of variants) {
         for (const foreign of foreignToo ? [false, true] : [false]) {

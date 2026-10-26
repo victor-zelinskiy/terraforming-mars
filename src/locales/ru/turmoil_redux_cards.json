@@ -254,5 +254,8 @@
     "${0} placed their cube on ${1} areas around the city on ${2}": "${0} кладёт свой куб на ${1} клеток вокруг города · ${2}",
     "You start with 48 M€ and 2 heat production.": "Вы начинаете с 48 M€ и 2 производством тепла.",
     "Effect: After you play a green project card that places a tile, gain 6 heat and increase your M€ production 1 step.": "Эффект: после розыгрыша зелёной карты проекта, размещающей тайл, получите 6 тепла и увеличьте производство M€ на 1.",
-    "Action: Pay 12 heat to draw 2 cards.": "Действие: заплатите 12 тепла и возьмите 2 карты."
+    "Action: Pay 12 heat to draw 2 cards.": "Действие: заплатите 12 тепла и возьмите 2 карты.",
+    "You start with 46 M€. As your first action, increase your TR 2 steps. 1 VP per 4 data resources here.": "Вы начинаете с 46 M€. Первым действием повысьте свой РТ на 2. 1 ПО за каждые 4 данных на этой карте.",
+    "Effect: After each time you increase your TR by 1, including from this, add 1 data resource to this card.": "Эффект: после каждого повышения вашего РТ на 1 (включая это) положите 1 данные на эту карту.",
+    "Increase your TR 2 steps": "Повысьте свой РТ на 2"
 }

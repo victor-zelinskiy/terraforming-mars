@@ -65,8 +65,13 @@ function isRatingGain(effect: ActionEffect): boolean {
   return effect.icon === 'tr' && effect.direction === 'gain' && effect.amount > 0 && effect.diverted === undefined;
 }
 
-/** The rating EVENTS a placed tile pays, one entry per event, in the engine's order (an ocean: one; a greenery: the oxygen's, then the tile's). */
-function tileRatingEvents(player: IPlayer, kind: 'greenery' | 'ocean'): Array<number> {
+/**
+ * The rating EVENTS a placed tile pays, one entry per event, in the engine's order (an ocean: one; a greenery: the
+ * oxygen's, then the tile's). The ONE reading of «what a tile's placement raises the rating by» — the forecast's
+ * rating pass counts a placed tile with it too (`effectForecast.ratingStepsOf`), so the steps it promises and the
+ * steps this pass judges are the same steps.
+ */
+export function tileRatingEvents(player: IPlayer, kind: 'greenery' | 'ocean'): Array<number> {
   if (kind === 'ocean') {
     return [1];
   }
