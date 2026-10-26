@@ -161,6 +161,8 @@ export function projectCardPaymentOptions(
     // exact mirror of Player.paymentOptionsForCard (paymentTagGateParity.spec
     // holds the two copies of every tag gate together).
     supercomputerData: tags.includes(Tag.SCIENCE),
+    // Arwind's fighters pay for a PRINTED Space tag — the exact mirror of Player.paymentOptionsForCard (EVA's reading).
+    arwindFighters: tags.includes(Tag.SPACE),
   };
 }
 
@@ -321,6 +323,13 @@ export function paymentFromCounts(
  * then M€ tops up the remainder; unavoidable rate-remainder overpay is
  * trimmed by its post-pass).
  */
+/**
+ * THE PROTECTED SOURCES — never seeded by the opening mix: Modular Floodgates' stored steel (a blockade) and Arwind
+ * Inc.'s fighters (TR29 Spaceship Recycling spends a fighter from ANY of the player's cards — the owner's decision 7,
+ * 2026-10-26). The player raises the lane explicitly.
+ */
+const PROTECTED_UNITS: ReadonlySet<SpendableResource> = new Set<SpendableResource>(['floodgateSteel', 'arwindFighters']);
+
 export function initialCounts(
   cost: number,
   lanes: ReadonlyArray<PaymentLane>,
@@ -337,11 +346,11 @@ export function initialCounts(
   // status honestly reads «short» until they do). Excluding it from the
   // allocation ORDER is the whole mechanism (`NON_GREEDY_UNITS` would still
   // spend the minimum).
-  const order: Array<SpendableResource> = [...lanes.map((l) => l.unit).filter((u) => u !== 'floodgateSteel'), 'megacredits'];
+  const order: Array<SpendableResource> = [...lanes.map((l) => l.unit).filter((u) => !PROTECTED_UNITS.has(u)), 'megacredits'];
   const payment = computeDefaultPayment(cost, order, ledger, false);
   const counts: Partial<Record<SpendableResource, number>> = {};
   for (const lane of lanes) {
-    counts[lane.unit] = lane.unit === 'floodgateSteel' ? 0 : payment[lane.unit];
+    counts[lane.unit] = PROTECTED_UNITS.has(lane.unit) ? 0 : payment[lane.unit];
   }
   return counts;
 }
@@ -388,6 +397,8 @@ const PAY_UNIT_LABELS: Readonly<Record<string, string>> = {
   // panel (a Science card play vs a standard project), and if they ever did the
   // source labels below would tell them apart.
   supercomputerData: 'Data',
+  // Arwind Inc.'s fighters — the one fighter lane of the game (a second would add a source label).
+  arwindFighters: 'Fighters',
 };
 
 /**
@@ -463,6 +474,7 @@ const PAY_UNIT_ICONS: Readonly<Record<string, string>> = {
   mechs: 'mech',
   constructionMechs: 'mech',
   supercomputerData: 'data',
+  arwindFighters: 'fighter',
 };
 
 export function paymentUnitIcon(unit: string): string {

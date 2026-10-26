@@ -1153,6 +1153,9 @@ export enum CardName {
   // The PRINTED name (the scan says «Septem»); the classic enum keeps upstream's `SEPTUM_TRIBUS` spelling.
   SEPTEM_TRIBUS_REDUX = 'Septem Tribus:redux',
 
+  // Turmoil Redux NEW corporations (TR78…TR85 — `common/cards/turmoilReduxCorporations.ts`)
+  ARWIND_INC = 'Arwind Inc.',
+
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',
   COLLUSION_STANDARD_PROJECT = 'Collusion:SP',

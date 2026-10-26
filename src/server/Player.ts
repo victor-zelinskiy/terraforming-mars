@@ -1486,6 +1486,9 @@ export class Player implements IPlayer {
       // and a standard project, a deferred bill, a colony fee or a card's
       // action is no «playing a Science card».
       supercomputerData: card.tags.includes(Tag.SCIENCE),
+      // Arwind Inc. (TR78): «when playing a Space tag» — a PRINTED Space tag and nothing else (EVA Mechs' reading): a
+      // wild tag, a standard project, a bill, a colony fee or a card's action is no «playing a Space tag».
+      arwindFighters: card.tags.includes(Tag.SPACE),
     };
   }
 
@@ -1602,6 +1605,8 @@ export class Player implements IPlayer {
     removeResourcesOnCard(CardName.CONSTRUCTION_MECHS, payment.constructionMechs, DEFAULT_PAYMENT_VALUES.constructionMechs);
     // Supercomputer (TR48): the data leave THIS card (never Aurorai's, never any other holder's).
     removeResourcesOnCard(CardName.SUPERCOMPUTER, payment.supercomputerData, DEFAULT_PAYMENT_VALUES.supercomputerData);
+    // Arwind Inc. (TR78): the fighters leave THE CORPORATION («fighters here») — never another fighter holder.
+    removeResourcesOnCard(CardName.ARWIND_INC, payment.arwindFighters, DEFAULT_PAYMENT_VALUES.arwindFighters);
 
     this.recordPaymentValueBonus(payment);
 
@@ -2547,6 +2552,7 @@ export class Player implements IPlayer {
       mechs: this.getSpendable('mechs'),
       constructionMechs: this.getSpendable('constructionMechs'),
       supercomputerData: this.getSpendable('supercomputerData'),
+      arwindFighters: this.getSpendable('arwindFighters'),
     };
   }
 
@@ -2594,6 +2600,7 @@ export class Player implements IPlayer {
       mechs: options?.mechs ?? false,
       constructionMechs: options?.constructionMechs ?? false,
       supercomputerData: options?.supercomputerData ?? false,
+      arwindFighters: options?.arwindFighters ?? false,
     };
 
     // HOOK: Luna Trade Federation

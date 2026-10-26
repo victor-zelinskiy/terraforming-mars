@@ -96,6 +96,7 @@ const ICON_CLASS: Record<SpendableResource, string> = {
   mechs: 'resource_icon--mech',
   constructionMechs: 'resource_icon--mech',
   supercomputerData: 'resource_icon--auroraidata',
+  arwindFighters: 'card-resource-fighter',
 };
 
 export default defineComponent({

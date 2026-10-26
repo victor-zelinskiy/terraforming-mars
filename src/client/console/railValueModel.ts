@@ -159,6 +159,8 @@ export const CONTEXT_FOR_CARD_UNIT: Record<SpendableCardResource, RailMcContext>
   constructionMechs: 'building-or-city',
   // Supercomputer (TR48): «2 M€ · Наука».
   supercomputerData: 'science',
+  // Arwind Inc. (TR78): «4 M€ · Космос».
+  arwindFighters: 'space',
 };
 
 function badgeOf(facts: Array<RailMcUnitFact>): RailMcBadge {

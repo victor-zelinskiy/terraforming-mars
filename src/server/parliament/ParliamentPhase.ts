@@ -66,6 +66,7 @@ import {payAgendaGrant} from './resolutions/ResolutionAgendaGrant';
 import {SeatGrantDeed, seatGrantsOf} from './resolutions/SeatGrants';
 import {SittingAcks} from './SittingAcks';
 import {isBannerCubeSource} from '../../common/parliament/bannerCubes';
+import {agendaReactionPending} from './AgendaStepReactions';
 
 /**
  * THE HANDLE OF A WORLD STEP — the seat the engine's parameter API is handed
@@ -213,6 +214,11 @@ export class ParliamentPhase {
    */
   private offerEarlyCloses(): void {
     if (this.parliament.phase === undefined) {
+      return;
+    }
+    if (agendaReactionPending(this.parliament, undefined, 'phase') !== undefined) {
+      // THE WINNER'S TABLE ANSWERS ITS STEP OF THE CAREER (TR78): the support and the enactment are still ahead of
+      // every seat — nobody can say yet that nothing is asked of them.
       return;
     }
     SittingAcks.offerEarly(this.game, this.parliament, this.rootContext());

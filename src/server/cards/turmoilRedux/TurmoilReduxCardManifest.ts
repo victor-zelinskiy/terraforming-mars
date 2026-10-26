@@ -77,6 +77,7 @@ import {RecruitmentRedux} from './RecruitmentRedux';
 import {VoteOfNoConfidenceRedux} from './VoteOfNoConfidenceRedux';
 import {SponsoredMoholeRedux} from './SponsoredMoholeRedux';
 import {SeptemTribusRedux} from './SeptemTribusRedux';
+import {ArwindInc} from './ArwindInc';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -381,6 +382,10 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
   // party's effect — `parliament/PlaceBannerCube`). Art and lore are R15's (`reimplements`). The module's first corporation.
   corporationCards: {
     [CardName.SEPTEM_TRIBUS_REDUX]: {Factory: SeptemTribusRedux},
+    // TR78 — the FIRST of the set's eight NEW corporations (`common/cards/turmoilReduxCorporations.ts`, TR78…TR85 by the
+    // order of the scan folder): its own art and lore, no `reimplements`. A fighter per step of the Career
+    // (`ICard.onAgendaStep`), and the fighters on it pay 4 M€ for a Space tag (`arwindFighters`).
+    [CardName.ARWIND_INC]: {Factory: ArwindInc},
   },
   // The classic cards a replacement above stands in for — never dealt into a Redux game (upstream's
   // `GameCards.filterReplacedCards`); a classic-Turmoil game does not load this manifest, so it keeps them.

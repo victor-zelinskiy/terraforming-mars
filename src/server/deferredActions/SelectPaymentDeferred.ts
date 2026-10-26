@@ -142,6 +142,8 @@ export class SelectPaymentDeferred extends DeferredAction<Payment> {
         constructionMechs: false,
         // Supercomputer's data: «when playing Science cards» — a bill is never that.
         supercomputerData: false,
+        // Arwind's fighters: «when playing a Space tag» — a bill is never that.
+        arwindFighters: false,
       }, this.options.reserveUnits);
     if (this.options.votePayment !== undefined) {
       select.markVotePayment(this.options.votePayment);

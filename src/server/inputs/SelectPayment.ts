@@ -42,6 +42,7 @@ export class SelectPayment extends BasePlayerInput<Payment> {
       mechs: player.getSpendable('mechs'),
       constructionMechs: player.getSpendable('constructionMechs'),
       supercomputerData: player.getSpendable('supercomputerData'),
+      arwindFighters: player.getSpendable('arwindFighters'),
     };
     // The VOTE-BILL marker rides HERE (the payment is a deferred follow-up of a
     // menu branch; central decoration only ever sees the top-level prompt).

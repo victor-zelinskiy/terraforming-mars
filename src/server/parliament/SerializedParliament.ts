@@ -519,7 +519,22 @@ export type SerializedPendingAction =
    * into nothing). Deferred actions are not serialized, so this is also what
    * lets a reload re-raise the gate instead of losing the reward.
    */
-  | {kind: 'chairman-quest'; player: PlayerId};
+  | {kind: 'chairman-quest'; player: PlayerId}
+  /**
+   * A STEP OF THE CAREER WAS TAKEN and a card of the seat's table answered it
+   * with a QUESTION still unanswered (TR78 Arwind Inc.: «add 1 fighter to ANY
+   * card») — the step itself and its bonus are paid, the card's reaction is
+   * owed. Written for every walk the PARLIAMENT runs (the sitting's winner
+   * step `phase`, the chairman's quest `quest`, a law's seat step
+   * `resolution`), where a save follows every answer; a card's own walk
+   * (`card`) asks inside the one request that played it and writes nothing.
+   * Deferred actions are not serialized: this is what lets a reload re-ask the
+   * same question instead of losing the fighter (`AgendaStepReactions.rebuild`),
+   * and the answer drops it — never twice. `index` / `of` / `step` say WHICH
+   * step of WHICH walk, so two reactions of one walk are two records.
+   */
+  | {kind: 'card-reaction'; player: PlayerId; card: CardName; resource: CardResource; count: number;
+      reason: 'quest' | 'phase' | 'resolution'; step: number; index: number; of: number; resolution?: string};
 
 /**
  * ONE entry of a player's influence beyond the Agenda track: how much, and WHO

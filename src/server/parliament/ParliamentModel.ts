@@ -10,7 +10,7 @@ import {message} from '../logs/MessageBuilder';
 import {Color} from '../../common/Color';
 import {PlayerId} from '../../common/Types';
 import {
-  ParliamentModel, ParliamentPhaseModel, ParliamentPhaseSummaryModel, ParliamentPlayerModel, ParliamentRenewalEventModel, ParliamentSlotModel, RatingVetoModel,
+  AGENDA_REACTION_PENDING_KEY, ParliamentModel, ParliamentPhaseModel, ParliamentPhaseSummaryModel, ParliamentPlayerModel, ParliamentRenewalEventModel, ParliamentSlotModel, RatingVetoModel,
   PartyAccessModel, PartyActionModel, ResolutionActionModel, VoteOptionModel, VoteProjectionModel, ParliamentEnactedModel, ParliamentEnactOutcomeModel,
 } from '../../common/models/ParliamentModel';
 import {PartyName} from '../../common/turmoil/PartyName';
@@ -28,6 +28,7 @@ import {worldMoveForecast} from '../models/effectForecast';
 import {ratingLeaders} from './ratingVetoGate';
 import {ResolutionDefinition} from './resolutions/IResolution';
 import {ParliamentPhase} from './ParliamentPhase';
+import {agendaReactionPending} from './AgendaStepReactions';
 
 function colorOf(game: IGame, delegate: Delegate): Color | 'neutral' {
   return delegate === 'NEUTRAL' ? 'neutral' : game.getPlayerById(delegate).color;
@@ -188,6 +189,18 @@ export function getParliamentModel(game: IGame, viewer?: IPlayer): ParliamentMod
       const wf = asked.getWaitingFor();
       if (wf !== undefined && wf.parliamentPhasePrompt === undefined) {
         phase.pending = {player: asked.color, key: p.effects.scan.key, input: wf.type};
+      }
+    }
+    // THE WINNER'S STEP OF THE CAREER IS ANSWERED BY ITS TABLE (TR78 Arwind Inc.): the driver waits on the question
+    // between the `agenda` step and the support — published under the same `pending`, so every other seat reads the
+    // honest «blue is choosing a card» instead of a sitting that stopped without a word.
+    const reaction = phase.pending === undefined ? agendaReactionPending(parliament, undefined, 'phase') : undefined;
+    if (reaction !== undefined) {
+      const asked = game.getPlayerById(reaction.player);
+      phase.pending = {player: asked.color, key: AGENDA_REACTION_PENDING_KEY};
+      const input = asked.getWaitingFor()?.type;
+      if (input !== undefined) {
+        phase.pending.input = input;
       }
     }
     const outcomes = outcomeModels(game, p.summary?.outcomes);

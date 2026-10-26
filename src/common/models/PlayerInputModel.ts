@@ -748,6 +748,33 @@ export type ChairmanQuestPromptMeta = {
   generation: number;
 }
 
+/**
+ * THE QUESTION A STEP OF THE CAREER ASKS (Turmoil Redux — TR78 Arwind Inc.:
+ * «whenever you advance your Agenda marker 1 step, add 1 fighter to ANY
+ * card»). A card of the player's table answered ONE step of the Agenda walk
+ * (`ICard.onAgendaStep`) with a question, and this marker says which step of
+ * which walk asked it — so the console decides the HOST by structure, never by
+ * the title (invariant 1): a walk of a card played from the hand asks in the
+ * hand (`reason: 'card'` — normally pre-selected in the composer), every other
+ * walk asks INSIDE the Parliament (`phase` the sitting, `quest` the chairman's
+ * quest, `resolution` a law's seat step). Serialized on the input's own
+ * `toModel` (nesting-safe).
+ */
+export type AgendaStepPromptMeta = {
+  /** The card whose effect asks (the reactor — Arwind Inc.). */
+  source: CardName;
+  /** Why the marker walked — `AgendaWalkCause`'s reason. */
+  reason: 'quest' | 'phase' | 'card' | 'resolution';
+  /** The track step the marker reached (1…12). */
+  step: number;
+  /** This step's place in the walk, 1-based, and the walk's length — «1/2» of a two-step walk. */
+  index: number;
+  of: number;
+  /** The card that walked (`reason: 'card'`) / the law that walked it (`reason: 'resolution'`). */
+  card?: CardName;
+  resolution?: string;
+}
+
 export type BaseInputModel = {
   title: string | Message;
   warning?: string | Message;
@@ -849,6 +876,10 @@ export type BaseInputModel = {
    *  marker (see {@link CardResourceDistributionMeta}). Serialized on
    *  `AndOptions.toModel` (nesting-safe), not centrally. */
   cardResourceDistributionPrompt?: CardResourceDistributionMeta;
+  /** Explicit "a STEP OF THE CAREER asks this" marker (see
+   *  {@link AgendaStepPromptMeta}). Serialized on the input's own `toModel`
+   *  (nesting-safe). */
+  agendaStepPrompt?: AgendaStepPromptMeta;
 }
 
 export type AndOptionsModel = BaseInputModel & {
@@ -996,6 +1027,7 @@ export type SelectProjectCardToPlayModel = BaseInputModel & {
   mechs: number;
   constructionMechs: number;
   supercomputerData: number;
+  arwindFighters: number;
 }
 
 /**
@@ -1275,6 +1307,7 @@ export type SelectPaymentModel = BaseInputModel & {
   mechs: number,
   constructionMechs: number,
   supercomputerData: number,
+  arwindFighters: number,
 }
 
 export type SelectPlayerModel = BaseInputModel & {

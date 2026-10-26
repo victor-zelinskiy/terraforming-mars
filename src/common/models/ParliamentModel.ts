@@ -368,6 +368,13 @@ export type ResolutionPlayModel = {
   billAsks: boolean;
 };
 
+/**
+ * THE PENDING KEY of the winner's table answering its step of the Career (TR78 Arwind Inc.: «add 1 fighter to ANY
+ * card») — the sitting waits on it between the `agenda` step and the support, published as the phase's `pending` so
+ * every other seat reads who is answering what.
+ */
+export const AGENDA_REACTION_PENDING_KEY = 'agenda-reaction';
+
 export type ParliamentPhasePendingModel = {
   player: Color;
   key: string;

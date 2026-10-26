@@ -34,6 +34,7 @@ import {ParliamentPhase} from './ParliamentPhase';
 import {RatingGain, ResolutionPassive, TerraformingOrigin, TerraformingUnit, TilePlacementBonusContext} from './resolutions/IResolution';
 import {divertsTerraforming, divertTerraforming} from './divertedTerraformingGate';
 import {ratingVetoed, vetoRating} from './ratingVetoGate';
+import {rebuildAgendaReactions} from './AgendaStepReactions';
 
 export class ParliamentHandler {
   // ───────────────────────── the action menu ─────────────────────────
@@ -559,6 +560,8 @@ export class ParliamentHandler {
       }
     }
     ChairmanSeat.rebuildPrompts(game, parliament);
+    // …and a card's answer to a step of the Career the Parliament walked (TR78 Arwind Inc.'s fighter).
+    rebuildAgendaReactions(game, parliament);
   }
 
   /** Continue a political phase a save interrupted. */

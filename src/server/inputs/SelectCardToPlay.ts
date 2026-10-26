@@ -77,6 +77,7 @@ export abstract class SelectCardToPlay<T extends IProjectCard | IStandardProject
       mechs: player.getSpendable('mechs'),
       constructionMechs: player.getSpendable('constructionMechs'),
       supercomputerData: player.getSpendable('supercomputerData'),
+      arwindFighters: player.getSpendable('arwindFighters'),
     };
     // The asking RESOLUTION ACTION's marker (RX36 Live Experiments, stage
     // `play`) rides the input's own model — nesting-safe, like every marker.

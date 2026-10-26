@@ -13,6 +13,9 @@ export const MECHS_VALUE = 5;
 // Supercomputer (TR48): a data ON that card pays 2 M€ toward a Science-tag card
 // — FLAT, like the mechs (Aurorai's data are `DATA_VALUE`, a different unit).
 export const SUPERCOMPUTER_DATA_VALUE = 2;
+// Arwind Inc. (TR78): a fighter ON that corporation pays 4 M€ toward a
+// Space-tag card — FLAT, like the mechs (no titanium value, no Metal Research).
+export const ARWIND_FIGHTER_VALUE = 4;
 export const MICROBES_VALUE = 2;
 export const OCEAN_BONUS = 2;
 export const CORPORATION_CARDS_DEALT_PER_PLAYER = 2;

@@ -3,7 +3,7 @@ import {SelectCard} from '../inputs/SelectCard';
 import {SelectOption} from '../inputs/SelectOption';
 import {OrOptions} from '../inputs/OrOptions';
 import {skip} from '../inputs/optionMetadata';
-import {ChoiceContextSource, OrOptionsModel, SelectCardModel} from '../../common/models/PlayerInputModel';
+import {AgendaStepPromptMeta, ChoiceContextSource, OrOptionsModel, SelectCardModel} from '../../common/models/PlayerInputModel';
 import {CardResource} from '../../common/CardResource';
 import {CardName} from '../../common/cards/CardName';
 import {ICard} from '../cards/ICard';
@@ -160,6 +160,14 @@ export type Options = {
    * on the struck printed icon of the operation — never on the law's face.
    */
   diverted?: {resolution: string};
+  /**
+   * THE STEP OF THE CAREER THAT ASKS (TR78 Arwind Inc. — «whenever you advance
+   * your Agenda marker 1 step, add 1 fighter to ANY card»): stamped on the
+   * pick (`markAgendaStepPrompt`) so the console hosts it by structure — the
+   * hand for a card's walk, the Parliament's stage for the sitting, the quest
+   * and a law (`parliament/AgendaStepReactions.ts`).
+   */
+  agendaStep?: AgendaStepPromptMeta;
 }
 
 /** The near-miss reason of a holder SHORT of `min` («a card that already has a resource» — TR53). */
@@ -373,6 +381,9 @@ export class AddResourcesToCard extends DeferredAction<ICard> {
         // A law's replacement of the seat's own terraforming (RX35) — structural, so no host reads it as a sitting's ask.
         ...(this.options.diverted !== undefined ? {diverted: this.options.diverted} : {}),
       });
+    if (this.options.agendaStep !== undefined) {
+      select.markAgendaStepPrompt(this.options.agendaStep);
+    }
     return this.options.cause === undefined ?
       select :
       select.markChoiceContext({source: this.options.cause, mode: 'reward'});

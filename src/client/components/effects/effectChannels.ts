@@ -52,6 +52,9 @@ const CURATED_EFFECT_CHANNELS: Partial<Record<CardName, ReadonlyArray<ReadonlyAr
   // Septem Tribus:redux — #0 «win a resolution → your cube on its party's banner» (onResolutionWon → 'resolution-won');
   // #1 «a cube on a banner → that party's effect» is the LAW OF ACCESS (a grant — nothing tallies).
   [CardName.SEPTEM_TRIBUS_REDUX]: [['resolution-won'], []],
+  // Arwind Inc. — #0 «a step of the Career → 1 fighter onto any card» (onAgendaStep → 'agenda-step'); #1 is the
+  // fighters-as-4 M€ payment rule — structural (valueAsPayment → 'resource-payment').
+  [CardName.ARWIND_INC]: [['agenda-step'], undefined],
 };
 
 /**

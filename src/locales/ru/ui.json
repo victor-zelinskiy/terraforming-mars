@@ -1363,5 +1363,6 @@
     "for a replaced terraforming step": "за заменённое терраформирование",
     "for a change of the ruling party": "за смену правящей партии",
     "for a resolution won": "за победу на резолюции",
+    "for a step of the Career": "за шаг Карьеры",
     "Vetoed by ${0}: your terraform rating is the highest — ${1} TR not gained": "«${0}»: у вас наибольший РТ — ${1} РТ не засчитывается"
 }

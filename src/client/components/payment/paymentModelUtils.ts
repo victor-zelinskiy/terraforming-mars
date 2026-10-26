@@ -61,6 +61,10 @@ export const GENERIC_PAYMENT_ORDER: ReadonlyArray<SpendableResource> = [
   // the player raises the dial explicitly), so the default allocation must
   // exhaust every ordinary source before the panel even reaches it.
   'floodgateSteel',
+  // Arwind Inc. (TR78) fighters — PROTECTED like the floodgate steel (the owner's decision 7, 2026-10-26): a fighter on
+  // the corporation has a SECOND use in the set (TR29 Spaceship Recycling spends «1 fighter from ANY of your cards»),
+  // so the opening mix never seeds it — the player raises the lane on purpose (`paymentPlan.initialCounts`).
+  'arwindFighters',
   'megacredits',
 ];
 
@@ -187,6 +191,7 @@ export function buildStandardProjectPaymentModel(
     mechs: available.mechs,
     constructionMechs: available.constructionMechs,
     supercomputerData: available.supercomputerData,
+    arwindFighters: available.arwindFighters,
   };
 }
 

@@ -13,6 +13,7 @@ import {DEFAULT_GAME_OPTIONS, GameOptions} from '../../../src/server/game/GameOp
 import {toName} from '../../../src/common/utils/utils';
 import {TURMOIL_CARD_MANIFEST} from '../../../src/server/cards/turmoil/TurmoilCardManifest';
 import {replacementCardNumber, TURMOIL_REDUX_CLASSIC_REPLACEMENTS, TURMOIL_REDUX_REPLACED_CLASSIC_NAMES} from '../../../src/server/cards/turmoilRedux/classicReplacements';
+import {FIRST_NEW_CORPORATION_CARD_NUMBER, newCorporationCardNumber, TURMOIL_REDUX_NEW_CORPORATIONS} from '../../../src/common/cards/turmoilReduxCorporations';
 
 /**
  * INFRASTRUCTURE guard for the Turmoil Redux («Кризис: Возвращение») PROJECT CARD set.
@@ -53,13 +54,13 @@ describe('TurmoilReduxCardManifest', () => {
   const reduxCards = cardsOf(TURMOIL_REDUX_CARD_MANIFEST);
 
   describe('card id namespace', () => {
-    it('every Turmoil Redux card carries a TR## card number (TR01…TR70, the project replacements TR71…TR76, the corporation TR77)', () => {
+    it('every Turmoil Redux card carries a TR## card number (TR01…TR70, the project replacements TR71…TR76, the corporation TR77, the new corporations TR78…TR85)', () => {
       expect(reduxCards).is.not.empty;
       for (const {name, card} of reduxCards) {
         expect(card.metadata.cardNumber, `${name} must declare a cardNumber`).is.not.undefined;
         expect(card.metadata.cardNumber, `${name} must use the TR## namespace`).to.match(/^TR\d{2}$/);
         const n = Number(card.metadata.cardNumber?.slice(2));
-        expect(n, `${name}: the printed set runs TR01…TR70, its six project replacements TR71…TR76, its corporation TR77`).to.be.within(1, 77);
+        expect(n, `${name}: the printed set runs TR01…TR70, its six project replacements TR71…TR76, its corporation TR77, its eight new corporations TR78…TR85`).to.be.within(1, FIRST_NEW_CORPORATION_CARD_NUMBER + TURMOIL_REDUX_NEW_CORPORATIONS.length - 1);
       }
     });
 
@@ -81,6 +82,10 @@ describe('TurmoilReduxCardManifest', () => {
           expect(card.metadata.reimplements, `${name} (${card.metadata.cardNumber}) is an ordinary card of the set — no reimplements`).is.undefined;
           continue;
         }
+        if (n >= FIRST_NEW_CORPORATION_CARD_NUMBER) {
+          // A NEW corporation of the set (`turmoilReduxCorporations.ts`) — its own row, its own art and lore.
+          continue;
+        }
         const row = rows[n - 71];
         expect(row.kind === 'corporation', `${name} (${card.metadata.cardNumber}): a corporation row takes a corporation`).eq(card.type === CardType.CORPORATION);
         expect(card.metadata.reimplements, `${name} (${card.metadata.cardNumber}) must reimplement ${row.classic}`).eq(row.classic);
@@ -89,9 +94,35 @@ describe('TurmoilReduxCardManifest', () => {
       }
     });
 
+    // The eight NEW corporations (rulebook p.1 «8 new Corporation cards») take TR78…TR85 in the order of the scan folder
+    // (`common/cards/turmoilReduxCorporations.ts`): a number past TR77 is exactly the row it counts to, a CORPORATION,
+    // with no `reimplements` (its own art and lore) — and an authored row's card carries that number.
+    it('a number past TR77 is a NEW corporation\'s — the registry row it counts to, a corporation reimplementing nothing', () => {
+      expect(TURMOIL_REDUX_NEW_CORPORATIONS).to.have.lengthOf(8);
+      for (const {name, card} of reduxCards) {
+        const n = Number(card.metadata.cardNumber?.slice(2));
+        if (n < FIRST_NEW_CORPORATION_CARD_NUMBER) {
+          continue;
+        }
+        const row = TURMOIL_REDUX_NEW_CORPORATIONS[n - FIRST_NEW_CORPORATION_CARD_NUMBER];
+        expect(row?.authored, `${name} (${card.metadata.cardNumber}) is the registry row ${row?.name}`).eq(name);
+        expect(card.type, `${name} is a corporation`).eq(CardType.CORPORATION);
+        expect(card.metadata.reimplements, `${name} is a NEW corporation — it borrows no classic card`).is.undefined;
+        expect(newCorporationCardNumber(name)).eq(card.metadata.cardNumber);
+      }
+      for (const row of TURMOIL_REDUX_NEW_CORPORATIONS) {
+        if (row.authored !== undefined) {
+          expect(reduxCards.some((c) => c.name === row.authored), `${row.name} is authored — registered in the manifest`).is.true;
+        }
+      }
+    });
+
     it('every authored replacement removes its classic card — and only a replaced classic card is removed', () => {
       const replaced = reduxCards
-        .filter(({card}) => Number(card.metadata.cardNumber?.slice(2)) > 70)
+        .filter(({card}) => {
+          const n = Number(card.metadata.cardNumber?.slice(2));
+          return n > 70 && n < FIRST_NEW_CORPORATION_CARD_NUMBER;
+        })
         .map(({card}) => card.metadata.reimplements);
       expect(replaced, 'TR71 Aerial Lenses is the first').to.contain(CardName.AERIAL_LENSES);
       expect([...TURMOIL_REDUX_CARD_MANIFEST.cardsToRemove]).to.have.members(replaced).and.length(replaced.length);

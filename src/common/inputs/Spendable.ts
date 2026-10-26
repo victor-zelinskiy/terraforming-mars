@@ -55,6 +55,11 @@ export const SPENDABLE_CARD_RESOURCES = [
   // data unit: Aurorai's data pay for standard projects, these for a Science
   // card play, so the two never meet on one bill (a unit names one card).
   'supercomputerData',
+  // Fighters stored on Arwind Inc. (TR78 — the set's first NEW corporation) pay
+  // for cards with a Space tag at a flat 4 M€ each — the FOURTH card-bound unit:
+  // «fighters HERE», so only the corporation's own fighters (a unit names one
+  // card — every other fighter holder keeps its own uses).
+  'arwindFighters',
 ] as const;
 
 export const SPENDABLE_RESOURCES = [...SPENDABLE_STANDARD_RESOURCES, ...SPENDABLE_CARD_RESOURCES] as const;
@@ -79,4 +84,5 @@ export const CARD_FOR_SPENDABLE_RESOURCE = {
   mechs: CardName.EVA_MECHS,
   constructionMechs: CardName.CONSTRUCTION_MECHS,
   supercomputerData: CardName.SUPERCOMPUTER,
+  arwindFighters: CardName.ARWIND_INC,
 } satisfies Record<SpendableCardResource, CardName>;
