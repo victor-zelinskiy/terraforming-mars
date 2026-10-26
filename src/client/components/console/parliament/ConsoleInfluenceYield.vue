@@ -15,9 +15,14 @@
     is never drawn. No player → the formula alone, no invented number.
 
     ONE NUMBER (`oneNumber`) — the vote panel's law: the forecast is not a
-    second plate but a SUFFIX of the estimate («+1 if you win · step 3»,
-    `winSuffixesOf`), every effect's plate stands on ONE line, and the
-    block's host supplies the caption (its kicker), so the plates print none.
+    second plate. Where the win raises a number (`winSuffixesOf`) the block
+    becomes a TWO-COLUMN TABLE: the estimate's plate on the left, and on the
+    right THE WIN COLUMN — one head for the whole block («[★] если победите ·
+    [нашивка] ③», said ONCE, never per row) and, on each row, the number the
+    seat would get, in the plate's own grammar («[influence] 2 → +2 [unit]»,
+    gold). A row the win does not change repeats its number quietly, so the
+    column reads as the whole scenario. The block's host supplies the caption
+    (its kicker), so the plates print none.
 
     THE LEVY (the Budgets — «lose 10 M€» FIRST): a card that TAKES before it
     pays reads as ONE line, in the printed order, with the day's balance at
@@ -34,7 +39,7 @@
     console's own sprite families, the influence badge is the same asset the
     card face prints.
   -->
-  <div class="con-iyield" :class="['con-iyield--' + size, {'con-iyield--reference': readings.length === 0, 'con-iyield--parts': groups.length > 1, 'con-iyield--onenum': oneNumber}]" data-influence-yield>
+  <div class="con-iyield" :class="['con-iyield--' + size, {'con-iyield--reference': readings.length === 0, 'con-iyield--parts': groups.length > 1, 'con-iyield--onenum': oneNumber, 'con-iyield--table': winTable}]" data-influence-yield>
     <span v-if="kicker !== undefined" class="con-iyield__kicker">{{ $t(kicker) }}</span>
     <!-- A LEVY with no payout in its currency to net against stands alone, first — the printed order. -->
     <div v-if="levy !== undefined && levyAlone" class="con-iyield__group con-iyield__group--levy" data-yield-effect="levy">
@@ -50,6 +55,21 @@
     </div>
     <!-- WHICH WAY a level part moves the seat is a property of the EFFECT, so it rides the group — the formula
          row is absent whenever a reading stands, and a reading must still be able to say «this one takes». -->
+    <!-- THE WIN COLUMN'S HEAD — said once for the whole block: the winner's star, the condition, and the Career node
+         the win moves the marker to (the insignia + the track's own numbered disc). The full sentence is its hint and
+         the inspector's. It spans the header row, right-aligned over the win column: the head is wider than the
+         numbers under it, and a head that set the column's width kept the whole reading small (measured at 4K: the
+         reading could not grow past ×1.2 in a 1152 px plate). -->
+    <template v-if="winTable">
+      <span class="con-iyield__winhead" data-parl-vote-winhead :data-winhead-step="winStep" :data-hint="winStep === undefined ? undefined : stepHint(winStep)">
+        <i class="con-iyield__winhead-star" aria-hidden="true"></i>
+        <span class="con-iyield__winhead-text">{{ $t(suffixWords) }}</span>
+        <span v-if="winStep !== undefined" class="con-iyield__winhead-step">
+          <i class="career-step-glyph con-iyield__winhead-glyph" aria-hidden="true"></i>
+          <i class="con-iyield__winhead-node" aria-hidden="true">{{ winStep }}</i>
+        </span>
+      </span>
+    </template>
     <div v-for="group in groups" :key="group.effect.id" class="con-iyield__group"
          :data-yield-effect="group.effect.id" :data-yield-direction="group.effect.level?.direction">
       <!-- A SEQUENTIAL part states its own rule: «1 [card] / 3 [heat
@@ -224,25 +244,6 @@
             <span v-if="levyOn(group, y)" class="con-iyield__net" :class="{'con-iyield__net--minus': netOf(y) < 0}" data-yield-net-line :data-yield-net-amount="netOf(y)">
               <span class="con-iyield__eq" aria-hidden="true">=</span><b>{{ signedText(netOf(y)) }}</b><ConsoleYieldUnit :classes="unitClassesOf(group.effect)" />
             </span>
-            <!-- THE WIN'S DIFFERENCE, as a suffix of this very number — tracked
-                 caps, a quiet gold accent carried by weight, the Agenda step
-                 as the rail's own node. Not a reading: no kicker, no line of
-                 its own, no beat of its own. -->
-            <span v-if="y.context === 'estimate' && group.suffix !== undefined"
-                  class="con-iyield__suffix"
-                  :class="{'con-iyield__suffix--max': group.suffix.atCap}"
-                  :data-parl-vote-suffix="group.suffix.delta"
-                  :data-suffix-step="group.suffix.agendaStep"
-                  :data-hint="suffixHint(group.suffix)">
-              <b class="con-iyield__suffix-num">+{{ group.suffix.delta }}</b>
-              <ConsoleYieldUnit :classes="unitClassesOf(group.effect)" extra="con-iyield__suffix-unit" />
-              <span class="con-iyield__suffix-text">{{ $t(suffixWords) }}</span>
-              <template v-if="group.suffix.agendaStep !== undefined">
-                <span class="con-iyield__suffix-sep" aria-hidden="true">·</span>
-                <span class="con-iyield__suffix-text">{{ $t(suffixStepWord) }}</span>
-                <i class="con-iyield__suffix-node" aria-hidden="true">{{ group.suffix.agendaStep }}</i>
-              </template>
-            </span>
           </span>
           <!-- THE HORIZON of a production part beside a levy: it first PAYS in the next generation — never
                summed with the day's pocket. -->
@@ -250,6 +251,23 @@
           <span v-if="captions && captionOf(y) !== ''" class="con-iyield__caption">{{ captionOf(y) }}</span>
         </div>
       </div>
+      <!-- THE WIN CELL — this row's number if the seat wins the vote, in the plate's own grammar: the influence the
+           win reads it at, then the result, gold. A row the win does not change repeats its number quietly
+           (`--same`): the column is the whole scenario, and only what grows is bright. The witnesses
+           (`data-parl-vote-suffix` = what the win ADDS, `data-suffix-step`) stand on the changed cells alone. -->
+      <span v-if="winTable && winCellOf(group) !== undefined" class="con-iyield__suffix"
+            :class="{'con-iyield__suffix--same': group.suffix === undefined, 'con-iyield__suffix--max': group.suffix?.atCap === true, 'con-iyield__suffix--lost': winCellOf(group)!.lost}"
+            :data-parl-vote-suffix="group.suffix?.delta"
+            :data-suffix-step="group.suffix?.agendaStep"
+            :data-hint="group.suffix === undefined ? undefined : suffixHint(group.suffix)">
+        <template v-if="winCellOf(group)!.influence !== undefined">
+          <i class="con-iyield__inf" aria-hidden="true"></i><b class="con-iyield__suffix-in" data-suffix-in="influence">{{ winCellOf(group)!.influence }}</b>
+          <span class="con-iyield__arrow" aria-hidden="true">→</span>
+        </template>
+        <b class="con-iyield__suffix-num">{{ winCellOf(group)!.text }}</b>
+        <ConsoleYieldUnit v-if="winCellOf(group)!.unit" :classes="unitClassesOf(group.effect)" />
+        <em v-if="group.suffix?.atCap === true" class="con-iyield__max">{{ $t('Max.') }}</em>
+      </span>
     </div>
     <span v-if="note !== undefined" class="con-iyield__note" data-yield-note>{{ $t(note) }}</span>
   </div>
@@ -265,7 +283,7 @@ import {
   productionHorizonOn, ReadingPerson, sequelTotalIcon, WinSuffix, winSuffixesOf, yieldCaptionOf, yieldCountPresentation, yieldIconClass, yieldIconClasses,
   yieldIconOf, yieldInfluenceEnters, yieldIsFlat, yieldIsMultiplier, YieldCountGlyph, YieldIcon,
 } from '@/client/console/parliament/influenceYieldModel';
-import {SUFFIX_STEP, suffixHintKey, suffixWinKey} from '@/client/console/parliament/voteInfoModel';
+import {suffixHintKey, suffixWinKey} from '@/client/console/parliament/voteInfoModel';
 import PremiumCountGlyph from '@/client/components/premiumCard/PremiumCountGlyph.vue';
 import ConsoleYieldUnit from '@/client/components/console/parliament/ConsoleYieldUnit.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -337,8 +355,16 @@ export default defineComponent({
     suffixWords(): string {
       return suffixWinKey(this.person);
     },
-    suffixStepWord(): string {
-      return SUFFIX_STEP;
+    /**
+     * THE WIN TABLE stands where the win raises at least one number of a one-number block — the readings become rows
+     * and the win its own column. With nothing raised there is no column at all (no scenario to compare).
+     */
+    winTable(): boolean {
+      return this.oneNumber && this.groups.some((g) => g.suffix !== undefined && g.readings.length > 0);
+    },
+    /** The Career node the win moves the marker to — one per seat and win, so the first suffix names it. */
+    winStep(): number | undefined {
+      return this.groups.map((g) => g.suffix?.agendaStep).find((step) => step !== undefined);
     },
     /** The levy has no payout of its currency among the groups to stand at the head of — it stands alone. */
     levyAlone(): boolean {
@@ -490,6 +516,37 @@ export default defineComponent({
         return '';
       }
       return caption.params === undefined ? translateText(caption.key) : translateTextWithParams(caption.key, [...caption.params]);
+    },
+    /**
+     * THE WIN CELL of a row: the number this row's reading would print if the seat wins — the estimate plus what the
+     * win adds (never recomputed: `winSuffixesOf` already took the difference), the influence it is read at where
+     * influence is a term of the part; a row the win does not change repeats its own result. A level part at its
+     * target («nothing to lose») has no number to repeat — the cell reads «=».
+     */
+    winCellOf(group: Group): {text: string, influence: number | undefined, unit: boolean, lost: boolean} | undefined {
+      const y = group.readings[0];
+      if (y === undefined) {
+        return undefined;
+      }
+      const suffix = group.suffix;
+      if (suffix === undefined) {
+        if (levelYieldIsNone(y)) {
+          return {text: '=', influence: undefined, unit: false, lost: false};
+        }
+        if (this.levyOn(group, y)) {
+          return {text: this.signedText(this.netOf(y)), influence: undefined, unit: true, lost: false};
+        }
+        return {text: this.outText(y), influence: undefined, unit: true, lost: y.skipped !== undefined && (y.amount ?? 0) > 0};
+      }
+      const influence = suffix.influence !== undefined && this.influenceEnters(group.effect) && !this.isFlat(group.effect) ? suffix.influence : undefined;
+      if (this.levyOn(group, y)) {
+        return {text: this.signedText(this.netOf(y) + suffix.delta), influence, unit: true, lost: false};
+      }
+      return {text: this.outText({...y, amount: (y.amount ?? 0) + suffix.delta, delivered: undefined}), influence, unit: true, lost: y.skipped !== undefined};
+    },
+    /** The head's step hint — the same sentence the cells carry (the premium tooltip). */
+    stepHint(step: number): string {
+      return translateTextWithParams(suffixHintKey(this.person), [String(step)]);
     },
     /** The suffix's one-phrase explanation (the premium tooltip; a step-less forecast explains nothing more than it says). */
     suffixHint(suffix: WinSuffix): string | undefined {

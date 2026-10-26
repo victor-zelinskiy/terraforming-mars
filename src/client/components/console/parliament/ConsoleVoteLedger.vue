@@ -11,8 +11,16 @@
     win» (a scenario belongs to the full reading), and the only word on the
     whole row is «вы» on the viewer's own chip, which stands first. Nothing is
     computed here — `voteLedgerModel.ts` decides, this draws.
+
+    IT IS DRAWN AS THE TABS OF THE READING (2026-10-26): the chips stand in one
+    track between the LB and RB glyphs, and the SUBJECT's chip — whose numbers
+    the block shows — is the raised tab; the others are quieter but whole (the
+    comparison is still read at a glance). A row of ONE seat compares nothing:
+    it only repeated the block under it («вы +1 +1» over «+1», «+1»), so it is
+    not drawn — the bar offers no LB/RB there either (`voteSubjects > 1`).
   -->
-  <div v-if="chips.length > 0" class="con-vledger" data-parl-vote-ledger-row>
+  <div v-if="chips.length > 1" class="con-vledger" data-parl-vote-ledger-row>
+    <GamepadGlyph control="bumperL" class="con-vledger__glyph" aria-hidden="true" />
     <span v-for="chip in chips" :key="chip.color"
           class="con-vledger__chip"
           :class="{'con-vledger__chip--you': chip.you, 'con-vledger__chip--subject': chip.color === subject}"
@@ -35,6 +43,7 @@
         <ConsoleYieldUnit v-if="part.icon !== undefined" :classes="iconClasses(part.icon)" />
       </span>
     </span>
+    <GamepadGlyph control="bumperR" class="con-vledger__glyph" aria-hidden="true" />
   </div>
 </template>
 
@@ -45,6 +54,7 @@ import {YieldIcon, yieldIconClasses} from '@/client/console/parliament/influence
 import {LedgerChipVm, LedgerPart, ledgerPartText} from '@/client/console/parliament/voteLedgerModel';
 import ConsoleYieldUnit from '@/client/components/console/parliament/ConsoleYieldUnit.vue';
 import PlayerDelegate from '@/client/components/playerToken/PlayerDelegate.vue';
+import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {conLogicalPx} from '@/client/console/consoleLayoutProfile';
 
 /** The one word the row prints — the viewer's own chip (the same key the facts use for the viewer). */
@@ -52,7 +62,7 @@ const YOU_WORD = 'you';
 
 export default defineComponent({
   name: 'ConsoleVoteLedger',
-  components: {ConsoleYieldUnit, PlayerDelegate},
+  components: {ConsoleYieldUnit, PlayerDelegate, GamepadGlyph},
   props: {
     chips: {type: Array as PropType<ReadonlyArray<LedgerChipVm>>, required: true},
     /**

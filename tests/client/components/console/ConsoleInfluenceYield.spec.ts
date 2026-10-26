@@ -85,3 +85,56 @@ describe('ConsoleInfluenceYield — a counted part with no influence term (Jovia
     expect(reading.find('[data-yield-horizon]').exists(), 'one horizon — nothing to tell apart').to.eq(false);
   });
 });
+
+/**
+ * THE WIN COLUMN (2026-10-26) — the one-number block of a card whose win raises a number reads as a TWO-COLUMN TABLE:
+ * the estimate's plates on the left, the win's numbers on the right under ONE head («[★] если победите · [нашивка] ③»).
+ * Mining Incentives (RX22) at the owner's frame: Career position 2 (influence 1), the win moving the marker to node 3
+ * (influence 2) — the titanium is flat (+1 either way), the steel is +1 → +2.
+ */
+describe('ConsoleInfluenceYield — the win column (Mining Incentives)', () => {
+  const MINING_ID = 'RDX_INDUSTRIALISTS_MINING_INCENTIVES';
+  const mountMining = (oneNumber: boolean) => {
+    const resolution = getResolution(MINING_ID);
+    if (resolution === undefined) {
+      throw new Error(`${MINING_ID} is not in the client manifest`);
+    }
+    const yields = voteYieldsOf(resolution, model([seat('blue' as Color, 2, 1, [])]), 'blue' as Color);
+    return mount(ConsoleInfluenceYield, {props: {yields, formula: false, oneNumber, captions: false}, global: {mocks: {$t: (key: string) => key}}});
+  };
+
+  it('the head is said ONCE for the block — the condition and the Career node the win moves the marker to', () => {
+    const wrapper = mountMining(true);
+    expect(wrapper.find('[data-influence-yield]').classes()).to.include('con-iyield--table');
+    const heads = wrapper.findAll('[data-parl-vote-winhead]');
+    expect(heads.length, 'one head, never one per row').to.eq(1);
+    expect(heads[0].attributes('data-winhead-step')).to.eq('3');
+    expect(heads[0].find('.career-step-glyph').exists(), 'the step is the Career insignia, not the word «шаг»').to.eq(true);
+    expect(heads[0].find('.con-iyield__winhead-node').text()).to.eq('3');
+    expect(heads[0].text()).to.contain('if you win');
+    expect(wrapper.text(), 'the word «step» is gone from the block').not.to.contain('step');
+  });
+
+  it('every row has ONE win cell: the steel reads «[influence] 2 → +2», gold; the flat titanium repeats «+1» quietly', () => {
+    const wrapper = mountMining(true);
+    const cells = wrapper.findAll('.con-iyield__suffix');
+    expect(cells.length, 'one cell per row').to.eq(2);
+    const [titanium, steelCell] = cells;
+    expect(titanium.classes(), 'the flat part is unchanged by the win').to.include('con-iyield__suffix--same');
+    expect(titanium.attributes('data-parl-vote-suffix'), 'an unchanged cell carries no win witness').to.eq(undefined);
+    expect(titanium.find('.con-iyield__suffix-num').text()).to.eq('+1');
+    expect(titanium.find('[data-suffix-in="influence"]').exists(), 'a flat part reads no influence').to.eq(false);
+    expect(steelCell.classes()).not.to.include('con-iyield__suffix--same');
+    expect(steelCell.attributes('data-parl-vote-suffix'), 'the witness keeps what the win ADDS').to.eq('1');
+    expect(steelCell.attributes('data-suffix-step')).to.eq('3');
+    expect(steelCell.find('[data-suffix-in="influence"]').text(), 'read at the influence the win brings').to.eq('2');
+    expect(steelCell.find('.con-iyield__suffix-num').text(), 'the number the seat would get — never a delta to add up').to.eq('+2');
+  });
+
+  it('outside the one-number mode there is no table and no win column (the inspector keeps its forecast plate)', () => {
+    const wrapper = mountMining(false);
+    expect(wrapper.find('[data-influence-yield]').classes()).not.to.include('con-iyield--table');
+    expect(wrapper.find('[data-parl-vote-winhead]').exists()).to.eq(false);
+    expect(wrapper.find('.con-iyield__suffix').exists()).to.eq(false);
+  });
+});

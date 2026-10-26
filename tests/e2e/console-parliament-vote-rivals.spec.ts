@@ -156,4 +156,33 @@ test.describe('the vote panel · чужие исходы', () => {
     expect(reopened.subject, 'a fresh open reads the viewer’s own outcome').toBe(viewer);
     expect(reopened.rival, 'and wears the «mine» register again').toBe(false);
   });
+
+  /**
+   * THE DOUBLE A (2026-10-26, the owner): A on the voting area opens the mode on the card under the cursor, and a
+   * second A pressed at once — while the entrance still plays — is the player confirming THAT card. It used to be
+   * swallowed until the mode had fully opened; now it is remembered, the entrance is hurried, and the delegate goes.
+   * Raw key presses (never the driver's `press`, which waits for the screen to settle between them).
+   */
+  test('a second A during the entrance sends the delegate to the card the mode was entered through', async ({page, request}) => {
+    test.setTimeout(180_000);
+    const playerId = await bootFixture(page, request, FIXTURE);
+    const before = await fetchPlayerModel(request, playerId) as unknown as Wire;
+    await openParliament(page);
+    await settle(page, {timeoutMs: 15_000});
+
+    await page.keyboard.press('Enter');
+    await page.waitForTimeout(140);
+    const enteringAtSecond = await page.locator('.con-parl__vote--entering').count();
+    const selected = await page.locator('.con-parl__slot--selected').getAttribute('data-instance');
+    await page.keyboard.press('Enter');
+    expect(enteringAtSecond, 'the second A lands while the entrance is still playing').toBe(1);
+    expect(selected, 'the mode opened on a card').toBeTruthy();
+
+    await expect.poll(async () => {
+      const after = await fetchPlayerModel(request, playerId) as unknown as Wire;
+      return after.game.parliament.slots.find((s) => s.instance === selected)?.viewerVotes ?? -1;
+    }, {timeout: 20_000, message: 'the viewer\'s delegate reached the card the mode was entered through'})
+      .toBe((before.game.parliament.slots.find((s) => s.instance === selected)?.viewerVotes ?? 0) + 1);
+    await settle(page, {timeoutMs: 20_000});
+  });
 });

@@ -170,7 +170,16 @@ const budgetOf = (page: Page) => page.evaluate((limit) => {
   const q = (sel: string) => Array.from(surface.querySelectorAll<HTMLElement>(sel));
   const own = surface.querySelector<HTMLElement>('[data-parl-info="own"]');
   const vote = surface.querySelector<HTMLElement>('[data-parl-vote-forecast]');
-  const text = [own, vote].map((el) => (el?.textContent ?? '').replace(/\s+/g, ' ').trim()).join(' ');
+  // A controller glyph («LB» / «RB» at the ends of the row of seats) is a picture of a button, never panel copy.
+  const copyOf = (el: HTMLElement | null) => {
+    if (el === null) {
+      return '';
+    }
+    const clone = el.cloneNode(true) as HTMLElement;
+    clone.querySelectorAll('.gp-glyph').forEach((glyph) => glyph.remove());
+    return clone.textContent ?? '';
+  };
+  const text = [own, vote].map((el) => copyOf(el).replace(/\s+/g, ' ').trim()).join(' ');
   const words = (text.match(/[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё'’-]*/g) ?? []).length;
   const gone: Array<string> = [];
   for (const [sel, what] of [
@@ -323,12 +332,17 @@ for (const preset of PRESETS) {
         // ── THE LEDGER OF OUTCOMES: one chip per PARTICIPATING seat at ITS OWN influence, the viewer's
         // first, and NUMBERS ONLY — the only word on the whole row is «вы» on the viewer's own chip.
         const ledger = await ledgerOf(page);
-        expect(ledger, `${fixture.name}: the row of seats stands under the reading`).not.toBeNull();
-        expect(ledger!.map((chip) => chip.seat), 'the viewer first, then the model’s own order').toEqual(ledgerOrderOf(wire));
-        expect(ledger![0].you, 'the first chip is the viewer’s').toBe(true);
-        expect(ledger!.map((chip) => chip.cubes), 'one cube per chip — the parliament’s own language').toEqual(ledger!.map(() => 1));
-        expect(ledger!.slice(1).flatMap((chip) => chip.words), 'no chip but the viewer’s carries a word').toEqual([]);
-        expect(ledger!.flatMap((chip) => chip.parts).filter((part) => part.tone === null), 'every part names its tone').toEqual([]);
+        // A row of ONE seat compares nothing (it only repeated the block under it) — it is not drawn at all.
+        if (ledgerOrderOf(wire).length < 2) {
+          expect(ledger, `${fixture.name}: one seat — no row of seats`).toBeNull();
+        } else {
+          expect(ledger, `${fixture.name}: the row of seats stands under the reading`).not.toBeNull();
+          expect(ledger!.map((chip) => chip.seat), 'the viewer first, then the model’s own order').toEqual(ledgerOrderOf(wire));
+          expect(ledger![0].you, 'the first chip is the viewer’s').toBe(true);
+          expect(ledger!.map((chip) => chip.cubes), 'one cube per chip — the parliament’s own language').toEqual(ledger!.map(() => 1));
+          expect(ledger!.slice(1).flatMap((chip) => chip.words), 'no chip but the viewer’s carries a word').toEqual([]);
+          expect(ledger!.flatMap((chip) => chip.parts).filter((part) => part.tone === null), 'every part names its tone').toEqual([]);
+        }
 
         // ── (в) the budget — and the edge, read off the server's own model
         const budget = await budgetOf(page);

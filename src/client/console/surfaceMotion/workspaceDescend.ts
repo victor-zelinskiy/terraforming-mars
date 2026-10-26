@@ -105,6 +105,18 @@ export function killDescendEpisode(el: Element): void {
 }
 
 /**
+ * HURRY the element's live episode: the same phrase, played faster to its own end (its `done` fires
+ * from the timeline's completion as always). For a deciding press that arrives mid-entrance — the
+ * motion is finished, never skipped and never killed. No live episode → nothing to do.
+ */
+export function hurryDescendEpisode(el: Element, timeScale: number): void {
+  const tween = liveTweens.get(el);
+  if (tween !== undefined && tween.timeScale() < timeScale) {
+    tween.timeScale(timeScale);
+  }
+}
+
+/**
  * Run one guarded motion episode on an element: the previous episode dies
  * first, `done` fires exactly once (completion OR the safety timer), and an
  * interrupted episode can never strand the transition.

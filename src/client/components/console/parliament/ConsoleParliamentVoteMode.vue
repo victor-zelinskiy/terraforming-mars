@@ -55,8 +55,8 @@
                    :key="'own:' + (voteSubject ?? 'viewer')"
                    :class="{
                      'con-parl__info-own--yields': voteInfo.reading.yields.length > 0 || voteInfo.reading.grant !== undefined,
-                     'con-parl__info-own--ledger': voteLedger.length > 0,
-                     'con-parl__info-own--dense': voteLedger.length > 0 && voteInfo.reading.yields.length > 1,
+                     'con-parl__info-own--ledger': ledgerShown,
+                     'con-parl__info-own--dense': ledgerShown && voteInfo.reading.yields.length > 1,
                      'con-parl__info-own--rival': voteInfo.reading.subject !== undefined,
                    }"
                    data-parl-vote-item data-parl-info="own" :data-parl-subject="voteSubject">
@@ -86,7 +86,7 @@
                 <div class="con-parl__info-own-body">
                   <!-- («Зал» v7, Ф4: the card's PRINTED graphic is on the bill itself, a size up right above this
                        plate — the reading no longer repeats it; the formula → number plate alone is the reading.) -->
-                  <div v-if="voteInfo.reading.yields.length > 0 || voteInfo.reading.grant !== undefined || voteInfo.reading.uses !== undefined || voteInfo.veto !== undefined || voteLedger.length > 0" class="con-parl__info-readings" data-parl-vote-late>
+                  <div v-if="voteInfo.reading.yields.length > 0 || voteInfo.reading.grant !== undefined || voteInfo.reading.uses !== undefined || voteInfo.veto !== undefined || ledgerShown" class="con-parl__info-readings" data-parl-vote-late>
                     <ConsoleInfluenceYield v-if="voteInfo.reading.yields.length > 0"
                                            class="con-parl__info-yield"
                                            :yields="voteInfo.reading.yields"
@@ -367,7 +367,7 @@ import {
   dropFlight, dropFlightsWithPrefix, flightEl, flyAccessSeal, flyDelegate, flyPriceToken, nextFlightId, placeFigureRect, pushCubeFlight, rectOf, registerFlightHandle,
 } from '@/client/console/parliament/parliamentFlights';
 import {
-  emptyVoteRects, killParliamentVoteMotion, measureVoteRects, parkParliamentBody, playParliamentVoteEnter, playParliamentVoteLeave, Rect,
+  emptyVoteRects, hurryParliamentVoteEnter, killParliamentVoteMotion, measureVoteRects, parkParliamentBody, playParliamentVoteEnter, playParliamentVoteLeave, Rect,
   restoreParliamentBody, runDelegateFlight,
 } from '@/client/console/parliament/consoleParliamentVoteMotion';
 import {
@@ -394,8 +394,12 @@ const ACCESS_READ_MS = 1700;
 /** The confirm's price line: the lobby's delegate is free, the reserve's costs the server's own M€. */
 type CtaCost = {kind: 'free' | 'cost' | 'none', amount: number};
 
-/** The reading's own scale steps in its frame, largest first (PL-785 — `fitReading`): ×1.5 is the reading as a hero, ×1 the floor. */
-const READING_FIT_STEPS: ReadonlyArray<number> = [1.5, 1.35, 1.2, 1.1, 1];
+/**
+ * The reading's own scale steps in its frame, largest first (PL-785 — `fitReading`): ×1 is the floor. Since the win column (2026-10-26)
+ * a one-row reading is far narrower than its frame, and at ×1.5 it still floated in a third of the hall's plate — the ladder reaches
+ * ×1.8, and the measurement still decides (a reading that does not stand whole at a step never takes it).
+ */
+const READING_FIT_STEPS: ReadonlyArray<number> = [1.8, 1.65, 1.5, 1.35, 1.2, 1.1, 1];
 
 /**
  * THE VOTE MODE — the Parliament frame's phase descent: the three slots are
@@ -454,6 +458,12 @@ export default defineComponent({
       /** THE ACCESS SCENE's own hold and its running beat (the count, the read). */
       accessHold: undefined as AnimationHold | undefined,
       accessBeatHandle: undefined as ParliamentBeat | undefined,
+      /**
+       * A CONFIRM OWED BY THE ENTRANCE — the instance of the card an A pressed while the mode was still entering
+       * (the double A through the card the player came in by). The entrance is hurried and the vote is sent the
+       * moment it lands, on that card only: a ◀ ▶ after the press moves the selection and the owed press lapses.
+       */
+      confirmOwed: undefined as string | undefined,
       /** The reading's own frame is watched for a change of ITS room (a profile, the panel) — the fit's other trigger. */
       readingRoomObserver: undefined as ResizeObserver | undefined,
     };
@@ -621,6 +631,10 @@ export default defineComponent({
         viewer: this.viewerColor,
         players: this.playerView.players,
       });
+    },
+    /** The row of seats stands only where it COMPARES — two seats or more (`ConsoleVoteLedger` draws nothing below). */
+    ledgerShown(): boolean {
+      return this.voteLedger.length > 1;
     },
     /**
      * THE RIVAL KICKER's words, split around the name: the key's own `${0}`
@@ -891,6 +905,7 @@ export default defineComponent({
           fresh: true,
           done: () => {
             f.voteEntering = false;
+            this.flushOwedConfirm();
           },
         });
       });
@@ -989,6 +1004,7 @@ export default defineComponent({
           instant: false,
           done: () => {
             f.voteEntering = false;
+            this.flushOwedConfirm();
           },
         });
       });
@@ -1010,6 +1026,7 @@ export default defineComponent({
       f.sourceHold = undefined;
       f.sourceLeaving = undefined;
       f.voteEntering = false;
+      this.confirmOwed = undefined;
       foldWorkspaceFrame();
       setWorkspaceFramePhase('parliament', 'browse');
       if (root === undefined || this.sceneHandedOver) {
@@ -1056,12 +1073,31 @@ export default defineComponent({
       if (action === 'inspect') {
         this.inspect();
       } else if (action === 'primary') {
-        // The press that opened the mode is never its confirm.
+        // A press DURING the entrance is the player's second A on the card they came in by — a decision, never
+        // dropped: the entrance is hurried to its end and the vote goes out as it lands (`flushOwedConfirm`).
+        // (The press that OPENED the mode never reaches here — the overview consumed it.)
         if (parliamentFlow.voteEntering) {
+          const slot = this.voteSlot;
+          if (slot !== undefined && parliamentFlow.stage === 'vote') {
+            this.confirmOwed = slot.instance;
+            hurryParliamentVoteEnter(parliamentRootEl());
+          }
           return;
         }
         this.submitVote();
       }
+    },
+    /**
+     * THE OWED CONFIRM lands with the entrance: the selection is still the card the press was made on and the mode
+     * still stands at its vote — then it is exactly the A the player pressed, the same submit and the same refusal.
+     */
+    flushOwedConfirm(): void {
+      const owed = this.confirmOwed;
+      this.confirmOwed = undefined;
+      if (owed === undefined || !this.voteUp || parliamentFlow.stage !== 'vote' || this.voteSlot?.instance !== owed) {
+        return;
+      }
+      this.submitVote();
     },
     /**
      * THE INSPECTOR — X on the selected card. Inside the vote mode it opens

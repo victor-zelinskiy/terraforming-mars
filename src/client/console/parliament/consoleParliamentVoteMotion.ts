@@ -48,6 +48,7 @@ import {DelegateFlightPose, delegateFlightMs, delegateFlightPose, FlightPoint, p
 import {
   guardedDescend,
   killDescendEpisode,
+  hurryDescendEpisode,
   descendFlipFrom,
   descendRecede,
   descendReturn,
@@ -100,6 +101,8 @@ const CARRY_BACK_AT_MS = 40;
 const REFIT_MS = 300;
 /** The pressed block's own answer, before anything moves. */
 const COMMIT_MS = 120;
+/** A deciding press mid-entrance plays the rest of the phrase this much faster. */
+const VOTE_ENTER_HURRY = 3;
 /** The delegate's glide: the fraction of the path past which the figure has visibly LEFT its source … */
 const DEPARTED_AT = 0.1;
 /** … and the fraction at which it has visibly ARRIVED (the eased tail past it is snapped). */
@@ -507,6 +510,17 @@ export function playParliamentVoteLeave(args: VoteLeaveArgs): void {
     tl.to(layer, {autoAlpha: 0, duration: s(140), ease: 'power1.in', clearProps: 'opacity,visibility'}, s(CARRY_BACK_AT_MS + CARD_FLIP_BACK_MS - 80));
     return tl;
   });
+}
+
+/**
+ * HURRY the running entrance (a deciding press arrived mid-phrase — the double A on the card the mode was
+ * entered through): the same motion, three times faster, so its `done` — and the press waiting on it — comes
+ * within a beat. Never a kill: every carried object still lands on its resting rect before the delegate flies.
+ */
+export function hurryParliamentVoteEnter(root: HTMLElement | null | undefined): void {
+  if (root !== null && root !== undefined) {
+    hurryDescendEpisode(root, VOTE_ENTER_HURRY);
+  }
 }
 
 /** Kill any running phrase and re-pose every carried object at rest (an interrupted pair, an unmount). */

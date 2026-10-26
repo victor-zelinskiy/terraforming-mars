@@ -401,13 +401,13 @@
        never touches it. The card right above the panel prints the very same graphic. */
     @container con-parl-reading (max-width: 24rem) {
         .con-parl__info-mech { display: none; }
-        /* …and the win's SUFFIX may break at its own seams. Since the TV composer grew its hero to 1.6× (PL-139)
-           the hosted Parliament's reading block is 476 px at 4K, and the one-link suffix alone is one nowrap
-           line of 648 px («+1 ЕСЛИ ПОБЕДИТЕ · ШАГ ①» — `console-martian-census` tv4k: «clipped-x
-           con-parl__info-own 815 > 476»). The hero cannot give the width back (the carried card never changes
-           size between phases), so the chip wraps between its items: «+1 если победите» / «· шаг ①». A full-band
-           Parliament never reaches this width, so nothing there changes. */
-        .con-iyield__suffix { flex-wrap: wrap; white-space: normal; max-width: 100%; row-gap: .12rem; }
+        /* …and the win column's HEAD may break at its own seams. Since the TV composer grew its hero to 1.6× (PL-139)
+           the hosted Parliament's reading block is 476 px at 4K (`console-martian-census` tv4k — the old per-row
+           suffix «+1 ЕСЛИ ПОБЕДИТЕ · ШАГ ①» was one nowrap line of 648 px there). The head is said once now, and in
+           a narrow block its words wrap over the Career node instead of widening the column; the cells are numbers
+           and stay one line. A full-band Parliament never reaches this width, so nothing there changes. */
+        .con-iyield__winhead { flex-wrap: wrap; white-space: normal; row-gap: .12rem; }
+        .con-iyield__suffix { margin-left: .5rem; padding-left: .5rem; }
     }
     /* THE VOTE — the source line over the facts. */
     &__info-block {
@@ -602,6 +602,10 @@ html.con-profile-handheld .con-parl__info-own--yields {
     .con-iyield__in, .con-iyield__out { gap: .1rem; }
     .con-iyield__in b { font-size: .9rem; }
     .con-iyield__out b { font-size: .95rem; }
+    /* The win column speaks the plate's sizes, so a row and its win cell read as one line. */
+    .con-iyield__suffix-in { font-size: .9rem; }
+    .con-iyield__suffix-num { font-size: .95rem; }
+    .con-iyield__suffix .con-iyield__inf, .con-iyield__suffix .con-iyield__unit { width: .9rem; height: .9rem; }
     .con-iyield__in .con-iyield__inf, .con-iyield__out .con-iyield__unit { width: .9rem; height: .9rem; }
     .con-iyield__in .con-iyield__glyph { --pvpcard-size: .9rem; }
     .con-iyield__plus { margin: 0; }
@@ -613,32 +617,39 @@ html.con-profile-handheld .con-parl__info-own--yields {
    One chip per participating seat: its cube and what the selected card pays IT at
    ITS own influence. The row is NUMBERS — the answer to «кому выгоднее» in zero
    presses — never a second reading: no kicker, no captions, no «если победит», and
-   the only word on it is «вы» on the viewer's own chip, which stands first. ══ */
+   the only word on it is «вы» on the viewer's own chip, which stands first.
+   It is drawn as the READING'S TABS: one recessed track between the LB / RB glyphs, the
+   SUBJECT's chip the raised tab (a kant and a fill — never a glow), the others quieter
+   but whole. Only two seats or more stand here (a row of one compares nothing). ══ */
 .con-vledger {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: .2rem .34rem;
+    gap: .16rem .2rem;
     min-width: 0;
     max-width: 100%;
+    padding: .12rem .16rem;
+    border-radius: .45rem;
+    background: rgba(0, 0, 0, 0.26);
+    box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.07);
     font-family: @con-font-read;
     line-height: 1;
 
+    /* The walk's two buttons at the track's ends — the strip IS what LB / RB move. */
+    &__glyph { flex-shrink: 0; opacity: .7; }
     &__chip {
         display: inline-flex;
         align-items: center;
         gap: .2rem;
         min-width: 0;
         padding: .1rem .34rem .12rem .26rem;
-        border-radius: .35rem;
-        background: rgba(255, 255, 255, 0.035);
-        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.08);
+        border-radius: .32rem;
         white-space: nowrap;
-        /* THE VIEWER'S OWN chip carries the panel's «mine» register (the reading block's cyan),
-           so a rival's chip can never be read as the player's own. */
-        &--you { background: fade(@con-cyan, 9%); box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%); }
+        opacity: .72;
+        transition: opacity calc(140ms * var(--motion-scale, 1)) @con-ease-standard;
     }
     &__you { font-size: .48rem; letter-spacing: .12em; text-transform: uppercase; font-weight: 700; color: fade(@con-cyan, 92%); }
+    /* The viewer's word keeps the «mine» cyan on every tab, raised or not. */
     /* A seat this card pays nothing at all: a dash, never a bare cube (which reads as «unknown»). */
     &__none { font-size: .72rem; color: fade(@con-text, 45%); }
     &__part {
@@ -680,7 +691,8 @@ html.con-profile-handheld .con-parl__info-own--yields {
 /* ── the HANDHELD ladder: the row stands where the formula graphic did (see `&__info-own--ledger`),
    so it has the graphic's width and can afford two lines of chips at the profile's caps size. ── */
 html.con-profile-handheld .con-vledger {
-    gap: .12rem .2rem;
+    gap: .12rem .14rem;
+    padding: .08rem .1rem;
     &__chip { gap: .12rem; padding: .04rem .22rem .06rem .18rem; }
     &__you { font-size: .42rem; }
     &__part {
@@ -708,16 +720,17 @@ html.con-profile-tv .con-vledger {
     &__tile, &__career { width: .95rem; height: .95rem; }
 }
 
-/* ── THE SUBJECT'S CHIP — whose reading stands in the block above. The row and the block can never say
-   two different things about that, so the cursor lives on the very chip the reading is about. ── */
+/* ── THE SUBJECT'S CHIP — the raised tab: whose reading stands in the block above. The row and the block can
+   never say two different things about that, so the cursor lives on the very chip the reading is about. ── */
 .con-vledger__chip--subject {
-    background: rgba(255, 255, 255, 0.075);
-    box-shadow: inset 0 0 0 .07rem rgba(255, 255, 255, 0.5);
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: inset 0 0 0 .06rem rgba(255, 255, 255, 0.45);
 }
-/* The viewer's own chip keeps the «mine» register even while it is the cursor. */
+/* The viewer's own tab keeps the «mine» register when it is the raised one. */
 .con-vledger__chip--you.con-vledger__chip--subject {
     background: fade(@con-cyan, 12%);
-    box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 70%);
+    box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 70%);
 }
 
 /* ── THE RATING VETO's line (RX42 UNMI Veto): who the law binds «as if enacted now» — one line under the readings,

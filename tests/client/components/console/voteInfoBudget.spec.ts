@@ -12,7 +12,7 @@ import {influenceAtAgenda} from '@/common/parliament/ParliamentTypes';
 import {allResolutions, getPartyEffect} from '@/client/parliament/ClientParliamentManifest';
 import {ParliamentPartyVm, ParliamentSlotVm, voteForecastOf} from '@/client/console/parliament/consoleParliamentModel';
 import {
-  PARTY_MOMENT, SUFFIX_HINT, SUFFIX_IF_YOU_WIN, SUFFIX_STEP, READING_KICKER_RIVAL, READING_KICKER_SEATED, READING_KICKER_SPECTATOR, suffixHintKey,
+  PARTY_MOMENT, SUFFIX_HINT, SUFFIX_IF_YOU_WIN, READING_KICKER_RIVAL, READING_KICKER_SEATED, READING_KICKER_SPECTATOR, suffixHintKey,
   suffixWinKey, TextFn, VOTE_INFO_LIMITS, VOTE_KICKER, voteFactsOf, voteInfoBudget, voteInfoOf, VoteInfoVm,
 } from '@/client/console/parliament/voteInfoModel';
 import {levelPresentation} from '@/client/console/parliament/influenceYieldModel';
@@ -264,7 +264,7 @@ describe('voteInfoBudget — the vote panel never overloads again', () => {
   });
 
   it('the words are counted in the language the player reads — every key the panel prints has its RU line', () => {
-    const keys = [READING_KICKER_SEATED, READING_KICKER_RIVAL, READING_KICKER_SPECTATOR, VOTE_KICKER, PARTY_MOMENT, SUFFIX_IF_YOU_WIN, SUFFIX_STEP, SUFFIX_HINT,
+    const keys = [READING_KICKER_SEATED, READING_KICKER_RIVAL, READING_KICKER_SPECTATOR, VOTE_KICKER, PARTY_MOMENT, SUFFIX_IF_YOU_WIN, SUFFIX_HINT,
       QUIET_REWARD_KICKER.passive, QUIET_REWARD_KICKER.action,
       suffixWinKey('they'), suffixHintKey('they'), colonyLedgerEmptyKey('they'), '${0} theirs', 'Theirs at influence ${0} — win or not',
       'Only if they win — influence ${0} is below ${1}', 'cities on Mars: ${0}',

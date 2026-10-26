@@ -321,42 +321,76 @@
     }
     /* A production TERM of a breakdown («[steel] 2 + [titanium] 1 + [energy] 3») — the plate, smaller than the result's unit. */
     &__unit--term { width: 1rem; height: 1rem; }
+    /* THE WIN COLUMN (one-number mode, `--table`): the number each row would read if the seat WINS the vote — no
+       plate of its own (the estimate on the left is the plate), one gold hairline down the column's left edge, the
+       digits in the plate's own sizes and the forecast's gold. The head says the condition ONCE for the block: the
+       winner's star, «если победите» in tracked caps, and the Career node the win moves the marker to (the
+       insignia + the track's own numbered disc). A row the win leaves as it is repeats its number QUIETLY — the
+       column reads as the whole scenario, and only what grows is bright. Every gold is carried by weight too, so the
+       column survives desaturation. */
     &__suffix {
         .premium-tooltip(16rem);
+        align-self: stretch;
         display: inline-flex;
         align-items: center;
         gap: .18rem;
-        padding: .1rem .42rem .1rem .36rem;
-        border-radius: .36rem;
-        background: fade(@con-parl-gold, 10%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-parl-gold, 42%);
-        font-size: .5rem;
-        font-weight: 700;
-        letter-spacing: .1em;
-        text-transform: uppercase;
+        margin-left: .9rem;
+        padding: .2rem 0 .2rem .9rem;
+        border-left: .06rem solid fade(@con-parl-gold, 34%);
         line-height: 1;
         white-space: nowrap;
-        color: fade(@con-parl-gold, 96%);
         cursor: default;
     }
-    &__suffix-num { font-size: .8rem; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: 0; }
-    &__suffix .con-iyield__unit { width: .82rem; height: .82rem; }
-    &__suffix-text { opacity: .92; }
-    &__suffix-sep { opacity: .5; margin: 0 .04rem; }
-    &__suffix-node {
+    &__suffix-in { font-size: 1.12rem; font-weight: 700; font-variant-numeric: tabular-nums; color: fade(@con-parl-gold, 82%); }
+    &__suffix .con-iyield__inf { width: 1.12rem; height: 1.12rem; }
+    &__suffix .con-iyield__arrow { margin: 0 .06rem; color: fade(@con-parl-gold, 55%); }
+    &__suffix-num { font-size: 1.36rem; font-weight: 800; font-variant-numeric: tabular-nums; color: fade(@con-parl-gold, 98%); }
+    &__suffix .con-iyield__unit { width: 1.3rem; height: 1.3rem; }
+    /* …the row the win does not change: the same number, a step back — no gold, no weight. */
+    &__suffix--same { .con-iyield__suffix-num { font-weight: 600; color: fade(@con-text, 52%); } .con-iyield__unit { opacity: .45; } }
+    /* …a payout that would not land either: struck amber, as on the plate. */
+    &__suffix--lost .con-iyield__suffix-num { color: fade(@con-amber, 92%); text-decoration: line-through; text-decoration-thickness: .08rem; }
+    &__winhead {
+        .premium-tooltip(16rem);
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        margin-bottom: .1rem;
+        padding-bottom: .3rem;
+        border-bottom: .05rem solid fade(@con-parl-gold, 26%);
+        font-size: .56rem;
+        font-weight: 700;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        line-height: 1.1;
+        white-space: nowrap;
+        color: fade(@con-parl-gold, 94%);
+        cursor: default;
+    }
+    &__winhead-star {
+        display: inline-block;
+        width: .9rem;
+        height: .9rem;
+        flex-shrink: 0;
+        background: url(./assets/misc/vote-winner.svg) center / contain no-repeat;
+    }
+    &__winhead-step { display: inline-flex; align-items: center; gap: .14rem; margin-left: .1rem; }
+    &__winhead-glyph { width: .95rem; height: .95rem; flex-shrink: 0; }
+    /* The Career node — the track's own numbered disc, the place the marker goes to (never a count). */
+    &__winhead-node {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: .92rem;
-        height: .92rem;
+        width: .95rem;
+        height: .95rem;
         border-radius: 50%;
         font-style: normal;
-        font-size: .54rem;
+        font-size: .56rem;
         font-weight: 800;
         letter-spacing: 0;
         color: #1c1608;
         background: fade(@con-parl-gold, 90%);
-        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.35), 0 0 0 .08rem fade(@con-parl-gold, 32%);
+        box-shadow: inset 0 0 0 .05rem rgba(255, 255, 255, 0.35);
     }
     &--onenum {
         flex-direction: row;
@@ -371,6 +405,23 @@
         .con-iyield__reading { display: inline-flex; align-items: center; column-gap: .3rem; flex-wrap: wrap; row-gap: .1rem; }
         .con-iyield__note { flex-basis: 100%; }
         .con-iyield__horizon { flex-basis: 100%; }
+    }
+    /* THE WIN TABLE — a one-number block whose win raises a number: two columns, the estimate's plates on the left,
+       the win column on the right, every row ONE plate + ONE cell (the group dissolves into the grid). Whatever is
+       not a row (a lone levy, the note, a formula with no reading) spans the table. */
+    &--table {
+        display: inline-grid;
+        grid-template-columns: auto auto;
+        align-items: center;
+        justify-items: start;
+        gap: 0;
+        > .con-iyield__group { display: contents; }
+        > .con-iyield__group--levy, > .con-iyield__kicker, > .con-iyield__note { display: flex; grid-column: 1 / -1; margin-bottom: .35rem; }
+        .con-iyield__formula { grid-column: 1 / -1; }
+        .con-iyield__readings { padding: .18rem 0; }
+        /* The head spans the header row and stands over the win column's right edge — it never sets that column's width. Its
+           gold is a hairline UNDER it, the column's own line starting at the first row below. */
+        > .con-iyield__winhead { grid-column: 1 / -1; justify-self: end; }
     }
 
     /* SIZES. */
@@ -392,6 +443,11 @@
         .con-iyield__horizon { font-size: .48rem; }
         .con-iyield__upto, .con-iyield__level { font-size: .5rem; }
         .con-iyield__out--none b { font-size: .54rem; }
+        .con-iyield__suffix { margin-left: .6rem; padding-left: .6rem; }
+        .con-iyield__suffix-in { font-size: .95rem; }
+        .con-iyield__suffix-num { font-size: 1.12rem; }
+        .con-iyield__suffix .con-iyield__unit, .con-iyield__suffix .con-iyield__inf { width: 1.02rem; height: 1.02rem; }
+        .con-iyield__winhead { font-size: .5rem; }
     }
     &--hero {
         gap: .5rem;
@@ -416,6 +472,15 @@
         .con-iyield__horizon { font-size: .64rem; }
         .con-iyield__upto, .con-iyield__level { font-size: .7rem; }
         .con-iyield__out--none b { font-size: .78rem; }
+        .con-iyield__suffix { margin-left: 1.3rem; padding-left: 1.3rem; }
+        .con-iyield__suffix-in { font-size: 1.6rem; }
+        .con-iyield__suffix-num { font-size: 2.05rem; }
+        .con-iyield__suffix .con-iyield__unit { width: 1.9rem; height: 1.9rem; }
+        .con-iyield__suffix .con-iyield__inf { width: 1.6rem; height: 1.6rem; }
+        .con-iyield__suffix .con-iyield__arrow { font-size: 1.5rem; }
+        .con-iyield__winhead { font-size: .7rem; }
+        .con-iyield__winhead-star, .con-iyield__winhead-glyph, .con-iyield__winhead-node { width: 1.2rem; height: 1.2rem; }
+        .con-iyield__winhead-node { font-size: .7rem; }
     }
 }
 /* THE WINNER'S PART — the winner star, its own label and caption, the tile and
@@ -610,16 +675,15 @@
 /* The dock's yield sits under the source face, as wide as the face. */
 .con-task__source-yield { margin-top: .1rem; }
 
-/* The win's suffix on the two other profiles: the Deck's caps size, the couch's
-   .8rem floor — carried by weight and tracking, never by shrinking the number. */
-html.con-profile-handheld .con-iyield__suffix { font-size: .46rem; padding: .08rem .32rem .08rem .28rem; gap: .14rem; }
-html.con-profile-handheld .con-iyield__suffix-num { font-size: .7rem; }
-html.con-profile-handheld .con-iyield__suffix .con-iyield__unit { width: .72rem; height: .72rem; }
-html.con-profile-handheld .con-iyield__suffix-node { width: .8rem; height: .8rem; font-size: .48rem; }
-html.con-profile-tv .con-iyield__suffix { font-size: .8rem; padding: .14rem .52rem .12rem .44rem; gap: .24rem; }
-html.con-profile-tv .con-iyield__suffix-num { font-size: 1.04rem; }
-html.con-profile-tv .con-iyield__suffix .con-iyield__unit { width: 1.06rem; height: 1.06rem; }
-html.con-profile-tv .con-iyield__suffix-node { width: 1.22rem; height: 1.22rem; font-size: .8rem; }
+/* The win column on the two other profiles: the Deck's caps size, the couch's .8rem floor — the head is carried by
+   weight and tracking, the digits keep the plate's own sizes (the profile ladders of the plate size those). */
+html.con-profile-handheld .con-iyield__winhead { font-size: .46rem; gap: .2rem; }
+html.con-profile-handheld .con-iyield__suffix { margin-left: .5rem; padding-left: .5rem; }
+html.con-profile-handheld .con-iyield__winhead-star, html.con-profile-handheld .con-iyield__winhead-glyph, html.con-profile-handheld .con-iyield__winhead-node { width: .78rem; height: .78rem; }
+html.con-profile-handheld .con-iyield__winhead-node { font-size: .46rem; }
+html.con-profile-tv .con-iyield__winhead { font-size: .8rem; gap: .36rem; }
+html.con-profile-tv .con-iyield__winhead-star, html.con-profile-tv .con-iyield__winhead-glyph, html.con-profile-tv .con-iyield__winhead-node { width: 1.2rem; height: 1.2rem; }
+html.con-profile-tv .con-iyield__winhead-node { font-size: .8rem; }
 
 /* A TILE GRANTED BY THRESHOLD (Turmoil Redux — Skyscrapers): the winner block's chassis (`.con-wreward`)
    with its own body — the city tile, the arrow onto the city it stacks on, the viewer's DESTINATIONS (their

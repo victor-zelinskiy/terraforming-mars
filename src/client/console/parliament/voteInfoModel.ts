@@ -88,7 +88,6 @@ export const PARTY_MOMENT = 'party effect · to every player when enacted';
 export const SUFFIX_IF_YOU_WIN = 'if you win';
 /** The same suffix about ANOTHER seat (the subject is the kicker's, never the suffix's). */
 export const SUFFIX_IF_THEY_WIN = 'if they win';
-export const SUFFIX_STEP = 'step';
 export const SUFFIX_HINT = 'If you win, your Agenda marker moves to step ${0} first. The effect uses that influence.';
 export const SUFFIX_HINT_THEIRS = 'If they win, the Agenda marker moves to step ${0} first. The effect uses that influence.';
 
@@ -688,11 +687,10 @@ export function voteInfoBudget(vm: VoteInfoVm, text: TextFn = IDENTITY): VoteInf
   // ПРИНЯТИИ» costs — the name stands where «вас» stood — so the ceiling is held against ONE token
   // and a two-word display name cannot fail the whole catalog for a seat that happens to be at the table.
   const strings: Array<string> = [text(vm.reading.kicker, vm.reading.subject === undefined ? undefined : [NAME_TOKEN])];
-  for (const suffix of vm.reading.suffixes) {
+  // THE WIN COLUMN's head is said ONCE for the block, whatever the number of rows the win raises; the Career node
+  // beside it is the insignia and its disc — a picture, not a word.
+  if (vm.reading.suffixes.length > 0) {
     strings.push(text(suffixWinKey(person)));
-    if (suffix.agendaStep !== undefined) {
-      strings.push(text(SUFFIX_STEP));
-    }
   }
   for (const reaction of vm.reading.reactions) {
     strings.push(text(reaction.party));
