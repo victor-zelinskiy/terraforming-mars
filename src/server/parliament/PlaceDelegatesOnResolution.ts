@@ -91,6 +91,8 @@ export function skippedPopularSupport(room: SupportRoom): {reason: string, skipp
  * resolve first and the track reset waits — the documented order.
  */
 export class PlaceDelegatesOnResolution extends DeferredAction<undefined> {
+  /** It moves a delegate on a resolution — MarsBot's vote stakes read it (D15). */
+  public readonly changesVotes = true;
   constructor(
     player: IPlayer,
     /** What the source prints. */

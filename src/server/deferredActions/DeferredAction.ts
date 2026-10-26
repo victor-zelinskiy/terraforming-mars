@@ -14,6 +14,11 @@ export interface IDeferredAction <T = undefined> extends AndThen<T> {
   // Analytics correlation scope captured when this action was deferred, so its
   // impact links back to the action/effect that queued it. Not serialized.
   eventContext?: CapturedEventContext;
+  /**
+   * It may move a delegate on a resolution of the voting area (a grant, a removal) — MarsBot's vote
+   * stakes read it to tell a passed seat that still owes such a move (D15, `automa/BotVoteStakes.ts`).
+   */
+  readonly changesVotes?: boolean;
   execute(): PlayerInput | undefined;
 }
 

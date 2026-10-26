@@ -18,6 +18,11 @@ export class DeferredActionsQueue {
     this.queue.push(action);
   }
 
+  /** The actions still queued for `player` — read-only (MarsBot's vote stakes ask what a passed seat still owes, D15). */
+  public queuedFor(player: IPlayer): ReadonlyArray<IDeferredAction<any>> {
+    return this.queue.filter((action) => action.player.id === player.id);
+  }
+
   /**
    * The correlation roots of every PENDING deferred action — the chains that
    * may still GROW when these actions run (each carries its captured event

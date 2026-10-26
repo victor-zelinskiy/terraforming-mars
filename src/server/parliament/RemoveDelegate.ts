@@ -101,6 +101,8 @@ export function skippedDelegateExchange(reason: string): {reason: string, skippe
  * `DiscardPopularSupport`).
  */
 export class RemoveDelegate extends DeferredAction<undefined> {
+  /** It moves a delegate on a resolution — MarsBot's vote stakes read it (D15). */
+  public readonly changesVotes = true;
   /** What the pick does to the figure (`remove` unless the card exchanges it). */
   public readonly source: DelegatePickSource;
 

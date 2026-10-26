@@ -2,29 +2,71 @@ import {expect} from 'chai';
 import {BonusCardId} from '../../src/common/automa/AutomaTypes';
 import {AutomaActionCard} from '../../src/server/automa/AutomaState';
 import {
-  LOBBY_MANDATE_DECK, LobbyMandateCard, lobbyingThisTurn, lobbyingTrigger, MAX_BOT_DELEGATES_PER_TURN, mandateSize, turnCapacity,
+  drawLobbyMandate, gameTempo, LOBBY_MANDATE_CARDS, LOBBY_MANDATE_EARLY, LOBBY_MANDATE_LATE, lobbyingThisTurn, lobbyingTrigger,
+  MAX_BOT_DELEGATES_PER_TURN, mandateSize, mandateWeights, pickMandate, turnCapacity,
 } from '../../src/server/automa/LobbyMandate';
+import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE} from '../../src/common/constants';
 import {SeededRandom} from '../../src/common/utils/Random';
+import {setOxygenLevel, setTemperature} from '../TestingUtils';
 import {testAutomaGame} from './AutomaTestGame';
 
 /**
- * THE LOBBYING MANDATE (docs/TURMOIL_REDUX_MARSBOT.md §3.2, D14) — the owner's
- * targets, pinned: ~30 % of the generations with no further delegate, ALL the
- * bot's delegates in ~3 % (never under 1 %), never more than two of the bot's
+ * THE LOBBYING MANDATE (docs/TURMOIL_REDUX_MARSBOT.md §3.2, D14 + D15) — the owner's
+ * targets, pinned: ALL the bot's delegates never under 1 % and never over 5 %;
+ * early in the game one or two delegates a generation are the rule, late six and
+ * seven grow to 5 % each; halfway the D14 deck; never more than two of the bot's
  * delegates a turn, and a mandate always lands before the generation ends.
  */
 const PARTY_POLITICS: AutomaActionCard = {kind: 'bonus', id: BonusCardId.B21_PARTY_POLITICS};
 
 describe('LobbyMandate — the bot\'s further delegates a generation', () => {
-  it('the deck: 33 cards — none 30 %, ALL 3 %, nothing above 5 but ALL', () => {
-    expect(LOBBY_MANDATE_DECK).has.length(33);
-    const share = (card: LobbyMandateCard) => LOBBY_MANDATE_DECK.filter((c) => c === card).length / LOBBY_MANDATE_DECK.length;
-    expect(share(0)).to.be.within(0.29, 0.31);
-    expect(share('all')).to.be.within(0.01, 0.05);
-    expect(share('all')).to.be.closeTo(0.03, 0.005);
-    expect(LOBBY_MANDATE_DECK.every((c) => c === 'all' || (c >= 0 && c <= 5))).is.true;
+  it('the anchors: each a whole 100 %, one weight per card; early 1–2 delegates 72 %, late 6 · 7 at 5 % each', () => {
+    expect(LOBBY_MANDATE_CARDS).deep.eq([0, 1, 2, 3, 4, 5, 'all']);
+    for (const table of [LOBBY_MANDATE_EARLY, LOBBY_MANDATE_LATE]) {
+      expect(table).has.length(LOBBY_MANDATE_CARDS.length);
+      expect(table.reduce((a, b) => a + b, 0)).eq(100);
+    }
+    expect(LOBBY_MANDATE_EARLY[0] + LOBBY_MANDATE_EARLY[1], 'one or two delegates early').eq(72);
+    expect(LOBBY_MANDATE_LATE[5], 'six delegates late').eq(5);
+    expect(LOBBY_MANDATE_LATE[6], 'all seven late').eq(5);
     expect(mandateSize('all')).eq(6);
     expect(mandateSize(3)).eq(3);
+  });
+
+  it('the blend: every tempo keeps ALL within [1 %, 5 %] and six at most 5 %; halfway it is the D14 deck', () => {
+    for (let step = 0; step <= 20; step++) {
+      const t = step / 20;
+      const w = mandateWeights(t);
+      expect(w.reduce((a, b) => a + b, 0)).to.be.closeTo(100, 1e-9);
+      expect(w[6], `ALL at tempo ${t}`).to.be.within(1, 5);
+      expect(w[5], `six at tempo ${t}`).to.be.at.most(5);
+    }
+    // The D14 deck (33 cards): 30.3 · 24.2 · 18.2 · 12.1 · 9.1 · 3.0 · 3.0 % — the middle of the game reads the same.
+    const mid = mandateWeights(0.5);
+    [30.3, 24.2, 18.2, 12.1, 9.1, 3.0, 3.0].forEach((d14, i) => expect(mid[i], `card ${LOBBY_MANDATE_CARDS[i]}`).to.be.closeTo(d14, 1.5));
+    // An out-of-range tempo clamps.
+    expect(mandateWeights(-1)).deep.eq(mandateWeights(0));
+    expect(mandateWeights(2)).deep.eq(mandateWeights(1));
+  });
+
+  it('the pick walks the weights: the first card for u = 0, ALL at the top end', () => {
+    const w = mandateWeights(0);
+    expect(pickMandate(w, 0)).eq(0);
+    expect(pickMandate(w, 0.4199)).eq(0);
+    expect(pickMandate(w, 0.42)).eq(1);
+    expect(pickMandate(w, 0.9999)).eq('all');
+  });
+
+  it('the tempo is the HUD\'s terraforming progress (temperature, oxygen, oceans); the draw records it and never moves the shared RNG', () => {
+    const [game] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true});
+    expect(gameTempo(game)).to.be.closeTo(0, 0.05);
+    setTemperature(game, MAX_TEMPERATURE);
+    setOxygenLevel(game, MAX_OXYGEN_LEVEL);
+    expect(gameTempo(game)).to.be.closeTo(2 / 3, 0.05);
+    const before = game.rng.current;
+    const drawn = drawLobbyMandate(game);
+    expect(drawn.tempo).to.be.closeTo(gameTempo(game), 1e-9);
+    expect(game.rng.current).eq(before);
   });
 
   it('the trigger is the official generator: a cost divisible by 3 (0 divides)', () => {
@@ -56,15 +98,13 @@ describe('LobbyMandate — the bot\'s further delegates a generation', () => {
     });
   });
 
-  describe('measured over the REAL project deck — the owner\'s distribution holds, two a turn, every mandate lands', () => {
-    it('simulates 20 000 generations of the bot\'s real action decks', () => {
-      const [game] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, venusNextExtension: true, preludeExtension: true});
-      const costs = game.projectDeck.drawPile.map((card) => card.cost);
-      expect(costs.length, 'a real project deck').greaterThan(100);
-      const rng = new SeededRandom(0.4242);
+  describe('measured over the REAL project deck — the owner\'s distribution at every tempo, two a turn, every mandate lands', () => {
+    /** `generations` generations of the bot's real action decks at `tempo`; the share of 1…7 delegates (Party Politics included). */
+    function simulate(costs: ReadonlyArray<number>, tempo: number, generations: number, seed: number) {
+      const rng = new SeededRandom(seed);
       const pick = <T>(list: ReadonlyArray<T>): T => list[rng.nextInt(list.length)];
+      const weights = mandateWeights(tempo);
       const totals = new Map<number, number>();
-      const generations = 20_000;
       let maxTurn = 0;
       for (let g = 0; g < generations; g++) {
         // The smallest real deck (3 project cards + the top bonus card + Party Politics) up to the largest
@@ -79,7 +119,7 @@ describe('LobbyMandate — the bot\'s further delegates a generation', () => {
           const j = rng.nextInt(i + 1);
           [deck[i], deck[j]] = [deck[j], deck[i]];
         }
-        const card = pick(LOBBY_MANDATE_DECK);
+        const card = pickMandate(weights, rng.next());
         let left = mandateSize(card);
         let sent = 1; // Party Politics' own delegate — every generation.
         deck.forEach((entry, i) => {
@@ -97,12 +137,30 @@ describe('LobbyMandate — the bot\'s further delegates a generation', () => {
         expect(left, `mandate ${card} landed over a deck of ${deck.length}`).eq(0);
         totals.set(sent, (totals.get(sent) ?? 0) + 1);
       }
-      const shareOf = (n: number) => (totals.get(n) ?? 0) / generations;
-      const lines = Array.from({length: 7}, (_, i) => `${i + 1}: ${(100 * shareOf(i + 1)).toFixed(1)} %`);
-      console.log(`      [mandate] delegates a generation (Party Politics included) — ${lines.join(' · ')}`);
-      expect(maxTurn, 'never more than two of the bot\'s delegates a turn').to.be.at.most(MAX_BOT_DELEGATES_PER_TURN);
-      expect(shareOf(1), 'Party Politics alone ~30 %').to.be.within(0.27, 0.34);
-      expect(shareOf(7), 'all seven ~3 %, never under 1 %').to.be.within(0.02, 0.04);
-    }).timeout(20_000); // ~1.4 s on a quiet machine — a loaded full suite must not time it out
+      const share = Array.from({length: 7}, (_, i) => (totals.get(i + 1) ?? 0) / generations);
+      console.log(`      [mandate] tempo ${tempo.toFixed(2)} — delegates a generation: ${share.map((s, i) => `${i + 1}: ${(100 * s).toFixed(1)} %`).join(' · ')}`);
+      return {share, maxTurn};
+    }
+
+    it('simulates 20 000 generations at the start, halfway and at the end of the game', () => {
+      const [game] = testAutomaGame({coloniesExtension: true, turmoilReduxExpansion: true, venusNextExtension: true, preludeExtension: true});
+      const costs = game.projectDeck.drawPile.map((card) => card.cost);
+      expect(costs.length, 'a real project deck').greaterThan(100);
+
+      const early = simulate(costs, 0, 20_000, 0.4242);
+      expect(early.maxTurn, 'never more than two of the bot\'s delegates a turn').to.be.at.most(MAX_BOT_DELEGATES_PER_TURN);
+      expect(early.share[0] + early.share[1], 'early: one or two delegates ~72 %').to.be.within(0.69, 0.75);
+      expect(early.share[6], 'early: all seven ~1 %, never under').to.be.within(0.005, 0.016);
+
+      const mid = simulate(costs, 0.5, 20_000, 0.5151);
+      expect(mid.maxTurn).to.be.at.most(MAX_BOT_DELEGATES_PER_TURN);
+      expect(mid.share[0], 'halfway: Party Politics alone ~30 % (the D14 deck)').to.be.within(0.27, 0.34);
+
+      const late = simulate(costs, 1, 20_000, 0.6161);
+      expect(late.maxTurn).to.be.at.most(MAX_BOT_DELEGATES_PER_TURN);
+      expect(late.share[5], 'late: six ~5 %, never more').to.be.within(0.04, 0.06);
+      expect(late.share[6], 'late: all seven ~5 %, never more').to.be.within(0.04, 0.06);
+      expect(late.share[0] + late.share[1], 'late: fewer quiet generations than early').lessThan(early.share[0] + early.share[1]);
+    }).timeout(30_000); // ~4 s on a quiet machine — a loaded full suite must not time it out
   });
 });

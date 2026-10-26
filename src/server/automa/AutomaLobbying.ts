@@ -26,8 +26,15 @@
  * played, its cost is printed), and a card a BONUS card resolved (R&D's draw)
  * is that card's effect — the controller's branch is the one door.
  *
- * The knobs live in `LobbyMandate.ts`: the mandate deck, the divisor, the
- * delegates a turn. The share of the real project deck the divisor selects is
+ * WHETHER AT ALL (D15): a delegate is sent only while it can still change the
+ * outcome. Once it is a FACT — nobody else can move a delegate any more — that
+ * the vote is the bot's, or out of its reach, the bot KEEPS the rest
+ * (`BotVoteStakes.ts`): said once a generation, the mandate standing (a hold is
+ * not a refusal — a later change would let the bot vote again), and the
+ * reveal at the generation's end says why fewer went than the mandate allowed.
+ *
+ * The knobs live in `LobbyMandate.ts`: the two anchor tables of the mandate,
+ * the divisor, the delegates a turn. The share of the real project deck the divisor selects is
  * MEASURED and printed by `tests/automa/AutomaLobbying.spec.ts` § measured.
  */
 import {IGame} from '../IGame';
@@ -35,11 +42,12 @@ import {IPlayer} from '../IPlayer';
 import {IProjectCard} from '../cards/IProjectCard';
 import {BonusCardId} from '../../common/automa/AutomaTypes';
 import {AutomaActionCard} from './AutomaState';
-import {BotVoteRefusal, castBotVote} from './AutomaPolitics';
+import {BotVoteRefusal, botVoteHold, castBotVote} from './AutomaPolitics';
+import {botDelegateSupply} from '../parliament/BotVoteChooser';
 import {AutomaTurnLog} from './AutomaTurnLog';
 import {marsBotOf} from './AutomaUtil';
 import {
-  drawLobbyMandate, LOBBYING_DIVISOR, LobbyMandate, lobbyingThisTurn, lobbyingTrigger, mandateSize, turnCapacity,
+  BotVoteHold, drawLobbyMandate, LOBBYING_DIVISOR, LobbyMandate, lobbyingThisTurn, lobbyingTrigger, mandateSize, turnCapacity,
 } from './LobbyMandate';
 
 export class AutomaLobbying {
@@ -50,9 +58,46 @@ export class AutomaLobbying {
       throw new Error('Not an automa game');
     }
     if (automa.lobbyMandate === undefined || automa.lobbyMandate.generation !== game.generation) {
-      automa.lobbyMandate = {generation: game.generation, card: drawLobbyMandate(game), sent: 0};
+      const {card, tempo} = drawLobbyMandate(game);
+      automa.lobbyMandate = {generation: game.generation, card, sent: 0, tempo: Math.round(tempo * 100) / 100};
     }
     return automa.lobbyMandate;
+  }
+
+  /**
+   * EVERY DELEGATE THE BOT MAY STILL SEND THIS GENERATION — what «out of reach» is judged against: the mandate
+   * left, Party Politics' own while its card is still ahead in the action deck (`partyPoliticsNow`: its card is
+   * the one resolving), never more than the delegates it still has. An upper bound, so a hold on it is a fact.
+   */
+  public static budgetOf(game: IGame, bot: IPlayer, partyPoliticsNow: boolean): number {
+    const parliament = game.parliament;
+    if (parliament === undefined) {
+      return 0;
+    }
+    const mandate = AutomaLobbying.mandateOf(game);
+    const left = mandate.lapsed === true ? 0 : Math.max(0, mandateSize(mandate.card) - mandate.sent);
+    const partyPoliticsAhead = (game.automa?.actionDeck ?? []).some((card) => card.kind === 'bonus' && card.id === BonusCardId.B21_PARTY_POLITICS);
+    return Math.min(botDelegateSupply(parliament, bot), left + (partyPoliticsNow || partyPoliticsAhead ? 1 : 0));
+  }
+
+  /**
+   * THE BOT KEEPS ITS DELEGATE (D15): the journal line once a generation per reason (a later turn's hold is
+   * silent), the turn step with it; the mandate is NOT lapsed. Party Politics and the lobbying both say it here,
+   * so a turn that holds twice reads one line. Returns whether the line was written.
+   */
+  public static noteHold(game: IGame, bot: IPlayer, hold: BotVoteHold): boolean {
+    const mandate = AutomaLobbying.mandateOf(game);
+    if (mandate.held === hold) {
+      return false;
+    }
+    mandate.held = hold;
+    if (hold === 'vote-decided') {
+      game.log('${0} keeps its delegates: the vote is already decided in its favour', (b) => b.player(bot));
+    } else {
+      game.log('${0} keeps its delegates: the vote is out of its reach', (b) => b.player(bot));
+    }
+    AutomaTurnLog.note(game, {kind: 'vote-refused', reason: hold}, {consumeLog: true});
+    return true;
   }
 
   /** The rider: called by the controller once the turn's card resolved (`card` — the played project card, if any). */
@@ -96,6 +141,14 @@ export class AutomaLobbying {
     if (count === 0) {
       return;
     }
+    // A delegate that can change nothing is kept — asked BEFORE the reasons are said, so a turn that holds
+    // never reads «lobbies: …» followed by «keeps its delegates».
+    // (Only with a delegate to send — no delegate is the refusal's to name, as `castBotVote` orders it.)
+    const hold = game.parliament?.voteSource(bot).ok === true ? botVoteHold(game, bot, AutomaLobbying.budgetOf(game, bot, false)) : undefined;
+    if (hold !== undefined) {
+      AutomaLobbying.noteHold(game, bot, hold);
+      return;
+    }
     // Each reason is said: the played card's cost, and the mandate's catch-up beside it.
     if (byTrigger > 0 && card !== undefined) {
       game.log('${0} lobbies: the cost of ${1} (${2} M€) is divisible by ${3}', (b) =>
@@ -105,7 +158,12 @@ export class AutomaLobbying {
       game.log('${0} lobbies: its mandate for this generation', (b) => b.player(bot));
     }
     for (let i = 0; i < count; i++) {
-      const vote = castBotVote(game, bot);
+      const vote = castBotVote(game, bot, AutomaLobbying.budgetOf(game, bot, false));
+      if (!vote.placed && (vote.refusal === 'vote-decided' || vote.refusal === 'out-of-reach')) {
+        // The first delegate of the turn decided the vote: the second is kept.
+        AutomaLobbying.noteHold(game, bot, vote.refusal);
+        return;
+      }
       if (!vote.placed) {
         logRefusal(game, bot, vote.refusal);
         AutomaTurnLog.note(game, {kind: 'vote-refused', reason: vote.refusal}, {consumeLog: true});
@@ -119,6 +177,11 @@ export class AutomaLobbying {
 
   /** The generation's last card: the hidden mandate is told, so the review explains the generation. */
   private static tellMandate(game: IGame, bot: IPlayer, mandate: LobbyMandate): void {
+    const kept = mandate.sent < mandateSize(mandate.card) ? mandate.held : undefined;
+    if (kept !== undefined) {
+      AutomaLobbying.tellHeldMandate(game, bot, mandate, kept);
+      return;
+    }
     if (mandate.card === 'all') {
       game.log('${0} reveals its lobbying mandate for this generation: all its delegates, ${1} sent', (b) => b.player(bot).number(mandate.sent));
     } else {
@@ -126,9 +189,31 @@ export class AutomaLobbying {
         b.player(bot).number(mandate.card as number).number(mandate.sent));
     }
   }
+
+  /** …and when the bot kept the rest, the reveal says why fewer went than the mandate allowed. */
+  private static tellHeldMandate(game: IGame, bot: IPlayer, mandate: LobbyMandate, kept: BotVoteHold): void {
+    if (mandate.card === 'all') {
+      if (kept === 'vote-decided') {
+        game.log('${0} reveals its lobbying mandate for this generation: all its delegates, ${1} sent — it kept the rest, the vote being decided', (b) =>
+          b.player(bot).number(mandate.sent));
+      } else {
+        game.log('${0} reveals its lobbying mandate for this generation: all its delegates, ${1} sent — it kept the rest, the vote being out of its reach', (b) =>
+          b.player(bot).number(mandate.sent));
+      }
+      return;
+    }
+    const card = mandate.card;
+    if (kept === 'vote-decided') {
+      game.log('${0} reveals its lobbying mandate for this generation: ${1} delegate(s), ${2} sent — it kept the rest, the vote being decided', (b) =>
+        b.player(bot).number(card).number(mandate.sent));
+    } else {
+      game.log('${0} reveals its lobbying mandate for this generation: ${1} delegate(s), ${2} sent — it kept the rest, the vote being out of its reach', (b) =>
+        b.player(bot).number(card).number(mandate.sent));
+    }
+  }
 }
 
-/** The lobbying's own journal line for each way its vote can be refused. */
+/** The lobbying's own journal line for each way its vote can be refused (a hold is `noteHold`'s). */
 function logRefusal(game: IGame, bot: IPlayer, refusal: BotVoteRefusal): void {
   switch (refusal) {
   case 'no-seat':
@@ -140,6 +225,10 @@ function logRefusal(game: IGame, bot: IPlayer, refusal: BotVoteRefusal): void {
     return;
   case 'no-delegate':
     game.log('${0} cannot lobby: no delegate left to send', (b) => b.player(bot));
+    return;
+  case 'vote-decided':
+  case 'out-of-reach':
+    AutomaLobbying.noteHold(game, bot, refusal);
     return;
   }
 }

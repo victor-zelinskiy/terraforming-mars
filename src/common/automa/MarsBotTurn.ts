@@ -83,8 +83,15 @@ export type MarsBotStepCause =
  */
 export type MarsBotVoteRule = 'win-now' | 'closest' | 'star' | 'fewest-human' | 'nearest-slot';
 
-/** WHY a delegate was NOT sent — every refusal names itself (never a silent nothing). */
-export type MarsBotVoteRefusal = 'no-seat' | 'no-resolution' | 'no-delegate' | 'not-enough-mc';
+/**
+ * The bot KEPT a delegate it was ready to send (D15) — on a FACT about the vote: nobody else can still move a
+ * delegate and the bot wins whatever the passed seats can still do (`vote-decided`), or can win under none of it
+ * (`out-of-reach`).
+ */
+export type MarsBotVoteHold = 'vote-decided' | 'out-of-reach';
+
+/** WHY a delegate was NOT sent — every refusal names itself (never a silent nothing); a hold is the bot's own call. */
+export type MarsBotVoteRefusal = 'no-seat' | 'no-resolution' | 'no-delegate' | 'not-enough-mc' | MarsBotVoteHold;
 
 /**
  * The SEMANTIC role of a public log line captured during the turn — stamped by
@@ -269,7 +276,7 @@ export type MarsBotTurnStep =
       kind: 'vote', resolution: string, slot: number, source: 'lobby' | 'reserve', cost: number,
       rules: ReadonlyArray<MarsBotVoteRule>, deficit?: number, winsNow: boolean, message?: LogMessage, cause?: MarsBotStepCause,
     }
-  /** A delegate the bot COULD NOT send, and why (the journal line names it too). */
+  /** A delegate the bot did NOT send — it could not, or it kept it (D15) — and why (the journal line names it too). */
   | {kind: 'vote-refused', reason: MarsBotVoteRefusal, message?: LogMessage, cause?: MarsBotStepCause}
   /**
    * THE BOT COMPLETED THE CHAIRMAN QUEST in this turn (Turmoil Redux) and took

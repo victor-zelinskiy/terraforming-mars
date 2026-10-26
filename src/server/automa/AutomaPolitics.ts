@@ -10,7 +10,9 @@
  *    reserve is spent. AT WHAT PRICE: none (D14) — the bot's M€ are its late
  *    score (8 M€/VP early, down to 1 M€/VP) and a resolution never pays it,
  *    so a paid delegate was a sure loss of points; Party Politics' official
- *    first delegate is free too.
+ *    first delegate is free too. WHETHER AT ALL (D15): only while the
+ *    delegate can still change the outcome — once it is a FACT that the vote
+ *    is the bot's, or beyond its reach, the bot KEEPS it (`BotVoteStakes.ts`).
  *  - `placeBotGrantDelegate` — a delegate an EFFECT hands the bot (a colony, a
  *    card): the human's grant, from the reserve and free; never the lobby
  *    (that cube is the generation's free vote, and a bonus must not spend it).
@@ -28,17 +30,36 @@ import {VoteRefusal} from '../parliament/Parliament';
 import {BotVoteChoice, chooseVoteSlot} from '../parliament/BotVoteChooser';
 import {QuestTracker} from '../parliament/quests/QuestTracker';
 import {AutomaTurnLog} from './AutomaTurnLog';
+import {voteStakes} from './BotVoteStakes';
+import type {BotVoteHold} from './LobbyMandate';
 
-/** Why the bot's vote did not happen — never the money (its delegates are free). */
-export type BotVoteRefusal = Exclude<VoteRefusal, 'not-enough-mc'>;
+/** Why the bot's vote did not happen — never the money (its delegates are free); a HOLD is the bot keeping it (D15). */
+export type BotVoteRefusal = Exclude<VoteRefusal, 'not-enough-mc'> | BotVoteHold;
+
+/** Is it a FACT that the bot's next delegate changes nothing? (`budget` — every delegate it may still send, this one included.) */
+export function botVoteHold(game: IGame, bot: IPlayer, budget: number): BotVoteHold | undefined {
+  const stakes = voteStakes(game, bot, budget);
+  switch (stakes.kind) {
+  case 'decided':
+    return 'vote-decided';
+  case 'out-of-reach':
+    return 'out-of-reach';
+  default:
+    return undefined;
+  }
+}
 
 export type BotVote =
   | {placed: true; choice: BotVoteChoice; source: 'lobby' | 'reserve'}
   /** The vote did not happen — the CALLER writes its own journal line for the refusal (it knows the rule that asked). */
   | {placed: false; refusal: BotVoteRefusal};
 
-/** THE BOT TAKES THE VOTE: the human's rule of the vote decides the source, the chooser the card; it costs nothing. */
-export function castBotVote(game: IGame, bot: IPlayer): BotVote {
+/**
+ * THE BOT TAKES THE VOTE: the human's rule of the vote decides the source, the chooser the card; it costs nothing.
+ * `budget` — every delegate the bot may still send this generation, this one included: what the stakes judge
+ * «out of reach» against.
+ */
+export function castBotVote(game: IGame, bot: IPlayer, budget: number): BotVote {
   const parliament = game.parliament;
   if (parliament === undefined) {
     return {placed: false, refusal: 'no-seat'};
@@ -46,6 +67,10 @@ export function castBotVote(game: IGame, bot: IPlayer): BotVote {
   const from = parliament.voteSource(bot);
   if (!from.ok) {
     return {placed: false, refusal: from.code};
+  }
+  const hold = botVoteHold(game, bot, budget);
+  if (hold !== undefined) {
+    return {placed: false, refusal: hold};
   }
   const choice = seatBotDelegate(game, bot, from.source);
   return {placed: true, choice, source: from.source};

@@ -20,7 +20,9 @@
  * A bonus card's impossibility is never a Failed Action (rulebook p.5): no
  * parliament seat, no resolution up for a vote, no delegate left — each is a
  * journal line and a named refusal in the turn script, and the card is simply
- * discarded (the recurring route keeps it in its pool).
+ * discarded (the recurring route keeps it in its pool). The same for a HOLD
+ * (D15): once it is a FACT that the vote is the bot's or out of its reach, the
+ * card's delegate stays home — the resolved branch says which.
  */
 import {IGame} from '../IGame';
 import {BonusCardOutcome} from './AutomaBonusCards';
@@ -28,6 +30,7 @@ import {BotVoteRefusal, castBotVote} from './AutomaPolitics';
 import {AutomaTurnLog} from './AutomaTurnLog';
 import {marsBotOf} from './AutomaUtil';
 import {BotVoteBranch, decidingVoteRule, voteRuleBranch} from '../../common/automa/botVoteText';
+import {AutomaLobbying} from './AutomaLobbying';
 import {BotVoteChoice} from '../parliament/BotVoteChooser';
 import {IPlayer} from '../IPlayer';
 
@@ -48,15 +51,24 @@ function logRefusal(game: IGame, bot: IPlayer, refusal: BotVoteRefusal): BotVote
   case 'no-delegate':
     game.log('${0} has no delegate left to send', (b) => b.player(bot));
     return {key: 'No delegate left to send'};
+  case 'vote-decided':
+    return {key: 'The vote is already decided in its favour — the delegate stays home'};
+  case 'out-of-reach':
+    return {key: 'The vote is out of its reach — the delegate stays home'};
   }
 }
 
 export function partyPolitics(game: IGame): BonusCardOutcome {
   const bot = marsBotOf(game);
-  const vote = castBotVote(game, bot);
+  const vote = castBotVote(game, bot, AutomaLobbying.budgetOf(game, bot, true));
   if (!vote.placed) {
     const branch = logRefusal(game, bot, vote.refusal);
-    AutomaTurnLog.note(game, {kind: 'vote-refused', reason: vote.refusal}, {consumeLog: true});
+    if (vote.refusal === 'vote-decided' || vote.refusal === 'out-of-reach') {
+      // The journal line once a generation, shared with the lobbying (a hold is not a refusal).
+      AutomaLobbying.noteHold(game, bot, vote.refusal);
+    } else {
+      AutomaTurnLog.note(game, {kind: 'vote-refused', reason: vote.refusal}, {consumeLog: true});
+    }
     AutomaTurnLog.setBonusBranch(game, branch);
     return 'discard';
   }
