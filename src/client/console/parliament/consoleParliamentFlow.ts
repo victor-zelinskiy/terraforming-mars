@@ -56,6 +56,12 @@ export const consoleParliamentUi = reactive({
    * plays FIRST, then the take deals; «surfaces go in turn»).
    */
   fieldStanding: false,
+  /**
+   * THE QUEST'S REACTION ZONE STANDS (TR78 Arwind Inc.): the chairmanship flow holds after the step's bonus for the
+   * table's answer to it, and `[data-embed-slot="parliament-reaction"]` is in the DOM, unfolded — published post-flush
+   * by the section, retracted with the zone. The shell teleports the pick into it.
+   */
+  reactionZone: false,
   /** The Agenda marker is gliding along the track — an Agenda card reward's cover waits for it to settle. */
   agendaSettling: false,
   /**
@@ -96,6 +102,7 @@ export function resetConsoleParliamentUi(): void {
   consoleParliamentUi.stageStanding = false;
   consoleParliamentUi.stageZone = false;
   consoleParliamentUi.fieldStanding = false;
+  consoleParliamentUi.reactionZone = false;
   consoleParliamentUi.agendaSettling = false;
   consoleParliamentUi.boardDoorOpen = false;
   consoleParliamentUi.worldTripHoldsDoor = false;

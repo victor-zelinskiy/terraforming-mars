@@ -32,7 +32,8 @@
          the printed bonus of the tile that pays it), so the body stands BEFORE the wave. The zone is a
          LAYER STACK: the ledger and the hosted step's slot share one rect; the ledger yields (folds down)
          while a step stands and comes back when it has left — never a `v-if` cut. ── -->
-    <section class="con-sit__panel con-sit__panel--reward" :class="{'con-sit__panel--on': stage === 'reward'}" data-sit-panel="reward">
+    <section class="con-sit__panel con-sit__panel--reward" :class="{'con-sit__panel--on': stage === 'reward' || careerStep}" data-sit-panel="reward"
+             :data-sit-career="careerStep ? '' : undefined">
       <div class="con-sit__reward" :class="{'con-sit__reward--field': field}">
         <div class="con-sit__hero" :class="{'con-sit__hero--field': field}">
           <!-- The carried enacted card lands here (one DOM instance, teleported by the government) while the step holds the field. -->
@@ -305,6 +306,11 @@ export default defineComponent({
     receipt: {type: Object as PropType<TableReceipt | undefined>, default: undefined},
     /** The results panel waits for the renewal's beats (the director reveals it). */
     resultsHidden: {type: Boolean, default: false},
+    /**
+     * «ИСТРЕБИТЕЛЬ» (TR78 Arwind Inc.): the ENACTMENT page holds the field for a table's answer to the winner's step of
+     * the Career — the reward panel's zone stands on it (the hero stays empty: nothing is enacted yet).
+     */
+    careerStep: {type: Boolean, default: false},
     /** Hosted inside another surface's zone (nothing of the chassis to strip — the sitting never titles itself). */
     embedded: {type: Boolean, default: false},
     /** `live` — the phase in progress; `review` — a finished sitting re-read (the protocol, later). */

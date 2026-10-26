@@ -750,3 +750,26 @@ html.con-profile-tv .con-sit__veto { font-size: .92rem; }
    1.7rem tall, so the 1.95rem box holds ×1.147 of it — ×1.2 made the line 82 px in a 78 px band at 4K and the band cut
    the chips' borders (`console-parliament-sitting-reward` RX01, CI and the box alike). */
 html.con-profile-tv .con-parl--sitting-field .con-parl__mid-band > .con-band .con-band__line { zoom: 1.12; }
+
+/* ══ «ИСТРЕБИТЕЛЬ» (TR78 Arwind Inc.) — the chairman QUEST's stage zone for the table's answer to its step of the Career:
+   the same rect and the same FIELD paint as the sitting's step (the room cleared — flat, opaque, no ring), unfolded over
+   the TABLE by the body swap's grammar (`playBodyUnfold`). It titles nothing: the crumb's tail names the stage, the
+   pick (the task host's target step) is the zone's whole content. ══ */
+.con-parl__reaction {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    max-height: calc(100% + var(--con-parl-agenda-h, 0px) + .4rem);
+    padding: .2rem 0 .3rem;
+    background: linear-gradient(180deg, rgb(9, 15, 23), rgb(7, 12, 19) 46%, rgb(5, 9, 15));
+    overflow: hidden;
+}
+.con-parl__reaction-zone {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    > * { flex: 1 1 auto; min-width: 0; }
+}

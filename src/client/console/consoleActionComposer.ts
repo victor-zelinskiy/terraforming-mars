@@ -159,7 +159,10 @@ export type SoleSeed =
   | {kind: 'player', color: string};
 
 export function soleCandidateOf(choice: ComposerChoice): SoleSeed | undefined {
-  if (choice.reaction !== undefined || choice.repeatAction === true || choice.multiSelect !== undefined || choice.deltaLanding !== undefined) {
+  // A TABLE'S question is never seeded (it is routinely optional — a decline beside it) — EXCEPT a step of the Career
+  // answered by the table (TR78 Arwind Inc. — `agendaStepPrompt`): a MANDATORY target pick, seeded like the card's own.
+  const careerAnswer = choice.kind === 'card' && (choice.input as SelectCardModel).agendaStepPrompt !== undefined;
+  if ((choice.reaction !== undefined && !careerAnswer) || choice.repeatAction === true || choice.multiSelect !== undefined || choice.deltaLanding !== undefined) {
     return undefined;
   }
   if (choice.kind === 'card') {

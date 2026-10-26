@@ -241,3 +241,12 @@ TR50 «Экспедиционные мехи» — синяя, 5, Наука + �
 
 Восьмой держатель мехов проходит эту таблицу строкой: роль из манифеста (или объявленная с `price`), чип спутника, метка шага цели — и
 кадр 4K семьи целиком (фикстура `expedition-mechs-family`, e2e `console-expedition-mechs` C).
+
+## 9. Четвёртая единица: Arwind Inc. (TR78, 2026-10-26) — истребители «здесь» платят 4 M€ за карту Космоса
+
+`arwindFighters` — тропа `mechs` строка в строку (§3): `Spendable` + `CARD_FOR_SPENDABLE_RESOURCE` (→ `ARWIND_INC`), `Payment`
+(`ARWIND_FIGHTER_VALUE = 4`, плоско), `Player.paymentOptionsForCard` (печатная метка Космоса), `pay()` — списание С КОРПОРАЦИИ, обе
+промпт-модели, `SelectPaymentDeferred` (false), `paymentModelUtils`, `paymentPlan` (дорожка «Истребители», спрайт `fighter`),
+`railValueModel` (`space`), десктоп-остатки. **Отличие от мехов — защита в стартовой смеси** (`paymentPlan.PROTECTED_UNITS`, рядом с
+`floodgateSteel`): у истребителя на корпорации есть второе применение в скоупе — TR29 Spaceship Recycling тратит «1 истребитель с ЛЮБОЙ
+своей карты»; жадный сев отнимал бы его. Решение 7 промта, вынесено владельцу. Спек — `tests/cards/turmoilRedux/ArwindInc.spec.ts` § rule 4.

@@ -23,7 +23,8 @@ import {inputTitleText} from '@/client/console/turnIntents';
 import {isActionMenuTitle} from '@/common/inputs/actionMenuTitles';
 import {ParliamentPhaseStage} from '@/common/parliament/ParliamentTypes';
 import {isDivertedPick} from '@/client/console/consoleMandatoryGate';
-import {promptSourceResolution} from '@/client/console/promptSource';
+import {sittingAskResolution} from '@/client/console/promptSource';
+import {agendaReactionOf, agendaReactionStageKey} from '@/client/console/parliament/agendaReaction';
 import {supportStepStageOf} from '@/client/console/parliament/supportPickModel';
 import {bannerStepStageOf} from '@/client/console/parliament/bannerPickModel';
 import {delegateStepStageOf} from '@/client/console/parliament/delegatePickModel';
@@ -436,8 +437,14 @@ export function followUpStepStage(kind: TaskKind | undefined, wf?: PlayerInputMo
   if (kind === undefined) {
     return undefined;
   }
+  // A TABLE'S ANSWER TO A STEP OF THE CAREER (TR78 Arwind Inc.): a step of the flow that walked the marker (the quest,
+  // the sitting, a law's seat step, a card's play), under the word of WHAT is put down («ИСТРЕБИТЕЛЬ») — never the
+  // law's generic «ВЫБОР». Keyed on the marker, before the law's own table.
+  if (wf !== undefined && agendaReactionOf(wf) !== undefined) {
+    return agendaReactionStageKey(wf);
+  }
   // A replaced unit's «where» (RX35) is the seat's own follow-up, not a sitting's step — no stage of the sitting.
-  if (wf !== undefined && promptSourceResolution(wf) !== undefined && !isDivertedPick(wf)) {
+  if (wf !== undefined && sittingAskResolution(wf) !== undefined && !isDivertedPick(wf)) {
     // A DISTRIBUTION is the card pick's layout mode: its own one-word stage
     // (`consoleSittingFlow.sittingStageKey`, the same key there and here).
     if (wf.cardResourceDistributionPrompt !== undefined) {

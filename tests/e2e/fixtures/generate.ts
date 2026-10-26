@@ -9391,3 +9391,109 @@ parliamentFixture('septem-win', {
     }
   },
 });
+
+// ── TR78 ARWIND INC. — a STEP OF THE CAREER asks where a fighter goes (`ICard.onAgendaStep`), and the fighters on the
+//    corporation pay 4 M€ for a Space tag (docs/TURMOIL_REDUX_ARWIND_INC.md). Blue IS Arwind Inc.; Mars Army Ships stands
+//    beside it on blue's table, so every pick has TWO candidates (the corporation and the ships).
+//    `arwind-walker`: blue's action phase, TR04 Minority Representation in hand (two steps — two questions the play's
+//      composer pre-collects), 10 M€, blue on step 1 (influence 1 — the card's «max 1» is met), red on 3.
+//    `arwind-sitting-win`: blue leads the vote on a resolution of a party that does not rule, one pass before its sitting,
+//      on step 1 — the sitting's winner step reaches step 2 (a TR step) and the chain WAITS on the fighter.
+//    `arwind-chairman-quest`: blue COMPLETED the chairman quest, the gate stands; the step it pays is step 2 (TR).
+//    `arwind-pay-space`: 3 fighters on the corporation, 2 M€, Satellites (a Space card for 10) in hand. ──
+const ARWIND_TABLE = {customCorporationsList: [CardName.ARWIND_INC, REDUX_TABLE_CORPORATIONS[1]]};
+
+function arwindShips({p1}: ParliamentTable): MarsArmyShips {
+  const ships = new MarsArmyShips();
+  p1.playedCards.push(ships);
+  return ships;
+}
+
+parliamentFixture('arwind-walker', {
+  stopAt: 'vote',
+  options: ARWIND_TABLE,
+  megacredits: [10, 30],
+  agenda: [1, 3],
+  // The corporation is the ONLY fighter holder here: the composer SEEDS the sole candidate of both questions (T14).
+  arrange: (table) => {
+    table.p1.cardsInHand.push(new MinorityRepresentation());
+  },
+  expect: ({p1, parliament}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.MINORITY_REPRESENTATION);
+    if (!p1.playedCards.has(CardName.ARWIND_INC) || card === undefined || !p1.canPlay(card) || parliament.agendaOf(p1) !== 1) {
+      throw new Error(`arwind-walker: expected blue on Arwind Inc. with a playable Minority Representation on step 1, got corp=${p1.playedCards.has(CardName.ARWIND_INC)} playable=${card !== undefined && p1.canPlay(card)} agenda=${parliament.agendaOf(p1)}`);
+    }
+  },
+});
+
+parliamentFixture('arwind-sitting-win', {
+  stopAt: 'pass',
+  options: ARWIND_TABLE,
+  agenda: [1, 3],
+  arrange: (table) => {
+    arwindShips(table);
+    const {p1, parliament} = table;
+    const slot = parliament.slots.find((s) => parliament.resolutionOf(s.instance).party !== PartyName.GREENS);
+    if (slot === undefined) {
+      throw new Error('arwind-sitting-win: no resolution of a party that does not rule');
+    }
+    parliament.placeVote(p1, slot, 'lobby');
+    parliament.placeVote(p1, slot, 'reserve');
+    parliament.placeVote(p1, slot, 'reserve');
+  },
+  expect: ({p1, parliament}) => {
+    const verdict = parliament.winner();
+    if (verdict?.player !== p1.id || !p1.playedCards.has(CardName.ARWIND_INC) || parliament.agendaOf(p1) !== 1) {
+      throw new Error(`arwind-sitting-win: expected blue (Arwind Inc., step 1) to win the sitting, got ${JSON.stringify(verdict)} / step ${parliament.agendaOf(p1)}`);
+    }
+  },
+});
+
+{
+  const pinned = [CardName.ARWIND_INC, NO_FIRST_ACTION_CORPORATIONS[1]];
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations('arwind-chairman-quest', [p1, p2], pinned);
+  answerStartFlow(game, [p1, p2]);
+  const parliament = game.parliament;
+  if (parliament === undefined || parliament.slots.length !== 3) {
+    throw new Error('the arwind-chairman-quest fixture has no voting area');
+  }
+  p1.playedCards.push(new MarsArmyShips());
+  parliament.chairman = p2.id;
+  parliament.agenda.set(p1.id, 1);
+  const quest = parliament.quest;
+  if (quest === undefined || parliament.addQuestProgress(p1, quest.definition.count) !== 'completed') {
+    throw new Error('arwind-chairman-quest: the quest did not complete');
+  }
+  ChairmanSeat.onQuestCompleted(p1);
+  p1.megaCredits = 40;
+  runAllActions(game);
+  if (p1.getWaitingFor()?.chairmanQuestPrompt === undefined || !p1.playedCards.has(CardName.ARWIND_INC)) {
+    throw new Error('arwind-chairman-quest: the gate did not stand (or blue is not on Arwind Inc.)');
+  }
+  write('arwind-chairman-quest', game);
+}
+
+parliamentFixture('arwind-pay-space', {
+  stopAt: 'vote',
+  options: ARWIND_TABLE,
+  megacredits: [2, 30],
+  arrange: ({p1}) => {
+    const arwind = p1.playedCards.get(CardName.ARWIND_INC);
+    if (arwind === undefined) {
+      throw new Error('arwind-pay-space: blue is not on Arwind Inc.');
+    }
+    arwind.resourceCount = 3;
+    p1.titanium = 0;
+    p1.cardsInHand.push(new Satellites());
+  },
+  expect: ({p1}) => {
+    const card = p1.cardsInHand.find((c) => c.name === CardName.SATELLITES);
+    if (card === undefined || !p1.canPlay(card) || p1.getSpendable('arwindFighters') !== 3) {
+      throw new Error(`arwind-pay-space: expected a playable Satellites paid by 3 fighters, got playable=${card !== undefined && p1.canPlay(card)} fighters=${p1.getSpendable('arwindFighters')}`);
+    }
+  },
+});

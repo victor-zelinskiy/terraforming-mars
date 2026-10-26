@@ -81,7 +81,7 @@
 import {reactive} from 'vue';
 import {ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
-import {promptSourceResolution} from '@/client/console/promptSource';
+import {sittingAskResolution} from '@/client/console/promptSource';
 
 /**
  * The FLOW-scoped mandatory action kinds — workspace flows the player must
@@ -255,7 +255,8 @@ const RESOLUTION_ASK_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>([
  * the player stood in the very stage it belongs to (Trade Industries).
  */
 export function isResolutionAsk(wf: PlayerInputModel | undefined): boolean {
-  return promptSourceResolution(wf) !== undefined && wf?.resolutionActionPrompt === undefined && !isDivertedPick(wf);
+  // …and a card's answer to the law's step of the Career (TR78 under RX39) is a question of the law's sitting too.
+  return sittingAskResolution(wf) !== undefined && wf?.resolutionActionPrompt === undefined && !isDivertedPick(wf);
 }
 
 /**

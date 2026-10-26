@@ -123,7 +123,9 @@ export default defineComponent({
     },
     /** The enacted card is on the sitting's stage (the one instance, teleported) — the stage took the field for a hosted step. */
     enactCarried(): boolean {
-      return parliamentFlow.stage === 'sitting' && parliamentFlow.sittingField && this.enactedShown !== undefined;
+      // …never under a table's answer to the winner's step of the Career (TR78): the enactment has not happened yet —
+      // the card still governing is not the one the step is about.
+      return parliamentFlow.stage === 'sitting' && parliamentFlow.sittingField && this.enactedShown !== undefined && this.sittingStage !== 'enact';
     },
     /**
      * THE NEW SET HAS ARRIVED (v4 §2.3): the gold seam is the mark of the government IN POWER. At the verdict the

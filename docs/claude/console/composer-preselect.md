@@ -139,3 +139,10 @@ on the mark · `[data-composer-armed]` on the commit row during its breath · `_
 * **The colony pick of a staged colony door** (`SelectColony` beside the composer) is the colony workspace's own stage,
   not a composer row — out of this iteration's scope.
 * **A repeat slot with one repeatable card** stays a slot: its answer is the repeated card's composed action.
+
+## 7 · A TABLE'S ANSWER TO A STEP OF THE CAREER is seeded too (TR78 Arwind Inc., 2026-10-26)
+
+A table question is never seeded (it is routinely optional — a decline beside it) — EXCEPT a corporation's answer to a step of the Career
+walked by the card being played (`agendaStepPrompt` on the step's `SelectCard`): a MANDATORY target pick, one row per step of the walk,
+seeded with its sole holder exactly like the card's own target (`soleCandidateOf` reads the marker). The batch carries one addressed answer
+per step; the server lands them in order. e2e: `console-arwind-inc` (A).

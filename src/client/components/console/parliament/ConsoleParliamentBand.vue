@@ -325,6 +325,7 @@ export default defineComponent({
         ...(sittingMotion.renewal === undefined ? {} : {renewal: sittingMotion.renewal}),
         ...(this.career === undefined ? {} : {career: this.career}),
         ...(rulingChangeDrawState.presenting === undefined ? {} : {rulingDraw: rulingChangeDrawState.presenting}),
+        ...(this.careerWait === undefined ? {} : {careerWait: this.careerWait}),
         generation: position.generation,
         summary: this.summary,
         reward: this.reward,
@@ -332,6 +333,21 @@ export default defineComponent({
     },
     summary(): ParliamentPhaseSummaryModel | undefined {
       return this.model?.phase?.summary;
+    },
+    /**
+     * «ИСТРЕБИТЕЛЬ» (TR78): the chain waits on a table's answer to the winner's step of the Career — WHO answers (the
+     * server's `pending`, published for every seat) and whether it is this seat.
+     */
+    careerWait(): BandSitting['careerWait'] {
+      const position = this.position;
+      if (position?.career !== true) {
+        return undefined;
+      }
+      const pending = this.model?.phase?.pending;
+      if (pending === undefined) {
+        return undefined;
+      }
+      return {player: pending.player, ...(pending.input === undefined ? {} : {input: pending.input}), self: pending.player === this.viewerColor};
     },
     /** КАРЬЕРА's own context — the law's walk playing now (Reds Budget): the seat, the step it reaches and its gift. */
     career(): BandSitting['career'] {

@@ -38,7 +38,8 @@ import {isConsoleHandPickActive} from '@/client/console/consoleHandPick';
 import {decisionPromptStamp, effectDecisionState} from '@/client/console/effectDecision/effectDecisionState';
 import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
 import {sittingRiseOwed} from '@/client/console/parliament/sittingRise';
-import {promptSourceResolution} from '@/client/console/promptSource';
+import {sittingAskResolution} from '@/client/console/promptSource';
+import {agendaReactionOf} from '@/client/console/parliament/agendaReaction';
 import {resetForegroundWatchdog, runForegroundWatchdog} from '@/client/console/consoleForegroundWatchdog';
 import {stackServes, workspaceFrameKnown, workspaceStackCollapsed, workspaceSurfacesFor} from '@/client/console/consoleWorkspaceStack';
 
@@ -485,7 +486,11 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
   // stage ceilings). On a slow renderer either window outlasts the confirm streak (CI run 40194963188: RX40's take,
   // «externalDraw has NO serving surface» over a standing Parliament at rest between beats). A parked sitting is the
   // park's case below; a law's question with no sitting rising or known still strands as usual.
-  if (promptSourceResolution(wf) !== undefined && (sittingRiseOwed() || workspaceFrameKnown('parliament'))) {
+  // …and a table's answer to a step of the Career the Parliament walked (TR78 — the quest, the sitting, a law): its
+  // flow's stage hosts it once the step's bonus has landed, the same window.
+  const career = agendaReactionOf(wf);
+  if ((sittingAskResolution(wf) !== undefined || (career !== undefined && career.reason !== 'card')) &&
+      (sittingRiseOwed() || workspaceFrameKnown('parliament'))) {
     clearStranded();
     return;
   }

@@ -46,6 +46,7 @@ import {parliamentHolds, resetParliamentHolds} from './parliamentDisplayHolds';
 import {verdictStandsAt} from './consoleSittingFlow';
 import {sittingBaselineOf} from './sittingBaseline';
 import {openRulingChangePark} from './rulingChangeDraw';
+import {careerPausedAt} from './agendaReaction';
 
 /** The sitting the holds belong to (`generation:seq`) — a new sitting drops the old holds. */
 let heldSitting = '';
@@ -67,6 +68,8 @@ function sittingKey(phase: ParliamentPhaseModel | undefined): string {
 
 const AFTER_BARRIER: ReadonlySet<string> = new Set(['agenda', 'support', 'enact', 'effects', 'refresh', 'lobby', 'adjourn', 'done']);
 const AFTER_REFRESH: ReadonlySet<string> = new Set(['refresh', 'lobby', 'adjourn', 'done']);
+/** The steps the enactment has been applied by (the support and the ENACTED slot changed). */
+const AFTER_ENACT: ReadonlySet<string> = new Set(['effects', 'refresh', 'lobby', 'adjourn', 'done']);
 
 /** What ONE response moved the sitting across — the transitions the walk has beats for. */
 export type SittingTransition = {
@@ -74,6 +77,12 @@ export type SittingTransition = {
   barrier: boolean;
   /** The voting area was refreshed in this response (the losers left, fresh cards were dealt, the lobby refilled). */
   refresh: boolean;
+  /**
+   * «ИСТРЕБИТЕЛЬ» (TR78 Arwind Inc.): the chain had stopped AT THE CAREER (a card of the winner's table answering its
+   * step — `careerPausedAt`) and this response carries what the answer let through: the support and the enactment.
+   * Their holds are seeded from the table as the pause left it — the Agenda move already played.
+   */
+  careerResume?: boolean;
 };
 
 /** DETECT (pure): which transitions `after` carries relative to `before` — none across a generation or from a first view. */
@@ -85,7 +94,8 @@ export function detectSittingTransition(before: PlayerViewModel | undefined, aft
   }
   const barrier = verdictStandsAt(was.step) && AFTER_BARRIER.has(now.step);
   const refresh = !AFTER_REFRESH.has(was.step) && AFTER_REFRESH.has(now.step) && !now.final;
-  return {barrier, refresh};
+  const careerResume = careerPausedAt(was) && !careerPausedAt(now) && AFTER_ENACT.has(now.step);
+  return {barrier, refresh, ...(careerResume ? {careerResume} : {})};
 }
 
 /**
@@ -93,18 +103,26 @@ export function detectSittingTransition(before: PlayerViewModel | undefined, aft
  * (`beforeView`) to the summary's facts: the marker's move, the gained
  * support, the returned delegates, the old government behind the new one.
  */
-export function seedEnactmentHolds(beforeView: ParliamentViewVm, after: ParliamentModel): void {
+export function seedEnactmentHolds(beforeView: ParliamentViewVm, after: ParliamentModel, career: '' | 'pause' | 'resume' = ''): void {
   const summary = after.phase?.summary;
   if (summary === undefined) {
     return;
   }
   const h = parliamentHolds;
+  // «ИСТРЕБИТЕЛЬ» (TR78): a chain PAUSED at the Career has moved nothing but the marker — the pause seeds that move
+  // alone; the RESUME seeds everything else (the marker's glide already played on the paused page).
+  if (career === 'pause') {
+    if (summary.agenda !== undefined && summary.agenda.to !== summary.agenda.from) {
+      h.agendaAwaits = {player: summary.agenda.player, from: summary.agenda.from, to: summary.agenda.to};
+    }
+    return;
+  }
   // The old law leaves the government for the DISCARD PILE: the piles keep their pre-response counts until
   // it lands there (the renewal, when it rides the same response, goes on moving them from these values).
   if (summary.discardedEnacted !== undefined && h.pile === undefined) {
     h.pile = {deck: beforeView.deckSize, discard: beforeView.discardSize};
   }
-  if (summary.agenda !== undefined && summary.agenda.to !== summary.agenda.from) {
+  if (career !== 'resume' && summary.agenda !== undefined && summary.agenda.to !== summary.agenda.from) {
     h.agendaAwaits = {player: summary.agenda.player, from: summary.agenda.from, to: summary.agenda.to};
   }
   for (const entry of summary.support) {
@@ -225,9 +243,14 @@ export function seedParliamentSittingHolds(before: PlayerViewModel | undefined, 
   const viewer = after.thisPlayer?.color;
   const beforeView = buildParliamentView(beforeModel, viewer, before?.players ?? after.players);
   if (transition.barrier) {
-    seedEnactmentHolds(beforeView, afterModel);
+    seedEnactmentHolds(beforeView, afterModel, careerPausedAt(afterModel.phase) ? 'pause' : '');
     liveSitting = key;
     // A CARD'S ANSWER TO THE CHANGE OF POWER (TR62) rides THIS response and is owed to the enactment's tail.
+    openRulingChangePark(key);
+  } else if (transition.careerResume === true) {
+    // THE ANSWER LET THE CHAIN THROUGH (TR78): the support, the enactment — from the table as the pause held it.
+    seedEnactmentHolds(beforeView, afterModel, 'resume');
+    // …and a card's answer to the change of power (TR62) rides THIS response, owed to the enactment's tail.
     openRulingChangePark(key);
   } else if (transition.refresh && parliamentHolds.heldSlots === undefined) {
     // The refresh arrived on its own (after the effects): the losers' table is kept as it stood.

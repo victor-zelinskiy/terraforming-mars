@@ -41,16 +41,24 @@ import {flushAgendaBonus, queueAgendaBonuses, RATING_RAIL_KEY} from './parliamen
  *  · `task`   — what was closed and who closed it, and the office changing hands;
  *  · `agenda` — the marker's step and the bonus it pays.
  */
-export type ChairmanQuestStage = 'task' | 'agenda';
+/**
+ * `reaction` — a card of the viewer's table ANSWERED the quest's step of the Career with a question (TR78 Arwind Inc.:
+ * «add 1 fighter to ANY card»): the flow holds after the step's bonus and the stage's zone hosts the pick.
+ */
+export type ChairmanQuestStage = 'task' | 'agenda' | 'reaction';
 
 /** The beat the director is playing ('' before it starts, `done` when everything has landed). */
-export type ChairmanQuestBeat = '' | 'task' | 'seat' | 'agenda' | 'done';
+export type ChairmanQuestBeat = '' | 'task' | 'seat' | 'agenda' | 'reaction' | 'done';
 
 /** The crumb's SUBJECT while the flow stands — one fixed word (the glossary's «председательство»). */
 export {CHAIRMAN_QUEST_SUBJECT_KEY} from './consoleParliamentFlow';
 
 /** The crumb's tail per stage — one word, never echoing the subject's noun. */
 export function chairmanQuestStageKey(stage: ChairmanQuestStage): string {
+  if (stage === 'reaction') {
+    // The word of WHAT the table puts down («ИСТРЕБИТЕЛЬ» — the pick's own reading, `agendaReactionStageKey`).
+    return chairmanQuestFlow.reactionKey !== '' ? chairmanQuestFlow.reactionKey : 'Choice';
+  }
   return stage === 'agenda' ? 'Agenda track' : 'Quest';
 }
 
@@ -73,12 +81,14 @@ export const chairmanQuestFlow = reactive({
   move: undefined as AgendaMove | undefined,
   /** …and what its step pays, for the band's reading. */
   bonus: undefined as 'tr' | 'card' | undefined,
+  /** The stage word of the table's answer to the step (TR78 — «Fighter»), set when the flow holds for it. */
+  reactionKey: '',
 });
 
 function freshFlow() {
   return {
     live: false, stage: 'task' as ChairmanQuestStage, beat: '' as ChairmanQuestBeat, sent: false, answered: false,
-    player: undefined, seatWas: undefined, seatSource: 'reserve' as const, move: undefined, bonus: undefined,
+    player: undefined, seatWas: undefined, seatSource: 'reserve' as const, move: undefined, bonus: undefined, reactionKey: '',
   };
 }
 

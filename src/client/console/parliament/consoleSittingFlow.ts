@@ -49,7 +49,8 @@ import {ParliamentEnactOutcomeModel, ParliamentModel, ParliamentPhaseModel} from
 import {ParliamentPhaseStage} from '@/common/parliament/ParliamentTypes';
 import type {WorkspacePhase} from '@/client/console/consoleWorkspaceFlow';
 import type {MandatoryFlowBeat} from '@/client/console/consoleMandatoryGate';
-import {promptSourceResolution} from '@/client/console/promptSource';
+import {sittingAskResolution} from '@/client/console/promptSource';
+import {careerPausedAt, sittingReactionOf} from './agendaReaction';
 import {externalDrawTakeOf} from '@/client/console/externalDraw/consoleExternalDraw';
 import {isDiscardPrompt} from '@/client/console/cardDiscard/discardIntent';
 
@@ -107,7 +108,14 @@ export const SITTING_HOSTED_STEPS: ReadonlySet<SittingRewardStep> = new Set<Sitt
  * prompt is admitted — before the wave that arrived with it has flown — so `hosting` never opens the door on its
  * own: the wave still comes first (measured: the grid stood 2.4 s before the titanium touched the rail).
  */
-export function sittingFieldOf(stage: SittingStage, rewardStep: SittingRewardStep, rewardPending: boolean, ledger: boolean, hosting = false, receipt = false): {pose: boolean, stepOpen: boolean} {
+export function sittingFieldOf(stage: SittingStage, rewardStep: SittingRewardStep, rewardPending: boolean, ledger: boolean, hosting = false, receipt = false,
+  career = false): {pose: boolean, stepOpen: boolean} {
+  // «ИСТРЕБИТЕЛЬ» (TR78 Arwind Inc.): the chain WAITS on the table's answer to the winner's step of the Career — the
+  // enactment page holds after its ПОВЕСТКА (`career` = the viewer is asked AND that beat has played) and its field
+  // opens for the pick; the support and the enactment play on the same page once the answer has landed.
+  if (stage === 'enact' && career) {
+    return {pose: true, stepOpen: !rewardPending};
+  }
   if (stage !== 'reward') {
     return {pose: false, stepOpen: false};
   }
@@ -138,6 +146,12 @@ export type SittingPosition = {
   /** The seat the effects are asking right now, when it is somebody else — and what kind of answer. */
   waitingFor?: {player: Color, input?: PlayerInputType};
   /**
+   * THE CHAIN IS PAUSED AT THE CAREER (TR78 Arwind Inc.): a card of the winner's table answers its step of the Career
+   * with a question, and the support and the enactment wait for the answer (`phase.pending` — `careerPausedAt`). The
+   * enactment page stops after its ПОВЕСТКА; `waitingFor` names the asked seat for every other one.
+   */
+  career?: true;
+  /**
    * The viewer's placement is the ENGINE's own follow-up of the seat's own step (the 0 °C ocean the winner's
    * temperature step set off — Mohole Contest), not a question the resolution raised: the server names this
    * seat as asked at that step (`pending`) and the prompt is a board placement with no resolution source. It
@@ -159,7 +173,11 @@ export type SittingPosition = {
 
 /** The viewer's own resolution-sourced ask, by its structural markers — never a title. */
 export function sittingAskOf(wf: PlayerInputModel | undefined): 'choice' | 'distribution' | 'intake' | 'discard' | 'colony' | 'placement' | undefined {
-  if (wf === undefined || promptSourceResolution(wf) === undefined) {
+  // A table's answer to the winner's step of the Career (TR78) is a PICK of the sitting's own (the chain waits on it).
+  if (sittingReactionOf(wf) !== undefined) {
+    return 'choice';
+  }
+  if (wf === undefined || sittingAskResolution(wf) === undefined) {
     return undefined;
   }
   if (externalDrawTakeOf(wf) !== undefined) {
@@ -193,7 +211,7 @@ export function sittingAskOf(wf: PlayerInputModel | undefined): 'choice' | 'dist
  * Structural on both sides — the position and the prompt's type — never a title.
  */
 export function sittingTailPlacementOf(wf: PlayerInputModel | undefined, phase: ParliamentPhaseModel | undefined, viewer: Color | undefined): boolean {
-  if (wf === undefined || phase === undefined || viewer === undefined || wf.type !== 'space' || promptSourceResolution(wf) !== undefined) {
+  if (wf === undefined || phase === undefined || viewer === undefined || wf.type !== 'space' || sittingAskResolution(wf) !== undefined) {
     return false;
   }
   const pending = phase.pending;
@@ -282,7 +300,9 @@ export function sittingPositionOf(
     return undefined;
   }
   const pending = phase.pending;
-  const waitingFor = phase.step === 'effects' && pending !== undefined && pending.player !== viewer ?
+  const career = careerPausedAt(phase);
+  // …and while the chain is paused at the CAREER (TR78), the asked seat is named the same way.
+  const waitingFor = (phase.step === 'effects' || career) && pending !== undefined && pending.player !== viewer ?
     {player: pending.player, input: pending.input} : undefined;
   let rewardStep: SittingRewardStep;
   if (ask !== undefined) {
@@ -307,6 +327,7 @@ export function sittingPositionOf(
     rewardStep,
     waitingFor,
     ...(tail ? {tail: true} : {}),
+    ...(career ? {career: true} : {}),
     ...(early ? {earlyClose: true} : {}),
     ...((phase.closed ?? []).includes(viewer) ? {closed: true} : {}),
     ...((phase.ahead ?? []).includes(viewer) ? {askedLater: true} : {}),

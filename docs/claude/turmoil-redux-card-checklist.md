@@ -84,6 +84,11 @@
   сужает шаг (`exchangeTargetsOf`), прогноз — после ОБОИХ ходов (`arrives`, `effectsGained`), причины — `previewSkip()` (одна
   функция для руки, превью и записи), запись `lastRemoval.exchange` → второй полёт «из резерва на тот же след»
   (`flyExchangedDelegate`, холды `delegateExchangeArrival` / `delegateExchangeReserveStanding`).
+- **НОВАЯ корпорация набора (не замена)** (TR78 Arwind Inc., `docs/TURMOIL_REDUX_ARWIND_INC.md`): номер — строка реестра
+  `common/cards/turmoilReduxCorporations.ts` (TR78…TR85 в порядке папки сканов; `authored` у строки), без `reimplements` — свой арт и
+  лор под своим номером; регистрация в `corporationCards`; `deckComposition.spec` считает её среди корпораций модуля. Реакция на шаг
+  Карьеры — хук `ICard.onAgendaStep` + `askResourceOnAgendaStep` + двойник `agendaStepForecast`: три хоста (рука · задание · заседание /
+  закон) приходят даром.
 - **Корпорация-замена с первым действием в Парламенте** (TR77 Septem Tribus:redux, `docs/TURMOIL_REDUX_SEPTEM_TRIBUS.md`):
   номер — первый после проектных строк реестра, регистрация в `corporationCards` + `cardsToRemove`; `initialAction` откладывает
   общий шаг (`PlaceBannerCube` — `SelectParty` с маркером `bannerPrompt`), консоль пушит кадр Парламента над стартом

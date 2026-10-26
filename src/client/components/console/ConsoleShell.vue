@@ -1982,7 +1982,9 @@ import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {buildBotAttackView, BotAttackViewModel} from '@/client/console/botAttack/botAttackModel';
 import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.vue';
 
-import {promptSourceResolution, promptSourceView, PromptSourceView} from '@/client/console/promptSource';
+import {promptSourceResolution, promptSourceView, PromptSourceView, sittingAskResolution} from '@/client/console/promptSource';
+import {agendaReactionOf, questReactionOf, sittingReactionOf} from '@/client/console/parliament/agendaReaction';
+import {chairmanQuestFlow} from '@/client/console/parliament/consoleChairmanQuest';
 import {PlacementConversion, PlacementShape, StagedPlayPlate, stagedPlayPlate} from '@/client/console/placementDossier';
 import {cardGrantOwedTo} from '@/client/console/cardGrantHost';
 
@@ -5190,6 +5192,11 @@ export default defineComponent({
       if (this.parliamentStageTask && !consoleParliamentUi.fieldStanding && !this.consoleState.task.deferred) {
         return true;
       }
+      // …and a table's answer to the chairman QUEST's step of the Career (TR78 Arwind Inc.) belongs inside the quest's
+      // own stage: held until the flow has played the step's bonus and opened its zone (the surfaces go in turn).
+      if (this.parliamentQuestReactionTask && !consoleParliamentUi.reactionZone && !this.consoleState.task.deferred) {
+        return true;
+      }
       return this.taskBelongsToWorkspace &&
         (workspaceOutcomeZone() === '' || workspaceOutcomeBeatPending());
     },
@@ -5214,6 +5221,16 @@ export default defineComponent({
       return this.hostTask !== undefined && this.parliamentStagePrompt;
     },
     /**
+     * A TABLE'S ANSWER TO THE CHAIRMAN QUEST'S STEP OF THE CAREER (TR78 Arwind Inc. — `agendaStepPrompt.reason ===
+     * 'quest'`) while the quest's flow stands in the Parliament: a step of «ПРЕДСЕДАТЕЛЬСТВО», hosted in its own
+     * stage zone (`[data-embed-slot="parliament-reaction"]`), never a band over it. A reload has no quest flow to
+     * stand in — the pick is then served where any live pick is.
+     */
+    parliamentQuestReactionTask(): boolean {
+      return this.hostTask !== undefined && questReactionOf(this.playerView.waitingFor) !== undefined &&
+        workspaceFrameMounted('parliament') && chairmanQuestFlow.live;
+    },
+    /**
      * THE SITTING'S OWN ASK WAITS FOR ITS SITTING (the soft gates): the pass that ran the law carries the law's first
      * ask of this seat — a pick, a take, the winner's build, a tile — in the same response, applied over the board home
      * BEFORE any stage stands to host it. An ask of the sitting belongs to a step the flow has not reached yet: the
@@ -5226,7 +5243,9 @@ export default defineComponent({
       if (!sittingRiseOwed() || wf === undefined || phase === undefined || this.game.phase !== Phase.PARLIAMENT) {
         return false;
       }
-      return promptSourceResolution(wf) !== undefined || sittingTailPlacementOf(wf, phase, this.thisPlayer?.color);
+      // …and a table's answer to a step of the Career the sitting walked (TR78 — the winner's step, a law's step).
+      return sittingAskResolution(wf) !== undefined || sittingReactionOf(wf) !== undefined ||
+        sittingTailPlacementOf(wf, phase, this.thisPlayer?.color);
     },
     /**
      * The same ask by the RAW prompt — not admission-gated: the mandatory
@@ -5235,7 +5254,9 @@ export default defineComponent({
      */
     parliamentStagePrompt(): boolean {
       const wf = this.playerView.waitingFor;
-      return wf !== undefined && wf.type !== 'space' && promptSourceResolution(wf) !== undefined &&
+      // A law's own ask — or a table's answer to a step of the Career the sitting walked (TR78 Arwind Inc.: the winner's
+      // step, where the chain WAITS on it; a law's seat step, RX39): the same zone of the same stage.
+      return wf !== undefined && wf.type !== 'space' && (sittingAskResolution(wf) !== undefined || sittingReactionOf(wf) !== undefined) &&
         this.game.phase === Phase.PARLIAMENT && this.game.parliament?.phase !== undefined;
     },
     taskEmbedTarget(): string | undefined {
@@ -5290,6 +5311,11 @@ export default defineComponent({
       // asks where.
       if (this.parliamentStageTask && workspaceFrameMounted('parliament') && consoleParliamentUi.fieldStanding && consoleParliamentUi.stageZone) {
         return '.con-parl [data-embed-slot="parliament-stage"]';
+      }
+      // THE QUEST'S STEP OF THE CAREER ANSWERED BY THE TABLE (TR78): the quest's own reaction zone, published post-flush
+      // by the section once the flow holds for it.
+      if (this.parliamentQuestReactionTask && consoleParliamentUi.reactionZone) {
+        return '.con-parl [data-embed-slot="parliament-reaction"]';
       }
       if (!workspaceClaimsPick()) {
         return undefined;
@@ -5806,7 +5832,8 @@ export default defineComponent({
         // the Parliament, the winner's ocean on the board). A prompt of the
         // law's own ACTION (the bill of Trade Industries) is the player's own
         // move and is never announced — `isResolutionAsk` tells the two apart.
-        resolutionPrompt: isResolutionAsk(wf),
+        // …and the table's answer to the sitting's winner step of the Career (TR78) is a step of the SAME sitting.
+        resolutionPrompt: isResolutionAsk(wf) || sittingReactionOf(wf) !== undefined,
         flows: this.mandatoryFlowBeats,
       });
     },
@@ -9088,11 +9115,15 @@ export default defineComponent({
       if (this.finalGreeneryActive || this.finaleSessionEngaged) {
         return FINALE_KICKER;
       }
-      if (this.hostTask !== undefined && this.parliamentStageTask && workspaceFrameMounted('parliament') && !this.consoleState.task.deferred) {
+      if (this.hostTask !== undefined && (this.parliamentStageTask || this.parliamentQuestReactionTask) && workspaceFrameMounted('parliament') &&
+          !this.consoleState.task.deferred) {
         // EMBEDDED in the Parliament's sitting (the recipient picker in the reward stage's zone): the
         // bar names the STAGE the crumb already names («ВЫБОР»), one voice in two places — never the
-        // picker's own kicker over a workspace that has a name (final polish P-13).
-        return followUpStepStage(this.hostTask.kind) ?? this.activeTaskSummary?.kickerKey ?? 'Awaiting decision';
+        // picker's own kicker over a workspace that has a name (final polish P-13). A table's answer to a step of
+        // the Career names WHAT is put down («ИСТРЕБИТЕЛЬ» — the marker's own word, TR78).
+        const wf = this.playerView.waitingFor;
+        return followUpStepStage(this.hostTask.kind, agendaReactionOf(wf) !== undefined ? wf : undefined) ??
+          this.activeTaskSummary?.kickerKey ?? 'Awaiting decision';
       }
       if (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined && !this.handPickActive) {
         // The bar names the KIND of decision the host is serving ("ОПЛАТА" /

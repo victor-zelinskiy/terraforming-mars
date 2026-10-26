@@ -160,6 +160,15 @@
             <!-- THE CORPORATION RISES (Septem Tribus:redux): the card whose effect puts a cube on a banner stands up in the
                  table's own cell — the first action's answer and the sitting's «куб на знамя» alike — and the cube leaves it. -->
             <ConsoleBannerCubeStage />
+            <!-- «ИСТРЕБИТЕЛЬ» (TR78 Arwind Inc.): the table's answer to the chairman QUEST's step of the Career — the quest's
+                 own stage zone, unfolded over the TABLE from the rect the bills stood in (the body swap's one grammar: the
+                 drawer shuts, the zone opens from under the band); the shell teleports the pick into it, and nothing here
+                 titles itself (the crumb's tail names the stage). -->
+            <transition :css="false" @enter="onReactionEnter" @leave="onReactionLeave">
+              <div v-if="questReactionShown" class="con-parl__reaction" data-parl-reaction>
+                <div class="con-parl__reaction-zone" data-embed-slot="parliament-reaction"></div>
+              </div>
+            </transition>
             <transition :css="false" @enter="onStageEnter" @leave="onStageLeave" @enter-cancelled="onStageEnterCancelled" @leave-cancelled="onStageLeaveCancelled">
               <div v-if="stageKind === 'seat' || stageKind === 'sitting'" v-show="stagePanelUp" class="con-parl__stage" :class="['con-parl__stage--' + stageKind, {'con-parl__stage--field': flow.sittingField}]" :data-parl-stage="stageKind" data-parl-reading>
                 <ConsoleParliamentSeatPick v-if="stageKind === 'seat' && focusedSlot !== undefined" ref="seatPick"
@@ -169,7 +178,7 @@
                                           :position="sitting" :stage="sittingStage" :summary="model?.phase?.summary"
                                           :view="view" :model="model" :playerView="pv" :viewerColor="viewerColor"
                                           :field="flow.sittingField" :stepOpen="sittingStepOpen" :ledger="sittingLedger"
-                                          :receipt="tableReceiptShown" :resultsHidden="resultsHidden" mode="live" />
+                                          :receipt="tableReceiptShown" :resultsHidden="resultsHidden" :careerStep="sittingCareerStep" mode="live" />
                 <div class="con-parl__embed" data-embed-slot="parliament"></div>
               </div>
             </transition>
@@ -285,6 +294,9 @@ import {
   parliamentSittingLive, SITTING_HOSTED_STEPS, sittingFieldOf,
 } from '@/client/console/parliament/consoleSittingFlow';
 import {colonyLedgerOf, ColonyLedgerReading} from '@/client/console/parliament/colonyLedgerModel';
+import {
+  agendaReactionStageKey, careerAgendaTold, careerPausedAt, careerResumeOwed, noteCareerAgendaTold, noteCareerResumed, questReactionOf, sittingReactionOf,
+} from '@/client/console/parliament/agendaReaction';
 import {getResolution} from '@/client/parliament/ClientParliamentManifest';
 import {parliamentHolds, resetParliamentHolds} from '@/client/console/parliament/parliamentDisplayHolds';
 import {
@@ -292,6 +304,7 @@ import {
 } from '@/client/console/parliament/consoleChairmanQuest';
 import {
   chairmanQuestBeatActive, finishChairmanQuestBeats, killChairmanQuestBeats, noteChairmanQuestAnswer, playChairHandover, startChairmanQuestBeats, CHAIRMAN_QUEST_BUDGET,
+  chairmanQuestAwaitsReaction, noteChairmanQuestReactionAnswered,
 } from '@/client/console/parliament/chairmanQuestDirector';
 import {SittingBeat, sittingBeats} from '@/client/console/parliament/sittingBeats';
 import {
@@ -594,7 +607,19 @@ export default defineComponent({
       if (!this.sittingUp || p === undefined) {
         return {pose: false, stepOpen: false};
       }
-      return sittingFieldOf(this.sittingStage, p.rewardStep, this.rewardPending, this.sittingLedger !== undefined, this.stepFrameNested, this.tableReceiptOwed);
+      return sittingFieldOf(this.sittingStage, p.rewardStep, this.rewardPending, this.sittingLedger !== undefined, this.stepFrameNested, this.tableReceiptOwed,
+        this.sittingCareerAsk);
+    },
+    /**
+     * «ИСТРЕБИТЕЛЬ» (TR78 Arwind Inc.): the chain waits on THIS seat's table answering the winner's step of the Career,
+     * and the enactment page has played its ПОВЕСТКА — the page's field opens for the pick.
+     */
+    sittingCareerAsk(): boolean {
+      return sittingReactionOf(this.pv.waitingFor) !== undefined && careerAgendaTold(this.sittingKey);
+    },
+    /** The enactment page holds the FIELD for the table's answer (the reward panel carries the zone, the hero stays empty). */
+    sittingCareerStep(): boolean {
+      return this.sittingStage === 'enact' && this.sittingField;
     },
     /**
      * A RECEIPT OF THE TABLE is owed or standing (Sponsored Projects — a card payout that asked nobody): the reward
@@ -668,6 +693,11 @@ export default defineComponent({
       }
       if (this.payoutDetailsDoor && sittingPayoutDetails.open) {
         return 'Results · payouts';
+      }
+      // «ИСТРЕБИТЕЛЬ» (TR78): the enactment page's field hosts a table's answer to the winner's step — the tail names WHAT
+      // is put down, one step past «ПРИНЯТИЕ» (and goes back to it once the answer has let the chain through).
+      if (this.sittingCareerStep && this.sittingStepOpen) {
+        return agendaReactionStageKey(this.pv.waitingFor);
       }
       const step = SITTING_HOSTED_STEPS.has(p.rewardStep) && !this.sittingStepOpen ? 'received' : p.rewardStep;
       const wf = this.pv.waitingFor;
@@ -843,6 +873,18 @@ export default defineComponent({
       return chairmanQuestGateOf(this.pv.waitingFor);
     },
     /** The chairmanship flow's crumb tail — one word per stage («ЗАДАНИЕ» → «ПОВЕСТКА»). */
+    /**
+     * THE QUEST'S REACTION ZONE STANDS (TR78): the flow holds for the table's answer to the step («ИСТРЕБИТЕЛЬ») — and
+     * keeps the zone through the read that follows the answer, so the pick's own leave paints in place.
+     */
+    questReactionShown(): boolean {
+      return chairmanQuestFlow.live && chairmanQuestFlow.reactionKey !== '' &&
+        (chairmanQuestFlow.beat === 'reaction' || chairmanQuestFlow.beat === 'done');
+    },
+    /** The table's question to the quest's step stands (the server's marker — the pick is still the player's). */
+    questReactionAsked(): boolean {
+      return questReactionOf(this.pv.waitingFor) !== undefined;
+    },
     questTail(): string {
       return chairmanQuestStageKey(chairmanQuestFlow.stage);
     },
@@ -1540,6 +1582,15 @@ export default defineComponent({
       },
     },
     /**
+     * THE TABLE'S ANSWER TO THE QUEST'S STEP HAS LANDED (TR78): the pick left with its answer (the receive scene played
+     * with the commit held, so the prompt goes only once the fighter is on its card) — the flow goes on.
+     */
+    'questReactionAsked'(asked: boolean, was: boolean): void {
+      if (!asked && was && chairmanQuestAwaitsReaction()) {
+        noteChairmanQuestReactionAnswered();
+      }
+    },
+    /**
      * THE CHAIRMANSHIP FLOW HOLDS FOR THE DELEGATE PICK (the corner case: every
      * delegate of this seat stands on a resolution). The DIRECTOR decides that
      * — not the prompt's arrival — so the picker opens on its own beat, and the
@@ -1776,6 +1827,7 @@ export default defineComponent({
     consoleParliamentUi.voteStanding = false;
     consoleParliamentUi.stageStanding = false;
     consoleParliamentUi.fieldStanding = false;
+    consoleParliamentUi.reactionZone = false;
     // …and a rating owed to the enactment's tail (TR63), under the same law as the rewards above: never held for a
     // stage that is gone (a delivery in flight finishes its own touchdowns).
     releaseOrphanRulingRatings('unmount');
@@ -2264,6 +2316,11 @@ export default defineComponent({
             void agenda.playAgendaWalk(record, hooks);
           },
           owesSeatPick: () => this.bridge.seat !== undefined,
+          // A card of the viewer's table answers the step (TR78 Arwind Inc.) — its stage word, when its question stands.
+          owesReaction: () => {
+            const wf = this.pv.waitingFor;
+            return questReactionOf(wf) !== undefined ? agendaReactionStageKey(wf) : undefined;
+          },
           onStage: () => {
             setWorkspaceFrameStage('parliament', this.crumbStage);
           },
@@ -2758,6 +2815,11 @@ export default defineComponent({
       const worldReceipt = takeWorldReceipt(key);
       const worldOwed = worldReceipt !== undefined || worldMoveOwed(key);
       parliamentFlow.sittingPage = sittingStartPage(position, played, receipt !== undefined || worldOwed);
+      // «ИСТРЕБИТЕЛЬ» (TR78): the enactment page held for a table's answer and the answer let the chain through — it
+      // owes its ПОДДЕРЖКА and ПРИНЯТИЕ before anything past it.
+      if (careerResumeOwed(key, this.model?.phase) && position.pages.includes('enact')) {
+        parliamentFlow.sittingPage = position.pages.indexOf('enact');
+      }
       const onReward = position.pages[parliamentFlow.sittingPage] === 'reward';
       // The receipt is READ on the reward page; a walk that cannot start there (the gate already answered) owes no read.
       parliamentRewardState.receiptShowing = receipt !== undefined && onReward;
@@ -2792,6 +2854,11 @@ export default defineComponent({
       const worldOwed = (worldMoveOwed(key) && sittingStagePlayed(key, 'enact')) || worldReceiptOwed(key) || parliamentWorldBeatState.receiptShowing;
       // …and a RECEIPT OF THE TABLE still owed (the seat's take answered as the last ask of the step): the reward page first.
       parliamentFlow.sittingPage = sittingStartPage(position, (stage) => sittingStagePlayed(key, stage), ledgerRead || hostedFrameStands || worldOwed || tableReceiptsOwed());
+      // «ИСТРЕБИТЕЛЬ» (TR78): the answer let the chain through — the walk goes BACK to nothing: it stands on the enactment
+      // page it held, which now owes its ПОДДЕРЖКА and ПРИНЯТИЕ (never the reward page past them).
+      if (careerResumeOwed(key, this.model?.phase) && position.pages.includes('enact')) {
+        parliamentFlow.sittingPage = position.pages.indexOf('enact');
+      }
       this.queueWalk();
     },
     // ── the director's walk ─────────────────────────────────────────────
@@ -2812,8 +2879,13 @@ export default defineComponent({
       if (root === undefined || summary === undefined) {
         return undefined;
       }
+      const key = this.sittingKey;
       return {
         root, view: this.view, model: this.model, summary, viewer: this.viewerColor,
+        // «ИСТРЕБИТЕЛЬ» (TR78): the chain waits on a table's answer to the winner's step — read LIVE, the server's.
+        careerPaused: () => careerPausedAt(this.model?.phase),
+        agendaTold: careerAgendaTold(key),
+        onCareerTold: () => noteCareerAgendaTold(key),
         playAgendaWalk: (record: AgendaWalkRecordLike, hooks: AgendaWalkHooks) => {
           const agenda = this.$refs.agenda as InstanceType<typeof ConsoleParliamentAgenda> | undefined;
           if (agenda === undefined) {
@@ -2905,9 +2977,15 @@ export default defineComponent({
           const ledgerRead = stage === 'reward' && this.ledgerReadOwed;
           // …and the PLANET's own read, once the frame is back from the board.
           const worldRead = stage === 'reward' && parliamentWorldBeatState.receiptShowing;
-          if (!sittingStagePlayed(key, stage) || receipt || ledgerRead || worldRead || (stage === 'reward' && (this.rewardPending || this.tableReceiptOwed))) {
+          // «ИСТРЕБИТЕЛЬ» (TR78): the enactment page held after its ПОВЕСТКА while the chain waited on a table's answer —
+          // the answer has let the support and the enactment through, and the page plays them now (the same page).
+          const careerResume = stage === 'enact' && careerResumeOwed(key, this.model?.phase);
+          if (!sittingStagePlayed(key, stage) || receipt || ledgerRead || worldRead || careerResume || (stage === 'reward' && (this.rewardPending || this.tableReceiptOwed))) {
             notePlayedSittingStage(key, stage);
             await playSittingStage(stage, this.sittingBeatList, ctx, {compact: false});
+            if (stage === 'enact' && careerAgendaTold(key) && !careerPausedAt(this.model?.phase)) {
+              noteCareerResumed(key);
+            }
             if (stage === 'enact') {
               // THE ENACTMENT'S TAIL (TR62): the seals have changed places — a card that answered the change of power
               // leaves the project deck for the hand dock now, and the walk goes on from its touchdown.
@@ -3020,6 +3098,27 @@ export default defineComponent({
           this.queueWalk();
         }
       });
+    },
+    /**
+     * «ИСТРЕБИТЕЛЬ» UNFOLDS (TR78): the zone opens from the rect the bills stood in while the row is pushed shut under it
+     * (`playBodyUnfold` — the body swap's one grammar), and only once it stands does the shell teleport the pick into it
+     * (`reactionZone`, published here: the pick's own entrance then paints inside a surface that has arrived).
+     */
+    onReactionEnter(el: Element, done: () => void): void {
+      const row = this.$refs.tableTierEl as HTMLElement | undefined;
+      const r = row?.getBoundingClientRect();
+      const from = r !== undefined && r.width > 0 ? {left: r.left, top: r.top, width: r.width, height: r.height} : undefined;
+      playBodyUnfold(el as HTMLElement, row, from, () => {
+        done();
+        if (this.questReactionShown) {
+          consoleParliamentUi.reactionZone = true;
+        }
+      });
+    },
+    /** …and folds back down; the row comes back under it. */
+    onReactionLeave(el: Element, done: () => void): void {
+      consoleParliamentUi.reactionZone = false;
+      playBodyFold(el as HTMLElement, this.$refs.tableTierEl as HTMLElement | undefined, done);
     },
     onStageEnterCancelled(el: Element): void {
       (el as HTMLElement).style.clipPath = '';

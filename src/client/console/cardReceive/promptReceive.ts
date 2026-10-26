@@ -78,6 +78,12 @@ type Armed = {
    */
   client?: true;
   /**
+   * THE CARD THAT ASKS, when it stands among the candidates (TR78 Arwind Inc. — a table's answer to a step of the
+   * Career, `agendaStepPrompt.source`): the embedded pick has no dock, and the asker IS one of the faces on screen —
+   * the token is born on that face's PRINTED icon of the resource.
+   */
+  asker?: CardName;
+  /**
    * The pick is a LAW's replacement of the seat's own terraforming (`resourceGainPrompt.diverted`): the token is born
    * on the STRUCK printed icon the player can see (else the plate's law seal), under the law's seal.
    */
@@ -156,6 +162,7 @@ export function armPromptReceive(wf: PlayerInputModel | undefined, card: CardNam
     model,
     ...(opts.client === true ? {client: true as const} : {}),
     ...(pick.resourceGainPrompt?.diverted !== undefined ? {diverted: true as const} : {}),
+    ...(pick.agendaStepPrompt !== undefined ? {asker: pick.agendaStepPrompt.source} : {}),
   };
   // The scene's faces are LITE (the field's receiving card, the carried home): warm the THUMB the field paints and
   // the full the plate already shows — at the PRESS, where the round trip pays for the decode (the field card rose
@@ -285,6 +292,13 @@ function originsFor(a: Armed, specs: ReadonlyArray<ResourceTransferSpec>): Array
     const planet = measureEl('.con-colfocus .con-colfocus__planet') ?? measureEl('.con-colfocus .con-planet') ??
       measureEl('.con-task-host .con-src');
     return specs.map(() => planet === undefined ? undefined : centre(planet));
+  }
+  // A TABLE'S ANSWER TO A STEP OF THE CAREER (TR78 Arwind Inc.): the embedded pick has no dock — the ASKER stands among
+  // the candidates, and the token is born on its face's PRINTED icon of the resource (the corporation's fighter), never
+  // on the picker's own bar.
+  const asker = a.asker === undefined ? undefined : slotEl(a.asker);
+  if (asker !== undefined) {
+    return resolveGainIconOrigins(resolveActionCommitAnchors(asker, undefined), specs);
   }
   const dock = typeof document === 'undefined' ? null : document.querySelector<HTMLElement>('.con-task-host .con-src');
   if (dock !== null) {

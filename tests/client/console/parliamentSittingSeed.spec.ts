@@ -2,7 +2,7 @@ import {expect} from 'chai';
 import {Color} from '@/common/Color';
 import {PartyName} from '@/common/turmoil/PartyName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {ParliamentModel, ParliamentPhaseModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
+import {AGENDA_REACTION_PENDING_KEY, ParliamentModel, ParliamentPhaseModel, ParliamentPhaseSummaryModel} from '@/common/models/ParliamentModel';
 import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {
   detectSittingTransition, enterParliamentSittingHolds, heldSittingKey, resetParliamentSittingSeed, seedParliamentSittingHolds, sittingSeededLive,
@@ -90,6 +90,35 @@ describe('parliamentSittingSeed — the holds of one response, in the same block
     resetParliamentSittingSeed();
     seedParliamentSittingHolds(undefined, sitting('done'));
     expect(sittingSeededLive(heldSittingKey()), 'a reload: nothing seen arriving').is.false;
+  });
+
+  /*
+   * «ИСТРЕБИТЕЛЬ» (TR78 Arwind Inc.): the chain WAITS on a table's answer to the winner's step of the Career — the
+   * response that runs the pass stops at `support` (the pending key), having moved NOTHING but the marker; the answer's
+   * response carries the support and the enactment. The pause seeds the marker's move alone; the resume everything else.
+   */
+  it('THE CAREER PAUSE — the pause holds only the marker\'s move; the resume holds the support and the enactment, never the marker again', () => {
+    const pending = {player: BLUE, key: AGENDA_REACTION_PENDING_KEY, input: 'card' as const};
+    const before = view(model({step: 'assembly'}, {rulingParty: PartyName.GREENS}));
+    const pausedSummary = summary({agenda: {player: BLUE, from: 1, to: 2, bonus: 'tr'}});
+    const paused = view(model({step: 'support', pending, summary: pausedSummary}));
+    expect(detectSittingTransition(before, paused), 'the barrier opened').deep.eq({barrier: true, refresh: false});
+    seedParliamentSittingHolds(before, paused);
+    const h = parliamentHolds;
+    expect(h.agendaAwaits, 'the marker still on its old step').deep.eq({player: BLUE, from: 1, to: 2});
+    expect(h.heldSlots, 'nothing of the enactment is held — it has not happened').eq(undefined);
+    expect(h.govAwaits).eq(undefined);
+    h.agendaAwaits = undefined; // the ПОВЕСТКА beat played on the paused page
+    const resumed = view(model({
+      step: 'effects',
+      summary: summary({agenda: {player: BLUE, from: 1, to: 2, bonus: 'tr'}, support: [{party: PartyName.MARS, gained: 2, total: 2, reason: 'absent'}]}),
+    }, {enacted: {instance: A, resolution: 'RDX_GREENS_AQUIFER_CONTEST', party: PartyName.GREENS}, slots: [slot(B, PartyName.MARS), slot(C, PartyName.INDUSTRIALISTS)]}));
+    expect(detectSittingTransition(paused, resumed)).deep.eq({barrier: false, refresh: false, careerResume: true});
+    seedParliamentSittingHolds(paused, resumed);
+    expect(h.agendaAwaits, 'the marker is never held twice').eq(undefined);
+    expect(Array.from(h.supportIncoming.entries()), 'the support not yet seated').deep.eq([[PartyName.MARS, 2]]);
+    expect(h.heldSlots?.map((s) => s.instance), 'the table as the pause held it').deep.eq([A, B, C]);
+    expect(h.govAwaits, 'the new card\'s face waits').eq(A);
   });
 
   it('THE BARRIER OPENED — the same seeds for the OWN submit and the POLL: the table as voted is held (the winner in its slot), the Agenda move, the support, the returns, the OLD government', () => {

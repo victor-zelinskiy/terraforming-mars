@@ -62,7 +62,7 @@ export type ChairmanQuestDirectorContext = {
   /** `ConsoleParliamentAgenda.playAgendaWalk`, through the section (the marker is the component's) — the quest's step is a walk of ONE. */
   playAgendaWalk: (record: AgendaWalkRecordLike, hooks: AgendaWalkHooks) => void;
   /** The crumb's tail advances (the section publishes it to the frame). */
-  onStage: (stage: 'task' | 'agenda') => void;
+  onStage: (stage: 'task' | 'agenda' | 'reaction') => void;
   /**
    * THE CORNER CASE: every delegate of this seat stands on a resolution, so
    * the server asks WHICH card gives one up before it seats anybody. The
@@ -70,6 +70,13 @@ export type ChairmanQuestDirectorContext = {
    * here and the section hands its own stage to the picker.
    */
   owesSeatPick: () => boolean;
+  /**
+   * A CARD OF THE VIEWER'S TABLE ANSWERS THE STEP (TR78 Arwind Inc.: «add 1 fighter to ANY card»): the stage word of
+   * its question when one stands (the answer arrived with the gate's), else undefined. The flow then HOLDS after the
+   * step's bonus — the section opens the quest's stage zone and the shell teleports the pick into it — and goes on
+   * once the answer has landed (`noteChairmanQuestReactionAnswered`).
+   */
+  owesReaction?: () => string | undefined;
   /** Every beat has landed: A closes the flow. */
   onDone: () => void;
 };
@@ -84,6 +91,8 @@ type Run = {
   seatStarted: boolean;
   /** …and it is HOLDING for the player's own delegate pick. */
   awaitingSeatPick: boolean;
+  /** …or for the table's answer to the step (TR78) — the pick stands in the quest's zone. */
+  awaitingReaction: boolean;
   killed: boolean;
 };
 
@@ -146,6 +155,7 @@ export function startChairmanQuestBeats(ctx: ChairmanQuestDirectorContext): void
     readDone: false,
     seatStarted: false,
     awaitingSeatPick: false,
+    awaitingReaction: false,
     killed: false,
   };
   chairmanQuestFlow.beat = 'task';
@@ -287,7 +297,7 @@ function beatAgenda(): void {
     // is invented to stand in for one.
     parliamentHolds.agendaAwaits = undefined;
     flushAgendaBonus('no-glide');
-    schedule(BEAT_GAP_MS, () => finishRun());
+    schedule(BEAT_GAP_MS, () => afterAgenda());
     return;
   }
   const bonus = chairmanQuestFlow.bonus;
@@ -312,7 +322,7 @@ function launchAgendaBonus(): void {
     return;
   }
   const bonus = takeAgendaBonus(state.ctx.generation);
-  const done = () => schedule(BEAT_GAP_MS, () => finishRun());
+  const done = () => schedule(BEAT_GAP_MS, () => afterAgenda());
   if (bonus === undefined) {
     done();
     return;
@@ -340,6 +350,54 @@ function launchAgendaBonus(): void {
   }).then(done, done);
 }
 
+/**
+ * THE STEP HAS PAID — and its TABLE may answer it (TR78 Arwind Inc.): with the table's question standing the flow
+ * HOLDS («ИСТРЕБИТЕЛЬ» — the crumb's tail advances, the section opens the quest's zone, the pick is teleported into it);
+ * without one it ends as it always did.
+ */
+function afterAgenda(): void {
+  const state = run;
+  if (state === undefined) {
+    return;
+  }
+  const key = state.ctx.owesReaction?.();
+  if (key === undefined) {
+    finishRun();
+    return;
+  }
+  chairmanQuestFlow.reactionKey = key;
+  chairmanQuestFlow.beat = 'reaction';
+  chairmanQuestFlow.stage = 'reaction';
+  state.awaitingReaction = true;
+  // The pick is the player's: no animation hold stands over a decision (a ceiling over a reading fires as a leak).
+  state.hold?.release();
+  state.hold = undefined;
+  state.ctx.onStage('reaction');
+}
+
+/**
+ * THE TABLE'S ANSWER HAS LANDED (its receive scene played — the fighter on its card): another answer of the same walk
+ * keeps the flow on its stage (the zone stays — the next pick is teleported into it), the last one ends the flow.
+ */
+export function noteChairmanQuestReactionAnswered(): void {
+  const state = run;
+  if (state === undefined || !state.awaitingReaction) {
+    return;
+  }
+  const key = state.ctx.owesReaction?.();
+  if (key !== undefined) {
+    chairmanQuestFlow.reactionKey = key;
+    return;
+  }
+  state.awaitingReaction = false;
+  schedule(BEAT_GAP_MS, () => finishRun());
+}
+
+/** Is the flow HOLDING for the table's answer to the step (the pick stands in the quest's zone)? */
+export function chairmanQuestAwaitsReaction(): boolean {
+  return run !== undefined && !run.killed && run.awaitingReaction;
+}
+
 function finishRun(): void {
   const state = run;
   if (state === undefined) {
@@ -353,7 +411,7 @@ function finishRun(): void {
 
 /** Is a beat in flight (A absorbs input, B says nothing)? */
 export function chairmanQuestBeatActive(): boolean {
-  return run !== undefined && !run.killed && !run.awaitingSeatPick &&
+  return run !== undefined && !run.killed && !run.awaitingSeatPick && !run.awaitingReaction &&
     chairmanQuestFlow.beat !== '' && chairmanQuestFlow.beat !== 'done';
 }
 
@@ -383,7 +441,7 @@ export function finishChairmanQuestBeats(): void {
     } else if (chairmanQuestFlow.beat === 'seat' && parliamentHolds.chairAwaits === undefined) {
       beatAgenda();
     } else if (chairmanQuestFlow.beat === 'agenda' && parliamentHolds.agendaAwaits === undefined) {
-      finishRun();
+      afterAgenda();
     } else {
       break;
     }

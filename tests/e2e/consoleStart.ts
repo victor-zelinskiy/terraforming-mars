@@ -2970,7 +2970,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'vonc' | 'vonc-locked' | 'vonc-vacant' | 'vonc-self' | 'vonc-no-reserve' |
   'parliament' | 'parliament-actions' | 'parliament-recap' |
   'parliament-dense' | 'parliament-seat' | 'parliament-paid' | 'parliament-aquifer-vote' | 'parliament-aquifer-enact' |
-  'parliament-architecture-vote' | 'parliament-access-edge' | 'septem-tribus' | 'septem-win' | 'parliament-architecture-recap' | 'parliament-cloud-vote' | 'parliament-cloud-assembly' | 'parliament-cloud-enact' |
+  'parliament-architecture-vote' | 'parliament-access-edge' | 'septem-tribus' | 'septem-win' | 'arwind-walker' | 'arwind-sitting-win' | 'arwind-chairman-quest' | 'arwind-pay-space' | 'parliament-architecture-recap' | 'parliament-cloud-vote' | 'parliament-cloud-assembly' | 'parliament-cloud-enact' |
   'parliament-biodome-vote' | 'parliament-biodome-enact' | 'parliament-biodome-maxed' | 'parliament-biodome-recap' |
   'parliament-biodome-nocell' | 'parliament-biodome-neutral' |
   'parliament-powergrid-vote' | 'parliament-powergrid-recap' |

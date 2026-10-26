@@ -262,6 +262,15 @@ export type SittingDirectorContext = {
   /** The Agenda tier's own glide (it registers its own hold); `onLanded` fires when the marker has settled on its step. */
   /** The tier's walk (`ConsoleParliamentAgenda.playAgendaWalk`) — the sitting's step is a walk of ONE. */
   playAgendaWalk?: (record: AgendaWalkRecordLike, hooks: AgendaWalkHooks) => void;
+  /**
+   * «ИСТРЕБИТЕЛЬ» (TR78 Arwind Inc.) — THE CHAIN IS PAUSED AT THE CAREER, read LIVE (the server's `phase.pending`): a
+   * card of the winner's table answers its step with a question, and the support and the enactment have not run. The
+   * enactment page then stops after its ПОВЕСТКА (`onCareerTold`), and the walk comes back to it once the answer has
+   * landed — `agendaTold` then skips the beat that already played.
+   */
+  careerPaused?: () => boolean;
+  agendaTold?: boolean;
+  onCareerTold?: () => void;
 };
 
 type StageRun = {
@@ -2178,7 +2187,15 @@ export async function playSittingStage(stage: SittingStage, beats: ReadonlyArray
       await runBeat(stage, '', opts.compact, (tl) => beatVerdict(tl, ctx, k));
       break;
     case 'enact':
-      await runBeat(stage, 'agenda', opts.compact, (tl, r) => beatAgenda(tl, ctx, k, r));
+      if (ctx.agendaTold !== true) {
+        await runBeat(stage, 'agenda', opts.compact, (tl, r) => beatAgenda(tl, ctx, k, r));
+      }
+      // THE CHAIN WAITS ON THE TABLE'S ANSWER TO THE STEP (TR78): the page holds here — its field opens for the pick
+      // (the asked seat) or names the asked seat (every other one); the support and the enactment come with the answer.
+      if (stagePlaying === stage && ctx.careerPaused?.() === true) {
+        ctx.onCareerTold?.();
+        break;
+      }
       await gap(BEAT_GAP_MS);
       if (stagePlaying === stage) {
         await runBeat(stage, 'support', opts.compact, (tl, r) => beatSupport(tl, ctx, k, r));

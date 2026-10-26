@@ -239,3 +239,13 @@ motion: the plain half-speed glide (`runProxyFlight`). The dealt CARDS keep
 `console-colony-venus-redux.spec.ts` (every visible `.con-parl__flight` proxy's
 first→last rect must TRAVEL); the sitting probes (v2–v5) keep their source→socket
 visibility claims.
+
+## Вопрос НА шаге `agenda` — пауза на Карьере (TR78 Arwind Inc., 2026-10-26)
+
+Карта стола победителя отвечает на его шаг Карьеры вопросом («положите 1 истребитель на любую карту»): сервер стоит на `support` с
+`phase.pending.key === 'agenda-reaction'` (поддержка и принятие ещё не прошли). Клиент: посев паузы держит только ход маркера
+(`seedEnactmentHolds(…, 'pause')`); страница ПРИНЯТИЯ играет ПОВЕСТКУ и останавливается (`ctx.careerPaused` → `noteCareerAgendaTold`);
+её поле открывается для спрошенного места (`sittingFieldOf(…, career)`, панель награды несёт зону, герой пуст), хвост крошки
+«ИСТРЕБИТЕЛЬ»; другие места читают в ленте шаг + чип «кто · выбор карты». Ответ проводит цепочку: посев возобновления
+(`careerResume` → всё, кроме маркера), прогулка возвращается на ТУ ЖЕ страницу (`careerResumeOwed`) и играет ПОДДЕРЖКУ и ПРИНЯТИЕ без
+повтора ПОВЕСТКИ. Контракт: `docs/TURMOIL_REDUX_ARWIND_INC.md` §6.

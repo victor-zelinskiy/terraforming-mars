@@ -301,6 +301,12 @@ export type BandSitting = {
    * enactment — the card that answered, the party that came to power and how many cards leave the deck.
    */
   rulingDraw?: {card: CardName, party: ReduxParty, count?: number, tr?: number, production?: number};
+  /**
+   * «ИСТРЕБИТЕЛЬ» (TR78 Arwind Inc.): the chain WAITS on a table's answer to the winner's step of the Career — the
+   * enactment page holds after its ПОВЕСТКА. `player` is the seat that answers; `input` what it is answering (another
+   * seat's reading names it, the asked seat's own line stands on its step — its crumb names the pick).
+   */
+  careerWait?: {player: Color, input?: string, self: boolean};
   generation: number;
   summary?: ParliamentPhaseSummaryModel;
   reward: BandRewardReading;
@@ -316,8 +322,8 @@ export type BandSitting = {
  * so the line says who closed it and WHAT IT PAYS — the office, then the step.
  */
 export type BandQuest = {
-  /** The director's beat ('' before it starts). */
-  beat: '' | 'task' | 'seat' | 'agenda' | 'done';
+  /** The director's beat ('' before it starts) — `reaction`: the table answers the step (TR78), the step stays read. */
+  beat: '' | 'task' | 'seat' | 'agenda' | 'reaction' | 'done';
   /** The seat that closed the quest. */
   player?: Color;
   /** The office as it stood at the open (undefined = the seat was empty) — named while it changes hands. */
@@ -595,7 +601,7 @@ function delegateLine(delegate: BandDelegate): BandLine {
 function questLine(quest: BandQuest): BandLine {
   const chips: Array<BandChip> = [];
   const player = quest.player;
-  if (quest.beat === 'agenda' || quest.beat === 'done') {
+  if (quest.beat === 'agenda' || quest.beat === 'reaction' || quest.beat === 'done') {
     const move = quest.move;
     if (move === undefined) {
       chips.push({kind: 'label', key: 'end of the track', tone: 'quiet'});
@@ -799,6 +805,21 @@ function enactLine(sitting: BandSitting): BandLine {
     chips.push({kind: 'player', player: move.player});
     chips.push({kind: 'agenda', to: move.to, bonus: move.bonus});
     return {kicker: 'Agenda track', key: `agenda:${move.player}:${move.to}`, chips, committed: true};
+  }
+  // THE CHAIN WAITS ON THE TABLE'S ANSWER TO THE STEP (TR78): the step stands read, and every other seat reads WHO
+  // answers WHAT (the soft gates' asking chip) — the line keeps the step's own key until the wait is named, then
+  // crossfades once.
+  const wait = sitting.careerWait;
+  if (sitting.beat === '' && wait !== undefined && summary.agenda !== undefined) {
+    const move = summary.agenda;
+    chips.push({kind: 'player', player: move.player});
+    chips.push({kind: 'agenda', to: move.to, bonus: move.bonus});
+    if (wait.self) {
+      return {kicker: 'Agenda track', key: `agenda:${move.player}:${move.to}`, chips, committed: true};
+    }
+    const what = askingWhatKey(wait.input);
+    chips.push({kind: 'asking', seats: [wait.player], ...(what === undefined ? {} : {what}), viewer: 'ahead'});
+    return {kicker: 'Agenda track', key: `agenda:wait:${wait.player}:${what ?? ''}`, chips, committed: true};
   }
   if (sitting.beat === 'support') {
     chips.push({kind: 'supportWave', key: supportRuleKey(sitting.supportWave), wave: sitting.supportWave === 'lost' ? 'lost' : 'absent'});
