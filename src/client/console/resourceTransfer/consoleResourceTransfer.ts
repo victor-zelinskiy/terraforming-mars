@@ -602,11 +602,13 @@ export type ResourceTransferRun = {
    */
   arrival: 'auto' | 'hold';
   /**
-   * Wave tempo relative to the standard language (clamped to [0.5, 1];
-   * default 1). A wave flying CONCURRENTLY with a card cover (a placement
-   * that pays a card AND resources) passes `TRANSFER_CONCURRENT_PACE` so
-   * the chips stay ahead of the calmer card — same arcs, same easing, only
-   * every duration (stagger, pop/arc/settle, absorb) a touch quicker.
+   * Wave tempo relative to the standard language (clamped to
+   * [0.5, `TRANSFER_FEATURED_PACE`]; default 1). A wave flying CONCURRENTLY
+   * with a card cover (a placement that pays a card AND resources) passes
+   * `TRANSFER_CONCURRENT_PACE` so the chips stay ahead of the calmer card —
+   * same arcs, same easing, only every duration (stagger, pop/arc/settle,
+   * absorb) a touch quicker; a token that is a beat's whole subject (the
+   * generation scene's hook payout) passes `TRANSFER_FEATURED_PACE` — slower.
    */
   pace?: number;
   /**

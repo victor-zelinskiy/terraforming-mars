@@ -13,15 +13,17 @@ import {storyboard} from './consoleEndgameHarness';
  * changing the rail in one frame — and a buy PLATE a second later (solo), or
  * the draft workspace (a drafting table). What this pins down:
  *  · A — the solo table without a draft: the pass → the counter flips FIRST →
- *        the energy turns to heat → the income flows into the rail row by row
- *        (every landing on its own row, no end over glass) → the research buy
+ *        the energy turns to heat → the income ticks on the rail, every row
+ *        speaking through its OWN delta chip and NO token flying (the owner,
+ *        2026-10-26: a fan of chips off every badge overloaded the beat; only a
+ *        card hook's payout flies — `console-pristar`) → the research buy
  *        RISES inside the draft workspace itself (crumb «ИССЛЕДОВАНИЕ › ПОКУПКА»,
  *        four cards, the financial strip); the standalone `cardSelect buy`
  *        plate never mounts for one sample, and no mandatory plate stands
  *        between the scene and the purchase (the scene stood the flow up);
  *  · B — the drafting table: the same scene, then the draft's picks in the SAME
  *        workspace; driven to the buy stage, the buy wears the SAME chrome;
- *  · C — no energy: two beats — no conversion layer, the income still flows;
+ *  · C — no energy: two beats — no conversion layer, the income still ticks;
  *  · D — reduced motion: the numbers snap (no flights), the purchase still rises;
  *  · E — the journal: ONE group per seat («Производство»), its rows the phase's.
  *
@@ -72,6 +74,8 @@ async function passOnUi(page: Page): Promise<void> {
 type Sample = {
   t: number, gen: string, flipping: boolean, convert: boolean, draftws: boolean, buy: boolean, pick: boolean,
   taskWide: boolean, mandatory: boolean, rows: Record<string, string>,
+  /** The rows whose STOCK delta chip is painted in this sample — the standard income's one voice. */
+  chips: Array<string>,
 };
 
 /** ARM the scene probe: a MutationObserver + a 40 ms sampler (never rAF) over the strip, the rail and the surfaces. */
@@ -96,6 +100,8 @@ async function armSceneProbe(page: Page): Promise<void> {
           megacredits: rowText('megacredits'), steel: rowText('steel'), titanium: rowText('titanium'),
           plants: rowText('plants'), energy: rowText('energy'), heat: rowText('heat'),
         },
+        chips: ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat']
+          .filter((key) => document.querySelector(`.con-res__row--${key} .con-res__digits .delta-chip`) !== null),
       };
       const last = st.samples[st.samples.length - 1];
       if (last === undefined || JSON.stringify({...last, t: 0}) !== JSON.stringify({...s, t: 0})) {
@@ -125,7 +131,9 @@ async function railText(page: Page, key: string): Promise<string> {
 
 /** The scene's verdicts shared by A / B / C: order, surfaces, the rail's final numbers against the server's. */
 async function expectScene(page: Page, request: APIRequestContext, playerId: string, samples: Array<Sample>, after: typeof AFTER, opts: {convert: boolean}): Promise<void> {
-  expect(samples.length, 'the probe sampled the scene').toBeGreaterThan(5);
+  // A LIVENESS floor only (the samples are deduplicated states): since the standard income ticks with the commit
+  // instead of flying, a quiet scene is five distinct states — the floor fails a DEAD sampler, never a calm scene.
+  expect(samples.length, `the probe sampled the scene (${samples.length} distinct states)`).toBeGreaterThan(2);
   // THE STANDALONE PLATE NEVER MOUNTS — not for one sample: the purchase has ONE surface (TR61 part В).
   expect(samples.filter((s) => s.taskWide).length, 'the standalone cardSelect plate never rose').toBe(0);
   // …AND NO MANDATORY PLATE STANDS BETWEEN THE SCENE AND THE PURCHASE — the scene stood the flow up itself (decision 6а).
@@ -152,23 +160,23 @@ async function expectScene(page: Page, request: APIRequestContext, playerId: str
   }
 }
 
-/** Every income row received its token: the landings by row (the witness's `rail:<row>` anchor). */
-function landingsByRow(w: TransferWitness): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const l of w.landings) {
-    const m = /^rail:(.+)$/.exec(l.under);
-    if (m !== null) {
-      out[m[1]] = (out[m[1]] ?? 0) + 1;
-    }
+/**
+ * THE STANDARD INCOME SPEAKS THROUGH ITS DELTA CHIPS, NEVER A FAN OF TOKENS (the owner, 2026-10-26): no income token
+ * is born at all, and every row the record pays shows its own stock chip during the scene.
+ */
+function expectIncomeAsChips(samples: Array<Sample>, w: TransferWitness, rows: ReadonlyArray<string>): void {
+  expect(w.births, `no income token flies — trail:\n${transferTrail(w)}`).toEqual([]);
+  const chipped = new Set(samples.flatMap((s) => s.chips));
+  for (const key of rows) {
+    expect(chipped.has(key), `the ${key} row spoke through its delta chip (saw ${[...chipped].join(', ') || 'none'})`).toBe(true);
   }
-  return out;
 }
 
 for (const preset of PRESETS) {
   test.describe(`generation scene · ${preset.id}`, () => {
     test.use({viewport: preset.viewport});
 
-    test('A — solo, no draft: flip → conversion → the income flows row by row → the purchase rises in the research workspace', async ({page, request}) => {
+    test('A — solo, no draft: flip → conversion → the income ticks as delta chips → the purchase rises in the research workspace', async ({page, request}) => {
       test.setTimeout(600_000);
       const {playerId} = await bootFixtureSeats(page, request, 'generation-end-solo', {query: preset.query});
       await settle(page);
@@ -186,12 +194,8 @@ for (const preset of PRESETS) {
       await shoot(page, preset.id, 'a-01-purchase');
 
       await expectScene(page, request, playerId, samples, AFTER, {convert: true});
-      // EVERY ROW THE RECORD NAMES RECEIVED ITS TOKEN — the rating's M€ and the produced M€ are TWO landings on one row.
-      const rows = landingsByRow(witness);
-      expect(rows.megacredits ?? 0, `two M€ landings (rating + production) — trail:\n${transferTrail(witness)}`).toBeGreaterThanOrEqual(2);
-      for (const key of ['steel', 'titanium', 'plants', 'energy', 'heat']) {
-        expect(rows[key] ?? 0, `a landing on the ${key} row — trail:\n${transferTrail(witness)}`).toBeGreaterThanOrEqual(1);
-      }
+      // EVERY ROW THE RECORD NAMES SPEAKS THROUGH ITS OWN DELTA CHIP — and no token flies.
+      expectIncomeAsChips(samples, witness, ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat']);
       expect(endsOverGlass(witness), 'no end of a flight over glass').toEqual([]);
       // THE ONE SURFACE: the research workspace with the buy stage — its crumb, its four cards, its financial strip.
       const crumb = await crumbText(page);
@@ -279,7 +283,7 @@ for (const preset of PRESETS) {
       expect(await page.locator('.con-task--wide').count(), 'no standalone plate on the drafting road either').toBe(0);
     });
 
-    test('C — no energy: two beats — no conversion layer, the income still flows, the purchase rises', async ({page, request}) => {
+    test('C — no energy: two beats — no conversion layer, the income still ticks as chips, the purchase rises', async ({page, request}) => {
       test.setTimeout(600_000);
       const {playerId} = await bootFixtureSeats(page, request, 'generation-end-solo-no-energy', {query: preset.query});
       await settle(page);
@@ -291,9 +295,7 @@ for (const preset of PRESETS) {
       const samples = await sceneSamples(page);
       const witness = await transferWitness(page);
       await expectScene(page, request, playerId, samples, AFTER_NO_ENERGY, {convert: false});
-      const rows = landingsByRow(witness);
-      expect(rows.megacredits ?? 0, transferTrail(witness)).toBeGreaterThanOrEqual(2);
-      expect(rows.energy ?? 0, 'the produced energy still arrives').toBeGreaterThanOrEqual(1);
+      expectIncomeAsChips(samples, witness, ['megacredits', 'energy']);
       expect(endsOverGlass(witness)).toEqual([]);
     });
   });

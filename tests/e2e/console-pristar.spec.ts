@@ -102,7 +102,7 @@ async function passOnUi(page: Page): Promise<void> {
 /** ARM the mark probe: every state the cell shows and every animation that runs on the mark or the cell. */
 async function armMarkProbe(page: Page): Promise<void> {
   await page.evaluate(() => {
-    const st = {states: [] as Array<string>, animations: [] as Array<string>};
+    const st = {states: [] as Array<string>, animations: [] as Array<string>, charged: false};
     (window as unknown as {__pristarMark?: typeof st}).__pristarMark = st;
     const read = () => {
       const cell = document.querySelector<HTMLElement>('.con-res .con-score__cell--tr');
@@ -111,6 +111,8 @@ async function armMarkProbe(page: Page): Promise<void> {
         st.states.push(state);
       }
       const mark = cell?.querySelector<HTMLElement>('.con-score__pristar');
+      // The payout's own one-shot: the token charges before the coins are born out of it.
+      st.charged = st.charged || mark?.hasAttribute('data-income-charging') === true;
       for (const el of [cell, mark]) {
         for (const a of (el?.getAnimations?.({subtree: false}) ?? [])) {
           const name = a instanceof CSSTransition ? `transition:${a.transitionProperty}` : a instanceof CSSAnimation ? `animation:${a.animationName}` : 'web-animation';
@@ -130,8 +132,9 @@ async function armMarkProbe(page: Page): Promise<void> {
     }, 120_000);
   });
 }
-async function markProbe(page: Page): Promise<{states: Array<string>, animations: Array<string>}> {
-  return page.evaluate(() => (window as unknown as {__pristarMark?: {states: Array<string>, animations: Array<string>}}).__pristarMark ?? {states: [], animations: []});
+type MarkProbe = {states: Array<string>, animations: Array<string>, charged: boolean};
+async function markProbe(page: Page): Promise<MarkProbe> {
+  return page.evaluate(() => (window as unknown as {__pristarMark?: MarkProbe}).__pristarMark ?? {states: [], animations: [], charged: false});
 }
 
 /** The landings on each rail row and the births by anchor. */
@@ -282,7 +285,7 @@ test.describe('R07 Pristar · tv4k', () => {
     await shoot(page, 'd-02-veto-frame');
   });
 
-  test('E — the generation scene without a rise: Pristar\'s +6 M€ and its preservation fly AFTER the income from its token; +1 VP', async ({page, request}) => {
+  test('E — the generation scene without a rise: the income ticks as chips; the token CHARGES and Pristar\'s +6 M€ and its preservation are the only flights; +1 VP', async ({page, request}) => {
     test.setTimeout(600_000);
     const {playerId} = await bootFixtureSeats(page, request, 'pristar-production', {query: PRESET.query});
     await settle(page);
@@ -290,6 +293,7 @@ test.describe('R07 Pristar · tv4k', () => {
     expect(before.thisPlayer.megacredits, 'the fixture: 20 M€').toBe(20);
     expect(before.thisPlayer.ratingRaisedThisGeneration).toBe(false);
     await expect(page.locator(`${CELL}[data-tr-pristar="waiting"]`)).toHaveCount(1, {timeout: 15_000});
+    await armMarkProbe(page);
     await armTransferWitness(page);
     const stop = await storyboard(page, OUT, 'e-generation');
     await passOnUi(page);
@@ -306,16 +310,13 @@ test.describe('R07 Pristar · tv4k', () => {
     expect(after.thisPlayer.megacredits, 'the server: the income and Pristar\'s 6').toBe(20 + 22 + 3 + 6);
     expect(pristarResources(after), 'one preservation on the corporation').toBe(pristarResources(before) + 1);
     expect(after.thisPlayer.victoryPointsBreakdown.total - before.thisPlayer.victoryPointsBreakdown.total, '+1 VP (the preservation)').toBe(1);
-    const births = byAnchor(witness.births);
-    const landings = byAnchor(witness.landings);
-    expect(landings['rail:megacredits'] ?? 0, `three M€ landings (rating · production · Pristar) — trail:\n${transferTrail(witness)}`).toBeGreaterThanOrEqual(3);
-    expect(births['rail:tr'] ?? 0, `three births on the rating cell (the rating's M€, Pristar's 6 M€ and its preservation) — trail:\n${transferTrail(witness)}`).toBeGreaterThanOrEqual(3);
+    // The standard income flies nothing; the ONLY births are Pristar's two, out of its token on the rating cell.
+    expect(witness.births.map((b) => `${b.value} ${b.under}`), `two births, both on the rating cell — trail:\n${transferTrail(witness)}`)
+      .toEqual(['+6 rail:tr', '+1 rail:tr']);
+    expect(byAnchor(witness.landings)['rail:megacredits'] ?? 0, `the 6 M€ lands on the M€ row — trail:\n${transferTrail(witness)}`).toBe(1);
     // The preservation lands on the card's own counter — its satellite cell on this screen.
     expect(witness.landings.some((l) => /^aux:/.test(l.under)), `the preservation lands on the satellite — trail:\n${transferTrail(witness)}`).toBe(true);
-    // The hook's token is the LAST birth on the rating cell: after the income.
-    const trBirths = witness.births.filter((b) => b.under === 'rail:tr').map((b) => b.t);
-    const otherBirths = witness.births.filter((b) => b.under !== 'rail:tr').map((b) => b.t);
-    expect(Math.max(...trBirths), 'Pristar\'s token after every income token').toBeGreaterThanOrEqual(Math.max(...otherBirths));
+    expect((await markProbe(page)).charged, 'the token charged before its payout was born').toBe(true);
     expect(endsOverGlass(witness), 'no end of a flight over glass').toEqual([]);
     expect((await cellRead(page)).state, 'a new generation — the token «waiting» again').toBe('waiting');
   });
@@ -336,7 +337,7 @@ test.describe('R07 Pristar · tv4k', () => {
     const after = await wireOf(request, playerId);
     expect(after.thisPlayer.megacredits, 'the server: the income alone').toBe(20 + 22 + 3);
     expect(pristarResources(after), 'no preservation').toBe(pristarResources(before));
-    expect(byAnchor(witness.births)['rail:tr'] ?? 0, `one birth on the rating cell — the rating's M€ alone — trail:\n${transferTrail(witness)}`).toBe(1);
+    expect(witness.births, `nothing flies: no hook paid, and the standard income ticks as chips — trail:\n${transferTrail(witness)}`).toEqual([]);
     expect((await cellRead(page)).state, 'the flip reset the flag — «waiting»').toBe('waiting');
     await shoot(page, 'f-02-purchase');
   });

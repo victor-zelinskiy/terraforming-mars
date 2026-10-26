@@ -267,13 +267,21 @@ export function transferFlightBudgetMs(): number {
  */
 export const TRANSFER_CONCURRENT_PACE = 0.85;
 
+/**
+ * The FEATURED tempo: a token that is the beat's whole subject, standing alone on a calm screen (a corporation's
+ * production payout — Pristar's 6 M€ born out of its mark while the standard income has already ticked) flies a
+ * touch slower, so the eye follows it from the mark to the row. The same arc and easing, every duration longer —
+ * and the ceiling of the band: slower would read as a stall.
+ */
+export const TRANSFER_FEATURED_PACE = 1.35;
+
 /** Normalize a run's `pace`: absent → the standard tempo; a stray value is
- *  clamped to a sane band (a pace can quicken, never freeze or teleport). */
+ *  clamped to a sane band (a pace can quicken or be featured, never freeze or teleport). */
 export function clampTransferPace(pace: number | undefined): number {
   if (pace === undefined || !Number.isFinite(pace)) {
     return 1;
   }
-  return Math.min(1, Math.max(0.5, pace));
+  return Math.min(TRANSFER_FEATURED_PACE, Math.max(0.5, pace));
 }
 
 const STANDARD_RESOURCES: ReadonlySet<string> =

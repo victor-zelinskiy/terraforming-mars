@@ -343,8 +343,10 @@ motion scale, none under reduced motion) — no pulse, nothing on a tick; ④ th
 corner, off the stamp's strike (e2e `console-pristar` D, G — fhd / deck ≥ 12 px); ⑤ the rail is the Information Workspace's
 summary half, so the INSPECTED seat wears its own marks there and a seat without the corporation shows a clean cell — nowhere
 else (the seat chips, the face) prints them; ⑥ a mark may be a flight's BIRTH POINT: Pristar's token carries
-`data-income-hook="Pristar"` and the generation scene births the hook's +6 M€ and +1 preservation on it
-(`generationScene.incomeOriginKindOf`). A new corporation state on the rail is a new row of this table — a mark in its own
+`data-income-hook="Pristar"` and the generation scene first CHARGES it (`[data-income-charging]` — the one-shot
+`con-income-charge`, a swell and a spread ring, waited for by its `animationend`) and then births the hook's +6 M€ and +1
+preservation on it at the featured pace (`generationScene.incomeHookOf` / `chargeHookMarks`) — the one flight of the beat, the
+standard income ticking as delta chips. A new corporation state on the rail is a new row of this table — a mark in its own
 place, a pure reader, one sentence in the hint.
 
 ## Guards

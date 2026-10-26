@@ -403,6 +403,8 @@ export function flyRailReward(
   answer?: RailAnswerFlight,
   /** Every token of the cause has LEFT its origin (popped or never born) — the owner's surface may fold now. */
   onLeft?: () => void,
+  /** The wave's tempo (`ResourceTransferRun.pace` — the generation scene's hook token flies at the featured pace). */
+  opts: {pace?: number} = {},
 ): Promise<RailRewardOutcome> {
   const entry = entryOf(key);
   if (entry === undefined || entry.phase !== 'held') {
@@ -425,6 +427,7 @@ export function flyRailReward(
     source: {},
     origins,
     arrival: 'auto',
+    ...(opts.pace !== undefined ? {pace: opts.pace} : {}),
     ...(onLeft !== undefined ? {onLeft} : {}),
     onArrive: (spec) => {
       const live = entryOf(key);

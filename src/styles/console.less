@@ -5091,6 +5091,24 @@ each(@players, {
    --cr-score-h so the aux satellite's row-alignment math stays exact
    (see .con-res-aux) and neither the digit count nor the masked-VP
    state can ever move the layout. */
+
+/* Pristar's token charging before its payout is born (`.con-score__pristar[data-income-charging]`): a swell off its
+   corner and back, a gold ring leaving it — spread only, no blur; the end frame is the resting pose. */
+@keyframes con-income-charge {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 .07rem rgba(9, 15, 23, 0.92), 0 0 0 .12rem fade(@con-action-gold, 48%), 0 0 0 .12rem fade(@con-action-gold, 0%);
+    }
+    40% {
+        transform: scale(1.6);
+        box-shadow: 0 0 0 .07rem rgba(9, 15, 23, 0.92), 0 0 0 .12rem fade(@con-action-gold, 90%), 0 0 0 .3rem fade(@con-action-gold, 55%);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 .07rem rgba(9, 15, 23, 0.92), 0 0 0 .12rem fade(@con-action-gold, 48%), 0 0 0 .75rem fade(@con-action-gold, 0%);
+    }
+}
+
 .con-score {
     display: flex;
     align-items: stretch;
@@ -5234,6 +5252,16 @@ each(@players, {
             &,
             &::before,
             &::after { transition: none; }
+        }
+        /* THE PAYOUT IS THE CARD'S (the generation scene — `generationScene.chargeHookMarks`): before Pristar's 6 M€
+           and its preservation are born out of the token, the token CHARGES once — it swells off its corner and a gold
+           ring leaves it — so the coins read as materialized by the card, never as a chip out of nowhere. A ONE-SHOT
+           marking an event (invariant 15): it ends on its own and the scene waits for its `animationend`. A spread
+           ring, no blur; the transform is the mark's own (absolute — the cell's box never moves). */
+        &[data-income-charging] {
+            z-index: 1;
+            transform-origin: 70% 70%;
+            animation: con-income-charge calc(560ms * var(--motion-scale, 1)) @con-ease-standard both;
         }
     }
     &__value {

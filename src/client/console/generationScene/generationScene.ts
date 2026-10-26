@@ -20,14 +20,16 @@
  *   (2) CONVERSION — the existing energy → heat gate (`energyConversionTransition`)
  *                    plays as the scene's second beat, unchanged — the rules'
  *                    order (the conversion comes BEFORE the income);
- *   (3) INCOME     — in the transport's apply block the rail rows the record
- *                    names are HELD (`railReward.seedRailReward` — the promise is
- *                    checked against the two views, a row that disagrees ticks
- *                    with the commit and says why), and after the commit each
- *                    income flows from its PRODUCTION BADGE into its stock
- *                    figure, the rating's M€ out of the RATING CELL, top to bottom
- *                    in one wave, every counter ticking on its own touchdown
- *                    (PL-099 — the action commit's reward language);
+ *   (3) INCOME     — the STANDARD income (the rating's M€, every production
+ *                    value) ticks with the commit, each row speaking through its
+ *                    own delta chip — no tokens (the owner, 2026-10-26: a fan of
+ *                    chips off every badge overloaded the beat). What a card's
+ *                    own production hook paid (the record's `hooks` — Pristar's
+ *                    6 M€ and preservation) is HELD in the apply block
+ *                    (`railReward.seedRailReward`, checked against the two views)
+ *                    and, after the commit, the card's mark on the rail CHARGES
+ *                    and the payout is born out of it at the featured pace, the
+ *                    row ticking on its touchdown;
  *   (4) RISE       — when the research buy / the draft of the next generation
  *                    is live for this seat, the scene CONCLUDES by standing up
  *                    the draft workspace itself (the owner's decision 6а: the
@@ -60,7 +62,7 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {RailReward, flyRailReward, railRewardPending, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
-import {RATING_RAIL_KEY, ResourceTransferSpec, TransferPoint, cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {ResourceTransferSpec, TRANSFER_FEATURED_PACE, TransferPoint, cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {acknowledgeMandatoryBeat} from '@/client/console/consoleMandatoryGate';
 import {surfaceClear} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {enterWorkspace, workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
@@ -217,42 +219,34 @@ export function markGenerationConversion(): void {
 
 const INCOME_ORDER: ReadonlyArray<keyof Units> = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'];
 
-/** The ONE spec object of the rating's M€ (released by identity on its own touchdown — two M€ tokens are two flights). */
-let ratingSpec: ResourceTransferSpec | undefined;
 /** The tokens a card's own production hook pays (the record's `hooks`), by spec object → the card they are born on. */
 const hookSpecs = new Map<ResourceTransferSpec, CardName>();
 
 /**
- * THE PROMISE of the income wave, read off the record: one token per
- * production value that landed (positive), the rating's M€ as a token of its
- * own; the moves the diff must allow for beside them — the conversion
- * (energy −, heat +) and a NEGATIVE M€ production — are `known`.
+ * THE PROMISE of the income beat, read off the record. THE STANDARD INCOME DOES NOT FLY (the owner, 2026-10-26: a
+ * fan of chips — one token off every production badge at once — overloaded the beat and drew the eye off the
+ * rail): the rating's M€, every production value and the conversion are KNOWN moves, so the rows tick with the
+ * commit and each speaks through its own delta chip.
  *
- * …and what a card's OWN production hook paid inside the phase (the record's
- * `hooks` — Pristar's 6 M€) rides the same wave AFTER the income, one token per
- * resource it paid, born on the card's mark on this screen
- * (`[data-income-hook]` — Pristar's token on the rating cell). Before the
- * record named them, one such payment made the M€ row disagree and the whole
- * wave was refused (PL-607's honest degrade, every generation for Pristar).
+ * What FLIES is what the phase did not pay by its own rule — a card's OWN production hook (the record's `hooks`:
+ * Pristar's 6 M€ and its preservation), one token per resource it paid, born on the card's mark on this screen
+ * (`[data-income-hook]` — Pristar's token on the rating cell) after the mark has charged. A hook's resource on its
+ * own card lands on the card's counter (its satellite cell) with the points it brings.
  */
 export function generationIncomeReward(record: ProductionIncomeModel): RailReward {
   const cause: Array<ResourceTransferSpec> = [];
-  ratingSpec = undefined;
   hookSpecs.clear();
-  if (record.rating > 0) {
-    ratingSpec = {channel: 'stock', resource: 'megacredits', amount: record.rating};
-    cause.push(ratingSpec);
-  }
   const known: Record<string, number> = {};
-  /** The points each cause token brings (aligned with `cause`) — a hook's resource on a scoring card (Pristar). */
-  const vp: Array<number> = [];
-  for (const resource of INCOME_ORDER) {
-    const amount = record.income[resource];
-    if (amount > 0) {
-      cause.push({channel: 'stock', resource, amount});
-    } else if (amount < 0) {
+  const add = (resource: keyof Units, amount: number): void => {
+    if (amount !== 0) {
       known[`stock:${resource}`] = (known[`stock:${resource}`] ?? 0) + amount;
     }
+  };
+  /** The points each cause token brings (aligned with `cause`) — a hook's resource on a scoring card (Pristar). */
+  const vp: Array<number> = [];
+  add('megacredits', record.rating);
+  for (const resource of INCOME_ORDER) {
+    add(resource, record.income[resource]);
   }
   for (const hook of record.hooks ?? []) {
     for (const resource of INCOME_ORDER) {
@@ -261,12 +255,10 @@ export function generationIncomeReward(record: ProductionIncomeModel): RailRewar
         const spec: ResourceTransferSpec = {channel: 'stock', resource, amount};
         hookSpecs.set(spec, hook.card);
         cause.push(spec);
-      } else if (amount < 0) {
-        known[`stock:${resource}`] = (known[`stock:${resource}`] ?? 0) + amount;
+      } else {
+        add(resource, amount);
       }
     }
-    // …and what it laid on its OWN card (Pristar's preservation): one token from the same mark onto the card's counter
-    // (its satellite cell on this screen), bringing the card's points with it.
     const stored = hook.cardResources;
     if (stored !== undefined && stored.amount > 0) {
       const spec: ResourceTransferSpec = {channel: 'card-resource', resource: cardResourceKey(stored.resource), amount: stored.amount, targetCard: hook.card};
@@ -276,8 +268,8 @@ export function generationIncomeReward(record: ProductionIncomeModel): RailRewar
     }
   }
   if (record.conversion > 0) {
-    known['stock:energy'] = (known['stock:energy'] ?? 0) - record.conversion;
-    known['stock:heat'] = (known['stock:heat'] ?? 0) + record.conversion;
+    add('energy', -record.conversion);
+    add('heat', record.conversion);
   }
   const points = cause.map((_, i) => vp[i] ?? 0);
   return {cause, reactions: [], known, ...(points.some((v) => v !== 0) ? {vp: points} : {})};
@@ -285,9 +277,9 @@ export function generationIncomeReward(record: ProductionIncomeModel): RailRewar
 
 /**
  * BEAT 3, the SEED — called from the transport's apply block (the SAME
- * synchronous block as the commit): the rows the income pays keep their
- * pre-income values until each token's touchdown. Returns whether anything
- * is held (reduced motion holds nothing — the counters tick with the commit).
+ * synchronous block as the commit): the rows a card's hook paid keep that
+ * payment out until its token's touchdown (the standard income ticks with the
+ * commit). Returns whether anything is held (reduced motion holds nothing).
  */
 export function seedGenerationIncomeHold(before: PlayerViewModel | undefined, after: PlayerViewModel | undefined): boolean {
   if (armed === undefined) {
@@ -297,72 +289,72 @@ export function seedGenerationIncomeHold(before: PlayerViewModel | undefined, af
   return seedRailReward(GENERATION_INCOME_KEY, generationIncomeReward(armed.record), before, after);
 }
 
-function centerOf(selector: string): TransferPoint | undefined {
-  if (typeof document === 'undefined') {
-    return undefined;
-  }
-  const el = document.querySelector<HTMLElement>(selector);
-  const r = el?.getBoundingClientRect();
-  if (r === undefined || r.width < 2 || r.height < 2) {
-    return undefined;
-  }
-  return {x: r.left + r.width / 2, y: r.top + r.height / 2};
-}
-
 /** The mark a paying card wears on this screen (`data-income-hook` = its name) — undefined when it wears none. */
-function hookMarkCenter(card: CardName): TransferPoint | undefined {
+function hookMarkOf(card: CardName): HTMLElement | undefined {
   if (typeof document === 'undefined') {
     return undefined;
   }
-  for (const el of Array.from(document.querySelectorAll<HTMLElement>('.con-res [data-income-hook]'))) {
-    if (el.dataset.incomeHook === card) {
-      const r = el.getBoundingClientRect();
-      return r.width < 2 || r.height < 2 ? undefined : {x: r.left + r.width / 2, y: r.top + r.height / 2};
-    }
-  }
-  return undefined;
+  return Array.from(document.querySelectorAll<HTMLElement>('.con-res [data-income-hook]')).find((el) => el.dataset.incomeHook === card);
 }
 
-/** The object a token of the wave is born on (pure — the registry's Proxy unwrapped). */
-export type IncomeOrigin = {kind: 'rating'} | {kind: 'hook', card: CardName} | {kind: 'row', resource: string};
+function hookMarkCenter(card: CardName): TransferPoint | undefined {
+  const r = hookMarkOf(card)?.getBoundingClientRect();
+  return r === undefined || r.width < 2 || r.height < 2 ? undefined : {x: r.left + r.width / 2, y: r.top + r.height / 2};
+}
 
 /**
- * Which object a token is BORN on: the rating's M€ the rating cell, a production value its row's production badge,
- * a hook's payment its card's mark.
- *
- * ⚠ The flight asks with the spec the rail-reward REGISTRY holds — a reactive store, so a Proxy: the identity
- * tests read the raw object (asked by identity on the Proxy, the rating's M€ was born on the M€ row's production
- * badge every generation, and a hook's token never found its mark).
+ * The card a token of the beat is born on (pure — the registry's Proxy unwrapped), undefined for a token that is no
+ * hook's. ⚠ The flight asks with the spec the rail-reward REGISTRY holds — a reactive store, so a Proxy: the identity
+ * test reads the raw object (asked by identity on the Proxy, no hook token ever found its mark — PL-982).
  */
-export function incomeOriginKindOf(asked: ResourceTransferSpec): IncomeOrigin {
-  const spec = toRaw(asked);
-  const card = hookSpecs.get(spec);
-  if (card !== undefined) {
-    return {kind: 'hook', card};
-  }
-  if (spec === ratingSpec || spec.resource === RATING_RAIL_KEY) {
-    return {kind: 'rating'};
-  }
-  return {kind: 'row', resource: spec.resource};
+export function incomeHookOf(asked: ResourceTransferSpec): CardName | undefined {
+  return hookSpecs.get(toRaw(asked));
 }
 
-/** Where a token is BORN, measured (a hook whose card wears no mark on screen → the token degrades by name, its row ticks). */
+/** Where a token is BORN, measured: its card's mark (none on screen → the token degrades by name, its row ticks). */
 export function incomeOriginOf(spec: ResourceTransferSpec): TransferPoint | undefined {
-  const origin = incomeOriginKindOf(spec);
-  switch (origin.kind) {
-  case 'hook':
-    return hookMarkCenter(origin.card);
-  case 'rating':
-    return centerOf('.con-res .con-score__cell--tr .con-score__value') ?? centerOf('.con-res .con-score__cell--tr');
-  case 'row':
-    return centerOf(`.con-res__row--${origin.resource} .con-res__prod`) ?? centerOf(`.con-res__row--${origin.resource}`);
-  }
+  const card = incomeHookOf(spec);
+  return card === undefined ? undefined : hookMarkCenter(card);
+}
+
+/** The charge's own length (CSS `con-income-charge`) — the net above it never decides, the mark's `animationend` does. */
+const CHARGE_NET_MS = 560 + 400;
+
+/**
+ * THE CARD ANSWERS FIRST: each paying card's mark CHARGES once (a one-shot on the mark itself — it swells, a ring
+ * leaves it) and its tokens are born out of it only once the charge has played — the payout reads as the card's,
+ * never as a chip out of nowhere. Settles on the marks' own `animationend`, a net on the animation clock beside it;
+ * a card wearing no mark charges nothing. Reduced motion never gets here (nothing is held).
+ */
+function chargeHookMarks(cards: ReadonlyArray<CardName>): Promise<void> {
+  const marks = cards.map((card) => hookMarkOf(card)).filter((el): el is HTMLElement => el !== undefined);
+  return Promise.all(marks.map((mark) => new Promise<void>((resolve) => {
+    let settled = false;
+    const done = (): void => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      mark.removeEventListener('animationend', onEnd);
+      clearTimeout(net);
+      mark.removeAttribute('data-income-charging');
+      resolve();
+    };
+    const onEnd = (e: AnimationEvent): void => {
+      if (e.target === mark && e.animationName === 'con-income-charge') {
+        done();
+      }
+    };
+    mark.addEventListener('animationend', onEnd);
+    mark.setAttribute('data-income-charging', '');
+    const net = setTimeout(done, motionMs(CHARGE_NET_MS));
+  }))).then(() => undefined);
 }
 
 /**
- * BEAT 3, the FLIGHTS — after the commit (the real values stand under the
- * held rows): the wave flies top to bottom, every row ticking on its own
- * touchdown; then BEAT 4 concludes the scene. Resolves when the scene is over.
+ * BEAT 3, the FLIGHTS — after the commit (the standard income has ticked, a hook's payment stands held): the paying
+ * marks charge, their tokens fly at the FEATURED pace (a beat the eye must follow, slower than a reward wave), every
+ * row ticking on its touchdown; then BEAT 4 concludes the scene. Resolves when the scene is over.
  */
 export async function runGenerationIncomeFlights(view: () => PlayerViewModel | undefined): Promise<void> {
   const event = armed;
@@ -372,10 +364,11 @@ export async function runGenerationIncomeFlights(view: () => PlayerViewModel | u
   generationSceneState.phase = 'income';
   try {
     if (railRewardPending(GENERATION_INCOME_KEY)) {
-      await flyRailReward(GENERATION_INCOME_KEY, (spec) => incomeOriginOf(spec));
+      await chargeHookMarks([...new Set(hookSpecs.values())]);
+      await flyRailReward(GENERATION_INCOME_KEY, (spec) => incomeOriginOf(spec), undefined, undefined, {pace: TRANSFER_FEATURED_PACE});
       // THE RISE WAITS FOR THE LAST ABSORB, never for a touchdown alone: a hook's resource lands on its card's cell of the
       // ДОП. РЕСУРСЫ satellite (Pristar's preservation), which every band surface covers — the purchase rising on the
-      // touchdown painted its workspace over the token still being absorbed there. Bounded by the law's own ceiling.
+      // touchdown painted its workspace over the token still being absorbed there (PL-983). Bounded by the law's own ceiling.
       await surfaceClear(typeof document === 'undefined' ? null : document.querySelector('.con-res-host'));
     }
   } finally {
@@ -438,7 +431,6 @@ export function endGenerationScene(reason: string): void {
 export function resetGenerationScene(): void {
   endGenerationScene('reset');
   seen.clear();
-  ratingSpec = undefined;
   hookSpecs.clear();
   generationSceneState.color = '';
   generationSceneState.generation = 0;

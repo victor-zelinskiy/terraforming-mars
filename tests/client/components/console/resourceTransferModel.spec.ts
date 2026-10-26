@@ -4,7 +4,7 @@ import {ActionEffect, ActionPreviewStep} from '@/common/models/ActionPreviewMode
 import {
   mergeTransferSpecs, transferWaveDelayMs, transferArcPlan, transferArcPoint, transferArcTop, transferCeilingFor, transferCeilingY,
   transferChipScaleAt, sourceSpawnPoint, cardResourceKey, extractPlayRewards,
-  clampTransferPace, ResourceTransferSpec, TRANSFER_CONCURRENT_PACE, transferLaunchFor, transferSideArcPlan,
+  clampTransferPace, ResourceTransferSpec, TRANSFER_CONCURRENT_PACE, TRANSFER_FEATURED_PACE, transferLaunchFor, transferSideArcPlan,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 
 describe('resourceTransferModel (pure math of the shared resource-transfer language)', () => {
@@ -44,7 +44,8 @@ describe('resourceTransferModel (pure math of the shared resource-transfer langu
     expect(clampTransferPace(TRANSFER_CONCURRENT_PACE)).to.eq(TRANSFER_CONCURRENT_PACE);
     // A pace can quicken, never freeze or teleport the wave.
     expect(clampTransferPace(0)).to.eq(0.5);
-    expect(clampTransferPace(3)).to.eq(1);
+    expect(clampTransferPace(TRANSFER_FEATURED_PACE)).to.eq(TRANSFER_FEATURED_PACE);
+    expect(clampTransferPace(3)).to.eq(TRANSFER_FEATURED_PACE);
     expect(clampTransferPace(Number.NaN)).to.eq(1);
   });
 

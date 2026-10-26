@@ -105,13 +105,18 @@ played by `console/generationScene/generationScene.ts` off the SERVER's record (
    reduced motion resolves at once. No generation advance in the response (a Parliament sitting between) → no flip, no wait.
 3. **Beat 2 — the conversion.** The existing energy → heat gate (`endEnergyConversion`) is the scene's second beat
    (`markGenerationConversion`): the energy counts down to zero, the heat up, under the same hold.
-4. **Beat 3 — the income FLOWS.** `seedGenerationIncomeHold(before, after)` in `seedRewardHolds` reads the record as a rail promise
-   (`generationIncomeReward`: the rating's M€ token FIRST, then one token per positive production value; a negative production and the
-   conversion are KNOWN moves) and holds the named rows at their pre-income values through `seedRailReward` — only when the two views'
-   diff keeps the promise. After the commit `runGenerationIncomeFlights` → `flyRailReward`: the rating's token is born on the TR cell
-   (`.con-score__cell--tr .con-score__value`), each income's on its row's PRODUCTION badge (`.con-res__row--<res> .con-res__prod`),
-   lands on the row's ink, the counter ticks on the touchdown (PL-099). A diff that breaks the promise (a hook paid something else in
-   the same response) holds nothing — the counters tick with the commit, the scene still runs (PL-607).
+4. **Beat 3 — the income TICKS; a card hook's payout FLIES** (the owner, 2026-10-26 — replacing TR61's «the income FLOWS»: a fan of
+   tokens off every production badge at once overloaded the beat, drew the eye off the rail, and played only when the two views agreed —
+   so «sometimes yes, sometimes no»). The STANDARD income — the rating's M€, every production value, the conversion — is a set of
+   KNOWN moves in `generationIncomeReward`: the rows tick with the commit and each speaks through its own delta chip, no token born.
+   What FLIES is what a card's own production hook paid inside the phase (the record's `hooks`, R07 Pristar: 6 M€ and +1 preservation
+   with its point): `seedGenerationIncomeHold(before, after)` holds those rows through `seedRailReward` (only when the views' diff keeps
+   the promise); after the commit `runGenerationIncomeFlights` lets the card's mark CHARGE first (`chargeHookMarks` — a one-shot
+   `con-income-charge` on Pristar's token on the rating cell, the scene waiting for its `animationend`), then `flyRailReward` births the
+   payout ON the mark at the featured pace (`TRANSFER_FEATURED_PACE`, 1.35 — the beat's whole subject, slower than a reward wave), the
+   M€ row ticking on its touchdown, the preservation landing on its satellite cell with its point; the purchase rises only once the
+   rail host holds no token in the air (`surfaceClear`). A hook that pays something it does not name holds nothing — the counters tick
+   with the commit, the scene still runs (PL-607).
 5. **Beat 4 — the purchase RISES.** `concludeGenerationScene`: when `betweenGenResearchLive(view)` and no draft frame stands yet, the
    scene acknowledges the draft flow's mandatory beat and enters the workspace itself (`enterWorkspace('draft', {anchor: phase
    draft})`) under its own hold — the plate never flashes; a reload or a scene that did not run keeps the plate path (the beat is the
@@ -124,8 +129,7 @@ row drains to zero and then receives its production; playing the income first wo
 as 4 → 0 (§ 9, decision 6).
 
 Guards: `tests/console/generationScene.spec.ts` (6 — the claim, no record no scene, the flip beat and its signal, the promise, the seed's
-verdict, the broken promise), e2e `console-generation-scene` (A solo without a draft: flip → conversion → the income row by row with
-both M€ landings → the workspace; B the drafting table — the same scene, the picks and the buy in ONE workspace, the rival driven over
+verdict, the broken promise), e2e `console-generation-scene` (A solo without a draft: flip → conversion → every row's delta chip, NO token born → the workspace; B the drafting table — the same scene, the picks and the buy in ONE workspace, the rival driven over
 the wire; C no energy — two beats; D reduced motion — snaps, no flights, the purchase still rises; E the journal — ONE production group
 per seat with its rows), the transfer witness (`rail:<row>` landings, no end over glass).
 

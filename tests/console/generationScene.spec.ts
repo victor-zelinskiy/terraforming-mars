@@ -4,7 +4,7 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ProductionIncomeModel} from '@/common/models/ProductionIncomeModel';
 import {
   detectGenerationScene, generationIncomeReward, generationSceneState, noteGenerationFlipEnd, resetGenerationScene, runGenerationFlip,
-  endGenerationScene, armedGenerationScene, seedGenerationIncomeHold, GENERATION_INCOME_KEY, incomeOriginKindOf,
+  endGenerationScene, armedGenerationScene, seedGenerationIncomeHold, GENERATION_INCOME_KEY, incomeHookOf,
 } from '@/client/console/generationScene/generationScene';
 import {reactive} from 'vue';
 import {railRewardPending, resetRailRewards, verifyRailReward} from '@/client/console/resourceTransfer/railReward';
@@ -17,9 +17,10 @@ import {isAnimationHoldActive} from '@/client/components/presentation/animationH
  * THE GENERATION CHANGE IS ONE SCENE (TR61) — the pure half: the scene is
  * detected off the SERVER'S RECORD of the phase (never a diff), claimed once
  * per seat and generation, its flip beat settles on the strip's own signal,
- * its promise to the rail is the record read as tokens (the rating apart,
- * the conversion and a negative production as known moves), it holds the
- * foreground from the first beat and lets go on an interrupt.
+ * its promise to the rail is a card hook's payment read as tokens (the
+ * standard income — the rating, the production, the conversion — ticks with
+ * the commit as known moves), it holds the foreground from the first beat and
+ * lets go on an interrupt.
  */
 function record(over: Partial<ProductionIncomeModel> = {}): ProductionIncomeModel {
   return {
@@ -97,54 +98,49 @@ describe('the generation scene — the pure half (TR61)', () => {
     endGenerationScene('test');
   });
 
-  it('the promise to the rail: one token per production value, the rating apart; the conversion and a negative production are known moves', () => {
+  // The owner, 2026-10-26: the standard income does not fly (a fan of chips off every badge overloaded the beat) —
+  // every row ticks with the commit through its own delta chip; the rating, the production, the conversion are KNOWN.
+  it('the standard income is KNOWN, never a token: the rating, every production value, the conversion', () => {
     const reward = generationIncomeReward(record({income: {megacredits: -2, steel: 2, titanium: 0, plants: 1, energy: 3, heat: 0}}));
-    expect(reward.cause.map((s) => `${s.resource}:${s.amount}`)).deep.eq(['megacredits:21', 'steel:2', 'plants:1', 'energy:3']);
+    expect(reward.cause).deep.eq([]);
     expect(reward.reactions).deep.eq([]);
-    expect(reward.known).deep.eq({'stock:megacredits': -2, 'stock:energy': -4, 'stock:heat': 4});
-    const plain = generationIncomeReward(record({rating: 0, conversion: 0}));
-    expect(plain.cause.map((s) => `${s.resource}:${s.amount}`)).deep.eq(['megacredits:5', 'steel:2', 'plants:1', 'energy:3']);
-    expect(plain.known).deep.eq({});
+    expect(reward.known).deep.eq({'stock:megacredits': 21 - 2, 'stock:steel': 2, 'stock:plants': 1, 'stock:energy': 3 - 4, 'stock:heat': 4});
+    expect(reward.vp).is.undefined;
   });
 
-  it('the seed holds the rail only against a diff that keeps the promise, and only while a scene is armed', () => {
+  it('a scene with no hook holds nothing — the counters tick with the commit, the scene still runs', () => {
     expect(seedGenerationIncomeHold(view({}), view({})), 'nothing armed').is.false;
     const before = view({generation: 1, phase: Phase.ACTION, stock: {megacredits: 10, steel: 0, plants: 0, energy: 4, heat: 2}});
     const after = view({generation: 2, income: record(), stock: {megacredits: 10 + 21 + 5, steel: 2, plants: 1, energy: 3, heat: 2 + 4}});
     expect(detectGenerationScene(before, after)).is.not.undefined;
-    const held = seedGenerationIncomeHold(before, after);
-    // Under the server runner there is no DOM, but the seed is pure: it either holds (reduced motion off) or refuses.
-    expect(held).eq(railRewardPending(GENERATION_INCOME_KEY));
+    expect(seedGenerationIncomeHold(before, after)).is.false;
+    expect(railRewardPending(GENERATION_INCOME_KEY)).is.false;
     expect(generationSceneState.phase).eq('income');
     endGenerationScene('test');
-    expect(railRewardPending(GENERATION_INCOME_KEY), 'an interrupt releases every held row').is.false;
     expect(generationSceneState.phase).eq('idle');
     expect(generationSceneState.lastEnd).eq('test');
   });
 
-  // R07 Pristar: a card's own production hook pays INSIDE the phase, and the record names it (`hooks`) — the wave
-  // carries it as its own token AFTER the income instead of refusing the whole M€ row (PL-607, every generation).
-  it('a hook the record names rides the wave after the income — a token per resource paid, a payment taken back is known', () => {
+  // R07 Pristar: a card's own production hook pays INSIDE the phase, and the record names it (`hooks`) — its payment
+  // is the beat's one flight; a payment taken back is known.
+  it('a hook the record names is the only token — a token per resource paid, a payment taken back is known', () => {
     const reward = generationIncomeReward(record({
       hooks: [
         {card: CardName.PRISTAR, income: {...Units.EMPTY, megacredits: 6}},
         {card: CardName.SOLBANK, income: {...Units.EMPTY, megacredits: 2, heat: -1}},
       ],
     }));
-    expect(reward.cause.map((s) => `${s.resource}:${s.amount}`)).deep.eq([
-      'megacredits:21', 'megacredits:5', 'steel:2', 'plants:1', 'energy:3', 'megacredits:6', 'megacredits:2',
-    ]);
-    expect(reward.known).deep.eq({'stock:energy': -4, 'stock:heat': 4 - 1});
+    expect(reward.cause.map((s) => `${s.resource}:${s.amount}`)).deep.eq(['megacredits:6', 'megacredits:2']);
+    expect(reward.known).deep.eq({'stock:megacredits': 21 + 5, 'stock:steel': 2, 'stock:plants': 1, 'stock:energy': 3 - 4, 'stock:heat': 4 - 1});
   });
 
-  // The flight asks with the registry's spec — a reactive Proxy. Asked by identity on the Proxy, the rating's M€ was
-  // born on the M€ row's production badge every generation (the rating cell never paid), and a hook found no mark.
-  it('the origin of a token is read off the RAW spec — the rating cell, the hook mark, a row badge — through the registry Proxy', () => {
+  // The flight asks with the registry's spec — a reactive Proxy. Asked by identity on the Proxy, no hook token ever
+  // found its mark (PL-982).
+  it('the card a token is born on is read off the RAW spec, through the registry Proxy', () => {
     const reward = generationIncomeReward(record({hooks: [{card: CardName.PRISTAR, income: {...Units.EMPTY, megacredits: 6}}]}));
     const held = reactive({cause: [...reward.cause]}).cause;
-    expect(incomeOriginKindOf(held[0])).deep.eq({kind: 'rating'});
-    expect(incomeOriginKindOf(held[1])).deep.eq({kind: 'row', resource: 'megacredits'});
-    expect(incomeOriginKindOf(held[held.length - 1])).deep.eq({kind: 'hook', card: CardName.PRISTAR});
+    expect(incomeHookOf(held[0])).eq(CardName.PRISTAR);
+    expect(incomeHookOf({channel: 'stock', resource: 'megacredits', amount: 6})).is.undefined;
   });
 
   it('a hook that laid a resource on its OWN card flies it too — onto the card, with the points it brings', () => {
@@ -153,12 +149,13 @@ describe('the generation scene — the pure half (TR61)', () => {
       cardResources: {resource: CardResource.PRESERVATION, amount: 1, vp: 1},
     }]});
     const reward = generationIncomeReward(income);
-    const last = reward.cause[reward.cause.length - 1];
-    expect(last).deep.eq({channel: 'card-resource', resource: 'preservation', amount: 1, targetCard: CardName.PRISTAR});
-    expect(reward.vp?.[reward.cause.length - 1]).eq(1);
-    expect(reward.vp?.slice(0, -1).every((v) => v === 0)).is.true;
-    expect(incomeOriginKindOf(last)).deep.eq({kind: 'hook', card: CardName.PRISTAR});
-    // Checked against the views: the card's counter and the score moved by exactly what the record says.
+    expect(reward.cause).deep.eq([
+      {channel: 'stock', resource: 'megacredits', amount: 6},
+      {channel: 'card-resource', resource: 'preservation', amount: 1, targetCard: CardName.PRISTAR},
+    ]);
+    expect(reward.vp).deep.eq([0, 1]);
+    expect(incomeHookOf(reward.cause[1])).eq(CardName.PRISTAR);
+    // Checked against the views: the M€ row, the card's counter and the score moved by exactly what the record says.
     const before = view({generation: 1, phase: Phase.ACTION, stock: {megacredits: 10, steel: 0, plants: 0, energy: 4, heat: 2}});
     const after = view({generation: 2, income, stock: {megacredits: 10 + 21 + 5 + 6, steel: 2, plants: 1, energy: 3, heat: 2 + 4}});
     (before.thisPlayer as unknown as Record<string, unknown>).tableau = [{name: CardName.PRISTAR, resources: 0}];
@@ -167,23 +164,28 @@ describe('the generation scene — the pure half (TR61)', () => {
     (after.thisPlayer as unknown as Record<string, unknown>).victoryPointsBreakdown = {total: 21};
     const verdict = verifyRailReward(reward, before, after);
     expect(verdict.mismatches).deep.eq([]);
-    expect(verdict.vp[verdict.vp.length - 1]).eq(1);
+    expect(verdict.vp).deep.eq([0, 1]);
   });
 
-  it('a hook the record names keeps the promise against the applied views — nothing refused', () => {
+  it('a hook the record names keeps the promise against the applied views — the seed holds its token only', () => {
     const income = record({hooks: [{card: CardName.PRISTAR, income: {...Units.EMPTY, megacredits: 6}}]});
     const before = view({generation: 1, phase: Phase.ACTION, stock: {megacredits: 10, steel: 0, plants: 0, energy: 4, heat: 2}});
     const after = view({generation: 2, income, stock: {megacredits: 10 + 21 + 5 + 6, steel: 2, plants: 1, energy: 3, heat: 2 + 4}});
     const verdict = verifyRailReward(generationIncomeReward(income), before, after);
     expect(verdict.mismatches).deep.eq([]);
-    expect(verdict.cause.map((s) => `${s.resource}:${s.amount}`)).to.include('megacredits:6');
-    // …and the SAME payment unnamed is the old refusal: the M€ row disagrees, nothing of the cause is held.
-    expect(verifyRailReward(generationIncomeReward(record()), before, after).cause).deep.eq([]);
+    expect(verdict.cause.map((s) => `${s.resource}:${s.amount}`)).deep.eq(['megacredits:6']);
+    expect(detectGenerationScene(before, after)).is.not.undefined;
+    // Under the server runner there is no DOM, but the seed is pure: it either holds (reduced motion off) or refuses.
+    const held = seedGenerationIncomeHold(before, after);
+    expect(held).eq(railRewardPending(GENERATION_INCOME_KEY));
+    endGenerationScene('test');
+    expect(railRewardPending(GENERATION_INCOME_KEY), 'an interrupt releases every held row').is.false;
   });
 
-  it('a diff that breaks the promise (a hook paid something else) holds nothing — the counters tick with the commit, the scene still runs', () => {
+  it('a diff that breaks the promise (a hook paid something it did not name) holds nothing — the counters tick with the commit', () => {
+    const income = record({hooks: [{card: CardName.PRISTAR, income: {...Units.EMPTY, megacredits: 6}}]});
     const before = view({generation: 1, phase: Phase.ACTION, stock: {megacredits: 10}});
-    const after = view({generation: 2, income: record(), stock: {megacredits: 99}});
+    const after = view({generation: 2, income, stock: {megacredits: 99}});
     expect(detectGenerationScene(before, after)).is.not.undefined;
     expect(seedGenerationIncomeHold(before, after)).is.false;
     expect(railRewardPending(GENERATION_INCOME_KEY)).is.false;
