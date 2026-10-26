@@ -2866,6 +2866,8 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'scientific-breakthrough' |
   'scientific-breakthrough-clean' |
   'scientific-breakthrough-actions' |
+  // …against MarsBot: the removal is an `or` [the cards, the bot] — the card option opens the SAME grouped step.
+  'scientific-breakthrough-bot' |
   // TR49 Cutting-Edge Design — THE ONE-PLAY CLASS: the journey (TR49 + Lake Marineris / Grass / Comet / Special Design at
   // −20 °C, nothing armed) · Special Design ARMED at −18 °C (Grass decisive, Comet spends it for nothing) · Indentured
   // Workers ARMED (Comet 21 → 13, the payment head names the one-play discount).

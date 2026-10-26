@@ -114,7 +114,8 @@
                                      :focus="sub.focus"
                                      :selection="playedTargetSelection"
                                      :bandHeight="playedTargetHeight"
-                                     :lockedCard="playedTargetResults[sub.choiceId]?.cardName ?? ''" />
+                                     :lockedCard="playedTargetResults[sub.choiceId]?.cardName ?? ''"
+                                     :decline="subDecline" />
 
             <!-- ── SUB-STATE: a PREMIUM pick list (card / player / or w/ metadata
                  chips / nested-input target / tabbed target). ─────────── -->
@@ -437,7 +438,7 @@
                      faces; answered, a LINK to the card still lying in its owner's tableau — its miniature, origin and
                      the step's own tag. Both values in ONE cell at ONE height: answering, or a change of variant taking
                      the answer away (П5), moves nothing below. A MERGED multi pick (Astra) keeps its own row. -->
-                <template v-else-if="choiceMode(row.choice) === 'playedTarget' && !isMergedPickChoice(row.choice)">
+                <template v-else-if="(choiceMode(row.choice) === 'playedTarget' && !isMergedPickChoice(row.choice)) || orAnsweredOnTable(row.choice)">
                   <ConsoleComposerTargetRow :label="targetRowLabel(row.choice)"
                                             :payload="payloadFor(row.choice)"
                                             :candidates="targetRowCandidates(row.choice)"
@@ -905,7 +906,10 @@ type SubState =
   /** THE EMBEDDED PLAYED-TARGET STEP — a level of this workspace, not a modal
    *  over it: the same `sub` slot every other in-place step uses, so B is one
    *  logical level and the payment / captures below it are never touched. */
-  | {kind: 'playedTarget', choiceId: string, focus: PlayedTargetFocus, picked: ReadonlyArray<string>}
+  | {kind: 'playedTarget', choiceId: string, focus: PlayedTargetFocus, picked: ReadonlyArray<string>,
+     /** The step is answering an OR-OPTION (`orItem`), not the choice itself — a removal that also offers MarsBot
+      *  (TR52 «Научный прорыв»: [cards…, the bot]) points at the cards in this same step, the action composer's door. */
+     orItem?: ConsoleOrItem}
   | {kind: 'list', choiceId: string, index: number}
   | {kind: 'orNested', choiceId: string, item: ConsoleOrItem, index: number}
   | {kind: 'tabbed', stepIndex: number, index: number}
@@ -2501,6 +2505,12 @@ export default defineComponent({
         const decline = this.tabbedSteps.find((t) => t.index === sub.stepIndex)?.step.decline;
         return decline !== undefined ? {index: decline.optionIndex, label: decline.label, forgone: []} : undefined;
       }
+      // A played-target step carries it only on a SINGLE pick answering an or-option (a merged up-to-N ask spends RT
+      // on its own submit) — the action composer's rule, one grammar for both.
+      if (sub?.kind === 'playedTarget') {
+        const pc = this.playedTargetChoice;
+        return pc !== undefined && sub.orItem !== undefined && this.playedTargetSelection.mode !== 'multi' ? this.choiceDecline(pc) : undefined;
+      }
       const c = this.subChoice;
       if (sub === undefined || c === undefined || (sub.kind !== 'list' && sub.kind !== 'orNested')) {
         return undefined;
@@ -4077,7 +4087,8 @@ export default defineComponent({
      */
     playedTargetPreview(choice: ComposerChoice, name: CardName): ReadonlyArray<PlayedTargetPreviewSection> {
       const step = choice.scope === 'step' ? this.selectedBranch?.steps[choice.index] : undefined;
-      return playedTargetPreviewFor(step, choice.input as SelectCardModel, name, this.selectedBranch?.effects, this.selectedBranch?.vpBox);
+      const input = this.playedTargetInputFor(choice);
+      return input === undefined ? [] : playedTargetPreviewFor(step, input, name, this.selectedBranch?.effects, this.selectedBranch?.vpBox);
     },
     /**
      * The resource badge a candidate face earns — EXPLICIT, and only when the
@@ -4283,7 +4294,7 @@ export default defineComponent({
      * groups. Re-entering restores the previously chosen target: its owner,
      * its group and the cursor on the card itself, already target-locked.
      */
-    openPlayedTargetStep(c: ComposerChoice): void {
+    openPlayedTargetStep(c: ComposerChoice, orItem?: ConsoleOrItem): void {
       // Measure the band ONCE, before the step is visible, and measure it where
       // the layout is STRETCHED rather than content-sized — see
       // `playedTargetHeight`. The width comes from the work column (`flex: 1`
@@ -4298,8 +4309,15 @@ export default defineComponent({
       if (band !== null && band !== undefined) {
         this.playedTargetHeight = band.clientHeight;
       }
+      // An OR-OPTION's step reads the option's own `SelectCard` (`playedTargetInputFor`), which is a function of the
+      // sub-state itself — so the step is opened FIRST and its owners read after (the action composer's order).
+      const before = this.sub;
+      if (orItem !== undefined) {
+        this.sub = {kind: 'playedTarget', choiceId: c.id, focus: {ownerId: '', index: 0}, picked: [], orItem};
+      }
       const owners = this.playedTargetModel?.owners ?? [];
       if (owners.length === 0) {
+        this.sub = before;
         return;
       }
       // Re-entry restores the previous answer: a single target puts the cursor
@@ -4313,9 +4331,50 @@ export default defineComponent({
       const focus = findPlayedTargetFocus(chosen?.cardName ?? picked[0], owners) ??
         reseatPlayedTargetFocus(undefined, owners);
       if (focus === undefined) {
+        this.sub = before;
         return;
       }
-      this.sub = {kind: 'playedTarget', choiceId: c.id, focus, picked};
+      this.sub = {kind: 'playedTarget', choiceId: c.id, focus, picked, orItem};
+    },
+    /**
+     * The `SelectCard` a choice's embedded step is serving: the choice's own input, or the one NESTED in the or-option
+     * being answered — open now (`sub.orItem`) or answered earlier through the step (`orTableAnswerItem`). Everything
+     * that reads the step's candidates goes through here, so a nested descent can never render one set of cards and
+     * validate against another (the action composer's `playedTargetInputFor`).
+     */
+    playedTargetInputFor(c: ComposerChoice): SelectCardModel | undefined {
+      const open = this.sub?.kind === 'playedTarget' && this.sub.choiceId === c.id ? this.sub.orItem : undefined;
+      const input = (open ?? this.orTableAnswerItem(c))?.nested ?? c.input;
+      return input.type === 'card' ? (input as SelectCardModel) : undefined;
+    },
+    /** The or-option an `or` choice was answered with THROUGH the embedded step (a card on the table), if any. */
+    orTableAnswerItem(c: ComposerChoice): ConsoleOrItem | undefined {
+      if (c.input.type !== 'or' || this.playedTargetResults[c.id] === undefined) {
+        return undefined;
+      }
+      const nested = this.picks[nestedPickKey(c.id)];
+      const pick = this.picks[c.id];
+      if (nested === undefined || nested === '' || pick === undefined) {
+        return undefined;
+      }
+      const item = buildOrItems(c.input as OrOptionsModel).find((it) => String(it.optionIndex) === pick);
+      return item !== undefined && orOptionDoor(item.nested, this.handNamesSet, this.playedNamesSet, this.cardName) === 'table' ?
+        item : undefined;
+    },
+    /** B out of a nested descent → the OR LIST it came from (ONE logical level), the cursor on the option it opened. */
+    orListSub(choiceId: string, item: ConsoleOrItem): SubState | undefined {
+      const c = this.allChoices.find((x: ComposerChoice) => x.id === choiceId);
+      if (c === undefined || c.input.type !== 'or') {
+        return undefined;
+      }
+      // A pick opened straight from its row (an optional choice's one answer) has no list above it — B is the row.
+      if (this.optionalPickItem(c)?.optionIndex === item.optionIndex) {
+        return undefined;
+      }
+      const declineAt = this.choiceDecline(c)?.index;
+      const at = buildOrItems(c.input as OrOptionsModel).filter((it) => it.optionIndex !== declineAt)
+        .findIndex((it) => it.optionIndex === item.optionIndex);
+      return {kind: 'list', choiceId, index: Math.max(0, at)};
     },
     /**
      * The step's ASK — read from the server's own prompt, never from a card.
@@ -4449,9 +4508,16 @@ export default defineComponent({
       this.playedTargetResults = {...this.playedTargetResults, [choice.id]: result};
       // The capture the batch submits is the same shape every card pick uses —
       // the rich result is presentation + future-animation context, never a
-      // second source of truth for what was answered.
-      this.captureFor(choice, {type: 'card', cards: [candidate.cardName]});
-      this.picks = {...this.picks, [choice.id]: candidate.cardName};
+      // second source of truth for what was answered… and when the step is
+      // answering an OR-OPTION, that same shape nests into the option.
+      const orItem = this.sub.orItem;
+      if (orItem !== undefined) {
+        this.picks = {...this.picks, [choice.id]: String(orItem.optionIndex), [nestedPickKey(choice.id)]: candidate.cardName};
+        this.captureFor(choice, orItemResponse(orItem, {type: 'card', cards: [candidate.cardName]}));
+      } else {
+        this.captureFor(choice, {type: 'card', cards: [candidate.cardName]});
+        this.picks = {...this.picks, [choice.id]: candidate.cardName};
+      }
       this.sub = undefined;
       this.landCursor();
       this.scrollFocused();
@@ -4462,8 +4528,8 @@ export default defineComponent({
      * two played-card picks judged the second against the first one's owners.
      */
     playedTargetModelFor(choice: ComposerChoice): PlayedTargetModel | undefined {
-      const model = choice.input as SelectCardModel;
-      if (model.type !== 'card') {
+      const model = this.playedTargetInputFor(choice);
+      if (model === undefined) {
         return undefined;
       }
       // DEDUPE (Cyberia Systems' sequential copy steps): a card an EARLIER
@@ -4539,8 +4605,8 @@ export default defineComponent({
      * the branch's own print when the pick IS the selected branch's one gain pick, else its amount and resource.
      */
     payloadFor(c: ComposerChoice): PlayedTargetPayload | undefined {
-      const model = c.input as SelectCardModel;
-      return playedTargetPayloadOf({amount: c.amount, cardResource: c.cardResource}, model.resourceGainPrompt,
+      const model = this.playedTargetInputFor(c);
+      return playedTargetPayloadOf({amount: c.amount, cardResource: c.cardResource}, model?.resourceGainPrompt,
         c.scope === 'step' ? this.selectedVariantPrint : undefined);
     },
     /** The target row's label when it carries no payload — the role once answered, the server's ask before. */
@@ -4553,12 +4619,16 @@ export default defineComponent({
     },
     /** The server's candidates of a target pick — the unanswered row's strip. */
     targetRowCandidates(c: ComposerChoice): ReadonlyArray<CardModel> {
-      return (c.input as SelectCardModel).cards ?? [];
+      return this.playedTargetInputFor(c)?.cards ?? [];
     },
     /** The chosen card's model as the server sent it — the miniature's capsule reads its count. */
     targetRowModel(c: ComposerChoice): CardModel | undefined {
       const name = this.playedTargetResult(c)?.cardName;
-      return name === undefined ? undefined : (c.input as SelectCardModel).cards.find((card) => card.name === name);
+      return name === undefined ? undefined : this.playedTargetInputFor(c)?.cards.find((card) => card.name === name);
+    },
+    /** An `or` choice answered THROUGH the embedded step reads as the target row too (the action composer's rule). */
+    orAnsweredOnTable(c: ComposerChoice): boolean {
+      return this.orTableAnswerItem(c) !== undefined && this.playedTargetResult(c) !== undefined;
     },
     /** The chosen candidate's outcome tag — the step's own line under that card (PL-219), read again on the row. */
     targetRowTag(c: ComposerChoice): PlayedTargetTag | undefined {
@@ -4734,15 +4804,25 @@ export default defineComponent({
     /**
      * DESCEND into an `or` option whose own answer is a question. WHERE it is answered is ONE verdict
      * (`handPickRouting.orOptionDoor`): a pick FROM THE HAND opens the hand album — the list of names it used to open is
-     * what the owner's photo of Mars University showed; anything else stays the composer's own list.
+     * what the owner's photo of Mars University showed; a pick over cards ON THE TABLE opens the SAME embedded target
+     * step a bare card pick opens (grouped by owner — «Научный прорыв» beside a MarsBot option, exactly as the action
+     * composer serves Predators); anything else stays the composer's own list.
      */
     descendOrOption(c: ComposerChoice, item: ConsoleOrItem): void {
-      if (orOptionDoor(item.nested, this.handNamesSet, this.playedNamesSet, this.cardName) === 'hand') {
+      const door = orOptionDoor(item.nested, this.handNamesSet, this.playedNamesSet, this.cardName);
+      if (door === 'hand') {
         // The option list STAYS the composer's level while the album answers (the stage lets go of exactly what the
         // player was looking at — closing it here re-rendered the review for the length of the release); the answer
         // closes it, B in the album returns to it.
         this.openHandPick(c, item);
         return;
+      }
+      if (door === 'table') {
+        this.openPlayedTargetStep(c, item);
+        // …and a descent ALWAYS lands somewhere: a step with nothing to point at closes again, the list stays.
+        if (this.sub?.kind === 'playedTarget') {
+          return;
+        }
       }
       this.sub = {kind: 'orNested', choiceId: c.id, item, index: 0};
     },
@@ -4790,8 +4870,16 @@ export default defineComponent({
         return;
       case 'back':
         // B is ONE logical level: back to the play step, with the payment and
-        // every other capture exactly as they were.
-        this.sub = undefined;
+        // every other capture exactly as they were — and a descent INTO an
+        // or-option (its list of names, or its embedded target step) folds back
+        // to the option list it opened from, never straight out to the review.
+        if (sub.kind === 'orNested') {
+          this.sub = this.orListSub(sub.choiceId, sub.item);
+        } else if (sub.kind === 'playedTarget' && sub.orItem !== undefined) {
+          this.sub = this.orListSub(sub.choiceId, sub.orItem);
+        } else {
+          this.sub = undefined;
+        }
         return;
       case 'prevTab':
         // LT toggles the density back — the same button that expanded it.
@@ -4814,9 +4902,14 @@ export default defineComponent({
         return;
       case 'nextTab':
         // RT — submit the merged up-to-N ask (the same button the hand's
-        // multi pick and the patent sale confirm with).
+        // multi pick and the patent sale confirm with); on a single pick that
+        // answers an OPTIONAL choice it is the DECLINE.
         if (sub.kind === 'playedTarget') {
-          this.confirmPlayedTargetPicks();
+          if (this.playedTargetSelection.mode === 'multi') {
+            this.confirmPlayedTargetPicks();
+          } else if (this.subDecline !== undefined && this.playedTargetChoice !== undefined) {
+            this.answerDecline(this.playedTargetChoice);
+          }
           return;
         }
         if (sub.kind === 'payment') {
@@ -4988,6 +5081,7 @@ export default defineComponent({
         }
         this.picks[c.id] = String(it.optionIndex);
         delete this.picks[nestedPickKey(c.id)];
+        delete this.playedTargetResults[c.id];
         this.captureFor(c, orItemResponse(it));
       } else {
         return;

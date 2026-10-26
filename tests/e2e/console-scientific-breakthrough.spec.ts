@@ -350,6 +350,71 @@ for (const preset of PRESETS) {
       await expect(page.locator('.con-hand')).toHaveCount(0, {timeout: 30_000});
     });
 
+    test(`bot: the card option of [cards, MarsBot] opens the SAME grouped target step — never a flat list (${preset.id})`, async ({page, request}) => {
+      test.setTimeout(300_000);
+      const posts: Array<string> = [];
+      page.on('request', (r) => {
+        if (r.method() === 'POST' && /\/player\/input/.test(r.url())) {
+          posts.push(r.postData() ?? '');
+        }
+      });
+      const {playerId} = await bootFixtureSeats(page, request, 'scientific-breakthrough-bot', {query: preset.query});
+      await settle(page);
+      await openComposer(page);
+      // The removal row is an `or`: A opens its option list — the card pick (a door) beside the bot.
+      const list = page.locator(`${COMPOSER} .con-composer__sublist`);
+      for (let i = 0; i < 6 && await list.count() === 0; i++) {
+        if (await page.locator(`${COMPOSER} .con-composer__cta--focused`).count() > 0) {
+          await press(page, 'ArrowUp', 600);
+        }
+        await press(page, 'Enter', 1200);
+      }
+      await expect(list, 'the option list opened').toHaveCount(1, {timeout: 10_000});
+      await expect(list.locator('.con-vchoice__door'), 'the card option is a door').toHaveCount(1);
+      // A on the card option: the embedded step — the Predators pattern — never the list of names one level deeper.
+      const step = page.locator('.con-ptsel');
+      await press(page, 'Enter', 1200);
+      await expect(step, 'the card option opened the grouped target step').toHaveCount(1, {timeout: 10_000});
+      await expect(list, 'no flat list stands beside it').toHaveCount(0);
+      await expect(step.locator('.con-ptsel__slot[data-zoom-slot="Research Startups"]'), 'the candidate stands in its owner\'s group').toHaveCount(1);
+      await shoot(page, preset.id, '05-bot-step');
+      // B is ONE level: back to the option list, nothing captured.
+      await press(page, 'Escape', 1200);
+      await expect(step, 'B closed the step').toHaveCount(0, {timeout: 8000});
+      await expect(list, 'B returned to the option list').toHaveCount(1, {timeout: 8000});
+      await press(page, 'Enter', 1200);
+      await expect(step, 'the step re-opened').toHaveCount(1, {timeout: 10_000});
+      for (let i = 0; i < 4 && await step.count() > 0; i++) {
+        await press(page, 'Enter', 1100);
+      }
+      await expect(step, 'the step closed on the answer').toHaveCount(0, {timeout: 8000});
+      // The answered `or` reads as the target row — the same row a bare pick fills.
+      const row = page.locator(`${COMPOSER} .con-composer__target`);
+      await expect(row, 'the answered row is the target row').toHaveCount(1);
+      await expect(row.locator('.con-composer__target-thumb'), 'with the chosen card\'s miniature').toHaveCount(1);
+      expect(posts.length, 'nothing sent before A').toBe(0);
+      await shoot(page, preset.id, '06-bot-answered');
+      for (let i = 0; i < 10 && await page.locator(`${COMPOSER} .con-composer__cta--focused`).count() === 0; i++) {
+        await press(page, 'ArrowDown', 250);
+      }
+      for (let attempt = 0; attempt < 3 && posts.length === 0; attempt++) {
+        await press(page, 'Enter', 300);
+        await expect.poll(() => posts.length, {timeout: 3_000}).toBeGreaterThan(0).catch(() => undefined);
+      }
+      expect(posts.length, 'the play is ONE POST').toBe(1);
+      expect(posts[0], 'the card pick nests into the or-option').toMatch(/"type":"or","index":0,"response":\{"type":"card","cards":\["Research Startups"\]/);
+      const summary = page.locator('.con-hand__outcome .con-reveal [data-reveal-search]');
+      await summary.waitFor({timeout: 60_000});
+      await settle(page, {timeoutMs: 40_000});
+      await press(page, 'Escape', 600);
+      await expect(page.locator('.con-hand')).toHaveCount(0, {timeout: 30_000});
+      await settle(page, {timeoutMs: 30_000});
+      const after = await wireOf(request, playerId);
+      expect(after.cardsInHand?.map((c) => c.name) ?? [], 'the two Science cards are in hand').toEqual(expect.arrayContaining(['Research', 'Physics Complex']));
+      const startups = after.players.flatMap((p) => p.tableau).find((c) => c.name === 'Research Startups');
+      expect(startups?.resources, 'Research Startups lost exactly 2 data').toBe(0);
+    });
+
     test(`actions: the action's thrown-away cards leave the HUD deck onto the same pile before the find (${preset.id})`, async ({page, request}) => {
       test.setTimeout(300_000);
       await bootFixtureSeats(page, request, 'scientific-breakthrough-actions', {query: preset.query});

@@ -6446,6 +6446,42 @@ function botTable(name: string, humans: 1 | 2): BotTable {
   return {game, humans: seats, bot, parliament, automa};
 }
 
+// ── scientific-breakthrough-bot: TR52 against MarsBot. A bot that can give the two data (its M€ supply stands in for any
+//    card resource — Automa rulebook) turns the removal into an `or` [the card pick, the bot]; the console's card option
+//    must open the SAME grouped target step a bare pick opens (the «Хищники» pattern), never a flat list of names. Blue
+//    (Teractor) on the move with 20 M€, the Scientists enacted (the card's plate), TR46 Research Startups (2 data) on
+//    blue's own table, Research + Physics Complex on the deck's top (nothing thrown away). A DRY RUN on a copy plays the
+//    card, so a rule change fails HERE. ──
+{
+  const name = 'scientific-breakthrough-bot';
+  const t = botTable(name, 1);
+  const [blue] = t.humans;
+  seatEnacted(t.parliament, quietResolutionOf(PartyName.SCIENTISTS));
+  blue.megaCredits = 20;
+  t.bot.megaCredits = 20;
+  const startups = new ResearchStartups();
+  startups.resourceCount = 2;
+  blue.playedCards.push(startups);
+  blue.cardsInHand = [new ScientificBreakthrough()];
+  stackDeckTop(t.game, [CardName.RESEARCH, CardName.PHYSICS_COMPLEX]);
+  runAllActions(t.game);
+  const copy = Game.deserialize(structuredClone(t.game.serialize()));
+  const dry = copy.getPlayerById(blue.id);
+  dry.playCard(dry.cardsInHand.find((c) => c.name === CardName.SCIENTIFIC_BREAKTHROUGH)!, Payment.of({megacredits: 6}));
+  runAllActions(copy);
+  const pick = dry.getWaitingFor();
+  const shape = pick instanceof OrOptions ? pick.options.map((o) => o.constructor.name).join(',') : pick?.constructor.name;
+  const cards = pick instanceof OrOptions && pick.options[0] instanceof SelectCard ?
+    (pick.options[0] as SelectCard<IProjectCard>).cards.map((c) => c.name).join(',') : '';
+  const card = blue.cardsInHand.find((c) => c.name === CardName.SCIENTIFIC_BREAKTHROUGH);
+  if (t.game.activePlayer.id !== blue.id || !(blue.getWaitingFor() instanceof OrOptions) || card === undefined || blue.canPlay(card) === false ||
+      t.parliament.rulingParty() !== PartyName.SCIENTISTS || shape !== 'SelectCard,SelectOption' || cards !== CardName.RESEARCH_STARTUPS) {
+    throw new Error(`${name}: expected blue on the move with TR52 playable and its removal an or [SelectCard(Research Startups), the bot] — got active=${t.game.activePlayer.color} wf=${blue.getWaitingFor()?.constructor.name} ruling=${t.parliament.rulingParty()} shape=${shape} cards=${cards}`);
+  }
+  t.parliament.assertLedger(t.game);
+  write(name, t.game);
+}
+
 // ── finale-rich-bot: the finale's PODIUM with MarsBot in the race (TR69 «ФИНАЛ — ЭТО ЦЕРЕМОНИЯ»): two humans (Teractor,
 //    Thorgate) + the bot (Credicor), a saturated generation-10 table one greenery from the end — three seats (the stack
 //    podium), the bot a SEAT with its own corporation face. The bot leads the rating, so a corporation face of the bot's

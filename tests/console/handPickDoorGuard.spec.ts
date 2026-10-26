@@ -34,7 +34,7 @@ function methodBody(source: string, signature: string): string {
   return source.slice(at, end === -1 ? undefined : end);
 }
 
-describe('the hand-pick door — a hand pick inside an `or` never reaches a list of names', () => {
+describe('the or-option door — a hand pick or a table pick inside an `or` never reaches a list of names', () => {
   for (const {file, door} of COMPOSERS) {
     const source = stripComments(fs.readFileSync(path.join(CONSOLE, file), 'utf8'));
 
@@ -48,6 +48,12 @@ describe('the hand-pick door — a hand pick inside an `or` never reaches a list
       expect(verdict, 'the door asks the ONE verdict').to.be.greaterThan(-1);
       expect(verdict, '…before it opens the list').to.be.lessThan(body.indexOf('this.sub = {kind: \'orNested\''));
       expect(body, 'a hand verdict opens the album').to.contain('this.openHandPick(c, item)');
+      // …and a TABLE verdict opens the embedded target step (grouped by owner) — the ONE pattern for every removal that
+      // also offers MarsBot: «Хищники» / «Муравьи» from an action, «Научный прорыв» from a play. The play composer once
+      // sent it to the flat list of names.
+      const table = body.indexOf('this.openPlayedTargetStep(c, item)');
+      expect(table, 'a table verdict opens the embedded target step').to.be.greaterThan(-1);
+      expect(table, '…before the flat list').to.be.lessThan(body.indexOf('this.sub = {kind: \'orNested\''));
     });
 
     it(`${file}: the composer's hand pick is a PRE-SELECT — it never arms the discard tray`, () => {
