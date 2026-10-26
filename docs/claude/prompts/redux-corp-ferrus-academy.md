@@ -205,7 +205,7 @@ tripwire»), `IGame.ts:66` (`CellBonusPaid`); **маркеры** — `MarsBoard.
    старта возвращается РОВНО один раз (как `console-corp-first-action`); чужая посадка — тот же бит; reduced motion — без очереди.
 3. **Вопрос эффекта** — `taskFor` по `choiceContext.source` корпорации → плитки-исходы «3 данных → …» / «карта» (отключённая плитка с причиной — ВИДНА), шаг цели
    `ConsolePlayedTargetStep` embedded, крошка `<workspace> › <Карта> › ДАННЫЕ`, `owed-step` родителя; без родителя — плашка семьи вопроса стола; данные летят с печатного
-   значка `[data]` строки эффекта Ferrus в счётчик цели (закон причинности, сцена реакции TR78 `cardReactionStage`), карта — пачка одного действия (сцена сборки CM).
+   значка `[data]` строки эффекта Ferrus в счётчик цели (закон причинности; ⚠ `cardReactionStage` TR78 НЕ был построен — общий примитив подъёма сработавшей карты выдан промтом `redux-corp-hartlan-heating.md`, 2026-10-26), карта — пачка одного действия (сцена сборки CM).
 4. **Pre-select** в staged-розыгрыше (диагноз 7): факт `tilePlacedPreview` → вопрос стола композера → ОДИН POST; fallback — живой промпт в том же workspace.
 Спеки: `boardInfoState.spec` (параметр множителя), `placementDossier.spec` (строки), `relationsFromPreview`/`ConsoleBoardSection.spec` (класс `reserve`), `cubeDropState.spec`
 (сателлиты: порядок, холд, reduced), `consoleTaskRouter.spec` (`taskFor`), `composerPlay.spec` (вопрос стола), `glowRestraintGuard` (нулевой рост), `cursorGrammarGuard`.
