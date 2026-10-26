@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, closeZoomViewer, openZoomViewer, playCardFromHand, press, settle, soloGameConfig, waitForTurn} from './consoleStart';
+import {bootIntoGame, closeZoomViewer, openZoomViewer, playCardFromHand, press, pressUntil, settle, soloGameConfig, waitForTurn} from './consoleStart';
 
 /**
  * THE EXTRAS EXPLORER — the «Доп. ресурсы» rework probe.
@@ -255,9 +255,13 @@ for (const preset of PRESETS) {
       await expect(page.locator('[data-exr-type="microbe"]'), 'category survived too').toHaveClass(/con-res-aux__cell--active/);
 
       // ── The ACTION lane (PL-135): NRB's three microbes buy its TR — their own lane, their own reading. ──
-      await key(page, 'ArrowLeft', 450); // the gallery's first slot → back into the type column
-      await key(page, 'ArrowDown', 450);
-      await expect(page.locator('[data-exr-type="microbe:action"]')).toHaveClass(/con-res-aux__cell--cursor/);
+      // act → verify → retry (tests.md): the card is still flying back from the viewer when the first arrow is pressed,
+      // and that press can be the one the return swallows (CI run 40255070349: the cursor stayed in the gallery).
+      expect(await pressUntil(page, 'ArrowLeft', async () => await page.locator('.con-res-aux__cell--cursor').count() > 0,
+        {tries: 3, settleMs: 1500}), 'the gallery\'s first slot → back into the type column').toBe(true);
+      expect(await pressUntil(page, 'ArrowDown', async () => /con-res-aux__cell--cursor/.test(
+        await page.locator('[data-exr-type="microbe:action"]').getAttribute('class') ?? ''), {tries: 3, settleMs: 1500}),
+      'the cursor steps down onto the action lane').toBe(true);
       await key(page, 'Enter', 800);
       await expect(page.locator('[data-exr-type="microbe:action"]')).toHaveClass(/con-res-aux__cell--active/);
       await settle(page, {timeoutMs: 20_000});

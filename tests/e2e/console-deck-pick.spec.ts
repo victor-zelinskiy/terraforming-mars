@@ -1,5 +1,5 @@
 import {test, expect, Page} from './consoleTest';
-import {press, summaryVisible, walkToSummary, fillPicks, pickCards} from './consoleStart';
+import {press, pressUntil, summaryVisible, walkToSummary, fillPicks, pickCards} from './consoleStart';
 
 /**
  * «КОРПОРАТИВНЫЕ АРХИВЫ» — the DRAW & SELECT flow, as a step of the Game Start
@@ -518,7 +518,9 @@ for (const profile of PROFILES) {
       // The viewer used to rise out of nowhere (a TEXTUAL entrance) because the
       // shared origin resolver only knew the card-actions composer's hero column,
       // so the seat kept its card and the player saw two of the same card at once.
-      await press(page, 'KeyC', 1400);
+      // act → verify → retry (tests.md): the second pick's own beat can still own the press that follows it (CI run
+      // 40255070349: L3 went nowhere, the retry opened the viewer).
+      await pressUntil(page, 'KeyC', async () => (await surfaces(page)).zoomOpen, {tries: 3, settleMs: 2500});
       const zoomed = await surfaces(page);
       expect(zoomed.zoomOpen, `L3 opens the source fullscreen — ${JSON.stringify(zoomed)}`).toBeTruthy();
       expect(zoomed.seatHeld, 'the seat is empty while its card is in the viewer').toBeTruthy();

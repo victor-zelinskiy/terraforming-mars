@@ -276,8 +276,14 @@ test.describe(`Unity Budget · ${PRESET.id}`, () => {
     const callistoStart = started('Callisto');
     const ceresStart = started('Ceres');
     expect(lunaStart && callistoStart && ceresStart, `every moving tile's leg started on screen (wave ${diag})`).toBeTruthy();
-    expect(callistoStart!.t - lunaStart!.t, `Callisto starts after Luna (${(callistoStart!.t - lunaStart!.t).toFixed(0)} ms; wave ${diag})`).toBeGreaterThan(100);
-    expect(ceresStart!.t - callistoStart!.t, `Ceres starts after Callisto (${(ceresStart!.t - callistoStart!.t).toFixed(0)} ms; wave ${diag})`).toBeGreaterThan(100);
+    // «IN TURN»: the legs start in the TABLE'S ORDER — Luna, Callisto, Ceres. The ORDER is the on-screen claim; the
+    // stagger itself (`TRACK_WAVE_STAGGER_MS` × motion) is the model's, pinned in `colonyTradeModel.spec`. It is a
+    // wall-clock delay, and a main thread starved past it (CI's 4K software raster; four workers on the box) starts two
+    // legs in ONE painted frame — measured 87 ms and 34 ms for a 130 ms stagger — a gap no frame could have shown.
+    // Ties are what a starved frame makes; an inversion would be a wave out of turn.
+    expect(callistoStart!.t, `Callisto starts no earlier than Luna (${(callistoStart!.t - lunaStart!.t).toFixed(0)} ms; wave ${diag})`).toBeGreaterThanOrEqual(lunaStart!.t);
+    expect(ceresStart!.t, `Ceres starts no earlier than Callisto (${(ceresStart!.t - callistoStart!.t).toFixed(0)} ms; wave ${diag})`).toBeGreaterThanOrEqual(callistoStart!.t);
+    expect(ceresStart!.t, `the wave is not one volley — Ceres's leg starts after Luna's (${(ceresStart!.t - lunaStart!.t).toFixed(0)} ms; wave ${diag})`).toBeGreaterThan(lunaStart!.t);
     // …and every marker lands AFTER its own leg started — the value moves only through the glide.
     expect(luna!.t).toBeGreaterThan(lunaStart!.t);
     expect(callisto!.t).toBeGreaterThan(callistoStart!.t);

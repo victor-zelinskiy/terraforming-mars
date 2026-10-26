@@ -227,7 +227,26 @@ test.describe(`Skyscrapers · ${PRESET.id}`, () => {
           cellVisible: cr !== undefined && cr.width > 8 && cr.height > 8,
         });
       }, 30);
-      w.__sky = {samples, stop: () => window.clearInterval(timer)};
+      // THE BIRTH POINT: the swing lasts ~150 ms at the functional pace — on a starved renderer the 30 ms timer's first
+      // visible sample can already be its tail (CI run 40255070349 saw 17 px of travel). The proxy's position the moment
+      // it is INSERTED is where it came from (the supply), whatever the timer manages to see after.
+      const born = {x: undefined as number | undefined};
+      const mo = new MutationObserver(() => {
+        if (born.x !== undefined) {
+          return;
+        }
+        const proxy = document.querySelector<HTMLElement>('.con-tileplace__tile:not(.con-tileplace__tile--depart):not(.con-tileplace__tile--remote)');
+        const r = proxy?.getBoundingClientRect();
+        if (r !== undefined && r.width > 2) {
+          born.x = r.left + r.width / 2;
+        }
+      });
+      mo.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class']});
+      (w as unknown as {__skyBorn: typeof born}).__skyBorn = born;
+      w.__sky = {samples, stop: () => {
+        window.clearInterval(timer);
+        mo.disconnect();
+      }};
     }, city);
     await commitOnCity(page, city);
     // THE SCENE'S END is a STATE the sampler itself reads: the stack at 2, the proxy gone, the cell's states and
@@ -274,9 +293,10 @@ test.describe(`Skyscrapers · ${PRESET.id}`, () => {
     expect(Math.abs(dustAt - contactAt)).toBeLessThanOrEqual(2);
     // THE SWING: before the load the tier's x is still moving (it comes from the supply, not from nowhere).
     const swing = samples.filter((s, i) => s.landing && i < loadingAt);
-    const xs = swing.map((s) => s.lx);
+    const bornX = await page.evaluate(() => (window as unknown as {__skyBorn?: {x?: number}}).__skyBorn?.x);
+    const xs = [...swing.map((s) => s.lx), ...(bornX === undefined ? [] : [bornX])];
     expect(swing.length, 'the swing was sampled').toBeGreaterThan(2);
-    expect(Math.max(...xs) - Math.min(...xs), 'the tier travels horizontally on its way to the site').toBeGreaterThan(30);
+    expect(Math.max(...xs) - Math.min(...xs), `the tier travels horizontally on its way to the site (born at ${bornX?.toFixed(0) ?? '—'})`).toBeGreaterThan(30);
     // THE VERTICAL DESCENT: from the load to the contact the tier's x is FIXED on the stack's centre and its y only grows (screen down).
     const descent = samples.filter((s, i) => s.landing && i >= loadingAt && i < contactAt);
     expect(descent.length, 'the descent was sampled').toBeGreaterThan(4);

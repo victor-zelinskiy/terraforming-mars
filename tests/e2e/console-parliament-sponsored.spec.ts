@@ -268,9 +268,21 @@ for (const preset of PRESETS) {
       const births = witness.births.filter((b) => receiptLandings.some((l) => l.id === b.id));
       expect(births.every((b) => b.under === 'law-wild' || b.under === 'hero'), `every token is born on the law's printed «?» (births: ${births.map((b) => b.under).join(', ')})`).toBe(true);
       expect(births.some((b) => b.under === 'law-wild'), 'born on the printed «?» itself').toBe(true);
-      // IN TURN: the touchdowns are spread over the wave's ladder, the whole wave within ~1.5 s.
-      const touches = receiptLandings.map((end) => end.touched ?? end.t).sort((a, b) => a - b);
-      expect(new Set(touches).size, 'four distinct touchdowns').toBe(4);
+      // IN TURN: the faces are reached in the ladder's order (the play order), the whole wave within ~1.5 s. The ORDER is
+      // the claim, never ms-distinct stamps: the wave's 55 ms steps (`transferWaveDelayMs` at the functional pace) are
+      // wall-clock delays, and a 4K software-raster frame on CI outlasts all of them — every token is then born in ONE
+      // painted frame and lands in one (CI run 40255070349: 4385 · 4385 · 4386 ms), a stagger no frame could have shown.
+      // Ties are what a starved frame makes; an inversion would be a wave out of turn.
+      const touchOf = (card: string): number => {
+        const end = receiptLandings.find((l) => l.under === `receipt:${card}`)!;
+        return end.touched ?? end.t;
+      };
+      const ladder = RECEIVERS.map(touchOf);
+      ladder.slice(1).forEach((t, i) => {
+        expect(t, `${RECEIVERS[i + 1]} is reached no earlier than ${RECEIVERS[i]} (ladder ${ladder.map(Math.round).join(' · ')})`)
+          .toBeGreaterThanOrEqual(ladder[i] - 5);
+      });
+      const touches = [...ladder].sort((a, b) => a - b);
       expect(touches[touches.length - 1] - touches[0], 'the wave lands within 1.5 s').toBeLessThan(1500);
       // THE COUNT TICKS ON ITS OWN TOUCHDOWN: a face shows its «after» only from its token's contact on — never before.
       const witnessT0 = await page.evaluate(() => (window as unknown as {__transferWitness?: {t0: number}}).__transferWitness?.t0 ?? 0);
