@@ -270,7 +270,7 @@
   "The tile leaves first; the cell's printed bonus is paid by the placement.": "Тайл уходит первым; печатный бонус клетки выдаёт само размещение.",
   "Under the tile": "Под тайлом",
   "Printed cell bonus ×${0}": "Печатный бонус клетки ×${0}",
-  "Marked areas around the city": "Участки вокруг города",
+  "Marked areas around the city: ${0}": "Участки вокруг города: ${0}",
   "Your cube on each adjacent non-reserved area — only you can build there.": "Ваш куб на каждой соседней свободной клетке — строить там можете только вы.",
   "No free area around this city for your cube": "Вокруг этого города нет свободной клетки для куба",
   "3 data onto any card, or draw a card": "3 данных на любую карту или карта",

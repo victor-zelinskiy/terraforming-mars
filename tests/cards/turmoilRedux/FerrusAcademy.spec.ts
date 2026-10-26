@@ -242,7 +242,7 @@ describe('FerrusAcademy', () => {
       const all = [...preview.immediateFacts, ...preview.ruleFacts, ...preview.recipientFacts];
       const ring = all.find((f) => f.id === 'marked-area-reserve');
       expect(ring?.spaces).deep.eq(t.game.board.getAdjacentSpaces(cell).map((n) => n.id));
-      expect(ring?.delta?.amount).eq(6);
+      expect(ring?.params).deep.eq(['6']);
       expect(all.some((f) => f.id === 'ferrus-printed-bonus')).is.true;
     });
 

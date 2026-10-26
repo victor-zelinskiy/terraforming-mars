@@ -160,13 +160,20 @@ export class FerrusAcademy extends CorporationCard implements ICorporationCard {
     }
     const ring = FerrusAcademy.reservableRing(player, space);
     const spaces: ReadonlyArray<SpaceId> = ring.map((cell) => cell.id);
+    // The ring is a STATEMENT with its count (no chip: the player's cube has no sprite in the chip vocabulary — the board
+    // draws the cubes themselves, as silhouettes on these very cells).
     facts.push(ring.length > 0 ?
       {
-        ...placementPreviews.gain(this, {icon: 'community', amount: ring.length, direction: 'gain'}, 'Marked areas around the city', {
-          id: 'marked-area-reserve',
-          description: 'Your cube on each adjacent non-reserved area — only you can build there.',
-          spaces,
-        }),
+        id: 'marked-area-reserve',
+        category: 'card-trigger',
+        timing: 'immediate',
+        severity: 'positive',
+        recipient: {kind: 'current-player'},
+        title: 'Marked areas around the city: ${0}',
+        params: [String(ring.length)],
+        description: 'Your cube on each adjacent non-reserved area — only you can build there.',
+        source: placementPreviews.cardSource(this),
+        spaces,
         reservesSpaces: true,
       } :
       placementPreviews.noEffectHere(this, 'No free area around this city for your cube', {id: 'marked-area-reserve'}));
