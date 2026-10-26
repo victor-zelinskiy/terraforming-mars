@@ -18383,8 +18383,15 @@ export default defineComponent({
       // guarded conclusion — it holds on `nested-step` / `owed-step` and
       // re-fires the moment the step leaves, so the colonies leave WITH the
       // whole result read and never before their step has been answered.
-      if (workspaceFrameIndex('colonies') === 0 &&
-          (workspaceFrameHasNested('colonies') || (this.followUpStepOwed && workspaceHostForStep() === 'colonies'))) {
+      // …and the same for a LOCKED-ENTRY TRADE standing inside another workspace (a card's or a party's door —
+      // the Unity action: card-actions ⊃ colonies ⊃ parliament). Its flow-complete fires while the step still
+      // stands ABOVE the colonies, so the projected section is the step's and the go-home below never ran: the
+      // ending was dropped, and once the delegates were sent the colony grid stayed («ОСМОТР») over the seat's
+      // next action until a reload (2026-10-26). Owed on the COLONIES frame — its hold is exactly the step above
+      // it — and `concludeWorkspaceFlow` lands a locked trade's ending on the board, the whole flow with it.
+      const colonyStepStands = workspaceFrameHasNested('colonies') ||
+        (this.followUpStepOwed && workspaceHostForStep() === 'colonies');
+      if (colonyStepStands && (workspaceFrameIndex('colonies') === 0 || (this.colonyEmbedActive && colonyTradeEntryLocked()))) {
         this.concludeWorkspaceFlowOrOwe('colonies');
         return;
       }
@@ -20467,7 +20474,11 @@ export default defineComponent({
       // `goBoardHome` drops everything the flow stood up and leaves the phase
       // alone, which is the same rule it already states for a placement
       // excursion mid-deployment.
-      if (workspaceFrameAnchor(kind)?.type === 'phase') {
+      // …and a LOCKED-ENTRY TRADE hosted by another workspace (a card's or a party's door): the trade IS the whole
+      // move, its host's browse list has nothing left to offer for it — the same landing `onColonyFlowComplete`
+      // gives one with nothing owed, never a fold back into the list the player came from.
+      if (workspaceFrameAnchor(kind)?.type === 'phase' ||
+          (kind === 'colonies' && workspaceFrameIndex('colonies') > 0 && colonyTradeEntryLocked())) {
         goBoardHome();
       } else {
         closeWorkspaceRoot(kind);

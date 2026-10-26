@@ -402,6 +402,29 @@ function write(name: string, game: IGame): void {
   write('venus-trade', game);
 }
 
+// ── venus-trade-unity: the REDUX VENUS trade on the DELEGATE cell (the 7th — «2 delegates to a resolution»),
+//    entered through the UNITY party action (the 2026-10-26 report): the colonies stand INSIDE «ДЕЙСТВИЯ КАРТ › СОЮЗ»,
+//    the trade's income is the Parliament's vote step nested in them, and once the delegates are sent the whole
+//    flow must leave — the report: the colony grid stayed («ОСМОТР»), dead, until a reload. Solo, so the answer
+//    lands on the seat's own second action. ──
+{
+  const [game, player] = testGame(1, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true, venusNextExtension: true,
+  });
+  answerStartFlow(game, [player]);
+  const venus = new VenusRedux();
+  game.colonies = [venus, new Luna(), new Europa(), new Callisto()];
+  venus.trackPosition = 6; // the 7th cell: 2 delegates (the Unity step +1 has nowhere further to go)
+  const parliament = game.parliament;
+  if (parliament === undefined) {
+    throw new Error('the venus-trade-unity fixture has no parliament');
+  }
+  parliament.grantPartyEffect(player, PartyName.UNITY, 'Fixture');
+  player.megaCredits = 80;
+  runAllActions(game);
+  write('venus-trade-unity', game);
+}
+
 // ── vesta-trade: the REDUX VESTA trade — «add N mechs, asteroids OR fighters
 //    to any card»: the seat holds TWO kinds (Asteroid Hollowing, Security
 //    Fleet), so the reward is a real PICK whose CARD decides the kind that

@@ -2636,7 +2636,7 @@ export type BootOptions = {
  * resumed prompt. Costs one request + one page load — a spec whose subject
  * lives in the late game stops replaying the game to reach it.
  */
-export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 'venus-trade-delegates' |
+export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 'venus-trade-delegates' | 'venus-trade-unity' |
   // TR69 «ФИНАЛ — ЭТО ЦЕРЕМОНИЯ»: saturated pre-endgame tables (every base score category, the winner not the viewer).
   'finale-rich-5p' | 'finale-rich-2p' | 'finale-rich-bot' |
   // «Информация» polish: two humans + MarsBot, the Hydronetwork, card penalties, generation 10, blue with 40 played cards
