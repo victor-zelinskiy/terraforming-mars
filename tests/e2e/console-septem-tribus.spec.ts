@@ -150,7 +150,10 @@ test.describe('Septem Tribus:redux · the cubes on the parties\' banners', () =>
     await armCubeProbe(page, party!, before.color);
     await page.keyboard.press('Enter');
     // THE FRAME OF THE SCENE: the corporation stands in the table cell while its cube is in the air.
-    await page.locator('[data-banner-stage][data-banner-stage-phase="carry"]').waitFor({state: 'attached', timeout: 20_000});
+    // The carry is a TRANSIENT phase: a rAF-polled `waitFor` misses it whole on a starved renderer (CI), the probe's
+    // MutationObserver records every attribute flip — ask the probe.
+    await expect.poll(() => page.evaluate(() => (window as unknown as {__cubeProbe: {samples: Array<{stage: string}>}}).__cubeProbe.samples.some((s) => s.stage === 'carry')),
+      {timeout: 20_000, message: 'the corporation\'s stage reached its carry'}).toBe(true);
     await shoot(page, '02c-corporation-rises');
     await expect(page.locator(`.con-pseal[data-party="${party}"] [data-banner-cube="${before.color}"]`).first(),
       'the cube is seated in the plaque\'s socket').toHaveCount(1, {timeout: 20_000});
@@ -229,7 +232,9 @@ test.describe('Septem Tribus:redux · the cubes on the parties\' banners', () =>
       window.setInterval(sample, 40);
     });
     await enterSittingByPass(page, request, playerId);
-    await page.locator('[data-banner-stage][data-banner-stage-phase="carry"]').waitFor({state: 'attached', timeout: 90_000});
+    // A transient phase is read off the probe's MutationObserver, never a rAF-polled `waitFor` (missed on a starved CI renderer).
+    await expect.poll(() => page.evaluate(() => (window as unknown as {__bannerBeat: {phases: Array<string>}}).__bannerBeat.phases.includes('carry')),
+      {timeout: 90_000, message: 'the sitting\'s banner stage reached its carry'}).toBe(true);
     await shoot(page, '05a-sitting-corporation-rises');
     await expect.poll(async () => (await grantsOf(request, playerId)).cubes.length, {timeout: 60_000, message: 'the server places the cube at the enactment'}).toBe(1);
     const won = (await grantsOf(request, playerId)).cubes[0];

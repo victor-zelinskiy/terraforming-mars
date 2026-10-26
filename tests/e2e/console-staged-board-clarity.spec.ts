@@ -91,14 +91,25 @@ async function pressPlay(page: Page): Promise<void> {
  * the key, and the «400 ms» window landed past the ritual), then the key, then the ritual's proxy witnessed.
  */
 async function pressPlayRaw(page: Page): Promise<number> {
-  await expect.poll(() => page.evaluate(() => {
-    const w = window as unknown as {__conPromptSequence?: () => {settleLeftMs: number}, __conCommitArrival?: () => {leftMs: number}};
-    return Math.max(w.__conPromptSequence?.().settleLeftMs ?? 0, w.__conCommitArrival?.().leftMs ?? 0);
-  }), {timeout: 5_000, message: 'the arrival window of the composer never closed'}).toBeLessThanOrEqual(0);
-  const t0 = Date.now();
-  await page.keyboard.press('Enter');
-  await page.locator('.con-played-hero__proxy').first().waitFor({state: 'attached', timeout: 4_000});
-  return t0;
+  // act → verify → retry, and the moment returned is the press that STARTED the play: an arrival can register a beat
+  // AFTER the window was read as closed (the composer lands its cursor late on a starved renderer — CI run 40306704981),
+  // and the press it absorbs by design starts nothing. Nothing was sent, so a second press is safe.
+  for (let attempt = 0; ; attempt++) {
+    await expect.poll(() => page.evaluate(() => {
+      const w = window as unknown as {__conPromptSequence?: () => {settleLeftMs: number}, __conCommitArrival?: () => {leftMs: number}};
+      return Math.max(w.__conPromptSequence?.().settleLeftMs ?? 0, w.__conCommitArrival?.().leftMs ?? 0);
+    }), {timeout: 5_000, message: 'the arrival window of the composer never closed'}).toBeLessThanOrEqual(0);
+    const t0 = Date.now();
+    await page.keyboard.press('Enter');
+    const started = await page.locator('.con-played-hero__proxy').first().waitFor({state: 'attached', timeout: 4_000})
+      .then(() => true, () => false);
+    if (started) {
+      return t0;
+    }
+    if (attempt >= 1) {
+      throw new Error('«Разыграть» pressed raw twice and the landing ritual never started (no .con-played-hero__proxy)');
+    }
+  }
 }
 
 /** The staged board stands: the reticle aiming over the placement dossier (the plate is asserted where it is the subject). */

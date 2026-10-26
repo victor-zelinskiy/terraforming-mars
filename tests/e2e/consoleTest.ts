@@ -342,7 +342,35 @@ function sleepSiteOf(stack: string): string {
   return '<unknown>';
 }
 
-export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, transferEndsGuard: void, stallHarvest: void, timingLedger: void}, {workerServer: WorkerServer, workerBuild: string}>({
+export const test = base.extend<{buildAnnotation: void, rawTemplateGuard: void, preselectGuard: void, postCommitGuard: void, coveredPromptGuard: void, transferEndsGuard: void, stallHarvest: void, timingLedger: void, cpuThrottle: void}, {workerServer: WorkerServer, workerBuild: string}>({
+  /**
+   * CI's STARVED RENDERER ON DEMAND (`TM_E2E_CPU_THROTTLE=<rate>`, e.g. 4): every page of the test's context runs under
+   * CDP CPU throttling. CI's 4K software raster on a shared runner starves the main thread for hundreds of ms — the
+   * class behind nearly every «green on the box, flaky on CI» red (a wave's wall-clock stagger collapsing into one
+   * frame, a tick sampled a beat late, a press swallowed by a beat still running). On the quiet box those reds are luck;
+   * with the throttle they are a RATE a fix can be measured against. Off (no env) by default; a spec that sets its own
+   * throttle overrides it for its page. Named in the test's annotations so a red says what it ran under.
+   */
+  cpuThrottle: [async ({context}, use, testInfo) => {
+    const rate = Number(process.env.TM_E2E_CPU_THROTTLE ?? '');
+    if (!Number.isFinite(rate) || rate <= 1) {
+      await use();
+      return;
+    }
+    testInfo.annotations.push({type: 'cpu-throttle', description: `×${rate} (TM_E2E_CPU_THROTTLE)`});
+    const throttle = async (page: Page) => {
+      try {
+        const cdp = await context.newCDPSession(page);
+        await cdp.send('Emulation.setCPUThrottlingRate', {rate});
+      } catch {
+        // a page closed before its session opened — nothing to throttle
+      }
+    };
+    await Promise.all(context.pages().map(throttle));
+    context.on('page', (page) => void throttle(page));
+    await use();
+  }, {auto: true}],
+
   // `viewport` is a self-referencing option fixture; `screen` is not one (Playwright refuses the override) —
   // the raster is the viewport, `window.screen` only reports.
   viewport: async ({viewport}, use) => {

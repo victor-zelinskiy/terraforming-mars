@@ -173,10 +173,12 @@ for (const profile of PROFILES) {
       await expect.poll(async () => (await readProbe(page)).samples.some((s) => s.cells.length === 2),
         {timeout: 30_000, message: 'the two receiving cards stand on the stage'}).toBe(true);
       await shoot('02-receiving');
-      await expect.poll(async () => {
-        const last = (await readProbe(page)).samples.at(-1);
-        return last !== undefined && last.cells.length === 2 && last.cells.every((c) => c.done);
-      }, {timeout: 30_000, message: 'both cards have all their tokens'}).toBe(true);
+      // A moment with BOTH cards paid in full — read over the probe's samples, never the last one alone: the paid cards
+      // stand for one read and then leave with the finished trade, so a poll that lands after that window found a stage
+      // with no cards at all and could never pass again (CI run 40306704981, 3/3).
+      await expect.poll(async () => (await readProbe(page)).samples
+        .some((s) => s.cells.length === 2 && s.cells.every((c) => c.done)),
+      {timeout: 30_000, message: 'both cards have all their tokens'}).toBe(true);
       await shoot('03-landed');
       await expect.poll(() => page.locator('.con-colonies').count(), {timeout: 60_000, message: 'the finished trade leaves'}).toBe(0);
 

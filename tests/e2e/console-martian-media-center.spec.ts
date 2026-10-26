@@ -182,7 +182,14 @@ async function armProbe(page: Page, viewer: string): Promise<void> {
         const setupSeen = Math.max(0, ...Array.from(document.querySelectorAll('.con-composer__actmain'))
           .map((el) => seenOpacity(el)));
         if (seenOpacity(ws) > 0.9 && parlSeen < 0.05 && setupSeen < 0.05 && p.gaps.length < 8) {
-          p.gaps.push(`${t}ms parl=${parlSeen.toFixed(2)} setup=${setupSeen.toFixed(2)}`);
+          // WHAT the empty stage was made of: each side's running animations, the Parliament's root classes and the
+          // crumb's stage — an entry that started late and a leave inside a standing workspace read the same numbers.
+          const anims = (el: Element | null): string => el === null ? '∅' :
+            el.getAnimations({subtree: false}).map((a) => `${(a as CSSAnimation).animationName ?? 'waapi'}:${a.playState}@${Math.round(Number(a.currentTime ?? -1))}`).join(',') || '-';
+          const parlEl = document.querySelector('.con-composer__parlzone .con-parl');
+          p.gaps.push(`${t}ms parl=${parlSeen.toFixed(2)} setup=${setupSeen.toFixed(2)}` +
+            ` parlAnim=${anims(parlEl)} setupAnim=${anims(document.querySelector('.con-composer__actmain'))}` +
+            ` parlCls=${(parlEl?.className ?? '').replace(/\s+/g, '.')} step=${text(head?.querySelector('.con-wshead__step:last-child') ?? null)}`);
         }
       }
       document.querySelectorAll<HTMLElement>('.con-parl__flight').forEach((el) => {

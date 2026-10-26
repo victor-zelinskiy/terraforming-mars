@@ -2025,7 +2025,15 @@ function describePrompt(prompt: WirePrompt | undefined): string {
 
 /** The live player model, straight off the server. */
 export async function fetchPlayerModel(request: APIRequestContext, playerId: string): Promise<WirePlayerModel> {
-  const res = await request.get(`/api/player?id=${playerId}`);
+  // A GET is idempotent, and a reused keep-alive socket the server closed in the same instant answers
+  // «socket hang up (ECONNRESET)» — 31 specs carried a private retry for it; the driver owns it now.
+  const get = () => request.get(`/api/player?id=${playerId}`);
+  const res = await get().catch((err: unknown) => {
+    if (!/ECONNRESET|socket hang up/.test(String(err))) {
+      throw err;
+    }
+    return get();
+  });
   expect(res.ok(), `GET api/player failed: ${res.status()}`).toBeTruthy();
   return res.json();
 }
@@ -2934,7 +2942,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'mu-research-colony' |
   // The owner's photo of 2026-10-14 22:21: Mars University in hand under Olympus Conference holding a science — Olympus'
   // question first, the university's after it: answerable now, or LEFT FOR AFTER THE DRAW (2026-10-15).
-  'mu-olympus' |
+  'mu-olympus' | 'mu-natural-preserve' |
   // The «tile pays a card» class on a RIVAL's city (PL-034): red on the move with 40 M€; blue's Martian Census (2 data),
   // Pets (1 animal) and Martian Fiber answer red's city on 17 — no museum, so the JSON boots the build before the class.
   'census-pets-rival' |
