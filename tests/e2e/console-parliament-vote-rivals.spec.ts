@@ -171,7 +171,8 @@ test.describe('the vote panel · чужие исходы', () => {
     await settle(page, {timeoutMs: 15_000});
 
     await page.keyboard.press('Enter');
-    await page.waitForTimeout(140);
+    // The second press goes the moment the entrance is ON — waited on its state, never on a clock.
+    await page.locator('.con-parl__vote--entering').waitFor({state: 'attached', timeout: 5_000});
     const enteringAtSecond = await page.locator('.con-parl__vote--entering').count();
     const selected = await page.locator('.con-parl__slot--selected').getAttribute('data-instance');
     await page.keyboard.press('Enter');

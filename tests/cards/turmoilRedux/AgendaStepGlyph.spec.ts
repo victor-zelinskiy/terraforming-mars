@@ -66,6 +66,15 @@ function printedTextOf(card: ICard): string {
       return;
     }
     seen.add(node);
+    // An effect box (`ce.effect('…')`, `b.effect(…)`) keeps its printed sentence as a plain STRING in its rows, not under a
+    // `description` key — a corporation whose only words about the Career are its effect (TR78 Arwind Inc.) read as silent.
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        if (typeof item === 'string') {
+          parts.push(item);
+        }
+      }
+    }
     for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
       if (key === 'description' && typeof value === 'string') {
         parts.push(value);
