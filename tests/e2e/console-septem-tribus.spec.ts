@@ -1,7 +1,7 @@
 import {test, expect, Page} from './consoleTest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootFixtureSeats, bootIntoGame, crumbText, fetchPlayerModel, settle, soloGameConfig} from './consoleStart';
+import {bootFixtureSeats, bootIntoGame, cinematicBeat, crumbText, fetchPlayerModel, settle, soloGameConfig} from './consoleStart';
 import {closeSitting, enterSittingByPass, openParliament, waitSittingAtRest} from './parliamentDrive';
 
 /**
@@ -245,6 +245,40 @@ test.describe('Septem Tribus:redux · the cubes on the parties\' banners', () =>
     expect(beat.bornOnCard, 'the cube was born on the corporation card').toBe(true);
     await expect(page.locator('[data-banner-stage]'), 'the card went back down — the table returns').toHaveCount(0);
     expect(beat.hold, 'under its own hold «parliament-sitting:enact/banner»').toBe(true);
+    await closeSitting(page, request, playerId);
+  });
+
+  // THE FIELD REPORT OF 2026-10-26 (multiplayer): «карта корпорации появлялась и workspace так и зависал — помогало только
+  // B». A pressed during the enactment («дожать») arms the hurry for the rest of the stage; the banner beat then ran its
+  // waits under it — one threw, the phrase died with the card standing, and the sitting's run waited for it forever (its
+  // ceiling never ran the recovery). Here the player hurries the whole walk: the card must still go, the cube stand on the
+  // banner, and the sitting reach its results by itself.
+  test('D — «дожать» through the enactment: the stage of the corporation never strands — the card goes, the walk reaches its results', async ({page, request}) => {
+    test.setTimeout(300_000);
+    const {playerId} = await bootFixtureSeats(page, request, 'septem-win', {query: PRESET.query});
+    const before = await grantsOf(request, playerId);
+    expect(before.cubes, 'the fixture: no cube on any banner yet').toEqual([]);
+    await enterSittingByPass(page, request, playerId);
+    await expect.poll(async () => (await grantsOf(request, playerId)).cubes.length, {timeout: 60_000, message: 'the server places the cube at the enactment'}).toBe(1);
+    const won = (await grantsOf(request, playerId)).cubes[0];
+    const seated = page.locator(`.con-pseal[data-party="${won}"] [data-banner-cube="${before.color}"]`).first();
+    // A ONLY while a beat plays (a press at rest would answer the gate): every beat of the walk is hurried.
+    let presses = 0;
+    const deadline = Date.now() + 45_000;
+    while (Date.now() < deadline && await seated.count() === 0) {
+      const motion = await page.locator('.con-parl').first().getAttribute('data-sitting-motion');
+      if (motion !== null && motion !== '') {
+        await page.keyboard.press('Enter');
+        presses++;
+      }
+      await cinematicBeat(page, 120, 'the hurry is pressed beat by beat while the walk plays — a press at rest would answer the gate');
+    }
+    test.info().annotations.push({type: 'hurry presses', description: String(presses)});
+    expect(presses, 'the walk was hurried at least once before the cube stood').toBeGreaterThan(0);
+    await expect(seated, 'the cube stands on the banner of the new ruler').toHaveCount(1, {timeout: 20_000});
+    await expect(page.locator('[data-banner-stage]'), 'the corporation never strands on the table').toHaveCount(0, {timeout: 10_000});
+    await waitSittingAtRest(page, 30_000);
+    await shoot(page, '06-hurried-sitting');
     await closeSitting(page, request, playerId);
   });
 });

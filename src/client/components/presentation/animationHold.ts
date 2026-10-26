@@ -140,6 +140,13 @@ function safeDiagnose(diagnose: (() => unknown) | undefined): string {
 
 /** Registered flow predicates (functions — kept OUTSIDE the reactive store). */
 const suppliers = new Map<string, SupplierEntry>();
+/**
+ * A MANUAL hold's diagnosis and owner recovery (kept off the reactive store — functions, not state). The options'
+ * contract is the supplier's: «run when the ceiling fires (and when the foreground watchdog expires the hold)» — a
+ * manual hold that dropped its handle at the ceiling while its owner stayed wedged was the sitting's freeze of
+ * 2026-10-26 (the director's run kept waiting on a beat nobody would finish; only an unmount ended it).
+ */
+const manualRecovery = new Map<number, {diagnose: (() => unknown) | undefined, expire: (() => void) | undefined}>();
 
 const store = reactive({
   /** Bumped on (un)register so the counts computed re-scans the Map. */
@@ -294,10 +301,17 @@ export function unregisterAnimationHoldSupplier(label: string): void {
 export function beginAnimationHold(label: string, options?: AnimationHoldOptions): AnimationHold {
   const id = nextHoldId++;
   store.manual.set(id, {label, scope: options?.scope ?? 'blocking', since: Date.now()});
+  if (options?.diagnose !== undefined || options?.expire !== undefined) {
+    manualRecovery.set(id, {diagnose: options.diagnose, expire: options.expire});
+  }
   const maxHoldMs = options?.maxHoldMs ?? DEFAULT_MAX_HOLD_MS;
   const ceiling = setTimeout(() => {
+    const recovery = manualRecovery.get(id);
+    manualRecovery.delete(id);
     if (store.manual.delete(id)) {
-      console.warn(`[animation-hold] "${label}" held for over ${maxHoldMs}ms — force-released by the safety ceiling (leaked hold?)`);
+      console.warn(`[animation-hold] "${label}" held for over ${maxHoldMs}ms — force-released by the safety ceiling (leaked hold?)${safeDiagnose(recovery?.diagnose)}`);
+      // The ceiling ends the WEDGE, not just the count: the owner's recovery runs (the supplier's contract).
+      safeExpireRecovery(label, recovery?.expire);
     }
   }, maxHoldMs);
   let released = false;
@@ -308,6 +322,7 @@ export function beginAnimationHold(label: string, options?: AnimationHoldOptions
       }
       released = true;
       clearTimeout(ceiling);
+      manualRecovery.delete(id);
       store.manual.delete(id);
     },
   };
@@ -442,6 +457,9 @@ export function expireActiveAnimationHolds(permanent = false): ReadonlyArray<str
   }
   for (const [id, hold] of [...store.manual]) {
     store.manual.delete(id);
+    const recovery = manualRecovery.get(id);
+    manualRecovery.delete(id);
+    safeExpireRecovery(hold.label, recovery?.expire);
     if (permanent) {
       store.quarantined.add(hold.label);
     }
@@ -526,6 +544,7 @@ export function whenAnimationsSettled(): Promise<void> {
  *  which the specs reset themselves; unregister per-spec labels explicitly). */
 export function resetAnimationHoldsForTest(): void {
   store.manual.clear();
+  manualRecovery.clear();
   store.expired.clear();
   store.quarantined.clear();
 }

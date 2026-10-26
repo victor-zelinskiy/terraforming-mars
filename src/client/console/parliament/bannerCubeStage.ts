@@ -27,8 +27,8 @@ import {ReduxParty} from '@/common/parliament/ParliamentTypes';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {probeTick} from '@/client/console/probeTick';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import {ParliamentBeat} from './parliamentBeat';
 import {BANNER_CUBE_FLIGHT_MS, rectOf, scheduleHurriedParliamentBeat} from './parliamentFlights';
+import {ParliamentBeat, scheduleParliamentBeat} from './parliamentBeat';
 import {Rect} from './consoleParliamentVoteMotion';
 import {landBannerCube, releaseBannerCube} from './bannerCubeScene';
 
@@ -76,13 +76,79 @@ function clearStage(): void {
   bannerCubeStage.phase = '';
 }
 
+/**
+ * How long past its nominal length any wait of the phrase may stand before its NET ends it. A wait is the parliament's
+ * hurried beat («дожать» cuts it) — and that beat can be killed WITHOUT firing (`killParliamentFlights` /
+ * `dropFlight` drop every beat and flight of the registry), which stood the card on the table for good (the field
+ * report of 2026-10-26: «карта появлялась и workspace так и зависал — помогало только B»). The net is a beat of the
+ * motion clock the registry does not own, so nothing but this run can kill it.
+ */
+export const BANNER_STAGE_NET_SLACK_MS = 900;
+
+/**
+ * ONE WAIT THAT ALWAYS ENDS: the hurried beat (the phrase's length, cut by «дожать»), raced with the net. Under an
+ * ARMED hurry the beat fires synchronously inside its own scheduling call — `end` therefore reads nothing that is not
+ * yet assigned (a `const` read there was a TDZ throw that killed the whole phrase with the card standing).
+ */
 function wait(run: StageRun, ms: number): Promise<void> {
   return new Promise<void>((resolve) => {
-    const beat = scheduleHurriedParliamentBeat(ms, () => {
-      run.beats.delete(beat);
+    let over = false;
+    // A holder, never a `const` per handle: the beat may call `end` before its own handle exists.
+    const h: {beat?: ParliamentBeat, net?: ParliamentBeat} = {};
+    const end = (): void => {
+      if (over) {
+        return;
+      }
+      over = true;
+      for (const b of [h.beat, h.net]) {
+        if (b !== undefined) {
+          b.kill();
+          run.beats.delete(b);
+        }
+      }
       resolve();
-    });
-    run.beats.add(beat);
+    };
+    h.beat = scheduleHurriedParliamentBeat(ms, end);
+    if (over) {
+      return;
+    }
+    h.net = scheduleParliamentBeat(ms + BANNER_STAGE_NET_SLACK_MS, end);
+    run.beats.add(h.beat);
+    run.beats.add(h.net);
+  });
+}
+
+/**
+ * THE CARRY THAT ALWAYS LANDS: the cube's flight onto the banner, raced with a net past its length. A flight dropped by
+ * the registry never calls back; the net then SHOWS the cube where it stands (the same numbers, no flight — a hidden
+ * cube is a worse lie than a missed one) and names itself.
+ */
+function carry(run: StageRun, cube: BannerStageCube, origin: BannerStageOrigin, onLanded: () => void): Promise<void> {
+  return new Promise<void>((resolve) => {
+    let over = false;
+    const h: {net?: ParliamentBeat} = {};
+    const end = (how: 'landed' | 'net'): void => {
+      if (over) {
+        return;
+      }
+      over = true;
+      if (h.net !== undefined) {
+        h.net.kill();
+        run.beats.delete(h.net);
+      }
+      if (how === 'net') {
+        console.warn(`[banner-stage] the cube onto ${cube.party} never touched down — shown where it stands`);
+        releaseBannerCube(cube.party, cube.color, true);
+      }
+      onLanded();
+      resolve();
+    };
+    landBannerCube(cube.party, cube.color, bannerStageCubeOrigin(origin), () => end('landed'));
+    if (over) {
+      return;
+    }
+    h.net = scheduleParliamentBeat(BANNER_CUBE_FLIGHT_MS + BANNER_STAGE_NET_SLACK_MS * 2, () => end('net'));
+    run.beats.add(h.net);
   });
 }
 
@@ -150,6 +216,8 @@ export function playBannerCubeStage(
       resolve(result);
     };
     run.resolve = finish;
+    // THE PHRASE NEVER STRANDS ITS CARD: any throw inside it ends the run the way a cut does — every cube shown, the
+    // card taken away — and the caller is answered (a phrase that dies silently is a workspace that stands forever).
     void (async () => {
       for (const cube of cubes) {
         if (run.over) {
@@ -173,10 +241,7 @@ export function playBannerCubeStage(
           return;
         }
         bannerCubeStage.phase = 'carry';
-        await new Promise<void>((landed) => landBannerCube(cube.party, cube.color, bannerStageCubeOrigin(opts.origin), () => {
-          opts.onLanded?.(cube);
-          landed();
-        }));
+        await carry(run, cube, opts.origin, () => opts.onLanded?.(cube));
         if (run.over) {
           return;
         }
@@ -193,7 +258,14 @@ export function playBannerCubeStage(
         clearStage();
       }
       finish('played');
-    })();
+    })().catch((e: unknown) => {
+      console.warn('[banner-stage] the phrase threw — the card goes, the cubes are shown', e);
+      if (current === run) {
+        abortBannerCubeStage();
+      } else {
+        finish('aborted');
+      }
+    });
   });
 }
 

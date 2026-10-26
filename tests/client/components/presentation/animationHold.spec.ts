@@ -148,6 +148,20 @@ describe('animationHold (the critical-animation registry)', function() {
     expect(animationHoldCount()).eq(0);
   });
 
+  // REGRESSION (field report 2026-10-26, the Septem Tribus sitting): a MANUAL hold took `expire` in its options and
+  // silently ignored it — the sitting director's run passes its whole recovery there, so a beat whose flight never
+  // landed kept the walk waiting forever behind a hold that had already "released" (only an unmount ended it).
+  it('a MANUAL hold\'s ceiling runs the owner recovery too — once, and never after an honest release', async () => {
+    let recovered = 0;
+    beginAnimationHold('spec-manual-recover', {maxHoldMs: 20, expire: () => recovered++});
+    await wait(45);
+    expect(recovered, 'the ceiling ended the wedge, not just the count').eq(1);
+    const released = beginAnimationHold('spec-manual-released', {maxHoldMs: 20, expire: () => recovered++});
+    released.release();
+    await wait(45);
+    expect(recovered, 'a released hold owes no recovery').eq(1);
+  });
+
   it('the safety ceiling expires a stuck supplier — and re-arms once it honestly drops', async () => {
     const flow = reactive({active: true});
     registerAnimationHoldSupplier('spec-supplier-stuck', () => flow.active, {maxHoldMs: 20});

@@ -21,6 +21,7 @@ import {
 } from '@/client/console/parliament/bannerCubeScene';
 import {abortBannerCubeStage, bannerCubeStage, bannerCubeStageUp, playBannerCubeStage} from '@/client/console/parliament/bannerCubeStage';
 import {parliamentBandLine} from '@/client/console/parliament/parliamentBand';
+import {killParliamentFlights, setParliamentFlightsHurried} from '@/client/console/parliament/parliamentFlights';
 import {supportCursorOrder} from '@/client/console/parliament/supportPickModel';
 import {partyStepStageOf, taskFor} from '@/client/console/consoleTaskRouter';
 
@@ -164,10 +165,37 @@ describe('parliamentBand — the banner mode line', () => {
   });
 });
 
-describe('bannerCubeStage — the corporation rises and the cube leaves it', () => {
+describe('bannerCubeStage — the corporation rises and the cube leaves it', function() {
+  // REAL timers: the nets under test ARE motion-clock beats (gsap falls back to setTimeout here).
+  // eslint-disable-next-line no-invalid-this
+  this.timeout(15_000);
   afterEach(() => {
+    setParliamentFlightsHurried(false);
     abortBannerCubeStage();
     resetBannerCubeScene();
+  });
+
+  // REGRESSION (the field report of 2026-10-26: «карта корпорации появлялась и workspace так и зависал, помогало только
+  // B»): under an ARMED «дожать» — the player pressed A earlier in the same stage, as every multiplayer sitting does —
+  // a wait's beat fires INSIDE its own scheduling call, and the old wait read its `const` handle there (a TDZ throw):
+  // the phrase died with the card standing and the sitting's run waited for it forever.
+  it('under an armed hurry the phrase runs to its end — the card goes, the cube is shown, the caller is answered', async () => {
+    seedBannerCubeHolds(view(model({red: []}), bannerPrompt()), view(model({red: [S]}), undefined));
+    setParliamentFlightsHurried(true);
+    const landed: Array<string> = [];
+    const result = await playBannerCubeStage([{party: S, color: 'red', card: CORP}], {origin: 'play', onLanded: (c) => landed.push(c.party)});
+    expect(result).eq('played');
+    expect(landed, 'the touchdown was told').deep.eq([S]);
+    expect(bannerCubeStageUp(), 'the card went back down').is.false;
+    expect(bannerCubeHeld(S, 'red'), 'the cube stands on its banner').is.false;
+  });
+
+  it('a registry that KILLS the beats of the phrase (killParliamentFlights) does not strand the card — the nets carry it on', async () => {
+    const run = playBannerCubeStage([{party: S, color: 'red', card: CORP}], {origin: 'play'});
+    expect(bannerCubeStage.phase).eq('rise');
+    killParliamentFlights();
+    expect(await run, 'the phrase still ends').eq('played');
+    expect(bannerCubeStageUp()).is.false;
   });
 
   it('the stage stands the card in the table cell for its cube; a cut shows the cube where it stands and takes the card away', async () => {

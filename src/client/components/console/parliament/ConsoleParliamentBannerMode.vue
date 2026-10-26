@@ -134,6 +134,8 @@ export default defineComponent({
       landed: false,
       /** The corporation's stage, while it still stands (the flow leaves only once the card has gone back down). */
       stageDone: undefined as Promise<unknown> | undefined,
+      /** The mode is being torn down — a stage cut by that tear-down owes the flow nothing more. */
+      stopped: false,
     };
   },
   computed: {
@@ -344,6 +346,13 @@ export default defineComponent({
             this.landed = true;
             this.afterCube(party);
           },
+        }).then((result) => {
+          // A stage CUT before its touchdown (a second stage, a throw) still owes this flow its end: the cube is shown
+          // where it stands, and the reading goes on from it — never a mode left standing at «flight».
+          if (result === 'aborted' && !this.stopped) {
+            this.afterCube(party);
+          }
+          return result;
         });
       }));
     },
@@ -408,6 +417,7 @@ export default defineComponent({
     },
     /** Cut every beat (the section unmounts): the held cube is shown, the hold lets go. */
     stopOutcome(): void {
+      this.stopped = true;
       abortBannerCubeStage();
       this.beat?.kill();
       this.beat = undefined;
