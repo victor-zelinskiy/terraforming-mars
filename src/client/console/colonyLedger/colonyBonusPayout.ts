@@ -58,6 +58,7 @@ import {AllColonyBonusesModel, ColonyLedgerEntryModel} from '@/common/models/Col
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {clearSettlementTable, settlementTable} from '@/client/console/colonyTrade/settlementTable';
 import {colonyBonusShape} from '@/common/parliament/colonyLedger';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
@@ -208,6 +209,10 @@ export function resetColonyBonusPayout(): void {
 
 /** END the walk where it stands: what is still held is released, every row reads as paid, the scene is over. */
 export function finishColonyBonusPayout(degraded = false): void {
+  // A CARD's settlement table (Ф4 — Pluto's pairs paid through this ledger) ends with its payout.
+  if (settlementTable.via !== '' && settlementTable.via === colonyBonusPayout.sourceCard) {
+    clearSettlementTable();
+  }
   if (colonyBonusPayout.sourceCard === '') {
     return;
   }

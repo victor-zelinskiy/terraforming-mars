@@ -267,6 +267,8 @@
     "Discard ${0} of ${1}": "Сброс ${0} из ${1}",
     "after the discard for bonus ${0}": "после сброса за бонус ${0}",
     "Colony bonus ${0} of ${1} · opens after the discard for bonus ${2}": "Бонус колонии ${0} из ${1} · откроется после сброса за бонус ${2}",
+    "Opens after answering ${0}": "Откроется после ответа «${0}»",
+    "after answering ${0}": "после ответа «${0}»",
     "Taken · the discard is yours": "Взята · сброс за вами",
     "opens bonus ${0}": "откроет бонус ${0}",
     "Draw ${0} card(s)": "Доберите ${0} {карту|карты|карт}",

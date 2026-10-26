@@ -1,9 +1,10 @@
 import {expect} from 'chai';
 import {ColonyName} from '../../src/common/colonies/ColonyName';
 import {
-  armSettlementTable, clearSettlementTable, noteSettlementDealt, noteSettlementPresented, noteSettlementTaken,
-  oweSettlementTurn, sealedPlaceReading, sealedPlacesOf, sealOpensAfter, settlementArrival, settlementClaimsBatch,
-  settlementOwnsBatch, settlementPlacePaint, settlementPlacesToDeal, settlementStageReading, settlementTable,
+  armQuestionTable, armSettlementTable, clearSettlementTable, noteSettlementDealt, noteSettlementPresented, noteSettlementTaken,
+  oweSettlementTurn, questionArrival, questionSealReading, questionZones, sealedPlaceReading, sealedPlacesOf, sealOpensAfter,
+  settlementArrival, settlementClaimsBatch,
+  settlementOwnsBatch, settlementPairOf, settlementPlacePaint, settlementPlacesToDeal, settlementStageReading, settlementTable,
 } from '../../src/client/console/colonyTrade/settlementTable';
 import {resolveCardArrivalMode, sealedRevealPlan, cardArrivalTimings, reducedCardArrivalTimings} from '../../src/client/console/consoleCardArrival';
 import {bonusZones} from '../../src/client/console/colonyTrade/colonyBonusDiscardStep';
@@ -74,11 +75,28 @@ describe('settlementTable', () => {
       expect(settlementArrival(meta(2, 2), pluto(), {colony: ColonyName.PLUTO, dealt: []}), 'a reload: no deal, no turn').to.eq('shown');
     });
 
-    it('never claims a single settlement, another colony or a CARD\'s payout (`via` — the ledger\'s)', () => {
+    it('never claims a single settlement, another colony, another payer\'s pairs or a card draw', () => {
       expect(settlementOwnsBatch(meta(1, 1), pluto())).to.eq(false);
       expect(settlementOwnsBatch(meta(2, 2), {type: 'colony', colonyName: ColonyName.LUNA})).to.eq(false);
+      // A trade's table never takes a CARD's pairs (`via`) — and a card's table never takes the trade's.
       expect(settlementOwnsBatch(meta(2, 2), {type: 'colony', colonyName: ColonyName.PLUTO, via: 'Habitat Science' as never})).to.eq(false);
+      expect(settlementOwnsBatch(meta(2, 2), pluto(), 'Habitat Science')).to.eq(false);
       expect(settlementOwnsBatch(meta(2, 2), {type: 'card', cardName: 'Research' as never})).to.eq(false);
+    });
+
+    it('«ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» Ф4: a CARD\'s pairs (Habitat Science\'s ledger — `colonyRepeat`, `via`) stand their own table', () => {
+      const viaPluto = {type: 'colony' as const, colonyName: ColonyName.PLUTO, via: 'Habitat Science' as never};
+      expect(settlementOwnsBatch(meta(2, 2), viaPluto, 'Habitat Science')).to.eq(true);
+      expect(settlementArrival(meta(2, 2), viaPluto, {colony: ColonyName.PLUTO, via: 'Habitat Science', dealt: [2]})).to.eq('turn');
+      expect(settlementArrival(meta(2, 2), viaPluto, {colony: ColonyName.PLUTO, via: '', dealt: [2]}), 'the trade\'s table does not answer').to.eq('door');
+      armSettlementTable(ColonyName.PLUTO, 2, 2, 'Habitat Science');
+      expect(settlementClaimsBatch(viaPluto), 'cycle 2 of the card\'s table').to.eq(true);
+      expect(settlementClaimsBatch(pluto()), 'the trade\'s batch is not this table\'s').to.eq(false);
+      // The marker reader: a trade's pair pays through nobody; a card's pair names the card; a resolution's arms nothing.
+      expect(settlementPairOf({type: 'card', discardPrompt: {min: 1, max: 1, colonyBonus: meta(1, 2)}} as never)).to.deep.eq({meta: meta(1, 2), via: ''});
+      expect(settlementPairOf({type: 'card', discardPrompt: {min: 1, max: 1, source: {kind: 'card', card: 'Habitat Science'}, colonyRepeat: meta(1, 2)}} as never))
+        .to.deep.eq({meta: meta(1, 2), via: 'Habitat Science'});
+      expect(settlementPairOf({type: 'card', discardPrompt: {min: 1, max: 1, source: {kind: 'resolution', resolution: 'RX07'}, colonyRepeat: meta(1, 2)}} as never)).to.eq(undefined);
     });
 
     it('the scenes ask the SAME question of the module (armed from the marker before they run)', () => {
@@ -152,6 +170,61 @@ describe('settlementTable', () => {
 
     it('the zones call a later place SEALED', () => {
       expect(bonusZones(meta(1, 3)).map((z) => z.state)).to.deep.eq(['active', 'sealed', 'sealed']);
+    });
+  });
+
+  describe('«ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» Ф4 host 2 · a QUESTION\'s table (Mars University beside the play\'s own draw)', () => {
+    const MU = 'Mars University';
+
+    it('arms on the sealed batch at index 0 (the place lies sealed), advances to 1 with the answer\'s draw, keeps ONE instance per root', () => {
+      armQuestionTable(7, MU, 41, 0);
+      const first = settlementTable.nonce;
+      expect(first).to.be.greaterThan(0);
+      expect([settlementTable.kind, settlementTable.actionId, settlementTable.askCard, settlementTable.askBatch, settlementTable.total, settlementTable.index])
+        .to.deep.eq(['question', 7, MU, 41, 1, 0]);
+      expect(questionZones(settlementTable).map((z) => [z.index, z.state])).to.deep.eq([[1, 'sealed']]);
+      armQuestionTable(7, MU, 41, 1);
+      expect(settlementTable.nonce, 'the answer\'s draw advances the same instance').to.eq(first);
+      expect(settlementTable.index).to.eq(1);
+      expect(questionZones(settlementTable).map((z) => [z.index, z.state])).to.deep.eq([[1, 'active']]);
+      armQuestionTable(7, MU, 41, 0);
+      expect(settlementTable.index, 'the index only ever moves forward').to.eq(1);
+      armQuestionTable(8, MU, 50, 0);
+      expect(settlementTable.nonce, 'another root is another table').to.not.eq(first);
+      armSettlementTable(ColonyName.PLUTO, 2, 1);
+      expect(settlementTable.kind, 'a colony\'s marker starts a colony table afresh').to.eq('colony');
+      expect(settlementTable.actionId).to.eq(0);
+      armQuestionTable(0, MU, 1, 0);
+      expect(settlementTable.kind, 'no root, no question table').to.eq('colony');
+    });
+
+    it('claims ONLY the answer\'s draw — the next batch of the root, never the sealed batch, never before the table was seen', () => {
+      armQuestionTable(7, MU, 41, 0);
+      expect(settlementClaimsBatch(undefined, {id: 42, actionId: 7}), 'the question still stands').to.eq(false);
+      armQuestionTable(7, MU, 41, 1);
+      expect(settlementClaimsBatch(undefined, {id: 42, actionId: 7}), 'a table nobody saw has no place to turn in').to.eq(false);
+      noteSettlementPresented();
+      expect(settlementClaimsBatch(undefined, {id: 42, actionId: 7})).to.eq(true);
+      expect(settlementClaimsBatch(undefined, {id: 41, actionId: 7}), 'the sealed batch itself').to.eq(false);
+      expect(settlementClaimsBatch(undefined, {id: 43, actionId: 9}), 'another root').to.eq(false);
+      expect(settlementClaimsBatch(undefined, {id: 43}), 'a draw outside any scope').to.eq(false);
+      expect(settlementClaimsBatch(pluto()), 'a colony batch is not a question\'s').to.eq(false);
+    });
+
+    it('the answer turns in the place the sealed batch laid; a place never laid is simply shown', () => {
+      expect(questionArrival({kind: 'question', dealt: [1]})).to.eq('turn');
+      expect(questionArrival({kind: 'question', dealt: []})).to.eq('shown');
+      expect(questionArrival({kind: 'colony', dealt: [1]}), 'a colony table answers through its own door').to.eq('door');
+    });
+
+    it('the seal speaks the question', () => {
+      expect(sealedPlaceReading(1, 1, 'Марсианский университет')).to.deep.eq({label: 'Opens after answering ${0}', params: ['Марсианский университет']});
+      expect(sealedPlaceReading(1, 1, ''), 'no question — the colony words').to.deep.eq({
+        label: 'Colony bonus ${0} of ${1} · opens after the discard for bonus ${2}', params: ['1', '1', '1'],
+      });
+      expect(questionSealReading('X')).to.deep.eq({label: 'after answering ${0}', params: ['X']});
+      expect(settlementPlacePaint(1, 0, 'absent', {dealt: [1], turnPlace: 0, turnPhase: 'none'}), 'the place lies sealed while the question stands').to.eq('sealed');
+      expect(settlementPlacePaint(1, 1, 'present', {dealt: [1], turnPlace: 1, turnPhase: 'owed'}), 'the answer turning').to.eq('turning');
     });
   });
 

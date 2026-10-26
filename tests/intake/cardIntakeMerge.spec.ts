@@ -122,7 +122,9 @@ describe('cardIntakeMerge — one action, one batch', () => {
     expect(first.cards).has.lengthOf(2);
     // The question was raised with the batch still open: it is announced on the batch (read off the prompt's
     // structural marker — never its title).
-    expect(first.pendingAnswer).deep.eq({kind: 'question', card: CardName.MARS_UNIVERSITY});
+    // …and that its answer MAY DRAW (the university's option exchanges a discard for a card): the console lays the
+    // sealed place for the answer's card on this flag (Ф4 host 2).
+    expect(first.pendingAnswer).deep.eq({kind: 'question', card: CardName.MARS_UNIVERSITY, draws: true});
 
     // The LIVE route: the player answers from their screen.
     player.sealCardDrawReveals();

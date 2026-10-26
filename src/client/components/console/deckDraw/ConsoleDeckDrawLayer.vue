@@ -111,13 +111,9 @@ import {
 } from '@/client/console/discardPile/discardPile';
 import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
-import {ArrivalOrigin, BatchArrivalHandle, runBatchArrival} from '@/client/console/consoleBatchArrivalMotion';
-import {findPrintedCardsIcon} from '@/client/console/consoleActionCommitMotion';
-import {cardArrivalTimings, reducedCardArrivalTimings} from '@/client/console/consoleCardArrival';
-import {
-  IntakeAssemblyPlan, IntakeRun, intakeAssemblyOwnsBatch, intakeAssemblyTimings, planIntakeAssembly,
-  reducedIntakeAssemblyTimings, rowRectOf, triggerSeatRect,
-} from '@/client/console/cardIntake/intakeAssemblyPlan';
+import {BatchArrivalHandle, runBatchArrival} from '@/client/console/consoleBatchArrivalMotion';
+import {intakeAssemblyOwnsBatch, intakeSearchRun} from '@/client/console/cardIntake/intakeAssemblyPlan';
+import {IntakeAssemblyHandle, IntakeTriggerFace, planAssemblyFor, playIntakeAssembly} from '@/client/console/cardIntake/intakeAssemblyDirector';
 import {registerIntakeContinuation} from '@/client/console/cardIntake/intakeAssembly';
 import {conWsPresence} from '@/client/console/conWsPresenceBridge';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
@@ -138,7 +134,12 @@ const DECK_SEL = '.con-deckstack__pile';
 const STAGE_WAIT_MAX_MS = 9_000;
 
 /** One scene card: the name + the server's verdict. */
-type SceneStep = {name: CardName, matched: boolean};
+/**
+ * One flyer of the scene. `tail` marks a card of ANOTHER run of a merged batch (R4 — the search run plays the
+ * theatre on its own tape, the runs before and after it come from their own places through the assembly): its proxy
+ * is never held by the theatre and never judged.
+ */
+type SceneStep = {name: CardName, matched: boolean, tail?: true};
 
 /** Read a fresh, stable rect (bounded rAF double-probe — layout settled). */
 function stableRect(resolve: () => HTMLElement | null): Promise<DOMRect | undefined> {
@@ -184,11 +185,11 @@ type SceneCtx = {
    * `onAllPeeled` (its flight waits on it) and the stream's lease on the pile. A killed timer must never strand either.
    */
   stream?: {lease: string, allPeeled: () => void},
-  /** The assembly scene's per-run flights («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР»). */
-  runHandles: Array<BatchArrivalHandle>,
+  /** The assembly scene's director handle («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» — `cardIntake/intakeAssemblyDirector.ts`). */
+  assemblyHandle?: IntakeAssemblyHandle,
   timers: Array<ReturnType<typeof setTimeout>>,
 };
-const ctx: SceneCtx = {beatHandles: [], runHandles: [], timers: []};
+const ctx: SceneCtx = {beatHandles: [], timers: []};
 
 function clearTimers(): void {
   ctx.timers.forEach((t) => clearTimeout(t));
@@ -202,8 +203,8 @@ function killAll(): void {
   ctx.sceneHandle = undefined;
   ctx.batchHandle?.kill();
   ctx.batchHandle = undefined;
-  ctx.runHandles.forEach((h) => h.kill());
-  ctx.runHandles = [];
+  ctx.assemblyHandle?.kill();
+  ctx.assemblyHandle = undefined;
   clearTimers();
 }
 
@@ -226,9 +227,18 @@ export default defineComponent({
       showHoldBase: false,
       holdBaseStyle: {} as Record<string, string>,
       /** The assembly scene's trigger faces (one per `card`-origin run), and the run being dealt now (e2e probe). */
-      triggerFaces: [] as Array<{key: string, name: CardName, run: number}>,
+      triggerFaces: [] as Array<IntakeTriggerFace>,
       triggerRefs: {} as Record<number, HTMLElement | null>,
       assemblyRun: undefined as number | undefined,
+      /**
+       * THE SEARCH RUN of a merged batch (R4): its cards' span in the batch and its tape's length in `sceneCards` —
+       * the theatre judges that span, the assembly deals the rest. `cardProxyIndex` maps a card of the batch to its
+       * flyer (the tape's rejects have flyers of their own, so the two orders differ). `drawnSoFar` counts every card
+       * that has left the deck in this scene (the HUD counter ticks per peel across the three legs).
+       */
+      searchSpan: undefined as {first: number, count: number, steps: number} | undefined,
+      cardProxyIndex: undefined as Array<number> | undefined,
+      drawnSoFar: 0,
       /**
        * A GUEST run: the board card-bonus scene opened a merged batch (its cover flew the cell's run) and handed
        * the remaining runs over (`continueIntakeAssembly`). The layer stands without its own scene — the cover
@@ -292,7 +302,7 @@ export default defineComponent({
       // the rest over), or a workspace flies its own arrival, or a settlement table turns it in place.
       const merged = intakeAssemblyOwnsBatch(e);
       const foreign = (!merged && !isDeckDrawSource(e.source)) ||
-        settlementClaimsBatch(e.source) ||
+        settlementClaimsBatch(e.source, e) ||
         workspaceClaimOwnsArrival(e) ||
         boardCardBonusClaimsReveal(e.source) || isBonusRevealStaged(e.id) ||
         (!merged && isAgendaReveal(e.source) && agendaTrackOnScreen()) ||
@@ -361,7 +371,7 @@ export default defineComponent({
           noteDeckDrawForeign(r.v.eventId);
           // A SETTLEMENT TABLE's sealed card is not flown by anybody: it turns over in place, and the counter answers
           // with the turn — the table ADOPTS the seed instead of letting it go (colony polish 1).
-          if (settlementClaimsBatch(r.e.source)) {
+          if (settlementClaimsBatch(r.e.source, r.e)) {
             adoptSettlementDeck();
             return;
           }
@@ -418,7 +428,18 @@ export default defineComponent({
       const out: Array<HTMLElement> = [];
       this.sceneCards.forEach((step, i) => {
         const el = this.proxyRefs[i];
-        if (step.matched && el !== null && el !== undefined) {
+        if (step.matched && step.tail !== true && el !== null && el !== undefined) {
+          out.push(el);
+        }
+      });
+      return out;
+    },
+    /** Every flyer that stands on a real card at the end of a MIXED scene (the finds + the other runs' cards). */
+    mixedProxies(): Array<HTMLElement> {
+      const out: Array<HTMLElement> = [];
+      this.sceneCards.forEach((step, i) => {
+        const el = this.proxyRefs[i];
+        if ((step.matched || step.tail === true) && el !== null && el !== undefined) {
           out.push(el);
         }
       });
@@ -442,11 +463,33 @@ export default defineComponent({
       // The sequence is the server's own record of the search. Without one
       // (a plain draw, or a search that discarded nothing) every card simply
       // came off the deck — the simpler visual language, by design.
-      const steps: Array<SceneStep> = e.sequence !== undefined && e.sequence.length > 0 ?
+      let steps: Array<SceneStep> = e.sequence !== undefined && e.sequence.length > 0 ?
         e.sequence.map((s) => ({name: s.card.name, matched: s.matched})) :
         e.cards.map((c) => ({name: c.name, matched: true}));
-      const plain = e.sequence === undefined || e.sequence.length === 0 ||
+      let plain = e.sequence === undefined || e.sequence.length === 0 ||
         !e.sequence.some((s) => !s.matched);
+      // THE SEARCH RUN of a MERGED batch («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» R4): ONE segment is a search that threw
+      // cards away, the others are plain. The theatre judges THAT run on its own tape (the rejects of this press's
+      // other causes do not exist); the cards of the other runs are flyers of their own (`tail`), dealt from their
+      // places by the assembly before and after it. The batch-level tape (every card the deck turned over, in
+      // order) stays the one-tape reading of the summary and of a batch with two searches.
+      const span = intakeSearchRun(e);
+      const searchSegment = span === undefined ? undefined : e.segments[span.index];
+      if (span !== undefined && searchSegment?.sequence !== undefined) {
+        const tape: Array<SceneStep> = searchSegment.sequence.map((s) => ({name: s.card.name, matched: s.matched}));
+        steps = [
+          ...e.cards.slice(0, span.first).map((c): SceneStep => ({name: c.name, matched: true, tail: true})),
+          ...tape,
+          ...e.cards.slice(span.first + span.count).map((c): SceneStep => ({name: c.name, matched: true, tail: true})),
+        ];
+        plain = false;
+        this.searchSpan = {first: span.first, count: span.count, steps: tape.length};
+        // A card of the batch → its flyer: the tails in place, the finds in the tape's order (the rejects skipped).
+        this.cardProxyIndex = steps.flatMap((step, i) => step.tail === true || step.matched ? [i] : []);
+      } else {
+        this.searchSpan = undefined;
+        this.cardProxyIndex = undefined;
+      }
       if (steps.length === 0) {
         return;
       }
@@ -536,9 +579,45 @@ export default defineComponent({
         return;
       }
 
+      // A MIXED scene (the search run of a merged batch): the overlay stands VEILED from here (its slots are the
+      // other runs' landing places), and the runs BEFORE the search deal from their own places first — the server's
+      // order, never re-sorted. The theatre then judges the search run's own tape.
+      const span = this.searchSpan;
+      this.drawnSoFar = 0;
+      if (span !== undefined && span.first > 0) {
+        setDeckDrawPhase('assemble');
+        await this.$nextTick();
+        if (!deckDrawState.active || deckDrawState.stagedEventId !== e.id) {
+          return;
+        }
+        const alive = () => deckDrawState.active && deckDrawState.stagedEventId === e.id;
+        const geometry = await this.assemblyGeometry(e, alive);
+        if (geometry === undefined) {
+          this.releaseAndHandoff(this.mixedProxies());
+          return;
+        }
+        await new Promise<void>((resolve) => {
+          this.assemblyRun = 0;
+          this.playAssemblyRuns(e, geometry, 0, {
+            alive,
+            untilCard: span.first,
+            onCardPeeled: () => {
+              this.drawnSoFar++;
+              markDeckCardDrawn(deckCountAfter(preDraw, this.drawnSoFar));
+            },
+            onFirstApproach: () => setDeckDrawPhase('frame'),
+            onDone: resolve,
+          });
+        });
+        if (!alive()) {
+          return;
+        }
+      }
+      const searchSteps = span === undefined ? steps : steps.slice(span.first, span.first + span.steps);
+      const proxyOffset = span?.first ?? 0;
       const t = this.timings();
-      const beats = planDeckDraw(steps.map((s) => ({matched: s.matched})), t, plain);
-      const matches = steps.filter((s) => s.matched).length;
+      const beats = planDeckDraw(searchSteps.map((s) => ({matched: s.matched})), t, plain);
+      const matches = searchSteps.filter((s) => s.matched).length;
       // THE HOST's stage (PL-263): the cards are judged where they will land.
       const stage = this.sceneStage();
       const hScale = holdScale(stage.height, CARD_NATURAL_H);
@@ -557,13 +636,12 @@ export default defineComponent({
       }
 
       const deckAnchor = {rect: deckRect as RectLike, naturalH: CARD_NATURAL_H};
-      let drawn = 0;
       let landed = 0;
       const total = beats.length;
 
       beats.forEach((beat) => {
-        const proxy = this.proxyRefs[beat.index];
-        const flip = this.flipRefs[beat.index];
+        const proxy = this.proxyRefs[beat.index + proxyOffset];
+        const flip = this.flipRefs[beat.index + proxyOffset];
         if (proxy === null || proxy === undefined || flip === null || flip === undefined) {
           landed++;
           return;
@@ -580,8 +658,8 @@ export default defineComponent({
             t,
             reduced,
             onDrawn: () => {
-              drawn++;
-              markDeckCardDrawn(deckCountAfter(preDraw, drawn));
+              this.drawnSoFar++;
+              markDeckCardDrawn(deckCountAfter(preDraw, this.drawnSoFar));
               this.tickDeck();
             },
             onLanded: () => {
@@ -700,6 +778,7 @@ export default defineComponent({
       const preDraw = deckDrawState.preDrawSize;
       let peeled = 0;
       let frameCued = false;
+      this.assemblyRun = 0;
       this.playAssemblyRuns(e, geometry, 0, {
         alive: () => deckDrawState.active && deckDrawState.stagedEventId === e.id,
         onCardPeeled: () => {
@@ -762,13 +841,14 @@ export default defineComponent({
             gsap.set(el, {autoAlpha: 0});
           }
         });
+        this.assemblyRun = fromCard;
         this.playAssemblyRuns(e, geometry, fromCard, {alive, onDone: finish});
       });
     },
 
     endGuestRun(): void {
-      ctx.runHandles.forEach((h) => h.kill());
-      ctx.runHandles = [];
+      ctx.assemblyHandle?.kill();
+      ctx.assemblyHandle = undefined;
       this.guestRun = false;
       this.assemblyRun = undefined;
       this.triggerFaces = [];
@@ -788,8 +868,10 @@ export default defineComponent({
       const pairs: Array<{proxy: HTMLElement, flip: HTMLElement}> = [];
       const slotEls: Array<HTMLElement> = [];
       keys.forEach((_key, i) => {
-        const proxy = this.proxyRefs[i];
-        const flip = this.flipRefs[i];
+        // A mixed scene's flyers stand in the TAPE's order (the rejects have flyers too) — the map says which is this card's.
+        const at = this.cardProxyIndex?.[i] ?? i;
+        const proxy = this.proxyRefs[at];
+        const flip = this.flipRefs[at];
         const slot = slots[i];
         if (proxy !== null && proxy !== undefined && flip !== null && flip !== undefined && slot !== null) {
           pairs.push({proxy, flip});
@@ -810,134 +892,43 @@ export default defineComponent({
       return r !== undefined && r.width > 4 && r.height > 4 ? r : undefined;
     },
 
-    /** Plan and play the runs from `fromCard` on; `onDone` once the last run has settled and its trigger receded. */
+    /** Plan and play the runs from `fromCard` on through the ONE assembly director (`cardIntake/intakeAssemblyDirector.ts`). */
     playAssemblyRuns(e: DrawnCardEntry, geometry: {pairs: Array<{proxy: HTMLElement, flip: HTMLElement}>, slots: Array<HTMLElement>}, fromCard: number, hooks: {
       alive: () => boolean,
+      /** Play the runs before this card only (a mixed scene's prologue — the search run and the rest follow). */
+      untilCard?: number,
       onCardPeeled?: () => void,
       onFirstApproach?: () => void,
       onDone: () => void,
     }): void {
-      const reduced = consoleReducedMotionActive();
-      const tileSegments = e.segments.filter((s) => s.source?.type === 'tile' && s.source.spaceId !== undefined);
-      const boardVisible = tileSegments.length > 0 && tileSegments.every((s) =>
-        s.source?.type === 'tile' && s.source.spaceId !== undefined && this.boardCellIconRect(s.source.spaceId) !== undefined);
+      const host = {
+        stageRect: () => this.sceneStage(),
+        triggerEl: (run: number) => this.triggerRefs[run] ?? null,
+        cellIconRect: (spaceId: string) => this.boardCellIconRect(spaceId),
+      };
       // The card STANDING on the stage this batch presents in — its own run comes off the deck, never a surfaced copy.
       const stageCard = workspaceClaimsRevealBatch(e) ? workspaceOutcomeState.sourceCard : undefined;
-      const full: IntakeAssemblyPlan = planIntakeAssembly(
-        {segments: e.segments, stageCard, boardVisible},
-        reduced ? reducedCardArrivalTimings() : cardArrivalTimings(),
-        reduced ? reducedIntakeAssemblyTimings() : intakeAssemblyTimings());
-      const runs = full.runs.filter((r) => r.first >= fromCard);
-      if (runs.length === 0) {
-        hooks.onDone();
-        return;
-      }
-      const base = runs[0].surfaceAtMs ?? runs[0].dealAtMs;
-      const at = (ms: number) => Math.max(0, motionMs(ms - base));
-      this.triggerFaces = runs.filter((r) => r.origin.kind === 'card').map((r) => ({
-        key: `${r.index}:${r.origin.kind === 'card' ? r.origin.card : ''}`,
-        name: r.origin.kind === 'card' ? r.origin.card : ('' as CardName),
-        run: r.index,
-      }));
+      const {plan, triggers} = planAssemblyFor(e.segments, host, stageCard);
+      const until = hooks.untilCard ?? Number.POSITIVE_INFINITY;
+      this.triggerFaces = triggers.filter((f) => plan.runs.some((r) => r.index === f.run && r.first >= fromCard && r.first < until));
       preloadPremiumCardArt(this.triggerFaces.map((f) => f.name));
-      const stage = this.sceneStage();
-      const row = rowRectOf(geometry.slots.map((el) => restingRectOf(el)));
-      const seat = row === undefined ? undefined : triggerSeatRect(stage, row);
-      const aT = reduced ? reducedIntakeAssemblyTimings() : intakeAssemblyTimings();
-      let settled = 0;
-      let approached = false;
       void this.$nextTick().then(() => {
         if (!hooks.alive()) {
           return;
         }
-        runs.forEach((run: IntakeRun) => {
-          // The trigger SURFACES beside the row, holds a beat, then its icon deals.
-          if (run.surfaceAtMs !== undefined) {
-            ctx.timers.push(setTimeout(() => {
-              if (!hooks.alive()) {
-                return;
-              }
-              this.surfaceTrigger(run, seat, aT.surfaceMs, reduced);
-            }, at(run.surfaceAtMs)));
-          }
-          ctx.timers.push(setTimeout(() => {
-            if (!hooks.alive()) {
-              return;
-            }
-            this.assemblyRun = run.index;
-            const from = this.runOrigin(run);
-            const handle = runBatchArrival({
-              cards: geometry.pairs.slice(run.first, run.first + run.count),
-              slots: geometry.slots.slice(run.first, run.first + run.count),
-              mode: 'in-flight-reveal',
-              from,
-              onCardPeeled: () => hooks.onCardPeeled?.(),
-              onLanded: () => {
-                if (run.origin.kind === 'card') {
-                  this.recedeTrigger(run, aT.recedeMs, reduced);
-                }
-              },
-              onSettled: () => {
-                settled++;
-                if (settled === runs.length) {
-                  this.assemblyRun = undefined;
-                  // The last trigger's recede is the scene's tail.
-                  ctx.timers.push(setTimeout(() => {
-                    if (hooks.alive()) {
-                      hooks.onDone();
-                    }
-                  }, run.origin.kind === 'card' ? motionMs(aT.recedeMs) : 0));
-                }
-              },
-            });
-            ctx.runHandles.push(handle);
-            if (!approached) {
-              approached = true;
-              const firstLand = handle.plan.beats[0]?.landAtMs ?? 0;
-              ctx.timers.push(setTimeout(() => hooks.onFirstApproach?.(), Math.max(0, motionMs(firstLand) - motionMs(70))));
-            }
-          }, at(run.dealAtMs)));
+        ctx.assemblyHandle?.kill();
+        ctx.assemblyHandle = playIntakeAssembly({
+          plan, fromCard, untilCard: hooks.untilCard, pairs: geometry.pairs, slots: geometry.slots, host,
+          alive: hooks.alive,
+          onCardPeeled: hooks.onCardPeeled,
+          onFirstApproach: hooks.onFirstApproach,
+          onDone: () => {
+            ctx.assemblyHandle = undefined;
+            this.assemblyRun = undefined;
+            hooks.onDone();
+          },
         });
       });
-    },
-
-    /** WHERE a run's cards are born: the trigger's printed icon, the cell's printed bonus, or the deck (undefined). */
-    runOrigin(run: IntakeRun): ArrivalOrigin | undefined {
-      if (run.origin.kind === 'card') {
-        const face = this.triggerRefs[run.index];
-        if (face !== null && face !== undefined) {
-          const icon = findPrintedCardsIcon(face);
-          const rect = (icon ?? face).getBoundingClientRect();
-          if (rect.width > 2 && rect.height > 2) {
-            return {rect, kind: 'card'};
-          }
-        }
-        return undefined;
-      }
-      if (run.origin.kind === 'board-cell') {
-        const rect = this.boardCellIconRect(run.origin.spaceId);
-        return rect === undefined ? undefined : {rect, kind: 'cell'};
-      }
-      return undefined;
-    },
-
-    surfaceTrigger(run: IntakeRun, seat: {left: number, top: number, width: number, height: number} | undefined, surfaceMs: number, reduced: boolean): void {
-      const face = this.triggerRefs[run.index];
-      if (face === null || face === undefined || seat === undefined) {
-        return;
-      }
-      const scale = Math.max(0.05, seat.height / CARD_NATURAL_H);
-      gsap.set(face, {width: CARD_NATURAL_W, height: CARD_NATURAL_H, transformOrigin: 'top left', x: seat.left, y: seat.top + (reduced ? 0 : 14), scale, autoAlpha: 0});
-      // A touch below full: the trigger is the cause, the row is the subject (a kant of opacity, never a glow).
-      gsap.to(face, {autoAlpha: 0.94, y: seat.top, duration: motionMs(surfaceMs) / 1000, ease: 'power2.out'});
-    },
-
-    recedeTrigger(run: IntakeRun, recedeMs: number, reduced: boolean): void {
-      const face = this.triggerRefs[run.index];
-      if (face === null || face === undefined) {
-        return;
-      }
-      gsap.to(face, {autoAlpha: 0, y: reduced ? '+=0' : '+=10', duration: motionMs(recedeMs) / 1000, ease: 'power1.in'});
     },
 
     /** Resolve one beat's destinations from the scene geometry. */
@@ -1005,8 +996,11 @@ export default defineComponent({
       if (!deckDrawState.active) {
         return;
       }
-      // Releasing the mount hold: from here the overlay exists, veiled.
-      setDeckDrawPhase('assemble');
+      // Releasing the mount hold: from here the overlay exists, veiled. (A MIXED scene mounted it before its
+      // prologue and may already have cued the frame — never veil it again.)
+      if (deckDrawState.phase === 'search') {
+        setDeckDrawPhase('assemble');
+      }
       await this.$nextTick();
 
       const e = currentRevealEvent();
@@ -1044,6 +1038,26 @@ export default defineComponent({
       const held = this.heldEls();
       const resolved = targets.filter((r): r is DOMRect => r !== undefined);
 
+      // A MIXED scene: the finds fly into the SEARCH RUN's own slots; the runs after it follow from their places.
+      const span = this.searchSpan;
+      if (span !== undefined) {
+        const mine = targets.slice(span.first, span.first + span.count).filter((r): r is DOMRect => r !== undefined);
+        if (resolved.length !== keys.length || mine.length !== span.count || held.length !== span.count) {
+          this.releaseAndHandoff(this.mixedProxies());
+          return;
+        }
+        ctx.sceneHandle = runDeckDrawAssemble({
+          proxies: held,
+          targets: mine as ReadonlyArray<RectLike>,
+          naturalHs: mine.map((r) => r.height / Math.max(0.05, r.width / CARD_NATURAL_W)),
+          t: this.timings(),
+          reduced: deckDrawState.reducedMotion,
+          onFrameCue: () => setDeckDrawPhase('frame'),
+          onAllLanded: () => void this.finishMixedSearch(e, span),
+        });
+        return;
+      }
+
       if (resolved.length !== keys.length || held.length !== keys.length) {
         // The overlay produced no measurable slots (single-card headless
         // reveal, or a layout we can't trust): hand off honestly — unveil the
@@ -1067,6 +1081,40 @@ export default defineComponent({
         // the handoff owes the player nothing further.
         onFrameCue: () => setDeckDrawPhase('frame'),
         onAllLanded: () => this.releaseAndHandoff(held),
+      });
+    },
+
+    /**
+     * THE EPILOGUE of a mixed scene: the finds stand in their slots; the runs AFTER the search run deal from their
+     * own places, then every flyer dissolves over the real cards at once.
+     */
+    async finishMixedSearch(e: DrawnCardEntry, span: {first: number, count: number, steps: number}): Promise<void> {
+      const alive = () => deckDrawState.active && deckDrawState.stagedEventId === e.id;
+      if (!alive()) {
+        return;
+      }
+      const fromCard = span.first + span.count;
+      if (fromCard >= e.cards.length) {
+        this.releaseAndHandoff(this.mixedProxies());
+        return;
+      }
+      const geometry = await this.assemblyGeometry(e, alive);
+      if (!alive()) {
+        return;
+      }
+      if (geometry === undefined) {
+        this.releaseAndHandoff(this.mixedProxies());
+        return;
+      }
+      const preDraw = deckDrawState.preDrawSize;
+      this.assemblyRun = fromCard;
+      this.playAssemblyRuns(e, geometry, fromCard, {
+        alive,
+        onCardPeeled: () => {
+          this.drawnSoFar++;
+          markDeckCardDrawn(deckCountAfter(preDraw, this.drawnSoFar));
+        },
+        onDone: () => this.releaseAndHandoff(this.mixedProxies()),
       });
     },
 
@@ -1097,6 +1145,8 @@ export default defineComponent({
           this.sceneCards = [];
           this.triggerFaces = [];
           this.assemblyRun = undefined;
+          this.searchSpan = undefined;
+          this.cardProxyIndex = undefined;
           this.showHoldBase = false;
         },
       });
@@ -1112,6 +1162,8 @@ export default defineComponent({
       this.sceneCards = [];
       this.triggerFaces = [];
       this.assemblyRun = undefined;
+      this.searchSpan = undefined;
+      this.cardProxyIndex = undefined;
       this.guestRun = false;
       this.showHoldBase = false;
       // The pile is NOT cut here: the scene's lease lets go, and whatever

@@ -152,7 +152,8 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {sourceSeatReservePx, wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import {stepHandGrid} from '@/client/components/console/consoleHandGrid';
 import {nearestInDirection} from '@/client/console/consoleStartNav';
-import {runBatchArrival, settleBatchProxiesOnto, BatchArrivalHandle} from '@/client/console/consoleBatchArrivalMotion';
+import {runBatchArrival, settleBatchProxiesOnto, ArrivalOrigin, BatchArrivalHandle} from '@/client/console/consoleBatchArrivalMotion';
+import {findPrintedCardsIcon} from '@/client/console/consoleActionCommitMotion';
 import {runHandIntake, handDockReachable} from '@/client/console/handDock/handDeliveryDirector';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {availabilityContextFor, buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
@@ -529,11 +530,26 @@ export default defineComponent({
       this.handle = runBatchArrival({
         cards, slots,
         mode: 'in-flight-reveal',
+        // «ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» Ф5: the cards leave the CAUSE's own place — the effect card (or the enacted
+        // resolution's face) standing in the source seat, from its printed draw icon where it has one. The deck
+        // already answered at the trigger (the server drew then); only a seat that is not painted degrades to it.
+        from: this.dealOrigin(),
         onSettled: () => {
           this.handle = undefined;
           this.handOffDeal();
         },
       });
+    },
+    /** The source seat's face as painted — the origin of the deal (undefined → the deck). */
+    dealOrigin(): ArrivalOrigin | undefined {
+      const root = this.$el as HTMLElement | undefined;
+      const seat = root?.querySelector<HTMLElement>('.con-extdraw__source .con-src__card') ?? null;
+      if (seat === null) {
+        return undefined;
+      }
+      const icon = findPrintedCardsIcon(seat) ?? seat;
+      const rect = icon.getBoundingClientRect();
+      return rect.width > 2 && rect.height > 2 ? {rect, kind: 'card'} : undefined;
     },
     handOffDeal(): void {
       const slots = asElements(this.$refs.slots);

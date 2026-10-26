@@ -194,6 +194,12 @@ export type CardIntakePendingAnswer = {
   /** The COLONY whose pair asks (Pluto), with its «n of k». */
   colony?: ColonyName;
   ordinal?: {index: number, total: number};
+  /**
+   * The question's answer MAY DRAW (an option exchanges a discard for cards — Mars University): the console lays
+   * ONE sealed place beside the batch for the answer's card (Ф4 host 2). A question that draws nothing (a colony
+   * pick, a target) seals the batch without a place.
+   */
+  draws?: true;
 };
 
 /**

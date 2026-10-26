@@ -3361,6 +3361,73 @@ scientificBreakthroughFixture('scientific-breakthrough', 'journey');
 scientificBreakthroughFixture('scientific-breakthrough-clean', 'clean');
 scientificBreakthroughFixture('scientific-breakthrough-actions', 'actions');
 
+// ── sb-olympus: «ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» R4 — THE SEARCH RUN of a merged batch (2026-10-26). TR52 Scientific
+//    Breakthrough (a Science EVENT) played under Olympus Conference holding ONE science: Olympus asks first (its answer
+//    «remove to draw» is pre-collected in the composer and draws the deck's top — Algae), the card's mandatory removal
+//    (red's Martian Census, 3 data) comes next, then the search for two Science cards: Comet ✗ → Fish ✗ → Research ✓ →
+//    Physics Complex ✓. ONE batch «Olympus ×1 · Scientific Breakthrough ×2», the search segment carrying its own tape
+//    with two rejects — the deck layer deals Olympus' card from its face, judges the search on its tape, assembles the
+//    finds into their own slots. Blue 20 M€, the Scientists enacted; red at a pinned corporation. A DRY RUN proves the
+//    order and the segments. ──
+parliamentFixture('sb-olympus', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  options: {customCorporationsList: [CardName.TERACTOR, CardName.THORGATE]},
+  arrange: ({game, p1, p2, parliament}) => {
+    seatEnacted(parliament, quietResolutionOf(PartyName.SCIENTISTS));
+    p1.megaCredits = 20;
+    const olympus = new OlympusConference();
+    olympus.resourceCount = 1;
+    p1.playedCards.push(olympus);
+    const census = new MartianCensus();
+    census.resourceCount = 3;
+    p2.playedCards.push(census);
+    p1.cardsInHand = [new ScientificBreakthrough()];
+    stackDeckTop(game, SCIENTIFIC_JOURNEY);
+  },
+  expect: ({game, p1, p2, parliament}) => {
+    const deckTop = game.projectDeck.drawPile.slice(-SCIENTIFIC_JOURNEY.length).map((c) => c.name).reverse().join(',');
+    const copy = Game.deserialize(structuredClone(game.serialize()));
+    const blue = copy.getPlayerById(p1.id);
+    const discardBefore = copy.projectDeck.discardPile.length;
+    blue.playCard(blue.cardsInHand.find((c) => c.name === CardName.SCIENTIFIC_BREAKTHROUGH)!, Payment.of({megacredits: 6}));
+    runAllActions(copy);
+    // Olympus asks first (before the card's own choices): «remove a science to draw».
+    const ask = blue.getWaitingFor();
+    const olympusFirst = ask instanceof OrOptions;
+    if (olympusFirst) {
+      blue.process({type: 'or', index: 0, response: {type: 'option'}});
+      runAllActions(copy);
+    }
+    // …then the card's mandatory removal.
+    const pick = blue.getWaitingFor() as SelectCard<IProjectCard> | undefined;
+    const candidates = pick?.cards.map((c) => c.name).join(',') ?? '';
+    blue.process({type: 'card', cards: [CardName.MARTIAN_CENSUS]});
+    runAllActions(copy);
+    const batch = blue.cardDrawReveals[0];
+    const facts = {
+      olympusFirst,
+      playable: p1.canPlay(p1.cardsInHand[0]) !== false,
+      ruling: parliament.rulingParty(),
+      top: deckTop,
+      candidates,
+      batches: blue.cardDrawReveals.length,
+      segments: batch?.segments.map((s) => `${s.source?.type === 'card' ? s.source.cardName : '?'}×${s.count}${s.sequence === undefined ? '' : `(${s.sequence.filter((x) => !x.matched).length}✗)`}`).join(','),
+      cards: batch?.cards.map((c) => c.name).join(','),
+      discarded: copy.projectDeck.discardPile.slice(discardBefore).map((c) => c.name).join(','),
+      census: (copy.getPlayerById(p2.id).playedCards.get(CardName.MARTIAN_CENSUS) as IProjectCard | undefined)?.resourceCount,
+    };
+    if (!facts.olympusFirst || !facts.playable || facts.ruling !== PartyName.SCIENTISTS || facts.top !== SCIENTIFIC_JOURNEY.join(',') ||
+        facts.candidates !== CardName.MARTIAN_CENSUS || facts.batches !== 1 ||
+        facts.segments !== `${CardName.OLYMPUS_CONFERENCE}×1,${CardName.SCIENTIFIC_BREAKTHROUGH}×2(2✗)` ||
+        facts.cards !== [CardName.ALGAE, CardName.RESEARCH, CardName.PHYSICS_COMPLEX].join(',') ||
+        facts.discarded !== [CardName.COMET, CardName.FISH].join(',') || facts.census !== 1) {
+      throw new Error(`the sb-olympus fixture expected ONE batch «Olympus ×1 · Scientific Breakthrough ×2 (2 rejects)» — got ${JSON.stringify(facts)}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
 // ── TR49 CUTTING-EDGE DESIGN — the ONE-PLAY class (docs/claude/prompts/project-tr49-cutting-edge-design.md). Blue's action
 //    phase, the SCIENTISTS enacted (the card's plate), red at a pinned corporation with no first action:
 //      · `cutting-edge-design`        — −20 °C / 2 % O₂, 60 M€; the hand: TR49 (playable), Lake Marineris (0 °C — short),
@@ -4396,6 +4463,42 @@ parliamentFixture('habitat-science', {
         ledger.join(',') !== [ColonyName.LUNA, ColonyName.MIRANDA, ColonyName.PLUTO, ColonyName.TITAN].join(',') ||
         game.colonies.length !== 4 || parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
       throw new Error(`the habitat-science fixture expected the card in play with 4 data and a live action, 20 M€, a hand of 3, the ledger Luna · Miranda · Pluto · Titan and the Industrialists ruling — got data=${card?.resourceCount} canAct=${card?.canAct(p1)} mc=${p1.megaCredits} hand=${p1.cardsInHand.length} ledger=${ledger.join(' · ')} ruling=${parliament.rulingParty()}`);
+    }
+    parliament.assertLedger(game);
+  },
+});
+
+// ── habitat-science-pluto2: «ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» Ф4 — THE SEALED PLACE in the ledger (2026-10-26). Blue holds
+//    TWO cubes on Pluto (and one on Luna): Habitat Science's action pays Luna, then Pluto's TWO pairs «draw 1, then
+//    discard 1» — the second place lies sealed on the table from the first pair's deal and turns in place when its
+//    turn comes. A hand of four, so both discards ask. ──
+parliamentFixture('habitat-science-pluto2', {
+  stopAt: 'vote',
+  megacredits: [20, 30],
+  arrange: ({game, p1, p2, parliament}) => {
+    seatEnacted(parliament, CENTRAL_POWER_GRID_ID);
+    const luna = new Luna();
+    const pluto = new Pluto();
+    for (const colony of [luna, pluto]) {
+      colony.isActive = true;
+    }
+    game.colonies = [luna, pluto];
+    luna.colonies.push(p1.id, p2.id);
+    pluto.colonies.push(p1.id, p1.id);
+    const card = new HabitatScience();
+    card.resourceCount = 4;
+    p1.playedCards.push(card);
+    while (p1.cardsInHand.length < 4) {
+      p1.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+    }
+    p1.cardsInHand.length = 4;
+  },
+  expect: ({game, p1, parliament}) => {
+    const card = p1.playedCards.get(CardName.HABITAT_SCIENCE) as HabitatScience | undefined;
+    const ledger = card === undefined ? [] : (card.actionPreview(p1).branches[0].colonyBonuses?.entries ?? []).map((e) => `${e.colony}×${e.cubes}`);
+    if (card === undefined || !card.canAct(p1) || p1.cardsInHand.length !== 4 || ledger.join(',') !== `${ColonyName.LUNA}×1,${ColonyName.PLUTO}×2` ||
+        game.colonies.length !== 2 || parliament.rulingParty() !== PartyName.INDUSTRIALISTS) {
+      throw new Error(`the habitat-science-pluto2 fixture expected the card live with Luna ×1 · Pluto ×2 and a hand of 4 — got ${ledger.join(',')} hand=${p1.cardsInHand.length}`);
     }
     parliament.assertLedger(game);
   },

@@ -21,7 +21,8 @@
        :role="embedded ? 'group' : 'dialog'" :aria-label="titleText"
        :data-motion-surface="embedded ? undefined : 'reveal'"
        :data-motion-variant="embedded ? undefined : (headless ? 'headless' : mode)"
-       :data-settlement-table="tableNonce">
+       :data-settlement-table="tableNonce"
+       :data-settlement-turn="tableTurn">
     <!--
       SINGLE-CARD drawn reveal is HEADLESS: the received card IS the reveal,
       shown DIRECTLY in the fullscreen viewer (auto-opened). Nothing renders
@@ -227,8 +228,11 @@
                      :data-settlement-place="tableOn ? zone.index : undefined"
                      :data-settlement-paint="tableOn ? placePaint(zone) : undefined">
                   <span class="con-reveal__bonus-zone-label">
-                    {{ $t('Colony bonus') }}
-                    <b v-if="zone.total > 1">{{ zone.index }}/{{ zone.total }}</b>
+                    <template v-if="questionTable">{{ questionName }}</template>
+                    <template v-else>
+                      {{ $t('Colony bonus') }}
+                      <b v-if="zone.total > 1">{{ zone.index }}/{{ zone.total }}</b>
+                    </template>
                   </span>
 
                   <!-- ═══ THE SETTLEMENT TABLE (colony polish 1) — every place is ONE physical card body, keyed by its
@@ -595,7 +599,7 @@ import ConsoleRevealVerdict from '@/client/components/console/foundation/Console
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {availabilityContextFor, buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
 import {focusKicker} from '@/client/console/consoleActionFlow';
-import {revealSourceForeignToClaim, setWorkspaceOutcomePhase, workspaceClaimsRevealBatch, workspaceOutcomeArrivalPending, workspaceOutcomeState, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
+import {markWorkspaceOutcomeArrivalDone, revealSourceForeignToClaim, setWorkspaceOutcomePhase, workspaceClaimsRevealBatch, workspaceOutcomeArrivalPending, workspaceOutcomeState, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
 import {
   DrawnCardEntry, closeAndReleaseEvent, currentRevealEvent, holdRevealForFollowUp, markAllTaken,
@@ -641,12 +645,13 @@ import {colonyResolutionUi, noteColonyBonusFresh} from '@/client/console/colonyT
 import {cardArrivalTimings, reducedCardArrivalTimings, sealedRevealPlan} from '@/client/console/consoleCardArrival';
 import {
   breakSettlementSeal, noteSettlementDealt, noteSettlementFocusSealed, noteSettlementIncome, noteSettlementPresented,
-  noteSettlementTaken, oweSettlementTurn, releaseSettlementDeck, sealedPlaceReading, sealOpensAfter,
+  noteSettlementTaken, oweSettlementTurn, questionArrival, questionSealReading, questionZones, releaseSettlementDeck,
+  sealedPlaceReading, sealOpensAfter,
   setSettlementTurnPhase, settlementArrival, settlementPlacePaint, SettlementPlaceCard, SettlementPlacePaint,
-  settlementPlacesToDeal, settlementSealStands, settlementTable, startSettlementSealBreak,
+  settlementPairOf, settlementPlacesToDeal, settlementSealStands, settlementTable, startSettlementSealBreak,
 } from '@/client/console/colonyTrade/settlementTable';
 import {cardDiscardState} from '@/client/console/cardDiscard/cardDiscardState';
-import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
+import {cardDiscardAskedBy, cardDiscardSettlementPair} from '@/client/console/cardDiscard/consoleCardDiscard';
 
 /**
  * THE SETTLEMENT TABLE's place bodies + their running turns — DOM/GSAP handles, never reactive state (one instance
@@ -888,8 +893,20 @@ export default defineComponent({
       if (this.parked) {
         return true;
       }
+      // A QUESTION table (Ф4): the batch the question sealed and the answer's draw — one action root.
+      if (t.kind === 'question') {
+        return this.drawnEvent?.actionId !== undefined && this.drawnEvent.actionId === t.actionId;
+      }
       const src = this.drawnEvent?.source;
-      return src?.type === 'colony' && src.via === undefined && src.colonyName === t.colony;
+      return src?.type === 'colony' && (src.via ?? '') === t.via && src.colonyName === t.colony;
+    },
+    /** The table is a QUESTION's (Mars University's answer turning beside the play's own draw). */
+    questionTable(): boolean {
+      return this.tableOn && settlementTable.kind === 'question';
+    },
+    /** The asking card's name as the player reads it (the zone's label, the seal's condition). */
+    questionName(): string {
+      return this.questionTable ? translateText(settlementTable.askCard) : '';
     },
     /** Where the sequence stands: the server's marker when it is this batch's, else what the table remembers. */
     tableMeta(): ColonyBonusDiscardMeta | undefined {
@@ -903,6 +920,10 @@ export default defineComponent({
     tableNonce(): number | undefined {
       return this.tableOn ? settlementTable.nonce : undefined;
     },
+    /** The owed in-place turn as the e2e reads it («place:phase») — a probe, never a style hook. */
+    tableTurn(): string | undefined {
+      return this.tableOn ? `${settlementTable.turnPlace}:${settlementTable.turnPhase}` : undefined;
+    },
     /**
      * THE INCOME SOCKETS of a settlement table: the first payout's income cards keep their places for the whole
      * resolution — taken, a card leaves its EMPTY socket (never its back, never a re-centred row); in a later
@@ -915,7 +936,8 @@ export default defineComponent({
       }
       const e = this.drawnEvent;
       const out: Array<{key: string, entry?: StripEntry, taken: boolean}> = [];
-      if (e !== undefined) {
+      // A question table's second batch is the PLACE's card — never an income socket.
+      if (e !== undefined && !this.questionPlaceBatch) {
         const segments = e.tradeSegments;
         const zoneBatch = segmentlessZoneBatch(e.source, segments, this.bonusDiscard, e.cards.length);
         // The live entries carry the UNTAKEN ordinal `drawnGrouped` gave them (focus + take order unchanged).
@@ -949,7 +971,7 @@ export default defineComponent({
       // Taken in THIS batch (its bonus index is in the taken set), or remembered taken across the park.
       const e = this.drawnEvent;
       const takenHere = e !== undefined && e.cards.some((_c, i) =>
-        e.takenIndices.has(i) && (revealWaveForIndex(e.tradeSegments, i, true) === 'bonus' ||
+        e.takenIndices.has(i) && (this.questionPlaceBatch || revealWaveForIndex(e.tradeSegments, i, true) === 'bonus' ||
           segmentlessZoneBatch(e.source, e.tradeSegments, this.bonusDiscard, e.cards.length)));
       return takenHere || settlementTable.taken.includes(meta.index) ? 'taken' : 'absent';
     },
@@ -973,7 +995,13 @@ export default defineComponent({
     /** The sealed place's status line («Бонус колонии 2 из 2 · откроется после сброса за бонус 1»). */
     focusedSealedReading(): string {
       const place = this.focusedSealedPlace;
-      return place === 0 ? '' : readingText(sealedPlaceReading(place, this.tableMeta?.total ?? settlementTable.total));
+      return place === 0 ? '' : readingText(sealedPlaceReading(place, this.tableMeta?.total ?? settlementTable.total,
+        this.questionTable ? this.questionName : undefined));
+    },
+    /** The batch on screen is a question table's ANSWER (the place's card), not the batch the question sealed. */
+    questionPlaceBatch(): boolean {
+      const e = this.drawnEvent;
+      return this.questionTable && settlementTable.index >= 1 && e !== undefined && e.id !== settlementTable.askBatch;
     },
     /** A sealed place's card is turning over (or owes its turn): nothing on it may be acted upon yet. */
     placeTurnBusy(): boolean {
@@ -1054,7 +1082,9 @@ export default defineComponent({
         host: this.embedded ? 'embedded' : 'scene',
         cards: e?.cards.length ?? 0,
         search: e?.search !== undefined,
-        table: this.tableOn ? {income: this.tableIncome.length, total: this.tableMeta?.total ?? 0} : undefined,
+        // A QUESTION's table keeps the plain head (the batch's causes) — the colony reading («доход торговли · карта за
+        // поселение», the «ПОСЕЛЕНИЙ N» badge) is the colony table's own.
+        table: this.tableOn && !this.questionTable ? {income: this.tableIncome.length, total: this.tableMeta?.total ?? 0} : undefined,
         source: this.drawnSource,
         // THE CAUSES (`segments`): a merged batch names every one with its share, in both hosts.
         segments: e?.segments,
@@ -1103,6 +1133,11 @@ export default defineComponent({
      * trade segments is all-income — no zone renders.
      */
     drawnGrouped(): {income: Array<StripEntry>, bonus: Array<StripEntry>} {
+      // A QUESTION table (Ф4): the sealed batch's cards are the strip, the answer's draw is the place's card.
+      if (this.questionTable) {
+        const entries = this.drawnUntaken.map((u, pos) => ({card: u.card, index: u.index, pos}));
+        return this.questionPlaceBatch ? {income: [], bonus: entries} : {income: entries, bonus: []};
+      }
       const segments = this.drawnEvent?.tradeSegments;
       // The zone renderer below draws the bonus wave ONLY for a per-colony
       // discard sequence; without it a bonus card is an ordinary card of the
@@ -1257,7 +1292,7 @@ export default defineComponent({
         untakenCount: this.drawnUntaken.length,
         ownedNow: this.workspaceOwnsBatch,
         ownedEver: this.ownedBatchKey !== '' && this.ownedBatchKey === this.revealKey,
-        hasClosingStep: this.bonusDiscard !== undefined,
+        hasClosingStep: this.closingStepOwed,
       };
     },
     /**
@@ -1286,12 +1321,26 @@ export default defineComponent({
       // parked demand, not this reveal's closing step — see
       // `bonusDiscardOwnsBatch` for the four surfaces that read it and the
       // freeze the unscoped read caused on the take path.
-      const meta = this.playerView.waitingFor?.discardPrompt?.colonyBonus;
+      // A trade's pair or a CARD's (Ф4 — the ledger's Pluto pairs, `colonyRepeat` with the card as the source).
+      const meta = settlementPairOf(this.playerView.waitingFor)?.meta;
       return bonusDiscardOwnsBatch(meta, this.drawnEvent?.source) ? meta : undefined;
+    },
+    /**
+     * THE PAIR IS A CARD'S (Ф4 — the ledger's Pluto pairs, `via`): the table's grammar (the places, the seals, the
+     * in-place turn) is the same, but the CLOSING STEP is not this surface's — the take IS the step and the action
+     * workspace opens its own hand step right after it (TR23: `payoutDiscardDue` → `openLedgerDiscardStep`). A
+     * «Сбросить карту» button here would be a second door to the same hand.
+     */
+    ledgerPair(): boolean {
+      return this.bonusDiscard !== undefined && (settlementPairOf(this.playerView.waitingFor)?.via ?? '') !== '';
+    },
+    /** The modal hosts the payout's closing step — a TRADE's pair only (the ledger's hands over at the take). */
+    closingStepOwed(): boolean {
+      return this.bonusDiscard !== undefined && !this.ledgerPair;
     },
     /** The closing step — ONE shared derivation with the shell's command bar. */
     discardStep(): BonusDiscardStep | undefined {
-      return bonusDiscardStep(this.bonusDiscard, this.drawnUntaken.length);
+      return this.closingStepOwed ? bonusDiscardStep(this.bonusDiscard, this.drawnUntaken.length) : undefined;
     },
     /**
      * Ready to hand over: every card on the table has been taken.
@@ -1308,6 +1357,9 @@ export default defineComponent({
     bonusZones(): ReadonlyArray<BonusZone> {
       // A SETTLEMENT TABLE lays its places out from the sequence it remembers even with no batch on screen (parked):
       // the places are the table, not decorations of one batch.
+      if (this.questionTable) {
+        return questionZones(settlementTable);
+      }
       return bonusZones(this.tableOn ? this.tableMeta : this.bonusDiscard);
     },
     /**
@@ -1734,7 +1786,15 @@ export default defineComponent({
       if (now <= was || !this.tableOn) {
         return;
       }
-      const meta = cardDiscardColonyBonus();
+      if (this.questionTable) {
+        // The question's own discard (Mars University's) touched down: the place's seal breaks.
+        if (cardDiscardAskedBy() === settlementTable.askCard) {
+          startSettlementSealBreak(1);
+        }
+        return;
+      }
+      // A trade's pair or a CARD's (Ф4 — the ledger's): the table's own reader, never the colony resolution's witness.
+      const meta = cardDiscardSettlementPair();
       if (meta !== undefined && meta.colonyName === settlementTable.colony && meta.index < meta.total) {
         startSettlementSealBreak(meta.index + 1);
       }
@@ -1991,6 +2051,9 @@ export default defineComponent({
       });
     },
     sealCondText(zone: BonusZone): string {
+      if (this.questionTable) {
+        return readingText(questionSealReading(this.questionName));
+      }
       return readingText({label: 'after the discard for bonus ${0}', params: [String(sealOpensAfter(zone.index))]});
     },
     setPlaceBodyRef(index: number, el: unknown): void {
@@ -2012,6 +2075,28 @@ export default defineComponent({
         return;
       }
       noteSettlementPresented();
+      if (this.questionTable) {
+        // THE QUESTION'S TABLE: the sealed batch lays the ONE place face-down beside its cards (no door deals it); the
+        // answer's draw — the next batch of the root — turns in that place, once.
+        if (!this.questionPlaceBatch) {
+          noteSettlementIncome(this.tableIncome.length);
+          noteSettlementDealt([1]);
+        } else {
+          const arrival = questionArrival(settlementTable);
+          if (arrival === 'turn') {
+            oweSettlementTurn(1);
+          } else {
+            noteSettlementDealt([1]);
+            settlementTable.turnPlace = 1;
+            settlementTable.turnPhase = 'done';
+            releaseSettlementDeck();
+            this.notePlaceLanded();
+          }
+        }
+        this.focusIdx = 0;
+        this.refreshDockReachable();
+        return;
+      }
       if (meta.index === 1) {
         noteSettlementIncome(this.tableIncome.length);
         // ONE GRAMMAR FOR EVERY DOOR: only the viewer's own trade has a cover scene to DEAL the later places from
@@ -2032,6 +2117,7 @@ export default defineComponent({
         settlementTable.turnPlace = meta.index;
         settlementTable.turnPhase = 'done';
         releaseSettlementDeck();
+        this.notePlaceLanded();
       }
       // The cursor lands on the card of THIS cycle (the batch's first untaken card).
       this.focusIdx = 0;
@@ -2044,6 +2130,17 @@ export default defineComponent({
      * perspective making it a turn and not a swap). The project deck answers in the SAME beat: its counter, held
      * since the draw, ticks −1 as the card starts to turn — the server took it from there just now.
      */
+    /**
+     * THE TABLE LANDED THIS BATCH'S CARD — the turn in place (or the honest «shown») is its arrival, and the workspace
+     * that claims the batch (the ledger's action, the hand's play) has nobody else to open its arrival gate for it:
+     * the deck layer stepped aside (`settlementClaimsBatch`) and the 5 s backstop is a failure path, not the schedule —
+     * «A Взять» was deaf until it ran (the sealed-ledger stand).
+     */
+    notePlaceLanded(): void {
+      if (workspaceClaimsRevealBatch(this.drawnEvent)) {
+        markWorkspaceOutcomeArrivalDone();
+      }
+    },
     async runPlaceTurn(place: number): Promise<void> {
       if (settlementTable.turnPlace !== place || settlementTable.turnPhase !== 'owed') {
         return;
@@ -2054,6 +2151,7 @@ export default defineComponent({
         // Nothing to turn (the place never rendered) — open it honestly, release the counter.
         setSettlementTurnPhase(place, 'done');
         releaseSettlementDeck();
+        this.notePlaceLanded();
         return;
       }
       // THE PLACE MUST BE STANDING — painted, opaque, still: the stage may still be coming back from the hand.
@@ -2082,6 +2180,7 @@ export default defineComponent({
           setSettlementTurnPhase(place, 'done');
           // The rest pose is CSS again (face-up = no transform) — hand back on the next frame, never a blank one.
           void this.$nextTick(() => gsap.set(body, {clearProps: 'transform'}));
+          this.notePlaceLanded();
         },
       });
       // The deck answers as the card starts to turn: the server drew it from there just now.
@@ -3022,9 +3121,10 @@ export default defineComponent({
         markCardTaken(e.id, entry.index);
         holdRevealForFollowUp(e.id);
         void this.$nextTick(() => {
-          if (this.bonusDiscard !== undefined) {
+          if (this.closingStepOwed) {
             return; // the closing step (openDiscardPick) owns the release
           }
+          this.noteLedgerPairTaken();
           releaseRevealFollowUp();
           closeAndReleaseEvent(this.playerView.id, e.id, () => undefined);
           this.$emit('drawn-complete');
@@ -3165,6 +3265,30 @@ export default defineComponent({
      * of announcing the prompt a second time — from the player's side the same
      * payout simply continues into "now choose what goes".
      */
+    /**
+     * A LEDGER PAIR'S TAKE (Ф4): what the trade's closing step remembers at its press, remembered at the take —
+     * the table's place went into the hand (its socket keeps the ✓ through the hand's step) and the hand will mark
+     * the card the pair just brought in («НОВАЯ · БОНУС N»). No-op for every other batch.
+     */
+    noteLedgerPairTaken(): void {
+      const e = this.drawnEvent;
+      // A QUESTION table's answer taken: its one place is done (the table ends with it — the shell clears it).
+      if (this.questionPlaceBatch) {
+        noteSettlementTaken(1);
+        return;
+      }
+      const meta = this.bonusDiscard;
+      if (e === undefined || meta === undefined || !this.ledgerPair) {
+        return;
+      }
+      if (this.tableOn) {
+        noteSettlementTaken(meta.index);
+      }
+      const zoneBatch = segmentlessZoneBatch(e.source, e.tradeSegments, meta, e.cards.length);
+      noteColonyBonusFresh(meta.colonyName, meta.index, e.cards
+        .filter((_card, i) => zoneBatch || revealWaveForIndex(e.tradeSegments, i, true) === 'bonus')
+        .map((card) => card.name));
+    },
     openDiscardPick(): void {
       const e = this.drawnEvent;
       if (e === undefined || !this.discardStepReady) {
@@ -3214,9 +3338,10 @@ export default defineComponent({
         markAllTaken(e.id);
         holdRevealForFollowUp(e.id);
         void this.$nextTick(() => {
-          if (this.bonusDiscard !== undefined) {
+          if (this.closingStepOwed) {
             return; // the closing step (openDiscardPick) owns the release
           }
+          this.noteLedgerPairTaken();
           releaseRevealFollowUp();
           closeAndReleaseEvent(this.playerView.id, e.id, () => undefined);
           this.$emit('drawn-complete');

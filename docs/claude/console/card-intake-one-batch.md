@@ -29,14 +29,22 @@ stood between two draws.
   behind the other rows and would otherwise land in Miranda's take (`console-habitat-science`, 2026-10-26).
 - **R4 · a search is a segment** — its tape (`sequence` / `search` / `exhausted`) rides the segment; the batch-level
   twins cover the whole batch in dealing order (a plain run beside a search reads as its matched steps), so the
-  one-tape search scene still replays honestly. (The assembly scene plays plain merged batches only — a merged batch
-  WITH discards keeps the search theatre; its per-segment tape is the next iteration.)
+  one-tape search scene still replays honestly. **The SEARCH RUN of a merged batch plays on its OWN tape** (2026-10-26):
+  exactly one segment with rejects beside plain runs (`intakeSearchRun`) → the deck layer's MIXED scene — the runs
+  BEFORE it deal from their own places through the assembly (`playAssemblyRuns(…, {untilCard})`, the overlay already
+  veiled, the frame cued on the first approach), the search run is judged on its segment's tape (its rejects alone
+  go to the pile — `SceneStep.tail` marks the other runs' flyers, `cardProxyIndex` maps a card to its flyer), its finds
+  assemble into the run's own slots (`assembleReveal` → the span), the runs AFTER it follow (`finishMixedSearch`), and
+  every flyer dissolves over the real cards at once. Two searches in one press, or a search alone, keep the one-tape
+  theatre. Stand: `console-draw-one-batch-search-tape` (fixture `sb-olympus` — Olympus' card dealt first from its face,
+  the search judged with its two rejects, one reveal of three).
 - **R5 · a foreign action's draw is its own channel** — `ExternalDrawIntake` never merges with a batch (different
   root by construction).
 - **R6 · the seal is read, not waited for** — `pendingAnswer` names what the open batch waits on (`{kind: 'discard' |
   'question', card?, colony?, ordinal?}`), set at `setWaitingFor` off the prompt's structural markers (`discardPrompt`,
-  `choiceContext`), cleared when the question is answered (`Player.process`) or when a draw merges in. The sealed
-  place (the settlement table's grammar for the whole fork) is Ф4 — not built yet; the server side is ready.
+  `choiceContext`), cleared when the question is answered (`Player.process`) or when a draw merges in. A question
+  whose answer MAY DRAW (an option exchanging a discard for cards — Mars University) carries `draws: true`: the
+  console lays a sealed place for the answer's card on that flag alone (a colony pick, a target seal without one).
 - **R7 · a batch presents where its ROOT is** — a workspace claims a batch when ANY segment is its
   (`workspaceClaimsRevealBatch` / `…DrawRevealBatch` / `…ColonyRevealBatch` over `intakeBatchSources`); a park holds a
   batch by its ROOT (the first segment's source — `ConsoleShell.revealBatchParked`), and the board-beat park never holds
@@ -87,15 +95,67 @@ e2e: `console-draw-one-batch-play-table.spec.ts` (Ф-А on the `mu-olympus` fixt
 wire with two segments and one root, the head's two causes, the Olympus face surfaced beside the row and never over a
 slot, the stage card never surfaced, one crumb); `console-table-question-defer` (B) reads the merged batch.
 
-## Not built yet (the next iterations of the same law)
+## Ф4 — THE SEALED PLACE is the fork's grammar (2026-10-26, both hosts)
 
-- **Ф4 — the sealed place** (`cardIntake/sealedPlaces.ts`): the settlement table's grammar out of `colonyTrade/` for
-  every host (Mars University's deferred question, a card's Pluto pairs, RX07). The server already announces
-  `pendingAnswer` / `sealed`; the client glues the next batch of the same `actionId` to the place.
-- **Ф5 — one channel**: `ExternalDrawIntake` as a `CardIntakeBatch {mandatory}` presented by the assembly director
-  (`source-seat` origin); RX07 one intake per PLAYER with per-tile segments (today one per tile).
-- **Ф3 (2)**: the composer's own arrival playing the assembly; a tile run under a covered board from the L3 peek
-  (today: the deck, named `board-covered`); the search segment's own tape in a merged batch.
+The settlement table (`colonyTrade/settlementTable.ts` — ONE physical object: a place per owed card, a face-down card
+under a SEAL whose condition reads as words, the seal breaking on the touchdown of what it waited for, the card
+turning IN PLACE once, one instance for the whole press, parked under the step that answers) now stands for every
+host of a sealed batch, keyed by `kind`:
+- **`colony`** — a colony's pairs («draw 1, then discard 1» per settlement): the trade's own table (`via: ''`) and
+  **a CARD's** (Habitat Science's «all your colony bonuses» — `via` = the paying card; the discard marked
+  `colonyRepeat` with the card as its source, `settlementPairOf` reads both). The card's table stands in the ledger's
+  own zone (`.con-composer__ledgerzone`), parks under the action workspace's hand step (`settlementTableParked` →
+  `colonyBonusPayoutLive() && host === 'card-actions'`), the seal breaks on the ledger discard's touchdown
+  (the table's OWN reader `cardDiscardSettlementPair` — `colonyBonus` or `colonyRepeat`; `cardDiscardColonyBonus` stays the
+  trade's: every reader of it is the colony resolution's lifecycle, and a ledger discard read as the resolution's made it
+  «live» for the flight, its falling edge then clearing the table mid-turn), the table ends with the payout
+  (`finishColonyBonusPayout`).
+  **The ledger hosts NO closing step**: the take IS the step and the action workspace opens its hand right after
+  (TR23's `payoutDiscardDue` → `openLedgerDiscardStep`); the overlay's «Сбросить карту» button is a TRADE's only
+  (`ConsoleRevealOverlay.closingStepOwed` — `ledgerPair` hands over at the take, remembering the place as taken and
+  marking the hand's fresh card itself).
+- **`question`** — a card's QUESTION of the same press whose answer may draw (`pendingAnswer {kind: 'question',
+  draws: true}` — Mars University after the play's own draw): the sealed batch stands as the strip, ONE place lies
+  sealed beside it («Откроется после ответа «Марсианский университет»», the zone labelled by the asking card), the
+  table parks under the hand's album while the question is answered, the discard's touchdown breaks the seal
+  (`cardDiscardAskedBy`), and the answer's draw — the next batch of the same `actionId` — turns in the place
+  (`settlementClaimsBatch(source, batch)` claims it by root; the deck answers with the turn). Armed / advanced / ended
+  by ONE shell watcher off the batches and the standing prompt (`ConsoleShell.questionTableKey` — index 0 while the
+  question stands, 1 with the answer's batch, cleared when the question is gone with nothing drawn or its answer
+  taken). `armQuestionTable` · `questionZones` · `questionArrival` · `questionSealReading`.
+e2e: `console-draw-one-batch-sealed-ledger` (fixture `habitat-science-pluto2`: Luna ×1 · Pluto ×2 — one table, place 2
+sealed, the take opens the hand, the second pair turns in place, nothing flies twice);
+`console-draw-one-batch-sealed-question` (`mu-olympus` (A): the question table, the live album over it, the answer
+turning in place, the table gone with the take). Guards: `settlementTable.spec` § Ф4, `cardIntakeMerge.spec` § R3/R6
+(`draws`).
+
+## Ф5 — one channel (2026-10-26)
+
+- **A foreign action's draw leaves from ITS cause's own place.** `ExternalDrawIntake` stays its own channel (R5 — a
+  different root by construction; the server drew at the trigger, the cards wait in `pendingCardIntakes`), and its
+  take surface now deals the batch from the SOURCE SEAT — the effect card's face (or the enacted resolution's) standing
+  in `.con-extdraw__source`, from its printed draw icon where it has one (`ConsoleExternalDrawWorkspace.dealOrigin` →
+  `runBatchArrival({from})`); the HUD deck only when the seat is not painted. The deck's counter does not tick for it
+  (it fell at the trigger). Stands: `console-external-draw`, `console-parliament-colonial`.
+- **RX07 is one intake per PLAYER by construction.** The only plain-draw colony bonus in the fork is Miranda's
+  (`ColonyBenefit.DRAW_CARDS`); Pluto's pairs never merge by rule (a discard between the draws) and every other tile
+  pays no card. Miranda's k cubes are already ONE intake of k cards (`ColonialAffairs.drawStep`, the law of merging) —
+  so «per-tile segments» would describe a batch that cannot exist; the model stays one cause per intake.
+
+## Ф3 (2) — the composer's own arrival (2026-10-26)
+
+`ConsoleActionComposer.launchBeatAssembly`: the beat waits for the answer when the forecast promises the viewer a
+draw from a hook (`forecastPromisesDraw` — a `you`-recipient fact, exact or asked, gaining cards), and deals the merged
+batch run by run with its own trigger faces (`beatTriggers`, the SAME assembly director).
+
+## The one named degrade left
+
+- **A tile's run under a COVERED board** stays `board-covered` → the deck, named in the plan. The L3 peek of the paying
+  cell cannot host a deal: under the hand workspace the board section is `display: none` (the TR45 board peek re-lays
+  the board out as a LEVEL of the composer), so a mid-deal peek would mean un-hiding and re-fitting the board under a
+  flight into a receded workspace. The case arises only for a cell reached without the staged play (an auto-placed tile
+  from a reserved slot inside a workspace); the staged play lands every ordinary tile on a visible board. Owner's call.
+
 - **Ф6 — the audit** of every producer: `tests/intake/cardIntakeSourceCoverage.spec.ts` lists the imperative draw
   sites outside the card tree with their scope; a new site must declare its root.
 

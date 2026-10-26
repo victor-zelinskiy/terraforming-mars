@@ -112,7 +112,27 @@ export function isCardDiscardActive(): boolean {
  * the chosen card is still physically leaving the hand.
  */
 export function cardDiscardColonyBonus(): ColonyBonusDiscardMeta | undefined {
+  // The TRADE's pair only (`colonyBonus`): every reader of this is the colony RESOLUTION's lifecycle. A CARD's pair
+  // (`colonyRepeat` — the ledger's Pluto pairs, Ф4) is NOT the resolution's — read as its own, it made the resolution
+  // «live» for the discard's flight and its falling edge then cleared the ledger's settlement table mid-turn.
   return cardDiscardTransaction.active ? armed?.meta?.colonyBonus : undefined;
+}
+
+/**
+ * THE PAIR the running discard answers — a trade's (`colonyBonus`) OR a card's (`colonyRepeat`, Ф4): what a
+ * SETTLEMENT TABLE reads to break the next place's seal on this touchdown. Never a colony-resolution witness.
+ */
+export function cardDiscardSettlementPair(): ColonyBonusDiscardMeta | undefined {
+  return cardDiscardTransaction.active ? (armed?.meta?.colonyBonus ?? armed?.meta?.colonyRepeat) : undefined;
+}
+
+/**
+ * THE CARD WHOSE QUESTION the running discard answers (Mars University's «discard a card to draw one» — the prompt's
+ * own source), while the scene disposes of it; undefined otherwise. A QUESTION TABLE («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР»
+ * Ф4) breaks its place's seal on this discard's touchdown.
+ */
+export function cardDiscardAskedBy(): string | undefined {
+  return cardDiscardTransaction.active ? armed?.meta?.source?.card : undefined;
 }
 
 /**

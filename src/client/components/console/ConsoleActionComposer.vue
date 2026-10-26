@@ -891,6 +891,12 @@
              on the server, and why a late answer opens these very same cards
              instead of conjuring new ones. -->
         <template v-else>
+          <!-- THE TRIGGER CARDS of a merged batch («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР»): the card that answered the press
+               SURFACES beside the prepared row (a real lite face) and deals its card from its printed draw icon. -->
+          <div v-for="face in beatTriggers" :key="'bt' + face.key" class="con-deckdraw__trigger"
+               :data-dd-trigger="face.name" :ref="(el) => setBeatTriggerRef(el, face.run)">
+            <ConsoleCardFaceLite :name="face.name" />
+          </div>
           <div v-for="(face, i) in beatFaces" :key="'bp' + i" class="con-deal-proxy" ref="batchProxies">
             <div class="con-deal-proxy__flip" ref="batchFlips">
               <div class="con-deal-proxy__face">
@@ -1059,7 +1065,7 @@ import {choiceSourceView} from '@/client/console/promptSource';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 import type {ICardRenderEffect, ItemType} from '@/common/cards/render/Types';
 import {adoptDeckSeed, holdDeckDisplay, isDeckDisplayHeld, releaseDeckDisplay} from '@/client/console/consoleDeckDisplay';
-import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
+import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {armOutcomeOrigin, playConfigRelease, playOutcomeContent, playOutcomePhase, resetOutcomeOrigin} from '@/client/console/consoleActionOutcomeMotion';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
@@ -1089,6 +1095,11 @@ import {RevealResultModel} from '@/common/models/RevealResultModel';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {runActionRevealFlight, runRevealGainFlight, ActionRevealFlightHandle, RevealGainFlightHandle} from '@/client/console/consoleActionRevealMotion';
 import {BatchArrivalHandle, runBatchArrival, settleBatchProxiesOnto} from '@/client/console/consoleBatchArrivalMotion';
+import {intakeAssemblyOwnsBatch} from '@/client/console/cardIntake/intakeAssemblyPlan';
+import {IntakeAssemblyHandle, IntakeTriggerFace, planAssemblyFor, playIntakeAssembly} from '@/client/console/cardIntake/intakeAssemblyDirector';
+
+/** The merged batch's assembly in flight (module scope — a GSAP handle never rides Vue reactivity). */
+let composerAssembly: IntakeAssemblyHandle | undefined;
 import {probeTick} from '@/client/console/probeTick';
 import {resolveCardArrivalMode} from '@/client/console/consoleCardArrival';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
@@ -1507,6 +1518,9 @@ export default defineComponent({
       /** The surface took the zone while cards were still opening — hand over
        *  the moment the arrival settles (never cut a turn mid-way). */
       beatHandoffPending: false,
+      /** The assembly scene's trigger faces (one per `card`-origin run of a MERGED batch) and their elements. */
+      beatTriggers: [] as Array<IntakeTriggerFace>,
+      beatTriggerRefs: {} as Record<number, HTMLElement | null>,
       /** The live flight handle (payload release + abort). */
       revealHandle: undefined as ActionRevealFlightHandle | undefined,
       /** The stored-resource count CAPTURED when the reveal phase opened —
@@ -6730,12 +6744,33 @@ export default defineComponent({
         holdDeckDisplay(this.playerView.game.deckSize);
       }
     },
-    /** The beat's draw is a SEARCH (its chip carries the server's rule) and the answer is not in yet. */
+    /**
+     * The beat's draw is a SEARCH (its chip carries the server's rule) and the answer is not in yet — or THE TABLE
+     * MAY ANSWER THE PRESS WITH A DRAW («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР»: the forecast promises the viewer cards from a
+     * hook), so the batch may be MERGED and its size and causes are known only with the answer; the beat then waits
+     * (the same bounded net) and plays the assembly scene — the trigger cards surfacing beside the row — instead of
+     * flying the promised count alone and letting the rest appear at the handoff.
+     */
     beatAwaitsSearchAnswer(): boolean {
       if (workspaceOutcomeState.answerIn || this.beatSearchNetSpent) {
         return false;
       }
-      return (this.selectedBranch?.effects ?? []).some((e) => e.search !== undefined);
+      return (this.selectedBranch?.effects ?? []).some((e) => e.search !== undefined) || this.forecastPromisesDraw();
+    },
+    /** The forecast names a hook that will draw the viewer cards on this press (exact or asked — either may add a run). */
+    forecastPromisesDraw(): boolean {
+      const f = this.forecast;
+      if (f === undefined) {
+        return false;
+      }
+      const position = this.positions.length === 1 ? this.positions[0] : undefined;
+      const facts = [...f.facts, ...(position !== undefined ? (f.byBranch?.[position] ?? []) : [])];
+      return facts.some((fact) => fact.recipient.kind === 'you' &&
+        (fact.certainty === 'exact' || fact.certainty === 'asks') &&
+        fact.effects.some((e) => e.direction === 'gain' && e.icon === 'cards'));
+    },
+    setBeatTriggerRef(el: unknown, run: number): void {
+      this.beatTriggerRefs[run] = (el as HTMLElement | null) ?? null;
     },
     clearBeatAnswerNet(): void {
       if (this.beatAnswerNet !== undefined) {
@@ -6784,6 +6819,15 @@ export default defineComponent({
       // branch above), so an arriving surface that would otherwise deal its own
       // batch off the same pile adopts these instead of doubling them.
       markWorkspaceOutcomeArrivalFlown();
+      // A MERGED batch («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР»): the answer is in (the beat waited for it), every card has a
+      // slot — the ONE assembly director deals it run by run: this card's own run off the deck, every hook's run
+      // from its own face surfacing beside the row.
+      const merged = currentRevealEvent();
+      if (workspaceOutcomeState.answerIn && merged !== undefined && intakeAssemblyOwnsBatch(merged) &&
+          workspaceClaimOwnsArrival(merged) && cards.length === merged.cards.length && mode === 'in-flight-reveal') {
+        this.launchBeatAssembly(merged, cards, slots);
+        return;
+      }
       this.beatHandle = runBatchArrival({
         cards, slots, mode,
         // The first card is visibly out of the pile — the counter may now tell
@@ -6815,6 +6859,43 @@ export default defineComponent({
         this.beatHandle.notifyPayload();
       }
     },
+    /** The merged batch's assembly on the prepared stage (the composer is the host: its proxies, its slots, its triggers). */
+    launchBeatAssembly(e: DrawnCardEntry, cards: ReadonlyArray<{proxy: HTMLElement, flip: HTMLElement}>, slots: ReadonlyArray<HTMLElement>): void {
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const host = {
+        stageRect: () => {
+          const r = (root?.closest('.con-ws') ?? root)?.getBoundingClientRect();
+          return r !== undefined && r.width > 200 ? {left: r.left, top: r.top, width: r.width, height: r.height} :
+            {left: 0, top: 0, width: window.innerWidth, height: window.innerHeight};
+        },
+        triggerEl: (run: number) => this.beatTriggerRefs[run] ?? null,
+        // The board is under this workspace — a cell's run comes off the deck (named `board-covered`).
+        cellIconRect: () => undefined,
+      };
+      const {plan, triggers} = planAssemblyFor(e.segments, host, workspaceOutcomeState.sourceCard);
+      this.beatTriggers = triggers;
+      preloadPremiumCardArt(triggers.map((f) => f.name));
+      void this.$nextTick(() => {
+        if (!this.beatFlightOn) {
+          return;
+        }
+        composerAssembly?.kill();
+        composerAssembly = playIntakeAssembly({
+          plan, pairs: cards, slots, host,
+          alive: () => this.beatFlightOn,
+          onDeckDeparted: () => releaseDeckDisplay(),
+          onDone: () => {
+            composerAssembly = undefined;
+            this.beatLanded = true;
+            this.beatTriggers = [];
+            markWorkspaceOutcomeBeatDone();
+            if (this.beatHandoffPending) {
+              this.handOffBeatBatch();
+            }
+          },
+        });
+      });
+    },
     /** Cancel a scheduled commit-delayed beat launch (abort / unmount). */
     clearBeatDelay(): void {
       if (this.beatDelayTimer !== undefined) {
@@ -6844,7 +6925,7 @@ export default defineComponent({
         markWorkspaceOutcomeArrivalDone();
         return;
       }
-      if (this.beatHandle !== undefined) {
+      if (this.beatHandle !== undefined || composerAssembly !== undefined) {
         this.beatHandoffPending = true;
         return;
       }
@@ -6910,6 +6991,9 @@ export default defineComponent({
       releaseDeckDisplay();
       this.beatHandle?.kill();
       this.beatHandle = undefined;
+      composerAssembly?.kill();
+      composerAssembly = undefined;
+      this.beatTriggers = [];
       this.beatHandoffPending = false;
       this.beatFlightOn = false;
       this.beatLanded = false;

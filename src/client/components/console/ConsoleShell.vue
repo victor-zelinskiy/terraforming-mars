@@ -1857,7 +1857,7 @@ import {
   setColonyDiscardStage,
 } from '@/client/console/colonyTrade/colonyResolution';
 import {colonyStepCrumbParts, colonyTradeEntryLocked} from '@/client/console/colonyTrade/colonyTradeEntry';
-import {armSettlementTable, clearSettlementTable, settlementStageText, settlementTable} from '@/client/console/colonyTrade/settlementTable';
+import {armQuestionTable, armSettlementTable, clearSettlementTable, settlementPairOf, settlementStageText, settlementTable} from '@/client/console/colonyTrade/settlementTable';
 import {discardPhaseInOverlay} from '@/client/console/cardDiscard/discardModel';
 import {
   DiscardIntent, deriveDiscardIntent, discardMetaOf, discardPickedTags,
@@ -3443,17 +3443,46 @@ export default defineComponent({
      */
     /** The pending colony-bonus discard's ordinal as a VALUE key (the table arms on it — `settlementMarkerKey` watcher). */
     settlementMarkerKey(): string {
-      const meta = colonyBonusDiscardOf(this.playerView.waitingFor);
-      return meta === undefined ? '' : `${meta.colonyName}|${meta.index}|${meta.total}`;
+      const pair = settlementPairOf(this.playerView.waitingFor);
+      return pair === undefined ? '' : `${pair.meta.colonyName}|${pair.meta.index}|${pair.meta.total}|${pair.via}`;
+    },
+    /**
+     * THE QUESTION TABLE'S FACTS as a VALUE key («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» Ф4, host 2): the batch a card's
+     * question sealed (`pendingAnswer.kind === 'question'` — Mars University after the play's own draw), the next
+     * batch of the same action root (the answer's draw), and whether the question still stands. The watcher arms /
+     * advances / ends the table on it — pre-flush, like the colony marker's.
+     */
+    questionTableKey(): string {
+      const t = settlementTable;
+      const events = drawnCardsState.events;
+      const ask = [...events].reverse().find((e) => e.pendingAnswer?.kind === 'question' && e.pendingAnswer.draws === true &&
+        e.pendingAnswer.card !== undefined && e.actionId !== undefined);
+      const root = ask?.actionId ?? (t.kind === 'question' ? t.actionId : 0);
+      const askBatch = ask?.id ?? t.askBatch;
+      const askCard = ask?.pendingAnswer?.card ?? t.askCard;
+      const next = root === 0 ? undefined : events.find((e) => !e.dismissed && e.actionId === root && e.id !== askBatch);
+      const stands = root !== 0 && this.playerView.waitingFor?.choiceContext?.source?.card === askCard;
+      return `${ask?.id ?? 0}|${root}|${askCard}|${next?.id ?? 0}|${stands ? 1 : 0}|${isCardDiscardActive() ? 1 : 0}`;
     },
     settlementTableParked(): boolean {
       // …and only while a place is still OWED: once the last place's card is taken and its discard has handed the
       // room back, the table is finished — parked any longer it stood (empty sockets, «Взята · сброс за вами») under
       // the trade track coming back for the closing glide, two surfaces in one zone (colony polish 1, PL-187).
       const owed = settlementTable.taken.length < settlementTable.total || colonyResolutionUi.discardStage;
-      return settlementTable.nonce !== 0 && settlementTable.presented && owed &&
-        this.colonyResolutionLive &&
-        workspaceOutcomeState.host === 'colonies' && workspaceOutcomeState.embedSlot !== '';
+      if (settlementTable.nonce === 0 || !settlementTable.presented || !owed || workspaceOutcomeState.embedSlot === '') {
+        return false;
+      }
+      // A QUESTION's table (Ф4 host 2 — Mars University's answer beside the play's own draw) parks under the hand's
+      // album while the question is answered; the answer's draw turns in its place when the stage comes back.
+      if (settlementTable.kind === 'question') {
+        return workspaceOutcomeState.host === 'hand';
+      }
+      // A TRADE's table parks under the colony resolution's discard stage; a CARD's (Ф4 — Habitat Science's Pluto
+      // pairs, `via`) under the ledger's hand step in the action workspace — the same table, the same park.
+      if (settlementTable.via !== '') {
+        return colonyBonusPayoutLive() && workspaceOutcomeState.host === 'card-actions';
+      }
+      return this.colonyResolutionLive && workspaceOutcomeState.host === 'colonies';
     },
     /** A console blocking foreground surface is actively presenting (drives
      *  the lease): task host / start scene / gov-support panel / the dedicated
@@ -11056,9 +11085,42 @@ export default defineComponent({
       immediate: true,
       flush: 'pre',
       handler(): void {
-        const meta = colonyBonusDiscardOf(this.playerView.waitingFor);
-        if (meta !== undefined && meta.total > 1) {
-          armSettlementTable(meta.colonyName, meta.total, meta.index);
+        const pair = settlementPairOf(this.playerView.waitingFor);
+        if (pair !== undefined && pair.meta.total > 1) {
+          armSettlementTable(pair.meta.colonyName, pair.meta.total, pair.meta.index, pair.via);
+        }
+      },
+    },
+    /**
+     * THE QUESTION TABLE arms on the batch a question SEALED (index 0 — the place lies sealed beside the batch's
+     * cards), advances when the answer's draw is on the wire (index 1 — the place's card turns), and ENDS when the
+     * question is gone with nothing drawn for it (a decline) or its answer taken. Pre-flush: the deck layer's verdict
+     * (a later job) already knows the answer's batch is the table's.
+     */
+    questionTableKey: {
+      immediate: true,
+      flush: 'pre',
+      handler(): void {
+        const t = settlementTable;
+        const events = drawnCardsState.events;
+        // Only a question whose answer may DRAW lays a place (a colony pick, a target seal the batch without one).
+        const ask = [...events].reverse().find((e) => e.pendingAnswer?.kind === 'question' && e.pendingAnswer.draws === true &&
+          e.pendingAnswer.card !== undefined && e.actionId !== undefined);
+        if (ask !== undefined && ask.actionId !== undefined && ask.pendingAnswer?.card !== undefined) {
+          armQuestionTable(ask.actionId, ask.pendingAnswer.card, ask.id, 0);
+          return;
+        }
+        if (t.nonce === 0 || t.kind !== 'question') {
+          return;
+        }
+        const next = events.find((e) => !e.dismissed && e.actionId === t.actionId && e.id !== t.askBatch);
+        if (next !== undefined) {
+          armQuestionTable(t.actionId, t.askCard, t.askBatch, 1);
+          return;
+        }
+        const stands = this.playerView.waitingFor?.choiceContext?.source?.card === t.askCard;
+        if (!stands && !isCardDiscardActive()) {
+          clearSettlementTable();
         }
       },
     },
@@ -21193,6 +21255,11 @@ export default defineComponent({
       });
     },
     onRevealDiscardPick(): void {
+      // The LEDGER's pair (Ф4): the closing step is the action workspace's own hand step.
+      if (this.ledgerDiscardStepOwed) {
+        this.openLedgerDiscardStep();
+        return;
+      }
       const beat = this.mandatoryBeat;
       if (beat !== undefined) {
         acknowledgeMandatoryBeat(beat.key);

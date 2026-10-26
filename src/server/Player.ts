@@ -2255,6 +2255,12 @@ export class Player implements IPlayer {
     const asker = input.choiceContext?.source;
     if (asker?.card !== undefined) {
       last.pendingAnswer = {kind: 'question', card: asker.card};
+      // …and whether an ANSWER draws: an option that exchanges a discard for cards (Mars University). The console
+      // lays a sealed place for the answer's card only then.
+      const options = input instanceof OrOptions ? input.options : [input];
+      if (options.some((option) => option.discardPrompt?.exchange?.icon === 'cards')) {
+        last.pendingAnswer.draws = true;
+      }
     }
   }
 

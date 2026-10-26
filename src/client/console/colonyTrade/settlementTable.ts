@@ -25,7 +25,7 @@
  */
 
 import {reactive} from 'vue';
-import {ColonyBonusDiscardMeta} from '@/common/models/PlayerInputModel';
+import {ColonyBonusDiscardMeta, PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import {Reading, readingText} from '@/client/console/readingText';
 import {adoptDeckSeed, releaseDeckDisplay} from '@/client/console/consoleDeckDisplay';
@@ -41,6 +41,26 @@ export const settlementTable = reactive({
    */
   nonce: 0,
   colony: '',
+  /**
+   * THE CARD THAT PAYS the pairs OUTSIDE a trade («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» Ф4 — the sealed place is the fork's
+   * grammar): Habitat Science's «all your colony bonuses» pays Pluto's pairs through the card's own ledger, the
+   * server marks their discard `colonyRepeat` with the card as its source and the batches carry `via`. '' = a trade's
+   * table (the colony resolution's own).
+   */
+  via: '',
+  /**
+   * WHAT SEALS THE PLACES («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» Ф4 — the sealed place is the fork's grammar, not the colony
+   * trade's): `colony` — a colony's pairs («draw 1, then discard 1» per settlement, the marker's ordinal);
+   * `question` — a card's QUESTION of the same press (Mars University: «discard a card to draw one» asked after the
+   * play's own draw): the batch the question sealed stands as the table's income, ONE place lies sealed beside it
+   * («откроется после ответа «…»»), and the answer's draw — the next batch of the same action root — turns in it.
+   */
+  kind: 'colony' as 'colony' | 'question',
+  /** A question table's root (`CardDrawRevealModel.actionId`) and the card that asks (`pendingAnswer.card`). */
+  actionId: 0,
+  askCard: '',
+  /** The batch the question sealed (its id) — the next batch of the root is the place's card. */
+  askBatch: 0,
   /** How many places — the recipient's settlements on the tile (the marker's `total`). */
   total: 0,
   /** The place resolving now (the marker's `index`, remembered across the gap between two cycles). */
@@ -79,23 +99,51 @@ let nonceSeq = 0;
  * ARM (idempotent): a payout of `total` > 1 settlements stands on this colony. A table for another colony (or
  * none) starts a fresh instance; the same colony keeps its instance and only advances `index`.
  */
-export function armSettlementTable(colony: string, total: number, index: number): void {
+export function armSettlementTable(colony: string, total: number, index: number, via: string = ''): void {
   if (total <= 1 || colony === '') {
     return;
   }
-  if (settlementTable.nonce === 0 || settlementTable.colony !== colony) {
+  if (settlementTable.nonce === 0 || settlementTable.kind !== 'colony' || settlementTable.colony !== colony || settlementTable.via !== via) {
     clearSettlementTable();
     settlementTable.nonce = ++nonceSeq;
+    settlementTable.kind = 'colony';
     settlementTable.colony = colony;
+    settlementTable.via = via;
   }
   settlementTable.total = total;
   settlementTable.index = Math.max(1, Math.min(index, total));
 }
 
+/**
+ * ARM A QUESTION TABLE (idempotent): the batch `askBatch` of root `actionId` was sealed by `askCard`'s question. ONE
+ * place; `index` 0 while the question stands (the place lies sealed), 1 once the answer's draw is on the wire (the
+ * place's card turns). A different root starts a fresh instance.
+ */
+export function armQuestionTable(actionId: number, askCard: string, askBatch: number, index: 0 | 1): void {
+  if (actionId === 0 || askCard === '') {
+    return;
+  }
+  if (settlementTable.nonce === 0 || settlementTable.kind !== 'question' || settlementTable.actionId !== actionId) {
+    clearSettlementTable();
+    settlementTable.nonce = ++nonceSeq;
+    settlementTable.kind = 'question';
+    settlementTable.actionId = actionId;
+    settlementTable.askCard = askCard;
+    settlementTable.askBatch = askBatch;
+  }
+  settlementTable.total = 1;
+  settlementTable.index = Math.max(settlementTable.index, index);
+}
+
 /** The table ends with its resolution (the falling edge) — and on every reset boundary. */
 export function clearSettlementTable(): void {
   settlementTable.nonce = 0;
+  settlementTable.kind = 'colony';
+  settlementTable.actionId = 0;
+  settlementTable.askCard = '';
+  settlementTable.askBatch = 0;
   settlementTable.colony = '';
+  settlementTable.via = '';
   settlementTable.total = 0;
   settlementTable.index = 0;
   settlementTable.incomeSlots = 0;
@@ -165,10 +213,55 @@ export function noteSettlementTaken(place: number): void {
  * table's `index` is armed from the server's marker by the shell BEFORE any scene's watcher runs (pre-flush, a
  * lower uid), so it already names the cycle this batch belongs to.
  */
-export function settlementClaimsBatch(source: CardDrawRevealSource | undefined): boolean {
+export function settlementClaimsBatch(source: CardDrawRevealSource | undefined, batch?: {id: number, actionId?: number}): boolean {
   const t = settlementTable;
-  return t.nonce !== 0 && t.total > 1 && t.index > 1 &&
-    source?.type === 'colony' && source.via === undefined && source.colonyName === t.colony;
+  if (t.nonce === 0) {
+    return false;
+  }
+  if (t.kind === 'question') {
+    // The answer's draw: the next batch of the question's root (never the sealed batch itself), once the table has
+    // been on screen — a question nobody saw sealed has no place for the card to turn in.
+    return t.presented && t.index >= 1 && batch !== undefined && batch.actionId !== undefined &&
+      batch.actionId === t.actionId && batch.id !== t.askBatch;
+  }
+  return t.total > 1 && t.index > 1 &&
+    source?.type === 'colony' && (source.via ?? '') === t.via && source.colonyName === t.colony;
+}
+
+/** The ONE place of a question table: sealed while the question stands, active once the answer's draw is in. */
+export function questionZones(table: Pick<SettlementTableView, 'kind' | 'index'>): ReadonlyArray<{index: number, total: number, state: 'active' | 'sealed'}> {
+  if (table.kind !== 'question') {
+    return [];
+  }
+  return [{index: 1, total: 1, state: table.index >= 1 ? 'active' : 'sealed'}];
+}
+
+/** How the question's answer arrives in its place: a turn where the place lay sealed, simply shown otherwise. */
+export function questionArrival(table: Pick<SettlementTableView, 'kind' | 'dealt'>): SettlementArrival {
+  if (table.kind !== 'question') {
+    return 'door';
+  }
+  return table.dealt.includes(1) ? 'turn' : 'shown';
+}
+
+/**
+ * THE PAIR MARKER OF THE STANDING PROMPT — which colony's «draw 1, then discard 1» is being answered, «n of k»,
+ * and WHO pays it: a trade's (`colonyBonus`, the colony resolution's own) or a CARD's (`colonyRepeat` with the card
+ * as the prompt's source — Habitat Science's ledger). A resolution's pairs (RX07 — `colonyRepeat` with a resolution
+ * source) are the sitting's own channel and arm no table here.
+ */
+export function settlementPairOf(wf: PlayerInputModel | undefined): {meta: ColonyBonusDiscardMeta, via: string} | undefined {
+  const discard = wf?.discardPrompt;
+  if (discard === undefined) {
+    return undefined;
+  }
+  if (discard.colonyBonus !== undefined) {
+    return {meta: discard.colonyBonus, via: ''};
+  }
+  if (discard.colonyRepeat !== undefined && discard.source?.kind === 'card' && discard.source.card !== undefined) {
+    return {meta: discard.colonyRepeat, via: discard.source.card};
+  }
+  return undefined;
 }
 
 export function settlementTableStands(): boolean {
@@ -282,7 +375,10 @@ export function sealedPlacesOf(meta: ColonyBonusDiscardMeta | undefined): Array<
 
 /** What the table remembers about a place, read as the facts the surfaces need. */
 export type SettlementTableView = {
+  kind: 'colony' | 'question',
   colony: string,
+  /** The paying card ('' for a trade's table). */
+  via: string,
   total: number,
   index: number,
   dealt: ReadonlyArray<number>,
@@ -305,9 +401,10 @@ export type SettlementTableView = {
 export function settlementOwnsBatch(
   meta: ColonyBonusDiscardMeta | undefined,
   source: CardDrawRevealSource | undefined,
+  via: string = '',
 ): boolean {
   return meta !== undefined && meta.total > 1 && meta.index > 1 &&
-    source?.type === 'colony' && source.via === undefined && source.colonyName === meta.colonyName;
+    source?.type === 'colony' && (source.via ?? '') === via && source.colonyName === meta.colonyName;
 }
 
 /**
@@ -323,9 +420,9 @@ export type SettlementArrival = 'turn' | 'shown' | 'door';
 export function settlementArrival(
   meta: ColonyBonusDiscardMeta | undefined,
   source: CardDrawRevealSource | undefined,
-  table: Pick<SettlementTableView, 'colony' | 'dealt'>,
+  table: Pick<SettlementTableView, 'colony' | 'dealt'> & Partial<Pick<SettlementTableView, 'via'>>,
 ): SettlementArrival {
-  if (!settlementOwnsBatch(meta, source) || meta === undefined) {
+  if (!settlementOwnsBatch(meta, source, table.via ?? '') || meta === undefined) {
     return 'door';
   }
   return table.colony === meta.colonyName && table.dealt.includes(meta.index) ? 'turn' : 'shown';
@@ -403,9 +500,17 @@ export function settlementStageText(kind: 'bonus' | 'discard', meta: Pick<Colony
  * THE STATUS LINE OF A SEALED PLACE under the cursor (the owner's decision: focusable, read-only, no verb) —
  * English i18n keys with their params, rendered by the one reading renderer.
  */
-export function sealedPlaceReading(place: number, total: number): Reading {
+export function sealedPlaceReading(place: number, total: number, question?: string): Reading {
+  if (question !== undefined && question !== '') {
+    return {label: 'Opens after answering ${0}', params: [question]};
+  }
   return {
     label: 'Colony bonus ${0} of ${1} · opens after the discard for bonus ${2}',
     params: [String(place), String(total), String(sealOpensAfter(place))],
   };
+}
+
+/** The seal's condition under a question table's place («после ответа «Марсианский университет»»). */
+export function questionSealReading(question: string): Reading {
+  return {label: 'after answering ${0}', params: [question]};
 }

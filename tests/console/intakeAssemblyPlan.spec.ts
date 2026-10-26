@@ -4,7 +4,7 @@ import {GlobalParameter} from '../../src/common/GlobalParameter';
 import {CardIntakeSegment} from '../../src/common/models/CardDrawRevealModel';
 import {cardArrivalTimings, planCardArrival} from '../../src/client/console/consoleCardArrival';
 import {
-  intakeAssemblyOwnsBatch, intakeAssemblyTimings, intakeOriginOf, planIntakeAssembly, rowRectOf, triggerSeatRect,
+  intakeAssemblyOwnsBatch, intakeAssemblyTimings, intakeOriginOf, intakeSearchRun, planIntakeAssembly, rowRectOf, triggerSeatRect,
 } from '../../src/client/console/cardIntake/intakeAssemblyPlan';
 
 /**
@@ -24,6 +24,22 @@ describe('intakeAssemblyPlan — one row, several causes, in the rules\' order',
     expect(intakeAssemblyOwnsBatch({segments: [research]})).is.false;
     expect(intakeAssemblyOwnsBatch({segments: [research, olympus]})).is.true;
     expect(intakeAssemblyOwnsBatch(undefined)).is.false;
+  });
+
+  it('R4 · the SEARCH RUN of a merged batch: one segment with rejects, judged on its own tape; the others plain', () => {
+    const step = (name: CardName, matched: boolean) => ({card: {name} as never, matched});
+    const search: CardIntakeSegment = {
+      source: {type: 'card', cardName: CardName.SCIENTIFIC_BREAKTHROUGH}, count: 2,
+      sequence: [step(CardName.COMET, false), step(CardName.FISH, false), step(CardName.RESEARCH, true), step(CardName.PHYSICS_COMPLEX, true)],
+    };
+    expect(intakeSearchRun({segments: [olympus, search]}), 'Olympus first, the search after: the span and the tape').deep.eq({index: 1, first: 1, count: 2, steps: 4});
+    expect(intakeSearchRun({segments: [search, marsU]}), 'the search first').deep.eq({index: 0, first: 0, count: 2, steps: 4});
+    expect(intakeSearchRun({segments: [search]}), 'one cause keeps its family\'s scene').eq(undefined);
+    expect(intakeSearchRun({segments: [olympus, research]}), 'no rejects — plain runs').eq(undefined);
+    const clean: CardIntakeSegment = {...search, sequence: [step(CardName.RESEARCH, true), step(CardName.PHYSICS_COMPLEX, true)]};
+    expect(intakeSearchRun({segments: [olympus, clean]}), 'a search that threw nothing away is a plain run').eq(undefined);
+    expect(intakeSearchRun({segments: [search, {...search, source: {type: 'card', cardName: CardName.RESEARCH}}]}), 'two searches — the batch-level tape').eq(undefined);
+    expect(intakeSearchRun(undefined)).eq(undefined);
   });
 
   it('origins: the stage card deals off the deck; another card SURFACES; a visible cell deals itself; a covered board degrades to the deck, named', () => {

@@ -111,6 +111,33 @@ export function intakeAssemblyOwnsBatch(batch: {segments?: ReadonlyArray<{count:
   return batch !== undefined && batch.segments !== undefined && batch.segments.length > 1;
 }
 
+/**
+ * THE SEARCH RUN of a merged batch (R4 — «a search is a segment, not a batch of its own»): exactly ONE segment carries
+ * a tape with discards (a conditional search that threw cards away) and every other run is plain. The deck layer then
+ * plays that run as the SEARCH THEATRE on its own tape — every card judged in turn, the rejects onto the pile, the
+ * finds held and assembled into the run's own slots — while the runs before and after it come from their own places
+ * through the assembly. `first` / `count` index the batch's cards, `steps` the tape (finds + rejects). Undefined for a
+ * one-cause batch (its family's own scene), a merged batch with no discards (plain runs), or two searches in one
+ * press (the batch-level tape stays the honest fallback).
+ */
+export function intakeSearchRun(batch: {segments?: ReadonlyArray<CardIntakeSegment>} | undefined): {index: number, first: number, count: number, steps: number} | undefined {
+  if (!intakeAssemblyOwnsBatch(batch) || batch?.segments === undefined) {
+    return undefined;
+  }
+  const searches = batch.segments
+    .map((segment, index) => ({segment, index}))
+    .filter(({segment}) => segment.sequence !== undefined && segment.sequence.some((step) => !step.matched));
+  if (searches.length !== 1) {
+    return undefined;
+  }
+  const {segment, index} = searches[0];
+  let first = 0;
+  for (let i = 0; i < index; i++) {
+    first += Math.max(0, Math.floor(batch.segments[i].count));
+  }
+  return {index, first, count: segment.count, steps: segment.sequence?.length ?? 0};
+}
+
 /** WHERE a segment's run starts (R7 + the degrade table in the header). */
 export function intakeOriginOf(segment: CardIntakeSegment, input: Pick<IntakeAssemblyInput, 'stageCard' | 'boardVisible'>): {origin: IntakeOrigin, degraded?: IntakeRun['degraded']} {
   const source = segment.source;
