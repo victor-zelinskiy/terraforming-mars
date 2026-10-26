@@ -82,6 +82,24 @@ describe('cardReactionModel — the record → the group → the chain → the s
       const groups = groupCardReactions([record(3, {card: CardName.THARSIS_REPUBLIC}), record(2)], BLUE);
       expect(groups.map((g) => g.card)).deep.eq([CardName.HARTLAN_HEATING, CardName.THARSIS_REPUBLIC]);
     });
+
+    it('ONE PLAY, ONE RISE (TR81): two records of one card under one root are ONE group — the first record, every impact in order', () => {
+      const data = (amount: number) => ({kind: 'card-resource', resource: 'Data' as never, amount, target: CardName.LOTUS_INNOVATIONS, to: BLUE} as const);
+      const lotus = (seq: number, amount: number, actionId: number | undefined) =>
+        record(seq, {card: CardName.LOTUS_INNOVATIONS, channel: 'tr-increase', root: actionId === undefined ? {} : {actionId}, impacts: [data(amount)]});
+      // Nitrogen-Rich Asteroid: the degree (one rating call), then the printed +2 TR (another) — one press, one root.
+      const groups = groupCardReactions([lotus(11, 2, 7), record(10, {root: {actionId: 7}}), lotus(9, 1, 7)], BLUE);
+      expect(groups.map((g) => g.card)).deep.eq([CardName.LOTUS_INNOVATIONS, CardName.HARTLAN_HEATING]);
+      expect(groups[0].record.seq, 'the group stands where its FIRST record fired').eq(9);
+      expect(groups[0].cards.map((s) => s.amount)).deep.eq([1, 2]);
+      // Another root is another press; a record with no root never merges (nothing says it is the same press).
+      expect(groupCardReactions([lotus(1, 1, 7), lotus(2, 1, 8)], BLUE)).to.have.lengthOf(2);
+      expect(groupCardReactions([lotus(1, 1, undefined), lotus(2, 1, undefined)], BLUE)).to.have.lengthOf(2);
+      // …and the ring's own records are never mutated by the merge.
+      const ring = [lotus(1, 1, 7), lotus(2, 2, 7)];
+      groupCardReactions(ring, BLUE);
+      expect(ring.map((r) => r.impacts.length)).deep.eq([1, 1]);
+    });
   });
 
   describe('the tokens — a wave, never a burst', () => {
@@ -92,6 +110,13 @@ describe('cardReactionModel — the record → the group → the chain → the s
       expect(ten.reduce((s, t) => s + t.amount, 0)).eq(10);
       expect(reactionTokensOf({channel: 'production', resource: 'megacredits', amount: 3})).to.have.lengthOf(1);
       expect(reactionTokensOf({channel: 'stock', resource: 'rating', amount: 2})).to.have.lengthOf(1);
+    });
+
+    it('a card resource laid on a card is counted too (TR81: «+2 [data]» is two tokens off the printed data); a loss stays one', () => {
+      const two = reactionTokensOf({channel: 'card-resource', resource: 'data', amount: 2, targetCard: CardName.LOTUS_INNOVATIONS});
+      expect(two.map((t) => [t.amount, t.targetCard])).deep.eq([[1, CardName.LOTUS_INNOVATIONS], [1, CardName.LOTUS_INNOVATIONS]]);
+      expect(reactionTokensOf({channel: 'card-resource', resource: 'data', amount: 9})).to.have.lengthOf(6);
+      expect(reactionTokensOf({channel: 'card-resource', resource: 'microbe', amount: 2, direction: 'loss'})).to.have.lengthOf(1);
     });
   });
 

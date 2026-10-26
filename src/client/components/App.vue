@@ -355,6 +355,7 @@ import {seedBannerCubeHolds} from '@/client/console/parliament/bannerCubeScene';
 import {noteSittingRise} from '@/client/console/parliament/sittingRise';
 import {seedRevealRewardHold} from '@/client/console/revealHandoff';
 import {seedActionCommitRail} from '@/client/console/consoleActionCommitRail';
+import {seedFirstActionRail} from '@/client/console/startFirstActionRail';
 import {seedColonyRosterHolds} from '@/client/console/colonyRoster/consoleColonyRoster';
 import {seedColonyCityHolds} from '@/client/console/colonyCity/consoleColonyCity';
 import {seedScaleStepRewardHolds} from '@/client/console/scaleStepReward/scaleStepRewardBeat';
@@ -833,6 +834,8 @@ export default defineComponent({
             // the half was never held, never flown, and the shell folded at once. Idempotent: a plan is seeded once, and a
             // view that has paid nothing of it yet (the press's own state) leaves the plan armed for the view that does.
             seedActionCommitRail(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
+            // …and the START STAGE's first action (TR81): its rail half, armed at the press, paid by whichever view comes first.
+            seedFirstActionRail(prevView as PlayerViewModel | undefined, model as PlayerViewModel);
             // …and a COLONY ROSTER somebody else changed (a tile replaced / added / removed): held at the old table
             // while the colony grid on screen plays the planet out and in — only when that grid stands.
             seedColonyRosterHolds(prevView as PlayerViewModel | undefined, model as PlayerViewModel);

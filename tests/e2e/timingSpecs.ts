@@ -19,6 +19,9 @@ export const TIMING_SPECS: ReadonlySet<string> = new Set([
   // row and the chain's wall-clock ceiling are the subject — storyboards and timing, never logic.
   'console-hartlan-heating.spec.ts',
   'console-card-reaction.spec.ts',
+  // TR81 Lotus Innovations (2026-10-26): the rating off the printed plates, the corporation rising in its start seat and
+  // out of the receiving stage, its tokens born on its effect row — sampled motion (the seat probe, the transfer witness).
+  'console-lotus-innovations.spec.ts',
   // the four the first broad sample named (28 specs at motion ×0.5, 2026-10-21)
   'console-aerial-mappers.spec.ts', // the transfer witness: endsOverGlass at tv4k
   'console-supercomputer.spec.ts', // the transfer witness: endsOverGlass at tv4k

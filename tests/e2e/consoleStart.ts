@@ -2979,7 +2979,7 @@ export type FixtureName = 'solo-actions' | 'solo-pre-endgame' | 'venus-trade' | 
   'parliament' | 'parliament-actions' | 'parliament-recap' |
   'parliament-dense' | 'parliament-seat' | 'parliament-paid' | 'parliament-aquifer-vote' | 'parliament-aquifer-enact' |
   // TR80 Hartlan Heating + the card-reaction framework: blue on Hartlan alone / blue waking five reactors with one play.
-  'hartlan-heating' | 'card-reaction-many' | 'card-reaction-rival' | 'card-reaction-scale' |
+  'hartlan-heating' | 'card-reaction-many' | 'card-reaction-rival' | 'card-reaction-scale' | 'lotus-innovations' |
   'parliament-architecture-vote' | 'parliament-access-edge' | 'septem-tribus' | 'septem-win' | 'arwind-walker' | 'arwind-sitting-win' | 'arwind-chairman-quest' | 'arwind-pay-space' | 'parliament-architecture-recap' | 'parliament-cloud-vote' | 'parliament-cloud-assembly' | 'parliament-cloud-enact' |
   'parliament-biodome-vote' | 'parliament-biodome-enact' | 'parliament-biodome-maxed' | 'parliament-biodome-recap' |
   'parliament-biodome-nocell' | 'parliament-biodome-neutral' |

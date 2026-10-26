@@ -105,6 +105,11 @@ export type StartSceneCommandState = {
    *  one of them: LB/RB hand the seat to another (the player's order). */
   firstActionChoice?: boolean,
   /**
+   * The standing briefing draws the table's answer («Сработает») — R3 opens the «Эффекты» layer (TR81; the forecast's
+   * law 9: every surface that draws the answer is a door). Advertised only while the door may open.
+   */
+  firstActionEffects?: boolean,
+  /**
    * The BONUS-ACTION stage («Фора» — «immediately take 2 actions»):
    *  · 'off'      — no stage;
    *  · 'waiting'  — the bonuses are owed but the prompt has not arrived /
@@ -268,6 +273,9 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
       hints.push({control: 'bumperL', label: 'Other corporation'});
     }
     hints.push({control: 'secondary', label: 'Inspect'});
+    if (s.firstActionEffects === true) {
+      hints.push({control: 'stickR', label: 'Effects'});
+    }
     hints.push(s.bonusSub === true ?
       {control: 'back', label: 'Back'} :
       {control: 'back', label: 'Minimize'});

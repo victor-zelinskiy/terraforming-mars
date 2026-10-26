@@ -107,6 +107,16 @@ up in the `party` task route): subject = the corporation, stage «ЗНАМЯ», 
 own hand; `onParliamentFlowComplete` pops the hosted frame and the stage's leave runs off the ledger as for any first
 action. Contract: `docs/TURMOIL_REDUX_SEPTEM_TRIBUS.md` §3.
 
+**A first action the TABLE answers** (TR81 Lotus Innovations, 2026-10-26 — «+2 TR», and the corporation's own data «including
+from this»): the preview carries the forecast (`corpFirstActionPreview` → `forecast`), the briefing draws «Сработает» under
+the result (`[data-start-firstact-forecast]`, the shared `ConsoleForecastRow`) and R3 opens the «Эффекты» layer as a LEVEL
+of the stage (forecast host `'start'`, the room `.con-start__fxhost` right of the seat — the briefing parks, the seat stays;
+the crumb gains «· ЭФФЕКТЫ» through `stageRaw`; the bar is the explorer's; the press folds it). The press ARMS the action's
+rail half (`startFirstActionRail.ts`) — the rating flies off the seated face's printed TR plates into the score cell and the
+corporation answers OUT OF ITS SEAT (the third ATTACHED host of the card-reaction framework,
+`docs/claude/console/card-reaction.md` § TR81). `firstActionChainQuiet` waits for the half (`firstActionRailBusy`) and for
+the reactor's settle (`cardReactionState.phase`) — the stage never leaves under its own answer.
+
 ## The COMPLETION BARRIER (`startBoardExcursion.ts`)
 
 **A ring of markers rides the landing** (TR79 Ferrus Academy — a city, then the player's cube on every free neighbour): the cubes are

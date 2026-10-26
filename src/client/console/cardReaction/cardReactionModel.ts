@@ -98,20 +98,50 @@ export function reactionGroupOf(record: CardReactionRecord, viewer: Color | unde
   return {record, own, card: record.card, rail, cards, elsewhere};
 }
 
-/** Every fresh record as a group, in `seq` order. */
+/**
+ * ONE PLAY, ONE RISE (the owner's decision 4, TR81): records of the SAME card of the SAME owner under the SAME root are
+ * ONE group — Lotus Innovations answers a card with a printed TR and a degree (two calls of the rating funnel → two
+ * effect scopes → two records) with ONE rise and one wave, never two rises in a row. The merged group keeps the FIRST
+ * record (its `seq` is the group's place in the chain, its `printedEffect` the birth row) with every impact appended
+ * in the server's order. A record with no root never merges (nothing says it is the same press).
+ */
+export function mergeCardReactions(records: ReadonlyArray<CardReactionRecord>): Array<CardReactionRecord> {
+  const out: Array<CardReactionRecord> = [];
+  const byKey = new Map<string, CardReactionRecord>();
+  for (const record of [...records].sort((a, b) => a.seq - b.seq)) {
+    const key = record.root.actionId === undefined ? undefined : `${record.root.actionId}|${record.owner}|${record.card}`;
+    const host = key === undefined ? undefined : byKey.get(key);
+    if (host !== undefined) {
+      host.impacts.push(...record.impacts);
+      continue;
+    }
+    const copy: CardReactionRecord = {...record, impacts: [...record.impacts]};
+    out.push(copy);
+    if (key !== undefined) {
+      byKey.set(key, copy);
+    }
+  }
+  return out;
+}
+
+/** Every fresh record as a group, in `seq` order — the records of one card under one root merged into ONE group. */
 export function groupCardReactions(records: ReadonlyArray<CardReactionRecord>, viewer: Color | undefined): Array<CardReactionGroup> {
-  return [...records].sort((a, b) => a.seq - b.seq).map((record) => reactionGroupOf(record, viewer));
+  return mergeCardReactions(records).map((record) => reactionGroupOf(record, viewer));
 }
 
 /**
- * THE TOKENS of a group's rail half: a stock gain is counted — ONE TOKEN PER
+ * THE TOKENS of a group's half: a stock gain is counted — ONE TOKEN PER
  * UNIT up to `waveCap` (Hartlan's «6 [heat]» is a wave of six, each born on
  * the printed heat icon), a larger gain rides as fewer, heavier tokens; a
- * production step and a rating step are one token each.
+ * card resource the reactor lays on a card is counted the same way (Lotus
+ * Innovations' «+2 [data]» — two tokens off its printed data, the capsule
+ * ticking on each touchdown); a production step and a rating step are one
+ * token each, and so is a loss.
  */
 export const REACTION_WAVE_CAP = 6;
 export function reactionTokensOf(spec: ResourceTransferSpec, waveCap = REACTION_WAVE_CAP): Array<ResourceTransferSpec> {
-  if (spec.channel !== 'stock' || spec.resource === RATING_RAIL_KEY || spec.amount <= 1) {
+  const counted = (spec.channel === 'stock' && spec.resource !== RATING_RAIL_KEY) || (spec.channel === 'card-resource' && spec.direction !== 'loss');
+  if (!counted || spec.amount <= 1) {
     return [spec];
   }
   const count = Math.min(waveCap, spec.amount);

@@ -447,7 +447,9 @@ export type PlayReaction = {spec: ResourceTransferSpec, tag?: Tag};
 
 /**
  * The reactions the forecast PROMISES this seat (pure): only an `exact` fact
- * addressed to «you» whose source is a CARD, and only its «on this card»
+ * addressed to «you» whose source is a CARD — a CORPORATION included (TR81
+ * Lotus Innovations' data on itself for a play's rating: the corporation lies
+ * in the receiving stage's own zone and rises out of it) — and only its «on this card»
  * gains of a real card resource. A question (`asks`), a deferred payout, an
  * uncomputed reaction (`unknown`) and another seat's gain are named on the
  * composer and NEVER flown — a flight of a number the server may not apply is
@@ -472,10 +474,38 @@ export function railAnswerTags(facts: ReadonlyArray<EffectForecastFact> | undefi
   return out;
 }
 
+/**
+ * THE RATING'S CARD ANSWERS (TR81 Lotus Innovations — «a data here for every step of your rating»): an exact fact
+ * addressed to «you», sourced by a card or a corporation on the RATING channel (`tr-increase`), its «on this card»
+ * gains of a real card resource as CAPSULE rows. They are the answer to the play's TR, so they ride the play's rail half
+ * with the other answers to it (the Greens' M€): held and declared in the apply block, born on the reactor's effect row
+ * one beat after the TR's touchdown — the reactor risen out of its place on the receiving stage. Pure.
+ */
+export function ratingAnswerSpecs(facts: ReadonlyArray<EffectForecastFact> | undefined): Array<ResourceTransferSpec> {
+  const out: Array<ResourceTransferSpec> = [];
+  for (const fact of facts ?? []) {
+    if (fact.certainty !== 'exact' || fact.recipient.kind !== 'you' || fact.source.channel !== 'tr-increase' ||
+        (fact.source.kind !== 'card' && fact.source.kind !== 'corporation')) {
+      continue;
+    }
+    for (const effect of fact.effects) {
+      if (effect.direction === 'gain' && effect.amount > 0 && effect.note === 'on this card' && effect.icon !== 'resources' && effect.unit === undefined) {
+        out.push({channel: 'card-resource', resource: effect.icon, amount: effect.amount, targetCard: fact.source.name as CardName});
+      }
+    }
+  }
+  return out;
+}
+
 export function playCardReactions(facts: ReadonlyArray<EffectForecastFact> | undefined): Array<PlayReaction> {
   const out: Array<PlayReaction> = [];
   for (const fact of facts ?? []) {
-    if (fact.certainty !== 'exact' || fact.recipient.kind !== 'you' || fact.source.kind !== 'card') {
+    if (fact.certainty !== 'exact' || fact.recipient.kind !== 'you' || (fact.source.kind !== 'card' && fact.source.kind !== 'corporation')) {
+      continue;
+    }
+    // An answer to the RATING the play gains is the rating's answer (`ratingAnswerSpecs`) — it rides the rail half after
+    // the TR's own touchdown, never the holders' group BEFORE the TR (a reaction never lands before its cause).
+    if (fact.source.channel === 'tr-increase') {
       continue;
     }
     const target = fact.source.name as CardName;

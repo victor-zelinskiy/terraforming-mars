@@ -193,6 +193,14 @@ describe('consoleStartUi (initial-setup command contract)', () => {
     expect(waiting.some((c) => c.control === 'bumperL')).to.be.false;
   });
 
+  it('a first action the TABLE answers (TR81): R3 «Эффекты» is advertised while the door may open — never otherwise', () => {
+    const open = startSceneCommands(state({mode: 'ceremony', firstAction: 'ready', firstActionEffects: true}));
+    expect(labelOf(open, 'stickR')).to.eq('Effects');
+    expect(open[0]?.control, 'the CTA still leads the bar').to.eq('confirm');
+    const closed = startSceneCommands(state({mode: 'ceremony', firstAction: 'ready'}));
+    expect(closed.some((c) => c.control === 'stickR')).to.be.false;
+  });
+
   it('the first-action BUSY beat (rise / submit) goes honestly quiet', () => {
     expect(startSceneCommands(state({mode: 'ceremony', firstAction: 'busy'}))).to.deep.eq([]);
   });

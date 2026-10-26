@@ -753,7 +753,7 @@ import {PARLIAMENT_MAX_POPULAR_SUPPORT} from '@/common/parliament/ParliamentType
 import {extractPlayRewards} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {actionKnownRailMoves, playRailReward, playSpendReward, playTargetSpendSpecs, withRailAnswerTags} from '@/client/console/consoleActionCommit';
 import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
-import {playCardReactions, railAnswerTags} from '@/client/console/played/receivingStageModel';
+import {playCardReactions, railAnswerTags, ratingAnswerSpecs} from '@/client/console/played/receivingStageModel';
 import {Tag} from '@/common/cards/Tag';
 import {SpendableResource} from '@/common/inputs/Spendable';
 import {Payment} from '@/common/inputs/Payment';
@@ -5220,8 +5220,11 @@ export default defineComponent({
         // along for the diff check the seed makes against the two views.
         // …with the printed TAG each card answer was woken by (T06 GMO Contract): the landing scene births that answer's
         // token on the landed card's tag, the row ticking on its touchdown — never a number changing a beat later.
-        rail: withRailAnswerTags(playRailReward(b, heroRewardEffectsOf(b), this.captured, payment,
-          reactionRailSpecs(forecastForFixedBranch(this.forecast, this.selectedPos ?? -1)?.facts)),
+        // …and the rating's CARD answers (TR81 Lotus Innovations' data on itself) ride the same half, after the TR.
+        rail: withRailAnswerTags(playRailReward(b, heroRewardEffectsOf(b), this.captured, payment, [
+          ...reactionRailSpecs(forecastForFixedBranch(this.forecast, this.selectedPos ?? -1)?.facts),
+          ...ratingAnswerSpecs(forecastForFixedBranch(this.forecast, this.selectedPos ?? -1)?.facts),
+        ]),
         railAnswerTags(forecastForFixedBranch(this.forecast, this.selectedPos ?? -1)?.facts)),
         // …and THE TABLE'S ANSWER ON THE CARDS (К-S1 — PL-124): the holders of this seat the play wakes (an EXACT
         // forecast fact addressed to «you» whose source is a card — TR05's science data, Decomposers' microbe), with

@@ -29115,10 +29115,24 @@ body.con-start-barshold .con-status {
        leads, the state zone keeps one reserved row so waiting → ready is a
        paint change on a standing panel. Functional state (the ready ring)
        rides box-shadow — perf-lite keeps it. */
-    &__firstact {
+    /* THE «ЭФФЕКТЫ» ROOM (TR81) — the briefing's host and the effects layer's room: the zone right of the seat, its
+       whole height. It paints nothing and takes no input of its own; the briefing stands inside it in its old pose
+       (the same left edge, centred on the zone's height), and the layer (`.con-fxlayer`, absolute) fills the room when
+       R3 opens it — the seat, the corporation the layer is about, stays in view beside it. */
+    &__fxhost {
         position: absolute;
+        top: 0;
+        bottom: 0;
         /* Past the seat, derived from the SAME token that sizes it. */
         left: calc(var(--con-fa-seat-w) + 3.4rem);
+        right: 1rem;
+        pointer-events: none;
+
+        > * { pointer-events: auto; }
+    }
+    &__firstact {
+        position: absolute;
+        left: 0;
         top: 50%;
         transform: translateY(-50%);
         /* HUGS ITS CONTENT. Stretched to the zone's right edge the plate was
@@ -29127,7 +29141,7 @@ body.con-start-barshold .con-status {
            (Valley Trust) from running away with the line length. */
         width: fit-content;
         min-width: 24rem;
-        max-width: min(44rem, calc(100% - var(--con-fa-seat-w) - 5rem));
+        max-width: min(44rem, calc(100% - 1.6rem));
         display: flex;
         flex-direction: column;
         gap: .7rem;
@@ -29241,6 +29255,24 @@ body.con-start-barshold .con-status {
         display: flex;
         flex-wrap: wrap;
         gap: .45rem;
+
+        /* The result rides the COMPACT chip family (the composer's own tokens, the «Сработает» row's beside it): the bare
+           shared chip is px-sized and read as a speck on the TV under its own answer (TR81 — «+2 TR» beside «+2 data»). */
+        .action-effect-chip.action-effect-chip {
+            font-size: var(--con-chip-c-fs, .82rem);
+            padding: var(--con-chip-c-pad, .14rem .42rem .14rem .26rem);
+            gap: var(--con-chip-c-gap, .22rem);
+            border-radius: var(--con-chip-c-radius, .5rem);
+        }
+        .action-effect-chip__icon.action-effect-chip__icon { width: var(--con-chip-c-icon, 1.05rem); height: var(--con-chip-c-icon, 1.05rem); }
+        .action-effect-chip__note.action-effect-chip__note { font-size: var(--con-chip-c-note, .62rem); }
+    }
+    /* WHAT THE TABLE ANSWERS (TR81) — the shared «Сработает» row (`.con-forecast`) under the result, the door of the
+       «Эффекты» layer; its own chassis, nothing added here but its place in the plate's rhythm. */
+    &__firstact-answer {
+        display: flex;
+        min-width: 0;
+        margin-top: -.1rem;
     }
     &__firstact-warn {
         display: flex;

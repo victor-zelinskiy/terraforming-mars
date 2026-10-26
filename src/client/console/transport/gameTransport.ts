@@ -96,6 +96,7 @@ import {
 } from '@/client/console/colonyFleet/consoleTradeFleet';
 import {fleetDockOwedCard, seedFleetDockHold} from '@/client/console/colonyTrade/fleetDockScene';
 import {seedActionCommitRail} from '@/client/console/consoleActionCommitRail';
+import {seedFirstActionRail} from '@/client/console/startFirstActionRail';
 import {seedVpShares} from '@/client/console/scoreCell/vpShareLedger';
 import {
   abortColonyTrade,
@@ -673,6 +674,10 @@ function seedRewardHolds(newView?: PlayerViewModel): void {
   // capsule moves of a timeline row (TR28) and the table's answer, held only when the two views keep the promise
   // the press armed; the shell's handoff flies them.
   seedActionCommitRail(currentView(), newView);
+  // The START STAGE's first action (TR81 — the third ATTACHED host of the card-reaction framework): its own rail gains
+  // and the table's answer to them (Lotus Innovations' data on itself), held and DECLARED here so the reaction seeder
+  // below attaches the reactor to the stage, which brings it forward out of its seat (`startFirstActionRail.ts`).
+  seedFirstActionRail(currentView(), newView);
   seedHydroMarkerRewardHold();
   // The «Фора» window's gains — the ONE seeder that needs BOTH views: a claim
   // is armed at the press, but the window's AUTO-resolve is only knowable by

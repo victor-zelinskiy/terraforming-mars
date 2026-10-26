@@ -163,7 +163,10 @@ export async function armTransferWitness(page: Page): Promise<void> {
       // of the reaction layer or out of its place on the receiving stage — its answer is born on the printed icon of ITS
       // effect row. `reactor:<card>:<sprite>`. Before the tags and the landed card's own icons: a token born here is the
       // reactor's, never the cause's.
-      ['reactor', '.con-reaction__face[data-reaction-card] .pcard-ic, .con-recv__emerge[data-played-key] .pcard-ic, .con-citypay__card[data-played-key] .pcard-ic'],
+      // …or IN ITS SEAT on the start stage (TR81 — a corporation answering its own first action rises where it stands).
+      ['reactor', '.con-reaction__face[data-reaction-card] .pcard-ic, .con-recv__emerge[data-played-key] .pcard-ic, .con-citypay__card[data-played-key] .pcard-ic, .con-start__embedsource [data-start-seat-card] .pcard-ic'],
+      // The START STAGE's seated card — the capsule a corporation's own answer lands in (TR81). `start-seat:<card>`.
+      ['start-seat', '.con-start__embedsource [data-start-seat-card]'],
       ['tag', '.con-recv [data-recv-front] .pcard-tag[data-tag], .con-played [data-played-key] .pcard-tag[data-tag]'],
       ['printed', '.con-recv [data-recv-front] .pcard-ic'],
       // A party's SEAL in the chamber — a card's rating answer to a change of power is born on the seal of the party that
@@ -215,9 +218,11 @@ export async function armTransferWitness(page: Page): Promise<void> {
       case 'aux': return `aux:${name(el, 'data-aux-resource')}`;
       case 'cell': return `cell:${name(el, 'data_space_id')}`;
       case 'tag': return `tag:${name(el, 'data-tag')}`;
+      case 'start-seat': return `start-seat:${name(el, 'data-start-seat-card')}`;
       case 'reactor': {
-        const face = el.closest('[data-reaction-card], [data-played-key]');
-        const card = face === null ? '' : (face.getAttribute('data-reaction-card') ?? face.getAttribute('data-played-key') ?? '');
+        const face = el.closest('[data-reaction-card], [data-played-key], [data-start-seat-card]');
+        const card = face === null ? '' :
+          (face.getAttribute('data-reaction-card') ?? face.getAttribute('data-played-key') ?? face.getAttribute('data-start-seat-card') ?? '');
         const sprite = /([\w-]+)\.(?:png|webp|svg)/.exec((el as HTMLElement).style.backgroundImage ?? '')?.[1] ?? 'icon';
         return `reactor:${card}:${sprite}`;
       }

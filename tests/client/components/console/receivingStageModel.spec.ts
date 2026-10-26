@@ -10,7 +10,7 @@ import {buildPlayedZones, PLAYED_CARD_NATURAL_H, PLAYED_PEEK_NATURAL} from '@/cl
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {
   familyForCardType, receivingStackView, planReceivingStage, receivingMinis,
-  foreignTargetMinis, splitPlayRewards, cardTargetGroups, playCardReactions, RECEIVING_MAX_STRIPS,
+  foreignTargetMinis, splitPlayRewards, cardTargetGroups, playCardReactions, ratingAnswerSpecs, RECEIVING_MAX_STRIPS,
 } from '@/client/console/played/receivingStageModel';
 
 function cards(...names: Array<CardName>): Array<CardModel> {
@@ -225,6 +225,29 @@ describe('receivingStageModel (the workspace receiving scene, pure)', () => {
         spec: {channel: 'card-resource', resource: 'data', amount: 2, targetCard: CardName.VECTOR_COMPUTATIONS},
         tag: Tag.SCIENCE,
       }]);
+    });
+
+    it('a CORPORATION that pays itself is a holder too (it lies in the receiving stage\'s own zone)', () => {
+      const arklight = fact({
+        source: {kind: 'corporation', name: CardName.ARKLIGHT, owner: 'blue' as Color, channel: 'card-played'},
+        effects: [{direction: 'gain', icon: 'animal', amount: 1, current: 0, resulting: 1, note: 'on this card'}],
+      });
+      expect(playCardReactions([arklight]).map((r) => r.spec)).to.deep.eq([
+        {channel: 'card-resource', resource: 'animal', amount: 1, targetCard: CardName.ARKLIGHT},
+      ]);
+    });
+
+    it('an answer to the play\'s RATING (TR81 Lotus Innovations) is the rating\'s answer — never a holder group before the TR', () => {
+      const lotus = fact({
+        source: {kind: 'corporation', name: CardName.LOTUS_INNOVATIONS, owner: 'blue' as Color, channel: 'tr-increase'},
+        reasonTag: undefined,
+      });
+      expect(playCardReactions([lotus]), 'not flown before the TR').to.deep.eq([]);
+      expect(ratingAnswerSpecs([lotus]), 'it rides the rail half after the TR').to.deep.eq([
+        {channel: 'card-resource', resource: 'data', amount: 2, targetCard: CardName.LOTUS_INNOVATIONS},
+      ]);
+      expect(ratingAnswerSpecs([fact({})]), 'a play\'s holder is not the rating\'s').to.deep.eq([]);
+      expect(ratingAnswerSpecs([{...lotus, certainty: 'deferred'}]), 'a promise after the placement is never held').to.deep.eq([]);
     });
 
     it('a hook that names no tag: the spec alone (the chip is born on the card)', () => {

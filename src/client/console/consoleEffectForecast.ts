@@ -29,7 +29,7 @@ import {reactive} from 'vue';
 import {translateText} from '@/client/directives/i18n';
 import {EffectsExplorerUi, createEffectsExplorerUi} from '@/client/console/consoleEffectsExplorer';
 
-export type EffectForecastHost = 'play' | 'action' | 'dock' | 'colony' | 'stdp' | 'confirm';
+export type EffectForecastHost = 'play' | 'action' | 'dock' | 'colony' | 'stdp' | 'confirm' | 'start';
 
 export const consoleEffectForecastUi = reactive({
   /** The composer whose layer is OPEN (undefined = closed everywhere). */
@@ -45,6 +45,8 @@ const explorerUis: Record<EffectForecastHost, EffectsExplorerUi> = {
   colony: createEffectsExplorerUi(),
   stdp: createEffectsExplorerUi(),
   confirm: createEffectsExplorerUi(),
+  // The START STAGE's first action (TR81 — the corporation's opening move: Lotus Innovations answers its own «+2 TR»).
+  start: createEffectsExplorerUi(),
 };
 
 export function forecastExplorerUi(host: EffectForecastHost): EffectsExplorerUi {

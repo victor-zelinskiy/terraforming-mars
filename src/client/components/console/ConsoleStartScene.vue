@@ -57,7 +57,8 @@
                        root="Start of the game"
                        mark="◈"
                        :subject="wsSubject"
-                       :stage="wsStage"
+                       :stage="firstActionFxStage ?? wsStage"
+                       :stageRaw="firstActionFxStage !== undefined"
                        :committed="mode === 'ceremony'">
           <template #trailing>
             <!-- Card-step pick counter (wizard): a plain «Выбрано N из M»;
@@ -654,8 +655,11 @@
                 <span class="con-start__embedsource-cap">{{ $t('Source') }}</span>
                 <div class="con-start__embedsource-card"
                      :class="{'con-deal-hold': embedSourceArriving}"
+                     :data-start-seat-card="embedSourceVisible"
                      data-embed-source-slot>
-                  <ConsolePlayedCardLite :name="embedSourceVisible" />
+                  <!-- The LIVE capsule (TR81): a corporation answering its own first action lays its tokens HERE —
+                       the count is the committed one minus what is still in the air, ticking on each touchdown. -->
+                  <ConsolePlayedCardLite :name="embedSourceVisible" :card="seatCapsuleModel" />
                 </div>
               </div>
 
@@ -667,12 +671,26 @@
                    calm turn-wait or the ONE clear CTA. It stands beside the
                    seated corporation card and yields the zone to any embedded
                    follow-up the action opens (the seat stays either way). -->
+              <!-- THE «ЭФФЕКТЫ» ROOM (R3 — TR81): the briefing's «Сработает» row is the DOOR of the effects layer,
+                   a LEVEL inside this stage (the forecast's law 9 — the stages' own phrase, `consoleForecastHost.ts`):
+                   the briefing parks in place (`data-forecast-browse`), the explorer unfolds out of the row into the
+                   room beside the seat, B / R3 fold it back; the seat stays — the corporation is what it is about. -->
+              <div class="con-start__fxhost" data-forecast-host>
+              <ConsoleForecastLayer ref="forecastLayer"
+                                    host="start"
+                                    operation="action"
+                                    :forecast="firstActionForecast"
+                                    :cards="playerView.thisPlayer?.tableau ?? []"
+                                    :color="playerView.thisPlayer?.color ?? ''"
+                                    :players="playerView.players"
+                                    :statsByColor="firstActionForecastStats" />
               <transition name="con-start-firstact">
                 <div v-if="firstActionPanelShown" class="con-start__firstact"
                      :class="{
                        'con-start__firstact--ready': firstActionActionableNow,
                        'con-start__firstact--busy': state.firstAct.submitting || state.firstAct.stage === 'staging',
-                     }">
+                     }"
+                     data-forecast-browse>
                   <div class="con-start__firstact-head">
                     <span class="con-start__firstact-flag" aria-hidden="true">⚑</span>
                     <span class="con-start__firstact-kicker">{{ $t('Mandatory') }}</span>
@@ -697,6 +715,13 @@
                     <div class="con-start__firstact-chips">
                       <ActionEffectChip v-for="(eff, k) in firstActionEffects" :key="k" :effect="eff" />
                     </div>
+                  </div>
+
+                  <!-- WHAT THE TABLE ANSWERS (TR81 — the preview carries the forecast, law 8): «Сработает» with the
+                       R3 key — the door of the «Эффекты» layer. Lotus Innovations answers its own «+2 TR» here. -->
+                  <div v-if="firstActionForecastShown" class="con-start__firstact-answer" data-start-firstact-forecast>
+                    <ConsoleForecastRow class="con-start__firstact-forecast" :class="{'con-forecast--descend': forecastPulse}"
+                                        :forecast="firstActionForecast" @open="openFirstActionForecast()" />
                   </div>
 
                   <div v-for="(w, i) in firstActionWarnings" :key="'w' + i" class="con-start__firstact-warn">
@@ -783,6 +808,7 @@
                   </div>
                 </div>
               </transition>
+              </div>
 
               <!-- ── THE BONUS WINDOW — the overview of «Фора»'s grant ──────
                    The SEAT holds the granting prelude for the window's whole
@@ -1180,9 +1206,26 @@ import {armDeliveryHold, runHandDelivery} from '@/client/console/handDock/handDe
 import {extractPlayRewards, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import type {RailReward} from '@/client/console/resourceTransfer/railReward';
 import {playRailReward, withRailAnswerTags} from '@/client/console/consoleActionCommit';
-import {railAnswerTags} from '@/client/console/played/receivingStageModel';
+import {railAnswerTags, ratingAnswerSpecs} from '@/client/console/played/receivingStageModel';
 import {reactionRailSpecs} from '@/client/console/colonyTrade/fleetDockModel';
-import {forecastForFixedBranch} from '@/client/console/effectForecastModel';
+import {forecastForFixedBranch, forecastLayerAvailable, forecastRowPresent} from '@/client/console/effectForecastModel';
+import {EffectForecast} from '@/common/models/EffectForecastModel';
+import {EffectOverlayStat} from '@/common/events/aggregate';
+import {TransferEnd} from '@/client/console/resourceTransfer/resourceTransferModel';
+import ConsoleForecastRow from '@/client/components/console/ConsoleForecastRow.vue';
+import ConsoleForecastLayer from '@/client/components/console/ConsoleForecastLayer.vue';
+import {closeEffectForecastLayer, effectForecastOpen, forecastExplorerUi, forecastStageText} from '@/client/console/consoleEffectForecast';
+import {
+  foldForecastHost, forecastHostIntent, forecastOwnerColors, forecastStatsByColor, openForecastHost, pulseForecastDoor,
+} from '@/client/console/consoleForecastHost';
+import {
+  armFirstActionRail, firstActionRailBusy, firstActionRailOf, firstActionRailState, flyFirstActionRail, releaseFirstActionRail,
+} from '@/client/console/startFirstActionRail';
+import {ReactorEmergence, cardReactionAnswerFlight, markReactionCause} from '@/client/console/cardReaction/cardReactionDirector';
+import {cardReactionState} from '@/client/console/cardReaction/cardReactionStage';
+import {reactionTempo} from '@/client/console/cardReaction/cardReactionModel';
+import {heldCardCapsule} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {centreEndOf, iconMatches} from '@/client/console/consoleActionCommitMotion';
 import {clearPanelRewardHold, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
   armBonusGainClaim, awaitVisibleBonusGainSource, bonusGainRewardState, bonusGainSourceSelectors, consumeBonusGainReward,
@@ -1333,7 +1376,7 @@ function gsapSettled(animation: gsap.core.Animation): Promise<void> {
 export default defineComponent({
   name: 'ConsoleStartScene',
   directives: {embedZone: vEmbedZone},
-  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsoleStartPlayedDock, ConsolePlayedCardLite, ActionEffectChip},
+  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleCardAvailabilityPanel, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsoleStartPlayedDock, ConsolePlayedCardLite, ActionEffectChip, ConsoleForecastRow, ConsoleForecastLayer},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** The LIVE `/api/waitingFor` poll (App → shell → here) — see `launch`. */
@@ -1544,6 +1587,13 @@ export default defineComponent({
       embedSourceLanded: false,
       /** The queue scene has RELEASED (the draw-effect flow owns the room). */
       queueReleased: false,
+      /** The first action's rail half (TR81 — the start stage as an ATTACHED host of the card-reaction framework). */
+      firstActionRail: firstActionRailState,
+      /** The reaction scene's phase — the stage's completion barrier waits for the reactor to settle back. */
+      reactionStage: cardReactionState,
+      /** The «Сработает» door's one-shot COMMIT flare (`pulseForecastDoor`) and its plain handle. */
+      forecastPulse: false,
+      forecastPulseCall: undefined as {kill: () => void} | undefined,
       /** Fetched first-action previews by corp (`has(name)` = fetch settled) —
        *  the briefing's result chips / warnings / follow-up notes. (The stage
        *  MACHINE lives in `consoleStartState.firstAct` — it must survive the
@@ -2864,6 +2914,8 @@ export default defineComponent({
         !this.embedActive && this.candidatePrompt === undefined &&
         startFlowPreludePrompt(this.playerView) === undefined &&
         !this.heroState.active && currentRevealEvent() === undefined &&
+        // THE TABLE'S ANSWER TO THE ACTION (TR81): its rail half in the air, the reactor still standing out of its seat.
+        !firstActionRailBusy() && this.reactionStage.phase === 'idle' &&
         // THE DECK IS ALREADY DEALING. A draw's cards come off the deck
         // BEFORE the reveal event exists, so «no reveal yet» is not «no draw»
         // — read that gap as quiet and the stage leaves, the deployment
@@ -2898,6 +2950,52 @@ export default defineComponent({
     firstActionPreview(): ActionPreview | undefined {
       const corp = this.state.firstAct.corp;
       return corp === undefined ? undefined : this.firstActionPreviews.get(corp);
+    },
+    /**
+     * WHAT THE TABLE ANSWERS to the seated corp's first action (TR81 — the forecast rides the preview, the forecast's
+     * law 8): Lotus Innovations' «+2 [data]» for its own «+2 TR», a city's tile reactors, the parties.
+     */
+    firstActionForecast(): EffectForecast | undefined {
+      return forecastForFixedBranch(this.firstActionPreview?.forecast, 0);
+    },
+    firstActionForecastShown(): boolean {
+      return forecastRowPresent(this.firstActionForecast);
+    },
+    /** The «Эффекты» door may open: the standing briefing, nothing on the wire, something to show (law 9). */
+    firstActionForecastCanOpen(): boolean {
+      return this.firstActionPanelShown && this.state.firstAct.stage === 'standing' && !this.state.firstAct.submitting &&
+        forecastLayerAvailable(this.firstActionForecast);
+    },
+    firstActionFxOpen(): boolean {
+      return effectForecastOpen('start');
+    },
+    /** The crumb's tail while the layer stands — «ПЕРВОЕ ДЕЙСТВИЕ · ЭФФЕКТЫ», pre-translated (`stageRaw`). */
+    firstActionFxStage(): string | undefined {
+      return forecastStageText('start', 'First action');
+    },
+    firstActionForecastOwners(): ReadonlyArray<string> {
+      return forecastOwnerColors(this.firstActionForecast, this.playerView.players);
+    },
+    firstActionForecastStats(): Partial<Record<string, ReadonlyArray<EffectOverlayStat> | undefined>> {
+      return forecastStatsByColor(this.firstActionForecastOwners);
+    },
+    /**
+     * THE SEATED CARD'S LIVE CAPSULE (TR81): the committed count minus what is still in the air — a corporation that
+     * answers its own first action lays its tokens HERE, and the capsule ticks on each touchdown. `undefined` for a card
+     * the tableau does not hold (a prelude still in the queue) — the face then prints its pristine capsule.
+     */
+    seatCapsuleModel(): CardModel | undefined {
+      const name = this.embedSourceVisible;
+      // Only a HOLDER wears the live model: every other seated card keeps the name-only face its flights paint.
+      if (name === undefined || getCard(name)?.resourceType === undefined) {
+        return undefined;
+      }
+      const model = this.playerView.thisPlayer?.tableau.find((c) => c.name === name);
+      if (model === undefined) {
+        return undefined;
+      }
+      const held = heldCardCapsule(name);
+      return held === 0 ? model : {...model, resources: Math.max(0, (model.resources ?? 0) - held)};
     },
     /** The printed ASK — the live option's buttonLabel (`initialActionText`),
      *  or the honest generic while the prompt has not arrived yet. */
@@ -3947,6 +4045,10 @@ export default defineComponent({
       if (this.legacyViewOn && this.legacyView.phase !== 'open') {
         return [];
       }
+      // The «Эффекты» layer owns the bar while it stands — the explorer's own contract, verbatim.
+      if (this.firstActionFxOpen) {
+        return [...(forecastExplorerUi('start').barCommands ?? [])] as unknown as Array<StartCommand>;
+      }
       return startSceneCommands({
         dealActive: this.deal.state.active,
         mode: this.mode,
@@ -3966,6 +4068,7 @@ export default defineComponent({
         hasFocusables: this.focusables.length > 0,
         firstAction: this.firstActionBarState,
         firstActionChoice: this.firstActionChoiceLive,
+        firstActionEffects: this.firstActionForecastCanOpen,
         bonusAction: this.bonusActionBarState,
         stageGainFocused: this.stageGainFocused,
         bonusFirstPending: this.bonusOverviewVerb === 'firstAction',
@@ -3991,6 +4094,24 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * THE FIRST ACTION'S RAIL HALF IS HELD (seeded in the transport's apply block, TR81): the stage plays it — each
+     * printed TR plate of the corporation births its token into the score cell, then the table's answer comes out of
+     * the seat (the reactor rises in its place, its tokens born on its effect row land in its own capsule).
+     */
+    'firstActionRail.phase'(phase: string): void {
+      if (phase === 'seeded') {
+        void this.$nextTick(() => {
+          void this.runFirstActionRail();
+        });
+      }
+    },
+    /** The «Эффекты» layer lives only on the standing briefing — the press, the turn passing, the leave fold it at once. */
+    firstActionForecastCanOpen(can: boolean): void {
+      if (!can) {
+        foldForecastHost('start');
+      }
+    },
     /** The deal identity pins the wizard picks (module state survival). */
     'wizardInput': {
       immediate: true,
@@ -4745,6 +4866,10 @@ export default defineComponent({
   },
   beforeUnmount() {
     delete (window as unknown as Record<string, unknown>).__conStartDiag;
+    // The «Эффекты» layer is a level of THIS surface; the first action's rail half has nobody left to fly it.
+    this.forecastPulseCall?.kill();
+    closeEffectForecastLayer('start');
+    releaseFirstActionRail('stage unmounted');
     // Every seat flight still in the air belongs to a component that is
     // going: its continuation must apply nothing (the machine lives in module
     // state and the remount re-poses the seat from it).
@@ -5433,6 +5558,16 @@ export default defineComponent({
       // press is absorbed — a repeat A cannot double-fire, LT/RT cannot fork
       // a flight, B cannot tear down a surface a proxy is flying over.
       if (startFlowBusy()) {
+        return;
+      }
+      // THE «ЭФФЕКТЫ» LAYER owns the pad while it stands; R3 on the standing first-action briefing opens it (TR81 — the
+      // forecast's law 9: every surface that draws the table's answer is a door). Resolved before the semantic map.
+      if (this.firstActionFxOpen) {
+        forecastHostIntent('start', intent, this.$refs.forecastLayer as InstanceType<typeof ConsoleForecastLayer> | undefined);
+        return;
+      }
+      if (intent.kind === 'press' && intent.button === 'stickR' && this.firstActionForecastCanOpen) {
+        this.openFirstActionForecast();
         return;
       }
       // THE LEGACY OVERVIEW owns every intent while it exists: d-pad walks
@@ -7942,6 +8077,10 @@ export default defineComponent({
         return;
       }
       this.state.firstAct.submitting = true;
+      // THE RAIL HALF (TR81): the action's own rail gains and the table's answer to them, armed off the briefing's own
+      // preview at the press — the transport holds them in the apply block that pays them, the stage flies them.
+      foldForecastHost('start');
+      armFirstActionRail(firstActionRailOf(corp as CardName, firstActionBranch(this.firstActionPreview), this.firstActionForecast));
       // OPTIMISTIC BY CONTRACT (see claimStartFollowUp): whatever this action
       // turns out to produce — a drawn batch, a pick, nothing at all —
       // presents INSIDE this workspace. A claim that finds nothing to host is
@@ -7953,6 +8092,90 @@ export default defineComponent({
       // sits out the full BEAT_SAFETY before its surface may mount.
       markWorkspaceOutcomeBeatDone();
       this.$emit('submit', {type: 'or', index, response: {type: 'option'}});
+    },
+    /** R3 / a click on the «Сработает» row — the layer unfolds out of the row over the PARKED briefing (law 9). */
+    openFirstActionForecast(): void {
+      if (!this.firstActionForecastCanOpen || this.firstActionFxOpen) {
+        return;
+      }
+      this.forecastPulseCall = pulseForecastDoor((on) => {
+        this.forecastPulse = on;
+      }, this.forecastPulseCall);
+      openForecastHost('start', this.$el as HTMLElement | undefined, this.firstActionForecastOwners, this.playerView);
+    },
+    /** The seated card's element — the corporation standing on the stage (the reactor's own place). */
+    seatCardEl(): HTMLElement | undefined {
+      const root = this.$el as HTMLElement | undefined;
+      const el = root?.querySelector?.<HTMLElement>('.con-start__embedsource-card[data-embed-source-slot]');
+      return el === null || el === undefined ? undefined : el;
+    },
+    /**
+     * THE REACTOR RISES OUT OF ITS SEAT (law 3 of the card-reaction framework — a card standing on a stage comes forward
+     * out of its place): a 14 px lift of the seated face and back — transform only (invariant 15), the rise primitive's
+     * own durations. A card that is not the seated one never moves here.
+     */
+    liftSeat(card: CardName, up: boolean): Promise<void> {
+      const el = this.seatCardEl();
+      if (el === undefined || card !== this.embedSourceVisible) {
+        return Promise.resolve();
+      }
+      const t = reactionTempo();
+      if (consoleReducedMotionActive()) {
+        gsap.set(el, up ? {y: 0} : {clearProps: 'transform'});
+        return Promise.resolve();
+      }
+      return new Promise<void>((resolve) => {
+        gsap.to(el, {
+          y: up ? -14 * conUiScale() : 0,
+          duration: motionMs(up ? t.riseMs : t.recedeMs) / 1000,
+          ease: up ? 'power2.out' : 'power1.inOut',
+          ...(up ? {} : {clearProps: 'transform'}),
+          onComplete: resolve,
+          onInterrupt: resolve,
+        });
+      });
+    },
+    /** The start stage's way of bringing a reactor forward (the director's `ReactorEmergence`). */
+    firstActionEmergence(): ReactorEmergence {
+      return {
+        standsIn: (card) => card === this.embedSourceVisible && this.seatCardEl() !== undefined,
+        emergeTarget: (card) => this.liftSeat(card, true),
+        settleTarget: (card) => this.liftSeat(card, false),
+        emergedFaceEl: (card) => (card === this.embedSourceVisible ? this.seatCardEl() : undefined),
+      };
+    },
+    /**
+     * FLY THE FIRST ACTION'S RAIL HALF (TR81): the k-th rating token is born on the k-th printed TR plate of the seated
+     * corporation (the first action's row — never its effect row) and lands in the score cell; the table's answer is the
+     * card-reaction director's flight with the SEAT as the reactor's place, the rating cell marked as its cause.
+     */
+    async runFirstActionRail(): Promise<void> {
+      await flyFirstActionRail((rows) => {
+        const seat = this.seatCardEl();
+        const taken = new Map<string, number>();
+        const plates = (resource: string): Array<HTMLElement> => seat === undefined ? [] :
+          Array.from(seat.querySelectorAll<HTMLElement>('.pcard-ic')).filter((el) => el.closest('.pcard-effect') === null && iconMatches(el, resource));
+        const reaction = cardReactionAnswerFlight({rows, emergence: this.firstActionEmergence(), view: this.playerView});
+        return {
+          originOf: (spec: ResourceTransferSpec): TransferEnd | undefined => {
+            const k = taken.get(spec.resource) ?? 0;
+            taken.set(spec.resource, k + 1);
+            const printed = plates(spec.resource);
+            return centreEndOf(printed[Math.min(k, printed.length - 1)]);
+          },
+          answer: reaction === undefined ? undefined : {
+            ...reaction,
+            originOf: (spec: ResourceTransferSpec) => {
+              const origin = reaction.originOf(spec);
+              if (origin !== undefined) {
+                // THE CAUSE IS MARKED (the owner's decision 2): the rating that just ticked wears the one-shot kant.
+                markReactionCause(document.querySelector('.con-res .con-score__cell--tr'));
+              }
+              return origin;
+            },
+          },
+        };
+      });
     },
     /**
      * LEAVE THE STAGE — the action's whole causal chain has resolved: the
@@ -7968,6 +8191,10 @@ export default defineComponent({
       // The window's item #1 resolved INSIDE the window: the plan ticks it,
       // and the overview that returns says 2/2 with the board CTA.
       const nested = this.state.bonusAct.stage === 'standing' || this.state.bonusAct.stage === 'staging';
+      // A half still ARMED was never paid by a view (the action asked something else first): nothing is held, nothing owed.
+      if (this.firstActionRail.phase === 'armed') {
+        releaseFirstActionRail('stage left');
+      }
       this.state.firstAct.stage = 'leaving';
       // The ROOM breathes back first (the shelf is the settle's destination),
       // then the stage RELEASES its seat — the one settle home of the stage.
@@ -8302,9 +8529,11 @@ export default defineComponent({
             if (rewards.length > 0 && this.rewardVersion === version) {
               this.playRewards.set(name, rewards);
             }
-            // The rail half — the ceremony pre-collects nothing and a start play costs nothing it pays here.
+            // The rail half — the ceremony pre-collects nothing and a start play costs nothing it pays here; a rating's
+            // card answer (TR81 Lotus Innovations' data) rides it after the TR, like the play composer's.
+            const facts = forecastForFixedBranch(preview?.forecast, 0)?.facts;
             const rail = withRailAnswerTags(playRailReward(branch, branch.effects ?? [], {}, undefined,
-              reactionRailSpecs(forecastForFixedBranch(preview?.forecast, 0)?.facts)), railAnswerTags(forecastForFixedBranch(preview?.forecast, 0)?.facts));
+              [...reactionRailSpecs(facts), ...ratingAnswerSpecs(facts)]), railAnswerTags(facts));
             if (this.rewardVersion === version) {
               if (rail !== undefined) {
                 this.playRails.set(name, rail);

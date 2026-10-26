@@ -33,6 +33,7 @@ import {PartyName} from '../../../src/common/turmoil/PartyName';
 import {Tardigrades} from '../../../src/server/cards/base/Tardigrades';
 import {AICentral} from '../../../src/server/cards/base/AICentral';
 import {Research} from '../../../src/server/cards/base/Research';
+import {ReleaseOfInertGases} from '../../../src/server/cards/base/ReleaseOfInertGases';
 import {NoctisCity} from '../../../src/server/cards/base/NoctisCity';
 import {ImmigrantCity} from '../../../src/server/cards/base/ImmigrantCity';
 import {TharsisRepublic} from '../../../src/server/cards/corporation/TharsisRepublic';
@@ -9743,6 +9744,40 @@ parliamentFixture('arwind-pay-space', {
   runAllActions(game);
   if (game.getTemperature() >= 8) {
     throw new Error(`${name}: the temperature is at its maximum — no step to pay`);
+  }
+  write(name, game);
+}
+
+// ── lotus-innovations: TR81 LOTUS INNOVATIONS — «a data here for every step of your rating; 1 VP per 4 data». A 2p Redux
+//    table, blue on Lotus with its first action BEHIND it (the start stage's own scene is the spec's A, on a real start
+//    flow) and 1 data on the card: Release of Inert Gases in the hand (a printed +2 TR — the composer's «Сработает»
+//    names the data, the corporation answers out of the receiving stage after the TR's touchdown → 3 data) and M€ for
+//    the asteroid standard project afterwards (a temperature step — the board form, a seat beside the rail → the
+//    fourth data, 1 VP). Red on Teractor (no first action). ──
+{
+  const name = 'lotus-innovations';
+  const pinned = [CardName.LOTUS_INNOVATIONS, REDUX_TABLE_CORPORATIONS[0]];
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, [p1, p2], pinned);
+  answerStartFlow(game, [p1, p2]);
+  const lotus = p1.playedCards.get(CardName.LOTUS_INNOVATIONS);
+  if (lotus === undefined) {
+    throw new Error(`${name}: blue is not on Lotus Innovations (${p1.playedCards.corporations().map(toName).join(',')})`);
+  }
+  // The first action is the start stage's own scene — here it lies behind the table (the prompt is rebuilt at load).
+  p1.pendingInitialActions = [];
+  lotus.resourceCount = 1;
+  p1.cardsInHand = p1.cardsInHand.filter((c) => c.name !== CardName.RELEASE_OF_INERT_GASES);
+  p1.cardsInHand.push(new ReleaseOfInertGases());
+  p1.megaCredits = 60;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  const release = p1.cardsInHand.find((c) => c.name === CardName.RELEASE_OF_INERT_GASES);
+  if (release === undefined || !p1.canPlay(release) || game.getTemperature() >= 8) {
+    throw new Error(`${name}: Release of Inert Gases is not playable or the temperature has no step left`);
   }
   write(name, game);
 }

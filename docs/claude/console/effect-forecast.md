@@ -158,6 +158,22 @@ branch with `certainty: 'conditional'` (an `unknown` stays `unknown`).
 `FORECAST_HOOK_PAIRS` is the engine's declared «live hook → forecast hook»
 table, and the coverage guard's law.
 
+**A RATING GAIN IS ONE `tr` GRANT ON ONE SUM — THE RATING PASS** (TR81 Lotus Innovations, 2026-10-26).
+`ratingStepsOf(player, grants, effects, tiles)` is THE operation's rating — `now` (the explicit `tr` grants + every
+`global` grant's steps + the bonus steps crossed, the veto's struck IMPLIED steps off) and `placed` (what the tiles the
+operation places carry — `vetoedRating.tileRatingEvents`, the veto's own reading of a tile; struck steps come off it
+first). The ruling Greens read it (`greens-tr` now, `greens-tr-placed` deferred after the placement) and so does
+`ratingRaiseFacts`, which offers the sum as ONE `{kind: 'tr'}` grant to every seat's
+`onIncreaseTerraformRatingByAnyPlayer` reactors (`exact` now · `deferred`/`after-placement` for a placed tile; one
+`unknown` per card without a twin; a world move: nothing), cascaded like any first-order fact. It stands beside
+`partyFacts` in every door (the composers per branch, `rewardReactionFacts`). The pair is a row of
+`FORECAST_HOOK_PAIRS`; the parity pool's explicit rating is Release of Inert Gases. Contract:
+`docs/TURMOIL_REDUX_LOTUS_INNOVATIONS.md` §2; guard `tests/models/ratingRaiseFacts.spec.ts`.
+
+**A FIRST ACTION'S PREVIEW CARRIES ITS FORECAST** (TR81): `corpFirstActionPreview` attaches `forecast`
+(`effectForecastForAction` over the first action's branch), absent when nothing answers; the start stage draws the row
+and is a door (host `'start'`).
+
 **A SCALE RAISE IS A GRANT IN STEPS** (TR24 Venusian Census, 2026-10-04). A global chip becomes `{kind: 'global',
 parameter, steps}` where `steps` = (resulting − current) / the scale's step (`scaleStepsOf`, the step read from
 `actionPreviews.globalParameterStepSize` — the same table the chip was written with): Venus «+4 %» is two steps, the same
@@ -231,7 +247,8 @@ Logistics, Splice. Second order (4): Manutech, Meat Industry, Topsoil
 Contract, Development Manager. Tile triggers (14): Survey Card (Ares), Arctic
 Algae, Herbivores, Immigrant City, Pets, Rover Construction, Mining Guild,
 Tharsis Republic, Dynamic Ocean Barrier, Hospitals, Neptunian Power
-Consultants, Philares, PolderTECH Dutch, Vermin. MarsBot corporations (3):
+Consultants, Philares, PolderTECH Dutch, Vermin. Rating reactors —
+`onIncreaseTerraformRatingByAnyPlayer` (1): Lotus Innovations (TR81). MarsBot corporations (3):
 Saturn Systems (C08), Pharmacy Union (C21), Splice (C24 — delegates to the
 human card's own hook, re-sourced, channel kept). Out of scope (honest
 `unknown` only): Turmoil policies, Pathfinders, Moon, Underworld, CEOs.

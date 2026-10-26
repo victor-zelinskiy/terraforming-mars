@@ -948,7 +948,8 @@ export function withoutScaleStepAnswers(
   }
   const effects = [...branchEffects, ...chosenStepEffects(branch, stepResponses)];
   const scaleStep = effects.some((e) => e.direction === 'gain' && e.amount > 0 && SCALE_ICONS.has(e.icon) && e.icon !== 'oceans');
-  return scaleStep ? reactions.filter((spec) => !(spec.channel === 'stock' && spec.resource === 'megacredits')) : reactions;
+  // …and a card's answer to that rating (TR81 Lotus Innovations' data) goes with it: the scale's story owns the rating.
+  return scaleStep ? reactions.filter((spec) => !(spec.channel === 'stock' && spec.resource === 'megacredits') && spec.channel !== 'card-resource') : reactions;
 }
 
 /**
@@ -974,7 +975,7 @@ export function withoutAgendaWalkAnswers(
     return reactions;
   }
   const walksOverRating = branch.steps.some((step) => step.kind === 'agendaWalk' && step.walk.steps.some((s) => s.kind === 'tr'));
-  return walksOverRating ? reactions.filter((spec) => !(spec.channel === 'stock' && spec.resource === 'megacredits')) : reactions;
+  return walksOverRating ? reactions.filter((spec) => !(spec.channel === 'stock' && spec.resource === 'megacredits') && spec.channel !== 'card-resource') : reactions;
 }
 
 /**

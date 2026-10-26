@@ -42,6 +42,16 @@
   рождается на НУЖНОЙ строке лица; без него — на кадре, печатающем ресурс). Предикат класса («карта размещает
   тайл» — `cardPlacesTile`) ОДИН у хука, двойника и гард-ворклиста; второго не заводить. Контракт —
   `docs/claude/console/card-reaction.md`, образец — TR80 (`docs/TURMOIL_REDUX_HARTLAN_HEATING.md`).
+- [ ] **Реактор РТ (`onIncreaseTerraformRatingByAnyPlayer`) — двойник `grantForecast` на гранте `{kind: 'tr'}`** (TR81
+  Lotus Innovations, 2026-10-26): ПАСС РЕЙТИНГА прогноза (`ratingStepsOf` — ОДНА сумма с Зелёными: явный РТ + шаги шкал +
+  бонусы треков − вето; тайлы посадкой — отдельно, `deferred`) предлагает её всем столам; свой/чужой — по
+  `cardOwner.id === activePlayer.id`. Вторую арифметику «РТ операции» не заводить (`docs/TURMOIL_REDUX_LOTUS_INNOVATIONS.md`).
+- [ ] **Корпорация-ДЕРЖАТЕЛЬ с ПО за N ресурсов** (TR81, форма Arklight): `resourceType` + `victoryPoints: {resourcesHere:
+  {}, per: N}` — бейдж «1/N [ресурс]», разбивка ПО и финал даром (бейдж руками не рисовать); капсула корпорации — живой
+  конец полёта в принимающей сцене (зона `corporation`, `playCardReactions` берёт источник `corporation`) и на месте
+  стартовой сцены (`.con-start__embedsource [data-start-seat-card] .pcard__res`). Первое действие, которое платит рельс
+  (`firstAction: {tr: N}`), играет СТАРТОВАЯ СТАДИЯ как третий ATTACHED-хост (`startFirstActionRail.ts`); гард описаний —
+  строка `ACCEPTED` в `cardInformation.spec` («data resources here» = «data on this card»).
 
 ## 1. Пять точек касания (как у любой карты)
 
