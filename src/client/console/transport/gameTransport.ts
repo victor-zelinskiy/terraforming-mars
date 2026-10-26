@@ -67,9 +67,13 @@ import {
 } from '@/client/components/board/markerPlacementAnimation';
 import {
   applyOwnerCubePlacementPreview,
+  clockwiseFromTop,
+  freshOwnerCubeIds,
+  landOwnerCubesInTurn,
   ownerCubeHoldDurationMs,
   shouldHoldForOwnerCubePlacement,
 } from '@/client/components/board/cubeDropState';
+import {holdAnimationWhile} from '@/client/components/presentation/animationHold';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
 import {checkPostCommitChoice, checkPreselectReask, notePreselectBatch} from '@/client/console/preselectWitness';
@@ -170,6 +174,7 @@ import {
   abortTilePlacement,
   detectTilePlacement,
   endTilePlacement,
+  measureBoardHexRect,
   runTilePlacement,
   seedTilePlacementRewardHold,
 } from '@/client/console/tilePlacement/consoleTilePlacement';
@@ -925,6 +930,9 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             // …and the viewer's stock in both views: the price a conversion pays off the rail (PL-306) is flown only
             // when its row moved by exactly that price plus what the placement pays back.
             viewerStock: {before: stockReadingOf(currentView().thisPlayer), after: stockReadingOf(newView.thisPlayer)},
+            // …and the server's record of what the cell's printed bonus PAID — a multiple (TR79 Ferrus Academy) plays the
+            // printed beat once per multiple, never a guessed «×2».
+            placements: newView.game?.tilePlacements,
           });
         if (tileHeroEvent !== undefined) {
           transportHolds.tilePlacementHero = true;
@@ -1139,7 +1147,13 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
         // A PLAYER MARKER claimed an empty cell (Land Claim, an Arcadian
         // community): a colour-only diff — the cube popped in without this.
         // A claim collects NOTHING, so this branch stays a pure landing.
-        const ownerCubeHold = shouldHoldForOwnerCubePlacement(
+        // …and the markers a LANDING brought (TR79 Ferrus Academy's ring of cubes around its first city) land IN TURN,
+        // one by one, after the city and its own cube — never one frame (`landOwnerCubesInTurn`, awaited below).
+        // The viewer's OWN ring rides its own city (the hero); a rival's ring was claimed by the remote stage above and
+        // lands after the rival's city does.
+        const freshOwnerCubes = freshOwnerCubeIds(currentView().game.spaces, newView.game.spaces).length;
+        const ownerCubeRing = tileHeroEvent !== undefined && freshOwnerCubes > 0;
+        const ownerCubeHold = !ownerCubeRing && shouldHoldForOwnerCubePlacement(
           currentView().game.spaces,
           newView.game.spaces,
         );
@@ -1207,6 +1221,26 @@ function fetchPlayerInput(url: string, options: RequestInit, wgtSubmit: boolean)
             await new Promise<void>((resolve) => setTimeout(resolve, holdMs));
           } finally {
             transportHolds.marker = false;
+            transportHolds.tilePlacement = false;
+          }
+        }
+        if (ownerCubeRing) {
+          // THE RING (TR79): every fresh cube held hidden with its colour, then set down one by one, clockwise from the
+          // top of the city it rings (the hero's own cell when it placed one) — the commit waits for the LAST contact,
+          // and the registry knows the scene owns the foreground (the start's completion barrier waits on it too).
+          transportHolds.tilePlacement = true;
+          const pivotRect = tileHeroEvent !== undefined ? measureBoardHexRect(tileHeroEvent.spaceId) : undefined;
+          const centreOf = (id: string) => {
+            const r = measureBoardHexRect(id);
+            return r === undefined ? undefined : {x: r.x + r.w / 2, y: r.y + r.h / 2};
+          };
+          try {
+            await holdAnimationWhile('owner-cube-ring', landOwnerCubesInTurn(currentView().game.spaces, newView.game.spaces, {
+              order: (ids) => clockwiseFromTop(ids, centreOf, pivotRect === undefined ? undefined : {x: pivotRect.x + pivotRect.w / 2, y: pivotRect.y + pivotRect.h / 2}),
+              wait: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+              scale: motionMs,
+            }));
+          } finally {
             transportHolds.tilePlacement = false;
           }
         }

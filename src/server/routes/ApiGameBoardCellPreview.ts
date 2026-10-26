@@ -169,7 +169,11 @@ export class ApiGameBoardCellPreview extends Handler {
           return;
         }
       }
-      responses.writeJson(res, ctx, boardCellPreview(player, space, kindParam as BoardPlacementKind, {cleared, tileType, sourceCard, placementEffect, canAffordOptions, movedFrom}));
+      // `bonus=<N>` → the prompt's `printedBonusMultiplier` (TR79 Ferrus Academy's first city): the cell's printed
+      // bonus pays N times on the commit. Bounded small integer; anything else reads as the default 1.
+      const bonusParam = Number(ctx.url.searchParams.get('bonus'));
+      const printedBonusMultiplier = Number.isInteger(bonusParam) && bonusParam > 1 && bonusParam <= 4 ? bonusParam : undefined;
+      responses.writeJson(res, ctx, boardCellPreview(player, space, kindParam as BoardPlacementKind, {cleared, tileType, sourceCard, placementEffect, canAffordOptions, movedFrom, printedBonusMultiplier}));
     } else {
       responses.writeJson(res, ctx, boardCellInfo(player, space));
     }

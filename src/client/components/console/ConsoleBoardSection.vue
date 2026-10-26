@@ -38,6 +38,19 @@
         <span class="con-bmove__line"></span>
         <span class="con-bmove__head"></span>
       </div>
+      <!-- WHERE THE CUBES WILL STAND (TR79 Ferrus Academy's first city): a SILHOUETTE of the player's own cube on every
+           cell the focused preview reserves (`BoardFact.reservesSpaces` — the server's ring, the commit's predicate), seated
+           exactly where the real owner cube will sit. Material, never light: the cube itself, translucent — no halo, no
+           breath (invariant 15). It stands with the reticle (the lock included) and yields with it to the hero scene, whose
+           cubes then land one by one on these very seats. -->
+      <span v-for="ghost in reserveGhosts" :key="ghost.spaceId"
+            class="con-reserve-ghost"
+            :style="ghost.style"
+            data-reserve-ghost
+            :data-reserve-space="ghost.spaceId"
+            aria-hidden="true">
+        <PlayerCube class="board-owner-cube" :color="ghost.color" :size="12" />
+      </span>
       <transition name="con-bcur-out">
         <ConsoleBoardCursor
           v-if="(cursorVisible || cursorMarker) && cursorPos !== undefined"
@@ -81,6 +94,7 @@ import ConsoleBoardCursor from '@/client/components/console/ConsoleBoardCursor.v
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {GameModel} from '@/common/models/GameModel';
 import {SpaceId} from '@/common/Types';
+import {Color} from '@/common/Color';
 import {NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {NavRect, pickDirectional, pickNearest, pickStrictGrid, rectCenter} from '@/client/gamepad/spatialNav';
 import {boardInfoState, hoverBoardCell, prefetchBoardCells} from '@/client/components/board/boardInfoState';
@@ -99,7 +113,8 @@ import {cssLengthPx} from '@/client/console/cssUnits';
 import {placementFlowState} from '@/client/console/tilePlacement/placementFlow';
 import {tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {PlacementShape, swatchForKind} from '@/client/console/placementDossier';
-import {PlacementRelation, relationsFromInfo, relationsFromPreview} from '@/client/console/placementRelations';
+import {PlacementRelation, relationsFromInfo, relationsFromPreview, reservedSpacesOf} from '@/client/console/placementRelations';
+import PlayerCube from '@/client/components/PlayerCube.vue';
 import {BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 import {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
 import {TileType} from '@/common/TileType';
@@ -297,7 +312,7 @@ const LATE_VERIFY_MAX = 4;
 
 export default defineComponent({
   name: 'ConsoleBoardSection',
-  components: {GameBoardView, ConsoleBoardCursor},
+  components: {GameBoardView, ConsoleBoardCursor, PlayerCube},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     placementActive: {type: Boolean, required: true},
@@ -660,6 +675,32 @@ export default defineComponent({
       }
       const suffix = tileCssClassOf(tt, this.playerView.game.gameOptions?.expansions?.ares === true);
       return suffix === '' ? '' : 'board-space-tile--' + suffix;
+    },
+    /**
+     * THE CUBE SILHOUETTES of a reserving placement (TR79 Ferrus Academy's first city): the cells the focused cell's own
+     * preview names (`reservedSpacesOf` — never a client geometry), each seated at the cell's top-left in board px so the
+     * owner cube's own rule (`.board-owner-cube`) puts the silhouette exactly where the real cube will stand. Only while
+     * the reticle stands on a legal cell whose preview has arrived — a stale answer for another cell draws nothing.
+     */
+    reserveGhosts(): ReadonlyArray<{spaceId: string, color: Color, style: Record<string, string>}> {
+      void boardSpaceEpoch();
+      const preview = this.cellPreview;
+      const id = this.cursorSpaceId;
+      const color = this.playerView.thisPlayer?.color;
+      if (!this.cursorVisible || !this.selectedAvailable || preview === undefined || preview.space !== id || color === undefined) {
+        return [];
+      }
+      const out: Array<{spaceId: string, color: Color, style: Record<string, string>}> = [];
+      for (const spaceId of reservedSpacesOf(preview)) {
+        const centre = this.cellIntrinsicCentre(spaceId);
+        if (centre === undefined) {
+          continue;
+        }
+        const x = centre.x - 23; /* keep-px: half a 46×51 hex */
+        const y = centre.y - 25.5;
+        out.push({spaceId, color, style: {transform: `translate(${x}px, ${y}px)`}});
+      }
+      return out;
     },
     /** The ownership marker on the projection — every owned tile seats one;
      *  an ocean is neutral and never does (resolved tile, kind-only included). */

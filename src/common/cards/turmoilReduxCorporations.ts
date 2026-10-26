@@ -31,7 +31,9 @@ export type ReduxCorporationRow = {
 export const TURMOIL_REDUX_NEW_CORPORATIONS: ReadonlyArray<ReduxCorporationRow> = [
   // TR78 — AUTHORED 2026-10-26 (`turmoilRedux/ArwindInc.ts`): the Career step's reactor + the fighters' payment unit.
   {name: 'Arwind Inc.', scan: 'Corporations/Corporation - Arwind Inc.png', authored: CardName.ARWIND_INC},
-  {name: 'Ferrus Academy', scan: 'Corporations/Corporation - Ferrus Academy.png'},
+  // TR79 — AUTHORED 2026-10-26 (`turmoilRedux/FerrusAcademy.ts`): the first city's printed bonus ×2 + a ring of cubes;
+  // a tile on an own cube → 3 data or a card. The scan's text says 45 M€ — the plate's 40 is right (the owner).
+  {name: 'Ferrus Academy', scan: 'Corporations/Corporation - Ferrus Academy.png', authored: CardName.FERRUS_ACADEMY},
   {name: 'Hartlan Heating', scan: 'Corporations/Corporation - Hartlan Heating.png'},
   {name: 'Lotus Innovations', scan: 'Corporations/Corporation - Lotus Innovations.png'},
   {name: 'Proteus', scan: 'Corporations/Corporation - Proteus.png'},

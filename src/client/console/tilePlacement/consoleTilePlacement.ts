@@ -127,9 +127,10 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {OceanAdjacencyBonusModel} from '@/common/models/OceanAdjacencyBonusModel';
+import {TilePlacementRecordModel} from '@/common/models/TilePlacementRecordModel';
 import {
   TilePlacementPhase, PlacementBonus, TileRect,
-  placementBonuses, verifyPlacement, findSpace, applySpacePreview, applyVacatePreview,
+  placementBonuses, printedBonusRepeats, verifyPlacement, findSpace, applySpacePreview, applyVacatePreview,
   MOVE_LIFT_MS, MOVE_CARRY_MS, MOVE_LAND_MS, moveSceneMs, moveSourceRect,
   TILE_FLIGHT_MS, TILE_SETTLE_MS, TILE_REDUCED_MS, TILE_ARM_SAFETY_MS,
   PlacementPrice, StockReading, placementPriceVerdict, SPROUT_PROFILE, TILE_SPROUT_MS, SPROUT_BONUS_LIFT_T,
@@ -289,6 +290,8 @@ let sceneSafety: number | undefined;
 let runResolve: (() => void) | undefined;
 /** The printed bonuses the reward beat carries (captured at detect). */
 let pendingBonuses: ReadonlyArray<PlacementBonus> = [];
+/** How many times the cell's printed icons paid (`printedBonusRepeats` — TR79's doubled first city); 1 otherwise. */
+let pendingBonusRepeats = 1;
 /** The SERVER's ocean-adjacency breakdown for THIS placement (captured at
  *  detect, matched on the armed space) — the ocean beat's manifest. */
 let pendingOceanBonus: OceanAdjacencyBonusModel | undefined;
@@ -500,6 +503,7 @@ export function armTilePlacement(opts: {
   clearTimers();
   claimed = false;
   pendingBonuses = [];
+  pendingBonusRepeats = 1;
   pendingOceanBonus = undefined;
   pendingAresFlights = [];
   pendingLawWave = undefined;
@@ -584,6 +588,8 @@ export function detectTilePlacement(
     viewerCards?: ReadonlyArray<CardModel>,
     /** The viewer's stock rows in the APPLIED view and in the ANSWER — what the price's promise is checked against. */
     viewerStock?: {before: StockReading, after: StockReading},
+    /** The SERVER's ring of tiles placed (`game.tilePlacements`): what THIS cell's printed bonus paid — a multiple too. */
+    placements?: ReadonlyArray<TilePlacementRecordModel>,
   },
 ): {spaceId: string} | undefined {
   if (!tilePlacementState.active || claimed) {
@@ -652,6 +658,8 @@ export function detectTilePlacement(
   // `coveringExistingTile`) — flying them would be a lie about money.
   const space = prevSpaces !== undefined ? findSpace(prevSpaces, spaceId) : undefined;
   pendingBonuses = landed.covers === undefined && space !== undefined ? placementBonuses(space.bonus) : [];
+  // A MULTIPLIED printed bonus (TR79): the server's record of THIS placement says how many times each icon paid.
+  pendingBonusRepeats = printedBonusRepeats(opts?.placements, spaceId, pendingBonuses);
   if (landed.replaces !== undefined) {
     // A REMOVE-AND-REPLACE cell is the one case where the printed icons are
     // NOT on screen yet: the doomed tile is still standing on them (the
@@ -694,12 +702,21 @@ export function detectTilePlacement(
   return {spaceId};
 }
 
+/** The printed bonuses' specs, `repeats` times over (one hold / one known move per pass of the printed beat). */
+function repeatedSpecs(bonuses: ReadonlyArray<PlacementBonus>, repeats: number): Array<ResourceTransferSpec> {
+  const out: Array<ResourceTransferSpec> = [];
+  for (let pass = 0; pass < repeats; pass++) {
+    out.push(...bonuses.map((b) => b.spec));
+  }
+  return out;
+}
+
 /**
  * What THIS placement is known to pay back onto a stock row (PL-306's promise): the cell's printed bonuses, the
  * water, the Ares neighbours, the law's wave, the move's answer — exactly the specs the reward hold will hold.
  */
 function pendingStockGains(resource: string): number {
-  const specs: Array<ResourceTransferSpec> = [...pendingBonuses.map((b) => b.spec), ...pendingAresFlights.map((f) => f.spec)];
+  const specs: Array<ResourceTransferSpec> = [...repeatedSpecs(pendingBonuses, pendingBonusRepeats), ...pendingAresFlights.map((f) => f.spec)];
   if (pendingOceanBonus !== undefined) {
     specs.push({channel: 'stock', resource: 'megacredits', amount: pendingOceanBonus.megacredits});
   }
@@ -1306,7 +1323,8 @@ export function seedTilePlacementRewardHold(): void {
     return;
   }
   bonusHoldSeeded = true;
-  const specs = pendingBonuses.map((b) => b.spec);
+  // A multiplied printed bonus is held whole: every pass of the printed beat releases its own share on its touchdowns.
+  const specs = repeatedSpecs(pendingBonuses, pendingBonusRepeats);
   if (pendingOceanBonus !== undefined) {
     // ONE hold entry for the whole ocean payout (the map is keyed by resource
     // and additive, so this composes with a printed M€ bonus). It is released
@@ -1368,6 +1386,7 @@ export async function endTilePlacement(): Promise<void> {
     return;
   }
   const bonuses = pendingBonuses;
+  const repeats = pendingBonusRepeats;
   const ocean = pendingOceanBonus;
   const aresFlights = pendingAresFlights;
   const lawWave = pendingLawWave;
@@ -1405,7 +1424,13 @@ export async function endTilePlacement(): Promise<void> {
   // one after another's touchdowns, each with its own breath: a greenery beside two oceans read as four events.
   const wave: Array<() => Promise<void>> = [];
   if (bonuses.length > 0) {
-    wave.push(() => runPrintedBonusBeat(bonuses));
+    // A MULTIPLIED printed bonus (TR79 — the owner's decision: every icon pays twice) is the printed beat played once per
+    // multiple: each icon sends one token per pass, the counter ticking on every touchdown — never one token marked «×2».
+    wave.push(async () => {
+      for (let pass = 0; pass < repeats && tilePlacementState.active; pass++) {
+        await runPrintedBonusBeat(bonuses);
+      }
+    });
   }
   if (ocean !== undefined) {
     wave.push(() => runOceanBonusBeat(ocean, 0));

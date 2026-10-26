@@ -109,6 +109,10 @@ action. Contract: `docs/TURMOIL_REDUX_SEPTEM_TRIBUS.md` §3.
 
 ## The COMPLETION BARRIER (`startBoardExcursion.ts`)
 
+**A ring of markers rides the landing** (TR79 Ferrus Academy — a city, then the player's cube on every free neighbour): the cubes are
+set down one by one by the transport BEFORE the commit (`landOwnerCubesInTurn`, the named hold `owner-cube-ring`), while the hero's
+transaction still stands (`tilePlacementHolding`) — so the barrier waits for the last cube's contact by construction; nothing new to list.
+
 The pre-existing architectural bug: the workspace yields to a board placement
 via `startSceneVisible`'s `!placementActive`, which ends at the SPACE
 ANSWER — so the scene popped back between the causally connected parts of one

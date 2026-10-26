@@ -5,9 +5,15 @@ import {TileType} from '@/common/TileType';
 import {Color} from '@/common/Color';
 import {
   applyOwnerCubePlacementPreview,
+  clockwiseFromTop,
+  cubePhase,
+  freshOwnerCubeIds,
+  landOwnerCubesInTurn,
+  restCubeForHeroPlacement,
   ownerCubeHoldDurationMs,
   shouldHoldForOwnerCubePlacement,
 } from '@/client/components/board/cubeDropState';
+import {SpaceId} from '@/common/Types';
 
 function space(id: string, extra: Partial<SpaceModel> = {}): SpaceModel {
   return {id, x: 0, y: 0, spaceType: SpaceType.LAND, bonus: [], ...extra} as SpaceModel;
@@ -84,5 +90,63 @@ describe('cubeDropState — player-marker (cube-only) placement', () => {
     // Whichever motion preference is active, the commit waits for the beat that
     // carries the meaning (never zero — that IS the pop this framework removes).
     expect(ownerCubeHoldDurationMs()).is.at.least(100);
+  });
+});
+
+describe('cubeDropState — a RING of markers lands one by one (TR79 Ferrus Academy)', () => {
+  // A hex ring around (0, 0), board px, y down: top, upper-right, lower-right, bottom, lower-left, upper-left.
+  const CENTRES: Record<string, {x: number, y: number}> = {
+    '10': {x: 0, y: -50}, '11': {x: 43, y: -25}, '12': {x: 43, y: 25},
+    '13': {x: 0, y: 50}, '14': {x: -43, y: 25}, '15': {x: -43, y: -25},
+  };
+
+  after(() => {
+    // Module state is bundle-shared: leave every cube of this ring at rest.
+    Object.keys(CENTRES).forEach((id) => restCubeForHeroPlacement(id as SpaceId));
+  });
+
+  it('reads the ring clockwise from the top of the pivot, whatever order the ids came in', () => {
+    const order = clockwiseFromTop(['13', '15', '11', '10', '14', '12'] as Array<SpaceId>, (id) => CENTRES[id], {x: 0, y: 0});
+    expect(order).deep.eq(['10', '11', '12', '13', '14', '15']);
+  });
+
+  it('a cell with no measurable centre keeps its place at the end', () => {
+    const order = clockwiseFromTop(['99', '12', '10'] as Array<SpaceId>, (id) => CENTRES[id], {x: 0, y: 0});
+    expect(order).deep.eq(['10', '12', '99']);
+  });
+
+  it('the fresh markers of a response are the cells that gained a colour WITHOUT a tile', () => {
+    const before = [space('10'), space('11'), space('20')];
+    const after = [space('10', {color: 'red' as Color}), space('11', {color: 'red' as Color}), space('20', {color: 'red' as Color, tileType: TileType.CITY})];
+    expect(freshOwnerCubeIds(before, after)).deep.eq(['10', '11']);
+  });
+
+  it('every cube is HIDDEN when its colour paints, and the cubes are set down in the given order — one per step', async () => {
+    const displayed = Object.keys(CENTRES).map((id) => space(id));
+    const incoming = Object.keys(CENTRES).map((id) => space(id, {color: 'red' as Color}));
+    const dropped: Array<string> = [];
+    const waits: Array<number> = [];
+    const run = landOwnerCubesInTurn(displayed, incoming, {
+      order: (ids) => [...ids].reverse(),
+      wait: async (ms) => {
+        waits.push(ms);
+        for (const id of Object.keys(CENTRES)) {
+          if (cubePhase(id as SpaceId) !== 'hidden' && !dropped.includes(id)) {
+            dropped.push(id);
+          }
+        }
+      },
+    });
+    // The colours are painted in the same synchronous turn — and nothing is visible yet.
+    expect(displayed.every((s) => s.color === 'red')).is.true;
+    await run;
+    if (dropped.length === 0) {
+      // Reduced motion: every cube rests at once after the token wait.
+      expect(Object.keys(CENTRES).every((id) => cubePhase(id as SpaceId) === 'rest')).is.true;
+      return;
+    }
+    expect(dropped).deep.eq(['15', '14', '13', '12', '11', '10']);
+    // lead + five steps + the last contact: never one frame for six cubes.
+    expect(waits.length).eq(1 + 5 + 1);
   });
 });

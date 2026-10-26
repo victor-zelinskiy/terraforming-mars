@@ -6675,6 +6675,27 @@ html.con-section-leaving .con-strat {
 .con-board--move-lifted .board-space.board-space--move-source > .player-cube.board-owner-cube {
     opacity: 0.72;
 }
+/* THE CUBE SILHOUETTES (TR79 Ferrus Academy's first city) — where the player's cubes WILL stand. A cell-sized seat in
+   board px (keep-px), the real owner cube inside it (`.board-owner-cube` places it exactly where the landed cube sits),
+   translucent: MATERIAL, never light — no halo, no breath (invariant 15). One short fade in, nothing standing. */
+.con-reserve-ghost {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 46px; /* keep-px: board px-space — one hex */
+    height: 51px; /* keep-px: board px-space — one hex */
+    pointer-events: none;
+    z-index: 4;
+    opacity: 0.5;
+    animation: con-reserve-ghost-in calc(180ms * var(--motion-scale, 1)) @con-ease-settle both;
+}
+@keyframes con-reserve-ghost-in {
+    from { opacity: 0; }
+    to { opacity: 0.5; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-reserve-ghost { animation: none; }
+}
 .con-bmove-origin {
     position: absolute;
     left: 0;

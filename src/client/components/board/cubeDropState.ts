@@ -269,3 +269,128 @@ function eachFreshOwnerCube(
   }
   return count;
 }
+
+/*
+ * ── A RING OF MARKERS — the cubes land ONE BY ONE ────────────────────────────
+ *
+ * One response can put SEVERAL markers down at once — TR79 Ferrus Academy's
+ * first action seats a city and then the player's cube on every free
+ * neighbour (up to six). Painted together, six cubes dropped in one frame: a
+ * stamp, not a hand. So a response with more than one fresh marker lands them
+ * IN TURN — each held hidden in the same synchronous block as its colour, then
+ * dropped one by one in the order the caller reads off the board (clockwise
+ * from the top of the city they ring), the hold resolving at the LAST cube's
+ * contact. Reduced motion: every cube rests at once after the token wait.
+ */
+
+/** The pause before the ring's first cube — the city's own cube lands first. */
+export const OWNER_CUBE_RING_LEAD_MS = 240;
+/** One cube per step: a hand setting cubes down, never a stamp. */
+export const OWNER_CUBE_RING_STEP_MS = 120;
+
+/** The ids of the cells that gained a marker in this response (index order). */
+export function freshOwnerCubeIds(
+  oldSpaces: ReadonlyArray<SpaceModel>,
+  newSpaces: ReadonlyArray<SpaceModel>,
+): Array<SpaceId> {
+  const ids: Array<SpaceId> = [];
+  eachFreshOwnerCube(oldSpaces, newSpaces, (_old, fresh) => ids.push(fresh.id));
+  return ids;
+}
+
+/**
+ * CLOCKWISE FROM THE TOP around `pivot` (pure geometry, board coordinates with y down): the ring's reading order. A
+ * cell whose centre is unknown keeps its place at the end, in the order given.
+ */
+export function clockwiseFromTop(
+  ids: ReadonlyArray<SpaceId>,
+  centreOf: (id: SpaceId) => {x: number, y: number} | undefined,
+  pivot?: {x: number, y: number},
+): Array<SpaceId> {
+  const known = ids.map((id) => ({id, c: centreOf(id)})).filter((e): e is {id: SpaceId, c: {x: number, y: number}} => e.c !== undefined);
+  if (known.length === 0) {
+    return [...ids];
+  }
+  const centre = pivot ?? {
+    x: known.reduce((s, e) => s + e.c.x, 0) / known.length,
+    y: known.reduce((s, e) => s + e.c.y, 0) / known.length,
+  };
+  // atan2(dx, -dy): 0 at 12 o'clock, growing clockwise (screen y points down).
+  const angle = (c: {x: number, y: number}) => {
+    const a = Math.atan2(c.x - centre.x, -(c.y - centre.y));
+    return a < -1e-6 ? a + 2 * Math.PI : a;
+  };
+  const sorted = known.sort((a, b) => angle(a.c) - angle(b.c)).map((e) => e.id);
+  return [...sorted, ...ids.filter((id) => !sorted.includes(id))];
+}
+
+/** How long a ring of `count` cubes takes from its first hold to its last contact (motion-scaled pacing). */
+export function ownerCubeRingDurationMs(count: number, scale: (ms: number) => number = (ms) => ms): number {
+  if (prefersReducedMotion()) {
+    return CUBE_MARKER_HOLD_REDUCED_MS;
+  }
+  return scale(OWNER_CUBE_RING_LEAD_MS) + Math.max(0, count - 1) * scale(OWNER_CUBE_RING_STEP_MS) + CUBE_CONTACT_MS + 40;
+}
+
+/**
+ * LAND THE FRESH MARKERS IN TURN (stage 1 of a marker hold with more than one cube): every fresh cube is held hidden
+ * BEFORE its colour paints (observeCube keeps a phase in flight), then dropped one by one in `order`, `step` apart.
+ * Resolves at the last cube's contact — the transport's hold releases on it, never on a guessed total. `wait` is the
+ * motion system's pause (the caller passes its motion-scaled clock).
+ */
+export async function landOwnerCubesInTurn(
+  oldSpaces: ReadonlyArray<SpaceModel>,
+  newSpaces: ReadonlyArray<SpaceModel>,
+  opts: {
+    order: (ids: ReadonlyArray<SpaceId>) => ReadonlyArray<SpaceId>,
+    wait: (ms: number) => Promise<void>,
+    scale?: (ms: number) => number,
+  },
+): Promise<void> {
+  const ids = freshOwnerCubeIds(oldSpaces, newSpaces);
+  const reduced = prefersReducedMotion();
+  for (const id of ids) {
+    holdCubeForHeroPlacement(id);
+  }
+  // The colours paint in this same synchronous turn — the held phases keep every cube invisible.
+  applyOwnerCubePlacementPreview(oldSpaces, newSpaces);
+  if (reduced) {
+    ids.forEach((id) => restCubeForHeroPlacement(id));
+    await opts.wait(CUBE_MARKER_HOLD_REDUCED_MS);
+    return;
+  }
+  const order = opts.order(ids);
+  await dropHeldCubesInTurn([...order, ...ids.filter((id) => !order.includes(id))], opts);
+}
+
+/**
+ * DROP CUBES ALREADY HELD (`holdCubeForHeroPlacement`) one by one, in the order given — the ring's second half, shared
+ * by the viewer's own landing (`landOwnerCubesInTurn`) and a rival's (the remote stage drops the ring it held after
+ * the rival's city has landed). Resolves at the last cube's contact; reduced motion rests them all at once.
+ */
+export async function dropHeldCubesInTurn(
+  ring: ReadonlyArray<SpaceId>,
+  opts: {wait: (ms: number) => Promise<void>, scale?: (ms: number) => number},
+): Promise<void> {
+  if (ring.length === 0) {
+    return;
+  }
+  if (prefersReducedMotion()) {
+    ring.forEach((id) => restCubeForHeroPlacement(id));
+    await opts.wait(CUBE_MARKER_HOLD_REDUCED_MS);
+    return;
+  }
+  const scale = opts.scale ?? ((ms: number) => ms);
+  await opts.wait(scale(OWNER_CUBE_RING_LEAD_MS));
+  for (let i = 0; i < ring.length; i++) {
+    if (i > 0) {
+      await opts.wait(scale(OWNER_CUBE_RING_STEP_MS));
+    }
+    // A cube the safety net already dropped (a stalled run) is not dropped twice.
+    if (phases[ring[i]] === 'hidden') {
+      dropCubeForHeroPlacement(ring[i]);
+    }
+  }
+  // The LAST cube's contact — `pc-place` touches at 62 % of its raw 0.9 s keyframe.
+  await opts.wait(CUBE_CONTACT_MS + 40);
+}

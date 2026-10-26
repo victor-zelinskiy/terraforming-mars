@@ -456,6 +456,15 @@ export interface ICard {
    */
   patentsSoldForecast?(owner: IPlayer, count: number): ReadonlyArray<EffectForecastFact>;
   onTilePlaced?(cardOwner: IPlayer, activePlayer: IPlayer, space: Space, boardType: BoardType): void;
+  /**
+   * The OWNER placed a tile on a cell their OWN cube reserved (TR79 Ferrus Academy: «whenever you place a tile in a
+   * space that has your player cube»). Asked ONCE per placement by `Game.addTile`, which reads the marker before the
+   * tile overwrites it (`space.player` answers both «a cube» and «a tile» afterwards — so a hook could not tell them
+   * apart from `onTilePlaced`). The cube is ONE board state whoever laid it (Land Claim, Arcadian Communities, Ferrus
+   * Academy); a city tier, a rival's tile and a marker move never call it. Runs under the card's effect scope
+   * (`own-marker-built`). The preview twin is {@link tilePlacedPreview} (the cell still shows the cube there).
+   */
+  onOwnMarkerBuilt?(player: IPlayer, space: Space): void;
   onDiscard?(player: IPlayer): void;
   /**
    * Called when anybody gains TR

@@ -75,6 +75,12 @@ describe('boardCellPreviewUrl', () => {
     expect(params(buildBoardCellUrl('10', 'land', false, undefined, undefined, 'marker')).get('effect')).to.equal('marker');
   });
 
+  it('a printed-bonus multiple rides as `bonus` (TR79 Ferrus Academy\'s first city) — only the exception is sent', () => {
+    expect(params(buildBoardCellUrl('10', 'city', false, TileType.CITY, CardName.FERRUS_ACADEMY, undefined, false, undefined, 2)).get('bonus')).to.equal('2');
+    expect(params(buildBoardCellUrl('10', 'city', false, TileType.CITY, CardName.FERRUS_ACADEMY, undefined, false, undefined, 1)).has('bonus')).to.be.false;
+    expect(params(buildBoardCellUrl('10', 'city')).has('bonus')).to.be.false;
+  });
+
   it('before configuration there is no URL at all', () => {
     const id = boardInfoState.cfg.participantId;
     boardInfoState.cfg.participantId = undefined;

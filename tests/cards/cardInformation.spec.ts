@@ -363,6 +363,7 @@ describe('card information model', function() {
     // generator field) or justified here, never silently accepted.
     const ACCEPTED = new Map<string, string>([
       ['Research', '"counts as 2 science cards" IS the two printed SCIENCE tags (frame metadata)'],
+      ['Ferrus Academy', '"Then place your player cube" — the order IS the block order (the city block, then the cube block); a sequencing word is banned inside a block'],
       ['Research Network', 'the wild-tag rule IS the printed WILD tag (frame metadata)'],
       ['Nuclear Zone:ares', 'the adjacency penalty IS shown ("Other players pay 2 M€ more…"); only wording differs'],
       ['Lava Flows', 'the volcano NAMES are board geography; "on a volcanic area" is the rule'],

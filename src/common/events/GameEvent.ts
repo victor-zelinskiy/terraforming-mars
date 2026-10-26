@@ -269,6 +269,7 @@ export type EventTrigger =
   | 'ruling-party-changed' // Turmoil Redux: the sitting's enactment put a NEW party in power (TR62 Tharsis Alliance draws a card)
   | 'resolution-won' // Turmoil Redux: the player won on the enacted resolution (Septem Tribus:redux puts a cube on its party's banner)
   | 'agenda-step' // Turmoil Redux: ONE step of the player's Agenda walk was taken (TR78 Arwind Inc. asks where its fighter goes)
+  | 'own-marker-built' // a tile landed on a cell the placer's OWN cube reserved (TR79 Ferrus Academy: 3 data or a card)
   /**
    * Turmoil Redux: the enacted law REPLACED a terraforming unit the seat was about to gain — a scale step or a
    * greenery / ocean tile — with something else BEFORE the engine performed it (RX35 Diverted Research: 1 data

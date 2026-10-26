@@ -1387,6 +1387,12 @@ export type SelectSpaceModel = BaseInputModel & {
   /** See {@link PlacementEffect} — absent means the default `'tile'`. */
   placementEffect?: PlacementEffect;
   /**
+   * The cell's PRINTED bonus pays this many times on the commit (TR79 Ferrus Academy's first city: 2 —
+   * `AddTileOptions.printedBonusMultiplier`). The client sends it as a preview parameter, so the dossier's numbers
+   * are the commit's. Absent → 1.
+   */
+  printedBonusMultiplier?: number;
+  /**
    * LATER placements the SAME action will ask for after this one commits (a
    * multi-tile card — «place 2 oceans»: the FIRST prompt announces the second).
    * The placement dossier renders it as a constant plan line, so the player can

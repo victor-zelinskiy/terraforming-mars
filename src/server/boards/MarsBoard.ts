@@ -470,14 +470,21 @@ export class MarsBoard extends Board {
    * Almost the same as getAvailableSpacesOnLand, but doesn't apply to any player.
    */
   public getNonReservedLandSpaces(): ReadonlyArray<Space> {
-    return this.spaces.filter((space) => {
-      if (space.id === this.noctisCitySpaceId) {
-        return false;
-      }
-      return (space.spaceType === SpaceType.LAND || space.spaceType === SpaceType.COVE || space.spaceType === SpaceType.DEFLECTION_ZONE) &&
-        (space.tile === undefined || AresHandler.hasHazardTile(space)) &&
-        space.player === undefined;
-    });
+    return this.spaces.filter((space) => this.isNonReservedLand(space));
+  }
+
+  /**
+   * May a player's cube RESERVE this cell? — THE ONE PREDICATE of a marker (Land Claim's claim, Arcadian
+   * Communities' community, the ring of cubes Ferrus Academy lays around its campus): land (a cove, a deflection
+   * zone), not Noctis, no tile on it (a hazard does not count — Ares), no cube of anyone's. Never restated.
+   */
+  public isNonReservedLand(space: Space): boolean {
+    if (space.id === this.noctisCitySpaceId) {
+      return false;
+    }
+    return (space.spaceType === SpaceType.LAND || space.spaceType === SpaceType.COVE || space.spaceType === SpaceType.DEFLECTION_ZONE) &&
+      (space.tile === undefined || AresHandler.hasHazardTile(space)) &&
+      space.player === undefined;
   }
 
   /**

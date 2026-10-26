@@ -55,6 +55,8 @@ const CURATED_EFFECT_CHANNELS: Partial<Record<CardName, ReadonlyArray<ReadonlyAr
   // Arwind Inc. — #0 «a step of the Career → 1 fighter onto any card» (onAgendaStep → 'agenda-step'); #1 is the
   // fighters-as-4 M€ payment rule — structural (valueAsPayment → 'resource-payment').
   [CardName.ARWIND_INC]: [['agenda-step'], undefined],
+  // Ferrus Academy — #0 «a tile on your own cube → 3 data or a card» (onOwnMarkerBuilt → 'own-marker-built').
+  [CardName.FERRUS_ACADEMY]: [['own-marker-built']],
 };
 
 /**

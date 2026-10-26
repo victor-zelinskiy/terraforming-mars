@@ -176,7 +176,8 @@
   "Your tile will impose an adjacency cost": "Ваш тайл будет требовать доплату за соседство",
   "Anyone placing a tile next to it — including you — pays extra M€.": "Любой, кто разместит тайл рядом (включая вас), доплатит M€.",
 
-  "Your community area": "Ваша община",
+  "Your marked area": "Ваш участок",
+  "The printed bonus counts ×${0}": "Печатный бонус клетки ×${0}",
   "Building on an area you reserved grants M€.": "Строительство на зарезервированной вами клетке даёт M€.",
 
   "Energy production from the area's plant bonuses": "Производство энергии за бонусы растений клетки",
@@ -267,5 +268,11 @@
   "Uncovered and collected at once": "Откроется — и сразу будет получено",
   "No printed bonus — nothing is uncovered": "Бонуса нет — открывать нечего",
   "The tile leaves first; the cell's printed bonus is paid by the placement.": "Тайл уходит первым; печатный бонус клетки выдаёт само размещение.",
-  "Under the tile": "Под тайлом"
+  "Under the tile": "Под тайлом",
+  "Printed cell bonus ×${0}": "Печатный бонус клетки ×${0}",
+  "Marked areas around the city": "Участки вокруг города",
+  "Your cube on each adjacent non-reserved area — only you can build there.": "Ваш куб на каждой соседней свободной клетке — строить там можете только вы.",
+  "No free area around this city for your cube": "Вокруг этого города нет свободной клетки для куба",
+  "3 data onto any card, or draw a card": "3 данных на любую карту или карта",
+  "Draw a card — no card can hold data": "Карта — данные класть некуда"
 }

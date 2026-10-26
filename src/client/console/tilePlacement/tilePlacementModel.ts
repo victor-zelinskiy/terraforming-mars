@@ -33,6 +33,7 @@ import {PlacementLawPayoutModel} from '@/common/models/PlacementLawPayoutModel';
 import {GreeneryAdjacencyBonusModel} from '@/common/models/GreeneryAdjacencyBonusModel';
 import {OceanAdjacencyBonusModel} from '@/common/models/OceanAdjacencyBonusModel';
 import {SpaceModel} from '@/common/models/SpaceModel';
+import {TilePlacementRecordModel} from '@/common/models/TilePlacementRecordModel';
 import {TileType, CITY_TILES, HAZARD_TILES} from '@/common/TileType';
 import {stackTopTile} from '@/common/boards/cityStack';
 import {isHostedSpace} from '@/common/boards/hostedSpaces';
@@ -789,6 +790,50 @@ export function placementBonuses(bonus: ReadonlyArray<SpaceBonus>): Array<Placem
     });
   });
   return out;
+}
+
+/**
+ * HOW MANY TIMES THE PRINTED ICONS PAID (TR79 Ferrus Academy's first city — «double the placement bonus»): read off the
+ * SERVER's record of THIS placement (`TilePlacementRecordModel.paid` — the commit's own sums), never off the prompt. Every
+ * stock icon of the cell paying exactly N × its printed count, N ≥ 2, is a MULTIPLE — the scene then plays the printed
+ * beat N times (each icon sends one token per pass, the counter ticking on every touchdown). Anything else — no record,
+ * an ordinary placement, a sum that does not divide evenly — is 1: the scene never invents a multiple.
+ */
+export function printedBonusRepeats(
+  placements: ReadonlyArray<TilePlacementRecordModel> | undefined,
+  spaceId: string,
+  printed: ReadonlyArray<PlacementBonus>,
+): number {
+  if (placements === undefined || printed.length === 0) {
+    return 1;
+  }
+  const record = [...placements].reverse().find((p) => p.spaceId === spaceId);
+  if (record === undefined) {
+    return 1;
+  }
+  const printedBy = new Map<string, number>();
+  for (const b of printed) {
+    if (b.spec.channel === 'stock') {
+      printedBy.set(b.spec.resource, (printedBy.get(b.spec.resource) ?? 0) + b.spec.amount);
+    }
+  }
+  const paidBy = new Map<string, number>();
+  for (const p of record.paid) {
+    paidBy.set(p.resource, (paidBy.get(p.resource) ?? 0) + p.amount);
+  }
+  let repeats: number | undefined;
+  for (const [resource, count] of printedBy) {
+    const paid = paidBy.get(resource) ?? 0;
+    if (count <= 0 || paid % count !== 0) {
+      return 1;
+    }
+    const k = paid / count;
+    if (repeats !== undefined && k !== repeats) {
+      return 1;
+    }
+    repeats = k;
+  }
+  return repeats !== undefined && repeats >= 2 && repeats <= 4 ? repeats : 1;
 }
 
 /**

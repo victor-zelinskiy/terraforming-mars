@@ -597,5 +597,8 @@
     "Requires that you have at least 1 Influence.": "Требуется не менее 1 влияния.",
     "Remove the current Chairman and seat your own delegate from the reserve there instead.": "Снимите текущего председателя и посадите на его место своего делегата из резерва.",
     "Agenda step: 1 fighter onto any card": "Шаг Карьеры: 1 истребитель на любую карту",
-    "Space tag: fighters here pay 4 M€ each": "Метка Космоса: истребители отсюда по 4 M€"
+    "Space tag: fighters here pay 4 M€ each": "Метка Космоса: истребители отсюда по 4 M€",
+    "As your first action, place a city tile. Double the placement bonus you get from it.": "Первым действием разместите город. Печатный бонус его клетки удвоен.",
+    "Place your cube on each adjacent non-reserved area. Only you can place tiles there.": "Положите свой куб на каждую соседнюю незарезервированную клетку. Строить там можете только вы.",
+    "Tile on your marked area: 3 data or a card": "Тайл на вашем участке: 3 данных или карта"
 }

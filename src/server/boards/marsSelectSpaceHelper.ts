@@ -110,6 +110,11 @@ export function createMarsSelectSpace(
      * destinations (`tileMoveDestinations`); the caller sets `onMove`.
      */
     tileMove?: TileMoveOffer,
+    /**
+     * The cell's printed bonus pays this many times on the commit (`SelectSpace.printedBonusMultiplier`) — the
+     * caller's `addTile` passes the same number (TR79 Ferrus Academy).
+     */
+    printedBonusMultiplier?: number,
   },
 ): SelectSpace {
   const illegalSpaces = player.game.board.computeIllegalReasons(
@@ -136,6 +141,9 @@ export function createMarsSelectSpace(
   }
   if (options?.tileMove !== undefined) {
     selectSpace.tileMove = options.tileMove;
+  }
+  if (options?.printedBonusMultiplier !== undefined) {
+    selectSpace.printedBonusMultiplier = options.printedBonusMultiplier;
   }
   return selectSpace;
 }

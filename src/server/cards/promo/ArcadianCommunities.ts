@@ -64,9 +64,7 @@ export class ArcadianCommunities extends CorporationCard implements ICorporation
       }
       // For the adjacency-required action variant, flag cells without
       // any of YOUR neighbouring marker/tile.
-      if (requireAdjacency && space.tile === undefined && space.player === undefined &&
-          space.spaceType === 'land' &&
-          space.id !== board.noctisCitySpaceId) {
+      if (requireAdjacency && board.isNonReservedLand(space)) {
         const adjacentToYours = board.getAdjacentSpaces(space).some((adj) => adj.player === player);
         if (!adjacentToYours) {
           return 'not-adjacent-to-yours';

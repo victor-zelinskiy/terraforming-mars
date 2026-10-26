@@ -150,6 +150,14 @@ function stockSnapshot(player: IPlayer): Record<Resource, number> {
   };
 }
 
+/**
+ * The printed bonuses `grantSpaceBonus` OFFERS once whatever its count (a purchase, a delegate): a multiplied
+ * printed bonus (`grantSpaceBonuses`) offers them once per multiple instead of folding the multiple into a count.
+ */
+const OFFERED_ONCE_SPACE_BONUSES: ReadonlySet<SpaceBonus> = new Set([
+  SpaceBonus.OCEAN, SpaceBonus.TEMPERATURE_4MC, SpaceBonus.COLONY, SpaceBonus.DELEGATE,
+]);
+
 export class Game implements IGame, Logger {
   public readonly id: GameId;
   public readonly name: string;
@@ -2311,12 +2319,18 @@ export class Game implements IGame, Logger {
     // Part 3. Setup for bonuses
     const initialTileType = space.tile?.tileType;
     const coveringExistingTile = space.tile !== undefined;
-    // Building on an area YOUR OWN marker reserved pays 3 M€. Two entities
-    // print that rule — the human Arcadian Communities and MarsBot's own C18
-    // — and both take the SAME payout below, asked here because seating the
-    // tile overwrites the very `space.player` that answers the question.
-    // A tier stands on a CITY, never on a marker: nothing to pay.
-    const arcadianCommunityBonus = !stacking && space.player === player &&
+    // «BUILT ON YOUR OWN MARKER» — read ONCE, here, because seating the tile
+    // overwrites the very `space.player` that answers it. A marker is a cube
+    // of the player's colour on a cell with no real tile: ONE board state
+    // whoever laid it (Land Claim, Arcadian Communities, Ferrus Academy — no
+    // provenance, the cube is the cube). A tier stands on a CITY, never on a
+    // marker; a hazard under the cube is no tile of the player's.
+    const builtOnOwnMarker = !stacking && space.player === player && !Board.hasRealTile(space);
+    // Its RECEIVERS: the engine's own 3 M€ — printed by the human Arcadian
+    // Communities and by MarsBot's C18, both paid by the SAME payout in
+    // `grantPlacementBonuses` — and every card of the placer's table that
+    // answers it (`ICard.onOwnMarkerBuilt`, fanned out in Part 5).
+    const arcadianCommunityBonus = builtOnOwnMarker &&
       (player.tableau.has(CardName.ARCADIAN_COMMUNITIES) ||
        AutomaCorporations.buildOnOwnMarkerPays(this, player, space));
 
@@ -2337,9 +2351,19 @@ export class Game implements IGame, Logger {
       ParliamentHandler.onTilePlaced(player, space, {coveringExistingTile: true, stacked: true});
       this.publishTilePlacement(player, space, tile.tileType, {paid: [], cards: 0});
     } else if (this.phase !== Phase.SOLAR) {
-      const cell = this.grantPlacementBonuses(player, space, coveringExistingTile, arcadianCommunityBonus);
+      const cell = this.grantPlacementBonuses(player, space, coveringExistingTile, arcadianCommunityBonus, options?.printedBonusMultiplier);
       // THE TILE LANGUAGE'S RECORD: who placed it (an ocean's placer too) and what the cell's printed bonus paid them.
       this.publishTilePlacement(player, space, tile.tileType, cell);
+      if (builtOnOwnMarker) {
+        // The placer's table answers «a tile on your own marker» (TR79 Ferrus Academy) — told explicitly, the cell
+        // no longer says it. Under the card's effect scope, like every reactive hook (the journal chip, the rivals'
+        // `none`).
+        for (const card of player.tableau) {
+          if (card.onOwnMarkerBuilt !== undefined) {
+            this.events.withEffect(player, card, 'own-marker-built', () => card.onOwnMarkerBuilt?.(player, space));
+          }
+        }
+      }
 
       AresHandler.ifAres(this, (aresData) => {
         AresHandler.maybeIncrementMilestones(aresData, player, space, hazardSeverity(initialTileType));
@@ -2442,7 +2466,7 @@ export class Game implements IGame, Logger {
     }
   }
 
-  public grantPlacementBonuses(player: IPlayer, space: Space, coveringExistingTile: boolean = false, arcadianCommunityBonus: boolean = false): CellBonusPaid {
+  public grantPlacementBonuses(player: IPlayer, space: Space, coveringExistingTile: boolean = false, arcadianCommunityBonus: boolean = false, printedBonusMultiplier: number = 1): CellBonusPaid {
     let cell: CellBonusPaid = {paid: [], cards: 0};
     if (!coveringExistingTile) {
       if (player.isMarsBot) {
@@ -2465,7 +2489,7 @@ export class Game implements IGame, Logger {
         }
       } else {
         // Attribute the hex's printed bonuses to "cell bonus" in the journal.
-        cell = this.events.withSource({kind: 'spaceBonus'}, () => this.grantSpaceBonuses(player, space));
+        cell = this.events.withSource({kind: 'spaceBonus'}, () => this.grantSpaceBonuses(player, space, printedBonusMultiplier));
       }
     }
 
@@ -2835,15 +2859,23 @@ export class Game implements IGame, Logger {
     return {spaceId: space.id, oceanSpaceIds: spaceIds, perOcean: player.oceanBonus, megacredits};
   }
 
-  public grantSpaceBonuses(player: IPlayer, space: Space): CellBonusPaid {
+  public grantSpaceBonuses(player: IPlayer, space: Space, multiplier: number = 1): CellBonusPaid {
     const out: CellBonusPaid = {paid: [], cards: 0};
     const bonuses = MultiSet.from(space.bonus);
-    bonuses.forEachMultiplicity((count: number, bonus: SpaceBonus) => {
-      const grant = this.grantSpaceBonus(player, bonus, count, {spaceId: space.id});
-      if (grant.kind === 'stock') {
-        out.paid.push({resource: grant.resource as TilePlacementPaidResource, amount: count});
-      } else if (grant.kind === 'draw') {
-        out.cards += count;
+    bonuses.forEachMultiplicity((printed: number, bonus: SpaceBonus) => {
+      // THE ONE PLACE the multiplier applies (`AddTileOptions.printedBonusMultiplier`): a counted bonus is granted
+      // once with the whole count (a doubled «card» is ONE draw of 2 — one action, one intake); an OFFER the grant
+      // makes once whatever the count (a pay-to-use ocean / temperature / colony, a delegate) is offered once per
+      // multiple, so «double» is never silently halved.
+      const count = printed * multiplier;
+      const repeats = OFFERED_ONCE_SPACE_BONUSES.has(bonus) ? multiplier : 1;
+      for (let i = 0; i < repeats; i++) {
+        const grant = this.grantSpaceBonus(player, bonus, repeats > 1 ? printed : count, {spaceId: space.id});
+        if (grant.kind === 'stock') {
+          out.paid.push({resource: grant.resource as TilePlacementPaidResource, amount: count});
+        } else if (grant.kind === 'draw') {
+          out.cards += count;
+        }
       }
     });
     return out;

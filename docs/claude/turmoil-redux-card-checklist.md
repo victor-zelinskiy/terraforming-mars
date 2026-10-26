@@ -89,6 +89,12 @@
   лор под своим номером; регистрация в `corporationCards`; `deckComposition.spec` считает её среди корпораций модуля. Реакция на шаг
   Карьеры — хук `ICard.onAgendaStep` + `askResourceOnAgendaStep` + двойник `agendaStepForecast`: три хоста (рука · задание · заседание /
   закон) приходят даром.
+- **Корпорация с первым действием-ПОСАДКОЙ и куб-маркерами** (TR79 Ferrus Academy, `docs/TURMOIL_REDUX_FERRUS_ACADEMY.md`): «удвоить
+  бонус размещения» = `AddTileOptions.printedBonusMultiplier` (одна нить: `grantSpaceBonuses` → `CellBonusPaid` → запись языка тайлов; превью
+  — `SelectSpace.printedBonusMultiplier` → `bonus=` → контекст превью), кубы — только предикатом `MarsBoard.isNonReservedLand` (один на Land
+  Claim / Arcadian / Ferrus), «тайл на своём кубе» — хук `ICard.onOwnMarkerBuilt` (читается `Game.addTile` один раз) + двойник
+  `tilePlacedPreview`; клетки, которые займут кубы, — факт с `spaces` + `reservesSpaces` (консоль рисует силуэты), кубы ответа
+  садятся по одному сами (`landOwnerCubesInTurn` / remote `ring`).
 - **Корпорация-замена с первым действием в Парламенте** (TR77 Septem Tribus:redux, `docs/TURMOIL_REDUX_SEPTEM_TRIBUS.md`):
   номер — первый после проектных строк реестра, регистрация в `corporationCards` + `cardsToRemove`; `initialAction` откладывает
   общий шаг (`PlaceBannerCube` — `SelectParty` с маркером `bannerPrompt`), консоль пушит кадр Парламента над стартом

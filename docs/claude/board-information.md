@@ -73,6 +73,11 @@ What the model gained, all read-only and pinned by `tests/boards/cellPortrait.sp
   `stackHeight`, `reserved`, `sourceCard` (`tile.card` — the dossier's «Поставлено» chip, X opens it) and the six
   `neighbours` in `getAdjacentSpacesClockwise` order (`null` = the board's edge; `[]` off the Mars grid). Optional — an older
   payload still renders.
+- **`BoardFact.reservesSpaces`** — the fact's `spaces` RECEIVE THE PLACER'S CUBE with this placement (TR79 Ferrus Academy's first
+  city, `marked-area-reserve`): the console draws a silhouette of the player's cube on each (`placementRelations.reservedSpacesOf` →
+  `.con-reserve-ghost`) instead of a relation wash. **The printed-bonus multiple** rides the context (`PlacementPreviewContext
+  .printedBonusMultiplier`, sent by the client as `bonus=N` off `SelectSpaceModel.printedBonusMultiplier`): `printedBonusFacts` state
+  the commit's sum with its reason, the source card's own fact names who doubled it.
 - **`BoardFact.each`** — what ONE of the fact's `spaces` contributes when the fact is a sum over them: the ocean money's rate
   (`oceanAdjacencyFact`), a city's +1 VP per greenery (`cityScoringFact`, per tier), Capital's +1 per ocean
   (`adjacencyVpFact(…, eachVp)`). The neighbour ring prints it; nothing is divided on the client.

@@ -199,6 +199,8 @@ export function boardCellPreview(
     sourceCard?: CardName,
     placementEffect?: PlacementEffect,
     canAffordOptions?: CanAffordOptions,
+    /** The prompt's `printedBonusMultiplier` (TR79 Ferrus Academy's first city: 2) — see `PlacementPreviewContext`. */
+    printedBonusMultiplier?: number,
     /**
      * A MOVE (`kind: 'city-move'`, Turmoil Redux TR14; `'ocean-move'`, TR39):
      * the cell the tile LEAVES. Absent → the SOURCE reading of `space` (may
@@ -226,7 +228,7 @@ export function boardCellPreview(
   // which mirrors the placed tile's `covers` field (a removed hazard never
   // sets it) — the flag the survey-family hooks read.
   const bonusesCovered = space.tile !== undefined && !cleared;
-  const ctx = previewContext(kind, options?.tileType, cleared, covering, bonusesCovered, options?.placementEffect, stacking);
+  const ctx = previewContext(kind, options?.tileType, cleared, covering, bonusesCovered, options?.placementEffect, stacking, options?.printedBonusMultiplier);
 
   if (ctx.removesTile) {
     // A REMOVAL is its own reading: nothing is paid, placed, triggered or
@@ -248,7 +250,7 @@ export function boardCellPreview(
     facts.push(...placementCostFacts(player, space, ctx, options?.canAffordOptions));
   }
   if (ctx.grantsPlacementBonus) {
-    facts.push(...printedBonusFacts(space, ctx.bonusesCovered));
+    facts.push(...printedBonusFacts(space, ctx.bonusesCovered, ctx.printedBonusMultiplier));
     // A REMOVE-AND-REPLACE (Kaguya Tech): what the doomed tile uncovers is collected at once — said in one line
     // (the gain itself is the printed bonus above) so the see-through and the dossier agree (the «ПРОСВЕТ» law, TR47).
     if (cleared) {
@@ -289,7 +291,7 @@ export function boardCellPreview(
   // can never say. Both are co-located, read-only card hooks.
   facts.push(...sourceCardFacts(player, space, options?.sourceCard, ctx));
   facts.push(...tileTriggerFacts(player, space, ctx));
-  facts.push(...arcadianCommunityFact(player, space, covering, ctx));
+  facts.push(...markedAreaFacts(player, space, covering, ctx));
   // The parliament's party effects react to what the facts above already
   // say this placement pays (its TR, its production steps) — so they come
   // after every fact that could move those pools.
@@ -548,7 +550,7 @@ function specialZoneFacts(
 // Printed placement bonuses
 // ---------------------------------------------------------------------------
 
-function printedBonusFacts(space: Space, covering: boolean): Array<BoardFact> {
+function printedBonusFacts(space: Space, covering: boolean, multiplier = 1): Array<BoardFact> {
   if (covering) {
     // Only worth a line when the cell actually prints a bonus the cover
     // suppresses — «no bonus» on a bonus-less cell is a non-event. A cover
@@ -562,8 +564,10 @@ function printedBonusFacts(space: Space, covering: boolean): Array<BoardFact> {
     return [rule('cover-no-bonus', 'placement-effect', 'No placement bonus', why, 'neutral')];
   }
   const out: Array<BoardFact> = [];
-  for (const [bonus, count] of countBonuses(space.bonus)) {
-    const d = describeSpaceBonus(bonus, count);
+  for (const [bonus, printed] of countBonuses(space.bonus)) {
+    // A MULTIPLIED printed bonus (`AddTileOptions.printedBonusMultiplier` — the commit's own count) states the
+    // honest sum AND says why: the source that doubles it rides its own fact (the card's `placementPreview`).
+    const d = describeSpaceBonus(bonus, printed * multiplier);
     out.push({
       id: `printed-${bonus}`,
       category: 'printed-placement-bonus',
@@ -571,7 +575,9 @@ function printedBonusFacts(space: Space, covering: boolean): Array<BoardFact> {
       severity: d.deferred ? 'info' : 'positive',
       recipient: {kind: 'current-player'},
       title: d.title,
-      description: d.description,
+      ...(multiplier > 1 ?
+        {description: 'The printed bonus counts ×${0}', params: [String(multiplier)]} :
+        {description: d.description}),
       delta: d.delta,
       source: {type: 'board-cell', label: 'Cell bonus'},
     });
@@ -1337,7 +1343,8 @@ function previewContext(
   covering: boolean,
   bonusesCovered: boolean,
   placementEffect: PlacementEffect = 'tile',
-  stacking = false): PlacementPreviewContext {
+  stacking = false,
+  printedBonusMultiplier = 1): PlacementPreviewContext {
   const placesTile = placementEffect === 'tile';
   const removesTile = placementEffect === 'remove';
   const tile = placesTile ? placedTileType(kind, tileType) : undefined;
@@ -1358,6 +1365,7 @@ function previewContext(
     firesTileTriggers: placementEffect !== 'marker' && !removesTile,
     stacking,
     removesTile,
+    printedBonusMultiplier: Math.max(1, Math.floor(printedBonusMultiplier)),
   };
 }
 
@@ -1640,26 +1648,27 @@ function tileTriggerFacts(player: IPlayer, space: Space, ctx: PlacementPreviewCo
 }
 
 /**
- * Arcadian Communities' +3 M€ for building on an area you reserved with one of
- * its markers. It is granted by `Game.addTile` itself (not a card hook), keyed on
- * `space.player === player`, so it belongs to the engine — and it is purely
- * space-dependent, which makes it exactly the kind of thing the cell preview owes
- * the player.
+ * THE MARKED AREA — building on a cell YOUR OWN cube reserved. The cube is ONE board state whoever laid it (Land
+ * Claim, Arcadian Communities, Ferrus Academy), and the engine reads it once (`Game.addTile` → `builtOnOwnMarker`).
+ * Its receivers each say their line here: the ENGINE's +3 M€ (Arcadian Communities — granted by `Game.addTile`
+ * itself, not a card hook, so it belongs to the engine's own facts); a card that answers it through
+ * `ICard.onOwnMarkerBuilt` says its line through its own `tilePlacedPreview` (`tileTriggerFacts`). Both stand side
+ * by side when one player holds both (Merger, a campaign's several corporations).
  */
-function arcadianCommunityFact(player: IPlayer, space: Space, covering: boolean, ctx: PlacementPreviewContext): Array<BoardFact> {
+function markedAreaFacts(player: IPlayer, space: Space, covering: boolean, ctx: PlacementPreviewContext): Array<BoardFact> {
   // `Game.grantPlacementBonuses` gates the M€ on `space.tile !== undefined`, so
   // a marker move onto your own reserved area collects nothing.
-  if (!ctx.placesTile || covering || space.player?.id !== player.id || !player.tableau.has(CardName.ARCADIAN_COMMUNITIES)) {
+  if (!ctx.placesTile || ctx.stacking || covering || space.player?.id !== player.id || !player.tableau.has(CardName.ARCADIAN_COMMUNITIES)) {
     return [];
   }
   const current = player.stock.megacredits;
   return [{
-    id: 'arcadian-community',
+    id: 'marked-area-arcadian',
     category: 'card-trigger',
     timing: 'immediate',
     severity: 'positive',
     recipient: {kind: 'current-player'},
-    title: 'Your community area',
+    title: 'Your marked area',
     description: 'Building on an area you reserved grants M€.',
     delta: {icon: 'megacredits', amount: 3, direction: 'gain', current, resulting: current + 3},
     source: {type: 'card', id: CardName.ARCADIAN_COMMUNITIES, label: CardName.ARCADIAN_COMMUNITIES},
@@ -2003,7 +2012,7 @@ function moveDestinationPreview(
     out.push(...aresAdjacencyFacts(player, to));
     out.push(...sourceCardFacts(player, to, options?.sourceCard, ctx));
     out.push(...tileTriggerFacts(player, to, ctx));
-    out.push(...arcadianCommunityFact(player, to, covering, ctx));
+    out.push(...markedAreaFacts(player, to, covering, ctx));
     if (kind === 'ocean-move') {
       // THE MOVE'S OWN TR (TR39's bracket: «you gain TR for this») — stated
       // BEFORE the parties read the facts, so the Greens' answer sees it. The

@@ -3,9 +3,11 @@ import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import {SpaceModel} from '@/common/models/SpaceModel';
 import {TileType} from '@/common/TileType';
 import {SpaceName} from '@/common/boards/SpaceName';
+import {SpaceId} from '@/common/Types';
+import {TilePlacementPaidResource, TilePlacementRecordModel} from '@/common/models/TilePlacementRecordModel';
 import {applyTilePlacementPreview, shouldHoldForTilePlacement} from '@/client/components/board/tilePlacementAnimation';
 import {
-  placementBonuses, verifyPlacement, applySpacePreview, detectFreshPlacements, detectFreshRemovals,
+  placementBonuses, printedBonusRepeats, verifyPlacement, applySpacePreview, detectFreshPlacements, detectFreshRemovals,
   tileFlightPlan, tileFlightPoint, tileScaleAt, tileTiltAt, tileShadowAt,
   TILE_START_SCALE, TILE_FLIGHT_MS, TILE_SETTLE_MS,
   OWN_FLIGHT_PROFILE, REMOTE_FLIGHT_PROFILE,
@@ -584,5 +586,29 @@ describe('tilePlacementModel (pure math of the placement hero scene)', () => {
       // the coin is made OF that light, not announced by it.
       expect(OCEAN_COIN_LEAD_MS).to.be.lessThan(OCEAN_COIN_FORM_MS);
     });
+  });
+});
+
+describe('printedBonusRepeats — a multiplied printed bonus is read off the server record (TR79)', () => {
+  const bonusesOf = placementBonuses;
+  const record = (paid: Array<{resource: TilePlacementPaidResource, amount: number}>, spaceId = '20'): TilePlacementRecordModel =>
+    ({seq: 1, spaceId: spaceId as SpaceId, color: 'red', tileType: TileType.CITY, paid, cards: 0});
+
+  it('two steel icons paid 4 steel → every icon pays twice', () => {
+    const printed = bonusesOf([SpaceBonus.STEEL, SpaceBonus.STEEL]);
+    expect(printedBonusRepeats([record([{resource: 'steel', amount: 4}])], '20', printed)).eq(2);
+  });
+
+  it('an ordinary placement (the printed sum) is 1', () => {
+    const printed = bonusesOf([SpaceBonus.STEEL, SpaceBonus.PLANT]);
+    expect(printedBonusRepeats([record([{resource: 'steel', amount: 1}, {resource: 'plants', amount: 1}])], '20', printed)).eq(1);
+  });
+
+  it('no record of this cell, an uneven sum, or nothing printed — never a guessed multiple', () => {
+    const printed = bonusesOf([SpaceBonus.STEEL, SpaceBonus.STEEL]);
+    expect(printedBonusRepeats(undefined, '20', printed)).eq(1);
+    expect(printedBonusRepeats([record([{resource: 'steel', amount: 4}], '21')], '20', printed)).eq(1);
+    expect(printedBonusRepeats([record([{resource: 'steel', amount: 3}])], '20', printed)).eq(1);
+    expect(printedBonusRepeats([record([{resource: 'steel', amount: 4}])], '20', [])).eq(1);
   });
 });

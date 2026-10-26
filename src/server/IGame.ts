@@ -119,6 +119,15 @@ export type AddTileOptions = {
    * «occupied», as it always was.
    */
   overOcean?: boolean,
+  /**
+   * THE PRINTED BONUS COUNTS N TIMES (Turmoil Redux TR79 Ferrus Academy — «double the placement bonus you get from
+   * this»): every icon printed on the cell pays `× N` through ONE call (`grantSpaceBonuses`), so the stock, the draw
+   * (one batch of 2 cards, never two draws), `CellBonusPaid` and the tile language's record all carry the honest sum.
+   * ONLY the printed bonus: the ocean adjacency M€, the Ares neighbours, the party passives and the hazard-removal
+   * bonus are not printed on the cell and stay × 1 by construction (none of them is paid by `grantSpaceBonuses`).
+   * Absent → 1.
+   */
+  printedBonusMultiplier?: number,
 };
 
 export interface IGame extends Logger {
@@ -417,7 +426,7 @@ export interface IGame extends Logger {
    * @param coveringExistingTile when true, don't grant placement bonuses like when covering
    * a hazard tile, or overplacing one tile on top of another.
    */
-  grantPlacementBonuses(player: IPlayer, space: Space, coveringExistingTile?: boolean): CellBonusPaid
+  grantPlacementBonuses(player: IPlayer, space: Space, coveringExistingTile?: boolean, arcadianCommunityBonus?: boolean, printedBonusMultiplier?: number): CellBonusPaid
   /**
    * Calls f(cardOwner, card) for every card in every player's tableau,
    * in generation order.
@@ -425,9 +434,10 @@ export interface IGame extends Logger {
   triggerForAllCards(f: (cardOwner: IPlayer, card: ICard) => void): void;
 
   /**
-   * Gives all the bonuses from a space on the map.
+   * Gives all the bonuses from a space on the map — each printed icon `multiplier` times (`AddTileOptions
+   * .printedBonusMultiplier`; 1 for every repeated grant: Frontier Town, Jansson, Development Craze, …).
    */
-  grantSpaceBonuses(player: IPlayer, space: Space): CellBonusPaid;
+  grantSpaceBonuses(player: IPlayer, space: Space, multiplier?: number): CellBonusPaid;
   /**
    * The ocean adjacency M€ of a placement on `space`, paid and logged; the
    * paying neighbours returned as the presentation breakdown, `undefined` when

@@ -243,5 +243,13 @@
     "You start with 38 M€ and 1 titanium production.": "Вы начинаете с 38 M€ и 1 производством титана.",
     "Action: Add a fighter resource to ANY card.": "Действие: положите 1 истребитель на любую карту.",
     "Effect: Whenever you advance your Agenda marker 1 step, add 1 fighter to ANY card.": "Эффект: каждый раз, когда ваш маркер Карьеры продвигается на 1 шаг, положите 1 истребитель на любую карту.",
-    "Effect: When playing a Space tag, fighters here may be used as payment, and are worth 4 M€ each.": "Эффект: при розыгрыше карты с меткой Космоса истребители с этой карты можно тратить как 4 M€ каждый."
+    "Effect: When playing a Space tag, fighters here may be used as payment, and are worth 4 M€ each.": "Эффект: при розыгрыше карты с меткой Космоса истребители с этой карты можно тратить как 4 M€ каждый.",
+    "You start with 40 M€ and 1 plant production. As your first action, place a city tile. Double the placement bonus you get from this. Then place your player cube on each adjacent, non-reserved space. Only you can place tiles there.": "Вы начинаете с 40 M€ и 1 производством растений. Первым действием разместите город — печатный бонус его клетки удвоен. Затем положите свой куб на каждую соседнюю незарезервированную клетку: строить там можете только вы.",
+    "Effect: Whenever you place a tile in a space that has your player cube, either add 3 data resources to ANY card, or draw a card.": "Эффект: когда вы кладёте тайл на клетку со своим кубом, положите 3 данных на любую карту или возьмите карту.",
+    "Whenever you place a tile in a space that has your player cube, either add 3 data resources to ANY card, or draw a card.": "Когда вы кладёте тайл на клетку со своим кубом, положите 3 данных на любую карту или возьмите карту.",
+    "Place a city tile with its printed bonus doubled, then your cube on each adjacent non-reserved area": "Разместите город с удвоенным печатным бонусом клетки, затем свой куб на каждую соседнюю незарезервированную клетку",
+    "Select an option for Ferrus Academy": "Ferrus Academy: выберите вариант",
+    "You placed a tile on your marked area.": "Вы положили тайл на свой участок.",
+    "Add data": "Положить данные",
+    "${0} placed their cube on ${1} areas around the city on ${2}": "${0} кладёт свой куб на ${1} клеток вокруг города · ${2}"
 }

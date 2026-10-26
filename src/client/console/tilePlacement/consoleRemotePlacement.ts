@@ -111,6 +111,7 @@ import {
 } from '@/client/console/tilePlacement/remoteRevealHold';
 import {
   holdCubeForHeroPlacement, dropCubeForHeroPlacement, restCubeForHeroPlacement,
+  clockwiseFromTop, dropHeldCubesInTurn, freshOwnerCubeIds,
 } from '@/client/components/board/cubeDropState';
 import {
   runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, beginPanelVpHold, releasePanelVpHold, isResourceTransferActive,
@@ -276,6 +277,12 @@ export type RemoteEvent = FreshPlacement & {
    * phantom-chip contract) and released chip by chip at the beat.
    */
   income: ReadonlyArray<AresAdjacencyFlight>,
+  /**
+   * THE RING THIS TILE BROUGHT (TR79 Ferrus Academy — a rival's first city): the cells that gained the placer's cube
+   * WITHOUT a tile in the same diff. Held hidden at staging (same synchronous block as the commit) and set down ONE BY
+   * ONE after the city's own cube — never before the city, never in one frame.
+   */
+  ring?: ReadonlyArray<SpaceId>,
 };
 
 const queue: Array<RemoteEvent> = [];
@@ -447,6 +454,21 @@ export function stageRemotePlacements(
     moved.add(m.record.from);
     moved.add(m.record.to);
   }
+  // A RING OF MARKERS riding a landing (TR79 Ferrus Academy): the cubes of the placer's colour that appeared with no
+  // tile in this very diff belong to the first landing of that colour — they land after it, in turn.
+  const fresh = detectFreshPlacements(prevSpaces, newSpaces).filter((p) => !moved.has(p.spaceId));
+  const markers = freshOwnerCubeIds(prevSpaces, newSpaces);
+  const withRing = fresh.map((p) => p as FreshPlacement & {ring?: ReadonlyArray<SpaceId>});
+  for (const placement of withRing) {
+    if (placement.color === undefined || markers.length === 0) {
+      continue;
+    }
+    const ring = markers.filter((id) => newSpaces.find((s) => s.id === id)?.color === placement.color);
+    if (ring.length > 0) {
+      placement.ring = ring;
+      markers.splice(0, markers.length, ...markers.filter((id) => !ring.includes(id)));
+    }
+  }
   stageRemoteTileEvents([
     ...moves.map((m) => ({
       spaceId: m.record.to,
@@ -454,7 +476,7 @@ export function stageRemotePlacements(
       color: m.landed.color,
       move: {...m.landed.moves, seq: m.record.seq},
     })),
-    ...detectFreshPlacements(prevSpaces, newSpaces).filter((p) => !moved.has(p.spaceId)),
+    ...withRing,
     ...detectFreshRemovals(prevSpaces, newSpaces).filter((r) => !moved.has(r.spaceId)).map((r) => ({...r, removal: true})),
   ], opts);
 }
@@ -465,7 +487,7 @@ export function stageRemotePlacements(
  * same synchronous block as the mutation that commits the tiles.
  */
 export function stageRemoteTileEvents(
-  events: ReadonlyArray<FreshPlacement & {removal?: boolean, move?: RemoteMove}>,
+  events: ReadonlyArray<FreshPlacement & {removal?: boolean, move?: RemoteMove, ring?: ReadonlyArray<SpaceId>}>,
   opts?: RemoteStageOpts,
 ): void {
   if (events.length === 0 || typeof window === 'undefined' || !consoleModeState.enabled) {
@@ -550,6 +572,10 @@ export function stageRemoteTileEvents(
       // Same synchronous block as the colour commit — observeCube keeps a
       // phase already in flight, so the cube waits for its explicit drop.
       holdCubeForHeroPlacement(e.spaceId);
+    }
+    // …and the RING it brought (TR79): every cube held with it, set down in turn after it.
+    for (const id of e.ring ?? []) {
+      holdCubeForHeroPlacement(id);
     }
     // THE SERVER'S RECORD OF THIS PLACEMENT (the tile language): who placed it, what the cell paid them.
     const record = claimPlacementRecordOf(e.spaceId, opts);
@@ -716,6 +742,7 @@ export function abortRemotePlacements(): void {
     if (ev.color !== undefined) {
       restCubeForHeroPlacement(ev.spaceId);
     }
+    (ev.ring ?? []).forEach((id) => restCubeForHeroPlacement(id));
     releaseIncomeHolds(ev); // the committed money shows at once, never stuck
     releaseCityPayoutHolds(ev);
   }
@@ -1207,6 +1234,18 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   if (epoch === myEpoch && ev.color !== undefined) {
     dropCubeForHeroPlacement(ev.spaceId);
   }
+  // THE RING (TR79): after the city's own cube, the placer's cubes are set down one by one around it, clockwise from
+  // the top — the scene (and its foreground hold) lasts to the last contact.
+  if (epoch === myEpoch && ev.ring !== undefined && ev.ring.length > 0) {
+    const centreOf = (id: string) => {
+      const r = measureBoardHexRect(id);
+      return r === undefined ? undefined : {x: r.x + r.w / 2, y: r.y + r.h / 2};
+    };
+    await dropHeldCubesInTurn(clockwiseFromTop(ev.ring, centreOf, {x: hex.x + hex.w / 2, y: hex.y + hex.h / 2}), {wait, scale: motionMs});
+    if (epoch !== myEpoch) {
+      return;
+    }
+  }
   // ONE WAVE (W6), in the engine's order, `REWARD_WAVE_STAGGER_MS` apart:
   // THE CELL PAID ITS PLACER (W3): what the printed bonus gave them — the human's icons, MarsBot's M€ for the icons it
   // covered — lifts off the cell where it was printed and flies to their chip. The server's record, never a guess.
@@ -1547,6 +1586,7 @@ function degradeReveal(ev: RemoteEvent): void {
   if (ev.color !== undefined) {
     restCubeForHeroPlacement(ev.spaceId);
   }
+  (ev.ring ?? []).forEach((id) => restCubeForHeroPlacement(id));
   releaseIncomeHolds(ev); // the income announces via its delta chips alone
   releaseCityPayoutHolds(ev);
 }

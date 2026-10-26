@@ -14110,7 +14110,7 @@ export default defineComponent({
       // judged «affordable» against the whole wallet). `movedFrom` — a move's
       // lifted city: the cell is read as that city's DESTINATION.
       fetchBoardCellPreview(spaceId, prompt.placementType, cleared, prompt.tileType, prompt.sourceCard, prompt.placementEffect,
-        this.placementStaged, this.placementMoveFrom).then((preview) => {
+        this.placementStaged, this.placementMoveFrom, prompt.printedBonusMultiplier).then((preview) => {
         if (token === this.cellPreviewToken) {
           this.cellPreview = preview;
         }

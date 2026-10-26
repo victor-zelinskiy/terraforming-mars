@@ -112,7 +112,7 @@ export const PLACEMENT_REASON_LABEL: Readonly<Record<PlacementIllegalReason, str
   'cannot-afford': 'You cannot afford the cost',
   'cannot-afford-bonus': 'You cannot afford the placement bonus',
   // Card-specific
-  'already-marked': 'This area is already a community',
+  'already-marked': 'This area already holds your marker',
   'already-excavated': 'Already excavated',
   'already-identified': 'Underground resource already identified',
   'too-many-adjacent-cities': 'Adjacent to more than one city',

@@ -90,6 +90,9 @@ export class SelectSpace extends BasePlayerInput<Space> {
    */
   public placementEffect?: PlacementEffect;
 
+  /** See `SelectSpaceModel.printedBonusMultiplier` — the commit's own multiple, announced to the preview. */
+  public printedBonusMultiplier?: number;
+
   /**
    * LATER placements the SAME action will ask for after this one commits (the
    * multi-ocean cards: the FIRST prompt announces the second, so the player
@@ -148,6 +151,9 @@ export class SelectSpace extends BasePlayerInput<Space> {
       placementEffect: this.placementEffect,
       followUpPlacements: this.followUpPlacements,
     };
+    if (this.printedBonusMultiplier !== undefined && this.printedBonusMultiplier !== 1) {
+      model.printedBonusMultiplier = this.printedBonusMultiplier;
+    }
     // The PLACEMENT marker is serialized HERE, not only in
     // `ServerModel.getWaitingFor`. That function decorates the TOP-LEVEL prompt
     // alone, and a placement is very often NESTED: converting plants is one

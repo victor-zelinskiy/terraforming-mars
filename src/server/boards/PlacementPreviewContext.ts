@@ -82,4 +82,11 @@ export type PlacementPreviewContext = {
    * scoring that recounts. Every other flag is false for such a pick.
    */
   removesTile: boolean;
+  /**
+   * How many times the cell's PRINTED bonus pays — the preview twin of `AddTileOptions.printedBonusMultiplier`
+   * (TR79 Ferrus Academy's first city: 2). Carried by the prompt (`SelectSpaceModel.printedBonusMultiplier`), sent
+   * by the client as a preview parameter; 1 for every other placement. Touches the printed bonus only — never the
+   * ocean adjacency, the Ares neighbours or the parties.
+   */
+  printedBonusMultiplier: number;
 };

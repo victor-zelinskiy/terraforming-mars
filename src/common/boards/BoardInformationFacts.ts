@@ -155,6 +155,12 @@ export type BoardFact = {
    */
   spaces?: ReadonlyArray<SpaceId>;
   /**
+   * The named {@link spaces} RECEIVE THE PLACER'S CUBE with this placement (TR79 Ferrus Academy's first city — the ring
+   * its cubes reserve). The board draws a SILHOUETTE of the player's cube on each, before the press, instead of a
+   * relation wash: the cells are not neighbours that pay or score, they are where the cubes will stand. Structural.
+   */
+  reservesSpaces?: true;
+  /**
    * What ONE of the named `spaces` contributes when the fact is a SUM over
    * them — the adjacent oceans' M€ (`oceans × rate`), a city's greeneries
    * (+1 VP each). The cell dossier's neighbour ring prints it beside each

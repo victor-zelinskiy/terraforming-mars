@@ -109,6 +109,7 @@ const TRIGGER_LABEL: Readonly<Record<EventTrigger, string>> = {
   'ruling-party-changed': 'for a change of the ruling party',
   'resolution-won': 'for a resolution won',
   'agenda-step': 'for a step of the Career',
+  'own-marker-built': 'for a tile on your marked area',
   'terraforming-diverted': 'for a replaced terraforming step',
   'rating-vetoed': 'for a vetoed terraform rating',
   'automa-corporation': 'MarsBot corporation effect',

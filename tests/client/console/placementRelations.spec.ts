@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {relationsFromPreview, relationToneOf} from '@/client/console/placementRelations';
+import {relationsFromPreview, relationToneOf, reservedSpacesOf} from '@/client/console/placementRelations';
 import {BoardFact, BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 import {SpaceId} from '@/common/Types';
 
@@ -144,5 +144,22 @@ describe('placementRelations', () => {
 
   it('undefined preview → empty', () => {
     expect(relationsFromPreview(undefined)).to.deep.equal([]);
+  });
+});
+
+describe('placementRelations — the cube silhouettes of a reservation (TR79)', () => {
+  const ring = fact({id: 'marked-area-reserve', category: 'card-trigger', spaces: ['11', '12', '10'] as Array<SpaceId>, reservesSpaces: true});
+
+  it('names the reserved cells in the server order, the placement cell excluded', () => {
+    expect(reservedSpacesOf(preview({immediateFacts: [ring]}))).deep.eq(['11', '12']);
+  });
+
+  it('a reservation draws no relation wash — the silhouettes are its one voice', () => {
+    expect(relationsFromPreview(preview({immediateFacts: [ring]}))).deep.eq([]);
+  });
+
+  it('nothing reserved, nothing drawn', () => {
+    expect(reservedSpacesOf(undefined)).deep.eq([]);
+    expect(reservedSpacesOf(preview({immediateFacts: [fact({id: 'x', category: 'card-trigger', spaces: ['11'] as Array<SpaceId>})]}))).deep.eq([]);
   });
 });

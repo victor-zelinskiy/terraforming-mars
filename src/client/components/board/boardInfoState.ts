@@ -86,8 +86,8 @@ export function configureBoardInfo(cfg: Partial<Config>): void {
   }
 }
 
-function cacheKey(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName, placementEffect?: PlacementEffect, staged = false, movedFrom?: SpaceId): string {
-  return `${boardInfoState.cfg.color ?? ''}:${spaceId}:${kind ?? ''}:${cleared ? 'c' : ''}:${tileType ?? ''}:${sourceCard ?? ''}:${placementEffect ?? ''}:${staged ? 's' : ''}:${movedFrom ?? ''}`;
+function cacheKey(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName, placementEffect?: PlacementEffect, staged = false, movedFrom?: SpaceId, printedBonusMultiplier?: number): string {
+  return `${boardInfoState.cfg.color ?? ''}:${spaceId}:${kind ?? ''}:${cleared ? 'c' : ''}:${tileType ?? ''}:${sourceCard ?? ''}:${placementEffect ?? ''}:${staged ? 's' : ''}:${movedFrom ?? ''}:${printedBonusMultiplier ?? ''}`;
 }
 
 /**
@@ -96,11 +96,11 @@ function cacheKey(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, 
  * client once forgot to send — `staged` and a move's `from` — change what the
  * server answers, so «is it on the wire» is pinned, not assumed.
  */
-export function buildBoardCellUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName, placementEffect?: PlacementEffect, staged = false, movedFrom?: SpaceId): string | undefined {
-  return buildUrl(spaceId, kind, cleared, tileType, sourceCard, placementEffect, staged, movedFrom);
+export function buildBoardCellUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName, placementEffect?: PlacementEffect, staged = false, movedFrom?: SpaceId, printedBonusMultiplier?: number): string | undefined {
+  return buildUrl(spaceId, kind, cleared, tileType, sourceCard, placementEffect, staged, movedFrom, printedBonusMultiplier);
 }
 
-function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName, placementEffect?: PlacementEffect, staged = false, movedFrom?: SpaceId): string | undefined {
+function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName, placementEffect?: PlacementEffect, staged = false, movedFrom?: SpaceId, printedBonusMultiplier?: number): string | undefined {
   const cfg = boardInfoState.cfg;
   if (cfg.participantId === undefined) {
     return undefined;
@@ -149,6 +149,11 @@ function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, 
   // without it, as the SOURCE — the city under the cursor.
   if (movedFrom !== undefined) {
     params.set('from', movedFrom);
+  }
+  // The prompt's PRINTED-BONUS MULTIPLE (`SelectSpaceModel.printedBonusMultiplier` — TR79 Ferrus Academy's first
+  // city): the commit pays the cell's printed bonus N times, so the dossier must be told to say so. Only the exception.
+  if (printedBonusMultiplier !== undefined && printedBonusMultiplier > 1) {
+    params.set('bonus', String(printedBonusMultiplier));
   }
   return `${apiUrl(paths.API_GAME_BOARD_CELL_PREVIEW)}?${params.toString()}`;
 }
@@ -262,13 +267,14 @@ export function fetchBoardCellPreview(
   sourceCard?: CardName,
   placementEffect?: PlacementEffect,
   staged?: boolean,
-  movedFrom?: SpaceId): Promise<BoardPlacementPreview | undefined> {
-  const key = cacheKey(spaceId, kind, cleared, tileType, sourceCard, placementEffect, staged === true, movedFrom);
+  movedFrom?: SpaceId,
+  printedBonusMultiplier?: number): Promise<BoardPlacementPreview | undefined> {
+  const key = cacheKey(spaceId, kind, cleared, tileType, sourceCard, placementEffect, staged === true, movedFrom, printedBonusMultiplier);
   const cached = previewCache.get(key);
   if (cached !== undefined) {
     return Promise.resolve(cached);
   }
-  const url = buildUrl(spaceId, kind, cleared, tileType, sourceCard, placementEffect, staged === true, movedFrom);
+  const url = buildUrl(spaceId, kind, cleared, tileType, sourceCard, placementEffect, staged === true, movedFrom, printedBonusMultiplier);
   if (url === undefined || typeof fetch === 'undefined') {
     return Promise.resolve(undefined);
   }

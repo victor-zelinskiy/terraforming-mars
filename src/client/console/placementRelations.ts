@@ -117,6 +117,29 @@ export function previewFacts(preview: BoardPlacementPreview): ReadonlyArray<Boar
 }
 
 /**
+ * WHERE THE PLACER'S CUBES WILL STAND (TR79 Ferrus Academy's first city): every cell a reservation fact of the focused
+ * preview names (`BoardFact.reservesSpaces`) — the board draws a silhouette of the player's cube on each, before the
+ * press. The server's own list, in its order; the placement cell itself excluded.
+ */
+export function reservedSpacesOf(preview: BoardPlacementPreview | undefined): ReadonlyArray<SpaceId> {
+  if (preview === undefined) {
+    return [];
+  }
+  const out: Array<SpaceId> = [];
+  for (const fact of previewFacts(preview)) {
+    if (fact.reservesSpaces !== true) {
+      continue;
+    }
+    for (const id of fact.spaces ?? []) {
+      if (id !== preview.space && !out.includes(id)) {
+        out.push(id);
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * THE INSPECTION's relations (TR67 «КЛЕТКА — ОДНО ДОСЬЕ»): the SAME tones, lit
  * from the hover's own facts — the paying oceans of an empty square, the
  * greeneries a city scores, the cities a greenery feeds — so an inspected cell
@@ -132,7 +155,8 @@ export function relationsFromFacts(facts: ReadonlyArray<BoardFact>, self: SpaceI
   const byId = new Map<SpaceId, PlacementRelationTone>();
   for (const fact of facts) {
     const spaces = fact.spaces;
-    if (spaces === undefined || spaces.length === 0) {
+    // A RESERVATION speaks through the cube silhouettes (`reservedSpacesOf`), never a second voice on the same cells.
+    if (spaces === undefined || spaces.length === 0 || fact.reservesSpaces === true) {
       continue;
     }
     const tone = relationToneOf(fact);
