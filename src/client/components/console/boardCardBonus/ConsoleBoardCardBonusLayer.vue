@@ -63,6 +63,8 @@ import {
 } from '@/client/console/boardCardBonus/boardCardBonusDirector';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {drawnBatchGoesFullscreen} from '@/client/console/consoleRevealPresentation';
+import {intakeAssemblyOwnsBatch} from '@/client/console/cardIntake/intakeAssemblyPlan';
+import {continueIntakeAssembly} from '@/client/console/cardIntake/intakeAssembly';
 
 /** The natural (unscaled) FaceLite height — mirrors the premium card frame (320×460). */
 const CARD_NATURAL_H = 460;
@@ -183,6 +185,12 @@ export default defineComponent({
       // time the scene ends and re-arm in an endless loop, keeping the input
       // gate locked so the take never fires.
       if (e.id === s.stagedEventId) {
+        return undefined;
+      }
+      // A MERGED batch («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» — several causes) with no scene armed is the ASSEMBLY scene's:
+      // every run starts from its own place there (a visible cell's included). Only a scene armed at the submit
+      // (the cover already lifted) keeps a merged batch, and then it flies the cell's run and hands the rest over.
+      if (intakeAssemblyOwnsBatch(e)) {
         return undefined;
       }
       // An AGENDA card reward (Turmoil Redux) lifts its cover off the step
@@ -490,7 +498,7 @@ export default defineComponent({
       // ONE SCENE FOR ANY COUNT (TR57, decision 4): a lone card fans into its own slot like two do — the
       // presentation point and the fullscreen hand-over are the retired headless path, asked through the overlay's
       // own decision so the scene can never fly a card to a viewer nobody will open.
-      if (drawnBatchGoesFullscreen(e.cards.length, false)) {
+      if (!intakeAssemblyOwnsBatch(e) && drawnBatchGoesFullscreen(e.cards.length, false)) {
         await this.startSingle(e);
       } else {
         await this.startMulti(e);
@@ -603,7 +611,11 @@ export default defineComponent({
       });
     },
     async startMulti(e: DrawnCardEntry): Promise<void> {
-      this.sceneCards = e.cards.map((c) => c.name);
+      // A MERGED batch: this scene flies the CELL's run only (the cards the cell's printed bonus paid — the first
+      // segment); the runs behind it (the trigger cards surfacing and dealing) are the deck layer's, asked for once
+      // the cell's cards stand in their slots. One row, one frame, one handoff at the end.
+      const ownCount = intakeAssemblyOwnsBatch(e) ? Math.max(1, Math.min(e.cards.length, e.segments[0]?.count ?? e.cards.length)) : e.cards.length;
+      this.sceneCards = e.cards.slice(0, ownCount).map((c) => c.name);
       this.sceneNonce++;
       await this.$nextTick();
       // The reveal space cannot exist while the placement's payout still
@@ -621,7 +633,7 @@ export default defineComponent({
         return;
       }
       setBoardCardBonusPhase('gather');
-      const keys = e.cards.map((c, i) => `${c.name}#${i}`);
+      const keys = e.cards.slice(0, ownCount).map((c, i) => `${c.name}#${i}`);
       const targets = await Promise.all(keys.map((key) => stableRect(() => document.querySelector<HTMLElement>(
         `.con-reveal [data-zoom-slot="${cssEscape(key)}"] :is(.card-container, .pcard)`,
       ))));
@@ -661,7 +673,10 @@ export default defineComponent({
         onFirstLanded: () => setBoardCardBonusPhase('frame'),
         onAllLanded: () => {
           setBoardCardBonusPhase('frame');
-          ctx.timers.push(setTimeout(() => {
+          const handoff = () => {
+            if (!boardCardBonusState.active || boardCardBonusState.stagedEventId !== e.id) {
+              return;
+            }
             // Handoff: the overlay releases its held static cards (they
             // fade in UNDER the proxies), the proxies dissolve above them.
             setBoardCardBonusPhase('handoff');
@@ -670,7 +685,14 @@ export default defineComponent({
               t,
               onDone: () => this.finishScene(),
             });
-          }, motionMs(t.frameMs)));
+          };
+          if (ownCount < e.cards.length) {
+            // The cell's cards HOVER in their slots while the trigger cards deal the rest («карты с поля
+            // зависают, рядом всплывает карта-триггер»); the handoff waits for the last run.
+            continueIntakeAssembly(e, ownCount, () => ctx.timers.push(setTimeout(handoff, motionMs(t.frameMs))));
+            return;
+          }
+          ctx.timers.push(setTimeout(handoff, motionMs(t.frameMs)));
         },
       });
     },

@@ -7038,6 +7038,36 @@ parliamentFixture('parliament-unmi-veto-vote', {
   write(name, game);
 }
 
+// ── mu-natural-preserve: «ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» Ф-Б «поле + карта» (2026-10-26) — Natural Preserve (a tile) in hand
+//    with Mars University on blue's table: the tile lands on a cell with a printed card bonus and the university's
+//    exchange draws behind it in the SAME play — one batch `tile ×1 · card ×1`, the cell's cover first, the university
+//    surfacing beside the row. Two seats, 100 M€, Natural Preserve + 5 cards in hand (the deck's own copies). ──
+{
+  const name = 'mu-natural-preserve';
+  const [game, blue, red] = testGame(2, {
+    skipInitialCardSelection: false,
+    customCorporationsList: [CardName.CREDICOR, CardName.CREDICOR], startingCorporations: 1,
+  });
+  answerStartFlow(game, [blue, red]);
+  moveToDeckTop(game, CardName.MARS_UNIVERSITY);
+  blue.playedCards.push(game.projectDeck.drawOrThrow(game));
+  moveToDeckTop(game, CardName.NATURAL_PRESERVE);
+  blue.cardsInHand.length = 0;
+  blue.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+  while (blue.cardsInHand.length < 6) {
+    blue.cardsInHand.push(game.projectDeck.drawOrThrow(game));
+  }
+  blue.megaCredits = 100;
+  red.megaCredits = 40;
+  runAllActions(game);
+  const card = blue.cardsInHand.find((c) => c.name === CardName.NATURAL_PRESERVE);
+  if (game.activePlayer.id !== blue.id || !(blue.getWaitingFor() instanceof OrOptions) || card === undefined || !blue.canPlay(card) ||
+      !blue.playedCards.some((c) => c.name === CardName.MARS_UNIVERSITY)) {
+    throw new Error(`${name}: expected blue on the move with Natural Preserve playable under Mars University (active=${game.activePlayer.id})`);
+  }
+  write(name, game);
+}
+
 // ── TR53 · FRONTIER LABS — «pay 5 M€: +1 resource to a card that ALREADY has one; draw unless it is science» and the
 //    iteration «ресурс на карту — один стандарт» (docs/claude/prompts/project-tr53-frontier-labs.md). Blue's action
 //    phase, the Scientists RULING, the card IN THE TABLEAU (the action live) with 20 M€ and four holders of four kinds:

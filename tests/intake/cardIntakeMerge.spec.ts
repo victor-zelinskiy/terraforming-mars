@@ -195,6 +195,31 @@ describe('cardIntakeMerge — one action, one batch', () => {
   });
 
   /**
+   * …and A LEDGER ROW IS A SEAL BOUNDARY: the ledger pays row by row, so Miranda's card and Pluto's pair — one root,
+   * two tiles — are two batches (Pluto's pair re-defers behind the other rows; merged, its card stood in Miranda's
+   * take — `console-habitat-science`, 2026-10-26).
+   */
+  it('Ф-Г · a Miranda cube and a Pluto cube paid by one card: two tiles, two batches (the ledger pays row by row)', () => {
+    const miranda = new Miranda();
+    const pluto = new Pluto();
+    game.colonies = [miranda, pluto];
+    miranda.colonies.push(player.id);
+    pluto.colonies.push(player.id);
+    player.cardsInHand = [new EarthOffice()];
+
+    game.events.beginAction(player, {kind: 'card', card: CardName.HABITAT_SCIENCE, owner: player.color}, {category: 'card-action'});
+    gainAllColonyBonuses(player, {via: CardName.HABITAT_SCIENCE});
+    game.events.endScope();
+    runAllActions(game);
+
+    expect(player.cardDrawReveals.map((b) => b.segments.map((s) => s.source?.type === 'colony' ? `${s.source.colonyName}×${s.count}` : '?'))).deep.eq([
+      [`${miranda.name}×1`], [`${pluto.name}×1`],
+    ]);
+    expect(player.cardDrawReveals[0].actionId).eq(player.cardDrawReveals[1].actionId);
+    expect(player.cardDrawReveals[1].pendingAnswer?.colony).eq(pluto.name);
+  });
+
+  /**
    * …and Pluto's pairs stay apart by the rule itself: «draw 1, then discard 1» per cube — the seal names the pair.
    */
   it('Ф-Г · Pluto pairs from a card: each pair its own batch, sealed and naming its discard (ordinal + card)', () => {

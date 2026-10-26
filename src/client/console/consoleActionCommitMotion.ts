@@ -144,6 +144,17 @@ function measurable(el: Element | null | undefined): HTMLElement | undefined {
 }
 
 /**
+ * THE PRINTED DRAW ICON of a rendered card face — the place a trigger card deals from in the assembly scene
+ * («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР»): the first measurable `.pcard-ic` whose sprite is the card icon, anywhere on the
+ * face (a passive's «→ [card]», an action's result). `undefined` when the face prints none — the caller deals from
+ * the face itself.
+ */
+export function findPrintedCardsIcon(cardWrapEl: HTMLElement): HTMLElement | undefined {
+  const icons = Array.from(cardWrapEl.querySelectorAll<HTMLElement>('.pcard-ic'));
+  return measurable(icons.find((el) => iconMatches(el, 'cards')));
+}
+
+/**
  * Resolve the commit anchors inside a rendered hero card. The variant is
  * addressed by CONTENT TOKEN (`data-graphic-node` — the face stamps the same
  * token because the mechanics model keeps node REFERENCES), never by ordinal:

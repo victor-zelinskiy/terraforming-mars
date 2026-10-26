@@ -71,6 +71,23 @@
     .con-card-reveal-glint();
 }
 
+/* ── THE TRIGGER CARD (the assembly scene — «ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР») ──
+   The card that answered the press SURFACES beside the row (a real lite face
+   — the one the player knows), deals its card from its own printed draw icon
+   and recedes. Transform/opacity only; the director sizes and places it. A
+   standing state is a KANT, never a glow: the face stands a touch below full
+   opacity (it is the cause, the row is the subject) — no halo, no light. */
+.con-deckdraw__trigger {
+    position: fixed;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform-origin: top left;
+    will-change: transform, opacity;
+}
+
 /* ── The hold zone ───────────────────────────────────────────────────
    Deliberately NOT a panel: a hairline base under the found cards, so the
    composition reads as "these are being gathered" without a second window

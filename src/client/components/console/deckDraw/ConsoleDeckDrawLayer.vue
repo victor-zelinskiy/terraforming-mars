@@ -10,7 +10,15 @@
     into the HOST's zone and settles into the hold row. Pointer-inert, clipped;
     the controller owns the beats, the director the GSAP.
   -->
-  <div v-if="deckDrawState.active || deckDrawState.streaming" class="con-deckdraw" :data-dd-phase="deckDrawState.phase" aria-hidden="true">
+  <div v-if="deckDrawState.active || deckDrawState.streaming || guestRun" class="con-deckdraw" :data-dd-phase="deckDrawState.phase" :data-dd-run="assemblyRun" aria-hidden="true">
+    <!-- THE TRIGGER CARDS of the assembly scene («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР»): the card that answered the press
+         SURFACES beside the row (a real lite face), deals its card from its own printed draw icon, and recedes. -->
+    <div v-for="face in triggerFaces" :key="sceneNonce + '|trigger|' + face.key"
+         class="con-deckdraw__trigger"
+         :data-dd-trigger="face.name"
+         :ref="(el) => setTriggerRef(el, face.run)">
+      <ConsoleCardFaceLite :name="face.name" />
+    </div>
     <!-- (The discard TRAY that used to stand here — at 66 % / 38vh of the VIEWPORT, wherever the host was — is gone:
          a thrown-away card now lands on the table's ONE pile, «СБРОШЕННЫЕ», beside the HUD deck it came from —
          `ConsoleDiscardPile` / discardPile.ts, TR52 PL-260.) -->
@@ -103,7 +111,15 @@ import {
 } from '@/client/console/discardPile/discardPile';
 import {restingRectOf} from '@/client/console/cardFlight/landingRect';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
-import {BatchArrivalHandle, runBatchArrival} from '@/client/console/consoleBatchArrivalMotion';
+import {ArrivalOrigin, BatchArrivalHandle, runBatchArrival} from '@/client/console/consoleBatchArrivalMotion';
+import {findPrintedCardsIcon} from '@/client/console/consoleActionCommitMotion';
+import {cardArrivalTimings, reducedCardArrivalTimings} from '@/client/console/consoleCardArrival';
+import {
+  IntakeAssemblyPlan, IntakeRun, intakeAssemblyOwnsBatch, intakeAssemblyTimings, planIntakeAssembly,
+  reducedIntakeAssemblyTimings, rowRectOf, triggerSeatRect,
+} from '@/client/console/cardIntake/intakeAssemblyPlan';
+import {registerIntakeContinuation} from '@/client/console/cardIntake/intakeAssembly';
+import {conWsPresence} from '@/client/console/conWsPresenceBridge';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {drawnBatchGoesFullscreen} from '@/client/console/consoleRevealPresentation';
 
@@ -168,9 +184,11 @@ type SceneCtx = {
    * `onAllPeeled` (its flight waits on it) and the stream's lease on the pile. A killed timer must never strand either.
    */
   stream?: {lease: string, allPeeled: () => void},
+  /** The assembly scene's per-run flights («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР»). */
+  runHandles: Array<BatchArrivalHandle>,
   timers: Array<ReturnType<typeof setTimeout>>,
 };
-const ctx: SceneCtx = {beatHandles: [], timers: []};
+const ctx: SceneCtx = {beatHandles: [], runHandles: [], timers: []};
 
 function clearTimers(): void {
   ctx.timers.forEach((t) => clearTimeout(t));
@@ -184,6 +202,8 @@ function killAll(): void {
   ctx.sceneHandle = undefined;
   ctx.batchHandle?.kill();
   ctx.batchHandle = undefined;
+  ctx.runHandles.forEach((h) => h.kill());
+  ctx.runHandles = [];
   clearTimers();
 }
 
@@ -205,6 +225,16 @@ export default defineComponent({
       /** The hold zone's base is only drawn once a card is actually resting. */
       showHoldBase: false,
       holdBaseStyle: {} as Record<string, string>,
+      /** The assembly scene's trigger faces (one per `card`-origin run), and the run being dealt now (e2e probe). */
+      triggerFaces: [] as Array<{key: string, name: CardName, run: number}>,
+      triggerRefs: {} as Record<number, HTMLElement | null>,
+      assemblyRun: undefined as number | undefined,
+      /**
+       * A GUEST run: the board card-bonus scene opened a merged batch (its cover flew the cell's run) and handed
+       * the remaining runs over (`continueIntakeAssembly`). The layer stands without its own scene — the cover
+       * scene owns the gates and the handoff; this layer lends its trigger faces and flights.
+       */
+      guestRun: false,
     };
   },
   computed: {
@@ -256,11 +286,16 @@ export default defineComponent({
       // predicate the scene itself reads); off screen the deck honestly deals it.
       // …and a SETTLEMENT TABLE's later place: its card has been lying face-down on the table since the first
       // payout and turns over WHERE IT LIES (colony polish 1) — dealing it off the deck would be the second arrival.
-      const foreign = !isDeckDrawSource(e.source) ||
+      // …and a MERGED batch («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» — several causes) is the ASSEMBLY scene's whatever its
+      // root: its runs start from their own places and this layer plays them (`runAssembly`) — unless the board
+      // card-bonus scene has it (its cover lifted off the cell at the submit; it flies the cell's run and hands
+      // the rest over), or a workspace flies its own arrival, or a settlement table turns it in place.
+      const merged = intakeAssemblyOwnsBatch(e);
+      const foreign = (!merged && !isDeckDrawSource(e.source)) ||
         settlementClaimsBatch(e.source) ||
         workspaceClaimOwnsArrival(e) ||
         boardCardBonusClaimsReveal(e.source) || isBonusRevealStaged(e.id) ||
-        (isAgendaReveal(e.source) && agendaTrackOnScreen()) ||
+        (!merged && isAgendaReveal(e.source) && agendaTrackOnScreen()) ||
         colonyTradeClaimsReveal(e.source) || isColonyTradeRevealStaged(e.id) ||
         isPresentedTradeReveal(e.source);
       // A FOREIGN trade's owner bonus waits for its ENTRY (the mandatory
@@ -347,6 +382,7 @@ export default defineComponent({
   mounted() {
     registerDeckDrawHandle({abort: () => this.teardown()});
     registerDiscardStreamPlayer((req) => this.playDiscardStream(req));
+    registerIntakeContinuation((e, fromCard, onDone) => this.playGuestAssembly(e, fromCard, onDone));
     // The single-card fullscreen lifts THIS proxy (the card that just flew),
     // rather than opening a fresh copy over it.
     registerDeckDrawZoomOrigin(() => this.heldEls()[0] ?? null);
@@ -360,6 +396,7 @@ export default defineComponent({
   beforeUnmount() {
     registerDeckDrawHandle(undefined);
     registerDiscardStreamPlayer(undefined);
+    registerIntakeContinuation(undefined);
     registerDeckDrawZoomOrigin(undefined);
     killAll();
   },
@@ -369,6 +406,9 @@ export default defineComponent({
     },
     setFlipRef(el: unknown, i: number): void {
       this.flipRefs[i] = (el as HTMLElement | null) ?? null;
+    },
+    setTriggerRef(el: unknown, run: number): void {
+      this.triggerRefs[run] = (el as HTMLElement | null) ?? null;
     },
     proxyEls(): Array<HTMLElement> {
       return this.proxyRefs.filter((el): el is HTMLElement => el !== null);
@@ -577,6 +617,10 @@ export default defineComponent({
      * already stand exactly on them.
      */
     async runPlainBatch(e: DrawnCardEntry): Promise<void> {
+      if (intakeAssemblyOwnsBatch(e)) {
+        await this.runAssembly(e);
+        return;
+      }
       setDeckDrawPhase('assemble');
       await this.$nextTick();
       if (!deckDrawState.active || deckDrawState.stagedEventId !== e.id) {
@@ -633,6 +677,267 @@ export default defineComponent({
       ctx.timers.push(setTimeout(
         () => setDeckDrawPhase('frame'),
         Math.max(0, motionMs(firstLand) - motionMs(70))));
+    },
+
+    /**
+     * THE ASSEMBLY SCENE — a merged batch dealt RUN BY RUN from each cause's own place («ОДНО ДЕЙСТВИЕ — ОДИН
+     * ЗАБОР», Ф3; the pure plan is `cardIntake/intakeAssemblyPlan.ts`). The stage card's own run comes off the
+     * deck; a trigger card SURFACES beside the row and deals from its printed draw icon; a visible cell deals
+     * from its printed bonus. One row, one frame (cued at the first run's first approach), one handoff.
+     */
+    async runAssembly(e: DrawnCardEntry): Promise<void> {
+      setDeckDrawPhase('assemble');
+      await this.$nextTick();
+      if (!deckDrawState.active || deckDrawState.stagedEventId !== e.id) {
+        return;
+      }
+      const geometry = await this.assemblyGeometry(e, () => deckDrawState.active && deckDrawState.stagedEventId === e.id);
+      if (geometry === undefined) {
+        // No believable stage (an unmeasurable overlay): hand over honestly — never fake a flight.
+        this.releaseAndHandoff(this.heldEls());
+        return;
+      }
+      const preDraw = deckDrawState.preDrawSize;
+      let peeled = 0;
+      let frameCued = false;
+      this.playAssemblyRuns(e, geometry, 0, {
+        alive: () => deckDrawState.active && deckDrawState.stagedEventId === e.id,
+        onCardPeeled: () => {
+          peeled++;
+          markDeckCardDrawn(deckCountAfter(preDraw, peeled));
+        },
+        onFirstApproach: () => {
+          if (!frameCued) {
+            frameCued = true;
+            setDeckDrawPhase('frame');
+          }
+        },
+        onDone: () => this.releaseAndHandoff(this.heldEls()),
+      });
+    },
+
+    /**
+     * THE GUEST RUN (the continuation the board card-bonus scene asks for): the cell's run has landed under
+     * that scene's covers; this layer renders the batch's proxies, flies the runs from `fromCard` on, dissolves
+     * its own proxies over the real cards and reports back — the cover scene then plays its handoff.
+     */
+    playGuestAssembly(e: DrawnCardEntry, fromCard: number, onDone: () => void): void {
+      if (deckDrawState.active || this.guestRun) {
+        onDone();
+        return;
+      }
+      this.guestRun = true;
+      this.sceneCards = e.cards.map((c) => ({name: c.name, matched: true}));
+      this.sceneNonce++;
+      this.proxyRefs = [];
+      this.flipRefs = [];
+      preloadPremiumCardArt(e.cards.slice(fromCard).map((c) => c.name));
+      let finished = false;
+      const finish = () => {
+        if (finished) {
+          return;
+        }
+        finished = true;
+        const own = this.proxyRefs.slice(fromCard).filter((el): el is HTMLElement => el !== null && el !== undefined);
+        ctx.sceneHandle = runDeckDrawHandoff({
+          proxies: own,
+          t: this.timings(),
+          onDone: () => {
+            this.endGuestRun();
+            onDone();
+          },
+        });
+      };
+      void this.$nextTick().then(async () => {
+        const alive = () => this.guestRun && currentRevealEvent()?.id === e.id;
+        const geometry = await this.assemblyGeometry(e, alive);
+        if (geometry === undefined) {
+          this.endGuestRun();
+          onDone();
+          return;
+        }
+        // The cover scene's own proxies stand on the first run's slots — ours for those cards stay hidden.
+        this.proxyRefs.slice(0, fromCard).forEach((el) => {
+          if (el !== null && el !== undefined) {
+            gsap.set(el, {autoAlpha: 0});
+          }
+        });
+        this.playAssemblyRuns(e, geometry, fromCard, {alive, onDone: finish});
+      });
+    },
+
+    endGuestRun(): void {
+      ctx.runHandles.forEach((h) => h.kill());
+      ctx.runHandles = [];
+      this.guestRun = false;
+      this.assemblyRun = undefined;
+      this.triggerFaces = [];
+      this.sceneCards = [];
+    },
+
+    /** The slots and the flyers of every card of the batch, measured at rest; undefined = no believable stage. */
+    async assemblyGeometry(e: DrawnCardEntry, alive: () => boolean): Promise<{pairs: Array<{proxy: HTMLElement, flip: HTMLElement}>, slots: Array<HTMLElement>} | undefined> {
+      const keys = e.cards.map((c, i) => `${c.name}#${i}`);
+      const slotOf = (key: string) => document.querySelector<HTMLElement>(
+        `.con-reveal [data-zoom-slot="${cssEscape(key)}"] :is(.card-container, .pcard)`);
+      await stableRect(() => slotOf(keys[0]));
+      if (!alive()) {
+        return undefined;
+      }
+      const slots = keys.map(slotOf);
+      const pairs: Array<{proxy: HTMLElement, flip: HTMLElement}> = [];
+      const slotEls: Array<HTMLElement> = [];
+      keys.forEach((_key, i) => {
+        const proxy = this.proxyRefs[i];
+        const flip = this.flipRefs[i];
+        const slot = slots[i];
+        if (proxy !== null && proxy !== undefined && flip !== null && flip !== undefined && slot !== null) {
+          pairs.push({proxy, flip});
+          slotEls.push(slot);
+        }
+      });
+      return pairs.length === keys.length ? {pairs, slots: slotEls} : undefined;
+    },
+
+    /** The printed card-bonus icon of a board cell, measurable on screen (the board visible) — else undefined. */
+    boardCellIconRect(spaceId: string): DOMRect | undefined {
+      if (conWsPresence.wsOpen) {
+        return undefined;
+      }
+      const el = document.querySelector<HTMLElement>(`.board-space[data_space_id="${cssEscape(spaceId)}"] .board-space-bonus--card`) ??
+        document.querySelector<HTMLElement>(`.board-space[data_space_id="${cssEscape(spaceId)}"]`);
+      const r = el?.getBoundingClientRect();
+      return r !== undefined && r.width > 4 && r.height > 4 ? r : undefined;
+    },
+
+    /** Plan and play the runs from `fromCard` on; `onDone` once the last run has settled and its trigger receded. */
+    playAssemblyRuns(e: DrawnCardEntry, geometry: {pairs: Array<{proxy: HTMLElement, flip: HTMLElement}>, slots: Array<HTMLElement>}, fromCard: number, hooks: {
+      alive: () => boolean,
+      onCardPeeled?: () => void,
+      onFirstApproach?: () => void,
+      onDone: () => void,
+    }): void {
+      const reduced = consoleReducedMotionActive();
+      const tileSegments = e.segments.filter((s) => s.source?.type === 'tile' && s.source.spaceId !== undefined);
+      const boardVisible = tileSegments.length > 0 && tileSegments.every((s) =>
+        s.source?.type === 'tile' && s.source.spaceId !== undefined && this.boardCellIconRect(s.source.spaceId) !== undefined);
+      // The card STANDING on the stage this batch presents in — its own run comes off the deck, never a surfaced copy.
+      const stageCard = workspaceClaimsRevealBatch(e) ? workspaceOutcomeState.sourceCard : undefined;
+      const full: IntakeAssemblyPlan = planIntakeAssembly(
+        {segments: e.segments, stageCard, boardVisible},
+        reduced ? reducedCardArrivalTimings() : cardArrivalTimings(),
+        reduced ? reducedIntakeAssemblyTimings() : intakeAssemblyTimings());
+      const runs = full.runs.filter((r) => r.first >= fromCard);
+      if (runs.length === 0) {
+        hooks.onDone();
+        return;
+      }
+      const base = runs[0].surfaceAtMs ?? runs[0].dealAtMs;
+      const at = (ms: number) => Math.max(0, motionMs(ms - base));
+      this.triggerFaces = runs.filter((r) => r.origin.kind === 'card').map((r) => ({
+        key: `${r.index}:${r.origin.kind === 'card' ? r.origin.card : ''}`,
+        name: r.origin.kind === 'card' ? r.origin.card : ('' as CardName),
+        run: r.index,
+      }));
+      preloadPremiumCardArt(this.triggerFaces.map((f) => f.name));
+      const stage = this.sceneStage();
+      const row = rowRectOf(geometry.slots.map((el) => restingRectOf(el)));
+      const seat = row === undefined ? undefined : triggerSeatRect(stage, row);
+      const aT = reduced ? reducedIntakeAssemblyTimings() : intakeAssemblyTimings();
+      let settled = 0;
+      let approached = false;
+      void this.$nextTick().then(() => {
+        if (!hooks.alive()) {
+          return;
+        }
+        runs.forEach((run: IntakeRun) => {
+          // The trigger SURFACES beside the row, holds a beat, then its icon deals.
+          if (run.surfaceAtMs !== undefined) {
+            ctx.timers.push(setTimeout(() => {
+              if (!hooks.alive()) {
+                return;
+              }
+              this.surfaceTrigger(run, seat, aT.surfaceMs, reduced);
+            }, at(run.surfaceAtMs)));
+          }
+          ctx.timers.push(setTimeout(() => {
+            if (!hooks.alive()) {
+              return;
+            }
+            this.assemblyRun = run.index;
+            const from = this.runOrigin(run);
+            const handle = runBatchArrival({
+              cards: geometry.pairs.slice(run.first, run.first + run.count),
+              slots: geometry.slots.slice(run.first, run.first + run.count),
+              mode: 'in-flight-reveal',
+              from,
+              onCardPeeled: () => hooks.onCardPeeled?.(),
+              onLanded: () => {
+                if (run.origin.kind === 'card') {
+                  this.recedeTrigger(run, aT.recedeMs, reduced);
+                }
+              },
+              onSettled: () => {
+                settled++;
+                if (settled === runs.length) {
+                  this.assemblyRun = undefined;
+                  // The last trigger's recede is the scene's tail.
+                  ctx.timers.push(setTimeout(() => {
+                    if (hooks.alive()) {
+                      hooks.onDone();
+                    }
+                  }, run.origin.kind === 'card' ? motionMs(aT.recedeMs) : 0));
+                }
+              },
+            });
+            ctx.runHandles.push(handle);
+            if (!approached) {
+              approached = true;
+              const firstLand = handle.plan.beats[0]?.landAtMs ?? 0;
+              ctx.timers.push(setTimeout(() => hooks.onFirstApproach?.(), Math.max(0, motionMs(firstLand) - motionMs(70))));
+            }
+          }, at(run.dealAtMs)));
+        });
+      });
+    },
+
+    /** WHERE a run's cards are born: the trigger's printed icon, the cell's printed bonus, or the deck (undefined). */
+    runOrigin(run: IntakeRun): ArrivalOrigin | undefined {
+      if (run.origin.kind === 'card') {
+        const face = this.triggerRefs[run.index];
+        if (face !== null && face !== undefined) {
+          const icon = findPrintedCardsIcon(face);
+          const rect = (icon ?? face).getBoundingClientRect();
+          if (rect.width > 2 && rect.height > 2) {
+            return {rect, kind: 'card'};
+          }
+        }
+        return undefined;
+      }
+      if (run.origin.kind === 'board-cell') {
+        const rect = this.boardCellIconRect(run.origin.spaceId);
+        return rect === undefined ? undefined : {rect, kind: 'cell'};
+      }
+      return undefined;
+    },
+
+    surfaceTrigger(run: IntakeRun, seat: {left: number, top: number, width: number, height: number} | undefined, surfaceMs: number, reduced: boolean): void {
+      const face = this.triggerRefs[run.index];
+      if (face === null || face === undefined || seat === undefined) {
+        return;
+      }
+      const scale = Math.max(0.05, seat.height / CARD_NATURAL_H);
+      gsap.set(face, {width: CARD_NATURAL_W, height: CARD_NATURAL_H, transformOrigin: 'top left', x: seat.left, y: seat.top + (reduced ? 0 : 14), scale, autoAlpha: 0});
+      // A touch below full: the trigger is the cause, the row is the subject (a kant of opacity, never a glow).
+      gsap.to(face, {autoAlpha: 0.94, y: seat.top, duration: motionMs(surfaceMs) / 1000, ease: 'power2.out'});
+    },
+
+    recedeTrigger(run: IntakeRun, recedeMs: number, reduced: boolean): void {
+      const face = this.triggerRefs[run.index];
+      if (face === null || face === undefined) {
+        return;
+      }
+      gsap.to(face, {autoAlpha: 0, y: reduced ? '+=0' : '+=10', duration: motionMs(recedeMs) / 1000, ease: 'power1.in'});
     },
 
     /** Resolve one beat's destinations from the scene geometry. */
@@ -790,6 +1095,8 @@ export default defineComponent({
           endDeckDraw();
           this.releasePile();
           this.sceneCards = [];
+          this.triggerFaces = [];
+          this.assemblyRun = undefined;
           this.showHoldBase = false;
         },
       });
@@ -803,6 +1110,9 @@ export default defineComponent({
         gsap.set(els, {autoAlpha: 0});
       }
       this.sceneCards = [];
+      this.triggerFaces = [];
+      this.assemblyRun = undefined;
+      this.guestRun = false;
       this.showHoldBase = false;
       // The pile is NOT cut here: the scene's lease lets go, and whatever
       // presents the batch now (the stock reveal an abort unveils) holds it —

@@ -79,6 +79,15 @@ function jitterDeg(index: number): number {
 /** The flyer pair of one card: the fixed proxy chassis and its flip child. */
 export type BatchArrivalCard = {proxy: HTMLElement, flip: HTMLElement};
 
+/**
+ * WHERE THE RUN LEAVES FROM when it is not the HUD deck («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР», the assembly scene): a
+ * trigger card's printed draw icon (`card`), a board cell's printed card bonus (`cell`). The cards are born on that
+ * rect (as small as it is — the icon deals them, they grow on the way), peel off it the same way they peel off the
+ * pile, and no deck settle-tick plays (nothing left the pile physically — the counter still ticks, the number is the
+ * truth of the whole batch).
+ */
+export type ArrivalOrigin = {rect: {left: number, top: number, width: number, height: number}, kind: 'card' | 'cell'};
+
 export type BatchArrivalHandle = {
   /**
    * The server's answer landed — the faces exist. Safe to call at any time,
@@ -98,6 +107,8 @@ export type BatchArrivalArgs = {
   slots: ReadonlyArray<HTMLElement>;
   /** How this batch is allowed to open (see consoleCardArrival). */
   mode: CardArrivalMode;
+  /** The run's own place, when it is not the deck (see ArrivalOrigin). */
+  from?: ArrivalOrigin;
   /** A card's face became readable (index) — the status may tell the truth. */
   onFaceShown?: (index: number) => void;
   /** The first card has visibly committed to leaving the pile. */
@@ -197,8 +208,8 @@ export function runBatchArrival(args: BatchArrivalArgs): BatchArrivalHandle {
     };
   }
 
-  const deckEl = document.querySelector<HTMLElement>(DECK_SEL);
-  const deckRect = deckEl?.getBoundingClientRect();
+  const deckEl = args.from === undefined ? document.querySelector<HTMLElement>(DECK_SEL) : null;
+  const deckRect = args.from !== undefined ? args.from.rect : deckEl?.getBoundingClientRect();
   const hasDeck = deckRect !== undefined && deckRect.width > 4;
   const fan = arrivalSourceFan(n, hasDeck ? deckRect.width : 40);
 

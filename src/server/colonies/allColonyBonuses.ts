@@ -20,8 +20,10 @@
  *    reading of «each colony you have» (`ColoniesHandler.coloniesOf`).
  *  · `gainAllColonyBonuses`    — THE PAYOUT (a card's): one cube at a time
  *    through the engine's only door (`IColony.giveColonyBonus`), each cube
- *    told which it is («1 of 2») and which CARD pays it (`via`). Never merged:
- *    two cubes are two full payouts (the resolution's ×k merge is ITS law).
+ *    told which it is («1 of 2») and which CARD pays it (`via`). Two cubes are
+ *    two full payouts; their DRAWS merge into one batch (the card-intake law —
+ *    one run per tile), and a TILE is a seal boundary (the ledger pays row by
+ *    row). The resolution's ×k merge is ITS law.
  *  · `allColonyBonusesLedger`  — THE READING: the same rows IN THE ORDER THE
  *    ENGINE PAYS THEM, each saying what it will ask and what cannot land.
  *  · `allColonyBonusesEffects` — THE SUMS: the aggregated `current → resulting`
@@ -132,6 +134,12 @@ export function gainAllColonyBonuses(player: IPlayer, options: AllColonyBonusesO
   const times = options.times ?? 1;
   for (const {colony, cubes} of queueingOrder(ownColonyBonuses(player.game, player))) {
     const total = cubes * times;
+    // «ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» (2026-10-26): the whole payout is ONE action root, so every draw of it would
+    // merge into one batch — but THE LEDGER PAYS ROW BY ROW, and a row's take is that row's own (Miranda's cards
+    // off Miranda's printed bonus, then Pluto's pair). A tile is therefore a SEAL boundary: its cubes merge among
+    // themselves («Miranda ×2» — one run), the next tile opens its own batch. Queued as a lambda so it runs in the
+    // payout's own order (Pluto's pair re-defers itself and seals its own batch after its draw).
+    player.defer(() => player.sealCardDrawReveal());
     for (let index = 1; index <= total; index++) {
       player.defer(() => colony.giveColonyBonus(player, {ordinal: {index, total}, via: options.via}));
     }

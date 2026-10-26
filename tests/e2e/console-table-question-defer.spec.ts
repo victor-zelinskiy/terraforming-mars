@@ -35,6 +35,7 @@ const PRESETS = [
 
 type Wire = {
   cardsInHand?: Array<{name: string}>,
+  cardDrawReveals?: Array<{id: number, cards: Array<{name: string}>}>,
   waitingFor?: {type: string, choiceContext?: {source?: {card?: string}}},
   thisPlayer: {tableau: Array<{name: string, resources?: number}>},
 };
@@ -256,8 +257,13 @@ test.describe('a discard behind a draw — answer now, or after the draw', () =>
       return !handOf(w).includes(MU) && !handOf(w).includes(chosen) && w.waitingFor?.choiceContext === undefined &&
         await page.locator('.con-reveal').count() === 0 && await page.locator('.con-hand__frame').count() === 0;
     };
+    // «ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» (2026-10-26): both answers landed with the press, so the two draws of the one
+    // press are ONE batch — Olympus' card and the one the discard buys stand in one row, taken once.
+    await expect(page.locator('[data-reveal-received] .con-ws-stage-badge__num'), 'ПОЛУЧЕНО 2 — one batch of both draws').toHaveText('2', {timeout: 30_000});
+    const batches = (await wireOf(request, id)).cardDrawReveals ?? [];
+    expect(batches.length, 'ONE batch on the wire for the press').toBe(1);
     const crumbs = await takeRevealsUntil(page, done, 3);
-    expect(crumbs.length, 'two draws: Olympus\' card and the one the discard buys').toBe(2);
+    expect(crumbs.length, 'the one batch presented (and taken) as a stage of the play').toBeGreaterThan(0);
     for (const crumb of crumbs) {
       expect(crumb, 'each draw is a stage of the play — never a standalone band over the board').toContain('Марсианский университет');
     }
