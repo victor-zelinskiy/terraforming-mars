@@ -1058,10 +1058,12 @@
                               :nonce="side.nonce"
                               :closing="side.closing" />
           <!-- The MarsBot corporation's printed boxes — the SAME rules panel,
-               fed the bot card's own groups (never the human original's). -->
+               fed the bot card's own groups (never the human original's). A
+               HOLDING reads in the order given: its dividend leads. -->
           <ConsoleCardRulesPanel v-else-if="zoomBotCorpAnnotations !== undefined"
                                  ref="zoomRulesPanel"
                                  :annotationsOverride="zoomBotCorpAnnotations"
+                                 :keepOrder="zoomBotCorpHolding"
                                  :nonce="side.nonce"
                                  :closing="side.closing" />
           <!-- A parliament face (Turmoil Redux): a resolution's OWN rules
@@ -1967,7 +1969,7 @@ import ConsoleArmedFlightLayer from '@/client/components/console/ConsoleArmedFli
 import Card from '@/client/components/card/CardFace.vue';
 import {ZoomCard, bonusZoomEntry, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom, partyEffectZoomEntry, resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
-import {marsBotCorpAnnotations, marsBotDividendAnnotation} from '@/client/components/marsbot/marsBotCorpRules';
+import {marsBotCorpAnnotations, marsBotDividendAnnotation, marsBotHoldingAnnotations} from '@/client/components/marsbot/marsBotCorpRules';
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, setConsoleZoomInspectTab, slotZoomOrigin, ZoomOrigin, ConsoleZoomProvenance, ConsoleZoomVoteVerb} from '@/client/console/consoleCardZoom';
 import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -10548,6 +10550,12 @@ export default defineComponent({
       }
       return lines;
     },
+    /** The zoomed card is a MarsBot corporation the bot HOLDS (the portfolio — the server's `automa.holdings`). */
+    zoomBotCorpHolding(): boolean {
+      const card = this.consoleCardZoom.card;
+      return card !== undefined && isMarsBotCorpZoom(card) &&
+        (this.playerView.game.automa?.holdings ?? []).some((h) => h.id === card.marsBotCorp);
+    },
     /** The MarsBot corporation's printed rule boxes for the rules panel —
      *  only when the viewer is on a bot-corporation entry. */
     zoomBotCorpAnnotations(): ReadonlyArray<CardAnnotation> | undefined {
@@ -10558,6 +10566,12 @@ export default defineComponent({
       const printed = marsBotCorpAnnotations(card.marsBotCorp);
       // A campaign game also shows the «Дивиденды» box — what the corporation
       // pays while the bot HOLDS it (the portfolio); an ordinary game never can.
+      // The table shows a holding like any corporation; HERE the rules say what
+      // it does: its dividend first, the printed boxes after it marked inactive
+      // (wherever the bot holds it — the holdings are the server's fact).
+      if (this.zoomBotCorpHolding) {
+        return marsBotHoldingAnnotations(card.marsBotCorp);
+      }
       return this.playerView.game.gameOptions.campaign === undefined ?
         printed : [...printed, marsBotDividendAnnotation(card.marsBotCorp, printed.length)];
     },

@@ -626,6 +626,12 @@ function buildTimeline(model: EndgameModel, egVm: ConsoleEndgameVm): OvTimeline 
   };
 }
 
+/** The bot's corporations as a human's would read — the primary, then its
+ *  campaign holdings («A / B / C»); a holding is one more corporation here. */
+function botCorporationLabel(c: EndgamePlayerScore['botCorporation']): string {
+  return c === undefined ? '' : [c.name, ...(c.holdings ?? []).map((h) => h.name)].join(' / ');
+}
+
 // ── Cards ───────────────────────────────────────────────────────────────────
 
 /** The bot's normalised card sources — SAME labels as the ceremony's automa
@@ -666,6 +672,18 @@ function botCardRows(p: EndgamePlayerScore): Array<OvCardRow> {
       cardName: p.botCorporation?.name ?? 'Bot corporation', vp: a.corpVp, kind: 'fixed',
       bot: {kind: 'corp', count: a.corpVp, corporation: p.botCorporation?.name ?? 'Bot corporation'},
     });
+  }
+  // The campaign HOLDINGS stand as the bot's further corporations — the same
+  // row a player's extra corporation is: its name and its points.
+  for (const d of a.detailsDividends ?? []) {
+    if (d.vp > 0) {
+      const name = p.botCorporation?.holdings?.find((h) => h.id === d.corporation)?.name ?? d.corporation;
+      out.push({
+        id: `${p.color}:bot:holding:${d.corporation}`, owner: p.color, ownerName: p.name,
+        cardName: name, vp: d.vp, kind: 'fixed',
+        bot: {kind: 'corp', count: d.vp, corporation: name},
+      });
+    }
   }
   return out;
 }
@@ -877,7 +895,7 @@ function buildPlayers(model: EndgameModel, egVm: ConsoleEndgameVm, extras: Conso
       name: p.name,
       // The bot's corp identity rides `botCorporation` (its `corporations`
       // array stays empty — that one feeds the human impact engine).
-      corporation: p.corporations.length > 0 ? p.corporations.join(' / ') : (p.botCorporation?.name ?? ''),
+      corporation: p.corporations.length > 0 ? p.corporations.join(' / ') : botCorporationLabel(p.botCorporation),
       face: egRowBy.get(p.color)?.face,
       maMedals: maMedalsOf(p.breakdown),
       ...(p.botDifficulty !== undefined ? {difficulty: DIFFICULTY_LABEL[p.botDifficulty]} : {}),
@@ -942,7 +960,7 @@ export function buildConsoleOverviewVm(
   const ranking: Array<OvRankRow> = model.players.map((p) => ({
     color: p.color,
     name: p.name,
-    corporation: rowBy.get(p.color)?.corporation ?? (p.corporations.length > 0 ? p.corporations.join(' / ') : (p.botCorporation?.name ?? '')),
+    corporation: rowBy.get(p.color)?.corporation ?? (p.corporations.length > 0 ? p.corporations.join(' / ') : botCorporationLabel(p.botCorporation)),
     face: rowBy.get(p.color)?.face,
     ...(p.botDifficulty !== undefined ? {difficulty: DIFFICULTY_LABEL[p.botDifficulty]} : {}),
     place: p.place,

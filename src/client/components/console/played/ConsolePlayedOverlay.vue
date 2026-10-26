@@ -79,14 +79,21 @@
               <GamepadGlyph v-if="stackFocusKey(st) !== undefined" control="confirm" class="con-played__caption-open" />
             </span>
 
-            <!-- The BOT's corporation — its own entity (bot rules, original identity) on the corporation's stack;
-                 A/X opens the fullscreen inspect (physical lift via data-zoom-slot). -->
-            <div v-if="st.key === 'corporation' && botCorp !== undefined" class="con-played__lanes">
-              <div class="con-played__lane" :style="{width: stacks.slotW + 'px', height: stacks.slotH + 'px'}">
-                <div class="con-played__slot con-played__slot--front con-played__botcorp" :style="{width: stacks.slotW + 'px', height: stacks.slotH + 'px'}" :data-zoom-slot="botCorp.id">
+            <!-- The BOT's corporations — its own entities (bot rules, original identity) on the corporation's stack,
+                 laid exactly as a player's: in a campaign the portfolio (the primary, then each holding in acquisition
+                 order) is a CASCADE whose newest lies in front. What a holding does differently is the RULES' to say
+                 (the fullscreen inspect), never the table's. A/X opens the inspect (physical lift via data-zoom-slot). -->
+            <div v-if="st.key === 'corporation' && botCorp !== undefined" class="con-played__lanes" :style="{columnGap: stacks.laneGap + 'px'}">
+              <div v-for="(lane, li) in st.lanes" :key="li" class="con-played__lane"
+                   :style="{width: stacks.slotW + 'px', height: (stacks.slotH + (lane.count - 1) * st.peek) + 'px'}">
+                <div v-for="(corp, ci) in botCorps.slice(lane.start, lane.start + lane.count)" :key="corp.id"
+                     class="con-played__slot con-played__botcorp"
+                     :class="{'con-played__slot--front': ci === lane.count - 1}"
+                     :style="{top: ci * st.peek + 'px', width: stacks.slotW + 'px', height: stacks.slotH + 'px', zIndex: String(ci + 1)}"
+                     :data-zoom-slot="corp.id" :data-bot-corp="corp.id">
                   <div class="con-played__lift">
                     <div class="con-played__face con-played__focusbox" :style="{zoom: String(stacks.zoom)}">
-                      <MarsBotCorpFace :id="botCorp.id" :resources="botCorp.resources" :resource="botCorp.resource" />
+                      <MarsBotCorpFace :id="corp.id" :resources="corp.resources" :resource="corp.resource" />
                     </div>
                   </div>
                 </div>
@@ -144,7 +151,8 @@
 import {defineComponent, PropType, markRaw} from 'vue';
 import {Color} from '@/common/Color';
 import {CardModel} from '@/common/models/CardModel';
-import {MarsBotCorpModel} from '@/common/automa/MarsBotCorpData';
+import {MarsBotCorpModel, MarsBotCorpResource} from '@/common/automa/MarsBotCorpData';
+import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {botTableauCards} from '@/client/components/marsbot/marsBotView';
@@ -256,6 +264,20 @@ export default defineComponent({
     /** The bot's corporation (its own entity — bot rules, original identity). */
     botCorp(): MarsBotCorpModel | undefined {
       return this.viewedIsBot ? this.automa?.corporation : undefined;
+    },
+    /**
+     * Every corporation the bot holds, in acquisition order — the primary, then the campaign portfolio's HOLDINGS.
+     * The table lays them as a player's corporations (the newest in front); only the primary carries a resource.
+     */
+    botCorps(): ReadonlyArray<{id: MarsBotCorpId, resources: number, resource?: MarsBotCorpResource}> {
+      const corp = this.botCorp;
+      if (corp === undefined) {
+        return [];
+      }
+      return [
+        {id: corp.id, resources: corp.resources, resource: corp.resource},
+        ...(this.automa?.holdings ?? []).map((h) => ({id: h.id, resources: 0})),
+      ];
     },
     /** The localized seat label — never a raw `MarsBot` for the bot seat. */
     viewedDisplayName(): string {
@@ -389,7 +411,7 @@ export default defineComponent({
     stackCounts(): Record<PlayedStackKey, number> {
       const z = this.zones;
       return {
-        corporation: this.botCorp !== undefined ? 1 : z.corporations.length,
+        corporation: this.botCorp !== undefined ? this.botCorps.length : z.corporations.length,
         prelude: z.preludes.length,
         ceo: z.ceos.length,
         active: z.active.length,
@@ -596,12 +618,15 @@ export default defineComponent({
     },
     /** A stack's caption count: a cascade's honest total; a single corporation and an empty place carry none. */
     stackShowsCount(st: PlayedStackPlan): boolean {
-      if (st.count === 0 || (st.key === 'corporation' && this.botCorp !== undefined)) {
+      if (st.count === 0) {
         return false;
       }
       return st.key !== 'corporation' || st.count > 1;
     },
     stackCount(st: PlayedStackPlan): number {
+      if (st.key === 'corporation' && this.botCorp !== undefined) {
+        return this.botCorps.length;
+      }
       return this.familyCount(categoryCards(this.zones, st.key));
     },
     stackClasses(st: PlayedStackPlan): Record<string, boolean> {
@@ -765,8 +790,9 @@ export default defineComponent({
       if (corp === undefined || this.heroActive || this.categoryUp) {
         return;
       }
-      const list = [marsBotCorpZoomEntry(corp.id, corp.resources, corp.resource)];
-      openConsoleCardZoom(list, 0, undefined, undefined, {
+      // The whole portfolio, in table order; the inspect opens on the FRONT card (the newest), as a player's would.
+      const list = this.botCorps.map((c) => marsBotCorpZoomEntry(c.id, c.resources, c.resource));
+      openConsoleCardZoom(list, list.length - 1, undefined, undefined, {
         origin: slotZoomOrigin(() => this.$el as HTMLElement, (i) => list[i]?.name ?? ''),
       });
     },

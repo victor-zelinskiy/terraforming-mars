@@ -8,13 +8,16 @@ import {vpAttribution} from '../../src/common/game/vpAttribution';
 import {buildEndgameModel, EndgamePlayerInput} from '../../src/client/components/endgame/endgameModel';
 import {buildConsoleEndgameVm} from '../../src/client/console/endgame/consoleEndgameModel';
 import {buildLiveScoreModel} from '../../src/client/console/liveScoreModel';
-import {buildDividendFacts, buildScoreOverview} from '../../src/client/console/scoreExplorerModel';
-import {marsBotCorpAnnotations, marsBotDividendAnnotation} from '../../src/client/components/marsbot/marsBotCorpRules';
+import {buildBotGroupFacts, buildCardsHub, buildScoreOverview} from '../../src/client/console/scoreExplorerModel';
+import {marsBotCorpAnnotations, marsBotDividendAnnotation, marsBotHoldingAnnotations} from '../../src/client/components/marsbot/marsBotCorpRules';
 
 /**
- * «ДИВИДЕНДЫ КОРПОРАЦИЙ» on the client — the titles precedent: a category of
- * its own, present only with a portfolio, and the segment-sum ≡ total
- * invariant kept on every surface. The fixtures carry a NON-ZERO dividend:
+ * The bot's HOLDINGS on the client — in a campaign the bot reads as one more
+ * player (the owner, 2026-10-27), so a holding is one more corporation: its
+ * points fold into «Карты» beside the bot's own corporation (no category of
+ * their own), its face stands behind the bot's on the podium, and how it acts
+ * differently is told by its rules on inspection. The segment-sum ≡ total
+ * invariant holds on every surface. The fixtures carry a NON-ZERO dividend:
  * a zero cannot be lost, so a guard over one proves nothing.
  */
 
@@ -54,53 +57,57 @@ function endgameVm(withDividends: boolean) {
   const bot: EndgamePlayerInput = {
     color: 'neutral', name: 'MarsBot', corporations: [], megacredits: 24, vpByGeneration: [], globalSteps: {},
     breakdown: botBreakdown(withDividends),
+    botCorporation: {
+      id: MarsBotCorpId.C01_CREDICOR, name: 'Credicor',
+      ...(withDividends ? {holdings: DETAILS.map((d) => ({id: d.corporation, name: marsBotCorpInfo(d.corporation).original}))} : {}),
+    },
   };
   const model = buildEndgameModel([human, bot], {hasMoon: false, hasPathfinders: false, hasVenus: false, generation: 9});
   return buildConsoleEndgameVm(model, ['red', 'neutral'] as Array<Color>, {botColors: ['neutral']});
 }
 
-describe('the dividends category (client)', () => {
-  it('the ceremony: a category of its own, Σ categories ≡ the bot\'s total', () => {
+describe('the bot\'s holdings read as further corporations (client)', () => {
+  it('the ceremony: no category of their own — the points stand in «Карты», Σ categories ≡ the bot\'s total', () => {
     const vm = endgameVm(true);
-    const dividends = vm.categories.find((c) => c.key === 'dividends');
-    expect(dividends, 'a real category').is.not.undefined;
-    expect(dividends!.values['neutral']).eq(DIVIDEND_VP);
+    expect(vm.categories.some((c) => (c.key as string) === 'dividends'), 'never a category of its own').is.false;
+    const cards = vm.categories.find((c) => c.key === 'cards')!;
+    expect(cards.values['neutral']).eq(3 + 1 + 6 + DIVIDEND_VP);
+    const fixed = cards.subs.find((s) => s.key === 'cards-fixed')!;
+    expect(fixed.values['neutral'], 'beside the bot\'s own corporation').eq(6 + DIVIDEND_VP);
     const sum = vm.categories.reduce((acc, c) => acc + (c.values['neutral'] ?? 0), 0);
     expect(sum).eq(vm.rows.find((r) => r.isBot)!.finalTotal);
-    // Never folded into the cards: the families still hold exactly the bot's card terms.
-    expect(vm.categories.find((c) => c.key === 'cards')!.values['neutral']).eq(3 + 1 + 6);
   });
 
-  it('without a portfolio there is no dividends category at all', () => {
-    const vm = endgameVm(false);
-    expect(vm.categories.some((c) => c.key === 'dividends')).is.false;
+  it('the podium: the holdings stand behind the bot\'s face as its lineage, each on its own face', () => {
+    const bot = endgameVm(true).rows.find((r) => r.isBot)!;
+    expect(bot.lineage).deep.eq(DETAILS.map((d) => marsBotCorpInfo(d.corporation).original));
+    expect(bot.botLineage).deep.eq(DETAILS.map((d) => d.corporation));
+    const plain = endgameVm(false).rows.find((r) => r.isBot)!;
+    expect(plain.lineage).deep.eq([]);
+    expect(plain.botLineage).is.undefined;
   });
 
-  it('the live score: present from generation 1 with a portfolio (an honest 0), absent without one', () => {
-    const zero: VictoryPointsBreakdown = {...botBreakdown(true), automa: {...automa(true), dividendVp: 0}};
-    zero.total -= DIVIDEND_VP;
-    const live = buildLiveScoreModel(zero, {isBot: true, hasMoon: false, hasPathfinders: false, hasDelta: false, hasDividends: true});
-    expect(live.categories.find((c) => c.key === 'dividends')?.value).eq(0);
+  it('the live score: no category of their own, Σ categories ≡ the total', () => {
     const plain = buildLiveScoreModel(botBreakdown(false), {isBot: true, hasMoon: false, hasPathfinders: false, hasDelta: false});
-    expect(plain.categories.some((c) => c.key === 'dividends')).is.false;
-    const full = buildLiveScoreModel(botBreakdown(true), {isBot: true, hasMoon: false, hasPathfinders: false, hasDelta: false, hasDividends: true});
+    const full = buildLiveScoreModel(botBreakdown(true), {isBot: true, hasMoon: false, hasPathfinders: false, hasDelta: false});
+    expect(full.categories.map((c) => c.key)).deep.eq(plain.categories.map((c) => c.key));
+    expect(full.categories.find((c) => c.key === 'cards')!.value - plain.categories.find((c) => c.key === 'cards')!.value).eq(DIVIDEND_VP);
     expect(full.categories.reduce((acc, c) => acc + c.value, 0)).eq(botBreakdown(true).total);
   });
 
-  it('the score explorer names each holding and every term of its formula with the server\'s numbers', () => {
+  it('the score explorer: each holding is a row of the fixed family, named by its corporation', () => {
     const b = botBreakdown(true);
-    const facts = buildDividendFacts(b);
-    expect(facts.rows.map((r) => [r.label, r.value])).deep.eq([
-      [marsBotCorpInfo(MarsBotCorpId.C02_ECOLINE).original, undefined],
-      ['Greenery tiles', 14],
-      ['Threshold bonus', 2],
-      [marsBotCorpInfo(MarsBotCorpId.C10_THARSIS_REPUBLIC).original, undefined],
-      ['City tiles', 12],
+    const facts = buildBotGroupFacts(b, 'cards-fixed', 24);
+    expect(facts.rows.map((r) => [r.cardName, r.vp])).deep.eq([
+      ['icons', 6],
+      [marsBotCorpInfo(MarsBotCorpId.C02_ECOLINE).original, 16],
+      [marsBotCorpInfo(MarsBotCorpId.C10_THARSIS_REPUBLIC).original, 12],
     ]);
-    const live = buildLiveScoreModel(b, {isBot: true, hasMoon: false, hasPathfinders: false, hasDelta: false, hasDividends: true});
-    const tile = buildScoreOverview(live, b, {isBot: true}).tiles.find((t) => t.key === 'dividends')!;
-    expect(tile.value).eq(DIVIDEND_VP);
-    expect(tile.ledger.kind).not.eq('empty');
+    expect(facts.subtotal).eq(6 + DIVIDEND_VP);
+    const live = buildLiveScoreModel(b, {isBot: true, hasMoon: false, hasPathfinders: false, hasDelta: false});
+    expect(buildScoreOverview(live, b, {isBot: true}).tiles.some((t) => (t.key as string) === 'dividends')).is.false;
+    const hub = buildCardsHub(live, b, true);
+    expect(hub.subtotal).eq(3 + 1 + 6 + DIVIDEND_VP);
   });
 
   it('the formula reading covers every term shape', () => {
@@ -118,6 +125,19 @@ describe('the dividends category (client)', () => {
     const shares = vpAttribution(before, after);
     expect(shares.reduce((acc, s) => acc + s.points, 0)).eq(after.total - before.total);
     expect(shares.some((s) => s.source.kind === 'other' && s.points === DIVIDEND_VP)).is.true;
+  });
+
+  it('a HOLDING\'s rules tell the difference: its dividend first, every printed box marked as not acting', () => {
+    const printed = marsBotCorpAnnotations(MarsBotCorpId.C02_ECOLINE);
+    const held = marsBotHoldingAnnotations(MarsBotCorpId.C02_ECOLINE);
+    expect(held.length).eq(printed.length + 1);
+    expect(held[0].labelKey).eq('Dividends');
+    expect(held[0].order).eq(0);
+    held.slice(1).forEach((group, i) => {
+      expect(group.labelKey).eq(printed[i].labelKey);
+      expect(group.order).eq(i + 1);
+      expect(group.rows.length, 'the not-acting line, then the printed lines').eq(printed[i].rows.length + 1);
+    });
   });
 
   it('the «Дивиденды» box is its own group — the printed boxes stay the printed card', () => {

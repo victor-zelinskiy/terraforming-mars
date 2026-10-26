@@ -8,20 +8,17 @@
        stands outside its plate. The two doors are the hub's focus ring — A descends, B returns here. -->
   <div v-if="mode === 'botScreen'" ref="hub" class="con-botscr" :class="{'con-botscr--wide': extraPlates > 0}" :data-botscr-extras="extraPlates" data-botscr-fit="0">
     <section v-if="automa.corporation !== undefined" class="con-botscr__plate con-botscr__plate--corp con-info__block--botcorp">
-      <h3 class="con-botscr__kicker">{{ $t('Corporation') }}</h3>
+      <h3 class="con-botscr__kicker">{{ $t(holdings.length > 0 ? 'Corporations' : 'Corporation') }}</h3>
       <div class="con-botscr__corpface">
         <MarsBotCorpFace :id="automa.corporation.id" :resources="automa.corporation.resources"
                          :resource="automa.corporation.resource" compact />
       </div>
-      <!-- THE PORTFOLIO (campaign): the corporations the bot HOLDS — their boxes switched off, each paying only its
-           dividend at the end, read LIVE (the server's own numbers). Smaller faces, quieter by material, never a halo. -->
+      <!-- THE FURTHER CORPORATIONS (campaign): in a campaign the bot reads as one more player, so its holdings stand
+           here as plain corporation faces — how they act differently is told by their rules, on inspection. -->
       <div v-if="holdings.length > 0" class="con-botscr__portfolio" data-bot-portfolio>
-        <span class="con-botscr__portlabel">{{ $t('Holdings · dividend only') }}</span>
         <div class="con-botscr__holdings">
           <div v-for="h in holdings" :key="h.id" class="con-botscr__holding" :data-holding="h.id">
             <div class="con-botscr__holdface"><MarsBotCorpFace :id="h.id" compact /></div>
-            <b class="con-botscr__divvp" :data-dividend-vp="h.vp">+{{ h.vp }} <span class="con-botscr__divunit">{{ $t('VP') }}</span></b>
-            <span class="con-botscr__divname">{{ $t(h.name) }}</span>
           </div>
         </div>
       </div>
@@ -186,7 +183,6 @@ import MarsBotTracks from '@/client/components/marsbot/MarsBotTracks.vue';
 import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
 import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
 import {BonusCardId, MarsBotCorpId} from '@/common/automa/AutomaTypes';
-import {marsBotDividendInfo} from '@/common/automa/MarsBotDividendData';
 
 /** The teaching sections that read the printed board (their home is the board's own screen). */
 const BOARD_RULES: ReadonlyArray<string> = ['turn', 'tracks', 'failed'];
@@ -217,9 +213,9 @@ export default defineComponent({
     difficultyLabel(): string {
       return DIFFICULTY_LABEL[this.automa.difficulty];
     },
-    /** The campaign portfolio's HOLDINGS with their live dividend (empty in every ordinary game). */
-    holdings(): ReadonlyArray<{id: MarsBotCorpId, vp: number, name: string}> {
-      return (this.automa.holdings ?? []).map((h) => ({id: h.id, vp: h.dividend.vp, name: marsBotDividendInfo(h.id).name}));
+    /** The campaign portfolio's HOLDINGS (empty in every ordinary game). */
+    holdings(): ReadonlyArray<{id: MarsBotCorpId}> {
+      return (this.automa.holdings ?? []).map((h) => ({id: h.id}));
     },
     storageEntries(): Array<{colony: string, count: number}> {
       const storage = this.automa.shippingStorage;

@@ -83,7 +83,7 @@ export type EndgamePlayerInput = {
    * corporation's — `marsBotCorpDisplayName`), kept OUT of `corporations` on
    * purpose: that array feeds the human corporation-impact profile.
    */
-  botCorporation?: {id: MarsBotCorpId, name: string, stats?: MarsBotCorpStats};
+  botCorporation?: {id: MarsBotCorpId, name: string, stats?: MarsBotCorpStats, holdings?: ReadonlyArray<{id: MarsBotCorpId, name: string}>};
 };
 
 export type EndgameModelOptions = {
@@ -168,7 +168,7 @@ export type EndgamePlayerScore = {
   /** The MarsBot seat's difficulty (present only on the bot's score row). */
   botDifficulty?: DifficultyLevel;
   /** The MarsBot seat's corporation (see {@link EndgamePlayerInput.botCorporation}). */
-  botCorporation?: {id: MarsBotCorpId, name: string, stats?: MarsBotCorpStats};
+  botCorporation?: {id: MarsBotCorpId, name: string, stats?: MarsBotCorpStats, holdings?: ReadonlyArray<{id: MarsBotCorpId, name: string}>};
 };
 
 export type EndgameMode = 'solo' | 'duel' | 'standings';

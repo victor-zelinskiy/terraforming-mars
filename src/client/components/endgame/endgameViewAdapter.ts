@@ -130,6 +130,11 @@ export function endgameModelFromView(view: ViewModel, facts?: ReadonlyArray<Endg
           // The bot's public per-corporation counters — the insight layer's
           // STRUCTURED facts (never display text).
           stats: {...game.automa.corporation.stats},
+          // The campaign portfolio's HOLDINGS — the bot's later corporations,
+          // standing behind its face like a player's (acquisition order).
+          ...(game.automa.holdings !== undefined && game.automa.holdings.length > 0 ? {
+            holdings: game.automa.holdings.map((h) => ({id: h.id, name: marsBotCorpDisplayName(h.id)})),
+          } : {}),
         }} : {}),
     }));
   // MarsBot clock win: entering the final generation means the human lost

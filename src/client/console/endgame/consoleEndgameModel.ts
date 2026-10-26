@@ -36,6 +36,7 @@
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
+import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
 import {EndgameMode, EndgameModel} from '@/client/components/endgame/endgameModel';
 import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
 import {
@@ -46,7 +47,7 @@ import {
 
 export type ConsoleEndgameCategoryKey =
   | 'tr' | 'milestones' | 'awards' | 'greenery' | 'city'
-  | 'moon' | 'tracks' | 'delta' | 'dividends' | 'titles' | 'cards' | 'penalty';
+  | 'moon' | 'tracks' | 'delta' | 'titles' | 'cards' | 'penalty';
 
 /** One sub-step of a two-level category (a TR source / a card family). */
 export type ConsoleEndgameSub = {
@@ -105,6 +106,12 @@ export type ConsoleEndgameRow = {
    * rise above it (`consoleEndgamePodium` § THE LINEAGE).
    */
   lineage: ReadonlyArray<CardName>;
+  /**
+   * The BOT's lineage, by its own ids (parallel to `lineage`, which carries their originals): the campaign
+   * portfolio's HOLDINGS stand behind the bot's face exactly as a player's later corporations do, each painted as
+   * the bot corporation it is. Absent for a human and for a bot that holds nothing.
+   */
+  botLineage?: ReadonlyArray<MarsBotCorpId>;
   finalTotal: number;
   megacredits: number;
   /** 1-based place; ties share the lower number (from the ranked model). */
@@ -178,17 +185,11 @@ export const SCORE_CATEGORY_TABLE: ReadonlyArray<CategoryMeta> = [
   // 'automa' is listed as a SOURCE group here so its segments are consumed —
   // they are remapped into the card families below, never shown as their own
   // category (the whole point of the normalisation).
-  {key: 'cards', label: 'Cards', legend: 'Cards', penalty: false, groups: ['cards', 'automa']},
+  {key: 'cards', label: 'Cards', legend: 'Cards', penalty: false, groups: ['cards', 'automa', 'dividends']},
   // Campaign «Титулы» — accumulated Title Points, a REAL category on a FINAL
   // campaign mission only (its reveal segment is absent everywhere else, and
   // zero-valued categories drop out of the ceremony). Revealed after every
   // in-game source: the campaign's own meter lands last among the positives.
-  // Campaign «ДИВИДЕНДЫ КОРПОРАЦИЙ» — the bot's HOLDINGS pay here, a REAL
-  // category of their own (never folded into the card families: a dividend is
-  // not a card's VP, and the player must be able to read the portfolio apart).
-  // Present only while the bot holds a corporation; after the cards, before
-  // the campaign's own meter.
-  {key: 'dividends', label: 'Corporation dividends', legend: 'Dividends', penalty: false, groups: ['dividends']},
   {key: 'titles', label: 'Titles', legend: 'Titles', penalty: false, groups: ['titles']},
   {key: 'penalty', label: 'Penalties', legend: 'Penalties', penalty: true, groups: ['penalty']},
 ];
@@ -203,7 +204,13 @@ export const AUTOMA_SEGMENT_FAMILY: Readonly<Record<string, string>> = {
   'automa-neural': 'cards-conditional', // Neural Instance: board-state dependent
   'automa-cards': 'cards-fixed', // printed icons of the played pile
   'automa-corp': 'cards-fixed', // the bot corporation's own endgame clause
+  // The campaign HOLDINGS: in a campaign the bot reads as one more player, and
+  // a player's extra corporation scores among its cards — beside the primary.
+  'dividends': 'cards-fixed',
 };
+
+/** Reveal groups whose segments are REMAPPED onto a card family (never shown as their own). */
+export const FOLDED_SEGMENT_GROUPS: ReadonlySet<string> = new Set(['automa', 'dividends']);
 
 /** The card families in the console reveal order (user-facing dramaturgy:
  *  resource → conditional → fixed — the most volatile family first, the
@@ -300,6 +307,7 @@ export function buildConsoleEndgameVm(
       ...(difficulty !== undefined ? {difficulty: DIFFICULTY_LABEL[difficulty]} : {}),
       face: faceOf(ranked),
       lineage: lineageOf(ranked),
+      ...(ranked?.botCorporation?.holdings !== undefined ? {botLineage: ranked.botCorporation.holdings.map((h) => h.id)} : {}),
       finalTotal: p.finalTotal,
       megacredits: ranked?.megacredits ?? 0,
       place: ranked?.place ?? reveal.players.length,
@@ -325,7 +333,7 @@ export function buildConsoleEndgameVm(
         families.set(fam.key, zeroValues(colors));
       }
       for (const seg of sourceSegs) {
-        const target = seg.group === 'automa' ? AUTOMA_SEGMENT_FAMILY[seg.key] : seg.key;
+        const target = FOLDED_SEGMENT_GROUPS.has(seg.group) ? AUTOMA_SEGMENT_FAMILY[seg.key] : seg.key;
         const bucket = target !== undefined ? families.get(target) : undefined;
         if (bucket !== undefined) {
           addValues(bucket, seg.values);
@@ -397,10 +405,13 @@ function faceOf(player: EndgameModel['players'][number] | undefined): ConsoleEnd
   return name === undefined ? undefined : {kind: 'card', name: name as CardName};
 }
 
-/** The corporations behind the face: the seat's later ones in play order (a bot's corporation is its face alone). */
+/** The corporations behind the face: the seat's later ones in play order (a bot's: its holdings, by their originals). */
 function lineageOf(player: EndgameModel['players'][number] | undefined): ReadonlyArray<CardName> {
-  if (player === undefined || player.botCorporation !== undefined) {
+  if (player === undefined) {
     return [];
+  }
+  if (player.botCorporation !== undefined) {
+    return (player.botCorporation.holdings ?? []).map((h) => marsBotCorpInfo(h.id).original);
   }
   return player.corporations.slice(1).map((name) => name as CardName);
 }

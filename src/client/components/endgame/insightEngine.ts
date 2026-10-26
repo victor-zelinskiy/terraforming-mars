@@ -2504,7 +2504,8 @@ const analyzeAutomaCards: Analyzer = (ctx) => {
  * DECISIVE one when the bot won by less than they paid (without them the
  * result would have been another). The numbers are the server's
  * (`AutomaVictoryPoints.dividendVp`); the sentence names how many
- * corporations paid, never a rule it cannot see.
+ * corporations paid, never a rule it cannot see — in the words a player's
+ * extra corporations would get (a campaign bot reads as one more player).
  */
 const analyzeBotDividends: Analyzer = (ctx) => {
   const out: Array<InsightCandidate> = [];
@@ -2522,17 +2523,17 @@ const analyzeBotDividends: Analyzer = (ctx) => {
       priority: decisive ? 82 : (isWinner ? 72 : 60),
       severity: decisive || dividendVp >= 20 ? 'major' : 'normal',
       icon: 'cards',
-      badge: 'Bot dividends',
+      badge: 'Further corporations',
       color: p.color,
       textKey: decisive ?
-        'The corporations ${0} only held paid ${1} VP of dividends at the end — more than the ${2} VP it won by.' :
-        'The corporations ${0} only held paid ${1} VP of dividends at the end.',
+        'The further corporations of ${0} scored ${1} VP at the end — more than the ${2} VP it won by.' :
+        'The further corporations of ${0} scored ${1} VP at the end.',
       params: decisive ? [raw(p.name), raw(dividendVp), raw(ctx.margin)] : [raw(p.name), raw(dividendVp)],
       family: 'cardStory',
       storyCluster: 'bot-dividends',
       evidenceChips: [
         {t: 'raw', v: `+${dividendVp}`, label: 'VP', tone: 'metric'},
-        {t: 'raw', v: String(holdings), label: 'Holdings', tone: 'neutral'},
+        {t: 'raw', v: String(holdings), label: 'Corporations', tone: 'neutral'},
       ],
       scores: {impact: Math.min(1, dividendVp / 25), confidence: 1, relevance: decisive ? 1 : 0.75},
     });

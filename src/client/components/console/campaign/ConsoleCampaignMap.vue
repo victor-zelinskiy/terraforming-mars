@@ -115,7 +115,7 @@
                campaign-dossier modal, folded onto the screen). -->
           <span class="cmap__seat-corps">
             <template v-if="row.isBot">
-              <span v-for="(corp, ci) in botLineage" :key="corp.label" class="cmap__seat-corp" :class="{'cmap__seat-corp--holding': corp.holding}"
+              <span v-for="(corp, ci) in botLineage" :key="corp.label" class="cmap__seat-corp"
                     :data-bot-holding="corp.holding ? 'true' : undefined">
                 <span class="cmap__seat-corp-ord">{{ ci + 1 }}</span>{{ corp.label }}
               </span>

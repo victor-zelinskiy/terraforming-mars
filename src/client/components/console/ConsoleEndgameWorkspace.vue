@@ -159,7 +159,8 @@
               <div v-for="charter in lineageShownOf(color)" :key="charter.name"
                    class="con-eg__charter" :style="{'--eg-k': charter.depth}" :data-eg-charter="charter.name">
                 <div class="con-eg__face-zoom" :style="{zoom: faceZoomOf(color)}">
-                  <ConsoleCardFaceLite :name="charter.name" :card="tableauCard(color, charter.name)" />
+                  <MarsBotCorpFace v-if="charter.botId !== undefined" :id="charter.botId" />
+                  <ConsoleCardFaceLite v-else :name="charter.name" :card="tableauCard(color, charter.name)" />
                   <i class="con-eg__charter-shade" aria-hidden="true"></i>
                 </div>
                 <span v-if="charter.more > 0" class="con-eg__charter-more">+{{ charter.more }}</span>
@@ -1122,13 +1123,16 @@ export default defineComponent({
     /**
      * The charters behind this seat's face, DEEPEST FIRST (paint order — the nearer one covers it): the first
      * `LINEAGE_VISIBLE` corporations behind the face in play order, the deepest naming the rest («+N»).
+     * The bot's campaign holdings stand there exactly like a human's extra corporations, on their own face.
      */
-    lineageShownOf(color: Color): Array<{name: CardName, depth: number, more: number}> {
-      const lineage = this.rowBy(color).lineage;
+    lineageShownOf(color: Color): Array<{name: CardName, depth: number, more: number, botId?: MarsBotCorpId}> {
+      const row = this.rowBy(color);
+      const lineage = row.lineage;
       const shown = lineageShown(lineage.length);
-      const out: Array<{name: CardName, depth: number, more: number}> = [];
+      const out: Array<{name: CardName, depth: number, more: number, botId?: MarsBotCorpId}> = [];
       for (let depth = shown; depth >= 1; depth--) {
-        out.push({name: lineage[depth - 1], depth, more: depth === shown ? lineage.length - LINEAGE_VISIBLE : 0});
+        const botId = row.botLineage?.[depth - 1];
+        out.push({name: lineage[depth - 1], depth, more: depth === shown ? lineage.length - LINEAGE_VISIBLE : 0, ...(botId !== undefined ? {botId} : {})});
       }
       return out;
     },

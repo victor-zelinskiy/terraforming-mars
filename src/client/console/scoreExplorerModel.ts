@@ -24,8 +24,6 @@
  * play composer's VP projection — and a formula must be phrased once.
  */
 import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
-import {marsBotDividendInfo} from '@/common/automa/MarsBotDividendData';
-import {dividendTermFormula} from '@/common/automa/MarsBotDividend';
 import {Tag} from '@/common/cards/Tag';
 import {maArtSlug, maShortName} from '@/client/console/maArt';
 import {tagCountKey} from '@/common/cards/tagNames';
@@ -228,19 +226,6 @@ function tileLedger(cat: LiveScoreCategory, b: VictoryPointsBreakdown, ctx: Scor
       value: d.points,
     })));
   }
-  case 'dividends': {
-    // The bot's portfolio — one piece per HOLDING, named by its corporation;
-    // the formula behind each is level 2 (`buildDividendFacts`).
-    const details = b.automa?.detailsDividends ?? [];
-    if (details.length === 0) {
-      return EMPTY_LEDGER;
-    }
-    return chainOf(details.map((d): LedgerPiece => ({
-      key: `dividend:${d.corporation}`,
-      label: marsBotCorpInfo(d.corporation).original,
-      value: d.vp,
-    })));
-  }
   case 'moon':
   case 'tracks':
   case 'penalty': {
@@ -282,33 +267,6 @@ export function buildTitleFacts(b: VictoryPointsBreakdown): CategoryFactsModel {
     })),
     emptyKey: 'No titles earned',
   };
-}
-
-/**
- * Level 2 of «ДИВИДЕНДЫ КОРПОРАЦИЙ» — per HOLDING: a context row naming the
- * corporation and its dividend, then one row per term of its formula
- * (the operand by name, «count × rate», the VP it pays). Every number is the
- * server's (`detailsDividends`); the client counts nothing.
- */
-export function buildDividendFacts(b: VictoryPointsBreakdown): CategoryFactsModel {
-  const rows: Array<ScoreFactRow> = [];
-  for (const d of b.automa?.detailsDividends ?? []) {
-    rows.push({
-      key: `holding:${d.corporation}`,
-      label: marsBotCorpInfo(d.corporation).original,
-      note: {label: marsBotDividendInfo(d.corporation).name},
-    });
-    d.terms.forEach((term, i) => {
-      const formula = dividendTermFormula(term);
-      rows.push({
-        key: `holding:${d.corporation}:${i}`,
-        label: term.label,
-        value: term.vp,
-        note: {label: formula.label, params: formula.params},
-      });
-    });
-  }
-  return {rows, emptyKey: 'MarsBot holds no corporation'};
 }
 
 /**
@@ -498,7 +456,7 @@ export function buildCardsHub(live: LiveScoreModel, b: VictoryPointsBreakdown, i
     if (b.automa !== undefined) {
       familyValue.set('cards-resource', (familyValue.get('cards-resource') ?? 0) + b.automa.mcToVp);
       familyValue.set('cards-conditional', (familyValue.get('cards-conditional') ?? 0) + b.automa.neuralInstance);
-      familyValue.set('cards-fixed', (familyValue.get('cards-fixed') ?? 0) + b.automa.cardVp + b.automa.corpVp);
+      familyValue.set('cards-fixed', (familyValue.get('cards-fixed') ?? 0) + b.automa.cardVp + b.automa.corpVp + (b.automa.dividendVp ?? 0));
     }
   }
   const tiles = CARD_FAMILY_ORDER.map((fam): CardGroupTile => {
@@ -845,6 +803,14 @@ export function buildBotGroupFacts(b: VictoryPointsBreakdown, group: ScoreCardGr
       }
       if (a.corpVp > 0) {
         rows.push({cardName: 'corp', vp: a.corpVp, formula: {kind: 'fact', vp: a.corpVp, label: 'Bot corporation'}, previewable: false});
+      }
+      // The campaign HOLDINGS — one more corporation each, read like a player's
+      // extra corporation (its own name and points; the rule is the card's).
+      for (const d of a.detailsDividends ?? []) {
+        if (d.vp > 0) {
+          const name = marsBotCorpInfo(d.corporation).original;
+          rows.push({cardName: name, vp: d.vp, formula: {kind: 'fact', vp: d.vp, label: name}, previewable: false});
+        }
       }
     }
   }

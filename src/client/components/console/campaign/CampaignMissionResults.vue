@@ -11,10 +11,10 @@
         <span class="cmres__corps">
           <span v-for="corp in row.corporations" :key="corp" class="cmres__corp">{{ $t(corp) }}</span>
           <span v-if="row.isBot && botCorpName !== undefined" class="cmres__corp">{{ $t(botCorpName) }}</span>
-          <!-- The bot's HOLDINGS at that mission (dividend only) — a dashed kant, then what they paid. -->
+          <!-- The bot's further corporations at that mission — read like a player's extra corporations
+               (what they paid is inside the score; the rule behind it is the card's, on inspection). -->
           <template v-if="row.dividends !== undefined">
-            <span v-for="corp in row.dividends.holdings" :key="corp" class="cmres__corp cmres__corp--holding" data-bot-holding="true">{{ $t(corp) }}</span>
-            <span class="cmres__corp cmres__corp--dividend" :data-dividend-vp="row.dividends.vp">{{ $t('Dividends') }} +{{ row.dividends.vp }} {{ $t('VP') }}</span>
+            <span v-for="corp in row.dividends.holdings" :key="corp" class="cmres__corp" data-bot-holding="true">{{ $t(corp) }}</span>
           </template>
         </span>
         <span class="cmres__title-slot">

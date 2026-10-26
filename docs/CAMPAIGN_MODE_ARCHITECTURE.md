@@ -1241,8 +1241,12 @@ campaign, but the bot now ACQUIRES corporations with the humans: a HOLDING is dr
 launch of missions 2 and 3 (`progression.botHoldings`, `server/campaign/botPortfolio.ts`),
 its original banned from the humans' deals, passed as `gameOptions.automa.portfolio`. A
 holding runs NONE of its boxes — it pays only an end-game DIVIDEND (the `dividendVp` term,
-its own console category «Дивиденды корпораций»), so the bot catches up in points without
-terraforming faster. Pre-portfolio campaigns (`botHoldings` absent) finish without holdings.
+folded into the bot's «Карты» beside its own corporation), so the bot catches up in points
+without terraforming faster. On screen a holding is simply one more corporation (the owner,
+2026-10-27: «бот должен выглядеть в кампании как ещё один игрок»): the cascade on its
+«Разыграно», the charters behind its face on the finale podium, plain chips on the campaign
+rows — nothing marks it apart; the difference is told only by the corporation's RULES on
+inspection (its dividend first, every printed box «не действует»). Pre-portfolio campaigns (`botHoldings` absent) finish without holdings.
 Spec: `docs/claude/prompts/marsbot-portfolio-dividends.md`; rates:
 `docs/claude/marsbot-dividends-calibration.md`.
 

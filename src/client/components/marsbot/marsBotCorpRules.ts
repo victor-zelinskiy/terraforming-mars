@@ -46,6 +46,25 @@ export function marsBotCorpAnnotations(id: MarsBotCorpId): ReadonlyArray<CardAnn
 }
 
 /**
+ * The rules of a HOLDING (the campaign portfolio): the bot plays it like any
+ * corporation on the table, and the rules are where the difference is told —
+ * its dividend FIRST (the one thing it does), then the printed boxes, each
+ * marked as not acting while the corporation is held.
+ */
+export function marsBotHoldingAnnotations(id: MarsBotCorpId): ReadonlyArray<CardAnnotation> {
+  const dividend = marsBotDividendAnnotation(id, 0, true);
+  const printed = marsBotCorpAnnotations(id).map((group, i): CardAnnotation => ({
+    ...group,
+    order: i + 1,
+    rows: [
+      {id: `${group.id}:held`, text: translateText('Does not act while MarsBot holds this corporation'), special: false, anyPlayer: false},
+      ...group.rows,
+    ],
+  }));
+  return [dividend, ...printed];
+}
+
+/**
  * The «ДИВИДЕНДЫ» box — the campaign portfolio's fork box
  * (docs/claude/prompts/marsbot-portfolio-dividends.md). Kept APART from the
  * printed boxes above (`marsBotCorpAnnotations` is the printed card and only
@@ -53,10 +72,12 @@ export function marsBotCorpAnnotations(id: MarsBotCorpId): ReadonlyArray<CardAnn
  * works only while the corporation is a HOLDING of the bot, and its first line
  * says so — the primary's own card never reads as if it scored twice.
  */
-export function marsBotDividendAnnotation(id: MarsBotCorpId, order: number): CardAnnotation {
+export function marsBotDividendAnnotation(id: MarsBotCorpId, order: number, holding: boolean = false): CardAnnotation {
   const box = marsBotDividendInfo(id);
   const lines = [
-    {text: translateTextWithParams('${0}: works only while MarsBot holds this corporation (campaign)', [translateText(box.name)])},
+    {text: holding ?
+      translateTextWithParams('${0}: MarsBot holds this corporation — it pays this dividend at the end of the game, its other boxes do not act', [translateText(box.name)]) :
+      translateTextWithParams('${0}: works only while MarsBot holds this corporation (campaign)', [translateText(box.name)])},
     ...box.lines.map((line) => ({
       text: line.params !== undefined && line.params.length > 0 ?
         translateTextWithParams(line.text, [...line.params]) :
