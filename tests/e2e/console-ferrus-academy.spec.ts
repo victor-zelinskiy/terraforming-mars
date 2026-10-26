@@ -17,7 +17,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import {test, expect, Page, APIRequestContext} from './consoleTest';
 import {
-  bootIntoGame, confirmLockedPlacement, fetchPlayerModel, press, pressUntil, settle, soloGameConfig, walkToSpace,
+  bootIntoGame, cinematicBeat, confirmLockedPlacement, visibleSurfaces, fetchPlayerModel, press, pressUntil, readiness, settle, soloGameConfig, walkToSpace,
 } from './consoleStart';
 
 const OUT = path.resolve('screenshots', 'ferrus');
@@ -137,8 +137,8 @@ test.describe(`console · TR79 Ferrus Academy · ${PRESET.id}`, () => {
       }};
       const tick = () => {
         const cityCell = document.querySelector(`.board-space[data_space_id="${city}"]`);
-        if (seen.city === undefined && cityCell?.querySelector('[class*="board-space-tile--"]') !== null && cityCell !== null &&
-            document.querySelectorAll('.con-tileplace').length === 0) {
+        // The REAL tile paints in the cell at the contact, under the settling proxy (the hero layer itself stays for the rewards).
+        if (seen.city === undefined && cityCell !== null && cityCell.querySelector('[class*="board-space-tile--"]') !== null) {
           seen.city = performance.now() - t0;
         }
         for (const id of cells) {
@@ -221,12 +221,30 @@ test.describe(`console · TR79 Ferrus Academy · ${PRESET.id}`, () => {
 
     // The question: «3 данных» VISIBLE and disabled with its reason; the draw is the live branch.
     await expect.poll(async () => (await wireOf(request, playerId)).waitingFor?.type, {timeout: 30_000, message: 'the question stands'}).toBe('or');
-    const decision = page.locator('.con-decision');
-    await expect(decision, 'the question surfaces').toBeVisible({timeout: 30_000});
-    await expect(decision.locator('.con-decision__unavailable'), '«3 data» stands disabled').toContainText(/данных/i);
-    await expect(decision.locator('.con-decision__unavailable'), '…with its reason').toContainText(/Нет карты, принимающей данные/i);
+    const decision = page.locator('.con-task');
+    // The question is the NEXT surface of this press: it must rise within a few beats, never behind a safety net. A trail
+    // of the product's own readiness (holds, transport, depth) names what kept it if it does not.
+    const asked = Date.now();
+    const trail: Array<string> = [];
+    page.on('console', (msg) => {
+      if (/strand|leak|recover|watchdog|admission|mandatory/i.test(msg.text())) {
+        trail.push(`${Date.now() - asked}ms console: ${msg.text().slice(0, 240)}`);
+      }
+    });
+    trail.push(`surfaces: ${(await visibleSurfaces(page)).join(',')} · plate=${await page.locator('.con-mandatory').count()}`);
+    while (await decision.count() === 0 && Date.now() - asked < 30_000) {
+      const r = await readiness(page);
+      trail.push(`${Date.now() - asked}ms plate=${await page.locator('.con-mandatory').count()} surf=${(await visibleSurfaces(page)).join('/')} holds=[${(r?.holds ?? []).join(',')}] ws=${r?.wsDepth} wf=${r?.transport?.waitingForType} crumb=${(await page.locator('.con-wshead').first().innerText({timeout: 500}).catch(() => '')).replace(/\s+/g, ' ')}`);
+      await cinematicBeat(page, 1000, 'a poll of the question\'s rise — the trail names what holds it');
+    }
+    console.log(`── question after ${Date.now() - asked} ms\n${trail.join('\n')}`);
+    await expect(decision, 'the question surfaces').toBeVisible({timeout: 5_000});
+    expect(Date.now() - asked, 'the question rises with the landing, not behind a safety net').toBeLessThan(15_000);
+    await expect(decision.locator('.con-task__disabled'), '«3 data» stands disabled').toContainText(/данных/i);
+    await expect(decision.locator('.con-task__disabled'), '…with its reason').toContainText(/Нет карты, принимающей данные/i);
     await shoot(page, '07-question-data-disabled');
-    expect(await pressUntil(page, 'Enter', async () => (await wireOf(request, playerId)).waitingFor?.type !== 'or', {tries: 3, settleMs: 1500}),
+    // The answer is read on the SERVER's hand (the next prompt is another `or` — the action menu — so its type says nothing).
+    expect(await pressUntil(page, 'Enter', async () => ((await wireOf(request, playerId)).thisPlayer.cardsInHandNbr ?? 0) > handBefore, {tries: 3, settleMs: 1500}),
       'the draw answers the question').toBeTruthy();
     await expect.poll(async () => (await wireOf(request, playerId)).thisPlayer.cardsInHandNbr ?? 0, {timeout: 30_000, message: 'a card was drawn'})
       .toBeGreaterThan(handBefore);

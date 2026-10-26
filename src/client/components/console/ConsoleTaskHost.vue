@@ -1436,9 +1436,11 @@ export default defineComponent({
         return [];
       }
       return ((this.wf as OrOptionsModel).disabledOptions ?? []).map((d) => {
-        const rec = d as {label?: string | Message, reason?: string | Message, player?: {color?: Color}, metadata?: OptionMetadata};
+        // The model's field is `title` (`DisabledOptionModel`); `label` is an older producer's spelling, read as a fallback.
+        // Reading `label` alone dropped every disabled option's NAME — the row stood as a bare reason (TR79 walk, 2026-10-26).
+        const rec = d as {title?: string | Message, label?: string | Message, reason?: string | Message, player?: {color?: Color}, metadata?: OptionMetadata};
         return {
-          title: textOf(rec.label),
+          title: textOf(rec.title ?? rec.label),
           reason: textOf(rec.reason),
           playerColor: rec.metadata?.player?.color ?? rec.player?.color,
         };

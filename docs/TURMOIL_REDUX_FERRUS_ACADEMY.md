@@ -76,3 +76,10 @@ corporation)` · «Draw a card»], `markChoiceContext(cardEffect(…, 'effect-ch
 
 - Pre-select вопроса в staged-розыгрыше (диагноз 7 промта) НЕ сделан: вопрос задаётся живым промптом после посадки (fallback промта).
 - e2e сценариев «держатель данных» (б), «Arcadian + Ferrus» (г) и reload (д) — только unit-спеки (фикстур нет).
+
+## 7. Дефекты общего слоя, найденные по пути
+
+- **Хост задачи терял НАЗВАНИЕ отключённого варианта** (`ConsoleTaskHost.disabledChoiceEntries` читал `label`, модель несёт
+  `title`) — у каждого `OrOptions.disabledOptions` в хосте стояла голая причина. Исправлено (`title ?? label`); e2e
+  `console-ferrus-academy` (Б) проверяет «Добавьте 3 единицы данных…» рядом с причиной. Строка реестра полировки не заведена:
+  `gameplay-polish-ledger.md` в момент сдачи держала открытую правку соседней сессии (PL-1038…1045).
