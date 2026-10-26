@@ -81,10 +81,6 @@ function botOceans(ctx: Ctx): number {
 function failedActions(ctx: Ctx): number {
   return ctx.game.gameLog.filter((m) => typeof m.message === 'string' && m.message.startsWith('${0} took a Failed Action')).length;
 }
-function botLogLines(ctx: Ctx, needle: RegExp): number {
-  return ctx.game.gameLog.filter((m) => typeof m.message === 'string' && needle.test(m.message) &&
-    m.data.some((d) => d.value === ctx.bot.id || d.value === ctx.bot.name)).length;
-}
 function adjacentPairs(ctx: Ctx, a: (s: Space) => boolean, b: (s: Space) => boolean): number {
   const board = ctx.game.board;
   let n = 0;
@@ -119,11 +115,6 @@ function coloniesOf(ctx: Ctx): {bot: number; all: number} {
   return {bot, all};
 }
 const cardVp = (c: IProjectCard): number => typeof c.victoryPoints === 'number' ? c.victoryPoints : 0;
-const ladder = (count: number, steps: ReadonlyArray<[number, number]>): number => {
-  let vp = 0;
-  for (const [at, value] of steps) if (count >= at) vp = value;
-  return vp;
-};
 
 /** The catalogue (§5) — clause id → evaluator. Rates are the STARTING ones from the prompt. */
 const CLAUSES: Record<MarsBotCorpId, (ctx: Ctx) => number> = {
