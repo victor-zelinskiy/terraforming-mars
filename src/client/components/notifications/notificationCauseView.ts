@@ -96,6 +96,7 @@ const TRIGGER_LABEL: Readonly<Record<EventTrigger, string>> = {
   'tile-placed': 'for a placed tile',
   'tile-adjacency': 'for a tile placed next to it',
   'production-gain': 'for gained production',
+  'production-phase': 'in the production phase',
   'tr-increase': 'for a TR increase',
   'colony-added': 'for a built colony',
   'global-parameter': 'for a global parameter step',

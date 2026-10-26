@@ -256,6 +256,7 @@ export type EventTrigger =
    */
   | 'tile-adjacency'
   | 'production-gain'
+  | 'production-phase' // a card's own `onProductionPhase` paid inside the production phase (Pristar's 6 M€ — the card-reaction record, CN)
   | 'tr-increase'
   | 'colony-added'
   | 'global-parameter'

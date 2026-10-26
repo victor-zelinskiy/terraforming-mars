@@ -310,9 +310,10 @@ test.describe('R07 Pristar · tv4k', () => {
     expect(after.thisPlayer.megacredits, 'the server: the income and Pristar\'s 6').toBe(20 + 22 + 3 + 6);
     expect(pristarResources(after), 'one preservation on the corporation').toBe(pristarResources(before) + 1);
     expect(after.thisPlayer.victoryPointsBreakdown.total - before.thisPlayer.victoryPointsBreakdown.total, '+1 VP (the preservation)').toBe(1);
-    // The standard income flies nothing; the ONLY births are Pristar's two, out of its token on the rating cell.
-    expect(witness.births.map((b) => `${b.value} ${b.under}`), `two births, both on the rating cell — trail:\n${transferTrail(witness)}`)
-      .toEqual(['+6 rail:tr', '+1 rail:tr']);
+    // The standard income flies nothing; the ONLY births are Pristar's two — on ITS OWN printed effect, the corporation
+    // risen beside the rail (CN — «СРАБАТЫВАНИЕ КАРТЫ»), while its token on the rating cell CHARGES as the cause.
+    expect(witness.births.map((b) => `${b.value} ${b.under.replace(/:[^:]+$/, '')}`), `two births, both on Pristar's risen face — trail:\n${transferTrail(witness)}`)
+      .toEqual(['+6 reactor:Pristar', '+1 reactor:Pristar']);
     expect(byAnchor(witness.landings)['rail:megacredits'] ?? 0, `the 6 M€ lands on the M€ row — trail:\n${transferTrail(witness)}`).toBe(1);
     // The preservation lands on the card's own counter — its satellite cell on this screen.
     expect(witness.landings.some((l) => /^aux:/.test(l.under)), `the preservation lands on the satellite — trail:\n${transferTrail(witness)}`).toBe(true);

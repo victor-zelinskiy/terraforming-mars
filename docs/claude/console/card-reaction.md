@@ -96,6 +96,39 @@ every corporation in most hosts). The owner, 2026-10-26: «стандартиз�
     beside the row and deals from its printed draw icon) instead of degrading to the deck; the claims and the parks
     keep judging by `intakeAssemblyOwnsBatch`.
 
+## TR81 Lotus Innovations — the third ATTACHED host, one rise per play (2026-10-26)
+
+11. **The START STAGE is the third ATTACHED host** (`console/startFirstActionRail.ts`; the hero and the action commit are
+    the other two). A corporation's first action that pays the rail (Lotus' «+2 TR») has a rail half of its own — ARMED
+    at the stage's A off the briefing's preview (the action's rail gains, a rating split into one token per printed
+    plate; the forecast's exact rail rows AND capsule rows as the reactions), SEEDED in the apply block before the
+    reaction seeder (so the record ATTACHES — the capsule row is the raw-hold attribution), FLOWN by the stage: the
+    rating tokens off the seated face's printed TR plates into the score cell, then `cardReactionAnswerFlight` with
+    the SEAT as the reactor's place (`ReactorEmergence` — the seated face lifts in place, transform only), the tokens
+    born on its effect row landing in its OWN capsule (the seat wears the live model; the transfer ladder's
+    `.con-start__embedsource [data-start-seat-card]` rung), the rating cell marked as the cause. The stage's completion
+    barrier waits for the half and the reactor's settle.
+12. **One play, one rise** — `mergeCardReactions`: records of the same card of the same owner under the same root are ONE
+    group (the first record's `seq` and `printedEffect`, every impact appended). A rating card that raises a scale AND
+    prints a TR calls the rating funnel twice — two records — and its reactor rises once.
+13. **A card resource is a wave too** — `reactionTokensOf` counts a card-resource GAIN one token per unit (cap 6), so
+    «+2 [data]» is two tokens and the capsule ticks twice; a loss stays one token.
+14. **A corporation is a holder of the play scene** — `playCardReactions` admits a `corporation` source (a corporation
+    lies in the receiving stage's own zone and rises out of it). **An answer to the play's RATING is the rating's
+    answer** — a `tr-increase` fact is never a holder group flown BEFORE the TR: `ratingAnswerSpecs` puts its capsule
+    rows into the play's rail half (the composer, the start's prelude rails), so the reactor rises one beat after the
+    TR's touchdown (`heroAnswerFlight` → `cardReactionAnswerFlight` with the receiving stage's emergence); with no
+    rating of the chain's own (a scale's TR, a walk's) the answer is the scale's / the walk's story and leaves the half
+    (`withoutScaleStepAnswers` / `withoutAgendaWalkAnswers`).
+15. **The Parliament's sitting field is on the seat's avoid list** (`avoidRects`); the standalone chain plays after the
+    blocking scenes (the sitting's beats) — a rating the sitting paid is the cause, its token lands first.
+16. **A rating reactor waits for the SCALE's rating story** (`waitRatingStoryQuiet`, bounded like the blocking wait): a
+    scale step's TR is the scale-step rating beat's, born on the marker once it has ARRIVED, under a NOTIFICATION-ONLY
+    hold the blocking wait never sees — on the box the asteroid project's Lotus data rose and paid at 0.85 s while the
+    step's TR left the marker at 1.9 s. A standalone batch with a `tr-increase` record now starts once
+    `scaleStepRatingBusy()` falls; a reactor to the step itself (Homeostasis Bureau) is not held by it. e2e:
+    `console-lotus-innovations` C (the data born after the rating's touchdown).
+
 ## What this iteration did NOT migrate (named, honest)
 
 **A STAGED play's reactor rises at a SEAT, never out of its place.** Every green card that places a tile — every
@@ -109,14 +142,43 @@ Tharsis · Rover · Immigrant City, then Hartlan's DEFERRED gain last in the ser
 start past 1.8 s — the reactor the forecast PROMISED was the one that ticked without a face; the owner's decision
 (2026-10-26, PL-1059): from four groups the ceiling is 2.4 s, the server's order stays, every face is seen.
 
-The scale step's reward (TR24 — the marker is the law), the Parliament's ledger, Pristar's income mark, the banner
-stage (TR77 — its own law), a reaction on a RIVAL's screen (their own reactors play on their screen; a reactor of
-the VIEWER's woken by a rival's play stands as a notification — the compact rise in a rival's place is the next
-iteration), the hero's `holdHeroAnswers` path for a card-resource answer with no record, and **the board's cell
-scene for a holder's answer**: a standard-project city's animal for Pets is held by the placement scene and flown
-FROM THE CELL to the holder (`cell:24 → recv:Pets` on the first field run) — the raw-hold attribution leaves that
-family where it is; Pets rising and the animal born on its printed animal is the next iteration. A `card-resource`
-group with NO scene holding it is held and flown by the standalone chain to the holder's satellite cell.
+**Iteration 2 (2026-10-26, PL-1060…1067) migrated the rest of the first list** — each on the same primitive, none
+on a second one:
+- **Pristar's income** — the production hooks run under their OWN effect scope on the server (`Player.ts`,
+  channel `production-phase` → a record), the generation scene DECLARES the hook rows and composes
+  `cardReactionAnswerFlight` over its mark flight: the mark on the rating cell CHARGES as the cause while the
+  corporation rises beside the rail and its 6 M€ and the preservation are born on ITS printed effect
+  (`console-pristar` E: `+6 reactor:Pristar`, `+1 reactor:Pristar`).
+- **The scale step** — the step's OWN reward keeps the marker (TR24 — the marker is the law, and the beat DECLARES
+  it); a CARD's answer to the step (Homeostasis Bureau's 3 M€ per temperature step) is the chain's, risen beside
+  the rail, and the rating beat subtracts the records' M€ before matching the party's answer
+  (`cardReactionMegacredits`) — the Greens' 2 M€ are never refused for the card's 3 (`SCALE` on the box).
+- **The board's cell scene** — a holder paid by a city (Pets' animal) is born on the HOLDER's printed icon on its
+  plate (`cityDataPayoutBeat` re-plots the token proxies through `resolveEffectIconEnds`), the paying cities
+  answering with their wakes — the cause, marked; a face printing no such icon keeps the city's edge.
+- **A RIVAL's reactor** — a record whose owner is another seat (`rivalSpecsOf`: the stock / production / rating
+  addressed to that seat) rises COMPACTLY beside that seat's chip in the status strip (`RIVAL_SEAT_SCALE`, the
+  receiver = the chip), after the viewer's own chain, with the strip clear of workspaces (bounded — a covered strip
+  skips the rise, the feed tells it); its tokens are born on its effect row and land on the chip's INTAKE plaque
+  (`statusIntake` — opened EXPECTING before the birth, ticking «+N» per touchdown), a production step on the chip's
+  dot wearing its frame (the plaque prints stock only). Nothing of the viewer's is held.
+- **The summary past the ceiling** (PL-1056) — ONE feed card «Эффекты карт» (`cardReactionSummary.ts` →
+  `pushTransient`): the viewer's merged deltas leading, one line per summarized reactor with its card token, a cause
+  per reactor, «В журнал» as the way in. Never a card per reactor, never a silent tick.
+- **The chain waits for every BLOCKING scene** (`waitBlockingQuiet`, bounded at 12 s) — a sitting's beats, a
+  landing — so PoliticalScience's data on the Parliament's refresh rises after the renewal, never into it.
+- **Attribution hygiene** — every host that flies a card's reaction ITSELF declares its rows (`declareHeldAnswers`):
+  the scale-step beat (TR24 / Aphrodite off the marker), the patent sale's answers, the tile scene's doubled printed
+  bonus (TR79's second pass), its Ares neighbours and the table's answers to a city payout, the remote placement's
+  income; the seeder's trail names any standalone row that sits over an undeclared raw hold
+  (`standaloneOverRawHold` — the next double flight shows up there first).
+
+**Still not migrated, by name**: the banner stage (TR77 Septem Tribus:redux — the card rises OUT OF THE VOTING
+TABLE'S CELL where the eye is, the cube born on its printed glyph: the framework's shape on its own choreography;
+the ONE primitive would move that rise to a seat beside the rail, against the owner's 2026-10-25 decision — left as
+is until the owner says otherwise), the hero's `holdHeroAnswers` path for a card-resource answer with no record. A
+`card-resource` group with NO scene holding it is held and flown by the standalone chain to the holder's satellite
+cell.
 
 ## Files
 

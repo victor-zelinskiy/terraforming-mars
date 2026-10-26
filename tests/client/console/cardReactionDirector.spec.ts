@@ -9,9 +9,10 @@ import {
   beginPanelRewardHold, clearPanelRewardHold, declareHeldAnswers, heldProduction, heldStock, releasePanelRewardHold,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
-  cardReactionAnswerFlight, cardReactionPending, composeAnswerFlights, hurryCardReactions, markReactionCause, resetCardReactions, seedCardReactionHolds,
-  snapshotRailHolds,
+  cardReactionAnswerFlight, cardReactionPending, composeAnswerFlights, hurryCardReactions, markReactionCause, resetCardReactions, rivalReactionPending,
+  rivalSpecsOf, seedCardReactionHolds, snapshotRailHolds,
 } from '@/client/console/cardReaction/cardReactionDirector';
+import {reactionGroupOf} from '@/client/console/cardReaction/cardReactionModel';
 import {cardReactionState} from '@/client/console/cardReaction/cardReactionStage';
 import {reduceMotionOverrideState} from '@/client/utils/reducedMotion';
 
@@ -149,6 +150,25 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
     seedCardReactionHolds(view([]), view([r]), before);
     expect(heldStock('heat'), 'the echo held nothing').eq(0);
     seedCardReactionHolds(view([]), view([record(5, {owner: 'red'})]), before);
+    expect(cardReactionPending()).is.false;
+  });
+
+  it('a RIVAL\'s record (PL-1057): nothing of the viewer\'s is held, its compact rise beside the seat chip is OWED — the gains addressed to that seat as its tokens; A / B lets it go', () => {
+    const before = snapshotRailHolds();
+    const rival = record(50, {owner: 'red', card: CardName.THARSIS_REPUBLIC, impacts: [
+      {kind: 'production', resource: Resource.MEGACREDITS, amount: 1, to: 'red'}, {kind: 'stock', resource: Resource.MEGACREDITS, amount: 3, to: 'red'},
+      {kind: 'draw', amount: 1, to: 'red'},
+    ]});
+    expect(rivalSpecsOf(reactionGroupOf(rival, BLUE)), 'the rival\'s stock and production — never a draw').deep.eq([
+      {channel: 'production', resource: 'megacredits', amount: 1}, {channel: 'stock', resource: 'megacredits', amount: 3},
+    ]);
+    seedCardReactionHolds(view([]), view([rival]), before);
+    expect(heldStock('megacredits'), 'nothing of the viewer\'s held').eq(0);
+    expect(heldProduction('megacredits')).eq(0);
+    expect(rivalReactionPending(), 'the rival\'s rise is owed').is.true;
+    expect(cardReactionPending()).is.true;
+    hurryCardReactions();
+    expect(rivalReactionPending()).is.false;
     expect(cardReactionPending()).is.false;
   });
 

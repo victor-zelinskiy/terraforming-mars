@@ -49,6 +49,7 @@
     "for a played card": "за розыгрыш карты",
     "for playing: ${0}": "за розыгрыш: ${0}",
     "for gained production": "за рост производства",
+    "in the production phase": "в фазе производства",
     "for a TR increase": "за повышение РТ",
     "for a built colony": "за постройку колонии",
     "for a global parameter step": "за шаг глобального параметра",

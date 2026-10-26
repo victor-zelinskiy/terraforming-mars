@@ -52,7 +52,7 @@ import {
 } from '@/client/console/patentSale/patentSaleDirector';
 import {
   runResourceTransfers, settleResourceTransfers, abortResourceTransfers,
-  beginPanelRewardHold, releasePanelRewardHold, resetCardResourceLandings,
+  beginPanelRewardHold, declareHeldAnswers, releasePanelRewardHold, resetCardResourceLandings,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec, TransferPoint, transferFlightBudgetMs} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {PatentSaleAnswer, answerTransferSpec, patentSaleReceivers} from '@/client/console/patentSale/patentSaleAnswers';
@@ -127,6 +127,9 @@ export function seedPatentSaleRewardHold(): void {
   heldAnswerSpecs = [...pendingAnswerSpecs];
   pendingAnswerSpecs = [];
   beginPanelRewardHold(heldAnswerSpecs);
+  // Declared for the card-reaction seeder (CN): the terminal flies the table's answers itself, off the answering
+  // cards standing beside it — the records' shares are this host's, never the chain's second flight.
+  declareHeldAnswers(heldAnswerSpecs);
 }
 
 /** One-shot claim per response (mirrors tradeFleet's `claimed`). */

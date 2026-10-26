@@ -62,9 +62,10 @@ import {registerAnimationHoldSupplier} from '@/client/components/presentation/an
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {RailReward, flyRailReward, railRewardPending, releaseRailReward, seedRailReward} from '@/client/console/resourceTransfer/railReward';
-import {ResourceTransferSpec, TRANSFER_FEATURED_PACE, TransferPoint, cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {ResourceTransferSpec, TRANSFER_FEATURED_PACE, TransferPoint, cardResourceKey, railRowKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {acknowledgeMandatoryBeat} from '@/client/console/consoleMandatoryGate';
-import {surfaceClear} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {declareHeldAnswers, surfaceClear} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {cardReactionAnswerFlight} from '@/client/console/cardReaction/cardReactionDirector';
 import {enterWorkspace, workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
 import {betweenGenResearchLive, draftMandatoryFlowBeat} from '@/client/console/draft/consoleDraftFlow';
 import {parliamentSittingFlowBeat, presentedGeneration} from '@/client/console/parliament/consoleSittingFlow';
@@ -286,7 +287,13 @@ export function seedGenerationIncomeHold(before: PlayerViewModel | undefined, af
     return false;
   }
   generationSceneState.phase = 'income';
-  return seedRailReward(GENERATION_INCOME_KEY, generationIncomeReward(armed.record), before, after);
+  const held = seedRailReward(GENERATION_INCOME_KEY, generationIncomeReward(armed.record), before, after);
+  if (held) {
+    // Declared for the card-reaction seeder (CN): a hook's rows are this scene's — flown off the card's own face, risen
+    // beside the rail — never the chain's second flight.
+    declareHeldAnswers([...hookSpecs.keys()]);
+  }
+  return held;
 }
 
 /** The mark a paying card wears on this screen (`data-income-hook` = its name) — undefined when it wears none. */
@@ -364,8 +371,13 @@ export async function runGenerationIncomeFlights(view: () => PlayerViewModel | u
   generationSceneState.phase = 'income';
   try {
     if (railRewardPending(GENERATION_INCOME_KEY)) {
-      await chargeHookMarks([...new Set(hookSpecs.values())]);
-      await flyRailReward(GENERATION_INCOME_KEY, (spec) => incomeOriginOf(spec), undefined, undefined, {pace: TRANSFER_FEATURED_PACE});
+      // «СРАБАТЫВАНИЕ КАРТЫ» (CN): the paying card RISES beside the rail while its mark on the rail charges as the CAUSE,
+      // and its tokens are born on ITS printed effect (Pristar's «[preservation] 6 M€»); a face that could not rise keeps
+      // the mark as the birth place.
+      const reaction = cardReactionAnswerFlight({rows: [...new Set([...hookSpecs.keys()].map((spec) => railRowKey(spec)))]});
+      await Promise.all([chargeHookMarks([...new Set(hookSpecs.values())]), reaction?.prepare?.() ?? Promise.resolve()]);
+      await flyRailReward(GENERATION_INCOME_KEY, (spec) => reaction?.originOf(spec) ?? incomeOriginOf(spec), undefined, undefined, {pace: TRANSFER_FEATURED_PACE});
+      reaction?.onDone?.();
       // THE RISE WAITS FOR THE LAST ABSORB, never for a touchdown alone: a hook's resource lands on its card's cell of the
       // ДОП. РЕСУРСЫ satellite (Pristar's preservation), which every band surface covers — the purchase rising on the
       // touchdown painted its workspace over the token still being absorbed there (PL-983). Bounded by the law's own ceiling.

@@ -63,6 +63,7 @@ import {
   RATING_RAIL_KEY, ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, TransferPoint, railRowKey,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
 import {SCALE_STEP_BREATH_MS, SCALE_STEP_STAGE_DUE_MS, scaleStepTokenOrigins} from '@/client/console/scaleStepReward/scaleStepRewardModel';
+import {freshCardReactions} from '@/client/console/cardReaction/cardReactionModel';
 
 /** The beat's own name — its notification-only hold, its ledger story, its park membership. */
 export const SCALE_STEP_RATING_KEY = 'scale-step-rating';
@@ -108,6 +109,20 @@ const SCALES: ReadonlyArray<{accent: ScaleStepRatingAccent, key: keyof HeldGloba
  * the tile's; a direct TR beside a scale step is nobody's to fly; a rival's
  * step never moves the viewer's rating; the World Government pays no rating).
  */
+/** The viewer's M€ the fresh card-reaction records moved in this response (CN) — what the step's own answer stands beside. */
+function cardReactionMegacredits(before: PlayerViewModel | undefined, after: PlayerViewModel | undefined): number {
+  const viewer = after?.thisPlayer?.color;
+  let sum = 0;
+  for (const record of freshCardReactions(before?.game.cardReactions, after?.game.cardReactions, before?.thisPlayer?.color === viewer)) {
+    for (const impact of record.impacts) {
+      if (impact.kind === 'stock' && impact.resource === 'megacredits' && impact.to === viewer) {
+        sum += impact.amount;
+      }
+    }
+  }
+  return sum;
+}
+
 export function scaleStepRatingPlan(
   before: PlayerViewModel | undefined, after: PlayerViewModel | undefined, heldByOthers = 0,
 ): ScaleStepRatingPlan | undefined {
@@ -146,7 +161,9 @@ export function scaleStepRatingPlan(
   if (rating !== steps + (venusBonus ? 1 : 0)) {
     return undefined;
   }
-  const megacredits = now.megacredits - was.megacredits;
+  // A CARD's answer on the same row (the server's card-reaction record — Homeostasis Bureau's 3 M€ per step, CN) is
+  // subtracted before the match: the party's answer stands beside it, never refused for it.
+  const megacredits = now.megacredits - was.megacredits - cardReactionMegacredits(before, after);
   return {
     moves,
     rating,
@@ -269,8 +286,19 @@ export function seedScaleStepRatingHold(before: PlayerViewModel | undefined, aft
   const cause: Array<ResourceTransferSpec> = origins.map(() => ({channel: 'stock', resource: RATING_RAIL_KEY, amount: 1}));
   const reactions: Array<ResourceTransferSpec> = plan.reaction === undefined ? [] :
     [{channel: 'stock', resource: 'megacredits', amount: plan.reaction}];
+  // A CARD's answer to the step on the same row (Homeostasis Bureau's 3 M€ per temperature step — the server's
+  // card-reaction record, CN) is a KNOWN move of the M€ row: the Greens' answer is verified beside it, never refused
+  // for a payment this beat was not told about; the card's own share is the reaction chain's (flown off its face).
+  const known: Record<string, number> = {};
+  if (heldThisResponse > 0) {
+    known[railRowKey(cause[0])] = heldThisResponse;
+  }
+  const cardShares = cardReactionMegacredits(before, after);
+  if (cardShares !== 0) {
+    known['stock:megacredits'] = (known['stock:megacredits'] ?? 0) + cardShares;
+  }
   const verdict = verifyRailReward({
-    cause, reactions, ...(heldThisResponse > 0 ? {known: {[railRowKey(cause[0])]: heldThisResponse}} : {}),
+    cause, reactions, ...(Object.keys(known).length > 0 ? {known} : {}),
   }, before, after);
   if (verdict.mismatches.length > 0 && process.env.NODE_ENV !== 'production') {
     console.warn(`[scale-step-rating] not shown as promised — ${verdict.mismatches.join('; ')}`);

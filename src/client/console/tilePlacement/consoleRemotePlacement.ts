@@ -114,7 +114,7 @@ import {
   clockwiseFromTop, dropHeldCubesInTurn, freshOwnerCubeIds,
 } from '@/client/components/board/cubeDropState';
 import {
-  runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, beginPanelVpHold, releasePanelVpHold, isResourceTransferActive,
+  runResourceTransfers, beginPanelRewardHold, declareHeldAnswers, releasePanelRewardHold, beginPanelVpHold, releasePanelVpHold, isResourceTransferActive,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {TransferPoint, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {workspaceStackActive} from '@/client/console/consoleWorkspaceStack';
@@ -620,6 +620,9 @@ function claimIncome(spaceId: string, opts: RemoteStageOpts | undefined): Readon
   const income = viewerAresAdjacencyFlights(grant, opts.viewerColor);
   if (income.length > 0) {
     beginPanelRewardHold(income.map((f) => f.spec));
+    // Declared for the card-reaction seeder (CN): this scene flies the viewer's tile income itself, off the paying
+    // tile — a record of the card that placed that tile names the same rows; never the chain's second flight.
+    declareHeldAnswers(income.map((f) => f.spec));
   }
   return income;
 }

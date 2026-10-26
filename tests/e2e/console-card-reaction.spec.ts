@@ -28,13 +28,16 @@ const THARSIS = 'Tharsis Republic';
 const ROVER = 'Rover Construction';
 const IMMIGRANT = 'Immigrant City';
 const PETS = 'Pets';
+const HOMEOSTASIS = 'Homeostasis Bureau';
 const NOCTIS = 'Noctis City';
 /** The owner's decision 4: the chain's wall-clock ceiling. */
 /** The chain's ceiling from FOUR groups (the owner, PL-1059) — `REACTION_CHAIN_CEILING_MANY_MS`. */
 const CHAIN_CEILING_MANY_MS = 2400;
 
+type Seat = {color: string, megacredits: number, megacreditProduction: number, heat: number, terraformRating: number, tableau: Array<{name: string, resources?: number}>};
 type Wire = {
-  thisPlayer: {color: string, megacredits: number, megacreditProduction: number, heat: number, tableau: Array<{name: string, resources?: number}>},
+  thisPlayer: Seat,
+  players: Array<Seat>,
   cardsInHand?: Array<{name: string}>,
 };
 const wireOf = async (request: APIRequestContext, id: string): Promise<Wire> => await fetchPlayerModel(request, id) as unknown as Wire;
@@ -212,6 +215,8 @@ test.describe(`console · card reaction — one framework · ${PRESET.id}`, () =
     expect(after.thisPlayer.megacredits).toBe(before.thisPlayer.megacredits - 18 + 3 + 2);
     expect(after.thisPlayer.megacreditProduction).toBe(before.thisPlayer.megacreditProduction + 1 + 1 + 1 + 3);
     expect(animalsOn(after, PETS)).toBe(animalsOn(before, PETS) + 1);
+    // The board's family on the framework (PL-1057): Pets' animal is born on ITS printed animal, standing on its plate.
+    expect(witness.births.some((b) => b.under.startsWith(`reactor:${PETS}:`)), `Pets' animal born on its own printed icon\n${transferTrail(witness)}`).toBe(true);
     await shoot(page, 'MANY-03-board');
     expect(errors, 'no page errors').toEqual([]);
   });
@@ -246,7 +251,92 @@ test.describe(`console · card reaction — one framework · ${PRESET.id}`, () =
     expect(after.thisPlayer.megacredits, 'the city\'s price, Tharsis\' 3 and Rover\'s 2').toBe(before.thisPlayer.megacredits - 25 + 3 + 2);
     expect(after.thisPlayer.megacreditProduction, 'the city\'s own step + Tharsis + Immigrant City').toBe(before.thisPlayer.megacreditProduction + 3);
     expect(animalsOn(after, PETS)).toBe(animalsOn(before, PETS) + 1);
+    expect(witness.births.some((b) => b.under.startsWith(`reactor:${PETS}:`)), `Pets' animal born on its own printed icon (the board's family)\n${transferTrail(witness)}`).toBe(true);
     await shoot(page, 'BOARD-02-board');
+    expect(errors, 'no page errors').toEqual([]);
+  });
+
+  test('RIVAL · the viewer\'s standard-project city wakes RED\'s Tharsis Republic — on the viewer\'s screen the rival\'s card rises compactly beside red\'s chip and its production token lands on the chip', async ({page, request}) => {
+    test.setTimeout(600_000);
+    const errors: Array<string> = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    const playerId = await bootFixture(page, request, 'card-reaction-rival', {query: PRESET.query});
+    await settle(page, {timeoutMs: 30_000});
+    const before = await wireOf(request, playerId);
+    const redBefore = before.players.find((p) => p.color === 'red');
+    expect(redBefore?.tableau.map((c) => c.name), 'red holds Tharsis Republic').toContain(THARSIS);
+    await armTransferWitness(page);
+    await armReactionProbe(page);
+    await openStandardProject(page, 'City');
+    await expect(page.locator('.con-board--placing'), 'the city placement opened').toBeVisible({timeout: 20_000});
+    expect(await commitFocusedSpace(page, 0), 'the city committed').toBe(true);
+    // The rival's face stands beside RED's chip in the status strip — right of it, compact (never a protagonist). A
+    // compact rise is SHORT (the hold beat, one token's flight, the recede), so its geometry is read in the SAME in-page
+    // tick the face turns visible — a separate read after the wait found the face already gone.
+    const handle = await page.waitForFunction((card) => {
+      const el = document.querySelector<HTMLElement>(`.con-reaction__face[data-reaction-card="${card}"]`);
+      const f = el?.getBoundingClientRect();
+      const chip = document.querySelector<HTMLElement>('.con-status__player[data-color="red"]')?.getBoundingClientRect();
+      if (el === null || el === undefined || f === undefined || f.width < 4 || Number(getComputedStyle(el).opacity) < 0.3 || chip === undefined) {
+        return null;
+      }
+      return {
+        face: {l: f.left, t: f.top, r: f.right, b: f.bottom, h: f.height}, chip: {l: chip.left, t: chip.top, r: chip.right, b: chip.bottom},
+        stageH: window.innerHeight,
+      };
+    }, THARSIS, {timeout: 60_000, polling: 40});
+    const geometry = await handle.jsonValue() as {face: {l: number, t: number, r: number, b: number, h: number}, chip: {l: number, t: number, r: number, b: number}, stageH: number} | null;
+    await shoot(page, 'RIVAL-01-tharsis-beside-red');
+    expect(geometry, 'the face and red\'s chip are both measurable').not.toBeNull();
+    expect(geometry!.face.l, 'the face stands right of red\'s chip').toBeGreaterThanOrEqual(geometry!.chip.r - 2);
+    expect(geometry!.face.t, '…and hangs from the strip, never mid-board').toBeLessThan(geometry!.stageH * 0.25);
+    expect(geometry!.face.h / geometry!.stageH, 'compact — under a fifth of the screen').toBeLessThan(0.2);
+    await settle(page, {timeoutMs: 60_000});
+    await waitForBoardHome(page, 40);
+    const witness = await transferWitness(page);
+    writeTrail('rival', transferTrail(witness));
+    expect(endsOverGlass(witness), `every end visible\n${transferTrail(witness)}`).toEqual([]);
+    const births = witness.births.filter((b) => b.under.startsWith(`reactor:${THARSIS}:`));
+    expect(births.length, `Tharsis' production step born on its own effect row\n${transferTrail(witness)}`).toBeGreaterThan(0);
+    expect(witness.landings.filter((l) => births.some((b) => b.id === l.id)).every((l) => /^(seat|intake):red/.test(l.under)),
+      `…and landed on red's chip / its intake\n${transferTrail(witness)}`).toBe(true);
+    const after = await wireOf(request, playerId);
+    const redAfter = after.players.find((p) => p.color === 'red');
+    expect(redAfter?.megacreditProduction, 'the server: red\'s +1 M€ production').toBe((redBefore?.megacreditProduction ?? 0) + 1);
+    expect(after.thisPlayer.megacredits, 'the viewer paid the city — no cash of red\'s').toBe(before.thisPlayer.megacredits - 25);
+    expect(errors, 'no page errors').toEqual([]);
+  });
+
+  test('SCALE · a heat → temperature step wakes Homeostasis Bureau — the card rises beside the rail, its 3 M€ born on its printed M€; the step\'s own rating rides the marker', async ({page, request}) => {
+    test.setTimeout(600_000);
+    const errors: Array<string> = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    const playerId = await bootFixture(page, request, 'card-reaction-scale', {query: PRESET.query});
+    await settle(page, {timeoutMs: 30_000});
+    const before = await wireOf(request, playerId);
+    expect(before.thisPlayer.heat, 'the fixture: 8 heat').toBe(8);
+    await armTransferWitness(page);
+    await armReactionProbe(page);
+    expect(await pressUntil(page, 'Comma', async () => await page.locator('.con-quick').count() > 0, {tries: 4, settleMs: 900}), 'the basic-actions wheel opens').toBe(true);
+    const confirm = page.locator('.con-confirm[data-motion-surface="confirm"][data-confirm-kind="convertHeat"]');
+    expect(await pressUntil(page, 'ArrowRight', async () => await confirm.count() > 0, {tries: 3, settleMs: 1200}), 'the heat conversion\'s confirm stands').toBe(true);
+    await settle(page);
+    await shoot(page, 'SCALE-01-confirm');
+    expect(await pressUntil(page, 'Enter', async () => (await wireOf(request, playerId)).thisPlayer.heat === 0, {tries: 3, settleMs: 1500}), 'A converts the heat').toBe(true);
+    await page.locator(`.con-reaction__face[data-reaction-card="${HOMEOSTASIS}"]`).waitFor({state: 'visible', timeout: 60_000});
+    await shoot(page, 'SCALE-02-homeostasis-rises');
+    await settle(page, {timeoutMs: 60_000});
+    await waitForBoardHome(page, 40);
+    const witness = await transferWitness(page);
+    writeTrail('scale', transferTrail(witness));
+    expect(endsOverGlass(witness), `every end visible\n${transferTrail(witness)}`).toEqual([]);
+    const births = witness.births.filter((b) => b.under.startsWith(`reactor:${HOMEOSTASIS}:`));
+    expect(births.length, `three M€ tokens born on Homeostasis' printed M€\n${transferTrail(witness)}`).toBe(3);
+    expect(witness.landings.filter((l) => births.some((b) => b.id === l.id)).every((l) => l.under.startsWith('rail:megacredits')),
+      `…and landed on the M€ row\n${transferTrail(witness)}`).toBe(true);
+    const after = await wireOf(request, playerId);
+    expect(after.thisPlayer.terraformRating, 'the server: +1 rating for the step').toBe(before.thisPlayer.terraformRating + 1);
+    expect(after.thisPlayer.megacredits - before.thisPlayer.megacredits, 'the server: Homeostasis\' 3 M€ (plus whatever the ruling party answers)').toBeGreaterThanOrEqual(3);
     expect(errors, 'no page errors').toEqual([]);
   });
 });

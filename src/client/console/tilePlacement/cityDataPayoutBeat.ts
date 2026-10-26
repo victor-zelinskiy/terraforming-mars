@@ -52,6 +52,7 @@ import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {boardStorySettling, waitConsoleQuiet} from '@/client/console/rewardPayoutQuiet';
 import {registerBoardSceneMember} from '@/client/console/boardSceneMembers';
 import {ResourceTransferSpec, TransferEnd, TransferEndLike, TransferPoint, cardResourceKey, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {resolveEffectIconEnds} from '@/client/console/cardReaction/effectIconEnds';
 import {CardReceiveOutcome, runCardReceive} from '@/client/console/cardReceive/cardReceiveDirector';
 import {
   CITY_PAYOUT_BREATH_MS, CITY_PAYOUT_READ_MS, CITY_PAYOUT_RETURN_MS, CITY_PAYOUT_RISE_MS, CITY_PAYOUT_TICK_GAP_MS,
@@ -583,6 +584,24 @@ export async function runCityPayoutBeat(opts: OwnCityPayoutOpts): Promise<void> 
         return false;
       }
       cityPayoutState.phase = 'paying';
+      // «СРАБАТЫВАНИЕ КАРТЫ» (CN, the board's family): the tokens are BORN on the HOLDER's printed icon of the resource
+      // — the card that pays, standing on its plate — while the paying cities answer with their wakes (the cause,
+      // marked); a face that prints no such icon keeps the city's edge as the birth place.
+      if (cardEl !== undefined) {
+        const spec: ResourceTransferSpec = {channel: 'card-resource', resource: cardResourceKey(opts.payout.resource), amount: 1, targetCard: opts.payout.target};
+        const ends = resolveEffectIconEnds(cardEl, undefined, geometry.tokens.map(() => spec));
+        geometry = {
+          wakes: geometry.wakes,
+          tokens: geometry.tokens.map((t, i) => {
+            const end = ends[i];
+            if (end === undefined) {
+              return t;
+            }
+            const r = end.el.getBoundingClientRect();
+            return r.width < 2 ? t : {...t, at: {x: r.left + r.width * end.fx, y: r.top + r.height * end.fy}};
+          }),
+        };
+      }
       const tickGap = motionMs(CITY_PAYOUT_TICK_GAP_MS);
       let lastTick = -Infinity;
       let ticks: Promise<unknown> = Promise.resolve();

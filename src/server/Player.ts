@@ -1239,7 +1239,14 @@ export class Player implements IPlayer {
       const before = this.stock.asUnits();
       const storeBefore = card.resourceCount;
       const vpBefore = card.resourceType === undefined ? 0 : card.getVictoryPoints(this);
-      card.onProductionPhase(this);
+      // Under its OWN effect scope (CN — «СРАБАТЫВАНИЕ КАРТЫ»): the card-reaction record names the card that paid, and
+      // the console rises it beside the rail with its tokens born on its printed effect — the journal's income group
+      // keeps the hook as a child of the phase root.
+      if (events === undefined) {
+        card.onProductionPhase(this);
+      } else {
+        events.withEffect(this, card, 'production-phase', () => card.onProductionPhase?.(this));
+      }
       const after = this.stock.asUnits();
       const income = Units.of({});
       let moved = false;

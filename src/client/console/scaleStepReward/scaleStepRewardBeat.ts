@@ -48,7 +48,7 @@ import {OwedStoryHandle, owePresentation} from '@/client/console/presentationLed
 import {
   boardBeatBoardWatchable, boardBeatHoldsParam, boardBeatParkState, registerBoardBeatStoryMember,
 } from '@/client/console/boardBeatPark';
-import {beginPanelRewardHold, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {beginPanelRewardHold, declareHeldAnswers, releasePanelRewardHold, runResourceTransfers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
   ResourceTransferSpec, TOUCHDOWN_TICK_GAP_MS, TransferPoint, touchdownTickAt, transferWaveDelayMs,
 } from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -196,7 +196,11 @@ export function seedScaleStepRewardHolds(before: PlayerViewModel | undefined, af
     const own = record.owner === viewer;
     const held = own && typeof document !== 'undefined' ? record.gain.amount : 0;
     if (held > 0) {
-      beginPanelRewardHold([scaleStepHoldSpec(record)]);
+      const spec = scaleStepHoldSpec(record);
+      beginPanelRewardHold([spec]);
+      // Declared for the card-reaction seeder (CN): this beat flies the card's step reward itself, off the marker
+      // (TR24 — the marker is the law), so the record's share is this host's, never the chain's second flight.
+      declareHeldAnswers([spec]);
     }
     scaleStepRewardState.queue.push({record, own, held});
     queued = true;

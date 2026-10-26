@@ -171,7 +171,10 @@ describe('production income — the phase is an event (TR61)', () => {
     forceGenerationEnd(game);
     runAllActions(game);
     const {root, chain} = byPlayer(game, player);
-    const bonus = chain.find((e) => e.source?.kind === 'corporation' && e.source.card === CardName.PRISTAR);
+    // The hook runs under its OWN effect scope (CN): the `effect-triggered` marker comes first, the gain after it.
+    const marker = chain.find((e) => e.type === 'effect-triggered' && e.source?.kind === 'corporation' && e.source.card === CardName.PRISTAR);
+    expect(marker, 'the hook\'s marker under the phase\'s root').to.not.be.undefined;
+    const bonus = chain.find((e) => e.source?.kind === 'corporation' && e.source.card === CardName.PRISTAR && e.impact.stock?.megacredits !== undefined);
     expect(bonus, 'Pristar\'s +6 M€ under the phase\'s root').to.not.be.undefined;
     expect(bonus!.correlationId).eq(root.correlationId);
     expect(bonus!.impact.stock?.megacredits).eq(6);

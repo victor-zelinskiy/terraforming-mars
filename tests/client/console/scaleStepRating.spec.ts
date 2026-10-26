@@ -30,9 +30,12 @@ import {clearPanelRewardHold, heldStock} from '@/client/console/resourceTransfer
 import {RATING_RAIL_KEY, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {resetPresentationLedger} from '@/client/console/presentationLedger';
 import {CardName} from '@/common/cards/CardName';
+import {Color} from '@/common/Color';
+import {Resource} from '@/common/Resource';
+import {CardReactionRecord} from '@/common/models/CardReactionModel';
 
 type Seat = {terraformRating?: number, megacredits?: number};
-type Scales = {temperature?: number, oxygenLevel?: number, venusScaleLevel?: number, oceans?: number, phase?: Phase};
+type Scales = {temperature?: number, oxygenLevel?: number, venusScaleLevel?: number, oceans?: number, phase?: Phase, cardReactions?: ReadonlyArray<CardReactionRecord>};
 
 function view(seat: Seat, scales: Scales, id = 'p-blue'): PlayerViewModel {
   return {
@@ -190,6 +193,21 @@ describe('scaleStepRatingBeat — cause before consequence', () => {
     expect(heldStock(RATING_RAIL_KEY), 'a reset releases').eq(0);
     expect(heldStock('megacredits')).eq(0);
     expect(scaleStepRatingBusy()).is.false;
+  });
+
+  it('a CARD\'s answer on the same row (Homeostasis Bureau\'s 3 M€ — the server\'s card-reaction record, CN) is a KNOWN move: the Greens\' answer is still held, never refused', () => {
+    mountMarker();
+    watchable = false;
+    noteScaleMarkerSettled('venus', 6);
+    const reaction: CardReactionRecord = {
+      seq: 7, root: {}, owner: 'blue' as Color, kind: 'card', card: CardName.HOMEOSTASIS_BUREAU, channel: 'global-parameter',
+      impacts: [{kind: 'stock', resource: Resource.MEGACREDITS, amount: 3, to: 'blue' as Color}],
+    };
+    // 20 → 25: the Greens' 2 for the step AND the card's 3 — the M€ row moved by both.
+    seedScaleStepRatingHold(view({}, {venusScaleLevel: 6, cardReactions: []}), view({terraformRating: 21, megacredits: 25}, {venusScaleLevel: 8, cardReactions: [reaction]}));
+    expect(heldStock(RATING_RAIL_KEY), 'the rating is held').eq(1);
+    expect(heldStock('megacredits'), 'the Greens\' 2 M€ held — the card\'s 3 are the reaction chain\'s').eq(2);
+    expect(scaleStepRatingState.degraded).is.false;
   });
 
   it('a diff that is not a scale step\'s rating seeds nothing', () => {

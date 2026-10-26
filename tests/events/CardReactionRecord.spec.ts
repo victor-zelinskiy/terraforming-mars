@@ -19,6 +19,8 @@ import {NuclearZone} from '../../src/server/cards/base/NuclearZone';
 import {Research} from '../../src/server/cards/base/Research';
 import {ImportedGHG} from '../../src/server/cards/base/ImportedGHG';
 import {SelectSpace} from '../../src/server/inputs/SelectSpace';
+import {Pristar} from '../../src/server/cards/turmoil/Pristar';
+import {Units} from '../../src/common/Units';
 import {fakeCard, runAllActions} from '../TestingUtils';
 import {cast} from '../../src/common/utils/utils';
 
@@ -171,5 +173,21 @@ describe('CardReactionRecord — the recorder writes «which card reacted and wh
     const stored = game.publishCardReaction({root: {}, owner: player.color, kind: 'card', card: CardName.RESEARCH, channel: 'card-played', impacts: []});
     stored.impacts.push({kind: 'draw', amount: 1, to: player.color});
     expect(game.cardReactions[0].impacts).to.have.lengthOf(1);
+  });
+
+  it('Pristar in the production phase (no rating raised): ONE record on the `production-phase` channel — the preservation and the 6 M€, the phase root as its root', () => {
+    const {game, player} = table();
+    player.playCorporationCard(new Pristar());
+    runAllActions(game);
+    player.production.override(Units.EMPTY);
+    game.cardReactions.length = 0;
+    player.runProductionPhase();
+    runAllActions(game);
+    const records = game.cardReactions.filter((r) => r.card === CardName.PRISTAR);
+    expect(records, 'one record for the hook').to.have.lengthOf(1);
+    expect(records[0]).deep.include({owner: player.color, kind: 'corporation', channel: 'production-phase'});
+    expect(records[0].impacts.map((i) => i.kind).sort()).deep.eq(['card-resource', 'stock']);
+    expect(records[0].impacts.find((i) => i.kind === 'stock')).deep.include({resource: Resource.MEGACREDITS, amount: 6, to: player.color});
+    expect(records[0].root.actionId, 'the phase root is the chain').eq(player.productionIncome?.correlationId);
   });
 });

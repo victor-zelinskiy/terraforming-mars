@@ -30,7 +30,7 @@ import {
   noteScaleMarkerMoving, noteScaleMarkerSettled, resetScaleMarkerPoses, scaleMarkerArrived,
 } from '@/client/components/board/scaleMarkerArrival';
 import {boardBeatParkState, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
-import {clearPanelRewardHold, heldCardResource, heldStock} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {clearPanelRewardHold, heldCardResource, heldStock, takeDeclaredAnswers} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {resetPresentationLedger} from '@/client/console/presentationLedger';
 
 function census(seq: number, over: Partial<ScaleStepRewardModel> = {}): ScaleStepRewardModel {
@@ -143,12 +143,19 @@ describe('scaleStepRewardBeat (the director)', function() {
     marker = mountMarker();
   });
 
+  // The declared-answers ledger is per APPLY BLOCK in the product and bundle-shared in mochapack: taken on both edges, so a
+  // declaration another spec left (the hero's, the rail's) never counts here and this spec leaves none behind.
+  beforeEach(() => {
+    takeDeclaredAnswers();
+  });
+
   afterEach(() => {
     marker?.remove();
     marker = undefined;
     resetScaleStepRewards();
     resetBoardBeatPark();
     clearPanelRewardHold();
+    takeDeclaredAnswers();
   });
 
   it('the viewer\'s OWN gain is held on its counter in the seed; another seat\'s never; a seq is claimed once', () => {
@@ -156,6 +163,8 @@ describe('scaleStepRewardBeat (the director)', function() {
     seedScaleStepRewardHolds(view('blue', []), view('blue', [census(5100), aphrodite(5101)]));
     expect(heldCardResource('data')).eq(2);
     expect(heldStock('megacredits')).eq(4);
+    // CN: the beat DECLARES what it flies itself (off the marker) — the card-reaction seeder never flies it a second time.
+    expect(takeDeclaredAnswers().map((s) => `${s.channel}:${s.resource}:${s.amount}`), 'declared for the reaction seeder').deep.eq(['card-resource:data:2', 'stock:megacredits:4']);
     // The same frame again (a WS echo of the poll): nothing claimed twice.
     seedScaleStepRewardHolds(view('blue', []), view('blue', [census(5100), aphrodite(5101)]));
     expect(heldCardResource('data')).eq(2);

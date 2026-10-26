@@ -178,7 +178,7 @@ import {
   playTileSprout,
 } from '@/client/console/tilePlacement/tilePlacementDirector';
 import {
-  runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
+  runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, declareHeldAnswers, releasePanelRewardHold, clearPanelRewardHold,
   beginPanelVpHold, releasePanelVpHold,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {accumulatedVp} from '@/client/components/additionalResources/additionalResources';
@@ -1362,6 +1362,16 @@ export function seedTilePlacementRewardHold(): void {
     specs.push(...pendingMoveReward.reactions);
   }
   beginPanelRewardHold(specs);
+  // DECLARED for the card-reaction seeder (CN): the shares this scene flies ITSELF that a card's record also names —
+  // the doubled printed bonus (TR79 Ferrus — the second pass is the card's), the Ares neighbours a card's tile pays,
+  // the table's answers to a city's payout (Martian Fiber's M€) — so the chain never flies them a second time. The
+  // cell's own printed bonus and the move's rating stay the scene's own promise, never a reaction's share.
+  declareHeldAnswers([
+    ...repeatedSpecs(pendingBonuses, Math.max(0, pendingBonusRepeats - 1)),
+    ...pendingAresFlights.map((f) => f.spec),
+    ...pendingCityPayouts.filter((p) => p.own).flatMap((p) => cityPayoutReactionSpecs(p.payout)),
+    ...(pendingMoveReward?.reactions ?? []),
+  ]);
   // …and the points they bring their cards (the museum's «1 per 2 data»): the VP cell is derived (PL-014 / PL-073).
   beginPanelVpHold(ownCityPayoutVp(pendingCityPayouts));
   // The score cell's ledger nets them out of each card's share — the payout's own token brings them (TR55, К-V3:
