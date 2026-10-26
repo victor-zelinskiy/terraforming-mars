@@ -1809,7 +1809,7 @@ export class Player implements IPlayer {
         continue;
       }
       if (events !== undefined) {
-        events.withEffect(this, card, 'tag-added', () => card.onNonCardTagAdded?.(this, tag));
+        events.withEffect(this, card, 'tag-added', () => card.onNonCardTagAdded?.(this, tag), {tag});
       } else {
         card.onNonCardTagAdded(this, tag);
       }
@@ -1829,7 +1829,7 @@ export class Player implements IPlayer {
         continue;
       }
       this.defer(events !== undefined ?
-        events.withEffect(this, effectCard, 'card-played', () => effectCard.onCardPlayed?.(this, card)) :
+        events.withEffect(this, effectCard, 'card-played', () => effectCard.onCardPlayed?.(this, card), {card: card.name}) :
         effectCard.onCardPlayed(this, card));
     }
 
@@ -1844,7 +1844,7 @@ export class Player implements IPlayer {
           continue;
         }
         const actionFromPlayedCard = events !== undefined ?
-          events.withEffect(somePlayer, effectCard, 'card-played-by-any', () => effectCard.onCardPlayedByAnyPlayer?.(somePlayer, card, this)) :
+          events.withEffect(somePlayer, effectCard, 'card-played-by-any', () => effectCard.onCardPlayedByAnyPlayer?.(somePlayer, card, this), {card: card.name}) :
           effectCard.onCardPlayedByAnyPlayer(somePlayer, card, this);
         this.defer(actionFromPlayedCard);
       }

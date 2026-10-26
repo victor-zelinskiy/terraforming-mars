@@ -79,6 +79,7 @@ import {SponsoredMoholeRedux} from './SponsoredMoholeRedux';
 import {SeptemTribusRedux} from './SeptemTribusRedux';
 import {ArwindInc} from './ArwindInc';
 import {FerrusAcademy} from './FerrusAcademy';
+import {HartlanHeating} from './HartlanHeating';
 
 /**
  * TURMOIL REDUX («Кризис: Возвращение») — the PROJECT CARD manifest.
@@ -391,6 +392,10 @@ export const TURMOIL_REDUX_CARD_MANIFEST = new ModuleManifest({
     // .printedBonusMultiplier`), a ring of the player's cubes around it, and a tile on an own cube asks «3 data or a
     // card» (`ICard.onOwnMarkerBuilt` — the engine's one reading of «built on your own marker»).
     [CardName.FERRUS_ACADEMY]: {Factory: FerrusAcademy},
+    // TR80 — the THIRD new corporation: a green card that PLACES A TILE (the one printed class `cards/cardPlacesTile.ts`)
+    // pays 6 heat + 1 M€ production after the play (`onCardPlayed` + its forecast twin on the same predicate); the action
+    // trades 12 heat for 2 cards, declaratively.
+    [CardName.HARTLAN_HEATING]: {Factory: HartlanHeating},
   },
   // The classic cards a replacement above stands in for — never dealt into a Redux game (upstream's
   // `GameCards.filterReplacedCards`); a classic-Turmoil game does not load this manifest, so it keeps them.

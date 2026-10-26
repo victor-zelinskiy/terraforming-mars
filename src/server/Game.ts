@@ -74,6 +74,7 @@ import {AdjacencyVpChange, TileMoveFact, TileMoveRecordModel} from '../common/bo
 import {CardAdjacencyPayoutModel} from '../common/models/CardAdjacencyPayoutModel';
 import {TilePlacementPaidResource, TilePlacementRecordModel} from '../common/models/TilePlacementRecordModel';
 import {ScaleStepRewardModel} from '../common/models/ScaleStepRewardModel';
+import {CARD_REACTION_RING_DEPTH, CardReactionRecord} from '../common/models/CardReactionModel';
 import {ParameterSwingDown, ParameterSwingModel} from '../common/models/ParameterSwingModel';
 import {parameterRoom, ParameterTable} from '../common/parliament/parameterMove';
 import {recordSkippedEffect} from './deferredActions/skippedEffect';
@@ -239,6 +240,7 @@ export class Game implements IGame, Logger {
   public tilePlacements: Array<TilePlacementRecordModel> = []; // Not serialized (presentation ring — see IGame.tilePlacements)
   public scaleStepRewards: Array<ScaleStepRewardModel> = []; // Not serialized (presentation ring — see IGame.scaleStepRewards)
   public parameterSwings: Array<ParameterSwingModel> = []; // Not serialized (presentation ring — see IGame.parameterSwings)
+  public cardReactions: Array<CardReactionRecord> = []; // Not serialized (presentation ring — see IGame.cardReactions)
   public moonData: MoonData | undefined;
   public pathfindersData: PathfindersData | undefined;
   public underworldData: UnderworldData = UnderworldExpansion.initializeGameWithoutUnderworld();
@@ -2006,7 +2008,7 @@ export class Game implements IGame, Logger {
         if (card.onGlobalParameterIncrease === undefined) {
           continue;
         }
-        this.events.withEffect(player, card, 'global-parameter', () => card.onGlobalParameterIncrease?.(player, GlobalParameter.VENUS, steps));
+        this.events.withEffect(player, card, 'global-parameter', () => card.onGlobalParameterIncrease?.(player, GlobalParameter.VENUS, steps), {parameter: GlobalParameter.VENUS});
       }
       if (this.exploitationOfVenusInEffect) {
         player.stock.add(Resource.MEGACREDITS, steps * 2, {log: true, from: {card: CardName.EXPLOITATION_OF_VENUS}});
@@ -2099,7 +2101,7 @@ export class Game implements IGame, Logger {
         if (card.onGlobalParameterIncrease === undefined) {
           continue;
         }
-        this.events.withEffect(player, card, 'global-parameter', () => card.onGlobalParameterIncrease?.(player, GlobalParameter.TEMPERATURE, steps));
+        this.events.withEffect(player, card, 'global-parameter', () => card.onGlobalParameterIncrease?.(player, GlobalParameter.TEMPERATURE, steps), {parameter: GlobalParameter.TEMPERATURE});
       }
       player.onGlobalParameterIncrease(GlobalParameter.TEMPERATURE, steps);
       TurmoilHandler.onGlobalParameterIncrease(player, GlobalParameter.TEMPERATURE, steps);
@@ -2423,7 +2425,7 @@ export class Game implements IGame, Logger {
       if (c.onTilePlaced === undefined) {
         return;
       }
-      this.events.withEffect(p, c, 'tile-placed', () => c.onTilePlaced?.(p, player, space, BoardType.MARS));
+      this.events.withEffect(p, c, 'tile-placed', () => c.onTilePlaced?.(p, player, space, BoardType.MARS), {...(space.tile === undefined ? {} : {tile: space.tile.tileType}), space: space.id});
     });
 
     // The MarsBot CORPORATION reacting to a placement (C10 Tharsis Republic
@@ -2789,6 +2791,26 @@ export class Game implements IGame, Logger {
   }
 
   /**
+   * PUBLISH one CARD REACTION («a card's printed effect fired and paid» —
+   * `CardReactionRecord`) for the console's reaction scene: the same bounded
+   * ring and `seq` law as `publishScaleStepReward`. Written by ONE writer, the
+   * event recorder (`EventRecorder.record` — on the first impact of a
+   * passive-effect scope); it returns the STORED record so the recorder can
+   * append the scope's later impacts to it (a deferred gain restored under
+   * the same scope lands after the record was born).
+   */
+  public publishCardReaction(record: Omit<CardReactionRecord, 'seq'>): CardReactionRecord {
+    const base = this.gameAge * 100;
+    const n = this.cardReactions.filter((r) => r.seq >= base).length;
+    const stored: CardReactionRecord = {...record, seq: base + Math.min(n, 99)};
+    this.cardReactions.push(stored);
+    while (this.cardReactions.length > CARD_REACTION_RING_DEPTH) {
+      this.cardReactions.shift();
+    }
+    return stored;
+  }
+
+  /**
    * PUBLISH a PARAMETER SWING — «up and back» (Turmoil Redux TR47 Ecological
    * Experiment) for the board's scene: the same bounded ring and `seq` law as
    * `publishScaleStepReward`. Written by ONE function,
@@ -2825,7 +2847,7 @@ export class Game implements IGame, Logger {
         if (card.onGlobalParameterRaised === undefined) {
           continue;
         }
-        this.events.withEffect(cardOwner, card, 'global-parameter', () => card.onGlobalParameterRaised?.(cardOwner, raise));
+        this.events.withEffect(cardOwner, card, 'global-parameter', () => card.onGlobalParameterRaised?.(cardOwner, raise), {parameter});
       }
     }
   }

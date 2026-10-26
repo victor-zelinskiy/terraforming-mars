@@ -13,6 +13,7 @@ import {GlobalParameter} from '../../common/GlobalParameter';
 import {Resource, StandardResource} from '../../common/Resource';
 import {GameEvent, GameEventType, EventTrigger, EventVisibility, EventTag, JournalEntryRole, JournalActionCategory} from '../../common/events/GameEvent';
 import {EventSource} from '../../common/events/EventSource';
+import {CardReactionCause, CardReactionImpact, CardReactionRecord} from '../../common/models/CardReactionModel';
 import {CardResourceBasis, DeckSearchFact, EventImpact, RequirementEasedFact, SkippedEffectFact} from '../../common/events/EventImpact';
 import {From, isFromPlayer} from '../logs/From';
 import {fromToEventSource} from './fromToEventSource';
@@ -22,8 +23,9 @@ import {CardType} from '../../common/cards/CardType';
 import type {DeltaMovementCause} from '../delta/deltaMovement';
 import type {TradeDestinationSource} from '../colonies/ITradeDestination';
 
-// Minimal structural view of the game (avoids a circular Game import).
-type GameClock = {generation: number; phase: Phase};
+// Minimal structural view of the game (avoids a circular Game import). `publishCardReaction` is the card-reaction
+// ring's one door (`IGame.publishCardReaction`); a clock without it (a bare recorder in a unit test) records no reaction.
+type GameClock = {generation: number; phase: Phase; publishCardReaction?(record: Omit<CardReactionRecord, 'seq'>): CardReactionRecord};
 
 // Type-only view of the ledger's cause union (the import above is erased at
 // compile time, so the recorder gains no runtime dependency on the module).
@@ -70,6 +72,21 @@ type EventContext = {
    * its root so the question has one answer on both paths.
    */
   root?: {player: Color | undefined; category: JournalActionCategory | undefined};
+  /**
+   * WHAT WOKE a passive-effect scope — stated by the trigger site that knows it
+   * (`Player.onCardPlayed` → the played card; `Game.addTile` → the tile and its
+   * cell; a non-card tag; a scale step). Copied onto the scope's reaction record.
+   */
+  cause?: CardReactionCause;
+  /**
+   * THE REACTION RECORD of a passive-effect scope (`CardReactionRecord` — the
+   * console's reaction scene), born on the scope's FIRST impact and appended
+   * by every later one — a deferred gain restored under the same scope
+   * (shared by reference, like `triggerEmitted`) lands after the birth.
+   * `undefined` until an impact arrives: a hook that did nothing, or only
+   * logged, leaves no record.
+   */
+  reaction?: CardReactionRecord;
 };
 
 /** Opaque handle a deferred action carries so its impact links to the live chain. */
@@ -88,6 +105,40 @@ type RecordInput = {
   tags?: ReadonlyArray<EventTag>;
   category?: JournalActionCategory;
 };
+
+/**
+ * The impacts a reaction record carries, read off one event's factual impact —
+ * the kinds the reaction scene can play (a stock, a production, a card
+ * resource, a draw, a rating, a scale step), each addressed to `to`.
+ */
+function reactionImpactsOf(impact: EventImpact, to: Color): Array<CardReactionImpact> {
+  const out: Array<CardReactionImpact> = [];
+  for (const [resource, amount] of Object.entries(impact.stock ?? {})) {
+    if (amount !== undefined && amount !== 0) {
+      out.push({kind: 'stock', resource: resource as Resource, amount, to});
+    }
+  }
+  for (const [resource, amount] of Object.entries(impact.production ?? {})) {
+    if (amount !== undefined && amount !== 0) {
+      out.push({kind: 'production', resource: resource as Resource, amount, to});
+    }
+  }
+  for (const entry of impact.cardResources ?? []) {
+    if (entry.amount !== 0 && entry.target !== undefined) {
+      out.push({kind: 'card-resource', resource: entry.cardResource, amount: entry.amount, target: entry.target, to});
+    }
+  }
+  if (impact.cardsDrawn !== undefined && impact.cardsDrawn !== 0) {
+    out.push({kind: 'draw', amount: impact.cardsDrawn, to});
+  }
+  if (impact.tr !== undefined && impact.tr !== 0) {
+    out.push({kind: 'tr', amount: impact.tr, to});
+  }
+  if (impact.globalParameter !== undefined && impact.globalParameter.steps !== 0) {
+    out.push({kind: 'global', parameter: impact.globalParameter.parameter, amount: impact.globalParameter.steps, to});
+  }
+  return out;
+}
 
 export class EventRecorder {
   private seq = 0;
@@ -156,6 +207,7 @@ export class EventRecorder {
     const ctx = this.current;
     if (ctx !== undefined) {
       this.ensureTriggerMarker(ctx);
+      this.recordReaction(input);
       // Mark impacts produced INSIDE a passive-effect scope, so the effects overlay
       // can aggregate per card EXCLUDING on-play / action gains (a card's immediate
       // `behavior` bonus runs under an 'action' scope, NOT 'effect').
@@ -164,6 +216,64 @@ export class EventRecorder {
       }
     }
     return this.emit(input, this.current);
+  }
+
+  /**
+   * THE REACTION RECORD (`CardReactionRecord` — the console's reaction scene):
+   * an impact recorded under a passive-effect scope of a CARD (or corporation)
+   * joins that scope's record — born on the first impact, appended by every
+   * later one. The scope is found walking OUTWARD from the top (a nested
+   * `withSource` inside the effect is transparent), stopping at an action /
+   * copied-action boundary (a nested action is a different chain). An impact
+   * kind the scene cannot play (a reveal, a discount, a skip) adds nothing.
+   */
+  private recordReaction(input: RecordInput): void {
+    const ctx = this.reactionScope();
+    if (ctx === undefined) {
+      return;
+    }
+    const source = ctx.source;
+    if (source === undefined || (source.kind !== 'card' && source.kind !== 'corporation') || ctx.trigger === undefined || ctx.playerColor === undefined) {
+      return;
+    }
+    const to = input.player ?? ctx.playerColor;
+    const impacts = reactionImpactsOf(input.impact, to);
+    if (impacts.length === 0) {
+      return;
+    }
+    if (ctx.reaction === undefined) {
+      ctx.reaction = this.game.publishCardReaction?.({
+        root: {
+          ...(ctx.rootId === undefined ? {} : {actionId: ctx.rootId}),
+          ...(ctx.root?.player === undefined ? {} : {player: ctx.root.player}),
+          ...(ctx.root?.category === undefined ? {} : {category: ctx.root.category}),
+        },
+        owner: ctx.playerColor,
+        kind: source.kind,
+        card: source.card,
+        channel: ctx.trigger,
+        ...(ctx.cause === undefined ? {} : {cause: ctx.cause}),
+        impacts: [],
+      });
+      if (ctx.reaction === undefined) {
+        return;
+      }
+    }
+    ctx.reaction.impacts.push(...impacts);
+  }
+
+  /** The innermost passive-effect scope the current record belongs to — `undefined` across an action boundary. */
+  private reactionScope(): EventContext | undefined {
+    for (let i = this.stack.length - 1; i >= 0; i--) {
+      const ctx = this.stack[i];
+      if (ctx.kind === 'effect') {
+        return ctx;
+      }
+      if (ctx.kind === 'action' || ctx.kind === 'copied') {
+        return undefined;
+      }
+    }
+    return undefined;
   }
 
   /**
@@ -318,20 +428,23 @@ export class EventRecorder {
     this.stack.push({rootId, parentId: marker.id, source, playerColor: player.color, kind: 'copied', trigger: undefined, triggerEmitted: true, rootLogEmitted: false, category: 'copied-action', copiedCard: copiedCard.name});
   }
 
-  /** Begin a passive-effect scope (lazy: nothing is emitted unless the hook acts). */
-  public beginEffect(player: IPlayer, source: EventSource | undefined, trigger: EventTrigger): void {
+  /** Begin a passive-effect scope (lazy: nothing is emitted unless the hook acts). `cause` — what woke it, when the site knows. */
+  public beginEffect(player: IPlayer, source: EventSource | undefined, trigger: EventTrigger, cause?: CardReactionCause): void {
     const parent = this.current;
-    this.stack.push({rootId: parent?.rootId, parentId: parent?.parentId, source, playerColor: player.color, kind: 'effect', trigger, triggerEmitted: false, rootLogEmitted: true, category: undefined, root: this.currentRoot()});
+    this.stack.push({rootId: parent?.rootId, parentId: parent?.parentId, source, playerColor: player.color, kind: 'effect', trigger, triggerEmitted: false, rootLogEmitted: true, category: undefined, root: this.currentRoot(), ...(cause === undefined ? {} : {cause})});
   }
 
   public endScope(): void {
     this.stack.pop();
   }
 
-  /** Run `fn` wrapped in a passive-effect scope. */
-  public withEffect<T>(player: IPlayer, sourceCard: ICard, trigger: EventTrigger, fn: () => T): T {
+  /**
+   * Run `fn` wrapped in a passive-effect scope. `cause` — what woke the hook, when the trigger site knows it (the
+   * played card, the placed tile and its cell, the added tag, the raised scale): it rides the scope's reaction record.
+   */
+  public withEffect<T>(player: IPlayer, sourceCard: ICard, trigger: EventTrigger, fn: () => T, cause?: CardReactionCause): T {
     const kind = sourceCard.type === CardType.CORPORATION ? 'corporation' : 'card';
-    return this.withEffectSource(player, {kind, card: sourceCard.name, owner: player.color}, trigger, fn);
+    return this.withEffectSource(player, {kind, card: sourceCard.name, owner: player.color}, trigger, fn, cause);
   }
 
   /**
@@ -341,8 +454,8 @@ export class EventRecorder {
    * framework (stats, journal, notifications, forecast) reads the source kind
    * and never needs a card name.
    */
-  public withEffectSource<T>(player: IPlayer, source: EventSource, trigger: EventTrigger, fn: () => T): T {
-    this.beginEffect(player, source, trigger);
+  public withEffectSource<T>(player: IPlayer, source: EventSource, trigger: EventTrigger, fn: () => T, cause?: CardReactionCause): T {
+    this.beginEffect(player, source, trigger, cause);
     try {
       return fn();
     } finally {

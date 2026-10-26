@@ -251,5 +251,8 @@
     "Select an option for Ferrus Academy": "Ferrus Academy: выберите вариант",
     "You placed a tile on your marked area.": "Вы положили тайл на свой участок.",
     "Add data": "Положить данные",
-    "${0} placed their cube on ${1} areas around the city on ${2}": "${0} кладёт свой куб на ${1} клеток вокруг города · ${2}"
+    "${0} placed their cube on ${1} areas around the city on ${2}": "${0} кладёт свой куб на ${1} клеток вокруг города · ${2}",
+    "You start with 48 M€ and 2 heat production.": "Вы начинаете с 48 M€ и 2 производством тепла.",
+    "Effect: After you play a green project card that places a tile, gain 6 heat and increase your M€ production 1 step.": "Эффект: после розыгрыша зелёной карты проекта, размещающей тайл, получите 6 тепла и увеличьте производство M€ на 1.",
+    "Action: Pay 12 heat to draw 2 cards.": "Действие: заплатите 12 тепла и возьмите 2 карты."
 }

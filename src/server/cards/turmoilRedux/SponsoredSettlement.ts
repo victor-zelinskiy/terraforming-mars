@@ -71,6 +71,9 @@ export class SponsoredSettlement extends Card implements IProjectCard {
     super({
       name: CardName.SPONSORED_SETTLEMENT,
       type: CardType.AUTOMATED,
+      // The printed class «a card that places a tile» (`cards/cardPlacesTile.ts`): the placement is bespoke, so the
+      // declaration says it here, beside `bespokePlay` — TR80 Hartlan Heating reads it live and in the forecast.
+      placesTile: true,
       tags: [Tag.CITY, Tag.BUILDING],
       cost: 16,
       requirements: {party: PartyName.MARS},

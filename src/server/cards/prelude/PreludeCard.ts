@@ -20,6 +20,8 @@ export type StaticPreludeProperties = {
   name: CardName;
   tags?: Array<Tag>;
   tilesBuilt?: ReadonlyArray<TileType>,
+  /** The printed class «a card that places a tile» for a BESPOKE placement (`cards/cardPlacesTile.ts`). */
+  placesTile?: true,
   resourceType?: CardResource;
   startingMegacredits?: number,
   victoryPoints?: number | 'special' | CountableVictoryPoints,
@@ -49,6 +51,7 @@ export abstract class PreludeCard extends Card implements IPreludeCard {
       metadata: properties.metadata,
       resourceType: properties.resourceType,
       tilesBuilt: properties.tilesBuilt,
+      ...(properties.placesTile === undefined ? {} : {placesTile: properties.placesTile}),
       victoryPoints: properties.victoryPoints,
       cardDiscount: properties.cardDiscount,
       tr: properties.tr,

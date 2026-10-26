@@ -687,6 +687,13 @@ export interface ICard {
   protectedResources?: boolean;
   /** Indicates the tile built, which can be used in a variety of useful ways. */
   tilesBuilt: ReadonlyArray<TileType>;
+  /**
+   * THE PRINTED CLASS «a card that places a tile», for a card whose placement is BESPOKE (no `behavior.tile` /
+   * `city` / `greenery` / `ocean`): declared in the card file beside its `bespokePlay`. Read ONLY through
+   * `cards/cardPlacesTile.cardPlacesTile` — the one predicate the live hooks, the forecast twins and the worklist
+   * guard share (TR80 Hartlan Heating). Never a runtime fact.
+   */
+  placesTile?: boolean;
   /** For Pharmacy Union, the card is effectively out of the game.. CEO uses it to ensure it can't be retriggered.  */
   isDisabled?: boolean;
   /**

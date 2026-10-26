@@ -102,6 +102,9 @@ export class NovaCity extends Card implements IProjectCard {
     super({
       name: CardName.NOVA_CITY,
       type: CardType.AUTOMATED,
+      // The printed class «a card that places a tile» (`cards/cardPlacesTile.ts`): the placement is bespoke, so the
+      // declaration says it here, beside `bespokePlay` — TR80 Hartlan Heating reads it live and in the forecast.
+      placesTile: true,
       tags: [Tag.JOVIAN, Tag.CITY, Tag.SPACE],
       cost: 18,
       requirements: {party: PartyName.UNITY},

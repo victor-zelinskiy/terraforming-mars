@@ -18,6 +18,9 @@ export class LavaTubeSettlement extends Card implements IProjectCard {
   constructor() {
     super({
       type: CardType.AUTOMATED,
+      // The printed class «a card that places a tile» (`cards/cardPlacesTile.ts`): the placement is bespoke, so the
+      // declaration says it here, beside `bespokePlay` — TR80 Hartlan Heating reads it live and in the forecast.
+      placesTile: true,
       name: CardName.LAVA_TUBE_SETTLEMENT,
       tags: [Tag.BUILDING, Tag.CITY],
       cost: 15,

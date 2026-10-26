@@ -30,6 +30,7 @@ import {TileMoveRecordModel} from '../common/boards/TileMove';
 import {CardAdjacencyPayoutModel} from '../common/models/CardAdjacencyPayoutModel';
 import {TilePlacementPaidResource, TilePlacementRecordModel} from '../common/models/TilePlacementRecordModel';
 import {ScaleStepRewardModel} from '../common/models/ScaleStepRewardModel';
+import {CardReactionRecord} from '../common/models/CardReactionModel';
 import {ParameterSwingDown, ParameterSwingModel} from '../common/models/ParameterSwingModel';
 import {MoonData} from './moon/MoonData';
 import {SeededRandom} from '../common/utils/Random';
@@ -220,6 +221,18 @@ export interface IGame extends Logger {
   scaleStepRewards: Array<ScaleStepRewardModel>;
   /** Publish one payout into `scaleStepRewards` (the ring's `seq` law) — called only by `cards/scaleStepReward.recordScaleStepReward`. */
   publishScaleStepReward(reward: Omit<ScaleStepRewardModel, 'seq'>): void;
+  /**
+   * Bounded ring of the latest CARD REACTIONS — which card's printed effect
+   * fired on which channel, what woke it and what it paid (Turmoil Redux TR80
+   * Hartlan Heating, the «card reaction — one framework» iteration): the
+   * console's reaction scene's script for the owner and every other viewer
+   * alike — see `CardReactionRecord`. Written by the event recorder alone, for
+   * every passive-effect scope that produced an impact. Not serialized: a
+   * restart loses only the animation, never the rule.
+   */
+  cardReactions: Array<CardReactionRecord>;
+  /** Publish one reaction into `cardReactions` (the ring's `seq` law) and return the stored record — called only by `EventRecorder`. */
+  publishCardReaction(record: Omit<CardReactionRecord, 'seq'>): CardReactionRecord;
   /**
    * Bounded ring of the latest PARAMETER SWINGS — «up and back» (Turmoil
    * Redux TR47 Ecological Experiment): the planet raised and lowered by one

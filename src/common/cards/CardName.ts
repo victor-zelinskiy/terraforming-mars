@@ -1156,6 +1156,7 @@ export enum CardName {
   // Turmoil Redux NEW corporations (TR78…TR85 — `common/cards/turmoilReduxCorporations.ts`)
   ARWIND_INC = 'Arwind Inc.',
   FERRUS_ACADEMY = 'Ferrus Academy',
+  HARTLAN_HEATING = 'Hartlan Heating',
 
   // Underworld Standard Projects
   EXCAVATE_STANDARD_PROJECT = 'Excavate:SP',

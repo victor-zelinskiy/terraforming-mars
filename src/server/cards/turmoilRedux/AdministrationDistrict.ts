@@ -93,6 +93,9 @@ export class AdministrationDistrict extends Card implements IProjectCard {
     super({
       name: CardName.ADMINISTRATION_DISTRICT,
       type: CardType.ACTIVE,
+      // The printed class «a card that places a tile» (`cards/cardPlacesTile.ts`): the placement is bespoke, so the
+      // declaration says it here, beside `bespokePlay` — read by the one predicate, whatever the card's colour.
+      placesTile: true,
       tags: [Tag.MARS, Tag.CITY, Tag.BUILDING],
       cost: 18,
       requirements: {party: PartyName.MARS},

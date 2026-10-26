@@ -193,6 +193,7 @@ export class Server {
       tilePlacements: game.tilePlacements.length > 0 ? game.tilePlacements : undefined,
       scaleStepRewards: game.scaleStepRewards.length > 0 ? game.scaleStepRewards : undefined,
       parameterSwings: game.parameterSwings.length > 0 ? game.parameterSwings : undefined,
+      cardReactions: game.cardReactions.length > 0 ? game.cardReactions : undefined,
       awards: this.getAwards(game),
       colonies: coloniesToModel(game, game.colonies, false, true),
       deckSize: game.projectDeck.drawPile.length,

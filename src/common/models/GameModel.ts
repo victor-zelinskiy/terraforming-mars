@@ -4,6 +4,7 @@ import {TileMoveRecordModel} from '../boards/TileMove';
 import {CardAdjacencyPayoutModel} from './CardAdjacencyPayoutModel';
 import {TilePlacementRecordModel} from './TilePlacementRecordModel';
 import {ScaleStepRewardModel} from './ScaleStepRewardModel';
+import {CardReactionRecord} from './CardReactionModel';
 import {ParameterSwingModel} from './ParameterSwingModel';
 import {MarsBotModel} from './MarsBotModel';
 import {ColonyModel} from './ColonyModel';
@@ -64,6 +65,13 @@ export type GameModel = {
    *  diff reads zero. Presentation only; consumed once by `seq`. See
    *  `ParameterSwingModel`. */
   parameterSwings?: ReadonlyArray<ParameterSwingModel>;
+  /** Latest CARD REACTIONS (Turmoil Redux TR80 Hartlan Heating — «card
+   *  reaction: one framework»): which card's printed effect fired, what woke it
+   *  and what it paid — the console's reaction scene's script (the reactor
+   *  rises, the tokens are born on its printed effect icons) for the owner and
+   *  every other viewer alike. Presentation only; consumed once by `seq`. See
+   *  `CardReactionRecord`. */
+  cardReactions?: ReadonlyArray<CardReactionRecord>;
   awards: ReadonlyArray<FundedAwardModel>;
   colonies: ReadonlyArray<ColonyModel>;
   discardedColonies: ReadonlyArray<ColonyName>;

@@ -27,6 +27,9 @@ export class SolarFarm extends Card implements IProjectCard {
   constructor() {
     super({
       type: CardType.AUTOMATED,
+      // The printed class «a card that places a tile» (`cards/cardPlacesTile.ts`): the placement is bespoke, so the
+      // declaration says it here, beside `bespokePlay` — TR80 Hartlan Heating reads it live and in the forecast.
+      placesTile: true,
       name: CardName.SOLAR_FARM,
       tags: [Tag.POWER, Tag.BUILDING],
       cost: 12,

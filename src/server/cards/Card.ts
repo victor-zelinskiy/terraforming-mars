@@ -65,6 +65,13 @@ type SharedProperties = {
   startingMegaCredits?: number;
   tags?: Array<Tag>;
   /**
+   * THE PRINTED CLASS «a card that places a tile» for a BESPOKE placement — declared beside the `bespokePlay` that
+   * asks for the cell (Noctis City, Urbanized Area, the mining cards …). A declarative placement (`behavior.tile` /
+   * `city` / `greenery` / `ocean`) needs no flag: `cards/cardPlacesTile.ts` reads both. Never set on a card that only
+   * MOVES a tile. Guard: `tests/cards/greenTilePlacers.spec.ts` (the predicate ⇔ the play preview's placement step).
+   */
+  placesTile?: true;
+  /**
    * Describes where the card's TR comes from.
    *
    * No need to be explicit about this if all the TR raising
@@ -269,6 +276,9 @@ export abstract class Card implements ICard {
   }
   public get tilesBuilt(): ReadonlyArray<TileType> {
     return this.properties.tilesBuilt;
+  }
+  public get placesTile(): boolean | undefined {
+    return this.properties.placesTile;
   }
   public canPlay(player: IPlayer, canAffordOptions?: CanAffordOptions): boolean {
     if (!this.properties.compiledRequirements.satisfies(player, this)) {

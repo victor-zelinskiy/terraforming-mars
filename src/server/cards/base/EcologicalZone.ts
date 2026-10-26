@@ -44,6 +44,9 @@ export class EcologicalZone extends Card implements IProjectCard {
   ) {
     super({
       type: CardType.ACTIVE,
+      // The printed class «a card that places a tile» (`cards/cardPlacesTile.ts`): the placement is bespoke, so the
+      // declaration says it here, beside `bespokePlay` — read by the one predicate, whatever the card's colour.
+      placesTile: true,
       name,
       tags: [Tag.ANIMAL, Tag.PLANT],
       cost,

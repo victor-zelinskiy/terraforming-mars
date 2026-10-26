@@ -92,6 +92,9 @@ export class Arboretum extends Card implements IProjectCard {
     super({
       name: CardName.ARBORETUM,
       type: CardType.AUTOMATED,
+      // The printed class «a card that places a tile» (`cards/cardPlacesTile.ts`): the placement is bespoke, so the
+      // declaration says it here, beside `bespokePlay` — TR80 Hartlan Heating reads it live and in the forecast.
+      placesTile: true,
       tags: [Tag.PLANT, Tag.BUILDING],
       cost: 12,
       requirements: {party: PartyName.MARS},

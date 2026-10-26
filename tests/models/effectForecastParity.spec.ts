@@ -44,6 +44,7 @@ import {Poseidon} from '../../src/server/cards/colonies/Poseidon';
 import {MiningColony} from '../../src/server/cards/colonies/MiningColony';
 import {NuclearZone} from '../../src/server/cards/base/NuclearZone';
 import {RedMuseum} from '../../src/server/cards/turmoilRedux/RedMuseum';
+import {HartlanHeating} from '../../src/server/cards/turmoilRedux/HartlanHeating';
 import {SelectColony} from '../../src/server/inputs/SelectColony';
 import {PREMIUM_SCOPE_MODULES, inPremiumScope} from '../../src/common/cards/premiumScope';
 
@@ -103,6 +104,17 @@ function colonyOnly(card: ICard): boolean {
   return card.onColonyAddedByAnyPlayer !== undefined && card.cardPlayedForecast === undefined &&
     card.onProductionGain === undefined && card.onResourceAdded === undefined &&
     card.onGlobalParameterIncrease === undefined && card.onGlobalParameterRaised === undefined;
+}
+
+/**
+ * A reactor that answers ONLY «a green card that places a tile» (TR80 Hartlan Heating — the printed class
+ * `cards/cardPlacesTile.ts`): no prompt-less trigger of the pool places a tile, so the sweep cannot fire it — its own
+ * block below plays a tile card and answers the cell (the anti-vacuous floor is the class itself).
+ */
+const TILE_PLAY_REACTORS: ReadonlyArray<Factory> = [HartlanHeating];
+
+function tilePlayOnly(card: ICard): boolean {
+  return TILE_PLAY_REACTORS.some((F) => new F().name === card.name);
 }
 
 /**
@@ -269,7 +281,7 @@ describe('effect-forecast ↔ execution parity', function() {
         }
       }
     }
-    const unreached = reactors.map((F) => new F()).filter((card) => !colonyOnly(card)).map((card) => card.name).filter((name) => !reached.has(name));
+    const unreached = reactors.map((F) => new F()).filter((card) => !colonyOnly(card) && !tilePlayOnly(card)).map((card) => card.name).filter((name) => !reached.has(name));
     expect(unreached, 'every forecast hook must be fired by at least one trigger of the pool (extend TRIGGERS / VARIANTS)').to.deep.eq([]);
     expect(cases, 'parity cases exercised').to.be.greaterThan(40);
   });
@@ -353,6 +365,58 @@ describe('effect-forecast ↔ execution parity', function() {
    * not depend on the tile — is read off the stream. Every in-scope reactor of
    * the class must be exercised (the anti-vacuous floor is the class itself).
    */
+  /*
+   * THE TILE-PLAY PASS — «a green card that places a tile» (TR80 Hartlan Heating, `onCardPlayed` on the printed class
+   * `cards/cardPlacesTile.ts`). The trigger asks WHERE, so it cannot ride the prompt-less sweep above: the play's own
+   * cell is answered here, and the reaction — deferred behind that prompt at the gain's own priority — is read off
+   * the stream. Every in-scope reactor of the class must be exercised (the anti-vacuous floor is the class itself).
+   */
+  describe('green tile plays (exact facts behind the cell prompt)', () => {
+    it('the block covers every in-scope «green tile play» reactor', () => {
+      const inScope = inScopeReactors().map((F) => new F()).filter((card) => tilePlayOnly(card)).map((card) => card.name);
+      expect(inScope.sort()).deep.eq(TILE_PLAY_REACTORS.map((F) => new F().name).sort());
+    });
+
+    for (const F of TILE_PLAY_REACTORS) {
+      const name = new F().name;
+      it(`${name} ← Nuclear Zone (a green card with a declarative tile): the fact, then the event after the cell`, () => {
+        const forecastTable = arrange(F, false, undefined, `-tile-play-${name}-fc`);
+        const trigger = new NuclearZone();
+        forecastTable.player.cardsInHand.push(trigger);
+        const forecast = effectForecastForPlay(forecastTable.player, trigger, cardPlayPreview(forecastTable.player, trigger));
+        const facts = forecast.facts.filter((f) => f.source.name === name);
+        expect(facts.map((f) => f.certainty), 'the card-played pass states ONE exact reaction').deep.eq(['exact']);
+        expect(facts[0].source.channel).eq('card-played');
+        expect(facts[0].timing, 'behind the play\'s own cell prompt').eq('after-card');
+
+        const {game, player} = arrange(F, false, undefined, `-tile-play-${name}-live`);
+        const liveTrigger = new NuclearZone();
+        player.cardsInHand.push(liveTrigger);
+        const before = game.events.events.length;
+        player.playCard(liveTrigger);
+        runAllActions(game);
+        expect(firedMarkers(game.events.events.slice(before), facts[0], player.color), 'nothing fires before the cell is chosen').deep.eq([]);
+        const prompt = cast(player.getWaitingFor(), SelectSpace);
+        prompt.cb(prompt.spaces[0]);
+        runAllActions(game);
+        const markers = firedMarkers(game.events.events.slice(before), facts[0], player.color);
+        expect(markers.length, `${name} must have fired on 'card-played' once the tile landed`).to.be.greaterThan(0);
+      });
+
+      it(`${name} ← Research (a green card with no tile): no fact, no event`, () => {
+        const {game, player} = arrange(F, false, undefined, `-tile-play-${name}-none`);
+        const trigger = new Research();
+        player.cardsInHand.push(trigger);
+        const forecast = effectForecastForPlay(player, trigger, cardPlayPreview(player, trigger));
+        expect(forecast.facts.filter((f) => f.source.name === name)).deep.eq([]);
+        const before = game.events.events.length;
+        player.playCard(trigger);
+        runAllActions(game);
+        expect(game.events.events.slice(before).filter((e) => e.type === 'effect-triggered' && e.source !== undefined && 'card' in e.source && e.source.card === name)).deep.eq([]);
+      });
+    }
+  });
+
   describe('colony builds (exact facts, whichever tile is picked)', () => {
     const COLONY_REACTORS: ReadonlyArray<Factory> = [Poseidon];
 

@@ -31,6 +31,9 @@ export class ImmigrantCity extends Card implements IProjectCard {
   constructor() {
     super({
       type: CardType.ACTIVE,
+      // The printed class «a card that places a tile» (`cards/cardPlacesTile.ts`): the placement is bespoke, so the
+      // declaration says it here, beside `bespokePlay` — read by the one predicate, whatever the card's colour.
+      placesTile: true,
       name: CardName.IMMIGRANT_CITY,
       tags: [Tag.CITY, Tag.BUILDING],
       cost: 13,
