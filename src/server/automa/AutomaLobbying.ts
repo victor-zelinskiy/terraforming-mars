@@ -141,10 +141,10 @@ export class AutomaLobbying {
     if (count === 0) {
       return;
     }
-    // A delegate that can change nothing is kept — asked BEFORE the reasons are said, so a turn that holds
-    // never reads «lobbies: …» followed by «keeps its delegates».
-    // (Only with a delegate to send — no delegate is the refusal's to name, as `castBotVote` orders it.)
-    const hold = game.parliament?.voteSource(bot).ok === true ? botVoteHold(game, bot, AutomaLobbying.budgetOf(game, bot, false)) : undefined;
+    // A reserve delegate that can change nothing is kept — asked BEFORE the reasons are said, so a turn that
+    // holds never reads «lobbies: …» followed by «keeps its delegates». The lobby's delegate always goes, and no
+    // delegate at all is the refusal's to name — both are `botVoteHold`'s own rule, the same one `castBotVote` asks.
+    const hold = botVoteHold(game, bot, AutomaLobbying.budgetOf(game, bot, false));
     if (hold !== undefined) {
       AutomaLobbying.noteHold(game, bot, hold);
       return;

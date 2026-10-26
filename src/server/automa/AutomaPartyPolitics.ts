@@ -21,8 +21,9 @@
  * parliament seat, no resolution up for a vote, no delegate left — each is a
  * journal line and a named refusal in the turn script, and the card is simply
  * discarded (the recurring route keeps it in its pool). The same for a HOLD
- * (D15): once it is a FACT that the vote is the bot's or out of its reach, the
- * card's delegate stays home — the resolved branch says which.
+ * (D15): once it is a FACT that the vote is the bot's or out of its reach, a
+ * delegate from the RESERVE stays home — the resolved branch says which. The
+ * lobby's free delegate is never held: it always goes.
  */
 import {IGame} from '../IGame';
 import {BonusCardOutcome} from './AutomaBonusCards';

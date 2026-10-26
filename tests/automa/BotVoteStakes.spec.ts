@@ -7,6 +7,7 @@ import {Phase} from '../../src/common/Phase';
 import {IGame} from '../../src/server/IGame';
 import {IPlayer} from '../../src/server/IPlayer';
 import {AutomaLobbying} from '../../src/server/automa/AutomaLobbying';
+import {botVoteHold} from '../../src/server/automa/AutomaPolitics';
 import {partyPolitics} from '../../src/server/automa/AutomaPartyPolitics';
 import {AutomaTurnLog} from '../../src/server/automa/AutomaTurnLog';
 import {chairmanTakeBackSlots, voteStakes} from '../../src/server/automa/BotVoteStakes';
@@ -85,6 +86,16 @@ describe('BotVoteStakes — the bot keeps a delegate only on a FACT (D15)', () =
       vote(game, human, 1, 1);
       game.playerHasPassed(human);
       expect(voteStakes(game, bot, 6)).deep.eq({kind: 'decided'});
+    });
+
+    it('the hold is only ever a RESERVE delegate\'s: with the lobby\'s cube standing, botVoteHold says «send» on a decided vote', () => {
+      const {game, human, bot, parliament} = solo();
+      parliament.placeVote(bot, parliament.slots[0], 'reserve');
+      game.playerHasPassed(human);
+      expect(voteStakes(game, bot, 6)).deep.eq({kind: 'decided'});
+      expect(botVoteHold(game, bot, 6), 'the lobby\'s delegate always goes').is.undefined;
+      parliament.placeVote(bot, parliament.slots[0], 'lobby');
+      expect(botVoteHold(game, bot, 6), 'the next one is the reserve\'s').eq('vote-decided');
     });
 
     it('passed, the human leads the enacted card by 3: two more delegates cannot win anything → out of reach; four can (another card) → open', () => {
@@ -204,9 +215,10 @@ describe('BotVoteStakes — the bot keeps a delegate only on a FACT (D15)', () =
       expect(lines(game, DECIDED_LINE)).eq(1);
     });
 
-    it('passed and out of reach (the human leads by 5, the mandate 1 — two delegates at most with Party Politics ahead) → kept, the reason named', () => {
+    it('passed and out of reach (the human leads by 5, the mandate 1 — two delegates at most with Party Politics ahead), the lobby spent → the reserve one is kept, the reason named', () => {
       const {game, human, bot, parliament} = solo();
       vote(game, human, 0, 5);
+      vote(game, bot, 1, 1); // the lobby's delegate already went
       game.playerHasPassed(human);
       pinMandate(game, 1);
       game.automa!.actionDeck = [{kind: 'bonus', id: BonusCardId.B21_PARTY_POLITICS}, {kind: 'project', name: CardName.PREDATORS}];
@@ -216,9 +228,37 @@ describe('BotVoteStakes — the bot keeps a delegate only on a FACT (D15)', () =
       // … the deck empties: the catch-up asks, the stakes answer.
       game.automa!.actionDeck = [];
       AutomaLobbying.afterTurnCard(game, {kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER}, undefined);
-      expect(parliament.votesOf(bot)).eq(0);
+      expect(parliament.votesOf(bot)).eq(1);
       expect(lines(game, OUT_OF_REACH_LINE)).eq(1);
       expect(game.automa!.lobbyMandate).deep.include({held: 'out-of-reach'});
+    });
+
+    it('…the same table with the LOBBY\'s delegate still standing → it goes anyway: the free vote is never kept', () => {
+      const {game, human, bot, parliament} = solo();
+      vote(game, human, 0, 5);
+      game.playerHasPassed(human);
+      pinMandate(game, 1);
+      game.automa!.actionDeck = [];
+      expect(parliament.lobby.has(bot.id)).is.true;
+      AutomaLobbying.afterTurnCard(game, {kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER}, undefined);
+      expect(parliament.lobby.has(bot.id), 'the free delegate left the lobby').is.false;
+      expect(parliament.votesOf(bot)).eq(1);
+      expect(lines(game, OUT_OF_REACH_LINE)).eq(0);
+      expect(game.automa!.lobbyMandate).deep.include({sent: 1});
+      expect(game.automa!.lobbyMandate?.held).is.undefined;
+    });
+
+    it('passed and already the winner with the LOBBY\'s delegate still standing, a mandate of ALL → the lobby\'s goes, the reserve\'s is kept', () => {
+      const {game, human, bot, parliament} = solo();
+      parliament.placeVote(bot, parliament.slots[0], 'reserve'); // the winner off the reserve, the lobby untouched
+      game.playerHasPassed(human);
+      pinMandate(game, 'all');
+      game.automa!.actionDeck = [];
+      AutomaLobbying.afterTurnCard(game, {kind: 'bonus', id: BonusCardId.B01_METEOR_SHOWER}, undefined);
+      expect(parliament.lobby.has(bot.id)).is.false;
+      expect(parliament.votesOf(bot)).eq(2);
+      expect(lines(game, DECIDED_LINE)).eq(1);
+      expect(game.automa!.lobbyMandate).deep.include({sent: 1, held: 'vote-decided'});
     });
 
     it('a seat still acting: the lobbying is unchanged — the mandate goes, two this turn', () => {
@@ -232,10 +272,11 @@ describe('BotVoteStakes — the bot keeps a delegate only on a FACT (D15)', () =
     });
   });
 
-  describe('Party Politics keeps its delegate too — the resolved branch says why', () => {
-    it('passed and already the winner → no delegate, the branch «already decided», never a Failed Action', () => {
+  describe('Party Politics keeps a RESERVE delegate too — the resolved branch says why; the lobby\'s always goes', () => {
+    it('passed and already the winner, the lobby spent → no delegate, the branch «already decided», never a Failed Action', () => {
       const {game, human, bot, parliament} = solo();
       vote(game, bot, 0, 1);
+      expect(parliament.lobby.has(bot.id)).is.false;
       game.playerHasPassed(human);
       pinMandate(game, 0);
       revealPartyPolitics(game);
@@ -245,16 +286,43 @@ describe('BotVoteStakes — the bot keeps a delegate only on a FACT (D15)', () =
       expect(lines(game, DECIDED_LINE)).eq(1);
     });
 
-    it('passed and out of reach with its one delegate (mandate 0) → the branch «out of reach»', () => {
+    it('passed and out of reach with its one delegate (mandate 0), the lobby spent → the branch «out of reach»', () => {
       const {game, human, bot, parliament} = solo();
       vote(game, human, 0, 3);
+      vote(game, bot, 2, 1); // the lobby's delegate already went
       game.playerHasPassed(human);
       pinMandate(game, 0);
       game.automa!.actionDeck = [];
       revealPartyPolitics(game);
       partyPolitics(game);
-      expect(parliament.votesOf(bot)).eq(0);
+      expect(parliament.votesOf(bot)).eq(1);
       expect(bonusBranchKey(game)).eq('The vote is out of its reach — the delegate stays home');
+    });
+
+    it('the LOBBY\'s delegate still standing: Party Politics sends it whether the vote is decided or out of reach (the owner\'s rule, 2026-10-26)', () => {
+      // Decided: the bot already wins off a reserve delegate.
+      const decided = solo();
+      decided.parliament.placeVote(decided.bot, decided.parliament.slots[0], 'reserve');
+      decided.game.playerHasPassed(decided.human);
+      pinMandate(decided.game, 0);
+      revealPartyPolitics(decided.game);
+      partyPolitics(decided.game);
+      expect(decided.parliament.lobby.has(decided.bot.id)).is.false;
+      expect(decided.parliament.votesOf(decided.bot)).eq(2);
+      expect(lines(decided.game, DECIDED_LINE)).eq(0);
+      expect(bonusBranchKey(decided.game)).not.eq('The vote is already decided in its favour — the delegate stays home');
+
+      // Out of reach: the human leads by 3, the bot has its one delegate.
+      const lost = solo();
+      vote(lost.game, lost.human, 0, 3);
+      lost.game.playerHasPassed(lost.human);
+      pinMandate(lost.game, 0);
+      lost.game.automa!.actionDeck = [];
+      revealPartyPolitics(lost.game);
+      partyPolitics(lost.game);
+      expect(lost.parliament.lobby.has(lost.bot.id)).is.false;
+      expect(lost.parliament.votesOf(lost.bot)).eq(1);
+      expect(lines(lost.game, OUT_OF_REACH_LINE)).eq(0);
     });
   });
 

@@ -10,9 +10,10 @@
  *    reserve is spent. AT WHAT PRICE: none (D14) — the bot's M€ are its late
  *    score (8 M€/VP early, down to 1 M€/VP) and a resolution never pays it,
  *    so a paid delegate was a sure loss of points; Party Politics' official
- *    first delegate is free too. WHETHER AT ALL (D15): only while the
- *    delegate can still change the outcome — once it is a FACT that the vote
- *    is the bot's, or beyond its reach, the bot KEEPS it (`BotVoteStakes.ts`).
+ *    first delegate is free too. WHETHER AT ALL (D15): the lobby's delegate
+ *    ALWAYS goes; a reserve delegate only while it can still change the
+ *    outcome — once it is a FACT that the vote is the bot's, or beyond its
+ *    reach, the bot KEEPS it (`botVoteHold` over `BotVoteStakes.ts`).
  *  - `placeBotGrantDelegate` — a delegate an EFFECT hands the bot (a colony, a
  *    card): the human's grant, from the reserve and free; never the lobby
  *    (that cube is the generation's free vote, and a bonus must not spend it).
@@ -36,8 +37,18 @@ import type {BotVoteHold} from './LobbyMandate';
 /** Why the bot's vote did not happen — never the money (its delegates are free); a HOLD is the bot keeping it (D15). */
 export type BotVoteRefusal = Exclude<VoteRefusal, 'not-enough-mc'> | BotVoteHold;
 
-/** Is it a FACT that the bot's next delegate changes nothing? (`budget` — every delegate it may still send, this one included.) */
+/**
+ * Does the bot KEEP its next delegate? (`budget` — every delegate it may still send, this one included.) Only a
+ * delegate from the RESERVE is ever kept, and only on a FACT that it changes nothing (`voteStakes`). The LOBBY's
+ * delegate always goes (the owner, 2026-10-26: «бесплатный на то и бесплатный, чтобы его всегда отправлять»):
+ * it is every seat's free vote of the generation — kept, it is simply a vote thrown away, and a bot that leaves
+ * its free cube standing reads as stuck. No delegate to send at all is the refusal's to name, never a hold.
+ */
 export function botVoteHold(game: IGame, bot: IPlayer, budget: number): BotVoteHold | undefined {
+  const from = game.parliament?.voteSource(bot);
+  if (from === undefined || !from.ok || from.source === 'lobby') {
+    return undefined;
+  }
   const stakes = voteStakes(game, bot, budget);
   switch (stakes.kind) {
   case 'decided':
