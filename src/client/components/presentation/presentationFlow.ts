@@ -42,7 +42,7 @@
  * moment one opens. No component needs to know who else exists.
  */
 import {computed, reactive, shallowRef, watch} from 'vue';
-import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
+import {CardIntakeBatchRef} from '@/common/models/CardDrawRevealModel';
 import {hasPresentableReveal} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {botTurnReviewState} from '@/client/components/marsbot/botTurnReviewState';
@@ -138,7 +138,7 @@ export function registerFlowHoldSupplier(fn: () => boolean): void {
  * parked — every batch counts, the historical behaviour (and the one every
  * non-console context wants).
  */
-export type RevealParkSupplier = (source: CardDrawRevealSource | undefined) => boolean;
+export type RevealParkSupplier = (batch: CardIntakeBatchRef) => boolean;
 
 const NOTHING_PARKED: RevealParkSupplier = () => false;
 

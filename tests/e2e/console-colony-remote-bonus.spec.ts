@@ -113,7 +113,7 @@ function patchMerged(body: Model): void {
     id: 950,
     source: {type: 'colony', colonyName: 'Pluto', trade: {tradeId: 'merged:g1:a1', role: 'income'}},
     cards: [{name: 'Micro-Mills'}, {name: 'Insulation'}, {name: 'Windmills'}],
-    tradeSegments: [{role: 'income', count: 2}, {role: 'bonus', count: 1}],
+    segments: [{role: 'income', count: 2}, {role: 'bonus', count: 1}],
   }];
   body.waitingFor = {
     type: 'card',
@@ -156,7 +156,7 @@ function patchForCycle(body: Model, cycle: number): void {
     id: 901,
     source: {type: 'colony', colonyName: 'Pluto', trade: {tradeId: 'remote:g1:a1', role: 'bonus'}},
     cards: [{name: 'Micro-Mills'}],
-    tradeSegments: [{role: 'bonus', count: 1}],
+    segments: [{role: 'bonus', count: 1}],
   }];
   body.waitingFor = {
     type: 'card',

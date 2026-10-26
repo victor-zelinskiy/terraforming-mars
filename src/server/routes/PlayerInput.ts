@@ -112,6 +112,10 @@ export class PlayerInput extends Handler {
             // drain window inside another player's request) — expire it, or
             // the drain below would land it on the same card's NEXT prompt.
             expireSupersededStagedTail(player);
+            // THE CARD-INTAKE LAW'S SEAL (R3): the player's own LIVE answer
+            // stands between every batch already on their screen and whatever
+            // this answer draws — those batches close here, structurally.
+            player.sealCardDrawReveals();
             player.process(entity);
             // A prompt that jumped AHEAD of a pre-collected batch response
             // (Olympus Conference on the science tag of the card being played)

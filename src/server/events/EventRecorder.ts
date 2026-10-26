@@ -677,6 +677,24 @@ export class EventRecorder {
     return this.current;
   }
 
+  /**
+   * THE ROOT ID of the live chain — the `correlationId` every event recorded
+   * right now carries: the MERGE KEY of the card-intake law («ОДНО ДЕЙСТВИЕ —
+   * ОДИН ЗАБОР», `Player.enqueueCardDrawReveal`). Read off the innermost
+   * scope that knows it (a passive-effect scope restored alone by a deferred
+   * action still carries its parent's root); `undefined` outside any chain —
+   * a draw made there merges with nothing.
+   */
+  public currentRootId(): number | undefined {
+    for (let i = this.stack.length - 1; i >= 0; i--) {
+      const rootId = this.stack[i].rootId;
+      if (rootId !== undefined) {
+        return rootId;
+      }
+    }
+    return undefined;
+  }
+
   /** Restore a captured scope around a deferred action's execution. */
   public runWithContext<T>(ctx: EventContext | undefined, fn: () => T): T {
     if (ctx === undefined) {

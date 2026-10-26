@@ -280,7 +280,24 @@ export class Server {
       autopass: player.autopass,
       cardDrawReveals: player.cardDrawReveals.map((r) => ({
         id: r.id,
+        actionId: r.actionId,
         source: r.source,
+        // The runs of `cards` by cause («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР»): a
+        // merged segment's search tape serializes like the batch-level one.
+        segments: r.segments.map((s) => ({
+          source: s.source,
+          count: s.count,
+          role: s.role,
+          sequence: s.sequence?.map((step) => ({
+            card: cardsToModel(player, [step.card], {showCalculatedCost: true, unplayableReasons: true})[0],
+            matched: step.matched,
+            failedTags: step.failedTags,
+          })),
+          search: s.search,
+          exhausted: s.exhausted,
+        })),
+        sealed: r.sealed === true ? true : undefined,
+        pendingAnswer: r.pendingAnswer,
         // Same options as cardsInHand so reveal cards render identically.
         cards: cardsToModel(player, r.cards, {showCalculatedCost: true, unplayableReasons: true}),
         // The conditional search's reveal order (present only when it really
@@ -298,10 +315,6 @@ export class Server {
         // summary and the tray read both (CardDrawRevealModel.search / exhausted).
         search: r.search,
         exhausted: r.exhausted,
-        // The income/bonus split of a trade-merged batch (see
-        // CardDrawRevealModel.tradeSegments) — drives the console trade
-        // cinematic's per-wave launches.
-        tradeSegments: r.tradeSegments,
         // The cards the RULES already discarded (a mandatory discard with no other card in hand) — shown leaving,
         // never offered to be taken (CardDrawRevealModel.autoDiscarded).
         autoDiscarded: r.autoDiscarded?.map((card) => card.name),

@@ -48,6 +48,7 @@ function venusEntry(id = 71): DrawnCardEntry {
   return {
     id,
     source: {type: 'globalParameter', parameter: 'venus'},
+    segments: [{source: {type: 'globalParameter', parameter: 'venus'}, count: 1}],
     cards: [{name: 'Ants'} as DrawnCardEntry['cards'][number]],
     takenIndices: new Set<number>(),
     acking: false,
@@ -153,13 +154,14 @@ describe('boardBeatPark', function() {
     // FIRST, so the parked 8 % batch is the OLDER one. The park used to yield
     // to the claimed sibling (oldest-first would wall it), which put the bonus
     // card fullscreen over the trade. Now the queue skips the parked batch.
-    const restoreQueue = registerRevealQueuePark((source) => boardBeatParksReveal(source));
+    const restoreQueue = registerRevealQueuePark((batch) => boardBeatParksReveal(batch.source));
     watchable = false;
     claimWorkspaceOutcome('colonies', 'Venus Redux', ['draw']);
     drawnCardsState.events.push(venusEntry(80));
     drawnCardsState.events.push({
       ...venusEntry(81),
       source: {type: 'colony', colonyName: 'Venus Redux'},
+      segments: [{source: {type: 'colony', colonyName: 'Venus Redux'}, count: 1}],
     } as DrawnCardEntry);
     const venus = {type: 'globalParameter', parameter: 'venus'} as const;
     expect(boardBeatParksReveal(venus as never), 'the park holds regardless of the sibling').to.equal(true);

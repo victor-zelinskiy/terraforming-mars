@@ -107,7 +107,7 @@ async function injectPayout(page: Page, cubes: number): Promise<void> {
       id: 990,
       source: {type: 'colony', colonyName: 'Pluto', trade: {tradeId: 'probe:g1:a1', role: 'income'}},
       cards: [{name: 'Micro-Mills'}, {name: 'Insulation'}, {name: 'Windmills'}],
-      tradeSegments: [{role: 'income', count: 2}, {role: 'bonus', count: 1}],
+      segments: [{role: 'income', count: 2}, {role: 'bonus', count: 1}],
     }];
     // The discard half of THIS colony's payout — marked, never sniffed from the
     // title; the ordinal is what lays the sequence out.

@@ -13,7 +13,7 @@
  * PURE: no DOM, no Vue, no translation (keys + params — the component translates).
  */
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
-import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
+import {CardDrawRevealSource, CardIntakeSegment} from '@/common/models/CardDrawRevealModel';
 
 export type RevealHeadHost = 'embedded' | 'scene';
 
@@ -38,8 +38,13 @@ export type RevealHeadBadge =
   | {kind: 'search'}
   /** «ПОЛУЧЕНО N» — only for more than one card: one card is the title's own singular. */
   | {kind: 'received', count: number}
-  /** Where the cards came from — only where nothing on screen stands for it (the scene). */
-  | {kind: 'source', reading: RevealSourceReading};
+  /**
+   * Where the cards came from — only where nothing on screen stands for it (the scene)… or ONE CAUSE OF SEVERAL
+   * («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР»): a merged batch names every cause with its count, in dealing order — «КЛЕТКА +1 ·
+   * ОЛИМП +1 · УНИВЕРСИТЕТ +1 · ИССЛЕДОВАНИЯ +2» — in BOTH hosts, the stage's own card included (it is one cause among
+   * the others now, and a line that skipped it would not add up to the count).
+   */
+  | {kind: 'source', reading: RevealSourceReading, count?: number};
 
 export type RevealStageHead = {
   /** The stage's ONE sentence (an i18n key) — never repeated by a kicker. */
@@ -55,6 +60,12 @@ export type RevealStageHeadInput = {
   /** A settlement table: its income sockets and its places. */
   table?: {income: number, total: number};
   source: CardDrawRevealSource | undefined;
+  /**
+   * THE CAUSES of the batch (`CardDrawRevealModel.segments`), when the host has them: more than one distinct source
+   * turns the head into the merged reading (one badge per segment, each with its count). One source — or none given —
+   * reads exactly as before.
+   */
+  segments?: ReadonlyArray<CardIntakeSegment>;
   /** The paying cell's printed bonuses, when the source is a cell the board still shows (`game.spaces[].bonus`). */
   cellBonuses?: ReadonlyArray<SpaceBonus>;
   /** The host already STANDS the source card beside the cards (a workspace's hero / source seat). */
@@ -139,6 +150,22 @@ export function revealStageHead(o: RevealStageHeadInput): RevealStageHead {
     };
   }
   const badges: Array<RevealHeadBadge> = [];
+  const merged = mergedSegments(o.segments);
+  if (merged !== undefined) {
+    // SEVERAL CAUSES: the count first (the whole), then every cause with its share — the player reads «three
+    // effects fired — here are their cards» without reading a word of rules text.
+    if (o.discarded === true) {
+      return {titleKey: 'Discarded: no other card in hand', badges};
+    }
+    badges.push({kind: 'received', count: o.cards});
+    for (const segment of merged) {
+      const reading = revealSourceReading(segment.source, segment.source?.type === 'tile' ? o.cellBonuses : undefined, o.fallbackName);
+      if (reading !== undefined) {
+        badges.push({kind: 'source', reading, count: segment.count});
+      }
+    }
+    return {titleKey: 'Cards received', badges};
+  }
   if ((o.host === 'scene' && !o.sourceOnStage) || (o.host === 'embedded' && o.foreignSource === true)) {
     const reading = revealSourceReading(o.source, o.cellBonuses, o.fallbackName);
     if (reading !== undefined) {
@@ -154,4 +181,26 @@ export function revealStageHead(o: RevealStageHeadInput): RevealStageHead {
     badges.push({kind: 'received', count: o.cards});
   }
   return {titleKey: o.cards === 1 ? 'Card received' : 'Cards received', badges};
+}
+
+/**
+ * The segments of a batch with MORE THAN ONE distinct cause, folded by cause in dealing order (two runs of one
+ * source — a search beside its own plain draw — read as one share); `undefined` for a one-cause batch, which keeps
+ * the single-source reading.
+ */
+function mergedSegments(segments: ReadonlyArray<CardIntakeSegment> | undefined): Array<{source: CardDrawRevealSource | undefined, count: number}> | undefined {
+  if (segments === undefined || segments.length < 2) {
+    return undefined;
+  }
+  const folded: Array<{key: string, source: CardDrawRevealSource | undefined, count: number}> = [];
+  for (const segment of segments) {
+    const key = JSON.stringify(segment.source ?? null);
+    const run = folded.find((f) => f.key === key);
+    if (run !== undefined) {
+      run.count += segment.count;
+    } else {
+      folded.push({key, source: segment.source, count: segment.count});
+    }
+  }
+  return folded.length < 2 ? undefined : folded.map(({source, count}) => ({source, count}));
 }

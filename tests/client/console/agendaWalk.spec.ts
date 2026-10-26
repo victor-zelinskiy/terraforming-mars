@@ -109,12 +109,12 @@ function trackOnScreen(): HTMLElement {
 
 /** The server dealt the card step's batch with the answer: ONE reveal of `source: agenda`. */
 function agendaBatch(name: CardName, id = 41): void {
-  reconcileDrawnCards([{id, source: {type: 'agenda'}, cards: [{name} as CardModel]}]);
+  reconcileDrawnCards([{id, source: {type: 'agenda'}, segments: [{source: {type: 'agenda'}, count: 1}], cards: [{name} as CardModel]}]);
 }
 
 /** A walk across TWO card steps: one batch per step, each named by its step (the server's `source.step`). */
 function agendaBatches(batches: ReadonlyArray<{step: number, name: CardName, id: number}>): void {
-  reconcileDrawnCards(batches.map(({step, name, id}) => ({id, source: {type: 'agenda', step}, cards: [{name} as CardModel]})));
+  reconcileDrawnCards(batches.map(({step, name, id}) => ({id, source: {type: 'agenda', step}, segments: [{source: {type: 'agenda', step}, count: 1}], cards: [{name} as CardModel]})));
 }
 
 /** The hand the card was played from, with its descent standing (the composer's home). */

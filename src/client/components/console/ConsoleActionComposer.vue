@@ -6749,7 +6749,7 @@ export default defineComponent({
      */
     beatDiscardStream(): {id: number, cards: Array<CardName>} | undefined {
       const e = currentRevealEvent();
-      if (!workspaceOutcomeState.answerIn || e === undefined || !workspaceClaimOwnsArrival(e.source)) {
+      if (!workspaceOutcomeState.answerIn || e === undefined || !workspaceClaimOwnsArrival(e)) {
         return undefined;
       }
       const cards = (e.sequence ?? []).filter((step) => !step.matched).map((step) => step.card.name);

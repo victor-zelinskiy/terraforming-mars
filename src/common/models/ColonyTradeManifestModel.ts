@@ -11,7 +11,7 @@ import {Resource} from '../Resource';
  *
  * "Planned" because interactive follow-ups (a card-resource target pick, a
  * deck that runs short of cards) resolve AFTER the manifest is built — the
- * client must treat card COUNTS from the reveal batches (`tradeSegments`) as
+ * client must treat card COUNTS from the reveal batches (the segments with a trade `role`) as
  * the actual truth for drawn cards, and its own pre-collected target picks as
  * the truth for card-resource destinations. Resource/production grants never
  * fail, so for them planned == actual.

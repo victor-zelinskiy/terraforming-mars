@@ -77,7 +77,7 @@ import {withRatingVetoWatch} from './parliament/ratingVetoGate';
 import {isEarlySittingAck, isSittingAckPrompt, SittingAcks} from './parliament/SittingAcks';
 import {fromToEventSource} from './events/fromToEventSource';
 import {Supercapacitors} from './cards/promo/Supercapacitors';
-import {CanAffordOptions, CardAction, CardDrawReveal, IPlayer, PendingCardIntake, PlayabilityOptions, RevealedCard, CardDrawSearchOutcome, RequirementBonusEntry, GlobalWaiverProbe} from './IPlayer';
+import {CanAffordOptions, CardAction, CardDrawReveal, CardIntakeSegmentLive, IPlayer, PendingCardIntake, PlayabilityOptions, RevealedCard, CardDrawSearchOutcome, RequirementBonusEntry, GlobalWaiverProbe} from './IPlayer';
 import {IPreludeCard} from './cards/prelude/IPreludeCard';
 import {copyAndClear, inplaceRemove, sum, toName} from '../common/utils/utils';
 import {PreludesExpansion} from './preludes/PreludesExpansion';
@@ -86,7 +86,7 @@ import {UnderworldPlayerData} from '../common/underworld/UnderworldPlayerData';
 import {DeltaProjectPlayerModel} from '../common/models/DeltaProjectPlayerModel';
 import {DeltaProjectExpansion} from './delta/DeltaProjectExpansion';
 import {DeltaProjectInput} from './delta/DeltaProjectInput';
-import {CardDrawRevealSource} from '../common/models/CardDrawRevealModel';
+import {CardDrawRevealSource, CardIntakePendingAnswer} from '../common/models/CardDrawRevealModel';
 import {ColonyTradeManifestModel} from '../common/models/ColonyTradeManifestModel';
 import {RevealResultModel} from '../common/models/RevealResultModel';
 import {EnergyHeatConversionModel} from '../common/models/EnergyHeatConversionModel';
@@ -155,6 +155,15 @@ const DEFAULT_GLOBAL_PARAMETER_STEPS = {
  * be mistaken for the one a client captured earlier.
  */
 let nextWaitingForSerial = 0;
+
+/**
+ * THE SAME CAUSE, structurally (the card-intake law's run merge): two
+ * segments of one source fold into one run («Miranda ×2»). Sources are small
+ * literals built in one place each, so their serialized form is their identity.
+ */
+function sameSource(a: CardDrawRevealSource | undefined, b: CardDrawRevealSource | undefined): boolean {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
 
 export class Player implements IPlayer {
   public readonly id: PlayerId;
@@ -2113,53 +2122,139 @@ export class Player implements IPlayer {
     // searched for. A plain draw has no rule and stays as lean as it was.
     const search = outcome?.search;
     const exhausted = outcome?.exhausted === true && (search !== undefined || discarded);
-    // ONE trade = ONE reveal batch. A colony trade can draw cards more than
-    // once (the trade income, then the trader's own per-cube colony bonuses —
-    // Pluto); merging the same-trade draws into the still-pending batch gives
-    // the player a single "cards received" modal (one queue, one take, one
-    // acknowledgement) instead of a chain of modals. `tradeSegments` keeps the
-    // income/bonus split so the console launches each wave from the right
-    // area of the colony tile. An already-acknowledged batch is gone from the
-    // queue, so a draw that resolves AFTER the player confirmed the earlier
-    // cards (Pluto's draw→discard→draw pairing) honestly starts a new batch.
-    //
-    // ⚠️ …AND THAT SEPARATION IS NO LONGER LEFT TO THE ACK. A payout that owes
-    // a MANDATORY answer SEALS its batch (`sealCardDrawReveal`), so Pluto's
-    // next cube always opens a fresh one whether or not the client's ack won
-    // its race with the discard submit. See `CardDrawReveal.sealed`.
     const trade = source?.type === 'colony' ? source.trade : undefined;
-    if (trade !== undefined && !discarded && search === undefined) {
-      const last = this.cardDrawReveals[this.cardDrawReveals.length - 1];
-      if (last !== undefined &&
-          last.sealed !== true &&
-          last.source?.type === 'colony' &&
-          last.source.trade?.tradeId === trade.tradeId &&
-          last.tradeSegments !== undefined) {
-        last.cards = [...last.cards, ...cards];
-        const tail = last.tradeSegments[last.tradeSegments.length - 1];
-        if (tail !== undefined && tail.role === trade.role) {
-          tail.count += cards.length;
-        } else {
-          last.tradeSegments.push({role: trade.role, count: cards.length});
-        }
-        return;
+    const segment: CardIntakeSegmentLive = {source, count: cards.length};
+    if (trade !== undefined) {
+      segment.role = trade.role;
+    }
+    if (discarded) {
+      segment.sequence = [...(sequence ?? [])];
+    }
+    if (search !== undefined) {
+      segment.search = search;
+    }
+    if (exhausted) {
+      segment.exhausted = true;
+    }
+    /*
+     * ⭐ «ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» (2026-10-26). ONE action = ONE batch. A
+     * press routinely draws more than once — the played card's own draw, the
+     * Olympus Conference answering its science tag, the Mars University's
+     * exchange, the cell the tile landed on, a colony's bonus per cube — and
+     * every one of those used to open a batch of its own: three scenes, three
+     * takes, three acknowledgements for one press. The MERGE KEY is the
+     * recipient + the ROOT of the causal chain (R1 — `EventRecorder.rootId`:
+     * a deferred step restores the scope of the action that queued it, a
+     * prompt's answer runs in the scope that asked, so every draw of one
+     * press carries the same root), never a card's name and never a source
+     * type. The segments keep the causes (R2). A trade's `tradeId` is the
+     * same key in the trade's own spelling (the income and the per-cube
+     * bonuses of one trade share one root), kept as the fallback for a trade
+     * made outside any scope.
+     *
+     * R3 — THE SEAL: a batch that already met the player's MANDATORY input is
+     * closed (`sealed`) and the next draw of the same action opens a fresh
+     * one — Pluto's «draw 1, then discard 1» per cube seals itself; the input
+     * routes seal every open batch before applying any live answer. An
+     * already-acknowledged batch is gone from the queue, so a draw after the
+     * take honestly starts a new one too.
+     *
+     * R4 — a SEARCH is a segment, not a batch of its own: its tape (`sequence`
+     * / `search` / `exhausted`) rides the segment; the batch-level twins the
+     * one-segment readers consume are kept consistent below.
+     */
+    const actionId = this.game?.events?.currentRootId();
+    const last = this.cardDrawReveals[this.cardDrawReveals.length - 1];
+    const sameAction = last !== undefined && last.sealed !== true && (
+      (actionId !== undefined && last.actionId === actionId) ||
+      (trade !== undefined && last.source?.type === 'colony' && last.source.trade?.tradeId === trade.tradeId));
+    if (last !== undefined && sameAction) {
+      const before = last.cards.length;
+      last.cards = [...last.cards, ...cards];
+      const tail = last.segments[last.segments.length - 1];
+      if (tail !== undefined && tail.sequence === undefined && segment.sequence === undefined &&
+          tail.search === undefined && segment.search === undefined &&
+          tail.role === segment.role && sameSource(tail.source, segment.source)) {
+        // The same cause kept dealing (a second cube of the same tile): one run.
+        tail.count += segment.count;
+      } else {
+        last.segments.push(segment);
       }
+      // The batch-level search view (what the one-tape scene replays): the
+      // deck really turned every card of the batch over in this order, so a
+      // plain run beside a search is its matched steps.
+      if (segment.sequence !== undefined || last.sequence !== undefined) {
+        const plainBefore = last.sequence === undefined ? last.cards.slice(0, before).map((card) => ({card, matched: true})) : [...last.sequence];
+        last.sequence = [...plainBefore, ...(segment.sequence ?? cards.map((card) => ({card, matched: true})))];
+      }
+      if (last.search === undefined && search !== undefined) {
+        last.search = search;
+      }
+      if (last.exhausted === undefined && exhausted) {
+        last.exhausted = true;
+      }
+      // A draw that merged in means the announced answer did NOT stand between
+      // the draws (a pre-collected one landed without a pause).
+      last.pendingAnswer = undefined;
+      return;
     }
     this.cardDrawReveals.push({
       id: this.nextCardDrawRevealId++,
+      actionId,
       source,
+      segments: [segment],
       cards: [...cards],
       sequence: discarded ? [...(sequence ?? [])] : undefined,
       search,
       exhausted: exhausted ? true : undefined,
-      tradeSegments: trade !== undefined && !discarded ? [{role: trade.role, count: cards.length}] : undefined,
     });
   }
 
-  public sealCardDrawReveal(): void {
+  public sealCardDrawReveal(pendingAnswer?: CardIntakePendingAnswer): void {
     const last = this.cardDrawReveals[this.cardDrawReveals.length - 1];
     if (last !== undefined) {
       last.sealed = true;
+      if (pendingAnswer !== undefined) {
+        last.pendingAnswer = pendingAnswer;
+      }
+    }
+  }
+
+  public sealCardDrawReveals(): void {
+    for (const reveal of this.cardDrawReveals) {
+      reveal.sealed = true;
+    }
+  }
+
+  /**
+   * THE PROMPT JUST RAISED names what the open batch is waiting on (R6): a
+   * discard the rule demands before its next card (a card's exchange, a
+   * colony's pair) or a table question the chain asks. Read structurally off
+   * the prompt's own markers — never its title.
+   */
+  private notePendingAnswer(input: PlayerInput): void {
+    const last = this.cardDrawReveals[this.cardDrawReveals.length - 1];
+    if (last === undefined || last.actionId === undefined || last.pendingAnswer !== undefined ||
+        last.actionId !== this.waitingForContext?.rootId) {
+      return;
+    }
+    const discard = input.discardPrompt;
+    if (discard !== undefined) {
+      const pair = discard.colonyBonus ?? discard.colonyRepeat;
+      const answer: CardIntakePendingAnswer = {kind: 'discard'};
+      if (pair !== undefined) {
+        answer.colony = pair.colonyName;
+        answer.ordinal = {index: pair.index, total: pair.total};
+      }
+      if (discard.source?.card !== undefined) {
+        answer.card = discard.source.card;
+      }
+      last.pendingAnswer = answer;
+      return;
+    }
+    const asker = input.choiceContext?.source;
+    if (asker?.card !== undefined) {
+      last.pendingAnswer = {kind: 'question', card: asker.card};
     }
   }
 
@@ -3323,6 +3418,13 @@ export class Player implements IPlayer {
     const waitingForCb = this.waitingForCb;
     const waitingForContext = this.waitingForContext;
     const waitingForSerial = this.waitingForSerial;
+    // The card-intake law's R6: a batch's `pendingAnswer` means «this question
+    // STILL STANDS». It is being answered now — whatever the answer draws opens
+    // (or grows) a batch of its own, and an answer that draws nothing leaves
+    // no place owed.
+    for (const reveal of this.cardDrawReveals) {
+      reveal.pendingAnswer = undefined;
+    }
     this.waitingFor = undefined;
     this.waitingForCb = undefined;
     this.waitingForContext = undefined;
@@ -3404,6 +3506,8 @@ export class Player implements IPlayer {
     this.waitingForContext = this.waitingForContextOverride === null ?
       undefined : this.game?.events?.captureContext();
     this.waitingForContextOverride = undefined;
+    // The card-intake law's R6: the open batch learns what it is waiting on.
+    this.notePendingAnswer(input);
     // ── WHOSE ACTION RAISED THIS? ─────────────────────────────────────────
     // Every prompt the player is ever asked passes through here, and the event
     // recorder already knows whether a COPIED action is running (the scope the

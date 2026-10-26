@@ -95,6 +95,11 @@ export class PlayerInputBatch extends Handler {
           // when that prompt is no longer the one the client composed against.
           validatePromptId(entity, player);
           const inputResponses: ReadonlyArray<InputResponse> = Array.isArray(entity.responses) ? entity.responses : [];
+          // The card-intake law's seal (R3): the batch's HEAD is the player's
+          // live answer to the standing prompt — every batch already on their
+          // screen closes. The pre-collected answers behind the head land
+          // without a pause and seal nothing (they merge).
+          player.sealCardDrawReveals();
           replayBatch(player, inputResponses);
           // Same law as `PlayerInput` (PL-301): the batch may have handed a prompt
           // to another seat off the `takeAction` path — broadcast once it settled.

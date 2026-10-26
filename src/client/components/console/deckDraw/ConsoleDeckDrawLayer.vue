@@ -90,7 +90,7 @@ import {colonyResolutionUi, remoteColonyBonusHold} from '@/client/console/colony
 import {adoptSettlementDeck, settlementClaimsBatch} from '@/client/console/colonyTrade/settlementTable';
 import {probeTick} from '@/client/console/probeTick';
 import {hydroStepQueuedFor} from '@/client/console/hydroMarker/consoleHydroMarker';
-import {markWorkspaceOutcomeArrivalDone, workspaceClaimOwnsArrival, workspaceClaimsColonyReveal, workspaceClaimsDrawReveal} from '@/client/console/consoleWorkspaceOutcome';
+import {markWorkspaceOutcomeArrivalDone, workspaceClaimOwnsArrival, workspaceClaimsColonyRevealBatch, workspaceClaimsRevealBatch} from '@/client/console/consoleWorkspaceOutcome';
 import {
   DeckDrawTimings, DrawBeat, RectLike, SceneStage, deckCountAfter, deckDrawTimings, holdScale, holdSlots,
   inspectPoint, inspectScale, planDeckDraw, reducedDeckDrawTimings, viewportStage,
@@ -258,7 +258,7 @@ export default defineComponent({
       // payout and turns over WHERE IT LIES (colony polish 1) — dealing it off the deck would be the second arrival.
       const foreign = !isDeckDrawSource(e.source) ||
         settlementClaimsBatch(e.source) ||
-        workspaceClaimOwnsArrival(e.source) ||
+        workspaceClaimOwnsArrival(e) ||
         boardCardBonusClaimsReveal(e.source) || isBonusRevealStaged(e.id) ||
         (isAgendaReveal(e.source) && agendaTrackOnScreen()) ||
         colonyTradeClaimsReveal(e.source) || isColonyTradeRevealStaged(e.id) ||
@@ -300,7 +300,7 @@ export default defineComponent({
         // …and a card's answer to a change of power (TR62): the sitting deals it at its enactment's tail, off the same pile.
         rulingChangeParksReveal(e.source) ||
         colonyBonusPayoutParksReveal(e.source) ||
-        (colonyResolutionUi.discardStage && workspaceClaimsColonyReveal(e.source));
+        (colonyResolutionUi.discardStage && workspaceClaimsColonyRevealBatch(e));
       const v = deckDrawVerdict({eventId: e.id, foreign, waiting});
       return v === undefined ? undefined : {v, e};
     },
@@ -333,7 +333,7 @@ export default defineComponent({
           // A WORKSPACE's own beat deals this batch (the card-actions composer — PL-261): it ADOPTS the seed at its
           // entry and ticks it per card; released here, the answered count showed a beat before anything had left the
           // deck whenever the answer beat the beat's entry (PL-281 — a fast local server, every run).
-          if (workspaceClaimOwnsArrival(r.e.source)) {
+          if (workspaceClaimOwnsArrival(r.e)) {
             return;
           }
           // Somebody else flies it — the apply-block seed that kept its cards on the counter lets go (PL-088).
@@ -490,8 +490,7 @@ export default defineComponent({
       // (the same shared batch director every embedded draw plays). The
       // single-card HEADLESS reveal keeps the hold-zone path: the fullscreen
       // viewer lifts the arrived proxy, and there is no slot to fly into.
-      const headlessSingle = drawnBatchGoesFullscreen(steps.length,
-        workspaceClaimsDrawReveal(e.source) || workspaceClaimsColonyReveal(e.source));
+      const headlessSingle = drawnBatchGoesFullscreen(steps.length, workspaceClaimsRevealBatch(e));
       if (plain && !headlessSingle) {
         void this.runPlainBatch(e);
         return;
@@ -719,7 +718,7 @@ export default defineComponent({
       // NOT when a workspace claimed the batch: the EMBEDDED reveal renders a
       // real slot even for one card (the card belongs inside the workspace,
       // never in a fullscreen hand-over) — fall through to the slot flight.
-      if (drawnBatchGoesFullscreen(e.cards.length, workspaceClaimsDrawReveal(e.source) || workspaceClaimsColonyReveal(e.source))) {
+      if (drawnBatchGoesFullscreen(e.cards.length, workspaceClaimsRevealBatch(e))) {
         setDeckDrawPhase('frame');
         markDeckDrawZoomReady();
         // End once the viewer has taken over: the input gate must not stay
@@ -781,8 +780,7 @@ export default defineComponent({
       // composer's ledger zone): nobody else will say its card has landed. The
       // colony workspace's own claims open their gate at the claim (their
       // scenes carry the input lock), so for them this is a no-op.
-      const arrived = currentRevealEvent()?.source;
-      if (workspaceClaimsDrawReveal(arrived) || workspaceClaimsColonyReveal(arrived)) {
+      if (workspaceClaimsRevealBatch(currentRevealEvent())) {
         markWorkspaceOutcomeArrivalDone();
       }
       ctx.sceneHandle = runDeckDrawHandoff({

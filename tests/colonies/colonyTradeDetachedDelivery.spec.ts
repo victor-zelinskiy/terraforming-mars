@@ -1,4 +1,5 @@
 import {expect} from 'chai';
+import {tradeSegmentsOf} from '@/common/models/CardDrawRevealModel';
 import {cast} from '@/common/utils/utils';
 import {IProjectCard} from '../../src/server/cards/IProjectCard';
 import {AerialMappers} from '../../src/server/cards/venusNext/AerialMappers';
@@ -51,7 +52,7 @@ describe('colonyTradeDetachedDelivery', () => {
       // income (3) + the trader's own bonus draw (1) in ONE merged batch, and
       // the trader's mandatory discard is the queue's first pause.
       expect(player.cardDrawReveals).has.lengthOf(1);
-      expect(player.cardDrawReveals[0].tradeSegments).deep.eq([
+      expect(tradeSegmentsOf(player.cardDrawReveals[0].segments)).deep.eq([
         {role: 'income', count: 3}, {role: 'bonus', count: 1},
       ]);
       player.acknowledgeCardDrawReveals('all');
@@ -99,7 +100,7 @@ describe('colonyTradeDetachedDelivery', () => {
       // The trader (no cube here) got the income and is DONE — the reset is
       // already committed although not a single foreign bonus is answered.
       expect(player.cardDrawReveals).has.lengthOf(1);
-      expect(player.cardDrawReveals[0].tradeSegments).deep.eq([{role: 'income', count: 3}]);
+      expect(tradeSegmentsOf(player.cardDrawReveals[0].segments)).deep.eq([{role: 'income', count: 3}]);
       expect(player.getWaitingFor()).is.undefined;
       expect(pluto.trackPosition).eq(3);
 
@@ -162,7 +163,7 @@ describe('colonyTradeDetachedDelivery', () => {
       // The source names the colony but carries NO trade tag…
       expect(batch.source).deep.eq({type: 'colony', colonyName: pluto.name});
       // …so the batch has no segments to drive the reveal's wave split.
-      expect(batch.tradeSegments).is.undefined;
+      expect(tradeSegmentsOf(batch.segments)).is.undefined;
       // The mandatory discard still rides its structural marker — the pair
       // (marker without segments) is exactly what the client's zone fallback
       // recognises.

@@ -378,7 +378,7 @@ describe('parliamentRewardBeat — the ledger of what the sitting still owes', (
     expect(parliamentAgendaBonusHeld(), 'the TR step still holds').is.true;
     markAgendaBonusLanded(9);
     expect(parliamentAgendaBonusHeld(), 'a lifted step whose batch stands for nobody is held again — its ceiling nets a take that cannot come').is.true;
-    reconcileDrawnCards([{id: 71, source: {type: 'agenda', step: 7}, cards: [{name: CardName.FISH} as CardModel]}]);
+    reconcileDrawnCards([{id: 71, source: {type: 'agenda', step: 7}, segments: [{source: {type: 'agenda', step: 7}, count: 1}], cards: [{name: CardName.FISH} as CardModel]}]);
     expect(parliamentAgendaBonusHeld(), 'a lifted card step whose batch stands alone holds nothing — the take is the player\'s, never a beat on a clock').is.false;
     expect(parliamentRewardState.agendaBonuses.map((b) => b.step), 'the entry stands').deep.eq([7]);
     reconcileDrawnCards([]);

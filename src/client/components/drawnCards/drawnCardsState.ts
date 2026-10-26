@@ -1,7 +1,7 @@
 import {reactive, shallowRef} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
-import {CardDrawRevealModel, CardDrawRevealSource, CardDrawRevealStep, ColonyTradeRevealSegment, DrawSearchModel} from '@/common/models/CardDrawRevealModel';
+import {CardDrawRevealModel, CardDrawRevealSource, CardDrawRevealStep, CardIntakeBatchRef, CardIntakePendingAnswer, CardIntakeSegment, ColonyTradeRevealSegment, DrawSearchModel, tradeSegmentsOf} from '@/common/models/CardDrawRevealModel';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 
@@ -22,7 +22,20 @@ import {apiUrl} from '@/client/utils/runtimeConfig';
  */
 export type DrawnCardEntry = {
   id: number;
+  /** The action root the batch was merged under (server truth — CardDrawRevealModel.actionId). */
+  actionId?: number;
+  /** The FIRST segment's source — the batch's root cause (server truth). */
   source?: CardDrawRevealSource;
+  /**
+   * THE CAUSES («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР», server truth — CardDrawRevealModel.segments): the runs of `cards` by
+   * source, in dealing order. A claim answers for the batch when ANY segment is its; a park holds the batch by its
+   * ROOT; the assembly scene starts every run from its own place. Always present (a plain draw is one segment).
+   */
+  segments: ReadonlyArray<CardIntakeSegment>;
+  /** Closed to further merging — a mandatory input stood after it (server truth — CardDrawRevealModel.sealed). */
+  sealed?: true;
+  /** What sealed it, when the rule names it (server truth — CardDrawRevealModel.pendingAnswer). */
+  pendingAnswer?: CardIntakePendingAnswer;
   cards: ReadonlyArray<CardModel>;
   /**
    * The conditional search's reveal order (server truth — see
@@ -35,9 +48,10 @@ export type DrawnCardEntry = {
   /** The search ran out of cards first (server truth — CardDrawRevealModel.exhausted). */
   exhausted?: true;
   /**
-   * A trade-merged batch's income/bonus split (server truth — see
-   * CardDrawRevealModel.tradeSegments). The console trade cinematic launches
-   * each segment's covers from its own area of the colony tile.
+   * A trade-merged batch's income/bonus split — DERIVED from `segments`
+   * (`tradeSegmentsOf`: the segments carrying a trade `role`; undefined off
+   * a trade). The console trade cinematic launches each wave's covers from
+   * its own area of the colony tile.
    */
   tradeSegments?: ReadonlyArray<ColonyTradeRevealSegment>;
   /** Cards the RULES already discarded (server truth — CardDrawRevealModel.autoDiscarded): shown leaving, never taken. */
@@ -81,12 +95,16 @@ export function reconcileDrawnCards(reveals: ReadonlyArray<CardDrawRevealModel>)
     if (existing === undefined) {
       drawnCardsState.events.push({
         id: r.id,
+        actionId: r.actionId,
         source: r.source,
+        segments: r.segments ?? [{source: r.source, count: r.cards.length}],
+        sealed: r.sealed,
+        pendingAnswer: r.pendingAnswer,
         cards: r.cards,
         sequence: r.sequence,
         search: r.search,
         exhausted: r.exhausted,
-        tradeSegments: r.tradeSegments,
+        tradeSegments: tradeSegmentsOf(r.segments),
         autoDiscarded: r.autoDiscarded,
         takenIndices: new Set<number>(),
         acking: false,
@@ -108,11 +126,15 @@ export function reconcileDrawnCards(reveals: ReadonlyArray<CardDrawRevealModel>)
       // (indices are stable under an append), so only the new card is owed.
       const grew = r.cards.length > existing.cards.length;
       existing.cards = r.cards;
+      existing.actionId = r.actionId;
       existing.source = r.source;
+      existing.segments = r.segments ?? [{source: r.source, count: r.cards.length}];
+      existing.sealed = r.sealed;
+      existing.pendingAnswer = r.pendingAnswer;
       existing.sequence = r.sequence;
       existing.search = r.search;
       existing.exhausted = r.exhausted;
-      existing.tradeSegments = r.tradeSegments;
+      existing.tradeSegments = tradeSegmentsOf(r.segments);
       existing.autoDiscarded = r.autoDiscarded;
       if (grew && existing.dismissed) {
         existing.dismissed = false;
@@ -162,8 +184,8 @@ function untakenCount(e: DrawnCardEntry): number {
  * REVEAL PARK EXEMPTION. (The unfiltered form, historically
  * `hasVisibleReveal()`, is `hasPresentableReveal(() => false)`.)
  */
-export function hasPresentableReveal(parked: (source: CardDrawRevealSource | undefined) => boolean): boolean {
-  return drawnCardsState.events.some((e) => !e.dismissed && !parked(e.source));
+export function hasPresentableReveal(parked: (batch: CardIntakeBatchRef) => boolean): boolean {
+  return drawnCardsState.events.some((e) => !e.dismissed && !parked(e));
 }
 
 /**
@@ -234,7 +256,7 @@ export function isRevealHeldForFollowUp(id: number | undefined): boolean {
  * twin is one: the registration lands at shell mount, after a reload's first
  * evaluation.
  */
-export type RevealQueuePark = (source: CardDrawRevealSource | undefined) => boolean;
+export type RevealQueuePark = (batch: CardIntakeBatchRef) => boolean;
 
 const QUEUE_NOTHING_PARKED: RevealQueuePark = () => false;
 
@@ -262,7 +284,7 @@ function revealEventPending(e: DrawnCardEntry): boolean {
  */
 export function currentRevealEvent(): DrawnCardEntry | undefined {
   const park = revealQueuePark.value;
-  return drawnCardsState.events.find((e) => revealEventPending(e) && !park(e.source));
+  return drawnCardsState.events.find((e) => revealEventPending(e) && !park(e));
 }
 
 /**

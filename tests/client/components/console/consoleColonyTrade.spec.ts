@@ -121,7 +121,7 @@ describe('consoleColonyTrade', () => {
 
     // A staged (still open) reveal batch of this trade blocks the conclusion.
     drawnCardsState.events.push({
-      id: 71, cards: [], takenIndices: new Set(), acking: false, dismissed: false,
+      id: 71, cards: [], segments: [], takenIndices: new Set(), acking: false, dismissed: false,
       source: {type: 'colony', colonyName: ColonyName.TRITON, trade: {tradeId: 'Triton:g3:a120', role: 'income'}},
     });
     stageColonyTradeReveal(71);
@@ -171,7 +171,7 @@ describe('consoleColonyTrade', () => {
 
     // …they arrive; still nothing may move while they are on the table.
     drawnCardsState.events.push({
-      id: 91, cards: [], takenIndices: new Set(), acking: false, dismissed: false,
+      id: 91, cards: [], segments: [], takenIndices: new Set(), acking: false, dismissed: false,
       source: {type: 'colony', colonyName: ColonyName.PLUTO, trade: {tradeId: 'Triton:g3:a120', role: 'income'}},
     });
     await nextTick();

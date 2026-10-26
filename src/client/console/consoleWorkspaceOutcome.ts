@@ -32,7 +32,7 @@
  * is its own — generalized so any workspace can be the claimant.
  */
 import {reactive} from 'vue';
-import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
+import {CardDrawRevealSource, CardIntakeBatchRef, intakeBatchSources} from '@/common/models/CardDrawRevealModel';
 import type {ZoomOrigin} from '@/client/console/consoleCardZoom';
 import type {WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 import {workspaceFrameKnown} from '@/client/console/consoleWorkspaceStack';
@@ -739,8 +739,8 @@ export function workspaceOutcomeAdmits(kind: WorkspaceOutcomeKind): boolean {
  * deck-draw scene SERVES it, flying the cards from the HUD pile into the
  * embedded reveal's own slots.
  */
-export function workspaceClaimOwnsArrival(source: CardDrawRevealSource | undefined): boolean {
-  return workspaceClaimsDrawReveal(source) && workspaceOutcomeState.host === 'card-actions';
+export function workspaceClaimOwnsArrival(batch: CardIntakeBatchRef | undefined): boolean {
+  return workspaceClaimsDrawRevealBatch(batch) && workspaceOutcomeState.host === 'card-actions';
 }
 
 export function workspaceClaimsDrawReveal(source: CardDrawRevealSource | undefined): boolean {
@@ -824,6 +824,28 @@ export function revealSourceForeignToClaim(source: CardDrawRevealSource | undefi
  */
 export function workspaceClaimsRevealSource(source: CardDrawRevealSource | undefined): boolean {
   return workspaceClaimsDrawReveal(source) || workspaceClaimsColonyReveal(source);
+}
+
+/*
+ * ── THE BATCH IS THE UNIT («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР», Ф2 of the card-intake law, 2026-10-26) ──
+ *
+ * A batch now carries SEVERAL causes (`segments`): the played card's own draw beside the cell its tile landed on,
+ * the Olympus Conference's card beside the Mars University's. The claim answers for the BATCH when ANY segment is
+ * the workspace's — the press that opened the workspace is what produced every one of them, and a batch that
+ * presented half in the workspace and half on the board would be two takes for one press. Every witness that has
+ * a batch at hand asks THESE; the per-source forms above stay for the readers that genuinely hold one source.
+ */
+export function workspaceClaimsDrawRevealBatch(batch: CardIntakeBatchRef | undefined): boolean {
+  return batch !== undefined && intakeBatchSources(batch).some((source) => workspaceClaimsDrawReveal(source));
+}
+
+export function workspaceClaimsColonyRevealBatch(batch: CardIntakeBatchRef | undefined): boolean {
+  return batch !== undefined && intakeBatchSources(batch).some((source) => workspaceClaimsColonyReveal(source));
+}
+
+/** Does the live claim answer for THIS batch, by any of its causes — the batch form of `workspaceClaimsRevealSource`. */
+export function workspaceClaimsRevealBatch(batch: CardIntakeBatchRef | undefined): boolean {
+  return batch !== undefined && intakeBatchSources(batch).some((source) => workspaceClaimsRevealSource(source));
 }
 
 /**

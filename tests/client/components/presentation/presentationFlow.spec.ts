@@ -69,7 +69,7 @@ describe('presentationFlow (reactive orchestrator)', () => {
 
   it('derived result-modal occupancy: a visible drawn-cards batch blocks delivery', () => {
     drawnCardsState.events = [{
-      id: 1, cards: [], takenIndices: new Set<number>(), acking: false, dismissed: false,
+      id: 1, segments: [], cards: [], takenIndices: new Set<number>(), acking: false, dismissed: false,
     }];
     expect(currentBlockReason()).eq('result-modal');
     drawnCardsState.events[0].dismissed = true;
@@ -88,9 +88,9 @@ describe('presentationFlow (reactive orchestrator)', () => {
     const PLUTO: CardDrawRevealSource = {type: 'colony', colonyName: ColonyName.PLUTO};
     const OWN: CardDrawRevealSource = {type: 'card', cardName: CardName.RESTRICTED_AREA};
     const batch = (id: number, source: CardDrawRevealSource): DrawnCardEntry => ({
-      id, source, cards: [], takenIndices: new Set<number>(), acking: false, dismissed: false,
+      id, source, segments: [{source, count: 0}], cards: [], takenIndices: new Set<number>(), acking: false, dismissed: false,
     });
-    const parksColonies = (source: CardDrawRevealSource | undefined) => source?.type === 'colony';
+    const parksColonies = (b: {source?: CardDrawRevealSource}) => b.source?.type === 'colony';
 
     it('a PARKED batch neither claims the foreground nor silences the feed', () => {
       drawnCardsState.events = [batch(1, PLUTO)];
@@ -127,8 +127,8 @@ describe('presentationFlow (reactive orchestrator)', () => {
       drawnCardsState.events = [batch(1, PLUTO)];
       // Two DISTINCT closures on purpose — the restore guard is by function
       // identity, which is exactly what two real registrants would have.
-      const restore1 = registerRevealParkSupplier((source) => parksColonies(source));
-      const restore2 = registerRevealParkSupplier((source) => parksColonies(source));
+      const restore1 = registerRevealParkSupplier((b) => parksColonies(b));
+      const restore2 = registerRevealParkSupplier((b) => parksColonies(b));
       restore1(); // the earlier holder letting go must not undo the live one
       expect(currentBlockReason()).eq(undefined);
       restore2();

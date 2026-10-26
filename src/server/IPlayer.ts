@@ -30,7 +30,7 @@ import {OrOptions} from './inputs/OrOptions';
 import {Stock} from './player/Stock';
 import {UnderworldPlayerData} from '../common/underworld/UnderworldPlayerData';
 import {DeltaProjectPlayerModel} from '../common/models/DeltaProjectPlayerModel';
-import {CardDrawRevealSource, ColonyTradeRevealSegment, DrawSearchModel} from '../common/models/CardDrawRevealModel';
+import {CardDrawRevealSource, CardIntakePendingAnswer, ColonyTradeRevealRole, DrawSearchModel} from '../common/models/CardDrawRevealModel';
 import {ColonyTradeManifestModel} from '../common/models/ColonyTradeManifestModel';
 import {ExternalDrawCause} from '../common/models/ExternalDrawPromptModel';
 import {RevealResultModel} from '../common/models/RevealResultModel';
@@ -122,12 +122,32 @@ export type CardDrawSearchOutcome = {
 }
 
 /**
- * One queued "you drew cards" reveal awaiting the player's acknowledgement.
- * Holds live cards (serialized to model lazily). Transient — see IPlayer.cardDrawReveals.
+ * ONE SEGMENT of a queued batch, holding live cards for its search sequence
+ * (see CardIntakeSegment — the serialized twin).
+ */
+export type CardIntakeSegmentLive = {
+  source?: CardDrawRevealSource,
+  count: number,
+  role?: ColonyTradeRevealRole,
+  sequence?: ReadonlyArray<RevealedCard>,
+  search?: DrawSearchModel,
+  exhausted?: true,
+}
+
+/**
+ * One queued "you drew cards" reveal awaiting the player's acknowledgement —
+ * ONE INTAKE BATCH under the law «ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» (see
+ * CardDrawRevealModel). Holds live cards (serialized to model lazily).
+ * Transient — see IPlayer.cardDrawReveals.
  */
 export type CardDrawReveal = {
   id: number,
+  /** The action root the batch merges under (`EventRecorder` rootId); undefined = merges with nothing. */
+  actionId?: number,
+  /** The first segment's source — the batch's root cause. */
   source?: CardDrawRevealSource,
+  /** The runs of `cards` by cause, in dealing order (`Σ count === cards.length`). */
+  segments: Array<CardIntakeSegmentLive>,
   cards: ReadonlyArray<IProjectCard>,
   /**
    * The conditional search's real reveal order. Set ONLY when the search
@@ -139,21 +159,20 @@ export type CardDrawReveal = {
   /** The search ran out of cards before it found enough (see CardDrawRevealModel.exhausted). */
   exhausted?: true,
   /**
-   * Trade-tagged batches only: the same-role runs of `cards` (income first,
-   * then colony-bonus), maintained as same-trade draws MERGE into one batch.
-   * See CardDrawRevealModel.tradeSegments.
-   */
-  tradeSegments?: Array<ColonyTradeRevealSegment>,
-  /**
-   * SEALED — this batch is CLOSED to further merging (server-only; never
-   * reaches the model).
+   * SEALED — this batch is CLOSED to further merging (R3 of the law; also
+   * serialized, so the console can read the seal).
    *
-   * The same-trade merge exists so ONE trade is ONE reveal («one queue, one
-   * take, one acknowledgement»). It must not reach ACROSS a mandatory input:
-   * Pluto's owner bonus pays «draw 1, then discard 1» PER CUBE, and by the
-   * rules each colony resolves in FULL before the next is revealed — so the
-   * second cube's card may not appear beside the first while the player is
-   * still choosing what to throw away.
+   * The merge exists so ONE action is ONE reveal («one queue, one take, one
+   * acknowledgement»). It must not reach ACROSS a mandatory input: Pluto's
+   * owner bonus pays «draw 1, then discard 1» PER CUBE, and by the rules each
+   * colony resolves in FULL before the next is revealed — so the second
+   * cube's card may not appear beside the first while the player is still
+   * choosing what to throw away. The SAME boundary is drawn structurally for
+   * every action: the input routes seal every open batch of the answering
+   * player BEFORE applying their answer (`sealCardDrawReveals`) — whatever
+   * the rule's name for the question, a draw after the player's own live
+   * answer is a new batch. A pre-collected answer (the composer's batch) is
+   * NOT a live input and seals nothing.
    *
    * Nothing but the client's acknowledgement used to separate them, and an ack
    * is a fire-and-forget POST racing the discard answer: when it lost, the
@@ -164,9 +183,14 @@ export type CardDrawReveal = {
    * timing-dependent.
    */
   sealed?: boolean,
+  /** What sealed it, when the rule names it (see CardDrawRevealModel.pendingAnswer). */
+  pendingAnswer?: CardIntakePendingAnswer,
   /** Cards of this batch the rules discarded at once (see CardDrawRevealModel.autoDiscarded). */
   autoDiscarded?: Array<IProjectCard>,
 }
+
+/** The batch under the law's own name (see CardIntakeBatchModel). */
+export type CardIntakeBatch = CardDrawReveal;
 
 /**
  * One EXTERNAL-DRAW intake batch: cards an effect fired by ANOTHER player's
@@ -709,10 +733,17 @@ export interface IPlayer {
   /**
    * CLOSE the batch just queued to further merging (see `CardDrawReveal.sealed`).
    * Called by a payout that owes the player a MANDATORY answer before the next
-   * draw of the same trade may be revealed. Idempotent; a no-op on an empty
-   * queue.
+   * draw of the same action may be revealed — `pendingAnswer` names that
+   * answer for the console's sealed place (R6). Idempotent; a no-op on an
+   * empty queue.
    */
-  sealCardDrawReveal(): void;
+  sealCardDrawReveal(pendingAnswer?: CardIntakePendingAnswer): void;
+  /**
+   * The recipient's OWN LIVE INPUT is about to be applied (the input routes):
+   * every open batch of theirs was on their screen before this answer, so the
+   * next draw of any action opens a new batch (R3 — the structural seal).
+   */
+  sealCardDrawReveals(): void;
   /**
    * The rules discarded these cards with no question asked (a mandatory discard met a hand holding no other card):
    * every pending reveal batch that SHOWS one of them records it (`CardDrawReveal.autoDiscarded`), so the console

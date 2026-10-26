@@ -51,6 +51,7 @@ function card(name: string): CardModel {
 describe('ConsoleDrawSearchTally — the reveal\'s summary (K-4)', () => {
   const reveal: CardDrawRevealModel = {
     id: 1,
+    segments: [{count: 3}],
     cards: [card('Research'), card('Mining Area'), card('Comet')],
     sequence: [
       {card: card('Algae'), matched: false, failedTags: [Tag.PLANT]},

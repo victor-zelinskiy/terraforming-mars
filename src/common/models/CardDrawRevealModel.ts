@@ -151,9 +151,64 @@ export type DrawSearchModel = {
 };
 
 /**
+ * ONE SEGMENT of an intake batch — the cards ONE source dealt into it, in the
+ * server's dealing order («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР», 2026-10-26).
+ *
+ * A batch is everything one press drew for its recipient under ONE action
+ * root (see `CardDrawRevealModel.actionId`); its segments remember WHY each
+ * run of cards came: the played card's own draw, the Olympus Conference that
+ * answered its science tag, the cell the tile landed on, a colony's printed
+ * bonus (per cube — `count` grows while the same source keeps dealing). The
+ * console reads them to start every run from its own place and to name the
+ * causes in one line; `Σ count === cards.length` by construction (guarded).
+ * The order is the deferred queue's — the order of the rules — and is never
+ * re-sorted anywhere.
+ */
+export type CardIntakeSegment = {
+  source?: CardDrawRevealSource;
+  count: number;
+  /**
+   * The TRADE WAVE of a trade-tagged colony segment (the former
+   * `tradeSegments` role): the console launches an income run from the
+   * «ТОРГОВАТЬ» cell and a bonus run from the «БОНУС» cell. Absent off a trade.
+   */
+  role?: ColonyTradeRevealRole;
+  /** THIS segment's conditional search (see the batch-level twins below) — a search merged beside other draws. */
+  sequence?: ReadonlyArray<CardDrawRevealStep>;
+  search?: DrawSearchModel;
+  exhausted?: true;
+};
+
+/**
+ * WHAT SEALED THE BATCH (R6 — «the seal is read, not waited for»): the
+ * mandatory answer the recipient owes before the rule may deal the next card
+ * of the same action. The console shows the next card's place face-down under
+ * a seal that names this condition (the settlement table's grammar, now the
+ * fork's), and turns the card in place once the answer has been given.
+ */
+export type CardIntakePendingAnswer = {
+  /** `discard` — a card must leave the hand first (Pluto's pair, Mars University's exchange); `question` — a table question stands. */
+  kind: 'discard' | 'question';
+  /** The CARD that asks, when a card does. */
+  card?: CardName;
+  /** The COLONY whose pair asks (Pluto), with its «n of k». */
+  colony?: ColonyName;
+  ordinal?: {index: number, total: number};
+};
+
+/**
  * One batch of cards a player drew via an in-game EFFECT (card effect, tile
  * bonus, …) — NOT via research / draft / buy / keep-some choices, which the
  * player already sees through their own selection prompt.
+ *
+ * ⭐ THE LAW OF THE FORK — «ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР» (2026-10-26). Every
+ * card ONE press drew for its recipient — by any number of effects, at any
+ * depth of hooks, from the board and from cards — is ONE batch with ONE take,
+ * until a MANDATORY input of that recipient stood between two draws (the
+ * seal). The server merges by `actionId` (the recipient + the root of the
+ * causal chain, `EventRecorder.rootId`), never by a name or a source type;
+ * the `segments` keep the causes. Contract: `docs/claude/console/
+ * card-intake-one-batch.md`.
  *
  * Lives only on the owner's PlayerViewModel (next to cardsInHand), so it is
  * never sent to other players. The server queue that backs this is transient
@@ -163,7 +218,21 @@ export type DrawSearchModel = {
 export type CardDrawRevealModel = {
   /** Monotonic id, unique within a player; the client acks by this id. */
   id: number;
+  /**
+   * THE ACTION ROOT this batch belongs to — the `correlationId` of the root
+   * action's chain (a card play, a blue-card action, a standard project, a
+   * trade, a sitting of the parliament, …). The merge key. `undefined` for a
+   * draw made outside any action scope: such a batch merges with nothing (the
+   * coverage guard lists the producers that still deal that way).
+   */
+  actionId?: number;
+  /** The FIRST segment's source — the batch's root cause (where it presents, R7). */
   source?: CardDrawRevealSource;
+  /**
+   * The runs of `cards` by cause, in dealing order (`Σ count === cards.length`).
+   * Always present; a plain one-source draw is one segment.
+   */
+  segments: ReadonlyArray<CardIntakeSegment>;
   /** Serialized with the SAME options as cardsInHand so they render identically. */
   cards: ReadonlyArray<CardModel>;
   /**
@@ -190,14 +259,14 @@ export type CardDrawRevealModel = {
    */
   exhausted?: true;
   /**
-   * Present ONLY on a trade-tagged batch (`source.trade` set): the same-role
-   * runs of `cards`, in order. The server MERGES the income draw and the
-   * trader's own colony-bonus draws of ONE trade into ONE batch (one reveal
-   * modal, one acknowledgement), and these segments preserve which cards
-   * belong to which wave so the client can launch them from the right area
-   * of the colony tile.
+   * SEALED — closed to further merging: a mandatory input of the recipient
+   * stands (or stood) between this batch and the next draw of the same action
+   * (R3). The next draw of the same `actionId` opens a NEW batch; the client
+   * glues it to the sealed place `pendingAnswer` announced.
    */
-  tradeSegments?: ReadonlyArray<ColonyTradeRevealSegment>;
+  sealed?: true;
+  /** What sealed it, when the rule names it (R6) — absent on a batch sealed by the recipient's ordinary answer. */
+  pendingAnswer?: CardIntakePendingAnswer;
   /**
    * Cards of this batch the RULES already discarded, with no question asked — a mandatory discard that met a hand
    * holding no other card (`DiscardCards`: hand ≤ min). Pluto's «draw 1, then discard 1» on an empty hand draws the
@@ -206,3 +275,41 @@ export type CardDrawRevealModel = {
    */
   autoDiscarded?: ReadonlyArray<CardName>;
 };
+
+/** The batch under the law's own name — `CardDrawRevealModel` is the historical spelling of the same type. */
+export type CardIntakeBatchModel = CardDrawRevealModel;
+
+/**
+ * WHAT A READER NEEDS to ask «is this batch mine / parked?» — the root cause
+ * and the causes: a server model, a client store entry or a bare `{source}`.
+ * A claim answers for the batch when ANY segment is its (`intakeBatchSources`);
+ * a park holds the batch by its ROOT (`source`).
+ */
+export type CardIntakeBatchRef = {
+  source?: CardDrawRevealSource;
+  segments?: ReadonlyArray<{source?: CardDrawRevealSource}>;
+};
+
+/** Every cause of a batch, in dealing order — the root alone when the segments are not known. */
+export function intakeBatchSources(batch: CardIntakeBatchRef): ReadonlyArray<CardDrawRevealSource | undefined> {
+  return batch.segments !== undefined && batch.segments.length > 0 ? batch.segments.map((s) => s.source) : [batch.source];
+}
+
+/** `Σ segments.count` — the honesty guard's left-hand side (must equal `cards.length`). */
+export function intakeSegmentTotal(segments: ReadonlyArray<{count: number}>): number {
+  return segments.reduce((n, s) => n + s.count, 0);
+}
+
+/**
+ * The trade waves of a batch, for the colony-trade cinematic: the segments
+ * that carry a trade `role`, or `undefined` when none does (a batch off a
+ * trade — the readers' historical «no trade segments»). A trade-rooted batch
+ * can carry a role-less segment too (a card's passive answering the trade):
+ * it is read as income by `tradeRoleForIndex`.
+ */
+export function tradeSegmentsOf(segments: ReadonlyArray<{role?: ColonyTradeRevealRole, count: number}> | undefined): ReadonlyArray<ColonyTradeRevealSegment> | undefined {
+  if (segments === undefined || !segments.some((s) => s.role !== undefined)) {
+    return undefined;
+  }
+  return segments.map((s) => ({role: s.role ?? 'income', count: s.count}));
+}

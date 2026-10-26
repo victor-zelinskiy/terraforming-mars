@@ -162,7 +162,7 @@ test('two Pluto cubes: two batches, each card dealt exactly once', async ({page,
         id: cycle === 1 ? 990 : 991,
         source: {type: 'colony', colonyName: 'Pluto', trade: {tradeId: 'probe:g1:a1', role: 'bonus'}},
         cards: [{name: cycle === 1 ? BONUS_1 : BONUS_2}],
-        tradeSegments: [{role: 'bonus', count: 1}],
+        segments: [{role: 'bonus', count: 1}],
       }],
       waitingFor: {
         type: 'card',

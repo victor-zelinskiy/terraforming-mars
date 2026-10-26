@@ -1587,7 +1587,7 @@ import {installCursorArrivalInput} from '@/client/console/cursorArrivalInput';
 import {defineComponent, nextTick as vueNextTick, PropType, ref, watch as vueWatch} from 'vue';
 import {promptReceiveArmed, promptReceiveState} from '@/client/console/cardReceive/promptReceive';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
-import type {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
+import type {CardDrawRevealSource, CardIntakeBatchRef} from '@/common/models/CardDrawRevealModel';
 import {MarsBotModel} from '@/common/models/MarsBotModel';
 import {Color} from '@/common/Color';
 import {GameModel} from '@/common/models/GameModel';
@@ -2012,7 +2012,7 @@ import {
 import {bonusDiscardOwnsBatch, bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
 import {revealSourcePeekState} from '@/client/console/revealSourcePeek';
-import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceClaimsRevealSource, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState, workspaceOutcomeZone} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceClaimsColonyRevealBatch, workspaceClaimsDrawRevealBatch, workspaceClaimsRevealBatch, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceClaimsRevealSource, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, retainWorkspaceOutcomeForNextBatch, setWorkspaceOutcomePhase, setWorkspaceOutcomeServingProbe, workspaceOutcomeState, workspaceOutcomeZone} from '@/client/console/consoleWorkspaceOutcome';
 import {boardBeatParkPending, boardBeatParkState, boardBeatParksReveal, drainBoardBeatsIfDue, noteBoardScaleAdvance, registerBoardBeatLiveParams, registerBoardBeatRedrive, registerBoardBeatSurfaceProbe, registerBoardWatchableProbe, resetBoardBeatPark} from '@/client/console/boardBeatPark';
 import {parliamentParksReveal} from '@/client/console/parliament/parliamentRewardBeat';
 import {rulingChangeParksReveal} from '@/client/console/parliament/rulingChangeDraw';
@@ -5073,12 +5073,7 @@ export default defineComponent({
       // the walk reaches it. Scoped to the batch (`via` = the paying card),
       // released by the walk, bounded by its stall net.
       const ev = currentRevealEvent();
-      return ev !== undefined &&
-        !remoteColonyBonusParksReveal(this.remoteColonyBonusPending, ev.source) &&
-        !boardBeatParksReveal(ev.source) &&
-        !parliamentParksReveal(ev.source) &&
-        !rulingChangeParksReveal(ev.source) &&
-        !colonyBonusPayoutParksReveal(ev.source);
+      return ev !== undefined && !this.revealBatchParked(ev);
     },
     /**
      * The reveal modal's MANDATORY closing step, when the pending prompt is the
@@ -5130,8 +5125,7 @@ export default defineComponent({
       if (this.consoleRevealMode !== 'drawn') {
         return undefined;
       }
-      const source = currentRevealEvent()?.source;
-      if (!workspaceClaimsDrawReveal(source) && !workspaceClaimsColonyReveal(source)) {
+      if (!workspaceClaimsRevealBatch(currentRevealEvent())) {
         return undefined;
       }
       const slot = workspaceOutcomeZone();
@@ -5398,7 +5392,7 @@ export default defineComponent({
         return false;
       }
       return this.taskBelongsToWorkspace ||
-        (this.rawDrawnRevealPending && workspaceClaimsDrawReveal(currentRevealEvent()?.source));
+        (this.rawDrawnRevealPending && workspaceClaimsDrawRevealBatch(currentRevealEvent()));
     },
     /**
      * The workspace is PARKED — hidden for board inspection while its
@@ -5421,8 +5415,7 @@ export default defineComponent({
      *  against a flow that had no legacy component in it at all. */
     revealHeldForWorkspace(): boolean {
       const ev = currentRevealEvent();
-      if (ev === undefined || !this.rawDrawnRevealPending ||
-          !(workspaceClaimsDrawReveal(ev.source) || workspaceClaimsColonyReveal(ev.source))) {
+      if (ev === undefined || !this.rawDrawnRevealPending || !workspaceClaimsRevealBatch(ev)) {
         return false;
       }
       // THE ACTIVATION GATE OUTRANKS EVERY EXIT SIGNAL. The scene-exit barrier
@@ -5440,7 +5433,7 @@ export default defineComponent({
       // THE DISCARD STEP OWNS THE ROOM — a next cycle's batch that rode the discard's own answer waits for the
       // stage to come back. This used to be the EMPTY SLOT's job (the stage closed for the discard); the stage now
       // RECEDES with its zone still published (the settlement table parks in it), so the hold is stated here.
-      if (colonyResolutionUi.discardStage && workspaceClaimsColonyReveal(ev.source)) {
+      if (colonyResolutionUi.discardStage && workspaceClaimsColonyRevealBatch(ev)) {
         return true;
       }
       // THE SCENE-EXIT BARRIER: exactly one card stage owns the working scene
@@ -5533,11 +5526,11 @@ export default defineComponent({
       // `rawDrawnRevealPending` upstream) stays outstanding too: it is
       // undismissed.
       if (this.playerView.cardDrawReveals.some((r) =>
-        !serverRevealConsumed(r.id) && workspaceClaimsRevealSource(r.source))) {
+        !serverRevealConsumed(r.id) && workspaceClaimsRevealBatch(r))) {
         return true;
       }
       return this.rawDrawnRevealPending &&
-        workspaceClaimsRevealSource(currentRevealEvent()?.source);
+        workspaceClaimsRevealBatch(currentRevealEvent());
     },
     /** The funnel's registered probe: serving = a live prompt OR a live batch.
      *  (The take paths release with `force` — the consumed artifact is the
@@ -5613,7 +5606,7 @@ export default defineComponent({
         claimLive: workspaceOutcomeClaimed(),
         claimHost,
         claimHostKnown: claimHost !== undefined && workspaceFrameKnown(claimHost),
-        claimMatchesBatch: workspaceClaimsDrawReveal(source) || workspaceClaimsColonyReveal(source),
+        claimMatchesBatch: workspaceClaimsRevealBatch(ev),
         boardSceneOwns: boardCardBonusClaimsReveal(source),
         tradeSceneOwns: colonyTradeClaimsReveal(source),
         adoptionHost: outcomeAdoptionHost(),
@@ -7926,7 +7919,7 @@ export default defineComponent({
       // the exact «yanked to another screen» this family exists to prevent.
       return this.rawDrawnRevealPending &&
         workspaceOutcomeState.host === 'colonies' &&
-        workspaceClaimsColonyReveal(currentRevealEvent()?.source);
+        workspaceClaimsColonyRevealBatch(currentRevealEvent());
     },
     // ── THE COLONY RESOLUTION (colonyResolution.ts) — the Pluto flow's ONE
     //    lifecycle. Every signal is authoritative: the server's discard marker,
@@ -13122,7 +13115,7 @@ export default defineComponent({
               (resolution.kind === 'phase' &&
               consoleActionComposerUi.revealClaim !== '' &&
               lr !== undefined && lr.action === consoleActionComposerUi.revealClaim) ||
-              workspaceClaimsDrawReveal(currentRevealEvent()?.source) ||
+              workspaceClaimsDrawRevealBatch(currentRevealEvent()) ||
               workspaceOutcomeState.sourceCard !== '' ||
               // A SelectColony follow-up standing INSIDE the action workspace:
               // the composer stays and hosts the colonies step — dismissing it
@@ -20130,9 +20123,26 @@ export default defineComponent({
      * workspace once the intake has landed the card (`consoleForegroundBusy`'s
      * falling edge; now, if it already has) — never announced, never lateral.
      */
+    /**
+     * IS THIS BATCH PARKED — the ONE verdict of every park family, for the queue, the occupancy and the pending
+     * signal alike («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР», R7): a park holds a batch by its ROOT (the first segment's
+     * source — a foreign trade's delivery behind its announcement, the Agenda CARD step behind the sitting's
+     * glide, a ledger row behind its turn, a change-of-power answer behind the enactment tact), and the BOARD
+     * BEAT holds only a batch no workspace claims: a merged batch whose Venus-scale card rides beside the played
+     * card's own presents in the workspace (its scale run starts from the peek), never out of line waiting for a
+     * board the very workspace covers — that wait was a deadlock by construction.
+     */
+    revealBatchParked(batch: CardIntakeBatchRef): boolean {
+      const root = batch.source;
+      return remoteColonyBonusParksReveal(this.remoteColonyBonusPending, root) ||
+        parliamentParksReveal(root) ||
+        rulingChangeParksReveal(root) ||
+        colonyBonusPayoutParksReveal(root) ||
+        (!workspaceClaimsRevealBatch(batch) && boardBeatParksReveal(root));
+    },
     continueLedgerPayoutAfterTake(): void {
       const next = drawnCardsState.events.find((e) =>
-        !e.dismissed && e.cards.length - e.takenIndices.size > 0 && workspaceClaimsColonyReveal(e.source));
+        !e.dismissed && e.cards.length - e.takenIndices.size > 0 && workspaceClaimsColonyRevealBatch(e));
       retainWorkspaceOutcomeForNextBatch(next?.cards.length ?? 0);
       if (this.ledgerDiscardStepOwed) {
         this.consoleState.task.deferred = false;
@@ -20814,7 +20824,7 @@ export default defineComponent({
       const taken = currentRevealEvent()?.id;
       const sibling = drawnCardsState.events.find((e) =>
         e.id !== taken && !e.dismissed && e.cards.length - e.takenIndices.size > 0 &&
-        e.source?.type === 'colony' && e.source.via !== undefined && workspaceClaimsColonyReveal(e.source));
+        e.source?.type === 'colony' && e.source.via !== undefined && workspaceClaimsColonyRevealBatch(e));
       if (sibling !== undefined) {
         retainWorkspaceOutcomeForNextBatch(sibling.cards.length);
         return;
@@ -21075,7 +21085,7 @@ export default defineComponent({
           // `workspaceClaimsDrawReveal(undefined)` — so Celestic's trail
           // window keeps its claim.)
           (this.rawDrawnRevealPending &&
-            workspaceClaimsRevealSource(currentRevealEvent()?.source)) ||
+            workspaceClaimsRevealBatch(currentRevealEvent())) ||
           deckDrawHolds() ||
           consoleActionComposerUi.revealClaim !== '' ||
           // …and while the SERVER is holding a VERDICT this claim owns. Same
@@ -21121,7 +21131,7 @@ export default defineComponent({
           // releases that batch only after this very workspace concludes.
           (isPlayOutcomeHost(workspaceOutcomeState.host) &&
             this.playerView.cardDrawReveals.some((r) =>
-              !serverRevealConsumed(r.id) && workspaceClaimsRevealSource(r.source))) ||
+              !serverRevealConsumed(r.id) && workspaceClaimsRevealBatch(r))) ||
           // The COLONY claim spans its whole resolution — the mandatory bonus
           // discard is a handSelect the workspace itself hosts, never «the
           // server asked for something else».
@@ -24145,9 +24155,9 @@ export default defineComponent({
     // wall the workspace's own batch behind it (drawnCardsState — the queue
     // park), the same verdict `rawDrawnRevealPending` subtracts.
     // …and a ledger row's batch whose turn has not come (`colonyBonusPayoutParksReveal` — TR23).
-    this.releaseRevealQueuePark = registerRevealQueuePark((source) => boardBeatParksReveal(source) || colonyBonusPayoutParksReveal(source) ||
-      // …and a card's answer to a change of power (TR62) waits for the sitting's enactment tact — the queue skips it.
-      rulingChangeParksReveal(source));
+    // …and ONE verdict for the batch (`revealBatchParked` — the card-intake law's R7: a park holds a batch by its
+    // ROOT, and a batch a workspace claims is never held out of its own zone by the board beat).
+    this.releaseRevealQueuePark = registerRevealQueuePark((batch) => this.revealBatchParked(batch));
     // …and the ledger's redrive rides the shell's GUARDED drain (the one
     // that folds board cinematics + the read admission in) — the bare
     // module drain is only the desktop/test default.
@@ -24423,13 +24433,7 @@ export default defineComponent({
     // a global-parameter batch waiting out a covered board is presented
     // NOWHERE by design, and must not read as a live result-modal either.
     // …and the parliament's Agenda CARD park is the third (same law, same shape).
-    this.releaseRevealParkSupplier = registerRevealParkSupplier(
-      (source) => remoteColonyBonusParksReveal(this.remoteColonyBonusPending, source) ||
-        boardBeatParksReveal(source) || parliamentParksReveal(source) ||
-        // …and the ledger payout's (a row's batch waiting for its turn — the fourth member, same law).
-        colonyBonusPayoutParksReveal(source) ||
-        // …and a card's answer to a change of power (TR62 — the fifth: it waits for the sitting's enactment tact).
-        rulingChangeParksReveal(source));
+    this.releaseRevealParkSupplier = registerRevealParkSupplier((batch) => this.revealBatchParked(batch));
     // T6: the notification CTAs go through the typed notificationBus;
     // PlayerHome's listeners don't exist in console — the shell answers them.
     (this as unknown as {__notifOff: Array<() => void>}).__notifOff = [

@@ -355,7 +355,7 @@ test('visual: a merged trade batch renders the labelled colony-bonus zone', asyn
         {name: 'Micro-Mills'}, {name: 'Insulation'},
         {name: 'Windmills'},
       ],
-      tradeSegments: [{role: 'income', count: 2}, {role: 'bonus', count: 1}],
+      segments: [{role: 'income', count: 2}, {role: 'bonus', count: 1}],
     }];
     // ⚠️ A WHOLE PROMPT, not a marker bolted onto whatever was already there.
     // The zones render off a colony-bonus DISCARD prompt, i.e. a `type: 'card'`

@@ -292,7 +292,7 @@ describe('colonyBonusPayout — «the ledger pays»', () => {
 
     it('payoutUntaken: the reveal queue\'s own count of the payout\'s cards for a tile — never a foreign batch, never a dismissed one', () => {
       const event = (id: number, source: CardDrawRevealSource, cards: number, taken: Array<number> = [], dismissed = false) =>
-        ({id, source, cards: Array.from({length: cards}, () => ({name: CardName.ANTS})), takenIndices: new Set(taken), dismissed});
+        ({id, source, segments: [{source, count: cards}], cards: Array.from({length: cards}, () => ({name: CardName.ANTS})), takenIndices: new Set(taken), dismissed});
       const before = drawnCardsState.events;
       try {
         armColonyBonusPayout(HS, payoutRowsOf(LEDGER, [CardName.DIRIGIBLES]), 2);

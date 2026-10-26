@@ -470,7 +470,7 @@ import {
   markWorkspaceOutcomePresenting,
   workspaceOutcomeBeatPending,
   releaseWorkspaceOutcome,
-  workspaceClaimsDrawReveal,
+  workspaceClaimsDrawRevealBatch,
   workspaceOutcomeAdmits,
   workspaceOutcomeClaimed,
   workspaceOutcomeState,
@@ -1213,7 +1213,7 @@ export default defineComponent({
         return 0;
       }
       const ev = currentRevealEvent();
-      return ev !== undefined && workspaceClaimsDrawReveal(ev.source) ? ev.id : 0;
+      return ev !== undefined && workspaceClaimsDrawRevealBatch(ev) ? ev.id : 0;
     },
     /** The claim this workspace raised is still alive (drives the fold-back). */
     outcomeClaimLive(): boolean {

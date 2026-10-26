@@ -65,7 +65,7 @@
                               :data-reveal-discarded="batchDiscarded ? '' : undefined"
                               :title="titleText">
             <template v-if="stageHead.badges.length > 0" #badges>
-              <template v-for="badge in stageHead.badges" :key="badge.kind">
+              <template v-for="(badge, badgeIndex) in stageHead.badges" :key="badge.kind + ':' + badgeIndex">
                 <!-- A SETTLEMENT TABLE's badge is the table's size — the places, one per settlement — constant from the
                      first deal to the last turn (a «ПОЛУЧЕНО N» that read 3, then 1, would count batches the player
                      never sees). -->
@@ -98,8 +98,10 @@
                   <b v-if="badge.reading.nameText !== undefined || badge.reading.nameKey !== ''" class="con-reveal__sourcebadge-name">
                     {{ badge.reading.nameText ?? $t(badge.reading.nameKey) }}
                   </b>
+                  <!-- ONE CAUSE OF SEVERAL («ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР»): its share of the batch. -->
+                  <b v-if="badge.count !== undefined" class="con-ws-stage-badge__num" data-reveal-source-count>+{{ badge.count }}</b>
                   <!-- L3 answers «where from» for a card (the viewer) AND a cell (the board) — the glyph says so. -->
-                  <GamepadGlyph v-if="badge.reading.inspectable || cellSource !== undefined" control="stickL" />
+                  <GamepadGlyph v-if="badge.count === undefined && (badge.reading.inspectable || cellSource !== undefined)" control="stickL" />
                 </span>
               </template>
             </template>
@@ -593,7 +595,7 @@ import ConsoleRevealVerdict from '@/client/components/console/foundation/Console
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {availabilityContextFor, buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
 import {focusKicker} from '@/client/console/consoleActionFlow';
-import {revealSourceForeignToClaim, setWorkspaceOutcomePhase, workspaceClaimsColonyReveal, workspaceClaimsDrawReveal, workspaceOutcomeArrivalPending, workspaceOutcomeState, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
+import {revealSourceForeignToClaim, setWorkspaceOutcomePhase, workspaceClaimsRevealBatch, workspaceOutcomeArrivalPending, workspaceOutcomeState, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
 import {
   DrawnCardEntry, closeAndReleaseEvent, currentRevealEvent, holdRevealForFollowUp, markAllTaken,
@@ -1054,6 +1056,8 @@ export default defineComponent({
         search: e?.search !== undefined,
         table: this.tableOn ? {income: this.tableIncome.length, total: this.tableMeta?.total ?? 0} : undefined,
         source: this.drawnSource,
+        // THE CAUSES (`segments`): a merged batch names every one with its share, in both hosts.
+        segments: e?.segments,
         cellBonuses: this.sourceCellBonuses,
         sourceOnStage: this.sourceSeat,
         // reactive through the claim's own state (`workspaceOutcomeState.sourceCard`)
@@ -1220,8 +1224,7 @@ export default defineComponent({
      */
     workspaceOwnsBatch(): boolean {
       const src = this.drawnEvent?.source;
-      const claimed = (workspaceClaimsDrawReveal(src) || workspaceClaimsColonyReveal(src)) &&
-        !boardCardBonusClaimsReveal(src);
+      const claimed = workspaceClaimsRevealBatch(this.drawnEvent) && !boardCardBonusClaimsReveal(src);
       return this.embedded || claimed;
     },
     /** The batch identity to LATCH, or '' while nothing owns this one. */

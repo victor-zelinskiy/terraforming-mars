@@ -146,7 +146,7 @@ function patchCollision(body: Model, cycle: number): void {
       id: BONUS_BATCH_ID,
       source: {type: 'colony', colonyName: 'Pluto', trade: {tradeId: 'collision:g1:a1', role: 'bonus'}},
       cards: [{name: 'Insulation'}],
-      tradeSegments: [{role: 'bonus', count: 1}],
+      segments: [{role: 'bonus', count: 1}],
     },
   ];
   body.waitingFor = {

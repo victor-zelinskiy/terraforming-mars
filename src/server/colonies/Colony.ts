@@ -731,8 +731,12 @@ export abstract class Colony implements IColony {
         // and by the rules the NEXT cube's card is not revealed until this one
         // is finished — so this batch is closed here rather than left to be
         // separated by whenever the client's acknowledgement happens to land
-        // (see IPlayer.CardDrawReveal.sealed).
-        player.sealCardDrawReveal();
+        // (see IPlayer.CardDrawReveal.sealed). The seal NAMES the pair's
+        // discard, so the console can show the next cube's place under it.
+        player.sealCardDrawReveal({
+          kind: 'discard', colony: this.name, ordinal: {index: seat.index, total: seat.total},
+          ...(via === undefined ? {} : {card: via}),
+        });
         // WHO owns the closing discard. A trade's: the colony resolution
         // (`colonyBonus` — the marker that routes the colony workspace). A
         // CARD's: that card, with the tile and «n of k» riding `colonyRepeat`

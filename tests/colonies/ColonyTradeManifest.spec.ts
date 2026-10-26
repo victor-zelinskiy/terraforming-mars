@@ -1,4 +1,5 @@
 import {expect} from 'chai';
+import {tradeSegmentsOf} from '@/common/models/CardDrawRevealModel';
 import {cast} from '@/common/utils/utils';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {Resource} from '@/common/Resource';
@@ -36,7 +37,7 @@ describe('ColonyTradeManifest', () => {
 
     // The two BUILD bonus batches never merge (no trade tag) and carry no segments.
     expect(player.cardDrawReveals).has.lengthOf(2);
-    expect(player.cardDrawReveals[0].tradeSegments).is.undefined;
+    expect(tradeSegmentsOf(player.cardDrawReveals[0].segments)).is.undefined;
     player.acknowledgeCardDrawReveals('all');
 
     pluto.increaseTrack(3); // marker at 5 → trade income = 3 cards
@@ -67,7 +68,7 @@ describe('ColonyTradeManifest', () => {
       colonyName: pluto.name,
       trade: {tradeId: manifest.tradeId, role: 'income'},
     });
-    expect(batch.tradeSegments).deep.eq([{role: 'income', count: 3}, {role: 'bonus', count: 1}]);
+    expect(tradeSegmentsOf(batch.segments)).deep.eq([{role: 'income', count: 3}, {role: 'bonus', count: 1}]);
 
     // The track is NOT reset while rewards are still resolving.
     expect(pluto.trackPosition).eq(5);
@@ -82,7 +83,7 @@ describe('ColonyTradeManifest', () => {
 
     // Cube 2's draw is its OWN batch — the modal reveals it only now.
     expect(player.cardDrawReveals).has.lengthOf(1);
-    expect(player.cardDrawReveals[0].tradeSegments).deep.eq([{role: 'bonus', count: 1}]);
+    expect(tradeSegmentsOf(player.cardDrawReveals[0].segments)).deep.eq([{role: 'bonus', count: 1}]);
     const discard2 = cast(player.popWaitingFor(), SelectCard<IProjectCard>);
     expect(discard2.discardPrompt?.colonyBonus).deep.eq({colonyName: pluto.name, index: 2, total: 2});
     discard2.cb([discard2.cards[0]]);
@@ -103,7 +104,7 @@ describe('ColonyTradeManifest', () => {
     runAllActions(game); // income (1 @ position 1) + bonus draw #1 merged
 
     expect(player.cardDrawReveals).has.lengthOf(1);
-    expect(player.cardDrawReveals[0].tradeSegments).deep.eq([{role: 'income', count: 1}, {role: 'bonus', count: 1}]);
+    expect(tradeSegmentsOf(player.cardDrawReveals[0].segments)).deep.eq([{role: 'income', count: 1}, {role: 'bonus', count: 1}]);
     expect(pluto.trackPosition).eq(1);
 
     const discard = cast(player.popWaitingFor(), SelectCard<IProjectCard>);
@@ -137,7 +138,7 @@ describe('ColonyTradeManifest', () => {
     // Cycle 1: income + colony 1's bonus card, merged as before — and SEALED.
     expect(player.cardDrawReveals).has.lengthOf(1);
     const first = player.cardDrawReveals[0];
-    expect(first.tradeSegments?.map((s) => s.role)).deep.eq(['income', 'bonus']);
+    expect(tradeSegmentsOf(first.segments)?.map((s) => s.role)).deep.eq(['income', 'bonus']);
     expect(first.sealed, 'the pending mandatory discard closes the batch').is.true;
 
     const discard1 = cast(player.popWaitingFor(), SelectCard<IProjectCard>);
@@ -150,9 +151,9 @@ describe('ColonyTradeManifest', () => {
     const second = player.cardDrawReveals[1];
     expect(second.id).not.eq(first.id);
     expect(second.cards).has.lengthOf(1);
-    expect(second.tradeSegments).deep.eq([{role: 'bonus', count: 1}]);
+    expect(tradeSegmentsOf(second.segments)).deep.eq([{role: 'bonus', count: 1}]);
     expect(first.cards.length, 'the first batch did not grow').eq(
-      (first.tradeSegments ?? []).reduce((n, s) => n + s.count, 0));
+      (tradeSegmentsOf(first.segments) ?? []).reduce((n, s) => n + s.count, 0));
   });
 
   it('resource colony (Triton): manifest carries the resolved resource grant', () => {

@@ -63,6 +63,31 @@ describe('revealStageHead — the words of «вы получили карты»,
     expect(head.badges.map((b) => b.kind)).deep.eq(['source']);
   });
 
+  it('«ОДНО ДЕЙСТВИЕ — ОДИН ЗАБОР»: a merged batch names EVERY cause with its share, in dealing order, in both hosts', () => {
+    const segments = [
+      {source: {type: 'card', cardName: CardName.RESEARCH}, count: 2},
+      {source: {type: 'card', cardName: CardName.OLYMPUS_CONFERENCE}, count: 1},
+      {source: {type: 'card', cardName: CardName.MARS_UNIVERSITY}, count: 1},
+    ] as const;
+    const embedded = revealStageHead(input({host: 'embedded', cards: 4, source: segments[0].source, segments: [...segments], sourceOnStage: true}));
+    expect(embedded.titleKey).eq('Cards received');
+    expect(embedded.badges).deep.eq([
+      {kind: 'received', count: 4},
+      {kind: 'source', reading: {labelKey: 'Source', nameKey: CardName.RESEARCH, icons: [], inspectable: true}, count: 2},
+      {kind: 'source', reading: {labelKey: 'Source', nameKey: CardName.OLYMPUS_CONFERENCE, icons: [], inspectable: true}, count: 1},
+      {kind: 'source', reading: {labelKey: 'Source', nameKey: CardName.MARS_UNIVERSITY, icons: [], inspectable: true}, count: 1},
+    ]);
+    // The scene says the same — and a cell among the causes keeps its printed face.
+    const scene = revealStageHead(input({cards: 2, segments: [{source: {type: 'tile', spaceId: '38'}, count: 1}, {source: {type: 'card', cardName: CardName.MARS_UNIVERSITY}, count: 1}]}));
+    expect(scene.badges.map((b) => b.kind)).deep.eq(['received', 'source', 'source']);
+    expect(scene.badges[1]).deep.include({count: 1});
+    if (scene.badges[1].kind === 'source') {
+      expect(scene.badges[1].reading.icons).deep.eq(['resource_icon--cards', 'resource_icon--cards']);
+    }
+    // Two runs of ONE cause (a search beside its own plain draw) are one share; one cause reads as before.
+    expect(revealStageHead(input({cards: 3, source: segments[0].source, segments: [{source: segments[0].source, count: 2}, {source: segments[0].source, count: 1}]})).badges.map((b) => b.kind)).deep.eq(['source', 'received']);
+  });
+
   it('a filtered search states its tally instead of the count; a settlement table its places and its own title', () => {
     expect(revealStageHead(input({search: true})).badges.map((b) => b.kind)).deep.eq(['source', 'search']);
     const table = revealStageHead(input({host: 'embedded', table: {income: 1, total: 2}}));
