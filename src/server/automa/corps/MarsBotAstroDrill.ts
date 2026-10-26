@@ -4,6 +4,9 @@ import {MarsBotCorpId, MarsBotTrackCube, marsBotCorpInfo} from '../../../common/
 import {IGame} from '../../IGame';
 import {SPACE_CUBE_LOG, WILD_CUBE_LOG, pushCubeTrack} from './MarsBotCubeTrackPush';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {matTracks} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C19_ASTRO_DRILL);
 
@@ -34,6 +37,16 @@ const INFO = marsBotCorpInfo(MarsBotCorpId.C19_ASTRO_DRILL);
  */
 export const MarsBotAstroDrill: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C19_ASTRO_DRILL).rates;
+    const passed = matTracks(game).reduce((n, t) =>
+      n + t.definition.layout.slice(0, t.position + 1).filter((action) => action === 'advance').length, 0);
+    return dividendResult([
+      perUnitTerm('«Advance» spaces passed', passed, r.each),
+    ]);
+  },
 
   onTrackCubeTrigger(game: IGame, cube: MarsBotTrackCube, _printedAction: TrackAction | undefined): 'replaces-action' | void {
     pushCubeTrack(game, cube, {

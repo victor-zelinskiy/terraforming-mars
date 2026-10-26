@@ -95,8 +95,10 @@ export type MissionSlotState = 'locked' | 'ready' | 'active' | 'committed';
 export type CampaignProgression = {
   /** seat → corporations in acquisition order (humans only). */
   lineages: Record<number, ReadonlyArray<CardName>>;
-  /** Fixed after mission 1; the bot keeps ONE corporation all campaign. */
+  /** Fixed after mission 1 — the bot's PRIMARY, the one corporation whose boxes it plays. */
   botCorporation?: MarsBotCorpId;
+  /** The bot's HOLDINGS (missions 2 and 3), dividend only. Absent on a pre-portfolio campaign. */
+  botHoldings?: ReadonlyArray<MarsBotCorpId>;
   /** Flattened title ledger across committed missions. */
   titles: ReadonlyArray<{seat: number} & TitleEntry>;
 };

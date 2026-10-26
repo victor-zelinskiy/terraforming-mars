@@ -19,6 +19,7 @@ import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotCorp} from './MarsBotCorp';
 import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
 import {EffectForecastContext} from '../../cards/EffectForecastContext';
+import {MarsBotDividendDetail, MarsBotDividendResult, NO_DIVIDEND} from '../../../common/automa/MarsBotDividend';
 import {MarsBotCredicor} from './MarsBotCredicor';
 import {MarsBotHelion} from './MarsBotHelion';
 import {MarsBotInterplanetaryCinematics} from './MarsBotInterplanetaryCinematics';
@@ -244,24 +245,38 @@ export class AutomaCorporations {
     if (automa === undefined) {
       throw new Error('Not an automa game');
     }
-    const eligible = AutomaCorporations.eligibleCorpIds(game);
-    if (eligible.length === 0) {
+    const allEligible = AutomaCorporations.eligibleCorpIds(game);
+    if (allEligible.length === 0) {
       throw new Error('MarsBot corporation pool is empty — every implemented corporation collides with a human corporation. ' +
         `Implemented: ${MARS_BOT_CORP_IDS.join(', ')}; humans hold: ${[...AutomaCorporations.humanCorporationNames(game)].join(', ')}`);
     }
+    // The campaign's HOLDINGS are already the bot's — the random primary is
+    // drawn from what is left (never emptied by them: a pool that would be is
+    // an impossible campaign, and then the holdings simply yield).
+    const portfolio = game.gameOptions.automa?.portfolio ?? [];
+    const withoutHoldings = allEligible.filter((id) => !portfolio.includes(id));
+    const eligible = withoutHoldings.length > 0 ? withoutHoldings : allEligible;
     // DEV/TEST override (the customBonusCards twin): honored only while
     // eligible — a request colliding with a human corporation falls back to
     // the normal random selection rather than seating an illegal corp.
     const requested = game.gameOptions.automa?.corporation;
-    const id = requested !== undefined && eligible.includes(requested) ?
+    const id = requested !== undefined && allEligible.includes(requested) ?
       requested :
       eligible[game.rng.nextInt(eligible.length)];
     automa.corporation = id;
+    automa.holdings = AutomaCorporations.seatableHoldings(portfolio, id, allEligible);
     const corp = AutomaCorporations.REGISTRY[id];
     const bot = marsBotOf(game);
     game.events.beginAction(bot, {kind: 'corporation', card: corp.info.original, owner: bot.color}, {category: 'corporation-action'});
     try {
       game.log('${0} received the corporation ${1}', (b) => b.player(bot).string(corp.info.original));
+      // The portfolio's holdings are named once, at the table's setup — their
+      // boxes stay switched off, only the dividend counts (and the scoring
+      // pass computes it, so nothing here touches state).
+      for (const holding of automa.holdings) {
+        game.log('${0} holds the corporation ${1}: it pays only its dividend at the end of the game',
+          (b) => b.player(bot).string(marsBotCorpInfo(holding).original));
+      }
       corp.setup?.(game);
       for (const tag of corp.info.startingTags) {
         game.log('${0} resolved the starting ${1} tag of its corporation', (b) => b.player(bot).string(tag));
@@ -508,6 +523,53 @@ export class AutomaCorporations {
    */
   public static endgameVictoryPoints(game: IGame): number {
     return AutomaCorporations.activeCorp(game)?.endgameVictoryPoints?.(game) ?? 0;
+  }
+
+  // ── The campaign portfolio (docs/claude/prompts/marsbot-portfolio-dividends.md) ──
+  //
+  // The PRIMARY is `activeCorp` and the ONLY corporation any hook above is
+  // dispatched to. A HOLDING is never dispatched to: no setup, no starting
+  // tags, no effect, no Before-Action-Phase / Round-Start box, no cubes, no
+  // draft priority, no bonus cards. It pays one thing — its dividend — and
+  // that is asked only by the scoring pass, below.
+
+  /**
+   * Which of the requested holdings can be seated next to `primary`: each one
+   * once, never the primary itself, and only one this game could have drawn
+   * (`eligible` — its printed module condition met, no human holding its
+   * original). Pure, so the campaign and the gate agree.
+   */
+  public static seatableHoldings(requested: ReadonlyArray<MarsBotCorpId>, primary: MarsBotCorpId, eligible: ReadonlyArray<MarsBotCorpId>): Array<MarsBotCorpId> {
+    const seated: Array<MarsBotCorpId> = [];
+    for (const id of requested) {
+      if (id !== primary && eligible.includes(id) && !seated.includes(id)) {
+        seated.push(id);
+      }
+    }
+    return seated;
+  }
+
+  /** The holdings of this game's portfolio, in acquisition order. */
+  public static holdings(game: IGame): ReadonlyArray<MarsBotCorpId> {
+    return game.automa?.holdings ?? [];
+  }
+
+  /** One corporation's dividend as if it were a holding (the face's live reading, the bench). */
+  public static dividendOf(game: IGame, id: MarsBotCorpId): MarsBotDividendResult {
+    return game.automa === undefined ? NO_DIVIDEND : AutomaCorporations.REGISTRY[id].dividend(game);
+  }
+
+  /**
+   * Every holding's dividend — the `dividendVp` term of the bot's breakdown.
+   * Called from the scoring pass (live, every model), so read-only: a clause
+   * re-derives from state and never writes (purity guard in
+   * `tests/automa/MarsBotDividends.spec.ts`).
+   */
+  public static dividends(game: IGame): ReadonlyArray<MarsBotDividendDetail> {
+    return AutomaCorporations.holdings(game).map((corporation) => ({
+      corporation,
+      ...AutomaCorporations.dividendOf(game, corporation),
+    }));
   }
 
   /** MarsBot took a Failed Action — dispatched from the ONE `failedAction`. */

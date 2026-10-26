@@ -26,7 +26,8 @@ import {CampaignId, GameId, PlayerId, isCampaignId, isGameId, isPlayerId, isSpec
 import {normalizePlayerName, validatePlayerName} from '../../common/utils/playerName';
 import {SeededRandom, UnseededRandom} from '../../common/utils/Random';
 import {AUTOMA_SUPPORTED_BOARDS} from '../../common/automa/automaCompatibility';
-import {marsBotCorpInfo} from '../../common/automa/MarsBotCorpData';
+import {MarsBotCorpId, marsBotCorpInfo} from '../../common/automa/MarsBotCorpData';
+import {drawBotHoldings, holdingsForSlot} from './botPortfolio';
 import {
   CAMPAIGN_GENERATOR_VERSION,
   CAMPAIGN_MISSION_COUNT,
@@ -298,20 +299,23 @@ export class CampaignManager {
       missions,
       pointer: 0,
       phase: 'generated',
-      progression: {lineages: {}, titles: []},
+      // A bot campaign starts its portfolio EMPTY (not absent): absent is the
+      // marker of a campaign created before the portfolio existed (D7).
+      progression: hasBot ? {lineages: {}, titles: [], botHoldings: []} : {lineages: {}, titles: []},
     };
   }
 
   /**
    * The corporation pool must survive the whole campaign: each mission deals
    * `startingCorporations` per human while every previously-acquired corp
-   * (up to 2 per human by mission 3) + the bot's frozen original are banned.
+   * (up to 2 per human by mission 3) + the bot's frozen original AND its two
+   * holdings' originals (the portfolio) are banned.
    */
   private validateCorporationPool(config: NewGameConfig): void {
     const options = gameOptionsFromNewGameConfig({...config, board: BoardName.THARSIS}, BoardName.THARSIS);
     const poolSize = new GameCards(options).getCorporationCards().length;
     const humans = config.players.length;
-    const worstCaseBans = humans * 2 + (config.automa !== undefined ? 1 : 0);
+    const worstCaseBans = humans * 2 + (config.automa !== undefined ? 1 + holdingsForSlot(CAMPAIGN_MISSION_COUNT - 1) : 0);
     const required = humans * config.startingCorporations + worstCaseBans;
     if (poolSize < required) {
       throw new Error(`Not enough unique corporations for a campaign: ${poolSize} available, ${required} required`);
@@ -408,6 +412,13 @@ export class CampaignManager {
     if (campaign.progression.botCorporation !== undefined) {
       banned.add(marsBotCorpInfo(campaign.progression.botCorporation).original);
     }
+    // The bot's portfolio grows with the humans' (missions 2 and 3): a new
+    // HOLDING is drawn here, before the deal, and its original leaves the
+    // humans' pool like the primary's — a human and the bot never hold one card.
+    const holdings = botSeat === undefined ? [] : this.growBotHoldings(campaign, slot);
+    for (const holding of holdings) {
+      banned.add(marsBotCorpInfo(holding).original);
+    }
 
     // ⚠️ THE CUSTOM/DEV LISTS CAN RESURRECT A BANNED CARD: GameCards applies
     // `filterBannedCards` FIRST and `addCustomCards` (customCorporationsList /
@@ -439,7 +450,11 @@ export class CampaignManager {
     };
     const gameOptions = gameOptionsFromNewGameConfig(missionConfig, slot.board);
     if (gameOptions.automa !== undefined && campaign.progression.botCorporation !== undefined) {
-      gameOptions.automa = {...gameOptions.automa, corporation: campaign.progression.botCorporation};
+      gameOptions.automa = {
+        ...gameOptions.automa,
+        corporation: campaign.progression.botCorporation,
+        ...(holdings.length > 0 ? {portfolio: [...holdings]} : {}),
+      };
     }
     gameOptions.campaign = this.buildContract(campaign, slot.slot, final);
 
@@ -476,6 +491,38 @@ export class CampaignManager {
       }
     }
     return game;
+  }
+
+  /**
+   * Grow the bot's portfolio to this mission's count (one holding on mission
+   * 2, two on missions 3–4) and return it. The draw is the pure
+   * `drawBotHoldings` over the campaign's own seed, so a relaunch draws
+   * nothing new and a failed launch redraws the same. A campaign created
+   * before the portfolio (`botHoldings` absent — D7) and one whose primary is
+   * not known yet get none.
+   */
+  private growBotHoldings(campaign: SerializedCampaign, slot: SerializedMissionSlot): ReadonlyArray<MarsBotCorpId> {
+    const progression = campaign.progression;
+    const primary = progression.botCorporation;
+    if (progression.botHoldings === undefined || primary === undefined) {
+      return [];
+    }
+    const humanCorporations = new Set<CardName>();
+    for (const lineage of Object.values(progression.lineages)) {
+      for (const name of lineage) {
+        humanCorporations.add(name);
+      }
+    }
+    const expansions = gameOptionsFromNewGameConfig({...campaign.settings, board: slot.board}, slot.board).expansions;
+    progression.botHoldings = drawBotHoldings({
+      slot: slot.slot,
+      primary,
+      holdings: progression.botHoldings,
+      expansions,
+      humanCorporations,
+      seed: campaign.generator.seed,
+    });
+    return progression.botHoldings;
   }
 
   private buildContract(campaign: SerializedCampaign, slot: number, final: boolean): CampaignGameContract {
@@ -747,6 +794,11 @@ export class CampaignManager {
     campaign.progression.lineages = lineages;
     if (campaign.missions[0]?.result === undefined) {
       campaign.progression.botCorporation = undefined;
+      // No primary, no portfolio — and none can have been drawn: the guard
+      // refuses a rollback once the next mission exists.
+      if (campaign.progression.botHoldings !== undefined) {
+        campaign.progression.botHoldings = [];
+      }
     }
   }
 
@@ -1292,6 +1344,7 @@ export class CampaignManager {
       progression: {
         lineages: campaign.progression.lineages,
         botCorporation: campaign.progression.botCorporation,
+        ...(campaign.progression.botHoldings !== undefined ? {botHoldings: campaign.progression.botHoldings} : {}),
         titles: campaign.progression.titles,
         titlePoints,
         pendingBonuses,

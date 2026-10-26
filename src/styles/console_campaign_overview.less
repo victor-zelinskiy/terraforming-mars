@@ -386,6 +386,14 @@
     color: #c6d4e3;
     white-space: nowrap;
   }
+  /* The bot's HOLDING (dividend only): a dashed kant instead of the solid one — form, never a halo. */
+  &__seat-corp--holding {
+    background: rgba(28, 40, 56, 0.45);
+    box-shadow: none;
+    outline: 0.04rem dashed rgba(150, 180, 215, 0.4);
+    outline-offset: -0.04rem;
+    color: fade(#c6d4e3, 78%);
+  }
   &__seat-corp-ord {
     display: inline-grid;
     place-items: center;

@@ -8,6 +8,9 @@ import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {matTracks} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C39_UTOPIA_INVEST);
 /** The card's printed name, for the journal templates. */
@@ -65,6 +68,16 @@ const NAME = 'Utopia Invest';
  */
 export const MarsBotUtopiaInvest: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C39_UTOPIA_INVEST).rates;
+    const tracks = matTracks(game);
+    const most = tracks.length === 0 ? 0 : Math.max(...tracks.map((t) => t.position));
+    return dividendResult([
+      perUnitTerm('Spaces of the most advanced track beyond the mark', most - r.from, r.each),
+    ]);
+  },
 
   beforeActionPhase(game: IGame): void {
     const automa = game.automa;

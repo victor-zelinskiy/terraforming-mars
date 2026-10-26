@@ -1,5 +1,6 @@
 import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
 import {CORP_SECTION_LABEL, MarsBotCorpSection, marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
+import {DIVIDEND_SECTION_LABEL, marsBotDividendInfo} from '@/common/automa/MarsBotDividendData';
 import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
@@ -26,7 +27,7 @@ const SECTION_KIND: Readonly<Record<MarsBotCorpSection['kind'], CardAnnotation['
 
 export function marsBotCorpAnnotations(id: MarsBotCorpId): ReadonlyArray<CardAnnotation> {
   const info = marsBotCorpInfo(id);
-  return info.sections.map((section, index) => ({
+  return info.sections.map((section, index): CardAnnotation => ({
     id: `botcorp:${id}:${section.kind}`,
     kind: SECTION_KIND[section.kind],
     labelKey: CORP_SECTION_LABEL[section.kind],
@@ -42,4 +43,33 @@ export function marsBotCorpAnnotations(id: MarsBotCorpId): ReadonlyArray<CardAnn
     anyPlayer: false,
     order: index,
   }));
+}
+
+/**
+ * The «ДИВИДЕНДЫ» box — the campaign portfolio's fork box
+ * (docs/claude/prompts/marsbot-portfolio-dividends.md). Kept APART from the
+ * printed boxes above (`marsBotCorpAnnotations` is the printed card and only
+ * it): the viewer appends this one in a campaign game, where it can apply. It
+ * works only while the corporation is a HOLDING of the bot, and its first line
+ * says so — the primary's own card never reads as if it scored twice.
+ */
+export function marsBotDividendAnnotation(id: MarsBotCorpId, order: number): CardAnnotation {
+  const box = marsBotDividendInfo(id);
+  const lines = [
+    {text: translateTextWithParams('${0}: works only while MarsBot holds this corporation (campaign)', [translateText(box.name)])},
+    ...box.lines.map((line) => ({
+      text: line.params !== undefined && line.params.length > 0 ?
+        translateTextWithParams(line.text, [...line.params]) :
+        translateText(line.text),
+    })),
+  ];
+  return {
+    id: `botcorp:${id}:dividend`,
+    kind: 'victory-points',
+    labelKey: DIVIDEND_SECTION_LABEL,
+    rows: lines.map((line, i) => ({id: `botcorp:${id}:dividend:${i}`, text: line.text, special: false, anyPlayer: false})),
+    special: false,
+    anyPlayer: false,
+    order,
+  };
 }

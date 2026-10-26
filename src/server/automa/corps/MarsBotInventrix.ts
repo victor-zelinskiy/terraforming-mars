@@ -9,6 +9,9 @@ import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm, bonusTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {pileCount} from './MarsBotDividendReads';
 
 /** The reward of the printed effect (card C05). */
 const REWARD_MC = 2;
@@ -48,6 +51,16 @@ const BRANCH_STAT: Partial<Record<NearBonusBranch, string>> = {
  */
 export const MarsBotInventrix: MarsBotCorp = {
   info: marsBotCorpInfo(MarsBotCorpId.C05_INVENTRIX),
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C05_INVENTRIX).rates;
+    const cards = pileCount(game, (card) => card.requirements.length > 0);
+    return dividendResult([
+      perUnitTerm('Cards with a requirement', cards, r.each),
+      bonusTerm('Threshold bonus', cards, r.at, r.bonus),
+    ]);
+  },
 
   setup(game: IGame): void {
     for (const id of LOBBYISTS) {

@@ -83,6 +83,14 @@ export type SerializedCampaign = {
     /** seat → corporations in acquisition order (humans only). */
     lineages: Record<number, Array<CardName>>;
     botCorporation?: MarsBotCorpId;
+    /**
+     * The bot's HOLDINGS in acquisition order — drawn at the launch of
+     * missions 2 and 3, each paying only its end-game dividend
+     * (docs/claude/prompts/marsbot-portfolio-dividends.md). ABSENT on a
+     * campaign created before the portfolio existed: it finishes without
+     * holdings (the owner's D7 — honest to the results already recorded).
+     */
+    botHoldings?: Array<MarsBotCorpId>;
     titles: Array<{seat: number} & TitleEntry>;
   };
   /** Present between missions while the project carryover is being decided. */

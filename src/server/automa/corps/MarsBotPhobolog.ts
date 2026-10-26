@@ -6,6 +6,10 @@ import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {seedBonusDeckFromProjectDeck} from './MarsBotBonusDeckOps';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {pileCount} from './MarsBotDividendReads';
+import {Tag} from '../../../common/cards/Tag';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C07_PHOBOLOG);
 /** The printed seeding: reveal until 2 cards carry a space tag. */
@@ -39,6 +43,14 @@ const SEED = INFO.bonusDeckSeed ?? {tag: INFO.startingTags[0], count: 2};
  */
 export const MarsBotPhobolog: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C07_PHOBOLOG).rates;
+    return dividendResult([
+      perUnitTerm('Cards with a space tag', pileCount(game, (card) => card.tags.includes(Tag.SPACE)), r.each, r.per),
+    ]);
+  },
 
   setup(game: IGame): void {
     // The reveal is the SHARED setup primitive; this card's own half is the

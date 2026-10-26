@@ -115,7 +115,10 @@
                campaign-dossier modal, folded onto the screen). -->
           <span class="cmap__seat-corps">
             <template v-if="row.isBot">
-              <span v-if="botLineageLabel !== ''" class="cmap__seat-corp"><span class="cmap__seat-corp-ord">1</span>{{ botLineageLabel }}</span>
+              <span v-for="(corp, ci) in botLineage" :key="corp.label" class="cmap__seat-corp" :class="{'cmap__seat-corp--holding': corp.holding}"
+                    :data-bot-holding="corp.holding ? 'true' : undefined">
+                <span class="cmap__seat-corp-ord">{{ ci + 1 }}</span>{{ corp.label }}
+              </span>
             </template>
             <template v-else>
               <span v-for="(corp, ci) in row.lineage" :key="corp" class="cmap__seat-corp">
@@ -393,14 +396,18 @@ export default defineComponent({
       }
       return translateTextWithParams(vm.progressLabel, [...vm.progressParams]);
     },
-    /** The bot's lineage entry for the rail ('' until mission 1 fixes it). */
-    botLineageLabel(): string {
-      const id = this.state.model?.progression.botCorporation;
+    /** The bot's portfolio for the rail: the primary (once mission 1 fixes it), then its HOLDINGS (dividend only). */
+    botLineage(): ReadonlyArray<{label: string, holding: boolean}> {
+      const progression = this.state.model?.progression;
+      const id = progression?.botCorporation;
       if (id === undefined) {
-        return '';
+        return [];
       }
       // The bot corp's display identity IS its human twin (`original`).
-      return $t(marsBotCorpInfo(id).original);
+      return [
+        {label: $t(marsBotCorpInfo(id).original), holding: false},
+        ...(progression?.botHoldings ?? []).map((h) => ({label: $t(marsBotCorpInfo(h).original), holding: true})),
+      ];
     },
     laneFillStyle(): Record<string, string> {
       const vm = this.vm;

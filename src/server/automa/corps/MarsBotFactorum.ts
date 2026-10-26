@@ -8,6 +8,8 @@ import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C20_FACTORUM);
 /** The track whose every advance stocks the card, named by TAG (never an index). */
@@ -61,6 +63,14 @@ const EMPTY_FALLBACK_TRACK = Tag.POWER;
  */
 export const MarsBotFactorum: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C20_FACTORUM).rates;
+    return dividendResult([
+      perUnitTerm('M€ held', marsBotOf(game).megaCredits, r.each, r.per),
+    ]);
+  },
 
   onTrackAdvance(game: IGame, trackIndex: number, _position: number): void {
     const automa = game.automa;

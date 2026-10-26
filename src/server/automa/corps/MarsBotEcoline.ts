@@ -8,6 +8,9 @@ import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {botDivertsTerraforming} from '../BotDivertedTerraforming';
 import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm, bonusTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {botGreenerySpaces} from './MarsBotDividendReads';
 
 /**
  * MarsBot Ecoline — official card C02:
@@ -41,6 +44,16 @@ import {MarsBotCorp} from './MarsBotCorp';
  */
 export const MarsBotEcoline: MarsBotCorp = {
   info: marsBotCorpInfo(MarsBotCorpId.C02_ECOLINE),
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C02_ECOLINE).rates;
+    const greeneries = botGreenerySpaces(game).length;
+    return dividendResult([
+      perUnitTerm('Greenery tiles', greeneries, r.each),
+      bonusTerm('Threshold bonus', greeneries, r.at, r.bonus),
+    ]);
+  },
 
   beforeActionPhase(game: IGame): void {
     const automa = game.automa;

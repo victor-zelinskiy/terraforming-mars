@@ -323,7 +323,7 @@ import {
   buildHydroFacts,
   buildMilestoneCollection,
   buildPenaltyFacts,
-  buildTitleFacts,
+  buildTitleFacts, buildDividendFacts,
   buildScoreOverview,
   buildTrProvenance,
   CardGroupTableModel,
@@ -446,6 +446,7 @@ export default defineComponent({
         hasPathfinders: game.pathfinders !== undefined,
         hasDelta: game.gameOptions.expansions.deltaProject === true,
         hasTitles: game.gameOptions.campaign?.final === true,
+        hasDividends: this.viewed.victoryPointsBreakdown.automa?.detailsDividends !== undefined,
         hasParliament: game.parliament !== undefined,
       });
     },
@@ -574,6 +575,7 @@ export default defineComponent({
       case 'greenery': return buildGreeneryFacts(b);
       case 'delta': return buildHydroFacts(b, this.explorerCtx);
       case 'titles': return buildTitleFacts(b);
+      case 'dividends': return buildDividendFacts(b);
       case 'penalty': return buildPenaltyFacts(b);
       default: {
         const cat = this.liveScore.categories.find((c) => c.key === this.renderCategoryKey);

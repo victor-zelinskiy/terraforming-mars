@@ -5,6 +5,9 @@ import {IProjectCard} from '../../cards/IProjectCard';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {pileCards} from './MarsBotDividendReads';
 
 /** The M€ threshold and reward of the printed effect (card C01). */
 const COST_THRESHOLD = 20;
@@ -30,6 +33,14 @@ const REWARD_MC = 4;
  */
 export const MarsBotCredicor: MarsBotCorp = {
   info: marsBotCorpInfo(MarsBotCorpId.C01_CREDICOR),
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C01_CREDICOR).rates;
+    return dividendResult([
+      perUnitTerm('Printed cost of played cards, M€', pileCards(game).reduce((sum, card) => sum + card.cost, 0), r.each, r.per),
+    ]);
+  },
 
   onProjectCardResolving(game: IGame, card: IProjectCard): void {
     if (card.cost < COST_THRESHOLD) {

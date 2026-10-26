@@ -5,6 +5,11 @@ import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {FloaterPayoutConfig, gainFloaters} from './MarsBotFloaterPayout';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {pileTagCount, botParameterSteps} from './MarsBotDividendReads';
+import {Tag} from '../../../common/cards/Tag';
+import {GlobalParameter} from '../../../common/GlobalParameter';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C34_STORMCRAFT);
 /** What the setup box hands the bot. */
@@ -58,6 +63,16 @@ function payout(countStat: string): FloaterPayoutConfig {
 
 export const MarsBotStormcraft: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C34_STORMCRAFT).rates;
+    return dividendResult([
+      perUnitTerm('Jovian tags', pileTagCount(game, [Tag.JOVIAN]), r.jovian),
+      perUnitTerm('Temperature steps raised', botParameterSteps(game, GlobalParameter.TEMPERATURE), r.step),
+      perUnitTerm('Floaters held', game.automa?.floaters ?? 0, r.floater),
+    ]);
+  },
 
   setup(game: IGame): void {
     gainFloaters(game, SETUP_FLOATERS, payout('stormcraftSetup'));

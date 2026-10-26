@@ -304,6 +304,9 @@
     font-size: 0.85rem;
     letter-spacing: 0.03em;
   }
+  /* The bot's HOLDING (dividend only) — the same entry, quieter ink and a DASHED ordinal: read by form, never a halo. */
+  &__seat-corp--holding { color: fade(#c8b995, 72%); }
+  &__seat-corp--holding &__seat-corp-ord { border-style: dashed; }
   &__seat-corp-ord {
     display: inline-block;
     margin-right: 0.3rem;

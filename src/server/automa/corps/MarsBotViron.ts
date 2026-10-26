@@ -9,6 +9,9 @@ import {newProjectCard} from '../../createCard';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {pileCount} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C25_VIRON);
 /** What one blue card with a red arrow hands the bot. */
@@ -58,6 +61,14 @@ const VP_PER_CARD = 1;
  */
 export const MarsBotViron: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C25_VIRON).rates;
+    return dividendResult([
+      perUnitTerm('Blue cards with an action', pileCount(game, isBlueActionCard), r.each),
+    ]);
+  },
 
   onProjectCardResolving(game: IGame, card: IProjectCard): void {
     const automa = game.automa;

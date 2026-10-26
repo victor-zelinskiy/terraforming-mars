@@ -1,5 +1,6 @@
 import {Tag} from '../cards/Tag';
 import {SpaceId} from '../Types';
+import type {MarsBotDividendDetail} from '../automa/MarsBotDividend';
 
 export type MADetail = {message: string, messageArgs?: Array<string>, victoryPoint: number};
 
@@ -168,6 +169,16 @@ export type AutomaVictoryPoints = {
    * no endgame clause — which is all of them but one so far.
    */
   corpVp: number;
+  /**
+   * Campaign «ДИВИДЕНДЫ КОРПОРАЦИЙ» — the end-game VP each HOLDING of the bot's
+   * portfolio pays (docs/claude/prompts/marsbot-portfolio-dividends.md). The
+   * PRIMARY never pays one (its printed boxes are what it does). OPTIONAL by
+   * design, the `titles` precedent: absent in every ordinary game and on
+   * mission 1, so those breakdowns keep their exact wire shape.
+   */
+  dividendVp?: number;
+  /** Provenance of `dividendVp` — one row per holding, its formula as terms. */
+  detailsDividends?: ReadonlyArray<MarsBotDividendDetail>;
 };
 
 export type VictoryPointsBreakdown = {

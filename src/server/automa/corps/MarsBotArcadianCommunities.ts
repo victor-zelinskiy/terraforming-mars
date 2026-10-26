@@ -8,6 +8,9 @@ import {failedAction} from '../AutomaFailedAction';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {borders, isBotTile} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C18_ARCADIAN_COMMUNITIES);
 /**
@@ -55,6 +58,15 @@ const RESERVED_BONUS_MC = 3;
  */
 export const MarsBotArcadianCommunities: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C18_ARCADIAN_COMMUNITIES).rates;
+    const own = isBotTile(game);
+    return dividendResult([
+      perUnitTerm('Pairs of adjacent MarsBot tiles', borders(game, own, own, true), r.each),
+    ]);
+  },
 
   setup(game: IGame): void {
     // «Resolve Settlers now» — the same routine the card runs, before the

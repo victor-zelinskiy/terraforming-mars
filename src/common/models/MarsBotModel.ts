@@ -1,9 +1,16 @@
-import {BonusCardId, DifficultyLevel, TrackAction} from '../automa/AutomaTypes';
+import {BonusCardId, DifficultyLevel, MarsBotCorpId, TrackAction} from '../automa/AutomaTypes';
+import type {MarsBotDividendResult} from '../automa/MarsBotDividend';
 import {MarsBotCorpModel} from '../automa/MarsBotCorpData';
 import {MarsBotTurn} from '../automa/MarsBotTurn';
 import {Tag} from '../cards/Tag';
 import {CardName} from '../cards/CardName';
 import {ColonyName} from '../colonies/ColonyName';
+
+/** One holding of the bot's portfolio and what it pays right now. */
+export type MarsBotHoldingModel = {
+  id: MarsBotCorpId;
+  dividend: MarsBotDividendResult;
+};
 
 export type MarsBotTrackModel = {
   tags: ReadonlyArray<Tag>;
@@ -27,6 +34,13 @@ export type MarsBotModel = {
    * Absent only on legacy corpless saves.
    */
   corporation?: MarsBotCorpModel;
+  /**
+   * The HOLDINGS of the bot's campaign portfolio — corporations whose boxes
+   * are switched off and which pay only their end-game dividend, read LIVE
+   * (the same numbers the bot's breakdown carries). Absent in every ordinary
+   * game and on mission 1.
+   */
+  holdings?: ReadonlyArray<MarsBotHoldingModel>;
   tracks: ReadonlyArray<MarsBotTrackModel>;
   /** Face-down action deck — count only. */
   actionDeckSize: number;

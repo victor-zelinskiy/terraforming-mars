@@ -23,6 +23,9 @@
  * translated here, because two hosts speak them — the score explorer and the
  * play composer's VP projection — and a formula must be phrased once.
  */
+import {marsBotCorpInfo} from '@/common/automa/MarsBotCorpData';
+import {marsBotDividendInfo} from '@/common/automa/MarsBotDividendData';
+import {dividendTermFormula} from '@/common/automa/MarsBotDividend';
 import {Tag} from '@/common/cards/Tag';
 import {maArtSlug, maShortName} from '@/client/console/maArt';
 import {tagCountKey} from '@/common/cards/tagNames';
@@ -225,6 +228,19 @@ function tileLedger(cat: LiveScoreCategory, b: VictoryPointsBreakdown, ctx: Scor
       value: d.points,
     })));
   }
+  case 'dividends': {
+    // The bot's portfolio — one piece per HOLDING, named by its corporation;
+    // the formula behind each is level 2 (`buildDividendFacts`).
+    const details = b.automa?.detailsDividends ?? [];
+    if (details.length === 0) {
+      return EMPTY_LEDGER;
+    }
+    return chainOf(details.map((d): LedgerPiece => ({
+      key: `dividend:${d.corporation}`,
+      label: marsBotCorpInfo(d.corporation).original,
+      value: d.vp,
+    })));
+  }
   case 'moon':
   case 'tracks':
   case 'penalty': {
@@ -266,6 +282,33 @@ export function buildTitleFacts(b: VictoryPointsBreakdown): CategoryFactsModel {
     })),
     emptyKey: 'No titles earned',
   };
+}
+
+/**
+ * Level 2 of «ДИВИДЕНДЫ КОРПОРАЦИЙ» — per HOLDING: a context row naming the
+ * corporation and its dividend, then one row per term of its formula
+ * (the operand by name, «count × rate», the VP it pays). Every number is the
+ * server's (`detailsDividends`); the client counts nothing.
+ */
+export function buildDividendFacts(b: VictoryPointsBreakdown): CategoryFactsModel {
+  const rows: Array<ScoreFactRow> = [];
+  for (const d of b.automa?.detailsDividends ?? []) {
+    rows.push({
+      key: `holding:${d.corporation}`,
+      label: marsBotCorpInfo(d.corporation).original,
+      note: {label: marsBotDividendInfo(d.corporation).name},
+    });
+    d.terms.forEach((term, i) => {
+      const formula = dividendTermFormula(term);
+      rows.push({
+        key: `holding:${d.corporation}:${i}`,
+        label: term.label,
+        value: term.vp,
+        note: {label: formula.label, params: formula.params},
+      });
+    });
+  }
+  return {rows, emptyKey: 'MarsBot holds no corporation'};
 }
 
 /**

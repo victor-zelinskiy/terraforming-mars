@@ -7,6 +7,10 @@ import {AutomaTerraformer} from '../AutomaTerraformer';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {trackPosition, pileTagCount} from './MarsBotDividendReads';
+import {Tag} from '../../../common/cards/Tag';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C11_THORGATE);
 /** The printed setup gift. */
@@ -39,6 +43,15 @@ const SETUP_MC = 10;
  */
 export const MarsBotThorgate: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C11_THORGATE).rates;
+    return dividendResult([
+      perUnitTerm('Power track spaces', trackPosition(game, 'power'), r.track),
+      perUnitTerm('Power tags', pileTagCount(game, [Tag.POWER]), r.tag),
+    ]);
+  },
 
   setup(game: IGame): void {
     const bot = marsBotOf(game);

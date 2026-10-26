@@ -80,6 +80,8 @@ export type LiveScoreOptions = {
   hasDelta: boolean;
   /** FINAL campaign mission: «Титулы» is a real category from generation 1. */
   hasTitles?: boolean;
+  /** The participant is the bot and holds at least one corporation (its dividends stand from generation 1). */
+  hasDividends?: boolean;
   /**
    * Turmoil Redux (the Mars Parliament) is at the table. Its greenery
    * revision moves the tile's point INTO the terraform rating (paid at
@@ -107,6 +109,9 @@ function categoryPresent(key: ConsoleEndgameCategoryKey, value: number, opts: Li
   // Configuration-derived like delta: present for the whole FINAL campaign
   // mission (honest 0 included), never anywhere else.
   case 'titles': return opts.hasTitles === true || value !== 0;
+  // The bot's portfolio: present from the first generation while it holds a
+  // corporation (the owner's D3 — the dividend grows in plain sight, an honest 0 included).
+  case 'dividends': return opts.hasDividends === true || value !== 0;
   // Penalties append at the END when real — a conditional row there never
   // shifts the stable categories above it.
   case 'penalty': return value !== 0;

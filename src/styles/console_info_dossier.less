@@ -1292,6 +1292,64 @@ html.con-profile-handheld {
         border-radius: .6rem;
         box-shadow: 0 .6rem 1.8rem rgba(0, 0, 0, 0.55);
     }
+    /* THE PORTFOLIO — the holdings under the primary: smaller faces at the same material, a step quieter (opacity on
+       the face — the console strips `filter`), each with its live dividend under it in the score's own weight. The
+       state «holding» is read by size, the label and the quieter face — never a halo (VISUAL RESTRAINT). */
+    &__portfolio {
+        flex: none;
+        align-self: stretch;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .35rem;
+        padding-top: .45rem;
+        border-top: .05rem solid rgba(130, 165, 200, 0.18);
+    }
+    &__portlabel {
+        font-size: var(--con-t-caption);
+        font-weight: 600;
+        letter-spacing: .08rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__holdings {
+        display: flex;
+        justify-content: center;
+        gap: .9rem;
+    }
+    &__holding {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .2rem;
+        min-width: 0;
+    }
+    &__holdface {
+        opacity: .86;
+        border-radius: .45rem;
+        box-shadow: inset 0 0 0 .05rem rgba(130, 165, 200, 0.3), 0 .3rem .9rem rgba(0, 0, 0, 0.45);
+    }
+    &__holding &__holdface .pcard { zoom: calc(var(--con-ui-scale, 1) * 0.34); }
+    &__divvp {
+        font-size: var(--con-t-body);
+        font-weight: 700;
+        line-height: 1.1;
+        color: #eef0f2;
+        font-variant-numeric: tabular-nums;
+    }
+    &__divunit {
+        font-size: var(--con-t-caption);
+        font-weight: 600;
+        color: @con-text-dim;
+    }
+    &__divname {
+        max-width: 9rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: var(--con-t-caption);
+        color: @con-text-dim;
+    }
     &__difficulty {
         flex: none;
         padding: .2rem .8rem;

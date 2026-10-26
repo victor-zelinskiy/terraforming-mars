@@ -6,6 +6,9 @@ import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {destroyBonusCard} from './MarsBotBonusDeckOps';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {awardStandings} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C42_NIRGAL_ENTERPRISES);
 /** The card's printed name, for the journal templates. */
@@ -77,6 +80,16 @@ function boxFor(generation: number): 'milestone' | 'award' | undefined {
  */
 export const MarsBotNirgalEnterprises: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C42_NIRGAL_ENTERPRISES).rates;
+    const standings = awardStandings(game);
+    return dividendResult([
+      perUnitTerm('Awards MarsBot leads', standings.first, r.first),
+      perUnitTerm('Awards where MarsBot is second', standings.second, r.second),
+    ]);
+  },
 
   setup(game: IGame): void {
     const bot = marsBotOf(game);

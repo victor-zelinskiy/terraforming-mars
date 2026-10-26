@@ -88,6 +88,15 @@ export type AutomaOptions = {
    * original); otherwise the normal random selection runs.
    */
   corporation?: MarsBotCorpId;
+  /**
+   * The HOLDINGS of the bot's campaign portfolio — corporations that pay only
+   * their end-game DIVIDEND (docs/claude/prompts/marsbot-portfolio-dividends.md).
+   * Written by the campaign at a mission's launch (and by dev/test configs);
+   * seated with the primary at the generation-1 gate, minus any id that is
+   * the primary, collides with a human corporation or misses its printed
+   * module condition. Absent ⇒ no holdings (every ordinary game).
+   */
+  portfolio?: ReadonlyArray<MarsBotCorpId>;
 };
 
 /**

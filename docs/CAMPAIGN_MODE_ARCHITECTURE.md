@@ -1236,6 +1236,16 @@ its corp appears in the same reveal/beats as today, no bot-only screens. Its lin
 on the map shows one corp spanning four missions (visually honest). Open decision D5
 records the «бот выбирает новую корпорацию каждую миссию» alternative.
 
+**Superseded in part (2026-10-26) — the PORTFOLIO.** The primary still persists all
+campaign, but the bot now ACQUIRES corporations with the humans: a HOLDING is drawn at the
+launch of missions 2 and 3 (`progression.botHoldings`, `server/campaign/botPortfolio.ts`),
+its original banned from the humans' deals, passed as `gameOptions.automa.portfolio`. A
+holding runs NONE of its boxes — it pays only an end-game DIVIDEND (the `dividendVp` term,
+its own console category «Дивиденды корпораций»), so the bot catches up in points without
+terraforming faster. Pre-portfolio campaigns (`botHoldings` absent) finish without holdings.
+Spec: `docs/claude/prompts/marsbot-portfolio-dividends.md`; rates:
+`docs/claude/marsbot-dividends-calibration.md`.
+
 ### 6.7 Console presentation
 
 - Missions 2/3: the start wizard's corp step keeps its transport and gains the campaign

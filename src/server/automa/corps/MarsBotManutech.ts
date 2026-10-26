@@ -4,6 +4,9 @@ import {AutomaResolver} from '../AutomaResolver';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {matTracks} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C29_MANUTECH);
 
@@ -63,6 +66,17 @@ const TRIGGER_COLUMNS: ReadonlyArray<number> = INFO.reminderColumns ?? [];
  */
 export const MarsBotManutech: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C29_MANUTECH).rates;
+    const tracks = matTracks(game);
+    return dividendResult([
+      perUnitTerm('Tracks at the first mark', tracks.filter((t) => t.position >= r.lowAt).length, r.low),
+      perUnitTerm('Tracks at the second mark', tracks.filter((t) => t.position >= r.midAt).length, r.mid),
+      perUnitTerm('Tracks at the third mark', tracks.filter((t) => t.position >= r.topAt).length, r.top),
+    ]);
+  },
 
   onTrackSpaceResolved(game: IGame, trackIndex: number, position: number, depth: number): void {
     const automa = game.automa;

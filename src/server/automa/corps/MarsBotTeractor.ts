@@ -5,6 +5,9 @@ import {IGame} from '../../IGame';
 import {marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
 import {TrackPayout, payForTrackAdvance} from './MarsBotTrackPayout';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {pileTagCount} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C09_TERACTOR);
 /** The printed setup gift. */
@@ -42,6 +45,14 @@ const PAYOUT: TrackPayout = {
  */
 export const MarsBotTeractor: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C09_TERACTOR).rates;
+    return dividendResult([
+      perUnitTerm('Earth tags of MarsBot', pileTagCount(game, [Tag.EARTH]), r.each),
+    ]);
+  },
 
   setup(game: IGame): void {
     const bot = marsBotOf(game);

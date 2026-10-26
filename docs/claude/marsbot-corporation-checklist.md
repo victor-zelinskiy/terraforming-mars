@@ -23,6 +23,7 @@
   - `draftPriority?`, `resource?` (`'plant' | 'science'`), `corpBonusCards`, `trackCubes?` + `cubeLegend?`;
   - `sections` — печатные боксы в печатном порядке (EN-ключи + `params`, иконки из общего словаря).
 - [ ] Новые счётчики статистики — в docstring `MarsBotCorpStats` (закрытый словарь; инсайт работает со структурой, не с текстом).
+- [ ] `src/common/automa/MarsBotDividendData.ts` → бокс «Дивиденды» (`dividendBox(name, rates, lines)` — Record по всем id, без записи не соберётся): одна форма из семи (§4 промта портфеля), считает СВОЁ, эхо идентичности; ставка — только со стенда (`scripts/marsbot-dividends-calibrate.ts`, полоса p50 14–18 на Redux · Hard · миссии 2–4).
 
 ## 2. Поведение (`src/server/automa/corps/MarsBot<Name>.ts`)
 
@@ -35,6 +36,7 @@ Co-located файл, реализующий ТОЛЬКО те хуки, что �
 - [ ] `onTrackAdvance?` — «когда бот продвигает такой-то трек»: срабатывает на КАЖДЫЙ успешный шаг (каскад платит по шагам, maxed = Failed Action и не платит).
 - [ ] `onMegacreditsGained?` — «когда бот получает M€»: диспатчится из `Stock.add`, срабатывает на ЛЮБОЙ доход (клетка, покрытые иконки, Failed Action, чужой корп-эффект); хук реентерабелен — то, что он делает, может дать боту ещё M€.
 - [ ] `resolveBonusCard?` — своя B-карта (см. §3).
+- [ ] `dividend(game)` — **обязательный**: чистая клауза дивиденда (холдинг кампании) из `MarsBotDividendReads` + ставки из `marsBotDividendInfo(id).rates`; термы `perUnitTerm` / `bonusTerm`, лейблы — EN-ключи с RU.
 - [ ] Подача: эффект внутри хода — `game.events.beginEffect(bot, {kind:'corporation', card: this.info.original, owner: bot.color}, 'automa-corporation')` + `AutomaTurnLog.setCause(game, {kind:'corporation'})` с восстановлением прежней причины (`getCause`); действие ВНЕ хода — `beginAction(..., {category: 'corporation-action'})`.
 - [ ] Каждый значимый шаг — `bumpCorpStat(game, '<key>', n)`.
 - [ ] Физику брать из общих примитивов (`AutomaTilePlacer`, `AutomaTerraformer`, `drawAndResolveProjectCard` из `AutomaCardDraw.ts`, `AutomaResolver.advanceTrack`) — они уже несут TR, бонусы клеток, триггеры человека, Failed Action и журнал. Никогда не мутировать поля напрямую (`stock.add` / `production.add`).

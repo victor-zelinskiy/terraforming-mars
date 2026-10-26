@@ -96,7 +96,7 @@ const SCALAR_KEYS = ['escapeVelocity', 'moonHabitats', 'moonMines', 'moonRoads',
 
 function automaTotal(b: VictoryPointsBreakdown): number {
   const a = b.automa;
-  return a === undefined ? 0 : a.mcToVp + a.neuralInstance + a.cardVp + a.corpVp;
+  return a === undefined ? 0 : a.mcToVp + a.neuralInstance + a.cardVp + a.corpVp + (a.dividendVp ?? 0);
 }
 
 /**

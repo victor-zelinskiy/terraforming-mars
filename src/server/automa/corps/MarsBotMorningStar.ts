@@ -11,6 +11,9 @@ import {advanceFurthestMartianParameter} from '../AutomaBonusCards';
 import {LOBBYISTS_VARIANTS, destroyBonusCard} from './MarsBotBonusDeckOps';
 import {takeSilverCube} from './MarsBotSilverCubePayout';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm, bonusTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {trackPosition} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C27_MORNING_STAR);
 /** The corporation's own bonus card, shuffled into the bonus deck at setup. */
@@ -57,6 +60,16 @@ const OWN_TRACK = Tag.VENUS;
  */
 export const MarsBotMorningStar: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C27_MORNING_STAR).rates;
+    const reached = trackPosition(game, 'venus');
+    return dividendResult([
+      perUnitTerm('Venus track spaces', reached, r.each),
+      bonusTerm('Threshold bonus', reached, r.at, r.bonus),
+    ]);
+  },
 
   setup(game: IGame): void {
     const automa = game.automa;

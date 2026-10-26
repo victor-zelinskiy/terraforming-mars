@@ -5,6 +5,9 @@ import {IGame} from '../../IGame';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {pileTagCount} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C31_ARKLIGHT);
 /** The tags that pay. The exclamation mark on the card is about the third one. */
@@ -55,6 +58,14 @@ const TAG_MC = 2;
  */
 export const MarsBotArklight: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C31_ARKLIGHT).rates;
+    return dividendResult([
+      perUnitTerm('Plant and animal tags', pileTagCount(game, [Tag.PLANT, Tag.ANIMAL]), r.each),
+    ]);
+  },
 
   onTagResolved(game: IGame, tag: Tag): void {
     if (!PAYING_TAGS.includes(tag)) {

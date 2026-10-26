@@ -585,6 +585,7 @@ export default defineComponent({
         hasPathfinders: game.pathfinders !== undefined,
         hasDelta: game.gameOptions.expansions.deltaProject === true,
         hasTitles: game.gameOptions.campaign?.final === true,
+        hasDividends: this.viewed.victoryPointsBreakdown.automa?.detailsDividends !== undefined,
         hasParliament: game.parliament !== undefined,
       });
     },

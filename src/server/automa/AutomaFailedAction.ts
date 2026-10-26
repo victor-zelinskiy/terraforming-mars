@@ -36,6 +36,7 @@ export function failedAction(game: IGame, reason: FailedActionReason): void {
   // «10 MC instead of 5» for a card with no tags). Asked before the payment, so
   // the line below states the amount the bot actually gets.
   const mc = AutomaCorporations.failedActionCompensation(game, reason, standard);
+  automa.failedActions++;
   bot.stock.add(Resource.MEGACREDITS, mc);
   game.log(FAILED_ACTION_TEMPLATES[reason], (b) => b.player(bot).number(mc));
   AutomaTurnLog.note(game, {kind: 'failed', reason, mc}, {consumeLog: true});

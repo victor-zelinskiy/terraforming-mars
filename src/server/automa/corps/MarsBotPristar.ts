@@ -5,6 +5,9 @@ import {IGame} from '../../IGame';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {failedActionCount} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C36_PRISTAR);
 /** The card's printed name, for the journal templates. */
@@ -68,6 +71,14 @@ const SKIP_STAT: Partial<Record<GlobalParameter, string>> = {
  */
 export const MarsBotPristar: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C36_PRISTAR).rates;
+    return dividendResult([
+      perUnitTerm('Failed Actions', failedActionCount(game), r.each),
+    ], r.cap);
+  },
 
   beforeActionPhase(game: IGame): void {
     const automa = game.automa;

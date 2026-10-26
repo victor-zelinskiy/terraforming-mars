@@ -4,6 +4,11 @@ import {IGame} from '../../IGame';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {pileTagCount, botParameterSteps} from './MarsBotDividendReads';
+import {Tag} from '../../../common/cards/Tag';
+import {GlobalParameter} from '../../../common/GlobalParameter';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C28_APHRODITE);
 /** What ONE step of Venus pays — the human twin's own rate. */
@@ -45,6 +50,15 @@ const MC_PER_STEP = 2;
  */
 export const MarsBotAphrodite: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C28_APHRODITE).rates;
+    return dividendResult([
+      perUnitTerm('Venus steps raised', botParameterSteps(game, GlobalParameter.VENUS), r.step),
+      perUnitTerm('Venus tags of MarsBot', pileTagCount(game, [Tag.VENUS]), r.tag),
+    ]);
+  },
 
   onVenusIncreased(game: IGame, steps: number): void {
     if (steps <= 0) {

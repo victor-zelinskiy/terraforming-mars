@@ -421,6 +421,9 @@ export class Server {
     const model: MarsBotModel = {
       difficulty: automa.difficulty,
       ...(automa.corporation !== undefined ? {corporation: Server.getAutomaCorpModel(game, automa)} : {}),
+      ...(automa.holdings.length > 0 ? {
+        holdings: AutomaCorporations.dividends(game).map((d) => ({id: d.corporation, dividend: {vp: d.vp, terms: d.terms}})),
+      } : {}),
       tracks: automa.board.tracks.map((t) => ({
         tags: t.definition.tags,
         position: t.position,

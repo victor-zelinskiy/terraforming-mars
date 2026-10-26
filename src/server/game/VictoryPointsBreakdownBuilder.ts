@@ -57,6 +57,8 @@ export class VictoryPointsBreakdownBuilder {
       this.points.total += this.points.automa.neuralInstance;
       this.points.total += this.points.automa.cardVp;
       this.points.total += this.points.automa.corpVp;
+      // Campaign dividends — optional: present only while the bot holds a corporation.
+      this.points.total += this.points.automa.dividendVp ?? 0;
     }
   }
 

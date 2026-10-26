@@ -4,6 +4,9 @@ import {MarsBotCorpId, MarsBotTrackCube, marsBotCorpInfo} from '../../../common/
 import {IGame} from '../../IGame';
 import {SPACE_CUBE_LOG, WILD_CUBE_LOG, pushCubeTrack} from './MarsBotCubeTrackPush';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {matTracks} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C14_POINT_LUNA);
 
@@ -31,6 +34,16 @@ const INFO = marsBotCorpInfo(MarsBotCorpId.C14_POINT_LUNA);
  */
 export const MarsBotPointLuna: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C14_POINT_LUNA).rates;
+    const tracks = matTracks(game);
+    const least = tracks.length === 0 ? 0 : Math.min(...tracks.map((t) => t.position));
+    return dividendResult([
+      perUnitTerm('Spaces of the least advanced track', least, r.each),
+    ]);
+  },
 
   onTrackCubeTrigger(game: IGame, cube: MarsBotTrackCube, _printedAction: TrackAction | undefined): 'replaces-action' | void {
     pushCubeTrack(game, cube, {

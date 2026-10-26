@@ -10,6 +10,9 @@ import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotDraftResolver} from './MarsBotDraftResolver';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {trackPosition} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C46_TYCHO_MAGNETICS);
 /** The corporation's own bonus card. */
@@ -44,6 +47,14 @@ const KEPT = 2;
  */
 export const MarsBotTychoMagnetics: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C46_TYCHO_MAGNETICS).rates;
+    return dividendResult([
+      perUnitTerm('Spaces of the lower track', Math.min(trackPosition(game, 'power'), trackPosition(game, 'science')), r.each),
+    ]);
+  },
 
   setup(game: IGame): void {
     const automa = game.automa;

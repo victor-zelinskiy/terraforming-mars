@@ -19,6 +19,9 @@ import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {resolveBonusCard as resolveBaseBonusCard} from '../AutomaBonusCards';
 import {destroyBonusCard} from './MarsBotBonusDeckOps';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {borders, isBotTile, isOtherPlayersTile} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C22_PHILARES);
 /** The corporation card starts with this much science on it. */
@@ -95,6 +98,14 @@ let cascadeDepth = 0;
  */
 export const MarsBotPhilares: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C22_PHILARES).rates;
+    return dividendResult([
+      perUnitTerm('Borders with other players\' tiles', borders(game, isBotTile(game), isOtherPlayersTile(game)), r.each),
+    ]);
+  },
 
   setup(game: IGame): void {
     const automa = game.automa;

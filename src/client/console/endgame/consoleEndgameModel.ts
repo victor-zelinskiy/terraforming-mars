@@ -46,7 +46,7 @@ import {
 
 export type ConsoleEndgameCategoryKey =
   | 'tr' | 'milestones' | 'awards' | 'greenery' | 'city'
-  | 'moon' | 'tracks' | 'delta' | 'titles' | 'cards' | 'penalty';
+  | 'moon' | 'tracks' | 'delta' | 'dividends' | 'titles' | 'cards' | 'penalty';
 
 /** One sub-step of a two-level category (a TR source / a card family). */
 export type ConsoleEndgameSub = {
@@ -183,6 +183,12 @@ export const SCORE_CATEGORY_TABLE: ReadonlyArray<CategoryMeta> = [
   // campaign mission only (its reveal segment is absent everywhere else, and
   // zero-valued categories drop out of the ceremony). Revealed after every
   // in-game source: the campaign's own meter lands last among the positives.
+  // Campaign «ДИВИДЕНДЫ КОРПОРАЦИЙ» — the bot's HOLDINGS pay here, a REAL
+  // category of their own (never folded into the card families: a dividend is
+  // not a card's VP, and the player must be able to read the portfolio apart).
+  // Present only while the bot holds a corporation; after the cards, before
+  // the campaign's own meter.
+  {key: 'dividends', label: 'Corporation dividends', legend: 'Dividends', penalty: false, groups: ['dividends']},
   {key: 'titles', label: 'Titles', legend: 'Titles', penalty: false, groups: ['titles']},
   {key: 'penalty', label: 'Penalties', legend: 'Penalties', penalty: true, groups: ['penalty']},
 ];

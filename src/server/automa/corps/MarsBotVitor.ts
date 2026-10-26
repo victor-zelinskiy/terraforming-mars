@@ -7,6 +7,9 @@ import {AutomaScoring} from '../AutomaScoring';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {pileCount, printedVictoryPoints} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C17_VITOR);
 /** The card Vitor takes out of the rotation and hands back every generation. */
@@ -54,6 +57,15 @@ const REWARD_MC = 3;
  */
 export const MarsBotVitor: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C17_VITOR).rates;
+    return dividendResult([
+      perUnitTerm('Cards printing 2 VP or more', pileCount(game, (card) => printedVictoryPoints(card) >= r.at), r.big),
+      perUnitTerm('Cards printing 1 VP', pileCount(game, (card) => printedVictoryPoints(card) === 1), r.small),
+    ]);
+  },
 
   setup(game: IGame): void {
     const automa = game.automa;

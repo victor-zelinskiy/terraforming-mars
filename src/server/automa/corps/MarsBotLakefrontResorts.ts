@@ -8,6 +8,9 @@ import {AutomaResolver} from '../AutomaResolver';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {botTileSpaces, botOceansPlaced} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C35_LAKEFRONT_RESORTS);
 /** The card's printed name, for the journal templates. */
@@ -68,6 +71,16 @@ let cascadeDepth = 0;
  */
 export const MarsBotLakefrontResorts: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C35_LAKEFRONT_RESORTS).rates;
+    const shore = botTileSpaces(game).filter((s) => game.board.getAdjacentSpaces(s).some((a) => Board.isOceanSpace(a))).length;
+    return dividendResult([
+      perUnitTerm('Tiles next to an ocean', shore, r.tile),
+      perUnitTerm('Oceans placed', botOceansPlaced(game), r.ocean),
+    ]);
+  },
 
   setup(game: IGame): void {
     const automa = game.automa;

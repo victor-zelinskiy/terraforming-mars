@@ -52,7 +52,8 @@
             </span>
             <span class="con-cmpov__seat-tp">{{ tpText(seat.titlePoints) }}</span>
             <span class="con-cmpov__seat-corps">
-              <span v-for="corp in seat.corps" :key="corp.name" class="con-cmpov__seat-corp">
+              <span v-for="corp in seat.corps" :key="corp.name" class="con-cmpov__seat-corp" :class="{'con-cmpov__seat-corp--holding': corp.holding === true}"
+                    :data-bot-holding="corp.holding === true ? 'true' : undefined">
                 <span v-if="corp.missionSlot !== undefined" class="con-cmpov__seat-corp-ord">{{ corp.missionSlot + 1 }}</span>
                 {{ $t(corp.name) }}
               </span>

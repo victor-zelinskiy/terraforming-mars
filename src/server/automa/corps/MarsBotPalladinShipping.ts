@@ -6,6 +6,9 @@ import {AutomaTerraformer} from '../AutomaTerraformer';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {trackPosition} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C43_PALLADIN_SHIPPING);
 /** The card's printed name, for the journal templates. */
@@ -71,6 +74,14 @@ function kindOf(cube: MarsBotTrackCube): MarsBotCorpResource {
  */
 export const MarsBotPalladinShipping: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C43_PALLADIN_SHIPPING).rates;
+    return dividendResult([
+      perUnitTerm('Spaces of the lower track', Math.min(trackPosition(game, 'space'), trackPosition(game, 'event')), r.each, r.per),
+    ]);
+  },
 
   setup(game: IGame): void {
     const bot = marsBotOf(game);

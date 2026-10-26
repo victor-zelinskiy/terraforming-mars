@@ -3,6 +3,9 @@ import {MarsBotCorpId, MarsBotTrackCube, marsBotCorpInfo} from '../../../common/
 import {IGame} from '../../IGame';
 import {takeSilverCube} from './MarsBotSilverCubePayout';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {trackPosition} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C13_CHEUNG_SHING_MARS);
 
@@ -27,6 +30,14 @@ const INFO = marsBotCorpInfo(MarsBotCorpId.C13_CHEUNG_SHING_MARS);
  */
 export const MarsBotCheungShingMars: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C13_CHEUNG_SHING_MARS).rates;
+    return dividendResult([
+      perUnitTerm('Building track spaces beyond the mark', trackPosition(game, 'building') - r.from, r.each),
+    ]);
+  },
 
   onTrackCubeTrigger(game: IGame, cube: MarsBotTrackCube, _printedAction: TrackAction | undefined): 'replaces-action' | void {
     takeSilverCube(game, cube, {

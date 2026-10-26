@@ -3,6 +3,9 @@ import {IGame} from '../../IGame';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {pileCount} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C38_TERRALABS);
 /** The card's printed name, for the journal templates. */
@@ -50,6 +53,14 @@ const LATE_GENERATION = 9;
  */
 export const MarsBotTerraLabs: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C38_TERRALABS).rates;
+    return dividendResult([
+      perUnitTerm('Cheap cards', pileCount(game, (card) => card.cost <= r.max), r.each),
+    ]);
+  },
 
   setup(game: IGame): void {
     const bot = marsBotOf(game);

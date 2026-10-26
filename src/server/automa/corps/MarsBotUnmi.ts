@@ -7,6 +7,8 @@ import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C12_UNMI);
 const SUBSIDY = BonusCardId.B31_GOVERNMENT_SUBSIDY;
@@ -39,6 +41,14 @@ const FIRST_EXTRA_GENERATION = 2;
  */
 export const MarsBotUnmi: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C12_UNMI).rates;
+    return dividendResult([
+      perUnitTerm('TR above the mark', marsBotOf(game).terraformRating - r.above, r.each, r.per),
+    ]);
+  },
 
   setup(game: IGame): void {
     const automa = game.automa;

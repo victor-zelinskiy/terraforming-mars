@@ -32,6 +32,8 @@ export type OverviewCorp = {
   name: CardName,
   /** Mission the corporation joined the lineage on; undefined = unknown. */
   missionSlot: number | undefined,
+  /** The bot's HOLDING — a corporation that pays only its dividend (the campaign portfolio). */
+  holding?: true,
 };
 
 export type OverviewSeatRow = {
@@ -162,7 +164,11 @@ function seatCorps(model: CampaignModel, seat: number, kind: CampaignSeatKind, l
     if (botCorp === undefined) {
       return [];
     }
-    return [{name: marsBotCorpInfo(botCorp).original, missionSlot: 0}];
+    // The portfolio: the primary (mission 1), then each HOLDING on the mission
+    // it was acquired — the humans' rhythm (missions 2 and 3).
+    const holdings = (model.progression.botHoldings ?? []).map((id, i): OverviewCorp =>
+      ({name: marsBotCorpInfo(id).original, missionSlot: i + 1, holding: true}));
+    return [{name: marsBotCorpInfo(botCorp).original, missionSlot: 0}, ...holdings];
   }
   const origins = corpOrigins(model, seat, live);
   // Acquisition order: the lineage first, then any live-mission addition.

@@ -85,6 +85,8 @@ export type CampaignModel = {
   progression: {
     lineages: Record<number, ReadonlyArray<CardName>>;
     botCorporation?: MarsBotCorpId;
+    /** The bot's HOLDINGS in acquisition order (dividend only) — absent on a pre-portfolio campaign. */
+    botHoldings?: ReadonlyArray<MarsBotCorpId>;
     titles: ReadonlyArray<{seat: number} & TitleEntry>;
     /** seat → accumulated Title Points (missions 1–3). */
     titlePoints: Record<number, number>;

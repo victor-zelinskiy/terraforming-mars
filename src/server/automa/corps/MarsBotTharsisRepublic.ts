@@ -10,6 +10,9 @@ import {AutomaTilePlacer} from '../AutomaTilePlacer';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {botCityCount} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C10_THARSIS_REPUBLIC);
 /** What a human city pays the bot, and which track its own city pushes. */
@@ -49,6 +52,14 @@ let depth = 0;
  */
 export const MarsBotTharsisRepublic: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C10_THARSIS_REPUBLIC).rates;
+    return dividendResult([
+      perUnitTerm('City tiles', botCityCount(game), r.each),
+    ]);
+  },
 
   setup(game: IGame): void {
     // The shared placer: city strategy, Ares avoidance, tie-breaks, the

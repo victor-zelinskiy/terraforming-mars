@@ -29,6 +29,8 @@ export type AutomaTestOptions = Partial<GameOptions> & {
    * official behavior most old specs never budgeted for).
    */
   corporation?: MarsBotCorpId | 'random';
+  /** The bot's campaign HOLDINGS (dividend only) — `AutomaOptions.portfolio`. */
+  portfolio?: ReadonlyArray<MarsBotCorpId>;
   /** Keep the human's SelectInitialCards prompt (default: popped, like testGame). */
   keepInitialCardSelection?: boolean;
   /**
@@ -45,11 +47,11 @@ export type AutomaTestOptions = Partial<GameOptions> & {
  * the bot the engine seats itself. Returns [game, human, bot].
  */
 export function testAutomaGame(customOptions?: AutomaTestOptions, idSuffix = ''): [IGame, TestPlayer, IPlayer] {
-  const {difficulty, corporation, keepInitialCardSelection, seed, botParliamentMode, ...gameOptions} = customOptions ?? {};
+  const {difficulty, corporation, keepInitialCardSelection, seed, botParliamentMode, portfolio, ...gameOptions} = customOptions ?? {};
   const forced = corporation ?? MarsBotCorpId.C01_CREDICOR;
   const human = TestPlayer.BLUE.newPlayer({name: 'player1', idSuffix});
   const game = Game.newInstance(`game-id${idSuffix}`, [human], human, `spectator-id${idSuffix}`, {
-    automa: {difficulty: difficulty ?? 'normal', ...(forced !== 'random' ? {corporation: forced} : {})},
+    automa: {difficulty: difficulty ?? 'normal', ...(forced !== 'random' ? {corporation: forced} : {}), ...(portfolio !== undefined ? {portfolio} : {})},
     ...gameOptions,
   }, seed ?? 0);
   if (botParliamentMode !== undefined && game.parliament !== undefined) {
@@ -72,12 +74,12 @@ const MULTI_COLORS = [TestPlayer.BLUE, TestPlayer.RED, TestPlayer.GREEN, TestPla
  */
 export function testAutomaMultiplayerGame(
   humanCount: number, customOptions?: AutomaTestOptions, idSuffix = ''): [IGame, ReadonlyArray<TestPlayer>, IPlayer] {
-  const {difficulty, corporation, keepInitialCardSelection, seed, botParliamentMode, ...gameOptions} = customOptions ?? {};
+  const {difficulty, corporation, keepInitialCardSelection, seed, botParliamentMode, portfolio, ...gameOptions} = customOptions ?? {};
   const forced = corporation ?? MarsBotCorpId.C01_CREDICOR;
   const humans = MULTI_COLORS.slice(0, humanCount)
     .map((factory, i) => factory.newPlayer({name: `player${i + 1}`, idSuffix}));
   const game = Game.newInstance(`game-id${idSuffix}`, humans, humans[0], `spectator-id${idSuffix}`, {
-    automa: {difficulty: difficulty ?? 'normal', ...(forced !== 'random' ? {corporation: forced} : {})},
+    automa: {difficulty: difficulty ?? 'normal', ...(forced !== 'random' ? {corporation: forced} : {}), ...(portfolio !== undefined ? {portfolio} : {})},
     ...gameOptions,
   }, seed ?? 0);
   if (botParliamentMode !== undefined && game.parliament !== undefined) {

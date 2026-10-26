@@ -15,7 +15,7 @@
 | драфт | `src/server/automa/corps/MarsBotDraftResolver.ts` | pick по приоритету + пост-драфт protect/discard (RB-B p.2; порт upstream-логики) |
 | state | `AutomaState.corporation / corpResources / corpStats / corpBapGeneration / corpCubesTriggered` | сериализуется опционально; старые сейвы = corpless навсегда (§legacy ниже) |
 
-**Добавление корпорации N+1**: строка в enum → запись данных в `MarsBotCorpData` → файл поведения → строка в `REGISTRY` → RU-ключи → спек. Ни один switch за пределами registry не растёт; UI/сериализация/статистика подхватывают автоматически.
+**Добавление корпорации N+1**: строка в enum → запись данных в `MarsBotCorpData` → **бокс «Дивиденды» в `MarsBotDividendData`** (Record по всем id — без него не соберётся) → файл поведения (с обязательным `dividend(game)`) → строка в `REGISTRY` → RU-ключи → спек. Ни один switch за пределами registry не растёт; UI/сериализация/статистика подхватывают автоматически.
 
 ## Тайминг (ONE gate)
 
@@ -176,6 +176,17 @@ game.events.withEffect(bot, splice, 'card-played-by-any',
 - **Хук ЧИСТЫЙ**: вызывается из подсчёта очков, поэтому НИЧЕГО не меняет и пересчитывается из состояния (стопка разыгранных), а не копится в счётчике — второй источник правды разошёлся бы. Закреплено тестом на чистоту.
 - **Новый терм в `AutomaVictoryPoints` — это СЕМЬ точек**, и пропуск любой ломает инвариант «сумма сегментов ≡ total»: `VictoryPointsBreakdownBuilder.updateTotal`, `AutomaScoring.automaVictoryPoints`, `endgameModel.automaCardsTotal`, `finalScoringRevealModel` (строка церемонии), `victoryPointsModel` (шкала отчёта) и `consoleOverviewModel` (своя ветка `OvBotCardSource` + формула в `ConsoleOvTabCards`) и **`consoleEndgameModel.AUTOMA_SEGMENT_FAMILY`**. ⚠️ Союз `OvBotCardSource` исчерпывающий — компилятор сам спросит ветку; а вот `AUTOMA_SEGMENT_FAMILY` — ОБЫЧНАЯ ТАБЛИЦА, несопоставленный сегмент даёт `undefined` и МОЛЧА выбрасывается: терм остаётся в `finalTotal` и не попадает ни в одну категорию. ⚠️ И ФИКСТУРЫ НОВОГО ТЕРМА ОБЯЗАНЫ БЫТЬ НЕНУЛЕВЫМИ: с `corpVp: 0` везде инвариантный тест зелён и при потерянном терме — именно так баг и прошёл.
 - **Строка обзора называет КОРПОРАЦИЮ и очки, и на этом останавливается** — какое именно правило их принесло, знает текст самой карты; общая модель не пересказывает то, чего не видит.
+
+## ДИВИДЕНД ХОЛДИНГА — ПОРТФЕЛЬ БОТА В КАМПАНИИ (`dividend`, 2026-10-26)
+
+В кампании бот набирает корпорации вместе с людьми (миссии 2 и 3), но печатными боксами работает только ОСНОВНАЯ (`AutomaState.corporation` — единственная, куда диспатчится любой хук). Каждая следующая — ХОЛДИНГ (`AutomaState.holdings`): её боксы выключены, она платит ОДИН дивиденд — ПО в конце партии. Промт: `docs/claude/prompts/marsbot-portfolio-dividends.md`, калибровка: `docs/claude/marsbot-dividends-calibration.md`.
+
+- **Хук ОБЯЗАТЕЛЬНЫЙ и ЧИСТЫЙ** (`MarsBotCorp.dividend(game): MarsBotDividendResult`): у каждой корпорации есть, вызывается из подсчёта очков (live, на каждую модель), пересчитывает из состояния (стопка, треки, поле, колонии, поток событий) и никогда не пишет. Guard чистоты — `tests/automa/MarsBotDividends.spec.ts` (снимок автомы, поля, игроков, событий, журнала вокруг каждой из 45 клауз).
+- **Числа — одни** (`MarsBotDividendData.ts`, `dividendBox(name, rates, lines)`): бокс печатает `rates`, клауза читает те же `rates`; guard: каждый печатный параметр — одна из ставок.
+- **Формула — термы** (`perUnitTerm` / `bonusTerm` / `dividendResult(terms, cap?)`, Σ термов ≡ vp): explorer и экран бота читают их через ОДНО чтение `dividendTermFormula`.
+- **Общие чтения** — `corps/MarsBotDividendReads.ts` (стопка, метки, треки, тайлы, шаги параметров БОТА из событий, границы, колонии, провальные ходы, награды через `AwardScorer`). Клауза считает СВОЁ; чужое — только у четырёх двусторонних карт (C08, C21 — откаты, C22, C24, C33); никаких «параметров кого угодно».
+- **Терм ПО — опциональный** (`AutomaVictoryPoints.dividendVp?` + `detailsDividends?`, прецедент `titles`): без холдингов ключа нет вовсе, breakdown обычной партии байт-в-байт прежний. Точки: `updateTotal`, `AutomaScoring`, `vpAttribution.automaTotal`, `endgameModel.automaCardsTotal`, `finalScoringRevealModel` (группа `dividends`), `consoleEndgameModel.SCORE_CATEGORY_TABLE` (СВОЯ категория — не семья карт), `liveScoreModel` (`hasDividends` — живая с поколения 1), `scoreExplorerModel` (леджер по холдингам + `buildDividendFacts`), `victoryPointsModel`, `insightEngine.analyzeBotDividends`. Карточная вкладка обзора их НЕ показывает (не карта).
+- **Сажание**: `AutomaOptions.portfolio` → в `selectCorporation` (`seatableHoldings`: не основная, без дублей, пригодна по модулям и коллизии); случайная основная не тянется из портфеля. Кампания: `progression.botHoldings` (`server/campaign/botPortfolio.ts`: `holdingsForSlot`, `drawBotHoldings` по seed кампании), original холдинга банится из раздач людей, `validateCorporationPool` +2.
 
 ## УСЛОВИЕ МОДУЛЯ БЫВАЕТ «И» И «ИЛИ»
 

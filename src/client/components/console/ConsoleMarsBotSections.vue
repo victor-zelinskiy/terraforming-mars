@@ -13,6 +13,18 @@
         <MarsBotCorpFace :id="automa.corporation.id" :resources="automa.corporation.resources"
                          :resource="automa.corporation.resource" compact />
       </div>
+      <!-- THE PORTFOLIO (campaign): the corporations the bot HOLDS — their boxes switched off, each paying only its
+           dividend at the end, read LIVE (the server's own numbers). Smaller faces, quieter by material, never a halo. -->
+      <div v-if="holdings.length > 0" class="con-botscr__portfolio" data-bot-portfolio>
+        <span class="con-botscr__portlabel">{{ $t('Holdings · dividend only') }}</span>
+        <div class="con-botscr__holdings">
+          <div v-for="h in holdings" :key="h.id" class="con-botscr__holding" :data-holding="h.id">
+            <div class="con-botscr__holdface"><MarsBotCorpFace :id="h.id" compact /></div>
+            <b class="con-botscr__divvp" :data-dividend-vp="h.vp">+{{ h.vp }} <span class="con-botscr__divunit">{{ $t('VP') }}</span></b>
+            <span class="con-botscr__divname">{{ $t(h.name) }}</span>
+          </div>
+        </div>
+      </div>
       <span class="con-botscr__difficulty">{{ $t(difficultyLabel) }}</span>
       <p v-for="(body, i) in bodyOf('difficulty')" :key="i" class="con-botscr__prose" v-i18n>{{ body }}</p>
       <p v-for="(body, i) in bodyOf('clock')" :key="'c' + i" class="con-botscr__prose con-botscr__prose--warn" v-i18n>{{ body }}</p>
@@ -173,7 +185,8 @@ import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
 import MarsBotTracks from '@/client/components/marsbot/MarsBotTracks.vue';
 import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
 import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
-import {BonusCardId} from '@/common/automa/AutomaTypes';
+import {BonusCardId, MarsBotCorpId} from '@/common/automa/AutomaTypes';
+import {marsBotDividendInfo} from '@/common/automa/MarsBotDividendData';
 
 /** The teaching sections that read the printed board (their home is the board's own screen). */
 const BOARD_RULES: ReadonlyArray<string> = ['turn', 'tracks', 'failed'];
@@ -203,6 +216,10 @@ export default defineComponent({
   computed: {
     difficultyLabel(): string {
       return DIFFICULTY_LABEL[this.automa.difficulty];
+    },
+    /** The campaign portfolio's HOLDINGS with their live dividend (empty in every ordinary game). */
+    holdings(): ReadonlyArray<{id: MarsBotCorpId, vp: number, name: string}> {
+      return (this.automa.holdings ?? []).map((h) => ({id: h.id, vp: h.dividend.vp, name: marsBotDividendInfo(h.id).name}));
     },
     storageEntries(): Array<{colony: string, count: number}> {
       const storage = this.automa.shippingStorage;

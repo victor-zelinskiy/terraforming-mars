@@ -4,6 +4,9 @@ import {MarsBotCorpId, MarsBotTrackCube, marsBotCorpInfo} from '../../../common/
 import {IGame} from '../../IGame';
 import {pushCubeTrack} from './MarsBotCubeTrackPush';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {trackPosition} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C23_RECYCLON);
 /** The track a white cube pushes, named by TAG (never an index). */
@@ -46,6 +49,14 @@ const CUBE_LOG = '${0} reached a white cube of its corporation ${1} — the plan
  */
 export const MarsBotRecyclon: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C23_RECYCLON).rates;
+    return dividendResult([
+      perUnitTerm('Spaces of the lower track', Math.min(trackPosition(game, 'building'), trackPosition(game, 'bio')), r.each, r.per),
+    ]);
+  },
 
   onTrackCubeTrigger(game: IGame, cube: MarsBotTrackCube, _printedAction: TrackAction | undefined): 'replaces-action' | void {
     pushCubeTrack(game, cube, {

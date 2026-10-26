@@ -7,6 +7,9 @@ import {failedAction} from '../AutomaFailedAction';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotDraftResolver} from './MarsBotDraftResolver';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {pileCount} from './MarsBotDividendReads';
 
 /** The printed thresholds of card C45. */
 const TAGS_FOR_SCIENCE = 2;
@@ -43,6 +46,15 @@ const SCIENCE_FOR_CITY = 10;
  */
 export const MarsBotSpire: MarsBotCorp = {
   info: marsBotCorpInfo(MarsBotCorpId.C45_SPIRE),
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C45_SPIRE).rates;
+    return dividendResult([
+      perUnitTerm('Cards with 2 or more tags', pileCount(game, (card) => card.tags.length >= 2), r.two),
+      perUnitTerm('Cards with 3 or more tags', pileCount(game, (card) => card.tags.length >= 3), r.three),
+    ]);
+  },
 
   onProjectCardResolving(game: IGame, card: IProjectCard): void {
     const automa = game.automa;

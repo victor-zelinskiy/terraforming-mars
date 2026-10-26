@@ -3,6 +3,9 @@ import {MarsBotCorpId, marsBotCorpInfo} from '../../../common/automa/MarsBotCorp
 import {IGame} from '../../IGame';
 import {MarsBotCorp} from './MarsBotCorp';
 import {TrackPayout, payForTrackAdvance} from './MarsBotTrackPayout';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {trackPosition} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C04_INTERPLANETARY_CINEMATICS);
 
@@ -46,6 +49,14 @@ const PAYOUT: TrackPayout = {
  */
 export const MarsBotInterplanetaryCinematics: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C04_INTERPLANETARY_CINEMATICS).rates;
+    return dividendResult([
+      perUnitTerm('Event track spaces beyond the mark', trackPosition(game, 'event') - r.from, r.each),
+    ]);
+  },
 
   onTrackAdvance(game: IGame, trackIndex: number): void {
     payForTrackAdvance(game, trackIndex, PAYOUT);

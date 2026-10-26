@@ -80,6 +80,10 @@ export type SerializedAutomaState = {
   corpCubesTriggered?: Array<string>;
   /** Turmoil Redux: the generation's lobbying mandate (D14). Absent = not drawn yet — drawn at the bot's first lobbying check. */
   lobbyMandate?: LobbyMandate;
+  /** Campaign HOLDINGS of the bot's portfolio (dividend only). Absent = none (an ordinary game, mission 1, an older save). */
+  holdings?: Array<MarsBotCorpId>;
+  /** Failed Actions taken this game. Absent = an older save (reads 0). */
+  failedActions?: number;
 };
 
 /**
@@ -170,6 +174,20 @@ export class AutomaState {
    * A mandate of an earlier generation is stale and is redrawn.
    */
   public lobbyMandate: LobbyMandate | undefined = undefined;
+  /**
+   * The HOLDINGS of the bot's campaign portfolio (docs/claude/prompts/
+   * marsbot-portfolio-dividends.md): corporations the bot acquired with the
+   * humans whose printed boxes are switched OFF — each pays only its end-game
+   * DIVIDEND (`MarsBotCorp.dividend`). Seated with the primary at the
+   * generation-1 gate (`AutomaCorporations.selectCorporation`) and never
+   * dispatched to: `activeCorp` stays the primary alone.
+   */
+  public holdings: Array<MarsBotCorpId> = [];
+  /**
+   * Failed Actions the bot took this game — a FACT of the game, counted by the
+   * one `failedAction` funnel (read by C36 Pristar's dividend).
+   */
+  public failedActions: number = 0;
   /** The typed script of the last resolved turn (feeds the client turn theater). */
   public lastTurn: MarsBotTurn | undefined = undefined;
   /**
@@ -265,6 +283,12 @@ export class AutomaState {
     if (this.lobbyMandate !== undefined) {
       result.lobbyMandate = {...this.lobbyMandate};
     }
+    if (this.holdings.length > 0) {
+      result.holdings = [...this.holdings];
+    }
+    if (this.failedActions > 0) {
+      result.failedActions = this.failedActions;
+    }
     return result;
   }
 
@@ -309,6 +333,8 @@ export class AutomaState {
     state.corpRoundStartGeneration = d.corpRoundStartGeneration ?? 0;
     state.corpCubesTriggered = new Set(d.corpCubesTriggered ?? []);
     state.lobbyMandate = d.lobbyMandate !== undefined ? {...d.lobbyMandate} : undefined;
+    state.holdings = [...(d.holdings ?? [])];
+    state.failedActions = d.failedActions ?? 0;
     return state;
   }
 }

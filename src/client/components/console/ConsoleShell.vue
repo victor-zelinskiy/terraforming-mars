@@ -1964,7 +1964,7 @@ import ConsoleArmedFlightLayer from '@/client/components/console/ConsoleArmedFli
 import Card from '@/client/components/card/CardFace.vue';
 import {ZoomCard, bonusZoomEntry, isMarsBotCorpZoom, isPartyEffectZoom, isResolutionZoom, partyEffectZoomEntry, resolutionZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
-import {marsBotCorpAnnotations} from '@/client/components/marsbot/marsBotCorpRules';
+import {marsBotCorpAnnotations, marsBotDividendAnnotation} from '@/client/components/marsbot/marsBotCorpRules';
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, setConsoleZoomInspectTab, slotZoomOrigin, ZoomOrigin, ConsoleZoomProvenance, ConsoleZoomVoteVerb} from '@/client/console/consoleCardZoom';
 import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -10520,7 +10520,11 @@ export default defineComponent({
       if (card === undefined || !isMarsBotCorpZoom(card)) {
         return undefined;
       }
-      return marsBotCorpAnnotations(card.marsBotCorp);
+      const printed = marsBotCorpAnnotations(card.marsBotCorp);
+      // A campaign game also shows the «Дивиденды» box — what the corporation
+      // pays while the bot HOLDS it (the portfolio); an ordinary game never can.
+      return this.playerView.game.gameOptions.campaign === undefined ?
+        printed : [...printed, marsBotDividendAnnotation(card.marsBotCorp, printed.length)];
     },
     /**
      * The CURRENT-GAME availability view for the zoomed card — only in an

@@ -9,6 +9,9 @@ import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
 import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
 import * as forecast from '../../cards/effectForecastPreviews';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {pileTagCount, otherPlayersCardsWithTag} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C08_SATURN_SYSTEMS);
 /** The tag the effect watches, and the track it pays into. */
@@ -40,6 +43,15 @@ const REWARD_TRACK = Tag.EVENT;
  */
 export const MarsBotSaturnSystems: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C08_SATURN_SYSTEMS).rates;
+    return dividendResult([
+      perUnitTerm('Jovian tags of MarsBot', pileTagCount(game, [Tag.JOVIAN]), r.own),
+      perUnitTerm('Jovian cards of the other players', otherPlayersCardsWithTag(game, Tag.JOVIAN), r.theirs),
+    ]);
+  },
 
   onTagResolved(game: IGame, tag: Tag): void {
     if (tag !== TRIGGER_TAG) {

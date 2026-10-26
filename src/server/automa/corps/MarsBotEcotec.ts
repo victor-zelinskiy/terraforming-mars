@@ -5,6 +5,10 @@ import {AutomaResolver} from '../AutomaResolver';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm, bonusTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {botGreenerySpaces} from './MarsBotDividendReads';
+import {Board} from '../../boards/Board';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C40_ECOTEC);
 /** The card's printed name, for the journal templates. */
@@ -66,6 +70,18 @@ const REWARD_TRACK = Tag.PLANT;
  */
 export const MarsBotEcotec: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C40_ECOTEC).rates;
+    const bot = marsBotOf(game);
+    const greeneries = botGreenerySpaces(game).filter((s) =>
+      game.board.getAdjacentSpaces(s).some((a) => Board.isCitySpace(a) && a.player?.id === bot.id)).length;
+    return dividendResult([
+      perUnitTerm('Greeneries next to a MarsBot city', greeneries, r.each),
+      bonusTerm('Threshold bonus', greeneries, r.at, r.bonus),
+    ]);
+  },
 
   setup(game: IGame): void {
     const automa = game.automa;

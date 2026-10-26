@@ -4,6 +4,10 @@ import {AutomaResolver} from '../AutomaResolver';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {botTileSpaces} from './MarsBotDividendReads';
+import {SpaceBonus} from '../../../common/boards/SpaceBonus';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C06_MINING_GUILD);
 /** The printed bank: 10 M€ on the card, refilling into building-track advances. */
@@ -44,6 +48,15 @@ let drainDepth = 0;
  */
 export const MarsBotMiningGuild: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C06_MINING_GUILD).rates;
+    const tiles = botTileSpaces(game).filter((s) => s.bonus.includes(SpaceBonus.STEEL) || s.bonus.includes(SpaceBonus.TITANIUM)).length;
+    return dividendResult([
+      perUnitTerm('Tiles on steel or titanium spaces', tiles, r.each),
+    ]);
+  },
 
   setup(game: IGame): void {
     const automa = game.automa;

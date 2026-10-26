@@ -5,6 +5,10 @@ import {drawAndResolveProjectCard} from '../AutomaCardDraw';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm, bonusTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {pileCount} from './MarsBotDividendReads';
+import {Tag} from '../../../common/cards/Tag';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C16_VALLEY_TRUST);
 /** «Give MarsBot 1 extra card from the project deck for its starting hand.» */
@@ -47,6 +51,16 @@ const EXTRA_START_CARDS = 1;
  */
 export const MarsBotValleyTrust: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C16_VALLEY_TRUST).rates;
+    const cards = pileCount(game, (card) => card.tags.includes(Tag.SCIENCE));
+    return dividendResult([
+      perUnitTerm('Cards with a science tag', cards, r.each),
+      bonusTerm('Threshold bonus', cards, r.at, r.bonus),
+    ]);
+  },
 
   setup(game: IGame): void {
     const automa = game.automa;

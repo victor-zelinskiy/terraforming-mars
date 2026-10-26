@@ -3,6 +3,11 @@ import {MarsBotCorpId, marsBotCorpInfo} from '../../../common/automa/MarsBotCorp
 import {IGame} from '../../IGame';
 import {FloaterPayoutConfig, gainFloaters} from './MarsBotFloaterPayout';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {pileTagCount, botParameterSteps} from './MarsBotDividendReads';
+import {Tag} from '../../../common/cards/Tag';
+import {GlobalParameter} from '../../../common/GlobalParameter';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C26_CELESTIC);
 /** What the setup box hands the bot. */
@@ -60,6 +65,15 @@ function payout(countStat: string): FloaterPayoutConfig {
 
 export const MarsBotCelestic: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C26_CELESTIC).rates;
+    return dividendResult([
+      perUnitTerm('Venus and Jovian tags', pileTagCount(game, [Tag.VENUS, Tag.JOVIAN]), r.tag),
+      perUnitTerm('Venus steps raised', botParameterSteps(game, GlobalParameter.VENUS), r.step),
+    ]);
+  },
 
   setup(game: IGame): void {
     gainFloaters(game, SETUP_FLOATERS, payout('celesticSetup'));

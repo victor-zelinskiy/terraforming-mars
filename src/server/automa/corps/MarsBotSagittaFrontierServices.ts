@@ -8,6 +8,9 @@ import {AutomaResolver} from '../AutomaResolver';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {pileCount} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C44_SAGITTA_FRONTIER_SERVICES);
 /** The card's printed name, for the journal templates. */
@@ -65,6 +68,15 @@ const THIN_CARD_MC = 1;
  */
 export const MarsBotSagittaFrontierServices: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C44_SAGITTA_FRONTIER_SERVICES).rates;
+    return dividendResult([
+      perUnitTerm('Cards with no tags', pileCount(game, (card) => card.tags.length === 0), r.none),
+      perUnitTerm('Cards with exactly one tag', pileCount(game, (card) => card.tags.length === 1), r.one, r.onePer),
+    ]);
+  },
 
   setup(game: IGame): void {
     const bot = marsBotOf(game);

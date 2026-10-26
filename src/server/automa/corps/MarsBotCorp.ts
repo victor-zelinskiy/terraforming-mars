@@ -11,6 +11,7 @@ import {IProjectCard} from '../../cards/IProjectCard';
 import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
 import {EffectForecastContext} from '../../cards/EffectForecastContext';
+import {MarsBotDividendResult} from '../../../common/automa/MarsBotDividend';
 
 /**
  * One MarsBot corporation's SERVER behavior — the printed rule boxes of the
@@ -87,6 +88,21 @@ export type MarsBotCorp = {
    * mutate state — re-derive from the pile, never keep a parallel tally.
    */
   endgameVictoryPoints?(game: IGame): number;
+
+  /**
+   * The DIVIDEND this corporation pays while it is a HOLDING of the bot's
+   * campaign portfolio — never while it is the primary (docs/claude/prompts/
+   * marsbot-portfolio-dividends.md). REQUIRED: every corporation has one, so
+   * corporation N+1 cannot compile without it.
+   *
+   * PURE, the `endgameVictoryPoints` law: called from the scoring pass (live,
+   * every model), so it re-derives from state — the played pile, the tracks,
+   * the board, the colonies, the event stream — and never keeps a tally. It
+   * may not move a track, a tile, a parameter or a resource (purity guard:
+   * `tests/automa/MarsBotDividends.spec.ts`). Its numbers are the printed box's
+   * (`marsBotDividendInfo(id).rates`).
+   */
+  dividend(game: IGame): MarsBotDividendResult;
 
   /**
    * MarsBot just took a FAILED ACTION — dispatched from `failedAction`, the one

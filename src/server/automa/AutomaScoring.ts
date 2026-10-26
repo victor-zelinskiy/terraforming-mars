@@ -77,7 +77,17 @@ export class AutomaScoring {
     // The corporation's OWN endgame clause, if it prints one (C25 Viron).
     const corpVp = AutomaCorporations.endgameVictoryPoints(game);
 
-    return {mcToVp, mcPerVp, neuralInstance, cardVp, corpVp};
+    const result: AutomaVictoryPoints = {mcToVp, mcPerVp, neuralInstance, cardVp, corpVp};
+    // Campaign dividends: one per HOLDING of the portfolio, live from the first
+    // generation (the owner's D3 — the number grows in plain sight, it never
+    // jumps at the end). Absent without holdings: an ordinary game and
+    // mission 1 keep their exact breakdown.
+    if (automa.holdings.length > 0) {
+      const details = AutomaCorporations.dividends(game);
+      result.dividendVp = details.reduce((sum, d) => sum + d.vp, 0);
+      result.detailsDividends = details;
+    }
+    return result;
   }
 
   /** True when entering `generation` instantly ends the game with a MarsBot win. */

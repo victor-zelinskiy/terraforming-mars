@@ -6,6 +6,9 @@ import {ColoniesHandler} from '../../colonies/ColoniesHandler';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {pushCubeTrack} from './MarsBotCubeTrackPush';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {colonyCounts} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C30_ARIDOR);
 /** The track every cube pays into, named by TAG (never an index). */
@@ -61,6 +64,16 @@ const CUBE_LOG = '${0} reached a cube of its corporation ${1} — its event trac
  */
 export const MarsBotAridor: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C30_ARIDOR).rates;
+    const cargo = Object.values(game.automa?.shippingStorage ?? {}).reduce((sum: number, n) => sum + (n ?? 0), 0);
+    return dividendResult([
+      perUnitTerm('Colonies of MarsBot', colonyCounts(game).bot, r.colony),
+      perUnitTerm('Resources in shipping storage', cargo, r.cargo),
+    ]);
+  },
 
   setup(game: IGame): void {
     const bot = marsBotOf(game);

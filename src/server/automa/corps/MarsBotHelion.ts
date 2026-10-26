@@ -6,6 +6,10 @@ import {AutomaTerraformer} from '../AutomaTerraformer';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {botParameterSteps} from './MarsBotDividendReads';
+import {GlobalParameter} from '../../../common/GlobalParameter';
 
 /**
  * MarsBot Helion — official card C03:
@@ -38,6 +42,14 @@ import {MarsBotCorp} from './MarsBotCorp';
  */
 export const MarsBotHelion: MarsBotCorp = {
   info: marsBotCorpInfo(MarsBotCorpId.C03_HELION),
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C03_HELION).rates;
+    return dividendResult([
+      perUnitTerm('Temperature steps raised', botParameterSteps(game, GlobalParameter.TEMPERATURE), r.each),
+    ]);
+  },
 
   onTrackCubeTrigger(game: IGame, cube: MarsBotTrackCube, printedAction: TrackAction | undefined): 'replaces-action' | void {
     const bot = marsBotOf(game);

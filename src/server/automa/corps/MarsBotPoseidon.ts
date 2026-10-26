@@ -6,6 +6,9 @@ import {AutomaResolver} from '../AutomaResolver';
 import {AutomaTurnLog} from '../AutomaTurnLog';
 import {bumpCorpStat, marsBotOf} from '../AutomaUtil';
 import {MarsBotCorp} from './MarsBotCorp';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {colonyCounts} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C33_POSEIDON);
 
@@ -55,6 +58,16 @@ const INFO = marsBotCorpInfo(MarsBotCorpId.C33_POSEIDON);
  */
 export const MarsBotPoseidon: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C33_POSEIDON).rates;
+    const colonies = colonyCounts(game);
+    return dividendResult([
+      perUnitTerm('Colonies in play', colonies.all, r.any),
+      perUnitTerm('Colonies of MarsBot', colonies.bot, r.own),
+    ]);
+  },
 
   setup(game: IGame): void {
     AutomaColonies.botBuildColony(game);

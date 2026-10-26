@@ -13,6 +13,9 @@ import {destroyBonusCard, seedBonusDeckFromProjectDeck} from './MarsBotBonusDeck
 import {MarsBotCorp} from './MarsBotCorp';
 import {EffectForecastFact} from '../../../common/models/EffectForecastModel';
 import {EffectForecastContext} from '../../cards/EffectForecastContext';
+import {MarsBotDividendResult, dividendResult, perUnitTerm} from '../../../common/automa/MarsBotDividend';
+import {marsBotDividendInfo} from '../../../common/automa/MarsBotDividendData';
+import {pileTagCount, otherPlayersCardsWithTag} from './MarsBotDividendReads';
 
 const INFO = marsBotCorpInfo(MarsBotCorpId.C24_SPLICE);
 /** The printed seeding: reveal until ONE card carries a microbe tag. */
@@ -75,6 +78,15 @@ const OWN_TAG_MC = 4;
  */
 export const MarsBotSplice: MarsBotCorp = {
   info: INFO,
+
+  /** The end-game DIVIDEND this corporation pays as a HOLDING of the bot's portfolio. */
+  dividend(game: IGame): MarsBotDividendResult {
+    const r = marsBotDividendInfo(MarsBotCorpId.C24_SPLICE).rates;
+    return dividendResult([
+      perUnitTerm('Microbe tags of MarsBot', pileTagCount(game, [Tag.MICROBE]), r.own),
+      perUnitTerm('Microbe cards of the other players', otherPlayersCardsWithTag(game, Tag.MICROBE), r.theirs),
+    ]);
+  },
 
   setup(game: IGame): void {
     const automa = game.automa;
