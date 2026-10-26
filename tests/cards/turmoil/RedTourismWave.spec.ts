@@ -3,7 +3,7 @@ import {RedTourismWave} from '../../../src/server/cards/turmoil/RedTourismWave';
 import {HermeticOrderOfMars} from '../../../src/server/cards/promo/HermeticOrderofMars';
 import {TURMOIL_CARD_MANIFEST} from '../../../src/server/cards/turmoil/TurmoilCardManifest';
 import {Tourist} from '../../../src/server/awards/amazonisPlanitia/Tourist';
-import {IGame} from '../../../src//server/IGame';
+import {IGame} from '../../../src/server/IGame';
 import {Game} from '../../../src/server/Game';
 import {IPlayer} from '../../../src/server/IPlayer';
 import {Parliament} from '../../../src/server/parliament/Parliament';
