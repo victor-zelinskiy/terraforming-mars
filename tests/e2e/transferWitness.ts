@@ -163,7 +163,7 @@ export async function armTransferWitness(page: Page): Promise<void> {
       // of the reaction layer or out of its place on the receiving stage — its answer is born on the printed icon of ITS
       // effect row. `reactor:<card>:<sprite>`. Before the tags and the landed card's own icons: a token born here is the
       // reactor's, never the cause's.
-      ['reactor', '.con-reaction__face[data-reaction-card] .pcard-ic, .con-recv__emerge[data-played-key] .pcard-ic'],
+      ['reactor', '.con-reaction__face[data-reaction-card] .pcard-ic, .con-recv__emerge[data-played-key] .pcard-ic, .con-citypay__card[data-played-key] .pcard-ic'],
       ['tag', '.con-recv [data-recv-front] .pcard-tag[data-tag], .con-played [data-played-key] .pcard-tag[data-tag]'],
       ['printed', '.con-recv [data-recv-front] .pcard-ic'],
       // A party's SEAL in the chamber — a card's rating answer to a change of power is born on the seal of the party that

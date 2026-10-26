@@ -36,6 +36,7 @@ import {Research} from '../../../src/server/cards/base/Research';
 import {NoctisCity} from '../../../src/server/cards/base/NoctisCity';
 import {ImmigrantCity} from '../../../src/server/cards/base/ImmigrantCity';
 import {TharsisRepublic} from '../../../src/server/cards/corporation/TharsisRepublic';
+import {HomeostasisBureau} from '../../../src/server/cards/promo/HomeostasisBureau';
 import {Tag} from '../../../src/common/cards/Tag';
 import {Trees} from '../../../src/server/cards/base/Trees';
 import {Fish} from '../../../src/server/cards/base/Fish';
@@ -9692,6 +9693,56 @@ parliamentFixture('arwind-pay-space', {
   const noctis = p1.cardsInHand.find((c) => c.name === CardName.NOCTIS_CITY);
   if (noctis === undefined || !p1.canPlay(noctis)) {
     throw new Error(`${name}: Noctis City is not playable (energy production ${p1.production.energy}, ${p1.megaCredits} M€)`);
+  }
+  write(name, game);
+}
+
+// ── card-reaction-rival: a RIVAL's reactor on the viewer's screen (PL-1057). Red holds Tharsis Republic beside its
+//    pinned corporation; blue's standard-project city ON MARS wakes it (+1 M€ production for red — not red's city, so
+//    no cash): on blue's screen Tharsis rises compactly beside RED's chip in the status strip and its token lands on
+//    the chip. Blue on Hartlan Heating with 60 M€. ──
+{
+  const name = 'card-reaction-rival';
+  const pinned = [CardName.HARTLAN_HEATING, REDUX_TABLE_CORPORATIONS[0]];
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, [p1, p2], pinned);
+  answerStartFlow(game, [p1, p2]);
+  if (!p1.playedCards.has(CardName.HARTLAN_HEATING)) {
+    throw new Error(`${name}: blue is not on Hartlan Heating (${p1.playedCards.corporations().map(toName).join(',')})`);
+  }
+  p2.playedCards.push(new TharsisRepublic());
+  p1.megaCredits = 60;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  write(name, game);
+}
+
+// ── card-reaction-scale: a SCALE STEP wakes a card (PL-1057 — the marker is the law for the step's own reward, the
+//    card's answer is the chain's). Blue on Hartlan Heating with Homeostasis Bureau on the table and 8 heat: the
+//    basic-actions wheel's heat → temperature step pays Homeostasis 3 M€ (born on ITS printed M€, the card risen
+//    beside the rail) while the Greens — ruling by the starting rule — answer the rating off the marker. ──
+{
+  const name = 'card-reaction-scale';
+  const pinned = [CardName.HARTLAN_HEATING, REDUX_TABLE_CORPORATIONS[0]];
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, [p1, p2], pinned);
+  answerStartFlow(game, [p1, p2]);
+  if (!p1.playedCards.has(CardName.HARTLAN_HEATING)) {
+    throw new Error(`${name}: blue is not on Hartlan Heating (${p1.playedCards.corporations().map(toName).join(',')})`);
+  }
+  p1.playedCards.push(new HomeostasisBureau());
+  p1.heat = 8;
+  p1.megaCredits = 40;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  if (game.getTemperature() >= 8) {
+    throw new Error(`${name}: the temperature is at its maximum — no step to pay`);
   }
   write(name, game);
 }
