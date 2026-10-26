@@ -3,16 +3,19 @@ import {CardName} from '../../src/common/cards/CardName';
 import {Resource} from '../../src/common/Resource';
 import {CardReactionRecord} from '../../src/common/models/CardReactionModel';
 import {
-  REACTION_CHAIN_CEILING_MANY_MS, REACTION_CHAIN_CEILING_MS, REACTION_MANY_PACE, chainCeilingFor, freshCardReactions, groupCardReactions,
-  planReactionChain, reactionGroupOf, reactionImpactSpec, reactionRowsOf, reactionSeatRect, reactionTempo, reactionTokensOf, reducedReactionTempo,
+  CALM_REACTION_TEMPO, REACTION_CHAIN_CEILING_MANY_MS, REACTION_CHAIN_CEILING_MS, REACTION_HURRY_PACE, REACTION_MANY_GROUPS, REACTION_MANY_PACE,
+  REACTION_RIVAL_SCALE, REACTION_STAGE_MAX_SLOTS, REACTION_STAGE_SHARE, REACTOR_ASPECT, chainCeilingFor, freshCardReactions, groupCardReactions,
+  planReactionChain, reactionGroupOf, reactionImpactSpec, reactionRowsOf, reactionStageHeight, reactionStageSlots, reactionTempo, reactionTokensOf,
+  reducedReactionTempo,
 } from '../../src/client/console/cardReaction/cardReactionModel';
 import {intakeAssemblyTimings, reducedIntakeAssemblyTimings} from '../../src/client/console/cardIntake/intakeAssemblyPlan';
 
 /**
  * «СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК» — the pure half: the server's records
  * become groups in the order they fired; a group's impacts split by where the
- * scene can show them; the chain's tempo is a plan with a ceiling and two
- * seats; the seat beside the receiver never covers what the player is reading.
+ * scene can show them; the chain's tempo is CALM for one or two groups and
+ * QUICK from three, a plan with a ceiling over a row of slots; the ONE stage is
+ * the centre of the central opening (iteration 3, the owner's 2026-10-27).
  */
 const BLUE = 'blue';
 const RED = 'red';
@@ -120,20 +123,40 @@ describe('cardReactionModel — the record → the group → the chain → the s
     });
   });
 
-  describe('the tempo — the assembly scene\'s numbers, byte for byte (ONE rise primitive)', () => {
-    it('rise / hold / recede / overlap equal the assembly trigger\'s surface / hold / recede / overlap', () => {
-      const t = reactionTempo();
+  describe('the tempo — two classes (the owner, 2026-10-27): calm for one or two reactors, the assembly scene\'s numbers from three', () => {
+    it('QUICK (≥ 3 groups): rise / hold / recede / overlap equal the assembly trigger\'s surface / hold / recede / overlap', () => {
+      const t = reactionTempo(REACTION_MANY_GROUPS);
       const a = intakeAssemblyTimings();
       expect([t.riseMs, t.holdMs, t.recedeMs, t.overlapMs]).deep.eq([a.surfaceMs, a.holdMs, a.recedeMs, a.overlapMs]);
+      expect(t.settleMs, 'a quick chain does not settle').eq(0);
       const r = reducedReactionTempo();
       const ra = reducedIntakeAssemblyTimings();
       expect([r.riseMs, r.holdMs, r.recedeMs, r.overlapMs]).deep.eq([ra.surfaceMs, ra.holdMs, ra.recedeMs, ra.overlapMs]);
       expect(r.staggerMs).eq(0);
     });
+
+    it('CALM (1–2 groups): a longer lift, a READ beat, a settle after the last landing — ≈ 2.2 s a card; the default is calm', () => {
+      const calm = reactionTempo(1);
+      expect(calm).deep.eq({...CALM_REACTION_TEMPO});
+      expect(reactionTempo(2)).deep.eq(calm);
+      expect(reactionTempo()).deep.eq(calm);
+      const quick = reactionTempo(3);
+      expect(calm.riseMs).to.be.greaterThan(quick.riseMs);
+      expect(calm.holdMs).to.be.greaterThan(quick.holdMs * 2);
+      expect(calm.settleMs).to.be.greaterThan(0);
+      expect(calm.recedeMs).to.be.greaterThan(quick.recedeMs);
+      // One reactor with six tokens: rise + read + the wave + settle + recede — between 2 and 2.6 s.
+      const one = calm.riseMs + calm.holdMs + 150 + 470 + calm.staggerMs * 5 + calm.settleMs + calm.recedeMs;
+      expect(one).to.be.within(2000, 2600);
+    });
+
+    it('a hurry is a pace, never a cut — above 2, under 3', () => {
+      expect(REACTION_HURRY_PACE).to.be.within(2, 3);
+    });
   });
 
   describe('planReactionChain — groups in order, overlapping, under a ceiling', () => {
-    const t = reactionTempo();
+    const t = reactionTempo(REACTION_MANY_GROUPS);
     const flight = {popMs: 150, arcMs: 470};
 
     it('one group: rise → hold → birth → the last landing → recede; the wall is under the ceiling', () => {
@@ -170,6 +193,24 @@ describe('cardReactionModel — the record → the group → the chain → the s
       expect(plan.steps[0].birthAtMs).eq(Math.round((t.riseMs + t.holdMs) / REACTION_MANY_PACE));
     });
 
+    it('the stage offers a ROW of slots (iteration 3): three slots take three groups side by side, the fourth waits for the first', () => {
+      const plan = planReactionChain([{tokens: 1}, {tokens: 1}, {tokens: 1}, {tokens: 1}], t, flight, {slots: 3});
+      expect(plan.seats).eq(3);
+      expect(plan.steps.map((s) => s.seat)).deep.eq([0, 1, 2, 0]);
+      expect(plan.steps[3].riseAtMs).to.be.at.least(plan.steps[0].recededAtMs);
+      expect(planReactionChain([{tokens: 1}, {tokens: 1}], t, flight, {slots: 3}).seats, 'never more slots than groups').eq(2);
+      expect(planReactionChain([{tokens: 1}, {tokens: 1}, {tokens: 1}], t, flight, {slots: 1}).seats, 'a one-slot stage plays in turn').eq(1);
+    });
+
+    it('a calm plan (two groups): the settle is part of the slot\'s occupancy', () => {
+      const calm = reactionTempo(2);
+      const plan = planReactionChain([{tokens: 1}, {tokens: 1}], calm, flight);
+      expect(plan.pace).eq(1);
+      const [a] = plan.steps;
+      expect(a.recededAtMs).eq(a.landedAtMs + calm.settleMs + calm.recedeMs);
+      expect(plan.summarized).deep.eq([]);
+    });
+
     it('a group whose rise would start past the ceiling is summarized — the counters tick, the name is kept', () => {
       const plan = planReactionChain(Array.from({length: 8}, () => ({tokens: 6})), t, flight, 1800);
       expect(plan.summarized.length).to.be.greaterThan(0);
@@ -197,40 +238,50 @@ describe('cardReactionModel — the record → the group → the chain → the s
     });
   });
 
-  describe('reactionSeatRect — beside the receiver, never over what is read', () => {
-    const stage = {left: 0, top: 0, width: 3840, height: 2160};
-    const rail = {left: 0, top: 900, width: 320, height: 60};
+  describe('reactionStageSlots — THE ONE STAGE: the centre of the central opening (the owner, 2026-10-27)', () => {
+    const tv = {left: 360, top: 120, width: 3000, height: 1900}; // a 4K opening between the hull members
+    const fhd = {left: 180, top: 60, width: 1500, height: 950};
+    const deck = {left: 120, top: 44, width: 1000, height: 640};
 
-    it('stands right of the rail, centred on the receiving row, card-shaped at the asked height', () => {
-      const seat = reactionSeatRect(stage, rail, [], 300);
-      expect(seat.left).to.be.greaterThan(rail.left + rail.width);
-      expect(seat.height).eq(300);
-      expect(seat.width).to.be.closeTo(300 / (460 / 320), 0.01);
-      expect(seat.top + seat.height / 2).to.be.closeTo(rail.top + rail.height / 2, 0.01);
+    it('one reactor stands centred in the opening, a protagonist\'s share of its height, card-shaped', () => {
+      const [slot] = reactionStageSlots(tv, 1, {uiScale: 2});
+      expect(slot.height).eq(Math.round(tv.height * REACTION_STAGE_SHARE));
+      expect(slot.width).eq(Math.round(slot.height / REACTOR_ASPECT));
+      expect(slot.left + slot.width / 2).to.be.closeTo(tv.left + tv.width / 2, 1);
+      expect(slot.top + slot.height / 2).to.be.closeTo(tv.top + tv.height / 2, 1);
+      expect(reactionStageSlots(tv, 1, {uiScale: 2})).to.have.lengthOf(1);
     });
 
-    it('slides past a surface it would cover (the hero, the composer\'s focus) — down first, then up', () => {
-      const hero = {left: 300, top: 700, width: 600, height: 500};
-      const seat = reactionSeatRect(stage, rail, [hero], 300);
-      expect(seat.top).to.be.at.least(hero.top + hero.height);
-      const below = {left: 300, top: 700, width: 600, height: 1400};
-      const up = reactionSeatRect(stage, rail, [below], 300);
-      expect(up.top + up.height).to.be.at.most(below.top);
+    it('the height is a share of the opening on every profile, capped at the natural frame × the UI scale', () => {
+      expect(reactionStageHeight(fhd, {uiScale: 1})).eq(Math.round(fhd.height * REACTION_STAGE_SHARE));
+      expect(reactionStageHeight(deck, {uiScale: 0.72})).eq(Math.round(deck.height * REACTION_STAGE_SHARE));
+      // A very tall opening at a small UI scale: the natural frame caps it (a card never prints larger than its art).
+      expect(reactionStageHeight({left: 0, top: 0, width: 4000, height: 4000}, {uiScale: 1})).eq(460);
+      // A rival stands a step smaller.
+      expect(reactionStageHeight(fhd, {uiScale: 1, scale: REACTION_RIVAL_SCALE})).eq(Math.round(fhd.height * REACTION_STAGE_SHARE * REACTION_RIVAL_SCALE));
     });
 
-    it('the second seat stands below the first', () => {
-      const first = reactionSeatRect(stage, rail, [], 300, 0);
-      const second = reactionSeatRect(stage, rail, [], 300, 1);
-      expect(second.top).to.be.greaterThan(first.top + first.height);
-      expect(second.left).eq(first.left);
+    it('several reactors are ONE ROW centred on the opening, left to right, never overlapping, never more than the cap', () => {
+      const three = reactionStageSlots(tv, 3, {uiScale: 2});
+      expect(three).to.have.lengthOf(3);
+      expect(three.every((s) => s.height === three[0].height && s.width === three[0].width)).is.true;
+      expect(three[1].left).to.be.greaterThan(three[0].left + three[0].width);
+      expect(three[2].left).to.be.greaterThan(three[1].left + three[1].width);
+      const rowCentre = (three[0].left + three[2].left + three[2].width) / 2;
+      expect(rowCentre).to.be.closeTo(tv.left + tv.width / 2, 1);
+      expect(reactionStageSlots(tv, 7, {uiScale: 2})).to.have.lengthOf(REACTION_STAGE_MAX_SLOTS);
+      expect(reactionStageSlots(tv, 2, {uiScale: 2, maxSlots: 2})).to.have.lengthOf(2);
+      expect(reactionStageSlots(tv, 5, {uiScale: 2, maxSlots: 2}), 'a handheld\'s cap').to.have.lengthOf(2);
     });
 
-    it('with no clear place the top-right corner takes it, at a reduced size', () => {
-      const wall = {left: 0, top: 0, width: 3840, height: 2160};
-      const seat = reactionSeatRect(stage, rail, [wall], 300);
-      expect(seat.left + seat.width).to.be.at.most(stage.width);
-      expect(seat.top).to.be.at.most(stage.top + 100);
-      expect(seat.height).to.be.at.most(300);
+    it('a narrow opening holds fewer slots — the row never leaves the opening', () => {
+      const narrow = {left: 0, top: 0, width: 600, height: 900};
+      const slots = reactionStageSlots(narrow, 3, {uiScale: 1});
+      expect(slots.length).to.be.lessThan(3);
+      for (const s of slots) {
+        expect(s.left).to.be.at.least(narrow.left);
+        expect(s.left + s.width).to.be.at.most(narrow.left + narrow.width);
+      }
     });
   });
 });

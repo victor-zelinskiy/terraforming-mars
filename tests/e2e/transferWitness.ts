@@ -164,7 +164,9 @@ export async function armTransferWitness(page: Page): Promise<void> {
       // effect row. `reactor:<card>:<sprite>`. Before the tags and the landed card's own icons: a token born here is the
       // reactor's, never the cause's.
       // …or IN ITS SEAT on the start stage (TR81 — a corporation answering its own first action rises where it stands).
-      ['reactor', '.con-reaction__face[data-reaction-card] .pcard-ic, .con-recv__emerge[data-played-key] .pcard-ic, .con-citypay__card[data-played-key] .pcard-ic, .con-start__embedsource [data-start-seat-card] .pcard-ic'],
+      // …or IN ITS PLACE wherever its face stands (iteration 3 — the composer's hero, `data-reaction-home`; a target
+      // miniature; the played table): one physical card, lifted where it is.
+      ['reactor', '.con-reaction__face[data-reaction-card] .pcard-ic, .con-recv__emerge[data-played-key] .pcard-ic, .con-citypay__card[data-played-key] .pcard-ic, .con-start__embedsource [data-start-seat-card] .pcard-ic, [data-reaction-home][data-reaction-lifted] .pcard-ic, [data-composer-card][data-reaction-lifted] .pcard-ic, .con-played [data-played-key][data-reaction-lifted] .pcard-ic'],
       // The START STAGE's seated card — the capsule a corporation's own answer lands in (TR81). `start-seat:<card>`.
       ['start-seat', '.con-start__embedsource [data-start-seat-card]'],
       ['tag', '.con-recv [data-recv-front] .pcard-tag[data-tag], .con-played [data-played-key] .pcard-tag[data-tag]'],
@@ -220,9 +222,10 @@ export async function armTransferWitness(page: Page): Promise<void> {
       case 'tag': return `tag:${name(el, 'data-tag')}`;
       case 'start-seat': return `start-seat:${name(el, 'data-start-seat-card')}`;
       case 'reactor': {
-        const face = el.closest('[data-reaction-card], [data-played-key], [data-start-seat-card]');
+        const face = el.closest('[data-reaction-card], [data-played-key], [data-start-seat-card], [data-reaction-home], [data-composer-card]');
         const card = face === null ? '' :
-          (face.getAttribute('data-reaction-card') ?? face.getAttribute('data-played-key') ?? face.getAttribute('data-start-seat-card') ?? '');
+          (face.getAttribute('data-reaction-card') ?? face.getAttribute('data-played-key') ?? face.getAttribute('data-start-seat-card') ??
+            face.getAttribute('data-reaction-home') ?? face.getAttribute('data-composer-card') ?? '');
         const sprite = /([\w-]+)\.(?:png|webp|svg)/.exec((el as HTMLElement).style.backgroundImage ?? '')?.[1] ?? 'icon';
         return `reactor:${card}:${sprite}`;
       }
@@ -255,7 +258,12 @@ export async function armTransferWitness(page: Page): Promise<void> {
           continue;
         }
         const label = anchorName(kind, el);
-        if (top !== undefined && top !== el && !el.contains(top) && !top.contains(el)) {
+        // THE CARD-REACTION LAYER paints over every band surface (z 11650) and is `pointer-events: none`, so the hit
+        // test under a reactor's face names the band it stands over — that band is never glass for it (the product's
+        // own verdict says the same, `transferEndVerdict`; iteration 3: a reactor rises at the stage over a standing
+        // composer by the owner's decision).
+        const overlay = el.closest('.con-reaction') !== null;
+        if (!overlay && top !== undefined && top !== el && !el.contains(top) && !top.contains(el)) {
           const ws = top.closest('.con-ws');
           if (ws !== null && !ws.contains(el)) {
             return `glass:${glassOf(top)}→${label}`;

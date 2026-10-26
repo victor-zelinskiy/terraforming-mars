@@ -111,11 +111,11 @@ function originOf(run: IntakeRun, host: IntakeAssemblyHost): ArrivalOrigin | und
  * scene set (surface 260 / recede 220; reduced 140 / 120). The assembly's own timings map onto the primitive's.
  */
 function surfaceTrigger(face: HTMLElement, seat: RectLike, t: IntakeAssemblyTimings, reduced: boolean): void {
-  void riseReactor(face, seat, {riseMs: t.surfaceMs, holdMs: t.holdMs, recedeMs: t.recedeMs, overlapMs: t.overlapMs, staggerMs: 0}, reduced);
+  void riseReactor(face, seat, {riseMs: t.surfaceMs, holdMs: t.holdMs, settleMs: 0, recedeMs: t.recedeMs, overlapMs: t.overlapMs, staggerMs: 0}, reduced);
 }
 
 function recedeTrigger(face: HTMLElement, t: IntakeAssemblyTimings, reduced: boolean): void {
-  void recedeReactor(face, {riseMs: t.surfaceMs, holdMs: t.holdMs, recedeMs: t.recedeMs, overlapMs: t.overlapMs, staggerMs: 0}, reduced);
+  void recedeReactor(face, undefined, {riseMs: t.surfaceMs, holdMs: t.holdMs, settleMs: 0, recedeMs: t.recedeMs, overlapMs: t.overlapMs, staggerMs: 0}, reduced);
 }
 
 /**

@@ -45,7 +45,11 @@
              :data-commit-link="commitRailLink"
              data-ptsel-source
              data-action-focus-card>
-          <div class="con-composer__actcard con-composer__actcard--stage">
+          <!-- `data-reaction-home` («СРАБАТЫВАНИЕ КАРТЫ», iteration 3): the hero IS the card on this surface — a
+               reaction of its own printed effect (Martian Fiber's «+1 data here» waking its «data added: +1 M€»)
+               LIFTS this face in place and births its tokens on its effect row; never a second instance beside the
+               rail. The lift is a transform on this inner body (`data-reaction-lift`), never on the un-zoomed wrap. -->
+          <div class="con-composer__actcard con-composer__actcard--stage" :data-reaction-home="heroCardName" data-reaction-lift>
             <!-- Keyed micro-swap: a Viron repeat handoff re-points the stage to
                  the inner action's card without a remount — the face crossfades
                  while the slot (the FLIP/zoom target) stays stable. -->

@@ -102,7 +102,12 @@ export function transferEndVerdict(el: Element | null | undefined, opts: Transfe
   if (cx < 0 || cy < 0 || cx > window.innerWidth || cy > window.innerHeight) {
     return {visible: false, why: 'off-screen'};
   }
-  if (typeof document.elementsFromPoint === 'function') {
+  // THE CARD-REACTION LAYER stands above every band surface by its z (11650 — over the workspaces, under the chips), and
+  // it is `pointer-events: none`, so the hit test under a reactor's face names the BAND the face paints over: a
+  // reactor risen at the stage over a standing composer (the owner, 2026-10-27 — one place in every state) is never
+  // covered by that band. A `.con-ws` cannot cover it; nothing else is asked of it here.
+  const overlay = el.closest('.con-reaction') !== null;
+  if (typeof document.elementsFromPoint === 'function' && !overlay) {
     // The transfer layer itself (a chip already in the air over the point) is never «cover».
     const top = document.elementsFromPoint(cx, cy).find((e) => e.closest('.con-transfer') === null);
     if (top !== undefined && top !== el && !el.contains(top) && !top.contains(el)) {
@@ -115,7 +120,7 @@ export function transferEndVerdict(el: Element | null | undefined, opts: Transfe
       }
     }
   }
-  if (opts.strict === true) {
+  if (opts.strict === true && !overlay) {
     // STRICT asks GEOMETRY too: a surface on its way out may already refuse the hit test (`pointer-events: none` on
     // the leave) while it still stands over the point and still imposes the layout it brought.
     for (const surface of Array.from(document.querySelectorAll('.con-ws'))) {

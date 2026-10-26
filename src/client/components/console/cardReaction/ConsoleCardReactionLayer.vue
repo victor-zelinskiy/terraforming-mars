@@ -19,13 +19,24 @@
        :data-reaction-groups="cardReactionState.chain?.cards.length"
        :data-reaction-landed="cardReactionState.chain?.landed"
        :data-reaction-seats="cardReactionState.chain?.seats"
+       :data-reaction-hurried="cardReactionState.hurried ? '1' : undefined"
        :data-reaction-summarized="cardReactionState.chain === undefined || cardReactionState.chain.summarized.length === 0 ? undefined : cardReactionState.chain.summarized.join('|')"
        :data-reaction-degraded="cardReactionState.degraded">
+    <!-- A WARM face (iteration 3) is mounted ahead of its rise — laid out and decoded under the cause's own scene,
+         never painted (`--warm`: visibility hidden) — and taken over by the rise with the same key, so the element
+         survives the take and the tween starts on a face the browser has already built. A RIVAL's face wears a
+         CAPTION naming its seat (the stage is one place for everyone). -->
     <div v-for="face in cardReactionState.faces" :key="face.key"
          class="con-reaction__face"
-         :data-reaction-card="face.name"
+         :class="{'con-reaction__face--warm': face.warm === true}"
+         :data-reaction-card="face.warm === true ? undefined : face.name"
+         :data-reaction-warm="face.warm === true ? face.name : undefined"
          :data-reaction-key="face.key"
          :ref="(el) => setFaceRef(face.key, el as HTMLElement | null)">
+      <div v-if="face.caption !== undefined" class="con-reaction__caption" :data-reaction-caption="face.caption.color">
+        <span class="con-reaction__caption-dot" :class="'player_bg_color_' + face.caption.color" aria-hidden="true"></span>
+        <span class="con-reaction__caption-name">{{ face.caption.name }}</span>
+      </div>
       <ConsoleCardFaceLite :name="face.name" :card="face.card" />
     </div>
   </div>

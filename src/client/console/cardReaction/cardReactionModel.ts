@@ -2,20 +2,23 @@
  * @console-shared LIVE — console native stands on this file.
  *
  * «СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК» — the PURE half of the card-reaction
- * scene (Turmoil Redux TR80 Hartlan Heating, 2026-10-26; contract
+ * scene (Turmoil Redux TR80 Hartlan Heating, 2026-10-26; iteration 3 — «МЕСТО ·
+ * ТЕМП · НЕПРЕРЫВНОСТЬ», the owner's field report of 2026-10-27; contract
  * `docs/claude/console/card-reaction.md`). No DOM, no GSAP — unit-tested under
  * the server runner like `intakeAssemblyPlan`.
  *
  * ── WHAT THE PLAYER SEES ───────────────────────────────────────────────────
  * The server says WHICH card's printed effect fired and WHAT it paid
  * (`GameModel.cardReactions` — one record per effect scope, in the order they
- * fired). The scene plays the record: the reacting card RISES — out of its
- * own place when that place is on screen, else surfacing at a SEAT beside the
- * receiver — its tokens are BORN on the printed icons of its effect row, fly
- * to where the resource lives, the counters TICK on touchdown, the card
- * RECEDES; the next group rises a beat before the previous one's last landing.
- * Fast, in groups, under a wall-clock CEILING: what cannot rise in time ticks
- * at once and is named (never a stall of the play's own scene).
+ * fired). The scene plays the record: the reacting card RISES — IN ITS PLACE
+ * when its face stands anywhere on screen (the composer's hero, a target
+ * miniature, the receiving stage, the start seat, the played table), else at
+ * THE ONE STAGE: the centre of the central opening, at a protagonist's size —
+ * its effect row lit for a READ beat, its tokens BORN on the printed icons of
+ * that row, flying to where the resource lives, the counters TICKING on the
+ * touchdown, the card RECEDING. One or two reactors play CALM; from three the
+ * chain QUICKENS and overlaps on a row of slots under a wall-clock CEILING:
+ * what cannot rise in time ticks at once and is named in ONE feed card.
  *
  * ── THE RECORD → THE GROUP ─────────────────────────────────────────────────
  * A record is a group. Its impacts split by WHERE they can be shown: the
@@ -163,13 +166,19 @@ export function reactionRowsOf(group: Pick<CardReactionGroup, 'rail'>): Array<st
 
 // ── the tempo ──────────────────────────────────────────────────────────────
 
-/** The rise primitive's numbers — the assembly scene's, byte for byte (ONE primitive, `cardReactionStage.riseReactor`). */
+/**
+ * The rise primitive's numbers. TWO CLASSES (the owner, 2026-10-27 — «быстро» was meant for MANY effects; one reaction
+ * must read calm and premium): CALM for one or two groups, QUICK from three — the assembly scene's numbers byte for
+ * byte (ONE primitive, `cardReactionStage.riseReactor`).
+ */
 export type ReactionTempo = {
-  /** The card rises (alpha 0 → .94, y +14 → 0). */
+  /** The card rises (opacity 0 → 1, a lift from below, a hair of scale). */
   riseMs: number;
-  /** …and stands a beat before its tokens are born (the eye reads WHICH card). */
+  /** …and stands a READ beat before its tokens are born — the effect row lit: the eye reads WHICH card and WHY. */
   holdMs: number;
-  /** The card recedes after its last token landed. */
+  /** After its last token landed the card stands a beat more (the counter's delta lands under the eye). */
+  settleMs: number;
+  /** The card recedes after the settle. */
   recedeMs: number;
   /** The next group rises this long BEFORE the previous group's last landing. */
   overlapMs: number;
@@ -177,14 +186,32 @@ export type ReactionTempo = {
   staggerMs: number;
 };
 
-export function reactionTempo(): ReactionTempo {
-  return {riseMs: 260, holdMs: 150, recedeMs: 220, overlapMs: 140, staggerMs: 60};
+/** One or two reactors: calm — ≈ 2.2 s per card from the rise to the recede (the owner's choice, 2026-10-27). */
+export const CALM_REACTION_TEMPO: Readonly<ReactionTempo> = {riseMs: 420, holdMs: 480, settleMs: 240, recedeMs: 320, overlapMs: 240, staggerMs: 90};
+/** Three or more: quick, overlapping — the assembly scene's trigger numbers (`intakeAssemblyTimings`). */
+export const QUICK_REACTION_TEMPO: Readonly<ReactionTempo> = {riseMs: 260, holdMs: 150, settleMs: 0, recedeMs: 220, overlapMs: 140, staggerMs: 60};
+/** Reduced motion: a crossfade ≤ 160 ms, no tokens (the director ticks on the commit). */
+export const REDUCED_REACTION_TEMPO: Readonly<ReactionTempo> = {riseMs: 140, holdMs: 60, settleMs: 0, recedeMs: 120, overlapMs: 60, staggerMs: 0};
+
+/** From this many groups on the chain is QUICK and overlaps (the owner's decision 4; 2026-10-27: below it, calm). */
+export const REACTION_MANY_GROUPS = 3;
+export const REACTION_MANY_PACE = 1.35;
+
+/** The tempo for a chain of `groups` reactors — calm for one or two, quick from `REACTION_MANY_GROUPS`. */
+export function reactionTempo(groups = 1): ReactionTempo {
+  return {...(groups >= REACTION_MANY_GROUPS ? QUICK_REACTION_TEMPO : CALM_REACTION_TEMPO)};
 }
 
-/** Reduced motion: a crossfade ≤ 160 ms, no tokens (the director ticks on the commit). */
 export function reducedReactionTempo(): ReactionTempo {
-  return {riseMs: 140, holdMs: 60, recedeMs: 120, overlapMs: 60, staggerMs: 0};
+  return {...REDUCED_REACTION_TEMPO};
 }
+
+/**
+ * A HURRY is a pace, never a cut (the owner, 2026-10-27): a press or a navigation while the chain plays makes what is
+ * left play at this pace — every face still rises, every token still flies, the read beats shorten — and only a SECOND
+ * hurry completes at once (the counters tick, the faces let go).
+ */
+export const REACTION_HURRY_PACE = 2.4;
 
 /** The chain's wall-clock ceiling (the owner's decision 4): what has not risen by then ticks at once, named. */
 export const REACTION_CHAIN_CEILING_MS = 1800;
@@ -197,9 +224,6 @@ export const REACTION_MANY_CEILING_GROUPS = 4;
 export function chainCeilingFor(n: number): number {
   return n >= REACTION_MANY_CEILING_GROUPS ? REACTION_CHAIN_CEILING_MANY_MS : REACTION_CHAIN_CEILING_MS;
 }
-/** From this many groups on, the chain quickens and takes TWO seats (the owner's decision 4). */
-export const REACTION_MANY_GROUPS = 3;
-export const REACTION_MANY_PACE = 1.35;
 
 export type ReactionFlightTempo = {
   /** A token's pop off its icon + its arc to the row (the transfer language's own numbers). */
@@ -209,8 +233,8 @@ export type ReactionFlightTempo = {
 
 export type ReactionChainStep = {
   index: number;
-  /** Which seat the group rises at (a second seat only when the chain is MANY). */
-  seat: 0 | 1;
+  /** Which SLOT of the stage the group rises in (a row of slots from the second group on). */
+  seat: number;
   riseAtMs: number;
   /** The first token is born. */
   birthAtMs: number;
@@ -225,34 +249,44 @@ export type ReactionChainPlan = {
   /** The groups past the ceiling — never risen: their counters tick at once, their names go into ONE summary. */
   summarized: ReadonlyArray<number>;
   pace: number;
-  seats: 1 | 2;
+  /** How many slots of the stage the chain uses (≥ 1). */
+  seats: number;
   totalMs: number;
 };
 
+export type ReactionChainOptions = {
+  /** The slots the stage offers (its geometry — `reactionStageSlots`); default two from the second group on. */
+  slots?: number;
+  ceilingMs?: number;
+};
+
 /**
- * THE CHAIN — groups in the server's order, each rising `overlapMs` before the previous group's last landing; from
- * `REACTION_MANY_GROUPS` on the whole chain runs at `REACTION_MANY_PACE` and alternates two seats so a rising card never
- * waits for a receding one; a group whose rise would start past the ceiling is not risen at all (`summarized`). Pure.
+ * THE CHAIN — groups in the server's order, each rising `overlapMs` before the previous group's last landing on the
+ * next free slot (two faces never share one box); from `REACTION_MANY_GROUPS` on the whole chain runs at
+ * `REACTION_MANY_PACE`; a group whose rise would start past the ceiling is not risen at all (`summarized`). Pure — the
+ * director plays the steps by EVENT (the previous group's last birth, the slot's recede), the plan's times are the
+ * ceiling's arithmetic and the probe's reading.
  */
 export function planReactionChain(
   groups: ReadonlyArray<{tokens: number}>,
   t: ReactionTempo,
   flight: ReactionFlightTempo,
-  ceilingOverride?: number,
+  options?: number | ReactionChainOptions,
 ): ReactionChainPlan {
-  const ceilingMs = ceilingOverride ?? chainCeilingFor(groups.length);
+  const opts: ReactionChainOptions = typeof options === 'number' ? {ceilingMs: options} : (options ?? {});
+  const ceilingMs = opts.ceilingMs ?? chainCeilingFor(groups.length);
   const many = groups.length >= REACTION_MANY_GROUPS;
   const pace = many ? REACTION_MANY_PACE : 1;
-  // A second seat the moment there is a second group: the next card rises while the previous one is still landing,
+  // A second slot the moment there is a second group: the next card rises while the previous one is still landing,
   // and two faces never share one box. The PACE quickens only from MANY on.
-  const seats: 1 | 2 = groups.length >= 2 ? 2 : 1;
+  const seats = Math.max(1, Math.min(groups.length, opts.slots ?? (groups.length >= 2 ? 2 : 1)));
   const q = (ms: number) => Math.round(ms / pace);
   const steps: Array<ReactionChainStep> = [];
   const summarized: Array<number> = [];
-  const seatFreeAt: [number, number] = [0, 0];
+  const seatFreeAt: Array<number> = new Array(seats).fill(0);
   let prevLandedMs = 0;
   groups.forEach((group, index) => {
-    const seat: 0 | 1 = seats === 2 ? ((index % 2) as 0 | 1) : 0;
+    const seat = seats === 1 ? 0 : index % seats;
     const earliest = steps.length === 0 ? 0 : Math.max(0, prevLandedMs - t.overlapMs);
     const riseAtMs = Math.max(earliest, seatFreeAt[seat]);
     if (riseAtMs >= ceilingMs) {
@@ -262,7 +296,7 @@ export function planReactionChain(
     const birthAtMs = riseAtMs + q(t.riseMs + t.holdMs);
     const tokens = Math.max(1, group.tokens);
     const landedAtMs = birthAtMs + q(flight.popMs + flight.arcMs + t.staggerMs * (tokens - 1));
-    const recededAtMs = landedAtMs + q(t.recedeMs);
+    const recededAtMs = landedAtMs + q(t.settleMs + t.recedeMs);
     steps.push({index, seat, riseAtMs, birthAtMs, landedAtMs, recededAtMs});
     seatFreeAt[seat] = recededAtMs;
     prevLandedMs = landedAtMs;
@@ -270,54 +304,52 @@ export function planReactionChain(
   return {steps, summarized, pace, seats, totalMs: steps.reduce((max, s) => Math.max(max, s.recededAtMs), 0)};
 }
 
-// ── the seat ───────────────────────────────────────────────────────────────
+// ── THE ONE STAGE ──────────────────────────────────────────────────────────
+
+/** The premium frame's aspect (320 × 460). */
+export const REACTOR_ASPECT = 460 / 320;
+/** A reactor at the stage stands at a protagonist's share of the opening's height (the receiving stage's PL-126 law). */
+export const REACTION_STAGE_SHARE = 0.34;
+/** …and never taller than the natural frame at the UI scale (a 4K opening would otherwise print a 700 px card). */
+export const REACTOR_NATURAL_H = 460;
+/** The row of slots at the stage is at most this wide. */
+export const REACTION_STAGE_MAX_SLOTS = 3;
+/** A RIVAL's reactor stands a step smaller than the viewer's own (its caption names the seat). */
+export const REACTION_RIVAL_SCALE = 0.8;
+
+export type ReactionStageOptions = {
+  uiScale: number;
+  /** The row's cap (the profile's — a handheld takes two). */
+  maxSlots?: number;
+  /** A face scale against the stage's own (a rival's `REACTION_RIVAL_SCALE`). */
+  scale?: number;
+};
+
+/** The card's height at the stage: a share of the opening, capped at the natural frame × the UI scale. */
+export function reactionStageHeight(opening: RectLike, opts: ReactionStageOptions): number {
+  const h = Math.min(opening.height * REACTION_STAGE_SHARE, REACTOR_NATURAL_H * Math.max(0.5, opts.uiScale)) * (opts.scale ?? 1);
+  return Math.max(80, Math.round(h));
+}
 
 /**
- * WHERE A REACTOR SURFACES when its own place is not on screen (the owner's
- * decision 7): beside the RECEIVER — the rail's row on the stage side (the rail
- * is the left hull member, so the seat stands just right of it, centred on the
- * receiving row) — never over the hero, the composer's focus or a slot
- * (`avoid`): a seat that would cover one slides down, then up, past it; with
- * no clear place the stage's top-right corner takes it at a reduced size. The
- * second seat (`slot` 1) stands below the first. A card-shaped box of
- * `height` (the host's choice — a reading size, never the hero's). Pure, so
- * the order of degradation is a tested fact.
+ * WHERE A REACTOR RISES when its own face is not on screen (the owner, 2026-10-27 — ONE place in every state, over a
+ * workspace's band too): THE CENTRE OF THE CENTRAL OPENING. `n` groups take a ROW of up to `maxSlots` card-shaped
+ * slots (as many as the opening's width holds), centred horizontally and vertically; the chain plays them left to
+ * right. Pure, so the geometry is a tested fact; the director measures the opening.
  */
-export function reactionSeatRect(
-  stage: RectLike,
-  receiver: RectLike,
-  avoid: ReadonlyArray<RectLike>,
-  height: number,
-  slot: 0 | 1 = 0,
-  aspect = 460 / 320,
-): RectLike {
-  const pad = Math.max(8, stage.width * 0.012);
-  const gap = Math.max(10, height * 0.08);
-  const width = height / aspect;
-  const left = Math.min(receiver.left + receiver.width + gap, stage.left + stage.width - pad - width);
-  const centre = receiver.top + receiver.height / 2;
-  const baseTop = centre - height / 2 + slot * (height + gap);
-  const minTop = stage.top + pad;
-  const maxTop = stage.top + stage.height - pad - height;
-  const fits = (r: RectLike) => r.top >= minTop && r.top <= maxTop && !avoid.some((a) => intersects(r, a));
-  const candidates: Array<RectLike> = [{left, top: clamp(baseTop, minTop, maxTop), width, height}];
-  for (let step = 1; step <= 6; step++) {
-    candidates.push({left, top: baseTop + step * (height * 0.5), width, height});
-    candidates.push({left, top: baseTop - step * (height * 0.5), width, height});
+export function reactionStageSlots(opening: RectLike, n: number, opts: ReactionStageOptions): Array<RectLike> {
+  const height = reactionStageHeight(opening, opts);
+  const width = Math.round(height / REACTOR_ASPECT);
+  const gap = Math.max(12, Math.round(height * 0.08));
+  const pad = Math.max(8, opening.width * 0.012);
+  const fit = Math.max(1, Math.floor((opening.width - 2 * pad + gap) / (width + gap)));
+  const count = Math.max(1, Math.min(n, opts.maxSlots ?? REACTION_STAGE_MAX_SLOTS, fit));
+  const total = count * width + (count - 1) * gap;
+  const left0 = opening.left + (opening.width - total) / 2;
+  const top = opening.top + (opening.height - height) / 2;
+  const out: Array<RectLike> = [];
+  for (let i = 0; i < count; i++) {
+    out.push({left: Math.round(left0 + i * (width + gap)), top: Math.round(top), width, height});
   }
-  const seat = candidates.find(fits);
-  if (seat !== undefined) {
-    return seat;
-  }
-  const smallH = Math.min(height, stage.height * 0.3);
-  const smallW = smallH / aspect;
-  return {left: stage.left + stage.width - pad - smallW, top: stage.top + pad + slot * (smallH + gap), width: smallW, height: smallH};
-}
-
-function clamp(v: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, v));
-}
-
-function intersects(a: RectLike, b: RectLike): boolean {
-  return a.left < b.left + b.width && a.left + a.width > b.left && a.top < b.top + b.height && a.top + a.height > b.top;
+  return out;
 }

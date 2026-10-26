@@ -133,6 +133,32 @@ describe('transferEndVerdict — a place a token may be born on or land on', () 
     expect(transferEndVerdict(satellite, {strict: true}), 'the surface gone — the end is open').to.deep.eq({visible: true});
   });
 
+  it('THE CARD-REACTION LAYER paints over every band (iteration 3): a reactor\'s face over a standing composer is never covered by it — the hit test names the band under the pointer-events-none layer', () => {
+    const composer = document.createElement('div');
+    composer.className = 'con-ws con-cardactions';
+    const layer = document.createElement('div');
+    layer.className = 'con-reaction';
+    const face = document.createElement('div');
+    face.className = 'con-reaction__face';
+    const icon = document.createElement('div');
+    icon.className = 'pcard-ic';
+    face.appendChild(icon);
+    layer.appendChild(face);
+    root.append(composer, layer);
+    for (const el of [composer, face, icon]) {
+      box(el, {left: 600, top: 300, width: 120, height: 80});
+    }
+    stack(composer); // the hit test under the face names the composer — the layer refuses the pointer
+    expect(transferEndVerdict(icon), 'a printed icon of the reactor over the band').to.deep.eq({visible: true});
+    expect(transferEndVerdict(icon, {strict: true}), 'strict too — no band can cover the layer').to.deep.eq({visible: true});
+    // …while a satellite under that same glass stays covered (the exemption is the layer's alone).
+    const satellite = document.createElement('div');
+    satellite.className = 'con-res-aux__cell';
+    root.append(satellite);
+    box(satellite, {left: 600, top: 300, width: 120, height: 80});
+    expect(transferEndVerdict(satellite)).to.deep.eq({visible: false, why: 'covered', by: 'con-cardactions'});
+  });
+
   it('firstVisibleEnd takes the first VISIBLE match in document order and reports what it skipped', () => {
     const a = document.createElement('div');
     const b = document.createElement('div');

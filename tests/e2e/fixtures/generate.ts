@@ -9748,6 +9748,33 @@ parliamentFixture('arwind-pay-space', {
   write(name, game);
 }
 
+// ── card-reaction-fiber: A CARD WHOSE OWN ACTION WAKES ITS OWN EFFECT (iteration 3 — the owner's field report of
+//    2026-10-27: two instances of one card). Blue on Hartlan Heating with TR18 Martian Fiber on the table: its free
+//    action «+1 data here» fires its own «data added to any card: +1 M€» — the composer's hero IS the reactor, lifted
+//    in place, its M€ born on ITS printed M€; never a second copy beside the rail. ──
+{
+  const name = 'card-reaction-fiber';
+  const pinned = [CardName.HARTLAN_HEATING, REDUX_TABLE_CORPORATIONS[0]];
+  const [game, p1, p2] = testGame(2, {
+    skipInitialCardSelection: false, coloniesExtension: true, turmoilReduxExpansion: true,
+    startingCorporations: 1, customCorporationsList: [...pinned],
+  });
+  assignPinnedCorporations(name, [p1, p2], pinned);
+  answerStartFlow(game, [p1, p2]);
+  if (!p1.playedCards.has(CardName.HARTLAN_HEATING)) {
+    throw new Error(`${name}: blue is not on Hartlan Heating (${p1.playedCards.corporations().map(toName).join(',')})`);
+  }
+  const fiber = new MartianFiber();
+  p1.playedCards.push(fiber);
+  p1.megaCredits = 40;
+  p2.megaCredits = 30;
+  runAllActions(game);
+  if (!p1.getPlayableActionCards().some((c) => c.name === CardName.MARTIAN_FIBER)) {
+    throw new Error(`${name}: Martian Fiber's action is not available to blue`);
+  }
+  write(name, game);
+}
+
 // ── lotus-innovations: TR81 LOTUS INNOVATIONS — «a data here for every step of your rating; 1 VP per 4 data». A 2p Redux
 //    table, blue on Lotus with its first action BEHIND it (the start stage's own scene is the spec's A, on a real start
 //    flow) and 1 data on the card: Release of Inert Gases in the hand (a printed +2 TR — the composer's «Сработает»

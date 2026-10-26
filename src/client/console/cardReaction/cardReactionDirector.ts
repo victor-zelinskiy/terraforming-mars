@@ -2,34 +2,53 @@
  * @console-shared LIVE — console native stands on this file.
  *
  * THE CARD-REACTION DIRECTOR — «СРАБАТЫВАНИЕ КАРТЫ — ОДИН ФРЕЙМВОРК» (Turmoil
- * Redux TR80 Hartlan Heating, 2026-10-26; contract `docs/claude/console/
- * card-reaction.md`). The server's record (`GameModel.cardReactions`) says
- * WHICH card's printed effect fired and WHAT it paid; this module turns the
- * fresh records of a response into ONE scene, in two shapes:
+ * Redux TR80 Hartlan Heating, 2026-10-26; iteration 3 «МЕСТО · ТЕМП ·
+ * НЕПРЕРЫВНОСТЬ», the owner's field report of 2026-10-27; contract
+ * `docs/claude/console/card-reaction.md`). The server's record
+ * (`GameModel.cardReactions`) says WHICH card's printed effect fired and WHAT
+ * it paid; this module turns the fresh records of a response into ONE scene,
+ * in two shapes:
  *
  *  ATTACHED  — a host already HOLDS the reaction's rows on the rail (the play
  *              scene's rail half, the action commit's — their «table's
  *              answer», promised by the forecast and verified against the two
  *              views): the host asks for an ANSWER FLIGHT and gets one whose
- *              tokens are born on the REACTOR — risen at `prepare`, out of its
- *              own place when the receiving stage holds it, else at a seat
- *              beside the rail — instead of on the cause (the played card's
- *              tag, the composer's chip — those are MARKED, the owner's
- *              decision 2). The rail module keeps its holds, its order and its
- *              release; this module keeps the faces.
+ *              tokens are born on the REACTOR — risen at `prepare`, IN ITS
+ *              PLACE when its face stands on screen, else at THE STAGE —
+ *              instead of on the cause (the played card's tag, the composer's
+ *              chip — those are MARKED, the owner's decision 2). The rail
+ *              module keeps its holds, its order and its release; this module
+ *              keeps the faces.
  *  STANDALONE — nobody holds the rows (a standard project's city waking
  *              Tharsis, a reaction with no host scene): the seeder holds the
  *              viewer's own rows in the apply block and plays the chain itself
- *              after the board's own story — rise → birth on the effect row →
- *              fly → tick on touchdown → recede, group after group under the
- *              wall-clock ceiling (`planReactionChain`).
+ *              after the board's own story — rise → read → birth on the effect
+ *              row → fly → tick on touchdown → settle → recede, group after
+ *              group, each step started by the PREVIOUS step's event (its last
+ *              birth, its slot's recede) under the wall-clock ceiling
+ *              (`planReactionChain`).
+ *
+ * The laws of iteration 3:
+ *  - ONE PLACE. A reactor whose face is on screen (`reactorPlaces`) lifts
+ *    THAT face — never a second instance; every other reactor rises at the
+ *    centre of the central opening (`reactionStageSlots`), in a workspace's
+ *    band too, a rival's at the same stage with its seat's caption.
+ *  - TWO TEMPI. One or two reactors play CALM (≈ 2.2 s a card: the lift, a
+ *    READ beat with the effect row lit, the births, the touchdowns, a settle,
+ *    the recede); from three the chain is QUICK and overlaps.
+ *  - A HURRY IS A PACE, NEVER A CUT. A press or a navigation while the chain
+ *    plays makes what is left play at `REACTION_HURRY_PACE` — every face
+ *    still rises, every token still flies; a SECOND hurry completes at once.
+ *  - A RISE STARTS ON A PAINTED FACE. The faces are WARMED at the seed and
+ *    the tweens begin on a painted frame; the chain is sequenced by EVENTS,
+ *    never by absolute times — a slow device stretches it, it never swallows
+ *    a rise.
  *
  * Honesties: the amounts are the SERVER's (never a counter's delta read
  * back); an impact the scene cannot fly is named `elsewhere` and ticks; a
  * face that cannot be painted degrades THAT group by name; every hold is
  * bounded (the registry's ceiling) and NOTIFICATION-ONLY — a reaction never
- * holds a question; A / B hurries: whatever is left ticks at once; reduced
- * motion holds nothing and flies nothing.
+ * holds a question; reduced motion holds nothing and flies nothing.
  */
 import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
@@ -39,9 +58,9 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {blockingAnimationHoldCount, registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
+import {cssLengthPx} from '@/client/console/cssUnits';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
-import {probeTick} from '@/client/console/probeTick';
 import {acceptSeatIntake, foldSeatIntake, openSeatIntake, seatIntakeEnd} from '@/client/console/statusIntake';
 import {CardResource} from '@/common/CardResource';
 import {
@@ -56,16 +75,19 @@ import {waitRewardPayoutQuiet} from '@/client/console/rewardPayoutQuiet';
 import {scaleStepRatingBusy} from '@/client/console/scaleStepReward/scaleStepRatingBeat';
 import {RectLike} from '@/client/console/cardIntake/intakeAssemblyPlan';
 import {
-  CardReactionGroup, ReactionTempo, freshCardReactions, groupCardReactions, planReactionChain, reactionImpactSpec, reactionSeatRect,
-  reactionTempo, reactionTokensOf, reducedReactionTempo,
+  CardReactionGroup, REACTION_HURRY_PACE, REACTION_RIVAL_SCALE, ReactionTempo, freshCardReactions, groupCardReactions, planReactionChain,
+  reactionImpactSpec, reactionStageSlots, reactionTempo, reactionTokensOf, reducedReactionTempo,
 } from '@/client/console/cardReaction/cardReactionModel';
 import {
-  ReactorFace, cardReactionStageMounted, cardReactionStageRect, cardReactionState, killReactorTweens, reactorEl, recedeReactor, riseReactor, seatReactor,
-  unseatAllReactors, unseatReactor,
+  ReactorCaption, ReactorFace, cardReactionStageMounted, cardReactionStageRect, cardReactionState, dropWarmReactors, killReactorTweens, markReactionRow,
+  nextPaintedFrame, paceReactorTweens, reactorEl, recedeReactor, riseReactor, seatReactor, unseatAllReactors, unseatReactor, warmReactorFaces,
 } from '@/client/console/cardReaction/cardReactionStage';
+import {ReactorEmergence, findReactorPlace} from '@/client/console/cardReaction/reactorPlaces';
 import {resolveEffectIconEnds} from '@/client/console/cardReaction/effectIconEnds';
 import {buildCardReactionSummaryNotification} from '@/client/console/cardReaction/cardReactionSummary';
 import {pushTransient} from '@/client/components/notifications/notificationState';
+
+export type {ReactorEmergence} from '@/client/console/cardReaction/reactorPlaces';
 
 /** The rail rows the seeder measures: the six resources' stock and production, and the rating. */
 const RAIL_RESOURCES = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'];
@@ -88,16 +110,6 @@ export function snapshotRailHolds(): Record<string, number> {
   return out;
 }
 
-/** A reactor's WAY ONTO THE SCREEN: out of its own place in a host's stage, or at a seat of this layer. */
-export type ReactorEmergence = {
-  /** The host's stage holds this card and can bring it forward out of its place. */
-  standsIn: (card: CardName) => boolean;
-  emergeTarget: (card: CardName) => Promise<void>;
-  settleTarget: (card: CardName) => Promise<void>;
-  /** The emerged face's element (the tokens are born on its effect row) — `undefined` degrades the group's births. */
-  emergedFaceEl: (card: CardName) => HTMLElement | undefined;
-};
-
 type Attached = {
   group: CardReactionGroup;
   /** The rows of the group a host holds (its answer) — the join key for the host's flight. */
@@ -117,6 +129,7 @@ type Risen = {
   key: string;
   face: HTMLElement | undefined;
   via: 'place' | 'seat' | 'none';
+  seat?: RectLike;
   emergence?: ReactorEmergence;
 };
 
@@ -128,30 +141,43 @@ let running: Array<Standalone> = [];
 
 /**
  * A RIVAL's reactor (the record's owner is another seat — PL-1057): nothing of the viewer's is held; after the viewer's
- * own chain it rises COMPACTLY beside that seat's chip in the status strip and its tokens are born on its effect row
- * and land on the chip's INTAKE plaque (the owner's M1 — `statusIntake`), each ticking the plaque's number.
+ * own chain it rises at the same stage, a step smaller, under a caption naming its seat (the owner, 2026-10-27 — one
+ * place for everyone), and its tokens are born on its effect row and land on the chip's INTAKE plaque (the owner's M1
+ * — `statusIntake`), each ticking the plaque's number.
  */
 type Rival = {group: CardReactionGroup; owner: Color; specs: Array<ResourceTransferSpec>};
 const rivalQueue: Array<Rival> = [];
-/** The last applied view — a rival's face is read off ITS seat's tableau. */
+/** The last applied view — a rival's face is read off ITS seat's tableau, its caption off its seat's name. */
 let lastView: PlayerViewModel | undefined;
-/** A rival's rise waits for a screen with nothing over the strip — bounded; past it the rise is skipped (the feed tells it). */
-const RIVAL_WAIT_MS = 8000;
-/** The rival's face stands smaller than an own reactor's (a glance at the strip, never a protagonist). */
-const RIVAL_SEAT_SCALE = 0.62;
 /** The standalone chain plays after every BLOCKING scene (a sitting's beats, a landing) — bounded; then it plays anyway. */
 const BLOCKING_QUIET_MAX_MS = 12000;
+/** …and after a DECISION standing at the centre (a drawn card to take, a deck pick) — a reactor never covers a card the player is choosing; bounded. */
+const DECISION_WAIT_MAX_MS = 6000;
+const DECISION_SURFACES = '.con-reveal, .con-deckpick';
+/** A handheld's opening holds two slots; every other profile up to the model's cap. */
+const HANDHELD_MAX_SLOTS = 2;
 let epoch = 0;
 let standaloneRunning = false;
 let faceSeq = 0;
+/** THE HURRY: a press / a navigation while the chain plays. Reset when the chain goes idle. */
+let hurried = false;
+let hurriedEpoch = -1;
+let hurriedAt = 0;
+/** One gesture, one hurry: a press that opens a sheet is a press AND a navigation — within this window the second call is the same gesture. */
+const HURRY_REPEAT_WINDOW_MS = 700;
 
 export function cardReactionPending(): boolean {
   return cardReactionState.phase !== 'idle' || standaloneQueue.length > 0 || rivalQueue.length > 0;
 }
 
-/** A rival's record is pending (its compact rise beside the seat chip is owed). */
+/** A rival's record is pending (its rise at the stage is owed). */
 export function rivalReactionPending(): boolean {
   return rivalQueue.length > 0;
+}
+
+/** The chain plays hurried right now (a probe's read). */
+export function cardReactionHurried(): boolean {
+  return hurried;
 }
 
 /** The gains a RIVAL's reactor paid that seat — the impacts addressed to the record's owner, as transfer specs. */
@@ -171,13 +197,13 @@ export function rivalSpecsOf(group: CardReactionGroup): Array<ResourceTransferSp
 
 registerAnimationHoldSupplier('card-reaction', () => cardReactionState.phase !== 'idle', {
   scope: 'notification-only',
-  diagnose: () => ({phase: cardReactionState.phase, chain: cardReactionState.chain, faces: cardReactionState.faces.map((f) => f.name)}),
+  diagnose: () => ({phase: cardReactionState.phase, chain: cardReactionState.chain, hurried, faces: cardReactionState.faces.map((f) => f.name)}),
   expire: () => abortCardReactions(),
 });
 
 // The chain's rows survive a foreign scene's belt-and-braces clear (a tile scene's «safety» at its end — the first
 // field run ticked Tharsis Republic's 3 M€ a beat before its tokens were born): released only by their touchdowns,
-// A / B, or the registry's ceiling above.
+// a second hurry, or the registry's ceiling above.
 registerRewardHoldKeeper(() => [...running, ...standaloneQueue].flatMap((entry) => entry.held));
 
 /** The viewer's own LIVE model of a card (the capsule's count) — the pristine print when the tableau does not hold it. */
@@ -190,7 +216,9 @@ function liveModelOf(view: PlayerViewModel | undefined, card: CardName): CardMod
 /**
  * Called from the transport's apply block AFTER every host seeded its own rewards: the fresh records are claimed once
  * (by `seq`); a group whose rows a host holds is ATTACHED (the host's flight will ask for it); a group with rows nobody
- * holds is held here and queued for the STANDALONE chain. Reduced motion claims the records and holds nothing.
+ * holds is held here and queued for the STANDALONE chain. The faces are WARMED here (the layer mounts them hidden at
+ * the stage's size, the art decoded) so a rise starts on a laid-out face. Reduced motion claims the records and holds
+ * nothing.
  */
 export function seedCardReactionHolds(before: PlayerViewModel | undefined, after: PlayerViewModel | undefined, heldBefore: Record<string, number>): void {
   // The answers the hosts PROMISED in this block — taken every block, so a declaration never outlives its response.
@@ -270,6 +298,10 @@ export function seedCardReactionHolds(before: PlayerViewModel | undefined, after
     ...(overRaw.length > 0 ? {standaloneOverRawHold: [...new Set(overRaw)]} : {}),
   });
   preloadPremiumCardArt([...groups.map((g) => g.card), ...rivals.map((r) => r.group.card)]);
+  // THE FACES ARE WARMED NOW (iteration 3): mounted hidden in the layer at the stage's size — the layout and the
+  // decode happen under the cause's own scene, never in the rise's first frame. A card that will rise in its place
+  // never needs the warm face; it is dropped unused when the chain ends.
+  warmFaces([...groups.map((g) => ({name: g.card, card: liveModelOf(after, g.card)})), ...rivals.map((r) => ({name: r.group.card, card: seatModelOf(after, r.owner, r.group.card)}))]);
   // Attached groups nobody claims within the response's own scene are let go (no hold of ours stands behind them).
   if (attached.length > 24) {
     attached = attached.slice(-12);
@@ -284,61 +316,73 @@ export function seedCardReactionHolds(before: PlayerViewModel | undefined, after
   }
 }
 
-// ── THE RISE (shared by both shapes) ───────────────────────────────────────
-
-function tempo(): ReactionTempo {
-  return consoleReducedMotionActive() ? reducedReactionTempo() : reactionTempo();
-}
-
-function measure(selector: string): RectLike | undefined {
-  const el = document.querySelector<HTMLElement>(selector);
-  if (el === null) {
-    return undefined;
+function warmFaces(faces: Array<{name: CardName, card?: CardModel}>): void {
+  if (!cardReactionStageMounted()) {
+    return;
   }
-  const r = el.getBoundingClientRect();
-  return r.width > 2 && r.height > 2 ? {left: r.left, top: r.top, width: r.width, height: r.height} : undefined;
+  const [slot] = stageSlotsFor(1);
+  if (slot !== undefined) {
+    warmReactorFaces(faces, slot);
+  }
 }
 
-/** The RECEIVER of a group's first token — its rail row, a holder's satellite cell (the whole rail when neither is painted). */
-function receiverOf(group: CardReactionGroup): RectLike | undefined {
-  const first = group.rail[0] ?? group.cards[0];
-  const row = first === undefined ? undefined :
-    first.channel === 'card-resource' ? measure(`.con-res-aux__cell[data-aux-resource="${first.resource}"]`) :
-      first.resource === RATING_RAIL_KEY ? measure('.con-res .con-score__cell--tr') :
-        measure(`.con-res .con-res__row--${first.resource}`);
-  return row ?? measure('.con-res');
+// ── THE STAGE AND THE TEMPO ────────────────────────────────────────────────
+
+/** The current tempo: reduced → the crossfade; hurried → the quick numbers; else by the chain's size. */
+function tempoFor(groups: number): ReactionTempo {
+  if (consoleReducedMotionActive()) {
+    return reducedReactionTempo();
+  }
+  return hurried ? reactionTempo(Number.MAX_SAFE_INTEGER) : reactionTempo(groups);
 }
 
-/**
- * The surfaces a seat must never cover: the hero, the composer's focus card, the reveal's row, the start stage, the
- * emergence layer — and the PARLIAMENT's sitting field (TR81: a Career step's TR wakes a rating reactor while the
- * sitting stands; the seat slides past its field, never over the plaques the player is reading).
- */
-function avoidRects(): Array<RectLike> {
-  const out: Array<RectLike> = [];
-  for (const selector of ['.con-played-hero__proxy', '.con-composer__actcardwrap', '.con-reveal', '.con-start__firstact', '.con-recv__emerge', '.con-parl--sitting .con-parl__field']) {
-    const r = measure(selector);
-    if (r !== undefined) {
-      out.push(r);
+/** The pace multiplier of every wait and tween right now (1 = as planned; the hurry divides). */
+function paceNow(planPace = 1): number {
+  return planPace * (hurried ? REACTION_HURRY_PACE : 1);
+}
+
+/** A wait that follows the pace LIVE: a hurry arriving mid-wait shortens what is left. Never bare rAF. */
+async function pacedWait(baseMs: number, planPace = 1): Promise<void> {
+  const started = typeof performance === 'undefined' ? 0 : performance.now();
+  for (;;) {
+    const need = motionMs(baseMs) / paceNow(planPace);
+    const elapsed = typeof performance === 'undefined' ? need : performance.now() - started;
+    if (elapsed >= need) {
+      return;
     }
+    await nextPaintedFrame();
   }
-  return out;
 }
 
-/** The seat's height: a reading size beside the rail — a share of the stage, never the hero's. */
-function seatHeight(stage: RectLike): number {
-  return Math.min(stage.height * 0.22, 320 * conUiScale());
-}
-
-/** Bring ONE reactor forward — out of its place when a host's stage holds it, else at a seat of this layer. */
 /**
- * A seat's WHOLE chip in the status strip (the rival's receiver): the seat stands right of the chip, hanging from the
- * strip — the intake plaque hangs under the chip itself, so the two never cover each other.
+ * THE CENTRAL OPENING — the box the four hull members enclose, as the band geometry mirror publishes it
+ * (`--con-stage-t/-b/-l/-r` on `<html>`; a workspace's band stands in the same box, so the stage is the same place
+ * in every state). The layer's own rect (the viewport) is the pre-mount fallback.
  */
-function seatChipRect(color: Color): RectLike | undefined {
-  const chip = document.querySelector<HTMLElement>(`.con-status__player[data-color="${color}"]:not(.con-status__pghost)`);
-  const r = chip?.getBoundingClientRect();
-  return r === undefined || r.width < 2 || r.height < 2 ? undefined : {left: r.left, top: r.top, width: r.width, height: r.height};
+function openingRect(): RectLike {
+  const stage = cardReactionStageRect();
+  if (typeof document === 'undefined' || typeof getComputedStyle !== 'function') {
+    return stage;
+  }
+  const cs = getComputedStyle(document.documentElement);
+  const read = (name: string): number => cssLengthPx(cs.getPropertyValue(name).trim(), NaN);
+  const t = read('--con-stage-t');
+  const b = read('--con-stage-b');
+  const l = read('--con-stage-l');
+  const r = read('--con-stage-r');
+  if ([t, b, l, r].some((v) => !Number.isFinite(v))) {
+    return stage;
+  }
+  const width = stage.width - l - r;
+  const height = stage.height - t - b;
+  return width > 40 && height > 40 ? {left: stage.left + l, top: stage.top + t, width, height} : stage;
+}
+
+/** The slots of the stage for `n` reactors (a rival's at its own scale). */
+function stageSlotsFor(n: number, scale = 1): Array<RectLike> {
+  return reactionStageSlots(openingRect(), n, {
+    uiScale: conUiScale(), scale, maxSlots: consoleLayoutState.profile === 'handheld' ? HANDHELD_MAX_SLOTS : undefined,
+  });
 }
 
 /** The chip's dot as a flight end — a rival's token lands on it when no intake plaque is painted. */
@@ -353,27 +397,51 @@ function seatModelOf(view: PlayerViewModel | undefined, owner: Color, card: Card
   return view?.players?.find((p) => p.color === owner)?.tableau.find((c) => c.name === card);
 }
 
-type RiseOpts = {receiver?: RectLike; height?: number; model?: CardModel};
+/** A rival's caption: its seat's colour and name. */
+function seatCaptionOf(view: PlayerViewModel | undefined, owner: Color): ReactorCaption {
+  return {color: owner, name: view?.players?.find((p) => p.color === owner)?.name ?? owner};
+}
 
-async function rise(group: CardReactionGroup, slot: 0 | 1, view: PlayerViewModel | undefined, emergence: ReactorEmergence | undefined, opts: RiseOpts = {}): Promise<Risen> {
+// ── THE RISE (shared by both shapes) ───────────────────────────────────────
+
+type RiseOpts = {
+  /** The stage's slots for this chain (`stageSlotsFor`) — the group takes `slot % slots.length`. */
+  slots: ReadonlyArray<RectLike>;
+  model?: CardModel;
+  caption?: ReactorCaption;
+  /** The read beat the effect row is lit for. */
+  readMs: number;
+};
+
+/**
+ * Bring ONE reactor forward: IN ITS PLACE when a host's stage or a painted face holds it (the host's own emergence
+ * first — the receiving stage, the start seat — then the DOM's: the composer's hero, a target miniature, the played
+ * table), else at the stage. The effect row that fired is lit for the read beat either way.
+ */
+async function rise(group: CardReactionGroup, slot: number, view: PlayerViewModel | undefined, emergence: ReactorEmergence | undefined, opts: RiseOpts): Promise<Risen> {
   const key = `${group.record.seq}:${++faceSeq}`;
-  if (emergence !== undefined && emergence.standsIn(group.card)) {
-    await emergence.emergeTarget(group.card);
-    return {group, key, face: emergence.emergedFaceEl(group.card), via: 'place', emergence};
+  const specs = [...group.rail, ...group.cards];
+  const place = emergence !== undefined && emergence.standsIn(group.card) ? emergence : findReactorPlace(group.card);
+  if (place !== undefined) {
+    await place.emergeTarget(group.card);
+    const face = place.emergedFaceEl(group.card);
+    markReactionRow(face, group.record.printedEffect, specs, opts.readMs);
+    noteTransferTrail('reaction:rise', {card: group.card, via: 'place'});
+    return {group, key, face, via: 'place', emergence: place};
   }
-  if (!cardReactionStageMounted()) {
+  if (!cardReactionStageMounted() || opts.slots.length === 0) {
     return {group, key, face: undefined, via: 'none'};
   }
-  const stage = cardReactionStageRect();
-  const receiver = opts.receiver ?? receiverOf(group) ?? {left: stage.left, top: stage.top + stage.height / 2, width: 0, height: 0};
-  const seat = reactionSeatRect(stage, receiver, avoidRects(), opts.height ?? seatHeight(stage), slot);
-  const face: ReactorFace = {key, name: group.card, card: opts.model ?? liveModelOf(view, group.card), seat};
-  const el = await seatReactor(face);
-  if (el === undefined) {
+  const seat = opts.slots[slot % opts.slots.length];
+  const face: ReactorFace = {key, name: group.card, card: opts.model ?? liveModelOf(view, group.card), seat, caption: opts.caption};
+  const seated = await seatReactor(face);
+  if (seated === undefined) {
     return {group, key, face: undefined, via: 'none'};
   }
-  await riseReactor(el, seat, tempo(), consoleReducedMotionActive());
-  return {group, key, face: el, via: 'seat'};
+  await riseReactor(seated.el, seat, tempoFor(cardReactionState.chain?.cards.length ?? 1), consoleReducedMotionActive());
+  markReactionRow(seated.el, group.record.printedEffect, specs, opts.readMs);
+  noteTransferTrail('reaction:rise', {card: group.card, via: 'stage'});
+  return {group, key: seated.key, face: seated.el, via: 'seat', seat};
 }
 
 async function recede(risen: Risen): Promise<void> {
@@ -383,7 +451,7 @@ async function recede(risen: Risen): Promise<void> {
   }
   const el = reactorEl(risen.key);
   if (el !== undefined) {
-    await recedeReactor(el, tempo(), consoleReducedMotionActive());
+    await recedeReactor(el, risen.seat, tempoFor(cardReactionState.chain?.cards.length ?? 1), consoleReducedMotionActive());
   }
   unseatReactor(risen.key);
 }
@@ -408,9 +476,10 @@ export type ReactionAnswerOptions = {
 
 /**
  * THE ANSWER FLIGHT for a host that holds the reaction's rows (`railReward.answerRailReward`'s `RailAnswerFlight`):
- * `prepare` rises every claimed reactor (out of its place or at a seat), `tokensOf` splits a held answer into the
+ * `prepare` rises every claimed reactor (in its place or at the stage), `tokensOf` splits a held answer into the
  * groups' own tokens (a wave of heat — one per unit), `originOf` births each on its group's effect row, `onDone`
- * recedes the faces. `undefined` when no fresh record is attached to the host's rows — the host keeps its old flight.
+ * settles and recedes the faces. `undefined` when no fresh record is attached to the host's rows — the host keeps its
+ * old flight.
  */
 export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): RailAnswerFlight | undefined {
   const rows = opts.rows === undefined ? undefined : new Set(opts.rows);
@@ -435,40 +504,54 @@ export function cardReactionAnswerFlight(opts: ReactionAnswerOptions = {}): Rail
     done = true;
     const faces = [...risen];
     risen.length = 0;
-    cardReactionState.phase = 'receding';
-    void Promise.all(faces.map((r, i) => new Promise<void>((resolve) => {
-      gsap.delayedCall(motionMs(60 * i) / 1000, () => {
-        void recede(r).then(resolve);
-      });
-    }))).then(() => {
-      if (epoch === myEpoch && cardReactionState.phase === 'receding') {
+    void (async () => {
+      // The settle: the counters' deltas land under the eye before the faces let go. Every write past an await is
+      // guarded by the epoch — a cut in the settle (a reset, a second press) owns the phase from then on; a stale
+      // continuation that wrote `receding` after it left the `card-reaction` hold standing for good.
+      await pacedWait(tempoFor(groups.length).settleMs);
+      if (epoch !== myEpoch) {
+        return;
+      }
+      cardReactionState.phase = 'receding';
+      await Promise.all(faces.map((r, i) => new Promise<void>((resolve) => {
+        gsap.delayedCall(motionMs(60 * i) / paceNow() / 1000, () => {
+          void recede(r).then(resolve);
+        });
+      })));
+      if (epoch === myEpoch && cardReactionState.phase === 'receding' && !standaloneRunning) {
         cardReactionState.phase = 'idle';
+        hurried = false;
+        cardReactionState.hurried = false;
+        dropWarmReactors();
       }
       cardReactionState.lastWallMs = typeof performance === 'undefined' ? undefined : Math.round(performance.now() - started);
       cardReactionState.runs++;
-    });
+    })();
   };
   return {
     prepare: async () => {
       if (epoch !== myEpoch || consoleReducedMotionActive()) {
         return;
       }
+      const t = tempoFor(groups.length);
+      const slots = stageSlotsFor(groups.length);
       cardReactionState.phase = 'rising';
-      cardReactionState.chain = {cards: groups.map((g) => g.card), landed: 0, summarized: [], seats: groups.length >= 3 ? 2 : 1, pace: 1};
+      cardReactionState.chain = {cards: groups.map((g) => g.card), landed: 0, summarized: [], seats: slots.length, pace: 1};
       // Every claimed reactor comes forward together, a beat apart — the answer's own stagger then orders the births.
       const rises = groups.map((group, i) => new Promise<Risen>((resolve) => {
-        gsap.delayedCall(motionMs(80 * i) / 1000, () => {
-          void rise(group, (i % 2) as 0 | 1, opts.view, opts.emergence).then(resolve);
+        gsap.delayedCall(motionMs(80 * i) / paceNow() / 1000, () => {
+          void rise(group, i, opts.view, opts.emergence, {slots, readMs: t.holdMs + TRANSFER_POP_MS}).then(resolve);
         });
       }));
       const out = await Promise.all(rises);
       risen.push(...out);
       out.filter((r) => r.face === undefined).forEach((r) => noteDegrade(`${r.group.card}: no face to be born on`));
+      if (epoch !== myEpoch) {
+        return; // cut while rising — the cut owns the phase
+      }
       cardReactionState.phase = 'paying';
-      // The eye reads WHICH card before anything leaves it (the hold beat of the rise).
-      await new Promise<void>((resolve) => {
-        gsap.delayedCall(motionMs(tempo().holdMs) / 1000, () => resolve());
-      });
+      // The eye reads WHICH card and WHY before anything leaves it (the read beat of the rise — the effect row is lit).
+      await pacedWait(t.holdMs);
     },
     tokensOf: (spec) => {
       // The shares are the RECORDS' (the server's numbers) — a group whose face could not be painted still gets its
@@ -571,11 +654,8 @@ function noteDegrade(why: string): void {
   }
 }
 
-function gsapWait(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    gsap.delayedCall(ms / 1000, () => resolve());
-  });
-}
+/** One step of the chain in flight: its last token has LEFT the face (the next may rise), its slot is free again. */
+type StepRun = {launched: Promise<void>; done: Promise<void>};
 
 async function runStandalone(): Promise<void> {
   if (standaloneRunning) {
@@ -590,6 +670,7 @@ async function runStandalone(): Promise<void> {
     await waitRewardPayoutQuiet({alive: () => epoch === myEpoch && (standaloneQueue.length > 0 || rivalQueue.length > 0)});
     await waitBlockingQuiet(myEpoch);
     await waitRatingStoryQuiet(myEpoch);
+    await waitDecisionClear(myEpoch);
     if (epoch !== myEpoch) {
       return;
     }
@@ -597,19 +678,18 @@ async function runStandalone(): Promise<void> {
     running = batch;
     if (batch.length === 0) {
       await playRivals(myEpoch);
-      if (epoch === myEpoch) {
-        cardReactionState.phase = 'idle';
-      }
+      endChain(myEpoch);
       return;
     }
-    const t = tempo();
+    const t = tempoFor(batch.length);
+    const slots = stageSlotsFor(batch.length);
     const plan = planReactionChain(
       batch.map((s) => ({tokens: s.held.flatMap((spec) => reactionTokensOf(spec)).length})),
-      t, {popMs: TRANSFER_POP_MS, arcMs: TRANSFER_ARC_MS});
+      t, {popMs: TRANSFER_POP_MS, arcMs: TRANSFER_ARC_MS}, {slots: slots.length});
     const started = typeof performance === 'undefined' ? 0 : performance.now();
     cardReactionState.chain = {
       cards: batch.map((s) => s.group.card), landed: 0,
-      summarized: plan.summarized.map((i) => batch[i].group.card), seats: plan.seats, pace: plan.pace,
+      summarized: plan.summarized.map((i) => batch[i].group.card), seats: slots.length, pace: plan.pace,
     };
     // Past the ceiling: the counters tick now, the names stand on the state and ONE feed card tells them (PL-1056 —
     // the viewer's merged deltas leading, a line per reactor; never a card per reactor, never a silent tick).
@@ -625,24 +705,77 @@ async function runStandalone(): Promise<void> {
       }
     }
     cardReactionState.phase = 'rising';
-    const scale = 1 / plan.pace;
-    const steps = plan.steps.map((step) => (async () => {
-      const entry = batch[step.index];
-      await gsapWait(motionMs(step.riseAtMs));
+    // THE STEPS GO BY EVENT (iteration 3): the next group rises once the previous group's last token has LEFT its
+    // face and the overlap's share of the flight has passed (never at a time computed at the plan's start — a slow
+    // device stretches the chain, it never bunches the rises), and never before its own slot has receded.
+    const slotFree: Array<Promise<void>> = new Array(Math.max(1, slots.length)).fill(Promise.resolve());
+    const dones: Array<Promise<void>> = [];
+    let prev: StepRun | undefined;
+    for (const step of plan.steps) {
+      if (epoch !== myEpoch) {
+        break;
+      }
+      if (prev !== undefined) {
+        await prev.launched;
+        await pacedWait(Math.max(0, TRANSFER_POP_MS + TRANSFER_ARC_MS - t.overlapMs), plan.pace);
+      }
+      await slotFree[step.seat % slotFree.length];
+      if (epoch !== myEpoch) {
+        break;
+      }
+      const run = runStep(batch[step.index], step.seat, t, slots, plan.pace, myEpoch);
+      slotFree[step.seat % slotFree.length] = run.done;
+      dones.push(run.done);
+      prev = run;
+    }
+    await Promise.all(dones);
+    if (epoch === myEpoch) {
+      cardReactionState.lastWallMs = typeof performance === 'undefined' ? undefined : Math.round(performance.now() - started);
+      cardReactionState.runs++;
+    }
+    await playRivals(myEpoch);
+    endChain(myEpoch);
+  } finally {
+    running = [];
+    standaloneRunning = false;
+    if (standaloneQueue.length > 0 && epoch === myEpoch) {
+      void runStandalone();
+    }
+  }
+}
+
+/** The chain is over: idle, the hurry forgotten, the warm faces nobody rose dropped. */
+function endChain(myEpoch: number): void {
+  if (epoch !== myEpoch) {
+    return;
+  }
+  cardReactionState.phase = 'idle';
+  hurried = false;
+  cardReactionState.hurried = false;
+  dropWarmReactors();
+}
+
+/** ONE step of the chain: rise → read → births on the effect row → the touchdowns → settle → recede. */
+function runStep(entry: Standalone, slot: number, t: ReactionTempo, slots: ReadonlyArray<RectLike>, planPace: number, myEpoch: number): StepRun {
+  let launchedResolve: () => void = () => {};
+  const launched = new Promise<void>((resolve) => {
+    launchedResolve = resolve;
+  });
+  const done = (async () => {
+    try {
+      const risen = await rise(entry.group, slot, undefined, undefined, {slots, readMs: t.holdMs + TRANSFER_POP_MS});
       if (epoch !== myEpoch) {
         return;
       }
-      const risen = await rise(entry.group, step.seat, undefined, undefined);
-      if (epoch !== myEpoch) {
-        return;
-      }
-      await gsapWait(motionMs(t.holdMs * scale));
+      // The read beat is measured from a PAINTED frame of the risen face (a stall before it never eats the read).
+      await nextPaintedFrame();
+      await pacedWait(t.holdMs, planPace);
       if (epoch !== myEpoch) {
         return;
       }
       cardReactionState.phase = 'paying';
       // From here the entry holds TOKEN by token — what has not touched down yet is exactly what stays held
-      // (the keeper above re-seeds it across a foreign clear; a hurry releases it at once).
+      // (the keeper above re-seeds it across a foreign clear; a cut releases it at once).
       const tokens = entry.held.flatMap((spec) => reactionTokensOf(spec));
       entry.held = [...tokens];
       const origins = birthEnds(risen, tokens);
@@ -650,7 +783,8 @@ async function runStandalone(): Promise<void> {
         noteDegrade(`${entry.group.card}: no face to be born on`);
       }
       await runResourceTransfers({
-        specs: tokens, source: {}, origins, arrival: 'auto', pace: plan.pace,
+        specs: tokens, source: {}, origins, arrival: 'auto', pace: 1 / paceNow(planPace),
+        onLeft: () => launchedResolve(),
         onArrive: (spec) => {
           const at = entry.held.indexOf(spec);
           if (at >= 0) {
@@ -665,29 +799,17 @@ async function runStandalone(): Promise<void> {
       });
       // Whatever the wave left held (it never does — the framework releases every spec) ticks now.
       entry.held.splice(0).forEach((spec) => releasePanelRewardHold(spec));
+      if (epoch !== myEpoch) {
+        return;
+      }
+      // The settle: the counter's delta lands under the eye before the card lets go.
+      await pacedWait(t.settleMs, planPace);
       await recede(risen);
-    })());
-    await Promise.all(steps);
-    if (epoch === myEpoch) {
-      cardReactionState.lastWallMs = typeof performance === 'undefined' ? undefined : Math.round(performance.now() - started);
-      cardReactionState.runs++;
+    } finally {
+      launchedResolve();
     }
-    await playRivals(myEpoch);
-    if (epoch === myEpoch) {
-      cardReactionState.phase = 'idle';
-    }
-  } finally {
-    running = [];
-    standaloneRunning = false;
-    if (standaloneQueue.length > 0 && epoch === myEpoch) {
-      void runStandalone();
-    }
-  }
-}
-
-/** The next painted frame or the probe's fallback — never bare rAF (a quiet screen is the state these waits sit in). */
-function nextProbeTick(): Promise<void> {
-  return new Promise<void>((resolve) => probeTick(() => resolve()));
+  })();
+  return {launched, done};
 }
 
 /** Wait out every BLOCKING animation hold (bounded) — the chain never cuts into a scene that owns the screen. */
@@ -697,7 +819,7 @@ async function waitBlockingQuiet(myEpoch: number): Promise<void> {
     if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
       return;
     }
-    await nextProbeTick();
+    await nextPaintedFrame();
   }
 }
 
@@ -712,27 +834,40 @@ async function waitRatingStoryQuiet(myEpoch: number): Promise<void> {
     if (typeof performance !== 'undefined' && performance.now() - started > BLOCKING_QUIET_MAX_MS) {
       return;
     }
-    await nextProbeTick();
+    await nextPaintedFrame();
   }
 }
 
-/** A rival's rise waits for a screen with no workspace over the strip — bounded; `false` = skip the rise. */
-async function waitStripClear(myEpoch: number): Promise<boolean> {
-  const started = typeof performance === 'undefined' ? 0 : performance.now();
-  while (epoch === myEpoch && document.querySelector('.con-ws') !== null) {
-    if (typeof performance !== 'undefined' && performance.now() - started > RIVAL_WAIT_MS) {
-      return false;
-    }
-    await nextProbeTick();
+/** A decision surface stands at the centre (a drawn card to take, a deck pick). */
+function decisionStands(): boolean {
+  const el = document.querySelector<HTMLElement>(DECISION_SURFACES);
+  if (el === null) {
+    return false;
   }
-  return epoch === myEpoch;
+  const r = el.getBoundingClientRect();
+  return r.width > 2 && r.height > 2;
 }
 
 /**
- * THE RIVALS' TURN — after the viewer's own chain: each rival reactor in the records' order rises compactly beside
- * its seat's chip (the intake plaque opened first — EXPECTING), its tokens born on its effect row land on the
- * plaque's number (the chip's dot when no plaque is painted), the plaque ticks and folds, the face recedes. Nothing
- * of the viewer's is held; a covered strip skips the rise (the feed already tells it).
+ * A reactor never covers a card the player is choosing (the stage is the opening's centre — where a drawn card
+ * stands for its take): the chain waits for the decision, bounded — past the bound it plays (the take's press
+ * hurries it).
+ */
+async function waitDecisionClear(myEpoch: number): Promise<void> {
+  const started = typeof performance === 'undefined' ? 0 : performance.now();
+  while (epoch === myEpoch && decisionStands()) {
+    if (typeof performance !== 'undefined' && performance.now() - started > DECISION_WAIT_MAX_MS) {
+      return;
+    }
+    await nextPaintedFrame();
+  }
+}
+
+/**
+ * THE RIVALS' TURN — after the viewer's own chain: each rival reactor in the records' order rises at the stage a step
+ * smaller under its seat's caption (the intake plaque opened first — EXPECTING), its tokens born on its effect row
+ * land on the plaque's number (the chip's dot when no plaque is painted), the plaque ticks and folds, the face
+ * recedes. Nothing of the viewer's is held.
  */
 async function playRivals(myEpoch: number): Promise<void> {
   while (rivalQueue.length > 0 && epoch === myEpoch) {
@@ -740,11 +875,9 @@ async function playRivals(myEpoch: number): Promise<void> {
     if (entry === undefined) {
       break;
     }
-    if (!(await waitStripClear(myEpoch))) {
-      noteTransferTrail('reaction:rival-skipped', {card: entry.group.card, owner: entry.owner});
-      continue;
-    }
+    const t = tempoFor(1);
     cardReactionState.phase = 'rising';
+    cardReactionState.chain = {cards: [entry.group.card], landed: 0, summarized: [], seats: 1, pace: 1};
     // The plaque reads STOCK (its items are a resource and a count); a production step lands on the chip's dot itself,
     // its token wearing the production frame — never a plaque that would print a step as money.
     const stock = entry.specs.filter((spec) => spec.channel === 'stock');
@@ -754,16 +887,17 @@ async function playRivals(myEpoch: number): Promise<void> {
     if (epoch !== myEpoch) {
       return;
     }
-    const stage = cardReactionStageMounted() ? cardReactionStageRect() : undefined;
     const risen = await rise(entry.group, 0, lastView, undefined, {
-      receiver: seatChipRect(entry.owner),
-      height: stage === undefined ? undefined : Math.round(seatHeight(stage) * RIVAL_SEAT_SCALE),
+      slots: stageSlotsFor(1, REACTION_RIVAL_SCALE),
       model: seatModelOf(lastView, entry.owner, entry.group.card),
+      caption: seatCaptionOf(lastView, entry.owner),
+      readMs: t.holdMs + TRANSFER_POP_MS,
     });
     if (epoch !== myEpoch) {
       return;
     }
-    await gsapWait(motionMs(tempo().holdMs));
+    await nextPaintedFrame();
+    await pacedWait(t.holdMs);
     cardReactionState.phase = 'paying';
     const tokens = entry.specs.flatMap((spec) => reactionTokensOf(spec));
     const origins = birthEnds(risen, tokens);
@@ -771,7 +905,7 @@ async function playRivals(myEpoch: number): Promise<void> {
       noteDegrade(`${entry.group.card}: no face to be born on`);
     }
     await runResourceTransfers({
-      specs: tokens, source: {}, origins, arrival: 'auto',
+      specs: tokens, source: {}, origins, arrival: 'auto', pace: 1 / paceNow(),
       destinationOf: (spec) => (spec.channel === 'stock' ? seatIntakeEnd(entry.owner, spec.resource) : undefined) ?? seatChipFallbackEnd(entry.owner),
       onArrive: (spec) => {
         if (spec.channel === 'stock') {
@@ -783,17 +917,44 @@ async function playRivals(myEpoch: number): Promise<void> {
     if (stock.length > 0) {
       foldSeatIntake(entry.owner);
     }
+    await pacedWait(t.settleMs);
     await recede(risen);
   }
 }
 
-// ── HURRY / ABORT ──────────────────────────────────────────────────────────
+// ── HURRY / CUT / ABORT ────────────────────────────────────────────────────
 
-/** A / B while reactions fly: whatever is still owed ticks at once, the faces let go. The hosts' own holds are theirs. */
-export function hurryCardReactions(): void {
+/**
+ * A PRESS or a NAVIGATION while reactions play (the owner, 2026-10-27): the FIRST hurry is a PACE — what is left plays
+ * at `REACTION_HURRY_PACE` (the read beats shorten, the tweens in flight speed up, every face still rises, every
+ * token still flies); the SECOND completes at once (`cutCardReactions`). The hosts' own holds are theirs.
+ */
+export function hurryCardReactions(reason = 'press'): void {
   if (cardReactionState.phase === 'idle' && standaloneQueue.length === 0 && rivalQueue.length === 0) {
     return;
   }
+  const now = typeof performance === 'undefined' ? 0 : performance.now();
+  if (hurried && hurriedEpoch === epoch) {
+    if (now - hurriedAt < HURRY_REPEAT_WINDOW_MS) {
+      return; // the same gesture (a press that opened a sheet reports twice)
+    }
+    cutCardReactions(`${reason}:again`);
+    return;
+  }
+  hurried = true;
+  hurriedEpoch = epoch;
+  hurriedAt = now;
+  cardReactionState.hurried = true;
+  paceReactorTweens(REACTION_HURRY_PACE);
+  noteTransferTrail('reaction:hurry', {reason, phase: cardReactionState.phase});
+}
+
+/** Whatever is still owed ticks at once, the faces let go — a second hurry, the ceiling, a teardown. */
+export function cutCardReactions(reason = 'cut'): void {
+  if (cardReactionState.phase === 'idle' && standaloneQueue.length === 0 && rivalQueue.length === 0) {
+    return;
+  }
+  noteTransferTrail('reaction:cut', {reason, phase: cardReactionState.phase});
   epoch++;
   // The queue AND the batch in flight: a step still waiting for its rise would otherwise keep its rows held for good.
   for (const entry of [...running.splice(0), ...standaloneQueue.splice(0)]) {
@@ -802,12 +963,14 @@ export function hurryCardReactions(): void {
   rivalQueue.splice(0);
   killReactorTweens();
   unseatAllReactors();
+  hurried = false;
+  cardReactionState.hurried = false;
   cardReactionState.phase = 'idle';
 }
 
 /** The ceiling / a teardown: everything held here ticks, the faces leave, nothing can hang. */
 export function abortCardReactions(): void {
-  hurryCardReactions();
+  cutCardReactions('abort');
   attached = [];
 }
 
@@ -816,6 +979,7 @@ export function resetCardReactions(): void {
   abortCardReactions();
   claimedSeqs.clear();
   takeDeclaredAnswers();
+  unseatAllReactors();
   cardReactionState.chain = undefined;
   cardReactionState.degraded = undefined;
   cardReactionState.lastWallMs = undefined;

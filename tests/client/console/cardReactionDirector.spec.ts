@@ -9,8 +9,8 @@ import {
   beginPanelRewardHold, clearPanelRewardHold, declareHeldAnswers, heldProduction, heldStock, releasePanelRewardHold,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
-  cardReactionAnswerFlight, cardReactionPending, composeAnswerFlights, hurryCardReactions, markReactionCause, resetCardReactions, rivalReactionPending,
-  rivalSpecsOf, seedCardReactionHolds, snapshotRailHolds,
+  cardReactionAnswerFlight, cardReactionHurried, cardReactionPending, composeAnswerFlights, cutCardReactions, hurryCardReactions, markReactionCause,
+  resetCardReactions, rivalReactionPending, rivalSpecsOf, seedCardReactionHolds, snapshotRailHolds,
 } from '@/client/console/cardReaction/cardReactionDirector';
 import {reactionGroupOf} from '@/client/console/cardReaction/cardReactionModel';
 import {cardReactionState} from '@/client/console/cardReaction/cardReactionStage';
@@ -47,16 +47,48 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
     clearPanelRewardHold();
   });
 
-  it('a record nobody holds is held HERE (the rows keep their pre-reaction value) and A / B releases it at once', () => {
+  it('a record nobody holds is held HERE (the rows keep their pre-reaction value) and a CUT releases it at once', () => {
     const before = snapshotRailHolds();
     seedCardReactionHolds(view([]), view([record(1)]), before);
     expect(heldStock('heat'), 'the heat row is held for the chain').eq(6);
     expect(heldProduction('megacredits')).eq(1);
     expect(cardReactionPending()).is.true;
-    hurryCardReactions();
+    cutCardReactions();
     expect(heldStock('heat')).eq(0);
     expect(heldProduction('megacredits')).eq(0);
     expect(cardReactionPending()).is.false;
+  });
+
+  it('a HURRY is a pace, never a cut (the owner, 2026-10-27): the first press keeps every hold and the chain; the same gesture reported twice is one hurry; a LATER second press completes at once', () => {
+    const before = snapshotRailHolds();
+    seedCardReactionHolds(view([]), view([record(60)]), before);
+    expect(heldStock('heat')).eq(6);
+    hurryCardReactions('press');
+    expect(cardReactionHurried(), 'hurried').is.true;
+    expect(cardReactionState.hurried).is.true;
+    expect(heldStock('heat'), 'nothing released — the chain still plays, at the hurry pace').eq(6);
+    expect(cardReactionPending()).is.true;
+    // A press that opens a sheet reports as a press AND a navigation — within the window it is ONE gesture.
+    hurryCardReactions('navigation');
+    expect(heldStock('heat'), 'still held').eq(6);
+    expect(cardReactionPending()).is.true;
+    // A later press is the SECOND hurry: the cut.
+    const realNow = performance.now;
+    performance.now = () => realNow.call(performance) + 5000;
+    try {
+      hurryCardReactions('press');
+    } finally {
+      performance.now = realNow;
+    }
+    expect(heldStock('heat'), 'released at once').eq(0);
+    expect(cardReactionPending()).is.false;
+    expect(cardReactionHurried(), 'the hurry is forgotten with the chain').is.false;
+  });
+
+  it('a hurry with nothing playing is nothing', () => {
+    hurryCardReactions('press');
+    expect(cardReactionHurried()).is.false;
+    expect(cardReactionState.hurried).is.false;
   });
 
   it('a record whose rows a host holds AS A PROMISED ANSWER is ATTACHED — nothing held here; the host\'s flight takes it, with the record\'s own tokens', async () => {
@@ -92,7 +124,7 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
     expect(heldStock('megacredits')).eq(3);
     expect(cardReactionPending(), 'the chain owns the share').is.true;
     expect(cardReactionAnswerFlight({rows: ['production:megacredits']}), 'nothing attached for a host to ask for').is.undefined;
-    hurryCardReactions();
+    cutCardReactions();
     expect(heldProduction('megacredits'), 'the host\'s own hold stands untouched').eq(1);
   });
 
@@ -103,7 +135,7 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
     clearPanelRewardHold();
     expect(heldStock('heat'), 'kept across the clear').eq(6);
     expect(heldProduction('megacredits'), 'kept across the clear').eq(1);
-    hurryCardReactions();
+    cutCardReactions();
     clearPanelRewardHold();
     expect(heldStock('heat'), 'nothing kept once released').eq(0);
   });
@@ -117,7 +149,7 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
     expect(heldProduction('megacredits')).eq(1);
     releasePanelRewardHold({channel: 'production', resource: 'megacredits', amount: 3}); // the seal's token lands late
     expect(heldProduction('megacredits'), 'the keeper\'s row survives a foreign over-release').eq(1);
-    hurryCardReactions();
+    cutCardReactions();
     expect(heldProduction('megacredits'), 'the keeper lets go on its own hurry').eq(0);
   });
 
@@ -146,7 +178,7 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
     const before = snapshotRailHolds();
     const r = record(4);
     seedCardReactionHolds(view([]), view([r]), before);
-    hurryCardReactions();
+    cutCardReactions();
     seedCardReactionHolds(view([]), view([r]), before);
     expect(heldStock('heat'), 'the echo held nothing').eq(0);
     seedCardReactionHolds(view([]), view([record(5, {owner: 'red'})]), before);
@@ -167,7 +199,7 @@ describe('cardReactionDirector — attached to a host, or standalone', () => {
     expect(heldProduction('megacredits')).eq(0);
     expect(rivalReactionPending(), 'the rival\'s rise is owed').is.true;
     expect(cardReactionPending()).is.true;
-    hurryCardReactions();
+    cutCardReactions();
     expect(rivalReactionPending()).is.false;
     expect(cardReactionPending()).is.false;
   });

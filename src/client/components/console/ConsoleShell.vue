@@ -2062,7 +2062,7 @@ import ConsoleTilePlacementLayer from '@/client/components/console/tilePlacement
 import ConsoleCityPayoutLayer from '@/client/components/console/tilePlacement/ConsoleCityPayoutLayer.vue';
 import ConsoleScaleStepRewardLayer from '@/client/components/console/scaleStepReward/ConsoleScaleStepRewardLayer.vue';
 import ConsoleCardReactionLayer from '@/client/components/console/cardReaction/ConsoleCardReactionLayer.vue';
-import {hurryCardReactions} from '@/client/console/cardReaction/cardReactionDirector';
+import {cardReactionPending, hurryCardReactions} from '@/client/console/cardReaction/cardReactionDirector';
 import ConsoleScaleSwingLayer from '@/client/components/console/scaleSwing/ConsoleScaleSwingLayer.vue';
 import {setPlacementPeek} from '@/client/components/board/placementRenderState';
 import {PlacementPeek, peekTargetOf} from '@/client/console/tilePlacement/placementPeek';
@@ -11740,7 +11740,18 @@ export default defineComponent({
     // `section` is a PROJECTION now, so leaving the hand IS the frame going
     // away, and a frame cannot be removed from under the step it is carrying.
     // That guard-plus-write pair was the soft-lock.
+    /** «СРАБАТЫВАНИЕ КАРТЫ» (iteration 3): the player opened a sheet while reactions play — they HURRY (a pace, never a cut). */
+    'consoleState.sheet'(sheet: string | undefined) {
+      if (sheet !== undefined && cardReactionPending()) {
+        hurryCardReactions('navigation');
+      }
+    },
     'consoleState.section'(section: string) {
+      // «СРАБАТЫВАНИЕ КАРТЫ» (iteration 3): the player walked to another screen while the table's reactions play —
+      // they HURRY (a pace, never a cut; a fold back to the board home is the flow's own ending, never a hurry).
+      if (section !== 'board' && cardReactionPending()) {
+        hurryCardReactions('navigation');
+      }
       // `section` is a PROJECTION of the deepest frame — a hand step nested
       // INSIDE the colonies projects 'hand' while the focus stage is still
       // the standing host of its zone, and a PARKED resolution must come back
@@ -14222,6 +14233,12 @@ export default defineComponent({
       // the shell compares `action`, never raw button names (undefined for
       // nav/scroll/release and the screen-specific STICKS, which stay raw).
       const action = consoleActionOf(intent);
+      // «СРАБАТЫВАНИЕ КАРТЫ» (iteration 3, the owner's 2026-10-27): a PRESS while the table's reactions play HURRIES
+      // them — a pace, never a cut: every face still rises, every token still flies, the read beats shorten; a second
+      // press completes them at once. The press itself goes on to whatever owns it — a reaction never holds input.
+      if (intent.kind === 'press' && cardReactionPending()) {
+        hurryCardReactions('press');
+      }
       // NOTIFICATION X-HOLD lifecycle (consoleNotifHold): the release edge of a
       // tracked hold is resolved FIRST — ahead of every swallowing gate — so a
       // let-go can never be eaten by a scene/alert branch and leave the timer
@@ -14329,8 +14346,8 @@ export default defineComponent({
         } else {
           if (intent.kind === 'press' && this.playedHeroState.phase === 'showing-result') {
             skipPlayedHeroResult();
-            // …and the table's reactions still in the air (the owner's decision 4): whatever is left ticks at once.
-            hurryCardReactions();
+            // (the table's reactions still in the air were HURRIED by the press itself, at the top of this handler —
+            // a pace, never a cut; a second call here would be the cut.)
           }
           return true;
         }

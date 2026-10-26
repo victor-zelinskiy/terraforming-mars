@@ -35,9 +35,10 @@ every corporation in most hosts). The owner, 2026-10-26: «стандартиз�
    (260 / 150 / 220, overlap 140; reduced 140 / 60 / 120 / 60 — pinned against `intakeAssemblyTimings` in
    `cardReactionModel.spec`). The assembly scene's trigger rises through it too (`intakeAssemblyDirector`). A card
    that stands in the RECEIVING STAGE rises OUT OF ITS PLACE instead (`emergeTarget` — TR53 «the card comes out of
-   its PLACE»; the stage publishes `holdsCard` / `emergedFaceEl` through its hooks); everything else surfaces at a
-   SEAT of the app-level layer (`ConsoleCardReactionLayer.vue`, `.con-reaction__face[data-reaction-card]`).
-   Invariant 15: transform and opacity only — no halo, no filter, no breathing.
+   its PLACE»; the stage publishes `holdsCard` / `emergedFaceEl` through its hooks) — and since iteration 3 so does
+   EVERY card whose face stands on screen (`reactorPlaces.ts`, § iteration 3); everything else surfaces at THE ONE
+   STAGE of the app-level layer (`ConsoleCardReactionLayer.vue`, `.con-reaction__face[data-reaction-card]` — the
+   centre of the central opening). Invariant 15: transform and opacity only — no halo, no filter, no breathing.
 4. **The token is born on the REACTOR's effect row** — `effectIconEnds.resolveEffectIconEnds(face, printedEffect,
    specs)`: the declared block (the card file's `printedEffect`, the n-th EFFECT frame in print order — never an
    action frame), else the frame that PRINTS the token's resource, else the whole face; the icons by the ONE icon
@@ -46,11 +47,20 @@ every corporation in most hosts). The owner, 2026-10-26: «стандартиз�
    token ticks, by name (`cardReactionState.degraded`). THE CAUSE IS MARKED, NOT A BIRTH PLACE (the owner's
    decision 2): the played card's tag / the composer's chip wears a one-shot kant (`[data-reaction-cause]`,
    `con-reaction-cause` — a `@keyframes` that ends on its own) while the token is born on the reactor.
-5. **The seat is beside the RECEIVER** (the owner's decision 7) — `reactionSeatRect(stage, receiver, avoid, height,
-   slot)`: right of the rail (the left hull member), centred on the receiving row (a holder's satellite cell for a
-   card resource), a card-shaped box of a reading size (≤ 22 % of the stage, ≤ 320 px × uiScale), sliding past the
-   hero, the composer's focus card, the reveal's row, the start stage and the emergence layer (down, then up),
-   the top-right corner at a reduced size when nothing is clear; the second seat stands below the first.
+5. **THE ONE STAGE is the centre of the central opening** (iteration 3 — the owner, 2026-10-27; it REPLACES the
+   seat beside the receiver of decision 7, whose «right of the rail, centred on the row» put the M€ reactor in the
+   top-left corner, its degrade in the top-right and a rival's beside the chip — three corners, «неинтуитивно») —
+   `reactionStageSlots(opening, n, {uiScale, maxSlots, scale})`: a card-shaped slot of `REACTION_STAGE_SHARE` (34 %)
+   of the opening's height (capped at the natural frame × uiScale), centred in the opening the band geometry mirror
+   publishes (`--con-stage-t/-b/-l/-r` — the same box a workspace's band stands in, so the place is the same in EVERY
+   state, over a composer's receipt too); several groups are ONE ROW of up to `REACTION_STAGE_MAX_SLOTS` (3; a
+   handheld takes 2), centred, played left to right; a RIVAL's face stands there too, `REACTION_RIVAL_SCALE` (0.8)
+   smaller, under a caption with its seat's dot and name (`.con-reaction__caption`). Nothing is avoided any more — a
+   card the player is CHOOSING (a reveal, a deck pick) is WAITED for instead (`waitDecisionClear`, bounded 6 s). The
+   layer stands ABOVE every band by its z and is `pointer-events: none`, so the ONE visibility verdict
+   (`transferEndVerdict`) knows it: the hit test under a reactor's face names the band it paints over, and that band
+   is never «cover» for it — without that exemption a token born on a reactor over a standing composer was refused as
+   `covered` and ticked (Supercomputer C on the box, the first run of iteration 3).
 6. **Two shapes, one director** (`cardReactionDirector.ts`): **ATTACHED** — a host already HOLDS the reaction's
    rows (the play scene's rail half, the action commit's — the table's answer promised by the forecast and
    verified against the two views) **and DECLARED them** (`declareHeldAnswers` in the same apply block — the rail
@@ -78,8 +88,13 @@ every corporation in most hosts). The owner, 2026-10-26: «стандартиз�
    (2.4 s) from FOUR groups (`chainCeilingFor`; the owner's decision 2026-10-26 on PL-1059) — is not risen: its counters tick at once and its
    name stands on the state (`data-reaction-summarized`); the play's own scene never waits for the chain beyond
    its own tempo (the attached flight is the hero's answer beat; the standalone chain plays after the board's
-   story). **A / B hurries** (`hurryCardReactions` — the hero's result skip calls it): whatever is left ticks at
-   once, the faces let go.
+   story). **A press or a navigation HURRIES — a pace, never a cut** (iteration 3: `hurryCardReactions` → what is
+   left plays at `REACTION_HURRY_PACE` 2.4 — every face still rises, every token still flies, the read beats shorten;
+   a SECOND hurry past the one-gesture window is `cutCardReactions` — whatever is left ticks at once, the faces let
+   go; the shell fires it from every `press` at the top of `handleIntent` and from the `section` / `sheet` watchers
+   when a surface OPENS — a fold home is the flow's own ending). Since iteration 3 the chain's steps go by EVENT
+   (the previous group's last birth + the overlap's share of the flight, the slot's own recede) — the plan's times
+   are the ceiling's arithmetic and the probe's reading, never a schedule a slow device can bunch.
 8. **The hold is notification-only and bounded** (`card-reaction`, the registry's ceiling with `expire` → abort):
    a reaction never holds a question. Reduced motion claims the records and holds nothing (the counters tick with
    the commit). **And the chain's rows SURVIVE a foreign scene's belt-and-braces clear** — the tile scene's
@@ -129,13 +144,61 @@ every corporation in most hosts). The owner, 2026-10-26: «стандартиз�
     `scaleStepRatingBusy()` falls; a reactor to the step itself (Homeostasis Bureau) is not held by it. e2e:
     `console-lotus-innovations` C (the data born after the rating's touchdown).
 
+## Iteration 3 — «МЕСТО · ТЕМП · НЕПРЕРЫВНОСТЬ» (the owner's field report of 2026-10-27, PL-1077…1084)
+
+The owner tested the CI build of iteration 2 and named four defects; each is a law now.
+
+17. **A CARD THAT STANDS ON SCREEN REACTS IN ITS PLACE — never a second instance** (PL-1077; TR18 Martian Fiber's
+    «+1 data here» woke its own «data added: +1 M€» while the card stood as the composer's hero, and the framework
+    rose a COPY beside the rail). `reactorPlaces.ts`: a REGISTERED host's place answers first (`registerReactorPlace`
+    — the receiving stage's and the start seat's own choreographies stay as explicit `emergence`), else the DOM's —
+    the first VISIBLE painted face on the product's own hooks, most specific first: `data-reaction-home` (the action
+    composer's inner hero body, lifted through `data-reaction-lift`), `data-composer-card` (a target miniature),
+    `data-played-key` (the played table's stacks, the start dock, the city payout plate…), judged by the ONE
+    visibility verdict every flight end uses (`firstVisibleEnd` — covered, hidden, faded or receded faces are no
+    place), never the reaction layer's own face, never a sliver (a cascade's title band). The face is LIFTED in place
+    (`liftInPlace` — scale 1.05, a 3 % lift, transform only, `data-reaction-lifted` while forward), its effect row lit,
+    its tokens born on it, then settled (`clearProps`). The director's `rise` asks the place for BOTH shapes.
+18. **TWO TEMPI** (PL-1079; the owner: «быстро» was for MANY effects). `reactionTempo(groups)`: CALM for one or two —
+    rise 420 (a lift from 6 % below with a hair of scale to FULL opacity — a protagonist, not a seat's .94), a READ
+    beat of 480 with the effect row lit as the WHY (`markReactionRow` → `[data-reaction-row]`, a one-shot
+    `@keyframes con-reaction-row` kant whose length is the beat's), births 90 ms apart, a SETTLE of 240 after the last
+    touchdown (the counter's delta lands under the eye), recede 320 — ≈ 2.2 s a card; QUICK from `REACTION_MANY_GROUPS`
+    (3) — the assembly scene's numbers, overlapping on the row of slots, under the ceiling as before.
+19. **A HURRY IS A PACE, NEVER A CUT** (PL-1080) — law 7 above. A press while reactions play never holds input and
+    never cuts the scene; the first press paces, a later second press completes.
+20. **A RISE STARTS ON A PAINTED FACE, AND THE CHAIN GOES BY EVENTS** (PL-1081 / PL-1082 — the Steam Deck's one-frame
+    rise: the face was MOUNTED in the task of its rise, the premium face's layout + art decode stalled the main thread
+    for the length of the tween, and the GSAP clock — wall-clock — completed the rise, the read and the births in the
+    first frame that came; the chain's absolute schedule then bunched the later rises into the same frame). The faces
+    are WARMED at the seed (`warmReactorFaces` — mounted hidden in the layer at the stage's size, `--warm`, the art
+    decoded under the cause's own scene; a rise TAKES the warm face over under the same key, `seatReactor`, so the
+    element survives), `riseReactor` poses the face at opacity .002 (painted — never `visibility: hidden`, which
+    rasters nothing) and starts its tween only after two painted frames (`nextPaintedFrame`, the probe tick — never
+    rAF); the read beat is counted from a painted frame of the risen face; the steps start on the previous step's
+    `launched` (its last token LEFT) + `pop + arc − overlap`, and on their slot's own recede. A stall now STRETCHES the
+    chain; it never swallows a face. Diagnostics: `reaction:rise` in the transfer trail names `place` / `stage`.
+21. **Honesties kept, two fixed**: a reactor never covers a card the player is choosing (`waitDecisionClear` — the
+    reveal, the deck pick; bounded, PL-1083); the quick chain's flights were SLOWED by `pace: plan.pace` (a transfer
+    pace above 1 is slower — the featured pace) while its waits quickened — now `1 / pace` (PL-1084).
+
+Guards: `cardReactionModel.spec` (two tempi, the row of slots, the stage's geometry on three openings),
+`cardReactionDirector.spec` (hurry = pace, the one-gesture window, the later cut), `reactorPlaces.spec` (registry
+first, the DOM's visible face, never the layer's own, never a sliver), `cardReactionStage.spec` (the warm take-over
+under one key); e2e `console-card-reaction` — MANY / BOARD / RIVAL / SCALE re-aimed at the stage (`expectAtTheStage`:
+every face in the opening's middle, a protagonist's size, two never in one box), FIBER (the hero lifted, its row lit,
+its M€ born on it, no copy in the layer — fixture `card-reaction-fiber`), HURRY (one B — every face still rises,
+nothing summarized) and SLOW (the handheld under a 4× CPU throttle — every face stands ≥ 320 ms, the row holds two);
+`console-supercomputer` (C) re-aimed from PL-220's chip birth to the framework's (the Fiber's +2 M€ — two tokens off
+ITS printed M€, the chip marked, never a birth place — red since iteration 1 and unnoticed until this run).
+
 ## What this iteration did NOT migrate (named, honest)
 
 **A STAGED play's reactor rises at a SEAT, never out of its place.** Every green card that places a tile — every
 card Hartlan Heating answers — is a staged play (the cell pick is the last reversible step): the hand's landing
 ritual runs BEFORE the cell confirm with no reward beat (`runStagedPlayedLanding` / `finishStagedPlayedLanding`),
 the card is SEALED on the board, and the response's hero is inactive — so nobody declares the table's answer and
-the record goes STANDALONE: Hartlan surfaces at the seat beside the rail after the seal wave (`BOARD` / `MANY` on
+the record goes STANDALONE: Hartlan surfaces at the stage (the centre of the opening since iteration 3) after the seal wave (`BOARD` / `MANY` on
 the box). «Out of its place on the receiving stage» is reached only by a play that lands on the receiving stage
 (a non-tile play waking a corporation — Point Luna's Earth tag). With FOUR rail groups off one staged play (MANY:
 Tharsis · Rover · Immigrant City, then Hartlan's DEFERRED gain last in the server's order) the fourth rise would
@@ -147,7 +210,7 @@ on a second one:
 - **Pristar's income** — the production hooks run under their OWN effect scope on the server (`Player.ts`,
   channel `production-phase` → a record), the generation scene DECLARES the hook rows and composes
   `cardReactionAnswerFlight` over its mark flight: the mark on the rating cell CHARGES as the cause while the
-  corporation rises beside the rail and its 6 M€ and the preservation are born on ITS printed effect
+  corporation rises at the stage (the centre of the opening since iteration 3) and its 6 M€ and the preservation are born on ITS printed effect
   (`console-pristar` E: `+6 reactor:Pristar`, `+1 reactor:Pristar`).
 - **The scale step** — the step's OWN reward keeps the marker (TR24 — the marker is the law, and the beat DECLARES
   it); a CARD's answer to the step (Homeostasis Bureau's 3 M€ per temperature step) is the chain's, risen beside
@@ -175,7 +238,7 @@ on a second one:
 
 **Still not migrated, by name**: the banner stage (TR77 Septem Tribus:redux — the card rises OUT OF THE VOTING
 TABLE'S CELL where the eye is, the cube born on its printed glyph: the framework's shape on its own choreography;
-the ONE primitive would move that rise to a seat beside the rail, against the owner's 2026-10-25 decision — left as
+the ONE primitive would move that rise to the stage, against the owner's 2026-10-25 decision — left as
 is until the owner says otherwise), the hero's `holdHeroAnswers` path for a card-resource answer with no record. A
 `card-resource` group with NO scene holding it is held and flown by the standalone chain to the holder's satellite
 cell.

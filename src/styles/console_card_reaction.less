@@ -25,6 +25,55 @@
     will-change: transform, opacity;
 }
 
+/* A WARM face (iteration 3 — the Steam Deck's one-frame rise): mounted at the
+   seed, laid out and its art decoded under the cause's scene, never painted
+   until its rise takes it over. Hidden by visibility — it keeps its layout. */
+.con-reaction__face--warm {
+    visibility: hidden;
+    opacity: 0;
+}
+
+/* A RIVAL's caption over its face: the seat's dot and name in tracked caps, in
+   the face's own natural px (it rides the face's scale — one object). */
+.con-reaction__caption {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    font-family: @con-font;
+    font-size: 28px;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: fade(#fff, 86%);
+    white-space: nowrap;
+}
+
+.con-reaction__caption-dot {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 2px fade(#000, 35%);
+}
+
+/* THE WHY — the effect row that fired wears a one-shot kant for the read beat
+   (invariant 15's licence: a `@keyframes` that ends on its own). Its length is
+   the beat's (`--con-reaction-row-ms`, written by the director). */
+@keyframes con-reaction-row {
+    0% { box-shadow: inset 0 0 0 0 fade(@con-amber, 0%); }
+    18% { box-shadow: inset 0 0 0 3px fade(@con-amber, 85%); }
+    78% { box-shadow: inset 0 0 0 3px fade(@con-amber, 85%); }
+    100% { box-shadow: inset 0 0 0 0 fade(@con-amber, 0%); }
+}
+[data-reaction-row] {
+    animation: con-reaction-row var(--con-reaction-row-ms, 900ms) ease-out 1;
+}
+
 /* THE CAUSE IS MARKED, NOT A BIRTH PLACE (the owner's decision 2): the tag of
    the played card / the composer's «Сработает» chip that woke the reactor wears
    a ONE-SHOT kant while the token is born on the reactor — an event that ends
