@@ -55,6 +55,9 @@ describe('the law of the fold — source guard', () => {
       ENGINE,
       'src/client/console/resourceTransfer/railReward.ts',
       'src/client/console/resourceTransfer/resourceTransferDirector.ts',
+      // The card-reaction director COMPOSES two `RailAnswerFlight`s (their `onLeft` chained) and folds no surface itself —
+      // the host that takes the composed flight (the hero, the action rail) is the one that asks `surfaceClear`.
+      'src/client/console/cardReaction/cardReactionDirector.ts',
     ]);
     const offenders: Array<string> = [];
     const walk = (dir: string) => {

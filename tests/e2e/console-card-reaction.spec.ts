@@ -30,7 +30,8 @@ const IMMIGRANT = 'Immigrant City';
 const PETS = 'Pets';
 const NOCTIS = 'Noctis City';
 /** The owner's decision 4: the chain's wall-clock ceiling. */
-const CHAIN_CEILING_MS = 1800;
+/** The chain's ceiling from FOUR groups (the owner, PL-1059) — `REACTION_CHAIN_CEILING_MANY_MS`. */
+const CHAIN_CEILING_MANY_MS = 2400;
 
 type Wire = {
   thisPlayer: {color: string, megacredits: number, megacreditProduction: number, heat: number, tableau: Array<{name: string, resources?: number}>},
@@ -187,23 +188,24 @@ test.describe(`console · card reaction — one framework · ${PRESET.id}`, () =
     const samples = await reactionProbe(page);
     console.log(`[${PRESET.id} MANY probe] ${JSON.stringify(samples)}`);
     expect(endsOverGlass(witness), `every end visible\n${transferTrail(witness)}`).toEqual([]);
-    // Every risen reactor's tokens were born on ITS OWN face — never on the played card. Four rail groups fire in the
-    // server's order (the three the city woke at the placement, then Hartlan's DEFERRED gain): the fourth's rise would
-    // start past the 1.8 s ceiling, so by the owner's decision 4 it is SUMMARIZED — its counters tick, its name stands.
-    for (const reactor of [THARSIS, ROVER, IMMIGRANT]) {
+    // Every reactor's tokens were born on ITS OWN face — never on the played card. Four rail groups fire in the server's
+    // order (the three the city woke at the placement, then Hartlan's DEFERRED gain): from four groups the ceiling is
+    // 2.4 s (the owner, PL-1059), so the fourth — the one the forecast PROMISED — rises too; nothing is summarized.
+    for (const reactor of [THARSIS, ROVER, IMMIGRANT, HARTLAN]) {
       expect(witness.births.some((b) => b.under.startsWith(`reactor:${reactor}:`)), `${reactor}'s answer was born on its effect row\n${transferTrail(witness)}`).toBe(true);
     }
     const seated = new Set(samples.flatMap((s) => s.seated.split('|').filter((x) => x !== '')));
-    expect([...seated], 'the standalone reactors surfaced at seats beside the rail').toEqual(expect.arrayContaining([THARSIS, ROVER, IMMIGRANT]));
+    expect([...seated], 'the standalone reactors surfaced at seats beside the rail').toEqual(expect.arrayContaining([THARSIS, ROVER, IMMIGRANT, HARTLAN]));
     expect(samples.some((s) => s.seats === '2'), 'MANY groups: two seats').toBe(true);
     const summarized = new Set(samples.flatMap((s) => s.summarized.split('|').filter((x) => x !== '')));
-    expect([...summarized], 'the fourth group (the last in the server\'s order) is summarized by name — nothing else').toEqual([HARTLAN]);
-    expect(witness.births.some((b) => b.under.startsWith(`reactor:${HARTLAN}:`)), 'a summarized group births nothing — it ticked').toBe(false);
+    expect([...summarized], 'four groups fit under the 2.4 s ceiling — nothing summarized').toEqual([]);
+    const heatBirths = witness.births.filter((b) => b.under.startsWith(`reactor:${HARTLAN}:`) && /heat/.test(b.under));
+    expect(heatBirths.length, `Hartlan's six heat tokens born on its printed heat\n${transferTrail(witness)}`).toBe(6);
     const wall = chainWallMs(samples);
     console.log(`[${PRESET.id} MANY] chain wall ${wall} ms`);
     expect(wall, 'the chain played').not.toBeUndefined();
     // The ceiling bounds the last RISE; that group's own rise, flight, contact beat and recede follow it.
-    expect(wall ?? Infinity, `the chain's wall-clock: every rise under the ceiling, plus the last group's own flight`).toBeLessThan(CHAIN_CEILING_MS + 2200);
+    expect(wall ?? Infinity, `the chain's wall-clock: every rise under the MANY ceiling, plus the last group's own flight`).toBeLessThan(CHAIN_CEILING_MANY_MS + 2200);
     // The server's numbers — not one delta lost: Hartlan +6 heat / +1 prod; Tharsis +3 M€ / +1 prod; Rover +2 M€; Immigrant +1 prod; Noctis +3 prod; Pets +1 animal.
     const after = await wireOf(request, playerId);
     expect(after.thisPlayer.heat).toBe(before.thisPlayer.heat + 6);

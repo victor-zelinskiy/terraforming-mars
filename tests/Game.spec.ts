@@ -870,6 +870,7 @@ describe('Game', () => {
       // The per-neighbour card payout ring (TR21 Arboretum) — the same law: a
       // restart loses only the scene, never the data (the journal keeps it).
       'cardAdjacencyPayouts',
+      'cardReactions',
       // The scale-step payout ring (TR24 Venusian Census, Aphrodite) — the same law.
       'scaleStepRewards',
       // The parameter-swing ring (TR47 Ecological Experiment) — the same law: a restart loses only the scene

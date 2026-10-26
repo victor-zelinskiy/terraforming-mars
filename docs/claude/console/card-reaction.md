@@ -74,7 +74,8 @@ every corporation in most hosts). The owner, 2026-10-26: «стандартиз�
 7. **The chain is a PLAN with a ceiling** (`planReactionChain`, the owner's decision 4): groups in the server's
    order; the next rises `overlapMs` before the previous group's last landing on the OTHER seat (two faces never
    share a box — two seats from the second group on); from THREE groups the chain quickens (`pace` 1.35); a group
-   whose rise would start past `REACTION_CHAIN_CEILING_MS` (1.8 s) is not risen: its counters tick at once and its
+   whose rise would start past the ceiling — `REACTION_CHAIN_CEILING_MS` (1.8 s), `REACTION_CHAIN_CEILING_MANY_MS`
+   (2.4 s) from FOUR groups (`chainCeilingFor`; the owner's decision 2026-10-26 on PL-1059) — is not risen: its counters tick at once and its
    name stands on the state (`data-reaction-summarized`); the play's own scene never waits for the chain beyond
    its own tempo (the attached flight is the hero's answer beat; the standalone chain plays after the board's
    story). **A / B hurries** (`hurryCardReactions` — the hero's result skip calls it): whatever is left ticks at
@@ -104,9 +105,9 @@ the card is SEALED on the board, and the response's hero is inactive — so nobo
 the record goes STANDALONE: Hartlan surfaces at the seat beside the rail after the seal wave (`BOARD` / `MANY` on
 the box). «Out of its place on the receiving stage» is reached only by a play that lands on the receiving stage
 (a non-tile play waking a corporation — Point Luna's Earth tag). With FOUR rail groups off one staged play (MANY:
-Tharsis · Rover · Immigrant City, then Hartlan's DEFERRED gain last in the server's order) the fourth rise starts
-past the 1.8 s ceiling and is summarized — the reactor the forecast PROMISED is the one that ticks without a face
-(PL-1059, the owner's call: the promised group first / a 2.4 s ceiling from four groups / leave the law).
+Tharsis · Rover · Immigrant City, then Hartlan's DEFERRED gain last in the server's order) the fourth rise would
+start past 1.8 s — the reactor the forecast PROMISED was the one that ticked without a face; the owner's decision
+(2026-10-26, PL-1059): from four groups the ceiling is 2.4 s, the server's order stays, every face is seen.
 
 The scale step's reward (TR24 — the marker is the law), the Parliament's ledger, Pristar's income mark, the banner
 stage (TR77 — its own law), a reaction on a RIVAL's screen (their own reactors play on their screen; a reactor of

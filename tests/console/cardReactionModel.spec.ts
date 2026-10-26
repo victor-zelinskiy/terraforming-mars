@@ -3,8 +3,8 @@ import {CardName} from '../../src/common/cards/CardName';
 import {Resource} from '../../src/common/Resource';
 import {CardReactionRecord} from '../../src/common/models/CardReactionModel';
 import {
-  REACTION_CHAIN_CEILING_MS, REACTION_MANY_PACE, freshCardReactions, groupCardReactions, planReactionChain, reactionGroupOf,
-  reactionImpactSpec, reactionRowsOf, reactionSeatRect, reactionTempo, reactionTokensOf, reducedReactionTempo,
+  REACTION_CHAIN_CEILING_MANY_MS, REACTION_CHAIN_CEILING_MS, REACTION_MANY_PACE, chainCeilingFor, freshCardReactions, groupCardReactions,
+  planReactionChain, reactionGroupOf, reactionImpactSpec, reactionRowsOf, reactionSeatRect, reactionTempo, reactionTokensOf, reducedReactionTempo,
 } from '../../src/client/console/cardReaction/cardReactionModel';
 import {intakeAssemblyTimings, reducedIntakeAssemblyTimings} from '../../src/client/console/cardIntake/intakeAssemblyPlan';
 
@@ -151,6 +151,18 @@ describe('cardReactionModel — the record → the group → the chain → the s
       expect(plan.steps.length + plan.summarized.length).eq(8);
       expect(plan.steps.every((s) => s.riseAtMs < 1800)).is.true;
       expect(plan.summarized).deep.eq(plan.summarized.slice().sort((a, b) => a - b));
+    });
+
+    it('FOUR groups widen the ceiling to 2.4 s (the owner, PL-1059): the fourth — the forecast-promised Hartlan after the city\'s three — RISES; three groups keep 1.8 s', () => {
+      expect(chainCeilingFor(3)).eq(REACTION_CHAIN_CEILING_MS);
+      expect(chainCeilingFor(4)).eq(REACTION_CHAIN_CEILING_MANY_MS);
+      const four = planReactionChain([{tokens: 4}, {tokens: 2}, {tokens: 1}, {tokens: 7}], t, flight);
+      expect(four.summarized, 'nothing summarized — every rise starts under 2.4 s').deep.eq([]);
+      expect(four.steps).to.have.lengthOf(4);
+      expect(four.steps[3].riseAtMs).to.be.greaterThan(REACTION_CHAIN_CEILING_MS);
+      expect(four.steps[3].riseAtMs).to.be.lessThan(REACTION_CHAIN_CEILING_MANY_MS);
+      const three = planReactionChain([{tokens: 4}, {tokens: 2}, {tokens: 7}], t, flight);
+      expect(three.steps.every((s) => s.riseAtMs < REACTION_CHAIN_CEILING_MS)).is.true;
     });
 
     it('no groups: an empty plan', () => {

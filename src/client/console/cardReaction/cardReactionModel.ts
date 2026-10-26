@@ -158,6 +158,15 @@ export function reducedReactionTempo(): ReactionTempo {
 
 /** The chain's wall-clock ceiling (the owner's decision 4): what has not risen by then ticks at once, named. */
 export const REACTION_CHAIN_CEILING_MS = 1800;
+/** From FOUR groups the ceiling widens (the owner, 2026-10-26 — PL-1059: with four reactors off one play the fourth in the
+ *  server's order was the one the forecast PROMISED, and it ticked without a face): every rise still starts under it. */
+export const REACTION_CHAIN_CEILING_MANY_MS = 2400;
+export const REACTION_MANY_CEILING_GROUPS = 4;
+
+/** The chain's wall-clock ceiling for `n` groups — 1.8 s, 2.4 s from four. */
+export function chainCeilingFor(n: number): number {
+  return n >= REACTION_MANY_CEILING_GROUPS ? REACTION_CHAIN_CEILING_MANY_MS : REACTION_CHAIN_CEILING_MS;
+}
 /** From this many groups on, the chain quickens and takes TWO seats (the owner's decision 4). */
 export const REACTION_MANY_GROUPS = 3;
 export const REACTION_MANY_PACE = 1.35;
@@ -199,8 +208,9 @@ export function planReactionChain(
   groups: ReadonlyArray<{tokens: number}>,
   t: ReactionTempo,
   flight: ReactionFlightTempo,
-  ceilingMs = REACTION_CHAIN_CEILING_MS,
+  ceilingOverride?: number,
 ): ReactionChainPlan {
+  const ceilingMs = ceilingOverride ?? chainCeilingFor(groups.length);
   const many = groups.length >= REACTION_MANY_GROUPS;
   const pace = many ? REACTION_MANY_PACE : 1;
   // A second seat the moment there is a second group: the next card rises while the previous one is still landing,

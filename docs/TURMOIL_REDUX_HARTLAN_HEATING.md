@@ -48,8 +48,8 @@ console plays it: the corporation rises at a SEAT beside the rail after the tile
 answers is a STAGED play — the landing ritual has no reward beat and the card is sealed on the board, so the
 record is the standalone chain's; «out of its place on the receiving stage» belongs to a non-tile play), six heat
 tokens are born on ITS printed heat and the production token on its plate, the rows tick on the touchdowns; with
-four reactors off one play the last in the server's order — Hartlan's deferred gain — starts past the chain's
-1.8 s ceiling and is summarized (PL-1059, the owner's call). A new corporation with a hook therefore needs: the live hook, its forecast twin (the coverage guard
+four reactors off one play the last in the server's order — Hartlan's deferred gain — rises under the chain's
+wider ceiling (2.4 s from four groups; the owner's decision on PL-1059). A new corporation with a hook therefore needs: the live hook, its forecast twin (the coverage guard
 names a hook without one), `printedEffect` on the fact when the card prints several effects — and nothing on the
 client. The face: `b.emptyTile('normal', {secondaryTag: AltSecondaryTag.GREEN})` draws the scan's «empty tile
 with the green card's tab» (the corner mark `shape: 'card'` with the type's band — `premiumCardIcons`).
